@@ -93,6 +93,9 @@ extern "C" {
 // defined in nsMenuBarX.mm
 extern NSMenu* sApplicationMenu; // Application menu shared by all menubars
 
+// these are defined in nsCocoaWindow.mm
+extern bool gConsumeRollupEvent;
+
 bool gChildViewMethodsSwizzled = false;
 
 extern nsISupportsArray *gDraggedTransferables;
@@ -106,6 +109,9 @@ NSPoint ChildViewMouseTracker::sLastScrollEventScreenLocation = NSZeroPoint;
 static void blinkRect(Rect* r);
 static void blinkRgn(RgnHandle rgn);
 #endif
+
+nsIRollupListener * gRollupListener = nullptr;
+nsIWidget         * gRollupWidget   = nullptr;
 
 bool gUserCancelledDrag = false;
 
@@ -742,7 +748,7 @@ NS_IMETHODIMP nsChildView::GetBounds(nsIntRect &aRect)
 }
 
 double
-nsChildView::GetDefaultScaleInternal()
+nsChildView::GetDefaultScale()
 {
   return BackingScaleFactor();
 }
@@ -810,7 +816,7 @@ NS_IMETHODIMP nsChildView::Move(int32_t aX, int32_t aY)
   if (mVisible)
     [mView setNeedsDisplay:YES];
 
-  NotifyRollupGeometryChange();
+  NotifyRollupGeometryChange(gRollupListener);
   ReportMoveEvent();
 
   return NS_OK;
@@ -833,7 +839,7 @@ NS_IMETHODIMP nsChildView::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
 
-  NotifyRollupGeometryChange();
+  NotifyRollupGeometryChange(gRollupListener);
   ReportSizeEvent();
 
   return NS_OK;
@@ -864,7 +870,7 @@ NS_IMETHODIMP nsChildView::Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
 
-  NotifyRollupGeometryChange();
+  NotifyRollupGeometryChange(gRollupListener);
   if (isMoving) {
     ReportMoveEvent();
     if (mOnDestroyCalled)
@@ -1484,8 +1490,9 @@ nsIntPoint nsChildView::WidgetToScreenOffset()
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0,0));
 }
 
-NS_IMETHODIMP nsChildView::CaptureRollupEvents(nsIRollupListener * aListener,
-                                               bool aDoCapture)
+NS_IMETHODIMP nsChildView::CaptureRollupEvents(nsIRollupListener * aListener, 
+                                               bool aDoCapture, 
+                                               bool aConsumeRollupEvent)
 {
   // this never gets called, only top-level windows can be rollup widgets
   return NS_OK;
@@ -1612,13 +1619,6 @@ nsChildView::GetInputContext()
     default:
       mInputContext.mIMEState.mOpen = IMEState::CLOSED;
       break;
-  }
-  mInputContext.mNativeIMEContext = [mView inputContext];
-  // If input context isn't available on this widget, we should set |this|
-  // instead of nullptr since nullptr means that the platform has only one
-  // context per process.
-  if (!mInputContext.mNativeIMEContext) {
-    mInputContext.mNativeIMEContext = this;
   }
   return mInputContext;
 }
@@ -2651,16 +2651,14 @@ NSEvent* gLastDragMouseDownEvent = nil;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+  if (!gRollupWidget)
+    return;
+
 #ifdef MOZ_USE_NATIVE_POPUP_WINDOWS
   return;
 #endif /* MOZ_USE_NATIVE_POPUP_WINDOWS */
 
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  nsCOMPtr<nsIWidget> widget = rollupListener->GetRollupWidget();
-  if (!widget)
-    return;
-
-  NSWindow *popupWindow = (NSWindow*)widget->GetNativeData(NS_NATIVE_WINDOW);
+  NSWindow *popupWindow = (NSWindow*)gRollupWidget->GetNativeData(NS_NATIVE_WINDOW);
   if (!popupWindow || ![popupWindow isKindOfClass:[PopupWindow class]])
     return;
 
@@ -2680,17 +2678,15 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   BOOL consumeEvent = NO;
 
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-  if (rollupWidget) {
-    NSWindow* currentPopup = static_cast<NSWindow*>(rollupWidget->GetNativeData(NS_NATIVE_WINDOW));
+  if (gRollupWidget && gRollupListener) {
+    NSWindow* currentPopup = static_cast<NSWindow*>(gRollupWidget->GetNativeData(NS_NATIVE_WINDOW));
     if (!nsCocoaUtils::IsEventOverWindow(theEvent, currentPopup)) {
       // event is not over the rollup window, default is to roll up
       bool shouldRollup = true;
 
       // check to see if scroll events should roll up the popup
       if ([theEvent type] == NSScrollWheel) {
-        shouldRollup = rollupListener->ShouldRollupOnMouseWheelEvent();
+        shouldRollup = gRollupListener->ShouldRollupOnMouseWheelEvent();
         // always consume scroll events that aren't over the popup
         consumeEvent = YES;
       }
@@ -2699,28 +2695,31 @@ NSEvent* gLastDragMouseDownEvent = nil;
       // we don't want to rollup if the click is in a parent menu of
       // the current submenu
       uint32_t popupsToRollup = UINT32_MAX;
-      nsAutoTArray<nsIWidget*, 5> widgetChain;
-      uint32_t sameTypeCount = rollupListener->GetSubmenuWidgetChain(&widgetChain);
-      for (uint32_t i = 0; i < widgetChain.Length(); i++) {
-        nsIWidget* widget = widgetChain[i];
-        NSWindow* currWindow = (NSWindow*)widget->GetNativeData(NS_NATIVE_WINDOW);
-        if (nsCocoaUtils::IsEventOverWindow(theEvent, currWindow)) {
-          // don't roll up if the mouse event occurred within a menu of the
-          // same type. If the mouse event occurred in a menu higher than
-          // that, roll up, but pass the number of popups to Rollup so
-          // that only those of the same type close up.
-          if (i < sameTypeCount) {
-            shouldRollup = false;
+      if (gRollupListener) {
+        nsAutoTArray<nsIWidget*, 5> widgetChain;
+        uint32_t sameTypeCount = gRollupListener->GetSubmenuWidgetChain(&widgetChain);
+        for (uint32_t i = 0; i < widgetChain.Length(); i++) {
+          nsIWidget* widget = widgetChain[i];
+          NSWindow* currWindow = (NSWindow*)widget->GetNativeData(NS_NATIVE_WINDOW);
+          if (nsCocoaUtils::IsEventOverWindow(theEvent, currWindow)) {
+            // don't roll up if the mouse event occurred within a menu of the
+            // same type. If the mouse event occurred in a menu higher than
+            // that, roll up, but pass the number of popups to Rollup so
+            // that only those of the same type close up.
+            if (i < sameTypeCount) {
+              shouldRollup = false;
+            }
+            else {
+              popupsToRollup = sameTypeCount;
+            }
+            break;
           }
-          else {
-            popupsToRollup = sameTypeCount;
-          }
-          break;
         }
       }
 
       if (shouldRollup) {
-        consumeEvent = (BOOL)rollupListener->Rollup(popupsToRollup, nullptr);
+        gRollupListener->Rollup(popupsToRollup);
+        consumeEvent = (BOOL)gConsumeRollupEvent;
       }
     }
   }

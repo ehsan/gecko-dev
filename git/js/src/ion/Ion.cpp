@@ -179,20 +179,21 @@ IonCompartment::mark(JSTracer *trc, JSCompartment *compartment)
     // triggers a read barrier on both these pointers, so they will still be
     // marked in that case.
 
-    bool runningIonCode = false;
+    bool mustMarkEnterJIT = false;
     for (IonActivationIterator iter(trc->runtime); iter.more(); ++iter) {
         IonActivation *activation = iter.activation();
 
         if (activation->compartment() != compartment)
             continue;
 
-        runningIonCode = true;
-        break;
+        // Both OSR and normal function calls depend on the EnterJIT code
+        // existing for entrance and exit.
+        mustMarkEnterJIT = true;
     }
 
-    // Don't destroy enterJIT if we are running Ion code. Note that enterJIT is
-    // not used for JM -> Ion calls, so it may be NULL in that case.
-    if (runningIonCode && enterJIT_)
+    // These must be available if we could be running JIT code; they are not
+    // traced as normal through IonCode or IonScript objects
+    if (mustMarkEnterJIT)
         MarkIonCodeRoot(trc, enterJIT_.unsafeGet(), "enterJIT");
 
     // functionWrappers_ are not marked because this is a WeakCache of VM
@@ -764,90 +765,60 @@ CompileBackEnd(MIRGenerator *mir)
 
     MIRGraph &graph = mir->graph();
 
-    if (mir->shouldCancel("Start"))
-        return NULL;
-
     if (!SplitCriticalEdges(graph))
         return NULL;
     IonSpewPass("Split Critical Edges");
     AssertGraphCoherency(graph);
-
-    if (mir->shouldCancel("Split Critical Edges"))
-        return NULL;
 
     if (!RenumberBlocks(graph))
         return NULL;
     IonSpewPass("Renumber Blocks");
     AssertGraphCoherency(graph);
 
-    if (mir->shouldCancel("Renumber Blocks"))
-        return NULL;
-
     if (!BuildDominatorTree(graph))
         return NULL;
     // No spew: graph not changed.
 
-    if (mir->shouldCancel("Dominator Tree"))
-        return NULL;
-
     // This must occur before any code elimination.
-    if (!EliminatePhis(mir, graph))
+    if (!EliminatePhis(graph))
         return NULL;
     IonSpewPass("Eliminate phis");
     AssertGraphCoherency(graph);
-
-    if (mir->shouldCancel("Eliminate phis"))
-        return NULL;
 
     if (!BuildPhiReverseMapping(graph))
         return NULL;
     // No spew: graph not changed.
 
-    if (mir->shouldCancel("Phi reverse mapping"))
-        return NULL;
-
     // This pass also removes copies.
-    if (!ApplyTypeInformation(mir, graph))
+    if (!ApplyTypeInformation(graph))
         return NULL;
     IonSpewPass("Apply types");
     AssertGraphCoherency(graph);
 
-    if (mir->shouldCancel("Apply types"))
-        return NULL;
-
     // Alias analysis is required for LICM and GVN so that we don't move
     // loads across stores.
     if (js_IonOptions.licm || js_IonOptions.gvn) {
-        AliasAnalysis analysis(mir, graph);
+        AliasAnalysis analysis(graph);
         if (!analysis.analyze())
             return NULL;
         IonSpewPass("Alias analysis");
         AssertGraphCoherency(graph);
-
-        if (mir->shouldCancel("Alias analysis"))
-            return NULL;
     }
 
     if (js_IonOptions.edgeCaseAnalysis) {
-        EdgeCaseAnalysis edgeCaseAnalysis(mir, graph);
+        EdgeCaseAnalysis edgeCaseAnalysis(graph);
         if (!edgeCaseAnalysis.analyzeEarly())
             return NULL;
         IonSpewPass("Edge Case Analysis (Early)");
         AssertGraphCoherency(graph);
-
-        if (mir->shouldCancel("Edge Case Analysis (Early)"))
-            return NULL;
     }
 
     if (js_IonOptions.gvn) {
-        ValueNumberer gvn(mir, graph, js_IonOptions.gvnIsOptimistic);
+        ValueNumberer gvn(graph, js_IonOptions.gvnIsOptimistic);
         if (!gvn.analyze())
             return NULL;
         IonSpewPass("GVN");
         AssertGraphCoherency(graph);
-
-        if (mir->shouldCancel("GVN"))
-            return NULL;
     }
 
     if (js_IonOptions.rangeAnalysis) {
@@ -857,54 +828,36 @@ CompileBackEnd(MIRGenerator *mir)
         IonSpewPass("Beta");
         AssertGraphCoherency(graph);
 
-        if (mir->shouldCancel("RA Beta"))
-            return NULL;
-
         if (!r.analyze())
             return NULL;
         IonSpewPass("Range Analysis");
         AssertGraphCoherency(graph);
 
-        if (mir->shouldCancel("Range Analysis"))
-            return NULL;
-
         if (!r.removeBetaNobes())
             return NULL;
         IonSpewPass("De-Beta");
         AssertGraphCoherency(graph);
-
-        if (mir->shouldCancel("RA De-Beta"))
-            return NULL;
     }
 
-    if (!EliminateDeadCode(mir, graph))
+    if (!EliminateDeadCode(graph))
         return NULL;
     IonSpewPass("DCE");
     AssertGraphCoherency(graph);
 
-    if (mir->shouldCancel("DCE"))
-        return NULL;
-
     if (js_IonOptions.licm) {
-        LICM licm(mir, graph);
+        LICM licm(graph);
         if (!licm.analyze())
             return NULL;
         IonSpewPass("LICM");
         AssertGraphCoherency(graph);
-
-        if (mir->shouldCancel("LICM"))
-            return NULL;
     }
 
     if (js_IonOptions.edgeCaseAnalysis) {
-        EdgeCaseAnalysis edgeCaseAnalysis(mir, graph);
+        EdgeCaseAnalysis edgeCaseAnalysis(graph);
         if (!edgeCaseAnalysis.analyzeLate())
             return NULL;
         IonSpewPass("Edge Case Analysis (Late)");
         AssertGraphCoherency(graph);
-
-        if (mir->shouldCancel("Edge Case Analysis (Late)"))
-            return NULL;
     }
 
     // Note: bounds check elimination has to run after all other passes that
@@ -916,9 +869,6 @@ CompileBackEnd(MIRGenerator *mir)
     IonSpewPass("Bounds Check Elimination");
     AssertGraphCoherency(graph);
 
-    if (mir->shouldCancel("Bounds Check Elimination"))
-        return NULL;
-
     LIRGraph *lir = mir->temp().lifoAlloc()->new_<LIRGraph>(&graph);
     if (!lir)
         return NULL;
@@ -928,17 +878,11 @@ CompileBackEnd(MIRGenerator *mir)
         return NULL;
     IonSpewPass("Generate LIR");
 
-    if (mir->shouldCancel("Generate LIR"))
-        return NULL;
-
     if (js_IonOptions.lsra) {
-        LinearScanAllocator regalloc(mir, &lirgen, *lir);
+        LinearScanAllocator regalloc(&lirgen, *lir);
         if (!regalloc.go())
             return NULL;
         IonSpewPass("Allocate Registers", &regalloc);
-
-        if (mir->shouldCancel("Allocate Registers"))
-            return NULL;
     }
 
     return lir;
@@ -1513,7 +1457,7 @@ ion::SideCannon(JSContext *cx, StackFrame *fp, jsbytecode *pc)
 }
 
 IonExecStatus
-ion::FastInvoke(JSContext *cx, HandleFunction fun, CallArgsList &args)
+ion::FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args)
 {
     JS_CHECK_RECURSION(cx, return IonExec_Error);
 
@@ -1555,9 +1499,7 @@ ion::FastInvoke(JSContext *cx, HandleFunction fun, CallArgsList &args)
     Value result = Int32Value(fun->nargs);
 
     JSAutoResolveFlags rf(cx, RESOLVE_INFER);
-    args.setActive();
     enter(jitcode, args.length() + 1, &args[0] - 1, fp, calleeToken, &result);
-    args.setInactive();
 
     if (clearCallingIntoIon)
         fp->clearCallingIntoIon();

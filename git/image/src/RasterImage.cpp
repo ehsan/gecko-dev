@@ -47,16 +47,9 @@ using namespace mozilla::layers;
 
 /* Accounting for compressed data */
 #if defined(PR_LOGGING)
-static PRLogModuleInfo *
-GetCompressedImageAccountingLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("CompressedImageAccounting");
-  return sLog;
-}
+static PRLogModuleInfo *gCompressedImageAccountingLog = PR_NewLogModule ("CompressedImageAccounting");
 #else
-#define GetCompressedImageAccountingLog()
+#define gCompressedImageAccountingLog
 #endif
 
 // Tweakable progressive decoding parameters.  These are initialized to 0 here
@@ -98,7 +91,7 @@ InitPrefCaches()
  */
 #define LOG_CONTAINER_ERROR                      \
   PR_BEGIN_MACRO                                 \
-  PR_LOG (GetImgLog(), PR_LOG_ERROR,             \
+  PR_LOG (gImgLog, PR_LOG_ERROR,                 \
           ("RasterImage: [this=%p] Error "      \
            "detected at line %u for image of "   \
            "type %s\n", this, __LINE__,          \
@@ -394,7 +387,7 @@ RasterImage::~RasterImage()
     num_discardable_containers--;
     discardable_source_bytes -= mSourceData.Length();
 
-    PR_LOG (GetCompressedImageAccountingLog(), PR_LOG_DEBUG,
+    PR_LOG (gCompressedImageAccountingLog, PR_LOG_DEBUG,
             ("CompressedImageAccounting: destroying RasterImage %p.  "
              "Total Containers: %d, Discardable containers: %d, "
              "Total source bytes: %lld, Source bytes for discardable containers %lld",
@@ -1749,7 +1742,7 @@ RasterImage::AddSourceData(const char *aBuffer, uint32_t aCount)
   total_source_bytes += aCount;
   if (mDiscardable)
     discardable_source_bytes += aCount;
-  PR_LOG (GetCompressedImageAccountingLog(), PR_LOG_DEBUG,
+  PR_LOG (gCompressedImageAccountingLog, PR_LOG_DEBUG,
           ("CompressedImageAccounting: Added compressed data to RasterImage %p (%s). "
            "Total Containers: %d, Discardable containers: %d, "
            "Total source bytes: %lld, Source bytes for discardable containers %lld",
@@ -1823,10 +1816,10 @@ RasterImage::SourceDataComplete()
   mSourceData.Compact();
 
   // Log header information
-  if (PR_LOG_TEST(GetCompressedImageAccountingLog(), PR_LOG_DEBUG)) {
+  if (PR_LOG_TEST(gCompressedImageAccountingLog, PR_LOG_DEBUG)) {
     char buf[9];
     get_header_str(buf, mSourceData.Elements(), mSourceData.Length());
-    PR_LOG (GetCompressedImageAccountingLog(), PR_LOG_DEBUG,
+    PR_LOG (gCompressedImageAccountingLog, PR_LOG_DEBUG,
             ("CompressedImageAccounting: RasterImage::SourceDataComplete() - data "
              "is done for container %p (%s) - header %p is 0x%s (length %d)",
              this,
@@ -2434,7 +2427,7 @@ RasterImage::Discard(bool force)
     DiscardTracker::Remove(&mDiscardTrackerNode);
 
   // Log
-  PR_LOG(GetCompressedImageAccountingLog(), PR_LOG_DEBUG,
+  PR_LOG(gCompressedImageAccountingLog, PR_LOG_DEBUG,
          ("CompressedImageAccounting: discarded uncompressed image "
           "data from RasterImage %p (%s) - %d frames (cached count: %d); "
           "Total Containers: %d, Discardable containers: %d, "
@@ -3090,7 +3083,7 @@ RasterImage::UnlockImage()
   // we've decoded.
   if (mHasBeenDecoded && mDecoder &&
       mLockCount == 0 && CanForciblyDiscard()) {
-    PR_LOG(GetCompressedImageAccountingLog(), PR_LOG_DEBUG,
+    PR_LOG(gCompressedImageAccountingLog, PR_LOG_DEBUG,
            ("RasterImage[0x%p] canceling decode because image "
             "is now unlocked.", this));
     ShutdownDecoder(eShutdownIntent_Interrupted);

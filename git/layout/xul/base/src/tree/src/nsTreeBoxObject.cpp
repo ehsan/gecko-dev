@@ -162,7 +162,7 @@ static bool
 CanTrustView(nsISupports* aValue)
 {
   // Untrusted content is only allowed to specify known-good views
-  if (nsContentUtils::IsCallerChrome())
+  if (nsContentUtils::IsCallerTrustedForWrite())
     return true;
   nsCOMPtr<nsINativeTreeView> nativeTreeView = do_QueryInterface(aValue);
   if (!nativeTreeView || NS_FAILED(nativeTreeView->EnsureNative())) {

@@ -15,8 +15,8 @@
 namespace mozilla {
 
 #ifdef PR_LOGGING
-extern PRLogModuleInfo* GetMediaManagerLog();
-#define LOG(msg) PR_LOG(GetMediaManagerLog(), PR_LOG_DEBUG, msg)
+extern PRLogModuleInfo* gMediaManagerLog;
+#define LOG(msg) PR_LOG(gMediaManagerLog, PR_LOG_DEBUG, msg)
 #else
 #define LOG(msg)
 #endif
@@ -247,7 +247,7 @@ MediaEngineWebRTCAudioSource::Process(const int channel,
   AudioSegment segment;
   segment.Init(CHANNELS);
   segment.AppendFrames(
-    buffer.forget(), length, 0, length, AUDIO_FORMAT_S16
+    buffer.forget(), length, 0, length, nsAudioStream::FORMAT_S16
   );
   mSource->AppendToTrack(mTrackID, &segment);
 

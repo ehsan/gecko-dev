@@ -264,8 +264,3 @@ DummyAccessible::NativelyUnavailable() const
 {
   return false;
 }
-
-void
-DummyAccessible::ApplyARIAState(uint64_t* aState) const
-{
-}

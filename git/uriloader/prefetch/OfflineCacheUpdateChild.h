@@ -73,9 +73,7 @@ private:
     nsCOMPtr<nsIURI> mDocumentURI;
 
     nsCOMPtr<nsIObserverService> mObserverService;
-
-    uint32_t mAppID;
-    bool mInBrowser;
+    nsCOMPtr<nsILoadContext> mLoadContext;
 
     /* Clients watching this update for changes */
     nsCOMArray<nsIWeakReference> mWeakObservers;

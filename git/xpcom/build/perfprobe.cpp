@@ -17,15 +17,8 @@ namespace mozilla {
 namespace probes {
 
 #if defined(MOZ_LOGGING)
-static PRLogModuleInfo *
-GetProbeLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("SysProbe");
-  return sLog;
-}
-#define LOG(x)  PR_LOG(GetProbeLog(), PR_LOG_DEBUG, x)
+static PRLogModuleInfo *gProbeLog = PR_NewLogModule("SysProbe");
+#define LOG(x)  PR_LOG(gProbeLog, PR_LOG_DEBUG, x)
 #else
 #define LOG(x)
 #endif

@@ -105,7 +105,6 @@ class TextSelection extends Layer implements GeckoEventListener {
                     }
                 });
             } else if (event.equals("TextSelection:PositionHandles")) {
-                final boolean rtl = message.getBoolean("rtl");
                 final JSONArray positions = message.getJSONArray("positions");
                 GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
                     public void run() {
@@ -117,7 +116,7 @@ class TextSelection extends Layer implements GeckoEventListener {
 
                                 TextSelectionHandle handle = getHandle(position.getString("handle"));
                                 handle.setVisibility(position.getBoolean("hidden") ? View.GONE : View.VISIBLE);
-                                handle.positionFromGecko(left, top, rtl);
+                                handle.positionFromGecko(left, top);
                             }
                         } catch (Exception e) { }
                     }

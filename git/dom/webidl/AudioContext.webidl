@@ -25,9 +25,6 @@ interface mozAudioContext {
     [Creator]
     AudioBufferSourceNode createBufferSource();
 
-    [Creator]
-    GainNode createGain();
-
 };
 
 typedef mozAudioContext AudioContext;

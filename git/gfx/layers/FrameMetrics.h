@@ -85,11 +85,8 @@ public:
 
   gfx::Point GetScrollOffsetInLayerPixels() const
   {
-    return gfx::Point(
-      static_cast<gfx::Float>(
-        mScrollOffset.x * LayersPixelsPerCSSPixel().width),
-      static_cast<gfx::Float>(
-        mScrollOffset.y * LayersPixelsPerCSSPixel().height));
+    return gfx::Point(mScrollOffset.x * LayersPixelsPerCSSPixel().width,
+                      mScrollOffset.y * LayersPixelsPerCSSPixel().height);
   }
 
   // ---------------------------------------------------------------------------

@@ -42,7 +42,9 @@
 #pragma warning(disable:4355) /* Silence warning about "this" used in base member initializer list */
 #endif
 
+JS_BEGIN_EXTERN_C
 struct DtoaState;
+JS_END_EXTERN_C
 
 extern void
 js_ReportOutOfMemory(JSContext *cx);
@@ -550,7 +552,6 @@ struct JSRuntime : js::RuntimeFriendFields
     int64_t             gcLastGCTime;
     int64_t             gcJitReleaseTime;
     JSGCMode            gcMode;
-    size_t              gcAllocationThreshold;
     bool                gcHighFrequencyGC;
     uint64_t            gcHighFrequencyTimeThreshold;
     uint64_t            gcHighFrequencyLowLimitBytes;

@@ -144,7 +144,7 @@ function setupSearchEngine()
     if (searchEngineInfo.imageHD && window.matchMedia("(min-resolution: 2dppx)"))
       logoElt.src = searchEngineInfo.imageHD;
 #endif
-    logoElt.alt = searchEngineName;
+    logoElt.alt = searchEngineInfo.name;
   }
 
   // The "autofocus" attribute doesn't focus the form element

@@ -27,7 +27,6 @@ public:
 
   bool Connect(const nsAString& aDeviceObjectPath);
   void Disconnect();
-  bool Listen();
 
 private:
   friend class BluetoothScoManagerObserver;
@@ -39,8 +38,6 @@ private:
   virtual void OnConnectSuccess() MOZ_OVERRIDE;
   virtual void OnConnectError() MOZ_OVERRIDE;
   virtual void OnDisconnect() MOZ_OVERRIDE;
-
-  int mSocketStatus;
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -261,13 +261,6 @@ public class LayerView extends FrameLayout {
         return false;
     }
 
-    public boolean isIMEEnabled() {
-        if (mInputConnectionHandler != null) {
-            return mInputConnectionHandler.isIMEEnabled();
-        }
-        return false;
-    }
-
     public void requestRender() {
         if (mListener != null) {
             mListener.renderRequested();
@@ -293,6 +286,7 @@ public class LayerView extends FrameLayout {
 
     /* paintState must be a PAINT_xxx constant. */
     public void setPaintState(int paintState) {
+        Log.d(LOGTAG, "LayerView paint state set to " + paintState);
         mPaintState = paintState;
     }
 

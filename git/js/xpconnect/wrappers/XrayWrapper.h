@@ -95,47 +95,20 @@ class XrayWrapper : public Base {
 
 typedef XrayWrapper<js::CrossCompartmentWrapper, DOMXrayTraits > XrayDOM;
 
-class SandboxProxyHandler : public js::Wrapper {
+class SandboxProxyHandler : public js::IndirectWrapper {
 public:
-    SandboxProxyHandler() : js::Wrapper(0)
+    SandboxProxyHandler() : js::IndirectWrapper(0)
     {
     }
 
     virtual bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id,
-                                       bool set, js::PropertyDescriptor *desc) MOZ_OVERRIDE;
+                                       bool set, js::PropertyDescriptor *desc);
     virtual bool getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy,
                                           jsid id, bool set,
-                                          js::PropertyDescriptor *desc) MOZ_OVERRIDE;
-
-    // We just forward the derived traps to the BaseProxyHandler versions which
-    // implement them in terms of the fundamental traps.
-    virtual bool has(JSContext *cx, JSObject *proxy, jsid id, bool *bp) MOZ_OVERRIDE;
-    virtual bool hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp) MOZ_OVERRIDE;
-    virtual bool get(JSContext *cx, JSObject *proxy, JSObject *receiver,
-                     jsid id, JS::Value *vp) MOZ_OVERRIDE;
-    virtual bool set(JSContext *cx, JSObject *proxy, JSObject *receiver,
-                     jsid id, bool strict, JS::Value *vp) MOZ_OVERRIDE;
-    virtual bool keys(JSContext *cx, JSObject *proxy, JS::AutoIdVector &props) MOZ_OVERRIDE;
-    virtual bool iterate(JSContext *cx, JSObject *proxy, unsigned flags,
-                         JS::Value *vp) MOZ_OVERRIDE;
+                                          js::PropertyDescriptor *desc);
 };
 
 extern SandboxProxyHandler sandboxProxyHandler;
-
-// A proxy handler that lets us wrap callables and invoke them with
-// the correct this object, while forwarding all other operations down
-// to them directly.
-class SandboxCallableProxyHandler : public js::Wrapper {
-public:
-    SandboxCallableProxyHandler() : js::Wrapper(0)
-    {
-    }
-
-    virtual bool call(JSContext *cx, JSObject *proxy, unsigned argc,
-                      JS::Value *vp);
-};
-
-extern SandboxCallableProxyHandler sandboxCallableProxyHandler;
 
 class AutoSetWrapperNotShadowing;
 class XPCWrappedNativeXrayTraits;

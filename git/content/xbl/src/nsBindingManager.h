@@ -30,7 +30,7 @@ template<class E> class nsRefPtr;
 typedef nsTArray<nsRefPtr<nsXBLBinding> > nsBindingList;
 class nsIPrincipal;
 
-class nsBindingManager MOZ_FINAL : public nsStubMutationObserver
+class nsBindingManager : public nsStubMutationObserver
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

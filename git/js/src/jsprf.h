@@ -16,9 +16,10 @@
 **      %hd, %hu, %hx, %hX, %ho - 16-bit versions of above
 **      %ld, %lu, %lx, %lX, %lo - 32-bit versions of above
 **      %lld, %llu, %llx, %llX, %llo - 64 bit versions of above
-**      %s - ascii string
-**      %hs - ucs2 string
+**      %s - string
+**      %hs - 16-bit version of above (only available if js_CStringsAreUTF8)
 **      %c - character
+**      %hc - 16-bit version of above (only available if js_CStringsAreUTF8)
 **      %p - pointer (deals with machine dependent pointer size)
 **      %f - float
 **      %g - float
@@ -26,6 +27,8 @@
 #include "jstypes.h"
 #include <stdio.h>
 #include <stdarg.h>
+
+JS_BEGIN_EXTERN_C
 
 /*
 ** sprintf into a fixed size buffer. Guarantees that a NUL is at the end
@@ -73,5 +76,7 @@ extern JS_PUBLIC_API(uint32_t) JS_vsnprintf(char *out, uint32_t outlen, const ch
 extern JS_PUBLIC_API(char*) JS_vsmprintf(const char *fmt, va_list ap);
 extern JS_PUBLIC_API(char*) JS_vsprintf_append(char *last, const char *fmt, va_list ap);
 extern JS_PUBLIC_API(uint32_t) JS_vsxprintf(JSStuffFunc f, void *arg, const char *fmt, va_list ap);
+
+JS_END_EXTERN_C
 
 #endif /* jsprf_h___ */

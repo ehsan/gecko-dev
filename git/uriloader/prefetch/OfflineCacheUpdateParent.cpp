@@ -75,6 +75,10 @@ OfflineCacheUpdateParent::Schedule(const URIParams& aManifestURI,
 {
     LOG(("OfflineCacheUpdateParent::RecvSchedule [%p]", this));
 
+    // Load context members
+    mIsInBrowserElement = isInBrowserElement;
+    mAppId = appId;
+
     nsRefPtr<nsOfflineCacheUpdate> update;
     nsCOMPtr<nsIURI> manifestURI = DeserializeURI(aManifestURI);
     if (!manifestURI)
@@ -100,15 +104,13 @@ OfflineCacheUpdateParent::Schedule(const URIParams& aManifestURI,
     if (!NS_SecurityCompareURIs(manifestURI, documentURI, false))
         return NS_ERROR_DOM_SECURITY_ERR;
 
-    service->FindUpdate(manifestURI, appId, isInBrowserElement,
-                        getter_AddRefs(update));
+    service->FindUpdate(manifestURI, this, getter_AddRefs(update));
     if (!update) {
         update = new nsOfflineCacheUpdate();
 
         // Leave aDocument argument null. Only glues and children keep 
         // document instances.
-        rv = update->Init(manifestURI, documentURI, nullptr, nullptr,
-                          appId, isInBrowserElement);
+        rv = update->Init(manifestURI, documentURI, nullptr, nullptr, this);
         NS_ENSURE_SUCCESS(rv, rv);
 
         rv = update->Schedule();

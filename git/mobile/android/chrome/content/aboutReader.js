@@ -548,7 +548,6 @@ AboutReader.prototype = {
       link.innerHTML = option.name;
       item.appendChild(link);
 
-      link.style.MozUserSelect = 'none';
       segmentedButton.appendChild(item);
 
       link.addEventListener("click", function(aEvent) {

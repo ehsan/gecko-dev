@@ -953,14 +953,6 @@ public:
     mIsGlyph = aValue;
   }
 
-  bool UsesRootEMUnits() const {
-    return mUsesRootEMUnits;
-  }
-
-  void SetUsesRootEMUnits(bool aValue) {
-    mUsesRootEMUnits = aValue;
-  }
-
   bool UsesViewportUnits() const {
     return mUsesViewportUnits;
   }
@@ -1224,9 +1216,7 @@ protected:
   // Are we currently drawing an SVG glyph?
   unsigned              mIsGlyph : 1;
 
-  // Does the associated document use root-em (rem) units?
-  unsigned              mUsesRootEMUnits : 1;
-  // Does the associated document use viewport units (vw/vh/vmin/vmax)?
+  // Does the associated document use viewport units?
   unsigned              mUsesViewportUnits : 1;
 
   // Has there been a change to the viewport's dimensions?

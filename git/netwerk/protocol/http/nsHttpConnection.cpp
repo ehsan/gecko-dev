@@ -1271,7 +1271,7 @@ nsHttpConnection::OnSocketWritable()
             //
             mTransaction->OnTransportStatus(mSocketTransport,
                                             NS_NET_STATUS_WAITING_FOR,
-                                            0);
+                                            LL_ZERO);
 
             rv = ResumeRecv(); // start reading
             again = false;

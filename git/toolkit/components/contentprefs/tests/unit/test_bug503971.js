@@ -3,7 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 function run_test() {
-  var cps = new ContentPrefInstance(null);
+  var cps = Cc["@mozilla.org/content-pref/service;1"].
+            getService(Ci.nsIContentPrefService);
 
   var uri = ContentPrefTest.getURI("http://www.example.com/");
   

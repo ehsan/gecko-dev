@@ -46,7 +46,6 @@
 
 #include "nsThreadUtils.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/Util.h"
 
 static const char DISK_CACHE_DEVICE_ID[] = { "disk" };
 using namespace mozilla;
@@ -537,6 +536,7 @@ nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
 nsresult
 nsDiskCacheDevice::DeactivateEntry(nsCacheEntry * entry)
 {
+    nsresult              rv = NS_OK;
     nsDiskCacheBinding * binding = GetCacheEntryBinding(entry);
     if (!IsValidBinding(binding))
         return NS_ERROR_UNEXPECTED;
@@ -550,7 +550,7 @@ nsDiskCacheDevice::DeactivateEntry(nsCacheEntry * entry)
     // ensure we can cancel the event via the binding later if necessary
     binding->mDeactivateEvent = event;
 
-    DebugOnly<nsresult> rv = nsCacheService::DispatchToCacheIOThread(event);
+    rv = nsCacheService::DispatchToCacheIOThread(event);
     NS_ASSERTION(NS_SUCCEEDED(rv), "DeactivateEntry: Failed dispatching "
                                    "deactivation event");
     return NS_OK;

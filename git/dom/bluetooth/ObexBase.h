@@ -142,8 +142,6 @@ public:
 
   void GetName(nsString& aRetName)
   {
-    aRetName.Truncate();
-
     int length = mHeaders.Length();
 
     for (int i = 0; i < length; ++i) {
@@ -163,8 +161,6 @@ public:
 
   void GetContentType(nsString& aRetContentType)
   {
-    aRetContentType.Truncate();
-
     int length = mHeaders.Length();
 
     for (int i = 0; i < length; ++i) {
@@ -200,9 +196,7 @@ int AppendHeaderBody(uint8_t* retBuf, uint8_t* data, int length);
 int AppendHeaderLength(uint8_t* retBuf, int objectLength);
 int AppendHeaderConnectionId(uint8_t* retBuf, int connectionId);
 void SetObexPacketInfo(uint8_t* retBuf, uint8_t opcode, int packetLength);
-int ParseHeadersAndFindBody(uint8_t* aHeaderStart,
-                            int aTotalLength,
-                            ObexHeaderSet* aRetHanderSet);
+void ParseHeaders(uint8_t* buf, int totalLength, ObexHeaderSet* retHanderSet);
 
 END_BLUETOOTH_NAMESPACE
 

@@ -10,7 +10,6 @@
 #include "nsBulletFrame.h" // legacy location for list style type to text code
 #include "nsContentUtils.h"
 #include "nsTArray.h"
-#include "mozilla/Likely.h"
 
 bool
 nsCounterUseNode::InitTextFrame(nsGenConList* aList,
@@ -230,7 +229,7 @@ nsCounterManager::AddResetOrIncrement(nsIFrame *aFrame, int32_t aIndex,
 
     // Don't call Calc() if the list is already dirty -- it'll be recalculated
     // anyway, and trying to calculate with a dirty list doesn't work.
-    if (MOZ_LIKELY(!counterList->IsDirty())) {
+    if (NS_LIKELY(!counterList->IsDirty())) {
         node->Calc(counterList);
     }
     return false;

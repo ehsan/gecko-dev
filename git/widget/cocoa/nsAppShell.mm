@@ -38,6 +38,10 @@
 
 using namespace mozilla::widget;
 
+// defined in nsChildView.mm
+extern nsIRollupListener * gRollupListener;
+extern nsIWidget         * gRollupWidget;
+
 // defined in nsCocoaWindow.mm
 extern int32_t             gXULModalLevel;
 
@@ -959,10 +963,8 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 
   NSString *sender = [aNotification object];
   if (!sender || ![sender isEqualToString:@"org.mozilla.gecko.PopupWindow"]) {
-    nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-    nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-    if (rollupWidget)
-      rollupListener->Rollup(0, nullptr);
+    if (gRollupListener && gRollupWidget)
+      gRollupListener->Rollup(0);
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;

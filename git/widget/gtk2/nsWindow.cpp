@@ -60,7 +60,6 @@
 #include <startup-notification-1.0/libsn/sn.h>
 #endif
 
-#include "mozilla/Likely.h"
 #include "mozilla/Preferences.h"
 #include "nsIPrefService.h"
 #include "nsIGConfService.h"
@@ -135,6 +134,8 @@ const gint kEvents = GDK_EXPOSURE_MASK | GDK_STRUCTURE_MASK |
                      GDK_POINTER_MOTION_MASK;
 
 /* utility functions */
+static bool       check_for_rollup(gdouble aMouseX, gdouble aMouseY,
+                                   bool aIsWheel, bool aAlwaysRollup);
 static bool       is_mouse_in_window(GdkWindow* aWindow,
                                      gdouble aMouseX, gdouble aMouseY);
 static nsWindow  *get_window_for_gtk_widget(GtkWidget *widget);
@@ -256,6 +257,10 @@ static bool              gBlockActivateEvent   = false;
 static bool              gGlobalsInitialized   = false;
 static bool              gRaiseWindows         = true;
 static nsWindow         *gPluginFocusWindow    = NULL;
+
+static nsIRollupListener*          gRollupListener;
+static nsWeakPtr                   gRollupWindow;
+static bool                        gConsumeRollupEvent;
 
 
 #define NS_WINDOW_TITLE_MAX_LENGTH 4095
@@ -635,10 +640,13 @@ nsWindow::Destroy(void)
                                          FuncToGpointer(theme_changed_cb),
                                          this);
 
-    nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-    nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-    if (static_cast<nsIWidget *>(this) == rollupWidget) {
-        rollupListener->Rollup(0, nullptr);
+    // ungrab if required
+    nsCOMPtr<nsIWidget> rollupWidget = do_QueryReferent(gRollupWindow);
+    if (static_cast<nsIWidget *>(this) == rollupWidget.get()) {
+        if (gRollupListener)
+            gRollupListener->Rollup(0);
+        gRollupWindow = nullptr;
+        gRollupListener = nullptr;
     }
 
     // dragService will be null after shutdown of the service manager.
@@ -1074,7 +1082,7 @@ nsWindow::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint)
         }
     }
 
-    NotifyRollupGeometryChange();
+    NotifyRollupGeometryChange(gRollupListener);
 
     // send a resize notification if this is a toplevel
     if (mIsTopLevel || mListenForResizes) {
@@ -1140,7 +1148,7 @@ nsWindow::Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight,
         }
     }
 
-    NotifyRollupGeometryChange();
+    NotifyRollupGeometryChange(gRollupListener);
 
     if (mIsTopLevel || mListenForResizes) {
         DispatchResized(aWidth, aHeight);
@@ -1200,7 +1208,7 @@ nsWindow::Move(int32_t aX, int32_t aY)
         gdk_window_move(mGdkWindow, aX, aY);
     }
 
-    NotifyRollupGeometryChange();
+    NotifyRollupGeometryChange(gRollupListener);
     return NS_OK;
 }
 
@@ -1814,16 +1822,17 @@ nsWindow::CaptureMouse(bool aCapture)
     if (!mGdkWindow)
         return NS_OK;
 
-    if (!mShell)
+    GtkWidget *widget = GetMozContainerWidget();
+    if (!widget)
         return NS_ERROR_FAILURE;
 
     if (aCapture) {
-        gtk_grab_add(mShell);
+        gtk_grab_add(widget);
         GrabPointer(GetLastUserInputTime());
     }
     else {
         ReleaseGrabs();
-        gtk_grab_remove(mShell);
+        gtk_grab_remove(widget);
     }
 
     return NS_OK;
@@ -1831,26 +1840,26 @@ nsWindow::CaptureMouse(bool aCapture)
 
 NS_IMETHODIMP
 nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
-                              bool               aDoCapture)
+                              bool               aDoCapture,
+                              bool               aConsumeRollupEvent)
 {
     if (!mGdkWindow)
         return NS_OK;
 
-    if (!mShell)
+    GtkWidget *widget = GetMozContainerWidget();
+    if (!widget)
         return NS_ERROR_FAILURE;
 
-    LOG(("CaptureRollupEvents %p %i\n", this, int(aDoCapture)));
+    LOG(("CaptureRollupEvents %p\n", (void *)this));
 
     if (aDoCapture) {
+        gConsumeRollupEvent = aConsumeRollupEvent;
         gRollupListener = aListener;
+        gRollupWindow = do_GetWeakReference(static_cast<nsIWidget*>
+                                                       (this));
         // real grab is only done when there is no dragging
         if (!nsWindow::DragInProgress()) {
-            // This widget grab ensures that a Gecko GtkWidget receives mouse
-            // events even when embedded in non-Gecko-owned GtkWidgets.
-            // The grab is placed on the toplevel GtkWindow instead of the
-            // MozContainer to avoid double dispatch of keyboard events
-            // (bug 707623).
-            gtk_grab_add(mShell);
+            gtk_grab_add(widget);
             GrabPointer(GetLastUserInputTime());
         }
     }
@@ -1861,8 +1870,9 @@ nsWindow::CaptureRollupEvents(nsIRollupListener *aListener,
         // There may not have been a drag in process when aDoCapture was set,
         // so make sure to remove any added grab.  This is a no-op if the grab
         // was not added to this widget.
-        gtk_grab_remove(mShell);
+        gtk_grab_remove(widget);
         gRollupListener = nullptr;
+        gRollupWindow = nullptr;
     }
 
     return NS_OK;
@@ -2031,7 +2041,7 @@ nsWindow::OnExposeEvent(cairo_t *cr)
     GdkRectangle *rects;
     gint nrects;
     gdk_region_get_rectangles(aEvent->region, &rects, &nrects);
-    if (MOZ_UNLIKELY(!rects)) // OOM
+    if (NS_UNLIKELY(!rects)) // OOM
         return FALSE;
 #else
 #ifdef cairo_copy_clip_rectangle_list
@@ -2039,7 +2049,7 @@ nsWindow::OnExposeEvent(cairo_t *cr)
 #else
     cairo_rectangle_list_t *rects;
     rects = cairo_copy_clip_rectangle_list(cr);  
-    if (MOZ_UNLIKELY(rects->status != CAIRO_STATUS_SUCCESS)) {
+    if (NS_UNLIKELY(rects->status != CAIRO_STATUS_SUCCESS)) {
        NS_WARNING("Failed to obtain cairo rectangle list.");
        return FALSE;
     }
@@ -2211,7 +2221,7 @@ nsWindow::OnExposeEvent(cairo_t *cr)
     // PaintWindow can Destroy us (bug 378273), avoid doing any paint
     // operations below if that happened - it will lead to XError and exit().
     if (shaped) {
-        if (MOZ_LIKELY(!mIsDestroyed)) {
+        if (NS_LIKELY(!mIsDestroyed)) {
             if (painted) {
                 nsRefPtr<gfxPattern> pattern = ctx->PopGroup();
 
@@ -2240,7 +2250,7 @@ nsWindow::OnExposeEvent(cairo_t *cr)
         }
     }
 #  ifdef MOZ_HAVE_SHMIMAGE
-    if (nsShmImage::UseShm() && MOZ_LIKELY(!mIsDestroyed)) {
+    if (nsShmImage::UseShm() && NS_LIKELY(!mIsDestroyed)) {
 #if defined(MOZ_WIDGET_GTK2)
         mShmImage->Put(mGdkWindow, rects, r_end);
 #else
@@ -2310,7 +2320,7 @@ nsWindow::OnConfigureEvent(GtkWidget *aWidget, GdkEventConfigure *aEvent)
         // Cygwin/X (bug 672103).
         if (mBounds.x != screenBounds.x ||
             mBounds.y != screenBounds.y) {
-            CheckForRollup(0, 0, false, true);
+            check_for_rollup(0, 0, false, true);
         }
     }
 
@@ -2693,7 +2703,9 @@ nsWindow::OnButtonPressEvent(GdkEventButton *aEvent)
     }
 
     // check to see if we should rollup
-    if (CheckForRollup(aEvent->x_root, aEvent->y_root, false, false))
+    bool rolledUp =
+        check_for_rollup(aEvent->x_root, aEvent->y_root, false, false);
+    if (gConsumeRollupEvent && rolledUp)
         return;
 
     gdouble pressure = 0;
@@ -2738,7 +2750,7 @@ nsWindow::OnButtonPressEvent(GdkEventButton *aEvent)
 
     // right menu click on linux should also pop up a context menu
     if (domButton == nsMouseEvent::eRightButton &&
-        MOZ_LIKELY(!mIsDestroyed)) {
+        NS_LIKELY(!mIsDestroyed)) {
         nsMouseEvent contextMenuEvent(true, NS_CONTEXTMENU, this,
                                       nsMouseEvent::eReal);
         InitButtonEvent(contextMenuEvent, aEvent);
@@ -2841,7 +2853,7 @@ nsWindow::OnContainerFocusOutEvent(GdkEventFocus *aEvent)
         }
 
         if (shouldRollup) {
-            CheckForRollup(0, 0, false, true);
+            check_for_rollup(0, 0, false, true);
         }
     }
 
@@ -2944,7 +2956,7 @@ nsWindow::OnKeyPressEvent(GdkEventKey *aEvent)
 
     bool isKeyDownCancelled = false;
     if (DispatchKeyDownEvent(aEvent, &isKeyDownCancelled) &&
-        MOZ_UNLIKELY(mIsDestroyed)) {
+        NS_UNLIKELY(mIsDestroyed)) {
         return TRUE;
     }
 
@@ -3077,7 +3089,9 @@ void
 nsWindow::OnScrollEvent(GdkEventScroll *aEvent)
 {
     // check to see if we should rollup
-    if (CheckForRollup(aEvent->x_root, aEvent->y_root, true, false))
+    bool rolledUp =
+        check_for_rollup(aEvent->x_root, aEvent->y_root, true, false);
+    if (gConsumeRollupEvent && rolledUp)
         return;
 
     WheelEvent wheelEvent(true, NS_WHEEL_WHEEL, this);
@@ -3228,7 +3242,7 @@ nsWindow::ThemeChanged()
 {
     NotifyThemeChanged();
 
-    if (!mGdkWindow || MOZ_UNLIKELY(mIsDestroyed))
+    if (!mGdkWindow || NS_UNLIKELY(mIsDestroyed))
         return;
 
     // Dispatch theme change notification to all child windows
@@ -4461,7 +4475,7 @@ nsWindow::GrabPointer(guint32 aTime)
         // A failed grab indicates that another app has grabbed the pointer.
         // Check for rollup now, because, without the grab, we likely won't
         // get subsequent button press events.
-        CheckForRollup(0, 0, false, true);
+        check_for_rollup(0, 0, false, true);
     }
 }
 
@@ -4772,20 +4786,20 @@ nsWindow::HideWindowChrome(bool aShouldHide)
     return NS_OK;
 }
 
-bool
-nsWindow::CheckForRollup(gdouble aMouseX, gdouble aMouseY,
-                         bool aIsWheel, bool aAlwaysRollup)
+static bool
+check_for_rollup(gdouble aMouseX, gdouble aMouseY,
+                 bool aIsWheel, bool aAlwaysRollup)
 {
     bool retVal = false;
-    nsIRollupListener* rollupListener = GetActiveRollupListener();
-    nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-    if (rollupWidget) {
+    nsCOMPtr<nsIWidget> rollupWidget = do_QueryReferent(gRollupWindow);
+
+    if (rollupWidget && gRollupListener) {
         GdkWindow *currentPopup =
             (GdkWindow *)rollupWidget->GetNativeData(NS_NATIVE_WINDOW);
         if (aAlwaysRollup || !is_mouse_in_window(currentPopup, aMouseX, aMouseY)) {
             bool rollup = true;
             if (aIsWheel) {
-                rollup = rollupListener->ShouldRollupOnMouseWheelEvent();
+                rollup = gRollupListener->ShouldRollupOnMouseWheelEvent();
                 retVal = true;
             }
             // if we're dealing with menus, we probably have submenus and
@@ -4794,7 +4808,7 @@ nsWindow::CheckForRollup(gdouble aMouseX, gdouble aMouseY,
             uint32_t popupsToRollup = UINT32_MAX;
             if (!aAlwaysRollup) {
                 nsAutoTArray<nsIWidget*, 5> widgetChain;
-                uint32_t sameTypeCount = rollupListener->GetSubmenuWidgetChain(&widgetChain);
+                uint32_t sameTypeCount = gRollupListener->GetSubmenuWidgetChain(&widgetChain);
                 for (uint32_t i=0; i<widgetChain.Length(); ++i) {
                     nsIWidget* widget = widgetChain[i];
                     GdkWindow* currWindow =
@@ -4817,12 +4831,16 @@ nsWindow::CheckForRollup(gdouble aMouseX, gdouble aMouseY,
             } // if rollup listener knows about menus
 
             // if we've determined that we should still rollup, do it.
-            if (rollup && rollupListener->Rollup(popupsToRollup, nullptr)) {
-                retVal = true;
+            if (rollup) {
+                gRollupListener->Rollup(popupsToRollup);
+                if (popupsToRollup == UINT32_MAX) {
+                    retVal = true;
+                }
             }
         }
     } else {
-        nsBaseWidget::gRollupListener = nullptr;
+        gRollupWindow = nullptr;
+        gRollupListener = nullptr;
     }
 
     return retVal;
@@ -5909,13 +5927,8 @@ nsWindow::GetInputContext()
   if (!mIMModule) {
       context.mIMEState.mEnabled = IMEState::DISABLED;
       context.mIMEState.mOpen = IMEState::OPEN_STATE_NOT_SUPPORTED;
-      // If IME context isn't available on this widget, we should set |this|
-      // instead of nullptr since nullptr means that the platform has only one
-      // context per process.
-      context.mNativeIMEContext = this;
   } else {
       context = mIMModule->GetInputContext();
-      context.mNativeIMEContext = mIMModule;
   }
   return context;
 }

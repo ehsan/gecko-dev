@@ -46,7 +46,6 @@ struct nsListenerStruct
   uint8_t                       mListenerType;
   bool                          mListenerIsHandler : 1;
   bool                          mHandlerIsString : 1;
-  bool                          mAllEvents : 1;
 
   nsIJSEventListener* GetJSListener() const {
     return (mListenerType == eJSEventListener) ?
@@ -83,14 +82,6 @@ public:
   void RemoveEventListener(const nsAString& aType,
                            nsIDOMEventListener* aListener,
                            bool aUseCapture);
-
-  void AddListenerForAllEvents(nsIDOMEventListener* aListener,
-                               bool aUseCapture,
-                               bool aWantsUntrusted,
-                               bool aSystemEventGroup);
-  void RemoveListenerForAllEvents(nsIDOMEventListener* aListener,
-                                  bool aUseCapture,
-                                  bool aSystemEventGroup);
 
   /**
   * Sets events listeners of all types. 
@@ -301,13 +292,11 @@ protected:
                         uint32_t aType,
                         nsIAtom* aTypeAtom,
                         int32_t aFlags,
-                        bool aHandler = false,
-                        bool aAllEvents = false);
+                        bool aHandler = false);
   void RemoveEventListener(nsIDOMEventListener *aListener,
                            uint32_t aType,
                            nsIAtom* aUserType,
-                           int32_t aFlags,
-                           bool aAllEvents = false);
+                           int32_t aFlags);
   void RemoveAllListeners();
   const EventTypeData* GetTypeDataForIID(const nsIID& aIID);
   const EventTypeData* GetTypeDataForEventName(nsIAtom* aName);

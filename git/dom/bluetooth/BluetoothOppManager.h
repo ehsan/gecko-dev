@@ -12,9 +12,6 @@
 #include "mozilla/ipc/UnixSocket.h"
 #include "nsIDOMFile.h"
 
-class nsIOutputStream;
-class nsIInputStream;
-
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothReplyRunnable;
@@ -63,7 +60,6 @@ public:
   void SendDisconnectRequest();
   void SendAbortRequest();
 
-  nsresult HandleShutdown();
 private:
   BluetoothOppManager();
   void StartFileTransfer(const nsString& aDeviceAddress,
@@ -88,8 +84,6 @@ private:
   void ReplyToConnect();
   void ReplyToDisconnect();
   void ReplyToPut(bool aFinal, bool aContinue);
-  void AfterOppConnected();
-  void AfterOppDisconnected();
   virtual void OnConnectSuccess() MOZ_OVERRIDE;
   virtual void OnConnectError() MOZ_OVERRIDE;
   virtual void OnDisconnect() MOZ_OVERRIDE;
@@ -106,12 +100,9 @@ private:
   bool mReceiving;
   bool mPutFinal;
   bool mWaitingForConfirmationFlag;
-  int mUpdateProgressCounter;
 
   nsCOMPtr<nsIDOMBlob> mBlob;
   nsCOMPtr<nsIThread> mReadFileThread;
-  nsCOMPtr<nsIOutputStream> mOutputStream;
-  nsCOMPtr<nsIInputStream> mInputStream;
 };
 
 END_BLUETOOTH_NAMESPACE

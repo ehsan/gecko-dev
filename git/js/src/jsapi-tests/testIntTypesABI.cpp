@@ -19,7 +19,6 @@
 #include "jsval.h"
 
 #include "js/HashTable.h"
-#include "js/HeapAPI.h"
 #include "js/MemoryMetrics.h"
 #include "js/TemplateLib.h"
 #include "js/Utility.h"

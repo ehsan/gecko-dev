@@ -295,9 +295,6 @@ let test_read_write = maketest("read_write", function read_write(test) {
     stat = yield OS.File.stat(pathDest);
     test.is(stat.size, size, "Both files have the same size");
     yield reference_compare_files(pathSource, pathDest, test);
-
-    // Cleanup.
-    OS.File.remove(pathDest);
   });
 });
 
@@ -371,9 +368,6 @@ let test_read_write_all = maketest("read_write_all", function read_write_all(tes
     } catch (err) {
       test.ok(true, "Without a tmpPath, writeAtomic has failed as expected");
     }
-
-    // Cleanup.
-    OS.File.remove(pathDest);
   });
 });
 
@@ -434,7 +428,6 @@ let test_copy = maketest("copy", function copy(test) {
     test.info("Move complete");
     yield reference_compare_files(pathSource, pathDest2, test);
     test.info("Second compare complete");
-    OS.File.remove(pathDest2);
 
     try {
       let field = yield OS.File.open(pathDest);
@@ -477,14 +470,6 @@ let test_mkdir = maketest("mkdir", function mkdir(test) {
     yield OS.File.makeDir(DIRNAME);
     let stat = yield OS.File.stat(DIRNAME);
     test.ok(stat.isDir, "I have effectively created a directory");
-
-    // Creating a directory with ignoreExisting (should succeed)
-    try {
-      yield OS.File.makeDir(DIRNAME, {ignoreExisting: true});
-      test.ok(true, "Creating a directory with ignoreExisting succeeds");
-    } catch(err) {
-      test.ok(false, "Creating a directory with ignoreExisting fails");
-    }
 
     // Creating a directory (should fail)
     try {

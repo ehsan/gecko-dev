@@ -84,7 +84,8 @@ public:
     virtual nsIntPoint WidgetToScreenOffset();
     NS_IMETHOD DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener *aListener,
-                                   bool aDoCapture)
+                                   bool aDoCapture,
+                                   bool aConsumeRollupEvent)
     {
         return NS_ERROR_NOT_IMPLEMENTED;
     }

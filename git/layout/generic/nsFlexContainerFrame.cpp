@@ -16,14 +16,7 @@
 using namespace mozilla::css;
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo*
-GetFlexContainerLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("nsFlexContainerFrame");
-  return sLog;
-}
+static PRLogModuleInfo* nsFlexContainerFrameLM = PR_NewLogModule("nsFlexContainerFrame");
 #endif /* PR_LOGGING */
 
 // XXXdholbert Some of this helper-stuff should be separated out into a general
@@ -1095,7 +1088,7 @@ nsFlexContainerFrame::ResolveFlexibleLengths(
   nscoord aFlexContainerMainSize,
   nsTArray<FlexItem>& aItems)
 {
-  PR_LOG(GetFlexContainerLog(), PR_LOG_DEBUG, ("ResolveFlexibleLengths\n"));
+  PR_LOG(nsFlexContainerFrameLM, PR_LOG_DEBUG, ("ResolveFlexibleLengths\n"));
   if (aItems.IsEmpty()) {
     return;
   }
@@ -1134,7 +1127,7 @@ nsFlexContainerFrame::ResolveFlexibleLengths(
       availableFreeSpace -= item.GetMainSize();
     }
 
-    PR_LOG(GetFlexContainerLog(), PR_LOG_DEBUG,
+    PR_LOG(nsFlexContainerFrameLM, PR_LOG_DEBUG,
            (" available free space = %d\n", availableFreeSpace));
 
     // If sign of free space matches flexType, give each flexible
@@ -1187,7 +1180,7 @@ nsFlexContainerFrame::ResolveFlexibleLengths(
       }
 
       if (runningFlexWeightSum != 0.0f) { // no distribution if no flexibility
-        PR_LOG(GetFlexContainerLog(), PR_LOG_DEBUG,
+        PR_LOG(nsFlexContainerFrameLM, PR_LOG_DEBUG,
                (" Distributing available space:"));
         for (uint32_t i = aItems.Length() - 1; i < aItems.Length(); --i) {
           FlexItem& item = aItems[i];
@@ -1226,7 +1219,7 @@ nsFlexContainerFrame::ResolveFlexibleLengths(
             availableFreeSpace -= sizeDelta;
 
             item.SetMainSize(item.GetMainSize() + sizeDelta);
-            PR_LOG(GetFlexContainerLog(), PR_LOG_DEBUG,
+            PR_LOG(nsFlexContainerFrameLM, PR_LOG_DEBUG,
                    ("  child %d receives %d, for a total of %d\n",
                     i, sizeDelta, item.GetMainSize()));
           }
@@ -1236,7 +1229,7 @@ nsFlexContainerFrame::ResolveFlexibleLengths(
 
     // Fix min/max violations:
     nscoord totalViolation = 0; // keeps track of adjustments for min/max
-    PR_LOG(GetFlexContainerLog(), PR_LOG_DEBUG,
+    PR_LOG(nsFlexContainerFrameLM, PR_LOG_DEBUG,
            (" Checking for violations:"));
 
     for (uint32_t i = 0; i < aItems.Length(); i++) {
@@ -1258,7 +1251,7 @@ nsFlexContainerFrame::ResolveFlexibleLengths(
 
     FreezeOrRestoreEachFlexibleSize(totalViolation, aItems);
 
-    PR_LOG(GetFlexContainerLog(), PR_LOG_DEBUG,
+    PR_LOG(nsFlexContainerFrameLM, PR_LOG_DEBUG,
            (" Total violation: %d\n", totalViolation));
 
     if (totalViolation == 0) {
@@ -1953,7 +1946,7 @@ nsFlexContainerFrame::Reflow(nsPresContext*           aPresContext,
 {
   DO_GLOBAL_REFLOW_COUNT("nsFlexContainerFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
-  PR_LOG(GetFlexContainerLog(), PR_LOG_DEBUG,
+  PR_LOG(nsFlexContainerFrameLM, PR_LOG_DEBUG,
          ("Reflow() for nsFlexContainerFrame %p\n", this));
 
   // We (and our children) can only depend on our ancestor's height if we have

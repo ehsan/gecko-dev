@@ -40,7 +40,8 @@
 using namespace mozilla;
 MOZ_MTLOG_MODULE("mtransport");
 
-MtransportTestUtils *test_utils;
+MtransportTestUtils test_utils;
+
 
 // Class to simulate various kinds of network lossage
 class TransportLayerLossy : public TransportLayer {
@@ -126,7 +127,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
   }
 
   ~TransportTestPeer() {
-    test_utils->sts_target()->Dispatch(
+    test_utils.sts_target()->Dispatch(
       WrapRunnable(this, &TransportTestPeer::DestroyFlow),
       NS_DISPATCH_SYNC);
   }
@@ -204,22 +205,15 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ice_ = new TransportLayerIce(name, ice_ctx_, stream, 1);
 
     // Assemble the stack
-    std::queue<mozilla::TransportLayer *> layers;
-    layers.push(ice_);
-    layers.push(dtls_);
-
-    test_utils->sts_target()->Dispatch(
-      WrapRunnableRet(flow_, &TransportFlow::PushLayers, layers, &res),
-      NS_DISPATCH_SYNC);
-        
-    ASSERT_EQ((nsresult)NS_OK, res);
+    ASSERT_EQ((nsresult)NS_OK, flow_->PushLayer(ice_));
+    ASSERT_EQ((nsresult)NS_OK, flow_->PushLayer(dtls_));
 
     // Listen for media events
     flow_->SignalPacketReceived.connect(this, &TransportTestPeer::PacketReceived);
     flow_->SignalStateChange.connect(this, &TransportTestPeer::StateChanged);
 
     // Start gathering
-    test_utils->sts_target()->Dispatch(
+    test_utils.sts_target()->Dispatch(
         WrapRunnableRet(ice_ctx_, &NrIceCtx::StartGathering, &res),
         NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
@@ -251,7 +245,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     }
 
     // First send attributes
-    test_utils->sts_target()->Dispatch(
+    test_utils.sts_target()->Dispatch(
       WrapRunnableRet(peer_->ice_ctx_,
                       &NrIceCtx::ParseGlobalAttributes,
                       ice_ctx_->GetGlobalAttributes(), &res),
@@ -259,7 +253,7 @@ class TransportTestPeer : public sigslot::has_slots<> {
     ASSERT_TRUE(NS_SUCCEEDED(res));
 
     for (size_t i=0; i<streams_.size(); ++i) {
-      test_utils->sts_target()->Dispatch(
+      test_utils.sts_target()->Dispatch(
         WrapRunnableRet(peer_->streams_[i], &NrIceMediaStream::ParseAttributes,
                         candidates_[streams_[i]->name()], &res), NS_DISPATCH_SYNC);
 
@@ -267,20 +261,14 @@ class TransportTestPeer : public sigslot::has_slots<> {
     }
 
     // Start checks on the other peer.
-    test_utils->sts_target()->Dispatch(
+    test_utils.sts_target()->Dispatch(
       WrapRunnableRet(peer_->ice_ctx_, &NrIceCtx::StartChecks, &res),
       NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
   }
 
   TransportResult SendPacket(const unsigned char* data, size_t len) {
-    TransportResult ret;
-    
-    test_utils->sts_target()->Dispatch(
-      WrapRunnableRet(flow_, &TransportFlow::SendPacket, data, len, &ret),
-      NS_DISPATCH_SYNC);
-
-    return ret;
+    return flow_->SendPacket(data, len);
   }
 
 
@@ -367,24 +355,15 @@ class TransportTest : public ::testing::Test {
   }
 
   void ConnectSocket() {
-    test_utils->sts_target()->Dispatch(
-      WrapRunnable(p1_, &TransportTestPeer::ConnectSocket, p2_),
-      NS_DISPATCH_SYNC);
-    test_utils->sts_target()->Dispatch(
-      WrapRunnable(p2_, &TransportTestPeer::ConnectSocket, p1_),
-      NS_DISPATCH_SYNC);
-
+    p1_->ConnectSocket(p2_);
+    p2_->ConnectSocket(p1_);
     ASSERT_TRUE_WAIT(p1_->connected(), 10000);
     ASSERT_TRUE_WAIT(p2_->connected(), 10000);
   }
 
   void ConnectSocketExpectFail() {
-    test_utils->sts_target()->Dispatch(
-      WrapRunnable(p1_, &TransportTestPeer::ConnectSocket, p2_),
-      NS_DISPATCH_SYNC);
-    test_utils->sts_target()->Dispatch(
-      WrapRunnable(p2_, &TransportTestPeer::ConnectSocket, p1_),
-      NS_DISPATCH_SYNC);
+    p1_->ConnectSocket(p2_);
+    p2_->ConnectSocket(p1_);
     ASSERT_TRUE_WAIT(p1_->failed(), 10000);
     ASSERT_TRUE_WAIT(p2_->failed(), 10000);
   }
@@ -496,14 +475,11 @@ TEST_F(TransportTest, TestTransferIce) {
 
 int main(int argc, char **argv)
 {
-  test_utils = new MtransportTestUtils();
-
+  test_utils.InitServices();
   NSS_NoDB_Init(nullptr);
   NSS_SetDomesticPolicy();
   // Start the tests
   ::testing::InitGoogleTest(&argc, argv);
 
-  int rv = RUN_ALL_TESTS();
-  delete test_utils;
-  return rv;
+  return RUN_ALL_TESTS();
 }

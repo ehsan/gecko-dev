@@ -214,8 +214,7 @@ BrowserElementChild.prototype = {
     let returnValue = this._waitForResult(win);
 
     if (args.promptType == 'prompt' ||
-        args.promptType == 'confirm' ||
-        args.promptType == 'custom-prompt') {
+        args.promptType == 'confirm') {
       return returnValue;
     }
   },
@@ -454,54 +453,29 @@ BrowserElementChild.prototype = {
   _recvGetScreenshot: function(data) {
     debug("Received getScreenshot message: (" + data.json.id + ")");
 
-    let self = this;
-    let maxWidth = data.json.args.width;
-    let maxHeight = data.json.args.height;
-    let domRequestID = data.json.id;
-
-    let takeScreenshotClosure = function() {
-      self._takeScreenshot(maxWidth, maxHeight, domRequestID);
-    };
-
-    let maxDelayMS = 2000;
-    try {
-      maxDelayMS = Services.prefs.getIntPref('dom.browserElement.maxScreenshotDelayMS');
-    }
-    catch(e) {}
-
-    // Try to wait for the event loop to go idle before we take the screenshot,
-    // but once we've waited maxDelayMS milliseconds, go ahead and take it
-    // anyway.
-    Cc['@mozilla.org/message-loop;1'].getService(Ci.nsIMessageLoop).postIdleTask(
-      takeScreenshotClosure, maxDelayMS);
-  },
-
-  /**
-   * Actually take a screenshot and foward the result up to our parent, given
-   * the desired maxWidth and maxHeight, and given the DOMRequest ID associated
-   * with the request from the parent.
-   */
-  _takeScreenshot: function(maxWidth, maxHeight, domRequestID) {
     // You can think of the screenshotting algorithm as carrying out the
     // following steps:
     //
-    // - Let scaleWidth be the factor by which we'd need to downscale the
-    //   viewport so it would fit within maxWidth.  (If the viewport's width
-    //   is less than maxWidth, let scaleWidth be 1.) Compute scaleHeight
+    // - Let max-width be data.json.args.width, and let max-height be
+    //   data.json.args.height.
+    //
+    // - Let scale-width be the factor by which we'd need to downscale the
+    //   viewport so it would fit within max-width.  (If the viewport's width
+    //   is less than max-width, let scale-width be 1.) Compute scale-height
     //   the same way.
     //
-    // - Scale the viewport by max(scaleWidth, scaleHeight).  Now either the
-    //   viewport's width is no larger than maxWidth, the viewport's height is
-    //   no larger than maxHeight, or both.
+    // - Scale the viewport by max(scale-width, scale-height).  Now either the
+    //   viewport's width is no larger than max-width, the viewport's height is
+    //   no larger than max-height, or both.
     //
-    // - Crop the viewport so its width is no larger than maxWidth and its
-    //   height is no larger than maxHeight.
+    // - Crop the viewport so its width is no larger than max-width and its
+    //   height is no larger than max-height.
     //
     // - Return a screenshot of the page's viewport scaled and cropped per
     //   above.
-    debug("Taking a screenshot: maxWidth=" + maxWidth +
-          ", maxHeight=" + maxHeight +
-          ", domRequestID=" + domRequestID + ".");
+
+    let maxWidth = data.json.args.width;
+    let maxHeight = data.json.args.height;
 
     let scaleWidth = Math.min(1, maxWidth / content.innerWidth);
     let scaleHeight = Math.min(1, maxHeight / content.innerHeight);
@@ -522,16 +496,13 @@ BrowserElementChild.prototype = {
     ctx.drawWindow(content, 0, 0, content.innerWidth, content.innerHeight,
                    "rgb(255,255,255)");
 
-    // Take a JPEG screenshot to hack around the fact that we can't specify
-    // opaque PNG.  This requires us to unpremultiply the alpha channel, which
-    // is expensive on ARM processors because they lack a hardware integer
-    // division instruction.
-    canvas.toBlob(function(blob) {
-      sendAsyncMsg('got-screenshot', {
-        id: domRequestID,
-        successRv: blob
-      });
-    }, 'image/jpeg');
+    sendAsyncMsg('got-screenshot', {
+      id: data.json.id,
+      // Hack around the fact that we can't specify opaque PNG, this requires
+      // us to unpremultiply the alpha channel which is expensive on ARM
+      // processors because they lack a hardware integer division instruction.
+      successRv: canvas.toDataURL("image/jpeg")
+    });
   },
 
   _recvFireCtxCallback: function(data) {
@@ -541,7 +512,7 @@ BrowserElementChild.prototype = {
       this._ctxHandlers[data.json.menuitem].click();
       this._ctxHandlers = {};
     } else {
-      debug("Ignored invalid contextmenu invocation");
+      debug("Ignored invalid contextmenu invokation");
     }
   },
 

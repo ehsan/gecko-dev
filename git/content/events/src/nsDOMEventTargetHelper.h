@@ -84,9 +84,9 @@ public:
 
   void Init(JSContext* aCx = nullptr);
 
-  bool HasListenersFor(nsIAtom* aTypeWithOn)
+  bool HasListenersFor(const nsAString& aType)
   {
-    return mListenerManager && mListenerManager->HasListenersFor(aTypeWithOn);
+    return mListenerManager && mListenerManager->HasListenersFor(aType);
   }
 
   nsresult SetEventHandler(nsIAtom* aType,

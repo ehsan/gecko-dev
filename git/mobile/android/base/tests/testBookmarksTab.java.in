@@ -4,7 +4,6 @@ package @ANDROID_PACKAGE_NAME@.tests;
 import @ANDROID_PACKAGE_NAME@.*;
 import android.app.Activity;
 import android.content.ContentUris;
-import android.view.ViewGroup;
 import android.view.View;
 import android.widget.ListView;
 import android.widget.ExpandableListView;
@@ -23,19 +22,18 @@ import java.util.Arrays;
 import java.util.ArrayList;
 import java.io.File;
 
-/* Tests opening the bookmarks tab, that items look correct, clicking on an item
+/* Tests opening the all pages tab, that items look correct, clicking on an item
    and long tapping on an item
 */
 
 public class testBookmarksTab extends BaseTest {
-    private static final int WAIT_FOR_CHILD_TIMEOUT = 2000;
+    private static final String ABOUT_HOME_URL = "about:home";
     private String[] defaultBookmarksUrls = new String[] {
         "about:firefox",
         "about:home",
         "http://support.mozilla.org/en-US/mobile",
         "https://addons.mozilla.org/en-US/android/"
     };
-    private View mFirstChild;
 
     @Override
     protected int getTestType() {
@@ -43,7 +41,7 @@ public class testBookmarksTab extends BaseTest {
     }
 
     public void testBookmarksTab() {
-        blockForGeckoReady();
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
         String url = "http://www.example.com";
 
         // add one page to desktop folders so that we can see them
@@ -53,11 +51,9 @@ public class testBookmarksTab extends BaseTest {
         testContextMenu(url);
     }
 
-    private ListView list;
-
     private void testList(String url) {
         View child;
-        list = getBookmarksList();
+        ListView list = getBookmarksList();
 
         // Clear VKB so that list is not obscured
         mActions.sendSpecialKey(Actions.SpecialKey.BACK);
@@ -106,66 +102,34 @@ public class testBookmarksTab extends BaseTest {
     }
 
     private void testContextMenu(String url) {
-        list = getBookmarksList();
+        ListView list = getBookmarksList();
+
         // Clear VKB so that list is not obscured
         mActions.sendSpecialKey(Actions.SpecialKey.BACK);
+
         mSolo.waitForText(url);
 
-        // wait for the bookmarks list to be populated
-        mFirstChild = null;
-        boolean success = waitForTest(new BooleanTest() {
-            public boolean test() {
-                mFirstChild = list.getChildAt(1);
-                if (mFirstChild == null) {
-                    return false;
-                }
-                if (mFirstChild instanceof android.view.ViewGroup) {
-                    ViewGroup group = (ViewGroup)mFirstChild;
-                    if (group.getChildCount() < 1) {
-                        return false;
-                    }
-                    for (int i = 0; i < group.getChildCount(); i++) {
-                        View grandChild = group.getChildAt(i);
-                        if (grandChild instanceof android.widget.TextView) {
-                            mAsserter.ok(true, "found TextView:", ((android.widget.TextView)grandChild).getText().toString());
-                        }
-                    }
-                } else {
-                    mAsserter.dumpLog("first child not a ViewGroup: "+mFirstChild);
-                    return false;
-                }
-                return true;
-            }
-        }, WAIT_FOR_CHILD_TIMEOUT);
-        if (success == true && mFirstChild != null) {
-            mAsserter.dumpLog("clickLongOnView: "+mFirstChild);
+        // test long tap on a folder, this should fail but will still open the folder
+        View child = list.getChildAt(0);
+        mSolo.clickLongOnView(child);
+        mAsserter.is(mSolo.waitForText("Open in New Tab"), false, "Folders have no context menu");
+        // pressing back should exit the folder
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
 
-            // long tap on a bookmark should show a context menu with an edit option
-            mSolo.clickLongOnView(mFirstChild);
+        // long tap on a bookmark should show a context menu with an edit option
+        child = list.getChildAt(1);
+        mSolo.clickLongOnView(child);
 
-            // TODO: Test clicking these does the right thing
-            mAsserter.ok(mSolo.waitForText("Open in New Tab"), "Context menu has New Tab option", "Open in New Tab");
-            mAsserter.ok(mSolo.searchText("Share", true), "Context menu has Share option", "Share");
-            mAsserter.ok(mSolo.searchText("Edit", true), "Context menu has Edit option", "Edit");
-            mAsserter.ok(mSolo.searchText("Remove", true), "Context menu has Remove option", "Remove");
-            mAsserter.ok(mSolo.searchText("Add to Home Screen", true), "Context menu has Add to Home Screen option", "Add to Home Screen");
+        // TODO: Test clicking these does the right thing
+        mAsserter.ok(mSolo.waitForText("Open in New Tab"), "Context menu has New Tab option", "Open in New Tab");
+        mAsserter.ok(mSolo.searchText("Share", true), "Context menu has Share option", "Share");
+        mAsserter.ok(mSolo.searchText("Edit", true), "Context menu has Edit option", "Edit");
+        mAsserter.ok(mSolo.searchText("Remove", true), "Context menu has Remove option", "Remove");
+        mAsserter.ok(mSolo.searchText("Add to Home Screen", true), "Context menu has Add to Home Screen option", "Add to Home Screen");
 
-            // press back to exit the context menu
-            mActions.sendSpecialKey(Actions.SpecialKey.BACK);
-
-            // test long tap on a folder, this should fail but will still open the folder
-            View child = list.getChildAt(0);
-            mSolo.clickLongOnView(child);
-            mAsserter.is(mSolo.waitForText("Open in New Tab"), false, "Folders have no context menu");
-
-            // pressing back should exit the folder
-            mActions.sendSpecialKey(Actions.SpecialKey.BACK);
-
-        } else {
-            mAsserter.ok(false, "waiting for bookmark item", "bookmark item available");
-        }
-
+        // press back to exit the context menu
         // back again to exit the awesomebar
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
         mActions.sendSpecialKey(Actions.SpecialKey.BACK);
     }
 

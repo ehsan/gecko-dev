@@ -14,7 +14,6 @@ webidl_files = \
   AudioContext.webidl \
   AudioDestinationNode.webidl \
   AudioNode.webidl \
-  AudioParam.webidl \
   AudioSourceNode.webidl \
   Blob.webidl \
   CanvasRenderingContext2D.webidl \
@@ -29,7 +28,6 @@ webidl_files = \
   EventTarget.webidl \
   FileList.webidl \
   FileReaderSync.webidl \
-  GainNode.webidl \
   HTMLCollection.webidl \
   HTMLOptionsCollection.webidl \
   HTMLPropertiesCollection.webidl \

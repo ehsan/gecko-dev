@@ -17,7 +17,7 @@ public class testPan extends PixelTest {
     public void testPan() {
         String url = getAbsoluteUrl("/startup_test/fennecmark/wikipedia.html");
 
-        blockForGeckoReady();
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
         loadAndPaint(url);
 

@@ -626,7 +626,7 @@ nsDocLoader::OnStopRequest(nsIRequest *aRequest,
     // nsRequestInfo::mCurrentProgress are both 0, then the
     // STATE_TRANSFERRING notification has not been fired yet...
     //
-    if ((oldMax == 0) && (info->mCurrentProgress == 0)) {
+    if ((oldMax == LL_ZERO) && (info->mCurrentProgress == LL_ZERO)) {
       nsCOMPtr<nsIChannel> channel(do_QueryInterface(aRequest));
 
       // Only fire a TRANSFERRING notification if the request is also a
@@ -1150,12 +1150,12 @@ NS_IMETHODIMP nsDocLoader::OnStatus(nsIRequest* aRequest, nsISupports* ctxt,
       // submission in mind, where an upload is performed followed by download
       // of possibly several documents.
       if (info->mUploading != uploading) {
-        mCurrentSelfProgress  = mMaxSelfProgress  = 0;
-        mCurrentTotalProgress = mMaxTotalProgress = 0;
-        mCompletedTotalProgress = 0;
+        mCurrentSelfProgress  = mMaxSelfProgress  = LL_ZERO;
+        mCurrentTotalProgress = mMaxTotalProgress = LL_ZERO;
+        mCompletedTotalProgress = LL_ZERO;
         info->mUploading = uploading;
-        info->mCurrentProgress = 0;
-        info->mMaxProgress = 0;
+        info->mCurrentProgress = LL_ZERO;
+        info->mMaxProgress = LL_ZERO;
       }
     }
 
@@ -1195,9 +1195,9 @@ void nsDocLoader::ClearInternalProgress()
 {
   ClearRequestInfoHash();
 
-  mCurrentSelfProgress  = mMaxSelfProgress  = 0;
-  mCurrentTotalProgress = mMaxTotalProgress = 0;
-  mCompletedTotalProgress = 0;
+  mCurrentSelfProgress  = mMaxSelfProgress  = LL_ZERO;
+  mCurrentTotalProgress = mMaxTotalProgress = LL_ZERO;
+  mCompletedTotalProgress = LL_ZERO;
 
   mProgressStateFlags = nsIWebProgressListener::STATE_STOP;
 }

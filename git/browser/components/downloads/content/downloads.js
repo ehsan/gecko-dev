@@ -750,9 +750,6 @@ const DownloadsView = {
     let dataTransfer = aEvent.dataTransfer;
     dataTransfer.mozSetDataAt("application/x-moz-file", localFile, 0);
     dataTransfer.effectAllowed = "copyMove";
-    var url = Services.io.newFileURI(localFile).spec;
-    dataTransfer.setData("text/uri-list", url);
-    dataTransfer.setData("text/plain", url);
     dataTransfer.addElement(element);
 
     aEvent.stopPropagation();
@@ -1114,8 +1111,7 @@ DownloadsViewItemController.prototype = {
         return this.dataItem.openable && this.dataItem.localFile.exists();
       }
       case "downloadsCmd_show": {
-        return this.dataItem.localFile.exists() ||
-               this.dataItem.partFile.exists();
+        return this.dataItem.localFile.exists();
       }
       case "downloadsCmd_pauseResume":
         return this.dataItem.inProgress && this.dataItem.resumable;

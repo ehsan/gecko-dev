@@ -30,7 +30,6 @@ try {
 }
 
 const kMessages =["SystemMessageManager:GetPendingMessages",
-                  "SystemMessageManager:HasPendingMessages",
                   "SystemMessageManager:Register",
                   "SystemMessageManager:Message:Return:OK",
                   "SystemMessageManager:AskReadyToRegister",
@@ -210,7 +209,7 @@ SystemMessageInternal.prototype = {
           return page !== null;
         }, this);
         if (!page) {
-          return;
+          return null;
         }
 
         // Return the |msg| of each pending message (drop the |msgID|).
@@ -223,33 +222,7 @@ SystemMessageInternal.prototype = {
         // pending messages in the content process (|SystemMessageManager|).
         page.pendingMessages.length = 0;
 
-        // Send the array of pending messages.
-        aMessage.target.sendAsyncMessage("SystemMessageManager:GetPendingMessages:Return",
-                                         { type: msg.type,
-                                           manifest: msg.manifest,
-                                           uri: msg.uri,
-                                           msgQueue: pendingMessages });
-        break;
-      }
-      case "SystemMessageManager:HasPendingMessages":
-      {
-        debug("received SystemMessageManager:HasPendingMessages " + msg.type +
-          " for " + msg.uri + " @ " + msg.manifest);
-
-        // This is a sync call used to return if a page has pending messages.
-        // Find the right page to get its corresponding pending messages.
-        let page = null;
-        this._pages.some(function(aPage) {
-          if (this._isPageMatched(aPage, msg.type, msg.uri, msg.manifest)) {
-            page = aPage;
-          }
-          return page !== null;
-        }, this);
-        if (!page) {
-          return false;
-        }
-
-        return page.pendingMessages.length != 0;
+        return pendingMessages;
         break;
       }
       case "SystemMessageManager:Message:Return:OK":
@@ -361,4 +334,4 @@ SystemMessageInternal.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISystemMessagesInternal, Ci.nsIObserver])
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SystemMessageInternal]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([SystemMessageInternal]);

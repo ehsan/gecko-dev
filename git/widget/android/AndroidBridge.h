@@ -27,8 +27,6 @@
 
 #include "nsIAndroidBridge.h"
 
-#include "mozilla/Likely.h"
-
 // Some debug #defines
 // #define DEBUG_ANDROID_EVENTS
 // #define DEBUG_ANDROID_WIDGET
@@ -100,7 +98,7 @@ class AndroidBridge
 public:
     enum {
         NOTIFY_IME_RESETINPUTSTATE = 0,
-        NOTIFY_IME_REPLY_EVENT = 1,
+        NOTIFY_IME_SETOPENSTATE = 1,
         NOTIFY_IME_CANCELCOMPOSITION = 2,
         NOTIFY_IME_FOCUSCHANGE = 3
     };
@@ -117,13 +115,13 @@ public:
     }
 
     static JavaVM *GetVM() {
-        if (MOZ_LIKELY(sBridge))
+        if (NS_LIKELY(sBridge))
             return sBridge->mJavaVM;
         return nullptr;
     }
 
     static JNIEnv *GetJNIEnv() {
-        if (MOZ_LIKELY(sBridge)) {
+        if (NS_LIKELY(sBridge)) {
             if ((void*)pthread_self() != sBridge->mThread) {
                 __android_log_print(ANDROID_LOG_INFO, "AndroidBridge",
                                     "###!!!!!!! Something's grabbing the JNIEnv from the wrong thread! (thr %p should be %p)",
@@ -170,6 +168,8 @@ public:
     void EnableSensor(int aSensorType);
 
     void DisableSensor(int aSensorType);
+
+    void ReturnIMEQueryResult(const PRUnichar *aResult, uint32_t aLen, int aSelStart, int aSelLen);
 
     void NotifyXreExit();
 
@@ -406,6 +406,7 @@ protected:
     jmethodID jEnableLocationHighAccuracy;
     jmethodID jEnableSensor;
     jmethodID jDisableSensor;
+    jmethodID jReturnIMEQueryResult;
     jmethodID jNotifyAppShellReady;
     jmethodID jNotifyXreExit;
     jmethodID jScheduleRestart;

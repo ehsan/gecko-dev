@@ -12,7 +12,6 @@ using namespace std;
 
 #include "mozilla/Scoped.h"
 #include <MediaConduitInterface.h>
-#include "nsIEventTarget.h"
 #include "nsStaticComponents.h"
 #include "FakeMediaStreamsImpl.h"
 
@@ -21,7 +20,7 @@ using namespace std;
 #include "gtest_utils.h"
 
 #include "mtransport_test_utils.h"
-MtransportTestUtils *test_utils;
+MtransportTestUtils test_utils;
 
 //Video Frame Color
 const int COLOR = 0x80; //Gray
@@ -749,11 +748,9 @@ TEST_F(TransportConduitTest, TestVideoConduitCodecAPI) {
 
 int main(int argc, char **argv)
 {
-  test_utils = new MtransportTestUtils();
+  test_utils.InitServices();
   ::testing::InitGoogleTest(&argc, argv);
-  int rv = RUN_ALL_TESTS();
-  delete test_utils;
-  return rv;
+  return RUN_ALL_TESTS();
 }
 
 

@@ -54,10 +54,7 @@ ActivityProxy.prototype = {
                         ? DOMApplicationRegistry.getManifestURLByLocalId(appId)
                         : null;
     cpmm.sendAsyncMessage("Activity:Start", { id: this.id,
-                                              options: {
-                                                name: aOptions.name,
-                                                data: aOptions.data
-                                              },
+                                              options: aOptions,
                                               manifestURL: manifestURL,
                                               pageURL: aWindow.document.location.href });
 
@@ -100,4 +97,4 @@ ActivityProxy.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIActivityProxy])
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([ActivityProxy]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([ActivityProxy]);

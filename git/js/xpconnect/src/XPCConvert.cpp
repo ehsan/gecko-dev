@@ -812,7 +812,8 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                       "bad scope for new JSObjects");
 
     JSObject *jsscope = lccx.GetScopeForNewJSObjects();
-    XPCWrappedNativeScope* xpcscope = GetObjectScope(jsscope);
+    XPCWrappedNativeScope* xpcscope =
+        XPCWrappedNativeScope::FindInJSObjectScope(cx, jsscope);
     if (!xpcscope)
         return false;
 
@@ -843,7 +844,7 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
             }
 
             if (flat) {
-                if (allowNativeWrapper && !JS_WrapObject(ccx, &flat))
+                if (!JS_WrapObject(ccx, &flat))
                     return false;
 
                 return CreateHolderIfNeeded(ccx, flat, d, dest);

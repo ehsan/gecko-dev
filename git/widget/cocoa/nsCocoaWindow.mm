@@ -57,10 +57,14 @@ int32_t gXULModalLevel = 0;
 // also made app-modal.)  See nsCocoaWindow::SetModal().
 nsCocoaWindowList *gGeckoAppModalWindowList = NULL;
 
+bool gConsumeRollupEvent;
+
 // defined in nsMenuBarX.mm
 extern NSMenu* sApplicationMenu; // Application menu shared by all menubars
 
 // defined in nsChildView.mm
+extern nsIRollupListener * gRollupListener;
+extern nsIWidget         * gRollupWidget;
 extern BOOL                gSomeMenuBarPainted;
 
 extern "C" {
@@ -86,12 +90,11 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsCocoaWindow, Inherited, nsPIWidgetCocoa)
 // widget - whether or not the sheet is showing. |[mWindow isSheet]| will return
 // true *only when the sheet is actually showing*. Choose your test wisely.
 
+// roll up any popup windows
 static void RollUpPopups()
 {
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-  if (rollupWidget)
-    rollupListener->Rollup(0, nullptr);
+  if (gRollupListener && gRollupWidget)
+    gRollupListener->Rollup(0);
 }
 
 nsCocoaWindow::nsCocoaWindow()
@@ -1395,7 +1398,7 @@ NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(nsIntRect &aRect)
 }
 
 double
-nsCocoaWindow::GetDefaultScaleInternal()
+nsCocoaWindow::GetDefaultScale()
 {
   return BackingScaleFactor();
 }
@@ -1746,21 +1749,29 @@ nsMenuBarX* nsCocoaWindow::GetMenuBar()
   return mMenuBar;
 }
 
-NS_IMETHODIMP nsCocoaWindow::CaptureRollupEvents(nsIRollupListener* aListener, bool aDoCapture)
+NS_IMETHODIMP nsCocoaWindow::CaptureRollupEvents(nsIRollupListener * aListener,
+                                                 bool aDoCapture,
+                                                 bool aConsumeRollupEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   gRollupListener = nullptr;
+  NS_IF_RELEASE(gRollupWidget);
   
   if (aDoCapture) {
     gRollupListener = aListener;
+    gRollupWidget = this;
+    NS_ADDREF(this);
+
+    gConsumeRollupEvent = aConsumeRollupEvent;
 
     // Sometimes more than one popup window can be visible at the same time
     // (e.g. nested non-native context menus, or the test case (attachment
-    // 276885) for bmo bug 392389, which displays a non-native combo-box in a
-    // non-native popup window).  In these cases the "active" popup window should
-    // be the topmost -- the (nested) context menu the mouse is currently over,
-    // or the combo-box's drop-down list (when it's displayed).  But (among
+    // 276885) for bmo bug 392389, which displays a non-native combo-box in
+    // a non-native popup window).  In these cases the "active" popup window
+    // (the one that corresponds to the current gRollupWidget) should be the
+    // topmost -- the (nested) context menu the mouse is currently over, or
+    // the combo-box's drop-down list (when it's displayed).  But (among
     // windows that have the same "level") OS X makes topmost the window that
     // last received a mouse-down event, which may be incorrect (in the combo-
     // box case, it makes topmost the window containing the combo-box).  So

@@ -2511,52 +2511,6 @@ let RIL = {
    },
 
   /**
-   * Queries current call forward rules.
-   *
-   * @param reason
-   *        One of nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_* constants.
-   * @param serviceClass
-   *        One of ICC_SERVICE_CLASS_* constants.
-   * @param number
-   *        Phone number of forwarding address.
-   */
-  queryCallForwardStatus: function queryCallForwardStatus(options) {
-    Buf.newParcel(REQUEST_QUERY_CALL_FORWARD_STATUS, options);
-    Buf.writeUint32(CALL_FORWARD_ACTION_QUERY_STATUS);
-    Buf.writeUint32(options.reason);
-    Buf.writeUint32(options.serviceClass);
-    Buf.writeUint32(this._toaFromString(options.number));
-    Buf.writeString(options.number);
-    Buf.writeUint32(0);
-    Buf.sendParcel();
-  },
-
-  /**
-   * Configures call forward rule.
-   *
-   * @param action
-   *        One of nsIDOMMozMobileCFInfo.CALL_FORWARD_ACTION_* constants.
-   * @param reason
-   *        One of nsIDOMMozMobileCFInfo.CALL_FORWARD_REASON_* constants.
-   * @param serviceClass
-   *        One of ICC_SERVICE_CLASS_* constants.
-   * @param number
-   *        Phone number of forwarding address.
-   * @param timeSeconds
-   *        Time in seconds to wait beforec all is forwarded.
-   */
-  setCallForward: function setCallForward(options) {
-    Buf.newParcel(REQUEST_SET_CALL_FORWARD, options);
-    Buf.writeUint32(options.action);
-    Buf.writeUint32(options.reason);
-    Buf.writeUint32(options.serviceClass);
-    Buf.writeUint32(this._toaFromString(options.number));
-    Buf.writeString(options.number);
-    Buf.writeUint32(options.timeSeconds);
-    Buf.sendParcel();
-  },
-
-  /**
    * Handle STK CALL_SET_UP request.
    *
    * @param hasConfirmed
@@ -3592,17 +3546,6 @@ let RIL = {
   },
 
   /**
-   * Helper for returning the TOA for the given dial string.
-   */
-  _toaFromString: function _toaFromString(number) {
-    let toa = TOA_UNKNOWN;
-    if (number && number.length > 0 && number[0] == '+') {
-      toa = TOA_INTERNATIONAL;
-    }
-    return toa;
-  },
-
-  /**
    * @param message A decoded SMS-DELIVER message.
    *
    * @see 3GPP TS 31.111 section 7.1.1
@@ -3808,7 +3751,7 @@ let RIL = {
       return PDU_FCS_OK;
     }
 
-    if (message.messageClass == GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]) {
+    if (message.messageClass == PDU_DCS_MSG_CLASS_SIM_SPECIFIC) {
       switch (message.epid) {
         case PDU_PID_ANSI_136_R_DATA:
         case PDU_PID_USIM_DATA_DOWNLOAD:
@@ -3834,13 +3777,13 @@ let RIL = {
     }
 
     // TODO: Bug 739143: B2G SMS: Support SMS Storage Full event
-    if ((message.messageClass != GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_0]) && !true) {
+    if ((message.messageClass != PDU_DCS_MSG_CLASS_0) && !true) {
       // `When a mobile terminated message is class 0..., the MS shall display
       // the message immediately and send a ACK to the SC ..., irrespective of
       // whether there is memory available in the (U)SIM or ME.` ~ 3GPP 23.038
       // clause 4.
 
-      if (message.messageClass == GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]) {
+      if (message.messageClass == PDU_DCS_MSG_CLASS_SIM_SPECIFIC) {
         // `If all the short message storage at the MS is already in use, the
         // MS shall return "memory capacity exceeded".` ~ 3GPP 23.038 clause 4.
         return PDU_FCS_MEMORY_CAPACITY_EXCEEDED;
@@ -3866,7 +3809,7 @@ let RIL = {
       this.sendDOMMessage(message);
     }
 
-    if (message.messageClass == GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]) {
+    if (message.messageClass == PDU_DCS_MSG_CLASS_SIM_SPECIFIC) {
       // `MS shall ensure that the message has been to the SMS data field in
       // the (U)SIM before sending an ACK to the SC.`  ~ 3GPP 23.038 clause 4
       return PDU_FCS_RESERVED;
@@ -3921,20 +3864,21 @@ let RIL = {
 
     delete this._pendingSentSmsMap[message.messageRef];
 
-    if ((options.segmentMaxSeq > 1)
-        && (options.segmentSeq < options.segmentMaxSeq)) {
-      // Not the last segment.
+    if ((status >>> 5) != 0x00) {
+      if (DEBUG) debug("SMS-STATUS-REPORT: delivery failed");
+      // It seems unlikely to get a result code for a failure to deliver.
+      // Even if, we don't want to do anything with this.
       return PDU_FCS_OK;
     }
 
-    let deliveryStatus = ((status >>> 5) == 0x00)
-                       ? GECKO_SMS_DELIVERY_STATUS_SUCCESS
-                       : GECKO_SMS_DELIVERY_STATUS_ERROR;
-    this.sendDOMMessage({
-      rilMessageType: "sms-delivery",
-      envelopeId: options.envelopeId,
-      deliveryStatus: deliveryStatus
-    });
+    if ((options.segmentMaxSeq == 1)
+        && (options.segmentSeq == options.segmentMaxSeq)) {
+      // Last segment delivered with success. Report it.
+      this.sendDOMMessage({
+        rilMessageType: "sms-delivered",
+        envelopeId: options.envelopeId,
+      });
+    }
 
     return PDU_FCS_OK;
   },
@@ -4552,48 +4496,8 @@ RIL[REQUEST_CANCEL_USSD] = function REQUEST_CANCEL_USSD(length, options) {
 };
 RIL[REQUEST_GET_CLIR] = null;
 RIL[REQUEST_SET_CLIR] = null;
-RIL[REQUEST_QUERY_CALL_FORWARD_STATUS] =
-  function REQUEST_QUERY_CALL_FORWARD_STATUS(length, options) {
-    options.success = options.rilRequestError == 0;
-    if (!options.success) {
-      options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-      this.sendDOMMessage(options);
-      return;
-    }
-
-    let rulesLength = 0;
-    if (length) {
-      rulesLength = Buf.readUint32();
-    }
-    if (!rulesLength) {
-      options.success = false;
-      options.errorMsg =
-        "Invalid rule length while querying call forwarding status.";
-      this.sendDOMMessage(options);
-      return;
-    }
-    let rules = new Array(rulesLength);
-    for (let i = 0; i < rulesLength; i++) {
-      let rule = {};
-      rule.active       = Buf.readUint32() == 1; // CALL_FORWARD_STATUS_*
-      rule.reason       = Buf.readUint32(); // CALL_FORWARD_REASON_*
-      rule.serviceClass = Buf.readUint32();
-      rule.toa          = Buf.readUint32();
-      rule.number       = Buf.readString();
-      rule.timeSeconds  = Buf.readUint32();
-      rules[i] = rule;
-    }
-    options.rules = rules;
-    this.sendDOMMessage(options);
-};
-RIL[REQUEST_SET_CALL_FORWARD] =
-  function REQUEST_SET_CALL_FORWARD(length, options) {
-    options.success = options.rilRequestError == 0;
-    if (!options.success) {
-      options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
-    }
-    this.sendDOMMessage(options);
-};
+RIL[REQUEST_QUERY_CALL_FORWARD_STATUS] = null;
+RIL[REQUEST_SET_CALL_FORWARD] = null;
 RIL[REQUEST_QUERY_CALL_WAITING] = null;
 RIL[REQUEST_SET_CALL_WAITING] = function REQUEST_SET_CALL_WAITING(length, options) {
   options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
@@ -4833,7 +4737,12 @@ RIL[REQUEST_STK_GET_PROFILE] = null;
 RIL[REQUEST_STK_SET_PROFILE] = null;
 RIL[REQUEST_STK_SEND_ENVELOPE_COMMAND] = null;
 RIL[REQUEST_STK_SEND_TERMINAL_RESPONSE] = null;
-RIL[REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM] = null;
+RIL[REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM] = function REQUEST_STK_HANDLE_CALL_SETUP_REQUESTED_FROM_SIM(length, options) {
+  if (!options.rilRequestError && options.hasConfirmed) {
+    options.rilMessageType = "stkcallsetup";
+    this.sendDOMMessage(options);
+  }
+};
 RIL[REQUEST_EXPLICIT_CALL_TRANSFER] = null;
 RIL[REQUEST_SET_PREFERRED_NETWORK_TYPE] = function REQUEST_SET_PREFERRED_NETWORK_TYPE(length, options) {
   if (options.networkType == null) {
@@ -6017,7 +5926,7 @@ let GsmPDUHelper = {
     if (DEBUG) debug("PDU: read dcs: " + dcs);
 
     // No message class by default.
-    let messageClass = PDU_DCS_MSG_CLASS_NORMAL;
+    let messageClass = PDU_DCS_MSG_CLASS_UNKNOWN;
     // 7 bit is the default fallback encoding.
     let encoding = PDU_DCS_MSG_CODING_7BITS_ALPHABET;
     switch (dcs & PDU_DCS_CODING_GROUP_BITS) {
@@ -6094,7 +6003,7 @@ let GsmPDUHelper = {
 
     msg.dcs = dcs;
     msg.encoding = encoding;
-    msg.messageClass = GECKO_SMS_MESSAGE_CLASSES[messageClass];
+    msg.messageClass = messageClass;
 
     if (DEBUG) debug("PDU: message encoding is " + encoding + " bit.");
   },

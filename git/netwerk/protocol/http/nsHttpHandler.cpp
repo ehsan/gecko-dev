@@ -175,7 +175,7 @@ nsHttpHandler::nsHttpHandler()
     , mUseAlternateProtocol(false)
     , mSpdySendingChunkSize(ASpdySession::kSendingChunkSize)
     , mSpdySendBufferSize(ASpdySession::kTCPSendBufferSize)
-    , mSpdyPingThreshold(PR_SecondsToInterval(58))
+    , mSpdyPingThreshold(PR_SecondsToInterval(44))
     , mSpdyPingTimeout(PR_SecondsToInterval(8))
     , mConnectTimeout(90000)
 {
@@ -273,9 +273,6 @@ nsHttpHandler::Init()
     rv = mAuthCache.Init();
     if (NS_FAILED(rv)) return rv;
 
-    rv = mPrivateAuthCache.Init();
-    if (NS_FAILED(rv)) return rv;
-
     rv = InitConnectionMgr();
     if (NS_FAILED(rv)) return rv;
 
@@ -310,7 +307,6 @@ nsHttpHandler::Init()
         mObserverService->AddObserver(this, "net:clear-active-logins", true);
         mObserverService->AddObserver(this, "net:prune-dead-connections", true);
         mObserverService->AddObserver(this, "net:failed-to-process-uri-content", true);
-        mObserverService->AddObserver(this, "last-pb-context-exited", true);
     }
 
     return NS_OK;
@@ -404,11 +400,6 @@ nsHttpHandler::IsAcceptableEncoding(const char *enc)
     // to accept.
     if (!PL_strncasecmp(enc, "x-", 2))
         enc += 2;
-
-    // gzip and deflate are inherently acceptable in modern HTTP - always
-    // process them if a stream converter can also be found.
-    if (!PL_strcasecmp(enc, "gzip") || !PL_strcasecmp(enc, "deflate"))
-        return true;
 
     return nsHttp::FindToken(mAcceptEncodings.get(), enc, HTTP_LWS ",") != nullptr;
 }
@@ -1415,6 +1406,7 @@ nsHttpHandler::NewURI(const nsACString &aSpec,
                       nsIURI *aBaseURI,
                       nsIURI **aURI)
 {
+    LOG(("nsHttpHandler::NewURI\n"));
     return ::NewURI(aSpec, aCharset, aBaseURI, NS_HTTP_DEFAULT_PORT, aURI);
 }
 
@@ -1574,7 +1566,6 @@ nsHttpHandler::Observe(nsISupports *subject,
 
         // clear cache of all authentication credentials.
         mAuthCache.ClearAll();
-        mPrivateAuthCache.ClearAll();
 
         // ensure connection manager is shutdown
         if (mConnMgr)
@@ -1590,7 +1581,6 @@ nsHttpHandler::Observe(nsISupports *subject,
     }
     else if (strcmp(topic, "net:clear-active-logins") == 0) {
         mAuthCache.ClearAll();
-        mPrivateAuthCache.ClearAll();
     }
     else if (strcmp(topic, "net:prune-dead-connections") == 0) {
         if (mConnMgr) {
@@ -1601,9 +1591,6 @@ nsHttpHandler::Observe(nsISupports *subject,
         nsCOMPtr<nsIURI> uri = do_QueryInterface(subject);
         if (uri && mConnMgr)
             mConnMgr->ReportFailedToProcess(uri);
-    }
-    else if (strcmp(topic, "last-pb-context-exited") == 0) {
-        mPrivateAuthCache.ClearAll();
     }
 
     return NS_OK;

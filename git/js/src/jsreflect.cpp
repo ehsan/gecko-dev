@@ -3514,6 +3514,8 @@ static JSFunctionSpec static_methods[] = {
 };
 
 
+JS_BEGIN_EXTERN_C
+
 JS_PUBLIC_API(JSObject *)
 JS_InitReflect(JSContext *cx, JSObject *objArg)
 {
@@ -3532,3 +3534,5 @@ JS_InitReflect(JSContext *cx, JSObject *objArg)
 
     return Reflect;
 }
+
+JS_END_EXTERN_C

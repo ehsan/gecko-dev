@@ -212,6 +212,11 @@ UINT            nsWindow::sRollupMsgId            = 0;
 HWND            nsWindow::sRollupMsgWnd           = NULL;
 UINT            nsWindow::sHookTimerId            = 0;
 
+// Rollup Listener
+nsIRollupListener* nsWindow::sRollupListener      = nullptr;
+nsIWidget*      nsWindow::sRollupWidget           = nullptr;
+bool            nsWindow::sRollupConsumeEvent     = false;
+
 // Mouse Clicks - static variable definitions for figuring
 // out 1 - 3 Clicks.
 POINT           nsWindow::sLastMousePoint         = {0};
@@ -338,7 +343,6 @@ nsWindow::nsWindow() : nsBaseWidget()
   mOldExStyle           = 0;
   mPainting             = 0;
   mLastKeyboardLayout   = 0;
-  mBlurSuppressLevel    = 0;
   mLastPaintEndTime     = TimeStamp::Now();
 #ifdef MOZ_XUL
   mTransparentSurface   = nullptr;
@@ -591,17 +595,6 @@ nsWindow::Create(nsIWidget *aParent,
   }
 
   SubclassWindow(TRUE);
-
-  // NOTE: mNativeIMEContext may be null if IMM module isn't installed.
-  nsIMEContext IMEContext(mWnd);
-  mInputContext.mNativeIMEContext = static_cast<void*>(IMEContext.get());
-  MOZ_ASSERT(mInputContext.mNativeIMEContext ||
-             !nsIMM32Handler::IsIMEAvailable());
-  // If no IME context is available, we should set this widget's pointer since
-  // nullptr indicates there is only one context per process on the platform.
-  if (!mInputContext.mNativeIMEContext) {
-    mInputContext.mNativeIMEContext = this;
-  }
 
   // If the internal variable set by the config.trim_on_minimize pref has not
   // been initialized, and if this is the hidden window (conveniently created
@@ -975,7 +968,7 @@ float nsWindow::GetDPI()
   return float(heightPx/heightInches);
 }
 
-double nsWindow::GetDefaultScaleInternal()
+double nsWindow::GetDefaultScale()
 {
   HDC dc = ::GetDC(mWnd);
   if (!dc)
@@ -1379,7 +1372,7 @@ NS_METHOD nsWindow::Move(int32_t aX, int32_t aY)
 
     SetThemeRegion();
   }
-  NotifyRollupGeometryChange();
+  NotifyRollupGeometryChange(sRollupListener);
   return NS_OK;
 }
 
@@ -1422,7 +1415,7 @@ NS_METHOD nsWindow::Resize(int32_t aWidth, int32_t aHeight, bool aRepaint)
   if (aRepaint)
     Invalidate();
 
-  NotifyRollupGeometryChange();
+  NotifyRollupGeometryChange(sRollupListener);
   return NS_OK;
 }
 
@@ -1467,7 +1460,7 @@ NS_METHOD nsWindow::Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeig
   if (aRepaint)
     Invalidate();
 
-  NotifyRollupGeometryChange();
+  NotifyRollupGeometryChange(sRollupListener);
   return NS_OK;
 }
 
@@ -3068,16 +3061,26 @@ NS_METHOD nsWindow::CaptureMouse(bool aCapture)
  **************************************************************/
 
 NS_IMETHODIMP nsWindow::CaptureRollupEvents(nsIRollupListener * aListener,
-                                            bool aDoCapture)
+                                            bool aDoCapture,
+                                            bool aConsumeRollupEvent)
 {
   if (aDoCapture) {
-    gRollupListener = aListener;
+    /* we haven't bothered carrying a weak reference to sRollupWidget because
+       we believe lifespan is properly scoped. this next assertion helps
+       assure that remains true. */
+    NS_ASSERTION(!sRollupWidget, "rollup widget reassigned before release");
+    sRollupConsumeEvent = aConsumeRollupEvent;
+    NS_IF_RELEASE(sRollupWidget);
+    sRollupListener = aListener;
+    sRollupWidget = this;
+    NS_ADDREF(this);
     if (!sMsgFilterHook && !sCallProcHook && !sCallMouseHook) {
       RegisterSpecialDropdownHooks();
     }
     sProcessHook = true;
   } else {
-    gRollupListener = nullptr;
+    sRollupListener = nullptr;
+    NS_IF_RELEASE(sRollupWidget);
     sProcessHook = false;
     UnregisterSpecialDropdownHooks();
   }
@@ -4008,25 +4011,14 @@ bool nsWindow::DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
   return result;
 }
 
-void nsWindow::DispatchFocusToTopLevelWindow(bool aIsActivate)
+HWND nsWindow::GetTopLevelForFocus(HWND aCurWnd)
 {
-  if (aIsActivate)
-    sJustGotActivate = false;
-  sJustGotDeactivate = false;
-
-  if (!aIsActivate && BlurEventsSuppressed())
-    return;
-
-  if (!mWidgetListener)
-    return;
-
-  // retrive the toplevel window or dialog
-  HWND curWnd = mWnd;
+  // retrieve the toplevel window or dialog
   HWND toplevelWnd = NULL;
-  while (curWnd) {
-    toplevelWnd = curWnd;
+  while (aCurWnd) {
+    toplevelWnd = aCurWnd;
 
-    nsWindow *win = WinUtils::GetNSWindowPtr(curWnd);
+    nsWindow *win = WinUtils::GetNSWindowPtr(aCurWnd);
     if (win) {
       nsWindowType wintype;
       win->GetWindowType(wintype);
@@ -4034,9 +4026,23 @@ void nsWindow::DispatchFocusToTopLevelWindow(bool aIsActivate)
         break;
     }
 
-    curWnd = ::GetParent(curWnd); // Parent or owner (if has no parent)
+    aCurWnd = ::GetParent(aCurWnd); // Parent or owner (if has no parent)
   }
 
+  return toplevelWnd;
+}
+
+void nsWindow::DispatchFocusToTopLevelWindow(bool aIsActivate)
+{
+  if (aIsActivate)
+    sJustGotActivate = false;
+  sJustGotDeactivate = false;
+  mLastKillFocusWindow = NULL;
+
+  if (!mWidgetListener)
+    return;
+
+  HWND toplevelWnd = GetTopLevelForFocus(mWnd);
   if (toplevelWnd) {
     nsWindow *win = WinUtils::GetNSWindowPtr(toplevelWnd);
     if (win) {
@@ -4064,36 +4070,6 @@ bool nsWindow::IsTopLevelMouseExit(HWND aWnd)
     return true;
 
   return WinUtils::GetTopLevelHWND(aWnd) != mouseTopLevel;
-}
-
-bool nsWindow::BlurEventsSuppressed()
-{
-  // are they suppressed in this window?
-  if (mBlurSuppressLevel > 0)
-    return true;
-
-  // are they suppressed by any container widget?
-  HWND parentWnd = ::GetParent(mWnd);
-  if (parentWnd) {
-    nsWindow *parent = WinUtils::GetNSWindowPtr(parentWnd);
-    if (parent)
-      return parent->BlurEventsSuppressed();
-  }
-  return false;
-}
-
-// In some circumstances (opening dependent windows) it makes more sense
-// (and fixes a crash bug) to not blur the parent window. Called from
-// nsFilePicker.
-void nsWindow::SuppressBlurEvents(bool aSuppress)
-{
-  if (aSuppress)
-    ++mBlurSuppressLevel; // for this widget
-  else {
-    NS_ASSERTION(mBlurSuppressLevel > 0, "unbalanced blur event suppression");
-    if (mBlurSuppressLevel > 0)
-      --mBlurSuppressLevel;
-  }
 }
 
 bool nsWindow::ConvertStatus(nsEventStatus aStatus)
@@ -5026,9 +5002,13 @@ bool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         int32_t fActive = LOWORD(wParam);
 
         if (WA_INACTIVE == fActive) {
-          // when minimizing a window, the deactivation and focus events will
+          // When minimizing a window, the deactivation and focus events will
           // be fired in the reverse order. Instead, just deactivate right away.
-          if (HIWORD(wParam))
+          // This can also happen when a modal file dialog is opened, so check
+          // if the last window to receive the WM_KILLFOCUS message was this one
+          // or a child of this one.
+          if (HIWORD(wParam) ||
+              (mLastKillFocusWindow && (GetTopLevelForFocus(mLastKillFocusWindow) == mWnd)))
             DispatchFocusToTopLevelWindow(false);
           else
             sJustGotDeactivate = true;
@@ -5103,6 +5083,9 @@ bool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_KILLFOCUS:
       if (sJustGotDeactivate) {
         DispatchFocusToTopLevelWindow(false);
+      }
+      else {
+        mLastKillFocusWindow = mWnd;
       }
       break;
 
@@ -7077,6 +7060,9 @@ void nsWindow::OnDestroy()
   mWidgetListener = nullptr;
   mAttachedWidgetListener = nullptr;
 
+  if (mWnd == mLastKillFocusWindow)
+    mLastKillFocusWindow = NULL;
+
   // Free our subclass and clear |this| stored in the window props. We will no longer
   // receive events from Windows after this point.
   SubclassWindow(FALSE);
@@ -7091,7 +7077,7 @@ void nsWindow::OnDestroy()
 
   // Release references to children, device context, toolkit, and app shell.
   nsBaseWidget::OnDestroy();
-  
+
   // Clear our native parent handle.
   // XXX Windows will take care of this in the proper order, and SetParent(nullptr)'s
   // remove child on the parent already took place in nsBaseWidget's Destroy call above.
@@ -7103,12 +7089,10 @@ void nsWindow::OnDestroy()
 
   // If we're going away and for some reason we're still the rollup widget, rollup and
   // turn off capture.
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-  if ( this == rollupWidget ) {
-    if ( rollupListener )
-      rollupListener->Rollup(0, nullptr);
-    CaptureRollupEvents(nullptr, false);
+  if ( this == sRollupWidget ) {
+    if ( sRollupListener )
+      sRollupListener->Rollup(0);
+    CaptureRollupEvents(nullptr, false, true);
   }
 
   // Restore the IM context.
@@ -7317,22 +7301,11 @@ nsWindow::SetInputContext(const InputContext& aContext,
   if (nsIMM32Handler::IsComposing()) {
     ResetInputState();
   }
-  void* nativeIMEContext = mInputContext.mNativeIMEContext;
   mInputContext = aContext;
-  mInputContext.mNativeIMEContext = nullptr;
   bool enable = (mInputContext.mIMEState.mEnabled == IMEState::ENABLED ||
                  mInputContext.mIMEState.mEnabled == IMEState::PLUGIN);
 
   AssociateDefaultIMC(enable);
-
-  if (enable) {
-    nsIMEContext IMEContext(mWnd);
-    mInputContext.mNativeIMEContext = static_cast<void*>(IMEContext.get());
-  }
-  // Restore the latest associated context when we cannot get actual context.
-  if (!mInputContext.mNativeIMEContext) {
-    mInputContext.mNativeIMEContext = nativeIMEContext;
-  }
 
   if (enable &&
       mInputContext.mIMEState.mOpen != IMEState::DONT_CHANGE_OPEN_STATE) {
@@ -7883,7 +7856,8 @@ VOID CALLBACK nsWindow::HookTimerForPopups(HWND hwnd, UINT uMsg, UINT idEvent, D
   }
 
   if (sRollupMsgId != 0) {
-    // Note: DealWithPopups does the check to make sure that the rollup widget is set.
+    // Note: DealWithPopups does the check to make sure that
+    // sRollupListener and sRollupWidget are not NULL
     LRESULT popupHandlingResult;
     nsAutoRollup autoRollup;
     DealWithPopups(sRollupMsgWnd, sRollupMsgId, 0, 0, &popupHandlingResult);
@@ -7943,9 +7917,7 @@ nsWindow::EventIsInsideWindow(UINT Msg, nsWindow* aWindow)
 BOOL
 nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLParam, LRESULT* outResult)
 {
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-  if (rollupWidget && ::IsWindowVisible(inWnd)) {
+  if (sRollupListener && sRollupWidget && ::IsWindowVisible(inWnd)) {
 
     inMsg = WinUtils::GetNativeMessage(inMsg);
     if (inMsg == WM_LBUTTONDOWN || inMsg == WM_RBUTTONDOWN || inMsg == WM_MBUTTONDOWN ||
@@ -7961,11 +7933,11 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
         inMsg == WM_MENUSELECT)
     {
       // Rollup if the event is outside the popup.
-      bool rollup = !nsWindow::EventIsInsideWindow(inMsg, (nsWindow*)(rollupWidget.get()));
+      bool rollup = !nsWindow::EventIsInsideWindow(inMsg, (nsWindow*)sRollupWidget);
 
       if (rollup && (inMsg == WM_MOUSEWHEEL || inMsg == WM_MOUSEHWHEEL))
       {
-        rollup = rollupListener->ShouldRollupOnMouseWheelEvent();
+        rollup = sRollupListener->ShouldRollupOnMouseWheelEvent();
         *outResult = true;
       }
 
@@ -7973,24 +7945,26 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
       // want to rollup if the click is in a parent menu of the current submenu.
       uint32_t popupsToRollup = UINT32_MAX;
       if (rollup) {
-        nsAutoTArray<nsIWidget*, 5> widgetChain;
-        uint32_t sameTypeCount = rollupListener->GetSubmenuWidgetChain(&widgetChain);
-        for ( uint32_t i = 0; i < widgetChain.Length(); ++i ) {
-          nsIWidget* widget = widgetChain[i];
-          if ( nsWindow::EventIsInsideWindow(inMsg, (nsWindow*)widget) ) {
-            // don't roll up if the mouse event occurred within a menu of the
-            // same type. If the mouse event occurred in a menu higher than
-            // that, roll up, but pass the number of popups to Rollup so
-            // that only those of the same type close up.
-            if (i < sameTypeCount) {
-              rollup = false;
+        if ( sRollupListener ) {
+          nsAutoTArray<nsIWidget*, 5> widgetChain;
+          uint32_t sameTypeCount = sRollupListener->GetSubmenuWidgetChain(&widgetChain);
+          for ( uint32_t i = 0; i < widgetChain.Length(); ++i ) {
+            nsIWidget* widget = widgetChain[i];
+            if ( nsWindow::EventIsInsideWindow(inMsg, (nsWindow*)widget) ) {
+              // don't roll up if the mouse event occurred within a menu of the
+              // same type. If the mouse event occurred in a menu higher than
+              // that, roll up, but pass the number of popups to Rollup so
+              // that only those of the same type close up.
+              if (i < sameTypeCount) {
+                rollup = false;
+              }
+              else {
+                popupsToRollup = sameTypeCount;
+              }
+              break;
             }
-            else {
-              popupsToRollup = sameTypeCount;
-            }
-            break;
-          }
-        } // foreach parent menu widget
+          } // foreach parent menu widget
+        } // if rollup listener knows about menus
       }
 
       if (inMsg == WM_MOUSEACTIVATE && popupsToRollup == UINT32_MAX) {
@@ -8009,7 +7983,7 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
           {
             // WM_MOUSEACTIVATE cause by moving the mouse - X-mouse (eg. TweakUI)
             // must be enabled in Windows.
-            rollup = rollupListener->ShouldRollupOnMouseActivate();
+            rollup = sRollupListener->ShouldRollupOnMouseActivate();
             if (!rollup)
             {
               *outResult = MA_NOACTIVATE;
@@ -8020,10 +7994,12 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
       }
       // if we've still determined that we should still rollup everything, do it.
       else if (rollup) {
+        // sRollupConsumeEvent may be modified by
+        // nsIRollupListener::Rollup.
+        bool consumeRollupEvent = sRollupConsumeEvent;
         // only need to deal with the last rollup for left mouse down events.
         NS_ASSERTION(!mLastRollup, "mLastRollup is null");
-        bool consumeRollupEvent =
-          rollupListener->Rollup(popupsToRollup, inMsg == WM_LBUTTONDOWN ? &mLastRollup : nullptr);
+        mLastRollup = sRollupListener->Rollup(popupsToRollup, inMsg == WM_LBUTTONDOWN);
         NS_IF_ADDREF(mLastRollup);
 
         // Tell hook to stop processing messages
@@ -8045,7 +8021,7 @@ nsWindow::DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLPara
               nsWindowType wintype;
               activateWindow->GetWindowType(wintype);
               if (wintype == eWindowType_popup && activateWindow->PopupType() == ePopupTypePanel) {
-                *outResult = popupsToRollup != UINT32_MAX ? MA_NOACTIVATEANDEAT : MA_NOACTIVATE;
+                *outResult = MA_NOACTIVATE;
               }
             }
           }

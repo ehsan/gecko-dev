@@ -124,8 +124,6 @@ BluetoothScoManager::BluetoothScoManager()
 bool
 BluetoothScoManager::Init()
 {
-  mSocketStatus = GetConnectionStatus();
-
   sScoObserver = new BluetoothScoManagerObserver();
   if (sScoObserver->Init()) {
     NS_WARNING("Cannot set up SCO observers!");
@@ -207,8 +205,6 @@ BluetoothScoManager::Connect(const nsAString& aDeviceAddress)
     return false;
   }
 
-  CloseSocket();
-
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
@@ -219,35 +215,6 @@ BluetoothScoManager::Connect(const nsAString& aDeviceAddress)
                                  true,
                                  false,
                                  this);
-
-  return NS_FAILED(rv) ? false : true;
-}
-
-bool
-BluetoothScoManager::Listen()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (gInShutdown) {
-    MOZ_ASSERT(false, "Listen called while in shutdown!");
-    return false;
-  }
-
-  CloseSocket();
-
-  BluetoothService* bs = BluetoothService::Get();
-  if (!bs) {
-    NS_WARNING("BluetoothService not available!");
-    return false;
-  }
-
-  nsresult rv = bs->ListenSocketViaService(-1,
-                                           BluetoothSocketType::SCO,
-                                           true,
-                                           true,
-                                           this);
-
-  mSocketStatus = GetConnectionStatus();
 
   return NS_FAILED(rv) ? false : true;
 }
@@ -268,25 +235,17 @@ BluetoothScoManager::OnConnectSuccess()
   nsString address;
   GetSocketAddr(address);
   NotifyAudioManager(address);
-
-  mSocketStatus = GetConnectionStatus();
 }
 
 void
 BluetoothScoManager::OnConnectError()
 {
   CloseSocket();
-  mSocketStatus = GetConnectionStatus();
-  Listen();
 }
 
 void
 BluetoothScoManager::OnDisconnect()
 {
-  if (mSocketStatus == SocketConnectionStatus::SOCKET_CONNECTED) {
-    Listen();
-
-    nsString address = NS_LITERAL_STRING("");
-    NotifyAudioManager(address);
-  }
+  nsString address = NS_LITERAL_STRING("");
+  NotifyAudioManager(address);
 }

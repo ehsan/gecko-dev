@@ -990,10 +990,9 @@ nsHostResolver::ThreadFunc(void *arg)
             status = NS_ERROR_UNKNOWN_HOST;
             Telemetry::Accumulate(Telemetry::DNS_FAILED_LOOKUP_TIME, millis);
         }
-
-        // OnLookupComplete may release "rec", log before we lose it.
-        LOG(("Lookup completed for host [%s].\n", rec->host));
+        
         resolver->OnLookupComplete(rec, status, ai);
+        LOG(("Lookup completed for host [%s].\n", rec->host));
     }
     NS_RELEASE(resolver);
     LOG(("DNS lookup thread ending execution.\n"));

@@ -5,10 +5,7 @@
 
 #include <pthread.h>
 #include <string.h>
-#include <stdlib.h>
-#include <time.h>
 #include <unistd.h>
-#include <android/log.h>
 
 #include <vector>
 
@@ -22,25 +19,8 @@ struct AtForkFuncs {
 };
 static std::vector<AtForkFuncs> atfork;
 
-#ifdef MOZ_WIDGET_GONK
-#include "cpuacct.h"
-#define WRAP(x) x
-
 extern "C" NS_EXPORT int
-timer_create(clockid_t, struct sigevent*, timer_t*)
-{
-  __android_log_print(ANDROID_LOG_ERROR, "BionicGlue", "timer_create not supported!");
-  abort();
-  return -1;
-}
-
-#else
-#define cpuacct_add(x)
-#define WRAP(x) __wrap_##x
-#endif
-
-extern "C" NS_EXPORT int
-WRAP(pthread_atfork)(void (*prepare)(void), void (*parent)(void), void (*child)(void))
+__wrap_pthread_atfork(void (*prepare)(void), void (*parent)(void), void (*child)(void))
 {
   AtForkFuncs funcs;
   funcs.prepare = prepare;
@@ -50,10 +30,8 @@ WRAP(pthread_atfork)(void (*prepare)(void), void (*parent)(void), void (*child)(
   return 0;
 }
 
-extern "C" pid_t __fork(void);
-
 extern "C" NS_EXPORT pid_t
-WRAP(fork)(void)
+__wrap_fork(void)
 {
   pid_t pid;
   for (std::vector<AtForkFuncs>::reverse_iterator it = atfork.rbegin();
@@ -61,9 +39,8 @@ WRAP(fork)(void)
     if (it->prepare)
       it->prepare();
 
-  switch ((pid = __fork())) {
+  switch ((pid = fork())) {
   case 0:
-    cpuacct_add(getuid());
     for (std::vector<AtForkFuncs>::iterator it = atfork.begin();
          it < atfork.end(); ++it)
       if (it->child)
@@ -79,7 +56,7 @@ WRAP(fork)(void)
 }
 
 extern "C" NS_EXPORT int
-WRAP(raise)(int sig)
+__wrap_raise(int sig)
 {
   return pthread_kill(pthread_self(), sig);
 }

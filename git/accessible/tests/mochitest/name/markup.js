@@ -14,8 +14,6 @@ var gDumpToConsole = false;
  */
 function testNames()
 {
-  //enableLogging("tree"); // debugging
-
   var request = new XMLHttpRequest();
   request.open("get", gNameRulesFileURL, false);
   request.send();
@@ -60,13 +58,8 @@ var gTestIterator =
 
     this.ruleIdx++;
     if (this.ruleIdx == this.ruleElms.length) {
-      // When test is finished then name is empty and no explict-name.
-      testName(this.elm, null, "No name test. ");
-      testAbsentAttrs(this.elm, {"explicit-name" : "true"});
-
       this.markupIdx++;
       if (this.markupIdx == this.markupElms.length) {
-        //disableLogging("tree"); // debugging
         SimpleTest.finish();
         return;
       }
@@ -132,20 +125,12 @@ function testNamesForMarkupRules(aMarkupElm, aContainer)
   var serializer = new XMLSerializer();
 
   var expr = "//html/body/div[@id='test']/" + aMarkupElm.getAttribute("ref");
-  var elm = evaluateXPath(document, expr, htmlDocResolver)[0];
+  var elms = evaluateXPath(document, expr, htmlDocResolver);
 
   var ruleId = aMarkupElm.getAttribute("ruleset");
   var ruleElms = getRuleElmsByRulesetId(ruleId);
 
-  var processMarkupRules =
-    gTestIterator.iterateRules.bind(gTestIterator, elm, aContainer, ruleElms);
-
-  // Images may be recreated after we append them into subtree. We need to wait
-  // in this case.
-  if (isAccessible(elm))
-    processMarkupRules();
-  else
-    waitForEvent(EVENT_SHOW, elm, processMarkupRules);
+  gTestIterator.iterateRules(elms[0], aContainer, ruleElms);
 }
 
 /**

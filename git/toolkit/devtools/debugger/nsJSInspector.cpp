@@ -8,6 +8,7 @@
 #include "nsIJSContextStack.h"
 #include "nsThreadUtils.h"
 #include "jsapi.h"
+#include "jsgc.h"
 #include "jsfriendapi.h"
 #include "jsdbgapi.h"
 #include "mozilla/ModuleUtils.h"

@@ -217,6 +217,10 @@ abstract public class BrowserApp extends GeckoApp
 
         mFindInPageBar = (FindInPageBar) findViewById(R.id.find_in_page);
 
+        if (savedInstanceState != null) {
+            mBrowserToolbar.setTitle(savedInstanceState.getString(SAVED_STATE_TITLE));
+        }
+
         registerEventListener("CharEncoding:Data");
         registerEventListener("CharEncoding:State");
         registerEventListener("Feedback:LastUrl");
@@ -265,14 +269,11 @@ abstract public class BrowserApp extends GeckoApp
 
         if (!isExternalURL) {
             // show about:home if we aren't restoring previous session
-            if (mRestoreMode == RESTORE_NONE) {
+            if (mRestoreMode == GeckoAppShell.RESTORE_NONE) {
                 Tab tab = Tabs.getInstance().loadUrl("about:home", Tabs.LOADURL_NEW_TAB);
-            } else {
-                hideAboutHome();
             }
         } else {
-            int flags = Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_USER_ENTERED;
-            Tabs.getInstance().loadUrl(uri, flags);
+            Tabs.getInstance().loadUrl(uri, Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_USER_ENTERED);
         }
     }
 
@@ -461,7 +462,7 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     private void showTabs(TabsPanel.Panel panel) {
-        if (Tabs.getInstance().getCount() == 0)
+        if (!sIsGeckoReady)
             return;
 
         mTabsPanel.show(panel);
@@ -543,29 +544,24 @@ abstract public class BrowserApp extends GeckoApp
         else
             mTabsPanel.setDrawingCacheEnabled(false);
 
-        if (mTabsPanel.isShown()) {
-            if (hasTabsSideBar()) {
-                boolean usingTextureView = mLayerView.shouldUseTextureView();
+        if (hasTabsSideBar() && mTabsPanel.isShown()) {
+            boolean usingTextureView = mLayerView.shouldUseTextureView();
 
-                int leftMargin = (usingTextureView ? 0 : mTabsPanel.getWidth());
-                int rightMargin = (usingTextureView ? mTabsPanel.getWidth() : 0);
-                ((LinearLayout.LayoutParams) mGeckoLayout.getLayoutParams()).setMargins(leftMargin, 0, rightMargin, 0);
+            int leftMargin = (usingTextureView ? 0 : mTabsPanel.getWidth());
+            int rightMargin = (usingTextureView ? mTabsPanel.getWidth() : 0);
+            ((LinearLayout.LayoutParams) mGeckoLayout.getLayoutParams()).setMargins(leftMargin, 0, rightMargin, 0);
 
-                if (!usingTextureView)
-                    mGeckoLayout.scrollTo(0, 0);
-            }
+            if (!usingTextureView)
+                mGeckoLayout.scrollTo(0, 0);
 
             mGeckoLayout.requestLayout();
-        } else {
+        }
+
+        if (!mTabsPanel.isShown()) {
             mBrowserToolbar.updateTabs(false);
             mBrowserToolbar.finishTabsAnimation();
             mTabsPanel.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
         }
-
-        mBrowserToolbar.refreshBackground();
-
-        if (hasTabsSideBar())
-            mBrowserToolbar.adjustTabsAnimation(true);
     }
 
     /* Favicon methods */
@@ -638,7 +634,6 @@ abstract public class BrowserApp extends GeckoApp
         if (mAboutHomeShowing != null && !mAboutHomeShowing)
             return;
 
-        mBrowserToolbar.setShadowVisibility(true);
         mAboutHomeShowing = false;
         Runnable r = new AboutHomeRunnable(false);
         mMainHandler.postAtFrontOfQueue(r);
@@ -651,6 +646,7 @@ abstract public class BrowserApp extends GeckoApp
         }
 
         public void run() {
+            mFormAssistPopup.hide();
             if (mShow) {
                 if (mAboutHomeContent == null) {
                     mAboutHomeContent = (AboutHomeContent) findViewById(R.id.abouthome_content);
@@ -850,7 +846,7 @@ abstract public class BrowserApp extends GeckoApp
         if (aMenu == null)
             return false;
 
-        if (!checkLaunchState(LaunchState.GeckoRunning))
+        if (!sIsGeckoReady)
             aMenu.findItem(R.id.settings).setEnabled(false);
 
         Tab tab = Tabs.getInstance().getSelectedTab();

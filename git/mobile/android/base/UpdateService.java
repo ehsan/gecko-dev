@@ -209,21 +209,11 @@ public class UpdateService extends IntentService {
         
         int connectionType = netInfo.getType();
         int autoDownloadPolicy = getAutoDownloadPolicy();
-
-
-        /**
-         * We only start a download automatically if one of following criteria are met:
-         *
-         * - We have a FORCE_DOWNLOAD flag passed in
-         * - The preference is set to 'always'
-         * - The preference is set to 'wifi' and we are actually using wifi (or regular ethernet)
-         */
-        boolean shouldStartDownload = hasFlag(flags, UpdateServiceHelper.FLAG_FORCE_DOWNLOAD) ||
-            autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_ENABLED ||
+        if (!hasFlag(flags, UpdateServiceHelper.FLAG_FORCE_DOWNLOAD) &&
+            autoDownloadPolicy != UpdateServiceHelper.AUTODOWNLOAD_ENABLED &&
             (autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_WIFI &&
-             (connectionType == ConnectivityManager.TYPE_WIFI || connectionType == ConnectivityManager.TYPE_ETHERNET));
-
-        if (!shouldStartDownload) {
+             connectionType != ConnectivityManager.TYPE_WIFI &&
+             connectionType != ConnectivityManager.TYPE_ETHERNET)) {
             Log.i(LOGTAG, "not initiating automatic update download due to policy " + autoDownloadPolicy);
 
             // We aren't autodownloading here, so prompt to start the update

@@ -24,7 +24,6 @@
 #include "nsXULAppAPI.h"
 
 using namespace mozilla::ipc;
-using namespace mozilla::gl;
 
 namespace mozilla {
 namespace layers {

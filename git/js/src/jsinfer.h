@@ -1236,9 +1236,6 @@ struct CompilerOutput
     void invalidate() {
         script = NULL;
     }
-    bool isInvalidated() const {
-        return script == NULL;
-    }
 };
 
 struct RecompileInfo

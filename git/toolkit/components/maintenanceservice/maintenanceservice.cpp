@@ -44,22 +44,22 @@ wmain(int argc, WCHAR **argv)
       LogInit(updatePath, L"maintenanceservice-install.log");
     }
 
+    LOG(("Installing service"));
     SvcInstallAction action = InstallSvc;
     if (forceInstall) {
       action = ForceInstallSvc;
-      LOG(("Installing service with force specified..."));
-    } else {
-      LOG(("Installing service..."));
+      LOG((" with force specified"));
     }
+    LOG(("...\n"));
 
     bool ret = SvcInstall(action);
     if (!ret) {
-      LOG_WARN(("Could not install service.  (%d)", GetLastError()));
+      LOG(("Could not install service (%d)\n", GetLastError()));
       LogFinish();
       return 1;
     }
 
-    LOG(("The service was installed successfully"));
+    LOG(("The service was installed successfully\n"));
     LogFinish();
     return 0;
   } 
@@ -69,15 +69,16 @@ wmain(int argc, WCHAR **argv)
     if (GetLogDirectoryPath(updatePath)) {
       LogInit(updatePath, L"maintenanceservice-install.log");
     }
+    LOG(("Upgrading service if installed...\n"));
 
-    LOG(("Upgrading service if installed..."));
+    
     if (!SvcInstall(UpgradeSvc)) {
-      LOG_WARN(("Could not upgrade service.  (%d)", GetLastError()));
+      LOG(("Could not upgrade service (%d)\n", GetLastError()));
       LogFinish();
       return 1;
     }
 
-    LOG(("The service was upgraded successfully"));
+    LOG(("The service was upgraded successfully\n"));
     LogFinish();
     return 0;
   }
@@ -87,13 +88,13 @@ wmain(int argc, WCHAR **argv)
     if (GetLogDirectoryPath(updatePath)) {
       LogInit(updatePath, L"maintenanceservice-uninstall.log");
     }
-    LOG(("Uninstalling service..."));
+    LOG(("Uninstalling service...\n"));
     if (!SvcUninstall()) {
-      LOG_WARN(("Could not uninstall service.  (%d)", GetLastError()));
+      LOG(("Could not uninstall service (%d)\n", GetLastError()));
       LogFinish();
       return 1;
     }
-    LOG(("The service was uninstalled successfully"));
+    LOG(("The service was uninstalled successfully\n"));
     LogFinish();
     return 0;
   }
@@ -106,7 +107,7 @@ wmain(int argc, WCHAR **argv)
   // This call returns when the service has stopped. 
   // The process should simply terminate when the call returns.
   if (!StartServiceCtrlDispatcherW(DispatchTable)) {
-    LOG_WARN(("StartServiceCtrlDispatcher failed.  (%d)", GetLastError()));
+    LOG(("StartServiceCtrlDispatcher failed (%d)\n", GetLastError()));
   }
 
   return 0;
@@ -249,7 +250,7 @@ SvcMain(DWORD argc, LPWSTR *argv)
   // Register the handler function for the service
   gSvcStatusHandle = RegisterServiceCtrlHandlerW(SVC_NAME, SvcCtrlHandler);
   if (!gSvcStatusHandle) {
-    LOG_WARN(("RegisterServiceCtrlHandler failed.  (%d)", GetLastError()));
+    LOG(("RegisterServiceCtrlHandler failed (%d)\n", GetLastError()));
     ExecuteServiceCommand(argc, argv);  
     LogFinish();
     exit(1);

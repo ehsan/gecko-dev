@@ -25,10 +25,9 @@
  * We have to use macros here because our leak analysis tool things we are
  * leaking strings when we have |static const nsString|. Sad :(
  */
-#define RECEIVED_EVENT_NAME         NS_LITERAL_STRING("received")
-#define SENT_EVENT_NAME             NS_LITERAL_STRING("sent")
-#define DELIVERY_SUCCESS_EVENT_NAME NS_LITERAL_STRING("deliverysuccess")
-#define DELIVERY_ERROR_EVENT_NAME   NS_LITERAL_STRING("deliveryerror")
+#define RECEIVED_EVENT_NAME  NS_LITERAL_STRING("received")
+#define SENT_EVENT_NAME      NS_LITERAL_STRING("sent")
+#define DELIVERED_EVENT_NAME NS_LITERAL_STRING("delivered")
 
 DOMCI_DATA(MozSmsManager, mozilla::dom::sms::SmsManager)
 
@@ -58,8 +57,7 @@ NS_IMPL_RELEASE_INHERITED(SmsManager, nsDOMEventTargetHelper)
 
 NS_IMPL_EVENT_HANDLER(SmsManager, received)
 NS_IMPL_EVENT_HANDLER(SmsManager, sent)
-NS_IMPL_EVENT_HANDLER(SmsManager, deliverysuccess)
-NS_IMPL_EVENT_HANDLER(SmsManager, deliveryerror)
+NS_IMPL_EVENT_HANDLER(SmsManager, delivered)
 
 /* static */already_AddRefed<SmsManager>
 SmsManager::CreateInstanceIfAllowed(nsPIDOMWindow* aWindow)
@@ -115,8 +113,7 @@ SmsManager::Init(nsPIDOMWindow *aWindow)
 
   obs->AddObserver(this, kSmsReceivedObserverTopic, false);
   obs->AddObserver(this, kSmsSentObserverTopic, false);
-  obs->AddObserver(this, kSmsDeliverySuccessObserverTopic, false);
-  obs->AddObserver(this, kSmsDeliveryErrorObserverTopic, false);
+  obs->AddObserver(this, kSmsDeliveredObserverTopic, false);
 }
 
 void
@@ -130,8 +127,7 @@ SmsManager::Shutdown()
 
   obs->RemoveObserver(this, kSmsReceivedObserverTopic);
   obs->RemoveObserver(this, kSmsSentObserverTopic);
-  obs->RemoveObserver(this, kSmsDeliverySuccessObserverTopic);
-  obs->RemoveObserver(this, kSmsDeliveryErrorObserverTopic);
+  obs->RemoveObserver(this, kSmsDeliveredObserverTopic);
 }
 
 NS_IMETHODIMP
@@ -385,25 +381,14 @@ SmsManager::Observe(nsISupports* aSubject, const char* aTopic,
     return NS_OK;
   }
 
-  if (!strcmp(aTopic, kSmsDeliverySuccessObserverTopic)) {
+  if (!strcmp(aTopic, kSmsDeliveredObserverTopic)) {
     nsCOMPtr<nsIDOMMozSmsMessage> message = do_QueryInterface(aSubject);
     if (!message) {
-      NS_ERROR("Got a 'sms-delivery-success' topic without a valid message!");
+      NS_ERROR("Got a 'sms-delivered' topic without a valid message!");
       return NS_OK;
     }
 
-    DispatchTrustedSmsEventToSelf(DELIVERY_SUCCESS_EVENT_NAME, message);
-    return NS_OK;
-  }
-
-  if (!strcmp(aTopic, kSmsDeliveryErrorObserverTopic)) {
-    nsCOMPtr<nsIDOMMozSmsMessage> message = do_QueryInterface(aSubject);
-    if (!message) {
-      NS_ERROR("Got a 'sms-delivery-error' topic without a valid message!");
-      return NS_OK;
-    }
-
-    DispatchTrustedSmsEventToSelf(DELIVERY_ERROR_EVENT_NAME, message);
+    DispatchTrustedSmsEventToSelf(DELIVERED_EVENT_NAME, message);
     return NS_OK;
   }
 

@@ -8,7 +8,7 @@ import re, sys, os
 import subprocess
 import runxpcshelltests as xpcshell
 from automationutils import *
-from mozdevice import devicemanager, devicemanagerADB, devicemanagerSUT
+import devicemanager, devicemanagerADB, devicemanagerSUT
 
 # A specialization of XPCShellTests that runs tests on an Android device
 # via devicemanager.
@@ -78,8 +78,7 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
           self.device.mkDir(self.remoteComponentsDir)
 
         local = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'head.js')
-        remoteFile = self.remoteJoin(self.remoteScriptsDir, "head.js")
-        self.device.pushFile(local, remoteFile)
+        self.device.pushFile(local, self.remoteScriptsDir)
 
         localBin = os.path.join(self.options.objdir, "dist/bin")
         if not os.path.exists(localBin):
@@ -89,23 +88,18 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
             sys.exit(1)
 
         local = os.path.join(localBin, "xpcshell")
-        remoteFile = self.remoteJoin(self.remoteBinDir, "xpcshell")
-        self.device.pushFile(local, remoteFile)
+        self.device.pushFile(local, self.remoteBinDir)
 
         local = os.path.join(localBin, "components/httpd.js")
-        remoteFile = self.remoteJoin(self.remoteComponentsDir, "httpd.js")
-        self.device.pushFile(local, remoteFile)
+        self.device.pushFile(local, self.remoteComponentsDir)
 
         local = os.path.join(localBin, "components/httpd.manifest")
-        remoteFile = self.remoteJoin(self.remoteComponentsDir, "httpd.manifest")
-        self.device.pushFile(local, remoteFile)
+        self.device.pushFile(local, self.remoteComponentsDir)
 
         local = os.path.join(localBin, "components/test_necko.xpt")
-        remoteFile = self.remoteJoin(self.remoteComponentsDir, "test_necko.xpt")
-        self.device.pushFile(local, remoteFile)
+        self.device.pushFile(local, self.remoteComponentsDir)
 
-        remoteFile = self.remoteJoin(self.remoteBinDir, os.path.basename(self.options.localAPK))
-        self.device.pushFile(self.options.localAPK, remoteFile)
+        self.device.pushFile(self.options.localAPK, self.remoteBinDir)
 
         self.pushLibs()
 
@@ -127,8 +121,7 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
             print >> sys.stderr, "Pushing %s.." % file
             if 'libxul' in file:
               print >> sys.stderr, "This is a big file, it could take a while."
-            remoteFile = self.remoteJoin(self.remoteBinDir, file)
-            self.device.pushFile(os.path.join(localLib, file), remoteFile)
+            self.device.pushFile(os.path.join(localLib, file), self.remoteBinDir)
 
         # Additional libraries may be found in a sub-directory such as "lib/armeabi-v7a"
         localArmLib = os.path.join(localLib, "lib")
@@ -136,8 +129,7 @@ class XPCShellRemote(xpcshell.XPCShellTests, object):
           for root, dirs, files in os.walk(localArmLib):
             for file in files:
               if (file.endswith(".so")):
-                remoteFile = self.remoteJoin(self.remoteBinDir, file)
-                self.device.pushFile(os.path.join(root, file), remoteFile)
+                self.device.pushFile(os.path.join(root, file), self.remoteBinDir)
 
 
     def setupTestDir(self):

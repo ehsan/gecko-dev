@@ -19,9 +19,9 @@
  * @rejects {B} reason
  */
 
-this.EXPORTED_SYMBOLS = ["OS"];
+let EXPORTED_SYMBOLS = ["OS"];
 
-Components.utils.import("resource://gre/modules/osfile/osfile_shared_allthreads.jsm", this);
+Components.utils.import("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
 
 let LOG = OS.Shared.LOG.bind(OS.Shared, "Controller");
 let isTypedArray = OS.Shared.isTypedArray;
@@ -597,8 +597,6 @@ File.remove = function remove(path) {
  * as per winapi function |CreateDirectory|. If unspecified,
  * use the default security descriptor, inherited from the
  * parent directory.
- * - {bool} ignoreExisting If |true|, do not fail if the
- * directory already exists.
  */
 File.makeDir = function makeDir(path, options) {
   return Scheduler.post("makeDir",

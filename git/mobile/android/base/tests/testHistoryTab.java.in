@@ -45,7 +45,7 @@ public class testHistoryTab extends PixelTest {
     }
 
     public void testHistoryTab() {
-        blockForGeckoReady();
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
         // very approximate date-rollover detection
         Calendar cal = new GregorianCalendar();

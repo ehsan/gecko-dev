@@ -382,11 +382,9 @@ PuppetWidget::GetInputContext()
   InputContext context;
   if (mTabChild) {
     int32_t enabled, open;
-    intptr_t nativeIMEContext;
-    mTabChild->SendGetInputContext(&enabled, &open, &nativeIMEContext);
+    mTabChild->SendGetInputContext(&enabled, &open);
     context.mIMEState.mEnabled = static_cast<IMEState::Enabled>(enabled);
     context.mIMEState.mOpen = static_cast<IMEState::Open>(open);
-    context.mNativeIMEContext = reinterpret_cast<void*>(nativeIMEContext);
   }
   return context;
 }
@@ -422,7 +420,7 @@ PuppetWidget::OnIMEFocusChange(bool aFocus)
   if (aFocus) {
     if (!mIMEPreference.mWantUpdates && !mIMEPreference.mWantHints)
       // call OnIMEFocusChange on blur but no other updates
-      return NS_ERROR_NOT_IMPLEMENTED;
+      return NS_SUCCESS_IME_NO_UPDATES;
     OnIMESelectionChange(); // Update selection
   } else {
     mIMELastBlurSeqno = chromeSeqno;

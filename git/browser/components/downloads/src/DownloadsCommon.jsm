@@ -6,7 +6,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = [
+var EXPORTED_SYMBOLS = [
   "DownloadsCommon",
 ];
 
@@ -80,8 +80,6 @@ XPCOMUtils.defineLazyGetter(this, "DownloadsLocalFileCtor", function () {
                                 "nsILocalFile", "initWithPath");
 });
 
-const kPartialDownloadSuffix = ".part";
-
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadsCommon
 
@@ -89,7 +87,7 @@ const kPartialDownloadSuffix = ".part";
  * This object is exposed directly to the consumers of this JavaScript module,
  * and provides shared methods for all the instances of the user interface.
  */
-this.DownloadsCommon = {
+const DownloadsCommon = {
   /**
    * Returns an object whose keys are the string names from the downloads string
    * bundle, and whose values are either the translated strings or functions
@@ -653,20 +651,10 @@ const DownloadsData = {
   //// Notifications sent to the most recent browser window only
 
   /**
-   * Set to true after the first download causes the downloads panel to be
-   * displayed.
+   * Set to true after the first download in the session caused the downloads
+   * panel to be displayed.
    */
-  get panelHasShownBefore() {
-    try {
-      return Services.prefs.getBoolPref("browser.download.panel.shown");
-    } catch (ex) { }
-    return false;
-  },
-
-  set panelHasShownBefore(aValue) {
-    Services.prefs.setBoolPref("browser.download.panel.shown", aValue);
-    return aValue;
-  },
+  firstDownloadShown: false,
 
   /**
    * Displays a new download notification in the most recent browser window, if
@@ -685,14 +673,14 @@ const DownloadsData = {
     }
 
     browserWin.focus();
-    if (this.panelHasShownBefore) {
-      // For new downloads after the first one, don't show the panel
-      // automatically, but provide a visible notification in the topmost
+    if (this.firstDownloadShown) {
+      // For new downloads after the first one in the session, don't show the
+      // panel automatically, but provide a visible notification in the topmost
       // browser window, if the status indicator is already visible.
       browserWin.DownloadsIndicatorView.showEventNotification();
       return;
     }
-    this.panelHasShownBefore = true;
+    this.firstDownloadShown = true;
     browserWin.DownloadsPanel.showPanel();
   }
 };
@@ -873,47 +861,18 @@ DownloadsDataItem.prototype = {
    */
   get localFile()
   {
-    return this._getFile(this.file);
-  },
-
-  /**
-   * Returns the nsILocalFile for the partially downloaded target.
-   *
-   * @throws if the native path is not valid.  This can happen if the same
-   *         profile is used on different platforms, for example if a native
-   *         Windows path is stored and then the item is accessed on a Mac.
-   */
-  get partFile()
-  {
-    return this._getFile(this.file + kPartialDownloadSuffix);
-  },
-
-  /**
-   * Returns an nsILocalFile for aFilename. aFilename might be a file URL or
-   * a native path.
-   *
-   * @param aFilename the filename of the file to retrieve.
-   * @return an nsILocalFile for the file.
-   * @throws if the native path is not valid.  This can happen if the same
-   *         profile is used on different platforms, for example if a native
-   *         Windows path is stored and then the item is accessed on a Mac.
-   * @note This function makes no guarantees about the file's existence -
-   *       callers should check that the returned file exists.
-   */
-  _getFile: function DDI__getFile(aFilename)
-  {
     // The download database may contain targets stored as file URLs or native
     // paths.  This can still be true for previously stored items, even if new
     // items are stored using their file URL.  See also bug 239948 comment 12.
-    if (aFilename.startsWith("file:")) {
+    if (this.file.startsWith("file:")) {
       // Assume the file URL we obtained from the downloads database or from the
       // "spec" property of the target has the UTF-8 charset.
-      let fileUrl = NetUtil.newURI(aFilename).QueryInterface(Ci.nsIFileURL);
+      let fileUrl = NetUtil.newURI(this.file).QueryInterface(Ci.nsIFileURL);
       return fileUrl.file.clone().QueryInterface(Ci.nsILocalFile);
     } else {
       // The downloads database contains a native path.  Try to create a local
       // file, though this may throw an exception if the path is invalid.
-      return new DownloadsLocalFileCtor(aFilename);
+      return new DownloadsLocalFileCtor(this.file);
     }
   }
 };

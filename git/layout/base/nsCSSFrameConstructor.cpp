@@ -10,7 +10,6 @@
  */
 
 #include "mozilla/Util.h"
-#include "mozilla/Likely.h"
 
 #include "nsCSSFrameConstructor.h"
 #include "nsCRT.h"
@@ -1123,7 +1122,7 @@ nsFrameConstructorState::AddChild(nsIFrame* aNewFrame,
   nsFrameState placeholderType;
   nsFrameItems* frameItems = &aFrameItems;
 #ifdef MOZ_XUL
-  if (MOZ_UNLIKELY(aIsOutOfFlowPopup)) {
+  if (NS_UNLIKELY(aIsOutOfFlowPopup)) {
       NS_ASSERTION(aNewFrame->GetParent() == mPopupItems.containingBlock,
                    "Popup whose parent is not the popup containing block?");
       NS_ASSERTION(mPopupItems.containingBlock, "Must have a popup set frame!");
@@ -1990,7 +1989,7 @@ nsCSSFrameConstructor::ConstructTableRow(nsFrameConstructorState& aState,
   else
     newFrame = NS_NewTableRowFrame(mPresShell, styleContext);
 
-  if (MOZ_UNLIKELY(!newFrame)) {
+  if (NS_UNLIKELY(!newFrame)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   InitAndRestoreFrame(aState, content, aParentFrame, nullptr, newFrame);
@@ -2025,7 +2024,7 @@ nsCSSFrameConstructor::ConstructTableCol(nsFrameConstructorState& aState,
   nsStyleContext* const styleContext = aItem.mStyleContext;
 
   nsTableColFrame* colFrame = NS_NewTableColFrame(mPresShell, styleContext);
-  if (MOZ_UNLIKELY(!colFrame)) {
+  if (NS_UNLIKELY(!colFrame)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   InitAndRestoreFrame(aState, content, aParentFrame, nullptr, colFrame);
@@ -2040,7 +2039,7 @@ nsCSSFrameConstructor::ConstructTableCol(nsFrameConstructorState& aState,
   int32_t span = colFrame->GetSpan();
   for (int32_t spanX = 1; spanX < span; spanX++) {
     nsTableColFrame* newCol = NS_NewTableColFrame(mPresShell, styleContext);
-    if (MOZ_UNLIKELY(!newCol)) {
+    if (NS_UNLIKELY(!newCol)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
     InitAndRestoreFrame(aState, content, aParentFrame, nullptr, newCol,
@@ -2086,7 +2085,7 @@ nsCSSFrameConstructor::ConstructTableCell(nsFrameConstructorState& aState,
     // See IsInAutoWidthTableCellForQuirk() in nsImageFrame.cpp.    
     newFrame = NS_NewTableCellFrame(mPresShell, styleContext, borderCollapse);
 
-  if (MOZ_UNLIKELY(!newFrame)) {
+  if (NS_UNLIKELY(!newFrame)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -2109,7 +2108,7 @@ nsCSSFrameConstructor::ConstructTableCell(nsFrameConstructorState& aState,
     isBlock = true;
   }
 
-  if (MOZ_UNLIKELY(!cellInnerFrame)) {
+  if (NS_UNLIKELY(!cellInnerFrame)) {
     newFrame->Destroy();
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -2372,7 +2371,7 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
                "Scrollbars should have been propagated to the viewport");
 #endif
 
-  if (MOZ_UNLIKELY(display->mDisplay == NS_STYLE_DISPLAY_NONE)) {
+  if (NS_UNLIKELY(display->mDisplay == NS_STYLE_DISPLAY_NONE)) {
     SetUndisplayedContent(aDocElement, styleContext);
     return NS_OK;
   }
@@ -2410,7 +2409,7 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
 #ifdef MOZ_XUL
   if (aDocElement->IsXUL()) {
     contentFrame = NS_NewDocElementBoxFrame(mPresShell, styleContext);
-    if (MOZ_UNLIKELY(!contentFrame)) {
+    if (NS_UNLIKELY(!contentFrame)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
     InitAndRestoreFrame(state, aDocElement, mDocElementContainingBlock, nullptr,
@@ -2817,7 +2816,7 @@ nsCSSFrameConstructor::ConstructPageFrame(nsIPresShell*  aPresShell,
                                                        parentStyleContext);
 
   aPageFrame = NS_NewPageFrame(aPresShell, pagePseudoStyle);
-  if (MOZ_UNLIKELY(!aPageFrame))
+  if (NS_UNLIKELY(!aPageFrame))
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Initialize the page frame and force it to have a view. This makes printing of
@@ -2830,7 +2829,7 @@ nsCSSFrameConstructor::ConstructPageFrame(nsIPresShell*  aPresShell,
                                        pagePseudoStyle);
 
   nsIFrame* pageContentFrame = NS_NewPageContentFrame(aPresShell, pageContentPseudoStyle);
-  if (MOZ_UNLIKELY(!pageContentFrame))
+  if (NS_UNLIKELY(!pageContentFrame))
     return NS_ERROR_OUT_OF_MEMORY;
 
   // Initialize the page content frame and force it to have a view. Also make it the
@@ -2851,7 +2850,7 @@ nsCSSFrameConstructor::ConstructPageFrame(nsIPresShell*  aPresShell,
                                                          pageContentPseudoStyle);
 
   aCanvasFrame = NS_NewCanvasFrame(aPresShell, canvasPseudoStyle);
-  if (MOZ_UNLIKELY(!aCanvasFrame))
+  if (NS_UNLIKELY(!aCanvasFrame))
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsIFrame* prevCanvasFrame = nullptr;
@@ -3121,7 +3120,7 @@ nsCSSFrameConstructor::ConstructFieldSetFrame(nsFrameConstructorState& aState,
   nsStyleContext* const styleContext = aItem.mStyleContext;
 
   nsIFrame* newFrame = NS_NewFieldSetFrame(mPresShell, styleContext);
-  if (MOZ_UNLIKELY(!newFrame)) {
+  if (NS_UNLIKELY(!newFrame)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
@@ -3242,7 +3241,7 @@ nsCSSFrameConstructor::ConstructTextFrame(const FrameConstructionData* aData,
 
   nsIFrame* newFrame = (*aData->mFunc.mCreationFunc)(mPresShell, aStyleContext);
 
-  if (MOZ_UNLIKELY(!newFrame))
+  if (NS_UNLIKELY(!newFrame))
     return NS_ERROR_OUT_OF_MEMORY;
 
   nsresult rv = InitAndRestoreFrame(aState, aContent, aParentFrame,
@@ -3674,7 +3673,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
                                                          styleContext);
       nsIFrame* blockFrame =
         NS_NewBlockFormattingContext(mPresShell, blockContext);
-      if (MOZ_UNLIKELY(!blockFrame)) {
+      if (NS_UNLIKELY(!blockFrame)) {
         primaryFrame->Destroy();
         return NS_ERROR_OUT_OF_MEMORY;
       }
@@ -4476,7 +4475,7 @@ nsCSSFrameConstructor::ConstructScrollableBlock(nsFrameConstructorState& aState,
                                &scrolledFrame, blockItem,
                                aDisplay->IsPositioned(scrolledFrame),
                                aItem.mPendingBinding);
-  if (MOZ_UNLIKELY(NS_FAILED(rv))) {
+  if (NS_UNLIKELY(NS_FAILED(rv))) {
     // XXXbz any cleanup needed here?
     return rv;
   }
@@ -4641,7 +4640,7 @@ nsCSSFrameConstructor::FlushAccumulatedBlock(nsFrameConstructorState& aState,
   nsIFrame* blockFrame =
       NS_NewMathMLmathBlockFrame(mPresShell, blockContext,
                                  NS_BLOCK_FLOAT_MGR | NS_BLOCK_MARGIN_ROOT);
-  if (MOZ_UNLIKELY(!blockFrame))
+  if (NS_UNLIKELY(!blockFrame))
     return NS_ERROR_OUT_OF_MEMORY;
 
   InitAndRestoreFrame(aState, aContent, aParentFrame, nullptr, blockFrame);
@@ -8150,27 +8149,13 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
       if (NeedToReframeForAddingOrRemovingTransform(frame)) {
         NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
       } else {
-        // Normally frame construction would set state bits as needed,
-        // but we're not going to reconstruct the frame so we need to set them.
-        // It's because we need to set this state on each affected frame
+        // We can just add this state bit unconditionally, since it's
+        // conservative. Normally frame construction would set this if needed,
+        // but we're not going to reconstruct the frame so we need to set it.
+        // It's because we need to set this bit on each affected frame
         // that we can't coalesce nsChangeHint_AddOrRemoveTransform hints up
         // to ancestors (i.e. it can't be an inherited change hint).
-        if (frame->IsPositioned()) {
-          // If a transform has been added, we'll be taking this path,
-          // but we may be taking this path even if a transform has been
-          // removed. It's OK to add the bit even if it's not needed.
-          frame->AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED);
-          if (!frame->IsAbsoluteContainer()) {
-            frame->MarkAsAbsoluteContainingBlock();
-          }
-        } else {
-          // Don't remove NS_FRAME_MAY_BE_TRANSFORMED since it may still by
-          // transformed by other means. It's OK to have the bit even if it's
-          // not needed.
-          if (frame->IsAbsoluteContainer()) {
-            frame->MarkAsNotAbsoluteContainingBlock();
-          }
-        }
+        frame->AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED);
       }
     }
     if (hint & nsChangeHint_ReconstructFrame) {
@@ -8182,15 +8167,6 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
       // problems could arise.
       RecreateFramesForContent(content, false);
     } else {
-      if ((frame->GetStateBits() & NS_FRAME_SVG_LAYOUT) &&
-          (frame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-        // frame does not maintain overflow rects, so avoid calling
-        // FinishAndStoreOverflow on it:
-        hint = NS_SubtractHint(hint,
-                 NS_CombineHint(nsChangeHint_UpdateOverflow,
-                                nsChangeHint_ChildrenOnlyTransform));
-      }
-
       NS_ASSERTION(frame, "This shouldn't happen");
       if (hint & nsChangeHint_UpdateEffects) {
         nsSVGEffects::UpdateEffects(frame);
@@ -8221,46 +8197,38 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
           for ( ; childFrame; childFrame = childFrame->GetNextSibling()) {
             NS_ABORT_IF_FALSE(childFrame->IsFrameOfType(nsIFrame::eSVG),
                               "Not expecting non-SVG children");
-            if (!(childFrame->GetStateBits() &
-                  (NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN))) {
-              childFrame->UpdateOverflow();
-            }
+            childFrame->UpdateOverflow();
             NS_ASSERTION(!nsLayoutUtils::GetNextContinuationOrSpecialSibling(childFrame),
                          "SVG frames should not have continuations or special siblings");
             NS_ASSERTION(childFrame->GetParent() == frame,
                          "SVG child frame not expected to have different parent");
           }
         }
-        // If |frame| is dirty or has dirty children, we don't bother updating
-        // overflows since that will happen when it's reflowed.
-        if (!(frame->GetStateBits() &
-              (NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN))) {
-          while (frame) {
-            nsOverflowAreas* pre = static_cast<nsOverflowAreas*>
-              (frame->Properties().Get(frame->PreTransformOverflowAreasProperty()));
-            if (pre) {
-              // FinishAndStoreOverflow will change the overflow areas passed in,
-              // so make a copy.
-              nsOverflowAreas overflowAreas = *pre;
-              frame->FinishAndStoreOverflow(overflowAreas, frame->GetSize());
-            } else {
-              frame->UpdateOverflow();
-            }
+        while (frame) {
+          nsOverflowAreas* pre = static_cast<nsOverflowAreas*>
+            (frame->Properties().Get(frame->PreTransformOverflowAreasProperty()));
+          if (pre) {
+            // FinishAndStoreOverflow will change the overflow areas passed in,
+            // so make a copy.
+            nsOverflowAreas overflowAreas = *pre;
+            frame->FinishAndStoreOverflow(overflowAreas, frame->GetSize());
+          } else {
+            frame->UpdateOverflow();
+          }
 
-            nsIFrame* next =
-              nsLayoutUtils::GetNextContinuationOrSpecialSibling(frame);
-            // Update the ancestors' overflow after we have updated the overflow
-            // for all the continuations with the same parent.
-            if (!next || frame->GetParent() != next->GetParent()) {
-              for (nsIFrame* ancestor = frame->GetParent(); ancestor;
-                   ancestor = ancestor->GetParent()) {
-                if (!ancestor->UpdateOverflow()) {
-                  break;
-                }
+          nsIFrame* next =
+            nsLayoutUtils::GetNextContinuationOrSpecialSibling(frame);
+          // Update the ancestors' overflow after we have updated the overflow
+          // for all the continuations with the same parent.
+          if (!next || frame->GetParent() != next->GetParent()) {
+            for (nsIFrame* ancestor = frame->GetParent(); ancestor;
+                 ancestor = ancestor->GetParent()) {
+              if (!ancestor->UpdateOverflow()) {
+                break;
               }
             }
-            frame = next;
           }
+          frame = next;
         }
       }
       if (hint & nsChangeHint_UpdateCursor) {
@@ -8315,25 +8283,6 @@ nsCSSFrameConstructor::RestyleElement(Element        *aElement,
   }
   NS_ASSERTION(!aPrimaryFrame || aPrimaryFrame->GetContent() == aElement,
                "frame/content mismatch");
-
-  // If we're restyling the root element and there are 'rem' units in
-  // use, handle dynamic changes to the definition of a 'rem' here.
-  if (GetPresContext()->UsesRootEMUnits() && aPrimaryFrame) {
-    nsStyleContext *oldContext = aPrimaryFrame->GetStyleContext();
-    if (!oldContext->GetParent()) { // check that we're the root element
-      nsRefPtr<nsStyleContext> newContext = mPresShell->StyleSet()->
-        ResolveStyleFor(aElement, nullptr /* == oldContext->GetParent() */);
-      if (oldContext->GetStyleFont()->mFont.size !=
-          newContext->GetStyleFont()->mFont.size) {
-        // The basis for 'rem' units has changed.
-        DoRebuildAllStyleData(aRestyleTracker, nsChangeHint(0));
-        if (aMinHint == 0) {
-          return;
-        }
-        aPrimaryFrame = aElement->GetPrimaryFrame();
-      }
-    }
-  }
 
   if (aMinHint & nsChangeHint_ReconstructFrame) {
     RecreateFramesForContent(aElement, false);
@@ -10813,7 +10762,7 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
     return NS_OK;
   }
   nsIFrame* newTextFrame = NS_NewTextFrame(aPresShell, newSC);
-  if (MOZ_UNLIKELY(!newTextFrame)) {
+  if (NS_UNLIKELY(!newTextFrame)) {
     return NS_ERROR_OUT_OF_MEMORY;;
   }
   newTextFrame->Init(textContent, parentFrame, nullptr);
@@ -12129,24 +12078,6 @@ nsCSSFrameConstructor::RebuildAllStyleData(nsChangeHint aExtraHint)
 
   nsAutoScriptBlocker scriptBlocker;
 
-  nsPresContext *presContext = mPresShell->GetPresContext();
-  presContext->SetProcessingRestyles(true);
-
-  DoRebuildAllStyleData(mPendingRestyles, aExtraHint);
-
-  presContext->SetProcessingRestyles(false);
-
-  // Make sure that we process any pending animation restyles from the
-  // above style change.  Note that we can *almost* implement the above
-  // by just posting a style change -- except we really need to restyle
-  // the root frame rather than the root element's primary frame.
-  ProcessPendingRestyles();
-}
-
-void
-nsCSSFrameConstructor::DoRebuildAllStyleData(RestyleTracker& aRestyleTracker,
-                                             nsChangeHint aExtraHint)
-{
   // Tell the style set to get the old rule tree out of the way
   // so we can recalculate while maintaining rule tree immutability
   nsresult rv = mPresShell->StyleSet()->BeginReconstruct();
@@ -12154,6 +12085,8 @@ nsCSSFrameConstructor::DoRebuildAllStyleData(RestyleTracker& aRestyleTracker,
     return;
   }
 
+  nsPresContext *presContext = mPresShell->GetPresContext();
+  presContext->SetProcessingRestyles(true);
   // Recalculate all of the style contexts for the document
   // Note that we can ignore the return value of ComputeStyleChangeFor
   // because we never need to reframe the root frame
@@ -12166,9 +12099,16 @@ nsCSSFrameConstructor::DoRebuildAllStyleData(RestyleTracker& aRestyleTracker,
   // Note: The restyle tracker we pass in here doesn't matter.
   ComputeStyleChangeFor(mPresShell->GetRootFrame(),
                         &changeList, aExtraHint,
-                        aRestyleTracker, true);
+                        mPendingRestyles, true);
   // Process the required changes
   ProcessRestyledFrames(changeList);
+  presContext->SetProcessingRestyles(false);
+
+  // Make sure that we process any pending animation restyles from the
+  // above style change.  Note that we can *almost* implement the above
+  // by just posting a style change -- except we really need to restyle
+  // the root frame rather than the root element's primary frame.
+  ProcessPendingRestyles();
 
   // Tell the style set it's safe to destroy the old rule tree.  We
   // must do this after the ProcessRestyledFrames call in case the
@@ -12228,7 +12168,7 @@ nsCSSFrameConstructor::PostRestyleEventCommon(Element* aElement,
                                               nsChangeHint aMinChangeHint,
                                               bool aForAnimation)
 {
-  if (MOZ_UNLIKELY(mPresShell->IsDestroying())) {
+  if (NS_UNLIKELY(mPresShell->IsDestroying())) {
     return;
   }
 

@@ -1931,16 +1931,14 @@ nsNativeThemeCocoa::DrawWidgetBackground(nsRenderingContext* aContext,
 
   gfxContextMatrixAutoSaveRestore save(thebesCtx);
 
-  bool hidpi = IsHiDPIContext(aContext->DeviceContext());
-  if (hidpi) {
+  if (IsHiDPIContext(aContext->DeviceContext())) {
     // Use high-resolution drawing.
     nativeWidgetRect.ScaleInverse(2.0f);
     nativeDirtyRect.ScaleInverse(2.0f);
     thebesCtx->Scale(2.0f, 2.0f);
   }
 
-  gfxQuartzNativeDrawing nativeDrawing(thebesCtx, nativeDirtyRect,
-                                       hidpi ? 2.0f : 1.0f);
+  gfxQuartzNativeDrawing nativeDrawing(thebesCtx, nativeDirtyRect);
 
   CGContextRef cgContext = nativeDrawing.BeginNativeDrawing();
   if (cgContext == nullptr) {

@@ -88,14 +88,8 @@ static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 StartupCache*
 StartupCache::GetSingleton() 
 {
-  if (!gStartupCache) {
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
-      NS_WARNING("Startup cache is only available in the chrome process");
-      return nullptr;
-    }
-
+  if (!gStartupCache)
     StartupCache::InitSingleton();
-  }
 
   return StartupCache::gStartupCache;
 }
@@ -149,6 +143,10 @@ StartupCache::~StartupCache()
 nsresult
 StartupCache::Init() 
 {
+  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+    NS_WARNING("Startup cache is only available in the chrome process");
+    return NS_ERROR_NOT_AVAILABLE;
+  }
   // workaround for bug 653936
   nsCOMPtr<nsIProtocolHandler> jarInitializer(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "jar"));
   

@@ -8,7 +8,6 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Base64.h"
-#include "mozilla/Likely.h"
 #include "mozilla/Util.h"
 
 #include "xpcprivate.h"
@@ -16,6 +15,7 @@
 #include "nsBaseHashtable.h"
 #include "nsHashKeys.h"
 #include "jsfriendapi.h"
+#include "jsgc.h"
 #include "dom_quickstubs.h"
 #include "nsNullPrincipal.h"
 #include "nsIURI.h"
@@ -137,7 +137,7 @@ nsXPConnect::GetXPConnect()
     // Do a release-mode assert that we're not doing anything significant in
     // XPConnect off the main thread. If you're an extension developer hitting
     // this, you need to change your code. See bug 716167.
-    if (!MOZ_LIKELY(NS_IsMainThread() || NS_IsCycleCollectorThread()))
+    if (!NS_LIKELY(NS_IsMainThread() || NS_IsCycleCollectorThread()))
         MOZ_CRASH();
 
     if (!gSelf) {
@@ -574,7 +574,7 @@ nsXPConnect::GetParticipant()
 JSBool
 xpc_GCThingIsGrayCCThing(void *thing)
 {
-    return AddToCCKind(js::GCThingTraceKind(thing)) &&
+    return AddToCCKind(js_GetGCThingTraceKind(thing)) &&
            xpc_IsGrayGCThing(thing);
 }
 
@@ -623,7 +623,7 @@ UnmarkGrayChildren(JSTracer *trc, void **thingp, JSGCTraceKind kind)
     if (!xpc_IsGrayGCThing(thing))
         return;
 
-    js::UnmarkGrayGCThing(thing);
+    static_cast<js::gc::Cell *>(thing)->unmark(js::gc::GRAY);
 
     /*
      * Trace children of |thing|. If |thing| and its parent are both shapes, |thing| will
@@ -661,7 +661,7 @@ xpc_UnmarkGrayGCThingRecursive(void *thing, JSGCTraceKind kind)
     MOZ_ASSERT(kind != JSTRACE_SHAPE, "UnmarkGrayGCThingRecursive not intended for Shapes");
 
     // Unmark.
-    js::UnmarkGrayGCThing(thing);
+    static_cast<js::gc::Cell *>(thing)->unmark(js::gc::GRAY);
 
     // Trace children.
     UnmarkGrayTracer trc;
@@ -696,7 +696,7 @@ NoteJSChild(JSTracer *trc, void *thing, JSGCTraceKind kind)
      * parent pointers iteratively, rather than recursively, to avoid overflow.
      */
     if (AddToCCKind(kind)) {
-        if (MOZ_UNLIKELY(tracer->cb.WantDebugInfo())) {
+        if (NS_UNLIKELY(tracer->cb.WantDebugInfo())) {
             // based on DumpNotify in jsapi.c
             if (tracer->debugPrinter) {
                 char buffer[200];
@@ -766,7 +766,7 @@ DescribeGCThing(bool isMarked, void *p, JSGCTraceKind traceKind,
                             clasp->name, si->GetJSClass()->name);
             } else if (clasp == &js::FunctionClass) {
                 JSFunction *fun = JS_GetObjectFunction(obj);
-                JSString *str = JS_GetFunctionDisplayId(fun);
+                JSString *str = JS_GetFunctionId(fun);
                 if (str) {
                     NS_ConvertUTF16toUTF8 fname(JS_GetInternedStringChars(str));
                     JS_snprintf(name, sizeof(name),
@@ -863,7 +863,7 @@ static void
 TraverseGCThing(TraverseSelect ts, void *p, JSGCTraceKind traceKind,
                 nsCycleCollectionTraversalCallback &cb)
 {
-    MOZ_ASSERT(traceKind == js::GCThingTraceKind(p));
+    MOZ_ASSERT(traceKind == js_GetGCThingTraceKind(p));
     bool isMarkedGray = xpc_IsGrayGCThing(p);
 
     if (ts == TRAVERSE_FULL)
@@ -890,7 +890,7 @@ NS_METHOD
 nsXPConnectParticipant::TraverseImpl(nsXPConnectParticipant *that, void *p,
                                      nsCycleCollectionTraversalCallback &cb)
 {
-    TraverseGCThing(TRAVERSE_FULL, p, js::GCThingTraceKind(p), cb);
+    TraverseGCThing(TRAVERSE_FULL, p, js_GetGCThingTraceKind(p), cb);
     return NS_OK;
 }
 
@@ -1000,6 +1000,29 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
     return NS_OK;
 }
 
+static bool
+CreateNewGlobal(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
+                xpc::CompartmentPrivate *priv, JSObject **global,
+                JSCompartment **compartment)
+{
+    // We take ownership of |priv|. Ensure that either we free it in the case
+    // of failure or give ownership to the compartment in case of success (in
+    // that case it will be free'd in CompartmentCallback during GC).
+    MOZ_ASSERT(priv);
+    nsAutoPtr<xpc::CompartmentPrivate> priv_holder(priv);
+    JSObject *tempGlobal =
+        JS_NewGlobalObject(cx, clasp, nsJSPrincipals::get(principal));
+
+    if (!tempGlobal)
+        return false;
+
+    *global = tempGlobal;
+    *compartment = js::GetObjectCompartment(tempGlobal);
+
+    JS_SetCompartmentPrivate(*compartment, priv_holder.forget());
+    return true;
+}
+
 #ifdef DEBUG
 struct VerifyTraceXPCGlobalCalledTracer
 {
@@ -1027,8 +1050,10 @@ TraceXPCGlobal(JSTracer *trc, JSObject *obj)
     }
 #endif
 
-    if (js::GetObjectClass(obj)->flags & JSCLASS_DOM_GLOBAL)
-        mozilla::dom::TraceProtoAndIfaceCache(trc, obj);
+    if (XPCWrappedNativeScope *scope = XPCWrappedNativeScope::GetNativeScope(obj))
+        scope->TraceDOMPrototypes(trc);
+
+    mozilla::dom::TraceProtoOrIfaceCache(trc, obj);
 }
 
 #ifdef DEBUG
@@ -1073,8 +1098,9 @@ CheckTypeInference(JSContext *cx, JSClass *clasp, nsIPrincipal *principal)
 
 namespace xpc {
 
-JSObject*
-CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal)
+nsresult
+CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
+                   bool wantXrays, JSObject **global, JSCompartment **compartment)
 {
     // Make sure that Type Inference is enabled for everything non-chrome.
     // Sandboxes and compilation scopes are exceptions. See bug 744034.
@@ -1082,33 +1108,34 @@ CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal)
 
     NS_ABORT_IF_FALSE(NS_IsMainThread(), "using a principal off the main thread?");
 
-    JSObject *global = JS_NewGlobalObject(cx, clasp, nsJSPrincipals::get(principal));
-    if (!global)
-        return nullptr;
-    JSAutoCompartment ac(cx, global);
-    // The constructor automatically attaches the scope to the compartment private
-    // of |global|.
-    (void) new XPCWrappedNativeScope(cx, global);
+    xpc::CompartmentPrivate *priv = new xpc::CompartmentPrivate(wantXrays);
+    if (!CreateNewGlobal(cx, clasp, principal, priv, global, compartment))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+
+    XPCCompartmentSet& set = nsXPConnect::GetRuntimeInstance()->GetCompartmentSet();
+    if (!set.put(*compartment))
+        return UnexpectedFailure(NS_ERROR_FAILURE);
 
 #ifdef DEBUG
     // Verify that the right trace hook is called. Note that this doesn't
     // work right for wrapped globals, since the tracing situation there is
     // more complicated. Manual inspection shows that they do the right thing.
-    if (!((js::Class*)clasp)->ext.isWrappedNative)
+    if (clasp->flags & JSCLASS_XPCONNECT_GLOBAL &&
+        !((js::Class*)clasp)->ext.isWrappedNative)
     {
         VerifyTraceXPCGlobalCalledTracer trc;
         JS_TracerInit(&trc.base, JS_GetRuntime(cx), VerifyTraceXPCGlobalCalled);
         trc.ok = false;
-        JS_TraceChildren(&trc.base, global, JSTRACE_OBJECT);
-        NS_ABORT_IF_FALSE(trc.ok, "Trace hook on global needs to call TraceXPCGlobal for XPConnect compartments.");
+        JS_TraceChildren(&trc.base, *global, JSTRACE_OBJECT);
+        NS_ABORT_IF_FALSE(trc.ok, "Trace hook needs to call TraceXPCGlobal if JSCLASS_XPCONNECT_GLOBAL is set.");
     }
 #endif
 
     if (clasp->flags & JSCLASS_DOM_GLOBAL) {
-        AllocateProtoAndIfaceCache(global);
+        AllocateProtoOrIfaceCache(*global);
     }
 
-    return global;
+    return NS_OK;
 }
 
 } // namespace xpc
@@ -1161,8 +1188,8 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
     MOZ_ASSERT(js::GetObjectClass(global)->flags & JSCLASS_DOM_GLOBAL);
 
     // Init WebIDL binding constructors wanted on all XPConnect globals.
-    if (!TextDecoderBinding::GetConstructorObject(aJSContext, global) ||
-        !TextEncoderBinding::GetConstructorObject(aJSContext, global)) {
+    if (!TextDecoderBinding::GetProtoObject(aJSContext, global, global) ||
+        !TextEncoderBinding::GetProtoObject(aJSContext, global, global)) {
         return UnexpectedFailure(NS_ERROR_FAILURE);
     }
 
@@ -1443,7 +1470,8 @@ nsXPConnect::GetWrappedNativeOfNativeObject(JSContext * aJSContext,
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    XPCWrappedNativeScope* scope = GetObjectScope(aScope);
+    XPCWrappedNativeScope* scope =
+        XPCWrappedNativeScope::FindInJSObjectScope(ccx, aScope);
     if (!scope)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
@@ -1474,9 +1502,14 @@ nsXPConnect::ReparentWrappedNativeIfFound(JSContext * aJSContext,
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    XPCWrappedNativeScope* scope = GetObjectScope(aScope);
-    XPCWrappedNativeScope* scope2 = GetObjectScope(aNewParent);
-    if (!scope || !scope2)
+    XPCWrappedNativeScope* scope =
+        XPCWrappedNativeScope::FindInJSObjectScope(ccx, aScope);
+    if (!scope)
+        return UnexpectedFailure(NS_ERROR_FAILURE);
+
+    XPCWrappedNativeScope* scope2 =
+        XPCWrappedNativeScope::FindInJSObjectScope(ccx, aNewParent);
+    if (!scope2)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     return XPCWrappedNative::
@@ -1507,7 +1540,8 @@ nsXPConnect::RescueOrphansInScope(JSContext *aJSContext, JSObject *aScope)
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    XPCWrappedNativeScope *scope = GetObjectScope(aScope);
+    XPCWrappedNativeScope *scope =
+        XPCWrappedNativeScope::FindInJSObjectScope(ccx, aScope);
     if (!scope)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
@@ -1759,7 +1793,8 @@ nsXPConnect::GetWrappedNativePrototype(JSContext * aJSContext,
 
     JSAutoCompartment ac(aJSContext, aScope);
 
-    XPCWrappedNativeScope* scope = GetObjectScope(aScope);
+    XPCWrappedNativeScope* scope =
+        XPCWrappedNativeScope::FindInJSObjectScope(ccx, aScope);
     if (!scope)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
@@ -1998,7 +2033,7 @@ nsXPConnect::AfterProcessNextEvent(nsIThreadInternal *aThread,
                                    uint32_t aRecursionDepth)
 {
     // Watch out for unpaired events during observer registration.
-    if (MOZ_UNLIKELY(mEventDepth == 0))
+    if (NS_UNLIKELY(mEventDepth == 0))
         return NS_OK;
     mEventDepth--;
 
@@ -2390,14 +2425,22 @@ void
 SetLocationForGlobal(JSObject *global, const nsACString& location)
 {
     MOZ_ASSERT(global);
-    EnsureCompartmentPrivate(global)->SetLocation(location);
+
+    CompartmentPrivate *priv = GetCompartmentPrivate(global);
+    MOZ_ASSERT(priv, "No compartment private");
+
+    priv->SetLocation(location);
 }
 
 void
 SetLocationForGlobal(JSObject *global, nsIURI *locationURI)
 {
     MOZ_ASSERT(global);
-    EnsureCompartmentPrivate(global)->SetLocation(locationURI);
+
+    CompartmentPrivate *priv = GetCompartmentPrivate(global);
+    MOZ_ASSERT(priv, "No compartment private");
+
+    priv->SetLocation(locationURI);
 }
 
 } // namespace xpc
@@ -2406,7 +2449,7 @@ static void
 NoteJSChildGrayWrapperShim(void *data, void *thing)
 {
     TraversalTracer *trc = static_cast<TraversalTracer*>(data);
-    NoteJSChild(trc, thing, js::GCThingTraceKind(thing));
+    NoteJSChild(trc, thing, js_GetGCThingTraceKind(thing));
 }
 
 static void
@@ -2415,7 +2458,7 @@ TraverseObjectShim(void *data, void *thing)
     nsCycleCollectionTraversalCallback *cb =
         static_cast<nsCycleCollectionTraversalCallback*>(data);
 
-    MOZ_ASSERT(js::GCThingTraceKind(thing) == JSTRACE_OBJECT);
+    MOZ_ASSERT(js_GetGCThingTraceKind(thing) == JSTRACE_OBJECT);
     TraverseGCThing(TRAVERSE_CPP, thing, JSTRACE_OBJECT, *cb);
 }
 

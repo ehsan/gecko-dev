@@ -15,18 +15,15 @@
 #include "nsIDOMNode.h"
 #include "nsXBLPrototypeBinding.h"
 #include "nsXBLProtoImplProperty.h"
-#include "mozilla/Util.h"
-
-using namespace mozilla;
 
 // Checks that the version is not modified in a given scope.
 class AutoVersionChecker
 {
-  DebugOnly<JSContext *> const cx;
-  DebugOnly<JSVersion> versionBefore;
+  JSContext * const cx;
+  JSVersion versionBefore;
 
 public:
-  explicit AutoVersionChecker(JSContext *aCx) : cx(aCx) {
+  explicit AutoVersionChecker(JSContext *cx) : cx(cx) {
 #ifdef DEBUG
     versionBefore = JS_GetVersion(cx);
 #endif

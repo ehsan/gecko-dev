@@ -25,7 +25,6 @@
 
 #include "mozilla/Util.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Likely.h"
 
 #include "nsAppRunner.h"
 #include "mozilla/AppData.h"
@@ -129,7 +128,6 @@ using mozilla::unused;
 #include "nsINIParser.h"
 #include "mozilla/Omnijar.h"
 #include "mozilla/StartupTimeline.h"
-#include "mozilla/mozPoisonWrite.h"
 
 #include <stdlib.h>
 
@@ -1063,9 +1061,9 @@ bool gLogConsoleErrors
 
 #define NS_ENSURE_TRUE_LOG(x, ret)               \
   PR_BEGIN_MACRO                                 \
-  if (MOZ_UNLIKELY(!(x))) {                      \
+  if (NS_UNLIKELY(!(x))) {                       \
     NS_WARNING("NS_ENSURE_TRUE(" #x ") failed"); \
-    gLogConsoleErrors = true;                    \
+    gLogConsoleErrors = true;                 \
     return ret;                                  \
   }                                              \
   PR_END_MACRO
@@ -3875,10 +3873,6 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   // corresponds to nsIAppStartup.quit(eRestart)
   if (rv == NS_SUCCESS_RESTART_APP) {
     appInitiatedRestart = true;
-  } else {
-    // We will have a real shutdown, let ShutdownXPCOM poison writes to
-    // find any late ones.
-    mozilla::EnableWritePoisoning();
   }
 
   if (!mShuttingDown) {

@@ -14,9 +14,7 @@ NS_IMPL_ISUPPORTS1(SmsDatabaseService, nsISmsDatabaseService)
 NS_IMETHODIMP
 SmsDatabaseService::SaveReceivedMessage(const nsAString& aSender,
                                         const nsAString& aBody,
-                                        const nsAString& aMessageClass,
-                                        uint64_t aDate,
-                                        int32_t* aId)
+                                        uint64_t aDate, int32_t* aId)
 {
   *aId = -1;
   NS_ERROR("We should not be here!");
@@ -29,14 +27,6 @@ SmsDatabaseService::SaveSentMessage(const nsAString& aReceiver,
                                     uint64_t aDate, int32_t* aId)
 {
   *aId = -1;
-  NS_ERROR("We should not be here!");
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-SmsDatabaseService::SetMessageDeliveryStatus(int32_t aMessageId,
-                                             const nsAString& aDeliveryStatus)
-{
   NS_ERROR("We should not be here!");
   return NS_OK;
 }

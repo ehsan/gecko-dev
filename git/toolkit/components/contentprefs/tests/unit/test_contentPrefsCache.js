@@ -3,7 +3,8 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-let cps = new ContentPrefInstance(null);
+let cps = Cc["@mozilla.org/content-pref/service;1"].
+          getService(Ci.nsIContentPrefService);
 
 function run_test() {
   testCacheWorks("test1.example.com", "test-pref1");

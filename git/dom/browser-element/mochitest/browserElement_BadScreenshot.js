@@ -43,6 +43,7 @@ function checkScreenshotResult(expectSuccess, args) {
 }
 
 function runTest() {
+  dump("XXX runTest\n");
   browserElementTestHelpers.setEnabledPref(true);
   browserElementTestHelpers.addPermission();
 

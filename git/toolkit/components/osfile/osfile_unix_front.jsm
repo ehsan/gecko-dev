@@ -318,18 +318,12 @@
       * as per libc function |mkdir|. If unspecified, dirs are
       * created with a default mode of 0700 (dir is private to
       * the user, the user can read, write and execute).
-      * - {bool} ignoreExisting If |true|, do not fail if the
-      * directory already exists.
       */
      File.makeDir = function makeDir(path, options) {
        options = options || noOptions;
        let omode = options.unixMode || DEFAULT_UNIX_MODE_DIR;
-       let result = UnixFile.mkdir(path, omode);
-       if (result != -1 ||
-           options.ignoreExisting && ctypes.errno == OS.Constants.libc.EEXIST) {
-        return;
-       }
-       throw new File.Error("makeDir");
+       throw_on_negative("makeDir",
+         UnixFile.mkdir(path, omode));
      };
 
      /**
@@ -654,14 +648,6 @@
        if (!this._dir) return;
        UnixFile.closedir(this._dir);
        this._dir = null;
-     };
-
-     /**
-      * Return directory as |File|
-      */
-     File.DirectoryIterator.prototype.unixAsFile = function unixAsFile() {
-       if (!this._dir) throw File.Error.closed();
-       return error_or_file(UnixFile.dirfd(this._dir));
      };
 
      /**

@@ -4,8 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef AudioContext_h_
-#define AudioContext_h_
+#pragma once
 
 #include "nsWrapperCache.h"
 #include "nsCycleCollectionParticipant.h"
@@ -26,7 +25,6 @@ namespace dom {
 class AudioDestinationNode;
 class AudioBufferSourceNode;
 class AudioBuffer;
-class GainNode;
 
 class AudioContext MOZ_FINAL : public nsWrapperCache,
                                public EnableWebAudioCheck
@@ -62,9 +60,6 @@ public:
                uint32_t aLength, float aSampleRate,
                ErrorResult& aRv);
 
-  already_AddRefed<GainNode>
-  CreateGain();
-
 private:
   nsCOMPtr<nsIDOMWindow> mWindow;
   nsRefPtr<AudioDestinationNode> mDestination;
@@ -72,6 +67,4 @@ private:
 
 }
 }
-
-#endif
 

@@ -62,19 +62,12 @@
 using namespace mozilla;
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo *
-GetFontInfoLog()
-{
-    static PRLogModuleInfo *sLog;
-    if (!sLog)
-        sLog = PR_NewLogModule("fontInfoLog");
-    return sLog;
-}
+static PRLogModuleInfo *gFontInfoLog = PR_NewLogModule("fontInfoLog");
 #endif /* PR_LOGGING */
 
 #undef LOG
-#define LOG(args) PR_LOG(GetFontInfoLog(), PR_LOG_DEBUG, args)
-#define LOG_ENABLED() PR_LOG_TEST(GetFontInfoLog(), PR_LOG_DEBUG)
+#define LOG(args) PR_LOG(gFontInfoLog, PR_LOG_DEBUG, args)
+#define LOG_ENABLED() PR_LOG_TEST(gFontInfoLog, PR_LOG_DEBUG)
 
 static __inline void
 BuildKeyNameFromFontName(nsAString &aName)
@@ -921,7 +914,7 @@ void ExtractFontsFromJar(nsIFile* aLocalDir)
     jarFile->GetLastModifiedTime(&jarModifiedTime);
 
     mozilla::scache::StartupCache* cache = mozilla::scache::StartupCache::GetSingleton();
-    if (cache && NS_SUCCEEDED(cache->GetBuffer(JAR_LAST_MODIFED_TIME, &cachedModifiedTimeBuf, &longSize))
+    if (NS_SUCCEEDED(cache->GetBuffer(JAR_LAST_MODIFED_TIME, &cachedModifiedTimeBuf, &longSize))
         && longSize == sizeof(int64_t)) {
         if (jarModifiedTime < *((int64_t*) cachedModifiedTimeBuf)) {
             return;
@@ -979,7 +972,7 @@ void ExtractFontsFromJar(nsIFile* aLocalDir)
             }
         }
     }
-    if (allFontsExtracted && cache) {
+    if (allFontsExtracted) {
         cache->PutBuffer(JAR_LAST_MODIFED_TIME, (char*)&jarModifiedTime, sizeof(int64_t));
     }
 }

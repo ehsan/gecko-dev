@@ -186,7 +186,6 @@ NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_notifySmsReceived(JNIEnv* jenv, jclass,
                                                        jstring aSender,
                                                        jstring aBody,
-                                                       jint aMessageClass,
                                                        jlong aTimestamp)
 {
     class NotifySmsReceivedRunnable : public nsRunnable {
@@ -210,11 +209,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsReceived(JNIEnv* jenv, jclass,
       SmsMessageData mMessageData;
     };
 
-    SmsMessageData message(0, eDeliveryState_Received, eDeliveryStatus_Success,
-                           nsJNIString(aSender, jenv), EmptyString(),
-                           nsJNIString(aBody, jenv),
-                           static_cast<MessageClass>(aMessageClass),
-                           aTimestamp, false);
+    SmsMessageData message(0, eDeliveryState_Received, nsJNIString(aSender, jenv), EmptyString(),
+                           nsJNIString(aBody, jenv), aTimestamp, false);
 
     nsCOMPtr<nsIRunnable> runnable = new NotifySmsReceivedRunnable(message);
     NS_DispatchToMainThread(runnable);
@@ -298,23 +294,20 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsSent(JNIEnv* jenv, jclass,
       uint64_t       mProcessId;
     };
 
-    // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aId, eDeliveryState_Sent, eDeliveryStatus_Pending,
-                           EmptyString(), nsJNIString(aReceiver, jenv),
-                           nsJNIString(aBody, jenv), eMessageClass_Normal,
-                           aTimestamp, true);
+    SmsMessageData message(aId, eDeliveryState_Sent, EmptyString(),
+                           nsJNIString(aReceiver, jenv),
+                           nsJNIString(aBody, jenv), aTimestamp, true);
 
     nsCOMPtr<nsIRunnable> runnable = new NotifySmsSentRunnable(message, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_notifySmsDelivery(JNIEnv* jenv, jclass,
-                                                       jint aId,
-                                                       jint aDeliveryStatus,
-                                                       jstring aReceiver,
-                                                       jstring aBody,
-                                                       jlong aTimestamp)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsDelivered(JNIEnv* jenv, jclass,
+                                                        jint aId,
+                                                        jstring aReceiver,
+                                                        jstring aBody,
+                                                        jlong aTimestamp)
 {
     class NotifySmsDeliveredRunnable : public nsRunnable {
     public:
@@ -329,10 +322,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsDelivery(JNIEnv* jenv, jclass,
         }
 
         nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(mMessageData);
-        const char* topic = (mMessageData.deliveryStatus() == eDeliveryStatus_Success)
-                            ? kSmsDeliverySuccessObserverTopic
-                            : kSmsDeliveryErrorObserverTopic;
-        obs->NotifyObservers(message, topic, nullptr);
+        obs->NotifyObservers(message, kSmsDeliveredObserverTopic, nullptr);
 
         return NS_OK;
       }
@@ -341,12 +331,9 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsDelivery(JNIEnv* jenv, jclass,
       SmsMessageData mMessageData;
     };
 
-    // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aId, eDeliveryState_Sent,
-                           static_cast<DeliveryStatus>(aDeliveryStatus),
-                           EmptyString(), nsJNIString(aReceiver, jenv),
-                           nsJNIString(aBody, jenv), eMessageClass_Normal,
-                           aTimestamp, true);
+    SmsMessageData message(aId, eDeliveryState_Sent, EmptyString(),
+                           nsJNIString(aReceiver, jenv),
+                           nsJNIString(aBody, jenv), aTimestamp, true);
 
     nsCOMPtr<nsIRunnable> runnable = new NotifySmsDeliveredRunnable(message);
     NS_DispatchToMainThread(runnable);
@@ -404,7 +391,6 @@ Java_org_mozilla_gecko_GeckoAppShell_notifySmsSendFailed(JNIEnv* jenv, jclass,
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_notifyGetSms(JNIEnv* jenv, jclass,
                                                   jint aId,
-                                                  jint aDeliveryStatus,
                                                   jstring aReceiver,
                                                   jstring aSender,
                                                   jstring aBody,
@@ -454,12 +440,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGetSms(JNIEnv* jenv, jclass,
                                              : eDeliveryState_Sent;
 
     // TODO Need to add the message `read` parameter value. Bug 748391
-    // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aId, state,
-                           static_cast<DeliveryStatus>(aDeliveryStatus),
-                           nsJNIString(aSender, jenv), receiver,
-                           nsJNIString(aBody, jenv), eMessageClass_Normal,
-                           aTimestamp, true);
+    SmsMessageData message(aId, state, nsJNIString(aSender, jenv), receiver,
+                           nsJNIString(aBody, jenv), aTimestamp, true);
 
     nsCOMPtr<nsIRunnable> runnable = new NotifyGetSmsRunnable(message, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
@@ -658,7 +640,6 @@ NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_notifyListCreated(JNIEnv* jenv, jclass,
                                                        jint aListId,
                                                        jint aMessageId,
-                                                       jint aDeliveryStatus,
                                                        jstring aReceiver,
                                                        jstring aSender,
                                                        jstring aBody,
@@ -715,12 +696,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyListCreated(JNIEnv* jenv, jclass,
                                              : eDeliveryState_Sent;
 
     // TODO Need to add the message `read` parameter value. Bug 748391
-    // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aMessageId, state,
-                           static_cast<DeliveryStatus>(aDeliveryStatus),
-                           nsJNIString(aSender, jenv), receiver,
-                           nsJNIString(aBody, jenv), eMessageClass_Normal,
-                           aTimestamp, true);
+    SmsMessageData message(aMessageId, state, nsJNIString(aSender, jenv),
+                           receiver, nsJNIString(aBody, jenv), aTimestamp, true);
 
     nsCOMPtr<nsIRunnable> runnable =
       new NotifyCreateMessageListRunnable(aListId, message, aRequestId, aProcessId);
@@ -730,7 +707,6 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyListCreated(JNIEnv* jenv, jclass,
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_notifyGotNextMessage(JNIEnv* jenv, jclass,
                                                           jint aMessageId,
-                                                          jint aDeliveryStatus,
                                                           jstring aReceiver,
                                                           jstring aSender,
                                                           jstring aBody,
@@ -781,12 +757,8 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyGotNextMessage(JNIEnv* jenv, jclass,
                                              : eDeliveryState_Sent;
  
     // TODO Need to add the message `read` parameter value. Bug 748391
-    // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aMessageId, state,
-                           static_cast<DeliveryStatus>(aDeliveryStatus),
-                           nsJNIString(aSender, jenv), receiver,
-                           nsJNIString(aBody, jenv), eMessageClass_Normal,
-                           aTimestamp, true);
+    SmsMessageData message(aMessageId, state, nsJNIString(aSender, jenv),
+                           receiver, nsJNIString(aBody, jenv), aTimestamp, true);
 
     nsCOMPtr<nsIRunnable> runnable =
       new NotifyGotNextMessageRunnable(message, aRequestId, aProcessId);
@@ -860,12 +832,6 @@ NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_scheduleResumeComposition(JNIEnv*, jclass, jint width, jint height)
 {
     nsWindow::ScheduleResumeComposition(width, height);
-}
-
-NS_EXPORT float JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_computeRenderIntegrity(JNIEnv*, jclass)
-{
-    return nsWindow::ComputeRenderIntegrity();
 }
 
 NS_EXPORT void JNICALL

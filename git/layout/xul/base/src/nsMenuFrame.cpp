@@ -37,11 +37,10 @@
 #include "nsISound.h"
 #include "nsEventStateManager.h"
 #include "nsIDOMXULMenuListElement.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/Likely.h"
-#include "mozilla/LookAndFeel.h"
-#include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
+#include "mozilla/Preferences.h"
+#include "mozilla/LookAndFeel.h"
+#include "mozilla/Attributes.h"
 
 using namespace mozilla;
 
@@ -252,7 +251,7 @@ nsMenuFrame::Init(nsIContent*      aContent,
 
   // Set up a mediator which can be used for callbacks on this frame.
   mTimerMediator = new nsMenuTimerMediator(this);
-  if (MOZ_UNLIKELY(!mTimerMediator))
+  if (NS_UNLIKELY(!mTimerMediator))
     return NS_ERROR_OUT_OF_MEMORY;
 
   InitMenuParent(aParent);
@@ -1301,7 +1300,7 @@ nsMenuFrame::InsertFrames(ChildListID     aListID,
   if (aFrameList.IsEmpty())
     return NS_OK;
 
-  if (MOZ_UNLIKELY(aPrevFrame && aPrevFrame == GetPopup())) {
+  if (NS_UNLIKELY(aPrevFrame && aPrevFrame == GetPopup())) {
     aPrevFrame = nullptr;
   }
 

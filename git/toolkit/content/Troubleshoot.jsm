@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = [
+let EXPORTED_SYMBOLS = [
   "Troubleshoot",
 ];
 
@@ -73,7 +73,7 @@ const PREFS_BLACKLIST = [
   /[.]print_to_filename$/,
 ];
 
-this.Troubleshoot = {
+let Troubleshoot = {
 
   /**
    * Captures a snapshot of data that may help troubleshooters troubleshoot
@@ -295,8 +295,6 @@ let dataProviders = {
       .parseFromString("<html/>", "text/html");
 
     let canvas = doc.createElement("canvas");
-    canvas.width = 1;
-    canvas.height = 1;
 
     let gl;
     try {

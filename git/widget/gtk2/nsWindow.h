@@ -144,7 +144,8 @@ public:
     NS_IMETHOD         EnableDragDrop(bool aEnable);
     NS_IMETHOD         CaptureMouse(bool aCapture);
     NS_IMETHOD         CaptureRollupEvents(nsIRollupListener *aListener,
-                                           bool aDoCapture);
+                                           bool aDoCapture,
+                                           bool aConsumeRollupEvent);
     NS_IMETHOD         GetAttention(int32_t aCycleCount);
 
     virtual bool       HasPendingInputEvent();
@@ -336,8 +337,6 @@ private:
     bool               DispatchContentCommandEvent(int32_t aMsg);
     void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                            bool aIntersectWithExisting);
-    bool               CheckForRollup(gdouble aMouseX, gdouble aMouseY,
-                                      bool aIsWheel, bool aAlwaysRollup);
     bool               GetDragInfo(nsMouseEvent* aMouseEvent,
                                    GdkWindow** aWindow, gint* aButton,
                                    gint* aRootX, gint* aRootY);

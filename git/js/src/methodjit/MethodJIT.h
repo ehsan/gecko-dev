@@ -334,8 +334,10 @@ enum RejoinState {
     /* Triggered a recompilation while placing the arguments to an apply on the stack. */
     REJOIN_CALL_SPLAT,
 
-    /* Like REJOIN_FALLTHROUGH, but handles getprop used as part of JSOP_INSTANCEOF. */
+    /* FALLTHROUGH ops which can be implemented as part of an IncOp. */
     REJOIN_GETTER,
+    REJOIN_POS,
+    REJOIN_BINARY,
 
     /*
      * For an opcode fused with IFEQ/IFNE, call returns a boolean indicating

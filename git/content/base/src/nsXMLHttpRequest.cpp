@@ -1232,36 +1232,12 @@ nsXMLHttpRequest::Status()
 
   uint16_t readyState;
   GetReadyState(&readyState);
-  if (readyState == UNSENT || readyState == OPENED) {
-    return 0;
-  }
-
-  if (mErrorLoad) {
-    // Let's simulate the http protocol for jar/app requests:
-    nsCOMPtr<nsIJARChannel> jarChannel = GetCurrentJARChannel();
-    if (jarChannel) {
-      nsresult status;
-      mChannel->GetStatus(&status);
-
-      if (status == NS_ERROR_FILE_NOT_FOUND) {
-        return 404; // Not Found
-      } else {
-        return 500; // Internal Error
-      }
-    }
-
+  if (readyState == UNSENT || readyState == OPENED || mErrorLoad) {
     return 0;
   }
 
   nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel();
   if (!httpChannel) {
-
-    // Let's simulate the http protocol for jar/app requests:
-    nsCOMPtr<nsIJARChannel> jarChannel = GetCurrentJARChannel();
-    if (jarChannel) {
-      return 200; // Ok
-    }
-
     return 0;
   }
 
@@ -1651,21 +1627,17 @@ nsXMLHttpRequest::DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
 already_AddRefed<nsIHttpChannel>
 nsXMLHttpRequest::GetCurrentHttpChannel()
 {
-  nsCOMPtr<nsIHttpChannel> httpChannel = do_QueryInterface(mReadRequest);
-  if (!httpChannel) {
-    httpChannel = do_QueryInterface(mChannel);
-  }
-  return httpChannel.forget();
-}
+  nsIHttpChannel *httpChannel = nullptr;
 
-already_AddRefed<nsIJARChannel>
-nsXMLHttpRequest::GetCurrentJARChannel()
-{
-  nsCOMPtr<nsIJARChannel> appChannel = do_QueryInterface(mReadRequest);
-  if (!appChannel) {
-    appChannel = do_QueryInterface(mChannel);
+  if (mReadRequest) {
+    CallQueryInterface(mReadRequest, &httpChannel);
   }
-  return appChannel.forget();
+
+  if (!httpChannel && mChannel) {
+    CallQueryInterface(mChannel, &httpChannel);
+  }
+
+  return httpChannel;
 }
 
 bool
@@ -2263,7 +2235,7 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
   // events when starting the request - so maybe no need to start timer here.
   if (NS_SUCCEEDED(rv) &&
       (mState & XML_HTTP_REQUEST_ASYNC) &&
-      HasListenersFor(nsGkAtoms::onprogress)) {
+      HasListenersFor(NS_LITERAL_STRING(PROGRESS_STR))) {
     StartProgressEventTimer();
   }
 
@@ -2787,8 +2759,8 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
   // in turn keeps STOP button from becoming active.  If the consumer passed in
   // a progress event handler we must load with nsIRequest::LOAD_NORMAL or
   // necko won't generate any progress notifications.
-  if (HasListenersFor(nsGkAtoms::onprogress) ||
-      (mUpload && mUpload->HasListenersFor(nsGkAtoms::onprogress))) {
+  if (HasListenersFor(NS_LITERAL_STRING(PROGRESS_STR)) ||
+      (mUpload && mUpload->HasListenersFor(NS_LITERAL_STRING(PROGRESS_STR)))) {
     nsLoadFlags loadFlags;
     mChannel->GetLoadFlags(&loadFlags);
     loadFlags &= ~nsIRequest::LOAD_BACKGROUND;
@@ -3154,7 +3126,7 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
     // can run script that would try to restart this request, and that could end
     // up doing our AsyncOpen on a null channel if the reentered AsyncOpen fails.
     ChangeState(XML_HTTP_REQUEST_SENT);
-    if (mUpload && mUpload->HasListenersFor(nsGkAtoms::onprogress)) {
+    if (mUpload && mUpload->HasListenersFor(NS_LITERAL_STRING(PROGRESS_STR))) {
       StartProgressEventTimer();
     }
     DispatchProgressEvent(this, NS_LITERAL_STRING(LOADSTART_STR), false,

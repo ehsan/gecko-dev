@@ -68,7 +68,7 @@ function testInitial(finishcb) {
     is(shareButton.getAttribute("tooltiptext"), "Share this page", "check tooltip text is correct");
     is(shareStatusLabel.getAttribute("value"), "", "check status label text is blank");
     // Check the relative URL was resolved correctly (note this image has offsets of zero...)
-    is(shareButton.src, 'https://example.com/browser/browser/base/content/test/social_share_image.png', "check image url is correct");
+    is(shareButton.style.backgroundImage, 'url("https://example.com/browser/browser/base/content/test/social_share_image.png")', "check image url is correct");
 
     // Test clicking the share button
     shareButton.addEventListener("click", function listener() {
@@ -77,10 +77,10 @@ function testInitial(finishcb) {
       is(shareButton.getAttribute("tooltiptext"), "Unshare this page", "check tooltip text is correct");
       is(shareStatusLabel.getAttribute("value"), "This page has been shared", "check status label text is correct");
       // Check the URL and offsets were applied correctly
-      is(shareButton.src, 'https://example.com/browser/browser/base/content/test/social_share_image.png', "check image url is correct");
+      is(shareButton.style.backgroundImage, 'url("https://example.com/browser/browser/base/content/test/social_share_image.png")', "check image url is correct");
       executeSoon(testSecondClick.bind(window, testPopupOKButton));
     });
-    shareButton.click();
+    EventUtils.synthesizeMouseAtCenter(shareButton, {});
   }, "provider didn't provide user-recommend-prompt response");
 }
 
@@ -91,7 +91,7 @@ function testSecondClick(nextTest) {
     ok(true, "popup was shown after second click");
     executeSoon(nextTest);
   });
-  shareButton.click();
+  EventUtils.synthesizeMouseAtCenter(shareButton, {});
 }
 
 function testPopupOKButton() {
@@ -102,7 +102,7 @@ function testPopupOKButton() {
     is(shareButton.hasAttribute("shared"), true, "Share button should still have 'shared' attribute after OK button is clicked");
     executeSoon(testSecondClick.bind(window, testPopupUndoButton));
   });
-  okButton.click();
+  EventUtils.synthesizeMouseAtCenter(okButton, {});
 }
 
 function testPopupUndoButton() {
@@ -113,7 +113,7 @@ function testPopupUndoButton() {
     is(shareButton.hasAttribute("shared"), false, "Share button should not have 'shared' attribute after Undo button is clicked");
     executeSoon(testShortcut);
   });
-  undoButton.click();
+  EventUtils.synthesizeMouseAtCenter(undoButton, {});
 }
 
 function testShortcut() {
@@ -225,7 +225,7 @@ function testStillSharedIn2Tabs() {
       tab2b.removeEventListener("load", tabLoad, true);
       // should start without either page being shared.
       is(shareButton.hasAttribute("shared"), false, "Share button should not have 'shared' before we've done anything");
-      shareButton.click();
+      EventUtils.synthesizeMouseAtCenter(shareButton, {});
       is(shareButton.hasAttribute("shared"), true, "Share button should reflect the share");
       // and switching to the first tab (with the same URL) should still reflect shared.
       gBrowser.selectedTab = tab1;

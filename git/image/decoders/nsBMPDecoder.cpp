@@ -21,14 +21,7 @@ namespace mozilla {
 namespace image {
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo *
-GetBMPLog()
-{
-  static PRLogModuleInfo *sBMPLog;
-  if (!sBMPLog)
-    sBMPLog = PR_NewLogModule("BMPDecoder");
-  return sBMPLog;
-}
+PRLogModuleInfo *gBMPLog = PR_NewLogModule("BMPDecoder");
 #endif
 
 // Convert from row (1..height) to absolute line (0..height-1)
@@ -228,7 +221,7 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
     // we won't enter this condition again.
     if (mPos == mLOH && GetFrameCount() == 0) {
         ProcessInfoHeader();
-        PR_LOG(GetBMPLog(), PR_LOG_DEBUG, ("BMP is %lix%lix%lu. compression=%lu\n",
+        PR_LOG(gBMPLog, PR_LOG_DEBUG, ("BMP is %lix%lix%lu. compression=%lu\n",
                mBIH.width, mBIH.height, mBIH.bpp, mBIH.compression));
         // Verify we support this bit depth
         if (mBIH.bpp != 1 && mBIH.bpp != 4 && mBIH.bpp != 8 &&
@@ -290,20 +283,20 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
         // If we have RLE4 or RLE8 or BI_ALPHABITFIELDS, then ensure we
         // have valid BPP values before adding the frame
         if (mBIH.compression == BI_RLE8 && mBIH.bpp != 8) {
-          PR_LOG(GetBMPLog(), PR_LOG_DEBUG, 
+          PR_LOG(gBMPLog, PR_LOG_DEBUG, 
                  ("BMP RLE8 compression only supports 8 bits per pixel\n"));
           PostDataError();
           return;
         }
         if (mBIH.compression == BI_RLE4 && mBIH.bpp != 4 && mBIH.bpp != 1) {
-          PR_LOG(GetBMPLog(), PR_LOG_DEBUG, 
+          PR_LOG(gBMPLog, PR_LOG_DEBUG, 
                  ("BMP RLE4 compression only supports 4 bits per pixel\n"));
           PostDataError();
           return;
         }
         if (mBIH.compression == BI_ALPHABITFIELDS && 
             mBIH.bpp != 16 && mBIH.bpp != 32) {
-          PR_LOG(GetBMPLog(), PR_LOG_DEBUG, 
+          PR_LOG(gBMPLog, PR_LOG_DEBUG, 
                  ("BMP ALPHABITFIELDS only supports 16 or 32 bits per pixel\n"));
           PostDataError();
           return;
@@ -518,7 +511,7 @@ nsBMPDecoder::WriteInternal(const char* aBuffer, uint32_t aCount)
         else if ((mBIH.compression == BI_RLE8) || (mBIH.compression == BI_RLE4)) {
             if (((mBIH.compression == BI_RLE8) && (mBIH.bpp != 8)) || 
                 ((mBIH.compression == BI_RLE4) && (mBIH.bpp != 4) && (mBIH.bpp != 1))) {
-              PR_LOG(GetBMPLog(), PR_LOG_DEBUG, ("BMP RLE8/RLE4 compression only supports 8/4 bits per pixel\n"));
+              PR_LOG(gBMPLog, PR_LOG_DEBUG, ("BMP RLE8/RLE4 compression only supports 8/4 bits per pixel\n"));
               PostDataError();
               return;
             }

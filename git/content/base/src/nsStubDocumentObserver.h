@@ -27,7 +27,6 @@
  *     prediction)
  */
 class nsStubDocumentObserver : public nsIDocumentObserver {
-public:
   NS_DECL_NSIDOCUMENTOBSERVER
 };
 

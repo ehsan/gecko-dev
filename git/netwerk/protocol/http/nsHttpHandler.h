@@ -100,9 +100,7 @@ public:
 
     bool           PromptTempRedirect()      { return mPromptTempRedirect; }
 
-    nsHttpAuthCache     *AuthCache(bool aPrivate) {
-        return aPrivate ? &mPrivateAuthCache : &mAuthCache;
-    }
+    nsHttpAuthCache     *AuthCache() { return &mAuthCache; }
     nsHttpConnectionMgr *ConnMgr()   { return mConnMgr; }
 
     // cache support
@@ -271,7 +269,6 @@ private:
 
     // the authentication credentials cache
     nsHttpAuthCache mAuthCache;
-    nsHttpAuthCache mPrivateAuthCache;
 
     // the connection manager
     nsHttpConnectionMgr *mConnMgr;

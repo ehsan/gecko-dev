@@ -155,7 +155,6 @@ struct JSCompartment
 
   private:
     bool                         needsBarrier_;
-    bool                         ionUsingBarriers_;
   public:
 
     bool needsBarrier() const {
@@ -170,12 +169,7 @@ struct JSCompartment
         return compileBarriers(needsBarrier());
     }
 
-    enum ShouldUpdateIon {
-        DontUpdateIon,
-        UpdateIon
-    };
-
-    void setNeedsBarrier(bool needs, ShouldUpdateIon updateIon);
+    void setNeedsBarrier(bool needs);
 
     static size_t OffsetOfNeedsBarrier() {
         return offsetof(JSCompartment, needsBarrier_);
@@ -265,7 +259,7 @@ struct JSCompartment
     int64_t                      lastCodeRelease;
 
     /* Pools for analysis and type information in this compartment. */
-    static const size_t LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 32 * 1024;
+    static const size_t LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 128 * 1024;
     js::LifoAlloc                analysisLifoAlloc;
     js::LifoAlloc                typeLifoAlloc;
 

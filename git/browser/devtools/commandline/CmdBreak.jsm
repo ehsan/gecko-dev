@@ -4,7 +4,7 @@
 
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-this.EXPORTED_SYMBOLS = [ ];
+let EXPORTED_SYMBOLS = [ ];
 
 Cu.import("resource:///modules/devtools/gcli.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -80,9 +80,9 @@ gcli.addCommand({
           let dbg = win.DebuggerUI.getDebugger();
           let files = [];
           if (dbg) {
-            let sourcesView = dbg.contentWindow.DebuggerView.Sources;
-            for (let item in sourcesView) {
-              files.push(item.value);
+            let scriptsView = dbg.contentWindow.DebuggerView.Scripts;
+            for each (let script in scriptsView.scriptLocations) {
+              files.push(script);
             }
           }
           return files;

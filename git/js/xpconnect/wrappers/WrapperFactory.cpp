@@ -29,7 +29,7 @@ namespace xpc {
 // transparent wrapper in the origin (non-chrome) compartment. When
 // an object with that special wrapper applied crosses into chrome,
 // we know to not apply an X-ray wrapper.
-Wrapper XrayWaiver(WrapperFactory::WAIVE_XRAY_WRAPPER_FLAG);
+DirectWrapper XrayWaiver(WrapperFactory::WAIVE_XRAY_WRAPPER_FLAG);
 
 // When objects for which we waived the X-ray wrapper cross into
 // chrome, we wrap them into a special cross-compartment wrapper
@@ -59,12 +59,12 @@ WrapperFactory::GetXrayWaiver(JSObject *obj)
     // Object should come fully unwrapped but outerized.
     MOZ_ASSERT(obj == UnwrapObject(obj));
     MOZ_ASSERT(!js::GetObjectClass(obj)->ext.outerObject);
-    XPCWrappedNativeScope *scope = GetObjectScope(obj);
-    MOZ_ASSERT(scope);
+    CompartmentPrivate *priv = GetCompartmentPrivate(obj);
+    MOZ_ASSERT(priv);
 
-    if (!scope->mWaiverWrapperMap)
+    if (!priv->waiverWrapperMap)
         return NULL;
-    return xpc_UnmarkGrayObject(scope->mWaiverWrapperMap->Find(obj));
+    return xpc_UnmarkGrayObject(priv->waiverWrapperMap->Find(obj));
 }
 
 JSObject *
@@ -73,7 +73,7 @@ WrapperFactory::CreateXrayWaiver(JSContext *cx, JSObject *obj)
     // The caller is required to have already done a lookup.
     // NB: This implictly performs the assertions of GetXrayWaiver.
     MOZ_ASSERT(!GetXrayWaiver(obj));
-    XPCWrappedNativeScope *scope = GetObjectScope(obj);
+    CompartmentPrivate *priv = GetCompartmentPrivate(obj);
 
     // Get a waiver for the proto.
     JSObject *proto;
@@ -94,12 +94,12 @@ WrapperFactory::CreateXrayWaiver(JSContext *cx, JSObject *obj)
 
     // Add the new waiver to the map. It's important that we only ever have
     // one waiver for the lifetime of the target object.
-    if (!scope->mWaiverWrapperMap) {
-        scope->mWaiverWrapperMap =
-          JSObject2JSObjectMap::newMap(XPC_WRAPPER_MAP_SIZE);
-        MOZ_ASSERT(scope->mWaiverWrapperMap);
+    if (!priv->waiverWrapperMap) {
+        priv->waiverWrapperMap = JSObject2JSObjectMap::
+                                   newMap(XPC_WRAPPER_MAP_SIZE);
+        MOZ_ASSERT(priv->waiverWrapperMap);
     }
-    if (!scope->mWaiverWrapperMap->Add(obj, waiver))
+    if (!priv->waiverWrapperMap->Add(obj, waiver))
         return nullptr;
     return waiver;
 }
@@ -351,7 +351,7 @@ WrapperFactory::Rewrap(JSContext *cx, JSObject *obj, JSObject *wrappedProto, JSO
                 wrapper = &FilteringWrapper<Xray, LocationPolicy>::singleton;
             else
                 wrapper = &FilteringWrapper<Xray, CrossOriginAccessiblePropertiesOnly>::singleton;
-        } else if (mozilla::dom::UseDOMXray(obj)) {
+        } else if (mozilla::dom::IsDOMObject(obj)) {
             wrapper = &FilteringWrapper<XrayDOM, CrossOriginAccessiblePropertiesOnly>::singleton;
         } else if (IsComponentsObject(obj)) {
             wrapper = &FilteringWrapper<CrossCompartmentSecurityWrapper,
@@ -560,9 +560,9 @@ WrapperFactory::WrapForSameCompartmentXray(JSContext *cx, JSObject *obj)
     // Select the appropriate proxy handler.
     Wrapper *wrapper = NULL;
     if (type == XrayForWrappedNative)
-        wrapper = &XrayWrapper<Wrapper>::singleton;
+        wrapper = &XrayWrapper<DirectWrapper>::singleton;
     else if (type == XrayForDOMObject)
-        wrapper = &XrayWrapper<Wrapper, DOMXrayTraits>::singleton;
+        wrapper = &XrayWrapper<DirectWrapper, DOMXrayTraits>::singleton;
     else
         MOZ_NOT_REACHED("Bad Xray type");
 
@@ -606,10 +606,10 @@ FixWaiverAfterTransplant(JSContext *cx, JSObject *oldWaiver, JSObject *newobj)
     // There should be no same-compartment references to oldWaiver, and we
     // just remapped all cross-compartment references. It's dead, so we can
     // remove it from the map.
-    XPCWrappedNativeScope *scope = GetObjectScope(oldWaiver);
+    CompartmentPrivate *priv = GetCompartmentPrivate(oldWaiver);
     JSObject *key = Wrapper::wrappedObject(oldWaiver);
-    MOZ_ASSERT(scope->mWaiverWrapperMap->Find(key));
-    scope->mWaiverWrapperMap->Remove(key);
+    MOZ_ASSERT(priv->waiverWrapperMap->Find(key));
+    priv->waiverWrapperMap->Remove(key);
     return true;
 }
 

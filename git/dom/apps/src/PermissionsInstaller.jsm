@@ -11,10 +11,10 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/PermissionSettings.jsm");
 
-this.EXPORTED_SYMBOLS = ["PermissionsInstaller",
-                         "expandPermissions",
-                         "PermissionsTable",
-                        ];
+var EXPORTED_SYMBOLS = ["PermissionsInstaller",
+                        "expandPermissions",
+                        "PermissionsTable",
+                       ];
 const UNKNOWN_ACTION = Ci.nsIPermissionManager.UNKNOWN_ACTION;
 const ALLOW_ACTION = Ci.nsIPermissionManager.ALLOW_ACTION;
 const DENY_ACTION = Ci.nsIPermissionManager.DENY_ACTION;
@@ -44,13 +44,12 @@ function mapSuffixes(aPermName, aSuffixes)
 }
 
 // Permissions Matrix: https://docs.google.com/spreadsheet/ccc?key=0Akyz_Bqjgf5pdENVekxYRjBTX0dCXzItMnRyUU1RQ0E#gid=0
-// Also, keep in sync with https://mxr.mozilla.org/mozilla-central/source/extensions/cookie/Permission.txt
 
 // Permissions that are implicit:
 // battery-status, network-information, vibration,
 // device-capabilities
 
-this.PermissionsTable =  { "resource-lock": {
+const PermissionsTable = { "resource-lock": {
                              app: ALLOW_ACTION,
                              privileged: ALLOW_ACTION,
                              certified: ALLOW_ACTION
@@ -83,38 +82,27 @@ this.PermissionsTable =  { "resource-lock": {
                            contacts: {
                              app: DENY_ACTION,
                              privileged: PROMPT_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write", "create"]
+                             certified: ALLOW_ACTION
                            },
                            "device-storage:apps": {
                              app: DENY_ACTION,
-                             privileged: PROMPT_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write", "create"]
+                             privileged: ALLOW_ACTION,
+                             certified: ALLOW_ACTION
                            },
                            "device-storage:pictures": {
                              app: DENY_ACTION,
-                             privileged: PROMPT_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write", "create"]
+                             privileged: ALLOW_ACTION,
+                             certified: ALLOW_ACTION
                            },
                            "device-storage:videos": {
                              app: DENY_ACTION,
-                             privileged: PROMPT_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write", "create"]
+                             privileged: ALLOW_ACTION,
+                             certified: ALLOW_ACTION
                            },
                            "device-storage:music": {
                              app: DENY_ACTION,
-                             privileged: PROMPT_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write", "create"]
-                           },
-                           "device-storage:sdcard": {
-                             app: DENY_ACTION,
-                             privileged: PROMPT_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write", "create"]
+                             privileged: ALLOW_ACTION,
+                             certified: ALLOW_ACTION
                            },
                            sms: {
                              app: DENY_ACTION,
@@ -164,9 +152,7 @@ this.PermissionsTable =  { "resource-lock": {
                            settings: {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION,
-                             access: ["read", "write"],
-                             additional: ["indexedDB-chrome-settings"]
+                             certified: ALLOW_ACTION
                            },
                            permissions: {
                              app: DENY_ACTION,
@@ -246,12 +232,7 @@ this.PermissionsTable =  { "resource-lock": {
                            "storage": {
                              app: DENY_ACTION,
                              privileged: DENY_ACTION,
-                             certified: ALLOW_ACTION,
-                             substitute: [
-                               "indexedDB-unlimited",
-                               "offline-app",
-                               "pin-app"
-                             ]
+                             certified: ALLOW_ACTION
                            },
                            "background-sensors": {
                              app: DENY_ACTION,
@@ -259,6 +240,19 @@ this.PermissionsTable =  { "resource-lock": {
                              certified: ALLOW_ACTION
                            },
                          };
+
+// Sometimes all permissions (fully expanded) need to be iterated through
+let AllPossiblePermissions = [];
+for (let permName in PermissionsTable) {
+  if (PermissionsTable[permName].access) {
+    AllPossiblePermissions =
+      AllPossiblePermissions.concat(mapSuffixes(permName,
+                                    PermissionsTable[permName].access));
+  }
+  else {
+    AllPossiblePermissions.push(permName);
+  }
+}
 
 /**
  * Expand an access string into multiple permission names,
@@ -268,35 +262,23 @@ this.PermissionsTable =  { "resource-lock": {
  * @param string aAccess
  * @returns Array
  **/
-this.expandPermissions = function expandPermissions(aPermName, aAccess) {
+function expandPermissions(aPermName, aAccess) {
   if (!PermissionsTable[aPermName]) {
     Cu.reportError("PermissionsTable.jsm: expandPermissions: Unknown Permission: " + aPermName);
-    return [];
+    throw new Error("PermissionsTable.jsm: expandPermissions: Unknown Permission: " + aPermName);
   }
-
-  const tableEntry = PermissionsTable[aPermName];
-
-  if (tableEntry.substitute && tableEntry.additional) {
-    Cu.reportError("PermissionsTable.jsm: expandPermissions: Can't handle both 'substitute' " +
-                   "and 'additional' entries for permission: " + aPermName);
-    return [];
-  }
-
-/*
-Temporarily disabled in order to add access fields to gaia: See Bug 805646
-  if (!aAccess && tableEntry.access ||
-      aAccess && !tableEntry.access) {
+  if (!aAccess && PermissionsTable[aPermName].access ||
+      aAccess && !PermissionsTable[aPermName].access) {
     Cu.reportError("PermissionsTable.jsm: expandPermissions: Invalid Manifest : " +
                    aPermName + " " + aAccess + "\n");
     throw new Error("PermissionsTable.jsm: expandPermissions: Invalid Manifest");
   }
-*/
+  if (!PermissionsTable[aPermName].access) {
+    return [aPermName];
+  }
 
-  let expandedPerms = [];
-
-  if (tableEntry.access && aAccess) {
   let requestedSuffixes = [];
-    switch (aAccess) {
+  switch(aAccess) {
   case READONLY:
     requestedSuffixes.push("read");
     break;
@@ -313,62 +295,18 @@ Temporarily disabled in order to add access fields to gaia: See Bug 805646
     return [];
   }
 
-    // XXXbent This is a temporary hack! Remove this whole block once the
-    //         Settings API and the DeviceStorage API have stopped checking just
-    //         the bare permission (e.g. "settings" vs. "settings-read").
-    if (true) {
-      expandedPerms.push(aPermName);
-      if (tableEntry.additional) {
-        for each (let additional in tableEntry.additional) {
-          expandedPerms.push(additional);
-        }
-      }
-    }
-
   let permArr = mapSuffixes(aPermName, requestedSuffixes);
 
-    // Add the same suffix to each of the additions.
-    if (tableEntry.additional) {
-      for each (let additional in tableEntry.additional) {
-        permArr = permArr.concat(mapSuffixes(additional, requestedSuffixes));
-      }
-    }
-
-    // Only add the suffixed version if the suffix exisits in the table.
+  let expandedPerms = [];
   for (let idx in permArr) {
-      let suffix = requestedSuffixes[idx % requestedSuffixes.length];
-      if (tableEntry.access.indexOf(suffix) != -1) {
+    if (PermissionsTable[aPermName].access.indexOf(requestedSuffixes[idx]) != -1) {
       expandedPerms.push(permArr[idx]);
     }
   }
-  } else if (tableEntry.substitute) {
-    expandedPerms = expandedPerms.concat(tableEntry.substitute);
-  } else {
-    expandedPerms.push(aPermName);
-    // Include each of the additions exactly as they appear in the table.
-    if (tableEntry.additional) {
-      expandedPerms = expandedPerms.concat(tableEntry.additional);
-    }
-  }
-
   return expandedPerms;
-};
-
-// Sometimes all permissions (fully expanded) need to be iterated through
-let AllPossiblePermissions = [];
-for (let permName in PermissionsTable) {
-  if (PermissionsTable[permName].access) {
-    for each (let access in PermissionsTable[permName].access) {
-      AllPossiblePermissions =
-        AllPossiblePermissions.concat(expandPermissions(permName, access));
-    }
-  } else {
-    AllPossiblePermissions =
-      AllPossiblePermissions.concat(expandPermissions(permName));
-  }
 }
 
-this.PermissionsInstaller = {
+let PermissionsInstaller = {
 /**
    * Install permissisions or remove deprecated permissions upon re-install
    * @param object aApp
@@ -439,9 +377,9 @@ this.PermissionsInstaller = {
 
       for (let permName in newManifest.permissions) {
         if (!PermissionsTable[permName]) {
-          Cu.reportError("PermissionsInstaller.jsm: '" + permName + "'" +
-                         " is not a valid Webapps permission type.");
-          continue;
+          throw new Error("PermissionsInstaller.jsm: '" + permName + "'" +
+                         " is not a valid Webapps permission type. Aborting Webapp installation");
+          return;
         }
 
         let perms = expandPermissions(permName,
@@ -463,7 +401,7 @@ this.PermissionsInstaller = {
   },
 
   /**
-   * Set a permission value
+   * Set a permission value, replacing "storage" if needed.
    * @param string aPerm
    *        The permission name.
    * @param string aValue
@@ -474,6 +412,7 @@ this.PermissionsInstaller = {
    * @returns void
    **/
   _setPermission: function setPermission(aPerm, aValue, aApp) {
+    if (aPerm != "storage") {
       PermissionSettingsModule.addPermission({
         type: aPerm,
         origin: aApp.origin,
@@ -481,5 +420,19 @@ this.PermissionsInstaller = {
         value: aValue,
         browserFlag: false
       });
+      return;
     }
-};
+
+    ["indexedDB-unlimited", "offline-app", "pin-app"].forEach(
+      function(aName) {
+        PermissionSettingsModule.addPermission({
+          type: aName,
+          origin: aApp.origin,
+          manifestURL: aApp.manifestURL,
+          value: aValue,
+          browserFlag: false
+        });
+      }
+    );
+  }
+}

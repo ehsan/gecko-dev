@@ -19,18 +19,14 @@ const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID = "nsPref:changed";
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-this.EXPORTED_SYMBOLS = [ "LogManager" ];
+var EXPORTED_SYMBOLS = [ "LogManager" ];
 
 var gDebugLogEnabled = false;
 
 function formatLogMessage(aType, aName, aStr, aException) {
   let message = aType.toUpperCase() + " " + aName + ": " + aStr;
-  if (aException) {
-    if (typeof aException == "number")
-      return message + ": " + Components.Exception("", aException).name
-    else
-      return message + ": " + aException;
-  }
+  if (aException)
+    return message + ": " + aException;
   return message;
 }
 
@@ -46,12 +42,10 @@ function getStackDetails(aException) {
         };
       }
 
-      if (typeof aException == "object") {
-        return {
-          sourceName: aException.fileName,
-          lineNumber: aException.lineNumber
-        };
-      }
+      return {
+        sourceName: aException.fileName,
+        lineNumber: aException.lineNumber
+      };
     }
 
     let stackFrame = Components.stack.caller.caller.caller;
@@ -130,7 +124,7 @@ AddonLogger.prototype = {
   }
 };
 
-this.LogManager = {
+var LogManager = {
   getLogger: function LogManager_getLogger(aName, aTarget) {
     let logger = new AddonLogger(aName);
 

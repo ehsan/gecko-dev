@@ -141,7 +141,9 @@ members = [
 
     # dom/interfaces/css
     'nsIDOMElementCSSInlineStyle.*',
+    'nsIDOMCSS2Properties.*',
     'nsIDOMRect.*',
+    'nsIDOMCSSStyleDeclaration.*',
 
     # dom/interfaces/events
     'nsIDOMEventTarget.addEventListener',
@@ -662,6 +664,15 @@ customMethodCalls = {
         },
     'nsIDOMStorage_Clear': {
         'code': nsIDOMStorage_Clear_customMethodCallCode
+        },
+    'nsIDOMCSS2Properties_': {
+        'thisType': 'nsICSSDeclaration',
+        'additionalArguments': 'const nsCSSProperty prop',
+        'additionalArgumentValues': 'QS_CSS_PROP_%s',
+        'getter_code': '    nsString result;\n' + 
+                       '    rv = self->GetPropertyValue(prop, result);',
+        'setter_code': '    rv = self->SetPropertyValue(prop, arg0);',
+        'canFail': True
         },
     'nsIDOMElement_GetScrollTop': {
         'thisType': 'nsGenericElement',

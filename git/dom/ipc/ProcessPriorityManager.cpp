@@ -53,16 +53,9 @@ static bool sInitialized = false;
 // in your environment.
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo*
-GetPPMLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("ProcessPriorityManager");
-  return sLog;
-}
+static PRLogModuleInfo* logModule = PR_NewLogModule("ProcessPriorityManager");
 #define LOG(fmt, ...) \
-  PR_LOG(GetPPMLog(), PR_LOG_DEBUG,                                     \
+  PR_LOG(logModule, PR_LOG_DEBUG, \
          ("[%d] ProcessPriorityManager - " fmt, getpid(), ##__VA_ARGS__))
 #else
 #define LOG(fmt, ...)

@@ -31,14 +31,7 @@
 #include "DataChannelProtocol.h"
 
 #ifdef PR_LOGGING
-PRLogModuleInfo*
-GetDataChannelLog()
-{
-  static PRLogModuleInfo* sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("DataChannel");
-  return sLog;
-}
+PRLogModuleInfo* dataChannelLog = PR_NewLogModule("DataChannel");
 #endif
 
 static bool sctp_initialized;
@@ -145,7 +138,6 @@ DataChannelConnection::~DataChannelConnection()
   // if we really want it to do true clean shutdowns it can
   // create a dependant Internal object that would remain around
   // until the network shut down the association or timed out.
-  LOG(("Destroying DataChannelConnection"));
   CloseAll();
   if (mSocket && mSocket != mMasterSocket)
     usrsctp_close(mSocket);
@@ -198,28 +190,12 @@ DataChannelConnection::Init(unsigned short aPort, uint16_t aNumStreams, bool aUs
       gDataChannelShutdown->Init();
     }
   }
-  // XXX FIX! make this a global we get once
-  // Find the STS thread
-
-  nsresult res;
-  mSTS = do_GetService(NS_SOCKETTRANSPORTSERVICE_CONTRACTID, &res);
-  MOZ_ASSERT(NS_SUCCEEDED(res));
 
   // Open sctp association across tunnel
   if ((mMasterSocket = usrsctp_socket(
          aUsingDtls ? AF_CONN : AF_INET,
          SOCK_STREAM, IPPROTO_SCTP, receive_cb, nullptr, 0, this)) == nullptr) {
     return false;
-  }
-
-  // Make sure when we close the socket, make sure it doesn't call us back again!
-  // This would cause it try to use an invalid DataChannelConnection pointer
-  struct linger l;
-  l.l_onoff = 1;
-  l.l_linger = 0;
-  if (usrsctp_setsockopt(mMasterSocket, SOL_SOCKET, SO_LINGER,
-                         (const void *)&l, (socklen_t)sizeof(struct linger)) < 0) {
-    LOG(("Couldn't set SO_LINGER on SCTP socket"));
   }
 
   if (!aUsingDtls) {
@@ -418,6 +394,7 @@ DataChannelConnection::PacketReceived(TransportFlow *flow,
   usrsctp_conninput(static_cast<void *>(this), data, len, 0);
 }
 
+// XXX Merge with SctpDtlsOutput?
 int
 DataChannelConnection::SendPacket(const unsigned char *data, size_t len)
 {
@@ -431,21 +408,8 @@ DataChannelConnection::SctpDtlsOutput(void *addr, void *buffer, size_t length,
                                       uint8_t tos, uint8_t set_df)
 {
   DataChannelConnection *peer = static_cast<DataChannelConnection *>(addr);
-  int res;
 
-  if (peer->IsSTSThread()) {
-    res = peer->SendPacket(static_cast<unsigned char *>(buffer), length);
-  } else {
-    res = -1;
-    // XXX It might be worthwhile to add an assertion against the thread
-    // somehow getting into the DataChannel/SCTP code again, as
-    // DISPATCH_SYNC is not fully blocking.  This may be tricky, as it
-    // needs to be a per-thread check, not a global.
-    peer->mSTS->Dispatch(WrapRunnableRet(
-      peer, &DataChannelConnection::SendPacket, static_cast<unsigned char *>(buffer), length, &res
-    ), NS_DISPATCH_SYNC);
-  }
-  return res;
+  return peer->SendPacket(static_cast<unsigned char *>(buffer), length);
 }
 #endif
 
@@ -485,14 +449,6 @@ DataChannelConnection::Listen(unsigned short port)
     return false;
   }
   mState = OPEN;
-
-  struct linger l;
-  l.l_onoff = 1;
-  l.l_linger = 0;
-  if (usrsctp_setsockopt(mSocket, SOL_SOCKET, SO_LINGER,
-                         (const void *)&l, (socklen_t)sizeof(struct linger)) < 0) {
-    LOG(("Couldn't set SO_LINGER on SCTP socket"));
-  }
 
   // Notify Connection open
   // XXX We need to make sure connection sticks around until the message is delivered

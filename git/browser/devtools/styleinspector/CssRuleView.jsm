@@ -31,11 +31,11 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/devtools/CssLogic.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-this.EXPORTED_SYMBOLS = ["CssRuleView",
-                         "_ElementStyle",
-                         "editableItem",
-                         "_editableField",
-                         "_getInplaceEditorForSpan"];
+var EXPORTED_SYMBOLS = ["CssRuleView",
+                        "_ElementStyle",
+                        "editableItem",
+                        "_editableField",
+                        "_getInplaceEditorForSpan"];
 
 /**
  * Our model looks like this:
@@ -97,7 +97,7 @@ function ElementStyle(aElement, aStore)
   this.populate();
 }
 // We're exporting _ElementStyle for unit tests.
-this._ElementStyle = ElementStyle;
+var _ElementStyle = ElementStyle;
 
 ElementStyle.prototype = {
 
@@ -874,7 +874,7 @@ TextProperty.prototype = {
  *        set of disabled properties.
  * @constructor
  */
-this.CssRuleView = function CssRuleView(aDoc, aStore)
+function CssRuleView(aDoc, aStore)
 {
   this.doc = aDoc;
   this.store = aStore;
@@ -1124,16 +1124,12 @@ CssRuleView.prototype = {
    */
   _onMenuUpdate: function CssRuleView_onMenuUpdate(aEvent)
   {
-    let node = this.doc.popupNode;
-
     // Copy selection.
-    let editorSelection = node.className == "styleinspector-propertyeditor" &&
-                          node.selectionEnd - node.selectionStart != 0;
-    let disable = this.doc.defaultView.getSelection().isCollapsed &&
-                  !editorSelection;
+    let disable = this.doc.defaultView.getSelection().isCollapsed;
     this._copyItem.disabled = disable;
 
     // Copy property, copy property name & copy property value.
+    let node = this.doc.popupNode;
     if (!node) {
       return;
     }
@@ -1163,26 +1159,16 @@ CssRuleView.prototype = {
    */
   _onCopy: function CssRuleView_onCopy(aEvent)
   {
-    let target = this.doc.popupNode || aEvent.target;
-    let text;
+    let win = this.doc.defaultView;
+    let text = win.getSelection().toString();
 
-    if (target.nodeName == "input") {
-      let start = Math.min(target.selectionStart, target.selectionEnd);
-      let end = Math.max(target.selectionStart, target.selectionEnd);
-      let count = end - start;
-      text = target.value.substr(start, count);
-    } else {
-      let win = this.doc.defaultView;
-      text = win.getSelection().toString();
+    // Remove any double newlines.
+    text = text.replace(/(\r?\n)\r?\n/g, "$1");
 
-      // Remove any double newlines.
-      text = text.replace(/(\r?\n)\r?\n/g, "$1");
-
-      // Remove "inline"
-      let inline = _strings.GetStringFromName("rule.sourceInline");
-      let rx = new RegExp("^" + inline + "\\r?\\n?", "g");
-      text = text.replace(rx, "");
-    }
+    // Remove "inline"
+    let inline = _strings.GetStringFromName("rule.sourceInline");
+    let rx = new RegExp("^" + inline + "\\r?\\n?", "g");
+    text = text.replace(rx, "");
 
     clipboardHelper.copyString(text, this.doc);
 
@@ -1291,13 +1277,12 @@ CssRuleView.prototype = {
   _onCopyProperty: function CssRuleView_onCopyProperty(aEvent)
   {
     let node = this.doc.popupNode;
-
     if (!node) {
       return;
     }
 
     if (!node.classList.contains("ruleview-propertyname")) {
-      node = node.parentNode.parentNode.querySelector(".ruleview-propertyname");
+      node = node.querySelector(".ruleview-propertyname");
     }
 
     if (node) {
@@ -1318,7 +1303,7 @@ CssRuleView.prototype = {
     }
 
     if (!node.classList.contains("ruleview-propertyvalue")) {
-      node = node.parentNode.parentNode.querySelector(".ruleview-propertyvalue");
+      node = node.querySelector(".ruleview-propertyvalue");
     }
 
     if (node) {
@@ -1393,19 +1378,6 @@ RuleEditor.prototype = {
       let selection = this.doc.defaultView.getSelection();
       if (selection.isCollapsed) {
         this.newProperty();
-      }
-    }.bind(this), false);
-
-    this.element.addEventListener("mousedown", function() {
-      let editorNodes =
-        this.doc.querySelectorAll(".styleinspector-propertyeditor");
-
-      if (editorNodes) {
-        for (let node of editorNodes) {
-          if (node.inplaceEditor) {
-            node.inplaceEditor._clear();
-          }
-        }
       }
     }.bind(this), false);
 
@@ -1953,7 +1925,7 @@ function editableField(aOptions)
  * @param function aCallback
  *        Called when the editor is activated.
  */
-this.editableItem = function editableItem(aOptions, aCallback)
+function editableItem(aOptions, aCallback)
 {
   let trigger = aOptions.trigger || "click"
   let element = aOptions.element;
@@ -1995,7 +1967,7 @@ this.editableItem = function editableItem(aOptions, aCallback)
   element._editable = true;
 }
 
-this._editableField = editableField;
+var _editableField = editableField;
 
 function InplaceEditor(aOptions, aEvent)
 {
@@ -2285,7 +2257,7 @@ InplaceEditor.prototype = {
  * own compartment, those expandos live on Xray wrappers that are only visible
  * within this JSM. So we provide a little workaround here.
  */
-this._getInplaceEditorForSpan = function _getInplaceEditorForSpan(aSpan) { return aSpan.inplaceEditor; };
+function _getInplaceEditorForSpan(aSpan) { return aSpan.inplaceEditor; };
 
 /**
  * Store of CSSStyleDeclarations mapped to properties that have been changed by

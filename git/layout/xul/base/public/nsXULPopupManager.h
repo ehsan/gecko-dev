@@ -286,12 +286,11 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   // nsIRollupListener
-  virtual bool Rollup(uint32_t aCount, nsIContent** aLastRolledUp);
+  virtual nsIContent* Rollup(uint32_t aCount, bool aGetLastRolledUp = false);
   virtual bool ShouldRollupOnMouseWheelEvent();
   virtual bool ShouldRollupOnMouseActivate();
   virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain);
   virtual void NotifyGeometryChange() {}
-  virtual nsIWidget* GetRollupWidget();
 
   static nsXULPopupManager* sInstance;
 

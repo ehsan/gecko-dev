@@ -41,7 +41,6 @@
 #include "mozilla/Preferences.h"
 #include "nsHTMLFrameSetElement.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/Likely.h"
 
 using namespace mozilla;
 
@@ -368,7 +367,7 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
                                                  mStyleContext);
       if (tag == nsGkAtoms::frameset) {
         frame = NS_NewHTMLFramesetFrame(shell, kidSC);
-        if (MOZ_UNLIKELY(!frame))
+        if (NS_UNLIKELY(!frame))
           return NS_ERROR_OUT_OF_MEMORY;
 
         mChildTypes[mChildCount] = FRAMESET;
@@ -385,7 +384,7 @@ nsHTMLFramesetFrame::Init(nsIContent*      aContent,
         mChildBorderColors[mChildCount].Set(childFrame->GetBorderColor());
       } else { // frame
         frame = NS_NewSubDocumentFrame(shell, kidSC);
-        if (MOZ_UNLIKELY(!frame))
+        if (NS_UNLIKELY(!frame))
           return NS_ERROR_OUT_OF_MEMORY;
 
         result = frame->Init(child, this, nullptr);
@@ -529,7 +528,7 @@ void nsHTMLFramesetFrame::CalculateRowCol(nsPresContext*       aPresContext,
   int32_t  numRelative = 0;
   nsAutoArrayPtr<int32_t> relative(new int32_t[aNumSpecs]);
 
-  if (MOZ_UNLIKELY(!fixed || !percent || !relative)) {
+  if (NS_UNLIKELY(!fixed || !percent || !relative)) {
     return; // NS_ERROR_OUT_OF_MEMORY
   }
 
@@ -1037,7 +1036,7 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
                                                             borderWidth,
                                                             false,
                                                             false);
-        if (MOZ_LIKELY(borderFrame != nullptr)) {
+        if (NS_LIKELY(borderFrame != nullptr)) {
           borderFrame->Init(mContent, this, nullptr);
           mChildCount++;
           mFrames.AppendFrame(nullptr, borderFrame);
@@ -1048,12 +1047,12 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
         }
       } else {
         borderFrame = (nsHTMLFramesetBorderFrame*)mFrames.FrameAt(borderChildX);
-        if (MOZ_LIKELY(borderFrame != nullptr)) {
+        if (NS_LIKELY(borderFrame != nullptr)) {
           borderFrame->mWidth = borderWidth;
           borderChildX++;
         }
       }
-      if (MOZ_LIKELY(borderFrame != nullptr)) {
+      if (NS_LIKELY(borderFrame != nullptr)) {
         nsSize borderSize(aDesiredSize.width, borderWidth);
         ReflowPlaceChild(borderFrame, aPresContext, aReflowState, offset, borderSize);
         borderFrame = nullptr;
@@ -1073,7 +1072,7 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
                                                                 borderWidth,
                                                                 true,
                                                                 false);
-            if (MOZ_LIKELY(borderFrame != nullptr)) {
+            if (NS_LIKELY(borderFrame != nullptr)) {
               borderFrame->Init(mContent, this, nullptr);
               mChildCount++;
               mFrames.AppendFrame(nullptr, borderFrame);
@@ -1084,12 +1083,12 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*          aPresContext,
             }
           } else {         
             borderFrame = (nsHTMLFramesetBorderFrame*)mFrames.FrameAt(borderChildX);
-            if (MOZ_LIKELY(borderFrame != nullptr)) {
+            if (NS_LIKELY(borderFrame != nullptr)) {
               borderFrame->mWidth = borderWidth;
               borderChildX++;
             }
           }
-          if (MOZ_LIKELY(borderFrame != nullptr)) {
+          if (NS_LIKELY(borderFrame != nullptr)) {
             nsSize borderSize(borderWidth, aDesiredSize.height);
             ReflowPlaceChild(borderFrame, aPresContext, aReflowState, offset, borderSize);
             borderFrame = nullptr;
@@ -1329,7 +1328,7 @@ nsHTMLFramesetFrame::RecalculateBorderResize()
   PR_STATIC_ASSERT(NS_MAX_FRAMESET_SPEC_COUNT
                    < UINT_MAX / sizeof(int32_t) / NS_MAX_FRAMESET_SPEC_COUNT); 
   nsAutoArrayPtr<int32_t> childTypes(new int32_t[numCells]);
-  if (MOZ_UNLIKELY(!childTypes)) {
+  if (NS_UNLIKELY(!childTypes)) {
     return;
   }
   int32_t childTypeIndex = 0;

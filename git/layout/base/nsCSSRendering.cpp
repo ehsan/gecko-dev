@@ -49,7 +49,6 @@
 #include "ImageContainer.h"
 #include "mozilla/HashFunctions.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/Types.h"
 #include <ctime>
 
 using namespace mozilla;
@@ -283,17 +282,15 @@ struct GradientCacheKey : public PLDHashEntryHdr {
   const gfxSize mGradientSize;
   enum { SINGLE_CELL = 0x01 };
   const uint32_t mFlags;
-  const gfx::BackendType mBackendType;
 
   GradientCacheKey(nsStyleGradient* aGradient, const gfxSize& aGradientSize,
-                   uint32_t aFlags, gfx::BackendType aBackendType)
-    : mGradient(aGradient), mGradientSize(aGradientSize), mFlags(aFlags),
-      mBackendType(aBackendType)
+                   uint32_t aFlags)
+    : mGradient(aGradient), mGradientSize(aGradientSize), mFlags(aFlags)
   { }
 
   GradientCacheKey(const GradientCacheKey* aOther)
     : mGradient(aOther->mGradient), mGradientSize(aOther->mGradientSize),
-      mFlags(aOther->mFlags), mBackendType(aOther->mBackendType)
+      mFlags(aOther->mFlags)
   { }
 
   static PLDHashNumber
@@ -303,7 +300,6 @@ struct GradientCacheKey : public PLDHashEntryHdr {
     hash = AddToHash(hash, aKey->mGradientSize.width);
     hash = AddToHash(hash, aKey->mGradientSize.height);
     hash = AddToHash(hash, aKey->mFlags);
-    hash = AddToHash(hash, aKey->mBackendType);
     hash = aKey->mGradient->Hash(hash);
     return hash;
   }
@@ -312,7 +308,6 @@ struct GradientCacheKey : public PLDHashEntryHdr {
   {
     return (*aKey->mGradient == *mGradient) &&
            (aKey->mGradientSize == mGradientSize) &&
-           (aKey->mBackendType == mBackendType) &&
            (aKey->mFlags == mFlags);
   }
   static KeyTypePointer KeyToPointer(KeyType aKey)
@@ -381,7 +376,7 @@ class GradientCache MOZ_FINAL : public nsExpirationTracker<GradientCacheData,4>
     }
 
     GradientCacheData* Lookup(nsStyleGradient* aKey, const gfxSize& aGradientSize,
-                              uint32_t aFlags, gfx::BackendType aBackendType)
+                              uint32_t aFlags)
     {
       // We don't cache gradient that have Calc value, because the Calc object
       // can be deallocated by the time we want to compute the hash, and thus we
@@ -392,7 +387,7 @@ class GradientCache MOZ_FINAL : public nsExpirationTracker<GradientCacheData,4>
       }
 
       GradientCacheData* gradient =
-        mHashEntries.Get(GradientCacheKey(aKey, aGradientSize, aFlags, aBackendType));
+        mHashEntries.Get(GradientCacheKey(aKey, aGradientSize, aFlags));
 
       if (gradient) {
         MarkUsed(gradient);
@@ -466,7 +461,6 @@ void nsCSSRendering::Init()
   NS_ASSERTION(!gInlineBGData, "Init called twice");
   gInlineBGData = new InlineBackgroundData();
   gGradientCache = new GradientCache();
-  nsCSSBorderRenderer::Init();
 }
 
 // Clean up any global variables used by nsCSSRendering.
@@ -476,7 +470,6 @@ void nsCSSRendering::Shutdown()
   gInlineBGData = nullptr;
   delete gGradientCache;
   gGradientCache = nullptr;
-  nsCSSBorderRenderer::Shutdown();
 }
 
 /**
@@ -1441,16 +1434,13 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
     // rendered shadow (even after blurring), so those pixels must be completely
     // transparent in the shadow, so drawing them changes nothing.
     gfxContext* renderContext = aRenderingContext.ThebesContext();
+    nsRefPtr<gfxContext> shadowContext;
     nsContextBoxBlur blurringArea;
-    gfxContext* shadowContext =
+    shadowContext =
       blurringArea.Init(shadowPaintRect, 0, blurRadius, twipsPerPixel,
                         renderContext, aDirtyRect, &skipGfxRect);
     if (!shadowContext)
       continue;
-
-    // shadowContext is owned by either blurringArea or aRenderingContext.
-    MOZ_ASSERT(shadowContext == renderContext ||
-               shadowContext == blurringArea.GetContext());
 
     // Set the shadow color; if not specified, use the foreground color
     nscolor shadowColor;
@@ -2039,18 +2029,8 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
   if (aOneCellArea.Contains(aFillArea)) {
     flags |= GradientCacheKey::SINGLE_CELL;
   }
-
-  gfx::BackendType backendType = gfx::BACKEND_NONE;
-  if (ctx->IsCairo()) {
-    backendType = gfx::BACKEND_CAIRO;
-  } else {
-    gfx::DrawTarget* dt = ctx->GetDrawTarget();
-    NS_ASSERTION(dt, "If we are not using Cairo, we should have a draw target.");
-    backendType = dt->GetType();
-  }
-
   GradientCacheData* pattern =
-    gGradientCache->Lookup(aGradient, oneCellArea.Size(), flags, backendType);
+    gGradientCache->Lookup(aGradient, oneCellArea.Size(), flags);
 
   if (pattern == nullptr) {
     // Compute "gradient line" start and end relative to oneCellArea
@@ -2299,7 +2279,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
     }
     // Register the gradient newly computed in the cache.
     pattern = new GradientCacheData(gradientPattern, forceRepeatToCoverTiles,
-      GradientCacheKey(aGradient, oneCellArea.Size(), flags, backendType));
+      GradientCacheKey(aGradient, oneCellArea.Size(), flags));
     gradientRegistered = gGradientCache->RegisterEntry(pattern);
   }
 

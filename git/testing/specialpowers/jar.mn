@@ -7,4 +7,3 @@ specialpowers.jar:
 
 % resource specialpowers %modules/
   modules/MockFilePicker.jsm (content/MockFilePicker.jsm)
-  modules/MockPermissionPrompt.jsm (content/MockPermissionPrompt.jsm)

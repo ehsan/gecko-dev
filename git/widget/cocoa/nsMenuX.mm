@@ -25,7 +25,6 @@
 #include "nsGkAtoms.h"
 #include "nsGUIEvent.h"
 #include "nsCRT.h"
-#include "nsBaseWidget.h"
 
 #include "nsIDocument.h"
 #include "nsIContent.h"
@@ -42,6 +41,10 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptContext.h"
 #include "nsIXPConnect.h"
+
+// externs defined in nsChildView.mm
+extern nsIRollupListener * gRollupListener;
+extern nsIWidget         * gRollupWidget;
 
 static bool gConstructingMenu = false;
 static bool gMenuMethodsSwizzled = false;
@@ -824,10 +827,8 @@ nsresult nsMenuX::SetupIcon()
   if (nsMenuX::sIndexingMenuLevel > 0)
     return;
 
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-  if (rollupWidget) {
-    rollupListener->Rollup(0, nullptr);
+  if (gRollupListener && gRollupWidget) {
+    gRollupListener->Rollup(0);
     [menu cancelTracking];
     return;
   }

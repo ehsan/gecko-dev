@@ -17,10 +17,6 @@ const MAX_RP_CALLS = 100;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
-                                   "@mozilla.org/childprocessmessagemanager;1",
-                                   "nsIMessageSender");
-
 // This is the child process corresponding to nsIDOMIdentity.
 
 
@@ -487,7 +483,10 @@ nsDOMIdentityInternal.prototype = {
 
     this._log("init was called from " + aWindow.document.location);
 
-    this._mm = cpmm;
+    this._mm = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+                      .getInterface(Ci.nsIWebNavigation)
+                      .QueryInterface(Ci.nsIInterfaceRequestor)
+                      .getInterface(Ci.nsIContentFrameMessageManager);
 
     // Setup listeners for messages from parent process.
     this._messages = [
@@ -534,4 +533,4 @@ nsDOMIdentityInternal.prototype = {
 
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsDOMIdentityInternal]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([nsDOMIdentityInternal]);

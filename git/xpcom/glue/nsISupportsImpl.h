@@ -31,7 +31,6 @@
 #include "nsCycleCollectorUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/Likely.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // Macros to help detect thread-safety:
@@ -117,7 +116,7 @@ public:
 
   MOZ_ALWAYS_INLINE nsrefcnt incr(void *owner)
   {
-    if (MOZ_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT)) {
+    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT)) {
       // The sentinel value "purple bit alone, refcount 0" means
       // that we're stabilized, during finalization. In this
       // state we lie about our actual refcount if anyone asks
@@ -161,7 +160,7 @@ public:
 
   MOZ_ALWAYS_INLINE nsrefcnt decr(void *owner, nsCycleCollectionParticipant *p)
   {
-    if (MOZ_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
+    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
       return 1;
 
     nsrefcnt refcount;
@@ -169,7 +168,7 @@ public:
       nsPurpleBufferEntry *e = NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged);
       NS_ASSERTION(e->mObject == owner, "wrong entry");
       refcount = --(e->mRefCnt);
-      if (MOZ_UNLIKELY(refcount == 0)) {
+      if (NS_UNLIKELY(refcount == 0)) {
 #ifdef DEBUG_CC
         nsCycleCollector_logPurpleRemoval(
           NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mObject);
@@ -190,7 +189,7 @@ public:
       --refcount;
 
       nsPurpleBufferEntry *e;
-      if (MOZ_LIKELY(refcount > 0) &&
+      if (NS_LIKELY(refcount > 0) &&
           ((e = NS_CycleCollectorSuspect2(owner, p)))) {
         e->mRefCnt = refcount;
         mTagged = NS_CCAR_PURPLE_ENTRY_TO_TAGGED(e);
@@ -236,10 +235,10 @@ public:
 
   MOZ_ALWAYS_INLINE nsrefcnt get() const
   {
-    if (MOZ_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
+    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
       return 1;
 
-    return MOZ_UNLIKELY(HasPurpleBufferEntry())
+    return NS_UNLIKELY(HasPurpleBufferEntry())
              ? NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mRefCnt
              : NS_CCAR_TAGGED_TO_REFCNT(mTagged);
   }
@@ -299,7 +298,7 @@ public:                                                                       \
   NS_IMETHOD_(nsrefcnt) Release(void);                                        \
   void UnmarkIfPurple()                                                       \
   {                                                                           \
-    if (MOZ_LIKELY(mRefCnt.HasPurpleBufferEntry()))                           \
+    if (NS_LIKELY(mRefCnt.HasPurpleBufferEntry()))                            \
       mRefCnt.ReleasePurpleBufferEntry();                                     \
   }                                                                           \
 protected:                                                                    \

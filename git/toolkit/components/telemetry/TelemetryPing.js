@@ -510,15 +510,6 @@ TelemetryPing.prototype = {
     for (let ioCounter in this._startupIO)
       payloadObj.simpleMeasurements[ioCounter] = this._startupIO[ioCounter];
 
-    let hasPingBeenSent = false;
-    try {
-      hasPingBeenSent = Telemetry.getHistogramById("TELEMETRY_SUCCESS").snapshot().sum > 0;
-    } catch(e) {
-    }
-    if (reason != "saved-session" || hasPingBeenSent) {
-      payloadObj.simpleMeasurements.savedPings = this._pingsLoaded;
-    }
-
     let slug = (isTestPing ? reason : this._uuid);
     payloadObj.info = this.getMetadata(reason);
     return { slug: slug, payload: JSON.stringify(payloadObj) };
@@ -1036,4 +1027,4 @@ TelemetryPing.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver]),
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([TelemetryPing]);
+let NSGetFactory = XPCOMUtils.generateNSGetFactory([TelemetryPing]);

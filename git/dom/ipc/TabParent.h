@@ -123,8 +123,7 @@ public:
     virtual bool RecvEndIMEComposition(const bool& aCancel,
                                        nsString* aComposition);
     virtual bool RecvGetInputContext(int32_t* aIMEEnabled,
-                                     int32_t* aIMEOpen,
-                                     intptr_t* aNativeIMEContext);
+                                     int32_t* aIMEOpen);
     virtual bool RecvSetInputContext(const int32_t& aIMEEnabled,
                                      const int32_t& aIMEOpen,
                                      const nsString& aType,

@@ -20,6 +20,7 @@
 #endif
 
 #include "mozilla/Attributes.h"
+#include "mozilla/MemoryInfoDumper.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
 #include "mozilla/dom/PCrashReporterChild.h"
 #include "mozilla/dom/StorageChild.h"
@@ -38,7 +39,6 @@
 #include "nsAudioStream.h"
 #endif
 #include "nsIMemoryReporter.h"
-#include "nsIMemoryInfoDumper.h"
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
 #include "nsIObserver.h"
@@ -448,9 +448,7 @@ ContentChild::RecvDumpMemoryReportsToFile(const nsString& aIdentifier,
                                           const bool& aMinimizeMemoryUsage,
                                           const bool& aDumpChildProcesses)
 {
-    nsCOMPtr<nsIMemoryInfoDumper> dumper = do_GetService("@mozilla.org/memory-info-dumper;1");
-
-    dumper->DumpMemoryReportsToFile(
+    MemoryInfoDumper::DumpMemoryReportsToFile(
         aIdentifier, aMinimizeMemoryUsage, aDumpChildProcesses);
     return true;
 }
@@ -459,9 +457,7 @@ bool
 ContentChild::RecvDumpGCAndCCLogsToFile(const nsString& aIdentifier,
                                         const bool& aDumpChildProcesses)
 {
-    nsCOMPtr<nsIMemoryInfoDumper> dumper = do_GetService("@mozilla.org/memory-info-dumper;1");
-
-    dumper->DumpGCAndCCLogsToFile(
+    MemoryInfoDumper::DumpGCAndCCLogsToFile(
         aIdentifier, aDumpChildProcesses);
     return true;
 }
@@ -659,7 +655,8 @@ ContentChild::RecvPTestShellConstructor(PTestShellChild* actor)
 
 PAudioChild*
 ContentChild::AllocPAudio(const int32_t& numChannels,
-                          const int32_t& rate)
+                          const int32_t& rate,
+                          const int32_t& format)
 {
 #if defined(MOZ_SYDNEYAUDIO)
     AudioChild *child = new AudioChild();

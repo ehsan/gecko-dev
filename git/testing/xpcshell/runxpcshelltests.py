@@ -482,7 +482,7 @@ class XPCShellTests(object):
     if name is None:
       name = "xpcshell"
     else:
-      assert isinstance(name, basestring)
+      assert isinstance(name, str)
 
     if filename is not None:
       fh = open(filename, 'wb')
@@ -637,7 +637,7 @@ class XPCShellTests(object):
         testdirs = []
 
     if xunitFilename is not None or xunitName is not None:
-        if not isinstance(testsRootDir, basestring):
+        if not isinstance(testsRootDir, str):
             raise Exception("testsRootDir must be a str when outputting xUnit.")
 
         if not os.path.isabs(testsRootDir):
@@ -781,7 +781,6 @@ class XPCShellTests(object):
 
       completeCmd = cmdH + cmdT + args
 
-      proc = None
       try:
         self.log.info("TEST-INFO | %s | running test ..." % name)
         if verbose:
@@ -877,7 +876,7 @@ class XPCShellTests(object):
       finally:
         # We can sometimes get here before the process has terminated, which would
         # cause removeDir() to fail - so check for the process & kill it it needed.
-        if proc and self.poll(proc) is None:
+        if self.poll(proc) is None:
           message = "TEST-UNEXPECTED-FAIL | %s | Process still running after test!" % name
           self.log.error(message)
           print_stdout(stdout)

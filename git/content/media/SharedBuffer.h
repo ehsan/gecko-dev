@@ -7,8 +7,6 @@
 #define MOZILLA_SHAREDBUFFER_H_
 
 #include "mozilla/mozalloc.h"
-#include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
 
 namespace mozilla {
 

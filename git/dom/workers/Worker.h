@@ -13,6 +13,8 @@
 
 BEGIN_WORKERS_NAMESPACE
 
+extern mozilla::dom::NativePropertyHooks sNativePropertyHooks;
+
 namespace worker {
 
 JSObject*

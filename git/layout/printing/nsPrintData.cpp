@@ -22,15 +22,8 @@
 
 #ifdef PR_LOGGING
 #define DUMP_LAYOUT_LEVEL 9 // this turns on the dumping of each doucment's layout info
-static PRLogModuleInfo *
-GetPrintingLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("printing");
-  return sLog;
-}
-#define PR_PL(_p1)  PR_LOG(GetPrintingLog(), PR_LOG_DEBUG, _p1);
+static PRLogModuleInfo * kPrintingLogMod = PR_NewLogModule("printing");
+#define PR_PL(_p1)  PR_LOG(kPrintingLogMod, PR_LOG_DEBUG, _p1);
 #else
 #define PRT_YESNO(_p)
 #define PR_PL(_p1)

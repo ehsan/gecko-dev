@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Util.h"
-#include "mozilla/Likely.h"
 
 #include "nscore.h"
 #include "nsGenericHTMLElement.h"
@@ -1038,7 +1037,7 @@ StartElement(Element* aContent, StringBuilder& aBuilder)
       continue;
     }
     
-    if (MOZ_LIKELY(attNs == kNameSpaceID_None) ||
+    if (NS_LIKELY(attNs == kNameSpaceID_None) ||
         (attNs == kNameSpaceID_XMLNS &&
          attName == nsGkAtoms::xmlns)) {
       aBuilder.Append(" ");
@@ -2159,7 +2158,7 @@ nsGenericHTMLElement::ParseBackgroundAttribute(int32_t aNamespaceID,
 
     nsString value(aValue);
     nsRefPtr<nsStringBuffer> buffer = nsCSSValue::BufferFromString(value);
-    if (MOZ_UNLIKELY(!buffer)) {
+    if (NS_UNLIKELY(!buffer)) {
       return false;
     }
 
@@ -3991,7 +3990,7 @@ nsGenericHTMLElement::GetEditor(nsIEditor** aEditor)
 {
   *aEditor = nullptr;
 
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerTrustedForWrite()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 

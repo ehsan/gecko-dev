@@ -8,7 +8,6 @@
 #include <limits.h>
 #include "BitSet.h"
 #include "LinearScan.h"
-#include "IonBuilder.h"
 #include "IonSpewer.h"
 #include "LIR-inl.h"
 
@@ -390,9 +389,6 @@ LinearScanAllocator::createDataStructures()
 
     // Build virtual register objects
     for (size_t i = 0; i < graph.numBlocks(); i++) {
-        if (mir->shouldCancel("LSRA create data structures (main loop)"))
-            return false;
-
         LBlock *block = graph.getBlock(i);
         for (LInstructionIterator ins = block->begin(); ins != block->end(); ins++) {
             for (size_t j = 0; j < ins->numDefs(); j++) {
@@ -456,20 +452,6 @@ IsTraceable(VirtualRegister *reg)
     return false;
 }
 
-#ifdef DEBUG
-static inline bool
-NextInstructionHasFixedUses(LBlock *block, LInstruction *ins)
-{
-    LInstructionIterator iter(block->begin(ins));
-    iter++;
-    for (LInstruction::InputIterator alloc(**iter); alloc.more(); alloc.next()) {
-        if (alloc->isUse() && alloc->toUse()->isFixedRegister())
-            return true;
-    }
-    return false;
-}
-#endif
-
 /*
  * This function builds up liveness intervals for all virtual registers
  * defined in the function. Additionally, it populates the liveIn array with
@@ -499,9 +481,6 @@ LinearScanAllocator::buildLivenessInfo()
         return false;
 
     for (size_t i = graph.numBlocks(); i > 0; i--) {
-        if (mir->shouldCancel("LSRA Build Liveness Info (main loop)"))
-            return false;
-
         LBlock *block = graph.getBlock(i - 1);
         MBasicBlock *mblock = block->mir();
 
@@ -556,14 +535,9 @@ LinearScanAllocator::buildLivenessInfo()
 
                     CodePosition from;
                     if (def->policy() == LDefinition::PRESET && def->output()->isRegister()) {
-                        // The fixed range covers the current instruction so the
-                        // interval for the virtual register starts at the next
-                        // instruction. If the next instruction has a fixed use,
-                        // this can lead to unnecessary register moves. To avoid
-                        // special handling for this, assert the next instruction
-                        // has no fixed uses. defineFixed guarantees this by inserting
-                        // an LNop.
-                        JS_ASSERT(!NextInstructionHasFixedUses(block, *ins));
+                        // The fixed range covers the current instruction so the interval
+                        // for the virtual register starts at the next instruction. The
+                        // next instruction is an LNop so this is fine.
                         AnyRegister reg = def->output()->toRegister();
                         if (!addFixedRangeAtHead(reg, inputOf(*ins), outputOf(*ins).next()))
                             return false;
@@ -819,9 +793,6 @@ LinearScanAllocator::allocateRegisters()
         JS_ASSERT(current->getAllocation()->isUse());
         JS_ASSERT(current->numRanges() > 0);
 
-        if (mir->shouldCancel("LSRA Allocate Registers (main loop)"))
-            return false;
-
         CodePosition position = current->start();
         Requirement *req = current->requirement();
         Requirement *hint = current->hint();
@@ -953,9 +924,6 @@ bool
 LinearScanAllocator::resolveControlFlow()
 {
     for (size_t i = 0; i < graph.numBlocks(); i++) {
-        if (mir->shouldCancel("LSRA Resolve Control Flow (main loop)"))
-            return false;
-
         LBlock *successor = graph.getBlock(i);
         MBasicBlock *mSuccessor = successor->mir();
         if (mSuccessor->numPredecessors() < 1)
@@ -1039,9 +1007,6 @@ LinearScanAllocator::reifyAllocations()
     // Iterate over each interval, ensuring that definitions are visited before uses.
     for (size_t j = 1; j < graph.numVirtualRegisters(); j++) {
         VirtualRegister *reg = &vregs[j];
-        if (mir->shouldCancel("LSRA Reification (main loop)"))
-            return false;
-
     for (size_t k = 0; k < reg->numIntervals(); k++) {
         LiveInterval *interval = reg->getInterval(k);
         JS_ASSERT(reg == interval->reg());
@@ -2007,48 +1972,30 @@ LinearScanAllocator::go()
         return false;
     IonSpew(IonSpew_RegAlloc, "Creation of initial data structures completed");
 
-    if (mir->shouldCancel("LSRA Create Data Structures"))
-        return false;
-
     IonSpew(IonSpew_RegAlloc, "Beginning liveness analysis");
     if (!buildLivenessInfo())
         return false;
     IonSpew(IonSpew_RegAlloc, "Liveness analysis complete");
-
-    if (mir->shouldCancel("LSRA Liveness"))
-        return false;
 
     IonSpew(IonSpew_RegAlloc, "Beginning preliminary register allocation");
     if (!allocateRegisters())
         return false;
     IonSpew(IonSpew_RegAlloc, "Preliminary register allocation complete");
 
-    if (mir->shouldCancel("LSRA Preliminary Regalloc"))
-        return false;
-
     IonSpew(IonSpew_RegAlloc, "Beginning control flow resolution");
     if (!resolveControlFlow())
         return false;
     IonSpew(IonSpew_RegAlloc, "Control flow resolution complete");
-
-    if (mir->shouldCancel("LSRA Control Flow"))
-        return false;
 
     IonSpew(IonSpew_RegAlloc, "Beginning register allocation reification");
     if (!reifyAllocations())
         return false;
     IonSpew(IonSpew_RegAlloc, "Register allocation reification complete");
 
-    if (mir->shouldCancel("LSRA Reification"))
-        return false;
-
     IonSpew(IonSpew_RegAlloc, "Beginning safepoint population.");
     if (!populateSafepoints())
         return false;
     IonSpew(IonSpew_RegAlloc, "Safepoint population complete.");
-
-    if (mir->shouldCancel("LSRA Safepoints"))
-        return false;
 
     IonSpew(IonSpew_RegAlloc, "Register allocation complete");
 

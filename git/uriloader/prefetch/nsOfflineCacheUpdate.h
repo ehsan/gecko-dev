@@ -37,7 +37,6 @@ class nsOfflineCacheUpdate;
 
 class nsICacheEntryDescriptor;
 class nsIUTF8StringEnumerator;
-class nsILoadContext;
 
 class nsOfflineCacheUpdateItem : public nsIDOMLoadStatus
                                , public nsIStreamListener
@@ -219,7 +218,6 @@ protected:
     void OnByteProgress(uint64_t byteIncrement);
 
 private:
-    nsresult InitInternal(nsIURI *aManifestURI);
     nsresult HandleManifest(bool *aDoUpdate);
     nsresult AddURI(nsIURI *aURI, uint32_t aItemType);
 
@@ -232,8 +230,6 @@ private:
                               nsTArray<nsCString>* namespaceFilter = nullptr);
     nsresult ScheduleImplicit();
     void AssociateDocuments(nsIApplicationCache* cache);
-    bool CheckUpdateAvailability();
-    void NotifyUpdateAvailability(bool updateAvailable);
 
     void GatherObservers(nsCOMArray<nsIOfflineCacheUpdateObserver> &aObservers);
     void NotifyState(uint32_t state);
@@ -256,7 +252,6 @@ private:
 
     bool mAddedItems;
     bool mPartialUpdate;
-    bool mOnlyCheckUpdate;
     bool mSucceeded;
     bool mObsolete;
 
@@ -265,11 +260,7 @@ private:
     nsCOMPtr<nsIURI> mManifestURI;
     nsCOMPtr<nsIURI> mDocumentURI;
     nsCOMPtr<nsIFile> mCustomProfileDir;
-
-    uint32_t mAppID;
-    bool mInBrowser;
-
-    nsCOMPtr<nsIObserver> mUpdateAvailableObserver;
+    nsCOMPtr<nsILoadContext> mLoadContext;
 
     nsCOMPtr<nsIApplicationCache> mApplicationCache;
     nsCOMPtr<nsIApplicationCache> mPreviousApplicationCache;
@@ -321,8 +312,7 @@ public:
 
     nsresult ScheduleUpdate(nsOfflineCacheUpdate *aUpdate);
     nsresult FindUpdate(nsIURI *aManifestURI,
-                        uint32_t aAppID,
-                        bool aInBrowser,
+                        nsILoadContext *aLoadContext,
                         nsOfflineCacheUpdate **aUpdate);
 
     nsresult Schedule(nsIURI *aManifestURI,
@@ -330,8 +320,6 @@ public:
                       nsIDOMDocument *aDocument,
                       nsIDOMWindow* aWindow,
                       nsIFile* aCustomProfileDir,
-                      uint32_t aAppID,
-                      bool aInBrowser,
                       nsIOfflineCacheUpdate **aUpdate);
 
     virtual nsresult UpdateFinished(nsOfflineCacheUpdate *aUpdate);

@@ -19,8 +19,8 @@
 namespace mozilla {
 
 #ifdef PR_LOGGING
-extern PRLogModuleInfo* GetMediaManagerLog();
-#define MM_LOG(msg) PR_LOG(GetMediaManagerLog(), PR_LOG_DEBUG, msg)
+extern PRLogModuleInfo* gMediaManagerLog;
+#define MM_LOG(msg) PR_LOG(gMediaManagerLog, PR_LOG_DEBUG, msg)
 #else
 #define MM_LOG(msg)
 #endif
@@ -275,9 +275,6 @@ public:
     if (!sSingleton) {
       sSingleton = new MediaManager();
 
-      NS_NewThread(getter_AddRefs(sSingleton->mMediaThread));
-      MM_LOG(("New Media thread for gum"));
-
       NS_ASSERTION(NS_IsMainThread(), "Only create MediaManager on main thread");
       nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
       obs->AddObserver(sSingleton, "xpcom-shutdown", false);
@@ -286,19 +283,23 @@ public:
     }
     return sSingleton;
   }
+  static Mutex& GetMutex() {
+    return Get()->mMutex;
+  }
   static nsIThread* GetThread() {
-    return Get()->mMediaThread;
+    MutexAutoLock lock(Get()->mMutex); // only need to call Get() once
+    if (!sSingleton->mMediaThread) {
+      NS_NewThread(getter_AddRefs(sSingleton->mMediaThread));
+      MM_LOG(("New Media thread for gum"));
+    }
+    return sSingleton->mMediaThread;
   }
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
   MediaEngine* GetBackend();
-  bool IsWindowStillActive(uint64_t aWindowId) {
-    NS_ASSERTION(NS_IsMainThread(), "Only access windowlist on main thread");
-
-    return !!mActiveWindows.Get(aWindowId);
-  }
+  WindowTable* GetActiveWindows();
 
   nsresult GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
     nsIMediaStreamOptions* aParams,
@@ -310,16 +311,11 @@ public:
   void OnNavigation(uint64_t aWindowID);
 
 private:
-  WindowTable *GetActiveWindows() {
-    NS_ASSERTION(NS_IsMainThread(), "Only access windowlist on main thread");
-    return &mActiveWindows;
-  };
-
   // Make private because we want only one instance of this class
   MediaManager()
-  : mMediaThread(nullptr)
-  , mMutex("mozilla::MediaManager")
-  , mBackend(nullptr) {
+  : mMutex("mozilla::MediaManager")
+  , mBackend(nullptr)
+  , mMediaThread(nullptr) {
     mActiveWindows.Init();
     mActiveCallbacks.Init();
   };
@@ -328,15 +324,12 @@ private:
     delete mBackend;
   };
 
-  // ONLY access from MainThread so we don't need to lock
-  WindowTable mActiveWindows;
-  nsRefPtrHashtable<nsStringHashKey, nsRunnable> mActiveCallbacks;
-  // Always exists
-  nsCOMPtr<nsIThread> mMediaThread;
-
   Mutex mMutex;
   // protected with mMutex:
   MediaEngine* mBackend;
+  nsCOMPtr<nsIThread> mMediaThread;
+  WindowTable mActiveWindows;
+  nsRefPtrHashtable<nsStringHashKey, nsRunnable> mActiveCallbacks;
 
   static nsRefPtr<MediaManager> sSingleton;
 };

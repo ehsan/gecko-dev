@@ -441,6 +441,11 @@ PrivateBrowsingService.prototype = {
                   getService(Ci.nsISecretDecoderRing);
         sdr.logoutAndTeardown();
     
+        // clear plain HTTP auth sessions
+        let authMgr = Cc['@mozilla.org/network/http-auth-manager;1'].
+                      getService(Ci.nsIHttpAuthManager);
+        authMgr.clearAll();
+
         try {
           this._prefs.deleteBranch("geo.wifi.access_token.");
         } catch (ex) {}
@@ -591,4 +596,4 @@ PrivateBrowsingService.prototype = {
   }
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([PrivateBrowsingService]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([PrivateBrowsingService]);

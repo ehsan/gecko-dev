@@ -40,7 +40,7 @@ nsRegion
 nsDOMNotifyPaintEvent::GetRegion()
 {
   nsRegion r;
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
     return r;
   }
   for (uint32_t i = 0; i < mInvalidateRequests.Length(); ++i) {
@@ -97,7 +97,7 @@ nsDOMNotifyPaintEvent::GetPaintRequests(nsIDOMPaintRequestList** aResult)
   if (!requests)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  if (nsContentUtils::IsCallerChrome()) {
+  if (nsContentUtils::IsCallerTrustedForRead()) {
     for (uint32_t i = 0; i < mInvalidateRequests.Length(); ++i) {
       nsRefPtr<nsPaintRequest> r = new nsPaintRequest();
       if (!r)

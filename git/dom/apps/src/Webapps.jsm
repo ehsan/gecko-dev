@@ -9,7 +9,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-this.EXPORTED_SYMBOLS = ["DOMApplicationRegistry"];
+let EXPORTED_SYMBOLS = ["DOMApplicationRegistry"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -54,7 +54,7 @@ XPCOMUtils.defineLazyGetter(this, "msgmgr", function() {
   const DIRECTORY_NAME = WEBAPP_RUNTIME ? "WebappRegD" : "ProfD";
 #endif
 
-this.DOMApplicationRegistry = {
+let DOMApplicationRegistry = {
   appsFile: null,
   webapps: { },
   children: [ ],
@@ -70,7 +70,7 @@ this.DOMApplicationRegistry = {
                      "Webapps:GetList", "Webapps:RegisterForMessages",
                      "Webapps:UnregisterForMessages",
                      "Webapps:CancelDownload", "Webapps:CheckForUpdate",
-                     "Webapps:Download", "Webapps:ApplyDownload",
+                     "Webapps::Download", "Webapps::ApplyDownload",
                      "child-process-shutdown"];
 
     this.frameMessages = ["Webapps:ClearBrowserData"];
@@ -246,42 +246,8 @@ this.DOMApplicationRegistry = {
     }
   },
 
-#ifdef MOZ_WIDGET_GONK
-  fixIndexedDb: function fixIndexedDb() {
-    debug("Fixing indexedDb folder names");
-    let idbDir = FileUtils.getDir("indexedDBPDir", ["indexedDB"]);
-
-    if (!idbDir.isDirectory()) {
-      return;
-    }
-
-    let re = /^(\d+)\+(.*)\+(f|t)$/;
-
-    let entries = idbDir.directoryEntries;
-    while (entries.hasMoreElements()) {
-      let entry = entries.getNext().QueryInterface(Ci.nsIFile);
-      if (!entry.isDirectory()) {
-        continue;
-      }
-
-      let newName = entry.leafName.replace(re, "$1+$3+$2");
-      if (newName != entry.leafName) {
-        try {
-          entry.moveTo(idbDir, newName);
-        } catch(e) { }
-      }
-    }
-  },
-#endif
-
   loadAndUpdateApps: function loadAndUpdateApps() {
     let runUpdate = AppsUtils.isFirstRun(Services.prefs);
-
-#ifdef MOZ_WIDGET_GONK
-    if (runUpdate) {
-      this.fixIndexedDb();
-    }
-#endif
 
     let onAppsLoaded = (function onAppsLoaded() {
       if (runUpdate) {
@@ -608,7 +574,7 @@ this.DOMApplicationRegistry = {
     // These are: getAll(), getNotInstalled() and applyDownload()
     if (["Webapps:GetAll",
          "Webapps:GetNotInstalled",
-         "Webapps:ApplyDownload"].indexOf(aMessage.name) != -1) {
+         "Webapps::ApplyDownload"].indexOf(aMessage.name) != -1) {
       if (!aMessage.target.assertPermission("webapps-manage")) {
         debug("mozApps message " + aMessage.name +
         " from a content process with no 'webapps-manage' privileges.");
@@ -630,6 +596,7 @@ this.DOMApplicationRegistry = {
         break;
       case "Webapps:Uninstall":
         this.uninstall(msg, mm);
+        debug("Webapps:Uninstall");
         break;
       case "Webapps:Launch":
         this.launchApp(msg, mm);
@@ -677,8 +644,8 @@ this.DOMApplicationRegistry = {
       case "Webapps:CheckForUpdate":
         this.checkForUpdate(msg, mm);
         break;
-      case "Webapps:ApplyDownload":
-        this.applyDownload(msg.manifestURL);
+      case "Webapps::ApplyDownload":
+        this.ApplyDownload(msg.manifestURL);
         break;
       case "Activities:Register:OK":
         this.notifyAppsRegistryReady();
@@ -752,7 +719,7 @@ this.DOMApplicationRegistry = {
     app.progress = 0;
     app.installState = app.previousState;
     app.downloading = false;
-    app.downloadAvailable = false;
+    app.downloadavailable = false;
     app.downloadSize = 0;
     this._saveApps((function() {
       this.broadcastMessage("Webapps:PackageEvent",
@@ -763,14 +730,13 @@ this.DOMApplicationRegistry = {
     }).bind(this));
   },
 
-  startDownload: function startDownload(aManifestURL) {
-    debug("startDownload for " + aManifestURL);
-    let id = this._appIdForManifestURL(aManifestURL);
-    let app = this.webapps[id];
+  startDownload: function cancelDownload(aManifestURL) {
+    let app = this.getAppByManifestURL(manifestURL);
     if (!app) {
-      debug("startDownload: No app found for " + aManifestURL);
       return;
     }
+
+    let id = this._appIdForManifestURL(manifestURL);
 
     // We need to get the update manifest here, not the webapp manifest.
     let file = FileUtils.getFile(DIRECTORY_NAME,
@@ -778,11 +744,10 @@ this.DOMApplicationRegistry = {
 
     this._loadJSONAsync(file, (function(aJSON) {
       if (!aJSON) {
-        debug("startDownload: No update manifest found at " + file.path + " " + aManifestURL);
         return;
       }
 
-      let manifest = new ManifestHelper(aJSON, app.installOrigin);
+      let manifest = new ManifestHelper(aJSON, app.origin);
       this.downloadPackage(manifest, { manifestURL: aManifestURL,
                                        origin: app.origin }, true,
         function(aId, aManifest) {
@@ -798,13 +763,13 @@ this.DOMApplicationRegistry = {
                                             function() { });
           // Set state and fire events.
           app.downloading = false;
-          app.downloadAvailable = false;
+          app.downloadavailable = false;
           app.readyToApplyDownload = true;
           DOMApplicationRegistry._saveApps(function() {
             debug("About to fire Webapps:PackageEvent");
             DOMApplicationRegistry.broadcastMessage("Webapps:PackageEvent",
                                                     { type: "downloaded",
-                                                      manifestURL: aManifestURL,
+                                                      manifestURL: manifestURL,
                                                       app: app,
                                                       manifest: aManifest });
           });
@@ -813,16 +778,15 @@ this.DOMApplicationRegistry = {
   },
 
   applyDownload: function applyDownload(aManifestURL) {
-    debug("applyDownload for " + aManifestURL);
-    let app = this.getAppByManifestURL(aManifestURL);
+    let app = this.getAppByManifestURL(manifestURL);
     if (!app || (app && !app.readyToApplyDownload)) {
       return;
     }
 
-    let id = this._appIdForManifestURL(app.manifestURL);
+    let id = this._appIdForManifestURL(aApp.manifestURL);
 
     // Move the application.zip and manifest.webapp files out of TmpD
-    let tmpDir = FileUtils.getDir("TmpD", ["webapps", id], true, true);
+    let tmpDir = FileUtils.getDir("TmpD", ["webapps", aId], true, true);
     let manFile = tmpDir.clone();
     manFile.append("manifest.webapp");
     let appFile = tmpDir.clone();
@@ -841,13 +805,13 @@ this.DOMApplicationRegistry = {
       app.readyToApplyDownload = false;
       this.broadcastMessage("Webapps:PackageEvent",
                             { type: "applied",
-                              manifestURL: app.manifestURL,
+                              manifestURL: aApp.manifestURL,
                               app: app,
                               manifest: aData });
       // Update the permissions for this app.
       PermissionsInstaller.installPermissions({ manifest: aData,
                                                 origin: app.origin,
-                                                manifestURL: app.manifestURL },
+                                                manifestURL: aApp.manifestURL },
                                               true);
     }).bind(this));
   },
@@ -871,9 +835,8 @@ this.DOMApplicationRegistry = {
   },
 
   checkForUpdate: function(aData, aMm) {
-    debug("checkForUpdate for " + aData.manifestURL);
-    let id = this._appIdForManifestURL(aData.manifestURL);
-    let app = this.webapps[id];
+    let app = this.getAppByManifestURL(aData.manifestURL);
+    let installOrigin = app.installOrigin;
 
     if (!app) {
       aData.error = "NO_SUCH_APP";
@@ -888,14 +851,6 @@ this.DOMApplicationRegistry = {
 
     function updatePackagedApp(aManifest) {
       debug("updatePackagedApp");
-
-      // if the app manifestURL has a app:// scheme, we can't have an
-      // update.
-      if (app.manifestURL.startsWith("app://")) {
-        aMm.sendAsyncMessage("Webapps:CheckForUpdate:Return:KO", aData);
-        return;
-      }
-
       let manifest = new ManifestHelper(aManifest, app.manifestURL);
       // A package is available: set downloadAvailable to fire the matching
       // event.
@@ -955,10 +910,9 @@ this.DOMApplicationRegistry = {
       // Update the registry.
       this.webapps[id] = app;
 
-      this._saveApps(function() {
-        aData.event = "downloadapplied";
-        aMm.sendAsyncMessage("Webapps:CheckForUpdate:Return:OK", aData);
-      });
+      this._saveApps((function() {
+        // XXX Should we fire notifications ?
+      }).bind(this));
 
       // Preload the appcache if needed.
       this.startOfflineCacheDownload(manifest, app);
@@ -967,15 +921,15 @@ this.DOMApplicationRegistry = {
       PermissionsInstaller.installPermissions({ manifest: aManifest,
                                                 origin: app.origin,
                                                 manifestURL: aData.manifestURL },
-                                                true);
+                                              true);
     }
 
     // First, we download the manifest.
     let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
                 .createInstance(Ci.nsIXMLHttpRequest);
     xhr.open("GET", aData.manifestURL, true);
-    if (app.etag) {
-      xhr.setRequestHeader("If-None-Match", app.etag);
+    if (aData.etag) {
+      xhr.setRequestHeader("If-None-Match", aData.etag);
     }
 
     xhr.addEventListener("load", (function() {
@@ -987,15 +941,15 @@ this.DOMApplicationRegistry = {
           sendError("MANIFEST_PARSE_ERROR");
           return;
         }
-        if (!AppsUtils.checkManifest(manifest, app.installOrigin)) {
+        if (!AppsUtils.checkManifest(manifest, installOrigin)) {
           sendError("INVALID_MANIFEST");
         } else {
           app.etag = xhr.getResponseHeader("Etag");
           app.lastCheckedUpdate = Date.now();
-          if (app.origin.startsWith("app://")) {
+          if (manifest.package_path) {
             updatePackagedApp(manifest);
           } else {
-            updateHostedApp.call(this, manifest);
+            updateHostedApp(manifest);
           }
         }
         this._saveApps();
@@ -1014,7 +968,7 @@ this.DOMApplicationRegistry = {
     }).bind(this), false);
 
     xhr.addEventListener("error", (function() {
-      sendError("NETWORK_ERROR");
+      sendError(request, "NETWORK_ERROR");
     }).bind(this), false);
 
     xhr.send(null);
@@ -1070,12 +1024,6 @@ this.DOMApplicationRegistry = {
 
     let appObject = AppsUtils.cloneAppObject(app);
     appObject.appStatus = app.appStatus || Ci.nsIPrincipal.APP_STATUS_INSTALLED;
-    // For hosted apps, allow application status override in dev mode.
-    if (!aData.isPackage &&
-        Services.prefs.getBoolPref("dom.mozApps.dev_mode")) {
-      appObject.appStatus = AppsUtils.getAppManifestStatus(app.manifest);
-    }
-
     appObject.installTime = app.installTime = Date.now();
     appObject.lastUpdateCheck = app.lastUpdateCheck = Date.now();
     let appNote = JSON.stringify(appObject);
@@ -1118,10 +1066,7 @@ this.DOMApplicationRegistry = {
     // For package apps, the permissions are not in the mini-manifest, so
     // don't update the permissions yet.
     if (!aData.isPackage) {
-      PermissionsInstaller.installPermissions({ origin: appObject.origin,
-                                                manifestURL: appObject.manifestURL,
-                                                manifest: jsonManifest },
-                                              isReinstall, (function() {
+      PermissionsInstaller.installPermissions(aData.app, isReinstall, (function() {
         this.uninstall(aData, aData.mm);
       }).bind(this));
     }
@@ -1174,14 +1119,14 @@ this.DOMApplicationRegistry = {
         // Set state and fire events.
         app.installState = "installed";
         app.downloading = false;
-        app.downloadAvailable = false;
+        app.downloadavailable = false;
         DOMApplicationRegistry._saveApps(function() {
           // Update the permissions for this app.
           PermissionsInstaller.installPermissions({ manifest: aManifest,
                                                     origin: appObject.origin,
                                                     manifestURL: appObject.manifestURL },
                                                   true);
-          debug("About to fire Webapps:PackageEvent 'installed'");
+          debug("About to fire Webapps:PackageEvent");
           DOMApplicationRegistry.broadcastMessage("Webapps:PackageEvent",
                                                   { type: "installed",
                                                     manifestURL: appObject.manifestURL,

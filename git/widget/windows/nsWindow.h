@@ -90,7 +90,7 @@ public:
   NS_IMETHOD              SetParent(nsIWidget *aNewParent);
   virtual nsIWidget*      GetParent(void);
   virtual float           GetDPI();
-  virtual double          GetDefaultScaleInternal();
+  virtual double          GetDefaultScale();
   NS_IMETHOD              Show(bool bState);
   virtual bool            IsVisible() const;
   NS_IMETHOD              ConstrainPosition(bool aAllowSlop, int32_t *aX, int32_t *aY);
@@ -129,7 +129,7 @@ public:
   NS_IMETHOD              EnableDragDrop(bool aEnable);
   NS_IMETHOD              CaptureMouse(bool aCapture);
   NS_IMETHOD              CaptureRollupEvents(nsIRollupListener * aListener,
-                                              bool aDoCapture);
+                                              bool aDoCapture, bool aConsumeRollupEvent);
   NS_IMETHOD              GetAttention(int32_t aCycleCount);
   virtual bool            HasPendingInputEvent();
   virtual LayerManager*   GetLayerManager(PLayersChild* aShadowManager = nullptr,
@@ -203,8 +203,6 @@ public:
                                               LPARAM aLParam,
                                               bool aDispatchPendingEvents);
 
-  void                    SuppressBlurEvents(bool aSuppress); // Called from nsFilePicker
-  bool                    BlurEventsSuppressed();
 #ifdef ACCESSIBILITY
   Accessible* GetRootAccessible();
 #endif // ACCESSIBILITY
@@ -329,6 +327,7 @@ protected:
    * Event processing helpers
    */
   bool                    DispatchPluginEvent(const MSG &aMsg);
+  HWND                    GetTopLevelForFocus(HWND aCurWnd);
   void                    DispatchFocusToTopLevelWindow(bool aIsActivate);
   bool                    DispatchStandardEvent(uint32_t aMsg);
   bool                    DispatchCommandEvent(uint32_t aEventCommand);
@@ -470,7 +469,6 @@ protected:
   bool                  mFullscreenMode;
   bool                  mMousePresent;
   bool                  mDestroyCalled;
-  uint32_t              mBlurSuppressLevel;
   DWORD_PTR             mOldStyle;
   DWORD_PTR             mOldExStyle;
   InputContext mInputContext;
@@ -483,6 +481,7 @@ protected:
   uint32_t              mPickerDisplayCount;
   HICON                 mIconSmall;
   HICON                 mIconBig;
+  HWND                  mLastKillFocusWindow;
   static bool           sDropShadowEnabled;
   static uint32_t       sInstanceCount;
   static TriStateBool   sCanQuit;
@@ -530,6 +529,11 @@ protected:
   static UINT           sRollupMsgId;
   static HWND           sRollupMsgWnd;
   static UINT           sHookTimerId;
+
+  // Rollup Listener
+  static nsIWidget*     sRollupWidget;
+  static bool           sRollupConsumeEvent;
+  static nsIRollupListener* sRollupListener;
 
   // Mouse Clicks - static variable definitions for figuring
   // out 1 - 3 Clicks.

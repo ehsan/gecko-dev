@@ -11,7 +11,6 @@
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIPrincipal.h"
-#include "nsJSPrincipals.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptSecurityManager.h"
@@ -32,7 +31,7 @@
 #include "xpcpublic.h"
 #include "mozilla/dom/BindingUtils.h"
 
-using mozilla::dom::DestroyProtoAndIfaceCache;
+using mozilla::dom::DestroyProtoOrIfaceCache;
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -95,6 +94,8 @@ nsXULPDGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
 
     // The addref was part of JSObject construction
     NS_RELEASE(nativeThis);
+
+    DestroyProtoOrIfaceCache(obj);
 }
 
 
@@ -109,12 +110,11 @@ nsXULPDGlobalObject_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 
 JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
     "nsXULPrototypeScript compilation scope",
-    JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS |
-    JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(0),
+    XPCONNECT_GLOBAL_FLAGS,
     JS_PropertyStub,  JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, nsXULPDGlobalObject_resolve,  JS_ConvertStub,
     nsXULPDGlobalObject_finalize, NULL, NULL, NULL, NULL,
-    NULL
+    TraceXPCGlobal
 };
 
 
@@ -752,10 +752,13 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
     JSContext *cx = ctxNew->GetNativeContext();
     JSAutoRequest ar(cx);
 
-    JSObject *newGlob = JS_NewGlobalObject(cx, &gSharedGlobalClass,
-                                           nsJSPrincipals::get(GetPrincipal()));
-    if (!newGlob)
-        return NS_OK;
+    nsIPrincipal *principal = GetPrincipal();
+    JSObject *newGlob;
+    JSCompartment *compartment;
+
+    rv = xpc::CreateGlobalObject(cx, &gSharedGlobalClass, principal, false,
+                                 &newGlob, &compartment);
+    NS_ENSURE_SUCCESS(rv, NS_OK);
 
     ::JS_SetGlobalObject(cx, newGlob);
 

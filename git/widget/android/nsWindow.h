@@ -122,7 +122,8 @@ public:
     NS_IMETHOD EnableDragDrop(bool aEnable) { return NS_OK; }
     NS_IMETHOD CaptureMouse(bool aCapture) { return NS_ERROR_NOT_IMPLEMENTED; }
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener *aListener,
-                                   bool aDoCapture) { return NS_ERROR_NOT_IMPLEMENTED; }
+                                   bool aDoCapture,
+                                   bool aConsumeRollupEvent) { return NS_ERROR_NOT_IMPLEMENTED; }
 
     NS_IMETHOD GetAttention(int32_t aCycleCount) { return NS_ERROR_NOT_IMPLEMENTED; }
     NS_IMETHOD BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVertical) { return NS_ERROR_NOT_IMPLEMENTED; }
@@ -155,7 +156,6 @@ public:
     static void ScheduleComposite();
     static void SchedulePauseComposition();
     static void ScheduleResumeComposition(int width, int height);
-    static float ComputeRenderIntegrity();
 
     virtual bool WidgetPaintsBackground();
 #endif
@@ -166,7 +166,7 @@ protected:
     bool DrawTo(gfxASurface *targetSurface);
     bool DrawTo(gfxASurface *targetSurface, const nsIntRect &aRect);
     bool IsTopLevel();
-    void RemoveIMEComposition();
+    void OnIMEAddRange(mozilla::AndroidGeckoEvent *ae);
 
     // Call this function when the users activity is the direct cause of an
     // event (like a keypress or mouse click).
@@ -183,8 +183,8 @@ protected:
     nsCOMPtr<nsIIdleServiceInternal> mIdleService;
 
     bool mIMEComposing;
-    bool mIMEMaskSelectionUpdate, mIMEMaskTextUpdate;
     nsString mIMEComposingText;
+    nsString mIMELastDispatchedComposingText;
     nsAutoTArray<nsTextRange, 4> mIMERanges;
 
     InputContext mInputContext;
