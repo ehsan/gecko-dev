@@ -2608,7 +2608,7 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
     int slots = FlushNativeGlobalFrame(cx, exit_gslots, gslots, globalTypeMap, global);
     if (slots < 0)
         return NULL;
-    JS_ASSERT_IF(ngslots != 0, globalFrameSize == STOBJ_NSLOTS(globalObj));
+    JS_ASSERT(globalFrameSize == STOBJ_NSLOTS(globalObj));
     JS_ASSERT(*(uint64*)&global[globalFrameSize] == 0xdeadbeefdeadbeefLL);
 
     /* write back native stack frame */
@@ -4094,8 +4094,20 @@ TraceRecorder::record_JSOP_MOD()
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
     if (isNumber(l) && isNumber(r)) {
-        LIns* args[] = { get(&r), get(&l) };
-        set(&l, lir->insCall(F_dmod, args));
+        LIns* l_ins = get(&l);
+        LIns* r_ins = get(&r);
+        LIns* x;
+        /* We can't demote this in a filter since we need the actual values of l and r. */
+        if (isPromote(l_ins) && isPromote(r_ins) && asNumber(l) >= 0 && asNumber(r) > 0) {
+            LIns* args[] = { ::demote(lir, r_ins), ::demote(lir, l_ins) };
+            x = lir->insCall(F_imod, args);
+            guard(false, lir->ins2(LIR_eq, x, lir->insImm(-1)), BRANCH_EXIT);
+            x = lir->ins1(LIR_i2f, x);
+        } else {
+            LIns* args[] = { r_ins, l_ins };
+            x = lir->insCall(F_dmod, args);
+        }
+        set(&l, x);
         return true;
     }
     return false;
@@ -6133,7 +6145,7 @@ TraceRecorder::record_JSOP_GETGVAR()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    stack(0, get(&STOBJ_GET_SLOT(globalObj, slot)));
+    stack(0, get(&STOBJ_GET_SLOT(cx->fp->scopeChain, slot)));
     return true;
 }
 
@@ -6149,7 +6161,7 @@ TraceRecorder::record_JSOP_SETGVAR()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    set(&STOBJ_GET_SLOT(globalObj, slot), stack(-1));
+    set(&STOBJ_GET_SLOT(cx->fp->scopeChain, slot), stack(-1));
     return true;
 }
 
@@ -6165,7 +6177,7 @@ TraceRecorder::record_JSOP_INCGVAR()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    return inc(STOBJ_GET_SLOT(globalObj, slot), 1);
+    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), 1);
 }
 
 bool
@@ -6180,7 +6192,7 @@ TraceRecorder::record_JSOP_DECGVAR()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    return inc(STOBJ_GET_SLOT(globalObj, slot), -1);
+    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), -1);
 }
 
 bool
@@ -6195,7 +6207,7 @@ TraceRecorder::record_JSOP_GVARINC()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    return inc(STOBJ_GET_SLOT(globalObj, slot), 1, false);
+    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), 1, false);
 }
 
 bool
@@ -6210,7 +6222,7 @@ TraceRecorder::record_JSOP_GVARDEC()
     if (!lazilyImportGlobalSlot(slot))
          ABORT_TRACE("lazy import of global slot failed");
 
-    return inc(STOBJ_GET_SLOT(globalObj, slot), -1, false);
+    return inc(STOBJ_GET_SLOT(cx->fp->scopeChain, slot), -1, false);
 }
 
 bool
