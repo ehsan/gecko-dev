@@ -7612,9 +7612,7 @@ nsArraySH::GetItemAt(nsISupports *aNative, PRUint32 aIndex,
                      nsISupports **aResult)
 {
   nsCOMPtr<nsINodeList> list(do_QueryInterface(aNative));
-  if (!list) {
-    return NS_ERROR_UNEXPECTED;
-  }
+  NS_ENSURE_TRUE(list, NS_ERROR_UNEXPECTED);
 
   NS_IF_ADDREF(*aResult = list->GetNodeAt(aIndex));
 
