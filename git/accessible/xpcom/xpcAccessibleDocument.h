@@ -24,7 +24,7 @@ class xpcAccessibleDocument : public xpcAccessibleHyperText,
                               public nsIAccessibleDocument
 {
 public:
-  explicit xpcAccessibleDocument(DocAccessible* aIntl) :
+  xpcAccessibleDocument(DocAccessible* aIntl) :
     xpcAccessibleHyperText(aIntl), mCache(kDefaultCacheLength) { }
 
   NS_DECL_ISUPPORTS_INHERITED

@@ -269,7 +269,6 @@ class LIRGenerator : public LIRGeneratorSpecific
     bool visitGetDOMProperty(MGetDOMProperty *ins);
     bool visitGetDOMMember(MGetDOMMember *ins);
     bool visitRecompileCheck(MRecompileCheck *ins);
-    bool visitMemoryBarrier(MMemoryBarrier *ins);
     bool visitSimdExtractElement(MSimdExtractElement *ins);
     bool visitSimdInsertElement(MSimdInsertElement *ins);
     bool visitSimdSignMask(MSimdSignMask *ins);

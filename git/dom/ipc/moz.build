@@ -119,7 +119,7 @@ LOCAL_INCLUDES += [
     '/netwerk/base/src',
     '/toolkit/xre',
     '/uriloader/exthandler',
-    '/widget',
+    '/widget/xpwidgets',
     '/xpcom/base',
     '/xpcom/threads',
 ]

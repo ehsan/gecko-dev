@@ -402,10 +402,7 @@ extern "C" {
       *aPluginApi = new FakeVideoEncoder (static_cast<GMPVideoHost*> (aHostAPI));
       return GMPNoErr;
     } else if (!strcmp (aApiName, "eme-decrypt")) {
-      *aPluginApi = new FakeDecryptor();
-      return GMPNoErr;
-    } else if (!strcmp (aApiName, "async-shutdown")) {
-      *aPluginApi = new TestAsyncShutdown(static_cast<GMPAsyncShutdownHost*> (aHostAPI));
+      *aPluginApi = new FakeDecryptor(static_cast<GMPDecryptorHost*> (aHostAPI));
       return GMPNoErr;
     }
     return GMPGenericErr;

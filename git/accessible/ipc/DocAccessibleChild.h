@@ -22,7 +22,7 @@ class AccShowEvent;
 class DocAccessibleChild : public PDocAccessibleChild
 {
 public:
-  explicit DocAccessibleChild(DocAccessible* aDoc) :
+  DocAccessibleChild(DocAccessible* aDoc) :
     mDoc(aDoc)
   { MOZ_COUNT_CTOR(DocAccessibleChild); }
   ~DocAccessibleChild()

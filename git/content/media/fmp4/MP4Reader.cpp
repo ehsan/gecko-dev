@@ -594,12 +594,6 @@ MP4Reader::Output(TrackType aTrack, MediaData* aSample)
       TrackTypeToStr(aTrack), aSample->mTime, aSample->mDuration);
 #endif
 
-  if (!aSample) {
-    NS_WARNING("MP4Reader::Output() passed a null sample");
-    Error(aTrack);
-    return;
-  }
-
   DecoderData& data = GetDecoderData(aTrack);
   // Don't accept output while we're flushing.
   MonitorAutoLock mon(data.mMonitor);

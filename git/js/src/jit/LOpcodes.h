@@ -234,8 +234,6 @@
     _(StoreTypedArrayElement)       \
     _(StoreTypedArrayElementHole)   \
     _(StoreTypedArrayElementStatic) \
-    _(CompareExchangeTypedArrayElement) \
-    _(AtomicTypedArrayElementBinop) \
     _(EffectiveAddress)             \
     _(ClampIToUint8)                \
     _(ClampDToUint8)                \
@@ -329,7 +327,6 @@
     _(AsmJSCall)                    \
     _(InterruptCheckPar)            \
     _(RecompileCheck)               \
-    _(MemoryBarrier)                \
     _(AssertRangeI)                 \
     _(AssertRangeD)                 \
     _(AssertRangeF)                 \

@@ -313,7 +313,7 @@ Tools.timeline = {
   tooltip: l10n("timeline.tooltip", timelineStrings),
 
   isTargetSupported: function(target) {
-    return !target.isAddon && target.hasActor("timeline");
+    return !target.isAddon;
   },
 
   build: function (iframeWindow, toolbox) {

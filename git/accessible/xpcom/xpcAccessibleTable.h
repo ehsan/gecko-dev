@@ -20,8 +20,7 @@ class xpcAccessibleTable : public xpcAccessibleGeneric,
                            public nsIAccessibleTable
 {
 public:
-  explicit xpcAccessibleTable(Accessible* aIntl) :
-    xpcAccessibleGeneric(aIntl) { }
+  xpcAccessibleTable(Accessible* aIntl) : xpcAccessibleGeneric(aIntl) { }
 
   NS_DECL_ISUPPORTS_INHERITED
 

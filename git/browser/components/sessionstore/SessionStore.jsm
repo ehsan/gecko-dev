@@ -523,9 +523,6 @@ let SessionStoreInternal = {
       throw new Error("SessionStore is not initialized.");
     }
 
-    // Prepare to close the session file and write the last state.
-    RunState.setClosing();
-
     // save all data for session resuming
     if (this._sessionInitialized) {
       SessionSaver.run();

@@ -138,11 +138,6 @@ public:
 struct nsStyleGradientStop {
   nsStyleCoord mLocation; // percent, coord, calc, none
   nscolor mColor;
-  bool mIsInterpolationHint;
-
-  // Use ==/!= on nsStyleGradient instead of on the gradient stop.
-  bool operator==(const nsStyleGradientStop&) const MOZ_DELETE;
-  bool operator!=(const nsStyleGradientStop&) const MOZ_DELETE;
 };
 
 class nsStyleGradient MOZ_FINAL {

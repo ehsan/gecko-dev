@@ -1341,15 +1341,11 @@ public:
 
   nsCSSValue mLocation;
   nsCSSValue mColor;
-  // If mIsInterpolationHint is true, there is no color, just
-  // a location.
-  bool mIsInterpolationHint;
 
   bool operator==(const nsCSSValueGradientStop& aOther) const
   {
     return (mLocation == aOther.mLocation &&
-            mIsInterpolationHint == aOther.mIsInterpolationHint &&
-            (mIsInterpolationHint || mColor == aOther.mColor));
+            mColor == aOther.mColor);
   }
 
   bool operator!=(const nsCSSValueGradientStop& aOther) const

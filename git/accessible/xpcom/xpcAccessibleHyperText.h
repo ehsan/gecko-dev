@@ -23,8 +23,7 @@ class xpcAccessibleHyperText : public xpcAccessibleGeneric,
                                public nsIAccessibleHyperText
 {
 public:
-  explicit xpcAccessibleHyperText(Accessible* aIntl) :
-    xpcAccessibleGeneric(aIntl)
+  xpcAccessibleHyperText(Accessible* aIntl) : xpcAccessibleGeneric(aIntl)
   {
     if (mIntl->IsHyperText() && mIntl->AsHyperText()->IsTextRole())
       mSupportedIfaces |= eText;

@@ -12,7 +12,6 @@
 
 class ReadContinuation {
 public:
-  virtual ~ReadContinuation() {}
   virtual void ReadComplete(GMPErr aErr, const std::string& aData) = 0;
 };
 
@@ -46,7 +45,6 @@ GMPRunOnMainThread(GMPTask* aTask);
 
 class OpenContinuation {
 public:
-  virtual ~OpenContinuation() {}
   virtual void OpenComplete(GMPErr aStatus, GMPRecord* aRecord) = 0;
 };
 

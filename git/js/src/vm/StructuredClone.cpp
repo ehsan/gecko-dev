@@ -1060,10 +1060,8 @@ JSStructuredCloneWriter::startWrite(HandleValue v)
             return out.writePair(SCTAG_REGEXP_OBJECT, re->getFlags()) &&
                    writeString(SCTAG_STRING, re->getSource());
         } else if (ObjectClassIs(obj, ESClass_Date, context())) {
-            RootedValue unboxed(context());
-            if (!Unbox(context(), obj, &unboxed))
-                return false;
-            return out.writePair(SCTAG_DATE_OBJECT, 0) && out.writeDouble(unboxed.toNumber());
+            double d = js_DateGetMsecSinceEpoch(obj);
+            return out.writePair(SCTAG_DATE_OBJECT, 0) && out.writeDouble(d);
         } else if (JS_IsTypedArrayObject(obj)) {
             return writeTypedArray(obj);
         } else if (JS_IsArrayBufferObject(obj) && JS_ArrayBufferHasData(obj)) {

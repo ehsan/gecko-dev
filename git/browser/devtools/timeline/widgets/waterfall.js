@@ -279,20 +279,8 @@ Waterfall.prototype = {
     sidebar.appendChild(bullet);
 
     let name = this._document.createElement("label");
-    name.setAttribute("crop", "end");
-    name.setAttribute("flex", "1");
     name.className = "plain timeline-marker-name";
-
-    let label;
-    if (marker.detail && marker.detail.causeName) {
-      label = this._l10n.getFormatStr("timeline.markerDetailFormat",
-                                      blueprint.label,
-                                      marker.detail.causeName);
-    } else {
-      label = blueprint.label;
-    }
-    name.setAttribute("value", label);
-    name.setAttribute("tooltiptext", label);
+    name.setAttribute("value", blueprint.label);
     sidebar.appendChild(name);
 
     container.appendChild(sidebar);

@@ -499,6 +499,8 @@ pulse_context_destroy(cubeb * ctx)
 static void
 pulse_destroy(cubeb * ctx)
 {
+  pa_operation * o;
+
   if (ctx->context_name) {
     free(ctx->context_name);
   }
