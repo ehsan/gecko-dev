@@ -173,6 +173,7 @@ class TraceRecorder {
     nanojit::LIns*          gp_ins;
     nanojit::LIns*          rval_ins;
     nanojit::SideExit       exit;
+    bool                    recompileFlag;
 
     bool isGlobal(jsval* p) const;
     ptrdiff_t nativeStackOffset(jsval* p) const;
@@ -191,7 +192,7 @@ class TraceRecorder {
     nanojit::LIns* get(jsval* p);
     void set(jsval* p, nanojit::LIns* l, bool initializing = false);
 
-    bool checkType(jsval& v, uint8& type, bool& recompile);
+    bool checkType(jsval& v, uint8& type);
     bool verifyTypeStability();
 
     jsval& argval(unsigned n) const;

@@ -310,9 +310,10 @@ public:
                 LIns* d0;
                 LIns* d1;
                 LIns* result = out->ins2(v, d0 = demote(out, s0), d1 = demote(out, s1));
-                if (!overflowSafe(d0) || !overflowSafe(d1))
+                if (!overflowSafe(d0) || !overflowSafe(d1)) {
                     out->insGuard(LIR_xt, out->ins1(LIR_ov, result),
-                            recorder.snapshot(OVERFLOW_EXIT));
+                                  recorder.snapshot(OVERFLOW_EXIT));
+                }
                 return out->ins1(LIR_i2f, result);
             }
         } else if (v == LIR_or &&
@@ -526,6 +527,8 @@ TraceRecorder::TraceRecorder(JSContext* cx, GuardRecord* _anchor,
         import(lirbuf->sp, offset, vp, *m, vpname, vpnum, fp);
         m++; offset += sizeof(double);
     );
+
+    recompileFlag = false;
     backEdgeCount = 0;
 }
 
@@ -1066,7 +1069,7 @@ TraceRecorder::guard(bool expected, LIns* cond, ExitType exitType)
 /* Try to match the type of a slot to type t. checkType is used to verify that the type of
    values flowing into the loop edge is compatible with the type we expect in the loop header. */
 bool
-TraceRecorder::checkType(jsval& v, uint8& t, bool& recompile)
+TraceRecorder::checkType(jsval& v, uint8& t)
 {
     if (t == JSVAL_INT) { /* initially all whole numbers cause the slot to be demoted */
         if (!isNumber(v))
@@ -1085,7 +1088,7 @@ TraceRecorder::checkType(jsval& v, uint8& t, bool& recompile)
             if (fragment->root == fragment) /* BUG! can't fix miss-speculation without
                                                recompiling root fragment as well */
                 t = JSVAL_DOUBLE; /* next time make this slot a double */
-            recompile = true;
+            recompileFlag = true;
             return true; /* keep checking types, but request re-compilation */
         }
         /* looks good, slot is an int32, the last instruction should be i2f */
@@ -1108,9 +1111,6 @@ TraceRecorder::checkType(jsval& v, uint8& t, bool& recompile)
     return JSVAL_TAG(v) == t;
 }
 
-static void
-js_TrashTree(JSContext* cx, Fragment* f);
-
 /* Make sure that the current values in the given stack frame and all stack frames
    up and including entryFrame are type-compatible with the entry map. */
 bool
@@ -1120,21 +1120,23 @@ TraceRecorder::verifyTypeStability()
     uint16* gslots = treeInfo->globalSlots.data();
     uint8* m = treeInfo->globalTypeMap.data();
     JS_ASSERT(treeInfo->globalTypeMap.length() == ngslots);
-    bool recompile = false;
     FORALL_GLOBAL_SLOTS(cx, ngslots, gslots,
-        if (!checkType(*vp, *m, recompile))
+        if (!checkType(*vp, *m))
             return false;
         ++m
     );
     m = treeInfo->stackTypeMap.data();
     FORALL_SLOTS_IN_PENDING_FRAMES(cx, callDepth,
-        if (!checkType(*vp, *m, recompile))
+        if (!checkType(*vp, *m))
             return false;
         ++m
     );
-    if (recompile && fragment->root != fragment)
-        js_TrashTree(cx, fragment);
-    return !recompile;
+    /* BUG: We can't recompile if this is not the root fragment. */
+    if (recompileFlag && fragment->root != fragment) {
+        fragment->blacklist();
+        return false;
+    }
+    return !recompileFlag;
 }
 
 /* Check whether the current pc location is the loop header of the loop this recorder records. */
@@ -1418,7 +1420,7 @@ js_ContinueRecording(JSContext* cx, TraceRecorder* r, jsbytecode* oldpc, uintN& 
 #endif
         return false; /* we stay away from shared global objects */
     }
-#endif  
+#endif
     if (r->isLoopHeader(cx)) { /* did we hit the start point? */
         AUDIT(traceCompleted);
         r->closeLoop(JS_TRACE_MONITOR(cx).fragmento);
@@ -1469,7 +1471,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount)
     if (!BuildNativeGlobalFrame(cx, ngslots, gslots, ti->globalTypeMap.data(), global) ||
         !BuildNativeStackFrame(cx, 0/*callDepth*/, ti->stackTypeMap.data(), stack)) {
         AUDIT(typeMapMismatchAtEntry);
-        debug_only(printf("type-map mismatch, trashing trace.\n");)
+        debug_only(printf("type-map mismatch, skipping trace.\n");)
         return NULL;
     }
     double* entry_sp = &stack[ti->nativeStackBase/sizeof(double) - 1];
@@ -1522,7 +1524,7 @@ js_ExecuteTree(JSContext* cx, Fragment* f, uintN& inlineCallCount)
         return NULL;
 
     inlineCallCount += lr->exit->calldepth;
-    
+
     return lr;
 }
 
@@ -1532,11 +1534,8 @@ js_LoopEdge(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount)
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
 
     /* is the recorder currently active? */
-    if (tm->recorder) {
-        if (js_ContinueRecording(cx, tm->recorder, oldpc, inlineCallCount))
-            return true;
-        /* recording was aborted, treat like a regular loop edge hit */
-    }
+    if (tm->recorder)
+        return js_ContinueRecording(cx, tm->recorder, oldpc, inlineCallCount);
 
     /* check if our quick cache has an entry for this ip, otherwise ask fragmento. */
     jsbytecode* pc = cx->fp->regs->pc;
@@ -1690,7 +1689,6 @@ TraceRecorder::ifop()
         jsdouble d = asNumber(v);
         jsdpun u;
         u.d = 0;
-        /* XXX why does this apparently handle NaN correctly? */
         guard(d == 0, lir->ins2(LIR_feq, get(&v), lir->insImmq(u.u64)), BRANCH_EXIT);
     } else if (JSVAL_IS_STRING(v)) {
         guard(JSSTRING_LENGTH(JSVAL_TO_STRING(v)) == 0,
@@ -2676,11 +2674,25 @@ TraceRecorder::record_JSOP_GETELEM()
 {
     jsval& r = stackval(-1);
     jsval& l = stackval(-2);
+
     if (JSVAL_IS_STRING(l) && JSVAL_IS_INT(r)) {
         LIns* args[] = { f2i(get(&r)), get(&l), cx_ins };
         LIns* unitstr_ins = lir->insCall(F_String_getelem, args);
         guard(false, lir->ins_eq0(unitstr_ins));
         set(&l, unitstr_ins);
+        return true;
+    }
+
+    if (!JSVAL_IS_PRIMITIVE(l) && JSVAL_IS_STRING(r)) {
+        jsval v;
+        if (!OBJ_GET_PROPERTY(cx, JSVAL_TO_OBJECT(l), ATOM_TO_JSID(r), &v))
+            return false;
+        LIns* args[] = { get(&r), get(&l), cx_ins };
+        LIns* v_ins = lir->insCall(F_Any_getelem, args);
+        guard(false, lir->ins2(LIR_eq, v_ins, lir->insImmPtr((void*)JSVAL_ERROR_COOKIE)));
+        if (!unbox_jsval(v, v_ins))
+            ABORT_TRACE("JSOP_GETELEM");
+        set(&l, v_ins);
         return true;
     }
 
@@ -2701,10 +2713,24 @@ TraceRecorder::record_JSOP_SETELEM()
     jsval& l = stackval(-3);
 
     /* no guards for type checks, trace specialized this already */
-    if (!JSVAL_IS_INT(r) || JSVAL_IS_PRIMITIVE(l))
-        ABORT_TRACE("not array[int]");
+    if (JSVAL_IS_PRIMITIVE(l))
+        ABORT_TRACE("left JSOP_SETELEM operand is not an object");
     JSObject* obj = JSVAL_TO_OBJECT(l);
     LIns* obj_ins = get(&l);
+
+    if (JSVAL_IS_STRING(r)) {
+        LIns* v_ins = get(&v);
+        LIns* unboxed_v_ins = v_ins;
+        if (!box_jsval(v, v_ins))
+            ABORT_TRACE("boxing string-indexed JSOP_SETELEM value");
+        LIns* args[] = { v_ins, get(&r), get(&l), cx_ins };
+        LIns* ok_ins = lir->insCall(F_Any_setelem, args);
+        guard(false, lir->ins_eq0(ok_ins));
+        set(&l, unboxed_v_ins);
+        return true;
+    }
+    if (!JSVAL_IS_INT(r))
+        ABORT_TRACE("non-string, non-int JSOP_SETELEM index");
 
     /* make sure the object is actually a dense array */
     if (!guardDenseArray(obj, obj_ins))
@@ -3328,7 +3354,20 @@ TraceRecorder::record_JSOP_VARDEC()
 bool
 TraceRecorder::record_JSOP_ITER()
 {
-    return true;
+    uintN flags = cx->fp->regs->pc[1];
+    if (flags & ~JSITER_ENUMERATE)
+        ABORT_TRACE("for-each-in or destructuring JSOP_ITER not traced");
+
+    jsval& v = stackval(-1);
+    if (!JSVAL_IS_PRIMITIVE(v)) {
+        LIns* args[] = { get(&v), cx_ins };
+        LIns* v_ins = lir->insCall(F_ValueToIterator, args);
+        guard(false, lir->ins_eq0(v_ins));
+        set(&v, v_ins);
+        return true;
+    }
+
+    ABORT_TRACE("for-in on a primitive value");
 }
 
 bool
@@ -3340,6 +3379,7 @@ TraceRecorder::forInProlog(LIns*& iterobj_ins)
 
     iterobj_ins = get(&iterval);
     if (guardClass(iterobj, iterobj_ins, &js_IteratorClass)) {
+        // Check flags in case we did not record the JSOP_ITER (it comes before the for-in loop).
         uintN flags = JSVAL_TO_INT(iterobj->fslots[JSSLOT_ITER_FLAGS]);
         if (flags & ~JSITER_ENUMERATE)
             ABORT_TRACE("for-each-in or destructuring JSOP_ITER not traced");
@@ -3372,6 +3412,9 @@ TraceRecorder::forInProlog(LIns*& iterobj_ins)
 bool
 TraceRecorder::record_JSOP_ENDITER()
 {
+    LIns* args[] = { stack(-1), cx_ins };
+    LIns* ok_ins = lir->insCall(F_CloseIterator, args);
+    guard(false, lir->ins_eq0(ok_ins));
     return true;
 }
 
@@ -3408,6 +3451,7 @@ TraceRecorder::record_JSOP_FORVAR()
 
     LIns* stateval_ins = stobj_get_fslot(iterobj_ins, JSSLOT_ITER_STATE);
 
+    guard(false, addName(lir->ins_eq0(stateval_ins), "guard(non-null iter state"));
     guard(false,
           addName(lir->ins2(LIR_eq, stateval_ins, lir->insImmPtr((void*) JSVAL_ZERO)),
                   "guard(non-empty iter state)"));
