@@ -280,77 +280,65 @@ var TPS =
   },
 
   HandleHistory: function (entries, action) {
-    try {
-      for each (entry in entries) {
-        Logger.logInfo("executing action " + action.toUpperCase() +
-                       " on history entry " + JSON.stringify(entry));
-        switch(action) {
-          case ACTION_ADD:
-            HistoryEntry.Add(entry, this._usSinceEpoch);
-            break;
-          case ACTION_DELETE:
-            HistoryEntry.Delete(entry, this._usSinceEpoch);
-            break;
-          case ACTION_VERIFY:
-            Logger.AssertTrue(HistoryEntry.Find(entry, this._usSinceEpoch),
-              "Uri visits not found in history database");
-            break;
-          case ACTION_VERIFY_NOT:
-            Logger.AssertTrue(!HistoryEntry.Find(entry, this._usSinceEpoch),
-              "Uri visits found in history database, but they shouldn't be");
-            break;
-          default:
-            Logger.AssertTrue(false, "invalid action: " + action);
-        }
+    for each (entry in entries) {
+      Logger.logInfo("executing action " + action.toUpperCase() +
+                     " on history entry " + JSON.stringify(entry));
+      switch(action) {
+        case ACTION_ADD:
+          HistoryEntry.Add(entry, this._usSinceEpoch);
+          break;
+        case ACTION_DELETE:
+          HistoryEntry.Delete(entry, this._usSinceEpoch);
+          break;
+        case ACTION_VERIFY:
+          Logger.AssertTrue(HistoryEntry.Find(entry, this._usSinceEpoch),
+            "Uri visits not found in history database");
+          break;
+        case ACTION_VERIFY_NOT:
+          Logger.AssertTrue(!HistoryEntry.Find(entry, this._usSinceEpoch),
+            "Uri visits found in history database, but they shouldn't be");
+          break;
+        default:
+          Logger.AssertTrue(false, "invalid action: " + action);
       }
-      Logger.logPass("executing action " + action.toUpperCase() + 
-                     " on history");
     }
-    catch(e) {
-      DumpHistory();
-      throw(e);
-    }
+    Logger.logPass("executing action " + action.toUpperCase() + 
+                   " on history");
   },
 
   HandlePasswords: function (passwords, action) {
-    try {
-      for each (password in passwords) {
-        let password_id = -1;
-        Logger.logInfo("executing action " + action.toUpperCase() + 
-                      " on password " + JSON.stringify(password));
-        var password = new Password(password);
-        switch (action) {
-          case ACTION_ADD:
-            Logger.AssertTrue(password.Create() > -1, "error adding password");
-            break;
-          case ACTION_VERIFY:
+    for each (password in passwords) {
+      let password_id = -1;
+      Logger.logInfo("executing action " + action.toUpperCase() + 
+                    " on password " + JSON.stringify(password));
+      var password = new Password(password);
+      switch (action) {
+        case ACTION_ADD:
+          Logger.AssertTrue(password.Create() > -1, "error adding password");
+          break;
+        case ACTION_VERIFY:
+          Logger.AssertTrue(password.Find() != -1, "password not found");
+          break;
+        case ACTION_VERIFY_NOT:
+          Logger.AssertTrue(password.Find() == -1, 
+            "password found, but it shouldn't exist");
+          break;
+        case ACTION_DELETE:
+          Logger.AssertTrue(password.Find() != -1, "password not found");
+          password.Remove();
+          break;
+        case ACTION_MODIFY:
+          if (password.updateProps != null) {
             Logger.AssertTrue(password.Find() != -1, "password not found");
-            break;
-          case ACTION_VERIFY_NOT:
-            Logger.AssertTrue(password.Find() == -1, 
-              "password found, but it shouldn't exist");
-            break;
-          case ACTION_DELETE:
-            Logger.AssertTrue(password.Find() != -1, "password not found");
-            password.Remove();
-            break;
-          case ACTION_MODIFY:
-            if (password.updateProps != null) {
-              Logger.AssertTrue(password.Find() != -1, "password not found");
-              password.Update();
-            }
-            break;
-          default:
-            Logger.AssertTrue(false, "invalid action: " + action);
-        } 
-      }
-      Logger.logPass("executing action " + action.toUpperCase() + 
-                     " on passwords");
+            password.Update();
+          }
+          break;
+        default:
+          Logger.AssertTrue(false, "invalid action: " + action);
+      } 
     }
-    catch(e) {
-      DumpPasswords();
-      throw(e);
-    }
+    Logger.logPass("executing action " + action.toUpperCase() + 
+                   " on passwords");
   },
 
   HandleBookmarks: function (bookmarks, action) {
@@ -524,9 +512,6 @@ var TPS =
       prefs.setCharPref('tps.account.username', this.config.account.username);
       prefs.setCharPref('tps.account.password', this.config.account.password);
       prefs.setCharPref('tps.account.passphrase', this.config.account.passphrase);
-      if (this.config.account['serverURL']) {
-        prefs.setCharPref('tps.account.serverURL', this.config.account.serverURL);
-      }
 
       // start processing the test actions
       this._currentAction = 0;
