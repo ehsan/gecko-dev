@@ -911,7 +911,6 @@ function getExpectedInstall(aAddon) {
 
 const AddonListener = {
   onPropertyChanged: function(aAddon, aProperties) {
-    do_print(`Got onPropertyChanged event for ${aAddon.id}`);
     let [event, properties] = getExpectedEvent(aAddon.id);
     do_check_eq("onPropertyChanged", event);
     do_check_eq(aProperties.length, properties.length);
@@ -925,7 +924,6 @@ const AddonListener = {
   },
 
   onEnabling: function(aAddon, aRequiresRestart) {
-    do_print(`Got onEnabling event for ${aAddon.id}`);
     let [event, expectedRestart] = getExpectedEvent(aAddon.id);
     do_check_eq("onEnabling", event);
     do_check_eq(aRequiresRestart, expectedRestart);
@@ -936,7 +934,6 @@ const AddonListener = {
   },
 
   onEnabled: function(aAddon) {
-    do_print(`Got onEnabled event for ${aAddon.id}`);
     let [event, expectedRestart] = getExpectedEvent(aAddon.id);
     do_check_eq("onEnabled", event);
     do_check_false(hasFlag(aAddon.permissions, AddonManager.PERM_CAN_ENABLE));
@@ -944,7 +941,6 @@ const AddonListener = {
   },
 
   onDisabling: function(aAddon, aRequiresRestart) {
-    do_print(`Got onDisabling event for ${aAddon.id}`);
     let [event, expectedRestart] = getExpectedEvent(aAddon.id);
     do_check_eq("onDisabling", event);
     do_check_eq(aRequiresRestart, expectedRestart);
@@ -955,7 +951,6 @@ const AddonListener = {
   },
 
   onDisabled: function(aAddon) {
-    do_print(`Got onDisabled event for ${aAddon.id}`);
     let [event, expectedRestart] = getExpectedEvent(aAddon.id);
     do_check_eq("onDisabled", event);
     do_check_false(hasFlag(aAddon.permissions, AddonManager.PERM_CAN_DISABLE));
@@ -963,7 +958,6 @@ const AddonListener = {
   },
 
   onInstalling: function(aAddon, aRequiresRestart) {
-    do_print(`Got onInstalling event for ${aAddon.id}`);
     let [event, expectedRestart] = getExpectedEvent(aAddon.id);
     do_check_eq("onInstalling", event);
     do_check_eq(aRequiresRestart, expectedRestart);
@@ -973,14 +967,12 @@ const AddonListener = {
   },
 
   onInstalled: function(aAddon) {
-    do_print(`Got onInstalled event for ${aAddon.id}`);
     let [event, expectedRestart] = getExpectedEvent(aAddon.id);
     do_check_eq("onInstalled", event);
     return check_test_completed(arguments);
   },
 
   onUninstalling: function(aAddon, aRequiresRestart) {
-    do_print(`Got onUninstalling event for ${aAddon.id}`);
     let [event, expectedRestart] = getExpectedEvent(aAddon.id);
     do_check_eq("onUninstalling", event);
     do_check_eq(aRequiresRestart, expectedRestart);
@@ -990,14 +982,12 @@ const AddonListener = {
   },
 
   onUninstalled: function(aAddon) {
-    do_print(`Got onUninstalled event for ${aAddon.id}`);
     let [event, expectedRestart] = getExpectedEvent(aAddon.id);
     do_check_eq("onUninstalled", event);
     return check_test_completed(arguments);
   },
 
   onOperationCancelled: function(aAddon) {
-    do_print(`Got onOperationCancelled event for ${aAddon.id}`);
     let [event, expectedRestart] = getExpectedEvent(aAddon.id);
     do_check_eq("onOperationCancelled", event);
     return check_test_completed(arguments);

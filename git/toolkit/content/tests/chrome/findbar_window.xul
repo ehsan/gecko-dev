@@ -93,11 +93,9 @@
       testNormalFind();
       gFindBar.close();
       ok(gFindBar.hidden, "Failed to close findbar after testNormalFind");
-      yield openFindbar();
       testNormalFindWithComposition();
       gFindBar.close();
       ok(gFindBar.hidden, "findbar should be hidden after testNormalFindWithComposition");
-      yield openFindbar();
       testAutoCaseSensitivityUI();
       testQuickFindText();
       gFindBar.close();
@@ -105,8 +103,7 @@
       testFindWithHighlight();
       gFindBar.close();
       ok(gFindBar.hidden, "Failed to close findbar after testFindWithHighlight");
-      yield Task.spawn(testFindbarSelection);
-      ok(gFindBar.hidden, "Failed to close findbar after testFindbarSelection");
+      testFindbarSelection();
       testDrop();
       testQuickFindLink();
       if (gHasFindClipboard) {
@@ -115,18 +112,17 @@
       yield testFindCountUI();
       gFindBar.close();
       ok(gFindBar.hidden, "Failed to close findbar after testFindCountUI");
-      yield openFindbar();
       yield testFindAfterCaseChanged();
       gFindBar.close();
-      yield openFindbar();
       yield testFailedStringReset();
       gFindBar.close();
       yield testQuickFindClose();
       finish();
     });
 
-    function* testFindbarSelection() {
+    function testFindbarSelection() {
       function checkFindbarState(aTestName, aExpSelection) {
+        document.getElementById("cmd_find").doCommand();
         ok(!gFindBar.hidden, "testFindbarSelection: failed to open findbar: " + aTestName);
         ok(document.commandDispatcher.focusedElement == gFindBar._findField.inputField,
            "testFindbarSelection: find field is not focused: " + aTestName);
@@ -149,19 +145,16 @@
       cRange.setEnd(cH2, 1);
       cSelection.removeAllRanges();
       cSelection.addRange(cRange);
-      yield openFindbar();
       checkFindbarState("plain text", SEARCH_TEXT);
 
       // test nsIDOMNSEditableElement with selection
       var textInput = gBrowser.contentDocument.getElementById("text");
       textInput.focus();
       textInput.select();
-      yield openFindbar();
       checkFindbarState("text input", SAMPLE_TEXT);
 
       // test non-editable nsIDOMNSEditableElement (button)
       gBrowser.contentDocument.getElementById("button").focus();
-      yield openFindbar();
       checkFindbarState("button", "");
     }
 
@@ -233,12 +226,9 @@
       }
     }
 
-    function openFindbar() {
-      document.getElementById("cmd_find").doCommand();
-      return gFindBar._startFindDeferred.promise;
-    }
-
     function testNormalFindWithComposition() {
+      document.getElementById("cmd_find").doCommand();
+
       ok(!gFindBar.hidden, "testNormalFindWithComposition: findbar should be open");
       ok(document.commandDispatcher.focusedElement == gFindBar._findField.inputField,
          "testNormalFindWithComposition: find field should be focused");
@@ -271,7 +261,7 @@
 
       synthesizeComposition({ type: "compositioncommitasis" });
 
-      is(gBrowser.contentWindow.getSelection().toString().toLowerCase(), searchStr,
+      ok(gBrowser.contentWindow.getSelection().toString().toLowerCase() == searchStr,
          "testNormalFindWithComposition: text should be found after committing composition");
       testClipboardSearchString(gBrowser.contentWindow.getSelection().toString());
 
@@ -283,6 +273,7 @@
     function testAutoCaseSensitivityUI() {
       var matchCaseCheckbox = gFindBar.getElement("find-case-sensitive");
       var matchCaseLabel = gFindBar.getElement("match-case-status");
+      document.getElementById("cmd_find").doCommand();
       ok(!matchCaseCheckbox.hidden, "match case box is hidden in manual mode");
       ok(matchCaseLabel.hidden, "match case label is visible in manual mode");
 
@@ -340,21 +331,10 @@
       //clearFocus();
       gFindBar._findField.value = "";
 
-      // For this test, we want to closely control the selection. The easiest
-      // way to do so is to replace the implementation of
-      // Finder.getInitialSelection with a no-op and call the findbar's callback
-      // (onCurrentSelection(..., true)) ourselves with our hand-picked
-      // selection.
-      let oldGetInitialSelection = gFindBar.browser.finder.getInitialSelection;
-      let searchStr;
-      gFindBar.browser.finder.getInitialSelection = function(){};
-
       let findCommand = document.getElementById("cmd_find");
       findCommand.doCommand();
 
-      gFindBar.onCurrentSelection("", true);
-
-      searchStr = "e";
+      let searchStr = "e";
       enterStringIntoFindField(searchStr);
 
       let a = gFindBar._findField.value;
@@ -362,11 +342,11 @@
       let c = gFindBar._browser.finder.searchString;
       ok(a == b && b == c, "testFindWithHighlight 1: " + a + ", " + b + ", " + c + ".");
 
+      let oldGetInitialSelection = gFindBar._getInitialSelection;
       searchStr = "t";
+      gFindBar._getInitialSelection = () => searchStr;
       findCommand.doCommand();
-
-      gFindBar.onCurrentSelection(searchStr, true);
-      gFindBar.browser.finder.getInitialSelection = oldGetInitialSelection;
+      gFindBar._getInitialSelection = oldGetInitialSelection;
 
       a = gFindBar._findField.value;
       b = gFindBar._browser.finder._fastFind.searchString;
@@ -492,6 +472,7 @@
     // See bug 1051187.
     function testFindAfterCaseChanged() {
       let deferred = Promise.defer();
+      document.getElementById("cmd_find").doCommand();
 
       // Search to set focus on "Text Test" so that searching for "t" selects first
       // (upper case!) "T".
@@ -518,6 +499,7 @@
     // 2. Uncheck case sensitivity button to match the string.
     function testFailedStringReset(aCallback) {
       let deferred = Promise.defer();
+      document.getElementById("cmd_find").doCommand();
 
       var prefsvc = Cc["@mozilla.org/preferences-service;1"].
                     getService(Components.interfaces.nsIPrefBranch);

@@ -12,7 +12,8 @@ let WaterfallView = {
    */
   initialize: Task.async(function *() {
     this._onRecordingStarted = this._onRecordingStarted.bind(this);
-    this._onRecordingStoppedOrSelected = this._onRecordingStoppedOrSelected.bind(this);
+    this._onRecordingStopped = this._onRecordingStopped.bind(this);
+    this._onRecordingSelected = this._onRecordingSelected.bind(this);
     this._onMarkerSelected = this._onMarkerSelected.bind(this);
     this._onResize = this._onResize.bind(this);
 
@@ -24,8 +25,8 @@ let WaterfallView = {
     this.details.on("resize", this._onResize);
 
     PerformanceController.on(EVENTS.RECORDING_STARTED, this._onRecordingStarted);
-    PerformanceController.on(EVENTS.RECORDING_STOPPED, this._onRecordingStoppedOrSelected);
-    PerformanceController.on(EVENTS.RECORDING_SELECTED, this._onRecordingStoppedOrSelected);
+    PerformanceController.on(EVENTS.RECORDING_STOPPED, this._onRecordingStopped);
+    PerformanceController.on(EVENTS.RECORDING_SELECTED, this._onRecordingSelected);
 
     this.waterfall.recalculateBounds();
   }),
@@ -39,8 +40,8 @@ let WaterfallView = {
     this.details.off("resize", this._onResize);
 
     PerformanceController.off(EVENTS.RECORDING_STARTED, this._onRecordingStarted);
-    PerformanceController.off(EVENTS.RECORDING_STOPPED, this._onRecordingStoppedOrSelected);
-    PerformanceController.off(EVENTS.RECORDING_SELECTED, this._onRecordingStoppedOrSelected);
+    PerformanceController.off(EVENTS.RECORDING_STOPPED, this._onRecordingStopped);
+    PerformanceController.off(EVENTS.RECORDING_SELECTED, this._onRecordingSelected);
   },
 
   /**
@@ -64,9 +65,16 @@ let WaterfallView = {
   },
 
   /**
-   * Called when recording stops or is selected.
+   * Called when recording stops.
    */
-  _onRecordingStoppedOrSelected: function (_, recording) {
+  _onRecordingStopped: function () {
+    this.render();
+  },
+
+  /**
+   * Called when a recording is selected.
+   */
+  _onRecordingSelected: function (_, recording) {
     if (!recording.isRecording()) {
       this.render();
     }
