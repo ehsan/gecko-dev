@@ -1166,7 +1166,7 @@ proxy_SetSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *a
 static JSBool
 proxy_DeleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
 {
-    JS_ASSERT(id == js_CheckForStringIndex(id));
+    id = js_CheckForStringIndex(id);
 
     // TODO: throwing away strict
     bool deleted;
@@ -1179,7 +1179,7 @@ proxy_DeleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool s
 static JSBool
 proxy_DeleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
 {
-    return proxy_DeleteGeneric(cx, obj, js_CheckForStringIndex(ATOM_TO_JSID(name)), rval, strict);
+    return proxy_DeleteGeneric(cx, obj, ATOM_TO_JSID(name), rval, strict);
 }
 
 static JSBool
@@ -1309,6 +1309,7 @@ JS_FRIEND_DATA(Class) js::ObjectProxyClass = {
         proxy_SetPropertyAttributes,
         proxy_SetElementAttributes,
         proxy_SetSpecialAttributes,
+        proxy_DeleteGeneric,
         proxy_DeleteProperty,
         proxy_DeleteElement,
         proxy_DeleteSpecial,
@@ -1370,6 +1371,7 @@ JS_FRIEND_DATA(Class) js::OuterWindowProxyClass = {
         proxy_SetPropertyAttributes,
         proxy_SetElementAttributes,
         proxy_SetSpecialAttributes,
+        proxy_DeleteGeneric,
         proxy_DeleteProperty,
         proxy_DeleteElement,
         proxy_DeleteSpecial,
@@ -1443,6 +1445,7 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
         proxy_SetPropertyAttributes,
         proxy_SetElementAttributes,
         proxy_SetSpecialAttributes,
+        proxy_DeleteGeneric,
         proxy_DeleteProperty,
         proxy_DeleteElement,
         proxy_DeleteSpecial,

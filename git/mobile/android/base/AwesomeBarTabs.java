@@ -479,7 +479,8 @@ public class AwesomeBarTabs extends TabHost {
             try {
                 byte[] bytes = Base64.decode(base64, Base64.DEFAULT);
                 ByteArrayInputStream stream = new ByteArrayInputStream(bytes);
-                drawable = Drawable.createFromStream(stream, "src");
+                drawable = (Drawable) Drawable.createFromStream(stream, "src");
+            
                 stream.close();
             } catch (IllegalArgumentException e) {
                 Log.i(LOGTAG, "exception while decoding drawable: " + base64, e);

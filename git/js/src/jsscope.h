@@ -91,8 +91,7 @@
  * 
  * 2. Dictionary mode lists. Shapes in such lists are said to be "in
  *    dictionary mode", as are objects that point to such Shapes. These Shapes
- *    are unshared, private to a single object, and immutable except for their
- *    links in the dictionary list.
+ *    are unshared, private to a single object, and mutable.
  * 
  * All shape lineages are bi-directionally linked, via the |parent| and
  * |kids|/|listp| members.

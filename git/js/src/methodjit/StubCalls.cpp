@@ -167,13 +167,11 @@ stubs::SetName(VMFrame &f, PropertyName *origName)
              * on a prototype property that has a setter.
              */
             const Shape *shape = entry->prop;
+            JS_ASSERT_IF(shape->isDataDescriptor(), shape->writable());
+            JS_ASSERT_IF(shape->hasSlot(), entry->isOwnPropertyHit());
 
             if (entry->isOwnPropertyHit() ||
-                ((obj2 = obj->getProto()) && obj2->lastProperty() == entry->pshape))
-            {
-                JS_ASSERT_IF(shape->isDataDescriptor(), shape->writable());
-                JS_ASSERT_IF(shape->hasSlot(), entry->isOwnPropertyHit());
-
+                ((obj2 = obj->getProto()) && obj2->lastProperty() == entry->pshape)) {
 #ifdef DEBUG
                 if (entry->isOwnPropertyHit()) {
                     JS_ASSERT(obj->nativeContains(cx, *shape));
@@ -2054,10 +2052,11 @@ stubs::DelElem(VMFrame &f)
     if (!obj)
         THROW();
 
-    const Value &propval = f.regs.sp[-1];
-    Value &rval = f.regs.sp[-2];
+    jsid id;
+    if (!FetchElementId(f, obj, f.regs.sp[-1], id, &f.regs.sp[-1]))
+        THROW();
 
-    if (!obj->deleteByValue(cx, propval, &rval, strict))
+    if (!obj->deleteGeneric(cx, id, &f.regs.sp[-2], strict))
         THROW();
 }
 

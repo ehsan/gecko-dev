@@ -379,6 +379,8 @@ MAKEFILES_docshell="
 
 MAKEFILES_widget="
   widget/Makefile
+  widget/public/Makefile
+  widget/Makefile
   widget/shared/Makefile
   widget/xpwidgets/Makefile
 "
@@ -626,7 +628,7 @@ elif [ "$MOZ_WIDGET_TOOLKIT" = "android" ]; then
     netwerk/system/android/Makefile
     widget/android/Makefile
   "
-  if [ "$MOZ_BUILD_APP" = "mobile/xul" -o "$MOZ_BUILD_APP" = "b2g"]; then
+  if [ "$MOZ_BUILD_APP" = "mobile/xul" ]; then
     add_makefiles "
       embedding/android/Makefile
       embedding/android/locales/Makefile
@@ -674,6 +676,14 @@ if [ "$MOZ_WIDGET_TOOLKIT" = "gtk2" -o "$MOZ_WIDGET_TOOLKIT" = "qt" ]; then
     toolkit/themes/gnomestripe/Makefile
     toolkit/themes/gnomestripe/global/Makefile
     toolkit/themes/gnomestripe/mozapps/Makefile
+  "
+fi
+
+if [ "$MOZ_WIDGET_TOOLKIT" = "cocoa" \
+  -o "$MOZ_WIDGET_TOOLKIT" = "android" \
+  -o "$MOZ_WIDGET_TOOLKIT" = "windows" ]; then
+  add_makefiles "
+    gfx/skia/Makefile
   "
 fi
 
@@ -836,6 +846,8 @@ if [ "$ENABLE_TESTS" ]; then
     netwerk/test/browser/Makefile
     netwerk/test/httpserver/Makefile
     parser/htmlparser/tests/Makefile
+    parser/htmlparser/tests/grabpage/Makefile
+    parser/htmlparser/tests/html/Makefile
     parser/htmlparser/tests/mochitest/Makefile
     parser/htmlparser/tests/mochitest/dir_bug534293/Makefile
     parser/htmlparser/tests/mochitest/html5lib_tree_construction/Makefile
@@ -1226,12 +1238,6 @@ fi
 if [ "$MOZ_ENABLE_QTNETWORK" ]; then
   add_makefiles "
     netwerk/system/qt/Makefile
-  "
-fi
-
-if [ "$MOZ_ENABLE_SKIA" ]; then
-  add_makefiles "
-    gfx/skia/Makefile
   "
 fi
 

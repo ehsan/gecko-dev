@@ -32,7 +32,7 @@
   <![CDATA[
 
     ////////////////////////////////////////////////////////////////////////////
-    // Hacks to make xul:tabbrowser work
+    // Hack to make xul:tabbrowser work
 
     const Ci = Components.interfaces;
     const CC = Components.classes;
@@ -52,8 +52,6 @@
     };
 
     var gFindBarInitialized = false;
-
-    function goSetCommandEnabled() {}
 
     ////////////////////////////////////////////////////////////////////////////
     // Tests

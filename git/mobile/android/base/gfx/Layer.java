@@ -61,11 +61,8 @@ public abstract class Layer {
         mResolution = 1.0f;
     }
 
-    /**
-     * Updates the layer. This returns false if there is still work to be done
-     * after this update.
-     */
-    public final boolean update(GL10 gl, RenderContext context) {
+    /** Updates the layer. */
+    public final void update(GL10 gl) {
         if (mTransactionLock.isHeldByCurrentThread()) {
             throw new RuntimeException("draw() called while transaction lock held by this " +
                                        "thread?!");
@@ -73,13 +70,11 @@ public abstract class Layer {
 
         if (mTransactionLock.tryLock()) {
             try {
-                return performUpdates(gl, context);
+                performUpdates(gl);
             } finally {
                 mTransactionLock.unlock();
             }
         }
-
-        return false;
     }
 
     /** Subclasses override this function to draw the layer. */
@@ -163,10 +158,9 @@ public abstract class Layer {
     /**
      * Subclasses may override this method to perform custom layer updates. This will be called
      * with the transaction lock held. Subclass implementations of this method must call the
-     * superclass implementation. Returns false if there is still work to be done after this
-     * update is complete.
+     * superclass implementation.
      */
-    protected boolean performUpdates(GL10 gl, RenderContext context) {
+    protected void performUpdates(GL10 gl) {
         if (mNewOrigin != null) {
             mOrigin = mNewOrigin;
             mNewOrigin = null;
@@ -175,8 +169,6 @@ public abstract class Layer {
             mResolution = mNewResolution;
             mNewResolution = 0.0f;
         }
-
-        return true;
     }
 
     public static class RenderContext {

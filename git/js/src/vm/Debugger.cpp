@@ -3364,14 +3364,17 @@ static JSBool
 DebuggerObject_deleteProperty(JSContext *cx, uintN argc, Value *vp)
 {
     THIS_DEBUGOBJECT_OWNER_REFERENT(cx, argc, vp, "deleteProperty", args, dbg, obj);
-    Value nameArg = argc > 0 ? args[0] : UndefinedValue();
+    Value arg = argc > 0 ? args[0] : UndefinedValue();
+    jsid id;
+    if (!ValueToId(cx, arg, &id))
+        return false;
 
     AutoCompartment ac(cx, obj);
-    if (!ac.enter() || !cx->compartment->wrap(cx, &nameArg))
+    if (!ac.enter() || !cx->compartment->wrapId(cx, &id))
         return false;
 
     ErrorCopier ec(ac, dbg->toJSObject());
-    return obj->deleteByValue(cx, nameArg, &args.rval(), false);
+    return obj->deleteGeneric(cx, id, &args.rval(), false);
 }
 
 enum SealHelperOp { Seal, Freeze, PreventExtensions };

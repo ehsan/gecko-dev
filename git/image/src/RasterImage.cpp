@@ -480,7 +480,7 @@ RasterImage::RequestRefresh(const mozilla::TimeStamp& aTime)
       mFramesNotified++;
     #endif
 
-    observer->FrameChanged(nsnull, this, &dirtyRect);
+    observer->FrameChanged(this, &dirtyRect);
   }
 }
 
@@ -1423,7 +1423,7 @@ RasterImage::ResetAnimation()
   // Update display if we were animating before
   nsCOMPtr<imgIContainerObserver> observer(do_QueryReferent(mObserver));
   if (mAnimating && observer)
-    observer->FrameChanged(nsnull, this, &(mAnim->firstFrameRefreshArea));
+    observer->FrameChanged(this, &(mAnim->firstFrameRefreshArea));
 
   if (ShouldAnimate()) {
     StartAnimation();
@@ -2583,8 +2583,7 @@ RasterImage::Draw(gfxContext *aContext,
     mFrameDecodeFlags = DECODE_FLAGS_DEFAULT;
   }
 
-  // We use !mDecoded && mHasSourceData to mean discarded.
-  if (!mDecoded && mHasSourceData) {
+  if (!mDecoded) {
       mDrawStartTime = TimeStamp::Now();
   }
 
@@ -2839,10 +2838,10 @@ imgDecodeWorker::Run()
   mDecodeTime += decodeLatency;
 
   // Flush invalidations _after_ we've written everything we're going to.
-  // Furthermore, if we have all of the data, we don't want to do progressive
+  // Furthermore, if this is a redecode, we don't want to do progressive
   // display at all. In that case, let Decoder::PostFrameStop() do the
   // flush once the whole frame is ready.
-  if (!image->mHasSourceData) {
+  if (!image->mHasBeenDecoded) {
     image->mInDecoder = true;
     image->mDecoder->FlushInvalidations();
     image->mInDecoder = false;

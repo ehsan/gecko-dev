@@ -160,7 +160,6 @@ public:
 
   NS_IMETHOD Run()
   {
-    NS_ABORT_IF_FALSE(NS_IsMainThread(), "not main thread");
     mChannel->mListener->OnStop(mChannel->mContext, mData);
     return NS_OK;
   }
@@ -382,7 +381,7 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(OutboundEnqueuer, nsIRunnable)
 class nsWSAdmissionManager
 {
 public:
-  nsWSAdmissionManager() : mSessionCount(0)
+  nsWSAdmissionManager() : mConnectedCount(0)
   {
     MOZ_COUNT_CTOR(nsWSAdmissionManager);
   }
@@ -500,19 +499,19 @@ public:
     return false;
   }
 
-  void IncrementSessionCount()
+  void IncrementConnectedCount()
   {
-    PR_ATOMIC_INCREMENT(&mSessionCount);
+    PR_ATOMIC_INCREMENT(&mConnectedCount);
   }
 
-  void DecrementSessionCount()
+  void DecrementConnectedCount()
   {
-    PR_ATOMIC_DECREMENT(&mSessionCount);
+    PR_ATOMIC_DECREMENT(&mConnectedCount);
   }
 
-  PRInt32 SessionCount()
+  PRInt32 ConnectedCount()
   {
-    return mSessionCount;
+    return mConnectedCount;
   }
 
 private:
@@ -534,9 +533,9 @@ private:
     return -1;
   }
 
-  // SessionCount might be decremented from the main or the socket
+  // ConnectedCount might be decremented from the main or the socket
   // thread, so manage it with atomic counters
-  PRInt32 mSessionCount;
+  PRInt32 mConnectedCount;
 };
 
 //-----------------------------------------------------------------------------
@@ -714,18 +713,12 @@ WebSocketChannel::WebSocketChannel() :
   if (!sWebSocketAdmissions)
     sWebSocketAdmissions = new nsWSAdmissionManager();
 
-  // The active session limit is enforced in AsyncOpen()
-  sWebSocketAdmissions->IncrementSessionCount();
-
   mFramePtr = mBuffer = static_cast<PRUint8 *>(moz_xmalloc(mBufferSize));
 }
 
 WebSocketChannel::~WebSocketChannel()
 {
   LOG(("WebSocketChannel::~WebSocketChannel() %p\n", this));
-
-  if (sWebSocketAdmissions)
-    sWebSocketAdmissions->DecrementSessionCount();
 
   // this stop is a nop if the normal connect/close is followed
   mStopped = 1;
@@ -1540,6 +1533,8 @@ WebSocketChannel::CleanupConnection()
   }
 
   if (mSocketIn) {
+    if (sWebSocketAdmissions)
+      sWebSocketAdmissions->DecrementConnectedCount();
     mSocketIn->AsyncWait(nsnull, 0, 0, nsnull);
     mSocketIn = nsnull;
   }
@@ -1616,7 +1611,7 @@ WebSocketChannel::StopSession(nsresult reason)
   }
 
   if (!mTCPClosed && mTransport && sWebSocketAdmissions &&
-      sWebSocketAdmissions->SessionCount() < kLingeringCloseThreshold) {
+    sWebSocketAdmissions->ConnectedCount() < kLingeringCloseThreshold) {
 
     // 7.1.1 says that the client SHOULD wait for the server to close the TCP
     // connection. This is so we can reuse port numbers before 2 MSL expires,
@@ -1689,10 +1684,10 @@ WebSocketChannel::AbortSession(nsresult reason)
   if (mTransport && reason != NS_BASE_STREAM_CLOSED &&
       !mRequestedClose && !mClientClosed && !mServerClosed) {
     mRequestedClose = 1;
-    mStopOnClose = reason;
     mSocketThread->Dispatch(
       new OutboundEnqueuer(this, new OutboundMessage(kMsgTypeFin, nsnull)),
                            nsIEventTarget::DISPATCH_NORMAL);
+    mStopOnClose = reason;
   } else {
     StopSession(reason);
   }
@@ -1889,6 +1884,14 @@ WebSocketChannel::StartWebsocketData()
 {
   LOG(("WebSocketChannel::StartWebsocketData() %p", this));
 
+  if (sWebSocketAdmissions &&
+    sWebSocketAdmissions->ConnectedCount() > mMaxConcurrentConnections) {
+    LOG(("WebSocketChannel max concurrency %d exceeded "
+         "in OnTransportAvailable()", mMaxConcurrentConnections));
+    AbortSession(NS_ERROR_SOCKET_CREATE_FAILED);
+    return NS_OK;
+  }
+
   return mSocketIn->AsyncWait(this, 0, 0, mSocketThread);
 }
 
@@ -1906,10 +1909,8 @@ WebSocketChannel::OnLookupComplete(nsICancelable *aRequest,
   NS_ABORT_IF_FALSE(aRequest == mDNSRequest || mStopped,
                     "wrong dns request");
 
-  if (mStopped) {
-    LOG(("WebSocketChannel::OnLookupComplete: Request Already Stopped\n"));
+  if (mStopped)
     return NS_OK;
-  }
 
   mDNSRequest = nsnull;
 
@@ -2221,16 +2222,15 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
     }
   }
 
-  if (sWebSocketAdmissions)
-    LOG(("WebSocketChannel::AsyncOpen %p sessionCount=%d max=%d\n", this,
-         sWebSocketAdmissions->SessionCount(), mMaxConcurrentConnections));
-
   if (sWebSocketAdmissions &&
-      sWebSocketAdmissions->SessionCount() >= mMaxConcurrentConnections)
+      sWebSocketAdmissions->ConnectedCount() >= mMaxConcurrentConnections)
   {
-    LOG(("WebSocketChannel: max concurrency %d exceeded (%d)",
-         mMaxConcurrentConnections,
-         sWebSocketAdmissions->SessionCount()));
+    // Checking this early creates an optimal fast-fail, but it is
+    // also a time-of-check-time-of-use problem. So we will check again
+    // after the handshake is complete to catch anything that sneaks
+    // through the race condition.
+    LOG(("WebSocketChannel: max concurrency %d exceeded",
+         mMaxConcurrentConnections));
 
     // WebSocket connections are expected to be long lived, so return
     // an error here instead of queueing
@@ -2373,8 +2373,7 @@ WebSocketChannel::SendMsgCommon(const nsACString *aMsg, bool aIsBinary,
     return NS_ERROR_NOT_CONNECTED;
   }
 
-  NS_ABORT_IF_FALSE(mMaxMessageSize >= 0, "max message size negative");
-  if (aLength > static_cast<PRUint32>(mMaxMessageSize)) {
+  if (aLength > mMaxMessageSize) {
     LOG(("WebSocketChannel:: Error: message too big\n"));
     return NS_ERROR_FILE_TOO_BIG;
   }
@@ -2403,6 +2402,8 @@ WebSocketChannel::OnTransportAvailable(nsISocketTransport *aTransport,
   mTransport = aTransport;
   mSocketIn = aSocketIn;
   mSocketOut = aSocketOut;
+  if (sWebSocketAdmissions)
+    sWebSocketAdmissions->IncrementConnectedCount();
 
   nsresult rv;
   rv = mTransport->SetEventSink(nsnull, nsnull);

@@ -63,7 +63,6 @@ class nsDiskCacheDevice;
 class nsMemoryCacheDevice;
 class nsOfflineCacheDevice;
 class nsCacheServiceAutoLock;
-class nsITimer;
 
 
 /******************************************************************************
@@ -197,7 +196,6 @@ private:
     friend class nsProcessRequestEvent;
     friend class nsSetSmartSizeEvent;
     friend class nsBlockOnCacheThreadEvent;
-    friend class nsSetDiskSmartSizeCallback;
 
     /**
      * Internal Methods
@@ -266,7 +264,7 @@ private:
     void LogCacheStatistics();
 #endif
 
-    nsresult         SetDiskSmartSize_Locked();
+    nsresult         SetDiskSmartSize_Locked(bool checkPref);
 
     /**
      *  Data Members
@@ -282,7 +280,6 @@ private:
     nsCOMPtr<nsIThread>             mCacheIOThread;
 
     nsTArray<nsISupports*>          mDoomedObjects;
-    nsCOMPtr<nsITimer>              mSmartSizeTimer;
     
     bool                            mInitialized;
     

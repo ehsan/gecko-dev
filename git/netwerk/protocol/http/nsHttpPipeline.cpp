@@ -113,8 +113,6 @@ nsHttpPipeline::~nsHttpPipeline()
     // make sure we aren't still holding onto any transactions!
     Close(NS_ERROR_ABORT);
 
-    NS_IF_RELEASE(mConnection);
-
     if (mPushBackBuf)
         free(mPushBackBuf);
 }
@@ -127,7 +125,7 @@ nsHttpPipeline::AddTransaction(nsAHttpTransaction *trans)
     NS_ADDREF(trans);
     mRequestQ.AppendElement(trans);
 
-    if (mConnection && !mClosed) {
+    if (mConnection) {
         trans->SetConnection(this);
 
         if (mRequestQ.Length() == 1)
@@ -702,6 +700,10 @@ nsHttpPipeline::Close(nsresult reason)
         mResponseQ.Clear();
     }
 
+    // we must no longer reference the connection!  This needs to come
+    // after we've closed all our transactions, since they might want
+    // connection info as they close.
+    NS_IF_RELEASE(mConnection);
 }
 
 nsresult

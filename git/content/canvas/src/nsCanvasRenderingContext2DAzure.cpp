@@ -94,6 +94,7 @@
 #include "gfxImageSurface.h"
 #include "gfxPlatform.h"
 #include "gfxFont.h"
+#include "gfxTextRunCache.h"
 #include "gfxBlur.h"
 #include "gfxUtils.h"
 
@@ -1165,9 +1166,6 @@ nsCanvasRenderingContext2DAzure::Redraw()
     return NS_OK;
   }
 
-  if (mThebesSurface)
-      mThebesSurface->MarkDirty();
-
   nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
 
   HTMLCanvasElement()->InvalidateCanvasContent(nsnull);
@@ -1195,12 +1193,9 @@ nsCanvasRenderingContext2DAzure::Redraw(const mgfx::Rect &r)
     return;
   }
 
-  if (mThebesSurface)
-      mThebesSurface->MarkDirty();
-
   nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
 
-  gfxRect tmpR = ThebesRect(r);
+  gfxRect tmpR = GFXRect(r);
   HTMLCanvasElement()->InvalidateCanvasContent(&tmpR);
 
   return;
@@ -2947,11 +2942,12 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
 
   virtual void SetText(const PRUnichar* text, PRInt32 length, nsBidiDirection direction)
   {
-    mTextRun = mFontgrp->MakeTextRun(text,
-                                     length,
-                                     mThebes,
-                                     mAppUnitsPerDevPixel,
-                                     direction==NSBIDI_RTL ? gfxTextRunFactory::TEXT_IS_RTL : 0);
+    mTextRun = gfxTextRunCache::MakeTextRun(text,
+                                            length,
+                                            mFontgrp,
+                                            mThebes,
+                                            mAppUnitsPerDevPixel,
+                                            direction==NSBIDI_RTL ? gfxTextRunFactory::TEXT_IS_RTL : 0);
   }
 
   virtual nscoord GetWidth()
@@ -3100,7 +3096,7 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
   }
 
   // current text run
-  nsAutoPtr<gfxTextRun> mTextRun;
+  gfxTextRunCache::AutoTextRun mTextRun;
 
   // pointer to a screen reference context used to measure text and such
   nsRefPtr<gfxContext> mThebes;

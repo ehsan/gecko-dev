@@ -228,7 +228,9 @@ typedef JSBool
 typedef JSBool
 (* SpecialAttributesOp)(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp);
 typedef JSBool
-(* DeletePropertyOp)(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp, JSBool strict);
+(* DeleteGenericOp)(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict);
+typedef JSBool
+(* DeleteIdOp)(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp, JSBool strict);
 typedef JSBool
 (* DeleteElementOp)(JSContext *cx, JSObject *obj, uint32_t index, Value *vp, JSBool strict);
 typedef JSBool
@@ -327,7 +329,8 @@ struct ObjectOps
     PropertyAttributesOp setPropertyAttributes;
     ElementAttributesOp setElementAttributes;
     SpecialAttributesOp setSpecialAttributes;
-    DeletePropertyOp    deleteProperty;
+    DeleteGenericOp     deleteGeneric;
+    DeleteIdOp          deleteProperty;
     DeleteElementOp     deleteElement;
     DeleteSpecialOp     deleteSpecial;
 
@@ -340,7 +343,7 @@ struct ObjectOps
 
 #define JS_NULL_OBJECT_OPS                                                    \
     {NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,   \
-     NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,        \
+     NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,   \
      NULL,NULL,NULL,NULL,NULL,NULL}
 
 struct Class

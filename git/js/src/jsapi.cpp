@@ -692,6 +692,7 @@ JSRuntime::JSRuntime()
     gcLastBytes(0),
     gcMaxBytes(0),
     gcMaxMallocBytes(0),
+    gcEmptyArenaPoolLifespan(0),
     gcNumArenasFreeCommitted(0),
     gcNumber(0),
     gcIncrementalTracer(NULL),
@@ -2895,14 +2896,14 @@ JS_PUBLIC_API(void)
 JS_SetGCParameter(JSRuntime *rt, JSGCParamKey key, uint32_t value)
 {
     switch (key) {
-      case JSGC_MAX_BYTES: {
-        AutoLockGC lock(rt);
-        JS_ASSERT(value >= rt->gcBytes);
+      case JSGC_MAX_BYTES:
         rt->gcMaxBytes = value;
         break;
-      }
       case JSGC_MAX_MALLOC_BYTES:
         rt->setGCMaxMallocBytes(value);
+        break;
+      case JSGC_STACKPOOL_LIFESPAN:
+        rt->gcEmptyArenaPoolLifespan = value;
         break;
       default:
         JS_ASSERT(key == JSGC_MODE);
@@ -2918,11 +2919,13 @@ JS_GetGCParameter(JSRuntime *rt, JSGCParamKey key)
 {
     switch (key) {
       case JSGC_MAX_BYTES:
-        return uint32_t(rt->gcMaxBytes);
+        return rt->gcMaxBytes;
       case JSGC_MAX_MALLOC_BYTES:
         return rt->gcMaxMallocBytes;
+      case JSGC_STACKPOOL_LIFESPAN:
+        return rt->gcEmptyArenaPoolLifespan;
       case JSGC_BYTES:
-        return uint32_t(rt->gcBytes);
+        return rt->gcBytes;
       case JSGC_MODE:
         return uint32_t(rt->gcMode);
       case JSGC_UNUSED_CHUNKS:
@@ -4164,11 +4167,7 @@ JS_DeletePropertyById2(JSContext *cx, JSObject *obj, jsid id, jsval *rval)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, obj, id);
     JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
-
-    if (JSID_IS_SPECIAL(id))
-        return obj->deleteSpecial(cx, JSID_TO_SPECIALID(id), rval, false);
-
-    return obj->deleteByValue(cx, IdToValue(id), rval, false);
+    return obj->deleteGeneric(cx, id, rval, false);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -4176,37 +4175,24 @@ JS_DeleteElement2(JSContext *cx, JSObject *obj, uint32_t index, jsval *rval)
 {
     AssertNoGC(cx);
     CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
-    return obj->deleteElement(cx, index, rval, false);
+    jsid id;
+    if (!IndexToId(cx, index, &id))
+        return false;
+    return JS_DeletePropertyById2(cx, obj, id, rval);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_DeleteProperty2(JSContext *cx, JSObject *obj, const char *name, jsval *rval)
 {
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
-
     JSAtom *atom = js_Atomize(cx, name, strlen(name));
-    if (!atom)
-        return false;
-
-    return obj->deleteByValue(cx, StringValue(atom), rval, false);
+    return atom && JS_DeletePropertyById2(cx, obj, ATOM_TO_JSID(atom), rval);
 }
 
 JS_PUBLIC_API(JSBool)
 JS_DeleteUCProperty2(JSContext *cx, JSObject *obj, const jschar *name, size_t namelen, jsval *rval)
 {
-    CHECK_REQUEST(cx);
-    assertSameCompartment(cx, obj);
-    JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
-
     JSAtom *atom = js_AtomizeChars(cx, name, AUTO_NAMELEN(name, namelen));
-    if (!atom)
-        return false;
-
-    return obj->deleteByValue(cx, StringValue(atom), rval, false);
+    return atom && JS_DeletePropertyById2(cx, obj, ATOM_TO_JSID(atom), rval);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -5354,7 +5340,7 @@ JS_EvaluateUCScriptForPrincipalsVersion(JSContext *cx, JSObject *obj,
     return EvaluateUCScriptForPrincipalsCommon(cx, obj, principals, NULL, chars, length,
                                                filename, lineno, rval, avi.version());
 }
-
+ 
 extern JS_PUBLIC_API(JSBool)
 JS_EvaluateUCScriptForPrincipalsVersionOrigin(JSContext *cx, JSObject *obj,
                                               JSPrincipals *principals,

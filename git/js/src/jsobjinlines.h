@@ -229,36 +229,35 @@ JSObject::getProperty(JSContext *cx, js::PropertyName *name, js::Value *vp)
     return getGeneric(cx, ATOM_TO_JSID(name), vp);
 }
 
-inline bool
-JSObject::deleteProperty(JSContext *cx, js::PropertyName *name, js::Value *rval, bool strict)
+inline JSBool
+JSObject::deleteGeneric(JSContext *cx, jsid id, js::Value *rval, JSBool strict)
 {
-    jsid id = js_CheckForStringIndex(ATOM_TO_JSID(name));
-    js::types::AddTypePropertyId(cx, this, id, js::types::Type::UndefinedType());
+    js::types::AddTypePropertyId(cx, this, id,
+                                 js::types::Type::UndefinedType());
     js::types::MarkTypePropertyConfigured(cx, this, id);
-    js::DeletePropertyOp op = getOps()->deleteProperty;
-    return (op ? op : js_DeleteProperty)(cx, this, name, rval, strict);
+    js::DeleteGenericOp op = getOps()->deleteGeneric;
+    return (op ? op : js_DeleteProperty)(cx, this, id, rval, strict);
 }
 
-inline bool
-JSObject::deleteElement(JSContext *cx, uint32_t index, js::Value *rval, bool strict)
+inline JSBool
+JSObject::deleteProperty(JSContext *cx, js::PropertyName *name, js::Value *rval, JSBool strict)
+{
+    return deleteGeneric(cx, ATOM_TO_JSID(name), rval, strict);
+}
+
+inline JSBool
+JSObject::deleteElement(JSContext *cx, uint32_t index, js::Value *rval, JSBool strict)
 {
     jsid id;
     if (!js::IndexToId(cx, index, &id))
         return false;
-    js::types::AddTypePropertyId(cx, this, id, js::types::Type::UndefinedType());
-    js::types::MarkTypePropertyConfigured(cx, this, id);
-    js::DeleteElementOp op = getOps()->deleteElement;
-    return (op ? op : js_DeleteElement)(cx, this, index, rval, strict);
+    return deleteGeneric(cx, id, rval, strict);
 }
 
-inline bool
-JSObject::deleteSpecial(JSContext *cx, js::SpecialId sid, js::Value *rval, bool strict)
+inline JSBool
+JSObject::deleteSpecial(JSContext *cx, js::SpecialId sid, js::Value *rval, JSBool strict)
 {
-    jsid id = SPECIALID_TO_JSID(sid);
-    js::types::AddTypePropertyId(cx, this, id, js::types::Type::UndefinedType());
-    js::types::MarkTypePropertyConfigured(cx, this, id);
-    js::DeleteSpecialOp op = getOps()->deleteSpecial;
-    return (op ? op : js_DeleteSpecial)(cx, this, sid, rval, strict);
+    return deleteGeneric(cx, SPECIALID_TO_JSID(sid), rval, strict);
 }
 
 inline void
@@ -301,6 +300,7 @@ JSObject::methodReadBarrier(JSContext *cx, const js::Shape &shape, js::Value *vp
 {
     JS_ASSERT(nativeContains(cx, shape));
     JS_ASSERT(shape.isMethod());
+    JS_ASSERT(shape.writable());
     JS_ASSERT(shape.hasSlot());
     JS_ASSERT(shape.hasDefaultSetter());
     JS_ASSERT(!isGlobal());  /* i.e. we are not changing the global shape */

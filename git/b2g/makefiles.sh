@@ -45,8 +45,7 @@ b2g/chrome/Makefile
 b2g/components/Makefile
 b2g/installer/Makefile
 b2g/locales/Makefile
-b2g/Makefile
-"
+b2g/Makefile"
 
 if test -n "$MOZ_UPDATE_PACKAGING"; then
    add_makefiles "

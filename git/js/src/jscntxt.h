@@ -414,11 +414,12 @@ struct JSRuntime
     js::RootedValueMap  gcRootsHash;
     js::GCLocks         gcLocksHash;
     jsrefcount          gcKeepAtoms;
-    size_t              gcBytes;
-    size_t              gcTriggerBytes;
+    uint32_t            gcBytes;
+    uint32_t            gcTriggerBytes;
     size_t              gcLastBytes;
     size_t              gcMaxBytes;
     size_t              gcMaxMallocBytes;
+    uint32_t            gcEmptyArenaPoolLifespan;
 
     /*
      * Number of the committed arenas in all GC chunks including empty chunks.
@@ -677,7 +678,7 @@ struct JSRuntime
     JSRuntime *thisFromCtor() { return this; }
 
     void setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind);
-    void reduceGCTriggerBytes(size_t amount);
+    void reduceGCTriggerBytes(uint32_t amount);
 
     /*
      * Call the system malloc while checking for GC memory pressure and

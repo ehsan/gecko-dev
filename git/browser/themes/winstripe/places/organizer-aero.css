@@ -21,7 +21,7 @@
   }
 }
 
-@media (-moz-windows-compositor) {
+@media all and (-moz-windows-compositor) {
   #placesToolbox {
     border-top: none;
   }
@@ -31,7 +31,7 @@
   }
 }
 
-@media (-moz-windows-default-theme) {
+@media all and (-moz-windows-default-theme) {
   #placesView,
   #searchModifiers,
   #infoPane,

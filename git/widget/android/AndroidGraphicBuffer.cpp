@@ -234,11 +234,6 @@ private:
 
 namespace mozilla {
 
-static void clearGLError()
-{
-  while (glGetError() != GL_NO_ERROR);
-}
-
 static bool ensureNoGLError(const char* name)
 {
   bool result = true;
@@ -303,11 +298,11 @@ AndroidGraphicBuffer::DestroyBuffer()
 }
 
 bool
-AndroidGraphicBuffer::EnsureBufferCreated()
+AndroidGraphicBuffer::EnsureBufferCreated(PRUint32 aWidth, PRUint32 aHeight, PRUint32 aUsage, gfxImageFormat aFormat)
 {
   if (!mHandle) {
     mHandle = malloc(GRAPHIC_BUFFER_SIZE);
-    sGLFunctions.fGraphicBufferCtor(mHandle, mWidth, mHeight, GetAndroidFormat(mFormat), GetAndroidUsage(mUsage));
+    sGLFunctions.fGraphicBufferCtor(mHandle, mWidth, mHeight, GetAndroidFormat(aFormat), GetAndroidUsage(aUsage));
   }
 
   return true;
@@ -320,7 +315,7 @@ AndroidGraphicBuffer::EnsureInitialized()
     return false;
   }
 
-  EnsureBufferCreated();
+  EnsureBufferCreated(mWidth, mHeight, mUsage, mFormat);
   return true;
 }
 
@@ -363,18 +358,18 @@ AndroidGraphicBuffer::Reallocate(PRUint32 aWidth, PRUint32 aHeight, gfxImageForm
   if (!EnsureInitialized())
     return false;
 
-  mWidth = aWidth;
-  mHeight = aHeight;
-  mFormat = aFormat;
-
   // Sometimes GraphicBuffer::reallocate just doesn't work. In those cases we'll just allocate a brand
   // new buffer. If reallocate fails once, never try it again.
   if (!gTryRealloc || sGLFunctions.fGraphicBufferReallocate(mHandle, aWidth, aHeight, GetAndroidFormat(aFormat)) != 0) {
     DestroyBuffer();
-    EnsureBufferCreated();
+    EnsureBufferCreated(aWidth, aHeight, mUsage, aFormat);
 
     gTryRealloc = false;
   }
+
+  mWidth = aWidth;
+  mHeight = aHeight;
+  mFormat = aFormat;
 
   return true;
 }
@@ -448,7 +443,6 @@ AndroidGraphicBuffer::Bind()
     return false;
   }
 
-  clearGLError();
   sGLFunctions.fImageTargetTexture2DOES(GL_TEXTURE_2D, mEGLImage);
   return ensureNoGLError("glEGLImageTargetTexture2DOES");
 }

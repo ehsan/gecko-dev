@@ -165,7 +165,6 @@ public:
   void ClearCachedResources();
 
   void SetTransactionIncomplete() { mTransactionIncomplete = true; }
-  bool IsTransactionIncomplete() { return mTransactionIncomplete; }
 
   already_AddRefed<gfxContext> PushGroupForLayer(gfxContext* aContext, Layer* aLayer,
                                                  const nsIntRegion& aRegion,

@@ -75,6 +75,8 @@ EXPORTS	= \
 	gfxSkipChars.h \
 	gfxTeeSurface.h \
 	gfxTypes.h \
+	gfxTextRunCache.h \
+	gfxTextRunWordCache.h \
 	gfxUnicodeProperties.h \
 	gfxUtils.h \
 	gfxUserFontSet.h \
@@ -200,6 +202,8 @@ CPPSRCS	= \
 	gfxRect.cpp \
 	gfxSkipChars.cpp \
 	gfxTeeSurface.cpp \
+	gfxTextRunCache.cpp \
+	gfxTextRunWordCache.cpp \
 	gfxUserFontSet.cpp \
 	gfxUtils.cpp \
 	gfxUnicodeProperties.cpp \

@@ -960,8 +960,10 @@ ScriptAnalysis::killVariable(JSContext *cx, LifetimeVariable &var, unsigned offs
         return;
     }
 
-    JS_ASSERT_IF(!var.ensured, offset < var.lifetime->start);
-    unsigned start = var.lifetime->start;
+    if (var.ensured)
+        return;
+
+    JS_ASSERT(offset < var.lifetime->start);
 
     /*
      * The variable is considered to be live at the bytecode which kills it
@@ -971,23 +973,11 @@ ScriptAnalysis::killVariable(JSContext *cx, LifetimeVariable &var, unsigned offs
     var.lifetime->start = offset;
     var.lifetime->write = true;
 
-    if (var.ensured) {
-        /*
-         * The variable is live even before the write, due to an enclosing try
-         * block. We need to split the lifetime to indicate there was a write.
-         */
-        var.lifetime = cx->typeLifoAlloc().new_<Lifetime>(start, offset, var.lifetime);
-        if (!var.lifetime) {
-            setOOM(cx);
-            return;
-        }
-    } else {
-        var.saved = var.lifetime;
-        var.savedEnd = 0;
-        var.lifetime = NULL;
+    var.saved = var.lifetime;
+    var.savedEnd = 0;
+    var.lifetime = NULL;
 
-        saved[savedCount++] = &var;
-    }
+    saved[savedCount++] = &var;
 }
 
 inline void

@@ -69,7 +69,7 @@ public:
 
 private:
 
-  nsIScreen* CreateNewScreenObject ( HMONITOR inScreen ) ;
+  nsIScreen* CreateNewScreenObject ( void* inScreen ) ;
 
   PRUint32 mNumberOfScreens;
 

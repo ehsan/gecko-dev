@@ -346,28 +346,6 @@ nsFrameMessageManager::Atob(const nsAString& aAsciiString,
   return NS_OK;
 }
 
-class MMListenerRemover
-{
-public:
-  MMListenerRemover(nsFrameMessageManager* aMM)
-  : mMM(aMM), mWasHandlingMessage(aMM->mHandlingMessage)
-  {
-    mMM->mHandlingMessage = true;
-  }
-  ~MMListenerRemover()
-  {
-    if (!mWasHandlingMessage) {
-      mMM->mHandlingMessage = false;
-      if (mMM->mDisconnected) {
-        mMM->mListeners.Clear();
-      }
-    }
-  }
-
-  bool mWasHandlingMessage;
-  nsRefPtr<nsFrameMessageManager> mMM;
-};
-
 nsresult
 nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
                                       const nsAString& aMessage,
@@ -382,7 +360,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
   }
   if (mListeners.Length()) {
     nsCOMPtr<nsIAtom> name = do_GetAtom(aMessage);
-    MMListenerRemover lr(this);
+    nsRefPtr<nsFrameMessageManager> kungfuDeathGrip(this);
 
     for (PRUint32 i = 0; i < mListeners.Length(); ++i) {
       if (mListeners[i].mMessage == name) {
@@ -553,29 +531,14 @@ nsFrameMessageManager::SetCallbackData(void* aData, bool aLoadScripts)
 }
 
 void
-nsFrameMessageManager::RemoveFromParent()
-{
-  if (mParentManager) {
-    mParentManager->RemoveChildManager(this);
-  }
-  mParentManager = nsnull;
-  mCallbackData = nsnull;
-  mContext = nsnull;
-}
-
-void
 nsFrameMessageManager::Disconnect(bool aRemoveFromParent)
 {
   if (mParentManager && aRemoveFromParent) {
     mParentManager->RemoveChildManager(this);
   }
-  mDisconnected = true;
   mParentManager = nsnull;
   mCallbackData = nsnull;
   mContext = nsnull;
-  if (!mHandlingMessage) {
-    mListeners.Clear();
-  }
 }
 
 nsresult

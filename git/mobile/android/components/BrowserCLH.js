@@ -7,7 +7,9 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 
 function dump(a) {
-  Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage(a);
+  Cc["@mozilla.org/consoleservice;1"]
+    .getService(Ci.nsIConsoleService)
+    .logStringMessage(a);
 }
 
 function openWindow(aParent, aURL, aTarget, aFeatures, aArgs) {
@@ -43,7 +45,10 @@ BrowserCLH.prototype = {
     let urlParam = "about:home";
     try {
         urlParam = aCmdLine.handleFlagWithParam("remote", false);
-    } catch (e) { /* Optional */ }
+    } catch (e) {
+      // Optional so not a real error
+    }
+    dump("fs_handle: " + urlParam);
 
     try {
       let uri = resolveURIInternal(aCmdLine, urlParam);
@@ -52,14 +57,19 @@ BrowserCLH.prototype = {
 
       let browserWin = Services.wm.getMostRecentWindow("navigator:browser");
       if (browserWin) {
-        browserWin.browserDOMWindow.openURI(uri, null, Ci.nsIBrowserDOMWindow.OPEN_NEWTAB, Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
+        browserWin.browserDOMWindow.openURI(uri,
+                                            null,
+                                            Ci.nsIBrowserDOMWindow.OPEN_CURRENTWINDOW,
+                                            Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
       } else {
         browserWin = openWindow(null, "chrome://browser/content/browser.xul", "_blank", "chrome,dialog=no,all", urlParam);
       }
 
       aCmdLine.preventDefault = true;
     } catch (x) {
-      dump("BrowserCLH.handle: " + x);
+      Cc["@mozilla.org/consoleservice;1"]
+          .getService(Ci.nsIConsoleService)
+          .logStringMessage("fs_handle exception!:  " + x);
     }
   },
 

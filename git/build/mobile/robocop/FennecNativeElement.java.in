@@ -56,26 +56,28 @@ import com.jayway.android.robotium.solo.Solo;
 import java.util.concurrent.SynchronousQueue;
 
 public class FennecNativeElement implements Element {
-  private final Activity mActivity;
   private Integer id;
+  private Activity currentActivity;
   private Solo robocop;
 
   public FennecNativeElement(Integer id, Activity activity, Solo solo){
     this.id = id;
-    mActivity = activity;
     robocop = solo;
+    currentActivity = activity;
   }
 
   public Integer getId() {
     return id;
   }
 
+  @Override
   public void click() {
     final SynchronousQueue syncQueue = new SynchronousQueue();
-    mActivity.runOnUiThread(
+    currentActivity = robocop.getCurrentActivity();
+    currentActivity.runOnUiThread(
         new Runnable() {
           public void run() {
-            View view = (View)mActivity.findViewById(id);
+            View view = (View)currentActivity.findViewById(id);
             if(view != null) {
               view.performClick();
             } else {
@@ -92,13 +94,16 @@ public class FennecNativeElement implements Element {
   }
 
   private Object text;
+  private Activity elementActivity;
 
+  @Override
   public String getText() {
+    elementActivity = robocop.getCurrentActivity();
     final SynchronousQueue syncQueue = new SynchronousQueue();
-    mActivity.runOnUiThread(
+    elementActivity.runOnUiThread(
         new Runnable() {
           public void run() {
-            View v = mActivity.findViewById(id);
+            View v = elementActivity.findViewById(id);
             if(v instanceof EditText) {
               EditText et = (EditText)v;
               text = et.getEditableText();
@@ -136,27 +141,9 @@ public class FennecNativeElement implements Element {
     return text.toString();
   }
 
-  private boolean displayed;
-
+  @Override
   public boolean isDisplayed() {
-    final SynchronousQueue syncQueue = new SynchronousQueue();
-    displayed = false;
-    mActivity.runOnUiThread(
-        new Runnable() {
-          public void run() {
-            View view = (View)mActivity.findViewById(id);
-            if(view != null) {
-              displayed = true;
-            }
-            syncQueue.offer(new Object());
-          }
-        });
-    try {
-      syncQueue.take();
-    } catch (InterruptedException e) {
-      e.printStackTrace();
-    }
-    return displayed;
+    // TODO Auto-generated method stub
+    return false;
   }
-
 }

@@ -1364,7 +1364,7 @@ function BrowserStartup() {
 
   allTabs.readPref();
 
-  TabsOnTop.init();
+  TabsOnTop.syncCommand();
 
   BookmarksMenuButton.init();
 
@@ -3905,8 +3905,7 @@ var FullScreen = {
     }
     else {
       // The user may quit fullscreen during an animation
-      window.mozCancelAnimationFrame(this._animationHandle);
-      this._animationHandle = 0;
+      clearInterval(this._animationInterval);
       clearTimeout(this._animationTimeout);
       gNavToolbox.style.marginTop = "";
       if (this._isChromeCollapsed)
@@ -4097,40 +4096,33 @@ var FullScreen = {
   // Animate the toolbars disappearing
   _shouldAnimate: true,
   _isAnimating: false,
-  _animationTimeout: 0,
-  _animationHandle: 0,
-  _animateUp: function() {
+  _animationTimeout: null,
+  _animationInterval: null,
+  _animateUp: function()
+  {
     // check again, the user may have done something before the animation was due to start
-    if (!window.fullScreen || !this._safeToCollapse(false)) {
-      this._isAnimating = false;
-      this._shouldAnimate = true;
+    if (!window.fullScreen || !FullScreen._safeToCollapse(false)) {
+      FullScreen._isAnimating = false;
+      FullScreen._shouldAnimate = true;
       return;
     }
 
-    this._animateStartTime = window.mozAnimationStartTime;
-    if (!this._animationHandle)
-      this._animationHandle = window.mozRequestAnimationFrame(this);
-  },
-
-  sample: function (timeStamp) {
-    const duration = 1500;
-    const timePassed = timeStamp - this._animateStartTime;
-    const pos = timePassed >= duration ? 1 :
-                1 - Math.pow(1 - timePassed / duration, 4);
-
-    if (pos >= 1) {
-      // We've animated enough
-      window.mozCancelAnimationFrame(this._animationHandle);
-      gNavToolbox.style.marginTop = "";
-      this._animationHandle = 0;
-      this._isAnimating = false;
-      this._shouldAnimate = false; // Just to make sure
-      this.mouseoverToggle(false);
-      return;
+    var animateFrameAmount = 2;
+    function animateUpFrame() {
+      animateFrameAmount *= 2;
+      if (animateFrameAmount >= gNavToolbox.boxObject.height) {
+        // We've animated enough
+        clearInterval(FullScreen._animationInterval);
+        gNavToolbox.style.marginTop = "";
+        FullScreen._isAnimating = false;
+        FullScreen._shouldAnimate = false; // Just to make sure
+        FullScreen.mouseoverToggle(false);
+        return;
+      }
+      gNavToolbox.style.marginTop = (animateFrameAmount * -1) + "px";
     }
 
-    gNavToolbox.style.marginTop = (gNavToolbox.boxObject.height * pos * -1) + "px";
-    this._animationHandle = window.mozRequestAnimationFrame(this);
+    FullScreen._animationInterval = setInterval(animateUpFrame, 70);
   },
 
   cancelWarning: function(event) {
@@ -4231,7 +4223,7 @@ var FullScreen = {
     if (!aShow && this._shouldAnimate) {
       this._isAnimating = true;
       this._shouldAnimate = false;
-      this._animationTimeout = setTimeout(this._animateUp.bind(this), 800);
+      this._animationTimeout = setTimeout(this._animateUp, 800);
       return;
     }
 
@@ -4715,12 +4707,10 @@ var XULBrowserWindow = {
         document.documentElement.removeAttribute("disablechrome");
 
       // Disable find commands in documents that ask for them to be disabled.
-      let disableFind = false;
-      if (aLocationURI &&
-          (aLocationURI.schemeIs("about") || aLocationURI.schemeIs("chrome"))) {
-        let docElt = content.document.documentElement;
-        disableFind = docElt && docElt.getAttribute("disablefastfind") == "true";
-      }
+      let docElt = content.document.documentElement;
+      let disableFind = aLocationURI &&
+        (docElt && docElt.getAttribute("disablefastfind") == "true") &&
+        (aLocationURI.schemeIs("about") || aLocationURI.schemeIs("chrome"));
       let findCommands = [document.getElementById("cmd_find"),
                           document.getElementById("cmd_findAgain"),
                           document.getElementById("cmd_findPrevious")];
@@ -5286,44 +5276,27 @@ function setToolbarVisibility(toolbar, isVisible) {
 }
 
 var TabsOnTop = {
-  init: function TabsOnTop_init() {
-    this.syncUI();
-    Services.prefs.addObserver(this._prefName, this, false);
-  },
-
   toggle: function () {
-    this.enabled = !Services.prefs.getBoolPref(this._prefName);
+    this.enabled = !this.enabled;
   },
-
-  syncUI: function () {
-    let userEnabled = Services.prefs.getBoolPref(this._prefName);
-    let enabled = userEnabled && gBrowser.tabContainer.visible;
-
+  syncCommand: function () {
+    let enabled = this.enabled;
     document.getElementById("cmd_ToggleTabsOnTop")
-            .setAttribute("checked", userEnabled);
-
+            .setAttribute("checked", enabled);
     document.documentElement.setAttribute("tabsontop", enabled);
-    document.getElementById("navigator-toolbox").setAttribute("tabsontop", enabled);
     document.getElementById("TabsToolbar").setAttribute("tabsontop", enabled);
     gBrowser.tabContainer.setAttribute("tabsontop", enabled);
     TabsInTitlebar.allowedBy("tabs-on-top", enabled);
   },
-
   get enabled () {
     return gNavToolbox.getAttribute("tabsontop") == "true";
   },
-
   set enabled (val) {
-    Services.prefs.setBoolPref(this._prefName, !!val);
+    gNavToolbox.setAttribute("tabsontop", !!val);
+    this.syncCommand();
+
     return val;
-  },
-
-  observe: function (subject, topic, data) {
-    if (topic == "nsPref:changed")
-      this.syncUI();
-  },
-
-  _prefName: "browser.tabs.onTop"
+  }
 }
 
 var TabsInTitlebar = {

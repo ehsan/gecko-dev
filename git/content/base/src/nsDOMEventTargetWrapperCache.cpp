@@ -93,8 +93,3 @@ nsDOMEventTargetWrapperCache::Init(JSContext* aCx)
       mOwner = window->GetCurrentInnerWindow();
   }
 }
-
-nsDOMEventTargetWrapperCache::~nsDOMEventTargetWrapperCache()
-{
-  nsContentUtils::ReleaseWrapper(this, this);
-}

@@ -125,7 +125,6 @@ var Downloads = {
   },
 
   observe: function dl_observe(aSubject, aTopic, aData) {
-    let download = aSubject.QueryInterface(Ci.nsIDownload);
     let msgKey = "";
     if (aTopic == "dl-start") {
       msgKey = "alertDownloadsStart";
@@ -134,26 +133,17 @@ var Downloads = {
           this._dlmgr = Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager);
         this._progressAlert = new AlertDownloadProgressListener();
         this._dlmgr.addListener(this._progressAlert);
-      }
 
-      NativeWindow.toast.show(Strings.browser.GetStringFromName("alertDownloadsToast"), "long");
+        NativeWindow.toast.show(Strings.browser.GetStringFromName("alertDownloadsToast"), "long");
+      }
     } else if (aTopic == "dl-done") {
       msgKey = "alertDownloadsDone";
-
-      let message = {
-        gecko: {
-          type: "Downloads:Done",
-          displayName: download.displayName,
-          path: download.targetFile.path,
-          size: download.size,
-          mimeType: download.MIMEInfo ? download.MIMEInfo.type : ""
-        }
-      };
-      sendMessageToJava(message);
     }
 
-    if (msgKey)
+    if (msgKey) {
+      let download = aSubject.QueryInterface(Ci.nsIDownload);
       this.showAlert(download, Strings.browser.formatStringFromName(msgKey, [download.displayName], 1));
+    }
   },
 
   QueryInterface: function (aIID) {

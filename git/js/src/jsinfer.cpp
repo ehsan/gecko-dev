@@ -3896,16 +3896,14 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_NEWARRAY:
       case JSOP_NEWOBJECT: {
         TypeObject *initializer = GetInitializerType(cx, script, pc);
-        TypeSet *types = script->analysis()->bytecodeTypes(pc);
         if (script->hasGlobal()) {
             if (!initializer)
                 return false;
-            types->addType(cx, Type::ObjectType(initializer));
+            pushed[0].addType(cx, Type::ObjectType(initializer));
         } else {
             JS_ASSERT(!initializer);
-            types->addType(cx, Type::UnknownType());
+            pushed[0].addType(cx, Type::UnknownType());
         }
-        types->addSubset(cx, &pushed[0]);
         break;
       }
 

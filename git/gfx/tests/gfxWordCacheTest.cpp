@@ -48,6 +48,8 @@
 
 #include "gfxFontTest.h"
 
+#include "gfxTextRunWordCache.h"
+
 #if defined(XP_MACOSX)
 #include "gfxTestCocoaHelper.h"
 #endif
@@ -76,6 +78,7 @@ public:
    if (aTextRun->GetExpirationState()->IsTracked()) {
      RemoveObject(aTextRun);
    }
+   gfxTextRunWordCache::RemoveTextRun(aTextRun);
  }
 
  // This gets called when the timeout has expired on a gfxTextRun
@@ -96,7 +99,8 @@ MakeTextRun(const PRUnichar *aText, PRUint32 aLength,
    } else if (aLength == 1 && aText[0] == ' ') {
        textRun = aFontGroup->MakeSpaceTextRun(aParams, aFlags);
    } else {
-       textRun = aFontGroup->MakeTextRun(aText, aLength, aParams, aFlags);
+       textRun = gfxTextRunWordCache::MakeTextRun(aText, aLength, aFontGroup,
+           aParams, aFlags);
    }
    if (!textRun)
        return nsnull;

@@ -354,7 +354,6 @@ LayerManagerD3D9::Render()
          (r = iter.Next()) != nsnull;) {
       mSwapChain->Present(*r);
     }
-    LayerManager::PostPresent();
   } else {
     PaintToTarget();
   }
