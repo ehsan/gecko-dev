@@ -1070,36 +1070,23 @@ HyperTextAccessible::GetTextAtOffset(int32_t aOffset,
   if (offset < 0)
     return NS_ERROR_INVALID_ARG;
 
-  EWordMovementType wordMovementType = eDefaultBehavior;
-  bool moveForwardThenBack = true;
-
   switch (aBoundaryType) {
     case BOUNDARY_CHAR:
       return GetCharAt(aOffset, eGetAt, aText, aStartOffset, aEndOffset) ?
         NS_OK : NS_ERROR_INVALID_ARG;
 
-    case BOUNDARY_WORD_START: {
-      uint32_t textLen =  CharacterCount();
-      if (offset == textLen) {
-        *aStartOffset = *aEndOffset = textLen;
-        return NS_OK;
-      }
-
+    case BOUNDARY_WORD_START:
       *aEndOffset = FindWordBoundary(offset, eDirNext, eStartWord);
       *aStartOffset = FindWordBoundary(*aEndOffset, eDirPrevious, eStartWord);
       return GetText(*aStartOffset, *aEndOffset, aText);
-    }
 
-    case BOUNDARY_WORD_END: {
-      if (offset == 0) {
-        *aStartOffset = *aEndOffset = 0;
-        return NS_OK;
-      }
-
-      *aStartOffset = FindWordBoundary(offset, eDirPrevious, eEndWord);
-      *aEndOffset = FindWordBoundary(*aStartOffset, eDirNext, eEndWord);
+    case BOUNDARY_WORD_END:
+      // Ignore the spec and follow what WebKitGtk does because Orca expects it,
+      // i.e. return a next word at word end offset of the current word
+      // (WebKitGtk behavior) instead the current word (AKT spec).
+      *aEndOffset = FindWordBoundary(offset, eDirNext, eEndWord);
+      *aStartOffset = FindWordBoundary(*aEndOffset, eDirPrevious, eEndWord);
       return GetText(*aStartOffset, *aEndOffset, aText);
-    }
 
     case BOUNDARY_LINE_START:
     case BOUNDARY_LINE_END:
@@ -1829,8 +1816,10 @@ void
 HyperTextAccessible::GetSelectionDOMRanges(int16_t aType,
                                            nsTArray<nsRange*>* aRanges)
 {
+  // Ignore selection if it is not visible.
   nsRefPtr<nsFrameSelection> frameSelection = FrameSelection();
-  if (!frameSelection)
+  if (!frameSelection ||
+      frameSelection->GetDisplaySelection() <= nsISelectionController::SELECTION_HIDDEN)
     return;
 
   Selection* domSel = frameSelection->GetSelection(aType);
@@ -2146,6 +2135,12 @@ HyperTextAccessible::ContentToRenderedOffset(nsIFrame* aFrame, int32_t aContentO
     *aRenderedOffset = 0;
     return NS_OK;
   }
+
+  if (IsTextField()) {
+    *aRenderedOffset = aContentOffset;
+    return NS_OK;
+  }
+
   NS_ASSERTION(aFrame->GetType() == nsGkAtoms::textFrame,
                "Need text frame for offset conversion");
   NS_ASSERTION(aFrame->GetPrevContinuation() == nullptr,
@@ -2170,6 +2165,11 @@ nsresult
 HyperTextAccessible::RenderedToContentOffset(nsIFrame* aFrame, uint32_t aRenderedOffset,
                                              int32_t* aContentOffset)
 {
+  if (IsTextField()) {
+    *aContentOffset = aRenderedOffset;
+    return NS_OK;
+  }
+
   *aContentOffset = 0;
   NS_ENSURE_TRUE(aFrame, NS_ERROR_FAILURE);
 

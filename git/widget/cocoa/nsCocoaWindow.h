@@ -95,6 +95,8 @@ typedef struct _nsCocoaWindowList {
 - (void)updateTrackingArea;
 - (NSView*)trackingAreaView;
 
+- (ChildView*)mainChildView;
+
 @end
 
 @interface NSWindow (Undocumented)
@@ -190,7 +192,6 @@ typedef struct _nsCocoaWindowList {
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect sync:(BOOL)aSync;
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect;
 - (void)setDrawsContentsIntoWindowFrame:(BOOL)aState;
-- (ChildView*)mainChildView;
 @end
 
 class nsCocoaWindow : public nsBaseWidget, public nsPIWidgetCocoa
@@ -214,6 +215,8 @@ public:
                                    nsWidgetInitData *aInitData = nullptr);
 
     NS_IMETHOD              Destroy();
+
+    virtual nsIWidget*      GetParent(void);
 
     NS_IMETHOD              Show(bool aState);
     virtual nsIWidget*      GetSheetWindowParent(void);
@@ -255,7 +258,7 @@ public:
 
     NS_IMETHOD Invalidate(const nsIntRect &aRect);
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-    virtual LayerManager* GetLayerManager(PLayersChild* aShadowManager = nullptr,
+    virtual LayerManager* GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
                                           LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr);

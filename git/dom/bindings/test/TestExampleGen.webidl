@@ -10,7 +10,10 @@
  Constructor(long arg1, IndirectlyImplementedInterface iface),
  // Constructor(long arg1, long arg2, (TestInterface or OnlyForUseInConstructor) arg3),
  NamedConstructor=Example,
- NamedConstructor=Example(DOMString str)
+ NamedConstructor=Example(DOMString str),
+ NamedConstructor=Example2(DictForConstructor dict, any any1, object obj1,
+                           object? obj2, sequence<Dict> seq, optional any any2,
+                           optional object obj3, optional object? obj4)
  ]
 interface TestExampleInterface {
   // Integer types
@@ -233,6 +236,8 @@ interface TestExampleInterface {
   sequence<any>? receiveNullableAnySequence();
 
   void passSequenceOfSequences(sequence<sequence<long>> arg);
+  //XXXbz No support for sequence of sequence return values yet.
+  //sequence<sequence<long>> receiveSequenceOfSequences();
 
   // Typed array types
   void passArrayBuffer(ArrayBuffer arg);
@@ -263,13 +268,14 @@ interface TestExampleInterface {
 
   // Enumerated types
   void passEnum(TestEnum arg);
-  // No support for nullable enums yet
-  // void passNullableEnum(TestEnum? arg);
+  void passNullableEnum(TestEnum? arg);
   void passOptionalEnum(optional TestEnum arg);
   void passEnumWithDefault(optional TestEnum arg = "a");
-  // void passOptionalNullableEnum(optional TestEnum? arg);
-  // void passOptionalNullableEnumWithDefaultValue(optional TestEnum? arg = null);
+  void passOptionalNullableEnum(optional TestEnum? arg);
+  void passOptionalNullableEnumWithDefaultValue(optional TestEnum? arg = null);
+  void passOptionalNullableEnumWithDefaultValue2(optional TestEnum? arg = "a");
   TestEnum receiveEnum();
+  TestEnum? receiveNullableEnum();
   attribute TestEnum enumAttribute;
   readonly attribute TestEnum readonlyEnumAttribute;
 
@@ -319,6 +325,17 @@ interface TestExampleInterface {
   void passUnionWithObject((object or long) arg);
   //void passUnionWithDict((Dict or long) arg);
 
+  // Date types
+  void passDate(Date arg);
+  void passNullableDate(Date? arg);
+  void passOptionalDate(optional Date arg);
+  void passOptionalNullableDate(optional Date? arg);
+  void passOptionalNullableDateWithDefaultValue(optional Date? arg = null);
+  void passDateSequence(sequence<Date> arg);
+  void passNullableDateSequence(sequence<Date?> arg);
+  Date receiveDate();
+  Date? receiveNullableDate();
+
   // binaryNames tests
   void methodRenamedFrom();
   void methodRenamedFrom(byte argument);
@@ -359,6 +376,7 @@ interface TestExampleInterface {
   void overload2(TestInterface arg);
   void overload2(optional Dict arg);
   void overload2(DOMString arg);
+  void overload2(Date arg);
   void overload3(TestInterface arg);
   void overload3(TestCallback arg);
   void overload3(DOMString arg);

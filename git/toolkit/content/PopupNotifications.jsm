@@ -255,7 +255,7 @@ PopupNotifications.prototype = {
     let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
     if (browser == this.tabbrowser.selectedBrowser && fm.activeWindow == this.window) {
       // show panel now
-      this._update(notification.anchorElement);
+      this._update(notification.anchorElement, true);
     } else {
       // Otherwise, update() will display the notification the next time the
       // relevant tab/window is selected.
@@ -540,9 +540,12 @@ PopupNotifications.prototype = {
     // On OS X and Linux we need a different panel arrow color for
     // click-to-play plugins, so copy the popupid and use css.
     this.panel.setAttribute("popupid", this.panel.firstChild.getAttribute("popupid"));
+    notificationsToShow.forEach(function (n) {
+      // Remember the time the notification was shown for the security delay.
+      n.timeShown = this.window.performance.now();
+    }, this);
     this.panel.openPopup(anchorElement, "bottomcenter topleft");
     notificationsToShow.forEach(function (n) {
-      n.timeShown = Date.now();
       this._fireCallback(n, NOTIFICATION_EVENT_SHOWN);
     }, this);
   },
@@ -550,8 +553,14 @@ PopupNotifications.prototype = {
   /**
    * Updates the notification state in response to window activation or tab
    * selection changes.
+   *
+   * @param anchor is a XUL element reprensenting the anchor whose notifications
+   *               should be shown.
+   * @param dismissShowing if true, dismiss any currently visible notifications
+   *                       if there are no notifications to show. Otherwise,
+   *                       currently displayed notifications will be left alone.
    */
-  _update: function PopupNotifications_update(anchor) {
+  _update: function PopupNotifications_update(anchor, dismissShowing = false) {
     if (this.iconBox) {
       // hide icons of the previous tab.
       this._hideIcons();
@@ -584,9 +593,12 @@ PopupNotifications.prototype = {
       // Notify observers that we're not showing the popup (useful for testing)
       this._notify("updateNotShowing");
 
-      // Dismiss the panel if needed. _onPopupHidden will ensure we never call
-      // a dismissal handler on a notification that's been removed.
-      this._dismiss();
+      // Close the panel if there are no notifications to show.
+      // When called from PopupNotifications.show() we should never close the
+      // panel, however. It may just be adding a dismissed notification, in
+      // which case we want to continue showing any existing notifications.
+      if (!dismissShowing)
+        this._dismiss();
 
       // Only hide the iconBox if we actually have no notifications (as opposed
       // to not having any showable notifications)
@@ -716,7 +728,7 @@ PopupNotifications.prototype = {
       throw "PopupNotifications_onButtonCommand: couldn't find notification";
 
     let notification = notificationEl.notification;
-    let timeSinceShown = Date.now() - notification.timeShown;
+    let timeSinceShown = this.window.performance.now() - notification.timeShown;
 
     // Only report the first time mainAction is triggered and remember that this occurred.
     if (!notification.timeMainActionFirstTriggered) {

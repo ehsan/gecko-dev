@@ -375,7 +375,7 @@ public:
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
   {
     *aSnap = true;
-    nsIFrame* f = GetUnderlyingFrame();
+    nsIFrame* f = Frame();
     return f->GetContentRect() - f->GetPosition() + ToReferenceFrame();
   }
 
@@ -417,10 +417,11 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 
-  nsDisplayList replacedContent;
+  DisplayListClipState::AutoClipContainingBlockDescendantsToContentBox
+    clip(aBuilder, this, DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT);
 
   if (HasVideoElement() && !ShouldDisplayPoster()) {
-    replacedContent.AppendNewToTop(
+    aLists.Content()->AppendNewToTop(
       new (aBuilder) nsDisplayVideo(aBuilder, this));
   }
 
@@ -433,15 +434,13 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (child->GetContent() != mPosterImage || ShouldDisplayPoster()) {
       child->BuildDisplayListForStackingContext(aBuilder,
                                                 aDirtyRect - child->GetOffsetTo(this),
-                                                &replacedContent);
+                                                aLists.Content());
     } else if (child->GetType() == nsGkAtoms::boxFrame) {
       child->BuildDisplayListForStackingContext(aBuilder,
                                                 aDirtyRect - child->GetOffsetTo(this),
-                                                &replacedContent);
+                                                aLists.Content());
     }
   }
-
-  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
 }
 
 nsIAtom*

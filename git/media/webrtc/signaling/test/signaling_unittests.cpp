@@ -529,7 +529,7 @@ class ParsedSDP {
 class SignalingAgent {
  public:
   SignalingAgent() : pc(nullptr) {
-    cfg_.addServer("23.21.150.121", 3478);
+    cfg_.addStunServer("23.21.150.121", 3478);
 
     pc = sipcc::PeerConnectionImpl::CreatePeerConnection();
     EXPECT_TRUE(pc);
@@ -598,7 +598,7 @@ class SignalingAgent {
   {
     if (pc) {
       cout << "Close" << endl;
-      
+
       pc->Close(false);
       pc = nullptr;
     }

@@ -20,6 +20,7 @@
 #include "nsDOMString.h"
 #include "nsStringBuffer.h"
 #include "nsTArray.h"
+#include "nsAutoPtr.h" // for nsRefPtr member variables
 
 class nsWrapperCache;
 
@@ -33,10 +34,8 @@ namespace dom {
 struct MainThreadDictionaryBase
 {
 protected:
-  JSContext* ParseJSON(const nsAString& aJSON,
-                       mozilla::Maybe<JSAutoRequest>& aAr,
-                       mozilla::Maybe<JSAutoCompartment>& aAc,
-                       JS::Value& aVal);
+  bool ParseJSON(JSContext *aCx, const nsAString& aJSON,
+                 JS::MutableHandle<JS::Value> aVal);
 };
 
 struct EnumEntry {
@@ -44,7 +43,7 @@ struct EnumEntry {
   size_t length;
 };
 
-class NS_STACK_CLASS GlobalObject
+class MOZ_STACK_CLASS GlobalObject
 {
 public:
   GlobalObject(JSContext* aCx, JSObject* aObject);
@@ -65,7 +64,7 @@ private:
   nsCOMPtr<nsISupports> mGlobalObjectRef;
 };
 
-class NS_STACK_CLASS WorkerGlobalObject
+class MOZ_STACK_CLASS WorkerGlobalObject
 {
 public:
   WorkerGlobalObject(JSContext* aCx, JSObject* aObject);
@@ -111,7 +110,7 @@ private:
  * empty string.  If HasStringBuffer() returns false, call AsAString() and get
  * the value from that.
  */
-class NS_STACK_CLASS DOMString {
+class MOZ_STACK_CLASS DOMString {
 public:
   DOMString()
     : mStringBuffer(nullptr)
@@ -227,6 +226,11 @@ public:
   Optional()
   {}
 
+  explicit Optional(const T& aValue)
+  {
+    mImpl.construct(aValue);
+  }
+
   bool WasPassed() const
   {
     return !mImpl.empty();
@@ -257,11 +261,6 @@ public:
   T& Value()
   {
     return mImpl.ref();
-  }
-
-  Optional& AsMutable() const
-  {
-    return *const_cast<Optional*>(this);
   }
 
   // If we ever decide to add conversion operators for optional arrays
@@ -371,12 +370,9 @@ public:
     return true;
   }
 
-  operator JS::Value()
-  {
-    return mValue;
-  }
-
-  operator const JS::Value() const
+  // Note: This operator can be const because we return by value, not
+  // by reference.
+  operator JS::Value() const
   {
     return mValue;
   }
@@ -444,6 +440,105 @@ struct ParentObject {
 
   nsISupports* const mObject;
   nsWrapperCache* const mWrapperCache;
+};
+
+// Representation for dates
+class Date {
+public:
+  // Not inlining much here to avoid the extra includes we'd need
+  Date();
+  Date(double aMilliseconds) :
+    mMsecSinceEpoch(aMilliseconds)
+  {}
+
+  bool IsUndefined() const;
+  double TimeStamp() const
+  {
+    return mMsecSinceEpoch;
+  }
+  void SetTimeStamp(double aMilliseconds)
+  {
+    mMsecSinceEpoch = aMilliseconds;
+  }
+  // Can return false if CheckedUnwrap fails.  This will NOT throw;
+  // callers should do it as needed.
+  bool SetTimeStamp(JSContext* cx, JSObject* obj);
+
+  bool ToDateObject(JSContext* cx, JS::Value* vp) const;
+
+private:
+  double mMsecSinceEpoch;
+};
+
+class NonNullLazyRootedObject : public Maybe<JS::Rooted<JSObject*> >
+{
+public:
+  operator JSObject&() const
+  {
+    MOZ_ASSERT(!empty() && ref(), "Can not alias null.");
+    return *ref();
+  }
+
+  operator JS::Rooted<JSObject*>&()
+  {
+    // Assert if we're empty, on purpose
+    return ref();
+  }
+
+  JSObject** Slot() // To make us look like a NonNull
+  {
+    // Assert if we're empty, on purpose
+    return ref().address();
+  }
+};
+
+class LazyRootedObject : public Maybe<JS::Rooted<JSObject*> >
+{
+public:
+  operator JSObject*() const
+  {
+    return empty() ? static_cast<JSObject*>(nullptr) : ref();
+  }
+
+  operator JS::Rooted<JSObject*>&()
+  {
+    // Assert if we're empty, on purpose
+    return ref();
+  }
+
+  JSObject** operator&()
+  {
+    // Assert if we're empty, on purpose
+    return ref().address();
+  }
+};
+
+class LazyRootedValue : public Maybe<JS::Rooted<JS::Value> >
+{
+public:
+  operator JS::Value() const
+  {
+    // Assert if we're empty, on purpose
+    return ref();
+  }
+
+  operator JS::Rooted<JS::Value>& ()
+  {
+    // Assert if we're empty, on purpose
+    return ref();
+  }
+
+  operator JS::Handle<JS::Value>()
+  {
+    // Assert if we're empty, on purpose
+    return ref();
+  }
+
+  JS::Value* operator&()
+  {
+    // Assert if we're empty, on purpose
+    return ref().address();
+  }
 };
 
 } // namespace dom

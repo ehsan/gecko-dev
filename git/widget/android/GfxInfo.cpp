@@ -381,6 +381,7 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
         // Gingerbread HTC devices are whitelisted.
         // Gingerbread Samsung devices are whitelisted except for:
         //   Samsung devices identified in Bug 847837
+        //   Samsung SGH-T989 (Bug 818363)
         // All other Gingerbread devices are blacklisted.
         bool isWhitelisted =
           cManufacturer.Equals("htc", nsCaseInsensitiveCStringComparator()) ||
@@ -396,6 +397,7 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
             cModel.Equals("GT-S7500T", nsCaseInsensitiveCStringComparator()) ||
             cModel.Equals("GT-S7500L", nsCaseInsensitiveCStringComparator()) ||
             cModel.Equals("GT-S6500T", nsCaseInsensitiveCStringComparator()) ||
+            cModel.Equals("SGH-T989", nsCaseInsensitiveCStringComparator()) ||
             cHardware.Equals("smdkc110", nsCaseInsensitiveCStringComparator()) ||
             cHardware.Equals("smdkc210", nsCaseInsensitiveCStringComparator()) ||
             cHardware.Equals("herring", nsCaseInsensitiveCStringComparator()) ||
@@ -470,17 +472,17 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
         //   All Sony devices (Bug 845734)
 
         bool isBlocklisted =
-          cModel.Find("SCH-I535", true) ||
-          cModel.Find("SGH-I747", true) ||
-          cModel.Find("SGH-T999", true) ||
-          cModel.Find("SPH-L710", true) ||
-          cModel.Find("GT-I8190", true) ||
-          cModel.Find("GT-P3100", true) ||
-          cModel.Find("GT-P3110", true) ||
-          cModel.Find("GT-P3113", true) ||
-          cModel.Find("GT-P5100", true) ||
-          cModel.Find("GT-P5110", true) ||
-          cModel.Find("GT-P5113", true) ||
+          cModel.Find("SCH-I535", true) != -1 ||
+          cModel.Find("SGH-I747", true) != -1 ||
+          cModel.Find("SGH-T999", true) != -1 ||
+          cModel.Find("SPH-L710", true) != -1 ||
+          cModel.Find("GT-I8190", true) != -1 ||
+          cModel.Find("GT-P3100", true) != -1 ||
+          cModel.Find("GT-P3110", true) != -1 ||
+          cModel.Find("GT-P3113", true) != -1 ||
+          cModel.Find("GT-P5100", true) != -1 ||
+          cModel.Find("GT-P5110", true) != -1 ||
+          cModel.Find("GT-P5113", true) != -1 ||
           cManufacturer.Equals("Sony", nsCaseInsensitiveCStringComparator());
 
         if (isBlocklisted) {

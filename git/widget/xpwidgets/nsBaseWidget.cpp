@@ -20,7 +20,9 @@
 #include "nsIServiceManager.h"
 #include "mozilla/Preferences.h"
 #include "BasicLayers.h"
+#include "ClientLayerManager.h"
 #include "LayerManagerOGL.h"
+#include "mozilla/layers/Compositor.h"
 #include "nsIXULRuntime.h"
 #include "nsIXULWindow.h"
 #include "nsIBaseWindow.h"
@@ -34,6 +36,7 @@
 #include "prenv.h"
 #include "mozilla/Attributes.h"
 #include "nsContentUtils.h"
+#include "gfxPlatform.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -122,7 +125,9 @@ nsBaseWidget::nsBaseWidget()
 static void DeferredDestroyCompositor(CompositorParent* aCompositorParent,
                               CompositorChild* aCompositorChild)
 {
-    aCompositorChild->Destroy();
+    // Bug 848949 needs to be fixed before
+    // we can close the channel properly
+    //aCompositorChild->Close();
     aCompositorParent->Release();
     aCompositorChild->Release();
 }
@@ -131,6 +136,7 @@ void nsBaseWidget::DestroyCompositor()
 {
   if (mCompositorChild) {
     mCompositorChild->SendWillStop();
+    mCompositorChild->Destroy();
 
     // The call just made to SendWillStop can result in IPC from the
     // CompositorParent to the CompositorChild (e.g. caused by the destruction
@@ -553,17 +559,6 @@ NS_IMETHODIMP nsBaseWidget::SetSizeMode(int32_t aMode)
 
 //-------------------------------------------------------------------------
 //
-// Get the size mode (minimized, maximized, that sort of thing...)
-//
-//-------------------------------------------------------------------------
-NS_IMETHODIMP nsBaseWidget::GetSizeMode(int32_t* aMode)
-{
-  *aMode = mSizeMode;
-  return NS_OK;
-}
-
-//-------------------------------------------------------------------------
-//
 // Get the foreground color
 //
 //-------------------------------------------------------------------------
@@ -815,10 +810,8 @@ nsBaseWidget::ComputeShouldAccelerate(bool aDefault)
   bool isSmallPopup = ((mWindowType == eWindowType_popup) &&
                       (mPopupType != ePopupTypePanel));
   // we should use AddBoolPrefVarCache
-  bool disableAcceleration = isSmallPopup ||
-    Preferences::GetBool("layers.acceleration.disabled", false);
-  mForceLayersAcceleration =
-    Preferences::GetBool("layers.acceleration.force-enabled", false);
+  bool disableAcceleration = isSmallPopup || gfxPlatform::GetPrefLayersAccelerationDisabled() || (mWindowType == eWindowType_invisible);
+  mForceLayersAcceleration = gfxPlatform::GetPrefLayersAccelerationForceEnabled();
 
   const char *acceleratedEnv = PR_GetEnv("MOZ_ACCELERATED");
   accelerateByDefault = accelerateByDefault ||
@@ -854,10 +847,10 @@ nsBaseWidget::ComputeShouldAccelerate(bool aDefault)
     return true;
 
   if (!whitelisted) {
-    NS_WARNING("OpenGL-accelerated layers are not supported on this system.");
+    NS_WARNING("OpenGL-accelerated layers are not supported on this system");
 #ifdef MOZ_ANDROID_OMTC
     NS_RUNTIMEABORT("OpenGL-accelerated layers are a hard requirement on this platform. "
-                    "Cannot continue without support for them.");
+                    "Cannot continue without support for them");
 #endif
     return false;
   }
@@ -869,6 +862,12 @@ nsBaseWidget::ComputeShouldAccelerate(bool aDefault)
   return aDefault;
 }
 
+CompositorParent* nsBaseWidget::NewCompositorParent(int aSurfaceWidth,
+                                                    int aSurfaceHeight)
+{
+  return new CompositorParent(this, false, aSurfaceWidth, aSurfaceHeight);
+}
+
 void nsBaseWidget::CreateCompositor()
 {
   nsIntRect rect;
@@ -876,27 +875,39 @@ void nsBaseWidget::CreateCompositor()
   CreateCompositor(rect.width, rect.height);
 }
 
+mozilla::layers::LayersBackend
+nsBaseWidget::GetPreferredCompositorBackend()
+{
+  // We need a separate preference here (instead of using mUseLayersAcceleration)
+  // because we force enable accelerated layers with e10s. Once the BasicCompositor
+  // is stable enough to be used for Ripc/Cipc, then we can remove that and this
+  // pref.
+  if (Preferences::GetBool("layers.offmainthreadcomposition.prefer-basic", false)) {
+    return mozilla::layers::LAYERS_BASIC;
+  }
+
+  return mozilla::layers::LAYERS_OPENGL;
+}
+
 void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
 {
-  bool renderToEGLSurface = false;
-#ifdef MOZ_ANDROID_OMTC
-  renderToEGLSurface = true;
-#endif
-  mCompositorParent =
-    new CompositorParent(this, renderToEGLSurface, aWidth, aHeight);
-  LayerManager* lm = CreateBasicLayerManager();
+  // Recreating this is tricky, as we may still have an old and we need
+  // to make sure it's properly destroyed by calling DestroyCompositor!
+
+  mCompositorParent = NewCompositorParent(aWidth, aHeight);
+  AsyncChannel *parentChannel = mCompositorParent->GetIPCChannel();
+  LayerManager* lm = new ClientLayerManager(this);
   MessageLoop *childMessageLoop = CompositorParent::CompositorLoop();
   mCompositorChild = new CompositorChild(lm);
-  AsyncChannel *parentChannel = mCompositorParent->GetIPCChannel();
   AsyncChannel::Side childSide = mozilla::ipc::AsyncChannel::Child;
   mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
-  int32_t maxTextureSize;
-  PLayersChild* shadowManager;
-  mozilla::layers::LayersBackend backendHint =
-    mUseLayersAcceleration ? mozilla::layers::LAYERS_OPENGL : mozilla::layers::LAYERS_BASIC;
-  mozilla::layers::LayersBackend parentBackend;
-  shadowManager = mCompositorChild->SendPLayersConstructor(
-    backendHint, 0, &parentBackend, &maxTextureSize);
+
+  TextureFactoryIdentifier textureFactoryIdentifier;
+  PLayerTransactionChild* shadowManager;
+  mozilla::layers::LayersBackend backendHint = GetPreferredCompositorBackend();
+
+  shadowManager = mCompositorChild->SendPLayerTransactionConstructor(
+    backendHint, 0, &textureFactoryIdentifier);
 
   if (shadowManager) {
     ShadowLayerForwarder* lf = lm->AsShadowForwarder();
@@ -906,26 +917,27 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
       return;
     }
     lf->SetShadowManager(shadowManager);
-    lf->SetParentBackendType(parentBackend);
-    lf->SetMaxTextureSize(maxTextureSize);
+    lf->IdentifyTextureHost(textureFactoryIdentifier);
 
     mLayerManager = lm;
-  } else {
-    // We don't currently want to support not having a LayersChild
-    NS_RUNTIMEABORT("failed to construct LayersChild");
-    delete lm;
-    mCompositorChild = nullptr;
+    return;
   }
+
+  // Failed to create a compositor!
+  NS_WARNING("Failed to create an OMT compositor.");
+  DestroyCompositor();
+  // Compositor child had the only reference to LayerManager and will have
+  // deallocated it when being freed.
 }
 
 bool nsBaseWidget::ShouldUseOffMainThreadCompositing()
 {
   bool isSmallPopup = ((mWindowType == eWindowType_popup) &&
-                      (mPopupType != ePopupTypePanel));
+                      (mPopupType != ePopupTypePanel)) || (mWindowType == eWindowType_invisible);
   return CompositorParent::CompositorLoop() && !isSmallPopup;
 }
 
-LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
+LayerManager* nsBaseWidget::GetLayerManager(PLayerTransactionChild* aShadowManager,
                                             LayersBackend aBackendHint,
                                             LayerManagerPersistence aPersistence,
                                             bool* aAllowRetaining)
@@ -975,7 +987,7 @@ LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
 
 BasicLayerManager* nsBaseWidget::CreateBasicLayerManager()
 {
-      return new BasicShadowLayerManager(this);
+  return new BasicLayerManager(this);
 }
 
 CompositorChild* nsBaseWidget::GetRemoteRenderer()
@@ -1207,11 +1219,10 @@ nsBaseWidget::SetLayersAcceleration(bool aEnabled)
   if (usedAcceleration == mUseLayersAcceleration) {
     return NS_OK;
   }
-
   if (mLayerManager) {
     mLayerManager->Destroy();
   }
-  mLayerManager = NULL;
+  mLayerManager = nullptr;
   return NS_OK;
 }
 
@@ -1441,6 +1452,9 @@ nsBaseWidget::NotifyUIStateChanged(UIStateChangeType aShowAccelerators,
     return;
 
   nsIPresShell* presShell = mWidgetListener->GetPresShell();
+  if (!presShell)
+    return;
+
   nsIDocument* doc = presShell->GetDocument();
   if (doc) {
     nsPIDOMWindow* win = doc->GetWindow();

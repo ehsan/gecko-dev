@@ -20,6 +20,7 @@ import android.database.ContentObserver;
 import android.graphics.Color;
 import android.net.Uri;
 import android.util.Log;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -84,7 +85,8 @@ public class Tabs implements GeckoEventListener {
         registerEventListener("Content:PageShow");
         registerEventListener("DOMContentLoaded");
         registerEventListener("DOMTitleChanged");
-        registerEventListener("DOMLinkAdded");
+        registerEventListener("Link:Favicon");
+        registerEventListener("Link:Feed");
         registerEventListener("DesktopMode:Changed");
     }
 
@@ -153,6 +155,15 @@ public class Tabs implements GeckoEventListener {
         return count;
     }
 
+    public synchronized int isOpen(String url) {
+        for (Tab tab : mOrder) {
+            if (tab.getURL().equals(url)) {
+                return tab.getId();
+            }
+        }
+        return -1;
+    }
+
     // Must be synchronized to avoid racing on mContentObserver.
     private void lazyRegisterBookmarkObserver() {
         if (mContentObserver == null) {
@@ -169,8 +180,8 @@ public class Tabs implements GeckoEventListener {
     }
 
     private Tab addTab(int id, String url, boolean external, int parentId, String title, boolean isPrivate) {
-        final Tab tab = isPrivate ? new PrivateTab(id, url, external, parentId, title) :
-                                    new Tab(id, url, external, parentId, title);
+        final Tab tab = isPrivate ? new PrivateTab(mActivity, id, url, external, parentId, title) :
+                                    new Tab(mActivity, id, url, external, parentId, title);
         synchronized (this) {
             lazyRegisterBookmarkObserver();
             mTabs.put(id, tab);
@@ -437,9 +448,12 @@ public class Tabs implements GeckoEventListener {
                 notifyListeners(tab, Tabs.TabEvents.LOADED);
             } else if (event.equals("DOMTitleChanged")) {
                 tab.updateTitle(message.getString("title"));
-            } else if (event.equals("DOMLinkAdded")) {
+            } else if (event.equals("Link:Favicon")) {
                 tab.updateFaviconURL(message.getString("href"), message.getInt("size"));
-                notifyListeners(tab, TabEvents.LINK_ADDED);
+                notifyListeners(tab, TabEvents.LINK_FAVICON);
+            } else if (event.equals("Link:Feed")) {
+                tab.setFeedsEnabled(true);
+                notifyListeners(tab, TabEvents.LINK_FEED);
             } else if (event.equals("DesktopMode:Changed")) {
                 tab.setDesktopMode(message.getBoolean("desktopMode"));
                 notifyListeners(tab, TabEvents.DESKTOP_MODE_CHANGE);
@@ -492,7 +506,8 @@ public class Tabs implements GeckoEventListener {
         LOCATION_CHANGE,
         MENU_UPDATED,
         PAGE_SHOW,
-        LINK_ADDED,
+        LINK_FAVICON,
+        LINK_FEED,
         SECURITY_CHANGE,
         READER_ENABLED,
         DESKTOP_MODE_CHANGE

@@ -136,8 +136,6 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * object by placing it on the prototype chain of our element,
      * between the element itself and its most-derived DOM prototype.
      *
-     * GetCanonicalPrototype returns this most-derived DOM prototype.
-     *
      * SetupProtoChain handles actually inserting the plug-in
      * scriptable object into the proto chain if needed.
      *
@@ -145,22 +143,15 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * page is looking up a property name on our object and make sure
      * that our plug-in, if any, is instantiated.
      */
-
-    /**
-     * Get the canonical prototype for this content for the given global.  Only
-     * returns non-null for objects that are on WebIDL bindings.
-     */
-    virtual JSObject* GetCanonicalPrototype(JSContext* aCx, JSObject* aGlobal);
-
     // Helper for WebIDL node wrapping
-    void SetupProtoChain(JSContext* aCx, JSObject* aObject);
+    void SetupProtoChain(JSContext* aCx, JS::Handle<JSObject*> aObject);
 
     // Remove plugin from protochain
     void TeardownProtoChain();
 
     // Helper for WebIDL newResolve
     bool DoNewResolve(JSContext* aCx, JSHandleObject aObject, JSHandleId aId,
-                      unsigned aFlags, JSMutableHandleObject aObjp);
+                      unsigned aFlags, JS::MutableHandle<JSObject*> aObjp);
 
     // WebIDL API
     nsIDocument* GetContentDocument();
@@ -204,7 +195,7 @@ class nsObjectLoadingContent : public nsImageLoadingContent
     {
       aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
     }
-    JS::Value LegacyCall(JSContext* aCx, JS::Value aThisVal,
+    JS::Value LegacyCall(JSContext* aCx, JS::Handle<JS::Value> aThisVal,
                          const mozilla::dom::Sequence<JS::Value>& aArguments,
                          mozilla::ErrorResult& aRv);
 
@@ -447,6 +438,35 @@ class nsObjectLoadingContent : public nsImageLoadingContent
      * Does not flush.
      */
     nsObjectFrame* GetExistingFrame();
+
+    // Helper class for SetupProtoChain
+    class SetupProtoChainRunner MOZ_FINAL : public nsIRunnable
+    {
+    public:
+      NS_DECL_ISUPPORTS
+
+      SetupProtoChainRunner(nsIScriptContext* scriptContext,
+                            nsObjectLoadingContent* aContent);
+
+      NS_IMETHOD Run();
+
+    private:
+      nsCOMPtr<nsIScriptContext> mContext;
+      // We store an nsIObjectLoadingContent because we can
+      // unambiguously refcount that.
+      nsRefPtr<nsIObjectLoadingContent> mContent;
+    };
+
+    // Utility getter for getting our nsNPAPIPluginInstance in a safe way.
+    nsresult ScriptRequestPluginInstance(JSContext* aCx,
+                                         nsNPAPIPluginInstance** aResult);
+
+    // Utility method for getting our plugin JSObject
+    static nsresult GetPluginJSObject(JSContext *cx,
+                                      JS::Handle<JSObject*> obj,
+                                      nsNPAPIPluginInstance *plugin_inst,
+                                      JSObject **plugin_obj,
+                                      JSObject **plugin_proto);
 
     // The final listener for mChannel (uriloader, pluginstreamlistener, etc.)
     nsCOMPtr<nsIStreamListener> mFinalListener;

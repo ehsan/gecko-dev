@@ -18,14 +18,12 @@
 #include "nsIDocument.h"
 #include "nsIDOMDataContainerEvent.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMEventTarget.h"
 #include "nsIExternalProtocolHandler.h"
 #include "nsEventStates.h"
 #include "nsIObjectFrame.h"
 #include "nsIPermissionManager.h"
 #include "nsPluginHost.h"
 #include "nsJSNPRuntime.h"
-#include "nsIJSContextStack.h"
 #include "nsIPresShell.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
@@ -75,6 +73,7 @@
 #include "nsWidgetsCID.h"
 #include "nsContentCID.h"
 #include "mozilla/dom/BindingUtils.h"
+#include "mozilla/Telemetry.h"
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
@@ -799,6 +798,14 @@ nsObjectLoadingContent::InstantiatePluginInstance(bool aIsLoading)
 
   mInstanceOwner = newOwner;
 
+  // Ensure the frame did not change during instantiation re-entry (common).
+  // HasNewFrame would not have mInstanceOwner yet, so the new frame would be
+  // dangling. (Bug 854082)
+  nsIFrame* frame = thisContent->GetPrimaryFrame();
+  if (frame && mInstanceOwner) {
+    mInstanceOwner->SetFrame(static_cast<nsObjectFrame*>(frame));
+  }
+
   // Set up scripting interfaces.
   NotifyContentObjectWrapper();
 
@@ -978,9 +985,8 @@ nsObjectLoadingContent::GetFrameLoader(nsIFrameLoader** aFrameLoader)
 NS_IMETHODIMP_(already_AddRefed<nsFrameLoader>)
 nsObjectLoadingContent::GetFrameLoader()
 {
-  nsFrameLoader* loader = mFrameLoader;
-  NS_IF_ADDREF(loader);
-  return loader;
+  nsRefPtr<nsFrameLoader> loader = mFrameLoader;
+  return loader.forget();
 }
 
 NS_IMETHODIMP
@@ -1031,15 +1037,9 @@ nsObjectLoadingContent::HasNewFrame(nsIObjectFrame* aFrame)
   }
 
   // Otherwise, we're just changing frames
-  mInstanceOwner->SetFrame(nullptr);
-
   // Set up relationship between instance owner and frame.
   nsObjectFrame *objFrame = static_cast<nsObjectFrame*>(aFrame);
   mInstanceOwner->SetFrame(objFrame);
-
-  // Set up new frame to draw.
-  objFrame->FixupWindow(objFrame->GetContentRectRelativeToSelf().Size());
-  objFrame->InvalidateFrame();
 
   return NS_OK;
 }
@@ -2318,7 +2318,6 @@ nsObjectLoadingContent::PluginDestroyed()
   // plugins in plugin host. Invalidate instance owner / prototype but otherwise
   // don't take any action.
   TeardownProtoChain();
-  mInstanceOwner->SetFrame(nullptr);
   mInstanceOwner->Destroy();
   mInstanceOwner = nullptr;
   return NS_OK;
@@ -2363,10 +2362,21 @@ nsObjectLoadingContent::PluginCrashed(nsIPluginTag* aPluginTag,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsObjectLoadingContent::ScriptRequestPluginInstance(bool aCallerIsContentJS,
+nsresult
+nsObjectLoadingContent::ScriptRequestPluginInstance(JSContext* aCx,
                                                     nsNPAPIPluginInstance **aResult)
 {
+  // The below methods pull the cx off the stack, so make sure they match.
+  //
+  // NB: Sometimes there's a null cx on the stack, in which case |cx| is the
+  // safe JS context. But in that case, IsCallerChrome() will return true,
+  // so the ensuing expression is short-circuited.
+  MOZ_ASSERT_IF(nsContentUtils::GetCurrentJSContext(),
+                aCx == nsContentUtils::GetCurrentJSContext());
+  bool callerIsContentJS = (!nsContentUtils::IsCallerChrome() &&
+                            !nsContentUtils::IsCallerXBL() &&
+                            js::IsContextRunningJS(aCx));
+
   nsCOMPtr<nsIContent> thisContent =
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
 
@@ -2375,7 +2385,7 @@ nsObjectLoadingContent::ScriptRequestPluginInstance(bool aCallerIsContentJS,
   // The first time content script attempts to access placeholder content, fire
   // an event.  Fallback types >= eFallbackClickToPlay are plugin-replacement
   // types, see header.
-  if (aCallerIsContentJS && !mScriptRequested &&
+  if (callerIsContentJS && !mScriptRequested &&
       InActiveDocument(thisContent) && mType == eType_Null &&
       mFallbackType >= eFallbackClickToPlay) {
     nsCOMPtr<nsIRunnable> ev =
@@ -2591,6 +2601,8 @@ nsObjectLoadingContent::StopPluginInstance()
     CloseChannel();
   }
 
+  // We detach the instance owner's frame before destruction, but don't destroy
+  // the instance owner until the plugin is stopped.
   mInstanceOwner->SetFrame(nullptr);
 
   bool delayedStop = false;
@@ -2627,7 +2639,7 @@ nsObjectLoadingContent::NotifyContentObjectWrapper()
   if (!doc)
     return;
 
-  nsIScriptGlobalObject *sgo = doc->GetScopeObject();
+  nsCOMPtr<nsIScriptGlobalObject> sgo =  do_QueryInterface(doc->GetScopeObject());
   if (!sgo)
     return;
 
@@ -2639,34 +2651,14 @@ nsObjectLoadingContent::NotifyContentObjectWrapper()
   nsCxPusher pusher;
   pusher.Push(cx);
 
-  JSObject *obj = thisContent->GetWrapper();
+  JS::Rooted<JSObject*> obj(cx, thisContent->GetWrapper());
   if (!obj) {
     // Nothing to do here if there's no wrapper for mContent. The proto
     // chain will be fixed appropriately when the wrapper is created.
     return;
   }
 
-  JSAutoCompartment ac(cx, obj);
-
-  nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
-  JSObject* canonicalPrototype = nullptr;
-  if (thisContent->IsDOMBinding()) {
-    canonicalPrototype =
-      GetCanonicalPrototype(cx, JS_GetGlobalForObject(cx, obj));
-  } else{
-    nsContentUtils::XPConnect()->
-      GetWrappedNativeOfNativeObject(cx, sgo->GetGlobalJSObject(), thisContent,
-                                     NS_GET_IID(nsISupports),
-                                     getter_AddRefs(wrapper));
-  }
-
-  nsHTMLPluginObjElementSH::SetupProtoChain(cx, obj, wrapper, canonicalPrototype);
-}
-
-JSObject*
-nsObjectLoadingContent::GetCanonicalPrototype(JSContext* aCx, JSObject* aGlobal)
-{
-  return nullptr;
+  SetupProtoChain(cx, obj);
 }
 
 NS_IMETHODIMP
@@ -2846,25 +2838,30 @@ nsObjectLoadingContent::GetContentDocument()
     return nullptr;
   }
 
+  // Return null for cross-origin contentDocument.
+  if (!nsContentUtils::GetSubjectPrincipal()->Subsumes(sub_doc->NodePrincipal())) {
+    return nullptr;
+  }
+
   return sub_doc;
 }
 
 JS::Value
 nsObjectLoadingContent::LegacyCall(JSContext* aCx,
-                                   JS::Value aThisVal,
+                                   JS::Handle<JS::Value> aThisVal,
                                    const Sequence<JS::Value>& aArguments,
                                    ErrorResult& aRv)
 {
   nsCOMPtr<nsIContent> thisContent =
     do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
-  JSObject* obj = thisContent->GetWrapper();
+  JS::Rooted<JSObject*> obj(aCx, thisContent->GetWrapper());
   MOZ_ASSERT(obj, "How did we get called?");
 
   // Make sure we're not dealing with an Xray.  Our DoCall code can't handle
   // random cross-compartment wrappers, so we're going to have to wrap
   // everything up into our compartment, but that means we need to check that
   // this is not an Xray situation by hand.
-  if (!JS_WrapObject(aCx, &obj)) {
+  if (!JS_WrapObject(aCx, obj.address())) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return JS::UndefinedValue();
   }
@@ -2888,53 +2885,205 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
     }
   }
 
-  if (!JS_WrapValue(aCx, &aThisVal)) {
+  JS::Rooted<JS::Value> thisVal(aCx, aThisVal);
+  if (!JS_WrapValue(aCx, thisVal.address())) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return JS::UndefinedValue();
   }
 
-  JS::Value retval;
-  bool otherRetval;
-  nsresult rv =
-    nsHTMLPluginObjElementSH::DoCall(nullptr, aCx, obj, args.Length(),
-                                     args.Elements(), &retval, aThisVal,
-                                     &otherRetval);
+  nsRefPtr<nsNPAPIPluginInstance> pi;
+  nsresult rv = ScriptRequestPluginInstance(aCx, getter_AddRefs(pi));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return JS::UndefinedValue();
   }
 
-  if (!otherRetval) {
+  // if there's no plugin around for this object, throw.
+  if (!pi) {
+    aRv.Throw(NS_ERROR_NOT_AVAILABLE);
+    return JS::UndefinedValue();
+  }
+
+  JS::Rooted<JSObject*> pi_obj(aCx);
+  JS::Rooted<JSObject*> pi_proto(aCx);
+
+  rv = GetPluginJSObject(aCx, obj, pi, pi_obj.address(), pi_proto.address());
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+    return JS::UndefinedValue();
+  }
+
+  if (!pi_obj) {
+    aRv.Throw(NS_ERROR_NOT_AVAILABLE);
+    return JS::UndefinedValue();
+  }
+
+  JS::Rooted<JS::Value> retval(aCx);
+  bool ok = ::JS::Call(aCx, thisVal, pi_obj, args.Length(),
+                       args.Elements(), retval.address());
+  if (!ok) {
     aRv.Throw(NS_ERROR_FAILURE);
     return JS::UndefinedValue();
   }
+
+  Telemetry::Accumulate(Telemetry::PLUGIN_CALLED_DIRECTLY, true);
   return retval;
 }
 
 void
-nsObjectLoadingContent::SetupProtoChain(JSContext* aCx, JSObject* aObject)
+nsObjectLoadingContent::SetupProtoChain(JSContext* aCx,
+                                        JS::Handle<JSObject*> aObject)
 {
-  // We get called on random compartments here for some reason
-  // (perhaps because WrapObject can happen on a random compartment?)
-  // so make sure to enter the compartment of aObject.
-  JSAutoCompartment ac(aCx, aObject);
   MOZ_ASSERT(nsCOMPtr<nsIContent>(do_QueryInterface(
     static_cast<nsIObjectLoadingContent*>(this)))->IsDOMBinding());
-  if (nsContentUtils::IsSafeToRunScript()) {
-    nsHTMLPluginObjElementSH::SetupProtoChain(aCx, aObject, nullptr,
-                                              GetCanonicalPrototype(aCx,
-                                                                    JS_GetGlobalForObject(aCx, aObject)));
-  } else {
+
+  if (mType != eType_Plugin) {
+    return;
+  }
+
+  if (!nsContentUtils::IsSafeToRunScript()) {
     // This may be null if the JS context is not a DOM context. That's ok, we'll
     // use the safe context from XPConnect in the runnable.
     nsCOMPtr<nsIScriptContext> scriptContext = GetScriptContextFromJSContext(aCx);
 
-    nsRefPtr<nsHTMLPluginObjElementSH::SetupProtoChainRunner> runner =
-      new nsHTMLPluginObjElementSH::SetupProtoChainRunner(nullptr,
-                                                          scriptContext,
-                                                          this);
+    nsRefPtr<SetupProtoChainRunner> runner =
+      new SetupProtoChainRunner(scriptContext, this);
     nsContentUtils::AddScriptRunner(runner);
+    return;
   }
+
+  // We get called on random compartments here for some reason
+  // (perhaps because WrapObject can happen on a random compartment?)
+  // so make sure to enter the compartment of aObject.
+  MOZ_ASSERT(aCx == nsContentUtils::GetCurrentJSContext());
+
+  JSAutoRequest ar(aCx);
+  JSAutoCompartment ac(aCx, aObject);
+
+  nsRefPtr<nsNPAPIPluginInstance> pi;
+  nsresult rv = ScriptRequestPluginInstance(aCx, getter_AddRefs(pi));
+  if (NS_FAILED(rv)) {
+    return;
+  }
+
+  if (!pi) {
+    // No plugin around for this object.
+    return;
+  }
+
+  JS::Rooted<JSObject*> pi_obj(aCx); // XPConnect-wrapped peer object, when we get it.
+  JS::Rooted<JSObject*> pi_proto(aCx); // 'pi.__proto__'
+
+  rv = GetPluginJSObject(aCx, aObject, pi, pi_obj.address(), pi_proto.address());
+  if (NS_FAILED(rv)) {
+    return;
+  }
+
+  if (!pi_obj) {
+    // Didn't get a plugin instance JSObject, nothing we can do then.
+    return;
+  }
+
+  // If we got an xpconnect-wrapped plugin object, set obj's
+  // prototype's prototype to the scriptable plugin.
+
+  JS::Rooted<JSObject*> global(aCx, JS_GetGlobalForObject(aCx, aObject));
+  JS::Handle<JSObject*> my_proto = GetDOMClass(aObject)->mGetProto(aCx, global);
+  MOZ_ASSERT(my_proto);
+
+  // Set 'this.__proto__' to pi
+  if (!::JS_SetPrototype(aCx, aObject, pi_obj)) {
+    return;
+  }
+
+  if (pi_proto && js::GetObjectClass(pi_proto) != &js::ObjectClass) {
+    // The plugin wrapper has a proto that's not Object.prototype, set
+    // 'pi.__proto__.__proto__' to the original 'this.__proto__'
+    if (pi_proto != my_proto && !::JS_SetPrototype(aCx, pi_proto, my_proto)) {
+      return;
+    }
+  } else {
+    // 'pi' didn't have a prototype, or pi's proto was
+    // 'Object.prototype' (i.e. pi is an NPRuntime wrapped JS object)
+    // set 'pi.__proto__' to the original 'this.__proto__'
+    if (!::JS_SetPrototype(aCx, pi_obj, my_proto)) {
+      return;
+    }
+  }
+
+  // Before this proto dance the objects involved looked like this:
+  //
+  // this.__proto__.__proto__
+  //   ^      ^         ^
+  //   |      |         |__ Object.prototype
+  //   |      |
+  //   |      |__ WebIDL prototype (shared)
+  //   |
+  //   |__ WebIDL object
+  //
+  // pi.__proto__
+  // ^      ^
+  // |      |__ Object.prototype or some other object
+  // |
+  // |__ Plugin NPRuntime JS object wrapper
+  //
+  // Now, after the above prototype setup the prototype chain should
+  // look like this if pi.__proto__ was Object.prototype:
+  //
+  // this.__proto__.__proto__.__proto__
+  //   ^      ^         ^         ^
+  //   |      |         |         |__ Object.prototype
+  //   |      |         |
+  //   |      |         |__ WebIDL prototype (shared)
+  //   |      |
+  //   |      |__ Plugin NPRuntime JS object wrapper
+  //   |
+  //   |__ WebIDL object
+  //
+  // or like this if pi.__proto__ was some other object:
+  //
+  // this.__proto__.__proto__.__proto__.__proto__
+  //   ^      ^         ^         ^         ^
+  //   |      |         |         |         |__ Object.prototype
+  //   |      |         |         |
+  //   |      |         |         |__ WebIDL prototype (shared)
+  //   |      |         |
+  //   |      |         |__ old pi.__proto__
+  //   |      |
+  //   |      |__ Plugin NPRuntime JS object wrapper
+  //   |
+  //   |__ WebIDL object
+  //
+}
+
+// static
+nsresult
+nsObjectLoadingContent::GetPluginJSObject(JSContext *cx,
+                                          JS::Handle<JSObject*> obj,
+                                          nsNPAPIPluginInstance *plugin_inst,
+                                          JSObject **plugin_obj,
+                                          JSObject **plugin_proto)
+{
+  *plugin_obj = nullptr;
+  *plugin_proto = nullptr;
+
+  JSAutoRequest ar(cx);
+
+  // NB: We need an AutoEnterCompartment because we can be called from
+  // nsObjectFrame when the plugin loads after the JS object for our content
+  // node has been created.
+  JSAutoCompartment ac(cx, obj);
+
+  if (plugin_inst) {
+    plugin_inst->GetJSObject(cx, plugin_obj);
+    if (*plugin_obj) {
+      if (!::JS_GetPrototype(cx, *plugin_obj, plugin_proto)) {
+        return NS_ERROR_UNEXPECTED;
+      }
+    }
+  }
+
+  return NS_OK;
 }
 
 void
@@ -2946,10 +3095,10 @@ nsObjectLoadingContent::TeardownProtoChain()
   // Use the safe JSContext here as we're not always able to find the
   // JSContext associated with the NPP any more.
   JSContext *cx = nsContentUtils::GetSafeJSContext();
-  JSObject *obj = thisContent->GetWrapper();
+  JS::Rooted<JSObject*> obj(cx, thisContent->GetWrapper());
   NS_ENSURE_TRUE(obj, /* void */);
 
-  JSObject *proto;
+  JS::Rooted<JSObject*> proto(cx);
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, obj);
 
@@ -2957,7 +3106,7 @@ nsObjectLoadingContent::TeardownProtoChain()
   // all JS objects of the class sNPObjectJSWrapperClass
   bool removed = false;
   while (obj) {
-    if (!::JS_GetPrototype(cx, obj, &proto)) {
+    if (!::JS_GetPrototype(cx, obj, proto.address())) {
       return;
     }
     if (!proto) {
@@ -2965,9 +3114,9 @@ nsObjectLoadingContent::TeardownProtoChain()
     }
     // Unwrap while checking the jsclass - if the prototype is a wrapper for
     // an NP object, that counts too.
-    if (JS_GetClass(js::UnwrapObject(proto)) == &sNPObjectJSWrapperClass) {
+    if (JS_GetClass(js::UncheckedUnwrap(proto)) == &sNPObjectJSWrapperClass) {
       // We found an NPObject on the proto chain, get its prototype...
-      if (!::JS_GetPrototype(cx, proto, &proto)) {
+      if (!::JS_GetPrototype(cx, proto, proto.address())) {
         return;
       }
 
@@ -2985,19 +3134,49 @@ nsObjectLoadingContent::TeardownProtoChain()
 bool
 nsObjectLoadingContent::DoNewResolve(JSContext* aCx, JSHandleObject aObject,
                                      JSHandleId aId, unsigned aFlags,
-                                     JSMutableHandleObject aObjp)
+                                     JS::MutableHandle<JSObject*> aObjp)
 {
   // We don't resolve anything; we just try to make sure we're instantiated
 
-  bool callerIsContentJS = (!nsContentUtils::IsCallerChrome() &&
-                            !nsContentUtils::IsCallerXBL() &&
-                            js::IsContextRunningJS(aCx));
-
   nsRefPtr<nsNPAPIPluginInstance> pi;
-  nsresult rv = ScriptRequestPluginInstance(callerIsContentJS,
-                                            getter_AddRefs(pi));
+  nsresult rv = ScriptRequestPluginInstance(aCx, getter_AddRefs(pi));
   if (NS_FAILED(rv)) {
     return mozilla::dom::Throw<true>(aCx, rv);
   }
   return true;
 }
+
+// SetupProtoChainRunner implementation
+nsObjectLoadingContent::SetupProtoChainRunner::SetupProtoChainRunner(
+    nsIScriptContext* scriptContext,
+    nsObjectLoadingContent* aContent)
+  : mContext(scriptContext)
+  , mContent(aContent)
+{
+}
+
+NS_IMETHODIMP
+nsObjectLoadingContent::SetupProtoChainRunner::Run()
+{
+  // XXXbz Does it really matter what JSContext we use here?  Seems
+  // like we could just always use the safe context....
+  nsCxPusher pusher;
+  JSContext* cx = mContext ? mContext->GetNativeContext()
+                           : nsContentUtils::GetSafeJSContext();
+  pusher.Push(cx);
+
+  nsCOMPtr<nsIContent> content;
+  CallQueryInterface(mContent.get(), getter_AddRefs(content));
+  JS::Rooted<JSObject*> obj(cx, content->GetWrapper());
+  if (!obj) {
+    // No need to set up our proto chain if we don't even have an object
+    return NS_OK;
+  }
+  nsObjectLoadingContent* objectLoadingContent =
+    static_cast<nsObjectLoadingContent*>(mContent.get());
+  objectLoadingContent->SetupProtoChain(cx, obj);
+  return NS_OK;
+}
+
+NS_IMPL_ISUPPORTS1(nsObjectLoadingContent::SetupProtoChainRunner, nsIRunnable)
+

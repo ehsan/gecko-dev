@@ -61,14 +61,13 @@ public class TopSitesView extends GridView {
     private static int mNumberOfCols;
 
     public static enum UnpinFlags {
-        REMOVE_PIN,
-        REMOVE_HISTORY
+        REMOVE_PIN
     }
 
     private Context mContext;
     private BrowserApp mActivity;
-    private AboutHomeContent.UriLoadCallback mUriLoadCallback = null;
-    private AboutHomeContent.VoidCallback mLoadCompleteCallback = null;
+    private AboutHome.UriLoadListener mUriLoadListener;
+    private AboutHome.LoadCompleteListener mLoadCompleteListener;
 
     protected TopSitesCursorAdapter mTopSitesAdapter;
 
@@ -106,9 +105,9 @@ public class TopSitesView extends GridView {
                     return;
                 }
 
-                if (mUriLoadCallback != null) {
+                if (mUriLoadListener != null) {
                     // Decode "user-entered" URLs before loading them.
-                    mUriLoadCallback.callback(decodeUserEnteredUrl(spec));
+                    mUriLoadListener.onAboutHomeUriLoad(decodeUserEnteredUrl(spec));
                 }
             }
         });
@@ -131,7 +130,6 @@ public class TopSitesView extends GridView {
                     menu.findItem(R.id.abouthome_open_private_tab).setVisible(false);
                     menu.findItem(R.id.abouthome_topsites_pin).setVisible(false);
                     menu.findItem(R.id.abouthome_topsites_unpin).setVisible(false);
-                    menu.findItem(R.id.abouthome_topsites_remove).setVisible(false);
                 } else if (holder.isPinned()) {
                     menu.findItem(R.id.abouthome_topsites_pin).setVisible(false);
                 } else {
@@ -145,9 +143,16 @@ public class TopSitesView extends GridView {
 
     public void onDestroy() {
         if (mTopSitesAdapter != null) {
-            Cursor cursor = mTopSitesAdapter.getCursor();
-            if (cursor != null && !cursor.isClosed())
-                cursor.close();
+            setAdapter(null);
+            final Cursor cursor = mTopSitesAdapter.getCursor();
+
+            ThreadUtils.postToBackgroundThread(new Runnable() {
+                @Override
+                public void run() {
+                if (cursor != null && !cursor.isClosed())
+                    cursor.close();
+                }
+            });
         }
     }
 
@@ -189,42 +194,44 @@ public class TopSitesView extends GridView {
     }
 
     public void loadTopSites() {
-        final ContentResolver resolver = mContext.getContentResolver();
-        Cursor old = null;
-        if (mTopSitesAdapter != null) {
-            old = mTopSitesAdapter.getCursor();
-        }
-        // Swap in the new cursor.
-        final Cursor oldCursor = old;
-        final Cursor newCursor = BrowserDB.getTopSites(resolver, mNumberOfTopSites);
-
-        post(new Runnable() {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                if (mTopSitesAdapter == null) {
-                    mTopSitesAdapter = new TopSitesCursorAdapter(mContext,
-                                                                 R.layout.abouthome_topsite_item,
-                                                                 newCursor,
-                                                                 new String[] { URLColumns.TITLE },
-                                                                 new int[] { R.id.title });
+                final ContentResolver resolver = mContext.getContentResolver();
 
-                    setAdapter(mTopSitesAdapter);
-                } else {
-                    mTopSitesAdapter.changeCursor(newCursor);
-                }
+                // Swap in the new cursor.
+                final Cursor oldCursor = (mTopSitesAdapter != null) ? mTopSitesAdapter.getCursor() : null;
+                final Cursor newCursor = BrowserDB.getTopSites(resolver, mNumberOfTopSites);
 
-                if (mTopSitesAdapter.getCount() > 0)
-                    loadTopSitesThumbnails(resolver);
+                post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (mTopSitesAdapter == null) {
+                            mTopSitesAdapter = new TopSitesCursorAdapter(mContext,
+                                                                         R.layout.abouthome_topsite_item,
+                                                                         newCursor,
+                                                                         new String[] { URLColumns.TITLE },
+                                                                         new int[] { R.id.title });
 
-                // Free the old Cursor in the right thread now.
-                if (oldCursor != null && !oldCursor.isClosed())
-                    oldCursor.close();
+                            setAdapter(mTopSitesAdapter);
+                        } else {
+                            mTopSitesAdapter.changeCursor(newCursor);
+                        }
 
-                // Even if AboutHome isn't necessarily entirely loaded if we
-                // get here, for phones this is the part the user initially sees,
-                // so it's the one we will care about for now.
-                if (mLoadCompleteCallback != null)
-                    mLoadCompleteCallback.callback();
+                        if (mTopSitesAdapter.getCount() > 0)
+                            loadTopSitesThumbnails(resolver);
+
+                        // Free the old Cursor in the right thread now.
+                        if (oldCursor != null && !oldCursor.isClosed())
+                            oldCursor.close();
+
+                        // Even if AboutHome isn't necessarily entirely loaded if we
+                        // get here, for phones this is the part the user initially sees,
+                        // so it's the one we will care about for now.
+                        if (mLoadCompleteListener != null)
+                            mLoadCompleteListener.onAboutHomeLoadComplete();
+                    }
+                });
             }
         });
     }
@@ -353,19 +360,12 @@ public class TopSitesView extends GridView {
         mNumberOfCols = getResources().getInteger(R.integer.number_of_top_sites_cols);
     }
 
-    public void setUriLoadCallback(AboutHomeContent.UriLoadCallback uriLoadCallback) {
-        mUriLoadCallback = uriLoadCallback;
+    public void setUriLoadListener(AboutHome.UriLoadListener uriLoadListener) {
+        mUriLoadListener = uriLoadListener;
     }
 
-    public void setLoadCompleteCallback(AboutHomeContent.VoidCallback callback) {
-        mLoadCompleteCallback = callback;
-    }
-
-    public void refresh() {
-        if (mTopSitesAdapter != null)
-            mTopSitesAdapter.notifyDataSetChanged();
-
-        setAdapter(mTopSitesAdapter);
+    public void setLoadCompleteListener(AboutHome.LoadCompleteListener listener) {
+        mLoadCompleteListener = listener;
     }
 
     private class TopSitesViewHolder {
@@ -383,6 +383,7 @@ public class TopSitesView extends GridView {
         }
 
         public void setTitle(String title) {
+            Log.i(LOGTAG, "setTitle " + title + " from " + mTitle);
             if (mTitle != null && mTitle.equals(title))
                 return;
             mTitle = title;
@@ -394,8 +395,10 @@ public class TopSitesView extends GridView {
         }
 
         public void setUrl(String url) {
-            if (mUrl != null && mUrl.equals(url))
+            Log.i(LOGTAG, "setUrl " + url + " from " + mUrl);
+            if (mUrl != null && mUrl.equals(url)) {
                 return;
+            }
             mUrl = url;
             updateTitleView();
         }
@@ -412,6 +415,7 @@ public class TopSitesView extends GridView {
             } else {
                 titleView.setVisibility(View.INVISIBLE);
             }
+            titleView.invalidate();
         }
 
         private Drawable getPinDrawable() {
@@ -471,6 +475,7 @@ public class TopSitesView extends GridView {
                 viewHolder = (TopSitesViewHolder) convertView.getTag();
             }
 
+            Log.i(LOGTAG, "Build");
             viewHolder.setTitle(title);
             viewHolder.setUrl(url);
             viewHolder.setPinned(pinned);
@@ -552,9 +557,6 @@ public class TopSitesView extends GridView {
             public Void doInBackground(Void... params) {
                 final ContentResolver resolver = mContext.getContentResolver();
                 BrowserDB.unpinSite(resolver, position);
-                if (flags == UnpinFlags.REMOVE_HISTORY) {
-                    BrowserDB.removeHistoryEntry(resolver, url);
-                }
                 return null;
             }
         }).execute();
@@ -622,6 +624,11 @@ public class TopSitesView extends GridView {
                 String title = data.getStringExtra(AwesomeBar.TITLE_KEY);
                 String url = data.getStringExtra(AwesomeBar.URL_KEY);
 
+                // Bail if the user entered an empty string.
+                if (TextUtils.isEmpty(url)) {
+                    return;
+                }
+
                 // If the user manually entered a search term or URL, wrap the value in
                 // a special URI until we can get a valid URL for this bookmark.
                 if (data.getBooleanExtra(AwesomeBar.USER_ENTERED_KEY, false)) {
@@ -631,6 +638,7 @@ public class TopSitesView extends GridView {
                 }
 
                 clearThumbnailsWithUrl(url);
+                Log.i(LOGTAG, "Edit done: " + url + " " + title);
 
                 holder.setUrl(url);
                 holder.setTitle(title);

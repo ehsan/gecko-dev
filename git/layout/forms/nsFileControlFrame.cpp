@@ -26,7 +26,6 @@
 #include "nsIFilePicker.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsINodeInfo.h"
-#include "nsIDOMEventTarget.h"
 #include "nsIFile.h"
 #include "mozilla/dom/HTMLInputElement.h"
 #include "nsNodeInfoManager.h"
@@ -50,6 +49,7 @@
 #include "nsIDOMDragEvent.h"
 #include "nsContentList.h"
 #include "nsIDOMMutationEvent.h"
+#include "nsTextNode.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -123,14 +123,12 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
   // Set the browse button text. It's a bit of a pain to do because we want to
   // make sure we are not notifying.
-  nsCOMPtr<nsIContent> textContent;
-  nsresult rv = NS_NewTextNode(getter_AddRefs(textContent),
-                               mBrowse->NodeInfo()->NodeInfoManager());
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsRefPtr<nsTextNode> textContent =
+    new nsTextNode(mBrowse->NodeInfo()->NodeInfoManager());
 
   textContent->SetText(buttonTxt, false);
 
-  rv = mBrowse->AppendChildTo(textContent, false);
+  nsresult rv = mBrowse->AppendChildTo(textContent, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Make sure access key and tab order for the element actually redirect to the
@@ -351,20 +349,25 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       nsDisplayBoxShadowOuter(aBuilder, this));
   }
 
-  // Our background is inherited to the text input, and we don't really want to
-  // paint it or out padding and borders (which we never have anyway, per
-  // styles in forms.css) -- doing it just makes us look ugly in some cases and
-  // has no effect in others.
-  nsDisplayListCollection tempList;
-  nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
-
-  tempList.BorderBackground()->DeleteAll();
-
   // Clip height only
   nsRect clipRect(aBuilder->ToReferenceFrame(this), GetSize());
   clipRect.width = GetVisualOverflowRect().XMost();
-  nscoord radii[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-  OverflowClip(aBuilder, tempList, aLists, clipRect, radii);
+
+  nsDisplayListCollection tempList;
+  {
+    DisplayListClipState::AutoSaveRestore clipState(aBuilder);
+    clipState.ClipContainingBlockDescendants(clipRect, nullptr);
+
+    // Our background is inherited to the text input, and we don't really want to
+    // paint it or out padding and borders (which we never have anyway, per
+    // styles in forms.css) -- doing it just makes us look ugly in some cases and
+    // has no effect in others.
+    nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
+  }
+
+  tempList.BorderBackground()->DeleteAll();
+
+  tempList.MoveTo(aLists);
 
   // Disabled file controls don't pass mouse events to their children, so we
   // put an invisible item in the display list above the children

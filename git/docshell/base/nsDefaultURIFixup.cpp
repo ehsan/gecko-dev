@@ -330,49 +330,29 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
     }
     keyword.Trim(" ");
 
-    nsAdoptingCString url = Preferences::GetLocalizedCString("keyword.URL");
-    if (!url) {
-        // Fall back to a non-localized pref, for backwards compat
-        url = Preferences::GetCString("keyword.URL");
-    }
-
-    // If the pref is set and non-empty, use it.
-    if (!url.IsEmpty()) {
-        // Escape keyword, then prepend URL
-        nsAutoCString spec;
-        if (!NS_Escape(keyword, spec, url_XPAlphas)) {
-            return NS_ERROR_OUT_OF_MEMORY;
-        }
-
-        spec.Insert(url, 0);
-
-        nsresult rv = NS_NewURI(aURI, spec);
-        if (NS_FAILED(rv))
-            return rv;
-
-        nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
-        if (obsSvc) {
-            obsSvc->NotifyObservers(*aURI,
-                                    "defaultURIFixup-using-keyword-pref",
-                                    nullptr);
-        }
-        return NS_OK;
-    }
-
 #ifdef MOZ_TOOLKIT_SEARCH
     // Try falling back to the search service's default search engine
     nsCOMPtr<nsIBrowserSearchService> searchSvc = do_GetService("@mozilla.org/browser/search-service;1");
     if (searchSvc) {
         nsCOMPtr<nsISearchEngine> defaultEngine;
-        searchSvc->GetOriginalDefaultEngine(getter_AddRefs(defaultEngine));
+        searchSvc->GetDefaultEngine(getter_AddRefs(defaultEngine));
         if (defaultEngine) {
             nsCOMPtr<nsISearchSubmission> submission;
             // We allow default search plugins to specify alternate
             // parameters that are specific to keyword searches.
-            defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
-                                         EmptyString(),
-                                         NS_LITERAL_STRING("keyword"),
-                                         getter_AddRefs(submission));
+            NS_NAMED_LITERAL_STRING(mozKeywordSearch, "application/x-moz-keywordsearch");
+            bool supportsResponseType = false;
+            defaultEngine->SupportsResponseType(mozKeywordSearch, &supportsResponseType);
+            if (supportsResponseType)
+              defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
+                                           mozKeywordSearch,
+                                           NS_LITERAL_STRING("keyword"),
+                                           getter_AddRefs(submission));
+            else
+              defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
+                                           EmptyString(),
+                                           NS_LITERAL_STRING("keyword"),
+                                           getter_AddRefs(submission));
             if (submission) {
                 // The submission depends on POST data (i.e. the search engine's
                 // "method" is POST), we can't use this engine for keyword
@@ -392,9 +372,7 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
                 // the search engine's name through various function calls.
                 nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
                 if (obsSvc) {
-                  nsAutoString name;
-                  defaultEngine->GetName(name);
-                  obsSvc->NotifyObservers(nullptr, "keyword-search", name.get());
+                    obsSvc->NotifyObservers(defaultEngine, "keyword-search", NS_ConvertUTF8toUTF16(keyword).get());
                 }
 
                 return submission->GetUri(aURI);

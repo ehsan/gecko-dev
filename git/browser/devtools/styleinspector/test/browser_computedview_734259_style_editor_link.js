@@ -51,7 +51,7 @@ function selectNode(aInspector)
 
 function testInlineStyle()
 {
-  Services.obs.removeObserver(testInlineStyle, "StyleInspector-populated", false);
+  Services.obs.removeObserver(testInlineStyle, "StyleInspector-populated");
 
   info("expanding property");
   expandProperty(0, function propertyExpanded() {
@@ -84,22 +84,10 @@ function testInlineStyleSheet()
   let target = TargetFactory.forTab(gBrowser.selectedTab);
   gDevTools.showToolbox(target, "styleeditor").then(function(toolbox) {
     let panel = toolbox.getCurrentPanel();
-    let win = panel._panelWin;
 
-    win.styleEditorChrome.addChromeListener({
-      onEditorAdded: function checkEditor(aChrome, aEditor) {
-        if (!aEditor.sourceEditor) {
-          aEditor.addActionListener({
-            onAttach: function (aEditor) {
-              aEditor.removeActionListener(this);
-              validateStyleEditorSheet(aEditor);
-            }
-          });
-        } else {
-          validateStyleEditorSheet(aEditor);
-        }
-      }
-    });
+    panel.UI.on("editor-added", (event, editor) => {
+      validateStyleEditorSheet(editor);
+    })
   });
 
   let link = getLinkByIndex(1);
@@ -111,7 +99,7 @@ function validateStyleEditorSheet(aEditor)
   info("validating style editor stylesheet");
 
   let sheet = doc.styleSheets[0];
-  is(aEditor.styleSheet, sheet, "loaded stylesheet matches document stylesheet");
+  is(aEditor.styleSheet.href, sheet.href, "loaded stylesheet matches document stylesheet");
 
   finishUp();
 }
