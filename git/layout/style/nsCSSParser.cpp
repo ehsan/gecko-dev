@@ -4043,8 +4043,6 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
                                               nsCSSPseudoClasses::Type aType)
 {
   int32_t numbers[2] = { 0, 0 };
-  int32_t sign[2] = { 1, 1 };
-  bool hasSign[2] = { false, false };
   bool lookForB = true;
 
   // Follow the whitespace rules as proposed in
@@ -4053,17 +4051,6 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
   if (! GetToken(true)) {
     REPORT_UNEXPECTED_EOF(PEPseudoClassArgEOF);
     return eSelectorParsingStatus_Error;
-  }
-
-  if (mToken.IsSymbol('+') || mToken.IsSymbol('-')) {
-    hasSign[0] = true;
-    if (mToken.IsSymbol('-')) {
-      sign[0] = -1;
-    }
-    if (! GetToken(false)) {
-      REPORT_UNEXPECTED_EOF(PEPseudoClassArgEOF);
-      return eSelectorParsingStatus_Error;
-    }
   }
 
   if (eCSSToken_Ident == mToken.mType || eCSSToken_Dimension == mToken.mType) {
@@ -4075,7 +4062,7 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
     uint32_t truncAt = 0;
     if (StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("n-"))) {
       truncAt = 1;
-    } else if (StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("-n-")) && !hasSign[0]) {
+    } else if (StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("-n-"))) {
       truncAt = 2;
     }
     if (truncAt != 0) {
@@ -4085,20 +4072,20 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
   }
 
   if (eCSSToken_Ident == mToken.mType) {
-    if (mToken.mIdent.LowerCaseEqualsLiteral("odd") && !hasSign[0]) {
+    if (mToken.mIdent.LowerCaseEqualsLiteral("odd")) {
       numbers[0] = 2;
       numbers[1] = 1;
       lookForB = false;
     }
-    else if (mToken.mIdent.LowerCaseEqualsLiteral("even") && !hasSign[0]) {
+    else if (mToken.mIdent.LowerCaseEqualsLiteral("even")) {
       numbers[0] = 2;
       numbers[1] = 0;
       lookForB = false;
     }
     else if (mToken.mIdent.LowerCaseEqualsLiteral("n")) {
-      numbers[0] = sign[0];
+      numbers[0] = 1;
     }
-    else if (mToken.mIdent.LowerCaseEqualsLiteral("-n") && !hasSign[0]) {
+    else if (mToken.mIdent.LowerCaseEqualsLiteral("-n")) {
       numbers[0] = -1;
     }
     else {
@@ -4111,43 +4098,15 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
       REPORT_UNEXPECTED_TOKEN(PEPseudoClassArgNotNth);
       return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
     }
-    // for +-an case
-    if (mToken.mHasSign && hasSign[0]) {
-      REPORT_UNEXPECTED_TOKEN(PEPseudoClassArgNotNth);
-      return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
-    }
-    int32_t intValue = mToken.mInteger * sign[0];
-    // for -a/**/n case
-    if (! GetToken(false)) {
-      numbers[1] = intValue;
-      lookForB = false;
-    }
-    else {
-      if (eCSSToken_Ident == mToken.mType && mToken.mIdent.LowerCaseEqualsLiteral("n")) {
-        numbers[0] = intValue;
-      }
-      else if (eCSSToken_Ident == mToken.mType && StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("n-"))) {
-        numbers[0] = intValue;
-        mScanner->Backup(mToken.mIdent.Length() - 1);
-      }
-      else {
-        UngetToken();
-        numbers[1] = intValue;
-        lookForB = false;
-      }
-    }
+    numbers[1] = mToken.mInteger;
+    lookForB = false;
   }
   else if (eCSSToken_Dimension == mToken.mType) {
     if (!mToken.mIntegerValid || !mToken.mIdent.LowerCaseEqualsLiteral("n")) {
       REPORT_UNEXPECTED_TOKEN(PEPseudoClassArgNotNth);
       return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
     }
-    // for +-an case
-    if ( mToken.mHasSign && hasSign[0] ) {
-      REPORT_UNEXPECTED_TOKEN(PEPseudoClassArgNotNth);
-      return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
-    }
-    numbers[0] = mToken.mInteger * sign[0];
+    numbers[0] = mToken.mInteger;
   }
   // XXX If it's a ')', is that valid?  (as 0n+0)
   else {
@@ -4164,10 +4123,12 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
     // The '+' or '-' sign can optionally be separated by whitespace.
     // If it is separated by whitespace from what follows it, it appears
     // as a separate token rather than part of the number token.
+    bool haveSign = false;
+    int32_t sign = 1;
     if (mToken.IsSymbol('+') || mToken.IsSymbol('-')) {
-      hasSign[1] = true;
+      haveSign = true;
       if (mToken.IsSymbol('-')) {
-        sign[1] = -1;
+        sign = -1;
       }
       if (! GetToken(true)) {
         REPORT_UNEXPECTED_EOF(PEPseudoClassArgEOF);
@@ -4175,12 +4136,11 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
       }
     }
     if (eCSSToken_Number != mToken.mType ||
-        !mToken.mIntegerValid || mToken.mHasSign == hasSign[1]) {
+        !mToken.mIntegerValid || mToken.mHasSign == haveSign) {
       REPORT_UNEXPECTED_TOKEN(PEPseudoClassArgNotNth);
-      UngetToken();
       return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
     }
-    numbers[1] = mToken.mInteger * sign[1];
+    numbers[1] = mToken.mInteger * sign;
     if (! GetToken(true)) {
       REPORT_UNEXPECTED_EOF(PEPseudoClassArgEOF);
       return eSelectorParsingStatus_Error;
@@ -9005,16 +8965,19 @@ CSSParserImpl::ParseOneFamily(nsAString& aFamily, bool& aOneKeyword)
 
       if (eCSSToken_Ident == tk->mType) {
         aOneKeyword = false;
-        // We had at least another keyword before.
-        // "If a sequence of identifiers is given as a font family name,
-        //  the computed value is the name converted to a string by joining
-        //  all the identifiers in the sequence by single spaces."
-        // -- CSS 2.1, section 15.3
-        // Whitespace tokens do not actually matter,
-        // identifier tokens can be separated by comments.
-        aFamily.Append(PRUnichar(' '));
         aFamily.Append(tk->mIdent);
-      } else if (eCSSToken_Whitespace != tk->mType) {
+      } else if (eCSSToken_Whitespace == tk->mType) {
+        // Lookahead one token and drop whitespace if we are ending the
+        // font name.
+        if (!GetToken(true))
+          break;
+
+        UngetToken();
+        if (eCSSToken_Ident == tk->mType)
+          aFamily.Append(PRUnichar(' '));
+        else
+          break;
+      } else {
         UngetToken();
         break;
       }

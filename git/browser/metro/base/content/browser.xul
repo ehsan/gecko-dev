@@ -197,7 +197,7 @@
         </hbox>
 
         <!-- Start UI -->
-        <hbox id="start-container" flex="1" observes="bcast_windowState" class="meta content-height content-width">
+        <hbox id="start-container" flex="1" observes="bcast_windowState" class="meta content-height content-width" onclick="false;">
           <!-- portrait/landscape/filled view -->
           <hbox id="start" class="start-page" flex="1" observes="bcast_windowState">
             <scrollbox id="start-scrollbox" orient="horizontal" flex="1">
@@ -307,8 +307,8 @@
       </deck>
     </vbox>
 
-    <!-- Navbar -->
-    <appbar id="navbar" mousethrough="never" observes="bcast_windowState">
+    <!-- Windows 8 Appbar -->
+    <appbar id="appbar" mousethrough="never" observes="bcast_windowState">
       <hbox id="progress-container" layer="true">
         <hbox id="progress-control" />
       </hbox>
@@ -360,7 +360,6 @@
       </toolbar>
     </appbar>
 
-    <!-- Context button bar -->
     <appbar id="contextappbar">
       <toolbar id="contextualactions-tray" flex="1">
         <toolbarbutton id="delete-selected-button" hidden="true" fade="true" oncommand="Appbar.dispatchContextualAction('delete')"/>
@@ -512,9 +511,6 @@
         </hbox>
       </settings>
       <setting pref="signon.rememberSignons" title="&optionsHeader.privacy.passwords.label;" type="bool"/>
-      <settings id="prefs-reporting" label="&optionsHeader.reporting.title;">
-        <setting pref="app.reportCrashes" type="bool" title="&optionsHeader.reporting.crashes.label;" oncommand="BrowserUI.crashReportingPrefChanged(this.value);"/>
-      </settings>
       <settings id="prefs-dnt" label="&doNotTrack.title;">
         <description>&doNotTrack.desc;</description>
         <setting id="prefs-dnt-value" pref="privacy.donottrackheader.value" onpreferencechanged="PreferencesPanelView.onDNTPreferenceChanged()" type="radio" >

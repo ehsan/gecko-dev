@@ -6,7 +6,6 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.background.announcements.AnnouncementsConstants;
-import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.GeckoPreferenceFragment;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -290,9 +289,6 @@ public class GeckoPreferences
      * Broadcast an intent with <code>pref</code>, <code>branch</code>, and
      * <code>enabled</code> extras. This is intended to represent the
      * notification of a preference value to observers.
-     *
-     * The broadcast will be sent only to receivers registered with the
-     * (Fennec-specific) per-Android package permission.
      */
     public static void broadcastPrefAction(final Context context,
                                            final String action,
@@ -304,7 +300,7 @@ public class GeckoPreferences
         intent.putExtra("branch", GeckoApp.PREFS_NAME);
         intent.putExtra("enabled", value);
         Log.d(LOGTAG, "Broadcast: " + action + ", " + pref + ", " + GeckoApp.PREFS_NAME + ", " + value);
-        context.sendBroadcast(intent, GlobalConstants.PER_ANDROID_PACKAGE_PERMISSION);
+        context.sendBroadcast(intent);
     }
 
     /**
@@ -355,9 +351,9 @@ public class GeckoPreferences
         } else if (PREFS_ANNOUNCEMENTS_ENABLED.equals(prefName)) {
             // Send a broadcast intent to the product announcements service, either to start or
             // to stop the repeated background checks.
-            broadcastAnnouncementsPref(GeckoAppShell.getContext(), ((Boolean) newValue).booleanValue());
+            broadcastAnnouncementsPref(GeckoApp.mAppContext, ((Boolean) newValue).booleanValue());
         } else if (PREFS_UPDATER_AUTODOWNLOAD.equals(prefName)) {
-            org.mozilla.gecko.updater.UpdateServiceHelper.registerForUpdates(GeckoAppShell.getContext(), (String) newValue);
+            org.mozilla.gecko.updater.UpdateServiceHelper.registerForUpdates(GeckoApp.mAppContext, (String) newValue);
         } else if (PREFS_HEALTHREPORT_UPLOAD_ENABLED.equals(prefName)) {
             // Healthreport pref only lives in Android. Do not persist to Gecko.
             return true;
@@ -381,7 +377,7 @@ public class GeckoPreferences
     }
 
     private EditText getTextBox(int aHintText) {
-        EditText input = new EditText(GeckoAppShell.getContext());
+        EditText input = new EditText(GeckoApp.mAppContext);
         int inputtype = InputType.TYPE_CLASS_TEXT;
         inputtype |= InputType.TYPE_TEXT_VARIATION_PASSWORD | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS;
         input.setInputType(inputtype);

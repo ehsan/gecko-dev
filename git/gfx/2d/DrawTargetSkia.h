@@ -102,7 +102,6 @@ public:
     stream << "DrawTargetSkia(" << this << ")";
     return stream.str();
   }
-
 private:
   friend class SourceSurfaceSkia;
   void AppendSnapshot(SourceSurfaceSkia* aSnapshot);
@@ -111,7 +110,9 @@ private:
   void MarkChanged();
 
   IntSize mSize;
+  SkBitmap mBitmap;
   SkRefPtr<SkCanvas> mCanvas;
+  SkRefPtr<SkDevice> mDevice;
   std::vector<SourceSurfaceSkia*> mSnapshots;
 };
 

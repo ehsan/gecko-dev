@@ -48,9 +48,9 @@ public class SiteIdentityPopup extends PopupWindow {
     private int mYOffset;
 
     private SiteIdentityPopup() {
-        super(GeckoAppShell.getContext());
+        super(GeckoApp.mAppContext);
 
-        mResources = GeckoAppShell.getContext().getResources();
+        mResources = GeckoApp.mAppContext.getResources();
         mYOffset = mResources.getDimensionPixelSize(R.dimen.menu_popup_offset);
         mInflated = false;
         setAnimationStyle(R.style.PopupAnimation);
@@ -70,15 +70,10 @@ public class SiteIdentityPopup extends PopupWindow {
     private void init() {
         setBackgroundDrawable(new BitmapDrawable());
         setOutsideTouchable(true);
-
-        // Make the popup focusable so it doesn't inadvertently trigger click events elsewhere
-        // which may reshow the popup (see bug 785156)
-        setFocusable(true);
-
         setWindowLayoutMode(HardwareUtils.isTablet() ? LayoutParams.WRAP_CONTENT : LayoutParams.FILL_PARENT,
                 LayoutParams.WRAP_CONTENT);
 
-        LayoutInflater inflater = LayoutInflater.from(GeckoAppShell.getContext());
+        LayoutInflater inflater = LayoutInflater.from(GeckoApp.mAppContext);
         RelativeLayout layout = (RelativeLayout) inflater.inflate(R.layout.site_identity_popup, null);
         setContentView(layout);
 

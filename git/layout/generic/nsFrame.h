@@ -169,7 +169,7 @@ public:
   NS_IMETHOD  GetContentForEvent(nsEvent* aEvent,
                                  nsIContent** aContent) MOZ_OVERRIDE;
   NS_IMETHOD  GetCursor(const nsPoint&    aPoint,
-                        nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
+                        nsIFrame::Cursor& aCursor);
 
   NS_IMETHOD  GetPointFromOffset(int32_t                inOffset,
                                  nsPoint*               outPoint) MOZ_OVERRIDE;
@@ -412,6 +412,9 @@ public:
   // If the child does not have a overflow, use the child area.
   void ConsiderChildOverflow(nsOverflowAreas& aOverflowAreas,
                              nsIFrame* aChildFrame);
+
+  virtual const void* StyleDataExternal(nsStyleStructID aSID) const MOZ_OVERRIDE;
+
 
   /**
    * @return true if we should avoid a page/column break in this frame.

@@ -21,7 +21,7 @@ public class WebAppAllocator {
     protected static GeckoApp sContext = null;
     protected static WebAppAllocator sInstance = null;
     public static WebAppAllocator getInstance() {
-        return getInstance(GeckoAppShell.getContext());
+        return getInstance(GeckoApp.mAppContext);
     }
 
     public static synchronized WebAppAllocator getInstance(Context cx) {

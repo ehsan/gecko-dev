@@ -160,6 +160,7 @@ public:
    * aTrackEvents can be any combination of TRACK_EVENT_CREATED and
    * TRACK_EVENT_ENDED. aQueuedMedia is the data being added to the track
    * at aTrackOffset (relative to the start of the stream).
+   * aQueuedMedia can be null if there is no output.
    */
   virtual void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
                                         TrackRate aTrackRate,
@@ -302,23 +303,20 @@ public:
   // a single audio output stream is used; the volumes are combined.
   // Currently only the first enabled audio track is played.
   // XXX change this so all enabled audio tracks are mixed and played.
-  void AddAudioOutput(void* aKey);
-  void SetAudioOutputVolume(void* aKey, float aVolume);
-  void RemoveAudioOutput(void* aKey);
+  virtual void AddAudioOutput(void* aKey);
+  virtual void SetAudioOutputVolume(void* aKey, float aVolume);
+  virtual void RemoveAudioOutput(void* aKey);
   // Since a stream can be played multiple ways, we need to be able to
   // play to multiple VideoFrameContainers.
   // Only the first enabled video track is played.
-  void AddVideoOutput(VideoFrameContainer* aContainer);
-  void RemoveVideoOutput(VideoFrameContainer* aContainer);
+  virtual void AddVideoOutput(VideoFrameContainer* aContainer);
+  virtual void RemoveVideoOutput(VideoFrameContainer* aContainer);
   // Explicitly block. Useful for example if a media element is pausing
   // and we need to stop its stream emitting its buffered data.
-  void ChangeExplicitBlockerCount(int32_t aDelta);
+  virtual void ChangeExplicitBlockerCount(int32_t aDelta);
   // Events will be dispatched by calling methods of aListener.
-  void AddListener(MediaStreamListener* aListener);
-  void RemoveListener(MediaStreamListener* aListener);
-  // A disabled track has video replaced by black, and audio replaced by
-  // silence.
-  void SetTrackEnabled(TrackID aTrackID, bool aEnabled);
+  virtual void AddListener(MediaStreamListener* aListener);
+  virtual void RemoveListener(MediaStreamListener* aListener);
   // Events will be dispatched by calling methods of aListener. It is the
   // responsibility of the caller to remove aListener before it is destroyed.
   void AddMainThreadListener(MainThreadMediaStreamListener* aListener)
@@ -395,7 +393,6 @@ public:
   void AddListenerImpl(already_AddRefed<MediaStreamListener> aListener);
   void RemoveListenerImpl(MediaStreamListener* aListener);
   void RemoveAllListenersImpl();
-  void SetTrackEnabledImpl(TrackID aTrackID, bool aEnabled);
 
   void AddConsumer(MediaInputPort* aPort)
   {
@@ -429,8 +426,6 @@ public:
   void FinishOnGraphThread();
 
   bool HasCurrentData() { return mHasCurrentData; }
-
-  void ApplyTrackDisabling(TrackID aTrackID, MediaSegment* aSegment);
 
   DOMMediaStream* GetWrapper()
   {
@@ -477,7 +472,6 @@ protected:
   TimeVarying<GraphTime,uint32_t,0> mExplicitBlockerCount;
   nsTArray<nsRefPtr<MediaStreamListener> > mListeners;
   nsTArray<MainThreadMediaStreamListener*> mMainThreadListeners;
-  nsTArray<TrackID> mDisabledTrackIDs;
 
   // Precomputed blocking status (over GraphTime).
   // This is only valid between the graph's mCurrentTime and
@@ -935,13 +929,10 @@ public:
   enum AudioNodeStreamKind { INTERNAL_STREAM, EXTERNAL_STREAM };
   /**
    * Create a stream that will process audio for an AudioNode.
-   * Takes ownership of aEngine.  aSampleRate is the sampling rate used
-   * for the stream.  If 0 is passed, the sampling rate of the engine's
-   * node will get used.
+   * Takes ownership of aEngine.
    */
   AudioNodeStream* CreateAudioNodeStream(AudioNodeEngine* aEngine,
-                                         AudioNodeStreamKind aKind,
-                                         TrackRate aSampleRate = 0);
+                                         AudioNodeStreamKind aKind);
   /**
    * Returns the number of graph updates sent. This can be used to track
    * whether a given update has been processed by the graph thread and reflected

@@ -160,9 +160,6 @@ using namespace mozilla;
 
 #define DEFAULT_SHUTDOWN_COLLECTIONS 5
 
-// One to do the freeing, then another to detect there is no more work to do.
-#define NORMAL_SHUTDOWN_COLLECTIONS 2
-
 #if defined(XP_WIN)
 // Defined in nsThreadManager.cpp.
 extern DWORD gTLSThreadIDIndex;
@@ -1662,9 +1659,7 @@ private:
             NS_ConvertUTF16toUTF8(mFilenameIdentifier).get());
 
         // Get the log directory either from $MOZ_CC_LOG_DIRECTORY or from
-        // the fallback directories in OpenTempFile.  We don't use an nsCOMPtr
-        // here because OpenTempFile uses an in/out param and getter_AddRefs
-        // wouldn't work.
+        // the fallback directories in OpenTempFile.
         nsIFile* logFile = nullptr;
         if (char* env = PR_GetEnv("MOZ_CC_LOG_DIRECTORY")) {
             NS_NewNativeLocalFile(nsCString(env), /* followLinks = */ true,
@@ -1676,7 +1671,7 @@ private:
           return nullptr;
         }
 
-        return dont_AddRef(logFile);
+        return logFile;
     }
 
     FILE *mStream;
@@ -2541,7 +2536,6 @@ nsCycleCollector::nsCycleCollector(CCThreadingModel aModel) :
 
 nsCycleCollector::~nsCycleCollector()
 {
-    NS_ASSERTION(!mRunner, "Destroying cycle collector without destroying its runner, may leak");
     NS_UnregisterMemoryMultiReporter(mReporter);
 }
 
@@ -2757,8 +2751,6 @@ nsCycleCollector::ShutdownCollect(nsICycleCollectorListener *aListener)
         return;
 
     for (uint32_t i = 0; i < DEFAULT_SHUTDOWN_COLLECTIONS; ++i) {
-        NS_WARN_IF_FALSE(i < NORMAL_SHUTDOWN_COLLECTIONS, "Extra shutdown CC");
-
         // Synchronous cycle collection. Always force a JS GC beforehand.
         FixGrayBits(true);
         if (aListener && NS_FAILED(aListener->Begin()))

@@ -488,12 +488,6 @@ IsLocalOp(JSOp op)
 }
 
 inline bool
-IsAliasedVarOp(JSOp op)
-{
-    return JOF_OPTYPE(op) == JOF_SCOPECOORD;
-}
-
-inline bool
 IsGlobalOp(JSOp op)
 {
     return js_CodeSpec[op].format & JOF_GNAME;

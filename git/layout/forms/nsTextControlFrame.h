@@ -243,7 +243,7 @@ protected:
     EditorInitializer(nsTextControlFrame* aFrame) :
       mFrame(aFrame) {}
 
-    NS_IMETHOD Run() MOZ_OVERRIDE;
+    NS_IMETHOD Run();
 
     // avoids use of nsWeakFrame
     void Revoke() {

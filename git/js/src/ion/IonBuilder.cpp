@@ -241,7 +241,10 @@ IonBuilder::canInlineTarget(JSFunction *target, CallInfo &callInfo)
     }
 
     // Don't inline functions which don't have baseline scripts compiled for them.
-    if (executionMode == SequentialExecution && !inlineScript->hasBaselineScript()) {
+    if (executionMode == SequentialExecution &&
+        ion::IsBaselineEnabled(cx) &&
+        !inlineScript->hasBaselineScript())
+    {
         IonSpew(IonSpew_Inlining, "%s:%d Cannot inline target with no baseline jitcode",
                                   inlineScript->filename(), inlineScript->lineno);
         return false;
@@ -1243,11 +1246,6 @@ IonBuilder::inspectOpcode(JSOp op)
         if (pc[JSOP_POP_LENGTH] == JSOP_POP)
             return true;
         return maybeInsertResume();
-
-      case JSOP_POPN:
-        for (uint32_t i = 0, n = GET_UINT16(pc); i < n; i++)
-            current->pop();
-        return true;
 
       case JSOP_NEWINIT:
       {
@@ -4953,7 +4951,7 @@ DOMCallNeedsBarrier(const JSJitInfo* jitinfo, types::StackTypeSet *types)
         return true;
 
     // No need for a barrier if we're already expecting the type we'll produce.
-    return jitinfo->returnType != types->getKnownTypeTag();
+    return jitinfo->returnType == types->getKnownTypeTag();
 }
 
 bool
@@ -6609,31 +6607,6 @@ IonBuilder::jsop_setelem()
     if (script()->argumentsHasVarBinding() && object->mightBeType(MIRType_Magic))
         return abort("Type is not definitely lazy arguments.");
 
-    // Check if only objects are manipulated valid index, and generate a SetElementCache.
-    do {
-        if (!object->mightBeType(MIRType_Object))
-            break;
-
-        if (!index->mightBeType(MIRType_Int32) &&
-            !index->mightBeType(MIRType_String))
-        {
-            break;
-        }
-
-        // TODO: Bug 876650: remove this check:
-        // Temporary disable the cache if non dense native,
-        // untill the cache supports more ics
-        SetElemICInspector icInspect(inspector->setElemICInspector(pc));
-        if (!icInspect.sawDenseWrite())
-            break;
-
-        MInstruction *ins = MSetElementCache::New(object, index, value, script()->strict);
-        current->add(ins);
-        current->push(value);
-
-        return resumeAfter(ins);
-    } while (false);
-
     MInstruction *ins = MCallSetElement::New(object, index, value);
     current->add(ins);
     current->push(value);
@@ -6857,9 +6830,7 @@ IonBuilder::jsop_length_fastPath()
 
     MDefinition *obj = current->peek(-1);
 
-    if (obj->mightBeType(MIRType_String)) {
-        if (obj->mightBeType(MIRType_Object))
-            return false;
+    if (obj->type() == MIRType_String) {
         current->pop();
         MStringLength *ins = MStringLength::New(obj);
         current->add(ins);
@@ -6867,7 +6838,7 @@ IonBuilder::jsop_length_fastPath()
         return true;
     }
 
-    if (obj->mightBeType(MIRType_Object)) {
+    if (obj->type() == MIRType_Object) {
         types::StackTypeSet *objTypes = obj->resultTypeSet();
 
         if (objTypes &&
@@ -6990,13 +6961,13 @@ IonBuilder::jsop_rest()
     // We know the exact number of arguments the callee pushed.
     unsigned numActuals = inlinedArguments_.length();
     unsigned numFormals = info().nargs() - 1;
-    unsigned numRest = numActuals > numFormals ? numActuals - numFormals : 0;
+    unsigned numRest = numActuals - numFormals;
     JSObject *templateObject = getNewArrayTemplateObject(numRest);
 
     MNewArray *array = new MNewArray(numRest, templateObject, MNewArray::NewArray_Allocating);
     current->add(array);
 
-    if (numActuals <= numFormals) {
+    if (numFormals >= numActuals) {
         current->push(array);
         return true;
     }
@@ -7004,37 +6975,15 @@ IonBuilder::jsop_rest()
     MElements *elements = MElements::New(array);
     current->add(elements);
 
-    types::TypeObject *arrayType = templateObject->type();
-    types::HeapTypeSet *elemTypes = NULL;
-    Vector<MInstruction *> setElemCalls(cx);
-    if (!arrayType->unknownProperties()) {
-        elemTypes = arrayType->getProperty(cx, JSID_VOID, false);
-        if (!elemTypes)
-            return false;
-    }
-
     // Unroll the argument copy loop. We don't need to do any bounds or hole
     // checking here.
     MConstant *index;
     for (unsigned i = numFormals; i < numActuals; i++) {
-        index = MConstant::New(Int32Value(i - numFormals));
+        index = MConstant::New(Int32Value(i));
         current->add(index);
-
-        MInstruction *store;
-        MDefinition *arg = inlinedArguments_[i];
-        if (elemTypes && !TypeSetIncludes(elemTypes, arg->type(), arg->resultTypeSet())) {
-            elemTypes->addFreeze(cx);
-            store = MCallSetElement::New(array, index, arg);
-            if (!setElemCalls.append(store))
-                return false;
-        } else {
-            store = MStoreElement::New(elements, index, arg, /* needsHoleCheck = */ false);
-        }
-
+        MStoreElement *store = MStoreElement::New(elements, index, inlinedArguments_[i],
+                                                  /* needsHoleCheck = */ false);
         current->add(store);
-
-        if (store->isCallSetElement() && !resumeAfter(store))
-            return false;
     }
 
     MSetInitializedLength *initLength = MSetInitializedLength::New(elements, index);
@@ -7791,8 +7740,7 @@ IonBuilder::jsop_setprop(HandlePropertyName name)
         // properties.
         RootedFunction setter(cx, commonSetter);
         if (isDOM && TestShouldDOMCall(cx, objTypes, setter, JSJitInfo::Setter)) {
-            JS_ASSERT(setter->jitInfo()->type == JSJitInfo::Setter);
-            MSetDOMProperty *set = MSetDOMProperty::New(setter->jitInfo()->setter, obj, value);
+            MSetDOMProperty *set = MSetDOMProperty::New(setter->jitInfo()->op, obj, value);
             if (!set)
                 return false;
 
@@ -7966,9 +7914,6 @@ IonBuilder::jsop_object(JSObject *obj)
 bool
 IonBuilder::jsop_lambda(JSFunction *fun)
 {
-    if (fun->isInterpreted() && !fun->getOrCreateScript(cx))
-        return false;
-
     JS_ASSERT(script()->analysis()->usesScopeChain());
     if (fun->isArrow())
         return abort("bound arrow function");

@@ -39,7 +39,7 @@ var FindHelperUI = {
 
   init: function findHelperInit() {
     this._textbox = document.getElementById("find-helper-textbox");
-    this._container = Elements.contentNavigator;
+    this._container = document.getElementById("content-navigator");
 
     this._cmdPrevious = document.getElementById(this.commands.previous);
     this._cmdNext = document.getElementById(this.commands.next);
@@ -49,6 +49,10 @@ var FindHelperUI = {
     // Listen for find assistant messages from content
     messageManager.addMessageListener("FindAssist:Show", this);
     messageManager.addMessageListener("FindAssist:Hide", this);
+
+    // Listen for pan events happening on the browsers
+    Elements.browsers.addEventListener("PanBegin", this, false);
+    Elements.browsers.addEventListener("PanFinished", this, false);
 
     // Listen for events where form assistant should be closed
     Elements.tabList.addEventListener("TabSelect", this, true);
@@ -87,6 +91,16 @@ var FindHelperUI = {
           this.hide();
         break;
 
+      case "PanBegin":
+        this._container.style.visibility = "hidden";
+        this._textbox.collapsed = true;
+        break;
+
+      case "PanFinished":
+        this._container.style.visibility = "visible";
+        this._textbox.collapsed = false;
+        break;
+
       case "keydown":
         if (aEvent.keyCode == Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
 	  if (aEvent.shiftKey) {
@@ -99,24 +113,17 @@ var FindHelperUI = {
   },
 
   show: function findHelperShow() {
-    if (this._open)
-      return;
-
     // Hide any menus
     ContextUI.dismiss();
 
     // Shutdown selection related ui
     SelectionHelperUI.closeEditSession();
 
-    // See bindings.xml
     this._container.show(this);
-
     this.search(this._textbox.value);
     this._textbox.select();
     this._textbox.focus();
     this._open = true;
-    Elements.browsers.setAttribute("findbar", true);
-    setTimeout(() => this._container.setAttribute("showing", true), 0);
 
     // Prevent the view to scroll automatically while searching
     Browser.selectedBrowser.scrollSync = false;
@@ -126,21 +133,14 @@ var FindHelperUI = {
     if (!this._open)
       return;
 
-    let onTransitionEnd = () => {
-      this._container.removeEventListener("transitionend", onTransitionEnd, true);
-      this._textbox.value = "";
-      this.status = null;
-      this._textbox.blur();
-      this._container.hide(this);
-      this._open = false;
+    this._textbox.value = "";
+    this.status = null;
+    this._textbox.blur();
+    this._container.hide(this);
+    this._open = false;
 
-      // Restore the scroll synchronisation
-      Browser.selectedBrowser.scrollSync = true;
-    };
-
-    this._container.addEventListener("transitionend", onTransitionEnd, true);
-    this._container.removeAttribute("showing");
-    Elements.browsers.removeAttribute("findbar");
+    // Restore the scroll synchronisation
+    Browser.selectedBrowser.scrollSync = true;
   },
 
   goToPrevious: function findHelperGoToPrevious() {

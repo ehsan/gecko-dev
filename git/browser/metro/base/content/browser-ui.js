@@ -43,7 +43,7 @@ let Elements = {};
   ["tray",               "tray"],
   ["toolbar",            "toolbar"],
   ["browsers",           "browsers"],
-  ["navbar",             "navbar"],
+  ["appbar",             "appbar"],
   ["contextappbar",      "contextappbar"],
   ["contentViewport",    "content-viewport"],
   ["progress",           "progress-control"],
@@ -539,10 +539,6 @@ var BrowserUI = {
       focusedElement.blur();
   },
 
-  blurNavBar: function blurNavBar() {
-    this._edit.blur();
-  },
-
   // If the user types in the address bar, cancel pending
   // navbar autohide if set.
   navEditKeyPress: function navEditKeyPress() {
@@ -598,6 +594,8 @@ var BrowserUI = {
       }
       Elements.windowState.setAttribute("viewstate", currViewState);
     }
+    // content navigator helper
+    document.getElementById("content-navigator").contentHasChanged();
   },
 
   _titleChanged: function(aBrowser) {
@@ -621,9 +619,6 @@ var BrowserUI = {
 
   _updateButtons: function _updateButtons() {
     let browser = Browser.selectedBrowser;
-    if (!browser) {
-      return;
-    }
     if (browser.canGoBack) {
       this._back.removeAttribute("disabled");
     } else {
@@ -766,7 +761,7 @@ var BrowserUI = {
     }
 
     // Check content helper
-    let contentHelper = Elements.contentNavigator;
+    let contentHelper = document.getElementById("content-navigator");
     if (contentHelper.isActive) {
       contentHelper.model.hide();
       return;
@@ -1039,7 +1034,7 @@ var BrowserUI = {
         this._editURI(true);
         break;
       case "cmd_addBookmark":
-        Elements.navbar.show();
+        Elements.appbar.show();
         Appbar.onStarButton(true);
         break;
       case "cmd_bookmarks":
@@ -1103,10 +1098,6 @@ var BrowserUI = {
         this.savePage();
         break;
     }
-  },
-
-  crashReportingPrefChanged: function crashReportingPrefChanged(aState) {
-    CrashReporter.submitReports = aState;
   }
 };
 
@@ -1182,9 +1173,9 @@ var ContextUI = {
       this._setIsVisible(true);
       shown = true;
     }
-    if (!Elements.navbar.isShowing) {
-      // show the navbar
-      Elements.navbar.show();
+    if (!Elements.appbar.isShowing) {
+      // show the appbar
+      Elements.appbar.show();
       shown = true;
     }
 
@@ -1235,7 +1226,7 @@ var ContextUI = {
       this._setIsVisible(false);
       dismissed = true;
     }
-    if (Elements.navbar.isShowing) {
+    if (Elements.appbar.isShowing) {
       this.dismissAppbar();
       dismissed = true;
     }
@@ -1416,7 +1407,6 @@ var StartUI = {
     Elements.startUI.addEventListener("autocompletestart", this, false);
     Elements.startUI.addEventListener("autocompleteend", this, false);
     Elements.startUI.addEventListener("contextmenu", this, false);
-    Elements.startUI.addEventListener("click", this, false);
 
     this.sections.forEach(function (sectionName) {
       let section = window[sectionName];
@@ -1498,12 +1488,6 @@ var StartUI = {
     }
   },
 
-  onClick: function onClick(aEvent) {
-    // If someone clicks / taps in empty grid space, take away
-    // focus from the nav bar edit so the soft keyboard will hide.
-    BrowserUI.blurNavBar();
-  },
-
   handleEvent: function handleEvent(aEvent) {
     switch (aEvent.type) {
       case "autocompletestart":
@@ -1516,9 +1500,6 @@ var StartUI = {
         let event = document.createEvent("Events");
         event.initEvent("MozEdgeUICompleted", true, false);
         window.dispatchEvent(event);
-        break;
-      case "click":
-        this.onClick(aEvent);
         break;
     }
   }
@@ -1541,11 +1522,6 @@ var FlyoutPanelsUI = {
     AboutPanelUI.init();
     PreferencesPanelView.init();
     SyncPanelUI.init();
-
-    // make sure to hide all flyouts when window is deactivated
-    window.addEventListener("deactivate", function(window) {
-      FlyoutPanelsUI.hide();
-    });
   },
 
   hide: function() {

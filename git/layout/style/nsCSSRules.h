@@ -330,7 +330,7 @@ public:
     return mFeatureValues;
   }
 
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   static bool PrefEnabled()
   {
@@ -373,8 +373,8 @@ public:
   NS_DECL_NSIDOMCSSRULE
 
   // nsIDOMCSSCharsetRule methods
-  NS_IMETHOD GetEncoding(nsAString& aEncoding) MOZ_OVERRIDE;
-  NS_IMETHOD SetEncoding(const nsAString& aEncoding) MOZ_OVERRIDE;
+  NS_IMETHOD GetEncoding(nsAString& aEncoding);
+  NS_IMETHOD SetEncoding(const nsAString& aEncoding);
 
   virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
@@ -501,7 +501,7 @@ public:
 
   // rest of GroupRule
   virtual bool UseForPresentation(nsPresContext* aPresContext,
-                                    nsMediaQueryResultCacheKey& aKey) MOZ_OVERRIDE;
+                                    nsMediaQueryResultCacheKey& aKey);
 
   const nsString& GetName() { return mName; }
 

@@ -119,7 +119,6 @@ MapAllocToTraceKind(AllocKind kind)
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT16 */
         JSTRACE_OBJECT,     /* FINALIZE_OBJECT16_BACKGROUND */
         JSTRACE_SCRIPT,     /* FINALIZE_SCRIPT */
-        JSTRACE_LAZY_SCRIPT,/* FINALIZE_LAZY_SCRIPT */
         JSTRACE_SHAPE,      /* FINALIZE_SHAPE */
         JSTRACE_BASE_SHAPE, /* FINALIZE_BASE_SHAPE */
         JSTRACE_TYPE_OBJECT,/* FINALIZE_TYPE_OBJECT */
@@ -141,7 +140,6 @@ template <> struct MapTypeToTraceKind<DebugScopeObject> { const static JSGCTrace
 template <> struct MapTypeToTraceKind<GlobalObject>     { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ScopeObject>      { const static JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<JSScript>         { const static JSGCTraceKind kind = JSTRACE_SCRIPT; };
-template <> struct MapTypeToTraceKind<LazyScript>       { const static JSGCTraceKind kind = JSTRACE_LAZY_SCRIPT; };
 template <> struct MapTypeToTraceKind<Shape>            { const static JSGCTraceKind kind = JSTRACE_SHAPE; };
 template <> struct MapTypeToTraceKind<BaseShape>        { const static JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };
 template <> struct MapTypeToTraceKind<UnownedBaseShape> { const static JSGCTraceKind kind = JSTRACE_BASE_SHAPE; };
@@ -172,7 +170,6 @@ IsNurseryAllocable(AllocKind kind)
         false,     /* FINALIZE_OBJECT16 */
         true,      /* FINALIZE_OBJECT16_BACKGROUND */
         false,     /* FINALIZE_SCRIPT */
-        false,     /* FINALIZE_LAZY_SCRIPT */
         false,     /* FINALIZE_SHAPE */
         false,     /* FINALIZE_BASE_SHAPE */
         false,     /* FINALIZE_TYPE_OBJECT */
@@ -204,7 +201,6 @@ IsBackgroundFinalized(AllocKind kind)
         false,     /* FINALIZE_OBJECT16 */
         true,      /* FINALIZE_OBJECT16_BACKGROUND */
         false,     /* FINALIZE_SCRIPT */
-        true,      /* FINALIZE_LAZY_SCRIPT */
         true,      /* FINALIZE_SHAPE */
         true,      /* FINALIZE_BASE_SHAPE */
         true,      /* FINALIZE_TYPE_OBJECT */

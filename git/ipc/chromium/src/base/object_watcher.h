@@ -6,9 +6,6 @@
 #define BASE_OBJECT_WATCHER_H_
 
 #include <windows.h>
-#ifdef GetClassName
-#undef GetClassName
-#endif
 
 #include "base/message_loop.h"
 

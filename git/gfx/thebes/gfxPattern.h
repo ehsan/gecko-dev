@@ -20,7 +20,7 @@ class gfxASurface;
 typedef struct _cairo_pattern cairo_pattern_t;
 
 
-class gfxPattern {
+class THEBES_API gfxPattern {
     NS_INLINE_DECL_REFCOUNTING(gfxPattern)
 
 public:

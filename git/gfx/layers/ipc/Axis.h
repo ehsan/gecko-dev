@@ -11,7 +11,6 @@
 #include "mozilla/TimeStamp.h"
 #include "mozilla/gfx/2D.h"
 #include "nsTArray.h"
-#include "Units.h"
 
 namespace mozilla {
 namespace layers {
@@ -171,7 +170,7 @@ public:
   float GetCompositionEnd();
   float GetPageEnd();
 
-  virtual float GetPointOffset(const CSSPoint& aPoint) = 0;
+  virtual float GetPointOffset(const gfx::Point& aPoint) = 0;
   virtual float GetRectLength(const gfx::Rect& aRect) = 0;
   virtual float GetRectOffset(const gfx::Rect& aRect) = 0;
 
@@ -192,7 +191,7 @@ protected:
 class AxisX : public Axis {
 public:
   AxisX(AsyncPanZoomController* mAsyncPanZoomController);
-  virtual float GetPointOffset(const CSSPoint& aPoint);
+  virtual float GetPointOffset(const gfx::Point& aPoint);
   virtual float GetRectLength(const gfx::Rect& aRect);
   virtual float GetRectOffset(const gfx::Rect& aRect);
 };
@@ -200,7 +199,7 @@ public:
 class AxisY : public Axis {
 public:
   AxisY(AsyncPanZoomController* mAsyncPanZoomController);
-  virtual float GetPointOffset(const CSSPoint& aPoint);
+  virtual float GetPointOffset(const gfx::Point& aPoint);
   virtual float GetRectLength(const gfx::Rect& aRect);
   virtual float GetRectOffset(const gfx::Rect& aRect);
 };

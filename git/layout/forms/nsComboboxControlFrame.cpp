@@ -56,7 +56,6 @@
 #include "mozilla/Likely.h"
 #include <algorithm>
 #include "nsTextNode.h"
-#include "mozilla/LookAndFeel.h"
 
 using namespace mozilla;
 
@@ -130,6 +129,26 @@ NS_NewComboboxControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, u
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsComboboxControlFrame)
+
+namespace {
+
+class DestroyWidgetRunnable : public nsRunnable {
+public:
+  NS_DECL_NSIRUNNABLE
+
+  explicit DestroyWidgetRunnable(nsIWidget* aWidget) : mWidget(aWidget) {}
+
+private:
+  nsCOMPtr<nsIWidget> mWidget;
+};
+
+NS_IMETHODIMP DestroyWidgetRunnable::Run()
+{
+  mWidget = nullptr;
+  return NS_OK;
+}
+
+}
 
 //-----------------------------------------------------------
 // Reflow Debugging Macros
@@ -369,7 +388,12 @@ nsComboboxControlFrame::ShowList(bool aShowList)
     }
   } else {
     if (widget) {
+      nsCOMPtr<nsIRunnable> widgetDestroyer =
+        new DestroyWidgetRunnable(widget);
+      // 'widgetDestroyer' now has a strong ref on the widget so calling
+      // DestroyWidget here will not *delete* it.
       view->DestroyWidget();
+      NS_DispatchToMainThread(widgetDestroyer);
     }
   }
 
@@ -714,8 +738,8 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
   if (mListControlFrame) {
     nsIScrollableFrame* scrollable = do_QueryFrame(mListControlFrame);
     NS_ASSERTION(scrollable, "List must be a scrollable frame");
-    scrollbarWidth = scrollable->GetNondisappearingScrollbarWidth(
-      presContext, aRenderingContext);
+    scrollbarWidth =
+      scrollable->GetDesiredScrollbarSizes(presContext, aRenderingContext).LeftRight();
   }
 
   nscoord displayWidth = 0;
@@ -727,19 +751,11 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
 
   if (mDropdownFrame) {
     nscoord dropdownContentWidth;
-    bool isUsingOverlayScrollbars =
-      LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) != 0;
     if (aType == nsLayoutUtils::MIN_WIDTH) {
       dropdownContentWidth = mDropdownFrame->GetMinWidth(aRenderingContext);
-      if (isUsingOverlayScrollbars) {
-        dropdownContentWidth += scrollbarWidth;
-      }
     } else {
       NS_ASSERTION(aType == nsLayoutUtils::PREF_WIDTH, "Unexpected type");
       dropdownContentWidth = mDropdownFrame->GetPrefWidth(aRenderingContext);
-      if (isUsingOverlayScrollbars) {
-        dropdownContentWidth += scrollbarWidth;
-      }
     }
     dropdownContentWidth = NSCoordSaturatingSubtract(dropdownContentWidth,
                                                      scrollbarWidth,
@@ -834,8 +850,9 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
   else {
     nsIScrollableFrame* scrollable = do_QueryFrame(mListControlFrame);
     NS_ASSERTION(scrollable, "List must be a scrollable frame");
-    buttonWidth = scrollable->GetNondisappearingScrollbarWidth(
-      PresContext(), aReflowState.rendContext);
+    buttonWidth =
+      scrollable->GetDesiredScrollbarSizes(PresContext(),
+                                           aReflowState.rendContext).LeftRight();
     if (buttonWidth > aReflowState.ComputedWidth()) {
       buttonWidth = 0;
     }

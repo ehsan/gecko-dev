@@ -164,9 +164,5 @@
         </attr>
     </declare-styleable>
 
-    <declare-styleable name="GeckoView">
-        <attr name="url" format="string"/>
-    </declare-styleable>
-
 </resources>
 

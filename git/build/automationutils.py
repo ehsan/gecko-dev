@@ -30,11 +30,6 @@ DEBUGGER_INFO = {
     "args": "-q --args"
   },
 
-  "cgdb": {
-    "interactive": True,
-    "args": "-q --args"
-  },
-
   "lldb": {
     "interactive": True,
     "args": "--"

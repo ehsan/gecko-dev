@@ -10,7 +10,6 @@
 #include "mozilla/layers/PLayerTransaction.h"
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "mozilla/Telemetry.h"
-#include "CompositableHost.h"
 
 #include "ImageLayers.h"
 #include "ImageContainer.h"
@@ -982,9 +981,6 @@ static nsACString& PrintInfo(nsACString& aTo, LayerComposite* aLayerComposite);
 template <typename T>
 void WriteSnapshotLinkToDumpFile(T* aObj, FILE* aFile)
 {
-  if (!aObj) {
-    return;
-  }
   nsCString string(aObj->Name());
   string.Append("-");
   string.AppendInt((uint64_t)aObj);
@@ -1033,9 +1029,6 @@ Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
     fprintf(aFile, ">");
   }
   DumpSelf(aFile, aPrefix);
-  if (AsLayerComposite() && AsLayerComposite()->GetCompositableHost()) {
-    AsLayerComposite()->GetCompositableHost()->Dump(aFile, aPrefix, aDumpHtml);
-  }
   if (aDumpHtml) {
     fprintf(aFile, "</a>");
   }
@@ -1043,7 +1036,7 @@ Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
   if (Layer* mask = GetMaskLayer()) {
     nsAutoCString pfx(aPrefix);
     pfx += "  Mask layer: ";
-    mask->Dump(aFile, pfx.get(), aDumpHtml);
+    mask->Dump(aFile, pfx.get());
   }
 
   if (Layer* kid = GetFirstChild()) {
@@ -1052,7 +1045,7 @@ Layer::Dump(FILE* aFile, const char* aPrefix, bool aDumpHtml)
     if (aDumpHtml) {
       fprintf(aFile, "<ul>");
     }
-    kid->Dump(aFile, pfx.get(), aDumpHtml);
+    kid->Dump(aFile, pfx.get());
     if (aDumpHtml) {
       fprintf(aFile, "</ul>");
     }

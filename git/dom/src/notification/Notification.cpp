@@ -105,20 +105,13 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(NotificationPermissionRequest)
 NS_IMETHODIMP
 NotificationPermissionRequest::Run()
 {
-  if (nsContentUtils::IsSystemPrincipal(mPrincipal)) {
+  // File are automatically granted permission.
+  nsCOMPtr<nsIURI> uri;
+  mPrincipal->GetURI(getter_AddRefs(uri));
+  bool isFile;
+  uri->SchemeIs("file", &isFile);
+  if (isFile) {
     mPermission = NotificationPermission::Granted;
-  } else {
-    // File are automatically granted permission.
-    nsCOMPtr<nsIURI> uri;
-    mPrincipal->GetURI(getter_AddRefs(uri));
-
-    if (uri) {
-      bool isFile;
-      uri->SchemeIs("file", &isFile);
-      if (isFile) {
-        mPermission = NotificationPermission::Granted;
-      }
-    }
   }
 
   // Grant permission if pref'ed on.
@@ -405,21 +398,15 @@ Notification::GetPermissionInternal(nsISupports* aGlobal, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return NotificationPermission::Denied;
   }
-
   nsCOMPtr<nsIPrincipal> principal = sop->GetPrincipal();
-  if (nsContentUtils::IsSystemPrincipal(principal)) {
+
+  // Allow files to show notifications by default.
+  nsCOMPtr<nsIURI> uri;
+  principal->GetURI(getter_AddRefs(uri));
+  bool isFile;
+  uri->SchemeIs("file", &isFile);
+  if (isFile) {
     return NotificationPermission::Granted;
-  } else {
-    // Allow files to show notifications by default.
-    nsCOMPtr<nsIURI> uri;
-    principal->GetURI(getter_AddRefs(uri));
-    if (uri) {
-      bool isFile;
-      uri->SchemeIs("file", &isFile);
-      if (isFile) {
-        return NotificationPermission::Granted;
-      }
-    }
   }
 
   // We also allow notifications is they are pref'ed on.

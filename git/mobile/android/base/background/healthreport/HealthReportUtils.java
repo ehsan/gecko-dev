@@ -5,17 +5,9 @@
 package org.mozilla.gecko.background.healthreport;
 
 import java.text.SimpleDateFormat;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Locale;
-import java.util.Set;
-import java.util.SortedSet;
 import java.util.TimeZone;
-import java.util.TreeSet;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.json.JSONArray;
 import org.mozilla.apache.commons.codec.digest.DigestUtils;
 
 import android.content.ContentUris;
@@ -52,64 +44,5 @@ public class HealthReportUtils {
    */
   public static Uri getEventURI(Uri environmentURI) {
     return environmentURI.buildUpon().path("/events/" + ContentUris.parseId(environmentURI) + "/").build();
-  }
-
-  /**
-   * Copy the keys from the provided {@link JSONObject} into the provided {@link Set}.
-   */
-  private static <T extends Set<String>> T intoKeySet(T keys, JSONObject o) {
-    if (o == null || o == JSONObject.NULL) {
-      return keys;
-    }
-
-    @SuppressWarnings("unchecked")
-    Iterator<String> it = o.keys();
-    while (it.hasNext()) {
-      keys.add(it.next());
-    }
-    return keys;
-  }
-
-  /**
-   * Produce a {@link SortedSet} containing the string keys of the provided
-   * object.
-   *
-   * @param o a {@link JSONObject} with string keys.
-   * @return a sorted set.
-   */
-  public static SortedSet<String> sortedKeySet(JSONObject o) {
-    return intoKeySet(new TreeSet<String>(), o);
-  }
-
-  /**
-   * Produce a {@link Set} containing the string keys of the provided object.
-   * @param o a {@link JSONObject} with string keys.
-   * @return an unsorted set.
-   */
-  public static Set<String> keySet(JSONObject o) {
-    return intoKeySet(new HashSet<String>(), o);
-  }
-
-  /**
-   * Just like {@link JSONObject#accumulate(String, Object)}, but doesn't do the wrong thing for single values.
-   * @throws JSONException 
-   */
-  public static void append(JSONObject o, String key, Object value) throws JSONException {
-    if (!o.has(key)) {
-      JSONArray arr = new JSONArray();
-      arr.put(value);
-      o.put(key, arr);
-      return;
-    }
-    Object dest = o.get(key);
-    if (dest instanceof JSONArray) {
-      ((JSONArray) dest).put(value);
-      return;
-    }
-    JSONArray arr = new JSONArray();
-    arr.put(dest);
-    arr.put(value);
-    o.put(key, arr);
-    return;
   }
 }

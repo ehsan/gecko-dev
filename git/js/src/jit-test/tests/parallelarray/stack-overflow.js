@@ -10,9 +10,8 @@ function kernel(n) {
 
 function testMap() {
   var p = new ParallelArray(range(0, 2048));
-  assertParallelExecWillBail(
-    m => p.map(kernel, m));
+  p.map(kernel, { mode: "par", expect: "disqualified" });
 }
 
-if (getBuildConfiguration().parallelJS)
-  testMap();
+if (getBuildConfiguration().parallelJS) testMap();
+

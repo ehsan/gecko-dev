@@ -6,7 +6,6 @@
 #ifndef nsMathMLsemanticsFrame_h___
 #define nsMathMLsemanticsFrame_h___
 
-#include "mozilla/Attributes.h"
 #include "nsMathMLSelectedFrame.h"
 
 //
@@ -25,7 +24,7 @@ protected:
     nsMathMLSelectedFrame(aContext) {}
   virtual ~nsMathMLsemanticsFrame();
 
-  nsIFrame* GetSelectedFrame() MOZ_OVERRIDE;
+  nsIFrame* GetSelectedFrame();
 };
 
 #endif /* nsMathMLsemanticsFrame_h___ */

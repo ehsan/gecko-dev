@@ -691,13 +691,8 @@ nsNativeTheme::IsDarkBackground(nsIFrame* aFrame)
     return false;
 
   nsIFrame* frame = scrollFrame->GetScrolledFrame();
-  nsStyleContext* bgSC = nullptr;
-  if (!nsCSSRendering::FindBackground(frame, &bgSC) ||
-      bgSC->StyleBackground()->IsTransparent()) {
-    nsIFrame* backgroundFrame = nsCSSRendering::FindNonTransparentBackgroundFrame(frame, true);
-    nsCSSRendering::FindBackground(backgroundFrame, &bgSC);
-  }
-  if (bgSC) {
+  nsStyleContext* bgSC;
+  if (nsCSSRendering::FindBackground(frame, &bgSC)) {
     nscolor bgColor = bgSC->StyleBackground()->mBackgroundColor;
     // Consider the background color dark if the sum of the r, g and b values is
     // less than 384 in a semi-transparent document.  This heuristic matches what

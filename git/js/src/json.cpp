@@ -46,6 +46,58 @@ Class js::JSONClass = {
     JS_ConvertStub
 };
 
+/* ES5 15.12.2. */
+JSBool
+js_json_parse(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    /* Step 1. */
+    JSString *str = (argc >= 1) ? ToString<CanGC>(cx, args[0]) : cx->names().undefined;
+    if (!str)
+        return false;
+
+    JSStableString *stable = str->ensureStable(cx);
+    if (!stable)
+        return false;
+
+    JS::Anchor<JSString *> anchor(stable);
+
+    RootedValue reviver(cx, (argc >= 2) ? args[1] : UndefinedValue());
+
+    /* Steps 2-5. */
+    return ParseJSONWithReviver(cx, stable->chars(), stable->length(), reviver, args.rval());
+}
+
+/* ES5 15.12.3. */
+JSBool
+js_json_stringify(JSContext *cx, unsigned argc, Value *vp)
+{
+    RootedObject replacer(cx, (argc >= 2 && vp[3].isObject())
+                              ? &vp[3].toObject()
+                              : NULL);
+    RootedValue value(cx, (argc >= 1) ? vp[2] : UndefinedValue());
+    RootedValue space(cx, (argc >= 3) ? vp[4] : UndefinedValue());
+
+    StringBuffer sb(cx);
+    if (!js_Stringify(cx, &value, replacer, space, sb))
+        return false;
+
+    // XXX This can never happen to nsJSON.cpp, but the JSON object
+    // needs to support returning undefined. So this is a little awkward
+    // for the API, because we want to support streaming writers.
+    if (!sb.empty()) {
+        JSString *str = sb.finishString();
+        if (!str)
+            return false;
+        vp->setString(str);
+    } else {
+        vp->setUndefined();
+    }
+
+    return true;
+}
+
 static inline bool IsQuoteSpecialCharacter(jschar c)
 {
     JS_STATIC_ASSERT('\b' < ' ');
@@ -569,13 +621,8 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
             if (replacer->isArray() && !replacer->isIndexed())
                 len = Min(len, replacer->getDenseInitializedLength());
 
-            // Cap the initial size to a moderately small value.  This avoids
-            // ridiculous over-allocation if an array with bogusly-huge length
-            // is passed in.  If we end up having to add elements past this
-            // size, the set will naturally resize to accommodate them.
-            const uint32_t MaxInitialSize = 1024;
             HashSet<jsid, JsidHasher> idSet(cx);
-            if (!idSet.init(Min(len, MaxInitialSize)))
+            if (!idSet.init(len))
                 return false;
 
             /* Step 4b(iii). */
@@ -584,9 +631,6 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
             /* Step 4b(iv). */
             RootedValue v(cx);
             for (; i < len; i++) {
-                if (!JS_CHECK_OPERATION_LIMIT(cx))
-                    return false;
-
                 /* Step 4b(iv)(2). */
                 if (!JSObject::getElement(cx, replacer, replacer, i, &v))
                     return false;
@@ -803,12 +847,13 @@ Revive(JSContext *cx, HandleValue reviver, MutableHandleValue vp)
     return Walk(cx, obj, id, reviver, vp);
 }
 
-bool
+JSBool
 js::ParseJSONWithReviver(JSContext *cx, StableCharPtr chars, size_t length, HandleValue reviver,
-                         MutableHandleValue vp)
+                         MutableHandleValue vp, DecodingMode decodingMode /* = STRICT */)
 {
     /* 15.12.2 steps 2-3. */
-    JSONParser parser(cx, chars, length);
+    JSONParser parser(cx, chars, length,
+                      decodingMode == STRICT ? JSONParser::StrictJSON : JSONParser::LegacyJSON);
     if (!parser.parse(vp))
         return false;
 
@@ -826,58 +871,6 @@ json_toSource(JSContext *cx, unsigned argc, Value *vp)
     return JS_TRUE;
 }
 #endif
-
-/* ES5 15.12.2. */
-JSBool
-js_json_parse(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    /* Step 1. */
-    JSString *str = (argc >= 1) ? ToString<CanGC>(cx, args[0]) : cx->names().undefined;
-    if (!str)
-        return false;
-
-    JSStableString *stable = str->ensureStable(cx);
-    if (!stable)
-        return false;
-
-    JS::Anchor<JSString *> anchor(stable);
-
-    RootedValue reviver(cx, (argc >= 2) ? args[1] : UndefinedValue());
-
-    /* Steps 2-5. */
-    return ParseJSONWithReviver(cx, stable->chars(), stable->length(), reviver, args.rval());
-}
-
-/* ES5 15.12.3. */
-JSBool
-js_json_stringify(JSContext *cx, unsigned argc, Value *vp)
-{
-    RootedObject replacer(cx, (argc >= 2 && vp[3].isObject())
-                              ? &vp[3].toObject()
-                              : NULL);
-    RootedValue value(cx, (argc >= 1) ? vp[2] : UndefinedValue());
-    RootedValue space(cx, (argc >= 3) ? vp[4] : UndefinedValue());
-
-    StringBuffer sb(cx);
-    if (!js_Stringify(cx, &value, replacer, space, sb))
-        return false;
-
-    // XXX This can never happen to nsJSON.cpp, but the JSON object
-    // needs to support returning undefined. So this is a little awkward
-    // for the API, because we want to support streaming writers.
-    if (!sb.empty()) {
-        JSString *str = sb.finishString();
-        if (!str)
-            return false;
-        vp->setString(str);
-    } else {
-        vp->setUndefined();
-    }
-
-    return true;
-}
 
 static const JSFunctionSpec json_static_methods[] = {
 #if JS_HAS_TOSOURCE

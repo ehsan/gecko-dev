@@ -332,8 +332,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 {
     mozPoisonValueInit();
 
-    char aLocal;
-    profiler_init(&aLocal);
+    profiler_init();
     nsresult rv = NS_OK;
 
      // We are not shutting down

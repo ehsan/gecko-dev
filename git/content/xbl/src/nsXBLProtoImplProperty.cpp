@@ -295,19 +295,19 @@ nsXBLProtoImplProperty::CompileMember(nsIScriptContext* aContext, const nsCStrin
 #ifdef DEBUG
   mIsCompiled = NS_SUCCEEDED(rv);
 #endif
-
+  
   return rv;
 }
 
 void
-nsXBLProtoImplProperty::Trace(const TraceCallbacks& aCallbacks, void *aClosure)
+nsXBLProtoImplProperty::Trace(TraceCallback aCallback, void *aClosure) const
 {
   if (mJSAttributes & JSPROP_GETTER) {
-    aCallbacks.Trace(&mJSGetterObject, "mJSGetterObject", aClosure);
+    aCallback(mJSGetterObject, "mJSGetterObject", aClosure);
   }
 
   if (mJSAttributes & JSPROP_SETTER) {
-    aCallbacks.Trace(&mJSSetterObject, "mJSSetterObject", aClosure);
+    aCallback(mJSSetterObject, "mJSSetterObject", aClosure);
   }
 }
 

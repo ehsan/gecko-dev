@@ -48,7 +48,6 @@
 #include "MediaStreamList.h"
 #include "nsIScriptGlobalObject.h"
 #include "jsapi.h"
-#include "DOMMediaStream.h"
 #endif
 
 #ifndef USE_FAKE_MEDIA_STREAMS
@@ -143,33 +142,6 @@ public:
 
   ~PeerConnectionObserverDispatch(){}
 
-#ifdef MOZILLA_INTERNAL_API
-  class TracksAvailableCallback : public DOMMediaStream::OnTracksAvailableCallback
-  {
-  public:
-    TracksAvailableCallback(DOMMediaStream::TrackTypeHints aTrackTypeHints,
-                            nsCOMPtr<IPeerConnectionObserver> aObserver)
-      : DOMMediaStream::OnTracksAvailableCallback(aTrackTypeHints),
-        mObserver(aObserver) {}
-
-    virtual void NotifyTracksAvailable(DOMMediaStream* aStream) MOZ_OVERRIDE
-    {
-      MOZ_ASSERT(NS_IsMainThread());
-
-      // Start currentTime from the point where this stream was successfully
-      // returned.
-      aStream->SetLogicalStreamStartTime(aStream->GetStream()->GetCurrentTime());
-
-      CSFLogInfo(logTag, "Returning success for OnAddStream()");
-      // We are running on main thread here so we shouldn't have a race
-      // on this callback
-      mObserver->OnAddStream(aStream);
-    }
-
-    nsCOMPtr<IPeerConnectionObserver> mObserver;
-  };
-#endif
-
   NS_IMETHOD Run() {
 
     CSFLogInfo(logTag, "PeerConnectionObserverDispatch processing "
@@ -258,14 +230,7 @@ public:
           if (!stream) {
             CSFLogError(logTag, "%s: GetMediaStream returned NULL", __FUNCTION__);
           } else {
-#ifdef MOZILLA_INTERNAL_API
-            TracksAvailableCallback* tracksAvailableCallback =
-              new TracksAvailableCallback(mRemoteStream->mTrackTypeHints, mObserver);
-
-            stream->OnTracksAvailable(tracksAvailableCallback);
-#else
             mObserver->OnAddStream(stream);
-#endif
           }
           break;
         }
@@ -1486,24 +1451,18 @@ static nsresult
 GetStreams(JSContext* cx, PeerConnectionImpl* peerConnection,
            MediaStreamList::StreamType type, JS::Value* streams)
 {
-  nsRefPtr<MediaStreamList> list(new MediaStreamList(peerConnection, type));
+  nsAutoPtr<MediaStreamList> list(new MediaStreamList(peerConnection, type));
 
-  nsCOMPtr<nsIScriptGlobalObject> global =
-    do_QueryInterface(peerConnection->GetWindow());
-  JS::Rooted<JSObject*> scope(cx, global->GetGlobalJSObject());
-  if (!scope) {
+  bool tookOwnership = false;
+  JSObject* obj = list->WrapObject(cx, &tookOwnership);
+  if (!tookOwnership) {
     streams->setNull();
     return NS_ERROR_FAILURE;
   }
 
-  JSAutoCompartment ac(cx, scope);
-  JSObject* obj = list->WrapObject(cx, scope);
-  if (!obj) {
-    streams->setNull();
-    return NS_ERROR_FAILURE;
-  }
-
+  // Transfer ownership to the binding.
   streams->setObject(*obj);
+  list.forget();
   return NS_OK;
 }
 #endif

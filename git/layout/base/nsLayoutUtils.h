@@ -1614,11 +1614,6 @@ public:
   static bool GPUImageScalingEnabled();
 
   /**
-   * Checks whether we want to layerize animated images whenever possible.
-   */
-  static bool AnimatedImageLayersEnabled();
-
-  /**
    * Unions the overflow areas of all non-popup children of aFrame with
    * aOverflowAreas.
    */
@@ -1722,7 +1717,7 @@ public:
    * allow it to be accessed an manipulated from breakpoint conditions.
    */
   static bool InvalidationDebuggingIsEnabled() {
-    return sInvalidationDebuggingIsEnabled || getenv("MOZ_DUMP_INVALIDATION") != 0;
+    return sInvalidationDebuggingIsEnabled;
   }
 
   static void Initialize();

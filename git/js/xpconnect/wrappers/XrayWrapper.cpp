@@ -1210,8 +1210,12 @@ DOMXrayTraits::defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
     if (!existingDesc.obj())
         return true;
 
-    JS::Rooted<JSObject*> obj(cx, getTargetObject(wrapper));
-    return XrayDefineProperty(cx, wrapper, obj, id, desc, defined);
+    RootedObject obj(cx, getTargetObject(wrapper));
+    if (!js::IsProxy(obj))
+        return true;
+
+    *defined = true;
+    return js::GetProxyHandler(obj)->defineProperty(cx, wrapper, id, desc);
 }
 
 bool

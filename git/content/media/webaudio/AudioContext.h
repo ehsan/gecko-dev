@@ -54,7 +54,6 @@ class OfflineRenderSuccessCallback;
 class PannerNode;
 class ScriptProcessorNode;
 class WaveShaperNode;
-class WaveTable;
 
 class AudioContext MOZ_FINAL : public nsDOMEventTargetHelper,
                                public EnableWebAudioCheck
@@ -106,7 +105,7 @@ public:
 
   float SampleRate() const
   {
-    return mSampleRate;
+    return float(IdealAudioRate());
   }
 
   double CurrentTime() const;
@@ -179,10 +178,6 @@ public:
   already_AddRefed<BiquadFilterNode>
   CreateBiquadFilter();
 
-  already_AddRefed<WaveTable>
-  CreateWaveTable(const Float32Array& aRealData, const Float32Array& aImagData,
-                  ErrorResult& aRv);
-
   void DecodeAudioData(const ArrayBuffer& aBuffer,
                        DecodeSuccessCallback& aSuccessCallback,
                        const Optional<OwningNonNull<DecodeErrorCallback> >& aFailureCallback);
@@ -191,6 +186,7 @@ public:
   void StartRendering();
   IMPL_EVENT_HANDLER(complete)
 
+  uint32_t GetRate() const { return IdealAudioRate(); }
   bool IsOffline() const { return mIsOffline; }
 
   MediaStreamGraph* Graph() const;
@@ -208,9 +204,6 @@ private:
   friend struct ::mozilla::WebAudioDecodeJob;
 
 private:
-  // Note that it's important for mSampleRate to be initialized before
-  // mDestination, as mDestination's constructor needs to access it!
-  const float mSampleRate;
   nsRefPtr<AudioDestinationNode> mDestination;
   nsRefPtr<AudioListener> mListener;
   MediaBufferDecoder mDecoder;

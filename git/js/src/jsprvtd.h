@@ -83,7 +83,6 @@ class RegExpShared;
 class RegExpStatics;
 class MatchPairs;
 class PropertyName;
-class LazyScript;
 
 enum RegExpFlag
 {

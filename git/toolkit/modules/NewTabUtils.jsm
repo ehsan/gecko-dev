@@ -415,7 +415,6 @@ let PinnedLinks = {
     while (i >= 0 && links[i] == null)
       i--;
     links.splice(i +1);
-    this.save();
   },
 
   /**

@@ -49,28 +49,24 @@ GetterSetterWriteBarrierPostRemove(JSRuntime *rt, JSObject **objp)
 }
 
 inline
-BaseShape::BaseShape(JSCompartment *comp, Class *clasp, JSObject *parent, JSObject *metadata,
-                     uint32_t objectFlags)
+BaseShape::BaseShape(JSCompartment *comp, Class *clasp, JSObject *parent, uint32_t objectFlags)
 {
     JS_ASSERT(!(objectFlags & ~OBJECT_FLAG_MASK));
     mozilla::PodZero(this);
     this->clasp = clasp;
     this->parent = parent;
-    this->metadata = metadata;
     this->flags = objectFlags;
     this->compartment_ = comp;
 }
 
 inline
-BaseShape::BaseShape(JSCompartment *comp, Class *clasp, JSObject *parent, JSObject *metadata,
-                     uint32_t objectFlags, uint8_t attrs,
-                     PropertyOp rawGetter, StrictPropertyOp rawSetter)
+BaseShape::BaseShape(JSCompartment *comp, Class *clasp, JSObject *parent, uint32_t objectFlags,
+                     uint8_t attrs, js::PropertyOp rawGetter, js::StrictPropertyOp rawSetter)
 {
     JS_ASSERT(!(objectFlags & ~OBJECT_FLAG_MASK));
     mozilla::PodZero(this);
     this->clasp = clasp;
     this->parent = parent;
-    this->metadata = metadata;
     this->flags = objectFlags;
     this->rawGetter = rawGetter;
     this->rawSetter = rawSetter;
@@ -91,7 +87,6 @@ BaseShape::BaseShape(const StackBaseShape &base)
     mozilla::PodZero(this);
     this->clasp = base.clasp;
     this->parent = base.parent;
-    this->metadata = base.metadata;
     this->flags = base.flags;
     this->rawGetter = base.rawGetter;
     this->rawSetter = base.rawSetter;
@@ -107,7 +102,6 @@ BaseShape::operator=(const BaseShape &other)
 {
     clasp = other.clasp;
     parent = other.parent;
-    metadata = other.metadata;
     flags = other.flags;
     slotSpan_ = other.slotSpan_;
     if (flags & HAS_GETTER_OBJECT) {
@@ -141,7 +135,6 @@ StackBaseShape::StackBaseShape(Shape *shape)
   : flags(shape->getObjectFlags()),
     clasp(shape->getObjectClass()),
     parent(shape->getObjectParent()),
-    metadata(shape->getObjectMetadata()),
     compartment(shape->compartment())
 {
     updateGetterSetter(shape->attrs, shape->getter(), shape->setter());
@@ -204,7 +197,6 @@ BaseShape::assertConsistency()
         JS_ASSERT_IF(hasGetterObject(), getterObject() == unowned->getterObject());
         JS_ASSERT_IF(hasSetterObject(), setterObject() == unowned->setterObject());
         JS_ASSERT(getObjectParent() == unowned->getObjectParent());
-        JS_ASSERT(getObjectMetadata() == unowned->getObjectMetadata());
         JS_ASSERT(getObjectFlags() == unowned->getObjectFlags());
     }
 #endif
@@ -503,9 +495,6 @@ BaseShape::markChildren(JSTracer *trc)
 
     if (parent)
         MarkObject(trc, &parent, "parent");
-
-    if (metadata)
-        MarkObject(trc, &metadata, "metadata");
 }
 
 /*

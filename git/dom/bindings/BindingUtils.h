@@ -27,35 +27,8 @@
 
 class nsPIDOMWindow;
 
-extern nsresult
-xpc_qsUnwrapArgImpl(JSContext* cx, jsval v, const nsIID& iid, void** ppArg,
-                    nsISupports** ppArgRef, jsval* vp);
-
 namespace mozilla {
 namespace dom {
-
-struct SelfRef
-{
-  SelfRef() : ptr(nullptr) {}
-  explicit SelfRef(nsISupports *p) : ptr(p) {}
-  ~SelfRef() { NS_IF_RELEASE(ptr); }
-
-  nsISupports* ptr;
-};
-
-/** Convert a jsval to an XPCOM pointer. */
-template <class Interface, class StrongRefType>
-inline nsresult
-UnwrapArg(JSContext* cx, jsval v, Interface** ppArg,
-          StrongRefType** ppArgRef, jsval* vp)
-{
-  nsISupports* argRef = *ppArgRef;
-  nsresult rv = xpc_qsUnwrapArgImpl(cx, v, NS_GET_TEMPLATE_IID(Interface),
-                                    reinterpret_cast<void**>(ppArg), &argRef,
-                                    vp);
-  *ppArgRef = static_cast<StrongRefType*>(argRef);
-  return rv;
-}
 
 bool
 ThrowErrorMessage(JSContext* aCx, const ErrNum aErrorNumber, ...);
@@ -1531,8 +1504,7 @@ enum StringificationBehavior {
 
 // pval must not be null and must point to a rooted JS::Value
 static inline bool
-ConvertJSValueToString(JSContext* cx, JS::Handle<JS::Value> v,
-                       JS::MutableHandle<JS::Value> pval,
+ConvertJSValueToString(JSContext* cx, const JS::Value& v, JS::Value* pval,
                        StringificationBehavior nullBehavior,
                        StringificationBehavior undefinedBehavior,
                        FakeDependentString& result)
@@ -1563,7 +1535,7 @@ ConvertJSValueToString(JSContext* cx, JS::Handle<JS::Value> v,
     if (!s) {
       return false;
     }
-    pval.set(JS::StringValue(s));  // Root the new string.
+    pval->setString(s);  // Root the new string.
   }
 
   size_t len;
@@ -1866,19 +1838,6 @@ XrayResolveNativeProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
                           JS::Handle<jsid> id, JSPropertyDescriptor* desc);
 
 /**
- * Define a property on obj through an Xray wrapper.
- *
- * wrapper is the Xray JS object.
- * obj is the target object of the Xray, a binding's instance object or a
- *     interface or interface prototype object.
- * defined will be set to true if a property was set as a result of this call.
- */
-bool
-XrayDefineProperty(JSContext* cx, JS::Handle<JSObject*> wrapper, 
-                   JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
-                   JSPropertyDescriptor* desc, bool* defined);
-
-/**
  * This enumerates indexed or named properties of obj and operations, attributes
  * and constants of the interfaces for obj.
  *
@@ -2040,10 +1999,6 @@ GetUnforgeableHolder(JSObject* aGlobal, prototypes::ID aId)
 bool
 GetWindowForJSImplementedObject(JSContext* cx, JS::Handle<JSObject*> obj,
                                 nsPIDOMWindow** window);
-
-bool
-RegisterForDeferredFinalization(DeferredFinalizeStartFunction start,
-                                DeferredFinalizeFunction run);
 
 } // namespace dom
 } // namespace mozilla

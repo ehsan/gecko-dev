@@ -10,7 +10,6 @@
 #include "gfxTypes.h"
 #include "nsRect.h"
 #include "mozilla/gfx/Rect.h"
-#include "Units.h"
 
 namespace mozilla {
 namespace layers {
@@ -21,7 +20,7 @@ namespace layers {
  * useful for shadow layers, because the metrics values are updated
  * atomically with new pixels.
  */
-struct FrameMetrics {
+struct THEBES_API FrameMetrics {
 public:
   // We use IDs to identify frames across processes.
   typedef uint64_t ViewID;
@@ -191,7 +190,7 @@ public:
   //
   // This is valid for any layer, but is always relative to this frame and
   // not any parents, regardless of parent transforms.
-  mozilla::CSSPoint mScrollOffset;
+  gfx::Point mScrollOffset;
 
   // A unique ID assigned to each scrollable frame (unless this is
   // ROOT_SCROLL_ID, in which case it is not unique).

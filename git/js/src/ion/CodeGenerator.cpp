@@ -23,7 +23,6 @@
 #include "builtin/Eval.h"
 #include "gc/Nursery.h"
 #include "vm/ForkJoin.h"
-#include "ParallelArrayAnalysis.h"
 
 #include "vm/StringObject-inl.h"
 
@@ -1453,7 +1452,7 @@ CodeGenerator::visitCallDOMNative(LCallDOMNative *call)
     masm.passABIArg(argPrivate);
     masm.passABIArg(argArgc);
     masm.passABIArg(argVp);
-    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, target->jitInfo()->method));
+    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, target->jitInfo()->op));
 
     if (target->jitInfo()->isInfallible) {
         masm.loadValue(Address(StackPointer, IonDOMMethodExitFrameLayout::offsetOfResult()),
@@ -1494,8 +1493,26 @@ static const VMFunction GetIntrinsicValueInfo =
 bool
 CodeGenerator::visitCallGetIntrinsicValue(LCallGetIntrinsicValue *lir)
 {
-    pushArg(ImmGCPtr(lir->mir()->name()));
-    return callVM(GetIntrinsicValueInfo, lir);
+    // When compiling parallel kernels, always bail.
+    switch (gen->info().executionMode()) {
+      case SequentialExecution: {
+        pushArg(ImmGCPtr(lir->mir()->name()));
+        return callVM(GetIntrinsicValueInfo, lir);
+      }
+
+      case ParallelExecution: {
+        OutOfLineParallelAbort *bail = oolParallelAbort(ParallelBailoutAccessToIntrinsic, lir);
+        if (!bail)
+            return false;
+
+        masm.jump(bail->entry());
+        return true;
+      }
+
+      default:
+        JS_NOT_REACHED("Bad execution mode");
+        return false;
+    }
 }
 
 typedef bool (*InvokeFunctionFn)(JSContext *, HandleFunction, uint32_t, Value *, Value *);
@@ -1550,7 +1567,7 @@ CodeGenerator::visitCallGeneric(LCallGeneric *call)
     masm.branchIfFunctionHasNoScript(calleereg, &uncompiled);
 
     // Knowing that calleereg is a non-native function, load the JSScript.
-    masm.loadPtr(Address(calleereg, JSFunction::offsetOfNativeOrScript()), objreg);
+    masm.loadPtr(Address(calleereg, offsetof(JSFunction, u.i.script_)), objreg);
 
     // Load script jitcode.
     masm.loadBaselineOrIonRaw(objreg, objreg, executionMode, &uncompiled);
@@ -1685,7 +1702,7 @@ CodeGenerator::visitCallKnown(LCallKnown *call)
     }
 
     // Knowing that calleereg is a non-native function, load the JSScript.
-    masm.loadPtr(Address(calleereg, JSFunction::offsetOfNativeOrScript()), objreg);
+    masm.loadPtr(Address(calleereg, offsetof(JSFunction, u.i.script_)), objreg);
 
     // Load script jitcode.
     if (call->mir()->needsArgCheck())
@@ -1894,7 +1911,7 @@ CodeGenerator::visitApplyArgsGeneric(LApplyArgsGeneric *apply)
     }
 
     // Knowing that calleereg is a non-native function, load the JSScript.
-    masm.loadPtr(Address(calleereg, JSFunction::offsetOfNativeOrScript()), objreg);
+    masm.loadPtr(Address(calleereg, offsetof(JSFunction, u.i.script_)), objreg);
 
     // Load script jitcode.
     masm.loadBaselineOrIonRaw(objreg, objreg, executionMode, &invoke);
@@ -5193,19 +5210,13 @@ CodeGenerator::link()
     if (cx->compartment->types.compiledInfo.compilerOutput(cx)->isInvalidated())
         return true;
 
-    // List of possible scripts that this graph may call. Currently this is
-    // only tracked when compiling for parallel execution.
-    CallTargetVector callTargets;
-    if (executionMode == ParallelExecution)
-        AddPossibleCallees(graph.mir(), callTargets);
-
     IonScript *ionScript =
       IonScript::New(cx, graph.totalSlotCount(), scriptFrameSize, snapshots_.size(),
                      bailouts_.length(), graph.numConstants(),
                      safepointIndices_.length(), osiIndices_.length(),
                      cacheList_.length(), runtimeData_.length(),
                      safepoints_.size(), graph.mir().numScripts(),
-                     callTargets.length());
+                     graph.mir().numCallTargets());
 
     ionScript->setMethod(code);
     ionScript->setSkipArgCheckEntryOffset(getSkipArgCheckEntryOffset());
@@ -5215,12 +5226,6 @@ CodeGenerator::link()
         ionScript->setHasSPSInstrumentation();
 
     SetIonScript(script, executionMode, ionScript);
-
-    // In parallel execution mode, when we first compile a script, we
-    // don't know that its potential callees are compiled, so set a
-    // flag warning that the callees may not be fully compiled.
-    if (callTargets.length() != 0)
-        ionScript->setHasUncompiledCallTarget();
 
     if (!ionScript)
         return false;
@@ -5269,8 +5274,8 @@ CodeGenerator::link()
 #endif
     JS_ASSERT(graph.mir().numScripts() > 0);
     ionScript->copyScriptEntries(graph.mir().scripts());
-    if (callTargets.length() > 0)
-        ionScript->copyCallTargetEntries(callTargets.begin());
+    if (graph.mir().numCallTargets() > 0)
+        ionScript->copyCallTargetEntries(graph.mir().callTargets());
 
     // The correct state for prebarriers is unknown until the end of compilation,
     // since a GC can occur during code generation. All barriers are emitted
@@ -5642,59 +5647,6 @@ CodeGenerator::visitGetElementIC(OutOfLineUpdateCache *ool, GetElementIC *ic)
         return false;
     StoreValueTo(ic->output()).generate(this);
     restoreLiveIgnore(lir, StoreValueTo(ic->output()).clobbered());
-
-    masm.jump(ool->rejoin());
-    return true;
-}
-
-bool
-CodeGenerator::visitSetElementCacheV(LSetElementCacheV *ins)
-{
-    Register obj = ToRegister(ins->object());
-    Register temp = ToRegister(ins->temp());
-    ValueOperand index = ToValue(ins, LSetElementCacheV::Index);
-    ConstantOrRegister value = TypedOrValueRegister(ToValue(ins, LSetElementCacheV::Value));
-
-    SetElementIC cache(obj, temp, index, value, ins->mir()->strict());
-
-    return addCache(ins, allocateCache(cache));
-}
-
-bool
-CodeGenerator::visitSetElementCacheT(LSetElementCacheT *ins)
-{
-    Register obj = ToRegister(ins->object());
-    Register temp = ToRegister(ins->temp());
-    ValueOperand index = ToValue(ins, LSetElementCacheT::Index);
-    ConstantOrRegister value;
-    const LAllocation *tmp = ins->value();
-    if (tmp->isConstant())
-        value = *tmp->toConstant();
-    else
-        value = TypedOrValueRegister(ins->mir()->value()->type(), ToAnyRegister(tmp));
-
-    SetElementIC cache(obj, temp, index, value, ins->mir()->strict());
-
-    return addCache(ins, allocateCache(cache));
-}
-
-typedef bool (*SetElementICFn)(JSContext *, size_t, HandleObject, HandleValue, HandleValue);
-const VMFunction SetElementIC::UpdateInfo =
-    FunctionInfo<SetElementICFn>(SetElementIC::update);
-
-bool
-CodeGenerator::visitSetElementIC(OutOfLineUpdateCache *ool, SetElementIC *ic)
-{
-    LInstruction *lir = ool->lir();
-    saveLive(lir);
-
-    pushArg(ic->value());
-    pushArg(ic->index());
-    pushArg(ic->object());
-    pushArg(Imm32(ool->getCacheIndex()));
-    if (!callVM(SetElementIC::UpdateInfo, lir))
-        return false;
-    restoreLive(lir);
 
     masm.jump(ool->rejoin());
     return true;

@@ -6,8 +6,6 @@
 #define mozilla_BrowserElementHelpers_h
 
 #include "nsAString.h"
-#include "mozilla/gfx/Point.h"
-#include "mozilla/gfx/Rect.h"
 
 class nsIDOMWindow;
 class nsIURI;
@@ -16,6 +14,11 @@ namespace mozilla {
 
 namespace dom {
 class TabParent;
+}
+
+namespace gfx{
+struct Rect;
+struct Size;
 }
 
 /**

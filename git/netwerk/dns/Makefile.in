@@ -15,7 +15,15 @@ MSVC_ENABLE_PGO := 1
 LIBXUL_LIBRARY = 1
 FAIL_ON_WARNINGS := 1
 
-DISABLED_CSRCS = \
+CPPSRCS = \
+  DNS.cpp \
+  nsIDNService.cpp \
+  nsHostResolver.cpp \
+  nsDNSService2.cpp \
+  nsEffectiveTLDService.cpp \
+  $(NULL)
+
+CSRCS = \
   race.c \
   nameprep.c \
   punycode.c \

@@ -338,14 +338,13 @@ GetParamsForMessage(JSContext* aCx,
   //    properly cases when interface is implemented in JS and used
   //    as a dictionary.
   nsAutoString json;
-  JS::Rooted<JS::Value> v(aCx, aObject);
-  NS_ENSURE_TRUE(JS_Stringify(aCx, v.address(), nullptr, JSVAL_NULL,
-                              JSONCreator, &json), false);
+  JS::Value v = aObject;
+  NS_ENSURE_TRUE(JS_Stringify(aCx, &v, nullptr, JSVAL_NULL, JSONCreator, &json), false);
   NS_ENSURE_TRUE(!json.IsEmpty(), false);
 
   JS::Rooted<JS::Value> val(aCx, JS::NullValue());
   NS_ENSURE_TRUE(JS_ParseJSON(aCx, static_cast<const jschar*>(json.get()),
-                              json.Length(), &val), false);
+                              json.Length(), val.address()), false);
 
   return WriteStructuredClone(aCx, val, aBuffer, aClosure);
 }
@@ -389,7 +388,7 @@ nsFrameMessageManager::SendSyncMessage(const nsAString& aMessageName,
 
       JS::Rooted<JS::Value> ret(aCx);
       if (!JS_ParseJSON(aCx, static_cast<const jschar*>(retval[i].get()),
-                        retval[i].Length(), &ret)) {
+                        retval[i].Length(), ret.address())) {
         return NS_ERROR_UNEXPECTED;
       }
       NS_ENSURE_TRUE(JS_SetElement(aCx, dataArray, i, ret.address()),

@@ -9,11 +9,18 @@
 
 #include "nsIAccessiblePivot.h"
 
-#include "Accessible-inl.h"
 #include "nsAutoPtr.h"
 #include "nsTObserverArray.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
+
+namespace mozilla {
+namespace a11y {
+
+class Accessible;
+
+} // namespace a11y
+} // namespace mozilla
 
 class nsIAccessibleTraversalRule;
 
@@ -51,9 +58,9 @@ private:
                            PivotMoveReason aReason);
 
   /*
-   * Check to see that the given accessible is a descendant of given ancestor
+   * Check to see that the given accessible is in the pivot's subtree.
    */
-  bool IsDescendantOf(Accessible* aAccessible, Accessible* aAncestor);
+  bool IsRootDescendant(Accessible* aAccessible);
 
 
   /*
@@ -73,19 +80,6 @@ private:
                              nsresult* aResult);
 
   /*
-   * Get the effective root for this pivot, either the true root or modal root.
-   */
-  Accessible* GetActiveRoot() const
-  {
-    if (mModalRoot) {
-      NS_ENSURE_FALSE(mModalRoot->IsDefunct(), mRoot);
-      return mModalRoot;
-    }
-
-    return mRoot;
-  }
-
-  /*
    * Update the pivot, and notify observers. Return true if it moved.
    */
   bool MovePivotInternal(Accessible* aPosition, PivotMoveReason aReason);
@@ -94,11 +88,6 @@ private:
    * The root accessible.
    */
   nsRefPtr<Accessible> mRoot;
-
-  /*
-   * The temporary modal root accessible.
-   */
-  nsRefPtr<Accessible> mModalRoot;
 
   /*
    * The current pivot position.

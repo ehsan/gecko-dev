@@ -271,10 +271,10 @@ nsXBLPrototypeBinding::UnlinkJSObjects()
 }
 
 void
-nsXBLPrototypeBinding::Trace(const TraceCallbacks& aCallbacks, void *aClosure) const
+nsXBLPrototypeBinding::Trace(TraceCallback aCallback, void *aClosure) const
 {
   if (mImplementation)
-    mImplementation->Trace(aCallbacks, aClosure);
+    mImplementation->Trace(aCallback, aClosure);
 }
 
 void

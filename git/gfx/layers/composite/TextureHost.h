@@ -200,14 +200,13 @@ public:
   	                  const gfx::IntSize& aSize) {}
 
   /**
-   * Lock the texture host for compositing, returns true if the TextureHost is
-   * valid for composition.
+   * Lock the texture host for compositing, returns an effect that should
+   * be used to composite this texture.
    */
-  virtual bool Lock() { return IsValid(); }
+  virtual bool Lock() { return true; }
 
   /**
-   * Unlock the texture host after compositing.
-   * Should handle the case where Lock failed without crashing.
+   * Unlock the texture host after compositing
    */
   virtual void Unlock() {}
 
@@ -229,6 +228,10 @@ public:
     return mDeAllocator;
   }
 
+#ifdef MOZ_DUMP_PAINTING
+  virtual already_AddRefed<gfxImageSurface> Dump() { return nullptr; }
+#endif
+
   bool operator== (const TextureHost& o) const
   {
     return GetIdentifier() == o.GetIdentifier();
@@ -243,8 +246,6 @@ public:
     return LayerRenderState(mBuffer,
                             mFlags & NeedsYFlip ? LAYER_RENDER_STATE_Y_FLIPPED : 0);
   }
-
-  virtual already_AddRefed<gfxImageSurface> GetAsSurface() = 0;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual const char *Name() = 0;

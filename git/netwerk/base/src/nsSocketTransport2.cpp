@@ -17,7 +17,6 @@
 #include "nsTransportUtils.h"
 #include "nsProxyInfo.h"
 #include "nsNetCID.h"
-#include "nsNetUtil.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "netCore.h"
@@ -1859,15 +1858,10 @@ nsSocketTransport::GetSecurityCallbacks(nsIInterfaceRequestor **callbacks)
 NS_IMETHODIMP
 nsSocketTransport::SetSecurityCallbacks(nsIInterfaceRequestor *callbacks)
 {
-    nsCOMPtr<nsIInterfaceRequestor> threadsafeCallbacks;
-    NS_NewNotificationCallbacksAggregation(callbacks, nullptr,
-                                           NS_GetCurrentThread(),
-                                           getter_AddRefs(threadsafeCallbacks));
-
     nsCOMPtr<nsISupports> secinfo;
     {
         MutexAutoLock lock(mLock);
-        mCallbacks = threadsafeCallbacks;
+        mCallbacks = callbacks;
         SOCKET_LOG(("Reset callbacks for secinfo=%p callbacks=%p\n",
                     mSecInfo.get(), mCallbacks.get()));
 
@@ -1877,7 +1871,7 @@ nsSocketTransport::SetSecurityCallbacks(nsIInterfaceRequestor *callbacks)
     // don't call into PSM while holding mLock!!
     nsCOMPtr<nsISSLSocketControl> secCtrl(do_QueryInterface(secinfo));
     if (secCtrl)
-        secCtrl->SetNotificationCallbacks(threadsafeCallbacks);
+        secCtrl->SetNotificationCallbacks(callbacks);
 
     return NS_OK;
 }

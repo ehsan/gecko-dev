@@ -9,6 +9,5 @@ PARALLEL_DIRS += [
     'client',
     'gcli',
     'sourcemap',
-    'webconsole',
-    'apps'
+    'webconsole'
 ]

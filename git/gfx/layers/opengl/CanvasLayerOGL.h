@@ -20,7 +20,7 @@
 namespace mozilla {
 namespace layers {
 
-class CanvasLayerOGL :
+class THEBES_API CanvasLayerOGL :
   public CanvasLayer,
   public LayerOGL
 {

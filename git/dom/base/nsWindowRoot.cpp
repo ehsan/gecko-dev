@@ -179,12 +179,6 @@ nsWindowRoot::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
   return NS_OK;
 }
 
-nsIDOMWindow*
-nsWindowRoot::GetOwnerGlobal()
-{
-  return GetWindow();
-}
-
 nsPIDOMWindow*
 nsWindowRoot::GetWindow()
 {

@@ -66,7 +66,6 @@ class TiledLayerBufferComposite
   friend class TiledLayerBuffer<TiledLayerBufferComposite, TiledTexture>;
 
 public:
-  typedef TiledLayerBuffer<TiledLayerBufferComposite, TiledTexture>::Iterator Iterator;
   TiledLayerBufferComposite()
     : mCompositor(nullptr)
   {}
@@ -201,10 +200,6 @@ public:
   }
 
   virtual void Attach(Layer* aLayer, Compositor* aCompositor) MOZ_OVERRIDE;
-
-  virtual void Dump(FILE* aFile=NULL,
-                    const char* aPrefix="",
-                    bool aDumpHtml=false) MOZ_OVERRIDE;
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);

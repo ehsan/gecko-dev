@@ -56,7 +56,7 @@ static inline mozilla::css::Corner operator++(mozilla::css::Corner& corner, int)
     return corner;
 }
 
-struct gfxRect :
+struct THEBES_API gfxRect :
     public mozilla::gfx::BaseRect<gfxFloat, gfxRect, gfxPoint, gfxSize, gfxMargin> {
     typedef mozilla::gfx::BaseRect<gfxFloat, gfxRect, gfxPoint, gfxSize, gfxMargin> Super;
 
@@ -141,7 +141,7 @@ struct gfxRect :
     }
 };
 
-struct gfxCornerSizes {
+struct THEBES_API gfxCornerSizes {
     gfxSize sizes[NS_NUM_CORNERS];
 
     gfxCornerSizes () { }

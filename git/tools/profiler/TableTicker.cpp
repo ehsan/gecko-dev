@@ -562,7 +562,7 @@ static void print_callback(const ProfileEntry& entry, const char* tagStringData)
 void mozilla_sampler_print_location1()
 {
   if (!stack_key_initialized)
-    profiler_init(NULL);
+    profiler_init();
 
   PseudoStack *stack = tlsPseudoStack.get();
   if (!stack) {

@@ -3,8 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/CompositorParent.h"
-#include "mozilla/layers/PLayerTransactionChild.h"
 #include "nsIDocShell.h"
 #include "nsPresContext.h"
 #include "nsDOMClassInfoID.h"
@@ -76,13 +74,6 @@
 #include "nsIScriptError.h"
 #include "nsIAppShell.h"
 #include "nsWidgetsCID.h"
-#include "FrameLayerBuilder.h"
-#include "nsDisplayList.h"
-#include "nsROCSSPrimitiveValue.h"
-
-#ifdef XP_WIN
-#undef GetClassName
-#endif
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -2009,7 +2000,7 @@ nsDOMWindowUtils::SendContentCommandEvent(const nsAString& aType,
     msg = NS_CONTENT_COMMAND_PASTE_TRANSFERABLE;
   else
     return NS_ERROR_FAILURE;
-
+ 
   nsContentCommandEvent event(true, msg, widget);
   if (msg == NS_CONTENT_COMMAND_PASTE_TRANSFERABLE) {
     event.mTransferable = aTransferable;
@@ -2380,9 +2371,7 @@ nsDOMWindowUtils::AdvanceTimeAndRefresh(int64_t aMilliseconds)
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
-  driver->AdvanceTimeAndRefresh(aMilliseconds);
-  CompositorParent::SetTimeAndSampleAnimations(driver->MostRecentRefresh(), true);
+  GetPresContext()->RefreshDriver()->AdvanceTimeAndRefresh(aMilliseconds);
 
   return NS_OK;
 }
@@ -2394,9 +2383,7 @@ nsDOMWindowUtils::RestoreNormalRefresh()
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  nsRefreshDriver* driver = GetPresContext()->RefreshDriver();
-  driver->RestoreNormalRefresh();
-  CompositorParent::SetTimeAndSampleAnimations(driver->MostRecentRefresh(), false);
+  GetPresContext()->RefreshDriver()->RestoreNormalRefresh();
 
   return NS_OK;
 }
@@ -3366,60 +3353,5 @@ nsDOMWindowUtils::RunBeforeNextEvent(nsIRunnable *runnable)
   }
 
   return appShell->RunBeforeNextEvent(runnable);
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::GetOMTAOrComputedStyle(nsIDOMNode* aNode,
-                                         const nsAString& aProperty,
-                                         nsAString& aResult)
-{
-  aResult.Truncate();
-  ErrorResult rv;
-  nsCOMPtr<Element> element = do_QueryInterface(aNode);
-  if (!element) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsRefPtr<nsROCSSPrimitiveValue> cssValue = nullptr;
-  nsIFrame* frame = element->GetPrimaryFrame();
-  if (frame) {
-    if (aProperty.EqualsLiteral("opacity")) {
-      Layer* layer = FrameLayerBuilder::GetDedicatedLayer(frame, nsDisplayItem::TYPE_OPACITY);
-      if (layer) {
-        float value;
-        ShadowLayerForwarder* forwarder = layer->Manager()->AsShadowForwarder();
-        if (forwarder) {
-          forwarder->GetShadowManager()->SendGetOpacity(layer->AsShadowableLayer()->GetShadow(), &value);
-          cssValue = new nsROCSSPrimitiveValue;
-          cssValue->SetNumber(value);
-        }
-      }
-    } else if (aProperty.EqualsLiteral("transform")) {
-      Layer* layer = FrameLayerBuilder::GetDedicatedLayer(frame, nsDisplayItem::TYPE_TRANSFORM);
-      if (layer) {
-        gfx3DMatrix matrix;
-        ShadowLayerForwarder* forwarder = layer->Manager()->AsShadowForwarder();
-        if (forwarder) {
-          forwarder->GetShadowManager()->SendGetTransform(layer->AsShadowableLayer()->GetShadow(), &matrix);
-          cssValue = nsComputedDOMStyle::MatrixToCSSValue(matrix);
-        }
-      }
-    }
-  }
-
-  if (cssValue) {
-    nsString text;
-    cssValue->GetCssText(text, rv);
-    aResult.Assign(text);
-    return rv.ErrorCode();
-  }
-
-  nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(element);
-  nsCOMPtr<nsIDOMCSSStyleDeclaration> style;
-  nsresult res = element->GetCurrentDoc()->GetWindow()->
-    GetComputedStyle(elem, aProperty, getter_AddRefs(style));
-  NS_ENSURE_SUCCESS(res, res);
-
-  return style->GetPropertyValue(aProperty, aResult);
 }
 

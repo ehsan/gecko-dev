@@ -13,6 +13,7 @@
 #include "ion/BaselineFrame.h"
 #include "ion/IonFrames.h"
 #include "ion/IonCompartment.h"
+#include "ion/Bailouts.h"
 #endif
 #include "Stack.h"
 #include "ForkJoin.h"
@@ -221,32 +222,9 @@ StackFrame::copyRawFrameSlots(AutoValueVector *vec)
 {
     if (!vec->resize(numFormalArgs() + script()->nfixed))
         return false;
-    PodCopy(vec->begin(), argv(), numFormalArgs());
+    PodCopy(vec->begin(), formals(), numFormalArgs());
     PodCopy(vec->begin() + numFormalArgs(), slots(), script()->nfixed);
     return true;
-}
-
-JSObject *
-StackFrame::createRestParameter(JSContext *cx)
-{
-    JS_ASSERT(fun()->hasRest());
-    unsigned nformal = fun()->nargs - 1, nactual = numActualArgs();
-    unsigned nrest = (nactual > nformal) ? nactual - nformal : 0;
-    Value *restvp = argv() + nformal;
-    RootedObject obj(cx, NewDenseCopiedArray(cx, nrest, restvp, NULL));
-    if (!obj)
-        return NULL;
-
-    RootedTypeObject type(cx, types::GetTypeCallerInitObject(cx, JSProto_Array));
-    if (!type)
-        return NULL;
-    obj->setType(type);
-
-    /* Ensure that values in the rest array are represented in the type of the array. */
-    for (unsigned i = 0; i < nrest; i++)
-        types::AddTypePropertyId(cx, obj, JSID_VOID, restvp[i]);
-
-    return obj;
 }
 
 static inline void
@@ -989,6 +967,35 @@ ContextStack::pushExecuteFrame(JSContext *cx, HandleScript script, const Value &
     efg->setPushed(*this);
     return true;
 }
+
+#ifdef JS_ION
+bool
+ContextStack::pushBailoutArgs(JSContext *cx, const ion::IonBailoutIterator &it, InvokeArgsGuard *iag)
+{
+    unsigned argc = it.numActualArgs();
+
+    if (!pushInvokeArgs(cx, argc, iag, DONT_REPORT_ERROR))
+        return false;
+
+    ion::SnapshotIterator s(it);
+    JSFunction *fun = it.callee();
+    iag->setCallee(ObjectValue(*fun));
+
+    CopyTo dst(iag->array());
+    Value *src = it.actualArgs();
+    Value thisv = iag->thisv();
+    s.readFrameArgs(dst, src, NULL, &thisv, 0, fun->nargs, argc, it.script());
+    return true;
+}
+
+StackFrame *
+ContextStack::pushBailoutFrame(JSContext *cx, const ion::IonBailoutIterator &it,
+                               const CallArgs &args, BailoutFrameGuard *bfg)
+{
+    JSFunction *fun = it.callee();
+    return pushInvokeFrame(cx, DONT_REPORT_ERROR, args, fun, INITIAL_NONE, bfg);
+}
+#endif
 
 void
 ContextStack::popFrame(const FrameGuard &fg)

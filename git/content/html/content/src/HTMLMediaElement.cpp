@@ -1509,7 +1509,7 @@ HTMLMediaElement::SetVolume(double aVolume, ErrorResult& aRv)
   mVolume = aVolume;
 
   // Here we want just to update the volume.
-  SetVolumeInternal();
+  SetMutedInternal(mMuted);
 
   DispatchAsyncEvent(NS_LITERAL_STRING("volumechange"));
 }
@@ -1687,11 +1687,6 @@ void HTMLMediaElement::SetMutedInternal(uint32_t aMuted)
     return;
   }
 
-  SetVolumeInternal();
-}
-
-void HTMLMediaElement::SetVolumeInternal()
-{
   float effectiveVolume = mMuted ? 0.0f : float(mVolume);
 
   if (mDecoder) {
@@ -1987,8 +1982,6 @@ HTMLMediaElement::~HTMLMediaElement()
   if (mAudioStream) {
     mAudioStream->Shutdown();
   }
-
-  WakeLockRelease();
 }
 
 void
@@ -2108,8 +2101,7 @@ NS_IMETHODIMP HTMLMediaElement::Play()
 }
 
 HTMLMediaElement::WakeLockBoolWrapper&
-HTMLMediaElement::WakeLockBoolWrapper::operator=(bool val)
-{
+HTMLMediaElement::WakeLockBoolWrapper::operator=(bool val) {
   if (mValue == val) {
     return *this;
   }
@@ -2117,13 +2109,6 @@ HTMLMediaElement::WakeLockBoolWrapper::operator=(bool val)
   mValue = val;
   UpdateWakeLock();
   return *this;
-}
-
-HTMLMediaElement::WakeLockBoolWrapper::~WakeLockBoolWrapper()
-{
-  if (mTimer) {
-    mTimer->Cancel();
-  }
 }
 
 void
@@ -2143,30 +2128,10 @@ HTMLMediaElement::WakeLockBoolWrapper::UpdateWakeLock()
   bool playing = (!mValue && mCanPlay);
 
   if (playing) {
-    if (mTimer) {
-      mTimer->Cancel();
-      mTimer = nullptr;
-    }
     mOuter->WakeLockCreate();
-  } else if (!mTimer) {
-    // Don't release the wake lock immediately; instead, release it after a
-    // grace period.
-    int timeout = Preferences::GetInt("media.wakelock_timeout", 2000);
-    mTimer = do_CreateInstance("@mozilla.org/timer;1");
-    if (mTimer) {
-      mTimer->InitWithFuncCallback(TimerCallback, this, timeout,
-                                   nsITimer::TYPE_ONE_SHOT);
-    }
+  } else {
+    mOuter->WakeLockRelease();
   }
-}
-
-void
-HTMLMediaElement::WakeLockBoolWrapper::TimerCallback(nsITimer* aTimer,
-                                                     void* aClosure)
-{
-  WakeLockBoolWrapper* wakeLock = static_cast<WakeLockBoolWrapper*>(aClosure);
-  wakeLock->mOuter->WakeLockRelease();
-  wakeLock->mTimer = nullptr;
 }
 
 void

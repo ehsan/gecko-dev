@@ -619,9 +619,9 @@ var Browser = {
         let sslExceptions = new SSLExceptions();
 
         if (json.action == "permanent")
-          sslExceptions.addPermanentException(uri, window);
+          sslExceptions.addPermanentException(uri, errorDoc.defaultView);
         else
-          sslExceptions.addTemporaryException(uri, window);
+          sslExceptions.addTemporaryException(uri, errorDoc.defaultView);
       } catch (e) {
         dump("EXCEPTION handle content command: " + e + "\n" );
       }

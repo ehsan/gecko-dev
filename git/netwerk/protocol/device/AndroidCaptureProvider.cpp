@@ -296,6 +296,6 @@ already_AddRefed<AndroidCaptureProvider> GetAndroidCaptureProvider() {
   if (!AndroidCaptureProvider::sInstance) {
     AndroidCaptureProvider::sInstance = new AndroidCaptureProvider();
   }
-  nsRefPtr<AndroidCaptureProvider> ret = AndroidCaptureProvider::sInstance;
-  return ret.forget();
+  AndroidCaptureProvider::sInstance->AddRef();
+  return AndroidCaptureProvider::sInstance;
 }

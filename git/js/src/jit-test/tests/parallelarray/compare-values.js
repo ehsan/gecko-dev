@@ -17,13 +17,13 @@ function theTest() {
   print("doubles");
   compareAgainstArray(doubles, "map", looselyCompareToDoubles)
   print("bools");
-  compareAgainstArray(bools, "map", looselyCompareToDoubles)
+  compareAgainstArray(bools, "map", looselyCompareToDoubles,
+                      assertStructuralEq, "mixed")
   // ion bails out when converting a string to a double right now,
   // so par exec cannot proceed
   print("strings");
-  assertParallelExecWillBail(function (mode) {
-    new ParallelArray(strings).map(looselyCompareToDoubles, mode)
-  });
+  compareAgainstArray(strings, "map", looselyCompareToDoubles,
+                      assertStructuralEq, "disqualified")
   print("ints");
   compareAgainstArray(ints, "map", looselyCompareToDoubles)
 
@@ -31,11 +31,14 @@ function theTest() {
     return doubles[i] === e;
   }
   print("doubles, strict");
-  compareAgainstArray(doubles, "map", strictlyCompareToDoubles)
+  compareAgainstArray(doubles, "map", strictlyCompareToDoubles,
+                     assertStructuralEq, "mixed")
   print("bools, strict");
-  compareAgainstArray(bools, "map", strictlyCompareToDoubles)
+  compareAgainstArray(bools, "map", strictlyCompareToDoubles,
+                      assertStructuralEq, "mixed")
   print("strings, strict");
-  compareAgainstArray(strings, "map", strictlyCompareToDoubles)
+  compareAgainstArray(strings, "map", strictlyCompareToDoubles,
+                      assertStructuralEq, "mixed")
   print("ints, strict");
   compareAgainstArray(ints, "map", strictlyCompareToDoubles)
 }

@@ -19,7 +19,7 @@ BaselineCompilerShared::BaselineCompilerShared(JSContext *cx, HandleScript scrip
     ionOSRCompileable_(ion::IsEnabled(cx) && CanIonCompileScript(cx, script, true)),
     debugMode_(cx->compartment->debugMode()),
     analysis_(script),
-    frame(cx, script, masm),
+    frame(cx, *this, script, masm),
     stubSpace_(),
     icEntries_(),
     pcMappingEntries_(),

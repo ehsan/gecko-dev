@@ -16,7 +16,7 @@
 
 class gfxContext;
 
-class gfxWindowsSurface : public gfxASurface {
+class THEBES_API gfxWindowsSurface : public gfxASurface {
 public:
     enum {
         FLAG_TAKE_DC = (1 << 0),

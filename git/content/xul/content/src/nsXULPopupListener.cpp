@@ -137,7 +137,7 @@ nsXULPopupListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   bool preventDefault;
-  mouseEvent->GetDefaultPrevented(&preventDefault);
+  mouseEvent->GetPreventDefault(&preventDefault);
   if (preventDefault && targetNode && mIsContext) {
     // Someone called preventDefault on a context menu.
     // Let's make sure they are allowed to do so.

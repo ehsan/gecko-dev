@@ -540,21 +540,23 @@ ViewHelpers.create({ constructor: BrowserConsole, proto: WebConsole.prototype },
     }
 
     let window = this.iframeWindow;
-
-    // Make sure that the closing of the Browser Console window destroys this
-    // instance.
     let onClose = () => {
       window.removeEventListener("unload", onClose);
       this.destroy();
     };
     window.addEventListener("unload", onClose);
 
-    // Make sure Ctrl-W closes the Browser Console window.
-    window.document.getElementById("cmd_close").removeAttribute("disabled");
+    this._bc_init = this.$init().then((aReason) => {
+      this._telemetry.toolOpened("browserconsole");
+      let title = this.ui.rootElement.getAttribute("browserConsoleTitle");
+      this.ui.rootElement.setAttribute("title", title);
 
-    this._telemetry.toolOpened("browserconsole");
+      let cmd_close = this.ui.document.getElementById("cmd_close");
+      cmd_close.removeAttribute("disabled");
 
-    this._bc_init = this.$init();
+      return aReason;
+    });
+
     return this._bc_init;
   },
 
@@ -698,13 +700,8 @@ var HeadsUpDisplayUICommands = {
 
       let win = Services.ww.openWindow(null, devtools.Tools.webConsole.url, "_blank",
                                        BROWSER_CONSOLE_WINDOW_FEATURES, null);
-      win.addEventListener("DOMContentLoaded", function onLoad() {
-        win.removeEventListener("DOMContentLoaded", onLoad);
-
-        // Set the correct Browser Console title.
-        let root = win.document.documentElement;
-        root.setAttribute("title", root.getAttribute("browserConsoleTitle"));
-
+      win.addEventListener("load", function onLoad() {
+        win.removeEventListener("load", onLoad);
         deferred.resolve(win);
       });
 

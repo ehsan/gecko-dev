@@ -334,6 +334,12 @@ js::RunScript(JSContext *cx, StackFrame *fp)
             return false;
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus status = ion::Cannon(cx, fp);
+
+            // Note that if we bailed out, new inline frames may have been
+            // pushed, so we interpret with the current fp.
+            if (status == ion::IonExec_Bailout)
+                return Interpret(cx, fp, JSINTERP_REJOIN);
+
             return !IsErrorStatus(status);
         }
     }
@@ -344,6 +350,13 @@ js::RunScript(JSContext *cx, StackFrame *fp)
             return false;
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus status = ion::EnterBaselineMethod(cx, fp);
+
+            // For now, we can never bail out from the baseline jit.
+            // TODO: This may need to be removed when we want to add support for
+            // OSR into Ion, which will be implemented by bailing out to the interpreter
+            // from baseline.
+            JS_ASSERT(status != ion::IonExec_Bailout);
+
             return !IsErrorStatus(status);
         }
     }
@@ -1275,8 +1288,6 @@ js::Interpret(JSContext *cx, StackFrame *entryFrame, InterpMode interpMode, bool
 /* No-ops for ease of decompilation. */
 ADD_EMPTY_CASE(JSOP_NOP)
 ADD_EMPTY_CASE(JSOP_UNUSED71)
-ADD_EMPTY_CASE(JSOP_UNUSED125)
-ADD_EMPTY_CASE(JSOP_UNUSED126)
 ADD_EMPTY_CASE(JSOP_UNUSED132)
 ADD_EMPTY_CASE(JSOP_UNUSED148)
 ADD_EMPTY_CASE(JSOP_UNUSED161)
@@ -1334,13 +1345,48 @@ check_backedge:
 BEGIN_CASE(JSOP_LOOPENTRY)
 
 #ifdef JS_ION
-    // Attempt on-stack replacement with Baseline code.
+    // Attempt on-stack replacement with Ion code. IonMonkey OSR takes place at
+    // the point of the initial loop entry, to consolidate hoisted code between
+    // entry points.
+    if (ion::IsEnabled(cx)) {
+        ion::MethodStatus status =
+            ion::CanEnterAtBranch(cx, script, AbstractFramePtr(regs.fp()), regs.pc,
+                                  regs.fp()->isConstructing());
+        if (status == ion::Method_Error)
+            goto error;
+        if (status == ion::Method_Compiled) {
+            ion::IonExecStatus maybeOsr = ion::SideCannon(cx, regs.fp(), regs.pc);
+            if (maybeOsr == ion::IonExec_Bailout) {
+                // We hit a deoptimization path in the first Ion frame, so now
+                // we've just replaced the entire Ion activation.
+                SET_SCRIPT(regs.fp()->script());
+                op = JSOp(*regs.pc);
+                DO_OP();
+            }
+
+            // We failed to call into Ion at all, so treat as an error.
+            if (maybeOsr == ion::IonExec_Aborted)
+                goto error;
+
+            interpReturnOK = (maybeOsr == ion::IonExec_Ok);
+
+            if (entryFrame != regs.fp())
+                goto jit_return;
+
+            regs.fp()->setFinishedInInterpreter();
+            goto leave_on_safe_point;
+        }
+    }
+
     if (ion::IsBaselineEnabled(cx)) {
         ion::MethodStatus status = ion::CanEnterBaselineJIT(cx, script, regs.fp(), false);
         if (status == ion::Method_Error)
             goto error;
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus maybeOsr = ion::EnterBaselineAtBranch(cx, regs.fp(), regs.pc);
+
+            // We can never bail out from the baseline jit.
+            JS_ASSERT(maybeOsr != ion::IonExec_Bailout);
 
             // We failed to call into baseline at all, so treat as an error.
             if (maybeOsr == ion::IonExec_Aborted)
@@ -2248,6 +2294,11 @@ BEGIN_CASE(JSOP_FUNCALL)
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus exec = ion::Cannon(cx, regs.fp());
             CHECK_BRANCH();
+            if (exec == ion::IonExec_Bailout) {
+                SET_SCRIPT(regs.fp()->script());
+                op = JSOp(*regs.pc);
+                DO_OP();
+            }
             interpReturnOK = !IsErrorStatus(exec);
             goto jit_return;
         }
@@ -2260,6 +2311,13 @@ BEGIN_CASE(JSOP_FUNCALL)
         if (status == ion::Method_Compiled) {
             ion::IonExecStatus exec = ion::EnterBaselineMethod(cx, regs.fp());
             CHECK_BRANCH();
+
+            // For now, we can never bail out from the baseline jit.
+            // TODO: This may need to be removed when we want to add support for
+            // OSR into Ion, which will be implemented by bailing out to the interpreter
+            // from baseline.
+            JS_ASSERT(exec != ion::IonExec_Bailout);
+
             interpReturnOK = !IsErrorStatus(exec);
             goto jit_return;
         }
@@ -2290,7 +2348,7 @@ BEGIN_CASE(JSOP_FUNCALL)
 
 BEGIN_CASE(JSOP_SETCALL)
 {
-    JS_ALWAYS_FALSE(SetCallOperation(cx));
+    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_LEFTSIDE_OF_ASS);
     goto error;
 }
 END_CASE(JSOP_SETCALL)
@@ -2470,6 +2528,12 @@ BEGIN_CASE(JSOP_REST)
     if (!rest)
         goto error;
     PUSH_COPY(ObjectValue(*rest));
+    if (!SetInitializerObjectType(cx, script, regs.pc, rest, GenericObject))
+        goto error;
+    rootType0 = GetTypeCallerInitObject(cx, JSProto_Array);
+    if (!rootType0)
+        goto error;
+    rest->setType(rootType0);
 }
 END_CASE(JSOP_REST)
 
@@ -2591,43 +2655,97 @@ BEGIN_CASE(JSOP_CALLEE)
     PUSH_COPY(regs.fp()->calleev());
 END_CASE(JSOP_CALLEE)
 
-BEGIN_CASE(JSOP_INITPROP_GETTER)
-BEGIN_CASE(JSOP_INITPROP_SETTER)
+BEGIN_CASE(JSOP_GETTER)
+BEGIN_CASE(JSOP_SETTER)
 {
+    JSOp op2 = JSOp(*++regs.pc);
+    RootedId &id = rootId0;
+    RootedValue &rval = rootValue0;
+    RootedValue &scratch = rootValue1;
+    int i;
+
     RootedObject &obj = rootObject0;
-    RootedPropertyName &name = rootName0;
-    RootedValue &val = rootValue0;
+    switch (op2) {
+      case JSOP_SETNAME:
+      case JSOP_SETPROP:
+        id = NameToId(script->getName(regs.pc));
+        rval = regs.sp[-1];
+        i = -1;
+        goto gs_pop_lval;
+      case JSOP_SETELEM:
+        rval = regs.sp[-1];
+        id = JSID_VOID;
+        i = -2;
+      gs_pop_lval:
+        FETCH_OBJECT(cx, i - 1, obj);
+        break;
 
-    JS_ASSERT(regs.stackDepth() >= 2);
-    obj = &regs.sp[-2].toObject();
-    name = script->getName(regs.pc);
-    val = regs.sp[-1];
+      case JSOP_INITPROP:
+        JS_ASSERT(regs.stackDepth() >= 2);
+        rval = regs.sp[-1];
+        i = -1;
+        id = NameToId(script->getName(regs.pc));
+        goto gs_get_lval;
+      default:
+        JS_ASSERT(op2 == JSOP_INITELEM);
+        JS_ASSERT(regs.stackDepth() >= 3);
+        rval = regs.sp[-1];
+        id = JSID_VOID;
+        i = -2;
+      gs_get_lval:
+      {
+        const Value &lref = regs.sp[i-1];
+        JS_ASSERT(lref.isObject());
+        obj = &lref.toObject();
+        break;
+      }
+    }
 
-    if (!InitGetterSetterOperation(cx, regs.pc, obj, name, val))
+    /* Ensure that id has a type suitable for use with obj. */
+    if (JSID_IS_VOID(id))
+        FETCH_ELEMENT_ID(i, id);
+
+    if (!js_IsCallable(rval)) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_GETTER_OR_SETTER,
+                             (op == JSOP_GETTER) ? js_getter_str : js_setter_str);
+        goto error;
+    }
+
+    /*
+     * Getters and setters are just like watchpoints from an access control
+     * point of view.
+     */
+    scratch.setUndefined();
+    unsigned attrs;
+    if (!CheckAccess(cx, obj, id, JSACC_WATCH, &scratch, &attrs))
         goto error;
 
-    regs.sp--;
-}
-END_CASE(JSOP_INITPROP_GETTER)
+    PropertyOp getter;
+    StrictPropertyOp setter;
+    if (op == JSOP_GETTER) {
+        getter = CastAsPropertyOp(&rval.toObject());
+        setter = JS_StrictPropertyStub;
+        attrs = JSPROP_GETTER;
+    } else {
+        getter = JS_PropertyStub;
+        setter = CastAsStrictPropertyOp(&rval.toObject());
+        attrs = JSPROP_SETTER;
+    }
+    attrs |= JSPROP_ENUMERATE | JSPROP_SHARED;
 
-BEGIN_CASE(JSOP_INITELEM_GETTER)
-BEGIN_CASE(JSOP_INITELEM_SETTER)
-{
-    RootedObject &obj = rootObject0;
-    RootedValue &idval = rootValue0;
-    RootedValue &val = rootValue1;
-
-    JS_ASSERT(regs.stackDepth() >= 3);
-    obj = &regs.sp[-3].toObject();
-    idval = regs.sp[-2];
-    val = regs.sp[-1];
-
-    if (!InitGetterSetterOperation(cx, regs.pc, obj, idval, val))
+    scratch.setUndefined();
+    if (!JSObject::defineGeneric(cx, obj, id, scratch, getter, setter, attrs))
         goto error;
 
-    regs.sp -= 2;
+    regs.sp += i;
+    if (js_CodeSpec[op2].ndefs > js_CodeSpec[op2].nuses) {
+        JS_ASSERT(js_CodeSpec[op2].ndefs == js_CodeSpec[op2].nuses + 1);
+        regs.sp[-1] = rval;
+        assertSameCompartmentDebugOnly(cx, regs.sp[-1]);
+    }
+    len = js_CodeSpec[op2].length;
+    DO_NEXT_OP(len);
 }
-END_CASE(JSOP_INITELEM_GETTER)
 
 BEGIN_CASE(JSOP_HOLE)
     PUSH_HOLE();
@@ -3324,13 +3442,6 @@ js::DefFunOperation(JSContext *cx, HandleScript script, HandleObject scopeChain,
 }
 
 bool
-js::SetCallOperation(JSContext *cx)
-{
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_LEFTSIDE_OF_ASS);
-    return false;
-}
-
-bool
 js::GetAndClearException(JSContext *cx, MutableHandleValue res)
 {
     // Check the interrupt flag to allow interrupting deeply nested exception
@@ -3530,58 +3641,4 @@ js::ImplicitThisOperation(JSContext *cx, HandleObject scopeObj, HandlePropertyNa
         return false;
 
     return ComputeImplicitThis(cx, obj, res);
-}
-
-bool
-js::InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, HandleId id,
-                              HandleValue val)
-{
-    JS_ASSERT(js_IsCallable(val));
-
-    /*
-     * Getters and setters are just like watchpoints from an access control
-     * point of view.
-     */
-    RootedValue scratch(cx, UndefinedValue());
-    unsigned attrs = 0;
-    if (!CheckAccess(cx, obj, id, JSACC_WATCH, &scratch, &attrs))
-        return false;
-
-    PropertyOp getter;
-    StrictPropertyOp setter;
-    attrs = JSPROP_ENUMERATE | JSPROP_SHARED;
-
-    JSOp op = JSOp(*pc);
-
-    if (op == JSOP_INITPROP_GETTER || op == JSOP_INITELEM_GETTER) {
-        getter = CastAsPropertyOp(&val.toObject());
-        setter = JS_StrictPropertyStub;
-        attrs |= JSPROP_GETTER;
-    } else {
-        JS_ASSERT(op == JSOP_INITPROP_SETTER || op == JSOP_INITELEM_SETTER);
-        getter = JS_PropertyStub;
-        setter = CastAsStrictPropertyOp(&val.toObject());
-        attrs |= JSPROP_SETTER;
-    }
-
-    scratch.setUndefined();
-    return JSObject::defineGeneric(cx, obj, id, scratch, getter, setter, attrs);
-}
-
-bool
-js::InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj,
-                              HandlePropertyName name, HandleValue val)
-{
-    RootedId id(cx, NameToId(name));
-    return InitGetterSetterOperation(cx, pc, obj, id, val);
-}
-
-bool
-js::InitGetterSetterOperation(JSContext *cx, jsbytecode *pc, HandleObject obj, HandleValue idval,
-                              HandleValue val)
-{
-    RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, idval, &id))
-        return false;
-    return InitGetterSetterOperation(cx, pc, obj, id, val);
 }

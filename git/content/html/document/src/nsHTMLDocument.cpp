@@ -202,17 +202,33 @@ nsHTMLDocument::nsHTMLDocument()
 }
 
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_10(nsHTMLDocument, nsDocument,
-                                      mImages,
-                                      mApplets,
-                                      mEmbeds,
-                                      mLinks,
-                                      mAnchors,
-                                      mScripts,
-                                      mForms,
-                                      mFormControls,
-                                      mWyciwygChannel,
-                                      mMidasCommandManager)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
+  NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(cb, tmp->GetMarkedCCGeneration()),
+               "Shouldn't traverse nsHTMLDocument!");
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mImages)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mApplets)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEmbeds)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLinks)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAnchors)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mScripts)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mForms)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFormControls)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWyciwygChannel)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMidasCommandManager)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mImages)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mApplets)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mEmbeds)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mLinks)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAnchors)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mScripts)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mForms)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mFormControls)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mWyciwygChannel)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mMidasCommandManager)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLDocument, nsDocument)
 NS_IMPL_RELEASE_INHERITED(nsHTMLDocument, nsDocument)
@@ -352,16 +368,17 @@ nsHTMLDocument::TryUserForcedCharset(nsIMarkupDocumentViewer* aMarkupDV,
 
   if (aDocShell) {
     // This is the Character Encoding menu code path in Firefox
-    nsAutoCString charset;
-    rv = aDocShell->GetForcedCharset(charset);
-
-    if (NS_SUCCEEDED(rv) && !charset.IsEmpty()) {
+    nsCOMPtr<nsIAtom> csAtom;
+    aDocShell->GetForcedCharset(getter_AddRefs(csAtom));
+    if (csAtom) {
+      nsAutoCString charset;
+      csAtom->ToUTF8String(charset);
       if (!EncodingUtils::IsAsciiCompatible(charset)) {
         return;
       }
       aCharset = charset;
       aCharsetSource = kCharsetFromUserForced;
-      aDocShell->SetForcedCharset(NS_LITERAL_CSTRING(""));
+      aDocShell->SetForcedCharset(nullptr);
     }
   }
 }
@@ -417,13 +434,15 @@ nsHTMLDocument::TryParentCharset(nsIDocShell*  aDocShell,
     return;
   }
 
+  nsCOMPtr<nsIAtom> csAtom;
   int32_t parentSource;
   nsAutoCString parentCharset;
-  aDocShell->GetParentCharset(parentCharset);
-  if (parentCharset.IsEmpty()) {
+  aDocShell->GetParentCharset(getter_AddRefs(csAtom));
+  if (!csAtom) {
     return;
   }
   aDocShell->GetParentCharsetSource(&parentSource);
+  csAtom->ToUTF8String(parentCharset);
   if (kCharsetFromParentForced == parentSource ||
       kCharsetFromUserForced == parentSource) {
     if (WillIgnoreCharsetOverride() ||

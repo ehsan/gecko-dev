@@ -47,6 +47,7 @@ class ScrollbarActivity;
 
 class nsGfxScrollFrameInner : public nsIReflowCallback {
 public:
+  typedef mozilla::gfx::Point Point;
   typedef mozilla::layout::ScrollbarActivity ScrollbarActivity;
 
   class AsyncScroll;
@@ -171,7 +172,7 @@ public:
     ScrollToWithOrigin(aScrollPosition, aMode, nsGkAtoms::other, aRange);
   }
   void ScrollToCSSPixels(nsIntPoint aScrollPosition);
-  void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition);
+  void ScrollToCSSPixelsApproximate(const Point& aScrollPosition);
   nsIntPoint GetScrollPositionCSSPixels();
   void ScrollToImpl(nsPoint aScrollPosition, const nsRect& aRange);
   void ScrollVisual(nsPoint aOldScrolledFramePosition);
@@ -234,7 +235,6 @@ public:
   }
   nsMargin GetActualScrollbarSizes() const;
   nsMargin GetDesiredScrollbarSizes(nsBoxLayoutState* aState);
-  nscoord GetNondisappearingScrollbarWidth(nsBoxLayoutState* aState);
   bool IsLTR() const;
   bool IsScrollbarOnRight() const;
   bool IsScrollingActive() const { return mScrollingActive || ShouldBuildLayer(); }
@@ -486,11 +486,6 @@ public:
     nsBoxLayoutState bls(aPresContext, aRC, 0);
     return GetDesiredScrollbarSizes(&bls);
   }
-  virtual nscoord GetNondisappearingScrollbarWidth(nsPresContext* aPresContext,
-          nsRenderingContext* aRC) MOZ_OVERRIDE {
-    nsBoxLayoutState bls(aPresContext, aRC, 0);
-    return mInner.GetNondisappearingScrollbarWidth(&bls);
-  }
   virtual nsRect GetScrollPortRect() const MOZ_OVERRIDE {
     return mInner.GetScrollPortRect();
   }
@@ -519,7 +514,7 @@ public:
   virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) MOZ_OVERRIDE {
     mInner.ScrollToCSSPixels(aScrollPosition);
   }
-  virtual void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition) MOZ_OVERRIDE {
+  virtual void ScrollToCSSPixelsApproximate(const Point& aScrollPosition) MOZ_OVERRIDE {
     mInner.ScrollToCSSPixelsApproximate(aScrollPosition);
   }
   virtual nsIntPoint GetScrollPositionCSSPixels() MOZ_OVERRIDE {
@@ -749,11 +744,6 @@ public:
     nsBoxLayoutState bls(aPresContext, aRC, 0);
     return GetDesiredScrollbarSizes(&bls);
   }
-  virtual nscoord GetNondisappearingScrollbarWidth(nsPresContext* aPresContext,
-          nsRenderingContext* aRC) MOZ_OVERRIDE {
-    nsBoxLayoutState bls(aPresContext, aRC, 0);
-    return mInner.GetNondisappearingScrollbarWidth(&bls);
-  }
   virtual nsRect GetScrollPortRect() const MOZ_OVERRIDE {
     return mInner.GetScrollPortRect();
   }
@@ -782,7 +772,7 @@ public:
   virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) MOZ_OVERRIDE {
     mInner.ScrollToCSSPixels(aScrollPosition);
   }
-  virtual void ScrollToCSSPixelsApproximate(const mozilla::CSSPoint& aScrollPosition) MOZ_OVERRIDE {
+  virtual void ScrollToCSSPixelsApproximate(const Point& aScrollPosition) MOZ_OVERRIDE {
     mInner.ScrollToCSSPixelsApproximate(aScrollPosition);
   }
   virtual nsIntPoint GetScrollPositionCSSPixels() MOZ_OVERRIDE {

@@ -1728,22 +1728,25 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 struct TraceData
 {
-  const TraceCallbacks& callbacks;
+  TraceData(TraceCallback& aCallback, void* aClosure) :
+    callback(aCallback), closure(aClosure) {}
+
+  TraceCallback& callback;
   void* closure;
 };
 
 static PLDHashOperator
-TraceXBLHandlers(nsXBLPrototypeHandler* aKey, JSObject*& aData, void* aClosure)
+TraceXBLHandlers(nsXBLPrototypeHandler* aKey, JSObject* aData, void* aClosure)
 {
   TraceData* data = static_cast<TraceData*>(aClosure);
-  data->callbacks.Trace(&aData, "Cached XBL prototype handler", data->closure);
+  data->callback(aData, "Cached XBL prototype handler", data->closure);
   return PL_DHASH_NEXT;
 }
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGlobalWindow)
   if (tmp->mCachedXBLPrototypeHandlers.IsInitialized()) {
-    TraceData data = { aCallbacks, aClosure };
-    tmp->mCachedXBLPrototypeHandlers.Enumerate(TraceXBLHandlers, &data);
+    TraceData data(aCallback, aClosure);
+    tmp->mCachedXBLPrototypeHandlers.EnumerateRead(TraceXBLHandlers, &data);
   }
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -2788,12 +2791,12 @@ TryGetTabChildGlobalAsEventTarget(nsISupports *aFrom)
 {
   nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(aFrom);
   if (!frameLoaderOwner) {
-    return nullptr;
+    return NULL;
   }
 
   nsRefPtr<nsFrameLoader> frameLoader = frameLoaderOwner->GetFrameLoader();
   if (!frameLoader) {
-    return nullptr;
+    return NULL;
   }
 
   nsCOMPtr<EventTarget> target = frameLoader->GetTabChildGlobalAsEventTarget();
@@ -4429,19 +4432,13 @@ nsGlobalWindow::RequestAnimationFrame(const JS::Value& aCallback,
 NS_IMETHODIMP
 nsGlobalWindow::MozCancelRequestAnimationFrame(int32_t aHandle)
 {
-  return CancelAnimationFrame(aHandle);
+  return MozCancelAnimationFrame(aHandle);
 }
 
 NS_IMETHODIMP
 nsGlobalWindow::MozCancelAnimationFrame(int32_t aHandle)
 {
-  return CancelAnimationFrame(aHandle);
-}
-
-NS_IMETHODIMP
-nsGlobalWindow::CancelAnimationFrame(int32_t aHandle)
-{
-  FORWARD_TO_INNER(CancelAnimationFrame, (aHandle),
+  FORWARD_TO_INNER(MozCancelAnimationFrame, (aHandle),
                    NS_ERROR_NOT_INITIALIZED);
 
   if (!mDoc) {
@@ -7072,9 +7069,8 @@ nsGlobalWindow::FinalClose()
   //   round-trips to the event loop before the call to ReallyCloseWindow. This
   //   allows setTimeout handlers that are set after FinalClose() is called to
   //   run before the window is torn down.
-  bool indirect = GetContextInternal() && // Occasionally null. See bug 877390.
-                  (nsContentUtils::GetCurrentJSContext() ==
-                   GetContextInternal()->GetNativeContext());
+  bool indirect = nsContentUtils::GetCurrentJSContext() ==
+                  GetContextInternal()->GetNativeContext();
   if ((!indirect && nsContentUtils::IsCallerChrome()) ||
       NS_FAILED(nsCloseEvent::PostCloseEvent(this, indirect))) {
     ReallyCloseWindow();

@@ -35,7 +35,6 @@ namespace ion {
     _(JSOP_LABEL)              \
     _(JSOP_NOTEARG)            \
     _(JSOP_POP)                \
-    _(JSOP_POPN)               \
     _(JSOP_DUP)                \
     _(JSOP_DUP2)               \
     _(JSOP_SWAP)               \
@@ -97,11 +96,7 @@ namespace ion {
     _(JSOP_NEWOBJECT)          \
     _(JSOP_NEWINIT)            \
     _(JSOP_INITELEM)           \
-    _(JSOP_INITELEM_GETTER)    \
-    _(JSOP_INITELEM_SETTER)    \
     _(JSOP_INITPROP)           \
-    _(JSOP_INITPROP_GETTER)    \
-    _(JSOP_INITPROP_SETTER)    \
     _(JSOP_ENDINIT)            \
     _(JSOP_GETELEM)            \
     _(JSOP_SETELEM)            \
@@ -148,7 +143,6 @@ namespace ion {
     _(JSOP_INSTANCEOF)         \
     _(JSOP_TYPEOF)             \
     _(JSOP_TYPEOFEXPR)         \
-    _(JSOP_SETCALL)            \
     _(JSOP_THROW)              \
     _(JSOP_TRY)                \
     _(JSOP_ENTERBLOCK)         \
@@ -165,7 +159,6 @@ namespace ion {
     _(JSOP_MOREITER)           \
     _(JSOP_ITERNEXT)           \
     _(JSOP_ENDITER)            \
-    _(JSOP_CALLEE)             \
     _(JSOP_POPV)               \
     _(JSOP_SETRVAL)            \
     _(JSOP_RETURN)             \
@@ -176,9 +169,6 @@ class BaselineCompiler : public BaselineCompilerSpecific
 {
     FixedList<Label>            labels_;
     HeapLabel *                 return_;
-#ifdef JSGC_GENERATIONAL
-    HeapLabel *                 postBarrierSlot_;
-#endif
 
     // Native code offset right before the scope chain is initialized.
     CodeOffsetLabel prologueOffset_;
@@ -198,9 +188,6 @@ class BaselineCompiler : public BaselineCompilerSpecific
 
     bool emitPrologue();
     bool emitEpilogue();
-#ifdef JSGC_GENERATIONAL
-    bool emitOutOfLinePostBarrierSlot();
-#endif
     bool emitIC(ICStub *stub, bool isForOp);
     bool emitOpIC(ICStub *stub) {
         return emitIC(stub, true);
@@ -243,17 +230,12 @@ class BaselineCompiler : public BaselineCompilerSpecific
     bool emitAndOr(bool branchIfTrue);
     bool emitCall();
 
-    bool emitInitPropGetterSetter();
-    bool emitInitElemGetterSetter();
-
     bool emitFormalArgAccess(uint32_t arg, bool get);
 
     bool emitEnterBlock();
 
     bool addPCMappingEntry(bool addIndexEntry);
 
-    void getScopeCoordinateObject(Register reg);
-    Address getScopeCoordinateAddressFromObject(Register objReg, Register reg);
     Address getScopeCoordinateAddress(Register reg);
 };
 

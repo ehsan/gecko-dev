@@ -107,7 +107,6 @@ namespace ion {
     _(GetPropertyPolymorphic)                                               \
     _(SetPropertyPolymorphic)                                               \
     _(GetElementCache)                                                      \
-    _(SetElementCache)                                                      \
     _(BindNameCache)                                                        \
     _(GuardShape)                                                           \
     _(GuardObjectType)                                                      \

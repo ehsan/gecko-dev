@@ -28,6 +28,25 @@ FAIL_ON_WARNINGS := 1
 
 include $(topsrcdir)/dom/dom-config.mk
 
+CPPSRCS = \
+  MobileMessageCursorCallback.cpp \
+  MobileMessageThread.cpp \
+  SmsManager.cpp \
+  MobileMessageManager.cpp \
+  SmsService.cpp \
+  MobileMessageService.cpp \
+  SmsIPCService.cpp \
+  SmsServicesFactory.cpp \
+  SmsParent.cpp \
+  SmsMessage.cpp \
+  MmsMessage.cpp \
+  Constants.cpp \
+  SmsChild.cpp \
+  MobileMessageCallback.cpp \
+  SmsFilter.cpp \
+  SmsSegmentInfo.cpp \
+  $(NULL)
+
 LOCAL_INCLUDES = \
   -I$(topsrcdir)/content/events/src \
   -I$(topsrcdir)/dom/base \
@@ -44,18 +63,13 @@ LOCAL_INCLUDES += \
   $(NULL)
 
 EXTRA_COMPONENTS = \
-  ril/MmsService.js \
-  ril/MmsService.manifest \
   ril/MobileMessageDatabaseService.js \
   ril/MobileMessageDatabaseService.manifest \
   $(NULL)
-
-EXTRA_JS_MODULES = \
-  ril/mms_consts.js \
-  ril/MmsPduHelper.jsm \
-  ril/wap_consts.js \
-  ril/WapPushManager.js \
-  ril/WspPduHelper.jsm \
+else
+CPPSRCS += \
+  MobileMessageDatabaseService.cpp \
+  MmsService.cpp \
   $(NULL)
 endif
 

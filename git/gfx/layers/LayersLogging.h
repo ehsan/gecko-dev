@@ -44,9 +44,8 @@ nsACString&
 AppendToString(nsACString& s, const nsIntPoint& p,
                const char* pfx="", const char* sfx="");
 
-template<class T>
 nsACString&
-AppendToString(nsACString& s, const mozilla::gfx::PointTyped<T>& p,
+AppendToString(nsACString& s, const mozilla::gfx::Point& p,
                const char* pfx="", const char* sfx="");
 
 nsACString&

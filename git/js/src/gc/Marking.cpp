@@ -81,7 +81,6 @@ namespace gc {
 
 static void MarkChildren(JSTracer *trc, JSString *str);
 static void MarkChildren(JSTracer *trc, JSScript *script);
-static void MarkChildren(JSTracer *trc, LazyScript *lazy);
 static void MarkChildren(JSTracer *trc, Shape *shape);
 static void MarkChildren(JSTracer *trc, BaseShape *base);
 static void MarkChildren(JSTracer *trc, types::TypeObject *type);
@@ -361,7 +360,6 @@ DeclMarkerImpl(Object, JSObject)
 DeclMarkerImpl(Object, JSFunction)
 DeclMarkerImpl(Object, ScopeObject)
 DeclMarkerImpl(Script, JSScript)
-DeclMarkerImpl(LazyScript, LazyScript)
 DeclMarkerImpl(Shape, Shape)
 DeclMarkerImpl(String, JSAtom)
 DeclMarkerImpl(String, JSString)
@@ -391,9 +389,6 @@ gc::MarkKind(JSTracer *trc, void **thingp, JSGCTraceKind kind)
         break;
       case JSTRACE_SCRIPT:
         MarkInternal(trc, reinterpret_cast<JSScript **>(thingp));
-        break;
-      case JSTRACE_LAZY_SCRIPT:
-        MarkInternal(trc, reinterpret_cast<LazyScript **>(thingp));
         break;
       case JSTRACE_SHAPE:
         MarkInternal(trc, reinterpret_cast<Shape **>(thingp));
@@ -798,20 +793,6 @@ PushMarkStack(GCMarker *gcmarker, JSScript *thing)
 }
 
 static void
-PushMarkStack(GCMarker *gcmarker, LazyScript *thing)
-{
-    JS_COMPARTMENT_ASSERT(gcmarker->runtime, thing);
-    JS_ASSERT(!IsInsideNursery(thing->runtime(), thing));
-
-    /*
-     * We mark lazy scripts directly rather than pushing on the stack as they
-     * only refer to normal scripts and to strings, and cannot recurse.
-     */
-    if (thing->markIfUnmarked(gcmarker->getMarkColor()))
-        MarkChildren(gcmarker, thing);
-}
-
-static void
 ScanShape(GCMarker *gcmarker, Shape *shape);
 
 static void
@@ -1017,12 +998,6 @@ gc::MarkChildren(JSTracer *trc, JSScript *script)
 }
 
 static void
-gc::MarkChildren(JSTracer *trc, LazyScript *lazy)
-{
-    lazy->markChildren(trc);
-}
-
-static void
 gc::MarkChildren(JSTracer *trc, Shape *shape)
 {
     shape->markChildren(trc);
@@ -1176,10 +1151,6 @@ gc::PushArena(GCMarker *gcmarker, ArenaHeader *aheader)
 
       case JSTRACE_SCRIPT:
         PushArenaTyped<JSScript>(gcmarker, aheader);
-        break;
-
-      case JSTRACE_LAZY_SCRIPT:
-        PushArenaTyped<LazyScript>(gcmarker, aheader);
         break;
 
       case JSTRACE_SHAPE:
@@ -1528,10 +1499,6 @@ js::TraceChildren(JSTracer *trc, void *thing, JSGCTraceKind kind)
 
       case JSTRACE_SCRIPT:
         MarkChildren(trc, static_cast<JSScript *>(thing));
-        break;
-
-      case JSTRACE_LAZY_SCRIPT:
-        MarkChildren(trc, static_cast<LazyScript *>(thing));
         break;
 
       case JSTRACE_SHAPE:

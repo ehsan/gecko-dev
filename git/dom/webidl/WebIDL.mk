@@ -320,7 +320,6 @@ webidl_files = \
   TextTrackCue.webidl \
   TextTrackCueList.webidl \
   TextTrackList.webidl \
-  TimeEvent.webidl \
   TimeRanges.webidl \
   Touch.webidl \
   TouchEvent.webidl \
@@ -338,7 +337,6 @@ webidl_files = \
   USSDReceivedEvent.webidl \
   VideoStreamTrack.webidl \
   WaveShaperNode.webidl \
-  WaveTable.webidl \
   Window.webidl \
   XMLDocument.webidl \
   XMLHttpRequest.webidl \

@@ -113,9 +113,6 @@ class HandleBase {};
 template <typename T>
 class MutableHandleBase {};
 
-template <typename T>
-class HeapBase {};
-
 /*
  * js::NullPtr acts like a NULL pointer in contexts that require a Handle.
  *
@@ -133,10 +130,6 @@ struct NullPtr
 {
     static void * const constNullValue;
 };
-
-namespace gc {
-struct Cell;
-} /* namespace gc */
 
 } /* namespace js */
 
@@ -170,69 +163,6 @@ struct JS_PUBLIC_API(NullPtr)
 };
 
 /*
- * Encapsulated pointer class for use on the heap.
- *
- * Implements post barriers for heap-based GC thing pointers outside the engine.
- */
-template <typename T>
-class Heap : public js::HeapBase<T>
-{
-  public:
-    Heap() { set(js::RootMethods<T>::initial()); }
-    explicit Heap(T p) { set(p); }
-    explicit Heap(const Heap<T> &p) { set(p.ptr); }
-
-    ~Heap() {
-        if (js::RootMethods<T>::needsPostBarrier(ptr))
-            relocate();
-    }
-
-    bool operator!=(const T &other) { return *ptr != other; }
-    bool operator==(const T &other) { return *ptr == other; }
-
-    operator T() const { return ptr; }
-    T operator->() const { return ptr; }
-    const T *address() const { return &ptr; }
-    const T &get() const { return ptr; }
-
-    T *unsafeGet() { return &ptr; }
-
-    Heap<T> &operator=(T p) {
-        set(p);
-        return *this;
-    }
-
-    void set(T newPtr) {
-        JS_ASSERT(!js::RootMethods<T>::poisoned(newPtr));
-        if (js::RootMethods<T>::needsPostBarrier(newPtr)) {
-            ptr = newPtr;
-            post();
-        } else if (js::RootMethods<T>::needsPostBarrier(ptr)) {
-            relocate();  /* Called before overwriting ptr. */
-            ptr = newPtr;
-        } else {
-            ptr = newPtr;
-        }
-    }
-
-  private:
-    void post() {
-#ifdef JSGC_GENERATIONAL
-        JS_ASSERT(js::RootMethods<T>::needsPostBarrier(ptr));
-        js::RootMethods<T>::postBarrier(&ptr);
-#endif
-    }
-
-    void relocate() {
-#ifdef JSGC_GENERATIONAL
-        js::RootMethods<T>::relocate(&ptr);
-#endif
-    }
-
-    T ptr;
-};
-
-/*
  * Reference to a T that has been rooted elsewhere. This is most useful
  * as a parameter type, which guarantees that the T lvalue is properly
  * rooted. See "Move GC Stack Rooting" above.
@@ -241,7 +171,7 @@ class Heap : public js::HeapBase<T>
  * specialization, define a HandleBase<T> specialization containing them.
  */
 template <typename T>
-class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
+class MOZ_STACK_CLASS Handle : public js::HandleBase<T>
 {
     friend class MutableHandle<T>;
 
@@ -270,10 +200,6 @@ class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
 
     Handle(MutableHandle<T> handle) {
         ptr = handle.address();
-    }
-
-    Handle(const Heap<T> &heapPtr) {
-        ptr = heapPtr.address();
     }
 
     /*
@@ -305,13 +231,9 @@ class MOZ_NONHEAP_CLASS Handle : public js::HandleBase<T>
            typename mozilla::EnableIf<mozilla::IsConvertible<S, T>::value, int>::Type dummy = 0);
 
     const T *address() const { return ptr; }
-    const T& get() const { return *ptr; }
+    T get() const { return *ptr; }
 
-    /*
-     * Return a reference so passing a Handle<T> to something that
-     * takes a |const T&| is not a GC hazard.
-     */
-    operator const T&() const { return get(); }
+    operator T() const { return get(); }
     T operator->() const { return get(); }
 
     bool operator!=(const T &other) { return *ptr != other; }
@@ -388,11 +310,6 @@ typedef MutableHandle<JSScript*>   MutableHandleScript;
 typedef MutableHandle<JSString*>   MutableHandleString;
 typedef MutableHandle<jsid>        MutableHandleId;
 typedef MutableHandle<Value>       MutableHandleValue;
-
-#ifdef JSGC_GENERATIONAL
-JS_PUBLIC_API(void) HeapCellPostBarrier(js::gc::Cell **cellp);
-JS_PUBLIC_API(void) HeapCellRelocate(js::gc::Cell **cellp);
-#endif
 
 } /* namespace JS */
 
@@ -473,15 +390,6 @@ struct RootMethods<T *>
     static T *initial() { return NULL; }
     static ThingRootKind kind() { return RootKind<T *>::rootKind(); }
     static bool poisoned(T *v) { return JS::IsPoisonedPtr(v); }
-    static bool needsPostBarrier(T *v) { return v; }
-#ifdef JSGC_GENERATIONAL
-    static void postBarrier(T **vp) {
-        JS::HeapCellPostBarrier(reinterpret_cast<js::gc::Cell **>(vp));
-    }
-    static void relocate(T **vp) {
-        JS::HeapCellRelocate(reinterpret_cast<js::gc::Cell **>(vp));
-    }
-#endif
 };
 
 } /* namespace js */
@@ -557,11 +465,7 @@ class MOZ_STACK_CLASS Rooted : public js::RootedBase<T>
     Rooted<T> *previous() { return prev; }
 #endif
 
-    /*
-     * Important: Return a reference here so passing a Rooted<T> to
-     * something that takes a |const T&| is not a GC hazard.
-     */
-    operator const T&() const { return ptr; }
+    operator T() const { return ptr; }
     T operator->() const { return ptr; }
     T *address() { return &ptr; }
     const T *address() const { return &ptr; }
@@ -877,6 +781,10 @@ inline void MaybeCheckStackRoots(JSContext *cx)
     JS::CheckStackRoots(cx);
 #endif
 }
+
+namespace gc {
+struct Cell;
+} /* namespace gc */
 
 /* Base class for automatic read-only object rooting during compilation. */
 class CompilerRootNode

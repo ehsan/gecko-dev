@@ -17,7 +17,7 @@ class gfxDrawable;
 class nsIntRegion;
 struct nsIntRect;
 
-class gfxUtils {
+class THEBES_API gfxUtils {
 public:
     /*
      * Premultiply or Unpremultiply aSourceSurface, writing the result

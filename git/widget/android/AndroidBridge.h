@@ -190,9 +190,7 @@ public:
 
     nsresult CaptureThumbnail(nsIDOMWindow *window, int32_t bufW, int32_t bufH, int32_t tabId, jobject buffer);
     void SendThumbnail(jobject buffer, int32_t tabId, bool success);
-    void GetDisplayPort(bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort);
-    void ContentDocumentChanged();
-    bool IsContentDocumentDisplayed();
+    nsresult GetDisplayPort(bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort);
 
     bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent, const gfx::Rect& aDisplayPort, float aDisplayResolution, bool aDrawingCritical, gfx::Rect& aViewport, float& aScaleX, float& aScaleY);
 
@@ -311,9 +309,6 @@ public:
     // caller is responsible for ensuring this doesn't leak by calling
     // DeleteGlobalRef() when the context is no longer needed.
     jobject GetGlobalContextRef(void);
-
-    // Returns a local reference. Caller must manage this reference
-    jobject GetContext(void);
 
     void UnlockBitmap(jobject bitmap);
 

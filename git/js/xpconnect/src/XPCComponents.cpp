@@ -3133,9 +3133,8 @@ WrapCallable(JSContext *cx, JSObject *callable, JSObject *sandboxProtoProxy)
                js::GetProxyHandler(sandboxProtoProxy) ==
                  &xpc::sandboxProxyHandler);
 
-    RootedValue priv(cx, ObjectValue(*callable));
     return js::NewProxyObject(cx, &xpc::sandboxCallableProxyHandler,
-                              priv, nullptr,
+                              ObjectValue(*callable), nullptr,
                               sandboxProtoProxy, js::ProxyIsCallable);
 }
 
@@ -3359,9 +3358,9 @@ xpc_CreateSandboxObject(JSContext *cx, jsval *vp, nsISupports *prinOrSop, Sandbo
                 mozilla::dom::IsDOMClass(Jsvalify(unwrappedClass))) {
                 // Wrap it up in a proxy that will do the right thing in terms
                 // of this-binding for methods.
-                RootedValue priv(cx, ObjectValue(*options.proto));
                 options.proto = js::NewProxyObject(cx, &xpc::sandboxProxyHandler,
-                                                   priv, nullptr, sandbox);
+                                                   ObjectValue(*options.proto), nullptr,
+                                                   sandbox);
                 if (!options.proto)
                     return NS_ERROR_OUT_OF_MEMORY;
             }

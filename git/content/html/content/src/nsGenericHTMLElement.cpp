@@ -321,8 +321,8 @@ nsGenericHTMLElement::Dataset()
     slots->mDataset = new nsDOMStringMap(this);
   }
 
-  nsRefPtr<nsDOMStringMap> ret = slots->mDataset;
-  return ret.forget();
+  NS_ADDREF(slots->mDataset);
+  return slots->mDataset;
 }
 
 nsresult
@@ -1461,12 +1461,10 @@ nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttribu
   }
 
   if (aData->mSIDs & NS_STYLE_INHERIT_BIT(Font)) {
-    nsCSSValue* lang = aData->ValueForLang();
-    if (lang->GetUnit() == eCSSUnit_Null) {
-      const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::lang);
-      if (value && value->Type() == nsAttrValue::eString) {
-        lang->SetStringValue(value->GetStringValue(), eCSSUnit_Ident);
-      }
+    const nsAttrValue* value = aAttributes->GetAttr(nsGkAtoms::lang);
+    if (value && value->Type() == nsAttrValue::eString) {
+      aData->ValueForLang()->SetStringValue(value->GetStringValue(),
+                                            eCSSUnit_Ident);
     }
   }
 
@@ -3176,8 +3174,7 @@ nsGenericHTMLElement::SetItemValue(JSContext* aCx, JS::Value aValue,
   }
 
   FakeDependentString string;
-  JS::Rooted<JS::Value> value(aCx, aValue);
-  if (!ConvertJSValueToString(aCx, value, &value, eStringify, eStringify, string)) {
+  if (!ConvertJSValueToString(aCx, aValue, &aValue, eStringify, eStringify, string)) {
     aError.Throw(NS_ERROR_UNEXPECTED);
     return;
   }

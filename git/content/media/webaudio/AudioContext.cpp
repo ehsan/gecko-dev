@@ -25,8 +25,13 @@
 #include "ChannelMergerNode.h"
 #include "ChannelSplitterNode.h"
 #include "WaveShaperNode.h"
-#include "WaveTable.h"
 #include "nsNetUtil.h"
+
+// Note that this number is an arbitrary large value to protect against OOM
+// attacks.
+const unsigned MAX_SCRIPT_PROCESSOR_CHANNELS = 10000;
+const unsigned MAX_CHANNEL_SPLITTER_OUTPUTS = UINT16_MAX;
+const unsigned MAX_CHANNEL_MERGER_INPUTS = UINT16_MAX;
 
 namespace mozilla {
 namespace dom {
@@ -46,8 +51,7 @@ AudioContext::AudioContext(nsPIDOMWindow* aWindow,
                            uint32_t aNumberOfChannels,
                            uint32_t aLength,
                            float aSampleRate)
-  : mSampleRate(aIsOffline ? aSampleRate : IdealAudioRate())
-  , mDestination(new AudioDestinationNode(this, aIsOffline,
+  : mDestination(new AudioDestinationNode(this, aIsOffline,
                                           aNumberOfChannels,
                                           aLength, aSampleRate))
   , mIsOffline(aIsOffline)
@@ -103,13 +107,9 @@ AudioContext::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  if (aNumberOfChannels == 0 ||
-      aNumberOfChannels > WebAudioUtils::MaxChannelCount ||
-      aLength == 0 ||
-      aSampleRate <= 1.0f ||
-      aSampleRate >= TRACK_RATE_MAX) {
-    // The DOM binding protects us against infinity and NaN
-    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+  if (aSampleRate != IdealAudioRate()) {
+    // TODO: Add support for running OfflineAudioContext at other sampling rates
+    aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
     return nullptr;
   }
 
@@ -209,8 +209,8 @@ AudioContext::CreateScriptProcessor(uint32_t aBufferSize,
                                     ErrorResult& aRv)
 {
   if ((aNumberOfInputChannels == 0 && aNumberOfOutputChannels == 0) ||
-      aNumberOfInputChannels > WebAudioUtils::MaxChannelCount ||
-      aNumberOfOutputChannels > WebAudioUtils::MaxChannelCount ||
+      aNumberOfInputChannels > MAX_SCRIPT_PROCESSOR_CHANNELS ||
+      aNumberOfOutputChannels > MAX_SCRIPT_PROCESSOR_CHANNELS ||
       !IsValidBufferSize(aBufferSize)) {
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;
@@ -267,7 +267,7 @@ already_AddRefed<ChannelSplitterNode>
 AudioContext::CreateChannelSplitter(uint32_t aNumberOfOutputs, ErrorResult& aRv)
 {
   if (aNumberOfOutputs == 0 ||
-      aNumberOfOutputs > WebAudioUtils::MaxChannelCount) {
+      aNumberOfOutputs > MAX_CHANNEL_SPLITTER_OUTPUTS) {
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;
   }
@@ -281,7 +281,7 @@ already_AddRefed<ChannelMergerNode>
 AudioContext::CreateChannelMerger(uint32_t aNumberOfInputs, ErrorResult& aRv)
 {
   if (aNumberOfInputs == 0 ||
-      aNumberOfInputs > WebAudioUtils::MaxChannelCount) {
+      aNumberOfInputs > MAX_CHANNEL_MERGER_INPUTS) {
     aRv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;
   }
@@ -305,24 +305,6 @@ AudioContext::CreateBiquadFilter()
   nsRefPtr<BiquadFilterNode> filterNode =
     new BiquadFilterNode(this);
   return filterNode.forget();
-}
-
-already_AddRefed<WaveTable>
-AudioContext::CreateWaveTable(const Float32Array& aRealData,
-                              const Float32Array& aImagData,
-                              ErrorResult& aRv)
-{
-  if (aRealData.Length() != aImagData.Length() ||
-      aRealData.Length() == 0 ||
-      aRealData.Length() > 4096) {
-    aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-    return nullptr;
-  }
-
-  nsRefPtr<WaveTable> waveTable =
-    new WaveTable(this, aRealData.Data(), aRealData.Length(),
-                  aImagData.Data(), aImagData.Length());
-  return waveTable.forget();
 }
 
 AudioListener*

@@ -52,7 +52,7 @@ void
 CanvasClient2D::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
 {
   if (!mTextureClient) {
-    mTextureClient = CreateTextureClient(TEXTURE_CONTENT);
+    mTextureClient = CreateTextureClient(TEXTURE_SHMEM);
     MOZ_ASSERT(mTextureClient, "Failed to create texture client");
   }
 

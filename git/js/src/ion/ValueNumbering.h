@@ -86,7 +86,6 @@ class ValueNumberer
   public:
     ValueNumberer(MIRGenerator *mir, MIRGraph &graph, bool optimistic);
     bool analyze();
-    bool clear();
 };
 
 class ValueNumberData : public TempObject {

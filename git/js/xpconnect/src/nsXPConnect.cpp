@@ -23,6 +23,7 @@
 #include "nsJSEnvironment.h"
 #include "nsThreadUtils.h"
 #include "nsDOMJSUtils.h"
+#include "nsContentUtils.h"
 
 #include "XrayWrapper.h"
 #include "WrapperFactory.h"
@@ -722,7 +723,6 @@ DescribeGCThing(bool isMarked, void *p, JSGCTraceKind traceKind,
                 "Object",
                 "String",
                 "Script",
-                "LazyScript",
                 "IonCode",
                 "Shape",
                 "BaseShape",
@@ -1134,6 +1134,7 @@ NativeInterface2JSObject(XPCLazyCallContext & lccx,
                          nsIXPConnectJSObjectHolder **aHolder)
 {
     JSAutoCompartment ac(lccx.GetJSContext(), aScope);
+    lccx.SetScopeForNewJSObjects(aScope);
 
     nsresult rv;
     xpcObjectHelper helper(aCOMObj, aCache);
@@ -1852,7 +1853,7 @@ nsXPConnect::VariantToJS(JSContext* ctx, JSObject* scopeArg, nsIVariant* value,
         return NS_ERROR_FAILURE;
     XPCLazyCallContext lccx(ccx);
 
-    MOZ_ASSERT(js::IsObjectInContextCompartment(scope, ctx));
+    ccx.SetScopeForNewJSObjects(scope);
 
     nsresult rv = NS_OK;
     if (!XPCVariant::VariantDataToJS(lccx, value, &rv, _retval)) {

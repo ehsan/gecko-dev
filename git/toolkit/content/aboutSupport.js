@@ -506,12 +506,6 @@ function openProfileDirectory() {
   new nsLocalFile(profileDir).reveal();
 }
 
-function showUpdateHistory() {
-  var prompter = Cc["@mozilla.org/updates/update-prompt;1"]
-                   .createInstance(Ci.nsIUpdatePrompt);
-  prompter.showUpdateHistory(window);
-}
-
 /**
  * Profile reset is only supported for the default profile if the appropriate migrator exists.
  */

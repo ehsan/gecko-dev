@@ -1011,13 +1011,14 @@ nsWindow::GetAttention(int32_t aCycleCount)
 static already_AddRefed<gfxASurface>
 GetSurfaceForQWidget(QWidget* aDrawable)
 {
-    nsRefPtr<gfxASurface> result =
+    gfxASurface* result =
         new gfxXlibSurface(gfxQtPlatform::GetXDisplay(aDrawable),
                            aDrawable->winId(),
                            DefaultVisualOfScreen(gfxQtPlatform::GetXScreen(aDrawable)),
                            gfxIntSize(aDrawable->size().width(),
                            aDrawable->size().height()));
-    return result.forget();
+    NS_IF_ADDREF(result);
+    return result;
 }
 #endif
 

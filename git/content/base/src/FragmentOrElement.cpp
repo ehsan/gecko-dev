@@ -1156,7 +1156,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_WRAPPERCACHE(FragmentOrElement)
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(FragmentOrElement)
+  nsINode::Trace(tmp, aCallback, aClosure);
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 void
 FragmentOrElement::MarkUserData(void* aObject, nsIAtom* aKey, void* aChild,

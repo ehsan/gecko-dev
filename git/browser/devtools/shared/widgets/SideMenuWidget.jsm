@@ -10,12 +10,8 @@ const Cu = Components.utils;
 
 const ENSURE_SELECTION_VISIBLE_DELAY = 50; // ms
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
-
-XPCOMUtils.defineLazyModuleGetter(this, "NetworkHelper",
-  "resource://gre/modules/devtools/NetworkHelper.jsm");
 
 this.EXPORTED_SYMBOLS = ["SideMenuWidget"];
 
@@ -54,8 +50,8 @@ this.SideMenuWidget = function SideMenuWidget(aNode, aShowArrows = true) {
   this._list.setAttribute("orient", "vertical");
   this._list.setAttribute("with-arrow", aShowArrows);
   this._list.setAttribute("tabindex", "0");
-  this._list.addEventListener("keypress", e => this.emit("keyPress", e), false);
-  this._list.addEventListener("mousedown", e => this.emit("mousePress", e), false);
+  this._list.addEventListener("keypress", e => this.emit("keyPress", e), true);
+  this._list.addEventListener("mousedown", e => this.emit("mousePress", e), true);
   this._parent.appendChild(this._list);
   this._boxObject = this._list.boxObject.QueryInterface(Ci.nsIScrollBoxObject);
 
@@ -116,9 +112,6 @@ SideMenuWidget.prototype = {
    *         The element associated with the displayed item.
    */
   insertItemAt: function(aIndex, aContents, aTooltip = "", aGroup = "") {
-    aTooltip = NetworkHelper.convertToUnicode(unescape(aTooltip));
-    aGroup = NetworkHelper.convertToUnicode(unescape(aGroup));
-
     // Invalidate any notices set on this widget.
     this.removeAttribute("notice");
 
