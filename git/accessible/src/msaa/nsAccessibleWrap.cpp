@@ -324,9 +324,6 @@ __try {
   if (!*pszName)
     return E_OUTOFMEMORY;
 
-#ifdef DEBUG_A11Y
-  NS_ASSERTION(mIsInitialized, "Access node was not initialized");
-#endif
 } __except(FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
   return S_OK;
@@ -1666,8 +1663,7 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
   // Means we're not active.
   NS_ENSURE_TRUE(mWeakShell, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIAccessible> accessible;
-  aEvent->GetAccessible(getter_AddRefs(accessible));
+  nsAccessible *accessible = aEvent->GetAccessible();
   if (!accessible)
     return NS_OK;
 
@@ -1681,11 +1677,11 @@ nsAccessibleWrap::FirePlatformEvent(nsAccEvent *aEvent)
     return NS_OK; // Can't fire an event without a child ID
 
   // See if we're in a scrollable area with its own window
-  nsCOMPtr<nsIAccessible> newAccessible;
+  nsAccessible *newAccessible = nsnull;
   if (eventType == nsIAccessibleEvent::EVENT_HIDE) {
     // Don't use frame from current accessible when we're hiding that
     // accessible.
-    accessible->GetParent(getter_AddRefs(newAccessible));
+    newAccessible = accessible->GetParent();
   } else {
     newAccessible = accessible;
   }
@@ -1731,14 +1727,13 @@ PRInt32 nsAccessibleWrap::GetChildIDFor(nsIAccessible* aAccessible)
 }
 
 HWND
-nsAccessibleWrap::GetHWNDFor(nsIAccessible *aAccessible)
+nsAccessibleWrap::GetHWNDFor(nsAccessible *aAccessible)
 {
-  nsRefPtr<nsAccessNode> accessNode = do_QueryObject(aAccessible);
-  if (!accessNode)
-    return 0;
-
   HWND hWnd = 0;
-  nsIFrame *frame = accessNode->GetFrame();
+  if (!aAccessible)
+    return hWnd;
+
+  nsIFrame *frame = aAccessible->GetFrame();
   if (frame) {
     nsIWidget *window = frame->GetWindow();
     PRBool isVisible;
@@ -1764,7 +1759,7 @@ nsAccessibleWrap::GetHWNDFor(nsIAccessible *aAccessible)
 
   if (!hWnd) {
     void* handle = nsnull;
-    nsDocAccessible *accessibleDoc = accessNode->GetDocAccessible();
+    nsDocAccessible *accessibleDoc = aAccessible->GetDocAccessible();
     if (!accessibleDoc)
       return 0;
 

@@ -47,13 +47,17 @@ DIRS += chrome \
 	navigation \
 	$(NULL)
 
-ifeq (browser,$(MOZ_BUILD_APP))
-	DIRS += browser
-endif
-
 XPCSHELL_TESTS = unit
 
 include $(DEPTH)/config/autoconf.mk
+
+ifneq (mobile,$(MOZ_BUILD_APP))
+	DIRS += \
+    #  Disabled due to Bug 571649
+    #       browser
+            $(NULL)
+endif
+
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES = \

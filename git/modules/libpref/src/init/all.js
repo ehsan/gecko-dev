@@ -60,7 +60,7 @@ pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
 #ifndef WINCE
-pref("browser.cache.disk.capacity",         51200);
+pref("browser.cache.disk.capacity",         256000); // 250MB
 #else
 pref("browser.cache.disk.capacity",         20000);
 #endif
@@ -175,6 +175,8 @@ pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 
 pref("gfx.downloadable_fonts.enabled", true);
+
+pref("gfx.font_rendering.harfbuzz.level", 0);
 
 #ifdef XP_WIN
 #ifndef WINCE
