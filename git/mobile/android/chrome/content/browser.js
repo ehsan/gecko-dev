@@ -986,8 +986,7 @@ var BrowserApp = {
       let message = Strings.browser.formatStringFromName("undoCloseToast.message", [title], 1);
       NativeWindow.toast.show(message, "short", {
         button: {
-          icon: "drawable://undo_button_icon",
-          label: Strings.browser.GetStringFromName("undoCloseToast.action2"),
+          label: Strings.browser.GetStringFromName("undoCloseToast.action"),
           callback: function() {
             let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
             ss.undoCloseTab(window, 0);

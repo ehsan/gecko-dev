@@ -302,7 +302,7 @@ var gAdvancedPane = {
       ])
     };
 
-    actualSizeLabel.textContent = prefStrBundle.getString("actualDiskCacheSizeCalculated");
+    actualSizeLabel.value = prefStrBundle.getString("actualDiskCacheSizeCalculated");
 
     var cacheService =
       Components.classes["@mozilla.org/netwerk/cache-storage-service;1"]
@@ -321,7 +321,7 @@ var gAdvancedPane = {
           var sizeStrings = DownloadUtils.convertByteUnits(deviceInfo.totalSize);
           var prefStrBundle = document.getElementById("bundlePreferences");
           var sizeStr = prefStrBundle.getFormattedString("actualAppCacheSize", sizeStrings);
-          actualSizeLabel.textContent = sizeStr;
+          actualSizeLabel.value = sizeStr;
         }
         // Do not enumerate entries
         return false;

@@ -37,12 +37,13 @@
       hidden="true"
       data-category="paneSecurity">
   <image class="header-icon"/>
-  <label class="header-name">&paneSecurity.title;</label>
+  <label class="header-name"
+         value="&paneSecurity.title;"/>
 </hbox>
 
 <!-- addons, forgery (phishing) UI -->
 <groupbox id="addonsPhishingGroup" data-category="paneSecurity" hidden="true">
-  <caption><label>&general.label;</label></caption>
+  <caption label="&general.label;"/>
 
   <hbox id="addonInstallBox">
     <checkbox id="warnAddonInstall" flex="1"
@@ -69,7 +70,7 @@
 
 <!-- Passwords -->
 <groupbox id="passwordsGroup" orient="vertical" data-category="paneSecurity" hidden="true">
-  <caption><label>&passwords.label;</label></caption>
+  <caption label="&passwords.label;"/>
 
   <hbox id="savePasswordsBox">
     <checkbox id="savePasswords" flex="1"

@@ -15,16 +15,12 @@ page {
   background-image: linear-gradient(#FFFFFF, #EDEDED 100px);
 }
 
-* {
-  -moz-user-select: text;
-}
-
 caption {
   -moz-appearance: none;
   margin: 0;
 }
 
-caption > label {
+.caption-text {
   font-size: 1.3rem;
   font-weight: bold;
   line-height: 22px;

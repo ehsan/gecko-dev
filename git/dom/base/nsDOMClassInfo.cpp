@@ -101,6 +101,7 @@
 #include "nsIDOMMozCSSKeyframesRule.h"
 #include "nsIDOMCSSPageRule.h"
 #include "nsIDOMCSSStyleRule.h"
+#include "nsIDOMCSSStyleSheet.h"
 #include "nsIDOMXULCommandDispatcher.h"
 #include "nsIControllers.h"
 #include "nsIBoxObject.h"
@@ -115,6 +116,8 @@
 #include "nsIDOMNSXPathExpression.h"
 #include "nsIDOMXPathNSResolver.h"
 #include "nsIDOMXPathResult.h"
+
+#include "nsIDOMSVGNumber.h"
 
 // Storage includes
 #include "nsIDOMStorage.h"
@@ -302,6 +305,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(CSSNameSpaceRule, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(CSSStyleSheet, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   // XUL classes
 #ifdef MOZ_XUL
@@ -341,6 +346,10 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(CSSSupportsRule, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+
+  // other SVG classes
+  NS_DEFINE_CLASSINFO_DATA(SVGNumber, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
   NS_DEFINE_CLASSINFO_DATA(XSLTProcessor, nsDOMGenericSH,
@@ -882,6 +891,10 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSSRule)
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(CSSStyleSheet, nsIDOMCSSStyleSheet)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSSStyleSheet)
+  DOM_CLASSINFO_MAP_END
+
 #ifdef MOZ_XUL
   DOM_CLASSINFO_MAP_BEGIN(XULCommandDispatcher, nsIDOMXULCommandDispatcher)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMXULCommandDispatcher)
@@ -939,6 +952,13 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(CSSSupportsRule, nsIDOMCSSSupportsRule)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCSSSupportsRule)
+  DOM_CLASSINFO_MAP_END
+
+  // The SVG document
+
+  // other SVG classes
+  DOM_CLASSINFO_MAP_BEGIN(SVGNumber, nsIDOMSVGNumber)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGNumber)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(XSLTProcessor, nsIXSLTProcessor)
