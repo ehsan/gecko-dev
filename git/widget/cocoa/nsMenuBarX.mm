@@ -18,6 +18,7 @@
 #include "nsString.h"
 #include "nsGkAtoms.h"
 #include "nsObjCExceptions.h"
+#include "nsHashtable.h"
 #include "nsThreadUtils.h"
 
 #include "nsIContent.h"

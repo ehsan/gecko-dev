@@ -5,7 +5,6 @@ package org.mozilla.gecko.background.db;
 
 import org.json.simple.JSONArray;
 import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.sync.repositories.android.BrowserContractHelpers;
 
 import android.app.Activity;
 import android.content.ContentProviderClient;
@@ -38,22 +37,21 @@ public class TestFennecTabsStorage extends ActivityInstrumentationTestCase2<Acti
 
   protected ContentProviderClient getClientsClient() {
     final ContentResolver cr = getInstrumentation().getTargetContext().getApplicationContext().getContentResolver();
-    return cr.acquireContentProviderClient(BrowserContractHelpers.CLIENTS_CONTENT_URI);
+    return cr.acquireContentProviderClient(BrowserContract.Clients.CONTENT_URI);
   }
 
   protected ContentProviderClient getTabsClient() {
     final ContentResolver cr = getInstrumentation().getTargetContext().getApplicationContext().getContentResolver();
-    return cr.acquireContentProviderClient(BrowserContractHelpers.TABS_CONTENT_URI);
+    return cr.acquireContentProviderClient(BrowserContract.Tabs.CONTENT_URI);
   }
 
   protected int deleteAllTestTabs(final ContentProviderClient tabsClient) throws RemoteException {
     if (tabsClient == null) {
       return -1;
     }
-    return tabsClient.delete(BrowserContractHelpers.TABS_CONTENT_URI, TABS_CLIENT_GUID_IS, new String[] { TEST_CLIENT_GUID });
+    return tabsClient.delete(BrowserContract.Tabs.CONTENT_URI, TABS_CLIENT_GUID_IS, new String[] { TEST_CLIENT_GUID });
   }
 
-  @Override
   protected void tearDown() throws Exception {
     deleteAllTestTabs(getTabsClient());
   }
@@ -75,9 +73,9 @@ public class TestFennecTabsStorage extends ActivityInstrumentationTestCase2<Acti
     history3.add("http://test.com/test3.html#2");
     testTab3 = new Tab("test title 3", "http://test.com/test3.png", history3, 3000);
 
-    tabsClient.insert(BrowserContractHelpers.TABS_CONTENT_URI, testTab1.toContentValues(TEST_CLIENT_GUID, 0));
-    tabsClient.insert(BrowserContractHelpers.TABS_CONTENT_URI, testTab2.toContentValues(TEST_CLIENT_GUID, 1));
-    tabsClient.insert(BrowserContractHelpers.TABS_CONTENT_URI, testTab3.toContentValues(TEST_CLIENT_GUID, 2));
+    tabsClient.insert(BrowserContract.Tabs.CONTENT_URI, testTab1.toContentValues(TEST_CLIENT_GUID, 0));
+    tabsClient.insert(BrowserContract.Tabs.CONTENT_URI, testTab2.toContentValues(TEST_CLIENT_GUID, 1));
+    tabsClient.insert(BrowserContract.Tabs.CONTENT_URI, testTab3.toContentValues(TEST_CLIENT_GUID, 2));
   }
 
   // Sanity.
@@ -92,7 +90,7 @@ public class TestFennecTabsStorage extends ActivityInstrumentationTestCase2<Acti
   }
 
   public void testWipeClients() throws RemoteException {
-    final Uri uri = BrowserContractHelpers.CLIENTS_CONTENT_URI;
+    final Uri uri = BrowserContract.Clients.CONTENT_URI;
     final ContentProviderClient clientsClient = getClientsClient();
 
     // Have to ensure that it's empty…
@@ -113,7 +111,7 @@ public class TestFennecTabsStorage extends ActivityInstrumentationTestCase2<Acti
   }
 
   public void testStoreAndRetrieveClients() throws RemoteException {
-    final Uri uri = BrowserContractHelpers.CLIENTS_CONTENT_URI;
+    final Uri uri = BrowserContract.Clients.CONTENT_URI;
     final ContentProviderClient clientsClient = getClientsClient();
 
     // Have to ensure that it's empty…
@@ -176,7 +174,7 @@ public class TestFennecTabsStorage extends ActivityInstrumentationTestCase2<Acti
     final String positionAscending = BrowserContract.Tabs.POSITION + " ASC";
     Cursor cursor = null;
     try {
-      cursor = tabsClient.query(BrowserContractHelpers.TABS_CONTENT_URI, null, TABS_CLIENT_GUID_IS, new String[] { TEST_CLIENT_GUID }, positionAscending);
+      cursor = tabsClient.query(BrowserContract.Tabs.CONTENT_URI, null, TABS_CLIENT_GUID_IS, new String[] { TEST_CLIENT_GUID }, positionAscending);
       assertEquals(3, cursor.getCount());
 
       cursor.moveToFirst();

@@ -7,6 +7,7 @@
 #include "nsIComponentManager.h"
 #include "nsBaseCommandController.h"
 
+#include "nsHashtable.h"
 #include "nsString.h"
 #include "nsWeakPtr.h"
 

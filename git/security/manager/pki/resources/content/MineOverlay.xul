@@ -27,7 +27,7 @@
         <treecol id="serialnumcol" label="&certmgr.serial;"
                      persist="hidden width ordinal" flex="1"/>
         <splitter class="tree-splitter"/>
-        <treecol id="issuedcol" label="&certmgr.begins;"
+        <treecol id="issuedcol" label="&certmgr.issued;"
                      hidden="true" persist="hidden width ordinal" flex="1"/>
         <splitter class="tree-splitter"/>
         <treecol id="expiredcol" label="&certmgr.expires;"

@@ -601,8 +601,6 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
       NS_SerializeToString(secInfoSer, secInfoSerialization);
   }
 
-  uint16_t redirectCount = 0;
-  mChannel->GetRedirectCount(&redirectCount);
   if (mIPCClosed ||
       !SendOnStartRequest(channelStatus,
                           responseHead ? *responseHead : nsHttpResponseHead(),
@@ -611,8 +609,7 @@ HttpChannelParent::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
                           isFromCache,
                           mCacheEntry ? true : false,
                           expirationTime, cachedCharset, secInfoSerialization,
-                          mChannel->GetSelfAddr(), mChannel->GetPeerAddr(),
-                          redirectCount))
+                          mChannel->GetSelfAddr(), mChannel->GetPeerAddr()))
   {
     return NS_ERROR_UNEXPECTED;
   }

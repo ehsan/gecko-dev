@@ -30,13 +30,6 @@ function NativeApp(aApp, aManifest, aCategories, aRegistryDir) {
 
 NativeApp.prototype = {
   __proto__: CommonNativeApp.prototype,
-  /*
-   * The _rootInstallDir property is the path of the directory where we install
-   * apps. In production code, it's "/Applications". In tests, it's
-   * "~/Applications" because on build machines we don't have enough privileges
-   * to write to the global "/Applications" directory.
-   */
-  _rootInstallDir: LOCAL_APP_DIR,
 
   /**
    * Creates a native installation of the web app in the OS
@@ -57,16 +50,16 @@ NativeApp.prototype = {
 
     this._setData(aManifest);
 
-    let localAppDir = getFile(this._rootInstallDir);
+    let localAppDir = getFile(LOCAL_APP_DIR);
     if (!localAppDir.isWritable()) {
       throw("Not enough privileges to install apps");
     }
-
-    let destinationName = yield getAvailableFileName([ this._rootInstallDir ],
+ 
+    let destinationName = yield getAvailableFileName([ LOCAL_APP_DIR ],
                                                      this.appNameAsFilename,
                                                      ".app");
 
-    let installDir = OS.Path.join(this._rootInstallDir, destinationName);
+    let installDir = OS.Path.join(LOCAL_APP_DIR, destinationName);
 
     let dir = getFile(TMP_DIR, this.appNameAsFilename + ".app");
     dir.createUnique(Ci.nsIFile.DIRECTORY_TYPE, PERMS_DIRECTORY);

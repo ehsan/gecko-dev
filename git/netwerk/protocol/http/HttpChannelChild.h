@@ -106,8 +106,7 @@ protected:
                           const nsCString& cachedCharset,
                           const nsCString& securityInfoSerialization,
                           const NetAddr& selfAddr,
-                          const NetAddr& peerAddr,
-                          const int16_t& redirectCount) MOZ_OVERRIDE;
+                          const NetAddr& peerAddr) MOZ_OVERRIDE;
   bool RecvOnTransportAndData(const nsresult& channelStatus,
                               const nsresult& status,
                               const uint64_t& progress,

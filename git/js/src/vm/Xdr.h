@@ -95,10 +95,11 @@ class XDRState {
     XDRBuffer buf;
 
   protected:
+    JSPrincipals *principals_;
     JSPrincipals *originPrincipals_;
 
     XDRState(JSContext *cx)
-      : buf(cx), originPrincipals_(nullptr) {
+      : buf(cx), principals_(nullptr), originPrincipals_(nullptr) {
     }
 
   public:
@@ -255,7 +256,7 @@ class XDREncoder : public XDRState<XDR_ENCODE> {
 class XDRDecoder : public XDRState<XDR_DECODE> {
   public:
     XDRDecoder(JSContext *cx, const void *data, uint32_t length,
-               JSPrincipals *originPrincipals);
+               JSPrincipals *principals, JSPrincipals *originPrincipals);
 
 };
 

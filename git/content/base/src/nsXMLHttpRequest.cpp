@@ -68,7 +68,6 @@
 #include "nsFormData.h"
 #include "nsStreamListenerWrapper.h"
 #include "xpcjsid.h"
-#include "nsITimedChannel.h"
 
 #include "nsWrapperCacheInlines.h"
 
@@ -1704,12 +1703,6 @@ nsXMLHttpRequest::Open(const nsACString& inMethod, const nsACString& url,
   if (httpChannel) {
     rv = httpChannel->SetRequestMethod(method);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    // Set the initiator type
-    nsCOMPtr<nsITimedChannel> timedChannel(do_QueryInterface(httpChannel));
-    if (timedChannel) {
-      timedChannel->SetInitiatorType(NS_LITERAL_STRING("xmlhttprequest"));
-    }
   }
 
   ChangeState(XML_HTTP_REQUEST_OPENED);

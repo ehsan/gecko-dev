@@ -67,11 +67,11 @@
           <spacer/>
         </row>
         <row>
-          <label class ="header" value="&certmgr.periodofvalidity.label;"/>
+          <label class ="header" value="&certmgr.validity.label;"/>
           <spacer/>
         </row>
         <row>
-          <label value="&certmgr.begins;"/>
+          <label value="&certmgr.issued;"/>
           <textbox id="validitystart" class="plain" readonly="true"/>
         </row>
         <row>

@@ -228,8 +228,10 @@ PreallocatedProcessManagerImpl::RunAfterPreallocatedProcessReady(nsIRunnable* aR
   MOZ_ASSERT(NS_IsMainThread());
   mDelayedContentParentRequests.AppendElement(aRequest);
 
-  // This is an urgent NuwaFork() request. Request to fork at once.
-  DelayedNuwaFork();
+  if (!mPreallocateAppProcessTask) {
+    // This is an urgent NuwaFork() request.
+    DelayedNuwaFork();
+  }
 }
 
 void
