@@ -41,9 +41,6 @@
 #if defined(XP_WIN)
 #include <tchar.h>
 #include "nsString.h"
-#ifdef MOZ_METRO
-#include "nsWindowsHelpers.h"
-#endif
 #endif
 
 #if defined(XP_MACOSX)
@@ -198,6 +195,7 @@ static void InitLog(void)
 {
   if (0 == gDebugLog) {
     gDebugLog = PR_NewLogModule("nsDebug");
+    gDebugLog->level = PR_LOG_DEBUG;
   }
 }
 
@@ -217,12 +215,7 @@ static nsAssertBehavior GetAssertBehavior()
   if (gAssertBehavior != NS_ASSERT_UNINITIALIZED)
     return gAssertBehavior;
 
-#if defined(XP_WIN) && defined(MOZ_METRO)
-  if (IsRunningInWindowsMetro())
-    gAssertBehavior = NS_ASSERT_WARN;
-  else
-    gAssertBehavior = NS_ASSERT_TRAP;
-#elif defined(XP_WIN) || defined(XP_OS2)
+#if defined(XP_WIN) || defined(XP_OS2)
   gAssertBehavior = NS_ASSERT_TRAP;
 #else
   gAssertBehavior = NS_ASSERT_WARN;
@@ -600,3 +593,12 @@ NS_ErrorAccordingToNSPR()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef XP_WIN
+bool sXPCOMHasLoadedNewDLLs = false;
+
+NS_EXPORT void
+NS_SetHasLoadedNewDLLs()
+{
+  sXPCOMHasLoadedNewDLLs = true;
+}
+#endif

@@ -112,13 +112,13 @@ public:
 
   // This should be big enough to hold all of your control packets,
   // but if it needs to grow for huge headers it can do so dynamically.
-  // About 1% of responses from SPDY google services seem to be > 1000
-  // with all less than 2000 when compression is enabled.
+  // About 1% of requests to SPDY google services seem to be > 1000
+  // with all less than 2000.
   const static uint32_t kDefaultBufferSize = 2048;
 
   // kDefaultQueueSize must be >= other queue size constants
-  const static uint32_t kDefaultQueueSize =  32768;
-  const static uint32_t kQueueMinimumCleanup = 24576;
+  const static uint32_t kDefaultQueueSize =  16384;
+  const static uint32_t kQueueMinimumCleanup = 8192;
   const static uint32_t kQueueTailRoom    =  4096;
   const static uint32_t kQueueReserved    =  1024;
 
@@ -153,7 +153,7 @@ public:
   void TransactionHasDataToWrite(SpdyStream2 *);
 
   // an overload of nsAHttpSegementReader
-  virtual nsresult CommitToSegmentSize(uint32_t size, bool forceCommitment);
+  virtual nsresult CommitToSegmentSize(uint32_t size);
   
   void     PrintDiagnostics (nsCString &log);
 
@@ -168,6 +168,7 @@ private:
     PROCESSING_CONTROL_RST_STREAM
   };
 
+  void        DeterminePingThreshold();
   nsresult    HandleSynReplyForValidStream();
   uint32_t    GetWriteQueueSize();
   void        ChangeDownstreamState(enum stateType);
@@ -178,6 +179,7 @@ private:
   nsresult    ConvertHeaders(nsDependentCSubstring &,
                              nsDependentCSubstring &);
   void        GeneratePing(uint32_t);
+  void        ClearPing(bool);
   void        GenerateRstStream(uint32_t, uint32_t);
   void        GenerateGoAway();
   void        CleanupStream(SpdyStream2 *, nsresult, rstReason);
@@ -185,7 +187,6 @@ private:
 
   void        SetWriteCallbacks();
   void        FlushOutputQueue();
-  void        RealignOutputQueue();
 
   bool        RoomForMoreConcurrent();
   void        ActivateStream(SpdyStream2 *);
@@ -201,10 +202,6 @@ private:
   static PLDHashOperator ShutdownEnumerator(nsAHttpTransaction *,
                                             nsAutoPtr<SpdyStream2> &,
                                             void *);
-
-  static PLDHashOperator GoAwayEnumerator(nsAHttpTransaction *,
-                                          nsAutoPtr<SpdyStream2> &,
-                                          void *);
 
   // This is intended to be nsHttpConnectionMgr:nsHttpConnectionHandle taken
   // from the first transaction on this session. That object contains the
@@ -339,9 +336,7 @@ private:
   PRIntervalTime       mLastDataReadEpoch; // used for IdleTime()
   PRIntervalTime       mPingSentEpoch;
   uint32_t             mNextPingID;
-
-  // used as a temporary buffer while enumerating the stream hash during GoAway
-  nsDeque  mGoAwayStreamsToRestart;
+  bool                 mPingThresholdExperiment;
 };
 
 }} // namespace mozilla::net

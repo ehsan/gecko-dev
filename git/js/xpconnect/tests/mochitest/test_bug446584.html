@@ -23,7 +23,8 @@ function test(val) {
   try {
     document.createNodeIterator(document.body,
                                 NodeFilter.SHOW_ALL,
-                                function() { throw val }).nextNode();
+                                function() { throw val },
+                                true).nextNode();
     ok(false, "NodeIterator::nextNode() should have thrown an exception.");
   } catch (ex) {
     ok(val === ex, "NodeIterator did not properly forward exception " +

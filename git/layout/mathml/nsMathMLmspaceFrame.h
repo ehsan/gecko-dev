@@ -39,10 +39,8 @@ public:
 protected:
   nsMathMLmspaceFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmspaceFrame();
-
-  virtual nsresult
-  MeasureForWidth(nsRenderingContext& aRenderingContext,
-                  nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+  
+  virtual int GetSkipSides() const { return 0; }
 
 private:
   nscoord mWidth;

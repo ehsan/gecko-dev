@@ -13,7 +13,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
-this.EXPORTED_SYMBOLS = [ "PlacesDBUtils" ];
+let EXPORTED_SYMBOLS = [ "PlacesDBUtils" ];
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Constants
@@ -32,7 +32,7 @@ XPCOMUtils.defineLazyGetter(this, "DBConn", function() {
 ////////////////////////////////////////////////////////////////////////////////
 //// PlacesDBUtils
 
-this.PlacesDBUtils = {
+let PlacesDBUtils = {
   /**
    * Executes a list of maintenance tasks.
    * Once finished it will pass a array log to the callback attached to tasks.
@@ -817,24 +817,12 @@ this.PlacesDBUtils = {
   /**
    * Collects telemetry data.
    *
-   * There are essentially two modes of collection and the mode is
-   * determined by the presence of aHealthReportCallback. If
-   * aHealthReportCallback is not defined (the default) then we are in
-   * "Telemetry" mode. Results will be reported to Telemetry. If we are
-   * in "Health Report" mode only the probes with a true healthreport
-   * flag will be collected and the results will be reported to the
-   * aHealthReportCallback.
-   *
    * @param [optional] aTasks
    *        Tasks object to execute.
-   * @param [optional] aHealthReportCallback
-   *        Function to receive data relevant for Firefox Health Report.
    */
-  telemetry: function PDBU_telemetry(aTasks, aHealthReportCallback=null)
+  telemetry: function PDBU_telemetry(aTasks)
   {
     let tasks = new Tasks(aTasks);
-
-    let isTelemetry = !aHealthReportCallback;
 
     // This will be populated with one integer property for each probe result,
     // using the histogram name as key.
@@ -852,19 +840,15 @@ this.PlacesDBUtils = {
     //             histogram. If a query is also present, its result is passed
     //             as the first argument of the function.  If the function
     //             raises an exception, no data is added to the histogram.
-    //  healthreport: Boolean indicating whether this probe is relevant
-    //                to Firefox Health Report.
     //
     // Since all queries are executed in order by the database backend, the
     // callbacks can also use the result of previous queries stored in the
     // probeValues object.
     let probes = [
       { histogram: "PLACES_PAGES_COUNT",
-        healthreport: true,
         query:     "SELECT count(*) FROM moz_places" },
 
       { histogram: "PLACES_BOOKMARKS_COUNT",
-        healthreport: true,
         query:     "SELECT count(*) FROM moz_bookmarks b "
                  + "JOIN moz_bookmarks t ON t.id = b.parent "
                  + "AND t.parent <> :tags_folder "
@@ -960,11 +944,7 @@ this.PlacesDBUtils = {
       places_root: PlacesUtils.placesRootId
     };
 
-    let outstandingProbes = 0;
-
-    function reportResult(aProbe, aValue) {
-      outstandingProbes--;
-
+    function reportTelemetry(aProbe, aValue) {
       try {
         let value = aValue;
         if ("callback" in aProbe) {
@@ -976,27 +956,13 @@ this.PlacesDBUtils = {
       } catch (ex) {
         Components.utils.reportError(ex);
       }
-
-      if (!outstandingProbes && aHealthReportCallback) {
-        try {
-          aHealthReportCallback(probeValues);
-        } catch (ex) {
-          Components.utils.reportError(ex);
-        }
-      }
     }
 
     for (let i = 0; i < probes.length; i++) {
       let probe = probes[i];
-
-      if (!isTelemetry && !probe.healthreport) {
-        continue;
-      }
-
-      outstandingProbes++;
-
+ 
       if (!("query" in probe)) {
-        reportResult(probe);
+        reportTelemetry(probe);
         continue;
       }
 
@@ -1012,7 +978,7 @@ this.PlacesDBUtils = {
           handleError: PlacesDBUtils._handleError,
           handleResult: function (aResultSet) {
             let row = aResultSet.getNextRow();
-            reportResult(probe, row.getResultByIndex(0));
+            reportTelemetry(probe, row.getResultByIndex(0));
           },
           handleCompletion: function () {}
         });

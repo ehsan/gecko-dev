@@ -8,12 +8,11 @@ import android.content.Context;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Path;
-import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
+import android.widget.ImageButton;
 
-public class ShapedButton extends GeckoImageButton
-                          implements CanvasDelegate.DrawManager {
-    protected GeckoActivity mActivity;
+public class ShapedButton extends ImageButton
+                          implements CanvasDelegate.DrawManager { 
     protected Path mPath;
     protected CurveTowards mSide;
     protected CanvasDelegate mCanvasDelegate;
@@ -22,7 +21,6 @@ public class ShapedButton extends GeckoImageButton
 
     public ShapedButton(Context context, AttributeSet attrs) {
         super(context, attrs);
-        mActivity = (GeckoActivity) context;
 
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.BrowserToolbarCurve);
         int curveTowards = a.getInt(R.styleable.BrowserToolbarCurve_curveTowards, 0x02);
@@ -34,48 +32,15 @@ public class ShapedButton extends GeckoImageButton
             mSide = CurveTowards.LEFT;
         else
             mSide = CurveTowards.RIGHT;
-
-        setWillNotDraw(false);
     }
 
     @Override
     public void draw(Canvas canvas) {
-        if (mCanvasDelegate != null)
-            mCanvasDelegate.draw(canvas, mPath, getWidth(), getHeight());
-        else
-            defaultDraw(canvas);
+        mCanvasDelegate.draw(canvas, mPath, getWidth(), getHeight());
     }
 
     @Override
     public void defaultDraw(Canvas canvas) {
         super.draw(canvas);
-    }
-
-    @Override
-    public void setBackgroundDrawable(Drawable drawable) {
-        if (getBackground() == null || drawable == null) {
-            super.setBackgroundDrawable(drawable);
-            return;
-        }
-
-        int[] padding =  new int[] { getPaddingLeft(),
-                                     getPaddingTop(),
-                                     getPaddingRight(),
-                                     getPaddingBottom()
-                                   };
-        drawable.setLevel(getBackground().getLevel());
-        super.setBackgroundDrawable(drawable);
-
-        setPadding(padding[0], padding[1], padding[2], padding[3]);
-    }
-
-    @Override
-    public void setBackgroundResource(int resId) {
-        if (getBackground() == null || resId == 0) {
-            super.setBackgroundResource(resId);
-            return;
-        }
-
-        setBackgroundDrawable(getContext().getResources().getDrawable(resId));
     }
 }

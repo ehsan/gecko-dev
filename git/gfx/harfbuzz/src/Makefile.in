@@ -32,6 +32,7 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE         = harfbuzz
 LIBRARY_NAME   = mozharfbuzz
 ifneq ($(OS_ARCH),WINNT)
 LIBXUL_LIBRARY = 1
@@ -46,12 +47,8 @@ CPPSRCS	=                        \
   hb-ot-layout.cc                \
   hb-ot-map.cc                   \
   hb-ot-shape-complex-arabic.cc  \
-  hb-ot-shape-complex-default.cc \
   hb-ot-shape-complex-indic.cc   \
-  hb-ot-shape-complex-indic-table.cc \
-  hb-ot-shape-complex-myanmar.cc \
-  hb-ot-shape-complex-sea.cc     \
-  hb-ot-shape-complex-thai.cc    \
+  hb-ot-shape-complex-misc.cc    \
   hb-ot-shape-fallback.cc        \
   hb-ot-shape-normalize.cc       \
   hb-ot-shape.cc                 \

@@ -9,13 +9,28 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS = $(NULL)
+
 # Include config.mk explicitly so we can override FINAL_TARGET.
 include $(topsrcdir)/config/config.mk
 
-# Place webapprt resources in a separate app dir
-DIST_SUBDIR = webapprt
+# config.mk sets FINAL_TARGET to $(DIST)/bin, but we want to copy build products
+# into a WebappRT-specific subdirectory, so we redefine it here.
+FINAL_TARGET = $(DIST)/bin/webapprt
 
-EXTRA_COMPONENTS := \
+ifneq (,$(filter WINNT,$(OS_ARCH)))
+DIRS += win
+else
+ifeq ($(OS_ARCH),Darwin)
+DIRS += mac
+else
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
+DIRS += gtk2
+endif # gtk2
+endif # mac
+endif # windows
+
+EXTRA_PP_COMPONENTS = \
   components.manifest \
   CommandLineHandler.js \
   ContentPermission.js \
@@ -31,6 +46,10 @@ EXTRA_JS_MODULES = \
 
 PREF_JS_EXPORTS = $(srcdir)/prefs.js \
                   $(NULL)
+
+TEST_DIRS += \
+  test \
+  $(NULL)
 
 include $(topsrcdir)/config/rules.mk
 

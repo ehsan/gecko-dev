@@ -90,7 +90,6 @@ public:
 
 private:
   // Array of media |Representations| to switch between.
-  // Ordered list, ascending in order of bitrates.
   nsTArray<nsAutoPtr<Representation> >  mRepresentations;
 
   // @width, height and @mimetype of this media stream.

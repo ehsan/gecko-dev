@@ -12,12 +12,11 @@
 #include "nsIFrame.h"
 #include "nsDOMClassInfoID.h"
 
-nsDOMNotifyPaintEvent::nsDOMNotifyPaintEvent(mozilla::dom::EventTarget* aOwner,
-                                             nsPresContext* aPresContext,
+nsDOMNotifyPaintEvent::nsDOMNotifyPaintEvent(nsPresContext* aPresContext,
                                              nsEvent* aEvent,
                                              uint32_t aEventType,
                                              nsInvalidateRequestList* aInvalidateRequests)
-: nsDOMEvent(aOwner, aPresContext, aEvent)
+: nsDOMEvent(aPresContext, aEvent)
 {
   if (mEvent) {
     mEvent->message = aEventType;
@@ -41,7 +40,7 @@ nsRegion
 nsDOMNotifyPaintEvent::GetRegion()
 {
   nsRegion r;
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
     return r;
   }
   for (uint32_t i = 0; i < mInvalidateRequests.Length(); ++i) {
@@ -54,26 +53,33 @@ nsDOMNotifyPaintEvent::GetRegion()
 NS_IMETHODIMP
 nsDOMNotifyPaintEvent::GetBoundingClientRect(nsIDOMClientRect** aResult)
 {
-  nsRefPtr<nsClientRect> rect = new nsClientRect(ToSupports(this));
+  // Weak ref, since we addref it below
+  nsClientRect* rect = new nsClientRect();
+  if (!rect)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  if (mPresContext) {
-    rect->SetLayoutRect(GetRegion().GetBounds());
-  }
+  NS_ADDREF(*aResult = rect);
+  if (!mPresContext)
+    return NS_OK;
 
-  rect.forget(aResult);
+  rect->SetLayoutRect(GetRegion().GetBounds());
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMNotifyPaintEvent::GetClientRects(nsIDOMClientRectList** aResult)
 {
-  nsISupports* parent = ToSupports(this);
-  nsRefPtr<nsClientRectList> rectList = new nsClientRectList(parent);
+  nsRefPtr<nsClientRectList> rectList =
+    new nsClientRectList(static_cast<nsIDOMEvent*>(static_cast<nsDOMEvent*>(this)));
+  if (!rectList)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   nsRegion r = GetRegion();
   nsRegionRectIterator iter(r);
   for (const nsRect* rgnRect = iter.Next(); rgnRect; rgnRect = iter.Next()) {
-    nsRefPtr<nsClientRect> rect = new nsClientRect(parent);
+    nsRefPtr<nsClientRect> rect = new nsClientRect();
+    if (!rect)
+      return NS_ERROR_OUT_OF_MEMORY;
     
     rect->SetLayoutRect(*rgnRect);
     rectList->Append(rect);
@@ -86,26 +92,24 @@ nsDOMNotifyPaintEvent::GetClientRects(nsIDOMClientRectList** aResult)
 NS_IMETHODIMP
 nsDOMNotifyPaintEvent::GetPaintRequests(nsIDOMPaintRequestList** aResult)
 {
-  nsRefPtr<nsPaintRequestList> requests = PaintRequests();
-  requests.forget(aResult);
-  return NS_OK;
-}
+  nsRefPtr<nsPaintRequestList> requests =
+    new nsPaintRequestList(static_cast<nsDOMEvent*>(this));
+  if (!requests)
+    return NS_ERROR_OUT_OF_MEMORY;
 
-already_AddRefed<nsPaintRequestList>
-nsDOMNotifyPaintEvent::PaintRequests()
-{
-  nsDOMEvent* parent = this;
-  nsRefPtr<nsPaintRequestList> requests = new nsPaintRequestList(parent);
-
-  if (nsContentUtils::IsCallerChrome()) {
+  if (nsContentUtils::IsCallerTrustedForRead()) {
     for (uint32_t i = 0; i < mInvalidateRequests.Length(); ++i) {
-      nsRefPtr<nsPaintRequest> r = new nsPaintRequest(parent);
+      nsRefPtr<nsPaintRequest> r = new nsPaintRequest();
+      if (!r)
+        return NS_ERROR_OUT_OF_MEMORY;
+ 
       r->SetRequest(mInvalidateRequests[i]);
       requests->Append(r);
     }
   }
 
-  return requests.forget();
+  requests.forget(aResult);
+  return NS_OK;
 }
 
 NS_IMETHODIMP_(void)
@@ -121,7 +125,10 @@ nsDOMNotifyPaintEvent::Serialize(IPC::Message* aMsg,
   uint32_t length = mInvalidateRequests.Length();
   IPC::WriteParam(aMsg, length);
   for (uint32_t i = 0; i < length; ++i) {
-    IPC::WriteParam(aMsg, mInvalidateRequests[i].mRect);
+    IPC::WriteParam(aMsg, mInvalidateRequests[i].mRect.x);
+    IPC::WriteParam(aMsg, mInvalidateRequests[i].mRect.y);
+    IPC::WriteParam(aMsg, mInvalidateRequests[i].mRect.width);
+    IPC::WriteParam(aMsg, mInvalidateRequests[i].mRect.height);
     IPC::WriteParam(aMsg, mInvalidateRequests[i].mFlags);
   }
 }
@@ -136,7 +143,10 @@ nsDOMNotifyPaintEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
   mInvalidateRequests.SetCapacity(length);
   for (uint32_t i = 0; i < length; ++i) {
     nsInvalidateRequestList::Request req;
-    NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &req.mRect), false);
+    NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &req.mRect.x), false);
+    NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &req.mRect.y), false);
+    NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &req.mRect.width), false);
+    NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &req.mRect.height), false);
     NS_ENSURE_TRUE(IPC::ReadParam(aMsg, aIter, &req.mFlags), false);
     mInvalidateRequests.AppendElement(req);
   }
@@ -145,14 +155,13 @@ nsDOMNotifyPaintEvent::Deserialize(const IPC::Message* aMsg, void** aIter)
 }
 
 nsresult NS_NewDOMNotifyPaintEvent(nsIDOMEvent** aInstancePtrResult,
-                                   mozilla::dom::EventTarget* aOwner,
                                    nsPresContext* aPresContext,
                                    nsEvent *aEvent,
                                    uint32_t aEventType,
                                    nsInvalidateRequestList* aInvalidateRequests) 
 {
   nsDOMNotifyPaintEvent* it =
-    new nsDOMNotifyPaintEvent(aOwner, aPresContext, aEvent, aEventType,
+    new nsDOMNotifyPaintEvent(aPresContext, aEvent, aEventType,
                               aInvalidateRequests);
   if (nullptr == it) {
     return NS_ERROR_OUT_OF_MEMORY;

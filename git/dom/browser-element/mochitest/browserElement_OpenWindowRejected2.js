@@ -10,12 +10,13 @@
 
 "use strict";
 SimpleTest.waitForExplicitFinish();
-browserElementTestHelpers.setEnabledPref(true);
-browserElementTestHelpers.addPermission();
 
 function runTest() {
+  browserElementTestHelpers.setEnabledPref(true);
+  browserElementTestHelpers.addPermission();
+
   var iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
 
   iframe.addEventListener('mozbrowseropenwindow', function(e) {
     ok(e.detail.url.indexOf('does_not_exist.html') != -1,
@@ -44,4 +45,4 @@ function runTest() {
   iframe.src = 'file_browserElement_OpenWindowRejected.html';
 }
 
-addEventListener('testready', runTest);
+runTest();

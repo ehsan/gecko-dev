@@ -14,6 +14,10 @@ let gDebugger = null;
 
 function test()
 {
+  let tempScope = {};
+  Cu.import("resource:///modules/source-editor.jsm", tempScope);
+  let SourceEditor = tempScope.SourceEditor;
+
   let contextMenu = null;
   let scriptShown = false;
   let framesAdded = false;
@@ -24,10 +28,8 @@ function test()
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
     resumed = true;
-
-    gDebugger.addEventListener("Debugger:SourceShown", onScriptShown);
 
     gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
       framesAdded = true;
@@ -44,29 +46,30 @@ function test()
     executeSoon(startTest);
   }
 
+  window.addEventListener("Debugger:ScriptShown", onScriptShown);
+
   function startTest()
   {
     if (scriptShown && framesAdded && resumed && !testStarted) {
       testStarted = true;
-      gDebugger.removeEventListener("Debugger:SourceShown", onScriptShown);
+      window.removeEventListener("Debugger:ScriptShown", onScriptShown);
       Services.tm.currentThread.dispatch({ run: performTest }, 0);
     }
   }
 
   function performTest()
   {
-    let scripts = gDebugger.DebuggerView.Sources;
-    let editor = gDebugger.editor;
+    let scripts = gDebugger.DebuggerView.Scripts._scripts;
 
     is(gDebugger.DebuggerController.activeThread.state, "paused",
       "Should only be getting stack frames while paused.");
 
-    is(scripts.itemCount, 2,
-      "Found the expected number of scripts.");
+    is(scripts.itemCount, 2, "Found the expected number of scripts.");
+
+    let editor = gDebugger.editor;
 
     isnot(editor.getText().indexOf("debugger"), -1,
-      "The correct script was loaded initially.");
-
+          "The correct script was loaded initially.");
     isnot(editor.getText().indexOf("\u263a"), -1,
       "Unicode characters are converted correctly.");
 
@@ -94,6 +97,8 @@ function test()
        "#editMenuKeys not found");
     ok(document.getElementById("sourceEditorCommands"),
        "#sourceEditorCommands found");
+    ok(document.getElementById("sourceEditorKeys"),
+       "#sourceEditorKeys found");
 
     // Map command ids to their expected disabled state.
     let commands = {"se-cmd-undo": true, "se-cmd-redo": true,
@@ -102,10 +107,10 @@ function test()
                     "cmd_findPrevious": true, "cmd_find": false,
                     "cmd_gotoLine": false, "cmd_copy": false,
                     "se-cmd-selectAll": false};
-
     for (let id in commands) {
-      is(document.getElementById(id).hasAttribute("disabled"), commands[id],
-        id + " hasAttribute('disabled') check");
+      let element = document.getElementById(id);
+      is(element.hasAttribute("disabled"), commands[id],
+         id + " hasAttribute('disabled') check");
     }
 
     executeSoon(function() {

@@ -133,7 +133,7 @@ public:
   nsresult                EvictUnownedEntries(const char *clientID);
 
   static nsresult         BuildApplicationCacheGroupID(nsIURI *aManifestURL,
-                                                       uint32_t appId, bool isInBrowserElement,
+                                                       nsILoadContext *aLoadContext,
                                                        nsACString &_result);
 
   nsresult                ActivateCache(const nsCSubstring &group,

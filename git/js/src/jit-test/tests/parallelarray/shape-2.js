@@ -12,4 +12,4 @@ function testShape() {
   }
 }
 
-if (getBuildConfiguration().parallelJS) testShape();
+testShape();

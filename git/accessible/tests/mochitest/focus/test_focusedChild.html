@@ -52,17 +52,15 @@
       }
     }
 
-    gA11yEventDumpToConsole = true;
+    //gA11yEventDumpToConsole = true;
     var gQueue = null;
 
     function doTest()
     {
-      enableLogging("focus,doclifecycle");
       gQueue = new eventQueue();
 
       gQueue.push(new openWnd());
 
-      gQueue.onFinish = function() { disableLogging(); }
       gQueue.invoke(); // Will call SimpleTest.finish();
     }
 

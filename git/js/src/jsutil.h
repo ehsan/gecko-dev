@@ -12,7 +12,6 @@
 #define jsutil_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/GuardObjects.h"
 
 #include "js/Utility.h"
 
@@ -54,9 +53,9 @@ class AlignedPtrAndFlag
     uintptr_t bits;
 
   public:
-    AlignedPtrAndFlag(T *t, bool aFlag) {
+    AlignedPtrAndFlag(T *t, bool flag) {
         JS_ASSERT((uintptr_t(t) & 1) == 0);
-        bits = uintptr_t(t) | uintptr_t(aFlag);
+        bits = uintptr_t(t) | uintptr_t(flag);
     }
 
     T *ptr() const {
@@ -80,9 +79,9 @@ class AlignedPtrAndFlag
         bits &= ~uintptr_t(1);
     }
 
-    void set(T *t, bool aFlag) {
+    void set(T *t, bool flag) {
         JS_ASSERT((uintptr_t(t) & 1) == 0);
-        bits = uintptr_t(t) | aFlag;
+        bits = uintptr_t(t) | flag;
     }
 };
 
@@ -159,22 +158,111 @@ ImplicitCast(U &u)
 template<typename T>
 class AutoScopedAssign
 {
+  private:
+    JS_DECL_USE_GUARD_OBJECT_NOTIFIER
+    T *addr;
+    T old;
+
   public:
-    AutoScopedAssign(T *addr, const T &value
-                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-        : addr_(addr), old(*addr_)
+    AutoScopedAssign(T *addr, const T &value JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : addr(addr), old(*addr)
     {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        *addr_ = value;
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+        *addr = value;
     }
 
-    ~AutoScopedAssign() { *addr_ = old; }
-
-  private:
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-    T *addr_;
-    T old;
+    ~AutoScopedAssign() { *addr = old; }
 };
+
+template <class T>
+JS_ALWAYS_INLINE static void
+PodZero(T *t)
+{
+    memset(t, 0, sizeof(T));
+}
+
+template <class T>
+JS_ALWAYS_INLINE static void
+PodZero(T *t, size_t nelem)
+{
+    /*
+     * This function is often called with 'nelem' small; we use an
+     * inline loop instead of calling 'memset' with a non-constant
+     * length.  The compiler should inline the memset call with constant
+     * size, though.
+     */
+    for (T *end = t + nelem; t != end; ++t)
+        memset(t, 0, sizeof(T));
+}
+
+/*
+ * Arrays implicitly convert to pointers to their first element, which is
+ * dangerous when combined with the above PodZero definitions. Adding an
+ * overload for arrays is ambiguous, so we need another identifier. The
+ * ambiguous overload is left to catch mistaken uses of PodZero; if you get a
+ * compile error involving PodZero and array types, use PodArrayZero instead.
+ */
+template <class T, size_t N> static void PodZero(T (&)[N]);          /* undefined */
+template <class T, size_t N> static void PodZero(T (&)[N], size_t);  /* undefined */
+
+template <class T, size_t N>
+JS_ALWAYS_INLINE static void
+PodArrayZero(T (&t)[N])
+{
+    memset(t, 0, N * sizeof(T));
+}
+
+template <class T>
+JS_ALWAYS_INLINE static void
+PodAssign(T *dst, const T *src)
+{
+    js_memcpy((char *) dst, (const char *) src, sizeof(T));
+}
+
+template <class T>
+JS_ALWAYS_INLINE static void
+PodCopy(T *dst, const T *src, size_t nelem)
+{
+    /* Cannot find portable word-sized abs(). */
+    JS_ASSERT_IF(dst >= src, size_t(dst - src) >= nelem);
+    JS_ASSERT_IF(src >= dst, size_t(src - dst) >= nelem);
+
+    if (nelem < 128) {
+        /*
+         * Avoid using operator= in this loop, as it may have been
+         * intentionally deleted by the POD type.
+         */
+        for (const T *srcend = src + nelem; src != srcend; ++src, ++dst)
+            PodAssign(dst, src);
+    } else {
+        memcpy(dst, src, nelem * sizeof(T));
+    }
+}
+
+template <class T>
+JS_ALWAYS_INLINE static bool
+PodEqual(T *one, T *two, size_t len)
+{
+    if (len < 128) {
+        T *p1end = one + len;
+        for (T *p1 = one, *p2 = two; p1 != p1end; ++p1, ++p2) {
+            if (*p1 != *p2)
+                return false;
+        }
+        return true;
+    }
+
+    return !memcmp(one, two, len * sizeof(T));
+}
+
+template <class T>
+JS_ALWAYS_INLINE static void
+Swap(T &t, T &u)
+{
+    T tmp(Move(t));
+    t = Move(u);
+    u = Move(tmp);
+}
 
 template <typename T>
 static inline bool
@@ -281,23 +369,23 @@ class Compressor
     z_stream zs;
     const unsigned char *inp;
     size_t inplen;
-    size_t outbytes;
-
   public:
-    enum Status {
-        MOREOUTPUT,
-        DONE,
-        CONTINUE,
-        OOM
-    };
-
-    Compressor(const unsigned char *inp, size_t inplen);
-    ~Compressor();
+    Compressor(const unsigned char *inp, size_t inplen, unsigned char *out)
+        : inp(inp),
+        inplen(inplen)
+    {
+        JS_ASSERT(inplen > 0);
+        zs.opaque = NULL;
+        zs.next_in = (Bytef *)inp;
+        zs.avail_in = 0;
+        zs.next_out = out;
+        zs.avail_out = inplen;
+    }
     bool init();
-    void setOutput(unsigned char *out, size_t outlen);
-    size_t outWritten() const { return outbytes; }
     /* Compress some of the input. Return true if it should be called again. */
-    Status compressMore();
+    bool compressMore();
+    /* Finalize compression. Return the length of the compressed input. */
+    size_t finish();
 };
 
 /*

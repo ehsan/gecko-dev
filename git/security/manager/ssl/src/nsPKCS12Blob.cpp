@@ -26,15 +26,15 @@
 #include "nsICertificateDialogs.h"
 #include "nsNSSShutDown.h"
 #include "nsCRT.h"
-#include "ScopedNSSTypes.h"
-
+#include "pk11func.h"
 #include "secerr.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
-using namespace mozilla;
+#include "nsNSSCleaner.h"
+NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
@@ -51,6 +51,7 @@ static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 // constructor
 nsPKCS12Blob::nsPKCS12Blob():mCertArray(0),
                              mTmpFile(nullptr),
+                             mTmpFilePath(nullptr),
                              mDigest(nullptr),
                              mDigestIterator(nullptr),
                              mTokenSet(false)
@@ -101,7 +102,7 @@ nsPKCS12Blob::ImportFromFile(nsIFile *file)
 
   if (!mToken) {
     if (!mTokenSet) {
-      rv = SetToken(nullptr); // Ask the user to pick a slot
+      rv = SetToken(NULL); // Ask the user to pick a slot
       if (NS_FAILED(rv)) {
         handleError(PIP_PKCS12_USER_CANCELED);
         return rv;
@@ -141,12 +142,12 @@ nsPKCS12Blob::ImportFromFileHelper(nsIFile *file,
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   SECStatus srv = SECSuccess;
-  SEC_PKCS12DecoderContext *dcx = nullptr;
+  SEC_PKCS12DecoderContext *dcx = NULL;
   SECItem unicodePw;
 
   PK11SlotInfo *slot=nullptr;
   nsXPIDLString tokenName;
-  unicodePw.data = nullptr;
+  unicodePw.data = NULL;
   
   aWantRetry = rr_do_not_retry;
 
@@ -159,7 +160,7 @@ nsPKCS12Blob::ImportFromFileHelper(nsIFile *file,
     // get file password (unicode)
     rv = getPKCS12FilePassword(&unicodePw);
     if (NS_FAILED(rv)) goto finish;
-    if (!unicodePw.data) {
+    if (unicodePw.data == NULL) {
       handleError(PIP_PKCS12_USER_CANCELED);
       return NS_OK;
     }
@@ -176,7 +177,7 @@ nsPKCS12Blob::ImportFromFileHelper(nsIFile *file,
   }
 
   // initialize the decoder
-  dcx = SEC_PKCS12DecoderStart(&unicodePw, slot, nullptr,
+  dcx = SEC_PKCS12DecoderStart(&unicodePw, slot, NULL,
                                digest_open, digest_close,
                                digest_read, digest_write,
                                this);
@@ -259,7 +260,7 @@ nsPKCS12Blob::LoadCerts(const PRUnichar **certNames, int numCerts)
   /* Add the certs */
   for (int i=0; i<numCerts; i++) {
     strcpy(namecpy, NS_ConvertUTF16toUTF8(certNames[i]));
-    CERTCertificate *nssCert = PK11_FindCertFromNickname(namecpy, nullptr);
+    CERTCertificate *nssCert = PK11_FindCertFromNickname(namecpy, NULL);
     if (!nssCert) {
       if (!handleError())
         return NS_ERROR_FAILURE;
@@ -289,7 +290,7 @@ isExtractable(SECKEYPrivateKey *privKey)
   if (rv != SECSuccess) {
     return false;
   }
-  if ((value.len == 1) && value.data) {
+  if ((value.len == 1) && (value.data != NULL)) {
     isExtractable = !!(*(CK_BBOOL*)value.data);
   }
   SECITEM_FreeItem(&value, false);
@@ -313,8 +314,8 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   SECStatus srv = SECSuccess;
-  SEC_PKCS12ExportContext *ecx = nullptr;
-  SEC_PKCS12SafeInfo *certSafe = nullptr, *keySafe = nullptr;
+  SEC_PKCS12ExportContext *ecx = NULL;
+  SEC_PKCS12SafeInfo *certSafe = NULL, *keySafe = NULL;
   SECItem unicodePw;
   nsAutoString filePath;
   int i;
@@ -328,16 +329,16 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
   rv = mToken->Login(true);
   if (NS_FAILED(rv)) goto finish;
   // get file password (unicode)
-  unicodePw.data = nullptr;
+  unicodePw.data = NULL;
   rv = newPKCS12FilePassword(&unicodePw);
   if (NS_FAILED(rv)) goto finish;
-  if (!unicodePw.data) {
+  if (unicodePw.data == NULL) {
     handleError(PIP_PKCS12_USER_CANCELED);
     return NS_OK;
   }
   // what about slotToUse in psm 1.x ???
   // create export context
-  ecx = SEC_PKCS12CreateExportContext(nullptr, nullptr, nullptr /*slot*/, nullptr);
+  ecx = SEC_PKCS12CreateExportContext(NULL, NULL, NULL /*slot*/, NULL);
   if (!ecx) {
     srv = SECFailure;
     goto finish;
@@ -359,7 +360,9 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
 //    nsNSSCertificate *cert = reinterpret_cast<nsNSSCertificate *>(certs[i]);
     nsNSSCertificate *cert = (nsNSSCertificate *)certs[i];
     // get it as a CERTCertificate XXX
-    ScopedCERTCertificate nssCert(cert->GetCert());
+    CERTCertificate *nssCert = NULL;
+    CERTCertificateCleaner nssCertCleaner(nssCert);
+    nssCert = cert->GetCert();
     if (!nssCert) {
       rv = NS_ERROR_FAILURE;
       goto finish;
@@ -390,7 +393,7 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
     }
 
     // XXX this is why, to verify the slot is the same
-    // PK11_FindObjectForCert(nssCert, nullptr, slot);
+    // PK11_FindObjectForCert(nssCert, NULL, slot);
     // create the cert and key safes
     keySafe = SEC_PKCS12CreateUnencryptedSafe(ecx);
     if (!SEC_PKCS12IsEncryptionAllowed() || PK11_IsFIPS()) {
@@ -404,9 +407,9 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
       goto finish;
     }
     // add the cert and key to the blob
-    srv = SEC_PKCS12AddCertAndKey(ecx, certSafe, nullptr, nssCert,
+    srv = SEC_PKCS12AddCertAndKey(ecx, certSafe, NULL, nssCert,
                                   CERT_GetDefaultCertDB(), // XXX
-                                  keySafe, nullptr, true, &unicodePw,
+                                  keySafe, NULL, true, &unicodePw,
                       SEC_OID_PKCS12_V2_PBE_WITH_SHA1_AND_3KEY_TRIPLE_DES_CBC);
     if (srv) goto finish;
     // cert was dup'ed, so release it
@@ -416,7 +419,7 @@ nsPKCS12Blob::ExportToFile(nsIFile *file,
   if (!numCertsExported) goto finish;
   
   // prepare the instance to write to an export file
-  this->mTmpFile = nullptr;
+  this->mTmpFile = NULL;
   file->GetPath(filePath);
   // Use the nsCOMPtr var localFileRef so that
   // the reference to the nsIFile we create gets released as soon as
@@ -446,7 +449,7 @@ finish:
     SEC_PKCS12DestroyExportContext(ecx);
   if (this->mTmpFile) {
     PR_Close(this->mTmpFile);
-    this->mTmpFile = nullptr;
+    this->mTmpFile = NULL;
   }
   SECITEM_ZfreeItem(&unicodePw, false);
   return rv;
@@ -468,7 +471,7 @@ nsPKCS12Blob::unicodeToItem(const PRUnichar *uni, SECItem *item)
 {
   int len = 0;
   while (uni[len++] != 0);
-  SECITEM_AllocItem(nullptr, item, sizeof(PRUnichar) * len);
+  SECITEM_AllocItem(NULL, item, sizeof(PRUnichar) * len);
 #ifdef IS_LITTLE_ENDIAN
   int i = 0;
   for (i=0; i<len; i++) {
@@ -829,3 +832,4 @@ nsPKCS12Blob::handleError(int myerr)
   if (NS_SUCCEEDED(rv))
     (void) nssComponent->ShowAlertFromStringBundle(msgID);
 }
+

@@ -6,7 +6,6 @@
 #include "nsSMILTimeContainer.h"
 #include "nsSMILTimeValue.h"
 #include "nsSMILTimedElement.h"
-#include <algorithm>
 
 nsSMILTimeContainer::nsSMILTimeContainer()
 :
@@ -118,7 +117,7 @@ nsSMILTimeContainer::SetCurrentTime(nsSMILTime aSeekTo)
 {
   // SVG 1.1 doesn't specify what to do for negative times so we adopt SVGT1.2's
   // behaviour of clamping negative times to 0.
-  aSeekTo = std::max<nsSMILTime>(0, aSeekTo);
+  aSeekTo = NS_MAX<nsSMILTime>(0, aSeekTo);
 
   // The following behaviour is consistent with:
   // http://www.w3.org/2003/01/REC-SVG11-20030114-errata
@@ -206,7 +205,7 @@ nsSMILTimeContainer::SetParent(nsSMILTimeContainer* aParent)
 
 bool
 nsSMILTimeContainer::AddMilestone(const nsSMILMilestone& aMilestone,
-                                  mozilla::dom::SVGAnimationElement& aElement)
+                                  nsISMILAnimationElement& aElement)
 {
   // We record the milestone time and store it along with the element but this
   // time may change (e.g. if attributes are changed on the timed element in
@@ -275,7 +274,7 @@ nsSMILTimeContainer::Traverse(nsCycleCollectionTraversalCallback* aCallback)
   const MilestoneEntry* p = mMilestoneEntries.Elements();
   while (p < mMilestoneEntries.Elements() + mMilestoneEntries.Length()) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback, "mTimebase");
-    aCallback->NoteXPCOMChild(static_cast<nsIContent*>(p->mTimebase.get()));
+    aCallback->NoteXPCOMChild(p->mTimebase.get());
     ++p;
   }
 }
@@ -311,7 +310,7 @@ nsSMILTimeContainer::NotifyTimeChange()
   uint32_t queueLength = mMilestoneEntries.Length();
 #endif
   while (p < mMilestoneEntries.Elements() + mMilestoneEntries.Length()) {
-    mozilla::dom::SVGAnimationElement* elem = p->mTimebase.get();
+    nsISMILAnimationElement* elem = p->mTimebase.get();
     elem->TimedElement().HandleContainerTimeChange();
     NS_ABORT_IF_FALSE(queueLength == mMilestoneEntries.Length(),
         "Call to HandleContainerTimeChange resulted in a change to the "

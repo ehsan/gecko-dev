@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Assertions.h"
 #include "cpr_types.h"
 #include "cpr_stdlib.h"
 #include "cpr_stdio.h"
@@ -30,7 +29,6 @@ extern sm_rcs_t dcsm_process_event(void *event, int event_id);
 static fim_scb_t *fim_scbs;
 static fim_icb_t *fim_icbs;
 
-static const char* logTag = "fim.c";
 
 static void
 fim_mwi (cc_mwi_t *msg)
@@ -205,11 +203,6 @@ fim_get_new_call_chn (callid_t call_id)
 
         if (icb->scb->get_cb) {
             icb->scb->get_cb(icb, call_id);
-            if (!icb->cb) {
-              CSFLogError(logTag, "%s - unable to get control block for call %d", __FUNCTION__, call_id);
-              fim_free_call_chn(call_chn, 0, FALSE);
-              return NULL;
-            }
             icb->call_id = call_id;
             icb->ui_locked = FALSE;
         }
@@ -600,19 +593,11 @@ fim_process_event (void *data, boolean cac_passed)
      * Skip the head.
      */
     icb = call_chn->next_icb;
-    MOZ_ASSERT(icb);
-    while (icb && !done) {
+    while (done != TRUE) {
         /*
          * Set the required event data so the entity can process the event.
          */
         cb_hdr = (fim_cb_hdr_t *) (icb->cb);
-
-        MOZ_ASSERT(cb_hdr);
-        if (!cb_hdr) {
-            done = TRUE;
-            break;
-        }
-
         event.data  = cb_hdr;
         event.state = cb_hdr->state;
         event.event = event_id;

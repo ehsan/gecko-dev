@@ -95,23 +95,13 @@ public:
     XPCShellDirProvider() { }
     ~XPCShellDirProvider() { }
 
-    // The platform resource folder
     bool SetGREDir(const char *dir);
     void ClearGREDir() { mGREDir = nullptr; }
-    // The application resource folder
-    void SetAppDir(nsIFile *appFile);
-    void ClearAppDir() { mAppDir = nullptr; }
-    // The app executable
     void SetAppFile(nsIFile *appFile);
     void ClearAppFile() { mAppFile = nullptr; }
-    // An additional custom plugin dir if specified
-    void SetPluginDir(nsIFile* pluginDir);
-    void ClearPluginDir() { mPluginDir = nullptr; }
 
 private:
     nsCOMPtr<nsIFile> mGREDir;
-    nsCOMPtr<nsIFile> mAppDir;
-    nsCOMPtr<nsIFile> mPluginDir;
     nsCOMPtr<nsIFile> mAppFile;
 };
 
@@ -469,12 +459,8 @@ Load(JSContext *cx, unsigned argc, jsval *vp)
                            filename.ptr());
             return false;
         }
-        JS::CompileOptions options(cx);
-        options.setUTF8(true)
-               .setFileAndLine(filename.ptr(), 1)
-               .setPrincipals(gJSPrincipals);
-        JS::RootedObject rootedObj(cx, obj);
-        JSScript *script = JS::Compile(cx, rootedObj, options, file);
+        JSScript *script = JS_CompileUTF8FileHandleForPrincipals(cx, obj, filename.ptr(),
+                                                                 file, gJSPrincipals);
         fclose(file);
         if (!script)
             return false;
@@ -584,7 +570,7 @@ DumpHeap(JSContext *cx, unsigned argc, jsval *vp)
         if (!str)
             return false;
         *vp = STRING_TO_JSVAL(str);
-        if (!fileName.encodeLatin1(cx, str))
+        if (!fileName.encode(cx, str))
             return false;
     }
 
@@ -699,8 +685,11 @@ static const struct JSOption {
     const char  *name;
     uint32_t    flag;
 } js_options[] = {
+    {"atline",          JSOPTION_ATLINE},
     {"strict",          JSOPTION_STRICT},
     {"werror",          JSOPTION_WERROR},
+    {"allow_xml",       JSOPTION_ALLOW_XML},
+    {"moar_xml",        JSOPTION_MOAR_XML},
     {"strict_mode",     JSOPTION_STRICT_MODE},
 };
 
@@ -802,24 +791,6 @@ Parent(JSContext *cx, unsigned argc, jsval *vp)
     return true;
 }
 
-static JSBool
-Atob(JSContext *cx, unsigned argc, jsval *vp)
-{
-    if (!argc)
-        return true;
-
-    return xpc::Base64Decode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
-}
-
-static JSBool
-Btoa(JSContext *cx, unsigned argc, jsval *vp)
-{
-  if (!argc)
-      return true;
-
-  return xpc::Base64Encode(cx, JS_ARGV(cx, vp)[0], &JS_RVAL(cx, vp));
-}
-
 static JSFunctionSpec glob_functions[] = {
     JS_FS("print",           Print,          0,0),
     JS_FS("readline",        ReadLine,       1,0),
@@ -834,14 +805,12 @@ static JSFunctionSpec glob_functions[] = {
     JS_FS("gczeal",          GCZeal,         1,0),
 #endif
     JS_FS("options",         Options,        0,0),
-    JS_FN("parent",          Parent,         1,0),
+    JS_FN("parent",     Parent,         1,0),
 #ifdef DEBUG
     JS_FS("dumpHeap",        DumpHeap,       5,0),
 #endif
     JS_FS("sendCommand",     SendCommand,    1,0),
     JS_FS("getChildGlobalObject", GetChildGlobalObject, 0,0),
-    JS_FS("atob",            Atob,           1,0),
-    JS_FS("btoa",            Btoa,           1,0),
     JS_FS_END
 };
 
@@ -942,6 +911,9 @@ env_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id, unsigned flags,
 {
     JSString *idstr, *valstr;
 
+    if (flags & JSRESOLVE_ASSIGNING)
+        return true;
+
     jsval idval;
     if (!JS_IdToValue(cx, id, &idval))
         return false;
@@ -1036,12 +1008,9 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
         ungetc(ch, file);
         DoBeginRequest(cx);
 
-        JS::CompileOptions options(cx);
-        options.setUTF8(true)
-               .setFileAndLine(filename, 1)
-               .setPrincipals(gJSPrincipals);
-        JS::RootedObject rootedObj(cx, obj);
-        script = JS::Compile(cx, rootedObj, options, file);
+        script = JS_CompileUTF8FileHandleForPrincipals(cx, obj, filename, file,
+                                                       gJSPrincipals);
+
         if (script && !compileOnly)
             (void)JS_ExecuteScript(cx, obj, script, &result);
         DoEndRequest(cx);
@@ -1070,7 +1039,7 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
             }
             bufp += strlen(bufp);
             lineno++;
-        } while (!JS_BufferIsCompilableUnit(cx, obj, buffer, strlen(buffer)));
+        } while (!JS_BufferIsCompilableUnit(cx, false, obj, buffer, strlen(buffer)));
 
         DoBeginRequest(cx);
         /* Clear any pending exception from previous failed compiles.  */
@@ -1088,7 +1057,7 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
                     str = JS_ValueToString(cx, result);
                     JS_SetErrorReporter(cx, older);
                     JSAutoByteString bytes;
-                    if (str && bytes.encodeLatin1(cx, str))
+                    if (str && bytes.encode(cx, str))
                         fprintf(gOutFile, "%s\n", bytes.ptr());
                     else
                         ok = false;
@@ -1128,48 +1097,14 @@ static int
 usage(void)
 {
     fprintf(gErrFile, "%s\n", JS_GetImplementationVersion());
-    fprintf(gErrFile, "usage: xpcshell [-g gredir] [-a appdir] [-r manifest]... [-PsSwWCijmIn] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
+    fprintf(gErrFile, "usage: xpcshell [-g gredir] [-a appdir] [-r manifest]... [-PsSwWxCij] [-v version] [-f scriptfile] [-e script] [scriptfile] [scriptarg...]\n");
     return 2;
 }
 
 extern JSClass global_class;
 
-static void
-ProcessArgsForCompartment(JSContext *cx, char **argv, int argc)
-{
-    for (int i = 0; i < argc; i++) {
-        if (argv[i][0] != '-' || argv[i][1] == '\0')
-            break;
-
-        switch (argv[i][1]) {
-          case 'v':
-          case 'f':
-          case 'e':
-            if (++i == argc)
-                return;
-            break;
-        case 'S':
-            JS_ToggleOptions(cx, JSOPTION_WERROR);
-        case 's':
-            JS_ToggleOptions(cx, JSOPTION_STRICT);
-            break;
-        case 'm':
-            JS_ToggleOptions(cx, JSOPTION_METHODJIT);
-            break;
-        case 'I':
-            JS_ToggleOptions(cx, JSOPTION_COMPILE_N_GO);
-            JS_ToggleOptions(cx, JSOPTION_ION);
-            JS_ToggleOptions(cx, JSOPTION_ASMJS);
-            break;
-        case 'n':
-            JS_ToggleOptions(cx, JSOPTION_TYPE_INFERENCE);
-            break;
-        }
-    }
-}
-
 static int
-ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc, XPCShellDirProvider* aDirProvider)
+ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
 {
     const char rcfilename[] = "xpcshell.js";
     FILE *rcfile;
@@ -1248,7 +1183,13 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc, XPCShellDirProv
         case 'w':
             reportWarnings = true;
             break;
+        case 'S':
+            JS_ToggleOptions(cx, JSOPTION_WERROR);
+        case 's':
+            JS_ToggleOptions(cx, JSOPTION_STRICT);
+            break;
         case 'x':
+            JS_ToggleOptions(cx, JSOPTION_MOAR_XML);
             break;
         case 'd':
             xpc_ActivateDebugMode();
@@ -1286,25 +1227,12 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc, XPCShellDirProv
             compileOnly = true;
             isInteractive = false;
             break;
-        case 'S':
-        case 's':
         case 'm':
-        case 'I':
-        case 'n':
-            // These options are processed in ProcessArgsForCompartment.
+            JS_ToggleOptions(cx, JSOPTION_METHODJIT);
             break;
-        case 'p':
-        {
-          // plugins path
-          char *pluginPath = argv[++i];
-          nsCOMPtr<nsIFile> pluginsDir;
-          if (NS_FAILED(XRE_GetFileFromPath(pluginPath, getter_AddRefs(pluginsDir)))) {
-              fprintf(gErrFile, "Couldn't use given plugins dir.\n");
-              return usage();
-          }
-          aDirProvider->SetPluginDir(pluginsDir);
-          break;
-        }
+        case 'n':
+            JS_ToggleOptions(cx, JSOPTION_TYPE_INFERENCE);
+            break;
         default:
             return usage();
         }
@@ -1467,13 +1395,6 @@ FullTrustSecMan::GetNoAppCodebasePrincipal(nsIURI *aURI, nsIPrincipal **_retval)
     return GetSimpleCodebasePrincipal(aURI, _retval);
 }
 
-/* [noscript] nsIPrincipal getCodebasePrincipal (in nsIURI aURI); */
-NS_IMETHODIMP
-FullTrustSecMan::GetCodebasePrincipal(nsIURI *aURI, nsIPrincipal **_retval)
-{
-    return GetSimpleCodebasePrincipal(aURI, _retval);
-}
-
 /* [noscript] nsIPrincipal getAppCodebasePrincipal (in nsIURI aURI, unsigned long appid, bool inMozBrowser); */
 NS_IMETHODIMP
 FullTrustSecMan::GetAppCodebasePrincipal(nsIURI *aURI, uint32_t aAppId, bool aInMozBrowser, nsIPrincipal **_retval)
@@ -1518,6 +1439,14 @@ FullTrustSecMan::CheckSameOriginURI(nsIURI *aSourceURI, nsIURI *aTargetURI,
                                     bool reportError)
 {
     return NS_OK;
+}
+
+/* [noscript] nsIPrincipal getPrincipalFromContext (in JSContextPtr cx); */
+NS_IMETHODIMP
+FullTrustSecMan::GetPrincipalFromContext(JSContext * cx, nsIPrincipal **_retval)
+{
+    NS_IF_ADDREF(*_retval = mSystemPrincipal);
+    return *_retval ? NS_OK : NS_ERROR_FAILURE;
 }
 
 /* [noscript] nsIPrincipal getChannelPrincipal (in nsIChannel aChannel); */
@@ -1750,7 +1679,6 @@ main(int argc, char **argv, char **envp)
         rv = XRE_GetFileFromPath(argv[2], getter_AddRefs(dir));
         if (NS_SUCCEEDED(rv)) {
             appDir = do_QueryInterface(dir, &rv);
-            dirprovider.SetAppDir(appDir);
         }
         if (NS_FAILED(rv)) {
             printf("Couldn't use given appdir.\n");
@@ -1821,9 +1749,8 @@ main(int argc, char **argv, char **envp)
             return 1;
         }
 
-        argc--;
-        argv++;
-        ProcessArgsForCompartment(cx, argv, argc);
+        JS_SetOptions(cx, JS_GetOptions(cx) | JSOPTION_ALLOW_XML);
+        xpc_LocalizeContext(cx);
 
         nsCOMPtr<nsIXPConnect> xpc = do_GetService(nsIXPConnect::GetCID());
         if (!xpc) {
@@ -1894,7 +1821,6 @@ main(int argc, char **argv, char **envp)
         rv = xpc->InitClassesWithNewWrappedGlobal(cx, backstagePass,
                                                   systemprincipal,
                                                   0,
-                                                  JS::SystemZone,
                                                   getter_AddRefs(holder));
         if (NS_FAILED(rv))
             return 1;
@@ -1935,7 +1861,10 @@ main(int argc, char **argv, char **envp)
             JS_DefineProperty(cx, glob, "__LOCATION__", JSVAL_VOID,
                               GetLocationProperty, NULL, 0);
 
-            result = ProcessArgs(cx, glob, argv, argc, &dirprovider);
+            argc--;
+            argv++;
+
+            result = ProcessArgs(cx, glob, argv, argc);
 
 
 //#define TEST_CALL_ON_WRAPPED_JS_AFTER_SHUTDOWN 1
@@ -1983,8 +1912,6 @@ main(int argc, char **argv, char **envp)
     appDir = nullptr;
     appFile = nullptr;
     dirprovider.ClearGREDir();
-    dirprovider.ClearAppDir();
-    dirprovider.ClearPluginDir();
     dirprovider.ClearAppFile();
 
 #ifdef MOZ_CRASHREPORTER
@@ -2015,18 +1942,6 @@ void
 XPCShellDirProvider::SetAppFile(nsIFile* appFile)
 {
     mAppFile = appFile;
-}
-
-void
-XPCShellDirProvider::SetAppDir(nsIFile* appDir)
-{
-    mAppDir = appDir;
-}
-
-void
-XPCShellDirProvider::SetPluginDir(nsIFile* pluginDir)
-{
-    mPluginDir = pluginDir;
 }
 
 NS_IMETHODIMP_(nsrefcnt)
@@ -2100,7 +2015,9 @@ XPCShellDirProvider::GetFile(const char *prop, bool *persistent,
 #endif
         return localFile->Clone(result);
 #else
-        return mAppFile->GetParent(result);
+        // Fail on non-Windows platforms, the caller is supposed to fal back on
+        // the app dir.
+        return NS_ERROR_FAILURE;
 #endif
     }
 
@@ -2126,37 +2043,15 @@ XPCShellDirProvider::GetFiles(const char *prop, nsISimpleEnumerator* *result)
         return NS_NewArrayEnumerator(result, dirs);
     } else if (!strcmp(prop, NS_APP_PREFS_DEFAULTS_DIR_LIST)) {
         nsCOMArray<nsIFile> dirs;
-        nsCOMPtr<nsIFile> appDir;
-        bool exists;
-        if (mAppDir &&
-            NS_SUCCEEDED(mAppDir->Clone(getter_AddRefs(appDir))) &&
-            NS_SUCCEEDED(appDir->AppendNative(NS_LITERAL_CSTRING("defaults"))) &&
-            NS_SUCCEEDED(appDir->AppendNative(NS_LITERAL_CSTRING("preferences"))) &&
-            NS_SUCCEEDED(appDir->Exists(&exists)) && exists) {
-            dirs.AppendObject(appDir);
-            return NS_NewArrayEnumerator(result, dirs);
-        }
-        return NS_ERROR_FAILURE;
-    } else if (!strcmp(prop, NS_APP_PLUGINS_DIR_LIST)) {
+
         nsCOMPtr<nsIFile> file;
-        nsCOMArray<nsIFile> dirs;
-        bool exists;
-        // We have to add this path, buildbot copies the test plugin directory
-        // to (app)/bin when unpacking test zips.
-        if (mGREDir) {
-            mGREDir->Clone(getter_AddRefs(file));
-            if (NS_SUCCEEDED(mGREDir->Clone(getter_AddRefs(file)))) {
-                file->AppendNative(NS_LITERAL_CSTRING("plugins"));
-                if (NS_SUCCEEDED(file->Exists(&exists)) && exists) {
-                    dirs.AppendObject(file);
-                }
-            }
-        }
-        // Add the test plugin location passed in by the caller or through
-        // runxpcshelltests.
-        if (mPluginDir) {
-            dirs.AppendObject(mPluginDir);
-        }
+        if (NS_FAILED(NS_GetSpecialDirectory(NS_XPCOM_CURRENT_PROCESS_DIR,
+                                             getter_AddRefs(file))) ||
+            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("defaults"))) ||
+            NS_FAILED(file->AppendNative(NS_LITERAL_CSTRING("preferences"))))
+            return NS_ERROR_FAILURE;
+
+        dirs.AppendObject(file);
         return NS_NewArrayEnumerator(result, dirs);
     }
     return NS_ERROR_FAILURE;

@@ -32,11 +32,15 @@
 #include "nsToolkit.h"
 #include "TextInputHandler.h"
 #include "mozilla/HangMonitor.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 #include "npapi.h"
 
 using namespace mozilla::widget;
+
+// defined in nsChildView.mm
+extern nsIRollupListener * gRollupListener;
+extern nsIWidget         * gRollupWidget;
 
 // defined in nsCocoaWindow.mm
 extern int32_t             gXULModalLevel;
@@ -328,6 +332,17 @@ nsAppShell::Init()
       nsToolkit::SwizzleMethods([NSApplication class], @selector(terminate:),
                                 @selector(nsAppShell_NSApplication_terminate:));
     }
+    if (!nsCocoaFeatures::OnSnowLeopardOrLater()) {
+      dlopen("/System/Library/Frameworks/Carbon.framework/Frameworks/Print.framework/Versions/Current/Plugins/PrintCocoaUI.bundle/Contents/MacOS/PrintCocoaUI",
+             RTLD_LAZY);
+      Class PDEPluginCallbackClass = ::NSClassFromString(@"PDEPluginCallback");
+      nsresult rv1 = nsToolkit::SwizzleMethods(PDEPluginCallbackClass, @selector(initWithPrintWindowController:),
+                                               @selector(nsAppShell_PDEPluginCallback_initWithPrintWindowController:));
+      if (NS_SUCCEEDED(rv1)) {
+        nsToolkit::SwizzleMethods(PDEPluginCallbackClass, @selector(dealloc),
+                                  @selector(nsAppShell_PDEPluginCallback_dealloc));
+      }
+    }
     gAppShellMethodsSwizzled = true;
   }
 
@@ -352,7 +367,7 @@ void
 nsAppShell::ProcessGeckoEvents(void* aInfo)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-  PROFILER_LABEL("Events", "ProcessGeckoEvents");
+  SAMPLE_LABEL("Events", "ProcessGeckoEvents");
   nsAppShell* self = static_cast<nsAppShell*> (aInfo);
 
   if (self->mRunningEventLoop) {
@@ -948,10 +963,8 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 
   NSString *sender = [aNotification object];
   if (!sender || ![sender isEqualToString:@"org.mozilla.gecko.PopupWindow"]) {
-    nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-    nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-    if (rollupWidget)
-      rollupListener->Rollup(0, nullptr);
+    if (gRollupListener && gRollupWidget)
+      gRollupListener->Rollup(0);
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -1017,6 +1030,43 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 {
   [[NSNotificationCenter defaultCenter] postNotificationName:NSApplicationWillTerminateNotification
                                                       object:NSApp];
+}
+
+@end
+
+@interface NSObject (PDEPluginCallbackMethodSwizzling)
+- (id)nsAppShell_PDEPluginCallback_initWithPrintWindowController:(id)controller;
+- (void)nsAppShell_PDEPluginCallback_dealloc;
+@end
+
+@implementation NSObject (PDEPluginCallbackMethodSwizzling)
+
+// On Leopard, the PDEPluginCallback class in Apple's PrintCocoaUI module
+// fails to retain and release its PMPrintWindowController object.  This
+// causes the PMPrintWindowController to sometimes be deleted prematurely,
+// leading to crashes on attempts to access it.  One example is bug 396680,
+// caused by attempting to call a deleted PMPrintWindowController object's
+// printSettings method.  We work around the problem by hooking the
+// appropriate methods and retaining and releasing the object ourselves.
+// PrintCocoaUI.bundle is a "plugin" of the Carbon framework's Print
+// framework.
+
+- (id)nsAppShell_PDEPluginCallback_initWithPrintWindowController:(id)controller
+{
+  return [self nsAppShell_PDEPluginCallback_initWithPrintWindowController:[controller retain]];
+}
+
+- (void)nsAppShell_PDEPluginCallback_dealloc
+{
+  // Since the PDEPluginCallback class is undocumented (and the OS header
+  // files have no definition for it), we need to use low-level methods to
+  // access its _printWindowController variable.  (object_getInstanceVariable()
+  // is also available in Objective-C 2.0, so this code is 64-bit safe.)
+  id _printWindowController = nil;
+  object_getInstanceVariable(self, "_printWindowController",
+                             (void **) &_printWindowController);
+  [_printWindowController release];
+  [self nsAppShell_PDEPluginCallback_dealloc];
 }
 
 @end

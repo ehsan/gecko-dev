@@ -13,8 +13,6 @@
 #include "nsCOMPtr.h"
 #include "nsStringGlue.h"
 #include "mozilla/Base64.h"
-#include "mozilla/Util.h" // ArrayLength
-#include "ScopedNSSTypes.h"
 
 #include "nss.h"
 #include "pk11pub.h"
@@ -22,8 +20,6 @@
 #include "secerr.h"
 #include "keyhi.h"
 #include "cryptohi.h"
-
-#include <limits.h>
 
 using namespace mozilla;
 
@@ -62,6 +58,34 @@ Base64UrlEncodeImpl(const nsACString & utf8Input, nsACString & result)
   }
 
   return NS_OK;
+}
+
+
+nsresult
+PRErrorCode_to_nsresult(PRErrorCode error)
+{
+  if (!error) {
+    MOZ_NOT_REACHED("Function failed without calling PR_GetError");
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  // From NSSErrorsService::GetXPCOMFromNSSError
+  // XXX Don't make up nsresults, it's supposed to be an enum (bug 778113)
+  return (nsresult)NS_ERROR_GENERATE_FAILURE(NS_ERROR_MODULE_SECURITY,
+                                             -1 * error);
+}
+
+// IMPORTANT: This must be called immediately after the function returning the
+// SECStatus result. The recommended usage is:
+//    nsresult rv = MapSECStatus(f(x, y, z));
+nsresult
+MapSECStatus(SECStatus rv)
+{
+  if (rv == SECSuccess)
+    return NS_OK;
+
+  PRErrorCode error = PR_GetError();
+  return PRErrorCode_to_nsresult(error);
 }
 
 #define DSA_KEY_TYPE_STRING (NS_LITERAL_CSTRING("DS160"))
@@ -427,15 +451,15 @@ GenerateDSAKeyPair(PK11SlotInfo * slot,
     0x72,0xDF,0xFA,0x89,0x62,0x33,0x39,0x7A
   };
 
-  MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(P) == 1024 / CHAR_BIT, "bad DSA P");
-  MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(Q) ==  160 / CHAR_BIT, "bad DSA Q");
-  MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(G) == 1024 / CHAR_BIT, "bad DSA G");
+  MOZ_STATIC_ASSERT(PR_ARRAY_SIZE(P) == 1024 / PR_BITS_PER_BYTE, "bad DSA P");
+  MOZ_STATIC_ASSERT(PR_ARRAY_SIZE(Q) ==  160 / PR_BITS_PER_BYTE, "bad DSA Q");
+  MOZ_STATIC_ASSERT(PR_ARRAY_SIZE(G) == 1024 / PR_BITS_PER_BYTE, "bad DSA G");
 
   PQGParams pqgParams  = {
     NULL /*arena*/,
-    { siBuffer, P, static_cast<unsigned int>(mozilla::ArrayLength(P)) },
-    { siBuffer, Q, static_cast<unsigned int>(mozilla::ArrayLength(Q)) },
-    { siBuffer, G, static_cast<unsigned int>(mozilla::ArrayLength(G)) }
+    { siBuffer, P, PR_ARRAY_SIZE(P) },
+    { siBuffer, Q, PR_ARRAY_SIZE(Q) },
+    { siBuffer, G, PR_ARRAY_SIZE(G) }
   };
 
   return GenerateKeyPair(slot, privateKey, publicKey, CKM_DSA_KEY_PAIR_GEN,

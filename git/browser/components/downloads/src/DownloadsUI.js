@@ -30,10 +30,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
 XPCOMUtils.defineLazyServiceGetter(this, "gBrowserGlue",
                                    "@mozilla.org/browser/browserglue;1",
                                    "nsIBrowserGlue");
-XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
-                                  "resource:///modules/RecentWindow.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 ////////////////////////////////////////////////////////////////////////////////
 //// DownloadsUI
@@ -60,10 +56,10 @@ DownloadsUI.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// nsIDownloadManagerUI
 
-  show: function DUI_show(aWindowContext, aDownload, aReason, aUsePrivateUI)
+  show: function DUI_show(aWindowContext, aID, aReason)
   {
     if (DownloadsCommon.useToolkitUI) {
-      this._toolkitUI.show(aWindowContext, aDownload, aReason, aUsePrivateUI);
+      this._toolkitUI.show(aWindowContext, aID, aReason);
       return;
     }
 
@@ -76,29 +72,25 @@ DownloadsUI.prototype = {
       let browserWin = gBrowserGlue.getMostRecentBrowserWindow();
 
       if (!browserWin || browserWin.windowState == kMinimized) {
-        this._showDownloadManagerUI(aWindowContext, aUsePrivateUI);
+        this._toolkitUI.show(aWindowContext, aID, aReason);
       }
       else {
         // If the indicator is visible, then new download notifications are
         // already handled by the panel service.
         browserWin.DownloadsButton.checkIsVisible(function(isVisible) {
           if (!isVisible) {
-            this._showDownloadManagerUI(aWindowContext, aUsePrivateUI);
+            this._toolkitUI.show(aWindowContext, aID, aReason);
           }
         }.bind(this));
       }
     } else {
-      this._showDownloadManagerUI(aWindowContext, aUsePrivateUI);
+      this._toolkitUI.show(aWindowContext, aID, aReason);
     }
   },
 
   get visible()
   {
-    // If we're still using the toolkit downloads manager, delegate the call
-    // to it. Otherwise, return true for now, until we decide on how we want
-    // to indicate that a new download has started if a browser window is
-    // not available or minimized.
-    return DownloadsCommon.useToolkitUI ? this._toolkitUI.visible : true;
+    return this._toolkitUI.visible;
   },
 
   getAttention: function DUI_getAttention()
@@ -106,46 +98,10 @@ DownloadsUI.prototype = {
     if (DownloadsCommon.useToolkitUI) {
       this._toolkitUI.getAttention();
     }
-  },
-
-  /**
-   * Helper function that opens the download manager UI.
-   */
-  _showDownloadManagerUI:
-  function DUI_showDownloadManagerUI(aWindowContext, aUsePrivateUI)
-  {
-    // If we weren't given a window context, try to find a browser window
-    // to use as our parent - and if that doesn't work, error out and give up.
-    let parentWindow = aWindowContext;
-    if (!parentWindow) {
-      parentWindow = RecentWindow.getMostRecentBrowserWindow({ private: !!aUsePrivateUI });
-      if (!parentWindow) {
-        Components.utils.reportError(
-          "Couldn't find a browser window to open the Places Downloads View " +
-          "from.");
-        return;
-      }
-    }
-
-    // If window is private then show it in a tab.
-    if (PrivateBrowsingUtils.isWindowPrivate(parentWindow)) {
-      parentWindow.openUILinkIn("about:downloads", "tab");
-      return;
-    } else {
-      let organizer = Services.wm.getMostRecentWindow("Places:Organizer");
-      if (!organizer) {
-        parentWindow.openDialog("chrome://browser/content/places/places.xul",
-                                "", "chrome,toolbar=yes,dialog=no,resizable",
-                                "Downloads");
-      } else {
-        organizer.PlacesOrganizer.selectLeftPaneQuery("Downloads");
-        organizer.focus();
-      }
-    }
   }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Module
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([DownloadsUI]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([DownloadsUI]);

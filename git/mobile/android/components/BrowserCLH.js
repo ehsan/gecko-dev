@@ -17,6 +17,7 @@ function dump(a) {
 function openWindow(aParent, aURL, aTarget, aFeatures, aArgs) {
   let argsArray = Cc["@mozilla.org/supports-array;1"].createInstance(Ci.nsISupportsArray);
   let urlString = null;
+  let restoreModeInt = Cc["@mozilla.org/supports-PRInt32;1"].createInstance(Ci.nsISupportsPRInt32);
   let pinnedBool = Cc["@mozilla.org/supports-PRBool;1"].createInstance(Ci.nsISupportsPRBool);
   let widthInt = Cc["@mozilla.org/supports-PRInt32;1"].createInstance(Ci.nsISupportsPRInt32);
   let heightInt = Cc["@mozilla.org/supports-PRInt32;1"].createInstance(Ci.nsISupportsPRInt32);
@@ -25,11 +26,13 @@ function openWindow(aParent, aURL, aTarget, aFeatures, aArgs) {
     urlString = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
     urlString.data = aArgs.url;
   }
+  restoreModeInt.data = "restoreMode" in aArgs ? aArgs.restoreMode : 0;
   widthInt.data = "width" in aArgs ? aArgs.width : 1;
   heightInt.data = "height" in aArgs ? aArgs.height : 1;
   pinnedBool.data = "pinned" in aArgs ? aArgs.pinned : false;
 
   argsArray.AppendElement(urlString, false);
+  argsArray.AppendElement(restoreModeInt, false);
   argsArray.AppendElement(widthInt, false);
   argsArray.AppendElement(heightInt, false);
   argsArray.AppendElement(pinnedBool, false);
@@ -59,6 +62,7 @@ BrowserCLH.prototype = {
     let openURL = "about:home";
     let pinned = false;
 
+    let restoreMode = 0;
     let width = 1;
     let height = 1;
 
@@ -69,6 +73,9 @@ BrowserCLH.prototype = {
       pinned = aCmdLine.handleFlag("webapp", false);
     } catch (e) { /* Optional */ }
 
+    try {
+      restoreMode = aCmdLine.handleFlagWithParam("restoremode", false);
+    } catch (e) { /* Optional */ }
     try {
       width = aCmdLine.handleFlagWithParam("width", false);
     } catch (e) { /* Optional */ }
@@ -83,12 +90,12 @@ BrowserCLH.prototype = {
 
       let browserWin = Services.wm.getMostRecentWindow("navigator:browser");
       if (browserWin) {
-        if (!pinned) {
-          browserWin.browserDOMWindow.openURI(uri, null, Ci.nsIBrowserDOMWindow.OPEN_NEWTAB, Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
-        }
+        let whereFlags = pinned ? Ci.nsIBrowserDOMWindow.OPEN_SWITCHTAB : Ci.nsIBrowserDOMWindow.OPEN_NEWTAB;
+        browserWin.browserDOMWindow.openURI(uri, null, whereFlags, Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
       } else {
         let args = {
           url: openURL,
+          restoreMode: restoreMode,
           pinned: pinned,
           width: width,
           height: height
@@ -116,4 +123,4 @@ BrowserCLH.prototype = {
 };
 
 var components = [ BrowserCLH ];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

@@ -7,7 +7,6 @@
 #include "txLog.h"
 #include "nsMemory.h"
 #include "txXPathTreeWalker.h"
-#include <algorithm>
 
 /**
  * Implementation of an XPath nodeset
@@ -520,7 +519,7 @@ bool txNodeSet::ensureGrowSize(int32_t aSize)
 
     // This isn't 100% safe. But until someone manages to make a 1gig nodeset
     // it should be ok.
-    int32_t newLength = std::max(oldLength, kTxNodeSetMinSize);
+    int32_t newLength = NS_MAX(oldLength, kTxNodeSetMinSize);
 
     while (newLength < ensureSize) {
         newLength *= kTxNodeSetGrowFactor;

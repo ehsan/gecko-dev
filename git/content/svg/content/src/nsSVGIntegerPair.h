@@ -14,13 +14,8 @@
 #include "nsSVGElement.h"
 #include "mozilla/Attributes.h"
 
+class nsISMILAnimationElement;
 class nsSMILValue;
-
-namespace mozilla {
-namespace dom {
-class SVGAnimationElement;
-}
-}
 
 class nsSVGIntegerPair
 {
@@ -62,10 +57,7 @@ public:
   nsresult ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
                                 PairIndex aIndex,
                                 nsSVGElement* aSVGElement);
-  already_AddRefed<nsIDOMSVGAnimatedInteger>
-    ToDOMAnimatedInteger(PairIndex aIndex,
-                         nsSVGElement* aSVGElement);
-   // Returns a new nsISMILAttr object that the caller must delete
+  // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
 
 private:
@@ -84,7 +76,6 @@ public:
 
     DOMAnimatedInteger(nsSVGIntegerPair* aVal, PairIndex aIndex, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement), mIndex(aIndex) {}
-    virtual ~DOMAnimatedInteger();
 
     nsSVGIntegerPair* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -122,7 +113,7 @@ public:
 
     // nsISMILAttr methods
     virtual nsresult ValueFromString(const nsAString& aStr,
-                                     const mozilla::dom::SVGAnimationElement* aSrcElement,
+                                     const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
                                      bool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;

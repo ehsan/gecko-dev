@@ -8,14 +8,12 @@
 #define mozilla_dom_indexeddb_filemanager_h__
 
 #include "IndexedDatabase.h"
-
-#include "nsIDOMFile.h"
 #include "nsIFile.h"
-
-#include "mozilla/dom/quota/StoragePrivilege.h"
+#include "nsIDOMFile.h"
 #include "nsDataHashtable.h"
 
 class mozIStorageConnection;
+class mozIStorageServiceQuotaManagement;
 
 BEGIN_INDEXEDDB_NAMESPACE
 
@@ -25,13 +23,11 @@ class FileManager
 {
   friend class FileInfo;
 
-  typedef mozilla::dom::quota::StoragePrivilege StoragePrivilege;
-
 public:
-  FileManager(const nsACString& aOrigin, StoragePrivilege aPrivilege,
+  FileManager(const nsACString& aOrigin,
               const nsAString& aDatabaseName)
-  : mOrigin(aOrigin), mPrivilege(aPrivilege), mDatabaseName(aDatabaseName),
-    mLastFileId(0), mInvalidated(false)
+  : mOrigin(aOrigin), mDatabaseName(aDatabaseName), mLastFileId(0),
+    mInvalidated(false)
   { }
 
   ~FileManager()
@@ -42,11 +38,6 @@ public:
   const nsACString& Origin() const
   {
     return mOrigin;
-  }
-
-  const StoragePrivilege& Privilege() const
-  {
-    return mPrivilege;
   }
 
   const nsAString& DatabaseName() const
@@ -77,15 +68,12 @@ public:
   static already_AddRefed<nsIFile> GetFileForId(nsIFile* aDirectory,
                                                 int64_t aId);
 
-  static nsresult InitDirectory(nsIFile* aDirectory,
-                                nsIFile* aDatabaseFile,
-                                const nsACString& aOrigin);
-
-  static nsresult GetUsage(nsIFile* aDirectory, uint64_t* aUsage);
+  static nsresult InitDirectory(mozIStorageServiceQuotaManagement* aService,
+                                nsIFile* aDirectory, nsIFile* aDatabaseFile,
+                                FactoryPrivilege aPrivilege);
 
 private:
   nsCString mOrigin;
-  StoragePrivilege mPrivilege;
   nsString mDatabaseName;
 
   nsString mDirectoryPath;

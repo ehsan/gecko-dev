@@ -140,7 +140,7 @@ if (Services.appinfo.OS == "WINNT" ||
   });
 }
 
-this.EXPORTED_SYMBOLS = ["SourceEditor"];
+var EXPORTED_SYMBOLS = ["SourceEditor"];
 
 /**
  * The SourceEditor object constructor. The SourceEditor component allows you to
@@ -151,7 +151,7 @@ this.EXPORTED_SYMBOLS = ["SourceEditor"];
  *
  * @constructor
  */
-this.SourceEditor = function SourceEditor() {
+function SourceEditor() {
   // Update the SourceEditor defaults from user preferences.
 
   SourceEditor.DEFAULTS.tabSize =
@@ -824,7 +824,7 @@ SourceEditor.prototype = {
    */
   _linesRulerClick: function SE__linesRulerClick(aLineIndex, aEvent)
   {
-    if (aLineIndex === undefined || aLineIndex == -1) {
+    if (aLineIndex === undefined) {
       return;
     }
 
@@ -839,11 +839,7 @@ SourceEditor.prototype = {
                    selection.end : this.getLineEnd(aLineIndex);
       this.setSelection(newStart, newEnd);
     } else {
-      if (this._annotationRuler) {
-        this._annotationRulerClick(aLineIndex, aEvent);
-      } else {
-        this.setCaretPosition(aLineIndex);
-      }
+      this.setCaretPosition(aLineIndex);
     }
   },
 
@@ -2012,66 +2008,6 @@ SourceEditor.prototype = {
     }, this);
 
     return breakpoints;
-  },
-
-  /**
-   * Convert the given rectangle from one coordinate reference to another.
-   *
-   * Known coordinate references:
-   * - "document" - gives the coordinates relative to the entire document.
-   * - "view" - gives the coordinates relative to the editor viewport.
-   *
-   * @param object aRect
-   *         The rectangle to convert. Object properties: x, y, width and height.
-   * @param string aFrom
-   *         The source coordinate reference.
-   * @param string aTo
-   *         The destination coordinate reference.
-   * @return object aRect
-   *         Returns the rectangle with changed coordinates.
-   */
-  convertCoordinates: function SE_convertCoordinates(aRect, aFrom, aTo)
-  {
-    return this._view.convert(aRect, aFrom, aTo);
-  },
-
-  /**
-   * Get the character offset nearest to the given pixel location.
-   *
-   * @param number aX
-   * @param number aY
-   * @return number
-   *         Returns the character offset at the given location.
-   */
-  getOffsetAtLocation: function SE_getOffsetAtLocation(aX, aY)
-  {
-    return this._view.getOffsetAtLocation(aX, aY);
-  },
-
-  /**
-   * Get the pixel location, relative to the document, at the given character
-   * offset.
-   *
-   * @param number aOffset
-   * @return object
-   *         The pixel location relative to the document being edited. Two
-   *         properties are included: x and y.
-   */
-  getLocationAtOffset: function SE_getLocationAtOffset(aOffset)
-  {
-    return this._view.getLocationAtOffset(aOffset);
-  },
-
-  /**
-   * Get the line location for a given character offset.
-   *
-   * @param number aOffset
-   * @return number
-   *         The line location relative to the give character offset.
-   */
-  getLineAtOffset: function SE_getLineAtOffset(aOffset)
-  {
-    return this._model.getLineAtOffset(aOffset);
   },
 
   /**

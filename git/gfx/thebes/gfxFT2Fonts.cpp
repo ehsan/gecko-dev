@@ -25,7 +25,9 @@
 #include "gfxFT2FontList.h"
 #include <locale.h>
 #include "gfxHarfBuzzShaper.h"
+#ifdef MOZ_GRAPHITE
 #include "gfxGraphiteShaper.h"
+#endif
 #include "nsGkAtoms.h"
 #include "nsTArray.h"
 #include "nsUnicodeRange.h"
@@ -36,6 +38,8 @@
 #include "prinit.h"
 
 #include "mozilla/Preferences.h"
+
+static PRLogModuleInfo *gFontLog = PR_NewLogModule("ft2fonts");
 
 // rounding and truncation functions for a Freetype floating point number
 // (FT26Dot6) stored in a 32bit integer with high 26 bits for the integer
@@ -49,15 +53,6 @@
 /**
  * gfxFT2FontGroup
  */
-
-static PRLogModuleInfo *
-GetFontLog()
-{
-    static PRLogModuleInfo *sLog;
-    if (!sLog)
-        sLog = PR_NewLogModule("ft2fonts");
-    return sLog;
-}
 
 bool
 gfxFT2FontGroup::FontCallback(const nsAString& fontName,
@@ -344,8 +339,8 @@ gfxFT2FontGroup::WhichPrefFontSupportsChar(uint32_t aCh)
 
         /* special case CJK */
         if (unicodeRange == kRangeSetCJK) {
-            if (PR_LOG_TEST(GetFontLog(), PR_LOG_DEBUG)) {
-                PR_LOG(GetFontLog(), PR_LOG_DEBUG, (" - Trying to find fonts for: CJK"));
+            if (PR_LOG_TEST(gFontLog, PR_LOG_DEBUG)) {
+                PR_LOG(gFontLog, PR_LOG_DEBUG, (" - Trying to find fonts for: CJK"));
             }
 
             nsAutoTArray<nsRefPtr<gfxFontEntry>, 15> fonts;
@@ -354,7 +349,7 @@ gfxFT2FontGroup::WhichPrefFontSupportsChar(uint32_t aCh)
         } else {
             nsIAtom *langGroup = LangGroupFromUnicodeRange(unicodeRange);
             if (langGroup) {
-                PR_LOG(GetFontLog(), PR_LOG_DEBUG, (" - Trying to find fonts for: %s", nsAtomCString(langGroup).get()));
+                PR_LOG(gFontLog, PR_LOG_DEBUG, (" - Trying to find fonts for: %s", nsAtomCString(langGroup).get()));
 
                 nsAutoTArray<nsRefPtr<gfxFontEntry>, 5> fonts;
                 GetPrefFonts(langGroup, fonts);
@@ -401,70 +396,68 @@ gfxFT2FontGroup::WhichSystemFontSupportsChar(uint32_t aCh, int32_t aRunScript)
  */
 
 bool
-gfxFT2Font::ShapeText(gfxContext      *aContext,
-                      const PRUnichar *aText,
-                      uint32_t         aOffset,
-                      uint32_t         aLength,
-                      int32_t          aScript,
-                      gfxShapedText   *aShapedText,
-                      bool             aPreferPlatformShaping)
+gfxFT2Font::ShapeWord(gfxContext *aContext,
+                      gfxShapedWord *aShapedWord,
+                      const PRUnichar *aString,
+                      bool aPreferPlatformShaping)
 {
     bool ok = false;
 
+#ifdef MOZ_GRAPHITE
     if (FontCanSupportGraphite()) {
         if (gfxPlatform::GetPlatform()->UseGraphiteShaping()) {
             if (!mGraphiteShaper) {
                 mGraphiteShaper = new gfxGraphiteShaper(this);
             }
-            ok = mGraphiteShaper->ShapeText(aContext, aText,
-                                            aOffset, aLength,
-                                            aScript, aShapedText);
+            ok = mGraphiteShaper->ShapeWord(aContext, aShapedWord, aString);
         }
     }
+#endif
 
-    if (!ok && gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aScript)) {
+    if (!ok && gfxPlatform::GetPlatform()->UseHarfBuzzForScript(aShapedWord->Script())) {
         if (!mHarfBuzzShaper) {
             gfxFT2LockedFace face(this);
             mFUnitsConvFactor = face.XScale();
 
             mHarfBuzzShaper = new gfxHarfBuzzShaper(this);
         }
-        ok = mHarfBuzzShaper->ShapeText(aContext, aText,
-                                        aOffset, aLength,
-                                        aScript, aShapedText);
+        ok = mHarfBuzzShaper->ShapeWord(aContext, aShapedWord, aString);
     }
 
     if (!ok) {
-        AddRange(aText, aOffset, aLength, aShapedText);
+        AddRange(aShapedWord, aString);
     }
 
-    PostShapingFixup(aContext, aText, aOffset, aLength, aShapedText);
+    if (IsSyntheticBold()) {
+        float synBoldOffset =
+            GetSyntheticBoldOffset() * CalcXScale(aContext);
+        aShapedWord->AdjustAdvancesForSyntheticBold(synBoldOffset);
+    }
 
     return true;
 }
 
 void
-gfxFT2Font::AddRange(const PRUnichar *aText, uint32_t aOffset,
-                     uint32_t aLength, gfxShapedText *aShapedText)
+gfxFT2Font::AddRange(gfxShapedWord *aShapedWord, const PRUnichar *str)
 {
-    const uint32_t appUnitsPerDevUnit = aShapedText->GetAppUnitsPerDevUnit();
+    const uint32_t appUnitsPerDevUnit = aShapedWord->AppUnitsPerDevUnit();
     // we'll pass this in/figure it out dynamically, but at this point there can be only one face.
     gfxFT2LockedFace faceLock(this);
     FT_Face face = faceLock.get();
 
-    gfxShapedText::CompressedGlyph *charGlyphs =
-        aShapedText->GetCharacterGlyphs();
+    gfxShapedWord::CompressedGlyph g;
 
     const gfxFT2Font::CachedGlyphData *cgd = nullptr, *cgdNext = nullptr;
 
     FT_UInt spaceGlyph = GetSpaceGlyph();
 
-    for (uint32_t i = 0; i < aLength; i++, aOffset++) {
-        PRUnichar ch = aText[i];
+    uint32_t len = aShapedWord->Length();
+    for (uint32_t i = 0; i < len; i++) {
+        PRUnichar ch = str[i];
 
         if (ch == 0) {
             // treat this null byte as a missing glyph, don't create a glyph for it
-            aShapedText->SetMissingGlyph(aOffset, 0, this);
+            aShapedWord->SetMissingGlyph(i, 0, this);
             continue;
         }
 
@@ -489,8 +482,8 @@ gfxFT2Font::AddRange(const PRUnichar *aText, uint32_t aOffset,
             FT_UInt gidNext = 0;
             FT_Pos lsbDeltaNext = 0;
 
-            if (FT_HAS_KERNING(face) && i + 1 < aLength) {
-                chNext = aText[i + 1];
+            if (FT_HAS_KERNING(face) && i + 1 < len) {
+                chNext = str[i + 1];
                 if (chNext != 0) {
                     cgdNext = GetGlyphDataForChar(chNext);
                     gidNext = cgdNext->glyphIndex;
@@ -520,23 +513,21 @@ gfxFT2Font::AddRange(const PRUnichar *aText, uint32_t aOffset,
         }
 
         if (advance >= 0 &&
-            gfxShapedText::CompressedGlyph::IsSimpleAdvance(advance) &&
-            gfxShapedText::CompressedGlyph::IsSimpleGlyphID(gid)) {
-            charGlyphs[aOffset].SetSimpleGlyph(advance, gid);
+            gfxShapedWord::CompressedGlyph::IsSimpleAdvance(advance) &&
+            gfxShapedWord::CompressedGlyph::IsSimpleGlyphID(gid)) {
+            aShapedWord->SetSimpleGlyph(i, g.SetSimpleGlyph(advance, gid));
         } else if (gid == 0) {
             // gid = 0 only happens when the glyph is missing from the font
-            aShapedText->SetMissingGlyph(aOffset, ch, this);
+            aShapedWord->SetMissingGlyph(i, ch, this);
         } else {
             gfxTextRun::DetailedGlyph details;
             details.mGlyphID = gid;
-            NS_ASSERTION(details.mGlyphID == gid,
-                         "Seriously weird glyph ID detected!");
+            NS_ASSERTION(details.mGlyphID == gid, "Seriously weird glyph ID detected!");
             details.mAdvance = advance;
             details.mXOffset = 0;
             details.mYOffset = 0;
-            gfxShapedText::CompressedGlyph g;
-            g.SetComplex(charGlyphs[aOffset].IsClusterStart(), true, 1);
-            aShapedText->SetGlyphs(aOffset, g, &details);
+            g.SetComplex(aShapedWord->IsClusterStart(i), true, 1);
+            aShapedWord->SetGlyphs(i, g, &details);
         }
     }
 }

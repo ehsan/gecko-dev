@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <stddef.h>                     // for nullptr
+#include <stddef.h>                     // for NULL
 
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
 #include "mozilla/mozalloc.h"           // for operator new, etc
@@ -1383,14 +1383,13 @@ nsTextServicesDocument::DeleteSelection()
 
       nsCOMPtr<nsIContent> curContent;
 
-      if (mIteratorStatus != nsTextServicesDocument::eIsDone) {
+      if (mIteratorStatus != nsTextServicesDocument::eIsDone &&
+          mIterator->GetCurrentNode()->IsContent()) {
         // The old iterator is still pointing to something valid,
         // so get its current node so we can restore it after we
         // create the new iterator!
 
-        curContent = mIterator->GetCurrentNode()
-                     ? mIterator->GetCurrentNode()->AsContent()
-                     : nullptr;
+        curContent = mIterator->GetCurrentNode()->AsContent();
       }
 
       // Create the new iterator.
@@ -2063,17 +2062,14 @@ nsTextServicesDocument::GetDocumentContentRootNode(nsIDOMNode **aNode)
 nsresult
 nsTextServicesDocument::CreateDocumentContentRange(nsIDOMRange **aRange)
 {
-  *aRange = nullptr;
+  *aRange = NULL;
 
   nsCOMPtr<nsIDOMNode> node;
   nsresult rv = GetDocumentContentRootNode(getter_AddRefs(node));
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
 
-  nsCOMPtr<nsINode> nativeNode = do_QueryInterface(node);
-  NS_ENSURE_STATE(nativeNode);
-
-  nsRefPtr<nsRange> range = new nsRange(nativeNode);
+  nsRefPtr<nsRange> range = new nsRange();
 
   rv = range->SelectNodeContents(node);
   NS_ENSURE_SUCCESS(rv, rv);

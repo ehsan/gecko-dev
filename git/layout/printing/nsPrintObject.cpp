@@ -20,7 +20,7 @@
 nsPrintObject::nsPrintObject() :
   mContent(nullptr), mFrameType(eFrame), mParent(nullptr),
   mHasBeenPrinted(false), mDontPrint(true), mPrintAsIs(false),
-  mInvisible(false), mDidCreateDocShell(false),
+  mSharedPresShell(false), mInvisible(false), mDidCreateDocShell(false),
   mShrinkRatio(1.0), mZoomRatio(1.0)
 {
   MOZ_COUNT_CTOR(nsPrintObject);
@@ -57,14 +57,16 @@ nsPrintObject::Init(nsIDocShell* aDocShell, nsIDOMDocument* aDoc,
     mDocShell = aDocShell;
   } else {
     mTreeOwner = do_GetInterface(aDocShell);
+    nsCOMPtr<nsIDocShellTreeItem> item = do_QueryInterface(aDocShell);
     int32_t itemType = 0;
-    aDocShell->GetItemType(&itemType);
+    item->GetItemType(&itemType);
     // Create a container docshell for printing.
     mDocShell = do_CreateInstance("@mozilla.org/docshell;1");
     NS_ENSURE_TRUE(mDocShell, NS_ERROR_OUT_OF_MEMORY);
     mDidCreateDocShell = true;
-    mDocShell->SetItemType(itemType);
-    mDocShell->SetTreeOwner(mTreeOwner);
+    nsCOMPtr<nsIDocShellTreeItem> newItem = do_QueryInterface(mDocShell);
+    newItem->SetItemType(itemType);
+    newItem->SetTreeOwner(mTreeOwner);
   }
   NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
 
@@ -98,14 +100,13 @@ nsPrintObject::Init(nsIDocShell* aDocShell, nsIDOMDocument* aDoc,
 void 
 nsPrintObject::DestroyPresentation()
 {
+  mPresContext = nullptr;
   if (mPresShell) {
     mPresShell->EndObservingDocument();
     nsAutoScriptBlocker scriptBlocker;
-    nsCOMPtr<nsIPresShell> shell = mPresShell;
-    mPresShell = nullptr;
-    shell->Destroy();
+    mPresShell->Destroy();
   }
-  mPresContext = nullptr;
+  mPresShell   = nullptr;
   mViewManager = nullptr;
 }
 

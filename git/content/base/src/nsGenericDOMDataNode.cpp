@@ -8,10 +8,8 @@
  * nsIDOMCDATASection, and nsIDOMProcessingInstruction nodes.
  */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsGenericDOMDataNode.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 #include "nsIDocument.h"
 #include "nsEventListenerManager.h"
 #include "nsIDOMDocument.h"
@@ -28,7 +26,6 @@
 #include "nsEventDispatcher.h"
 #include "nsCOMArray.h"
 #include "nsNodeUtils.h"
-#include "mozilla/dom/DirectionalityUtils.h"
 #include "nsBindingManager.h"
 #include "nsCCUncollectableMarker.h"
 #include "mozAutoDocUpdate.h"
@@ -39,7 +36,6 @@
 #include "nsWrapperCacheInlines.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 nsGenericDOMDataNode::nsGenericDOMDataNode(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsIContent(aNodeInfo)
@@ -62,20 +58,22 @@ nsGenericDOMDataNode::~nsGenericDOMDataNode()
   }
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericDOMDataNode)
+
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericDOMDataNode)
   nsINode::Trace(tmp, aCallback, aClosure);
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkip(tmp, aRemovingAllowed);
+  return nsGenericElement::CanSkip(tmp, aRemovingAllowed);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkipInCC(tmp);
+  return nsGenericElement::CanSkipInCC(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_IN_CC_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_BEGIN(nsGenericDOMDataNode)
-  return Element::CanSkipThis(tmp);
+  return nsGenericElement::CanSkipThis(tmp);
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
@@ -100,7 +98,6 @@ NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
   NS_INTERFACE_MAP_ENTRY(nsIContent)
   NS_INTERFACE_MAP_ENTRY(nsINode)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
-  NS_INTERFACE_MAP_ENTRY(mozilla::dom::EventTarget)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
@@ -175,21 +172,11 @@ nsresult
 nsGenericDOMDataNode::SubstringData(uint32_t aStart, uint32_t aCount,
                                     nsAString& aReturn)
 {
-  ErrorResult rv;
-  SubstringData(aStart, aCount, aReturn, rv);
-  return rv.ErrorCode();
-}
-
-void
-nsGenericDOMDataNode::SubstringData(uint32_t aStart, uint32_t aCount,
-                                    nsAString& aReturn, ErrorResult& rv)
-{
   aReturn.Truncate();
 
   uint32_t textLength = mText.GetLength();
   if (aStart > textLength) {
-    rv.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
-    return;
+    return NS_ERROR_DOM_INDEX_SIZE_ERR;
   }
 
   uint32_t amount = aCount;
@@ -206,6 +193,8 @@ nsGenericDOMDataNode::SubstringData(uint32_t aStart, uint32_t aCount,
     const char *data = mText.Get1b() + aStart;
     CopyASCIItoUTF16(Substring(data, data + amount), aReturn);
   }
+
+  return NS_OK;
 }
 
 //----------------------------------------------------------------------
@@ -287,10 +276,6 @@ nsGenericDOMDataNode::SetTextInternal(uint32_t aOffset, uint32_t aCount,
       aDetails
     };
     nsNodeUtils::CharacterDataWillChange(this, &info);
-  }
-
-  if (NodeType() == nsIDOMNode::TEXT_NODE) {
-    SetDirectionFromChangedTextNode(this, aOffset, aBuffer, aLength, aNotify);
   }
 
   if (aOffset == 0 && endOffset == textLength) {
@@ -484,7 +469,7 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // if we do this any later).
     ClearSubtreeRootPointer();
 
-    // XXX See the comment in Element::BindToTree
+    // XXX See the comment in nsGenericElement::BindToTree
     SetInDocument();
     if (mText.IsBidi()) {
       aDocument->SetBidiEnabled();
@@ -575,6 +560,21 @@ nsGenericDOMDataNode::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttr,
                                 bool aNotify)
 {
   return NS_OK;
+}
+
+bool
+nsGenericDOMDataNode::GetAttr(int32_t aNameSpaceID, nsIAtom *aAttr,
+                              nsAString& aResult) const
+{
+  aResult.Truncate();
+
+  return false;
+}
+
+bool
+nsGenericDOMDataNode::HasAttr(int32_t aNameSpaceID, nsIAtom *aAttribute) const
+{
+  return false;
 }
 
 const nsAttrName*
@@ -838,7 +838,6 @@ nsGenericDOMDataNode::AppendText(const PRUnichar* aBuffer,
 bool
 nsGenericDOMDataNode::TextIsOnlyWhitespace()
 {
-  // FIXME: should this method take content language into account?
   if (mText.Is2b()) {
     // The fragment contains non-8bit characters and such characters
     // are never considered whitespace.
@@ -851,7 +850,7 @@ nsGenericDOMDataNode::TextIsOnlyWhitespace()
   while (cp < end) {
     char ch = *cp;
 
-    if (!dom::IsSpaceCharacter(ch)) {
+    if (!XP_IS_SPACE(ch)) {
       return false;
     }
 

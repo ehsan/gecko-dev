@@ -10,7 +10,6 @@
 #include "nsXPIDLString.h"
 #include "nsDocShellCID.h"
 #include "nsIWebNavigationInfo.h"
-#include "nsIDocument.h"
 #include "nsIDOMWindow.h"
 #include "nsNetUtil.h"
 #include "nsAutoPtr.h"
@@ -327,7 +326,7 @@ bool nsDSURIContentListener::CheckOneFrameOptionsPolicy(nsIRequest *request,
            parentDocShellItem) {
 
         nsCOMPtr<nsIDocShell> curDocShell = do_QueryInterface(curDocShellItem);
-        if (curDocShell && curDocShell->GetIsBrowserOrApp()) {
+        if (curDocShell && curDocShell->GetIsContentBoundary()) {
           break;
         }
 

@@ -6,25 +6,26 @@ DEPTH = @DEPTH@
 topsrcdir = @top_srcdir@
 srcdir = @srcdir@
 VPATH = @srcdir@
+FAIL_ON_WARNINGS := 1
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = dom
 LIBRARY_NAME = dom_indexeddb_s
+XPIDL_MODULE = dom_indexeddb
 LIBXUL_LIBRARY = 1
 FORCE_STATIC_LIB = 1
-ifndef _MSC_VER
-FAIL_ON_WARNINGS := 1
-endif # !_MSC_VER
 
 EXPORTS_NAMESPACES = mozilla/dom/indexedDB
 
 CPPSRCS = \
   AsyncConnectionHelper.cpp \
   CheckPermissionsHelper.cpp \
-  Client.cpp \
+  CheckQuotaHelper.cpp \
   DatabaseInfo.cpp \
   FileInfo.cpp \
   FileManager.cpp \
+  FileStream.cpp \
   IDBCursor.cpp \
   IDBDatabase.cpp \
   IDBEvents.cpp \
@@ -44,10 +45,7 @@ CPPSRCS = \
   $(NULL)
 
 EXPORTS_mozilla/dom/indexedDB = \
-  Client.h \
   DatabaseInfo.h \
-  FileManager.h \
-  FileInfo.h \
   IDBCursor.h \
   IDBDatabase.h \
   IDBEvents.h \
@@ -63,6 +61,8 @@ EXPORTS_mozilla/dom/indexedDB = \
   IndexedDatabaseManager.h \
   Key.h \
   KeyPath.h \
+  FileManager.h \
+  FileInfo.h \
   $(NULL)
 
 LOCAL_INCLUDES = \
@@ -72,7 +72,6 @@ LOCAL_INCLUDES = \
   -I$(topsrcdir)/db/sqlite3/src \
   -I$(topsrcdir)/dom/base \
   -I$(topsrcdir)/dom/src/storage \
-  -I$(topsrcdir)/dom/quota \
   -I$(topsrcdir)/xpcom/build \
   $(NULL)
 
@@ -80,7 +79,31 @@ DEFINES += -D_IMPL_NS_LAYOUT
 
 # Make sure to quickstub as much as possible here! See
 # js/xpconnect/src/dom_quickstubs.qsconf.
+XPIDLSRCS = \
+  nsIIDBCursor.idl \
+  nsIIDBCursorWithValue.idl \
+  nsIIDBDatabase.idl \
+  nsIIDBFactory.idl \
+  nsIIDBFileHandle.idl \
+  nsIIDBIndex.idl \
+  nsIIDBKeyRange.idl \
+  nsIIDBObjectStore.idl \
+  nsIIDBRequest.idl \
+  nsIIDBTransaction.idl \
+  nsIIDBVersionChangeEvent.idl \
+  nsIIDBOpenDBRequest.idl \
+  nsIIndexedDatabaseManager.idl \
+  nsIStandardFileStream.idl \
+  $(NULL)
+
+DIRS += ipc
+TEST_DIRS += test
+
 include $(topsrcdir)/config/config.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
+XPIDL_FLAGS += \
+  -I$(topsrcdir)/dom/interfaces/base \
+  -I$(topsrcdir)/dom/interfaces/events \
+  $(NULL)

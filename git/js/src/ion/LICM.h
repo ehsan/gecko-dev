@@ -25,17 +25,22 @@ typedef Vector<MInstruction*, 1, IonAllocPolicy> InstructionQueue;
 
 class LICM
 {
-    MIRGenerator *mir;
     MIRGraph &graph;
 
   public:
-    LICM(MIRGenerator *mir, MIRGraph &graph);
+    LICM(MIRGraph &graph);
     bool analyze();
 };
 
+// Extract a linear inequality holding when a boolean test goes in the
+// specified direction, of the form 'lhs + lhsN <= rhs' (or >=).
+bool
+ExtractLinearInequality(MTest *test, BranchDirection direction,
+                        LinearSum *plhs, MDefinition **prhs, bool *plessEqual);
+
 class Loop
 {
-    MIRGenerator *mir;
+    MIRGraph &graph;
 
   public:
     // Loop code may return three values:
@@ -47,7 +52,7 @@ class Loop
 
   public:
     // A loop is constructed on a backedge found in the control flow graph.
-    Loop(MIRGenerator *mir, MBasicBlock *header, MBasicBlock *footer);
+    Loop(MBasicBlock *header, MBasicBlock *footer, MIRGraph &graph);
 
     // Initializes the loop, finds all blocks and instructions contained in the loop.
     LoopReturn init();
@@ -70,11 +75,10 @@ class Loop
     // Along the way it adds instructions to the worklist for invariance testing.
     LoopReturn iterateLoopBlocks(MBasicBlock *current);
 
-    bool hoistInstructions(InstructionQueue &toHoist);
+    bool hoistInstructions(InstructionQueue &toHoist, InstructionQueue &boundsChecks);
 
     // Utility methods for invariance testing and instruction hoisting.
     bool isInLoop(MDefinition *ins);
-    bool isBeforeLoop(MDefinition *ins);
     bool isLoopInvariant(MInstruction *ins);
     bool isLoopInvariant(MDefinition *ins);
 
@@ -88,8 +92,17 @@ class Loop
     MInstruction* popFromWorklist();
 
     inline bool isHoistable(const MDefinition *ins) const {
-        return ins->isMovable() && !ins->isEffectful() && !ins->neverHoist();
+        return ins->isMovable() && !ins->isEffectful();
     }
+
+    // State for hoisting bounds checks. Even if the terms involved in a bounds
+    // check are not loop invariant, we analyze the tests and increments done
+    // in the loop to try to find a stronger condition which can be hoisted.
+
+    void tryHoistBoundsCheck(MBoundsCheck *ins, MTest *test, BranchDirection direction,
+                             MInstruction **pupper, MInstruction **plower);
+
+    bool nonDecreasing(MDefinition *initial, MDefinition *start);
 };
 
 } // namespace ion

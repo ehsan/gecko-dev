@@ -2,6 +2,7 @@
 package @ANDROID_PACKAGE_NAME@.tests;
 
 import @ANDROID_PACKAGE_NAME@.*;
+import android.app.Instrumentation;
 
 /**
  * Basic fling correctness test.
@@ -20,7 +21,7 @@ public class testFlingCorrectness extends PixelTest {
 
         MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
 
-        blockForGeckoReady();
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
         // load page and check we're at 0,0
         loadAndVerifyBoxes(url);

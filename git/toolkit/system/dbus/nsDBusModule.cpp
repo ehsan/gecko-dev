@@ -12,6 +12,7 @@
 #include "nsNetworkManagerListener.h"
 #include "nsNetCID.h"
 
+#define NS_DBUS_NETWORK_LINK_SERVICE_CLASSNAME "DBus Network Link Status"
 #define NS_DBUS_NETWORK_LINK_SERVICE_CID    \
   { 0x75a500a2,                                        \
     0x0030,                                            \

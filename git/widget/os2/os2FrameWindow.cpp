@@ -21,6 +21,9 @@
 //-----------------------------------------------------------------------------
 // External Variables (in nsWindow.cpp)
 
+extern nsIRollupListener*  gRollupListener;
+extern nsIWidget*          gRollupWidget;
+extern bool                gRollupConsumeRollupEvent;
 extern uint32_t            gOS2Flags;
 
 #ifdef DEBUG_FOCUS
@@ -588,15 +591,13 @@ nsresult os2FrameWindow::ConstrainPosition(bool aAllowSlop,
 MRESULT EXPENTRY fnwpFrame(HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
 {
   // check to see if we have a rollup listener registered
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  if (rollupListener) {
-    nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
+  if (gRollupListener && gRollupWidget) {
     if (msg == WM_TRACKFRAME || msg == WM_MINMAXFRAME ||
         msg == WM_BUTTON1DOWN || msg == WM_BUTTON2DOWN ||
         msg == WM_BUTTON3DOWN) {
       // Rollup if the event is outside the popup
-      if (!nsWindow::EventIsInsideWindow((nsWindow*)rollupWidget)) {
-        rollupListener->Rollup(UINT32_MAX);
+      if (!nsWindow::EventIsInsideWindow((nsWindow*)gRollupWidget)) {
+        gRollupListener->Rollup(UINT32_MAX);
       }
     }
   }

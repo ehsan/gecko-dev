@@ -23,7 +23,6 @@ class CameraVideoResultHandler implements ActivityResultHandler {
         mFilePickerResult = resultQueue;
     }
 
-    @Override
     public void onActivityResult(int resultCode, Intent data) {
         try {
             if (data == null || resultCode != Activity.RESULT_OK) {

@@ -27,6 +27,7 @@ using PRTime;
 using mozilla::hal::FMRadioCountry;
 using mozilla::hal::FMRadioOperation;
 using mozilla::hal::FMRadioOperationStatus;
+using mozilla::hal::FMRadioSeekDirection;
 
 namespace mozilla {
 
@@ -66,7 +67,6 @@ struct SwitchEvent {
 struct WakeLockInformation {
   uint32_t numLocks;
   uint32_t numHidden;
-  uint64_t[] lockingProcesses;
   nsString topic;
 };
 
@@ -113,6 +113,7 @@ child:
     NotifySwitchChange(SwitchEvent aEvent);
     NotifySystemClockChange(int64_t aClockDeltaMS); 
     NotifySystemTimezoneChange(SystemTimezoneChangeInformation aSystemTimezoneChangeInfo); 
+    NotifyFMRadioStatus(FMRadioOperationInformation aInfo);
 
 parent:
     Vibrate(uint32_t[] pattern, uint64_t[] id, PBrowser browser);
@@ -151,10 +152,7 @@ parent:
     sync GetLight(LightType light)
       returns (LightConfiguration aConfig, bool status);
 
-    ModifyWakeLock(nsString aTopic,
-                   WakeLockControl aLockAdjust,
-                   WakeLockControl aHiddenAdjust,
-                   uint64_t aProcessID);
+    ModifyWakeLock(nsString aTopic, WakeLockControl aLockAdjust, WakeLockControl aHiddenAdjust);
     EnableWakeLockNotifications();
     DisableWakeLockNotifications();
     sync GetWakeLockInfo(nsString aTopic)
@@ -174,6 +172,20 @@ parent:
       returns (SwitchState aState);
 
     SetProcessPriority(int aPid, ProcessPriority aPriority);
+
+    EnableFMRadio(FMRadioSettings aSettings);
+    DisableFMRadio();
+    FMRadioSeek(FMRadioSeekDirection aDirection);
+    sync GetFMRadioSettings()
+      returns (FMRadioSettings settings);
+    SetFMRadioFrequency(uint32_t frequency);
+    sync GetFMRadioFrequency()
+      returns (uint32_t frequency);
+    sync IsFMRadioOn()
+      returns (bool radioOn);
+    sync GetFMRadioSignalStrength()
+      returns (uint32_t strength);
+    CancelFMRadioSeek();
 
     FactoryReset();
 

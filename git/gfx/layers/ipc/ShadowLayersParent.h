@@ -56,8 +56,6 @@ protected:
                                 const TargetConfig& targetConfig,
                                 const bool& isFirstPaint) MOZ_OVERRIDE;
 
-  virtual bool RecvClearCachedResources() MOZ_OVERRIDE;
-
   virtual PGrallocBufferParent*
   AllocPGrallocBuffer(const gfxIntSize& aSize, const gfxContentType& aContent,
                       MaybeMagicGrallocBufferHandle* aOutHandle) MOZ_OVERRIDE;

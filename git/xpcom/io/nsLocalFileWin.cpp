@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
 #include "nsCOMPtr.h"
@@ -114,7 +113,7 @@ public:
     }
 
     NS_IMETHOD Run() {
-        MOZ_ASSERT(!NS_IsMainThread(),
+        NS_ASSERTION(!NS_IsMainThread(),
             "AsyncLocalFileWinOperation should not be run on the main thread!");
 
         CoInitialize(NULL);
@@ -591,51 +590,43 @@ static nsresult
 OpenFile(const nsAFlatString &name, int osflags, int mode,
          PRFileDesc **fd)
 {
+    // XXX : 'mode' is not translated !!!
     int32_t access = 0;
+    int32_t flags = 0;
+    int32_t flag6 = 0;
 
-    int32_t disposition = 0;
-    int32_t attributes = 0;
-
-    if (osflags & PR_SYNC) 
-        attributes = FILE_FLAG_WRITE_THROUGH;
+    if (osflags & PR_SYNC) flag6 = FILE_FLAG_WRITE_THROUGH;
+ 
     if (osflags & PR_RDONLY || osflags & PR_RDWR)
         access |= GENERIC_READ;
     if (osflags & PR_WRONLY || osflags & PR_RDWR)
         access |= GENERIC_WRITE;
 
     if ( osflags & PR_CREATE_FILE && osflags & PR_EXCL )
-        disposition = CREATE_NEW;
+        flags = CREATE_NEW;
     else if (osflags & PR_CREATE_FILE) {
         if (osflags & PR_TRUNCATE)
-            disposition = CREATE_ALWAYS;
+            flags = CREATE_ALWAYS;
         else
-            disposition = OPEN_ALWAYS;
+            flags = OPEN_ALWAYS;
     } else {
         if (osflags & PR_TRUNCATE)
-            disposition = TRUNCATE_EXISTING;
+            flags = TRUNCATE_EXISTING;
         else
-            disposition = OPEN_EXISTING;
+            flags = OPEN_EXISTING;
     }
 
     if (osflags & nsIFile::DELETE_ON_CLOSE) {
-        attributes |= FILE_FLAG_DELETE_ON_CLOSE;
+      flag6 |= FILE_FLAG_DELETE_ON_CLOSE;
     }
 
     if (osflags & nsIFile::OS_READAHEAD) {
-        attributes |= FILE_FLAG_SEQUENTIAL_SCAN;
-    }
-
-    // If no write permissions are requested, and if we are possibly creating
-    // the file, then set the new file as read only.
-    // The flag has no effect if we happen to open the file.
-    if (!(mode & (PR_IWUSR | PR_IWGRP | PR_IWOTH)) &&
-        disposition != OPEN_EXISTING) {
-        attributes |= FILE_ATTRIBUTE_READONLY;
+      flag6 |= FILE_FLAG_SEQUENTIAL_SCAN;
     }
 
     HANDLE file = ::CreateFileW(name.get(), access,
                                 FILE_SHARE_READ|FILE_SHARE_WRITE,
-                                NULL, disposition, attributes, NULL);
+                                NULL, flags, flag6, NULL);
 
     if (file == INVALID_HANDLE_VALUE) { 
         *fd = nullptr;
@@ -3400,7 +3391,7 @@ nsLocalFile::GetHashCode(uint32_t *aResult)
 void
 nsLocalFile::GlobalInit()
 {
-    DebugOnly<nsresult> rv = NS_CreateShortcutResolver();
+    nsresult rv = NS_CreateShortcutResolver();
     NS_ASSERTION(NS_SUCCEEDED(rv), "Shortcut resolver could not be created");
 }
 

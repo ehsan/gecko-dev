@@ -81,17 +81,6 @@ class LDouble : public LInstructionHelper<1, 1, 0>
     }
 };
 
-// Convert a 32-bit unsigned integer to a double.
-class LUInt32ToDouble : public LInstructionHelper<1, 1, 0>
-{
-  public:
-    LIR_HEADER(UInt32ToDouble)
-
-    LUInt32ToDouble(const LAllocation &input) {
-        setOperand(0, input);
-    }
-};
-
 // LDivI is presently implemented as a proper C function,
 // so it trashes r0, r1, r2 and r3.  The call also trashes lr, and has the
 // ability to trash ip. The function also takes two arguments (dividend in r0,
@@ -134,54 +123,42 @@ class LModI : public LBinaryMath<3>
         setTemp(1, temp2);
         setTemp(2, callTemp);
     }
-
-    MMod *mir() const {
-        return mir_->toMod();
-    }
 };
 
 class LModPowTwoI : public LInstructionHelper<1, 1, 0>
 {
-    const int32_t shift_;
+    const int32 shift_;
 
   public:
     LIR_HEADER(ModPowTwoI);
-    int32_t shift()
+    int32 shift()
     {
         return shift_;
     }
 
-    LModPowTwoI(const LAllocation &lhs, int32_t shift)
+    LModPowTwoI(const LAllocation &lhs, int32 shift)
       : shift_(shift)
     {
         setOperand(0, lhs);
-    }
-
-    MMod *mir() const {
-        return mir_->toMod();
     }
 };
 
 class LModMaskI : public LInstructionHelper<1, 1, 1>
 {
-    const int32_t shift_;
+    const int32 shift_;
 
   public:
     LIR_HEADER(ModMaskI);
 
-    LModMaskI(const LAllocation &lhs, const LDefinition &temp1, int32_t shift)
+    LModMaskI(const LAllocation &lhs, const LDefinition &temp1, int32 shift)
       : shift_(shift)
     {
         setOperand(0, lhs);
         setTemp(0, temp1);
     }
 
-    int32_t shift() const {
+    int32 shift() const {
         return shift_;
-    }
-
-    MMod *mir() const {
-        return mir_->toMod();
     }
 };
 
@@ -275,6 +252,22 @@ class LGuardShape : public LInstructionHelper<0, 1, 1>
     }
     const LAllocation *tempInt() {
         return getTemp(0)->output();
+    }
+};
+
+class LRecompileCheck : public LInstructionHelper<0, 0, 1>
+{
+  public:
+    LIR_HEADER(RecompileCheck);
+
+    LRecompileCheck(const LDefinition &temp) {
+        setTemp(0, temp);
+    }
+    const LAllocation *tempInt() {
+        return getTemp(0)->output();
+    }
+    const MRecompileCheck *mir() const {
+        return mir_->toRecompileCheck();
     }
 };
 

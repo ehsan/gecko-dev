@@ -6,7 +6,7 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.DisplayPortMetrics;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
+import org.mozilla.gecko.gfx.ViewportMetrics;
 
 import android.content.res.Resources;
 import android.graphics.Point;
@@ -37,31 +37,37 @@ import java.nio.ByteBuffer;
 public class GeckoEvent {
     private static final String LOGTAG = "GeckoEvent";
 
-    // Make sure to keep these values in sync with the enum in
-    // AndroidGeckoEvent in widget/android/AndroidJavaWrapper.h
+    private static final int INVALID = -1;
     private static final int NATIVE_POKE = 0;
     private static final int KEY_EVENT = 1;
     private static final int MOTION_EVENT = 2;
     private static final int SENSOR_EVENT = 3;
+    private static final int UNUSED1_EVENT = 4;
     private static final int LOCATION_EVENT = 5;
     private static final int IME_EVENT = 6;
     private static final int DRAW = 7;
     private static final int SIZE_CHANGED = 8;
-    private static final int APP_BACKGROUNDING = 9;
-    private static final int APP_FOREGROUNDING = 10;
+    private static final int ACTIVITY_STOPPING = 9;
+    private static final int ACTIVITY_PAUSING = 10;
+    private static final int ACTIVITY_SHUTDOWN = 11;
     private static final int LOAD_URI = 12;
-    private static final int NOOP = 15;
+    private static final int SURFACE_CREATED = 13;
+    private static final int SURFACE_DESTROYED = 14;
+    private static final int GECKO_EVENT_SYNC = 15;
+    private static final int ACTIVITY_START = 17;
     private static final int BROADCAST = 19;
     private static final int VIEWPORT = 20;
     private static final int VISITED = 21;
     private static final int NETWORK_CHANGED = 22;
-    private static final int THUMBNAIL = 25;
+    private static final int UNUSED3_EVENT = 23;
+    private static final int ACTIVITY_RESUMING = 24;
+    private static final int SCREENSHOT = 25;
+    private static final int UNUSED2_EVENT = 26;
     private static final int SCREENORIENTATION_CHANGED = 27;
-    private static final int COMPOSITOR_CREATE = 28;
-    private static final int COMPOSITOR_PAUSE = 29;
-    private static final int COMPOSITOR_RESUME = 30;
+    private static final int COMPOSITOR_PAUSE = 28;
+    private static final int COMPOSITOR_RESUME = 29;
+    private static final int PAINT_LISTEN_START_EVENT = 30;
     private static final int NATIVE_GESTURE_EVENT = 31;
-    private static final int IME_KEY_EVENT = 32;
 
     /**
      * These DOM_KEY_LOCATION constants mirror the DOM KeyboardEvent's constants.
@@ -74,13 +80,14 @@ public class GeckoEvent {
     private static final int DOM_KEY_LOCATION_MOBILE = 4;
     private static final int DOM_KEY_LOCATION_JOYSTICK = 5;
 
-    public static final int IME_SYNCHRONIZE = 0;
-    public static final int IME_REPLACE_TEXT = 1;
-    public static final int IME_SET_SELECTION = 2;
-    public static final int IME_ADD_COMPOSITION_RANGE = 3;
-    public static final int IME_UPDATE_COMPOSITION = 4;
-    public static final int IME_REMOVE_COMPOSITION = 5;
-    public static final int IME_ACKNOWLEDGE_FOCUS = 6;
+    public static final int IME_COMPOSITION_END = 0;
+    public static final int IME_COMPOSITION_BEGIN = 1;
+    public static final int IME_SET_TEXT = 2;
+    public static final int IME_GET_TEXT = 3;
+    public static final int IME_DELETE_TEXT = 4;
+    public static final int IME_SET_SELECTION = 5;
+    public static final int IME_GET_SELECTION = 6;
+    public static final int IME_ADD_RANGE = 7;
 
     public static final int IME_RANGE_CARETPOSITION = 1;
     public static final int IME_RANGE_RAWINPUT = 2;
@@ -88,97 +95,85 @@ public class GeckoEvent {
     public static final int IME_RANGE_CONVERTEDTEXT = 4;
     public static final int IME_RANGE_SELECTEDCONVERTEDTEXT = 5;
 
-    public static final int IME_RANGE_LINE_NONE = 0;
-    public static final int IME_RANGE_LINE_DOTTED = 1;
-    public static final int IME_RANGE_LINE_DASHED = 2;
-    public static final int IME_RANGE_LINE_SOLID = 3;
-    public static final int IME_RANGE_LINE_DOUBLE = 4;
-    public static final int IME_RANGE_LINE_WAVY = 5;
-
     public static final int IME_RANGE_UNDERLINE = 1;
     public static final int IME_RANGE_FORECOLOR = 2;
     public static final int IME_RANGE_BACKCOLOR = 4;
-    public static final int IME_RANGE_LINECOLOR = 8;
 
     public static final int ACTION_MAGNIFY_START = 11;
     public static final int ACTION_MAGNIFY = 12;
     public static final int ACTION_MAGNIFY_END = 13;
 
-    private final int mType;
-    private int mAction;
-    private boolean mAckNeeded;
-    private long mTime;
-    private Point[] mPoints;
-    private int[] mPointIndicies;
-    private int mPointerIndex; // index of the point that has changed
-    private float[] mOrientations;
-    private float[] mPressures;
-    private Point[] mPointRadii;
-    private Rect mRect;
-    private double mX;
-    private double mY;
-    private double mZ;
+    final public int mType;
+    public int mAction;
+    public long mTime;
+    public Point[] mPoints;
+    public int[] mPointIndicies;
+    public int mPointerIndex; // index of the point that has changed
+    public float[] mOrientations;
+    public float[] mPressures;
+    public Point[] mPointRadii;
+    public Rect mRect;
+    public double mX, mY, mZ;
 
-    private int mMetaState;
-    private int mFlags;
-    private int mKeyCode;
-    private int mUnicodeChar;
-    private int mBaseUnicodeChar; // mUnicodeChar without meta states applied
-    private int mRepeatCount;
-    private int mCount;
-    private int mStart;
-    private int mEnd;
-    private String mCharacters;
-    private String mCharactersExtra;
-    private int mRangeType;
-    private int mRangeStyles;
-    private int mRangeLineStyle;
-    private boolean mRangeBoldLine;
-    private int mRangeForeColor;
-    private int mRangeBackColor;
-    private int mRangeLineColor;
-    private Location mLocation;
-    private Address mAddress;
-    private int mDomKeyLocation;
+    public int mMetaState, mFlags;
+    public int mKeyCode, mUnicodeChar;
+    public int mRepeatCount;
+    public int mOffset, mCount;
+    public String mCharacters, mCharactersExtra;
+    public int mRangeType, mRangeStyles;
+    public int mRangeForeColor, mRangeBackColor;
+    public Location mLocation;
+    public Address  mAddress;
+    public int mDomKeyLocation;
 
-    private double mBandwidth;
-    private boolean mCanBeMetered;
+    public double mBandwidth;
+    public boolean mCanBeMetered;
 
-    private int mNativeWindow;
+    public int mNativeWindow;
 
-    private short mScreenOrientation;
+    public short mScreenOrientation;
 
-    private ByteBuffer mBuffer;
-
-    private int mWidth;
-    private int mHeight;
+    public ByteBuffer mBuffer;
 
     private GeckoEvent(int evType) {
         mType = evType;
     }
 
-    public static GeckoEvent createAppBackgroundingEvent() {
-        return new GeckoEvent(APP_BACKGROUNDING);
-    }
-
-    public static GeckoEvent createAppForegroundingEvent() {
-        return new GeckoEvent(APP_FOREGROUNDING);
-    }
-
-    public static GeckoEvent createNoOpEvent() {
-        return new GeckoEvent(NOOP);
-    }
-
-    public static GeckoEvent createKeyEvent(KeyEvent k, int metaState) {
-        GeckoEvent event = new GeckoEvent(KEY_EVENT);
-        event.initKeyEvent(k, metaState);
+    public static GeckoEvent createPauseEvent(boolean isApplicationInBackground) {
+        GeckoEvent event = new GeckoEvent(ACTIVITY_PAUSING);
+        event.mFlags = isApplicationInBackground ? 0 : 1;
         return event;
     }
 
-    public static GeckoEvent createCompositorCreateEvent(int width, int height) {
-        GeckoEvent event = new GeckoEvent(COMPOSITOR_CREATE);
-        event.mWidth = width;
-        event.mHeight = height;
+    public static GeckoEvent createResumeEvent(boolean isApplicationInBackground) {
+        GeckoEvent event = new GeckoEvent(ACTIVITY_RESUMING);
+        event.mFlags = isApplicationInBackground ? 0 : 1;
+        return event;
+    }
+
+    public static GeckoEvent createStoppingEvent(boolean isApplicationInBackground) {
+        GeckoEvent event = new GeckoEvent(ACTIVITY_STOPPING);
+        event.mFlags = isApplicationInBackground ? 0 : 1;
+        return event;
+    }
+
+    public static GeckoEvent createStartEvent(boolean isApplicationInBackground) {
+        GeckoEvent event = new GeckoEvent(ACTIVITY_START);
+        event.mFlags = isApplicationInBackground ? 0 : 1;
+        return event;
+    }
+
+    public static GeckoEvent createShutdownEvent() {
+        return new GeckoEvent(ACTIVITY_SHUTDOWN);
+    }
+
+    public static GeckoEvent createSyncEvent() {
+        return new GeckoEvent(GECKO_EVENT_SYNC);
+    }
+
+    public static GeckoEvent createKeyEvent(KeyEvent k) {
+        GeckoEvent event = new GeckoEvent(KEY_EVENT);
+        event.initKeyEvent(k);
         return event;
     }
 
@@ -190,20 +185,13 @@ public class GeckoEvent {
         return new GeckoEvent(COMPOSITOR_RESUME);
     }
 
-    private void initKeyEvent(KeyEvent k, int metaState) {
+    private void initKeyEvent(KeyEvent k) {
         mAction = k.getAction();
         mTime = k.getEventTime();
-        // Normally we expect k.getMetaState() to reflect the current meta-state; however,
-        // some software-generated key events may not have k.getMetaState() set, e.g. key
-        // events from Swype. Therefore, it's necessary to combine the key's meta-states
-        // with the meta-states that we keep separately in KeyListener
-        mMetaState = k.getMetaState() | metaState;
+        mMetaState = k.getMetaState();
         mFlags = k.getFlags();
         mKeyCode = k.getKeyCode();
-        mUnicodeChar = k.getUnicodeChar(mMetaState);
-        // e.g. for Ctrl+A, Android returns 0 for mUnicodeChar,
-        // but Gecko expects 'a', so we return that in mBaseUnicodeChar
-        mBaseUnicodeChar = k.getUnicodeChar(0);
+        mUnicodeChar = k.getUnicodeChar();
         mRepeatCount = k.getRepeatCount();
         mCharacters = k.getCharacters();
         mDomKeyLocation = isJoystickButton(mKeyCode) ? DOM_KEY_LOCATION_JOYSTICK : DOM_KEY_LOCATION_MOBILE;
@@ -278,29 +266,18 @@ public class GeckoEvent {
     }
 
     public static GeckoEvent createNativeGestureEvent(int action, PointF pt, double size) {
-        try {
-            GeckoEvent event = new GeckoEvent(NATIVE_GESTURE_EVENT);
-            event.mAction = action;
-            event.mCount = 1;
-            event.mPoints = new Point[1];
+        GeckoEvent event = new GeckoEvent(NATIVE_GESTURE_EVENT);
+        event.mAction = action;
+        event.mCount = 1;
+        event.mPoints = new Point[1];
 
-            PointF geckoPoint = new PointF(pt.x, pt.y);
-            geckoPoint = GeckoApp.mAppContext.getLayerView().convertViewPointToLayerPoint(geckoPoint);
+        PointF geckoPoint = new PointF(pt.x, pt.y);
+        geckoPoint = GeckoApp.mAppContext.getLayerView().convertViewPointToLayerPoint(geckoPoint);
+        event.mPoints[0] = new Point(Math.round(geckoPoint.x), Math.round(geckoPoint.y));
 
-            if (geckoPoint == null) {
-                // This could happen if Gecko isn't ready yet.
-                return null;
-            }
-
-            event.mPoints[0] = new Point(Math.round(geckoPoint.x), Math.round(geckoPoint.y));
-
-            event.mX = size;
-            event.mTime = System.currentTimeMillis();
-            return event;
-        } catch (Exception e) {
-            // This can happen if Gecko isn't ready yet
-            return null;
-        }
+        event.mX = size;
+        event.mTime = System.currentTimeMillis();
+        return event;
     }
 
     public static GeckoEvent createMotionEvent(MotionEvent m) {
@@ -388,7 +365,7 @@ public class GeckoEvent {
                 mOrientations[index] = 0;
             }
             mPressures[index] = event.getPressure(eventIndex);
-        } catch (Exception ex) {
+        } catch(Exception ex) {
             Log.e(LOGTAG, "Error creating motion point " + index, ex);
             mPointRadii[index] = new Point(0, 0);
             mPoints[index] = new Point(0, 0);
@@ -476,63 +453,44 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createIMEEvent(int action) {
+    public static GeckoEvent createIMEEvent(int imeAction, int offset, int count) {
         GeckoEvent event = new GeckoEvent(IME_EVENT);
-        event.mAction = action;
+        event.mAction = imeAction;
+        event.mOffset = offset;
+        event.mCount = count;
         return event;
     }
 
-    public static GeckoEvent createIMEKeyEvent(KeyEvent k) {
-        GeckoEvent event = new GeckoEvent(IME_KEY_EVENT);
-        event.initKeyEvent(k, 0);
-        return event;
+    private void InitIMERange(int action, int offset, int count,
+                              int rangeType, int rangeStyles,
+                              int rangeForeColor, int rangeBackColor) {
+        mAction = action;
+        mOffset = offset;
+        mCount = count;
+        mRangeType = rangeType;
+        mRangeStyles = rangeStyles;
+        mRangeForeColor = rangeForeColor;
+        mRangeBackColor = rangeBackColor;
+        return;
     }
-
-    public static GeckoEvent createIMEReplaceEvent(int start, int end,
-                                                   String text) {
+    
+    public static GeckoEvent createIMERangeEvent(int offset, int count,
+                                                 int rangeType, int rangeStyles,
+                                                 int rangeForeColor, int rangeBackColor,
+                                                 String text) {
         GeckoEvent event = new GeckoEvent(IME_EVENT);
-        event.mAction = IME_REPLACE_TEXT;
-        event.mStart = start;
-        event.mEnd = end;
+        event.InitIMERange(IME_SET_TEXT, offset, count, rangeType, rangeStyles,
+                           rangeForeColor, rangeBackColor);
         event.mCharacters = text;
         return event;
     }
 
-    public static GeckoEvent createIMESelectEvent(int start, int end) {
+    public static GeckoEvent createIMERangeEvent(int offset, int count,
+                                                 int rangeType, int rangeStyles,
+                                                 int rangeForeColor, int rangeBackColor) {
         GeckoEvent event = new GeckoEvent(IME_EVENT);
-        event.mAction = IME_SET_SELECTION;
-        event.mStart = start;
-        event.mEnd = end;
-        return event;
-    }
-
-    public static GeckoEvent createIMECompositionEvent(int start, int end) {
-        GeckoEvent event = new GeckoEvent(IME_EVENT);
-        event.mAction = IME_UPDATE_COMPOSITION;
-        event.mStart = start;
-        event.mEnd = end;
-        return event;
-    }
-
-    public static GeckoEvent createIMERangeEvent(int start,
-                                                 int end, int rangeType,
-                                                 int rangeStyles,
-                                                 int rangeLineStyle,
-                                                 boolean rangeBoldLine,
-                                                 int rangeForeColor,
-                                                 int rangeBackColor,
-                                                 int rangeLineColor) {
-        GeckoEvent event = new GeckoEvent(IME_EVENT);
-        event.mAction = IME_ADD_COMPOSITION_RANGE;
-        event.mStart = start;
-        event.mEnd = end;
-        event.mRangeType = rangeType;
-        event.mRangeStyles = rangeStyles;
-        event.mRangeLineStyle = rangeLineStyle;
-        event.mRangeBoldLine = rangeBoldLine;
-        event.mRangeForeColor = rangeForeColor;
-        event.mRangeBackColor = rangeBackColor;
-        event.mRangeLineColor = rangeLineColor;
+        event.InitIMERange(IME_ADD_RANGE, offset, count, rangeType, rangeStyles,
+                           rangeForeColor, rangeBackColor);
         return event;
     }
 
@@ -557,17 +515,14 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createViewportEvent(ImmutableViewportMetrics metrics, DisplayPortMetrics displayPort) {
+    public static GeckoEvent createViewportEvent(ViewportMetrics viewport, DisplayPortMetrics displayPort) {
         GeckoEvent event = new GeckoEvent(VIEWPORT);
         event.mCharacters = "Viewport:Change";
+        PointF origin = viewport.getOrigin();
         StringBuffer sb = new StringBuffer(256);
-        sb.append("{ \"x\" : ").append(metrics.viewportRectLeft)
-          .append(", \"y\" : ").append(metrics.viewportRectTop)
-          .append(", \"zoom\" : ").append(metrics.zoomFactor)
-          .append(", \"fixedMarginLeft\" : ").append(metrics.fixedLayerMarginLeft)
-          .append(", \"fixedMarginTop\" : ").append(metrics.fixedLayerMarginTop)
-          .append(", \"fixedMarginRight\" : ").append(metrics.fixedLayerMarginRight)
-          .append(", \"fixedMarginBottom\" : ").append(metrics.fixedLayerMarginBottom)
+        sb.append("{ \"x\" : ").append(origin.x)
+          .append(", \"y\" : ").append(origin.y)
+          .append(", \"zoom\" : ").append(viewport.getZoomFactor())
           .append(", \"displayPort\" :").append(displayPort.toJSON())
           .append('}');
         event.mCharactersExtra = sb.toString();
@@ -608,11 +563,16 @@ public class GeckoEvent {
         return event;
     }
 
-    public static GeckoEvent createThumbnailEvent(int tabId, int bufw, int bufh, ByteBuffer buffer) {
-        GeckoEvent event = new GeckoEvent(THUMBNAIL);
-        event.mPoints = new Point[1];
-        event.mPoints[0] = new Point(bufw, bufh);
+    public static GeckoEvent createScreenshotEvent(int tabId, int sx, int sy, int sw, int sh, int dx, int dy, int dw, int dh, int bw, int bh, int token, ByteBuffer buffer) {
+        GeckoEvent event = new GeckoEvent(SCREENSHOT);
+        event.mPoints = new Point[5];
+        event.mPoints[0] = new Point(sx, sy);
+        event.mPoints[1] = new Point(sw, sh);
+        event.mPoints[2] = new Point(dx, dy);
+        event.mPoints[3] = new Point(dw, dh);
+        event.mPoints[4] = new Point(bw, bh);
         event.mMetaState = tabId;
+        event.mFlags = token;
         event.mBuffer = buffer;
         return event;
     }
@@ -623,7 +583,9 @@ public class GeckoEvent {
         return event;
     }
 
-    public void setAckNeeded(boolean ackNeeded) {
-        mAckNeeded = ackNeeded;
+    public static GeckoEvent createStartPaintListentingEvent(int tabId) {
+        GeckoEvent event = new GeckoEvent(PAINT_LISTEN_START_EVENT);
+        event.mMetaState = tabId;
+        return event;
     }
 }

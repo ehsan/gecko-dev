@@ -42,7 +42,7 @@ LIRGeneratorARM::useBoxFixed(LInstruction *lir, size_t n, MDefinition *mir, Regi
 bool
 LIRGeneratorARM::lowerConstantDouble(double d, MInstruction *mir)
 {
-    uint32_t index;
+    uint32 index;
     if (!lirGraph_.addConstantToPool(DoubleValue(d), &index))
         return false;
 
@@ -54,7 +54,7 @@ bool
 LIRGeneratorARM::visitConstant(MConstant *ins)
 {
     if (ins->type() == MIRType_Double) {
-        uint32_t index;
+        uint32 index;
         if (!lirGraph_.addConstantToPool(ins->value(), &index))
             return false;
         LDouble *lir = new LDouble(LConstantIndex::FromIndex(index));
@@ -87,7 +87,7 @@ LIRGeneratorARM::visitBox(MBox *box)
 
     // Otherwise, we should not define a new register for the payload portion
     // of the output, so bypass defineBox().
-    uint32_t vreg = getVirtualRegister();
+    uint32 vreg = getVirtualRegister();
     if (vreg >= MAX_VIRTUAL_REGISTERS)
         return false;
 
@@ -196,13 +196,13 @@ LIRGeneratorARM::defineUntypedPhi(MPhi *phi, size_t lirIndex)
     LPhi *type = current->getPhi(lirIndex + VREG_TYPE_OFFSET);
     LPhi *payload = current->getPhi(lirIndex + VREG_DATA_OFFSET);
 
-    uint32_t typeVreg = getVirtualRegister();
+    uint32 typeVreg = getVirtualRegister();
     if (typeVreg >= MAX_VIRTUAL_REGISTERS)
         return false;
 
     phi->setVirtualRegister(typeVreg);
 
-    uint32_t payloadVreg = getVirtualRegister();
+    uint32 payloadVreg = getVirtualRegister();
     if (payloadVreg >= MAX_VIRTUAL_REGISTERS)
         return false;
     JS_ASSERT(typeVreg + 1 == payloadVreg);
@@ -215,7 +215,7 @@ LIRGeneratorARM::defineUntypedPhi(MPhi *phi, size_t lirIndex)
 }
 
 void
-LIRGeneratorARM::lowerUntypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock *block, size_t lirIndex)
+LIRGeneratorARM::lowerUntypedPhiInput(MPhi *phi, uint32 inputPosition, LBlock *block, size_t lirIndex)
 {
     // oh god, what is this code?
     MDefinition *operand = phi->getOperand(inputPosition);
@@ -239,9 +239,7 @@ LIRGeneratorARM::lowerDivI(MDiv *div)
 {
     LDivI *lir = new LDivI(useFixed(div->lhs(), r0), use(div->rhs(), r1),
                            tempFixed(r2), tempFixed(r3));
-    if (div->fallible() && !assignSnapshot(lir))
-        return false;
-    return defineFixed(lir, div, LAllocation(AnyRegister(r0)));
+    return assignSnapshot(lir) && defineFixed(lir, div, LAllocation(AnyRegister(r0)));
 }
 
 bool
@@ -257,27 +255,21 @@ bool
 LIRGeneratorARM::lowerModI(MMod *mod)
 {
     if (mod->rhs()->isConstant()) {
-        int32_t rhs = mod->rhs()->toConstant()->value().toInt32();
-        int32_t shift;
+        int32 rhs = mod->rhs()->toConstant()->value().toInt32();
+        int32 shift;
         JS_FLOOR_LOG2(shift, rhs);
-        if (rhs > 0 && 1 << shift == rhs) {
+        if (1 << shift == rhs) {
             LModPowTwoI *lir = new LModPowTwoI(useRegister(mod->lhs()), shift);
-            if (mod->fallible() && !assignSnapshot(lir))
-                return false;
-            return define(lir, mod);
+            return (assignSnapshot(lir) && define(lir, mod));
         } else if (shift < 31 && (1 << (shift+1)) - 1 == rhs) {
             LModMaskI *lir = new LModMaskI(useRegister(mod->lhs()), temp(LDefinition::GENERAL), shift+1);
-            if (mod->fallible() && !assignSnapshot(lir))
-                return false;
-            return define(lir, mod);
+            return (assignSnapshot(lir) && define(lir, mod));
         }
     }
     LModI *lir = new LModI(useFixed(mod->lhs(), r0), use(mod->rhs(), r1),
                            tempFixed(r2), tempFixed(r3), temp(LDefinition::GENERAL));
 
-    if (mod->fallible() && !assignSnapshot(lir))
-        return false;
-    return defineFixed(lir, mod, LAllocation(AnyRegister(r1)));
+    return assignSnapshot(lir) && defineFixed(lir, mod, LAllocation(AnyRegister(r1)));
 }
 
 bool
@@ -305,15 +297,16 @@ LIRGeneratorARM::newLTableSwitchV(MTableSwitch *tableswitch)
 bool
 LIRGeneratorARM::visitGuardShape(MGuardShape *ins)
 {
-    JS_ASSERT(ins->obj()->type() == MIRType_Object);
-
     LDefinition tempObj = temp(LDefinition::OBJECT);
     LGuardShape *guard = new LGuardShape(useRegister(ins->obj()), tempObj);
-    if (!assignSnapshot(guard, ins->bailoutKind()))
-        return false;
-    if (!add(guard, ins))
-        return false;
-    return redefine(ins, ins->obj());
+    return assignSnapshot(guard, ins->bailoutKind()) && add(guard, ins);
+}
+
+bool
+LIRGeneratorARM::visitRecompileCheck(MRecompileCheck *ins)
+{
+    LRecompileCheck *lir = new LRecompileCheck(temp(LDefinition::GENERAL));
+    return assignSnapshot(lir, Bailout_RecompileCheck) && add(lir, ins);
 }
 
 bool

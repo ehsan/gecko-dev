@@ -14,9 +14,6 @@ function test() {
   ensureSocialEnabled();
 
   SocialService.addProvider(manifest, function (provider) {
-    // enable the provider
-    provider.enabled = true;
-
     ok(provider.enabled, "provider is initially enabled");
     let port = provider.getWorkerPort();
     ok(port, "should be able to get a port from enabled provider");
@@ -38,11 +35,6 @@ function test() {
     port.close();
     ok(provider.workerAPI, "should be able to get a workerAPI from re-enabled provider");
 
-    SocialService.removeProvider(provider.origin, function() {
-      ok(!provider.enabled, "removing an enabled provider should have disabled the provider");
-      let port = provider.getWorkerPort();
-      ok(!port, "should not be able to get a port after removing the provider");
-      finish();
-    });
+    SocialService.removeProvider(provider.origin, finish);
   });
 }

@@ -12,6 +12,7 @@
 #include "nsGkAtoms.h"
 #include "nsCSSRendering.h"
 #include "nsIContent.h"
+#include "nsIDOMHTMLTableColElement.h"
 
 #define COL_TYPE_BITS                 (NS_FRAME_STATE_BIT(28) | \
                                        NS_FRAME_STATE_BIT(29) | \
@@ -60,7 +61,7 @@ nsTableColFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
      
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   if (tableFrame->IsBorderCollapse() &&
-      tableFrame->BCRecalcNeeded(aOldStyleContext, StyleContext())) {
+      tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
     nsIntRect damageArea(GetColIndex(), 0, 1, tableFrame->GetRowCount());
     tableFrame->AddBCDamageArea(damageArea);
   }
@@ -93,7 +94,7 @@ NS_METHOD nsTableColFrame::Reflow(nsPresContext*          aPresContext,
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
   aDesiredSize.width=0;
   aDesiredSize.height=0;
-  const nsStyleVisibility* colVis = StyleVisibility();
+  const nsStyleVisibility* colVis = GetStyleVisibility();
   bool collapseCol = (NS_STYLE_VISIBILITY_COLLAPSE == colVis->mVisible);
   if (collapseCol) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
@@ -106,7 +107,7 @@ NS_METHOD nsTableColFrame::Reflow(nsPresContext*          aPresContext,
 
 int32_t nsTableColFrame::GetSpan()
 {
-  return StyleTable()->mSpan;
+  return GetStyleTable()->mSpan;
 }
 
 #ifdef DEBUG

@@ -10,8 +10,7 @@ if (!gSettingsEnabled) {
   SpecialPowers.setBoolPref("dom.mozSettings.enabled", true);
 }
 SpecialPowers.addPermission("mobileconnection", true, document);
-SpecialPowers.addPermission("settings-read", true, document);
-SpecialPowers.addPermission("settings-write", true, document);
+SpecialPowers.addPermission("settings", true, document);
 
 let settings = window.navigator.mozSettings;
 
@@ -57,8 +56,7 @@ function test_revert_previous_setting_on_invalid_value() {
 
 function cleanUp() {
   SpecialPowers.removePermission("mobileconnection", document);
-  SpecialPowers.removePermission("settings-write", document);
-  SpecialPowers.removePermission("settings-read", document);
+  SpecialPowers.removePermission("settings", document);
   SpecialPowers.clearUserPref("dom.mozSettings.enabled");
 
   finish();

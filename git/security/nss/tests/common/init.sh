@@ -250,35 +250,18 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
     COMMON=${TEST_COMMON-$common}
     export COMMON
 
+    MAKE=gmake
+    $MAKE -v >/dev/null 2>&1 || MAKE=make
+    $MAKE -v >/dev/null 2>&1 || { echo "You are missing make."; exit 5; }
+    MAKE="$MAKE --no-print-directory"
+
     DIST=${DIST-${MOZILLA_ROOT}/dist}
     SECURITY_ROOT=${SECURITY_ROOT-${MOZILLA_ROOT}/security/nss}
     TESTDIR=${TESTDIR-${MOZILLA_ROOT}/tests_results/security}
-
-    # Allow for override options from a config file
-    if [ -n "${OBJDIR}" -a -f ${DIST}/${OBJDIR}/platform.cfg ]; then
-	. ${DIST}/${OBJDIR}/platform.cfg
-    fi
-
-    # only need make if we don't already have certain variables set
-    if [ -z "${OBJDIR}" -o -z "${OS_ARCH}" -o -z "${DLL_PREFIX}" -o -z "${DLL_SUFFIX}" ]; then
-        MAKE=gmake
-        $MAKE -v >/dev/null 2>&1 || MAKE=make
-        $MAKE -v >/dev/null 2>&1 || { echo "You are missing make."; exit 5; }
-        MAKE="$MAKE --no-print-directory"
-    fi
-
-    if [ "${OBJDIR}" = "" ]; then
-        OBJDIR=`(cd $COMMON; $MAKE objdir_name)`
-    fi
-    if [ "${OS_ARCH}" = "" ]; then
-        OS_ARCH=`(cd $COMMON; $MAKE os_arch)`
-    fi
-    if [ "${DLL_PREFIX}" = "" ]; then
-        DLL_PREFIX=`(cd $COMMON; $MAKE dll_prefix)`
-    fi
-    if [ "${DLL_SUFFIX}" = "" ]; then
-        DLL_SUFFIX=`(cd $COMMON; $MAKE dll_suffix)`
-    fi
+    OBJDIR=`(cd $COMMON; $MAKE objdir_name)`
+    OS_ARCH=`(cd $COMMON; $MAKE os_arch)`
+    DLL_PREFIX=`(cd $COMMON; $MAKE dll_prefix)`
+    DLL_SUFFIX=`(cd $COMMON; $MAKE dll_suffix)`
     OS_NAME=`uname -s | sed -e "s/-[0-9]*\.[0-9]*//" | sed -e "s/-WOW64//"`
 
     BINDIR="${DIST}/${OBJDIR}/bin"
@@ -313,10 +296,7 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
         if [ "${OS_ARCH}" = "WINNT" -a "$OS_NAME"  != "CYGWIN_NT" -a "$OS_NAME" != "MINGW32_NT" ]; then
             PATH=.\;${DIST}/${OBJDIR}/bin\;${DIST}/${OBJDIR}/lib\;$PATH
             PATH=`perl ../path_uniq -d ';' "$PATH"`
-        elif [ "${OS_ARCH}" = "Android" ]; then
-	    # android doesn't have perl, skip the uniq step
-            PATH=.:${DIST}/${OBJDIR}/bin:${DIST}/${OBJDIR}/lib:$PATH
-	else 
+        else
             PATH=.:${DIST}/${OBJDIR}/bin:${DIST}/${OBJDIR}/lib:/bin:/usr/bin:$PATH
             # added /bin and /usr/bin in the beginning so a local perl will 
             # be used
@@ -369,7 +349,7 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
             ;;
     esac
 
-    if [ -z "${DOMSUF}" -a "${OS_ARCH}" != "Android" ]; then
+    if [ -z "${DOMSUF}" ]; then
         echo "$SCRIPTNAME: Fatal DOMSUF env. variable is not defined."
         exit 1 #does not need to be Exit, very early in script
     fi
@@ -378,11 +358,7 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
 #not needed anymore (purpose: be able to use IP address for the server 
 #cert instead of PC name which was not in the DNS because of dyn IP address
     if [ -z "$USE_IP" -o "$USE_IP" != "TRUE" ] ; then
-	if [ -z "${DOMSUF}" ]; then
-            HOSTADDR=${HOST}
-	else
-            HOSTADDR=${HOST}.${DOMSUF}
-	fi
+        HOSTADDR=${HOST}.${DOMSUF}
     else
         HOSTADDR=${IP_ADDRESS}
     fi
@@ -642,7 +618,7 @@ if [ -z "${INIT_SOURCED}" -o "${INIT_SOURCED}" != "TRUE" ]; then
     fi
     #################################################
 
-    if [ "${OS_ARCH}" != "WINNT" -a "${OS_ARCH}" != "Android" ]; then
+    if [ "${OS_ARCH}" != "WINNT" ]; then
         ulimit -c unlimited
     fi 
 

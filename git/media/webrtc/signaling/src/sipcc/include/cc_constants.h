@@ -6,8 +6,6 @@
 #define _CC_CONSTANTS_H_
 #include "cc_types.h"
 
-#define  PC_HANDLE_SIZE     17 /* 8 random bytes in hex plus null */
-
 /**
  * Max call servers
  */
@@ -274,7 +272,7 @@ typedef enum {
 	REMINUSE,
 	HOLDREVERT,
 	WHISPER,
-	PRESERVATION,
+    PRESERVATION,
 	WAITINGFORDIGITS = 21,
 	CREATEOFFER,
 	CREATEANSWER,
@@ -282,13 +280,9 @@ typedef enum {
 	CREATEANSWERERROR,
 	SETLOCALDESC,
 	SETREMOTEDESC,
-	UPDATELOCALDESC,
-	UPDATEREMOTEDESC,
 	SETLOCALDESCERROR,
 	SETREMOTEDESCERROR,
 	REMOTESTREAMADD,
-	ADDICECANDIDATE,
-	ADDICECANDIDATEERROR,
     MAX_CALL_STATES
 } cc_call_state_t;
 
@@ -548,7 +542,6 @@ typedef enum {
   NO_STREAM = -1,
   AUDIO,
   VIDEO,
-  DATA,
   TYPE_MAX
 } cc_media_type_t;
 

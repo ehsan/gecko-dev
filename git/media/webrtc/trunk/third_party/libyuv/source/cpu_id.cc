@@ -13,10 +13,6 @@
 #ifdef _MSC_VER
 #include <intrin.h>  // For __cpuid()
 #endif
-#if !defined(__CLR_VER) && defined(_M_X64) && \
-    defined(_MSC_VER) && (_MSC_FULL_VER >= 160040219)
-#include <immintrin.h>  // For _xgetbv()
-#endif
 
 #include <stdlib.h>  // For getenv()
 
@@ -51,55 +47,17 @@ extern "C" {
 #endif
 
 // Low level cpuid for X86.  Returns zeros on other CPUs.
+void CpuId(int cpu_info[4], int info_type) {
 #if !defined(__CLR_VER) && (defined(_M_IX86) || defined(_M_X64) || \
     defined(__i386__) || defined(__x86_64__))
-LIBYUV_API
-void CpuId(int cpu_info[4], int info_type) {
-  __cpuid(cpu_info, info_type);
-}
+    __cpuid(cpu_info, info_type);
 #else
-LIBYUV_API
-void CpuId(int cpu_info[4], int) {
-  cpu_info[0] = cpu_info[1] = cpu_info[2] = cpu_info[3] = 0;
-}
+    cpu_info[0] = cpu_info[1] = cpu_info[2] = cpu_info[3] = 0;
 #endif
-
-// X86 CPUs have xgetbv to detect OS saves high parts of ymm registers.
-#if !defined(__CLR_VER) && defined(_M_X64) && \
-    defined(_MSC_VER) && (_MSC_FULL_VER >= 160040219)
-#define HAS_XGETBV
-static uint32 XGetBV(unsigned int xcr) {
-  return static_cast<uint32>(_xgetbv(xcr));
 }
-#elif !defined(__CLR_VER) && defined(_M_IX86)
-#define HAS_XGETBV
-__declspec(naked) __declspec(align(16))
-static uint32 XGetBV(unsigned int xcr) {
-  __asm {
-    mov        ecx, [esp + 4]    // xcr
-    _asm _emit 0x0f _asm _emit 0x01 _asm _emit 0xd0  // xgetbv for vs2005.
-    ret
-  }
-}
-#elif defined(__i386__) || defined(__x86_64__)
-#define HAS_XGETBV
-static uint32 XGetBV(unsigned int xcr) {
-  uint32 xcr_feature_mask;
-  asm volatile (
-    ".byte 0x0f, 0x01, 0xd0\n"
-    : "=a"(xcr_feature_mask)
-    : "c"(xcr)
-    : "memory", "cc", "edx");  // edx unused.
-  return xcr_feature_mask;
-}
-#endif
-#ifdef HAS_XGETBV
-static const int kXCR_XFEATURE_ENABLED_MASK = 0;
-#endif
 
 // based on libvpx arm_cpudetect.c
 // For Arm, but public to allow testing on any CPU
-LIBYUV_API
 int ArmCpuCaps(const char* cpuinfo_name) {
   int flags = 0;
   FILE* fin = fopen(cpuinfo_name, "r");
@@ -121,11 +79,9 @@ int ArmCpuCaps(const char* cpuinfo_name) {
 }
 
 // CPU detect function for SIMD instruction sets.
-LIBYUV_API
 int cpu_info_ = 0;
 
-LIBYUV_API
-int InitCpuFlags(void) {
+int InitCpuFlags() {
 #if !defined(__CLR_VER) && defined(CPU_X86)
   int cpu_info[4];
   __cpuid(cpu_info, 1);
@@ -135,15 +91,6 @@ int InitCpuFlags(void) {
               ((cpu_info[2] & 0x00100000) ? kCpuHasSSE42 : 0) |
               (((cpu_info[2] & 0x18000000) == 0x18000000) ? kCpuHasAVX : 0) |
               kCpuInitialized | kCpuHasX86;
-#ifdef HAS_XGETBV
-  if (cpu_info_ & kCpuHasAVX) {
-    __cpuid(cpu_info, 7);
-    if ((cpu_info[1] & 0x00000020) &&
-        ((XGetBV(kXCR_XFEATURE_ENABLED_MASK) & 0x06) == 0x06)) {
-      cpu_info_ |= kCpuHasAVX2;
-    }
-  }
-#endif
 
   // environment variable overrides for testing.
   if (getenv("LIBYUV_DISABLE_X86")) {
@@ -164,9 +111,6 @@ int InitCpuFlags(void) {
   if (getenv("LIBYUV_DISABLE_AVX")) {
     cpu_info_ &= ~kCpuHasAVX;
   }
-  if (getenv("LIBYUV_DISABLE_AVX2")) {
-    cpu_info_ &= ~kCpuHasAVX2;
-  }
   if (getenv("LIBYUV_DISABLE_ASM")) {
     cpu_info_ = kCpuInitialized;
   }
@@ -185,7 +129,6 @@ int InitCpuFlags(void) {
   return cpu_info_;
 }
 
-LIBYUV_API
 void MaskCpuFlags(int enable_flags) {
   InitCpuFlags();
   cpu_info_ = (cpu_info_ & enable_flags) | kCpuInitialized;

@@ -992,7 +992,9 @@ nsContentIterator::PositionAt(nsINode* aCurNode)
   // fair bit.  It's better to use Clone() if possible.
 
   // we know the depth we're down (though we may not have started at the top).
-  oldParentStack.SetCapacity(mIndexes.Length() + 1);
+  if (!oldParentStack.SetCapacity(mIndexes.Length() + 1)) {
+    return NS_ERROR_FAILURE;
+  }
 
   // We want to loop mIndexes.Length() + 1 times here, because we want to make
   // sure we include mCommonParent in the oldParentStack, for use in the next
@@ -1144,11 +1146,12 @@ NS_IMPL_RELEASE_INHERITED(nsContentSubtreeIterator, nsContentIterator)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsContentSubtreeIterator)
 NS_INTERFACE_MAP_END_INHERITING(nsContentIterator)
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsContentSubtreeIterator)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsContentSubtreeIterator, nsContentIterator)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRange)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRange, nsIDOMRange)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsContentSubtreeIterator, nsContentIterator)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRange)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRange)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 

@@ -7,17 +7,18 @@
 "use strict";
 
 SimpleTest.waitForExplicitFinish();
-browserElementTestHelpers.setEnabledPref(true);
-browserElementTestHelpers.addPermission();
 
 function runTest() {
+  browserElementTestHelpers.setEnabledPref(true);
+  browserElementTestHelpers.addPermission();
+
   var principal = SpecialPowers.wrap(SpecialPowers.getNodePrincipal(document));
   SpecialPowers.addPermission("browser", true, { url: SpecialPowers.wrap(principal.URI).spec,
                                                  appId: principal.appId,
                                                  isInBrowserElement: true });
 
   var iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
 
   // We need remote = false here until bug 761935 is fixed; see
   // SetVisibleFrames.js for an explanation.
@@ -63,4 +64,4 @@ function finish() {
   SimpleTest.finish();
 }
 
-addEventListener('testready', runTest);
+runTest();

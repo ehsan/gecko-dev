@@ -16,6 +16,13 @@ interface nsIPrompt;
 interface nsISelection;
 interface nsIVariant;
 
+[scriptable, uuid(8fc58f56-f769-4368-a098-edd08550cf1a)]
+interface nsIDOMMozURLProperty : nsISupports
+{
+  DOMString createObjectURL(in nsIDOMBlob blob);
+  void revokeObjectURL(in DOMString URL);
+};
+
 /**
  * The nsIDOMWindow interface is the primary interface for a DOM
  * window object. It represents a single window object that may
@@ -25,7 +32,7 @@ interface nsIVariant;
  * @see <http://www.whatwg.org/html/#window>
  */
 
-[scriptable, uuid(39cb59d4-fba9-48a9-b70b-570a7ec2ebfa)]
+[scriptable, uuid(43933989-912e-4b6a-b889-3c9fc9dd9ed4)]
 interface nsIDOMWindow : nsISupports
 {
   // the current browsing context
@@ -218,8 +225,7 @@ interface nsIDOMWindow : nsISupports
    * @see <http://www.whatwg.org/html/#dom-window-postmessage>
    */
   [implicit_jscontext, binaryname(PostMessageMoz)]
-    void postMessage(in jsval message, in DOMString targetOrigin,
-                     [optional] in jsval transfer);
+    void postMessage(in jsval message, in DOMString targetOrigin);
 
 
   // WindowBase64
@@ -359,7 +365,7 @@ interface nsIDOMWindow : nsISupports
   [noscript] readonly attribute nsIPrompt               prompter;
 
   readonly attribute boolean                            closed;
-
+  // http://wiki.whatwg.org/wiki/Crypto
   readonly attribute nsIDOMCrypto                       crypto;
   readonly attribute nsIDOMPkcs11                       pkcs11;
 
@@ -459,6 +465,11 @@ interface nsIDOMWindow : nsISupports
   readonly attribute long long mozAnimationStartTime;
 
   /**
+   * @see <http://dev.w3.org/2006/webapi/FileAPI/#creating-revoking>
+   */
+  readonly attribute nsIDOMMozURLProperty URL;
+
+  /**
    * HTML5 event attributes that only apply to windows and <body>/<frameset>
    */
   [implicit_jscontext] attribute jsval onafterprint;
@@ -488,9 +499,13 @@ interface nsIDOMWindow : nsISupports
   [implicit_jscontext] attribute jsval ondeviceproximity;
   [implicit_jscontext] attribute jsval onuserproximity;
   [implicit_jscontext] attribute jsval ondevicelight;
+  [implicit_jscontext] attribute jsval onmoztimechange;
 
   [implicit_jscontext] attribute jsval onmouseenter;
   [implicit_jscontext] attribute jsval onmouseleave;
+
+  [implicit_jscontext] attribute jsval onmoznetworkupload;
+  [implicit_jscontext] attribute jsval onmoznetworkdownload;
 };
 
 [scriptable, uuid(2146c906-57f7-486c-a1b4-8cdb57ef577f)]
@@ -506,5 +521,5 @@ interface nsIDOMWindowPerformance : nsISupports
  * Empty interface for compatibility with older versions.
  * @deprecated Use nsIDOMWindow instead
  */
-[scriptable, uuid(a5cd0946-bac1-4606-9aaa-9e68dd0a3279)]
+[scriptable, uuid(8da641ab-906a-456e-97f2-b77df4ca2d95)]
 interface nsIDOMWindowInternal : nsIDOMWindow {};

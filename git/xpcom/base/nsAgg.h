@@ -88,16 +88,8 @@ public:                                                                     \
   {                                                                         \
     return p->InnerObject();                                                \
   }                                                                         \
-  static nsXPCOMCycleCollectionParticipant* GetParticipant()                   \
-  {                                                                            \
-    static const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>    \
-    ::Type participant = {                                                     \
-      NS_IMPL_CYCLE_COLLECTION_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(_class))   \
-    };                                                                         \
-    return NS_PARTICIPANT_AS(nsXPCOMCycleCollectionParticipant,                \
-                                    &participant);                             \
-  }                                                                            \
-};
+};                                                                          \
+NS_CYCLE_COLLECTION_PARTICIPANT_INSTANCE
 
 // Put this in your class's constructor:
 #define NS_INIT_AGGREGATED(outer)                                           \
@@ -115,7 +107,7 @@ NS_IMETHODIMP_(nsrefcnt)                                                    \
 _class::Internal::AddRef(void)                                              \
 {                                                                           \
     _class* agg = (_class*)((char*)(this) - offsetof(_class, fAggregated)); \
-    MOZ_ASSERT(int32_t(agg->mRefCnt) >= 0, "illegal refcnt");               \
+    NS_PRECONDITION(int32_t(agg->mRefCnt) >= 0, "illegal refcnt");          \
     NS_ASSERT_OWNINGTHREAD(_class);                                         \
     ++agg->mRefCnt;                                                         \
     NS_LOG_ADDREF(this, agg->mRefCnt, #_class, sizeof(*this));              \
@@ -126,7 +118,7 @@ NS_IMETHODIMP_(nsrefcnt)                                                    \
 _class::Internal::Release(void)                                             \
 {                                                                           \
     _class* agg = (_class*)((char*)(this) - offsetof(_class, fAggregated)); \
-    MOZ_ASSERT(int32_t(agg->mRefCnt) > 0, "dup release");                   \
+    NS_PRECONDITION(0 != agg->mRefCnt, "dup release");                      \
     NS_ASSERT_OWNINGTHREAD(_class);                                         \
     --agg->mRefCnt;                                                         \
     NS_LOG_RELEASE(this, agg->mRefCnt, #_class);                            \
@@ -146,7 +138,7 @@ NS_IMETHODIMP_(nsrefcnt)                                                    \
 _class::Internal::AddRef(void)                                              \
 {                                                                           \
     _class* agg = NS_CYCLE_COLLECTION_CLASSNAME(_class)::Downcast(this);    \
-    MOZ_ASSERT(int32_t(agg->mRefCnt) >= 0, "illegal refcnt");               \
+    NS_PRECONDITION(int32_t(agg->mRefCnt) >= 0, "illegal refcnt");          \
     NS_CheckThreadSafe(agg->_mOwningThread.GetThread(),                     \
                        #_class " not thread-safe");                         \
     nsrefcnt count = agg->mRefCnt.incr(this);                               \
@@ -158,7 +150,7 @@ NS_IMETHODIMP_(nsrefcnt)                                                    \
 _class::Internal::Release(void)                                             \
 {                                                                           \
     _class* agg = NS_CYCLE_COLLECTION_CLASSNAME(_class)::Downcast(this);    \
-    MOZ_ASSERT(int32_t(agg->mRefCnt) > 0, "dup release");                   \
+    NS_PRECONDITION(0 != agg->mRefCnt, "dup release");                      \
     NS_CheckThreadSafe(agg->_mOwningThread.GetThread(),                     \
                        #_class " not thread-safe");                         \
     nsrefcnt count = agg->mRefCnt.decr(this);                               \
@@ -282,8 +274,8 @@ _class::AggregatedQueryInterface(REFNSIID aIID, void** aInstancePtr)        \
                           void *p, nsCycleCollectionTraversalCallback &cb)  \
   {                                                                         \
     nsISupports *s = static_cast<nsISupports*>(p);                          \
-    MOZ_ASSERT(CheckForRightISupports(s),                                   \
-               "not the nsISupports pointer we expect");                    \
+    NS_ASSERTION(CheckForRightISupports(s),                                 \
+                 "not the nsISupports pointer we expect");                  \
     _class *tmp = static_cast<_class*>(Downcast(s));                        \
     if (!tmp->IsPartOfAggregated())                                         \
         NS_IMPL_CYCLE_COLLECTION_DESCRIBE(_class, tmp->mRefCnt.get())

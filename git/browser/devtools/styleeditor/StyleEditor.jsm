@@ -5,7 +5,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["StyleEditor", "StyleEditorFlags"];
+const EXPORTED_SYMBOLS = ["StyleEditor", "StyleEditorFlags", "StyleEditorManager"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -65,7 +65,7 @@ const TRANSITIONS_ENABLED = Services.prefs.getBoolPref(TRANSITIONS_PREF);
  * @see inputElement
  * @see StyleEditorChrome
  */
-this.StyleEditor = function StyleEditor(aDocument, aStyleSheet)
+function StyleEditor(aDocument, aStyleSheet)
 {
   assert(aDocument, "Argument 'aDocument' is required.");
 
@@ -122,44 +122,6 @@ StyleEditor.prototype = {
   },
 
   /**
-   * Recursively traverse imported stylesheets to find the index
-   *
-   * @param number aIndex
-   *        The index of the current sheet in the document.
-   * @param CSSStyleSheet aSheet
-   *        A stylesheet we're going to browse to look for all imported sheets.
-   */
-  _getImportedStyleSheetIndex: function SE__getImportedStyleSheetIndex(aIndex, aSheet)
-  {
-    let index = aIndex;
-    for (let j = 0; j < aSheet.cssRules.length; j++) {
-      let rule = aSheet.cssRules.item(j);
-      if (rule.type == Ci.nsIDOMCSSRule.IMPORT_RULE) {
-        // Associated styleSheet may be null if it has already been seen due to
-        // duplicate @imports for the same URL.
-        if (!rule.styleSheet) {
-          continue;
-        }
-
-        if (rule.styleSheet == this.styleSheet) {
-          this._styleSheetIndex = index;
-          return index;
-        }
-        index++;
-        index = this._getImportedStyleSheetIndex(index, rule.styleSheet);
-
-        if (this._styleSheetIndex != -1) {
-          return index;
-        }
-      } else if (rule.type != Ci.nsIDOMCSSRule.CHARSET_RULE) {
-        // @import rules must precede all others except @charset
-        return index;
-      }
-    }
-    return index;
-  },
-
-  /**
    * Retrieve the index (order) of stylesheet in the document.
    *
    * @return number
@@ -168,20 +130,11 @@ StyleEditor.prototype = {
   {
     let document = this.contentDocument;
     if (this._styleSheetIndex == -1) {
-      let index = 0;
-      let sheetIndex = 0;
-      while (sheetIndex <= document.styleSheets.length) {
-        let sheet = document.styleSheets[sheetIndex];
-        if (sheet == this.styleSheet) {
-          this._styleSheetIndex = index;
+      for (let i = 0; i < document.styleSheets.length; ++i) {
+        if (document.styleSheets[i] == this.styleSheet) {
+          this._styleSheetIndex = i;
           break;
         }
-        index++;
-        index = this._getImportedStyleSheetIndex(index, sheet);
-        if (this._styleSheetIndex != -1) {
-          break;
-        }
-        sheetIndex++;
       }
     }
     return this._styleSheetIndex;
@@ -345,7 +298,7 @@ StyleEditor.prototype = {
           }
           let source = NetUtil.readInputStreamToString(aStream, aStream.available());
           aStream.close();
-
+    
           this._appendNewStyleSheet(source);
           this.clearFlag(StyleEditorFlags.ERROR);
         }.bind(this));
@@ -707,7 +660,7 @@ StyleEditor.prototype = {
     // Use a ref count to make sure we do not add it multiple times.. and remove
     // it only when all pending StyleEditor-generated transitions ended.
     if (!this._transitionRefCount) {
-      this.styleSheet.insertRule(TRANSITION_RULE, this.styleSheet.cssRules.length);
+      this._styleSheet.insertRule(TRANSITION_RULE, 0);
       content.documentElement.classList.add(TRANSITION_CLASS);
     }
 
@@ -729,7 +682,7 @@ StyleEditor.prototype = {
   {
     if (--this._transitionRefCount == 0) {
       this.contentDocument.documentElement.classList.remove(TRANSITION_CLASS);
-      this.styleSheet.deleteRule(this.styleSheet.cssRules.length - 1);
+      this.styleSheet.deleteRule(0);
     }
 
     this._triggerAction("Commit");
@@ -856,8 +809,8 @@ StyleEditor.prototype = {
         }
       }
 
-      // step 3: charset attribute of <link> or <style> element, if it exists
-      if (sheet.ownerNode && sheet.ownerNode.getAttribute) {
+      if (sheet.ownerNode) {
+        // step 3: see <link charset="…">
         let linkCharset = sheet.ownerNode.getAttribute("charset");
         if (linkCharset != null) {
           return this._convertToUnicode(aString, linkCharset);
@@ -999,7 +952,7 @@ StyleEditor.prototype = {
   {
     let document = this.contentDocument;
     let parent = document.documentElement;
-    let style = document.createElementNS("http://www.w3.org/1999/xhtml", "style");
+    let style = document.createElement("style");
     style.setAttribute("type", "text/css");
     if (aText) {
       style.appendChild(document.createTextNode(aText));
@@ -1051,9 +1004,8 @@ StyleEditor.prototype = {
 
     // copy the list of listeners to allow adding/removing listeners in handlers
     let listeners = this._actionListeners.concat();
-
     // trigger all listeners that have this action handler
-    for (let i = 0; i < listeners.length; i++) {
+    for (let i = 0; i < listeners.length; ++i) {
       let listener = listeners[i];
       let actionHandler = listener["on" + aName];
       if (actionHandler) {
@@ -1168,7 +1120,6 @@ StyleEditor.prototype = {
       accel: true,
       callback: function save() {
         this.saveToFile(this._savedFile);
-        return true;
       }.bind(this)
     });
 
@@ -1179,7 +1130,6 @@ StyleEditor.prototype = {
       shift: true,
       callback: function saveAs() {
         this.saveToFile();
-        return true;
       }.bind(this)
     });
 
@@ -1193,7 +1143,7 @@ StyleEditor.prototype = {
  *
  * @see StyleEditor.setFlag
  */
-this.StyleEditorFlags = {
+let StyleEditorFlags = {
   DISABLED:      "disabled",
   ERROR:         "error",
   IMPORTED:      "imported",
@@ -1326,4 +1276,135 @@ function setupBracketCompletion(aSourceEditor)
     // and rewind caret
     aSourceEditor.setCaretOffset(aSourceEditor.getCaretOffset() - 1);
   }, false);
+}
+
+/**
+  * Manage the different editors instances.
+  */
+
+function StyleEditorManager(aWindow) {
+  this.chromeWindow = aWindow;
+  this.listenToTabs();
+  this.editors = new WeakMap();
+}
+
+StyleEditorManager.prototype = {
+
+  /**
+   * Get the editor for a specific content window.
+   */
+  getEditorForWindow: function SEM_getEditorForWindow(aContentWindow) {
+    return this.editors.get(aContentWindow);
+  },
+
+  /**
+   * Focus the editor and select a stylesheet.
+   *
+   * @param {CSSStyleSheet} [aSelectedStyleSheet] default Stylesheet.
+   * @param {Number} [aLine] Line to which the caret should be moved (one-indexed).
+   * @param {Number} [aCol] Column to which the caret should be moved (one-indexed).
+   */
+  selectEditor: function SEM_selectEditor(aWindow, aSelectedStyleSheet, aLine, aCol) {
+    if (aSelectedStyleSheet) {
+      aWindow.styleEditorChrome.selectStyleSheet(aSelectedStyleSheet, aLine, aCol);
+    }
+    aWindow.focus();
+  },
+
+  /**
+   * Open a new editor.
+   *
+   * @param {Window} content window.
+   * @param {Window} chrome window.
+   * @param {CSSStyleSheet} [aSelectedStyleSheet] default Stylesheet.
+   * @param {Number} [aLine] Line to which the caret should be moved (one-indexed).
+   * @param {Number} [aCol] Column to which the caret should be moved (one-indexed).
+   */
+  newEditor: function SEM_newEditor(aContentWindow, aChromeWindow, aSelectedStyleSheet, aLine, aCol) {
+    const CHROME_URL = "chrome://browser/content/styleeditor.xul";
+    const CHROME_WINDOW_FLAGS = "chrome,centerscreen,resizable,dialog=no";
+
+    let args = {
+      contentWindow: aContentWindow,
+      selectedStyleSheet: aSelectedStyleSheet,
+      line: aLine,
+      col: aCol
+    };
+    args.wrappedJSObject = args;
+    let chromeWindow = Services.ww.openWindow(aChromeWindow, CHROME_URL, "_blank",
+                                              CHROME_WINDOW_FLAGS, args);
+
+    chromeWindow.onunload = function() {
+      if (chromeWindow.location == CHROME_URL) {
+        // not about:blank being unloaded
+        this.unregisterEditor(aContentWindow);
+      }
+    }.bind(this);
+    chromeWindow.focus();
+
+    this.editors.set(aContentWindow, chromeWindow);
+
+    this.refreshCommand();
+
+    return chromeWindow;
+  },
+
+  /**
+   * Toggle an editor.
+   *
+   * @param {Window} associated content window.
+   */
+  toggleEditor: function SEM_toggleEditor(aContentWindow, aChromeWindow) {
+    let editor = this.getEditorForWindow(aContentWindow);
+    if (editor) {
+      editor.close();
+    } else {
+      this.newEditor(aContentWindow, aChromeWindow);
+    }
+  },
+
+  /**
+   * Close an editor.
+   *
+   * @param {Window} associated content window.
+   */
+  unregisterEditor: function SEM_unregisterEditor(aContentWindow) {
+    let chromeWindow = this.editors.get(aContentWindow);
+    if (chromeWindow) {
+      chromeWindow.close();
+    }
+    this.editors.delete(aContentWindow);
+    this.refreshCommand();
+  },
+
+  /**
+   * Update the status of tool's menuitems and buttons.
+   */
+  refreshCommand: function SEM_refreshCommand() {
+    let contentWindow = this.chromeWindow.gBrowser.contentWindow;
+    let command = this.chromeWindow.document.getElementById("Tools:StyleEditor");
+
+    let win = this.getEditorForWindow(contentWindow);
+    if (win) {
+      command.setAttribute("checked", "true");
+    } else {
+      command.setAttribute("checked", "false");
+    }
+  },
+
+  /**
+   * Trigger refreshCommand when needed.
+   */
+  listenToTabs: function SEM_listenToTabs() {
+    let win = this.chromeWindow;
+    let tabs = win.gBrowser.tabContainer;
+
+    let bound_refreshCommand = this.refreshCommand.bind(this);
+    tabs.addEventListener("TabSelect", bound_refreshCommand, true);
+
+    win.addEventListener("unload", function onClose(aEvent) {
+      tabs.removeEventListener("TabSelect", bound_refreshCommand, true);
+      win.removeEventListener("unload", onClose, false);
+    }, false);
+  },
 }

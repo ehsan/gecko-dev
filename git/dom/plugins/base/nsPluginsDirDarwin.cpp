@@ -380,15 +380,10 @@ static bool IsCompatibleArch(nsIFile *file)
         return false;
       }
 
-      uint32_t supportedArchitectures =
-#ifdef __LP64__
-          mozilla::ipc::GeckoChildProcessHost::GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);
-#else
-          base::GetCurrentProcessArchitecture();
-#endif
+      uint32_t containerArchitectures = mozilla::ipc::GeckoChildProcessHost::GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);
 
       // Consider the plugin architecture valid if there is any overlap in the masks.
-      isPluginFile = !!(supportedArchitectures & pluginLibArchitectures);
+      isPluginFile = !!(containerArchitectures & pluginLibArchitectures);
     }
     ::CFRelease(pluginBundle);
   }

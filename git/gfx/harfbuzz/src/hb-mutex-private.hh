@@ -42,7 +42,7 @@
 #if 0
 
 
-#elif !defined(HB_NO_MT) && (defined(_WIN32) || defined(__CYGWIN__))
+#elif !defined(HB_NO_MT) && defined(_MSC_VER) || defined(__MINGW32__)
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>

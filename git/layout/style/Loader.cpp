@@ -23,20 +23,25 @@
 #include "nsIUnicharStreamLoader.h"
 #include "nsSyncLoadService.h"
 #include "nsCOMPtr.h"
+#include "nsCOMArray.h"
 #include "nsString.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
+#include "nsIDOMWindow.h"
+#include "nsHashtable.h"
 #include "nsIURI.h"
+#include "nsIServiceManager.h"
 #include "nsNetUtil.h"
 #include "nsContentUtils.h"
+#include "nsCRT.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsContentPolicyUtils.h"
 #include "nsIHttpChannel.h"
-#include "nsIHttpChannelInternal.h"
 #include "nsIScriptError.h"
 #include "nsMimeTypes.h"
+#include "nsIAtom.h"
 #include "nsCSSStyleSheet.h"
 #include "nsIStyleSheetLinkingElement.h"
 #include "nsICSSLoaderObserver.h"
@@ -44,6 +49,7 @@
 #include "mozilla/css/ImportRule.h"
 #include "nsThreadUtils.h"
 #include "nsGkAtoms.h"
+#include "nsDocShellCID.h"
 #include "nsIThreadInternal.h"
 #include "nsCrossSiteListenerProxy.h"
 
@@ -53,16 +59,13 @@
 
 #include "nsIMediaList.h"
 #include "nsIDOMStyleSheet.h"
+#include "nsIDOMCSSStyleSheet.h"
 #include "nsError.h"
 
 #include "nsIChannelPolicy.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsCycleCollectionParticipant.h"
 
-#include "mozilla/dom/EncodingUtils.h"
-using mozilla::dom::EncodingUtils;
-
-using namespace mozilla::dom;
 
 /**
  * OVERALL ARCHITECTURE
@@ -248,26 +251,19 @@ private:
 #include "prlog.h"
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo *
-GetLoaderLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("nsCSSLoader");
-  return sLog;
-}
+static PRLogModuleInfo *gLoaderLog = PR_NewLogModule("nsCSSLoader");
 #endif /* PR_LOGGING */
 
-#define LOG_FORCE(args) PR_LOG(GetLoaderLog(), PR_LOG_ALWAYS, args)
-#define LOG_ERROR(args) PR_LOG(GetLoaderLog(), PR_LOG_ERROR, args)
-#define LOG_WARN(args) PR_LOG(GetLoaderLog(), PR_LOG_WARNING, args)
-#define LOG_DEBUG(args) PR_LOG(GetLoaderLog(), PR_LOG_DEBUG, args)
+#define LOG_FORCE(args) PR_LOG(gLoaderLog, PR_LOG_ALWAYS, args)
+#define LOG_ERROR(args) PR_LOG(gLoaderLog, PR_LOG_ERROR, args)
+#define LOG_WARN(args) PR_LOG(gLoaderLog, PR_LOG_WARNING, args)
+#define LOG_DEBUG(args) PR_LOG(gLoaderLog, PR_LOG_DEBUG, args)
 #define LOG(args) LOG_DEBUG(args)
 
-#define LOG_FORCE_ENABLED() PR_LOG_TEST(GetLoaderLog(), PR_LOG_ALWAYS)
-#define LOG_ERROR_ENABLED() PR_LOG_TEST(GetLoaderLog(), PR_LOG_ERROR)
-#define LOG_WARN_ENABLED() PR_LOG_TEST(GetLoaderLog(), PR_LOG_WARNING)
-#define LOG_DEBUG_ENABLED() PR_LOG_TEST(GetLoaderLog(), PR_LOG_DEBUG)
+#define LOG_FORCE_ENABLED() PR_LOG_TEST(gLoaderLog, PR_LOG_ALWAYS)
+#define LOG_ERROR_ENABLED() PR_LOG_TEST(gLoaderLog, PR_LOG_ERROR)
+#define LOG_WARN_ENABLED() PR_LOG_TEST(gLoaderLog, PR_LOG_WARNING)
+#define LOG_DEBUG_ENABLED() PR_LOG_TEST(gLoaderLog, PR_LOG_DEBUG)
 #define LOG_ENABLED() LOG_DEBUG_ENABLED()
 
 #ifdef PR_LOGGING
@@ -607,36 +603,89 @@ Loader::SetPreferredSheet(const nsAString& aTitle)
 
 static const char kCharsetSym[] = "@charset \"";
 
-static bool GetCharsetFromData(const char* aStyleSheetData,
-                               uint32_t aDataLength,
-                               nsACString& aCharset)
+static nsresult GetCharsetFromData(const unsigned char* aStyleSheetData,
+                                   uint32_t aDataLength,
+                                   nsACString& aCharset)
 {
   aCharset.Truncate();
   if (aDataLength <= sizeof(kCharsetSym) - 1)
-    return false;
-
-  if (strncmp(aStyleSheetData,
-              kCharsetSym,
-              sizeof(kCharsetSym) - 1)) {
-    return false;
+    return NS_ERROR_NOT_AVAILABLE;
+  uint32_t step = 1;
+  uint32_t pos = 0;
+  bool bigEndian = false;
+  // Determine the encoding type.  If we have a BOM, set aCharset to the
+  // charset listed for that BOM in http://www.w3.org/TR/REC-xml#sec-guessing;
+  // that way even if we don't have a valid @charset rule we can use the BOM to
+  // get a reasonable charset.  If we do have an @charset rule, the string from
+  // that will override this fallback setting of aCharset.
+  if (*aStyleSheetData == 0x40 && *(aStyleSheetData+1) == 0x63 /* '@c' */ ) {
+    // 1-byte ASCII-based encoding (ISO-8859-*, UTF-8, etc), no BOM
+    step = 1;
+    pos = 0;
+  }
+  else if (nsContentUtils::CheckForBOM(aStyleSheetData,
+                                       aDataLength, aCharset, &bigEndian)) {
+    if (aCharset.Equals("UTF-8")) {
+      step = 1;
+      pos = 3;
+    }
+    else if (aCharset.Equals("UTF-16")) {
+      step = 2;
+      pos = bigEndian ? 3 : 2;
+    }
+  }
+  else if (aStyleSheetData[0] == 0x00 &&
+           aStyleSheetData[1] == 0x40 &&
+           aStyleSheetData[2] == 0x00 &&
+           aStyleSheetData[3] == 0x63) {
+    // 2-byte big-endian encoding, no BOM
+    step = 2;
+    pos = 1;
+  }
+  else if (aStyleSheetData[0] == 0x40 &&
+           aStyleSheetData[1] == 0x00 &&
+           aStyleSheetData[2] == 0x63 &&
+           aStyleSheetData[3] == 0x00) {
+    // 2-byte little-endian encoding, no BOM
+    step = 2;
+    pos = 0;
+  }
+  else {
+    // no clue what this is
+    return NS_ERROR_UNEXPECTED;
   }
 
-  for (uint32_t i = sizeof(kCharsetSym) - 1; i < aDataLength; ++i) {
-    char c = aStyleSheetData[i];
-    if (c == '"') {
-      ++i;
-      if (i < aDataLength && aStyleSheetData[i] == ';') {
-        return true;
-      }
-      // fail
+  uint32_t index = 0;
+  while (pos < aDataLength && index < sizeof(kCharsetSym) - 1) {
+    if (aStyleSheetData[pos] != kCharsetSym[index]) {
+      // If we have a guess as to the charset based on the BOM, then
+      // we can just return NS_OK even if there is no valid @charset
+      // rule.
+      return aCharset.IsEmpty() ? NS_ERROR_NOT_AVAILABLE : NS_OK;
+    }
+    ++index;
+    pos += step;
+  }
+
+  nsAutoCString charset;
+  while (pos < aDataLength) {
+    if (aStyleSheetData[pos] == '"') {
       break;
     }
-    aCharset.Append(c);
+
+    // casting to avoid ambiguities
+    charset.Append(char(aStyleSheetData[pos]));
+    pos += step;
   }
 
-  // Did not see end quote or semicolon
-  aCharset.Truncate();
-  return false;
+  // Check for the ending ';'
+  pos += step;
+  if (pos >= aDataLength || aStyleSheetData[pos] != ';') {
+    return aCharset.IsEmpty() ? NS_ERROR_NOT_AVAILABLE : NS_OK;
+  }
+
+  aCharset = charset;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -649,123 +698,93 @@ SheetLoadData::OnDetermineCharset(nsIUnicharStreamLoader* aLoader,
                   "Can't have element _and_ charset hint");
 
   LOG_URI("SheetLoadData::OnDetermineCharset for '%s'", mURI);
-
-  // The precedence is (per CSS3 Syntax 2012-11-08 ED):
-  // BOM
-  // Channel
-  // @charset rule
-  // charset attribute on the referrer
-  // encoding of the referrer
-  // UTF-8
+  nsCOMPtr<nsIChannel> channel;
+  nsresult result = aLoader->GetChannel(getter_AddRefs(channel));
+  if (NS_FAILED(result))
+    channel = nullptr;
 
   aCharset.Truncate();
 
-  if (nsContentUtils::CheckForBOM((const unsigned char*)aSegment.BeginReading(),
-                                  aSegment.Length(),
-                                  aCharset)) {
-    // aCharset is now either "UTF-16" or "UTF-8".
-    // The UTF-16 decoder will re-sniff and swallow the BOM.
-    // The UTF-8 decoder will swallow the BOM.
-    mCharset.Assign(aCharset);
-#ifdef PR_LOGGING
-    LOG(("  Setting from BOM to: %s", PromiseFlatCString(aCharset).get()));
-#endif
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIChannel> channel;
-  nsAutoCString specified;
-  aLoader->GetChannel(getter_AddRefs(channel));
+  /*
+   * First determine the charset (if one is indicated)
+   * 1)  Check nsIChannel::contentCharset
+   * 2)  Check @charset rules in the data
+   * 3)  Check "charset" attribute of the <LINK> or <?xml-stylesheet?>
+   *
+   * If all these fail to give us a charset, fall back on our default
+   * (parent sheet charset, document charset or ISO-8859-1 in that order)
+   */
   if (channel) {
-    channel->GetContentCharset(specified);
-    if (EncodingUtils::FindEncodingForLabel(specified, aCharset)) {
-      mCharset.Assign(aCharset);
-#ifdef PR_LOGGING
-      LOG(("  Setting from HTTP to: %s", PromiseFlatCString(aCharset).get()));
-#endif
-      return NS_OK;
-    }
+    channel->GetContentCharset(aCharset);
   }
 
-  if (GetCharsetFromData(aSegment.BeginReading(),
-                         aSegment.Length(),
-                         specified)) {
-    if (EncodingUtils::FindEncodingForLabel(specified, aCharset)) {
-      // FindEncodingForLabel currently never returns UTF-16LE but will
-      // probably change to never return UTF-16 instead, so check both here
-      // to avoid relying on the exact behavior.
-      if (aCharset.EqualsLiteral("UTF-16") ||
-          aCharset.EqualsLiteral("UTF-16BE") ||
-          aCharset.EqualsLiteral("UTF-16LE")) {
-        // Be consistent with HTML <meta> handling in face of impossibility.
-        // When the @charset rule itself evidently was not UTF-16-encoded,
-        // it saying UTF-16 has to be a lie.
-        aCharset.AssignLiteral("UTF-8");
+  result = NS_ERROR_NOT_AVAILABLE;
+
+#ifdef PR_LOGGING
+  if (! aCharset.IsEmpty()) {
+    LOG(("  Setting from HTTP to: %s", PromiseFlatCString(aCharset).get()));
+  }
+#endif
+
+  if (aCharset.IsEmpty()) {
+    //  We have no charset
+    //  Try @charset rule and BOM
+    result = GetCharsetFromData((const unsigned char*)aSegment.BeginReading(),
+                                aSegment.Length(), aCharset);
+#ifdef PR_LOGGING
+    if (NS_SUCCEEDED(result)) {
+      LOG(("  Setting from @charset rule or BOM: %s",
+           PromiseFlatCString(aCharset).get()));
+    }
+#endif
+  }
+
+  if (aCharset.IsEmpty()) {
+    // Now try the charset on the <link> or processing instruction
+    // that loaded us
+    if (mOwningElement) {
+      nsAutoString elementCharset;
+      mOwningElement->GetCharset(elementCharset);
+      LossyCopyUTF16toASCII(elementCharset, aCharset);
+#ifdef PR_LOGGING
+      if (! aCharset.IsEmpty()) {
+        LOG(("  Setting from property on element: %s",
+             PromiseFlatCString(aCharset).get()));
       }
-      mCharset.Assign(aCharset);
-#ifdef PR_LOGGING
-      LOG(("  Setting from @charset rule to: %s",
-          PromiseFlatCString(aCharset).get()));
 #endif
-      return NS_OK;
+    } else {
+      // If mCharsetHint is empty, that's ok; aCharset is known empty here
+      aCharset = mCharsetHint;
     }
   }
 
-  // Now try the charset on the <link> or processing instruction
-  // that loaded us
-  if (mOwningElement) {
-    nsAutoString specified16;
-    mOwningElement->GetCharset(specified16);
-    if (EncodingUtils::FindEncodingForLabel(specified16, aCharset)) {
-      mCharset.Assign(aCharset);
-#ifdef PR_LOGGING
-      LOG(("  Setting from charset attribute to: %s",
-          PromiseFlatCString(aCharset).get()));
-#endif
-      return NS_OK;
-    }
-  }
-
-  // In the preload case, the value of the charset attribute on <link> comes
-  // in via mCharsetHint instead.
-  if (EncodingUtils::FindEncodingForLabel(mCharsetHint, aCharset)) {
-    mCharset.Assign(aCharset);
-#ifdef PR_LOGGING
-      LOG(("  Setting from charset attribute (preload case) to: %s",
-          PromiseFlatCString(aCharset).get()));
-#endif
-    return NS_OK;
-  }
-
-  // Try charset from the parent stylesheet.
-  if (mParentData) {
+  if (aCharset.IsEmpty() && mParentData) {
     aCharset = mParentData->mCharset;
-    if (!aCharset.IsEmpty()) {
-      mCharset.Assign(aCharset);
 #ifdef PR_LOGGING
-      LOG(("  Setting from parent sheet to: %s",
-          PromiseFlatCString(aCharset).get()));
-#endif
-      return NS_OK;
+    if (! aCharset.IsEmpty()) {
+      LOG(("  Setting from parent sheet: %s",
+           PromiseFlatCString(aCharset).get()));
     }
+#endif
   }
 
-  if (mLoader->mDocument) {
+  if (aCharset.IsEmpty() && mLoader->mDocument) {
     // no useful data on charset.  Try the document charset.
     aCharset = mLoader->mDocument->GetDocumentCharacterSet();
-    MOZ_ASSERT(!aCharset.IsEmpty());
-    mCharset.Assign(aCharset);
 #ifdef PR_LOGGING
-    LOG(("  Setting from document to: %s", PromiseFlatCString(aCharset).get()));
+    LOG(("  Set from document: %s", PromiseFlatCString(aCharset).get()));
 #endif
-    return NS_OK;
   }
 
-  aCharset.AssignLiteral("UTF-8");
-  mCharset = aCharset;
+  if (aCharset.IsEmpty()) {
+    NS_WARNING("Unable to determine charset for sheet, using ISO-8859-1!");
 #ifdef PR_LOGGING
-  LOG(("  Setting from default to: %s", PromiseFlatCString(aCharset).get()));
+    LOG_WARN(("  Falling back to ISO-8859-1"));
 #endif
+    aCharset.AssignLiteral("ISO-8859-1");
+  }
+
+  mCharset = aCharset;
   return NS_OK;
 }
 
@@ -1130,7 +1149,7 @@ Loader::CreateSheet(nsIURI* aURI,
       // Then alternate sheets
       if (!sheet) {
         aSheetState = eSheetPending;
-        loadData = nullptr;
+        SheetLoadData* loadData = nullptr;
         mPendingDatas.Get(&key, &loadData);
         if (loadData) {
           sheet = loadData->mSheet;
@@ -1200,7 +1219,6 @@ Loader::PrepareSheet(nsCSSStyleSheet* aSheet,
                      const nsSubstring& aTitle,
                      const nsSubstring& aMediaString,
                      nsMediaList* aMediaList,
-                     Element* aScopeElement,
                      bool isAlternate)
 {
   NS_PRECONDITION(aSheet, "Must have a sheet!");
@@ -1227,7 +1245,6 @@ Loader::PrepareSheet(nsCSSStyleSheet* aSheet,
 
   aSheet->SetTitle(aTitle);
   aSheet->SetEnabled(! isAlternate);
-  aSheet->SetScopeElement(aScopeElement);
   return NS_OK;
 }
 
@@ -1498,11 +1515,6 @@ Loader::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
     SheetComplete(aLoadData, rv);
     return rv;
   }
-
-  nsCOMPtr<nsIHttpChannelInternal>
-    internalHttpChannel(do_QueryInterface(channel));
-  if (internalHttpChannel)
-      internalHttpChannel->SetLoadAsBlocking(!aLoadData->mWasAlternate);
 
   nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(channel));
   if (httpChannel) {
@@ -1790,7 +1802,6 @@ Loader::LoadInlineStyle(nsIContent* aElement,
                         uint32_t aLineNumber,
                         const nsAString& aTitle,
                         const nsAString& aMedia,
-                        Element* aScopeElement,
                         nsICSSLoaderObserver* aObserver,
                         bool* aCompleted,
                         bool* aIsAlternate)
@@ -1823,8 +1834,7 @@ Loader::LoadInlineStyle(nsIContent* aElement,
 
   LOG(("  Sheet is alternate: %d", *aIsAlternate));
 
-  rv = PrepareSheet(sheet, aTitle, aMedia, nullptr, aScopeElement,
-                    *aIsAlternate);
+  rv = PrepareSheet(sheet, aTitle, aMedia, nullptr, *aIsAlternate);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = InsertSheetInDoc(sheet, aElement, mDocument);
@@ -1897,7 +1907,7 @@ Loader::LoadStyleLink(nsIContent* aElement,
 
   LOG(("  Sheet is alternate: %d", *aIsAlternate));
 
-  rv = PrepareSheet(sheet, aTitle, aMedia, nullptr, nullptr, *aIsAlternate);
+  rv = PrepareSheet(sheet, aTitle, aMedia, nullptr, *aIsAlternate);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = InsertSheetInDoc(sheet, aElement, mDocument);
@@ -2055,7 +2065,7 @@ Loader::LoadChildSheet(nsCSSStyleSheet* aParentSheet,
                    false, empty, state, &isAlternate, getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = PrepareSheet(sheet, empty, empty, aMedia, nullptr, isAlternate);
+  rv = PrepareSheet(sheet, empty, empty, aMedia, isAlternate);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = InsertChildSheet(sheet, aParentSheet, aParentRule);
@@ -2166,7 +2176,7 @@ Loader::InternalLoadNonDocumentSheet(nsIURI* aURL,
                    empty, state, &isAlternate, getter_AddRefs(sheet));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = PrepareSheet(sheet, empty, empty, nullptr, nullptr, isAlternate);
+  rv = PrepareSheet(sheet, empty, empty, nullptr, isAlternate);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (state == eSheetComplete) {
@@ -2424,7 +2434,7 @@ CountSheetMemory(URIPrincipalAndCORSModeHashKey* /* unused */,
   // have to worry about it here.
   // Likewise, if aSheet has an owning node, then the document that
   // node is in will report it.
-  if (aSheet->GetOwnerNode() || aSheet->GetParentSheet()) {
+  if (aSheet->GetOwningNode() || aSheet->GetParentSheet()) {
     return 0;
   }
   return aSheet->SizeOfIncludingThis(aMallocSizeOf);

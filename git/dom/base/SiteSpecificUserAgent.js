@@ -16,7 +16,7 @@ const DEFAULT_UA = Cc["@mozilla.org/network/protocol;1?name=http"]
 function SiteSpecificUserAgent() {}
 
 SiteSpecificUserAgent.prototype = {
-  getUserAgentForURIAndWindow: function ssua_getUserAgentForURIAndWindow(aURI, aWindow) {
+  getUserAgentForURI: function ssua_getUserAgentForURI(aURI) {
     return UserAgentOverrides.getOverrideForURI(aURI) || DEFAULT_UA;
   },
 
@@ -24,4 +24,4 @@ SiteSpecificUserAgent.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISiteSpecificUserAgent])
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SiteSpecificUserAgent]);
+let NSGetFactory = XPCOMUtils.generateNSGetFactory([SiteSpecificUserAgent]);

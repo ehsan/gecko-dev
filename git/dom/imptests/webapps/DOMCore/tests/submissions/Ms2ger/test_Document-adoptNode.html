@@ -1,9 +1,11 @@
 <!doctype html>
-<meta charset=utf-8>
+<html>
+<head>
 <title>Document.adoptNode</title>
-<link rel=help href="http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#dom-document-adoptnode">
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
+</head>
+<body>
 <div id="log"></div>
 <!--creates an element with local name "x<": --><x<>x</x<>
 <script>
@@ -11,19 +13,19 @@ test(function() {
   var y = document.getElementsByTagName("x<")[0]
   assert_equals(y.parentNode, document.body)
   assert_equals(y.ownerDocument, document)
-  assert_equals(document.adoptNode(y), y)
+  document.adoptNode(y)
   assert_equals(y.parentNode, null)
   assert_equals(y.ownerDocument, document)
   var doc = document.implementation.createDocument(null, null, null)
-  assert_equals(doc.adoptNode(y), y)
+  doc.adoptNode(y)
   assert_equals(y.parentNode, null)
   assert_equals(y.ownerDocument, doc)
 }, "Adopting an Element called 'x<' should work.")
 test(function() {
   var x = document.createElement(":good:times:")
-  assert_equals(document.adoptNode(x), x);
+  document.adoptNode(x)
   var doc = document.implementation.createDocument(null, null, null)
-  assert_equals(doc.adoptNode(x), x)
+  doc.adoptNode(x)
   assert_equals(x.parentNode, null)
   assert_equals(x.ownerDocument, doc)
 }, "Adopting an Element called ':good:times:' should work.")
@@ -31,7 +33,7 @@ test(function() {
   var doctype = document.doctype;
   assert_equals(doctype.parentNode, document)
   assert_equals(doctype.ownerDocument, document)
-  assert_equals(document.adoptNode(doctype), doctype)
+  document.adoptNode(doctype)
   assert_equals(doctype.parentNode, null)
   assert_equals(doctype.ownerDocument, document)
 }, "Explicitly adopting a DocumentType should work.")

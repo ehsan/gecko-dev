@@ -8,9 +8,6 @@ srcdir    = @srcdir@
 VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
-
-STANDALONE_MAKEFILE := 1
-
 include $(topsrcdir)/config/rules.mk
 
 MOZ_PKG_REMOVALS = $(srcdir)/removed-files.in
@@ -23,7 +20,7 @@ MOZ_NONLOCALIZED_PKG_LIST = \
 	b2g \
 	$(NULL)
 
-MOZ_LOCALIZED_PKG_LIST = $(AB_CD) multilocale
+MOZ_LOCALIZED_PKG_LIST = $(AB_CD)
 
 DEFINES += \
 	-DAB_CD=$(AB_CD) \
@@ -31,15 +28,15 @@ DEFINES += \
 	-DPREF_DIR=$(PREF_DIR) \
 	$(NULL)
 
-DEFINES += -DJAREXT=
+ifeq ($(MOZ_CHROME_FILE_FORMAT),jar)
+JAREXT=.jar
+else
+JAREXT=
+endif
+DEFINES += -DJAREXT=$(JAREXT)
 
 include $(topsrcdir)/ipc/app/defs.mk
 DEFINES += -DMOZ_CHILD_PROCESS_NAME=$(MOZ_CHILD_PROCESS_NAME)
-
-# Set MSVC dlls version to package, if any.
-ifdef WIN32_REDIST_DIR
-DEFINES += -DMOZ_MSVC_REDIST=$(_MSC_VER)
-endif
 
 ifdef ENABLE_MARIONETTE
 DEFINES += -DENABLE_MARIONETTE=1
@@ -49,7 +46,7 @@ ifdef MOZ_PKG_MANIFEST_P
 MOZ_PKG_MANIFEST = package-manifest
 endif
 
-MOZ_PACKAGER_MINIFY=1
+MOZ_POST_STAGING_CMD = find chrome -type f -name *.properties -exec sed -i '/^\#/d' {} \;
 
 include $(topsrcdir)/toolkit/mozapps/installer/packager.mk
 
@@ -69,14 +66,6 @@ endif
 ifdef MOZ_PKG_MANIFEST_P
 $(MOZ_PKG_MANIFEST): $(MOZ_PKG_MANIFEST_P) FORCE
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $< > $@
-ifdef MOZ_CHROME_MULTILOCALE
-	printf "\n[multilocale]\n" >> $@
-	for LOCALE in $(MOZ_CHROME_MULTILOCALE) ;\
-	do \
-	  printf "$(BINPATH)/chrome/$$LOCALE$(JAREXT)\n" >> $@; \
-	  printf "$(BINPATH)/chrome/$$LOCALE.manifest\n" >> $@; \
-	done
-endif
 
 GARBAGE += $(MOZ_PKG_MANIFEST)
 endif

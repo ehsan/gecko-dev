@@ -51,6 +51,3 @@ _OPT\.OBJ/
 ^python/psutil/.*\.so
 ^python/psutil/.*\.pyd
 ^python/psutil/build/
-
-# Git repositories
-.git/

@@ -90,7 +90,7 @@ pm_canMeasureSomething(JSContext* cx, unsigned /*unused*/, jsval* vp)
     return JS_TRUE;
 }
 
-const uint8_t PM_FATTRS = JSPROP_READONLY | JSPROP_PERMANENT;
+const uint8_t PM_FATTRS = JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_SHARED;
 static JSFunctionSpec pm_fns[] = {
     JS_FN("start",               pm_start,               0, PM_FATTRS),
     JS_FN("stop",                pm_stop,                0, PM_FATTRS),
@@ -169,7 +169,7 @@ pm_construct(JSContext* cx, unsigned argc, jsval* vp)
     if (!JS_ConvertArguments(cx, argc, JS_ARGV(cx, vp), "u", &mask))
         return JS_FALSE;
 
-    JS::RootedObject obj(cx, JS_NewObjectForConstructor(cx, &pm_class, vp));
+    js::RootedObject obj(cx, JS_NewObjectForConstructor(cx, &pm_class, vp));
     if (!obj)
         return JS_FALSE;
 
@@ -225,14 +225,14 @@ namespace JS {
 JSObject*
 RegisterPerfMeasurement(JSContext *cx, JSRawObject global)
 {
-    RootedObject prototype(cx);
+    js::RootedObject prototype(cx);
     prototype = JS_InitClass(cx, global, NULL /* parent */,
                              &pm_class, pm_construct, 1,
                              pm_props, pm_fns, 0, 0);
     if (!prototype)
         return 0;
 
-    RootedObject ctor(cx);
+    js::RootedObject ctor(cx);
     ctor = JS_GetConstructor(cx, prototype);
     if (!ctor)
         return 0;

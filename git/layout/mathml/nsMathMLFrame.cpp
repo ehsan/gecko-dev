@@ -13,8 +13,6 @@
 #include "nsAutoPtr.h"
 #include "nsDisplayList.h"
 #include "nsRenderingContext.h"
-#include "nsContentUtils.h"
-#include "nsIScriptError.h"
 
 eMathMLFrameType
 nsMathMLFrame::GetMathMLFrameType()
@@ -223,7 +221,7 @@ nsMathMLFrame::GetPresentationDataFrom(nsIFrame*           aFrame,
       break;
 
     if (content->Tag() == nsGkAtoms::math) {
-      const nsStyleDisplay* display = frame->StyleDisplay();
+      const nsStyleDisplay* display = frame->GetStyleDisplay();
       if (display->mDisplay == NS_STYLE_DISPLAY_BLOCK) {
         aPresentationData.flags |= NS_MATHML_DISPLAYSTYLE;
       }
@@ -332,7 +330,7 @@ nsMathMLFrame::CalcLength(nsPresContext*   aPresContext,
   nsCSSUnit unit = aCSSValue.GetUnit();
 
   if (eCSSUnit_EM == unit) {
-    const nsStyleFont* font = aStyleContext->StyleFont();
+    const nsStyleFont* font = aStyleContext->GetStyleFont();
     return NSToCoordRound(aCSSValue.GetFloatValue() * (float)font->mFont.size);
   }
   else if (eCSSUnit_XHeight == unit) {
@@ -357,8 +355,7 @@ nsMathMLFrame::ParseNumericValue(const nsString&   aString,
 {
   nsCSSValue cssValue;
 
-  if (!nsMathMLElement::ParseNumericValue(aString, cssValue, aFlags,
-                                          aPresContext->Document())) {
+  if (!nsMathMLElement::ParseNumericValue(aString, cssValue, aFlags)) {
     // Invalid attribute value. aLengthValue remains unchanged, so the default
     // length value is used.
     return;
@@ -467,13 +464,13 @@ void nsDisplayMathMLBar::Paint(nsDisplayListBuilder* aBuilder,
   aCtx->FillRect(mRect + ToReferenceFrame());
 }
 
-void
+nsresult
 nsMathMLFrame::DisplayBar(nsDisplayListBuilder* aBuilder,
                           nsIFrame* aFrame, const nsRect& aRect,
                           const nsDisplayListSet& aLists) {
-  if (!aFrame->StyleVisibility()->IsVisible() || aRect.IsEmpty())
-    return;
+  if (!aFrame->GetStyleVisibility()->IsVisible() || aRect.IsEmpty())
+    return NS_OK;
 
-  aLists.Content()->AppendNewToTop(new (aBuilder)
-    nsDisplayMathMLBar(aBuilder, aFrame, aRect));
+  return aLists.Content()->AppendNewToTop(new (aBuilder)
+      nsDisplayMathMLBar(aBuilder, aFrame, aRect));
 }

@@ -6,7 +6,7 @@
 
 #include "VideoFrameContainer.h"
 
-#include "mozilla/dom/HTMLMediaElement.h"
+#include "nsHTMLMediaElement.h"
 #include "nsIFrame.h"
 #include "nsDisplayList.h"
 #include "nsSVGEffects.h"
@@ -16,7 +16,7 @@ using namespace mozilla::layers;
 
 namespace mozilla {
 
-VideoFrameContainer::VideoFrameContainer(dom::HTMLMediaElement* aElement,
+VideoFrameContainer::VideoFrameContainer(nsHTMLMediaElement* aElement,
                                          already_AddRefed<ImageContainer> aContainer)
   : mElement(aElement),
     mImageContainer(aContainer), mMutex("nsVideoFrameContainer"),
@@ -61,23 +61,12 @@ void VideoFrameContainer::SetCurrentFrame(const gfxIntSize& aIntrinsicSize,
   gfxIntSize newFrameSize = mImageContainer->GetCurrentSize();
   if (oldFrameSize != newFrameSize) {
     mImageSizeChanged = true;
-    mNeedInvalidation = true;
   }
 
   mPaintTarget = aTargetTime;
 }
 
-void VideoFrameContainer::Reset()
-{
-  ClearCurrentFrame(true);
-  Invalidate();
-  mIntrinsicSize = gfxIntSize(-1, -1);
-  mPaintDelay = mozilla::TimeDuration();
-  mPaintTarget = mozilla::TimeStamp();
-  mImageContainer->ResetPaintCount();
-}
-
-void VideoFrameContainer::ClearCurrentFrame(bool aResetSize)
+void VideoFrameContainer::ClearCurrentFrame()
 {
   MutexAutoLock lock(mMutex);
 
@@ -88,7 +77,6 @@ void VideoFrameContainer::ClearCurrentFrame(bool aResetSize)
   mImageContainer->UnlockCurrentImage();
 
   mImageContainer->SetCurrentImage(nullptr);
-  mImageSizeChanged = aResetSize;
 
   // We removed the current image so we will have to invalidate once
   // again to setup the ImageContainer <-> Compositor pair.
@@ -116,8 +104,7 @@ void VideoFrameContainer::Invalidate()
 
   if (mImageContainer &&
       mImageContainer->IsAsync() &&
-      mImageContainer->HasCurrentImage() &&
-      !mIntrinsicSizeChanged) {
+      mImageContainer->HasCurrentImage()) {
     mNeedInvalidation = false;
   }
 

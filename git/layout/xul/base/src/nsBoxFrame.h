@@ -83,9 +83,9 @@ public:
 
   // ----- public methods -------
   
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        asPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD  Init(nsIContent*      aContent,
+                   nsIFrame*        aParent,
+                   nsIFrame*        asPrevInFlow) MOZ_OVERRIDE;
 
  
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
@@ -153,13 +153,13 @@ public:
 
   // virtual so nsStackFrame, nsButtonBoxFrame, nsSliderFrame and nsMenuFrame
   // can override it
-  virtual void BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
-                                           const nsRect&           aDirtyRect,
-                                           const nsDisplayListSet& aLists);
+  NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
+                                         const nsRect&           aDirtyRect,
+                                         const nsDisplayListSet& aLists);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
   
 #ifdef DEBUG_LAYOUT
     virtual void SetDebugOnChildList(nsBoxLayoutState& aState, nsIFrame* aChild, bool aDebug);
@@ -174,9 +174,9 @@ public:
    * Supports 'allowevents' attribute on descendant elements to allow those
    * elements and their descendants to receive events.
    */
-  void WrapListsInRedirector(nsDisplayListBuilder*   aBuilder,
-                             const nsDisplayListSet& aIn,
-                             const nsDisplayListSet& aOut);
+  nsresult WrapListsInRedirector(nsDisplayListBuilder*   aBuilder,
+                                 const nsDisplayListSet& aIn,
+                                 const nsDisplayListSet& aOut);
 
   /**
    * This defaults to true, but some box frames (nsListBoxBodyFrame for
@@ -218,9 +218,9 @@ protected:
     bool GetEventPoint(nsGUIEvent *aEvent, nsIntPoint &aPoint);
 
 protected:
-    void RegUnregAccessKey(bool aDoReg);
+    nsresult RegUnregAccessKey(bool aDoReg);
 
-  NS_HIDDEN_(void) CheckBoxOrder();
+  NS_HIDDEN_(void) CheckBoxOrder(nsBoxLayoutState& aState);
 
 private: 
 

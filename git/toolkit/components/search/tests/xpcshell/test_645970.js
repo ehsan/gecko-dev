@@ -8,7 +8,7 @@
  * Test nsSearchService with nested jar: uris, without async initialization
  */
 function run_test() {
-  updateAppInfo();
+  createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "2");
 
   do_load_manifest("data/chrome.manifest");
 

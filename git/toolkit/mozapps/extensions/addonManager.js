@@ -94,7 +94,7 @@ amManager.prototype = {
         return;
       }
       let uri = aUris.shift();
-      AddonManager.getInstallForURL(uri, function buildNextInstall_getInstallForURL(aInstall) {
+      AddonManager.getInstallForURL(uri, function(aInstall) {
         function callCallback(aUri, aStatus) {
           try {
             aCallback.onInstallEnded(aUri, aStatus);
@@ -108,22 +108,22 @@ amManager.prototype = {
           installs.push(aInstall);
           if (aCallback) {
             aInstall.addListener({
-              onDownloadCancelled: function buildNextInstall_onDownloadCancelled(aInstall) {
+              onDownloadCancelled: function(aInstall) {
                 callCallback(uri, USER_CANCELLED);
               },
 
-              onDownloadFailed: function buildNextInstall_onDownloadFailed(aInstall) {
+              onDownloadFailed: function(aInstall) {
                 if (aInstall.error == AddonManager.ERROR_CORRUPT_FILE)
                   callCallback(uri, CANT_READ_ARCHIVE);
                 else
                   callCallback(uri, DOWNLOAD_ERROR);
               },
 
-              onInstallFailed: function buildNextInstall_onInstallFailed(aInstall) {
+              onInstallFailed: function(aInstall) {
                 callCallback(uri, EXECUTION_ERROR);
               },
 
-              onInstallEnded: function buildNextInstall_onInstallEnded(aInstall, aStatus) {
+              onInstallEnded: function(aInstall, aStatus) {
                 callCallback(uri, SUCCESS);
               }
             });
@@ -150,7 +150,7 @@ amManager.prototype = {
    * Listens to requests from child processes for InstallTrigger
    * activity, and sends back callbacks.
    */
-  receiveMessage: function AMC_receiveMessage(aMessage) {
+  receiveMessage: function(aMessage) {
     var payload = aMessage.json;
     var referer = Services.io.newURI(payload.referer, null, null);
     switch (aMessage.name) {
@@ -191,7 +191,7 @@ amManager.prototype = {
 
   classID: Components.ID("{4399533d-08d1-458c-a87a-235f74451cfa}"),
   _xpcom_factory: {
-    createInstance: function AMC_createInstance(aOuter, aIid) {
+    createInstance: function(aOuter, aIid) {
       if (aOuter != null)
         throw Components.Exception("Component does not support aggregation",
                                    Cr.NS_ERROR_NO_AGGREGATION);
@@ -206,4 +206,4 @@ amManager.prototype = {
                                          Ci.nsIObserver])
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([amManager]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([amManager]);

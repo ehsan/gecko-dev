@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "CSFLog.h"
-
 #include "CC_Common.h"
 
 #include "CC_SIPCCCallInfo.h"
@@ -15,7 +13,11 @@ extern "C"
 #include "ccapi_call_info.h"
 }
 
+#include "CSFLogStream.h"
+
+#ifdef DEBUG
 static const char* logTag = "CC_SIPCCCallInfo";
+#endif
 
 using namespace std;
 using namespace CSF;
@@ -133,9 +135,6 @@ std::string CC_SIPCCCallInfo::callStateToString (cc_call_state_t state)
       case SETREMOTEDESC:
         statestr = "SETREMOTEDESC";
         break;
-      case UPDATELOCALDESC:
-        statestr = "UPDATELOCALDESC";
-        break;
       case SETLOCALDESCERROR:
         statestr = "SETLOCALDESCERROR";
         break;
@@ -144,12 +143,6 @@ std::string CC_SIPCCCallInfo::callStateToString (cc_call_state_t state)
         break;
       case REMOTESTREAMADD:
         statestr = "REMOTESTREAMADD";
-        break;
-      case ADDICECANDIDATE:
-        statestr = "ADDICECANDIDATE";
-        break;
-      case ADDICECANDIDATEERROR:
-        statestr = "ADDICECANDIDATEERROR";
         break;
       default:
         break;
@@ -286,7 +279,7 @@ string CC_SIPCCCallInfo::getAlternateNumber()
 CC_LinePtr CC_SIPCCCallInfo::getline ()
 {
     cc_lineid_t lineId = CCAPI_CallInfo_getLine(callinfo_ref);
-    return CC_SIPCCLine::wrap(lineId).get();
+    return CC_SIPCCLine::wrap(lineId);
 }
 
 string CC_SIPCCCallInfo::getOriginalCalledPartyName()
@@ -366,7 +359,7 @@ bool CC_SIPCCCallInfo::getIsConference()
 
 set<cc_int32_t> CC_SIPCCCallInfo::getStreamStatistics()
 {
-    CSFLogError(logTag, "CCAPI_CallInfo_getCapabilitySet() NOT IMPLEMENTED IN PSIPCC.");
+    CSFLogErrorS(logTag, "CCAPI_CallInfo_getCapabilitySet() NOT IMPLEMENTED IN PSIPCC.");
     set<cc_int32_t> stats;
     return stats;
 }
@@ -425,7 +418,7 @@ bool CC_SIPCCCallInfo::isVideoMuted()
 
 string CC_SIPCCCallInfo::getSDP()
 {
-    return CCAPI_CallInfo_getSDP(callinfo_ref);
+	return CCAPI_CallInfo_getSDP(callinfo_ref);
 }
 
 cc_int32_t CC_SIPCCCallInfo::getStatusCode()
@@ -551,8 +544,7 @@ void CC_SIPCCCallInfo::generateCapabilities()
 	case WHISPER:
 	case WAITINGFORDIGITS:
 	default:
-		CSFLogError( logTag, "State %d not handled in generateCapabilities()",
-      getCallState());
+		CSFLogErrorS( logTag, "State " << getCallState() << " not handled in generateCapabilities()");
 		break;
 	}
 }

@@ -22,6 +22,10 @@
 #include "nsIProgressEventSink.h"
 #include "nsIChannel.h"
 
+#ifdef LOADER_THREADSAFE
+#include "prlock.h"
+#endif
+
 class imgLoader;
 class imgRequest;
 class imgRequestProxy;
@@ -45,7 +49,7 @@ public:
     NS_LOG_ADDREF(this, mRefCnt, "imgCacheEntry", sizeof(*this));
     return mRefCnt;
   }
-
+ 
   nsrefcnt Release()
   {
     NS_PRECONDITION(0 != mRefCnt, "dup release");
@@ -57,7 +61,7 @@ public:
       delete this;
       return 0;
     }
-    return mRefCnt;
+    return mRefCnt;                              
   }
 
   uint32_t GetDataSize() const
@@ -175,7 +179,7 @@ private: // data
 
 class imgCacheQueue
 {
-public:
+public: 
   imgCacheQueue();
   void Remove(imgCacheEntry *);
   void Push(imgCacheEntry *);
@@ -186,7 +190,7 @@ public:
   uint32_t GetSize() const;
   void UpdateSize(int32_t diff);
   uint32_t GetNumElements() const;
-  typedef std::vector<nsRefPtr<imgCacheEntry> > queueContainer;
+  typedef std::vector<nsRefPtr<imgCacheEntry> > queueContainer;  
   typedef queueContainer::iterator iterator;
   typedef queueContainer::const_iterator const_iterator;
 
@@ -220,39 +224,6 @@ public:
   virtual ~imgLoader();
 
   nsresult Init();
-
-  static imgLoader* Create()
-  {
-      // Unfortunately, we rely on XPCOM module init happening
-      // before imgLoader creation. For now, it's easier
-      // to just call CallCreateInstance() which will init
-      // the image module instead of calling new imgLoader
-      // directly.
-      imgILoader *loader;
-      CallCreateInstance("@mozilla.org/image/loader;1", &loader);
-      // There's only one imgLoader implementation so we
-      // can safely cast to it.
-      return static_cast<imgLoader*>(loader);
-  }
-
-  static already_AddRefed<imgLoader> GetInstance();
-
-  nsresult LoadImage(nsIURI *aURI,
-                     nsIURI *aInitialDocumentURI,
-                     nsIURI *aReferrerURI,
-                     nsIPrincipal* aLoadingPrincipal,
-                     nsILoadGroup *aLoadGroup,
-                     imgINotificationObserver *aObserver,
-                     nsISupports *aCX,
-                     nsLoadFlags aLoadFlags,
-                     nsISupports *aCacheKey,
-                     nsIChannelPolicy *aPolicy,
-                     imgRequestProxy **_retval);
-  nsresult LoadImageWithChannel(nsIChannel *channel,
-                                imgINotificationObserver *aObserver,
-                                nsISupports *aCX,
-                                nsIStreamListener **listener,
-                                imgRequestProxy **_retval);
 
   static nsresult GetMimeTypeFromContent(const char* aContents, uint32_t aLength, nsACString& aContentType);
   // exported for use by mimei.cpp in libxul sdk builds
@@ -300,11 +271,11 @@ public:
 
   // The image loader maintains a hash table of all imgCacheEntries. However,
   // only some of them will be evicted from the cache: those who have no
-  // imgRequestProxies watching their imgRequests.
+  // imgRequestProxies watching their imgRequests. 
   //
   // Once an imgRequest has no imgRequestProxies, it should notify us by
   // calling HasNoObservers(), and null out its cache entry pointer.
-  //
+  // 
   // Upon having a proxy start observing again, it should notify us by calling
   // HasObservers(). The request's cache entry will be re-set before this
   // happens, by calling imgRequest::SetCacheEntry() when an entry with no
@@ -314,30 +285,33 @@ public:
 
 private: // methods
 
+
   bool ValidateEntry(imgCacheEntry *aEntry, nsIURI *aKey,
-                       nsIURI *aInitialDocumentURI, nsIURI *aReferrerURI,
+                       nsIURI *aInitialDocumentURI, nsIURI *aReferrerURI, 
                        nsILoadGroup *aLoadGroup,
                        imgINotificationObserver *aObserver, nsISupports *aCX,
                        nsLoadFlags aLoadFlags, bool aCanMakeNewChannel,
-                       imgRequestProxy **aProxyRequest,
+                       imgIRequest *aExistingRequest,
+                       imgIRequest **aProxyRequest,
                        nsIChannelPolicy *aPolicy,
                        nsIPrincipal* aLoadingPrincipal,
                        int32_t aCORSMode);
-
   bool ValidateRequestWithNewChannel(imgRequest *request, nsIURI *aURI,
                                        nsIURI *aInitialDocumentURI,
                                        nsIURI *aReferrerURI,
                                        nsILoadGroup *aLoadGroup,
                                        imgINotificationObserver *aObserver,
                                        nsISupports *aCX, nsLoadFlags aLoadFlags,
-                                       imgRequestProxy **aProxyRequest,
+                                       imgIRequest *aExistingRequest,
+                                       imgIRequest **aProxyRequest,
                                        nsIChannelPolicy *aPolicy,
                                        nsIPrincipal* aLoadingPrincipal,
                                        int32_t aCORSMode);
 
   nsresult CreateNewProxyForRequest(imgRequest *aRequest, nsILoadGroup *aLoadGroup,
                                     imgINotificationObserver *aObserver,
-                                    nsLoadFlags aLoadFlags, imgRequestProxy **_retval);
+                                    nsLoadFlags aLoadFlags, imgIRequest *aRequestProxy,
+                                    imgIRequest **_retval);
 
   void ReadAcceptHeaderPref();
 

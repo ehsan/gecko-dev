@@ -42,7 +42,6 @@ namespace dom {
 class TabChild;
 }
 namespace layers {
-class Composer2D;
 class CompositorChild;
 class LayerManager;
 class PLayersChild;
@@ -75,8 +74,7 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #define NS_NATIVE_OFFSETY     7
 #define NS_NATIVE_PLUGIN_PORT 8
 #define NS_NATIVE_SCREEN      9
-// The toplevel GtkWidget containing this nsIWidget:
-#define NS_NATIVE_SHELLWIDGET 10
+#define NS_NATIVE_SHELLWIDGET 10      // Get the shell GtkWidget
 // Has to match to NPNVnetscapeWindow, and shareable across processes
 // HWND on Windows and XID on X11
 #define NS_NATIVE_SHAREABLE_WINDOW 11
@@ -92,8 +90,8 @@ typedef nsEventStatus (* EVENT_CALLBACK)(nsGUIEvent *event);
 #endif
 
 #define NS_IWIDGET_IID \
-  { 0xdaac8d94, 0x14f3, 0x4bc4, \
-    { 0xa8, 0xc, 0xf0, 0xe6, 0x46, 0x1e, 0xad, 0x40 } }
+  { 0x4e05b167, 0x475b, 0x422b, \
+    { 0x88, 0xc0, 0xa5, 0xb1, 0x61, 0xcf, 0x87, 0x79 } }
 
 /*
  * Window shadow styles
@@ -162,38 +160,14 @@ enum nsTopLevelWidgetZPlacement { // for PlaceBehind()
 };
 
 /**
- * Before the OS goes to sleep, this topic is notified.
- */
-#define NS_WIDGET_SLEEP_OBSERVER_TOPIC "sleep_notification"
-
-/**
- * After the OS wakes up, this topic is notified.
- */
-#define NS_WIDGET_WAKE_OBSERVER_TOPIC "wake_notification"
-
-/**
- * Before the OS suspends the current process, this topic is notified.  Some
- * OS will kill processes that are suspended instead of resuming them.
- * For that reason this topic may be useful to safely close down resources.
- */
-#define NS_WIDGET_SUSPEND_PROCESS_OBSERVER_TOPIC "suspend_process_notification"
-
-/**
- * After the current process resumes from being suspended, this topic is
- * notified.
- */
-#define NS_WIDGET_RESUME_PROCESS_OBSERVER_TOPIC "resume_process_notification"
-
-/**
  * Preference for receiving IME updates
  *
- * If mWantUpdates is true, nsTextStateManager will observe text change and
- * selection change and call nsIWidget::NotifyIMEOfTextChange() and
- * nsIWidget::NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE). The observing cost is
- * very expensive.
- * If the IME implementation on a particular platform doesn't care about
- * NotifyIMEOfTextChange and NotifyIME(NOTIFY_IME_OF_SELECTION_CHANGE), they
- * should set mWantUpdates to false to avoid the cost.
+ * If mWantUpdates is true, PuppetWidget will forward
+ * nsIWidget::OnIMETextChange and nsIWidget::OnIMESelectionChange to the chrome
+ * process. This incurs overhead from observers and IPDL. If the IME
+ * implementation on a particular platform doesn't care about OnIMETextChange
+ * and OnIMESelectionChange from content processes, they should set
+ * mWantUpdates to false to avoid these overheads.
  *
  * If mWantHints is true, PuppetWidget will forward the content of text fields
  * to the chrome process to be cached. This way we return the cached content
@@ -304,8 +278,6 @@ struct IMEState {
 };
 
 struct InputContext {
-  InputContext() : mNativeIMEContext(nullptr) {}
-
   IMEState mIMEState;
 
   /* The type of the input if the input is a html input field */
@@ -316,11 +288,6 @@ struct InputContext {
 
   /* A hint for the action that is performed when the input is submitted */
   nsString mActionHint;
-
-  /* Native IME context for the widget.  This doesn't come from the argument of
-     SetInputContext().  If there is only one context in the process, this may
-     be nullptr. */
-  void* mNativeIMEContext;
 };
 
 struct InputContextAction {
@@ -415,12 +382,10 @@ class nsIWidget : public nsISupports {
     typedef mozilla::dom::TabChild TabChild;
 
   public:
-    typedef mozilla::layers::Composer2D Composer2D;
     typedef mozilla::layers::CompositorChild CompositorChild;
     typedef mozilla::layers::LayerManager LayerManager;
     typedef mozilla::layers::LayersBackend LayersBackend;
     typedef mozilla::layers::PLayersChild PLayersChild;
-    typedef mozilla::widget::NotificationToIME NotificationToIME;
     typedef mozilla::widget::IMEState IMEState;
     typedef mozilla::widget::InputContext InputContext;
     typedef mozilla::widget::InputContextAction InputContextAction;
@@ -526,7 +491,7 @@ class nsIWidget : public nsISupports {
 
     /**
      * Accessor functions to get and set the attached listener. Used by
-     * nsView in connection with AttachViewToTopLevel above.
+     * nsIView in connection with AttachViewToTopLevel above.
      */
     virtual void SetAttachedWidgetListener(nsIWidgetListener* aListener) = 0;
     virtual nsIWidgetListener* GetAttachedWidgetListener() = 0;
@@ -602,10 +567,9 @@ class nsIWidget : public nsISupports {
      * Return the default scale factor for the window. This is the
      * default number of device pixels per CSS pixel to use. This should
      * depend on OS/platform settings such as the Mac's "UI scale factor"
-     * or Windows' "font DPI". This will take into account Gecko preferences
-     * overriding the system setting.
+     * or Windows' "font DPI".
      */
-    double GetDefaultScale();
+    virtual double GetDefaultScale() = 0;
 
     /**
      * Return the first child of this widget.  Will return null if
@@ -691,25 +655,6 @@ class nsIWidget : public nsISupports {
                                  int32_t *aY) = 0;
 
     /**
-     * NOTE:
-     *
-     * For a top-level window widget, the "parent's coordinate system" is the
-     * "global" display pixel coordinate space, *not* device pixels (which
-     * may be inconsistent between multiple screens, at least in the Mac OS
-     * case with mixed hi-dpi and lo-dpi displays). This applies to all the
-     * following Move and Resize widget APIs.
-     *
-     * The display-/device-pixel distinction becomes important for (at least)
-     * Mac OS X with Hi-DPI (retina) displays, and Windows when the UI scale
-     * factor is set to other than 100%.
-     *
-     * The Move and Resize methods take floating-point parameters, rather than
-     * integer ones. This is important when manipulating top-level widgets,
-     * where the coordinate system may not be an integral multiple of the
-     * device-pixel space.
-     **/
-
-    /**
      * Move this widget.
      *
      * Coordinates refer to the top-left of the widget.  For toplevel windows
@@ -719,7 +664,7 @@ class nsIWidget : public nsISupports {
      * @param aY the new y position expressed in the parent's coordinate system
      *
      **/
-    NS_IMETHOD Move(double aX, double aY) = 0;
+    NS_IMETHOD Move(int32_t aX, int32_t aY) = 0;
 
     /**
      * Reposition this widget so that the client area has the given offset.
@@ -734,7 +679,7 @@ class nsIWidget : public nsISupports {
      *                 screen coordinates)
      *
      **/
-    NS_IMETHOD MoveClient(double aX, double aY) = 0;
+    NS_IMETHOD MoveClient(int32_t aX, int32_t aY) = 0;
 
     /**
      * Resize this widget. Any size constraints set for the window by a
@@ -745,9 +690,9 @@ class nsIWidget : public nsISupports {
      * @param aRepaint whether the widget should be repainted
      *
      */
-    NS_IMETHOD Resize(double aWidth,
-                      double aHeight,
-                      bool   aRepaint) = 0;
+    NS_IMETHOD Resize(int32_t aWidth,
+                      int32_t aHeight,
+                      bool     aRepaint) = 0;
 
     /**
      * Move or resize this widget. Any size constraints set for the window by
@@ -760,11 +705,11 @@ class nsIWidget : public nsISupports {
      * @param aRepaint whether the widget should be repainted if the size changes
      *
      */
-    NS_IMETHOD Resize(double aX,
-                      double aY,
-                      double aWidth,
-                      double aHeight,
-                      bool   aRepaint) = 0;
+    NS_IMETHOD Resize(int32_t aX,
+                      int32_t aY,
+                      int32_t aWidth,
+                      int32_t aHeight,
+                      bool     aRepaint) = 0;
 
     /**
      * Resize the widget so that the inner client area has the given size.
@@ -774,9 +719,9 @@ class nsIWidget : public nsISupports {
      * @param aRepaint whether the widget should be repainted
      *
      */
-    NS_IMETHOD ResizeClient(double aWidth,
-                            double aHeight,
-                            bool   aRepaint) = 0;
+    NS_IMETHOD ResizeClient(int32_t aWidth,
+                            int32_t aHeight,
+                            bool  aRepaint) = 0;
 
     /**
      * Resize and reposition the widget so tht inner client area has the given
@@ -795,11 +740,11 @@ class nsIWidget : public nsISupports {
      * @param aRepaint whether the widget should be repainted
      *
      */
-    NS_IMETHOD ResizeClient(double aX,
-                            double aY,
-                            double aWidth,
-                            double aHeight,
-                            bool   aRepaint) = 0;
+    NS_IMETHOD ResizeClient(int32_t aX,
+                            int32_t aY,
+                            int32_t aWidth,
+                            int32_t aHeight,
+                            bool    aRepaint) = 0;
 
     /**
      * Sets the widget's z-index.
@@ -1253,12 +1198,14 @@ class nsIWidget : public nsISupports {
 
     /**
      * Enables/Disables system capture of any and all events that would cause a
-     * popup to be rolled up. aListener should be set to a non-null value for
-     * any popups that are not managed by the popup manager.
+     * dropdown to be rolled up, This method ignores the aConsumeRollupEvent 
+     * parameter when aDoCapture is FALSE
      * @param aDoCapture true enables capture, false disables capture 
+     * @param aConsumeRollupEvent true consumes the rollup event, false dispatches rollup event
      *
      */
-    NS_IMETHOD CaptureRollupEvents(nsIRollupListener* aListener, bool aDoCapture) = 0;
+    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, bool aDoCapture,
+                                   bool aConsumeRollupEvent) = 0;
 
     /**
      * Bring this window to the user's attention.  This is intended to be a more
@@ -1488,10 +1435,25 @@ class nsIWidget : public nsISupports {
      */
     virtual nsresult ForceUpdateNativeMenuAt(const nsAString& indexString) = 0;
 
-    /**
-     * Notify IME of the specified notification.
+    /*
+     * Force Input Method Editor to commit the uncommitted input
      */
-    NS_IMETHOD NotifyIME(NotificationToIME aNotification) = 0;
+    NS_IMETHOD ResetInputState()=0;
+
+    /*
+     * Following methods relates to IME 'Opened'/'Closed' state.
+     * 'Opened' means the user can input any character. I.e., users can input Japanese  
+     * and other characters. The user can change the state to 'Closed'.
+     * 'Closed' means the user can input ASCII characters only. This is the same as a
+     * non-IME environment. The user can change the state to 'Opened'.
+     * For more information is here.
+     * http://bugzilla.mozilla.org/show_bug.cgi?id=16940#c48
+     */
+
+    /*
+     * Destruct and don't commit the IME composition string.
+     */
+    NS_IMETHOD CancelIMEComposition() = 0;
 
     /*
      * Notifies the input context changes.
@@ -1505,9 +1467,9 @@ class nsIWidget : public nsISupports {
     NS_IMETHOD_(InputContext) GetInputContext() = 0;
 
     /**
-     * Set layers acceleration to 'True' or 'False'
+     * Set accelerated rendering to 'True' or 'False'
      */
-    NS_IMETHOD SetLayersAcceleration(bool aEnabled) = 0;
+    NS_IMETHOD SetAcceleratedRendering(bool aEnabled) = 0;
 
     /*
      * Get toggled key states.
@@ -1521,14 +1483,33 @@ class nsIWidget : public nsISupports {
     NS_IMETHOD GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState) = 0;
 
     /*
+     * An editable node (i.e. input/textarea/design mode document)
+     *  is receiving or giving up focus
+     * aFocus is true if node is receiving focus
+     * aFocus is false if node is giving up focus (blur)
+     *
+     * If this returns NS_ERROR_*, OnIMETextChange and OnIMESelectionChange
+     * and OnIMEFocusChange(false) will be never called.
+     *
+     * If this returns NS_SUCCESS_IME_NO_UPDATES, OnIMEFocusChange(false)
+     * will be called but OnIMETextChange and OnIMESelectionChange will NOT.
+     */
+    NS_IMETHOD OnIMEFocusChange(bool aFocus) = 0;
+
+    /*
      * Text content of the focused node has changed
      * aStart is the starting offset of the change
      * aOldEnd is the ending offset of the change
      * aNewEnd is the caret offset after the change
      */
-    NS_IMETHOD NotifyIMEOfTextChange(uint32_t aStart,
-                                     uint32_t aOldEnd,
-                                     uint32_t aNewEnd) = 0;
+    NS_IMETHOD OnIMETextChange(uint32_t aStart,
+                               uint32_t aOldEnd,
+                               uint32_t aNewEnd) = 0;
+
+    /*
+     * Selection has changed in the focused node
+     */
+    NS_IMETHOD OnIMESelectionChange(void) = 0;
 
     /*
      * Retrieves preference for IME updates
@@ -1553,19 +1534,16 @@ class nsIWidget : public nsISupports {
      * actions.  And also this isn't called when the user doesn't use the
      * system wheel speed settings.
      *
-     * @param aOriginalDeltaX   The X delta value of the current mouse wheel
-     *                          scrolling event.
-     * @param aOriginalDeltaX   The Y delta value of the current mouse wheel
-     *                          scrolling event.
-     * @param aOverriddenDeltaX The overridden mouse scrolling speed along X
-     *                          axis. This value may be same as aOriginalDeltaX.
-     * @param aOverriddenDeltaY The overridden mouse scrolling speed along Y
-     *                          axis. This value may be same as aOriginalDeltaY.
+     * @param aOriginalDelta   The delta value of the current mouse wheel
+     *                         scrolling event.
+     * @param aIsHorizontal    If TRUE, the scrolling direction is horizontal.
+     *                         Otherwise, it's vertical.
+     * @param aOverriddenDelta The overridden mouse scrolling speed.  This value
+     *                         may be same as aOriginalDelta.
      */
-    NS_IMETHOD OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
-                                              double aOriginalDeltaY,
-                                              double& aOverriddenDeltaX,
-                                              double& aOverriddenDeltaY) = 0;
+    NS_IMETHOD OverrideSystemMouseScrollSpeed(int32_t aOriginalDelta,
+                                              bool aIsHorizontal,
+                                              int32_t &aOverriddenDelta) = 0;
 
     /**
      * Return true if this process shouldn't use platform widgets, and
@@ -1618,22 +1596,8 @@ class nsIWidget : public nsISupports {
     virtual bool WidgetPaintsBackground() { return false; }
 
     virtual bool NeedsPaint() {
-       if (!IsVisible()) {
-           return false;
-       }
-       nsIntRect bounds;
-       nsresult rv = GetBounds(bounds);
-       NS_ENSURE_SUCCESS(rv, false);
-       return !bounds.IsEmpty();
+      return true;
     }
-
-    /**
-     * This function is called by nsViewManager right before the retained layer 
-     * tree for this widget is about to be updated, and any required
-     * ThebesLayer painting occurs.
-     */
-    virtual void WillPaint() { }
-
     /**
      * Get the natural bounds of this widget.  This method is only
      * meaningful for widgets for which Gecko implements screen
@@ -1685,22 +1649,7 @@ class nsIWidget : public nsISupports {
     virtual CompositorChild* GetRemoteRenderer()
     { return nullptr; }
 
-    /**
-     * If this widget has a more efficient composer available for its
-     * native framebuffer, return it.
-     *
-     * This can be called from a non-main thread, but that thread must
-     * hold a strong reference to this.
-     */
-    virtual Composer2D* GetComposer2D()
-    { return nullptr; }
-
 protected:
-    /**
-     * Like GetDefaultScale, but taking into account only the system settings
-     * and ignoring Gecko preferences.
-     */
-    virtual double GetDefaultScaleInternal() { return 1.0; }
 
     // keep the list of children.  We also keep track of our siblings.
     // The ownership model is as follows: parent holds a strong ref to

@@ -12,15 +12,7 @@
   "@mozilla.org/plugin/host;1"
 %}
 
-[scriptable, uuid(f89e7679-0adf-4a30-bda9-1afe1ee270d6)]
-interface nsIPluginPlayPreviewInfo : nsISupports
-{
-  readonly attribute AUTF8String mimeType;
-  readonly attribute boolean     ignoreCTP;
-  readonly attribute AUTF8String redirectURL;
-};
-
-[scriptable, uuid(67ebff01-0dce-48f7-b6a5-6235fc78382b)]
+[scriptable, uuid(fdb56ce3-89ac-4293-be64-9f4be88004cc)]
 interface nsIPluginHost : nsISupports
 {
   /**
@@ -84,22 +76,10 @@ interface nsIPluginHost : nsISupports
   /**
    * Registers the play preview plugin mode for specific mime type
    *
-   * @param mimeType: specifies plugin mime type.
-   * @param ignoreCTP: if true, the play preview ignores CTP rules, e.g.
-                       whitelisted websites, will not notify about plugin
-                       presence in the address bar.
-   * @param redirectURL: specifies url for the overlay iframe
+   * @param mimeType - specified mime type
    */
-  void registerPlayPreviewMimeType(in AUTF8String mimeType,
-                                   [optional] in boolean ignoreCTP,
-                                   [optional] in AUTF8String redirectURL);
+  void registerPlayPreviewMimeType(in AUTF8String mimeType);
 
   void unregisterPlayPreviewMimeType(in AUTF8String mimeType);
-
-  nsIPluginPlayPreviewInfo getPlayPreviewInfo(in AUTF8String mimeType);
-
-  ACString getPermissionStringForType(in AUTF8String mimeType);
-
-  bool isPluginClickToPlayForType(in AUTF8String mimeType);
 };
 

@@ -56,7 +56,6 @@ EXPORTS = \
 PRIVATE_EXPORTS = \
 	alghmac.h \
 	blapi.h \
-	hmacct.h \
 	secmpi.h \
 	secrng.h \
 	ec.h \
@@ -103,7 +102,6 @@ CSRCS = \
 	cts.c \
 	ctr.c \
 	gcm.c \
-	hmacct.c \
 	rijndael.c \
 	aeskeywrap.c \
 	camellia.c \
@@ -121,7 +119,6 @@ CSRCS = \
 	$(ECL_SRCS) \
 	$(STUBS_SRCS) \
 	$(LOWHASH_SRCS) \
-	$(EXTRA_SRCS) \
 	$(NULL)
 
 ALL_CSRCS := $(CSRCS)

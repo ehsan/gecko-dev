@@ -123,8 +123,8 @@
  * jemalloc_purge_freed_pages(), which will force the OS to release those
  * MADV_FREE'd pages, making the process's RSS reflect its true memory usage.
  *
- * The jemalloc_purge_freed_pages definition in memory/build/mozmemory.h needs
- * to be adjusted if MALLOC_DOUBLE_PURGE is ever enabled on Linux.
+ * The jemalloc_purge_freed_pages definition in jemalloc.h needs to be
+ * adjusted if MALLOC_DOUBLE_PURGE is ever enabled on Linux.
  */
 #ifdef MOZ_MEMORY_DARWIN
 #define MALLOC_DOUBLE_PURGE
@@ -145,18 +145,6 @@
  * multiple arenas is not warranted.
  */
 #define	MOZ_MEMORY_NARENAS_DEFAULT_ONE
-
-/*
- * Pass this set of options to jemalloc as its default. It does not override
- * the options passed via the MALLOC_OPTIONS environment variable but is
- * applied in addition to them.
- */
-#ifdef MOZ_B2G
-    /* Reduce the amount of unused dirty pages to 1MiB on B2G */
-#   define MOZ_MALLOC_OPTIONS "ff"
-#else
-#   define MOZ_MALLOC_OPTIONS ""
-#endif
 
 /*
  * MALLOC_STATS enables statistics calculation, and is required for
@@ -390,7 +378,6 @@ __FBSDID("$FreeBSD: head/lib/libc/stdlib/malloc.c 180599 2008-07-18 19:35:44Z ja
 
 #include "jemalloc_types.h"
 #include "linkedlist.h"
-#include "mozmemory_wrap.h"
 
 /* Some tools, such as /dev/dsp wrappers, LD_PRELOAD libraries that
  * happen to override mmap() and call dlsym() from their overridden
@@ -1111,16 +1098,8 @@ static unsigned		ncpus;
 /*
  * VM page size. It must divide the runtime CPU page size or the code
  * will abort.
- * Platform specific page size conditions copied from js/public/HeapAPI.h
  */
-#if (defined(SOLARIS) || defined(__FreeBSD__)) && \
-    (defined(__sparc) || defined(__sparcv9) || defined(__ia64))
-#define pagesize_2pow			((size_t) 13)
-#elif defined(__powerpc64__)
-#define pagesize_2pow			((size_t) 16)
-#else
 #define pagesize_2pow			((size_t) 12)
-#endif
 #define pagesize			((size_t) 1 << pagesize_2pow)
 #define pagesize_mask			(pagesize - 1)
 
@@ -1298,8 +1277,7 @@ static chunk_stats_t	stats_chunks;
 /*
  * Runtime configuration options.
  */
-MOZ_JEMALLOC_API
-const char	*_malloc_options = MOZ_MALLOC_OPTIONS;
+const char	*_malloc_options;
 
 #ifndef MALLOC_PRODUCTION
 static bool	opt_abort = true;
@@ -1407,7 +1385,7 @@ static void arena_chunk_init(arena_t *arena, arena_chunk_t *chunk);
 static void	arena_chunk_dealloc(arena_t *arena, arena_chunk_t *chunk);
 static arena_run_t *arena_run_alloc(arena_t *arena, arena_bin_t *bin,
     size_t size, bool large, bool zero);
-static void	arena_purge(arena_t *arena, bool all);
+static void	arena_purge(arena_t *arena);
 static void	arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty);
 static void	arena_run_trim_head(arena_t *arena, arena_chunk_t *chunk,
     arena_run_t *run, size_t oldsize, size_t newsize);
@@ -1480,7 +1458,6 @@ static void	_malloc_postfork(void);
  *   of malloc_zone_t adapted into osx_zone_types.h.
  */
 
-#ifndef MOZ_REPLACE_MALLOC
 #include "osx_zone_types.h"
 
 #define LEOPARD_MALLOC_ZONE_T_VERSION 3
@@ -1498,10 +1475,6 @@ static malloc_introspection_t * const ozone_introspect =
 	(malloc_introspection_t*)(&l_ozone_introspect);
 static void szone2ozone(malloc_zone_t *zone, size_t size);
 static size_t zone_version_size(int version);
-#else
-static const bool osx_use_jemalloc = true;
-#endif
-
 #endif
 
 /*
@@ -1560,7 +1533,6 @@ wrtmessage(const char *p1, const char *p2, const char *p3, const char *p4)
 	_write(STDERR_FILENO, p4, (unsigned int) strlen(p4));
 }
 
-MOZ_JEMALLOC_API
 void	(*_malloc_message)(const char *p1, const char *p2, const char *p3,
 	    const char *p4) = wrtmessage;
 
@@ -3622,12 +3594,10 @@ arena_run_alloc(arena_t *arena, arena_bin_t *bin, size_t size, bool large,
 }
 
 static void
-arena_purge(arena_t *arena, bool all)
+arena_purge(arena_t *arena)
 {
 	arena_chunk_t *chunk;
 	size_t i, npages;
-	/* If all is set purge all dirty pages. */
-	size_t dirty_max = all ? 1 : opt_dirty_max;
 #ifdef MALLOC_DEBUG
 	size_t ndirty = 0;
 	rb_foreach_begin(arena_chunk_t, link_dirty, &arena->chunks_dirty,
@@ -3636,7 +3606,7 @@ arena_purge(arena_t *arena, bool all)
 	} rb_foreach_end(arena_chunk_t, link_dirty, &arena->chunks_dirty, chunk)
 	assert(ndirty == arena->ndirty);
 #endif
-	RELEASE_ASSERT(all || (arena->ndirty > opt_dirty_max));
+	RELEASE_ASSERT(arena->ndirty > opt_dirty_max);
 
 #ifdef MALLOC_STATS
 	arena->stats.npurge++;
@@ -3648,7 +3618,7 @@ arena_purge(arena_t *arena, bool all)
 	 * number of system calls, even if a chunk has only been partially
 	 * purged.
 	 */
-	while (arena->ndirty > (dirty_max >> 1)) {
+	while (arena->ndirty > (opt_dirty_max >> 1)) {
 #ifdef MALLOC_DOUBLE_PURGE
 		bool madvised = false;
 #endif
@@ -3705,7 +3675,7 @@ arena_purge(arena_t *arena, bool all)
 				arena->stats.nmadvise++;
 				arena->stats.purged += npages;
 #endif
-				if (arena->ndirty <= (dirty_max >> 1))
+				if (arena->ndirty <= (opt_dirty_max >> 1))
 					break;
 			}
 		}
@@ -3830,7 +3800,7 @@ arena_run_dalloc(arena_t *arena, arena_run_t *run, bool dirty)
 
 	/* Enforce opt_dirty_max. */
 	if (arena->ndirty > opt_dirty_max)
-		arena_purge(arena, false);
+		arena_purge(arena);
 }
 
 static void
@@ -6189,7 +6159,7 @@ MALLOC_OUT:
 	}
 #endif
 
-#if defined(MOZ_MEMORY_DARWIN) && !defined(MOZ_REPLACE_MALLOC)
+#ifdef MOZ_MEMORY_DARWIN
 	/*
 	* Overwrite the default memory allocator to use jemalloc everywhere.
 	*/
@@ -6256,6 +6226,35 @@ malloc_shutdown()
  */
 
 /*
+ * Mangle standard interfaces, in order to avoid linking problems.
+ */
+#ifndef MOZ_MEMORY_GONK
+#if defined(MOZ_MEMORY_DARWIN) || defined(MOZ_MEMORY_WINDOWS) || \
+    defined(MOZ_MEMORY_ANDROID)
+
+#ifdef MOZ_MEMORY_ANDROID
+/*
+ * On Android, we use __wrap_* instead of je_* to accomodate with the
+ * linker's --wrap option we use. That option prefixes the function
+ * names it is given with __wrap_.
+ */
+#define wrap(a) __wrap_ ## a
+#else
+#define wrap(a) je_ ## a
+#endif
+
+#define malloc(a)               wrap(malloc)(a)
+#define memalign(a, b)          wrap(memalign)(a, b)
+#define posix_memalign(a, b, c) wrap(posix_memalign)(a, b, c)
+#define valloc(a)               wrap(valloc)(a)
+#define calloc(a, b)            wrap(calloc)(a, b)
+#define realloc(a, b)           wrap(realloc)(a, b)
+#define free(a)                 wrap(free)(a)
+#define malloc_usable_size(a)   wrap(malloc_usable_size)(a)
+#endif
+#endif
+
+/*
  * Even though we compile with MOZ_MEMORY, we may have to dynamically decide
  * not to use jemalloc, as discussed above. However, we call jemalloc
  * functions directly from mozalloc. Since it's pretty dangerous to mix the
@@ -6268,14 +6267,14 @@ malloc_shutdown()
  *
  * This means that NO_MAC_JEMALLOC doesn't work on i386.
  */
-#if defined(MOZ_MEMORY_DARWIN) && !defined(__i386__) && !defined(MOZ_REPLACE_MALLOC)
+#if defined(MOZ_MEMORY_DARWIN) && !defined(__i386__)
 #define DARWIN_ONLY(A) if (!osx_use_jemalloc) { A; }
 #else
 #define DARWIN_ONLY(A)
 #endif
 
-MOZ_MEMORY_API void *
-malloc_impl(size_t size)
+void *
+malloc(size_t size)
 {
 	void *ret;
 
@@ -6329,7 +6328,6 @@ RETURN:
  * Exported Symbols) in http://www.akkadia.org/drepper/dsohowto.pdf.
  */
 
-#ifndef MOZ_REPLACE_MALLOC
 #if defined(__GNUC__) && !defined(MOZ_MEMORY_DARWIN)
 #define MOZ_MEMORY_ELF
 #endif
@@ -6337,8 +6335,8 @@ RETURN:
 #ifdef MOZ_MEMORY_SOLARIS
 #  ifdef __SUNPRO_C
 void *
-memalign_impl(size_t alignment, size_t size);
-#pragma no_inline(memalign_impl)
+memalign(size_t alignment, size_t size);
+#pragma no_inline(memalign)
 #  elif (defined(__GNUC__))
 __attribute__((noinline))
 #  endif
@@ -6347,17 +6345,14 @@ __attribute__((noinline))
 __attribute__((visibility ("hidden")))
 #endif
 #endif
-#endif /* MOZ_REPLACE_MALLOC */
+
 
 #ifdef MOZ_MEMORY_ELF
 #define MEMALIGN memalign_internal
 #else
-#define MEMALIGN memalign_impl
+#define MEMALIGN memalign
 #endif
 
-#ifndef MOZ_MEMORY_ELF
-MOZ_MEMORY_API
-#endif
 void *
 MEMALIGN(size_t alignment, size_t size)
 {
@@ -6402,11 +6397,11 @@ RETURN:
 
 #ifdef MOZ_MEMORY_ELF
 extern void *
-memalign_impl(size_t alignment, size_t size) __attribute__((alias ("memalign_internal"), visibility ("default")));
+memalign(size_t alignment, size_t size) __attribute__((alias ("memalign_internal"), visibility ("default")));
 #endif
 
-MOZ_MEMORY_API int
-posix_memalign_impl(void **memptr, size_t alignment, size_t size)
+int
+posix_memalign(void **memptr, size_t alignment, size_t size)
 {
 	void *result;
 
@@ -6434,31 +6429,14 @@ posix_memalign_impl(void **memptr, size_t alignment, size_t size)
 	return (0);
 }
 
-MOZ_MEMORY_API void *
-aligned_alloc_impl(size_t alignment, size_t size)
-{
-	if (size % alignment) {
-#ifdef MALLOC_XMALLOC
-		if (opt_xmalloc) {
-			_malloc_message(_getprogname(),
-			    ": (malloc) Error in aligned_alloc(): "
-			    "size is not multiple of alignment\n", "", "");
-			abort();
-		}
-#endif
-		return (NULL);
-	}
-	return MEMALIGN(alignment, size);
-}
-
-MOZ_MEMORY_API void *
-valloc_impl(size_t size)
+void *
+valloc(size_t size)
 {
 	return (MEMALIGN(pagesize, size));
 }
 
-MOZ_MEMORY_API void *
-calloc_impl(size_t num, size_t size)
+void *
+calloc(size_t num, size_t size)
 {
 	void *ret;
 	size_t num_size;
@@ -6514,8 +6492,8 @@ RETURN:
 	return (ret);
 }
 
-MOZ_MEMORY_API void *
-realloc_impl(void *ptr, size_t size)
+void *
+realloc(void *ptr, size_t size)
 {
 	void *ret;
 
@@ -6578,8 +6556,8 @@ RETURN:
 	return (ret);
 }
 
-MOZ_MEMORY_API void
-free_impl(void *ptr)
+void
+free(void *ptr)
 {
 	size_t offset;
 	
@@ -6608,13 +6586,11 @@ free_impl(void *ptr)
  */
 
 /* This was added by Mozilla for use by SQLite. */
-#if defined(MOZ_MEMORY_DARWIN) && !defined(MOZ_REPLACE_MALLOC)
+#ifdef MOZ_MEMORY_DARWIN
 static
-#else
-MOZ_MEMORY_API
 #endif
 size_t
-malloc_good_size_impl(size_t size)
+je_malloc_good_size(size_t size)
 {
 	/*
 	 * This duplicates the logic in imalloc(), arena_malloc() and
@@ -6644,7 +6620,7 @@ malloc_good_size_impl(size_t size)
 		 * Huge.  We use PAGE_CEILING to get psize, instead of using
 		 * CHUNK_CEILING to get csize.  This ensures that this
 		 * malloc_usable_size(malloc(n)) always matches
-		 * malloc_good_size(n).
+		 * je_malloc_good_size(n).
 		 */
 		size = PAGE_CEILING(size);
 	}
@@ -6653,11 +6629,11 @@ malloc_good_size_impl(size_t size)
 
 
 #ifdef MOZ_MEMORY_ANDROID
-MOZ_MEMORY_API size_t
-malloc_usable_size_impl(void *ptr)
+size_t
+malloc_usable_size(void *ptr)
 #else
-MOZ_MEMORY_API size_t
-malloc_usable_size_impl(const void *ptr)
+size_t
+malloc_usable_size(const void *ptr)
 #endif
 {
 	DARWIN_ONLY(return (szone->size)(szone, ptr));
@@ -6671,8 +6647,8 @@ malloc_usable_size_impl(const void *ptr)
 #endif
 }
 
-MOZ_JEMALLOC_API void
-jemalloc_stats_impl(jemalloc_stats_t *stats)
+void
+jemalloc_stats(jemalloc_stats_t *stats)
 {
 	size_t i;
 
@@ -6810,8 +6786,8 @@ hard_purge_arena(arena_t *arena)
 	malloc_spin_unlock(&arena->lock);
 }
 
-MOZ_JEMALLOC_API void
-jemalloc_purge_freed_pages_impl()
+void
+jemalloc_purge_freed_pages()
 {
 	size_t i;
 	for (i = 0; i < narenas; i++) {
@@ -6823,8 +6799,8 @@ jemalloc_purge_freed_pages_impl()
 
 #else /* !defined MALLOC_DOUBLE_PURGE */
 
-MOZ_JEMALLOC_API void
-jemalloc_purge_freed_pages_impl()
+void
+jemalloc_purge_freed_pages()
 {
 	/* Do nothing. */
 }
@@ -6874,24 +6850,9 @@ size_t
 _msize(const void *ptr)
 {
 
-	return malloc_usable_size_impl(ptr);
+	return malloc_usable_size(ptr);
 }
 #endif
-
-MOZ_JEMALLOC_API void
-jemalloc_free_dirty_pages_impl(void)
-{
-	size_t i;
-	for (i = 0; i < narenas; i++) {
-		arena_t *arena = arenas[i];
-
-		if (arena != NULL) {
-			malloc_spin_lock(&arena->lock);
-			arena_purge(arena, true);
-			malloc_spin_unlock(&arena->lock);
-		}
-	}
-}
 
 /*
  * End non-standard functions.
@@ -6949,21 +6910,20 @@ _malloc_postfork(void)
 #  include <dlfcn.h>
 #endif
 
-#if defined(MOZ_MEMORY_DARWIN)
+#ifdef MOZ_MEMORY_DARWIN
 
-#if !defined(MOZ_REPLACE_MALLOC)
 static void *
 zone_malloc(malloc_zone_t *zone, size_t size)
 {
 
-	return (malloc_impl(size));
+	return (malloc(size));
 }
 
 static void *
 zone_calloc(malloc_zone_t *zone, size_t num, size_t size)
 {
 
-	return (calloc_impl(num, size));
+	return (calloc(num, size));
 }
 
 static void *
@@ -6971,7 +6931,7 @@ zone_valloc(malloc_zone_t *zone, size_t size)
 {
 	void *ret = NULL; /* Assignment avoids useless compiler warning. */
 
-	posix_memalign_impl(&ret, pagesize, size);
+	posix_memalign(&ret, pagesize, size);
 
 	return (ret);
 }
@@ -6979,7 +6939,7 @@ zone_valloc(malloc_zone_t *zone, size_t size)
 static void *
 zone_memalign(malloc_zone_t *zone, size_t alignment, size_t size)
 {
-	return (memalign_impl(alignment, size));
+	return (memalign(alignment, size));
 }
 
 static void *
@@ -6994,7 +6954,7 @@ zone_destroy(malloc_zone_t *zone)
 static size_t
 zone_good_size(malloc_zone_t *zone, size_t size)
 {
-	return malloc_good_size_impl(size);
+	return je_malloc_good_size(size);
 }
 
 static size_t
@@ -7011,7 +6971,7 @@ static void
 ozone_free(malloc_zone_t *zone, void *ptr)
 {
 	if (isalloc_validate(ptr) != 0)
-		free_impl(ptr);
+		free(ptr);
 	else {
 		size_t size = szone->size(zone, ptr);
 		if (size != 0)
@@ -7025,17 +6985,17 @@ ozone_realloc(malloc_zone_t *zone, void *ptr, size_t size)
 {
     size_t oldsize;
 	if (ptr == NULL)
-		return (malloc_impl(size));
+		return (malloc(size));
 
 	oldsize = isalloc_validate(ptr);
 	if (oldsize != 0)
-		return (realloc_impl(ptr, size));
+		return (realloc(ptr, size));
 	else {
 		oldsize = szone->size(zone, ptr);
 		if (oldsize == 0)
-			return (malloc_impl(size));
+			return (malloc(size));
 		else {
-			void *ret = malloc_impl(size);
+			void *ret = malloc(size);
 			if (ret != NULL) {
 				memcpy(ret, ptr, (oldsize < size) ? oldsize :
 				    size);
@@ -7068,7 +7028,7 @@ ozone_free_definite_size(malloc_zone_t *zone, void *ptr, size_t size)
 {
 	if (isalloc_validate(ptr) != 0) {
 		assert(isalloc_validate(ptr) == size);
-		free_impl(ptr);
+		free(ptr);
 	} else {
 		assert(size == szone->size(zone, ptr));
 		l_szone.m16(zone, ptr, size);
@@ -7171,7 +7131,6 @@ szone2ozone(malloc_zone_t *default_zone, size_t size)
         l_ozone_introspect.m13 = NULL;
     }
 }
-#endif
 
 __attribute__((constructor))
 void
@@ -7181,18 +7140,7 @@ jemalloc_darwin_init(void)
 		abort();
 }
 
-#endif
-
-/*
- * is_malloc(malloc_impl) is some macro magic to detect if malloc_impl is
- * defined as "malloc" in mozmemory_wrap.h
- */
-#define malloc_is_malloc 1
-#define is_malloc_(a) malloc_is_ ## a
-#define is_malloc(a) is_malloc_(a)
-
-#if !defined(MOZ_MEMORY_DARWIN) && (is_malloc(malloc_impl) == 1)
-#  if defined(__GLIBC__) && !defined(__UCLIBC__)
+#elif defined(__GLIBC__) && !defined(__UCLIBC__)
 /*
  * glibc provides the RTLD_DEEPBIND flag for dlopen which can make it possible
  * to inconsistently reference libc's malloc(3)-compatible functions
@@ -7202,19 +7150,18 @@ jemalloc_darwin_init(void)
  * passed an extra argument for the caller return address, which will be
  * ignored.
  */
-MOZ_MEMORY_API void (*__free_hook)(void *ptr) = free_impl;
-MOZ_MEMORY_API void *(*__malloc_hook)(size_t size) = malloc_impl;
-MOZ_MEMORY_API void *(*__realloc_hook)(void *ptr, size_t size) = realloc_impl;
-MOZ_MEMORY_API void *(*__memalign_hook)(size_t alignment, size_t size) = MEMALIGN;
+void (*__free_hook)(void *ptr) = free;
+void *(*__malloc_hook)(size_t size) = malloc;
+void *(*__realloc_hook)(void *ptr, size_t size) = realloc;
+void *(*__memalign_hook)(size_t alignment, size_t size) = MEMALIGN;
 
-#  elif defined(RTLD_DEEPBIND)
+#elif defined(RTLD_DEEPBIND)
 /*
  * XXX On systems that support RTLD_GROUP or DF_1_GROUP, do their
  * implementations permit similar inconsistencies?  Should STV_SINGLETON
  * visibility be used for interposition where available?
  */
-#    error "Interposing malloc is unsafe on this system without libc malloc hooks."
-#  endif
+#  error "Interposing malloc is unsafe on this system without libc malloc hooks."
 #endif
 
 #ifdef MOZ_MEMORY_WINDOWS

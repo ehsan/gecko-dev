@@ -24,8 +24,7 @@ let wantLogging = Services.prefs.getBoolPref("devtools.debugger.log");
 Cu.import("resource://gre/modules/jsdebugger.jsm");
 addDebuggerToGlobal(this);
 
-Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
-const { defer, resolve, reject } = Promise;
+Cu.import("resource://gre/modules/devtools/_Promise.jsm");
 
 function dumpn(str) {
   if (wantLogging) {
@@ -87,7 +86,7 @@ var DebuggerServer = {
    *
    * @return true if the connection should be permitted, false otherwise
    */
-  _defaultAllowConnection: function DS__defaultAllowConnection() {
+  _defaultAllowConnection: function DH__defaultAllowConnection() {
     let title = L10N.getStr("remoteIncomingPromptTitle");
     let msg = L10N.getStr("remoteIncomingPromptMessage");
     let disableButton = L10N.getStr("remoteIncomingPromptDisable");
@@ -115,7 +114,7 @@ var DebuggerServer = {
    *        The embedder-provider callback, that decides whether an incoming
    *        remote protocol conection should be allowed or refused.
    */
-  init: function DS_init(aAllowConnectionCallback) {
+  init: function DH_init(aAllowConnectionCallback) {
     if (this.initialized) {
       return;
     }
@@ -136,7 +135,7 @@ var DebuggerServer = {
    *        The embedder-provider callback, that decides whether an incoming
    *        remote protocol conection should be allowed or refused.
    */
-  initTransport: function DS_initTransport(aAllowConnectionCallback) {
+  initTransport: function DH_initTransport(aAllowConnectionCallback) {
     if (this._transportInitialized) {
       return;
     }
@@ -158,7 +157,7 @@ var DebuggerServer = {
    * debugger server is no longer useful, to avoid memory leaks. After this
    * method returns, the debugger server must be initialized again before use.
    */
-  destroy: function DS_destroy() {
+  destroy: function DH_destroy() {
     if (Object.keys(this._connections).length == 0) {
       this.closeListener();
       delete this.globalActorFactories;
@@ -177,20 +176,18 @@ var DebuggerServer = {
    *        that implements a createRootActor() function to create the
    *        server's root actor.
    */
-  addActors: function DS_addActors(aURL) {
+  addActors: function DH_addActors(aURL) {
     loadSubScript.call(this, aURL);
   },
 
   /**
    * Install Firefox-specific actors.
    */
-  addBrowserActors: function DS_addBrowserActors() {
+  addBrowserActors: function DH_addBrowserActors() {
     this.addActors("chrome://global/content/devtools/dbg-browser-actors.js");
-#ifndef MOZ_WIDGET_GONK
     this.addActors("chrome://global/content/devtools/dbg-webconsole-actors.js");
     this.addTabActor(this.WebConsoleActor, "consoleActor");
     this.addGlobalActor(this.WebConsoleActor, "consoleActor");
-#endif
     if ("nsIProfiler" in Ci)
       this.addActors("chrome://global/content/devtools/dbg-profiler-actors.js");
   },
@@ -201,7 +198,7 @@ var DebuggerServer = {
    * @param aPort int
    *        The port to listen on.
    */
-  openListener: function DS_openListener(aPort) {
+  openListener: function DH_openListener(aPort) {
     if (!Services.prefs.getBoolPref("devtools.debugger.remote-enabled")) {
       return false;
     }
@@ -238,7 +235,7 @@ var DebuggerServer = {
    *        If set to true, then the socket will be closed, regardless of the
    *        number of open connections.
    */
-  closeListener: function DS_closeListener(aForce) {
+  closeListener: function DH_closeListener(aForce) {
     if (!this._listener || this._socketConnections == 0) {
       return false;
     }
@@ -262,7 +259,7 @@ var DebuggerServer = {
    * @returns a client-side DebuggerTransport for communicating with
    *          the newly-created connection.
    */
-  connectPipe: function DS_connectPipe() {
+  connectPipe: function DH_connectPipe() {
     this._checkInit();
 
     let serverTransport = new LocalDebuggerTransport;
@@ -276,7 +273,7 @@ var DebuggerServer = {
 
   // nsIServerSocketListener implementation
 
-  onSocketAccepted: function DS_onSocketAccepted(aSocket, aTransport) {
+  onSocketAccepted: function DH_onSocketAccepted(aSocket, aTransport) {
     if (!this._allowConnection()) {
       return;
     }
@@ -292,14 +289,12 @@ var DebuggerServer = {
     }
   },
 
-  onStopListening: function DS_onStopListening(aSocket, status) {
-    dumpn("onStopListening, status: " + status);
-  },
+  onStopListening: function DH_onStopListening() { },
 
   /**
    * Raises an exception if the server has not been properly initialized.
    */
-  _checkInit: function DS_checkInit() {
+  _checkInit: function DH_checkInit() {
     if (!this._transportInitialized) {
       throw "DebuggerServer has not been initialized.";
     }
@@ -313,7 +308,7 @@ var DebuggerServer = {
    * Create a new debugger connection for the given transport.  Called
    * after connectPipe() or after an incoming socket connection.
    */
-  _onConnection: function DS_onConnection(aTransport) {
+  _onConnection: function DH_onConnection(aTransport) {
     let connID = "conn" + this._nextConnID++ + '.';
     let conn = new DebuggerServerConnection(connID, aTransport);
     this._connections[connID] = conn;
@@ -328,94 +323,10 @@ var DebuggerServer = {
   /**
    * Remove the connection from the debugging server.
    */
-  _connectionClosed: function DS_connectionClosed(aConnection) {
+  _connectionClosed: function DH_connectionClosed(aConnection) {
     delete this._connections[aConnection.prefix];
-  },
-
-  // DebuggerServer extension API.
-
-  /**
-   * Registers handlers for new tab-scoped request types defined dynamically.
-   * This is used for example by add-ons to augment the functionality of the tab
-   * actor. Note that the name or actorPrefix of the request type is not allowed
-   * to clash with existing protocol packet properties, like 'title', 'url' or
-   * 'actor', since that would break the protocol.
-   *
-   * @param aFunction function
-   *        The constructor function for this request type.
-   * @param aName string [optional]
-   *        The name of the new request type. If this is not present, the
-   *        actorPrefix property of the constructor prototype is used.
-   */
-  addTabActor: function DS_addTabActor(aFunction, aName) {
-    let name = aName ? aName : aFunction.prototype.actorPrefix;
-    if (["title", "url", "actor"].indexOf(name) != -1) {
-      throw Error(name + " is not allowed");
-    }
-    if (DebuggerServer.tabActorFactories.hasOwnProperty(name)) {
-      throw Error(name + " already exists");
-    }
-    DebuggerServer.tabActorFactories[name] = aFunction;
-  },
-
-  /**
-   * Unregisters the handler for the specified tab-scoped request type.
-   * This may be used for example by add-ons when shutting down or upgrading.
-   *
-   * @param aFunction function
-   *        The constructor function for this request type.
-   */
-  removeTabActor: function DS_removeTabActor(aFunction) {
-    for (let name in DebuggerServer.tabActorFactories) {
-      let handler = DebuggerServer.tabActorFactories[name];
-      if (handler.name == aFunction.name) {
-        delete DebuggerServer.tabActorFactories[name];
-      }
-    }
-  },
-
-  /**
-   * Registers handlers for new browser-scoped request types defined
-   * dynamically. This is used for example by add-ons to augment the
-   * functionality of the root actor. Note that the name or actorPrefix of the
-   * request type is not allowed to clash with existing protocol packet
-   * properties, like 'from', 'tabs' or 'selected', since that would break the
-   * protocol.
-   *
-   * @param aFunction function
-   *        The constructor function for this request type.
-   * @param aName string [optional]
-   *        The name of the new request type. If this is not present, the
-   *        actorPrefix property of the constructor prototype is used.
-   */
-  addGlobalActor: function DS_addGlobalActor(aFunction, aName) {
-    let name = aName ? aName : aFunction.prototype.actorPrefix;
-    if (["from", "tabs", "selected"].indexOf(name) != -1) {
-      throw Error(name + " is not allowed");
-    }
-    if (DebuggerServer.globalActorFactories.hasOwnProperty(name)) {
-      throw Error(name + " already exists");
-    }
-    DebuggerServer.globalActorFactories[name] = aFunction;
-  },
-
-  /**
-   * Unregisters the handler for the specified browser-scoped request type.
-   * This may be used for example by add-ons when shutting down or upgrading.
-   *
-   * @param aFunction function
-   *        The constructor function for this request type.
-   */
-  removeGlobalActor: function DS_removeGlobalActor(aFunction) {
-    for (let name in DebuggerServer.globalActorFactories) {
-      let handler = DebuggerServer.globalActorFactories[name];
-      if (handler.name == aFunction.name) {
-        delete DebuggerServer.globalActorFactories[name];
-      }
-    }
   }
 };
-
 
 /**
  * Construct an ActorPool.
@@ -486,7 +397,7 @@ ActorPool.prototype = {
   },
 
   /**
-   * Run all actor cleanups.
+   * Run all cleanups previously registered with addCleanup.
    */
   cleanup: function AP_cleanup() {
     for each (let actor in this._cleanups) {
@@ -544,20 +455,11 @@ DebuggerServerConnection.prototype = {
 
   /**
    * Remove a previously-added pool of actors to the connection.
-   *
-   * @param ActorPool aActorPool
-   *        The ActorPool instance you want to remove.
-   * @param boolean aCleanup
-   *        True if you want to disconnect each actor from the pool, false
-   *        otherwise.
    */
-  removeActorPool: function DSC_removeActorPool(aActorPool, aCleanup) {
+  removeActorPool: function DSC_removeActorPool(aActorPool) {
     let index = this._extraPools.lastIndexOf(aActorPool);
     if (index > -1) {
-      let pool = this._extraPools.splice(index, 1);
-      if (aCleanup) {
-        pool.map(function(p) { p.cleanup(); });
-      }
+      this._extraPools.splice(index, 1);
     }
   },
 
@@ -573,6 +475,13 @@ DebuggerServerConnection.prototype = {
    */
   removeActor: function DSC_removeActor(aActor) {
     this._actorPool.removeActor(aActor);
+  },
+
+  /**
+   * Add a cleanup to the default actor pool for this connection.
+   */
+  addCleanup: function DSC_addCleanup(aCleanup) {
+    this._actorPool.addCleanup(aCleanup);
   },
 
   /**
@@ -658,17 +567,16 @@ DebuggerServerConnection.prototype = {
     }
 
     if (!ret) {
-      // This should become an error once we've converted every user
-      // of this to promises in bug 794078.
+      // XXX: The actor wasn't ready to reply yet, don't process new
+      // requests until it does.
       return;
     }
 
-    resolve(ret).then(function(returnPacket) {
-      if (!returnPacket.from) {
-        returnPacket.from = aPacket.to;
-      }
-      this.transport.send(returnPacket);
-    }.bind(this));
+    if (!ret.from) {
+      ret.from = aPacket.to;
+    }
+
+    this.transport.send(ret);
   },
 
   /**
@@ -687,29 +595,6 @@ DebuggerServerConnection.prototype = {
     this._extraPools = null;
 
     DebuggerServer._connectionClosed(this);
-  },
-
-  /*
-   * Debugging helper for inspecting the state of the actor pools.
-   */
-  _dumpPools: function DSC_dumpPools() {
-    dumpn("/-------------------- dumping pools:");
-    if (this._actorPool) {
-      dumpn("--------------------- actorPool actors: " +
-            uneval(Object.keys(this._actorPool._actors)));
-    }
-    for each (let pool in this._extraPools)
-      dumpn("--------------------- extraPool actors: " +
-            uneval(Object.keys(pool._actors)));
-  },
-
-  /*
-   * Debugging helper for inspecting the state of an actor pool.
-   */
-  _dumpPool: function DSC_dumpPools(aPool) {
-    dumpn("/-------------------- dumping pool:");
-    dumpn("--------------------- actorPool actors: " +
-          uneval(Object.keys(aPool._actors)));
   }
 };
 

@@ -8,6 +8,7 @@
 #include "nsError.h"
 #include "nsString.h"
 #include "nsSVGElement.h"
+#include "string.h"
 #include "SVGAnimatedLengthList.h"
 #include "SVGContentUtils.h"
 #include "SVGLength.h"

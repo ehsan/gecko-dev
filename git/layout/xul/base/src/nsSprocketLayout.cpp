@@ -19,8 +19,6 @@
 #include "nsContainerFrame.h"
 #include "nsBoxFrame.h"
 #include "StackArena.h"
-#include "mozilla/Likely.h"
-#include <algorithm>
 
 nsBoxLayout* nsSprocketLayout::gInstance = nullptr;
 
@@ -68,7 +66,7 @@ nsSprocketLayout::GetFrameState(nsIFrame* aBox, nsFrameState& aState)
 static uint8_t
 GetFrameDirection(nsIFrame* aBox)
 {
-   return aBox->StyleVisibility()->mDirection;
+   return aBox->GetStyleVisibility()->mDirection;
 }
 
 static void
@@ -329,8 +327,8 @@ nsSprocketLayout::Layout(nsIFrame* aBox, nsBoxLayoutState& aState)
            prefSize = nsBox::BoundsCheck(minSize, prefSize, maxSize);
        
            AddMargin(child, prefSize);
-           width = std::min(prefSize.width, originalClientRect.width);
-           height = std::min(prefSize.height, originalClientRect.height);
+           width = NS_MIN(prefSize.width, originalClientRect.width);
+           height = NS_MIN(prefSize.height, originalClientRect.height);
         }
       }
 
@@ -839,11 +837,11 @@ nsSprocketLayout::PopulateBoxSizes(nsIFrame* aBox, nsBoxLayoutState& aState, nsB
   if (childCount > 0) {
     nscoord maxAllowedFlex = nscoord_MAX / childCount;
   
-    if (MOZ_UNLIKELY(maxFlex > maxAllowedFlex)) {
+    if (NS_UNLIKELY(maxFlex > maxAllowedFlex)) {
       // clamp all the flexes
       currentBox = aBoxSizes;
       while (currentBox) {
-        currentBox->flex = std::min(currentBox->flex, maxAllowedFlex);
+        currentBox->flex = NS_MIN(currentBox->flex, maxAllowedFlex);
         currentBox = currentBox->next;      
       }
     }
@@ -856,7 +854,7 @@ nsSprocketLayout::PopulateBoxSizes(nsIFrame* aBox, nsBoxLayoutState& aState, nsB
 
   // we specified all our children are equal size;
   if (frameState & NS_STATE_EQUAL_SIZE) {
-    smallestMaxWidth = std::max(smallestMaxWidth, biggestMinWidth);
+    smallestMaxWidth = NS_MAX(smallestMaxWidth, biggestMinWidth);
     biggestPrefWidth = nsBox::BoundsCheck(biggestMinWidth, biggestPrefWidth, smallestMaxWidth);
 
     currentBox = aBoxSizes;
@@ -965,8 +963,8 @@ nsSprocketLayout::AlignChildren(nsIFrame* aBox,
           // Alignments don't force the box to grow (only sizes do),
           // so keep the children within the box.
           y = maxAscent - child->GetBoxAscent(aState);
-          y = std::max(startAlign, y);
-          y = std::min(y, endAlign);
+          y = NS_MAX(startAlign, y);
+          y = NS_MIN(y, endAlign);
           break;
       }
 

@@ -3,18 +3,8 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+#include "nsNSSComponent.h"
 #include "nsCrypto.h"
-#include "nsNSSComponent.h"
-#include "secmod.h"
-
-#include "nsReadableUtils.h"
-#include "nsCRT.h"
-#include "nsXPIDLString.h"
-#include "nsISaveAsCharset.h"
-#include "nsNativeCharsetUtils.h"
-
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
-#include "nsNSSComponent.h"
 #include "nsKeygenHandler.h"
 #include "nsKeygenThread.h"
 #include "nsNSSCertificate.h"
@@ -24,7 +14,9 @@
 #include "nsThreadUtils.h"
 #include "nsIServiceManager.h"
 #include "nsIMemory.h"
+#include "nsAutoPtr.h"
 #include "nsAlgorithm.h"
+#include "nsCRT.h"
 #include "prprf.h"
 #include "nsDOMCID.h"
 #include "nsIDOMWindow.h"
@@ -43,6 +35,7 @@
 #include "nsJSPrincipals.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsXPIDLString.h"
 #include "nsIGenKeypairInfoDlg.h"
 #include "nsIDOMCryptoDialogs.h"
 #include "nsIFormSigningDialog.h"
@@ -50,31 +43,38 @@
 #include "jsapi.h"
 #include "jsdbgapi.h"
 #include <ctype.h>
+#include "nsReadableUtils.h"
 #include "pk11func.h"
 #include "keyhi.h"
 #include "cryptohi.h"
 #include "seccomon.h"
 #include "secerr.h"
 #include "sechash.h"
+extern "C" {
 #include "crmf.h"
 #include "pk11pqg.h"
+}
 #include "cmmf.h"
 #include "nssb64.h"
 #include "base64.h"
 #include "cert.h"
 #include "certdb.h"
 #include "secmod.h"
-#include "ScopedNSSTypes.h"
+#include "nsISaveAsCharset.h"
+#include "nsNativeCharsetUtils.h"
 
 #include "ssl.h" // For SSL_ClearSessionCache
 
 #include "nsNSSCleaner.h"
+NSSCleanupAutoPtrClass(SECKEYPrivateKey, SECKEY_DestroyPrivateKey)
+NSSCleanupAutoPtrClass(PK11SlotInfo, PK11_FreeSlot)
+NSSCleanupAutoPtrClass(CERTCertNicknames, CERT_FreeNicknames)
+NSSCleanupAutoPtrClass(PK11SymKey, PK11_FreeSymKey)
+NSSCleanupAutoPtrClass_WithParam(PK11Context, PK11_DestroyContext, TrueParam, true)
+NSSCleanupAutoPtrClass_WithParam(SECItem, SECITEM_FreeItem, TrueParam, true)
 
+#include "nsNSSShutDown.h"
 #include "nsNSSCertHelper.h"
-#include <algorithm>
-#endif
-
-using namespace mozilla;
 
 /*
  * These are the most common error strings that are returned
@@ -100,16 +100,6 @@ using namespace mozilla;
 #define JS_ERR_BAD_MECHANISM_FLAGS        -8
 #define JS_ERR_BAD_CIPHER_ENABLE_FLAGS    -9
 #define JS_ERR_ADD_DUPLICATE_MOD          -10
-
-namespace {
-  
-NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
-
-} // unnamed namespace
-
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
-
-NSSCleanupAutoPtrClass_WithParam(PK11Context, PK11_DestroyContext, TrueParam, true)
 
 /*
  * This structure is used to store information for one key generation.
@@ -208,11 +198,13 @@ private:
 // QueryInterface implementation for nsCrypto
 NS_INTERFACE_MAP_BEGIN(nsCrypto)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCrypto)
-NS_INTERFACE_MAP_END_INHERITING(mozilla::dom::Crypto)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Crypto)
+NS_INTERFACE_MAP_END
 
-NS_IMPL_ADDREF_INHERITED(nsCrypto, mozilla::dom::Crypto)
-NS_IMPL_RELEASE_INHERITED(nsCrypto, mozilla::dom::Crypto)
- 
+NS_IMPL_ADDREF(nsCrypto)
+NS_IMPL_RELEASE(nsCrypto)
+
 // QueryInterface implementation for nsCRMFObject
 NS_INTERFACE_MAP_BEGIN(nsCRMFObject)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCRMFObject)
@@ -224,8 +216,6 @@ NS_IMPL_ADDREF(nsCRMFObject)
 NS_IMPL_RELEASE(nsCRMFObject)
 
 // QueryInterface implementation for nsPkcs11
-#endif // MOZ_DISABLE_CRYPTOLEGACY
-
 NS_INTERFACE_MAP_BEGIN(nsPkcs11)
   NS_INTERFACE_MAP_ENTRY(nsIPKCS11)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
@@ -233,8 +223,6 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsPkcs11)
 NS_IMPL_RELEASE(nsPkcs11)
-
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
 
 // ISupports implementation for nsCryptoRunnable
 NS_IMPL_ISUPPORTS1(nsCryptoRunnable, nsIRunnable)
@@ -244,6 +232,8 @@ NS_IMPL_ISUPPORTS1(nsP12Runnable, nsIRunnable)
 
 // ISupports implementation for nsCryptoRunArgs
 NS_IMPL_ISUPPORTS0(nsCryptoRunArgs)
+
+static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
 nsCrypto::nsCrypto() :
   mEnableSmartCardEvents(false)
@@ -346,13 +336,13 @@ static nsKeyGenType
 cryptojs_interpret_key_gen_type(char *keyAlg)
 {
   char *end;
-  if (!keyAlg) {
+  if (keyAlg == nullptr) {
     return invalidKeyGen;
   }
   /* First let's remove all leading and trailing white space */
   while (isspace(keyAlg[0])) keyAlg++;
   end = strchr(keyAlg, '\0');
-  if (!end) {
+  if (end == nullptr) {
     return invalidKeyGen;
   }
   end--;
@@ -467,7 +457,7 @@ nsConvertToActualKeyGenParams(uint32_t keyGenMech, char *params,
     rsaParams = static_cast<PK11RSAGenParams*>
                            (nsMemory::Alloc(sizeof(PK11RSAGenParams)));
                               
-    if (!rsaParams) {
+    if (rsaParams == nullptr) {
       return nullptr;
     }
     /* I'm just taking the same parameters used in 
@@ -527,11 +517,11 @@ nsConvertToActualKeyGenParams(uint32_t keyGenMech, char *params,
               next_input, name, name_len, value, value_len,
               next_input))
       {
-        if (PL_strncmp(name, "curve", std::min(name_len, 5)) == 0)
+        if (PL_strncmp(name, "curve", NS_MIN(name_len, 5)) == 0)
         {
           curve = PL_strndup(value, value_len);
         }
-        else if (PL_strncmp(name, "popcert", std::min(name_len, 7)) == 0)
+        else if (PL_strncmp(name, "popcert", NS_MIN(name_len, 7)) == 0)
         {
           char *certstr = PL_strndup(value, value_len);
           if (certstr) {
@@ -708,7 +698,8 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
   //       user's key3.db file.  Which the slot returned by
   //       PK11_GetInternalKeySlot has access to and PK11_GetInternalSlot
   //       does not.
-  ScopedPK11SlotInfo intSlot;
+  PK11SlotInfo *intSlot = nullptr;
+  PK11SlotInfoCleaner siCleaner(intSlot);
   
   if (willEscrow && !PK11_IsInternal(slot)) {
     intSlot = PK11_GetInternalSlot();
@@ -716,6 +707,7 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
     
     if (!PK11_DoesMechanism(intSlot, mechanism)) {
       // Set to null, and the subsequent code will not attempt to use it.
+      PK11_FreeSlot(intSlot);
       intSlot = nullptr;
     }
   }
@@ -734,7 +726,7 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
   // "firstAttemptSlot" and "secondAttemptSlot" are alternative names
   // for better code readability, we don't increase the reference counts.
   
-  PK11SlotInfo *firstAttemptSlot = nullptr;
+  PK11SlotInfo *firstAttemptSlot = NULL;
   PK11AttrFlags firstAttemptFlags = 0;
 
   PK11SlotInfo *secondAttemptSlot = slot;
@@ -749,7 +741,7 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
     // if the destination slot is the internal slot, then there is only one attempt
     firstAttemptSlot = secondAttemptSlot;
     firstAttemptFlags = secondAttemptFlags;
-    secondAttemptSlot = nullptr;
+    secondAttemptSlot = NULL;
     secondAttemptFlags = 0;
   }
   else {
@@ -809,12 +801,12 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
 
       NS_RELEASE(dialogs);
       if (NS_SUCCEEDED(rv)) {
-        PK11SlotInfo *used_slot = nullptr;
+        PK11SlotInfo *used_slot = NULL;
         rv = KeygenRunnable->ConsumeResult(&used_slot, 
                                            &keyPairInfo->privKey, &keyPairInfo->pubKey);
 
         if (NS_SUCCEEDED(rv)) {
-          if ((used_slot == firstAttemptSlot) && secondAttemptSlot) {
+          if ((used_slot == firstAttemptSlot) && (secondAttemptSlot != NULL)) {
             mustMoveKey = true;
           }
         
@@ -824,8 +816,8 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
     }
   }
 
-  firstAttemptSlot = nullptr;
-  secondAttemptSlot = nullptr;
+  firstAttemptSlot = NULL;
+  secondAttemptSlot = NULL;
   
   nsFreeKeyGenParams(mechanism, keyGenParams);
 
@@ -840,17 +832,23 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
   //If we generated the key pair on the internal slot because the
   // keys were going to be escrowed, move the keys over right now.
   if (mustMoveKey) {
-    ScopedSECKEYPrivateKey newPrivKey(PK11_LoadPrivKey(slot,
+    SECKEYPrivateKey *newPrivKey = PK11_LoadPrivKey(slot, 
                                                     keyPairInfo->privKey,
                                                     keyPairInfo->pubKey,
-                                                    true, true));
+                                                    true, true);
+    SECKEYPrivateKeyCleaner pkCleaner(newPrivKey);
+
     if (!newPrivKey)
       return NS_ERROR_FAILURE;
 
     // The private key is stored on the selected slot now, and the copy we
     // ultimately use for escrowing when the time comes lives 
     // in the internal slot.  We will delete it from that slot
-    // after the requests are made.
+    // after the requests are made.  This call only gives up
+    // our reference to the key object and does not actually 
+    // physically remove it from the card itself.
+    // The actual delete calls are being made in the destructors
+    // of the cleaner helper instances.
   }  
 
   return NS_OK;
@@ -909,7 +907,7 @@ cryptojs_generateOneKeyPair(JSContext *cx, nsKeyPairInfo *keyPairInfo,
 
 static nsresult
 cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
-                                JS::Value *argv,
+                                jsval *argv,
                                 nsKeyPairInfo *keyGenType,
                                 nsIInterfaceRequestor *uiCxt,
                                 PK11SlotInfo **slot, bool willEscrow)
@@ -929,7 +927,7 @@ cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
     jsString = JS_ValueToString(cx,argv[1]);
     NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
     argv[1] = STRING_TO_JSVAL(jsString);
-    params.encodeLatin1(cx, jsString);
+    params.encode(cx, jsString);
     NS_ENSURE_TRUE(!!params, NS_ERROR_OUT_OF_MEMORY);
   }
 
@@ -941,7 +939,7 @@ cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
   jsString = JS_ValueToString(cx, argv[2]);
   NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
   argv[2] = STRING_TO_JSVAL(jsString);
-  keyGenAlg.encodeLatin1(cx, jsString);
+  keyGenAlg.encode(cx, jsString);
   NS_ENSURE_TRUE(!!keyGenAlg, NS_ERROR_OUT_OF_MEMORY);
   keyGenType->keyGenType = cryptojs_interpret_key_gen_type(keyGenAlg.ptr());
   if (keyGenType->keyGenType == invalidKeyGen) {
@@ -950,9 +948,9 @@ cryptojs_ReadArgsAndGenerateKey(JSContext *cx,
                    keyGenAlg.ptr());
     goto loser;
   }
-  if (!*slot) {
+  if (*slot == nullptr) {
     *slot = nsGetSlotForKeyGen(keyGenType->keyGenType, uiCxt);
-    if (!*slot)
+    if (*slot == nullptr)
       goto loser;
   }
 
@@ -1015,12 +1013,13 @@ nsSetEscrowAuthority(CRMFCertRequest *certReq, nsKeyPairInfo *keyInfo,
       CRMF_CertRequestIsControlPresent(certReq, crmfPKIArchiveOptionsControl)){
     return NS_ERROR_FAILURE;
   }
-  ScopedCERTCertificate cert(wrappingCert->GetCert());
+  CERTCertificate *cert = wrappingCert->GetCert();
   if (!cert)
     return NS_ERROR_FAILURE;
 
   CRMFEncryptedKey *encrKey = 
       CRMF_CreateEncryptedKeyWithEncryptedValue(keyInfo->privKey, cert);
+  CERT_DestroyCertificate(cert);
   if (!encrKey)
     return NS_ERROR_FAILURE;
 
@@ -1047,13 +1046,14 @@ nsSetDNForRequest(CRMFCertRequest *certReq, char *reqDN)
   if (!reqDN || CRMF_CertRequestIsFieldPresent(certReq, crmfSubject)) {
     return NS_ERROR_FAILURE;
   }
-  ScopedCERTName subjectName(CERT_AsciiToName(reqDN));
+  CERTName *subjectName = CERT_AsciiToName(reqDN);
   if (!subjectName) {
     return NS_ERROR_FAILURE;
   }
   SECStatus srv = CRMF_CertRequestSetTemplateField(certReq, crmfSubject,
                                                    static_cast<void*>
                                                               (subjectName));
+  CERT_DestroyName(subjectName);
   return (srv == SECSuccess) ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -1164,11 +1164,11 @@ nsSetKeyUsageExtension(CRMFCertRequest *crmfReq,
   nsPrepareBitStringForEncoding(&bitsmap, &keyUsageValue);
 
   encodedExt = SEC_ASN1EncodeItem(nullptr, nullptr, &bitsmap,&bitStrTemplate);
-  if (!encodedExt) {
+  if (encodedExt == nullptr) {
     goto loser;
   }
   ext = CRMF_CreateCertExtension(SEC_OID_X509_KEY_USAGE, true, encodedExt);
-  if (!ext) {
+  if (ext == nullptr) {
       goto loser;
   }
   extAddParams.numExtensions = 1;
@@ -1488,7 +1488,8 @@ nsSet_EC_DHMAC_ProofOfPossession(CRMFCertReqMsg *certReqMsg,
   // allows multiple requests to be sent in one step.
 
   unsigned long der_request_len = 0;
-  ScopedSECItem der_request;
+  SECItem *der_request = NULL;
+  SECItemCleanerTrueParam der_request_cleaner(der_request);
 
   if (SECSuccess != CRMF_EncodeCertRequest(certReq, 
                                            nsCRMFEncoderItemCount, 
@@ -1515,24 +1516,31 @@ nsSet_EC_DHMAC_ProofOfPossession(CRMFCertReqMsg *certReqMsg,
   //  issuer names in the CA's certificate as follows:
   //  K = SHA1(DER-encoded-subjectName | Kec | DER-encoded-issuerName)"
 
-  ScopedPK11SymKey shared_secret;
-  ScopedPK11SymKey subject_and_secret;
-  ScopedPK11SymKey subject_and_secret_and_issuer;
-  ScopedPK11SymKey sha1_of_subject_and_secret_and_issuer;
+  PK11SymKey *shared_secret = NULL;
+  PK11SymKeyCleaner shared_secret_cleaner(shared_secret);
+
+  PK11SymKey *subject_and_secret = NULL;
+  PK11SymKeyCleaner subject_and_secret_cleaner(subject_and_secret);
+
+  PK11SymKey *subject_and_secret_and_issuer = NULL;
+  PK11SymKeyCleaner subject_and_secret_and_issuer_cleaner(subject_and_secret_and_issuer);
+
+  PK11SymKey *sha1_of_subject_and_secret_and_issuer = NULL;
+  PK11SymKeyCleaner sha1_of_subject_and_secret_and_issuer_cleaner(sha1_of_subject_and_secret_and_issuer);
 
   shared_secret = 
     PK11_PubDeriveWithKDF(keyInfo->privKey, // SECKEYPrivateKey *privKey
                           keyInfo->ecPopPubKey,  // SECKEYPublicKey *pubKey
                           false, // bool isSender
-                          nullptr, // SECItem *randomA
-                          nullptr, // SECItem *randomB
+                          NULL, // SECItem *randomA
+                          NULL, // SECItem *randomB
                           CKM_ECDH1_DERIVE, // CK_MECHANISM_TYPE derive
                           CKM_CONCATENATE_DATA_AND_BASE, // CK_MECHANISM_TYPE target
                           CKA_DERIVE, // CK_ATTRIBUTE_TYPE operation
                           0, // int keySize
                           CKD_NULL, // CK_ULONG kdf
-                          nullptr, // SECItem *sharedData
-                          nullptr); // void *wincx
+                          NULL, // SECItem *sharedData
+                          NULL); // void *wincx
 
   if (!shared_secret)
     return NS_ERROR_FAILURE;
@@ -1576,7 +1584,7 @@ nsSet_EC_DHMAC_ProofOfPossession(CRMFCertReqMsg *certReqMsg,
   sha1_of_subject_and_secret_and_issuer =
     PK11_Derive(subject_and_secret_and_issuer, // PK11SymKey *baseKey
                 CKM_SHA1_KEY_DERIVATION, // CK_MECHANISM_TYPE mechanism
-                nullptr, // SECItem *param
+                NULL, // SECItem *param
                 CKM_SHA_1_HMAC, // CK_MECHANISM_TYPE target
                 CKA_SIGN, // CK_ATTRIBUTE_TYPE operation
                 0); // int keySize
@@ -1584,7 +1592,7 @@ nsSet_EC_DHMAC_ProofOfPossession(CRMFCertReqMsg *certReqMsg,
   if (!sha1_of_subject_and_secret_and_issuer)
     return NS_ERROR_FAILURE;
 
-  PK11Context *context = nullptr;
+  PK11Context *context = NULL;
   PK11ContextCleanerTrueParam context_cleaner(context);
 
   SECItem ignore;
@@ -1607,18 +1615,23 @@ nsSet_EC_DHMAC_ProofOfPossession(CRMFCertReqMsg *certReqMsg,
       PK11_DigestOp(context, der_request->data, der_request->len))
     return NS_ERROR_FAILURE;
 
-  ScopedAutoSECItem result_hmac_sha1_item(SHA1_LENGTH);
+  SECItem *result_hmac_sha1_item = NULL;
+  SECItemCleanerTrueParam result_hmac_sha1_item_cleaner(result_hmac_sha1_item);
+
+  result_hmac_sha1_item = SECITEM_AllocItem(nullptr, nullptr, SHA1_LENGTH);
+  if (!result_hmac_sha1_item)
+    return NS_ERROR_FAILURE;
 
   if (SECSuccess !=
       PK11_DigestFinal(context, 
-                       result_hmac_sha1_item.data, 
-                       &result_hmac_sha1_item.len, 
+                       result_hmac_sha1_item->data, 
+                       &result_hmac_sha1_item->len, 
                        SHA1_LENGTH))
     return NS_ERROR_FAILURE;
 
   if (SECSuccess !=
       CRMF_CertReqMsgSetKeyAgreementPOP(certReqMsg, crmfDHMAC,
-                                        crmfNoSubseqMess, &result_hmac_sha1_item))
+                                        crmfNoSubseqMess, result_hmac_sha1_item))
     return NS_ERROR_FAILURE;
 
   return NS_OK;
@@ -1743,12 +1756,12 @@ nsEncodeCertReqMessages(CRMFCertReqMsg **certReqMsgs)
     return nullptr;
   }
   SECItem *dest = (SECItem *)PORT_Alloc(sizeof(SECItem));
-  if (!dest) {
+  if (dest == nullptr) {
     return nullptr;
   }
   dest->type = siBuffer;
   dest->data = (unsigned char *)PORT_Alloc(len);
-  if (!dest->data) {
+  if (dest->data == nullptr) {
     PORT_Free(dest);
     return nullptr;
   }
@@ -1775,7 +1788,7 @@ nsCreateReqFromKeyPairs(nsKeyPairInfo *keyids, int32_t numRequests,
   // that calls the C API of NSS.
   int32_t i;
   // The ASN1 encoder in NSS wants the last entry in the array to be
-  // nullptr so that it knows when the last element is.
+  // NULL so that it knows when the last element is.
   CRMFCertReqMsg **certReqMsgs = new CRMFCertReqMsg*[numRequests+1];
   CRMFCertRequest *certReq;
   if (!certReqMsgs)
@@ -1846,7 +1859,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
 
   ncc->GetArgc(&argc);
 
-  JS::Value *argv = nullptr;
+  jsval *argv = nullptr;
 
   nrv = ncc->GetArgvPtr(&argv);
   NS_ENSURE_SUCCESS(nrv, nrv);
@@ -1886,7 +1899,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     jsString = JS_ValueToString(cx, argv[1]);
     NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
     argv[1] = STRING_TO_JSVAL(jsString);
-    regToken.encodeLatin1(cx, jsString);
+    regToken.encode(cx, jsString);
     NS_ENSURE_TRUE(!!regToken, NS_ERROR_OUT_OF_MEMORY);
   }
   JSAutoByteString authenticator;
@@ -1894,7 +1907,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     jsString      = JS_ValueToString(cx, argv[2]);
     NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
     argv[2] = STRING_TO_JSVAL(jsString);
-    authenticator.encodeLatin1(cx, jsString);
+    authenticator.encode(cx, jsString);
     NS_ENSURE_TRUE(!!authenticator, NS_ERROR_OUT_OF_MEMORY);
   }
   JSAutoByteString eaCert;
@@ -1902,7 +1915,7 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     jsString     = JS_ValueToString(cx, argv[3]);
     NS_ENSURE_TRUE(jsString, NS_ERROR_OUT_OF_MEMORY);
     argv[3] = STRING_TO_JSVAL(jsString);
-    eaCert.encodeLatin1(cx, jsString);
+    eaCert.encode(cx, jsString);
     NS_ENSURE_TRUE(!!eaCert, NS_ERROR_OUT_OF_MEMORY);
   }
   if (JSVAL_IS_NULL(argv[4])) {
@@ -1937,13 +1950,14 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     if (srv != SECSuccess) {
       return NS_ERROR_FAILURE;
     }
-    ScopedCERTCertificate cert(CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
-                                                       &certDer, nullptr,
-                                                       false, true));
+    CERTCertificate *cert = CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
+                                                    &certDer, nullptr, false,
+                                                    true);
     if (!cert)
       return NS_ERROR_FAILURE;
 
     escrowCert = nsNSSCertificate::Create(cert);
+    CERT_DestroyCertificate(cert);
     nssCert = escrowCert;
     if (!nssCert)
       return NS_ERROR_OUT_OF_MEMORY;
@@ -1972,6 +1986,10 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   nsCOMPtr<nsIInterfaceRequestor> uiCxt = new PipUIContext;
   int32_t numRequests = (argc - 5)/3;
   nsKeyPairInfo *keyids = new nsKeyPairInfo[numRequests];
+  if (keyids == nullptr) {
+    JS_ReportError(cx, "%s\n", JS_ERROR_INTERNAL);
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   memset(keyids, 0, sizeof(nsKeyPairInfo)*numRequests);
   int keyInfoIndex;
   uint32_t i;
@@ -2005,6 +2023,12 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
     return NS_ERROR_FAILURE;
   }                                                    
   nsCRMFObject *newObject = new nsCRMFObject();
+  if (newObject == nullptr) {
+    JS_ReportError(cx, "%s%s\n", JS_ERROR, "could not create crmf JS object");
+
+    nsFreeKeyPairInfo(keyids,numRequests);
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   newObject->SetCRMFRequest(encodedRequest);
   *aReturn = newObject;
   //Give a reference to the returnee.
@@ -2033,6 +2057,8 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   NS_ENSURE_TRUE(principals, NS_ERROR_UNEXPECTED);
   
   nsCryptoRunArgs *args = new nsCryptoRunArgs();
+  if (!args)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   args->m_cx         = cx;
   args->m_kungFuDeathGrip = GetISupportsFromContext(cx);
@@ -2042,6 +2068,8 @@ nsCrypto::GenerateCRMFRequest(nsIDOMCRMFObject** aReturn)
   args->m_principals = principals;
   
   nsCryptoRunnable *cryptoRunnable = new nsCryptoRunnable(args);
+  if (!cryptoRunnable)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   rv = NS_DispatchToMainThread(cryptoRunnable);
   if (NS_FAILED(rv))
@@ -2203,9 +2231,10 @@ static bool
 nsCertAlreadyExists(SECItem *derCert)
 {
   CERTCertDBHandle *handle = CERT_GetDefaultCertDB();
+  CERTCertificate *cert;
   bool retVal = false;
 
-  ScopedCERTCertificate cert(CERT_FindCertByDERCert(handle, derCert));
+  cert = CERT_FindCertByDERCert(handle, derCert);
   if (cert) {
     if (cert->isperm && !cert->nickname && !cert->emailAddr) {
       //If the cert doesn't have a nickname or email addr, it is
@@ -2214,6 +2243,7 @@ nsCertAlreadyExists(SECItem *derCert)
     } else if (cert->isperm) {
       retVal = true;
     }
+    CERT_DestroyCertificate(cert);
   }
   return retVal;
 }
@@ -2254,6 +2284,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
   nsAutoCString localNick;
   nsCOMPtr<nsIInterfaceRequestor> ctx = new PipUIContext();
   nsresult rv = NS_OK;
+  CERTCertList *caPubs = nullptr;
   nsCOMPtr<nsIPK11Token> token;
 
   nickname = ToNewCString(aNickname);
@@ -2329,7 +2360,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
     if (currCert->nickname) {
       localNick = currCert->nickname;
     }
-    else if (!nickname || nickname[0] == '\0') {
+    else if (nickname == nullptr || nickname[0] == '\0') {
       nsNSSCertificateDB::get_default_nickname(currCert, ctx, localNick);
     } else {
       //This is the case where we're getting a brand new
@@ -2342,7 +2373,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
       char *cast_const_away = const_cast<char*>(localNick.get());
       slot = PK11_ImportCertForKey(currCert, cast_const_away, ctx);
     }
-    if (!slot) {
+    if (slot == nullptr) {
       rv = NS_ERROR_FAILURE;
       goto loser;
     }
@@ -2365,8 +2396,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
   //That would be a good thing.
 
   //Import the root chain into the cert db.
- {
-  ScopedCERTCertList caPubs(CMMF_CertRepContentGetCAPubs(certRepContent));
+  caPubs = CMMF_CertRepContentGetCAPubs(certRepContent);
   if (caPubs) {
     int32_t numCAs = nsCertListCount(caPubs);
     
@@ -2389,8 +2419,9 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
       nsNSSCertificateDB::ImportValidCACerts(numCAs, derCerts, ctx);
       nsMemory::Free(derCerts);
     }
+    
+    CERT_DestroyCertList(caPubs);
   }
- }
 
   if (aDoForcedBackup) {
     // I can't pop up a file picker from the depths of JavaScript,
@@ -2537,7 +2568,7 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
 
   uint32_t numCAs = argc - 2;
   if (numCAs > 0) {
-    JS::Value *argv = nullptr;
+    jsval *argv = nullptr;
     ncc->GetArgvPtr(&argv);
 
     nsAutoArrayPtr<JSAutoByteString> caNameBytes(new JSAutoByteString[numCAs]);
@@ -2553,7 +2584,7 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
       JSString *caName = JS_ValueToString(cx, argv[i]);
       NS_ENSURE_TRUE(caName, NS_ERROR_OUT_OF_MEMORY);
       argv[i] = STRING_TO_JSVAL(caName);
-      caNameBytes[i - 2].encodeLatin1(cx, caName);
+      caNameBytes[i - 2].encode(cx, caName);
       NS_ENSURE_TRUE(!!caNameBytes[i - 2], NS_ERROR_OUT_OF_MEMORY);
     }
 
@@ -2622,13 +2653,15 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
     ++numberOfCerts;
   }
 
-  ScopedCERTCertNicknames nicknames(getNSSCertNicknamesFromCertList(certList));
+  CERTCertNicknames* nicknames = getNSSCertNicknamesFromCertList(certList);
 
   if (!nicknames) {
     aResult.Append(internalError);
 
     return NS_OK;
   }
+
+  CERTCertNicknamesCleaner cnc(nicknames);
 
   NS_ASSERTION(nicknames->numnicknames == numberOfCerts,
                "nicknames->numnicknames != numberOfCerts");
@@ -2646,7 +2679,7 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
   for (node = CERT_LIST_HEAD(certList), certsToUse = 0;
        !CERT_LIST_END(node, certList) && certsToUse < nicknames->numnicknames;
        node = CERT_LIST_NEXT(node)) {
-    RefPtr<nsNSSCertificate> tempCert(nsNSSCertificate::Create(node->cert));
+    nsRefPtr<nsNSSCertificate> tempCert = nsNSSCertificate::Create(node->cert);
     if (tempCert) {
       nsAutoString nickWithSerial, details;
       rv = tempCert->FormatUIStrings(NS_ConvertUTF8toUTF16(nicknames->nicknames[certsToUse]),
@@ -2856,13 +2889,6 @@ nsCrypto::DisableRightClick()
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-NS_IMETHODIMP
-nsCrypto::GetRandomValues(const JS::Value& aData, JSContext *cx,
-                          JS::Value* _retval)
-{
-  return mozilla::dom::Crypto::GetRandomValues(aData, cx, _retval);
-}
-
 nsCRMFObject::nsCRMFObject()
 {
 }
@@ -2891,14 +2917,39 @@ nsCRMFObject::SetCRMFRequest(char *inRequest)
   return NS_OK;
 }
 
-#endif // MOZ_DISABLE_CRYPTOLEGACY
-
 nsPkcs11::nsPkcs11()
 {
 }
 
 nsPkcs11::~nsPkcs11()
 {
+}
+
+//Quick function to confirm with the user.
+bool
+confirm_user(const PRUnichar *message)
+{
+  int32_t buttonPressed = 1; // If the user exits by clicking the close box, assume No (button 1)
+
+  nsCOMPtr<nsIPrompt> prompter;
+  (void) nsNSSComponent::GetNewPrompter(getter_AddRefs(prompter));
+
+  if (prompter) {
+    nsPSMUITracker tracker;
+    if (!tracker.isUIForbidden()) {
+      // The actual value is irrelevant but we shouldn't be handing out
+      // malformed JSBools to XPConnect.
+      bool checkState = false;
+      prompter->ConfirmEx(0, message,
+                          (nsIPrompt::BUTTON_DELAY_ENABLE) +
+                          (nsIPrompt::BUTTON_POS_1_DEFAULT) +
+                          (nsIPrompt::BUTTON_TITLE_OK * nsIPrompt::BUTTON_POS_0) +
+                          (nsIPrompt::BUTTON_TITLE_CANCEL * nsIPrompt::BUTTON_POS_1),
+                          nullptr, nullptr, nullptr, nullptr, &checkState, &buttonPressed);
+    }
+  }
+
+  return (buttonPressed == 0);
 }
 
 //Delete a PKCS11 module from the user's profile.
@@ -2923,9 +2974,7 @@ nsPkcs11::DeleteModule(const nsAString& aModuleName)
   if (srv == SECSuccess) {
     SECMODModule *module = SECMOD_FindModule(modName.get());
     if (module) {
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
       nssComponent->ShutdownSmartCardThread(module);
-#endif
       SECMOD_DestroyModule(module);
     }
     rv = NS_OK;
@@ -2957,9 +3006,7 @@ nsPkcs11::AddModule(const nsAString& aModuleName,
   if (srv == SECSuccess) {
     SECMODModule *module = SECMOD_FindModule(moduleName.get());
     if (module) {
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
       nssComponent->LaunchSmartCardThread(module);
-#endif
       SECMOD_DestroyModule(module);
     }
   }

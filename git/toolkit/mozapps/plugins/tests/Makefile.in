@@ -9,12 +9,13 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = test_plugins
 relativesrcdir  = @relativesrcdir@
 TESTROOT = $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
 USE_STATIC_LIBS = 1
 
 _BROWSER_FILES = \
-  $(filter disabled-for-leaks--bug-751100, browser_bug435788.js) \
+  $(warning browser_bug435788.js has been disabled due to leaks - see bug 751100) \
   pfs_bug435788_1.rdf \
   pfs_bug435788_2.rdf \
   GoodExtension.xpi \

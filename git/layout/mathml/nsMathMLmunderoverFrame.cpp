@@ -16,7 +16,6 @@
 #include "nsMathMLmsubsupFrame.h"
 #include "nsMathMLmsupFrame.h"
 #include "nsMathMLmsubFrame.h"
-#include <algorithm>
 
 //
 // <munderover> -- attach an underscript-overscript pair to a base - implementation
@@ -347,7 +346,6 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
   nsIFrame* baseFrame = mFrames.FirstChild();
   underSize.ascent = 0; 
   overSize.ascent = 0;
-  bool haveError = false;
   if (baseFrame) {
     if (tag == nsGkAtoms::munder_ ||
         tag == nsGkAtoms::munderover_) {
@@ -363,26 +361,20 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
   if (tag == nsGkAtoms::munder_) {
     if (!baseFrame || !underFrame || underFrame->GetNextSibling()) {
       // report an error, encourage people to get their markups in order
-      haveError = true;
+      return ReflowError(aRenderingContext, aDesiredSize);
     }
   }
   if (tag == nsGkAtoms::mover_) {
     if (!baseFrame || !overFrame || overFrame->GetNextSibling()) {
       // report an error, encourage people to get their markups in order
-      haveError = true;
+      return ReflowError(aRenderingContext, aDesiredSize);
     }
   }
   if (tag == nsGkAtoms::munderover_) {
     if (!baseFrame || !underFrame || !overFrame || overFrame->GetNextSibling()) {
       // report an error, encourage people to get their markups in order
-      haveError = true;
+      return ReflowError(aRenderingContext, aDesiredSize);
     }
-  }
-  if (haveError) {
-    if (aPlaceOrigin) {
-      ReportChildCountError();
-    } 
-    return ReflowError(aRenderingContext, aDesiredSize);
   }
   GetReflowAndBoundingMetricsFor(baseFrame, baseSize, bmBase);
   if (underFrame) {
@@ -422,7 +414,7 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
                       dummy, bigOpSpacing2, 
                       dummy, bigOpSpacing4, 
                       bigOpSpacing5);
-    underDelta1 = std::max(bigOpSpacing2, (bigOpSpacing4 - bmUnder.ascent));
+    underDelta1 = NS_MAX(bigOpSpacing2, (bigOpSpacing4 - bmUnder.ascent));
     underDelta2 = bigOpSpacing5;
   }
   else {
@@ -449,14 +441,14 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
                       bigOpSpacing1, dummy, 
                       bigOpSpacing3, dummy, 
                       bigOpSpacing5);
-    overDelta1 = std::max(bigOpSpacing1, (bigOpSpacing3 - bmOver.descent));
+    overDelta1 = NS_MAX(bigOpSpacing1, (bigOpSpacing3 - bmOver.descent));
     overDelta2 = bigOpSpacing5;
 
     // XXX This is not a TeX rule... 
     // delta1 (as computed abvove) can become really big when bmOver.descent is
     // negative,  e.g., if the content is &OverBar. In such case, we use the height
     if (bmOver.descent < 0)    
-      overDelta1 = std::max(bigOpSpacing1, (bigOpSpacing3 - (bmOver.ascent + bmOver.descent)));
+      overDelta1 = NS_MAX(bigOpSpacing1, (bigOpSpacing3 - (bmOver.ascent + bmOver.descent)));
   }
   else {
     // Rule 12, App. G, TeXbook
@@ -537,7 +529,7 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
     }
   }
   else {
-    mBoundingMetrics.width = std::max(bmBase.width, overWidth);
+    mBoundingMetrics.width = NS_MAX(bmBase.width, overWidth);
     if (alignPosition == center) {
       dxOver += correction/2;
     }
@@ -555,9 +547,9 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
     bmBase.ascent + overDelta1 + bmOver.ascent + bmOver.descent;
   mBoundingMetrics.descent = bmBase.descent;
   mBoundingMetrics.leftBearing = 
-    std::min(dxBase + bmBase.leftBearing, dxOver + bmOver.leftBearing);
+    NS_MIN(dxBase + bmBase.leftBearing, dxOver + bmOver.leftBearing);
   mBoundingMetrics.rightBearing = 
-    std::max(dxBase + bmBase.rightBearing, dxOver + bmOver.rightBearing);
+    NS_MAX(dxBase + bmBase.rightBearing, dxOver + bmOver.rightBearing);
 
   //////////
   // pass 2, do what <munder> does: attach the underscript on the previous
@@ -568,9 +560,9 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
 
   nsBoundingMetrics bmAnonymousBase = mBoundingMetrics;
   nscoord ascentAnonymousBase =
-    std::max(mBoundingMetrics.ascent + overDelta2,
+    NS_MAX(mBoundingMetrics.ascent + overDelta2,
            overSize.ascent + bmOver.descent + overDelta1 + bmBase.ascent);
-  ascentAnonymousBase = std::max(ascentAnonymousBase, baseSize.ascent);
+  ascentAnonymousBase = NS_MAX(ascentAnonymousBase, baseSize.ascent);
 
   // Width of non-spacing marks is zero so use left and right bearing.
   nscoord underWidth = bmUnder.width;
@@ -579,7 +571,7 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
     dxUnder = -bmUnder.leftBearing;
   }
 
-  nscoord maxWidth = std::max(bmAnonymousBase.width, underWidth);
+  nscoord maxWidth = NS_MAX(bmAnonymousBase.width, underWidth);
   if (alignPosition == center &&
       !NS_MATHML_EMBELLISH_IS_ACCENTUNDER(mEmbellishData.flags)) {
     GetItalicCorrection(bmAnonymousBase, correction);
@@ -600,21 +592,21 @@ nsMathMLmunderoverFrame::Place(nsRenderingContext& aRenderingContext,
   dxBase += dxAnonymousBase;
 
   mBoundingMetrics.width =
-    std::max(dxAnonymousBase + bmAnonymousBase.width, dxUnder + bmUnder.width);
+    NS_MAX(dxAnonymousBase + bmAnonymousBase.width, dxUnder + bmUnder.width);
   // At this point, mBoundingMetrics.ascent = bmAnonymousBase.ascent 
   mBoundingMetrics.descent = 
     bmAnonymousBase.descent + underDelta1 + bmUnder.ascent + bmUnder.descent;
   mBoundingMetrics.leftBearing =
-    std::min(dxAnonymousBase + bmAnonymousBase.leftBearing, dxUnder + bmUnder.leftBearing);
+    NS_MIN(dxAnonymousBase + bmAnonymousBase.leftBearing, dxUnder + bmUnder.leftBearing);
   mBoundingMetrics.rightBearing = 
-    std::max(dxAnonymousBase + bmAnonymousBase.rightBearing, dxUnder + bmUnder.rightBearing);
+    NS_MAX(dxAnonymousBase + bmAnonymousBase.rightBearing, dxUnder + bmUnder.rightBearing);
 
   aDesiredSize.ascent = ascentAnonymousBase;
   aDesiredSize.height = aDesiredSize.ascent +
-    std::max(mBoundingMetrics.descent + underDelta2,
+    NS_MAX(mBoundingMetrics.descent + underDelta2,
            bmAnonymousBase.descent + underDelta1 + bmUnder.ascent +
              underSize.height - underSize.ascent);
-  aDesiredSize.height = std::max(aDesiredSize.height,
+  aDesiredSize.height = NS_MAX(aDesiredSize.height,
                                aDesiredSize.ascent +
                                baseSize.height - baseSize.ascent);
   aDesiredSize.width = mBoundingMetrics.width;

@@ -8,6 +8,7 @@
  */
 
 #include "nsDOMAttribute.h"
+#include "nsGenericElement.h"
 #include "mozilla/dom/Element.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsINameSpaceManager.h"
@@ -47,6 +48,8 @@ nsDOMAttribute::nsDOMAttribute(nsDOMAttributeMap *aAttrMap,
   // to drop our reference when it goes away.
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMAttribute)
+
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMAttribute)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 
@@ -68,8 +71,8 @@ DOMCI_NODE_DATA(Attr, nsDOMAttribute)
 // QueryInterface implementation for nsDOMAttribute
 NS_INTERFACE_TABLE_HEAD(nsDOMAttribute)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_NODE_INTERFACE_TABLE5(nsDOMAttribute, nsIDOMAttr, nsIAttribute, nsIDOMNode,
-                           nsIDOMEventTarget, EventTarget)
+  NS_NODE_INTERFACE_TABLE4(nsDOMAttribute, nsIDOMAttr, nsIAttribute, nsIDOMNode,
+                           nsIDOMEventTarget)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDOMAttribute)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
                                  new nsNodeSupportsWeakRefTearoff(this))

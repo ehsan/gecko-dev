@@ -31,7 +31,7 @@ using namespace js::ion;
 // Snapshot body, repeated "frame count" times, from oldest frame to newest frame.
 // Note that the first frame doesn't have the "parent PC" field.
 //
-//   [ptr] Debug only: RawScript
+//   [ptr] Debug only: JSScript *
 //   [vwu] pc offset
 //   [vwu] # of slots, including nargs
 // [slot*] N slot entries, where N = nargs + nfixed + stackDepth
@@ -95,7 +95,7 @@ using namespace js::ion;
 //                  Otherwise, "reg" is a register containing a Value.
 //        
 
-SnapshotReader::SnapshotReader(const uint8_t *buffer, const uint8_t *end)
+SnapshotReader::SnapshotReader(const uint8 *buffer, const uint8 *end)
   : reader_(buffer, end),
     slotCount_(0),
     frameCount_(0),
@@ -108,16 +108,16 @@ SnapshotReader::SnapshotReader(const uint8_t *buffer, const uint8_t *end)
     nextFrame();
 }
 
-static const uint32_t BAILOUT_KIND_SHIFT = 0;
-static const uint32_t BAILOUT_KIND_MASK = (1 << BAILOUT_KIND_BITS) - 1;
-static const uint32_t BAILOUT_RESUME_SHIFT = BAILOUT_KIND_SHIFT + BAILOUT_KIND_BITS;
-static const uint32_t BAILOUT_FRAMECOUNT_SHIFT = BAILOUT_KIND_BITS + BAILOUT_RESUME_BITS;
-static const uint32_t BAILOUT_FRAMECOUNT_BITS = (8 * sizeof(uint32_t)) - BAILOUT_FRAMECOUNT_SHIFT;
+static const uint32 BAILOUT_KIND_SHIFT = 0;
+static const uint32 BAILOUT_KIND_MASK = (1 << BAILOUT_KIND_BITS) - 1;
+static const uint32 BAILOUT_RESUME_SHIFT = BAILOUT_KIND_SHIFT + BAILOUT_KIND_BITS;
+static const uint32 BAILOUT_FRAMECOUNT_SHIFT = BAILOUT_KIND_BITS + BAILOUT_RESUME_BITS;
+static const uint32 BAILOUT_FRAMECOUNT_BITS = (8 * sizeof(uint32)) - BAILOUT_FRAMECOUNT_SHIFT;
 
 void
 SnapshotReader::readSnapshotHeader()
 {
-    uint32_t bits = reader_.readUnsigned();
+    uint32 bits = reader_.readUnsigned();
     frameCount_ = bits >> BAILOUT_FRAMECOUNT_SHIFT;
     JS_ASSERT(frameCount_ > 0);
     bailoutKind_ = BailoutKind((bits >> BAILOUT_KIND_SHIFT) & BAILOUT_KIND_MASK);
@@ -133,6 +133,16 @@ SnapshotReader::readFrameHeader()
 {
     JS_ASSERT(moreFrames());
     JS_ASSERT(slotsRead_ == slotCount_);
+
+#ifdef DEBUG
+    union {
+        JSScript *script;
+        uint8 bytes[sizeof(JSScript *)];
+    } u;
+    for (size_t i = 0; i < sizeof(JSScript *); i++)
+        u.bytes[i] = reader_.readByte();
+    script_ = u.script;
+#endif
 
     pcOffset_ = reader_.readUnsigned();
     slotCount_ = reader_.readUnsigned();
@@ -167,18 +177,18 @@ SnapshotReader::spewBailingFrom() const
 #endif
 
 #ifdef JS_NUNBOX32
-static const uint32_t NUNBOX32_STACK_STACK = 0;
-static const uint32_t NUNBOX32_STACK_REG   = 1;
-static const uint32_t NUNBOX32_REG_STACK   = 2;
-static const uint32_t NUNBOX32_REG_REG     = 3;
+static const uint32 NUNBOX32_STACK_STACK = 0;
+static const uint32 NUNBOX32_STACK_REG   = 1;
+static const uint32 NUNBOX32_REG_STACK   = 2;
+static const uint32 NUNBOX32_REG_REG     = 3;
 #endif
 
-static const uint32_t MAX_TYPE_FIELD_VALUE = 7;
+static const uint32 MAX_TYPE_FIELD_VALUE = 7;
 
-static const uint32_t MAX_REG_FIELD_VALUE  = 31;
-static const uint32_t ESC_REG_FIELD_INDEX  = 31;
-static const uint32_t ESC_REG_FIELD_CONST  = 30;
-static const uint32_t MIN_REG_FIELD_ESC    = 30;
+static const uint32 MAX_REG_FIELD_VALUE  = 31;
+static const uint32 ESC_REG_FIELD_INDEX  = 31;
+static const uint32 ESC_REG_FIELD_CONST  = 30;
+static const uint32 MIN_REG_FIELD_ESC    = 30;
 
 SnapshotReader::Slot
 SnapshotReader::readSlot()
@@ -187,10 +197,10 @@ SnapshotReader::readSlot()
     IonSpew(IonSpew_Snapshots, "Reading slot %u", slotsRead_);
     slotsRead_++;
 
-    uint8_t b = reader_.readByte();
+    uint8 b = reader_.readByte();
 
     JSValueType type = JSValueType(b & 0x7);
-    uint32_t code = b >> 3;
+    uint32 code = b >> 3;
 
     switch (type) {
       case JSVAL_TYPE_DOUBLE:
@@ -227,7 +237,7 @@ SnapshotReader::readSlot()
         JS_ASSERT(type == JSVAL_TYPE_MAGIC);
 
         if (code == ESC_REG_FIELD_CONST) {
-            uint8_t reg2 = reader_.readUnsigned();
+            uint8 reg2 = reader_.readUnsigned();
             Location loc;
             if (reg2 != ESC_REG_FIELD_INDEX)
                 loc = Location::From(Register::FromCode(reg2));
@@ -274,7 +284,7 @@ SnapshotReader::readSlot()
 }
 
 SnapshotOffset
-SnapshotWriter::startSnapshot(uint32_t frameCount, BailoutKind kind, bool resumeAfter)
+SnapshotWriter::startSnapshot(uint32 frameCount, BailoutKind kind, bool resumeAfter)
 {
     nframes_ = frameCount;
     framesWritten_ = 0;
@@ -285,9 +295,9 @@ SnapshotWriter::startSnapshot(uint32_t frameCount, BailoutKind kind, bool resume
             frameCount, kind);
     JS_ASSERT(frameCount > 0);
     JS_ASSERT(frameCount < (1 << BAILOUT_FRAMECOUNT_BITS));
-    JS_ASSERT(uint32_t(kind) < (1 << BAILOUT_KIND_BITS));
+    JS_ASSERT(uint32(kind) < (1 << BAILOUT_KIND_BITS));
 
-    uint32_t bits = (uint32_t(kind) << BAILOUT_KIND_SHIFT) |
+    uint32 bits = (uint32(kind) << BAILOUT_KIND_SHIFT) |
                   (frameCount << BAILOUT_FRAMECOUNT_SHIFT);
     if (resumeAfter)
         bits |= (1 << BAILOUT_RESUME_SHIFT);
@@ -297,11 +307,12 @@ SnapshotWriter::startSnapshot(uint32_t frameCount, BailoutKind kind, bool resume
 }
 
 void
-SnapshotWriter::startFrame(JSFunction *fun, RawScript script, jsbytecode *pc, uint32_t exprStack)
+SnapshotWriter::startFrame(JSFunction *fun, JSScript *script, jsbytecode *pc, uint32 exprStack)
 {
     JS_ASSERT(CountArgSlots(fun) < SNAPSHOT_MAX_NARGS);
+    JS_ASSERT(exprStack < SNAPSHOT_MAX_STACK);
 
-    uint32_t formalArgs = CountArgSlots(fun);
+    uint32 formalArgs = CountArgSlots(fun);
 
     nslots_ = formalArgs + script->nfixed + exprStack;
     slotsWritten_ = 0;
@@ -309,9 +320,19 @@ SnapshotWriter::startFrame(JSFunction *fun, RawScript script, jsbytecode *pc, ui
     IonSpew(IonSpew_Snapshots, "Starting frame; formals %u, fixed %u, exprs %u",
             formalArgs, script->nfixed, exprStack);
 
+#ifdef DEBUG
+    union {
+        JSScript *script;
+        uint8 bytes[sizeof(JSScript *)];
+    } u;
+    u.script = script;
+    for (size_t i = 0; i < sizeof(JSScript *); i++)
+        writer_.writeByte(u.bytes[i]);
+#endif
+
     JS_ASSERT(script->code <= pc && pc <= script->code + script->length);
 
-    uint32_t pcoff = uint32_t(pc - script->code);
+    uint32 pcoff = uint32(pc - script->code);
     IonSpew(IonSpew_Snapshots, "Writing pc offset %u, nslots %u", pcoff, nslots_);
     writer_.writeUnsigned(pcoff);
     writer_.writeUnsigned(nslots_);
@@ -319,8 +340,8 @@ SnapshotWriter::startFrame(JSFunction *fun, RawScript script, jsbytecode *pc, ui
 
 #ifdef TRACK_SNAPSHOTS
 void
-SnapshotWriter::trackFrame(uint32_t pcOpcode, uint32_t mirOpcode, uint32_t mirId,
-                                            uint32_t lirOpcode, uint32_t lirId)
+SnapshotWriter::trackFrame(uint32 pcOpcode, uint32 mirOpcode, uint32 mirId,
+                                            uint32 lirOpcode, uint32 lirId)
 {
     writer_.writeUnsigned(pcOpcode);
     writer_.writeUnsigned(mirOpcode);
@@ -340,13 +361,13 @@ SnapshotWriter::endFrame()
 }
 
 void
-SnapshotWriter::writeSlotHeader(JSValueType type, uint32_t regCode)
+SnapshotWriter::writeSlotHeader(JSValueType type, uint32 regCode)
 {
-    JS_ASSERT(uint32_t(type) <= MAX_TYPE_FIELD_VALUE);
-    JS_ASSERT(uint32_t(regCode) <= MAX_REG_FIELD_VALUE);
+    JS_ASSERT(uint32(type) <= MAX_TYPE_FIELD_VALUE);
+    JS_ASSERT(uint32(regCode) <= MAX_REG_FIELD_VALUE);
     JS_STATIC_ASSERT(Registers::Total < MIN_REG_FIELD_ESC);
 
-    uint8_t byte = uint32_t(type) | (regCode << 3);
+    uint8 byte = uint32(type) | (regCode << 3);
     writer_.writeByte(byte);
 
     slotsWritten_++;
@@ -366,7 +387,7 @@ ValTypeToString(JSValueType type)
 {
     switch (type) {
       case JSVAL_TYPE_INT32:
-        return "int32_t";
+        return "int32";
       case JSVAL_TYPE_DOUBLE:
         return "double";
       case JSVAL_TYPE_STRING:
@@ -394,7 +415,7 @@ SnapshotWriter::addSlot(JSValueType type, const Register &reg)
 }
 
 void
-SnapshotWriter::addSlot(JSValueType type, int32_t stackIndex)
+SnapshotWriter::addSlot(JSValueType type, int32 stackIndex)
 {
     IonSpew(IonSpew_Snapshots, "    slot %u: %s (stack %d)",
             slotsWritten_, ValTypeToString(type), stackIndex);
@@ -416,7 +437,7 @@ SnapshotWriter::addSlot(const Register &type, const Register &payload)
 }
 
 void
-SnapshotWriter::addSlot(const Register &type, int32_t payloadStackIndex)
+SnapshotWriter::addSlot(const Register &type, int32 payloadStackIndex)
 {
     IonSpew(IonSpew_Snapshots, "    slot %u: value (t=%s, d=%d)",
             slotsWritten_, type.name(), payloadStackIndex);
@@ -427,7 +448,7 @@ SnapshotWriter::addSlot(const Register &type, int32_t payloadStackIndex)
 }
 
 void
-SnapshotWriter::addSlot(int32_t typeStackIndex, const Register &payload)
+SnapshotWriter::addSlot(int32 typeStackIndex, const Register &payload)
 {
     IonSpew(IonSpew_Snapshots, "    slot %u: value (t=%d, d=%s)",
             slotsWritten_, typeStackIndex, payload.name());
@@ -438,7 +459,7 @@ SnapshotWriter::addSlot(int32_t typeStackIndex, const Register &payload)
 }
 
 void
-SnapshotWriter::addSlot(int32_t typeStackIndex, int32_t payloadStackIndex)
+SnapshotWriter::addSlot(int32 typeStackIndex, int32 payloadStackIndex)
 {
     IonSpew(IonSpew_Snapshots, "    slot %u: value (t=%d, d=%d)",
             slotsWritten_, typeStackIndex, payloadStackIndex);
@@ -458,7 +479,7 @@ SnapshotWriter::addSlot(const Register &value)
 }
 
 void
-SnapshotWriter::addSlot(int32_t valueStackSlot)
+SnapshotWriter::addSlot(int32 valueStackSlot)
 {
     IonSpew(IonSpew_Snapshots, "    slot %u: value (stack %d)", slotsWritten_, valueStackSlot);
 
@@ -494,15 +515,15 @@ SnapshotWriter::endSnapshot()
 #endif
     
     IonSpew(IonSpew_Snapshots, "ending snapshot total size: %u bytes (start %u)",
-            uint32_t(writer_.length() - lastStart_), lastStart_);
+            uint32(writer_.length() - lastStart_), lastStart_);
 }
 
 void
-SnapshotWriter::addInt32Slot(int32_t value)
+SnapshotWriter::addInt32Slot(int32 value)
 {
-    IonSpew(IonSpew_Snapshots, "    slot %u: int32_t %d", slotsWritten_, value);
+    IonSpew(IonSpew_Snapshots, "    slot %u: int32 %d", slotsWritten_, value);
 
-    if (value >= 0 && uint32_t(value) < MIN_REG_FIELD_ESC) {
+    if (value >= 0 && uint32(value) < MIN_REG_FIELD_ESC) {
         writeSlotHeader(JSVAL_TYPE_NULL, value);
     } else {
         writeSlotHeader(JSVAL_TYPE_NULL, ESC_REG_FIELD_INDEX);
@@ -511,7 +532,7 @@ SnapshotWriter::addInt32Slot(int32_t value)
 }
 
 void
-SnapshotWriter::addConstantPoolSlot(uint32_t index)
+SnapshotWriter::addConstantPoolSlot(uint32 index)
 {
     IonSpew(IonSpew_Snapshots, "    slot %u: constant pool index %u", slotsWritten_, index);
 

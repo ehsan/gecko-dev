@@ -15,8 +15,6 @@
 
 #include "nsArrayUtils.h"
 
-#include "mozilla/Likely.h"
-
 using namespace mozilla::a11y;
 
 extern "C" {
@@ -295,7 +293,7 @@ void
 tableInterfaceInitCB(AtkTableIface* aIface)
 {
   NS_ASSERTION(aIface, "no interface!");
-  if (MOZ_UNLIKELY(!aIface))
+  if (NS_UNLIKELY(!aIface))
     return;
 
   aIface->ref_at = refAtCB;

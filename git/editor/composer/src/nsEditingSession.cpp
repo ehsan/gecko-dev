@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include <string.h>                     // for nullptr, strcmp
+#include <string.h>                     // for NULL, strcmp
 
 #include "imgIContainer.h"              // for imgIContainer, etc
 #include "mozFlushType.h"               // for mozFlushType::Flush_Frames
@@ -30,6 +30,7 @@
 #include "nsIDocument.h"                // for nsIDocument
 #include "nsIDocumentStateListener.h"
 #include "nsIEditor.h"                  // for nsIEditor
+#include "nsIEditorDocShell.h"          // for nsIEditorDocShell
 #include "nsIHTMLDocument.h"            // for nsIHTMLDocument, etc
 #include "nsIInterfaceRequestorUtils.h"  // for do_GetInterface
 #include "nsIPlaintextEditor.h"         // for nsIPlaintextEditor, etc
@@ -112,7 +113,7 @@ nsEditingSession::MakeWindowEditable(nsIDOMWindow *aWindow,
   mEditorFlags = 0;
 
   // disable plugins
-  nsCOMPtr<nsIDocShell> docShell = GetDocShellFromWindow(aWindow);
+  nsIDocShell *docShell = GetDocShellFromWindow(aWindow);
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
   mDocShell = do_GetWeakReference(docShell);
@@ -141,8 +142,12 @@ nsEditingSession::MakeWindowEditable(nsIDOMWindow *aWindow,
   rv = PrepareForEditing(aWindow);
   NS_ENSURE_SUCCESS(rv, rv);  
   
+  nsCOMPtr<nsIEditorDocShell> editorDocShell;
+  rv = GetEditorDocShellFromWindow(aWindow, getter_AddRefs(editorDocShell));
+  NS_ENSURE_SUCCESS(rv, rv);  
+  
   // set the flag on the docShell to say that it's editable
-  rv = docShell->MakeEditable(aDoAfterUriLoad);
+  rv = editorDocShell->MakeEditable(aDoAfterUriLoad);
   NS_ENSURE_SUCCESS(rv, rv);  
 
   // Setup commands common to plaintext and html editors,
@@ -236,10 +241,12 @@ nsEditingSession::GetJsAndPluginsDisabled(bool *aResult)
 NS_IMETHODIMP
 nsEditingSession::WindowIsEditable(nsIDOMWindow *aWindow, bool *outIsEditable)
 {
-  nsCOMPtr<nsIDocShell> docShell = GetDocShellFromWindow(aWindow);
-  NS_ENSURE_STATE(docShell);
+  nsCOMPtr<nsIEditorDocShell> editorDocShell;
+  nsresult rv = GetEditorDocShellFromWindow(aWindow,
+                                            getter_AddRefs(editorDocShell));
+  NS_ENSURE_SUCCESS(rv, rv);  
 
-  return docShell->GetEditable(outIsEditable);
+  return editorDocShell->GetEditable(outIsEditable);
 }
 
 
@@ -260,7 +267,7 @@ const char* const gSupportedTextTypes[] = {
   "application/x-javascript",  // obsolete type
   "text/xul",                  // obsolete type
   "application/vnd.mozilla.xul+xml",
-  nullptr   // IMPORTANT! Null must be at end
+  NULL      // IMPORTANT! Null must be at end
 };
 
 bool
@@ -391,7 +398,7 @@ nsEditingSession::SetupEditorOnWindow(nsIDOMWindow *aWindow)
 
   // Create editor and do other things 
   //  only if we haven't found some error above,
-  nsCOMPtr<nsIDocShell> docShell = GetDocShellFromWindow(aWindow);
+  nsIDocShell *docShell = GetDocShellFromWindow(aWindow);
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);  
 
   if (!mInteractive) {
@@ -405,6 +412,9 @@ nsEditingSession::SetupEditorOnWindow(nsIDOMWindow *aWindow)
   }
 
   // create and set editor
+  nsCOMPtr<nsIEditorDocShell> editorDocShell = do_QueryInterface(docShell, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // Try to reuse an existing editor
   nsCOMPtr<nsIEditor> editor = do_QueryReferent(mExistingEditor);
   if (editor) {
@@ -415,7 +425,7 @@ nsEditingSession::SetupEditorOnWindow(nsIDOMWindow *aWindow)
     mExistingEditor = do_GetWeakReference(editor);
   }
   // set the editor on the docShell. The docShell now owns it.
-  rv = docShell->SetEditor(editor);
+  rv = editorDocShell->SetEditor(editor);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // setup the HTML editor command controller
@@ -537,11 +547,12 @@ nsEditingSession::TearDownEditorOnWindow(nsIDOMWindow *aWindow)
   if (stopEditing)
     RemoveWebProgressListener(aWindow);
 
-  nsCOMPtr<nsIDocShell> docShell = GetDocShellFromWindow(aWindow);
-  NS_ENSURE_STATE(docShell);
+  nsCOMPtr<nsIEditorDocShell> editorDocShell;
+  rv = GetEditorDocShellFromWindow(aWindow, getter_AddRefs(editorDocShell));
+  NS_ENSURE_SUCCESS(rv, rv);
   
   nsCOMPtr<nsIEditor> editor;
-  rv = docShell->GetEditor(getter_AddRefs(editor));
+  rv = editorDocShell->GetEditor(getter_AddRefs(editor));
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (stopEditing)
@@ -556,7 +567,7 @@ nsEditingSession::TearDownEditorOnWindow(nsIDOMWindow *aWindow)
 
   // Null out the editor on the docShell to trigger PreDestroy which
   // needs to happen before document state listeners are removed below.
-  docShell->SetEditor(nullptr);
+  editorDocShell->SetEditor(nullptr);
 
   RemoveListenersAndControllers(aWindow, editor);
 
@@ -592,10 +603,12 @@ NS_IMETHODIMP
 nsEditingSession::GetEditorForWindow(nsIDOMWindow *aWindow,
                                      nsIEditor **outEditor)
 {
-  nsCOMPtr<nsIDocShell> docShell = GetDocShellFromWindow(aWindow);
-  NS_ENSURE_STATE(aWindow);
+  nsCOMPtr<nsIEditorDocShell> editorDocShell;
+  nsresult rv = GetEditorDocShellFromWindow(aWindow,
+                                            getter_AddRefs(editorDocShell));
+  NS_ENSURE_SUCCESS(rv, rv);  
   
-  return docShell->GetEditor(outEditor);
+  return editorDocShell->GetEditor(outEditor);
 }
 
 /*---------------------------------------------------------------------------
@@ -960,13 +973,15 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
   if (refreshURI)
     refreshURI->CancelRefreshURITimers();
 
+  nsCOMPtr<nsIEditorDocShell> editorDocShell = do_QueryInterface(docShell);
+
   nsresult rv = NS_OK;
 
   // did someone set the flag to make this shell editable?
-  if (aIsToBeMadeEditable && mCanCreateEditor)
+  if (aIsToBeMadeEditable && mCanCreateEditor && editorDocShell)
   {
     bool    makeEditable;
-    docShell->GetEditable(&makeEditable);
+    editorDocShell->GetEditable(&makeEditable);
   
     if (makeEditable)
     {
@@ -978,7 +993,7 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
       } else {
         // do we already have an editor here?
         nsCOMPtr<nsIEditor> editor;
-        rv = docShell->GetEditor(getter_AddRefs(editor));
+        rv = editorDocShell->GetEditor(getter_AddRefs(editor));
         NS_ENSURE_SUCCESS(rv, rv);
 
         needsSetup = !editor;
@@ -995,7 +1010,7 @@ nsEditingSession::EndDocumentLoad(nsIWebProgress *aWebProgress,
           {
             // Must cancel previous timer?
             mLoadBlankDocTimer->Cancel();
-            mLoadBlankDocTimer = nullptr;
+            mLoadBlankDocTimer = NULL;
           }
   
           mLoadBlankDocTimer = do_CreateInstance("@mozilla.org/timer;1", &rv);
@@ -1108,6 +1123,24 @@ nsEditingSession::GetDocShellFromWindow(nsIDOMWindow *aWindow)
   NS_ENSURE_TRUE(window, nullptr);
 
   return window->GetDocShell();
+}
+
+/*---------------------------------------------------------------------------
+
+  GetEditorDocShellFromWindow
+
+  Utility method. This will always return an error if no docShell
+  is returned.
+----------------------------------------------------------------------------*/
+nsresult
+nsEditingSession::GetEditorDocShellFromWindow(nsIDOMWindow *aWindow,
+                                              nsIEditorDocShell** outDocShell)
+{
+  nsIDocShell *docShell = GetDocShellFromWindow(aWindow);
+  NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
+  
+  return docShell->QueryInterface(NS_GET_IID(nsIEditorDocShell), 
+                                  (void **)outDocShell);
 }
 
 /*---------------------------------------------------------------------------

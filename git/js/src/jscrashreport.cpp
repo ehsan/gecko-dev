@@ -12,8 +12,8 @@
 
 #include <time.h>
 
-using namespace js;
-using namespace js::crash;
+namespace js {
+namespace crash {
 
 const static int stack_snapshot_max_size = 32768;
 
@@ -139,9 +139,6 @@ GetStack(uint64_t *stack, uint64_t *stack_len, CrashRegisters *regs, char *buffe
 
 #endif
 
-namespace js {
-namespace crash {
-
 class Stack : private CrashStack
 {
 public:
@@ -209,9 +206,6 @@ Ring::copyBytes(void *data, size_t size)
     }
 }
 
-} /* namespace crash */
-} /* namespace js */
-
 static bool gInitialized;
 
 static Stack gGCStack(JS_CRASH_STACK_GC);
@@ -219,25 +213,31 @@ static Stack gErrorStack(JS_CRASH_STACK_ERROR);
 static Ring gRingBuffer(JS_CRASH_RING);
 
 void
-js::crash::SnapshotGCStack()
+SnapshotGCStack()
 {
     if (gInitialized)
         gGCStack.snapshot();
 }
 
 void
-js::crash::SnapshotErrorStack()
+SnapshotErrorStack()
 {
     if (gInitialized)
         gErrorStack.snapshot();
 }
 
 void
-js::crash::SaveCrashData(uint64_t tag, void *ptr, size_t size)
+SaveCrashData(uint64_t tag, void *ptr, size_t size)
 {
     if (gInitialized)
         gRingBuffer.push(tag, ptr, size);
 }
+
+} /* namespace crash */
+} /* namespace js */
+
+using namespace js;
+using namespace js::crash;
 
 JS_PUBLIC_API(void)
 JS_EnumerateDiagnosticMemoryRegions(JSEnumerateDiagnosticMemoryCallback callback)

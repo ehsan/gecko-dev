@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,7 +8,6 @@
 #include "nsIComponentManager.h"
 #include "nsIComponentRegistrar.h"
 #include "nsICategoryManager.h"
-#include "nsIMemoryReporter.h"
 #include "nsIServiceManager.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
@@ -39,13 +37,6 @@ public:
   // Our hash table ops don't care about the order of these members
   nsString mKey;
   nsGlobalNameStruct mGlobalName;
-
-  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) {
-    // Measurement of the following members may be added later if DMD finds it
-    // is worthwhile:
-    // - mGlobalName
-    return mKey.SizeOfExcludingThisMustBeUnshared(aMallocSizeOf);
-  }
 };
 
 
@@ -112,24 +103,6 @@ GlobalNameHashInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
   return true;
 }
 
-class ScriptNameSpaceManagerReporter MOZ_FINAL : public MemoryReporterBase
-{
-public:
-  ScriptNameSpaceManagerReporter(nsScriptNameSpaceManager* aManager)
-    : MemoryReporterBase(
-        "explicit/script-namespace-manager",
-        KIND_HEAP,
-        nsIMemoryReporter::UNITS_BYTES,
-        "Memory used for the script namespace manager.")
-    , mManager(aManager)
-  {}
-
-private:
-  int64_t Amount() { return mManager->SizeOfIncludingThis(MallocSizeOf); }
-
-  nsScriptNameSpaceManager* mManager;
-};
-
 NS_IMPL_ISUPPORTS2(nsScriptNameSpaceManager,
                    nsIObserver,
                    nsISupportsWeakReference)
@@ -143,7 +116,6 @@ nsScriptNameSpaceManager::nsScriptNameSpaceManager()
 nsScriptNameSpaceManager::~nsScriptNameSpaceManager()
 {
   if (mIsInitialized) {
-    NS_UnregisterMemoryReporter(mReporter);
     // Destroy the hash
     PL_DHashTableFinish(&mGlobalNames);
     PL_DHashTableFinish(&mNavigatorNames);
@@ -418,9 +390,6 @@ nsScriptNameSpaceManager::Init()
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  mReporter = new ScriptNameSpaceManagerReporter(this);
-  NS_RegisterMemoryReporter(mReporter);
-
   nsresult rv = NS_OK;
 
   rv = FillHashWithDOMInterfaces();
@@ -522,20 +491,23 @@ nsScriptNameSpaceManager::LookupNameInternal(const nsAString& aName,
   return nullptr;
 }
 
-const nsGlobalNameStruct*
-nsScriptNameSpaceManager::LookupNavigatorName(const nsAString& aName)
+nsresult
+nsScriptNameSpaceManager::LookupNavigatorName(const nsAString& aName,
+                                              const nsGlobalNameStruct **aNameStruct)
 {
   GlobalNameMapEntry *entry =
     static_cast<GlobalNameMapEntry *>
                (PL_DHashTableOperate(&mNavigatorNames, &aName,
                                      PL_DHASH_LOOKUP));
 
-  if (!PL_DHASH_ENTRY_IS_BUSY(entry) ||
-      entry->mGlobalName.mDisabled) {
-    return nullptr;
+  if (PL_DHASH_ENTRY_IS_BUSY(entry) &&
+      !((&entry->mGlobalName)->mDisabled)) {
+    *aNameStruct = &entry->mGlobalName;
+  } else {
+    *aNameStruct = nullptr;
   }
 
-  return &entry->mGlobalName;
+  return NS_OK;
 }
 
 nsresult
@@ -820,46 +792,4 @@ nsScriptNameSpaceManager::RegisterDefineDOMInterface(const nsAFlatString& aName,
     s->mDefineDOMInterface = aDefineDOMInterface;
     s->mPrefEnabled = aPrefEnabled;
   }
-}
-
-struct GlobalNameClosure
-{
-  nsScriptNameSpaceManager::GlobalNameEnumerator enumerator;
-  void* closure;
-};
-
-static PLDHashOperator
-EnumerateGlobalName(PLDHashTable*, PLDHashEntryHdr *hdr, uint32_t,
-                    void* aClosure)
-{
-  GlobalNameMapEntry *entry = static_cast<GlobalNameMapEntry *>(hdr);
-  GlobalNameClosure* closure = static_cast<GlobalNameClosure*>(aClosure);
-  return closure->enumerator(entry->mKey, closure->closure);
-}
-
-void
-nsScriptNameSpaceManager::EnumerateGlobalNames(GlobalNameEnumerator aEnumerator,
-                                               void* aClosure)
-{
-  GlobalNameClosure closure = { aEnumerator, aClosure };
-  PL_DHashTableEnumerate(&mGlobalNames, EnumerateGlobalName, &closure);
-}
-
-static size_t
-SizeOfEntryExcludingThis(PLDHashEntryHdr *aHdr, nsMallocSizeOfFun aMallocSizeOf,
-                         void *aArg)
-{
-    GlobalNameMapEntry* entry = static_cast<GlobalNameMapEntry*>(aHdr);
-    return entry->SizeOfExcludingThis(aMallocSizeOf);
-}
-
-size_t
-nsScriptNameSpaceManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  size_t n = 0;
-  n += PL_DHashTableSizeOfExcludingThis(&mGlobalNames,
-         SizeOfEntryExcludingThis, aMallocSizeOf);
-  n += PL_DHashTableSizeOfExcludingThis(&mNavigatorNames,
-         SizeOfEntryExcludingThis, aMallocSizeOf);
-  return n;
 }

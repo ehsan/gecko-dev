@@ -12,12 +12,27 @@
 #include "nsIThreadManager.h"
 #include "nsIThread.h"
 #include "nsIRunnable.h"
-#include "nsICancelableRunnable.h"
 #include "nsStringGlue.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "mozilla/threads/nsThreadIDs.h"
-#include "mozilla/Likely.h"
+
+// This is needed on some systems to prevent collisions between the symbols
+// appearing in xpcom_core and xpcomglue.  It may be unnecessary in the future
+// with better toolchain support.
+#ifdef MOZILLA_INTERNAL_API
+# define NS_SetThreadName NS_SetThreadName_P
+# define NS_NewThread NS_NewThread_P
+# define NS_NewNamedThread NS_NewNamedThread_P
+# define NS_GetCurrentThread NS_GetCurrentThread_P
+# define NS_GetMainThread NS_GetMainThread_P
+# define NS_IsMainThread NS_IsMainThread_P
+# define NS_DispatchToCurrentThread NS_DispatchToCurrentThread_P
+# define NS_DispatchToMainThread NS_DispatchToMainThread_P
+# define NS_ProcessPendingEvents NS_ProcessPendingEvents_P
+# define NS_HasPendingEvents NS_HasPendingEvents_P
+# define NS_ProcessNextEvent NS_ProcessNextEvent_P
+#endif
 
 //-----------------------------------------------------------------------------
 // These methods are alternatives to the methods on nsIThreadManager, provided
@@ -247,22 +262,6 @@ protected:
   }
 };
 
-// This class is designed to be subclassed.
-class NS_COM_GLUE nsCancelableRunnable : public nsICancelableRunnable
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIRUNNABLE
-  NS_DECL_NSICANCELABLERUNNABLE
-
-  nsCancelableRunnable() {
-  }
-
-protected:
-  virtual ~nsCancelableRunnable() {
-  }
-};
-
 #undef  IMETHOD_VISIBILITY
 #define IMETHOD_VISIBILITY NS_VISIBILITY_HIDDEN
 
@@ -346,7 +345,7 @@ public:
   {}
 
   NS_IMETHOD Run() {
-    if (MOZ_LIKELY(mReceiver.mObj))
+    if (NS_LIKELY(mReceiver.mObj))
       ((*mReceiver.mObj).*mMethod)();
     return NS_OK;
   }

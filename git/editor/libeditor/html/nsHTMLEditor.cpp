@@ -2,9 +2,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/DebugOnly.h"
-
 #include "nsCRT.h"
 
 #include "nsUnicharUtils.h"
@@ -20,11 +17,11 @@
 #include "nsHTMLURIRefObject.h"
 
 #include "nsIDOMText.h"
-#include "nsIDOMMozNamedAttrMap.h"
+#include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMAttr.h"
-#include "nsIDocumentInlines.h"
+#include "nsIDocument.h"
 #include "nsIDOMEventTarget.h" 
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMHTMLAnchorElement.h"
@@ -37,6 +34,7 @@
 #include "nsCSSStyleSheet.h"
 #include "nsIDOMStyleSheet.h"
 
+#include "nsIEnumerator.h"
 #include "nsIContent.h"
 #include "nsIContentIterator.h"
 #include "nsIDOMRange.h"
@@ -68,7 +66,6 @@
 #include "nsIParserService.h"
 #include "mozilla/Selection.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/HTMLBodyElement.h"
 #include "nsTextFragment.h"
 
 using namespace mozilla;
@@ -159,45 +156,47 @@ nsHTMLEditor::HideAnonymousEditingUIs()
     HideResizers();
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLEditor)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsHTMLEditor, nsPlaintextEditor)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mTypeInState)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mTextServices)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTypeInState)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTextServices)
 
   tmp->HideAnonymousEditingUIs();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLEditor, nsPlaintextEditor)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTypeInState)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTextServices)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTypeInState)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTextServices)
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTopLeftHandle)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTopHandle)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTopRightHandle)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLeftHandle)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRightHandle)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBottomLeftHandle)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBottomHandle)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBottomRightHandle)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mActivatedHandle)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mResizingShadow)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mResizingInfo)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mResizedObject)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMouseMotionListenerP)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSelectionListenerP)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mResizeEventListenerP)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(objectResizeEventListeners)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTopLeftHandle)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTopHandle)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTopRightHandle)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLeftHandle)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRightHandle)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBottomLeftHandle)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBottomHandle)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBottomRightHandle)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mActivatedHandle)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mResizingShadow)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mResizingInfo)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mResizedObject)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMouseMotionListenerP)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSelectionListenerP)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mResizeEventListenerP)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(objectResizeEventListeners)
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAbsolutelyPositionedObject)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGrabber)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPositioningShadow)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAbsolutelyPositionedObject)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGrabber)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPositioningShadow)
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mInlineEditedCell)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAddColumnBeforeButton)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRemoveColumnButton)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAddColumnAfterButton)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAddRowBeforeButton)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRemoveRowButton)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAddRowAfterButton)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mInlineEditedCell)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAddColumnBeforeButton)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRemoveColumnButton)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAddColumnAfterButton)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAddRowBeforeButton)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRemoveRowButton)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAddRowAfterButton)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsHTMLEditor, nsEditor)
@@ -485,7 +484,6 @@ nsHTMLEditor::SetFlags(uint32_t aFlags)
 NS_IMETHODIMP
 nsHTMLEditor::InitRules()
 {
-  MOZ_ASSERT(!mRules);
   // instantiate the rules for the html editor
   mRules = new nsHTMLEditRules();
   return mRules->Init(static_cast<nsPlaintextEditor*>(this));
@@ -1721,7 +1719,8 @@ nsHTMLEditor::GetParagraphState(bool *aMixed, nsAString &outFormat)
 {
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
   NS_ENSURE_TRUE(aMixed, NS_ERROR_NULL_POINTER);
-  nsRefPtr<nsHTMLEditRules> htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
   
   return htmlRules->GetParagraphState(aMixed, outFormat);
 }
@@ -1895,7 +1894,7 @@ nsHTMLEditor::GetHTMLBackgroundColorState(bool *aMixed, nsAString &aOutColor)
 
     // No color is set, but we need to report visible color inherited 
     // from nested cells/tables, so search up parent chain
-    element = element->GetParentElement();
+    element = element->GetElementParent();
   }
 
   // If no table or cell found, get page body
@@ -1911,7 +1910,8 @@ nsHTMLEditor::GetListState(bool *aMixed, bool *aOL, bool *aUL, bool *aDL)
 {
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
   NS_ENSURE_TRUE(aMixed && aOL && aUL && aDL, NS_ERROR_NULL_POINTER);
-  nsRefPtr<nsHTMLEditRules> htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
   
   return htmlRules->GetListState(aMixed, aOL, aUL, aDL);
 }
@@ -1922,7 +1922,8 @@ nsHTMLEditor::GetListItemState(bool *aMixed, bool *aLI, bool *aDT, bool *aDD)
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
   NS_ENSURE_TRUE(aMixed && aLI && aDT && aDD, NS_ERROR_NULL_POINTER);
 
-  nsRefPtr<nsHTMLEditRules> htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
   
   return htmlRules->GetListItemState(aMixed, aLI, aDT, aDD);
 }
@@ -1932,7 +1933,8 @@ nsHTMLEditor::GetAlignment(bool *aMixed, nsIHTMLEditor::EAlignment *aAlign)
 {
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
   NS_ENSURE_TRUE(aMixed && aAlign, NS_ERROR_NULL_POINTER);
-  nsRefPtr<nsHTMLEditRules> htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
   
   return htmlRules->GetAlignment(aMixed, aAlign);
 }
@@ -1944,7 +1946,8 @@ nsHTMLEditor::GetIndentState(bool *aCanIndent, bool *aCanOutdent)
   if (!mRules) { return NS_ERROR_NOT_INITIALIZED; }
   NS_ENSURE_TRUE(aCanIndent && aCanOutdent, NS_ERROR_NULL_POINTER);
 
-  nsRefPtr<nsHTMLEditRules> htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+  NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
   
   return htmlRules->GetIndentState(aCanIndent, aCanOutdent);
 }
@@ -2268,31 +2271,42 @@ nsHTMLEditor::Align(const nsAString& aAlignType)
 NS_IMETHODIMP
 nsHTMLEditor::GetElementOrParentByTagName(const nsAString& aTagName, nsIDOMNode *aNode, nsIDOMElement** aReturn)
 {
-  NS_ENSURE_TRUE(!aTagName.IsEmpty(), NS_ERROR_NULL_POINTER);
-  NS_ENSURE_TRUE(aReturn, NS_ERROR_NULL_POINTER);
+  if (aTagName.IsEmpty() || !aReturn )
+    return NS_ERROR_NULL_POINTER;
+  
+  nsresult res = NS_OK;
+  nsCOMPtr<nsIDOMNode> currentNode;
 
-  nsCOMPtr<nsINode> current = do_QueryInterface(aNode);
-  if (!current) {
+  if (aNode)
+    currentNode = aNode;
+  else
+  {
     // If no node supplied, get it from anchor node of current selection
-    nsRefPtr<Selection> selection = GetSelection();
+    nsCOMPtr<nsISelection>selection;
+    res = GetSelection(getter_AddRefs(selection));
+    NS_ENSURE_SUCCESS(res, res);
     NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
 
-    nsCOMPtr<nsINode> anchorNode = selection->GetAnchorNode();
+    nsCOMPtr<nsIDOMNode> anchorNode;
+    res = selection->GetAnchorNode(getter_AddRefs(anchorNode));
+    if(NS_FAILED(res)) return res;
     NS_ENSURE_TRUE(anchorNode, NS_ERROR_FAILURE);
 
     // Try to get the actual selected node
-    if (anchorNode->HasChildNodes() && anchorNode->IsContent()) {
-      int32_t offset = selection->GetAnchorOffset();
-      current = anchorNode->GetChildAt(offset);
+    bool hasChildren = false;
+    anchorNode->HasChildNodes(&hasChildren);
+    if (hasChildren)
+    {
+      int32_t offset;
+      res = selection->GetAnchorOffset(&offset);
+      if(NS_FAILED(res)) return res;
+      currentNode = nsEditor::GetChildAt(anchorNode, offset);
     }
     // anchor node is probably a text node - just use that
-    if (!current) {
-      current = anchorNode;
-    }
+    if (!currentNode)
+      currentNode = anchorNode;
   }
-
-  nsCOMPtr<nsIDOMNode> currentNode = current->AsDOMNode();
-
+   
   nsAutoString TagName(aTagName);
   ToLowerCase(TagName);
   bool getLink = IsLinkTag(TagName);
@@ -2359,14 +2373,19 @@ NODE_FOUND:
 
     currentNode = parent;
   }
-
-  if (!bNodeFound) {
-    return NS_EDITOR_ELEMENT_NOT_FOUND;
+  if (bNodeFound)
+  {
+    nsCOMPtr<nsIDOMElement> currentElement = do_QueryInterface(currentNode);
+    if (currentElement)
+    {
+      *aReturn = currentElement;
+      // Getters must addref
+      NS_ADDREF(*aReturn);
+    }
   }
+  else res = NS_EDITOR_ELEMENT_NOT_FOUND;
 
-  nsCOMPtr<nsIDOMElement> currentElement = do_QueryInterface(currentNode);
-  currentElement.forget(aReturn);
-  return NS_OK;
+  return res;
 }
 
 NS_IMETHODIMP
@@ -2382,7 +2401,7 @@ nsHTMLEditor::GetSelectedElement(const nsAString& aTagName, nsIDOMElement** aRet
   nsresult res = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-  Selection* sel = static_cast<Selection*>(selection.get());
+  nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
 
   bool bNodeFound = false;
   bool isCollapsed = selection->Collapsed();
@@ -2447,7 +2466,7 @@ nsHTMLEditor::GetSelectedElement(const nsAString& aTagName, nsIDOMElement** aRet
       int32_t anchorOffset = -1;
       if (anchorNode)
         selection->GetAnchorOffset(&anchorOffset);
-
+    
       nsCOMPtr<nsIDOMNode> focusNode;
       res = selection->GetFocusNode(getter_AddRefs(focusNode));
       NS_ENSURE_SUCCESS(res, res);
@@ -2458,6 +2477,19 @@ nsHTMLEditor::GetSelectedElement(const nsAString& aTagName, nsIDOMElement** aRet
       // Link node must be the same for both ends of selection
       if (NS_SUCCEEDED(res) && anchorNode)
       {
+  #ifdef DEBUG_cmanske
+        {
+        nsAutoString name;
+        anchorNode->GetNodeName(name);
+        printf("GetSelectedElement: Anchor node of selection: ");
+        wprintf(name.get());
+        printf(" Offset: %d\n", anchorOffset);
+        focusNode->GetNodeName(name);
+        printf("Focus node of selection: ");
+        wprintf(name.get());
+        printf(" Offset: %d\n", focusOffset);
+        }
+  #endif
         nsCOMPtr<nsIDOMElement> parentLinkOfAnchor;
         res = GetElementOrParentByTagName(NS_LITERAL_STRING("href"), anchorNode, getter_AddRefs(parentLinkOfAnchor));
         // XXX: ERROR_HANDLING  can parentLinkOfAnchor be null?
@@ -2474,7 +2506,7 @@ nsHTMLEditor::GetSelectedElement(const nsAString& aTagName, nsIDOMElement** aRet
             if (NS_SUCCEEDED(res) && parentLinkOfFocus == parentLinkOfAnchor)
               bNodeFound = true;
           }
-
+      
           // We found a link node parent
           if (bNodeFound) {
             // GetElementOrParentByTagName addref'd this, so we don't need to do it here
@@ -2499,63 +2531,77 @@ nsHTMLEditor::GetSelectedElement(const nsAString& aTagName, nsIDOMElement** aRet
 
     if (!isCollapsed)   // Don't bother to examine selection if it is collapsed
     {
-      nsRefPtr<nsRange> currange = sel->GetRangeAt(0);
-      if (currange) {
-        nsCOMPtr<nsIContentIterator> iter =
-          do_CreateInstance("@mozilla.org/content/post-content-iterator;1", &res);
-        NS_ENSURE_SUCCESS(res, res);
+      nsCOMPtr<nsIEnumerator> enumerator;
+      res = selPriv->GetEnumerator(getter_AddRefs(enumerator));
+      if (NS_SUCCEEDED(res))
+      {
+        if(!enumerator)
+          return NS_ERROR_NULL_POINTER;
 
-        iter->Init(currange);
-        // loop through the content iterator for each content node
-        while (!iter->IsDone())
+        enumerator->First(); 
+        nsCOMPtr<nsISupports> currentItem;
+        res = enumerator->CurrentItem(getter_AddRefs(currentItem));
+        if ((NS_SUCCEEDED(res)) && currentItem)
         {
-          // Query interface to cast nsIContent to nsIDOMNode
-          //  then get tagType to compare to  aTagName
-          // Clone node of each desired type and append it to the aDomFrag
-          selectedElement = do_QueryInterface(iter->GetCurrentNode());
-          if (selectedElement)
+          nsCOMPtr<nsIDOMRange> currange( do_QueryInterface(currentItem) );
+          nsCOMPtr<nsIContentIterator> iter =
+            do_CreateInstance("@mozilla.org/content/post-content-iterator;1", &res);
+          NS_ENSURE_SUCCESS(res, res);
+
+          iter->Init(currange);
+          // loop through the content iterator for each content node
+          while (!iter->IsDone())
           {
-            // If we already found a node, then we have another element,
-            //  thus there's not just one element selected
-            if (bNodeFound)
+            // Query interface to cast nsIContent to nsIDOMNode
+            //  then get tagType to compare to  aTagName
+            // Clone node of each desired type and append it to the aDomFrag
+            selectedElement = do_QueryInterface(iter->GetCurrentNode());
+            if (selectedElement)
             {
-              bNodeFound = false;
-              break;
-            }
+              // If we already found a node, then we have another element,
+              //  thus there's not just one element selected
+              if (bNodeFound)
+              {
+                bNodeFound = false;
+                break;
+              }
 
-            selectedElement->GetNodeName(domTagName);
-            ToLowerCase(domTagName);
+              selectedElement->GetNodeName(domTagName);
+              ToLowerCase(domTagName);
 
-            if (anyTag)
-            {
-              // Get name of first selected element
-              selectedElement->GetTagName(TagName);
-              ToLowerCase(TagName);
-              anyTag = false;
-            }
+              if (anyTag)
+              {
+                // Get name of first selected element
+                selectedElement->GetTagName(TagName);
+                ToLowerCase(TagName);
+                anyTag = false;
+              }
 
-            // The "A" tag is a pain,
-            //  used for both link(href is set) and "Named Anchor"
-            nsCOMPtr<nsIDOMNode> selectedNode = do_QueryInterface(selectedElement);
-            if ( (isLinkTag && nsHTMLEditUtils::IsLink(selectedNode)) ||
-                (isNamedAnchorTag && nsHTMLEditUtils::IsNamedAnchor(selectedNode)) )
-            {
-              bNodeFound = true;
-            } else if (TagName == domTagName) { // All other tag names are handled here
-              bNodeFound = true;
+              // The "A" tag is a pain,
+              //  used for both link(href is set) and "Named Anchor"
+              nsCOMPtr<nsIDOMNode> selectedNode = do_QueryInterface(selectedElement);
+              if ( (isLinkTag && nsHTMLEditUtils::IsLink(selectedNode)) ||
+                   (isNamedAnchorTag && nsHTMLEditUtils::IsNamedAnchor(selectedNode)) )
+              {
+                bNodeFound = true;
+              } else if (TagName == domTagName) { // All other tag names are handled here
+                bNodeFound = true;
+              }
+              if (!bNodeFound)
+              {
+                // Check if node we have is really part of the selection???
+                break;
+              }
             }
-            if (!bNodeFound)
-            {
-              // Check if node we have is really part of the selection???
-              break;
-            }
+            iter->Next();
           }
-          iter->Next();
+        } else {
+          // Should never get here?
+          isCollapsed = true;
+          printf("isCollapsed was FALSE, but no elements found in selection\n");
         }
       } else {
-        // Should never get here?
-        isCollapsed = true;
-        NS_WARNING("isCollapsed was FALSE, but no elements found in selection\n");
+        printf("Could not create enumerator for GetSelectionProperties\n");
       }
     }
   }
@@ -2671,7 +2717,7 @@ nsHTMLEditor::InsertLinkAroundSelection(nsIDOMElement* aAnchorElement)
   nsAutoEditBatch beginBatching(this);
 
   // Set all attributes found on the supplied anchor element
-  nsCOMPtr<nsIDOMMozNamedAttrMap> attrMap;
+  nsCOMPtr<nsIDOMNamedNodeMap> attrMap;
   aAnchorElement->GetAttributes(getter_AddRefs(attrMap));
   NS_ENSURE_TRUE(attrMap, NS_ERROR_FAILURE);
 
@@ -2680,10 +2726,11 @@ nsHTMLEditor::InsertLinkAroundSelection(nsIDOMElement* aAnchorElement)
   nsAutoString name, value;
 
   for (uint32_t i = 0; i < count; ++i) {
-    nsCOMPtr<nsIDOMAttr> attribute;
-    res = attrMap->Item(i, getter_AddRefs(attribute));
+    nsCOMPtr<nsIDOMNode> attrNode;
+    res = attrMap->Item(i, getter_AddRefs(attrNode));
     NS_ENSURE_SUCCESS(res, res);
 
+    nsCOMPtr<nsIDOMAttr> attribute = do_QueryInterface(attrNode);
     if (attribute) {
       // We must clear the string buffers
       //   because GetName, GetValue appends to previous string!
@@ -3244,13 +3291,11 @@ nsHTMLEditor::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
       // Ignore insertion of the bogus node
       return;
     }
-    // Protect the edit rules object from dying
-    nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
     mRules->DocumentModified();
 
     // Update spellcheck for only the newly-inserted node (bug 743819)
     if (mInlineSpellChecker) {
-      nsRefPtr<nsRange> range = new nsRange(aChild);
+      nsRefPtr<nsRange> range = new nsRange();
       nsresult res = range->Set(aContainer, aIndexInContainer,
                                 aContainer, aIndexInContainer + 1);
       if (NS_SUCCEEDED(res)) {
@@ -3277,8 +3322,6 @@ nsHTMLEditor::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
       // Ignore removal of the bogus node
       return;
     }
-    // Protect the edit rules object from dying
-    nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
     mRules->DocumentModified();
   }
 }
@@ -3919,7 +3962,7 @@ nsresult
 nsHTMLEditor::GetPriorHTMLSibling(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode)
 {
   NS_ENSURE_TRUE(outNode, NS_ERROR_NULL_POINTER);
-  *outNode = nullptr;
+  *outNode = NULL;
 
   nsCOMPtr<nsINode> node = do_QueryInterface(inNode);
   NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
@@ -3952,7 +3995,7 @@ nsresult
 nsHTMLEditor::GetPriorHTMLSibling(nsIDOMNode *inParent, int32_t inOffset, nsCOMPtr<nsIDOMNode> *outNode)
 {
   NS_ENSURE_TRUE(outNode, NS_ERROR_NULL_POINTER);
-  *outNode = nullptr;
+  *outNode = NULL;
 
   nsCOMPtr<nsINode> parent = do_QueryInterface(inParent);
   NS_ENSURE_TRUE(parent, NS_ERROR_NULL_POINTER);
@@ -4016,7 +4059,7 @@ nsresult
 nsHTMLEditor::GetNextHTMLSibling(nsIDOMNode *inParent, int32_t inOffset, nsCOMPtr<nsIDOMNode> *outNode)
 {
   NS_ENSURE_TRUE(outNode, NS_ERROR_NULL_POINTER);
-  *outNode = nullptr;
+  *outNode = NULL;
 
   nsCOMPtr<nsINode> parent = do_QueryInterface(inParent);
   NS_ENSURE_TRUE(parent, NS_ERROR_NULL_POINTER);
@@ -4031,42 +4074,34 @@ nsHTMLEditor::GetNextHTMLSibling(nsIDOMNode *inParent, int32_t inOffset, nsCOMPt
 // GetPriorHTMLNode: returns the previous editable leaf node, if there is
 //                   one within the <body>
 //
-nsIContent*
-nsHTMLEditor::GetPriorHTMLNode(nsINode* aNode, bool aNoBlockCrossing)
+nsresult
+nsHTMLEditor::GetPriorHTMLNode(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode, bool bNoBlockCrossing)
 {
-  MOZ_ASSERT(aNode);
+  NS_ENSURE_TRUE(outNode, NS_ERROR_NULL_POINTER);
 
-  if (!GetActiveEditingHost()) {
-    return nullptr;
+  nsIContent* activeEditingHost = GetActiveEditingHost();
+  if (!activeEditingHost) {
+    *outNode = nullptr;
+    return NS_OK;
   }
 
-  return GetPriorNode(aNode, true, aNoBlockCrossing);
-}
-
-nsresult
-nsHTMLEditor::GetPriorHTMLNode(nsIDOMNode* aNode,
-                               nsCOMPtr<nsIDOMNode>* aResultNode,
-                               bool aNoBlockCrossing)
-{
-  NS_ENSURE_TRUE(aResultNode, NS_ERROR_NULL_POINTER);
-
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
-
-  *aResultNode = do_QueryInterface(GetPriorHTMLNode(node, aNoBlockCrossing));
-  return NS_OK;
+  nsresult res = GetPriorNode(inNode, true, address_of(*outNode),
+                              bNoBlockCrossing);
+  NS_ENSURE_SUCCESS(res, res);
+  
+  NS_ASSERTION(!*outNode || IsDescendantOfEditorRoot(*outNode),
+               "GetPriorNode screwed up");
+  return res;
 }
 
 
 ///////////////////////////////////////////////////////////////////////////
 // GetPriorHTMLNode: same as above but takes {parent,offset} instead of node
-//
+//                       
 nsIContent*
 nsHTMLEditor::GetPriorHTMLNode(nsINode* aParent, int32_t aOffset,
                                bool aNoBlockCrossing)
 {
-  MOZ_ASSERT(aParent);
-
   if (!GetActiveEditingHost()) {
     return nullptr;
   }
@@ -4075,18 +4110,23 @@ nsHTMLEditor::GetPriorHTMLNode(nsINode* aParent, int32_t aOffset,
 }
 
 nsresult
-nsHTMLEditor::GetPriorHTMLNode(nsIDOMNode* aNode, int32_t aOffset,
-                               nsCOMPtr<nsIDOMNode>* aResultNode,
-                               bool aNoBlockCrossing)
+nsHTMLEditor::GetPriorHTMLNode(nsIDOMNode *inParent, int32_t inOffset, nsCOMPtr<nsIDOMNode> *outNode, bool bNoBlockCrossing)
 {
-  NS_ENSURE_TRUE(aResultNode, NS_ERROR_NULL_POINTER);
+  NS_ENSURE_TRUE(outNode, NS_ERROR_NULL_POINTER);
 
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+  nsIContent* activeEditingHost = GetActiveEditingHost();
+  if (!activeEditingHost) {
+    *outNode = nullptr;
+    return NS_OK;
+  }
 
-  *aResultNode = do_QueryInterface(GetPriorHTMLNode(node, aOffset,
-                                                    aNoBlockCrossing));
-  return NS_OK;
+  nsresult res = GetPriorNode(inParent, inOffset, true, address_of(*outNode),
+                              bNoBlockCrossing);
+  NS_ENSURE_SUCCESS(res, res);
+
+  NS_ASSERTION(!*outNode || IsDescendantOfEditorRoot(*outNode),
+               "GetPriorNode screwed up");
+  return res;
 }
 
 
@@ -4094,37 +4134,23 @@ nsHTMLEditor::GetPriorHTMLNode(nsIDOMNode* aNode, int32_t aOffset,
 // GetNextHTMLNode: returns the next editable leaf node, if there is
 //                   one within the <body>
 //                       
-nsIContent*
-nsHTMLEditor::GetNextHTMLNode(nsINode* aNode, bool aNoBlockCrossing)
-{
-  MOZ_ASSERT(aNode);
-
-  nsIContent* result = GetNextNode(aNode, true, aNoBlockCrossing);
-
-  if (result && !IsDescendantOfEditorRoot(result)) {
-    return nullptr;
-  }
-
-  return result;
-}
-
 nsresult
-nsHTMLEditor::GetNextHTMLNode(nsIDOMNode* aNode,
-                              nsCOMPtr<nsIDOMNode>* aResultNode,
-                              bool aNoBlockCrossing)
+nsHTMLEditor::GetNextHTMLNode(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode, bool bNoBlockCrossing)
 {
-  NS_ENSURE_TRUE(aResultNode, NS_ERROR_NULL_POINTER);
-
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
-
-  *aResultNode = do_QueryInterface(GetNextHTMLNode(node, aNoBlockCrossing));
-  return NS_OK;
+  NS_ENSURE_TRUE(outNode, NS_ERROR_NULL_POINTER);
+  nsresult res = GetNextNode(inNode, true, address_of(*outNode), bNoBlockCrossing);
+  NS_ENSURE_SUCCESS(res, res);
+  
+  // if it's not in the body, then zero it out
+  if (*outNode && !IsDescendantOfEditorRoot(*outNode)) {
+    *outNode = nullptr;
+  }
+  return res;
 }
 
 
 ///////////////////////////////////////////////////////////////////////////
-// GetNextHTMLNode: same as above but takes {parent,offset} instead of node
+// GetNHTMLextNode: same as above but takes {parent,offset} instead of node
 //                       
 nsIContent*
 nsHTMLEditor::GetNextHTMLNode(nsINode* aParent, int32_t aOffset,
@@ -4138,18 +4164,17 @@ nsHTMLEditor::GetNextHTMLNode(nsINode* aParent, int32_t aOffset,
 }
 
 nsresult
-nsHTMLEditor::GetNextHTMLNode(nsIDOMNode* aNode, int32_t aOffset,
-                              nsCOMPtr<nsIDOMNode>* aResultNode,
-                              bool aNoBlockCrossing)
+nsHTMLEditor::GetNextHTMLNode(nsIDOMNode *inParent, int32_t inOffset, nsCOMPtr<nsIDOMNode> *outNode, bool bNoBlockCrossing)
 {
-  NS_ENSURE_TRUE(aResultNode, NS_ERROR_NULL_POINTER);
-
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
-
-  *aResultNode = do_QueryInterface(GetNextHTMLNode(node, aOffset,
-                                                   aNoBlockCrossing));
-  return NS_OK;
+  NS_ENSURE_TRUE(outNode, NS_ERROR_NULL_POINTER);
+  nsresult res = GetNextNode(inParent, inOffset, true, address_of(*outNode), bNoBlockCrossing);
+  NS_ENSURE_SUCCESS(res, res);
+  
+  // if it's not in the body, then zero it out
+  if (*outNode && !IsDescendantOfEditorRoot(*outNode)) {
+    *outNode = nullptr;
+  }
+  return res;
 }
 
 
@@ -4577,30 +4602,26 @@ nsHTMLEditor::SetAttributeOrEquivalent(nsIDOMElement * aElement,
 }
 
 nsresult
-nsHTMLEditor::RemoveAttributeOrEquivalent(nsIDOMElement* aElement,
-                                          const nsAString& aAttribute,
+nsHTMLEditor::RemoveAttributeOrEquivalent(nsIDOMElement * aElement,
+                                          const nsAString & aAttribute,
                                           bool aSuppressTransaction)
 {
-  nsCOMPtr<dom::Element> element = do_QueryInterface(aElement);
-  NS_ENSURE_TRUE(element, NS_OK);
-
-  nsCOMPtr<nsIAtom> attribute = do_GetAtom(aAttribute);
-  MOZ_ASSERT(attribute);
-
   nsresult res = NS_OK;
   if (IsCSSEnabled() && mHTMLCSSUtils) {
-    res = mHTMLCSSUtils->RemoveCSSEquivalentToHTMLStyle(
-        element, nullptr, &aAttribute, nullptr, aSuppressTransaction);
+    res = mHTMLCSSUtils->RemoveCSSEquivalentToHTMLStyle(aElement, nullptr, &aAttribute, nullptr,
+                                                        aSuppressTransaction);
     NS_ENSURE_SUCCESS(res, res);
   }
 
-  if (element->HasAttr(kNameSpaceID_None, attribute)) {
-    if (aSuppressTransaction) {
-      res = element->UnsetAttr(kNameSpaceID_None, attribute,
-                               /* aNotify = */ true);
-    } else {
+  nsAutoString existingValue;
+  bool wasSet = false;
+  res = GetAttributeValue(aElement, aAttribute, existingValue, &wasSet);
+  NS_ENSURE_SUCCESS(res, res);
+  if (wasSet) {
+    if (aSuppressTransaction)
+      res = aElement->RemoveAttribute(aAttribute);
+    else
       res = RemoveAttribute(aElement, aAttribute);
-    }
   }
   return res;
 }
@@ -4652,13 +4673,23 @@ nsHTMLEditor::SetCSSBackgroundColor(const nsAString& aColor)
   NS_ENSURE_SUCCESS(res, res);
   if (!cancel && !handled)
   {
+    // get selection range enumerator
+    nsCOMPtr<nsIEnumerator> enumerator;
+    res = selection->GetEnumerator(getter_AddRefs(enumerator));
+    NS_ENSURE_SUCCESS(res, res);
+    NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+
     // loop thru the ranges in the selection
+    enumerator->First(); 
+    nsCOMPtr<nsISupports> currentItem;
     nsAutoString bgcolor; bgcolor.AssignLiteral("bgcolor");
-    uint32_t rangeCount = selection->GetRangeCount();
-    for (uint32_t rangeIdx = 0; rangeIdx < rangeCount; ++rangeIdx) {
-      nsCOMPtr<nsIDOMNode> cachedBlockParent = nullptr;
-      nsRefPtr<nsRange> range = selection->GetRangeAt(rangeIdx);
-      NS_ENSURE_TRUE(range, NS_ERROR_FAILURE);
+    nsCOMPtr<nsIDOMNode> cachedBlockParent = nullptr;
+    while (static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone()) {
+      res = enumerator->CurrentItem(getter_AddRefs(currentItem));
+      NS_ENSURE_SUCCESS(res, res);
+      NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+      
+      nsCOMPtr<nsIDOMRange> range( do_QueryInterface(currentItem) );
       
       // check for easy case: both range endpoints in same text node
       nsCOMPtr<nsIDOMNode> startNode, endNode;
@@ -4818,6 +4849,7 @@ nsHTMLEditor::SetCSSBackgroundColor(const nsAString& aColor)
           }
         }
       }
+      enumerator->Next();
     }
   }
   if (!cancel)
@@ -5130,19 +5162,6 @@ nsHTMLEditor::GetFocusedContent()
   }
   // If our window is focused, we're focused.
   return OurWindowHasFocus() ? focusedContent.forget() : nullptr;
-}
-
-already_AddRefed<nsIContent>
-nsHTMLEditor::GetFocusedContentForIME()
-{
-  nsCOMPtr<nsIContent> focusedContent = GetFocusedContent();
-  if (!focusedContent) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
-  NS_ENSURE_TRUE(doc, nullptr);
-  return doc->HasFlag(NODE_IS_EDITABLE) ? nullptr : focusedContent.forget();
 }
 
 bool

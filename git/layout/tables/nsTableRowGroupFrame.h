@@ -93,9 +93,9 @@ public:
   virtual nsMargin GetUsedBorder() const;
   virtual nsMargin GetUsedPadding() const;
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
    /** calls Reflow for all of its child rows.
     * Rows are all set to the same width and stacked vertically.
@@ -325,11 +325,6 @@ public:
 
   virtual nsILineIterator* GetLineIterator() { return this; }
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
-  {
-    return nsContainerFrame::IsFrameOfType(aFlags & ~(nsIFrame::eTablePart));
-  }
-
   virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
   virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
   virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
@@ -341,7 +336,8 @@ protected:
                             bool               aBorderCollapse,
                             nsHTMLReflowState& aReflowState);
   
-  virtual int GetSkipSides() const MOZ_OVERRIDE;
+  /** implement abstract method on nsContainerFrame */
+  virtual int GetSkipSides() const;
 
   void PlaceChild(nsPresContext*         aPresContext,
                   nsRowGroupReflowState& aReflowState,
@@ -377,8 +373,7 @@ protected:
                          nsHTMLReflowMetrics&     aDesiredSize,
                          const nsHTMLReflowState& aReflowState,
                          nsTableFrame*            aTableFrame,
-                         nsReflowStatus&          aStatus,
-                         bool                     aRowForcedPageBreak);
+                         nsReflowStatus&          aStatus);
 
   void SplitSpanningCells(nsPresContext&           aPresContext,
                           const nsHTMLReflowState& aReflowState,

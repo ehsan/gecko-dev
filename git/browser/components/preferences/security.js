@@ -3,8 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
-
 var gSecurityPane = {
   _pane: null,
 
@@ -92,7 +90,11 @@ var gSecurityPane = {
     var pref = document.getElementById("signon.rememberSignons");
     var excepts = document.getElementById("passwordExceptions");
 
-    if (PrivateBrowsingUtils.permanentPrivateBrowsing) {
+    const Cc = Components.classes, Ci = Components.interfaces;
+    var pbs = Cc["@mozilla.org/privatebrowsing;1"].
+              getService(Ci.nsIPrivateBrowsingService);
+
+    if (pbs.autoStarted) {
       document.getElementById("savePasswords").disabled = true;
       excepts.disabled = true;
       return false;

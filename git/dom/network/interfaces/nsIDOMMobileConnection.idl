@@ -11,26 +11,15 @@ interface nsIDOMMozMobileConnectionInfo;
 interface nsIDOMMozMobileNetworkInfo;
 interface nsIDOMMozMobileCellInfo;
 interface nsIDOMMozIccManager;
-interface nsIDOMMozMobileCFInfo;
 
-[scriptable, builtinclass, uuid(2065b3c3-e876-4be1-b373-428ee254a63e)]
+[scriptable, builtinclass, uuid(5362762c-7091-4da9-aecd-ba878bc51b3d)]
 interface nsIDOMMozMobileConnection : nsIDOMEventTarget
 {
-  const long ICC_SERVICE_CLASS_VOICE = (1 << 0);
-  const long ICC_SERVICE_CLASS_DATA = (1 << 1);
-  const long ICC_SERVICE_CLASS_FAX = (1 << 2);
-  const long ICC_SERVICE_CLASS_SMS = (1 << 3);
-  const long ICC_SERVICE_CLASS_DATA_SYNC = (1 << 4);
-  const long ICC_SERVICE_CLASS_DATA_ASYNC = (1 << 5);
-  const long ICC_SERVICE_CLASS_PACKET = (1 << 6);
-  const long ICC_SERVICE_CLASS_PAD = (1 << 7);
-  const long ICC_SERVICE_CLASS_MAX = (1 << 7);
-
   /**
    * Indicates the state of the device's ICC card.
    *
-   * Possible values: null, 'unknown', 'absent', 'pinRequired', 'pukRequired',
-   * 'networkLocked', 'corporateLocked', 'serviceProviderLocked', 'ready'.
+   * Possible values: null, 'absent', 'pinRequired', 'pukRequired',
+   * 'networkLocked', 'ready'.
    */
   readonly attribute DOMString cardState;
 
@@ -104,8 +93,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * Find out about the status of an ICC lock (e.g. the PIN lock).
    *
    * @param lockType
-   *        Identifies the lock type, e.g. "pin" for the PIN lock, "fdn" for
-   *        the FDN lock.
+   *        Identifies the lock type, e.g. "pin" for the PIN lock.
    *
    * @return a DOM Request.
    *         The request's result will be an object containing
@@ -131,27 +119,16 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *   unlockCardLock({lockType: "pin",
    *                   pin: "..."});
    *
-   * (2) Unlocking the PUK and supplying a new PIN:
-   *
-   *   unlockCardLock({lockType: "puk",
-   *                   puk: "...",
-   *                   newPin: "..."});
-   *
-   * (3) Network depersonalization. Unlocking the network control key (NCK).
+   * (2) Network depersonalization. Unlocking the network control key (NCK).
    *
    *   unlockCardLock({lockType: "nck",
    *                   pin: "..."});
    *
-   * (4) Corporate depersonalization. Unlocking the corporate control key (CCK).
+   * (3) Unlocking the PUK and supplying a new PIN:
    *
-   *   unlockCardLock({lockType: "cck",
-   *                   pin: "..."});
-   *
-   * (5) Service Provider depersonalization. Unlocking the service provider
-   *     control key (SPCK).
-   *
-   *   unlockCardLock({lockType: "spck",
-   *                   pin: "..."});
+   *   unlockCardLock({lockType: "puk",
+   *                   puk: "...",
+   *                   newPin: "..."});
    *
    * @return a nsIDOMDOMRequest.
    *         The request's result will be an object containing
@@ -163,7 +140,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    *     {
    *       lockType:   "pin",
-   *       success:    false,
+   *       result:     false,
    *       retryCount: 2
    *     }
    *
@@ -171,7 +148,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    *     {
    *       lockType:  "pin",
-   *       success:   true
+   *       result:    true
    *     }
    */
   nsIDOMDOMRequest unlockCardLock(in jsval info);
@@ -188,16 +165,10 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    * Examples:
    *
-   * (1a) Disabling the PIN lock:
+   * (1) Disabling the PIN lock:
    *
    *   setCardLock({lockType: "pin",
    *                pin: "...",
-   *                enabled: false});
-   *
-   * (1b) Disabling the FDN lock:
-   *
-   *   setCardLock({lockType: "fdn",
-   *                pin2: "...",
    *                enabled: false});
    *
    * (2) Changing the PIN:
@@ -216,7 +187,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    *     {
    *       lockType: "pin",
-   *       success: false,
+   *       result: false,
    *       retryCount: 2
    *     }
    *
@@ -224,7 +195,7 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    *
    *     {
    *       lockType: "pin",
-   *       success: true
+   *       result: true
    *     }
    */
   nsIDOMDOMRequest setCardLock(in jsval info);
@@ -253,37 +224,6 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * Cancel the current MMI request if one exists.
    */
   nsIDOMDOMRequest cancelMMI();
-
-   /**
-   * Configures call forward options.
-   *
-   * @param CFInfo
-   *        An object containing the call forward rule to set.
-   *
-   * If successful, the request's onsuccess will be called.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * 'IllegalSIMorME', or 'GenericFailure'
-   */
-  nsIDOMDOMRequest setCallForwardingOption(in nsIDOMMozMobileCFInfo CFInfo);
-
-  /**
-   * Queries current call forward options.
-   *
-   * @param reason
-   *        Indicates the reason the call is being forwarded. It will be either
-   *        unconditional (0), mobile busy (1), no reply (2), not reachable (3),
-   *        all call forwarding (4), or all conditional call forwarding (5).
-   *
-   * If successful, the request's onsuccess will be called, and the request's
-   * result will be an array of nsIDOMMozMobileCFInfo.
-   *
-   * Otherwise, the request's onerror will be called, and the request's error
-   * will be either 'RadioNotAvailable', 'RequestNotSupported',
-   * or 'GenericFailure'.
-   */
-  nsIDOMDOMRequest getCallForwardingOption(in unsigned short reason);
 
   /**
    * The 'cardstatechange' event is notified when the 'cardState' attribute
@@ -326,15 +266,9 @@ interface nsIDOMMozMobileConnection : nsIDOMEventTarget
    * 'setCardLock' fails.
    */
   [implicit_jscontext] attribute jsval onicccardlockerror;
-
-  /**
-   * The 'oncfstatechange' event is notified whenever the call forwarding
-   * state changes.
-   */
-  [implicit_jscontext] attribute jsval oncfstatechange;
 };
 
-[scriptable, uuid(c9d9ff61-a2f0-41cd-b478-9cefa7b31f31)]
+[scriptable, uuid(5ea0e4a9-4684-40da-9930-8ebb61d187f3)]
 interface nsIDOMMozMobileConnectionInfo : nsISupports
 {
   /**
@@ -370,11 +304,6 @@ interface nsIDOMMozMobileConnectionInfo : nsISupports
   readonly attribute nsIDOMMozMobileNetworkInfo network;
 
   /**
-   * Mobile Country Code (MCC) of last known network operator.
-   */
-  readonly attribute DOMString lastKnownMcc;
-
-  /**
    * Type of connection.
    *
    * Possible values: 'gsm', 'cdma', gprs', 'edge', 'umts', 'hsdpa', 'evdo0',
@@ -400,7 +329,7 @@ interface nsIDOMMozMobileConnectionInfo : nsISupports
 
 };
 
-[scriptable, uuid(40018fc7-4c42-47b6-8de6-3591a9c622bc)]
+[scriptable, uuid(3bd866c7-98a5-4ef4-a464-c22d8cc6b992)]
 interface nsIDOMMozMobileNetworkInfo: nsISupports
 {
   /**
@@ -416,12 +345,12 @@ interface nsIDOMMozMobileNetworkInfo: nsISupports
   /**
    * Mobile Country Code (MCC) of the network operator
    */
-  readonly attribute DOMString mcc;
+  readonly attribute unsigned short mcc;
 
   /**
    * Mobile Network Code (MNC) of the network operator
    */
-  readonly attribute DOMString mnc;
+  readonly attribute unsigned short mnc;
 
   /**
    * State of this network operator.
@@ -445,7 +374,7 @@ interface nsIDOMMozMobileCellInfo: nsISupports
   readonly attribute unsigned long gsmCellId;
 };
 
-[scriptable, uuid(10d5c5a2-d43f-4f94-8657-cf7ccabbab6e)]
+[scriptable, uuid(a71c66ed-dfb0-4c33-9942-049e6f03dbed)]
 interface nsIDOMMozMobileICCInfo : nsISupports
 {
    /**
@@ -456,12 +385,12 @@ interface nsIDOMMozMobileICCInfo : nsISupports
   /**
    * Mobile Country Code (MCC) of the subscriber's home network.
    */
-  readonly attribute DOMString mcc;
+  readonly attribute unsigned short mcc;
 
   /**
    * Mobile Network Code (MNC) of the subscriber's home network.
    */
-  readonly attribute DOMString mnc;
+  readonly attribute unsigned short mnc;
 
   /**
    * Service Provider Name (SPN) of the subscriber's home network.
@@ -469,86 +398,8 @@ interface nsIDOMMozMobileICCInfo : nsISupports
   readonly attribute DOMString spn;
 
   /**
-   * Network name must be a part of displayed carrier name.
-   */
-  readonly attribute boolean isDisplayNetworkNameRequired;
-
-  /**
-   * Service provider name must be a part of displayed carrier name.
-   */
-  readonly attribute boolean isDisplaySpnRequired;
-
-  /**
    * Mobile Station ISDN Number (MSISDN) of the subscriber's, aka
    * his phone number.
    */
   readonly attribute DOMString msisdn;
-};
-
-[scriptable, uuid(d1b35ad8-99aa-47cc-ab49-2e72b00e39df)]
-interface nsIDOMMozMobileCFInfo : nsISupports
-{
-  /**
-   * Call forwarding rule status.
-   *
-   * It will be either not active (false), or active (true).
-   *
-   * Note: Unused for setting call forwarding options. It reports
-   *       the status of the rule when getting how the rule is
-   *       configured.
-   *
-   * @see 3GPP TS 27.007 7.11 "status".
-   */
-  readonly attribute bool active;
-
-  const long CALL_FORWARD_ACTION_DISABLE = 0;
-  const long CALL_FORWARD_ACTION_ENABLE = 1;
-  const long CALL_FORWARD_ACTION_QUERY_STATUS = 2;
-  const long CALL_FORWARD_ACTION_REGISTRATION = 3;
-  const long CALL_FORWARD_ACTION_ERASURE = 4;
-
-  /**
-   * Indicates what to do with the rule.
-   *
-   * One of the CALL_FORWARD_ACTION_* constants. It will be either disable (0),
-   * enable (1), query status (2), registration (3), or erasure (4).
-   *
-   * @see 3GPP TS 27.007 7.11 "mode".
-   */
-  readonly attribute unsigned short action;
-
-  const long CALL_FORWARD_REASON_UNCONDITIONAL = 0;
-  const long CALL_FORWARD_REASON_MOBILE_BUSY = 1;
-  const long CALL_FORWARD_REASON_NO_REPLY = 2;
-  const long CALL_FORWARD_REASON_NOT_REACHABLE = 3;
-  const long CALL_FORWARD_REASON_ALL_CALL_FORWARDING = 4;
-  const long CALL_FORWARD_REASON_ALL_CONDITIONAL_CALL_FORWARDING = 5;
-
-  /**
-   * Indicates the reason the call is being forwarded.
-   *
-   * One of the CALL_FORWARD_REASON_* constants. It will be either
-   * unconditional (0), mobile busy (1), no reply (2), not reachable (3),
-   * all call forwarding (4), or all conditional call forwarding (5).
-   *
-   * @see 3GPP TS 27.007 7.11 "reason".
-   */
-  readonly attribute unsigned short reason;
-
-  /**
-   * Phone number of forwarding address.
-   */
-  readonly attribute DOMString number;
-
-  /**
-   * When "no reply" is enabled or queried, this gives the time in
-   * seconds to wait before call is forwarded.
-   */
-  readonly attribute unsigned short timeSeconds;
-
-  /**
-   * Service for which the call forward is set up. It should be one of the
-   * nsIDOMMozMobileConnectionInfo.ICC_SERVICE_CLASS_* values.
-   */
-  readonly attribute unsigned short serviceClass;
 };

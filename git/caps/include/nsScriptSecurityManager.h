@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=4 et sw=4 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -145,7 +144,7 @@ static void
 ClearPropertyPolicyEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
 {
     PropertyPolicy* pp = (PropertyPolicy*)entry;
-    pp->key = nullptr;
+    pp->key = NULL;
 }
 
 // Class Policy
@@ -349,22 +348,6 @@ public:
         return sStrictFileOriginPolicy;
     }
 
-    /**
-     * Returns true if the two principals share the same app attributes.
-     *
-     * App attributes are appId and the inBrowserElement flag.
-     * Two principals have the same app attributes if those information are
-     * equals.
-     * This method helps keeping principals from different apps isolated from
-     * each other. Also, it helps making sure mozbrowser (web views) and their
-     * parent are isolated from each other. All those entities do not share the
-     * same data (cookies, IndexedDB, localStorage, etc.) so we shouldn't allow
-     * violating that principle.
-     */
-    static bool
-    AppAttributesEqual(nsIPrincipal* aFirst,
-                       nsIPrincipal* aSecond);
-
 private:
 
     // GetScriptSecurityManager is the only call that can make one
@@ -432,6 +415,12 @@ private:
     GetSubjectPrincipal(JSContext* cx, nsresult* rv);
 
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
+    // when this happens -- this means that there was no script for the frame.
+    // Callers MUST pass in a non-null rv here.
+    nsIPrincipal*
+    GetFramePrincipal(JSContext* cx, JSStackFrame* fp, nsresult* rv);
+
+    // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script.  Callers MUST
     // pass in a non-null rv here.
     static nsIPrincipal*
@@ -440,10 +429,20 @@ private:
     // Returns null if a principal cannot be found.  Note that rv can be NS_OK
     // when this happens -- this means that there was no script associated
     // with the function object, and no global object associated with the scope
-    // of obj (the last object on its parent chain). Callers MUST pass in a
-    // non-null rv here.
+    // of obj (the last object on its parent chain).  If the caller is walking
+    // the JS stack, fp must point to the current frame in the stack iteration.
+    // Callers MUST pass in a non-null rv here.
     static nsIPrincipal*
-    GetFunctionObjectPrincipal(JSContext* cx, JSObject* obj, nsresult* rv);
+    GetFunctionObjectPrincipal(JSContext* cx, JSObject* obj, JSStackFrame *fp,
+                               nsresult* rv);
+
+    // Returns null if a principal cannot be found.  Note that rv can be NS_OK
+    // when this happens -- this means that there was no script
+    // running.  Callers MUST pass in a non-null rv here.
+    nsIPrincipal*
+    GetPrincipalAndFrame(JSContext *cx,
+                         JSStackFrame** frameResult,
+                         nsresult* rv);
 
     /**
      * Check capability levels for an |aObj| that implements
@@ -482,15 +481,6 @@ private:
                         nsIPrincipal* aSubjectPrincipal,
                         const char* aObjectSecurityLevel);
 
-    /**
-     * Helper for CanExecuteScripts that allows the caller to specify
-     * whether execution should be allowed if cx has no
-     * nsIScriptContext.
-     */
-    nsresult
-    CanExecuteScripts(JSContext* cx, nsIPrincipal *aPrincipal,
-                      bool aAllowIfNoScriptContext, bool *result);
-
     nsresult
     Init();
 
@@ -517,6 +507,7 @@ private:
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
     bool mPrefInitialized;
     bool mIsJavaScriptEnabled;
+    bool mIsWritingPrefs;
     bool mPolicyPrefsChanged;
 
     static bool sStrictFileOriginPolicy;

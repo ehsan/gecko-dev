@@ -11,34 +11,6 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 
-extern bool gBluetoothDebugFlag;
-
-#define SWITCH_BT_DEBUG(V) (gBluetoothDebugFlag = V)
-
-#undef BT_LOG
-#if defined(MOZ_WIDGET_GONK)
-#include <android/log.h>
-#define BT_LOG(args...)                                              \
-  do {                                                               \
-    if (gBluetoothDebugFlag) {                                       \
-      __android_log_print(ANDROID_LOG_INFO, "GeckoBluetooth", args); \
-    }                                                                \
-  } while(0)
-
-#define BT_WARNING(args...)                                          \
-  __android_log_print(ANDROID_LOG_WARN, "GeckoBluetooth", args)
-
-#else
-#define BT_LOG(args, ...)                                            \
-  do {                                                               \
-    if (gBluetoothDebugFlag) {                                       \
-      printf(args, ##__VA_ARGS__);                                   \
-    }                                                                \
-  } while(0)
-
-#define BT_WARNING(args, ...) printf(args, ##__VA_ARGS__)
-#endif
-
 #define BEGIN_BLUETOOTH_NAMESPACE \
   namespace mozilla { namespace dom { namespace bluetooth {
 #define END_BLUETOOTH_NAMESPACE \
@@ -46,10 +18,8 @@ extern bool gBluetoothDebugFlag;
 #define USING_BLUETOOTH_NAMESPACE \
   using namespace mozilla::dom::bluetooth;
 
-#define KEY_LOCAL_AGENT  "/B2G/bluetooth/agent"
-#define KEY_REMOTE_AGENT "/B2G/bluetooth/remote_device_agent"
-#define KEY_MANAGER      "/B2G/bluetooth/manager"
-#define KEY_ADAPTER      "/B2G/bluetooth/adapter"
+#define LOCAL_AGENT_PATH  "/B2G/bluetooth/agent"
+#define REMOTE_AGENT_PATH "/B2G/bluetooth/remote_device_agent"
 
 // Bluetooth address format: xx:xx:xx:xx:xx:xx (or xx_xx_xx_xx_xx_xx)
 #define BLUETOOTH_ADDRESS_LENGTH 17

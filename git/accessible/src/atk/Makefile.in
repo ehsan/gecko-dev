@@ -9,6 +9,7 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = accessibility
 LIBRARY_NAME = accessibility_toolkit_s
 EXPORT_LIBRARY = ..
 LIBXUL_LIBRARY = 1
@@ -19,6 +20,7 @@ CPPSRCS = \
   ApplicationAccessibleWrap.cpp \
   AtkSocketAccessible.cpp \
   DocAccessibleWrap.cpp \
+  nsAccessNodeWrap.cpp \
   nsMaiInterfaceComponent.cpp \
   nsMaiInterfaceAction.cpp \
   nsMaiInterfaceText.cpp \
@@ -31,9 +33,7 @@ CPPSRCS = \
   nsMaiInterfaceTable.cpp \
   nsMaiInterfaceDocument.cpp \
   nsMaiInterfaceImage.cpp \
-  Platform.cpp \
   RootAccessibleWrap.cpp \
-  UtilInterface.cpp \
   $(NULL)
 
 EXPORTS = \

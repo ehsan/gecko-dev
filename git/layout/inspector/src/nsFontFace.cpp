@@ -2,18 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#define _IMPL_NS_LAYOUT
+
 #include "nsFontFace.h"
 #include "nsIDOMCSSFontFaceRule.h"
 #include "nsCSSRules.h"
 #include "gfxUserFontSet.h"
-#include "nsFontFaceLoader.h"
 #include "zlib.h"
 
 nsFontFace::nsFontFace(gfxFontEntry*      aFontEntry,
-                       gfxFontGroup*      aFontGroup,
-                       uint8_t            aMatchType)
+                       uint8_t            aMatchType,
+                       nsCSSFontFaceRule* aRule)
   : mFontEntry(aFontEntry),
-    mFontGroup(aFontGroup),
+    mRule(aRule),
     mMatchType(aMatchType)
 {
 }
@@ -82,18 +83,7 @@ nsFontFace::GetCSSFamilyName(nsAString & aCSSFamilyName)
 NS_IMETHODIMP
 nsFontFace::GetRule(nsIDOMCSSFontFaceRule **aRule)
 {
-  // check whether this font entry is associated with an @font-face rule
-  // in the relevant font group's user font set
-  nsCSSFontFaceRule* rule = nullptr;
-  if (mFontEntry->IsUserFont()) {
-    nsUserFontSet* fontSet =
-      static_cast<nsUserFontSet*>(mFontGroup->GetUserFontSet());
-    if (fontSet) {
-      rule = fontSet->FindRuleForEntry(mFontEntry);
-    }
-  }
-
-  NS_IF_ADDREF(*aRule = rule);
+  NS_IF_ADDREF(*aRule = mRule.get());
   return NS_OK;
 }
 

@@ -19,11 +19,10 @@
 #include "prlog.h"
 
 #ifdef PR_LOGGING
-extern PRLogModuleInfo* GetDataChannelLog();
-extern PRLogModuleInfo* GetSCTPLog();
+extern PRLogModuleInfo* dataChannelLog;
 #endif
 
 #undef LOG
-#define LOG(args) PR_LOG(GetDataChannelLog(), PR_LOG_DEBUG, args)
+#define LOG(args) PR_LOG(dataChannelLog, PR_LOG_DEBUG, args)
 
 #endif

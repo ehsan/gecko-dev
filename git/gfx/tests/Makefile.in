@@ -11,6 +11,7 @@ relativesrcdir = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= gfx
 MOZILLA_INTERNAL_API = 1
 
 XPCSHELL_TESTS = unit

@@ -8,6 +8,7 @@
 
 #include "nsIDOMEventListener.h"
 #include "nsIDOMMouseEvent.h"
+#include "nsIContent.h"
 #include "nsIDOMElement.h"
 #include "nsITimer.h"
 #include "nsCOMPtr.h"
@@ -18,8 +19,6 @@
 #endif
 #include "nsWeakPtr.h"
 #include "mozilla/Attributes.h"
-
-class nsIContent;
 
 class nsXULTooltipListener MOZ_FINAL : public nsIDOMEventListener
 {

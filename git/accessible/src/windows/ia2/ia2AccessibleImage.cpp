@@ -26,7 +26,7 @@ using namespace mozilla::a11y;
 STDMETHODIMP
 ia2AccessibleImage::QueryInterface(REFIID iid, void** ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleImage == iid) {
     *ppv = static_cast<IAccessibleImage*>(this);
@@ -42,9 +42,8 @@ ia2AccessibleImage::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 ia2AccessibleImage::get_description(BSTR* aDescription)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  *aDescription = nullptr;
+__try {
+  *aDescription = NULL;
 
   ImageAccessibleWrap* acc = static_cast<ImageAccessibleWrap*>(this);
   if (acc->IsDefunct())
@@ -61,7 +60,8 @@ ia2AccessibleImage::get_description(BSTR* aDescription)
   *aDescription = ::SysAllocStringLen(description.get(), description.Length());
   return *aDescription ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -69,8 +69,7 @@ ia2AccessibleImage::get_imagePosition(enum IA2CoordinateType aCoordType,
                                       long* aX,
                                       long* aY)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aX = 0;
   *aY = 0;
 
@@ -91,14 +90,15 @@ ia2AccessibleImage::get_imagePosition(enum IA2CoordinateType aCoordType,
   *aY = y;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleImage::get_imageSize(long* aHeight, long* aWidth)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aHeight = 0;
   *aWidth = 0;
 
@@ -115,6 +115,7 @@ ia2AccessibleImage::get_imageSize(long* aHeight, long* aWidth)
   *aWidth = height;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 

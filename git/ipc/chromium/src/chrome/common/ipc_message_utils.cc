@@ -4,6 +4,7 @@
 
 #include "chrome/common/ipc_message_utils.h"
 
+#include "base/gfx/rect.h"
 #ifndef EXCLUDE_SKIA_DEPENDENCIES
 #include "SkBitmap.h"
 #endif

@@ -67,8 +67,11 @@ function WebConsoleActor(aConnection, aParentActor)
     this._isGlobalActor = true;
   }
 
-  this._actorPool = new ActorPool(this.conn);
-  this.conn.addActorPool(this._actorPool);
+  this._objectActorsPool = new ActorPool(this.conn);
+  this.conn.addActorPool(this._objectActorsPool);
+
+  this._networkEventActorsPool = new ActorPool(this.conn);
+  this.conn.addActorPool(this._networkEventActorsPool);
 
   this._prefs = {};
 }
@@ -83,12 +86,22 @@ WebConsoleActor.prototype =
   _isGlobalActor: false,
 
   /**
-   * Actor pool for all of the actors we send to the client.
+   * Actor pool for all of the object actors for objects we send to the client.
    * @private
    * @type object
    * @see ActorPool
+   * @see WebConsoleObjectActor
+   * @see this.objectGrip()
    */
-  _actorPool: null,
+  _objectActorsPool: null,
+
+  /**
+   * Actor pool for all of the network event actors.
+   * @private
+   * @type object
+   * @see NetworkEventActor
+   */
+  _networkEventActorsPool: null,
 
   /**
    * Web Console-related preferences.
@@ -98,12 +111,12 @@ WebConsoleActor.prototype =
   _prefs: null,
 
   /**
-   * Tells the current inner window associated to the sandbox. When the page
-   * is navigated, we recreate the sandbox.
+   * Tells the current page location associated to the sandbox. When the page
+   * location is changed, we recreate the sandbox.
    * @private
    * @type object
    */
-  _sandboxWindowId: 0,
+  _sandboxLocation: null,
 
   /**
    * The JavaScript Sandbox where code is evaluated.
@@ -160,7 +173,23 @@ WebConsoleActor.prototype =
     return { actor: this.actorID };
   },
 
-  hasNativeConsoleAPI: BrowserTabActor.prototype.hasNativeConsoleAPI,
+  /**
+   * Tells if the window.console object is native or overwritten by script in
+   * the page.
+   *
+   * @return boolean
+   *         True if the window.console object is native, or false otherwise.
+   */
+  hasNativeConsoleAPI: function WCA_hasNativeConsoleAPI()
+  {
+    let isNative = false;
+    try {
+      let consoleObject = WebConsoleUtils.unwrap(this.window).console;
+      isNative = "__mozillaConsole__" in consoleObject;
+    }
+    catch (ex) { }
+    return isNative;
+  },
 
   /**
    * Destroy the current WebConsoleActor instance.
@@ -183,10 +212,11 @@ WebConsoleActor.prototype =
       this.consoleProgressListener.destroy();
       this.consoleProgressListener = null;
     }
-    this.conn.removeActorPool(this._actorPool);
-    this._actorPool = null;
-    this.sandbox = null;
-    this._sandboxWindowId = 0;
+    this.conn.removeActorPool(this._objectActorsPool);
+    this.conn.removeActorPool(this._networkEventActorsPool);
+    this._objectActorsPool = null;
+    this._networkEventActorsPool = null;
+    this._sandboxLocation = this.sandbox = null;
     this.conn = this._window = null;
   },
 
@@ -213,36 +243,12 @@ WebConsoleActor.prototype =
    */
   createObjectActor: function WCA_createObjectActor(aObject)
   {
-    if (typeof aObject == "string") {
-      return this.createStringGrip(aObject);
-    }
-
     // We need to unwrap the object, otherwise we cannot access the properties
     // and methods added by the content scripts.
     let obj = WebConsoleUtils.unwrap(aObject);
     let actor = new WebConsoleObjectActor(obj, this);
-    this._actorPool.addActor(actor);
+    this._objectActorsPool.addActor(actor);
     return actor.grip();
-  },
-
-  /**
-   * Create a grip for the given string. If the given string is a long string,
-   * then a LongStringActor grip will be used.
-   *
-   * @param string aString
-   *        The string you want to create the grip for.
-   * @return string|object
-   *         The same string, as is, or a LongStringActor object that wraps the
-   *         given string.
-   */
-  createStringGrip: function WCA_createStringGrip(aString)
-  {
-    if (aString.length >= DebuggerServer.LONG_STRING_LENGTH) {
-      let actor = new LongStringActor(aString, this);
-      this._actorPool.addActor(actor);
-      return actor.grip();
-    }
-    return aString;
   },
 
   /**
@@ -251,20 +257,31 @@ WebConsoleActor.prototype =
    * @param string aActorID
    * @return object
    */
-  getActorByID: function WCA_getActorByID(aActorID)
+  getObjectActorByID: function WCA_getObjectActorByID(aActorID)
   {
-    return this._actorPool.get(aActorID);
+    return this._objectActorsPool.get(aActorID);
   },
 
   /**
-   * Release an actor.
+   * Release an object grip for the given object actor.
    *
    * @param object aActor
-   *        The actor instance you want to release.
+   *        The WebConsoleObjectActor instance you want to release.
    */
-  releaseActor: function WCA_releaseActor(aActor)
+  releaseObject: function WCA_releaseObject(aActor)
   {
-    this._actorPool.removeActor(aActor.actorID);
+    this._objectActorsPool.removeActor(aActor.actorID);
+  },
+
+  /**
+   * Release a network event actor.
+   *
+   * @param object aActor
+   *        The NetworkEventActor instance you want to release.
+   */
+  releaseNetworkEvent: function WCA_releaseNetworkEvent(aActor)
+  {
+    this._networkEventActorsPool.removeActor(aActor.actorID);
   },
 
   //////////////////
@@ -320,11 +337,20 @@ WebConsoleActor.prototype =
                                                     MONITOR_FILE_ACTIVITY);
           startedListeners.push(listener);
           break;
+        case "LocationChange":
+          if (!this.consoleProgressListener) {
+            this.consoleProgressListener =
+              new ConsoleProgressListener(this.window, this);
+          }
+          this.consoleProgressListener.startMonitor(this.consoleProgressListener.
+                                                    MONITOR_LOCATION_CHANGE);
+          startedListeners.push(listener);
+          break;
       }
     }
     return {
       startedListeners: startedListeners,
-      nativeConsoleAPI: this.hasNativeConsoleAPI(this.window),
+      nativeConsoleAPI: this.hasNativeConsoleAPI(),
     };
   },
 
@@ -345,7 +371,7 @@ WebConsoleActor.prototype =
     // listeners.
     let toDetach = aRequest.listeners ||
                    ["PageError", "ConsoleAPI", "NetworkActivity",
-                    "FileActivity"];
+                    "FileActivity", "LocationChange"];
 
     while (toDetach.length > 0) {
       let listener = toDetach.shift();
@@ -375,6 +401,13 @@ WebConsoleActor.prototype =
           if (this.consoleProgressListener) {
             this.consoleProgressListener.stopMonitor(this.consoleProgressListener.
                                                      MONITOR_FILE_ACTIVITY);
+          }
+          stoppedListeners.push(listener);
+          break;
+        case "LocationChange":
+          if (this.consoleProgressListener) {
+            this.consoleProgressListener.stopMonitor(this.consoleProgressListener.
+                                                     MONITOR_LOCATION_CHANGE);
           }
           stoppedListeners.push(listener);
           break;
@@ -534,7 +567,7 @@ WebConsoleActor.prototype =
    */
   _createSandbox: function WCA__createSandbox()
   {
-    this._sandboxWindowId = WebConsoleUtils.getInnerWindowId(this.window);
+    this._sandboxLocation = this.window.location;
     this.sandbox = new Cu.Sandbox(this.window, {
       sandboxPrototype: this.window,
       wantXrays: false,
@@ -557,7 +590,7 @@ WebConsoleActor.prototype =
   {
     // If the user changed to a different location, we need to update the
     // sandbox.
-    if (this._sandboxWindowId !== WebConsoleUtils.getInnerWindowId(this.window)) {
+    if (this._sandboxLocation !== this.window.location) {
       this._createSandbox();
     }
 
@@ -674,7 +707,7 @@ WebConsoleActor.prototype =
   onNetworkEvent: function WCA_onNetworkEvent(aEvent)
   {
     let actor = new NetworkEventActor(aEvent, this);
-    this._actorPool.addActor(actor);
+    this._networkEventActorsPool.addActor(actor);
 
     let packet = {
       from: this.actorID,
@@ -705,6 +738,34 @@ WebConsoleActor.prototype =
     this.conn.send(packet);
   },
 
+  /**
+   * Handler for location changes. This method sends the new browser location
+   * to the remote Web Console client.
+   *
+   * @see ConsoleProgressListener
+   * @param string aState
+   *        Tells the location change state:
+   *        - "start" means a load has begun.
+   *        - "stop" means load completed.
+   * @param string aURI
+   *        The new browser URI.
+   * @param string aTitle
+   *        The new page title URI.
+   */
+  onLocationChange: function WCA_onLocationChange(aState, aURI, aTitle)
+  {
+    // TODO: Bug 792062 - Make the tabNavigated notification reusable by the Web Console
+    let packet = {
+      from: this.actorID,
+      type: "locationChange",
+      uri: aURI,
+      title: aTitle,
+      state: aState,
+      nativeConsoleAPI: this.hasNativeConsoleAPI(),
+    };
+    this.conn.send(packet);
+  },
+
   //////////////////
   // End of event handlers for various listeners.
   //////////////////
@@ -721,21 +782,37 @@ WebConsoleActor.prototype =
   prepareConsoleMessageForRemote:
   function WCA_prepareConsoleMessageForRemote(aMessage)
   {
-    let result = WebConsoleUtils.cloneObject(aMessage);
-    delete result.wrappedJSObject;
+    let result = {
+      level: aMessage.level,
+      filename: aMessage.filename,
+      lineNumber: aMessage.lineNumber,
+      functionName: aMessage.functionName,
+      timeStamp: aMessage.timeStamp,
+    };
 
-    result.arguments = Array.map(aMessage.arguments || [],
-      function(aObj) {
-        return this.createValueGrip(aObj);
-      }, this);
+    switch (result.level) {
+      case "trace":
+      case "group":
+      case "groupCollapsed":
+      case "time":
+      case "timeEnd":
+        result.arguments = aMessage.arguments;
+        break;
+      default:
+        result.arguments = Array.map(aMessage.arguments || [],
+          function(aObj) {
+            return this.createValueGrip(aObj);
+          }, this);
 
-    if (result.level == "dir") {
-      result.objectProperties = [];
-      let first = result.arguments[0];
-      if (typeof first == "object" && first && first.inspectable) {
-        let actor = this.getActorByID(first.actor);
-        result.objectProperties = actor.onInspectProperties().properties;
-      }
+        if (result.level == "dir") {
+          result.objectProperties = [];
+          let first = result.arguments[0];
+          if (typeof first == "object" && first && first.inspectable) {
+            let actor = this.getObjectActorByID(first.actor);
+            result.objectProperties = actor.onInspectProperties().properties;
+          }
+        }
+        break;
     }
 
     return result;
@@ -792,7 +869,6 @@ WebConsoleObjectActor.prototype =
   {
     let grip = WebConsoleUtils.getObjectGrip(this.obj);
     grip.actor = this.actorID;
-    grip.displayString = this.parent.createStringGrip(grip.displayString);
     return grip;
   },
 
@@ -801,7 +877,7 @@ WebConsoleObjectActor.prototype =
    */
   release: function WCOA_release()
   {
-    this.parent.releaseActor(this);
+    this.parent.releaseObject(this);
     this.parent = this.obj = null;
   },
 
@@ -814,6 +890,7 @@ WebConsoleObjectActor.prototype =
    */
   onInspectProperties: function WCOA_onInspectProperties()
   {
+    // TODO: Bug 787981 - use LongStringActor for strings that are too long.
     let createObjectActor = this.parent.createObjectActor.bind(this.parent);
     let props = WebConsoleUtils.inspectObject(this.obj, createObjectActor);
     return {
@@ -872,7 +949,6 @@ function NetworkEventActor(aNetworkEvent, aWebConsoleActor)
   };
 
   this._timings = {};
-  this._longStringActors = new Set();
 
   this._discardRequestBody = aNetworkEvent.discardRequestBody;
   this._discardResponseBody = aNetworkEvent.discardResponseBody;
@@ -883,7 +959,6 @@ NetworkEventActor.prototype =
   _request: null,
   _response: null,
   _timings: null,
-  _longStringActors: null,
 
   actorPrefix: "netEvent",
 
@@ -905,14 +980,7 @@ NetworkEventActor.prototype =
    */
   release: function NEA_release()
   {
-    for (let grip of this._longStringActors) {
-      let actor = this.parent.getActorByID(grip.actor);
-      if (actor) {
-        this.parent.releaseActor(actor);
-      }
-    }
-    this._longStringActors = new Set();
-    this.parent.releaseActor(this);
+    this.parent.releaseNetworkEvent(this);
   },
 
   /**
@@ -1040,7 +1108,6 @@ NetworkEventActor.prototype =
   addRequestHeaders: function NEA_addRequestHeaders(aHeaders)
   {
     this._request.headers = aHeaders;
-    this._prepareHeaders(aHeaders);
 
     let packet = {
       from: this.actorID,
@@ -1062,7 +1129,6 @@ NetworkEventActor.prototype =
   addRequestCookies: function NEA_addRequestCookies(aCookies)
   {
     this._request.cookies = aCookies;
-    this._prepareHeaders(aCookies);
 
     let packet = {
       from: this.actorID,
@@ -1083,10 +1149,6 @@ NetworkEventActor.prototype =
   addRequestPostData: function NEA_addRequestPostData(aPostData)
   {
     this._request.postData = aPostData;
-    aPostData.text = this.parent.createStringGrip(aPostData.text);
-    if (typeof aPostData.text == "object") {
-      this._longStringActors.add(aPostData.text);
-    }
 
     let packet = {
       from: this.actorID,
@@ -1132,7 +1194,6 @@ NetworkEventActor.prototype =
   addResponseHeaders: function NEA_addResponseHeaders(aHeaders)
   {
     this._response.headers = aHeaders;
-    this._prepareHeaders(aHeaders);
 
     let packet = {
       from: this.actorID,
@@ -1154,7 +1215,6 @@ NetworkEventActor.prototype =
   addResponseCookies: function NEA_addResponseCookies(aCookies)
   {
     this._response.cookies = aCookies;
-    this._prepareHeaders(aCookies);
 
     let packet = {
       from: this.actorID,
@@ -1178,10 +1238,6 @@ NetworkEventActor.prototype =
   function NEA_addResponseContent(aContent, aDiscardedResponseBody)
   {
     this._response.content = aContent;
-    aContent.text = this.parent.createStringGrip(aContent.text);
-    if (typeof aContent.text == "object") {
-      this._longStringActors.add(aContent.text);
-    }
 
     let packet = {
       from: this.actorID,
@@ -1216,23 +1272,6 @@ NetworkEventActor.prototype =
     };
 
     this.conn.send(packet);
-  },
-
-  /**
-   * Prepare the headers array to be sent to the client by using the
-   * LongStringActor for the header values, when needed.
-   *
-   * @private
-   * @param array aHeaders
-   */
-  _prepareHeaders: function NEA__prepareHeaders(aHeaders)
-  {
-    for (let header of aHeaders) {
-      header.value = this.parent.createStringGrip(header.value);
-      if (typeof header.value == "object") {
-        this._longStringActors.add(header.value);
-      }
-    }
   },
 };
 

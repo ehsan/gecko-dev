@@ -8,7 +8,6 @@
 
 #include "mozilla/dom/devicestorage/PDeviceStorageRequestParent.h"
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/ContentParent.h"
 
 #include "nsThreadUtils.h"
 #include "nsDeviceStorage.h"
@@ -25,10 +24,6 @@ public:
 
   NS_IMETHOD_(nsrefcnt) AddRef();
   NS_IMETHOD_(nsrefcnt) Release();
-
-  bool EnsureRequiredPermissions(mozilla::dom::ContentParent* aParent);
-  void Dispatch();
-
   virtual void ActorDestroy(ActorDestroyReason);
 
 protected:
@@ -36,7 +31,6 @@ protected:
 
 private:
   nsAutoRefCnt mRefCnt;
-  DeviceStorageParams mParams;
 
   class CancelableRunnable : public nsRunnable
   {
@@ -133,25 +127,15 @@ private:
       nsRefPtr<DeviceStorageFile> mFile;
   };
 
-  class FreeSpaceFileEvent : public CancelableRunnable
+  class StatFileEvent : public CancelableRunnable
   {
     public:
-      FreeSpaceFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile);
-      virtual ~FreeSpaceFileEvent();
+      StatFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile);
+      virtual ~StatFileEvent();
       virtual nsresult CancelableRun();
      private:
        nsRefPtr<DeviceStorageFile> mFile;
-  };
-
-  class UsedSpaceFileEvent : public CancelableRunnable
-  {
-    public:
-      UsedSpaceFileEvent(DeviceStorageRequestParent* aParent, DeviceStorageFile* aFile);
-      virtual ~UsedSpaceFileEvent();
-      virtual nsresult CancelableRun();
-     private:
-       nsRefPtr<DeviceStorageFile> mFile;
-  };
+   };
 
   class ReadFileEvent : public CancelableRunnable
   {
@@ -186,37 +170,17 @@ private:
       nsString mPath;
   };
 
- class PostFreeSpaceResultEvent : public CancelableRunnable
+  class PostStatResultEvent : public CancelableRunnable
  {
     public:
-      PostFreeSpaceResultEvent(DeviceStorageRequestParent* aParent,
-                               int64_t aFreeSpace);
-      virtual ~PostFreeSpaceResultEvent();
+      PostStatResultEvent(DeviceStorageRequestParent* aParent,
+                          int64_t aFreeBytes,
+                          int64_t aTotalBytes);
+      virtual ~PostStatResultEvent();
       virtual nsresult CancelableRun();
     private:
-      int64_t mFreeSpace;
- };
-
- class PostUsedSpaceResultEvent : public CancelableRunnable
- {
-    public:
-      PostUsedSpaceResultEvent(DeviceStorageRequestParent* aParent,
-                               int64_t aUsedSpace);
-      virtual ~PostUsedSpaceResultEvent();
-      virtual nsresult CancelableRun();
-    private:
-      int64_t mUsedSpace;
- };
-
- class PostAvailableResultEvent : public CancelableRunnable
- {
-    public:
-      PostAvailableResultEvent(DeviceStorageRequestParent* aParent, const nsAString& aPath);
-      virtual ~PostAvailableResultEvent();
-      virtual nsresult CancelableRun();
-    private:
-      nsString mPath;
- };
+      int64_t mFreeBytes, mTotalBytes;
+   };
 
 protected:
   bool AddRunnable(CancelableRunnable* aRunnable) {

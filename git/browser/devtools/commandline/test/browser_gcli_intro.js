@@ -26,60 +26,71 @@ var exports = {};
 const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testIntro.js</p>";
 
 function test() {
-  helpers.addTabWithToolbar(TEST_URI, function(options) {
-    return helpers.runTests(options, exports);
-  }).then(finish);
+  var tests = Object.keys(exports);
+  // Push setup to the top and shutdown to the bottom
+  tests.sort(function(t1, t2) {
+    if (t1 == "setup" || t2 == "shutdown") return -1;
+    if (t2 == "setup" || t1 == "shutdown") return 1;
+    return 0;
+  });
+  info("Running tests: " + tests.join(", "))
+  tests = tests.map(function(test) { return exports[test]; });
+  DeveloperToolbarTest.test(TEST_URI, tests, true);
 }
 
 // <INJECTED SOURCE:END>
 
-'use strict';
+  // var helpers = require('gclitest/helpers');
+  // var assert = require('test/assert');
+  var canon = require('gcli/canon');
 
-// var helpers = require('gclitest/helpers');
-var canon = require('gcli/canon');
+  exports.setup = function(options) {
+    helpers.setup(options);
+  };
 
-exports.testIntroStatus = function(options) {
-  return helpers.audit(options, [
-    {
-      skipRemainingIf: function commandIntroMissing() {
-        return canon.getCommand('intro') == null;
-      },
-      setup:    'intro',
-      check: {
-        typed:  'intro',
-        markup: 'VVVVV',
-        status: 'VALID',
-        hints: ''
-      }
-    },
-    {
-      setup:    'intro foo',
-      check: {
-        typed:  'intro foo',
-        markup: 'VVVVVVEEE',
-        status: 'ERROR',
-        hints: ''
-      }
-    },
-    {
-      setup:    'intro',
-      check: {
-        typed:  'intro',
-        markup: 'VVVVV',
-        status: 'VALID',
-        hints: ''
-      },
-      exec: {
-        output: [
-          /command\s*line/,
-          /help/,
-          /F1/,
-          /Escape/
-        ]
-      }
+  exports.shutdown = function(options) {
+    helpers.shutdown(options);
+  };
+
+  exports.testIntroStatus = function(options) {
+    if (canon.getCommand('intro') == null) {
+      assert.log('Skipping testIntroStatus; missing intro command.');
+      return;
     }
-  ]);
-};
 
+    helpers.setInput('intro');
+    helpers.check({
+      typed:  'intro',
+      markup: 'VVVVV',
+      status: 'VALID',
+      hints: ''
+    });
+
+    helpers.setInput('intro foo');
+    helpers.check({
+      typed:  'intro foo',
+      markup: 'VVVVVVEEE',
+      status: 'ERROR',
+      hints: ''
+    });
+  };
+
+  exports.testIntroExec = function(options) {
+    if (canon.getCommand('intro') == null) {
+      assert.log('Skipping testIntroStatus; missing intro command.');
+      return;
+    }
+
+    helpers.exec({
+      typed: 'intro',
+      args: { },
+      outputMatch: [
+        /command\s*line/,
+        /help/,
+        /F1/,
+        /Escape/
+      ]
+    });
+  };
 
 // });

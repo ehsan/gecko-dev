@@ -29,13 +29,13 @@ SizeOfFramePrefix(FrameType type)
     switch (type) {
       case IonFrame_Entry:
         return IonEntryFrameLayout::Size();
-      case IonFrame_OptimizedJS:
-      case IonFrame_Unwound_OptimizedJS:
+      case IonFrame_JS:
+      case IonFrame_Bailed_JS:
         return IonJSFrameLayout::Size();
       case IonFrame_Rectifier:
         return IonRectifierFrameLayout::Size();
-      case IonFrame_Unwound_Rectifier:
-        return IonUnwoundRectifierFrameLayout::Size();
+      case IonFrame_Bailed_Rectifier:
+        return IonBailedRectifierFrameLayout::Size();
       case IonFrame_Exit:
         return IonExitFrameLayout::Size();
       case IonFrame_Osr:
@@ -52,7 +52,7 @@ IonFrameIterator::current() const
     return (IonCommonFrameLayout *)current_;
 }
 
-inline uint8_t *
+inline uint8 *
 IonFrameIterator::returnAddress() const
 {
     IonCommonFrameLayout *current = (IonCommonFrameLayout *) current_;
@@ -81,10 +81,11 @@ IonFrameIterator::frameSize() const
 }
 
 // Returns the JSScript associated with the topmost Ion frame.
-inline RawScript
+inline JSScript *
 GetTopIonJSScript(JSContext *cx, const SafepointIndex **safepointIndexOut, void **returnAddrOut)
 {
-    IonFrameIterator iter(cx->mainThread().ionTop);
+    AutoAssertNoGC nogc;
+    IonFrameIterator iter(cx->runtime->ionTop);
     JS_ASSERT(iter.type() == IonFrame_Exit);
     ++iter;
 
@@ -96,8 +97,35 @@ GetTopIonJSScript(JSContext *cx, const SafepointIndex **safepointIndexOut, void 
     if (returnAddrOut)
         *returnAddrOut = (void *) iter.returnAddressToFp();
 
-    JS_ASSERT(iter.isScripted());
-    return iter.script();
+    if (iter.type() == IonFrame_JS) {
+        IonJSFrameLayout *frame = static_cast<IonJSFrameLayout*>(iter.current());
+        switch (GetCalleeTokenTag(frame->calleeToken())) {
+        case CalleeToken_Function: {
+            JSFunction *fun = CalleeTokenToFunction(frame->calleeToken());
+            return fun->script();
+        }
+        case CalleeToken_Script:
+            return CalleeTokenToScript(frame->calleeToken());
+        default:
+            JS_NOT_REACHED("unexpected callee token kind");
+            return NULL;
+        }
+    } else {
+        JS_ASSERT(iter.type() == IonFrame_BaselineJS);
+        IonBaselineJSFrameLayout *frame = static_cast<IonBaselineJSFrameLayout*>(iter.current());
+
+        switch (GetCalleeTokenTag(frame->calleeToken())) {
+        case CalleeToken_Function: {
+            JSFunction *fun = CalleeTokenToFunction(frame->calleeToken());
+            return fun->script();
+        }
+        case CalleeToken_Script:
+            return CalleeTokenToScript(frame->calleeToken());
+        default:
+            JS_NOT_REACHED("unexpected callee token kind");
+            return NULL;
+        }
+    }
 }
 
 } // namespace ion

@@ -29,6 +29,7 @@ const INVISIBLE_ELEMENTS = {
 // weird things may happen; thus, when necessary, we'll split into groups
 const MAX_GROUP_NODES = Math.pow(2, Uint16Array.BYTES_PER_ELEMENT * 8) / 12 - 1;
 
+const STACK_THICKNESS = 15;
 const WIREFRAME_COLOR = [0, 0, 0, 0.25];
 const INTRO_TRANSITION_DURATION = 1000;
 const OUTRO_TRANSITION_DURATION = 800;
@@ -50,14 +51,12 @@ const TILT_CRAFTER = "resource:///modules/devtools/TiltWorkerCrafter.js";
 const TILT_PICKER = "resource:///modules/devtools/TiltWorkerPicker.js";
 
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
-Cu.import("resource:///modules/devtools/Target.jsm");
 Cu.import("resource:///modules/devtools/TiltGL.jsm");
 Cu.import("resource:///modules/devtools/TiltMath.jsm");
 Cu.import("resource:///modules/devtools/TiltUtils.jsm");
 Cu.import("resource:///modules/devtools/TiltVisualizerStyle.jsm");
 
-this.EXPORTED_SYMBOLS = ["TiltVisualizer"];
+let EXPORTED_SYMBOLS = ["TiltVisualizer"];
 
 /**
  * Initializes the visualization presenter and controller.
@@ -71,7 +70,7 @@ this.EXPORTED_SYMBOLS = ["TiltVisualizer"];
  *      {Function} onError: optional, function called if initialization failed
  *      {Function} onLoad: optional, function called if initialization worked
  */
-this.TiltVisualizer = function TiltVisualizer(aProperties)
+function TiltVisualizer(aProperties)
 {
   // make sure the properties parameter is a valid object
   aProperties = aProperties || {};
@@ -98,8 +97,6 @@ this.TiltVisualizer = function TiltVisualizer(aProperties)
     aProperties.notifications,
     aProperties.onError || null,
     aProperties.onLoad || null);
-
-  this.bindToInspector(aProperties.tab);
 
   /**
    * Visualization mouse and keyboard controller.
@@ -135,8 +132,6 @@ TiltVisualizer.prototype = {
    */
   cleanup: function TV_cleanup()
   {
-    this.unbindInspector();
-
     if (this.controller) {
       TiltUtils.destroyObject(this.controller);
     }
@@ -149,125 +144,7 @@ TiltVisualizer.prototype = {
     TiltUtils.destroyObject(this);
     TiltUtils.clearCache();
     TiltUtils.gc(chromeWindow);
-  },
-
-  /**
-   * Listen to the inspector activity.
-   */
-  bindToInspector: function TV_bindToInspector(aTab)
-  {
-    this._browserTab = aTab;
-
-    this.onNewNodeFromInspector = this.onNewNodeFromInspector.bind(this);
-    this.onNewNodeFromTilt = this.onNewNodeFromTilt.bind(this);
-    this.onInspectorReady = this.onInspectorReady.bind(this);
-    this.onToolboxDestroyed = this.onToolboxDestroyed.bind(this);
-
-    gDevTools.on("inspector-ready", this.onInspectorReady);
-    gDevTools.on("toolbox-destroyed", this.onToolboxDestroyed);
-
-    Services.obs.addObserver(this.onNewNodeFromTilt,
-                             this.presenter.NOTIFICATIONS.HIGHLIGHTING,
-                             false);
-    Services.obs.addObserver(this.onNewNodeFromTilt,
-                             this.presenter.NOTIFICATIONS.UNHIGHLIGHTING,
-                             false);
-
-    let target = TargetFactory.forTab(aTab);
-    let toolbox = gDevTools.getToolbox(target);
-    if (toolbox) {
-      let panel = toolbox.getPanel("inspector");
-      if (panel) {
-        this.inspector = panel;
-        this.inspector.selection.on("new-node", this.onNewNodeFromInspector);
-        this.onNewNodeFromInspector();
-      }
-    }
-  },
-
-  /**
-   * Unregister inspector event listeners.
-   */
-  unbindInspector: function TV_unbindInspector()
-  {
-    this._browserTab = null;
-
-    if (this.inspector) {
-      if (this.inspector.selection) {
-        this.inspector.selection.off("new-node", this.onNewNodeFromInspector);
-      }
-      this.inspector = null;
-    }
-
-    gDevTools.off("inspector-ready", this.onInspectorReady);
-    gDevTools.off("toolbox-destroyed", this.onToolboxDestroyed);
-
-    Services.obs.removeObserver(this.onNewNodeFromTilt,
-                                this.presenter.NOTIFICATIONS.HIGHLIGHTING);
-    Services.obs.removeObserver(this.onNewNodeFromTilt,
-                                this.presenter.NOTIFICATIONS.UNHIGHLIGHTING);
-  },
-
-  /**
-   * When a new inspector is started.
-   */
-  onInspectorReady: function TV_onInspectorReady(event, toolbox, panel)
-  {
-    if (toolbox.target.tab === this._browserTab) {
-      this.inspector = panel;
-      this.inspector.selection.on("new-node", this.onNewNodeFromInspector);
-      this.onNewNodeFromTilt();
-    }
-  },
-
-  /**
-   * When the toolbox, therefor the inspector, is closed.
-   */
-  onToolboxDestroyed: function TV_onToolboxDestroyed(event, tab)
-  {
-    if (tab === this._browserTab &&
-        this.inspector) {
-      if (this.inspector.selection) {
-        this.inspector.selection.off("new-node", this.onNewNodeFromInspector);
-      }
-      this.inspector = null;
-    }
-  },
-
-  /**
-   * When a new node is selected in the inspector.
-   */
-  onNewNodeFromInspector: function TV_onNewNodeFromInspector()
-  {
-    if (this.inspector &&
-        this.inspector.selection.reason != "tilt") {
-      let selection = this.inspector.selection;
-      let canHighlightNode = selection.isNode() &&
-                              selection.isConnected() &&
-                              selection.isElementNode();
-      if (canHighlightNode) {
-        this.presenter.highlightNode(selection.node);
-      } else {
-        this.presenter.highlightNodeFor(-1);
-      }
-    }
-  },
-
-  /**
-   * When a new node is selected in Tilt.
-   */
-  onNewNodeFromTilt: function TV_onNewNodeFromTilt()
-  {
-    if (!this.inspector) {
-      return;
-    }
-    let nodeIndex = this.presenter._currentSelection;
-    if (nodeIndex < 0) {
-      this.inspector.selection.setNode(null, "tilt");
-    }
-    let node = this.presenter._traverseData.nodes[nodeIndex];
-    this.inspector.selection.setNode(node, "tilt");
-  },
+  }
 };
 
 /**
@@ -295,7 +172,7 @@ TiltVisualizer.Presenter = function TV_Presenter(
   this.canvas = aCanvas;
 
   /**
-   * Save a reference to the top-level window, to access Tilt.
+   * Save a reference to the top-level window, to access InspectorUI or Tilt.
    */
   this.chromeWindow = aChromeWindow;
 
@@ -354,6 +231,7 @@ TiltVisualizer.Presenter = function TV_Presenter(
    * Variables holding information about the initial and current node selected.
    */
   this._currentSelection = -1; // the selected node index
+  this._initialSelection = false; // true if an initial selection was made
   this._initialMeshConfiguration = false; // true if the 3D mesh was configured
 
   /**
@@ -389,6 +267,7 @@ TiltVisualizer.Presenter.prototype = {
   _setup: function TVP__setup()
   {
     let renderer = this._renderer;
+    let inspector = this.chromeWindow.InspectorUI;
 
     // if the renderer was destroyed, don't continue setup
     if (!renderer || !renderer.context) {
@@ -404,7 +283,9 @@ TiltVisualizer.Presenter.prototype = {
     });
 
     // get the document zoom to properly scale the visualization
-    this.transforms.zoom = this._getPageZoom();
+    if (inspector.highlighter) {
+      this.transforms.zoom = inspector.highlighter.zoom;
+    }
 
     // bind the owner object to the necessary functions
     TiltUtils.bindObjectFunc(this, "^_on");
@@ -414,17 +295,6 @@ TiltVisualizer.Presenter.prototype = {
     this._setupMeshData();
     this._setupEventListeners();
     this.canvas.focus();
-  },
-
-  /**
-   * Get page zoom factor.
-   * @return {Number}
-   */
-  _getPageZoom: function TVP__getPageZoom() {
-    return this.contentWindow
-      .QueryInterface(Ci.nsIInterfaceRequestor)
-      .getInterface(Ci.nsIDOMWindowUtils)
-      .fullZoom;
   },
 
   /**
@@ -683,6 +553,16 @@ TiltVisualizer.Presenter.prototype = {
       });
     }
 
+    // if there's no initial selection made, highlight the required node
+    if (!this._initialSelection) {
+      this._initialSelection = true;
+      this.highlightNode(this.chromeWindow.InspectorUI.selection);
+
+      if (this._currentSelection === 0) { // if the "html" node is selected
+        this._highlight.disabled = true;
+      }
+    }
+
     // configure the required mesh transformations and background only once
     if (!this._initialMeshConfiguration) {
       this._initialMeshConfiguration = true;
@@ -734,6 +614,7 @@ TiltVisualizer.Presenter.prototype = {
     // etc. in a separate thread, as this process may take a while
     worker.postMessage({
       maxGroupNodes: MAX_GROUP_NODES,
+      thickness: STACK_THICKNESS,
       style: TiltVisualizerStyle.nodes,
       texWidth: this._texture.width,
       texHeight: this._texture.height,
@@ -754,7 +635,7 @@ TiltVisualizer.Presenter.prototype = {
    */
   _onResize: function TVP_onResize(e)
   {
-    let zoom = this._getPageZoom();
+    let zoom = this.chromeWindow.InspectorUI.highlighter.zoom;
     let width = e.target.innerWidth * zoom;
     let height = e.target.innerHeight * zoom;
 
@@ -857,6 +738,7 @@ TiltVisualizer.Presenter.prototype = {
 
     let highlight = this._highlight;
     let info = this._traverseData.info[aNodeIndex];
+    let node = this._traverseData.nodes[aNodeIndex];
     let style = TiltVisualizerStyle.nodes;
 
     highlight.disabled = false;
@@ -868,14 +750,18 @@ TiltVisualizer.Presenter.prototype = {
     let y = info.coord.top;
     let w = info.coord.width;
     let h = info.coord.height;
-    let z = info.coord.depth + info.coord.thickness;
+    let z = info.depth;
 
-    vec3.set([x,     y,     z], highlight.v0);
-    vec3.set([x + w, y,     z], highlight.v1);
-    vec3.set([x + w, y + h, z], highlight.v2);
-    vec3.set([x,     y + h, z], highlight.v3);
+    vec3.set([x,     y,     z * STACK_THICKNESS], highlight.v0);
+    vec3.set([x + w, y,     z * STACK_THICKNESS], highlight.v1);
+    vec3.set([x + w, y + h, z * STACK_THICKNESS], highlight.v2);
+    vec3.set([x,     y + h, z * STACK_THICKNESS], highlight.v3);
 
     this._currentSelection = aNodeIndex;
+
+    this.chromeWindow.InspectorUI.inspectNode(node,
+      this.contentWindow.innerHeight < y ||
+      this.contentWindow.pageYOffset > 0);
 
     // if something is highlighted, make sure it's inside the current viewport;
     // the point which should be moved into view is considered the center [x, y]
@@ -960,7 +846,7 @@ TiltVisualizer.Presenter.prototype = {
       }
     }, false);
 
-    let zoom = this._getPageZoom();
+    let zoom = this.chromeWindow.InspectorUI.highlighter.zoom;
     let width = this._renderer.width * zoom;
     let height = this._renderer.height * zoom;
     x *= zoom;
@@ -970,6 +856,7 @@ TiltVisualizer.Presenter.prototype = {
     // to the far clipping plane, to check for intersections with the mesh,
     // and do all the heavy lifting in a separate thread
     worker.postMessage({
+      thickness: STACK_THICKNESS,
       vertices: this._meshData.allVertices,
 
       // create the ray destined for 3D picking
@@ -1124,11 +1011,7 @@ TiltVisualizer.Presenter.prototype = {
 
     TiltUtils.destroyObject(this._renderer);
 
-    // Closing the tab would result in contentWindow being a dead object,
-    // so operations like removing event listeners won't work anymore.
-    if (this.contentWindow == this.chromeWindow.content) {
-      this.contentWindow.removeEventListener("resize", this._onResize, false);
-    }
+    this.contentWindow.removeEventListener("resize", this._onResize, false);
   }
 };
 
@@ -1233,11 +1116,7 @@ TiltVisualizer.Controller.prototype = {
     canvas.removeEventListener("keypress", this._onKeyPress, true);
     canvas.removeEventListener("blur", this._onBlur, false);
 
-    // Closing the tab would result in contentWindow being a dead object,
-    // so operations like removing event listeners won't work anymore.
-    if (presenter.contentWindow == presenter.chromeWindow.content) {
-      presenter.contentWindow.removeEventListener("resize", this._onResize, false);
-    }
+    presenter.contentWindow.removeEventListener("resize", this._onResize, false);
   },
 
   /**
@@ -1404,11 +1283,9 @@ TiltVisualizer.Controller.prototype = {
    */
   _onKeyPress: function TVC__onKeyPress(e)
   {
+    let tilt = this.presenter.chromeWindow.Tilt;
+
     if (e.keyCode === e.DOM_VK_ESCAPE) {
-      let mod = {};
-      Cu.import("resource:///modules/devtools/Tilt.jsm", mod);
-      let tilt =
-        mod.TiltManager.getTiltForBrowser(this.presenter.chromeWindow);
       e.preventDefault();
       e.stopPropagation();
       tilt.destroy(tilt.currentWindowId, true);
@@ -1427,7 +1304,7 @@ TiltVisualizer.Controller.prototype = {
    */
   _onResize: function TVC__onResize(e)
   {
-    let zoom = this.presenter._getPageZoom();
+    let zoom = this.presenter.chromeWindow.InspectorUI.highlighter.zoom;
     let width = e.target.innerWidth * zoom;
     let height = e.target.innerHeight * zoom;
 

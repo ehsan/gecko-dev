@@ -18,11 +18,7 @@
 #include "nsAttrValue.h"
 #include "nsSMILTypes.h"
 
-namespace mozilla {
-namespace dom {
-class SVGAnimationElement;
-}
-}
+class nsISMILAnimationElement;
 
 //----------------------------------------------------------------------
 // nsSMILAnimationFunction
@@ -45,7 +41,7 @@ public:
    * Sets the owning animation element which this class uses to query attribute
    * values and compare document positions.
    */
-  void SetAnimationElement(mozilla::dom::SVGAnimationElement* aAnimationElement);
+  void SetAnimationElement(nsISMILAnimationElement* aAnimationElement);
 
   /*
    * Sets animation-specific attributes (or marks them dirty, in the case
@@ -383,6 +379,7 @@ protected:
   inline void SetKeyPointsErrorFlag(bool aNewValue) {
     SetErrorFlag(BF_KEY_POINTS, aNewValue);
   }
+  // Helper method -- based on SET_BOOLBIT in nsHTMLInputElement.cpp
   inline void SetErrorFlag(AnimationAttributeIdx aField, bool aValue) {
     if (aValue) {
       mErrorFlags |=  (0x01 << aField);
@@ -416,7 +413,7 @@ protected:
   // position and for fetching attribute values stored in the element.
   // Raw pointer is OK here, because this nsSMILAnimationFunction can't outlive
   // its owning animation element.
-  mozilla::dom::SVGAnimationElement* mAnimationElement;
+  nsISMILAnimationElement*      mAnimationElement;
 
   // Which attributes have been set but have had errors. This is not used for
   // all attributes but only those which have specified error behaviour

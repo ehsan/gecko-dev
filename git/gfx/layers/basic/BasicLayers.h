@@ -138,8 +138,8 @@ public:
   virtual const char* Name() const { return "Basic"; }
 #endif // MOZ_LAYERS_HAVE_LOG
 
-  // Clear the cached contents of this layer tree.
-  virtual void ClearCachedResources(Layer* aSubtree = nullptr) MOZ_OVERRIDE;
+  // Clear the cached contents of this layer.
+  void ClearCachedResources();
 
   void SetTransactionIncomplete() { mTransactionIncomplete = true; }
   bool IsTransactionIncomplete() { return mTransactionIncomplete; }
@@ -154,7 +154,6 @@ public:
   virtual bool IsCompositingCheap() { return false; }
   virtual int32_t GetMaxTextureSize() const { return INT32_MAX; }
   bool CompositorMightResample() { return mCompositorMightResample; }
-  bool HasShadowTarget() { return !!mShadowTarget; }
 
 protected:
   enum TransactionPhase {
@@ -271,12 +270,7 @@ public:
 
   virtual void SetIsFirstPaint() MOZ_OVERRIDE;
 
-  // Drop cached resources and ask our shadow manager to do the same,
-  // if we have one.
-  virtual void ClearCachedResources(Layer* aSubtree = nullptr) MOZ_OVERRIDE;
-
   void SetRepeatTransaction() { mRepeatTransaction = true; }
-  bool GetRepeatTransaction() { return mRepeatTransaction; }
 
   bool IsRepeatTransaction() { return mIsRepeatTransaction; }
 
@@ -284,8 +278,7 @@ public:
    * Called for each iteration of a progressive tile update. Fills
    * aViewport, aScaleX and aScaleY with the current scale and viewport
    * being used to composite the layers in this manager, to determine what area
-   * intersects with the target render rectangle. aDrawingCritical will be
-   * true if the current drawing operation is using the critical displayport.
+   * intersects with the target render rectangle.
    * Returns true if the update should continue, or false if it should be
    * cancelled.
    * This is only called if gfxPlatform::UseProgressiveTilePainting() returns
@@ -294,8 +287,7 @@ public:
   bool ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
                                  gfx::Rect& aViewport,
                                  float& aScaleX,
-                                 float& aScaleY,
-                                 bool aDrawingCritical);
+                                 float& aScaleY);
 
 private:
   /**

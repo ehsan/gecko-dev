@@ -9,13 +9,11 @@
 {
   'variables': {
      'use_system_libjpeg%': 0,
-     'yuv_disable_asm%': 0,
   },
   'targets': [
     {
       'target_name': 'libyuv',
       'type': 'static_library',
-      # 'type': 'shared_library',
       'conditions': [
          ['use_system_libjpeg==0', {
           'dependencies': [
@@ -38,7 +36,6 @@
       ],
       'defines': [
         'HAVE_JPEG',
-        # 'LIBYUV_BUILDING_SHARED_LIBRARY',
       ],
       'include_dirs': [
         'include',
@@ -50,13 +47,6 @@
           '.',
         ],
       },
-      'conditions': [
-        ['yuv_disable_asm==1', {
-          'defines': [
-            'YUV_DISABLE_ASM',
-          ],
-        }],
-      ],
       'conditions': [
         ['build_with_mozilla==1', {
           'include_dirs': [
@@ -83,11 +73,14 @@
         'include/libyuv/planar_functions.h',
         'include/libyuv/rotate.h',
         'include/libyuv/rotate_argb.h',
-        'include/libyuv/row.h',
         'include/libyuv/scale.h',
         'include/libyuv/scale_argb.h',
         'include/libyuv/version.h',
         'include/libyuv/video_common.h',
+
+        # private includes.
+        'source/rotate_priv.h',
+        'source/row.h',
 
         # sources.
         'source/compare.cc',

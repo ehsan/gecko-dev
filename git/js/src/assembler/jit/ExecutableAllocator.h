@@ -78,15 +78,11 @@ extern  "C" void sync_instruction_memory(caddr_t v, u_int len);
 
 //#define DEBUG_STRESS_JSC_ALLOCATOR
 
-namespace JS {
-    struct CodeSizes;
-}
-
 namespace JSC {
 
   class ExecutableAllocator;
 
-  enum CodeKind { JAEGER_CODE, ION_CODE, BASELINE_CODE, REGEXP_CODE, ASMJS_CODE, OTHER_CODE };
+  enum CodeKind { JAEGER_CODE, ION_CODE, REGEXP_CODE };
 
   // These are reference-counted. A new one starts with a count of 1.
   class ExecutablePool {
@@ -112,10 +108,7 @@ private:
     // Number of bytes currently used for Method and Regexp JIT code.
     size_t m_jaegerCodeBytes;
     size_t m_ionCodeBytes;
-    size_t m_baselineCodeBytes;
-    size_t m_asmJSCodeBytes;
     size_t m_regexpCodeBytes;
-    size_t m_otherCodeBytes;
 
 public:
     // Flag for downstream use, whether to try to release references to this pool.
@@ -136,8 +129,7 @@ public:
 
     ExecutablePool(ExecutableAllocator* allocator, Allocation a)
       : m_allocator(allocator), m_freePtr(a.pages), m_end(m_freePtr + a.size), m_allocation(a),
-        m_refCount(1), m_jaegerCodeBytes(0), m_ionCodeBytes(0), m_baselineCodeBytes(0),
-        m_asmJSCodeBytes(0), m_regexpCodeBytes(0), m_otherCodeBytes(0),
+        m_refCount(1), m_jaegerCodeBytes(0), m_ionCodeBytes(0), m_regexpCodeBytes(0),
         m_destroy(false), m_gcNumber(0)
     { }
 
@@ -160,13 +152,10 @@ private:
         m_freePtr += n;
 
         switch (kind) {
-          case JAEGER_CODE:   m_jaegerCodeBytes   += n;        break;
-          case ION_CODE:      m_ionCodeBytes      += n;        break;
-          case BASELINE_CODE: m_baselineCodeBytes += n;        break;
-          case ASMJS_CODE:    m_asmJSCodeBytes    += n;        break;
-          case REGEXP_CODE:   m_regexpCodeBytes   += n;        break;
-          case OTHER_CODE:    m_otherCodeBytes    += n;        break;
-          default:            JS_NOT_REACHED("bad code kind"); break;
+          case JAEGER_CODE: m_jaegerCodeBytes += n;          break;
+          case ION_CODE:    m_ionCodeBytes    += n;          break;
+          case REGEXP_CODE: m_regexpCodeBytes += n;          break;
+          default:          JS_NOT_REACHED("bad code kind"); break;
         }
         return result;
     }
@@ -223,13 +212,6 @@ public:
         //JS_ASSERT(m_pools.empty());     // if this asserts we have a pool leak
     }
 
-    void purge() {
-        for (size_t i = 0; i < m_smallPools.length(); i++)
-            m_smallPools[i]->release();
-
-	m_smallPools.clear();
-    }
-
     // alloc() returns a pointer to some memory, and also (by reference) a
     // pointer to reference-counted pool. The caller owns a reference to the
     // pool; i.e. alloc() increments the count before returning the object.
@@ -264,7 +246,7 @@ public:
         m_pools.remove(m_pools.lookup(pool));   // this asserts if |pool| is not in m_pools
     }
 
-    void sizeOfCode(JS::CodeSizes *sizes) const;
+    void sizeOfCode(size_t *jaeger, size_t *ion, size_t *regexp, size_t *unused) const;
 
     void setDestroyCallback(DestroyCallback destroyCallback) {
         this->destroyCallback = destroyCallback;
@@ -278,7 +260,7 @@ private:
     static size_t pageSize;
     static size_t largeAllocSize;
 #if WTF_OS_WINDOWS
-    static uint64_t rngSeed;
+    static int64_t rngSeed;
 #endif
 
     static const size_t OVERSIZE_ALLOCATION = size_t(-1);

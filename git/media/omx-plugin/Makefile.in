@@ -19,6 +19,7 @@ VPATH   = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = omxplugin
 MODULE_NAME = omxplugin
 LIBRARY_NAME = omxplugin
 FORCE_SHARED_LIB = 1
@@ -32,6 +33,10 @@ USE_STATIC_LIBS = 1
 # Need to custom install OMX media plugin
 NO_DIST_INSTALL = 1
 NO_INSTALL = 1
+
+ifneq ($(MOZ_WIDGET_TOOLKIT),gonk)
+DIRS += lib/ics/libutils lib/ics/libstagefright
+endif
 
 CPPSRCS = \
     OmxPlugin.cpp \

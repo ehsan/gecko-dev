@@ -20,7 +20,7 @@
 #include "FixedArityList.h"
 
 // ARM defines the RegisterID within Architecture-arm.h
-#if !defined(JS_CPU_ARM) && defined(JS_METHODJIT)
+#ifndef JS_CPU_ARM
 #include "assembler/assembler/MacroAssembler.h"
 #endif
 
@@ -33,13 +33,13 @@ struct Register {
     typedef js::ion::Registers::RegisterID RegisterID;
     Code code_;
 
-    static Register FromCode(uint32_t i) {
+    static Register FromCode(uint32 i) {
         JS_ASSERT(i < Registers::Total);
         Register r = { (Registers::Code)i };
         return r;
     }
     Code code() const {
-        JS_ASSERT((uint32_t)code_ < Registers::Total);
+        JS_ASSERT((uint32)code_ < Registers::Total);
         return code_;
     }
     const char *name() const {
@@ -62,13 +62,13 @@ struct FloatRegister {
 
     Code code_;
 
-    static FloatRegister FromCode(uint32_t i) {
+    static FloatRegister FromCode(uint32 i) {
         JS_ASSERT(i < FloatRegisters::Total);
         FloatRegister r = { (FloatRegisters::Code)i };
         return r;
     }
     Code code() const {
-        JS_ASSERT((uint32_t)code_ < FloatRegisters::Total);
+        JS_ASSERT((uint32)code_ < FloatRegisters::Total);
         return code_;
     }
     const char *name() const {

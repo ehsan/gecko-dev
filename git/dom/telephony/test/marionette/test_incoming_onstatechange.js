@@ -19,12 +19,7 @@ function verifyInitialState() {
   runEmulatorCmd("gsm list", function(result) {
     log("Initial call list: " + result);
     is(result[0], "OK");
-    if (result[0] == "OK") {
-      simulateIncoming();
-    } else {
-      log("Call exists from a previous test, failing out.");
-      cleanUp();
-    }
+    simulateIncoming();
   });
 }
 
@@ -158,7 +153,6 @@ function hangUp() {
 }
 
 function cleanUp() {
-  telephony.onincoming = null;
   SpecialPowers.removePermission("telephony", document);
   finish();
 }

@@ -11,14 +11,12 @@
 
 #include "AccessibleWrap.h"
 
-using namespace mozilla::a11y;
-
 // IUnknown
 
 STDMETHODIMP
 ia2AccessibleAction::QueryInterface(REFIID iid, void** ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleAction == iid) {
     *ppv = static_cast<IAccessibleAction*>(this);
@@ -34,8 +32,7 @@ ia2AccessibleAction::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 ia2AccessibleAction::nActions(long* aActionCount)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   if (!aActionCount)
     return E_INVALIDARG;
 
@@ -48,14 +45,14 @@ ia2AccessibleAction::nActions(long* aActionCount)
   *aActionCount = acc->ActionCount();
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleAction::doAction(long aActionIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
   if (acc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -64,15 +61,15 @@ ia2AccessibleAction::doAction(long aActionIndex)
   nsresult rv = acc->DoAction(index);
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleAction::get_description(long aActionIndex, BSTR *aDescription)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  *aDescription = nullptr;
+__try {
+  *aDescription = NULL;
 
   AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
   if (acc->IsDefunct())
@@ -91,7 +88,8 @@ ia2AccessibleAction::get_description(long aActionIndex, BSTR *aDescription)
                                       description.Length());
   return *aDescription ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -99,11 +97,10 @@ ia2AccessibleAction::get_keyBinding(long aActionIndex, long aNumMaxBinding,
                                   BSTR **aKeyBinding,
                                   long *aNumBinding)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   if (!aKeyBinding)
     return E_INVALIDARG;
-  *aKeyBinding = nullptr;
+  *aKeyBinding = NULL;
 
   if (!aNumBinding)
     return E_INVALIDARG;
@@ -141,15 +138,15 @@ ia2AccessibleAction::get_keyBinding(long aActionIndex, long aNumMaxBinding,
   *aNumBinding = 1;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleAction::get_name(long aActionIndex, BSTR *aName)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  *aName = nullptr;
+__try {
+  *aName = NULL;
 
   AccessibleWrap* acc = static_cast<AccessibleWrap*>(this);
   if (acc->IsDefunct())
@@ -167,17 +164,17 @@ ia2AccessibleAction::get_name(long aActionIndex, BSTR *aName)
   *aName = ::SysAllocStringLen(name.get(), name.Length());
   return *aName ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleAction::get_localizedName(long aActionIndex, BSTR *aLocalizedName)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aLocalizedName = NULL;
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
 
-  *aLocalizedName = nullptr;
   return E_NOTIMPL;
-
-  A11Y_TRYBLOCK_END
 }
 

@@ -21,6 +21,48 @@ include $(DEPTH)/config/autoconf.mk
 
 default::
 
+TIERS += base
+
+#
+# tier "base" - basic setup
+#
+tier_base_dirs = \
+  config \
+  build \
+  probes \
+  mfbt \
+  $(NULL)
+
+ifndef LIBXUL_SDK
+ifeq (android,$(MOZ_WIDGET_TOOLKIT))
+tier_base_dirs += \
+  other-licenses/android \
+  $(NULL)
+endif
+ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
+tier_base_dirs += \
+  other-licenses/android \
+  $(NULL)
+endif
+
+ifdef MOZ_MEMORY
+tier_base_dirs += memory/mozjemalloc
+ifdef MOZ_JEMALLOC
+ifndef MOZ_NATIVE_JEMALLOC
+tier_base_dirs += memory/jemalloc
+endif
+endif
+tier_base_dirs += memory/build
+endif
+ifndef MOZ_NATIVE_ZLIB
+tier_base_dirs += modules/zlib
+endif
+tier_base_dirs += \
+  mozglue \
+  memory/mozalloc \
+  $(NULL)
+endif
+
 ifdef COMPILE_ENVIRONMENT
 include $(topsrcdir)/$(MOZ_BUILD_APP)/build.mk
 endif
@@ -35,19 +77,13 @@ DIST_GARBAGE = config.cache config.log config.status* config-defs.h \
    netwerk/necko-config.h xpcom/xpcom-config.h xpcom/xpcom-private.h \
    $(topsrcdir)/.mozconfig.mk $(topsrcdir)/.mozconfig.out
 
-default alldep all:: CLOBBER $(topsrcdir)/configure config.status
+default alldep all:: $(topsrcdir)/configure config.status
 	$(RM) -r $(DIST)/sdk
 	$(RM) -r $(DIST)/include
 	$(RM) -r $(DIST)/private
 	$(RM) -r $(DIST)/public
 	$(RM) $(DIST)/bin/chrome.manifest $(DIST)/bin/components/components.manifest
 	$(RM) -r _tests
-
-CLOBBER: $(topsrcdir)/CLOBBER
-	@echo "STOP!  The CLOBBER file has changed."
-	@echo "Please run the build through a sanctioned build wrapper, such as"
-	@echo "'mach build' or client.mk."
-	@exit 1
 
 $(topsrcdir)/configure: $(topsrcdir)/configure.in
 	@echo "STOP!  configure.in has changed, and your configure is out of date."
@@ -120,6 +156,13 @@ SYMBOL_INDEX_NAME = \
 
 buildsymbols:
 ifdef MOZ_CRASHREPORTER
+ifdef USE_ELF_HACK
+    ifeq (mobile,$(MOZ_BUILD_APP))
+		$(MAKE) -C mobile/xul/installer elfhack
+    else
+		$(MAKE) -C $(MOZ_BUILD_APP)/installer elfhack
+    endif
+endif
 	echo building symbol store
 	$(RM) -r $(DIST)/crashreporter-symbols
 	$(RM) "$(DIST)/$(SYMBOL_ARCHIVE_BASENAME).zip"
@@ -169,6 +212,10 @@ maybe_clobber_profiledbuild:
 	find $(DIST)/$(MOZ_APP_NAME) -name "*.pgc" -exec mv {} $(DIST)/bin \;
 endif
 
+# put in our default gdbinit so that the gdb debugging experience is happier.
+libs:: .gdbinit
+	$(INSTALL) $< $(DIST)/bin
+
 .PHONY: maybe_clobber_profiledbuild
 
 # Look for R_386_PC32 relocations in shared libs, these
@@ -179,10 +226,3 @@ scheck::
 endif
 
 js/src/Makefile: subsrcdir := js/src
-
-ifdef ENABLE_TESTS
-# Incorporate static tier directories into tests. This should be incorporated
-# into moz.build files someday.
-check::
-	$(call SUBMAKE,$@,js/src)
-endif

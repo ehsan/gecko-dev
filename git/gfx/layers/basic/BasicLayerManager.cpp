@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/TabChild.h"
-#include "mozilla/Hal.h"
 #include "mozilla/layers/PLayerChild.h"
 #include "mozilla/layers/PLayersChild.h"
 #include "mozilla/layers/PLayersParent.h"
@@ -15,7 +14,7 @@
 #include "gfxPlatform.h"
 #include "nsXULAppAPI.h"
 #include "RenderTrace.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 #define PIXMAN_DONT_DEFINE_STDINT
 #include "pixman.h"
@@ -523,7 +522,7 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
                                           void* aCallbackData,
                                           EndTransactionFlags aFlags)
 {
-  PROFILER_LABEL("BasicLayerManager", "EndTransactionInternal");
+  SAMPLE_LABEL("BasicLayerManager", "EndTranscationInternal");
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("  ----- (beginning paint)"));
   Log();
@@ -538,13 +537,9 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
   mTransactionIncomplete = false;
 
   if (aFlags & END_NO_COMPOSITE) {
-    if (!mDummyTarget) {
-      // TODO: We should really just set mTarget to null and make sure we can handle that further down the call chain
-      // Creating this temporary surface can be expensive on some platforms (d2d in particular), so cache it between paints.
-      nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(1, 1), gfxASurface::CONTENT_COLOR);
-      mDummyTarget = new gfxContext(surf);
-    }
-    mTarget = mDummyTarget;
+    // TODO: We should really just set mTarget to null and make sure we can handle that further down the call chain
+    nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(gfxIntSize(1, 1), gfxASurface::CONTENT_COLOR);
+    mTarget = new gfxContext(surf);
   }
 
   if (mTarget && mRoot && !(aFlags & END_NO_IMMEDIATE_REDRAW)) {
@@ -630,7 +625,16 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
 void
 BasicLayerManager::FlashWidgetUpdateArea(gfxContext *aContext)
 {
-  if (gfxPlatform::GetPlatform()->WidgetUpdateFlashing()) {
+  static bool sWidgetFlashingEnabled;
+  static bool sWidgetFlashingPrefCached = false;
+
+  if (!sWidgetFlashingPrefCached) {
+    sWidgetFlashingPrefCached = true;
+    mozilla::Preferences::AddBoolVarCache(&sWidgetFlashingEnabled,
+                                          "nglayout.debug.widget_update_flashing");
+  }
+
+  if (sWidgetFlashingEnabled) {
     float r = float(rand()) / RAND_MAX;
     float g = float(rand()) / RAND_MAX;
     float b = float(rand()) / RAND_MAX;
@@ -871,14 +875,7 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
                               void* aCallbackData,
                               ReadbackProcessor* aReadback)
 {
-  PROFILER_LABEL("BasicLayerManager", "PaintLayer");
   PaintContext paintContext(aTarget, aLayer, aCallback, aCallbackData, aReadback);
-
-  // Don't attempt to paint layers with a singular transform, cairo will
-  // just throw an error.
-  if (aLayer->GetEffectiveTransform().IsSingular()) {
-    return;
-  }
 
   RenderTraceScope trace("BasicLayerManager::PaintLayer", "707070");
 
@@ -997,14 +994,12 @@ BasicLayerManager::PaintLayer(gfxContext* aTarget,
 }
 
 void
-BasicLayerManager::ClearCachedResources(Layer* aSubtree)
+BasicLayerManager::ClearCachedResources()
 {
-  MOZ_ASSERT(!aSubtree || aSubtree->Manager() == this);
-  if (aSubtree) {
-    ClearLayer(aSubtree);
-  } else if (mRoot) {
+  if (mRoot) {
     ClearLayer(mRoot);
   }
+
   mCachedSurface.Expire();
 }
 void
@@ -1096,17 +1091,7 @@ BasicShadowLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
   // don't signal a new transaction to ShadowLayerForwarder. Carry on adding
   // to the previous transaction.
   if (HasShadowManager()) {
-    ScreenOrientation orientation;
-    nsIntRect clientBounds;
-    if (TabChild* window = mWidget->GetOwningTabChild()) {
-      orientation = window->GetOrientation();
-    } else {
-      hal::ScreenConfiguration currentConfig;
-      hal::GetCurrentScreenConfiguration(&currentConfig);
-      orientation = currentConfig.orientation();
-    }
-    mWidget->GetClientBounds(clientBounds);
-    ShadowLayerForwarder::BeginTransaction(mTargetBounds, mTargetRotation, clientBounds, orientation);
+    ShadowLayerForwarder::BeginTransaction(mTargetBounds, mTargetRotation);
 
     // If we're drawing on behalf of a context with async pan/zoom
     // enabled, then the entire buffer of thebes layers might be
@@ -1154,10 +1139,9 @@ BasicShadowLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
   } else if (mShadowTarget) {
     if (mWidget) {
       if (CompositorChild* remoteRenderer = mWidget->GetRemoteRenderer()) {
-        nsIntRect bounds;
-        mWidget->GetBounds(bounds);
+        nsRefPtr<gfxASurface> target = mShadowTarget->OriginalSurface();
         SurfaceDescriptor inSnapshot, snapshot;
-        if (AllocBuffer(bounds.Size(), gfxASurface::CONTENT_COLOR_ALPHA,
+        if (AllocBuffer(target->GetSize(), target->GetContentType(),
                         &inSnapshot) &&
             // The compositor will usually reuse |snapshot| and return
             // it through |outSnapshot|, but if it doesn't, it's
@@ -1166,6 +1150,8 @@ BasicShadowLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
           AutoOpenSurface opener(OPEN_READ_ONLY, snapshot);
           gfxASurface* source = opener.Get();
 
+          gfxContextAutoSaveRestore restore(mShadowTarget);
+          mShadowTarget->SetOperator(gfxContext::OPERATOR_OVER);
           mShadowTarget->DrawSurface(source, source->GetSize());
         }
         if (IsSurfaceDescriptorValid(snapshot)) {
@@ -1293,22 +1279,11 @@ BasicShadowLayerManager::SetIsFirstPaint()
   ShadowLayerForwarder::SetIsFirstPaint();
 }
 
-void
-BasicShadowLayerManager::ClearCachedResources(Layer* aSubtree)
-{
-  MOZ_ASSERT(!HasShadowManager() || !aSubtree);
-  if (PLayersChild* manager = GetShadowManager()) {
-    manager->SendClearCachedResources();
-  }
-  BasicLayerManager::ClearCachedResources(aSubtree);
-}
-
 bool
 BasicShadowLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
                                                    gfx::Rect& aViewport,
                                                    float& aScaleX,
-                                                   float& aScaleY,
-                                                   bool aDrawingCritical)
+                                                   float& aScaleY)
 {
 #ifdef MOZ_WIDGET_ANDROID
   Layer* primaryScrollable = GetPrimaryScrollableLayer();
@@ -1320,16 +1295,13 @@ BasicShadowLayerManager::ProgressiveUpdateCallback(bool aHasPendingNewThebesCont
     const gfx3DMatrix& rootTransform = GetRoot()->GetTransform();
     float devPixelRatioX = 1 / rootTransform.GetXScale();
     float devPixelRatioY = 1 / rootTransform.GetYScale();
-    const gfx::Rect& metricsDisplayPort =
-      (aDrawingCritical && !metrics.mCriticalDisplayPort.IsEmpty()) ?
-        metrics.mCriticalDisplayPort : metrics.mDisplayPort;
-    gfx::Rect displayPort((metricsDisplayPort.x + metrics.mScrollOffset.x) * devPixelRatioX,
-                          (metricsDisplayPort.y + metrics.mScrollOffset.y) * devPixelRatioY,
-                          metricsDisplayPort.width * devPixelRatioX,
-                          metricsDisplayPort.height * devPixelRatioY);
+    gfx::Rect displayPort((metrics.mDisplayPort.x + metrics.mScrollOffset.x) * devPixelRatioX,
+                          (metrics.mDisplayPort.y + metrics.mScrollOffset.y) * devPixelRatioY,
+                          metrics.mDisplayPort.width * devPixelRatioX,
+                          metrics.mDisplayPort.height * devPixelRatioY);
 
     return AndroidBridge::Bridge()->ProgressiveUpdateCallback(
-      aHasPendingNewThebesContent, displayPort, devPixelRatioX, aDrawingCritical,
+      aHasPendingNewThebesContent, displayPort, devPixelRatioX,
       aViewport, aScaleX, aScaleY);
   }
 #endif

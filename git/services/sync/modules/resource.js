@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = [
+const EXPORTED_SYMBOLS = [
   "AsyncResource",
   "Resource"
 ];
@@ -13,11 +13,10 @@ const Cr = Components.results;
 const Cu = Components.utils;
 
 Cu.import("resource://services-common/async.js");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-common/observers.js");
 Cu.import("resource://services-common/preferences.js");
-Cu.import("resource://services-common/utils.js");
-Cu.import("resource://services-sync/constants.js");
+Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-sync/util.js");
 
 const DEFAULT_LOAD_FLAGS =
@@ -49,7 +48,7 @@ const DEFAULT_LOAD_FLAGS =
  * passed (=undefined) when an error occurs. Note that this is independent of
  * the status of the HTTP response.
  */
-this.AsyncResource = function AsyncResource(uri) {
+function AsyncResource(uri) {
   this._log = Log4Moz.repository.getLogger(this._logName);
   this._log.level =
     Log4Moz.Level[Svc.Prefs.get("log.logger.network.resources")];
@@ -116,7 +115,7 @@ AsyncResource.prototype = {
   },
   set uri(value) {
     if (typeof value == 'string')
-      this._uri = CommonUtils.makeURI(value);
+      this._uri = Utils.makeURI(value);
     else
       this._uri = value;
   },
@@ -220,13 +219,7 @@ AsyncResource.prototype = {
     let listener = new ChannelListener(this._onComplete, this._onProgress,
                                        this._log, this.ABORT_TIMEOUT);
     channel.requestMethod = action;
-    try {
-      channel.asyncOpen(listener, null);
-    } catch (ex) {
-      // asyncOpen can throw in a bunch of cases -- e.g., a forbidden port.
-      this._log.warn("Caught an error in asyncOpen: " + CommonUtils.exceptionStr(ex));
-      CommonUtils.nextTick(callback.bind(this, ex));
-    }
+    channel.asyncOpen(listener, null);
   },
 
   _onComplete: function _onComplete(error, data, channel) {
@@ -271,9 +264,9 @@ AsyncResource.prototype = {
     } catch(ex) {
       // Got a response, but an exception occurred during processing.
       // This shouldn't occur.
-      this._log.warn("Caught unexpected exception " + CommonUtils.exceptionStr(ex) +
+      this._log.warn("Caught unexpected exception " + Utils.exceptionStr(ex) +
                      " in _onComplete.");
-      this._log.debug(CommonUtils.stackTrace(ex));
+      this._log.debug(Utils.stackTrace(ex));
     }
 
     // Process headers. They can be empty, or the call can otherwise fail, so
@@ -291,21 +284,17 @@ AsyncResource.prototype = {
 
       // This is a server-side safety valve to allow slowing down
       // clients without hurting performance.
-      if (headers["x-weave-backoff"]) {
-        let backoff = headers["x-weave-backoff"];
-        this._log.debug("Got X-Weave-Backoff: " + backoff);
+      if (headers["x-weave-backoff"])
         Observers.notify("weave:service:backoff:interval",
-                         parseInt(backoff, 10));
-      }
+                         parseInt(headers["x-weave-backoff"], 10));
 
-      if (success && headers["x-weave-quota-remaining"]) {
+      if (success && headers["x-weave-quota-remaining"])
         Observers.notify("weave:service:quota:remaining",
                          parseInt(headers["x-weave-quota-remaining"], 10));
-      }
     } catch (ex) {
-      this._log.debug("Caught exception " + CommonUtils.exceptionStr(ex) +
+      this._log.debug("Caught exception " + Utils.exceptionStr(ex) +
                       " visiting headers in _onComplete.");
-      this._log.debug(CommonUtils.stackTrace(ex));
+      this._log.debug(Utils.stackTrace(ex));
     }
 
     let ret     = new String(data);
@@ -320,7 +309,7 @@ AsyncResource.prototype = {
       try {
         return JSON.parse(ret);
       } catch (ex) {
-        this._log.warn("Got exception parsing response body: \"" + CommonUtils.exceptionStr(ex));
+        this._log.warn("Got exception parsing response body: \"" + Utils.exceptionStr(ex));
         // Stringify to avoid possibly printing non-printable characters.
         this._log.debug("Parse fail: Response body starts: \"" +
                         JSON.stringify((ret + "").slice(0, 100)) +
@@ -361,7 +350,7 @@ AsyncResource.prototype = {
  * 'Resource' is not recommended for new code. Use the asynchronous API of
  * 'AsyncResource' instead.
  */
-this.Resource = function Resource(uri) {
+function Resource(uri) {
   AsyncResource.call(this, uri);
 }
 Resource.prototype = {
@@ -520,21 +509,14 @@ ChannelListener.prototype = {
   },
 
   onDataAvailable: function Channel_onDataAvail(req, cb, stream, off, count) {
-    let siStream;
-    try {
-      siStream = Cc["@mozilla.org/scriptableinputstream;1"].createInstance(Ci.nsIScriptableInputStream);
-      siStream.init(stream);
-    } catch (ex) {
-      this._log.warn("Exception creating nsIScriptableInputStream." + CommonUtils.exceptionStr(ex));
-      this._log.debug("Parameters: " + req.URI.spec + ", " + stream + ", " + off + ", " + count);
-      // Cannot proceed, so rethrow and allow the channel to cancel itself.
-      throw ex;
-    }
-
+    let siStream = Cc["@mozilla.org/scriptableinputstream;1"].
+      createInstance(Ci.nsIScriptableInputStream);
+    siStream.init(stream);
     try {
       this._data += siStream.read(count);
     } catch (ex) {
-      this._log.warn("Exception thrown reading " + count + " bytes from " + siStream + ".");
+      this._log.warn("Exception thrown reading " + count +
+                     " bytes from " + siStream + ".");
       throw ex;
     }
 
@@ -543,7 +525,7 @@ ChannelListener.prototype = {
     } catch (ex) {
       this._log.warn("Got exception calling onProgress handler during fetch of "
                      + req.URI.spec);
-      this._log.debug(CommonUtils.exceptionStr(ex));
+      this._log.debug(Utils.exceptionStr(ex));
       this._log.trace("Rethrowing; expect a failure code from the HTTP channel.");
       throw ex;
     }
@@ -552,14 +534,10 @@ ChannelListener.prototype = {
   },
 
   /**
-   * Create or push back the abort timer that kills this request.
+   * Create or push back the abort timer that kills this request
    */
   delayAbort: function delayAbort() {
-    try {
-      CommonUtils.namedTimer(this.abortRequest, this._timeout, this, "abortTimer");
-    } catch (ex) {
-      this._log.warn("Got exception extending abort timer: " + CommonUtils.exceptionStr(ex));
-    }
+    Utils.namedTimer(this.abortRequest, this._timeout, this, "abortTimer");
   },
 
   abortRequest: function abortRequest() {
@@ -619,35 +597,18 @@ ChannelNotificationListener.prototype = {
   asyncOnChannelRedirect:
     function asyncOnChannelRedirect(oldChannel, newChannel, flags, callback) {
 
-    let oldSpec = (oldChannel && oldChannel.URI) ? oldChannel.URI.spec : "<undefined>";
-    let newSpec = (newChannel && newChannel.URI) ? newChannel.URI.spec : "<undefined>";
-    this._log.debug("Channel redirect: " + oldSpec + ", " + newSpec + ", " + flags);
-
-    this._log.debug("Ensuring load flags are set.");
-    newChannel.loadFlags |= DEFAULT_LOAD_FLAGS;
+    this._log.debug("Channel redirect: " + oldChannel.URI.spec + ", " +
+                    newChannel.URI.spec + ", " + flags);
 
     // For internal redirects, copy the headers that our caller set.
     try {
       if ((flags & Ci.nsIChannelEventSink.REDIRECT_INTERNAL) &&
           newChannel.URI.equals(oldChannel.URI)) {
-        this._log.debug("Copying headers for safe internal redirect.");
-
-        // QI the channel so we can set headers on it.
-        try {
-          newChannel.QueryInterface(Ci.nsIHttpChannel);
-        } catch (ex) {
-          this._log.error("Unexpected error: channel is not a nsIHttpChannel!");
-          throw ex;
-        }
-
+        this._log.trace("Copying headers for safe internal redirect.");
         for (let header of this._headersToCopy) {
           let value = oldChannel.getRequestHeader(header);
           if (value) {
-            let printed = (header == "authorization") ? "****" : value;
-            this._log.debug("Header: " + header + " = " + printed);
-            newChannel.setRequestHeader(header, value, false);
-          } else {
-            this._log.warn("No value for header " + header);
+            newChannel.setRequestHeader(header, value);
           }
         }
       }
@@ -656,10 +617,6 @@ ChannelNotificationListener.prototype = {
     }
 
     // We let all redirects proceed.
-    try {
-      callback.onRedirectVerifyCallback(Cr.NS_OK);
-    } catch (ex) {
-      this._log.error("onRedirectVerifyCallback threw!" + CommonUtils.exceptionStr(ex));
-    }
+    callback.onRedirectVerifyCallback(Cr.NS_OK);
   }
 };

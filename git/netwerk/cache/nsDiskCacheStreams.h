@@ -14,22 +14,28 @@
 
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
+#include "nsIDiskCacheStreamInternal.h"
 
 #include "pratom.h"
 
 class nsDiskCacheInputStream;
 class nsDiskCacheDevice;
 
-class nsDiskCacheStreamIO : public nsIOutputStream {
+class nsDiskCacheStreamIO : public nsIOutputStream, nsIDiskCacheStreamInternal {
 public:
              nsDiskCacheStreamIO(nsDiskCacheBinding *   binding);
     virtual ~nsDiskCacheStreamIO();
     
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOUTPUTSTREAM
+    NS_DECL_NSIDISKCACHESTREAMINTERNAL
 
     nsresult    GetInputStream(uint32_t offset, nsIInputStream ** inputStream);
     nsresult    GetOutputStream(uint32_t offset, nsIOutputStream ** outputStream);
+
+    nsresult    Seek(int32_t whence, int32_t offset);
+    nsresult    Tell(uint32_t * position);    
+    nsresult    SetEOF();
 
     nsresult    ClearBinding();
     
@@ -40,30 +46,31 @@ public:
                     NS_ASSERTION(mInStreamCount >= 0, "mInStreamCount has gone negative");
                 }
 
-    size_t     SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
-
     // GCC 2.95.2 requires this to be defined, although we never call it.
     // and OS/2 requires that it not be private
     nsDiskCacheStreamIO() { NS_NOTREACHED("oops"); }
-
 private:
     nsresult    OpenCacheFile(int flags, PRFileDesc ** fd);
-    nsresult    ReadCacheBlocks(uint32_t bufferSize);
+    nsresult    ReadCacheBlocks();
     nsresult    FlushBufferToFile();
     void        UpdateFileSize();
     void        DeleteBuffer();
-    nsresult    CloseOutputStream();
-    nsresult    SeekAndTruncate(uint32_t offset);
 
     nsDiskCacheBinding *        mBinding;       // not an owning reference
     nsDiskCacheDevice *         mDevice;
     int32_t                     mInStreamCount;
+    nsCOMPtr<nsIFile>           mLocalFile;
     PRFileDesc *                mFD;
 
-    uint32_t                    mStreamEnd;     // current size of data
+    uint32_t                    mStreamPos;     // for Output Streams
+    uint32_t                    mStreamEnd;
+    uint32_t                    mBufPos;        // current mark in buffer
+    uint32_t                    mBufEnd;        // current end of data in buffer
     uint32_t                    mBufSize;       // current end of buffer
+    bool                        mBufDirty;      // Where there is unflushed data in the buffer
+    bool                        mOutputStreamIsOpen; // Whether the output stream is open (for writing...)
     char *                      mBuffer;
-    bool                        mOutputStreamIsOpen;
+    
 };
 
 #endif // _nsDiskCacheStreams_h_

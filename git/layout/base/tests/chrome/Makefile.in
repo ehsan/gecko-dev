@@ -11,6 +11,7 @@ relativesrcdir  = layout/base/test/chrome
 include $(DEPTH)/config/autoconf.mk
 
 MOCHITEST_CHROME_FILES = \
+	paint_listener.js \
 	test_bug370436.html \
 	test_bug396367-1.html \
 	test_bug396367-2.html \
@@ -48,10 +49,6 @@ MOCHITEST_CHROME_FILES = \
 	test_dialog_with_positioning.html \
 	     dialog_with_positioning_window.xul \
 	blue-32x32.png \
-	test_passpointerevents.html \
-	     passpointerevents_window.html \
-	test_bug812817.xul \
-	test_bug847890_paintFlashing.html \
 	$(NULL)
 
 ifdef MOZ_DEBUG

@@ -7,7 +7,6 @@
 #include "mozilla/XPCOM.h"
 #include "FileBlockCache.h"
 #include "VideoUtils.h"
-#include <algorithm>
 
 namespace mozilla {
 
@@ -30,10 +29,10 @@ nsresult FileBlockCache::Open(PRFileDesc* aFD)
 }
 
 FileBlockCache::FileBlockCache()
-  : mFileMonitor("MediaCache.Writer.IO.Monitor"),
+  : mFileMonitor("nsMediaCache.Writer.IO.Monitor"),
     mFD(nullptr),
     mFDCurrentPos(0),
-    mDataMonitor("MediaCache.Writer.Data.Monitor"),
+    mDataMonitor("nsMediaCache.Writer.Data.Monitor"),
     mIsWriteScheduled(false),
     mIsOpen(false)
 {
@@ -129,7 +128,7 @@ nsresult FileBlockCache::Seek(int64_t aOffset)
   return NS_OK;
 }
 
-nsresult FileBlockCache::ReadFromFile(int64_t aOffset,
+nsresult FileBlockCache::ReadFromFile(int32_t aOffset,
                                       uint8_t* aDest,
                                       int32_t aBytesToRead,
                                       int32_t& aBytesRead)
@@ -152,7 +151,7 @@ nsresult FileBlockCache::WriteBlockToFile(int32_t aBlockIndex,
 {
   mFileMonitor.AssertCurrentThreadOwns();
 
-  nsresult rv = Seek(BlockIndexToOffset(aBlockIndex));
+  nsresult rv = Seek(aBlockIndex * BLOCK_SIZE);
   if (NS_FAILED(rv)) return rv;
 
   int32_t amount = PR_Write(mFD, aBlockData, BLOCK_SIZE);
@@ -172,7 +171,7 @@ nsresult FileBlockCache::MoveBlockInFile(int32_t aSourceBlockIndex,
 
   uint8_t buf[BLOCK_SIZE];
   int32_t bytesRead = 0;
-  if (NS_FAILED(ReadFromFile(BlockIndexToOffset(aSourceBlockIndex),
+  if (NS_FAILED(ReadFromFile(aSourceBlockIndex * BLOCK_SIZE,
                              buf,
                              BLOCK_SIZE,
                              bytesRead))) {
@@ -248,7 +247,7 @@ nsresult FileBlockCache::Read(int64_t aOffset,
   while (bytesToRead > 0) {
     int32_t blockIndex = static_cast<int32_t>(offset / BLOCK_SIZE);
     int32_t start = offset % BLOCK_SIZE;
-    int32_t amount = std::min(BLOCK_SIZE - start, bytesToRead);
+    int32_t amount = NS_MIN(BLOCK_SIZE - start, bytesToRead);
 
     // If the block is not yet written to file, we can just read from
     // the memory buffer, otherwise we need to read from file.
@@ -276,7 +275,7 @@ nsresult FileBlockCache::Read(int64_t aOffset,
       {
         MonitorAutoUnlock unlock(mDataMonitor);
         MonitorAutoLock lock(mFileMonitor);
-        res = ReadFromFile(BlockIndexToOffset(blockIndex) + start,
+        res = ReadFromFile(blockIndex * BLOCK_SIZE + start,
                            dst,
                            amount,
                            bytesRead);
@@ -299,7 +298,7 @@ nsresult FileBlockCache::MoveBlock(int32_t aSourceBlockIndex, int32_t aDestBlock
   if (!mIsOpen)
     return NS_ERROR_FAILURE;
 
-  mBlockChanges.EnsureLengthAtLeast(std::max(aSourceBlockIndex, aDestBlockIndex) + 1);
+  mBlockChanges.EnsureLengthAtLeast(NS_MAX(aSourceBlockIndex, aDestBlockIndex) + 1);
 
   // The source block's contents may be the destination of another pending
   // move, which in turn can be the destination of another pending move,

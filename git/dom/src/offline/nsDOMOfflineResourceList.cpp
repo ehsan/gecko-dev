@@ -53,10 +53,23 @@ static const char kMaxEntriesPref[] =  "offline.max_site_resources";
 // nsDOMOfflineResourceList
 //
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_2(nsDOMOfflineResourceList,
-                                     nsDOMEventTargetHelper,
-                                     mCacheUpdate,
-                                     mPendingEvents)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMOfflineResourceList)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMOfflineResourceList,
+                                                  nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCacheUpdate)
+
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mPendingEvents);
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMOfflineResourceList,
+                                                nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCacheUpdate)
+
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMARRAY(mPendingEvents)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 DOMCI_DATA(OfflineResourceList, nsDOMOfflineResourceList)
 
@@ -527,7 +540,7 @@ nsDOMOfflineResourceList::SendEvent(const nsAString &aEventName)
   }
 
   nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = nsEventDispatcher::CreateEvent(this, nullptr, nullptr,
+  nsresult rv = nsEventDispatcher::CreateEvent(nullptr, nullptr,
                                                NS_LITERAL_STRING("Events"),
                                                getter_AddRefs(event));
   NS_ENSURE_SUCCESS(rv, rv);

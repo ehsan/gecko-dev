@@ -133,7 +133,8 @@ function evalXPathInDocumentFragment(aContextNode, aPath) {
   var walker = aContextNode.ownerDocument.createTreeWalker(
                  aContextNode,
                  targetType,
-                 filter);
+                 filter,
+                 true);
   var targetNode = walker.nextNode();
   do_check_neq(targetNode, null);
 
@@ -186,7 +187,8 @@ function getParsedDocument(aPath) {
   var walker = doc.createTreeWalker(doc,
                                     C_i.nsIDOMNodeFilter.SHOW_TEXT |
                                     C_i.nsIDOMNodeFilter.SHOW_CDATA_SECTION,
-                                    isWhitespace);
+                                    isWhitespace,
+                                    false);
   while (walker.nextNode()) {
     var parent = walker.currentNode.parentNode;
     parent.removeChild(walker.currentNode);
@@ -277,7 +279,8 @@ function run_extract_test() {
     dump("Ensure the original nodes weren't extracted - test " + i + "\n\n");
     var walker = doc.createTreeWalker(baseFrag,
 				      C_i.nsIDOMNodeFilter.SHOW_ALL,
-				      null);
+				      null,
+				      false);
     var foundStart = false;
     var foundEnd = false;
     do {
@@ -310,7 +313,8 @@ function run_extract_test() {
     dump("Ensure the original nodes weren't deleted - test " + i + "\n\n");
     walker = doc.createTreeWalker(baseFrag,
                                   C_i.nsIDOMNodeFilter.SHOW_ALL,
-                                  null);
+                                  null,
+                                  false);
     foundStart = false;
     foundEnd = false;
     do {
@@ -363,7 +367,7 @@ function run_miscellaneous_tests() {
       baseRange.setStart(null, 0);
       do_throw("Should have thrown NOT_OBJECT_ERR!");
     } catch (e) {
-      do_check_eq(e instanceof TypeError, true);
+      do_check_eq(e.name, "NS_ERROR_DOM_NOT_OBJECT_ERR");
     }
 
     // Invalid start node
@@ -371,7 +375,7 @@ function run_miscellaneous_tests() {
       baseRange.setStart({}, 0);
       do_throw("Should have thrown SecurityError!");
     } catch (e) {
-      do_check_true(e instanceof TypeError);
+      do_check_eq(e.name, "SecurityError");
     }
 
     // Invalid index

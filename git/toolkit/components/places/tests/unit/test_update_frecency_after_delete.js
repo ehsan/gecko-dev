@@ -21,20 +21,20 @@ add_test(function removed_bookmark()
                                                 TEST_URI,
                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                 "bookmark title");
-  promiseAsyncUpdates().then(function ()
+  waitForAsyncUpdates(function ()
   {
     do_log_info("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
     PlacesUtils.bookmarks.removeItem(id);
 
-    promiseAsyncUpdates().then(function ()
+    waitForAsyncUpdates(function ()
     {
       do_log_info("Unvisited URI no longer bookmarked => frecency should = 0");
       do_check_eq(frecencyForUrl(TEST_URI), 0);
 
       remove_all_bookmarks();
-      promiseClearHistory().then(run_next_test);
+      waitForClearHistory(run_next_test);
     });
   });
 });
@@ -48,22 +48,21 @@ add_test(function removed_but_visited_bookmark()
                                                 TEST_URI,
                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                 "bookmark title");
-  promiseAsyncUpdates().then(function ()
+  waitForAsyncUpdates(function ()
   {
     do_log_info("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
-    promiseAddVisits(TEST_URI).then(function () {
-      PlacesUtils.bookmarks.removeItem(id);
+    visit(TEST_URI);
+    PlacesUtils.bookmarks.removeItem(id);
 
-      promiseAsyncUpdates().then(function ()
-      {
-        do_log_info("*Visited* URI no longer bookmarked => frecency should != 0");
-        do_check_neq(frecencyForUrl(TEST_URI), 0);
+    waitForAsyncUpdates(function ()
+    {
+      do_log_info("*Visited* URI no longer bookmarked => frecency should != 0");
+      do_check_neq(frecencyForUrl(TEST_URI), 0);
 
-        remove_all_bookmarks();
-        promiseClearHistory().then(run_next_test);
-      });
+      remove_all_bookmarks();
+      waitForClearHistory(run_next_test);
     });
   });
 });
@@ -81,20 +80,20 @@ add_test(function remove_bookmark_still_bookmarked()
                                                  TEST_URI,
                                                  PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                  "bookmark 2 title");
-  promiseAsyncUpdates().then(function ()
+  waitForAsyncUpdates(function ()
   {
     do_log_info("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
     PlacesUtils.bookmarks.removeItem(id1);
 
-    promiseAsyncUpdates().then(function ()
+    waitForAsyncUpdates(function ()
     {
       do_log_info("URI still bookmarked => frecency should != 0");
       do_check_neq(frecencyForUrl(TEST_URI), 0);
 
       remove_all_bookmarks();
-      promiseClearHistory().then(run_next_test);
+      waitForClearHistory(run_next_test);
     });
   });
 });
@@ -108,22 +107,21 @@ add_test(function cleared_parent_of_visited_bookmark()
                                                 TEST_URI,
                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                 "bookmark title");
-  promiseAsyncUpdates().then(function ()
+  waitForAsyncUpdates(function ()
   {
     do_log_info("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
-    promiseAddVisits(TEST_URI).then(function () {
-      PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
+    visit(TEST_URI);
+    PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
 
-      promiseAsyncUpdates().then(function ()
-      {
-        do_log_info("*Visited* URI no longer bookmarked => frecency should != 0");
-        do_check_neq(frecencyForUrl(TEST_URI), 0);
+    waitForAsyncUpdates(function ()
+    {
+      do_log_info("*Visited* URI no longer bookmarked => frecency should != 0");
+      do_check_neq(frecencyForUrl(TEST_URI), 0);
 
-        remove_all_bookmarks();
-        promiseClearHistory().then(run_next_test);
-      });
+      remove_all_bookmarks();
+      waitForClearHistory(run_next_test);
     });
   });
 });
@@ -143,23 +141,38 @@ add_test(function cleared_parent_of_bookmark_still_bookmarked()
                                                 TEST_URI,
                                                 PlacesUtils.bookmarks.DEFAULT_INDEX,
                                                 "bookmark 2 title");
-  promiseAsyncUpdates().then(function ()
+  waitForAsyncUpdates(function ()
   {
     do_log_info("Bookmarked => frecency of URI should be != 0");
     do_check_neq(frecencyForUrl(TEST_URI), 0);
 
     PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
 
-    promiseAsyncUpdates().then(function ()
+    waitForAsyncUpdates(function ()
     {
       // URI still bookmarked => frecency should != 0.
       do_check_neq(frecencyForUrl(TEST_URI), 0);
 
       remove_all_bookmarks();
-      promiseClearHistory().then(run_next_test);
+      waitForClearHistory(run_next_test);
     });
   });
 });
+
+///////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Adds a visit for aURI.
+ *
+ * @param aURI
+ *        the URI of the Place for which to add a visit
+ */
+function visit(aURI)
+{
+  PlacesUtils.history.addVisit(aURI, Date.now() * 1000, null,
+                               PlacesUtils.history.TRANSITION_BOOKMARK,
+                               false, 0);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 

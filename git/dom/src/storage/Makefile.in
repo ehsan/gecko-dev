@@ -11,6 +11,7 @@ FAIL_ON_WARNINGS := 1
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE         = dom
 LIBRARY_NAME   = jsdomstorage_s
 LIBXUL_LIBRARY = 1
 
@@ -18,7 +19,6 @@ CPPSRCS = \
        nsDOMStorage.cpp \
        nsDOMStorageBaseDB.cpp \
        nsDOMStorageDBWrapper.cpp \
-       nsLocalStorageCache.cpp \
        nsDOMStoragePersistentDB.cpp \
        nsDOMStorageMemoryDB.cpp \
        StorageChild.cpp \

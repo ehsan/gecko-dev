@@ -47,9 +47,9 @@ public:
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
 #ifdef DEBUG
-  virtual void Init(nsIContent* aContent,
-                    nsIFrame*   aParent,
-                    nsIFrame*   aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent* aContent,
+                  nsIFrame*   aParent,
+                  nsIFrame*   aPrevInFlow);
 #endif
   /**
    * Get the "type" of the frame
@@ -84,16 +84,17 @@ SVGFEContainerFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 }
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 SVGFEContainerFrame::Init(nsIContent* aContent,
                           nsIFrame* aParent,
                           nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eFILTER),
+  nsCOMPtr<nsIDOMSVGFilterPrimitiveStandardAttributes> elem = do_QueryInterface(aContent);
+  NS_ASSERTION(elem,
                "Trying to construct an SVGFEContainerFrame for a "
                "content element that doesn't support the right interfaces");
 
-  SVGFEContainerFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return SVGFEContainerFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 

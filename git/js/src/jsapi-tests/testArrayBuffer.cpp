@@ -11,8 +11,8 @@
 
 BEGIN_TEST(testArrayBuffer_bug720949_steal)
 {
-    JS::RootedObject buf_len1(cx), buf_len200(cx);
-    JS::RootedObject tarray_len1(cx), tarray_len200(cx);
+    js::RootedObject buf_len1(cx), buf_len200(cx);
+    js::RootedObject tarray_len1(cx), tarray_len200(cx);
 
     uint32_t sizes[NUM_TEST_BUFFERS] = { sizeof(uint32_t), 200 * sizeof(uint32_t) };
     JS::HandleObject testBuf[NUM_TEST_BUFFERS] = { buf_len1, buf_len200 };
@@ -33,57 +33,56 @@ BEGIN_TEST(testArrayBuffer_bug720949_steal)
         JS::HandleObject obj = testBuf[i];
         JS::HandleObject view = testArray[i];
         uint32_t size = sizes[i];
-        JS::RootedValue v(cx);
+        jsval v;
 
         // Byte lengths should all agree
-        CHECK(JS_IsArrayBufferObject(obj));
-        CHECK_EQUAL(JS_GetArrayBufferByteLength(obj), size);
-        JS_GetProperty(cx, obj, "byteLength", v.address());
+        CHECK(JS_IsArrayBufferObject(obj, cx));
+        CHECK_EQUAL(JS_GetArrayBufferByteLength(obj, cx), size);
+        JS_GetProperty(cx, obj, "byteLength", &v);
         CHECK_SAME(v, INT_TO_JSVAL(size));
-        JS_GetProperty(cx, view, "byteLength", v.address());
+        JS_GetProperty(cx, view, "byteLength", &v);
         CHECK_SAME(v, INT_TO_JSVAL(size));
 
         // Modifying the underlying data should update the value returned through the view
-        uint8_t *data = JS_GetArrayBufferData(obj);
+        uint8_t *data = JS_GetArrayBufferData(obj, cx);
         CHECK(data != NULL);
         *reinterpret_cast<uint32_t*>(data) = MAGIC_VALUE_2;
-        CHECK(JS_GetElement(cx, view, 0, v.address()));
+        CHECK(JS_GetElement(cx, view, 0, &v));
         CHECK_SAME(v, INT_TO_JSVAL(MAGIC_VALUE_2));
 
         // Steal the contents
         void *contents;
-        CHECK(JS_StealArrayBufferContents(cx, obj, &contents, &data));
+        CHECK(JS_StealArrayBufferContents(cx, obj, &contents));
         CHECK(contents != NULL);
-        CHECK(data != NULL);
 
         // Check that the original ArrayBuffer is neutered
-        CHECK_EQUAL(JS_GetArrayBufferByteLength(obj), 0);
-        CHECK(JS_GetProperty(cx, obj, "byteLength", v.address()));
+        CHECK_EQUAL(JS_GetArrayBufferByteLength(obj, cx), 0);
+        CHECK(JS_GetProperty(cx, obj, "byteLength", &v));
         CHECK_SAME(v, INT_TO_JSVAL(0));
-        CHECK(JS_GetProperty(cx, view, "byteLength", v.address()));
+        CHECK(JS_GetProperty(cx, view, "byteLength", &v));
         CHECK_SAME(v, INT_TO_JSVAL(0));
-        CHECK(JS_GetProperty(cx, view, "byteOffset", v.address()));
+        CHECK(JS_GetProperty(cx, view, "byteOffset", &v));
         CHECK_SAME(v, INT_TO_JSVAL(0));
-        CHECK(JS_GetProperty(cx, view, "length", v.address()));
+        CHECK(JS_GetProperty(cx, view, "length", &v));
         CHECK_SAME(v, INT_TO_JSVAL(0));
-        CHECK_EQUAL(JS_GetArrayBufferByteLength(obj), 0);
+        CHECK_EQUAL(JS_GetArrayBufferByteLength(obj, cx), 0);
         v = JSVAL_VOID;
-        JS_GetElement(cx, obj, 0, v.address());
+        JS_GetElement(cx, obj, 0, &v);
         CHECK_SAME(v, JSVAL_VOID);
 
         // Transfer to a new ArrayBuffer
-        JS::RootedObject dst(cx, JS_NewArrayBufferWithContents(cx, contents));
-        CHECK(JS_IsArrayBufferObject(dst));
-        data = JS_GetArrayBufferData(obj);
+        js::RootedObject dst(cx, JS_NewArrayBufferWithContents(cx, contents));
+        CHECK(JS_IsArrayBufferObject(dst, cx));
+        data = JS_GetArrayBufferData(obj, cx);
 
-        JS::RootedObject dstview(cx, JS_NewInt32ArrayWithBuffer(cx, dst, 0, -1));
+        js::RootedObject dstview(cx, JS_NewInt32ArrayWithBuffer(cx, dst, 0, -1));
         CHECK(dstview != NULL);
 
-        CHECK_EQUAL(JS_GetArrayBufferByteLength(dst), size);
-        data = JS_GetArrayBufferData(dst);
+        CHECK_EQUAL(JS_GetArrayBufferByteLength(dst, cx), size);
+        data = JS_GetArrayBufferData(dst, cx);
         CHECK(data != NULL);
         CHECK_EQUAL(*reinterpret_cast<uint32_t*>(data), MAGIC_VALUE_2);
-        CHECK(JS_GetElement(cx, dstview, 0, v.address()));
+        CHECK(JS_GetElement(cx, dstview, 0, &v));
         CHECK_SAME(v, INT_TO_JSVAL(MAGIC_VALUE_2));
     }
 
@@ -100,7 +99,7 @@ static void GC(JSContext *cx)
 // Varying number of views of a buffer, to test the neutering weak pointers
 BEGIN_TEST(testArrayBuffer_bug720949_viewList)
 {
-    JS::RootedObject buffer(cx);
+    js::RootedObject buffer(cx);
 
     // No views
     buffer = JS_NewArrayBuffer(cx, 2000);
@@ -110,13 +109,11 @@ BEGIN_TEST(testArrayBuffer_bug720949_viewList)
     // One view.
     {
         buffer = JS_NewArrayBuffer(cx, 2000);
-        JS::RootedObject view(cx, JS_NewUint8ArrayWithBuffer(cx, buffer, 0, -1));
+        js::RootedObject view(cx, JS_NewUint8ArrayWithBuffer(cx, buffer, 0, -1));
         void *contents;
-        uint8_t *data;
-        CHECK(JS_StealArrayBufferContents(cx, buffer, &contents, &data));
+        CHECK(JS_StealArrayBufferContents(cx, buffer, &contents));
         CHECK(contents != NULL);
-        CHECK(data != NULL);
-        JS_free(NULL, contents);
+        JS_free(cx, contents);
         GC(cx);
         CHECK(isNeutered(view));
         CHECK(isNeutered(buffer));
@@ -130,8 +127,8 @@ BEGIN_TEST(testArrayBuffer_bug720949_viewList)
     {
         buffer = JS_NewArrayBuffer(cx, 2000);
 
-        JS::RootedObject view1(cx, JS_NewUint8ArrayWithBuffer(cx, buffer, 0, -1));
-        JS::RootedObject view2(cx, JS_NewUint8ArrayWithBuffer(cx, buffer, 1, 200));
+        js::RootedObject view1(cx, JS_NewUint8ArrayWithBuffer(cx, buffer, 0, -1));
+        js::RootedObject view2(cx, JS_NewUint8ArrayWithBuffer(cx, buffer, 1, 200));
 
         // Remove, re-add a view
         view2 = NULL;
@@ -140,11 +137,9 @@ BEGIN_TEST(testArrayBuffer_bug720949_viewList)
 
         // Neuter
         void *contents;
-        uint8_t *data;
-        CHECK(JS_StealArrayBufferContents(cx, buffer, &contents, &data));
+        CHECK(JS_StealArrayBufferContents(cx, buffer, &contents));
         CHECK(contents != NULL);
-        CHECK(data != NULL);
-        JS_free(NULL, contents);
+        JS_free(cx, contents);
 
         CHECK(isNeutered(view1));
         CHECK(isNeutered(view2));
@@ -162,8 +157,8 @@ BEGIN_TEST(testArrayBuffer_bug720949_viewList)
 }
 
 bool isNeutered(JS::HandleObject obj) {
-    JS::RootedValue v(cx);
-    return JS_GetProperty(cx, obj, "byteLength", v.address()) && v.toInt32() == 0;
+    JS::Value v;
+    return JS_GetProperty(cx, obj, "byteLength", &v) && v.toInt32() == 0;
 }
 
 END_TEST(testArrayBuffer_bug720949_viewList)

@@ -12,6 +12,7 @@
 #include "nsXBLProtoImplMethod.h"
 #include "nsICSSLoaderObserver.h"
 #include "nsWeakReference.h"
+#include "nsIContent.h"
 #include "nsHashtable.h"
 #include "nsClassHashtable.h"
 #include "nsXBLDocumentInfo.h"
@@ -19,10 +20,10 @@
 #include "nsXBLProtoImpl.h"
 
 class nsIAtom;
-class nsIContent;
 class nsIDocument;
 class nsIScriptContext;
 class nsSupportsHashtable;
+class nsFixedSizeAllocator;
 class nsXBLProtoImplField;
 class nsXBLBinding;
 class nsCSSStyleSheet;
@@ -120,13 +121,12 @@ public:
 
   nsresult InitClass(const nsCString& aClassName, JSContext * aContext,
                      JSObject * aGlobal, JSObject * aScriptObject,
-                     JSObject** aClassObject, bool* aNew);
+                     JSObject** aClassObject);
 
   nsresult ConstructInterfaceTable(const nsAString& aImpls);
   
   void SetImplementation(nsXBLProtoImpl* aImpl) { mImplementation = aImpl; }
-  nsXBLProtoImpl* GetImplementation() { return mImplementation; }
-  nsresult InstallImplementation(nsXBLBinding* aBinding);
+  nsresult InstallImplementation(nsIContent* aBoundElement);
   bool HasImplementation() const { return mImplementation != nullptr; }
 
   void AttributeChanged(nsIAtom* aAttribute, int32_t aNameSpaceID,
@@ -282,6 +282,11 @@ public:
   void Traverse(nsCycleCollectionTraversalCallback &cb) const;
   void UnlinkJSObjects();
   void Trace(TraceCallback aCallback, void *aClosure) const;
+
+// Static members
+  static uint32_t gRefCnt;
+ 
+  static nsFixedSizeAllocator* kAttrPool;
 
 // Internal member functions.
 // XXXbz GetImmediateChild needs to be public to be called by SetAttrs,

@@ -19,10 +19,9 @@ namespace dom {
 namespace icc {
 
 already_AddRefed<StkCommandEvent>
-StkCommandEvent::Create(mozilla::dom::EventTarget* aOwner,
-                        const nsAString& aMessage)
+StkCommandEvent::Create(nsAString& aMessage)
 {
-  nsRefPtr<StkCommandEvent> event = new StkCommandEvent(aOwner);
+  nsRefPtr<StkCommandEvent> event = new StkCommandEvent();
   event->mCommand = aMessage;
   return event.forget();
 }
@@ -36,7 +35,7 @@ NS_INTERFACE_MAP_BEGIN(StkCommandEvent)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NS_IMETHODIMP
-StkCommandEvent::GetCommand(JSContext* aCx, JS::Value* aCommand)
+StkCommandEvent::GetCommand(JSContext* aCx, jsval* aCommand)
 
 {
   nsCOMPtr<nsIJSON> json(new nsJSON());

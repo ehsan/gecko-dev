@@ -10,4 +10,4 @@ function testScatter() {
   }
 }
 
-if (getBuildConfiguration().parallelJS) testScatter();
+testScatter();

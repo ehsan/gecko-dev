@@ -10,9 +10,6 @@
 #include "Accessible.h"
 #include "nsARIAMap.h"
 
-namespace mozilla {
-namespace a11y {
-
 inline mozilla::a11y::role
 Accessible::Role()
 {
@@ -32,22 +29,12 @@ Accessible::ARIARole()
 }
 
 inline bool
-Accessible::HasGenericType(AccGenericType aType) const
-{
-  return (mGenericTypes & aType) ||
-    (mRoleMapEntry && mRoleMapEntry->IsOfType(aType));
-}
-
-inline bool
 Accessible::HasNumericValue() const
 {
-  if (mStateFlags & eHasNumericValue)
+  if (mFlags & eHasNumericValue)
     return true;
 
   return mRoleMapEntry && mRoleMapEntry->valueRule != eNoValue;
 }
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif

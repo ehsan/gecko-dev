@@ -9,43 +9,13 @@ Cu.import("resource://services-sync/util.js");
 const PARENT_ANNO = "sync/parent";
 
 Service.engineManager.register(BookmarksEngine);
-
 let engine = Service.engineManager.get("bookmarks");
 let store = engine._store;
-let tracker = engine._tracker;
-
-// Don't write some persistence files asynchronously.
-tracker.persistChangedIDs = false;
-
 let fxuri = Utils.makeURI("http://getfirefox.com/");
 let tburi = Utils.makeURI("http://getthunderbird.com/");
 
-add_test(function test_ignore_specials() {
-  _("Ensure that we can't delete bookmark roots.");
 
-  // Belt...
-  let record = new BookmarkFolder("bookmarks", "toolbar", "folder");
-  record.deleted = true;
-  do_check_neq(null, store.idForGUID("toolbar"));
-
-  store.applyIncoming(record);
-
-  // Ensure that the toolbar exists.
-  do_check_neq(null, store.idForGUID("toolbar"));
-
-  // This will fail painfully in getItemType if the deletion worked.
-  engine._buildGUIDMap();
-
-  // Braces...
-  store.remove(record);
-  do_check_neq(null, store.idForGUID("toolbar"));
-  engine._buildGUIDMap();
-
-  store.wipe();
-  run_next_test();
-});
-
-add_test(function test_bookmark_create() {
+function test_bookmark_create() {
   try {
     _("Ensure the record isn't present yet.");
     let ids = PlacesUtils.bookmarks.getBookmarkIdsForURI(fxuri, {});
@@ -116,11 +86,10 @@ add_test(function test_bookmark_create() {
   } finally {
     _("Clean up.");
     store.wipe();
-    run_next_test();
   }
-});
+}
 
-add_test(function test_bookmark_update() {
+function test_bookmark_update() {
   try {
     _("Create a bookmark whose values we'll change.");
     let bmk1_id = PlacesUtils.bookmarks.insertBookmark(
@@ -151,11 +120,10 @@ add_test(function test_bookmark_update() {
   } finally {
     _("Clean up.");
     store.wipe();
-    run_next_test();
   }
-});
+}
 
-add_test(function test_bookmark_createRecord() {
+function test_bookmark_createRecord() {
   try {
     _("Create a bookmark without a description or title.");
     let bmk1_id = PlacesUtils.bookmarks.insertBookmark(
@@ -172,11 +140,10 @@ add_test(function test_bookmark_createRecord() {
   } finally {
     _("Clean up.");
     store.wipe();
-    run_next_test();
   }
-});
+}
 
-add_test(function test_folder_create() {
+function test_folder_create() {
   try {
     _("Create a folder.");
     let folder = new BookmarkFolder("bookmarks", "testfolder-1");
@@ -204,11 +171,10 @@ add_test(function test_folder_create() {
   } finally {
     _("Clean up.");
     store.wipe();
-    run_next_test();
   }
-});
+}
 
-add_test(function test_folder_createRecord() {
+function test_folder_createRecord() {
   try {
     _("Create a folder.");
     let folder1_id = PlacesUtils.bookmarks.createFolder(
@@ -238,11 +204,10 @@ add_test(function test_folder_createRecord() {
   } finally {
     _("Clean up.");
     store.wipe();
-    run_next_test();
   }
-});
+}
 
-add_test(function test_deleted() {
+function test_deleted() {
   try {
     _("Create a bookmark that will be deleted.");
     let bmk1_id = PlacesUtils.bookmarks.insertBookmark(
@@ -270,11 +235,10 @@ add_test(function test_deleted() {
   } finally {
     _("Clean up.");
     store.wipe();
-    run_next_test();
   }
-});
+}
 
-add_test(function test_move_folder() {
+function test_move_folder() {
   try {
     _("Create two folders and a bookmark in one of them.");
     let folder1_id = PlacesUtils.bookmarks.createFolder(
@@ -299,11 +263,10 @@ add_test(function test_move_folder() {
   } finally {
     _("Clean up.");
     store.wipe();
-    run_next_test();
   }
-});
+}
 
-add_test(function test_move_order() {
+function test_move_order() {
   // Make sure the tracker is turned on.
   Svc.Obs.notify("weave:engine:start-tracking");
   try {
@@ -330,9 +293,9 @@ add_test(function test_move_order() {
     toolbar.children = [bmk2_guid, bmk1_guid];
     store.applyIncoming(toolbar);
     // Bookmarks engine does this at the end of _processIncoming
-    tracker.ignoreAll = true;
+    engine._tracker.ignoreAll = true;
     store._orderChildren();
-    tracker.ignoreAll = false;
+    engine._tracker.ignoreAll = false;
     delete store._childrenToOrder;
 
     _("Verify new order.");
@@ -343,11 +306,10 @@ add_test(function test_move_order() {
     Svc.Obs.notify("weave:engine:stop-tracking");
     _("Clean up.");
     store.wipe();
-    run_next_test();
   }
-});
+}
 
-add_test(function test_orphan() {
+function test_orphan() {
   try {
 
     _("Add a new bookmark locally.");
@@ -379,11 +341,10 @@ add_test(function test_orphan() {
   } finally {
     _("Clean up.");
     store.wipe();
-    run_next_test();
   }
-});
+}
 
-add_test(function test_reparentOrphans() {
+function test_reparentOrphans() {
   try {
     let folder1_id = PlacesUtils.bookmarks.createFolder(
       PlacesUtils.bookmarks.toolbarFolder, "Folder1", 0);
@@ -405,29 +366,22 @@ add_test(function test_reparentOrphans() {
   } finally {
     _("Clean up.");
     store.wipe();
-    run_next_test();
   }
-});
-
-// Tests Bug 806460, in which query records arrive with empty folder
-// names and missing bookmark URIs.
-add_test(function test_empty_query_doesnt_die() {
-  let record = new BookmarkQuery("bookmarks", "8xoDGqKrXf1P");
-  record.folderName    = "";
-  record.queryId       = "";
-  record.parentName    = "Toolbar";
-  record.parentid      = "toolbar";
-
-  // These should not throw.
-  store.applyIncoming(record);
-
-  delete record.folderName;
-  store.applyIncoming(record);
-  
-  run_next_test();
-});
+}
 
 function run_test() {
   initTestLogging('Trace');
-  run_next_test();
+  test_bookmark_create();
+  test_bookmark_createRecord();
+  test_bookmark_update();
+  test_folder_create();
+  test_folder_createRecord();
+  test_deleted();
+  test_move_folder();
+  test_move_order();
+  test_orphan();
+  test_reparentOrphans();
+  if (engine._tracker._lazySave) {
+    engine._tracker._lazySave.clear();
+  }
 }

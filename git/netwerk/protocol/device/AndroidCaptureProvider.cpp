@@ -10,7 +10,7 @@
 #include "nsStreamUtils.h"
 #include "nsThreadUtils.h"
 #include "nsMemory.h"
-#include "RawStructs.h"
+#include "nsRawStructs.h"
 
 // The maximum number of frames we keep in our queue. Don't live in the past.
 #define MAX_FRAMES_QUEUED 10
@@ -23,7 +23,7 @@ AndroidCameraInputStream::AndroidCameraInputStream() :
   mWidth(0), mHeight(0), mCamera(0), mHeaderSent(false), mClosed(true), mFrameSize(0),
   mMonitor("AndroidCamera.Monitor")
 {
-  mAvailable = sizeof(RawVideoHeader);
+  mAvailable = sizeof(nsRawVideoHeader);
   mFrameQueue = new nsDeque();
 }
 
@@ -66,14 +66,14 @@ void AndroidCameraInputStream::ReceiveFrame(char* frame, uint32_t length) {
     }
   }
   
-  mFrameSize = sizeof(RawPacketHeader) + length;
+  mFrameSize = sizeof(nsRawPacketHeader) + length;
   
   char* fullFrame = (char*)nsMemory::Alloc(mFrameSize);
 
   if (!fullFrame)
     return;
   
-  RawPacketHeader* header = (RawPacketHeader*) fullFrame;
+  nsRawPacketHeader* header = (nsRawPacketHeader*) fullFrame;
   header->packetID = 0xFF;
   header->codecID = 0x595556; // "YUV"
   
@@ -82,7 +82,7 @@ void AndroidCameraInputStream::ReceiveFrame(char* frame, uint32_t length) {
   uint32_t yFrameSize = mWidth * mHeight;
   uint32_t uvFrameSize = yFrameSize / 4;
 
-  memcpy(fullFrame + sizeof(RawPacketHeader), frame, yFrameSize);
+  memcpy(fullFrame + sizeof(nsRawPacketHeader), frame, yFrameSize);
   
   char* uFrame = fullFrame + yFrameSize;
   char* vFrame = fullFrame + yFrameSize + uvFrameSize;
@@ -133,7 +133,7 @@ NS_IMETHODIMP AndroidCameraInputStream::ReadSegments(nsWriteSegmentFun aWriter, 
 
   if (!mHeaderSent) {
     CameraStreamImpl *impl = CameraStreamImpl::GetInstance(0);
-    RawVideoHeader header;
+    nsRawVideoHeader header;
     header.headerPacketID = 0;
     header.codecID = 0x595556; // "YUV"
     header.majorVersion = 0;
@@ -153,14 +153,14 @@ NS_IMETHODIMP AndroidCameraInputStream::ReadSegments(nsWriteSegmentFun aWriter, 
     header.framerateNumerator = impl->GetFps();
     header.framerateDenominator = 1;
 
-    rv = aWriter(this, aClosure, (const char*)&header, 0, sizeof(RawVideoHeader), aRead);
+    rv = aWriter(this, aClosure, (const char*)&header, 0, sizeof(nsRawVideoHeader), aRead);
    
     if (NS_FAILED(rv))
       return NS_OK;
     
     mHeaderSent = true;
-    aCount -= sizeof(RawVideoHeader);
-    mAvailable -= sizeof(RawVideoHeader);
+    aCount -= sizeof(nsRawVideoHeader);
+    mAvailable -= sizeof(nsRawVideoHeader);
   }
   
   {
@@ -176,7 +176,7 @@ NS_IMETHODIMP AndroidCameraInputStream::ReadSegments(nsWriteSegmentFun aWriter, 
         return NS_OK;
       }
   
-      // RawReader does a copy when calling VideoData::Create()
+      // nsRawReader does a copy when calling VideoData::Create()
       nsMemory::Free(frame);
   
       if (NS_FAILED(rv))
@@ -210,7 +210,7 @@ void AndroidCameraInputStream::doClose() {
 void AndroidCameraInputStream::NotifyListeners() {
   mozilla::ReentrantMonitorAutoEnter autoMonitor(mMonitor);
   
-  if (mCallback && (mAvailable > sizeof(RawVideoHeader))) {
+  if (mCallback && (mAvailable > sizeof(nsRawVideoHeader))) {
     nsCOMPtr<nsIInputStreamCallback> callback;
     if (mCallbackTarget) {
       NS_NewInputStreamReadyEvent(getter_AddRefs(callback), mCallback, mCallbackTarget);

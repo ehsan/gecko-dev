@@ -14,7 +14,7 @@ function test() {
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
 
     testEvalCall();
   });
@@ -24,7 +24,7 @@ function testEvalCall() {
   gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
     Services.tm.currentThread.dispatch({ run: function() {
 
-      let frames = gDebugger.DebuggerView.StackFrames._container._list;
+      let frames = gDebugger.DebuggerView.StackFrames._frames;
       let childNodes = frames.childNodes;
 
       is(gDebugger.DebuggerController.activeThread.state, "paused",
@@ -36,37 +36,36 @@ function testEvalCall() {
       is(childNodes.length, frames.querySelectorAll(".dbg-stackframe").length,
         "All children should be frames.");
 
-      is(frames.querySelector("#stackframe-0 .dbg-stackframe-title").getAttribute("value"),
+      is(frames.querySelector("#stackframe-0 .dbg-stackframe-name").getAttribute("value"),
         "(eval)", "Frame name should be (eval)");
 
-      ok(frames.querySelector("#stackframe-0").parentNode.hasAttribute("checked"),
+      ok(frames.querySelector("#stackframe-0").classList.contains("selected"),
         "First frame should be selected by default.");
 
-      ok(!frames.querySelector("#stackframe-1").parentNode.hasAttribute("checked"),
+      ok(!frames.querySelector("#stackframe-1").classList.contains("selected"),
         "Second frame should not be selected.");
 
 
-      EventUtils.sendMouseEvent({ type: "mousedown" },
+      EventUtils.sendMouseEvent({ type: "click" },
         frames.querySelector("#stackframe-1"),
         gDebugger);
 
-      ok(!frames.querySelector("#stackframe-0").parentNode.hasAttribute("checked"),
+      ok(!frames.querySelector("#stackframe-0").classList.contains("selected"),
          "First frame should not be selected after click.");
 
-      ok(frames.querySelector("#stackframe-1").parentNode.hasAttribute("checked"),
+      ok(frames.querySelector("#stackframe-1").classList.contains("selected"),
          "Second frame should be selected after click.");
 
 
-      EventUtils.sendMouseEvent({ type: "mousedown" },
-        frames.querySelector("#stackframe-0 .dbg-stackframe-title"),
+      EventUtils.sendMouseEvent({ type: "click" },
+        frames.querySelector("#stackframe-0 .dbg-stackframe-name"),
         gDebugger);
 
-      ok(frames.querySelector("#stackframe-0").parentNode.hasAttribute("checked"),
+      ok(frames.querySelector("#stackframe-0").classList.contains("selected"),
          "First frame should be selected after click inside the first frame.");
 
-      ok(!frames.querySelector("#stackframe-1").parentNode.hasAttribute("checked"),
+      ok(!frames.querySelector("#stackframe-1").classList.contains("selected"),
          "Second frame should not be selected after click inside the first frame.");
-
 
       gDebugger.DebuggerController.activeThread.resume(function() {
         closeDebuggerAndFinish();

@@ -11,6 +11,10 @@ relativesrcdir   = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS = \
+  extensions \
+  $(NULL)
+
 MOCHITEST_FILES = \
   test_404.html \
   test_atob.html \
@@ -37,11 +41,8 @@ MOCHITEST_FILES = \
   importScripts_worker_imported4.js \
   test_instanceof.html \
   instanceof_worker.js \
-  test_resolveWorker.html \
-  test_resolveWorker-assignment.html \
   test_json.html \
   json_worker.js \
-  test_loadError.html \
   test_location.html \
   location_worker.js \
   test_longThread.html \
@@ -89,6 +90,7 @@ MOCHITEST_FILES = \
   workersDisabled_worker.js \
   test_xhr_implicit_cancel.html \
   xhr_implicit_cancel_worker.js \
+  test_xhr_timeout.html \
   test_xhr_parameters.html \
   test_xhr_parameters.js \
   test_xhr_system.html \
@@ -100,16 +102,7 @@ MOCHITEST_FILES = \
   csp_worker.js \
   test_transferable.html \
   transferable_worker.js \
-  test_errorwarning.html \
-  errorwarning_worker.js \
-  test_contentWorker.html \
-  content_worker.js \
-  test_url.html \
-  url_worker.js \
   $(NULL)
-
-# Disabled for frequent failures (bug 841505, bug 842344, etc)
-#  test_xhr_timeout.html \
 
 _SUBDIRMOCHITEST_FILES = \
   relativeLoad_sub_worker.js \

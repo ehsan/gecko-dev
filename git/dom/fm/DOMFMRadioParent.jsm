@@ -60,9 +60,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "gSettingsService",
                                    "@mozilla.org/settingsService;1",
                                    "nsISettingsService");
 
-this.EXPORTED_SYMBOLS = ["DOMFMRadioParent"];
+let EXPORTED_SYMBOLS = ["DOMFMRadioParent"];
 
-this.DOMFMRadioParent = {
+let DOMFMRadioParent = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                          Ci.nsISettingsServiceCallback]),
 
@@ -101,8 +101,7 @@ this.DOMFMRadioParent = {
                       "DOMFMRadio:getPowerState", "DOMFMRadio:getFrequency",
                       "DOMFMRadio:getAntennaState",
                       "DOMFMRadio:seekUp", "DOMFMRadio:seekDown",
-                      "DOMFMRadio:cancelSeek",
-                      "DOMFMRadio:updateVisibility",
+                      "DOMFMRadio:cancelSeek"
                      ];
     this._messages.forEach(function(msgName) {
       ppmm.addMessageListener(msgName, this);
@@ -394,13 +393,6 @@ this.DOMFMRadioParent = {
 
     let ret = 0;
     let self = this;
-
-    if (!aMessage.target.assertPermission("fmradio")) {
-      Cu.reportError("FMRadio message " + aMessage.name +
-                     " from a content process with no 'fmradio' privileges.");
-      return null;
-    }
-
     switch (aMessage.name) {
       case "DOMFMRadio:enable":
         self._enableFMRadio(msg);
@@ -458,9 +450,6 @@ this.DOMFMRadioParent = {
           this._updateFrequency();
           self._sendMessage("DOMFMRadio:cancelSeek:Return", true, null, msg);
         }
-        break;
-      case "DOMFMRadio:updateVisibility":
-        FMRadio.updateVisible(msg == 'visible');
         break;
     }
   }

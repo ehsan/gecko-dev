@@ -432,6 +432,7 @@ TaggingService.prototype = {
   },
 
   onItemVisited: function () {},
+  onBeforeItemRemoved: function () {},
   onBeginUpdateBatch: function () {},
   onEndUpdateBatch: function () {},
 
@@ -677,4 +678,4 @@ TagAutoCompleteSearch.prototype = {
 };
 
 let component = [TaggingService, TagAutoCompleteSearch];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

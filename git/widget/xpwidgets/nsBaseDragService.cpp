@@ -18,7 +18,7 @@
 #include "nsIDocument.h"
 #include "nsIContent.h"
 #include "nsIPresShell.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDragEvent.h"
 #include "nsISelection.h"
@@ -37,7 +37,6 @@
 
 #include "gfxContext.h"
 #include "gfxPlatform.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -451,13 +450,6 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
 
   *aPresContext = presShell->GetPresContext();
 
-  // convert mouse position to dev pixels of the prescontext
-  int32_t sx = aScreenX, sy = aScreenY;
-  ConvertToUnscaledDevPixels(*aPresContext, &sx, &sy);
-
-  aScreenDragRect->x = sx - mImageX;
-  aScreenDragRect->y = sy - mImageY;
-
   // check if drag images are disabled
   bool enableDragImages = Preferences::GetBool(DRAGIMAGES_PREF, true);
 
@@ -509,15 +501,15 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
   if (mImage) {
     nsCOMPtr<nsICanvasElementExternal> canvas = do_QueryInterface(dragNode);
     if (canvas) {
-      return DrawDragForImage(*aPresContext, nullptr, canvas, sx, sy,
-                              aScreenDragRect, aSurface);
+      return DrawDragForImage(*aPresContext, nullptr, canvas, aScreenX,
+                              aScreenY, aScreenDragRect, aSurface);
     }
 
     nsCOMPtr<nsIImageLoadingContent> imageLoader = do_QueryInterface(dragNode);
     // for image nodes, create the drag image from the actual image data
     if (imageLoader) {
-      return DrawDragForImage(*aPresContext, imageLoader, nullptr, sx, sy,
-                              aScreenDragRect, aSurface);
+      return DrawDragForImage(*aPresContext, imageLoader, nullptr, aScreenX,
+                              aScreenY, aScreenDragRect, aSurface);
     }
 
     // If the image is a popup, use that as the image. This allows custom drag
@@ -548,8 +540,8 @@ nsBaseDragService::DrawDrag(nsIDOMNode* aDOMNode,
   // if an image was specified, reposition the drag rectangle to
   // the supplied offset in mImageX and mImageY.
   if (mImage) {
-    aScreenDragRect->x = sx - mImageX;
-    aScreenDragRect->y = sy - mImageY;
+    aScreenDragRect->x = aScreenX - mImageX;
+    aScreenDragRect->y = aScreenY - mImageY;
   }
 
   *aSurface = surface;
@@ -607,9 +599,9 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
   if (destSize.width > maxWidth || destSize.height > maxHeight) {
     float scale = 1.0;
     if (destSize.width > maxWidth)
-      scale = std::min(scale, float(maxWidth) / destSize.width);
+      scale = NS_MIN(scale, float(maxWidth) / destSize.width);
     if (destSize.height > maxHeight)
-      scale = std::min(scale, float(maxHeight) / destSize.height);
+      scale = NS_MIN(scale, float(maxHeight) / destSize.height);
 
     destSize.width = NSToIntFloor(float(destSize.width) * scale);
     destSize.height = NSToIntFloor(float(destSize.height) * scale);
@@ -639,8 +631,7 @@ nsBaseDragService::DrawDragForImage(nsPresContext* aPresContext,
       gfxMatrix().Scale(srcSize.width/outRect.Width(), srcSize.height/outRect.Height());
     nsIntRect imgSize(0, 0, srcSize.width, srcSize.height);
     imgContainer->Draw(ctx, gfxPattern::FILTER_GOOD, scale, outRect, imgSize,
-                       destSize, nullptr, imgIContainer::FRAME_CURRENT,
-                       imgIContainer::FLAG_SYNC_DECODE);
+                       destSize, imgIContainer::FLAG_SYNC_DECODE);
     return NS_OK;
   } else {
     return aCanvas->RenderContextsExternal(ctx, gfxPattern::FILTER_GOOD);

@@ -9,13 +9,12 @@
 #include "nsIClassInfo.h"
 #include "nsIXPCScriptable.h"
 
-nsDOMAnimationEvent::nsDOMAnimationEvent(mozilla::dom::EventTarget* aOwner,
-                                         nsPresContext *aPresContext,
+nsDOMAnimationEvent::nsDOMAnimationEvent(nsPresContext *aPresContext,
                                          nsAnimationEvent *aEvent)
-  : nsDOMEvent(aOwner, aPresContext,
-               aEvent ? aEvent : new nsAnimationEvent(false, 0,
-                                                      EmptyString(),
-                                                      0.0))
+  : nsDOMEvent(aPresContext, aEvent ? aEvent
+                                    : new nsAnimationEvent(false, 0,
+                                                           EmptyString(),
+                                                           0.0))
 {
   if (aEvent) {
     mEventIsInternal = false;
@@ -24,7 +23,6 @@ nsDOMAnimationEvent::nsDOMAnimationEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
   }
-  SetIsDOMBinding();
 }
 
 nsDOMAnimationEvent::~nsDOMAnimationEvent()
@@ -55,7 +53,7 @@ nsDOMAnimationEvent::GetAnimationName(nsAString & aAnimationName)
 NS_IMETHODIMP
 nsDOMAnimationEvent::GetElapsedTime(float *aElapsedTime)
 {
-  *aElapsedTime = ElapsedTime();
+  *aElapsedTime = AnimationEvent()->elapsedTime;
   return NS_OK;
 }
 
@@ -77,11 +75,9 @@ nsDOMAnimationEvent::InitAnimationEvent(const nsAString & typeArg,
 
 nsresult
 NS_NewDOMAnimationEvent(nsIDOMEvent **aInstancePtrResult,
-                        mozilla::dom::EventTarget* aOwner,
                         nsPresContext *aPresContext,
                         nsAnimationEvent *aEvent)
 {
-  nsDOMAnimationEvent* it =
-    new nsDOMAnimationEvent(aOwner, aPresContext, aEvent);
+  nsDOMAnimationEvent *it = new nsDOMAnimationEvent(aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }

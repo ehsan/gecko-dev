@@ -20,11 +20,7 @@
 // naming collisions with anything that might be defined in the scope that imports
 // this script.
 window.__defineGetter__('_EU_Ci', function() {
-  // Even if the real |Components| doesn't exist, we might shim in a simple JS
-  // placebo for compat. An easy way to differentiate this from the real thing
-  // is whether the property is read-only or not.
-  var c = Object.getOwnPropertyDescriptor(window, 'Components');
-  return c.value && !c.writable ? Components.interfaces : SpecialPowers.Ci;
+  return 'Components' in window ? Components.interfaces : SpecialPowers.Ci;
 });
 
 /**
@@ -52,7 +48,7 @@ function sendMouseEvent(aEvent, aTarget, aWindow) {
     aWindow = window;
   }
 
-  if (!(aTarget instanceof aWindow.Element)) {
+  if (!(aTarget instanceof Element)) {
     aTarget = aWindow.document.getElementById(aTarget);
   }
 
@@ -210,13 +206,11 @@ function _parseModifiers(aEvent)
  * a mousedown followed by a mouse up is performed.
  *
  * aWindow is optional, and defaults to the current window object.
- *
- * Returns whether the event had preventDefault() called on it.
  */
 function synthesizeMouse(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
 {
   var rect = aTarget.getBoundingClientRect();
-  return synthesizeMouseAtPoint(rect.left + aOffsetX, rect.top + aOffsetY,
+  synthesizeMouseAtPoint(rect.left + aOffsetX, rect.top + aOffsetY,
        aEvent, aWindow);
 }
 function synthesizeTouch(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
@@ -240,25 +234,20 @@ function synthesizeTouch(aTarget, aOffsetX, aOffsetY, aEvent, aWindow)
 function synthesizeMouseAtPoint(left, top, aEvent, aWindow)
 {
   var utils = _getDOMWindowUtils(aWindow);
-  var defaultPrevented = false;
 
   if (utils) {
     var button = aEvent.button || 0;
     var clickCount = aEvent.clickCount || 1;
     var modifiers = _parseModifiers(aEvent);
-    var pressure = ("pressure" in aEvent) ? aEvent.pressure : 0;
-    var inputSource = ("inputSource" in aEvent) ? aEvent.inputSource : 0;
 
     if (("type" in aEvent) && aEvent.type) {
-      defaultPrevented = utils.sendMouseEvent(aEvent.type, left, top, button, clickCount, modifiers, false, pressure, inputSource);
+      utils.sendMouseEvent(aEvent.type, left, top, button, clickCount, modifiers);
     }
     else {
-      utils.sendMouseEvent("mousedown", left, top, button, clickCount, modifiers, false, pressure, inputSource);
-      utils.sendMouseEvent("mouseup", left, top, button, clickCount, modifiers, false, pressure, inputSource);
+      utils.sendMouseEvent("mousedown", left, top, button, clickCount, modifiers);
+      utils.sendMouseEvent("mouseup", left, top, button, clickCount, modifiers);
     }
   }
-
-  return defaultPrevented;
 }
 function synthesizeTouchAtPoint(left, top, aEvent, aWindow)
 {

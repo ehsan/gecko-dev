@@ -121,7 +121,8 @@ nsPopupBoxObject::MoveToAnchor(nsIDOMElement* aAnchorElement,
                                int32_t aXPos, int32_t aYPos,
                                bool aAttributesOverride)
 {
-  if (mContent) {
+  nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
+  if (pm && mContent) {
     nsCOMPtr<nsIContent> anchorContent(do_QueryInterface(aAnchorElement));
 
     nsMenuPopupFrame *menuPopupFrame = do_QueryFrame(mContent->GetPrimaryFrame());
@@ -144,13 +145,7 @@ nsPopupBoxObject::SizeTo(int32_t aWidth, int32_t aHeight)
   height.AppendInt(aHeight);
 
   nsCOMPtr<nsIContent> content = mContent;
-
-  // We only want to pass aNotify=true to SetAttr once, but must make sure
-  // we pass it when a value is being changed.  Thus, we check if the height
-  // is the same and if so, pass true when setting the width.
-  bool heightSame = content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::height, height, eCaseMatters);
-
-  content->SetAttr(kNameSpaceID_None, nsGkAtoms::width, width, heightSame);
+  content->SetAttr(kNameSpaceID_None, nsGkAtoms::width, width, false);
   content->SetAttr(kNameSpaceID_None, nsGkAtoms::height, height, true);
 
   return NS_OK;
@@ -277,7 +272,9 @@ nsPopupBoxObject::GetAnchorNode(nsIDOMElement** aAnchor)
 NS_IMETHODIMP
 nsPopupBoxObject::GetOuterScreenRect(nsIDOMClientRect** aRect)
 {
-  nsClientRect* rect = new nsClientRect(mContent);
+  nsClientRect* rect = new nsClientRect();
+  if (!rect)
+    return NS_ERROR_OUT_OF_MEMORY;
 
   NS_ADDREF(*aRect = rect);
 
@@ -290,7 +287,7 @@ nsPopupBoxObject::GetOuterScreenRect(nsIDOMClientRect** aRect)
   if (state != ePopupOpen && state != ePopupOpenAndVisible)
     return NS_OK;
 
-  nsView* view = menuPopupFrame->GetView();
+  nsIView* view = menuPopupFrame->GetView();
   if (view) {
     nsIWidget* widget = view->GetWidget();
     if (widget) {

@@ -3,32 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsTextNode_h
-#define nsTextNode_h
-
 /*
  * Implementation of DOM Core's nsIDOMText node.
  */
 
-#include "mozilla/dom/Text.h"
+#include "nsGenericDOMDataNode.h"
 #include "nsIDOMText.h"
-#include "nsDebug.h"
 
 /**
  * Class used to implement DOM text nodes
  */
-class nsTextNode : public mozilla::dom::Text,
+class nsTextNode : public nsGenericDOMDataNode,
                    public nsIDOMText
 {
 public:
-  nsTextNode(already_AddRefed<nsINodeInfo> aNodeInfo)
-    : mozilla::dom::Text(aNodeInfo)
-  {
-    NS_ABORT_IF_FALSE(mNodeInfo->NodeType() == nsIDOMNode::TEXT_NODE,
-                      "Bad NodeType in aNodeInfo");
-    SetIsDOMBinding();
-  }
-
+  nsTextNode(already_AddRefed<nsINodeInfo> aNodeInfo);
   virtual ~nsTextNode();
 
   // nsISupports
@@ -49,11 +38,7 @@ public:
   virtual nsGenericDOMDataNode* CloneDataNode(nsINodeInfo *aNodeInfo,
                                               bool aCloneText) const;
 
-  virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                              nsIContent* aBindingParent,
-                              bool aCompileEventHandlers);
-  virtual void UnbindFromTree(bool aDeep = true,
-                              bool aNullParent = true);
+  virtual nsXPCClassInfo* GetClassInfo();
 
   nsresult AppendTextForNormalize(const PRUnichar* aBuffer, uint32_t aLength,
                                   bool aNotify, nsIContent* aNextSibling);
@@ -64,9 +49,4 @@ public:
   virtual void List(FILE* out, int32_t aIndent) const;
   virtual void DumpContent(FILE* out, int32_t aIndent, bool aDumpAll) const;
 #endif
-
-protected:
-  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
 };
-
-#endif // nsTextNode_h

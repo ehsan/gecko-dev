@@ -964,11 +964,8 @@ sip_util_extract_sdp (ccsipCCB_t *ccb, sipMessage_t *message)
 
     /*
      * Allocate a SDP buffer to work with (only destination buffer is needed).
-     *
-     * Here we are handing in an empty string to designate that we are not
-     * in the context of a peerconnection object
      */
-    sipsdp_src_dest_create("", CCSIP_DEST_SDP_BIT, &sip_msg_sdp);
+    sipsdp_src_dest_create(CCSIP_DEST_SDP_BIT, &sip_msg_sdp);
     if ((sip_msg_sdp == NULL) || (sip_msg_sdp->dest_sdp == NULL)) {
         /* Unable to get SDP */
         CCSIP_DEBUG_ERROR(get_debug_string(DEBUG_SIP_SDP_CREATE_BUF_ERROR),
@@ -12045,12 +12042,11 @@ getPreallocatedSipCallID (line_t dn_line)
 
     CPR_IP_ADDR_INIT(src_addr);
 
-    if ((dn_line > MAX_REG_LINES) || (dn_line < 1)) {
+    if ((dn_line > MAX_REG_LINES) && (dn_line < 1)){
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"dn_line=%d is greater than %d or less than 1",
                           fname, dn_line, MAX_REG_LINES);
         return NULL;
     }
-
     /*
      * if one is already created, use it.
      */
@@ -12175,7 +12171,7 @@ ccsip_find_preallocated_sip_call_id (line_t dn_line)
 {
     static const char *fname = "ccsip_find_preallocated_sip_call_id";
 
-    if ((dn_line > MAX_REG_LINES) || (dn_line < 1)) {
+    if ((dn_line > MAX_REG_LINES) && (dn_line < 1)) {
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"dn_line=%d is greater than %d or less than 1\n",
                           fname, dn_line, MAX_REG_LINES);
         return NULL;
@@ -12198,7 +12194,7 @@ ccsip_free_preallocated_sip_call_id (line_t dn_line)
 {
     static const char *fname = "ccsip_free_preallocated_sip_call_id";
 
-    if ((dn_line > MAX_REG_LINES) || (dn_line < 1)) {
+    if ((dn_line > MAX_REG_LINES) && (dn_line < 1)) {
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"dn_line=%d is greater than %d or less than 1\n",
                           fname, dn_line, MAX_REG_LINES);
         return;

@@ -26,9 +26,6 @@ Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource:///modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource:///modules/devtools/scratchpad-manager.jsm");
 Cu.import("resource://gre/modules/jsdebugger.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
-Cu.import("resource:///modules/devtools/Target.jsm");
-Cu.import("resource://gre/modules/osfile.jsm")
 
 const SCRATCHPAD_CONTEXT_CONTENT = 1;
 const SCRATCHPAD_CONTEXT_BROWSER = 2;
@@ -46,41 +43,6 @@ const BUTTON_POSITION_REVERT=0;
 var Scratchpad = {
   _instanceId: null,
   _initialWindowTitle: document.title,
-
-  /**
-   * Check if provided string is a mode-line and, if it is, return an
-   * object with its values.
-   *
-   * @param string aLine
-   * @return string
-   */
-  _scanModeLine: function SP__scanModeLine(aLine="")
-  {
-    aLine = aLine.trim();
-
-    let obj = {};
-    let ch1 = aLine.charAt(0);
-    let ch2 = aLine.charAt(1);
-
-    if (ch1 !== "/" || (ch2 !== "*" && ch2 !== "/")) {
-      return obj;
-    }
-
-    aLine = aLine
-      .replace(/^\/\//, "")
-      .replace(/^\/\*/, "")
-      .replace(/\*\/$/, "");
-
-    aLine.split(",").forEach(function (pair) {
-      let [key, val] = pair.split(":");
-
-      if (key && val) {
-        obj[key.trim()] = val.trim();
-      }
-    });
-
-    return obj;
-  },
 
   /**
    * The script execution context. This tells Scratchpad in which context the
@@ -168,13 +130,12 @@ var Scratchpad = {
    */
   _updateTitle: function SP__updateTitle()
   {
-    let title = this.filename || this._initialWindowTitle;
-
-    if (this.editor && this.editor.dirty) {
-      title = "*" + title;
+    if (this.filename) {
+      document.title = (this.editor && this.editor.dirty ? "*" : "") +
+                       this.filename;
+    } else {
+      document.title = this._initialWindowTitle;
     }
-
-    document.title = title;
   },
 
   /**
@@ -643,22 +604,26 @@ var Scratchpad = {
       return;
     }
 
-    let encoder = new TextEncoder();
-    let buffer = encoder.encode(this.getText());
-    let promise = OS.File.writeAtomic(aFile.path, buffer,{tmpPath: aFile.path + ".tmp"});
-    promise.then(function success(value) {
-      if (aCallback) {
-        aCallback.call(this, Components.results.NS_OK);
-      }
-    }.bind(this), function failure(reason) {
-      if (!aSilentError) {
-        window.alert(this.strings.GetStringFromName("saveFile.failed"));
-      }
-      if (aCallback) {
-        aCallback.call(this, Components.results.NS_ERROR_UNEXPECTED);
-      }
-    }.bind(this));
+    let fs = Cc["@mozilla.org/network/file-output-stream;1"].
+             createInstance(Ci.nsIFileOutputStream);
+    let modeFlags = 0x02 | 0x08 | 0x20;
+    fs.init(aFile, modeFlags, 420 /* 0644 */, fs.DEFER_OPEN);
 
+    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
+                    createInstance(Ci.nsIScriptableUnicodeConverter);
+    converter.charset = "UTF-8";
+    let input = converter.convertToInputStream(this.getText());
+
+    let self = this;
+    NetUtil.asyncCopy(input, fs, function(aStatus) {
+      if (!aSilentError && !Components.isSuccessCode(aStatus)) {
+        window.alert(self.strings.GetStringFromName("saveFile.failed"));
+      }
+
+      if (aCallback) {
+        aCallback.call(self, aStatus);
+      }
+    });
   },
 
   /**
@@ -692,16 +657,6 @@ var Scratchpad = {
         content = NetUtil.readInputStreamToString(aInputStream,
                                                   aInputStream.available());
         content = converter.ConvertToUnicode(content);
-
-        // Check to see if the first line is a mode-line comment.
-        let line = content.split("\n")[0];
-        let modeline = self._scanModeLine(line);
-        let chrome = Services.prefs.getBoolPref(DEVTOOLS_CHROME_ENABLED);
-
-        if (chrome && modeline["-sp-context"] === "browser") {
-          self.setBrowserContext();
-        }
-
         self.setText(content);
         self.editor.resetUndo();
       }
@@ -741,18 +696,6 @@ var Scratchpad = {
             file.initWithPath(filePath);
           }
 
-          if (!file.exists()) {
-            this.notificationBox.appendNotification(
-              this.strings.GetStringFromName("fileNoLongerExists.notification"),
-              "file-no-longer-exists",
-              null,
-              this.notificationBox.PRIORITY_WARNING_HIGH,
-              null);
-
-            this.clearFiles(aIndex, 1);
-            return;
-          }
-
           this.setFilename(file.path);
           this.importFromFile(file, false);
           this.setRecentFile(file);
@@ -785,16 +728,13 @@ var Scratchpad = {
    */
   getRecentFiles: function SP_getRecentFiles()
   {
-    let branch = Services.prefs.getBranch("devtools.scratchpad.");
+    let maxRecent = Services.prefs.getIntPref(PREF_RECENT_FILES_MAX);
+    let branch = Services.prefs.
+                 getBranch("devtools.scratchpad.");
+
     let filePaths = [];
-
-    // WARNING: Do not use getCharPref here, it doesn't play nicely with
-    // Unicode strings.
-
     if (branch.prefHasUserValue("recentFilePaths")) {
-      let data = branch.getComplexValue("recentFilePaths",
-        Ci.nsISupportsString).data;
-      filePaths = JSON.parse(data);
+      filePaths = JSON.parse(branch.getCharPref("recentFilePaths"));
     }
 
     return filePaths;
@@ -840,16 +780,10 @@ var Scratchpad = {
 
     filePaths.push(aFile.path);
 
-    // WARNING: Do not use setCharPref here, it doesn't play nicely with
-    // Unicode strings.
-
-    let str = Cc["@mozilla.org/supports-string;1"]
-      .createInstance(Ci.nsISupportsString);
-    str.data = JSON.stringify(filePaths);
-
-    let branch = Services.prefs.getBranch("devtools.scratchpad.");
-    branch.setComplexValue("recentFilePaths",
-      Ci.nsISupportsString, str);
+    let branch = Services.prefs.
+                 getBranch("devtools.scratchpad.");
+    branch.setCharPref("recentFilePaths", JSON.stringify(filePaths));
+    return;
   },
 
   /**
@@ -904,31 +838,6 @@ var Scratchpad = {
   },
 
   /**
-   * Clear a range of files from the list.
-   * 
-   * @param integer aIndex
-   *        Index of file in menu to remove.
-   * @param integer aLength
-   *        Number of files from the index 'aIndex' to remove.
-   */
-  clearFiles: function SP_clearFile(aIndex, aLength)
-  {
-    let filePaths = this.getRecentFiles();
-    filePaths.splice(aIndex, aLength);
-
-    // WARNING: Do not use setCharPref here, it doesn't play nicely with
-    // Unicode strings.
-
-    let str = Cc["@mozilla.org/supports-string;1"]
-      .createInstance(Ci.nsISupportsString);
-    str.data = JSON.stringify(filePaths);
-
-    let branch = Services.prefs.getBranch("devtools.scratchpad.");
-    branch.setComplexValue("recentFilePaths",
-      Ci.nsISupportsString, str);
-  },
-
-  /**
    * Clear all recent files.
    */
   clearRecentFiles: function SP_clearRecentFiles()
@@ -958,8 +867,11 @@ var Scratchpad = {
 
       let filePaths = this.getRecentFiles();
       if (maxRecent < filePaths.length) {
+        let branch = Services.prefs.
+                     getBranch("devtools.scratchpad.");
         let diff = filePaths.length - maxRecent;
-        this.clearFiles(0, diff);
+        filePaths.splice(0, diff);
+        branch.setCharPref("recentFilePaths", JSON.stringify(filePaths));
       }
     }
   },
@@ -1097,8 +1009,9 @@ var Scratchpad = {
    */
   openWebConsole: function SP_openWebConsole()
   {
-    let target = TargetFactory.forTab(this.gBrowser.selectedTab);
-    gDevTools.showToolbox(target, "webconsole");
+    if (!this.browserWindow.HUDConsoleUI.getOpenHUD()) {
+      this.browserWindow.HUDConsoleUI.toggleHUD();
+    }
     this.browserWindow.focus();
   },
 
@@ -1354,7 +1267,7 @@ var Scratchpad = {
    */
   promptSave: function SP_promptSave(aCallback)
   {
-    if (this.editor.dirty) {
+    if (this.filename && this.editor.dirty) {
       let ps = Services.prompt;
       let flags = ps.BUTTON_POS_0 * ps.BUTTON_TITLE_SAVE +
                   ps.BUTTON_POS_1 * ps.BUTTON_TITLE_CANCEL +

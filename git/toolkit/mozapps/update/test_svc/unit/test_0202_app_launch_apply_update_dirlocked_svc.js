@@ -30,6 +30,10 @@ const CHECK_TIMEOUT_MILLI = 1000;
 // How many of CHECK_TIMEOUT_MILLI to wait before we abort the test.
 const MAX_TIMEOUT_RUNS = 300;
 
+// Maximum number of milliseconds the process that is launched can run before
+// the test will try to kill it.
+const APP_TIMER_TIMEOUT = 15000;
+
 let gActiveUpdate;
 let gTimeoutRuns = 0;
 
@@ -126,7 +130,7 @@ function run_test() {
 
   let channel = Services.prefs.getCharPref(PREF_APP_UPDATE_CHANNEL);
   let patches = getLocalPatchString(null, null, null, null, null, "true",
-                                    STATE_PENDING_SVC);
+                                    STATE_PENDING);
   let updates = getLocalUpdateString(patches, null, null, null, null, null,
                                      null, null, null, null, null, null,
                                      null, "true", channel);
@@ -166,13 +170,19 @@ function run_test() {
   let mar = do_get_file("data/simple.mar");
   mar.copyTo(updatesPatchDir, FILE_UPDATE_ARCHIVE);
 
-  // Backup the updater.ini if it exists by moving it. This prevents the post
-  // update executable from being launched if it is specified.
+  // Backup the updater.ini
   let updaterIni = processDir.clone();
   updaterIni.append(FILE_UPDATER_INI);
-  if (updaterIni.exists()) {
-    updaterIni.moveTo(processDir, FILE_UPDATER_INI_BAK);
-  }
+  updaterIni.moveTo(processDir, FILE_UPDATER_INI_BAK);
+  // Create a new updater.ini to avoid applications that provide a post update
+  // executable.
+  let updaterIniContents = "[Strings]\n" +
+                           "Title=Update Test\n" +
+                           "Info=Application Update XPCShell Test - " +
+                           "test_0200_general.js\n";
+  updaterIni = processDir.clone();
+  updaterIni.append(FILE_UPDATER_INI);
+  writeFile(updaterIni, updaterIniContents);
 
   let updateSettingsIni = processDir.clone();
   updateSettingsIni.append(UPDATE_SETTINGS_INI_FILE);
@@ -196,14 +206,6 @@ function run_test() {
 
 function end_test() {
   resetEnvironment();
-
-  let processDir = getAppDir();
-  // Restore the backup of the updater.ini if it exists
-  let updaterIni = processDir.clone();
-  updaterIni.append(FILE_UPDATER_INI_BAK);
-  if (updaterIni.exists()) {
-    updaterIni.moveTo(processDir, FILE_UPDATER_INI);
-  }
 
   // Remove the files added by the update.
   let updateTestDir = getUpdateTestDir();
@@ -247,7 +249,7 @@ function adjustPathsOnWindows() {
   tmpDir.append("ExecutableDir.tmp");
   tmpDir.createUnique(tmpDir.DIRECTORY_TYPE, 0755);
   let procDir = getCurrentProcessDir();
-  copyDirRecursive(procDir, tmpDir, "bin");
+  procDir.copyTo(tmpDir, "bin");
   let newDir = tmpDir.clone();
   newDir.append("bin");
   gWindowsBinDir = newDir;

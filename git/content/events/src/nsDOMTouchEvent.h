@@ -10,7 +10,6 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "mozilla/Attributes.h"
-#include "nsJSEnvironment.h"
 
 class nsDOMTouch MOZ_FINAL : public nsIDOMTouch
 {
@@ -42,7 +41,6 @@ public:
 
       mChanged = false;
       mMessage = 0;
-      nsJSContext::LikelyShortLivingObjectCreated();
     }
   nsDOMTouch(int32_t aIdentifier,
              nsIntPoint aPoint,
@@ -62,7 +60,6 @@ public:
 
       mChanged = false;
       mMessage = 0;
-      nsJSContext::LikelyShortLivingObjectCreated();
     }
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMTouch)
@@ -107,10 +104,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMTouchList)
   NS_DECL_NSIDOMTOUCHLIST
 
-  nsDOMTouchList()
-  {
-    nsJSContext::LikelyShortLivingObjectCreated();
-  }
+  nsDOMTouchList() { }
   nsDOMTouchList(nsTArray<nsCOMPtr<nsIDOMTouch> > &aTouches);
 
   void Append(nsIDOMTouch* aPoint)
@@ -131,8 +125,7 @@ class nsDOMTouchEvent : public nsDOMUIEvent,
                         public nsIDOMTouchEvent
 {
 public:
-  nsDOMTouchEvent(mozilla::dom::EventTarget* aOwner,
-                  nsPresContext* aPresContext, nsTouchEvent* aEvent);
+  nsDOMTouchEvent(nsPresContext* aPresContext, nsTouchEvent* aEvent);
   virtual ~nsDOMTouchEvent();
 
   NS_DECL_ISUPPORTS_INHERITED

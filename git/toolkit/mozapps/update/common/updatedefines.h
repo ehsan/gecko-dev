@@ -5,6 +5,7 @@
 #ifndef UPDATEDEFINES_H
 #define UPDATEDEFINES_H
 
+#include "prtypes.h"
 #include "readstrings.h"
 
 #ifndef MAXPATHLEN

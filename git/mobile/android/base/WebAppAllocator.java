@@ -8,10 +8,14 @@ package org.mozilla.gecko;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Base64;
 import android.util.Log;
 
+import java.io.FileOutputStream;
+
 import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.gecko.util.GeckoBackgroundThread;
 
 public class WebAppAllocator {
     private final String LOGTAG = "GeckoWebAppAllocator";
@@ -59,8 +63,9 @@ public class WebAppAllocator {
     }
 
     public synchronized int findAndAllocateIndex(String app, String name, String aIconData) {
-        Bitmap icon = (aIconData != null) ? BitmapUtils.getBitmapFromDataURI(aIconData) : null;
-        return findAndAllocateIndex(app, name, icon);
+        byte[] raw = Base64.decode(aIconData.substring(22), Base64.DEFAULT);
+        Bitmap bitmap = BitmapFactory.decodeByteArray(raw, 0, raw.length);
+        return findAndAllocateIndex(app, name, bitmap);
     }
 
     public synchronized int findAndAllocateIndex(final String app, final String name, final Bitmap aIcon) {
@@ -71,38 +76,28 @@ public class WebAppAllocator {
         for (int i = 0; i < MAX_WEB_APPS; ++i) {
             if (!mPrefs.contains(appKey(i))) {
                 // found unused index i
-                updateAppAllocation(app, i, aIcon);
+                final int foundIndex = i;
+                GeckoBackgroundThread.getHandler().post(new Runnable() {
+                    public void run() {
+                        int color = 0;
+                        try {
+                            color = BitmapUtils.getDominantColor(aIcon);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+
+                        mPrefs.edit()
+                            .putString(appKey(foundIndex), app)
+                            .putInt(iconKey(foundIndex), color)
+                            .commit();
+                    }
+                });
                 return i;
             }
         }
 
         // no more apps!
         return -1;
-    }
-
-    public synchronized void updateAppAllocation(final String app,
-                                                 final int index,
-                                                 final Bitmap aIcon) {
-        if (aIcon != null) {
-            ThreadUtils.getBackgroundHandler().post(new Runnable() {
-                @Override
-                public void run() {
-                    int color = 0;
-                    try {
-                        color = BitmapUtils.getDominantColor(aIcon);
-                    } catch (Exception e) {
-                        Log.e(LOGTAG, "Exception during getDominantColor", e);
-                    }
-                    mPrefs.edit()
-                          .putString(appKey(index), app)
-                          .putInt(iconKey(index), color).commit();
-                }
-            });
-        } else {
-            mPrefs.edit()
-                  .putString(appKey(index), app)
-                  .putInt(iconKey(index), 0).commit();
-        }
     }
 
     public synchronized int getIndexForApp(String app) {
@@ -129,8 +124,7 @@ public class WebAppAllocator {
     }
 
     public synchronized void releaseIndex(final int index) {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
-            @Override
+        GeckoBackgroundThread.getHandler().post(new Runnable() {
             public void run() {
                 mPrefs.edit()
                     .remove(appKey(index))

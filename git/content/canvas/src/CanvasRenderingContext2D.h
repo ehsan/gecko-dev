@@ -10,21 +10,19 @@
 #include "nsICanvasRenderingContextInternal.h"
 #include "mozilla/RefPtr.h"
 #include "nsColor.h"
-#include "mozilla/dom/HTMLCanvasElement.h"
-#include "mozilla/dom/HTMLVideoElement.h"
+#include "nsHTMLCanvasElement.h"
 #include "CanvasUtils.h"
+#include "nsHTMLImageElement.h"
+#include "nsHTMLVideoElement.h"
 #include "gfxFont.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/ImageData.h"
 #include "mozilla/dom/UnionTypes.h"
-#include "mozilla/dom/CanvasRenderingContext2DBinding.h"
 
 #define NS_CANVASGRADIENTAZURE_PRIVATE_IID \
     {0x28425a6a, 0x90e0, 0x4d42, {0x9c, 0x75, 0xff, 0x60, 0x09, 0xb3, 0x10, 0xa8}}
 #define NS_CANVASPATTERNAZURE_PRIVATE_IID \
     {0xc9bacc25, 0x28da, 0x421e, {0x9a, 0x4b, 0xbb, 0xd6, 0x93, 0x05, 0x12, 0xbc}}
-
-class nsXULElement;
 
 namespace mozilla {
 namespace gfx {
@@ -129,6 +127,7 @@ class CanvasRenderingContext2DUserData;
  ** CanvasRenderingContext2D
  **/
 class CanvasRenderingContext2D :
+  public nsIDOMCanvasRenderingContext2D,
   public nsICanvasRenderingContextInternal,
   public nsWrapperCache
 {
@@ -139,12 +138,12 @@ public:
   CanvasRenderingContext2D();
   virtual ~CanvasRenderingContext2D();
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
 
-  HTMLCanvasElement* GetCanvas() const
+  nsHTMLCanvasElement* GetCanvas() const
   {
-    // corresponds to changes to the old bindings made in bug 745025
-    return mCanvasElement->GetOriginalCanvas();
+    return mCanvasElement;
   }
 
   void Save();
@@ -162,13 +161,11 @@ public:
     return CurrentState().globalAlpha;
   }
 
-  // Useful for silencing cast warnings
-  static mozilla::gfx::Float ToFloat(double aValue) { return mozilla::gfx::Float(aValue); }
-
   void SetGlobalAlpha(double globalAlpha)
   {
-    if (globalAlpha >= 0.0 && globalAlpha <= 1.0) {
-      CurrentState().globalAlpha = ToFloat(globalAlpha);
+    if (mozilla::CanvasUtils::FloatValidate(globalAlpha) &&
+        globalAlpha >= 0.0 && globalAlpha <= 1.0) {
+      CurrentState().globalAlpha = globalAlpha;
     }
   }
 
@@ -206,7 +203,9 @@ public:
 
   void SetShadowOffsetX(double shadowOffsetX)
   {
-    CurrentState().shadowOffset.x = ToFloat(shadowOffsetX);
+    if (mozilla::CanvasUtils::FloatValidate(shadowOffsetX)) {
+      CurrentState().shadowOffset.x = shadowOffsetX;
+    }
   }
 
   double ShadowOffsetY()
@@ -216,7 +215,9 @@ public:
 
   void SetShadowOffsetY(double shadowOffsetY)
   {
-    CurrentState().shadowOffset.y = ToFloat(shadowOffsetY);
+    if (mozilla::CanvasUtils::FloatValidate(shadowOffsetY)) {
+      CurrentState().shadowOffset.y = shadowOffsetY;
+    }
   }
 
   double ShadowBlur()
@@ -226,8 +227,8 @@ public:
 
   void SetShadowBlur(double shadowBlur)
   {
-    if (shadowBlur >= 0.0) {
-      CurrentState().shadowBlur = ToFloat(shadowBlur);
+    if (mozilla::CanvasUtils::FloatValidate(shadowBlur) && shadowBlur >= 0.0) {
+      CurrentState().shadowBlur = shadowBlur;
     }
   }
 
@@ -241,11 +242,10 @@ public:
   void FillRect(double x, double y, double w, double h);
   void StrokeRect(double x, double y, double w, double h);
   void BeginPath();
-  void Fill(const CanvasWindingRule& winding);
+  void Fill();
   void Stroke();
-  void Clip(const CanvasWindingRule& winding);
-  bool IsPointInPath(double x, double y, const CanvasWindingRule& winding);
-  bool IsPointInStroke(double x, double y);
+  void Clip();
+  bool IsPointInPath(double x, double y);
   void FillText(const nsAString& text, double x, double y,
                 const mozilla::dom::Optional<double>& maxWidth,
                 mozilla::ErrorResult& error);
@@ -258,6 +258,9 @@ public:
   void DrawImage(const HTMLImageOrCanvasOrVideoElement& image,
                  double dx, double dy, mozilla::ErrorResult& error)
   {
+    if (!mozilla::CanvasUtils::FloatValidate(dx, dy)) {
+      return;
+    }
     DrawImage(image, 0.0, 0.0, 0.0, 0.0, dx, dy, 0.0, 0.0, 0, error);
   }
 
@@ -265,6 +268,9 @@ public:
                  double dx, double dy, double dw, double dh,
                  mozilla::ErrorResult& error)
   {
+    if (!mozilla::CanvasUtils::FloatValidate(dx, dy, dw, dh)) {
+      return;
+    }
     DrawImage(image, 0.0, 0.0, 0.0, 0.0, dx, dy, dw, dh, 2, error);
   }
 
@@ -272,6 +278,10 @@ public:
                  double sx, double sy, double sw, double sh, double dx,
                  double dy, double dw, double dh, mozilla::ErrorResult& error)
   {
+    if (!mozilla::CanvasUtils::FloatValidate(sx, sy, sw, sh) ||
+        !mozilla::CanvasUtils::FloatValidate(dx, dy, dw, dh)) {
+      return;
+    }
     DrawImage(image, sx, sy, sw, sh, dx, dy, dw, dh, 6, error);
   }
 
@@ -284,9 +294,9 @@ public:
   already_AddRefed<mozilla::dom::ImageData>
     GetImageData(JSContext* cx, double sx, double sy, double sw, double sh,
                  mozilla::ErrorResult& error);
-  void PutImageData(mozilla::dom::ImageData& imageData,
+  void PutImageData(JSContext* cx, mozilla::dom::ImageData& imageData,
                     double dx, double dy, mozilla::ErrorResult& error);
-  void PutImageData(mozilla::dom::ImageData& imageData,
+  void PutImageData(JSContext* cx, mozilla::dom::ImageData& imageData,
                     double dx, double dy, double dirtyX, double dirtyY,
                     double dirtyWidth, double dirtyHeight,
                     mozilla::ErrorResult& error);
@@ -298,8 +308,8 @@ public:
 
   void SetLineWidth(double width)
   {
-    if (width > 0.0) {
-      CurrentState().lineWidth = ToFloat(width);
+    if (mozilla::CanvasUtils::FloatValidate(width) && width > 0.0) {
+      CurrentState().lineWidth = width;
     }
   }
   void GetLineCap(nsAString& linecap);
@@ -314,8 +324,8 @@ public:
 
   void SetMiterLimit(double miter)
   {
-    if (miter > 0.0) {
-      CurrentState().miterLimit = ToFloat(miter);
+    if (mozilla::CanvasUtils::FloatValidate(miter) && miter > 0.0) {
+      CurrentState().miterLimit = miter;
     }
   }
 
@@ -343,46 +353,54 @@ public:
 
   void MoveTo(double x, double y)
   {
-    EnsureWritablePath();
+    if (mozilla::CanvasUtils::FloatValidate(x, y)) {
+      EnsureWritablePath();
 
-    if (mPathBuilder) {
-      mPathBuilder->MoveTo(mozilla::gfx::Point(ToFloat(x), ToFloat(y)));
-    } else {
-      mDSPathBuilder->MoveTo(mTarget->GetTransform() *
-                             mozilla::gfx::Point(ToFloat(x), ToFloat(y)));
+      if (mPathBuilder) {
+        mPathBuilder->MoveTo(mozilla::gfx::Point(x, y));
+      } else {
+        mDSPathBuilder->MoveTo(mTarget->GetTransform() *
+                                 mozilla::gfx::Point(x, y));
+      }
     }
   }
 
   void LineTo(double x, double y)
   {
-    EnsureWritablePath();
+    if (mozilla::CanvasUtils::FloatValidate(x, y)) {
+      EnsureWritablePath();
     
-    LineTo(mozilla::gfx::Point(ToFloat(x), ToFloat(y)));
+      LineTo(mozilla::gfx::Point(x, y));
+    }
   }
 
   void QuadraticCurveTo(double cpx, double cpy, double x, double y)
   {
-    EnsureWritablePath();
+    if (mozilla::CanvasUtils::FloatValidate(cpx, cpy, x, y)) {
+      EnsureWritablePath();
 
-    if (mPathBuilder) {
-      mPathBuilder->QuadraticBezierTo(mozilla::gfx::Point(ToFloat(cpx), ToFloat(cpy)),
-                                      mozilla::gfx::Point(ToFloat(x), ToFloat(y)));
-    } else {
-      mozilla::gfx::Matrix transform = mTarget->GetTransform();
-      mDSPathBuilder->QuadraticBezierTo(transform *
-                                        mozilla::gfx::Point(ToFloat(cpx), ToFloat(cpy)),
-                                        transform *
-                                        mozilla::gfx::Point(ToFloat(x), ToFloat(y)));
+      if (mPathBuilder) {
+        mPathBuilder->QuadraticBezierTo(mozilla::gfx::Point(cpx, cpy),
+                                        mozilla::gfx::Point(x, y));
+      } else {
+        mozilla::gfx::Matrix transform = mTarget->GetTransform();
+        mDSPathBuilder->QuadraticBezierTo(transform *
+                                            mozilla::gfx::Point(cpx, cpy),
+                                          transform *
+                                            mozilla::gfx::Point(x, y));
+      }
     }
   }
 
   void BezierCurveTo(double cp1x, double cp1y, double cp2x, double cp2y, double x, double y)
   {
-    EnsureWritablePath();
+    if (mozilla::CanvasUtils::FloatValidate(cp1x, cp1y, cp2x, cp2y, x, y)) {
+      EnsureWritablePath();
 
-    BezierTo(mozilla::gfx::Point(ToFloat(cp1x), ToFloat(cp1y)),
-             mozilla::gfx::Point(ToFloat(cp2x), ToFloat(cp2y)),
-             mozilla::gfx::Point(ToFloat(x), ToFloat(y)));
+      BezierTo(mozilla::gfx::Point(cp1x, cp1y),
+               mozilla::gfx::Point(cp2x, cp2y),
+               mozilla::gfx::Point(x, y));
+    }
   }
 
   void ArcTo(double x1, double y1, double x2, double y2, double radius,
@@ -409,7 +427,8 @@ public:
   {
     return CurrentState().dashOffset;
   }
-  void SetMozDashOffset(double mozDashOffset);
+
+  void SetMozDashOffset(double mozDashOffset, mozilla::ErrorResult& error);
 
   void GetMozTextStyle(nsAString& mozTextStyle)
   {
@@ -437,7 +456,7 @@ public:
   void DrawWindow(nsIDOMWindow* window, double x, double y, double w, double h,
                   const nsAString& bgColor, uint32_t flags,
                   mozilla::ErrorResult& error);
-  void AsyncDrawXULElement(nsXULElement& elem, double x, double y, double w,
+  void AsyncDrawXULElement(nsIDOMXULElement* elem, double x, double y, double w,
                            double h, const nsAString& bgColor, uint32_t flags,
                            mozilla::ErrorResult& error);
 
@@ -476,13 +495,11 @@ public:
   // nsISupports interface + CC
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(CanvasRenderingContext2D)
+  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_AMBIGUOUS(CanvasRenderingContext2D,
+                                                                   nsIDOMCanvasRenderingContext2D)
 
-  enum CanvasMultiGetterType {
-    CMG_STYLE_STRING = 0,
-    CMG_STYLE_PATTERN = 1,
-    CMG_STYLE_GRADIENT = 2
-  };
+  // nsIDOMCanvasRenderingContext2D interface
+  NS_DECL_NSIDOMCANVASRENDERINGCONTEXT2D
 
   enum Style {
     STYLE_STROKE = 0,
@@ -525,11 +542,6 @@ protected:
                              uint32_t aWidth, uint32_t aHeight,
                              JSObject** aRetval);
 
-  nsresult PutImageData_explicit(int32_t x, int32_t y, uint32_t w, uint32_t h,
-                                 unsigned char *aData, uint32_t aDataLen,
-                                 bool hasDirtyRect, int32_t dirtyX, int32_t dirtyY,
-                                 int32_t dirtyWidth, int32_t dirtyHeight);
-
   /**
    * Internal method to complete initialisation, expects mTarget to have been set
    */
@@ -570,12 +582,23 @@ protected:
     CurrentState().SetPatternStyle(whichStyle, pattern);
   }
 
+  void SetStyleFromStringOrInterface(const nsAString& aStr, nsISupports *aInterface, Style aWhichStyle);
   nsISupports* GetStyleAsStringOrInterface(nsAString& aStr, CanvasMultiGetterType& aType, Style aWhichStyle);
 
   // Returns whether a color was successfully parsed.
   bool ParseColor(const nsAString& aString, nscolor* aColor);
 
   static void StyleColorToString(const nscolor& aColor, nsAString& aStr);
+
+  /**
+    * Creates the unpremultiply lookup table, if it doesn't exist.
+    */
+  void EnsureUnpremultiplyTable();
+
+  /**
+    * Creates the premultiply lookup table, if it doesn't exist.
+    */
+  void EnsurePremultiplyTable();
 
   /**
    * Creates the error target, if it doesn't exist
@@ -590,7 +613,9 @@ protected:
   void EnsureWritablePath();
 
   // Ensures a path in UserSpace is available.
-  void EnsureUserSpacePath(const CanvasWindingRule& winding = CanvasWindingRuleValues::Nonzero);
+  // If aCommitTransform is true, then any transform on the context will be
+  // used for the path.
+  void EnsureUserSpacePath(bool aCommitTransform = true);
 
   /**
    * Needs to be called before updating the transform. This makes a call to
@@ -636,6 +661,32 @@ protected:
     GetCurrentFontStyle();
 
     return CurrentState().font;
+  }
+
+  static bool
+  ToHTMLImageOrCanvasOrVideoElement(nsIDOMElement* html,
+                                    HTMLImageOrCanvasOrVideoElement& element)
+  {
+    nsCOMPtr<nsIContent> content = do_QueryInterface(html);
+    if (content) {
+      if (content->IsHTML(nsGkAtoms::canvas)) {
+        element.SetAsHTMLCanvasElement() =
+          static_cast<nsHTMLCanvasElement*>(html);
+        return true;
+      }
+      if (content->IsHTML(nsGkAtoms::img)) {
+        element.SetAsHTMLImageElement() =
+          static_cast<nsHTMLImageElement*>(html);
+        return true;
+      }
+      if (content->IsHTML(nsGkAtoms::video)) {
+        element.SetAsHTMLVideoElement() =
+          static_cast<nsHTMLVideoElement*>(html);
+        return true;
+      }
+    }
+
+    return false;
   }
 
   // Member vars
@@ -715,11 +766,6 @@ protected:
   uint32_t mInvalidateCount;
   static const uint32_t kCanvasMaxInvalidateCount = 100;
 
-
-#ifdef USE_SKIA_GPU
-  nsRefPtr<gl::GLContext> mGLContext;
-#endif
-
   /**
     * Returns true if a shadow should be drawn along with a
     * drawing operation.
@@ -752,7 +798,9 @@ protected:
       return mCanvasElement->OwnerDoc()->GetShell();
     }
     if (mDocShell) {
-      return mDocShell->GetPresShell();
+      nsCOMPtr<nsIPresShell> shell;
+      mDocShell->GetPresShell(getter_AddRefs(shell));
+      return shell.get();
     }
     return nullptr;
   }
@@ -906,11 +954,11 @@ protected:
   friend class AdjustedTarget;
 
   // other helpers
-  void GetAppUnitsValues(int32_t *perDevPixel, int32_t *perCSSPixel)
+  void GetAppUnitsValues(uint32_t *perDevPixel, uint32_t *perCSSPixel)
   {
     // If we don't have a canvas element, we just return something generic.
-    int32_t devPixel = 60;
-    int32_t cssPixel = 60;
+    uint32_t devPixel = 60;
+    uint32_t cssPixel = 60;
 
     nsIPresShell *ps = GetPresShell();
     nsPresContext *pc;

@@ -2,6 +2,7 @@
 var now_uSec = Date.now() * 1000;
 
 const dm = Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager);
+const bhist = Cc["@mozilla.org/browser/global-history;2"].getService(Ci.nsIBrowserHistory);
 const formhist = Cc["@mozilla.org/satchel/form-history;1"].getService(Ci.nsIFormHistory2);
 
 const kUsecPerMin = 60 * 1000000;
@@ -16,9 +17,7 @@ function test() {
 
   setupDownloads();
   setupFormHistory();
-  setupHistory(function() {
-    Task.spawn(onHistoryReady).then(finish);
-  });
+  setupHistory(onHistoryReady);
 }
 
 function onHistoryReady() {
@@ -46,28 +45,19 @@ function onHistoryReady() {
   s.range = [now_uSec - 10*60*1000000, now_uSec];
   s.sanitize();
   s.range = null;
-
-  ok(!(yield promiseIsURIVisited(makeURI("http://10minutes.com"))),
-     "Pretend visit to 10minutes.com should now be deleted");
-  ok((yield promiseIsURIVisited(makeURI("http://1hour.com"))),
-     "Pretend visit to 1hour.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://1hour10minutes.com"))),
-     "Pretend visit to 1hour10minutes.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://2hour.com"))),
-     "Pretend visit to 2hour.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://2hour10minutes.com"))),
-     "Pretend visit to 2hour10minutes.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour.com"))),
-     "Pretend visit to 4hour.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour10minutes.com"))),
-     "Pretend visit to 4hour10minutes.com should should still exist");
-  if (minutesSinceMidnight > 10) {
-    ok((yield promiseIsURIVisited(makeURI("http://today.com"))),
-       "Pretend visit to today.com should still exist");
-  }
-  ok((yield promiseIsURIVisited(makeURI("http://before-today.com"))),
-    "Pretend visit to before-today.com should still exist");
-
+  
+  ok(!bhist.isVisited(makeURI("http://10minutes.com")), "10minutes.com should now be deleted");
+  ok(bhist.isVisited(makeURI("http://1hour.com")), "Pretend visit to 1hour.com should still exist");
+  ok(bhist.isVisited(makeURI("http://1hour10minutes.com/")), "Pretend visit to 1hour10minutes.com should still exist");
+  ok(bhist.isVisited(makeURI("http://2hour.com")), "Pretend visit to 2hour.com should still exist");
+  ok(bhist.isVisited(makeURI("http://2hour10minutes.com/")), "Pretend visit to 2hour10minutes.com should still exist");
+  ok(bhist.isVisited(makeURI("http://4hour.com")), "Pretend visit to 4hour.com should still exist");
+  ok(bhist.isVisited(makeURI("http://4hour10minutes.com/")), "Pretend visit to 4hour10minutes.com should still exist");
+  
+  if (minutesSinceMidnight > 10)
+    ok(bhist.isVisited(makeURI("http://today.com")), "Pretend visit to today.com should still exist");
+  ok(bhist.isVisited(makeURI("http://before-today.com")), "Pretend visit to before-today.com should still exist");
+  
   ok(!formhist.nameExists("10minutes"), "10minutes form entry should be deleted");
   ok(formhist.nameExists("1hour"), "1hour form entry should still exist");
   ok(formhist.nameExists("1hour10minutes"), "1hour10minutes form entry should still exist");
@@ -94,26 +84,18 @@ function onHistoryReady() {
   // Clear 1 hour
   Sanitizer.prefs.setIntPref("timeSpan", 1);
   s.sanitize();
-
-  ok(!(yield promiseIsURIVisited(makeURI("http://1hour.com"))),
-     "Pretend visit to 1hour.com should now be deleted");
-  ok((yield promiseIsURIVisited(makeURI("http://1hour10minutes.com"))),
-     "Pretend visit to 1hour10minutes.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://2hour.com"))),
-     "Pretend visit to 2hour.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://2hour10minutes.com"))),
-     "Pretend visit to 2hour10minutes.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour.com"))),
-     "Pretend visit to 4hour.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour10minutes.com"))),
-     "Pretend visit to 4hour10minutes.com should should still exist");
-  if (hoursSinceMidnight > 1) {
-    ok((yield promiseIsURIVisited(makeURI("http://today.com"))),
-       "Pretend visit to today.com should still exist");
-  }
-  ok((yield promiseIsURIVisited(makeURI("http://before-today.com"))),
-    "Pretend visit to before-today.com should still exist");
-
+  
+  ok(!bhist.isVisited(makeURI("http://1hour.com")), "1hour.com should now be deleted");
+  ok(bhist.isVisited(makeURI("http://1hour10minutes.com/")), "Pretend visit to 1hour10minutes.com should still exist");
+  ok(bhist.isVisited(makeURI("http://2hour.com")), "Pretend visit to 2hour.com should still exist");
+  ok(bhist.isVisited(makeURI("http://2hour10minutes.com/")), "Pretend visit to 2hour10minutes.com should still exist");
+  ok(bhist.isVisited(makeURI("http://4hour.com")), "Pretend visit to 4hour.com should still exist");
+  ok(bhist.isVisited(makeURI("http://4hour10minutes.com/")), "Pretend visit to 4hour10minutes.com should still exist");
+  
+  if (hoursSinceMidnight > 1)
+    ok(bhist.isVisited(makeURI("http://today.com")), "Pretend visit to today.com should still exist");
+  ok(bhist.isVisited(makeURI("http://before-today.com")), "Pretend visit to before-today.com should still exist");
+  
   ok(!formhist.nameExists("1hour"), "1hour form entry should be deleted");
   ok(formhist.nameExists("1hour10minutes"), "1hour10minutes form entry should still exist");
   ok(formhist.nameExists("2hour"), "2hour form entry should still exist");
@@ -139,24 +121,16 @@ function onHistoryReady() {
   s.range = [now_uSec - 70*60*1000000, now_uSec];
   s.sanitize();
   s.range = null;
-
-  ok(!(yield promiseIsURIVisited(makeURI("http://1hour10minutes.com"))),
-     "Pretend visit to 1hour10minutes.com should now be deleted");
-  ok((yield promiseIsURIVisited(makeURI("http://2hour.com"))),
-     "Pretend visit to 2hour.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://2hour10minutes.com"))),
-     "Pretend visit to 2hour10minutes.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour.com"))),
-     "Pretend visit to 4hour.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour10minutes.com"))),
-     "Pretend visit to 4hour10minutes.com should should still exist");
-  if (minutesSinceMidnight > 70) {
-    ok((yield promiseIsURIVisited(makeURI("http://today.com"))),
-       "Pretend visit to today.com should still exist");
-  }
-  ok((yield promiseIsURIVisited(makeURI("http://before-today.com"))),
-    "Pretend visit to before-today.com should still exist");
-
+  
+  ok(!bhist.isVisited(makeURI("http://1hour10minutes.com")), "Pretend visit to 1hour10minutes.com should now be deleted");
+  ok(bhist.isVisited(makeURI("http://2hour.com")), "Pretend visit to 2hour.com should still exist");
+  ok(bhist.isVisited(makeURI("http://2hour10minutes.com/")), "Pretend visit to 2hour10minutes.com should still exist");
+  ok(bhist.isVisited(makeURI("http://4hour.com")), "Pretend visit to 4hour.com should still exist");
+  ok(bhist.isVisited(makeURI("http://4hour10minutes.com/")), "Pretend visit to 4hour10minutes.com should still exist");
+  if (minutesSinceMidnight > 70)
+    ok(bhist.isVisited(makeURI("http://today.com")), "Pretend visit to today.com should still exist");
+  ok(bhist.isVisited(makeURI("http://before-today.com")), "Pretend visit to before-today.com should still exist");
+  
   ok(!formhist.nameExists("1hour10minutes"), "1hour10minutes form entry should be deleted");
   ok(formhist.nameExists("2hour"), "2hour form entry should still exist");
   ok(formhist.nameExists("2hour10minutes"), "2hour10minutes form entry should still exist");
@@ -178,22 +152,15 @@ function onHistoryReady() {
   // Clear 2 hours
   Sanitizer.prefs.setIntPref("timeSpan", 2);
   s.sanitize();
-
-  ok(!(yield promiseIsURIVisited(makeURI("http://2hour.com"))),
-     "Pretend visit to 2hour.com should now be deleted");
-  ok((yield promiseIsURIVisited(makeURI("http://2hour10minutes.com"))),
-     "Pretend visit to 2hour10minutes.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour.com"))),
-     "Pretend visit to 4hour.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour10minutes.com"))),
-     "Pretend visit to 4hour10minutes.com should should still exist");
-  if (hoursSinceMidnight > 2) {
-    ok((yield promiseIsURIVisited(makeURI("http://today.com"))),
-       "Pretend visit to today.com should still exist");
-  }
-  ok((yield promiseIsURIVisited(makeURI("http://before-today.com"))),
-    "Pretend visit to before-today.com should still exist");
-
+  
+  ok(!bhist.isVisited(makeURI("http://2hour.com")), "Pretend visit to 2hour.com should now be deleted");
+  ok(bhist.isVisited(makeURI("http://2hour10minutes.com/")), "Pretend visit to 2hour10minutes.com should still exist");
+  ok(bhist.isVisited(makeURI("http://4hour.com")), "Pretend visit to 4hour.com should still exist");
+  ok(bhist.isVisited(makeURI("http://4hour10minutes.com/")), "Pretend visit to 4hour10minutes.com should still exist");
+  if (hoursSinceMidnight > 2)
+    ok(bhist.isVisited(makeURI("http://today.com")), "Pretend visit to today.com should still exist");
+  ok(bhist.isVisited(makeURI("http://before-today.com")), "Pretend visit to before-today.com should still exist");
+  
   ok(!formhist.nameExists("2hour"), "2hour form entry should be deleted");
   ok(formhist.nameExists("2hour10minutes"), "2hour10minutes form entry should still exist");
   ok(formhist.nameExists("4hour"), "4hour form entry should still exist");
@@ -215,20 +182,14 @@ function onHistoryReady() {
   s.range = [now_uSec - 130*60*1000000, now_uSec];
   s.sanitize();
   s.range = null;
-
-  ok(!(yield promiseIsURIVisited(makeURI("http://2hour10minutes.com"))),
-     "Pretend visit to 2hour10minutes.com should now be deleted");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour.com"))),
-     "Pretend visit to 4hour.com should should still exist");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour10minutes.com"))),
-     "Pretend visit to 4hour10minutes.com should should still exist");
-  if (minutesSinceMidnight > 130) {
-    ok((yield promiseIsURIVisited(makeURI("http://today.com"))),
-       "Pretend visit to today.com should still exist");
-  }
-  ok((yield promiseIsURIVisited(makeURI("http://before-today.com"))),
-    "Pretend visit to before-today.com should still exist");
-
+  
+  ok(!bhist.isVisited(makeURI("http://2hour10minutes.com")), "Pretend visit to 2hour10minutes.com should now be deleted");
+  ok(bhist.isVisited(makeURI("http://4hour.com")), "Pretend visit to 4hour.com should still exist");
+  ok(bhist.isVisited(makeURI("http://4hour10minutes.com/")), "Pretend visit to 4hour10minutes.com should still exist");
+  if (minutesSinceMidnight > 130)
+    ok(bhist.isVisited(makeURI("http://today.com")), "Pretend visit to today.com should still exist");
+  ok(bhist.isVisited(makeURI("http://before-today.com")), "Pretend visit to before-today.com should still exist");
+  
   ok(!formhist.nameExists("2hour10minutes"), "2hour10minutes form entry should be deleted");
   ok(formhist.nameExists("4hour"), "4hour form entry should still exist");
   ok(formhist.nameExists("4hour10minutes"), "4hour10minutes form entry should still exist");
@@ -246,18 +207,13 @@ function onHistoryReady() {
   // Clear 4 hours
   Sanitizer.prefs.setIntPref("timeSpan", 3);
   s.sanitize();
-
-  ok(!(yield promiseIsURIVisited(makeURI("http://4hour.com"))),
-     "Pretend visit to 4hour.com should now be deleted");
-  ok((yield promiseIsURIVisited(makeURI("http://4hour10minutes.com"))),
-     "Pretend visit to 4hour10minutes.com should should still exist");
-  if (hoursSinceMidnight > 4) {
-    ok((yield promiseIsURIVisited(makeURI("http://today.com"))),
-       "Pretend visit to today.com should still exist");
-  }
-  ok((yield promiseIsURIVisited(makeURI("http://before-today.com"))),
-    "Pretend visit to before-today.com should still exist");
-
+  
+  ok(!bhist.isVisited(makeURI("http://4hour.com")), "Pretend visit to 4hour.com should now be deleted");
+  ok(bhist.isVisited(makeURI("http://4hour10minutes.com/")), "Pretend visit to 4hour10minutes.com should still exist");
+  if (hoursSinceMidnight > 4)
+    ok(bhist.isVisited(makeURI("http://today.com")), "Pretend visit to today.com should still exist");
+  ok(bhist.isVisited(makeURI("http://before-today.com")), "Pretend visit to before-today.com should still exist");
+  
   ok(!formhist.nameExists("4hour"), "4hour form entry should be deleted");
   ok(formhist.nameExists("4hour10minutes"), "4hour10minutes form entry should still exist");
   if (hoursSinceMidnight > 4)
@@ -274,15 +230,11 @@ function onHistoryReady() {
   s.range = [now_uSec - 250*60*1000000, now_uSec];
   s.sanitize();
   s.range = null;
-
-  ok(!(yield promiseIsURIVisited(makeURI("http://4hour10minutes.com"))),
-     "Pretend visit to 4hour10minutes.com should now be deleted");
-  if (minutesSinceMidnight > 250) {
-    ok((yield promiseIsURIVisited(makeURI("http://today.com"))),
-       "Pretend visit to today.com should still exist");
-  }
-  ok((yield promiseIsURIVisited(makeURI("http://before-today.com"))),
-    "Pretend visit to before-today.com should still exist");
+  
+  ok(!bhist.isVisited(makeURI("http://4hour10minutes.com/")), "Pretend visit to 4hour10minutes.com should now be deleted");
+  if (minutesSinceMidnight > 250)
+    ok(bhist.isVisited(makeURI("http://today.com")), "Pretend visit to today.com should still exist");
+  ok(bhist.isVisited(makeURI("http://before-today.com")), "Pretend visit to before-today.com should still exist");
   
   ok(!formhist.nameExists("4hour10minutes"), "4hour10minutes form entry should be deleted");
   if (minutesSinceMidnight > 250)
@@ -305,14 +257,12 @@ function onHistoryReady() {
   // cache our time, then we would have an even worse random failure.
   var today = isToday(new Date(now_uSec/1000));
   if (today) {
-    ok(!(yield promiseIsURIVisited(makeURI("http://today.com"))),
-       "Pretend visit to today.com should now be deleted");
+    ok(!bhist.isVisited(makeURI("http://today.com")), "Pretend visit to today.com should now be deleted");
     ok(!formhist.nameExists("today"), "today form entry should be deleted");
     ok(!downloadExists(5555554), "'Today' download should now be deleted");
   }
 
-  ok((yield promiseIsURIVisited(makeURI("http://before-today.com"))),
-     "Pretend visit to before-today.com should still exist");
+  ok(bhist.isVisited(makeURI("http://before-today.com")), "Pretend visit to before-today.com should still exist");
   ok(formhist.nameExists("b4today"), "b4today form entry should still exist");
   ok(downloadExists(5555550), "Year old download should still be present");
 
@@ -320,12 +270,13 @@ function onHistoryReady() {
   Sanitizer.prefs.setIntPref("timeSpan", 0);
   s.sanitize();
 
-  ok(!(yield promiseIsURIVisited(makeURI("http://before-today.com"))),
-     "Pretend visit to before-today.com should now be deleted");
+  ok(!bhist.isVisited(makeURI("http://before-today.com")), "Pretend visit to before-today.com should now be deleted");
 
   ok(!formhist.nameExists("b4today"), "b4today form entry should be deleted");
 
   ok(!downloadExists(5555550), "Year old download should now be deleted");
+
+  finish();
 }
 
 function setupHistory(aCallback) {
@@ -443,16 +394,15 @@ function setupDownloads() {
     startTime: now_uSec - 10 * kUsecPerMin, // 10 minutes ago, in uSec
     endTime: now_uSec - 11 * kUsecPerMin, // 1 minute later
     state: Ci.nsIDownloadManager.DOWNLOAD_FINISHED,
-    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0,
-    guid: "a1bcD23eF4g5"
+    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0
   };
 
   let db = dm.DBConnection;
   let stmt = db.createStatement(
     "INSERT INTO moz_downloads (id, name, source, target, startTime, endTime, " +
-      "state, currBytes, maxBytes, preferredAction, autoResume, guid) " +
+      "state, currBytes, maxBytes, preferredAction, autoResume) " +
     "VALUES (:id, :name, :source, :target, :startTime, :endTime, :state, " +
-      ":currBytes, :maxBytes, :preferredAction, :autoResume, :guid)");
+      ":currBytes, :maxBytes, :preferredAction, :autoResume)");
   try {
     for (let prop in data)
       stmt.params[prop] = data[prop];
@@ -471,8 +421,7 @@ function setupDownloads() {
     startTime: now_uSec - 45 * kUsecPerMin, // 45 minutes ago, in uSec
     endTime: now_uSec - 44 * kUsecPerMin, // 1 minute later
     state: Ci.nsIDownloadManager.DOWNLOAD_FINISHED,
-    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0,
-    guid: "1bcD23eF4g5a"
+    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0
   };
 
   try {
@@ -493,8 +442,7 @@ function setupDownloads() {
     startTime: now_uSec - 70 * kUsecPerMin, // 70 minutes ago, in uSec
     endTime: now_uSec - 71 * kUsecPerMin, // 1 minute later
     state: Ci.nsIDownloadManager.DOWNLOAD_FINISHED,
-    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0,
-    guid: "a1cbD23e4Fg5"
+    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0
   };
 
   try {
@@ -515,8 +463,7 @@ function setupDownloads() {
     startTime: now_uSec - 90 * kUsecPerMin, // 90 minutes ago, in uSec
     endTime: now_uSec - 89 * kUsecPerMin, // 1 minute later
     state: Ci.nsIDownloadManager.DOWNLOAD_FINISHED,
-    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0,
-    guid: "b1aDc23eFg54"
+    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0
   };
 
   try {
@@ -537,8 +484,7 @@ function setupDownloads() {
     startTime: now_uSec - 130 * kUsecPerMin, // 130 minutes ago, in uSec
     endTime: now_uSec - 131 * kUsecPerMin, // 1 minute later
     state: Ci.nsIDownloadManager.DOWNLOAD_FINISHED,
-    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0,
-    guid: "z1bcD23eF4g5"
+    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0
   };
 
   try {
@@ -559,8 +505,7 @@ function setupDownloads() {
     startTime: now_uSec - 180 * kUsecPerMin, // 180 minutes ago, in uSec
     endTime: now_uSec - 179 * kUsecPerMin, // 1 minute later
     state: Ci.nsIDownloadManager.DOWNLOAD_FINISHED,
-    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0,
-    guid: "zzzcD23eF4g5"
+    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0
   };
   
   try {
@@ -581,8 +526,7 @@ function setupDownloads() {
     startTime: now_uSec - 250 * kUsecPerMin, // 250 minutes ago, in uSec
     endTime: now_uSec - 251 * kUsecPerMin, // 1 minute later
     state: Ci.nsIDownloadManager.DOWNLOAD_FINISHED,
-    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0,
-    guid: "z1bzz23eF4gz"
+    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0
   };
   
   try {
@@ -608,8 +552,7 @@ function setupDownloads() {
     startTime: today.getTime() * 1000,  // 12:00:30am this morning, in uSec
     endTime: (today.getTime() + 1000) * 1000, // 1 second later
     state: Ci.nsIDownloadManager.DOWNLOAD_FINISHED,
-    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0,
-    guid: "ffffD23eF4g5"
+    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0
   };
   
   try {
@@ -632,8 +575,7 @@ function setupDownloads() {
     startTime: lastYear.getTime() * 1000, // 1 year ago, in uSec
     endTime: (lastYear.getTime() + 1000) * 1000, // 1 second later
     state: Ci.nsIDownloadManager.DOWNLOAD_FINISHED,
-    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0,
-    guid: "ggggg23eF4g5"
+    currBytes: 0, maxBytes: -1, preferredAction: 0, autoResume: 0
   };
   
   try {

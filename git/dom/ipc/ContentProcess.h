@@ -36,8 +36,6 @@ public:
     virtual bool Init() MOZ_OVERRIDE;
     virtual void CleanUp() MOZ_OVERRIDE;
 
-    void SetAppDir(const nsACString& aPath);
-
 private:
     ContentChild mContent;
     mozilla::ipc::ScopedXREEmbed mXREEmbed;

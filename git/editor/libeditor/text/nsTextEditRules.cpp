@@ -36,7 +36,7 @@
 #include "nsISelectionPrivate.h"
 #include "nsISupportsBase.h"
 #include "nsLiteralString.h"
-#include "mozilla/dom/NodeIterator.h"
+#include "nsNodeIterator.h"
 #include "nsTextEditRules.h"
 #include "nsTextEditUtils.h"
 #include "nsUnicharUtils.h"
@@ -161,7 +161,6 @@ nsTextEditRules::BeforeEdit(EditAction action,
   
   // get the selection and cache the position before editing
   nsCOMPtr<nsISelection> selection;
-  NS_ENSURE_STATE(mEditor);
   nsresult res = mEditor->GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(res, res);
 
@@ -185,11 +184,9 @@ nsTextEditRules::AfterEdit(EditAction action,
   if (!--mActionNesting)
   {
     nsCOMPtr<nsISelection>selection;
-    NS_ENSURE_STATE(mEditor);
     res = mEditor->GetSelection(getter_AddRefs(selection));
     NS_ENSURE_SUCCESS(res, res);
   
-    NS_ENSURE_STATE(mEditor);
     res = mEditor->HandleInlineSpellCheck(action, selection,
                                           mCachedSelectionNode, mCachedSelectionOffset,
                                           nullptr, 0, nullptr, 0);
@@ -264,7 +261,6 @@ NS_IMETHODIMP
 nsTextEditRules::DidDoAction(nsISelection *aSelection,
                              nsRulesInfo *aInfo, nsresult aResult)
 {
-  NS_ENSURE_STATE(mEditor);
   // don't let any txns in here move the selection around behind our back.
   // Note that this won't prevent explicit selection setting from working.
   nsAutoTxnsConserveSelection dontSpazMySelection(mEditor);
@@ -327,7 +323,6 @@ nsTextEditRules::WillInsert(nsISelection *aSelection, bool *aCancel)
   // check for the magic content node and delete it if it exists
   if (mBogusNode)
   {
-    NS_ENSURE_STATE(mEditor);
     mEditor->DeleteNode(mBogusNode);
     mBogusNode = nullptr;
   }
@@ -376,7 +371,6 @@ nsTextEditRules::WillInsertBreak(Selection* aSelection,
     NS_ENSURE_SUCCESS(res, res);
     if (!bCollapsed)
     {
-      NS_ENSURE_STATE(mEditor);
       res = mEditor->DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
       NS_ENSURE_SUCCESS(res, res);
     }
@@ -412,7 +406,6 @@ nsTextEditRules::CollapseSelectionToTrailingBRIfNeeded(nsISelection* aSelection)
   int32_t selOffset;
   nsCOMPtr<nsIDOMNode> selNode;
   nsresult res;
-  NS_ENSURE_STATE(mEditor);
   res = mEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
   NS_ENSURE_SUCCESS(res, res);
 
@@ -430,7 +423,6 @@ nsTextEditRules::CollapseSelectionToTrailingBRIfNeeded(nsISelection* aSelection)
   int32_t parentOffset;
   nsCOMPtr<nsIDOMNode> parentNode = nsEditor::GetNodeLocation(selNode, &parentOffset);
 
-  NS_ENSURE_STATE(mEditor);
   nsCOMPtr<nsIDOMNode> root = do_QueryInterface(mEditor->GetRoot());
   NS_ENSURE_TRUE(root, NS_ERROR_NULL_POINTER);
   if (parentNode != root) return NS_OK;
@@ -457,8 +449,7 @@ GetTextNode(nsISelection *selection, nsEditor *editor) {
     // if node is null, return it to indicate there's no text
     NS_ENSURE_TRUE(node, nullptr);
     // This should be the root node, walk the tree looking for text nodes
-    mozilla::dom::NodeFilterHolder filter;
-    mozilla::dom::NodeIterator iter(node, nsIDOMNodeFilter::SHOW_TEXT, filter);
+    nsNodeIterator iter(node, nsIDOMNodeFilter::SHOW_TEXT, nullptr);
     while (!editor->IsTextNode(selNode)) {
       if (NS_FAILED(res = iter.NextNode(getter_AddRefs(selNode))) || !selNode) {
         return nullptr;
@@ -523,25 +514,22 @@ nsTextEditRules::HandleNewLines(nsString &aString,
     break;
   case nsIPlaintextEditor::eNewlinesStripSurroundingWhitespace:
     {
-      nsString result;
-      uint32_t offset = 0;
-      while (offset < aString.Length())
+      // find each newline, and strip all the whitespace before
+      // and after it
+      int32_t firstCRLF = aString.FindCharInSet(CRLF);
+      while (firstCRLF >= 0)
       {
-        int32_t nextCRLF = aString.FindCharInSet(CRLF, offset);
-        if (nextCRLF < 0) {
-          result.Append(nsDependentSubstring(aString, offset));
-          break;
-        }
-        uint32_t wsBegin = nextCRLF;
+        uint32_t wsBegin = firstCRLF, wsEnd = firstCRLF + 1;
         // look backwards for the first non-whitespace char
-        while (wsBegin > offset && NS_IS_SPACE(aString[wsBegin - 1]))
+        while (wsBegin > 0 && NS_IS_SPACE(aString[wsBegin - 1]))
           --wsBegin;
-        result.Append(nsDependentSubstring(aString, offset, wsBegin - offset));
-        offset = nextCRLF + 1;
-        while (offset < aString.Length() && NS_IS_SPACE(aString[offset]))
-          ++offset;
+        while (wsEnd < aString.Length() && NS_IS_SPACE(aString[wsEnd]))
+          ++wsEnd;
+        // now cut this range out of the string
+        aString.Cut(wsBegin, wsEnd - wsBegin);
+        // look for another CR or LF
+        firstCRLF = aString.FindCharInSet(CRLF);
       }
-      aString = result;
     }
     break;
   case nsIPlaintextEditor::eNewlinesPasteIntact:
@@ -596,7 +584,6 @@ nsTextEditRules::WillInsertText(EditAction aAction,
 
   // handle password field docs
   if (IsPasswordEditor()) {
-    NS_ENSURE_STATE(mEditor);
     nsContentUtils::GetSelectionInTextControl(aSelection, mEditor->GetRoot(),
                                               start, end);
   }
@@ -607,7 +594,6 @@ nsTextEditRules::WillInsertText(EditAction aAction,
   NS_ENSURE_SUCCESS(res, res);
   if (!bCollapsed)
   {
-    NS_ENSURE_STATE(mEditor);
     res = mEditor->DeleteSelection(nsIEditor::eNone, nsIEditor::eStrip);
     NS_ENSURE_SUCCESS(res, res);
   }
@@ -642,7 +628,6 @@ nsTextEditRules::WillInsertText(EditAction aAction,
   {
     nsAutoString tString(*outString);
 
-    NS_ENSURE_STATE(mEditor);
     HandleNewLines(tString, mEditor->mNewlineHandling);
 
     outString->Assign(tString);
@@ -678,24 +663,20 @@ nsTextEditRules::WillInsertText(EditAction aAction,
   // get the (collapsed) selection location
   nsCOMPtr<nsIDOMNode> selNode;
   int32_t selOffset;
-  NS_ENSURE_STATE(mEditor);
   res = mEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(selNode), &selOffset);
   NS_ENSURE_SUCCESS(res, res);
 
   // don't put text in places that can't have it
-  NS_ENSURE_STATE(mEditor);
   if (!mEditor->IsTextNode(selNode) &&
       !mEditor->CanContainTag(selNode, nsGkAtoms::textTagName)) {
     return NS_ERROR_FAILURE;
   }
 
   // we need to get the doc
-  NS_ENSURE_STATE(mEditor);
   nsCOMPtr<nsIDOMDocument> doc = mEditor->GetDOMDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_NOT_INITIALIZED);
     
   if (aAction == EditAction::insertIMEText) {
-    NS_ENSURE_STATE(mEditor);
     res = mEditor->InsertTextImpl(*outString, address_of(selNode), &selOffset, doc);
     NS_ENSURE_SUCCESS(res, res);
   } else {
@@ -704,7 +685,6 @@ nsTextEditRules::WillInsertText(EditAction aAction,
     int32_t curOffset = selOffset;
 
     // don't spaz my selection in subtransactions
-    NS_ENSURE_STATE(mEditor);
     nsAutoTxnsConserveSelection dontSpazMySelection(mEditor);
 
     res = mEditor->InsertTextImpl(*outString, address_of(curNode),
@@ -793,11 +773,9 @@ nsTextEditRules::WillDeleteSelection(Selection* aSelection,
   }
 
   nsresult res = NS_OK;
-  nsAutoScriptBlocker scriptBlocker;
 
   if (IsPasswordEditor())
   {
-    NS_ENSURE_STATE(mEditor);
     res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
     NS_ENSURE_SUCCESS(res, res);
 
@@ -834,7 +812,6 @@ nsTextEditRules::WillDeleteSelection(Selection* aSelection,
   {
     nsCOMPtr<nsIDOMNode> startNode;
     int32_t startOffset;
-    NS_ENSURE_STATE(mEditor);
     res = mEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(startNode), &startOffset);
     NS_ENSURE_SUCCESS(res, res);
     NS_ENSURE_TRUE(startNode, NS_ERROR_FAILURE);
@@ -851,12 +828,10 @@ nsTextEditRules::WillDeleteSelection(Selection* aSelection,
     NS_ENSURE_SUCCESS(res, res);
     if (*aCancel) return NS_OK;
 
-    NS_ENSURE_STATE(mEditor);
     res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
     NS_ENSURE_SUCCESS(res, res);
   }
 
-  NS_ENSURE_STATE(mEditor);
   res = mEditor->DeleteSelectionImpl(aCollapsedAction, nsIEditor::eStrip);
   NS_ENSURE_SUCCESS(res, res);
 
@@ -872,7 +847,6 @@ nsTextEditRules::DidDeleteSelection(nsISelection *aSelection,
 {
   nsCOMPtr<nsIDOMNode> startNode;
   int32_t startOffset;
-  NS_ENSURE_STATE(mEditor);
   nsresult res = mEditor->GetStartNodeAndOffset(aSelection, getter_AddRefs(startNode), &startOffset);
   NS_ENSURE_SUCCESS(res, res);
   NS_ENSURE_TRUE(startNode, NS_ERROR_FAILURE);
@@ -925,7 +899,6 @@ nsTextEditRules::DidUndo(nsISelection *aSelection, nsresult aResult)
   // If aResult is an error, we return it.
   NS_ENSURE_SUCCESS(aResult, aResult);
 
-  NS_ENSURE_STATE(mEditor);
   dom::Element* theRoot = mEditor->GetRoot();
   NS_ENSURE_TRUE(theRoot, NS_ERROR_FAILURE);
   nsIContent* node = mEditor->GetLeftmostChild(theRoot);
@@ -955,7 +928,6 @@ nsTextEditRules::DidRedo(nsISelection *aSelection, nsresult aResult)
   if (!aSelection) { return NS_ERROR_NULL_POINTER; }
   if (NS_SUCCEEDED(res)) 
   {
-    NS_ENSURE_STATE(mEditor);
     nsCOMPtr<nsIDOMElement> theRoot = do_QueryInterface(mEditor->GetRoot());
     NS_ENSURE_TRUE(theRoot, NS_ERROR_FAILURE);
     
@@ -1038,7 +1010,6 @@ nsTextEditRules::RemoveRedundantTrailingBR()
   if (IsSingleLineEditor())
     return NS_OK;
 
-  NS_ENSURE_STATE(mEditor);
   nsRefPtr<dom::Element> body = mEditor->GetRoot();
   if (!body)
     return NS_ERROR_NULL_POINTER;
@@ -1080,7 +1051,6 @@ nsTextEditRules::CreateTrailingBRIfNeeded()
     return NS_OK;
   }
 
-  NS_ENSURE_STATE(mEditor);
   dom::Element* body = mEditor->GetRoot();
   NS_ENSURE_TRUE(body, NS_ERROR_NULL_POINTER);
 
@@ -1185,7 +1155,6 @@ nsTextEditRules::TruncateInsertionIfNeeded(Selection* aSelection,
     *aTruncated = false;
   }
   
-  NS_ENSURE_STATE(mEditor);
   if ((-1 != aMaxLength) && IsPlaintextEditor() && !mEditor->IsIMEComposing() )
   {
     // Get the current text length.
@@ -1258,13 +1227,8 @@ nsTextEditRules::RemoveIMETextFromPWBuf(int32_t &aStart, nsAString *aIMEString)
   mPasswordIMEText.Assign(*aIMEString);
 }
 
-NS_IMETHODIMP nsTextEditRules::Notify(nsITimer *)
-{
-  MOZ_ASSERT(mTimer);
-
-  // Check whether our text editor's password flag was changed before this
-  // "hide password character" timer actually fires.
-  nsresult res = IsPasswordEditor() ? HideLastPWInput() : NS_OK;
+NS_IMETHODIMP nsTextEditRules::Notify(class nsITimer *) {
+  nsresult res = HideLastPWInput();
   ASSERT_PASSWORD_LENGTHS_EQUAL();
   mLastLength = 0;
   return res;
@@ -1279,7 +1243,6 @@ nsresult nsTextEditRules::HideLastPWInput() {
   nsAutoString hiddenText;
   FillBufWithPWChars(&hiddenText, mLastLength);
 
-  NS_ENSURE_STATE(mEditor);
   nsRefPtr<Selection> selection = mEditor->GetSelection();
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
   int32_t start, end;
@@ -1325,7 +1288,6 @@ nsTextEditRules::CreateMozBR(nsIDOMNode* inParent, int32_t inOffset,
   NS_ENSURE_TRUE(inParent, NS_ERROR_NULL_POINTER);
 
   nsCOMPtr<nsIDOMNode> brNode;
-  NS_ENSURE_STATE(mEditor);
   nsresult res = mEditor->CreateBR(inParent, inOffset, address_of(brNode));
   NS_ENSURE_SUCCESS(res, res);
 

@@ -8,9 +8,6 @@
  * attribute.
  */
 
-#include "mozilla/DebugOnly.h"
-#include "mozilla/HashFunctions.h"
-
 #include "nsAttrValue.h"
 #include "nsAttrValueInlines.h"
 #include "nsIAtom.h"
@@ -20,10 +17,10 @@
 #include "nsContentUtils.h"
 #include "nsReadableUtils.h"
 #include "prprf.h"
+#include "mozilla/HashFunctions.h"
 #include "nsHTMLCSSStyleSheet.h"
 #include "nsCSSParser.h"
 #include "nsStyledElement.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -31,7 +28,7 @@ using namespace mozilla;
   reinterpret_cast<void*>((_cont)->mStringBits & NS_ATTRVALUE_POINTERVALUE_MASK)
 
 bool
-MiscContainer::GetString(nsAString& aString) const
+MiscContainer::GetString(nsDependentString& aString) const
 {
   void* ptr = MISC_STR_PTR(this);
 
@@ -47,7 +44,8 @@ MiscContainer::GetString(nsAString& aString) const
       return false;
     }
 
-    buffer->ToString(buffer->StorageSize() / sizeof(PRUnichar) - 1, aString);
+    aString.Rebind(reinterpret_cast<PRUnichar*>(buffer->Data()),
+                   buffer->StorageSize() / sizeof(PRUnichar) - 1);
     return true;
   }
 
@@ -56,7 +54,7 @@ MiscContainer::GetString(nsAString& aString) const
     return false;
   }
 
-  atom->ToString(aString);
+  aString.Rebind(atom->GetUTF16String(), atom->GetLength());
   return true;
 }
 
@@ -75,7 +73,7 @@ MiscContainer::Cache()
     return;
   }
 
-  nsString str;
+  nsDependentString str;
   bool gotString = GetString(str);
   if (!gotString) {
     return;
@@ -107,7 +105,7 @@ MiscContainer::Evict()
   nsHTMLCSSStyleSheet* sheet = rule->GetHTMLCSSStyleSheet();
   MOZ_ASSERT(sheet);
 
-  nsString str;
+  nsDependentString str;
   DebugOnly<bool> gotString = GetString(str);
   MOZ_ASSERT(gotString);
 
@@ -578,7 +576,9 @@ nsAttrValue::ToString(nsAString& aResult) const
   if (BaseType() == eOtherBase) {
     cont = GetMiscContainer();
 
-    if (cont->GetString(aResult)) {
+    nsDependentString str;
+    if (cont->GetString(str)) {
+      aResult = str;
       return;
     }
   }
@@ -1066,7 +1066,7 @@ nsAttrValue::Equals(const nsAString& aValue,
         nsDependentString dep(static_cast<PRUnichar*>(str->Data()),
                               str->StorageSize()/sizeof(PRUnichar) - 1);
         return aCaseSensitive == eCaseMatters ? aValue.Equals(dep) :
-          nsContentUtils::EqualsIgnoreASCIICase(aValue, dep);
+          aValue.Equals(dep, nsCaseInsensitiveStringComparator());
       }
       return aValue.IsEmpty();
     }
@@ -1074,9 +1074,8 @@ nsAttrValue::Equals(const nsAString& aValue,
       if (aCaseSensitive == eCaseMatters) {
         return static_cast<nsIAtom*>(GetPtr())->Equals(aValue);
       }
-      return nsContentUtils::EqualsIgnoreASCIICase(
-          nsDependentAtomString(static_cast<nsIAtom*>(GetPtr())),
-          aValue);
+      return nsDependentAtomString(static_cast<nsIAtom*>(GetPtr())).
+        Equals(aValue, nsCaseInsensitiveStringComparator());
     default:
       break;
   }
@@ -1084,7 +1083,7 @@ nsAttrValue::Equals(const nsAString& aValue,
   nsAutoString val;
   ToString(val);
   return aCaseSensitive == eCaseMatters ? val.Equals(aValue) :
-    nsContentUtils::EqualsIgnoreASCIICase(val, aValue);
+    val.Equals(aValue, nsCaseInsensitiveStringComparator());
 }
 
 bool
@@ -1452,7 +1451,7 @@ nsAttrValue::ParseSpecialIntValue(const nsAString& aString)
     return false;
   }
 
-  int32_t val = std::max(originalVal, 0);
+  int32_t val = NS_MAX(originalVal, 0);
 
   // % (percent)
   if (isPercent || tmp.RFindChar('%') >= 0) {
@@ -1482,8 +1481,8 @@ nsAttrValue::ParseIntWithBounds(const nsAString& aString,
     return false;
   }
 
-  int32_t val = std::max(originalVal, aMin);
-  val = std::min(val, aMax);
+  int32_t val = NS_MAX(originalVal, aMin);
+  val = NS_MIN(val, aMax);
   strict = strict && (originalVal == val);
   SetIntValueAndType(val, eInteger, strict ? nullptr : &aString);
 

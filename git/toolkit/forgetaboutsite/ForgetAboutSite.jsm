@@ -3,11 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
-                                  "resource://gre/modules/PlacesUtils.jsm");
 
-this.EXPORTED_SYMBOLS = ["ForgetAboutSite"];
+var EXPORTED_SYMBOLS = ["ForgetAboutSite"];
 
 /**
  * Returns true if the string passed in is part of the root domain of the
@@ -38,7 +35,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-this.ForgetAboutSite = {
+var ForgetAboutSite = {
   removeDataFromDomain: function CRH_removeDataFromDomain(aDomain)
   {
     // clear any and all network geolocation provider sessions
@@ -46,7 +43,11 @@ this.ForgetAboutSite = {
         Services.prefs.deleteBranch("geo.wifi.access_token.");
     } catch (e) {}
 
-    PlacesUtils.history.removePagesFromHost(aDomain, true);
+    // History
+    let (bh = Cc["@mozilla.org/browser/global-history;2"].
+              getService(Ci.nsIBrowserHistory)) {
+      bh.removePagesFromHost(aDomain, true);
+    }
 
     // Cache
     let (cs = Cc["@mozilla.org/network/cache-service;1"].
@@ -100,41 +101,36 @@ this.ForgetAboutSite = {
     let (dm = Cc["@mozilla.org/download-manager;1"].
               getService(Ci.nsIDownloadManager)) {
       // Active downloads
-      for (let enumerator of [dm.activeDownloads, dm.activePrivateDownloads]) {
-        while (enumerator.hasMoreElements()) {
-          let dl = enumerator.getNext().QueryInterface(Ci.nsIDownload);
-          if (hasRootDomain(dl.source.host, aDomain)) {
-            dl.cancel();
-            dl.remove();
-          }
-        }
-      }
-
-      function deleteAllLike(db) {
-        // NOTE: This is lossy, but we feel that it is OK to be lossy here and not
-        //       invoke the cost of creating a URI for each download entry and
-        //       ensure that the hostname matches.
-        let stmt = db.createStatement(
-          "DELETE FROM moz_downloads " +
-          "WHERE source LIKE ?1 ESCAPE '/' " +
-          "AND state NOT IN (?2, ?3, ?4)"
-        );
-        let pattern = stmt.escapeStringForLIKE(aDomain, "/");
-        stmt.bindByIndex(0, "%" + pattern + "%");
-        stmt.bindByIndex(1, Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING);
-        stmt.bindByIndex(2, Ci.nsIDownloadManager.DOWNLOAD_PAUSED);
-        stmt.bindByIndex(3, Ci.nsIDownloadManager.DOWNLOAD_QUEUED);
-        try {
-          stmt.execute();
-        }
-        finally {
-          stmt.finalize();
+      let enumerator = dm.activeDownloads;
+      while (enumerator.hasMoreElements()) {
+        let dl = enumerator.getNext().QueryInterface(Ci.nsIDownload);
+        if (hasRootDomain(dl.source.host, aDomain)) {
+          dm.cancelDownload(dl.id);
+          dm.removeDownload(dl.id);
         }
       }
 
       // Completed downloads
-      deleteAllLike(dm.DBConnection);
-      deleteAllLike(dm.privateDBConnection);
+      let db = dm.DBConnection;
+      // NOTE: This is lossy, but we feel that it is OK to be lossy here and not
+      //       invoke the cost of creating a URI for each download entry and
+      //       ensure that the hostname matches.
+      let stmt = db.createStatement(
+        "DELETE FROM moz_downloads " +
+        "WHERE source LIKE ?1 ESCAPE '/' " +
+        "AND state NOT IN (?2, ?3, ?4)"
+      );
+      let pattern = stmt.escapeStringForLIKE(aDomain, "/");
+      stmt.bindByIndex(0, "%" + pattern + "%");
+      stmt.bindByIndex(1, Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING);
+      stmt.bindByIndex(2, Ci.nsIDownloadManager.DOWNLOAD_PAUSED);
+      stmt.bindByIndex(3, Ci.nsIDownloadManager.DOWNLOAD_QUEUED);
+      try {
+        stmt.execute();
+      }
+      finally {
+        stmt.finalize();
+      }
 
       // We want to rebuild the list if the UI is showing, so dispatch the
       // observer topic
@@ -176,9 +172,42 @@ this.ForgetAboutSite = {
       }
     }
 
-    // Offline Storages
-    let (qm = Cc["@mozilla.org/dom/quota/manager;1"].
-              getService(Ci.nsIQuotaManager)) {
+    // Content Preferences
+    let (cp = Cc["@mozilla.org/content-pref/service;1"].
+              getService(Ci.nsIContentPrefService)) {
+      let db = cp.DBConnection;
+      // First we need to get the list of "groups" which are really just domains
+      let names = [];
+      let stmt = db.createStatement(
+        "SELECT name " +
+        "FROM groups " +
+        "WHERE name LIKE ?1 ESCAPE '/'"
+      );
+      let pattern = stmt.escapeStringForLIKE(aDomain, "/");
+      stmt.bindByIndex(0, "%" + pattern);
+      try {
+        while (stmt.executeStep())
+          if (hasRootDomain(stmt.getString(0), aDomain))
+            names.push(stmt.getString(0));
+      }
+      finally {
+        stmt.finalize();
+      }
+
+      // Now, for each name we got back, remove all of its prefs.
+      for (let i = 0; i < names.length; i++) {
+        let uri = names[i];
+        let enumerator = cp.getPrefs(uri).enumerator;
+        while (enumerator.hasMoreElements()) {
+          let pref = enumerator.getNext().QueryInterface(Ci.nsIProperty);
+          cp.removePref(uri, pref.name);
+        }
+      }
+    }
+
+    // Indexed DB
+    let (idbm = Cc["@mozilla.org/dom/indexeddb/manager;1"].
+                getService(Ci.nsIIndexedDatabaseManager)) {
       // delete data from both HTTP and HTTPS sites
       let caUtils = {};
       let scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].
@@ -187,21 +216,11 @@ this.ForgetAboutSite = {
                                  caUtils);
       let httpURI = caUtils.makeURI("http://" + aDomain);
       let httpsURI = caUtils.makeURI("https://" + aDomain);
-      qm.clearStoragesForURI(httpURI);
-      qm.clearStoragesForURI(httpsURI);
+      idbm.clearDatabasesForURI(httpURI);
+      idbm.clearDatabasesForURI(httpsURI);
     }
 
-    function onContentPrefsRemovalFinished() {
-      // Everybody else (including extensions)
-      Services.obs.notifyObservers(null, "browser:purge-domain-data", aDomain);
-    }
-
-    // Content Preferences
-    let cps2 = Cc["@mozilla.org/content-pref/service;1"].
-               getService(Ci.nsIContentPrefService2);
-    cps2.removeBySubdomain(aDomain, null, {
-      handleCompletion: function() onContentPrefsRemovalFinished(),
-      handleError: function() {}
-    });
+    // Everybody else (including extensions)
+    Services.obs.notifyObservers(null, "browser:purge-domain-data", aDomain);
   }
 };

@@ -25,15 +25,13 @@ nsContentPermissionRequestProxy::~nsContentPermissionRequestProxy()
 
 nsresult
 nsContentPermissionRequestProxy::Init(const nsACString & type,
-                                      const nsACString & access,
                                       ContentPermissionRequestParent* parent)
 {
   NS_ASSERTION(parent, "null parent");
   mParent = parent;
   mType   = type;
-  mAccess = access;
 
-  nsCOMPtr<nsIContentPermissionPrompt> prompt = do_CreateInstance(NS_CONTENT_PERMISSION_PROMPT_CONTRACTID);
+  nsCOMPtr<nsIContentPermissionPrompt> prompt = do_GetService(NS_CONTENT_PERMISSION_PROMPT_CONTRACTID);
   if (!prompt) {
     return NS_ERROR_FAILURE;
   }
@@ -48,19 +46,12 @@ nsContentPermissionRequestProxy::OnParentDestroyed()
   mParent = nullptr;
 }
 
-NS_IMPL_ISUPPORTS1(nsContentPermissionRequestProxy, nsIContentPermissionRequest)
+NS_IMPL_ISUPPORTS1(nsContentPermissionRequestProxy, nsIContentPermissionRequest);
 
 NS_IMETHODIMP
 nsContentPermissionRequestProxy::GetType(nsACString & aType)
 {
   aType = mType;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsContentPermissionRequestProxy::GetAccess(nsACString & aAccess)
-{
-  aAccess = mAccess;
   return NS_OK;
 }
 
@@ -92,7 +83,7 @@ nsContentPermissionRequestProxy::GetElement(nsIDOMElement * *aRequestingElement)
     return NS_ERROR_FAILURE;
   }
 
-  NS_IF_ADDREF(*aRequestingElement = mParent->mElement);
+  NS_ADDREF(*aRequestingElement = mParent->mElement);
   return NS_OK;
 }
 
@@ -123,7 +114,6 @@ namespace mozilla {
 namespace dom {
 
 ContentPermissionRequestParent::ContentPermissionRequestParent(const nsACString& aType,
-                                                               const nsACString& aAccess,
                                                                nsIDOMElement *aElement,
                                                                const IPC::Principal& aPrincipal)
 {
@@ -132,7 +122,6 @@ ContentPermissionRequestParent::ContentPermissionRequestParent(const nsACString&
   mPrincipal = aPrincipal;
   mElement   = aElement;
   mType      = aType;
-  mAccess    = aAccess;
 }
 
 ContentPermissionRequestParent::~ContentPermissionRequestParent()
@@ -145,7 +134,7 @@ ContentPermissionRequestParent::Recvprompt()
 {
   mProxy = new nsContentPermissionRequestProxy();
   NS_ASSERTION(mProxy, "Alloc of request proxy failed");
-  if (NS_FAILED(mProxy->Init(mType, mAccess, this))) {
+  if (NS_FAILED(mProxy->Init(mType, this))) {
     mProxy->Cancel();
   }
   return true;
@@ -154,9 +143,7 @@ ContentPermissionRequestParent::Recvprompt()
 void
 ContentPermissionRequestParent::ActorDestroy(ActorDestroyReason why)
 {
-  if (mProxy) {
-    mProxy->OnParentDestroyed();
-  }
+  mProxy->OnParentDestroyed();
 }
 
 } // namespace dom

@@ -80,9 +80,7 @@ gfxPattern::AddColorStop(gfxFloat offset, const gfxRGBA& c)
     mStops = NULL;
     if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
         gfxRGBA cms;
-        qcms_transform *transform = gfxPlatform::GetCMSRGBTransform();
-        if (transform)
-          gfxPlatform::TransformPixel(c, cms, transform);
+        gfxPlatform::TransformPixel(c, cms, gfxPlatform::GetCMSRGBTransform());
 
         // Use the original alpha to avoid unnecessary float->byte->float
         // conversion errors
@@ -92,12 +90,6 @@ gfxPattern::AddColorStop(gfxFloat offset, const gfxRGBA& c)
     else
         cairo_pattern_add_color_stop_rgba(mPattern, offset, c.r, c.g, c.b, c.a);
   }
-}
-
-void
-gfxPattern::SetColorStops(mozilla::RefPtr<mozilla::gfx::GradientStops> aStops)
-{
-  mStops = aStops;
 }
 
 void

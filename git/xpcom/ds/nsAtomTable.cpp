@@ -369,13 +369,13 @@ PermanentAtomImpl::~PermanentAtomImpl()
 
 NS_IMETHODIMP_(nsrefcnt) PermanentAtomImpl::AddRef()
 {
-  MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
+  NS_ASSERTION(NS_IsMainThread(), "wrong thread");
   return 2;
 }
 
 NS_IMETHODIMP_(nsrefcnt) PermanentAtomImpl::Release()
 {
-  MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
+  NS_ASSERTION(NS_IsMainThread(), "wrong thread");
   return 1;
 }
 
@@ -392,8 +392,8 @@ PermanentAtomImpl::IsPermanent()
 }
 
 void* PermanentAtomImpl::operator new ( size_t size, AtomImpl* aAtom ) CPP_THROW_NEW {
-  MOZ_ASSERT(!aAtom->IsPermanent(),
-             "converting atom that's already permanent");
+  NS_ASSERTION(!aAtom->IsPermanent(),
+               "converting atom that's already permanent");
 
   // Just let the constructor overwrite the vtable pointer.
   return aAtom;
@@ -473,7 +473,7 @@ NS_SizeOfAtomTablesIncludingThis(nsMallocSizeOfFun aMallocSizeOf) {
     n += gStaticAtomTable->SizeOfIncludingThis(SizeOfStaticAtomTableEntryExcludingThis,
                                                aMallocSizeOf);
   }
-  return n;
+  return 0;
 }
 
 #define ATOM_HASHTABLE_INITIAL_SIZE  4096
@@ -496,7 +496,7 @@ EnsureTableExists()
 static inline AtomTableEntry*
 GetAtomHashEntry(const char* aString, uint32_t aLength)
 {
-  MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
+  NS_ASSERTION(NS_IsMainThread(), "wrong thread");
   if (!EnsureTableExists()) {
     return nullptr;
   }
@@ -508,7 +508,7 @@ GetAtomHashEntry(const char* aString, uint32_t aLength)
 static inline AtomTableEntry*
 GetAtomHashEntry(const PRUnichar* aString, uint32_t aLength)
 {
-  MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
+  NS_ASSERTION(NS_IsMainThread(), "wrong thread");
   if (!EnsureTableExists()) {
     return nullptr;
   }

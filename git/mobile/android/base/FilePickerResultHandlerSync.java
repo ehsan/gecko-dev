@@ -16,7 +16,6 @@ class FilePickerResultHandlerSync extends FilePickerResultHandler {
         super(resultQueue);
     }
 
-    @Override
     public void onActivityResult(int resultCode, Intent data) {
         try {
             mFilePickerResult.put(handleActivityResult(resultCode, data));

@@ -3315,7 +3315,7 @@ PKIX_PL_Cert_IsCertTrusted(
                 PKIX_ERROR(PKIX_CERTISCERTTRUSTEDFAILED);
         }
 
-        if (trustOnlyUserAnchors || cert->isUserTrustAnchor) {
+        if (trustOnlyUserAnchors) {
             /* discard our |trusted| value since we are using the anchors */
             *pTrusted = cert->isUserTrustAnchor;
             goto cleanup;

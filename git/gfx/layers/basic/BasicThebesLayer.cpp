@@ -7,7 +7,7 @@
 #include "gfxUtils.h"
 #include "nsIWidget.h"
 #include "RenderTrace.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 #include "prprf.h"
 
@@ -86,7 +86,7 @@ BasicThebesLayer::PaintThebes(gfxContext* aContext,
                               void* aCallbackData,
                               ReadbackProcessor* aReadback)
 {
-  PROFILER_LABEL("BasicThebesLayer", "PaintThebes");
+  SAMPLE_LABEL("BasicThebesLayer", "PaintThebes");
   NS_ASSERTION(BasicManager()->InDrawing(),
                "Can only draw in drawing phase");
   nsRefPtr<gfxASurface> targetSurface = aContext->CurrentSurface();
@@ -160,7 +160,9 @@ BasicThebesLayer::PaintThebes(gfxContext* aContext,
       flags |= ThebesLayerBuffer::PAINT_WILL_RESAMPLE;
     }
     if (!(flags & ThebesLayerBuffer::PAINT_WILL_RESAMPLE)) {
-      if (MayResample()) {
+      gfxMatrix transform;
+      if (!GetEffectiveTransform().CanDraw2D(&transform) ||
+          transform.HasNonIntegerTranslation()) {
         flags |= ThebesLayerBuffer::PAINT_WILL_RESAMPLE;
       }
     }
@@ -188,7 +190,6 @@ BasicThebesLayer::PaintThebes(gfxContext* aContext,
                   state.mRegionToDraw, extendedDrawRegion, state.mRegionToInvalidate,
                   state.mDidSelfCopy,
                   aCallback, aCallbackData);
-      MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) PaintThebes", this));
       Mutated();
 
       RenderTraceInvalidateEnd(this, "FFFF00");
@@ -398,10 +399,6 @@ BasicShadowableThebesLayer::PaintBuffer(gfxContext* aContext,
                                         LayerManager::DrawThebesLayerCallback aCallback,
                                         void* aCallbackData)
 {
-  // NB: this just throws away the entire valid region if there are
-  // too many rects.
-  mValidRegion.SimplifyInward(8);
-
   Base::PaintBuffer(aContext,
                     aRegionToDraw, aExtendedRegionToDraw, aRegionToInvalidate,
                     aDidSelfCopy,
@@ -462,8 +459,7 @@ BasicShadowableThebesLayer::CreateBuffer(Buffer::ContentType aType,
     PR_snprintf(buf, buflen,
                 "creating ThebesLayer 'back buffer' failed! width=%d, height=%d, type=%x",
                 aSize.width, aSize.height, int(aType));
-    NS_ERROR(buf);
-    return nullptr;
+    NS_RUNTIMEABORT(buf);
   }
 
   NS_ABORT_IF_FALSE(!mIsNewBuffer,

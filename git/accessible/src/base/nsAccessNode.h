@@ -12,20 +12,25 @@
 
 #include "nsIAccessibleTypes.h"
 #include "nsINode.h"
+#include "a11yGeneric.h"
 
+class nsAccessNode;
+class DocAccessible;
+class nsIAccessibleDocument;
 class nsIContent;
-class nsIDocShellTreeItem;
-class nsIFrame;
-class nsIPresShell;
-class nsPresContext;
 
 namespace mozilla {
 namespace a11y {
-
-class DocAccessible;
 class RootAccessible;
+}
+}
 
-class nsAccessNode : public nsISupports
+class nsIPresShell;
+class nsPresContext;
+class nsIFrame;
+class nsIDocShellTreeItem;
+
+class nsAccessNode: public nsISupports
 {
 public:
 
@@ -43,7 +48,7 @@ public:
   /**
    * Return the root document accessible for this accessnode.
    */
-  a11y::RootAccessible* RootAccessible() const;
+  mozilla::a11y::RootAccessible* RootAccessible() const;
 
   /**
    * Shutdown the access node object.
@@ -54,7 +59,6 @@ public:
    * Return frame for the given access node object.
    */
   virtual nsIFrame* GetFrame() const;
-
   /**
    * Return DOM node associated with the accessible.
    */
@@ -67,6 +71,15 @@ public:
   bool IsContent() const
   {
     return GetNode() && GetNode()->IsNodeOfType(nsINode::eCONTENT);
+  }
+  bool IsElement() const
+  {
+    nsINode* node = GetNode();
+    return node && node->IsElement();
+  }
+  bool IsDocumentNode() const
+  {
+    return GetNode() && GetNode()->IsNodeOfType(nsINode::eDOCUMENT);
   }
 
   /**
@@ -90,9 +103,6 @@ private:
   nsAccessNode(const nsAccessNode&) MOZ_DELETE;
   nsAccessNode& operator =(const nsAccessNode&) MOZ_DELETE;
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif
 

@@ -21,15 +21,12 @@
 #include "nsNetUtil.h"
 #include "prprf.h"
 #include "nsDisplayList.h"
-#include "nsCounterManager.h"
 
 #include "imgILoader.h"
 #include "imgIContainer.h"
-#include "imgRequestProxy.h"
 
 #include "nsIServiceManager.h"
 #include "nsIComponentManager.h"
-#include <algorithm>
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -89,7 +86,7 @@ nsBulletFrame::IsEmpty()
 bool
 nsBulletFrame::IsSelfEmpty() 
 {
-  return StyleList()->mListStyleType == NS_STYLE_LIST_STYLE_NONE;
+  return GetStyleList()->mListStyleType == NS_STYLE_LIST_STYLE_NONE;
 }
 
 /* virtual */ void
@@ -97,7 +94,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 {
   nsFrame::DidSetStyleContext(aOldStyleContext);
 
-  imgRequestProxy *newRequest = StyleList()->GetListStyleImage();
+  imgIRequest *newRequest = GetStyleList()->GetListStyleImage();
 
   if (newRequest) {
 
@@ -122,7 +119,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
         } else {
           nsLayoutUtils::DeregisterImageRequest(PresContext(), mImageRequest,
                                                 &mRequestRegistered);
-          mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+          mImageRequest->Cancel(NS_ERROR_FAILURE);
           mImageRequest = nullptr;
         }
       }
@@ -142,7 +139,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
       nsLayoutUtils::DeregisterImageRequest(PresContext(), mImageRequest,
                                             &mRequestRegistered);
 
-      mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
+      mImageRequest->Cancel(NS_ERROR_FAILURE);
       mImageRequest = nullptr;
     }
   }
@@ -158,7 +155,7 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
         bool hadBullet = oldStyleList->GetListStyleImage() ||
             oldStyleList->mListStyleType != NS_STYLE_LIST_STYLE_NONE;
 
-        const nsStyleList* newStyleList = StyleList();
+        const nsStyleList* newStyleList = GetStyleList();
         bool hasBullet = newStyleList->GetListStyleImage() ||
             newStyleList->mListStyleType != NS_STYLE_LIST_STYLE_NONE;
 
@@ -171,19 +168,6 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   }
 #endif
 }
-
-class nsDisplayBulletGeometry : public nsDisplayItemGenericGeometry
-{
-public:
-  nsDisplayBulletGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder)
-    : nsDisplayItemGenericGeometry(aItem, aBuilder)
-  {
-    nsBulletFrame* f = static_cast<nsBulletFrame*>(aItem->GetUnderlyingFrame());
-    mOrdinal = f->GetOrdinal();
-  }
-
-  int32_t mOrdinal;
-};
 
 class nsDisplayBullet : public nsDisplayItem {
 public:
@@ -215,27 +199,6 @@ public:
     bool snap;
     return GetBounds(aBuilder, &snap);
   }
-
-  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder)
-  {
-    return new nsDisplayBulletGeometry(this, aBuilder);
-  }
-
-  virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
-                                         const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion *aInvalidRegion)
-  {
-    const nsDisplayBulletGeometry* geometry = static_cast<const nsDisplayBulletGeometry*>(aGeometry);
-    nsBulletFrame* f = static_cast<nsBulletFrame*>(mFrame);
-
-    if (f->GetOrdinal() != geometry->mOrdinal) {
-      bool snap;
-      aInvalidRegion->Or(geometry->mBounds, GetBounds(aBuilder, &snap));
-      return;
-    }
-
-    return nsDisplayItem::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
-  }
 };
 
 void nsDisplayBullet::Paint(nsDisplayListBuilder* aBuilder,
@@ -245,25 +208,25 @@ void nsDisplayBullet::Paint(nsDisplayListBuilder* aBuilder,
     PaintBullet(*aCtx, ToReferenceFrame(), mVisibleRect);
 }
 
-void
+NS_IMETHODIMP
 nsBulletFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists)
 {
   if (!IsVisibleForPainting(aBuilder))
-    return;
+    return NS_OK;
 
   DO_GLOBAL_REFLOW_COUNT_DSP("nsBulletFrame");
   
-  aLists.Content()->AppendNewToTop(
-    new (aBuilder) nsDisplayBullet(aBuilder, this));
+  return aLists.Content()->AppendNewToTop(
+      new (aBuilder) nsDisplayBullet(aBuilder, this));
 }
 
 void
 nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                            const nsRect& aDirtyRect)
 {
-  const nsStyleList* myList = StyleList();
+  const nsStyleList* myList = GetStyleList();
   uint8_t listStyleType = myList->mListStyleType;
 
   if (myList->GetListStyleImage() && mImageRequest) {
@@ -279,7 +242,7 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                     mRect.height - (mPadding.top + mPadding.bottom));
         nsLayoutUtils::DrawSingleImage(&aRenderingContext,
              imageCon, nsLayoutUtils::GetGraphicsFilterForFrame(this),
-             dest + aPt, aDirtyRect, nullptr, imgIContainer::FLAG_NONE);
+             dest + aPt, aDirtyRect, imgIContainer::FLAG_NONE);
         return;
       }
     }
@@ -418,7 +381,7 @@ nsBulletFrame::SetListItemOrdinal(int32_t aNextOrdinal,
 
   *aChanged = oldOrdinal != mOrdinal;
 
-  return nsCounterManager::IncrementCounter(mOrdinal, aIncrement);
+  return mOrdinal + aIncrement;
 }
 
 
@@ -1269,7 +1232,7 @@ bool
 nsBulletFrame::GetListItemText(const nsStyleList& aListStyle,
                                nsString& result)
 {
-  const nsStyleVisibility* vis = StyleVisibility();
+  const nsStyleVisibility* vis = GetStyleVisibility();
 
   NS_ASSERTION(aListStyle.mListStyleType != NS_STYLE_LIST_STYLE_NONE &&
                aListStyle.mListStyleType != NS_STYLE_LIST_STYLE_DISC &&
@@ -1307,7 +1270,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
   // Reset our padding.  If we need it, we'll set it below.
   mPadding.SizeTo(0, 0, 0, 0);
   
-  const nsStyleList* myList = StyleList();
+  const nsStyleList* myList = GetStyleList();
   nscoord ascent;
 
   RemoveStateBits(BULLET_FRAME_IMAGE_LOADING);
@@ -1351,7 +1314,7 @@ nsBulletFrame::GetDesiredSize(nsPresContext*  aCX,
     case NS_STYLE_LIST_STYLE_CIRCLE:
     case NS_STYLE_LIST_STYLE_SQUARE:
       ascent = fm->MaxAscent();
-      bulletSize = std::max(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
+      bulletSize = NS_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
                           NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
       mPadding.bottom = NSToCoordRound(float(ascent) / 8.0f);
       aMetrics.width = mPadding.right + bulletSize;
@@ -1604,7 +1567,7 @@ nsBulletFrame::GetBaseline() const
     nsRefPtr<nsFontMetrics> fm;
     nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
                                           GetFontSizeInflation());
-    const nsStyleList* myList = StyleList();
+    const nsStyleList* myList = GetStyleList();
     switch (myList->mListStyleType) {
       case NS_STYLE_LIST_STYLE_NONE:
         break;
@@ -1614,7 +1577,7 @@ nsBulletFrame::GetBaseline() const
       case NS_STYLE_LIST_STYLE_SQUARE:
         ascent = fm->MaxAscent();
         bottomPadding = NSToCoordRound(float(ascent) / 8.0f);
-        ascent = std::max(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
+        ascent = NS_MAX(nsPresContext::CSSPixelsToAppUnits(MIN_BULLET_SIZE),
                         NSToCoordRound(0.8f * (float(ascent) / 2.0f)));
         ascent += bottomPadding;
         break;

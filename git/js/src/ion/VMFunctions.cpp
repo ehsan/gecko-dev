@@ -13,11 +13,6 @@
 
 #include "vm/StringObject-inl.h"
 
-#include "builtin/ParallelArray.h"
-
-#include "frontend/TokenStream.h"
-
-#include "jsboolinlines.h"
 #include "jsinterpinlines.h"
 
 using namespace js;
@@ -26,67 +21,31 @@ using namespace js::ion;
 namespace js {
 namespace ion {
 
-// Don't explicitly initialize, it's not guaranteed that this initializer will
-// run before the constructors for static VMFunctions.
-/* static */ VMFunction *VMFunction::functions;
-
-void
-VMFunction::addToFunctions()
-{
-    static bool initialized = false;
-    if (!initialized) {
-        initialized = true;
-        functions = NULL;
-    }
-    this->next = functions;
-    functions = this;
-}
-
 static inline bool
 ShouldMonitorReturnType(JSFunction *fun)
 {
     return fun->isInterpreted() &&
-           (!fun->nonLazyScript()->hasAnalysis() ||
-            !fun->nonLazyScript()->analysis()->ranInference());
+           (!fun->script()->hasAnalysis() ||
+            !fun->script()->analysis()->ranInference());
 }
 
 bool
-InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, Value *rval)
+InvokeFunction(JSContext *cx, JSFunction *fun, uint32 argc, Value *argv, Value *rval)
 {
-    RootedFunction fun(cx, fun0);
-    if (fun->isInterpreted()) {
-        if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
-            return false;
+    Value fval = ObjectValue(*fun);
 
-        // Clone function at call site if needed.
-        if (fun->nonLazyScript()->shouldCloneAtCallsite) {
-            RootedScript script(cx);
-            jsbytecode *pc;
-            types::TypeScript::GetPcScript(cx, script.address(), &pc);
-            fun = CloneFunctionAtCallsite(cx, fun0, script, pc);
-            if (!fun)
-                return false;
+    // In order to prevent massive bouncing between Ion and JM, see if we keep
+    // hitting functions that are uncompilable.
+    
+    if (fun->isInterpreted() && !fun->script()->canIonCompile()) {
+        JSScript *script = GetTopIonJSScript(cx);
+        if (script->hasIonScript() && ++script->ion->slowCallCount >= js_IonOptions.slowCallLimit) {
+            AutoFlushCache afc("InvokeFunction");
+
+            // Poison the script so we don't try to run it again. This will
+            // trigger invalidation.
+            ForbidCompilation(cx, script);
         }
-
-        // In order to prevent massive bouncing between Ion and JM, see if we keep
-        // hitting functions that are uncompilable.
-        if (cx->methodJitEnabled && !fun->nonLazyScript()->canIonCompile()) {
-            RawScript script = GetTopIonJSScript(cx);
-            if (script->hasIonScript() &&
-                ++script->ion->slowCallCount >= js_IonOptions.slowCallLimit)
-            {
-                AutoFlushCache afc("InvokeFunction");
-
-                // Poison the script so we don't try to run it again. This will
-                // trigger invalidation.
-                ForbidCompilation(cx, script);
-            }
-        }
-
-        // When caller runs in IM, but callee not, we take a slow path to the interpreter.
-        // This has a significant overhead. In order to decrease the number of times this happens,
-        // the useCount gets incremented faster to compile this function in IM and use the fastpath.
-        fun->nonLazyScript()->incUseCount(js_IonOptions.slowCallIncUseCount);
     }
 
     // TI will return false for monitorReturnTypes, meaning there is no
@@ -100,15 +59,26 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
     Value thisv = argv[0];
     Value *argvWithoutThis = argv + 1;
 
-    // For constructing functions, |this| is constructed at caller side and we can just call Invoke.
-    // When creating this failed / is impossible at caller site, i.e. MagicValue(JS_IS_CONSTRUCTING),
-    // we use InvokeConstructor that creates it at the callee side.
-    bool ok;
-    if (thisv.isMagic(JS_IS_CONSTRUCTING))
-        ok = InvokeConstructor(cx, ObjectValue(*fun), argc, argvWithoutThis, rval);
-    else
-        ok = Invoke(cx, thisv, ObjectValue(*fun), argc, argvWithoutThis, rval);
+    // Run the function in the interpreter.
+    bool ok = Invoke(cx, thisv, fval, argc, argvWithoutThis, rval);
+    if (ok && needsMonitor)
+        types::TypeScript::Monitor(cx, *rval);
 
+    return ok;
+}
+
+bool
+InvokeConstructor(JSContext *cx, JSObject *obj, uint32 argc, Value *argv, Value *rval)
+{
+    Value fval = ObjectValue(*obj);
+
+    // See the comment in InvokeFunction.
+    bool needsMonitor = !obj->isFunction() || ShouldMonitorReturnType(obj->toFunction());
+
+    // Data in the argument vector is arranged for a JIT -> JIT call.
+    Value *argvWithoutThis = argv + 1;
+
+    bool ok = js::InvokeConstructor(cx, fval, argc, argvWithoutThis, rval);
     if (ok && needsMonitor)
         types::TypeScript::Monitor(cx, *rval);
 
@@ -118,7 +88,7 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
 JSObject *
 NewGCThing(JSContext *cx, gc::AllocKind allocKind, size_t thingSize)
 {
-    return gc::NewGCThing<JSObject, CanGC>(cx, allocKind, thingSize, gc::DefaultHeap);
+    return gc::NewGCThing<JSObject>(cx, allocKind, thingSize);
 }
 
 bool
@@ -164,12 +134,12 @@ InitProp(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue v
 
     if (name == cx->names().proto)
         return baseops::SetPropertyHelper(cx, obj, obj, id, 0, &rval, false);
-    return DefineNativeProperty(cx, obj, id, rval, NULL, NULL, JSPROP_ENUMERATE, 0, 0, 0);
+    return !!DefineNativeProperty(cx, obj, id, rval, NULL, NULL, JSPROP_ENUMERATE, 0, 0, 0);
 }
 
 template<bool Equal>
 bool
-LooselyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
+LooselyEqual(JSContext *cx, HandleValue lhs, HandleValue rhs, JSBool *res)
 {
     bool equal;
     if (!js::LooselyEqual(cx, lhs, rhs, &equal))
@@ -178,12 +148,12 @@ LooselyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBo
     return true;
 }
 
-template bool LooselyEqual<true>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
-template bool LooselyEqual<false>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
+template bool LooselyEqual<true>(JSContext *cx, HandleValue lhs, HandleValue rhs, JSBool *res);
+template bool LooselyEqual<false>(JSContext *cx, HandleValue lhs, HandleValue rhs, JSBool *res);
 
 template<bool Equal>
 bool
-StrictlyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
+StrictlyEqual(JSContext *cx, HandleValue lhs, HandleValue rhs, JSBool *res)
 {
     bool equal;
     if (!js::StrictlyEqual(cx, lhs, rhs, &equal))
@@ -192,11 +162,11 @@ StrictlyEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSB
     return true;
 }
 
-template bool StrictlyEqual<true>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
-template bool StrictlyEqual<false>(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res);
+template bool StrictlyEqual<true>(JSContext *cx, HandleValue lhs, HandleValue rhs, JSBool *res);
+template bool StrictlyEqual<false>(JSContext *cx, HandleValue lhs, HandleValue rhs, JSBool *res);
 
 bool
-LessThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
+LessThan(JSContext *cx, HandleValue lhs, HandleValue rhs, JSBool *res)
 {
     bool cond;
     if (!LessThanOperation(cx, lhs, rhs, &cond))
@@ -206,7 +176,7 @@ LessThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *
 }
 
 bool
-LessThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
+LessThanOrEqual(JSContext *cx, HandleValue lhs, HandleValue rhs, JSBool *res)
 {
     bool cond;
     if (!LessThanOrEqualOperation(cx, lhs, rhs, &cond))
@@ -216,7 +186,7 @@ LessThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, J
 }
 
 bool
-GreaterThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
+GreaterThan(JSContext *cx, HandleValue lhs, HandleValue rhs, JSBool *res)
 {
     bool cond;
     if (!GreaterThanOperation(cx, lhs, rhs, &cond))
@@ -226,7 +196,7 @@ GreaterThan(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBoo
 }
 
 bool
-GreaterThanOrEqual(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, JSBool *res)
+GreaterThanOrEqual(JSContext *cx, HandleValue lhs, HandleValue rhs, JSBool *res)
 {
     bool cond;
     if (!GreaterThanOrEqualOperation(cx, lhs, rhs, &cond))
@@ -249,10 +219,11 @@ StringsEqual(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res)
 template bool StringsEqual<true>(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res);
 template bool StringsEqual<false>(JSContext *cx, HandleString lhs, HandleString rhs, JSBool *res);
 
-JSBool
-ObjectEmulatesUndefined(RawObject obj)
+bool
+ValueToBooleanComplement(JSContext *cx, const Value &input, JSBool *output)
 {
-    return EmulatesUndefined(obj);
+    *output = !ToBoolean(input);
+    return true;
 }
 
 bool
@@ -266,34 +237,22 @@ IteratorMore(JSContext *cx, HandleObject obj, JSBool *res)
     return true;
 }
 
-JSObject *
-NewInitParallelArray(JSContext *cx, HandleObject templateObject)
-{
-    JS_ASSERT(templateObject->getClass() == &ParallelArrayObject::class_);
-    JS_ASSERT(!templateObject->hasSingletonType());
-
-    RootedObject obj(cx, ParallelArrayObject::newInstance(cx));
-    if (!obj)
-        return NULL;
-
-    obj->setType(templateObject->type());
-
-    return obj;
-}
-
 JSObject*
 NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *typeArg)
 {
     RootedTypeObject type(cx, typeArg);
-    NewObjectKind newKind = !type ? SingletonObject : GenericObject;
-    RootedObject obj(cx, NewDenseAllocatedArray(cx, count, NULL, newKind));
+    RootedObject obj(cx, NewDenseAllocatedArray(cx, count));
     if (!obj)
         return NULL;
 
-    if (!type)
+    if (!type) {
+        if (!JSObject::setSingletonType(cx, obj))
+            return NULL;
+
         types::TypeScript::Monitor(cx, ObjectValue(*obj));
-    else
+    } else {
         obj->setType(type);
+    }
 
     return obj;
 }
@@ -301,16 +260,19 @@ NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *typeArg)
 JSObject*
 NewInitObject(JSContext *cx, HandleObject templateObject)
 {
-    NewObjectKind newKind = templateObject->hasSingletonType() ? SingletonObject : GenericObject;
-    RootedObject obj(cx, CopyInitializerObject(cx, templateObject, newKind));
+    RootedObject obj(cx, CopyInitializerObject(cx, templateObject));
 
     if (!obj)
         return NULL;
 
-    if (templateObject->hasSingletonType())
+    if (templateObject->hasSingletonType()) {
+        if (!JSObject::setSingletonType(cx, obj))
+            return NULL;
+
         types::TypeScript::Monitor(cx, ObjectValue(*obj));
-    else
+    } else {
         obj->setType(templateObject->type());
+    }
 
     return obj;
 }
@@ -318,7 +280,7 @@ NewInitObject(JSContext *cx, HandleObject templateObject)
 bool
 ArrayPopDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 {
-    JS_ASSERT(obj->isArray());
+    JS_ASSERT(obj->isDenseArray());
 
     AutoDetectInvalidation adi(cx, rval.address());
 
@@ -338,7 +300,7 @@ ArrayPopDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 bool
 ArrayPushDense(JSContext *cx, HandleObject obj, HandleValue v, uint32_t *length)
 {
-    JS_ASSERT(obj->isArray());
+    JS_ASSERT(obj->isDenseArray());
 
     Value argv[] = { UndefinedValue(), ObjectValue(*obj), v };
     AutoValueArray ava(cx, argv, 3);
@@ -352,7 +314,7 @@ ArrayPushDense(JSContext *cx, HandleObject obj, HandleValue v, uint32_t *length)
 bool
 ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 {
-    JS_ASSERT(obj->isArray());
+    JS_ASSERT(obj->isDenseArray());
 
     AutoDetectInvalidation adi(cx, rval.address());
 
@@ -372,9 +334,9 @@ ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 JSObject *
 ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObject res)
 {
-    JS_ASSERT(obj1->isArray());
-    JS_ASSERT(obj2->isArray());
-    JS_ASSERT_IF(res, res->isArray());
+    JS_ASSERT(obj1->isDenseArray());
+    JS_ASSERT(obj2->isDenseArray());
+    JS_ASSERT_IF(res, res->isDenseArray());
 
     if (res) {
         // Fast path if we managed to allocate an object inline.
@@ -390,20 +352,6 @@ ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObje
     return &argv[0].toObject();
 }
 
-bool
-CharCodeAt(JSContext *cx, HandleString str, int32_t index, uint32_t *code)
-{
-    JS_ASSERT(index >= 0 &&
-              static_cast<uint32_t>(index) < str->length());
-
-    const jschar *chars = str->getChars(cx);
-    if (!chars)
-        return false;
-
-    *code = chars[index];
-    return true;
-}
-
 JSFlatString *
 StringFromCharCode(JSContext *cx, int32_t code)
 {
@@ -412,7 +360,8 @@ StringFromCharCode(JSContext *cx, int32_t code)
     if (StaticStrings::hasUnit(c))
         return cx->runtime->staticStrings.getUnit(c);
 
-    return js_NewStringCopyN<CanGC>(cx, &c, 1);
+    return js_NewStringCopyN(cx, &c, 1);
+
 }
 
 bool
@@ -465,25 +414,22 @@ NewStringObject(JSContext *cx, HandleString str)
     return StringObject::create(cx, str);
 }
 
-bool
-SPSEnter(JSContext *cx, HandleScript script)
+bool SPSEnter(JSContext *cx, HandleScript script)
 {
     return cx->runtime->spsProfiler.enter(cx, script, script->function());
 }
 
-bool
-SPSExit(JSContext *cx, HandleScript script)
+bool SPSExit(JSContext *cx, HandleScript script)
 {
     cx->runtime->spsProfiler.exit(cx, script, script->function());
     return true;
 }
 
-bool
-OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, JSBool *out)
+bool OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, JSBool *out)
 {
     RootedValue dummy(cx); // Disregards atomization changes: no way to propagate.
     RootedId id(cx);
-    if (!FetchElementId(cx, obj, key, &id, &dummy))
+    if (!FetchElementId(cx, obj, key, id.address(), &dummy))
         return false;
 
     RootedObject obj2(cx);
@@ -494,97 +440,6 @@ OperatorIn(JSContext *cx, HandleValue key, HandleObject obj, JSBool *out)
     *out = !!prop;
     return true;
 }
-
-bool
-GetIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue rval)
-{
-    return cx->global()->getIntrinsicValue(cx, name, rval);
-}
-
-bool
-CreateThis(JSContext *cx, HandleObject callee, MutableHandleValue rval)
-{
-    rval.set(MagicValue(JS_IS_CONSTRUCTING));
-
-    if (callee->isFunction()) {
-        JSFunction *fun = callee->toFunction();
-        if (fun->isInterpreted()) {
-            JSScript *script = fun->getOrCreateScript(cx);
-            if (!script || !script->ensureHasTypes(cx))
-                return false;
-            rval.set(ObjectValue(*CreateThisForFunction(cx, callee, false)));
-        }
-    }
-
-    return true;
-}
-
-void
-GetDynamicName(JSContext *cx, JSObject *scopeChain, JSString *str, Value *vp)
-{
-    // Lookup a string on the scope chain, returning either the value found or
-    // undefined through rval. This function is infallible, and cannot GC or
-    // invalidate.
-
-    JSAtom *atom;
-    if (str->isAtom()) {
-        atom = &str->asAtom();
-    } else {
-        atom = AtomizeString<NoGC>(cx, str);
-        if (!atom) {
-            vp->setUndefined();
-            return;
-        }
-    }
-
-    if (!frontend::IsIdentifier(atom) || frontend::FindKeyword(atom->chars(), atom->length())) {
-        vp->setUndefined();
-        return;
-    }
-
-    Shape *shape = NULL;
-    JSObject *scope = NULL, *pobj = NULL;
-    if (LookupNameNoGC(cx, atom->asPropertyName(), scopeChain, &scope, &pobj, &shape)) {
-        if (FetchNameNoGC(pobj, shape, MutableHandleValue::fromMarkedLocation(vp)))
-            return;
-    }
-
-    vp->setUndefined();
-}
-
-JSBool
-FilterArguments(JSContext *cx, JSString *str)
-{
-    // getChars() is fallible, but cannot GC: it can only allocate a character
-    // for the flattened string. If this call fails then the calling Ion code
-    // will bailout, resume in the interpreter and likely fail again when
-    // trying to flatten the string and unwind the stack.
-    const jschar *chars = str->getChars(cx);
-    if (!chars)
-        return false;
-
-    static jschar arguments[] = {'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'};
-    return !StringHasPattern(chars, str->length(), arguments, mozilla::ArrayLength(arguments));
-}
-
-uint32_t
-GetIndexFromString(JSString *str)
-{
-    // Masks the return value UINT32_MAX as failure to get the index.
-    // I.e. it is impossible to distinguish between failing to get the index
-    // or the actual index UINT32_MAX.
-
-    if (!str->isAtom())
-        return UINT32_MAX;
-
-    uint32_t index;
-    JSAtom *atom = &str->asAtom();
-    if (!atom->isIndex(&index))
-        return UINT32_MAX;
-
-    return index;
-}
-
 
 } // namespace ion
 } // namespace js

@@ -17,11 +17,12 @@
 
 namespace mozilla {
 namespace a11y {
-
 struct DOMPoint {
   nsINode* node;
   int32_t idx;
 };
+}
+}
 
 enum EGetTextType { eGetBefore=-1, eGetAt=0, eGetAfter=1 };
 
@@ -242,7 +243,7 @@ public:
 
 protected:
   // Accessible
-  virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
+  virtual mozilla::a11y::ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
 
   // HyperTextAccessible
 
@@ -262,12 +263,6 @@ protected:
 
     return aOffset;
   }
-
-  /**
-   * Return an offset of the found word boundary.
-   */
-  int32_t FindWordBoundary(int32_t aOffset, nsDirection aDirection,
-                           EWordMovementType aWordMovementType);
 
   /*
    * This does the work for nsIAccessibleText::GetText[At|Before|After]Offset
@@ -300,8 +295,7 @@ protected:
   int32_t GetRelativeOffset(nsIPresShell *aPresShell, nsIFrame *aFromFrame,
                             int32_t aFromOffset, Accessible* aFromAccessible,
                             nsSelectionAmount aAmount, nsDirection aDirection,
-                            bool aNeedsStart,
-                            EWordMovementType aWordMovementType);
+                            bool aNeedsStart);
 
   /**
     * Provides information for substring that is defined by the given start
@@ -407,11 +401,9 @@ private:
 inline HyperTextAccessible*
 Accessible::AsHyperText()
 {
-  return IsHyperText() ? static_cast<HyperTextAccessible*>(this) : nullptr;
+  return mFlags & eHyperTextAccessible ?
+    static_cast<HyperTextAccessible*>(this) : nullptr;
 }
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif
 

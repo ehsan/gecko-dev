@@ -46,13 +46,11 @@ endif
 if GCC
 # These are good warnings to be treated as errors
 AM_CXXFLAGS += \
-	-Werror=missing-braces \
 	-Werror=non-virtual-dtor \
-	-Werror=overloaded-virtual \
-	-Werror=reorder \
-	-Werror=sign-compare \
+	-Werror=vla \
 	-Werror=unused-variable \
-	-Werror=vla
+	-Werror=missing-braces \
+	-Werror=overloaded-virtual
 endif
 
 if LINUX_HOST
@@ -134,7 +132,6 @@ src_libbreakpad_a_SOURCES = \
 	src/google_breakpad/processor/source_line_resolver_interface.h \
 	src/google_breakpad/processor/stack_frame.h \
 	src/google_breakpad/processor/stack_frame_cpu.h \
-	src/google_breakpad/processor/stack_frame_symbolizer.h \
 	src/google_breakpad/processor/stackwalker.h \
 	src/google_breakpad/processor/symbol_supplier.h \
 	src/google_breakpad/processor/system_info.h \
@@ -178,6 +175,7 @@ src_libbreakpad_a_SOURCES = \
 	src/processor/process_state.cc \
 	src/processor/range_map-inl.h \
 	src/processor/range_map.h \
+	src/processor/scoped_ptr.h \
 	src/processor/simple_serializer-inl.h \
 	src/processor/simple_serializer.h \
 	src/processor/simple_symbol_supplier.cc \
@@ -185,7 +183,6 @@ src_libbreakpad_a_SOURCES = \
 	src/processor/windows_frame_info.h \
 	src/processor/source_line_resolver_base_types.h \
 	src/processor/source_line_resolver_base.cc \
-	src/processor/stack_frame_symbolizer.cc \
 	src/processor/stackwalker.cc \
 	src/processor/stackwalker_amd64.cc \
 	src/processor/stackwalker_amd64.h \
@@ -391,7 +388,7 @@ if ANDROID_HOST
 src_client_linux_linux_client_unittest_shlib_SOURCES += \
 	src/common/android/breakpad_getcontext_unittest.cc
 src_client_linux_linux_client_unittest_shlib_LDFLAGS += \
-	-llog -lm
+	-llog
 endif
 
 src_client_linux_linux_client_unittest_shlib_DEPENDENCIES = \
@@ -402,10 +399,6 @@ src_client_linux_linux_client_unittest_shlib_DEPENDENCIES = \
 src_client_linux_linux_client_unittest_SOURCES =
 src_client_linux_linux_client_unittest_LDFLAGS = \
 	-Wl,-rpath,'$$ORIGIN'
-if ANDROID_HOST
-src_client_linux_linux_client_unittest_LDFLAGS += \
-        -llog
-endif
 
 src_client_linux_linux_client_unittest_LDADD = \
 	src/client/linux/linux_client_unittest_shlib
@@ -616,7 +609,6 @@ src_processor_exploitability_unittest_LDADD = \
 	src/processor/minidump.o \
 	src/processor/pathname_stripper.o \
 	src/processor/source_line_resolver_base.o \
-	src/processor/stack_frame_symbolizer.o \
 	src/processor/stackwalker.o \
 	src/processor/stackwalker_amd64.o \
 	src/processor/stackwalker_arm.o \
@@ -704,7 +696,6 @@ src_processor_minidump_processor_unittest_LDADD = \
 	src/processor/pathname_stripper.o \
 	src/processor/process_state.o \
 	src/processor/source_line_resolver_base.o \
-	src/processor/stack_frame_symbolizer.o \
 	src/processor/stackwalker.o \
 	src/processor/stackwalker_amd64.o \
 	src/processor/stackwalker_arm.o \
@@ -828,7 +819,6 @@ src_processor_stackwalker_selftest_LDADD = \
 	src/processor/minidump.o \
 	src/processor/pathname_stripper.o \
 	src/processor/source_line_resolver_base.o \
-	src/processor/stack_frame_symbolizer.o \
 	src/processor/stackwalker.o \
 	src/processor/stackwalker_amd64.o \
 	src/processor/stackwalker_arm.o \
@@ -948,7 +938,6 @@ src_processor_minidump_stackwalk_LDADD = \
 	src/processor/process_state.o \
 	src/processor/simple_symbol_supplier.o \
 	src/processor/source_line_resolver_base.o \
-	src/processor/stack_frame_symbolizer.o \
 	src/processor/stackwalker.o \
 	src/processor/stackwalker_amd64.o \
 	src/processor/stackwalker_arm.o \
@@ -1041,7 +1030,6 @@ EXTRA_DIST = \
 	src/common/mac/string_utilities.h \
 	src/common/md5.cc \
 	src/common/md5.h \
-	src/common/scoped_ptr.h \
 	src/common/solaris/dump_symbols.cc \
 	src/common/solaris/dump_symbols.h \
 	src/common/solaris/file_id.cc \

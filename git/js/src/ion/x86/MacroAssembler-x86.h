@@ -22,21 +22,11 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     // Number of bytes the stack is adjusted inside a call to C. Calls to C may
     // not be nested.
     bool inCall_;
-    uint32_t args_;
-    uint32_t passedArgs_;
-    uint32_t stackForCall_;
+    uint32 args_;
+    uint32 passedArgs_;
+    uint32 stackForCall_;
     bool dynamicAlignment_;
     bool enoughMemory_;
-
-    struct Double {
-        double value;
-        AbsoluteLabel uses;
-        Double(double value) : value(value) {}
-    };
-    Vector<Double, 0, SystemAllocPolicy> doubles_;
-
-    typedef HashMap<double, size_t, DefaultHasher<double>, SystemAllocPolicy> DoubleMap;
-    DoubleMap doubleMap_;
 
   protected:
     MoveResolver moveResolver_;
@@ -52,7 +42,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         return Operand(address.base, address.index, address.scale, address.offset + 4);
     }
 
-    void setupABICall(uint32_t args);
+    void setupABICall(uint32 args);
 
   public:
     using MacroAssemblerX86Shared::Push;
@@ -71,10 +61,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         enoughMemory_(true)
     {
     }
-
-    // The buffer is about to be linked, make sure any constant pools or excess
-    // bookkeeping has been flushed to the instruction stream.
-    void finish();
 
     bool oom() const {
         return MacroAssemblerX86Shared::oom() || !enoughMemory_;
@@ -192,6 +178,10 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         push(ImmTag(JSVAL_TYPE_TO_TAG(type)));
         push(reg);
     }
+    void pushValue(const Address &addr) {
+        push(tagOf(addr));
+        push(payloadOf(addr));
+    }
     void storePayload(const Value &val, Operand dest) {
         jsval_layout jv = JSVAL_TO_IMPL(val);
         if (val.isMarkable())
@@ -209,8 +199,11 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void movePtr(const Register &src, const Register &dest) {
         movl(src, dest);
     }
-    void movePtr(const Register &src, const Operand &dest) {
-        movl(src, dest);
+    void movePtr(Operand op, const Register &dest) {
+        movl(op, dest);
+    }
+    void movePtr(const Address &src, const Register &dest) {
+        movl(Operand(src), dest);
     }
 
     // Returns the register containing the type tag.
@@ -289,11 +282,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         cmpl(tag, ImmTag(JSVAL_TAG_MAGIC));
         return cond;
     }
-    Condition testMagic(Condition cond, const Operand &operand) {
-        JS_ASSERT(cond == Equal || cond == NotEqual);
-        cmpl(ToType(operand), ImmTag(JSVAL_TAG_MAGIC));
-        return cond;
-    }
     Condition testPrimitive(Condition cond, const Register &tag) {
         JS_ASSERT(cond == Equal || cond == NotEqual);
         cmpl(tag, ImmTag(JSVAL_UPPER_EXCL_TAG_OF_PRIMITIVE_SET));
@@ -345,13 +333,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     }
 
     void branchTestValue(Condition cond, const ValueOperand &value, const Value &v, Label *label);
-    void branchTestValue(Condition cond, const Address &valaddr, const ValueOperand &value,
-                         Label *label)
-    {
-        JS_ASSERT(cond == Equal || cond == NotEqual);
-        branchPtr(cond, tagOf(valaddr), value.typeReg(), label);
-        branchPtr(cond, payloadOf(valaddr), value.payloadReg(), label);
-    }
 
     void cmpPtr(Register lhs, const ImmWord rhs) {
         cmpl(lhs, Imm32(rhs.value));
@@ -363,9 +344,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         cmpl(lhs, rhs);
     }
     void cmpPtr(const Operand &lhs, const ImmGCPtr rhs) {
-        cmpl(lhs, rhs);
-    }
-    void cmpPtr(const Operand &lhs, const Imm32 rhs) {
         cmpl(lhs, rhs);
     }
     void cmpPtr(const Address &lhs, Register rhs) {
@@ -386,12 +364,12 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     /////////////////////////////////////////////////////////////////
     // Common interface.
     /////////////////////////////////////////////////////////////////
-    void reserveStack(uint32_t amount) {
+    void reserveStack(uint32 amount) {
         if (amount)
             subl(Imm32(amount), StackPointer);
         framePushed_ += amount;
     }
-    void freeStack(uint32_t amount) {
+    void freeStack(uint32 amount) {
         JS_ASSERT(amount <= framePushed_);
         if (amount)
             addl(Imm32(amount), StackPointer);
@@ -413,17 +391,8 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void addPtr(Imm32 imm, const Address &dest) {
         addl(imm, Operand(dest));
     }
-    void addPtr(const Address &src, const Register &dest) {
-        addl(Operand(src), dest);
-    }
     void subPtr(Imm32 imm, const Register &dest) {
         subl(imm, dest);
-    }
-    void subPtr(const Register &src, const Register &dest) {
-        subl(src, dest);
-    }
-    void subPtr(const Address &addr, const Register &dest) {
-        subl(Operand(addr), dest);
     }
 
     template <typename T, typename S>
@@ -447,6 +416,11 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         jump(label);
         return CodeOffsetJump(size());
     }
+    CodeOffsetCall callWithPatch(IonCode *code) {
+        call(code);
+        return CodeOffsetCall(size());
+    }
+
     template <typename S, typename T>
     CodeOffsetJump branchPtrWithPatch(Condition cond, S lhs, T ptr, RepatchLabel *label) {
         branchPtr(cond, lhs, ptr, label);
@@ -464,10 +438,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         testl(lhs, rhs);
         j(cond, label);
     }
-    void branchTestPtr(Condition cond, Register lhs, Imm32 imm, Label *label) {
-        testl(lhs, imm);
-        j(cond, label);
-    }
     void decBranchPtr(Condition cond, const Register &lhs, Imm32 imm, Label *label) {
         subPtr(imm, lhs);
         j(cond, label);
@@ -481,9 +451,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     }
     void loadPtr(const Address &address, Register dest) {
         movl(Operand(address), dest);
-    }
-    void loadPtr(const Operand &src, Register dest) {
-        movl(src, dest);
     }
     void loadPtr(const BaseIndex &src, Register dest) {
         movl(Operand(src), dest);
@@ -503,14 +470,11 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void storePtr(Register src, const Address &address) {
         movl(src, Operand(address));
     }
-    void storePtr(Register src, const Operand &dest) {
-        movl(src, dest);
-    }
     void storePtr(Register src, const AbsoluteAddress &address) {
         movl(src, Operand(address));
     }
 
-    void setStackArg(const Register &reg, uint32_t arg) {
+    void setStackArg(const Register &reg, uint32 arg) {
         movl(reg, Operand(esp, arg * STACK_SLOT_SIZE));
     }
 
@@ -577,11 +541,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         movd(src, dest.payloadReg());
         psrldq(Imm32(4), src);
         movd(src, dest.typeReg());
-    }
-    void boxNonDouble(JSValueType type, const Register &src, const ValueOperand &dest) {
-        if (src != dest.payloadReg())
-            movl(src, dest.payloadReg());
-        movl(ImmType(type), dest.typeReg());
     }
     void unboxInt32(const ValueOperand &src, const Register &dest) {
         movl(src.payloadReg(), dest);
@@ -666,7 +625,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         cvtsi2sd(operand.payloadReg(), dest);
     }
 
-    void loadConstantDouble(double d, const FloatRegister &dest);
     void loadStaticDouble(const double *dp, const FloatRegister &dest) {
         movsd(dp, dest);
     }
@@ -713,17 +671,8 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void lshiftPtr(Imm32 imm, Register dest) {
         shll(imm, dest);
     }
-    void xorPtr(Imm32 imm, Register dest) {
-        xorl(imm, dest);
-    }
     void orPtr(Imm32 imm, Register dest) {
         orl(imm, dest);
-    }
-    void orPtr(Register src, Register dest) {
-        orl(src, dest);
-    }
-    void andPtr(Imm32 imm, Register dest) {
-        andl(imm, dest);
     }
 
     void loadInstructionPointerAfterCall(const Register &dest) {
@@ -744,14 +693,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         addsd(Operand(&NegativeOne), dest);
     }
 
-    void inc64(AbsoluteAddress dest) {
-        addl(Imm32(1), Operand(dest));
-        Label noOverflow;
-        j(NonZero, &noOverflow);
-        addl(Imm32(1), Operand(dest.offset(4)));
-        bind(&noOverflow);
-    }
-
     // Setup a call to C/C++ code, given the number of general arguments it
     // takes. Note that this only supports cdecl.
     //
@@ -759,11 +700,11 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     // consistent view of the stack displacement. It is okay to call "push"
     // manually, however, if the stack alignment were to change, the macro
     // assembler should be notified before starting a call.
-    void setupAlignedABICall(uint32_t args);
+    void setupAlignedABICall(uint32 args);
 
     // Sets up an ABI call for when the alignment is not known. This may need a
     // scratch register.
-    void setupUnalignedABICall(uint32_t args, const Register &scratch);
+    void setupUnalignedABICall(uint32 args, const Register &scratch);
 
     // Arguments must be assigned to a C/C++ call in order. They are moved
     // in parallel immediately before performing the call. This process may
@@ -775,14 +716,8 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     void passABIArg(const Register &reg);
     void passABIArg(const FloatRegister &reg);
 
-  private:
-    void callWithABIPre(uint32_t *stackAdjust);
-    void callWithABIPost(uint32_t stackAdjust, Result result);
-
-  public:
     // Emits a call to a C/C++ function, resolving all argument moves.
     void callWithABI(void *fun, Result result = GENERAL);
-    void callWithABI(const Address &fun, Result result = GENERAL);
 
     // Used from within an Exit frame to handle a pending exception.
     void handleException();
@@ -796,14 +731,23 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     // ThreadData::ionTop.
     void linkExitFrame() {
         JSCompartment *compartment = GetIonContext()->compartment;
-        movl(StackPointer, Operand(&compartment->rt->mainThread.ionTop));
+        movl(StackPointer, Operand(&compartment->rt->ionTop));
     }
 
     void callWithExitFrame(IonCode *target, Register dynStack) {
         addPtr(Imm32(framePushed()), dynStack);
-        makeFrameDescriptor(dynStack, IonFrame_OptimizedJS);
+        makeFrameDescriptor(dynStack, IonFrame_JS);
         Push(dynStack);
         call(target);
+    }
+    void tailCallWithExitFrameFromBaseline(IonCode *target) {
+        movl(ebp, eax);
+        subl(esp, eax);
+        addl(Imm32(4), eax);
+        makeFrameDescriptor(eax, IonFrame_BaselineJS);
+        push(eax);
+        push(esi);
+        jmp(target);
     }
 
     void enterOsr(Register calleeToken, Register code) {
@@ -812,16 +756,6 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         push(Imm32(MakeFrameDescriptor(0, IonFrame_Osr)));
         call(code);
         addl(Imm32(sizeof(uintptr_t) * 2), esp);
-    }
-
-    // See CodeGeneratorX86 calls to noteAsmJSGlobalAccess.
-    void patchAsmJSGlobalAccess(unsigned offset, uint8_t *code, unsigned codeBytes,
-                                unsigned globalDataOffset)
-    {
-        uint8_t *nextInsn = code + offset;
-        JS_ASSERT(nextInsn <= code + codeBytes);
-        uint8_t *target = code + codeBytes + globalDataOffset;
-        ((int32_t *)nextInsn)[-1] = uintptr_t(target);
     }
 };
 

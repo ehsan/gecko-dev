@@ -1,6 +1,8 @@
 #filter substitution
 package @ANDROID_PACKAGE_NAME@.tests;
 
+import @ANDROID_PACKAGE_NAME@.*;
+
 public class testCheck2 extends PixelTest {
     @Override
     protected int getTestType() {
@@ -10,7 +12,7 @@ public class testCheck2 extends PixelTest {
     public void testCheck2() {
         String url = getAbsoluteUrl("/startup_test/fennecmark/cnn/cnn.com/index.html");
 
-        blockForGeckoReady();
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
         loadAndPaint(url);
         mDriver.setupScrollHandling();
 
@@ -28,8 +30,7 @@ public class testCheck2 extends PixelTest {
          * overall performance, but doesn't really allow identifying which part is slow.
          */
 
-        MotionEventReplayer mer = new MotionEventReplayer(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop(),
-                mDriver.getGeckoWidth(), mDriver.getGeckoHeight());
+        MotionEventReplayer mer = new MotionEventReplayer(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
 
         float completeness = 0.0f;
         mDriver.startCheckerboardRecording();

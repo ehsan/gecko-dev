@@ -16,36 +16,28 @@ function createRootActor()
           this.conn.removeActor(aActor);
         }.bind(this);
         let hooks = {
-          addToParentPool: addBreakpoint,
-          removeFromParentPool: removeBreakpoint
+          addToBreakpointPool: addBreakpoint,
+          removeFromBreakpointPool: removeBreakpoint
         };
         let actor = new ThreadActor(hooks);
         actor.addDebuggee(g);
-        actor.global = g;
+        actor._global = g;
         actor.json = function() {
           return { actor: actor.actorID,
                    threadActor: actor.actorID,
-                   global: actor.global.__name };
+                   global: actor._global.__name };
         };
         this.conn.addActor(actor);
         this._globalActors.push(actor);
       }
 
-      return {
-        from: "root",
-        applicationType: "xpcshell-tests",
-        testConnectionPrefix: this.conn.prefix,
-        traits: {
-          sources: true
-        }
-      };
+      return { from: "root",
+               applicationType: "xpcshell-tests",
+               testConnectionPrefix: this.conn.prefix };
     },
 
     listGlobals: function(aRequest) {
-      return {
-        from: "root",
-        contexts: [ g.json() for each (g in this._globalActors) ]
-      };
+      return { from: "root", contexts: [ g.json() for each (g in this._globalActors) ]};
     },
   };
 

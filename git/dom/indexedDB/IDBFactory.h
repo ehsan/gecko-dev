@@ -10,15 +10,11 @@
 #include "mozilla/dom/indexedDB/IndexedDatabase.h"
 
 #include "mozIStorageConnection.h"
+#include "nsIIDBFactory.h"
 
-#include "mozilla/dom/BindingUtils.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsWrapperCache.h"
 
 class nsIAtom;
-class nsIFile;
-class nsIFileURL;
-class nsIIDBOpenDBRequest;
 class nsPIDOMWindow;
 
 namespace mozilla {
@@ -37,8 +33,7 @@ class IndexedDBParent;
 
 struct ObjectStoreInfo;
 
-class IDBFactory MOZ_FINAL : public nsISupports,
-                             public nsWrapperCache
+class IDBFactory MOZ_FINAL : public nsIIDBFactory
 {
   typedef mozilla::dom::ContentParent ContentParent;
   typedef nsTArray<nsRefPtr<ObjectStoreInfo> > ObjectStoreInfoArray;
@@ -46,6 +41,7 @@ class IDBFactory MOZ_FINAL : public nsISupports,
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(IDBFactory)
+  NS_DECL_NSIIDBFACTORY
 
   // Called when using IndexedDB from a window in a different process.
   static nsresult Create(nsPIDOMWindow* aWindow,
@@ -56,9 +52,15 @@ public:
   // Called when using IndexedDB from a window in the current process.
   static nsresult Create(nsPIDOMWindow* aWindow,
                          ContentParent* aContentParent,
-                         IDBFactory** aFactory)
+                         nsIIDBFactory** aFactory)
   {
-    return Create(aWindow, EmptyCString(), aContentParent, aFactory);
+    nsRefPtr<IDBFactory> factory;
+    nsresult rv =
+      Create(aWindow, EmptyCString(), aContentParent, getter_AddRefs(factory));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    factory.forget(aFactory);
+    return NS_OK;
   }
 
   // Called when using IndexedDB from a JS component or a JSM in the current
@@ -73,12 +75,8 @@ public:
   static nsresult Create(ContentParent* aContentParent,
                          IDBFactory** aFactory);
 
-  static already_AddRefed<nsIFileURL>
-  GetDatabaseFileURL(nsIFile* aDatabaseFile, const nsACString& aOrigin);
-
   static already_AddRefed<mozIStorageConnection>
-  GetConnection(const nsAString& aDatabaseFilePath,
-                const nsACString& aOrigin);
+  GetConnection(const nsAString& aDatabaseFilePath);
 
   static nsresult
   LoadDatabaseInformation(mozIStorageConnection* aConnection,
@@ -92,23 +90,11 @@ public:
                       ObjectStoreInfoArray& aObjectStores);
 
   nsresult
-  OpenInternal(const nsAString& aName,
-               int64_t aVersion,
-               const nsACString& aASCIIOrigin,
-               bool aDeleting,
-               JSContext* aCallingCx,
-               IDBOpenDBRequest** _retval);
-
-  nsresult
-  OpenInternal(const nsAString& aName,
-               int64_t aVersion,
-               bool aDeleting,
-               JSContext* aCallingCx,
-               IDBOpenDBRequest** _retval)
-  {
-    return OpenInternal(aName, aVersion, mASCIIOrigin, aDeleting, aCallingCx,
-                        _retval);
-  }
+  OpenCommon(const nsAString& aName,
+             int64_t aVersion,
+             bool aDeleting,
+             JSContext* aCallingCx,
+             IDBOpenDBRequest** _retval);
 
   void
   SetActor(IndexedDBChild* aActorChild)
@@ -130,49 +116,9 @@ public:
     return mASCIIOrigin;
   }
 
-  // WrapperCache
-  nsPIDOMWindow* GetParentObject() const
-  {
-    return mWindow;
-  }
-
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
-
-  // WebIDL
-  already_AddRefed<nsIIDBOpenDBRequest>
-  Open(JSContext* aCx, const NonNull<nsAString>& aName,
-       const Optional<uint64_t>& aVersion, ErrorResult& aRv)
-  {
-    return Open(aCx, nullptr, aName, aVersion, false, aRv);
-  }
-
-  already_AddRefed<nsIIDBOpenDBRequest>
-  DeleteDatabase(JSContext* aCx, const NonNull<nsAString>& aName,
-                 ErrorResult& aRv)
-  {
-    return Open(aCx, nullptr, aName, Optional<uint64_t>(), true, aRv);
-  }
-
-  int16_t
-  Cmp(JSContext* aCx, JS::Value aFirst, JS::Value aSecond, ErrorResult& aRv);
-
-  already_AddRefed<nsIIDBOpenDBRequest>
-  OpenForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
-                   const NonNull<nsAString>& aName,
-                   const Optional<uint64_t>& aVersion, ErrorResult& aRv);
-
-  already_AddRefed<nsIIDBOpenDBRequest>
-  DeleteForPrincipal(JSContext* aCx, nsIPrincipal* aPrincipal,
-                     const NonNull<nsAString>& aName, ErrorResult& aRv);
-
 private:
   IDBFactory();
   ~IDBFactory();
-
-  already_AddRefed<nsIIDBOpenDBRequest>
-  Open(JSContext* aCx, nsIPrincipal* aPrincipal, const nsAString& aName,
-       const Optional<uint64_t>& aVersion, bool aDelete, ErrorResult& aRv);
 
   nsCString mASCIIOrigin;
 

@@ -6,11 +6,11 @@
 #include "SVGAnimatedTransformList.h"
 #include "DOMSVGAnimatedTransformList.h"
 
-#include "mozilla/dom/SVGAnimationElement.h"
+#include "nsISMILAnimationElement.h"
 #include "nsSMILValue.h"
 #include "prdtoa.h"
 #include "SVGContentUtils.h"
-#include "nsSVGTransform.h"
+#include "SVGTransform.h"
 #include "SVGTransformListSMILType.h"
 
 namespace mozilla {
@@ -36,7 +36,7 @@ SVGAnimatedTransformList::SetBaseValueString(const nsAString& aValue)
   }
 
   // We don't need to call DidChange* here - we're only called by
-  // nsSVGElement::ParseAttribute under Element::SetAttr,
+  // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
   // which takes care of notifying.
 
   rv = mBaseVal.CopyFrom(newBaseValue);
@@ -146,7 +146,7 @@ SVGAnimatedTransformList::ToSMILAttr(nsSVGElement* aSVGElement)
 nsresult
 SVGAnimatedTransformList::SMILAnimatedTransformList::ValueFromString(
   const nsAString& aStr,
-  const dom::SVGAnimationElement* aSrcElement,
+  const nsISMILAnimationElement* aSrcElement,
   nsSMILValue& aValue,
   bool& aPreventCachingOfSandwich) const
 {
@@ -190,7 +190,7 @@ SVGAnimatedTransformList::SMILAnimatedTransformList::ParseValue(
     // tx [ty=0]
     if (numParsed != 1 && numParsed != 2)
       return;
-    transformType = SVG_TRANSFORM_TRANSLATE;
+    transformType = nsIDOMSVGTransform::SVG_TRANSFORM_TRANSLATE;
   } else if (aTransformType == nsGkAtoms::scale) {
     // sx [sy=sx]
     if (numParsed != 1 && numParsed != 2)
@@ -198,22 +198,22 @@ SVGAnimatedTransformList::SMILAnimatedTransformList::ParseValue(
     if (numParsed == 1) {
       params[1] = params[0];
     }
-    transformType = SVG_TRANSFORM_SCALE;
+    transformType = nsIDOMSVGTransform::SVG_TRANSFORM_SCALE;
   } else if (aTransformType == nsGkAtoms::rotate) {
     // r [cx=0 cy=0]
     if (numParsed != 1 && numParsed != 3)
       return;
-    transformType = SVG_TRANSFORM_ROTATE;
+    transformType = nsIDOMSVGTransform::SVG_TRANSFORM_ROTATE;
   } else if (aTransformType == nsGkAtoms::skewX) {
     // x-angle
     if (numParsed != 1)
       return;
-    transformType = SVG_TRANSFORM_SKEWX;
+    transformType = nsIDOMSVGTransform::SVG_TRANSFORM_SKEWX;
   } else if (aTransformType == nsGkAtoms::skewY) {
     // y-angle
     if (numParsed != 1)
       return;
-    transformType = SVG_TRANSFORM_SKEWY;
+    transformType = nsIDOMSVGTransform::SVG_TRANSFORM_SKEWY;
   } else {
     return;
   }

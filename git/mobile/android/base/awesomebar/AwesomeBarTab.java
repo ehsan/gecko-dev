@@ -21,15 +21,16 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.ImageView;
+import android.widget.TabHost.TabContentFactory;
 import android.widget.TextView;
 
 abstract public class AwesomeBarTab {
     abstract public String getTag();
     abstract public int getTitleStringId();
     abstract public void destroy();
+    abstract public TabContentFactory getFactory();
     abstract public boolean   onBackPressed();
     abstract public ContextMenuSubject getSubject(ContextMenu menu, View view, ContextMenuInfo menuInfo);
-    abstract public View getView();
 
     protected View mView = null;
     protected View.OnTouchListener mListListener;
@@ -89,26 +90,11 @@ abstract public class AwesomeBarTab {
 
     protected void updateFavicon(ImageView faviconView, Cursor cursor) {
         byte[] b = cursor.getBlob(cursor.getColumnIndexOrThrow(URLColumns.FAVICON));
-        Bitmap favicon = null;
-        if (b != null) {
-            Bitmap bitmap = BitmapFactory.decodeByteArray(b, 0, b.length);
-            if (bitmap != null && bitmap.getWidth() > 0 && bitmap.getHeight() > 0) {
-                favicon = Favicons.getInstance().scaleImage(bitmap);
-            }
-        }
-        updateFavicon(faviconView, favicon);
-    }
-
-    protected void updateFavicon(ImageView faviconView, Bitmap bitmap) {
-        if (bitmap == null) {
+        if (b == null) {
             faviconView.setImageDrawable(null);
-        } else if (Favicons.getInstance().isLargeFavicon(bitmap)) {
-            // If the icon is large, hide the background
-            faviconView.setImageBitmap(bitmap);
-            faviconView.setBackgroundResource(0);
         } else {
+            Bitmap bitmap = BitmapFactory.decodeByteArray(b, 0, b.length);
             faviconView.setImageBitmap(bitmap);
-            faviconView.setBackgroundResource(R.drawable.awesomebar_row_favicon_bg);
         }
     }
 

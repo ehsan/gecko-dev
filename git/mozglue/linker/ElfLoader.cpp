@@ -4,7 +4,6 @@
 
 #include <cstring>
 #include <cstdlib>
-#include <cstdio>
 #include <dlfcn.h>
 #include <unistd.h>
 #include <algorithm>
@@ -96,11 +95,11 @@ __wrap_dladdr(void *addr, Dl_info *info)
 int
 __wrap_dl_iterate_phdr(dl_phdr_cb callback, void *data)
 {
-  if (!ElfLoader::Singleton.dbg)
+  if (ElfLoader::Singleton.dbg == NULL)
     return -1;
 
-  for (ElfLoader::DebuggerHelper::iterator it = ElfLoader::Singleton.dbg.begin();
-       it < ElfLoader::Singleton.dbg.end(); ++it) {
+  for (ElfLoader::r_debug::iterator it = ElfLoader::Singleton.dbg->begin();
+       it < ElfLoader::Singleton.dbg->end(); ++it) {
     dl_phdr_info info;
     info.dlpi_addr = reinterpret_cast<Elf::Addr>(it->l_addr);
     info.dlpi_name = it->l_name;
@@ -166,12 +165,12 @@ SystemElf::Load(const char *path, int flags)
   /* The Android linker returns a handle when the file name matches an
    * already loaded library, even when the full path doesn't exist */
   if (path && path[0] == '/' && (access(path, F_OK) == -1)){
-    debug("dlopen(\"%s\", 0x%x) = %p", path, flags, (void *)NULL);
+    debug("dlopen(\"%s\", %x) = %p", path, flags, (void *)NULL);
     return NULL;
   }
 
   void *handle = dlopen(path, flags);
-  debug("dlopen(\"%s\", 0x%x) = %p", path, flags, handle);
+  debug("dlopen(\"%s\", %x) = %p", path, flags, handle);
   ElfLoader::Singleton.lastError = dlerror();
   if (handle) {
     SystemElf *elf = new SystemElf(path, handle);
@@ -234,9 +233,7 @@ ElfLoader::Load(const char *path, int flags, LibHandle *parent)
   }
 
   char *abs_path = NULL;
-#ifdef MOZ_DEBUG_LINKER
   const char *requested_path = path;
-#endif
 
   /* When the path is not absolute and the library is being loaded for
    * another, first try to load the library from the directory containing
@@ -260,7 +257,7 @@ ElfLoader::Load(const char *path, int flags, LibHandle *parent)
   if ((subpath = strchr(path, '!'))) {
     char *zip_path = strndup(path, subpath - path);
     while (*(++subpath) == '/') { }
-    zip = ZipCollection::GetZip(zip_path);
+    zip = zips.GetZip(zip_path);
     Zip::Stream s;
     if (zip && zip->GetStream(subpath, &s)) {
       /* When the MOZ_LINKER_EXTRACT environment variable is set to "1",
@@ -320,7 +317,7 @@ ElfLoader::Register(LibHandle *handle)
 {
   handles.push_back(handle);
   if (dbg && !handle->IsSystemElf())
-    dbg.Add(static_cast<CustomElf *>(handle));
+    dbg->Add(static_cast<CustomElf *>(handle));
 }
 
 void
@@ -331,7 +328,7 @@ ElfLoader::Forget(LibHandle *handle)
     debug("ElfLoader::Forget(%p [\"%s\"])", reinterpret_cast<void *>(handle),
                                             handle->GetPath());
     if (dbg && !handle->IsSystemElf())
-      dbg.Remove(static_cast<CustomElf *>(handle));
+      dbg->Remove(static_cast<CustomElf *>(handle));
     handles.erase(it);
   } else {
     debug("ElfLoader::Forget(%p [\"%s\"]): Handle not found",
@@ -436,7 +433,8 @@ ElfLoader::DestructorCaller::Call()
   }
 }
 
-ElfLoader::DebuggerHelper::DebuggerHelper(): dbg(NULL)
+void
+ElfLoader::InitDebugger()
 {
   /* Find ELF auxiliary vectors.
    *
@@ -576,70 +574,8 @@ ElfLoader::DebuggerHelper::DebuggerHelper(): dbg(NULL)
       break;
     }
   }
-  debug("DT_DEBUG points at %p", static_cast<void *>(dbg));
+  debug("DT_DEBUG points at %p", dbg);
 }
-
-/**
- * Helper class to ensure the given pointer is writable within the scope of
- * an instance. Permissions to the memory page where the pointer lies are
- * restored to their original value when the instance is destroyed.
- */
-class EnsureWritable
-{
-public:
-  template <typename T>
-  EnsureWritable(T *&ptr)
-  {
-    prot = getProt((uintptr_t) &ptr);
-    if (prot == -1)
-      MOZ_CRASH();
-    /* Pointers are aligned such that their value can't be spanning across
-     * 2 pages. */
-    page = (void*)((uintptr_t) &ptr & PAGE_MASK);
-    if (!(prot & PROT_WRITE))
-      mprotect(page, PAGE_SIZE, prot | PROT_WRITE);
-  }
-
-  ~EnsureWritable()
-  {
-    if (!(prot & PROT_WRITE))
-      mprotect(page, PAGE_SIZE, prot);
-  }
-
-private:
-  int getProt(uintptr_t addr)
-  {
-    /* The interesting part of the /proc/self/maps format looks like:
-     * startAddr-endAddr rwxp */
-    int result = 0;
-    AutoCloseFILE f(fopen("/proc/self/maps", "r"));
-    while (f) {
-      unsigned long long startAddr, endAddr;
-      char perms[5];
-      if (fscanf(f, "%llx-%llx %4s %*1024[^\n] ", &startAddr, &endAddr, perms) != 3)
-        return -1;
-      if (addr < startAddr || addr >= endAddr)
-        continue;
-      if (perms[0] == 'r')
-        result |= PROT_READ;
-      else if (perms[0] != '-')
-        return -1;
-      if (perms[1] == 'w')
-        result |= PROT_WRITE;
-      else if (perms[1] != '-')
-        return -1;
-      if (perms[2] == 'x')
-        result |= PROT_EXEC;
-      else if (perms[2] != '-')
-        return -1;
-      return result;
-    }
-    return -1;
-  }
-
-  int prot;
-  void *page;
-};
 
 /**
  * The system linker maintains a doubly linked list of library it loads
@@ -658,48 +594,34 @@ private:
  * r_debug::r_map.
  */
 void
-ElfLoader::DebuggerHelper::Add(ElfLoader::link_map *map)
+ElfLoader::r_debug::Add(ElfLoader::link_map *map)
 {
-  if (!dbg->r_brk)
+  if (!r_brk)
     return;
-  dbg->r_state = r_debug::RT_ADD;
-  dbg->r_brk();
+  r_state = RT_ADD;
+  r_brk();
   map->l_prev = NULL;
-  map->l_next = dbg->r_map;
-  if (!firstAdded) {
-    firstAdded = map;
-    /* When adding a library for the first time, r_map points to data
-     * handled by the system linker, and that data may be read-only */
-    EnsureWritable w(dbg->r_map->l_prev);
-    dbg->r_map->l_prev = map;
-  } else
-    dbg->r_map->l_prev = map;
-  dbg->r_map = map;
-  dbg->r_state = r_debug::RT_CONSISTENT;
-  dbg->r_brk();
+  map->l_next = r_map;
+  r_map->l_prev = map;
+  r_map = map;
+  r_state = RT_CONSISTENT;
+  r_brk();
 }
 
 void
-ElfLoader::DebuggerHelper::Remove(ElfLoader::link_map *map)
+ElfLoader::r_debug::Remove(ElfLoader::link_map *map)
 {
-  if (!dbg->r_brk)
+  if (!r_brk)
     return;
-  dbg->r_state = r_debug::RT_DELETE;
-  dbg->r_brk();
-  if (dbg->r_map == map)
-    dbg->r_map = map->l_next;
+  r_state = RT_DELETE;
+  r_brk();
+  if (r_map == map)
+    r_map = map->l_next;
   else
     map->l_prev->l_next = map->l_next;
-  if (map == firstAdded) {
-    firstAdded = map->l_prev;
-    /* When removing the first added library, its l_next is going to be
-     * data handled by the system linker, and that data may be read-only */
-    EnsureWritable w(map->l_next->l_prev);
-    map->l_next->l_prev = map->l_prev;
-  } else
-    map->l_next->l_prev = map->l_prev;
-  dbg->r_state = r_debug::RT_CONSISTENT;
-  dbg->r_brk();
+  map->l_next->l_prev = map->l_prev;
+  r_state = RT_CONSISTENT;
+  r_brk();
 }
 
 SEGVHandler::SEGVHandler()
@@ -743,8 +665,9 @@ void SEGVHandler::handler(int signum, siginfo_t *info, void *context)
   /* Check whether we segfaulted in the address space of a CustomElf. We're
    * only expecting that to happen as an access error. */
   if (info->si_code == SEGV_ACCERR) {
-    mozilla::RefPtr<LibHandle> handle =
-      ElfLoader::Singleton.GetHandleByPtr(info->si_addr);
+    /* We may segfault when running destructors in CustomElf::~CustomElf, so we
+     * can't hold a RefPtr on the handle. */
+    LibHandle *handle = ElfLoader::Singleton.GetHandleByPtr(info->si_addr).drop();
     if (handle && !handle->IsSystemElf()) {
       debug("Within the address space of a CustomElf");
       CustomElf *elf = static_cast<CustomElf *>(static_cast<LibHandle *>(handle));
@@ -756,8 +679,7 @@ void SEGVHandler::handler(int signum, siginfo_t *info, void *context)
   /* Redispatch to the registered handler */
   SEGVHandler &that = ElfLoader::Singleton;
   if (that.action.sa_flags & SA_SIGINFO) {
-    debug("Redispatching to registered handler @%p",
-          FunctionPtr(that.action.sa_sigaction));
+    debug("Redispatching to registered handler @%p", that.action.sa_sigaction);
     that.action.sa_sigaction(signum, info, context);
   } else if (that.action.sa_handler == SIG_DFL) {
     debug("Redispatching to default handler");
@@ -765,8 +687,7 @@ void SEGVHandler::handler(int signum, siginfo_t *info, void *context)
     sigaction(signum, &that.action, NULL);
     raise(signum);
   } else if (that.action.sa_handler != SIG_IGN) {
-    debug("Redispatching to registered handler @%p",
-          FunctionPtr(that.action.sa_handler));
+    debug("Redispatching to registered handler @%p", that.action.sa_handler);
     that.action.sa_handler(signum);
   } else {
     debug("Ignoring");

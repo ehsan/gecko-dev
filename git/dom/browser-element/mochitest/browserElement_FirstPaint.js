@@ -5,12 +5,13 @@
 "use strict";
 
 SimpleTest.waitForExplicitFinish();
-browserElementTestHelpers.setEnabledPref(true);
-browserElementTestHelpers.addPermission();
 
 function runTest() {
+  browserElementTestHelpers.setEnabledPref(true);
+  browserElementTestHelpers.addPermission();
+
   var iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
 
   var gotFirstPaint = false;
   var gotFirstLocationChange = false;
@@ -40,4 +41,4 @@ function runTest() {
   iframe.src = browserElementTestHelpers.emptyPage1;
 }
 
-addEventListener('testready', runTest);
+runTest();

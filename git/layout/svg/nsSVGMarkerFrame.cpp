@@ -10,11 +10,9 @@
 #include "gfxContext.h"
 #include "nsRenderingContext.h"
 #include "nsSVGEffects.h"
-#include "mozilla/dom/SVGMarkerElement.h"
+#include "nsSVGMarkerElement.h"
 #include "nsSVGPathGeometryElement.h"
 #include "nsSVGPathGeometryFrame.h"
-
-using namespace mozilla::dom;
 
 nsIFrame*
 NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -49,14 +47,15 @@ nsSVGMarkerFrame::AttributeChanged(int32_t  aNameSpaceID,
 }
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGMarkerFrame::Init(nsIContent* aContent,
                        nsIFrame* aParent,
                        nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::marker), "Content is not an SVG marker");
+  nsCOMPtr<nsIDOMSVGMarkerElement> marker = do_QueryInterface(aContent);
+  NS_ASSERTION(marker, "Content is not an SVG marker");
 
-  nsSVGMarkerFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGMarkerFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 
@@ -79,7 +78,7 @@ nsSVGMarkerFrame::GetCanvasTM(uint32_t aFor)
     return gfxMatrix();
   }
 
-  SVGMarkerElement *content = static_cast<SVGMarkerElement*>(mContent);
+  nsSVGMarkerElement *content = static_cast<nsSVGMarkerElement*>(mContent);
   
   mInUse2 = true;
   gfxMatrix markedTM = mMarkedFrame->GetCanvasTM(aFor);
@@ -105,7 +104,7 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
 
   AutoMarkerReferencer markerRef(this, aMarkedFrame);
 
-  SVGMarkerElement *marker = static_cast<SVGMarkerElement*>(mContent);
+  nsSVGMarkerElement *marker = static_cast<nsSVGMarkerElement*>(mContent);
 
   const nsSVGViewBoxRect viewBox = marker->GetViewBoxRect();
 
@@ -121,7 +120,7 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
 
   gfxContext *gfx = aContext->ThebesContext();
 
-  if (StyleDisplay()->IsScrollableOverflow()) {
+  if (GetStyleDisplay()->IsScrollableOverflow()) {
     gfx->Save();
     gfxRect clipRect =
       nsSVGUtils::GetClipRectForFrame(this, viewBox.x, viewBox.y,
@@ -140,7 +139,7 @@ nsSVGMarkerFrame::PaintMark(nsRenderingContext *aContext,
     }
   }
 
-  if (StyleDisplay()->IsScrollableOverflow())
+  if (GetStyleDisplay()->IsScrollableOverflow())
     gfx->Restore();
 
   return NS_OK;
@@ -163,7 +162,7 @@ nsSVGMarkerFrame::GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 
   AutoMarkerReferencer markerRef(this, aMarkedFrame);
 
-  SVGMarkerElement *content = static_cast<SVGMarkerElement*>(mContent);
+  nsSVGMarkerElement *content = static_cast<nsSVGMarkerElement*>(mContent);
 
   const nsSVGViewBoxRect viewBox = content->GetViewBoxRect();
 
@@ -201,9 +200,9 @@ nsSVGMarkerFrame::GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
 }
 
 void
-nsSVGMarkerFrame::SetParentCoordCtxProvider(SVGSVGElement *aContext)
+nsSVGMarkerFrame::SetParentCoordCtxProvider(nsSVGSVGElement *aContext)
 {
-  SVGMarkerElement *marker = static_cast<SVGMarkerElement*>(mContent);
+  nsSVGMarkerElement *marker = static_cast<nsSVGMarkerElement*>(mContent);
   marker->SetParentCoordCtxProvider(aContext);
 }
 
@@ -218,7 +217,7 @@ nsSVGMarkerFrame::AutoMarkerReferencer::AutoMarkerReferencer(
   mFrame->mInUse = true;
   mFrame->mMarkedFrame = aMarkedFrame;
 
-  SVGSVGElement *ctx =
+  nsSVGSVGElement *ctx =
     static_cast<nsSVGElement*>(aMarkedFrame->GetContent())->GetCtx();
   mFrame->SetParentCoordCtxProvider(ctx);
 }

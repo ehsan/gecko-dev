@@ -11,7 +11,9 @@
 
 #include "jsfriendapi.h"
 
+#if defined(USE_ANGLE)
 #include "angle/ShaderLang.h"
+#endif
 
 #include <algorithm>
 
@@ -33,18 +35,13 @@ WebGLProgram::UpdateInfo()
     mAttribMaxNameLength = 0;
 
     for (size_t i = 0; i < mAttachedShaders.Length(); i++)
-        mAttribMaxNameLength = std::max(mAttribMaxNameLength, mAttachedShaders[i]->mAttribMaxNameLength);
+        mAttribMaxNameLength = NS_MAX(mAttribMaxNameLength, mAttachedShaders[i]->mAttribMaxNameLength);
 
     GLint attribCount;
     mContext->gl->fGetProgramiv(mGLName, LOCAL_GL_ACTIVE_ATTRIBUTES, &attribCount);
 
-    if (!mAttribsInUse.SetLength(mContext->mGLMaxVertexAttribs)) {
-        mContext->ErrorOutOfMemory("updateInfo: out of memory to allocate %d attribs", mContext->mGLMaxVertexAttribs);
-        return false;
-    }
-
-    for (size_t i = 0; i < mAttribsInUse.Length(); i++)
-        mAttribsInUse[i] = false;
+    mAttribsInUse.resize(mContext->mGLMaxVertexAttribs);
+    std::fill(mAttribsInUse.begin(), mAttribsInUse.end(), false);
 
     nsAutoArrayPtr<char> nameBuf(new char[mAttribMaxNameLength]);
 
@@ -74,7 +71,7 @@ WebGLProgram::UpdateInfo()
  */
 
 bool
-WebGLContext::ValidateBuffers(uint32_t *maxAllowedCount, const char *info)
+WebGLContext::ValidateBuffers(int32_t *maxAllowedCount, const char *info)
 {
 #ifdef DEBUG
     GLint currentProgram = 0;
@@ -86,12 +83,13 @@ WebGLContext::ValidateBuffers(uint32_t *maxAllowedCount, const char *info)
         return false;
 #endif
 
-    if (mMinInUseAttribArrayLengthCached) {
+    if (mMinInUseAttribArrayLength != -1) {
         *maxAllowedCount = mMinInUseAttribArrayLength;
         return true;
     }
 
-    uint32_t maxAllowed = UINT32_MAX;
+    *maxAllowedCount = -1;
+
     uint32_t attribs = mAttribBuffers.Length();
     for (uint32_t i = 0; i < attribs; ++i) {
         const WebGLVertexAttribData& vd = mAttribBuffers[i];
@@ -112,40 +110,34 @@ WebGLContext::ValidateBuffers(uint32_t *maxAllowedCount, const char *info)
             continue;
 
         // the base offset
-        CheckedUint32 checked_byteLength
-            = CheckedUint32(vd.buf->ByteLength()) - vd.byteOffset;
-        CheckedUint32 checked_sizeOfLastElement
-            = CheckedUint32(vd.componentSize()) * vd.size;
+        CheckedInt32 checked_byteLength
+          = CheckedInt32(vd.buf->ByteLength()) - vd.byteOffset;
+        CheckedInt32 checked_sizeOfLastElement
+          = CheckedInt32(vd.componentSize()) * vd.size;
 
         if (!checked_byteLength.isValid() ||
             !checked_sizeOfLastElement.isValid())
         {
-            ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
-            return false;
+          ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
+          return false;
         }
 
         if (checked_byteLength.value() < checked_sizeOfLastElement.value()) {
-            maxAllowed = 0;
-            break;
+          *maxAllowedCount = 0;
         } else {
-            CheckedUint32 checked_maxAllowedCount
-                = ((checked_byteLength - checked_sizeOfLastElement) / vd.actualStride()) + 1;
+          CheckedInt32 checked_maxAllowedCount
+            = ((checked_byteLength - checked_sizeOfLastElement) / vd.actualStride()) + 1;
 
-            if (!checked_maxAllowedCount.isValid()) {
-                ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
-                return false;
-            }
+          if (!checked_maxAllowedCount.isValid()) {
+            ErrorInvalidOperation("%s: integer overflow occured while checking vertex attrib %d", info, i);
+            return false;
+          }
 
-            if (maxAllowed > checked_maxAllowedCount.value())
-                maxAllowed = checked_maxAllowedCount.value();
+          if (*maxAllowedCount == -1 || *maxAllowedCount > checked_maxAllowedCount.value())
+              *maxAllowedCount = checked_maxAllowedCount.value();
         }
     }
-
-    *maxAllowedCount = maxAllowed;
-
-    mMinInUseAttribArrayLengthCached = true;
     mMinInUseAttribArrayLength = *maxAllowedCount;
-
     return true;
 }
 
@@ -339,16 +331,6 @@ bool WebGLContext::ValidateGLSLVariableName(const nsAString& name, const char *i
         return false;
     }
 
-    nsString prefix1 = NS_LITERAL_STRING("webgl_");
-    nsString prefix2 = NS_LITERAL_STRING("_webgl_");
-
-    if (Substring(name, 0, prefix1.Length()).Equals(prefix1) ||
-        Substring(name, 0, prefix2.Length()).Equals(prefix2))
-    {
-        ErrorInvalidOperation("%s: string contains a reserved GLSL prefix", info);
-        return false;
-    }
-
     return true;
 }
 
@@ -421,13 +403,13 @@ bool WebGLContext::ValidateCompressedTextureSize(WebGLenum target, WebGLint leve
         case LOCAL_GL_COMPRESSED_RGB_PVRTC_4BPPV1:
         case LOCAL_GL_COMPRESSED_RGBA_PVRTC_4BPPV1:
         {
-            required_byteLength = CheckedUint32(std::max(width, 8)) * CheckedUint32(std::max(height, 8)) / 2;
+            required_byteLength = CheckedUint32(NS_MAX(width, 8)) * CheckedUint32(NS_MAX(height, 8)) / 2;
             break;
         }
         case LOCAL_GL_COMPRESSED_RGB_PVRTC_2BPPV1:
         case LOCAL_GL_COMPRESSED_RGBA_PVRTC_2BPPV1:
         {
-            required_byteLength = CheckedUint32(std::max(width, 16)) * CheckedUint32(std::max(height, 8)) / 4;
+            required_byteLength = CheckedUint32(NS_MAX(width, 16)) * CheckedUint32(NS_MAX(height, 8)) / 4;
             break;
         }
     }
@@ -699,23 +681,6 @@ WebGLContext::ValidateUniformLocation(const char* info, WebGLUniformLocation *lo
 }
 
 bool
-WebGLContext::ValidateSamplerUniformSetter(const char* info, WebGLUniformLocation *location, WebGLint value)
-{
-    if (location->Info().type != SH_SAMPLER_2D &&
-        location->Info().type != SH_SAMPLER_CUBE)
-    {
-        return true;
-    }
-
-    if (value >= 0 && value < mGLMaxTextureUnits)
-        return true;
-
-    ErrorInvalidValue("%s: this uniform location is a sampler, but %d is not a valid texture unit",
-                      info, value);
-    return false;
-}
-
-bool
 WebGLContext::ValidateAttribArraySetter(const char* name, uint32_t cnt, uint32_t arrayLength)
 {
     if (!IsContextStable()) {
@@ -734,7 +699,10 @@ WebGLContext::ValidateUniformArraySetter(const char* name, uint32_t expectedElem
 {
     if (!IsContextStable())
         return false;
-    if (!ValidateUniformLocation(name, location_object))
+    nsCString nameString(name);
+    nsCString suffix = NS_LITERAL_CSTRING(": location");
+    nsCString concatenated = nameString + suffix;
+    if (!ValidateUniformLocation(concatenated.get(), location_object))
         return false;
     location = location_object->Location();
     uint32_t uniformElemSize = location_object->ElementSize();
@@ -745,6 +713,7 @@ WebGLContext::ValidateUniformArraySetter(const char* name, uint32_t expectedElem
                               uniformElemSize);
         return false;
     }
+    const WebGLUniformInfo& info = location_object->Info();
     if (arrayLength == 0 ||
         arrayLength % expectedElemSize)
     {
@@ -754,7 +723,6 @@ WebGLContext::ValidateUniformArraySetter(const char* name, uint32_t expectedElem
                           arrayLength);
         return false;
     }
-    const WebGLUniformInfo& info = location_object->Info();
     if (!info.isArray &&
         arrayLength != expectedElemSize) {
         ErrorInvalidOperation("%s: expected an array of length exactly"
@@ -765,7 +733,7 @@ WebGLContext::ValidateUniformArraySetter(const char* name, uint32_t expectedElem
         return false;
     }
     numElementsToUpload =
-        std::min(info.arraySize, arrayLength / expectedElemSize);
+        NS_MIN(info.arraySize, arrayLength / expectedElemSize);
     return true;
 }
 
@@ -777,7 +745,10 @@ WebGLContext::ValidateUniformMatrixArraySetter(const char* name, int dim, WebGLU
     uint32_t expectedElemSize = (dim)*(dim);
     if (!IsContextStable())
         return false;
-    if (!ValidateUniformLocation(name, location_object))
+    nsCString nameString(name);
+    nsCString suffix = NS_LITERAL_CSTRING(": location");
+    nsCString concatenated = nameString + suffix;
+    if (!ValidateUniformLocation(concatenated.get(), location_object))
         return false;
     location = location_object->Location();
     uint32_t uniformElemSize = location_object->ElementSize();
@@ -788,6 +759,7 @@ WebGLContext::ValidateUniformMatrixArraySetter(const char* name, int dim, WebGLU
                               uniformElemSize);
         return false;
     }
+    const WebGLUniformInfo& info = location_object->Info();
     if (arrayLength == 0 ||
         arrayLength % expectedElemSize)
     {
@@ -797,7 +769,6 @@ WebGLContext::ValidateUniformMatrixArraySetter(const char* name, int dim, WebGLU
                           arrayLength);
         return false;
     }
-    const WebGLUniformInfo& info = location_object->Info();
     if (!info.isArray &&
         arrayLength != expectedElemSize) {
         ErrorInvalidOperation("%s: expected an array of length exactly"
@@ -813,7 +784,7 @@ WebGLContext::ValidateUniformMatrixArraySetter(const char* name, int dim, WebGLU
         return false;
     }
     numElementsToUpload =
-        std::min(info.arraySize, arrayLength / (expectedElemSize));
+        NS_MIN(info.arraySize, arrayLength / (expectedElemSize));
     return true;
 }
 
@@ -822,7 +793,10 @@ WebGLContext::ValidateUniformSetter(const char* name, WebGLUniformLocation *loca
 {
     if (!IsContextStable())
         return false;
-    if (!ValidateUniformLocation(name, location_object))
+    nsCString nameString(name);
+    nsCString suffix = NS_LITERAL_CSTRING(": location");
+    nsCString concatenated = nameString + suffix;
+    if (!ValidateUniformLocation(concatenated.get(), location_object))
         return false;
     location = location_object->Location();
     return true;
@@ -875,8 +849,6 @@ WebGLContext::InitAndValidateGL()
 
     mMinCapability = Preferences::GetBool("webgl.min_capability_mode", false);
     mDisableExtensions = Preferences::GetBool("webgl.disable-extensions", false);
-    mLoseContextOnHeapMinimize = Preferences::GetBool("webgl.lose-context-on-heap-minimize", false);
-    mCanLoseContextInForeground = Preferences::GetBool("webgl.can-lose-context-in-foreground", true);
 
     mActiveTexture = 0;
     mWebGLError = LOCAL_GL_NO_ERROR;
@@ -931,13 +903,11 @@ WebGLContext::InitAndValidateGL()
     if (MinCapabilityMode()) {
         mGLMaxTextureSize = MINVALUE_GL_MAX_TEXTURE_SIZE;
         mGLMaxCubeMapTextureSize = MINVALUE_GL_MAX_CUBE_MAP_TEXTURE_SIZE;
-        mGLMaxRenderbufferSize = MINVALUE_GL_MAX_RENDERBUFFER_SIZE;
         mGLMaxTextureImageUnits = MINVALUE_GL_MAX_TEXTURE_IMAGE_UNITS;
         mGLMaxVertexTextureImageUnits = MINVALUE_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS;
     } else {
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &mGLMaxTextureSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_CUBE_MAP_TEXTURE_SIZE, &mGLMaxCubeMapTextureSize);
-        gl->fGetIntegerv(LOCAL_GL_MAX_RENDERBUFFER_SIZE, &mGLMaxRenderbufferSize);
         gl->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_IMAGE_UNITS, &mGLMaxTextureImageUnits);
         gl->fGetIntegerv(LOCAL_GL_MAX_VERTEX_TEXTURE_IMAGE_UNITS, &mGLMaxVertexTextureImageUnits);
     }
@@ -978,7 +948,7 @@ WebGLContext::InitAndValidateGL()
             error = gl->GetAndClearError();
             switch (error) {
                 case LOCAL_GL_NO_ERROR:
-                    mGLMaxVaryingVectors = std::min(maxVertexOutputComponents, minFragmentInputComponents) / 4;
+                    mGLMaxVaryingVectors = NS_MIN(maxVertexOutputComponents, minFragmentInputComponents) / 4;
                     break;
                 case LOCAL_GL_INVALID_ENUM:
                     mGLMaxVaryingVectors = 16; // = 64/4, 64 is the min value for maxVertexOutputComponents in OpenGL 3.2 spec
@@ -1031,6 +1001,7 @@ WebGLContext::InitAndValidateGL()
     mShaderValidation =
         Preferences::GetBool("webgl.shader_validator", mShaderValidation);
 
+#if defined(USE_ANGLE)
     // initialize shader translator
     if (mShaderValidation) {
         if (!ShInitialize()) {
@@ -1038,6 +1009,7 @@ WebGLContext::InitAndValidateGL()
             return false;
         }
     }
+#endif
 
     // Mesa can only be detected with the GL_VERSION string, of the form "2.1 Mesa 7.11.0"
     mIsMesa = strstr((const char *)(gl->fGetString(LOCAL_GL_VERSION)), "Mesa");

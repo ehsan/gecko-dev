@@ -1,3 +1,4 @@
+#
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,6 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
+
+DIRS = rtltest rtlchrome
+
 
 MOCHITEST_CHROME_FILES = 	findbar_window.xul \
 		test_findbar.xul \
@@ -170,7 +174,7 @@ MOCHITEST_CHROME_FILES += test_autocomplete_mac_caret.xul
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-MOCHITEST_CHROME_FILES += $(filter disabled-temporarily, test_cursorsnap.xul) \
+MOCHITEST_CHROME_FILES += 	$(warning test_cursorsnap.xul temporarily disabled) \
 		window_cursorsnap_dialog.xul \
 		window_cursorsnap_wizard.xul
 endif

@@ -23,7 +23,7 @@ LOCAL_INCLUDES += \
  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/event \
  $(NULL)
 
-ifeq ($(OS_TARGET), Darwin)
+ifeq ($(OS_ARCH), Darwin)
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/darwin/include \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include \
@@ -31,7 +31,7 @@ LOCAL_INCLUDES += \
 DEFINES += -DDARWIN
 endif
 
-ifeq ($(OS_TARGET), Linux)
+ifeq ($(OS_ARCH), Linux)
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/linux/include \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include \
@@ -39,15 +39,7 @@ LOCAL_INCLUDES += \
 DEFINES += -DLINUX
 endif
 
-ifeq ($(OS_TARGET), Android)
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/android/include \
-  -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include \
-  $(NULL)
-DEFINES += -DLINUX -DANDROID
-endif
-
-ifeq ($(OS_TARGET), WINNT)
+ifeq ($(OS_ARCH), WINNT)
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/win32/include \
   -I$(topsrcdir)/media/mtransport/third_party/nrappkit/src/port/generic/include \
@@ -66,8 +58,6 @@ MTRANSPORT_LCPPSRCS = \
   dtlsidentity.cpp \
   nricectx.cpp \
   nricemediastream.cpp \
-  nriceresolverfake.cpp \
-  nriceresolver.cpp \
   nr_socket_prsock.cpp \
   nr_timer.cpp \
   transportflow.cpp \

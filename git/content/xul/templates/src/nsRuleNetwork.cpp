@@ -39,6 +39,29 @@ extern PRLogModuleInfo* gXULTemplateLog;
 
 using namespace mozilla;
 
+bool MemoryElement::gPoolInited;
+nsFixedSizeAllocator MemoryElement::gPool;
+
+// static
+bool
+MemoryElement::Init()
+{
+    if (!gPoolInited) {
+        const size_t bucketsizes[] = {
+            sizeof (nsRDFConMemberTestNode::Element),
+            sizeof (nsRDFPropertyTestNode::Element)
+        };
+
+        if (NS_FAILED(gPool.Init("MemoryElement", bucketsizes,
+                                 ArrayLength(bucketsizes), 256)))
+            return false;
+
+        gPoolInited = true;
+    }
+
+    return true;
+}
+
 //----------------------------------------------------------------------
 //
 // nsRuleNetwork
@@ -52,7 +75,7 @@ MemoryElementSet::Add(MemoryElement* aElement)
             // We've already got this element covered. Since Add()
             // assumes ownership, and we aren't going to need this,
             // just nuke it.
-            delete aElement;
+            aElement->Destroy();
             return NS_OK;
         }
     }

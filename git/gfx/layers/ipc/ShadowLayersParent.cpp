@@ -150,7 +150,10 @@ ShadowLayersParent::RecvUpdateNoSwap(const InfallibleTArray<Edit>& cset,
                                      const TargetConfig& targetConfig,
                                      const bool& isFirstPaint)
 {
-  return RecvUpdate(cset, targetConfig, isFirstPaint, nullptr);
+  InfallibleTArray<EditReply> noReplies;
+  bool success = RecvUpdate(cset, targetConfig, isFirstPaint, &noReplies);
+  NS_ABORT_IF_FALSE(noReplies.Length() == 0, "RecvUpdateNoSwap requires a sync Update to carry Edits");
+  return success;
 }
 
 bool
@@ -243,9 +246,11 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       layer->SetClipRect(common.useClipRect() ? &common.clipRect() : NULL);
       layer->SetBaseTransform(common.transform().value());
       layer->SetPostScale(common.postXScale(), common.postYScale());
-      layer->SetIsFixedPosition(common.isFixedPosition());
-      layer->SetFixedPositionAnchor(common.fixedPositionAnchor());
-      layer->SetFixedPositionMargins(common.fixedPositionMargin());
+      static bool fixedPositionLayersEnabled = getenv("MOZ_ENABLE_FIXED_POSITION_LAYERS") != 0;
+      if (fixedPositionLayersEnabled) {
+        layer->SetIsFixedPosition(common.isFixedPosition());
+        layer->SetFixedPositionAnchor(common.fixedPositionAnchor());
+      }
       if (PLayerParent* maskLayer = common.maskLayerParent()) {
         layer->SetMaskLayer(cast(maskLayer)->AsLayer());
       } else {
@@ -280,7 +285,6 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
           specific.get_ContainerLayerAttributes();
         containerLayer->SetFrameMetrics(attrs.metrics());
         containerLayer->SetPreScale(attrs.preXScale(), attrs.preYScale());
-        containerLayer->SetInheritedScale(attrs.inheritedXScale(), attrs.inheritedYScale());
         break;
       }
       case Specific::TColorLayerAttributes:
@@ -422,11 +426,8 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       CanvasSurface newBack;
       canvas->Swap(op.newFrontBuffer(), op.needYFlip(), &newBack);
       canvas->Updated();
-
-      if (reply) {
-        replyv.push_back(OpBufferSwap(shadow, NULL,
-                                      newBack));
-      }
+      replyv.push_back(OpBufferSwap(shadow, NULL,
+                                    newBack));
 
       RenderTraceInvalidateEnd(canvas, "FF00FF");
       break;
@@ -458,11 +459,9 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
 
   layer_manager()->EndTransaction(NULL, NULL, LayerManager::END_NO_IMMEDIATE_REDRAW);
 
-  if (reply) {
-    reply->SetCapacity(replyv.size());
-    if (replyv.size() > 0) {
-      reply->AppendElements(&replyv.front(), replyv.size());
-    }
+  reply->SetCapacity(replyv.size());
+  if (replyv.size() > 0) {
+    reply->AppendElements(&replyv.front(), replyv.size());
   }
 
   // Ensure that any pending operations involving back and front
@@ -479,18 +478,6 @@ ShadowLayersParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
   }
 #endif
 
-  return true;
-}
-
-bool
-ShadowLayersParent::RecvClearCachedResources()
-{
-  if (mRoot) {
-    // NB: |mRoot| here is the *child* context's root.  In this parent
-    // context, it's just a subtree root.  We need to scope the clear
-    // of resources to exactly that subtree, so we specify it here.
-    mLayerManager->ClearCachedResources(mRoot);
-  }
   return true;
 }
 

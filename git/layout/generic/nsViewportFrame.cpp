@@ -17,7 +17,7 @@
 #include "FrameLayerBuilder.h"
 #include "nsSubDocumentFrame.h"
 #include "nsAbsoluteContainingBlock.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 using namespace mozilla;
 
@@ -29,12 +29,12 @@ NS_NewViewportFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(ViewportFrame)
 
-void
+NS_IMETHODIMP
 ViewportFrame::Init(nsIContent*      aContent,
                     nsIFrame*        aParent,
                     nsIFrame*        aPrevInFlow)
 {
-  Super::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = Super::Init(aContent, aParent, aPrevInFlow);
 
   nsIFrame* parent = nsLayoutUtils::GetCrossDocParentFrame(this);
   if (parent) {
@@ -42,6 +42,15 @@ ViewportFrame::Init(nsIContent*      aContent,
 
     mState |= state & (NS_FRAME_IN_POPUP);
   }
+
+  return rv;
+}
+
+void
+ViewportFrame::DestroyFrom(nsIFrame* aDestructRoot)
+{
+  DestroyAbsoluteFrames(aDestructRoot);
+  nsContainerFrame::DestroyFrom(aDestructRoot);
 }
 
 NS_IMETHODIMP
@@ -55,20 +64,20 @@ ViewportFrame::SetInitialChildList(ChildListID     aListID,
   return nsContainerFrame::SetInitialChildList(aListID, aChildList);
 }
 
-void
+NS_IMETHODIMP
 ViewportFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists)
 {
-  PROFILER_LABEL("ViewportFrame", "BuildDisplayList");
+  SAMPLE_LABEL("ViewportFrame", "BuildDisplayList");
   nsIFrame* kid = mFrames.FirstChild();
   if (!kid)
-    return;
+    return NS_OK;
 
   // make the kid's BorderBackground our own. This ensures that the canvas
   // frame's background becomes our own background and therefore appears
   // below negative z-index elements.
-  BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+  return BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
 }
 
 NS_IMETHODIMP

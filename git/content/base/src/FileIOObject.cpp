@@ -29,23 +29,25 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(FileIOObject)
   NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(FileIOObject)
+
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(FileIOObject,
                                                   nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mProgressNotifier)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mError)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mProgressNotifier)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mError)
   // Can't traverse mChannel because it's a multithreaded object.
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(FileIOObject,
                                                 nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mProgressNotifier)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mError)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mChannel)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mProgressNotifier)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mError)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChannel)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
  
-NS_IMPL_EVENT_HANDLER(FileIOObject, abort)
-NS_IMPL_EVENT_HANDLER(FileIOObject, error)
-NS_IMPL_EVENT_HANDLER(FileIOObject, progress)
+NS_IMPL_EVENT_HANDLER(FileIOObject, abort);
+NS_IMPL_EVENT_HANDLER(FileIOObject, error);
+NS_IMPL_EVENT_HANDLER(FileIOObject, progress);
 
 FileIOObject::FileIOObject()
   : mProgressEventWasDelayed(false),
@@ -104,8 +106,9 @@ nsresult
 FileIOObject::DispatchProgressEvent(const nsAString& aType)
 {
   nsCOMPtr<nsIDOMEvent> event;
-  nsresult rv = NS_NewDOMProgressEvent(getter_AddRefs(event), this,
-                                       nullptr, nullptr);
+  nsresult rv = nsEventDispatcher::CreateEvent(nullptr, nullptr,
+                                               NS_LITERAL_STRING("ProgressEvent"),
+                                               getter_AddRefs(event));
   NS_ENSURE_SUCCESS(rv, rv);
 
   event->SetTrusted(true);

@@ -5,7 +5,6 @@
 
 #include "nsHttpChunkedDecoder.h"
 #include "nsHttp.h"
-#include <algorithm>
 
 //-----------------------------------------------------------------------------
 // nsHttpChunkedDecoder <public>
@@ -44,7 +43,7 @@ nsHttpChunkedDecoder::HandleChunkedContent(char *buf,
 
     while (count) {
         if (mChunkRemaining) {
-            uint32_t amt = std::min(mChunkRemaining, count);
+            uint32_t amt = NS_MIN(mChunkRemaining, count);
 
             count -= amt;
             mChunkRemaining -= amt;

@@ -10,9 +10,7 @@
 #include "AccessCheck.h"
 
 #include "nsJSPrincipals.h"
-#include "nsIDocument.h"
 #include "nsIDOMWindow.h"
-#include "nsPIDOMWindow.h"
 #include "nsIDOMWindowCollection.h"
 #include "nsContentUtils.h"
 #include "nsJSUtils.h"
@@ -22,7 +20,6 @@
 #include "FilteringWrapper.h"
 
 #include "jsfriendapi.h"
-#include "mozilla/dom/BindingUtils.h"
 
 using namespace mozilla;
 using namespace js;
@@ -55,12 +52,6 @@ AccessCheck::subsumes(JSCompartment *a, JSCompartment *b)
     return subsumes;
 }
 
-bool
-AccessCheck::subsumes(JSObject *a, JSObject *b)
-{
-    return subsumes(js::GetObjectCompartment(a), js::GetObjectCompartment(b));
-}
-
 // Same as above, but ignoring document.domain.
 bool
 AccessCheck::subsumesIgnoringDomain(JSCompartment *a, JSCompartment *b)
@@ -86,6 +77,32 @@ AccessCheck::wrapperSubsumes(JSObject *wrapper)
     JSObject *wrapped = js::UnwrapObject(wrapper);
     return AccessCheck::subsumes(js::GetObjectCompartment(wrapper),
                                  js::GetObjectCompartment(wrapped));
+}
+
+bool
+AccessCheck::isLocationObjectSameOrigin(JSContext *cx, JSObject *wrapper)
+{
+    // The caller must ensure that the given wrapper wraps a Location object.
+    MOZ_ASSERT(WrapperFactory::IsLocationObject(js::UnwrapObject(wrapper)));
+
+    // Location objects are parented to the outer window for which they
+    // were created. This gives us an easy way to determine whether our
+    // object is same origin with the current inner window:
+
+    // Grab the outer window...
+    JSObject *obj = js::GetObjectParent(js::UnwrapObject(wrapper));
+    if (!js::GetObjectClass(obj)->ext.innerObject) {
+        // ...which might be wrapped in a security wrapper.
+        obj = js::UnwrapObject(obj);
+        MOZ_ASSERT(js::GetObjectClass(obj)->ext.innerObject);
+    }
+
+    // Now innerize it to find the *current* inner window for our outer.
+    obj = JS_ObjectToInnerObject(cx, obj);
+
+    // Which lets us compare the current compartment against the old one.
+    return obj && subsumes(js::GetObjectCompartment(wrapper),
+                           js::GetObjectCompartment(obj));
 }
 
 bool
@@ -144,7 +161,7 @@ IsPermitted(const char *name, JSFlatString *prop, bool set)
         return false;
     switch (name[0]) {
         NAME('L', "Location",
-             PROP('h', W("href"))
+             PROP('h', W("hash") W("href"))
              PROP('r', R("replace")))
         NAME('W', "Window",
              PROP('b', R("blur"))
@@ -168,10 +185,7 @@ IsPermitted(const char *name, JSFlatString *prop, bool set)
 static bool
 IsFrameId(JSContext *cx, JSObject *obj, jsid id)
 {
-    obj = JS_ObjectToInnerObject(cx, obj);
-    MOZ_ASSERT(!js::IsWrapper(obj));
-    XPCWrappedNative *wn = IS_WN_WRAPPER(obj) ? XPCWrappedNative::Get(obj)
-                                              : nullptr;
+    XPCWrappedNative *wn = XPCWrappedNative::GetWrappedNativeOfJSObject(cx, obj);
     if (!wn) {
         return false;
     }
@@ -217,6 +231,11 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
 
     JSObject *obj = Wrapper::wrappedObject(wrapper);
 
+    // PUNCTURE Is always denied for cross-origin access.
+    if (act == Wrapper::PUNCTURE) {
+        return false;
+    }
+
     const char *name;
     js::Class *clasp = js::GetObjectClass(obj);
     NS_ASSERTION(Jsvalify(clasp) != &XrayUtils::HolderClass, "shouldn't have a holder here");
@@ -234,6 +253,15 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
 }
 
 bool
+AccessCheck::callerIsXBL(JSContext *cx)
+{
+    JSScript *script;
+    if (!JS_DescribeScriptedCaller(cx, &script, nullptr) || !script)
+        return false;
+    return JS_GetScriptUserBit(script);
+}
+
+bool
 AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
 {
     MOZ_ASSERT(cx == nsContentUtils::GetCurrentJSContext());
@@ -243,10 +271,6 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
 bool
 AccessCheck::needsSystemOnlyWrapper(JSObject *obj)
 {
-    JSObject* wrapper = obj;
-    if (dom::GetSameCompartmentWrapperForDOMBinding(wrapper))
-        return wrapper != obj;
-
     if (!IS_WN_WRAPPER(obj))
         return false;
 
@@ -255,36 +279,89 @@ AccessCheck::needsSystemOnlyWrapper(JSObject *obj)
 }
 
 bool
-OnlyIfSubjectIsSystem::isSafeToUnwrap()
+AccessCheck::isScriptAccessOnly(JSContext *cx, JSObject *wrapper)
 {
-    // It's nasty to use the context stack here, but the alternative is passing cx all
-    // the way down through UnwrapObjectChecked, which we just undid in a 100k patch. :-(
-    JSContext *cx = nsContentUtils::GetCurrentJSContext();
-    if (!cx)
+    MOZ_ASSERT(js::IsWrapper(wrapper));
+
+    unsigned flags;
+    JSObject *obj = js::UnwrapObject(wrapper, true, &flags);
+
+    // If the wrapper indicates script-only access, we are done.
+    if (flags & WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG) {
+        if (flags & WrapperFactory::SOW_FLAG)
+            return !isSystemOnlyAccessPermitted(cx);
         return true;
-    // If XBL scopes are enabled for this compartment, this hook doesn't need to
-    // be dynamic at all, since SOWs can be opaque.
-    if (xpc::AllowXBLScope(js::GetContextCompartment(cx)))
-        return false;
-    return AccessCheck::isSystemOnlyAccessPermitted(cx);
+    }
+
+    // In addition, chrome objects can explicitly opt-in by setting .scriptOnly to true.
+    if (js::GetProxyHandler(wrapper) ==
+        &FilteringWrapper<CrossCompartmentSecurityWrapper,
+        CrossOriginAccessiblePropertiesOnly>::singleton) {
+        jsid scriptOnlyId = GetRTIdByIndex(cx, XPCJSRuntime::IDX_SCRIPTONLY);
+        jsval scriptOnly;
+        if (JS_LookupPropertyById(cx, obj, scriptOnlyId, &scriptOnly) &&
+            scriptOnly == JSVAL_TRUE)
+            return true; // script-only
+    }
+
+    // Allow non-script access to same-origin location objects and any other
+    // objects.
+    return WrapperFactory::IsLocationObject(obj) && !isLocationObjectSameOrigin(cx, wrapper);
+}
+
+void
+AccessCheck::deny(JSContext *cx, jsid id)
+{
+    if (id == JSID_VOID) {
+        JS_ReportError(cx, "Permission denied to access object");
+    } else {
+        jsval idval;
+        if (!JS_IdToValue(cx, id, &idval))
+            return;
+        JSString *str = JS_ValueToString(cx, idval);
+        if (!str)
+            return;
+        const jschar *chars = JS_GetStringCharsZ(cx, str);
+        if (chars)
+            JS_ReportError(cx, "Permission denied to access property '%hs'", chars);
+    }
 }
 
 enum Access { READ = (1<<0), WRITE = (1<<1), NO_ACCESS = 0 };
 
-static void
-EnterAndThrow(JSContext *cx, JSObject *wrapper, const char *msg)
+static bool
+Deny(JSContext *cx, jsid id, Wrapper::Action act)
 {
-    JSAutoCompartment ac(cx, wrapper);
-    JS_ReportError(cx, msg);
+    // Refuse to perform the action and just return the default value.
+    if (act == Wrapper::GET)
+        return true;
+    // If its a set, deny it and throw an exception.
+    AccessCheck::deny(cx, id);
+    return false;
+}
+
+static bool
+IsInSandbox(JSContext *cx, JSObject *obj)
+{
+    JSAutoCompartment ac(cx, obj);
+    JSObject *global = JS_GetGlobalForObject(cx, obj);
+    return !strcmp(js::GetObjectJSClass(global)->name, "Sandbox");
 }
 
 bool
-ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper::Action act)
+ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper::Action act,
+                             Permission &perm)
 {
     JSObject *wrappedObject = Wrapper::wrappedObject(wrapper);
 
-    if (act == Wrapper::CALL)
+    if (act == Wrapper::CALL) {
+        perm = PermitObjectAccess;
         return true;
+    }
+
+    perm = DenyAccess;
+    if (act == Wrapper::PUNCTURE)
+        return Deny(cx, id, act);
 
     jsid exposedPropsId = GetRTIdByIndex(cx, XPCJSRuntime::IDX_EXPOSEDPROPS);
 
@@ -300,50 +377,76 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
 
     // Always permit access to "length" and indexed properties of arrays.
     if ((JS_IsArrayObject(cx, wrappedObject) ||
-         JS_IsTypedArrayObject(wrappedObject)) &&
+         JS_IsTypedArrayObject(wrappedObject, cx)) &&
         ((JSID_IS_INT(id) && JSID_TO_INT(id) >= 0) ||
          (JSID_IS_STRING(id) && JS_FlatStringEqualsAscii(JSID_TO_FLAT_STRING(id), "length")))) {
+        perm = PermitPropertyAccess;
         return true; // Allow
     }
 
     // If no __exposedProps__ existed, deny access.
     if (!found) {
-        return false;
+        // Everything below here needs to be done in the wrapper's compartment.
+        JSAutoCompartment wrapperAC(cx, wrapper);
+        // Make a temporary exception for objects in a chrome sandbox to help
+        // out jetpack. See bug 784233.
+        if (!JS_ObjectIsFunction(cx, wrappedObject) &&
+            IsInSandbox(cx, wrappedObject))
+        {
+            // This little loop hole will go away soon! See bug 553102.
+            nsCOMPtr<nsPIDOMWindow> win =
+                do_QueryInterface(nsJSUtils::GetStaticScriptGlobal(cx, wrapper));
+            if (win) {
+                nsCOMPtr<nsIDocument> doc =
+                    do_QueryInterface(win->GetExtantDocument());
+                if (doc) {
+                    doc->WarnOnceAbout(nsIDocument::eNoExposedProps,
+                                       /* asError = */ true);
+                }
+            }
+
+            perm = PermitPropertyAccess;
+            return true;
+        }
+        return Deny(cx, id, act);
     }
 
-    if (id == JSID_VOID)
+    if (id == JSID_VOID) {
+        // This will force the caller to call us back for individual property accesses.
+        perm = PermitPropertyAccess;
         return true;
+    }
 
     JS::Value exposedProps;
     if (!JS_LookupPropertyById(cx, wrappedObject, exposedPropsId, &exposedProps))
         return false;
 
-    if (exposedProps.isNullOrUndefined())
-        return false;
+    if (exposedProps.isNullOrUndefined()) {
+        JSAutoCompartment wrapperAC(cx, wrapper);
+        return Deny(cx, id, act);
+    }
 
     if (!exposedProps.isObject()) {
-        EnterAndThrow(cx, wrapper, "__exposedProps__ must be undefined, null, or an Object");
+        JS_ReportError(cx, "__exposedProps__ must be undefined, null, or an Object");
         return false;
     }
 
     JSObject *hallpass = &exposedProps.toObject();
 
-    if (!AccessCheck::subsumes(js::UnwrapObject(hallpass), wrappedObject)) {
-        EnterAndThrow(cx, wrapper, "Invalid __exposedProps__");
-        return false;
-    }
-
     Access access = NO_ACCESS;
 
     JSPropertyDescriptor desc;
-    if (!JS_GetPropertyDescriptorById(cx, hallpass, id, 0, &desc)) {
+    memset(&desc, 0, sizeof(desc));
+    if (!JS_GetPropertyDescriptorById(cx, hallpass, id, JSRESOLVE_QUALIFIED, &desc)) {
         return false; // Error
     }
-    if (!desc.obj || !(desc.attrs & JSPROP_ENUMERATE))
-        return false;
+    if (desc.obj == NULL || !(desc.attrs & JSPROP_ENUMERATE)) {
+        JSAutoCompartment wrapperAC(cx, wrapper);
+        return Deny(cx, id, act);
+    }
 
     if (!JSVAL_IS_STRING(desc.value)) {
-        EnterAndThrow(cx, wrapper, "property must be a string");
+        JS_ReportError(cx, "property must be a string");
         return false;
     }
 
@@ -357,7 +460,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
         switch (chars[i]) {
         case 'r':
             if (access & READ) {
-                EnterAndThrow(cx, wrapper, "duplicate 'readable' property flag");
+                JS_ReportError(cx, "duplicate 'readable' property flag");
                 return false;
             }
             access = Access(access | READ);
@@ -365,41 +468,38 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
 
         case 'w':
             if (access & WRITE) {
-                EnterAndThrow(cx, wrapper, "duplicate 'writable' property flag");
+                JS_ReportError(cx, "duplicate 'writable' property flag");
                 return false;
             }
             access = Access(access | WRITE);
             break;
 
         default:
-            EnterAndThrow(cx, wrapper, "properties can only be readable or read and writable");
+            JS_ReportError(cx, "properties can only be readable or read and writable");
             return false;
         }
     }
 
     if (access == NO_ACCESS) {
-        EnterAndThrow(cx, wrapper, "specified properties must have a permission bit set");
+        JS_ReportError(cx, "specified properties must have a permission bit set");
         return false;
     }
 
     if ((act == Wrapper::SET && !(access & WRITE)) ||
         (act != Wrapper::SET && !(access & READ))) {
-        return false;
+        JSAutoCompartment wrapperAC(cx, wrapper);
+        return Deny(cx, id, act);
     }
 
-    return true;
+    perm = PermitPropertyAccess;
+    return true; // Allow
 }
 
 bool
-ExposedPropertiesOnly::allowNativeCall(JSContext *cx, JS::IsAcceptableThis test,
-                                       JS::NativeImpl impl)
+ComponentsObjectPolicy::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper::Action act,
+                              Permission &perm) 
 {
-    return js::IsReadOnlyDateMethod(test, impl) || js::IsTypedArrayThisCheck(test);
-}
-
-bool
-ComponentsObjectPolicy::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper::Action act)
-{
+    perm = DenyAccess;
     JSAutoCompartment ac(cx, wrapper);
 
     if (JSID_IS_STRING(id) && act == Wrapper::GET) {
@@ -410,6 +510,7 @@ ComponentsObjectPolicy::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper
             JS_FlatStringEqualsAscii(flatId, "interfacesByID") ||
             JS_FlatStringEqualsAscii(flatId, "results"))
         {
+            perm = PermitPropertyAccess;
             return true;
         }
     }
@@ -418,10 +519,11 @@ ComponentsObjectPolicy::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper
     // so we need this dynamic check. This can go away when we expose Components
     // as SpecialPowers.wrap(Components) during automation.
     if (xpc::IsUniversalXPConnectEnabled(cx)) {
+        perm = PermitPropertyAccess;
         return true;
     }
 
-    return false;
+    return Deny(cx, id, act);
 }
 
 }

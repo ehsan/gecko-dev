@@ -38,15 +38,14 @@
 #include "nsInterfaceHashtable.h"
 #include "nsEventStates.h"
 #include "nsPresArena.h"
-#include "nsIImageLoadingContent.h"
 
 class nsIContent;
 class nsIDocument;
 class nsIFrame;
 class nsPresContext;
 class nsStyleSet;
-class nsViewManager;
-class nsView;
+class nsIViewManager;
+class nsIView;
 class nsRenderingContext;
 class nsIPageSequenceFrame;
 class nsAString;
@@ -77,11 +76,7 @@ class nsRefreshDriver;
 class nsARefreshObserver;
 #ifdef ACCESSIBILITY
 class nsAccessibilityService;
-namespace mozilla {
-namespace a11y {
 class DocAccessible;
-} // namespace a11y
-} // namespace mozilla
 #endif
 class nsIWidget;
 struct nsArenaMemoryStats;
@@ -90,8 +85,6 @@ typedef short SelectionType;
 typedef uint64_t nsFrameState;
 
 namespace mozilla {
-class Selection;
-
 namespace dom {
 class Element;
 } // namespace dom
@@ -109,7 +102,7 @@ class LayerManager;
 #define CAPTURE_RETARGETTOELEMENT 2
 // true if the current capture wants drags to be prevented
 #define CAPTURE_PREVENTDRAG 4
-// true when the mouse is pointer locked, and events are sent to locked element
+// true when the mouse is pointer locked, and events are sent to locked elemnt
 #define CAPTURE_POINTERLOCK 8
 
 typedef struct CapturingContentInfo {
@@ -121,10 +114,10 @@ typedef struct CapturingContentInfo {
   nsIContent* mContent;
 } CapturingContentInfo;
 
-// bf539e0a-c314-4ea7-ba7c-ebd34e8a4065
+// 307910dd-7355-4535-84e7-6b95a4edffbe
 #define NS_IPRESSHELL_IID \
-{ 0xbf539e0a, 0xc314, 0x4ea7, \
-  { 0xba, 0x7c, 0xeb, 0xd3, 0x4e, 0x8a, 0x40, 0x65 } }
+{ 0x307910dd, 0x7355, 0x4535, \
+  { 0x84, 0xe7, 0x6b, 0x95, 0xa4, 0xed, 0xff, 0xbe } }
 
 // debug VerifyReflow flags
 #define VERIFY_REFLOW_ON                    0x01
@@ -179,7 +172,7 @@ protected:
 public:
   virtual NS_HIDDEN_(nsresult) Init(nsIDocument* aDocument,
                                    nsPresContext* aPresContext,
-                                   nsViewManager* aViewManager,
+                                   nsIViewManager* aViewManager,
                                    nsStyleSet* aStyleSet,
                                    nsCompatibility aCompatMode) = 0;
 
@@ -195,18 +188,6 @@ public:
   bool IsDestroying() { return mIsDestroying; }
 
   /**
-   * Make a one-way transition into a "zombie" state.  In this state,
-   * no reflow is done, no painting is done, and no refresh driver
-   * ticks are processed.  This is a dangerous state: it can leave
-   * areas of the composition target unpainted if callers aren't
-   * careful.  (Don't let your zombie presshell out of the shed.)
-   *
-   * This is used in cases where a presshell is created for reasons
-   * other than reflow/painting.
-   */
-  virtual NS_HIDDEN_(void) MakeZombie() = 0;
-
-  /**
    * All frames owned by the shell are allocated from an arena.  They
    * are also recycled using free lists.  Separate free lists are
    * maintained for each frame type (aID), which must always correspond
@@ -219,7 +200,10 @@ public:
     mPresArenaAllocCount++;
 #endif
     void* result = mFrameArena.AllocateByFrameID(aID, aSize);
-    memset(result, 0, aSize);
+  
+    if (result) {
+      memset(result, 0, aSize);
+    }
     return result;
   }
 
@@ -244,7 +228,10 @@ public:
     mPresArenaAllocCount++;
 #endif
     void* result = mFrameArena.AllocateByObjectID(aID, aSize);
-    memset(result, 0, aSize);
+  
+    if (result) {
+      memset(result, 0, aSize);
+    }
     return result;
   }
 
@@ -287,13 +274,13 @@ public:
 
   nsPresContext* GetPresContext() const { return mPresContext; }
 
-  nsViewManager* GetViewManager() const { return mViewManager; }
+  nsIViewManager* GetViewManager() const { return mViewManager; }
 
 #ifdef ACCESSIBILITY
   /**
    * Return the document accessible for this pres shell if there is one.
    */
-  mozilla::a11y::DocAccessible* GetDocAccessible() const
+  DocAccessible* GetDocAccessible() const
   {
     return mDocAccessible;
   }
@@ -301,7 +288,7 @@ public:
   /**
    * Set the document accessible for this pres shell.
    */
-  void SetDocAccessible(mozilla::a11y::DocAccessible* aDocAccessible)
+  void SetDocAccessible(DocAccessible* aDocAccessible)
   {
     mDocAccessible = aDocAccessible;
   }
@@ -499,11 +486,6 @@ public:
                                             nsFrameState aBitToAdd) = 0;
 
   /**
-   * Calls FrameNeedsReflow on all fixed position children of the root frame.
-   */
-  virtual void MarkFixedFramesForReflow(IntrinsicDirty aIntrinsicDirty);
-
-  /**
    * Tell the presshell that the given frame's reflow was interrupted.  This
    * will mark as having dirty children a path from the given frame (inclusive)
    * to the nearest ancestor with a dirty subtree, or to the reflow root
@@ -544,7 +526,6 @@ public:
    * @param aType the type of notifications to flush
    */
   virtual NS_HIDDEN_(void) FlushPendingNotifications(mozFlushType aType) = 0;
-  virtual NS_HIDDEN_(void) FlushPendingNotifications(mozilla::ChangesToFlush aType) = 0;
 
   /**
    * Callbacks will be called even if reflow itself fails for
@@ -769,7 +750,7 @@ public:
     */
   int16_t GetSelectionFlags() const { return mSelectionFlags; }
 
-  virtual mozilla::Selection* GetCurrentSelection(SelectionType aType) = 0;
+  virtual nsISelection* GetCurrentSelection(SelectionType aType) = 0;
 
   /**
     * Interface to dispatch events via the presshell
@@ -810,7 +791,7 @@ public:
    * Get and set the history state for the current document 
    */
 
-  virtual NS_HIDDEN_(nsresult) CaptureHistoryState(nsILayoutHistoryState** aLayoutHistoryState) = 0;
+  virtual NS_HIDDEN_(nsresult) CaptureHistoryState(nsILayoutHistoryState** aLayoutHistoryState, bool aLeavingPage = false) = 0;
 
   /**
    * Determine if reflow is currently locked
@@ -1092,12 +1073,12 @@ public:
   enum {
     FORCE_DRAW = 0x01
   };
-  virtual void AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
-                                            nsDisplayList& aList,
-                                            nsIFrame* aFrame,
-                                            const nsRect& aBounds,
-                                            nscolor aBackstopColor = NS_RGBA(0,0,0,0),
-                                            uint32_t aFlags = 0) = 0;
+  virtual nsresult AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
+                                                nsDisplayList& aList,
+                                                nsIFrame* aFrame,
+                                                const nsRect& aBounds,
+                                                nscolor aBackstopColor = NS_RGBA(0,0,0,0),
+                                                uint32_t aFlags = 0) = 0;
 
 
   /**
@@ -1105,17 +1086,17 @@ public:
    * bounds aBounds representing the dark grey background behind the page of a
    * print preview presentation.
    */
-  virtual void AddPrintPreviewBackgroundItem(nsDisplayListBuilder& aBuilder,
-                                             nsDisplayList& aList,
-                                             nsIFrame* aFrame,
-                                             const nsRect& aBounds) = 0;
+  virtual nsresult AddPrintPreviewBackgroundItem(nsDisplayListBuilder& aBuilder,
+                                                 nsDisplayList& aList,
+                                                 nsIFrame* aFrame,
+                                                 const nsRect& aBounds) = 0;
 
   /**
    * Computes the backstop color for the view: transparent if in a transparent
    * widget, otherwise the PresContext default background color. This color is
    * only visible if the contents of the view as a whole are translucent.
    */
-  virtual nscolor ComputeBackstopColor(nsView* aDisplayRoot) = 0;
+  virtual nscolor ComputeBackstopColor(nsIView* aDisplayRoot) = 0;
 
   void ObserveNativeAnonMutationsForPrint(bool aObserve)
   {
@@ -1254,8 +1235,9 @@ public:
     PAINT_LAYERS = 0x01,
     /* Composite layers to the window. */
     PAINT_COMPOSITE = 0x02,
+    PAINT_WILL_SEND_DID_PAINT = 0x80
   };
-  virtual void Paint(nsView* aViewToPaint, const nsRegion& aDirtyRegion,
+  virtual void Paint(nsIView* aViewToPaint, const nsRegion& aDirtyRegion,
                      uint32_t aFlags) = 0;
   virtual nsresult HandleEvent(nsIFrame*       aFrame,
                                nsGUIEvent*     aEvent,
@@ -1269,13 +1251,13 @@ public:
    * painted widget). This is issued at a time when it's safe to modify
    * widget geometry.
    */
-  virtual void WillPaint() = 0;
+  virtual void WillPaint(bool aWillSendDidPaint) = 0;
   /**
    * Notify that we're going to call Paint with PAINT_COMPOSITE.
    * Fires on the presshell for the painted widget.
    * This is issued at a time when it's safe to modify widget geometry.
    */
-  virtual void WillPaintWindow() = 0;
+  virtual void WillPaintWindow(bool aWillSendDidPaint) = 0;
   /**
    * Notify that we called Paint with PAINT_COMPOSITE.
    * Fires on the presshell for the painted widget.
@@ -1288,7 +1270,7 @@ public:
    * manager flush on the next tick.
    */
   virtual void ScheduleViewManagerFlush() = 0;
-  virtual void ClearMouseCaptureOnView(nsView* aView) = 0;
+  virtual void ClearMouseCaptureOnView(nsIView* aView) = 0;
   virtual bool IsVisible() = 0;
   virtual void DispatchSynthMouseMove(nsGUIEvent *aEvent, bool aFlushOnHoverChange) = 0;
 
@@ -1314,27 +1296,9 @@ public:
     return mFontSizeInflationLineThreshold;
   }
 
-  bool FontSizeInflationForceEnabled() const {
-    return mFontSizeInflationForceEnabled;
-  }
-
-  bool FontSizeInflationDisabledInMasterProcess() const {
-    return mFontSizeInflationDisabledInMasterProcess;
-  }
-
   virtual void AddInvalidateHiddenPresShellObserver(nsRefreshDriver *aDriver) = 0;
 
   void InvalidatePresShellIfHidden();
-
-  // Schedule an update of the list of visible images.
-  virtual void ScheduleImageVisibilityUpdate() = 0;
-
-  // Clears the current list of visible images on this presshell and replaces it
-  // with images that are in the display list aList.
-  virtual void RebuildImageVisibility(const nsDisplayList& aList) = 0;
-
-  // Ensures the image is in the list of visible images.
-  virtual void EnsureImageInVisibleList(nsIImageLoadingContent* aImage) = 0;
 
   /**
    * Refresh observer management.
@@ -1386,11 +1350,6 @@ public:
     return mScrollPositionClampingScrollPortSize;
   }
 
-  void SetContentDocumentFixedPositionMargins(const nsMargin& aMargins);
-  const nsMargin& GetContentDocumentFixedPositionMargins() {
-    return mContentDocumentFixedPositionMargins;
-  }
-
   virtual void WindowSizeMoveDone() = 0;
   virtual void SysColorChanged() = 0;
   virtual void ThemeChanged() = 0;
@@ -1415,7 +1374,7 @@ protected:
   nsPresContext*            mPresContext;   // [STRONG]
   nsStyleSet*               mStyleSet;      // [OWNS]
   nsCSSFrameConstructor*    mFrameConstructor; // [OWNS]
-  nsViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
+  nsIViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
   nsPresArena               mFrameArena;
   nsFrameSelection*         mSelection;
   // Pointer into mFrameConstructor - this is purely so that FrameManager() and
@@ -1424,7 +1383,7 @@ protected:
   nsWeakPtr                 mForwardingContainer;
   nsRefreshDriver*          mHiddenInvalidationObserverRefreshDriver;
 #ifdef ACCESSIBILITY
-  mozilla::a11y::DocAccessible* mDocAccessible;
+  DocAccessible* mDocAccessible;
 #endif
 
 #ifdef DEBUG
@@ -1437,12 +1396,6 @@ protected:
   uint64_t                  mPaintCount;
 
   nsSize                    mScrollPositionClampingScrollPortSize;
-
-  // This margin is intended to be used when laying out fixed position children
-  // on this PresShell's viewport frame. See the documentation of
-  // nsIDOMWindowUtils.setContentDocumentFixedPositionMargins for details of
-  // their use.
-  nsMargin                  mContentDocumentFixedPositionMargins;
 
   // A list of weak frames. This is a pointer to the last item in the list.
   nsWeakFrame*              mWeakFrames;
@@ -1464,13 +1417,9 @@ protected:
   // re-use old pixels.
   RenderFlags               mRenderFlags;
 
-  // Indicates that the whole document must be restyled.  Changes to scoped
-  // style sheets are recorded in mChangedScopeStyleRoots rather than here
-  // in mStylesHaveChanged.
   bool                      mStylesHaveChanged : 1;
   bool                      mDidInitialize : 1;
   bool                      mIsDestroying : 1;
-  bool                      mIsZombie : 1;
   bool                      mIsReflowing : 1;
 
   // For all documents we initially lock down painting.
@@ -1491,15 +1440,6 @@ protected:
   bool                      mSuppressInterruptibleReflows : 1;
   bool                      mScrollPositionClampingScrollPortSizeSet : 1;
 
-  // List of subtrees rooted at style scope roots that need to be restyled.
-  // When a change to a scoped style sheet is made, we add the style scope
-  // root to this array rather than setting mStylesHaveChanged = true, since
-  // we know we don't need to restyle the whole document.  However, if in the
-  // same update block we have already had other changes that require
-  // the whole document to be restyled (i.e., mStylesHaveChanged is already
-  // true), then we don't bother adding the scope root here.
-  nsAutoTArray<nsRefPtr<mozilla::dom::Element>,1> mChangedScopeStyleRoots;
-
   static nsIContent*        gKeyDownTarget;
 
   // Cached font inflation values. This is done to prevent changing of font
@@ -1507,8 +1447,6 @@ protected:
   uint32_t mFontSizeInflationEmPerLine;
   uint32_t mFontSizeInflationMinTwips;
   uint32_t mFontSizeInflationLineThreshold;
-  bool mFontSizeInflationForceEnabled;
-  bool mFontSizeInflationDisabledInMasterProcess;
 
   // The maximum width of a line box. Text on a single line that exceeds this
   // width will be wrapped. A value of 0 indicates that no limit is enforced.

@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/ContentParent.h"
 #include "mozilla/Hal.h"
 #include "mozilla/HalWakeLock.h"
 #include "mozilla/ClearOnShutdown.h"
@@ -108,7 +107,6 @@ PowerManagerService::SyncProfile()
     obsServ->NotifyObservers(nullptr, "profile-change-net-teardown", context.get());
     obsServ->NotifyObservers(nullptr, "profile-change-teardown", context.get());
     obsServ->NotifyObservers(nullptr, "profile-before-change", context.get());
-    obsServ->NotifyObservers(nullptr, "profile-before-change2", context.get());
   }
 }
 
@@ -141,17 +139,8 @@ PowerManagerService::Restart()
   // because it relies on the Gonk to initialize the Gecko processes to
   // restart B2G. It's better to do it here to have a real "restart".
   StartForceQuitWatchdog(eHalShutdownMode_Restart, mWatchdogTimeoutSecs);
-  // Ensure all content processes are dead before we continue
-  // restarting.  This code is used to restart to apply updates, and
-  // if we don't join all the subprocesses, race conditions can cause
-  // them to see an inconsistent view of the application directory.
-  ContentParent::JoinAllSubprocesses();
-
   // To synchronize any unsaved user data before restarting.
   SyncProfile();
-#ifdef XP_UNIX
-  sync();
-#endif
   _exit(0);
   MOZ_NOT_REACHED();
   return NS_OK;
@@ -198,16 +187,6 @@ PowerManagerService::NewWakeLock(const nsAString &aTopic,
   wl.forget(aWakeLock);
 
   return NS_OK;
-}
-
-already_AddRefed<nsIDOMMozWakeLock>
-PowerManagerService::NewWakeLockOnBehalfOfProcess(const nsAString& aTopic,
-                                                  ContentParent* aContentParent)
-{
-  nsRefPtr<WakeLock> wakelock = new WakeLock();
-  nsresult rv = wakelock->Init(aTopic, aContentParent);
-  NS_ENSURE_SUCCESS(rv, nullptr);
-  return wakelock.forget();
 }
 
 } // power

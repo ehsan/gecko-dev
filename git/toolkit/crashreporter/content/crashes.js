@@ -5,13 +5,10 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-var reportsDir, submittedDir, pendingDir;
+var reportsDir, pendingDir;
 var reportURL;
 
 Components.utils.import("resource://gre/modules/CrashSubmit.jsm");
-Components.utils.import("resource://gre/modules/Services.jsm");
-
-const buildID = Services.appinfo.appBuildID;
 
 function submitSuccess(dumpid, ret) {
   let link = document.getElementById(dumpid);
@@ -97,14 +94,11 @@ function populateReportList() {
 
   reportsDir = directoryService.get("UAppData", Ci.nsIFile);
   reportsDir.append("Crash Reports");
-
-  submittedDir = directoryService.get("UAppData", Ci.nsIFile);
-  submittedDir.append("Crash Reports");
-  submittedDir.append("submitted");
+  reportsDir.append("submitted");
 
   var reports = [];
-  if (submittedDir.exists() && submittedDir.isDirectory()) {
-    var entries = submittedDir.directoryEntries;
+  if (reportsDir.exists() && reportsDir.isDirectory()) {
+    var entries = reportsDir.directoryEntries;
     while (entries.hasMoreElements()) {
       var file = entries.getNext().QueryInterface(Ci.nsIFile);
       var leaf = file.leafName;
@@ -126,15 +120,13 @@ function populateReportList() {
   pendingDir.append("pending");
 
   if (pendingDir.exists() && pendingDir.isDirectory()) {
-    var uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     var entries = pendingDir.directoryEntries;
     while (entries.hasMoreElements()) {
       var file = entries.getNext().QueryInterface(Ci.nsIFile);
       var leaf = file.leafName;
-      var id = leaf.slice(0, -4);
-      if (leaf.substr(-4) == ".dmp" && uuidRegex.test(id)) {
+      if (leaf.substr(-4) == ".dmp") {
         var entry = {
-          id: id,
+          id: leaf.slice(0, -4),
           date: file.lastModifiedTime,
           pending: true
         };
@@ -208,7 +200,7 @@ function clearReports() {
                        bundle.GetStringFromName("deleteconfirm.description")))
     return;
 
-  var entries = submittedDir.directoryEntries;
+  var entries = reportsDir.directoryEntries;
   while (entries.hasMoreElements()) {
     var file = entries.getNext().QueryInterface(Ci.nsIFile);
     var leaf = file.leafName;
@@ -216,21 +208,6 @@ function clearReports() {
         leaf.substr(-4) == ".txt") {
       file.remove(false);
     }
-  }
-  entries = reportsDir.directoryEntries;
-  var oneYearAgo = Date.now() - 31586000000;
-  while (entries.hasMoreElements()) {
-    var file = entries.getNext().QueryInterface(Ci.nsIFile);
-    var leaf = file.leafName;
-    if (leaf.substr(0, 11) == "InstallTime" &&
-        file.lastModifiedTime < oneYearAgo &&
-        leaf != "InstallTime" + buildID) {
-      file.remove(false);
-    }
-  }
-  entries = pendingDir.directoryEntries;
-  while (entries.hasMoreElements()) {
-    entries.getNext().QueryInterface(Ci.nsIFile).remove(false);
   }
   document.getElementById("clear-reports").style.display = "none";
   document.getElementById("reportList").style.display = "none";

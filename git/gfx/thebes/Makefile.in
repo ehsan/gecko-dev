@@ -9,13 +9,10 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= thebes
 LIBRARY_NAME	= thebes
 LIBXUL_LIBRARY	= 1
 EXPORT_LIBRARY	= 1
-
-ifndef _MSC_VER
-FAIL_ON_WARNINGS = 1
-endif # !_MSC_VER
 
 EXPORTS	= \
 	gfx2DGlue.h \
@@ -51,12 +48,9 @@ EXPORTS	= \
 	gfxUtils.h \
 	gfxUserFontSet.h \
 	nsSurfaceTexture.h \
-	gfxBaseSharedMemorySurface.h \
 	gfxSharedImageSurface.h \
-	gfxSharedQuartzSurface.h \
 	gfxReusableSurfaceWrapper.h \
 	gfxSVGGlyphs.h \
-	RoundedRect.h \
 	$(NULL)
 
 # gfxSVGGlyphs needs nsDOMParser.h
@@ -183,9 +177,8 @@ CPPSRCS	= \
 	gfxUserFontSet.cpp \
 	gfxUtils.cpp \
 	gfxScriptItemizer.cpp \
-	gfxGraphiteShaper.cpp \
 	gfxHarfBuzzShaper.cpp \
-	gfxBaseSharedMemorySurface.cpp \
+	gfxSharedImageSurface.cpp \
 	gfxReusableSurfaceWrapper.cpp \
 	nsSurfaceTexture.cpp \
 	gfxSVGGlyphs.cpp \
@@ -193,6 +186,13 @@ CPPSRCS	= \
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),$(findstring $(MOZ_WIDGET_TOOLKIT),android gtk2 gonk qt))
 DEFINES += -DMOZ_ENABLE_FREETYPE
+endif
+
+ifdef MOZ_GRAPHITE
+DEFINES += -DGRAPHITE2_STATIC
+CPPSRCS	+= \
+	gfxGraphiteShaper.cpp \
+	$(NULL)
 endif
 
 # Are we targeting x86 or x64?  If so, build gfxAlphaRecoverySSE2.cpp.
@@ -341,12 +341,10 @@ CMMSRCS = \
 
 endif
 
-DEFINES += \
-	-DIMPL_THEBES \
-	-DHB_DONT_DEFINE_STDINT \
-	-DMOZ_OTS_REPORT_ERRORS \
-	-DGRAPHITE2_STATIC \
-	$(NULL)
+CSRCS += woff.c
+
+DEFINES += -DIMPL_THEBES -DWOFF_MOZILLA_CLIENT -DHB_DONT_DEFINE_STDINT
+DEFINES += -DMOZ_OTS_REPORT_ERRORS
 
 ifeq (WINNT,$(OS_TARGET))
 DEFINES += -DOTS_DLL
@@ -391,8 +389,3 @@ ifdef SOLARIS_SUNPRO_CXX
 gfxAlphaRecoverySSE2.$(OBJ_SUFFIX): OS_CXXFLAGS += -xarch=sse2 -xO4
 endif
 endif
-
-PremultiplyTables.h: $(srcdir)/genTables.py
-	$(PYTHON) $(srcdir)/genTables.py
-
-gfxUtils.$(OBJ_SUFFIX): PremultiplyTables.h

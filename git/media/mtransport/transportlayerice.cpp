@@ -82,14 +82,12 @@ namespace mozilla {
 #undef ERROR
 #endif
 
-MOZ_MTLOG_MODULE("mtransport")
+MOZ_MTLOG_MODULE("mtransport");
 
 TransportLayerIce::TransportLayerIce(const std::string& name,
     RefPtr<NrIceCtx> ctx, RefPtr<NrIceMediaStream> stream,
                                      int component)
     : name_(name), ctx_(ctx), stream_(stream), component_(component) {
-  target_ = ctx->thread();
-
   stream_->SignalReady.connect(this, &TransportLayerIce::IceReady);
   stream_->SignalFailed.connect(this, &TransportLayerIce::IceFailed);
   stream_->SignalPacketReceived.connect(this,
@@ -105,7 +103,6 @@ TransportLayerIce::~TransportLayerIce() {
 
 TransportResult TransportLayerIce::SendPacket(const unsigned char *data,
                                               size_t len) {
-  CheckThread();
   nsresult res = stream_->SendPacket(component_, data, len);
 
   if (!NS_SUCCEEDED(res)) {
@@ -125,18 +122,15 @@ void TransportLayerIce::IceCandidate(NrIceMediaStream *stream,
 }
 
 void TransportLayerIce::IceReady(NrIceMediaStream *stream) {
-  CheckThread();
   SetState(TS_OPEN);
 }
 
 void TransportLayerIce::IceFailed(NrIceMediaStream *stream) {
-  CheckThread();
   SetState(TS_ERROR);
 }
 
 void TransportLayerIce::IcePacketReceived(NrIceMediaStream *stream, int component,
                        const unsigned char *data, int len) {
-  CheckThread();
   // We get packets for both components, so ignore the ones that aren't
   // for us.
   if (component_ != component)

@@ -17,8 +17,7 @@
     _(ModI)                     \
     _(ModPowTwoI)               \
     _(ModMaskI)                 \
-    _(PowHalfD)                 \
-    _(UInt32ToDouble)
+    _(PowHalfD)
 
 #endif // jsion_lir_opcodes_arm_h__
 

@@ -6,49 +6,42 @@ import subprocess
 from devicemanager import DeviceManager, DMError, _pop_last_line
 import re
 import os
-import shutil
 import tempfile
 import time
 
 class DeviceManagerADB(DeviceManager):
-    """
-    Implementation of DeviceManager interface that uses the Android "adb"
-    utility to communicate with the device. Normally used to communicate
-    with a device that is directly connected with the host machine over a USB
-    port.
-    """
 
-    _haveRootShell = False
-    _haveSu = False
-    _useRunAs = False
-    _useZip = False
-    _logcatNeedsRoot = False
-    _pollingInterval = 0.01
-    _packageName = None
-    _tempDir = None
-    default_timeout = 300
-
-    def __init__(self, host=None, port=5555, retryLimit=5, packageName='fennec',
+    def __init__(self, host=None, port=20701, retrylimit=5, packageName='fennec',
                  adbPath='adb', deviceSerial=None, deviceRoot=None, **kwargs):
         self.host = host
         self.port = port
-        self.retryLimit = retryLimit
+        self.retrylimit = retrylimit
+        self.retries = 0
+        self._sock = None
+        self.haveRootShell = False
+        self.haveSu = False
+        self.useRunAs = False
+        self.useDDCopy = False
+        self.useZip = False
+        self.packageName = None
+        self.tempDir = None
         self.deviceRoot = deviceRoot
+        self.default_timeout = 300
 
         # the path to adb, or 'adb' to assume that it's on the PATH
-        self._adbPath = adbPath
+        self.adbPath = adbPath
 
         # The serial number of the device to use with adb, used in cases
         # where multiple devices are being managed by the same adb instance.
-        self._deviceSerial = deviceSerial
+        self.deviceSerial = deviceSerial
 
         if packageName == 'fennec':
             if os.getenv('USER'):
-                self._packageName = 'org.mozilla.fennec_' + os.getenv('USER')
+                self.packageName = 'org.mozilla.fennec_' + os.getenv('USER')
             else:
-                self._packageName = 'org.mozilla.fennec_'
+                self.packageName = 'org.mozilla.fennec_'
         elif packageName:
-            self._packageName = packageName
+            self.packageName = packageName
 
         # verify that we can run the adb command. can't continue otherwise
         self._verifyADB()
@@ -87,11 +80,21 @@ class DeviceManagerADB(DeviceManager):
             self._disconnectRemoteADB()
 
     def shell(self, cmd, outputfile, env=None, cwd=None, timeout=None, root=False):
+        """
+        Executes shell command on device. Returns exit code.
+
+        cmd - Command string to execute
+        outputfile - File to store output
+        env - Environment to pass to exec command
+        cwd - Directory to execute command from
+        timeout - specified in seconds, defaults to 'default_timeout'
+        root - Specifies whether command requires root privileges
+        """
         # FIXME: this function buffers all output of the command into memory,
         # always. :(
 
         # If requested to run as root, check that we can actually do that
-        if root and not self._haveRootShell and not self._haveSu:
+        if root and not self.haveRootShell and not self.haveSu:
             raise DMError("Shell command '%s' requested to run as root but root "
                           "is not available on this device. Root your device or "
                           "refactor the test/harness to not require root." %
@@ -100,7 +103,7 @@ class DeviceManagerADB(DeviceManager):
         # Getting the return code is more complex than you'd think because adb
         # doesn't actually return the return code from a process, so we have to
         # capture the output to get it
-        if root and not self._haveRootShell:
+        if root and not self.haveRootShell:
             cmdline = "su -c \"%s\"" % self._escapedCommandLine(cmd)
         else:
             cmdline = self._escapedCommandLine(cmd)
@@ -114,14 +117,11 @@ class DeviceManagerADB(DeviceManager):
             cmdline = envstr + "; " + cmdline
 
         # all output should be in stdout
-        args=[self._adbPath]
-        if self._deviceSerial:
-            args.extend(['-s', self._deviceSerial])
+        args=[self.adbPath]
+        if self.deviceSerial:
+            args.extend(['-s', self.deviceSerial])
         args.extend(["shell", cmdline])
-
-        procOut = tempfile.SpooledTemporaryFile()
-        procErr = tempfile.SpooledTemporaryFile()
-        proc = subprocess.Popen(args, stdout=procOut, stderr=procErr)
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         if not timeout:
             # We are asserting that all commands will complete in this time unless otherwise specified
@@ -131,16 +131,13 @@ class DeviceManagerADB(DeviceManager):
         start_time = time.time()
         ret_code = proc.poll()
         while ((time.time() - start_time) <= timeout) and ret_code == None:
-            time.sleep(self._pollingInterval)
+            time.sleep(1)
             ret_code = proc.poll()
         if ret_code == None:
             proc.kill()
             raise DMError("Timeout exceeded for shell call")
-
-        procOut.seek(0)
-        outputfile.write(procOut.read().rstrip('\n'))
-        procOut.close()
-        procErr.close()
+        (stdout, stderr) = proc.communicate()
+        outputfile.write(stdout.rstrip('\n'))
 
         lastline = _pop_last_line(outputfile)
         if lastline:
@@ -159,65 +156,83 @@ class DeviceManagerADB(DeviceManager):
     def _disconnectRemoteADB(self):
         self._checkCmd(["disconnect", self.host + ":" + str(self.port)])
 
-    def pushFile(self, localname, destname, retryLimit=None):
+    def pushFile(self, localname, destname):
+        """
+        Copies localname from the host to destname on the device
+        """
         # you might expect us to put the file *in* the directory in this case,
         # but that would be different behaviour from devicemanagerSUT. Throw
         # an exception so we have the same behaviour between the two
         # implementations
-        retryLimit = retryLimit or self.retryLimit
         if self.dirExists(destname):
             raise DMError("Attempted to push a file (%s) to a directory (%s)!" %
                           (localname, destname))
 
-        if self._useRunAs:
+        if self.useRunAs:
             remoteTmpFile = self.getTempDir() + "/" + os.path.basename(localname)
-            self._checkCmd(["push", os.path.realpath(localname), remoteTmpFile],
-                    retryLimit=retryLimit)
-            self.shellCheckOutput(["dd", "if=" + remoteTmpFile, "of=" + destname])
+            self._checkCmd(["push", os.path.realpath(localname), remoteTmpFile])
+            if self.useDDCopy:
+                self.shellCheckOutput(["dd", "if=" + remoteTmpFile, "of=" + destname])
+            else:
+                self.shellCheckOutput(["cp", remoteTmpFile, destname])
             self.shellCheckOutput(["rm", remoteTmpFile])
         else:
-            self._checkCmd(["push", os.path.realpath(localname), destname],
-                    retryLimit=retryLimit)
+            self._checkCmd(["push", os.path.realpath(localname), destname])
 
     def mkDir(self, name):
+        """
+        Creates a single directory on the device file system
+        """
         result = self._runCmdAs(["shell", "mkdir", name]).stdout.read()
         if 'read-only file system' in result.lower():
             raise DMError("Error creating directory: read only file system")
 
-    def pushDir(self, localDir, remoteDir, retryLimit=None):
+    def pushDir(self, localDir, remoteDir):
+        """
+        Push localDir from host to remoteDir on the device
+        """
         # adb "push" accepts a directory as an argument, but if the directory
         # contains symbolic links, the links are pushed, rather than the linked
-        # files; we either zip/unzip or re-copy the directory into a temporary
-        # one to get around this limitation
-        retryLimit = retryLimit or self.retryLimit
+        # files; we either zip/unzip or push file-by-file to get around this
+        # limitation
         if not self.dirExists(remoteDir):
             self.mkDirs(remoteDir+"/x")
-        if self._useZip:
+        if self.useZip:
             try:
                 localZip = tempfile.mktemp() + ".zip"
                 remoteZip = remoteDir + "/adbdmtmp.zip"
-                subprocess.Popen(["zip", "-r", localZip, '.'], cwd=localDir,
-                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE).communicate()
-                self.pushFile(localZip, remoteZip, retryLimit=retryLimit)
+                subprocess.check_output(["zip", "-r", localZip, '.'], cwd=localDir)
+                self.pushFile(localZip, remoteZip)
                 os.remove(localZip)
-                data = self._runCmdAs(["shell", "unzip", "-o", remoteZip,
-                                       "-d", remoteDir]).stdout.read()
-                self._checkCmdAs(["shell", "rm", remoteZip], retryLimit=retryLimit)
+                data = self._runCmdAs(["shell", "unzip", "-o", remoteZip, "-d", remoteDir]).stdout.read()
+                self._checkCmdAs(["shell", "rm", remoteZip])
                 if re.search("unzip: exiting", data) or re.search("Operation not permitted", data):
                     raise Exception("unzip failed, or permissions error")
             except:
                 print "zip/unzip failure: falling back to normal push"
-                self._useZip = False
-                self.pushDir(localDir, remoteDir, retryLimit=retryLimit)
+                self.useZip = False
+                self.pushDir(localDir, remoteDir)
         else:
-            tmpDir = tempfile.mkdtemp()
-            # copytree's target dir must not already exist, so create a subdir
-            tmpDirTarget = os.path.join(tmpDir, "tmp")
-            shutil.copytree(localDir, tmpDirTarget)
-            self._checkCmd(["push", tmpDirTarget, remoteDir], retryLimit=retryLimit)
-            shutil.rmtree(tmpDir)
+            for root, dirs, files in os.walk(localDir, followlinks=True):
+                relRoot = os.path.relpath(root, localDir)
+                for f in files:
+                    localFile = os.path.join(root, f)
+                    remoteFile = remoteDir + "/"
+                    if relRoot != ".":
+                        remoteFile = remoteFile + relRoot + "/"
+                    remoteFile = remoteFile + f
+                    self.pushFile(localFile, remoteFile)
+                for d in dirs:
+                    targetDir = remoteDir + "/"
+                    if relRoot != ".":
+                        targetDir = targetDir + relRoot + "/"
+                    targetDir = targetDir + d
+                    self.mkDir(targetDir)
 
     def dirExists(self, remotePath):
+        """
+        Return True if remotePath is an existing directory on the device.
+        """
         p = self._runCmd(["shell", "ls", "-a", remotePath + '/'])
 
         data = p.stdout.readlines()
@@ -228,6 +243,9 @@ class DeviceManagerADB(DeviceManager):
         return True
 
     def fileExists(self, filepath):
+        """
+        Return True if filepath exists and is a file on the device file system
+        """
         p = self._runCmd(["shell", "ls", "-a", filepath])
         data = p.stdout.readlines()
         if (len(data) == 1):
@@ -236,16 +254,40 @@ class DeviceManagerADB(DeviceManager):
         return False
 
     def removeFile(self, filename):
+        """
+        Removes filename from the device
+        """
         if self.fileExists(filename):
             self._runCmd(["shell", "rm", filename])
 
+    def _removeSingleDir(self, remoteDir):
+        """
+        Deletes a single empty directory
+        """
+        return self._runCmd(["shell", "rmdir", remoteDir]).stdout.read()
+
     def removeDir(self, remoteDir):
+        """
+        Does a recursive delete of directory on the device: rm -Rf remoteDir
+        """
         if (self.dirExists(remoteDir)):
-            self._runCmd(["shell", "rm", "-r", remoteDir]).wait()
+            files = self.listFiles(remoteDir.strip())
+            for f in files:
+                path = remoteDir.strip() + "/" + f.strip()
+                if self.dirExists(path):
+                    self.removeDir(path)
+                else:
+                    self.removeFile(path)
+            self._removeSingleDir(remoteDir.strip())
         else:
             self.removeFile(remoteDir.strip())
 
     def listFiles(self, rootdir):
+        """
+        Lists files on the device rootdir
+
+        returns array of filenames, ['file1', 'file2', ...]
+        """
         p = self._runCmd(["shell", "ls", "-a", rootdir])
         data = p.stdout.readlines()
         data[:] = [item.rstrip('\r\n') for item in data]
@@ -263,6 +305,13 @@ class DeviceManagerADB(DeviceManager):
         return data
 
     def getProcessList(self):
+        """
+        Lists the running processes on the device
+
+        returns:
+          success: array of process tuples
+          failure: []
+        """
         p = self._runCmd(["shell", "ps"])
             # first line is the headers
         p.stdout.readline()
@@ -270,11 +319,7 @@ class DeviceManagerADB(DeviceManager):
         ret = []
         while (proc):
             els = proc.split()
-            # we need to figure out if this is "user pid name" or "pid user vsz stat command"
-            if els[1].isdigit():
-                ret.append(list([int(els[1]), els[len(els) - 1], els[0]]))
-            else:
-                ret.append(list([int(els[0]), els[len(els) - 1], els[1]]))
+            ret.append(list([int(els[1]), els[len(els) - 1], els[0]]))
             proc =  p.stdout.readline()
         return ret
 
@@ -340,18 +385,29 @@ class DeviceManagerADB(DeviceManager):
         return outputFile
 
     def killProcess(self, appname, forceKill=False):
+        """
+        Kills the process named appname.
+
+        If forceKill is True, process is killed regardless of state
+        """
         procs = self.getProcessList()
         for (pid, name, user) in procs:
             if name == appname:
                 args = ["shell", "kill"]
                 if forceKill:
                     args.append("-9")
-                args.append(str(pid))
+                args.append(pid)
                 p = self._runCmdAs(args)
                 p.communicate()
                 if p.returncode != 0:
                     raise DMError("Error killing process "
                                   "'%s': %s" % (appname, p.stdout.read()))
+
+    def catFile(self, remoteFile):
+        """
+        Returns the contents of remoteFile
+        """
+        return self.pullFile(remoteFile)
 
     def _runPull(self, remoteFile, localFile):
         """
@@ -367,7 +423,7 @@ class DeviceManagerADB(DeviceManager):
                 if (len(errl) == 1):
                     if (((errl[0].find("Permission denied") != -1)
                         or (errl[0].find("does not exist") != -1))
-                        and self._useRunAs):
+                        and self.useRunAs):
                         # If we lack permissions to read but have run-as, then we should try
                         # to copy the file to a world-readable location first before attempting
                         # to pull it again.
@@ -381,6 +437,9 @@ class DeviceManagerADB(DeviceManager):
             raise DMError("Error pulling remote file '%s' to '%s'" % (remoteFile, localFile))
 
     def pullFile(self, remoteFile):
+        """
+        Returns contents of remoteFile using the "pull" command.
+        """
         # TODO: add debug flags and allow for printing stdout
         localFile = tempfile.mkstemp()[1]
         self._runPull(remoteFile, localFile)
@@ -391,13 +450,26 @@ class DeviceManagerADB(DeviceManager):
         os.remove(localFile)
         return ret
 
-    def getFile(self, remoteFile, localFile):
-        self._runPull(remoteFile, localFile)
+    def getFile(self, remoteFile, localFile = 'temp.txt'):
+        """
+        Copy file from device (remoteFile) to host (localFile).
+        """
+        contents = self.pullFile(remoteFile)
+
+        fhandle = open(localFile, 'wb')
+        fhandle.write(contents)
+        fhandle.close()
 
     def getDirectory(self, remoteDir, localDir, checkDir=True):
-        self._runCmd(["pull", remoteDir, localDir]).wait()
+        """
+        Copy directory structure from device (remoteDir) to host (localDir)
+        """
+        self._runCmd(["pull", remoteDir, localDir])
 
     def validateFile(self, remoteFile, localFile):
+        """
+        Returns True if remoteFile has the same md5 hash as the localFile
+        """
         md5Remote = self._getRemoteHash(remoteFile)
         md5Local = self._getLocalHash(localFile)
         if md5Remote is None or md5Local is None:
@@ -433,6 +505,13 @@ class DeviceManagerADB(DeviceManager):
                     raise
             return
 
+        # /mnt/sdcard/tests is preferred to /data/local/tests, but this can be
+        # over-ridden by creating /data/local/tests
+        testRoot = "/data/local/tests"
+        if (self.dirExists(testRoot)):
+            self.deviceRoot = testRoot
+            return
+
         paths = [('/mnt/sdcard', 'tests'),
                  ('/data/local', 'tests')]
         for (basePath, subPath) in paths:
@@ -449,32 +528,60 @@ class DeviceManagerADB(DeviceManager):
                         % ", ".join(["'%s'" % os.path.join(b, s) for b, s in paths]))
 
     def getDeviceRoot(self):
+        """
+        Gets the device root for the testing area on the device
+
+        For all devices we will use / type slashes and depend on the device-agent
+        to sort those out.  The agent will return us the device location where we
+        should store things, we will then create our /tests structure relative to
+        that returned path.
+        Structure on the device is as follows:
+        /tests
+            /<fennec>|<firefox>  --> approot
+            /profile
+            /xpcshell
+            /reftest
+            /mochitest
+        """
         return self.deviceRoot
 
     def getTempDir(self):
+        """
+        Return a temporary directory on the device
+
+        Will also ensure that directory exists
+        """
         # Cache result to speed up operations depending
         # on the temporary directory.
-        if not self._tempDir:
-            self._tempDir = self.getDeviceRoot() + "/tmp"
-            self.mkDir(self._tempDir)
+        if not self.tempDir:
+            self.tempDir = self.getDeviceRoot() + "/tmp"
+            self.mkDir(self.tempDir)
 
-        return self._tempDir
+        return self.tempDir
 
     def getAppRoot(self, packageName):
+        """
+        Returns the app root directory
+
+        E.g /tests/fennec or /tests/firefox
+        """
         devroot = self.getDeviceRoot()
         if (devroot == None):
             return None
 
         if (packageName and self.dirExists('/data/data/' + packageName)):
-            self._packageName = packageName
+            self.packageName = packageName
             return '/data/data/' + packageName
-        elif (self._packageName and self.dirExists('/data/data/' + self._packageName)):
-            return '/data/data/' + self._packageName
+        elif (self.packageName and self.dirExists('/data/data/' + self.packageName)):
+            return '/data/data/' + self.packageName
 
         # Failure (either not installed or not a recognized platform)
         raise DMError("Failed to get application root for: %s" % packageName)
 
     def reboot(self, wait = False, **kwargs):
+        """
+        Reboots the device
+        """
         self._runCmd(["reboot"])
         if (not wait):
             return
@@ -483,15 +590,76 @@ class DeviceManagerADB(DeviceManager):
             self._checkCmd(["wait-for-device", "shell", "ls", "/sbin"])
 
     def updateApp(self, appBundlePath, **kwargs):
+        """
+        Updates the application on the device.
+
+        appBundlePath - path to the application bundle on the device
+        processName - used to end the process if the applicaiton is currently running (optional)
+        destPath - Destination directory to where the application should be installed (optional)
+        ipAddr - IP address to await a callback ping to let us know that the device has updated
+                 properly - defaults to current IP.
+        port - port to await a callback ping to let us know that the device has updated properly
+               defaults to 30000, and counts up from there if it finds a conflict
+        """
         return self._runCmd(["install", "-r", appBundlePath]).stdout.read()
 
     def getCurrentTime(self):
+        """
+        Returns device time in milliseconds since the epoch
+        """
         timestr = self._runCmd(["shell", "date", "+%s"]).stdout.read().strip()
         if (not timestr or not timestr.isdigit()):
             raise DMError("Unable to get current time using date (got: '%s')" % timestr)
         return str(int(timestr)*1000)
 
+    def recordLogcat(self):
+        """
+        Clears the logcat file making it easier to view specific events
+        """
+        # this does not require root privileges with ADB
+        try:
+            self.shellCheckOutput(['/system/bin/logcat', '-c'])
+        except DMError, e:
+            print "DeviceManager: Error recording logcat '%s'" % e.msg
+            # to preserve compat with parent method, just ignore exceptions
+            pass
+
+    def getLogcat(self):
+        """
+        Returns the contents of the logcat file as a string
+
+        returns:
+          success: contents of logcat, string
+          failure: None
+        """
+        # this does not require root privileges with ADB
+        try:
+            output = self.shellCheckOutput(["/system/bin/logcat", "-d", "dalvikvm:S", "ConnectivityService:S", "WifiMonitor:S", "WifiStateTracker:S", "wpa_supplicant:S", "NetworkStateTracker:S"])
+            return output.split('\r')
+        except DMError, e:
+            # to preserve compat with parent method, just ignore exceptions
+            print "DeviceManager: Error recording logcat '%s'" % e.msg
+            pass
+
     def getInfo(self, directive=None):
+        """
+        Returns information about the device
+
+        Directive indicates the information you want to get, your choices are:
+          os - name of the os
+          id - unique id of the device
+          uptime - uptime of the device
+          uptimemillis - uptime of the device in milliseconds (NOT supported on all implementations)
+          systime - system time of the device
+          screen - screen resolution
+          memory - memory stats
+          process - list of running processes (same as ps)
+          disk - total, free, available bytes on disk
+          power - power status (charge, battery temp)
+          all - all of them - or call it with no parameters to get all the information
+
+        returns: dictionary of info strings by directive name
+        """
         ret = {}
         if (directive == "id" or directive == "all"):
             ret["id"] = self._runCmd(["get-serialno"]).stdout.read()
@@ -516,12 +684,24 @@ class DeviceManagerADB(DeviceManager):
         return ret
 
     def uninstallApp(self, appName, installPath=None):
+        """
+        Uninstalls the named application from device and DOES NOT cause a reboot
+
+        appName - the name of the application (e.g org.mozilla.fennec)
+        installPath - the path to where the application was installed (optional)
+        """
         data = self._runCmd(["uninstall", appName]).stdout.read().strip()
         status = data.split('\n')[0].strip()
         if status != 'Success':
             raise DMError("uninstall failed for %s. Got: %s" % (appName, status))
 
     def uninstallAppAndReboot(self, appName, installPath=None):
+        """
+        Uninstalls the named application from device and causes a reboot
+
+        appName - the name of the application (e.g org.mozilla.fennec)
+        installPath - the path to where the application was installed (optional)
+        """
         self.uninstallApp(appName)
         self.reboot()
         return
@@ -532,85 +712,80 @@ class DeviceManagerADB(DeviceManager):
 
         returns: returncode from subprocess.Popen
         """
-        finalArgs = [self._adbPath]
-        if self._deviceSerial:
-            finalArgs.extend(['-s', self._deviceSerial])
+        finalArgs = [self.adbPath]
+        if self.deviceSerial:
+            finalArgs.extend(['-s', self.deviceSerial])
         # use run-as to execute commands as the package we're testing if
         # possible
-        if not self._haveRootShell and self._useRunAs and \
-                args[0] == "shell" and args[1] not in [ "run-as", "am" ]:
+        if not self.haveRootShell and self.useRunAs and args[0] == "shell" and args[1] != "run-as":
             args.insert(1, "run-as")
-            args.insert(2, self._packageName)
+            args.insert(2, self.packageName)
         finalArgs.extend(args)
         return subprocess.Popen(finalArgs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     def _runCmdAs(self, args):
         """
         Runs a command using adb
-        If self._useRunAs is True, the command is run-as user specified in self._packageName
+        If self.useRunAs is True, the command is run-as user specified in self.packageName
 
         returns: returncode from subprocess.Popen
         """
-        if self._useRunAs:
+        if self.useRunAs:
             args.insert(1, "run-as")
-            args.insert(2, self._packageName)
+            args.insert(2, self.packageName)
         return self._runCmd(args)
 
     # timeout is specified in seconds, and if no timeout is given,
     # we will run until we hit the default_timeout specified in the __init__
-    def _checkCmd(self, args, timeout=None, retryLimit=None):
+    def _checkCmd(self, args, timeout=None):
         """
         Runs a command using adb and waits for the command to finish.
         If timeout is specified, the process is killed after <timeout> seconds.
 
         returns: returncode from subprocess.Popen
         """
-        retryLimit = retryLimit or self.retryLimit
         # use run-as to execute commands as the package we're testing if
         # possible
-        finalArgs = [self._adbPath]
-        if self._deviceSerial:
-            finalArgs.extend(['-s', self._deviceSerial])
-        if not self._haveRootShell and self._useRunAs and \
-                args[0] == "shell" and args[1] not in [ "run-as", "am" ]:
+        finalArgs = [self.adbPath]
+        if self.deviceSerial:
+            finalArgs.extend(['-s', self.deviceSerial])
+        if not self.haveRootShell and self.useRunAs and args[0] == "shell" and args[1] != "run-as":
             args.insert(1, "run-as")
-            args.insert(2, self._packageName)
+            args.insert(2, self.packageName)
         finalArgs.extend(args)
         if not timeout:
             # We are asserting that all commands will complete in this time unless otherwise specified
             timeout = self.default_timeout
 
         timeout = int(timeout)
-        retries = 0
-        while retries < retryLimit:
-            proc = subprocess.Popen(finalArgs, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            start_time = time.time()
+        proc = subprocess.Popen(finalArgs)
+        start_time = time.time()
+        ret_code = proc.poll()
+        while ((time.time() - start_time) <= timeout) and ret_code == None:
+            time.sleep(1)
             ret_code = proc.poll()
-            while ((time.time() - start_time) <= timeout) and ret_code == None:
-                time.sleep(self._pollingInterval)
-                ret_code = proc.poll()
-            if ret_code == None:
-                proc.kill()
-                retries += 1
-                continue
-            return ret_code
-        raise DMError("Timeout exceeded for _checkCmd call after %d retries." % retries)
+        if ret_code == None:
+            proc.kill()
+            raise DMError("Timeout exceeded for _checkCmd call")
+        return ret_code
 
-    def _checkCmdAs(self, args, timeout=None, retryLimit=None):
+    def _checkCmdAs(self, args, timeout=None):
         """
         Runs a command using adb and waits for command to finish
-        If self._useRunAs is True, the command is run-as user specified in self._packageName
+        If self.useRunAs is True, the command is run-as user specified in self.packageName
         If timeout is specified, the process is killed after <timeout> seconds
 
         returns: returncode from subprocess.Popen
         """
-        retryLimit = retryLimit or self.retryLimit
-        if (self._useRunAs):
+        if (self.useRunAs):
             args.insert(1, "run-as")
-            args.insert(2, self._packageName)
-        return self._checkCmd(args, timeout, retryLimit=retryLimit)
+            args.insert(2, self.packageName)
+        return self._checkCmd(args, timeout)
 
     def chmodDir(self, remoteDir, mask="777"):
+        """
+        Recursively changes file permissions in a directory
+        """
         if (self.dirExists(remoteDir)):
             files = self.listFiles(remoteDir.strip())
             for f in files:
@@ -630,9 +805,9 @@ class DeviceManagerADB(DeviceManager):
         """
         Check to see if adb itself can be executed.
         """
-        if self._adbPath != 'adb':
-            if not os.access(self._adbPath, os.X_OK):
-                raise DMError("invalid adb path, or adb not executable: %s" % self._adbPath)
+        if self.adbPath != 'adb':
+            if not os.access(self.adbPath, os.X_OK):
+                raise DMError("invalid adb path, or adb not executable: %s", self.adbPath)
 
         try:
             self._checkCmd(["version"])
@@ -643,29 +818,44 @@ class DeviceManagerADB(DeviceManager):
 
     def _verifyDevice(self):
         # If there is a device serial number, see if adb is connected to it
-        if self._deviceSerial:
+        if self.deviceSerial:
             deviceStatus = None
-            proc = subprocess.Popen([self._adbPath, "devices"],
+            proc = subprocess.Popen([self.adbPath, "devices"],
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT)
             for line in proc.stdout:
                 m = re.match('(.+)?\s+(.+)$', line)
                 if m:
-                    if self._deviceSerial == m.group(1):
+                    if self.deviceSerial == m.group(1):
                         deviceStatus = m.group(2)
             if deviceStatus == None:
-                raise DMError("device not found: %s" % self._deviceSerial)
+                raise DMError("device not found: %s" % self.deviceSerial)
             elif deviceStatus != "device":
-                raise DMError("bad status for device %s: %s" % (self._deviceSerial, deviceStatus))
+                raise DMError("bad status for device %s: %s" % (self.deviceSerial, deviceStatus))
 
         # Check to see if we can connect to device and run a simple command
-        ret = None
         try:
-            ret = self._checkCmd(["shell", "echo"])
+            self._checkCmd(["shell", "echo"])
         except subprocess.CalledProcessError:
             raise DMError("unable to connect to device: is it plugged in?")
-        if ret:
-            raise DMError("unable to connect to device")
+
+    def _isCpAvailable(self):
+        """
+        Checks to see if cp command is installed
+        """
+        # Some Android systems may not have a cp command installed,
+        # or it may not be executable by the user.
+        data = self._runCmd(["shell", "cp"]).stdout.read()
+        if (re.search('Usage', data)):
+            return True
+        else:
+            data = self._runCmd(["shell", "dd", "-"]).stdout.read()
+            if (re.search('unknown operand', data)):
+                print "'cp' not found, but 'dd' was found as a replacement"
+                self.useDDCopy = True
+                return True
+            print "unable to execute 'cp' on device; consider installing busybox from Android Market"
+            return False
 
     def _verifyRunAs(self):
         # If a valid package name is available, and certain other
@@ -675,25 +865,28 @@ class DeviceManagerADB(DeviceManager):
         # echoing conditions encountered by Fennec at run time.
         # Check to see if run-as can be used here, by verifying a
         # file copy via run-as.
-        self._useRunAs = False
+        self.useRunAs = False
         devroot = self.getDeviceRoot()
-        if self._packageName and devroot:
+        if (self.packageName and self._isCpAvailable() and devroot):
             tmpDir = self.getTempDir()
 
             # The problem here is that run-as doesn't cause a non-zero exit code
             # when failing because of a non-existent or non-debuggable package :(
-            runAsOut = self._runCmd(["shell", "run-as", self._packageName, "mkdir", devroot + "/sanity"]).communicate()[0]
+            runAsOut = self._runCmd(["shell", "run-as", self.packageName, "mkdir", devroot + "/sanity"]).communicate()[0]
             if runAsOut.startswith("run-as:") and ("not debuggable" in runAsOut or "is unknown" in runAsOut):
                 raise DMError("run-as failed sanity check")
 
             tmpfile = tempfile.NamedTemporaryFile()
             self._checkCmd(["push", tmpfile.name, tmpDir + "/tmpfile"])
-            self._checkCmd(["shell", "run-as", self._packageName, "dd", "if=" + tmpDir + "/tmpfile", "of=" + devroot + "/sanity/tmpfile"])
+            if self.useDDCopy:
+                self._checkCmd(["shell", "run-as", self.packageName, "dd", "if=" + tmpDir + "/tmpfile", "of=" + devroot + "/sanity/tmpfile"])
+            else:
+                self._checkCmd(["shell", "run-as", self.packageName, "cp", tmpDir + "/tmpfile", devroot + "/sanity"])
             if (self.fileExists(devroot + "/sanity/tmpfile")):
-                print "will execute commands via run-as " + self._packageName
-                self._useRunAs = True
+                print "will execute commands via run-as " + self.packageName
+                self.useRunAs = True
             self._checkCmd(["shell", "rm", devroot + "/tmp/tmpfile"])
-            self._checkCmd(["shell", "run-as", self._packageName, "rm", "-r", devroot + "/sanity"])
+            self._checkCmd(["shell", "run-as", self.packageName, "rm", "-r", devroot + "/sanity"])
 
     def _checkForRoot(self):
         # Check whether we _are_ root by default (some development boards work
@@ -702,7 +895,7 @@ class DeviceManagerADB(DeviceManager):
         proc = self._runCmd(["shell", "id"])
         data = proc.stdout.read()
         if data.find('uid=0(root)') >= 0:
-            self._haveRootShell = True
+            self.haveRootShell = True
             # if this returns true, we don't care about su
             return
 
@@ -721,7 +914,7 @@ class DeviceManagerADB(DeviceManager):
 
         data = proc.stdout.read()
         if data.find('uid=0(root)') >= 0:
-            self._haveSu = True
+            self.haveSu = True
 
     def _isUnzipAvailable(self):
         data = self._runCmdAs(["shell", "unzip"]).stdout.read()
@@ -741,9 +934,9 @@ class DeviceManagerADB(DeviceManager):
         # If "zip" can be run locally, and "unzip" can be run remotely, then pushDir
         # can use these to push just one file per directory -- a significant
         # optimization for large directories.
-        self._useZip = False
+        self.useZip = False
         if (self._isUnzipAvailable() and self._isLocalZipAvailable()):
             print "will use zip to push directories"
-            self._useZip = True
+            self.useZip = True
         else:
             raise DMError("zip not available")

@@ -37,6 +37,7 @@ let bookmarksObserver = {
     do_check_eq(stmt.row.guid, guid);
     stmt.finalize();
   },
+  onBeforeItemRemoved: function(){},
   onItemRemoved: function(id, folder, index, itemType) {
     this._itemRemovedId = id;
     this._itemRemovedFolder = folder;
@@ -75,10 +76,6 @@ let bmStartIndex = 0;
 
 
 function run_test() {
-  run_next_test();
-}
-
-add_task(function test_bookmarks() {
   bs.addObserver(bookmarksObserver, false);
 
   // test special folders
@@ -615,7 +612,7 @@ add_task(function test_bookmarks() {
   // bug 378820
   let uri1 = uri("http://foo.tld/a");
   bs.insertBookmark(testRoot, uri1, bs.DEFAULT_INDEX, "");
-  yield promiseAddVisits(uri1);
+  hs.addVisit(uri1, Date.now() * 1000, null, hs.TRANSITION_TYPED, false, 0);
 
   // bug 646993 - test bookmark titles longer than the maximum allowed length
   let title15 = Array(TITLE_LENGTH_MAX + 5).join("X");
@@ -635,7 +632,7 @@ add_task(function test_bookmarks() {
   do_check_eq(bookmarksObserver._itemChangedValue, title15expected);
 
   testSimpleFolderResult();
-});
+}
 
 function testSimpleFolderResult() {
   // the time before we create a folder, in microseconds

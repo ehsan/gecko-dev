@@ -9,7 +9,6 @@
 #include "nsCSSValue.h"
 
 #include "imgIRequest.h"
-#include "nsIDocument.h"
 #include "nsIPrincipal.h"
 #include "nsCSSProps.h"
 #include "nsContentUtils.h"
@@ -17,7 +16,6 @@
 #include "CSSCalc.h"
 #include "nsNetUtil.h"
 #include "mozilla/css/ImageLoader.h"
-#include "mozilla/Likely.h"
 
 namespace css = mozilla::css;
 
@@ -56,7 +54,7 @@ nsCSSValue::nsCSSValue(const nsString& aValue, nsCSSUnit aUnit)
   NS_ABORT_IF_FALSE(UnitHasStringValue(), "not a string value");
   if (UnitHasStringValue()) {
     mValue.mString = BufferFromString(aValue).get();
-    if (MOZ_UNLIKELY(!mValue.mString)) {
+    if (NS_UNLIKELY(!mValue.mString)) {
       // XXXbz not much we can do here; just make sure that our promise of a
       // non-null mValue.mString holds for string units.
       mUnit = eCSSUnit_Null;
@@ -245,7 +243,7 @@ double nsCSSValue::GetAngleValueInRadians() const
   }
 }
 
-imgRequestProxy* nsCSSValue::GetImageValue(nsIDocument* aDocument) const
+imgIRequest* nsCSSValue::GetImageValue(nsIDocument* aDocument) const
 {
   NS_ABORT_IF_FALSE(mUnit == eCSSUnit_Image, "not an Image value");
   return mValue.mImage->mRequests.GetWeak(aDocument);
@@ -345,7 +343,7 @@ void nsCSSValue::SetStringValue(const nsString& aValue,
   NS_ABORT_IF_FALSE(UnitHasStringValue(), "not a string unit");
   if (UnitHasStringValue()) {
     mValue.mString = BufferFromString(aValue).get();
-    if (MOZ_UNLIKELY(!mValue.mString)) {
+    if (NS_UNLIKELY(!mValue.mString)) {
       // XXXbz not much we can do here; just make sure that our promise of a
       // non-null mValue.mString holds for string units.
       mUnit = eCSSUnit_Null;
@@ -635,7 +633,7 @@ nsCSSValue::BufferFromString(const nsString& aValue)
   // NOTE: Alloc prouduces a new, already-addref'd (refcnt = 1) buffer.
   // NOTE: String buffer allocation is currently fallible.
   buffer = nsStringBuffer::Alloc((length + 1) * sizeof(PRUnichar));
-  if (MOZ_UNLIKELY(!buffer)) {
+  if (NS_UNLIKELY(!buffer)) {
     NS_RUNTIMEABORT("out of memory");
   }
 
@@ -834,13 +832,6 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
                                            NS_STYLE_PAGE_MARKS_REGISTER,
                                            aResult);
       }
-    }
-    else if (eCSSProperty_paint_order == aProperty) {
-      MOZ_STATIC_ASSERT
-        (NS_STYLE_PAINT_ORDER_BITWIDTH * NS_STYLE_PAINT_ORDER_LAST_VALUE <= 8,
-         "SVGStyleStruct::mPaintOrder and the following cast not big enough");
-      nsStyleUtil::AppendPaintOrderValue(static_cast<uint8_t>(GetIntValue()),
-                                         aResult);
     }
     else {
       const nsAFlatCString& name = nsCSSProps::LookupPropertyValue(aProperty, GetIntValue());
@@ -1080,7 +1071,7 @@ nsCSSValue::AppendToString(nsCSSProperty aProperty, nsAString& aResult) const
     case eCSSUnit_Null:         break;
     case eCSSUnit_Auto:         aResult.AppendLiteral("auto");     break;
     case eCSSUnit_Inherit:      aResult.AppendLiteral("inherit");  break;
-    case eCSSUnit_Initial:      aResult.AppendLiteral("initial");  break;
+    case eCSSUnit_Initial:      aResult.AppendLiteral("-moz-initial"); break;
     case eCSSUnit_None:         aResult.AppendLiteral("none");     break;
     case eCSSUnit_Normal:       aResult.AppendLiteral("normal");   break;
     case eCSSUnit_System_Font:  aResult.AppendLiteral("-moz-use-system-font"); break;
@@ -1722,26 +1713,18 @@ css::ImageValue::ImageValue(nsIURI* aURI, nsStringBuffer* aString,
                             nsIDocument* aDocument)
   : URLValue(aURI, aString, aReferrer, aOriginPrincipal)
 {
-  // NB: If aDocument is not the original document, we may not be able to load
-  // images from aDocument.  Instead we do the image load from the original doc
-  // and clone it to aDocument.
-  nsIDocument* loadingDoc = aDocument->GetOriginalDocument();
-  if (!loadingDoc) {
-    loadingDoc = aDocument;
+  if (aDocument->GetOriginalDocument()) {
+    aDocument = aDocument->GetOriginalDocument();
   }
 
   mRequests.Init();
 
-  loadingDoc->StyleImageLoader()->LoadImage(aURI, aOriginPrincipal, aReferrer,
-                                            this);
-
-  if (loadingDoc != aDocument) {
-    aDocument->StyleImageLoader()->MaybeRegisterCSSImage(this);
-  }
+  aDocument->StyleImageLoader()->LoadImage(aURI, aOriginPrincipal, aReferrer,
+                                           this);
 }
 
 static PLDHashOperator
-ClearRequestHashtable(nsISupports* aKey, nsRefPtr<imgRequestProxy>& aValue,
+ClearRequestHashtable(nsISupports* aKey, nsCOMPtr<imgIRequest>& aValue,
                       void* aClosure)
 {
   mozilla::css::ImageValue* image =

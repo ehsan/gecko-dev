@@ -9,12 +9,10 @@
 #import <Cocoa/Cocoa.h>
 
 #include "nsRect.h"
+#include "nsObjCExceptions.h"
 #include "imgIContainer.h"
 #include "nsEvent.h"
 #include "npapi.h"
-
-// This must be the last include:
-#include "nsObjCExceptions.h"
 
 // Declare the backingScaleFactor method that we want to call
 // on NSView/Window/Screen objects, if they recognize it.
@@ -273,6 +271,11 @@ class nsCocoaUtils
                              NSEvent* aNativeEvent);
   static void InitInputEvent(nsInputEvent &aInputEvent,
                              NSUInteger aModifiers);
+
+  /**
+   * GetCurrentModifiers() returns Cocoa modifier flags for current state.
+   */
+  static NSUInteger GetCurrentModifiers();
 
   /**
    * ConvertToCarbonModifier() returns carbon modifier flags for the cocoa

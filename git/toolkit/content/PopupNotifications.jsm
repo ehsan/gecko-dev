@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["PopupNotifications"];
+var EXPORTED_SYMBOLS = ["PopupNotifications"];
 
 var Cc = Components.classes, Ci = Components.interfaces;
 
@@ -15,10 +15,7 @@ const NOTIFICATION_EVENT_SHOWN = "shown";
 const ICON_SELECTOR = ".notification-anchor-icon";
 const ICON_ATTRIBUTE_SHOWING = "showing";
 
-const PREF_SECURITY_DELAY = "security.notification_enable_delay";
-
 let popupNotificationsMap = new WeakMap();
-let gNotificationParents = new WeakMap;
 
 /**
  * Notification object describes a single popup notification.
@@ -47,7 +44,6 @@ Notification.prototype = {
   browser: null,
   owner: null,
   options: null,
-  timeShown: null,
 
   /**
    * Removes the notification and updates the popup accordingly if needed.
@@ -71,10 +67,6 @@ Notification.prototype = {
                       iconBox;
 
     return anchorElement;
-  },
-
-  reshow: function() {
-    this.owner._reshowNotificationForAnchor(this.anchorElement);
   }
 };
 
@@ -95,7 +87,7 @@ Notification.prototype = {
  *        It is used as a fallback popup anchor if notifications specify
  *        invalid or non-existent anchor IDs.
  */
-this.PopupNotifications = function PopupNotifications(tabbrowser, panel, iconBox) {
+function PopupNotifications(tabbrowser, panel, iconBox) {
   if (!(tabbrowser instanceof Ci.nsIDOMXULElement))
     throw "Invalid tabbrowser";
   if (iconBox && !(iconBox instanceof Ci.nsIDOMXULElement))
@@ -107,7 +99,6 @@ this.PopupNotifications = function PopupNotifications(tabbrowser, panel, iconBox
   this.panel = panel;
   this.tabbrowser = tabbrowser;
   this.iconBox = iconBox;
-  this.buttonDelay = Services.prefs.getIntPref(PREF_SECURITY_DELAY);
 
   this.panel.addEventListener("popuphidden", this, true);
 
@@ -277,16 +268,11 @@ PopupNotifications.prototype = {
   },
 
   /**
-   * Called by the consumer to indicate that a browser's location has changed,
-   * so that we can update the active notifications accordingly.
+   * Called by the consumer to indicate that the current browser's location has
+   * changed, so that we can update the active notifications accordingly.
    */
-  locationChange: function PopupNotifications_locationChange(aBrowser) {
-    if (!aBrowser)
-      throw "PopupNotifications_locationChange: invalid browser";
-
-    let notifications = this._getNotificationsForBrowser(aBrowser);
-
-    notifications = notifications.filter(function (notification) {
+  locationChange: function PopupNotifications_locationChange() {
+    this._currentNotifications = this._currentNotifications.filter(function(notification) {
       // The persistWhileVisible option allows an open notification to persist
       // across location changes
       if (notification.options.persistWhileVisible &&
@@ -315,10 +301,7 @@ PopupNotifications.prototype = {
       return false;
     }, this);
 
-    this._setNotificationsForBrowser(aBrowser, notifications);
-
-    if (aBrowser == this.tabbrowser.selectedBrowser)
-      this._update();
+    this._update();
   },
 
   /**
@@ -327,7 +310,7 @@ PopupNotifications.prototype = {
    *        The Notification object to remove.
    */
   remove: function PopupNotifications_remove(notification) {
-    let isCurrent = notification.browser == this.tabbrowser.selectedBrowser;
+    let isCurrent = this._currentNotifications.indexOf(notification) != -1;
     this._remove(notification);
 
     // update the panel, if needed
@@ -364,10 +347,13 @@ PopupNotifications.prototype = {
   _currentAnchorElement: null,
 
   /**
-   * Gets notifications for the currently selected browser.
+   * Gets and sets notifications for the currently selected browser.
    */
   get _currentNotifications() {
     return this._getNotificationsForBrowser(this.tabbrowser.selectedBrowser);
+  },
+  set _currentNotifications(a) {
+    return this._setNotificationsForBrowser(this.tabbrowser.selectedBrowser, a);
   },
 
   _remove: function PopupNotifications_removeHelper(notification) {
@@ -381,8 +367,7 @@ PopupNotifications.prototype = {
     if (index == -1)
       return;
 
-    if (notification.browser == this.tabbrowser.selectedBrowser)
-      notification.anchorElement.removeAttribute(ICON_ATTRIBUTE_SHOWING);
+    notification.anchorElement.removeAttribute(ICON_ATTRIBUTE_SHOWING);
 
     // remove the notification
     notifications.splice(index, 1);
@@ -410,61 +395,21 @@ PopupNotifications.prototype = {
   },
 
   /**
-   * Removes all notifications from the notification popup.
+   *
    */
-  _clearPanel: function () {
-    let popupnotification;
-    while ((popupnotification = this.panel.lastChild)) {
-      this.panel.removeChild(popupnotification);
-
-      // If this notification was provided by the chrome document rather than
-      // created ad hoc, move it back to where we got it from.
-      let originalParent = gNotificationParents.get(popupnotification);
-      if (originalParent) {
-        popupnotification.notification = null;
-
-        // Remove nodes dynamically added to the notification's menu button
-        // in _refreshPanel. Keep popupnotificationcontent nodes; they are
-        // provided by the chrome document.
-        let contentNode = popupnotification.lastChild;
-        while (contentNode) {
-          let previousSibling = contentNode.previousSibling;
-          if (contentNode.nodeName != "popupnotificationcontent")
-            popupnotification.removeChild(contentNode);
-          contentNode = previousSibling;
-        }
-
-        // Re-hide the notification such that it isn't rendered in the chrome
-        // document. _refreshPanel will unhide it again when needed.
-        popupnotification.hidden = true;
-
-        originalParent.appendChild(popupnotification);
-      }
-    }
-  },
-
   _refreshPanel: function PopupNotifications_refreshPanel(notificationsToShow) {
-    this._clearPanel();
+    while (this.panel.lastChild)
+      this.panel.removeChild(this.panel.lastChild);
 
     const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
     notificationsToShow.forEach(function (n) {
       let doc = this.window.document;
-
+      let popupnotification = doc.createElementNS(XUL_NS, "popupnotification");
+      popupnotification.setAttribute("label", n.message);
       // Append "-notification" to the ID to try to avoid ID conflicts with other stuff
       // in the document.
-      let popupnotificationID = n.id + "-notification";
-
-      // If the chrome document provides a popupnotification with this id, use
-      // that. Otherwise create it ad-hoc.
-      let popupnotification = doc.getElementById(popupnotificationID);
-      if (popupnotification)
-        gNotificationParents.set(popupnotification, popupnotification.parentNode);
-      else
-        popupnotification = doc.createElementNS(XUL_NS, "popupnotification");
-
-      popupnotification.setAttribute("label", n.message);
-      popupnotification.setAttribute("id", popupnotificationID);
+      popupnotification.setAttribute("id", n.id + "-notification");
       popupnotification.setAttribute("popupid", n.id);
       popupnotification.setAttribute("closebuttoncommand", "PopupNotifications._dismiss();");
       if (n.mainAction) {
@@ -473,14 +418,7 @@ PopupNotifications.prototype = {
         popupnotification.setAttribute("buttoncommand", "PopupNotifications._onButtonCommand(event);");
         popupnotification.setAttribute("menucommand", "PopupNotifications._onMenuCommand(event);");
         popupnotification.setAttribute("closeitemcommand", "PopupNotifications._dismiss();event.stopPropagation();");
-      } else {
-        popupnotification.removeAttribute("buttonlabel");
-        popupnotification.removeAttribute("buttonaccesskey");
-        popupnotification.removeAttribute("buttoncommand");
-        popupnotification.removeAttribute("menucommand");
-        popupnotification.removeAttribute("closeitemcommand");
       }
-
       if (n.options.popupIconURL)
         popupnotification.setAttribute("icon", n.options.popupIconURL);
       popupnotification.notification = n;
@@ -503,10 +441,6 @@ PopupNotifications.prototype = {
       }
 
       this.panel.appendChild(popupnotification);
-
-      // The popupnotification may be hidden if we got it from the chrome
-      // document rather than creating it ad hoc.
-      popupnotification.hidden = false;
     }, this);
   },
 
@@ -542,7 +476,6 @@ PopupNotifications.prototype = {
     this.panel.setAttribute("popupid", this.panel.firstChild.getAttribute("popupid"));
     this.panel.openPopup(anchorElement, "bottomcenter topleft");
     notificationsToShow.forEach(function (n) {
-      n.timeShown = Date.now();
       this._fireCallback(n, NOTIFICATION_EVENT_SHOWN);
     }, this);
   },
@@ -647,10 +580,6 @@ PopupNotifications.prototype = {
     while (anchor && anchor.parentNode != this.iconBox)
       anchor = anchor.parentNode;
 
-    this._reshowNotificationForAnchor(anchor);
-  },
-
-  _reshowNotificationForAnchor: function PopupNotifications_reshowNotificationForAnchor(anchor) {
     // Mark notifications anchored to this anchor as un-dismissed
     this._currentNotifications.forEach(function (n) {
       if (n.anchorElement == anchor)
@@ -693,7 +622,8 @@ PopupNotifications.prototype = {
       }
     }, this);
 
-    this._clearPanel();
+    while (this.panel.lastChild)
+      this.panel.removeChild(this.panel.lastChild);
 
     this._update();
   },
@@ -716,21 +646,6 @@ PopupNotifications.prototype = {
       throw "PopupNotifications_onButtonCommand: couldn't find notification";
 
     let notification = notificationEl.notification;
-    let timeSinceShown = Date.now() - notification.timeShown;
-
-    // Only report the first time mainAction is triggered and remember that this occurred.
-    if (!notification.timeMainActionFirstTriggered) {
-      notification.timeMainActionFirstTriggered = timeSinceShown;
-      Services.telemetry.getHistogramById("POPUP_NOTIFICATION_MAINACTION_TRIGGERED_MS").
-                         add(timeSinceShown);
-    }
-
-    if (timeSinceShown < this.buttonDelay) {
-      Services.console.logStringMessage("PopupNotifications_onButtonCommand: " +
-                                        "Button click happened before the security delay: " +
-                                        timeSinceShown + "ms");
-      return;
-    }
     notification.mainAction.callback.call();
 
     this._remove(notification);

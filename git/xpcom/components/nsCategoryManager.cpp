@@ -17,7 +17,6 @@
 #include "nsClassHashtable.h"
 #include "nsIFactory.h"
 #include "nsIStringEnumerator.h"
-#include "nsIMemoryReporter.h"
 #include "nsSupportsPrimitives.h"
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
@@ -311,14 +310,6 @@ CategoryNode::Enumerate(nsISimpleEnumerator **_retval)
   return NS_OK;
 }
 
-size_t
-CategoryNode::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-    // We don't measure the strings pointed to by the entries because the
-    // pointers are non-owning.
-    return mTable.SizeOfExcludingThis(nullptr, aMallocSizeOf);
-}
-
 struct persistent_userstruct {
   PRFileDesc* fd;
   const char* categoryName;
@@ -401,15 +392,6 @@ CategoryEnumerator::enumfunc_createenumerator(const char* aStr, CategoryNode* aN
 
 NS_IMPL_QUERY_INTERFACE1(nsCategoryManager, nsICategoryManager)
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(CategoryManagerMallocSizeOf)
-
-NS_MEMORY_REPORTER_IMPLEMENT(CategoryManager,
-    "explicit/xpcom/category-manager",
-    KIND_HEAP,
-    nsIMemoryReporter::UNITS_BYTES,
-    nsCategoryManager::GetCategoryManagerSize,
-    "Memory used for the XPCOM category manager.")
-
 NS_IMETHODIMP_(nsrefcnt)
 nsCategoryManager::AddRef()
 {
@@ -436,7 +418,6 @@ nsCategoryManager::GetSingleton()
 nsCategoryManager::Destroy()
 {
   delete gCategoryManager;
-  gCategoryManager = nullptr;
 }
 
 nsresult
@@ -451,7 +432,6 @@ nsCategoryManager::Create(nsISupports* aOuter, REFNSIID aIID, void** aResult)
 nsCategoryManager::nsCategoryManager()
   : mLock("nsCategoryManager")
   , mSuppressNotifications(false)
-  , mReporter(nullptr)
 {
   PL_INIT_ARENA_POOL(&mArena, "CategoryManagerArena",
                      NS_CATEGORYMANAGER_ARENA_SIZE);
@@ -459,18 +439,8 @@ nsCategoryManager::nsCategoryManager()
   mTable.Init();
 }
 
-void
-nsCategoryManager::InitMemoryReporter()
-{
-  mReporter = new NS_MEMORY_REPORTER_NAME(CategoryManager);
-  NS_RegisterMemoryReporter(mReporter);
-}
-
 nsCategoryManager::~nsCategoryManager()
 {
-  (void)::NS_UnregisterMemoryReporter(mReporter);
-  mReporter = nullptr;
-
   // the hashtable contains entries that must be deleted before the arena is
   // destroyed, or else you will have PRLocks undestroyed and other Really
   // Bad Stuff (TM)
@@ -486,38 +456,6 @@ nsCategoryManager::get_category(const char* aName) {
     return nullptr;
   }
   return node;
-}
-
-/* static */ int64_t
-nsCategoryManager::GetCategoryManagerSize()
-{
-  MOZ_ASSERT(nsCategoryManager::gCategoryManager);
-  return nsCategoryManager::gCategoryManager->SizeOfIncludingThis(
-           CategoryManagerMallocSizeOf);
-}
-
-static size_t
-SizeOfCategoryManagerTableEntryExcludingThis(nsDepCharHashKey::KeyType aKey,
-                                             const nsAutoPtr<CategoryNode> &aData,
-                                             nsMallocSizeOfFun aMallocSizeOf,
-                                             void* aUserArg)
-{
-    // We don't measure the string pointed to by aKey because it's a non-owning
-    // pointer.
-    return aData.get()->SizeOfExcludingThis(aMallocSizeOf);
-}
-
-size_t
-nsCategoryManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  size_t n = aMallocSizeOf(this);
-
-  n += PL_SizeOfArenaPoolExcludingPool(&mArena, aMallocSizeOf);
-
-  n += mTable.SizeOfExcludingThis(SizeOfCategoryManagerTableEntryExcludingThis,
-                                  aMallocSizeOf);
-
-  return n;
 }
 
 namespace {

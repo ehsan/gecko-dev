@@ -23,18 +23,13 @@ const MAX_TIMEOUT_RUNS = 300;
 
 // Maximum number of milliseconds the process that is launched can run before
 // the test will try to kill it.
-const APP_TIMER_TIMEOUT = 120000;
+const APP_TIMER_TIMEOUT = 15000;
 
 let gAppTimer;
 let gProcess;
 let gTimeoutRuns = 0;
 
 function run_test() {
-  if (APP_BIN_NAME == "xulrunner") {
-    logTestInfo("Unable to run this test on xulrunner");
-    return;
-  }
-
   do_test_pending();
   do_register_cleanup(end_test);
 

@@ -16,10 +16,6 @@
 # include "mozilla/layers/ShadowLayerUtilsD3D10.h"
 #endif
 
-#if defined(XP_MACOSX)
-#define MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS
-#endif
-
 #if defined(MOZ_X11)
 # include "mozilla/layers/ShadowLayerUtilsX11.h"
 #else
@@ -52,9 +48,9 @@ struct ParamTraits<mozilla::layers::SurfaceDescriptorX11> {
 #endif  // !defined(MOZ_HAVE_XSURFACEDESCRIPTORX11)
 
 template<>
-struct ParamTraits<mozilla::gl::GLContext::SharedTextureShareType>
+struct ParamTraits<mozilla::gl::TextureImage::TextureShareType>
 {
-  typedef mozilla::gl::GLContext::SharedTextureShareType paramType;
+  typedef mozilla::gl::TextureImage::TextureShareType paramType;
 
   static void Write(Message* msg, const paramType& param)
   {

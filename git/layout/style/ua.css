@@ -39,7 +39,6 @@
   z-index: inherit;
   page-break-before: inherit;
   page-break-after: inherit;
-  page-break-inside: inherit;
   vertical-align: inherit; /* needed for inline-table */
   line-height: inherit; /* needed for vertical-align on inline-table */
   align-self: inherit; /* needed for "align-self" to work on table flex items */
@@ -49,7 +48,6 @@
   -moz-transform-origin: inherit;
   /* Bug 724750 */
   -moz-backface-visibility: inherit;
-  clip: inherit;
 }
 
 *|*::-moz-table-row {
@@ -139,12 +137,6 @@
   -moz-column-width: inherit;
   -moz-column-gap: inherit;
   -moz-column-rule: inherit;
-  /* CSS3 flexbox properties that apply to the flex container: */
-  /* align-content: inherit; FIXME: not yet supported (bug 702508) */
-  align-items: inherit;
-  flex-direction: inherit;
-  /* flex-wrap: inherit; FIXME: not yet supported (bug 702508) */
-  justify-content: inherit;
   /* Do not change these. nsCSSFrameConstructor depends on them to create a good
      frame tree. */
   position: static !important;
@@ -200,7 +192,6 @@
 
 *|*::-moz-pagecontent {
   display: block !important;
-  margin: auto;
 }
 
 *|*::-moz-pagebreak {

@@ -57,7 +57,7 @@ struct IconData
   , fetchMode(FETCH_NEVER)
   , status(ICON_STATUS_UNKNOWN)
   {
-    guid.SetIsVoid(true);
+    guid.SetIsVoid(PR_TRUE);
   }
 
   int64_t id;
@@ -197,6 +197,7 @@ public:
 protected:
   IconData mIcon;
   PageData mPage;
+  nsCOMPtr<nsIChannel> mChannel;
   const bool mFaviconLoadPrivate;
 };
 

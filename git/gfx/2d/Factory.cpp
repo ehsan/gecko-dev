@@ -47,14 +47,7 @@
 #include "Logging.h"
 
 #ifdef PR_LOGGING
-PRLogModuleInfo *
-GetGFX2DLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("gfx2d");
-  return sLog;
-}
+PRLogModuleInfo *sGFX2DLog = PR_NewLogModule("gfx2d");
 #endif
 
 // The following code was largely taken from xpcom/glue/SSE.cpp and
@@ -66,7 +59,7 @@ enum CPUIDRegister { eax = 0, ebx = 1, ecx = 2, edx = 3 };
 // cpuid.h is available on gcc 4.3 and higher on i386 and x86_64
 #include <cpuid.h>
 
-static inline bool
+static bool
 HasCPUIDBit(unsigned int level, CPUIDRegister reg, unsigned int bit)
 {
   unsigned int regs[4];
@@ -128,7 +121,7 @@ __cpuid(int CPUInfo[4], int InfoType)
 #endif
 
 #ifdef HAVE_CPU_DETECTION
-static inline bool
+static bool
 HasCPUIDBit(unsigned int level, CPUIDRegister reg, unsigned int bit)
 {
   // Check that the level in question is supported.
@@ -441,23 +434,7 @@ Factory::GetD2DVRAMUsageSourceSurface()
   return DrawTargetD2D::mVRAMUsageSS;
 }
 
-void
-Factory::D2DCleanup()
-{
-  DrawTargetD2D::CleanupD2D();
-}
-
 #endif // XP_WIN
-
-#ifdef USE_SKIA_GPU
-TemporaryRef<DrawTarget>
-Factory::CreateSkiaDrawTargetForFBO(unsigned int aFBOID, GrContext *aGrContext, const IntSize &aSize, SurfaceFormat aFormat)
-{
-  RefPtr<DrawTargetSkia> newTarget = new DrawTargetSkia();
-  newTarget->InitWithFBO(aFBOID, aGrContext, aSize, aFormat);
-  return newTarget;
-}
-#endif // USE_SKIA_GPU
 
 TemporaryRef<DrawTarget>
 Factory::CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface, const IntSize& aSize)

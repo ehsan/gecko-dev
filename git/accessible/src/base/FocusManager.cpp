@@ -127,8 +127,11 @@ FocusManager::NotifyOfDOMFocus(nsISupports* aTarget)
       GetAccService()->GetDocAccessible(targetNode->OwnerDoc());
     if (document) {
       // Set selection listener for focused element.
-      if (targetNode->IsElement())
-        SelectionMgr()->SetControlSelectionListener(targetNode->AsElement());
+      if (targetNode->IsElement()) {
+        RootAccessible* root = document->RootAccessible();
+        nsCaretAccessible* caretAcc = root->GetCaretAccessible();
+        caretAcc->SetControlSelectionListener(targetNode->AsElement());
+      }
 
       document->HandleNotification<FocusManager, nsINode>
         (this, &FocusManager::ProcessDOMFocus, targetNode);
@@ -154,10 +157,6 @@ FocusManager::NotifyOfDOMBlur(nsISupports* aTarget)
     DocAccessible* document =
       GetAccService()->GetDocAccessible(DOMDoc);
     if (document) {
-      // Clear selection listener for previously focused element.
-      if (targetNode->IsElement())
-        SelectionMgr()->ClearControlSelectionListener();
-
       document->HandleNotification<FocusManager, nsINode>
         (this, &FocusManager::ProcessDOMFocus, DOMDoc);
     }
@@ -220,7 +219,7 @@ FocusManager::DispatchFocusEvent(DocAccessible* aDocument,
     nsRefPtr<AccEvent> event =
       new AccEvent(nsIAccessibleEvent::EVENT_FOCUS, aTarget,
                    eAutoDetect, AccEvent::eCoalesceOfSameType);
-    aDocument->FireDelayedEvent(event);
+    aDocument->FireDelayedAccessibleEvent(event);
 
 #ifdef A11Y_LOG
     if (logging::IsEnabled(logging::eFocus))

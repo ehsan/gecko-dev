@@ -17,35 +17,16 @@
  *
  * @param aHooks object
  *        An object with preNest and postNest methods for calling when entering
- *        and exiting a nested event loop, addToParentPool and
- *        removeFromParentPool methods for handling the lifetime of actors that
- *        will outlive the thread, like breakpoints.
- * @param aGlobal object [optional]
- *        An optional (for content debugging only) reference to the content
- *        window.
+ *        and exiting a nested event loop, as well as addToBreakpointPool and
+ *        removeFromBreakpointPool methods for handling breakpoint lifetime.
  */
-function ThreadActor(aHooks, aGlobal)
+function ThreadActor(aHooks)
 {
   this._state = "detached";
   this._frameActors = [];
   this._environmentActors = [];
-  this._hooks = aHooks;
-  this._sources = {};
-  this.global = aGlobal;
-
-  // A cache of prototype chains for objects that have received a
-  // prototypeAndProperties request. Due to the way the debugger frontend works,
-  // this corresponds to a cache of prototype chains that the user has been
-  // inspecting in the variables tree view. This allows the debugger to evaluate
-  // native getter methods for WebIDL attributes that are meant to be called on
-  // the instace and not on the prototype.
-  //
-  // The map keys are Debugger.Object instances requested by the client and the
-  // values are arrays of Debugger.Objects that make up their prototype chain.
-  this._protoChains = new Map();
-
-  this.findGlobals = this.globalManager.findGlobals.bind(this);
-  this.onNewGlobal = this.globalManager.onNewGlobal.bind(this);
+  this._hooks = aHooks ? aHooks : {};
+  this._scripts = {};
 }
 
 /**
@@ -58,9 +39,6 @@ ThreadActor.prototype = {
   actorPrefix: "context",
 
   get state() { return this._state; },
-  get attached() this.state == "attached" ||
-                 this.state == "running" ||
-                 this.state == "paused",
 
   get _breakpointStore() { return ThreadActor._breakpointStore; },
 
@@ -68,43 +46,50 @@ ThreadActor.prototype = {
     if (!this._threadLifetimePool) {
       this._threadLifetimePool = new ActorPool(this.conn);
       this.conn.addActorPool(this._threadLifetimePool);
-      this._threadLifetimePool.objectActors = new WeakMap();
     }
     return this._threadLifetimePool;
   },
 
   clearDebuggees: function TA_clearDebuggees() {
     if (this.dbg) {
-      this.dbg.removeAllDebuggees();
+      let debuggees = this.dbg.getDebuggees();
+      for (let debuggee of debuggees) {
+        this.dbg.removeDebuggee(debuggee);
+      }
     }
     this.conn.removeActorPool(this._threadLifetimePool || undefined);
     this._threadLifetimePool = null;
-    this._sources = {};
+    // Unless we carefully take apart the scripts table this way, we end up
+    // leaking documents. It would be nice to track this down carefully, once
+    // we have the appropriate tools.
+    for (let url in this._scripts) {
+      delete this._scripts[url];
+    }
+    this._scripts = {};
   },
 
   /**
    * Add a debuggee global to the Debugger object.
    */
   addDebuggee: function TA_addDebuggee(aGlobal) {
-    try {
-      this.dbg.addDebuggee(aGlobal);
-    } catch (e) {
-      // Ignore attempts to add the debugger's compartment as a debuggee.
-      dumpn("Ignoring request to add the debugger's compartment as a debuggee");
-    }
-  },
+    // Use the inspector xpcom component to turn on debugging
+    // for aGlobal's compartment.  Ideally this won't be necessary
+    // medium- to long-term, and will be managed by the engine
+    // instead.
 
-  /**
-   * Initialize the Debugger.
-   */
-  _initDebugger: function TA__initDebugger() {
-    this.dbg = new Debugger();
-    this.dbg.uncaughtExceptionHook = this.uncaughtExceptionHook.bind(this);
-    this.dbg.onDebuggerStatement = this.onDebuggerStatement.bind(this);
-    this.dbg.onNewScript = this.onNewScript.bind(this);
-    this.dbg.onNewGlobalObject = this.globalManager.onNewGlobal.bind(this);
-    // Keep the debugger disabled until a client attaches.
-    this.dbg.enabled = this._state != "detached";
+    if (!this.dbg) {
+      this.dbg = new Debugger();
+      this.dbg.uncaughtExceptionHook = this.uncaughtExceptionHook.bind(this);
+      this.dbg.onDebuggerStatement = this.onDebuggerStatement.bind(this);
+      this.dbg.onNewScript = this.onNewScript.bind(this);
+      // Keep the debugger disabled until a client attaches.
+      this.dbg.enabled = this._state != "detached";
+    }
+
+    this.dbg.addDebuggee(aGlobal);
+    for (let s of this.dbg.findScripts()) {
+      this._addScript(s);
+    }
   },
 
   /**
@@ -119,53 +104,6 @@ ThreadActor.prototype = {
     }
   },
 
-  /**
-   * Add the provided window and all windows in its frame tree as debuggees.
-   */
-  _addDebuggees: function TA__addDebuggees(aWindow) {
-    this.addDebuggee(aWindow);
-    let frames = aWindow.frames;
-    if (frames) {
-      for (let i = 0; i < frames.length; i++) {
-        this._addDebuggees(frames[i]);
-      }
-    }
-  },
-
-  /**
-   * An object that will be used by ThreadActors to tailor their behavior
-   * depending on the debugging context being required (chrome or content).
-   */
-  globalManager: {
-    findGlobals: function TA_findGlobals() {
-      this._addDebuggees(this.global);
-    },
-
-    /**
-     * A function that the engine calls when a new global object has been
-     * created.
-     *
-     * @param aGlobal Debugger.Object
-     *        The new global object that was created.
-     */
-    onNewGlobal: function TA_onNewGlobal(aGlobal) {
-      // Content debugging only cares about new globals in the contant window,
-      // like iframe children.
-      if (aGlobal.hostAnnotations &&
-          aGlobal.hostAnnotations.type == "document" &&
-          aGlobal.hostAnnotations.element === this.global) {
-        this.addDebuggee(aGlobal);
-      }
-      // Notify the client.
-      this.conn.send({
-        from: this.actorID,
-        type: "newGlobal",
-        // TODO: after bug 801084 lands see if we need to JSONify this.
-        hostAnnotations: aGlobal.hostAnnotations
-      });
-    }
-  },
-
   disconnect: function TA_disconnect() {
     if (this._state == "paused") {
       this.onResume();
@@ -173,7 +111,6 @@ ThreadActor.prototype = {
 
     this._state = "exited";
 
-    this._protoChains.clear();
     this.clearDebuggees();
 
     if (!this.dbg) {
@@ -202,13 +139,10 @@ ThreadActor.prototype = {
 
     this._state = "attached";
 
-    if (!this.dbg) {
-      this._initDebugger();
-    }
-    this.findGlobals();
     this.dbg.enabled = true;
     try {
       // Put ourselves in the paused state.
+      // XXX: We need to put the debuggee in a paused state too.
       let packet = this._paused();
       if (!packet) {
         return { error: "notAttached" };
@@ -469,7 +403,7 @@ ThreadActor.prototype = {
 
     let location = aRequest.location;
     let line = location.line;
-    if (this.dbg.findScripts({ url: location.url }).length == 0 || line < 0) {
+    if (!this._scripts[location.url] || line < 0) {
       return { error: "noScript" };
     }
 
@@ -499,114 +433,140 @@ ThreadActor.prototype = {
    *        The location of the breakpoint as specified in the protocol.
    */
   _setBreakpoint: function TA__setBreakpoint(aLocation) {
-    let breakpoints = this._breakpointStore[aLocation.url];
-
-    let actor;
-    if (breakpoints[aLocation.line].actor) {
-      actor = breakpoints[aLocation.line].actor;
-    } else {
-      actor = breakpoints[aLocation.line].actor = new BreakpointActor(this, {
-        url: aLocation.url,
-        line: aLocation.line
-      });
-      this._hooks.addToParentPool(actor);
-    }
-
-    let scripts = this.dbg.findScripts(aLocation);
-    if (scripts.length == 0) {
-      return {
-        error: "noScript",
-        actor: actor.actorID
-      };
-    }
-
-    let found = false;
-    for (let script of scripts) {
-      let offsets = script.getLineOffsets(aLocation.line);
-      if (offsets.length > 0) {
-        for (let offset of offsets) {
-          script.setBreakpoint(offset, actor);
+    // Fetch the list of scripts in that url.
+    let scripts = this._scripts[aLocation.url];
+    // Fetch the specified script in that list.
+    let script = null;
+    for (let i = aLocation.line; i >= 0; i--) {
+      // Stop when the first script that contains this location is found.
+      if (scripts[i]) {
+        // If that first script does not contain the line specified, it's no
+        // good.
+        if (i + scripts[i].lineCount < aLocation.line) {
+          continue;
         }
-        actor.addScript(script, this);
-        found = true;
+        script = scripts[i];
+        break;
       }
     }
-    if (found) {
-      return {
-        actor: actor.actorID
-      };
+
+    let location = { url: aLocation.url, line: aLocation.line };
+    // Get the list of cached breakpoints in this URL.
+    let scriptBreakpoints = this._breakpointStore[location.url];
+    let bpActor;
+    if (scriptBreakpoints &&
+        scriptBreakpoints[location.line] &&
+        scriptBreakpoints[location.line].actor) {
+      bpActor = scriptBreakpoints[location.line].actor;
+    }
+    if (!bpActor) {
+      bpActor = new BreakpointActor(this, location);
+      this._hooks.addToBreakpointPool(bpActor);
+      if (scriptBreakpoints[location.line]) {
+        scriptBreakpoints[location.line].actor = bpActor;
+      }
     }
 
-    let scripts = this.dbg.findScripts({
-      url: aLocation.url,
-      line: aLocation.line,
-      innermost: true
-    });
+    if (!script) {
+      return { error: "noScript", actor: bpActor.actorID };
+    }
+
+    script = this._getInnermostContainer(script, aLocation.line);
+    bpActor.addScript(script, this);
+
+    let offsets = script.getLineOffsets(aLocation.line);
+    let codeFound = false;
+    for (let i = 0; i < offsets.length; i++) {
+      script.setBreakpoint(offsets[i], bpActor);
+      codeFound = true;
+    }
 
     let actualLocation;
-    let found = false;
-    for (let script of scripts) {
-      let offsets = script.getAllOffsets();
-      for (let line = aLocation.line; line < offsets.length; ++line) {
-        if (offsets[line]) {
-          for (let offset of offsets[line]) {
-            script.setBreakpoint(offset, actor);
+    if (offsets.length == 0) {
+      // No code at that line in any script, skipping forward.
+      let lines = script.getAllOffsets();
+      let oldLine = aLocation.line;
+      for (let line = oldLine; line < lines.length; ++line) {
+        if (lines[line]) {
+          for (let i = 0; i < lines[line].length; i++) {
+            script.setBreakpoint(lines[line][i], bpActor);
+            codeFound = true;
           }
-          actor.addScript(script, this);
-          if (!actualLocation) {
-            actualLocation = {
-              url: aLocation.url,
-              line: line,
-              column: aLocation.column
-            };
-          }
-          found = true;
+          actualLocation = {
+            url: aLocation.url,
+            line: line,
+            column: aLocation.column
+          };
+          bpActor.location = actualLocation;
+          // Update the cache as well.
+          scriptBreakpoints[line] = scriptBreakpoints[oldLine];
+          scriptBreakpoints[line].line = line;
+          delete scriptBreakpoints[oldLine];
           break;
         }
       }
     }
-    if (found) {
-      if (breakpoints[actualLocation.line] &&
-          breakpoints[actualLocation.line].actor) {
-        actor.onDelete();
-        delete breakpoints[aLocation.line];
-        return {
-          actor: breakpoints[actualLocation.line].actor.actorID,
-          actualLocation: actualLocation
-        };
-      } else {
-        actor.location = actualLocation;
-        breakpoints[actualLocation.line] = breakpoints[aLocation.line];
-        breakpoints[actualLocation.line].line = actualLocation.line;
-        delete breakpoints[aLocation.line];
-        return {
-          actor: actor.actorID,
-          actualLocation: actualLocation
-        };
-      }
+    if (!codeFound) {
+      return  { error: "noCodeAtLineColumn", actor: bpActor.actorID };
     }
 
-    return {
-      error: "noCodeAtLineColumn",
-      actor: actor.actorID
-    };
+    return { actor: bpActor.actorID, actualLocation: actualLocation };
   },
 
   /**
-   * Get the script and source lists from the debugger.
+   * Get the innermost script that contains this line, by looking through child
+   * scripts of the supplied script.
+   *
+   * @param aScript Debugger.Script
+   *        The source script.
+   * @param aLine number
+   *        The line number.
    */
-  _discoverScriptsAndSources: function TA__discoverScriptsAndSources() {
+  _getInnermostContainer: function TA__getInnermostContainer(aScript, aLine) {
+    let children = aScript.getChildScripts();
+    if (children.length > 0) {
+      for (let i = 0; i < children.length; i++) {
+        let child = children[i];
+        // Stop when the first script that contains this location is found.
+        if (child.startLine <= aLine &&
+            child.startLine + child.lineCount > aLine) {
+          return this._getInnermostContainer(child, aLine);
+        }
+      }
+    }
+    // Location not found in children, this is the innermost containing script.
+    return aScript;
+  },
+
+  /**
+   * Handle a protocol request to return the list of loaded scripts.
+   */
+  onScripts: function TA_onScripts(aRequest) {
+    // Get the script list from the debugger.
     for (let s of this.dbg.findScripts()) {
       this._addScript(s);
     }
-  },
+    // Build the cache.
+    let scripts = [];
+    for (let url in this._scripts) {
+      for (let i = 0; i < this._scripts[url].length; i++) {
+        if (!this._scripts[url][i]) {
+          continue;
+        }
 
-  onSources: function TA_onSources(aRequest) {
-    this._discoverScriptsAndSources();
-    let urls = Object.getOwnPropertyNames(this._sources);
-    return {
-      sources: [this._getSource(url).form() for (url of urls)]
-    };
+        let script = {
+          url: url,
+          startLine: i,
+          lineCount: this._scripts[url][i].lineCount,
+          source: this.sourceGrip(this._scripts[url][i], this)
+        };
+        scripts.push(script);
+      }
+    }
+
+    let packet = { from: this.actorID,
+                   scripts: scripts };
+    return packet;
   },
 
   /**
@@ -896,8 +856,6 @@ ThreadActor.prototype = {
 
     if (aPool.objectActors.has(aValue)) {
       return aPool.objectActors.get(aValue).grip();
-    } else if (this.threadLifetimePool.objectActors.has(aValue)) {
-      return this.threadLifetimePool.objectActors.get(aValue).grip();
     }
 
     let actor = new ObjectActor(aValue, this);
@@ -927,37 +885,14 @@ ThreadActor.prototype = {
    *        The object actor.
    */
   threadObjectGrip: function TA_threadObjectGrip(aActor) {
+    if (!this.threadLifetimePool.objectActors) {
+      this.threadLifetimePool.objectActors = new WeakMap();
+    }
     // We want to reuse the existing actor ID, so we just remove it from the
     // current pool's weak map and then let pool.addActor do the rest.
     aActor.registeredPool.objectActors.delete(aActor.obj);
     this.threadLifetimePool.addActor(aActor);
     this.threadLifetimePool.objectActors.set(aActor.obj, aActor);
-  },
-
-  /**
-   * Handle a protocol request to promote multiple pause-lifetime grips to
-   * thread-lifetime grips.
-   *
-   * @param aRequest object
-   *        The protocol request object.
-   */
-  onThreadGrips: function OA_onThreadGrips(aRequest) {
-    if (this.state != "paused") {
-      return { error: "wrongState" };
-    }
-
-    if (!aRequest.actors) {
-      return { error: "missingParameter",
-               message: "no actors were specified" };
-    }
-
-    for (let actorID of aRequest.actors) {
-      let actor = this._pausePool.get(actorID);
-      if (actor) {
-        this.threadObjectGrip(actor);
-      }
-    }
-    return {};
   },
 
   /**
@@ -1028,10 +963,10 @@ ThreadActor.prototype = {
       return this.threadLifetimePool.sourceActors[aScript.url].grip();
     }
 
-    let actor = new SourceActor(aScript.url, this);
+    let actor = new SourceActor(aScript, this);
     this.threadLifetimePool.addActor(actor);
     this.threadLifetimePool.sourceActors[aScript.url] = actor;
-    return actor.form();
+    return actor.grip();
   },
 
   // JS Debugger API hooks.
@@ -1096,30 +1031,17 @@ ThreadActor.prototype = {
    *        A Debugger.Object instance whose referent is the global object.
    */
   onNewScript: function TA_onNewScript(aScript, aGlobal) {
-    this._addScript(aScript);
-  },
-
-  /**
-   * Check if scripts from the provided source URL are allowed to be stored in
-   * the cache.
-   *
-   * @param aSourceUrl String
-   *        The url of the script's source that will be stored.
-   * @returns true, if the script can be added, false otherwise.
-   */
-  _allowSource: function TA__allowScript(aSourceUrl) {
-    // Ignore anything we don't have a URL for (eval scripts, for example).
-    if (!aSourceUrl)
-      return false;
-    // Ignore XBL bindings for content debugging.
-    if (aSourceUrl.indexOf("chrome://") == 0) {
-      return false;
+    if (this._addScript(aScript)) {
+      // Notify the client.
+      this.conn.send({
+        from: this.actorID,
+        type: "newScript",
+        url: aScript.url,
+        startLine: aScript.startLine,
+        lineCount: aScript.lineCount,
+        source: this.sourceGrip(aScript, this)
+      });
     }
-    // Ignore about:* pages for content debugging.
-    if (aSourceUrl.indexOf("about:") == 0) {
-      return false;
-    }
-    return true;
   },
 
   /**
@@ -1130,13 +1052,23 @@ ThreadActor.prototype = {
    * @returns true, if the script was added, false otherwise.
    */
   _addScript: function TA__addScript(aScript) {
-    if (!this._allowSource(aScript.url)) {
+    // Ignore anything we don't have a URL for (eval scripts, for example).
+    if (!aScript.url)
+      return false;
+    // Ignore XBL bindings for content debugging.
+    if (aScript.url.indexOf("chrome://") == 0) {
       return false;
     }
-
-    // TODO bug 637572: we should be dealing with sources directly, not
-    // inferring them through scripts.
-    this._addSource(aScript.url);
+    // Ignore about:* pages for content debugging.
+    if (aScript.url.indexOf("about:") == 0) {
+      return false;
+    }
+    // Use a sparse array for storing the scripts for each URL in order to
+    // optimize retrieval.
+    if (!this._scripts[aScript.url]) {
+      this._scripts[aScript.url] = [];
+    }
+    this._scripts[aScript.url][aScript.startLine] = aScript;
 
     // Set any stored breakpoints.
     let existing = this._breakpointStore[aScript.url];
@@ -1153,94 +1085,7 @@ ThreadActor.prototype = {
       }
     }
     return true;
-  },
-
-  /**
-   * Finds the prototype chain cache for the provided object and returns the
-   * full cache entry, or null if the object is not found in the cache.
-   *
-   * @param aObject Debugger.Object
-   *        The object to look up.
-   * @returns the array of objects that correspond to the found cache entry.
-   */
-  _findProtoChain: function TA__findProtoChain(aObject) {
-    if (this._protoChains.has(aObject)) {
-      return this._protoChains.get(aObject);
-    }
-    for (let [obj, chain] of this._protoChains) {
-      if (chain.indexOf(aObject) != -1) {
-        return chain;
-      }
-    }
-    return null;
-  },
-
-  /**
-   * Removes the specified object and its prototype chain from the prototype
-   * chain cache. Returns true if the removal was successful and false if the
-   * object was not found in the cache.
-   *
-   * @param aObject Debugger.Object
-   *        The object to remove from the cache.
-   * @returns true if the object was removed, false if it was not found.
-   */
-  _removeFromProtoChain:function TA__removeFromProtoChain(aObject) {
-    let retval = false;
-    if (this._protoChains.has(aObject)) {
-      this._protoChains.delete(aObject);
-      retval = true;
-    }
-    for (let [obj, chain] of this._protoChains) {
-      let index = chain.indexOf(aObject);
-      if (index != -1) {
-        chain.splice(index);
-        retval = true;
-      }
-    }
-    return retval;
-  },
-
-  /**
-   * Add a source to the current set of sources.
-   *
-   * Right now this takes an url, but in the future it should
-   * take a Debugger.Source.
-   *
-   * @param string the source URL.
-   * @returns a SourceActor representing the source.
-   */
-  _addSource: function TA__addSource(aURL) {
-    if (!this._allowSource(aURL)) {
-      return false;
-    }
-
-    if (aURL in this._sources) {
-      return true;
-    }
-
-    let actor = new SourceActor(aURL, this);
-    this.threadLifetimePool.addActor(actor);
-    this._sources[aURL] = actor;
-
-    this.conn.send({
-      from: this.actorID,
-      type: "newSource",
-      source: actor.form()
-    });
-
-    return true;
-  },
-
-  /**
-   * Get the source actor for the given URL.
-   */
-  _getSource: function TA__getSource(aUrl) {
-    let source = this._sources[aUrl];
-    if (!source) {
-      throw new Error("No source for '" + aUrl + "'");
-    }
-    return source;
-  },
+  }
 
 };
 
@@ -1253,8 +1098,7 @@ ThreadActor.prototype.requestTypes = {
   "interrupt": ThreadActor.prototype.onInterrupt,
   "releaseMany": ThreadActor.prototype.onReleaseMany,
   "setBreakpoint": ThreadActor.prototype.onSetBreakpoint,
-  "sources": ThreadActor.prototype.onSources,
-  "threadGrips": ThreadActor.prototype.onThreadGrips
+  "scripts": ThreadActor.prototype.onScripts
 };
 
 
@@ -1331,16 +1175,36 @@ PauseScopedActor.prototype = {
 
 
 /**
+ * Utility function for updating an object with the properties of another
+ * object.
+ *
+ * @param aTarget Object
+ *        The object being updated.
+ * @param aNewAttrs Object
+ *        The new attributes being set on the target.
+ */
+function update(aTarget, aNewAttrs) {
+  for (let key in aNewAttrs) {
+    let desc = Object.getOwnPropertyDescriptor(aNewAttrs, key);
+
+    if (desc) {
+      Object.defineProperty(aTarget, key, desc);
+    }
+  }
+}
+
+
+/**
  * A SourceActor provides information about the source of a script.
  *
- * @param aUrl String
- *        The url of the source we are representing.
+ * @param aScript Debugger.Script
+ *        The script whose source we are representing.
  * @param aThreadActor ThreadActor
  *        The current thread actor.
  */
-function SourceActor(aUrl, aThreadActor) {
+function SourceActor(aScript, aThreadActor) {
   this._threadActor = aThreadActor;
-  this._url = aUrl;
+  this._script = aScript;
 }
 
 SourceActor.prototype = {
@@ -1349,12 +1213,8 @@ SourceActor.prototype = {
 
   get threadActor() { return this._threadActor; },
 
-  form: function SA_form() {
-    return {
-      actor: this.actorID,
-      url: this._url
-      // TODO bug 637572: introductionScript
-    };
+  grip: function SA_grip() {
+    return this.actorID;
   },
 
   disconnect: function LSA_disconnect() {
@@ -1367,23 +1227,27 @@ SourceActor.prototype = {
    * Handler for the "source" packet.
    */
   onSource: function SA_onSource(aRequest) {
-    return this
+    this
       ._loadSource()
-      .then(function(aSource) {
+      .chainPromise(function(aSource) {
         return this._threadActor.createValueGrip(
           aSource, this.threadActor.threadLifetimePool);
       }.bind(this))
-      .then(function (aSourceGrip) {
+      .chainPromise(function (aSourceGrip) {
         return {
           from: this.actorID,
           source: aSourceGrip
         };
-      }.bind(this), function (aError) {
+      }.bind(this))
+      .trap(function (aError) {
         return {
           "from": this.actorID,
           "error": "loadSourceError",
-          "message": "Could not load the source for " + this._url + "."
+          "message": "Could not load the source for " + this._script.url + "."
         };
+      }.bind(this))
+      .chainPromise(function (aPacket) {
+        this.conn.send(aPacket);
       }.bind(this));
   },
 
@@ -1421,10 +1285,9 @@ SourceActor.prototype = {
    * http://www.softwareishard.com/blog/firebug/nsitraceablechannel-intercept-http-traffic/
    */
   _loadSource: function SA__loadSource() {
-    let deferred = defer();
+    let promise = new Promise();
+    let url = this._script.url;
     let scheme;
-    let url = this._url.split(" -> ").pop();
-
     try {
       scheme = Services.io.extractScheme(url);
     } catch (e) {
@@ -1442,16 +1305,16 @@ SourceActor.prototype = {
         try {
           NetUtil.asyncFetch(url, function onFetch(aStream, aStatus) {
             if (!Components.isSuccessCode(aStatus)) {
-              deferred.reject(new Error("Request failed"));
+              promise.reject(new Error("Request failed"));
               return;
             }
 
             let source = NetUtil.readInputStreamToString(aStream, aStream.available());
-            deferred.resolve(this._convertToUnicode(source));
+            promise.resolve(this._convertToUnicode(source));
             aStream.close();
           }.bind(this));
         } catch (ex) {
-          deferred.reject(new Error("Request failed"));
+          promise.reject(new Error("Request failed"));
         }
         break;
 
@@ -1469,7 +1332,7 @@ SourceActor.prototype = {
         let streamListener = {
           onStartRequest: function(aRequest, aContext, aStatusCode) {
             if (!Components.isSuccessCode(aStatusCode)) {
-              deferred.reject("Request failed");
+              promise.reject("Request failed");
             }
           },
           onDataAvailable: function(aRequest, aContext, aStream, aOffset, aCount) {
@@ -1477,12 +1340,12 @@ SourceActor.prototype = {
           },
           onStopRequest: function(aRequest, aContext, aStatusCode) {
             if (!Components.isSuccessCode(aStatusCode)) {
-              deferred.reject("Request failed");
+              promise.reject("Request failed");
               return;
             }
 
-            deferred.resolve(this._convertToUnicode(chunks.join(""),
-                                                    channel.contentCharset));
+            promise.resolve(this._convertToUnicode(chunks.join(""),
+                                                   channel.contentCharset));
           }.bind(this)
         };
 
@@ -1491,7 +1354,7 @@ SourceActor.prototype = {
         break;
     }
 
-    return deferred.promise;
+    return promise;
   }
 
 };
@@ -1525,27 +1388,9 @@ update(ObjectActor.prototype, {
    * Returns a grip for this actor for returning in a protocol message.
    */
   grip: function OA_grip() {
-    let g = { "type": "object",
-              "class": this.obj.class,
-              "actor": this.actorID };
-
-    // Add additional properties for functions.
-    if (this.obj.class === "Function") {
-      if (this.obj.name) {
-        g.name = this.obj.name;
-      } else if (this.obj.displayName) {
-        g.displayName = this.obj.displayName;
-      }
-
-      // Check if the developer has added a de-facto standard displayName
-      // property for us to use.
-      let desc = this.obj.getOwnPropertyDescriptor("displayName");
-      if (desc && desc.value && typeof desc.value == "string") {
-        g.userDisplayName = this.threadActor.createValueGrip(desc.value);
-      }
-    }
-
-    return g;
+    return { "type": "object",
+             "class": this.obj.class,
+             "actor": this.actorID };
   },
 
   /**
@@ -1554,11 +1399,6 @@ update(ObjectActor.prototype, {
   release: function OA_release() {
     this.registeredPool.objectActors.delete(this.obj);
     this.registeredPool.removeActor(this);
-    this.disconnect();
-  },
-
-  disconnect: function OA_disconnect() {
-    this.threadActor._removeFromProtoChain(this.obj);
   },
 
   /**
@@ -1583,27 +1423,17 @@ update(ObjectActor.prototype, {
    */
   onPrototypeAndProperties:
   PauseScopedActor.withPaused(function OA_onPrototypeAndProperties(aRequest) {
-    if (this.obj.proto) {
-      // Store the object and its prototype to the prototype chain cache, so that
-      // we can evaluate native getter methods for WebIDL attributes that are
-      // meant to be called on the instace and not on the prototype.
-      //
-      // TODO: after bug 801084, we could restrict the cache to objects where
-      // this.obj.hostAnnotations.isWebIDLObject == true
-      let chain = this.threadActor._findProtoChain(this.obj);
-      if (!chain) {
-        chain = [];
-        this.threadActor._protoChains.set(this.obj, chain);
-        chain.push(this.obj);
-      }
-      if (chain.indexOf(this.obj.proto) == -1) {
-        chain.push(this.obj.proto);
-      }
-    }
-
     let ownProperties = {};
-    for (let name of this.obj.getOwnPropertyNames()) {
-      ownProperties[name] = this._propertyDescriptor(name);
+    for each (let name in this.obj.getOwnPropertyNames()) {
+      try {
+        let desc = this.obj.getOwnPropertyDescriptor(name);
+        ownProperties[name] = this._propertyDescriptor(desc);
+      } catch (e if e.name == "NS_ERROR_XPC_BAD_OP_ON_WN_PROTO") {
+        // Calling getOwnPropertyDescriptor on wrapped native prototypes is not
+        // allowed.
+        dumpn("Error while getting the property descriptor for " + name +
+              ": " + e.name);
+      }
     }
     return { from: this.actorID,
              prototype: this.threadActor.createValueGrip(this.obj.proto),
@@ -1634,88 +1464,30 @@ update(ObjectActor.prototype, {
                message: "no property name was specified" };
     }
 
+    let desc = this.obj.getOwnPropertyDescriptor(aRequest.name);
     return { from: this.actorID,
-             descriptor: this._propertyDescriptor(aRequest.name) };
+             descriptor: this._propertyDescriptor(desc) };
   }),
 
   /**
    * A helper method that creates a property descriptor for the provided object,
    * properly formatted for sending in a protocol response.
    *
-   * @param string aName
-   *        The property that the descriptor is generated for.
+   * @param aObject object
+   *        The object that the descriptor is generated for.
    */
-  _propertyDescriptor: function OA_propertyDescriptor(aName) {
-    let desc;
-    try {
-      desc = this.obj.getOwnPropertyDescriptor(aName);
-    } catch (e) {
-      // Calling getOwnPropertyDescriptor on wrapped native prototypes is not
-      // allowed (bug 560072). Inform the user with a bogus, but hopefully
-      // explanatory, descriptor.
-      return {
-        configurable: false,
-        writable: false,
-        enumerable: false,
-        value: e.name
-      };
-    }
-
-    let retval = {
-      configurable: desc.configurable,
-      enumerable: desc.enumerable
-    };
-
-    if (desc.value !== undefined) {
-      retval.writable = desc.writable;
-      retval.value = this.threadActor.createValueGrip(desc.value);
+  _propertyDescriptor: function OA_propertyDescriptor(aObject) {
+    let descriptor = {};
+    descriptor.configurable = aObject.configurable;
+    descriptor.enumerable = aObject.enumerable;
+    if (aObject.value !== undefined) {
+      descriptor.writable = aObject.writable;
+      descriptor.value = this.threadActor.createValueGrip(aObject.value);
     } else {
-
-      if ("get" in desc) {
-        let fn = desc.get;
-        if (fn && fn.callable && fn.class == "Function" &&
-            fn.script === undefined) {
-          // Maybe this is a DOM getter. Try calling it on every object in the
-          // prototype chain, until it doesn't throw.
-          let rv, chain = this.threadActor._findProtoChain(this.obj);
-          let index = chain.indexOf(this.obj);
-          for (let i = index; i >= 0; i--) {
-            // If we had hostAnnotations (bug 801084) we would have been able to
-            // filter on chain[i].hostAnnotations.isWebIDLObject or similar.
-            rv = fn.call(chain[i]);
-            // If the error D.O. wasn't completely opaque (bug 812764?), we
-            // could perhaps treat other errors differently.
-            if (rv && !("throw" in rv)) {
-              // If calling the getter produced a return value, create a data
-              // property descriptor.
-              if ("return" in rv) {
-                retval.value = this.threadActor.createValueGrip(rv.return);
-              } else if ("yield" in rv) {
-                retval.value = this.threadActor.createValueGrip(rv.yield);
-              }
-              break;
-            }
-          }
-
-          // If calling the getter didn't produce a data property descriptor,
-          // use the original accessor property descriptor.
-          if (!("value" in retval)) {
-            retval.get = this.threadActor.createValueGrip(fn);
-          }
-        } else {
-          // It doesn't look like a WebIDL attribute getter, just use the getter
-          // from the original accessor property descriptor.
-          retval.get = this.threadActor.createValueGrip(fn);
-        }
-      }
-
-      // If we couldn't convert it to a data property and there is a setter in
-      // the original property descriptor, use it.
-      if ("set" in desc && !("value" in retval)) {
-        retval.set = this.threadActor.createValueGrip(desc.set);
-      }
+      descriptor.get = this.threadActor.createValueGrip(aObject.get);
+      descriptor.set = this.threadActor.createValueGrip(aObject.set);
     }
-    return retval;
+    return descriptor;
   },
 
   /**
@@ -1755,23 +1527,29 @@ update(ObjectActor.prototype, {
                message: "cannot access the environment of this function." };
     }
 
-    return { from: this.actorID, scope: envActor.form() };
+    // XXX: the following call of env.form() won't work until bug 747514 lands.
+    // We can't get to the frame that defined this function's environment,
+    // neither here, nor during ObjectActor's construction. Luckily, we don't
+    // use the 'scope' request in the debugger frontend.
+    return { name: this.obj.name || null,
+             scope: envActor.form(this.obj) };
   }),
 
   /**
-   * Handle a protocol request to provide the parameters of a function.
+   * Handle a protocol request to provide the name and parameters of a function.
    *
    * @param aRequest object
    *        The protocol request object.
    */
-  onParameterNames: PauseScopedActor.withPaused(function OA_onParameterNames(aRequest) {
+  onNameAndParameters: PauseScopedActor.withPaused(function OA_onNameAndParameters(aRequest) {
     if (this.obj.class !== "Function") {
       return { error: "objectNotFunction",
-               message: "'parameterNames' request is only valid for object " +
+               message: "nameAndParameters request is only valid for object " +
                         "grips with a 'Function' class." };
     }
 
-    return { parameterNames: this.obj.parameterNames };
+    return { name: this.obj.name || null,
+             parameters: this.obj.parameterNames };
   }),
 
   /**
@@ -1804,7 +1582,7 @@ update(ObjectActor.prototype, {
 });
 
 ObjectActor.prototype.requestTypes = {
-  "parameterNames": ObjectActor.prototype.onParameterNames,
+  "nameAndParameters": ObjectActor.prototype.onNameAndParameters,
   "prototypeAndProperties": ObjectActor.prototype.onPrototypeAndProperties,
   "prototype": ObjectActor.prototype.onPrototype,
   "property": ObjectActor.prototype.onProperty,
@@ -1866,26 +1644,12 @@ LongStringActor.prototype = {
       "from": this.actorID,
       "substring": this.string.substring(aRequest.start, aRequest.end)
     };
-  },
+  }
 
-  /**
-   * Handle a request to release this LongStringActor instance.
-   */
-  onRelease: function LSA_onRelease() {
-    // TODO: also check if registeredPool === threadActor.threadLifetimePool
-    // when the web console moves aray from manually releasing pause-scoped
-    // actors.
-    if (this.registeredPool.longStringActors) {
-      delete this.registeredPool.longStringActors[this.actorID];
-    }
-    this.registeredPool.removeActor(this);
-    return {};
-  },
 };
 
 LongStringActor.prototype.requestTypes = {
-  "substring": LongStringActor.prototype.onSubstring,
-  "release": LongStringActor.prototype.onRelease
+  "substring": LongStringActor.prototype.onSubstring
 };
 
 
@@ -1935,14 +1699,13 @@ FrameActor.prototype = {
                  type: this.frame.type };
     if (this.frame.type === "call") {
       form.callee = this.threadActor.createValueGrip(this.frame.callee);
+      form.calleeName = getFunctionName(this.frame.callee);
     }
 
-    if (this.frame.environment) {
-      let envActor = this.threadActor
-        .createEnvironmentActor(this.frame.environment,
-                                this.frameLifetimePool);
-      form.environment = envActor.form();
-    }
+    let envActor = this.threadActor
+                       .createEnvironmentActor(this.frame.environment,
+                                               this.frameLifetimePool);
+    form.environment = envActor ? envActor.form(this.frame) : envActor;
     form.this = this.threadActor.createValueGrip(this.frame.this);
     form.arguments = this._args();
     if (this.frame.script) {
@@ -2052,7 +1815,7 @@ BreakpointActor.prototype = {
     let scriptBreakpoints = this.threadActor._breakpointStore[this.location.url];
     delete scriptBreakpoints[this.location.line];
     // Remove the actual breakpoint.
-    this.threadActor._hooks.removeFromParentPool(this);
+    this.threadActor._hooks.removeFromBreakpointPool(this);
     for (let script of this.scripts) {
       script.clearBreakpoint(this);
     }
@@ -2087,39 +1850,52 @@ EnvironmentActor.prototype = {
   actorPrefix: "environment",
 
   /**
-   * Return an environment form for use in a protocol message.
+   * Returns an environment form for use in a protocol message. Note that the
+   * requirement of passing the frame as a parameter is only temporary, since
+   * when bug 747514 lands, the environment will have a callee property that
+   * will contain it.
+   *
+   * @param Debugger.Frame aObject
+   *        The stack frame object whose environment bindings are being
+   *        generated.
    */
-  form: function EA_form() {
-    let form = { actor: this.actorID };
-
-    // What is this environment's type?
-    if (this.obj.type == "declarative") {
-      form.type = this.obj.callee ? "function" : "block";
-    } else {
-      form.type = this.obj.type;
+  form: function EA_form(aObject) {
+    // Debugger.Frame might be dead by the time we get here, which will cause
+    // accessing its properties to throw.
+    if (!aObject.live) {
+      return undefined;
     }
 
-    // Does this environment have a parent?
+    let parent;
     if (this.obj.parent) {
-      form.parent = (this.threadActor
-                     .createEnvironmentActor(this.obj.parent,
-                                             this.registeredPool)
-                     .form());
+      let thread = this.threadActor;
+      parent = thread.createEnvironmentActor(this.obj.parent,
+                                             this.registeredPool);
     }
+    // Deduce the frame that created the parent scope in order to pass it to
+    // parent.form(). TODO: this can be removed after bug 747514 is done.
+    let parentFrame = aObject;
+    if (this.obj.type == "declarative" && aObject.older) {
+      parentFrame = aObject.older;
+    }
+    let form = { actor: this.actorID,
+                 parent: parent ? parent.form(parentFrame) : parent };
 
-    // Does this environment reflect the properties of an object as variables?
-    if (this.obj.type == "object" || this.obj.type == "with") {
+    if (this.obj.type == "with") {
+      form.type = "with";
       form.object = this.threadActor.createValueGrip(this.obj.object);
-    }
-
-    // Is this the environment created for a function call?
-    if (this.obj.callee) {
-      form.function = this.threadActor.createValueGrip(this.obj.callee);
-    }
-
-    // Shall we list this environment's bindings?
-    if (this.obj.type == "declarative") {
-      form.bindings = this._bindings();
+    } else if (this.obj.type == "object") {
+      form.type = "object";
+      form.object = this.threadActor.createValueGrip(this.obj.object);
+    } else { // this.obj.type == "declarative"
+      if (aObject.callee) {
+        form.type = "function";
+        form.function = this.threadActor.createValueGrip(aObject.callee);
+        form.functionName = getFunctionName(aObject.callee);
+      } else {
+        form.type = "block";
+      }
+      form.bindings = this._bindings(aObject);
     }
 
     return form;
@@ -2127,9 +1903,16 @@ EnvironmentActor.prototype = {
 
   /**
    * Return the identifier bindings object as required by the remote protocol
-   * specification.
+   * specification. Note that the requirement of passing the frame as a
+   * parameter is only temporary, since when bug 747514 lands, the environment
+   * will have a callee property that will contain it.
+   *
+   * @param Debugger.Frame aObject [optional]
+   *        The stack frame whose environment bindings are being generated. When
+   *        left unspecified, the bindings do not contain an 'arguments'
+   *        property.
    */
-  _bindings: function EA_bindings() {
+  _bindings: function EA_bindings(aObject) {
     let bindings = { arguments: [], variables: {} };
 
     // TODO: this part should be removed in favor of the commented-out part
@@ -2140,8 +1923,8 @@ EnvironmentActor.prototype = {
     }
 
     let parameterNames;
-    if (this.obj.callee) {
-      parameterNames = this.obj.callee.parameterNames;
+    if (aObject && aObject.callee) {
+      parameterNames = aObject.callee.parameterNames;
     }
     for each (let name in parameterNames) {
       let arg = {};
@@ -2262,121 +2045,25 @@ EnvironmentActor.prototype.requestTypes = {
 };
 
 /**
- * Override the toString method in order to get more meaningful script output
- * for debugging the debugger.
+ * Helper function to deduce the name of the provided function.
+ *
+ * @param Debugger.Object aFunction
+ *        The function whose name will be returned.
  */
-Debugger.Script.prototype.toString = function() {
-  let output = "";
-  if (this.url) {
-    output += this.url;
-  }
-  if (typeof this.startLine != "undefined") {
-    output += ":" + this.startLine;
-    if (this.lineCount && this.lineCount > 1) {
-      output += "-" + (this.startLine + this.lineCount - 1);
-    }
-  }
-  if (this.strictMode) {
-    output += ":strict";
-  }
-  return output;
-};
-
-/**
- * Helper property for quickly getting to the line number a stack frame is
- * currently paused at.
- */
-Object.defineProperty(Debugger.Frame.prototype, "line", {
-  configurable: true,
-  get: function() {
-    if (this.script) {
-      return this.script.getOffsetLine(this.offset);
+function getFunctionName(aFunction) {
+  let name;
+  if (aFunction.name) {
+    name = aFunction.name;
+  } else {
+    // Check if the developer has added a de-facto standard displayName
+    // property for us to use.
+    let desc = aFunction.getOwnPropertyDescriptor("displayName");
+    if (desc && desc.value && typeof desc.value == "string") {
+      name = desc.value;
     } else {
-      return null;
+      // Otherwise use SpiderMonkey's inferred name.
+      name = aFunction.displayName;
     }
   }
-});
-
-
-/**
- * Creates an actor for handling chrome debugging. ChromeDebuggerActor is a
- * thin wrapper over ThreadActor, slightly changing some of its behavior.
- *
- * @param aHooks object
- *        An object with preNest and postNest methods for calling when entering
- *        and exiting a nested event loop and also addToParentPool and
- *        removeFromParentPool methods for handling the lifetime of actors that
- *        will outlive the thread, like breakpoints.
- */
-function ChromeDebuggerActor(aHooks)
-{
-  ThreadActor.call(this, aHooks);
-}
-
-ChromeDebuggerActor.prototype = Object.create(ThreadActor.prototype);
-
-update(ChromeDebuggerActor.prototype, {
-  constructor: ChromeDebuggerActor,
-
-  // A constant prefix that will be used to form the actor ID by the server.
-  actorPrefix: "chromeDebugger",
-
-  /**
-   * Override the eligibility check for scripts and sources to make sure every
-   * script and source with a URL is stored when debugging chrome.
-   */
-  _allowSource: function(aSourceURL) !!aSourceURL,
-
-   /**
-   * An object that will be used by ThreadActors to tailor their behavior
-   * depending on the debugging context being required (chrome or content).
-   * The methods that this object provides must be bound to the ThreadActor
-   * before use.
-   */
-  globalManager: {
-    findGlobals: function CDA_findGlobals() {
-      // Add every global known to the debugger as debuggee.
-      this.dbg.addAllGlobalsAsDebuggees();
-    },
-
-    /**
-     * A function that the engine calls when a new global object has been
-     * created.
-     *
-     * @param aGlobal Debugger.Object
-     *        The new global object that was created.
-     */
-    onNewGlobal: function CDA_onNewGlobal(aGlobal) {
-      this.addDebuggee(aGlobal);
-      // Notify the client.
-      this.conn.send({
-        from: this.actorID,
-        type: "newGlobal",
-        // TODO: after bug 801084 lands see if we need to JSONify this.
-        hostAnnotations: aGlobal.hostAnnotations
-      });
-    }
-  }
-});
-
-
-// Utility functions.
-
-/**
- * Utility function for updating an object with the properties of another
- * object.
- *
- * @param aTarget Object
- *        The object being updated.
- * @param aNewAttrs Object
- *        The new attributes being set on the target.
- */
-function update(aTarget, aNewAttrs) {
-  for (let key in aNewAttrs) {
-    let desc = Object.getOwnPropertyDescriptor(aNewAttrs, key);
-
-    if (desc) {
-      Object.defineProperty(aTarget, key, desc);
-    }
-  }
+  return name;
 }

@@ -11,19 +11,20 @@
 "use strict";
 
 SimpleTest.waitForExplicitFinish();
-browserElementTestHelpers.setEnabledPref(true);
-browserElementTestHelpers.addPermission();
 
 var iframe;
 
 function runTest() {
+  browserElementTestHelpers.setEnabledPref(true);
+  browserElementTestHelpers.addPermission();
+
   var principal = SpecialPowers.wrap(SpecialPowers.getNodePrincipal(document));
   SpecialPowers.addPermission("browser", true, { url: SpecialPowers.wrap(principal.URI).spec,
                                                  appId: principal.appId,
                                                  isInBrowserElement: true });
 
   iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
 
   // Our test involves three <iframe mozbrowser>'s, parent, child1, and child2.
   // child1 and child2 are contained inside parent.  child1 is visibile, and
@@ -43,27 +44,13 @@ function runTest() {
 }
 
 function test1() {
-  expectMessage('child1:hidden', getVisibleTest1);
+  expectMessage('child1:hidden', test2);
   iframe.setVisible(false);
 }
 
-function getVisibleTest1() {
-  iframe.getVisible().onsuccess = function(evt) {
-    ok(evt.target.result === false, 'getVisible shows a hidden frame');
-    test2();
-  };
-}
-
 function test2() {
-  expectMessage('child1:visible', getVisibleTest2);
+  expectMessage('child1:visible', finish);
   iframe.setVisible(true);
-}
-
-function getVisibleTest2() {
-  iframe.getVisible().onsuccess = function(evt) {
-    ok(evt.target.result === true, 'getVisible shows a displayed frame');
-    finish();
-  };
 }
 
 function finish() {
@@ -98,4 +85,4 @@ function checkMessage(e) {
   }
 }
 
-addEventListener('testready', runTest);
+runTest();

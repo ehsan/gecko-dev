@@ -10,5 +10,4 @@ function testFlatten() {
   }
 }
 
-if (getBuildConfiguration().parallelJS)
-  testFlatten();
+testFlatten();

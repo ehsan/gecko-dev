@@ -52,11 +52,11 @@ function checkPrincipal() {
 addLoadEvent(function() {
   checkPrincipal();
 
-  for (var i of [ "one", "two", "three", "four" ]) {
+  for each (var i in [ "one", "two", "three", "four" ]) {
     doPrincipalTest(i);
   }
 
-  for (i of [ "five", "six" ]) {
+  for each (i in [ "five", "six" ]) {
     doContentTest(i);
   }
 

@@ -10,6 +10,7 @@
 #include "nsIObserver.h"
 #include "nsCOMPtr.h"
 #include "prlong.h"
+#include "nsIPrivateBrowsingService.h"
 #include "mozIThirdPartyUtil.h"
 
 class nsIPrefBranch;
@@ -33,9 +34,11 @@ public:
   void PrefChanged(nsIPrefBranch *, const char *);
 
 private:
-   bool EnsureInitialized() { return (mPermMgr != nullptr && mThirdPartyUtil != nullptr) || Init(); };
+   bool EnsureInitialized() { return (mPermMgr != NULL && mThirdPartyUtil != NULL) || Init(); };
+   bool InPrivateBrowsing();
 
   nsCOMPtr<nsIPermissionManager> mPermMgr;
+  nsCOMPtr<nsIPrivateBrowsingService> mPBService;
   nsCOMPtr<mozIThirdPartyUtil> mThirdPartyUtil;
 
   int64_t      mCookiesLifetimeSec;            // lifetime limit specified in seconds

@@ -25,12 +25,12 @@ struct BaseMargin {
 
   // Constructors
   BaseMargin() : top(0), right(0), bottom(0), left(0) {}
-  BaseMargin(T aTop, T aRight, T aBottom, T aLeft) :
+  BaseMargin(T aLeft, T aTop, T aRight, T aBottom) :
       top(aTop), right(aRight), bottom(aBottom), left(aLeft) {}
 
-  void SizeTo(T aTop, T aRight, T aBottom, T aLeft)
+  void SizeTo(T aLeft, T aTop, T aRight, T aBottom)
   {
-    top = aTop; right = aRight; bottom = aBottom; left = aLeft;
+    left = aLeft; top = aTop; right = aRight; bottom = aBottom;
   }
 
   T LeftRight() const { return left + right; }
@@ -48,25 +48,25 @@ struct BaseMargin {
   // Overloaded operators. Note that '=' isn't defined so we'll get the
   // compiler generated default assignment operator
   bool operator==(const Sub& aMargin) const {
-    return top == aMargin.top && right == aMargin.right &&
-           bottom == aMargin.bottom && left == aMargin.left;
+    return left == aMargin.left && top == aMargin.top &&
+           right == aMargin.right && bottom == aMargin.bottom;
   }
   bool operator!=(const Sub& aMargin) const {
     return !(*this == aMargin);
   }
   Sub operator+(const Sub& aMargin) const {
-    return Sub(top + aMargin.top, right + aMargin.right,
-               bottom + aMargin.bottom, left + aMargin.left);
+    return Sub(left + aMargin.left, top + aMargin.top,
+             right + aMargin.right, bottom + aMargin.bottom);
   }
   Sub operator-(const Sub& aMargin) const {
-    return Sub(top - aMargin.top, right - aMargin.right,
-               bottom - aMargin.bottom, left - aMargin.left);
+    return Sub(left - aMargin.left, top - aMargin.top,
+             right - aMargin.right, bottom - aMargin.bottom);
   }
   Sub& operator+=(const Sub& aMargin) {
+    left += aMargin.left;
     top += aMargin.top;
     right += aMargin.right;
     bottom += aMargin.bottom;
-    left += aMargin.left;
     return *static_cast<Sub*>(this);
   }
 };

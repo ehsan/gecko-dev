@@ -183,7 +183,10 @@ function testtag_tree_columns(tree, expectedColumns, testid)
     is(column.getNext(), c < columns.length - 1 ? columns[c + 1] : null, adjtestid + "getNext");
 
     // check the view's getColumnProperties method
-    var properties = tree.view.getColumnProperties(column);
+    var properties = Components.classes["@mozilla.org/supports-array;1"].
+                       createInstance(Components.interfaces.nsISupportsArray);
+    tree.view.getColumnProperties(column, properties);
+    properties = convertProperties(properties);
     var expectedProperties = expectedColumn.properties;
     is(properties,  expectedProperties ? expectedProperties : "", adjtestid + "getColumnProperties");
   }
@@ -923,7 +926,15 @@ function testtag_tree_TreeView_rows(tree, testid, rowInfo, startRow)
 
       for (checkMethod in checkCellMethods) {
         expected = checkCellMethods[checkMethod](row, cell);
-        actual = view[checkMethod](r, columns[c]);
+        if (checkMethod == "getCellProperties") {
+          var properties = Components.classes["@mozilla.org/supports-array;1"].
+                             createInstance(Components.interfaces.nsISupportsArray);
+          view.getCellProperties(r, columns[c], properties);
+          actual = convertProperties(properties);
+        }
+        else {
+          actual = view[checkMethod](r, columns[c]);
+        }
         if (actual !== expected) {
           failedMethods[checkMethod] = true;
           is(actual, expected, testid + "row " + r + " column " + c + " " + checkMethod + " is incorrect");
@@ -934,7 +945,13 @@ function testtag_tree_TreeView_rows(tree, testid, rowInfo, startRow)
     // compare row properties
     for (checkMethod in checkRowMethods) {
       expected = checkRowMethods[checkMethod](row, r);
-      if (checkMethod == "hasNextSibling") {
+      if (checkMethod == "getRowProperties") {
+        var properties = Components.classes["@mozilla.org/supports-array;1"].
+                           createInstance(Components.interfaces.nsISupportsArray);
+        view.getRowProperties(r, properties);
+        actual = convertProperties(properties);
+      }
+      else if (checkMethod == "hasNextSibling") {
         actual = view[checkMethod](r, r);
       }
       else {

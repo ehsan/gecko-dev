@@ -14,7 +14,6 @@
 
 #include "gfxPlatformFontList.h"
 #include "gfxPlatform.h"
-#include <algorithm>
 
 
 /**
@@ -81,8 +80,8 @@ public:
         mStretch = FontStretchFromDWriteStretch(aFont->GetStretch());
         uint16_t weight = NS_ROUNDUP(aFont->GetWeight() - 50, 100);
 
-        weight = std::max<uint16_t>(100, weight);
-        weight = std::min<uint16_t>(900, weight);
+        weight = NS_MAX<uint16_t>(100, weight);
+        weight = NS_MIN<uint16_t>(900, weight);
         mWeight = weight;
 
         mIsCJK = UNINITIALIZED_VALUE;
@@ -184,7 +183,7 @@ protected:
 };
 
 // custom text renderer used to determine the fallback font for a given char
-class FontFallbackRenderer MOZ_FINAL : public IDWriteTextRenderer
+class FontFallbackRenderer : public IDWriteTextRenderer
 {
 public:
     FontFallbackRenderer(IDWriteFactory *aFactory)
@@ -334,7 +333,8 @@ public:
     // initialize font lists
     virtual nsresult InitFontList();
 
-    virtual gfxFontFamily* GetDefaultFont(const gfxFontStyle* aStyle);
+    virtual gfxFontEntry* GetDefaultFont(const gfxFontStyle* aStyle,
+                                         bool& aNeedsBold);
 
     virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                           const nsAString& aFontName);
@@ -374,8 +374,7 @@ private:
     virtual gfxFontEntry* GlobalFontFallback(const uint32_t aCh,
                                              int32_t aRunScript,
                                              const gfxFontStyle* aMatchStyle,
-                                             uint32_t& aCmapCount,
-                                             gfxFontFamily** aMatchedFamily);
+                                             uint32_t& aCmapCount);
 
     virtual bool UsesSystemFallback() { return true; }
 

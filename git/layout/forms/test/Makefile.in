@@ -44,12 +44,10 @@ MOCHITEST_FILES =	test_bug231389.html \
 		test_bug644542.html \
 		test_bug672810.html \
 		test_bug704049.html \
-		test_listcontrol_search.html \
 		$(NULL)
 
 MOCHITEST_CHROME_FILES = \
-		     bug536567_iframe.html \
-		test_bug536567_perwindowpb.html \
+		test_bug536567.html \
 		     bug536567_subframe.html \
 		test_bug665540.html \
 		     bug665540_window.xul \

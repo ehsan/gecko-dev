@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsXBLDocumentInfo.h"
 #include "nsHashtable.h"
 #include "nsIDocument.h"
@@ -21,7 +19,6 @@
 #include "nsIScriptError.h"
 #include "nsIChromeRegistry.h"
 #include "nsIPrincipal.h"
-#include "nsJSPrincipals.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsContentUtils.h"
 #include "nsDOMJSUtils.h"
@@ -34,6 +31,8 @@
 
 using namespace mozilla::scache;
 using namespace mozilla;
+
+using mozilla::dom::DestroyProtoOrIfaceCache;
 
 static const char kXBLCachePrefix[] = "xblcache";
 
@@ -156,6 +155,8 @@ nsXBLDocGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
 
   // The addref was part of JSObject construction
   NS_RELEASE(nativeThis);
+
+  DestroyProtoOrIfaceCache(obj);
 }
 
 static JSBool
@@ -168,14 +169,13 @@ nsXBLDocGlobalObject_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 
 JSClass nsXBLDocGlobalObject::gSharedGlobalClass = {
     "nsXBLPrototypeScript compilation scope",
-    JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS |
-    JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(0),
+    XPCONNECT_GLOBAL_FLAGS,
     JS_PropertyStub,  JS_PropertyStub,
     nsXBLDocGlobalObject_getProperty, nsXBLDocGlobalObject_setProperty,
     JS_EnumerateStub, nsXBLDocGlobalObject_resolve,
     JS_ConvertStub, nsXBLDocGlobalObject_finalize,
     nsXBLDocGlobalObject_checkAccess, NULL, NULL, NULL,
-    NULL
+    TraceXPCGlobal
 };
 
 //----------------------------------------------------------------------
@@ -259,20 +259,21 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment()
   NS_GetJSRuntime(getter_AddRefs(scriptRuntime));
   NS_ENSURE_TRUE(scriptRuntime, NS_OK);
 
-  nsCOMPtr<nsIScriptContext> newCtx = scriptRuntime->CreateContext(false, nullptr);
+  nsCOMPtr<nsIScriptContext> newCtx = scriptRuntime->CreateContext();
   MOZ_ASSERT(newCtx);
 
   newCtx->WillInitializeContext();
   // NOTE: We init this context with a NULL global, so we automatically
   // hook up to the existing nsIScriptGlobalObject global setup by
   // nsGlobalWindow.
-  DebugOnly<nsresult> rv = newCtx->InitContext();
+  nsresult rv = newCtx->InitContext();
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Script Language's InitContext failed");
+  newCtx->SetGCOnDestruction(false);
   newCtx->DidInitializeContext();
 
   mScriptContext = newCtx;
 
-  AutoPushJSContext cx(mScriptContext->GetNativeContext());
+  JSContext *cx = mScriptContext->GetNativeContext();
   JSAutoRequest ar(cx);
 
   // nsJSEnvironment set the error reporter to NS_ScriptErrorReporter so
@@ -280,11 +281,12 @@ nsXBLDocGlobalObject::EnsureScriptEnvironment()
   // why - see bug 339647)
   JS_SetErrorReporter(cx, XBL_ProtoErrorReporter);
 
-  mJSObject = JS_NewGlobalObject(cx, &gSharedGlobalClass,
-                                 nsJSPrincipals::get(GetPrincipal()),
-                                 JS::SystemZone);
-  if (!mJSObject)
-      return NS_OK;
+  nsIPrincipal *principal = GetPrincipal();
+  JSCompartment *compartment;
+
+  rv = xpc::CreateGlobalObject(cx, &gSharedGlobalClass, principal, false,
+                               &mJSObject, &compartment);
+  NS_ENSURE_SUCCESS(rv, NS_OK);
 
   // Set the location information for the new global, so that tools like
   // about:memory may use that information
@@ -427,12 +429,13 @@ TraceProtos(nsHashKey *aKey, void *aData, void* aClosure)
   return kHashEnumerateNext;
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLDocumentInfo)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLDocumentInfo)
   if (tmp->mBindingTable) {
     tmp->mBindingTable->Enumerate(UnlinkProtoJSObjects, nullptr);
   }
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlobalObject)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXBLDocumentInfo)
   if (tmp->mDocument &&
@@ -440,7 +443,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXBLDocumentInfo)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument)
   if (tmp->mBindingTable) {
     tmp->mBindingTable->Enumerate(TraverseProtos, &cb);
   }
@@ -523,9 +526,8 @@ nsXBLDocumentInfo::~nsXBLDocumentInfo()
     mGlobalObject->ClearGlobalObjectOwner(); // just in case
   }
   if (mBindingTable) {
-    delete mBindingTable;
-    mBindingTable = nullptr;
     NS_DROP_JS_OBJECTS(this, nsXBLDocumentInfo);
+    delete mBindingTable;
   }
 }
 

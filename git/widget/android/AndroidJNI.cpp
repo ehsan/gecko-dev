@@ -30,18 +30,18 @@
 
 #include "mozilla/unused.h"
 
-#include "mozilla/dom/SmsMessage.h"
-#include "mozilla/dom/mobilemessage/Constants.h"
-#include "mozilla/dom/mobilemessage/Types.h"
-#include "mozilla/dom/mobilemessage/PSms.h"
-#include "mozilla/dom/mobilemessage/SmsParent.h"
-#include "nsIMobileMessageDatabaseService.h"
+#include "mozilla/dom/sms/SmsMessage.h"
+#include "mozilla/dom/sms/Constants.h"
+#include "mozilla/dom/sms/Types.h"
+#include "mozilla/dom/sms/PSms.h"
+#include "mozilla/dom/sms/SmsParent.h"
+#include "nsISmsRequestManager.h"
+#include "nsISmsDatabaseService.h"
 #include "nsPluginInstanceOwner.h"
 #include "nsSurfaceTexture.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
-using namespace mozilla::dom::mobilemessage;
+using namespace mozilla::dom::sms;
 
 /* Forward declare all the JNI methods as extern "C" */
 
@@ -70,6 +70,12 @@ Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(JNIEnv *jenv, jclass
     // poke the appshell
     if (nsAppShell::gAppShell)
         nsAppShell::gAppShell->ProcessNextNativeEvent(false);
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_GeckoAppShell_setSurfaceView(JNIEnv *jenv, jclass, jobject obj)
+{
+    AndroidBridge::Bridge()->SetSurfaceView(jenv->NewGlobalRef(obj));
 }
 
 NS_EXPORT void JNICALL
@@ -176,18 +182,15 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyBatteryChange(JNIEnv* jenv, jclass,
     NS_DispatchToMainThread(runnable);
 }
 
-#ifdef MOZ_WEBSMS_BACKEND
-
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsReceived(JNIEnv* jenv, jclass,
-                                                         jstring aSender,
-                                                         jstring aBody,
-                                                         jint aMessageClass,
-                                                         jlong aTimestamp)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsReceived(JNIEnv* jenv, jclass,
+                                                       jstring aSender,
+                                                       jstring aBody,
+                                                       jlong aTimestamp)
 {
     class NotifySmsReceivedRunnable : public nsRunnable {
     public:
-      NotifySmsReceivedRunnable(const SmsMessageData& aMessageData)
+      NotifySmsReceivedRunnable(const SmsMessageData& aMessageData)\
         : mMessageData(aMessageData)
       {}
 
@@ -206,30 +209,50 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsReceived(JNIEnv* jenv, jclass,
       SmsMessageData mMessageData;
     };
 
-    SmsMessageData message(0, eDeliveryState_Received, eDeliveryStatus_Success,
-                           nsJNIString(aSender, jenv), EmptyString(),
-                           nsJNIString(aBody, jenv),
-                           static_cast<MessageClass>(aMessageClass),
-                           aTimestamp, false);
+    SmsMessageData message(0, eDeliveryState_Received, nsJNIString(aSender, jenv), EmptyString(),
+                           nsJNIString(aBody, jenv), aTimestamp, false);
 
     nsCOMPtr<nsIRunnable> runnable = new NotifySmsReceivedRunnable(message);
     NS_DispatchToMainThread(runnable);
 }
 
+NS_EXPORT int32_t JNICALL
+Java_org_mozilla_gecko_GeckoAppShell_saveMessageInSentbox(JNIEnv* jenv, jclass,
+                                                          jstring aReceiver,
+                                                          jstring aBody,
+                                                          jlong aTimestamp)
+{
+    nsCOMPtr<nsISmsDatabaseService> smsDBService =
+      do_GetService(SMS_DATABASE_SERVICE_CONTRACTID);
+
+    if (!smsDBService) {
+      NS_ERROR("Sms Database Service not available!");
+      return -1;
+    }
+
+    int32_t id;
+    smsDBService->SaveSentMessage(nsJNIString(aReceiver, jenv),
+                                  nsJNIString(aBody, jenv), aTimestamp, &id);
+
+    return id;
+}
+
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSent(JNIEnv* jenv, jclass,
-                                                     jint aId,
-                                                     jstring aReceiver,
-                                                     jstring aBody,
-                                                     jlong aTimestamp,
-                                                     jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsSent(JNIEnv* jenv, jclass,
+                                                   jint aId,
+                                                   jstring aReceiver,
+                                                   jstring aBody,
+                                                   jlong aTimestamp,
+                                                   jint aRequestId,
+                                                   jlong aProcessId)
 {
     class NotifySmsSentRunnable : public nsRunnable {
     public:
       NotifySmsSentRunnable(const SmsMessageData& aMessageData,
-                            int32_t aRequestId)
+                            int32_t aRequestId, uint64_t aProcessId)
         : mMessageData(aMessageData)
         , mRequestId(aRequestId)
+        , mProcessId(aProcessId)
       {}
 
       NS_IMETHODIMP Run() {
@@ -245,36 +268,46 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSent(JNIEnv* jenv, jclass,
         nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(mMessageData);
         obs->NotifyObservers(message, kSmsSentObserverTopic, nullptr);
 
-        nsCOMPtr<nsIMobileMessageCallback> request =
-          AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
-        NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+        if (mProcessId == 0) { // Parent process.
+          nsCOMPtr<nsISmsRequestManager> requestManager
+            = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+          if (requestManager) {
+            requestManager->NotifySmsSent(mRequestId, message);
+          }
+        } else { // Content process.
+          nsTArray<SmsParent*> spList;
+          SmsParent::GetAll(spList);
 
-        request->NotifyMessageSent(message);
+          for (uint32_t i=0; i<spList.Length(); ++i) {
+            unused << spList[i]->SendNotifyRequestSmsSent(mMessageData,
+                                                          mRequestId,
+                                                          mProcessId);
+          }
+        }
+
         return NS_OK;
       }
 
     private:
       SmsMessageData mMessageData;
       int32_t        mRequestId;
+      uint64_t       mProcessId;
     };
 
-    // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aId, eDeliveryState_Sent, eDeliveryStatus_Pending,
-                           EmptyString(), nsJNIString(aReceiver, jenv),
-                           nsJNIString(aBody, jenv), eMessageClass_Normal,
-                           aTimestamp, true);
+    SmsMessageData message(aId, eDeliveryState_Sent, EmptyString(),
+                           nsJNIString(aReceiver, jenv),
+                           nsJNIString(aBody, jenv), aTimestamp, true);
 
-    nsCOMPtr<nsIRunnable> runnable = new NotifySmsSentRunnable(message, aRequestId);
+    nsCOMPtr<nsIRunnable> runnable = new NotifySmsSentRunnable(message, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDelivery(JNIEnv* jenv, jclass,
-                                                         jint aId,
-                                                         jint aDeliveryStatus,
-                                                         jstring aReceiver,
-                                                         jstring aBody,
-                                                         jlong aTimestamp)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsDelivered(JNIEnv* jenv, jclass,
+                                                        jint aId,
+                                                        jstring aReceiver,
+                                                        jstring aBody,
+                                                        jlong aTimestamp)
 {
     class NotifySmsDeliveredRunnable : public nsRunnable {
     public:
@@ -289,10 +322,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDelivery(JNIEnv* jenv, jclass,
         }
 
         nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(mMessageData);
-        const char* topic = (mMessageData.deliveryStatus() == eDeliveryStatus_Success)
-                            ? kSmsDeliverySuccessObserverTopic
-                            : kSmsDeliveryErrorObserverTopic;
-        obs->NotifyObservers(message, topic, nullptr);
+        obs->NotifyObservers(message, kSmsDeliveredObserverTopic, nullptr);
 
         return NS_OK;
       }
@@ -301,81 +331,108 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDelivery(JNIEnv* jenv, jclass,
       SmsMessageData mMessageData;
     };
 
-    // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aId, eDeliveryState_Sent,
-                           static_cast<DeliveryStatus>(aDeliveryStatus),
-                           EmptyString(), nsJNIString(aReceiver, jenv),
-                           nsJNIString(aBody, jenv), eMessageClass_Normal,
-                           aTimestamp, true);
+    SmsMessageData message(aId, eDeliveryState_Sent, EmptyString(),
+                           nsJNIString(aReceiver, jenv),
+                           nsJNIString(aBody, jenv), aTimestamp, true);
 
     nsCOMPtr<nsIRunnable> runnable = new NotifySmsDeliveredRunnable(message);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSendFailed(JNIEnv* jenv, jclass,
-                                                           jint aError,
-                                                           jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsSendFailed(JNIEnv* jenv, jclass,
+                                                         jint aError,
+                                                         jint aRequestId,
+                                                         jlong aProcessId)
 {
     class NotifySmsSendFailedRunnable : public nsRunnable {
     public:
       NotifySmsSendFailedRunnable(int32_t aError,
-                                  int32_t aRequestId)
+                                  int32_t aRequestId,
+                                  uint64_t aProcessId)
         : mError(aError)
         , mRequestId(aRequestId)
+        , mProcessId(aProcessId)
       {}
 
       NS_IMETHODIMP Run() {
-        nsCOMPtr<nsIMobileMessageCallback> request =
-          AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
-        NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+        if (mProcessId == 0) { // Parent process.
+          nsCOMPtr<nsISmsRequestManager> requestManager
+            = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+          if (requestManager) {
+            requestManager->NotifySmsSendFailed(mRequestId, mError);
+          }
+        } else { // Content process.
+          nsTArray<SmsParent*> spList;
+          SmsParent::GetAll(spList);
 
-        request->NotifySendMessageFailed(mError);
+          for (uint32_t i=0; i<spList.Length(); ++i) {
+            unused << spList[i]->SendNotifyRequestSmsSendFailed(mError,
+                                                                mRequestId,
+                                                                mProcessId);
+          }
+        }
+
         return NS_OK;
       }
 
     private:
       int32_t  mError;
       int32_t  mRequestId;
+      uint64_t mProcessId;
     };
 
 
     nsCOMPtr<nsIRunnable> runnable =
-      new NotifySmsSendFailedRunnable(aError, aRequestId);
+      new NotifySmsSendFailedRunnable(aError, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSms(JNIEnv* jenv, jclass,
-                                                    jint aId,
-                                                    jint aDeliveryStatus,
-                                                    jstring aReceiver,
-                                                    jstring aSender,
-                                                    jstring aBody,
-                                                    jlong aTimestamp,
-                                                    jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyGetSms(JNIEnv* jenv, jclass,
+                                                  jint aId,
+                                                  jstring aReceiver,
+                                                  jstring aSender,
+                                                  jstring aBody,
+                                                  jlong aTimestamp,
+                                                  jint aRequestId,
+                                                  jlong aProcessId)
 {
     class NotifyGetSmsRunnable : public nsRunnable {
     public:
       NotifyGetSmsRunnable(const SmsMessageData& aMessageData,
-                           int32_t aRequestId)
+                            int32_t aRequestId, uint64_t aProcessId)
         : mMessageData(aMessageData)
         , mRequestId(aRequestId)
+        , mProcessId(aProcessId)
       {}
 
       NS_IMETHODIMP Run() {
-        nsCOMPtr<nsIMobileMessageCallback> request =
-          AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
-        NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+        if (mProcessId == 0) { // Parent process.
+          nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(mMessageData);
+          nsCOMPtr<nsISmsRequestManager> requestManager
+            = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+          if (requestManager) {
+            requestManager->NotifyGotSms(mRequestId, message);
+          }
+        } else { // Content process.
+          nsTArray<SmsParent*> spList;
+          SmsParent::GetAll(spList);
 
-        nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(mMessageData);
-        request->NotifyMessageGot(message);
+          for (uint32_t i=0; i<spList.Length(); ++i) {
+            unused << spList[i]->SendNotifyRequestGotSms(mMessageData,
+                                                         mRequestId,
+                                                         mProcessId);
+          }
+        }
+
         return NS_OK;
       }
 
     private:
       SmsMessageData mMessageData;
       int32_t        mRequestId;
+      uint64_t       mProcessId;
     };
 
     nsJNIString receiver = nsJNIString(aReceiver, jenv);
@@ -383,179 +440,254 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSms(JNIEnv* jenv, jclass,
                                              : eDeliveryState_Sent;
 
     // TODO Need to add the message `read` parameter value. Bug 748391
-    // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aId, state,
-                           static_cast<DeliveryStatus>(aDeliveryStatus),
-                           nsJNIString(aSender, jenv), receiver,
-                           nsJNIString(aBody, jenv), eMessageClass_Normal,
-                           aTimestamp, true);
+    SmsMessageData message(aId, state, nsJNIString(aSender, jenv), receiver,
+                           nsJNIString(aBody, jenv), aTimestamp, true);
 
-    nsCOMPtr<nsIRunnable> runnable = new NotifyGetSmsRunnable(message, aRequestId);
+    nsCOMPtr<nsIRunnable> runnable = new NotifyGetSmsRunnable(message, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSmsFailed(JNIEnv* jenv, jclass,
-                                                          jint aError,
-                                                          jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyGetSmsFailed(JNIEnv* jenv, jclass,
+                                                        jint aError,
+                                                        jint aRequestId,
+                                                        jlong aProcessId)
 {
     class NotifyGetSmsFailedRunnable : public nsRunnable {
     public:
       NotifyGetSmsFailedRunnable(int32_t aError,
-                                 int32_t aRequestId)
+                                 int32_t aRequestId,
+                                 uint64_t aProcessId)
         : mError(aError)
         , mRequestId(aRequestId)
+        , mProcessId(aProcessId)
       {}
 
       NS_IMETHODIMP Run() {
-        nsCOMPtr<nsIMobileMessageCallback> request =
-          AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
-        NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+        if (mProcessId == 0) { // Parent process.
+          nsCOMPtr<nsISmsRequestManager> requestManager
+            = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+          if (requestManager) {
+            requestManager->NotifyGetSmsFailed(mRequestId, mError);
+          }
+        } else { // Content process.
+          nsTArray<SmsParent*> spList;
+          SmsParent::GetAll(spList);
 
-        request->NotifyGetMessageFailed(mError);
+          for (uint32_t i=0; i<spList.Length(); ++i) {
+            unused << spList[i]->SendNotifyRequestGetSmsFailed(mError,
+                                                               mRequestId,
+                                                               mProcessId);
+          }
+        }
+
         return NS_OK;
       }
 
     private:
       int32_t  mError;
       int32_t  mRequestId;
+      uint64_t mProcessId;
     };
 
 
     nsCOMPtr<nsIRunnable> runnable =
-      new NotifyGetSmsFailedRunnable(aError, aRequestId);
+      new NotifyGetSmsFailedRunnable(aError, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleted(JNIEnv* jenv, jclass,
-                                                        jboolean aDeleted,
-                                                        jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsDeleted(JNIEnv* jenv, jclass,
+                                                      jboolean aDeleted,
+                                                      jint aRequestId,
+                                                      jlong aProcessId)
 {
     class NotifySmsDeletedRunnable : public nsRunnable {
     public:
-      NotifySmsDeletedRunnable(bool aDeleted, int32_t aRequestId)
+      NotifySmsDeletedRunnable(bool aDeleted, int32_t aRequestId,
+                               uint64_t aProcessId)
         : mDeleted(aDeleted)
         , mRequestId(aRequestId)
+        , mProcessId(aProcessId)
       {}
 
       NS_IMETHODIMP Run() {
-        nsCOMPtr<nsIMobileMessageCallback> request =
-          AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
-        NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+        if (mProcessId == 0) { // Parent process.
+          nsCOMPtr<nsISmsRequestManager> requestManager
+            = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+          if (requestManager) {
+            requestManager->NotifySmsDeleted(mRequestId, mDeleted);
+          }
+        } else { // Content process.
+          nsTArray<SmsParent*> spList;
+          SmsParent::GetAll(spList);
 
-        request->NotifyMessageDeleted(mDeleted);
+          for (uint32_t i=0; i<spList.Length(); ++i) {
+            unused << spList[i]->SendNotifyRequestSmsDeleted(mDeleted,
+                                                             mRequestId,
+                                                             mProcessId);
+          }
+        }
+
         return NS_OK;
       }
 
     private:
       bool      mDeleted;
       int32_t   mRequestId;
+      uint64_t  mProcessId;
     };
 
 
     nsCOMPtr<nsIRunnable> runnable =
-      new NotifySmsDeletedRunnable(aDeleted, aRequestId);
+      new NotifySmsDeletedRunnable(aDeleted, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleteFailed(JNIEnv* jenv, jclass,
-                                                             jint aError,
-                                                             jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifySmsDeleteFailed(JNIEnv* jenv, jclass,
+                                                           jint aError,
+                                                           jint aRequestId,
+                                                           jlong aProcessId)
 {
     class NotifySmsDeleteFailedRunnable : public nsRunnable {
     public:
       NotifySmsDeleteFailedRunnable(int32_t aError,
-                                    int32_t aRequestId)
+                                    int32_t aRequestId,
+                                    uint64_t aProcessId)
         : mError(aError)
         , mRequestId(aRequestId)
+        , mProcessId(aProcessId)
       {}
 
       NS_IMETHODIMP Run() {
-        nsCOMPtr<nsIMobileMessageCallback> request =
-          AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
-        NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+        if (mProcessId == 0) { // Parent process.
+          nsCOMPtr<nsISmsRequestManager> requestManager
+            = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+          if (requestManager) {
+            requestManager->NotifySmsDeleteFailed(mRequestId, mError);
+          }
+        } else { // Content process.
+          nsTArray<SmsParent*> spList;
+          SmsParent::GetAll(spList);
 
-        request->NotifyDeleteMessageFailed(mError);
+          for (uint32_t i=0; i<spList.Length(); ++i) {
+            unused << spList[i]->SendNotifyRequestSmsDeleteFailed(mError,
+                                                                  mRequestId,
+                                                                  mProcessId);
+          }
+        }
+
         return NS_OK;
       }
 
     private:
       int32_t  mError;
       int32_t  mRequestId;
+      uint64_t mProcessId;
     };
 
 
     nsCOMPtr<nsIRunnable> runnable =
-      new NotifySmsDeleteFailedRunnable(aError, aRequestId);
+      new NotifySmsDeleteFailedRunnable(aError, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyNoMessageInList(JNIEnv* jenv, jclass,
-                                                             jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyNoMessageInList(JNIEnv* jenv, jclass,
+                                                           jint aRequestId,
+                                                           jlong aProcessId)
 {
     class NotifyNoMessageInListRunnable : public nsRunnable {
     public:
-      NotifyNoMessageInListRunnable(int32_t aRequestId)
+      NotifyNoMessageInListRunnable(int32_t aRequestId, uint64_t aProcessId)
         : mRequestId(aRequestId)
+        , mProcessId(aProcessId)
       {}
 
       NS_IMETHODIMP Run() {
-        nsCOMPtr<nsIMobileMessageCallback> request =
-          AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
-        NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+        if (mProcessId == 0) { // Parent process.
+          nsCOMPtr<nsISmsRequestManager> requestManager
+            = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+          if (requestManager) {
+            requestManager->NotifyNoMessageInList(mRequestId);
+          }
+        } else { // Content process.
+          nsTArray<SmsParent*> spList;
+          SmsParent::GetAll(spList);
 
-        request->NotifyNoMessageInList();
+          for (uint32_t i=0; i<spList.Length(); ++i) {
+            unused << spList[i]->SendNotifyRequestNoMessageInList(mRequestId,
+                                                                  mProcessId);
+          }
+        }
+
         return NS_OK;
       }
 
     private:
       int32_t               mRequestId;
+      uint64_t              mProcessId;
     };
 
 
     nsCOMPtr<nsIRunnable> runnable =
-      new NotifyNoMessageInListRunnable(aRequestId);
+      new NotifyNoMessageInListRunnable(aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyListCreated(JNIEnv* jenv, jclass,
-                                                         jint aListId,
-                                                         jint aMessageId,
-                                                         jint aDeliveryStatus,
-                                                         jstring aReceiver,
-                                                         jstring aSender,
-                                                         jstring aBody,
-                                                         jlong aTimestamp,
-                                                         jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyListCreated(JNIEnv* jenv, jclass,
+                                                       jint aListId,
+                                                       jint aMessageId,
+                                                       jstring aReceiver,
+                                                       jstring aSender,
+                                                       jstring aBody,
+                                                       jlong aTimestamp,
+                                                       jint aRequestId,
+                                                       jlong aProcessId)
 {
     class NotifyCreateMessageListRunnable : public nsRunnable {
     public:
       NotifyCreateMessageListRunnable(int32_t aListId,
-                                      const SmsMessageData& aMessageData,
-                                      int32_t aRequestId)
+                                      const SmsMessageData& aMessage,
+                                      int32_t aRequestId, uint64_t aProcessId)
         : mListId(aListId)
-        , mMessageData(aMessageData)
+        , mMessage(aMessage)
         , mRequestId(aRequestId)
+        , mProcessId(aProcessId)
       {}
 
       NS_IMETHODIMP Run() {
-        nsCOMPtr<nsIMobileMessageCallback> request =
-          AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
-        NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+        if (mProcessId == 0) { // Parent process.
+          nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(mMessage);
+          nsCOMPtr<nsISmsRequestManager> requestManager
+            = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+          if (requestManager) {
+            requestManager->NotifyCreateMessageList(mRequestId,
+                                                    mListId,
+                                                    message);
+          }
+        } else { // Content process.
+          nsTArray<SmsParent*> spList;
+          SmsParent::GetAll(spList);
 
-        nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(mMessageData);
-        request->NotifyMessageListCreated(mListId, message);
+          for (uint32_t i=0; i<spList.Length(); ++i) {
+            unused << spList[i]->SendNotifyRequestCreateMessageList(mListId,
+                                                                    mMessage,
+                                                                    mRequestId,
+                                                                    mProcessId);
+          }
+        }
+
         return NS_OK;
       }
 
     private:
       int32_t        mListId;
-      SmsMessageData mMessageData;
+      SmsMessageData mMessage;
       int32_t        mRequestId;
+      uint64_t       mProcessId;
     };
 
 
@@ -564,103 +696,125 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyListCreated(JNIEnv* jenv, jclass,
                                              : eDeliveryState_Sent;
 
     // TODO Need to add the message `read` parameter value. Bug 748391
-    // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aMessageId, state,
-                           static_cast<DeliveryStatus>(aDeliveryStatus),
-                           nsJNIString(aSender, jenv), receiver,
-                           nsJNIString(aBody, jenv), eMessageClass_Normal,
-                           aTimestamp, true);
+    SmsMessageData message(aMessageId, state, nsJNIString(aSender, jenv),
+                           receiver, nsJNIString(aBody, jenv), aTimestamp, true);
 
     nsCOMPtr<nsIRunnable> runnable =
-      new NotifyCreateMessageListRunnable(aListId, message, aRequestId);
+      new NotifyCreateMessageListRunnable(aListId, message, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyGotNextMessage(JNIEnv* jenv, jclass,
-                                                            jint aMessageId,
-                                                            jint aDeliveryStatus,
-                                                            jstring aReceiver,
-                                                            jstring aSender,
-                                                            jstring aBody,
-                                                            jlong aTimestamp,
-                                                            jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyGotNextMessage(JNIEnv* jenv, jclass,
+                                                          jint aMessageId,
+                                                          jstring aReceiver,
+                                                          jstring aSender,
+                                                          jstring aBody,
+                                                          jlong aTimestamp,
+                                                          jint aRequestId,
+                                                          jlong aProcessId)
 {
     class NotifyGotNextMessageRunnable : public nsRunnable {
     public:
-      NotifyGotNextMessageRunnable(const SmsMessageData& aMessageData,
-                                   int32_t aRequestId)
-        : mMessageData(aMessageData)
+      NotifyGotNextMessageRunnable(const SmsMessageData& aMessage,
+                                   int32_t aRequestId, uint64_t aProcessId)
+        : mMessage(aMessage)
         , mRequestId(aRequestId)
+        , mProcessId(aProcessId)
       {}
 
       NS_IMETHODIMP Run() {
-        nsCOMPtr<nsIMobileMessageCallback> request =
-          AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
-        NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+        if (mProcessId == 0) { // Parent process.
+          nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(mMessage);
+          nsCOMPtr<nsISmsRequestManager> requestManager
+            = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+          if (requestManager) {
+            requestManager->NotifyGotNextMessage(mRequestId, message);
+          }
+        } else { // Content process.
+          nsTArray<SmsParent*> spList;
+          SmsParent::GetAll(spList);
 
-        nsCOMPtr<nsIDOMMozSmsMessage> message = new SmsMessage(mMessageData);
-        request->NotifyNextMessageInListGot(message);
+          for (uint32_t i=0; i<spList.Length(); ++i) {
+            unused << spList[i]->SendNotifyRequestGotNextMessage(mMessage,
+                                                                 mRequestId,
+                                                                 mProcessId);
+          }
+        }
+
         return NS_OK;
       }
 
     private:
-      SmsMessageData mMessageData;
+      SmsMessageData mMessage;
       int32_t        mRequestId;
+      uint64_t       mProcessId;
     };
 
 
     nsJNIString receiver = nsJNIString(aReceiver, jenv);
     DeliveryState state = receiver.IsEmpty() ? eDeliveryState_Received
                                              : eDeliveryState_Sent;
-
+ 
     // TODO Need to add the message `read` parameter value. Bug 748391
-    // TODO Need to add the message `messageClass` parameter value. Bug 804476
-    SmsMessageData message(aMessageId, state,
-                           static_cast<DeliveryStatus>(aDeliveryStatus),
-                           nsJNIString(aSender, jenv), receiver,
-                           nsJNIString(aBody, jenv), eMessageClass_Normal,
-                           aTimestamp, true);
+    SmsMessageData message(aMessageId, state, nsJNIString(aSender, jenv),
+                           receiver, nsJNIString(aBody, jenv), aTimestamp, true);
 
     nsCOMPtr<nsIRunnable> runnable =
-      new NotifyGotNextMessageRunnable(message, aRequestId);
+      new NotifyGotNextMessageRunnable(message, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyReadingMessageListFailed(JNIEnv* jenv, jclass,
-                                                                      jint aError,
-                                                                      jint aRequestId)
+Java_org_mozilla_gecko_GeckoAppShell_notifyReadingMessageListFailed(JNIEnv* jenv, jclass,
+                                                                    jint aError,
+                                                                    jint aRequestId,
+                                                                    jlong aProcessId)
 {
     class NotifyReadListFailedRunnable : public nsRunnable {
     public:
       NotifyReadListFailedRunnable(int32_t aError,
-                                   int32_t aRequestId)
+                                   int32_t aRequestId,
+                                   uint64_t aProcessId)
         : mError(aError)
         , mRequestId(aRequestId)
+        , mProcessId(aProcessId)
       {}
 
       NS_IMETHODIMP Run() {
-        nsCOMPtr<nsIMobileMessageCallback> request =
-          AndroidBridge::Bridge()->DequeueSmsRequest(mRequestId);
-        NS_ENSURE_TRUE(request, NS_ERROR_FAILURE);
+        if (mProcessId == 0) { // Parent process.
+          nsCOMPtr<nsISmsRequestManager> requestManager
+            = do_GetService(SMS_REQUEST_MANAGER_CONTRACTID);
+          if (requestManager) {
+            requestManager->NotifyReadMessageListFailed(mRequestId, mError);
+          }
+        } else { // Content process.
+          nsTArray<SmsParent*> spList;
+          SmsParent::GetAll(spList);
 
-        request->NotifyReadMessageListFailed(mError);
+          for (uint32_t i=0; i<spList.Length(); ++i) {
+            unused << spList[i]->SendNotifyRequestReadListFailed(mError,
+                                                                 mRequestId,
+                                                                 mProcessId);
+          }
+        }
+
         return NS_OK;
       }
 
     private:
       int32_t  mError;
       int32_t  mRequestId;
+      uint64_t mProcessId;
     };
 
 
     nsCOMPtr<nsIRunnable> runnable =
-      new NotifyReadListFailedRunnable(aError, aRequestId);
+      new NotifyReadListFailedRunnable(aError, aRequestId, aProcessId);
     NS_DispatchToMainThread(runnable);
 }
 
-#endif  // MOZ_WEBSMS_BACKEND
+#ifdef MOZ_ANDROID_OMTC
 
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_scheduleComposite(JNIEnv*, jclass)
@@ -669,15 +823,15 @@ Java_org_mozilla_gecko_GeckoAppShell_scheduleComposite(JNIEnv*, jclass)
 }
 
 NS_EXPORT void JNICALL
+Java_org_mozilla_gecko_GeckoAppShell_schedulePauseComposition(JNIEnv*, jclass)
+{
+    nsWindow::SchedulePauseComposition();
+}
+
+NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_scheduleResumeComposition(JNIEnv*, jclass, jint width, jint height)
 {
     nsWindow::ScheduleResumeComposition(width, height);
-}
-
-NS_EXPORT float JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_computeRenderIntegrity(JNIEnv*, jclass)
-{
-    return nsWindow::ComputeRenderIntegrity();
 }
 
 NS_EXPORT void JNICALL
@@ -870,4 +1024,5 @@ Java_org_mozilla_gecko_GeckoAppShell_onSurfaceTextureFrameAvailable(JNIEnv* jenv
   st->NotifyFrameAvailable();
 }
 
+#endif
 }

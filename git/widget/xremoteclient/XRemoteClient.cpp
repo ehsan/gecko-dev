@@ -80,7 +80,7 @@ XRemoteClient::~XRemoteClient()
 }
 
 // Minimize the roundtrips to the X-server
-static const char *XAtomNames[] = {
+static char *XAtomNames[] = {
   MOZILLA_VERSION_PROP,
   MOZILLA_LOCK_PROP,
   MOZILLA_COMMAND_PROP,
@@ -107,8 +107,7 @@ XRemoteClient::Init()
     return NS_ERROR_FAILURE;
 
   // get our atoms
-  XInternAtoms(mDisplay, const_cast<char**>(XAtomNames),
-               ARRAY_LENGTH(XAtomNames), False, XAtoms);
+  XInternAtoms(mDisplay, XAtomNames, ARRAY_LENGTH(XAtomNames), False, XAtoms);
 
   int i = 0;
   mMozVersionAtom  = XAtoms[i++];

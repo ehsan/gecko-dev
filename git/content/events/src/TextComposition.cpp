@@ -9,7 +9,6 @@
 #include "nsContentUtils.h"
 #include "nsEventDispatcher.h"
 #include "nsGUIEvent.h"
-#include "nsIContent.h"
 #include "nsIMEStateManager.h"
 #include "nsIPresShell.h"
 #include "nsIWidget.h"
@@ -25,8 +24,11 @@ TextComposition::TextComposition(nsPresContext* aPresContext,
                                  nsINode* aNode,
                                  nsGUIEvent* aEvent) :
   mPresContext(aPresContext), mNode(aNode),
-  mNativeContext(aEvent->widget->GetInputContext().mNativeIMEContext),
-  mIsSynthesizedForTests(aEvent->mFlags.mIsSynthesizedForTests)
+  // temporarily, we should assume that one native IME context is per native
+  // widget.
+  mNativeContext(aEvent->widget),
+  mIsSynthesizedForTests(
+    (aEvent->flags & NS_EVENT_FLAG_SYNTHETIC_TEST_EVENT) != 0)
 {
 }
 
@@ -42,7 +44,9 @@ TextComposition::TextComposition(const TextComposition& aOther)
 bool
 TextComposition::MatchesNativeContext(nsIWidget* aWidget) const
 {
-  return mNativeContext == aWidget->GetInputContext().mNativeIMEContext;
+  // temporarily, we should assume that one native IME context is per one
+  // native widget.
+  return mNativeContext == static_cast<void*>(aWidget);
 }
 
 bool
@@ -107,7 +111,7 @@ TextComposition::CompositionEventDispatcher::CompositionEventDispatcher(
   mPresContext(aPresContext), mEventTarget(aEventTarget),
   mEventMessage(aEventMessage), mData(aData)
 {
-  mWidget = mPresContext->GetRootWidget();
+  mWidget = mPresContext->GetNearestWidget();
 }
 
 NS_IMETHODIMP

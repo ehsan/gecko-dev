@@ -19,14 +19,6 @@ import sys
 import time
 
 
-def format_seconds(total):
-    """Format number of seconds to MM:SS.DD form."""
-
-    minutes, seconds = divmod(total, 60)
-
-    return '%2d:%05.2f' % (minutes, seconds)
-
-
 class ConvertToStructuredFilter(logging.Filter):
     """Filter that converts unstructured records into structured ones."""
     def filter(self, record):
@@ -69,8 +61,7 @@ class StructuredHumanFormatter(logging.Formatter):
     def format(self, record):
         elapsed = self._time(record)
 
-        return '%s %s' % (format_seconds(elapsed),
-            record.msg.format(**record.params))
+        return '%4.2f %s' % (elapsed, record.msg.format(**record.params))
 
     def _time(self, record):
         t = record.created - self.start_time
@@ -90,7 +81,7 @@ class StructuredTerminalFormatter(StructuredHumanFormatter):
         self.terminal = terminal
 
     def format(self, record):
-        t = self.terminal.blue(format_seconds(self._time(record)))
+        t = self.terminal.blue('%4.2f' % self._time(record))
         f = record.msg.format(**record.params)
 
         return '%s %s' % (t, self._colorize(f))
@@ -112,10 +103,11 @@ class StructuredTerminalFormatter(StructuredHumanFormatter):
 class LoggingManager(object):
     """Holds and controls global logging state.
 
-    An application should instantiate one of these and configure it as needed.
+    A mozbuild application should instantiate one of these and configure it
+    as needed.
 
     This class provides a mechanism to configure the output of logging data
-    both from mach and from the overall logging system (e.g. from other
+    both from mozbuild and from the overall logging system (e.g. from other
     modules).
     """
 
@@ -134,12 +126,12 @@ class LoggingManager(object):
         # complaining about "no handlers could be found for logger XXX."
         self.root_logger.addHandler(logging.NullHandler())
 
-        self.mach_logger = logging.getLogger('mach')
-        self.mach_logger.setLevel(logging.DEBUG)
+        self.mozbuild_logger = logging.getLogger('mozbuild')
+        self.mozbuild_logger.setLevel(logging.DEBUG)
 
         self.structured_filter = ConvertToStructuredFilter()
 
-        self.structured_loggers = [self.mach_logger]
+        self.structured_loggers = [self.mozbuild_logger]
 
         self._terminal = None
 
@@ -226,6 +218,6 @@ class LoggingManager(object):
         """Register a structured logger.
 
         This needs to be called for all structured loggers that don't chain up
-        to the mach logger in order for their output to be captured.
+        to the mozbuild logger in order for their output to be captured.
         """
         self.structured_loggers.append(logger)

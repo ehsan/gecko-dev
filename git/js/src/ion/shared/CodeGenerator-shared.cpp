@@ -5,8 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "CodeGenerator-shared.h"
 #include "ion/MIRGenerator.h"
 #include "ion/IonFrames-inl.h"
@@ -14,33 +12,17 @@
 #include "CodeGenerator-shared-inl.h"
 #include "ion/IonSpewer.h"
 #include "ion/IonMacroAssembler.h"
-#include "ion/ParallelFunctions.h"
-#include "builtin/ParallelArray.h"
-
 using namespace js;
 using namespace js::ion;
-
-using mozilla::DebugOnly;
 
 namespace js {
 namespace ion {
 
-MacroAssembler &
-CodeGeneratorShared::ensureMasm(MacroAssembler *masmArg)
-{
-    if (masmArg)
-        return *masmArg;
-    maybeMasm_.construct();
-    return maybeMasm_.ref();
-}
-
-CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masmArg)
+CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph &graph)
   : oolIns(NULL),
-    oolParallelAbort_(NULL),
-    maybeMasm_(),
-    masm(ensureMasm(masmArg)),
+    masm(&sps_),
     gen(gen),
-    graph(*graph),
+    graph(graph),
     current(NULL),
     deoptTable_(NULL),
 #ifdef DEBUG
@@ -49,34 +31,10 @@ CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph *graph, Mac
     lastOsiPointOffset_(0),
     sps_(&gen->compartment->rt->spsProfiler, &lastPC_),
     osrEntryOffset_(0),
-    frameDepth_(graph->localSlotCount() * sizeof(STACK_SLOT_SIZE) +
-                graph->argumentSlotCount() * sizeof(Value))
+    frameDepth_(graph.localSlotCount() * sizeof(STACK_SLOT_SIZE) +
+                graph.argumentSlotCount() * sizeof(Value))
 {
-    if (!gen->compilingAsmJS())
-        masm.setInstrumentation(&sps_);
-
-    // Since asm.js uses the system ABI which does not necessarily use a
-    // regular array where all slots are sizeof(Value), it maintains the max
-    // argument stack depth separately.
-    if (gen->compilingAsmJS()) {
-        JS_ASSERT(graph->argumentSlotCount() == 0);
-        frameDepth_ += gen->maxAsmJSStackArgBytes();
-
-        // An MAsmJSCall does not align the stack pointer at calls sites but instead
-        // relies on the a priori stack adjustment (in the prologue) on platforms
-        // (like x64) which require the stack to be aligned.
-        if (gen->performsAsmJSCall()) {
-            unsigned alignmentAtCall = AlignmentAtPrologue + frameDepth_;
-            if (unsigned rem = alignmentAtCall % StackAlignment)
-                frameDepth_ += StackAlignment - rem;
-        }
-
-        // FrameSizeClass is only used for bailing, which cannot happen in
-        // asm.js code.
-        frameClass_ = FrameSizeClass::None();
-    } else {
-        frameClass_ = FrameSizeClass::FromDepth(frameDepth_);
-    }
+    frameClass_ = FrameSizeClass::FromDepth(frameDepth_);
 }
 
 bool
@@ -113,26 +71,24 @@ CodeGeneratorShared::addOutOfLineCode(OutOfLineCode *code)
     return outOfLineCode_.append(code);
 }
 
-// see OffsetOfFrameSlot
-static inline int32_t
+static inline int32
 ToStackIndex(LAllocation *a)
 {
     if (a->isStackSlot()) {
         JS_ASSERT(a->toStackSlot()->slot() >= 1);
         return a->toStackSlot()->slot();
     }
-    JS_ASSERT(-int32_t(sizeof(IonJSFrameLayout)) <= a->toArgument()->index());
-    return -(sizeof(IonJSFrameLayout) + a->toArgument()->index());
+    return -a->toArgument()->index();
 }
 
 bool
 CodeGeneratorShared::encodeSlots(LSnapshot *snapshot, MResumePoint *resumePoint,
-                                 uint32_t *startIndex)
+                                 uint32 *startIndex)
 {
     IonSpew(IonSpew_Codegen, "Encoding %u of resume point %p's operands starting from %u",
             resumePoint->numOperands(), (void *) resumePoint, *startIndex);
-    for (uint32_t slotno = 0; slotno < resumePoint->numOperands(); slotno++) {
-        uint32_t i = slotno + *startIndex;
+    for (uint32 slotno = 0; slotno < resumePoint->numOperands(); slotno++) {
+        uint32 i = slotno + *startIndex;
         MDefinition *mir = resumePoint->getOperand(slotno);
 
         if (mir->isPassArg())
@@ -172,7 +128,7 @@ CodeGeneratorShared::encodeSlots(LSnapshot *snapshot, MResumePoint *resumePoint,
                 if (v.isInt32() && v.toInt32() >= -32 && v.toInt32() <= 32) {
                     snapshots_.addInt32Slot(v.toInt32());
                 } else {
-                    uint32_t index;
+                    uint32 index;
                     if (!graph.addConstantToPool(constant->value(), &index))
                         return false;
                     snapshots_.addConstantPoolSlot(index);
@@ -182,7 +138,7 @@ CodeGeneratorShared::encodeSlots(LSnapshot *snapshot, MResumePoint *resumePoint,
           }
           case MIRType_Magic:
           {
-            uint32_t index;
+            uint32 index;
             if (!graph.addConstantToPool(MagicValue(JS_OPTIMIZED_ARGUMENTS), &index))
                 return false;
             snapshots_.addConstantPoolSlot(index);
@@ -226,7 +182,7 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
     if (snapshot->snapshotOffset() != INVALID_SNAPSHOT_OFFSET)
         return true;
 
-    uint32_t frameCount = snapshot->mir()->frameCount();
+    uint32 frameCount = snapshot->mir()->frameCount();
 
     IonSpew(IonSpew_Snapshots, "Encoding LSnapshot %p (frameCount %u)",
             (void *)snapshot, frameCount);
@@ -242,7 +198,7 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
     if (!mirOperandIter.init())
         return false;
 
-    uint32_t startIndex = 0;
+    uint32 startIndex = 0;
     for (MResumePoint **it = mirOperandIter.begin(), **end = mirOperandIter.end();
          it != end;
          ++it)
@@ -252,7 +208,7 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
         JSFunction *fun = block->info().fun();
         JSScript *script = block->info().script();
         jsbytecode *pc = mir->pc();
-        uint32_t exprStack = mir->stackDepth() - block->info().ninvoke();
+        uint32 exprStack = mir->stackDepth() - block->info().ninvoke();
         snapshots_.startFrame(fun, script, pc, exprStack);
 
         // Ensure that all snapshot which are encoded can safely be used for
@@ -260,21 +216,16 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
         DebugOnly<jsbytecode *> bailPC = pc;
         if (mir->mode() == MResumePoint::ResumeAfter)
           bailPC = GetNextPc(pc);
-
-        // For fun.apply({}, arguments) the reconstructStackDepth will have stackdepth 4,
-        // but it could be that we inlined the funapply. In that case exprStackSlots,
-        // will have the real arguments in the slots and not be 4.
-        JS_ASSERT_IF(GetIonContext()->cx && JSOp(*bailPC) != JSOP_FUNAPPLY,
-                     exprStack == js_ReconstructStackDepth(GetIonContext()->cx, script, bailPC));
+        JS_ASSERT(exprStack == js_ReconstructStackDepth(GetIonContext()->cx, script, bailPC));
 
 #ifdef TRACK_SNAPSHOTS
         LInstruction *ins = instruction();
 
-        uint32_t pcOpcode = 0;
-        uint32_t lirOpcode = 0;
-        uint32_t lirId = 0;
-        uint32_t mirOpcode = 0;
-        uint32_t mirId = 0;
+        uint32 pcOpcode = 0;
+        uint32 lirOpcode = 0;
+        uint32 lirId = 0;
+        uint32 mirOpcode = 0;
+        uint32 mirId = 0;
 
         if (ins) {
             lirOpcode = ins->op();
@@ -350,10 +301,10 @@ CodeGeneratorShared::markSafepoint(LInstruction *ins)
 }
 
 bool
-CodeGeneratorShared::markSafepointAt(uint32_t offset, LInstruction *ins)
+CodeGeneratorShared::markSafepointAt(uint32 offset, LInstruction *ins)
 {
     JS_ASSERT_IF(safepointIndices_.length(),
-                 offset - safepointIndices_.back().displacement() >= sizeof(uint32_t));
+                 offset - safepointIndices_.back().displacement() >= sizeof(uint32));
     return safepointIndices_.append(SafepointIndex(offset, ins->safepoint()));
 }
 
@@ -376,9 +327,9 @@ CodeGeneratorShared::ensureOsiSpace()
     // At points where we want to ensure that invalidation won't corrupt an
     // important instruction, we make sure to pad with nops.
     if (masm.currentOffset() - lastOsiPointOffset_ < Assembler::patchWrite_NearCallSize()) {
-        int32_t paddingSize = Assembler::patchWrite_NearCallSize();
+        int32 paddingSize = Assembler::patchWrite_NearCallSize();
         paddingSize -= masm.currentOffset() - lastOsiPointOffset_;
-        for (int32_t i = 0; i < paddingSize; ++i)
+        for (int32 i = 0; i < paddingSize; ++i)
             masm.nop();
     }
     JS_ASSERT(masm.currentOffset() - lastOsiPointOffset_ >= Assembler::patchWrite_NearCallSize());
@@ -386,7 +337,7 @@ CodeGeneratorShared::ensureOsiSpace()
 }
 
 bool
-CodeGeneratorShared::markOsiPoint(LOsiPoint *ins, uint32_t *callPointOffset)
+CodeGeneratorShared::markOsiPoint(LOsiPoint *ins, uint32 *callPointOffset)
 {
     if (!encode(ins->snapshot()))
         return false;
@@ -403,6 +354,7 @@ CodeGeneratorShared::markOsiPoint(LOsiPoint *ins, uint32_t *callPointOffset)
 bool
 CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Register *dynStack)
 {
+    AssertCanGC();
 #ifdef DEBUG
     if (ins->mirRaw()) {
         JS_ASSERT(ins->mirRaw()->isInstruction());
@@ -419,9 +371,10 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
     pushedArgs_ = 0;
 #endif
 
-    // Get the wrapper of the VM function.
-    IonCompartment *ion = GetIonContext()->compartment->ionCompartment();
-    IonCode *wrapper = ion->getVMWrapper(fun);
+    // Generate the wrapper of the VM function.
+    JSContext *cx = GetIonContext()->cx;
+    IonCompartment *ion = cx->compartment->ionCompartment();
+    IonCode *wrapper = ion->generateVMWrapper(cx, fun);
     if (!wrapper)
         return false;
 
@@ -429,7 +382,7 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
     // when returning from the call.  Failures are handled with exceptions based
     // on the return value of the C functions.  To guard the outcome of the
     // returned value, use another LIR instruction.
-    uint32_t callOffset;
+    uint32 callOffset;
     if (dynStack)
         callOffset = masm.callWithExitFrame(wrapper, *dynStack);
     else
@@ -505,19 +458,23 @@ CodeGeneratorShared::visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool)
 void
 CodeGeneratorShared::emitPreBarrier(Register base, const LAllocation *index, MIRType type)
 {
+    CodeOffsetLabel offset;
+
     if (index->isConstant()) {
         Address address(base, ToInt32(index) * sizeof(Value));
-        masm.patchableCallPreBarrier(address, type);
+        offset = masm.patchableCallPreBarrier(address, type);
     } else {
         BaseIndex address(base, ToRegister(index), TimesEight);
-        masm.patchableCallPreBarrier(address, type);
+        offset = masm.patchableCallPreBarrier(address, type);
     }
+
+    addPreBarrierOffset(offset);
 }
 
 void
 CodeGeneratorShared::emitPreBarrier(Address address, MIRType type)
 {
-    masm.patchableCallPreBarrier(address, type);
+    addPreBarrierOffset(masm.patchableCallPreBarrier(address, type));
 }
 
 void
@@ -534,90 +491,6 @@ CodeGeneratorShared::markArgumentSlots(LSafepoint *safepoint)
         if (!safepoint->addValueSlot(pushedArgumentSlots_[i]))
             return false;
     }
-    return true;
-}
-
-bool
-CodeGeneratorShared::ensureOutOfLineParallelAbort(Label **result)
-{
-    if (!oolParallelAbort_) {
-        oolParallelAbort_ = new OutOfLineParallelAbort();
-        if (!addOutOfLineCode(oolParallelAbort_))
-            return false;
-    }
-
-    *result = oolParallelAbort_->entry();
-    return true;
-}
-
-bool
-OutOfLineParallelAbort::generate(CodeGeneratorShared *codegen)
-{
-    codegen->callTraceLIR(0xDEADBEEF, NULL, "ParallelBailout");
-    return codegen->visitOutOfLineParallelAbort(this);
-}
-
-bool
-CodeGeneratorShared::callTraceLIR(uint32_t blockIndex, LInstruction *lir,
-                                    const char *bailoutName)
-{
-    JS_ASSERT_IF(!lir, bailoutName);
-
-    uint32_t emi = (uint32_t) gen->info().executionMode();
-
-    if (!IonSpewEnabled(IonSpew_Trace))
-        return true;
-    masm.PushRegsInMask(RegisterSet::All());
-
-    RegisterSet regSet(RegisterSet::All());
-
-    Register blockIndexReg = regSet.takeGeneral();
-    Register lirIndexReg = regSet.takeGeneral();
-    Register emiReg = regSet.takeGeneral();
-    Register lirOpNameReg = regSet.takeGeneral();
-    Register mirOpNameReg = regSet.takeGeneral();
-    Register scriptReg = regSet.takeGeneral();
-    Register pcReg = regSet.takeGeneral();
-
-    // This first move is here so that when you scan the disassembly,
-    // you can easily pick out where each instruction begins.  The
-    // next few items indicate to you the Basic Block / LIR.
-    masm.move32(Imm32(0xDEADBEEF), blockIndexReg);
-
-    if (lir) {
-        masm.move32(Imm32(blockIndex), blockIndexReg);
-        masm.move32(Imm32(lir->id()), lirIndexReg);
-        masm.move32(Imm32(emi), emiReg);
-        masm.movePtr(ImmWord(lir->opName()), lirOpNameReg);
-        if (MDefinition *mir = lir->mirRaw()) {
-            masm.movePtr(ImmWord(mir->opName()), mirOpNameReg);
-            masm.movePtr(ImmWord((void *)mir->block()->info().script()), scriptReg);
-            masm.movePtr(ImmWord(mir->trackedPc()), pcReg);
-        } else {
-            masm.movePtr(ImmWord((void *)NULL), mirOpNameReg);
-            masm.movePtr(ImmWord((void *)NULL), scriptReg);
-            masm.movePtr(ImmWord((void *)NULL), pcReg);
-        }
-    } else {
-        masm.move32(Imm32(0xDEADBEEF), blockIndexReg);
-        masm.move32(Imm32(0xDEADBEEF), lirIndexReg);
-        masm.move32(Imm32(emi), emiReg);
-        masm.movePtr(ImmWord(bailoutName), lirOpNameReg);
-        masm.movePtr(ImmWord(bailoutName), mirOpNameReg);
-        masm.movePtr(ImmWord((void *)NULL), scriptReg);
-        masm.movePtr(ImmWord((void *)NULL), pcReg);
-    }
-
-    masm.setupUnalignedABICall(7, CallTempReg4);
-    masm.passABIArg(blockIndexReg);
-    masm.passABIArg(lirIndexReg);
-    masm.passABIArg(emiReg);
-    masm.passABIArg(lirOpNameReg);
-    masm.passABIArg(mirOpNameReg);
-    masm.passABIArg(scriptReg);
-    masm.passABIArg(pcReg);
-    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, TraceLIR));
-    masm.PopRegsInMask(RegisterSet::All());
     return true;
 }
 

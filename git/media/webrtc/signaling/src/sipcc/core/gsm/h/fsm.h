@@ -12,7 +12,6 @@
 #include "ccsip_core.h"
 #include "sll_lite.h"
 #include "sessionConstants.h"
-#include "ccsdp.h"
 
 /* TODO: BLASBERG
  * fsm.h only needs the following from ccsip_core.h
@@ -128,13 +127,8 @@ typedef struct fsmdef_previous_sdp_ {
     uint16_t        dest_port;
     cpr_ip_addr_t   dest_addr;
     int32_t         avt_payload_type;
-
-    /*
-     * This field contains the number of elements in the payloads field.
-     */
-    int32_t num_payloads;
-    vcm_payload_info_t* payloads;
-
+    int32_t         payload_type;
+    int32_t         local_payload_type;
     uint16_t        packetization_period;
     uint16_t        max_packetization_period;
     sdp_direction_e direction;
@@ -147,6 +141,14 @@ typedef struct fsmdef_media_t_ {
     media_refid_t   refid;    /* media reference id                        */
     sdp_media_e     type;     /* audio, video etc. media                   */
     sdp_addrtype_e  addr_type;/* ipv4, ipv6                                */
+    /*
+     * NOTE: this is to support asymmetric payload type values for a given dynamic payload type.
+     *       We answer with the same payload type value that the remote offers.
+     *       If remote choses to answer with different value than we offer, we support asymmetric.
+     */
+    int32_t         payload;  //payload type - one of rtp_ptype enumerations
+    int32_t         local_dynamic_payload_type_value;  // dynamic payload type value offered/answered by us
+    int32_t         remote_dynamic_payload_type_value; // dynamic payload type value offered/answered by remote
     int32_t         avt_payload_type;
     vcm_vad_t       vad;
     uint16_t        packetization_period;
@@ -210,15 +212,12 @@ typedef struct fsmdef_media_t_ {
      * capability index. The index into the media capbilty table
      * that this media entry is coresponding to.
      */
-    uint8_t         cap_index;
-
-    /* Values cached from attributes */
+    uint8_t cap_index;
     int32_t         tias_bw;
     int32_t         profile_level;
 
     void *video;
 
-    /* ICE Candidates */
     char **candidatesp;
     int candidate_ct;
 
@@ -230,26 +229,19 @@ typedef struct fsmdef_media_t_ {
     /*
      * port number used in m= data channel line
      */
-    uint16_t       local_datachannel_port;
-    uint16_t       remote_datachannel_port;
+    uint16_t       sctp_port;
 
     /*
      * Data Channel properties
      */
-#define WEBRTC_DATACHANNEL_STREAMS_DEFAULT 16
-    uint32         datachannel_streams;
-    char           datachannel_protocol[SDP_MAX_STRING_LEN + 1];
-
-    /*
-     * This field contains the number of elements in the payloads field.
-     */
-    int32_t num_payloads;
+    uint32         streams;
+    char          *protocol;
 
     /*
      * List of active lists of payloads negotiated
      */
-    vcm_payload_info_t* payloads;
-
+    vcm_media_payload_type_t* payloads;
+    int32_t num_payloads;
 } fsmdef_media_t;
 
 struct fsm_fcb_t_;
@@ -295,7 +287,6 @@ typedef struct {
      */
     boolean        remote_sdp_present;
     boolean        remote_sdp_in_ack;
-    boolean        local_sdp_complete;
     uint16_t       src_sdp_version;
     cc_sdp_t       *sdp;
 

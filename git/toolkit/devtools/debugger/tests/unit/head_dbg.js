@@ -15,8 +15,8 @@ Services.prefs.setBoolPref("devtools.debugger.log", true);
 // Enable remote debugging for the relevant tests.
 Services.prefs.setBoolPref("devtools.debugger.remote-enabled", true);
 
-Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
-Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
+Cu.import("resource:///modules/devtools/dbg-server.jsm");
+Cu.import("resource:///modules/devtools/dbg-client.jsm");
 
 // Convert an nsIScriptError 'aFlags' value into an appropriate string.
 function scriptErrorFlagsToKind(aFlags) {
@@ -119,34 +119,6 @@ function attachTestGlobalClientAndResume(aClient, aName, aCallback) {
   })
 }
 
-function getTestTab(aClient, aName, aCallback) {
-  gClient.listTabs(function (aResponse) {
-    for (let tab of aResponse.tabs) {
-      if (tab.title === aName) {
-        aCallback(tab);
-        return;
-      }
-    }
-    aCallback(null);
-  });
-}
-
-function attachTestTab(aClient, aName, aCallback) {
-  getTestTab(aClient, aName, function (aTab) {
-    gClient.attachTab(aTab.actor, aCallback);
-  });
-}
-
-function attachTestTabAndResume(aClient, aName, aCallback) {
-  attachTestTab(aClient, aName, function (aResponse, aTabClient) {
-    aClient.attachThread(aResponse.threadActor, function (aResponse, aThreadClient) {
-      aThreadClient.resume(function (aResponse) {
-        aCallback(aResponse, aTabClient, aThreadClient);
-      });
-    });
-  });
-}
-
 /**
  * Initialize the testing debugger server.
  */
@@ -154,13 +126,6 @@ function initTestDebuggerServer()
 {
   DebuggerServer.addActors("resource://test/testactors.js");
   // Allow incoming connections.
-  DebuggerServer.init(function () { return true; });
-}
-
-function initSourcesBackwardsCompatDebuggerServer()
-{
-  DebuggerServer.addActors("chrome://global/content/devtools/dbg-browser-actors.js");
-  DebuggerServer.addActors("resource://test/testcompatactors.js");
   DebuggerServer.init(function () { return true; });
 }
 

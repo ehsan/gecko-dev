@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-#include <camera/Camera.h>
-
 #include "jsapi.h"
+#include "libcameraservice/CameraHardwareInterface.h"
 #include "GonkCameraControl.h"
 #include "DOMCameraManager.h"
 #include "CameraCommon.h"
@@ -28,29 +27,31 @@ NS_IMETHODIMP
 nsDOMCameraManager::GetListOfCameras(JSContext* cx, JS::Value* _retval)
 {
   JSObject* a = JS_NewArrayObject(cx, 0, nullptr);
+  camera_module_t* module;
   uint32_t index = 0;
-  int32_t count;
+  uint32_t count;
 
   if (!a) {
     DOM_CAMERA_LOGE("getListOfCameras : Could not create array object");
     return NS_ERROR_OUT_OF_MEMORY;
   }
-  count = android::Camera::getNumberOfCameras();
-  if (count <= 0) {
+  if (hw_get_module(CAMERA_HARDWARE_MODULE_ID, (const hw_module_t**)&module) < 0) {
+    DOM_CAMERA_LOGE("getListOfCameras : Could not load camera HAL module");
     return NS_ERROR_NOT_AVAILABLE;
   }
 
+  count = module->get_number_of_cameras();
   DOM_CAMERA_LOGI("getListOfCameras : get_number_of_cameras() returned %d\n", count);
   while (count--) {
-    android::CameraInfo info;
-    int rv = android::Camera::getCameraInfo(count, &info);
+    struct camera_info info;
+    int rv = module->get_camera_info(count, &info);
     if (rv != 0) {
       DOM_CAMERA_LOGE("getListOfCameras : get_camera_info(%d) failed: %d\n", count, rv);
       continue;
     }
 
     JSString* v;
-    JS::Value jv;
+    jsval jv;
 
     switch (info.facing) {
       case CAMERA_FACING_BACK:

@@ -172,6 +172,8 @@ let TestPilotSetup = {
       "testpilot:task:dataAutoSubmitted", this._onTaskDataAutoSubmitted, self);
     // Set up observation for application shutdown.
     this._obs.add("quit-application", this.globalShutdown, self);
+    // Set up observation for enter/exit private browsing:
+    this._obs.add("private-browsing", this.onPrivateBrowsingMode, self);
 
     // Set up timers to remind user x minutes after startup
     // and once per day thereafter.  Use nsITimer so it doesn't belong to
@@ -241,6 +243,7 @@ let TestPilotSetup = {
     this._obs.remove(
       "testpilot:task:dataAutoSubmitted", this._onTaskDataAutoSubmitted, self);
     this._obs.remove("quit-application", this.globalShutdown, self);
+    this._obs.remove("private-browsing", this.onPrivateBrowsingMode, self);
     this._loader.unload();
     this._shortTimer.cancel();
     this._longTimer.cancel();
@@ -252,6 +255,16 @@ let TestPilotSetup = {
                getService(Ci.nsIWindowMediator);
     // TODO Is "most recent" the same as "front"?
     return wm.getMostRecentWindow("navigator:browser");
+  },
+
+  onPrivateBrowsingMode: function TPS_onPrivateBrowsingMode(topic, data) {
+    for (let i = 0; i < this.taskList.length; i++) {
+      if (data == "enter") {
+        this.taskList[i].onEnterPrivateBrowsing();
+      } else if (data == "exit") {
+        this.taskList[i].onExitPrivateBrowsing();
+      }
+    }
   },
 
   onWindowUnload: function TPS__onWindowRegistered(window) {

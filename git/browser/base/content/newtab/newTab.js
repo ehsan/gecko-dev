@@ -9,9 +9,8 @@ let Ci = Components.interfaces;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/PageThumbs.jsm");
-Cu.import("resource://gre/modules/NewTabUtils.jsm");
-Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
+Cu.import("resource:///modules/PageThumbs.jsm");
+Cu.import("resource:///modules/NewTabUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Rect",
   "resource://gre/modules/Geometry.jsm");
@@ -40,6 +39,7 @@ function inPrivateBrowsingMode() {
 
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 
+#include batch.js
 #include transformations.js
 #include page.js
 #include grid.js
@@ -51,7 +51,6 @@ const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 #include dropTargetShim.js
 #include dropPreview.js
 #include updater.js
-#include undo.js
 
 // Everything is loaded. Initialize the New Tab Page.
 gPage.init();

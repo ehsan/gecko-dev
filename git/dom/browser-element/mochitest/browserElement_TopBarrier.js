@@ -4,7 +4,6 @@
 // Test that an <iframe mozbrowser> is a window.{top,parent,frameElement} barrier.
 "use strict";
 
-SimpleTest.waitForExplicitFinish();
 browserElementTestHelpers.setEnabledPref(true);
 browserElementTestHelpers.addPermission();
 
@@ -18,12 +17,14 @@ function runTest() {
       dump("Got error: " + e + '\n');
     }
   });
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
   iframe.src = 'data:text/html,Outer iframe <iframe id="inner-iframe"></iframe>';
   // For kicks, this test uses a display:none iframe.  This shouldn't make a
   // difference in anything.
   iframe.style.display = 'none';
   document.body.appendChild(iframe);
+
+  SimpleTest.waitForExplicitFinish();
 }
 
 var numMsgReceived = 0;
@@ -75,4 +76,4 @@ function waitForMessages(num) {
   SimpleTest.finish();
 }
 
-addEventListener('testready', runTest);
+runTest();

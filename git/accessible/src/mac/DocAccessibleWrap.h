@@ -8,9 +8,6 @@
 
 #include "DocAccessible.h"
 
-namespace mozilla {
-namespace a11y {
-
 class DocAccessibleWrap : public DocAccessible
 {
 public:
@@ -19,8 +16,5 @@ public:
   virtual ~DocAccessibleWrap();
 
 };
-
-} // namespace a11y
-} // namespace mozilla
 
 #endif

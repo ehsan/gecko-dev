@@ -2,12 +2,19 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 /**
- * This file tests the nsIDownloadHistory Places implementation.
+ * This file tests the nsIDownloadHistory interface.
  */
+
+////////////////////////////////////////////////////////////////////////////////
+/// Globals
 
 XPCOMUtils.defineLazyServiceGetter(this, "gDownloadHistory",
                                    "@mozilla.org/browser/download-history;1",
                                    "nsIDownloadHistory");
+
+XPCOMUtils.defineLazyServiceGetter(this, "gHistory",
+                                   "@mozilla.org/browser/history;1",
+                                   "mozIAsyncHistory");
 
 const DOWNLOAD_URI = NetUtil.newURI("http://www.example.com/");
 const REFERRER_URI = NetUtil.newURI("http://www.example.org/");
@@ -17,7 +24,7 @@ const PRIVATE_URI = NetUtil.newURI("http://www.example.net/");
  * Waits for the first visit notification to be received.
  *
  * @param aCallback
- *        Callback function to be called with the same arguments of onVisit.
+ *        This function is called with the same arguments of onVisit.
  */
 function waitForOnVisit(aCallback) {
   let historyObserver = {
@@ -31,38 +38,33 @@ function waitForOnVisit(aCallback) {
 }
 
 /**
- * Waits for the first onDeleteURI notification to be received.
+ * Checks to see that a URI is in the database.
  *
- * @param aCallback
- *        Callback function to be called with the same arguments of onDeleteURI.
+ * @param aURI
+ *        The URI to check.
+ * @param aExpected
+ *        Boolean result expected from the db lookup.
  */
-function waitForOnDeleteURI(aCallback) {
-  let historyObserver = {
-    __proto__: NavHistoryObserver.prototype,
-    onDeleteURI: function HO_onDeleteURI() {
-      PlacesUtils.history.removeObserver(this);
-      aCallback.apply(null, arguments);
-    }
-  };
-  PlacesUtils.history.addObserver(historyObserver, false);
+function uri_in_db(aURI, aExpected)
+{
+  let options = PlacesUtils.history.getNewQueryOptions();
+  options.maxResults = 1;
+  options.includeHidden = true;
+
+  let query = PlacesUtils.history.getNewQuery();
+  query.uri = aURI;
+
+  let root = PlacesUtils.history.executeQuery(query, options).root;
+  root.containerOpen = true;
+
+  do_check_eq(root.childCount, aExpected ? 1 : 0);
+
+  // Close the container explicitly to free resources up earlier.
+  root.containerOpen = false;
 }
 
-/**
- * Waits for the first onDeleteVisits notification to be received.
- *
- * @param aCallback
- *        Callback function to be called with the same arguments of onDeleteVisits.
- */
-function waitForOnDeleteVisits(aCallback) {
-  let historyObserver = {
-    __proto__: NavHistoryObserver.prototype,
-    onDeleteVisits: function HO_onDeleteVisits() {
-      PlacesUtils.history.removeObserver(this);
-      aCallback.apply(null, arguments);
-    }
-  };
-  PlacesUtils.history.addObserver(historyObserver, false);
-}
+////////////////////////////////////////////////////////////////////////////////
+/// Tests
 
 function run_test()
 {
@@ -74,69 +76,18 @@ add_test(function test_dh_is_from_places()
   // Test that this nsIDownloadHistory is the one places implements.
   do_check_true(gDownloadHistory instanceof Ci.mozIAsyncHistory);
 
-  run_next_test();
+  waitForClearHistory(run_next_test);
 });
 
-add_test(function test_dh_addRemoveDownload()
+add_test(function test_dh_addDownload()
 {
   waitForOnVisit(function DHAD_onVisit(aURI) {
     do_check_true(aURI.equals(DOWNLOAD_URI));
 
     // Verify that the URI is already available in results at this time.
-    do_check_true(!!page_in_database(DOWNLOAD_URI));
+    uri_in_db(DOWNLOAD_URI, true);
 
-    waitForOnDeleteURI(function DHRAD_onDeleteURI(aURI) {
-      do_check_true(aURI.equals(DOWNLOAD_URI));
-
-      // Verify that the URI is already available in results at this time.
-      do_check_false(!!page_in_database(DOWNLOAD_URI));
-
-      run_next_test();
-    });
-    gDownloadHistory.removeAllDownloads();
-  });
-
-  gDownloadHistory.addDownload(DOWNLOAD_URI, null, Date.now() * 1000);
-});
-
-add_test(function test_dh_addMultiRemoveDownload()
-{
-  promiseAddVisits({ uri: DOWNLOAD_URI,
-                     transition: TRANSITION_TYPED }).then(function () {
-    waitForOnVisit(function DHAD_onVisit(aURI) {
-      do_check_true(aURI.equals(DOWNLOAD_URI));
-      do_check_true(!!page_in_database(DOWNLOAD_URI));
-
-      waitForOnDeleteVisits(function DHRAD_onDeleteVisits(aURI) {
-        do_check_true(aURI.equals(DOWNLOAD_URI));
-        do_check_true(!!page_in_database(DOWNLOAD_URI));
-
-        promiseClearHistory().then(run_next_test);
-      });
-      gDownloadHistory.removeAllDownloads();
-    });
-
-    gDownloadHistory.addDownload(DOWNLOAD_URI, null, Date.now() * 1000);
-  });
-});
-
-add_test(function test_dh_addBookmarkRemoveDownload()
-{
-  PlacesUtils.bookmarks.insertBookmark(PlacesUtils.unfiledBookmarksFolderId,
-                                       DOWNLOAD_URI,
-                                       PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                       "A bookmark");
-  waitForOnVisit(function DHAD_onVisit(aURI) {
-    do_check_true(aURI.equals(DOWNLOAD_URI));
-    do_check_true(!!page_in_database(DOWNLOAD_URI));
-
-    waitForOnDeleteVisits(function DHRAD_onDeleteVisits(aURI) {
-      do_check_true(aURI.equals(DOWNLOAD_URI));
-      do_check_true(!!page_in_database(DOWNLOAD_URI));
-
-      promiseClearHistory().then(run_next_test);
-    });
-    gDownloadHistory.removeAllDownloads();
+    waitForClearHistory(run_next_test);
   });
 
   gDownloadHistory.addDownload(DOWNLOAD_URI, null, Date.now() * 1000);
@@ -154,9 +105,9 @@ add_test(function test_dh_addDownload_referrer()
       do_check_eq(aReferringID, referrerVisitId);
 
       // Verify that the URI is already available in results at this time.
-      do_check_true(!!page_in_database(DOWNLOAD_URI));
+      uri_in_db(DOWNLOAD_URI, true);
 
-      promiseClearHistory().then(run_next_test);
+      waitForClearHistory(run_next_test);
     });
 
     gDownloadHistory.addDownload(DOWNLOAD_URI, REFERRER_URI, Date.now() * 1000);
@@ -164,13 +115,48 @@ add_test(function test_dh_addDownload_referrer()
 
   // Note that we don't pass the optional callback argument here because we must
   // ensure that we receive the onVisit notification before we call addDownload.
-  PlacesUtils.asyncHistory.updatePlaces({
+  gHistory.updatePlaces({
     uri: REFERRER_URI,
     visits: [{
       transitionType: Ci.nsINavHistoryService.TRANSITION_TYPED,
       visitDate: Date.now() * 1000
     }]
   });
+});
+
+add_test(function test_dh_addDownload_privateBrowsing()
+{
+  if (!("@mozilla.org/privatebrowsing;1" in Cc)) {
+    do_log_info("Private Browsing service is not available, bail out.");
+    run_next_test();
+    return;
+  }
+
+  waitForOnVisit(function DHAD_onVisit(aURI) {
+    // We should only receive the notification for the non-private URI.  This
+    // test is based on the assumption that visit notifications are received
+    // in the same order of the addDownload calls, which is currently true
+    // because database access is serialized on the same worker thread.
+    do_check_true(aURI.equals(DOWNLOAD_URI));
+
+    uri_in_db(DOWNLOAD_URI, true);
+    uri_in_db(PRIVATE_URI, false);
+
+    waitForClearHistory(run_next_test);
+  });
+
+  let pb = Cc["@mozilla.org/privatebrowsing;1"]
+           .getService(Ci.nsIPrivateBrowsingService);
+  Services.prefs.setBoolPref("browser.privatebrowsing.keep_current_session",
+                             true);
+  pb.privateBrowsingEnabled = true;
+  gDownloadHistory.addDownload(PRIVATE_URI, REFERRER_URI, Date.now() * 1000);
+
+  // The addDownload functions calls CanAddURI synchronously, thus we can
+  // exit Private Browsing Mode immediately.
+  pb.privateBrowsingEnabled = false;
+  Services.prefs.clearUserPref("browser.privatebrowsing.keep_current_session");
+  gDownloadHistory.addDownload(DOWNLOAD_URI, REFERRER_URI, Date.now() * 1000);
 });
 
 add_test(function test_dh_addDownload_disabledHistory()
@@ -182,10 +168,10 @@ add_test(function test_dh_addDownload_disabledHistory()
     // database access is serialized on the same worker thread.
     do_check_true(aURI.equals(DOWNLOAD_URI));
 
-    do_check_true(!!page_in_database(DOWNLOAD_URI));
-    do_check_false(!!page_in_database(PRIVATE_URI));
+    uri_in_db(DOWNLOAD_URI, true);
+    uri_in_db(PRIVATE_URI, false);
 
-    promiseClearHistory().then(run_next_test);
+    waitForClearHistory(run_next_test);
   });
 
   Services.prefs.setBoolPref("places.history.enabled", false);
@@ -221,7 +207,7 @@ add_test(function test_dh_details()
       PlacesUtils.annotations.removeObserver(annoObserver);
       PlacesUtils.history.removeObserver(historyObserver);
 
-      promiseClearHistory().then(run_next_test);
+      waitForClearHistory(run_next_test);
     }
   };
 
@@ -261,6 +247,7 @@ add_test(function test_dh_details()
         checkFinished();
       }
     },
+    onBeforeDeleteURI: function() {},
     onDeleteURI: function() {},
     onClearHistory: function() {},
     onPageChanged: function() {},

@@ -10,8 +10,11 @@
 #include "nsCharSeparatedTokenizer.h"
 #include "nsMathUtils.h"
 #include "nsString.h"
+#include "nsSVGElement.h"
 #include "nsTextFormatter.h"
 #include "prdtoa.h"
+#include "string.h"
+#include "SVGAnimatedPointList.h"
 #include "SVGContentUtils.h"
 
 namespace mozilla {

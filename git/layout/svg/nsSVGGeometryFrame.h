@@ -42,9 +42,9 @@ protected:
 
 public:
   // nsIFrame interface:
-  virtual void Init(nsIContent* aContent,
-		    nsIFrame* aParent,
-		    nsIFrame* aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent* aContent,
+                  nsIFrame* aParent,
+                  nsIFrame* aPrevInFlow);
 
   virtual bool IsFrameOfType(uint32_t aFlags) const
   {

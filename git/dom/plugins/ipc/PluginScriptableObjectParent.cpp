@@ -4,13 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "PluginScriptableObjectParent.h"
 #include "PluginScriptableObjectUtils.h"
 
 #include "nsNPAPIPlugin.h"
 #include "mozilla/unused.h"
+#include "mozilla/Util.h"
 
 using namespace mozilla::plugins;
 using namespace mozilla::plugins::parent;
@@ -1038,7 +1037,11 @@ PluginScriptableObjectParent::AnswerEnumerate(InfallibleTArray<PPluginIdentifier
     return true;
   }
 
-  aProperties->SetCapacity(idCount);
+  if (!aProperties->SetCapacity(idCount)) {
+    npn->memfree(ids);
+    *aSuccess = false;
+    return true;
+  }
 
   JSContext* cx = GetJSContext(instance->GetNPP());
   JSAutoRequest ar(cx);

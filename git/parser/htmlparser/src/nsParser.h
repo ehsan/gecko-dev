@@ -50,6 +50,7 @@
 #include "nsITokenizer.h"
 #include "nsHTMLTags.h"
 #include "nsDTDUtils.h"
+#include "nsThreadUtils.h"
 #include "nsIContentSink.h"
 #include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
@@ -58,6 +59,7 @@
 class nsICharsetConverterManager;
 class nsIDTD;
 class nsScanner;
+class nsIThreadPool;
 
 #ifdef _MSC_VER
 #pragma warning( disable : 4275 )
@@ -243,6 +245,15 @@ class nsParser : public nsIParser,
      * Get the nsIStreamListener for this parser
      */
     virtual nsIStreamListener* GetStreamListener();
+
+    /** 
+     * Detects the existence of a META tag with charset information in 
+     * the given buffer.
+     */
+    bool DetectMetaTag(const char* aBytes, 
+                         int32_t aLen, 
+                         nsCString& oCharset, 
+                         int32_t& oCharsetSource);
 
     void SetSinkCharset(nsACString& aCharset);
 

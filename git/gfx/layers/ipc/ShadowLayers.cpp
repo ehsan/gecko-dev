@@ -20,12 +20,10 @@
 #include "ShadowLayerChild.h"
 #include "gfxipc/ShadowLayerUtils.h"
 #include "RenderTrace.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 #include "nsXULAppAPI.h"
 
 using namespace mozilla::ipc;
-using namespace mozilla::gl;
-using namespace mozilla::dom;
 
 namespace mozilla {
 namespace layers {
@@ -38,27 +36,15 @@ class Transaction
 {
 public:
   Transaction()
-    : mTargetRotation(ROTATION_0)
-    , mSwapRequired(false)
+    : mSwapRequired(false)
     , mOpen(false)
-    , mRotationChanged(false)
   {}
 
-  void Begin(const nsIntRect& aTargetBounds, ScreenRotation aRotation,
-             const nsIntRect& aClientBounds, ScreenOrientation aOrientation)
+  void Begin(const nsIntRect& aTargetBounds, ScreenRotation aRotation)
   {
     mOpen = true;
     mTargetBounds = aTargetBounds;
-    if (aRotation != mTargetRotation) {
-      // the first time this is called, mRotationChanged will be false if
-      // aRotation is 0, but we should be OK because for the first transaction
-      // we should only compose if it is non-empty. See the caller(s) of
-      // RotationChanged.
-      mRotationChanged = true;
-    }
     mTargetRotation = aRotation;
-    mClientBounds = aClientBounds;
-    mTargetOrientation = aOrientation;
   }
 
   void AddEdit(const Edit& aEdit)
@@ -99,14 +85,10 @@ public:
     mMutants.clear();
     mOpen = false;
     mSwapRequired = false;
-    mRotationChanged = false;
   }
 
   bool Empty() const {
     return mCset.empty() && mPaints.empty() && mMutants.empty();
-  }
-  bool RotationChanged() const {
-    return mRotationChanged;
   }
   bool Finished() const { return !mOpen && Empty(); }
 
@@ -116,13 +98,10 @@ public:
   ShadowableLayerSet mMutants;
   nsIntRect mTargetBounds;
   ScreenRotation mTargetRotation;
-  nsIntRect mClientBounds;
-  ScreenOrientation mTargetOrientation;
   bool mSwapRequired;
 
 private:
   bool mOpen;
-  bool mRotationChanged;
 
   // disabled
   Transaction(const Transaction&);
@@ -151,13 +130,11 @@ ShadowLayerForwarder::~ShadowLayerForwarder()
 
 void
 ShadowLayerForwarder::BeginTransaction(const nsIntRect& aTargetBounds,
-                                       ScreenRotation aRotation,
-                                       const nsIntRect& aClientBounds,
-                                       ScreenOrientation aOrientation)
+                                       ScreenRotation aRotation)
 {
   NS_ABORT_IF_FALSE(HasShadowManager(), "no manager to forward to");
   NS_ABORT_IF_FALSE(mTxn->Finished(), "uncommitted txn?");
-  mTxn->Begin(aTargetBounds, aRotation, aClientBounds, aOrientation);
+  mTxn->Begin(aTargetBounds, aRotation);
 }
 
 static PLayerChild*
@@ -239,9 +216,6 @@ void
 ShadowLayerForwarder::RemoveChild(ShadowableLayer* aContainer,
                                   ShadowableLayer* aChild)
 {
-  MOZ_LAYERS_LOG(("[LayersForwarder] OpRemoveChild container=%p child=%p\n",
-                  aContainer->AsLayer(), aChild->AsLayer()));
-
   mTxn->AddEdit(OpRemoveChild(NULL, Shadow(aContainer),
                               NULL, Shadow(aChild)));
 }
@@ -250,18 +224,13 @@ ShadowLayerForwarder::RepositionChild(ShadowableLayer* aContainer,
                                       ShadowableLayer* aChild,
                                       ShadowableLayer* aAfter)
 {
-  if (aAfter) {
-    MOZ_LAYERS_LOG(("[LayersForwarder] OpRepositionChild container=%p child=%p after=%p",
-                   aContainer->AsLayer(), aChild->AsLayer(), aAfter->AsLayer()));
+  if (aAfter)
     mTxn->AddEdit(OpRepositionChild(NULL, Shadow(aContainer),
                                     NULL, Shadow(aChild),
                                     NULL, Shadow(aAfter)));
-  } else {
-    MOZ_LAYERS_LOG(("[LayersForwarder] OpRaiseToTopChild container=%p child=%p",
-                   aContainer->AsLayer(), aChild->AsLayer()));
+  else
     mTxn->AddEdit(OpRaiseToTopChild(NULL, Shadow(aContainer),
                                     NULL, Shadow(aChild)));
-  }
 }
 
 void
@@ -271,8 +240,6 @@ ShadowLayerForwarder::PaintedThebesBuffer(ShadowableLayer* aThebes,
                                           const nsIntPoint& aBufferRotation,
                                           const SurfaceDescriptor& aNewFrontBuffer)
 {
-  MOZ_LAYERS_LOG(("[LayersForwarder] OpPaintThebesBuffer(%p)\n", aThebes->AsLayer()));
-
   mTxn->AddPaint(OpPaintThebesBuffer(NULL, Shadow(aThebes),
                                      ThebesBuffer(aNewFrontBuffer,
                                                   aBufferRect,
@@ -307,28 +274,18 @@ ShadowLayerForwarder::PaintedCanvas(ShadowableLayer* aCanvas,
                                aNeedYFlip));
 }
 
-void
-ShadowLayerForwarder::PaintedCanvasNoSwap(ShadowableLayer* aCanvas,
-                                          bool aNeedYFlip,
-                                          const SurfaceDescriptor& aNewFrontSurface)
-{
-  mTxn->AddNoSwapPaint(OpPaintCanvas(NULL, Shadow(aCanvas),
-                                     aNewFrontSurface,
-                                     aNeedYFlip));
-}
-
 bool
 ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
 {
-  PROFILER_LABEL("ShadowLayerForwarder", "EndTranscation");
+  SAMPLE_LABEL("ShadowLayerForwarder", "EndTranscation");
   RenderTraceScope rendertrace("Foward Transaction", "000091");
   NS_ABORT_IF_FALSE(HasShadowManager(), "no manager to forward to");
   NS_ABORT_IF_FALSE(!mTxn->Finished(), "forgot BeginTransaction?");
 
   AutoTxnEnd _(mTxn);
 
-  if (mTxn->Empty() && !mTxn->RotationChanged()) {
-    MOZ_LAYERS_LOG(("[LayersForwarder] 0-length cset (?) and no rotation event, skipping Update()"));
+  if (mTxn->Empty()) {
+    MOZ_LAYERS_LOG(("[LayersForwarder] 0-length cset (?), skipping Update()"));
     return true;
   }
 
@@ -364,7 +321,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
                          *mutant->GetClipRect() : nsIntRect());
     common.isFixedPosition() = mutant->GetIsFixedPosition();
     common.fixedPositionAnchor() = mutant->GetFixedPositionAnchor();
-    common.fixedPositionMargin() = mutant->GetFixedPositionMargins();
     if (Layer* maskLayer = mutant->GetMaskLayer()) {
       common.maskLayerChild() = Shadow(maskLayer->AsShadowableLayer());
     } else {
@@ -374,8 +330,6 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
     common.animations() = mutant->GetAnimations();
     attrs.specific() = null_t();
     mutant->FillSpecificAttributes(attrs.specific());
-
-    MOZ_LAYERS_LOG(("[LayersForwarder] OpSetLayerAttributes(%p)\n", mutant));
 
     mTxn->AddEdit(OpSetLayerAttributes(NULL, Shadow(shadow), attrs));
   }
@@ -394,7 +348,7 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies)
     cset.AppendElements(&mTxn->mPaints.front(), mTxn->mPaints.size());
   }
 
-  TargetConfig targetConfig(mTxn->mTargetBounds, mTxn->mTargetRotation, mTxn->mClientBounds, mTxn->mTargetOrientation);
+  TargetConfig targetConfig(mTxn->mTargetBounds, mTxn->mTargetRotation);
 
   MOZ_LAYERS_LOG(("[LayersForwarder] syncing before send..."));
   PlatformSyncBeforeUpdate();

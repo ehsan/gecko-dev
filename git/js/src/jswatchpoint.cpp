@@ -50,17 +50,17 @@ WatchpointMap::init()
 }
 
 static void
-WatchpointWriteBarrierPost(JSRuntime *rt, WatchpointMap::Map *map, const WatchKey &key,
+WatchpointWriteBarrierPost(JSCompartment *comp, WatchpointMap::Map *map, const WatchKey &key,
                            const Watchpoint &val)
 {
 #ifdef JSGC_GENERATIONAL
-    if ((JSID_IS_OBJECT(key.id) && IsInsideNursery(rt, JSID_TO_OBJECT(key.id))) ||
-        (JSID_IS_STRING(key.id) && IsInsideNursery(rt, JSID_TO_STRING(key.id))) ||
-        IsInsideNursery(rt, key.object) ||
-        IsInsideNursery(rt, val.closure))
+    if ((JSID_IS_OBJECT(key.id) && comp->gcNursery.isInside(JSID_TO_OBJECT(key.id))) ||
+        (JSID_IS_STRING(key.id) && comp->gcNursery.isInside(JSID_TO_STRING(key.id))) ||
+        comp->gcNursery.isInside(key.object) ||
+        comp->gcNursery.isInside(val.closure))
     {
         typedef HashKeyRef<WatchpointMap::Map, WatchKey> WatchKeyRef;
-        rt->gcStoreBuffer.putGeneric(WatchKeyRef(map, key));
+        comp->gcStoreBuffer.putGeneric(WatchKeyRef(map, key));
     }
 #endif
 }
@@ -82,7 +82,7 @@ WatchpointMap::watch(JSContext *cx, HandleObject obj, HandleId id,
         js_ReportOutOfMemory(cx);
         return false;
     }
-    WatchpointWriteBarrierPost(cx->runtime, &map, WatchKey(obj, id), w);
+    WatchpointWriteBarrierPost(obj->compartment(), &map, WatchKey(obj, id), w);
     return true;
 }
 
@@ -93,12 +93,8 @@ WatchpointMap::unwatch(JSObject *obj, jsid id,
     if (Map::Ptr p = map.lookup(WatchKey(obj, id))) {
         if (handlerp)
             *handlerp = p->value.handler;
-        if (closurep) {
-            // Read barrier to prevent an incorrectly gray closure from escaping the
-            // watchpoint. See the comment before UnmarkGrayChildren in gc/Marking.cpp
-            JS::ExposeGCThingToActiveJS(p->value.closure, JSTRACE_OBJECT);
+        if (closurep)
             *closurep = p->value.closure;
-        }
         map.remove(p);
     }
 }
@@ -136,26 +132,26 @@ WatchpointMap::triggerWatchpoint(JSContext *cx, HandleObject obj, HandleId id, M
     Value old;
     old.setUndefined();
     if (obj->isNative()) {
-        if (RawShape shape = obj->nativeLookup(cx, id)) {
+        if (Shape *shape = obj->nativeLookup(cx, id)) {
             if (shape->hasSlot())
                 old = obj->nativeGetSlot(shape->slot());
         }
     }
-
-    // Read barrier to prevent an incorrectly gray closure from escaping the
-    // watchpoint. See the comment before UnmarkGrayChildren in gc/Marking.cpp
-    JS::ExposeGCThingToActiveJS(closure, JSTRACE_OBJECT);
 
     /* Call the handler. */
     return handler(cx, obj, id, old, vp.address(), closure);
 }
 
 bool
-WatchpointMap::markCompartmentIteratively(JSCompartment *c, JSTracer *trc)
+WatchpointMap::markAllIteratively(JSTracer *trc)
 {
-    if (!c->watchpointMap)
-        return false;
-    return c->watchpointMap->markIteratively(trc);
+    JSRuntime *rt = trc->runtime;
+    bool mutated = false;
+    for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
+        if (c->watchpointMap)
+            mutated |= c->watchpointMap->markIteratively(trc);
+    }
+    return mutated;
 }
 
 bool
@@ -224,7 +220,7 @@ WatchpointMap::sweep()
     for (Map::Enum e(map); !e.empty(); e.popFront()) {
         Map::Entry &entry = e.front();
         RelocatablePtrObject obj(entry.key.object);
-        if (IsObjectAboutToBeFinalized(&obj)) {
+        if (!IsObjectMarked(&obj)) {
             JS_ASSERT(!entry.value.held);
             e.removeFront();
         } else if (obj != entry.key.object) {
@@ -237,8 +233,8 @@ void
 WatchpointMap::traceAll(WeakMapTracer *trc)
 {
     JSRuntime *rt = trc->runtime;
-    for (CompartmentsIter comp(rt); !comp.done(); comp.next()) {
-        if (WatchpointMap *wpmap = comp->watchpointMap)
+    for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); ++c) {
+        if (WatchpointMap *wpmap = (*c)->watchpointMap)
             wpmap->trace(trc);
     }
 }

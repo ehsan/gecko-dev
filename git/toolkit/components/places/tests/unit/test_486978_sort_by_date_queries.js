@@ -14,41 +14,22 @@
 var hs = Cc["@mozilla.org/browser/nav-history-service;1"].
          getService(Ci.nsINavHistoryService);
 
-// Will be inserted in this order, so last one will be the newest visit.
-var pages = [
-  "http://a.mozilla.org/1/",
-  "http://a.mozilla.org/2/",
-  "http://a.mozilla.org/3/",
-  "http://a.mozilla.org/4/",
-  "http://b.mozilla.org/5/",
-  "http://b.mozilla.org/6/",
-  "http://b.mozilla.org/7/",
-  "http://b.mozilla.org/8/",
-];
-
-function run_test()
-{
-  run_next_test();
+// adds a test URI visit to the database, and checks for a valid visitId
+function add_visit(aURI, aTime) {
+  var visitId = hs.addVisit(uri(aURI),
+                            aTime * 1000,
+                            null, // no referrer
+                            hs.TRANSITION_TYPED,
+                            false, // not redirect
+                            0);
+  do_check_true(visitId > 0);
+  return visitId;
 }
-
-add_task(function test_initialize()
-{
-  var noon = new Date();
-  noon.setHours(12);
-
-  // Add visits.
-  for ([pageIndex, page] in Iterator(pages)) {
-    yield promiseAddVisits({
-      uri: uri(page),
-      visitDate: noon - (pages.length - pageIndex) * 1000
-    });
-  }
-});
 
 /**
  * Tests that sorting date query by none will sort by title asc.
  */
-add_task(function() {
+add_test(function() {
   var options = hs.getNewQueryOptions();
   options.resultType = options.RESULTS_AS_DATE_QUERY;
   // This should sort by title asc.
@@ -74,7 +55,7 @@ add_task(function() {
 /**
  * Tests that sorting date query by date will sort accordingly.
  */
-add_task(function() {
+add_test(function() {
   var options = hs.getNewQueryOptions();
   options.resultType = options.RESULTS_AS_DATE_QUERY;
   // This should sort by title asc.
@@ -100,7 +81,7 @@ add_task(function() {
 /**
  * Tests that sorting date site query by date will still sort by title asc.
  */
-add_task(function() {
+add_test(function() {
   var options = hs.getNewQueryOptions();
   options.resultType = options.RESULTS_AS_DATE_SITE_QUERY;
   // This should sort by title asc.
@@ -126,3 +107,30 @@ add_task(function() {
   dayContainer.containerOpen = false;
   root.containerOpen = false;
 });
+
+// Will be inserted in this order, so last one will be the newest visit.
+var pages = [
+  "http://a.mozilla.org/1/",
+  "http://a.mozilla.org/2/",
+  "http://a.mozilla.org/3/",
+  "http://a.mozilla.org/4/",
+  "http://b.mozilla.org/5/",
+  "http://b.mozilla.org/6/",
+  "http://b.mozilla.org/7/",
+  "http://b.mozilla.org/8/",
+];
+
+// main
+function run_test() {
+  var noon = new Date();
+  noon.setHours(12);
+
+  // Add visits.
+  pages.forEach(function(aPage) {
+      add_visit(aPage, noon - (pages.length - pages.indexOf(aPage)) * 1000);
+    });
+
+  // Kick off tests.
+  while (gTests.length)
+    (gTests.shift())();
+}

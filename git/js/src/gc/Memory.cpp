@@ -7,16 +7,17 @@
 
 #include "mozilla/Assertions.h"
 
-#include "jsapi.h"
+#include "jstypes.h"
 
-#include "js/HeapAPI.h"
 #include "js/Utility.h"
 #include "gc/Memory.h"
 
-using namespace js;
-using namespace js::gc;
+namespace js {
+namespace gc {
 
 /* Unused memory decommiting requires the arena size match the page size. */
+extern const size_t PageSize;
+extern const size_t ArenaSize;
 static bool
 DecommitEnabled()
 {
@@ -30,19 +31,17 @@ DecommitEnabled()
 static size_t AllocationGranularity = 0;
 
 void
-gc::InitMemorySubsystem()
+InitMemorySubsystem()
 {
     SYSTEM_INFO sysinfo;
     GetSystemInfo(&sysinfo);
-    if (sysinfo.dwPageSize != PageSize) {
-        fprintf(stderr,"SpiderMonkey compiled with incorrect page size; please update js/public/HeapAPI.h.\n");
+    if (sysinfo.dwPageSize != PageSize)
         MOZ_CRASH();
-    }
     AllocationGranularity = sysinfo.dwAllocationGranularity;
 }
 
 void *
-gc::MapAlignedPages(size_t size, size_t alignment)
+MapAlignedPages(size_t size, size_t alignment)
 {
     JS_ASSERT(size >= alignment);
     JS_ASSERT(size % alignment == 0);
@@ -85,13 +84,13 @@ gc::MapAlignedPages(size_t size, size_t alignment)
 }
 
 void
-gc::UnmapPages(void *p, size_t size)
+UnmapPages(void *p, size_t size)
 {
     JS_ALWAYS_TRUE(VirtualFree(p, 0, MEM_RELEASE));
 }
 
 bool
-gc::MarkPagesUnused(void *p, size_t size)
+MarkPagesUnused(void *p, size_t size)
 {
     if (!DecommitEnabled())
         return false;
@@ -102,14 +101,14 @@ gc::MarkPagesUnused(void *p, size_t size)
 }
 
 bool
-gc::MarkPagesInUse(void *p, size_t size)
+MarkPagesInUse(void *p, size_t size)
 {
     JS_ASSERT(uintptr_t(p) % PageSize == 0);
     return true;
 }
 
 size_t
-gc::GetPageFaultCount()
+GetPageFaultCount()
 {
     PROCESS_MEMORY_COUNTERS pmc;
     if (!GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc)))
@@ -126,12 +125,12 @@ gc::GetPageFaultCount()
 #define OS2_MAX_RECURSIONS  16
 
 void
-gc::InitMemorySubsystem()
+InitMemorySubsystem()
 {
 }
 
 void
-gc::UnmapPages(void *addr, size_t size)
+UnmapPages(void *addr, size_t size)
 {
     if (!DosFreeMem(addr))
         return;
@@ -152,7 +151,7 @@ gc::UnmapPages(void *addr, size_t size)
 }
 
 static void *
-gc::MapAlignedPagesRecursively(size_t size, size_t alignment, int& recursions)
+MapAlignedPagesRecursively(size_t size, size_t alignment, int& recursions)
 {
     if (++recursions >= OS2_MAX_RECURSIONS)
         return NULL;
@@ -193,7 +192,7 @@ gc::MapAlignedPagesRecursively(size_t size, size_t alignment, int& recursions)
 }
 
 void *
-gc::MapAlignedPages(size_t size, size_t alignment)
+MapAlignedPages(size_t size, size_t alignment)
 {
     JS_ASSERT(size >= alignment);
     JS_ASSERT(size % alignment == 0);
@@ -229,21 +228,21 @@ gc::MapAlignedPages(size_t size, size_t alignment)
 }
 
 bool
-gc::MarkPagesUnused(void *p, size_t size)
+MarkPagesUnused(void *p, size_t size)
 {
     JS_ASSERT(uintptr_t(p) % PageSize == 0);
     return true;
 }
 
 bool
-gc::MarkPagesInUse(void *p, size_t size)
+MarkPagesInUse(void *p, size_t size)
 {
     JS_ASSERT(uintptr_t(p) % PageSize == 0);
     return true;
 }
 
 size_t
-gc::GetPageFaultCount()
+GetPageFaultCount()
 {
     return 0;
 }
@@ -258,12 +257,12 @@ gc::GetPageFaultCount()
 #endif
 
 void
-gc::InitMemorySubsystem()
+InitMemorySubsystem()
 {
 }
 
 void *
-gc::MapAlignedPages(size_t size, size_t alignment)
+MapAlignedPages(size_t size, size_t alignment)
 {
     JS_ASSERT(size >= alignment);
     JS_ASSERT(size % alignment == 0);
@@ -280,27 +279,27 @@ gc::MapAlignedPages(size_t size, size_t alignment)
 }
 
 void
-gc::UnmapPages(void *p, size_t size)
+UnmapPages(void *p, size_t size)
 {
     JS_ALWAYS_TRUE(0 == munmap((caddr_t)p, size));
 }
 
 bool
-gc::MarkPagesUnused(void *p, size_t size)
+MarkPagesUnused(void *p, size_t size)
 {
     JS_ASSERT(uintptr_t(p) % PageSize == 0);
     return true;
 }
 
 bool
-gc::MarkPagesInUse(void *p, size_t size)
+MarkPagesInUse(void *p, size_t size)
 {
     JS_ASSERT(uintptr_t(p) % PageSize == 0);
     return true;
 }
 
 size_t
-gc::GetPageFaultCount()
+GetPageFaultCount()
 {
     return 0;
 }
@@ -313,16 +312,14 @@ gc::GetPageFaultCount()
 #include <unistd.h>
 
 void
-gc::InitMemorySubsystem()
+InitMemorySubsystem()
 {
-    if (size_t(sysconf(_SC_PAGESIZE)) != PageSize) {
-        fprintf(stderr,"SpiderMonkey compiled with incorrect page size; please update js/public/HeapAPI.h.\n");
+    if (size_t(sysconf(_SC_PAGESIZE)) != PageSize)
         MOZ_CRASH();
-    }
 }
 
 void *
-gc::MapAlignedPages(size_t size, size_t alignment)
+MapAlignedPages(size_t size, size_t alignment)
 {
     JS_ASSERT(size >= alignment);
     JS_ASSERT(size % alignment == 0);
@@ -359,13 +356,13 @@ gc::MapAlignedPages(size_t size, size_t alignment)
 }
 
 void
-gc::UnmapPages(void *p, size_t size)
+UnmapPages(void *p, size_t size)
 {
     JS_ALWAYS_TRUE(0 == munmap(p, size));
 }
 
 bool
-gc::MarkPagesUnused(void *p, size_t size)
+MarkPagesUnused(void *p, size_t size)
 {
     if (!DecommitEnabled())
         return false;
@@ -376,22 +373,25 @@ gc::MarkPagesUnused(void *p, size_t size)
 }
 
 bool
-gc::MarkPagesInUse(void *p, size_t size)
+MarkPagesInUse(void *p, size_t size)
 {
     JS_ASSERT(uintptr_t(p) % PageSize == 0);
     return true;
 }
 
 size_t
-gc::GetPageFaultCount()
+GetPageFaultCount()
 {
     struct rusage usage;
     int err = getrusage(RUSAGE_SELF, &usage);
     if (err)
         return 0;
-    return usage.ru_majflt;
+    return usage.ru_minflt + usage.ru_majflt;
 }
 
 #else
 #error "Memory mapping functions are not defined for your OS."
 #endif
+
+} /* namespace gc */
+} /* namespace js */

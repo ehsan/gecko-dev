@@ -16,9 +16,6 @@
 
 BEGIN_FILE_NAMESPACE
 
-/**
- * ZipFile to DOMFileCC
- */
 class ArchiveZipFile : public nsDOMFileCC
 {
 public:
@@ -59,8 +56,8 @@ public:
   // Overrides:
   NS_IMETHOD GetInternalStream(nsIInputStream**);
 
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(ArchiveZipFile, nsDOMFileCC)
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(ArchiveZipFile, nsIDOMFile)
 
 protected:
   virtual already_AddRefed<nsIDOMBlob> CreateSlice(uint64_t aStart,

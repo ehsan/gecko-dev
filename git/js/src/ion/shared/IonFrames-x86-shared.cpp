@@ -8,8 +8,6 @@
 #include "ion/Ion.h"
 #include "ion/IonFrames.h"
 
-#include "jsscriptinlines.h"
-
 using namespace js;
 using namespace js::ion;
 
@@ -27,9 +25,9 @@ InvalidationBailoutStack::checkInvariants() const
     CalleeToken token = frame->calleeToken();
     JS_ASSERT(token);
 
-    uint8_t *rawBase = ionScript()->method()->raw();
-    uint8_t *rawLimit = rawBase + ionScript()->method()->instructionsSize();
-    uint8_t *osiPoint = osiPointReturnAddress();
+    uint8 *rawBase = ionScript()->method()->raw();
+    uint8 *rawLimit = rawBase + ionScript()->method()->instructionsSize();
+    uint8 *osiPoint = osiPointReturnAddress();
     JS_ASSERT(rawBase <= osiPoint && osiPoint <= rawLimit);
 #endif
 }

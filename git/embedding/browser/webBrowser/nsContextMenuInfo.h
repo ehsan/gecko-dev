@@ -15,7 +15,6 @@
 #include "imgIRequest.h"
 
 class ChromeContextMenuListener;
-class imgRequestProxy;
 
 //*****************************************************************************
 // class nsContextMenuInfo
@@ -51,10 +50,10 @@ private:
   bool              HasBackgroundImage(nsIDOMNode *aDOMNode);
 
   nsresult          GetBackgroundImageRequest(nsIDOMNode *aDOMNode,
-                                              imgRequestProxy **aRequest);
+                                              imgIRequest **aRequest);
 
   nsresult          GetBackgroundImageRequestInternal(nsIDOMNode *aDOMNode,
-                                                      imgRequestProxy **aRequest);
+                                                      imgIRequest **aRequest);
   
 private:
   nsCOMPtr<nsIDOMEvent>   mMouseEvent;

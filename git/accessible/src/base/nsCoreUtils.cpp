@@ -29,15 +29,15 @@
 #include "nsISelectionController.h"
 #include "nsPIDOMWindow.h"
 #include "nsGUIEvent.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsLayoutUtils.h"
-#include "nsGkAtoms.h"
 
 #include "nsComponentManagerUtils.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "mozilla/dom/Element.h"
 
 #include "nsITreeBoxObject.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsITreeColumns.h"
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,9 +52,9 @@ nsCoreUtils::HasClickListener(nsIContent *aContent)
     aContent->GetListenerManager(false);
 
   return listenerManager &&
-    (listenerManager->HasListenersFor(nsGkAtoms::onclick) ||
-     listenerManager->HasListenersFor(nsGkAtoms::onmousedown) ||
-     listenerManager->HasListenersFor(nsGkAtoms::onmouseup));
+    (listenerManager->HasListenersFor(NS_LITERAL_STRING("click")) ||
+     listenerManager->HasListenersFor(NS_LITERAL_STRING("mousedown")) ||
+     listenerManager->HasListenersFor(NS_LITERAL_STRING("mouseup")));
 }
 
 void
@@ -379,7 +379,7 @@ nsIntPoint
 nsCoreUtils::GetScreenCoordsForWindow(nsINode *aNode)
 {
   nsIntPoint coords(0, 0);
-  nsCOMPtr<nsIDocShellTreeItem> treeItem(GetDocShellFor(aNode));
+  nsCOMPtr<nsIDocShellTreeItem> treeItem(GetDocShellTreeItemFor(aNode));
   if (!treeItem)
     return coords;
 
@@ -395,15 +395,18 @@ nsCoreUtils::GetScreenCoordsForWindow(nsINode *aNode)
   return coords;
 }
 
-already_AddRefed<nsIDocShell>
-nsCoreUtils::GetDocShellFor(nsINode *aNode)
+already_AddRefed<nsIDocShellTreeItem>
+nsCoreUtils::GetDocShellTreeItemFor(nsINode *aNode)
 {
   if (!aNode)
     return nullptr;
 
   nsCOMPtr<nsISupports> container = aNode->OwnerDoc()->GetContainer();
-  nsCOMPtr<nsIDocShell> docShell = do_QueryInterface(container);
-  return docShell.forget();
+  nsIDocShellTreeItem *docShellTreeItem = nullptr;
+  if (container)
+    CallQueryInterface(container, &docShellTreeItem);
+
+  return docShellTreeItem;
 }
 
 bool
@@ -493,6 +496,17 @@ nsCoreUtils::GetUIntAttr(nsIContent *aContent, nsIAtom *aAttr, int32_t *aUInt)
   }
 
   return false;
+}
+
+bool
+nsCoreUtils::IsXLink(nsIContent *aContent)
+{
+  if (!aContent)
+    return false;
+
+  return aContent->AttrValueIs(kNameSpaceID_XLink, nsGkAtoms::type,
+                               nsGkAtoms::simple, eCaseMatters) &&
+    aContent->HasAttr(kNameSpaceID_XLink, nsGkAtoms::href);
 }
 
 void

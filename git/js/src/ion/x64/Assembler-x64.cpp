@@ -7,77 +7,11 @@
 
 #include "Assembler-x64.h"
 #include "gc/Marking.h"
-#include "ion/LIR.h"
 
 #include "jsscriptinlines.h"
 
 using namespace js;
 using namespace js::ion;
-
-ABIArgGenerator::ABIArgGenerator()
-  :
-#if defined(XP_WIN)
-    regIndex_(0),
-    stackOffset_(ShadowStackSpace),
-#else
-    intRegIndex_(0),
-    floatRegIndex_(0),
-    stackOffset_(0),
-#endif
-    current_()
-{}
-
-ABIArg
-ABIArgGenerator::next(MIRType type)
-{
-#if defined(XP_WIN)
-    JS_STATIC_ASSERT(NumIntArgRegs == NumFloatArgRegs);
-    if (regIndex_ == NumIntArgRegs) {
-        current_ = ABIArg(stackOffset_);
-        stackOffset_ += sizeof(uint64_t);
-        return current_;
-    }
-    switch (type) {
-      case MIRType_Int32:
-      case MIRType_Pointer:
-        current_ = ABIArg(IntArgRegs[regIndex_++]);
-        break;
-      case MIRType_Double:
-        current_ = ABIArg(FloatArgRegs[regIndex_++]);
-        break;
-      default:
-        JS_NOT_REACHED("Unexpected argument type");
-    }
-    return current_;
-#else
-    switch (type) {
-      case MIRType_Int32:
-      case MIRType_Pointer:
-        if (intRegIndex_ == NumIntArgRegs) {
-            current_ = ABIArg(stackOffset_);
-            stackOffset_ += sizeof(uint64_t);
-            break;
-        }
-        current_ = ABIArg(IntArgRegs[intRegIndex_++]);
-        break;
-      case MIRType_Double:
-        if (floatRegIndex_ == NumFloatArgRegs) {
-            current_ = ABIArg(stackOffset_);
-            stackOffset_ += sizeof(uint64_t);
-            break;
-        }
-        current_ = ABIArg(FloatArgRegs[floatRegIndex_++]);
-        break;
-      default:
-        JS_NOT_REACHED("Unexpected argument type");
-    }
-    return current_;
-#endif
-}
-
-const Register ABIArgGenerator::NonArgReturnVolatileReg1 = r10;
-const Register ABIArgGenerator::NonArgReturnVolatileReg2 = r11;
-const Register ABIArgGenerator::NonVolatileReg = r12;
 
 void
 Assembler::writeRelocation(JmpSrc src, Relocation::Kind reloc)
@@ -87,7 +21,7 @@ Assembler::writeRelocation(JmpSrc src, Relocation::Kind reloc)
         // to the start of the extended jump table. But, we don't know the
         // actual extended jump table offset yet, so write a 0 which we'll
         // patch later.
-        jumpRelocations_.writeFixedUint32_t(0);
+        jumpRelocations_.writeFixedUint32(0);
     }
     if (reloc == Relocation::IONCODE) {
         jumpRelocations_.writeUnsigned(src.offset());
@@ -120,12 +54,12 @@ Assembler::addPatchableJump(JmpSrc src, Relocation::Kind reloc)
 }
 
 /* static */
-uint8_t *
+uint8 *
 Assembler::PatchableJumpAddress(IonCode *code, size_t index)
 {
     // The assembler stashed the offset into the code of the fragments used
     // for far jumps at the start of the relocation table.
-    uint32_t jumpOffset = * (uint32_t *) code->jumpRelocTable();
+    uint32 jumpOffset = * (uint32 *) code->jumpRelocTable();
     jumpOffset += index * SizeOfJumpTableEntry;
 
     JS_ASSERT(jumpOffset + SizeOfExtendedJump <= code->instructionsSize());
@@ -134,14 +68,14 @@ Assembler::PatchableJumpAddress(IonCode *code, size_t index)
 
 /* static */
 void
-Assembler::PatchJumpEntry(uint8_t *entry, uint8_t *target)
+Assembler::PatchJumpEntry(uint8 *entry, uint8 *target)
 {
-    uint8_t **index = (uint8_t **) (entry + SizeOfExtendedJump - sizeof(void*));
+    uint8 **index = (uint8 **) (entry + SizeOfExtendedJump - sizeof(void*));
     *index = target;
 }
 
 void
-Assembler::finish()
+Assembler::flush()
 {
     if (!jumps_.length() || oom())
         return;
@@ -153,9 +87,9 @@ Assembler::finish()
     // Now that we know the offset to the jump table, squirrel it into the
     // jump relocation buffer if any IonCode references exist and must be
     // tracked for GC.
-    JS_ASSERT_IF(jumpRelocations_.length(), jumpRelocations_.length() >= sizeof(uint32_t));
+    JS_ASSERT_IF(jumpRelocations_.length(), jumpRelocations_.length() >= sizeof(uint32));
     if (jumpRelocations_.length())
-        *(uint32_t *)jumpRelocations_.buffer() = extendedJumpTable_;
+        *(uint32 *)jumpRelocations_.buffer() = extendedJumpTable_;
 
     // Zero the extended jumps table.
     for (size_t i = 0; i < jumps_.length(); i++) {
@@ -170,13 +104,13 @@ Assembler::finish()
 }
 
 void
-Assembler::executableCopy(uint8_t *buffer)
+Assembler::executableCopy(uint8 *buffer)
 {
     AssemblerX86Shared::executableCopy(buffer);
 
     for (size_t i = 0; i < jumps_.length(); i++) {
         RelativePatch &rp = jumps_[i];
-        uint8_t *src = buffer + rp.offset;
+        uint8 *src = buffer + rp.offset;
         if (!rp.target) {
             // The patch target is NULL for jumps that have been linked to a
             // label within the same code block, but may be repatched later to
@@ -192,7 +126,7 @@ Assembler::executableCopy(uint8_t *buffer)
             JS_ASSERT((extendedJumpTable_ + i * SizeOfJumpTableEntry) <= size() - SizeOfJumpTableEntry);
 
             // Patch the jump to go to the extended jump entry.
-            uint8_t *entry = buffer + extendedJumpTable_ + i * SizeOfJumpTableEntry;
+            uint8 *entry = buffer + extendedJumpTable_ + i * SizeOfJumpTableEntry;
             JSC::X86Assembler::setRel32(src, entry);
 
             // Now patch the pointer, note that we need to align it to
@@ -205,15 +139,15 @@ Assembler::executableCopy(uint8_t *buffer)
 class RelocationIterator
 {
     CompactBufferReader reader_;
-    uint32_t tableStart_;
-    uint32_t offset_;
-    uint32_t extOffset_;
+    uint32 tableStart_;
+    uint32 offset_;
+    uint32 extOffset_;
 
   public:
     RelocationIterator(CompactBufferReader &reader)
       : reader_(reader)
     {
-        tableStart_ = reader_.readFixedUint32_t();
+        tableStart_ = reader_.readFixedUint32();
     }
 
     bool read() {
@@ -224,24 +158,24 @@ class RelocationIterator
         return true;
     }
 
-    uint32_t offset() const {
+    uint32 offset() const {
         return offset_;
     }
-    uint32_t extendedOffset() const {
+    uint32 extendedOffset() const {
         return extOffset_;
     }
 };
 
 IonCode *
-Assembler::CodeFromJump(IonCode *code, uint8_t *jump)
+Assembler::CodeFromJump(IonCode *code, uint8 *jump)
 {
-    uint8_t *target = (uint8_t *)JSC::X86Assembler::getRel32Target(jump);
+    uint8 *target = (uint8 *)JSC::X86Assembler::getRel32Target(jump);
     if (target >= code->raw() && target < code->raw() + code->instructionsSize()) {
         // This jump is within the code buffer, so it has been redirected to
         // the extended jump table.
         JS_ASSERT(target + SizeOfJumpTableEntry <= code->raw() + code->instructionsSize());
 
-        target = (uint8_t *)JSC::X86Assembler::getPointer(target + SizeOfExtendedJump);
+        target = (uint8 *)JSC::X86Assembler::getPointer(target + SizeOfExtendedJump);
     }
 
     return IonCode::FromExecutable(target);

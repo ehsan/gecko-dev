@@ -25,7 +25,6 @@
 #include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsChangeHint.h"
-#include <algorithm>
 // This also pulls in gfxTypes.h, which we cannot include directly.
 #include "gfxRect.h"
 #include "nsTArray.h"
@@ -34,7 +33,6 @@
 #include "mozilla/TimeStamp.h"
 #include "prclist.h"
 #include "Layers.h"
-#include "nsRefreshDriver.h"
 
 #ifdef IBMBIDI
 class nsBidiPresUtils;
@@ -68,6 +66,7 @@ struct nsFontFaceRuleContainer;
 class nsObjectFrame;
 class nsTransitionManager;
 class nsAnimationManager;
+class nsRefreshDriver;
 class imgIContainer;
 class nsIDOMMediaQueryList;
 
@@ -158,12 +157,6 @@ public:
     eContext_PageLayout    // paginated & editable.
   };
 
-  // Policies for rebuilding style data.
-  enum StyleRebuildType {
-    eRebuildStyleIfNeeded,
-    eAlwaysRebuildStyle
-  };
-
   nsPresContext(nsIDocument* aDocument, nsPresContextType aType) NS_HIDDEN;
 
   /**
@@ -214,12 +207,6 @@ public:
   nsIWidget* GetNearestWidget(nsPoint* aOffset = nullptr);
 
   /**
-   * Returns the root widget for this.
-   * Note that the widget is a mediater with IME.
-   */
-  nsIWidget* GetRootWidget();
-
-  /**
    * Return the presentation context for the root of the view manager
    * hierarchy that contains this presentation context, or nullptr if it can't
    * be found (e.g. it's detached).
@@ -261,13 +248,12 @@ public:
    */
   void PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint);
 
-  void MediaFeatureValuesChanged(StyleRebuildType aShouldRebuild,
-                                 nsChangeHint aChangeHint = nsChangeHint(0));
+  void MediaFeatureValuesChanged(bool aCallerWillRebuildStyleData);
   void PostMediaFeatureValuesChangedEvent();
   NS_HIDDEN_(void) HandleMediaFeatureValuesChangedEvent();
   void FlushPendingMediaFeatureValuesChanged() {
     if (mPendingMediaFeatureValuesChanged)
-      MediaFeatureValuesChanged(eRebuildStyleIfNeeded);
+      MediaFeatureValuesChanged(false);
   }
 
   /**
@@ -507,7 +493,8 @@ public:
     if (HasCachedStyleData()) {
       // Media queries could have changed, since we changed the meaning
       // of 'em' units in them.
-      MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
+      MediaFeatureValuesChanged(true);
+      RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
   }
 
@@ -517,7 +504,7 @@ public:
    */
   int32_t MinFontSize(nsIAtom *aLanguage) const {
     const LangGroupFontPrefs *prefs = GetFontPrefsForLang(aLanguage);
-    return std::max(mMinFontSize, prefs->mMinimumFontSize);
+    return NS_MAX(mMinFontSize, prefs->mMinimumFontSize);
   }
 
   void SetMinFontSize(int32_t aMinFontSize) {
@@ -528,7 +515,8 @@ public:
     if (HasCachedStyleData()) {
       // Media queries could have changed, since we changed the meaning
       // of 'em' units in them.
-      MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
+      MediaFeatureValuesChanged(true);
+      RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
     }
   }
 
@@ -551,7 +539,7 @@ public:
   float ScreenWidthInchesForFontInflation(bool* aChanged = nullptr);
 
   static int32_t AppUnitsPerCSSPixel() { return nsDeviceContext::AppUnitsPerCSSPixel(); }
-  int32_t AppUnitsPerDevPixel() const  { return mDeviceContext->AppUnitsPerDevPixel(); }
+  uint32_t AppUnitsPerDevPixel() const  { return mDeviceContext->AppUnitsPerDevPixel(); }
   static int32_t AppUnitsPerCSSInch() { return nsDeviceContext::AppUnitsPerCSSInch(); }
 
   static nscoord CSSPixelsToAppUnits(int32_t aPixels)
@@ -612,10 +600,10 @@ public:
 
   // Margin-specific version, since they often need TwipsToAppUnits
   static nsMargin CSSTwipsToAppUnits(const nsIntMargin &marginInTwips)
-  { return nsMargin(CSSTwipsToAppUnits(float(marginInTwips.top)),
+  { return nsMargin(CSSTwipsToAppUnits(float(marginInTwips.left)), 
+                    CSSTwipsToAppUnits(float(marginInTwips.top)),
                     CSSTwipsToAppUnits(float(marginInTwips.right)),
-                    CSSTwipsToAppUnits(float(marginInTwips.bottom)),
-                    CSSTwipsToAppUnits(float(marginInTwips.left))); }
+                    CSSTwipsToAppUnits(float(marginInTwips.bottom))); }
 
   static nscoord CSSPointsToAppUnits(float aPoints)
   { return NSToCoordRound(aPoints * nsDeviceContext::AppUnitsPerCSSInch() /
@@ -660,22 +648,6 @@ public:
   void   SetBackgroundColorDraw(bool aCanDraw)
   {
     mDrawColorBackground = aCanDraw;
-  }
-  
-  /**
-   * Getter and setter for OMTA time counters
-   */
-  bool ThrottledStyleIsUpToDate() const {
-    return mLastUpdateThrottledStyle == mRefreshDriver->MostRecentRefresh();
-  }
-  void TickLastUpdateThrottledStyle() {
-    mLastUpdateThrottledStyle = mRefreshDriver->MostRecentRefresh();
-  }
-  bool StyleUpdateForAllAnimationsIsUpToDate() const {
-    return mLastStyleUpdateForAllAnimations == mRefreshDriver->MostRecentRefresh();
-  }
-  void TickLastStyleUpdateForAllAnimations() {
-    mLastStyleUpdateForAllAnimations = mRefreshDriver->MostRecentRefresh();
   }
 
 #ifdef IBMBIDI
@@ -962,6 +934,9 @@ public:
     PropertyTable()->DeleteAllFor(aFrame);
   }
 
+  bool MayHaveFixedBackgroundFrames() { return mMayHaveFixedBackgroundFrames; }
+  void SetHasFixedBackgroundFrame() { mMayHaveFixedBackgroundFrames = true; }
+
   virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
   virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
@@ -978,31 +953,12 @@ public:
     mIsGlyph = aValue;
   }
 
-  bool UsesRootEMUnits() const {
-    return mUsesRootEMUnits;
-  }
-
-  void SetUsesRootEMUnits(bool aValue) {
-    mUsesRootEMUnits = aValue;
-  }
-
   bool UsesViewportUnits() const {
     return mUsesViewportUnits;
   }
 
   void SetUsesViewportUnits(bool aValue) {
     mUsesViewportUnits = aValue;
-  }
-
-  // true if there are OMTA transition updates for the current document which
-  // have been throttled, and therefore some style information may not be up
-  // to date
-  bool ExistThrottledUpdates() const {
-    return mExistThrottledUpdates;
-  }
-
-  void SetExistThrottledUpdates(bool aExistThrottledUpdates) {
-    mExistThrottledUpdates = aExistThrottledUpdates;
   }
 
 protected:
@@ -1216,8 +1172,6 @@ protected:
   ScrollbarStyles       mViewportStyleOverflow;
   uint8_t               mFocusRingWidth;
 
-  bool mExistThrottledUpdates;
-
   uint16_t              mImageAnimationMode;
   uint16_t              mImageAnimationModePref;
 
@@ -1228,11 +1182,6 @@ protected:
   uint32_t              mInterruptChecksToSkip;
 
   mozilla::TimeStamp    mReflowStartTime;
-
-  // last time animations/transition styles were flushed to their primary frames
-  mozilla::TimeStamp    mLastUpdateThrottledStyle;
-  // last time we did a full style flush
-  mozilla::TimeStamp    mLastStyleUpdateForAllAnimations;
 
   unsigned              mHasPendingInterrupt : 1;
   unsigned              mInterruptsEnabled : 1;
@@ -1259,6 +1208,7 @@ protected:
   unsigned              mPendingUIResolutionChanged : 1;
   unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
+  unsigned              mMayHaveFixedBackgroundFrames : 1;
   // True if the requests in mInvalidateRequestsSinceLastPaint cover the
   // entire viewport
   unsigned              mAllInvalidated : 1;
@@ -1266,9 +1216,7 @@ protected:
   // Are we currently drawing an SVG glyph?
   unsigned              mIsGlyph : 1;
 
-  // Does the associated document use root-em (rem) units?
-  unsigned              mUsesRootEMUnits : 1;
-  // Does the associated document use viewport units (vw/vh/vmin/vmax)?
+  // Does the associated document use viewport units?
   unsigned              mUsesViewportUnits : 1;
 
   // Has there been a change to the viewport's dimensions?

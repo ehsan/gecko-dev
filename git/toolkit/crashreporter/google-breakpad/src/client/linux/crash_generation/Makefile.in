@@ -9,6 +9,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= crash_generation
 LIBRARY_NAME	= crash_generation_s
 
 LOCAL_INCLUDES = \
@@ -24,6 +25,10 @@ CPPSRCS		=				\
 FORCE_STATIC_LIB = 1
 
 include $(topsrcdir)/config/rules.mk
+ifeq ($(OS_ARCH),Linux)
+# need this to suppress errors when compiling common/linux/eintr_wrapper.h
+OS_CXXFLAGS := $(filter-out -pedantic,$(OS_CXXFLAGS))
+endif
 
 ifeq ($(OS_TARGET),Android)
 LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/crashreporter/google-breakpad/src/common/android/include/

@@ -25,6 +25,7 @@
 #include "AboutRedirector.h"
 #include "nsIAboutModule.h"
 
+#include "nsPrivateBrowsingServiceWrapper.h"
 #include "nsNetCID.h"
 
 using namespace mozilla::browser;
@@ -46,6 +47,8 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsIEHistoryEnumerator)
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsFeedSniffer)
 
+NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrivateBrowsingServiceWrapper, Init)
+
 NS_DEFINE_NAMED_CID(NS_BROWSERDIRECTORYPROVIDER_CID);
 #if defined(XP_WIN)
 NS_DEFINE_NAMED_CID(NS_SHELLSERVICE_CID);
@@ -59,6 +62,7 @@ NS_DEFINE_NAMED_CID(NS_WINIEHISTORYENUMERATOR_CID);
 #elif defined(XP_MACOSX)
 NS_DEFINE_NAMED_CID(NS_SHELLSERVICE_CID);
 #endif
+NS_DEFINE_NAMED_CID(NS_PRIVATE_BROWSING_SERVICE_WRAPPER_CID);
 
 static const mozilla::Module::CIDEntry kBrowserCIDs[] = {
     { &kNS_BROWSERDIRECTORYPROVIDER_CID, false, NULL, DirectoryProviderConstructor },
@@ -74,6 +78,7 @@ static const mozilla::Module::CIDEntry kBrowserCIDs[] = {
 #elif defined(XP_MACOSX)
     { &kNS_SHELLSERVICE_CID, false, NULL, nsMacShellServiceConstructor },
 #endif
+    { &kNS_PRIVATE_BROWSING_SERVICE_WRAPPER_CID, false, NULL, nsPrivateBrowsingServiceWrapperConstructor },
     { NULL }
 };
 
@@ -103,15 +108,12 @@ static const mozilla::Module::ContractIDEntry kBrowserContracts[] = {
     { NS_ABOUT_MODULE_CONTRACTID_PREFIX "newtab", &kNS_BROWSER_ABOUT_REDIRECTOR_CID },
     { NS_ABOUT_MODULE_CONTRACTID_PREFIX "permissions", &kNS_BROWSER_ABOUT_REDIRECTOR_CID },
     { NS_ABOUT_MODULE_CONTRACTID_PREFIX "preferences", &kNS_BROWSER_ABOUT_REDIRECTOR_CID },
-    { NS_ABOUT_MODULE_CONTRACTID_PREFIX "downloads", &kNS_BROWSER_ABOUT_REDIRECTOR_CID },
-#ifdef MOZ_SERVICES_HEALTHREPORT
-    { NS_ABOUT_MODULE_CONTRACTID_PREFIX "healthreport", &kNS_BROWSER_ABOUT_REDIRECTOR_CID },
-#endif
 #if defined(XP_WIN)
     { NS_IEHISTORYENUMERATOR_CONTRACTID, &kNS_WINIEHISTORYENUMERATOR_CID },
 #elif defined(XP_MACOSX)
     { NS_SHELLSERVICE_CONTRACTID, &kNS_SHELLSERVICE_CID },
 #endif
+    { NS_PRIVATE_BROWSING_SERVICE_CONTRACTID, &kNS_PRIVATE_BROWSING_SERVICE_WRAPPER_CID },
     { NULL }
 };
 

@@ -21,7 +21,6 @@
 #include "nsWeakPtr.h"
 #include "TextInputHandler.h"
 #include "nsCocoaUtils.h"
-#include "gfxQuartzSurface.h"
 
 #include "nsString.h"
 #include "nsIDragService.h"
@@ -184,10 +183,6 @@ typedef NSInteger NSEventGestureAxis;
 - (NSEventPhase)momentumPhase;
 @end
 
-@protocol EventRedirection
-  - (NSView*)targetView;
-@end
-
 @interface ChildView : NSView<
 #ifdef ACCESSIBILITY
                               mozAccessible,
@@ -259,7 +254,6 @@ typedef NSInteger NSEventGestureAxis;
   float mCumulativeRotation;
 
   BOOL mDidForceRefreshOpenGL;
-  BOOL mWaitingForPaint;
 
   // Support for fluid swipe tracking.
 #ifdef __LP64__
@@ -273,8 +267,6 @@ typedef NSInteger NSEventGestureAxis;
 // class initialization
 + (void)initialize;
 
-+ (void)registerViewForDraggedTypes:(NSView*)aView;
-
 // these are sent to the first responder when the window key status changes
 - (void)viewsWindowDidBecomeKey;
 - (void)viewsWindowDidResignKey;
@@ -286,11 +278,7 @@ typedef NSInteger NSEventGestureAxis;
 
 - (void)handleMouseMoved:(NSEvent*)aEvent;
 
-- (void)updateWindowDraggableStateOnMouseMove:(NSEvent*)theEvent;
-
 - (void)drawRect:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext;
-
-- (void)drawTitlebar:(NSRect)aRect inTitlebarContext:(CGContextRef)aContext;
 
 - (void)sendMouseEnterOrExitEvent:(NSEvent*)aEvent
                             enter:(BOOL)aEnter
@@ -391,17 +379,14 @@ public:
 
   NS_IMETHOD              ConstrainPosition(bool aAllowSlop,
                                             int32_t *aX, int32_t *aY);
-  NS_IMETHOD              Move(double aX, double aY);
-  NS_IMETHOD              Resize(double aWidth, double aHeight, bool aRepaint);
-  NS_IMETHOD              Resize(double aX, double aY,
-                                 double aWidth, double aHeight, bool aRepaint);
+  NS_IMETHOD              Move(int32_t aX, int32_t aY);
+  NS_IMETHOD              Resize(int32_t aWidth,int32_t aHeight, bool aRepaint);
+  NS_IMETHOD              Resize(int32_t aX, int32_t aY,int32_t aWidth,int32_t aHeight, bool aRepaint);
 
   NS_IMETHOD              Enable(bool aState);
   virtual bool            IsEnabled() const;
   NS_IMETHOD              SetFocus(bool aRaise);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
-  NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
-  NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
 
   // Returns the "backing scale factor" of the view's window, which is the
   // ratio of pixels in the window's backing store to Cocoa points. Prior to
@@ -415,7 +400,7 @@ public:
   // between HiDPI and non-HiDPI screens
   void                    BackingScaleFactorChanged();
 
-  virtual double          GetDefaultScaleInternal();
+  virtual double          GetDefaultScale();
 
   NS_IMETHOD              Invalidate(const nsIntRect &aRect);
 
@@ -428,13 +413,13 @@ public:
                           { return aStatus == nsEventStatus_eConsumeNoDefault; }
   NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
 
-  virtual bool            ComputeShouldAccelerate(bool aDefault);
-  virtual bool            ShouldUseOffMainThreadCompositing();
+  virtual bool            GetShouldAccelerate();
+  virtual bool            UseOffMainThreadCompositing();
 
   NS_IMETHOD        SetCursor(nsCursor aCursor);
   NS_IMETHOD        SetCursor(imgIContainer* aCursor, uint32_t aHotspotX, uint32_t aHotspotY);
 
-  NS_IMETHOD        CaptureRollupEvents(nsIRollupListener * aListener, bool aDoCapture);
+  NS_IMETHOD        CaptureRollupEvents(nsIRollupListener * aListener, bool aDoCapture, bool aConsumeRollupEvent);
   NS_IMETHOD        SetTitle(const nsAString& title);
 
   NS_IMETHOD        GetAttention(int32_t aCycleCount);
@@ -444,15 +429,16 @@ public:
   NS_IMETHOD        ActivateNativeMenuItemAt(const nsAString& indexString);
   NS_IMETHOD        ForceUpdateNativeMenuAt(const nsAString& indexString);
 
-  NS_IMETHOD        NotifyIME(NotificationToIME aNotification) MOZ_OVERRIDE;
+  NS_IMETHOD        ResetInputState();
   NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                     const InputContextAction& aAction);
   NS_IMETHOD_(InputContext) GetInputContext();
+  NS_IMETHOD        CancelIMEComposition();
   NS_IMETHOD        GetToggledKeyState(uint32_t aKeyCode,
                                        bool* aLEDState);
+  NS_IMETHOD        OnIMEFocusChange(bool aFocus);
 
   // nsIPluginWidget
-  // outClipRect and outOrigin are in display pixels (not device pixels)
   NS_IMETHOD        GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint& outOrigin, bool& outWidgetVisible);
   NS_IMETHOD        StartDrawPlugin();
   NS_IMETHOD        EndDrawPlugin();
@@ -484,11 +470,10 @@ public:
   
   virtual bool      DispatchWindowEvent(nsGUIEvent& event);
 
-  void WillPaintWindow();
   bool PaintWindow(nsIntRegion aRegion, bool aIsAlternate);
 
 #ifdef ACCESSIBILITY
-  already_AddRefed<mozilla::a11y::Accessible> GetDocumentAccessible();
+  already_AddRefed<Accessible> GetDocumentAccessible();
 #endif
 
   virtual void CreateCompositor();
@@ -517,8 +502,6 @@ public:
 
   NS_IMETHOD        ReparentNativeWidget(nsIWidget* aNewParent);
 
-  virtual void      WillPaint() MOZ_OVERRIDE;
-
   mozilla::widget::TextInputHandler* GetTextInputHandler()
   {
     return mTextInputHandler;
@@ -538,8 +521,6 @@ public:
     return nsCocoaUtils::DevPixelsToCocoaPoints(aRect, BackingScaleFactor());
   }
 
-  void CompositeTitlebar(const gfxSize& aSize, CGContextRef aContext);
-
 protected:
 
   void              ReportMoveEvent();
@@ -558,11 +539,6 @@ protected:
     return widget.forget();
   }
 
-  void MaybeDrawResizeIndicator(mozilla::layers::LayerManagerOGL* aManager, nsIntRect aRect);
-  void MaybeDrawRoundedBottomCorners(mozilla::layers::LayerManagerOGL* aManager, nsIntRect aRect);
-
-  nsIWidget* GetWidgetForListenerEvents();
-
 protected:
 
   NSView<mozView>*      mView;      // my parallel cocoa view (ChildView or NativeScrollbarView), [STRONG]
@@ -580,10 +556,6 @@ protected:
 
   nsRefPtr<gfxASurface> mTempThebesSurface;
   nsRefPtr<mozilla::gl::TextureImage> mResizerImage;
-  nsRefPtr<mozilla::gl::TextureImage> mCornerMaskImage;
-
-  nsRefPtr<gfxQuartzSurface> mTitlebarSurf;
-  gfxSize mTitlebarSize;
 
   // Cached value of [mView backingScaleFactor], to avoid sending two obj-c
   // messages (respondsToSelector, backingScaleFactor) every time we need to
@@ -591,8 +563,6 @@ protected:
   // ** We'll need to reinitialize this if the backing resolution changes. **
   CGFloat               mBackingScaleFactor;
 
-  bool                  mFailedResizerImage;
-  bool                  mFailedCornerMaskImage;
   bool                  mVisible;
   bool                  mDrawing;
   bool                  mPluginDrawing;

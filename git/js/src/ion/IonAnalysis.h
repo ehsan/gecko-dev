@@ -11,7 +11,6 @@
 // This file declares various analysis passes that operate on MIR.
 
 #include "IonAllocPolicy.h"
-#include "MIR.h"
 
 namespace js {
 namespace ion {
@@ -22,22 +21,14 @@ class MIRGraph;
 bool
 SplitCriticalEdges(MIRGraph &graph);
 
-enum Observability {
-    ConservativeObservability,
-    AggressiveObservability
-};
+bool
+EliminatePhis(MIRGraph &graph);
 
 bool
-EliminatePhis(MIRGenerator *mir, MIRGraph &graph, Observability observe);
+EliminateDeadCode(MIRGraph &graph);
 
 bool
-EliminateDeadResumePointOperands(MIRGenerator *mir, MIRGraph &graph);
-
-bool
-EliminateDeadCode(MIRGenerator *mir, MIRGraph &graph);
-
-bool
-ApplyTypeInformation(MIRGenerator *mir, MIRGraph &graph);
+ApplyTypeInformation(MIRGraph &graph);
 
 bool
 RenumberBlocks(MIRGraph &graph);
@@ -51,74 +42,25 @@ BuildPhiReverseMapping(MIRGraph &graph);
 void
 AssertGraphCoherency(MIRGraph &graph);
 
-void
-AssertExtendedGraphCoherency(MIRGraph &graph);
-
 bool
-EliminateRedundantChecks(MIRGraph &graph);
+EliminateRedundantBoundsChecks(MIRGraph &graph);
 
+// Linear sum of term(s). For now the only linear sums which can be represented
+// are 'n' or 'x + n' (for any computation x).
 class MDefinition;
 
-// Simple linear sum of the form 'n' or 'x + n'.
-struct SimpleLinearSum
+struct LinearSum
 {
     MDefinition *term;
-    int32_t constant;
+    int32 constant;
 
-    SimpleLinearSum(MDefinition *term, int32_t constant)
+    LinearSum(MDefinition *term, int32 constant)
         : term(term), constant(constant)
     {}
 };
 
-SimpleLinearSum
+LinearSum
 ExtractLinearSum(MDefinition *ins);
-
-bool
-ExtractLinearInequality(MTest *test, BranchDirection direction,
-                        SimpleLinearSum *plhs, MDefinition **prhs, bool *plessEqual);
-
-struct LinearTerm
-{
-    MDefinition *term;
-    int32_t scale;
-
-    LinearTerm(MDefinition *term, int32_t scale)
-      : term(term), scale(scale)
-    {
-    }
-};
-
-// General linear sum of the form 'x1*n1 + x2*n2 + ... + n'
-class LinearSum
-{
-  public:
-    LinearSum()
-      : constant_(0)
-    {
-    }
-
-    LinearSum(const LinearSum &other)
-      : constant_(other.constant_)
-    {
-        for (size_t i = 0; i < other.terms_.length(); i++)
-            terms_.append(other.terms_[i]);
-    }
-
-    bool multiply(int32_t scale);
-    bool add(const LinearSum &other);
-    bool add(MDefinition *term, int32_t scale);
-    bool add(int32_t constant);
-
-    int32_t constant() const { return constant_; }
-    size_t numTerms() const { return terms_.length(); }
-    LinearTerm term(size_t i) const { return terms_[i]; }
-
-    void print(Sprinter &sp) const;
-
-  private:
-    Vector<LinearTerm, 2, IonAllocPolicy> terms_;
-    int32_t constant_;
-};
 
 } // namespace ion
 } // namespace js

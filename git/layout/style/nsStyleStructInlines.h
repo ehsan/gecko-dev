@@ -17,13 +17,13 @@
 #include "imgIContainer.h"
 
 inline void
-nsStyleBorder::SetBorderImage(imgRequestProxy* aImage)
+nsStyleBorder::SetBorderImage(imgIRequest* aImage)
 {
   mBorderImageSource = aImage;
   mSubImages.Clear();
 }
 
-inline imgRequestProxy*
+inline imgIRequest*
 nsStyleBorder::GetBorderImage() const
 {
   NS_ABORT_IF_FALSE(!mBorderImageSource || mImageTracked,
@@ -71,21 +71,9 @@ nsStyleText::GetTextShadow(const nsIFrame* aFrame) const
 }
 
 bool
-nsStyleText::WhiteSpaceCanWrap(const nsIFrame* aFrame) const
-{
-  return WhiteSpaceCanWrapStyle() && !aFrame->IsSVGText();
-}
-
-bool
-nsStyleText::WordCanWrap(const nsIFrame* aFrame) const
-{
-  return WordCanWrapStyle() && !aFrame->IsSVGText();
-}
-
-bool
 nsStyleDisplay::IsBlockInside(const nsIFrame* aFrame) const
 {
-  if (aFrame->IsSVGText()) {
+  if (aFrame->GetStateBits() & NS_FRAME_IS_SVG_TEXT) {
     return aFrame->GetType() == nsGkAtoms::blockFrame;
   }
   return IsBlockInsideStyle();
@@ -94,7 +82,7 @@ nsStyleDisplay::IsBlockInside(const nsIFrame* aFrame) const
 bool
 nsStyleDisplay::IsBlockOutside(const nsIFrame* aFrame) const
 {
-  if (aFrame->IsSVGText()) {
+  if (aFrame->GetStateBits() & NS_FRAME_IS_SVG_TEXT) {
     return aFrame->GetType() == nsGkAtoms::blockFrame;
   }
   return IsBlockOutsideStyle();
@@ -103,7 +91,7 @@ nsStyleDisplay::IsBlockOutside(const nsIFrame* aFrame) const
 bool
 nsStyleDisplay::IsInlineOutside(const nsIFrame* aFrame) const
 {
-  if (aFrame->IsSVGText()) {
+  if (aFrame->GetStateBits() & NS_FRAME_IS_SVG_TEXT) {
     return aFrame->GetType() != nsGkAtoms::blockFrame;
   }
   return IsInlineOutsideStyle();
@@ -112,7 +100,7 @@ nsStyleDisplay::IsInlineOutside(const nsIFrame* aFrame) const
 bool
 nsStyleDisplay::IsOriginalDisplayInlineOutside(const nsIFrame* aFrame) const
 {
-  if (aFrame->IsSVGText()) {
+  if (aFrame->GetStateBits() & NS_FRAME_IS_SVG_TEXT) {
     return aFrame->GetType() != nsGkAtoms::blockFrame;
   }
   return IsOriginalDisplayInlineOutsideStyle();
@@ -121,7 +109,7 @@ nsStyleDisplay::IsOriginalDisplayInlineOutside(const nsIFrame* aFrame) const
 uint8_t
 nsStyleDisplay::GetDisplay(const nsIFrame* aFrame) const
 {
-  if (aFrame->IsSVGText() &&
+  if ((aFrame->GetStateBits() & NS_FRAME_IS_SVG_TEXT) &&
       mDisplay != NS_STYLE_DISPLAY_NONE) {
     return aFrame->GetType() == nsGkAtoms::blockFrame ?
              NS_STYLE_DISPLAY_BLOCK :
@@ -137,18 +125,9 @@ nsStyleDisplay::IsFloating(const nsIFrame* aFrame) const
 }
 
 bool
-nsStyleDisplay::HasTransform(const nsIFrame* aFrame) const
-{
-  return HasTransformStyle() && aFrame->IsFrameOfType(nsIFrame::eSupportsCSSTransforms);
-}
-
-bool
 nsStyleDisplay::IsPositioned(const nsIFrame* aFrame) const
 {
-  return (IsAbsolutelyPositionedStyle() ||
-          IsRelativelyPositionedStyle() ||
-          HasTransform(aFrame)) &&
-         !aFrame->IsSVGText();
+  return IsPositionedStyle() && !aFrame->IsSVGText();
 }
 
 bool
@@ -161,22 +140,6 @@ bool
 nsStyleDisplay::IsAbsolutelyPositioned(const nsIFrame* aFrame) const
 {
   return IsAbsolutelyPositionedStyle() && !aFrame->IsSVGText();
-}
-
-uint8_t
-nsStyleVisibility::GetEffectivePointerEvents(nsIFrame* aFrame) const
-{
-  if (aFrame->GetContent() && !aFrame->GetContent()->GetParent()) {
-    // The root element has a cluster of frames associated with it
-    // (root scroll frame, canvas frame, the actual primary frame). Make
-    // those take their pointer-events value from the root element's primary
-    // frame.
-    nsIFrame* f = aFrame->GetContent()->GetPrimaryFrame();
-    if (f) {
-      return f->StyleVisibility()->mPointerEvents;
-    }
-  }
-  return mPointerEvents;
 }
 
 #endif /* !defined(nsStyleStructInlines_h_) */

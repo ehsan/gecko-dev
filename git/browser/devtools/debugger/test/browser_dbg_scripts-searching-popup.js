@@ -8,6 +8,7 @@ var gPane = null;
 var gTab = null;
 var gDebuggee = null;
 var gDebugger = null;
+var gScripts = null;
 var gSearchBox = null;
 var gSearchBoxPanel = null;
 
@@ -17,15 +18,20 @@ function test()
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
 
-    runTest();
+    gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+      runTest();
+    });
+
+    gDebuggee.firstCall();
   });
 }
 
 function runTest() {
-  gSearchBox = gDebugger.DebuggerView.Filtering._searchbox;
-  gSearchBoxPanel = gDebugger.DebuggerView.Filtering._searchboxHelpPanel;
+  gScripts = gDebugger.DebuggerView.Scripts;
+  gSearchBox = gScripts._searchbox;
+  gSearchBoxPanel = gScripts._searchboxPanel;
 
   focusSearchbox();
 }
@@ -36,13 +42,11 @@ function focusSearchbox() {
 
   gSearchBoxPanel.addEventListener("popupshown", function _onEvent(aEvent) {
     gSearchBoxPanel.removeEventListener(aEvent.type, _onEvent);
-
     is(gSearchBoxPanel.state, "open",
       "The search box panel should be visible after searching started.");
 
     closeDebuggerAndFinish();
   });
-
   EventUtils.sendMouseEvent({ type: "click" }, gSearchBox);
 }
 
@@ -52,6 +56,7 @@ registerCleanupFunction(function() {
   gTab = null;
   gDebuggee = null;
   gDebugger = null;
+  gScripts = null;
   gSearchBox = null;
   gSearchBoxPanel = null;
 });

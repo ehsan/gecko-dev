@@ -12,12 +12,12 @@
 #include "nsIDocumentTransformer.h"
 #include "nsNetUtil.h"
 #include "nsCharsetSource.h"
+#include "nsCharsetAlias.h"
 #include "nsIPrincipal.h"
 #include "txURIUtils.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
 #include "nsGkAtoms.h"
-#include "mozilla/dom/EncodingUtils.h"
 
 using namespace mozilla::dom;
 
@@ -113,8 +113,7 @@ txMozillaTextOutput::startDocument()
 }
 
 nsresult
-txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument,
-                                          bool aLoadedAsData)
+txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument)
 {
     /*
      * Create an XHTML document to hold the text.
@@ -133,8 +132,7 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument,
      */
 
     // Create the document
-    nsresult rv = NS_NewXMLDocument(getter_AddRefs(mDocument),
-                                    aLoadedAsData);
+    nsresult rv = NS_NewXMLDocument(getter_AddRefs(mDocument));
     NS_ENSURE_SUCCESS(rv, rv);
     nsCOMPtr<nsIDocument> source = do_QueryInterface(aSourceDocument);
     NS_ENSURE_STATE(source);
@@ -151,10 +149,11 @@ txMozillaTextOutput::createResultDocument(nsIDOMDocument* aSourceDocument,
 
     // Set the charset
     if (!mOutputFormat.mEncoding.IsEmpty()) {
+        NS_LossyConvertUTF16toASCII charset(mOutputFormat.mEncoding);
         nsAutoCString canonicalCharset;
 
-        if (EncodingUtils::FindEncodingForLabel(mOutputFormat.mEncoding,
-                                                canonicalCharset)) {
+        if (NS_SUCCEEDED(nsCharsetAlias::GetPreferred(charset,
+                                                      canonicalCharset))) {
             mDocument->SetDocumentCharacterSetSource(kCharsetFromOtherComponent);
             mDocument->SetDocumentCharacterSet(canonicalCharset);
         }

@@ -14,8 +14,6 @@ typedef nsLeafBoxFrame nsTextBoxFrameSuper;
 class nsTextBoxFrame : public nsTextBoxFrameSuper
 {
 public:
-  NS_DECL_QUERYFRAME_TARGET(nsTextBoxFrame)
-  NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);
@@ -28,9 +26,9 @@ public:
 
   friend nsIFrame* NS_NewTextBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        asPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD  Init(nsIContent*      aContent,
+                   nsIFrame*        aParent,
+                   nsIFrame*        asPrevInFlow);
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
@@ -46,9 +44,9 @@ public:
                         bool&          aResize,
                         bool&          aRedraw);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   virtual ~nsTextBoxFrame();
 
@@ -60,8 +58,6 @@ public:
   nsRect GetComponentAlphaBounds();
 
   virtual bool ComputesOwnOverflowArea();
-
-  void GetCroppedTitle(nsString& aTitle) const { aTitle = mCroppedTitle; }
 
 protected:
   friend class nsAsyncAccesskeyUpdate;

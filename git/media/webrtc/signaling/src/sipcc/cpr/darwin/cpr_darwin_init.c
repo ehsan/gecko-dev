@@ -107,6 +107,7 @@
 #include "cpr_stdlib.h"
 #include "cpr_stdio.h"
 #include "cpr_timers.h"
+#include "cpr_darwin_locks.h"
 #include "cpr_darwin_timers.h"
 #include "plat_api.h"
 #include "plat_debug.h"
@@ -170,13 +171,14 @@ cprPreInit (void)
         CPR_ERROR("%s: MsgQueue Mutex init failure %d\n", fname, returnCode);
         return CPR_FAILURE;
     }
-#ifdef CPR_TIMERS_ENABLED
+
     returnCode = cpr_timer_pre_init();
     if (returnCode != 0) {
         CPR_ERROR("%s: timer pre init failed %d\n", fname, returnCode);
         return CPR_FAILURE;
     }
-#endif
+
+
     return CPR_SUCCESS;
 }
 
@@ -205,6 +207,7 @@ cprPostInit (void)
      */
 
     debug_bind_keyword("cpr-info", &cprInfo);
+    //bind_show_keyword("cpr-msgq", cprShowMessageQueueStats);
 
     return CPR_SUCCESS;
 }

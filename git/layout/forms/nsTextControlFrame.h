@@ -17,6 +17,7 @@
 #include "nsStubMutationObserver.h"
 #include "nsITextControlElement.h"
 #include "nsIStatefulFrame.h"
+#include "nsContentUtils.h" // nsAutoScriptBlocker
 #include "nsIEditor.h"
 
 class nsISelectionController;
@@ -66,6 +67,8 @@ public:
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual bool IsCollapsed();
 
+  DECL_DO_GLOBAL_REFLOW_COUNT_DSP(nsTextControlFrame, nsContainerFrame)
+
   virtual bool IsLeaf() const;
   
 #ifdef ACCESSIBILITY
@@ -98,19 +101,18 @@ public:
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList) MOZ_OVERRIDE;
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
-
 //==== BEGIN NSIFORMCONTROLFRAME
   virtual void SetFocus(bool aOn , bool aRepaint); 
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue);
+  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const; 
+
 
 //==== END NSIFORMCONTROLFRAME
 
 //==== NSITEXTCONTROLFRAME
 
   NS_IMETHOD    GetEditor(nsIEditor **aEditor) MOZ_OVERRIDE;
+  NS_IMETHOD    GetTextLength(int32_t* aTextLength) MOZ_OVERRIDE;
   NS_IMETHOD    SetSelectionStart(int32_t aSelectionStart) MOZ_OVERRIDE;
   NS_IMETHOD    SetSelectionEnd(int32_t aSelectionEnd) MOZ_OVERRIDE;
   NS_IMETHOD    SetSelectionRange(int32_t aSelectionStart,
@@ -135,7 +137,7 @@ public:
 
 //==== NSISTATEFULFRAME
 
-  NS_IMETHOD SaveState(nsPresState** aState) MOZ_OVERRIDE;
+  NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState) MOZ_OVERRIDE;
   NS_IMETHOD RestoreState(nsPresState* aState) MOZ_OVERRIDE;
 
 //=== END NSISTATEFULFRAME
@@ -243,7 +245,28 @@ protected:
     EditorInitializer(nsTextControlFrame* aFrame) :
       mFrame(aFrame) {}
 
-    NS_IMETHOD Run();
+    NS_IMETHOD Run() {
+      if (mFrame) {
+        // need to block script to avoid bug 669767
+        nsAutoScriptBlocker scriptBlocker;
+
+        nsCOMPtr<nsIPresShell> shell =
+          mFrame->PresContext()->GetPresShell();
+        bool observes = shell->ObservesNativeAnonMutationsForPrint();
+        shell->ObserveNativeAnonMutationsForPrint(true);
+        // This can cause the frame to be destroyed (and call Revoke())
+        mFrame->EnsureEditorInitialized();
+        shell->ObserveNativeAnonMutationsForPrint(observes);
+
+        // The frame can *still* be destroyed even though we have a scriptblocker
+        // Bug 682684
+        if (!mFrame)
+          return NS_ERROR_FAILURE;
+
+        mFrame->FinishedInitializer();
+      }
+      return NS_OK;
+    }
 
     // avoids use of nsWeakFrame
     void Revoke() {

@@ -7,51 +7,14 @@
 
 #include "nsDOMClassInfoID.h"
 #include "nsGenericHTMLElement.h"
-#include "mozilla/dom/HTMLCanvasElement.h"
-#include "nsHTMLFormElement.h"
-#include "mozilla/dom/HTMLImageElement.h"
-#include "mozilla/dom/HTMLOptionElement.h"
-#include "HTMLOptGroupElement.h"
-#include "mozilla/dom/HTMLVideoElement.h"
+#include "nsHTMLCanvasElement.h"
+#include "nsHTMLImageElement.h"
+#include "nsHTMLOptionElement.h"
+#include "nsHTMLOptGroupElement.h"
+#include "nsHTMLVideoElement.h"
 #include "nsHTMLDocument.h"
 #include "nsICSSDeclaration.h"
-#include "nsSVGElement.h"
-#include "nsDOMEvent.h"
-#include "mozilla/dom/EventTargetBinding.h"
-#include "mozilla/dom/NodeBinding.h"
-#include "mozilla/dom/ElementBinding.h"
-#include "mozilla/dom/HTMLElementBinding.h"
-#include "mozilla/dom/DocumentBinding.h"
-#include "mozilla/dom/SVGElementBinding.h"
-
-template<class T>
-struct ProtoIDAndDepth
-{
-    enum {
-        PrototypeID = mozilla::dom::prototypes::id::_ID_Count,
-        Depth = -1
-    };
-};
-
-#define NEW_BINDING(_native, _id)                                             \
-template<>                                                                    \
-struct ProtoIDAndDepth<_native>                                               \
-{                                                                             \
-    enum {                                                                    \
-        PrototypeID = mozilla::dom::prototypes::id::_id,                      \
-        Depth = mozilla::dom::PrototypeTraits<                                \
-            static_cast<mozilla::dom::prototypes::ID>(PrototypeID)>::Depth    \
-    };                                                                        \
-}
-
-NEW_BINDING(mozilla::dom::EventTarget, EventTarget);
-NEW_BINDING(nsINode, Node);
-NEW_BINDING(mozilla::dom::Element, Element);
-NEW_BINDING(nsGenericHTMLElement, HTMLElement);
-NEW_BINDING(nsIDocument, Document);
-NEW_BINDING(nsDocument, Document);
-NEW_BINDING(nsSVGElement, SVGElement);
-NEW_BINDING(nsDOMEvent, Event);
+#include "nsSVGStylableElement.h"
 
 #define DEFINE_UNWRAP_CAST(_interface, _base, _bit)                           \
 template <>                                                                   \
@@ -65,11 +28,9 @@ xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
                              bool failureFatal)                               \
 {                                                                             \
     nsresult rv;                                                              \
-    nsISupports *native =                                                     \
-        castNativeFromWrapper(cx, obj, _bit,                                  \
-                              ProtoIDAndDepth<_interface>::PrototypeID,       \
-                              ProtoIDAndDepth<_interface>::Depth,             \
-                              pThisRef, pThisVal, lccx, &rv);                 \
+    nsISupports *native = castNativeFromWrapper(cx, obj, _bit,                \
+                                                pThisRef, pThisVal, lccx,     \
+                                                &rv);                         \
     *ppThis = NULL;  /* avoids uninitialized warnings in callers */           \
     if (failureFatal && !native)                                              \
         return xpc_qsThrow(cx, rv);                                           \
@@ -78,7 +39,7 @@ xpc_qsUnwrapThis<_interface>(JSContext *cx,                                   \
 }                                                                             \
                                                                               \
 template <>                                                                   \
-MOZ_ALWAYS_INLINE nsresult                                                    \
+inline nsresult                                                               \
 xpc_qsUnwrapArg<_interface>(JSContext *cx,                                    \
                             jsval v,                                          \
                             _interface **ppArg,                               \
@@ -86,26 +47,10 @@ xpc_qsUnwrapArg<_interface>(JSContext *cx,                                    \
                             jsval *vp)                                        \
 {                                                                             \
     nsresult rv;                                                              \
-    nsISupports *native =                                                     \
-        castNativeArgFromWrapper(cx, v, _bit,                                 \
-                                 ProtoIDAndDepth<_interface>::PrototypeID,    \
-                                 ProtoIDAndDepth<_interface>::Depth,          \
-                                 ppArgRef, vp, &rv);                          \
+    nsISupports *native = castNativeArgFromWrapper(cx, v, _bit, ppArgRef, vp, \
+                                                   &rv);                      \
     if (NS_SUCCEEDED(rv))                                                     \
         *ppArg = static_cast<_interface*>(static_cast<_base*>(native));       \
-    return rv;                                                                \
-}                                                                             \
-template <>                                                                   \
-inline nsresult                                                               \
-xpc_qsUnwrapArg<_interface>(JSContext *cx,                                    \
-                            jsval v,                                          \
-                            _interface **ppArg,                               \
-                            _interface **ppArgRef,                            \
-                            jsval *vp)                                        \
-{                                                                             \
-    nsISupports* argRef = static_cast<_base*>(*ppArgRef);                     \
-    nsresult rv = xpc_qsUnwrapArg<_interface>(cx, v, ppArg, &argRef, vp);     \
-    *ppArgRef = static_cast<_interface*>(static_cast<_base*>(argRef));        \
     return rv;                                                                \
 }
 
@@ -119,6 +64,68 @@ DOMCI_CASTABLE_INTERFACES(unused)
 
 #undef DOMCI_CASTABLE_INTERFACE
 
+// Ideally we'd just add nsGenericElement to the castable interfaces, but for
+// now nsDocumentFragment inherits from nsGenericElement (even though it's not
+// an Element) so we have to special-case nsGenericElement and use
+// nsIContent::IsElement().
+// FIXME: bug 563659.
+inline JSBool
+castToElement(nsIContent *content, jsval val, nsGenericElement **ppInterface,
+              jsval *pVal)
+{
+    if (!content->IsElement())
+        return false;
+    *ppInterface = static_cast<nsGenericElement*>(content->AsElement());
+    *pVal = val;
+    return true;
+}
+
+template <>
+inline JSBool
+xpc_qsUnwrapThis<nsGenericElement>(JSContext *cx,
+                                   JSObject *obj,
+                                   nsGenericElement **ppThis,
+                                   nsISupports **pThisRef,
+                                   jsval *pThisVal,
+                                   XPCLazyCallContext *lccx,
+                                   bool failureFatal)
+{
+    nsIContent *content;
+    jsval val;
+    JSBool ok = xpc_qsUnwrapThis<nsIContent>(cx, obj, &content,
+                                             pThisRef, &val, lccx,
+                                             failureFatal);
+    if (ok) {
+        if (failureFatal || content)
+          ok = castToElement(content, val, ppThis, pThisVal);
+        if (failureFatal && !ok)
+            xpc_qsThrow(cx, NS_ERROR_XPC_BAD_OP_ON_WN_PROTO);
+    }
+
+    if (!failureFatal && (!ok || !content)) {
+      ok = true;
+      *ppThis = nullptr;
+    }
+
+    return ok;
+}
+
+template <>
+inline nsresult
+xpc_qsUnwrapArg<nsGenericElement>(JSContext *cx,
+                                  jsval v,
+                                  nsGenericElement **ppArg,
+                                  nsISupports **ppArgRef,
+                                  jsval *vp)
+{
+    nsIContent *content;
+    jsval val;
+    nsresult rv = xpc_qsUnwrapArg<nsIContent>(cx, v, &content, ppArgRef, &val);
+    if (NS_SUCCEEDED(rv) && !castToElement(content, val, ppArg, vp))
+        rv = NS_ERROR_XPC_BAD_CONVERT_JS;
+    return rv;
+}
+
 inline nsresult
 xpc_qsUnwrapArg_HTMLElement(JSContext *cx,
                             jsval v,
@@ -127,10 +134,9 @@ xpc_qsUnwrapArg_HTMLElement(JSContext *cx,
                             nsISupports **ppArgRef,
                             jsval *vp)
 {
-    nsGenericHTMLElement *elem;
+    nsIContent *elem;
     jsval val;
-    nsresult rv =
-        xpc_qsUnwrapArg<nsGenericHTMLElement>(cx, v, &elem, ppArgRef, &val);
+    nsresult rv = xpc_qsUnwrapArg<nsIContent>(cx, v, &elem, ppArgRef, &val);
     if (NS_SUCCEEDED(rv)) {
         if (elem->IsHTML(aTag)) {
             *ppArg = elem;
@@ -170,12 +176,11 @@ xpc_qsUnwrapArg<_clazz>(JSContext *cx, jsval v, _clazz **ppArg,               \
     return rv;                                                                \
 }
 
-DEFINE_UNWRAP_CAST_HTML(canvas, mozilla::dom::HTMLCanvasElement)
-DEFINE_UNWRAP_CAST_HTML(form, nsHTMLFormElement)
-DEFINE_UNWRAP_CAST_HTML(img, mozilla::dom::HTMLImageElement)
-DEFINE_UNWRAP_CAST_HTML(optgroup, mozilla::dom::HTMLOptGroupElement)
-DEFINE_UNWRAP_CAST_HTML(option, mozilla::dom::HTMLOptionElement)
-DEFINE_UNWRAP_CAST_HTML(video, mozilla::dom::HTMLVideoElement)
+DEFINE_UNWRAP_CAST_HTML(canvas, nsHTMLCanvasElement)
+DEFINE_UNWRAP_CAST_HTML(img, nsHTMLImageElement)
+DEFINE_UNWRAP_CAST_HTML(optgroup, nsHTMLOptGroupElement)
+DEFINE_UNWRAP_CAST_HTML(option, nsHTMLOptionElement)
+DEFINE_UNWRAP_CAST_HTML(video, nsHTMLVideoElement)
 
 inline nsISupports*
 ToSupports(nsContentList *p)

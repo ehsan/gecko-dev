@@ -2,16 +2,10 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import math
+from __future__ import with_statement
 
-# For compatibility with Python 2.6
-try:
-    from collections import OrderedDict
-except ImportError:
-    from simplejson import OrderedDict
-    import simplejson as json
-else:
-    import json
+import math
+import simplejson as json
 
 def table_dispatch(kind, table, body):
     """Call body with table[kind] if it exists.  Raise an error otherwise."""
@@ -80,7 +74,6 @@ symbol that should guard C/C++ definitions associated with the histogram."""
         self._description = definition['description']
         self._kind = definition['kind']
         self._cpp_guard = definition.get('cpp_guard')
-        self._extended_statistics_ok = definition.get('extended_statistics_ok', False)
         self.compute_bucket_parameters(definition)
         table = { 'boolean': 'BOOLEAN',
                   'flag': 'FLAG',
@@ -128,11 +121,6 @@ the histogram."""
 associated with the histogram.  Returns None if no guarding is necessary."""
         return self._cpp_guard
 
-    def extended_statistics_ok(self):
-        """Return True if gathering extended statistics for this histogram
-is enabled."""
-        return self._extended_statistics_ok
-
     def ranges(self):
         """Return an array of lower bounds for each bucket in the histogram."""
         table = { 'boolean': linear_buckets,
@@ -163,7 +151,7 @@ is enabled."""
             'flag': always_allowed_keys,
             'enumerated': always_allowed_keys + ['n_values'],
             'linear': general_keys,
-            'exponential': general_keys + ['extended_statistics_ok']
+            'exponential': general_keys
             }
         table_dispatch(definition['kind'], table,
                        lambda allowed_keys: Histogram.check_keys(name, definition, allowed_keys))
@@ -210,6 +198,6 @@ def from_file(filename):
 the histograms defined in filename.
     """
     with open(filename, 'r') as f:
-        histograms = json.load(f, object_pairs_hook=OrderedDict)
+        histograms = json.load(f, object_pairs_hook=json.OrderedDict)
         for (name, definition) in histograms.iteritems():
             yield Histogram(name, definition)

@@ -16,8 +16,6 @@
 #ifndef __INTERMEDIATE_H
 #define __INTERMEDIATE_H
 
-#include "GLSLANG/ShaderLang.h"
-
 #include "compiler/Common.h"
 #include "compiler/Types.h"
 #include "compiler/ConstantUnion.h"
@@ -391,7 +389,7 @@ protected:
 //
 class TIntermBinary : public TIntermOperator {
 public:
-    TIntermBinary(TOperator o) : TIntermOperator(o), addIndexClamp(false) {}
+    TIntermBinary(TOperator o) : TIntermOperator(o) {}
 
     virtual TIntermBinary* getAsBinaryNode() { return this; }
     virtual void traverse(TIntermTraverser*);
@@ -402,15 +400,9 @@ public:
     TIntermTyped* getRight() const { return right; }
     bool promote(TInfoSink&);
 
-    void setAddIndexClamp() { addIndexClamp = true; }
-    bool getAddIndexClamp() { return addIndexClamp; }
-
 protected:
     TIntermTyped* left;
     TIntermTyped* right;
-
-    // If set to true, wrap any EOpIndexIndirect with a clamp to bounds.
-    bool addIndexClamp;
 };
 
 //
@@ -552,10 +544,6 @@ public:
 
     void incrementDepth() {depth++;}
     void decrementDepth() {depth--;}
-
-    // Return the original name if hash function pointer is NULL;
-    // otherwise return the hashed name.
-    static TString hash(const TString& name, ShHashFunction64 hashFunction);
 
     const bool preVisit;
     const bool inVisit;

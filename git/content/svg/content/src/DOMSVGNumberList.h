@@ -10,9 +10,9 @@
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDebug.h"
+#include "nsIDOMSVGNumberList.h"
 #include "nsTArray.h"
 #include "SVGNumberList.h"
-#include "nsIDOMSVGNumber.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/ErrorResult.h"
 
@@ -39,7 +39,7 @@ class DOMSVGNumber;
  *
  * Our DOM items are created lazily on demand as and when script requests them.
  */
-class DOMSVGNumberList MOZ_FINAL : public nsISupports,
+class DOMSVGNumberList MOZ_FINAL : public nsIDOMSVGNumberList,
                                    public nsWrapperCache
 {
   friend class DOMSVGNumber;
@@ -47,6 +47,7 @@ class DOMSVGNumberList MOZ_FINAL : public nsISupports,
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGNumberList)
+  NS_DECL_NSIDOMSVGNUMBERLIST
 
   DOMSVGNumberList(DOMSVGAnimatedNumberList *aAList,
                    const SVGNumberList &aInternalList)
@@ -71,7 +72,8 @@ public:
     }
   }
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
 
   nsISupports* GetParentObject()
   {
@@ -166,7 +168,7 @@ private:
 
   // Weak refs to our DOMSVGNumber items. The items are friends and take care
   // of clearing our pointer to them when they die.
-  FallibleTArray<DOMSVGNumber*> mItems;
+  nsTArray<DOMSVGNumber*> mItems;
 
   nsRefPtr<DOMSVGAnimatedNumberList> mAList;
 };

@@ -40,7 +40,6 @@ public:
 protected:
   mozilla::a11y::TableCellAccessible* mTableCell;
 };
-
 } // namespace a11y
 } // namespace mozilla
 

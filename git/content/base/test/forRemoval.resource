@@ -21,4 +21,3 @@ retry:500
 event: message
 data: 5
 
-

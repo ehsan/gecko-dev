@@ -7,7 +7,6 @@
 
 #include "nsARIAMap.h"
 
-#include "Accessible.h"
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
 #include "Role.h"
@@ -19,8 +18,6 @@
 using namespace mozilla;
 using namespace mozilla::a11y;
 using namespace mozilla::a11y::aria;
-
-static const uint32_t kGenericAccType = 0;
 
 /**
  *  This list of WAI-defined roles are currently hardcoded.
@@ -46,7 +43,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // alertdialog
@@ -56,7 +52,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // application
@@ -66,7 +61,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // article
@@ -76,7 +70,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eReadonlyUntilEditable
   },
@@ -87,7 +80,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     ePressAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIAPressed
   },
@@ -98,7 +90,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eCheckUncheckAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIACheckableMixed,
     eARIAReadonly
@@ -110,7 +101,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eSortAction,
     eNoLiveAttr,
-    eTableCell,
     kNoReqStates,
     eARIASelectable,
     eARIAReadonly
@@ -122,7 +112,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eOpenCloseAction,
     eNoLiveAttr,
-    kGenericAccType,
     states::COLLAPSED | states::HASPOPUP,
     eARIAAutoComplete,
     eARIAReadonly
@@ -134,7 +123,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // directory
@@ -144,7 +132,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    eList,
     kNoReqStates
   },
   { // document
@@ -154,7 +141,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eReadonlyUntilEditable
   },
@@ -165,7 +151,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // grid
@@ -175,10 +160,9 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    eSelect | eTable,
     states::FOCUSABLE,
     eARIAMultiSelectable,
-    eARIAReadonlyOrEditable
+    eARIAReadonly
   },
   { // gridcell
     &nsGkAtoms::gridcell,
@@ -187,10 +171,9 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    eTableCell,
     kNoReqStates,
     eARIASelectable,
-    eARIAReadonlyOrEditableIfDefined
+    eARIAReadonly
   },
   { // group
     &nsGkAtoms::group,
@@ -199,7 +182,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // heading
@@ -209,7 +191,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // img
@@ -219,7 +200,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // link
@@ -229,7 +209,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eJumpAction,
     eNoLiveAttr,
-    kGenericAccType,
     states::LINKED
   },
   { // list
@@ -239,7 +218,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    eList,
     states::READONLY
   },
   { // listbox
@@ -249,7 +227,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    eListControl | eSelect,
     kNoReqStates,
     eARIAMultiSelectable,
     eARIAReadonly
@@ -261,7 +238,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction, // XXX: should depend on state, parent accessible
     eNoLiveAttr,
-    kGenericAccType,
     states::READONLY
   },
   { // log
@@ -271,7 +247,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     ePoliteLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // marquee
@@ -281,7 +256,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eOffLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // math
@@ -291,7 +265,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // menu
@@ -302,7 +275,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoAction, // XXX: technically accessibles of menupopup role haven't
                // any action, but menu can be open or close.
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // menubar
@@ -312,7 +284,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // menuitem
@@ -322,7 +293,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eClickAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIACheckedMixed
   },
@@ -333,7 +303,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eClickAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIACheckableMixed
   },
@@ -344,7 +313,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eClickAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIACheckableBool
   },
@@ -355,7 +323,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // option
@@ -365,7 +332,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eSelectAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIASelectable,
     eARIACheckedMixed
@@ -377,7 +343,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // progressbar
@@ -387,7 +352,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eHasValueMinMax,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     states::READONLY,
     eIndeterminateIfNoValue
   },
@@ -398,7 +362,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eSelectAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIACheckableBool
   },
@@ -409,7 +372,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // region
@@ -419,7 +381,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // row
@@ -429,19 +390,8 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    eTableRow,
     kNoReqStates,
     eARIASelectable
-  },
-  { // rowgroup
-    &nsGkAtoms::rowgroup,
-    roles::GROUPING,
-    kUseMapRole,
-    eNoValue,
-    eNoAction,
-    eNoLiveAttr,
-    kGenericAccType,
-    kNoReqStates
   },
   { // rowheader
     &nsGkAtoms::rowheader,
@@ -450,7 +400,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eSortAction,
     eNoLiveAttr,
-    eTableCell,
     kNoReqStates,
     eARIASelectable,
     eARIAReadonly
@@ -462,7 +411,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eHasValueMinMax,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIAOrientation,
     eARIAReadonly
@@ -474,7 +422,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIAOrientation
   },
@@ -485,7 +432,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eHasValueMinMax,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIAOrientation,
     eARIAReadonly
@@ -497,7 +443,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eHasValueMinMax,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIAReadonly
   },
@@ -508,7 +453,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     ePoliteLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // tab
@@ -518,7 +462,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eSwitchAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIASelectable
   },
@@ -529,7 +472,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     ePoliteLiveAttr,
-    eSelect,
     kNoReqStates
   },
   { // tabpanel
@@ -539,7 +481,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // textbox
@@ -549,7 +490,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eActivateAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIAAutoComplete,
     eARIAMultiline,
@@ -571,7 +511,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // tooltip
@@ -581,7 +520,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates
   },
   { // tree
@@ -591,7 +529,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    eSelect,
     kNoReqStates,
     eARIAReadonly,
     eARIAMultiSelectable
@@ -603,7 +540,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eNoValue,
     eNoAction,
     eNoLiveAttr,
-    eSelect | eTable,
     kNoReqStates,
     eARIAReadonly,
     eARIAMultiSelectable
@@ -616,7 +552,6 @@ static nsRoleMapEntry sWAIRoleMaps[] =
     eActivateAction, // XXX: should expose second 'expand/collapse' action based
                      // on states
     eNoLiveAttr,
-    kGenericAccType,
     kNoReqStates,
     eARIASelectable,
     eARIACheckedMixed
@@ -630,7 +565,6 @@ static nsRoleMapEntry sLandmarkRoleMap = {
   eNoValue,
   eNoAction,
   eNoLiveAttr,
-  kGenericAccType,
   kNoReqStates
 };
 
@@ -641,7 +575,6 @@ nsRoleMapEntry nsARIAMap::gEmptyRoleMap = {
   eNoValue,
   eNoAction,
   eNoLiveAttr,
-  kGenericAccType,
   kNoReqStates
 };
 
@@ -667,40 +600,40 @@ static const EStateRule sWAIUnivStateMap[] = {
  * @note ARIA attributes that don't have any flags are not included here
  */
 nsAttributeCharacteristics nsARIAMap::gWAIUnivAttrMap[] = {
-  {&nsGkAtoms::aria_activedescendant,  ATTR_BYPASSOBJ                               },
-  {&nsGkAtoms::aria_atomic,                             ATTR_VALTOKEN | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_busy,                               ATTR_VALTOKEN | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_checked,           ATTR_BYPASSOBJ | ATTR_VALTOKEN               }, /* exposes checkable obj attr */
-  {&nsGkAtoms::aria_controls,          ATTR_BYPASSOBJ                 | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_describedby,       ATTR_BYPASSOBJ                 | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_disabled,          ATTR_BYPASSOBJ | ATTR_VALTOKEN | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_dropeffect,                         ATTR_VALTOKEN | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_expanded,          ATTR_BYPASSOBJ | ATTR_VALTOKEN               },
-  {&nsGkAtoms::aria_flowto,            ATTR_BYPASSOBJ                 | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_grabbed,                            ATTR_VALTOKEN | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_haspopup,          ATTR_BYPASSOBJ | ATTR_VALTOKEN | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_hidden,   ATTR_BYPASSOBJ_IF_FALSE | ATTR_VALTOKEN | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_invalid,           ATTR_BYPASSOBJ | ATTR_VALTOKEN | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_label,             ATTR_BYPASSOBJ                 | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_labelledby,        ATTR_BYPASSOBJ                 | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_level,             ATTR_BYPASSOBJ                               }, /* handled via groupPosition */
-  {&nsGkAtoms::aria_live,                               ATTR_VALTOKEN | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_multiline,         ATTR_BYPASSOBJ | ATTR_VALTOKEN               },
-  {&nsGkAtoms::aria_multiselectable,   ATTR_BYPASSOBJ | ATTR_VALTOKEN               },
-  {&nsGkAtoms::aria_owns,              ATTR_BYPASSOBJ                 | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_orientation,                        ATTR_VALTOKEN               },
-  {&nsGkAtoms::aria_posinset,          ATTR_BYPASSOBJ                               }, /* handled via groupPosition */
-  {&nsGkAtoms::aria_pressed,           ATTR_BYPASSOBJ | ATTR_VALTOKEN               },
-  {&nsGkAtoms::aria_readonly,          ATTR_BYPASSOBJ | ATTR_VALTOKEN               },
-  {&nsGkAtoms::aria_relevant,          ATTR_BYPASSOBJ                 | ATTR_GLOBAL },
-  {&nsGkAtoms::aria_required,          ATTR_BYPASSOBJ | ATTR_VALTOKEN               },
-  {&nsGkAtoms::aria_selected,          ATTR_BYPASSOBJ | ATTR_VALTOKEN               },
-  {&nsGkAtoms::aria_setsize,           ATTR_BYPASSOBJ                               }, /* handled via groupPosition */
-  {&nsGkAtoms::aria_sort,                               ATTR_VALTOKEN               },
-  {&nsGkAtoms::aria_valuenow,          ATTR_BYPASSOBJ                               },
-  {&nsGkAtoms::aria_valuemin,          ATTR_BYPASSOBJ                               },
-  {&nsGkAtoms::aria_valuemax,          ATTR_BYPASSOBJ                               },
-  {&nsGkAtoms::aria_valuetext,         ATTR_BYPASSOBJ                               }
+  {&nsGkAtoms::aria_activedescendant,  ATTR_BYPASSOBJ                 },
+  {&nsGkAtoms::aria_atomic,                             ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_busy,                               ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_checked,           ATTR_BYPASSOBJ | ATTR_VALTOKEN }, /* exposes checkable obj attr */
+  {&nsGkAtoms::aria_controls,          ATTR_BYPASSOBJ                 },
+  {&nsGkAtoms::aria_describedby,       ATTR_BYPASSOBJ                 },
+  {&nsGkAtoms::aria_disabled,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_dropeffect,                         ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_expanded,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_flowto,            ATTR_BYPASSOBJ                 },  
+  {&nsGkAtoms::aria_grabbed,                            ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_haspopup,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_hidden,                             ATTR_VALTOKEN },/* always expose obj attr */
+  {&nsGkAtoms::aria_invalid,           ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_label,             ATTR_BYPASSOBJ                 },
+  {&nsGkAtoms::aria_labelledby,        ATTR_BYPASSOBJ                 },
+  {&nsGkAtoms::aria_level,             ATTR_BYPASSOBJ                 }, /* handled via groupPosition */
+  {&nsGkAtoms::aria_live,                               ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_multiline,         ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_multiselectable,   ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_owns,              ATTR_BYPASSOBJ                 },
+  {&nsGkAtoms::aria_orientation,                        ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_posinset,          ATTR_BYPASSOBJ                 }, /* handled via groupPosition */
+  {&nsGkAtoms::aria_pressed,           ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_readonly,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_relevant,          ATTR_BYPASSOBJ                 },
+  {&nsGkAtoms::aria_required,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_selected,          ATTR_BYPASSOBJ | ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_setsize,           ATTR_BYPASSOBJ                 }, /* handled via groupPosition */
+  {&nsGkAtoms::aria_sort,                               ATTR_VALTOKEN },
+  {&nsGkAtoms::aria_valuenow,          ATTR_BYPASSOBJ                 },
+  {&nsGkAtoms::aria_valuemin,          ATTR_BYPASSOBJ                 },
+  {&nsGkAtoms::aria_valuemax,          ATTR_BYPASSOBJ                 },
+  {&nsGkAtoms::aria_valuetext,         ATTR_BYPASSOBJ                 }
 };
 
 uint32_t
@@ -775,12 +708,6 @@ AttrIterator::Next(nsAString& aAttrName, nsAString& aAttrValue)
       if ((attrFlags & ATTR_VALTOKEN) &&
            !nsAccUtils::HasDefinedARIAToken(mContent, attrAtom))
         continue; // only expose token based attributes if they are defined
-
-      if ((attrFlags & ATTR_BYPASSOBJ_IF_FALSE) &&
-          mContent->AttrValueIs(kNameSpaceID_None, attrAtom,
-                                nsGkAtoms::_false, eCaseMatters)) {
-        continue; // only expose token based attribute if value is not 'false'.
-      }
 
       nsAutoString value;
       if (mContent->GetAttr(kNameSpaceID_None, attrAtom, value)) {

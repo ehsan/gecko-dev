@@ -5,8 +5,4 @@
   var win = window.open("about:blank", "_blank", "private");
   ok(!SpecialPowers.isWindowPrivate(win));
   win.close();
-  // Also, make sure that passing non-private doesn't make any difference either
-  win = window.open("about:blank", "_blank", "non-private");
-  ok(!SpecialPowers.isWindowPrivate(win));
-  win.close();
 </script>

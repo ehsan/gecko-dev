@@ -1851,10 +1851,6 @@ _cairo_image_surface_fixup_unbounded_boxes (cairo_image_surface_t *dst,
 		int x2 = _cairo_fixed_integer_part (chunk->base[i].p2.x);
 		int y2 = _cairo_fixed_integer_part (chunk->base[i].p2.y);
 
-		x1 = (x1 < 0 ? 0 : x1);
-		y1 = (y1 < 0 ? 0 : y1);
-		if (x2 <= x1 || y2 <= y1)
-		    continue;
 		pixman_fill ((uint32_t *) dst->data, dst->stride / sizeof (uint32_t),
 			     PIXMAN_FORMAT_BPP (dst->pixman_format),
 			     x1, y1, x2 - x1, y2 - y1,
@@ -2678,8 +2674,6 @@ _fill_unaligned_boxes (cairo_image_surface_t *dst,
 	    int x2 = _cairo_fixed_integer_floor (box[i].p2.x);
 	    int y2 = _cairo_fixed_integer_floor (box[i].p2.y);
 
-	    x1 = (x1 < 0 ? 0 : x1);
-	    y1 = (y1 < 0 ? 0 : y1);
 	    if (x2 > x1 && y2 > y1) {
 		cairo_box_t b;
 
@@ -2896,8 +2890,6 @@ _composite_boxes (cairo_image_surface_t *dst,
 
     if (clip != NULL) {
 	status = _cairo_clip_get_region (clip, &clip_region);
-	if (unlikely (status == CAIRO_INT_STATUS_NOTHING_TO_DO))
-	    return CAIRO_STATUS_SUCCESS;
 	need_clip_mask = status == CAIRO_INT_STATUS_UNSUPPORTED;
 	if (need_clip_mask &&
 	    (op == CAIRO_OPERATOR_SOURCE || ! extents->is_bounded))
@@ -2940,9 +2932,7 @@ _composite_boxes (cairo_image_surface_t *dst,
 		int x2 = _cairo_fixed_integer_round_down (box[i].p2.x);
 		int y2 = _cairo_fixed_integer_round_down (box[i].p2.y);
 
-		x1 = (x1 < 0 ? 0 : x1);
-		y1 = (y1 < 0 ? 0 : y1);
-		if (x2 <= x1 || y2 <= y1)
+		if (x2 == x1 || y2 == y1)
 		    continue;
 
 		pixman_fill ((uint32_t *) dst->data, dst->stride / sizeof (uint32_t),
@@ -3215,10 +3205,20 @@ _clip_and_composite_trapezoids (cairo_image_surface_t *dst,
 static cairo_clip_path_t *
 _clip_get_single_path (cairo_clip_t *clip)
 {
-    if (clip->path->prev == NULL)
-      return clip->path;
+    cairo_clip_path_t *iter = clip->path;
+    cairo_clip_path_t *path = NULL;
 
-    return NULL;
+    do {
+	if ((iter->flags & CAIRO_CLIP_PATH_IS_BOX) == 0) {
+	    if (path != NULL)
+		return FALSE;
+
+	    path = iter;
+	}
+	iter = iter->prev;
+    } while (iter != NULL);
+
+    return path;
 }
 
 /* high level image interface */

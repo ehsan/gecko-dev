@@ -5,4 +5,4 @@ function testShape() {
   assertEq(p.shape[0], a.length);
 }
 
-if (getBuildConfiguration().parallelJS) testShape();
+testShape();

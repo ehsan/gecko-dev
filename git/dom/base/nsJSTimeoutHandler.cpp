@@ -6,7 +6,6 @@
 
 #include "nsCOMPtr.h"
 #include "nsIScriptContext.h"
-#include "nsIDocument.h"
 #include "nsIArray.h"
 #include "nsIScriptTimeoutHandler.h"
 #include "nsIXPConnect.h"
@@ -21,8 +20,6 @@
 #include "nsIContentSecurityPolicy.h"
 #include "nsAlgorithm.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Likely.h"
-#include <algorithm>
 
 static const char kSetIntervalStr[] = "setInterval";
 static const char kSetTimeoutStr[] = "setTimeout";
@@ -74,11 +71,12 @@ private:
 
 // nsJSScriptTimeoutHandler
 // QueryInterface implementation for nsJSScriptTimeoutHandler
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSScriptTimeoutHandler)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSScriptTimeoutHandler)
   tmp->ReleaseJSObjects();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
-  if (MOZ_UNLIKELY(cb.WantDebugInfo())) {
+  if (NS_UNLIKELY(cb.WantDebugInfo())) {
     nsAutoCString name("nsJSScriptTimeoutHandler");
     if (tmp->mExpr) {
       name.AppendLiteral(" [");
@@ -109,8 +107,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsJSScriptTimeoutHandler)
                                       tmp->mRefCnt.get())
   }
 
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mContext)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mArgv)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContext)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mArgv)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -142,12 +140,17 @@ nsJSScriptTimeoutHandler::~nsJSScriptTimeoutHandler()
 void
 nsJSScriptTimeoutHandler::ReleaseJSObjects()
 {
-  if (mExpr) {
-    mExpr = nullptr;
-  } else {
-    mFunObj = nullptr;
+  if (mExpr || mFunObj) {
+    if (mExpr) {
+      NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+      mExpr = nullptr;
+    } else if (mFunObj) {
+      NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+      mFunObj = nullptr;
+    } else {
+      NS_WARNING("No func and no expr - roots may not have been removed");
+    }
   }
-  NS_DROP_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
 }
 
 nsresult
@@ -245,39 +248,24 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
       NS_ENSURE_SUCCESS(rv, rv);
 
       if (csp) {
-        bool allowsEval = true;
-        bool reportViolation = false;
-        rv = csp->GetAllowsEval(&reportViolation, &allowsEval);
+        bool allowsEval;
+        // this call will send violation reports as warranted (and return true if
+        // reportOnly is set).
+        rv = csp->GetAllowsEval(&allowsEval);
         NS_ENSURE_SUCCESS(rv, rv);
 
-        if (reportViolation) {
-          // TODO : FIX DATA in violation report.
-          NS_NAMED_LITERAL_STRING(scriptSample, "call to eval() or related function blocked by CSP");
-
-          // Get the calling location.
-          uint32_t lineNum = 0;
-          const char *fileName;
-          nsAutoCString aFileName;
-          if (nsJSUtils::GetCallingLocation(cx, &fileName, &lineNum)) {
-            aFileName.Assign(fileName);
-          } else {
-            aFileName.Assign("unknown");
-          }
-
-          csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_EVAL,
-                                  NS_ConvertUTF8toUTF16(aFileName),
-                                  scriptSample,
-                                  lineNum);
-        }
-
         if (!allowsEval) {
+          ::JS_ReportError(cx, "call to %s blocked by CSP",
+                            *aIsInterval ? kSetIntervalStr : kSetTimeoutStr);
+
           // Note: Our only caller knows to turn NS_ERROR_DOM_TYPE_ERR into NS_OK.
           return NS_ERROR_DOM_TYPE_ERR;
         }
       }
     } // if there's no document, we don't have to do anything.
 
-    NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+    rv = NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     mExpr = expr;
 
@@ -287,7 +275,8 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
       mFileName.Assign(filename);
     }
   } else if (funobj) {
-    NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+    rv = NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     mFunObj = funobj;
 
@@ -296,8 +285,8 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
     // and the delay, so only arguments after that need to go in our
     // array.
     nsCOMPtr<nsIJSArgArray> array;
-    // std::max(argc - 2, 0) wouldn't work right because argc is unsigned.
-    rv = NS_CreateJSArgv(cx, std::max(argc, 2u) - 2, nullptr,
+    // NS_MAX(argc - 2, 0) wouldn't work right because argc is unsigned.
+    rv = NS_CreateJSArgv(cx, NS_MAX(argc, 2u) - 2, nullptr,
                          getter_AddRefs(array));
     if (NS_FAILED(rv)) {
       return NS_ERROR_OUT_OF_MEMORY;

@@ -4,9 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GfxDriverInfo.h"
-
 #include "nsIGfxInfo.h"
-#include "nsTArray.h"
 
 using namespace mozilla::widget;
 
@@ -19,7 +17,6 @@ nsAString* GfxDriverInfo::mDeviceVendors[DeviceVendorMax];
 
 GfxDriverInfo::GfxDriverInfo()
   : mOperatingSystem(DRIVER_OS_UNKNOWN),
-    mOperatingSystemVersion(0),
     mAdapterVendor(GfxDriverInfo::GetDeviceVendor(VendorAll)),
     mDevices(allDevices),
     mDeleteDevices(false),
@@ -39,7 +36,6 @@ GfxDriverInfo::GfxDriverInfo(OperatingSystem os, nsAString& vendor,
                              const char *suggestedVersion /* = nullptr */,
                              bool ownDevices /* = false */)
   : mOperatingSystem(os),
-    mOperatingSystemVersion(0),
     mAdapterVendor(vendor),
     mDevices(devices),
     mDeleteDevices(ownDevices),
@@ -53,7 +49,6 @@ GfxDriverInfo::GfxDriverInfo(OperatingSystem os, nsAString& vendor,
 
 GfxDriverInfo::GfxDriverInfo(const GfxDriverInfo& aOrig)
   : mOperatingSystem(aOrig.mOperatingSystem),
-    mOperatingSystemVersion(aOrig.mOperatingSystemVersion),
     mAdapterVendor(aOrig.mAdapterVendor),
     mFeature(aOrig.mFeature),
     mFeatureStatus(aOrig.mFeatureStatus),
@@ -164,9 +159,6 @@ const GfxDeviceFamily* GfxDriverInfo::GetDeviceFamily(DeviceFamily id)
       APPEND_DEVICE(0x0126); /* IntelSandyBridge_6 */
       APPEND_DEVICE(0x010a); /* IntelSandyBridge_7 */
       APPEND_DEVICE(0x0080); /* IntelIvyBridge */
-      break;
-    case IntelMobileHDGraphics:
-      APPEND_DEVICE(0x0046); /* IntelMobileHDGraphics */
       break;
     case NvidiaBlockD3D9Layers:
       // Glitches whilst scrolling (see bugs 612007, 644787, 645872)

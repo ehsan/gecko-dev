@@ -23,20 +23,17 @@
 #  include <pthread_np.h>
 # endif
 
-# if defined(ANDROID)
-#  include <unistd.h>
-#  include <sys/types.h>
-# endif
-
 #else
 # error "Unsupported platform"
 
 #endif
 
+namespace js {
+
 #if defined(XP_WIN)
 
 void *
-js::GetNativeStackBaseImpl()
+GetNativeStackBaseImpl()
 {
 # if defined(_M_IX86) && defined(_MSC_VER)
     /*
@@ -69,7 +66,7 @@ js::GetNativeStackBaseImpl()
 JS_STATIC_ASSERT(JS_STACK_GROWTH_DIRECTION < 0);
 
 void *
-js::GetNativeStackBaseImpl()
+GetNativeStackBaseImpl()
 {
     stack_t st;
     stack_getbounds(&st);
@@ -83,7 +80,7 @@ js::GetNativeStackBaseImpl()
 JS_STATIC_ASSERT(JS_STACK_GROWTH_DIRECTION < 0);
 
 void *
-js::GetNativeStackBaseImpl()
+GetNativeStackBaseImpl()
 {
     ucontext_t context;
     getcontext(&context);
@@ -94,7 +91,7 @@ js::GetNativeStackBaseImpl()
 #elif defined(XP_OS2)
 
 void *
-js::GetNativeStackBaseImpl()
+GetNativeStackBaseImpl()
 {
     PTIB  ptib;
     PPIB  ppib;
@@ -106,7 +103,7 @@ js::GetNativeStackBaseImpl()
 #else /* XP_UNIX */
 
 void *
-js::GetNativeStackBaseImpl()
+GetNativeStackBaseImpl()
 {
     pthread_t thread = pthread_self();
 # if defined(XP_MACOSX) || defined(DARWIN)
@@ -130,43 +127,17 @@ js::GetNativeStackBaseImpl()
 
     void *stackBase = 0;
     size_t stackSize = 0;
-    int rc;
+#  ifdef DEBUG
+    int rc =
+#  endif
 # if defined(__OpenBSD__)
-    rc = pthread_stackseg_np(pthread_self(), &ss);
+        pthread_stackseg_np(pthread_self(), &ss);
     stackBase = (void*)((size_t) ss.ss_sp - ss.ss_size);
     stackSize = ss.ss_size;
-# elif defined(ANDROID)
-    if (gettid() == getpid()) {
-        // bionic's pthread_attr_getstack doesn't tell the truth for the main
-        // thread (see bug 846670). So we scan /proc/self/maps to find the
-        // segment which contains the stack.
-        rc = -1;
-        FILE *fs = fopen("/proc/self/maps", "r");
-        if (fs) {
-            char line[100];
-            unsigned long stackAddr = (unsigned long)&sattr;
-            while (fgets(line, sizeof(line), fs) != NULL) {
-                unsigned long stackStart;
-                unsigned long stackEnd;
-                if (sscanf(line, "%lx-%lx ", &stackStart, &stackEnd) == 2 &&
-                    stackAddr >= stackStart && stackAddr < stackEnd) {
-                    stackBase = (void *)stackStart;
-                    stackSize = stackEnd - stackStart;
-                    rc = 0;
-                    break;
-                }
-            }
-            fclose(fs);
-        }
-    } else
-        // For non main-threads pthread allocates the stack itself so it tells
-        // the truth.
-        rc = pthread_attr_getstack(&sattr, &stackBase, &stackSize);
 # else
-    rc = pthread_attr_getstack(&sattr, &stackBase, &stackSize);
+        pthread_attr_getstack(&sattr, &stackBase, &stackSize);
 # endif
-    if (rc)
-        MOZ_CRASH();
+    JS_ASSERT(!rc);
     JS_ASSERT(stackBase);
     pthread_attr_destroy(&sattr);
 
@@ -179,3 +150,5 @@ js::GetNativeStackBaseImpl()
 }
 
 #endif /* !XP_WIN */
+
+} /* namespace js */

@@ -18,7 +18,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/AlarmDB.jsm");
 
-this.EXPORTED_SYMBOLS = ["AlarmService"];
+let EXPORTED_SYMBOLS = ["AlarmService"];
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
@@ -28,13 +28,9 @@ XPCOMUtils.defineLazyGetter(this, "messenger", function() {
   return Cc["@mozilla.org/system-message-internal;1"].getService(Ci.nsISystemMessagesInternal);
 });
 
-XPCOMUtils.defineLazyGetter(this, "powerManagerService", function() {
-  return Cc["@mozilla.org/power/powermanagerservice;1"].getService(Ci.nsIPowerManagerService);
-});
-
 let myGlobal = this;
 
-this.AlarmService = {
+let AlarmService = {
   init: function init() {
     debug("init()");
 
@@ -45,9 +41,7 @@ this.AlarmService = {
     alarmHalService.setTimezoneChangedCb(this._onTimezoneChanged.bind(this));
 
     // add the messages to be listened
-    const messages = ["AlarmsManager:GetAll",
-                      "AlarmsManager:Add",
-                      "AlarmsManager:Remove"];
+    const messages = ["AlarmsManager:GetAll", "AlarmsManager:Add", "AlarmsManager:Remove"];
     messages.forEach(function addMessage(msgName) {
         ppmm.addMessageListener(msgName, this);
     }.bind(this));
@@ -80,23 +74,9 @@ this.AlarmService = {
 
   receiveMessage: function receiveMessage(aMessage) {
     debug("receiveMessage(): " + aMessage.name);
-    let json = aMessage.json;
-
-    // To prevent the hacked child process from sending commands to parent
-    // to schedule alarms, we need to check its permission and manifest URL.
-    if (["AlarmsManager:GetAll", "AlarmsManager:Add", "AlarmsManager:Remove"]
-          .indexOf(aMessage.name) != -1) {
-      if (!aMessage.target.assertPermission("alarms")) {
-        debug("Got message from a child process with no 'alarms' permission.");
-        return null;
-      }
-      if (!aMessage.target.assertContainApp(json.manifestURL)) {
-        debug("Got message from a child process containing illegal manifest URL.");
-        return null;
-      }
-    }
 
     let mm = aMessage.target.QueryInterface(Ci.nsIMessageSender);
+    let json = aMessage.json;
     switch (aMessage.name) {
       case "AlarmsManager:GetAll":
         this._db.getAll(
@@ -231,15 +211,15 @@ this.AlarmService = {
     switch (aMessageName)
     {
       case "Add":
-        json = aSuccess ? 
-          { requestId: aRequestId, id: aData } : 
-          { requestId: aRequestId, errorMsg: aData };
+          json = aSuccess ? 
+            { requestId: aRequestId, id: aData } : 
+            { requestId: aRequestId, errorMsg: aData };
         break;
 
       case "GetAll":
-        json = aSuccess ? 
-          { requestId: aRequestId, alarms: aData } : 
-          { requestId: aRequestId, errorMsg: aData };
+          json = aSuccess ? 
+            { requestId: aRequestId, alarms: aData } : 
+            { requestId: aRequestId, errorMsg: aData };
         break;
 
       default:
@@ -273,18 +253,9 @@ this.AlarmService = {
 
   _fireSystemMessage: function _fireSystemMessage(aAlarm) {
     debug("Fire system message: " + JSON.stringify(aAlarm));
-
     let manifestURI = Services.io.newURI(aAlarm.manifestURL, null, null);
     let pageURI = Services.io.newURI(aAlarm.pageURL, null, null);
-
-    // We don't need to expose everything to the web content.
-    let alarm = { "id":              aAlarm.id,
-                  "date":            aAlarm.date,
-                  "respectTimezone": aAlarm.ignoreTimezone ?
-                                       "ignoreTimezone" : "honorTimezone", 
-                  "data":            aAlarm.data };
-
-    messenger.sendMessage("alarm", alarm, pageURI, manifestURI);
+    messenger.sendMessage("alarm", aAlarm, pageURI, manifestURI);
   },
 
   _onAlarmFired: function _onAlarmFired() {

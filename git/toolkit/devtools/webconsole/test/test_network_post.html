@@ -89,7 +89,7 @@ function onNetworkEventUpdate(aState, aType, aPacket)
       break;
     case "requestCookies":
       expectedPacket = {
-        cookies: 3,
+        cookies: 2,
       };
       break;
     case "requestPostData":
@@ -114,7 +114,7 @@ function onNetworkEventUpdate(aState, aType, aPacket)
       break;
     case "responseContent":
       expectedPacket = {
-        mimeType: "application/json",
+        mimeType: /^application\/(json|octet-stream)$/,
         contentSize: /^\d+$/,
         discardResponseBody: false,
       };
@@ -167,12 +167,11 @@ function onRequestCookies(aState, aResponse)
 {
   info("checking request cookies");
 
-  is(aResponse.cookies.length, 3, "request cookies length");
+  is(aResponse.cookies.length, 2, "request cookies length");
 
   checkHeadersOrCookies(aResponse.cookies, {
     foobar: "fooval",
     omgfoo: "bug768096",
-    badcookie: "bug826798=st3fan",
   });
 
   onRequestPostData = onRequestPostData.bind(null, aState);
@@ -186,12 +185,10 @@ function onRequestPostData(aState, aResponse)
 
   checkObject(aResponse, {
     postData: {
-      text: /^Hello world! foobaz barr.+foobaz barr$/,
+      text: "Hello world!",
     },
     postDataDiscarded: false,
   });
-
-  is(aResponse.postData.text.length, 552, "postData text length");
 
   onResponseHeaders = onResponseHeaders.bind(null, aState);
   aState.client.getResponseHeaders(aState.netActor,

@@ -32,15 +32,15 @@ NS_NewButtonBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsButtonBoxFrame)
 
-void
+NS_IMETHODIMP
 nsButtonBoxFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                               const nsRect&           aDirtyRect,
                                               const nsDisplayListSet& aLists)
 {
   // override, since we don't want children to get events
   if (aBuilder->IsForEventDelivery())
-    return;
-  nsBoxFrame::BuildDisplayListForChildren(aBuilder, aDirtyRect, aLists);
+    return NS_OK;
+  return nsBoxFrame::BuildDisplayListForChildren(aBuilder, aDirtyRect, aLists);
 }
 
 NS_IMETHODIMP
@@ -136,7 +136,7 @@ nsButtonBoxFrame::DoMouseClick(nsGUIEvent* aEvent, bool aTrustEvent)
   if (shell) {
     nsContentUtils::DispatchXULCommand(mContent,
                                        aEvent ?
-                                         aEvent->mFlags.mIsTrusted : aTrustEvent,
+                                         NS_IS_TRUSTED_EVENT(aEvent) : aTrustEvent,
                                        nullptr, shell,
                                        isControl, isAlt, isShift, isMeta);
   }

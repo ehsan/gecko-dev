@@ -8,9 +8,7 @@
 #ifndef nsCSSPseudoClasses_h___
 #define nsCSSPseudoClasses_h___
 
-#include "nsString.h"
-
-class nsIAtom;
+#include "nsIAtom.h"
 
 class nsCSSPseudoClasses {
 public:
@@ -18,7 +16,7 @@ public:
   static void AddRefAtoms();
 
   enum Type {
-#define CSS_PSEUDO_CLASS(_name, _value, _pref)        \
+#define CSS_PSEUDO_CLASS(_name, _value) \
     ePseudoClass_##_name,
 #include "nsCSSPseudoClassList.h"
 #undef CSS_PSEUDO_CLASS

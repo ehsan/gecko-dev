@@ -3,30 +3,36 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
- * Implementation of DOMSettableTokenList specified by HTML5.
+ * Implementation of nsIDOMDOMSettableTokenList specified by HTML5.
  */
 
 #ifndef nsDOMSettableTokenList_h___
 #define nsDOMSettableTokenList_h___
 
+#include "nsIDOMDOMSettableTokenList.h"
 #include "nsDOMTokenList.h"
 
+
+class nsGenericElement;
 class nsIAtom;
 
-// nsISupports must be on the primary inheritance chain
-// because nsDOMSettableTokenList is traversed by Element.
-class nsDOMSettableTokenList MOZ_FINAL : public nsDOMTokenList
+// nsISupports must be on the primary inheritance chain 
+// because nsDOMSettableTokenList is traversed by nsGenericElement.
+class nsDOMSettableTokenList : public nsDOMTokenList,
+                               public nsIDOMDOMSettableTokenList
 {
 public:
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMDOMSETTABLETOKENLIST
 
-  nsDOMSettableTokenList(mozilla::dom::Element* aElement, nsIAtom* aAttrAtom)
-    : nsDOMTokenList(aElement, aAttrAtom) {}
+  NS_FORWARD_NSIDOMDOMTOKENLIST(nsDOMTokenList::);
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  nsDOMSettableTokenList(nsGenericElement* aElement, nsIAtom* aAttrAtom);
 
-  // WebIDL
-  void GetValue(nsAString& aResult) { Stringify(aResult); }
-  void SetValue(const nsAString& aValue, mozilla::ErrorResult& rv);
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
+
+  virtual ~nsDOMSettableTokenList();
 };
 
 #endif // nsDOMSettableTokenList_h___

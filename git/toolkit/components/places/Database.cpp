@@ -2,10 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Attributes.h"
-#include "mozilla/DebugOnly.h"
-#include "mozilla/Util.h"
-
 #include "Database.h"
 
 #include "nsINavBookmarksService.h"
@@ -24,8 +20,10 @@
 #include "nsDirectoryServiceUtils.h"
 #include "prsystem.h"
 #include "nsPrintfCString.h"
+#include "mozilla/Util.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
+#include "mozilla/Attributes.h"
 
 // Time between corrupt database backups.
 #define RECENT_BACKUP_TIME_MICROSEC (int64_t)86400 * PR_USEC_PER_SEC // 24H
@@ -166,7 +164,7 @@ SetJournalMode(nsCOMPtr<mozIStorageConnection>& aDBConn,
   nsAutoCString journalMode;
   switch (aJournalMode) {
     default:
-      MOZ_ASSERT(false, "Trying to set an unknown journal mode.");
+      MOZ_ASSERT("Trying to set an unknown journal mode.");
       // Fall through to the default DELETE journal.
     case JOURNAL_DELETE:
       journalMode.AssignLiteral("delete");
@@ -365,6 +363,12 @@ Database::~Database()
 nsresult
 Database::Init()
 {
+#ifdef MOZ_ANDROID_HISTORY
+  // Currently places has deeply weaved it way throughout the gecko codebase.
+  // Here we disable all database creation and loading of places.
+  return NS_ERROR_NOT_IMPLEMENTED;
+#endif
+
   MOZ_ASSERT(NS_IsMainThread());
 
   nsCOMPtr<mozIStorageService> storage =
@@ -720,13 +724,6 @@ Database::InitSchema(bool* aDatabaseMigrated)
       }
 
       // Firefox 14 uses schema version 21.
-
-      if (currentSchemaVersion < 22) {
-        rv = MigrateV22Up();
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-
-      // Firefox 22 uses schema version 22.
 
       // Schema Upgrades must add migration code here.
 
@@ -1875,21 +1872,6 @@ Database::MigrateV21Up()
 
   nsCOMPtr<mozIStoragePendingStatement> ps;
   rv = updatePrefixesStmt->ExecuteAsync(nullptr, getter_AddRefs(ps));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-nsresult
-Database::MigrateV22Up()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  // Reset all session IDs to 0 since we don't support them anymore.
-  // We don't set them to NULL to avoid breaking downgrades.
-  nsresult rv = mMainConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-    "UPDATE moz_historyvisits SET session = 0"
-  ));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

@@ -142,12 +142,17 @@ public:
 
   /*
    * Add/restore state for one frame
+   * (special, global type, like scroll position)
    */
   NS_HIDDEN_(void) CaptureFrameStateFor(nsIFrame*              aFrame,
-                                        nsILayoutHistoryState* aState);
+                                        nsILayoutHistoryState* aState,
+                                        nsIStatefulFrame::SpecialStateID aID =
+                                                      nsIStatefulFrame::eNoID);
 
   NS_HIDDEN_(void) RestoreFrameStateFor(nsIFrame*              aFrame,
-                                        nsILayoutHistoryState* aState);
+                                        nsILayoutHistoryState* aState,
+                                        nsIStatefulFrame::SpecialStateID aID =
+                                                      nsIStatefulFrame::eNoID);
 
 #ifdef DEBUG
   /**

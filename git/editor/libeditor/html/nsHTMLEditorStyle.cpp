@@ -33,6 +33,7 @@
 #include "nsIDOMRange.h"
 #include "nsIEditor.h"
 #include "nsIEditorIMESupport.h"
+#include "nsIEnumerator.h"
 #include "nsINameSpaceManager.h"
 #include "nsINode.h"
 #include "nsISelection.h"
@@ -140,15 +141,25 @@ nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
 
   bool cancel, handled;
   nsTextRulesInfo ruleInfo(EditAction::setTextProperty);
-  // Protect the edit rules object from dying
-  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
   nsresult res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   NS_ENSURE_SUCCESS(res, res);
   if (!cancel && !handled) {
+    // get selection range enumerator
+    nsCOMPtr<nsIEnumerator> enumerator;
+    res = selection->GetEnumerator(getter_AddRefs(enumerator));
+    NS_ENSURE_SUCCESS(res, res);
+    NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+
     // loop thru the ranges in the selection
-    uint32_t rangeCount = selection->GetRangeCount();
-    for (uint32_t rangeIdx = 0; rangeIdx < rangeCount; ++rangeIdx) {
-      nsRefPtr<nsRange> range = selection->GetRangeAt(rangeIdx);
+    nsCOMPtr<nsISupports> currentItem;
+    for (enumerator->First();
+         static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone();
+         enumerator->Next()) {
+      res = enumerator->CurrentItem(getter_AddRefs(currentItem));
+      NS_ENSURE_SUCCESS(res, res);
+      NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+
+      nsCOMPtr<nsIDOMRange> range(do_QueryInterface(currentItem));
 
       // adjust range to include any ancestors whose children are entirely
       // selected
@@ -287,10 +298,8 @@ nsHTMLEditor::IsSimpleModifiableNode(nsIContent* aContent,
     nsCOMPtr<nsIAtom> atom = do_GetAtom(*aAttribute);
     MOZ_ASSERT(atom);
 
-    nsString attrValue;
     if (element->IsHTML(aProperty) && IsOnlyAttribute(element, *aAttribute) &&
-        element->GetAttr(kNameSpaceID_None, atom, attrValue) &&
-        attrValue.Equals(*aValue, nsCaseInsensitiveStringComparator())) {
+        element->AttrValueIs(kNameSpaceID_None, atom, *aValue, eIgnoreCase)) {
       // This is not quite correct, because it excludes cases like
       // <font face=000> being the same as <font face=#000000>.
       // Property-specific handling is needed (bug 760211).
@@ -301,7 +310,8 @@ nsHTMLEditor::IsSimpleModifiableNode(nsIContent* aContent,
   // No luck so far.  Now we check for a <span> with a single style=""
   // attribute that sets only the style we're looking for, if this type of
   // style supports it
-  if (!mHTMLCSSUtils->IsCSSEditableProperty(element, aProperty, aAttribute) ||
+  if (!mHTMLCSSUtils->IsCSSEditableProperty(element, aProperty,
+                                            aAttribute, aValue) ||
       !element->IsHTML(nsGkAtoms::span) || element->GetAttrCount() != 1 ||
       !element->HasAttr(kNameSpaceID_None, nsGkAtoms::style)) {
     return false;
@@ -349,7 +359,8 @@ nsHTMLEditor::SetInlinePropertyOnTextNode( nsIDOMCharacterData *aTextNode,
   
   // don't need to do anything if property already set on node
   bool bHasProp;
-  if (mHTMLCSSUtils->IsCSSEditableProperty(node, aProperty, aAttribute)) {
+  if (mHTMLCSSUtils->IsCSSEditableProperty(node, aProperty,
+                                           aAttribute, aValue)) {
     // the HTML styles defined by aProperty/aAttribute has a CSS equivalence
     // in this implementation for node; let's check if it carries those css styles
     nsAutoString value(*aValue);
@@ -458,7 +469,8 @@ nsHTMLEditor::SetInlinePropertyOnNodeImpl(nsIContent* aNode,
   }
 
   // don't need to do anything if property already set on node
-  if (mHTMLCSSUtils->IsCSSEditableProperty(aNode, aProperty, aAttribute)) {
+  if (mHTMLCSSUtils->IsCSSEditableProperty(aNode, aProperty,
+                                           aAttribute, aValue)) {
     if (mHTMLCSSUtils->IsCSSEquivalentToHTMLInlineStyleSet(
           aNode, aProperty, aAttribute, *aValue, nsHTMLCSSUtils::eComputed)) {
       return NS_OK;
@@ -469,7 +481,8 @@ nsHTMLEditor::SetInlinePropertyOnNodeImpl(nsIContent* aNode,
   }
 
   bool useCSS = (IsCSSEnabled() &&
-                 mHTMLCSSUtils->IsCSSEditableProperty(aNode, aProperty, aAttribute)) ||
+                 mHTMLCSSUtils->IsCSSEditableProperty(aNode, aProperty,
+                                                      aAttribute, aValue)) ||
                 // bgcolor is always done using CSS
                 aAttribute->EqualsLiteral("bgcolor");
 
@@ -1104,15 +1117,23 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
   result = GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(result, result);
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-  Selection* sel = static_cast<Selection*>(selection.get());
+  nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
 
   bool isCollapsed = selection->Collapsed();
   nsCOMPtr<nsIDOMNode> collapsedNode;
-  nsRefPtr<nsRange> range = sel->GetRangeAt(0);
+  nsCOMPtr<nsIEnumerator> enumerator;
+  result = selPriv->GetEnumerator(getter_AddRefs(enumerator));
+  NS_ENSURE_SUCCESS(result, result);
+  NS_ENSURE_TRUE(enumerator, NS_ERROR_NULL_POINTER);
+
+  enumerator->First(); 
+  nsCOMPtr<nsISupports> currentItem;
+  result = enumerator->CurrentItem(getter_AddRefs(currentItem));
   // XXX: should be a while loop, to get each separate range
   // XXX: ERROR_HANDLING can currentItem be null?
-  if (range) {
+  if (NS_SUCCEEDED(result) && currentItem) {
     bool firstNodeInRange = true; // for each range, set a flag 
+    nsCOMPtr<nsIDOMRange> range(do_QueryInterface(currentItem));
 
     if (isCollapsed) {
       range->GetStartContainer(getter_AddRefs(collapsedNode));
@@ -1134,7 +1155,11 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
         return NS_OK;
       }
 
-      if (mHTMLCSSUtils->IsCSSEditableProperty(collapsedNode, aProperty, aAttribute)) {
+      // Bug 747889: we don't support CSS for fontSize values
+      if ((aProperty != nsEditProperty::font ||
+           !aAttribute->EqualsLiteral("size")) &&
+          mHTMLCSSUtils->IsCSSEditableProperty(collapsedNode, aProperty,
+                                               aAttribute)) {
         mHTMLCSSUtils->IsCSSEquivalentToHTMLInlineStyleSet(
           collapsedNode, aProperty, aAttribute, isSet, tOutString,
           nsHTMLCSSUtils::eComputed);
@@ -1218,7 +1243,11 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
 
       bool isSet = false;
       if (first) {
-        if (mHTMLCSSUtils->IsCSSEditableProperty(node, aProperty, aAttribute)){
+        if (mHTMLCSSUtils->IsCSSEditableProperty(node, aProperty,
+                                                 aAttribute) &&
+            // Bug 747889: we don't support CSS for fontSize values
+            (aProperty != nsEditProperty::font ||
+             !aAttribute->EqualsLiteral("size"))) {
           // the HTML styles defined by aProperty/aAttribute has a CSS
           // equivalence in this implementation for node; let's check if it
           // carries those css styles
@@ -1237,7 +1266,11 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
           *outValue = firstValue;
         }
       } else {
-        if (mHTMLCSSUtils->IsCSSEditableProperty(node, aProperty, aAttribute)){
+        if (mHTMLCSSUtils->IsCSSEditableProperty(node, aProperty,
+                                                 aAttribute) &&
+            // Bug 747889: we don't support CSS for fontSize values
+            (aProperty != nsEditProperty::font ||
+             !aAttribute->EqualsLiteral("size"))) {
           // the HTML styles defined by aProperty/aAttribute has a CSS equivalence
           // in this implementation for node; let's check if it carries those css styles
           if (aValue) {
@@ -1356,16 +1389,26 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
   
   bool cancel, handled;
   nsTextRulesInfo ruleInfo(EditAction::removeTextProperty);
-  // Protect the edit rules object from dying
-  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   NS_ENSURE_SUCCESS(res, res);
   if (!cancel && !handled)
   {
+    // get selection range enumerator
+    nsCOMPtr<nsIEnumerator> enumerator;
+    res = selection->GetEnumerator(getter_AddRefs(enumerator));
+    NS_ENSURE_SUCCESS(res, res);
+    NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+
     // loop thru the ranges in the selection
-    uint32_t rangeCount = selection->GetRangeCount();
-    for (uint32_t rangeIdx = 0; rangeIdx < rangeCount; ++rangeIdx) {
-      nsRefPtr<nsRange> range = selection->GetRangeAt(rangeIdx);
+    enumerator->First(); 
+    nsCOMPtr<nsISupports> currentItem;
+    while (static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone()) {
+      res = enumerator->CurrentItem(getter_AddRefs(currentItem));
+      NS_ENSURE_SUCCESS(res, res);
+      NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+      
+      nsCOMPtr<nsIDOMRange> range( do_QueryInterface(currentItem) );
+
       if (aProperty == nsEditProperty::name)
       {
         // promote range if it starts or end in a named anchor and we
@@ -1471,6 +1514,7 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
         }
         arrayOfNodes.Clear();
       }
+      enumerator->Next();
     }
   }
   if (!cancel)
@@ -1536,13 +1580,24 @@ nsHTMLEditor::RelativeFontChange( int32_t aSizeChange)
   nsAutoSelectionReset selectionResetter(selection, this);
   nsAutoTxnsConserveSelection dontSpazMySelection(this);
 
+  // get selection range enumerator
+  nsCOMPtr<nsIEnumerator> enumerator;
+  nsresult res = selection->GetEnumerator(getter_AddRefs(enumerator));
+  NS_ENSURE_SUCCESS(res, res);
+  NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+
   // loop thru the ranges in the selection
-  uint32_t rangeCount = selection->GetRangeCount();
-  for (uint32_t rangeIdx = 0; rangeIdx < rangeCount; ++rangeIdx) {
-    nsRefPtr<nsRange> range = selection->GetRangeAt(rangeIdx);
+  enumerator->First(); 
+  nsCOMPtr<nsISupports> currentItem;
+  while (static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone()) {
+    res = enumerator->CurrentItem(getter_AddRefs(currentItem));
+    NS_ENSURE_SUCCESS(res, res);
+    NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+    
+    nsCOMPtr<nsIDOMRange> range( do_QueryInterface(currentItem) );
 
     // adjust range to include any ancestors who's children are entirely selected
-    nsresult res = PromoteInlineRange(range);
+    res = PromoteInlineRange(range);
     NS_ENSURE_SUCCESS(res, res);
     
     // check for easy case: both range endpoints in same text node
@@ -1624,9 +1679,10 @@ nsHTMLEditor::RelativeFontChange( int32_t aSizeChange)
         NS_ENSURE_SUCCESS(res, res);
       }
     }
+    enumerator->Next();
   }
   
-  return NS_OK;  
+  return res;  
 }
 
 nsresult
@@ -1725,13 +1781,9 @@ nsHTMLEditor::RelativeFontChangeHelper(int32_t aSizeChange, nsINode* aNode)
       nsresult rv = RelativeFontChangeOnNode(aSizeChange, aNode->GetChildAt(i));
       NS_ENSURE_SUCCESS(rv, rv);
     }
-
-    // RelativeFontChangeOnNode already calls us recursively,
-    // so we don't need to check our children again.
-    return NS_OK;
   }
 
-  // Otherwise cycle through the children.
+  // Now cycle through the children.
   for (uint32_t i = aNode->GetChildCount(); i--; ) {
     nsresult rv = RelativeFontChangeHelper(aSizeChange, aNode->GetChildAt(i));
     NS_ENSURE_SUCCESS(rv, rv);

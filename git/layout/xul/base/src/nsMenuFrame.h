@@ -19,12 +19,12 @@
 #include "nsMenuParent.h"
 #include "nsXULPopupManager.h"
 #include "nsITimer.h"
+#include "nsIContent.h"
 #include "mozilla/Attributes.h"
 
 nsIFrame* NS_NewMenuFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 nsIFrame* NS_NewMenuItemFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-class nsIContent;
 class nsMenuBarFrame;
 
 #define NS_STATE_ACCELTEXT_IS_DERIVED  NS_STATE_BOX_CHILD_RESERVED
@@ -85,9 +85,9 @@ public:
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
 
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
 
 #ifdef DEBUG_LAYOUT
   NS_IMETHOD SetDebug(nsBoxLayoutState& aState, bool aDebug) MOZ_OVERRIDE;
@@ -103,9 +103,9 @@ public:
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   // Overridden to prevent events from going to children of the menu.
-  virtual void BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
-                                           const nsRect&           aDirtyRect,
-                                           const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
+                                         const nsRect&           aDirtyRect,
+                                         const nsDisplayListSet& aLists) MOZ_OVERRIDE;
                                          
   // this method can destroy the frame
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
@@ -240,7 +240,7 @@ protected:
   NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
                               nsIAtom* aAttribute,
                               int32_t aModType) MOZ_OVERRIDE;
-  virtual ~nsMenuFrame() { }
+  virtual ~nsMenuFrame() { };
 
   bool SizeToPopup(nsBoxLayoutState& aState, nsSize& aSize);
 

@@ -15,7 +15,6 @@ simple_events = [
     'UserProximityEvent',
     'CustomEvent',
     'PageTransitionEvent',
-    'DOMTransactionEvent',
     'PopStateEvent',
     'HashChangeEvent',
     'CloseEvent',
@@ -23,49 +22,28 @@ simple_events = [
     'DeviceOrientationEvent',
     'DeviceLightEvent',
     'MozApplicationEvent',
-    'SmartCardEvent',
 #ifdef MOZ_B2G_BT
     'BluetoothDeviceEvent',
+    'BluetoothDeviceAddressEvent',
 #endif
 #ifdef MOZ_B2G_RIL
-    'CallEvent',
-    'CFStateChangeEvent',
-    'DataErrorEvent',
     'ICCCardLockErrorEvent',
     'MozWifiStatusChangeEvent',
     'MozWifiConnectionInfoEvent',
-    'MozCellBroadcastEvent',
-    'MozVoicemailEvent',
-    'USSDReceivedEvent',
 #endif
-    'ElementReplaceEvent',
-    'MozSmsEvent',
-    'MozMmsEvent',
     'DeviceStorageChangeEvent',
-    'PopupBlockedEvent',
-    'BlobEvent',
-#ifdef MOZ_GAMEPAD
-    'GamepadEvent',
-    'GamepadButtonEvent',
-    'GamepadAxisMoveEvent',
-#endif
-#ifdef MOZ_WEBSPEECH
-    'SpeechRecognitionEvent',
-    'SpeechRecognitionError',
-#endif
+    'PopupBlockedEvent'
   ]
 
 """ include file names """
 special_includes = [
     'DictionaryHelpers.h',
     'nsContentUtils.h',
-    'nsIDOMApplicationRegistry.h',
-    'nsIDOMFile.h'
+    'nsIDOMApplicationRegistry.h'
   ]
 
 """ name of the type to not include using #include "typename.h" """
 exclude_automatic_type_include = [
     'nsISupports',
-    'mozIDOMApplication',
-    'nsIDOMBlob'
+    'mozIDOMApplication'
   ]

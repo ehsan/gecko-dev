@@ -11,7 +11,7 @@
 #include "nsIPrintSettings.h"
 #include "nsIPrintOptions.h"
 #include "nsIDateTimeFormat.h"
-#include "mozilla/dom/HTMLCanvasElement.h"
+#include "nsHTMLCanvasElement.h"
 
 //-----------------------------------------------
 // This class maintains all the data that 
@@ -31,6 +31,9 @@ public:
 
   nsSize      mReflowSize;
   nsMargin    mReflowMargin;
+  // Extra Margin between the device area and the edge of the page;
+  // approximates unprintable area
+  nsMargin    mExtraMargin;
   // Margin for headers and footers; it defaults to 4/100 of an inch on UNIX 
   // and 0 elsewhere; I think it has to do with some inconsistency in page size
   // computations
@@ -58,9 +61,9 @@ public:
                      const nsHTMLReflowState& aMaxSize,
                      nsReflowStatus&      aStatus);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD  BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                               const nsRect&           aDirtyRect,
+                               const nsDisplayListSet& aLists);
 
   // nsIPageSequenceFrame
   NS_IMETHOD SetPageNo(int32_t aPageNo) { return NS_OK;}
@@ -135,7 +138,7 @@ protected:
   int32_t      mFromPageNum;
   int32_t      mToPageNum;
   nsTArray<int32_t> mPageRanges;
-  nsTArray<nsRefPtr<mozilla::dom::HTMLCanvasElement> > mCurrentCanvasList;
+  nsTArray<nsRefPtr<nsHTMLCanvasElement> > mCurrentCanvasList;
 
   // Selection Printing Info
   nscoord      mSelectionHeight;

@@ -6,8 +6,6 @@
 #include <windows.h> //plat_api.h seems to need some of the types defined in Windows.h (e.g. boolean)
 #endif
 
-#include "CSFLog.h"
-
 #include "CC_CallTypes.h"
 #include "CC_SIPCCService.h"
 #include "NullDeleter.h"
@@ -34,6 +32,7 @@ extern "C" {
 
 #include "csf_common.h"
 
+#include "CSFLogStream.h"
 static const char* logTag = "CC_SIPCCService";
 
 using namespace std;
@@ -71,13 +70,13 @@ extern "C"
  */
 void configCtlFetchReq(int device_handle)
 {
-    CSFLogDebug(logTag, "In configCtlFetchReq");
+    CSFLogDebugS(logTag, "In configCtlFetchReq");
 
     CSF::CC_SIPCCService * pPhone = CSF::CC_SIPCCService::_self;
 
     if (pPhone == NULL)
     {
-        CSFLogError( logTag, "CC_SIPCCService::_self is NULL.");
+        CSFLogErrorS( logTag, "CC_SIPCCService::_self is NULL.");
     }
     else
     {
@@ -104,7 +103,7 @@ void configCtlFetchReq(int device_handle)
  */
 void configFetchReq(int device_handle)
 {
-    CSFLogDebug( logTag, "In configFetchReq");
+    CSFLogDebugS( logTag, "In configFetchReq");
 
     configCtlFetchReq(device_handle);
 }
@@ -123,7 +122,7 @@ void configFetchReq(int device_handle)
  */
 void configParserError(void)
 {
-    CSFLogError( logTag, "In configParserError");
+    CSFLogErrorS( logTag, "In configParserError");
 }
 
 /**
@@ -162,18 +161,18 @@ void configApplyConfigNotify(cc_string_t config_version,
 		cc_string_t log_server,
 		cc_boolean ppid)
 {
-    CSFLogDebug( logTag, "In configApplyConfigNotify");
+    CSFLogDebugS( logTag, "In configApplyConfigNotify");
 }
 
 char * platGetIPAddr ()
 {
-    CSFLogDebug( logTag, "In platGetIPAddr()");
+    CSFLogDebugS( logTag, "In platGetIPAddr()");
 
     CSF::CC_SIPCCService * pPhone = CSF::CC_SIPCCService::_self;
 
     if (pPhone == NULL)
     {
-        CSFLogError( logTag, "In platGetIPAddr(). CC_SIPCCService::_self is NULL.");
+        CSFLogErrorS( logTag, "In platGetIPAddr(). CC_SIPCCService::_self is NULL.");
         return (char *) "";
     }
 
@@ -280,25 +279,25 @@ static int _maxBitValueMaskedLoggingEntries = csf_countof(_maskedLoggingEntriesA
 
 extern "C" void CCAPI_DeviceListener_onDeviceEvent(ccapi_device_event_e type, cc_device_handle_t hDevice, cc_deviceinfo_ref_t dev_info)
 {
-    //CSFLogDebug( logTag, "In CCAPI_DeviceListener_onDeviceEvent");
+    //CSFLogDebugS( logTag, "In CCAPI_DeviceListener_onDeviceEvent");
     CSF::CC_SIPCCService::onDeviceEvent(type, hDevice, dev_info);
 }
 
 extern "C" void CCAPI_DeviceListener_onFeatureEvent(ccapi_device_event_e type, cc_deviceinfo_ref_t dev_info, cc_featureinfo_ref_t feature_info)
 {
-    //CSFLogDebug( logTag, "In CCAPI_DeviceListener_onFeatureEvent");
+    //CSFLogDebugS( logTag, "In CCAPI_DeviceListener_onFeatureEvent");
     CSF::CC_SIPCCService::onFeatureEvent(type, dev_info, feature_info);
 }
 
 extern "C" void CCAPI_LineListener_onLineEvent(ccapi_line_event_e type, cc_lineid_t line, cc_lineinfo_ref_t info)
 {
-    //CSFLogDebug( logTag, "In CCAPI_LineListener_onLineEvent");
+    //CSFLogDebugS( logTag, "In CCAPI_LineListener_onLineEvent");
     CSF::CC_SIPCCService::onLineEvent(type, line, info);
 }
 
 extern "C" void CCAPI_CallListener_onCallEvent(ccapi_call_event_e type, cc_call_handle_t handle, cc_callinfo_ref_t info)
 {
-    //CSFLogDebug( logTag, "In CCAPI_CallListener_onCallEvent");
+    //CSFLogDebugS( logTag, "In CCAPI_CallListener_onCallEvent");
 	CSF::CC_SIPCCService::onCallEvent(type, handle, info);
 }
 
@@ -340,7 +339,7 @@ bool CC_SIPCCService::init(const std::string& user, const std::string& password,
 
     if (!(bCreated = (CCAPI_Service_create() == CC_SUCCESS)))
     {
-        CSFLogError( logTag, "Call to CCAPI_Service_create() failed.");
+        CSFLogErrorS( logTag, "Call to CCAPI_Service_create() failed.");
         return false;
     }
     return true;
@@ -354,7 +353,7 @@ void CC_SIPCCService::destroy()
     {
         if (CCAPI_Service_destroy() == CC_FAILURE)
         {
-            CSFLogError( logTag, "Call to CCAPI_Service_destroy() failed.");
+            CSFLogErrorS( logTag, "Call to CCAPI_Service_destroy() failed.");
         }
 
         bCreated = false;
@@ -436,18 +435,18 @@ bool CC_SIPCCService::startService()
     bUseConfig = false;
     if (!(bStarted = (CCAPI_Service_start() == CC_SUCCESS)))
     {
-        CSFLogError( logTag, "Call to CCAPI_Service_start() failed.");
+        CSFLogErrorS( logTag, "Call to CCAPI_Service_start() failed.");
         return false;
     }
 
     CC_DevicePtr devicePtr = CC_SIPCCDevice::createDevice ();
     if (devicePtr == NULL)
     {
-    	CSFLogWarn( logTag, "stopping because createDevice failed");
+    	CSFLogWarnS( logTag, "stopping because createDevice failed");
     	stop();
         return false;
     }
-    CSFLogDebug( logTag, "About to imposeLoggingMask");
+    CSFLogDebugS( logTag, "About to imposeLoggingMask");
     applyLoggingMask(loggingMask);
 
     return true;
@@ -463,7 +462,7 @@ void CC_SIPCCService::stop()
 
         if (CCAPI_Service_stop() == CC_FAILURE)
         {
-            CSFLogError( logTag, "Call to CCAPI_Service_stop() failed.");
+            CSFLogErrorS( logTag, "Call to CCAPI_Service_stop() failed.");
         }
 
         bStarted = false;
@@ -475,17 +474,11 @@ bool CC_SIPCCService::isStarted()
 	return bStarted;
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 CC_DevicePtr CC_SIPCCService::getActiveDevice()
 {
-    return CC_SIPCCDevice::wrap(CCAPI_Device_getDeviceID()).get();
+    return CC_SIPCCDevice::wrap(CCAPI_Device_getDeviceID());
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 vector<CC_DevicePtr> CC_SIPCCService::getDevices()
 {
 	vector<CC_DevicePtr> devices;
@@ -493,41 +486,35 @@ vector<CC_DevicePtr> CC_SIPCCService::getDevices()
 	CC_SIPCCDevicePtr pDevice = CC_SIPCCDevice::wrap(CCAPI_Device_getDeviceID());
 	if(pDevice != NULL)
 	{
-        devices.push_back(pDevice.get());
+        devices.push_back(pDevice);
     }
 
     return devices;
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 AudioControlPtr CC_SIPCCService::getAudioControl ()
 {
 	if(audioControlWrapper != NULL)
 	{
-		return audioControlWrapper.get();
+		return audioControlWrapper;
 	}
 	else
 	{
 		audioControlWrapper = AudioControlWrapperPtr(new AudioControlWrapper(VcmSIPCCBinding::getAudioControl()));
-		return audioControlWrapper.get();
+		return audioControlWrapper;
 	}
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 VideoControlPtr CC_SIPCCService::getVideoControl ()
 {
 	if(videoControlWrapper != NULL)
 	{
-		return videoControlWrapper.get();
+		return videoControlWrapper;
 	}
 	else
 	{
 		videoControlWrapper = VideoControlWrapperPtr(new VideoControlWrapper(VcmSIPCCBinding::getVideoControl()));
-		return videoControlWrapper.get();
+		return videoControlWrapper;
 	}
 }
 
@@ -540,7 +527,7 @@ void CC_SIPCCService::applyLoggingMask (int newMask)
                     "Ignoring unsupported bits.", newMask);
     }
 
-    CSFLogDebug( logTag, "Applying a sipcc log mask = %d", newMask);
+    CSFLogDebugS( logTag, "Applying a sipcc log mask = " << newMask);
 
     loggingMask = newMask & (HAS_21_BITS);
 
@@ -550,9 +537,6 @@ void CC_SIPCCService::applyLoggingMask (int newMask)
     }
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::endAllActiveCalls()
 {
 	CC_DevicePtr device = getActiveDevice();
@@ -568,18 +552,16 @@ void CC_SIPCCService::endAllActiveCalls()
 			CC_CallInfoPtr callInfo = call->getCallInfo();
 			if(callInfo->hasCapability(CC_CallCapabilityEnum::canEndCall))
 			{
-				CSFLogDebug( logTag, "endAllActiveCalls(): ending call %s -> %s [%s]",
-					callInfo->getCallingPartyNumber().c_str(),
-                    callInfo->getCalledPartyNumber().c_str(),
-					call_state_getname(callInfo->getCallState()));
+				CSFLogDebugS( logTag, "endAllActiveCalls(): ending call " <<
+						callInfo->getCallingPartyNumber() << " -> " << callInfo->getCalledPartyNumber() <<
+						" [" << call_state_getname(callInfo->getCallState()) << "]");
 				call->endCall();
 			}
 			else if(callInfo->hasCapability(CC_CallCapabilityEnum::canResume) && callInfo->getCallState() != REMHOLD)
 			{
-				CSFLogDebug( logTag, "endAllActiveCalls(): resume then ending call %s -> %s, [%s]",
-					callInfo->getCallingPartyNumber().c_str(),
-                    callInfo->getCalledPartyNumber().c_str(),
-					call_state_getname(callInfo->getCallState()));
+				CSFLogDebugS( logTag, "endAllActiveCalls(): resume then ending call " <<
+						callInfo->getCallingPartyNumber() << " -> " << callInfo->getCalledPartyNumber() <<
+						" [" << call_state_getname(callInfo->getCallState()) << "]");
 				call->muteAudio();
 				call->resume(callInfo->getVideoDirection());
 				call->endCall();
@@ -602,11 +584,9 @@ void CC_SIPCCService::onDeviceEvent(ccapi_device_event_e type, cc_device_handle_
 {
     if (_self == NULL)
     {
-        CSFLogError( logTag, "CC_SIPCCService::_self is NULL. Unable to notify observers of device event.");
+        CSFLogErrorS( logTag, "CC_SIPCCService::_self is NULL. Unable to notify observers of device event.");
         return;
     }
-
-    mozilla::MutexAutoLock lock(_self->m_lock);
 
     CC_SIPCCDevicePtr devicePtr = CC_SIPCCDevice::wrap(handle);
     if (devicePtr == NULL)
@@ -622,11 +602,9 @@ void CC_SIPCCService::onDeviceEvent(ccapi_device_event_e type, cc_device_handle_
         return;
     }
 
-    CSFLogInfo( logTag, "onDeviceEvent( %s, %s, [%s] )",
-      device_event_getname(type),
-      devicePtr->toString().c_str(),
-      infoPtr->getDeviceName().c_str());
-    _self->notifyDeviceEventObservers(type, devicePtr.get(), infoPtr.get());
+    CSFLogInfoS( logTag, "onDeviceEvent(" << device_event_getname(type) << ", " << devicePtr->toString() <<
+    		", [" << infoPtr->getDeviceName() << "] )");
+    _self->notifyDeviceEventObservers(type, devicePtr, infoPtr);
 }
 
 void CC_SIPCCService::onFeatureEvent(ccapi_device_event_e type, cc_deviceinfo_ref_t /* device_info */, cc_featureinfo_ref_t feature_info)
@@ -634,31 +612,27 @@ void CC_SIPCCService::onFeatureEvent(ccapi_device_event_e type, cc_deviceinfo_re
 
     if (_self == NULL)
      {
-         CSFLogError( logTag, "CC_SIPCCService::_self is NULL. Unable to notify observers of device event.");
+         CSFLogErrorS( logTag, "CC_SIPCCService::_self is NULL. Unable to notify observers of device event.");
          return;
      }
 
-     mozilla::MutexAutoLock lock(_self->m_lock);
-
      cc_device_handle_t hDevice = CCAPI_Device_getDeviceID();
-     CC_DevicePtr devicePtr = CC_SIPCCDevice::wrap(hDevice).get();
+     CC_DevicePtr devicePtr = CC_SIPCCDevice::wrap(hDevice);
      if (devicePtr == NULL)
      {
          CSFLogError( logTag, "Unable to notify device observers for device handle (%u), as failed to create CC_DevicePtr", hDevice);
          return;
      }
 
-     CC_FeatureInfoPtr infoPtr = CC_SIPCCFeatureInfo::wrap(feature_info).get();
+     CC_FeatureInfoPtr infoPtr = CC_SIPCCFeatureInfo::wrap(feature_info);
      if (infoPtr  == NULL)
      {
          CSFLogError( logTag, "Unable to notify call observers for feature info handle (%u), as failed to create CC_FeatureInfoPtr", feature_info);
          return;
      }
 
-     CSFLogInfo( logTag, "onFeatureEvent( %s, %s, [%s] )",
-         device_event_getname(type),
-         devicePtr->toString().c_str(),
-         infoPtr->getDisplayName().c_str());
+     CSFLogInfoS( logTag, "onFeatureEvent(" << device_event_getname(type) << ", " << devicePtr->toString() <<
+    		 ", [" << infoPtr->getDisplayName() << "] )");
      _self->notifyFeatureEventObservers(type, devicePtr, infoPtr);
 }
 
@@ -666,29 +640,26 @@ void CC_SIPCCService::onLineEvent(ccapi_line_event_e eventType, cc_lineid_t line
 {
     if (_self == NULL)
     {
-        CSFLogError( logTag, "CC_SIPCCService::_self is NULL. Unable to notify observers of line event.");
+        CSFLogErrorS( logTag, "CC_SIPCCService::_self is NULL. Unable to notify observers of line event.");
         return;
     }
 
-    mozilla::MutexAutoLock lock(_self->m_lock);
-
-    CC_LinePtr linePtr = CC_SIPCCLine::wrap(line).get();
+    CC_LinePtr linePtr = CC_SIPCCLine::wrap(line);
     if (linePtr == NULL)
     {
         CSFLogError( logTag, "Unable to notify line observers for line lineId (%u), as failed to create CC_LinePtr", line);
         return;
     }
 
-    CC_LineInfoPtr infoPtr = CC_SIPCCLineInfo::wrap(info).get();
+    CC_LineInfoPtr infoPtr = CC_SIPCCLineInfo::wrap(info);
     if (infoPtr == NULL)
     {
         CSFLogError( logTag, "Unable to notify line observers for line lineId (%u), as failed to create CC_LineInfoPtr", line);
         return;
     }
 
-    CSFLogInfo( logTag, "onLineEvent(%s, %s, [%d|%s]",
-        line_event_getname(eventType), linePtr->toString().c_str(),
-    	infoPtr->getNumber().c_str(), (infoPtr->getRegState() ? "INS" : "OOS"));
+    CSFLogInfoS( logTag, "onLineEvent(" << line_event_getname(eventType) << ", " << linePtr->toString() <<
+    		", [" << infoPtr->getNumber() << "|" << (infoPtr->getRegState() ? "INS" : "OOS") << "] )");
     _self->notifyLineEventObservers(eventType, linePtr, infoPtr);
 }
 
@@ -696,11 +667,9 @@ void CC_SIPCCService::onCallEvent(ccapi_call_event_e eventType, cc_call_handle_t
 {
     if (_self == NULL)
     {
-        CSFLogError( logTag, "CC_SIPCCService::_self is NULL. Unable to notify observers of call event.");
+        CSFLogErrorS( logTag, "CC_SIPCCService::_self is NULL. Unable to notify observers of call event.");
         return;
     }
-
-    mozilla::MutexAutoLock lock(_self->m_lock);
 
     CC_SIPCCCallPtr callPtr = CC_SIPCCCall::wrap(handle);
     if (callPtr == NULL)
@@ -719,10 +688,9 @@ void CC_SIPCCService::onCallEvent(ccapi_call_event_e eventType, cc_call_handle_t
     infoPtr->setMediaData(callPtr->getMediaData());
 
 	set<CSF::CC_CallCapabilityEnum::CC_CallCapability> capSet = infoPtr->getCapabilitySet();
-    CSFLogInfo( logTag, "onCallEvent(%s, %s, [%s|%s]",
-        call_event_getname(eventType), callPtr->toString().c_str(),
-    	call_state_getname(infoPtr->getCallState()), CC_CallCapabilityEnum::toString(capSet).c_str());
-    _self->notifyCallEventObservers(eventType, callPtr.get(), infoPtr.get());
+    CSFLogInfoS( logTag, "onCallEvent(" << call_event_getname(eventType) << ", " << callPtr->toString() <<
+    		", [" << call_state_getname(infoPtr->getCallState()) << "|" << CC_CallCapabilityEnum::toString(capSet) << "] )");
+    _self->notifyCallEventObservers(eventType, callPtr, infoPtr);
 }
 
 void CC_SIPCCService::addCCObserver ( CC_Observer * observer )
@@ -730,7 +698,7 @@ void CC_SIPCCService::addCCObserver ( CC_Observer * observer )
 	mozilla::MutexAutoLock lock(m_lock);
     if (observer == NULL)
     {
-        CSFLogError( logTag, "NULL value for \"observer\" passed to addCCObserver().");
+        CSFLogErrorS( logTag, "NULL value for \"observer\" passed to addCCObserver().");
         return;
     }
 
@@ -746,7 +714,7 @@ void CC_SIPCCService::removeCCObserver ( CC_Observer * observer )
 //Notify Observers
 void CC_SIPCCService::notifyDeviceEventObservers (ccapi_device_event_e eventType, CC_DevicePtr devicePtr, CC_DeviceInfoPtr info)
 {
-  // m_lock must be held by the function that called us
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -756,7 +724,7 @@ void CC_SIPCCService::notifyDeviceEventObservers (ccapi_device_event_e eventType
 
 void CC_SIPCCService::notifyFeatureEventObservers (ccapi_device_event_e eventType, CC_DevicePtr devicePtr, CC_FeatureInfoPtr info)
 {
-  // m_lock must be held by the function that called us
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -766,7 +734,7 @@ void CC_SIPCCService::notifyFeatureEventObservers (ccapi_device_event_e eventTyp
 
 void CC_SIPCCService::notifyLineEventObservers (ccapi_line_event_e eventType, CC_LinePtr linePtr, CC_LineInfoPtr info)
 {
-  // m_lock must be held by the function that called us
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -776,7 +744,7 @@ void CC_SIPCCService::notifyLineEventObservers (ccapi_line_event_e eventType, CC
 
 void CC_SIPCCService::notifyCallEventObservers (ccapi_call_event_e eventType, CC_CallPtr callPtr, CC_CallInfoPtr info)
 {
-  // m_lock must be held by the function that called us
+	mozilla::MutexAutoLock lock(m_lock);
 	set<CC_Observer*>::const_iterator it = ccObservers.begin();
 	for ( ; it != ccObservers.end(); it++ )
     {
@@ -786,14 +754,9 @@ void CC_SIPCCService::notifyCallEventObservers (ccapi_call_event_e eventType, CC
 
 // This is called when the SIP stack has caused a new stream to be allocated. This function will
 // find the call associated with that stream so that the call can store the streamId.
-
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::registerStream(cc_call_handle_t call, int streamId, bool isVideo)
 {
-    CSFLogDebug( logTag, "registerStream for call: %d strId=%s video=%s",
-        call, streamId, isVideo ? "TRUE" : "FALSE");
+    CSFLogDebugS( logTag, "registerStream for call: " << call << " strId=" << streamId << " video=" << isVideo);
 	// get the object corresponding to the handle
     CC_SIPCCCallPtr callPtr = CC_SIPCCCall::wrap(call);
     if (callPtr != NULL)
@@ -802,14 +765,10 @@ void CC_SIPCCService::registerStream(cc_call_handle_t call, int streamId, bool i
     }
     else
     {
-        CSFLogError( logTag, "registerStream(), No call found for allocated Stream: %d, %s",
-            streamId, isVideo ? "TRUE" : "FALSE");
+        CSFLogErrorS( logTag, "registerStream(), No call found for allocated Stream:" << streamId << ", " << isVideo);
     }
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::deregisterStream(cc_call_handle_t call, int streamId)
 {
 	// get the object corresponding to the handle
@@ -820,13 +779,10 @@ void CC_SIPCCService::deregisterStream(cc_call_handle_t call, int streamId)
     }
     else
     {
-        CSFLogError( logTag, "deregisterStream(), No call found for deallocated Stream: %d", streamId);
+        CSFLogErrorS( logTag, "deregisterStream(), No call found for deallocated Stream:" << streamId);
     }
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::dtmfBurst(int digit, int direction, int duration)
 {
 	// We haven't a clue what stream to use.  Search for a call which has an audio stream.
@@ -870,16 +826,13 @@ void CC_SIPCCService::dtmfBurst(int digit, int direction, int duration)
 				}
 				else
 				{
-					CSFLogWarn( logTag, "dtmfBurst:sendDtmf returned fail");
+					CSFLogWarnS( logTag, "dtmfBurst:sendDtmf returned fail");
 				}
 			}
 	    }
     }
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::sendIFrame(cc_call_handle_t call_handle)
 {
 	CC_SIPCCCallPtr callPtr = CC_SIPCCCall::wrap(call_handle);
@@ -933,13 +886,10 @@ void CC_SIPCCService::onVideoModeChanged( bool enable )
 {
 }
 
-// !!! Note that accessing *Ptr instances from multiple threads can
-// lead to deadlocks, crashes, and spinning threads. Calls to this
-// method are not safe except from ccapp_thread.
 void CC_SIPCCService::onKeyFrameRequested( int stream )
 // This is called when the Video Provider indicates that it needs to send a request for new key frame to the sender
 {
-    CSFLogDebug(logTag, "onKeyFrameRequested for stream ");
+    CSFLogDebugS(logTag, "onKeyFrameRequested for stream ");
 	// We haven't a clue what stream to use.  Search for a call which has an audio stream.
 	vector<CC_SIPCCCallPtr> calls;
 	{
@@ -972,7 +922,7 @@ void CC_SIPCCService::onKeyFrameRequested( int stream )
 	    {
 			if ((entry->first==stream) && (entry->second.isVideo == true))
 			{
-                CSFLogDebug(logTag, "Send SIP message to originator for stream id %d", stream);
+                CSFLogDebugS(logTag, "Send SIP message to originator for stream id" << stream);
 				if ((*it)->sendInfo ( "","application/media_control+xml", "<?xml version=\"1.0\" encoding=\"utf-8\" ?>\n"
 						"<media_control>\n"
 						"\n"
@@ -984,13 +934,13 @@ void CC_SIPCCService::onKeyFrameRequested( int stream )
 						"\n"
 						"</media_control>\n"))
 				{
-					CSFLogWarn(logTag, "sendinfo returned true");
+					CSFLogWarnS(logTag, "sendinfo returned true");
 					bSent = true;
 					break;
 				}
 				else
 				{
-					CSFLogWarn(logTag, "sendinfo returned false");
+					CSFLogWarnS(logTag, "sendinfo returned false");
 				}
 			}
 	    }

@@ -6,13 +6,11 @@
 
 #include "TelephonyCall.h"
 
-#include "nsIDOMCallEvent.h"
-
-#include "DOMError.h"
-#include "GeneratedEvents.h"
 #include "nsDOMClassInfo.h"
+
+#include "CallEvent.h"
 #include "Telephony.h"
-#include "nsITelephonyProvider.h"
+#include "DOMError.h"
 
 USING_TELEPHONY_NAMESPACE
 
@@ -39,14 +37,6 @@ TelephonyCall::Create(Telephony* aTelephony, const nsAString& aNumber,
   return call.forget();
 }
 
-TelephonyCall::TelephonyCall()
-  : mCallIndex(kOutgoingPlaceholderCallIndex),
-    mCallState(nsITelephonyProvider::CALL_STATE_UNKNOWN),
-    mLive(false),
-    mOutgoing(false)
-{
-}
-
 void
 TelephonyCall::ChangeStateInternal(uint16_t aCallState, bool aFireEvents)
 {
@@ -54,37 +44,37 @@ TelephonyCall::ChangeStateInternal(uint16_t aCallState, bool aFireEvents)
 
   nsString stateString;
   switch (aCallState) {
-    case nsITelephonyProvider::CALL_STATE_DIALING:
+    case nsIRadioInterfaceLayer::CALL_STATE_DIALING:
       stateString.AssignLiteral("dialing");
       break;
-    case nsITelephonyProvider::CALL_STATE_ALERTING:
+    case nsIRadioInterfaceLayer::CALL_STATE_ALERTING:
       stateString.AssignLiteral("alerting");
       break;
-    case nsITelephonyProvider::CALL_STATE_BUSY:
+    case nsIRadioInterfaceLayer::CALL_STATE_BUSY:
       stateString.AssignLiteral("busy");
       break;
-    case nsITelephonyProvider::CALL_STATE_CONNECTING:
+    case nsIRadioInterfaceLayer::CALL_STATE_CONNECTING:
       stateString.AssignLiteral("connecting");
       break;
-    case nsITelephonyProvider::CALL_STATE_CONNECTED:
+    case nsIRadioInterfaceLayer::CALL_STATE_CONNECTED:
       stateString.AssignLiteral("connected");
       break;
-    case nsITelephonyProvider::CALL_STATE_HOLDING:
+    case nsIRadioInterfaceLayer::CALL_STATE_HOLDING:
       stateString.AssignLiteral("holding");
       break;
-    case nsITelephonyProvider::CALL_STATE_HELD:
+    case nsIRadioInterfaceLayer::CALL_STATE_HELD:
       stateString.AssignLiteral("held");
       break;
-    case nsITelephonyProvider::CALL_STATE_RESUMING:
+    case nsIRadioInterfaceLayer::CALL_STATE_RESUMING:
       stateString.AssignLiteral("resuming");
       break;
-    case nsITelephonyProvider::CALL_STATE_DISCONNECTING:
+    case nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTING:
       stateString.AssignLiteral("disconnecting");
       break;
-    case nsITelephonyProvider::CALL_STATE_DISCONNECTED:
+    case nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED:
       stateString.AssignLiteral("disconnected");
       break;
-    case nsITelephonyProvider::CALL_STATE_INCOMING:
+    case nsIRadioInterfaceLayer::CALL_STATE_INCOMING:
       stateString.AssignLiteral("incoming");
       break;
     default:
@@ -94,11 +84,11 @@ TelephonyCall::ChangeStateInternal(uint16_t aCallState, bool aFireEvents)
   mState = stateString;
   mCallState = aCallState;
 
-  if (aCallState == nsITelephonyProvider::CALL_STATE_DIALING) {
+  if (aCallState == nsIRadioInterfaceLayer::CALL_STATE_DIALING) {
     mOutgoing = true;
   }
 
-  if (aCallState == nsITelephonyProvider::CALL_STATE_DISCONNECTED) {
+  if (aCallState == nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED) {
     NS_ASSERTION(mLive, "Should be live!");
     mTelephony->RemoveCall(this);
     mLive = false;
@@ -108,38 +98,25 @@ TelephonyCall::ChangeStateInternal(uint16_t aCallState, bool aFireEvents)
   }
 
   if (aFireEvents) {
-    nsresult rv = DispatchCallEvent(NS_LITERAL_STRING("statechange"), this);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("Failed to dispatch specific event!");
+    nsRefPtr<CallEvent> event = CallEvent::Create(this);
+    NS_ASSERTION(event, "This should never fail!");
+
+    if (NS_FAILED(event->Dispatch(ToIDOMEventTarget(),
+                                  NS_LITERAL_STRING("statechange")))) {
+      NS_WARNING("Failed to dispatch statechange event!");
     }
 
     // This can change if the statechange handler called back here... Need to
     // figure out something smarter.
     if (mCallState == aCallState) {
-      rv = DispatchCallEvent(stateString, this);
-      if (NS_FAILED(rv)) {
+      event = CallEvent::Create(this);
+      NS_ASSERTION(event, "This should never fail!");
+
+      if (NS_FAILED(event->Dispatch(ToIDOMEventTarget(), stateString))) {
         NS_WARNING("Failed to dispatch specific event!");
       }
     }
   }
-}
-
-nsresult
-TelephonyCall::DispatchCallEvent(const nsAString& aType,
-                                 nsIDOMTelephonyCall* aCall)
-{
-  MOZ_ASSERT(aCall);
-
-  nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMCallEvent(getter_AddRefs(event), this, nullptr, nullptr);
-  NS_ASSERTION(event, "This should never fail!");
-
-  nsCOMPtr<nsIDOMCallEvent> callEvent = do_QueryInterface(event);
-  MOZ_ASSERT(callEvent);
-  nsresult rv = callEvent->InitCallEvent(aType, false, false, aCall);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return DispatchTrustedEvent(callEvent);
 }
 
 void
@@ -151,17 +128,30 @@ TelephonyCall::NotifyError(const nsAString& aError)
   mError = DOMError::CreateWithName(aError);
 
   // Do the state transitions
-  ChangeStateInternal(nsITelephonyProvider::CALL_STATE_DISCONNECTED, true);
+  ChangeStateInternal(nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED, true);
 
-  nsresult rv = DispatchCallEvent(NS_LITERAL_STRING("error"), this);
-  if (NS_FAILED(rv)) {
+  // Notify the error event
+  nsRefPtr<CallEvent> event = CallEvent::Create(this);
+  NS_ASSERTION(event, "This should never fail!");
+
+  if (NS_FAILED(event->Dispatch(ToIDOMEventTarget(),
+                                NS_LITERAL_STRING("error")))) {
     NS_WARNING("Failed to dispatch error event!");
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(TelephonyCall,
-                                     nsDOMEventTargetHelper,
-                                     mTelephony)
+NS_IMPL_CYCLE_COLLECTION_CLASS(TelephonyCall)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(TelephonyCall,
+                                                  nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(tmp->mTelephony->ToISupports(),
+                                               Telephony, "mTelephony")
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(TelephonyCall,
+                                                nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTelephony)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(TelephonyCall)
   NS_INTERFACE_MAP_ENTRY(nsIDOMTelephonyCall)
@@ -197,63 +187,63 @@ TelephonyCall::GetError(nsIDOMDOMError** aError)
 NS_IMETHODIMP
 TelephonyCall::Answer()
 {
-  if (mCallState != nsITelephonyProvider::CALL_STATE_INCOMING) {
+  if (mCallState != nsIRadioInterfaceLayer::CALL_STATE_INCOMING) {
     NS_WARNING("Answer on non-incoming call ignored!");
     return NS_OK;
   }
 
-  nsresult rv = mTelephony->Provider()->AnswerCall(mCallIndex);
+  nsresult rv = mTelephony->RIL()->AnswerCall(mCallIndex);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  ChangeStateInternal(nsITelephonyProvider::CALL_STATE_CONNECTING, true);
+  ChangeStateInternal(nsIRadioInterfaceLayer::CALL_STATE_CONNECTING, true);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 TelephonyCall::HangUp()
 {
-  if (mCallState == nsITelephonyProvider::CALL_STATE_DISCONNECTING ||
-      mCallState == nsITelephonyProvider::CALL_STATE_DISCONNECTED) {
+  if (mCallState == nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTING ||
+      mCallState == nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTED) {
     NS_WARNING("HangUp on previously disconnected call ignored!");
     return NS_OK;
   }
 
-  nsresult rv = mCallState == nsITelephonyProvider::CALL_STATE_INCOMING ?
-                mTelephony->Provider()->RejectCall(mCallIndex) :
-                mTelephony->Provider()->HangUp(mCallIndex);
+  nsresult rv = mCallState == nsIRadioInterfaceLayer::CALL_STATE_INCOMING ?
+                mTelephony->RIL()->RejectCall(mCallIndex) :
+                mTelephony->RIL()->HangUp(mCallIndex);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  ChangeStateInternal(nsITelephonyProvider::CALL_STATE_DISCONNECTING, true);
+  ChangeStateInternal(nsIRadioInterfaceLayer::CALL_STATE_DISCONNECTING, true);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 TelephonyCall::Hold()
 {
-  if (mCallState != nsITelephonyProvider::CALL_STATE_CONNECTED) {
+  if (mCallState != nsIRadioInterfaceLayer::CALL_STATE_CONNECTED) {
     NS_WARNING("Hold non-connected call ignored!");
     return NS_OK;
   }
-
-  nsresult rv = mTelephony->Provider()->HoldCall(mCallIndex);
+  
+  nsresult rv = mTelephony->RIL()->HoldCall(mCallIndex);
   NS_ENSURE_SUCCESS(rv,rv);
-
-  ChangeStateInternal(nsITelephonyProvider::CALL_STATE_HOLDING, true);
+  
+  ChangeStateInternal(nsIRadioInterfaceLayer::CALL_STATE_HOLDING, true);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 TelephonyCall::Resume()
 {
-  if (mCallState != nsITelephonyProvider::CALL_STATE_HELD) {
+  if (mCallState != nsIRadioInterfaceLayer::CALL_STATE_HELD) {
     NS_WARNING("Resume non-held call ignored!");
     return NS_OK;
   }
-
-  nsresult rv = mTelephony->Provider()->ResumeCall(mCallIndex);
+  
+  nsresult rv = mTelephony->RIL()->ResumeCall(mCallIndex);
   NS_ENSURE_SUCCESS(rv,rv);
-
-  ChangeStateInternal(nsITelephonyProvider::CALL_STATE_RESUMING, true);
+  
+  ChangeStateInternal(nsIRadioInterfaceLayer::CALL_STATE_RESUMING, true);
   return NS_OK;
 }
 

@@ -12,9 +12,14 @@ include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/rdf/util/src/objs.mk
 include $(topsrcdir)/intl/unicharutil/util/objs.mk
 
+MODULE = libxul
 LIBRARY_NAME = xul
 FORCE_SHARED_LIB = 1
 MOZILLA_INTERNAL_API = 1
+
+ifdef MOZ_METRO
+DIRS += winvccorlib
+endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
 # This is going to be a framework named "XUL", not an ordinary library named
@@ -37,7 +42,6 @@ CPPSRCS += dlldeps-xul.cpp
 endif
 
 SHARED_LIBRARY_LIBS += \
-  $(DEPTH)/media/kiss_fft/$(LIB_PREFIX)kiss_fft.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/components/osfile/$(LIB_PREFIX)osfile_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/xre/$(LIB_PREFIX)xulapp_s.$(LIB_SUFFIX) \
   $(NULL)
@@ -107,11 +111,7 @@ STATIC_LIBS += mozril_s
 endif #}
 
 ifdef MOZ_B2G_BT #{
-STATIC_LIBS += mozdbus_s
-endif #}
-
-ifneq ($(strip $(MOZ_B2G_RIL)$(MOZ_B2G_BT)),) #{
-STATIC_LIBS += mozipcunixsocket_s
+STATIC_LIBS += mozdbus_s mozipcunixsocket_s
 endif #}
 
 ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
@@ -213,12 +213,6 @@ COMPONENT_LIBS += \
   $(NULL)
 endif
 
-ifneq (,$(filter android,$(MOZ_WIDGET_TOOLKIT)))
-COMPONENT_LIBS += \
-  androidproxy \
-  $(NULL)
-endif
-
 ifdef MOZ_JSDEBUGGER
 DEFINES += -DMOZ_JSDEBUGGER
 COMPONENT_LIBS += \
@@ -296,19 +290,12 @@ endif
 
 STATIC_LIBS += thebes gl ycbcr
 
-ifdef MOZ_ENABLE_GTEST
-COMPONENT_LIBS += gtest
-endif
-
 ifdef MOZ_ENABLE_PROFILER_SPS
 COMPONENT_LIBS += profiler
 endif
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += widget_windows
-ifdef MOZ_METRO
-COMPONENT_LIBS += widget_winrt
-endif
 endif
 ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += wdgtos2
@@ -396,10 +383,6 @@ ifndef MOZ_TREE_PIXMAN
 EXTRA_DSO_LDOPTS += $(MOZ_PIXMAN_LIBS)
 endif
 
-ifdef MOZ_DMD
-EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME_PATH,dmd,$(DIST)/lib)
-endif
-
 EXTRA_DSO_LDOPTS += $(call EXPAND_LIBNAME_PATH,gkmedias,$(DIST)/lib)
 
 ifdef MOZ_WEBRTC
@@ -426,11 +409,14 @@ endif
 endif
 
 
-ifdef MOZ_CUBEB
-ifdef MOZ_ALSA
+ifdef MOZ_SYDNEYAUDIO
+ifeq ($(OS_ARCH),Linux)
 EXTRA_DSO_LDOPTS += $(MOZ_ALSA_LIBS)
 endif
+endif
+
 ifdef MOZ_PULSEAUDIO
+ifdef MOZ_CUBEB
 EXTRA_DSO_LDOPTS += $(MOZ_PULSEAUDIO_LIBS)
 endif
 endif
@@ -453,17 +439,13 @@ OS_LIBS += \
   -lcutils \
   -lsysutils \
   -lcamera_client \
+  -lbinder \
   -lsensorservice \
   -ldbus \
   -lstagefright \
   -lstagefright_omx \
   -lbinder \
-  -lgui \
   $(NULL)
-endif
-
-ifdef MOZ_WMF
-OS_LIBS += $(call EXPAND_LIBNAME,mfuuid wmcodecdspuuid)
 endif
 
 EXTRA_DEPS += \
@@ -518,6 +500,27 @@ OS_LIBS += \
   -F/System/Library/PrivateFrameworks -framework CoreUI \
   $(TK_LIBS) \
   $(NULL)
+endif
+
+ifeq ($(OS_ARCH),Darwin)
+ifdef MOZ_SYDNEYAUDIO
+OS_LIBS += \
+  -framework Carbon \
+  -framework CoreAudio \
+  -framework AudioToolbox \
+  -framework AudioUnit \
+  -framework IOKit \
+  -framework Foundation \
+  -framework AppKit \
+  -framework Security \
+  $(NULL)
+endif
+endif
+
+ifneq (,$(filter NetBSD OpenBSD,$(OS_ARCH)))
+ifdef MOZ_SYDNEYAUDIO
+EXTRA_DSO_LDOPTS += -lossaudio
+endif
 endif
 
 ifeq (OpenBSD,$(OS_ARCH))
@@ -582,9 +585,6 @@ OS_LIBS += $(call EXPAND_LIBNAME,shell32 ole32 version winspool comdlg32 imm32 m
 ifdef ACCESSIBILITY
 OS_LIBS += $(call EXPAND_LIBNAME,oleacc)
 endif
-ifdef MOZ_METRO
-OS_LIBS += $(call EXPAND_LIBNAME,uiautomationcore runtimeobject)
-endif
 ifdef _MSC_VER
 OS_LIBS += $(call EXPAND_LIBNAME,delayimp)
 EXTRA_DSO_LDOPTS += \
@@ -607,25 +607,10 @@ EXTRA_DSO_LDOPTS += -DELAYLOAD:VCCORLIB$(CRTDLLVERSION).DLL
 endif
 EXTRA_DSO_LDOPTS += -DELAYLOAD:API-MS-WIN-CORE-WINRT-L$(CRTEXPDLLVERSION).DLL
 EXTRA_DSO_LDOPTS += -DELAYLOAD:API-MS-WIN-CORE-WINRT-STRING-L$(CRTEXPDLLVERSION).DLL
-EXTRA_DSO_LDOPTS += -DELAYLOAD:uiautomationcore.dll
 endif
 
 ifdef ACCESSIBILITY
 EXTRA_DSO_LDOPTS += -DELAYLOAD:oleacc.dll
-endif
-ifdef MOZ_WEBRTC_IN_LIBXUL
-EXTRA_DSO_LDOPTS += -DELAYLOAD:msdmo.dll
-endif
-endif
-ifdef MOZ_GAMEPAD
-ifndef GNU_CC
-DXSDK := $(subst \,/,$(MOZ_DIRECTX_SDK_PATH))/Lib/$(MOZ_DIRECTX_SDK_CPU_SUFFIX)
-OS_LIBS += \
-  "$(DXSDK)/dxguid.lib" \
-  "$(DXSDK)/dinput8.lib" \
-  $(NULL)
-else
-OS_LIBS += $(call EXPAND_LIBNAME,dxguid dinput8)
 endif
 endif
 endif # WINNT
@@ -640,17 +625,6 @@ endif
 
 ifdef MOZ_GSTREAMER
 EXTRA_DSO_LDOPTS += $(GSTREAMER_LIBS)
-endif
-
-# Generate GDB pretty printer-autoload files only on Linux. OSX's GDB is
-# too old to support Python pretty-printers; if this changes, we could make
-# this 'ifdef GNU_CC'.
-ifeq (Linux,$(OS_ARCH))
-# Create a GDB Python auto-load file alongside the libxul shared library in
-# the build directory.
-PP_TARGETS += LIBXUL_AUTOLOAD
-LIBXUL_AUTOLOAD = libxul.so-gdb.py.in
-LIBXUL_AUTOLOAD_FLAGS := -Dtopsrcdir=$(abspath $(topsrcdir))
 endif
 
 include $(topsrcdir)/config/rules.mk
@@ -694,8 +668,3 @@ ifeq (WINNT_1,$(OS_TARGET)_$(MOZ_PROFILE_USE))
 # Wrap linker to measure peak virtual memory usage.
 LD := $(PYTHON) $(topsrcdir)/build/link.py $(CURDIR)/linker-vsize $(LD)
 endif
-
-libs:: $(FINAL_TARGET)/dependentlibs.list
-
-$(FINAL_TARGET)/dependentlibs.list: dependentlibs.py $(SHARED_LIBRARY) $(wildcard $(if $(wildcard $(FINAL_TARGET)/dependentlibs.list),$(addprefix $(FINAL_TARGET)/,$(shell cat $(FINAL_TARGET)/dependentlibs.list))))
-	$(PYTHON) $< $(SHARED_LIBRARY) -L $(FINAL_TARGET) $(if $(TOOLCHAIN_PREFIX),$(addprefix -p ,$(TOOLCHAIN_PREFIX))) > $@

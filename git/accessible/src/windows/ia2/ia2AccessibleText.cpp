@@ -14,15 +14,12 @@
 
 #include "nsIPersistentProperties2.h"
 
-using namespace mozilla::a11y;
-
 // IAccessibleText
 
 STDMETHODIMP
 ia2AccessibleText::addSelection(long aStartOffset, long aEndOffset)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -30,21 +27,21 @@ ia2AccessibleText::addSelection(long aStartOffset, long aEndOffset)
   nsresult rv = textAcc->AddSelection(aStartOffset, aEndOffset);
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::get_attributes(long aOffset, long *aStartOffset,
                                   long *aEndOffset, BSTR *aTextAttributes)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   if (!aStartOffset || !aEndOffset || !aTextAttributes)
     return E_INVALIDARG;
 
   *aStartOffset = 0;
   *aEndOffset = 0;
-  *aTextAttributes = nullptr;
+  *aTextAttributes = NULL;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
@@ -68,14 +65,14 @@ ia2AccessibleText::get_attributes(long aOffset, long *aStartOffset,
 
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::get_caretOffset(long *aOffset)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aOffset = -1;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
@@ -90,7 +87,8 @@ ia2AccessibleText::get_caretOffset(long *aOffset)
   *aOffset = offset;
   return offset != -1 ? S_OK : S_FALSE;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -99,8 +97,7 @@ ia2AccessibleText::get_characterExtents(long aOffset,
                                         long *aX, long *aY,
                                         long *aWidth, long *aHeight)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aX = 0;
   *aY = 0;
   *aWidth = 0;
@@ -126,14 +123,14 @@ ia2AccessibleText::get_characterExtents(long aOffset,
   *aHeight = height;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::get_nSelections(long *aNSelections)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aNSelections = 0;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
@@ -148,7 +145,8 @@ ia2AccessibleText::get_nSelections(long *aNSelections)
   *aNSelections = selCount;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -156,8 +154,7 @@ ia2AccessibleText::get_offsetAtPoint(long aX, long aY,
                                      enum IA2CoordinateType aCoordType,
                                      long *aOffset)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aOffset = 0;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
@@ -176,15 +173,15 @@ ia2AccessibleText::get_offsetAtPoint(long aX, long aY,
   *aOffset = offset;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::get_selection(long aSelectionIndex, long *aStartOffset,
                                  long *aEndOffset)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aStartOffset = 0;
   *aEndOffset = 0;
 
@@ -202,15 +199,15 @@ ia2AccessibleText::get_selection(long aSelectionIndex, long *aStartOffset,
   *aEndOffset = endOffset;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::get_text(long aStartOffset, long aEndOffset, BSTR *aText)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  *aText = nullptr;
+__try {
+  *aText = NULL;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
@@ -227,7 +224,8 @@ ia2AccessibleText::get_text(long aStartOffset, long aEndOffset, BSTR *aText)
   *aText = ::SysAllocStringLen(text.get(), text.Length());
   return *aText ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -236,11 +234,10 @@ ia2AccessibleText::get_textBeforeOffset(long aOffset,
                                         long *aStartOffset, long *aEndOffset,
                                         BSTR *aText)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aStartOffset = 0;
   *aEndOffset = 0;
-  *aText = nullptr;
+  *aText = NULL;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
@@ -274,7 +271,8 @@ ia2AccessibleText::get_textBeforeOffset(long aOffset,
   *aText = ::SysAllocStringLen(text.get(), text.Length());
   return *aText ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -283,11 +281,10 @@ ia2AccessibleText::get_textAfterOffset(long aOffset,
                                        long *aStartOffset, long *aEndOffset,
                                        BSTR *aText)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aStartOffset = 0;
   *aEndOffset = 0;
-  *aText = nullptr;
+  *aText = NULL;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
@@ -321,7 +318,8 @@ ia2AccessibleText::get_textAfterOffset(long aOffset,
   *aText = ::SysAllocStringLen(text.get(), text.Length());
   return *aText ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -330,11 +328,10 @@ ia2AccessibleText::get_textAtOffset(long aOffset,
                                     long *aStartOffset, long *aEndOffset,
                                     BSTR *aText)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aStartOffset = 0;
   *aEndOffset = 0;
-  *aText = nullptr;
+  *aText = NULL;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
@@ -368,14 +365,14 @@ ia2AccessibleText::get_textAtOffset(long aOffset,
   *aText = ::SysAllocStringLen(text.get(), text.Length());
   return *aText ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::removeSelection(long aSelectionIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -383,14 +380,14 @@ ia2AccessibleText::removeSelection(long aSelectionIndex)
   nsresult rv = textAcc->RemoveSelection(aSelectionIndex);
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::setCaretOffset(long aOffset)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -398,15 +395,15 @@ ia2AccessibleText::setCaretOffset(long aOffset)
   nsresult rv = textAcc->SetCaretOffset(aOffset);
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::setSelection(long aSelectionIndex, long aStartOffset,
                                 long aEndOffset)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -415,14 +412,14 @@ ia2AccessibleText::setSelection(long aSelectionIndex, long aStartOffset,
                                             aStartOffset, aEndOffset);
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::get_nCharacters(long *aNCharacters)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aNCharacters = 0;
 
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
@@ -432,15 +429,15 @@ ia2AccessibleText::get_nCharacters(long *aNCharacters)
   *aNCharacters  = textAcc->CharacterCount();
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::scrollSubstringTo(long aStartIndex, long aEndIndex,
                                      enum IA2ScrollType aScrollType)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -448,7 +445,8 @@ ia2AccessibleText::scrollSubstringTo(long aStartIndex, long aEndIndex,
   nsresult rv = textAcc->ScrollSubstringTo(aStartIndex, aEndIndex, aScrollType);
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
@@ -456,8 +454,7 @@ ia2AccessibleText::scrollSubstringToPoint(long aStartIndex, long aEndIndex,
                                           enum IA2CoordinateType aCoordType,
                                           long aX, long aY)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   HyperTextAccessible* textAcc = static_cast<HyperTextAccessibleWrap*>(this);
   if (textAcc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -470,27 +467,28 @@ ia2AccessibleText::scrollSubstringToPoint(long aStartIndex, long aEndIndex,
                                                 geckoCoordType, aX, aY);
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::get_newText(IA2TextSegment *aNewText)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   return GetModifiedText(true, aNewText);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleText::get_oldText(IA2TextSegment *aOldText)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   return GetModifiedText(false, aOldText);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 // ia2AccessibleText

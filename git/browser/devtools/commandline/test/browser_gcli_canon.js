@@ -26,177 +26,129 @@ var exports = {};
 const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testCanon.js</p>";
 
 function test() {
-  helpers.addTabWithToolbar(TEST_URI, function(options) {
-    return helpers.runTests(options, exports);
-  }).then(finish);
+  var tests = Object.keys(exports);
+  // Push setup to the top and shutdown to the bottom
+  tests.sort(function(t1, t2) {
+    if (t1 == "setup" || t2 == "shutdown") return -1;
+    if (t2 == "setup" || t1 == "shutdown") return 1;
+    return 0;
+  });
+  info("Running tests: " + tests.join(", "))
+  tests = tests.map(function(test) { return exports[test]; });
+  DeveloperToolbarTest.test(TEST_URI, tests, true);
 }
 
 // <INJECTED SOURCE:END>
 
-'use strict';
+  // var helpers = require('gclitest/helpers');
+  var canon = require('gcli/canon');
+  // var assert = require('test/assert');
 
-// var helpers = require('gclitest/helpers');
-var canon = require('gcli/canon');
-// var assert = require('test/assert');
+  exports.setup = function(options) {
+    helpers.setup(options);
+  };
 
-var startCount = undefined;
-var events = undefined;
+  exports.shutdown = function(options) {
+    helpers.shutdown(options);
+  };
 
-var canonChange = function(ev) {
-  events++;
-};
+  exports.testAddRemove = function(options) {
+    var startCount = canon.getCommands().length;
+    var events = 0;
 
-exports.setup = function(options) {
-  startCount = canon.getCommands().length;
-  events = 0;
-};
+    var canonChange = function(ev) {
+      events++;
+    };
+    canon.onCanonChange.add(canonChange);
 
-exports.shutdown = function(options) {
-  startCount = undefined;
-  events = undefined;
-};
-
-exports.testAddRemove1 = function(options) {
-  return helpers.audit(options, [
-    {
-      name: 'testadd add',
-      setup: function() {
-        canon.onCanonChange.add(canonChange);
-
-        canon.addCommand({
-          name: 'testadd',
-          exec: function() {
-            return 1;
-          }
-        });
-
-        assert.is(canon.getCommands().length,
-                  startCount + 1,
-                  'add command success');
-        assert.is(events, 1, 'add event');
-
-        return helpers.setInput(options, 'testadd');
-      },
-      check: {
-        input:  'testadd',
-        hints:         '',
-        markup: 'VVVVVVV',
-        cursor: 7,
-        current: '__command',
-        status: 'VALID',
-        predictions: [ ],
-        unassigned: [ ],
-        args: { }
-      },
-      exec: {
-        output: /^1$/
+    canon.addCommand({
+      name: 'testadd',
+      exec: function() {
+        return 1;
       }
-    },
-    {
-      name: 'testadd alter',
-      setup: function() {
-        canon.addCommand({
-          name: 'testadd',
-          exec: function() {
-            return 2;
-          }
-        });
+    });
+    assert.is(canon.getCommands().length,
+              startCount + 1,
+              'add command success');
+    assert.is(events, 1, 'add event');
+    helpers.exec({
+      typed: 'testadd',
+      outputMatch: /^1$/
+    });
 
-        assert.is(canon.getCommands().length,
-                  startCount + 1,
-                  'read command success');
-        assert.is(events, 2, 'read event');
-
-        return helpers.setInput(options, 'testadd');
-      },
-      check: {
-        input:  'testadd',
-        hints:         '',
-        markup: 'VVVVVVV',
-      },
-      exec: {
-        output: '2'
+    canon.addCommand({
+      name: 'testadd',
+      exec: function() {
+        return 2;
       }
-    },
-    {
-      name: 'testadd remove',
-      setup: function() {
-        canon.removeCommand('testadd');
+    });
 
-        assert.is(canon.getCommands().length,
-                  startCount,
-                  'remove command success');
-        assert.is(events, 3, 'remove event');
+    assert.is(canon.getCommands().length,
+              startCount + 1,
+              'readd command success');
+    assert.is(events, 2, 'readd event');
+    helpers.exec({
+      typed: 'testadd',
+      outputMatch: /^2$/
+    });
 
-        return helpers.setInput(options, 'testadd');
-      },
-      check: {
-        typed: 'testadd',
-        cursor: 7,
-        current: '__command',
-        status: 'ERROR',
-        unassigned: [ ],
+    canon.removeCommand('testadd');
+
+    assert.is(canon.getCommands().length,
+              startCount,
+              'remove command success');
+    assert.is(events, 3, 'remove event');
+
+    helpers.setInput('testadd');
+    helpers.check({
+      typed: 'testadd',
+      status: 'ERROR'
+    });
+
+    canon.addCommand({
+      name: 'testadd',
+      exec: function() {
+        return 3;
       }
-    }
-  ]);
-};
+    });
 
-exports.testAddRemove2 = function(options) {
-  canon.addCommand({
-    name: 'testadd',
-    exec: function() {
-      return 3;
-    }
-  });
+    assert.is(canon.getCommands().length,
+              startCount + 1,
+              'rereadd command success');
+    assert.is(events, 4, 'rereadd event');
+    helpers.exec({
+      typed: 'testadd',
+      outputMatch: /^3$/
+    });
 
-  assert.is(canon.getCommands().length,
-            startCount + 1,
-            'rereadd command success');
-  assert.is(events, 4, 'rereadd event');
+    canon.removeCommand({
+      name: 'testadd'
+    });
 
-  return helpers.audit(options, [
-    {
-      setup: 'testadd',
-      check: {
-      },
-      exec: {
-        output: /^3$/
-      },
-      post: function() {
-        canon.removeCommand({
-          name: 'testadd'
-        });
+    assert.is(canon.getCommands().length,
+              startCount,
+              'reremove command success');
+    assert.is(events, 5, 'reremove event');
 
-        assert.is(canon.getCommands().length,
-                  startCount,
-                  'reremove command success');
-        assert.is(events, 5, 'reremove event');
-      }
-    },
-    {
-      setup: 'testadd',
-      check: {
-        typed: 'testadd',
-        status: 'ERROR'
-      }
-    }
-  ]);
-};
+    helpers.setInput('testadd');
+    helpers.check({
+      typed: 'testadd',
+      status: 'ERROR'
+    });
 
-exports.testAddRemove3 = function(options) {
-  canon.removeCommand({ name: 'nonexistant' });
-  assert.is(canon.getCommands().length,
-            startCount,
-            'nonexistant1 command success');
-  assert.is(events, 5, 'nonexistant1 event');
+    canon.removeCommand({ name: 'nonexistant' });
+    assert.is(canon.getCommands().length,
+              startCount,
+              'nonexistant1 command success');
+    assert.is(events, 5, 'nonexistant1 event');
 
-  canon.removeCommand('nonexistant');
-  assert.is(canon.getCommands().length,
-            startCount,
-            'nonexistant2 command success');
-  assert.is(events, 5, 'nonexistant2 event');
+    canon.removeCommand('nonexistant');
+    assert.is(canon.getCommands().length,
+              startCount,
+              'nonexistant2 command success');
+    assert.is(events, 5, 'nonexistant2 event');
 
-  canon.onCanonChange.remove(canonChange);
-};
+    canon.onCanonChange.remove(canonChange);
+  };
 
 // });

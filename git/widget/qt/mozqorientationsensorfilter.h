@@ -12,9 +12,9 @@
 #include <QObject>
 #include <QTransform>
 
+using namespace QtMobility;
 
-class MozQOrientationSensorFilter : public QObject
-                                  , public QtMobility::QOrientationFilter
+class MozQOrientationSensorFilter : public QObject, public QOrientationFilter
 {
     Q_OBJECT
 
@@ -26,19 +26,16 @@ public:
 
     virtual ~MozQOrientationSensorFilter(){}
 
-    virtual bool filter(QtMobility::QOrientationReading* reading);
+    virtual bool filter(QOrientationReading* reading);
 
     static int GetWindowRotationAngle();
     static QTransform& GetRotationTransform();
 
-Q_SIGNALS:
+signals:
     void orientationChanged();
 
 private:
-    bool filter(QtMobility::QSensorReading *reading)
-    {
-        return filter(static_cast<QtMobility::QOrientationReading*>(reading));
-    }
+    bool filter(QSensorReading *reading) { return filter(static_cast<QOrientationReading*>(reading)); }
 
     static int mWindowRotationAngle;
     static QTransform mWindowRotationTransform;

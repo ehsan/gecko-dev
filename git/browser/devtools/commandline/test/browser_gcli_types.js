@@ -26,37 +26,47 @@ var exports = {};
 const TEST_URI = "data:text/html;charset=utf-8,<p id='gcli-input'>gcli-testTypes.js</p>";
 
 function test() {
-  helpers.addTabWithToolbar(TEST_URI, function(options) {
-    return helpers.runTests(options, exports);
-  }).then(finish);
+  var tests = Object.keys(exports);
+  // Push setup to the top and shutdown to the bottom
+  tests.sort(function(t1, t2) {
+    if (t1 == "setup" || t2 == "shutdown") return -1;
+    if (t2 == "setup" || t1 == "shutdown") return 1;
+    return 0;
+  });
+  info("Running tests: " + tests.join(", "))
+  tests = tests.map(function(test) { return exports[test]; });
+  DeveloperToolbarTest.test(TEST_URI, tests, true);
 }
 
 // <INJECTED SOURCE:END>
 
-'use strict';
-
 // var assert = require('test/assert');
 var types = require('gcli/types');
 
-function forEachType(options, typeSpec, callback) {
-  types.getTypeNames().forEach(function(name) {
-    typeSpec.name = name;
-    typeSpec.requisition = options.display.requisition;
+exports.setup = function() {
+};
 
-    // Provide some basic defaults to help selection/delegate/array work
+exports.shutdown = function() {
+};
+
+function forEachType(options, callback) {
+  types.getTypeNames().forEach(function(name) {
+    options.name = name;
+
+    // Provide some basic defaults to help selection/deferred/array work
     if (name === 'selection') {
-      typeSpec.data = [ 'a', 'b' ];
+      options.data = [ 'a', 'b' ];
     }
-    else if (name === 'delegate') {
-      typeSpec.delegateType = function() {
+    else if (name === 'deferred') {
+      options.defer = function() {
         return types.getType('string');
       };
     }
     else if (name === 'array') {
-      typeSpec.subtype = 'string';
+      options.subtype = 'string';
     }
 
-    var type = types.getType(typeSpec);
+    var type = types.getType(options);
     callback(type);
   });
 }
@@ -67,7 +77,7 @@ exports.testDefault = function(options) {
     return;
   }
 
-  forEachType(options, {}, function(type) {
+  forEachType({}, function(type) {
     var blank = type.getBlank().value;
 
     // boolean and array types are exempt from needing undefined blank values
@@ -89,10 +99,9 @@ exports.testDefault = function(options) {
 };
 
 exports.testNullDefault = function(options) {
-  forEachType(options, { defaultValue: null }, function(type) {
-    assert.is(type.stringify(null, null), '', 'stringify(null) for ' + type.name);
+  forEachType({ defaultValue: null }, function(type) {
+    assert.is(type.stringify(null), '', 'stringify(null) for ' + type.name);
   });
 };
-
 
 // });

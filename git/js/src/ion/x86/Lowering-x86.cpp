@@ -41,6 +41,35 @@ LIRGeneratorX86::useBoxFixed(LInstruction *lir, size_t n, MDefinition *mir, Regi
 }
 
 bool
+LIRGeneratorX86::lowerConstantDouble(double d, MInstruction *mir)
+{
+    uint32 index;
+    if (!lirGraph_.addConstantToPool(DoubleValue(d), &index))
+        return false;
+
+    LDouble *lir = new LDouble(LConstantIndex::FromIndex(index));
+    return define(lir, mir);
+}
+
+bool
+LIRGeneratorX86::visitConstant(MConstant *ins)
+{
+    if (ins->type() == MIRType_Double) {
+        uint32 index;
+        if (!lirGraph_.addConstantToPool(ins->value(), &index))
+            return false;
+        LDouble *lir = new LDouble(LConstantIndex::FromIndex(index));
+        return define(lir, ins);
+    }
+
+    // Emit non-double constants at their uses.
+    if (ins->canEmitAtUses())
+        return emitAtUses(ins);
+
+    return LIRGeneratorShared::visitConstant(ins);
+}
+
+bool
 LIRGeneratorX86::visitBox(MBox *box)
 {
     MDefinition *inner = box->getOperand(0);
@@ -59,7 +88,7 @@ LIRGeneratorX86::visitBox(MBox *box)
 
     // Otherwise, we should not define a new register for the payload portion
     // of the output, so bypass defineBox().
-    uint32_t vreg = getVirtualRegister();
+    uint32 vreg = getVirtualRegister();
     if (vreg >= MAX_VIRTUAL_REGISTERS)
         return false;
 
@@ -169,13 +198,13 @@ LIRGeneratorX86::defineUntypedPhi(MPhi *phi, size_t lirIndex)
     LPhi *type = current->getPhi(lirIndex + VREG_TYPE_OFFSET);
     LPhi *payload = current->getPhi(lirIndex + VREG_DATA_OFFSET);
 
-    uint32_t typeVreg = getVirtualRegister();
+    uint32 typeVreg = getVirtualRegister();
     if (typeVreg >= MAX_VIRTUAL_REGISTERS)
         return false;
 
     phi->setVirtualRegister(typeVreg);
 
-    uint32_t payloadVreg = getVirtualRegister();
+    uint32 payloadVreg = getVirtualRegister();
     if (payloadVreg >= MAX_VIRTUAL_REGISTERS)
         return false;
     JS_ASSERT(typeVreg + 1 == payloadVreg);
@@ -188,7 +217,7 @@ LIRGeneratorX86::defineUntypedPhi(MPhi *phi, size_t lirIndex)
 }
 
 void
-LIRGeneratorX86::lowerUntypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock *block, size_t lirIndex)
+LIRGeneratorX86::lowerUntypedPhiInput(MPhi *phi, uint32 inputPosition, LBlock *block, size_t lirIndex)
 {
     MDefinition *operand = phi->getOperand(inputPosition);
     LPhi *type = block->getPhi(lirIndex + VREG_TYPE_OFFSET);
@@ -196,6 +225,14 @@ LIRGeneratorX86::lowerUntypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock 
     type->setOperand(inputPosition, LUse(operand->virtualRegister() + VREG_TYPE_OFFSET, LUse::ANY));
     payload->setOperand(inputPosition, LUse(VirtualRegisterOfPayload(operand), LUse::ANY));
 }
+
+bool
+LIRGeneratorX86::lowerDivI(MDiv *div)
+{
+    LDivI *lir = new LDivI(useFixed(div->lhs(), eax), useRegister(div->rhs()), tempFixed(edx));
+    return assignSnapshot(lir) && defineFixed(lir, div, LAllocation(AnyRegister(eax)));
+}
+
 
 bool
 LIRGeneratorX86::visitStoreTypedArrayElement(MStoreTypedArrayElement *ins)
@@ -219,46 +256,3 @@ LIRGeneratorX86::visitStoreTypedArrayElement(MStoreTypedArrayElement *ins)
         value = useRegisterOrNonDoubleConstant(ins->value());
     return add(new LStoreTypedArrayElement(elements, index, value), ins);
 }
-
-bool
-LIRGeneratorX86::visitAsmJSUnsignedToDouble(MAsmJSUnsignedToDouble *ins)
-{
-    JS_ASSERT(ins->input()->type() == MIRType_Int32);
-    LUInt32ToDouble *lir = new LUInt32ToDouble(useRegisterAtStart(ins->input()), temp());
-    return define(lir, ins);
-}
-
-bool
-LIRGeneratorX86::visitAsmJSStoreHeap(MAsmJSStoreHeap *ins)
-{
-    LAsmJSStoreHeap *lir;
-    switch (ins->viewType()) {
-      case ArrayBufferView::TYPE_INT8: case ArrayBufferView::TYPE_UINT8:
-        // It's a trap! On x86, the 1-byte store can only use one of
-        // {al,bl,cl,dl,ah,bh,ch,dh}. That means if the register allocator
-        // gives us one of {edi,esi,ebp,esp}, we're out of luck. (The formatter
-        // will assert on us.) Ideally, we'd just ask the register allocator to
-        // give us one of {al,bl,cl,dl}. For now, just useFixed(al).
-        lir = new LAsmJSStoreHeap(useRegister(ins->ptr()),
-                                  useFixed(ins->value(), eax));
-        break;
-      case ArrayBufferView::TYPE_INT16: case ArrayBufferView::TYPE_UINT16:
-      case ArrayBufferView::TYPE_INT32: case ArrayBufferView::TYPE_UINT32:
-      case ArrayBufferView::TYPE_FLOAT32: case ArrayBufferView::TYPE_FLOAT64:
-        // For now, don't allow constants. The immediate operand affects
-        // instruction layout which affects patching.
-        lir = new LAsmJSStoreHeap(useRegisterAtStart(ins->ptr()),
-                                  useRegisterAtStart(ins->value()));
-        break;
-      default: JS_NOT_REACHED("unexpected array type");
-    }
-
-    return add(lir, ins);
-}
-
-bool
-LIRGeneratorX86::visitAsmJSLoadFuncPtr(MAsmJSLoadFuncPtr *ins)
-{
-    return define(new LAsmJSLoadFuncPtr(useRegisterAtStart(ins->index())), ins);
-}
-

@@ -9,7 +9,6 @@
 #include <stdio.h>
 
 
-#define snprintf cpr_win_snprintf
-int cpr_win_snprintf(char *buffer, size_t n, const char *format, ...);
+#define snprintf _snprintf
 
 #endif

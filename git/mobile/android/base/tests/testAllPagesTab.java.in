@@ -1,19 +1,25 @@
 #filter substitution
 package @ANDROID_PACKAGE_NAME@.tests;
 
+import android.app.Activity;
 import android.view.View;
 import android.widget.ListView;
+import android.widget.ExpandableListView;
+import android.widget.LinearLayout;
 import android.widget.TabHost;
 import android.widget.TextView;
 import android.widget.ImageView;
-import android.widget.TabWidget;
 import android.text.TextUtils;
 
+import android.content.ContentValues;
 import android.content.ContentResolver;
+import android.database.Cursor;
 import android.net.Uri;
 
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.io.File;
+
 import @ANDROID_PACKAGE_NAME@.*;
 
 /* Tests opening the all pages tab, that items look correct, clicking on an item
@@ -22,12 +28,10 @@ import @ANDROID_PACKAGE_NAME@.*;
 
 public class testAllPagesTab extends BaseTest {
     private static final String ABOUT_HOME_URL = "about:home";
-    private static ListView listview = null;
-
     private String[] bookmarks = new String[] {
         "about:firefox",
         "about:home",
-        "http://support.mozilla.org/en-US/products/mobile",
+        "http://support.mozilla.org/en-US/mobile",
         "https://addons.mozilla.org/en-US/android/"
     };
 
@@ -37,7 +41,7 @@ public class testAllPagesTab extends BaseTest {
     }
 
     public void testAllPagesTab() {
-        blockForGeckoReady();
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
         // load one page so there is something in our history
         String url = getAbsoluteUrl("/robocop/robocop_big_link.html");
@@ -49,30 +53,18 @@ public class testAllPagesTab extends BaseTest {
     }
 
     private void testList(String url) {
-        final ListView list = getAllPagesList(bookmarks[0], 5);
+        ListView list = getAllPagesList(url);
+        mSolo.waitForText(url);
 
-        // some basic checks for the tab strip
-        TabWidget tabwidget = (TabWidget)mSolo.getView(TabWidget.class, 0);
-        mAsserter.is(tabwidget.getTabCount(), 3, "Three tabs shown");
-        mAsserter.is(tabwidget.isStripEnabled(), false, "Strip is hidden");
+        mAsserter.ok(list != null, "checking that all pages list exists", list.toString());
 
-        // check that the right tab is selected
-        TabHost host = (TabHost)mSolo.getView(TabHost.class, 0);
-        // This test fails, only when we're running tests
-        // mAsserter.is(host.getCurrentTab(), 0, "All pages tab is selected in tab strip");
+        mAsserter.is(list.getChildCount(), 5, "all pages list has 5 children (the default bookmarks)");
 
-        mAsserter.isnot(list, null, "checking that all pages list exists and has 5 children (the default bookmarks)");
-        final int count = list.getAdapter().getCount();
-
+        final int count = list.getChildCount();
         String loadUrl = "";
         for (int i = count - 1; i >= 0; i--) {
             View child = list.getChildAt(i);
-            if (child == null) {
-                // this may simply indicate that the item is not visible
-                Object item = list.getAdapter().getItem(i);
-                mAsserter.ok(item != null, "adapter item is set", item != null ? item.toString() : "null!");
-                continue;
-            }
+
             ArrayList<View> views = mSolo.getViews(child);
             ArrayList<ImageView> imageViews = new ArrayList<ImageView>();
 
@@ -109,14 +101,15 @@ public class testAllPagesTab extends BaseTest {
     }
 
     private void testContextMenu(String url) {
-        ListView list = getAllPagesList(bookmarks[0], 5);
+        ListView list = getAllPagesList(url);
+        mSolo.waitForText(url);
 
         View child = list.getChildAt(0);
-        mAsserter.ok(child != null, "first list item can be retrieved", child != null ? child.toString() : "null!");
         mSolo.clickLongOnView(child);
 
         // TODO: Test clicking these does the right thing
-        mAsserter.ok(mSolo.waitForText("Share"), "Context menu has Share option", "Share");
+        mAsserter.ok(mSolo.waitForText("Open in New Tab"), "Context menu has New Tab option", "Open in New Tab");
+        mAsserter.ok(mSolo.searchText("Share", true), "Context menu has Share option", "Share");
         mAsserter.ok(mSolo.searchText("Remove", true), "Context menu has Remove option", "Remove");
         mAsserter.ok(mSolo.searchText("Add to Home Screen", true), "Context menu has Add to Home Screen option", "Add to Home Screen");
 
@@ -125,27 +118,25 @@ public class testAllPagesTab extends BaseTest {
     }
 
     private void testClick(String url) {
-        ListView list = getAllPagesList(bookmarks[0], 5);
+        ListView list = getAllPagesList(url);
+        mSolo.waitForText(url);
 
         Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
         View child = list.getChildAt(0);
-        mAsserter.ok(child != null, "first list item can be retrieved", child != null ? child.toString() : "null!");
-        // dump text for this child, to be sure of which list item is clicked
-        ArrayList<View> views = mSolo.getViews(child);
-        for (int j = 0; j < views.size(); j++) {
-            View v = views.get(j);
-            if (v instanceof TextView) {
-                TextView t = (TextView)v;
-                String string = t.getText().toString();
-                mAsserter.dumpLog("first list item has text: " + string);
-            }
-        }
         mSolo.clickOnView(child);
         contentEventExpecter.blockForEvent();
         verifyUrl(url);
     }
 
-    @Override
+    private ListView getAllPagesList(String url) {
+        Activity awesomeBarActivity = clickOnAwesomeBar();
+        mSolo.waitForText(url);
+
+        TabHost tabHost = (TabHost)mSolo.getView(TabHost.class, 0);
+        int listId = mDriver.findElement(getActivity(), "awesomebar_list").getId();
+        return (ListView)tabHost.getCurrentView().findViewById(listId);
+    }
+
     public void tearDown() throws Exception {
         ContentResolver resolver = getActivity().getContentResolver();
         Uri uri = Uri.parse("content://@ANDROID_PACKAGE_NAME@.db.browser/history");

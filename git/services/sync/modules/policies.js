@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = [
+const EXPORTED_SYMBOLS = [
   "ErrorHandler",
   "SyncScheduler",
 ];
@@ -15,7 +15,7 @@ Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/util.js");
 
-this.SyncScheduler = function SyncScheduler(service) {
+function SyncScheduler(service) {
   this.service = service;
   this.init();
 }
@@ -173,12 +173,10 @@ SyncScheduler.prototype = {
         break;
       case "weave:service:backoff:interval":
         let requested_interval = subject * 1000;
-        this._log.debug("Got backoff notification: " + requested_interval + "ms");
         // Leave up to 25% more time for the back off.
         let interval = requested_interval * (1 + Math.random() * 0.25);
         Status.backoffInterval = interval;
         Status.minimumNextSync = Date.now() + requested_interval;
-        this._log.debug("Fuzzed minimum next sync: " + Status.minimumNextSync);
         break;
       case "weave:service:ready":
         // Applications can specify this preference if they want autoconnect
@@ -469,7 +467,7 @@ SyncScheduler.prototype = {
 const LOG_PREFIX_SUCCESS = "success-";
 const LOG_PREFIX_ERROR   = "error-";
 
-this.ErrorHandler = function ErrorHandler(service) {
+function ErrorHandler(service) {
   this.service = service;
   this.init();
 }
@@ -623,33 +621,26 @@ ErrorHandler.prototype = {
     let index = 0;
     let threshold = Date.now() - 1000 * Svc.Prefs.get("log.appender.file.maxErrorAge");
 
-    this._log.debug("Log cleanup threshold time: " + threshold);
     while (direntries.hasMoreElements()) {
       let logFile = direntries.getNext().QueryInterface(Ci.nsIFile);
       if (logFile.lastModifiedTime < threshold) {
-        this._log.trace(" > Noting " + logFile.leafName +
-                        " for cleanup (" + logFile.lastModifiedTime + ")");
         oldLogs.push(logFile);
       }
     }
 
     // Deletes a file from oldLogs each tick until there are none left.
-    let errorHandler = this;
     function deleteFile() {
       if (index >= oldLogs.length) {
-        errorHandler._log.debug("Done deleting files.");
-        errorHandler._cleaningUpFileLogs = false;
+        this._cleaningUpFileLogs = false;
         Svc.Obs.notify("weave:service:cleanup-logs");
         return;
       }
       try {
-        let file = oldLogs[index];
-        file.remove(false);
-        errorHandler._log.trace("Deleted " + file.leafName + ".");
+        oldLogs[index].remove(false);
       } catch (ex) {
-        errorHandler._log._debug("Encountered error trying to clean up old log file '"
-                                 + oldLogs[index].leafName + "':"
-                                 + Utils.exceptionStr(ex));
+        this._log._debug("Encountered error trying to clean up old log file '"
+                         + oldLogs[index].leafName + "':"
+                         + Utils.exceptionStr(ex));
       }
       index++;
       Utils.nextTick(deleteFile);
@@ -658,8 +649,6 @@ ErrorHandler.prototype = {
     if (oldLogs.length > 0) {
       this._cleaningUpFileLogs = true;
       Utils.nextTick(deleteFile);
-    } else {
-      this._log.debug("No logs to clean up.");
     }
   },
 
@@ -678,22 +667,15 @@ ErrorHandler.prototype = {
     let inStream = this._logAppender.getInputStream();
     this._logAppender.reset();
     if (flushToFile && inStream) {
-      this._log.debug("Flushing file log.");
       try {
         let filename = filenamePrefix + Date.now() + ".txt";
         let file = FileUtils.getFile("ProfD", ["weave", "logs", filename]);
         let outStream = FileUtils.openFileOutputStream(file);
 
-        this._log.trace("Beginning stream copy to " + file.leafName + ": " +
-                        Date.now());
         NetUtil.asyncCopy(inStream, outStream, function onCopyComplete() {
-          this._log.trace("onCopyComplete: " + Date.now());
-          this._log.trace("Output file timestamp: " + file.lastModifiedTime);
           Svc.Obs.notify("weave:service:reset-file-log");
-          this._log.trace("Notified: " + Date.now());
           if (filenamePrefix == LOG_PREFIX_ERROR &&
               !this._cleaningUpFileLogs) {
-            this._log.trace("Scheduling cleanup.");
             Utils.nextTick(this.cleanupLogs, this);
           }
         }.bind(this));
@@ -807,15 +789,13 @@ ErrorHandler.prototype = {
       case 504:
         Status.enforceBackoff = true;
         if (resp.status == 503 && resp.headers["retry-after"]) {
-          let retryAfter = resp.headers["retry-after"];
-          this._log.debug("Got Retry-After: " + retryAfter);
           if (this.service.isLoggedIn) {
             Status.sync = SERVER_MAINTENANCE;
           } else {
             Status.login = SERVER_MAINTENANCE;
           }
           Svc.Obs.notify("weave:service:backoff:interval",
-                         parseInt(retryAfter, 10));
+                         parseInt(resp.headers["retry-after"], 10));
         }
         break;
     }

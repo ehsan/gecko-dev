@@ -14,7 +14,6 @@
 
 #include "nspr.h"
 #include "pldhash.h"
-#include "nsAutoPtr.h"
 #include "nscore.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -164,7 +163,8 @@ public:
     bool IsAllowedOnDisk()
     {
         return !IsPrivate() && ((StoragePolicy() == nsICache::STORE_ANYWHERE) ||
-            (StoragePolicy() == nsICache::STORE_ON_DISK));
+            (StoragePolicy() == nsICache::STORE_ON_DISK) ||
+            (StoragePolicy() == nsICache::STORE_ON_DISK_AS_FILE));
     }
 
     bool IsAllowedOffline()
@@ -191,17 +191,16 @@ public:
                                nsCacheAccessMode          accessGranted,
                                nsICacheEntryDescriptor ** result);
 
+    //    nsresult Open(nsCacheRequest *request, nsICacheEntryDescriptor ** result);
+    //    nsresult AsyncOpen(nsCacheRequest *request);
     bool     RemoveRequest( nsCacheRequest * request);
-    bool     RemoveDescriptor( nsCacheEntryDescriptor * descriptor,
-                               bool                   * doomEntry);
-
-    void     GetDescriptors(nsTArray<nsRefPtr<nsCacheEntryDescriptor> > &outDescriptors);
-
+    bool     RemoveDescriptor( nsCacheEntryDescriptor * descriptor);
+    
 private:
     friend class nsCacheEntryHashTable;
     friend class nsCacheService;
 
-    void     DetachDescriptors();
+    void     DetachDescriptors(void);
 
     // internal methods
     void MarkDoomed()          { mFlags |=  eDoomedMask; }

@@ -27,7 +27,10 @@ public:
 
   // nsICollection methods:
   NS_IMETHOD Count(uint32_t *result) { *result = mCount; return NS_OK; }
-  NS_IMETHOD GetElementAt(uint32_t aIndex, nsISupports* *result);
+  NS_IMETHOD GetElementAt(uint32_t aIndex, nsISupports* *result) {
+    *result = ElementAt(aIndex);
+    return NS_OK;
+  }
   NS_IMETHOD QueryElementAt(uint32_t aIndex, const nsIID & aIID, void * *aResult) {
     if (aIndex < mCount) {
       nsISupports* element = mArray[aIndex];
@@ -54,6 +57,8 @@ public:
 
   // nsISupportsArray methods:
   NS_IMETHOD_(bool) Equals(const nsISupportsArray* aOther);
+
+  NS_IMETHOD_(nsISupports*) ElementAt(uint32_t aIndex);
 
   NS_IMETHOD_(int32_t) IndexOf(const nsISupports* aPossibleElement);
   NS_IMETHOD_(int32_t) IndexOfStartingAt(const nsISupports* aPossibleElement,
@@ -99,6 +104,9 @@ public:
   }
   
   NS_IMETHOD Compact(void);
+
+  NS_IMETHOD_(bool) EnumerateForwards(nsISupportsArrayEnumFunc aFunc, void* aData);
+  NS_IMETHOD_(bool) EnumerateBackwards(nsISupportsArrayEnumFunc aFunc, void* aData);
 
   NS_IMETHOD Clone(nsISupportsArray **_retval);
 

@@ -32,42 +32,30 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include "common/scoped_ptr.h"
 #include "google_breakpad/processor/call_stack.h"
 #include "google_breakpad/processor/minidump.h"
 #include "google_breakpad/processor/process_state.h"
 #include "google_breakpad/processor/exploitability.h"
-#include "google_breakpad/processor/stack_frame_symbolizer.h"
 #include "processor/logging.h"
+#include "processor/scoped_ptr.h"
 #include "processor/stackwalker_x86.h"
 
 namespace google_breakpad {
 
 MinidumpProcessor::MinidumpProcessor(SymbolSupplier *supplier,
                                      SourceLineResolverInterface *resolver)
-    : frame_symbolizer_(new StackFrameSymbolizer(supplier, resolver)),
-      own_frame_symbolizer_(true),
+    : supplier_(supplier), resolver_(resolver),
       enable_exploitability_(false) {
 }
 
 MinidumpProcessor::MinidumpProcessor(SymbolSupplier *supplier,
                                      SourceLineResolverInterface *resolver,
                                      bool enable_exploitability)
-    : frame_symbolizer_(new StackFrameSymbolizer(supplier, resolver)),
-      own_frame_symbolizer_(true),
+    : supplier_(supplier), resolver_(resolver),
       enable_exploitability_(enable_exploitability) {
-}
-
-MinidumpProcessor::MinidumpProcessor(StackFrameSymbolizer *frame_symbolizer,
-                                     bool enable_exploitability)
-    : frame_symbolizer_(frame_symbolizer),
-      own_frame_symbolizer_(false),
-      enable_exploitability_(enable_exploitability) {
-  assert(frame_symbolizer_);
 }
 
 MinidumpProcessor::~MinidumpProcessor() {
-  if (own_frame_symbolizer_) delete frame_symbolizer_;
 }
 
 ProcessResult MinidumpProcessor::Process(
@@ -87,9 +75,9 @@ ProcessResult MinidumpProcessor::Process(
   bool has_cpu_info = GetCPUInfo(dump, &process_state->system_info_);
   bool has_os_info = GetOSInfo(dump, &process_state->system_info_);
 
-  uint32_t dump_thread_id = 0;
+  u_int32_t dump_thread_id = 0;
   bool has_dump_thread = false;
-  uint32_t requesting_thread_id = 0;
+  u_int32_t requesting_thread_id = 0;
   bool has_requesting_thread = false;
 
   MinidumpBreakpadInfo *breakpad_info = dump->GetBreakpadInfo();
@@ -138,10 +126,6 @@ ProcessResult MinidumpProcessor::Process(
   bool interrupted = false;
   bool found_requesting_thread = false;
   unsigned int thread_count = threads->thread_count();
-
-  // Reset frame_symbolizer_ at the beginning of stackwalk for each minidump.
-  frame_symbolizer_->Reset();
-
   for (unsigned int thread_index = 0;
        thread_index < thread_count;
        ++thread_index) {
@@ -156,7 +140,7 @@ ProcessResult MinidumpProcessor::Process(
       return PROCESS_ERROR_GETTING_THREAD;
     }
 
-    uint32_t thread_id;
+    u_int32_t thread_id;
     if (!thread->GetThreadID(&thread_id)) {
       BPLOG(ERROR) << "Could not get thread ID for " << thread_string;
       return PROCESS_ERROR_GETTING_THREAD_ID;
@@ -208,6 +192,7 @@ ProcessResult MinidumpProcessor::Process(
     MinidumpMemoryRegion *thread_memory = thread->GetMemory();
     if (!thread_memory) {
       BPLOG(ERROR) << "No memory region for " << thread_string;
+      return PROCESS_ERROR_NO_MEMORY_FOR_THREAD;
     }
 
     // Use process_state->modules_ instead of module_list, because the
@@ -223,21 +208,18 @@ ProcessResult MinidumpProcessor::Process(
                                        context,
                                        thread_memory,
                                        process_state->modules_,
-                                       frame_symbolizer_));
+                                       supplier_,
+                                       resolver_));
+    if (!stackwalker.get()) {
+      BPLOG(ERROR) << "No stackwalker for " << thread_string;
+      return PROCESS_ERROR_NO_STACKWALKER_FOR_THREAD;
+    }
 
     scoped_ptr<CallStack> stack(new CallStack());
-    if (stackwalker.get()) {
-      if (!stackwalker->Walk(stack.get(),
-                             &process_state->modules_without_symbols_)) {
-        BPLOG(INFO) << "Stackwalker interrupt (missing symbols?) at "
-                    << thread_string;
-        interrupted = true;
-      }
-    } else {
-      // Threads with missing CPU contexts will hit this, but
-      // don't abort processing the rest of the dump just for
-      // one bad thread.
-      BPLOG(ERROR) << "No stackwalker for " << thread_string;
+    if (!stackwalker->Walk(stack.get())) {
+      BPLOG(INFO) << "Stackwalker interrupt (missing symbols?) at " <<
+          thread_string;
+      interrupted = true;
     }
     process_state->threads_.push_back(stack.release());
     process_state->thread_memory_regions_.push_back(thread_memory);
@@ -451,7 +433,7 @@ bool MinidumpProcessor::GetOSInfo(Minidump *dump, SystemInfo *info) {
 }
 
 // static
-string MinidumpProcessor::GetCrashReason(Minidump *dump, uint64_t *address) {
+string MinidumpProcessor::GetCrashReason(Minidump *dump, u_int64_t *address) {
   MinidumpException *exception = dump->GetException();
   if (!exception)
     return "";
@@ -468,8 +450,8 @@ string MinidumpProcessor::GetCrashReason(Minidump *dump, uint64_t *address) {
   // map the codes to a string (because there's no system info, or because
   // it's an unrecognized platform, or because it's an unrecognized code.)
   char reason_string[24];
-  uint32_t exception_code = raw_exception->exception_record.exception_code;
-  uint32_t exception_flags = raw_exception->exception_record.exception_flags;
+  u_int32_t exception_code = raw_exception->exception_record.exception_code;
+  u_int32_t exception_flags = raw_exception->exception_record.exception_flags;
   snprintf(reason_string, sizeof(reason_string), "0x%08x / 0x%08x",
            exception_code, exception_flags);
   string reason = reason_string;
@@ -1178,8 +1160,7 @@ string MinidumpProcessor::GetAssertion(Minidump *dump) {
     break;
   default: {
     char assertion_type[32];
-    snprintf(assertion_type, sizeof(assertion_type),
-             "0x%08x", raw_assertion->type);
+    sprintf(assertion_type, "0x%08x", raw_assertion->type);
     assertion_string = "Unknown assertion type ";
     assertion_string += assertion_type;
     break;
@@ -1203,7 +1184,7 @@ string MinidumpProcessor::GetAssertion(Minidump *dump) {
 
   if (raw_assertion->line != 0) {
     char assertion_line[32];
-    snprintf(assertion_line, sizeof(assertion_line), "%u", raw_assertion->line);
+    sprintf(assertion_line, "%u", raw_assertion->line);
     assertion_string.append(" at line ");
     assertion_string.append(assertion_line);
   }

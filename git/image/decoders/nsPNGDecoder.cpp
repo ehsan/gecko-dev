@@ -13,6 +13,7 @@
 #include "nsIInputStream.h"
 
 #include "RasterImage.h"
+#include "imgIContainerObserver.h"
 
 #include "gfxColor.h"
 #include "nsColor.h"
@@ -21,29 +22,14 @@
 #include "png.h"
 
 #include "gfxPlatform.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace image {
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo *
-GetPNGLog()
-{
-  static PRLogModuleInfo *sPNGLog;
-  if (!sPNGLog)
-    sPNGLog = PR_NewLogModule("PNGDecoder");
-  return sPNGLog;
-}
-
-static PRLogModuleInfo *
-GetPNGDecoderAccountingLog()
-{
-  static PRLogModuleInfo *sPNGDecoderAccountingLog;
-  if (!sPNGDecoderAccountingLog)
-    sPNGDecoderAccountingLog = PR_NewLogModule("PNGDecoderAccounting");
-  return sPNGDecoderAccountingLog;
-}
+static PRLogModuleInfo *gPNGLog = PR_NewLogModule("PNGDecoder");
+static PRLogModuleInfo *gPNGDecoderAccountingLog =
+                        PR_NewLogModule("PNGDecoderAccounting");
 #endif
 
 /* limit image dimensions (bug #251381) */
@@ -54,74 +40,18 @@ GetPNGDecoderAccountingLog()
 #define HEIGHT_OFFSET (WIDTH_OFFSET + 4)
 #define BYTES_NEEDED_FOR_DIMENSIONS (HEIGHT_OFFSET + 4)
 
-struct AnimFrameInfo
-{
-  AnimFrameInfo()
-   : mDispose(RasterImage::kDisposeKeep)
-   , mBlend(RasterImage::kBlendOver)
-   , mTimeout(0)
-  {}
-
-#ifdef PNG_APNG_SUPPORTED
-  AnimFrameInfo(png_structp aPNG, png_infop aInfo)
-   : mDispose(RasterImage::kDisposeKeep)
-   , mBlend(RasterImage::kBlendOver)
-   , mTimeout(0)
-  {
-    png_uint_16 delay_num, delay_den;
-    /* delay, in seconds is delay_num/delay_den */
-    png_byte dispose_op;
-    png_byte blend_op;
-    delay_num = png_get_next_frame_delay_num(aPNG, aInfo);
-    delay_den = png_get_next_frame_delay_den(aPNG, aInfo);
-    dispose_op = png_get_next_frame_dispose_op(aPNG, aInfo);
-    blend_op = png_get_next_frame_blend_op(aPNG, aInfo);
-
-    if (delay_num == 0) {
-      mTimeout = 0; // SetFrameTimeout() will set to a minimum
-    } else {
-      if (delay_den == 0)
-        delay_den = 100; // so says the APNG spec
-
-      // Need to cast delay_num to float to have a proper division and
-      // the result to int to avoid compiler warning
-      mTimeout = static_cast<int32_t>(static_cast<double>(delay_num) * 1000 / delay_den);
-    }
-
-    if (dispose_op == PNG_DISPOSE_OP_PREVIOUS) {
-      mDispose = RasterImage::kDisposeRestorePrevious;
-    } else if (dispose_op == PNG_DISPOSE_OP_BACKGROUND) {
-      mDispose = RasterImage::kDisposeClear;
-    } else {
-      mDispose = RasterImage::kDisposeKeep;
-    }
-
-    if (blend_op == PNG_BLEND_OP_SOURCE) {
-      mBlend = RasterImage::kBlendSource;
-    } else {
-      mBlend = RasterImage::kBlendOver;
-    }
-  }
-#endif
-
-  RasterImage::FrameDisposalMethod mDispose;
-  RasterImage::FrameBlendMethod mBlend;
-  int32_t mTimeout;
-};
-
 // First 8 bytes of a PNG file
 const uint8_t 
 nsPNGDecoder::pngSignatureBytes[] = { 137, 80, 78, 71, 13, 10, 26, 10 };
 
-nsPNGDecoder::nsPNGDecoder(RasterImage &aImage)
- : Decoder(aImage),
+nsPNGDecoder::nsPNGDecoder(RasterImage &aImage, imgIDecoderObserver* aObserver)
+ : Decoder(aImage, aObserver),
    mPNG(nullptr), mInfo(nullptr),
    mCMSLine(nullptr), interlacebuf(nullptr),
    mInProfile(nullptr), mTransform(nullptr),
    mHeaderBuf(nullptr), mHeaderBytesRead(0),
    mChannels(0), mFrameIsHidden(false),
-   mCMSMode(0), mDisablePremultipliedAlpha(false),
-   mNumFrames(0)
+   mCMSMode(0), mDisablePremultipliedAlpha(false)
 {
 }
 
@@ -149,14 +79,27 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
                                int32_t width, int32_t height,
                                gfxASurface::gfxImageFormat format)
 {
-  NeedNewFrame(mNumFrames, x_offset, y_offset, width, height, format);
+  uint32_t imageDataLength;
+  nsresult rv = mImage.EnsureFrame(GetFrameCount(), x_offset, y_offset,
+                                   width, height, format,
+                                   &mImageData, &imageDataLength);
+  if (NS_FAILED(rv))
+    longjmp(png_jmpbuf(mPNG), 5); // NS_ERROR_OUT_OF_MEMORY
 
   mFrameRect.x = x_offset;
   mFrameRect.y = y_offset;
   mFrameRect.width = width;
   mFrameRect.height = height;
 
-  PR_LOG(GetPNGDecoderAccountingLog(), PR_LOG_DEBUG,
+#ifdef PNG_APNG_SUPPORTED
+  if (png_get_valid(mPNG, mInfo, PNG_INFO_acTL))
+    SetAnimFrameInfo();
+#endif
+
+  // Tell the superclass we're starting a frame
+  PostFrameStart();
+
+  PR_LOG(gPNGDecoderAccountingLog, PR_LOG_DEBUG,
          ("PNGDecoderAccounting: nsPNGDecoder::CreateFrame -- created "
           "image frame with %dx%d pixels in container %p",
           width, height,
@@ -165,36 +108,78 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
   mFrameHasNoAlpha = true;
 }
 
+#ifdef PNG_APNG_SUPPORTED
+// set timeout and frame disposal method for the current frame
+void nsPNGDecoder::SetAnimFrameInfo()
+{
+  png_uint_16 delay_num, delay_den;
+  /* delay, in seconds is delay_num/delay_den */
+  png_byte dispose_op;
+  png_byte blend_op;
+  int32_t timeout; /* in milliseconds */
+
+  delay_num = png_get_next_frame_delay_num(mPNG, mInfo);
+  delay_den = png_get_next_frame_delay_den(mPNG, mInfo);
+  dispose_op = png_get_next_frame_dispose_op(mPNG, mInfo);
+  blend_op = png_get_next_frame_blend_op(mPNG, mInfo);
+
+  if (delay_num == 0) {
+    timeout = 0; // SetFrameTimeout() will set to a minimum
+  } else {
+    if (delay_den == 0)
+      delay_den = 100; // so says the APNG spec
+
+    // Need to cast delay_num to float to have a proper division and
+    // the result to int to avoid compiler warning
+    timeout = static_cast<int32_t>
+              (static_cast<double>(delay_num) * 1000 / delay_den);
+  }
+
+  uint32_t numFrames = mImage.GetNumFrames();
+
+  mImage.SetFrameTimeout(numFrames - 1, timeout);
+
+  if (dispose_op == PNG_DISPOSE_OP_PREVIOUS)
+      mImage.SetFrameDisposalMethod(numFrames - 1,
+                                    RasterImage::kDisposeRestorePrevious);
+  else if (dispose_op == PNG_DISPOSE_OP_BACKGROUND)
+      mImage.SetFrameDisposalMethod(numFrames - 1,
+                                    RasterImage::kDisposeClear);
+  else
+      mImage.SetFrameDisposalMethod(numFrames - 1,
+                                    RasterImage::kDisposeKeep);
+
+  if (blend_op == PNG_BLEND_OP_SOURCE)
+      mImage.SetFrameBlendMethod(numFrames - 1, RasterImage::kBlendSource);
+  /*else // 'over' is the default
+      mImage.SetFrameBlendMethod(numFrames - 1, RasterImage::kBlendOver); */
+}
+#endif
+
 // set timeout and frame disposal method for the current frame
 void nsPNGDecoder::EndImageFrame()
 {
   if (mFrameIsHidden)
     return;
 
-  mNumFrames++;
-
-  RasterImage::FrameAlpha alpha;
-  if (mFrameHasNoAlpha)
-    alpha = RasterImage::kFrameOpaque;
-  else
-    alpha = RasterImage::kFrameHasAlpha;
-
-  AnimFrameInfo animInfo;
-
+  uint32_t numFrames = 1;
 #ifdef PNG_APNG_SUPPORTED
-  uint32_t numFrames = GetFrameCount();
+  numFrames = mImage.GetNumFrames();
 
   // We can't use mPNG->num_frames_read as it may be one ahead.
   if (numFrames > 1) {
-    PostInvalidation(mFrameRect);
-  }
+    // Tell the image renderer that the frame is complete
+    if (mFrameHasNoAlpha)
+      mImage.SetFrameHasNoAlpha(numFrames - 1);
 
-  if (png_get_valid(mPNG, mInfo, PNG_INFO_acTL)) {
-    animInfo = AnimFrameInfo(mPNG, mInfo);
+    // PNG is always non-premult
+    mImage.SetFrameAsNonPremult(numFrames - 1, true);
+
+    PostInvalidation(mFrameRect);
   }
 #endif
 
-  PostFrameStop(alpha, animInfo.mDispose, animInfo.mTimeout, animInfo.mBlend);
+  PostFrameStop();
 }
 
 void
@@ -287,6 +272,10 @@ nsPNGDecoder::InitInternal()
 void
 nsPNGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 {
+  // We use gotos, so we need to declare variables here
+  uint32_t width = 0;
+  uint32_t height = 0;
+
   NS_ABORT_IF_FALSE(!HasError(), "Shouldn't call WriteInternal after error!");
 
   // If we only want width/height, we don't need to go through libpng
@@ -297,7 +286,7 @@ nsPNGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
       return;
 
     // Read data into our header buffer
-    uint32_t bytesToRead = std::min(aCount, BYTES_NEEDED_FOR_DIMENSIONS -
+    uint32_t bytesToRead = NS_MIN(aCount, BYTES_NEEDED_FOR_DIMENSIONS -
                                   mHeaderBytesRead);
     memcpy(mHeaderBuf + mHeaderBytesRead, aBuffer, bytesToRead);
     mHeaderBytesRead += bytesToRead;
@@ -313,8 +302,8 @@ nsPNGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
       }
 
       // Grab the width and height, accounting for endianness (thanks libpng!)
-      uint32_t width = png_get_uint_32(mHeaderBuf + WIDTH_OFFSET);
-      uint32_t height = png_get_uint_32(mHeaderBuf + HEIGHT_OFFSET);
+      width = png_get_uint_32(mHeaderBuf + WIDTH_OFFSET);
+      height = png_get_uint_32(mHeaderBuf + HEIGHT_OFFSET);
 
       // Too big?
       if ((width > MOZ_PNG_MAX_DIMENSION) || (height > MOZ_PNG_MAX_DIMENSION)) {
@@ -659,12 +648,7 @@ nsPNGDecoder::info_callback(png_structp png_ptr, png_infop info_ptr)
    */
   png_set_crc_action(png_ptr, PNG_CRC_NO_CHANGE, PNG_CRC_ERROR_QUIT);
 
-  if (!decoder->mFrameIsHidden) {
-    /* We know that we need a new frame, so pause input so the decoder
-     * infrastructure can give it to us.
-     */
-    png_process_data_pause(png_ptr, /* save = */ 1);
-  }
+  return;
 }
 
 void
@@ -792,7 +776,8 @@ nsPNGDecoder::row_callback(png_structp png_ptr, png_bytep new_row,
     if (!rowHasNoAlpha)
       decoder->mFrameHasNoAlpha = false;
 
-    if (decoder->mNumFrames <= 1) {
+    uint32_t numFrames = decoder->mImage.GetNumFrames();
+    if (numFrames <= 1) {
       // Only do incremental image display for the first frame
       // XXXbholley - this check should be handled in the superclass
       nsIntRect r(0, row_num, width, 1);
@@ -824,11 +809,6 @@ nsPNGDecoder::frame_info_callback(png_structp png_ptr, png_uint_32 frame_num)
   height = png_get_next_frame_height(png_ptr, decoder->mInfo);
 
   decoder->CreateFrame(x_offset, y_offset, width, height, decoder->format);
-
-  /* We know that we need a new frame, so pause input so the decoder
-   * infrastructure can give it to us.
-   */
-  png_process_data_pause(png_ptr, /* save = */ 1);
 #endif
 }
 
@@ -853,24 +833,23 @@ nsPNGDecoder::end_callback(png_structp png_ptr, png_infop info_ptr)
   // We shouldn't get here if we've hit an error
   NS_ABORT_IF_FALSE(!decoder->HasError(), "Finishing up PNG but hit error!");
 
-  int32_t loop_count = 0;
 #ifdef PNG_APNG_SUPPORTED
   if (png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL)) {
     int32_t num_plays = png_get_num_plays(png_ptr, info_ptr);
-    loop_count = num_plays - 1;
+    decoder->mImage.SetLoopCount(num_plays - 1);
   }
 #endif
 
   // Send final notifications
   decoder->EndImageFrame();
-  decoder->PostDecodeDone(loop_count);
+  decoder->PostDecodeDone();
 }
 
 
 void
 nsPNGDecoder::error_callback(png_structp png_ptr, png_const_charp error_msg)
 {
-  PR_LOG(GetPNGLog(), PR_LOG_ERROR, ("libpng error: %s\n", error_msg));
+  PR_LOG(gPNGLog, PR_LOG_ERROR, ("libpng error: %s\n", error_msg));
   longjmp(png_jmpbuf(png_ptr), 1);
 }
 
@@ -878,7 +857,7 @@ nsPNGDecoder::error_callback(png_structp png_ptr, png_const_charp error_msg)
 void
 nsPNGDecoder::warning_callback(png_structp png_ptr, png_const_charp warning_msg)
 {
-  PR_LOG(GetPNGLog(), PR_LOG_WARNING, ("libpng warning: %s\n", warning_msg));
+  PR_LOG(gPNGLog, PR_LOG_WARNING, ("libpng warning: %s\n", warning_msg));
 }
 
 Telemetry::ID

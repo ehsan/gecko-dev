@@ -21,7 +21,6 @@ public:
 
 protected:
   nsHttpAuthCache *mAuthCache;
-  nsHttpAuthCache *mPrivateAuthCache;
 };
 
 #endif // nsHttpAuthManager_h__

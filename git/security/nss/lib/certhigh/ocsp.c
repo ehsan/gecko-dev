@@ -6,7 +6,7 @@
  * Implementation of OCSP services, for both client and server.
  * (XXX, really, mostly just for client right now, but intended to do both.)
  *
- * $Id: ocsp.c,v 1.77 2013/01/23 23:05:50 kaie%kuix.de Exp $
+ * $Id: ocsp.c,v 1.72 2012/09/22 13:41:58 wtc%google.com Exp $
  */
 
 #include "prerror.h"
@@ -151,12 +151,12 @@ ocsp_CertRevokedAfter(ocspRevokedInfo *revokedInfo, int64 time);
 #define OCSP_TRACE_CERT(cert) dumpCertificate(cert)
 #define OCSP_TRACE_CERTID(certid) dumpCertID(certid)
 
-#if defined(XP_UNIX) || defined(XP_WIN32) || defined(XP_BEOS) \
-     || defined(XP_MACOSX)
+#if (defined(XP_UNIX) || defined(XP_WIN32) || defined(XP_BEOS) \
+     || defined(XP_MACOSX)) && !defined(_WIN32_WCE)
 #define NSS_HAVE_GETENV 1
 #endif
 
-static PRBool wantOcspTrace(void)
+static PRBool wantOcspTrace()
 {
     static PRBool firstTime = PR_TRUE;
     static PRBool wantTrace = PR_FALSE;
@@ -504,7 +504,7 @@ ocsp_MakeCacheEntryMostRecent(OCSPCacheData *cache, OCSPCacheItem *new_most_rece
 }
 
 static PRBool
-ocsp_IsCacheDisabled(void)
+ocsp_IsCacheDisabled()
 {
     /* 
      * maxCacheEntries == 0 means unlimited cache entries
@@ -592,7 +592,7 @@ ocsp_CheckCacheSize(OCSPCacheData *cache)
 }
 
 SECStatus
-CERT_ClearOCSPCache(void)
+CERT_ClearOCSPCache()
 {
     OCSP_TRACE(("OCSP CERT_ClearOCSPCache\n"));
     PR_EnterMonitor(OCSP_Global.monitor);
@@ -953,7 +953,7 @@ SECStatus OCSP_ShutdownGlobal(void)
  * A return value of NULL means: 
  *   The application did not register it's own HTTP client.
  */
-const SEC_HttpClientFcn *SEC_GetRegisteredHttpClient(void)
+const SEC_HttpClientFcn *SEC_GetRegisteredHttpClient()
 {
     const SEC_HttpClientFcn *retval;
 
@@ -1161,7 +1161,7 @@ const SEC_ASN1Template ocsp_CertIDTemplate[] = {
  *	responseStatus		OCSPResponseStatus,
  *	responseBytes		[0] EXPLICIT ResponseBytes OPTIONAL }
  */
-const SEC_ASN1Template ocsp_OCSPResponseTemplate[] = {
+static const SEC_ASN1Template ocsp_OCSPResponseTemplate[] = {
     { SEC_ASN1_SEQUENCE, 
 	0, NULL, sizeof(CERTOCSPResponse) },
     { SEC_ASN1_ENUMERATED, 
@@ -1178,7 +1178,7 @@ const SEC_ASN1Template ocsp_OCSPResponseTemplate[] = {
  *	responseType		OBJECT IDENTIFIER,
  *	response		OCTET STRING }
  */
-const SEC_ASN1Template ocsp_ResponseBytesTemplate[] = {
+static const SEC_ASN1Template ocsp_ResponseBytesTemplate[] = {
     { SEC_ASN1_SEQUENCE,
 	0, NULL, sizeof(ocspResponseBytes) },
     { SEC_ASN1_OBJECT_ID,
@@ -1275,12 +1275,12 @@ const SEC_ASN1Template ocsp_ResponseDataTemplate[] = {
  * can all be simplified down into a single template.  Anyway, for
  * now we list each choice as its own template:
  */
-const SEC_ASN1Template ocsp_ResponderIDByNameTemplate[] = {
+static const SEC_ASN1Template ocsp_ResponderIDByNameTemplate[] = {
     { SEC_ASN1_EXPLICIT | SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC | 1,
 	offsetof(ocspResponderID, responderIDValue.name),
 	CERT_NameTemplate }
 };
-const SEC_ASN1Template ocsp_ResponderIDByKeyTemplate[] = {
+static const SEC_ASN1Template ocsp_ResponderIDByKeyTemplate[] = {
     { SEC_ASN1_EXPLICIT | SEC_ASN1_CONSTRUCTED | SEC_ASN1_CONTEXT_SPECIFIC |
         SEC_ASN1_XTRN | 2,
 	offsetof(ocspResponderID, responderIDValue.keyHash),
@@ -1940,7 +1940,7 @@ loser:
 }
 
 static CERTOCSPRequest *
-ocsp_prepareEmptyOCSPRequest(void)
+ocsp_prepareEmptyOCSPRequest()
 {
     PRArenaPool *arena = NULL;
     CERTOCSPRequest *request = NULL;
@@ -2226,7 +2226,7 @@ CERT_DestroyOCSPRequest(CERTOCSPRequest *request)
  * given type, return the associated template for that choice.
  */
 static const SEC_ASN1Template *
-ocsp_ResponderIDTemplateByType(CERTOCSPResponderIDType responderIDType)
+ocsp_ResponderIDTemplateByType(ocspResponderIDType responderIDType)
 {
     const SEC_ASN1Template *responderIDTemplate;
 
@@ -2371,10 +2371,10 @@ loser:
  * Helper function for decoding a responderID -- turn the actual DER tag
  * into our local translation.
  */
-static CERTOCSPResponderIDType
+static ocspResponderIDType
 ocsp_ResponderIDTypeByTag(int derTag)
 {
-    CERTOCSPResponderIDType responderIDType;
+    ocspResponderIDType responderIDType;
 
     switch (derTag) {
 	case 1:
@@ -2401,7 +2401,7 @@ ocsp_DecodeBasicOCSPResponse(PRArenaPool *arena, SECItem *src)
     ocspBasicOCSPResponse *basicResponse;
     ocspResponseData *responseData;
     ocspResponderID *responderID;
-    CERTOCSPResponderIDType responderIDType;
+    ocspResponderIDType responderIDType;
     const SEC_ASN1Template *responderIDTemplate;
     int derTag;
     SECStatus rv;
@@ -4686,7 +4686,7 @@ ocsp_GetCachedOCSPResponseStatusIfFresh(CERTOCSPCertID *certID,
 }
 
 PRBool
-ocsp_FetchingFailureIsVerificationFailure(void)
+ocsp_FetchingFailureIsVerificationFailure()
 {
     PRBool isFailure;
 
@@ -5691,6 +5691,7 @@ CERT_GetOCSPResponseStatus(CERTOCSPResponse *response)
       case ocspResponse_unauthorized:
 	PORT_SetError(SEC_ERROR_OCSP_UNAUTHORIZED_REQUEST);
 	break;
+      case ocspResponse_other:
       case ocspResponse_unused:
       default:
 	PORT_SetError(SEC_ERROR_OCSP_UNKNOWN_RESPONSE_STATUS);

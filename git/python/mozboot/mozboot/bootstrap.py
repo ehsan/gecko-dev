@@ -10,7 +10,6 @@ import sys
 
 from mozboot.centos import CentOSBootstrapper
 from mozboot.fedora import FedoraBootstrapper
-from mozboot.gentoo import GentooBootstrapper
 from mozboot.mint import MintBootstrapper
 from mozboot.osx import OSXBootstrapper
 from mozboot.openbsd import OpenBSDBootstrapper
@@ -43,9 +42,7 @@ class Bootstrapper(object):
                 cls = CentOSBootstrapper
             elif distro == 'Fedora':
                 cls = FedoraBootstrapper
-            elif distro == 'Gentoo Base System':
-                cls = GentooBootstrapper
-            elif distro in ('Mint', 'LinuxMint'):
+            elif distro == 'Mint':
                 cls = MintBootstrapper
             elif distro == 'Ubuntu':
                 cls = UbuntuBootstrapper
@@ -58,10 +55,12 @@ class Bootstrapper(object):
 
         elif sys.platform.startswith('darwin'):
             # TODO Support Darwin platforms that aren't OS X.
-            osx_version = platform.mac_ver()[0]
+            major, minor, point = map(int, platform.mac_ver()[0].split('.'))
 
             cls = OSXBootstrapper
-            args['version'] = osx_version
+            args['major'] = major
+            args['minor'] = minor
+            args['point'] = point
 
         elif sys.platform.startswith('openbsd'):
             cls = OpenBSDBootstrapper

@@ -16,13 +16,11 @@ namespace CSF
 
     class ECC_API CC_Device
     {
-    public:
-        NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CC_Device)
     protected:
         CC_Device() {}
 
     public:
-        virtual ~CC_Device() {}
+        virtual ~CC_Device() {};
 
         virtual std::string toString() = 0;
 

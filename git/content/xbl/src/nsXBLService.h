@@ -5,14 +5,12 @@
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
-#ifndef nsXBLService_h_
-#define nsXBLService_h_
-
 #include "nsString.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
 #include "jsapi.h"              // nsXBLJSClass derives from JSClass
 #include "jsclist.h"            // nsXBLJSClass derives from JSCList
+#include "nsFixedSizeAllocator.h"
 #include "nsTArray.h"
 
 class nsXBLBinding;
@@ -46,7 +44,7 @@ class nsXBLService : public nsIObserver,
   // This function loads a particular XBL file and installs all of the bindings
   // onto the element.  aOriginPrincipal must not be null here.
   nsresult LoadBindings(nsIContent* aContent, nsIURI* aURL,
-                        nsIPrincipal* aOriginPrincipal,
+                        nsIPrincipal* aOriginPrincipal, bool aAugmentFlag,
                         nsXBLBinding** aBinding, bool* aResolveStyle);
 
   // Indicates whether or not a binding is fully loaded.
@@ -125,29 +123,21 @@ public:
   static bool     gAllowDataURIs;            // Whether we should allow data
                                              // urls in -moz-binding. Needed for
                                              // testing.
+
+  nsFixedSizeAllocator mPool;
 };
 
 class nsXBLJSClass : public JSCList, public JSClass
 {
 private:
   nsrefcnt mRefCnt;
-  nsCString mKey;
-  static uint64_t sIdCount;
   nsrefcnt Destroy();
 
 public:
-  nsXBLJSClass(const nsAFlatCString& aClassName, const nsCString& aKey);
+  nsXBLJSClass(const nsAFlatCString& aClassName);
   ~nsXBLJSClass() { nsMemory::Free((void*) name); }
-
-  static uint64_t NewId() { return ++sIdCount; }
-
-  nsCString& Key() { return mKey; }
-  void SetKey(const nsCString& aKey) { mKey = aKey; }
 
   nsrefcnt Hold() { return ++mRefCnt; }
   nsrefcnt Drop() { return --mRefCnt ? mRefCnt : Destroy(); }
-  nsrefcnt AddRef() { return Hold(); }
-  nsrefcnt Release() { return Drop(); }
 };
 
-#endif

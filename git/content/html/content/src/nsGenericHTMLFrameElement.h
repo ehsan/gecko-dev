@@ -5,18 +5,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsGenericHTMLFrameElement_h
-#define nsGenericHTMLFrameElement_h
-
 #include "nsGenericHTMLElement.h"
 #include "nsIFrameLoader.h"
 #include "nsIMozBrowserFrame.h"
 #include "nsIDOMEventListener.h"
-#include "mozilla/ErrorResult.h"
 
 #include "nsFrameLoader.h"
-
-class nsXULElement;
 
 /**
  * A helper class for frame elements
@@ -56,19 +50,15 @@ public:
   }
   virtual nsresult SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
-                           bool aNotify) MOZ_OVERRIDE;
-  virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify) MOZ_OVERRIDE;
+                           bool aNotify);
   virtual void DestroyContent();
 
-  nsresult CopyInnerTo(mozilla::dom::Element* aDest);
+  nsresult CopyInnerTo(nsGenericElement* aDest);
 
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGenericHTMLFrameElement,
                                                      nsGenericHTMLElement)
-
-  void SwapFrameLoaders(nsXULElement& aOtherOwner, mozilla::ErrorResult& aError);
 
 protected:
   /**
@@ -95,11 +85,9 @@ protected:
 
   // This doesn't really ensure a frame loade in all cases, only when
   // it makes sense.
-  void EnsureFrameLoader();
+  nsresult EnsureFrameLoader();
   nsresult LoadSrc();
-  nsIDocument* GetContentDocument();
   nsresult GetContentDocument(nsIDOMDocument** aContentDocument);
-  already_AddRefed<nsPIDOMWindow> GetContentWindow();
   nsresult GetContentWindow(nsIDOMWindow** aContentWindow);
 
   nsRefPtr<nsFrameLoader> mFrameLoader;
@@ -112,5 +100,3 @@ protected:
   bool                    mBrowserFrameListenersRegistered;
   bool                    mFrameLoaderCreationDisallowed;
 };
-
-#endif // nsGenericHTMLFrameElement_h

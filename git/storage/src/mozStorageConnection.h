@@ -25,7 +25,6 @@
 
 struct PRLock;
 class nsIFile;
-class nsIFileURL;
 class nsIEventTarget;
 class nsIThread;
 
@@ -64,27 +63,18 @@ public:
   Connection(Service *aService, int aFlags);
 
   /**
-   * Creates the connection to an in-memory database.
-   */
-  nsresult initialize();
-
-  /**
    * Creates the connection to the database.
    *
    * @param aDatabaseFile
    *        The nsIFile of the location of the database to open, or create if it
-   *        does not exist.
+   *        does not exist.  Passing in nullptr here creates an in-memory
+   *        database.
+   * @param aVFSName
+   *        The VFS that SQLite will use when opening this database. NULL means
+   *        "default".
    */
-  nsresult initialize(nsIFile *aDatabaseFile);
-
-  /**
-   * Creates the connection to the database.
-   *
-   * @param aFileURL
-   *        The nsIFileURL of the location of the database to open, or create if it
-   *        does not exist.
-   */
-  nsresult initialize(nsIFileURL *aFileURL);
+  nsresult initialize(nsIFile *aDatabaseFile,
+                      const char* aVFSName = NULL);
 
   // fetch the native handle
   sqlite3 *GetNativeConnection() { return mDBConn; }
@@ -165,8 +155,6 @@ public:
 private:
   ~Connection();
 
-  nsresult initializeInternal(nsIFile *aDatabaseFile);
-
   /**
    * Sets the database into a closed state so no further actions can be
    * performed.
@@ -218,7 +206,6 @@ private:
   int progressHandler();
 
   sqlite3 *mDBConn;
-  nsCOMPtr<nsIFileURL> mFileURL;
   nsCOMPtr<nsIFile> mDatabaseFile;
 
   /**

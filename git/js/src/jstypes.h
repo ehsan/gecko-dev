@@ -46,11 +46,11 @@
 **
 ***********************************************************************/
 
-#define JS_EXTERN_API(type)  extern MOZ_EXPORT type
-#define JS_EXPORT_API(type)  MOZ_EXPORT type
-#define JS_EXPORT_DATA(type) MOZ_EXPORT type
-#define JS_IMPORT_API(type)  MOZ_IMPORT_API type
-#define JS_IMPORT_DATA(type) MOZ_IMPORT_DATA type
+#define JS_EXTERN_API(type)  extern MOZ_EXPORT_API(type)
+#define JS_EXPORT_API(type)  MOZ_EXPORT_API(type)
+#define JS_EXPORT_DATA(type) MOZ_EXPORT_DATA(type)
+#define JS_IMPORT_API(type)  MOZ_IMPORT_API(type)
+#define JS_IMPORT_DATA(type) MOZ_IMPORT_DATA(type)
 
 /*
  * The linkage of JS API functions differs depending on whether the file is
@@ -62,11 +62,11 @@
 #  define JS_PUBLIC_API(t)   t
 #  define JS_PUBLIC_DATA(t)  t
 #elif defined(EXPORT_JS_API) || defined(STATIC_EXPORTABLE_JS_API)
-#  define JS_PUBLIC_API(t)   MOZ_EXPORT t
-#  define JS_PUBLIC_DATA(t)  MOZ_EXPORT t
+#  define JS_PUBLIC_API(t)   MOZ_EXPORT_API(t)
+#  define JS_PUBLIC_DATA(t)  MOZ_EXPORT_DATA(t)
 #else
-#  define JS_PUBLIC_API(t)   MOZ_IMPORT_API t
-#  define JS_PUBLIC_DATA(t)  MOZ_IMPORT_DATA t
+#  define JS_PUBLIC_API(t)   MOZ_IMPORT_API(t)
+#  define JS_PUBLIC_DATA(t)  MOZ_IMPORT_DATA(t)
 #endif
 
 #define JS_FRIEND_API(t)    JS_PUBLIC_API(t)
@@ -74,7 +74,8 @@
 
 #if defined(_MSC_VER) && defined(_M_IX86)
 #define JS_FASTCALL __fastcall
-#elif defined(__GNUC__) && defined(__i386__)
+#elif defined(__GNUC__) && defined(__i386__) &&                         \
+  ((__GNUC__ >= 4) || (__GNUC__ == 3 && __GNUC_MINOR__ >= 4))
 #define JS_FASTCALL __attribute__((fastcall))
 #else
 #define JS_FASTCALL
@@ -180,6 +181,8 @@
 #endif
 
 
+JS_BEGIN_EXTERN_C
+
 /************************************************************************
 ** TYPES:       JSBool
 ** DESCRIPTION:
@@ -208,7 +211,7 @@ typedef int JSBool;
 **      }
 **
 ***********************************************************************/
-#ifdef __GNUC__
+#if defined(__GNUC__) && (__GNUC__ > 2)
 
 # define JS_LIKELY(x)   (__builtin_expect((x), 1))
 # define JS_UNLIKELY(x) (__builtin_expect((x), 0))
@@ -278,5 +281,7 @@ typedef int JSBool;
 # define JS_EXTENSION
 # define JS_EXTENSION_(s) s
 #endif
+
+JS_END_EXTERN_C
 
 #endif /* jstypes_h___ */

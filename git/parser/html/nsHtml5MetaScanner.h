@@ -29,6 +29,7 @@
 #ifndef nsHtml5MetaScanner_h__
 #define nsHtml5MetaScanner_h__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"

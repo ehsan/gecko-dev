@@ -12,6 +12,7 @@ include $(srcdir)/../objs.mk
 
 EXTRA_DEPS += $(srcdir)/../objs.mk
 
+MODULE = mtransport_s
 LIBRARY_NAME = mtransport_s
 FORCE_STATIC_LIB= 1
 ifeq (WINNT,$(OS_TARGET))
@@ -26,7 +27,6 @@ EXPORTS_mtransport = \
   ../dtlsidentity.h \
   ../nricectx.h \
   ../nricemediastream.h \
-  ../nriceresolverfake.h \
   ../transportflow.h \
   ../transportlayer.h \
   ../transportlayerdtls.h \

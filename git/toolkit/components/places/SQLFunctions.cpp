@@ -19,11 +19,8 @@
 #include "nsIRandomGenerator.h"
 #endif
 #include "mozilla/Telemetry.h"
-#include "mozilla/Likely.h"
 
 using namespace mozilla::storage;
-
-// Keep the GUID-related parts of this file in sync with toolkit/downloads/SQLFunctions.cpp!
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Anonymous Helpers
@@ -154,7 +151,7 @@ namespace {
       }
 
       // If something went wrong above, get out of here!
-      if (MOZ_UNLIKELY(error)) {
+      if (NS_UNLIKELY(error)) {
         return false;
       }
 

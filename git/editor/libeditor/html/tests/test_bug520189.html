@@ -583,7 +583,7 @@ function runTest(test) {
     }
     editor = SpecialPowers.wrap(win).QueryInterface(SpecialPowers.Ci.nsIInterfaceRequestor)
                           .getInterface(SpecialPowers.Ci.nsIWebNavigation)
-                          .QueryInterface(SpecialPowers.Ci.nsIDocShell)
+                          .QueryInterface(SpecialPowers.Ci.nsIEditorDocShell)
                           .editor;
     editor.pasteTransferable(trans);
   } else {

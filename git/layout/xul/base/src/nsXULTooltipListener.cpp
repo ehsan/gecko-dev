@@ -303,10 +303,6 @@ nsXULTooltipListener::AddTooltipSupport(nsIContent* aNode)
                                 false, false);
   aNode->AddSystemEventListener(NS_LITERAL_STRING("mousemove"), this,
                                 false, false);
-  aNode->AddSystemEventListener(NS_LITERAL_STRING("mousedown"), this,
-                                false, false);
-  aNode->AddSystemEventListener(NS_LITERAL_STRING("mouseup"), this,
-                                false, false);
   aNode->AddSystemEventListener(NS_LITERAL_STRING("dragstart"), this,
                                 true, false);
 
@@ -321,8 +317,6 @@ nsXULTooltipListener::RemoveTooltipSupport(nsIContent* aNode)
 
   aNode->RemoveSystemEventListener(NS_LITERAL_STRING("mouseout"), this, false);
   aNode->RemoveSystemEventListener(NS_LITERAL_STRING("mousemove"), this, false);
-  aNode->RemoveSystemEventListener(NS_LITERAL_STRING("mousedown"), this, false);
-  aNode->RemoveSystemEventListener(NS_LITERAL_STRING("mouseup"), this, false);
   aNode->RemoveSystemEventListener(NS_LITERAL_STRING("dragstart"), this, true);
 
   return NS_OK;
@@ -340,8 +334,10 @@ nsXULTooltipListener::CheckTreeBodyMove(nsIDOMMouseEvent* aMouseEvent)
   nsCOMPtr<nsIBoxObject> bx;
   nsIDocument* doc = sourceNode->GetDocument();
   if (doc) {
-    ErrorResult ignored;
-    bx = doc->GetBoxObjectFor(doc->GetRootElement(), ignored);
+    nsCOMPtr<nsIDOMElement> docElement = do_QueryInterface(doc->GetRootElement());
+    if (docElement) {
+      doc->GetBoxObjectFor(docElement, getter_AddRefs(bx));
+    }
   }
 
   nsCOMPtr<nsITreeBoxObject> obx;

@@ -7,7 +7,6 @@
 #ifndef jsatominlines_h___
 #define jsatominlines_h___
 
-#include "mozilla/PodOperations.h"
 #include "mozilla/RangedPtr.h"
 
 #include "jsatom.h"
@@ -29,16 +28,15 @@ js::AtomStateEntry::asPtr() const
 
 namespace js {
 
-template <AllowGC allowGC>
 inline JSAtom *
 ToAtom(JSContext *cx, const js::Value &v)
 {
     if (!v.isString()) {
-        JSString *str = js::ToStringSlow<allowGC>(cx, v);
+        JSString *str = js::ToStringSlow(cx, v);
         if (!str)
             return NULL;
         JS::Anchor<JSString *> anchor(str);
-        return AtomizeString<allowGC>(cx, str);
+        return AtomizeString(cx, str);
     }
 
     JSString *str = v.toString();
@@ -46,29 +44,25 @@ ToAtom(JSContext *cx, const js::Value &v)
         return &str->asAtom();
 
     JS::Anchor<JSString *> anchor(str);
-    return AtomizeString<allowGC>(cx, str);
+    return AtomizeString(cx, str);
 }
 
-template <AllowGC allowGC>
 inline bool
-ValueToId(JSContext* cx, JSObject *obj, const Value &v,
-          typename MaybeRooted<jsid, allowGC>::MutableHandleType idp)
+ValueToId(JSContext* cx, JSObject *obj, const Value &v, jsid *idp)
 {
     int32_t i;
     if (ValueFitsInInt32(v, &i) && INT_FITS_IN_JSID(i)) {
-        idp.set(INT_TO_JSID(i));
+        *idp = INT_TO_JSID(i);
         return true;
     }
 
-    return InternNonIntElementId<allowGC>(cx, obj, v, idp);
+    return InternNonIntElementId(cx, obj, v, idp);
 }
 
-template <AllowGC allowGC>
 inline bool
-ValueToId(JSContext* cx, const Value &v,
-          typename MaybeRooted<jsid, allowGC>::MutableHandleType idp)
+ValueToId(JSContext* cx, const Value &v, jsid *idp)
 {
-    return ValueToId<allowGC>(cx, NULL, v, idp);
+    return ValueToId(cx, NULL, v, idp);
 }
 
 /*
@@ -100,33 +94,18 @@ BackfillIndexInCharBuffer(uint32_t index, mozilla::RangedPtr<T> end)
     return end;
 }
 
-template <AllowGC allowGC>
-bool
-IndexToIdSlow(JSContext *cx, uint32_t index,
-              typename MaybeRooted<jsid, allowGC>::MutableHandleType idp);
-
 inline bool
-IndexToId(JSContext *cx, uint32_t index, MutableHandleId idp)
+IndexToId(JSContext *cx, uint32_t index, jsid *idp)
 {
     MaybeCheckStackRoots(cx);
 
-    if (index <= JSID_INT_MAX) {
-        idp.set(INT_TO_JSID(index));
-        return true;
-    }
-
-    return IndexToIdSlow<CanGC>(cx, index, idp);
-}
-
-inline bool
-IndexToIdNoGC(JSContext *cx, uint32_t index, jsid *idp)
-{
     if (index <= JSID_INT_MAX) {
         *idp = INT_TO_JSID(index);
         return true;
     }
 
-    return IndexToIdSlow<NoGC>(cx, index, idp);
+    extern bool IndexToIdSlow(JSContext *cx, uint32_t index, jsid *idp);
+    return IndexToIdSlow(cx, index, idp);
 }
 
 inline jsid
@@ -148,9 +127,9 @@ IdToString(JSContext *cx, jsid id)
         return JSID_TO_ATOM(id);
 
     if (JS_LIKELY(JSID_IS_INT(id)))
-        return Int32ToString<CanGC>(cx, JSID_TO_INT(id));
+        return Int32ToString(cx, JSID_TO_INT(id));
 
-    JSString *str = ToStringSlow<CanGC>(cx, IdToValue(id));
+    JSString *str = ToStringSlow(cx, IdToValue(id));
     if (!str)
         return NULL;
 
@@ -170,7 +149,7 @@ AtomHasher::match(const AtomStateEntry &entry, const Lookup &lookup)
         return lookup.atom == key;
     if (key->length() != lookup.length)
         return false;
-    return mozilla::PodEqual(key->chars(), lookup.chars, lookup.length);
+    return PodEqual(key->chars(), lookup.chars, lookup.length);
 }
 
 inline Handle<PropertyName*>

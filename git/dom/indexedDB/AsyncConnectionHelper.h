@@ -107,17 +107,12 @@ public:
 
   static IDBTransaction* GetCurrentTransaction();
 
-  bool HasTransaction() const
-  {
-    return !!mTransaction;
-  }
-
-  IDBTransaction* GetTransaction() const
+  bool HasTransaction()
   {
     return mTransaction;
   }
 
-  nsISupports* GetSource() const
+  nsISupports* GetSource()
   {
     return mRequest ? mRequest->Source() : nullptr;
   }
@@ -178,8 +173,7 @@ protected:
    * OnSuccess is called.  A subclass can override this to fire an event other
    * than "success" at the request.
    */
-  virtual already_AddRefed<nsIDOMEvent> CreateSuccessEvent(
-    mozilla::dom::EventTarget* aOwner);
+  virtual already_AddRefed<nsDOMEvent> CreateSuccessEvent();
 
   /**
    * This callback is run on the main thread if DoDatabaseWork returned NS_OK.
@@ -213,7 +207,7 @@ protected:
   /**
    * Helper to make a JS array object out of an array of clone buffers.
    */
-  static nsresult ConvertToArrayAndCleanup(
+  static nsresult ConvertCloneReadInfosToArray(
                                 JSContext* aCx,
                                 nsTArray<StructuredCloneReadInfo>& aReadInfos,
                                 jsval* aResult);
@@ -248,7 +242,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 };
 
-class ImmediateRunEventTarget : public StackBasedEventTarget
+class MainThreadEventTarget : public StackBasedEventTarget
 {
 public:
   NS_DECL_NSIEVENTTARGET

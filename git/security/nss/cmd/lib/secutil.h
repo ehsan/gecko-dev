@@ -136,7 +136,7 @@ SECU_GetClientAuthData(void *arg, PRFileDesc *fd,
 		       struct CERTCertificateStr **pRetCert,
 		       struct SECKEYPrivateKeyStr **pRetKey);
 
-extern PRBool SECU_GetWrapEnabled(void);
+extern PRBool SECU_GetWrapEnabled();
 extern void SECU_EnableWrap(PRBool enable);
 
 /* revalidate the cert and print information about cert verification
@@ -293,9 +293,6 @@ extern SECStatus DER_PrettyPrint(FILE *out, SECItem *it, PRBool raw);
 
 extern char *SECU_SECModDBName(void);
 
-/* Fetch and register an oid if it hasn't been done already */
-extern void SECU_cert_fetchOID(SECOidTag *data, const SECOidData *src);
-
 extern SECStatus SECU_RegisterDynamicOids(void);
 
 /* Identifies hash algorithm tag by its string representation. */
@@ -320,7 +317,7 @@ extern SECStatus SECU_StoreCRL(PK11SlotInfo *slot, SECItem *derCrl,
 ** 	"len" the amount of data to sign
 ** 	"pk" the private key to encrypt with
 */
-extern SECStatus SECU_DerSignDataCRL(PLArenaPool *arena, CERTSignedData *sd,
+extern SECStatus SECU_DerSignDataCRL(PRArenaPool *arena, CERTSignedData *sd,
                                      unsigned char *buf, int len,
                                      SECKEYPrivateKey *pk, SECOidTag algID);
 
@@ -337,14 +334,14 @@ SECU_SignAndEncodeCRL(CERTCertificate *issuer, CERTSignedCrl *signCrl,
                       SECOidTag hashAlgTag, SignAndEncodeFuncExitStat *resCode);
 
 extern SECStatus
-SECU_CopyCRL(PLArenaPool *destArena, CERTCrl *destCrl, CERTCrl *srcCrl);
+SECU_CopyCRL(PRArenaPool *destArena, CERTCrl *destCrl, CERTCrl *srcCrl);
 
 /*
 ** Finds the crl Authority Key Id extension. Returns NULL if no such extension
 ** was found.
 */
 CERTAuthKeyID *
-SECU_FindCRLAuthKeyIDExten (PLArenaPool *arena, CERTSignedCrl *crl);
+SECU_FindCRLAuthKeyIDExten (PRArenaPool *arena, CERTSignedCrl *crl);
 
 /*
  * Find the issuer of a crl. Cert usage should be checked before signing a crl.
@@ -356,12 +353,12 @@ SECU_FindCrlIssuer(CERTCertDBHandle *dbHandle, SECItem* subject,
 
 /* call back function used in encoding of an extension. Called from
  * SECU_EncodeAndAddExtensionValue */
-typedef SECStatus (* EXTEN_EXT_VALUE_ENCODER) (PLArenaPool *extHandleArena,
+typedef SECStatus (* EXTEN_EXT_VALUE_ENCODER) (PRArenaPool *extHandleArena,
                                                void *value, SECItem *encodedValue);
 
 /* Encodes and adds extensions to the CRL or CRL entries. */
 SECStatus 
-SECU_EncodeAndAddExtensionValue(PLArenaPool *arena, void *extHandle, 
+SECU_EncodeAndAddExtensionValue(PRArenaPool *arena, void *extHandle, 
                                 void *value, PRBool criticality, int extenType, 
                                 EXTEN_EXT_VALUE_ENCODER EncodeValueFn);
 

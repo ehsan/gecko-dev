@@ -593,6 +593,9 @@ TCPSocket.prototype = {
     classDescription: "Client TCP Socket",
     interfaces: [
       Ci.nsIDOMTCPSocket,
+      Ci.nsIDOMGlobalPropertyInitializer,
+      Ci.nsIObserver,
+      Ci.nsISupportsWeakReference
     ],
     flags: Ci.nsIClassInfo.DOM_OBJECT,
   }),
@@ -631,4 +634,4 @@ SecurityCallbacks.prototype = {
 };
 
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([TCPSocket]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([TCPSocket]);

@@ -6,7 +6,6 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.HardwareUtils;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -35,7 +34,6 @@ public class DoorHangerPopup extends PopupWindow
     private boolean mInflated; 
     private ImageView mArrow;
     private int mArrowWidth;
-    private int mYOffset;
 
     // Stores a set of all active DoorHanger notifications. A DoorHanger is
     // uniquely identified by its tabId and value.
@@ -47,8 +45,7 @@ public class DoorHangerPopup extends PopupWindow
         mAnchor = aAnchor;
 
         mInflated = false;
-        mArrowWidth = aActivity.getResources().getDimensionPixelSize(R.dimen.menu_popup_arrow_width);
-        mYOffset = aActivity.getResources().getDimensionPixelSize(R.dimen.menu_popup_offset);
+        mArrowWidth = aActivity.getResources().getDimensionPixelSize(R.dimen.doorhanger_arrow_width);
         mDoorHangers = new HashSet<DoorHanger>();
 
         registerEventListener("Doorhanger:Add");
@@ -66,34 +63,26 @@ public class DoorHangerPopup extends PopupWindow
         mAnchor = aAnchor;
     }
 
-    @Override
     public void handleMessage(String event, JSONObject geckoObject) {
         try {
             if (event.equals("Doorhanger:Add")) {
-                final int tabId = geckoObject.getInt("tabID");
-                final String value = geckoObject.getString("value");
-                final String message = geckoObject.getString("message");
-                final JSONArray buttons = geckoObject.getJSONArray("buttons");
-                final JSONObject options = geckoObject.getJSONObject("options");
+                int tabId = geckoObject.getInt("tabID");
+                String value = geckoObject.getString("value");
+                String message = geckoObject.getString("message");
+                JSONArray buttons = geckoObject.getJSONArray("buttons");
+                JSONObject options = geckoObject.getJSONObject("options");
 
-                mActivity.runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        addDoorHanger(tabId, value, message, buttons, options);
-                    }
-                });
+                addDoorHanger(tabId, value, message, buttons, options);
             } else if (event.equals("Doorhanger:Remove")) {
-                final int tabId = geckoObject.getInt("tabID");
-                final String value = geckoObject.getString("value");
+                int tabId = geckoObject.getInt("tabID");
+                String value = geckoObject.getString("value");
+                DoorHanger doorHanger = getDoorHanger(tabId, value);
+                if (doorHanger == null)
+                    return;
 
+                removeDoorHanger(doorHanger);
                 mActivity.runOnUiThread(new Runnable() {
-                    @Override
                     public void run() {
-                        DoorHanger doorHanger = getDoorHanger(tabId, value);
-                        if (doorHanger == null)
-                            return;
-
-                        removeDoorHanger(doorHanger);
                         updatePopup();
                     }
                 });
@@ -103,9 +92,7 @@ public class DoorHangerPopup extends PopupWindow
         }
     }
 
-    // This callback is automatically executed on the UI thread.
-    @Override
-    public void onTabChanged(final Tab tab, final Tabs.TabEvents msg, final Object data) {
+    public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
         switch(msg) {
             case CLOSED:
                 // Remove any doorhangers for a tab when it's closed (make
@@ -141,7 +128,7 @@ public class DoorHangerPopup extends PopupWindow
     private void init() {
         setBackgroundDrawable(new BitmapDrawable());
         setOutsideTouchable(true);
-        setWindowLayoutMode(HardwareUtils.isTablet() ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.FILL_PARENT,
+        setWindowLayoutMode(mActivity.isTablet() ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.FILL_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT);
 
         LayoutInflater inflater = LayoutInflater.from(mActivity);
@@ -153,11 +140,6 @@ public class DoorHangerPopup extends PopupWindow
         mInflated = true;
     }
 
-    /**
-     * Adds a doorhanger.
-     *
-     * This method must be called on the UI thread.
-     */
     void addDoorHanger(final int tabId, final String value, final String message,
                        final JSONArray buttons, final JSONObject options) {
         // Don't add a doorhanger for a tab that doesn't exist
@@ -172,22 +154,22 @@ public class DoorHangerPopup extends PopupWindow
         final DoorHanger newDoorHanger = new DoorHanger(mActivity, this, tabId, value);
         mDoorHangers.add(newDoorHanger);
 
-        if (!mInflated)
-            init();
+        // Update the UI bits on the main thread
+        mActivity.runOnUiThread(new Runnable() {
+            public void run() {
+                if (!mInflated)
+                    init();
 
-        newDoorHanger.init(message, buttons, options);
-        mContent.addView(newDoorHanger);
+                newDoorHanger.init(message, buttons, options);
+                mContent.addView(newDoorHanger);
 
-        // Only update the popup if we're adding a notifcation to the selected tab
-        if (tabId == Tabs.getInstance().getSelectedTab().getId())
-            updatePopup();
+                // Only update the popup if we're adding a notifcation to the selected tab
+                if (tabId == Tabs.getInstance().getSelectedTab().getId())
+                    updatePopup();
+            }
+        });
     }
 
-    /**
-     * Gets a doorhanger.
-     *
-     * This method must be called on the UI thread.
-     */
     DoorHanger getDoorHanger(int tabId, String value) {
         for (DoorHanger dh : mDoorHangers) {
             if (dh.getTabId() == tabId && dh.getValue().equals(value))
@@ -198,21 +180,17 @@ public class DoorHangerPopup extends PopupWindow
         return null;
     }
 
-    /**
-     * Removes a doorhanger.
-     *
-     * This method must be called on the UI thread.
-     */
     void removeDoorHanger(final DoorHanger doorHanger) {
         mDoorHangers.remove(doorHanger);
-        mContent.removeView(doorHanger);
+
+        // Update the UI on the main thread
+        mActivity.runOnUiThread(new Runnable() {
+            public void run() {
+                mContent.removeView(doorHanger);
+            }
+        });        
     }
 
-    /**
-     * Removes doorhangers for a given tab.
-     *
-     * This method must be called on the UI thread.
-     */
     void removeTransientDoorHangers(int tabId) {
         // Make a temporary set to avoid a ConcurrentModificationException
         HashSet<DoorHanger> doorHangersToRemove = new HashSet<DoorHanger>();
@@ -227,11 +205,6 @@ public class DoorHangerPopup extends PopupWindow
         }
     }
 
-    /**
-     * Updates the popup state.
-     *
-     * This method must be called on the UI thread.
-     */
     void updatePopup() {
         // Bail if the selected tab is null, if there are no active doorhangers,
         // or if we haven't inflated the layout yet (this can happen if updatePopup()
@@ -260,7 +233,7 @@ public class DoorHangerPopup extends PopupWindow
             return;
         }
 
-        showDividers();
+        fixBackgroundForFirst();
         if (isShowing()) {
             update();
             return;
@@ -275,22 +248,21 @@ public class DoorHangerPopup extends PopupWindow
         // On tablets, we need to position the popup so that the center of the arrow points to the
         // center of the anchor view. On phones the popup stretches across the entire screen, so the
         // arrow position is determined by its left margin.
-        int offset = HardwareUtils.isTablet() ? mAnchor.getWidth()/2 - mArrowWidth/2 -
+        int offset = mActivity.isTablet() ? mAnchor.getWidth()/2 - mArrowWidth/2 -
                      ((RelativeLayout.LayoutParams) mArrow.getLayoutParams()).leftMargin : 0;
-        showAsDropDown(mAnchor, offset, -mYOffset);
+        showAsDropDown(mAnchor, offset, 0);
         // Make the popup focusable for keyboard accessibility.
         setFocusable(true);
     }
 
-    private void showDividers() {
-        int count = mContent.getChildCount();
-
-        for (int i = 0; i < count; i++) {
+    private void fixBackgroundForFirst() {
+        for (int i = 0; i < mContent.getChildCount(); i++) {
             DoorHanger dh = (DoorHanger) mContent.getChildAt(i);
-            dh.showDivider();
+            if (dh.getVisibility() == View.VISIBLE) {
+                dh.setBackgroundResource(R.drawable.doorhanger_bg);
+                break;
+            }
         }
-
-        ((DoorHanger) mContent.getChildAt(count-1)).hideDivider();
     }
 
     private void registerEventListener(String event) {

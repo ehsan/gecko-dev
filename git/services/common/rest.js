@@ -2,26 +2,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef MERGED_COMPARTMENT
-
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
-this.EXPORTED_SYMBOLS = [
+const EXPORTED_SYMBOLS = [
   "RESTRequest",
   "RESTResponse",
   "TokenAuthenticatedRESTRequest"
 ];
 
-#endif
-
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://services-crypto/utils.js");
 Cu.import("resource://services-common/log4moz.js");
 Cu.import("resource://services-common/preferences.js");
 Cu.import("resource://services-common/utils.js");
-
-XPCOMUtils.defineLazyModuleGetter(this, "CryptoUtils",
-                                  "resource://services-crypto/utils.js");
 
 const Prefs = new Preferences("services.common.rest.");
 
@@ -80,7 +74,7 @@ const Prefs = new Preferences("services.common.rest.");
  *   });
  *   request.get();
  */
-this.RESTRequest = function RESTRequest(uri) {
+function RESTRequest(uri) {
   this.status = this.NOT_SENT;
 
   // If we don't have an nsIURI object yet, make one. This will throw if
@@ -330,13 +324,7 @@ RESTRequest.prototype = {
     channel.contentCharset = this.charset;
 
     // Blast off!
-    try {
-      channel.asyncOpen(this, null);
-    } catch (ex) {
-      // asyncOpen can throw in a bunch of cases -- e.g., a forbidden port.
-      this._log.warn("Caught an error in asyncOpen: " + CommonUtils.exceptionStr(ex));
-      CommonUtils.nextTick(onComplete.bind(this, ex));
-    }
+    channel.asyncOpen(this, null);
     this.status = this.SENT;
     this.delayTimeout();
     return this;
@@ -592,7 +580,7 @@ RESTRequest.prototype = {
  * Response object for a RESTRequest. This will be created automatically by
  * the RESTRequest.
  */
-this.RESTResponse = function RESTResponse() {
+function RESTResponse() {
   this._log = Log4Moz.repository.getLogger(this._logName);
   this._log.level =
     Log4Moz.Level[Prefs.get("log.logger.rest.response")];
@@ -683,8 +671,7 @@ RESTResponse.prototype = {
  *        nonce, and ext. See CrytoUtils.computeHTTPMACSHA1 for information on
  *        the purpose of these values.
  */
-this.TokenAuthenticatedRESTRequest =
- function TokenAuthenticatedRESTRequest(uri, authToken, extra) {
+function TokenAuthenticatedRESTRequest(uri, authToken, extra) {
   RESTRequest.call(this, uri);
   this.authToken = authToken;
   this.extra = extra || {};

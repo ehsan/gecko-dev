@@ -35,7 +35,7 @@ const LIST_TYPE = {
  * Exports
  */
 
-this.EXPORTED_SYMBOLS = [
+let EXPORTED_SYMBOLS = [
   "WinTaskbarJumpList",
 ];
 
@@ -74,8 +74,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "_winShellService",
                                    "@mozilla.org/browser/shell-service;1",
                                    "nsIWindowsShellService");
 
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-  "resource://gre/modules/PrivateBrowsingUtils.jsm");
+XPCOMUtils.defineLazyServiceGetter(this, "_privateBrowsingSvc",
+                                   "@mozilla.org/privatebrowsing;1",
+                                   "nsIPrivateBrowsingService");
 
 /**
  * Global functions
@@ -100,7 +101,7 @@ var tasksCfg = [
    * open        - Boolean indicates if the command should be visible after the browser opens.
    * close       - Boolean indicates if the command should be visible after the browser closes.
    */
-  // Open new tab
+  // Open new window
   {
     get title()       _getString("taskbar.tasks.newTab.label"),
     get description() _getString("taskbar.tasks.newTab.description"),
@@ -112,7 +113,7 @@ var tasksCfg = [
                             // Thus true for consistency.
   },
 
-  // Open new window
+  // Open new tab
   {
     get title()       _getString("taskbar.tasks.newWindow.label"),
     get description() _getString("taskbar.tasks.newWindow.description"),
@@ -120,25 +121,40 @@ var tasksCfg = [
     iconIndex:        2, // New tab icon
     open:             true,
     close:            true, // No point, but we don't always update the list on
-                            // shutdown. Thus true for consistency.
+                            //  shutdown.  Thus true for consistency.
   },
 
-  // Open new private window
+  // Toggle the Private Browsing mode
   {
-    get title()       _getString("taskbar.tasks.newPrivateWindow.label"),
-    get description() _getString("taskbar.tasks.newPrivateWindow.description"),
-    args:             "-private-window",
+    get title() {
+      if (_privateBrowsingSvc.privateBrowsingEnabled)
+        return _getString("taskbar.tasks.exitPrivacyMode.label");
+      else
+        return _getString("taskbar.tasks.enterPrivacyMode.label");
+    },
+    get description() {
+      if (_privateBrowsingSvc.privateBrowsingEnabled)
+        return _getString("taskbar.tasks.exitPrivacyMode.description");
+      else
+        return _getString("taskbar.tasks.enterPrivacyMode.description");
+    },
+    args:             "-private-toggle",
     iconIndex:        4, // Private browsing mode icon
-    open:             true,
-    close:            true, // No point, but we don't always update the list on
-                            // shutdown. Thus true for consistency.
+    get open() {
+      // Don't show when inside permanent private browsing mode
+      return !_privateBrowsingSvc.autoStarted;
+    },
+    get close() {
+      // Don't show when inside permanent private browsing mode
+      return !_privateBrowsingSvc.autoStarted;
+    },
   },
 ];
 
 /////////////////////////////////////////////////////////////////////////////
 // Implementation
 
-this.WinTaskbarJumpList =
+var WinTaskbarJumpList =
 {
   _builder: null,
   _tasks: null,
@@ -389,7 +405,10 @@ this.WinTaskbarJumpList =
   _getHandlerAppItem: function WTBJL__getHandlerAppItem(name, description, 
                                                         args, iconIndex, 
                                                         faviconPageUri) {
-    var file = Services.dirsvc.get("XREExeF", Ci.nsILocalFile);
+    var file = Services.dirsvc.get("XCurProcD", Ci.nsILocalFile);
+
+    // XXX where can we grab this from in the build? Do we need to?
+    file.append("firefox.exe");
 
     var handlerApp = Cc["@mozilla.org/uriloader/local-handler-app;1"].
                      createInstance(Ci.nsILocalHandlerApp);
@@ -492,6 +511,7 @@ this.WinTaskbarJumpList =
   },
 
   _initObs: function WTBJL__initObs() {
+    Services.obs.addObserver(this, "private-browsing", false);
     // If the browser is closed while in private browsing mode, the "exit"
     // notification is fired on quit-application-granted.
     // History cleanup can happen at profile-change-teardown.
@@ -501,6 +521,7 @@ this.WinTaskbarJumpList =
   },
  
   _freeObs: function WTBJL__freeObs() {
+    Services.obs.removeObserver(this, "private-browsing");
     Services.obs.removeObserver(this, "profile-before-change");
     Services.obs.removeObserver(this, "browser:purge-session-history");
     _prefs.removeObserver("", this);
@@ -566,6 +587,11 @@ this.WinTaskbarJumpList =
       case "browser:purge-session-history":
         this.update();
       break;
+
+      case "private-browsing":
+        this.update();
+      break;
+
       case "idle":
         if (this._timer) {
           this._timer.cancel();

@@ -16,7 +16,7 @@ function pref(name, value) {
   }
 }
 
-let WebAppRT = {
+var WebAppRT = {
   DEFAULT_PREFS_FILENAME: "default-prefs.js",
 
   prefs: [
@@ -26,69 +26,28 @@ let WebAppRT = {
     pref("extensions.autoDisableScopes", 1),
     // Disable add-on installation via the web-exposed APIs
     pref("xpinstall.enabled", false),
-    // Set a future policy version to avoid the telemetry prompt.
-    pref("toolkit.telemetry.prompted", 999),
-    pref("toolkit.telemetry.notifiedOptOut", 999)
+    // Disable the telemetry prompt in webapps
+    pref("toolkit.telemetry.prompted", 2)
   ],
 
-  init: function(aStatus, aUrl, aCallback) {
+  init: function(isUpdate, url) {
     this.deck = document.getElementById("browsers");
     this.deck.addEventListener("click", this, false, true);
 
     // on first run, update any prefs
-    if (aStatus == "new") {
+    if (isUpdate == "new") {
       this.getDefaultPrefs().forEach(this.addPref);
 
       // prevent offering to use helper apps for things that this app handles
       // i.e. don't show the "Open in market?" popup when we're showing the market app
-      let uri = Services.io.newURI(aUrl, null, null);
+      let uri = Services.io.newURI(url, null, null);
       Services.perms.add(uri, "native-intent", Ci.nsIPermissionManager.DENY_ACTION);
-      Services.perms.add(uri, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
-      Services.perms.add(uri, "indexedDB", Ci.nsIPermissionManager.ALLOW_ACTION);
-      Services.perms.add(uri, "indexedDB-unlimited", Ci.nsIPermissionManager.ALLOW_ACTION);
 
       // update the blocklist url to use a different app id
       let blocklist = Services.prefs.getCharPref("extensions.blocklist.url");
       blocklist = blocklist.replace(/%APP_ID%/g, "webapprt-mobile@mozilla.org");
       Services.prefs.setCharPref("extensions.blocklist.url", blocklist);
     }
-
-    this.findManifestUrlFor(aUrl, aCallback);
-  },
-
-  findManifestUrlFor: function(aUrl, aCallback) {
-    let request = navigator.mozApps.mgmt.getAll();
-    request.onsuccess = function() {
-      let apps = request.result;
-      for (let i = 0; i < apps.length; i++) {
-        let app = apps[i];
-        let manifest = new ManifestHelper(app.manifest, app.origin);
-
-        // First see if this url matches any manifests we have registered
-        // If so, get the launchUrl from the manifest and we'll launch with that
-        //let app = DOMApplicationRegistry.getAppByManifestURL(aUrl);
-        if (app.manifestURL == aUrl) {
-          BrowserApp.manifestUrl = aUrl;
-          aCallback(manifest.fullLaunchPath());
-          return;
-        }
-    
-        // Otherwise, see if the apps launch path is this url
-        if (manifest.fullLaunchPath() == aUrl) {
-          BrowserApp.manifestUrl = app.manifestURL;
-          aCallback(aUrl);
-          return;
-        }
-      }
-
-      // Finally, just attempt to open the webapp as a normal web page
-      aCallback(aUrl);
-    };
-
-    request.onerror = function() {
-      // Attempt to open the webapp as a normal web page
-      aCallback(aUrl);
-    };
   },
 
   getDefaultPrefs: function() {

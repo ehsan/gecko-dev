@@ -10,18 +10,12 @@
 #include "nsWrapperCache.h"
 
 struct JSContext;
-class JSObject;
+struct JSObject;
+class nsGenericElement;
 class nsINode;
-class nsString;
-template<class> class nsTArray;
-
 namespace mozilla {
 class ErrorResult;
-
-namespace dom {
-class Element;
-} // namespace dom
-} // namespace mozilla
+}
 
 // IID for the nsIHTMLCollection interface
 #define NS_IHTMLCOLLECTION_IID \
@@ -50,14 +44,14 @@ public:
     GetLength(&length);
     return length;
   }
-  virtual mozilla::dom::Element* GetElementAt(uint32_t index) = 0;
-  mozilla::dom::Element* Item(uint32_t index)
+  virtual nsGenericElement* GetElementAt(uint32_t index) = 0;
+  nsGenericElement* Item(uint32_t index)
   {
     return GetElementAt(index);
   }
-  mozilla::dom::Element* IndexedGetter(uint32_t index, bool& aFound)
+  nsGenericElement* IndexedGetter(uint32_t index, bool& aFound)
   {
-    mozilla::dom::Element* item = Item(index);
+    nsGenericElement* item = Item(index);
     aFound = !!item;
     return item;
   }
@@ -70,16 +64,6 @@ public:
     found = !!namedItem;
     return namedItem;
   }
-
-  virtual void GetSupportedNames(nsTArray<nsString>& aNames) = 0;
-
-  JSObject* GetWrapperPreserveColor()
-  {
-    nsWrapperCache* cache;
-    CallQueryInterface(this, &cache);
-    return cache->GetWrapperPreserveColor();
-  }
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIHTMLCollection, NS_IHTMLCOLLECTION_IID)

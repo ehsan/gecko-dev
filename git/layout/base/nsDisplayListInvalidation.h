@@ -10,7 +10,6 @@
 
 class nsDisplayItem;
 class nsDisplayListBuilder;
-class nsDisplayBackgroundImage;
 
 /**
  * This stores the geometry of an nsDisplayItem, and the area
@@ -63,16 +62,6 @@ public:
   nsRect mBorderRect;
 };
 
-class nsDisplayItemBoundsGeometry : public nsDisplayItemGeometry
-{
-public:
-  nsDisplayItemBoundsGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder);
-
-  virtual void MoveBy(const nsPoint& aOffset);
-
-  bool mHasRoundedCorners;
-};
-
 class nsDisplayBorderGeometry : public nsDisplayItemGeometry
 {
 public:
@@ -86,11 +75,12 @@ public:
 class nsDisplayBackgroundGeometry : public nsDisplayItemGeometry
 {
 public:
-  nsDisplayBackgroundGeometry(nsDisplayBackgroundImage* aItem, nsDisplayListBuilder* aBuilder);
+  nsDisplayBackgroundGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder);
 
   virtual void MoveBy(const nsPoint& aOffset);
 
-  nsRect mPositioningArea;
+  nsRect mPaddingRect;
+  nsRect mContentRect;
 };
 
 class nsDisplayBoxShadowInnerGeometry : public nsDisplayItemGeometry

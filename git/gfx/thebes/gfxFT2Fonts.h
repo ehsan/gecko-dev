@@ -69,20 +69,14 @@ public: // new functions
                                      FontCacheSizes*   aSizes) const;
 
 protected:
-    virtual bool ShapeText(gfxContext      *aContext,
-                           const PRUnichar *aText,
-                           uint32_t         aOffset,
-                           uint32_t         aLength,
-                           int32_t          aScript,
-                           gfxShapedText   *aShapedText,
-                           bool             aPreferPlatformShaping);
+    virtual bool ShapeWord(gfxContext *aContext,
+                           gfxShapedWord *aShapedWord,
+                           const PRUnichar *aString,
+                           bool aPreferPlatformShaping = false);
 
     void FillGlyphDataForChar(uint32_t ch, CachedGlyphData *gd);
 
-    void AddRange(const PRUnichar *aText,
-                  uint32_t         aOffset,
-                  uint32_t         aLength,
-                  gfxShapedText   *aShapedText);
+    void AddRange(gfxShapedWord *aShapedWord, const PRUnichar *str);
 
     typedef nsBaseHashtableET<nsUint32HashKey, CachedGlyphData> CharGlyphMapEntryType;
     typedef nsTHashtable<CharGlyphMapEntryType> CharGlyphMap;

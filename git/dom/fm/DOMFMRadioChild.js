@@ -53,8 +53,7 @@ DOMFMRadioChild.prototype = {
     this._hasPrivileges = perm == Ci.nsIPermissionManager.ALLOW_ACTION;
 
     if (!this._hasPrivileges) {
-      Cu.reportError("NO FMRADIO PERMISSION FOR: " + aWindow.document.nodePrincipal.origin + "\n");
-      return null;
+      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
     }
 
     const messages = ["DOMFMRadio:enable:Return:OK",
@@ -73,19 +72,6 @@ DOMFMRadioChild.prototype = {
                       "DOMFMRadio:powerStateChange",
                       "DOMFMRadio:antennaChange"];
     this.initHelper(aWindow, messages);
-
-    let els = Cc["@mozilla.org/eventlistenerservice;1"]
-                .getService(Ci.nsIEventListenerService);
-
-    els.addSystemEventListener(aWindow, "visibilitychange",
-                               this._updateVisibility.bind(this),
-                               /* useCapture = */ true);
-
-    this._visibility = aWindow.document.visibilityState;
-    // Unlike the |enabled| getter, this is true if *this* DOM window
-    // has successfully enabled the FM radio more recently than
-    // disabling it.
-    this._haveEnabledRadio = false;
   },
 
   // Called from DOMRequestIpcHelper
@@ -143,18 +129,6 @@ DOMFMRadioChild.prototype = {
     this.dispatchEvent(e);
   },
 
-  _updateVisibility: function(evt) {
-    this._visibility = evt.target.visibilityState;
-    // Only notify visibility state when we "own" the radio stream.
-    if (this._haveEnabledRadio) {
-      this._notifyVisibility();
-    }
-  },
-
-  _notifyVisibility: function() {
-    cpmm.sendAsyncMessage("DOMFMRadio:updateVisibility", this._visibility);
-  },
-
   receiveMessage: function(aMessage) {
     let msg = aMessage.json;
     if (msg.mid && msg.mid != this._id) {
@@ -178,7 +152,6 @@ DOMFMRadioChild.prototype = {
         Services.DOMRequest.fireError(request, "Failed to turn on the FM radio");
         break;
       case "DOMFMRadio:disable:Return:OK":
-        this._haveEnabledRadio = false;
         request = this.takeRequest(msg.rid);
         if (!request) {
           return;
@@ -186,10 +159,6 @@ DOMFMRadioChild.prototype = {
         Services.DOMRequest.fireSuccess(request, null);
         break;
       case "DOMFMRadio:disable:Return:NO":
-        // If disabling the radio failed, but the hardware is still
-        // on, this DOM window is still responsible for the continued
-        // playback.
-        this._haveEnabledRadio = this.enabled;
         request = this.takeRequest(msg.rid);
         if (!request) {
           return;
@@ -321,10 +290,6 @@ DOMFMRadioChild.prototype = {
   },
 
   enable: function nsIDOMFMRadio_enable(frequency) {
-    // FMRadio::Enable() needs the most recent visibility state
-    // synchronously.
-    this._haveEnabledRadio = true;
-    this._notifyVisibility();
     return this._call("enable", frequency);
   },
 
@@ -418,5 +383,5 @@ DOMFMRadioChild.prototype = {
   }
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([DOMFMRadioChild]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([DOMFMRadioChild]);
 

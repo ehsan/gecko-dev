@@ -4,7 +4,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["MigrationUtils", "MigratorPrototype"];
+let EXPORTED_SYMBOLS = ["MigrationUtils", "MigratorPrototype"];
 
 const Cu = Components.utils;
 const Ci = Components.interfaces;
@@ -86,7 +86,7 @@ function getMigratorKeyForDefaultBrowser() {
  *    override |sourceHomePageURL| getter.
  * 7. For startup-only migrators, override |startupOnlyMigrator|.
  */
-this.MigratorPrototype = {
+let MigratorPrototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIBrowserProfileMigrator]),
 
   /**
@@ -266,14 +266,13 @@ this.MigratorPrototype = {
                           getService(Ci.nsIObserver);
         browserGlue.observe(null, TOPIC_WILL_IMPORT_BOOKMARKS, "");
 
-        // Note doMigrate doesn't care about the success of the import.
-        let onImportComplete = function() {
-          browserGlue.observe(null, TOPIC_DID_IMPORT_BOOKMARKS, "");
-          doMigrate();
-        };
+        // Note doMigrate doesn't care about the success value of the
+        // callback.
         BookmarkHTMLUtils.importFromURL(
-          "resource:///defaults/profile/bookmarks.html", true).then(
-          onImportComplete, onImportComplete);
+          "resource:///defaults/profile/bookmarks.html", true, function(a) {
+            browserGlue.observe(null, TOPIC_DID_IMPORT_BOOKMARKS, "");
+            doMigrate();
+          });
         return;
       }
     }
@@ -324,7 +323,7 @@ this.MigratorPrototype = {
   }
 };
 
-this.MigrationUtils = Object.freeze({
+let MigrationUtils = Object.freeze({
   resourceTypes: {
     SETTINGS:   Ci.nsIBrowserProfileMigrator.SETTINGS,
     COOKIES:    Ci.nsIBrowserProfileMigrator.COOKIES,

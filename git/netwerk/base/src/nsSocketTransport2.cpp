@@ -8,7 +8,6 @@
 #endif
 
 #include "nsSocketTransport2.h"
-#include "base/compiler_specific.h"
 #include "nsAtomicRefcnt.h"
 #include "nsIOService.h"
 #include "nsStreamUtils.h"
@@ -20,11 +19,12 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "netCore.h"
+#include "prmem.h"
 #include "plstr.h"
 #include "prnetdb.h"
+#include "prerror.h"
 #include "prerr.h"
 #include "NetworkActivityMonitor.h"
-#include "mozilla/VisualEventTracer.h"
 
 #include "nsIServiceManager.h"
 #include "nsISocketProviderService.h"
@@ -34,14 +34,12 @@
 #include "nsIPipe.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsIClassInfoImpl.h"
-#include <algorithm>
 
 #if defined(XP_WIN) || defined(MOZ_PLATFORM_MAEMO)
 #include "nsNativeConnectionHelper.h"
 #endif
 
 using namespace mozilla;
-using namespace mozilla::net;
 
 //-----------------------------------------------------------------------------
 
@@ -138,7 +136,7 @@ GetXPCOMFromNSSError(PRErrorCode code)
                                                -1 * code);
 }
 
-nsresult
+static nsresult
 ErrorAccordingToNSPR(PRErrorCode errorCode)
 {
     nsresult rv = NS_ERROR_FAILURE;
@@ -697,8 +695,8 @@ nsSocketTransport::nsSocketTransport()
     , mFD(nullptr)
     , mFDref(0)
     , mFDconnected(false)
-    , ALLOW_THIS_IN_INITIALIZER_LIST(mInput(this))
-    , ALLOW_THIS_IN_INITIALIZER_LIST(mOutput(this))
+    , mInput(this)
+    , mOutput(this)
     , mQoSBits(0x00)
 {
     SOCKET_LOG(("creating nsSocketTransport @%x\n", this));
@@ -730,8 +728,6 @@ nsSocketTransport::Init(const char **types, uint32_t typeCount,
                         const nsACString &host, uint16_t port,
                         nsIProxyInfo *givenProxyInfo)
 {
-    MOZ_EVENT_TRACER_NAME_OBJECT(this, host.BeginReading());
-
     nsCOMPtr<nsProxyInfo> proxyInfo;
     if (givenProxyInfo) {
         proxyInfo = do_QueryInterface(givenProxyInfo);
@@ -811,22 +807,22 @@ nsSocketTransport::Init(const char **types, uint32_t typeCount,
 }
 
 nsresult
-nsSocketTransport::InitWithConnectedSocket(PRFileDesc *fd, const NetAddr *addr)
+nsSocketTransport::InitWithConnectedSocket(PRFileDesc *fd, const PRNetAddr *addr)
 {
     NS_ASSERTION(!mFD, "already initialized");
 
-    char buf[kIPv6CStrBufSize];
-    NetAddrToString(addr, buf, sizeof(buf));
+    char buf[64];
+    PR_NetAddrToString(addr, buf, sizeof(buf));
     mHost.Assign(buf);
 
     uint16_t port;
-    if (addr->raw.family == AF_INET)
+    if (addr->raw.family == PR_AF_INET)
         port = addr->inet.port;
     else
-        port = addr->inet6.port;
-    mPort = ntohs(port);
+        port = addr->ipv6.port;
+    mPort = PR_ntohs(port);
 
-    memcpy(&mNetAddr, addr, sizeof(NetAddr));
+    memcpy(&mNetAddr, addr, sizeof(PRNetAddr));
 
     mPollFlags = (PR_POLL_READ | PR_POLL_WRITE | PR_POLL_EXCEPT);
     mPollTimeout = mTimeouts[TIMEOUT_READ_WRITE];
@@ -912,9 +908,7 @@ nsSocketTransport::ResolveHost()
             // we send it when it's created, rather than the empty address
             // we send with the connect call.
             mState = STATE_RESOLVING;
-            mNetAddr.raw.family = AF_INET;
-            mNetAddr.inet.port = htons(SocketPort());
-            mNetAddr.inet.ip = htonl(INADDR_ANY);
+            PR_SetNetAddr(PR_IpAddrAny, PR_AF_INET, SocketPort(), &mNetAddr);
             return PostEvent(MSG_DNS_LOOKUP_COMPLETE, NS_OK, nullptr);
         }
     }
@@ -929,12 +923,6 @@ nsSocketTransport::ResolveHost()
         dnsFlags = nsIDNSService::RESOLVE_BYPASS_CACHE;
     if (mConnectionFlags & nsSocketTransport::DISABLE_IPV6)
         dnsFlags |= nsIDNSService::RESOLVE_DISABLE_IPV6;
-    if (mConnectionFlags & nsSocketTransport::DISABLE_IPV4)
-        dnsFlags |= nsIDNSService::RESOLVE_DISABLE_IPV4;
-
-    NS_ASSERTION(!(dnsFlags & nsIDNSService::RESOLVE_DISABLE_IPV6) ||
-                 !(dnsFlags & nsIDNSService::RESOLVE_DISABLE_IPV4),
-                 "Setting both RESOLVE_DISABLE_IPV6 and RESOLVE_DISABLE_IPV4");
 
     SendStatus(NS_NET_STATUS_RESOLVING_HOST);
     rv = dns->AsyncResolve(SocketHost(), dnsFlags, this, nullptr,
@@ -988,9 +976,6 @@ nsSocketTransport::BuildSocket(PRFileDesc *&fd, bool &proxyTransparent, bool &us
             
             if (mConnectionFlags & nsISocketTransport::ANONYMOUS_CONNECT)
                 proxyFlags |= nsISocketProvider::ANONYMOUS_CONNECT;
-
-            if (mConnectionFlags & nsISocketTransport::NO_PERMANENT_STORAGE)
-                proxyFlags |= nsISocketProvider::NO_PERMANENT_STORAGE;
 
             nsCOMPtr<nsISupports> secinfo;
             if (i == 0) {
@@ -1065,7 +1050,7 @@ nsSocketTransport::InitiateSocket()
     nsresult rv;
 
     if (gIOService->IsOffline() &&
-        !IsLoopBackAddress(&mNetAddr))
+        !PR_IsNetAddrType(&mNetAddr, PR_IpAddrLoopback))
         return NS_ERROR_OFFLINE;
 
     //
@@ -1171,8 +1156,8 @@ nsSocketTransport::InitiateSocket()
 
 #if defined(PR_LOGGING)
     if (SOCKET_LOG_ENABLED()) {
-        char buf[kIPv6CStrBufSize];
-        NetAddrToString(&mNetAddr, buf, sizeof(buf));
+        char buf[64];
+        PR_NetAddrToString(&mNetAddr, buf, sizeof(buf));
         SOCKET_LOG(("  trying address: %s\n", buf));
     }
 #endif
@@ -1180,11 +1165,7 @@ nsSocketTransport::InitiateSocket()
     // 
     // Initiate the connect() to the host...  
     //
-    PRNetAddr prAddr;
-    NetAddrToPRNetAddr(&mNetAddr, &prAddr);
-
-    MOZ_EVENT_TRACER_EXEC(this, "net::tcp::connect");
-    status = PR_Connect(fd, &prAddr, NS_SOCKET_CONNECT_TIMEOUT);
+    status = PR_Connect(fd, &mNetAddr, NS_SOCKET_CONNECT_TIMEOUT);
     if (status == PR_SUCCESS) {
         // 
         // we are connected!
@@ -1278,12 +1259,12 @@ nsSocketTransport::RecoverFromError()
 
     bool tryAgain = false;
 
-    if (mConnectionFlags & (DISABLE_IPV6 | DISABLE_IPV4) &&
+    if (mConnectionFlags & DISABLE_IPV6 &&
         mCondition == NS_ERROR_UNKNOWN_HOST &&
         mState == STATE_RESOLVING &&
         !mProxyTransparentResolvesHost) {
         SOCKET_LOG(("  trying lookup again with both ipv4/ipv6 enabled\n"));
-        mConnectionFlags &= ~(DISABLE_IPV6 | DISABLE_IPV4);
+        mConnectionFlags &= ~DISABLE_IPV6;
         tryAgain = true;
     }
 
@@ -1296,15 +1277,14 @@ nsSocketTransport::RecoverFromError()
             SOCKET_LOG(("  trying again with next ip address\n"));
             tryAgain = true;
         }
-        else if (mConnectionFlags & (DISABLE_IPV6 | DISABLE_IPV4)) {
+        else if (mConnectionFlags & DISABLE_IPV6) {
             // Drop state to closed.  This will trigger new round of DNS
             // resolving bellow.
-            // XXX Could be optimized to only switch the flags to save duplicate
-            // connection attempts.
-            SOCKET_LOG(("  failed to connect all ipv4-only or ipv6-only hosts,"
+            // XXX Here should idealy be set now non-existing flag DISABLE_IPV4
+            SOCKET_LOG(("  failed to connect all ipv4 hosts,"
                         " trying lookup/connect again with both ipv4/ipv6\n"));
             mState = STATE_CLOSED;
-            mConnectionFlags &= ~(DISABLE_IPV6 | DISABLE_IPV4);
+            mConnectionFlags &= ~DISABLE_IPV6;
             tryAgain = true;
         }
     }
@@ -1408,8 +1388,6 @@ nsSocketTransport::OnSocketConnected()
         NS_ASSERTION(mFDref == 1, "wrong socket ref count");
         mFDconnected = true;
     }
-
-    MOZ_EVENT_TRACER_DONE(this, "net::tcp::connect");
 
     SendStatus(NS_NET_STATUS_CONNECTED_TO);
 }
@@ -1699,7 +1677,7 @@ nsSocketTransport::IsLocal(bool *aIsLocal)
 {
     {
         MutexAutoLock lock(mLock);
-        *aIsLocal = IsLoopBackAddress(&mNetAddr);
+        *aIsLocal = PR_IsNetAddrType(&mNetAddr, PR_IpAddrLoopback);
     }
 }
 
@@ -1920,7 +1898,7 @@ nsSocketTransport::GetPort(int32_t *port)
 }
 
 NS_IMETHODIMP
-nsSocketTransport::GetPeerAddr(NetAddr *addr)
+nsSocketTransport::GetPeerAddr(PRNetAddr *addr)
 {
     // once we are in the connected state, mNetAddr will not change.
     // so if we can verify that we are in the connected state, then
@@ -1933,12 +1911,12 @@ nsSocketTransport::GetPeerAddr(NetAddr *addr)
         return NS_ERROR_NOT_AVAILABLE;
     }
 
-    memcpy(addr, &mNetAddr, sizeof(NetAddr));
+    memcpy(addr, &mNetAddr, sizeof(mNetAddr));
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsSocketTransport::GetSelfAddr(NetAddr *addr)
+nsSocketTransport::GetSelfAddr(PRNetAddr *addr)
 {
     // we must not call any PR methods on our file descriptor
     // while holding mLock since those methods might re-enter
@@ -1950,14 +1928,11 @@ nsSocketTransport::GetSelfAddr(NetAddr *addr)
         fd = GetFD_Locked();
     }
 
-    if (!fd) {
+    if (!fd)
         return NS_ERROR_NOT_CONNECTED;
-    }
 
-    PRNetAddr prAddr;
     nsresult rv =
-        (PR_GetSockName(fd, &prAddr) == PR_SUCCESS) ? NS_OK : NS_ERROR_FAILURE;
-    PRNetAddrToNetAddr(&prAddr, addr);
+        (PR_GetSockName(fd, addr) == PR_SUCCESS) ? NS_OK : NS_ERROR_FAILURE;
 
     {
         MutexAutoLock lock(mLock);
@@ -1971,7 +1946,7 @@ nsSocketTransport::GetSelfAddr(NetAddr *addr)
 NS_IMETHODIMP
 nsSocketTransport::GetScriptablePeerAddr(nsINetAddr * *addr)
 {
-    NetAddr rawAddr;
+    PRNetAddr rawAddr;
 
     nsresult rv;
     rv = GetPeerAddr(&rawAddr);
@@ -1987,7 +1962,7 @@ nsSocketTransport::GetScriptablePeerAddr(nsINetAddr * *addr)
 NS_IMETHODIMP
 nsSocketTransport::GetScriptableSelfAddr(nsINetAddr * *addr)
 {
-    NetAddr rawAddr;
+    PRNetAddr rawAddr;
 
     nsresult rv;
     rv = GetSelfAddr(&rawAddr);
@@ -2012,7 +1987,7 @@ nsSocketTransport::SetTimeout(uint32_t type, uint32_t value)
 {
     NS_ENSURE_ARG_MAX(type, nsISocketTransport::TIMEOUT_READ_WRITE);
     // truncate overly large timeout values.
-    mTimeouts[type] = (uint16_t) std::min<uint32_t>(value, UINT16_MAX);
+    mTimeouts[type] = (uint16_t) NS_MIN<uint32_t>(value, UINT16_MAX);
     PostEvent(MSG_TIMEOUT_CHANGED);
     return NS_OK;
 }
@@ -2151,7 +2126,6 @@ nsSocketTransport::OnLookupComplete(nsICancelable *request,
     // flag host lookup complete for the benefit of the ResolveHost method.
     mResolving = false;
 
-    MOZ_EVENT_TRACER_WAIT(this, "net::tcp::connect");
     nsresult rv = PostEvent(MSG_DNS_LOOKUP_COMPLETE, status, rec);
 
     // if posting a message fails, then we should assume that the socket
@@ -2230,7 +2204,6 @@ NS_IMETHODIMP
 nsSocketTransport::SetConnectionFlags(uint32_t value)
 {
     mConnectionFlags = value;
-    mIsPrivate = value & nsISocketTransport::NO_PERMANENT_STORAGE;
     return NS_OK;
 }
 
@@ -2252,7 +2225,7 @@ DumpBytesToFile(const char *path, const char *header, const char *buf, int32_t n
     while (n) {
         p = (const unsigned char *) buf;
 
-        int32_t i, row_max = std::min(16, n);
+        int32_t i, row_max = NS_MIN(16, n);
 
         for (i = 0; i < row_max; ++i)
             fprintf(fp, "%02x  ", *p++);

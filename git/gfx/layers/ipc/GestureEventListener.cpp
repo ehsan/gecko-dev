@@ -10,8 +10,6 @@
 #include "GestureEventListener.h"
 #include "AsyncPanZoomController.h"
 
-#include "mozilla/Preferences.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -20,7 +18,7 @@ namespace layers {
  * to be considered a tap. This also applies to double taps, except that it is
  * used twice.
  */
-static const uint32_t MAX_TAP_TIME = 300;
+static const int MAX_TAP_TIME = 300;
 
 /**
  * Amount of change in span needed to take us from the GESTURE_WAITING_PINCH
@@ -34,8 +32,6 @@ GestureEventListener::GestureEventListener(AsyncPanZoomController* aAsyncPanZoom
   : mAsyncPanZoomController(aAsyncPanZoomController),
     mState(GESTURE_NONE),
     mSpanChange(0.0f),
-    mTapStartTime(0),
-    mLastTapEndTime(0),
     mLastTouchInput(MultiTouchInput::MULTITOUCH_START, 0)
 {
 }
@@ -51,11 +47,6 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
   }
 
   const MultiTouchInput& event = static_cast<const MultiTouchInput&>(aEvent);
-
-  // Cache the current event since it may become the single or long tap that we
-  // send.
-  mLastTouchInput = event;
-
   switch (event.mType)
   {
   case MultiTouchInput::MULTITOUCH_START:
@@ -84,13 +75,6 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
       mTouchStartPosition = event.mTouches[0].mScreenPoint;
       if (mState == GESTURE_NONE) {
         mState = GESTURE_WAITING_SINGLE_TAP;
-
-        mLongTapTimeoutTask =
-          NewRunnableMethod(this, &GestureEventListener::TimeoutLongTap);
-
-        mAsyncPanZoomController->PostDelayedTask(
-          mLongTapTimeoutTask,
-          Preferences::GetInt("ui.click_hold_context_menus.delay", 500));
       }
     } else if (length == 2) {
       // Another finger has been added; it can't be a tap anymore.
@@ -104,7 +88,7 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
     nsIntPoint touch = (nsIntPoint&)event.mTouches[0].mScreenPoint;
     if (mTouches.Length() == 1 &&
         NS_hypot(mTouchStartPosition.x - touch.x, mTouchStartPosition.y - touch.y) >
-          mAsyncPanZoomController->GetDPI() * mAsyncPanZoomController->GetTouchStartTolerance())
+          mAsyncPanZoomController->GetDPI() * AsyncPanZoomController::TOUCH_START_TOLERANCE)
     {
       HandleTapCancel(event);
     }
@@ -138,17 +122,6 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
     NS_WARN_IF_FALSE(foundAlreadyExistingTouch, "Touch ended, but not in list");
 
     if (event.mTime - mTapStartTime <= MAX_TAP_TIME) {
-      if (mState == GESTURE_WAITING_DOUBLE_TAP &&
-          event.mTime - mLastTapEndTime > MAX_TAP_TIME) {
-        // mDoubleTapTimeoutTask wasn't scheduled in time. We need to run the
-        // task synchronously to confirm the last tap.
-        mDoubleTapTimeoutTask->Cancel();
-        TimeoutDoubleTap();
-
-        // Change the state so we can proceed to process the current tap.
-        mState = GESTURE_WAITING_SINGLE_TAP;
-      }
-
       if (mState == GESTURE_WAITING_DOUBLE_TAP) {
         mDoubleTapTimeoutTask->Cancel();
 
@@ -156,8 +129,6 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
         HandleDoubleTap(event);
         mState = GESTURE_NONE;
       } else if (mState == GESTURE_WAITING_SINGLE_TAP) {
-        mLongTapTimeoutTask->Cancel();
-
         HandleSingleTapUpEvent(event);
 
         // We were not waiting for anything but a single tap has happened that
@@ -165,15 +136,18 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
         // a double tap, send a single tap instead.
         mState = GESTURE_WAITING_DOUBLE_TAP;
 
+        // Cache the current event since it may become the single tap that we
+        // send.
+        mLastTouchInput = event;
+
         mDoubleTapTimeoutTask =
           NewRunnableMethod(this, &GestureEventListener::TimeoutDoubleTap);
 
-        mAsyncPanZoomController->PostDelayedTask(
+        MessageLoop::current()->PostDelayedTask(
+          FROM_HERE,
           mDoubleTapTimeoutTask,
           MAX_TAP_TIME);
       }
-
-      mLastTapEndTime = event.mTime;
     }
 
     if (mState == GESTURE_WAITING_SINGLE_TAP) {
@@ -228,7 +202,7 @@ nsEventStatus GestureEventListener::HandlePinchGestureEvent(const MultiTouchInpu
                                      currentSpan,
                                      currentSpan);
 
-        mAsyncPanZoomController->HandleInputEvent(pinchEvent);
+        mAsyncPanZoomController->ReceiveInputEvent(pinchEvent);
 
         mState = GESTURE_PINCH;
       }
@@ -242,7 +216,7 @@ nsEventStatus GestureEventListener::HandlePinchGestureEvent(const MultiTouchInpu
                                    currentSpan,
                                    mPreviousSpan);
 
-      mAsyncPanZoomController->HandleInputEvent(pinchEvent);
+      mAsyncPanZoomController->ReceiveInputEvent(pinchEvent);
       break;
     }
     default:
@@ -260,7 +234,7 @@ nsEventStatus GestureEventListener::HandlePinchGestureEvent(const MultiTouchInpu
                                  1.0f,
                                  1.0f);
 
-    mAsyncPanZoomController->HandleInputEvent(pinchEvent);
+    mAsyncPanZoomController->ReceiveInputEvent(pinchEvent);
 
     mState = GESTURE_NONE;
 
@@ -277,19 +251,13 @@ nsEventStatus GestureEventListener::HandlePinchGestureEvent(const MultiTouchInpu
 nsEventStatus GestureEventListener::HandleSingleTapUpEvent(const MultiTouchInput& aEvent)
 {
   TapGestureInput tapEvent(TapGestureInput::TAPGESTURE_UP, aEvent.mTime, aEvent.mTouches[0].mScreenPoint);
-  return mAsyncPanZoomController->HandleInputEvent(tapEvent);
+  return mAsyncPanZoomController->ReceiveInputEvent(tapEvent);
 }
 
 nsEventStatus GestureEventListener::HandleSingleTapConfirmedEvent(const MultiTouchInput& aEvent)
 {
   TapGestureInput tapEvent(TapGestureInput::TAPGESTURE_CONFIRMED, aEvent.mTime, aEvent.mTouches[0].mScreenPoint);
-  return mAsyncPanZoomController->HandleInputEvent(tapEvent);
-}
-
-nsEventStatus GestureEventListener::HandleLongTapEvent(const MultiTouchInput& aEvent)
-{
-  TapGestureInput tapEvent(TapGestureInput::TAPGESTURE_LONG, aEvent.mTime, aEvent.mTouches[0].mScreenPoint);
-  return mAsyncPanZoomController->HandleInputEvent(tapEvent);
+  return mAsyncPanZoomController->ReceiveInputEvent(tapEvent);
 }
 
 nsEventStatus GestureEventListener::HandleTapCancel(const MultiTouchInput& aEvent)
@@ -299,10 +267,6 @@ nsEventStatus GestureEventListener::HandleTapCancel(const MultiTouchInput& aEven
   switch (mState)
   {
   case GESTURE_WAITING_SINGLE_TAP:
-    mLongTapTimeoutTask->Cancel();
-    mState = GESTURE_NONE;
-    break;
-
   case GESTURE_WAITING_DOUBLE_TAP:
     mState = GESTURE_NONE;
     break;
@@ -316,7 +280,7 @@ nsEventStatus GestureEventListener::HandleTapCancel(const MultiTouchInput& aEven
 nsEventStatus GestureEventListener::HandleDoubleTap(const MultiTouchInput& aEvent)
 {
   TapGestureInput tapEvent(TapGestureInput::TAPGESTURE_DOUBLE, aEvent.mTime, aEvent.mTouches[0].mScreenPoint);
-  return mAsyncPanZoomController->HandleInputEvent(tapEvent);
+  return mAsyncPanZoomController->ReceiveInputEvent(tapEvent);
 }
 
 void GestureEventListener::TimeoutDoubleTap()
@@ -327,16 +291,6 @@ void GestureEventListener::TimeoutDoubleTap()
     mState = GESTURE_NONE;
 
     HandleSingleTapConfirmedEvent(mLastTouchInput);
-  }
-}
-
-void GestureEventListener::TimeoutLongTap()
-{
-  // If the tap has not been released, this is a long press.
-  if (mState == GESTURE_WAITING_SINGLE_TAP) {
-    mState = GESTURE_NONE;
-
-    HandleLongTapEvent(mLastTouchInput);
   }
 }
 

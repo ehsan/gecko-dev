@@ -23,6 +23,20 @@ function PlacesTreeView(aFlatList, aOnOpenFlatContainer, aController) {
 PlacesTreeView.prototype = {
   get wrappedJSObject() this,
 
+  _makeAtom: function PTV__makeAtom(aString) {
+    return Cc["@mozilla.org/atom-service;1"].
+           getService(Ci.nsIAtomService).
+           getAtom(aString);
+  },
+
+  _atoms: [],
+  _getAtomFor: function PTV__getAtomFor(aName) {
+    if (!this._atoms[aName])
+      this._atoms[aName] = this._makeAtom(aName);
+
+    return this._atoms[aName];
+  },
+
   __dateService: null,
   get _dateService() {
     if (!this.__dateService) {
@@ -749,6 +763,24 @@ PlacesTreeView.prototype = {
     }
   },
 
+  /**
+   * Be careful, the parameter 'aIndex' here specifies the node's index in the
+   * parent node, not the visible index.
+   */
+  nodeReplaced:
+  function PTV_nodeReplaced(aParentNode, aOldNode, aNewNode, aIndexDoNotUse) {
+    NS_ASSERT(this._result, "Got a notification but have no result!");
+    if (!this._tree || !this._result)
+      return;
+
+    // Nothing to do if the replaced node was not set.
+    let row = this._getRowForNode(aOldNode);
+    if (row != -1) {
+      this._rows[row] = aNewNode;
+      this._tree.invalidateRow(row);
+    }
+  },
+
   _invalidateCellValue: function PTV__invalidateCellValue(aNode,
                                                           aColumnType) {
     NS_ASSERT(this._result, "Got a notification but have no result!");
@@ -843,8 +875,9 @@ PlacesTreeView.prototype = {
         function (aStatus, aLivemark) {
           if (Components.isSuccessCode(aStatus)) {
             this._controller.cacheLivemarkInfo(aNode, aLivemark);
-            let properties = this._cellProperties.get(aNode);
-            this._cellProperties.set(aNode, properties += " livemark ");
+            let properties = this._cellProperties.get(aNode, null);
+            if (properties)
+              properties.push(this._getAtomFor("livemark"));
 
             // The livemark attribute is set as a cell property on the title cell.
             this._invalidateCellValue(aNode, this.COLUMN_TYPE_TITLE);
@@ -1119,50 +1152,49 @@ PlacesTreeView.prototype = {
   get selection() this._selection,
   set selection(val) this._selection = val,
 
-  getRowProperties: function() { return ""; },
+  getRowProperties: function() { },
 
   getCellProperties:
-  function PTV_getCellProperties(aRow, aColumn) {
+  function PTV_getCellProperties(aRow, aColumn, aProperties) {
     // for anonid-trees, we need to add the column-type manually
-    var props = "";
     let columnType = aColumn.element.getAttribute("anonid");
     if (columnType)
-      props += columnType;
+      aProperties.AppendElement(this._getAtomFor(columnType));
     else
       columnType = aColumn.id;
 
     // Set the "ltr" property on url cells
     if (columnType == "url")
-      props += " ltr";
+      aProperties.AppendElement(this._getAtomFor("ltr"));
 
     if (columnType != "title")
-      return props;
+      return;
 
     let node = this._getNodeForRow(aRow);
 
     if (this._cuttingNodes.has(node)) {
-      props += " cutting";
+      aProperties.AppendElement(this._getAtomFor("cutting"));
     }
 
-    let properties = this._cellProperties.get(node);
-    if (properties === undefined) {
-      properties = "";
+    let properties = this._cellProperties.get(node, null);
+    if (!properties) {
+      properties = [];
       let itemId = node.itemId;
       let nodeType = node.type;
       if (PlacesUtils.containerTypes.indexOf(nodeType) != -1) {
         if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_QUERY) {
-          properties += " query";
+          properties.push(this._getAtomFor("query"));
           if (PlacesUtils.nodeIsTagQuery(node))
-            properties += " tagContainer";
+            properties.push(this._getAtomFor("tagContainer"));
           else if (PlacesUtils.nodeIsDay(node))
-            properties += " dayContainer";
+            properties.push(this._getAtomFor("dayContainer"));
           else if (PlacesUtils.nodeIsHost(node))
-            properties += " hostContainer";
+            properties.push(this._getAtomFor("hostContainer"));
         }
         else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER ||
                  nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT) {
           if (this._controller.hasCachedLivemarkInfo(node)) {
-            properties += " livemark";
+            properties.push(this._getAtomFor("livemark"));
           }
           else {
             PlacesUtils.livemarks.getLivemark(
@@ -1170,7 +1202,7 @@ PlacesTreeView.prototype = {
               function (aStatus, aLivemark) {
                 if (Components.isSuccessCode(aStatus)) {
                   this._controller.cacheLivemarkInfo(node, aLivemark);
-                  properties += " livemark";
+                  properties.push(this._getAtomFor("livemark"));
                   // The livemark attribute is set as a cell property on the title cell.
                   this._invalidateCellValue(node, this.COLUMN_TYPE_TITLE);
                 }
@@ -1182,29 +1214,30 @@ PlacesTreeView.prototype = {
         if (itemId != -1) {
           let queryName = PlacesUIUtils.getLeftPaneQueryNameFromId(itemId);
           if (queryName)
-            properties += " OrganizerQuery_" + queryName;
+            properties.push(this._getAtomFor("OrganizerQuery_" + queryName));
         }
       }
       else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR)
-        properties += " separator";
+        properties.push(this._getAtomFor("separator"));
       else if (PlacesUtils.nodeIsURI(node)) {
-        properties += " " + PlacesUIUtils.guessUrlSchemeForUI(node.uri);
+        properties.push(this._getAtomFor(PlacesUIUtils.guessUrlSchemeForUI(node.uri)));
 
         if (this._controller.hasCachedLivemarkInfo(node.parent)) {
-          properties += " livemarkItem";
+          properties.push(this._getAtomFor("livemarkItem"));
           if (node.accessCount) {
-            properties += " visited";
+            properties.push(this._getAtomFor("visited"));
           }
         }
       }
 
       this._cellProperties.set(node, properties);
     }
-
-    return props + " " + properties;
+    for (let property of properties) {
+      aProperties.AppendElement(property);
+    }
   },
 
-  getColumnProperties: function(aColumn) { return ""; },
+  getColumnProperties: function(aColumn, aProperties) { },
 
   isContainer: function PTV_isContainer(aRow) {
     // Only leaf nodes aren't listed in the rows array.

@@ -22,12 +22,11 @@ public:
   ~BluetoothScoManager();
 
   static BluetoothScoManager* Get();
-  void ReceiveSocketData(nsAutoPtr<mozilla::ipc::UnixSocketRawData>& aMessage)
+  void ReceiveSocketData(mozilla::ipc::UnixSocketRawData* aMessage)
     MOZ_OVERRIDE;
 
   bool Connect(const nsAString& aDeviceObjectPath);
   void Disconnect();
-  bool Listen();
 
 private:
   friend class BluetoothScoManagerObserver;
@@ -39,8 +38,6 @@ private:
   virtual void OnConnectSuccess() MOZ_OVERRIDE;
   virtual void OnConnectError() MOZ_OVERRIDE;
   virtual void OnDisconnect() MOZ_OVERRIDE;
-
-  int mSocketStatus;
 };
 
 END_BLUETOOTH_NAMESPACE

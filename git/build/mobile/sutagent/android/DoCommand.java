@@ -107,7 +107,7 @@ public class DoCommand {
     String ffxProvider = "org.mozilla.ffxcp";
     String fenProvider = "org.mozilla.fencp";
 
-    private final String prgVersion = "SUTAgentAndroid Version 1.16";
+    private final String prgVersion = "SUTAgentAndroid Version 1.13";
 
     public enum Command
         {
@@ -131,8 +131,6 @@ public class DoCommand {
         MEMORY ("memory"),
         POWER ("power"),
         PROCESS ("process"),
-        SUTUSERINFO ("sutuserinfo"),
-        TEMPERATURE ("temperature"),
         GETAPPROOT ("getapproot"),
         TESTROOT ("testroot"),
         ALRT ("alrt"),
@@ -436,17 +434,7 @@ public class DoCommand {
                     strReturn += "\n";
                     strReturn += GetPowerInfo();
                     strReturn += "\n";
-                    strReturn += GetTemperatureInfo();
-                    strReturn += "\n";
                     strReturn += GetProcessInfo();
-                    strReturn += "\n";
-                    strReturn += GetSutUserInfo();
-                    strReturn += "\n";
-                    strReturn += GetDiskInfo("/data");
-                    strReturn += "\n";
-                    strReturn += GetDiskInfo("/system");
-                    strReturn += "\n";
-                    strReturn += GetDiskInfo("/mnt/sdcard");
                     }
                 else
                     {
@@ -491,23 +479,6 @@ public class DoCommand {
 
                         case POWER:
                             strReturn += GetPowerInfo();
-                            break;
-
-                        case SUTUSERINFO:
-                            strReturn += GetSutUserInfo();
-                            break;
-
-                        case TEMPERATURE:
-                            strReturn += GetTemperatureInfo();
-                            break;
-
-                        case DISK:
-                            strReturn += "\n";
-                            strReturn += GetDiskInfo("/data");
-                            strReturn += "\n";
-                            strReturn += GetDiskInfo("/system");
-                            strReturn += "\n";
-                            strReturn += GetDiskInfo("/mnt/sdcard");
                             break;
 
                         default:
@@ -1364,6 +1335,7 @@ private void CancelNotification()
             }
         if (tmpFile.exists()) 
             {
+            Log.i("CLINT", "tmpfile exists");
             return("/data/local");
             }
         Log.e("SUTAgentAndroid", "ERROR: Cannot access world writeable test root");
@@ -1439,7 +1411,7 @@ private void CancelNotification()
                     pProc = Runtime.getRuntime().exec(this.getSuArgs("ls -l " + sDir));
                     RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
                     outThrd.start();
-                    outThrd.joinAndStopRedirect(5000);
+                    outThrd.join(5000);
                     sRet = outThrd.strOutput;
                     if (!sRet.contains("No such file or directory") && sRet.startsWith("l"))
                         sRet = "FALSE";
@@ -2412,21 +2384,21 @@ private void CancelNotification()
             pProc = Runtime.getRuntime().exec(this.getSuArgs(sCmd));
             RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
             outThrd.start();
-            outThrd.joinAndStopRedirect(5000);
+            outThrd.join(5000);
             sTmp = outThrd.strOutput;
             Log.e("ADB", sTmp);
             if (outThrd.nExitCode == 0) {
                 pProc = Runtime.getRuntime().exec(this.getSuArgs("stop adbd"));
                 outThrd = new RedirOutputThread(pProc, null);
                 outThrd.start();
-                outThrd.joinAndStopRedirect(5000);
+                outThrd.join(5000);
                 sTmp = outThrd.strOutput;
                 Log.e("ADB", sTmp);
                 if (outThrd.nExitCode == 0) {
                     pProc = Runtime.getRuntime().exec(this.getSuArgs("start adbd"));
                     outThrd = new RedirOutputThread(pProc, null);
                     outThrd.start();
-                    outThrd.joinAndStopRedirect(5000);
+                    outThrd.join(5000);
                     sTmp = outThrd.strOutput;
                     Log.e("ADB", sTmp);
                     if (outThrd.nExitCode == 0) {
@@ -2479,7 +2451,7 @@ private void CancelNotification()
                     pProc = Runtime.getRuntime().exec(this.getSuArgs("kill " + lProcesses.get(lcv).pid));
                     RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
                     outThrd.start();
-                    outThrd.joinAndStopRedirect(15000);
+                    outThrd.join(15000);
                     String sTmp = outThrd.strOutput;
                     Log.e("KILLPROCESS", sTmp);
                     }
@@ -2530,7 +2502,7 @@ private void CancelNotification()
                 pProc = Runtime.getRuntime().exec("ps");
                 RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
                 outThrd.start();
-                outThrd.joinAndStopRedirect(10000);
+                outThrd.join(10000);
                 String sTmp = outThrd.strOutput;
                 StringTokenizer stokLines = new StringTokenizer(sTmp, "\n");
                 while(stokLines.hasMoreTokens())
@@ -2636,68 +2608,18 @@ private void CancelNotification()
         return (sRet);
         }
 
-    public String GetSutUserInfo()
-        {
-        String sRet = "";
-        try {
-            // based on patch in https://bugzilla.mozilla.org/show_bug.cgi?id=811763
-            Context context = contextWrapper.getApplicationContext();
-            Object userManager = context.getSystemService("user");
-            if (userManager != null) {
-                // if userManager is non-null that means we're running on 4.2+ and so the rest of this
-                // should just work
-                Object userHandle = android.os.Process.class.getMethod("myUserHandle", (Class[])null).invoke(null);
-                Object userSerial = userManager.getClass().getMethod("getSerialNumberForUser", userHandle.getClass()).invoke(userManager, userHandle);
-                sRet += "User Serial:" + userSerial.toString();
-            }
-        } catch (Exception e) {
-            // Guard against any unexpected failures
-            e.printStackTrace();
-        }
-
-        return sRet;
-        }
-
-    public String GetTemperatureInfo()
-        {
-        String sTempVal = "unknown";
-        String sDeviceFile = "/sys/bus/platform/devices/temp_sensor_hwmon.0/temp1_input";
-        try {
-            pProc = Runtime.getRuntime().exec(this.getSuArgs("cat " + sDeviceFile));
-            RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
-            outThrd.start();
-            outThrd.joinAndStopRedirect(5000);
-            String output = outThrd.strOutput;
-            // this only works on pandas (with the temperature sensors turned
-            // on), other platforms we just get a file not found error... we'll
-            // just return "unknown" for that case
-            try {
-                sTempVal = String.valueOf(Integer.parseInt(output.trim()) / 1000.0);
-            } catch (NumberFormatException e) {
-                // not parsed! probably not a panda
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        return "Temperature: " + sTempVal;
-        }
-
+    // todo
     public String GetDiskInfo(String sPath)
         {
         String sRet = "";
         StatFs statFS = new StatFs(sPath);
 
-        long nBlockCount = statFS.getBlockCount();
-        long nBlockSize = statFS.getBlockSize();
-        long nBlocksAvail = statFS.getAvailableBlocks();
-        // Free is often the same as Available, but can include reserved
-        // blocks that are not available to normal applications.
-        // long nBlocksFree = statFS.getFreeBlocks();
+        int nBlockCount = statFS.getBlockCount();
+        int nBlockSize = statFS.getBlockSize();
+        int nBlocksAvail = statFS.getAvailableBlocks();
+        int nBlocksFree = statFS.getFreeBlocks();
 
-        sRet = sPath + ": " + (nBlockCount * nBlockSize) + " total, " + (nBlocksAvail * nBlockSize) + " available";
+        sRet = "total:     " + (nBlockCount * nBlockSize) + "\nfree:      " + (nBlocksFree * nBlockSize) + "\navailable: " + (nBlocksAvail * nBlockSize);
 
         return (sRet);
         }
@@ -3005,7 +2927,7 @@ private void CancelNotification()
                 pProc = Runtime.getRuntime().exec(this.getSuArgs("date -u " + sMillis));
                 RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
                 outThrd.start();
-                outThrd.joinAndStopRedirect(10000);
+                outThrd.join(10000);
                 sRet += GetSystemTime();
             } catch (IOException e) {
                 sRet = e.getMessage();
@@ -3070,7 +2992,7 @@ private void CancelNotification()
             pProc = Runtime.getRuntime().exec("kill "+sProcId);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
-            outThrd.joinAndStopRedirect(5000);
+            outThrd.join(5000);
             }
         catch (IOException e)
             {
@@ -3100,7 +3022,7 @@ private void CancelNotification()
             pProc = Runtime.getRuntime().exec(theArgs);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
-            outThrd.joinAndStopRedirect(5000);
+            outThrd.join(5000);
             if (out == null)
                 sRet = outThrd.strOutput;
             }
@@ -3267,7 +3189,7 @@ private void CancelNotification()
             pProc = Runtime.getRuntime().exec(this.getSuArgs("reboot"));
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
-            outThrd.joinAndStopRedirect(10000);
+            outThrd.join(10000);
         } catch (IOException e) {
             sRet = e.getMessage();
             e.printStackTrace();
@@ -3304,7 +3226,7 @@ private void CancelNotification()
             RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
             outThrd.start();
             try {
-                outThrd.joinAndStopRedirect(60000);
+                outThrd.join(60000);
                 int nRet = pProc.exitValue();
                 sRet = "\nuninst complete [" + nRet + "]";
                 }
@@ -3331,22 +3253,73 @@ private void CancelNotification()
         String sRet = "";
         File    srcFile = new File(sApp);
 
+        sRet = CopyFile(sApp, GetTmpDir() + "/" + srcFile.getName());
+        try {
+            out.write(sRet.getBytes());
+            out.flush();
+            }
+        catch (IOException e1)
+            {
+            e1.printStackTrace();
+            }
+
         try
             {
-            // on android 4.2 and above, we want to pass the "-d" argument to pm so that version
-            // downgrades are allowed... (option unsupported in earlier versions)
-            String sPmCmd;
+            pProc = Runtime.getRuntime().exec(this.getSuArgs("mv " + GetTmpDir() + "/" +
+                                                             srcFile.getName() +
+                                                             " /data/local/tmp/" +
+                                                             srcFile.getName() + ";exit"));
 
-            if (android.os.Build.VERSION.SDK_INT >= 17) { // JELLY_BEAN_MR1
-                sPmCmd = "pm install -r -d " + sApp + " Cleanup;exit";
-            } else {
-                sPmCmd = "pm install -r " + sApp + " Cleanup;exit";
+            RedirOutputThread outThrd = new RedirOutputThread(pProc, out);
+            outThrd.start();
+            try {
+                outThrd.join(90000);
+                int nRet = pProc.exitValue();
+                sRet = "\nmove complete [" + nRet + "]";
+                }
+            catch (IllegalThreadStateException itse) {
+                itse.printStackTrace();
+                sRet = "\nmove command timed out";
             }
-            pProc = Runtime.getRuntime().exec(this.getSuArgs(sPmCmd));
+            try
+                {
+                out.write(sRet.getBytes());
+                out.flush();
+                }
+            catch (IOException e1)
+                {
+                e1.printStackTrace();
+                }
+
+            pProc = Runtime.getRuntime().exec(this.getSuArgs("chmod 666 /data/local/tmp/" +
+                                                             srcFile.getName() + ";exit"));
+            RedirOutputThread outThrd2 = new RedirOutputThread(pProc, out);
+            outThrd2.start();
+            try {
+                outThrd2.join(10000);
+                int nRet2 = pProc.exitValue();
+                sRet = "\npermission change complete [" + nRet2 + "]\n";
+                }
+            catch (IllegalThreadStateException itse) {
+                itse.printStackTrace();
+                sRet = "\npermission change timed out";
+            }
+            try {
+                out.write(sRet.getBytes());
+                out.flush();
+                }
+            catch (IOException e1)
+                {
+                e1.printStackTrace();
+                }
+
+            pProc = Runtime.getRuntime().exec(this.getSuArgs("pm install -r /data/local/tmp/" +
+                                                             srcFile.getName() + " Cleanup" +
+                                                             ";exit"));
             RedirOutputThread outThrd3 = new RedirOutputThread(pProc, out);
             outThrd3.start();
             try {
-                outThrd3.joinAndStopRedirect(60000);
+                outThrd3.join(60000);
                 int nRet3 = pProc.exitValue();
                 sRet = "\ninstallation complete [" + nRet3 + "]";
                 }
@@ -3362,6 +3335,29 @@ private void CancelNotification()
                 {
                 e1.printStackTrace();
                 }
+
+            pProc = Runtime.getRuntime().exec(this.getSuArgs("rm /data/local/tmp/" +
+                                                             srcFile.getName() + ";exit"));
+            RedirOutputThread outThrd4 = new RedirOutputThread(pProc, out);
+            outThrd4.start();
+            try {
+                outThrd4.join(60000);
+                int nRet4 = pProc.exitValue();
+                sRet = "\ntmp file removed [" + nRet4 + "]";
+                }
+            catch (IllegalThreadStateException itse) {
+                itse.printStackTrace();
+                sRet = "\nrm command timed out";
+            }
+            try {
+                out.write(sRet.getBytes());
+                out.flush();
+                }
+            catch (IOException e1)
+                {
+                e1.printStackTrace();
+                }
+            sRet = "\nSuccess";
             }
         catch (IOException e)
             {
@@ -3502,7 +3498,7 @@ private void CancelNotification()
             else
                 prgIntent.setAction(Intent.ACTION_MAIN);
 
-            if (sArgs[0].contains("fennec") || sArgs[0].contains("firefox"))
+            if (sArgs[0].contains("fennec"))
                 {
                 sArgList = "";
                 sUrl = "";
@@ -3611,7 +3607,6 @@ private void CancelNotification()
                     lcv++;
                     }
                 }
-            outThrd.stopRedirect();
             }
         catch (IOException e)
             {
@@ -3742,7 +3737,6 @@ private void CancelNotification()
                         lcv++;
                         }
                     }
-                outThrd.stopRedirect();
                 }
             else
                 {
@@ -3813,7 +3807,7 @@ private void CancelNotification()
                                 Process pProc = Runtime.getRuntime().exec("chmod 777 "+files[lcv]);
                                 RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
                                 outThrd.start();
-                                outThrd.joinAndStopRedirect(5000);
+                                outThrd.join(5000);
                                 sRet += "\n\tchmod " + files[lcv].getName() + " ok";
                             } catch (InterruptedException e) {
                                 sRet += "\n\ttimeout waiting for chmod " + files[lcv].getName();
@@ -3833,7 +3827,7 @@ private void CancelNotification()
             Process pProc = Runtime.getRuntime().exec("chmod 777 "+sTmpDir);
             RedirOutputThread outThrd = new RedirOutputThread(pProc, null);
             outThrd.start();
-            outThrd.joinAndStopRedirect(5000);
+            outThrd.join(5000);
             sRet += "\n\tchmod " + sTmpDir + " ok";
         } catch (InterruptedException e) {
             sRet += "\n\ttimeout waiting for chmod " + sTmpDir;

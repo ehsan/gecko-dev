@@ -17,8 +17,6 @@
 #include "jspubtd.h"
 #include "jsstr.h"
 
-#include "js/CharacterEncoding.h"
-
 using namespace js;
 
 /*
@@ -362,8 +360,8 @@ static int cvt_s(SprintfState *ss, const char *s, int width, int prec,
     return fill2(ss, s ? s : "(null)", slen, width, flags);
 }
 
-static int
-cvt_ws(SprintfState *ss, const jschar *ws, int width, int prec, int flags)
+static int cvt_ws(SprintfState *ss, const jschar *ws, int width, int prec,
+                  int flags)
 {
     int result;
     /*
@@ -371,15 +369,12 @@ cvt_ws(SprintfState *ss, const jschar *ws, int width, int prec, int flags)
      * and malloc() is used to allocate the buffer buffer.
      */
     if (ws) {
-        size_t wslen = js_strlen(ws);
-        char *latin1 = js_pod_malloc<char>(wslen + 1);
-        if (!latin1)
+        int slen = js_strlen(ws);
+        char *s = DeflateString(NULL, ws, slen);
+        if (!s)
             return -1; /* JSStuffFunc error indicator. */
-        for (size_t i = 0; i < wslen; ++i)
-            latin1[i] = (char)ws[i];
-        latin1[wslen] = '\0';
-        result = cvt_s(ss, latin1, width, prec, flags);
-        js_free(latin1);
+        result = cvt_s(ss, s, width, prec, flags);
+        js_free(s);
     } else {
         result = cvt_s(ss, NULL, width, prec, flags);
     }
@@ -673,6 +668,8 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
     struct NumArgState nasArray[ NAS_DEFAULT_NUM ];
     char pattern[20];
     const char *dolPt = NULL;  /* in "%4$.2f", dolPt will poiont to . */
+    uint8_t utf8buf[6];
+    int utf8len;
 
     /*
     ** build an argument array, IF the fmt is numbered argument
@@ -909,6 +906,13 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
             }
             switch (type) {
               case TYPE_INT16:
+                /* Treat %hc as %c unless js_CStringsAreUTF8. */
+                if (js_CStringsAreUTF8) {
+                    u.wch = va_arg(ap, int);
+                    utf8len = js_OneUcs4ToUtf8Char (utf8buf, u.wch);
+                    rv = (*ss->stuff)(ss, (char *)utf8buf, utf8len);
+                    break;
+                }
               case TYPE_INTN:
                 u.ch = va_arg(ap, int);
                 rv = (*ss->stuff)(ss, &u.ch, 1);
@@ -953,6 +957,10 @@ static int dosprintf(SprintfState *ss, const char *fmt, va_list ap)
 
           case 's':
             if(type == TYPE_INT16) {
+                /*
+                 * This would do a simple string/byte conversion
+                 * unless js_CStringsAreUTF8.
+                 */
                 u.ws = va_arg(ap, const jschar*);
                 rv = cvt_ws(ss, u.ws, width, prec, flags);
             } else {

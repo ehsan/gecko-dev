@@ -9,27 +9,33 @@
 #include "LayerManagerOGLProgram.h"
 
 #include "mozilla/layers/ShadowLayers.h"
+
 #include "mozilla/TimeStamp.h"
-#include "nsPoint.h"
 
 #ifdef XP_WIN
 #include <windows.h>
 #endif
+
+/**
+ * We don't include GLDefs.h here since we don't want to drag in all defines
+ * in for all our users.
+ */
+typedef unsigned int GLenum;
+typedef unsigned int GLbitfield;
+typedef unsigned int GLuint;
+typedef int GLint;
+typedef int GLsizei;
 
 #define BUFFER_OFFSET(i) ((char *)NULL + (i))
 
 #include "gfxContext.h"
 #include "gfx3DMatrix.h"
 #include "nsIWidget.h"
-#include "GLContextTypes.h"
+#include "GLContext.h"
 
 namespace mozilla {
-namespace gl {
-class GLContext;
-}
 namespace layers {
 
-class Composer2D;
 class LayerOGL;
 class ShadowThebesLayer;
 class ShadowContainerLayer;
@@ -64,7 +70,9 @@ public:
    *
    * \return True is initialization was succesful, false when it was not.
    */
-  bool Initialize(bool force = false);
+  bool Initialize(bool force = false) {
+    return Initialize(CreateContext(), force);
+  }
 
   bool Initialize(nsRefPtr<GLContext> aContext, bool force = false);
 
@@ -101,14 +109,18 @@ public:
 
   virtual void SetRoot(Layer* aLayer) { mRoot = aLayer; }
 
-  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize) {
-    if (!mGLContext)
-      return false;
-    int32_t maxSize = GetMaxTextureSize();
-    return aSize <= gfxIntSize(maxSize, maxSize);
+  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize)
+  {
+      if (!mGLContext)
+          return false;
+      int32_t maxSize = mGLContext->GetMaxTextureSize();
+      return aSize <= gfxIntSize(maxSize, maxSize);
   }
 
-  virtual int32_t GetMaxTextureSize() const;
+  virtual int32_t GetMaxTextureSize() const
+  {
+    return mGLContext->GetMaxTextureSize();
+  }
 
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
 
@@ -133,12 +145,16 @@ public:
   virtual already_AddRefed<gfxASurface>
     CreateOptimalMaskSurface(const gfxIntSize &aSize);
 
-  virtual void ClearCachedResources(Layer* aSubtree = nullptr) MOZ_OVERRIDE;
-
   /**
    * Helper methods.
    */
-  void MakeCurrent(bool aForce = false);
+  void MakeCurrent(bool aForce = false) {
+    if (mDestroyed) {
+      NS_WARNING("Call on destroyed layer manager");
+      return;
+    }
+    mGLContext->MakeCurrent(aForce);
+  }
 
   ShaderProgramOGL* GetBasicLayerProgram(bool aOpaque, bool aIsRGB,
                                          MaskType aMask = MaskNone)
@@ -183,9 +199,6 @@ public:
   }
 
   GLContext* gl() const { return mGLContext; }
-
-  // |NSOpenGLContext*|:
-  void* GetNSOpenGLContext() const;
 
   DrawThebesLayerCallback GetThebesLayerCallback() const
   { return mThebesLayerCallback; }
@@ -238,15 +251,56 @@ public:
   GLintptr QuadVBOTexCoordOffset() { return sizeof(float)*4*2; }
   GLintptr QuadVBOFlippedTexCoordOffset() { return sizeof(float)*8*2; }
 
-  void BindQuadVBO();
-  void QuadVBOVerticesAttrib(GLuint aAttribIndex);
-  void QuadVBOTexCoordsAttrib(GLuint aAttribIndex);
-  void QuadVBOFlippedTexCoordsAttrib(GLuint aAttribIndex);
+  void BindQuadVBO() {
+    mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mQuadVBO);
+  }
+
+  void QuadVBOVerticesAttrib(GLuint aAttribIndex) {
+    mGLContext->fVertexAttribPointer(aAttribIndex, 2,
+                                     LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                                     (GLvoid*) QuadVBOVertexOffset());
+  }
+
+  void QuadVBOTexCoordsAttrib(GLuint aAttribIndex) {
+    mGLContext->fVertexAttribPointer(aAttribIndex, 2,
+                                     LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                                     (GLvoid*) QuadVBOTexCoordOffset());
+  }
+
+  void QuadVBOFlippedTexCoordsAttrib(GLuint aAttribIndex) {
+    mGLContext->fVertexAttribPointer(aAttribIndex, 2,
+                                     LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                                     (GLvoid*) QuadVBOFlippedTexCoordOffset());
+  }
 
   // Super common
+
   void BindAndDrawQuad(GLuint aVertAttribIndex,
                        GLuint aTexCoordAttribIndex,
-                       bool aFlipped = false);
+                       bool aFlipped = false)
+  {
+    BindQuadVBO();
+    QuadVBOVerticesAttrib(aVertAttribIndex);
+
+    if (aTexCoordAttribIndex != GLuint(-1)) {
+      if (aFlipped)
+        QuadVBOFlippedTexCoordsAttrib(aTexCoordAttribIndex);
+      else
+        QuadVBOTexCoordsAttrib(aTexCoordAttribIndex);
+
+      mGLContext->fEnableVertexAttribArray(aTexCoordAttribIndex);
+    }
+
+    mGLContext->fEnableVertexAttribArray(aVertAttribIndex);
+
+    mGLContext->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
+
+    mGLContext->fDisableVertexAttribArray(aVertAttribIndex);
+
+    if (aTexCoordAttribIndex != GLuint(-1)) {
+      mGLContext->fDisableVertexAttribArray(aTexCoordAttribIndex);
+    }
+  }
 
   void BindAndDrawQuad(ShaderProgramOGL *aProg,
                        bool aFlipped = false)
@@ -291,8 +345,6 @@ public:
   gfxMatrix& GetWorldTransform(void);
   void WorldTransformRect(nsIntRect& aRect);
 
-  void UpdateRenderBounds(const nsIntRect& aRect);
-
   /**
    * Set the size of the surface we're rendering to.
    */
@@ -309,15 +361,6 @@ public:
     CreateDrawTarget(const mozilla::gfx::IntSize &aSize,
                      mozilla::gfx::SurfaceFormat aFormat);
 
-  /**
-   * Calculates the 'completeness' of the rendering that intersected with the
-   * screen on the last render. This is only useful when progressive tile
-   * drawing is enabled, otherwise this will always return 1.0.
-   * This function's expense scales with the size of the layer tree and the
-   * complexity of individual layers' valid regions.
-   */
-  float ComputeRenderIntegrity();
-
 private:
   /** Widget associated with this layer manager */
   nsIWidget *mWidget;
@@ -332,9 +375,6 @@ private:
   nsRefPtr<gfxContext> mTarget;
 
   nsRefPtr<GLContext> mGLContext;
-
-  /** Our more efficient but less powerful alter ego, if one is available. */
-  nsRefPtr<Composer2D> mComposer2D;
 
   already_AddRefed<mozilla::gl::GLContext> CreateContext();
 
@@ -400,68 +440,15 @@ private:
    */
   void AddPrograms(gl::ShaderProgramType aType);
 
-  /**
-   * Recursive helper method for use by ComputeRenderIntegrity. Subtracts
-   * any incomplete rendering on aLayer from aScreenRegion. Any low-precision
-   * rendering is included in aLowPrecisionScreenRegion. aTransform is the
-   * accumulated transform of intermediate surfaces beneath aLayer.
-   */
-  static void ComputeRenderIntegrityInternal(Layer* aLayer,
-                                             nsIntRegion& aScreenRegion,
-                                             nsIntRegion& aLowPrecisionScreenRegion,
-                                             const gfx3DMatrix& aTransform);
-
   /* Thebes layer callbacks; valid at the end of a transaciton,
    * while rendering */
   DrawThebesLayerCallback mThebesLayerCallback;
   void *mThebesLayerCallbackData;
   gfxMatrix mWorldMatrix;
   nsAutoPtr<FPSState> mFPS;
-  nsIntRect mRenderBounds;
-#ifdef DEBUG
-  // NB: only interesting when this is a purely compositing layer
-  // manager.  True after possibly onscreen layers have had their
-  // cached resources cleared outside of a transaction, and before the
-  // next forwarded transaction that re-validates their buffers.
-  bool mMaybeInvalidTree;
-#endif
 
   static bool sDrawFPS;
   static bool sFrameCounter;
-};
-
-enum LayerRenderStateFlags {
-  LAYER_RENDER_STATE_Y_FLIPPED = 1 << 0,
-  LAYER_RENDER_STATE_BUFFER_ROTATION = 1 << 1
-};
-
-struct LayerRenderState {
-  LayerRenderState() : mSurface(nullptr), mFlags(0), mHasOwnOffset(false)
-  {}
-
-  LayerRenderState(SurfaceDescriptor* aSurface, uint32_t aFlags = 0)
-    : mSurface(aSurface)
-    , mFlags(aFlags)
-    , mHasOwnOffset(false)
-  {}
-
-  LayerRenderState(SurfaceDescriptor* aSurface, nsIntPoint aOffset, uint32_t aFlags = 0)
-    : mSurface(aSurface)
-    , mFlags(aFlags)
-    , mOffset(aOffset)
-    , mHasOwnOffset(true)
-  {}
-
-  bool YFlipped() const
-  { return mFlags & LAYER_RENDER_STATE_Y_FLIPPED; }
-
-  bool BufferRotated() const
-  { return mFlags & LAYER_RENDER_STATE_BUFFER_ROTATION; }
-
-  SurfaceDescriptor* mSurface;
-  uint32_t mFlags;
-  nsIntPoint mOffset;
-  bool mHasOwnOffset;
 };
 
 /**
@@ -486,8 +473,6 @@ public:
   virtual void Destroy() = 0;
 
   virtual Layer* GetLayer() = 0;
-
-  virtual LayerRenderState GetRenderState() { return LayerRenderState(); }
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset) = 0;

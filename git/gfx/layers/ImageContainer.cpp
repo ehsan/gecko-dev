@@ -17,7 +17,6 @@
 #include "gfxSharedImageSurface.h"
 #include "yuv_convert.h"
 #include "gfxUtils.h"
-#include "gfxPlatform.h"
 
 #ifdef XP_MACOSX
 #include "mozilla/gfx/QuartzSupport.h"
@@ -145,13 +144,6 @@ ImageContainer::CreateImage(const ImageFormat *aFormats,
                             uint32_t aNumFormats)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  if (mImageContainerChild) {
-    nsRefPtr<Image> img = mImageContainerChild->CreateImage((uint32_t*)aFormats,
-                                                            aNumFormats);
-    if (img) {
-      return img.forget();
-    }
-  }
   return mImageFactory->CreateImage(aFormats, aNumFormats, mScaleHint, mRecycleBin);
 }
 
@@ -184,7 +176,7 @@ ImageContainer::SetCurrentImage(Image *aImage)
     if (aImage) {
       mImageContainerChild->SendImageAsync(this, aImage);
     } else {
-      mImageContainerChild->SetIdle();
+      mImageContainerChild->DispatchSetIdle();
     }
   }
   
@@ -402,7 +394,6 @@ ImageContainer::EnsureActiveImage()
 PlanarYCbCrImage::PlanarYCbCrImage(BufferRecycleBin *aRecycleBin)
   : Image(nullptr, PLANAR_YCBCR)
   , mBufferSize(0)
-  , mOffscreenFormat(gfxASurface::ImageFormatUnknown)
   , mRecycleBin(aRecycleBin)
 {
 }
@@ -454,7 +445,7 @@ PlanarYCbCrImage::CopyData(const Data& aData)
                 mData.mYStride * mData.mYSize.height;
 
   // get new buffer
-  mBuffer = AllocateBuffer(mBufferSize);
+  mBuffer = AllocateBuffer(mBufferSize); 
   if (!mBuffer)
     return;
 
@@ -478,32 +469,6 @@ PlanarYCbCrImage::SetData(const Data &aData)
   CopyData(aData);
 }
 
-gfxASurface::gfxImageFormat
-PlanarYCbCrImage::GetOffscreenFormat()
-{
-  return mOffscreenFormat == gfxASurface::ImageFormatUnknown ?
-    gfxPlatform::GetPlatform()->GetOffscreenFormat() :
-    mOffscreenFormat;
-}
-
-void
-PlanarYCbCrImage::SetDataNoCopy(const Data &aData)
-{
-  mData = aData;
-  mSize = aData.mPicSize;
-}
-
-uint8_t*
-PlanarYCbCrImage::AllocateAndGetNewBuffer(uint32_t aSize)
-{
-  // update buffer size
-  mBufferSize = aSize;
-
-  // get new buffer
-  mBuffer = AllocateBuffer(mBufferSize); 
-  return mBuffer;
-}
-
 already_AddRefed<gfxASurface>
 PlanarYCbCrImage::GetAsSurface()
 {
@@ -513,6 +478,7 @@ PlanarYCbCrImage::GetAsSurface()
   }
 
   gfxASurface::gfxImageFormat format = GetOffscreenFormat();
+
   gfxIntSize size(mSize);
   gfxUtils::GetYCbCrToRGBDestFormatAndSize(mData, format, size);
   if (size.width > PlanarYCbCrImage::MAX_DIMENSION ||

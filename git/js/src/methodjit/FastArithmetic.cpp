@@ -4,13 +4,9 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/MathAlgorithms.h"
-
 #include "jsbool.h"
 #include "jslibmath.h"
 #include "jsnum.h"
-
 #include "methodjit/MethodJIT.h"
 #include "methodjit/Compiler.h"
 #include "methodjit/StubCalls.h"
@@ -20,8 +16,6 @@ using namespace js;
 using namespace js::mjit;
 using namespace js::analyze;
 using namespace JSC;
-
-using mozilla::Abs;
 
 typedef JSC::MacroAssembler::FPRegisterID FPRegisterID;
 
@@ -156,7 +150,7 @@ mjit::Compiler::jsop_binary_slow(JSOp op, VoidStub stub, JSValueType type,
     JS_ASSERT_IF(isStringResult && type != JSVAL_TYPE_UNKNOWN, type == JSVAL_TYPE_STRING);
 
     prepareStubCall(Uses(2));
-    INLINE_STUBCALL(stub, REJOIN_FALLTHROUGH);
+    INLINE_STUBCALL(stub, REJOIN_BINARY);
     frame.popn(2);
     frame.pushSynced(isStringResult ? JSVAL_TYPE_STRING : type);
     return true;
@@ -333,8 +327,7 @@ mjit::Compiler::jsop_binary_double(FrameEntry *lhs, FrameEntry *rhs, JSOp op,
         (type == JSVAL_TYPE_INT32 ||
          (type == JSVAL_TYPE_UNKNOWN &&
           !(lhs->isConstant() && lhs->isType(JSVAL_TYPE_INT32) &&
-            Abs(lhs->getValue().toInt32()) == 1))))
-    {
+            abs(lhs->getValue().toInt32()) == 1)))) {
         RegisterID reg = frame.allocReg();
         FPRegisterID fpReg = frame.allocFPReg();
         JumpList isDouble;
@@ -374,7 +367,7 @@ mjit::Compiler::jsop_binary_double(FrameEntry *lhs, FrameEntry *rhs, JSOp op,
         done.getJump().linkTo(masm.label(), &masm);
 
     stubcc.leave();
-    OOL_STUBCALL(stub, REJOIN_FALLTHROUGH);
+    OOL_STUBCALL(stub, REJOIN_BINARY);
 
     if (allocateRight)
         frame.freeReg(fpRight);
@@ -472,7 +465,7 @@ mjit::Compiler::jsop_binary_full_simple(FrameEntry *fe, JSOp op, VoidStub stub, 
     /* Slow call - use frame.sync to avoid erroneous jump repatching in stubcc. */
     frame.sync(stubcc.masm, Uses(2));
     stubcc.leave();
-    OOL_STUBCALL(stub, REJOIN_FALLTHROUGH);
+    OOL_STUBCALL(stub, REJOIN_BINARY);
 
     /* Finish up stack operations. */
     frame.popn(2);
@@ -739,7 +732,7 @@ mjit::Compiler::jsop_binary_full(FrameEntry *lhs, FrameEntry *rhs, JSOp op,
     /* Slow call - use frame.sync to avoid erroneous jump repatching in stubcc. */
     frame.sync(stubcc.masm, Uses(2));
     stubcc.leave();
-    OOL_STUBCALL(stub, REJOIN_FALLTHROUGH);
+    OOL_STUBCALL(stub, REJOIN_BINARY);
 
     /* Finish up stack operations. */
     frame.popn(2);

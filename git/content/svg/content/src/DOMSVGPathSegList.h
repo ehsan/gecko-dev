@@ -10,11 +10,14 @@
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDebug.h"
+#include "nsIDOMSVGPathSegList.h"
 #include "nsSVGElement.h"
 #include "nsTArray.h"
 #include "SVGPathData.h" // IWYU pragma: keep
 #include "mozilla/Attributes.h"
 #include "mozilla/ErrorResult.h"
+
+class nsIDOMSVGPathSeg;
 
 namespace mozilla {
 
@@ -46,7 +49,7 @@ class SVGAnimatedPathSegList;
  *
  * Our DOM items are created lazily on demand as and when script requests them.
  */
-class DOMSVGPathSegList MOZ_FINAL : public nsISupports,
+class DOMSVGPathSegList MOZ_FINAL : public nsIDOMSVGPathSegList,
                                     public nsWrapperCache
 {
   friend class DOMSVGPathSeg;
@@ -54,8 +57,10 @@ class DOMSVGPathSegList MOZ_FINAL : public nsISupports,
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGPathSegList)
+  NS_DECL_NSIDOMSVGPATHSEGLIST
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
 
   nsISupports* GetParentObject()
   {
@@ -135,29 +140,29 @@ public:
     return LengthNoFlush();
   }
   void Clear(ErrorResult& aError);
-  already_AddRefed<DOMSVGPathSeg> Initialize(DOMSVGPathSeg& aNewItem,
-                                             ErrorResult& aError);
-  DOMSVGPathSeg* GetItem(uint32_t aIndex, ErrorResult& aError)
+  already_AddRefed<nsIDOMSVGPathSeg> Initialize(nsIDOMSVGPathSeg *aNewItem,
+                                                ErrorResult& aError);
+  nsIDOMSVGPathSeg* GetItem(uint32_t aIndex, ErrorResult& aError)
   {
     bool found;
-    DOMSVGPathSeg* item = IndexedGetter(aIndex, found, aError);
+    nsIDOMSVGPathSeg* item = IndexedGetter(aIndex, found, aError);
     if (!found) {
       aError.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     }
     return item;
   }
-  DOMSVGPathSeg* IndexedGetter(uint32_t aIndex, bool& found,
-                               ErrorResult& aError);
-  already_AddRefed<DOMSVGPathSeg> InsertItemBefore(DOMSVGPathSeg& aNewItem,
-                                                   uint32_t aIndex,
-                                                   ErrorResult& aError);
-  already_AddRefed<DOMSVGPathSeg> ReplaceItem(DOMSVGPathSeg& aNewItem,
-                                              uint32_t aIndex,
-                                              ErrorResult& aError);
-  already_AddRefed<DOMSVGPathSeg> RemoveItem(uint32_t aIndex,
-                                             ErrorResult& aError);
-  already_AddRefed<DOMSVGPathSeg> AppendItem(DOMSVGPathSeg& aNewItem,
-                                             ErrorResult& aError)
+  nsIDOMSVGPathSeg* IndexedGetter(uint32_t aIndex, bool& found,
+                                  ErrorResult& aError);
+  already_AddRefed<nsIDOMSVGPathSeg> InsertItemBefore(nsIDOMSVGPathSeg *aNewItem,
+                                                      uint32_t aIndex,
+                                                      ErrorResult& aError);
+  already_AddRefed<nsIDOMSVGPathSeg> ReplaceItem(nsIDOMSVGPathSeg *aNewItem,
+                                                 uint32_t aIndex,
+                                                 ErrorResult& aError);
+  already_AddRefed<nsIDOMSVGPathSeg> RemoveItem(uint32_t aIndex,
+                                                ErrorResult& aError);
+  already_AddRefed<nsIDOMSVGPathSeg> AppendItem(nsIDOMSVGPathSeg *aNewItem,
+                                                ErrorResult& aError)
   {
     return InsertItemBefore(aNewItem, LengthNoFlush(), aError);
   }
@@ -246,7 +251,7 @@ private:
 
   // Weak refs to our DOMSVGPathSeg items. The items are friends and take care
   // of clearing our pointer to them when they die.
-  FallibleTArray<ItemProxy> mItems;
+  nsTArray<ItemProxy> mItems;
 
   // Strong ref to our element to keep it alive. We hold this not only for
   // ourself, but also for our DOMSVGPathSeg items too.

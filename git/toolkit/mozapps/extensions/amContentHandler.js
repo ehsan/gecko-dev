@@ -76,7 +76,7 @@ amContentHandler.prototype = {
   classID: Components.ID("{7beb3ba8-6ec3-41b4-b67c-da89b8518922}"),
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentHandler]),
 
-  log : function XCH_log(aMsg) {
+  log : function(aMsg) {
     let msg = "amContentHandler.js: " + (aMsg.join ? aMsg.join("") : aMsg);
     Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).
       logStringMessage(msg);
@@ -84,4 +84,4 @@ amContentHandler.prototype = {
   }
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([amContentHandler]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([amContentHandler]);

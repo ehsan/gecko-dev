@@ -7,19 +7,8 @@
  * Retrieves and displays icons in native menu items on Mac OS X.
  */
 
-/* exception_defines.h defines 'try' to 'if (true)' which breaks objective-c
-   exceptions and produces errors like: error: unexpected '@' in program'.
-   If we define __EXCEPTIONS exception_defines.h will avoid doing this.
-
-   See bug 666609 for more information.
-
-   We use <limits> to get the libstdc++ version. */
-#include <limits>
-#if __GLIBCXX__ <= 20070719
-#define __EXCEPTIONS
-#endif
-
 #include "nsMenuItemIconX.h"
+
 #include "nsObjCExceptions.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
@@ -33,8 +22,8 @@
 #include "nsThreadUtils.h"
 #include "nsToolkit.h"
 #include "nsNetUtil.h"
-#include "imgLoader.h"
-#include "imgRequestProxy.h"
+#include "imgILoader.h"
+#include "imgIRequest.h"
 #include "nsMenuItemX.h"
 #include "gfxImageSurface.h"
 #include "imgIContainer.h"
@@ -74,7 +63,7 @@ nsMenuItemIconX::~nsMenuItemIconX()
 }
 
 // Called from mMenuObjectX's destructor, to prevent us from outliving it
-// (as might otherwise happen if calls to our imgINotificationObserver methods
+// (as might otherwise happen if calls to our imgIDecoderObserver methods
 // are still outstanding).  mMenuObjectX owns our nNativeMenuItem.
 void nsMenuItemIconX::Destroy()
 {
@@ -289,7 +278,7 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
   nsCOMPtr<nsILoadGroup> loadGroup = document->GetDocumentLoadGroup();
   if (!loadGroup) return NS_ERROR_FAILURE;
 
-  nsRefPtr<imgLoader> loader = nsContentUtils::GetImgLoaderForDocument(document);
+  nsCOMPtr<imgILoader> loader = nsContentUtils::GetImgLoaderForDocument(document);
   if (!loader) return NS_ERROR_FAILURE;
 
   if (!mSetIcon) {
@@ -316,7 +305,7 @@ nsMenuItemIconX::LoadIcon(nsIURI* aIconURI)
   // Passing in null for channelPolicy here since nsMenuItemIconX::LoadIcon is
   // not exposed to web content
   nsresult rv = loader->LoadImage(aIconURI, nullptr, nullptr, nullptr, loadGroup, this,
-                                   nullptr, nsIRequest::LOAD_NORMAL, nullptr,
+                                   nullptr, nsIRequest::LOAD_NORMAL, nullptr, nullptr,
                                    nullptr, getter_AddRefs(mIconRequest));
   if (NS_FAILED(rv)) return rv;
 
@@ -339,7 +328,7 @@ nsMenuItemIconX::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* a
     return OnStopFrame(aRequest);
   }
 
-  if (aType == imgINotificationObserver::DECODE_COMPLETE) {
+  if (aType == imgINotificationObserver::LOAD_COMPLETE) {
     if (mIconRequest && mIconRequest == aRequest) {
       mIconRequest->Cancel(NS_BINDING_ABORTED);
       mIconRequest = nullptr;
@@ -388,19 +377,16 @@ nsMenuItemIconX::OnStopFrame(imgIRequest*    aRequest)
     mImageRegionRect.SetRect(0, 0, origWidth, origHeight);
   }
   
-  nsRefPtr<gfxASurface> surface;
-  imageContainer->GetFrame(imgIContainer::FRAME_CURRENT,
-                           imgIContainer::FLAG_NONE,
-                           getter_AddRefs(surface));
-  if (!surface) {
+  nsRefPtr<gfxImageSurface> frame;
+  nsresult rv = imageContainer->CopyFrame(  imgIContainer::FRAME_CURRENT,
+                                            imgIContainer::FLAG_NONE,
+                                            getter_AddRefs(frame));
+  if (NS_FAILED(rv) || !frame) {
     [mNativeMenuItem setImage:nil];
     return NS_ERROR_FAILURE;
-  }
-  nsRefPtr<gfxImageSurface> frame(surface->GetAsReadableARGB32ImageSurface());
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-
+  }      
   CGImageRef origImage = NULL;
-  nsresult rv = nsCocoaUtils::CreateCGImageFromSurface(frame, &origImage);
+  rv = nsCocoaUtils::CreateCGImageFromSurface(frame, &origImage);
   if (NS_FAILED(rv) || !origImage) {
     [mNativeMenuItem setImage:nil];
     return NS_ERROR_FAILURE;

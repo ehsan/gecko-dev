@@ -7,10 +7,11 @@
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test" +
                  "/test-bug-782653-css-errors.html";
 
-let nodes, hud, SEC;
+let nodes;
 
-function test()
-{
+let styleEditorWin;
+
+function test() {
   addTab(TEST_URI);
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
@@ -18,30 +19,19 @@ function test()
   }, true);
 }
 
-function testViewSource(aHud)
-{
-  hud = aHud;
-
-  registerCleanupFunction(function() {
-    nodes = hud = SEC = null;
-  });
-
-  let selector = ".webconsole-msg-cssparser .webconsole-location";
+function testViewSource(hud) {
 
   waitForSuccess({
     name: "find the location node",
     validatorFn: function()
     {
-      return hud.outputNode.querySelector(selector);
+      return hud.outputNode.querySelector(".webconsole-location");
     },
     successFn: function()
     {
-      nodes = hud.outputNode.querySelectorAll(selector);
-      is(nodes.length, 2, "correct number of css messages");
+      nodes = hud.outputNode.querySelectorAll(".webconsole-location");
 
-      let target = TargetFactory.forTab(gBrowser.selectedTab);
-      let toolbox = gDevTools.getToolbox(target);
-      toolbox.once("styleeditor-selected", onStyleEditorReady);
+      Services.ww.registerNotification(observer);
 
       EventUtils.sendMouseEvent({ type: "click" }, nodes[0]);
     },
@@ -49,109 +39,107 @@ function testViewSource(aHud)
   });
 }
 
-function onStyleEditorReady(aEvent, aPanel)
-{
-  info(aEvent + " event fired");
+function checkStyleEditorForSheetAndLine(aStyleSheetIndex, aLine, aCallback) {
 
-  SEC = aPanel.styleEditorChrome;
-  let win = aPanel.panelWindow;
-  ok(win, "Style Editor Window is defined");
-  ok(SEC, "Style Editor Chrome is defined");
-
-  function sheetForNode(aNode)
-  {
-    let href = aNode.getAttribute("title");
-    let sheet, i = 0;
-    while((sheet = content.document.styleSheets[i++])) {
-      if (sheet.href == href) {
-        return sheet;
+  function doCheck(aEditor) {
+    if (aEditor.styleSheetIndex != aStyleSheetIndex) {
+      ok(false, "Correct Style Sheet was not selected.");
+      if (aCallback) {
+        executeSoon(aCallback);
       }
+      return;
     }
-    return null;
+
+    ok(true, "Correct Style Sheet is selected in the editor");
+
+    // Editor is already loaded, check the current line of caret.
+    if (aEditor.sourceEditor) {
+      ok(true, "Editor is already loaded, check the current line of caret");
+      executeSoon(function() {
+        ok(true, "Execute soon occured");
+        ok(aEditor.sourceEditor != null, "sourceeditor not null");
+        ok(aEditor.sourceEditor.getCaretPosition() != null, "position not null");
+        ok(aEditor.sourceEditor.getCaretPosition().line != null, "line not null");
+        is(aEditor.sourceEditor.getCaretPosition().line, aLine,
+           "Correct line is selected");
+        if (aCallback) {
+          aCallback();
+        }
+      });
+      return;
+    }
+
+    ok(true, "Editor is not loaded, waiting for it.");
+    ok(aEditor, "aEditor is defined.");
+    // Wait for source editor to be loaded.
+    aEditor.addActionListener({
+      onAttach: function onAttach() {
+        ok(true, "on attach happened");
+        aEditor.removeActionListener(this);
+        ok(true, "this removed");
+        executeSoon(function() {
+          ok(true, "execute soon");
+          ok(aEditor.sourceEditor != null, "sourceeditor not null");
+          ok(aEditor.sourceEditor.getCaretPosition() != null, "position not null");
+          ok(aEditor.sourceEditor.getCaretPosition().line != null, "line not null");
+          is(aEditor.sourceEditor.getCaretPosition().line, aLine,
+             "Correct line is selected");
+          if (aCallback) {
+            aCallback();
+          }
+        });
+      }
+    });
   }
 
-  waitForFocus(function() {
-    info("style editor window focused");
+  let SEC = styleEditorWin.styleEditorChrome;
+  ok(SEC, "Syle Editor Chrome is defined properly while calling for [" +
+          aStyleSheetIndex + ", " + aLine + "]");
 
-    let sheet = sheetForNode(nodes[0]);
-    ok(sheet, "sheet found");
-    let line = nodes[0].sourceLine;
-    ok(line, "found source line");
+  // Editors are not ready, so wait for them.
+  if (!SEC.editors.length) {
+    SEC.addChromeListener({
+      onEditorAdded: function onEditorAdded(aChrome, aEditor) {
+        aChrome.removeChromeListener(this);
+        doCheck(aEditor);
+      }
+    });
+  }
+  // Execute soon so that selectedStyleSheetIndex has correct value.
+  else {
+    executeSoon(function() {
+      let aEditor = SEC.editors[SEC.selectedStyleSheetIndex];
+      doCheck(aEditor);
+    });
+  }
+}
 
-    checkStyleEditorForSheetAndLine(sheet, line - 1, function() {
-      info("first check done");
+let observer = {
+  observe: function(aSubject, aTopic, aData) {
+    if (aTopic != "domwindowopened") {
+      return;
+    }
+    Services.ww.unregisterNotification(observer);
+    ok(true, "Style Editor window was opened in response to clicking " +
+             "the location node");
 
-      let target = TargetFactory.forTab(gBrowser.selectedTab);
-      let toolbox = gDevTools.getToolbox(target);
+    executeSoon(function() {
+      styleEditorWin = window.StyleEditor
+                             .StyleEditorManager
+                             .getEditorForWindow(content.window);
+      ok(styleEditorWin, "Style Editor Window is defined");
+      styleEditorWin.addEventListener("load", function onStyleEditorWinLoad() {
+        styleEditorWin.removeEventListener("load", onStyleEditorWinLoad);
 
-      let sheet = sheetForNode(nodes[1]);
-      ok(sheet, "sheet found");
-      let line = nodes[1].sourceLine;
-      ok(line, "found source line");
-
-      toolbox.selectTool("webconsole").then(function() {
-        info("webconsole selected");
-
-        toolbox.once("styleeditor-selected", function(aEvent) {
-          info(aEvent + " event fired");
-
-          checkStyleEditorForSheetAndLine(sheet, line - 1, function() {
-            info("second check done");
+        checkStyleEditorForSheetAndLine(0, 7, function() {
+          checkStyleEditorForSheetAndLine(1, 6, function() {
+            window.StyleEditor.toggle();
+            styleEditorWin = null;
             finishTest();
           });
+          EventUtils.sendMouseEvent({ type: "click" }, nodes[1]);
         });
-
-        EventUtils.sendMouseEvent({ type: "click" }, nodes[1]);
       });
     });
-  }, win);
-}
-
-function checkStyleEditorForSheetAndLine(aStyleSheet, aLine, aCallback)
-{
-  let foundEditor = null;
-  waitForSuccess({
-    name: "style editor for stylesheet",
-    validatorFn: function()
-    {
-      for (let editor of SEC.editors) {
-        if (editor.styleSheet == aStyleSheet) {
-          foundEditor = editor;
-          return true;
-        }
-      }
-      return false;
-    },
-    successFn: function()
-    {
-      performLineCheck(foundEditor, aLine, aCallback);
-    },
-    failureFn: finishTest,
-  });
-}
-
-function performLineCheck(aEditor, aLine, aCallback)
-{
-  function checkForCorrectState()
-  {
-    is(aEditor.sourceEditor.getCaretPosition().line, aLine,
-       "correct line is selected");
-    is(SEC.selectedStyleSheetIndex, aEditor.styleSheetIndex,
-       "correct stylesheet is selected in the editor");
-
-    aCallback && executeSoon(aCallback);
   }
-
-  waitForSuccess({
-    name: "source editor load",
-    validatorFn: function()
-    {
-      return aEditor.sourceEditor;
-    },
-    successFn: checkForCorrectState,
-    failureFn: function() {
-      info("selectedStyleSheetIndex " + SEC.selectedStyleSheetIndex + " expected " + aEditor.styleSheetIndex);
-      finishTest();
-    },
-  });
-}
+};

@@ -16,8 +16,6 @@
 #include "nsBidiPresUtils.h"
 #endif
 #include "nsStyleStructInlines.h"
-#include "mozilla/Assertions.h"
-#include "mozilla/Likely.h"
 
 #ifdef DEBUG
 static int32_t ctorCount;
@@ -44,9 +42,6 @@ nsLineBox::nsLineBox(nsIFrame* aFrame, int32_t aCount, bool aIsBlock)
   }
 #endif
 
-  MOZ_STATIC_ASSERT(NS_STYLE_CLEAR_LAST_VALUE <= 15,
-                    "FlagBits needs more bits to store the full range of "
-                    "break type ('clear') values");
 #if NS_STYLE_CLEAR_NONE > 0
   mFlags.mBreakType = NS_STYLE_CLEAR_NONE;
 #endif
@@ -58,7 +53,7 @@ nsLineBox::nsLineBox(nsIFrame* aFrame, int32_t aCount, bool aIsBlock)
 nsLineBox::~nsLineBox()
 {
   MOZ_COUNT_DTOR(nsLineBox);
-  if (MOZ_UNLIKELY(mFlags.mHasHashedFrames)) {
+  if (NS_UNLIKELY(mFlags.mHasHashedFrames)) {
     delete mFrames;
   }  
   Cleanup();
@@ -75,7 +70,9 @@ NS_NewLineBox(nsIPresShell* aPresShell, nsLineBox* aFromLine,
               nsIFrame* aFrame, int32_t aCount)
 {
   nsLineBox* newLine = new (aPresShell) nsLineBox(aFrame, aCount, false);
-  newLine->NoteFramesMovedFrom(aFromLine);
+  if (newLine) {
+    newLine->NoteFramesMovedFrom(aFromLine);
+  }
   return newLine;
 }
 
@@ -102,7 +99,7 @@ nsLineBox::NoteFramesMovedFrom(nsLineBox* aFromLine)
   uint32_t toCount = GetChildCount();
   MOZ_ASSERT(toCount <= fromCount, "moved more frames than aFromLine has");
   uint32_t fromNewCount = fromCount - toCount;
-  if (MOZ_LIKELY(!aFromLine->mFlags.mHasHashedFrames)) {
+  if (NS_LIKELY(!aFromLine->mFlags.mHasHashedFrames)) {
     aFromLine->mChildCount = fromNewCount;
     MOZ_ASSERT(toCount < kMinChildCountForHashtable);
   } else if (fromNewCount < kMinChildCountForHashtable) {
@@ -365,7 +362,7 @@ nsLineBox::DeleteLineList(nsPresContext* aPresContext, nsLineList& aLines,
   // frame tree while we're destroying.
   while (!aLines.empty()) {
     nsLineBox* line = aLines.front();
-    if (MOZ_UNLIKELY(line->mFlags.mHasHashedFrames)) {
+    if (NS_UNLIKELY(line->mFlags.mHasHashedFrames)) {
       line->SwitchToCounter();  // Avoid expensive has table removals.
     }
     while (line->GetChildCount() > 0) {
@@ -394,7 +391,7 @@ nsLineBox::RFindLineContaining(nsIFrame* aFrame,
   while (aBegin != aEnd) {
     --aEnd;
     NS_ASSERTION(aEnd->LastChild() == curFrame, "Unexpected curFrame");
-    if (MOZ_UNLIKELY(aEnd->mFlags.mHasHashedFrames) &&
+    if (NS_UNLIKELY(aEnd->mFlags.mHasHashedFrames) &&
         !aEnd->Contains(aFrame)) {
       if (aEnd->mFirstChild) {
         curFrame = aEnd->mFirstChild->GetPrevSibling();

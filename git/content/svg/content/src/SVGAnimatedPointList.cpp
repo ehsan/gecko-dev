@@ -48,7 +48,7 @@ SVGAnimatedPointList::SetBaseValueString(const nsAString& aValue)
   // Only now may we modify mBaseVal!
 
   // We don't need to call DidChange* here - we're only called by
-  // nsSVGElement::ParseAttribute under Element::SetAttr,
+  // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
   // which takes care of notifying.
 
   nsresult rv2 = mBaseVal.CopyFrom(newBaseValue);
@@ -153,7 +153,7 @@ SVGAnimatedPointList::ToSMILAttr(nsSVGElement *aElement)
 nsresult
 SVGAnimatedPointList::
   SMILAnimatedPointList::ValueFromString(const nsAString& aStr,
-                               const dom::SVGAnimationElement* /*aSrcElement*/,
+                               const nsISMILAnimationElement* /*aSrcElement*/,
                                nsSMILValue& aValue,
                                bool& aPreventCachingOfSandwich) const
 {

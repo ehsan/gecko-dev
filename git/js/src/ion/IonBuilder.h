@@ -17,8 +17,7 @@
 namespace js {
 namespace ion {
 
-class CodeGenerator;
-class CallInfo;
+class LIRGraph;
 
 class IonBuilder : public MIRGenerator
 {
@@ -42,12 +41,12 @@ class IonBuilder : public MIRGenerator
 
     struct ControlFlowInfo {
         // Entry in the cfgStack.
-        uint32_t cfgEntry;
+        uint32 cfgEntry;
 
         // Label that continues go to.
         jsbytecode *continuepc;
 
-        ControlFlowInfo(uint32_t cfgEntry, jsbytecode *continuepc)
+        ControlFlowInfo(uint32 cfgEntry, jsbytecode *continuepc)
           : cfgEntry(cfgEntry),
             continuepc(continuepc)
         { }
@@ -71,10 +70,8 @@ class IonBuilder : public MIRGenerator
             FOR_LOOP_BODY,      // for (; ;) { x }
             FOR_LOOP_UPDATE,    // for (; ; x) { }
             TABLE_SWITCH,       // switch() { x }
-            COND_SWITCH_CASE,   // switch() { case X: ... }
-            COND_SWITCH_BODY,   // switch() { case ...: X }
-            AND_OR,             // && x, || x
-            LABEL               // label: x
+            LOOKUP_SWITCH,      // switch() { x }
+            AND_OR              // && x, || x
         };
 
         State state;            // Current state of this control structure.
@@ -121,29 +118,22 @@ class IonBuilder : public MIRGenerator
                 MTableSwitch *ins;
 
                 // The number of current successor that get mapped into a block. 
-                uint32_t currentBlock;
+                uint32 currentBlock;
 
             } tableswitch;
             struct {
-                // Vector of body blocks to process after the cases.
+                // pc immediately after the switch.
+                jsbytecode *exitpc;
+
+                // Deferred break and continue targets.
+                DeferredEdge *breaks;
+
+                // Vector of body blocks to process
                 FixedList<MBasicBlock *> *bodies;
 
-                // When processing case statements, this counter points at the
-                // last uninitialized body.  When processing bodies, this
-                // counter targets the next body to process.
-                uint32_t currentIdx;
-
-                // Remember the block index of the default case.
-                jsbytecode *defaultTarget;
-                uint32_t defaultIdx;
-
-                // Block immediately after the switch.
-                jsbytecode *exitpc;
-                DeferredEdge *breaks;
-            } condswitch;
-            struct {
-                DeferredEdge *breaks;
-            } label;
+                // The number of current successor that get mapped into a block. 
+                uint32 currentBlock;
+            } lookupswitch;
         };
 
         inline bool isLoop() const {
@@ -165,26 +155,26 @@ class IonBuilder : public MIRGenerator
         static CFGState IfElse(jsbytecode *trueEnd, jsbytecode *falseEnd, MBasicBlock *ifFalse);
         static CFGState AndOr(jsbytecode *join, MBasicBlock *joinStart);
         static CFGState TableSwitch(jsbytecode *exitpc, MTableSwitch *ins);
-        static CFGState CondSwitch(jsbytecode *exitpc, jsbytecode *defaultTarget);
-        static CFGState Label(jsbytecode *exitpc);
+        static CFGState LookupSwitch(jsbytecode *exitpc);
     };
 
     static int CmpSuccessors(const void *a, const void *b);
 
   public:
     IonBuilder(JSContext *cx, TempAllocator *temp, MIRGraph *graph,
-               TypeOracle *oracle, CompileInfo *info, size_t inliningDepth = 0, uint32_t loopDepth = 0);
+               TypeOracle *oracle, CompileInfo *info, size_t inliningDepth = 0, uint32 loopDepth = 0);
 
     bool build();
     bool buildInline(IonBuilder *callerBuilder, MResumePoint *callerResumePoint,
-                     CallInfo &callInfo);
+                     MDefinition *thisDefn, MDefinitionVector &args);
 
   private:
     bool traverseBytecode();
     ControlStatus snoopControlFlow(JSOp op);
+    void markPhiBytecodeUses(jsbytecode *pc);
     bool processIterators();
     bool inspectOpcode(JSOp op);
-    uint32_t readIndex(jsbytecode *pc);
+    uint32 readIndex(jsbytecode *pc);
     JSAtom *readAtom(jsbytecode *pc);
     bool abort(const char *message, ...);
     void spew(const char *message);
@@ -193,10 +183,10 @@ class IonBuilder : public MIRGenerator
         return js_IonOptions.inlining;
     }
 
-    JSFunction *getSingleCallTarget(types::StackTypeSet *calleeTypes);
-    bool getPolyCallTargets(types::StackTypeSet *calleeTypes,
-                            AutoObjectVector &targets, uint32_t maxTargets);
-    bool canInlineTarget(JSFunction *target, CallInfo &callInfo);
+    JSFunction *getSingleCallTarget(uint32 argc, jsbytecode *pc);
+    unsigned getPolyCallTargets(uint32 argc, jsbytecode *pc,
+                                AutoObjectVector &targets, uint32_t maxTargets);
+    bool canInlineTarget(JSFunction *target);
 
     void popCfgStack();
     bool processDeferredContinues(CFGState &state);
@@ -214,26 +204,24 @@ class IonBuilder : public MIRGenerator
     ControlStatus processForBodyEnd(CFGState &state);
     ControlStatus processForUpdateEnd(CFGState &state);
     ControlStatus processNextTableSwitchCase(CFGState &state);
-    ControlStatus processCondSwitchCase(CFGState &state);
-    ControlStatus processCondSwitchBody(CFGState &state);
-    ControlStatus processSwitchBreak(JSOp op);
-    ControlStatus processSwitchEnd(DeferredEdge *breaks, jsbytecode *exitpc);
+    ControlStatus processTableSwitchEnd(CFGState &state);
+    ControlStatus processNextLookupSwitchCase(CFGState &state);
+    ControlStatus processLookupSwitchEnd(CFGState &state);
     ControlStatus processAndOrEnd(CFGState &state);
-    ControlStatus processLabelEnd(CFGState &state);
+    ControlStatus processSwitchBreak(JSOp op, jssrcnote *sn);
     ControlStatus processReturn(JSOp op);
     ControlStatus processThrow();
-    ControlStatus processContinue(JSOp op);
+    ControlStatus processContinue(JSOp op, jssrcnote *sn);
     ControlStatus processBreak(JSOp op, jssrcnote *sn);
     ControlStatus maybeLoop(JSOp op, jssrcnote *sn);
     bool pushLoop(CFGState::State state, jsbytecode *stopAt, MBasicBlock *entry,
                   jsbytecode *bodyStart, jsbytecode *bodyEnd, jsbytecode *exitpc,
                   jsbytecode *continuepc = NULL);
 
-    MBasicBlock *addBlock(MBasicBlock *block, uint32_t loopDepth);
+    MBasicBlock *addBlock(MBasicBlock *block, uint32 loopDepth);
     MBasicBlock *newBlock(MBasicBlock *predecessor, jsbytecode *pc);
-    MBasicBlock *newBlock(MBasicBlock *predecessor, jsbytecode *pc, uint32_t loopDepth);
+    MBasicBlock *newBlock(MBasicBlock *predecessor, jsbytecode *pc, uint32 loopDepth);
     MBasicBlock *newBlock(MBasicBlock *predecessor, jsbytecode *pc, MResumePoint *priorResumePoint);
-    MBasicBlock *newBlockPopN(MBasicBlock *predecessor, jsbytecode *pc, uint32_t popped);
     MBasicBlock *newBlockAfter(MBasicBlock *at, MBasicBlock *predecessor, jsbytecode *pc);
     MBasicBlock *newOsrPreheader(MBasicBlock *header, jsbytecode *loopEntry);
     MBasicBlock *newPendingLoopHeader(MBasicBlock *predecessor, jsbytecode *pc);
@@ -259,55 +247,46 @@ class IonBuilder : public MIRGenerator
     void assertValidLoopHeadOp(jsbytecode *pc);
 
     ControlStatus forLoop(JSOp op, jssrcnote *sn);
-    ControlStatus whileOrForInLoop(jssrcnote *sn);
+    ControlStatus whileOrForInLoop(JSOp op, jssrcnote *sn);
     ControlStatus doWhileLoop(JSOp op, jssrcnote *sn);
     ControlStatus tableSwitch(JSOp op, jssrcnote *sn);
-    ControlStatus condSwitch(JSOp op, jssrcnote *sn);
+    ControlStatus lookupSwitch(JSOp op, jssrcnote *sn);
 
     // Please see the Big Honkin' Comment about how resume points work in
     // IonBuilder.cpp, near the definition for this function.
     bool resume(MInstruction *ins, jsbytecode *pc, MResumePoint::Mode mode);
     bool resumeAt(MInstruction *ins, jsbytecode *pc);
     bool resumeAfter(MInstruction *ins);
-    bool maybeInsertResume();
+
+    void insertRecompileCheck();
 
     bool initParameters();
     void rewriteParameters();
     bool initScopeChain();
     bool pushConstant(const Value &v);
-
-    // Add a guard which ensure that the set of type which goes through this
-    // generated code correspond to the observed or infered (actual) type.
     bool pushTypeBarrier(MInstruction *ins, types::StackTypeSet *actual, types::StackTypeSet *observed);
-
-    // Add a guard which ensure that the set of type does not go through. Some
-    // instructions, such as function calls, can have an excluded set of types
-    // which would be added after invalidation if they are observed in the
-    // callee.
-    void addTypeBarrier(uint32_t i, CallInfo &callinfo, types::StackTypeSet *calleeObs);
-
-    void monitorResult(MInstruction *ins, types::TypeSet *barrier, types::StackTypeSet *types);
+    void monitorResult(MInstruction *ins, types::TypeSet *barrier, types::TypeSet *types);
 
     JSObject *getSingletonPrototype(JSFunction *target);
 
+    MDefinition *createThisNative();
     MDefinition *createThisScripted(MDefinition *callee);
-    MDefinition *createThisScriptedSingleton(HandleFunction target, MDefinition *callee);
+    MDefinition *createThisScriptedSingleton(HandleFunction target, HandleObject proto, MDefinition *callee);
     MDefinition *createThis(HandleFunction target, MDefinition *callee);
-    MInstruction *createDeclEnvObject(MDefinition *callee, MDefinition *scopeObj);
     MInstruction *createCallObject(MDefinition *callee, MDefinition *scopeObj);
+
+    bool makeCall(HandleFunction target, uint32 argc, bool constructing);
 
     MDefinition *walkScopeChain(unsigned hops);
 
-    MInstruction *addConvertElementsToDoubles(MDefinition *elements);
     MInstruction *addBoundsCheck(MDefinition *index, MDefinition *length);
-    MInstruction *addShapeGuard(MDefinition *obj, const RawShape shape, BailoutKind bailoutKind);
 
-    JSObject *getNewArrayTemplateObject(uint32_t count);
+    JSObject *getNewArrayTemplateObject(uint32 count);
 
     bool invalidatedIdempotentCache();
 
-    bool loadSlot(MDefinition *obj, HandleShape shape, MIRType rvalType);
-    bool storeSlot(MDefinition *obj, RawShape shape, MDefinition *value, bool needsBarrier);
+    bool loadSlot(MDefinition *obj, Shape *shape, MIRType rvalType);
+    bool storeSlot(MDefinition *obj, Shape *shape, MDefinition *value, bool needsBarrier);
 
     // jsop_getprop() helpers.
     bool getPropTryArgumentsLength(bool *emitted);
@@ -324,10 +303,6 @@ class IonBuilder : public MIRGenerator
                                types::StackTypeSet *barrier, types::StackTypeSet *types,
                                TypeOracle::Unary unary, TypeOracle::UnaryTypes unaryTypes);
 
-    // Typed array helpers.
-    MInstruction *getTypedArrayLength(MDefinition *obj);
-    MInstruction *getTypedArrayElements(MDefinition *obj);
-
     bool jsop_add(MDefinition *left, MDefinition *right);
     bool jsop_bitnot();
     bool jsop_bitop(JSOp op);
@@ -335,25 +310,22 @@ class IonBuilder : public MIRGenerator
     bool jsop_binary(JSOp op, MDefinition *left, MDefinition *right);
     bool jsop_pos();
     bool jsop_neg();
-    bool jsop_defvar(uint32_t index);
-    bool jsop_deffun(uint32_t index);
+    bool jsop_defvar(uint32 index);
     bool jsop_notearg();
-    bool jsop_funcall(uint32_t argc);
-    bool jsop_funapply(uint32_t argc);
-    bool jsop_funapplyarguments(uint32_t argc);
-    bool jsop_call(uint32_t argc, bool constructing);
-    bool jsop_eval(uint32_t argc);
+    bool jsop_funcall(uint32 argc);
+    bool jsop_funapply(uint32 argc);
+    bool jsop_call(uint32 argc, bool constructing);
     bool jsop_ifeq(JSOp op);
-    bool jsop_label();
-    bool jsop_condswitch();
     bool jsop_andor(JSOp op);
     bool jsop_dup2();
     bool jsop_loophead(jsbytecode *pc);
+    bool jsop_incslot(JSOp op, uint32 slot);
+    bool jsop_localinc(JSOp op);
+    bool jsop_arginc(JSOp op);
     bool jsop_compare(JSOp op);
     bool jsop_getgname(HandlePropertyName name);
     bool jsop_setgname(HandlePropertyName name);
     bool jsop_getname(HandlePropertyName name);
-    bool jsop_intrinsic(HandlePropertyName name);
     bool jsop_bindname(PropertyName *name);
     bool jsop_getelem();
     bool jsop_getelem_dense();
@@ -372,22 +344,23 @@ class IonBuilder : public MIRGenerator
     bool jsop_getprop(HandlePropertyName name);
     bool jsop_setprop(HandlePropertyName name);
     bool jsop_delprop(HandlePropertyName name);
-    bool jsop_newarray(uint32_t count);
+    bool jsop_newarray(uint32 count);
     bool jsop_newobject(HandleObject baseObj);
-    bool jsop_initelem_array();
+    bool jsop_initelem();
+    bool jsop_initelem_dense();
     bool jsop_initprop(HandlePropertyName name);
     bool jsop_regexp(RegExpObject *reobj);
     bool jsop_object(JSObject *obj);
     bool jsop_lambda(JSFunction *fun);
+    bool jsop_deflocalfun(uint32 local, JSFunction *fun);
     bool jsop_this();
     bool jsop_typeof();
     bool jsop_toid();
-    bool jsop_iter(uint8_t flags);
+    bool jsop_iter(uint8 flags);
     bool jsop_iternext();
     bool jsop_itermore();
     bool jsop_iterend();
     bool jsop_in();
-    bool jsop_in_dense();
     bool jsop_instanceof();
     bool jsop_getaliasedvar(ScopeCoordinate sc);
     bool jsop_setaliasedvar(ScopeCoordinate sc);
@@ -401,139 +374,89 @@ class IonBuilder : public MIRGenerator
         InliningStatus_Inlined
     };
 
-    // Oracles.
-    bool makeInliningDecision(JSFunction *target, CallInfo &callInfo);
-    uint32_t selectInliningTargets(AutoObjectVector &targets, CallInfo &callInfo, Vector<bool> &choiceSet);
-
-    // Native inlining helpers.
+    // Inlining helpers.
+    bool discardCallArgs(uint32 argc, MDefinitionVector &argv, MBasicBlock *bb);
+    bool discardCall(uint32 argc, MDefinitionVector &argv, MBasicBlock *bb);
     types::StackTypeSet *getInlineReturnTypeSet();
     MIRType getInlineReturnType();
-    types::StackTypeSet *getInlineThisTypeSet(CallInfo &callInfo);
-    MIRType getInlineThisType(CallInfo &callInfo);
-    types::StackTypeSet *getInlineArgTypeSet(CallInfo &callInfo, uint32_t arg);
-    MIRType getInlineArgType(CallInfo &callInfo, uint32_t arg);
+    types::StackTypeSet *getInlineArgTypeSet(uint32 argc, uint32 arg);
+    MIRType getInlineArgType(uint32 argc, uint32 arg);
 
     // Array natives.
-    InliningStatus inlineArray(CallInfo &callInfo);
-    InliningStatus inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode);
-    InliningStatus inlineArrayPush(CallInfo &callInfo);
-    InliningStatus inlineArrayConcat(CallInfo &callInfo);
+    InliningStatus inlineArray(uint32 argc, bool constructing);
+    InliningStatus inlineArrayPopShift(MArrayPopShift::Mode mode, uint32 argc, bool constructing);
+    InliningStatus inlineArrayPush(uint32 argc, bool constructing);
+    InliningStatus inlineArrayConcat(uint32 argc, bool constructing);
 
     // Math natives.
-    InliningStatus inlineMathAbs(CallInfo &callInfo);
-    InliningStatus inlineMathFloor(CallInfo &callInfo);
-    InliningStatus inlineMathRound(CallInfo &callInfo);
-    InliningStatus inlineMathSqrt(CallInfo &callInfo);
-    InliningStatus inlineMathMinMax(CallInfo &callInfo, bool max);
-    InliningStatus inlineMathPow(CallInfo &callInfo);
-    InliningStatus inlineMathRandom(CallInfo &callInfo);
-    InliningStatus inlineMathImul(CallInfo &callInfo);
-    InliningStatus inlineMathFunction(CallInfo &callInfo, MMathFunction::Function function);
+    InliningStatus inlineMathAbs(uint32 argc, bool constructing);
+    InliningStatus inlineMathFloor(uint32 argc, bool constructing);
+    InliningStatus inlineMathRound(uint32 argc, bool constructing);
+    InliningStatus inlineMathSqrt(uint32 argc, bool constructing);
+    InliningStatus inlineMathMinMax(bool max, uint32 argc, bool constructing);
+    InliningStatus inlineMathPow(uint32 argc, bool constructing);
+    InliningStatus inlineMathRandom(uint32 argc, bool constructing);
+    InliningStatus inlineMathFunction(MMathFunction::Function function, uint32 argc,
+                                      bool constructing);
 
     // String natives.
-    InliningStatus inlineStringObject(CallInfo &callInfo);
-    InliningStatus inlineStrCharCodeAt(CallInfo &callInfo);
-    InliningStatus inlineStrFromCharCode(CallInfo &callInfo);
-    InliningStatus inlineStrCharAt(CallInfo &callInfo);
+    InliningStatus inlineStringObject(uint32 argc, bool constructing);
+    InliningStatus inlineStrCharCodeAt(uint32 argc, bool constructing);
+    InliningStatus inlineStrFromCharCode(uint32 argc, bool constructing);
+    InliningStatus inlineStrCharAt(uint32 argc, bool constructing);
 
     // RegExp natives.
-    InliningStatus inlineRegExpTest(CallInfo &callInfo);
+    InliningStatus inlineRegExpTest(uint32 argc, bool constructing);
 
-    // Parallel Array.
-    InliningStatus inlineUnsafeSetElement(CallInfo &callInfo);
-    bool inlineUnsafeSetDenseArrayElement(CallInfo &callInfo, uint32_t base);
-    bool inlineUnsafeSetTypedArrayElement(CallInfo &callInfo, uint32_t base, int arrayType);
-    InliningStatus inlineShouldForceSequentialOrInParallelSection(CallInfo &callInfo);
-    InliningStatus inlineNewDenseArray(CallInfo &callInfo);
-    InliningStatus inlineNewDenseArrayForSequentialExecution(CallInfo &callInfo);
-    InliningStatus inlineNewDenseArrayForParallelExecution(CallInfo &callInfo);
-    InliningStatus inlineNewParallelArray(CallInfo &callInfo);
-    InliningStatus inlineParallelArray(CallInfo &callInfo);
-    InliningStatus inlineParallelArrayTail(CallInfo &callInfo,
-                                           HandleFunction target,
-                                           MDefinition *ctor,
-                                           types::StackTypeSet *ctorTypes,
-                                           uint32_t discards);
+    InliningStatus inlineNativeCall(JSNative native, uint32 argc, bool constructing);
 
-    InliningStatus inlineThrowError(CallInfo &callInfo);
-    InliningStatus inlineDump(CallInfo &callInfo);
+    bool jsop_call_inline(HandleFunction callee, uint32 argc, bool constructing,
+                          MConstant *constFun, MBasicBlock *bottom,
+                          Vector<MDefinition *, 8, IonAllocPolicy> &retvalDefns);
+    bool inlineScriptedCall(AutoObjectVector &targets, uint32 argc, bool constructing,
+                            types::StackTypeSet *types, types::StackTypeSet *barrier);
+    bool makeInliningDecision(AutoObjectVector &targets, uint32 argc);
 
-    // Main inlining functions
-    InliningStatus inlineNativeCall(CallInfo &callInfo, JSNative native);
-    bool inlineScriptedCall(CallInfo &callInfo, JSFunction *target);
-    InliningStatus inlineSingleCall(CallInfo &callInfo, JSFunction *target);
-
-    // Call functions
-    InliningStatus inlineCallsite(AutoObjectVector &targets, AutoObjectVector &originals,
-                                  CallInfo &callInfo);
-    bool inlineCalls(CallInfo &callInfo, AutoObjectVector &targets, AutoObjectVector &originals,
-                     Vector<bool> &choiceSet, MGetPropertyCache *maybeCache);
-
-    // Inlining helpers.
-    bool inlineGenericFallback(JSFunction *target, CallInfo &callInfo, MBasicBlock *dispatchBlock,
-                               bool clonedAtCallsite);
-    bool inlineTypeObjectFallback(CallInfo &callInfo, MBasicBlock *dispatchBlock,
-                                  MTypeObjectDispatch *dispatch, MGetPropertyCache *cache,
-                                  MBasicBlock **fallbackTarget);
-
-    bool anyFunctionIsCloneAtCallsite(types::StackTypeSet *funTypes);
-    MDefinition *makeCallsiteClone(HandleFunction target, MDefinition *fun);
-    MCall *makeCallHelper(HandleFunction target, CallInfo &callInfo,
-                          types::StackTypeSet *calleeTypes, bool cloneAtCallsite);
-    bool makeCallBarrier(HandleFunction target,  CallInfo &callInfo,
-                         types::StackTypeSet *calleeTypes, bool cloneAtCallsite);
-    bool makeCall(HandleFunction target, CallInfo &callInfo,
-                  types::StackTypeSet *calleeTypes, bool cloneAtCallsite);
-
-    MDefinition *patchInlinedReturn(CallInfo &callInfo, MBasicBlock *exit, MBasicBlock *bottom);
-    MDefinition *patchInlinedReturns(CallInfo &callInfo, MIRGraphExits &exits, MBasicBlock *bottom);
+    MCall *makeCallHelper(HandleFunction target, uint32 argc, bool constructing);
+    bool makeCallBarrier(HandleFunction target, uint32 argc, bool constructing,
+                         types::StackTypeSet *types, types::StackTypeSet *barrier);
 
     inline bool TestCommonPropFunc(JSContext *cx, types::StackTypeSet *types,
                                    HandleId id, JSFunction **funcp,
-                                   bool isGetter, bool *isDOM,
-                                   MDefinition **guardOut);
+                                   bool isGetter, bool *isDOM);
 
     bool annotateGetPropertyCache(JSContext *cx, MDefinition *obj, MGetPropertyCache *getPropCache,
                                   types::StackTypeSet *objTypes, types::StackTypeSet *pushedTypes);
 
-    MGetPropertyCache *getInlineableGetPropertyCache(CallInfo &callInfo);
+    MGetPropertyCache *checkInlineableGetPropertyCache(uint32_t argc);
 
     MPolyInlineDispatch *
-    makePolyInlineDispatch(JSContext *cx, CallInfo &callInfo,
-                           MGetPropertyCache *getPropCache, MBasicBlock *bottom,
+    makePolyInlineDispatch(JSContext *cx, AutoObjectVector &targets, int argc,
+                           MGetPropertyCache *getPropCache,
+                           types::StackTypeSet *types, types::StackTypeSet *barrier,
+                           MBasicBlock *bottom,
                            Vector<MDefinition *, 8, IonAllocPolicy> &retvalDefns);
-
-    const types::StackTypeSet *cloneTypeSet(const types::StackTypeSet *types);
 
     // A builder is inextricably tied to a particular script.
     HeapPtrScript script_;
-
-    // If off thread compilation is successful, the final code generator is
-    // attached here. Code has been generated, but not linked (there is not yet
-    // an IonScript). This is heap allocated, and must be explicitly destroyed,
-    // performed by FinishOffThreadBuilder().
-    CodeGenerator *backgroundCodegen_;
 
   public:
     // Compilation index for this attempt.
     types::RecompileInfo const recompileInfo;
 
+    // If off thread compilation is successful, final LIR is attached here.
+    LIRGraph *backgroundCompiledLir;
+
     void clearForBackEnd();
 
-    JSScript *script() const { return script_.get(); }
-
-    CodeGenerator *backgroundCodegen() const { return backgroundCodegen_; }
-    void setBackgroundCodegen(CodeGenerator *codegen) { backgroundCodegen_ = codegen; }
-
-    AbortReason abortReason() { return abortReason_; }
+    Return<JSScript*> script() const { return script_; }
 
   private:
     JSContext *cx;
-    AbortReason abortReason_;
 
     jsbytecode *pc;
     MBasicBlock *current;
-    uint32_t loopDepth_;
+    uint32 loopDepth_;
 
     /* Information used for inline-call builders. */
     MResumePoint *callerResumePoint_;
@@ -545,276 +468,21 @@ class IonBuilder : public MIRGenerator
     Vector<CFGState, 8, IonAllocPolicy> cfgStack_;
     Vector<ControlFlowInfo, 4, IonAllocPolicy> loops_;
     Vector<ControlFlowInfo, 0, IonAllocPolicy> switches_;
-    Vector<ControlFlowInfo, 2, IonAllocPolicy> labels_;
     Vector<MInstruction *, 2, IonAllocPolicy> iterators_;
     TypeOracle *oracle;
-
-    size_t inliningDepth_;
-    Vector<MDefinition *, 0, IonAllocPolicy> inlinedArguments_;
-    Vector<types::StackTypeSet *, 0, IonAllocPolicy> inlinedArgumentTypes_;
+    size_t inliningDepth;
 
     // True if script->failedBoundsCheck is set for the current script or
     // an outer script.
     bool failedBoundsCheck_;
 
-    // True if script->failedShapeGuard is set for the current script or
-    // an outer script.
-    bool failedShapeGuard_;
-
-    // If this script can use a lazy arguments object, it will be pre-created
+    // If this script can use a lazy arguments object, it wil be pre-created
     // here.
     MInstruction *lazyArguments_;
-};
-
-class CallInfo
-{
-    types::StackTypeSet *barrier_;
-    types::StackTypeSet *types_;
-
-    types::TypeBarrier *argsBarriers_;
-    types::StackTypeSet *thisType_;
-    Vector<types::StackTypeSet *> argsType_;
-
-    MDefinition *fun_;
-    MDefinition *thisArg_;
-    Vector<MDefinition *> args_;
-
-    bool constructing_;
-
-  public:
-    CallInfo(JSContext *cx, bool constructing)
-      : barrier_(NULL),
-        types_(NULL),
-        argsBarriers_(NULL),
-        thisType_(NULL),
-        argsType_(cx),
-        fun_(NULL),
-        thisArg_(NULL),
-        args_(cx),
-        constructing_(constructing)
-    { }
-
-    CallInfo(JSContext *cx, bool constructing,
-             types::StackTypeSet *types, types::StackTypeSet *barrier)
-      : barrier_(barrier),
-        types_(types),
-        argsBarriers_(NULL),
-        thisType_(NULL),
-        argsType_(cx),
-        fun_(NULL),
-        thisArg_(NULL),
-        args_(cx),
-        constructing_(constructing)
-    { }
-
-    bool init(CallInfo &callInfo) {
-        JS_ASSERT(constructing_ == callInfo.constructing());
-
-        thisType_ = callInfo.thisType_;
-        if (thisType_ && !argsType_.append(callInfo.argsType_.begin(), callInfo.argsType_.end()))
-            return false;
-
-        fun_ = callInfo.fun();
-        thisArg_ = callInfo.thisArg();
-
-        if (!args_.append(callInfo.argv().begin(), callInfo.argv().end()))
-            return false;
-
-        if (callInfo.hasTypeInfo())
-            setTypeInfo(callInfo.types(), callInfo.barrier());
-
-        argsBarriers_ = callInfo.argsBarriers_;
-
-        return true;
-    }
-
-    bool init(MBasicBlock *current, uint32_t argc) {
-        JS_ASSERT(args_.length() == 0);
-
-        // Get the arguments in the right order
-        if (!args_.reserve(argc))
-            return false;
-        for (int32_t i = argc; i > 0; i--)
-            args_.infallibleAppend(current->peek(-i));
-        current->popn(argc);
-
-        // Get |this| and |fun|
-        setThis(current->pop());
-        setFun(current->pop());
-
-        return true;
-    }
-
-    bool initCallType(TypeOracle *oracle, HandleScript script, jsbytecode *pc) {
-        argsBarriers_ = oracle->callArgsBarrier(script, pc);
-        thisType_ = oracle->getCallArg(script, argc(), 0, pc);
-        if (!argsType_.reserve(argc()))
-            return false;
-        for (uint32_t i = 1; i <= argc(); i++)
-            argsType_.infallibleAppend(oracle->getCallArg(script, argc(), i, pc));
-        return true;
-    }
-
-    bool initFunApplyArguments(TypeOracle *oracle, HandleScript script, jsbytecode *pc,
-                               Vector<types::StackTypeSet *> *types) {
-        argsBarriers_ = oracle->callArgsBarrier(script, pc);
-        thisType_ = oracle->getCallArg(script, 2, 1, pc);
-        if (!argsType_.append(types->begin(), types->end()))
-            return false;
-        return true;
-    }
-
-    bool hasCallType() {
-        // argsBarriers can be NULL is the caller does not need to guard its
-        // arguments again some value type expected by callees. On the other
-        // hand we would always have a thisType if the type info is initialized.
-        return hasTypeInfo() && thisType_;
-    }
-
-    void popFormals(MBasicBlock *current) {
-        current->popn(numFormals());
-    }
-
-    void pushFormals(MBasicBlock *current) {
-        current->push(fun());
-        current->push(thisArg());
-
-        for (uint32_t i = 0; i < argc(); i++)
-            current->push(getArg(i));
-    }
-
-    void setTypeInfo(types::StackTypeSet *types, types::StackTypeSet *barrier) {
-        types_ = types;
-        barrier_ = barrier;
-    }
-
-    bool hasTypeInfo() const {
-        JS_ASSERT_IF(barrier_, types_);
-        return types_;
-    }
-
-    uint32_t argc() const {
-        return args_.length();
-    }
-    uint32_t numFormals() const {
-        return argc() + 2;
-    }
-
-    void setArgs(Vector<MDefinition *> *args) {
-        JS_ASSERT(args_.length() == 0);
-        args_.append(args->begin(), args->end());
-    }
-
-    Vector<MDefinition *> &argv() {
-        return args_;
-    }
-
-    Vector<types::StackTypeSet *> &argvType() {
-        return argsType_;
-    }
-
-    MDefinition *getArg(uint32_t i) {
-        JS_ASSERT(i < argc());
-        return args_[i];
-    }
-
-    types::StackTypeSet *getArgType(uint32_t i) {
-        JS_ASSERT(i < argc() && argc() == argsType_.length());
-        return argsType_[i];
-    }
-
-    void setArg(uint32_t i, MDefinition *def) {
-        JS_ASSERT(i < argc());
-        args_[i] = def;
-    }
-
-    MDefinition *thisArg() {
-        JS_ASSERT(thisArg_);
-        return thisArg_;
-    }
-
-    types::StackTypeSet *thisType() {
-        JS_ASSERT(thisType_);
-        return thisType_;
-    }
-
-    void setThis(MDefinition *thisArg) {
-        thisArg_ = thisArg;
-    }
-
-    void setThisType(types::StackTypeSet *thisType) {
-        thisType_ = thisType;
-    }
-
-    bool constructing() {
-        return constructing_;
-    }
-
-    types::StackTypeSet *types() {
-        return types_;
-    }
-
-    types::StackTypeSet *barrier() {
-        return barrier_;
-    }
-
-    types::TypeBarrier *argsBarrier() {
-        return argsBarriers_;
-    }
-
-    void wrapArgs(MBasicBlock *current) {
-        thisArg_ = wrap(current, thisArg_);
-        for (uint32_t i = 0; i < argc(); i++)
-            args_[i] = wrap(current, args_[i]);
-    }
-
-    void unwrapArgs() {
-        thisArg_ = unwrap(thisArg_);
-        for (uint32_t i = 0; i < argc(); i++)
-            args_[i] = unwrap(args_[i]);
-    }
-
-    MDefinition *fun() const {
-        JS_ASSERT(fun_);
-        return fun_;
-    }
-
-    void setFun(MDefinition *fun) {
-        JS_ASSERT(!fun->isPassArg());
-        fun_ = fun;
-    }
-
-    bool isWrapped() {
-        bool wrapped = thisArg()->isPassArg();
-
-#if DEBUG
-        for (uint32_t i = 0; i < argc(); i++)
-            JS_ASSERT(args_[i]->isPassArg() == wrapped);
-#endif
-
-        return wrapped;
-    }
-
-  private:
-    static MDefinition *unwrap(MDefinition *arg) {
-        JS_ASSERT(arg->isPassArg());
-        MPassArg *passArg = arg->toPassArg();
-        MBasicBlock *block = passArg->block();
-        MDefinition *wrapped = passArg->getArgument();
-        wrapped->setFoldedUnchecked();
-        passArg->replaceAllUsesWith(wrapped);
-        block->discard(passArg);
-        return wrapped;
-    }
-    static MDefinition *wrap(MBasicBlock *current, MDefinition *arg) {
-        JS_ASSERT(!arg->isPassArg());
-        MPassArg *passArg = MPassArg::New(arg);
-        current->add(passArg);
-        return passArg;
-    }
 };
 
 } // namespace ion
 } // namespace js
 
 #endif // jsion_bytecode_analyzer_h__
+

@@ -6,6 +6,8 @@
 #ifndef nsCycleCollector_h__
 #define nsCycleCollector_h__
 
+//#define DEBUG_CC
+
 class nsISupports;
 class nsICycleCollectorListener;
 class nsCycleCollectionParticipant;
@@ -25,14 +27,7 @@ public:
     uint32_t mFreedGCed;
 };
 
-bool nsCycleCollector_init();
-
-enum CCThreadingModel {
-    CCSingleThread,
-    CCWithTraverseThread,
-};
-
-nsresult nsCycleCollector_startup(CCThreadingModel aThreadingModel);
+nsresult nsCycleCollector_startup();
 
 typedef void (*CC_BeforeUnlinkCallback)(void);
 void nsCycleCollector_setBeforeUnlinkCallback(CC_BeforeUnlinkCallback aCB);
@@ -41,6 +36,12 @@ typedef void (*CC_ForgetSkippableCallback)(void);
 void nsCycleCollector_setForgetSkippableCallback(CC_ForgetSkippableCallback aCB);
 
 void nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes = false);
+
+#ifdef DEBUG_CC
+void nsCycleCollector_logPurpleAddition(void* aObject,
+                                        nsCycleCollectionParticipant* cp);
+void nsCycleCollector_logPurpleRemoval(void* aObject);
+#endif
 
 void nsCycleCollector_collect(bool aMergeCompartments,
                               nsCycleCollectorResults *aResults,
@@ -53,6 +54,7 @@ void nsCycleCollector_shutdown();
 struct nsCycleCollectionJSRuntime
 {
     virtual nsresult BeginCycleCollection(nsCycleCollectionTraversalCallback &cb) = 0;
+    virtual nsresult FinishTraverse() = 0;
 
     /**
      * Called before/after transitioning to/from the main thread.
@@ -64,11 +66,6 @@ struct nsCycleCollectionJSRuntime
     virtual void NotifyEnterCycleCollectionThread() = 0;
     virtual void NotifyLeaveCycleCollectionThread() = 0;
     virtual void NotifyEnterMainThread() = 0;
-
-    /**
-     * Unmark gray any weak map values, as needed.
-     */
-    virtual void FixWeakMappingGrayBits() = 0;
 
     /**
      * Should we force a JavaScript GC before a CC?
@@ -84,16 +81,16 @@ struct nsCycleCollectionJSRuntime
      * Get the JS cycle collection participant.
      */
     virtual nsCycleCollectionParticipant *GetParticipant() = 0;
-
-#ifdef DEBUG
-    virtual void SetObjectToUnlink(void* aObject) = 0;
-    virtual void AssertNoObjectsToTrace(void* aPossibleJSHolder) = 0;
-#endif
 };
 
 // Helpers for interacting with JS
 void nsCycleCollector_registerJSRuntime(nsCycleCollectionJSRuntime *rt);
 void nsCycleCollector_forgetJSRuntime();
+
+#ifdef DEBUG
+void nsCycleCollector_DEBUG_shouldBeFreed(nsISupports *n);
+void nsCycleCollector_DEBUG_wasFreed(nsISupports *n);
+#endif
 
 #define NS_CYCLE_COLLECTOR_LOGGER_CID \
 { 0x58be81b4, 0x39d2, 0x437c, \

@@ -13,7 +13,7 @@ function test() {
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
 
     testSimpleCall();
   });
@@ -32,9 +32,9 @@ function testSimpleCall() {
 function resumeAndFinish() {
   gDebugger.DebuggerController.activeThread.resume(function() {
     checkScriptsOrder();
-    addScriptAndCheckOrder(1, function() {
-      addScriptAndCheckOrder(2, function() {
-        addScriptAndCheckOrder(3, function() {
+    addScriptsAndCheckOrder(1, function() {
+      addScriptsAndCheckOrder(2, function() {
+        addScriptsAndCheckOrder(3, function() {
           closeDebuggerAndFinish();
         });
       });
@@ -42,11 +42,11 @@ function resumeAndFinish() {
   });
 }
 
-function addScriptAndCheckOrder(method, callback) {
-  let sv = gDebugger.SourceUtils;
-  let vs = gDebugger.DebuggerView.Sources;
+function addScriptsAndCheckOrder(method, callback) {
+  let vs = gDebugger.DebuggerView.Scripts;
+  let ss = gDebugger.DebuggerController.SourceScripts;
   vs.empty();
-  vs._container.removeEventListener("select", vs._onScriptsChange, false);
+  vs._scripts.removeEventListener("select", vs._onScriptsChange, false);
 
   let urls = [
     { href: "ici://some.address.com/random/", leaf: "subrandom/" },
@@ -67,15 +67,15 @@ function addScriptAndCheckOrder(method, callback) {
     case 1:
       urls.forEach(function(url) {
         let loc = url.href + url.leaf;
-        vs.push([sv.getSourceLabel(loc), { url: loc }], { staged: true });
+        vs.addScript(ss.getScriptLabel(loc, url.href), { url: loc });
       });
-      vs.commit({ sorted: true });
+      vs.commitScripts();
       break;
 
     case 2:
       urls.forEach(function(url) {
         let loc = url.href + url.leaf;
-        vs.push([sv.getSourceLabel(loc), { url: loc }]);
+        vs.addScript(ss.getScriptLabel(loc, url.href), { url: loc }, true);
       });
       break;
 
@@ -84,14 +84,14 @@ function addScriptAndCheckOrder(method, callback) {
       for (; i < urls.length / 2; i++) {
         let url = urls[i];
         let loc = url.href + url.leaf;
-        vs.push([sv.getSourceLabel(loc), { url: loc }], { staged: true });
+        vs.addScript(ss.getScriptLabel(loc, url.href), { url: loc });
       }
-      vs.commit({ sorted: true });
+      vs.commitScripts();
 
       for (; i < urls.length; i++) {
         let url = urls[i];
         let loc = url.href + url.leaf;
-        vs.push([sv.getSourceLabel(loc), { url: loc }]);
+        vs.addScript(ss.getScriptLabel(loc, url.href), { url: loc }, true);
       }
       break;
   }
@@ -103,7 +103,7 @@ function addScriptAndCheckOrder(method, callback) {
 }
 
 function checkScriptsOrder(method) {
-  let labels = gDebugger.DebuggerView.Sources.labels;
+  let labels = gDebugger.DebuggerView.Scripts.scriptLabels;
   let sorted = labels.reduce(function(prev, curr, index, array) {
     return array[index - 1] < array[index];
   });

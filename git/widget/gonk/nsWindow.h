@@ -61,15 +61,15 @@ public:
     NS_IMETHOD ConstrainPosition(bool aAllowSlop,
                                  int32_t *aX,
                                  int32_t *aY);
-    NS_IMETHOD Move(double aX,
-                    double aY);
-    NS_IMETHOD Resize(double aWidth,
-                      double aHeight,
+    NS_IMETHOD Move(int32_t aX,
+                    int32_t aY);
+    NS_IMETHOD Resize(int32_t aWidth,
+                      int32_t aHeight,
                       bool  aRepaint);
-    NS_IMETHOD Resize(double aX,
-                      double aY,
-                      double aWidth,
-                      double aHeight,
+    NS_IMETHOD Resize(int32_t aX,
+                      int32_t aY,
+                      int32_t aWidth,
+                      int32_t aHeight,
                       bool aRepaint);
     NS_IMETHOD Enable(bool aState);
     virtual bool IsEnabled() const;
@@ -84,7 +84,8 @@ public:
     virtual nsIntPoint WidgetToScreenOffset();
     NS_IMETHOD DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener *aListener,
-                                   bool aDoCapture)
+                                   bool aDoCapture,
+                                   bool aConsumeRollupEvent)
     {
         return NS_ERROR_NOT_IMPLEMENTED;
     }
@@ -108,8 +109,6 @@ public:
 
     virtual nsIntRect GetNaturalBounds() MOZ_OVERRIDE;
     virtual bool NeedsPaint();
-
-    virtual Composer2D* GetComposer2D() MOZ_OVERRIDE;
 
 protected:
     nsWindow* mParent;

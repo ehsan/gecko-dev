@@ -9,7 +9,6 @@
 
 #include "certt.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/RefPtr.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsITransportSecurityInfo.h"
 #include "nsSSLStatus.h"
@@ -88,6 +87,8 @@ protected:
 
 private:
   uint32_t mSecurityState;
+  int32_t mSubRequestsHighSecurity;
+  int32_t mSubRequestsLowSecurity;
   int32_t mSubRequestsBrokenSecurity;
   int32_t mSubRequestsNoSecurity;
   nsString mShortDesc;
@@ -106,7 +107,7 @@ private:
   PRErrorCode mIsCertIssuerBlacklisted;
 
   /* SSL Status */
-  mozilla::RefPtr<nsSSLStatus> mSSLStatus;
+  nsRefPtr<nsSSLStatus> mSSLStatus;
 
   virtual void virtualDestroyNSSReference();
   void destructorSafeDestroyNSSReference();
@@ -123,7 +124,7 @@ private:
     bool mIsNotValidAtThisTime;
     bool mIsUntrusted;
   };
-  nsDataHashtable<nsCStringHashKey, CertStateBits> mErrorHosts;
+  nsDataHashtableMT<nsCStringHashKey, CertStateBits> mErrorHosts;
 
 public:
   void RememberCertHasError(TransportSecurityInfo * infoobject,

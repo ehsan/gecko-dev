@@ -5,13 +5,12 @@
 
 // Keep in (case-insensitive) order:
 #include "nsIAnonymousContentCreator.h"
+#include "nsIDOMSVGUseElement.h"
 #include "nsSVGGFrame.h"
-#include "mozilla/dom/SVGUseElement.h"
+#include "nsSVGUseElement.h"
 #include "nsContentList.h"
 
 typedef nsSVGGFrame nsSVGUseFrameBase;
-
-using namespace mozilla::dom;
 
 class nsSVGUseFrame : public nsSVGUseFrameBase,
                       public nsIAnonymousContentCreator
@@ -31,9 +30,9 @@ public:
 
   
   // nsIFrame interface:
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 
   NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
                                nsIAtom*        aAttribute,
@@ -97,18 +96,20 @@ NS_QUERYFRAME_TAIL_INHERITING(nsSVGUseFrameBase)
 //----------------------------------------------------------------------
 // nsIFrame methods:
 
-void
+NS_IMETHODIMP
 nsSVGUseFrame::Init(nsIContent* aContent,
                     nsIFrame* aParent,
                     nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::use),
-               "Content is not an SVG use!");
+#ifdef DEBUG
+  nsCOMPtr<nsIDOMSVGUseElement> use = do_QueryInterface(aContent);
+  NS_ASSERTION(use, "Content is not an SVG use!");
+#endif /* DEBUG */
 
   mHasValidDimensions =
-    static_cast<SVGUseElement*>(aContent)->HasValidDimensions();
+    static_cast<nsSVGUseElement*>(aContent)->HasValidDimensions();
 
-  nsSVGUseFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGUseFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 
 NS_IMETHODIMP
@@ -116,15 +117,14 @@ nsSVGUseFrame::AttributeChanged(int32_t         aNameSpaceID,
                                 nsIAtom*        aAttribute,
                                 int32_t         aModType)
 {
-  SVGUseElement *useElement = static_cast<SVGUseElement*>(mContent);
+  nsSVGUseElement *useElement = static_cast<nsSVGUseElement*>(mContent);
 
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::x ||
         aAttribute == nsGkAtoms::y) {
       // make sure our cached transform matrix gets (lazily) updated
       mCanvasTM = nullptr;
-      nsSVGUtils::InvalidateBounds(this, false);
-      nsSVGUtils::ScheduleReflowSVG(this);
+      nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
       nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
     } else if (aAttribute == nsGkAtoms::width ||
                aAttribute == nsGkAtoms::height) {
@@ -138,15 +138,13 @@ nsSVGUseFrame::AttributeChanged(int32_t         aNameSpaceID,
         useElement->SyncWidthOrHeight(aAttribute);
       }
       if (invalidate) {
-        nsSVGUtils::InvalidateBounds(this, false);
-        nsSVGUtils::ScheduleReflowSVG(this);
+        nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
       }
     }
   } else if (aNameSpaceID == kNameSpaceID_XLink &&
              aAttribute == nsGkAtoms::href) {
     // we're changing our nature, clear out the clone information
-    nsSVGUtils::InvalidateBounds(this, false);
-    nsSVGUtils::ScheduleReflowSVG(this);
+    nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
     useElement->mOriginal = nullptr;
     useElement->UnlinkSource();
     useElement->TriggerReclone();
@@ -159,7 +157,7 @@ nsSVGUseFrame::AttributeChanged(int32_t         aNameSpaceID,
 void
 nsSVGUseFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
-  nsRefPtr<SVGUseElement> use = static_cast<SVGUseElement*>(mContent);
+  nsRefPtr<nsSVGUseElement> use = static_cast<nsSVGUseElement*>(mContent);
   nsSVGUseFrameBase::DestroyFrom(aDestructRoot);
   use->DestroyAnonymousContent();
 }
@@ -181,7 +179,7 @@ nsSVGUseFrame::ReflowSVG()
   // handled by the nsSVGOuterSVGFrame for the anonymous <svg> that will be
   // created for that purpose.
   float x, y;
-  static_cast<SVGUseElement*>(mContent)->
+  static_cast<nsSVGUseElement*>(mContent)->
     GetAnimatedLengthValues(&x, &y, nullptr);
   mRect.MoveTo(nsLayoutUtils::RoundGfxRectToAppRect(
                  gfxRect(x, y, 0.0, 0.0),
@@ -196,9 +194,9 @@ nsSVGUseFrame::NotifySVGChanged(uint32_t aFlags)
       !(aFlags & TRANSFORM_CHANGED)) {
     // Coordinate context changes affect mCanvasTM if we have a
     // percentage 'x' or 'y'
-    SVGUseElement *use = static_cast<SVGUseElement*>(mContent);
-    if (use->mLengthAttributes[SVGUseElement::ATTR_X].IsPercentage() ||
-        use->mLengthAttributes[SVGUseElement::ATTR_Y].IsPercentage()) {
+    nsSVGUseElement *use = static_cast<nsSVGUseElement*>(mContent);
+    if (use->mLengthAttributes[nsSVGUseElement::X].IsPercentage() ||
+        use->mLengthAttributes[nsSVGUseElement::Y].IsPercentage()) {
       aFlags |= TRANSFORM_CHANGED;
       // Ancestor changes can't affect how we render from the perspective of
       // any rendering observers that we may have, so we don't need to
@@ -223,7 +221,7 @@ nsSVGUseFrame::NotifySVGChanged(uint32_t aFlags)
 nsresult
 nsSVGUseFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 {
-  SVGUseElement *use = static_cast<SVGUseElement*>(mContent);
+  nsSVGUseElement *use = static_cast<nsSVGUseElement*>(mContent);
 
   nsIContent* clone = use->CreateAnonymousContent();
   if (!clone)
@@ -237,7 +235,7 @@ void
 nsSVGUseFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
                                         uint32_t aFilter)
 {
-  SVGUseElement *use = static_cast<SVGUseElement*>(mContent);
+  nsSVGUseElement *use = static_cast<nsSVGUseElement*>(mContent);
   nsIContent* clone = use->GetAnonymousContent();
   aElements.MaybeAppendElement(clone);
 }

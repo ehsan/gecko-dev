@@ -23,15 +23,14 @@
     var gFindBar = null;
     var gBrowser;
 
-    var imports = ["SimpleTest", "ok", "snapshotWindow", "compareSnapshots",
-                   "parentFinish"];
+    var imports = ["SimpleTest", "ok", "snapshotWindow", "compareSnapshots"];
     for each (var name in imports) {
       window[name] = window.opener.wrappedJSObject[name];
     }
 
     function finish() {
       window.close();
-      parentFinish();
+      SimpleTest.finish();
     }
 
     function startTest() {

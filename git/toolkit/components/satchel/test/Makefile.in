@@ -1,3 +1,4 @@
+#
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -9,6 +10,8 @@ VPATH   = @srcdir@
 relativesrcdir  = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
+
+MODULE = test_satchel
 
 XPCSHELL_TESTS = \
   unit \
@@ -22,6 +25,7 @@ MOCHITEST_FILES = \
 		test_form_submission.html \
 		test_form_submission_cap.html \
 		test_form_submission_cap2.html \
+		test_privbrowsing.html \
 		satchel_common.js \
 		subtst_form_submission_1.html \
 		subtst_privbrowsing.html \

@@ -13,7 +13,6 @@
 #ifdef MOZ_ENABLE_D3D9_LAYER
 # include "LayerManagerD3D9.h"
 #endif //MOZ_ENABLE_D3D9_LAYER
-#include "mozilla/BrowserElementParent.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/layers/AsyncPanZoomController.h"
 #include "mozilla/layers/CompositorParent.h"
@@ -120,22 +119,15 @@ GetFrameMetrics(Layer* aLayer)
   return container ? &container->GetFrameMetrics() : NULL;
 }
 
-/**
- * Gets the layer-pixel offset of aContainerFrame's content rect top-left
- * from the nearest display item reference frame (which we assume will be inducing
- * a ContainerLayer).
- */
 static nsIntPoint
-GetContentRectLayerOffset(nsIFrame* aContainerFrame, nsDisplayListBuilder* aBuilder)
+GetRootFrameOffset(nsIFrame* aContainerFrame, nsDisplayListBuilder* aBuilder)
 {
   nscoord auPerDevPixel = aContainerFrame->PresContext()->AppUnitsPerDevPixel();
 
   // Offset to the content rect in case we have borders or padding
-  // Note that aContainerFrame could be a reference frame itself, so
-  // we need to be careful here to ensure that we call ToReferenceFrame
-  // on aContainerFrame and not its parent.
-  nsPoint frameOffset = aBuilder->ToReferenceFrame(aContainerFrame) +
-    (aContainerFrame->GetContentRect().TopLeft() - aContainerFrame->GetPosition());
+  nsPoint frameOffset =
+    (aBuilder->ToReferenceFrame(aContainerFrame->GetParent()) +
+     aContainerFrame->GetContentRect().TopLeft());
 
   return frameOffset.ToNearestPixels(auPerDevPixel);
 }
@@ -166,7 +158,7 @@ ComputeShadowTreeTransform(nsIFrame* aContainerFrame,
   nsIntPoint scrollOffset =
     aConfig.mScrollOffset.ToNearestPixels(auPerDevPixel);
   // metricsScrollOffset is in layer coordinates.
-  gfxPoint metricsScrollOffset = aMetrics->GetScrollOffsetInLayerPixels();
+  gfx::Point metricsScrollOffset = aMetrics->GetScrollOffsetInLayerPixels();
   nsIntPoint roundedMetricsScrollOffset =
     nsIntPoint(NS_lround(metricsScrollOffset.x), NS_lround(metricsScrollOffset.y));
 
@@ -286,10 +278,10 @@ TransformShadowTree(nsDisplayListBuilder* aBuilder, nsFrameLoader* aFrameLoader,
 
     layerTransform = viewTransform;
     if (metrics->IsRootScrollable()) {
-      // Apply the translation *before* we do the rest of the transforms.
-      nsIntPoint offset = GetContentRectLayerOffset(aFrame, aBuilder);
+      // Apply the root frame translation *before* we do the rest of the transforms.
+      nsIntPoint rootFrameOffset = GetRootFrameOffset(aFrame, aBuilder);
       shadowTransform = shadowTransform *
-          gfx3DMatrix::Translation(float(offset.x), float(offset.y), 0.0);
+          gfx3DMatrix::Translation(float(rootFrameOffset.x), float(rootFrameOffset.y), 0.0);
     }
   }
 
@@ -490,12 +482,19 @@ public:
 
   virtual void RequestContentRepaint(const FrameMetrics& aFrameMetrics) MOZ_OVERRIDE
   {
-    // We always need to post requests into the "UI thread" otherwise the
-    // requests may get processed out of order.
-    mUILoop->PostTask(
-      FROM_HERE,
-      NewRunnableMethod(this, &RemoteContentController::DoRequestContentRepaint,
-                        aFrameMetrics));
+    if (MessageLoop::current() != mUILoop) {
+      // We have to send this message from the "UI thread" (main
+      // thread).
+      mUILoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this, &RemoteContentController::RequestContentRepaint,
+                          aFrameMetrics));
+      return;
+    }
+    if (mRenderFrame) {
+      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
+      browser->UpdateFrame(aFrameMetrics);
+    }
   }
 
   virtual void HandleDoubleTap(const nsIntPoint& aPoint) MOZ_OVERRIDE
@@ -532,57 +531,9 @@ public:
     }
   }
 
-  virtual void HandleLongTap(const nsIntPoint& aPoint) MOZ_OVERRIDE
-  {
-    if (MessageLoop::current() != mUILoop) {
-      // We have to send this message from the "UI thread" (main
-      // thread).
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this, &RemoteContentController::HandleLongTap,
-                          aPoint));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->HandleLongTap(aPoint);
-    }
-  }
-
   void ClearRenderFrame() { mRenderFrame = nullptr; }
 
-  virtual void SendAsyncScrollDOMEvent(const gfx::Rect& aContentRect,
-                                       const gfx::Size& aContentSize) MOZ_OVERRIDE
-  {
-    if (MessageLoop::current() != mUILoop) {
-      mUILoop->PostTask(
-        FROM_HERE,
-        NewRunnableMethod(this,
-                          &RemoteContentController::SendAsyncScrollDOMEvent,
-                          aContentRect, aContentSize));
-      return;
-    }
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      BrowserElementParent::DispatchAsyncScrollEvent(browser, aContentRect,
-                                                     aContentSize);
-    }
-  }
-
-  virtual void PostDelayedTask(Task* aTask, int aDelayMs) MOZ_OVERRIDE
-  {
-    MessageLoop::current()->PostDelayedTask(FROM_HERE, aTask, aDelayMs);
-  }
-
 private:
-  void DoRequestContentRepaint(const FrameMetrics& aFrameMetrics)
-  {
-    if (mRenderFrame) {
-      TabParent* browser = static_cast<TabParent*>(mRenderFrame->Manager());
-      browser->UpdateFrame(aFrameMetrics);
-    }
-  }
-
   MessageLoop* mUILoop;
   RenderFrameParent* mRenderFrame;
 };
@@ -605,11 +556,8 @@ RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader,
   *aId = 0;
 
   nsRefPtr<LayerManager> lm = GetFrom(mFrameLoader);
-  // Perhaps the document containing this frame currently has no presentation?
-  if (lm) {
-    *aBackendType = lm->GetBackendType();
-    *aMaxTextureSize = lm->GetMaxTextureSize();
-  }
+  *aBackendType = lm->GetBackendType();
+  *aMaxTextureSize = lm->GetMaxTextureSize();
 
   if (CompositorParent::CompositorLoop()) {
     // Our remote frame will push layers updates to the compositor,
@@ -686,15 +634,13 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
                     mContainer->Manager() == aManager,
                     "retaining manager changed out from under us ... HELP!");
 
-  if (IsTempLayerManager(aManager) ||
-      (mContainer && mContainer->Manager() != aManager)) {
+  if (mContainer && mContainer->Manager() != aManager) {
     // This can happen if aManager is a "temporary" manager, or if the
     // widget's layer manager changed out from under us.  We need to
     // FIXME handle the former case somehow, probably with an API to
     // draw a manager's subtree.  The latter is bad bad bad, but the
     // the NS_ABORT_IF_FALSE() above will flag it.  Returning NULL
     // here will just cause the shadow subtree not to be rendered.
-    NS_WARNING("Remote iframe not rendered");
     return nullptr;
   }
 
@@ -714,17 +660,10 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
     }
     static_cast<RefLayer*>(layer.get())->SetReferentId(id);
     layer->SetVisibleRegion(aVisibleRect);
-    nsIntPoint offset = GetContentRectLayerOffset(aFrame, aBuilder);
-    // We can only have an offset if we're a child of an inactive
-    // container, but our display item is LAYER_ACTIVE_FORCE which
-    // forces all layers above to be active.
-    MOZ_ASSERT(aContainerParameters.mOffset == nsIntPoint());
-    gfx3DMatrix m =
-      gfx3DMatrix::Translation(offset.x, offset.y, 0.0);
-    // Remote content can't be repainted by us, so we multiply down
-    // the resolution that our container expects onto our container.
-    m.Scale(aContainerParameters.mXScale, aContainerParameters.mYScale, 1.0);
-    layer->SetBaseTransform(m);
+    nsIntPoint rootFrameOffset = GetRootFrameOffset(aFrame, aBuilder);
+    layer->SetBaseTransform(
+      gfx3DMatrix::Translation(rootFrameOffset.x + aContainerParameters.mOffset.x, 
+                               rootFrameOffset.y + aContainerParameters.mOffset.y, 0.0));
 
     return layer.forget();
   }
@@ -733,7 +672,6 @@ RenderFrameParent::BuildLayer(nsDisplayListBuilder* aBuilder,
     ClearContainer(mContainer);
     mContainer->SetPreScale(1.0f, 1.0f);
     mContainer->SetPostScale(1.0f, 1.0f);
-    mContainer->SetInheritedScale(1.0f, 1.0f);
   }
 
   ContainerLayer* shadowRoot = GetRootLayer();
@@ -781,18 +719,11 @@ RenderFrameParent::OwnerContentChanged(nsIContent* aContent)
 }
 
 void
-RenderFrameParent::NotifyInputEvent(const nsInputEvent& aEvent)
+RenderFrameParent::NotifyInputEvent(const nsInputEvent& aEvent,
+                                    nsInputEvent* aOutEvent)
 {
   if (mPanZoomController) {
-    mPanZoomController->ReceiveMainThreadInputEvent(aEvent);
-  }
-}
-
-void
-RenderFrameParent::ApplyZoomCompensationToEvent(nsInputEvent* aEvent)
-{
-  if (mPanZoomController) {
-    mPanZoomController->ApplyZoomCompensationToEvent(aEvent);
+    mPanZoomController->ReceiveInputEvent(aEvent, aOutEvent);
   }
 }
 
@@ -814,7 +745,6 @@ RenderFrameParent::ActorDestroy(ActorDestroyReason why)
       // Stop our content controller from requesting repaints of our
       // content.
       mContentController->ClearRenderFrame();
-      mPanZoomController->Destroy();
     }
   }
 
@@ -842,15 +772,6 @@ RenderFrameParent::RecvCancelDefaultPanZoom()
 {
   if (mPanZoomController) {
     mPanZoomController->CancelDefaultPanZoom();
-  }
-  return true;
-}
-
-bool
-RenderFrameParent::RecvDetectScrollableSubframe()
-{
-  if (mPanZoomController) {
-    mPanZoomController->DetectScrollableSubframe();
   }
   return true;
 }
@@ -927,7 +848,7 @@ RenderFrameParent::TriggerRepaint()
 ShadowLayersParent*
 RenderFrameParent::GetShadowLayers() const
 {
-  const InfallibleTArray<PLayersParent*>& shadowParents = ManagedPLayersParent();
+  const nsTArray<PLayersParent*>& shadowParents = ManagedPLayersParent();
   NS_ABORT_IF_FALSE(shadowParents.Length() <= 1,
                     "can only support at most 1 ShadowLayersParent");
   return (shadowParents.Length() == 1) ?
@@ -947,7 +868,7 @@ RenderFrameParent::GetRootLayer() const
   return shadowLayers ? shadowLayers->GetRoot() : nullptr;
 }
 
-void
+NS_IMETHODIMP
 RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
                                     nsSubDocumentFrame* aFrame,
                                     const nsRect& aDirtyRect,
@@ -959,7 +880,7 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   ContainerLayer* container = GetRootLayer();
   if (aBuilder->IsForEventDelivery() && container) {
     ViewTransform offset =
-      ViewTransform(GetContentRectLayerOffset(aFrame, aBuilder), 1, 1);
+      ViewTransform(GetRootFrameOffset(aFrame, aBuilder), 1, 1);
     BuildListForLayer(container, mFrameLoader, offset,
                       aBuilder, shadowTree, aFrame);
   } else {
@@ -971,7 +892,7 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   nsPoint offset = aBuilder->ToReferenceFrame(aFrame);
   nsRect bounds = aFrame->EnsureInnerView()->GetBounds() + offset;
 
-  aLists.Content()->AppendNewToTop(
+  return aLists.Content()->AppendNewToTop(
     new (aBuilder) nsDisplayClip(aBuilder, aFrame, &shadowTree,
                                  bounds));
 }

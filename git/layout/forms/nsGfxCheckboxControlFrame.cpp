@@ -12,7 +12,6 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsDisplayList.h"
 #include "nsCSSAnonBoxes.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -33,7 +32,7 @@ PaintCheckMark(nsIFrame* aFrame,
                                     // of the 7x7 unit checkmark
 
   // Scale the checkmark based on the smallest dimension
-  nscoord paintScale = std::min(rect.width, rect.height) / checkSize;
+  nscoord paintScale = NS_MIN(rect.width, rect.height) / checkSize;
   nsPoint paintCenter(rect.x + rect.width  / 2,
                       rect.y + rect.height / 2);
 
@@ -45,7 +44,7 @@ PaintCheckMark(nsIFrame* aFrame,
                                       checkPolygonY[polyIndex] * paintScale);
   }
 
-  aCtx->SetColor(aFrame->StyleColor()->mColor);
+  aCtx->SetColor(aFrame->GetStyleColor()->mColor);
   aCtx->FillPolygon(paintPolygon, checkNumPoints);
 }
 
@@ -61,7 +60,7 @@ PaintIndeterminateMark(nsIFrame* aFrame,
   rect.y += (rect.height - rect.height/4) / 2;
   rect.height /= 4;
 
-  aCtx->SetColor(aFrame->StyleColor()->mColor);
+  aCtx->SetColor(aFrame->GetStyleColor()->mColor);
   aCtx->FillRect(rect);
 }
 
@@ -91,26 +90,28 @@ nsGfxCheckboxControlFrame::~nsGfxCheckboxControlFrame()
 a11y::AccType
 nsGfxCheckboxControlFrame::AccessibleType()
 {
-  return a11y::eHTMLCheckboxType;
+  return a11y::eHTMLCheckboxAccessible;
 }
 #endif
 
 //------------------------------------------------------------
-void
+NS_IMETHODIMP
 nsGfxCheckboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                             const nsRect&           aDirtyRect,
                                             const nsDisplayListSet& aLists)
 {
-  nsFormControlFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  nsresult rv = nsFormControlFrame::BuildDisplayList(aBuilder, aDirtyRect,
+                                                     aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   // Get current checked state through content model.
   if ((!IsChecked() && !IsIndeterminate()) || !IsVisibleForPainting(aBuilder))
-    return;   // we're not checked or not visible, nothing to paint.
+    return NS_OK;   // we're not checked or not visible, nothing to paint.
     
   if (IsThemed())
-    return; // No need to paint the checkmark. The theme will do it.
+    return NS_OK; // No need to paint the checkmark. The theme will do it.
 
-  aLists.Content()->AppendNewToTop(new (aBuilder)
+  return aLists.Content()->AppendNewToTop(new (aBuilder)
     nsDisplayGeneric(aBuilder, this,
                      IsIndeterminate()
                      ? PaintIndeterminateMark : PaintCheckMark,

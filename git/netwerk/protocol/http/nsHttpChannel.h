@@ -82,6 +82,7 @@ public:
     NS_IMETHOD SetWWWCredentials(const nsACString & aCredentials);
     NS_IMETHOD OnAuthAvailable();
     NS_IMETHOD OnAuthCancelled(bool userCancel);
+    NS_IMETHOD GetAsciiHostForAuth(nsACString &aHost);
     // Functions we implement from nsIHttpAuthenticableChannel but are
     // declared in HttpBaseChannel must be implemented in this class. We
     // just call the HttpBaseChannel:: impls.
@@ -94,7 +95,7 @@ public:
     nsHttpChannel();
     virtual ~nsHttpChannel();
 
-    virtual nsresult Init(nsIURI *aURI, uint32_t aCaps, nsProxyInfo *aProxyInfo,
+    virtual nsresult Init(nsIURI *aURI, uint8_t aCaps, nsProxyInfo *aProxyInfo,
                           uint32_t aProxyResolveFlags,
                           nsIURI *aProxyURI);
 
@@ -113,9 +114,6 @@ public:
     NS_IMETHOD SetPriority(int32_t value);
     // nsIResumableChannel
     NS_IMETHOD ResumeAt(uint64_t startPos, const nsACString& entityID);
-
-    NS_IMETHOD SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks);
-    NS_IMETHOD SetLoadGroup(nsILoadGroup *aLoadGroup);
 
 public: /* internal necko use only */ 
 
@@ -159,7 +157,6 @@ private:
     nsresult ContinueConnect();
     void     SpeculativeConnect();
     nsresult SetupTransaction();
-    void     SetupTransactionLoadGroupInfo();
     nsresult CallOnStartRequest();
     nsresult ProcessResponse();
     nsresult ContinueProcessResponse(nsresult);
@@ -181,14 +178,12 @@ private:
 
     // redirection specific methods
     void     HandleAsyncRedirect();
-    void     HandleAsyncAPIRedirect();
     nsresult ContinueHandleAsyncRedirect(nsresult);
     void     HandleAsyncNotModified();
     void     HandleAsyncFallback();
     nsresult ContinueHandleAsyncFallback(nsresult);
     nsresult PromptTempRedirect();
-    nsresult StartRedirectChannelToURI(nsIURI *);
-    virtual  nsresult SetupReplacementChannel(nsIURI *, nsIChannel *, bool preserveMethod);
+    virtual nsresult SetupReplacementChannel(nsIURI *, nsIChannel *, bool preserveMethod);
 
     // proxy specific methods
     nsresult ProxyFailover();
@@ -243,8 +238,8 @@ private:
     nsresult DoAuthRetry(nsAHttpConnection *);
 
     void     HandleAsyncRedirectChannelToHttps();
-    nsresult StartRedirectChannelToHttps();
-    nsresult ContinueAsyncRedirectChannelToURI(nsresult rv);
+    nsresult AsyncRedirectChannelToHttps();
+    nsresult ContinueAsyncRedirectChannelToHttps(nsresult rv);
     nsresult OpenRedirectChannel(nsresult rv);
 
     /**
@@ -275,10 +270,6 @@ private:
                rv == NS_ERROR_UNKNOWN_PROTOCOL      ||
                rv == NS_ERROR_MALFORMED_URI;
     }
-
-    // Create a aggregate set of the current notification callbacks
-    // and ensure the transaction is updated to use it.
-    void UpdateAggregateCallbacks();
 
 private:
     nsCOMPtr<nsISupports>             mSecurityInfo;
@@ -332,7 +323,6 @@ private:
     uint32_t                          mCachedContentIsPartial   : 1;
     uint32_t                          mTransactionReplaced      : 1;
     uint32_t                          mAuthRetryPending         : 1;
-    uint32_t                          mProxyAuthPending         : 1;
     uint32_t                          mResuming                 : 1;
     uint32_t                          mInitedCacheEntry         : 1;
     // True if we are loading a fallback cache entry from the
@@ -365,10 +355,6 @@ private:
     void PushRedirectAsyncFunc(nsContinueRedirectionFunc func);
     void PopRedirectAsyncFunc(nsContinueRedirectionFunc func);
 
-
-    // perform experiment to determine efficiency of cache strategy
-    // vs pure network
-    mozilla::TimeStamp                mCacheEffectExperimentAsyncOpenTime;
 protected:
     virtual void DoNotifyListenerCleanup();
 

@@ -15,18 +15,15 @@
 #include "nsGUIEvent.h"
 #include "nsAutoPtr.h"
 #include "nsIRollupListener.h"
-#include <algorithm>
 class nsIContent;
 class nsAutoRollup;
 class gfxContext;
 
-namespace mozilla {
 #ifdef ACCESSIBILITY
-namespace a11y {
 class Accessible;
-}
 #endif
 
+namespace mozilla {
 namespace layers {
 class BasicLayerManager;
 class CompositorChild;
@@ -75,6 +72,7 @@ public:
   virtual nsIWidget*      GetTopLevelWidget();
   virtual nsIWidget*      GetSheetWindowParent(void);
   virtual float           GetDPI();
+  virtual double          GetDefaultScale();
   virtual void            AddChild(nsIWidget* aChild);
   virtual void            RemoveChild(nsIWidget* aChild);
 
@@ -111,16 +109,15 @@ public:
                                           bool* aAllowRetaining = nullptr);
 
   virtual void            CreateCompositor();
-  virtual void            CreateCompositor(int aWidth, int aHeight);
   virtual void            DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) {}
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) {}
   virtual gfxASurface*    GetThebesSurface();
   NS_IMETHOD              SetModal(bool aModal); 
   NS_IMETHOD              SetWindowClass(const nsAString& xulWinType);
-  NS_IMETHOD              MoveClient(double aX, double aY);
-  NS_IMETHOD              ResizeClient(double aWidth, double aHeight, bool aRepaint);
-  NS_IMETHOD              ResizeClient(double aX, double aY, double aWidth, double aHeight, bool aRepaint);
+  NS_IMETHOD              MoveClient(int32_t aX, int32_t aY);
+  NS_IMETHOD              ResizeClient(int32_t aWidth, int32_t aHeight, bool aRepaint);
+  NS_IMETHOD              ResizeClient(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, bool aRepaint);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
@@ -141,18 +138,18 @@ public:
   NS_IMETHOD              BeginMoveDrag(nsMouseEvent* aEvent);
   virtual nsresult        ActivateNativeMenuItemAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsresult        ForceUpdateNativeMenuAt(const nsAString& indexString) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              NotifyIME(NotificationToIME aNotification) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              SetLayersAcceleration(bool aEnabled);
-  virtual bool            GetLayersAcceleration() { return mUseLayersAcceleration; }
-  virtual bool            ComputeShouldAccelerate(bool aDefault);
+  NS_IMETHOD              ResetInputState() { return NS_OK; }
+  NS_IMETHOD              CancelIMEComposition() { return NS_OK; }
+  NS_IMETHOD              SetAcceleratedRendering(bool aEnabled);
+  virtual bool            GetAcceleratedRendering();
+  virtual bool            GetShouldAccelerate();
   NS_IMETHOD              GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              NotifyIMEOfTextChange(uint32_t aStart, uint32_t aOldEnd, uint32_t aNewEnd) MOZ_OVERRIDE { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              OnIMEFocusChange(bool aFocus) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              OnIMETextChange(uint32_t aStart, uint32_t aOldEnd, uint32_t aNewEnd) { return NS_ERROR_NOT_IMPLEMENTED; }
+  NS_IMETHOD              OnIMESelectionChange(void) { return NS_ERROR_NOT_IMPLEMENTED; }
   virtual nsIMEUpdatePreference GetIMEUpdatePreference() { return nsIMEUpdatePreference(false, false); }
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect) { return NS_ERROR_NOT_IMPLEMENTED; }
-  NS_IMETHOD              OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
-                                                         double aOriginalDeltaY,
-                                                         double& aOverriddenDeltaX,
-                                                         double& aOverriddenDeltaY);
+  NS_IMETHOD              OverrideSystemMouseScrollSpeed(int32_t aOriginalDelta, bool aIsHorizontal, int32_t &aOverriddenDelta);
   virtual already_AddRefed<nsIWidget>
   CreateChild(const nsIntRect  &aRect,
               nsDeviceContext *aContext,
@@ -176,7 +173,7 @@ public:
 
 #ifdef ACCESSIBILITY
   // Get the accessible for the window.
-  mozilla::a11y::Accessible* GetAccessible();
+  Accessible* GetAccessible();
 #endif
 
   nsPopupLevel PopupLevel() { return mPopupLevel; }
@@ -219,7 +216,6 @@ public:
     ~AutoLayerManagerSetup();
   private:
     nsBaseWidget* mWidget;
-    nsRefPtr<BasicLayerManager> mLayerManager;
   };
   friend class AutoLayerManagerSetup;
 
@@ -229,16 +225,12 @@ public:
     ~AutoUseBasicLayerManager();
   private:
     nsBaseWidget* mWidget;
-    bool mPreviousTemporarilyUseBasicLayerManager;
   };
   friend class AutoUseBasicLayerManager;
 
   nsWindowType            GetWindowType() { return mWindowType; }
 
-  virtual bool            ShouldUseOffMainThreadCompositing();
-
-  static nsIRollupListener* GetActiveRollupListener();
-
+  virtual bool            UseOffMainThreadCompositing();
 protected:
 
   virtual void            ResolveIconName(const nsAString &aIconName,
@@ -295,12 +287,10 @@ protected:
 
   nsPopupType PopupType() const { return mPopupType; }
 
-  void NotifyRollupGeometryChange()
+  void NotifyRollupGeometryChange(nsIRollupListener* aRollupListener)
   {
-    // XULPopupManager isn't interested in this notification, so only
-    // send it if gRollupListener is set.
-    if (gRollupListener) {
-      gRollupListener->NotifyGeometryChange();
+    if (aRollupListener) {
+      aRollupListener->NotifyGeometryChange();
     }
   }
 
@@ -312,10 +302,10 @@ protected:
    */
   void ConstrainSize(int32_t* aWidth, int32_t* aHeight) const
   {
-    *aWidth = std::max(mSizeConstraints.mMinSize.width,
-                     std::min(mSizeConstraints.mMaxSize.width, *aWidth));
-    *aHeight = std::max(mSizeConstraints.mMinSize.height,
-                      std::min(mSizeConstraints.mMaxSize.height, *aHeight));
+    *aWidth = NS_MAX(mSizeConstraints.mMinSize.width,
+                     NS_MIN(mSizeConstraints.mMaxSize.width, *aWidth));
+    *aHeight = NS_MAX(mSizeConstraints.mMinSize.height,
+                      NS_MIN(mSizeConstraints.mMaxSize.height, *aHeight));
   }
 
   virtual CompositorChild* GetRemoteRenderer() MOZ_OVERRIDE;
@@ -344,7 +334,7 @@ protected:
   nsCursor          mCursor;
   nsWindowType      mWindowType;
   nsBorderStyle     mBorderStyle;
-  bool              mUseLayersAcceleration;
+  bool              mUseAcceleratedRendering;
   bool              mForceLayersAcceleration;
   bool              mTemporarilyUseBasicLayerManager;
   bool              mUseAttachedEvents;
@@ -359,8 +349,6 @@ protected:
   nsPopupLevel      mPopupLevel;
   nsPopupType       mPopupType;
   SizeConstraints   mSizeConstraints;
-
-  static nsIRollupListener* gRollupListener;
 
   // the last rolled up popup. Only set this when an nsAutoRollup is in scope,
   // so it can be cleared automatically.

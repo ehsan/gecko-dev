@@ -6,21 +6,7 @@
     <!-- Any copyright is dedicated to the Public Domain.
        - http://creativecommons.org/publicdomain/zero/1.0/ -->
     <script type="text/javascript"><!--
-      var setAllowAllCookies = false;
-
       function makeXhr(aMethod, aUrl, aRequestBody, aCallback) {
-        // On the first call, allow all cookies and set cookies, then resume the actual test
-        if(!setAllowAllCookies)
-          SpecialPowers.pushPrefEnv({"set": [["network.cookie.cookieBehavior", 0]]}, function () {
-            setAllowAllCookies = true;
-            setCookies();
-            makeXhrCallback(aMethod, aUrl, aRequestBody, aCallback);
-          });
-        else
-          makeXhrCallback(aMethod, aUrl, aRequestBody, aCallback);
-      }
-
-      function makeXhrCallback(aMethod, aUrl, aRequestBody, aCallback) {
         var xmlhttp = new XMLHttpRequest();
         xmlhttp.open(aMethod, aUrl, true);
         if (aCallback) {
@@ -38,15 +24,11 @@
       }
 
       function testXhrPost(aCallback) {
-        var body = "Hello world! " + (new Array(50)).join("foobaz barr");
-        makeXhr('post', 'data.json', body, aCallback);
+        makeXhr('post', 'data.json', "Hello world!", aCallback);
       }
-      
-      function setCookies() {
-        document.cookie = "foobar=fooval";
-        document.cookie = "omgfoo=bug768096";
-        document.cookie = "badcookie=bug826798=st3fan";
-      }
+
+      document.cookie = "foobar=fooval";
+      document.cookie = "omgfoo=bug768096";
     // --></script>
   </head>
   <body>

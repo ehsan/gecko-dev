@@ -34,6 +34,9 @@ let observer = {
   _itemAddedIndex: null,
   _itemAddedType: null,
 
+  onBeforeItemRemoved: function(id) {
+  },
+
   onItemRemoved: function(id, folder, index, itemType) {
     this._itemRemovedId = id;
     this._itemRemovedFolder = folder;
@@ -116,8 +119,8 @@ add_test(function test_create_folder_with_description() {
 
   // This checks that calling undoTransaction on an "empty batch" doesn't
   // undo the previous transaction (getItemTitle will fail)
-  txnManager.beginBatch(null);
-  txnManager.endBatch(false);
+  txnManager.beginBatch();
+  txnManager.endBatch();
   txnManager.undoTransaction();
 
   let folderId = observer._itemAddedId;
@@ -636,25 +639,26 @@ add_test(function test_edit_item_last_modified() {
 add_test(function test_generic_page_annotation() {
   const TEST_ANNO = "testAnno/testInt";
   let testURI = NetUtil.newURI("http://www.mozilla.org/");
-  promiseAddVisits(testURI).then(function () {
-    let pageAnnoObj = { name: TEST_ANNO,
-                        type: Ci.nsIAnnotationService.TYPE_INT32,
-                        flags: 0,
-                        value: 123,
-                        expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
-    let txn = new PlacesSetPageAnnotationTransaction(testURI, pageAnnoObj);
+  let history = PlacesUtils.history;
+  history.addVisit(testURI, Date.now() * 1000, null, history.TRANSITION_TYPED, false, 0);
 
-    txn.doTransaction();
-    do_check_true(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
+  let pageAnnoObj = { name: TEST_ANNO,
+                      type: Ci.nsIAnnotationService.TYPE_INT32,
+                      flags: 0,
+                      value: 123,
+                      expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
+  let txn = new PlacesSetPageAnnotationTransaction(testURI, pageAnnoObj);
 
-    txn.undoTransaction();
-    do_check_false(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
+  txn.doTransaction();
+  do_check_true(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
 
-    txn.redoTransaction();
-    do_check_true(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
+  txn.undoTransaction();
+  do_check_false(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
 
-    run_next_test();
-  });
+  txn.redoTransaction();
+  do_check_true(annosvc.pageHasAnnotation(testURI, TEST_ANNO));
+
+  run_next_test();
 });
 
 add_test(function test_sort_folder_by_name() {

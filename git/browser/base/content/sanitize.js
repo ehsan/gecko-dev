@@ -3,10 +3,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
-                                  "resource://gre/modules/PlacesUtils.jsm");
-
 function Sanitizer() {}
 Sanitizer.prototype = {
   // warning to the caller: this one may raise an exception (e.g. bug #265028)
@@ -185,10 +181,12 @@ Sanitizer.prototype = {
     history: {
       clear: function ()
       {
+        var globalHistory = Components.classes["@mozilla.org/browser/global-history;2"]
+                                      .getService(Components.interfaces.nsIBrowserHistory);
         if (this.range)
-          PlacesUtils.history.removeVisitsByTimeframe(this.range[0], this.range[1]);
+          globalHistory.removeVisitsByTimeframe(this.range[0], this.range[1]);
         else
-          PlacesUtils.history.removeAllPages();
+          globalHistory.removeAllPages();
         
         try {
           var os = Components.classes["@mozilla.org/observer-service;1"]
@@ -271,36 +269,33 @@ Sanitizer.prototype = {
         var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
                               .getService(Components.interfaces.nsIDownloadManager);
 
-        var dlsToRemove = [];
+        var dlIDsToRemove = [];
         if (this.range) {
           // First, remove the completed/cancelled downloads
           dlMgr.removeDownloadsByTimeframe(this.range[0], this.range[1]);
-
+          
           // Queue up any active downloads that started in the time span as well
-          for (let dlsEnum of [dlMgr.activeDownloads, dlMgr.activePrivateDownloads]) {
-            while (dlsEnum.hasMoreElements()) {
-              var dl = dlsEnum.next();
-              if (dl.startTime >= this.range[0])
-                dlsToRemove.push(dl);
-            }
+          var dlsEnum = dlMgr.activeDownloads;
+          while(dlsEnum.hasMoreElements()) {
+            var dl = dlsEnum.next();
+            if(dl.startTime >= this.range[0])
+              dlIDsToRemove.push(dl.id);
           }
         }
         else {
           // Clear all completed/cancelled downloads
           dlMgr.cleanUp();
-          dlMgr.cleanUpPrivate();
           
           // Queue up all active ones as well
-          for (let dlsEnum of [dlMgr.activeDownloads, dlMgr.activePrivateDownloads]) {
-            while (dlsEnum.hasMoreElements()) {
-              dlsToRemove.push(dlsEnum.next());
-            }
+          var dlsEnum = dlMgr.activeDownloads;
+          while(dlsEnum.hasMoreElements()) {
+            dlIDsToRemove.push(dlsEnum.next().id);
           }
         }
-
+        
         // Remove any queued up active downloads
-        dlsToRemove.forEach(function (dl) {
-          dl.remove();
+        dlIDsToRemove.forEach(function(id) {
+          dlMgr.removeDownload(id);
         });
       },
 
@@ -308,7 +303,7 @@ Sanitizer.prototype = {
       {
         var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
                               .getService(Components.interfaces.nsIDownloadManager);
-        return dlMgr.canCleanUp || dlMgr.canCleanUpPrivate;
+        return dlMgr.canCleanUp;
       }
     },
     
@@ -360,8 +355,8 @@ Sanitizer.prototype = {
         
         // Clear site-specific settings like page-zoom level
         var cps = Components.classes["@mozilla.org/content-pref/service;1"]
-                            .getService(Components.interfaces.nsIContentPrefService2);
-        cps.removeAllDomains(null);
+                            .getService(Components.interfaces.nsIContentPrefService);
+        cps.removeGroupedPrefs();
         
         // Clear "Never remember passwords for this site", which is not handled by
         // the permission manager

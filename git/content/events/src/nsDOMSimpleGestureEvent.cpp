@@ -6,11 +6,8 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMSimpleGestureEvent.h"
 
-nsDOMSimpleGestureEvent::nsDOMSimpleGestureEvent(mozilla::dom::EventTarget* aOwner,
-                                                 nsPresContext* aPresContext,
-                                                 nsSimpleGestureEvent* aEvent)
-  : nsDOMMouseEvent(aOwner, aPresContext,
-                    aEvent ? aEvent : new nsSimpleGestureEvent(false, 0, nullptr, 0, 0.0))
+nsDOMSimpleGestureEvent::nsDOMSimpleGestureEvent(nsPresContext* aPresContext, nsSimpleGestureEvent* aEvent)
+  : nsDOMMouseEvent(aPresContext, aEvent ? aEvent : new nsSimpleGestureEvent(false, 0, nullptr, 0, 0.0))
 {
   NS_ASSERTION(mEvent->eventStructType == NS_SIMPLE_GESTURE_EVENT, "event type mismatch");
 
@@ -22,7 +19,6 @@ nsDOMSimpleGestureEvent::nsDOMSimpleGestureEvent(mozilla::dom::EventTarget* aOwn
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
     static_cast<nsMouseEvent*>(mEvent)->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
   }
-  SetIsDOMBinding();
 }
 
 nsDOMSimpleGestureEvent::~nsDOMSimpleGestureEvent()
@@ -48,7 +44,7 @@ NS_IMETHODIMP
 nsDOMSimpleGestureEvent::GetDirection(uint32_t *aDirection)
 {
   NS_ENSURE_ARG_POINTER(aDirection);
-  *aDirection = Direction();
+  *aDirection = static_cast<nsSimpleGestureEvent*>(mEvent)->direction;
   return NS_OK;
 }
 
@@ -57,7 +53,7 @@ NS_IMETHODIMP
 nsDOMSimpleGestureEvent::GetDelta(double *aDelta)
 {
   NS_ENSURE_ARG_POINTER(aDelta);
-  *aDelta = Delta();
+  *aDelta = static_cast<nsSimpleGestureEvent*>(mEvent)->delta;
   return NS_OK;
 }
 
@@ -66,7 +62,7 @@ NS_IMETHODIMP
 nsDOMSimpleGestureEvent::GetClickCount(uint32_t *aClickCount)
 {
   NS_ENSURE_ARG_POINTER(aClickCount);
-  *aClickCount = ClickCount();
+  *aClickCount = static_cast<nsSimpleGestureEvent*>(mEvent)->clickCount;
   return NS_OK;
 }
 
@@ -116,11 +112,12 @@ nsDOMSimpleGestureEvent::InitSimpleGestureEvent(const nsAString& aTypeArg,
 }
 
 nsresult NS_NewDOMSimpleGestureEvent(nsIDOMEvent** aInstancePtrResult,
-                                     mozilla::dom::EventTarget* aOwner,
                                      nsPresContext* aPresContext,
                                      nsSimpleGestureEvent *aEvent)
 {
-  nsDOMSimpleGestureEvent* it =
-    new nsDOMSimpleGestureEvent(aOwner, aPresContext, aEvent);
+  nsDOMSimpleGestureEvent *it = new nsDOMSimpleGestureEvent(aPresContext, aEvent);
+  if (nullptr == it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   return CallQueryInterface(it, aInstancePtrResult);
 }

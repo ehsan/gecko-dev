@@ -4,18 +4,12 @@
  */
 
 var testGenerator = testSteps();
-var archiveReaderEnabled = false;
 
 // The test js is shared between xpcshell (which has no SpecialPowers object)
 // and content mochitests (where the |Components| object is accessible only as
 // SpecialPowers.Components). Expose Components if necessary here to make things
 // work everywhere.
-//
-// Even if the real |Components| doesn't exist, we might shim in a simple JS
-// placebo for compat. An easy way to differentiate this from the real thing
-// is whether the property is read-only or not.
-var c = Object.getOwnPropertyDescriptor(this, 'Components');
-if ((!c.value || c.writable) && typeof SpecialPowers === 'object')
+if (typeof Components === 'undefined')
   Components = SpecialPowers.Components;
 
 function executeSoon(aFun)
@@ -45,18 +39,18 @@ function clearAllDatabases(callback) {
 
   let comp = SpecialPowers.wrap(Components);
 
-  let quotaManager =
-    comp.classes["@mozilla.org/dom/quota/manager;1"]
-        .getService(comp.interfaces.nsIQuotaManager);
+  let idbManager =
+    comp.classes["@mozilla.org/dom/indexeddb/manager;1"]
+        .getService(comp.interfaces.nsIIndexedDatabaseManager);
 
   let uri = SpecialPowers.getDocumentURIObject(document);
 
-  quotaManager.clearStoragesForURI(uri);
-  quotaManager.getUsageForURI(uri, function(uri, usage, fileUsage) {
+  idbManager.clearDatabasesForURI(uri);
+  idbManager.getUsageForURI(uri, function(uri, usage, fileUsage) {
     if (usage) {
       ok(false,
          "getUsageForURI returned non-zero usage after clearing all " +
-         "storages!");
+         "databases!");
     }
     runCallback();
   });
@@ -74,8 +68,6 @@ if (!window.runTest) {
       allowUnlimitedQuota();
     }
 
-    enableArchiveReader();
-
     clearAllDatabases(function () { testGenerator.next(); });
   }
 }
@@ -83,7 +75,6 @@ if (!window.runTest) {
 function finishTest()
 {
   resetUnlimitedQuota();
-  resetArchiveReader();
 
   SimpleTest.executeSoon(function() {
     testGenerator.close();
@@ -172,12 +163,12 @@ function compareKeys(k1, k2) {
     if (!(k2 instanceof Array) ||
         k1.length != k2.length)
       return false;
-
+    
     for (let i = 0; i < k1.length; ++i) {
       if (!compareKeys(k1[i], k2[i]))
         return false;
     }
-
+    
     return true;
   }
 
@@ -218,17 +209,6 @@ function denyUnlimitedQuota(url)
 function resetUnlimitedQuota(url)
 {
   removePermission("indexedDB-unlimited", url);
-}
-
-function enableArchiveReader()
-{
-  archiveReaderEnabled = SpecialPowers.getBoolPref("dom.archivereader.enabled");
-  SpecialPowers.setBoolPref("dom.archivereader.enabled", true);
-}
-
-function resetArchiveReader()
-{
-  SpecialPowers.setBoolPref("dom.archivereader.enabled", archiveReaderEnabled);
 }
 
 function gc()

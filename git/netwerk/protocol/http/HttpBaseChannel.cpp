@@ -22,7 +22,6 @@
 #include "nsStreamListenerWrapper.h"
 
 #include "prnetdb.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace net {
@@ -31,14 +30,13 @@ HttpBaseChannel::HttpBaseChannel()
   : mStartPos(UINT64_MAX)
   , mStatus(NS_OK)
   , mLoadFlags(LOAD_NORMAL)
-  , mCaps(0)
   , mPriority(PRIORITY_NORMAL)
+  , mCaps(0)
   , mRedirectionLimit(gHttpHandler->RedirectionLimit())
   , mApplyConversion(true)
   , mCanceled(false)
   , mIsPending(false)
   , mWasOpened(false)
-  , mRequestObserversCalled(false)
   , mResponseHeadersModified(false)
   , mAllowPipelining(true)
   , mForceAllowThirdPartyCookie(false)
@@ -50,8 +48,6 @@ HttpBaseChannel::HttpBaseChannel()
   , mTracingEnabled(true)
   , mTimingEnabled(false)
   , mAllowSpdy(true)
-  , mLoadAsBlocking(false)
-  , mLoadUnblocked(false)
   , mSuspendCount(0)
   , mProxyResolveFlags(0)
   , mContentDispositionHint(UINT32_MAX)
@@ -78,7 +74,7 @@ HttpBaseChannel::~HttpBaseChannel()
 
 nsresult
 HttpBaseChannel::Init(nsIURI *aURI,
-                      uint32_t aCaps,
+                      uint8_t aCaps,
                       nsProxyInfo *aProxyInfo,
                       uint32_t aProxyResolveFlags,
                       nsIURI *aProxyURI)
@@ -240,7 +236,7 @@ HttpBaseChannel::GetOriginalURI(nsIURI **aOriginalURI)
 NS_IMETHODIMP
 HttpBaseChannel::SetOriginalURI(nsIURI *aOriginalURI)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   NS_ENSURE_ARG_POINTER(aOriginalURI);
   mOriginalURI = aOriginalURI;
@@ -814,7 +810,7 @@ HttpBaseChannel::GetRequestMethod(nsACString& aMethod)
 NS_IMETHODIMP
 HttpBaseChannel::SetRequestMethod(const nsACString& aMethod)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   const nsCString& flatMethod = PromiseFlatCString(aMethod);
 
@@ -842,7 +838,7 @@ HttpBaseChannel::GetReferrer(nsIURI **referrer)
 NS_IMETHODIMP
 HttpBaseChannel::SetReferrer(nsIURI *referrer)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   // clear existing referrer, if any
   mReferrer = nullptr;
@@ -1086,7 +1082,7 @@ HttpBaseChannel::GetAllowPipelining(bool *value)
 NS_IMETHODIMP
 HttpBaseChannel::SetAllowPipelining(bool value)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   mAllowPipelining = value;
   return NS_OK;
@@ -1103,9 +1099,9 @@ HttpBaseChannel::GetRedirectionLimit(uint32_t *value)
 NS_IMETHODIMP
 HttpBaseChannel::SetRedirectionLimit(uint32_t value)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
-  mRedirectionLimit = std::min<uint32_t>(value, 0xff);
+  mRedirectionLimit = NS_MIN<uint32_t>(value, 0xff);
   return NS_OK;
 }
 
@@ -1157,18 +1153,6 @@ HttpBaseChannel::GetRequestSucceeded(bool *aValue)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-HttpBaseChannel::RedirectTo(nsIURI *newURI)
-{
-  // We can only redirect unopened channels
-  ENSURE_CALLED_BEFORE_CONNECT();
-
-  // The redirect is stored internally for use in AsyncOpen
-  mAPIRedirectToURI = newURI;
-
-  return NS_OK;
-}
-
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsIHttpChannelInternal
 //-----------------------------------------------------------------------------
@@ -1185,7 +1169,7 @@ HttpBaseChannel::GetDocumentURI(nsIURI **aDocumentURI)
 NS_IMETHODIMP
 HttpBaseChannel::SetDocumentURI(nsIURI *aDocumentURI)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   mDocumentURI = aDocumentURI;
   return NS_OK;
@@ -1287,8 +1271,8 @@ HttpBaseChannel::GetLocalAddress(nsACString& addr)
   if (mSelfAddr.raw.family == PR_AF_UNSPEC)
     return NS_ERROR_NOT_AVAILABLE;
 
-  addr.SetCapacity(kIPv6CStrBufSize);
-  NetAddrToString(&mSelfAddr, addr.BeginWriting(), kIPv6CStrBufSize);
+  addr.SetCapacity(64);
+  PR_NetAddrToString(&mSelfAddr, addr.BeginWriting(), 64);
   addr.SetLength(strlen(addr.BeginReading()));
 
   return NS_OK;
@@ -1300,10 +1284,10 @@ HttpBaseChannel::GetLocalPort(int32_t* port)
   NS_ENSURE_ARG_POINTER(port);
 
   if (mSelfAddr.raw.family == PR_AF_INET) {
-    *port = (int32_t)ntohs(mSelfAddr.inet.port);
+    *port = (int32_t)PR_ntohs(mSelfAddr.inet.port);
   }
   else if (mSelfAddr.raw.family == PR_AF_INET6) {
-    *port = (int32_t)ntohs(mSelfAddr.inet6.port);
+    *port = (int32_t)PR_ntohs(mSelfAddr.ipv6.port);
   }
   else
     return NS_ERROR_NOT_AVAILABLE;
@@ -1317,8 +1301,8 @@ HttpBaseChannel::GetRemoteAddress(nsACString& addr)
   if (mPeerAddr.raw.family == PR_AF_UNSPEC)
     return NS_ERROR_NOT_AVAILABLE;
 
-  addr.SetCapacity(kIPv6CStrBufSize);
-  NetAddrToString(&mPeerAddr, addr.BeginWriting(), kIPv6CStrBufSize);
+  addr.SetCapacity(64);
+  PR_NetAddrToString(&mPeerAddr, addr.BeginWriting(), 64);
   addr.SetLength(strlen(addr.BeginReading()));
 
   return NS_OK;
@@ -1330,10 +1314,10 @@ HttpBaseChannel::GetRemotePort(int32_t* port)
   NS_ENSURE_ARG_POINTER(port);
 
   if (mPeerAddr.raw.family == PR_AF_INET) {
-    *port = (int32_t)ntohs(mPeerAddr.inet.port);
+    *port = (int32_t)PR_ntohs(mPeerAddr.inet.port);
   }
   else if (mPeerAddr.raw.family == PR_AF_INET6) {
-    *port = (int32_t)ntohs(mPeerAddr.inet6.port);
+    *port = (int32_t)PR_ntohs(mPeerAddr.ipv6.port);
   }
   else
     return NS_ERROR_NOT_AVAILABLE;
@@ -1366,36 +1350,6 @@ NS_IMETHODIMP
 HttpBaseChannel::SetAllowSpdy(bool aAllowSpdy)
 {
   mAllowSpdy = aAllowSpdy;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::GetLoadAsBlocking(bool *aLoadAsBlocking)
-{
-  NS_ENSURE_ARG_POINTER(aLoadAsBlocking);
-  *aLoadAsBlocking = mLoadAsBlocking;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::SetLoadAsBlocking(bool aLoadAsBlocking)
-{
-  mLoadAsBlocking = aLoadAsBlocking;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::GetLoadUnblocked(bool *aLoadUnblocked)
-{
-  NS_ENSURE_ARG_POINTER(aLoadUnblocked);
-  *aLoadUnblocked = mLoadUnblocked;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::SetLoadUnblocked(bool aLoadUnblocked)
-{
-  mLoadUnblocked = aLoadUnblocked;
   return NS_OK;
 }
 

@@ -77,6 +77,14 @@ class BitwisePolicy : public BoxInputsPolicy
 
 class ComparePolicy : public BoxInputsPolicy
 {
+  protected:
+    MIRType specialization_;
+
+  public:
+    ComparePolicy()
+      : specialization_(MIRType_None)
+    { }
+
     bool adjustInputs(MInstruction *def);
 };
 
@@ -106,8 +114,7 @@ class PowPolicy : public BoxInputsPolicy
     bool adjustInputs(MInstruction *ins);
 };
 
-// Expect a string for operand Op. If the input is a Value, it is unboxed.
-template <unsigned Op>
+// Single-string input. If the input is a Value, it is unboxed.
 class StringPolicy : public BoxInputsPolicy
 {
   public:
@@ -131,16 +138,6 @@ class IntPolicy : public BoxInputsPolicy
 // Expect a double for operand Op. If the input is a Value, it is unboxed.
 template <unsigned Op>
 class DoublePolicy : public BoxInputsPolicy
-{
-  public:
-    static bool staticAdjustInputs(MInstruction *def);
-    bool adjustInputs(MInstruction *def) {
-        return staticAdjustInputs(def);
-    }
-};
-
-// Box objects or strings as an input to a ToDouble instruction.
-class ToDoublePolicy : public BoxInputsPolicy
 {
   public:
     static bool staticAdjustInputs(MInstruction *def);
@@ -193,8 +190,8 @@ class CallSetElementPolicy : public SingleObjectPolicy
     bool adjustInputs(MInstruction *def);
 };
 
-// First operand will be boxed to a Value (except for an object)
-// Second operand (if specified) will forcefully be unboxed to an object
+// First operand will be boxed to an Value (except for an object)
+// Second operand will forcefully be unboxed to an object
 class InstanceOfPolicy : public TypePolicy
 {
   public:

@@ -55,9 +55,8 @@ RS   = 13;
 Coeng = 14;
 Repha = 15;
 Ra    = 16;
-CM    = 17;
 
-c = (C | Ra)CM*;		# is_consonant
+c = (C | Ra);			# is_consonant
 n = ((ZWNJ?.RS)? (N.N?)?);	# is_consonant_modifier
 z = ZWJ|ZWNJ;			# is_joiner
 h = H | Coeng;			# is_halant_or_coeng
@@ -76,7 +75,7 @@ halant_or_matra_group = (final_halant_group | (h.ZWJ)? matra_group{0,4});
 consonant_syllable =	Repha? (cn.halant_group){0,4} cn A? halant_or_matra_group? syllable_tail;
 vowel_syllable =	reph? V.n? (ZWJ | (halant_group.cn){0,4} halant_or_matra_group? syllable_tail);
 standalone_cluster =	reph? place_holder.n? (halant_group.cn){0,4} halant_or_matra_group? syllable_tail;
-broken_cluster =	reph? n? (halant_group.cn){0,4} halant_or_matra_group syllable_tail;
+broken_cluster =	n? (halant_group.cn){0,4} halant_or_matra_group syllable_tail;
 other =			any;
 
 main := |*
@@ -103,7 +102,7 @@ main := |*
 static void
 find_syllables (hb_buffer_t *buffer)
 {
-  unsigned int p, pe, eof, ts HB_UNUSED, te, act;
+  unsigned int p, pe, eof, ts, te, act;
   int cs;
   hb_glyph_info_t *info = buffer->info;
   %%{

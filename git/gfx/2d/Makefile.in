@@ -6,10 +6,11 @@
 DEPTH		= @DEPTH@
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
-VPATH		=  $(srcdir) $(srcdir)/unittest
+VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= gfx2d
 LIBRARY_NAME	= gfx2d
 LIBXUL_LIBRARY	= 1
 EXPORT_LIBRARY	= 1
@@ -53,14 +54,6 @@ CPPSRCS	= \
         SourceSurfaceRawData.cpp \
         $(NULL)
 
-GTEST_CPPSRCS = \
-        GTestMain.cpp \
-        TestBase.cpp \
-        TestPoint.cpp \
-        TestScaling.cpp \
-        TestCairo.cpp \
-        $(NULL)
-
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS	+= \
 	   SourceSurfaceCG.cpp \
@@ -88,6 +81,9 @@ CPPSRCS	+= \
         convolver.cpp \
         image_operations.cpp \
         $(NULL)
+
+DEFINES += -DUSE_SKIA
+
 endif
 
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
@@ -106,6 +102,10 @@ CPPSRCS	+= \
 DEFINES += -DMOZ_ENABLE_FREETYPE
 endif
 
+ifeq (android,$(MOZ_WIDGET_TOOLKIT))
+DEFINES += -DSK_BUILD_FOR_ANDROID_NDK
+endif
+
 DEFINES += -DSK_A32_SHIFT=24 -DSK_R32_SHIFT=16 -DSK_G32_SHIFT=8 -DSK_B32_SHIFT=0
 
 ifdef MOZ_DEBUG
@@ -116,10 +116,7 @@ endif
 ifneq (,$(INTEL_ARCHITECTURE))
 # VC2005 doesn't support _mm_castsi128_ps, so SSE2 is turned off
 ifneq (1400,$(_MSC_VER))
-CPPSRCS += \
-        ImageScalingSSE2.cpp \
-        BlurSSE2.cpp \
-        $(NULL)
+CPPSRCS += ImageScalingSSE2.cpp
 DEFINES += -DUSE_SSE2
 endif
 endif
@@ -138,7 +135,6 @@ ifdef MOZ_ENABLE_SKIA
 CPPSRCS += \
         ScaledFontWin.cpp \
         $(NULL)
-DEFINES += -DSKIA_IMPLEMENTATION=1 -DGR_IMPLEMENTATION=1
 endif
 endif
 
@@ -165,12 +161,10 @@ DEFINES := $(filter-out -DUNICODE -D_UNICODE,$(DEFINES))
 ifneq (,$(INTEL_ARCHITECTURE))
 ifdef GNU_CC
 ImageScalingSSE2.$(OBJ_SUFFIX): CXXFLAGS+=-msse2
-BlurSSE2.$(OBJ_SUFFIX): CXXFLAGS+=-msse2
 endif
 
 ifdef SOLARIS_SUNPRO_CXX
 ImageScalingSSE2.$(OBJ_SUFFIX): OS_CXXFLAGS += -xarch=sse2 -xO4
-BlurSSE2.$(OBJ_SUFFIX): OS_CXXFLAGS += -xarch=sse2 -xO4
 endif
 endif
 

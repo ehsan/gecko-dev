@@ -7,6 +7,7 @@
 #include "WebSocketLog.h"
 #include "WebSocketChannelParent.h"
 #include "nsIAuthPromptProvider.h"
+#include "mozilla/LoadContext.h"
 #include "mozilla/ipc/InputStreamUtils.h"
 #include "mozilla/ipc/URIUtils.h"
 
@@ -19,15 +20,10 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(WebSocketChannelParent,
                               nsIWebSocketListener,
                               nsIInterfaceRequestor)
 
-WebSocketChannelParent::WebSocketChannelParent(nsIAuthPromptProvider* aAuthProvider,
-                                               nsILoadContext* aLoadContext,
-                                               PBOverrideStatus aOverrideStatus)
+WebSocketChannelParent::WebSocketChannelParent(nsIAuthPromptProvider* aAuthProvider)
   : mAuthProvider(aAuthProvider)
-  , mLoadContext(aLoadContext)
   , mIPCOpen(true)
 {
-  // Websocket channels can't have a private browsing override
-  MOZ_ASSERT_IF(!aLoadContext, aOverrideStatus == kPBOverride_Unset);
 #if defined(PR_LOGGING)
   if (!webSocketLog)
     webSocketLog = PR_NewLogModule("nsWebSocket");
@@ -52,10 +48,7 @@ WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
                                       const nsCString& aOrigin,
                                       const nsCString& aProtocol,
                                       const bool& aSecure,
-                                      const uint32_t& aPingInterval,
-                                      const bool& aClientSetPingInterval,
-                                      const uint32_t& aPingTimeout,
-                                      const bool& aClientSetPingTimeout)
+                                      const IPC::SerializedLoadContext& loadContext)
 {
   LOG(("WebSocketChannelParent::RecvAsyncOpen() %p\n", this));
 
@@ -72,6 +65,14 @@ WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
   if (NS_FAILED(rv))
     goto fail;
 
+  if (loadContext.IsNotNull())
+    mLoadContext = new LoadContext(loadContext);
+#ifdef DEBUG
+  else
+    // websocket channels cannot have a private bit override
+    MOZ_ASSERT(!loadContext.IsPrivateBitValid());
+#endif
+
   rv = mChannel->SetNotificationCallbacks(this);
   if (NS_FAILED(rv))
     goto fail;
@@ -84,14 +85,6 @@ WebSocketChannelParent::RecvAsyncOpen(const URIParams& aURI,
   if (!uri) {
     rv = NS_ERROR_FAILURE;
     goto fail;
-  }
-
-  // only use ping values from child if they were overridden by client code.
-  if (aClientSetPingInterval) {
-    mChannel->SetPingInterval(aPingInterval);
-  }
-  if (aClientSetPingTimeout) {
-    mChannel->SetPingTimeout(aPingTimeout);
   }
 
   rv = mChannel->AsyncOpen(uri, aOrigin, this, nullptr);

@@ -12,16 +12,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
-Cu.import("resource://gre/modules/ObjectWrapper.jsm");
-
-// Ensure NetworkStatsService and NetworkStatsDB are loaded in the parent process
-// to receive messages from the child processes.
-let appInfo = Cc["@mozilla.org/xre/app-info;1"];
-let isParentProcess = !appInfo || appInfo.getService(Ci.nsIXULRuntime)
-                        .processType == Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT;
-if (isParentProcess) {
-  Cu.import("resource://gre/modules/NetworkStatsService.jsm");
-}
 
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
@@ -53,14 +43,14 @@ NetworkStatsData.prototype = {
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
   QueryInterface : XPCOMUtils.generateQI([nsIDOMMozNetworkStatsData])
-};
+}
 
 // NetworkStats
 const NETWORKSTATS_CONTRACTID = "@mozilla.org/networkstats;1";
 const NETWORKSTATS_CID        = Components.ID("{037435a6-f563-48f3-99b3-a0106d8ba5bd}");
 const nsIDOMMozNetworkStats   = Components.interfaces.nsIDOMMozNetworkStats;
 
-function NetworkStats(aWindow, aStats) {
+function NetworkStats(aStats) {
   if (DEBUG) {
     debug("NetworkStats Constructor");
   }
@@ -68,10 +58,11 @@ function NetworkStats(aWindow, aStats) {
   this.start = aStats.start || null;
   this.end = aStats.end || null;
 
-  let samples = this.data = Cu.createArrayIn(aWindow);
+  let samples = [];
   for (let i = 0; i < aStats.data.length; i++) {
     samples.push(new NetworkStatsData(aStats.data[i]));
   }
+  this.data = samples;
 }
 
 NetworkStats.prototype = {
@@ -110,7 +101,7 @@ NetworkStatsManager.prototype = {
 
   checkPrivileges: function checkPrivileges() {
     if (!this.hasPrivileges) {
-      throw Components.Exception("Permission denied", Cr.NS_ERROR_FAILURE);
+      throw Cr.NS_ERROR_NOT_IMPLEMENTED;
     }
   },
 
@@ -121,6 +112,9 @@ NetworkStatsManager.prototype = {
       aOptions.start > aOptions.end) {
       throw Components.results.NS_ERROR_INVALID_ARG;
     }
+
+    aOptions.start = aOptions.start.getTime();
+    aOptions.end = aOptions.end.getTime();
 
     let request = this.createRequest();
     cpmm.sendAsyncMessage("NetworkStats:Get",
@@ -139,16 +133,19 @@ NetworkStatsManager.prototype = {
 
   get connectionTypes() {
     this.checkPrivileges();
-    return ObjectWrapper.wrap(cpmm.sendSyncMessage("NetworkStats:Types")[0], this._window);
+
+    return cpmm.sendSyncMessage("NetworkStats:Types")[0];
   },
 
   get sampleRate() {
     this.checkPrivileges();
+
     return cpmm.sendSyncMessage("NetworkStats:SampleRate")[0] / 1000;
   },
 
   get maxStorageSamples() {
     this.checkPrivileges();
+
     return cpmm.sendSyncMessage("NetworkStats:MaxStorageSamples")[0];
   },
 
@@ -173,7 +170,7 @@ NetworkStatsManager.prototype = {
           return;
         }
 
-        let result = new NetworkStats(this._window, msg.result);
+        let result = new NetworkStats(msg.result);
         if (DEBUG) {
           debug("result: " + JSON.stringify(result));
         }
@@ -201,6 +198,8 @@ NetworkStatsManager.prototype = {
     if (!Services.prefs.getBoolPref("dom.mozNetworkStats.enabled")) {
       return null;
     }
+    this.initHelper(aWindow, ["NetworkStats:Get:Return",
+                              "NetworkStats:Clear:Return"]);
 
     let principal = aWindow.document.nodePrincipal;
     let secMan = Services.scriptSecurityManager;
@@ -214,13 +213,6 @@ NetworkStatsManager.prototype = {
     if (DEBUG) {
       debug("has privileges: " + this.hasPrivileges);
     }
-
-    if (!this.hasPrivileges) {
-      return null;
-    }
-
-    this.initHelper(aWindow, ["NetworkStats:Get:Return",
-                              "NetworkStats:Clear:Return"]);
   },
 
   // Called from DOMRequestIpcHelper
@@ -241,6 +233,6 @@ NetworkStatsManager.prototype = {
                                      flags: nsIClassInfo.DOM_OBJECT})
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([NetworkStatsData,
-                                                     NetworkStats,
-                                                     NetworkStatsManager]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([NetworkStatsData,
+                                                      NetworkStats,
+                                                      NetworkStatsManager])

@@ -14,7 +14,11 @@
 #include "nsFontFaceLoader.h"
 
 #include "nsError.h"
+#include "nsIFile.h"
+#include "nsIStreamListener.h"
 #include "nsNetUtil.h"
+#include "nsIChannelEventSink.h"
+#include "nsIInterfaceRequestor.h"
 #include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 
@@ -23,10 +27,13 @@
 #include "nsIPrincipal.h"
 #include "nsIScriptSecurityManager.h"
 
+#include "nsDirectoryServiceUtils.h"
+#include "nsDirectoryServiceDefs.h"
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsIContentSecurityPolicy.h"
+#include "nsIChannelPolicy.h"
 #include "nsChannelPolicy.h"
 
 #include "nsIConsoleService.h"
@@ -37,31 +44,19 @@
 using namespace mozilla;
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo *
-GetFontDownloaderLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("fontdownloader");
-  return sLog;
-}
+static PRLogModuleInfo *gFontDownloaderLog = PR_NewLogModule("fontdownloader");
 #endif /* PR_LOGGING */
 
-#define LOG(args) PR_LOG(GetFontDownloaderLog(), PR_LOG_DEBUG, args)
-#define LOG_ENABLED() PR_LOG_TEST(GetFontDownloaderLog(), PR_LOG_DEBUG)
+#define LOG(args) PR_LOG(gFontDownloaderLog, PR_LOG_DEBUG, args)
+#define LOG_ENABLED() PR_LOG_TEST(gFontDownloaderLog, PR_LOG_DEBUG)
 
 
-nsFontFaceLoader::nsFontFaceLoader(gfxMixedFontFamily *aFontFamily,
-                                   gfxProxyFontEntry *aProxy,
-                                   nsIURI *aFontURI,
-                                   nsUserFontSet *aFontSet,
-                                   nsIChannel *aChannel)
-  : mFontFamily(aFontFamily),
-    mFontEntry(aProxy),
-    mFontURI(aFontURI),
-    mFontSet(aFontSet),
+nsFontFaceLoader::nsFontFaceLoader(gfxProxyFontEntry *aProxy, nsIURI *aFontURI,
+                                   nsUserFontSet *aFontSet, nsIChannel *aChannel)
+  : mFontEntry(aProxy), mFontURI(aFontURI), mFontSet(aFontSet),
     mChannel(aChannel)
 {
+  mFontFamily = aProxy->Family();
 }
 
 nsFontFaceLoader::~nsFontFaceLoader()
@@ -102,11 +97,6 @@ nsFontFaceLoader::LoadTimerCallback(nsITimer *aTimer, void *aClosure)
 {
   nsFontFaceLoader *loader = static_cast<nsFontFaceLoader*>(aClosure);
 
-  if (!loader->mFontSet) {
-    // We've been canceled
-    return;
-  }
-
   gfxProxyFontEntry *pe = loader->mFontEntry.get();
   bool updateUserFontSet = true;
 
@@ -141,10 +131,10 @@ nsFontFaceLoader::LoadTimerCallback(nsITimer *aTimer, void *aClosure)
   // font will be used in the meantime, and tell the context to refresh.
   if (updateUserFontSet) {
     pe->mLoadingState = gfxProxyFontEntry::LOADING_SLOWLY;
-    gfxUserFontSet *fontSet = loader->mFontSet;
     nsPresContext *ctx = loader->mFontSet->GetPresContext();
-    NS_ASSERTION(ctx, "userfontset doesn't have a presContext?");
-    if (ctx) {
+    NS_ASSERTION(ctx, "fontSet doesn't have a presContext?");
+    gfxUserFontSet *fontSet;
+    if (ctx && (fontSet = ctx->GetUserFontSet()) != nullptr) {
       fontSet->IncrementGeneration();
       ctx->UserFontSetUpdated();
       LOG(("fontdownloader (%p) timeout reflow\n", loader));
@@ -186,6 +176,12 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   NS_ASSERTION(ctx && !ctx->PresShell()->IsDestroying(),
                "We should have been canceled already");
 
+  // whether an error occurred or not, notify the user font set of the completion
+  gfxUserFontSet *userFontSet = ctx->GetUserFontSet();
+  if (!userFontSet) {
+    return aStatus;
+  }
+
   if (NS_SUCCEEDED(aStatus)) {
     // for HTTP requests, check whether the request _actually_ succeeded;
     // the "request status" in aStatus does not necessarily indicate this,
@@ -211,8 +207,9 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
   // This is called even in the case of a failed download (HTTP 404, etc),
   // as there may still be data to be freed (e.g. an error page),
   // and we need the fontSet to initiate loading the next source.
-  bool fontUpdate = mFontSet->OnLoadComplete(mFontFamily, mFontEntry, aString,
-                                             aStringLen, aStatus);
+  bool fontUpdate = userFontSet->OnLoadComplete(mFontEntry,
+                                                  aString, aStringLen,
+                                                  aStatus);
 
   // when new font loaded, need to reflow
   if (fontUpdate) {
@@ -220,13 +217,6 @@ nsFontFaceLoader::OnStreamComplete(nsIStreamLoader* aLoader,
     // asynchronous, reflows will coalesce.
     ctx->UserFontSetUpdated();
     LOG(("fontdownloader (%p) reflow\n", this));
-  }
-
-  // done with font set
-  mFontSet = nullptr;
-  if (mLoadTimer) {
-    mLoadTimer->Cancel();
-    mLoadTimer = nullptr;
   }
 
   return NS_SUCCESS_ADOPTED_DATA;
@@ -315,11 +305,14 @@ nsUserFontSet::RemoveLoader(nsFontFaceLoader *aLoader)
 }
 
 nsresult
-nsUserFontSet::StartLoad(gfxMixedFontFamily *aFamily,
-                         gfxProxyFontEntry *aProxy,
+nsUserFontSet::StartLoad(gfxProxyFontEntry *aProxy,
                          const gfxFontFaceSrc *aFontFaceSrc)
 {
   nsresult rv;
+  nsIPrincipal *principal = nullptr;
+
+  rv = CheckFontLoad(aProxy, aFontFaceSrc, &principal);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsIPresShell *ps = mPresContext->PresShell();
   if (!ps)
@@ -332,7 +325,7 @@ nsUserFontSet::StartLoad(gfxMixedFontFamily *aFamily,
   // get Content Security Policy from principal to pass into channel
   nsCOMPtr<nsIChannelPolicy> channelPolicy;
   nsCOMPtr<nsIContentSecurityPolicy> csp;
-  rv = aProxy->mPrincipal->GetCsp(getter_AddRefs(csp));
+  rv = principal->GetCsp(getter_AddRefs(csp));
   NS_ENSURE_SUCCESS(rv, rv);
   if (csp) {
     channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");
@@ -350,7 +343,7 @@ nsUserFontSet::StartLoad(gfxMixedFontFamily *aFamily,
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsRefPtr<nsFontFaceLoader> fontLoader =
-    new nsFontFaceLoader(aFamily, aProxy, aFontFaceSrc->mURI, this, channel);
+    new nsFontFaceLoader(aProxy, aFontFaceSrc->mURI, this, channel);
 
   if (!fontLoader)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -382,14 +375,15 @@ nsUserFontSet::StartLoad(gfxMixedFontFamily *aFamily,
     rv = channel->AsyncOpen(streamLoader, nullptr);
   } else {
     nsRefPtr<nsCORSListenerProxy> listener =
-      new nsCORSListenerProxy(streamLoader, aProxy->mPrincipal, false);
+      new nsCORSListenerProxy(streamLoader, principal,
+                              false);
     rv = listener->Init(channel);
-    if (NS_SUCCEEDED(rv)) {
-      rv = channel->AsyncOpen(listener, nullptr);
-    }
     if (NS_FAILED(rv)) {
       fontLoader->DropChannel();  // explicitly need to break ref cycle
     }
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = channel->AsyncOpen(listener, nullptr);
   }
 
   if (NS_SUCCEEDED(rv)) {
@@ -667,8 +661,7 @@ nsUserFontSet::InsertRule(nsCSSFontFaceRule *aRule, uint8_t aSheetType,
 }
 
 void
-nsUserFontSet::ReplaceFontEntry(gfxMixedFontFamily *aFamily,
-                                gfxProxyFontEntry *aProxy,
+nsUserFontSet::ReplaceFontEntry(gfxProxyFontEntry *aProxy,
                                 gfxFontEntry *aFontEntry)
 {
   for (uint32_t i = 0; i < mRules.Length(); ++i) {
@@ -677,7 +670,11 @@ nsUserFontSet::ReplaceFontEntry(gfxMixedFontFamily *aFamily,
       break;
     }
   }
-  aFamily->ReplaceFontEntry(aProxy, aFontEntry);
+  gfxMixedFontFamily *family =
+    static_cast<gfxMixedFontFamily*>(aProxy->Family());
+  if (family) {
+    family->ReplaceFontEntry(aProxy, aFontEntry);
+  }
 }
 
 nsCSSFontFaceRule*
@@ -692,8 +689,7 @@ nsUserFontSet::FindRuleForEntry(gfxFontEntry *aFontEntry)
 }
 
 nsresult
-nsUserFontSet::LogMessage(gfxMixedFontFamily *aFamily,
-                          gfxProxyFontEntry *aProxy,
+nsUserFontSet::LogMessage(gfxProxyFontEntry *aProxy,
                           const char        *aMessage,
                           uint32_t          aFlags,
                           nsresult          aStatus)
@@ -704,7 +700,7 @@ nsUserFontSet::LogMessage(gfxMixedFontFamily *aFamily,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  NS_ConvertUTF16toUTF8 familyName(aFamily->Name());
+  NS_ConvertUTF16toUTF8 familyName(aProxy->FamilyName());
   nsAutoCString fontURI;
   if (aProxy->mSrcIndex == aProxy->mSrcList.Length()) {
     fontURI.AppendLiteral("(end of source list)");
@@ -728,8 +724,8 @@ nsUserFontSet::LogMessage(gfxMixedFontFamily *aFamily,
     weightKeyword = weightKeywordBuf;
   }
 
-  nsPrintfCString message
-       ("downloadable font: %s "
+  nsPrintfCString
+    msg("downloadable font: %s "
         "(font-family: \"%s\" style:%s weight:%s stretch:%s src index:%d)",
         aMessage,
         familyName.get(),
@@ -740,27 +736,27 @@ nsUserFontSet::LogMessage(gfxMixedFontFamily *aFamily,
         aProxy->mSrcIndex);
 
   if (NS_FAILED(aStatus)) {
-    message.Append(": ");
+    msg.Append(": ");
     switch (aStatus) {
     case NS_ERROR_DOM_BAD_URI:
-      message.Append("bad URI or cross-site access not allowed");
+      msg.Append("bad URI or cross-site access not allowed");
       break;
     case NS_ERROR_CONTENT_BLOCKED:
-      message.Append("content blocked");
+      msg.Append("content blocked");
       break;
     default:
-      message.Append("status=");
-      message.AppendInt(static_cast<uint32_t>(aStatus));
+      msg.Append("status=");
+      msg.AppendInt(static_cast<uint32_t>(aStatus));
       break;
     }
   }
-  message.Append("\nsource: ");
-  message.Append(fontURI);
+  msg.Append("\nsource: ");
+  msg.Append(fontURI);
 
 #ifdef PR_LOGGING
-  if (PR_LOG_TEST(GetUserFontsLog(), PR_LOG_DEBUG)) {
-    PR_LOG(GetUserFontsLog(), PR_LOG_DEBUG,
-           ("userfonts (%p) %s", this, message.get()));
+  if (PR_LOG_TEST(sUserFontsLog, PR_LOG_DEBUG)) {
+    PR_LOG(sUserFontsLog, PR_LOG_DEBUG,
+           ("userfonts (%p) %s", this, msg.get()));
   }
 #endif
 
@@ -784,7 +780,7 @@ nsUserFontSet::LogMessage(gfxMixedFontFamily *aFamily,
   NS_ENSURE_SUCCESS(rv, rv);
 
   uint64_t innerWindowID = GetPresContext()->Document()->InnerWindowID();
-  rv = scriptError->InitWithWindowID(NS_ConvertUTF8toUTF16(message),
+  rv = scriptError->InitWithWindowID(NS_ConvertUTF8toUTF16(msg),
                                      href,         // file
                                      text,         // src line
                                      0, 0,         // line & column number
@@ -799,9 +795,12 @@ nsUserFontSet::LogMessage(gfxMixedFontFamily *aFamily,
 }
 
 nsresult
-nsUserFontSet::CheckFontLoad(const gfxFontFaceSrc *aFontFaceSrc,
+nsUserFontSet::CheckFontLoad(gfxProxyFontEntry *aFontToLoad,
+                             const gfxFontFaceSrc *aFontFaceSrc,
                              nsIPrincipal **aPrincipal)
 {
+  nsresult rv;
+
   // check same-site origin
   nsIPresShell *ps = mPresContext->PresShell();
   if (!ps)
@@ -821,11 +820,18 @@ nsUserFontSet::CheckFontLoad(const gfxFontFaceSrc *aFontFaceSrc,
   NS_ASSERTION(aFontFaceSrc->mOriginPrincipal,
                "null origin principal in @font-face rule");
   if (aFontFaceSrc->mUseOriginPrincipal) {
-    *aPrincipal = aFontFaceSrc->mOriginPrincipal;
+    nsCOMPtr<nsIPrincipal> p = do_QueryInterface(aFontFaceSrc->mOriginPrincipal);
+    *aPrincipal = p;
   }
 
-  return nsFontFaceLoader::CheckLoadAllowed(*aPrincipal, aFontFaceSrc->mURI,
-                                            ps->GetDocument());
+  rv = nsFontFaceLoader::CheckLoadAllowed(*aPrincipal, aFontFaceSrc->mURI,
+                                          ps->GetDocument());
+  if (NS_FAILED(rv)) {
+    LogMessage(aFontToLoad, "download not allowed",
+               nsIScriptError::errorFlag, rv);
+  }
+
+  return rv;
 }
 
 nsresult
@@ -835,12 +841,16 @@ nsUserFontSet::SyncLoadFontData(gfxProxyFontEntry *aFontToLoad,
                                 uint32_t &aBufferLength)
 {
   nsresult rv;
+  nsIPrincipal *principal = nullptr;
+
+  rv = CheckFontLoad(aFontToLoad, aFontFaceSrc, &principal);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIChannel> channel;
   // get Content Security Policy from principal to pass into channel
   nsCOMPtr<nsIChannelPolicy> channelPolicy;
   nsCOMPtr<nsIContentSecurityPolicy> csp;
-  rv = aFontToLoad->mPrincipal->GetCsp(getter_AddRefs(csp));
+  rv = principal->GetCsp(getter_AddRefs(csp));
   NS_ENSURE_SUCCESS(rv, rv);
   if (csp) {
     channelPolicy = do_CreateInstance("@mozilla.org/nschannelpolicy;1");

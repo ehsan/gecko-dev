@@ -93,18 +93,15 @@ typedef uint8_t nsHttpVersion;
 // a transaction with this caps flag keeps timing information
 #define NS_HTTP_TIMING_ENABLED       (1<<5)
 
-// a transaction with this flag blocks the initiation of other transactons
-// in the same load group until it is complete
-#define NS_HTTP_LOAD_AS_BLOCKING     (1<<6)
+// a transaction with this caps flag will not only not use an existing
+// persistent connection but it will close outstanding ones to the same
+// host. Used by a forced reload to reset the connection states.
+#define NS_HTTP_CLEAR_KEEPALIVES     (1<<6)
 
 // Disallow the use of the SPDY protocol. This is meant for the contexts
 // such as HTTP upgrade which are nonsensical for SPDY, it is not the
 // SPDY configuration variable.
 #define NS_HTTP_DISALLOW_SPDY        (1<<7)
-
-// a transaction with this flag loads without respect to whether the load
-// group is currently blocking on some resources
-#define NS_HTTP_LOAD_UNBLOCKED       (1<<8)
 
 //-----------------------------------------------------------------------------
 // some default values

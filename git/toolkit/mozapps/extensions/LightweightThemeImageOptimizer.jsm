@@ -4,7 +4,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["LightweightThemeImageOptimizer"];
+let EXPORTED_SYMBOLS = ["LightweightThemeImageOptimizer"];
 
 const Cu = Components.utils;
 const Ci = Components.interfaces;
@@ -20,7 +20,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
 const ORIGIN_TOP_RIGHT = 1;
 const ORIGIN_BOTTOM_LEFT = 2;
 
-this.LightweightThemeImageOptimizer = {
+let LightweightThemeImageOptimizer = {
   optimize: function LWTIO_optimize(aThemeData, aScreen) {
     let data = Utils.createCopy(aThemeData);
     if (!data.headerURL) {
@@ -97,7 +97,7 @@ let ImageCropper = {
       delete inProgress[aTargetFile.path];
     }
 
-    ImageFile.read(aURI, function crop_readImageFile(aInputStream, aContentType) {
+    ImageFile.read(aURI, function (aInputStream, aContentType) {
       if (aInputStream && aContentType) {
         let image = ImageTools.decode(aInputStream, aContentType);
         if (image && image.width && image.height) {
@@ -116,7 +116,7 @@ let ImageCropper = {
 
 let ImageFile = {
   read: function ImageFile_read(aURI, aCallback) {
-    this._netUtil.asyncFetch(aURI, function read_asyncFetch(aInputStream, aStatus, aRequest) {
+    this._netUtil.asyncFetch(aURI, function (aInputStream, aStatus, aRequest) {
       if (Components.isSuccessCode(aStatus) && aRequest instanceof Ci.nsIChannel) {
         let channel = aRequest.QueryInterface(Ci.nsIChannel);
         aCallback(aInputStream, channel.contentType);
@@ -128,7 +128,7 @@ let ImageFile = {
 
   write: function ImageFile_write(aFile, aInputStream, aCallback) {
     let fos = FileUtils.openSafeFileOutputStream(aFile);
-    this._netUtil.asyncCopy(aInputStream, fos, function write_asyncCopy(aResult) {
+    this._netUtil.asyncCopy(aInputStream, fos, function (aResult) {
       FileUtils.closeSafeFileOutputStream(fos);
 
       // Remove the file if writing was not successful.

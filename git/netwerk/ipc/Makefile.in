@@ -10,10 +10,13 @@ FAIL_ON_WARNINGS := 1
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = necko
+
 LIBRARY_NAME = neckoipc_s
 LIBXUL_LIBRARY = 1
 FORCE_STATIC_LIB = 1
 EXPORT_LIBRARY = 1
+
 EXPORTS_NAMESPACES = mozilla/net
 
 EXPORTS_mozilla/net = \
@@ -22,23 +25,17 @@ EXPORTS_mozilla/net = \
   NeckoCommon.h       \
   NeckoMessageUtils.h \
   ChannelEventQueue.h \
-  RemoteOpenFileParent.h \
-  RemoteOpenFileChild.h \
   $(NULL)
 
 CPPSRCS =               \
-  NeckoCommon.cpp       \
   NeckoChild.cpp        \
   NeckoParent.cpp       \
   ChannelEventQueue.cpp \
-  RemoteOpenFileParent.cpp \
-  RemoteOpenFileChild.cpp  \
   $(NULL)
 
 LOCAL_INCLUDES +=                  \
   -I$(srcdir)/../protocol/http \
   -I$(srcdir)/../base/src          \
-  -I$(topsrcdir)/modules/libjar    \
   $(NULL)
 
 include $(topsrcdir)/config/config.mk

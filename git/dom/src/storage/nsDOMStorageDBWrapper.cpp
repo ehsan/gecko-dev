@@ -70,13 +70,13 @@ nsDOMStorageDBWrapper::Init()
 }
 
 nsresult
-nsDOMStorageDBWrapper::FlushAndEvictFromCache(bool aIsShuttingDown)
+nsDOMStorageDBWrapper::FlushAndDeleteTemporaryTables(bool force)
 {
-  nsresult rv = mPersistentDB.FlushAndEvictFromCache(aIsShuttingDown);
+  nsresult rv = mPersistentDB.FlushTemporaryTables(force);
 
-  // Nothing in the cache?  Then no need for a timer.
-  if (!mPersistentDB.IsFlushTimerNeeded()) {
-    StopCacheFlushTimer();
+  // Everything flushed?  Then no need for a timer.
+  if (!mPersistentDB.mTempTableLoads.Count()) {
+    StopTempTableFlushTimer();
   }
 
   return rv;
@@ -370,28 +370,28 @@ nsDOMStorageDBWrapper::CreateQuotaDBKey(nsIPrincipal* aPrincipal,
 }
 
 void
-nsDOMStorageDBWrapper::EnsureCacheFlushTimer()
+nsDOMStorageDBWrapper::EnsureTempTableFlushTimer()
 {
-  if (!mCacheFlushTimer) {
+  if (!mTempTableFlushTimer) {
     nsresult rv;
-    mCacheFlushTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
+    mTempTableFlushTimer = do_CreateInstance(NS_TIMER_CONTRACTID, &rv);
 
     if (!NS_SUCCEEDED(rv)) {
-      mCacheFlushTimer = nullptr;
+      mTempTableFlushTimer = nullptr;
       return;
     }
 
-    mCacheFlushTimer->Init(nsDOMStorageManager::gStorageManager, 5000,
-                           nsITimer::TYPE_REPEATING_SLACK);
+    mTempTableFlushTimer->Init(nsDOMStorageManager::gStorageManager, 5000,
+                               nsITimer::TYPE_REPEATING_SLACK);
   }
 }
 
 void
-nsDOMStorageDBWrapper::StopCacheFlushTimer()
+nsDOMStorageDBWrapper::StopTempTableFlushTimer()
 {
-  if (mCacheFlushTimer) {
-    mCacheFlushTimer->Cancel();
-    mCacheFlushTimer = nullptr;
+  if (mTempTableFlushTimer) {
+    mTempTableFlushTimer->Cancel();
+    mTempTableFlushTimer = nullptr;
   }
 }
 

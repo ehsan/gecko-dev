@@ -130,12 +130,7 @@ nsGNOMERegistry::GetFromExtension(const nsACString& aFileExt)
       return nullptr;
   }
 
-  nsRefPtr<nsMIMEInfoBase> mi = GetFromType(mimeType);
-  if (mi) {
-    mi->AppendExtension(aFileExt);
-  }
-
-  return mi.forget();
+  return GetFromType(mimeType);
 }
 
 /* static */ already_AddRefed<nsMIMEInfoBase>

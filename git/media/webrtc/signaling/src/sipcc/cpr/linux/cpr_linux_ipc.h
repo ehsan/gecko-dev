@@ -20,7 +20,7 @@
 
 /* Message buffer layout */
 struct msgbuffer {
-    long    mtype;    /* Message type */
+    int32_t mtype;    /* Message type */
     void   *msgPtr;   /* Ptr to msg */
     void   *usrPtr;   /* Ptr to user data */
 };
@@ -28,6 +28,7 @@ struct msgbuffer {
 /* For gathering statistics regarding message queues */
 typedef struct {
     char name[16];
+    uint16_t maxCount;
     uint16_t currentCount;
     uint32_t totalCount;
     uint32_t rcvTimeouts;

@@ -58,7 +58,7 @@ class TestElements(MarionetteTestCase):
         self.assertEqual(HTMLElement, type(found_el));
         self.assertEqual(el, found_el)
 
-    def test_by_name(self):
+    def test_name(self):
         test_html = self.marionette.absolute_url("test.html")
         self.marionette.navigate(test_html)
         el = self.marionette.execute_script("return window.document.getElementsByName('myInput')[0];")
@@ -136,13 +136,6 @@ class TestElements(MarionetteTestCase):
         nav_el = self.marionette.find_element("id","testDiv")
         found_els = nav_el.find_elements("css selector", "a")
         self.assertFalse(el.id in [found_el.id for found_el in found_els])
-
-    def test_finding_active_element_returns_element(self):
-        test_html = self.marionette.absolute_url("test.html")
-        self.marionette.navigate(test_html)
-        fbody = self.marionette.find_element('tag name', 'body')
-        abody = self.marionette.get_active_element()
-        self.assertEqual(fbody, abody)
 
 class TestElementsChrome(MarionetteTestCase):
     def setUp(self):

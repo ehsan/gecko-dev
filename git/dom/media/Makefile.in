@@ -10,12 +10,12 @@ relativesrcdir   = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE           = dom
+XPIDL_MODULE     = dom_media
 LIBRARY_NAME     = dom_media_s
 LIBXUL_LIBRARY   = 1
 FORCE_STATIC_LIB = 1
-ifndef _MSC_VER
 FAIL_ON_WARNINGS := 1
-endif # !_MSC_VER
 
 include $(topsrcdir)/dom/dom-config.mk
 
@@ -24,7 +24,13 @@ EXTRA_COMPONENTS = \
   PeerConnection.manifest \
   $(NULL)
 
-EXPORTS_NAMESPACES = mozilla
+XPIDLSRCS = \
+  nsIDOMMediaStream.idl \
+  nsIDOMRTCPeerConnection.idl \
+  nsIDOMNavigatorUserMedia.idl \
+  $(NULL)
+
+EXPORTS_NAMESPACE = mozilla
 
 EXPORTS_mozilla = \
   MediaManager.h \
@@ -36,11 +42,10 @@ CPPSRCS = \
 
 ifdef MOZ_WEBRTC
 LOCAL_INCLUDES += \
-  -I$(topsrcdir)/media/webrtc/trunk/webrtc \
-  -I$(topsrcdir)/media/webrtc/signaling/src/common \
+  -I$(topsrcdir)/media/webrtc/trunk/src \
   $(NULL)
+DIRS += bridge
 endif
 
 include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk

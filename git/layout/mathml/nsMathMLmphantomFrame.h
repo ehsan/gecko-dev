@@ -28,14 +28,16 @@ public:
     return TransmitAutomaticDataForMrowLikeElement();
   }
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE { return NS_OK; }
 
 protected:
   nsMathMLmphantomFrame(nsStyleContext* aContext)
     : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmphantomFrame();
+  
+  virtual int GetSkipSides() const { return 0; }
 };
 
 #endif /* nsMathMLmphantomFrame_h___ */

@@ -9,13 +9,12 @@
  * We should endevour to keep the source in sync.
  */
 
-var Promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", {}).Promise;
-var template = Cu.import("resource:///modules/devtools/Templater.jsm", {}).template;
-
-const TEST_URI = "http://example.com/browser/browser/devtools/shared/test/browser_templater_basic.html";
+var imports = {};
+Cu.import("resource:///modules/devtools/Templater.jsm", imports);
+Cu.import("resource://gre/modules/devtools/_Promise.jsm", imports);
 
 function test() {
-  addTab(TEST_URI, function() {
+  addTab("http://example.com/browser/browser/devtools/shared/test/browser_templater_basic.html", function() {
     info("Starting DOM Templater Tests");
     runTest(0);
   });
@@ -30,14 +29,13 @@ function runTest(index) {
   holder.innerHTML = options.template;
 
   info('Running ' + options.name);
-  template(holder, options.data, options.options);
+  imports.template(holder, options.data, options.options);
 
   if (typeof options.result == 'string') {
     is(holder.innerHTML, options.result, options.name);
   }
   else {
-    ok(holder.innerHTML.match(options.result) != null,
-       options.name + ' result=\'' + holder.innerHTML + '\'');
+    ok(holder.innerHTML.match(options.result), options.name);
   }
 
   if (options.also) {
@@ -280,9 +278,9 @@ var tests = [
 ];
 
 function delayReply(data) {
-  var d = Promise.defer();
+  var p = new imports.Promise();
   executeSoon(function() {
-    d.resolve(data);
+    p.resolve(data);
   });
-  return d.promise;
+  return p;
 }

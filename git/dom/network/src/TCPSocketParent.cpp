@@ -8,15 +8,15 @@
 #include "nsJSUtils.h"
 #include "nsIDOMTCPSocket.h"
 #include "mozilla/unused.h"
-#include "mozilla/AppProcessChecker.h"
+#include "mozilla/AppProcessPermissions.h"
 
 namespace IPC {
 
 //Defined in TCPSocketChild.cpp
 extern bool
 DeserializeUint8Array(JSRawObject aObj,
-                      const InfallibleTArray<uint8_t>& aBuffer,
-                      JS::Value* aVal);
+                      const nsTArray<uint8_t>& aBuffer,
+                      jsval* aVal);
 
 }
 
@@ -44,8 +44,15 @@ NS_INTERFACE_MAP_END
 
 bool
 TCPSocketParent::Init(const nsString& aHost, const uint16_t& aPort, const bool& aUseSSL,
-                      const nsString& aBinaryType)
+                      const nsString& aBinaryType, PBrowserParent* aBrowser)
 {
+  // We don't have browser actors in xpcshell, and hence can't run automated
+  // tests without this loophole.
+  if (aBrowser && !AssertAppProcessPermission(aBrowser, "tcp-socket")) {
+    FireInteralError(this, __LINE__);
+    return true;
+  }
+
   nsresult rv;
   mIntermediary = do_CreateInstance("@mozilla.org/tcp-socket-intermediary;1", &rv);
   if (NS_FAILED(rv)) {
@@ -96,7 +103,7 @@ TCPSocketParent::RecvData(const SendableData& aData)
   nsresult rv;
   switch (aData.type()) {
     case SendableData::TArrayOfuint8_t: {
-      JS::Value val;
+      jsval val;
       IPC::DeserializeUint8Array(mIntermediaryObj, aData.get_ArrayOfuint8_t(), &val);
       rv = mIntermediary->SendArrayBuffer(val);
       NS_ENSURE_SUCCESS(rv, true);
@@ -149,10 +156,10 @@ TCPSocketParent::SendCallback(const nsAString& aType, const JS::Value& aDataVal,
 
   } else if (aDataVal.isObject()) {
     JSObject* obj = &aDataVal.toObject();
-    if (JS_IsTypedArrayObject(obj)) {
-      NS_ENSURE_TRUE(JS_IsUint8Array(obj), NS_ERROR_FAILURE);
-      uint32_t nbytes = JS_GetTypedArrayByteLength(obj);
-      uint8_t* buffer = JS_GetUint8ArrayData(obj);
+    if (JS_IsTypedArrayObject(obj, aCx)) {
+      NS_ENSURE_TRUE(JS_IsUint8Array(obj, aCx), NS_ERROR_FAILURE);
+      uint32_t nbytes = JS_GetTypedArrayByteLength(obj, aCx);
+      uint8_t* buffer = JS_GetUint8ArrayData(obj, aCx);
       if (!buffer) {
         FireInteralError(this, __LINE__);
         return NS_ERROR_OUT_OF_MEMORY;
@@ -171,7 +178,7 @@ TCPSocketParent::SendCallback(const nsAString& aType, const JS::Value& aDataVal,
       uint32_t lineNumber = 0;
       uint32_t columnNumber = 0;
 
-      JS::Value val;
+      jsval val;
       if (!JS_GetProperty(aCx, obj, "message", &val)) {
         NS_ERROR("No message property on supposed error object");
       } else if (JSVAL_IS_STRING(val)) {

@@ -63,8 +63,6 @@
                 "./src/ice/ice_socket.h",
 
                 # Net
-                "./src/net/nr_resolver.c",
-                "./src/net/nr_resolver.h",
                 "./src/net/nr_socket.c",
                 "./src/net/nr_socket.h",
                 #"./src/net/nr_socket_local.c",
@@ -179,9 +177,11 @@
 		     '../nrappkit/src/port/win32/include'
 		 ],
               }],
-              ## Linux/Android
-              [ '(OS == "linux") or (OS=="android")', {
-                'cflags_mozilla': [
+
+              
+              ## Linux
+              [ 'OS == "linux"', {
+                'cflags': [
                     '-Wall',
                     '-Wno-parentheses',
                     '-Wno-strict-prototypes',
@@ -206,14 +206,8 @@
 		 
 		 'sources': [
 		 ],
-              }],
-              ['moz_widget_toolkit_gonk==1', {
-                'defines' : [
-                  'WEBRTC_GONK',
-                  'NO_REG_RPC',
-                ],
-             }],
-          ],
+              }]
+          ]
       }]
 }
 

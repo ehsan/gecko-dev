@@ -41,6 +41,7 @@ class nsIChannel;
 class nsIControllers;
 class nsIDocShell;
 class nsIEditor;
+class nsIEditorDocShell;
 class nsIWebProgress;
 
 class nsEditingSession : public nsIEditingSession,
@@ -64,6 +65,8 @@ public:
 protected:
 
   nsIDocShell *   GetDocShellFromWindow(nsIDOMWindow *aWindow);
+  nsresult        GetEditorDocShellFromWindow(nsIDOMWindow *aWindow, 
+                                              nsIEditorDocShell** outDocShell);
   
   nsresult        SetupEditorCommandController(const char *aControllerClassName,
                                                nsIDOMWindow *aWindow,

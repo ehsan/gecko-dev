@@ -12,23 +12,34 @@ namespace mozilla {
 namespace dom {
 
 void
-TextEncoderBase::Init(const nsAString& aEncoding, ErrorResult& aRv)
+TextEncoder::Init(const Optional<nsAString>& aEncoding,
+                  ErrorResult& aRv)
 {
-  nsAutoString label(aEncoding);
-  EncodingUtils::TrimSpaceCharacters(label);
+  // If the constructor is called with no arguments, let label be the "utf-8".
+  // Otherwise, let label be the value of the encoding argument.
+  nsAutoString label;
+  if (!aEncoding.WasPassed()) {
+    label.AssignLiteral("utf-8");
+  } else {
+    label.Assign(aEncoding.Value());
+    EncodingUtils::TrimSpaceCharacters(label);
+  }
 
-  // Let encoding be the result of getting an encoding from label.
-  // If encoding is failure, or is none of utf-8, utf-16, and utf-16be,
-  // throw a TypeError.
+  // Run the steps to get an encoding from Encoding.
   if (!EncodingUtils::FindEncodingForLabel(label, mEncoding)) {
-    aRv.ThrowTypeError(MSG_ENCODING_NOT_SUPPORTED, &label);
+    // If the steps result in failure,
+    // throw an "EncodingError" exception and terminate these steps.
+    aRv.Throw(NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR);
     return;
   }
 
-  if (!mEncoding.EqualsLiteral("UTF-8") &&
-      !mEncoding.EqualsLiteral("UTF-16LE") &&
-      !mEncoding.EqualsLiteral("UTF-16BE")) {
-    aRv.ThrowTypeError(MSG_DOM_ENCODING_NOT_UTF);
+  // Otherwise, if the Name of the returned encoding is not one of
+  // "utf-8", "utf-16", or "utf-16be" throw an "EncodingError" exception
+  // and terminate these steps.
+  if (PL_strcasecmp(mEncoding, "utf-8") &&
+      PL_strcasecmp(mEncoding, "utf-16le") &&
+      PL_strcasecmp(mEncoding, "utf-16be")) {
+    aRv.Throw(NS_ERROR_DOM_ENCODING_NOT_UTF_ERR);
     return;
   }
 
@@ -40,7 +51,7 @@ TextEncoderBase::Init(const nsAString& aEncoding, ErrorResult& aRv)
     return;
   }
 
-  ccm->GetUnicodeEncoderRaw(mEncoding.get(), getter_AddRefs(mEncoder));
+  ccm->GetUnicodeEncoder(mEncoding, getter_AddRefs(mEncoder));
   if (!mEncoder) {
     aRv.Throw(NS_ERROR_UNEXPECTED);
     return;
@@ -48,10 +59,10 @@ TextEncoderBase::Init(const nsAString& aEncoding, ErrorResult& aRv)
 }
 
 JSObject*
-TextEncoderBase::Encode(JSContext* aCx,
-                        const nsAString& aString,
-                        const bool aStream,
-                        ErrorResult& aRv)
+TextEncoder::Encode(JSContext* aCx,
+                    const nsAString& aString,
+                    const TextEncodeOptions& aOptions,
+                    ErrorResult& aRv)
 {
   // Run the steps of the encoding algorithm.
   int32_t srcLen = aString.Length();
@@ -76,7 +87,7 @@ TextEncoderBase::Encode(JSContext* aCx,
 
   // If the internal streaming flag is not set, then reset
   // the encoding algorithm state to the default values for encoding.
-  if (!aStream) {
+  if (!aOptions.stream) {
     int32_t finishLen = maxLen - dstLen;
     rv = mEncoder->Finish(buf + dstLen, &finishLen);
     if (NS_SUCCEEDED(rv)) {
@@ -87,11 +98,8 @@ TextEncoderBase::Encode(JSContext* aCx,
   JSObject* outView = nullptr;
   if (NS_SUCCEEDED(rv)) {
     buf[dstLen] = '\0';
-    outView = CreateUint8Array(aCx, buf, dstLen);
-    if (!outView) {
-      aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-      return nullptr;
-    }
+    outView = Uint8Array::Create(aCx, this, dstLen,
+                                 reinterpret_cast<uint8_t*>(buf.get()));
   }
 
   if (NS_FAILED(rv)) {
@@ -101,14 +109,26 @@ TextEncoderBase::Encode(JSContext* aCx,
 }
 
 void
-TextEncoderBase::GetEncoding(nsAString& aEncoding)
+TextEncoder::GetEncoding(nsAString& aEncoding)
 {
-  CopyASCIItoUTF16(mEncoding, aEncoding);
-  nsContentUtils::ASCIIToLower(aEncoding);
+  // Our utf-16 converter does not comply with the Encoding Standard.
+  // As a result the utf-16le converter is used for the encoding label
+  // "utf-16".
+  // This workaround should not be exposed to the public API and so "utf-16"
+  // is returned by GetEncoding() if the internal encoding name is "utf-16le".
+  if (!strcmp(mEncoding, "utf-16le")) {
+    aEncoding.AssignLiteral("utf-16");
+    return;
+  }
+  aEncoding.AssignASCII(mEncoding);
 }
 
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(TextEncoder, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(TextEncoder, Release)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(TextEncoder)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(TextEncoder)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(TextEncoder)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(TextEncoder, mGlobal)
 

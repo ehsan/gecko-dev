@@ -27,7 +27,7 @@ typedef void *cprThread_t;
  */
 typedef struct {
     const char *name;
-    uint32_t threadId;
+    uint16_t threadId;
     union {
         void *handlePtr;
         uint64_t handleInt;
@@ -69,13 +69,6 @@ cprThread_t cprCreateThread(const char *name,
                             uint16_t priority,
                             void *data);
 
-
-/*
- * cprJoinThread
- *
- * wait for thread termination
- */
-void cprJoinThread(cprThread_t thread);
 
 /**
  * cprDestroyThread
@@ -126,6 +119,7 @@ cprRC_t cprDestroyThread(cprThread_t thread);
  * @return CPR_SUCCESS or CPR_FAILURE
  */
 cprRC_t cprAdjustRelativeThreadPriority(int relPri);
+
 
 __END_DECLS
 

@@ -7,7 +7,6 @@
 #define MOZILLA_MEDIASEGMENT_H_
 
 #include "nsTArray.h"
-#include <algorithm>
 
 namespace mozilla {
 
@@ -100,10 +99,6 @@ public:
    * Insert aDuration of null data at the end of the segment.
    */
   virtual void AppendNullData(TrackTicks aDuration) = 0;
-  /**
-   * Remove all contents, setting duration to 0.
-   */
-  virtual void Clear() = 0;
 
 protected:
   MediaSegment(Type aType) : mDuration(0), mType(aType)
@@ -123,7 +118,9 @@ template <class C, class Chunk> class MediaSegmentBase : public MediaSegment {
 public:
   virtual MediaSegment* CreateEmptyClone() const
   {
-    return new C();
+    C* s = new C();
+    s->InitFrom(*static_cast<const C*>(this));
+    return s;
   }
   virtual void AppendFrom(MediaSegment* aSource)
   {
@@ -144,6 +141,11 @@ public:
   {
     AppendSliceInternal(aOther, aStart, aEnd);
   }
+  void InitToSlice(const C& aOther, TrackTicks aStart, TrackTicks aEnd)
+  {
+    static_cast<C*>(this)->InitFrom(aOther);
+    AppendSliceInternal(aOther, aStart, aEnd);
+  }
   /**
    * Replace the first aDuration ticks with null media data, because the data
    * will not be required again.
@@ -154,7 +156,7 @@ public:
       return;
     }
     if (mChunks[0].IsNull()) {
-      TrackTicks extraToForget = std::min(aDuration, mDuration) - mChunks[0].GetDuration();
+      TrackTicks extraToForget = NS_MIN(aDuration, mDuration) - mChunks[0].GetDuration();
       if (extraToForget > 0) {
         RemoveLeading(extraToForget, 1);
         mChunks[0].mDuration += extraToForget;
@@ -190,11 +192,6 @@ public:
     }
     mDuration += aDuration;
   }
-  virtual void Clear()
-  {
-    mDuration = 0;
-    mChunks.Clear();
-  }
 
   class ChunkIterator {
   public:
@@ -217,7 +214,7 @@ protected:
    */
   void AppendFromInternal(MediaSegmentBase<C, Chunk>* aSource)
   {
-    MOZ_ASSERT(aSource->mDuration >= 0);
+    static_cast<C*>(this)->CheckCompatible(*static_cast<C*>(aSource));
     mDuration += aSource->mDuration;
     aSource->mDuration = 0;
     if (!mChunks.IsEmpty() && !aSource->mChunks.IsEmpty() &&
@@ -231,6 +228,7 @@ protected:
   void AppendSliceInternal(const MediaSegmentBase<C, Chunk>& aSource,
                            TrackTicks aStart, TrackTicks aEnd)
   {
+    static_cast<C*>(this)->CheckCompatible(static_cast<const C&>(aSource));
     NS_ASSERTION(aStart <= aEnd, "Endpoints inverted");
     NS_ASSERTION(aStart >= 0 && aEnd <= aSource.mDuration,
                  "Slice out of range");
@@ -238,9 +236,9 @@ protected:
     TrackTicks offset = 0;
     for (uint32_t i = 0; i < aSource.mChunks.Length() && offset < aEnd; ++i) {
       const Chunk& c = aSource.mChunks[i];
-      TrackTicks start = std::max(aStart, offset);
+      TrackTicks start = NS_MAX(aStart, offset);
       TrackTicks nextOffset = offset + c.GetDuration();
-      TrackTicks end = std::min(aEnd, nextOffset);
+      TrackTicks end = NS_MIN(aEnd, nextOffset);
       if (start < end) {
         mChunks.AppendElement(c)->SliceTo(start - offset, end - offset);
       }
@@ -250,7 +248,6 @@ protected:
 
   Chunk* AppendChunk(TrackTicks aDuration)
   {
-    MOZ_ASSERT(aDuration >= 0);
     Chunk* c = mChunks.AppendElement();
     c->mDuration = aDuration;
     mDuration += aDuration;

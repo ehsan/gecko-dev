@@ -31,12 +31,11 @@ nsDOMBeforeUnloadEvent::GetReturnValue(nsAString& aReturnValue)
 }
 
 nsresult NS_NewDOMBeforeUnloadEvent(nsIDOMEvent** aInstancePtrResult,
-                                    mozilla::dom::EventTarget* aOwner,
                                     nsPresContext* aPresContext,
                                     nsEvent *aEvent) 
 {
   nsDOMBeforeUnloadEvent* it =
-    new nsDOMBeforeUnloadEvent(aOwner, aPresContext, aEvent);
+    new nsDOMBeforeUnloadEvent(aPresContext, aEvent);
   if (!it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

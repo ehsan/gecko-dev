@@ -9,6 +9,10 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+TOOL_DIRS += app
+
+MODULE = ipdlunittest
+
 EXPORTS_NAMESPACES = mozilla/_ipdltest
 EXPORTS_mozilla/_ipdltest =  \
   IPDLUnitTests.h  \

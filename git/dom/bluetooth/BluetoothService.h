@@ -88,6 +88,18 @@ public:
   DistributeSignal(const BluetoothSignal& aEvent);
 
   /**
+   * Called when a BluetoothManager is created.
+   */
+  void
+  RegisterManager(BluetoothManager* aManager);
+
+  /**
+   * Called when a BluetoothManager is destroyed.
+   */
+  void
+  UnregisterManager(BluetoothManager* aManager);
+
+  /**
    * Called when get a Bluetooth Signal from BluetoothDBusService
    *
    */
@@ -134,20 +146,40 @@ public:
   /** 
    * Stop device discovery (platform specific implementation)
    *
-   * @return NS_OK if discovery stopped correctly, false otherwise
-   */
-  virtual nsresult
-  StopDiscoveryInternal(BluetoothReplyRunnable* aRunnable) = 0;
-
-  /** 
-   * Start device discovery (platform specific implementation)
+   * @param aAdapterPath Adapter to stop discovery on
    *
    * @return NS_OK if discovery stopped correctly, false otherwise
    */
   virtual nsresult
-  StartDiscoveryInternal(BluetoothReplyRunnable* aRunnable) = 0;
+  StopDiscoveryInternal(const nsAString& aAdapterPath,
+                        BluetoothReplyRunnable* aRunnable) = 0;
+
+  /** 
+   * Start device discovery (platform specific implementation)
+   *
+   * @param aAdapterPath Adapter to start discovery on
+   *
+   * @return NS_OK if discovery stopped correctly, false otherwise
+   */
+  virtual nsresult
+  StartDiscoveryInternal(const nsAString& aAdapterPath,
+                         BluetoothReplyRunnable* aRunnable) = 0;
 
   /**
+   * Fetches the propertes for the specified object
+   *
+   * @param aType Type of the object (see BluetoothObjectType in BluetoothCommon.h)
+   * @param aPath Path of the object
+   * @param aRunnable Runnable to return to after receiving callback
+   *
+   * @return NS_OK on function run, NS_ERROR_FAILURE otherwise
+   */
+  virtual nsresult
+  GetProperties(BluetoothObjectType aType,
+                const nsAString& aPath,
+                BluetoothReplyRunnable* aRunnable) = 0;
+
+  /** 
    * Fetches the propertes for the specified device
    *
    * @param aSignal BluetoothSignal to be distrubuted after retrieving device properties
@@ -160,6 +192,7 @@ public:
   /**
    * Set a property for the specified object
    *
+   * @param aPath Path to the object
    * @param aPropName Name of the property
    * @param aValue Boolean value
    * @param aRunnable Runnable to run on async reply
@@ -168,6 +201,7 @@ public:
    */
   virtual nsresult
   SetProperty(BluetoothObjectType aType,
+              const nsAString& aPath,
               const BluetoothNamedValue& aValue,
               BluetoothReplyRunnable* aRunnable) = 0;
 
@@ -186,12 +220,14 @@ public:
                 nsAString& aDevicePath) = 0;
 
   virtual nsresult
-  CreatePairedDeviceInternal(const nsAString& aAddress,
+  CreatePairedDeviceInternal(const nsAString& aAdapterPath,
+                             const nsAString& aAddress,
                              int aTimeout,
                              BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual nsresult
-  RemoveDeviceInternal(const nsAString& aObjectPath,
+  RemoveDeviceInternal(const nsAString& aAdapterPath,
+                       const nsAString& aObjectPath,
                        BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual nsresult
@@ -226,10 +262,11 @@ public:
                            BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual nsresult
-  PrepareAdapterInternal() = 0;
+  PrepareAdapterInternal(const nsAString& aPath) = 0;
 
-  virtual void
+  virtual bool
   Connect(const nsAString& aDeviceAddress,
+          const nsAString& aAdapterPath,
           uint16_t aProfileId,
           BluetoothReplyRunnable* aRunnable) = 0;
 
@@ -237,15 +274,12 @@ public:
   Disconnect(uint16_t aProfileId, BluetoothReplyRunnable* aRunnable) = 0;
 
   virtual bool
-  IsConnected(uint16_t aProfileId) = 0;
-
-  virtual void
   SendFile(const nsAString& aDeviceAddress,
            BlobParent* aBlobParent,
            BlobChild* aBlobChild,
            BluetoothReplyRunnable* aRunnable) = 0;
 
-  virtual void
+  virtual bool
   StopSendingFile(const nsAString& aDeviceAddress,
                   BluetoothReplyRunnable* aRunnable) = 0;
 
@@ -266,15 +300,13 @@ public:
     return mEnabled;
   }
 
-  bool
-  IsToggling() const;
-
-  void
-  RemoveObserverFromTable(const nsAString& key);
-
 protected:
   BluetoothService()
-  : mEnabled(false)
+  : mEnabled(false), mSettingsCheckInProgress(false),
+    mRegisteredForLocalAgent(false)
+#ifdef DEBUG
+    , mLastRequestedEnable(false)
+#endif
   {
     mBluetoothSignalObserverTable.Init();
   }
@@ -359,7 +391,16 @@ protected:
 
   BluetoothSignalObserverTable mBluetoothSignalObserverTable;
 
+  typedef nsTObserverArray<BluetoothManager*> BluetoothManagerList;
+  BluetoothManagerList mLiveManagers;
+
   bool mEnabled;
+  bool mSettingsCheckInProgress;
+  bool mRegisteredForLocalAgent;
+
+#ifdef DEBUG
+  bool mLastRequestedEnable;
+#endif
 };
 
 END_BLUETOOTH_NAMESPACE

@@ -21,9 +21,6 @@
           'cflags': [
             '-std=c99',
           ],
-          'cflags_mozilla': [
-            '-std=c99',
-          ],
           'defines': [
             'HAVE_LRINTF',
           ],

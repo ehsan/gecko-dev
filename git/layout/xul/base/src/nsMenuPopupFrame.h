@@ -75,9 +75,9 @@ enum FlipStyle {
 #define POPUPALIGNMENT_BOTTOMRIGHT -2
 
 #define POPUPALIGNMENT_LEFTCENTER 16
-#define POPUPALIGNMENT_RIGHTCENTER -16
-#define POPUPALIGNMENT_TOPCENTER 17
-#define POPUPALIGNMENT_BOTTOMCENTER 18
+#define POPUPALIGNMENT_RIGHTCENTER 17
+#define POPUPALIGNMENT_TOPCENTER 18
+#define POPUPALIGNMENT_BOTTOMCENTER 19
 
 #define INC_TYP_INTERVAL  1000  // 1s. If the interval between two keypresses is shorter than this, 
                                 //   treat as a continue typing
@@ -90,8 +90,8 @@ enum FlipStyle {
 
 nsIFrame* NS_NewMenuPopupFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-class nsViewManager;
-class nsView;
+class nsIViewManager;
+class nsIView;
 class nsMenuPopupFrame;
 
 class nsMenuPopupFrame : public nsBoxFrame, public nsMenuParent
@@ -149,9 +149,9 @@ public:
   void AttachedDismissalListener();
 
   // Overridden methods
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
 
   NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
                               nsIAtom* aAttribute,
@@ -170,7 +170,7 @@ public:
 
   void EnsureWidget();
 
-  nsresult CreateWidgetForView(nsView* aView);
+  nsresult CreateWidgetForView(nsIView* aView);
   uint8_t GetShadowStyle();
 
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
@@ -181,7 +181,7 @@ public:
   // layout, position and display the popup as needed
   void LayoutPopup(nsBoxLayoutState& aState, nsIFrame* aParentMenu, bool aSizedToPopup);
 
-  nsView* GetRootViewForPopup(nsIFrame* aStartFrame);
+  nsIView* GetRootViewForPopup(nsIFrame* aStartFrame);
 
   // set the position of the popup either relative to the anchor aAnchorFrame
   // (or the frame for mAnchorContent if aAnchorFrame is null) or at a specific
@@ -309,9 +309,9 @@ public:
   // This position is in CSS pixels.
   nsIntPoint ScreenPosition() const { return nsIntPoint(mScreenXPos, mScreenYPos); }
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   nsIntPoint GetLastClientOffset() const { return mLastClientOffset; }
 
@@ -366,13 +366,13 @@ protected:
    */
   bool IsDirectionRTL() const {
     return mAnchorContent && mAnchorContent->GetPrimaryFrame()
-      ? mAnchorContent->GetPrimaryFrame()->StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL
-      : StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
+      ? mAnchorContent->GetPrimaryFrame()->GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL
+      : GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL;
   }
 
   // Create a popup view for this frame. The view is added a child of the root
   // view, and is initially hidden.
-  void CreatePopupView();
+  nsresult CreatePopupView();
 
   nsString     mIncrementalString;  // for incremental typing navigation
 

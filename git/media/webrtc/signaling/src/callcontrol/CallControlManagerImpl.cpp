@@ -4,10 +4,6 @@
 
 #include <errno.h>
 #include <string>
-#include <prcvar.h>
-#include <prlock.h>
-
-#include "CSFLog.h"
 
 #include "CC_SIPCCDevice.h"
 #include "CC_SIPCCDeviceInfo.h"
@@ -16,13 +12,13 @@
 #include "CC_SIPCCLineInfo.h"
 #include "CC_SIPCCCallInfo.h"
 #include "CallControlManagerImpl.h"
+#include "CSFLogStream.h"
 #include "csf_common.h"
 
 extern "C"
 {
 #include "config_api.h"
 }
-
 
 static const char* logTag = "CallControlManager";
 
@@ -38,22 +34,22 @@ namespace CSF
 CallControlManagerImpl::CallControlManagerImpl()
 : m_lock("CallControlManagerImpl"),
   multiClusterMode(false),
-  sipccLoggingMask(0xFFFFFFFF),
+  sipccLoggingMask(0),
   authenticationStatus(AuthenticationStatusEnum::eNotAuthenticated),
   connectionState(ConnectionStatusEnum::eIdle)
 {
-    CSFLogInfo(logTag, "CallControlManagerImpl()");
+    CSFLogInfoS(logTag, "CallControlManagerImpl()");
 }
 
 CallControlManagerImpl::~CallControlManagerImpl()
 {
-    CSFLogInfo(logTag, "~CallControlManagerImpl()");
+    CSFLogInfoS(logTag, "~CallControlManagerImpl()");
     destroy();
 }
 
 bool CallControlManagerImpl::destroy()
 {
-    CSFLogInfo(logTag, "destroy()");
+    CSFLogInfoS(logTag, "destroy()");
     bool retval = disconnect();
     if(retval == false)
 	{
@@ -68,7 +64,7 @@ void CallControlManagerImpl::addCCObserver ( CC_Observer * observer )
 	mozilla::MutexAutoLock lock(m_lock);
     if (observer == NULL)
     {
-        CSFLogError(logTag, "NULL value for \"observer\" passed to addCCObserver().");
+        CSFLogErrorS(logTag, "NULL value for \"observer\" passed to addCCObserver().");
         return;
     }
 
@@ -86,7 +82,7 @@ void CallControlManagerImpl::addECCObserver ( ECC_Observer * observer )
 	mozilla::MutexAutoLock lock(m_lock);
     if (observer == NULL)
     {
-        CSFLogError(logTag, "NULL value for \"observer\" passed to addECCObserver().");
+        CSFLogErrorS(logTag, "NULL value for \"observer\" passed to addECCObserver().");
         return;
     }
 
@@ -101,26 +97,25 @@ void CallControlManagerImpl::removeECCObserver ( ECC_Observer * observer )
 
 void CallControlManagerImpl::setMultiClusterMode(bool allowMultipleClusters)
 {
-    CSFLogInfo(logTag, "setMultiClusterMode(%s)",
-      allowMultipleClusters ? "TRUE" : "FALSE");
+    CSFLogInfoS(logTag, "setMultiClusterMode(" << allowMultipleClusters << ")");
     multiClusterMode = allowMultipleClusters;
 }
 
 void CallControlManagerImpl::setSIPCCLoggingMask(const cc_int32_t mask)
 {
-    CSFLogInfo(logTag, "setSIPCCLoggingMask(%u)", mask);
+    CSFLogInfoS(logTag, "setSIPCCLoggingMask(" << mask << ")");
     sipccLoggingMask = mask;
 }
 
 void CallControlManagerImpl::setAuthenticationString(const std::string &authString)
 {
-    CSFLogInfo(logTag, "setAuthenticationString()");
+    CSFLogInfoS(logTag, "setAuthenticationString()");
     this->authString = authString;
 }
 
 void CallControlManagerImpl::setSecureCachePath(const std::string &secureCachePath)
 {
-    CSFLogInfo(logTag, "setSecureCachePath(%s)", secureCachePath.c_str());
+    CSFLogInfoS(logTag, "setSecureCachePath(" << secureCachePath << ")");
     this->secureCachePath = secureCachePath;
 }
 
@@ -148,12 +143,12 @@ bool CallControlManagerImpl::registerUser( const std::string& deviceName, const 
 {
 	setConnectionState(ConnectionStatusEnum::eRegistering);
 
-    CSFLogInfo(logTag, "registerUser(%s, %s )", user.c_str(), domain.c_str());
+    CSFLogInfoS(logTag, "registerUser(" << user << ", " << domain << " )");
     if(phone != NULL)
     {
     	setConnectionState(ConnectionStatusEnum::eReady);
 
-        CSFLogError(logTag, "registerUser() failed - already connected!");
+        CSFLogErrorS(logTag, "registerUser() failed - already connected!");
         return false;
     }
 
@@ -179,12 +174,12 @@ bool CallControlManagerImpl::startP2PMode(const std::string& user)
 {
 	setConnectionState(ConnectionStatusEnum::eRegistering);
 
-    CSFLogInfo(logTag, "startP2PMode(%s)", user.c_str());
+    CSFLogInfoS(logTag, "startP2PMode(" << user << " )");
     if(phone != NULL)
     {
     	setConnectionState(ConnectionStatusEnum::eReady);
 
-        CSFLogError(logTag, "startP2PMode() failed - already started in p2p mode!");
+        CSFLogErrorS(logTag, "startP2PMode() failed - already started in p2p mode!");
         return false;
     }
 
@@ -208,12 +203,13 @@ bool CallControlManagerImpl::startP2PMode(const std::string& user)
 
 bool CallControlManagerImpl::startSDPMode()
 {
-    CSFLogInfo(logTag, "startSDPMode");
+    CSFLogInfoS(logTag, "startSDPMode");
     if(phone != NULL)
     {
         CSFLogError(logTag, "%s failed - already started in SDP mode!",__FUNCTION__);
         return false;
     }
+
     softPhone = CC_SIPCCServicePtr(new CC_SIPCCService());
     phone = softPhone;
     phone->init("JSEP", "", "127.0.0.1", "sipdevice");
@@ -226,7 +222,7 @@ bool CallControlManagerImpl::startSDPMode()
 
 bool CallControlManagerImpl::disconnect()
 {
-    CSFLogInfo(logTag, "disconnect()");
+    CSFLogInfoS(logTag, "disconnect()");
     if(phone == NULL)
         return true;
 
@@ -234,8 +230,8 @@ bool CallControlManagerImpl::disconnect()
     phone->removeCCObserver(this);
     phone->stop();
     phone->destroy();
-    phone = nullptr;
-    softPhone = nullptr;
+    phone.reset();
+    softPhone.reset();
 
     return true;
 }
@@ -275,7 +271,7 @@ PhoneDetailsVtrPtr CallControlManagerImpl::getAvailablePhoneDetails()
   PhoneDetailsVtrPtr result = PhoneDetailsVtrPtr(new PhoneDetailsVtr());
   for(PhoneDetailsMap::iterator it = phoneDetailsMap.begin(); it != phoneDetailsMap.end(); it++)
   {
-    PhoneDetailsPtr details = it->second.get();
+    PhoneDetailsPtr details = it->second;
     result->push_back(details);
   }
   return result;
@@ -286,7 +282,7 @@ PhoneDetailsPtr CallControlManagerImpl::getAvailablePhoneDetails(const std::stri
     PhoneDetailsMap::iterator it = phoneDetailsMap.find(deviceName);
     if(it != phoneDetailsMap.end())
     {
-        return it->second.get();
+        return it->second;
     }
     return PhoneDetailsPtr();
 }
@@ -312,7 +308,7 @@ bool CallControlManagerImpl::setProperty(ConfigPropertyKeysEnum::ConfigPropertyK
   unsigned long strtoul_result;
   char *strtoul_end;
 
-  CSFLogInfo(logTag, "setProperty( %s )", value.c_str());
+  CSFLogInfoS(logTag, "setProperty(" << value << " )");
 
   if (key == ConfigPropertyKeysEnum::eLocalVoipPort) {
     errno = 0;
@@ -347,7 +343,7 @@ std::string CallControlManagerImpl::getProperty(ConfigPropertyKeysEnum::ConfigPr
   std::string retValue = "NONESET";
   char tmpString[11];
 
-  CSFLogInfo(logTag, "getProperty()");
+  CSFLogInfoS(logTag, "getProperty()");
 
   if (key == ConfigPropertyKeysEnum::eLocalVoipPort) {
     csf_sprintf(tmpString, sizeof(tmpString), "%u", CCAPI_Config_get_local_voip_port());

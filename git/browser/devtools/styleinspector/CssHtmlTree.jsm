@@ -17,12 +17,8 @@ Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/CssLogic.jsm");
 Cu.import("resource:///modules/devtools/Templater.jsm");
-Cu.import("resource:///modules/devtools/ToolDefinitions.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
-                                  "resource:///modules/devtools/gDevTools.jsm");
-
-this.EXPORTED_SYMBOLS = ["CssHtmlTree", "PropertyView"];
+var EXPORTED_SYMBOLS = ["CssHtmlTree", "PropertyView"];
 
 /**
  * Helper for long-running processes that should yield occasionally to
@@ -62,7 +58,7 @@ UpdateProcess.prototype = {
    */
   schedule: function UP_schedule()
   {
-    if (this.canceled) {
+    if (this.cancelled) {
       return;
     }
     this._timeout = this.win.setTimeout(this._timeoutHandler.bind(this), 0);
@@ -100,7 +96,7 @@ UpdateProcess.prototype = {
   _runBatch: function Y_runBatch()
   {
     let time = Date.now();
-    while(!this.canceled) {
+    while(!this.cancelled) {
       // Continue until iter.next() throws...
       let next = this.iter.next();
       this.onItem(next[1]);
@@ -120,29 +116,33 @@ UpdateProcess.prototype = {
  * @params {StyleInspector} aStyleInspector The owner of this CssHtmlTree
  * @constructor
  */
-this.CssHtmlTree = function CssHtmlTree(aStyleInspector)
+function CssHtmlTree(aStyleInspector)
 {
-  this.styleWindow = aStyleInspector.window;
-  this.styleDocument = aStyleInspector.window.document;
+  this.styleWin = aStyleInspector.iframe;
   this.styleInspector = aStyleInspector;
   this.cssLogic = aStyleInspector.cssLogic;
+  this.doc = aStyleInspector.document;
+  this.win = aStyleInspector.window;
+  this.getRTLAttr = this.win.getComputedStyle(this.win.gBrowser).direction;
   this.propertyViews = [];
 
-  let chromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].
-    getService(Ci.nsIXULChromeRegistry);
-  this.getRTLAttr = chromeReg.isLocaleRTL("global") ? "rtl" : "ltr";
-
   // Create bound methods.
-  this.siFocusWindow = this.focusWindow.bind(this);
+  this.siBoundMenuUpdate = this.computedViewMenuUpdate.bind(this);
   this.siBoundCopy = this.computedViewCopy.bind(this);
+  this.siBoundCopyDeclaration = this.computedViewCopyDeclaration.bind(this);
+  this.siBoundCopyProperty = this.computedViewCopyProperty.bind(this);
+  this.siBoundCopyPropertyValue = this.computedViewCopyPropertyValue.bind(this);
+
+  // The document in which we display the results (csshtmltree.xul).
+  this.styleDocument = this.styleWin.contentWindow.document;
 
   this.styleDocument.addEventListener("copy", this.siBoundCopy);
-  this.styleDocument.addEventListener("mousedown", this.siFocusWindow);
 
   // Nodes used in templating
   this.root = this.styleDocument.getElementById("root");
   this.templateRoot = this.styleDocument.getElementById("templateRoot");
   this.propertyContainer = this.styleDocument.getElementById("propertyContainer");
+  this.panel = aStyleInspector.panel;
 
   // No results text.
   this.noResults = this.styleDocument.getElementById("noResults");
@@ -150,6 +150,7 @@ this.CssHtmlTree = function CssHtmlTree(aStyleInspector)
   // The element that we're inspecting, and the document that it comes from.
   this.viewedElement = null;
   this.createStyleViews();
+  this.createContextMenu();
 }
 
 /**
@@ -201,14 +202,19 @@ CssHtmlTree.processTemplate = function CssHtmlTree_processTemplate(aTemplate,
 XPCOMUtils.defineLazyGetter(CssHtmlTree, "_strings", function() Services.strings
         .createBundle("chrome://browser/locale/devtools/styleinspector.properties"));
 
+XPCOMUtils.defineLazyGetter(CssHtmlTree, "HELP_LINK_TITLE", function() {
+  return CssHtmlTree.HELP_LINK_TITLE = CssHtmlTree.l10n("helpLinkTitle");
+});
+
 XPCOMUtils.defineLazyGetter(this, "clipboardHelper", function() {
   return Cc["@mozilla.org/widget/clipboardhelper;1"].
     getService(Ci.nsIClipboardHelper);
 });
 
 CssHtmlTree.prototype = {
-  // Cache the list of properties that match the selected element.
+  // Cache the list of properties that have matched and unmatched properties.
   _matchedProperties: null,
+  _unmatchedProperties: null,
 
   htmlComplete: false,
 
@@ -218,8 +224,8 @@ CssHtmlTree.prototype = {
   // The search filter
   searchField: null,
 
-  // Reference to the "Include browser styles" checkbox.
-  includeBrowserStylesCheckbox: null,
+  // Reference to the "Only user Styles" checkbox.
+  onlyUserStylesCheckbox: null,
 
   // Holds the ID of the panelRefresh timeout.
   _panelRefreshTimeout: null,
@@ -230,9 +236,9 @@ CssHtmlTree.prototype = {
   // Number of visible properties
   numVisibleProperties: 0,
 
-  get includeBrowserStyles()
+  get showOnlyUserStyles()
   {
-    return this.includeBrowserStylesCheckbox.checked;
+    return this.onlyUserStylesCheckbox.checked;
   },
 
   /**
@@ -243,14 +249,8 @@ CssHtmlTree.prototype = {
   highlight: function CssHtmlTree_highlight(aElement)
   {
     this.viewedElement = aElement;
+    this._unmatchedProperties = null;
     this._matchedProperties = null;
-
-    if (!aElement) {
-      if (this._refreshProcess) {
-        this._refreshProcess.cancel();
-      }
-      return;
-    }
 
     if (this.htmlComplete) {
       this.refreshSourceFilter();
@@ -266,8 +266,8 @@ CssHtmlTree.prototype = {
       // processed.
       this.refreshSourceFilter();
       this.numVisibleProperties = 0;
-      let fragment = this.styleDocument.createDocumentFragment();
-      this._refreshProcess = new UpdateProcess(this.styleWindow, CssHtmlTree.propertyNames, {
+      let fragment = this.doc.createDocumentFragment();
+      this._refreshProcess = new UpdateProcess(this.win, CssHtmlTree.propertyNames, {
         onItem: function(aPropertyName) {
           // Per-item callback.
           let propView = new PropertyView(this, aPropertyName);
@@ -277,7 +277,7 @@ CssHtmlTree.prototype = {
           if (propView.visible) {
             this.numVisibleProperties++;
           }
-          propView.refreshMatchedSelectors();
+          propView.refreshAllSelectors();
           this.propertyViews.push(propView);
         }.bind(this),
         onDone: function() {
@@ -327,7 +327,7 @@ CssHtmlTree.prototype = {
     this._darkStripe = true;
 
     let display = this.propertyContainer.style.display;
-    this._refreshProcess = new UpdateProcess(this.styleWindow, this.propertyViews, {
+    this._refreshProcess = new UpdateProcess(this.win, this.propertyViews, {
       onItem: function(aPropView) {
         aPropView.refresh();
       }.bind(this),
@@ -347,7 +347,7 @@ CssHtmlTree.prototype = {
    */
   filterChanged: function CssHtmlTree_filterChanged(aEvent)
   {
-    let win = this.styleWindow;
+    let win = this.styleWin.contentWindow;
 
     if (this._filterChangedTimeout) {
       win.clearTimeout(this._filterChangedTimeout);
@@ -360,29 +360,28 @@ CssHtmlTree.prototype = {
   },
 
   /**
-   * The change event handler for the includeBrowserStyles checkbox.
+   * The change event handler for the onlyUserStyles checkbox.
    *
    * @param {Event} aEvent the DOM Event object.
    */
-  includeBrowserStylesChanged:
-  function CssHtmltree_includeBrowserStylesChanged(aEvent)
+  onlyUserStylesChanged: function CssHtmltree_onlyUserStylesChanged(aEvent)
   {
     this.refreshSourceFilter();
     this.refreshPanel();
   },
 
   /**
-   * When includeBrowserStyles.checked is false we only display properties that
-   * have matched selectors and have been included by the document or one of the
+   * When onlyUserStyles.checked is true we only display properties that have
+   * matched selectors and have been included by the document or one of the
    * document's stylesheets. If .checked is false we display all properties
    * including those that come from UA stylesheets.
    */
   refreshSourceFilter: function CssHtmlTree_setSourceFilter()
   {
     this._matchedProperties = null;
-    this.cssLogic.sourceFilter = this.includeBrowserStyles ?
-                                 CssLogic.FILTER.UA :
-                                 CssLogic.FILTER.ALL;
+    this.cssLogic.sourceFilter = this.showOnlyUserStyles ?
+                                 CssLogic.FILTER.ALL :
+                                 CssLogic.FILTER.UA;
   },
 
   /**
@@ -398,7 +397,7 @@ CssHtmlTree.prototype = {
 
     // Here we build and cache a list of css properties supported by the browser
     // We could use any element but let's use the main document's root element
-    let styles = this.styleWindow.getComputedStyle(this.styleDocument.documentElement);
+    let styles = this.styleWin.contentWindow.getComputedStyle(this.styleDocument.documentElement);
     let mozProps = [];
     for (let i = 0, numStyles = styles.length; i < numStyles; i++) {
       let prop = styles.item(i);
@@ -430,14 +429,125 @@ CssHtmlTree.prototype = {
   },
 
   /**
-   * Focus the window on mousedown.
+   * Check if a property has unmatched selectors. Result is cached.
    *
-   * @param aEvent The event object
+   * @param {string} aProperty the name of the property you want to check.
+   * @return {boolean} true if the property has unmatched selectors, false
+   * otherwise.
    */
-  focusWindow: function si_focusWindow(aEvent)
+  hasUnmatchedSelectors: function CssHtmlTree_hasUnmatchedSelectors(aProperty)
+  {
+    // Initially check all of the properties that return false for
+    // hasMatchedSelectors(). This speeds-up the UI.
+    if (!this._unmatchedProperties) {
+      let properties = [];
+      CssHtmlTree.propertyNames.forEach(function(aName) {
+        if (!this.matchedProperties[aName]) {
+          properties.push(aName);
+        }
+      }, this);
+
+      if (properties.indexOf(aProperty) == -1) {
+        properties.push(aProperty);
+      }
+
+      this._unmatchedProperties = this.cssLogic.hasUnmatchedSelectors(properties);
+    }
+
+    // Lazy-get the result for properties we do not have cached.
+    if (!(aProperty in this._unmatchedProperties)) {
+      let result = this.cssLogic.hasUnmatchedSelectors([aProperty]);
+      this._unmatchedProperties[aProperty] = result[aProperty];
+    }
+
+    return this._unmatchedProperties[aProperty];
+  },
+
+  /**
+   * Create a context menu.
+   */
+  createContextMenu: function SI_createContextMenu()
+  {
+    let popupSet = this.doc.getElementById("mainPopupSet");
+
+    let menu = this.doc.createElement("menupopup");
+    menu.addEventListener("popupshowing", this.siBoundMenuUpdate);
+    menu.id = "computed-view-context-menu";
+    popupSet.appendChild(menu);
+
+    // Copy selection
+    let label = CssHtmlTree.l10n("style.contextmenu.copyselection");
+    let accessKey = CssHtmlTree.l10n("style.contextmenu.copyselection.accesskey");
+    let item = this.doc.createElement("menuitem");
+    item.id = "computed-view-copy";
+    item.setAttribute("label", label);
+    item.setAttribute("accesskey", accessKey);
+    item.addEventListener("command", this.siBoundCopy);
+    menu.appendChild(item);
+
+    // Copy declaration
+    label = CssHtmlTree.l10n("style.contextmenu.copydeclaration");
+    accessKey = CssHtmlTree.l10n("style.contextmenu.copydeclaration.accesskey");
+    item = this.doc.createElement("menuitem");
+    item.id = "computed-view-copy-declaration";
+    item.setAttribute("label", label);
+    item.setAttribute("accesskey", accessKey);
+    item.addEventListener("command", this.siBoundCopyDeclaration);
+    menu.appendChild(item);
+
+    // Copy property name
+    label = CssHtmlTree.l10n("style.contextmenu.copyproperty");
+    accessKey = CssHtmlTree.l10n("style.contextmenu.copyproperty.accesskey");
+    item = this.doc.createElement("menuitem");
+    item.id = "computed-view-copy-property";
+    item.setAttribute("label", label);
+    item.setAttribute("accesskey", accessKey);
+    item.addEventListener("command", this.siBoundCopyProperty);
+    menu.appendChild(item);
+
+    // Copy property value
+    label = CssHtmlTree.l10n("style.contextmenu.copypropertyvalue");
+    accessKey = CssHtmlTree.l10n("style.contextmenu.copypropertyvalue.accesskey");
+    item = this.doc.createElement("menuitem");
+    item.id = "computed-view-copy-property-value";
+    item.setAttribute("label", label);
+    item.setAttribute("accesskey", accessKey);
+    item.addEventListener("command", this.siBoundCopyPropertyValue);
+    menu.appendChild(item);
+
+    this.styleWin.setAttribute("context", menu.id);
+  },
+
+  /**
+   * Update the context menu by disabling irrelevant menuitems and enabling
+   * relevant ones.
+   */
+  computedViewMenuUpdate: function si_computedViewMenuUpdate()
   {
     let win = this.styleDocument.defaultView;
-    win.focus();
+    let disable = win.getSelection().isCollapsed;
+    let menuitem = this.doc.querySelector("#computed-view-copy");
+    menuitem.disabled = disable;
+
+    let node = this.doc.popupNode;
+    if (!node) {
+      return;
+    }
+
+    if (!node.classList.contains("property-view")) {
+      while (node = node.parentElement) {
+        if (node.classList.contains("property-view")) {
+          break;
+        }
+      }
+    }
+    let disablePropertyItems = !node;
+    menuitem = this.doc.querySelector("#computed-view-copy-declaration");
+    menuitem.disabled = disablePropertyItems;
+    menuitem = this.doc.querySelector("#computed-view-copy-property");
+    menuitem.disabled = disablePropertyItems;
+    menuitem = this.doc.querySelector("#computed-view-copy-property-value");
+    menuitem.disabled = disablePropertyItems;
   },
 
   /**
@@ -452,14 +562,91 @@ CssHtmlTree.prototype = {
 
     // Tidy up block headings by moving CSS property names and their values onto
     // the same line and inserting a colon between them.
-    text = text.replace(/(.+)\r\n(.+)/g, "$1: $2;");
-    text = text.replace(/(.+)\n(.+)/g, "$1: $2;");
+    text = text.replace(/\t(.+)\t\t(.+)/g, "$1: $2");
 
-    let outerDoc = this.styleInspector.outerIFrame.ownerDocument;
-    clipboardHelper.copyString(text, outerDoc);
+    // Remove any MDN link titles
+    text = text.replace(CssHtmlTree.HELP_LINK_TITLE, "");
+    clipboardHelper.copyString(text, this.doc);
 
     if (aEvent) {
       aEvent.preventDefault();
+    }
+  },
+
+  /**
+   * Copy declaration.
+   *
+   * @param aEvent The event object
+   */
+  computedViewCopyDeclaration: function si_computedViewCopyDeclaration(aEvent)
+  {
+    let node = this.doc.popupNode;
+    if (!node) {
+      return;
+    }
+
+    if (!node.classList.contains("property-view")) {
+      while (node = node.parentElement) {
+        if (node.classList.contains("property-view")) {
+          break;
+        }
+      }
+    }
+    if (node) {
+      let name = node.querySelector(".property-name").textContent;
+      let value = node.querySelector(".property-value").textContent;
+
+      clipboardHelper.copyString(name + ": " + value + ";", this.doc);
+    }
+  },
+
+  /**
+   * Copy property name.
+   *
+   * @param aEvent The event object
+   */
+  computedViewCopyProperty: function si_computedViewCopyProperty(aEvent)
+  {
+    let node = this.doc.popupNode;
+    if (!node) {
+      return;
+    }
+
+    if (!node.classList.contains("property-view")) {
+      while (node = node.parentElement) {
+        if (node.classList.contains("property-view")) {
+          break;
+        }
+      }
+    }
+    if (node) {
+      node = node.querySelector(".property-name");
+      clipboardHelper.copyString(node.textContent, this.doc);
+    }
+  },
+
+  /**
+   * Copy property value.
+   *
+   * @param aEvent The event object
+   */
+  computedViewCopyPropertyValue: function si_computedViewCopyPropertyValue(aEvent)
+  {
+    let node = this.doc.popupNode;
+    if (!node) {
+      return;
+    }
+
+    if (!node.classList.contains("property-view")) {
+      while (node = node.parentElement) {
+        if (node.classList.contains("property-view")) {
+          break;
+        }
+      }
+    }
+    if (node) {
+      node = node.querySelector(".property-value");
+      clipboardHelper.copyString(node.textContent, this.doc);
     }
   },
 
@@ -471,8 +658,8 @@ CssHtmlTree.prototype = {
     delete this.viewedElement;
 
     // Remove event listeners
-    this.includeBrowserStylesCheckbox.removeEventListener("command",
-      this.includeBrowserStylesChanged);
+    this.onlyUserStylesCheckbox.removeEventListener("command",
+      this.onlyUserStylesChanged);
     this.searchField.removeEventListener("command", this.filterChanged);
 
     // Cancel tree construction
@@ -481,23 +668,22 @@ CssHtmlTree.prototype = {
     }
 
     // Remove context menu
-    let outerDoc = this.styleInspector.outerIFrame.ownerDocument;
-    let menu = outerDoc.querySelector("#computed-view-context-menu");
+    let menu = this.doc.querySelector("#computed-view-context-menu");
     if (menu) {
       // Copy selected
-      let menuitem = outerDoc.querySelector("#computed-view-copy");
+      let menuitem = this.doc.querySelector("#computed-view-copy");
       menuitem.removeEventListener("command", this.siBoundCopy);
 
       // Copy property
-      menuitem = outerDoc.querySelector("#computed-view-copy-declaration");
+      menuitem = this.doc.querySelector("#computed-view-copy-declaration");
       menuitem.removeEventListener("command", this.siBoundCopyDeclaration);
 
       // Copy property name
-      menuitem = outerDoc.querySelector("#computed-view-copy-property");
+      menuitem = this.doc.querySelector("#computed-view-copy-property");
       menuitem.removeEventListener("command", this.siBoundCopyProperty);
 
       // Copy property value
-      menuitem = outerDoc.querySelector("#computed-view-copy-property-value");
+      menuitem = this.doc.querySelector("#computed-view-copy-property-value");
       menuitem.removeEventListener("command", this.siBoundCopyPropertyValue);
 
       menu.removeEventListener("popupshowing", this.siBoundMenuUpdate);
@@ -506,7 +692,6 @@ CssHtmlTree.prototype = {
 
     // Remove bound listeners
     this.styleDocument.removeEventListener("copy", this.siBoundCopy);
-    this.styleDocument.removeEventListener("mousedown", this.siFocusWindow);
 
     // Nodes used in templating
     delete this.root;
@@ -518,9 +703,10 @@ CssHtmlTree.prototype = {
 
     // The element that we're inspecting, and the document that it comes from.
     delete this.propertyViews;
-    delete this.styleWindow;
-    delete this.styleDocument;
+    delete this.styleWin;
     delete this.cssLogic;
+    delete this.doc;
+    delete this.win;
     delete this.styleInspector;
   },
 };
@@ -533,13 +719,13 @@ CssHtmlTree.prototype = {
  * @param {string} aName the CSS property name for which this PropertyView
  * instance will render the rules.
  */
-this.PropertyView = function PropertyView(aTree, aName)
+function PropertyView(aTree, aName)
 {
   this.tree = aTree;
   this.name = aName;
   this.getRTLAttr = aTree.getRTLAttr;
 
-  this.link = "https://developer.mozilla.org/CSS/" + aName;
+  this.link = "https://developer.mozilla.org/en/CSS/" + aName;
 
   this.templateMatchedSelectors = aTree.styleDocument.getElementById("templateMatchedSelectors");
 }
@@ -560,14 +746,32 @@ PropertyView.prototype = {
   // Are matched rules expanded?
   matchedExpanded: false,
 
+  // Are unmatched rules expanded?
+  unmatchedExpanded: false,
+
+  // Unmatched selector table
+  unmatchedSelectorTable: null,
+
   // Matched selector container
   matchedSelectorsContainer: null,
 
   // Matched selector expando
   matchedExpander: null,
 
+  // Unmatched selector expando
+  unmatchedExpander: null,
+
+  // Unmatched selector container
+  unmatchedSelectorsContainer: null,
+
+  // Unmatched title block
+  unmatchedTitleBlock: null,
+
   // Cache for matched selector views
   _matchedSelectorViews: null,
+
+  // Cache for unmatched selector views
+  _unmatchedSelectorViews: null,
 
   // The previously selected element used for the selector view caches
   prevViewedElement: null,
@@ -600,11 +804,19 @@ PropertyView.prototype = {
   },
 
   /**
+   * Does the property have any unmatched selectors?
+   */
+  get hasUnmatchedSelectors()
+  {
+    return this.name in this.tree.hasUnmatchedSelectors;
+  },
+
+  /**
    * Should this property be visible?
    */
   get visible()
   {
-    if (!this.tree.includeBrowserStyles && !this.hasMatchedSelectors) {
+    if (this.tree.showOnlyUserStyles && !this.hasMatchedSelectors) {
       return false;
     }
 
@@ -627,7 +839,7 @@ PropertyView.prototype = {
     if (this.visible) {
       this.tree._darkStripe = !this.tree._darkStripe;
       let darkValue = this.tree._darkStripe ?
-                      "property-view theme-bg-darker" : "property-view";
+                      "property-view darkrow" : "property-view";
       return darkValue;
     }
     return "property-view-hidden";
@@ -642,7 +854,7 @@ PropertyView.prototype = {
   {
     if (this.visible) {
       let darkValue = this.tree._darkStripe ?
-                      "property-content theme-bg-darker" : "property-content";
+                      "property-content darkrow" : "property-content";
       return darkValue;
     }
     return "property-content-hidden";
@@ -650,12 +862,16 @@ PropertyView.prototype = {
 
   buildMain: function PropertyView_buildMain()
   {
-    let doc = this.tree.styleDocument;
-    this.element = doc.createElementNS(HTML_NS, "div");
+    let doc = this.tree.doc;
+    this.element = doc.createElementNS(HTML_NS, "tr");
     this.element.setAttribute("class", this.propertyHeaderClassName);
 
+    this.expanderContainer = doc.createElementNS(HTML_NS, "td");
+    this.element.appendChild(this.expanderContainer);
+    this.expanderContainer.setAttribute("class", "expander-container");
+
     this.matchedExpander = doc.createElementNS(HTML_NS, "div");
-    this.matchedExpander.className = "expander theme-twisty";
+    this.matchedExpander.setAttribute("class", "match expander");
     this.matchedExpander.setAttribute("tabindex", "0");
     this.matchedExpander.addEventListener("click",
       this.matchedExpanderClick.bind(this), false);
@@ -669,32 +885,44 @@ PropertyView.prototype = {
         this.matchedExpanderClick(aEvent);
       }
     }.bind(this), false);
-    this.element.appendChild(this.matchedExpander);
+    this.expanderContainer.appendChild(this.matchedExpander);
 
-    this.nameNode = doc.createElementNS(HTML_NS, "div");
+    this.nameNode = doc.createElementNS(HTML_NS, "td");
     this.element.appendChild(this.nameNode);
-    this.nameNode.setAttribute("class", "property-name theme-fg-color5");
-    this.nameNode.textContent = this.nameNode.title = this.name;
+    this.nameNode.setAttribute("class", "property-name");
+    this.nameNode.textContent = this.name;
     this.nameNode.addEventListener("click", function(aEvent) {
       this.matchedExpander.focus();
     }.bind(this), false);
 
-    this.valueNode = doc.createElementNS(HTML_NS, "div");
+    let helpcontainer = doc.createElementNS(HTML_NS, "td");
+    this.element.appendChild(helpcontainer);
+    helpcontainer.setAttribute("class", "helplink-container");
+
+    let helplink = doc.createElementNS(HTML_NS, "a");
+    helpcontainer.appendChild(helplink);
+    helplink.setAttribute("class", "helplink");
+    helplink.setAttribute("title", CssHtmlTree.HELP_LINK_TITLE);
+    helplink.textContent = CssHtmlTree.HELP_LINK_TITLE;
+    helplink.addEventListener("click", this.mdnLinkClick.bind(this), false);
+
+    this.valueNode = doc.createElementNS(HTML_NS, "td");
     this.element.appendChild(this.valueNode);
-    this.valueNode.setAttribute("class", "property-value theme-fg-color1");
+    this.valueNode.setAttribute("class", "property-value");
     this.valueNode.setAttribute("dir", "ltr");
-    this.valueNode.textContent = this.valueNode.title = this.value;
+    this.valueNode.textContent = this.value;
 
     return this.element;
   },
 
   buildSelectorContainer: function PropertyView_buildSelectorContainer()
   {
-    let doc = this.tree.styleDocument;
-    let element = doc.createElementNS(HTML_NS, "div");
+    let doc = this.tree.doc;
+    let element = doc.createElementNS(HTML_NS, "tr");
     element.setAttribute("class", this.propertyContentClassName);
-    this.matchedSelectorsContainer = doc.createElementNS(HTML_NS, "div");
-    this.matchedSelectorsContainer.setAttribute("class", "matchedselectors");
+    this.matchedSelectorsContainer = doc.createElementNS(HTML_NS, "td");
+    this.matchedSelectorsContainer.setAttribute("colspan", "0");
+    this.matchedSelectorsContainer.setAttribute("class", "rulelink");
     element.appendChild(this.matchedSelectorsContainer);
 
     return element;
@@ -710,20 +938,21 @@ PropertyView.prototype = {
 
     if (this.prevViewedElement != this.tree.viewedElement) {
       this._matchedSelectorViews = null;
+      this._unmatchedSelectorViews = null;
       this.prevViewedElement = this.tree.viewedElement;
     }
 
     if (!this.tree.viewedElement || !this.visible) {
-      this.valueNode.textContent = this.valueNode.title = "";
+      this.valueNode.innerHTML = "";
       this.matchedSelectorsContainer.parentNode.hidden = true;
-      this.matchedSelectorsContainer.textContent = "";
+      this.matchedSelectorsContainer.innerHTML = "";
       this.matchedExpander.removeAttribute("open");
       return;
     }
 
     this.tree.numVisibleProperties++;
-    this.valueNode.textContent = this.valueNode.title = this.propertyInfo.value;
-    this.refreshMatchedSelectors();
+    this.valueNode.innerHTML = this.propertyInfo.value;
+    this.refreshAllSelectors();
   },
 
   /**
@@ -751,6 +980,51 @@ PropertyView.prototype = {
   },
 
   /**
+   * Refresh the panel unmatched rules.
+   */
+  refreshUnmatchedSelectors: function PropertyView_refreshUnmatchedSelectors()
+  {
+    let hasMatchedSelectors = this.hasMatchedSelectors;
+
+    this.unmatchedSelectorTable.hidden = !this.unmatchedExpanded;
+
+    if (hasMatchedSelectors) {
+      this.unmatchedSelectorsContainer.hidden = !this.matchedExpanded ||
+        !this.hasUnmatchedSelectors;
+      this.unmatchedTitleBlock.hidden = false;
+    } else {
+      this.unmatchedSelectorsContainer.hidden = !this.unmatchedExpanded;
+      this.unmatchedTitleBlock.hidden = true;
+    }
+
+    if (this.unmatchedExpanded && this.hasUnmatchedSelectors) {
+      CssHtmlTree.processTemplate(this.templateUnmatchedSelectors,
+        this.unmatchedSelectorTable, this);
+      if (!hasMatchedSelectors) {
+        this.matchedExpander.setAttribute("open", "");
+        this.unmatchedSelectorTable.classList.add("only-unmatched");
+      } else {
+        this.unmatchedExpander.setAttribute("open", "");
+        this.unmatchedSelectorTable.classList.remove("only-unmatched");
+      }
+    } else {
+      if (!hasMatchedSelectors) {
+        this.matchedExpander.removeAttribute("open");
+      }
+      this.unmatchedExpander.removeAttribute("open");
+      this.unmatchedSelectorTable.innerHTML = "";
+    }
+  },
+
+  /**
+   * Refresh the panel matched and unmatched rules
+   */
+  refreshAllSelectors: function PropertyView_refreshAllSelectors()
+  {
+    this.refreshMatchedSelectors();
+  },
+
+  /**
    * Provide access to the matched SelectorViews that we are currently
    * displaying.
    */
@@ -767,6 +1041,23 @@ PropertyView.prototype = {
     return this._matchedSelectorViews;
   },
 
+    /**
+   * Provide access to the unmatched SelectorViews that we are currently
+   * displaying.
+   */
+  get unmatchedSelectorViews()
+  {
+    if (!this._unmatchedSelectorViews) {
+      this._unmatchedSelectorViews = [];
+      this.propertyInfo.unmatchedSelectors.forEach(
+        function unmatchedSelectorViews_convert(aSelectorInfo) {
+          this._unmatchedSelectorViews.push(new SelectorView(this.tree, aSelectorInfo));
+        }, this);
+    }
+
+    return this._unmatchedSelectorViews;
+  },
+
   /**
    * The action when a user expands matched selectors.
    *
@@ -776,7 +1067,17 @@ PropertyView.prototype = {
   matchedExpanderClick: function PropertyView_matchedExpanderClick(aEvent)
   {
     this.matchedExpanded = !this.matchedExpanded;
-    this.refreshMatchedSelectors();
+    this.refreshAllSelectors();
+    aEvent.preventDefault();
+  },
+
+  /**
+   * The action when a user expands unmatched selectors.
+   */
+  unmatchedSelectorsClick: function PropertyView_unmatchedSelectorsClick(aEvent)
+  {
+    this.unmatchedExpanded = !this.unmatchedExpanded;
+    this.refreshUnmatchedSelectors();
     aEvent.preventDefault();
   },
 
@@ -785,12 +1086,7 @@ PropertyView.prototype = {
    */
   mdnLinkClick: function PropertyView_mdnLinkClick(aEvent)
   {
-    let inspector = this.tree.styleInspector.inspector;
-
-    if (inspector.target.tab) {
-      let browserWin = inspector.target.tab.ownerDocument.defaultView;
-      browserWin.openUILinkIn(this.link, "tab");
-    }
+    this.tree.win.openUILinkIn(this.link, "tab");
     aEvent.preventDefault();
   },
 };
@@ -813,11 +1109,11 @@ function SelectorView(aTree, aSelectorInfo)
  * @see CssLogic.STATUS
  */
 SelectorView.STATUS_NAMES = [
-  // "Parent Match", "Matched", "Best Match"
+  // "Unmatched", "Parent Match", "Matched", "Best Match"
 ];
 
 SelectorView.CLASS_NAMES = [
-  "parentmatch", "matched", "bestmatch"
+  "unmatched", "parentmatch", "matched", "bestmatch"
 ];
 
 SelectorView.prototype = {
@@ -838,7 +1134,7 @@ SelectorView.prototype = {
 
     for (let status in CssLogic.STATUS) {
       let i = CssLogic.STATUS[status];
-      if (i > CssLogic.STATUS.UNMATCHED) {
+      if (i > -1) {
         let value = CssHtmlTree.l10n("rule.status." + status);
         // Replace normal spaces with non-breaking spaces
         SelectorView.STATUS_NAMES[i] = value.replace(/ /g, '\u00A0');
@@ -859,23 +1155,32 @@ SelectorView.prototype = {
    */
   get statusClass()
   {
-    return SelectorView.CLASS_NAMES[this.selectorInfo.status - 1];
+    return SelectorView.CLASS_NAMES[this.selectorInfo.status];
   },
 
   /**
    * A localized Get localized human readable info
    */
+  humanReadableText: function SelectorView_humanReadableText(aElement)
+  {
+    if (this.tree.getRTLAttr == "rtl") {
+      return this.selectorInfo.value + " \u2190 " + this.text(aElement);
+    } else {
+      return this.text(aElement) + " \u2192 " + this.selectorInfo.value;
+    }
+  },
+
   text: function SelectorView_text(aElement) {
     let result = this.selectorInfo.selector.text;
     if (this.selectorInfo.elementStyle) {
       let source = this.selectorInfo.sourceElement;
-      let inspector = this.tree.styleInspector.inspector;
-
-      if (inspector.selection.node == source) {
+      let IUI = this.tree.styleInspector.IUI;
+      if (IUI && IUI.selection == source) {
         result = "this";
       } else {
         result = CssLogic.getShortName(source);
       }
+
       result += ".style";
     }
 
@@ -892,35 +1197,27 @@ SelectorView.prototype = {
 
   /**
    * When a css link is clicked this method is called in order to either:
-   *   1. Open the link in view source (for chrome stylesheets).
+   *   1. Open the link in view source (for element style attributes).
    *   2. Open the link in the style editor.
    *
-   *   We can only view stylesheets contained in document.styleSheets inside the
-   *   style editor.
+   *   Like the style editor, we only view stylesheets contained in
+   *   document.styleSheets inside the style editor.
    *
    * @param aEvent The click event
    */
   openStyleEditor: function(aEvent)
   {
-    let inspector = this.tree.styleInspector.inspector;
-    let contentDoc = inspector.selection.document;
-    let cssSheet = this.selectorInfo.selector._cssRule._cssSheet;
+    let rule = this.selectorInfo.selector._cssRule;
+    let doc = this.tree.win.content.document;
     let line = this.selectorInfo.ruleLine || 0;
+    let cssSheet = rule._cssSheet;
     let contentSheet = false;
     let styleSheet;
     let styleSheets;
 
-    // The style editor can only display stylesheets coming from content because
-    // chrome stylesheets are not listed in the editor's stylesheet selector.
-    //
-    // If the stylesheet is a content stylesheet we send it to the style
-    // editor else we display it in the view source window.
-    //
-    // We check if cssSheet exists in case of inline styles (which contain no
-    // sheet)
     if (cssSheet) {
       styleSheet = cssSheet.domSheet;
-      styleSheets = contentDoc.styleSheets;
+      styleSheets = doc.styleSheets;
 
       // Array.prototype.indexOf always returns -1 here so we loop through
       // the styleSheets array instead.
@@ -933,21 +1230,15 @@ SelectorView.prototype = {
     }
 
     if (contentSheet) {
-      let target = inspector.target;
-
-      if (styleEditorDefinition.isTargetSupported(target)) {
-        gDevTools.showToolbox(target, "styleeditor").then(function(toolbox) {
-          toolbox.getCurrentPanel().selectStyleSheet(styleSheet, line);
-        });
-      }
+      this.tree.win.StyleEditor.openChrome(styleSheet, line);
     } else {
       let href = styleSheet ? styleSheet.href : "";
-      let viewSourceUtils = inspector.viewSourceUtils;
+      let viewSourceUtils = this.tree.win.gViewSourceUtils;
 
       if (this.selectorInfo.sourceElement) {
         href = this.selectorInfo.sourceElement.ownerDocument.location.href;
       }
-      viewSourceUtils.viewSource(href, null, contentDoc, line);
+      viewSourceUtils.viewSource(href, null, doc, line);
     }
   },
 };

@@ -11,8 +11,6 @@
 #include "mozilla/layers/PLayers.h"
 #include "ShadowLayers.h"
 
-using namespace mozilla::gl;
-
 namespace mozilla {
 namespace layers {
 

@@ -8,6 +8,8 @@ package org.mozilla.gecko.gfx;
 import android.opengl.GLES20;
 import android.util.Log;
 
+import java.util.concurrent.SynchronousQueue;
+
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.egl.EGLContext;
@@ -15,78 +17,45 @@ import javax.microedition.khronos.egl.EGLDisplay;
 import javax.microedition.khronos.egl.EGLSurface;
 
 public class GfxInfoThread extends Thread {
+
     private static final String LOGTAG = "GfxInfoThread";
 
-    private static GfxInfoThread sInstance;
-    private String mData;
+    private SynchronousQueue<String> mDataQueue;
 
-    private GfxInfoThread() {
+    public GfxInfoThread() {
+        mDataQueue = new SynchronousQueue<String>();
     }
 
-    public static void startThread() {
-        if (sInstance == null) {
-            sInstance = new GfxInfoThread();
-            sInstance.start();
-        }
-    }
-
-    public static boolean hasData() {
-        // This should never be called before startThread(), so if
-        // sInstance is null here, then we know the thread was created,
-        // ran to completion, and getData() was called. Therefore hasData()
-        // should return true. If sInstance is not null, then we need to
-        // check if the mData field on it is null or not and return accordingly.
-        // Note that we keep a local copy of sInstance to avoid race conditions
-        // as getData() may be called concurrently.
-        GfxInfoThread instance = sInstance;
-        if (instance == null) {
-            return true;
-        }
-        synchronized (instance) {
-            return instance.mData != null;
-        }
-    }
-
-    public static String getData() {
-        // This should be called exactly once after startThread(), so we
-        // know sInstance will be non-null here
-        String data = sInstance.getDataImpl();
-        sInstance = null;
-        return data;
-    }
-
-    private synchronized void error(String msg) {
+    private void error(String msg) {
         Log.e(LOGTAG, msg);
-        mData = "ERROR\n" + msg + "\n";
-        notifyAll();
+        try {
+            mDataQueue.put("ERROR\n" + msg + "\n");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void eglError(EGL10 egl, String msg) {
         error(msg + " (EGL error " + Integer.toHexString(egl.eglGetError()) + ")");
     }
 
-    private synchronized String getDataImpl() {
-        if (mData != null) {
-            return mData;
-        }
+    public String getData() {
+        String data = mDataQueue.poll();
+        if (data != null)
+            return data;
 
-        Log.w(LOGTAG, "We need the GfxInfo data, but it is not yet available. " +
-                      "We have to wait for it, so expect abnormally long startup times. " +
-                      "Please report a Mozilla bug.");
-
+        error("We need the GfxInfo data, but it is not yet available. " +
+              "We have to wait for it, so expect abnormally long startup times. " +
+              "Please report a Mozilla bug.");
         try {
-            while (mData == null) {
-                wait();
-            }
+            data = mDataQueue.take();
         } catch (InterruptedException e) {
-            Log.w(LOGTAG, "Thread interrupted", e);
             Thread.currentThread().interrupt();
         }
         Log.i(LOGTAG, "GfxInfo data is finally available.");
-        return mData;
+        return data;
     }
 
-    @Override
     public void run() {
         // initialize EGL
         EGL10 egl = (EGL10) EGLContext.getEGL();
@@ -211,9 +180,10 @@ public class GfxInfoThread extends Thread {
 
         // finally send the data. Notice that we've already freed the EGL resources, so that they don't
         // remain there until the data is read.
-        synchronized (this) {
-            mData = data;
-            notifyAll();
+        try {
+            mDataQueue.put(data);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 }

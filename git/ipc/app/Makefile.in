@@ -9,6 +9,8 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = ipc
+
 include $(topsrcdir)/ipc/app/defs.mk
 PROGRAM = $(MOZ_CHILD_PROCESS_NAME)
 
@@ -27,13 +29,6 @@ else
 LIBS += \
   $(XPCOM_LIBS) \
   $(NSPR_LIBS) \
-  $(NULL)
-endif
-
-ifeq (gonk,$(MOZ_WIDGET_TOOLKIT))
-LIBS += \
-  -lbinder \
-  -lutils \
   $(NULL)
 endif
 
@@ -82,6 +77,10 @@ ifeq ($(OS_ARCH),WINNT) #{
 #
 ifndef GNU_CC #{
 LDFLAGS += /HEAP:0x40000
+ifeq ($(OS_TEST),x86_64) #{
+# set stack to 2MB on x64 build.  See bug 582910
+LDFLAGS += -STACK:2097152
+endif #}
 endif #}
 endif #}
 

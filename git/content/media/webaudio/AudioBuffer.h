@@ -4,8 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef AudioBuffer_h_
-#define AudioBuffer_h_
+#pragma once
 
 #include "nsWrapperCache.h"
 #include "nsCycleCollectionParticipant.h"
@@ -14,11 +13,9 @@
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "AudioContext.h"
-#include "AudioSegment.h"
-#include "AudioNodeEngine.h"
 
 struct JSContext;
-class JSObject;
+struct JSObject;
 
 namespace mozilla {
 
@@ -26,18 +23,13 @@ class ErrorResult;
 
 namespace dom {
 
-/**
- * An AudioBuffer keeps its data either in the mJSChannels objects, which
- * are Float32Arrays, or in mSharedChannels if the mJSChannels objects have
- * been neutered.
- */
 class AudioBuffer MOZ_FINAL : public nsISupports,
                               public nsWrapperCache,
                               public EnableWebAudioCheck
 {
 public:
   AudioBuffer(AudioContext* aContext, uint32_t aLength,
-              float aSampleRate);
+              uint32_t aSampleRate);
   ~AudioBuffer();
 
   // This function needs to be called in order to allocate
@@ -53,79 +45,39 @@ public:
     return mContext;
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
+                               bool* aTriedToWrap);
 
   float SampleRate() const
   {
     return mSampleRate;
   }
 
-  int32_t Length() const
+  uint32_t Length() const
   {
     return mLength;
   }
 
-  double Duration() const
+  float Duration() const
   {
-    return mLength / static_cast<double> (mSampleRate);
+    return mLength / mSampleRate;
   }
 
   uint32_t NumberOfChannels() const
   {
-    return mJSChannels.Length();
+    return mChannels.Length();
   }
 
-  /**
-   * If mSharedChannels is non-null, copies its contents to
-   * new Float32Arrays in mJSChannels. Returns a Float32Array.
-   */
   JSObject* GetChannelData(JSContext* aJSContext, uint32_t aChannel,
-                           ErrorResult& aRv);
+                           ErrorResult& aRv) const;
 
-  JSObject* GetChannelData(uint32_t aChannel) const {
-    // Doesn't perform bounds checking
-    MOZ_ASSERT(aChannel < mJSChannels.Length());
-    return mJSChannels[aChannel];
-  }
-
-  /**
-   * Returns a ThreadSharedFloatArrayBufferList containing the sample data
-   * at aRate. Sets *aLength to the number of samples per channel.
-   */
-  ThreadSharedFloatArrayBufferList* GetThreadSharedChannelsForRate(JSContext* aContext,
-                                                                   uint32_t aRate,
-                                                                   uint32_t* aLength);
-
-  // aContents should either come from JS_AllocateArrayBufferContents or
-  // JS_StealArrayBufferContents.
-  void SetChannelDataFromArrayBufferContents(JSContext* aJSContext,
-                                             uint32_t aChannel,
-                                             void* aContents);
-
-protected:
-  void RestoreJSChannelData(JSContext* aJSContext);
-  void ClearJSChannels();
-
+private:
   nsRefPtr<AudioContext> mContext;
-  // Float32Arrays
-  AutoFallibleTArray<JSObject*,2> mJSChannels;
-
-  // mSharedChannels aggregates the data from mJSChannels. This is non-null
-  // if and only if the mJSChannels are neutered.
-  nsRefPtr<ThreadSharedFloatArrayBufferList> mSharedChannels;
-
-  // One-element cache of resampled data. Can be non-null only if mSharedChannels
-  // is non-null.
-  nsRefPtr<ThreadSharedFloatArrayBufferList> mResampledChannels;
-  uint32_t mResampledChannelsRate;
-  uint32_t mResampledChannelsLength;
-
+  FallibleTArray<JSObject*> mChannels;
   uint32_t mLength;
   float mSampleRate;
 };
 
 }
 }
-
-#endif
 

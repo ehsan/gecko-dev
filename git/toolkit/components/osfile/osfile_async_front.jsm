@@ -19,25 +19,27 @@
  * @rejects {B} reason
  */
 
-this.EXPORTED_SYMBOLS = ["OS"];
+let EXPORTED_SYMBOLS = ["OS"];
 
-Components.utils.import("resource://gre/modules/osfile/osfile_shared_allthreads.jsm", this);
+Components.utils.import("resource://gre/modules/osfile/osfile_shared_allthreads.jsm");
 
 let LOG = OS.Shared.LOG.bind(OS.Shared, "Controller");
 let isTypedArray = OS.Shared.isTypedArray;
 
 // A simple flag used to control debugging messages.
-let DEBUG = OS.Shared.DEBUG;
+// FIXME: Once this library has been battle-tested, this flag will
+// either be removed or replaced with a preference.
+const DEBUG = false;
 
 // The constructor for file errors.
 let OSError;
 if (OS.Constants.Win) {
-  Components.utils.import("resource://gre/modules/osfile/osfile_win_allthreads.jsm", this);
-  Components.utils.import("resource://gre/modules/osfile/ospath_win_back.jsm", this);
+  Components.utils.import("resource://gre/modules/osfile/osfile_win_allthreads.jsm");
+  Components.utils.import("resource://gre/modules/osfile/ospath_win_back.jsm");
   OSError = OS.Shared.Win.Error;
 } else if (OS.Constants.libc) {
-  Components.utils.import("resource://gre/modules/osfile/osfile_unix_allthreads.jsm", this);
-  Components.utils.import("resource://gre/modules/osfile/ospath_unix_back.jsm", this);
+  Components.utils.import("resource://gre/modules/osfile/osfile_unix_allthreads.jsm");
+  Components.utils.import("resource://gre/modules/osfile/ospath_unix_back.jsm");
   OSError = OS.Shared.Unix.Error;
 } else {
   throw new Error("I am neither under Windows nor under a Posix system");
@@ -45,68 +47,15 @@ if (OS.Constants.Win) {
 let Type = OS.Shared.Type;
 
 // The library of promises.
-Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js", this);
-
-// The implementation of communications
-Components.utils.import("resource://gre/modules/osfile/_PromiseWorker.jsm", this);
-
-Components.utils.import("resource://gre/modules/Services.jsm", this);
-
-// If profileDir is not available, osfile.jsm has been imported before the
-// profile is setup. In this case, we need to observe "profile-do-change"
-// and set OS.Constants.Path.profileDir as soon as it becomes available.
-if (!("profileDir" in OS.Constants.Path) || !("localProfileDir" in OS.Constants.Path)) {
-  let observer = function observer() {
-    Services.obs.removeObserver(observer, "profile-do-change");
-
-    let profileDir = Services.dirsvc.get("ProfD", Components.interfaces.nsIFile).path;
-    OS.Constants.Path.profileDir = profileDir;
-
-    let localProfileDir = Services.dirsvc.get("ProfLD", Components.interfaces.nsIFile).path;
-    OS.Constants.Path.localProfileDir = localProfileDir;
-  };
-  Services.obs.addObserver(observer, "profile-do-change", false);
-}
+Components.utils.import("resource://gre/modules/commonjs/promise/core.js");
 
 /**
- * A global constant used as a default refs parameter value when cloning.
+ * Return a shallow clone of the enumerable properties of an object
  */
-const noRefs = [];
-
-/**
- * Return a shallow clone of the enumerable properties of an object.
- *
- * Utility used whenever normalizing options requires making (shallow)
- * changes to an option object. The copy ensures that we do not modify
- * a client-provided object by accident.
- *
- * Note: to reference and not copy specific fields, provide an optional
- * |refs| argument containing their names.
- *
- * @param {JSON} object Options to be cloned.
- * @param {Array} refs An optional array of field names to be passed by
- * reference instead of copying.
- */
-let clone = function clone(object, refs = noRefs) {
+let clone = function clone(object) {
   let result = {};
-  // Make a reference between result[key] and object[key].
-  let refer = function refer(result, key, object) {
-    Object.defineProperty(result, key, {
-        enumerable: true,
-        get: function() {
-            return object[key];
-        },
-        set: function(value) {
-            object[key] = value;
-        }
-    });
-  };
   for (let k in object) {
-    if (refs.indexOf(k) < 0) {
-      result[k] = object[k];
-    } else {
-      refer(result, k, object);
-    }
+    result[k] = object[k];
   }
   return result;
 };
@@ -116,98 +65,191 @@ let clone = function clone(object, refs = noRefs) {
  */
 const noOptions = {};
 
-let worker = new PromiseWorker(
-  "resource://gre/modules/osfile/osfile_async_worker.js", LOG);
-let Scheduler = {
-  post: function post(...args) {
-    // By convention, the last argument of any message may be an |options| object.
-    let methodArgs = args[1];
-    let options = methodArgs ? methodArgs[methodArgs.length - 1] : null;
-    let promise = worker.post.apply(worker, args);
-    return promise.then(
-      function onSuccess(data) {
-        // Check for duration and return result.
-        if (!options) {
-          return data.ok;
-        }
-        // Check for options.outExecutionDuration.
-        if (typeof options !== "object" ||
-          !("outExecutionDuration" in options)) {
-          return data.ok;
-        }
-        // If data.durationMs is not present, return data.ok (there was an
-        // exception applying the method).
-        if (!("durationMs" in data)) {
-          return data.ok;
-        }
-        // Accumulate (or initialize) outExecutionDuration
-        if (typeof options.outExecutionDuration == "number") {
-          options.outExecutionDuration += data.durationMs;
-        } else {
-          options.outExecutionDuration = data.durationMs;
-        }
-        return data.ok;
-      },
-      function onError(error) {
-        // Decode any serialized error
-        if (error instanceof PromiseWorker.WorkerError) {
-          throw OS.File.Error.fromMsg(error.data);
-        } else {
-          throw error;
-        }
+/**
+ * An implementation of queues (FIFO).
+ *
+ * The current implementation uses two arrays and runs in O(n * log(n)).
+ * It is optimized for the case in which many items are enqueued sequentially.
+ */
+let Queue = function Queue() {
+  // The array to which the following |push| operations will add elements.
+  // If |null|, |this._pushing| will receive a new array.
+  // @type {Array|null}
+  this._pushing = null;
+
+  // The array from which the following |pop| operations will remove elements.
+  // If |null|, |this._popping| will receive |this._pushing|
+  // @type {Array|null}
+  this._popping = null;
+
+  // The number of items in |this._popping| that have been popped already
+  this._popindex = 0;
+};
+Queue.prototype = {
+  /**
+   * Push a new element
+   */
+  push: function push(x) {
+    if (!this._pushing) {
+      this._pushing = [];
+    }
+    this._pushing.push({ value: x });
+  },
+  /**
+   * Pop an element.
+   *
+   * If the queue is empty, raise |Error|.
+   */
+  pop: function pop() {
+    if (!this._popping) {
+      if (!this._pushing) {
+        throw new Error("Queue is empty");
       }
-    );
+      this._popping = this._pushing;
+      this._pushing = null;
+      this._popindex = 0;
+    }
+    let result = this._popping[this._popindex];
+    delete this._popping[this._popindex];
+    ++this._popindex;
+    if (this._popindex >= this._popping.length) {
+      this._popping = null;
+    }
+    return result.value;
   }
 };
 
-// Update worker's DEBUG flag if it's true.
-if (DEBUG === true) {
-  Scheduler.post("SET_DEBUG", [DEBUG]);
-}
-
-// Define a new getter and setter for OS.Shared.DEBUG to be able to watch
-// for changes to it and update worker's DEBUG accordingly.
-Object.defineProperty(OS.Shared, "DEBUG", {
-    configurable: true,
-    get: function () {
-        return DEBUG;
-    },
-    set: function (newVal) {
-        Scheduler.post("SET_DEBUG", [newVal]);
-        DEBUG = newVal;
-    }
-});
 
 /**
- * An observer function to be used to monitor web-workers-shutdown events.
+ * An object responsible for dispatching messages to
+ * a worker and routing the responses.
+ *
+ * In this implementation, the Scheduler uses only
+ * one worker.
  */
-let webWorkersShutdownObserver = function webWorkersShutdownObserver() {
-  // Send a "System_shutdown" message to the worker.
-  Scheduler.post("System_shutdown").then(function onSuccess(opened) {
-    let msg = "";
-    if (opened.openedFiles.length > 0) {
-      msg += "The following files are still opened:\n" +
-        opened.openedFiles.join("\n");
-    }
-    if (opened.openedDirectoryIterators.length > 0) {
-      msg += "The following directory iterators are still opened:\n" +
-        opened.openedDirectoryIterators.join("\n");
-    }
-    // Only log if file descriptors leaks detected.
-    if (msg) {
-      LOG("WARNING: File descriptors leaks detected.\n" + msg);
-    }
-  });
-};
+let Scheduler = {
+  /**
+   * Instantiate the worker lazily.
+   */
+  get _worker() {
+    delete this._worker;
+    let worker = new ChromeWorker("osfile_async_worker.js");
+    let self = this;
+    Object.defineProperty(this, "_worker", {value:
+      worker
+    });
 
-// Attaching an observer listening to the "web-workers-shutdown".
-Services.obs.addObserver(webWorkersShutdownObserver, "web-workers-shutdown",
-  false);
-// Attaching the same observer listening to the
-// "test.osfile.web-workers-shutdown".
-// Note: This is used for testing purposes.
-Services.obs.addObserver(webWorkersShutdownObserver,
-  "test.osfile.web-workers-shutdown", false);
+    /**
+     * Receive errors that are not instances of OS.File.Error, propagate
+     * them to the listeners.
+     *
+     * The worker knows how to serialize errors that are instances
+     * of |OS.File.Error|. These are treated by |worker.onmessage|.
+     * However, for other errors, we rely on DOM's mechanism for
+     * serializing errors, which transmits these errors through
+     * |worker.onerror|.
+     *
+     * @param {Error} error Some JS error.
+     */
+    worker.onerror = function onerror(error) {
+      if (DEBUG) {
+        LOG("Received uncaught error from worker", JSON.stringify(error.message), error.message);
+      }
+      error.preventDefault();
+      let {deferred} = self._queue.pop();
+      deferred.reject(error);
+    };
+
+    /**
+     * Receive messages from the worker, propagate them to the listeners.
+     *
+     * Messages must have one of the following shapes:
+     * - {ok: some_value} in case of success
+     * - {fail: some_error} in case of error, where
+     *    some_error can be deserialized by
+     *    |OS.File.Error.fromMsg|
+     *
+     * Messages may also contain a field |id| to help
+     * with debugging.
+     *
+     * @param {*} msg The message received from the worker.
+     */
+    worker.onmessage = function onmessage(msg) {
+      if (DEBUG) {
+        LOG("Received message from worker", JSON.stringify(msg.data));
+      }
+      let handler = self._queue.pop();
+      let deferred = handler.deferred;
+      let data = msg.data;
+      if (data.id != handler.id) {
+        throw new Error("Internal error: expecting msg " + handler.id + ", " +
+                        " got " + data.id + ": " + JSON.stringify(msg.data));
+      }
+      if ("ok" in data) {
+        deferred.resolve(data.ok);
+      } else if ("fail" in data) {
+        let error;
+        try {
+          error = OS.File.Error.fromMsg(data.fail);
+        } catch (x) {
+          LOG("Cannot decode OS.File.Error", data.fail, data.id);
+          deferred.reject(x);
+          return;
+        }
+        deferred.reject(error);
+      } else {
+        throw new Error("Message does not respect protocol: " +
+          data.toSource());
+      }
+    };
+    return worker;
+  },
+
+  /**
+   * The queue of deferred, waiting for the completion of their
+   * respective job by the worker.
+   *
+   * Each item in the list may contain an additional field |closure|,
+   * used to store strong references to value that must not be
+   * garbage-collected before the reply has been received (e.g.
+   * arrays).
+   *
+   * @type {Queue<{deferred:deferred, closure:*=}>}
+   */
+  _queue: new Queue(),
+
+  /**
+   * The number of the current message.
+   *
+   * Used for debugging purposes.
+   */
+  _id: 0,
+
+  /**
+   * Post a message to a worker.
+   *
+   * @param {string} fun The name of the function to call.
+   * @param array The contents of the message.
+   * @param closure An object holding references that should not be
+   * garbage-collected before the message treatment is complete.
+   *
+   * @return {promise}
+   */
+  post: function post(fun, array, closure) {
+    let deferred = Promise.defer();
+    let id = ++this._id;
+    let message = {fun: fun, args: array, id: id};
+    if (DEBUG) {
+      LOG("Posting message", JSON.stringify(message));
+    }
+    this._queue.push({deferred:deferred, closure: closure, id: id});
+    this._worker.postMessage(message);
+    if (DEBUG) {
+      LOG("Message posted");
+    }
+    return deferred.promise;
+  }
+};
 
 /**
  * Representation of a file, with asynchronous methods.
@@ -274,14 +316,12 @@ File.prototype = {
    * @resolves {number} The number of bytes effectively read.
    * @rejects {OS.File.Error}
    */
-  readTo: function readTo(buffer, options = noOptions) {
+  readTo: function readTo(buffer, options) {
     // If |buffer| is a typed array and there is no |bytes| options, we
     // need to extract the |byteLength| now, as it will be lost by
     // communication
-    if (isTypedArray(buffer) && (!options || !("bytes" in options))) {
-      // Preserve the reference to |outExecutionDuration| option if it is
-      // passed.
-      options = clone(options, ["outExecutionDuration"]);
+    if (isTypedArray(buffer) && (!options || !"bytes" in options)) {
+      options = clone(options || noOptions);
       options.bytes = buffer.byteLength;
     }
     // Note: Type.void_t.out_ptr.toMsg ensures that
@@ -312,14 +352,12 @@ File.prototype = {
    *
    * @return {number} The number of bytes actually written.
    */
-  write: function write(buffer, options = noOptions) {
+  write: function write(buffer, options) {
     // If |buffer| is a typed array and there is no |bytes| options,
     // we need to extract the |byteLength| now, as it will be lost
     // by communication
-    if (isTypedArray(buffer) && (!options || !("bytes" in options))) {
-      // Preserve the reference to |outExecutionDuration| option if it is
-      // passed.
-      options = clone(options, ["outExecutionDuration"]);
+    if (isTypedArray(buffer) && (!options || !"bytes" in options)) {
+      options = clone(options || noOptions);
       options.bytes = buffer.byteLength;
     }
     // Note: Type.void_t.out_ptr.toMsg ensures that
@@ -343,13 +381,37 @@ File.prototype = {
    * @resolves {Uint8Array} An array containing the bytes read.
    */
   read: function read(nbytes) {
-    let promise = Scheduler.post("File_prototype_read",
-      [this._fdmsg,
-       nbytes]);
-    return promise.then(
-      function onSuccess(data) {
-        return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    // FIXME: Once bug 720949 has landed, we might be able to simplify
+    // the implementation of |readAll|
+    let self = this;
+    let promise;
+    if (nbytes != null) {
+      promise = Promise.resolve(nbytes);
+    } else {
+      promise = this.stat();
+      promise = promise.then(function withStat(stat) {
+        return stat.size;
       });
+    }
+    let array;
+    let size;
+    promise = promise.then(
+      function withSize(aSize) {
+        size = aSize;
+        array = new Uint8Array(size);
+        return self.readTo(array);
+      }
+    );
+    promise = promise.then(
+      function afterReadTo(bytes) {
+        if (bytes == size) {
+          return array;
+        } else {
+          return array.subarray(0, bytes);
+        }
+      }
+    );
+    return promise;
   },
 
   /**
@@ -535,8 +597,6 @@ File.remove = function remove(path) {
  * as per winapi function |CreateDirectory|. If unspecified,
  * use the default security descriptor, inherited from the
  * parent directory.
- * - {bool} ignoreExisting If |true|, do not fail if the
- * directory already exists.
  */
 File.makeDir = function makeDir(path, options) {
   return Scheduler.post("makeDir",
@@ -554,12 +614,8 @@ File.makeDir = function makeDir(path, options) {
  * read from the file.
  */
 File.read = function read(path, bytes) {
-  let promise = Scheduler.post("read",
+  return Scheduler.post("read",
     [Type.path.toMsg(path), bytes], path);
-  return promise.then(
-    function onSuccess(data) {
-      return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-    });
 };
 
 /**
@@ -581,14 +637,6 @@ File.exists = function exists(path) {
  * until the contents are fully written, the destination file is
  * not modified.
  *
- * By default, files are flushed for additional safety, i.e. to lower
- * the risks of losing data in case the device is suddenly removed or
- * in case of sudden shutdown. This additional safety is important
- * for user-critical data (e.g. preferences, application data, etc.)
- * but comes at a performance cost. For non-critical data (e.g. cache,
- * thumbnails, etc.), you may wish to deactivate flushing by passing
- * option |flush: false|.
- *
  * Important note: In the current implementation, option |tmpPath|
  * is required. This requirement should disappear as part of bug 793660.
  *
@@ -601,21 +649,13 @@ File.exists = function exists(path) {
  * - {string} tmpPath The path at which to write the temporary file.
  * - {bool} noOverwrite - If set, this function will fail if a file already
  * exists at |path|. The |tmpPath| is not overwritten if |path| exist.
- * - {bool} flush - If set to |false|, the function will not flush the
- * file. This improves performance considerably, but the resulting
- * behavior is slightly less safe: if the system shuts down improperly
- * (typically due to a kernel freeze or a power failure) or if the
- * device is disconnected or removed before the buffer is flushed, the
- * file may be corrupted.
- *
  *
  * @return {promise}
  * @resolves {number} The number of bytes actually written.
  */
-File.writeAtomic = function writeAtomic(path, buffer, options = noOptions) {
-  // Copy |options| to avoid modifying the original object but preserve the
-  // reference to |outExecutionDuration| option if it is passed.
-  options = clone(options, ["outExecutionDuration"]);
+File.writeAtomic = function writeAtomic(path, buffer, options) {
+  // Copy |options| to avoid modifying the original object
+  options = clone(options || noOptions);
   // As options.tmpPath is a path, we need to encode it as |Type.path| message
   if ("tmpPath" in options) {
     options.tmpPath = Type.path.toMsg(options.tmpPath);
@@ -642,24 +682,8 @@ File.writeAtomic = function writeAtomic(path, buffer, options = noOptions) {
 File.Info = function Info(value) {
   return value;
 };
-if (OS.Constants.Win) {
-  File.Info.prototype = Object.create(OS.Shared.Win.AbstractInfo.prototype);
-} else if (OS.Constants.libc) {
-  File.Info.prototype = Object.create(OS.Shared.Unix.AbstractInfo.prototype);
-} else {
-  throw new Error("I am neither under Windows nor under a Posix system");
-}
-
 File.Info.fromMsg = function fromMsg(value) {
   return new File.Info(value);
-};
-
-/**
- * Get worker's current DEBUG flag.
- * Note: This is used for testing purposes.
- */
-File.GET_DEBUG = function GET_DEBUG() {
-  return Scheduler.post("GET_DEBUG");
 };
 
 /**
@@ -684,18 +708,6 @@ let DirectoryIterator = function DirectoryIterator(path, options) {
   this._isClosed = false;
 };
 DirectoryIterator.prototype = {
-  /**
-   * Determine whether the directory exists.
-   *
-   * @resolves {boolean}
-   */
-  exists: function exists() {
-    return this._itmsg.then(
-      function onSuccess(iterator) {
-        return Scheduler.post("DirectoryIterator_prototype_exists", [iterator]);
-      }
-    );
-  },
   /**
    * Get the next entry in the directory.
    *
@@ -797,6 +809,7 @@ DirectoryIterator.prototype = {
    */
   _next: function _next(iterator) {
     if (this._isClosed) {
+      LOG("DirectoryIterator._next", "closed");
       return this._itmsg;
     }
     let self = this;
@@ -836,14 +849,6 @@ DirectoryIterator.prototype = {
 DirectoryIterator.Entry = function Entry(value) {
   return value;
 };
-if (OS.Constants.Win) {
-  DirectoryIterator.Entry.prototype = Object.create(OS.Shared.Win.AbstractEntry.prototype);
-} else if (OS.Constants.libc) {
-  DirectoryIterator.Entry.prototype = Object.create(OS.Shared.Unix.AbstractEntry.prototype);
-} else {
-  throw new Error("I am neither under Windows nor under a Posix system");
-}
-
 DirectoryIterator.Entry.fromMsg = function fromMsg(value) {
   return new DirectoryIterator.Entry(value);
 };

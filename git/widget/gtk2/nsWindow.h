@@ -106,17 +106,17 @@ public:
                                          int32_t *aX,
                                          int32_t *aY);
     virtual void       SetSizeConstraints(const SizeConstraints& aConstraints);
-    NS_IMETHOD         Move(double aX,
-                            double aY);
+    NS_IMETHOD         Move(int32_t aX,
+                            int32_t aY);
     NS_IMETHOD         Show             (bool aState);
-    NS_IMETHOD         Resize           (double aWidth,
-                                         double aHeight,
-                                         bool   aRepaint);
-    NS_IMETHOD         Resize           (double aX,
-                                         double aY,
-                                         double aWidth,
-                                         double aHeight,
-                                         bool   aRepaint);
+    NS_IMETHOD         Resize           (int32_t aWidth,
+                                         int32_t aHeight,
+                                         bool    aRepaint);
+    NS_IMETHOD         Resize           (int32_t aX,
+                                         int32_t aY,
+                                         int32_t aWidth,
+                                         int32_t aHeight,
+                                         bool     aRepaint);
     virtual bool       IsEnabled() const;
 
 
@@ -144,7 +144,8 @@ public:
     NS_IMETHOD         EnableDragDrop(bool aEnable);
     NS_IMETHOD         CaptureMouse(bool aCapture);
     NS_IMETHOD         CaptureRollupEvents(nsIRollupListener *aListener,
-                                           bool aDoCapture);
+                                           bool aDoCapture,
+                                           bool aConsumeRollupEvent);
     NS_IMETHOD         GetAttention(int32_t aCycleCount);
 
     virtual bool       HasPendingInputEvent();
@@ -255,10 +256,12 @@ public:
     bool               DispatchKeyDownEvent(GdkEventKey *aEvent,
                                             bool *aIsCancelled);
 
-    NS_IMETHOD NotifyIME(NotificationToIME aNotification) MOZ_OVERRIDE;
+    NS_IMETHOD ResetInputState();
     NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                       const InputContextAction& aAction);
     NS_IMETHOD_(InputContext) GetInputContext();
+    NS_IMETHOD CancelIMEComposition();
+    NS_IMETHOD OnIMEFocusChange(bool aFocus);
     NS_IMETHOD GetToggledKeyState(uint32_t aKeyCode, bool* aLEDState);
 
     // These methods are for toplevel windows only.
@@ -324,7 +327,7 @@ protected:
 
 private:
     void               DestroyChildWindows();
-    GtkWidget         *GetToplevelWidget();
+    void               GetToplevelWidget(GtkWidget **aWidget);
     nsWindow          *GetContainerWindow();
     void               SetUrgencyHint(GtkWidget *top_window, bool state);
     void              *SetupPluginPort(void);
@@ -334,8 +337,6 @@ private:
     bool               DispatchContentCommandEvent(int32_t aMsg);
     void               SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
                                            bool aIntersectWithExisting);
-    bool               CheckForRollup(gdouble aMouseX, gdouble aMouseY,
-                                      bool aIsWheel, bool aAlwaysRollup);
     bool               GetDragInfo(nsMouseEvent* aMouseEvent,
                                    GdkWindow** aWindow, gint* aButton,
                                    gint* aRootX, gint* aRootY);
@@ -345,9 +346,12 @@ private:
     MozContainer       *mContainer;
     GdkWindow          *mGdkWindow;
 
+    GtkWindowGroup     *mWindowGroup;
+
     uint32_t            mHasMappedToplevel : 1,
                         mIsFullyObscured : 1,
                         mRetryPointerGrab : 1;
+    GtkWindow          *mTransientParent;
     nsSizeMode          mSizeState;
     PluginType          mPluginType;
 
@@ -361,7 +365,7 @@ private:
     nsRefPtr<gfxASurface> mThebesSurface;
 
 #ifdef ACCESSIBILITY
-    nsRefPtr<mozilla::a11y::Accessible> mRootAccessible;
+    nsRefPtr<Accessible> mRootAccessible;
 
     /**
      * Request to create the accessible for this window if it is top level.

@@ -20,7 +20,6 @@
 #include "jsapi.h"
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
-#include "nsEnumeratorUtils.h"
 #include "nsEscape.h"
 #include "nsIEnumerator.h"
 #include "nsIRDFService.h"
@@ -51,7 +50,6 @@
 #include "nsXPCOMCID.h"
 #include "nsIDocument.h"
 #include "mozilla/Preferences.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla;
 
@@ -158,24 +156,23 @@ nsHTTPIndex::OnFTPControlLog(bool server, const char *msg)
     nsIScriptContext *context = scriptGlobal->GetContext();
     NS_ENSURE_TRUE(context, NS_OK);
 
-    AutoPushJSContext cx(context->GetNativeContext());
+    JSContext* cx = context->GetNativeContext();
     NS_ENSURE_TRUE(cx, NS_OK);
 
     JSObject* global = JS_GetGlobalObject(cx);
     NS_ENSURE_TRUE(global, NS_OK);
 
-    JS::Value params[2];
+    jsval params[2];
 
     nsString unicodeMsg;
     unicodeMsg.AssignWithConversion(msg);
     JSAutoRequest ar(cx);
     JSString* jsMsgStr = JS_NewUCStringCopyZ(cx, (jschar*) unicodeMsg.get());
-    NS_ENSURE_TRUE(jsMsgStr, NS_ERROR_OUT_OF_MEMORY);
 
     params[0] = BOOLEAN_TO_JSVAL(server);
     params[1] = STRING_TO_JSVAL(jsMsgStr);
     
-    JS::Value val;
+    jsval val;
     JS_CallFunctionName(cx,
                         global, 
                         "OnFTPControlLog",
@@ -236,7 +233,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
     nsIScriptContext *context = scriptGlobal->GetContext();
     NS_ENSURE_TRUE(context, NS_ERROR_FAILURE);
 
-    AutoPushJSContext cx(context->GetNativeContext());
+    JSContext* cx = context->GetNativeContext();
     JSObject* global = JS_GetGlobalObject(cx);
 
     // Using XPConnect, wrap the HTTP index object...
@@ -260,7 +257,7 @@ nsHTTPIndex::OnStartRequest(nsIRequest *request, nsISupports* aContext)
                  "unable to get jsobj from xpconnect wrapper");
     if (NS_FAILED(rv)) return rv;
 
-    JS::Value jslistener = OBJECT_TO_JSVAL(jsobj);
+    jsval jslistener = OBJECT_TO_JSVAL(jsobj);
 
     // ...and stuff it into the global context
     JSAutoRequest ar(cx);
@@ -1174,18 +1171,32 @@ nsHTTPIndex::ArcLabelsOut(nsIRDFResource *aSource, nsISimpleEnumerator **_retval
 
 	*_retval = nullptr;
 
-	nsCOMPtr<nsISimpleEnumerator> child, anonArcs;
+	nsCOMPtr<nsISupportsArray> array;
+	rv = NS_NewISupportsArray(getter_AddRefs(array));
+	if (NS_FAILED(rv)) return rv;
+
 	if (isWellknownContainerURI(aSource))
 	{
-		NS_NewSingletonEnumerator(getter_AddRefs(child), kNC_Child);
+		array->AppendElement(kNC_Child);
 	}
 
 	if (mInner)
 	{
+		nsCOMPtr<nsISimpleEnumerator>	anonArcs;
 		rv = mInner->ArcLabelsOut(aSource, getter_AddRefs(anonArcs));
+		bool hasResults;
+		while (NS_SUCCEEDED(rv) &&
+		       NS_SUCCEEDED(anonArcs->HasMoreElements(&hasResults)) &&
+		       hasResults)
+		{
+			nsCOMPtr<nsISupports>	anonArc;
+			if (NS_FAILED(anonArcs->GetNext(getter_AddRefs(anonArc))))
+				break;
+			array->AppendElement(anonArc);
+		}
 	}
 
-	return NS_NewUnionEnumerator(_retval, child, anonArcs);
+        return NS_NewArrayEnumerator(_retval, array);
 }
 
 NS_IMETHODIMP

@@ -10,6 +10,7 @@
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsDebug.h"
+#include "nsIDOMSVGLengthList.h"
 #include "nsTArray.h"
 #include "SVGLengthList.h"
 #include "mozilla/Attributes.h"
@@ -39,7 +40,7 @@ class DOMSVGLength;
  *
  * Our DOM items are created lazily on demand as and when script requests them.
  */
-class DOMSVGLengthList MOZ_FINAL : public nsISupports,
+class DOMSVGLengthList MOZ_FINAL : public nsIDOMSVGLengthList,
                                    public nsWrapperCache
 {
   friend class DOMSVGLength;
@@ -47,6 +48,7 @@ class DOMSVGLengthList MOZ_FINAL : public nsISupports,
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGLengthList)
+  NS_DECL_NSIDOMSVGLENGTHLIST
 
   DOMSVGLengthList(DOMSVGAnimatedLengthList *aAList,
                    const SVGLengthList &aInternalList)
@@ -69,9 +71,10 @@ public:
     if (mAList) {
       ( IsAnimValList() ? mAList->mAnimVal : mAList->mBaseVal ) = nullptr;
     }
-  }
+  };
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
 
   nsISupports* GetParentObject()
   {
@@ -170,7 +173,7 @@ private:
 
   // Weak refs to our DOMSVGLength items. The items are friends and take care
   // of clearing our pointer to them when they die.
-  FallibleTArray<DOMSVGLength*> mItems;
+  nsTArray<DOMSVGLength*> mItems;
 
   nsRefPtr<DOMSVGAnimatedLengthList> mAList;
 };

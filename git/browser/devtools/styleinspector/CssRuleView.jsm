@@ -13,6 +13,9 @@ const Cu = Components.utils;
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
+const FOCUS_FORWARD = Ci.nsIFocusManager.MOVEFOCUS_FORWARD;
+const FOCUS_BACKWARD = Ci.nsIFocusManager.MOVEFOCUS_BACKWARD;
+
 /**
  * These regular expressions are adapted from firebug's css.js, and are
  * used to parse CSSStyleDeclaration's cssText attribute.
@@ -27,10 +30,12 @@ const CSS_PROP_RE = /\s*([^:\s]*)\s*:\s*(.*?)\s*(?:! (important))?;?$/;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/devtools/CssLogic.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/InplaceEditor.jsm");
 
-this.EXPORTED_SYMBOLS = ["CssRuleView",
-                         "_ElementStyle"];
+var EXPORTED_SYMBOLS = ["CssRuleView",
+                        "_ElementStyle",
+                        "editableItem",
+                        "_editableField",
+                        "_getInplaceEditorForSpan"];
 
 /**
  * Our model looks like this:
@@ -54,9 +59,9 @@ this.EXPORTED_SYMBOLS = ["CssRuleView",
 /**
  * ElementStyle maintains a list of Rule objects for a given element.
  *
- * @param {Element} aElement
+ * @param Element aElement
  *        The element whose style we are viewing.
- * @param {object} aStore
+ * @param object aStore
  *        The ElementStyle can use this object to store metadata
  *        that might outlast the rule view, particularly the current
  *        set of disabled properties.
@@ -92,7 +97,7 @@ function ElementStyle(aElement, aStore)
   this.populate();
 }
 // We're exporting _ElementStyle for unit tests.
-this._ElementStyle = ElementStyle;
+var _ElementStyle = ElementStyle;
 
 ElementStyle.prototype = {
 
@@ -102,6 +107,8 @@ ElementStyle.prototype = {
   // Empty, unconnected element of the same type as this node, used
   // to figure out how shorthand properties will be parsed.
   dummyElement: null,
+
+  domUtils: Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils),
 
   /**
    * Called by the Rule object when it has been changed through the
@@ -151,7 +158,7 @@ ElementStyle.prototype = {
     });
 
     // Get the styles that apply to the element.
-    var domRules = domUtils.getCSSStyleRules(aElement);
+    var domRules = this.domUtils.getCSSStyleRules(aElement);
 
     // getCSStyleRules returns ordered from least-specific to
     // most-specific.
@@ -182,7 +189,7 @@ ElementStyle.prototype = {
    * @param {object} aOptions
    *        Options for creating the Rule, see the Rule constructor.
    *
-   * @return {bool} true if we added the rule.
+   * @return true if we added the rule.
    */
   _maybeAddRule: function ElementStyle_maybeAddRule(aOptions)
   {
@@ -298,7 +305,7 @@ ElementStyle.prototype = {
    * @param {TextProperty} aProp
    *        The text property to update.
    *
-   * @return {bool} true if the TextProperty's overridden state (or any of its
+   * @return True if the TextProperty's overridden state (or any of its
    *         computed properties overridden state) changed.
    */
   _updatePropertyOverridden: function ElementStyle_updatePropertyOverridden(aProp)
@@ -406,15 +413,16 @@ Rule.prototype = {
       // No stylesheet, no ruleLine
       return null;
     }
-    return domUtils.getRuleLine(this.domRule);
+    return this.elementStyle.domUtils.getRuleLine(this.domRule);
   },
 
   /**
    * Returns true if the rule matches the creation options
    * specified.
    *
-   * @param {object} aOptions
-   *        Creation options.  See the Rule constructor for documentation.
+   * @param object aOptions
+   *        Creation options.  See the Rule constructor for
+   *        documentation.
    */
   matches: function Rule_matches(aOptions)
   {
@@ -569,7 +577,8 @@ Rule.prototype = {
         continue;
 
       let name = matches[1];
-      if (this.inherited && !domUtils.isInheritedProperty(name)) {
+      if (this.inherited &&
+          !this.elementStyle.domUtils.isInheritedProperty(name)) {
         continue;
       }
       let value = store.userProperties.getProperty(this.style, name, matches[2]);
@@ -664,12 +673,12 @@ Rule.prototype = {
    *
    * If no existing properties match the property, nothing happens.
    *
-   * @param {TextProperty} aNewProp
+   * @param TextProperty aNewProp
    *        The current version of the property, as parsed from the
    *        cssText in Rule._getTextProperties().
    *
-   * @return {bool} true if a property was updated, false if no properties
-   *         were updated.
+   * @returns true if a property was updated, false if no properties
+   *          were updated.
    */
   _updateTextProperty: function Rule__updateTextProperty(aNewProp) {
     let match = { rank: 0, prop: null };
@@ -792,7 +801,7 @@ TextProperty.prototype = {
    * Set all the values from another TextProperty instance into
    * this TextProperty instance.
    *
-   * @param {TextProperty} aOther
+   * @param TextProperty aOther
    *        The other TextProperty instance.
    */
   set: function TextProperty_set(aOther)
@@ -857,27 +866,27 @@ TextProperty.prototype = {
  * apply to a given element.  After construction, the 'element'
  * property will be available with the user interface.
  *
- * @param {Document} aDoc
+ * @param Document aDoc
  *        The document that will contain the rule view.
- * @param {object} aStore
+ * @param object aStore
  *        The CSS rule view can use this object to store metadata
  *        that might outlast the rule view, particularly the current
  *        set of disabled properties.
- * @param {<iframe>} aOuterIFrame
- *        The iframe containing the ruleview.
  * @constructor
  */
-this.CssRuleView = function CssRuleView(aDoc, aStore)
+function CssRuleView(aDoc, aStore)
 {
   this.doc = aDoc;
   this.store = aStore;
-  this.element = this.doc.createElementNS(HTML_NS, "div");
-  this.element.className = "ruleview devtools-monospace";
+  this.element = this.doc.createElementNS(XUL_NS, "vbox");
+  this.element.setAttribute("tabindex", "0");
+  this.element.classList.add("ruleview");
   this.element.flex = 1;
 
   this._boundCopy = this._onCopy.bind(this);
   this.element.addEventListener("copy", this._boundCopy);
 
+  this._createContextMenu();
   this._showEmpty();
 }
 
@@ -886,7 +895,7 @@ CssRuleView.prototype = {
   _viewedElement: null,
 
   /**
-   * Return {bool} true if the rule view currently has an input editor visible.
+   * Returns true if the rule view currently has an input editor visible.
    */
   get isEditing() {
     return this.element.querySelectorAll(".styleinspector-propertyeditor").length > 0;
@@ -897,7 +906,24 @@ CssRuleView.prototype = {
     this.clear();
 
     this.element.removeEventListener("copy", this._boundCopy);
+    this._copyItem.removeEventListener("command", this._boundCopy);
     delete this._boundCopy;
+
+    this._ruleItem.removeEventListener("command", this._boundCopyRule);
+    delete this._boundCopyRule;
+
+    this._declarationItem.removeEventListener("command", this._boundCopyDeclaration);
+    delete this._boundCopyDeclaration;
+
+    this._propertyItem.removeEventListener("command", this._boundCopyProperty);
+    delete this._boundCopyProperty;
+
+    this._propertyValueItem.removeEventListener("command", this._boundCopyPropertyValue);
+    delete this._boundCopyPropertyValue;
+
+    this._contextMenu.removeEventListener("popupshowing", this._boundMenuUpdate);
+    delete this._boundMenuUpdate;
+    delete this._contextMenu;
 
     if (this.element.parentNode) {
       this.element.parentNode.removeChild(this.element);
@@ -1019,7 +1045,7 @@ CssRuleView.prototype = {
       let inheritedSource = rule.inheritedSource;
       if (inheritedSource != lastInheritedSource) {
         let h2 = this.doc.createElementNS(HTML_NS, "div");
-        h2.className = "ruleview-rule-inheritance theme-gutter";
+        h2.className = "ruleview-rule-inheritance";
         h2.textContent = inheritedSource;
         lastInheritedSource = inheritedSource;
         this.element.appendChild(h2);
@@ -1034,48 +1060,264 @@ CssRuleView.prototype = {
   },
 
   /**
+   * Add a context menu to the rule view.
+   */
+  _createContextMenu: function CssRuleView_createContextMenu()
+  {
+    let popupSet = this.doc.createElement("popupset");
+    this.doc.documentElement.appendChild(popupSet);
+
+    let menu = this.doc.createElement("menupopup");
+    menu.id = "rule-view-context-menu";
+
+    this._boundMenuUpdate = this._onMenuUpdate.bind(this);
+    menu.addEventListener("popupshowing", this._boundMenuUpdate);
+
+    // Copy selection
+    this._copyItem = createMenuItem(menu, {
+      label: "rule.contextmenu.copyselection",
+      accesskey: "rule.contextmenu.copyselection.accesskey",
+      command: this._boundCopy
+    });
+
+    // Copy rule
+    this._boundCopyRule = this._onCopyRule.bind(this);
+    this._ruleItem = createMenuItem(menu, {
+      label: "rule.contextmenu.copyrule",
+      accesskey: "rule.contextmenu.copyrule.accesskey",
+      command: this._boundCopyRule
+    });
+
+    // Copy declaration
+    this._boundCopyDeclaration = this._onCopyDeclaration.bind(this);
+    this._declarationItem = createMenuItem(menu, {
+      label: "rule.contextmenu.copydeclaration",
+      accesskey: "rule.contextmenu.copydeclaration.accesskey",
+      command: this._boundCopyDeclaration
+    });
+
+    this._boundCopyProperty = this._onCopyProperty.bind(this);
+    this._propertyItem = createMenuItem(menu, {
+      label: "rule.contextmenu.copyproperty",
+      accesskey: "rule.contextmenu.copyproperty.accesskey",
+      command: this._boundCopyProperty
+    });
+
+    this._boundCopyPropertyValue = this._onCopyPropertyValue.bind(this);
+    this._propertyValueItem = createMenuItem(menu,{
+      label: "rule.contextmenu.copypropertyvalue",
+      accesskey: "rule.contextmenu.copypropertyvalue.accesskey",
+      command: this._boundCopyPropertyValue
+    });
+
+    popupSet.appendChild(menu);
+    this.element.setAttribute("context", menu.id);
+
+    this._contextMenu = menu;
+  },
+
+  /**
+   * Update the rule view's context menu by disabling irrelevant menuitems and
+   * enabling relevant ones.
+   *
+   * @param aEvent The event object
+   */
+  _onMenuUpdate: function CssRuleView_onMenuUpdate(aEvent)
+  {
+    // Copy selection.
+    let disable = this.doc.defaultView.getSelection().isCollapsed;
+    this._copyItem.disabled = disable;
+
+    // Copy property, copy property name & copy property value.
+    let node = this.doc.popupNode;
+    if (!node) {
+      return;
+    }
+
+    if (!node.classList.contains("ruleview-property") &&
+        !node.classList.contains("ruleview-computed")) {
+      while (node = node.parentElement) {
+        if (node.classList.contains("ruleview-property") ||
+          node.classList.contains("ruleview-computed")) {
+          break;
+        }
+      }
+    }
+    let disablePropertyItems = !node || (node &&
+      !node.classList.contains("ruleview-property") &&
+      !node.classList.contains("ruleview-computed"));
+
+    this._declarationItem.disabled = disablePropertyItems;
+    this._propertyItem.disabled = disablePropertyItems;
+    this._propertyValueItem.disabled = disablePropertyItems;
+  },
+
+  /**
    * Copy selected text from the rule view.
    *
-   * @param {Event} aEvent
-   *        The event object.
+   * @param aEvent The event object
    */
   _onCopy: function CssRuleView_onCopy(aEvent)
   {
-    let target = aEvent.target;
+    let win = this.doc.defaultView;
+    let text = win.getSelection().toString();
 
-    let text;
+    // Remove any double newlines.
+    text = text.replace(/(\r?\n)\r?\n/g, "$1");
 
-    if (target.nodeName == "input") {
-      let start = Math.min(target.selectionStart, target.selectionEnd);
-      let end = Math.max(target.selectionStart, target.selectionEnd);
-      let count = end - start;
-      text = target.value.substr(start, count);
-    } else {
-      let win = this.doc.defaultView;
-      text = win.getSelection().toString();
-
-      // Remove any double newlines.
-      text = text.replace(/(\r?\n)\r?\n/g, "$1");
-
-      // Remove "inline"
-      let inline = _strings.GetStringFromName("rule.sourceInline");
-      let rx = new RegExp("^" + inline + "\\r?\\n?", "g");
-      text = text.replace(rx, "");
-    }
+    // Remove "inline"
+    let inline = _strings.GetStringFromName("rule.sourceInline");
+    let rx = new RegExp("^" + inline + "\\r?\\n?", "g");
+    text = text.replace(rx, "");
 
     clipboardHelper.copyString(text, this.doc);
 
-    aEvent.preventDefault();
+    if (aEvent) {
+      aEvent.preventDefault();
+    }
   },
 
+  /**
+   * Copy a rule from the rule view.
+   *
+   * @param aEvent The event object
+   */
+  _onCopyRule: function CssRuleView_onCopyRule(aEvent)
+  {
+    let terminator;
+    let node = this.doc.popupNode;
+    if (!node) {
+      return;
+    }
+
+    if (node.className != "ruleview-rule") {
+      while (node = node.parentElement) {
+        if (node.className == "ruleview-rule") {
+          break;
+        }
+      }
+    }
+    node = node.cloneNode();
+
+    let computedLists = node.querySelectorAll(".ruleview-computedlist");
+    for (let computedList of computedLists) {
+      computedList.parentNode.removeChild(computedList);
+    }
+
+    let autosizers = node.querySelectorAll(".autosizer");
+    for (let autosizer of autosizers) {
+      autosizer.parentNode.removeChild(autosizer);
+    }
+    let selector = node.querySelector(".ruleview-selector").textContent;
+    let propertyNames = node.querySelectorAll(".ruleview-propertyname");
+    let propertyValues = node.querySelectorAll(".ruleview-propertyvalue");
+
+    // Format the rule
+    if (osString == "WINNT") {
+      terminator = "\r\n";
+    } else {
+      terminator = "\n";
+    }
+
+    let out = selector + " {" + terminator;
+    for (let i = 0; i < propertyNames.length; i++) {
+      let name = propertyNames[i].textContent;
+      let value = propertyValues[i].textContent;
+      out += "    " + name + ": " + value + ";" + terminator;
+    }
+    out += "}" + terminator;
+
+    clipboardHelper.copyString(out, this.doc);
+  },
+
+  /**
+   * Copy a declaration from the rule view.
+   *
+   * @param aEvent The event object
+   */
+  _onCopyDeclaration: function CssRuleView_onCopyDeclaration(aEvent)
+  {
+    let node = this.doc.popupNode;
+    if (!node) {
+      return;
+    }
+
+    if (!node.classList.contains("ruleview-property") &&
+        !node.classList.contains("ruleview-computed")) {
+      while (node = node.parentElement) {
+        if (node.classList.contains("ruleview-property") ||
+            node.classList.contains("ruleview-computed")) {
+          break;
+        }
+      }
+    }
+
+    // We need to strip expanded properties from the node because we use
+    // node.textContent below, which also gets text from hidden nodes. The
+    // simplest way to do this is to clone the node and remove them from the
+    // clone.
+    node = node.cloneNode();
+    let computedLists = node.querySelectorAll(".ruleview-computedlist");
+    for (let computedList of computedLists) {
+      computedList.parentNode.removeChild(computedList);
+    }
+
+    let propertyName = node.querySelector(".ruleview-propertyname").textContent;
+    let propertyValue = node.querySelector(".ruleview-propertyvalue").textContent;
+    let out = propertyName + ": " + propertyValue + ";";
+
+    clipboardHelper.copyString(out, this.doc);
+  },
+
+  /**
+   * Copy a property name from the rule view.
+   *
+   * @param aEvent The event object
+   */
+  _onCopyProperty: function CssRuleView_onCopyProperty(aEvent)
+  {
+    let node = this.doc.popupNode;
+    if (!node) {
+      return;
+    }
+
+    if (!node.classList.contains("ruleview-propertyname")) {
+      node = node.querySelector(".ruleview-propertyname");
+    }
+
+    if (node) {
+      clipboardHelper.copyString(node.textContent, this.doc);
+    }
+  },
+
+ /**
+   * Copy a property value from the rule view.
+   *
+   * @param aEvent The event object
+   */
+  _onCopyPropertyValue: function CssRuleView_onCopyPropertyValue(aEvent)
+  {
+    let node = this.doc.popupNode;
+    if (!node) {
+      return;
+    }
+
+    if (!node.classList.contains("ruleview-propertyvalue")) {
+      node = node.querySelector(".ruleview-propertyvalue");
+    }
+
+    if (node) {
+      clipboardHelper.copyString(node.textContent, this.doc);
+    }
+  }
 };
 
 /**
  * Create a RuleEditor.
  *
- * @param {CssRuleView} aRuleView
+ * @param CssRuleView aRuleView
  *        The CssRuleView containg the document holding this rule editor.
- * @param {Rule} aRule
+ * @param Rule aRule
  *        The Rule object we're editing.
  * @constructor
  */
@@ -1096,7 +1338,7 @@ RuleEditor.prototype = {
   _create: function RuleEditor_create()
   {
     this.element = this.doc.createElementNS(HTML_NS, "div");
-    this.element.className = "ruleview-rule theme-separator";
+    this.element.className = "ruleview-rule";
     this.element._ruleEditor = this;
 
     // Give a relative position for the inplace editor's measurement
@@ -1105,7 +1347,7 @@ RuleEditor.prototype = {
 
     // Add the source link.
     let source = createChild(this.element, "div", {
-      class: "ruleview-rule-source theme-link",
+      class: "ruleview-rule-source",
       textContent: this.rule.title
     });
     source.addEventListener("click", function() {
@@ -1124,7 +1366,7 @@ RuleEditor.prototype = {
     let header = createChild(code, "div", {});
 
     this.selectorText = createChild(header, "span", {
-      class: "ruleview-selector theme-fg-color3"
+      class: "ruleview-selector"
     });
 
     this.openBrace = createChild(header, "span", {
@@ -1136,21 +1378,6 @@ RuleEditor.prototype = {
       let selection = this.doc.defaultView.getSelection();
       if (selection.isCollapsed) {
         this.newProperty();
-      }
-    }.bind(this), false);
-
-    this.element.addEventListener("mousedown", function() {
-      this.doc.defaultView.focus();
-
-      let editorNodes =
-        this.doc.querySelectorAll(".styleinspector-propertyeditor");
-
-      if (editorNodes) {
-        for (let node of editorNodes) {
-          if (node.inplaceEditor) {
-            node.inplaceEditor._clear();
-          }
-        }
       }
     }.bind(this), false);
 
@@ -1186,7 +1413,7 @@ RuleEditor.prototype = {
     // actually match.  For custom selector text (such as for the 'element'
     // style, just show the text directly.
     if (this.rule.domRule && this.rule.domRule.selectorText) {
-      let selectors = CssLogic.getSelectors(this.rule.domRule);
+      let selectors = CssLogic.getSelectors(this.rule.selectorText);
       let element = this.rule.inherited || this.ruleView._viewedElement;
       for (let i = 0; i < selectors.length; i++) {
         let selector = selectors[i];
@@ -1196,12 +1423,7 @@ RuleEditor.prototype = {
             textContent: ", "
           });
         }
-        let cls;
-        if (domUtils.selectorMatchesElement(element, this.rule.domRule, i)) {
-          cls = "ruleview-selector-matched";
-        } else {
-          cls = "ruleview-selector-unmatched";
-        }
+        let cls = element.mozMatchesSelector(selector) ? "ruleview-selector-matched" : "ruleview-selector-unmatched";
         createChild(this.selectorText, "span", {
           class: cls,
           textContent: selector
@@ -1222,11 +1444,11 @@ RuleEditor.prototype = {
   /**
    * Programatically add a new property to the rule.
    *
-   * @param {string} aName
+   * @param string aName
    *        Property name.
-   * @param {string} aValue
+   * @param string aValue
    *        Property value.
-   * @param {string} aPriority
+   * @param string aPriority
    *        Property priority.
    */
   addProperty: function RuleEditor_addProperty(aName, aValue, aPriority)
@@ -1274,9 +1496,9 @@ RuleEditor.prototype = {
    * Called when the new property input has been dismissed.
    * Will create a new TextProperty if necessary.
    *
-   * @param {string} aValue
+   * @param string aValue
    *        The value in the editor.
-   * @param {bool} aCommit
+   * @param bool aCommit
    *        True if the value should be committed.
    */
   _onNewProperty: function RuleEditor__onNewProperty(aValue, aCommit)
@@ -1345,15 +1567,16 @@ TextPropertyEditor.prototype = {
     this.element.classList.add("ruleview-property");
 
     // The enable checkbox will disable or enable the rule.
-    this.enable = createChild(this.element, "div", {
-      class: "ruleview-enableproperty theme-checkbox",
+    this.enable = createChild(this.element, "input", {
+      class: "ruleview-enableproperty",
+      type: "checkbox",
       tabindex: "-1"
     });
     this.enable.addEventListener("click", this._onEnableClicked, true);
 
     // Click to expand the computed properties of the text property.
     this.expander = createChild(this.element, "span", {
-      class: "ruleview-expander theme-twisty"
+      class: "ruleview-expander"
     });
     this.expander.addEventListener("click", this._onExpandClicked, true);
 
@@ -1371,7 +1594,7 @@ TextPropertyEditor.prototype = {
     // Property name, editable when focused.  Property name
     // is committed when the editor is unfocused.
     this.nameSpan = createChild(this.nameContainer, "span", {
-      class: "ruleview-propertyname theme-fg-color5",
+      class: "ruleview-propertyname",
       tabindex: "0",
     });
 
@@ -1402,7 +1625,7 @@ TextPropertyEditor.prototype = {
     // property value are applied as they are typed, and reverted
     // if the user presses escape.
     this.valueSpan = createChild(propertyContainer, "span", {
-      class: "ruleview-propertyvalue theme-fg-color1",
+      class: "ruleview-propertyvalue",
       tabindex: "0",
     });
 
@@ -1513,13 +1736,13 @@ TextPropertyEditor.prototype = {
       }
 
       createChild(li, "span", {
-        class: "ruleview-propertyname theme-fg-color5",
+        class: "ruleview-propertyname",
         textContent: computed.name
       });
       appendText(li, ": ");
 
       createChild(li, "span", {
-        class: "ruleview-propertyvalue theme-fg-color1",
+        class: "ruleview-propertyvalue",
         textContent: computed.value
       });
       appendText(li, ";");
@@ -1538,13 +1761,7 @@ TextPropertyEditor.prototype = {
    */
   _onEnableClicked: function TextPropertyEditor_onEnableClicked(aEvent)
   {
-    let checked = this.enable.hasAttribute("checked");
-    if (checked) {
-      this.enable.removeAttribute("checked");
-    } else {
-      this.enable.setAttribute("checked", "");
-    }
-    this.prop.setEnabled(!checked);
+    this.prop.setEnabled(this.enable.checked);
     aEvent.stopPropagation();
   },
 
@@ -1553,12 +1770,8 @@ TextPropertyEditor.prototype = {
    */
   _onExpandClicked: function TextPropertyEditor_onExpandClicked(aEvent)
   {
+    this.expander.classList.toggle("styleinspector-open");
     this.computed.classList.toggle("styleinspector-open");
-    if (this.computed.classList.contains("styleinspector-open")) {
-      this.expander.setAttribute("open", "true");
-    } else {
-      this.expander.removeAttribute("open");
-    }
     aEvent.stopPropagation();
   },
 
@@ -1595,7 +1808,7 @@ TextPropertyEditor.prototype = {
    *
    * @param {string} aValue
    *        The value from the text editor.
-   * @return {object} an object with 'value' and 'priority' properties.
+   * @return an object with 'value' and 'priority' properties.
    */
   _parseValue: function TextPropertyEditor_parseValue(aValue)
   {
@@ -1612,7 +1825,7 @@ TextPropertyEditor.prototype = {
    *
    * @param {string} aValue
    *        The value contained in the editor.
-   * @param {bool} aCommit
+   * @param {boolean} aCommit
    *        True if the change should be applied.
    */
    _onValueDone: function PropertyEditor_onValueDone(aValue, aCommit)
@@ -1622,9 +1835,6 @@ TextPropertyEditor.prototype = {
       this.prop.setValue(val.value, val.priority);
       this.committed.value = this.prop.value;
       this.committed.priority = this.prop.priority;
-      if (this.prop.overridden) {
-        this.element.classList.add("ruleview-overridden");
-      }
     } else {
       this.prop.setValue(this.committed.value, this.committed.priority);
     }
@@ -1633,11 +1843,12 @@ TextPropertyEditor.prototype = {
   /**
    * Validate this property.
    *
-   * @param {string} [aValue]
+   * @param {String} [aValue]
    *        Override the actual property value used for validation without
    *        applying property values e.g. validate as you type.
    *
-   * @return {bool} true if the property value is valid, false otherwise.
+   * @returns {Boolean}
+   *          True if the property value is valid, false otherwise.
    */
   _validate: function TextPropertyEditor_validate(aValue)
   {
@@ -1661,6 +1872,394 @@ TextPropertyEditor.prototype = {
 };
 
 /**
+ * Mark a span editable.  |editableField| will listen for the span to
+ * be focused and create an InlineEditor to handle text input.
+ * Changes will be committed when the InlineEditor's input is blurred
+ * or dropped when the user presses escape.
+ *
+ * @param {object} aOptions
+ *    Options for the editable field, including:
+ *    {Element} element:
+ *      (required) The span to be edited on focus.
+ *    {function} canEdit:
+ *       Will be called before creating the inplace editor.  Editor
+ *       won't be created if canEdit returns false.
+ *    {function} start:
+ *       Will be called when the inplace editor is initialized.
+ *    {function} change:
+ *       Will be called when the text input changes.  Will be called
+ *       with the current value of the text input.
+ *    {function} done:
+ *       Called when input is committed or blurred.  Called with
+ *       current value and a boolean telling the caller whether to
+ *       commit the change.  This function is called before the editor
+ *       has been torn down.
+ *    {function} destroy:
+ *       Called when the editor is destroyed and has been torn down.
+ *    {string} advanceChars:
+ *       If any characters in advanceChars are typed, focus will advance
+ *       to the next element.
+ *    {boolean} stopOnReturn:
+ *       If true, the return key will not advance the editor to the next
+ *       focusable element.
+ *    {string} trigger: The DOM event that should trigger editing,
+ *      defaults to "click"
+ */
+function editableField(aOptions)
+{
+  return editableItem(aOptions, function(aElement, aEvent) {
+    new InplaceEditor(aOptions, aEvent);
+  });
+}
+
+/**
+ * Handle events for an element that should respond to
+ * clicks and sit in the editing tab order, and call
+ * a callback when it is activated.
+ *
+ * @param object aOptions
+ *    The options for this editor, including:
+ *    {Element} element: The DOM element.
+ *    {string} trigger: The DOM event that should trigger editing,
+ *      defaults to "click"
+ * @param function aCallback
+ *        Called when the editor is activated.
+ */
+function editableItem(aOptions, aCallback)
+{
+  let trigger = aOptions.trigger || "click"
+  let element = aOptions.element;
+  element.addEventListener(trigger, function(evt) {
+    let win = this.ownerDocument.defaultView;
+    let selection = win.getSelection();
+    if (trigger != "click" || selection.isCollapsed) {
+      aCallback(element, evt);
+    }
+    evt.stopPropagation();
+  }, false);
+
+  // If focused by means other than a click, start editing by
+  // pressing enter or space.
+  element.addEventListener("keypress", function(evt) {
+    if (evt.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN ||
+        evt.charCode === Ci.nsIDOMKeyEvent.DOM_VK_SPACE) {
+      aCallback(element);
+    }
+  }, true);
+
+  // Ugly workaround - the element is focused on mousedown but
+  // the editor is activated on click/mouseup.  This leads
+  // to an ugly flash of the focus ring before showing the editor.
+  // So hide the focus ring while the mouse is down.
+  element.addEventListener("mousedown", function(evt) {
+    let cleanup = function() {
+      element.style.removeProperty("outline-style");
+      element.removeEventListener("mouseup", cleanup, false);
+      element.removeEventListener("mouseout", cleanup, false);
+    };
+    element.style.setProperty("outline-style", "none");
+    element.addEventListener("mouseup", cleanup, false);
+    element.addEventListener("mouseout", cleanup, false);
+  }, false);
+
+  // Mark the element editable field for tab
+  // navigation while editing.
+  element._editable = true;
+}
+
+var _editableField = editableField;
+
+function InplaceEditor(aOptions, aEvent)
+{
+  this.elt = aOptions.element;
+  let doc = this.elt.ownerDocument;
+  this.doc = doc;
+  this.elt.inplaceEditor = this;
+
+  this.change = aOptions.change;
+  this.done = aOptions.done;
+  this.destroy = aOptions.destroy;
+  this.initial = aOptions.initial ? aOptions.initial : this.elt.textContent;
+  this.multiline = aOptions.multiline || false;
+  this.stopOnReturn = !!aOptions.stopOnReturn;
+
+  this._onBlur = this._onBlur.bind(this);
+  this._onKeyPress = this._onKeyPress.bind(this);
+  this._onInput = this._onInput.bind(this);
+  this._onKeyup = this._onKeyup.bind(this);
+
+  this._createInput();
+  this._autosize();
+
+  // Pull out character codes for advanceChars, listing the
+  // characters that should trigger a blur.
+  this._advanceCharCodes = {};
+  let advanceChars = aOptions.advanceChars || '';
+  for (let i = 0; i < advanceChars.length; i++) {
+    this._advanceCharCodes[advanceChars.charCodeAt(i)] = true;
+  }
+
+  // Hide the provided element and add our editor.
+  this.originalDisplay = this.elt.style.display;
+  this.elt.style.display = "none";
+  this.elt.parentNode.insertBefore(this.input, this.elt);
+
+  if (typeof(aOptions.selectAll) == "undefined" || aOptions.selectAll) {
+    this.input.select();
+  }
+  this.input.focus();
+
+  this.input.addEventListener("blur", this._onBlur, false);
+  this.input.addEventListener("keypress", this._onKeyPress, false);
+  this.input.addEventListener("input", this._onInput, false);
+  this.input.addEventListener("mousedown", function(aEvt) { aEvt.stopPropagation(); }, false);
+
+  this.warning = aOptions.warning;
+  this.validate = aOptions.validate;
+
+  if (this.warning && this.validate) {
+    this.input.addEventListener("keyup", this._onKeyup, false);
+  }
+
+  if (aOptions.start) {
+    aOptions.start(this, aEvent);
+  }
+}
+
+InplaceEditor.prototype = {
+  _createInput: function InplaceEditor_createEditor()
+  {
+    this.input = this.doc.createElementNS(HTML_NS, this.multiline ? "textarea" : "input");
+    this.input.inplaceEditor = this;
+    this.input.classList.add("styleinspector-propertyeditor");
+    this.input.value = this.initial;
+
+    copyTextStyles(this.elt, this.input);
+  },
+
+  /**
+   * Get rid of the editor.
+   */
+  _clear: function InplaceEditor_clear()
+  {
+    if (!this.input) {
+      // Already cleared.
+      return;
+    }
+
+    this.input.removeEventListener("blur", this._onBlur, false);
+    this.input.removeEventListener("keypress", this._onKeyPress, false);
+    this.input.removeEventListener("keyup", this._onKeyup, false);
+    this.input.removeEventListener("oninput", this._onInput, false);
+    this._stopAutosize();
+
+    this.elt.style.display = this.originalDisplay;
+    this.elt.focus();
+
+    if (this.destroy) {
+      this.destroy();
+    }
+
+    this.elt.parentNode.removeChild(this.input);
+    this.input = null;
+
+    delete this.elt.inplaceEditor;
+    delete this.elt;
+  },
+
+  /**
+   * Keeps the editor close to the size of its input string.  This is pretty
+   * crappy, suggestions for improvement welcome.
+   */
+  _autosize: function InplaceEditor_autosize()
+  {
+    // Create a hidden, absolutely-positioned span to measure the text
+    // in the input.  Boo.
+
+    // We can't just measure the original element because a) we don't
+    // change the underlying element's text ourselves (we leave that
+    // up to the client), and b) without tweaking the style of the
+    // original element, it might wrap differently or something.
+    this._measurement = this.doc.createElementNS(HTML_NS, this.multiline ? "pre" : "span");
+    this._measurement.className = "autosizer";
+    this.elt.parentNode.appendChild(this._measurement);
+    let style = this._measurement.style;
+    style.visibility = "hidden";
+    style.position = "absolute";
+    style.top = "0";
+    style.left = "0";
+    copyTextStyles(this.input, this._measurement);
+    this._updateSize();
+  },
+
+  /**
+   * Clean up the mess created by _autosize().
+   */
+  _stopAutosize: function InplaceEditor_stopAutosize()
+  {
+    if (!this._measurement) {
+      return;
+    }
+    this._measurement.parentNode.removeChild(this._measurement);
+    delete this._measurement;
+  },
+
+  /**
+   * Size the editor to fit its current contents.
+   */
+  _updateSize: function InplaceEditor_updateSize()
+  {
+    // Replace spaces with non-breaking spaces.  Otherwise setting
+    // the span's textContent will collapse spaces and the measurement
+    // will be wrong.
+    this._measurement.textContent = this.input.value.replace(/ /g, '\u00a0');
+
+    // We add a bit of padding to the end.  Should be enough to fit
+    // any letter that could be typed, otherwise we'll scroll before
+    // we get a chance to resize.  Yuck.
+    let width = this._measurement.offsetWidth + 10;
+
+    if (this.multiline) {
+      // Make sure there's some content in the current line.  This is a hack to account
+      // for the fact that after adding a newline the <pre> doesn't grow unless there's
+      // text content on the line.
+      width += 15;
+      this._measurement.textContent += "M";
+      this.input.style.height = this._measurement.offsetHeight + "px";
+    }
+
+    this.input.style.width = width + "px";
+  },
+
+  /**
+   * Call the client's done handler and clear out.
+   */
+  _apply: function InplaceEditor_apply(aEvent)
+  {
+    if (this._applied) {
+      return;
+    }
+
+    this._applied = true;
+
+    if (this.done) {
+      let val = this.input.value.trim();
+      return this.done(this.cancelled ? this.initial : val, !this.cancelled);
+    }
+    return null;
+  },
+
+  /**
+   * Handle loss of focus by calling done if it hasn't been called yet.
+   */
+  _onBlur: function InplaceEditor_onBlur(aEvent, aDoNotClear)
+  {
+    this._apply();
+    if (!aDoNotClear) {
+      this._clear();
+    }
+  },
+
+  _onKeyPress: function InplaceEditor_onKeyPress(aEvent)
+  {
+    let prevent = false;
+    if (this.multiline &&
+        aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN &&
+        aEvent.shiftKey) {
+      prevent = false;
+    } else if (aEvent.charCode in this._advanceCharCodes
+       || aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN
+       || aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_TAB) {
+      prevent = true;
+
+      let direction = FOCUS_FORWARD;
+      if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_TAB &&
+          aEvent.shiftKey) {
+        this.cancelled = true;
+        direction = FOCUS_BACKWARD;
+      }
+      if (this.stopOnReturn && aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_RETURN) {
+        direction = null;
+      }
+
+      let input = this.input;
+
+      this._apply();
+
+      let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
+      if (direction !== null && fm.focusedElement === input) {
+        // If the focused element wasn't changed by the done callback,
+        // move the focus as requested.
+        let next = moveFocus(this.doc.defaultView, direction);
+
+        // If the next node to be focused has been tagged as an editable
+        // node, send it a click event to trigger
+        if (next && next.ownerDocument === this.doc && next._editable) {
+          next.click();
+        }
+      }
+
+      this._clear();
+    } else if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_ESCAPE) {
+      // Cancel and blur ourselves.
+      prevent = true;
+      this.cancelled = true;
+      this._apply();
+      this._clear();
+      aEvent.stopPropagation();
+    } else if (aEvent.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_SPACE) {
+      // No need for leading spaces here.  This is particularly
+      // noticable when adding a property: it's very natural to type
+      // <name>: (which advances to the next property) then spacebar.
+      prevent = !this.input.value;
+    }
+
+    if (prevent) {
+      aEvent.preventDefault();
+    }
+  },
+
+  /**
+   * Handle the input field's keyup event.
+   */
+  _onKeyup: function(aEvent) {
+    // Validate the entered value.
+    this.warning.hidden = this.validate(this.input.value);
+    this._applied = false;
+    this._onBlur(null, true);
+  },
+
+  /**
+   * Handle changes the input text.
+   */
+  _onInput: function InplaceEditor_onInput(aEvent)
+  {
+    // Validate the entered value.
+    if (this.warning && this.validate) {
+      this.warning.hidden = this.validate(this.input.value);
+    }
+
+    // Update size if we're autosizing.
+    if (this._measurement) {
+      this._updateSize();
+    }
+
+    // Call the user's change handler if available.
+    if (this.change) {
+      this.change(this.input.value.trim());
+    }
+  }
+};
+
+/*
+ * Various API consumers (especially tests) sometimes want to grab the
+ * inplaceEditor expando off span elements. However, when each global has its
+ * own compartment, those expandos live on Xray wrappers that are only visible
+ * within this JSM. So we provide a little workaround here.
+ */
+function _getInplaceEditorForSpan(aSpan) { return aSpan.inplaceEditor; };
+
+/**
  * Store of CSSStyleDeclarations mapped to properties that have been changed by
  * the user.
  */
@@ -1677,13 +2276,13 @@ UserProperties.prototype = {
    *
    * @param {CSSStyleDeclaration} aStyle
    *        The CSSStyleDeclaration against which the property is mapped.
-   * @param {string} aName
+   * @param {String} aName
    *        The name of the property to get.
-   * @param {string} aComputedValue
+   * @param {String} aComputedValue
    *        The computed value of the property.  The user value will only be
    *        returned if the computed value hasn't changed since, and this will
    *        be returned as the default if no user value is available.
-   * @return {string}
+   * @returns {String}
    *          The property value if it has previously been set by the user, null
    *          otherwise.
    */
@@ -1791,6 +2390,28 @@ function appendText(aParent, aText)
   aParent.appendChild(aParent.ownerDocument.createTextNode(aText));
 }
 
+/**
+ * Copy text-related styles from one element to another.
+ */
+function copyTextStyles(aFrom, aTo)
+{
+  let win = aFrom.ownerDocument.defaultView;
+  let style = win.getComputedStyle(aFrom);
+  aTo.style.fontFamily = style.getPropertyCSSValue("font-family").cssText;
+  aTo.style.fontSize = style.getPropertyCSSValue("font-size").cssText;
+  aTo.style.fontWeight = style.getPropertyCSSValue("font-weight").cssText;
+  aTo.style.fontStyle = style.getPropertyCSSValue("font-style").cssText;
+}
+
+/**
+ * Trigger a focus change similar to pressing tab/shift-tab.
+ */
+function moveFocus(aWin, aDirection)
+{
+  let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
+  return fm.moveFocus(aWin, null, aDirection, 0);
+}
+
 XPCOMUtils.defineLazyGetter(this, "clipboardHelper", function() {
   return Cc["@mozilla.org/widget/clipboardhelper;1"].
     getService(Ci.nsIClipboardHelper);
@@ -1801,6 +2422,6 @@ XPCOMUtils.defineLazyGetter(this, "_strings", function() {
     "chrome://browser/locale/devtools/styleinspector.properties");
 });
 
-XPCOMUtils.defineLazyGetter(this, "domUtils", function() {
-  return Cc["@mozilla.org/inspector/dom-utils;1"].getService(Ci.inIDOMUtils);
+XPCOMUtils.defineLazyGetter(this, "osString", function() {
+  return Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULRuntime).OS;
 });

@@ -3,9 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsCCUncollectableMarker_h_
-#define nsCCUncollectableMarker_h_
-
 #include "nsIObserver.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
@@ -45,8 +42,6 @@ private:
 
 namespace mozilla {
 namespace dom {
-void TraceBlackJS(JSTracer* aTrc, uint32_t aGCNumber, bool aIsShutdownGC);
+void TraceBlackJS(JSTracer* aTrc);
 }
 }
-
-#endif

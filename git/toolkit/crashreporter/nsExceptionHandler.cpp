@@ -182,13 +182,6 @@ static bool lastRunCrashID_checked = false;
 // The minidump ID contained in the marker file.
 static nsString* lastRunCrashID = nullptr;
 
-#if defined(MOZ_WIDGET_ANDROID)
-// on Android 4.2 and above there is a user serial number associated
-// with the current process that gets lost when we fork so we need to
-// explicitly pass it to am
-static char* androidUserSerial = nullptr;
-#endif
-
 // these are just here for readability
 static const char kCrashTimeParameter[] = "CrashTime=";
 static const int kCrashTimeParameterLen = sizeof(kCrashTimeParameter)-1;
@@ -354,6 +347,7 @@ typedef struct {
 } mapping_info;
 static std::vector<mapping_info> library_mappings;
 typedef std::map<uint32_t,google_breakpad::MappingList> MappingMap;
+static MappingMap child_library_mappings;
 
 void FileIDToGUID(const char* file_id, u_int8_t guid[sizeof(MDGUID)])
 {
@@ -701,31 +695,20 @@ bool MinidumpCallback(
                  crashReporterPath, minidumpPath, (char*)0);
 #else
     // Invoke the reportCrash activity using am
-    if (androidUserSerial) {
-      (void) execlp("/system/bin/am",
-                    "/system/bin/am",
-                    "start",
-                    "--user", androidUserSerial,
-                    "-a", "org.mozilla.gecko.reportCrash",
-                    "-n", crashReporterPath,
-                    "--es", "minidumpPath", minidumpPath,
-                    (char*)0);
-    } else {
-      (void) execlp("/system/bin/am",
-                    "/system/bin/am",
-                    "start",
-                    "-a", "org.mozilla.gecko.reportCrash",
-                    "-n", crashReporterPath,
-                    "--es", "minidumpPath", minidumpPath,
-                    (char*)0);
-    }
+    (void) execlp("/system/bin/am",
+                 "/system/bin/am",
+                 "start",
+                 "-a", "org.mozilla.gecko.reportCrash",
+                 "-n", crashReporterPath,
+                 "--es", "minidumpPath", minidumpPath,
+                 (char*)0);
 #endif
     _exit(1);
   }
 #endif // XP_MACOSX
 #endif // XP_UNIX
 
-  return returnValue;
+ return returnValue;
 }
 
 #ifdef XP_WIN
@@ -761,16 +744,7 @@ static bool ShouldReport()
   // this environment variable prevents us from launching
   // the crash reporter client
   const char *envvar = PR_GetEnv("MOZ_CRASHREPORTER_NO_REPORT");
-  if (envvar && *envvar) {
-    return false;
-  }
-
-  envvar = PR_GetEnv("MOZ_CRASHREPORTER_FULLDUMP");
-  if (envvar && *envvar) {
-    return false;
-  }
-
-  return true;
+  return !(envvar && *envvar);
 }
 
 namespace {
@@ -940,16 +914,7 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
       }
     }
   }
-
-  const char* e = PR_GetEnv("MOZ_CRASHREPORTER_FULLDUMP");
-  if (e && *e) {
-    minidump_type = MiniDumpWithFullMemory;
-  }
 #endif // XP_WIN32
-
-#ifdef MOZ_WIDGET_ANDROID
-  androidUserSerial = getenv("MOZ_ANDROID_USER_SERIAL_NUMBER");
-#endif
 
   // now set the exception handler
 #ifdef XP_LINUX
@@ -2847,6 +2812,36 @@ void AddLibraryMapping(const char* library_name,
                                       mapping_length,
                                       file_offset);
   }
+}
+
+void AddLibraryMappingForChild(uint32_t    childPid,
+                               const char* library_name,
+                               const char* file_id,
+                               uintptr_t   start_address,
+                               size_t      mapping_length,
+                               size_t      file_offset)
+{
+  if (child_library_mappings.find(childPid) == child_library_mappings.end())
+    child_library_mappings[childPid] = google_breakpad::MappingList();
+  google_breakpad::MappingInfo info;
+  info.start_addr = start_address;
+  info.size = mapping_length;
+  info.offset = file_offset;
+  strcpy(info.name, library_name);
+
+  struct google_breakpad::MappingEntry mapping;
+  mapping.first = info;
+  u_int8_t guid[sizeof(MDGUID)];
+  FileIDToGUID(file_id, guid);
+  memcpy(mapping.second, guid, sizeof(MDGUID));
+  child_library_mappings[childPid].push_back(mapping);
+}
+
+void RemoveLibraryMappingsForChild(uint32_t childPid)
+{
+  MappingMap::iterator iter = child_library_mappings.find(childPid);
+  if (iter != child_library_mappings.end())
+    child_library_mappings.erase(iter);
 }
 #endif
 

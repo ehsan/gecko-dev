@@ -7,7 +7,6 @@
 #define nsFileStreams_h__
 
 #include "nsAlgorithm.h"
-#include "nsAutoPtr.h"
 #include "nsIFileStreams.h"
 #include "nsIFile.h"
 #include "nsIInputStream.h"
@@ -19,19 +18,16 @@
 #include "prlog.h"
 #include "prio.h"
 #include "nsIIPCSerializableInputStream.h"
-#include "nsReadLine.h"
-#include <algorithm>
 
+template<class CharType> class nsLineBuffer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class nsFileStreamBase : public nsISeekableStream,
-                         public nsIFileMetadata
+class nsFileStreamBase : public nsISeekableStream
 {
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSISEEKABLESTREAM
-    NS_DECL_NSIFILEMETADATA
 
     nsFileStreamBase();
     virtual ~nsFileStreamBase();
@@ -127,8 +123,8 @@ public:
     NS_IMETHOD IsNonBlocking(bool* _retval)
     {
         return nsFileStreamBase::IsNonBlocking(_retval);
-    }
-
+    } 
+    
     // Overrided from nsFileStreamBase
     NS_IMETHOD Seek(int32_t aWhence, int64_t aOffset);
 
@@ -145,7 +141,7 @@ public:
     Create(nsISupports *aOuter, REFNSIID aIID, void **aResult);
 
 protected:
-    nsAutoPtr<nsLineBuffer<char> > mLineBuffer;
+    nsLineBuffer<char> *mLineBuffer;
 
     /**
      * The file being opened.
@@ -199,7 +195,7 @@ public:
 
 private:
     uint64_t TruncateSize(uint64_t aSize) {
-          return std::min<uint64_t>(mLength - mPosition, aSize);
+          return NS_MIN<uint64_t>(mLength - mPosition, aSize);
     }
 
     uint64_t mStart;
@@ -263,11 +259,13 @@ protected:
 class nsFileStream : public nsFileStreamBase,
                      public nsIInputStream,
                      public nsIOutputStream,
-                     public nsIFileStream
+                     public nsIFileStream,
+                     public nsIFileMetadata
 {
 public:
     NS_DECL_ISUPPORTS_INHERITED
     NS_DECL_NSIFILESTREAM
+    NS_DECL_NSIFILEMETADATA
     NS_FORWARD_NSIINPUTSTREAM(nsFileStreamBase::)
 
     // Can't use NS_FORWARD_NSIOUTPUTSTREAM due to overlapping methods

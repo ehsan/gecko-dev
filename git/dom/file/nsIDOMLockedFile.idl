@@ -8,6 +8,7 @@
 
 interface nsIDOMEventListener;
 interface nsIDOMFileHandle;
+interface nsIDOMFileRequest;
 
 dictionary DOMFileMetadataParameters
 {
@@ -15,7 +16,7 @@ dictionary DOMFileMetadataParameters
   boolean lastModified;
 };
 
-[scriptable, builtinclass, uuid(a09cdc35-6b1e-42ce-95bb-f8f10a354202)]
+[scriptable, builtinclass, uuid(589e0d26-20b5-4355-ac1e-9c6fd0dd83f2)]
 interface nsIDOMLockedFile : nsISupports
 {
   readonly attribute nsIDOMFileHandle fileHandle;
@@ -29,31 +30,31 @@ interface nsIDOMLockedFile : nsISupports
   attribute jsval location;
 
   [implicit_jscontext]
-  nsISupports /* FileRequest */
+  nsIDOMFileRequest
   getMetadata(/* DOMFileMetadataParameters */
               [optional /* all */] in jsval parameters);
 
   [implicit_jscontext]
-  nsISupports /* FileRequest */
+  nsIDOMFileRequest
   readAsArrayBuffer(in unsigned long long size);
 
-  nsISupports /* FileRequest */
+  nsIDOMFileRequest
   readAsText(in unsigned long long size,
              [optional] in DOMString encoding);
 
   [implicit_jscontext]
-  nsISupports /* FileRequest */
+  nsIDOMFileRequest
   write(in jsval value);
 
   [implicit_jscontext]
-  nsISupports /* FileRequest */
+  nsIDOMFileRequest
   append(in jsval value);
 
   [optional_argc]
-  nsISupports /* FileRequest */
+  nsIDOMFileRequest
   truncate([optional] in unsigned long long size);
 
-  nsISupports /* FileRequest */
+  nsIDOMFileRequest
   flush();
 
   void

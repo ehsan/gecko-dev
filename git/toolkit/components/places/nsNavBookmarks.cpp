@@ -18,7 +18,7 @@
 #include "mozilla/storage.h"
 #include "mozilla/Util.h"
 
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 #define BOOKMARKS_TO_KEYWORDS_INITIAL_CACHE_SIZE 64
 #define RECENT_BOOKMARKS_INITIAL_CACHE_SIZE 10
@@ -641,12 +641,20 @@ nsNavBookmarks::InsertBookmark(int64_t aFolder,
 NS_IMETHODIMP
 nsNavBookmarks::RemoveItem(int64_t aItemId)
 {
-  PROFILER_LABEL("bookmarks", "RemoveItem");
-  NS_ENSURE_ARG(!IsRoot(aItemId));
+  SAMPLE_LABEL("bookmarks", "RemoveItem");
+  NS_ENSURE_ARG(aItemId != mRoot);
 
   BookmarkData bookmark;
   nsresult rv = FetchItemInfo(aItemId, bookmark);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
+                   nsINavBookmarkObserver,
+                   OnBeforeItemRemoved(bookmark.id,
+                                       bookmark.type,
+                                       bookmark.parentId,
+                                       bookmark.guid,
+                                       bookmark.parentGuid));
 
   mozStorageTransaction transaction(mDB->MainConn(), false);
 
@@ -1061,9 +1069,8 @@ nsNavBookmarks::GetDescendantChildren(int64_t aFolderId,
     // item_child, and folder_child from moz_bookmarks.
     nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
       "SELECT h.id, h.url, IFNULL(b.title, h.title), h.rev_host, h.visit_count, "
-             "h.last_visit_date, f.url, b.id, b.dateAdded, b.lastModified, "
-             "b.parent, null, h.frecency, h.hidden, b.position, b.type, b.fk, "
-             "b.guid "
+             "h.last_visit_date, f.url, null, b.id, b.dateAdded, b.lastModified, "
+             "b.parent, null, h.frecency, b.position, b.type, b.fk, b.guid "
       "FROM moz_bookmarks b "
       "LEFT JOIN moz_places h ON b.fk = h.id "
       "LEFT JOIN moz_favicons f ON h.favicon_id = f.id "
@@ -1128,9 +1135,8 @@ nsNavBookmarks::GetDescendantChildren(int64_t aFolderId,
 NS_IMETHODIMP
 nsNavBookmarks::RemoveFolderChildren(int64_t aFolderId)
 {
-  PROFILER_LABEL("bookmarks", "RemoveFolderChilder");
+  SAMPLE_LABEL("bookmarks", "RemoveFolderChilder");
   NS_ENSURE_ARG_MIN(aFolderId, 1);
-  NS_ENSURE_ARG(aFolderId != mRoot);
 
   BookmarkData folder;
   nsresult rv = FetchItemInfo(aFolderId, folder);
@@ -1147,6 +1153,15 @@ nsNavBookmarks::RemoveFolderChildren(int64_t aFolderId)
   nsCString foldersToRemove;
   for (uint32_t i = 0; i < folderChildrenArray.Length(); ++i) {
     BookmarkData& child = folderChildrenArray[i];
+
+    // Notify observers that we are about to remove this child.
+    NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
+                     nsINavBookmarkObserver,
+                     OnBeforeItemRemoved(child.id,
+                                         child.type,
+                                         child.parentId,
+                                         child.guid,
+                                         child.parentGuid));
 
     if (child.type == TYPE_FOLDER) {
       foldersToRemove.AppendLiteral(",");
@@ -1257,13 +1272,13 @@ nsNavBookmarks::RemoveFolderChildren(int64_t aFolderId)
 NS_IMETHODIMP
 nsNavBookmarks::MoveItem(int64_t aItemId, int64_t aNewParent, int32_t aIndex)
 {
-  NS_ENSURE_ARG(!IsRoot(aItemId));
+  NS_ENSURE_TRUE(aItemId != mRoot, NS_ERROR_INVALID_ARG);
   NS_ENSURE_ARG_MIN(aItemId, 1);
   NS_ENSURE_ARG_MIN(aNewParent, 1);
   // -1 is append, but no other negative number is allowed.
   NS_ENSURE_ARG_MIN(aIndex, -1);
   // Disallow making an item its own parent.
-  NS_ENSURE_ARG(aItemId != aNewParent);
+  NS_ENSURE_TRUE(aItemId != aNewParent, NS_ERROR_INVALID_ARG);
 
   mozStorageTransaction transaction(mDB->MainConn(), false);
 
@@ -1765,8 +1780,8 @@ nsNavBookmarks::QueryFolderChildren(
   // item_child, and folder_child from moz_bookmarks.
   nsCOMPtr<mozIStorageStatement> stmt = mDB->GetStatement(
     "SELECT h.id, h.url, IFNULL(b.title, h.title), h.rev_host, h.visit_count, "
-           "h.last_visit_date, f.url, b.id, b.dateAdded, b.lastModified, "
-           "b.parent, null, h.frecency, h.hidden, b.position, b.type, b.fk, "
+           "h.last_visit_date, f.url, null, b.id, b.dateAdded, b.lastModified, "
+           "b.parent, null, h.frecency, b.position, b.type, b.fk, "
            "b.guid "
     "FROM moz_bookmarks b "
     "LEFT JOIN moz_places h ON b.fk = h.id "
@@ -1899,8 +1914,8 @@ nsNavBookmarks::QueryFolderChildrenAsync(
   // item_child, and folder_child from moz_bookmarks.
   nsCOMPtr<mozIStorageAsyncStatement> stmt = mDB->GetAsyncStatement(
     "SELECT h.id, h.url, IFNULL(b.title, h.title), h.rev_host, h.visit_count, "
-           "h.last_visit_date, f.url, b.id, b.dateAdded, b.lastModified, "
-           "b.parent, null, h.frecency, h.hidden, b.position, b.type, b.fk, "
+           "h.last_visit_date, f.url, null, b.id, b.dateAdded, b.lastModified, "
+           "b.parent, null, h.frecency, b.position, b.type, b.fk, "
            "b.guid "
     "FROM moz_bookmarks b "
     "LEFT JOIN moz_places h ON b.fk = h.id "
@@ -2633,7 +2648,7 @@ nsNavBookmarks::EnsureKeywordsHash() {
 NS_IMETHODIMP
 nsNavBookmarks::RunInBatchMode(nsINavHistoryBatchCallback* aCallback,
                                nsISupports* aUserData) {
-  PROFILER_LABEL("bookmarks", "RunInBatchMode");
+  SAMPLE_LABEL("bookmarks", "RunInBatchMode");
   NS_ENSURE_ARG(aCallback);
 
   mBatching = true;
@@ -2759,7 +2774,7 @@ NS_IMETHODIMP
 nsNavBookmarks::OnVisit(nsIURI* aURI, int64_t aVisitId, PRTime aTime,
                         int64_t aSessionID, int64_t aReferringID,
                         uint32_t aTransitionType, const nsACString& aGUID,
-                        bool aHidden)
+                        uint32_t* aAdded)
 {
   // If the page is bookmarked, notify observers for each associated bookmark.
   ItemVisitData visitData;
@@ -2772,6 +2787,15 @@ nsNavBookmarks::OnVisit(nsIURI* aURI, int64_t aVisitId, PRTime aTime,
   nsRefPtr< AsyncGetBookmarksForURI<ItemVisitMethod, ItemVisitData> > notifier =
     new AsyncGetBookmarksForURI<ItemVisitMethod, ItemVisitData>(this, &nsNavBookmarks::NotifyItemVisited, visitData);
   notifier->Init();
+  return NS_OK;
+}
+
+
+NS_IMETHODIMP
+nsNavBookmarks::OnBeforeDeleteURI(nsIURI* aURI,
+                                  const nsACString& aGUID,
+                                  uint16_t aReason)
+{
   return NS_OK;
 }
 
@@ -2864,7 +2888,7 @@ nsNavBookmarks::OnPageChanged(nsIURI* aURI,
 NS_IMETHODIMP
 nsNavBookmarks::OnDeleteVisits(nsIURI* aURI, PRTime aVisitTime,
                                const nsACString& aGUID,
-                               uint16_t aReason, uint32_t aTransitionType)
+                               uint16_t aReason)
 {
   // Notify "cleartime" only if all visits to the page have been removed.
   if (!aVisitTime) {

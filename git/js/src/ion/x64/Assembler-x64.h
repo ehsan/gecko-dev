@@ -11,7 +11,6 @@
 #include "ion/shared/Assembler-shared.h"
 #include "ion/CompactBuffer.h"
 #include "ion/IonCode.h"
-#include "mozilla/Util.h"
 
 namespace js {
 namespace ion {
@@ -72,7 +71,6 @@ static const Register JSReturnReg_Data = JSReturnReg;
 
 static const Register ReturnReg = rax;
 static const Register ScratchReg = r11;
-static const Register HeapReg = r15;
 static const FloatRegister ReturnFloatReg = xmm0;
 static const FloatRegister ScratchFloatReg = xmm15;
 
@@ -90,18 +88,14 @@ static const Register IntArgReg0 = rcx;
 static const Register IntArgReg1 = rdx;
 static const Register IntArgReg2 = r8;
 static const Register IntArgReg3 = r9;
-static const uint32_t NumIntArgRegs = 4;
+static const uint32 NumIntArgRegs = 4;
 static const Register IntArgRegs[NumIntArgRegs] = { rcx, rdx, r8, r9 };
-
-static const Register CallTempNonArgRegs[] = { rax, rdi, rbx, rsi };
-static const uint32_t NumCallTempNonArgRegs =
-    mozilla::ArrayLength(CallTempNonArgRegs);
 
 static const FloatRegister FloatArgReg0 = xmm0;
 static const FloatRegister FloatArgReg1 = xmm1;
 static const FloatRegister FloatArgReg2 = xmm2;
 static const FloatRegister FloatArgReg3 = xmm3;
-static const uint32_t NumFloatArgRegs = 4;
+static const uint32 NumFloatArgRegs = 4;
 static const FloatRegister FloatArgRegs[NumFloatArgRegs] = { xmm0, xmm1, xmm2, xmm3 };
 #else
 static const Register IntArgReg0 = rdi;
@@ -110,12 +104,8 @@ static const Register IntArgReg2 = rdx;
 static const Register IntArgReg3 = rcx;
 static const Register IntArgReg4 = r8;
 static const Register IntArgReg5 = r9;
-static const uint32_t NumIntArgRegs = 6;
+static const uint32 NumIntArgRegs = 6;
 static const Register IntArgRegs[NumIntArgRegs] = { rdi, rsi, rdx, rcx, r8, r9 };
-
-static const Register CallTempNonArgRegs[] = { rax, rbx };
-static const uint32_t NumCallTempNonArgRegs =
-    mozilla::ArrayLength(CallTempNonArgRegs);
 
 static const FloatRegister FloatArgReg0 = xmm0;
 static const FloatRegister FloatArgReg1 = xmm1;
@@ -125,32 +115,9 @@ static const FloatRegister FloatArgReg4 = xmm4;
 static const FloatRegister FloatArgReg5 = xmm5;
 static const FloatRegister FloatArgReg6 = xmm6;
 static const FloatRegister FloatArgReg7 = xmm7;
-static const uint32_t NumFloatArgRegs = 8;
+static const uint32 NumFloatArgRegs = 8;
 static const FloatRegister FloatArgRegs[NumFloatArgRegs] = { xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7 };
 #endif
-
-class ABIArgGenerator
-{
-#if defined(XP_WIN)
-    unsigned regIndex_;
-#else
-    unsigned intRegIndex_;
-    unsigned floatRegIndex_;
-#endif
-    uint32_t stackOffset_;
-    ABIArg current_;
-
-  public:
-    ABIArgGenerator();
-    ABIArg next(MIRType argType);
-    ABIArg &current() { return current_; }
-    uint32_t stackBytesConsumedSoFar() const { return stackOffset_; }
-
-    // Note: these registers are all guaranteed to be different
-    static const Register NonArgReturnVolatileReg1;
-    static const Register NonArgReturnVolatileReg2;
-    static const Register NonVolatileReg;
-};
 
 static const Register OsrFrameReg = IntArgReg3;
 
@@ -158,10 +125,8 @@ static const Register PreBarrierReg = rdx;
 
 // GCC stack is aligned on 16 bytes, but we don't maintain the invariant in
 // jitted code.
-static const uint32_t StackAlignment = 16;
+static const uint32 StackAlignment = 16;
 static const bool StackKeptAligned = false;
-static const uint32_t NativeFrameSize = sizeof(void*);
-static const uint32_t AlignmentAtPrologue = sizeof(void*);
 
 static const Scale ScalePointer = TimesEight;
 
@@ -176,10 +141,10 @@ class Operand
     };
 
     Kind kind_ : 3;
-    int32_t base_ : 5;
+    int32 base_ : 5;
     Scale scale_ : 3;
-    int32_t disp_;
-    int32_t index_ : 5;
+    int32 disp_;
+    int32 index_ : 5;
 
   public:
     explicit Operand(Register reg)
@@ -202,28 +167,18 @@ class Operand
         disp_(address.offset),
         index_(address.index.code())
     { }
-    Operand(Register base, Register index, Scale scale, int32_t disp = 0)
+    Operand(Register base, Register index, Scale scale, int32 disp = 0)
       : kind_(SCALE),
         base_(base.code()),
         scale_(scale),
         disp_(disp),
         index_(index.code())
     { }
-    Operand(Register reg, int32_t disp)
+    Operand(Register reg, int32 disp)
       : kind_(REG_DISP),
         base_(reg.code()),
         disp_(disp)
     { }
-
-    Address toAddress() {
-        JS_ASSERT(kind() == REG_DISP);
-        return Address(Register::FromCode(base()), disp());
-    }
-
-    BaseIndex toBaseIndex() {
-        JS_ASSERT(kind() == SCALE);
-        return BaseIndex(Register::FromCode(base()), Register::FromCode(index()), scale(), disp());
-    }
 
     Kind kind() const {
         return kind_;
@@ -248,7 +203,7 @@ class Operand
         JS_ASSERT(kind() == FPREG);
         return (FloatRegisters::Code)base_;
     }
-    int32_t disp() const {
+    int32 disp() const {
         JS_ASSERT(kind() == REG_DISP || kind() == SCALE);
         return disp_;
     }
@@ -290,12 +245,12 @@ class Assembler : public AssemblerX86Shared
     //    +4 bytes for rip-relative offset (0)
     //    +8 bytes for 64-bit address
     //
-    static const uint32_t SizeOfExtendedJump = 1 + 1 + 4 + 8;
-    static const uint32_t SizeOfJumpTableEntry = 16;
+    static const uint32 SizeOfExtendedJump = 1 + 1 + 4 + 8;
+    static const uint32 SizeOfJumpTableEntry = 16;
 
-    uint32_t extendedJumpTable_;
+    uint32 extendedJumpTable_;
 
-    static IonCode *CodeFromJump(IonCode *code, uint8_t *jump);
+    static IonCode *CodeFromJump(IonCode *code, uint8 *jump);
 
   private:
     void writeRelocation(JmpSrc src, Relocation::Kind reloc);
@@ -309,8 +264,8 @@ class Assembler : public AssemblerX86Shared
     using AssemblerX86Shared::jmp;
     using AssemblerX86Shared::push;
 
-    static uint8_t *PatchableJumpAddress(IonCode *code, size_t index);
-    static void PatchJumpEntry(uint8_t *entry, uint8_t *target);
+    static uint8 *PatchableJumpAddress(IonCode *code, size_t index);
+    static void PatchJumpEntry(uint8 *entry, uint8 *target);
 
     Assembler()
       : extendedJumpTable_(0)
@@ -321,11 +276,11 @@ class Assembler : public AssemblerX86Shared
 
     // The buffer is about to be linked, make sure any constant pools or excess
     // bookkeeping has been flushed to the instruction stream.
-    void finish();
+    void flush();
 
     // Copy the assembly code to the given buffer, and perform any pending
     // relocations relying on the target address.
-    void executableCopy(uint8_t *buffer);
+    void executableCopy(uint8 *buffer);
 
     // Actual assembly emitting functions.
 
@@ -334,14 +289,8 @@ class Assembler : public AssemblerX86Shared
         push(ScratchReg);
     }
     void push(const ImmWord ptr) {
-        // We often end up with ImmWords that actually fit into int32.
-        // Be aware of the sign extension behavior.
-        if (ptr.value <= INT32_MAX) {
-            push(Imm32(ptr.value));
-        } else {
-            movq(ptr, ScratchReg);
-            push(ScratchReg);
-        }
+        movq(ptr, ScratchReg);
+        push(ScratchReg);
     }
     void push(const FloatRegister &src) {
         subq(Imm32(sizeof(void*)), StackPointer);
@@ -391,21 +340,6 @@ class Assembler : public AssemblerX86Shared
             JS_NOT_REACHED("unexpected operand kind");
         }
     }
-    void movq(Imm32 imm32, const Operand &dest) {
-        switch (dest.kind()) {
-          case Operand::REG:
-            masm.movl_i32r(imm32.value, dest.reg());
-            break;
-          case Operand::REG_DISP:
-            masm.movq_i32m(imm32.value, dest.disp(), dest.base());
-            break;
-          case Operand::SCALE:
-            masm.movq_i32m(imm32.value, dest.disp(), dest.base(), dest.index(), dest.scale());
-            break;
-          default:
-            JS_NOT_REACHED("unexpected operand kind");
-        }
-    }
     void movqsd(const Register &src, const FloatRegister &dest) {
         masm.movq_rr(src.code(), dest.code());
     }
@@ -441,36 +375,12 @@ class Assembler : public AssemblerX86Shared
     void addq(const Register &src, const Register &dest) {
         masm.addq_rr(src.code(), dest.code());
     }
-    void addq(const Operand &src, const Register &dest) {
-        switch (src.kind()) {
-          case Operand::REG:
-            masm.addq_rr(src.reg(), dest.code());
-            break;
-          case Operand::REG_DISP:
-            masm.addq_mr(src.disp(), src.base(), dest.code());
-            break;
-          default:
-            JS_NOT_REACHED("unexpected operand kind");
-        }
-    }
 
     void subq(Imm32 imm, const Register &dest) {
         masm.subq_ir(imm.value, dest.code());
     }
     void subq(const Register &src, const Register &dest) {
         masm.subq_rr(src.code(), dest.code());
-    }
-    void subq(const Operand &src, const Register &dest) {
-        switch (src.kind()) {
-          case Operand::REG:
-            masm.subq_rr(src.reg(), dest.code());
-            break;
-          case Operand::REG_DISP:
-            masm.subq_mr(src.disp(), src.base(), dest.code());
-            break;
-          default:
-            JS_NOT_REACHED("unexpected operand kind");
-        }
     }
     void shlq(Imm32 imm, const Register &dest) {
         masm.shlq_i8r(imm.value, dest.code());
@@ -499,9 +409,6 @@ class Assembler : public AssemblerX86Shared
     void xorq(const Register &src, const Register &dest) {
         masm.xorq_rr(src.code(), dest.code());
     }
-    void xorq(Imm32 imm, const Register &dest) {
-        masm.xorq_ir(imm.value, dest.code());
-    }
 
     void mov(ImmWord word, const Register &dest) {
         movq(word, dest);
@@ -514,9 +421,6 @@ class Assembler : public AssemblerX86Shared
     }
     void mov(const Register &src, const Operand &dest) {
         movq(src, dest);
-    }
-    void mov(const Imm32 &imm32, const Operand &dest) {
-        movq(imm32, dest);
     }
     void mov(const Register &src, const Register &dest) {
         movq(src, dest);
@@ -541,25 +445,6 @@ class Assembler : public AssemblerX86Shared
         }
     }
 
-    CodeOffsetLabel loadRipRelativeInt32(const Register &dest) {
-        return CodeOffsetLabel(masm.movl_ripr(dest.code()).offset());
-    }
-    CodeOffsetLabel loadRipRelativeInt64(const Register &dest) {
-        return CodeOffsetLabel(masm.movq_ripr(dest.code()).offset());
-    }
-    CodeOffsetLabel loadRipRelativeDouble(const FloatRegister &dest) {
-        return CodeOffsetLabel(masm.movsd_ripr(dest.code()).offset());
-    }
-    CodeOffsetLabel storeRipRelativeInt32(const Register &dest) {
-        return CodeOffsetLabel(masm.movl_rrip(dest.code()).offset());
-    }
-    CodeOffsetLabel storeRipRelativeDouble(const FloatRegister &dest) {
-        return CodeOffsetLabel(masm.movsd_rrip(dest.code()).offset());
-    }
-    CodeOffsetLabel leaRipRelative(const Register &dest) {
-        return CodeOffsetLabel(masm.leaq_rip(dest.code()).offset());
-    }
-
     // The below cmpq methods switch the lhs and rhs when it invokes the
     // macroassembler to conform with intel standard.  When calling this
     // function put the left operand on the left as you would expect.
@@ -577,9 +462,6 @@ class Assembler : public AssemblerX86Shared
     }
     void cmpq(const Operand &lhs, Imm32 rhs) {
         switch (lhs.kind()) {
-          case Operand::REG:
-            masm.cmpq_ir(rhs.value, lhs.reg());
-            break;
           case Operand::REG_DISP:
             masm.cmpq_im(rhs.value, lhs.disp(), lhs.base());
             break;
@@ -602,10 +484,10 @@ class Assembler : public AssemblerX86Shared
     void cmpq(const Register &lhs, const Register &rhs) {
         masm.cmpq_rr(rhs.code(), lhs.code());
     }
-    void cmpq(const Register &lhs, Imm32 rhs) {
-        masm.cmpq_ir(rhs.value, lhs.code());
+    void cmpq(Imm32 lhs, const Register &rhs) {
+        masm.cmpq_ir(lhs.value, rhs.code());
     }
-
+    
     void testq(const Register &lhs, Imm32 rhs) {
         masm.testq_i32r(rhs.value, lhs.code());
     }
@@ -634,20 +516,14 @@ class Assembler : public AssemblerX86Shared
         addPendingJump(src, target->raw(), Relocation::IONCODE);
     }
 
-    // Emit a CALL or CMP (nop) instruction. ToggleCall can be used to patch
-    // this instruction.
-    CodeOffsetLabel toggledCall(IonCode *target, bool enabled) {
-        CodeOffsetLabel offset(size());
-        JmpSrc src = enabled ? masm.call() : masm.cmp_eax();
-        addPendingJump(src, target->raw(), Relocation::IONCODE);
-        return offset;
-    }
-
     // Do not mask shared implementations.
     using AssemblerX86Shared::call;
 
-    void cvttsd2si(const FloatRegister &src, const Register &dest) {
-        masm.cvttsd2si_rr(src.code(), dest.code());
+    void cvttsd2sq(const FloatRegister &src, const Register &dest) {
+        masm.cvttsd2sq_rr(src.code(), dest.code());
+    }
+    void cvttsd2s(const FloatRegister &src, const Register &dest) {
+        cvttsd2sq(src, dest);
     }
     void cvtsq2sd(const Register &src, const FloatRegister &dest) {
         masm.cvtsq2sd_rr(src.code(), dest.code());
@@ -666,12 +542,12 @@ PatchJump(CodeLocationJump jump, CodeLocationLabel label)
 }
 
 static inline bool
-GetIntArgReg(uint32_t intArg, uint32_t floatArg, Register *out)
+GetIntArgReg(uint32 intArg, uint32 floatArg, Register *out)
 {
 #if defined(_WIN64)
-    uint32_t arg = intArg + floatArg;
+    uint32 arg = intArg + floatArg;
 #else
-    uint32_t arg = intArg;
+    uint32 arg = intArg;
 #endif
     if (arg >= NumIntArgRegs)
         return false;
@@ -679,38 +555,13 @@ GetIntArgReg(uint32_t intArg, uint32_t floatArg, Register *out)
     return true;
 }
 
-// Get a register in which we plan to put a quantity that will be used as an
-// integer argument.  This differs from GetIntArgReg in that if we have no more
-// actual argument registers to use we will fall back on using whatever
-// CallTempReg* don't overlap the argument registers, and only fail once those
-// run out too.
 static inline bool
-GetTempRegForIntArg(uint32_t usedIntArgs, uint32_t usedFloatArgs, Register *out)
-{
-    if (GetIntArgReg(usedIntArgs, usedFloatArgs, out))
-        return true;
-    // Unfortunately, we have to assume things about the point at which
-    // GetIntArgReg returns false, because we need to know how many registers it
-    // can allocate.
-#if defined(_WIN64)
-    uint32_t arg = usedIntArgs + usedFloatArgs;
-#else
-    uint32_t arg = usedIntArgs;
-#endif
-    arg -= NumIntArgRegs;
-    if (arg >= NumCallTempNonArgRegs)
-        return false;
-    *out = CallTempNonArgRegs[arg];
-    return true;
-}
-
-static inline bool
-GetFloatArgReg(uint32_t intArg, uint32_t floatArg, FloatRegister *out)
+GetFloatArgReg(uint32 intArg, uint32 floatArg, FloatRegister *out)
 {
 #if defined(_WIN64)
-    uint32_t arg = intArg + floatArg;
+    uint32 arg = intArg + floatArg;
 #else
-    uint32_t arg = floatArg;
+    uint32 arg = floatArg;
 #endif
     if (floatArg >= NumFloatArgRegs)
         return false;

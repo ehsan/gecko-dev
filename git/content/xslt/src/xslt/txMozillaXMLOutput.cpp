@@ -31,7 +31,7 @@
 #include "nsIDocumentTransformer.h"
 #include "mozilla/css/Loader.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/EncodingUtils.h"
+#include "nsCharsetAlias.h"
 #include "nsContentUtils.h"
 #include "txXMLUtils.h"
 #include "nsContentSink.h"
@@ -39,7 +39,6 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsError.h"
 #include "nsIFrame.h"
-#include <algorithm>
 
 using namespace mozilla::dom;
 
@@ -657,7 +656,7 @@ txMozillaXMLOutput::createTxWrapper()
             // The new documentElement should go after the document type.
             // This is needed for cases when there is no existing
             // documentElement in the document.
-            rootLocation = std::max(rootLocation, j + 1);
+            rootLocation = NS_MAX(rootLocation, j + 1);
 #endif
             ++j;
         }
@@ -792,22 +791,19 @@ void txMozillaXMLOutput::processHTTPEquiv(nsIAtom* aHeader, const nsString& aVal
 
 nsresult
 txMozillaXMLOutput::createResultDocument(const nsSubstring& aName, int32_t aNsID,
-                                         nsIDOMDocument* aSourceDocument,
-                                         bool aLoadedAsData)
+                                         nsIDOMDocument* aSourceDocument)
 {
     nsresult rv;
 
     // Create the document
     if (mOutputFormat.mMethod == eHTMLOutput) {
-        rv = NS_NewHTMLDocument(getter_AddRefs(mDocument),
-                                aLoadedAsData);
+        rv = NS_NewHTMLDocument(getter_AddRefs(mDocument));
         NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
         // We should check the root name/namespace here and create the
         // appropriate document
-        rv = NS_NewXMLDocument(getter_AddRefs(mDocument),
-                               aLoadedAsData);
+        rv = NS_NewXMLDocument(getter_AddRefs(mDocument));
         NS_ENSURE_SUCCESS(rv, rv);
     }
     // This should really be handled by nsIDocument::BeginLoad
@@ -830,9 +826,9 @@ txMozillaXMLOutput::createResultDocument(const nsSubstring& aName, int32_t aNsID
 
     // Set the charset
     if (!mOutputFormat.mEncoding.IsEmpty()) {
+        NS_LossyConvertUTF16toASCII charset(mOutputFormat.mEncoding);
         nsAutoCString canonicalCharset;
-        if (EncodingUtils::FindEncodingForLabel(mOutputFormat.mEncoding,
-                                                canonicalCharset)) {
+        if (NS_SUCCEEDED(nsCharsetAlias::GetPreferred(charset, canonicalCharset))) {
             mDocument->SetDocumentCharacterSetSource(kCharsetFromOtherComponent);
             mDocument->SetDocumentCharacterSet(canonicalCharset);
         }

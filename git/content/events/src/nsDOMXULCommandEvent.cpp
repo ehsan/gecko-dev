@@ -7,10 +7,9 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMXULCommandEvent.h"
 
-nsDOMXULCommandEvent::nsDOMXULCommandEvent(mozilla::dom::EventTarget* aOwner,
-                                           nsPresContext* aPresContext,
+nsDOMXULCommandEvent::nsDOMXULCommandEvent(nsPresContext* aPresContext,
                                            nsInputEvent* aEvent)
-  : nsDOMUIEvent(aOwner, aPresContext,
+  : nsDOMUIEvent(aPresContext,
                  aEvent ? aEvent : new nsInputEvent(false, 0, nullptr))
 {
   if (aEvent) {
@@ -20,20 +19,21 @@ nsDOMXULCommandEvent::nsDOMXULCommandEvent(mozilla::dom::EventTarget* aOwner,
     mEventIsInternal = true;
     mEvent->time = PR_Now();
   }
-  SetIsDOMBinding();
 }
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMXULCommandEvent)
 
 NS_IMPL_ADDREF_INHERITED(nsDOMXULCommandEvent, nsDOMUIEvent)
 NS_IMPL_RELEASE_INHERITED(nsDOMXULCommandEvent, nsDOMUIEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMXULCommandEvent,
                                                 nsDOMUIEvent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mSourceEvent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSourceEvent)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMXULCommandEvent,
                                                   nsDOMUIEvent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSourceEvent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSourceEvent)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 DOMCI_DATA(XULCommandEvent, nsDOMXULCommandEvent)
@@ -47,7 +47,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetAltKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = AltKey();
+  *aIsDown = Event()->IsAlt();
   return NS_OK;
 }
 
@@ -55,7 +55,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetCtrlKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = CtrlKey();
+  *aIsDown = Event()->IsControl();
   return NS_OK;
 }
 
@@ -63,7 +63,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetShiftKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = ShiftKey();
+  *aIsDown = Event()->IsShift();
   return NS_OK;
 }
 
@@ -71,7 +71,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetMetaKey(bool* aIsDown)
 {
   NS_ENSURE_ARG_POINTER(aIsDown);
-  *aIsDown = MetaKey();
+  *aIsDown = Event()->IsMeta();
   return NS_OK;
 }
 
@@ -79,7 +79,7 @@ NS_IMETHODIMP
 nsDOMXULCommandEvent::GetSourceEvent(nsIDOMEvent** aSourceEvent)
 {
   NS_ENSURE_ARG_POINTER(aSourceEvent);
-  *aSourceEvent = GetSourceEvent().get();
+  NS_IF_ADDREF(*aSourceEvent = mSourceEvent);
   return NS_OK;
 }
 
@@ -104,11 +104,9 @@ nsDOMXULCommandEvent::InitCommandEvent(const nsAString& aType,
 
 
 nsresult NS_NewDOMXULCommandEvent(nsIDOMEvent** aInstancePtrResult,
-                                  mozilla::dom::EventTarget* aOwner,
                                   nsPresContext* aPresContext,
                                   nsInputEvent *aEvent) 
 {
-  nsDOMXULCommandEvent* it =
-    new nsDOMXULCommandEvent(aOwner, aPresContext, aEvent);
+  nsDOMXULCommandEvent* it = new nsDOMXULCommandEvent(aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }

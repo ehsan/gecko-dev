@@ -35,7 +35,7 @@ function testErrorsAfterPageReload(aEvent) {
 
   let button = content.document.querySelector("button").wrappedJSObject;
   ok(button, "button found");
-  EventUtils.sendMouseEvent({type: "click"}, button, content.wrappedJSObject);
+  EventUtils.sendMouseEvent({type: "click"}, button, content);
 }
 
 var consoleObserver = {

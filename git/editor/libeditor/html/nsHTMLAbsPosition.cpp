@@ -26,13 +26,14 @@
 #include "nsHTMLEditor.h"
 #include "nsHTMLObjectResizer.h"
 #include "nsIContent.h"
-#include "nsROCSSPrimitiveValue.h"
+#include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMCSSStyleDeclaration.h"
+#include "nsIDOMCSSValue.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEventListener.h"
 #include "nsIDOMEventTarget.h"
 #include "nsIDOMNode.h"
-#include "nsDOMCSSRGBColor.h"
+#include "nsIDOMRGBColor.h"
 #include "nsIDOMWindow.h"
 #include "nsIEditor.h"
 #include "nsIHTMLEditor.h"
@@ -49,7 +50,6 @@
 #include "nsTextEditRules.h"
 #include "nsTextEditUtils.h"
 #include "nscore.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -72,8 +72,6 @@ nsHTMLEditor::AbsolutePositionSelection(bool aEnabled)
   nsTextRulesInfo ruleInfo(aEnabled ? EditAction::setAbsolutePosition :
                                       EditAction::removeAbsolutePosition);
   bool cancel, handled;
-  // Protect the edit rules object from dying
-  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
   nsresult res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (NS_FAILED(res) || cancel)
     return res;
@@ -147,7 +145,7 @@ nsHTMLEditor::RelativeChangeElementZIndex(nsIDOMElement * aElement,
   nsresult res = GetElementZIndex(aElement, &zIndex);
   NS_ENSURE_SUCCESS(res, res);
 
-  zIndex = std::max(zIndex + aChange, 0);
+  zIndex = NS_MAX(zIndex + aChange, 0);
   SetElementZIndex(aElement, zIndex);
   *aReturn = zIndex;
 
@@ -186,8 +184,6 @@ nsHTMLEditor::RelativeChangeZIndex(int32_t aChange)
   nsTextRulesInfo ruleInfo(aChange < 0 ? EditAction::decreaseZIndex :
                                          EditAction::increaseZIndex);
   bool cancel, handled;
-  // Protect the edit rules object from dying
-  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
   nsresult res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   if (cancel || NS_FAILED(res))
     return res;
@@ -564,7 +560,7 @@ nsHTMLEditor::AbsolutelyPositionElement(nsIDOMElement * aElement,
 
     nsCOMPtr<dom::Element> element = do_QueryInterface(aElement);
     if (element && element->IsHTML(nsGkAtoms::div) && !HasStyleOrIdOrClass(element)) {
-      nsRefPtr<nsHTMLEditRules> htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
+      nsHTMLEditRules* htmlRules = static_cast<nsHTMLEditRules*>(mRules.get());
       NS_ENSURE_TRUE(htmlRules, NS_ERROR_FAILURE);
       nsresult res = htmlRules->MakeSureElemStartsOrEndsOnCR(aElement);
       NS_ENSURE_SUCCESS(res, res);
@@ -665,32 +661,43 @@ nsHTMLEditor::CheckPositionedElementBGandFG(nsIDOMElement * aElement,
       NS_ENSURE_STATE(cssDecl);
 
       // from these declarations, get the one we want and that one only
-      ErrorResult error;
-      nsRefPtr<dom::CSSValue> cssVal = cssDecl->GetPropertyCSSValue(NS_LITERAL_STRING("color"), error);
-      NS_ENSURE_SUCCESS(error.ErrorCode(), error.ErrorCode());
+      nsCOMPtr<nsIDOMCSSValue> colorCssValue;
+      res = cssDecl->GetPropertyCSSValue(NS_LITERAL_STRING("color"), getter_AddRefs(colorCssValue));
+      NS_ENSURE_SUCCESS(res, res);
 
-      nsROCSSPrimitiveValue* val = cssVal->AsPrimitiveValue();
-      NS_ENSURE_TRUE(val, NS_ERROR_FAILURE);
-
-      if (nsIDOMCSSPrimitiveValue::CSS_RGBCOLOR == val->PrimitiveType()) {
-        nsDOMCSSRGBColor* rgbVal = val->GetRGBColorValue(error);
-        NS_ENSURE_SUCCESS(error.ErrorCode(), error.ErrorCode());
-        float r = rgbVal->Red()->
-          GetFloatValue(nsIDOMCSSPrimitiveValue::CSS_NUMBER, error);
-        NS_ENSURE_SUCCESS(error.ErrorCode(), error.ErrorCode());
-        float g = rgbVal->Green()->
-          GetFloatValue(nsIDOMCSSPrimitiveValue::CSS_NUMBER, error);
-        NS_ENSURE_SUCCESS(error.ErrorCode(), error.ErrorCode());
-        float b = rgbVal->Blue()->
-          GetFloatValue(nsIDOMCSSPrimitiveValue::CSS_NUMBER, error);
-        NS_ENSURE_SUCCESS(error.ErrorCode(), error.ErrorCode());
-        if (r >= BLACK_BG_RGB_TRIGGER &&
-            g >= BLACK_BG_RGB_TRIGGER &&
-            b >= BLACK_BG_RGB_TRIGGER)
-          aReturn.AssignLiteral("black");
-        else
-          aReturn.AssignLiteral("white");
-        return NS_OK;
+      uint16_t type;
+      res = colorCssValue->GetCssValueType(&type);
+      NS_ENSURE_SUCCESS(res, res);
+      if (nsIDOMCSSValue::CSS_PRIMITIVE_VALUE == type) {
+        nsCOMPtr<nsIDOMCSSPrimitiveValue> val = do_QueryInterface(colorCssValue);
+        res = val->GetPrimitiveType(&type);
+        NS_ENSURE_SUCCESS(res, res);
+        if (nsIDOMCSSPrimitiveValue::CSS_RGBCOLOR == type) {
+          nsCOMPtr<nsIDOMRGBColor> rgbColor;
+          res = val->GetRGBColorValue(getter_AddRefs(rgbColor));
+          NS_ENSURE_SUCCESS(res, res);
+          nsCOMPtr<nsIDOMCSSPrimitiveValue> red, green, blue;
+          float r, g, b;
+          res = rgbColor->GetRed(getter_AddRefs(red));
+          NS_ENSURE_SUCCESS(res, res);
+          res = rgbColor->GetGreen(getter_AddRefs(green));
+          NS_ENSURE_SUCCESS(res, res);
+          res = rgbColor->GetBlue(getter_AddRefs(blue));
+          NS_ENSURE_SUCCESS(res, res);
+          res = red->GetFloatValue(nsIDOMCSSPrimitiveValue::CSS_NUMBER, &r);
+          NS_ENSURE_SUCCESS(res, res);
+          res = green->GetFloatValue(nsIDOMCSSPrimitiveValue::CSS_NUMBER, &g);
+          NS_ENSURE_SUCCESS(res, res);
+          res = blue->GetFloatValue(nsIDOMCSSPrimitiveValue::CSS_NUMBER, &b);
+          NS_ENSURE_SUCCESS(res, res);
+          if (r >= BLACK_BG_RGB_TRIGGER &&
+              g >= BLACK_BG_RGB_TRIGGER &&
+              b >= BLACK_BG_RGB_TRIGGER)
+            aReturn.AssignLiteral("black");
+          else
+            aReturn.AssignLiteral("white");
+          return NS_OK;
+        }
       }
     }
   }

@@ -13,16 +13,20 @@ const TEST_URI = uri(TEST_URL);
 const PLACE_URL = "place:queryType=0&sort=8&maxResults=10";
 const PLACE_URI = uri(PLACE_URL);
 
-var tests = [
+var gTests = [
   {
     desc: "Remove some visits outside valid timeframe from an unbookmarked URI",
     run:   function () {
       print("Add 10 visits for the URI from way in the past.");
-      let visits = [];
       for (let i = 0; i < 10; i++) {
-        visits.push({ uri: TEST_URI, visitDate: NOW - 1000 - i });
+        histsvc.addVisit(TEST_URI,
+                         NOW - 1000 - i,
+                         null,
+                         histsvc.TRANSITION_TYPED,
+                         false,
+                         0);
       }
-      promiseAddVisits(visits).then(this.continue_run.bind(this));
+      waitForAsyncUpdates(this.continue_run, this);
     },
     continue_run: function () {
       print("Remove visits using timerange outside the URI's visits.");
@@ -46,15 +50,14 @@ var tests = [
       }
       resultRoot.containerOpen = false;
 
-      print("asyncHistory.isURIVisited should return true.");
-      PlacesUtils.asyncHistory.isURIVisited(TEST_URI, function(aURI, aIsVisited) {
-        do_check_true(aIsVisited);
+      print("nsIGlobalHistory2.isVisited should return true.");
+      do_check_true(histsvc.QueryInterface(Ci.nsIGlobalHistory2).
+                    isVisited(TEST_URI));
 
-        promiseAsyncUpdates().then(function () {
-          print("Frecency should be positive.")
-          do_check_true(frecencyForUrl(TEST_URI) > 0);
-          run_next_test();
-        });
+      waitForAsyncUpdates(function () {
+        print("Frecency should be positive.")
+        do_check_true(frecencyForUrl(TEST_URI) > 0);
+        run_next_test();
       });
     }
   },
@@ -63,19 +66,22 @@ var tests = [
     desc: "Remove some visits outside valid timeframe from a bookmarked URI",
     run:   function () {
       print("Add 10 visits for the URI from way in the past.");
-      let visits = [];
       for (let i = 0; i < 10; i++) {
-        visits.push({ uri: TEST_URI, visitDate: NOW - 1000 - i });
+        histsvc.addVisit(TEST_URI,
+                         NOW - 1000 - i,
+                         null,
+                         histsvc.TRANSITION_TYPED,
+                         false,
+                         0);
       }
-      promiseAddVisits(visits).then(function () {
-        print("Bookmark the URI.");
-        bmsvc.insertBookmark(bmsvc.unfiledBookmarksFolder,
-                             TEST_URI,
-                             bmsvc.DEFAULT_INDEX,
-                             "bookmark title");
 
-        promiseAsyncUpdates().then(this.continue_run.bind(this));
-      }.bind(this));
+      print("Bookmark the URI.");
+      bmsvc.insertBookmark(bmsvc.unfiledBookmarksFolder,
+                           TEST_URI,
+                           bmsvc.DEFAULT_INDEX,
+                           "bookmark title");
+
+      waitForAsyncUpdates(this.continue_run, this);
     },
     continue_run: function () {
       print("Remove visits using timerange outside the URI's visits.");
@@ -99,15 +105,14 @@ var tests = [
       }
       resultRoot.containerOpen = false;
 
-      print("asyncHistory.isURIVisited should return true.");
-      PlacesUtils.asyncHistory.isURIVisited(TEST_URI, function(aURI, aIsVisited) {
-        do_check_true(aIsVisited);
+      print("nsIGlobalHistory2.isVisited should return true.");
+      do_check_true(histsvc.QueryInterface(Ci.nsIGlobalHistory2).
+                    isVisited(TEST_URI));
 
-        promiseAsyncUpdates().then(function () {
-          print("Frecency should be positive.")
-          do_check_true(frecencyForUrl(TEST_URI) > 0);
-          run_next_test();
-        });
+      waitForAsyncUpdates(function () {
+        print("Frecency should be positive.")
+        do_check_true(frecencyForUrl(TEST_URI) > 0);
+        run_next_test();
       });
     }
   },
@@ -116,11 +121,15 @@ var tests = [
     desc: "Remove some visits from an unbookmarked URI",
     run:   function () {
       print("Add 10 visits for the URI from now to 9 usecs in the past.");
-      let visits = [];
       for (let i = 0; i < 10; i++) {
-        visits.push({ uri: TEST_URI, visitDate: NOW - i });
+        histsvc.addVisit(TEST_URI,
+                         NOW - i,
+                         null,
+                         histsvc.TRANSITION_TYPED,
+                         false,
+                         0);
       }
-      promiseAddVisits(visits).then(this.continue_run.bind(this));
+      waitForAsyncUpdates(this.continue_run, this);
     },
     continue_run: function () {
       print("Remove the 5 most recent visits.");
@@ -145,15 +154,14 @@ var tests = [
       }
       resultRoot.containerOpen = false;
 
-      print("asyncHistory.isURIVisited should return true.");
-      PlacesUtils.asyncHistory.isURIVisited(TEST_URI, function(aURI, aIsVisited) {
-        do_check_true(aIsVisited);
+      print("nsIGlobalHistory2.isVisited should return true.");
+      do_check_true(histsvc.QueryInterface(Ci.nsIGlobalHistory2).
+                    isVisited(TEST_URI));
 
-        promiseAsyncUpdates().then(function () {
-          print("Frecency should be positive.")
-          do_check_true(frecencyForUrl(TEST_URI) > 0);
-          run_next_test();
-        });
+      waitForAsyncUpdates(function () {
+        print("Frecency should be positive.")
+        do_check_true(frecencyForUrl(TEST_URI) > 0);
+        run_next_test();
       });
     }
   },
@@ -162,18 +170,21 @@ var tests = [
     desc: "Remove some visits from a bookmarked URI",
     run:   function () {
       print("Add 10 visits for the URI from now to 9 usecs in the past.");
-      let visits = [];
       for (let i = 0; i < 10; i++) {
-        visits.push({ uri: TEST_URI, visitDate: NOW - i });
+        histsvc.addVisit(TEST_URI,
+                         NOW - i,
+                         null,
+                         histsvc.TRANSITION_TYPED,
+                         false,
+                         0);
       }
-      promiseAddVisits(visits).then(function () {
-        print("Bookmark the URI.");
-        bmsvc.insertBookmark(bmsvc.unfiledBookmarksFolder,
-                             TEST_URI,
-                             bmsvc.DEFAULT_INDEX,
-                             "bookmark title");
-        promiseAsyncUpdates().then(this.continue_run.bind(this));
-      }.bind(this));
+
+      print("Bookmark the URI.");
+      bmsvc.insertBookmark(bmsvc.unfiledBookmarksFolder,
+                           TEST_URI,
+                           bmsvc.DEFAULT_INDEX,
+                           "bookmark title");
+      waitForAsyncUpdates(this.continue_run, this);
     },
     continue_run: function () {
       print("Remove the 5 most recent visits.");
@@ -198,15 +209,14 @@ var tests = [
       }
       resultRoot.containerOpen = false;
 
-      print("asyncHistory.isURIVisited should return true.");
-      PlacesUtils.asyncHistory.isURIVisited(TEST_URI, function(aURI, aIsVisited) {
-        do_check_true(aIsVisited);
+      print("nsIGlobalHistory2.isVisited should return true.");
+      do_check_true(histsvc.QueryInterface(Ci.nsIGlobalHistory2).
+                    isVisited(TEST_URI));
 
-        promiseAsyncUpdates().then(function () {
-          print("Frecency should be positive.")
-          do_check_true(frecencyForUrl(TEST_URI) > 0);
-          run_next_test();
-        });
+      waitForAsyncUpdates(function () {
+        print("Frecency should be positive.")
+        do_check_true(frecencyForUrl(TEST_URI) > 0);
+        run_next_test();
       });
     }
   },
@@ -215,11 +225,15 @@ var tests = [
     desc: "Remove all visits from an unbookmarked URI",
     run:   function () {
       print("Add some visits for the URI.");
-      let visits = [];
       for (let i = 0; i < 10; i++) {
-        visits.push({ uri: TEST_URI, visitDate: NOW - i });
+        histsvc.addVisit(TEST_URI,
+                         NOW - i,
+                         null,
+                         histsvc.TRANSITION_TYPED,
+                         false,
+                         0);
       }
-      promiseAddVisits(visits).then(this.continue_run.bind(this));
+      waitForAsyncUpdates(this.continue_run, this);
     },
     continue_run: function () {
       print("Remove all visits.");
@@ -239,11 +253,10 @@ var tests = [
       do_check_eq(resultRoot.childCount, 0);
       resultRoot.containerOpen = false;
 
-      print("asyncHistory.isURIVisited should return false.");
-      PlacesUtils.asyncHistory.isURIVisited(TEST_URI, function(aURI, aIsVisited) {
-        do_check_false(aIsVisited);
-        run_next_test();
-      });
+      print("nsIGlobalHistory2.isVisited should return false.");
+      do_check_false(histsvc.QueryInterface(Ci.nsIGlobalHistory2).
+                       isVisited(TEST_URI));
+      run_next_test();
     }
   },
 
@@ -251,11 +264,15 @@ var tests = [
     desc: "Remove all visits from an unbookmarked place: URI",
     run:   function () {
       print("Add some visits for the URI.");
-      let visits = [];
       for (let i = 0; i < 10; i++) {
-        visits.push({ uri: PLACE_URI, visitDate: NOW - i });
+        histsvc.addVisit(PLACE_URI,
+                         NOW - i,
+                         null,
+                         histsvc.TRANSITION_TYPED,
+                         false,
+                         0);
       }
-      promiseAddVisits(visits).then(this.continue_run.bind(this));
+      waitForAsyncUpdates(this.continue_run, this);
     },
     continue_run: function () {
       print("Remove all visits.");
@@ -275,15 +292,14 @@ var tests = [
       do_check_eq(resultRoot.childCount, 0);
       resultRoot.containerOpen = false;
 
-      print("asyncHistory.isURIVisited should return false.");
-      PlacesUtils.asyncHistory.isURIVisited(PLACE_URI, function(aURI, aIsVisited) {
-        do_check_false(aIsVisited);
+      print("nsIGlobalHistory2.isVisited should return false.");
+      do_check_false(histsvc.QueryInterface(Ci.nsIGlobalHistory2).
+                       isVisited(PLACE_URI));
 
-        promiseAsyncUpdates().then(function () {
-          print("Frecency should be zero.")
-          do_check_eq(frecencyForUrl(PLACE_URL), 0);
-          run_next_test();
-        });
+      waitForAsyncUpdates(function () {
+        print("Frecency should be zero.")
+        do_check_eq(frecencyForUrl(PLACE_URL), 0);
+        run_next_test();
       });
     }
   },
@@ -292,18 +308,21 @@ var tests = [
     desc: "Remove all visits from a bookmarked URI",
     run:   function () {
       print("Add some visits for the URI.");
-      let visits = [];
       for (let i = 0; i < 10; i++) {
-        visits.push({ uri: TEST_URI, visitDate: NOW - i });
+        histsvc.addVisit(TEST_URI,
+                         NOW - i,
+                         null,
+                         histsvc.TRANSITION_TYPED,
+                         false,
+                         0);
       }
-      promiseAddVisits(visits).then(function () {
-        print("Bookmark the URI.");
-        bmsvc.insertBookmark(bmsvc.unfiledBookmarksFolder,
-                             TEST_URI,
-                             bmsvc.DEFAULT_INDEX,
-                             "bookmark title");
-        promiseAsyncUpdates().then(this.continue_run.bind(this));
-      }.bind(this));
+
+      print("Bookmark the URI.");
+      bmsvc.insertBookmark(bmsvc.unfiledBookmarksFolder,
+                           TEST_URI,
+                           bmsvc.DEFAULT_INDEX,
+                           "bookmark title");
+      waitForAsyncUpdates(this.continue_run, this);
     },
     continue_run: function () {
       print("Remove all visits.");
@@ -323,18 +342,17 @@ var tests = [
       do_check_eq(resultRoot.childCount, 0);
       resultRoot.containerOpen = false;
 
-      print("asyncHistory.isURIVisited should return false.");
-      PlacesUtils.asyncHistory.isURIVisited(TEST_URI, function(aURI, aIsVisited) {
-        do_check_false(aIsVisited);
+      print("nsIGlobalHistory2.isVisited should return false.");
+      do_check_false(histsvc.QueryInterface(Ci.nsIGlobalHistory2).
+                       isVisited(TEST_URI));
 
-        print("nsINavBookmarksService.isBookmarked should return true.");
-        do_check_true(bmsvc.isBookmarked(TEST_URI));
+      print("nsINavBookmarksService.isBookmarked should return true.");
+      do_check_true(bmsvc.isBookmarked(TEST_URI));
 
-        promiseAsyncUpdates().then(function () {
-          print("Frecency should be negative.")
-          do_check_true(frecencyForUrl(TEST_URI) < 0);
-          run_next_test();
-        });
+      waitForAsyncUpdates(function () {
+        print("Frecency should be negative.")
+        do_check_true(frecencyForUrl(TEST_URI) < 0);
+        run_next_test();
       });
     }
   },
@@ -343,18 +361,18 @@ var tests = [
     desc: "Remove some visits from a zero frecency URI retains zero frecency",
     run: function () {
       do_log_info("Add some visits for the URI.");
-      promiseAddVisits([{ uri: TEST_URI, transition: TRANSITION_FRAMED_LINK,
-                          visitDate: (NOW - 86400000000) },
-                        { uri: TEST_URI, transition: TRANSITION_FRAMED_LINK,
-                          visitDate: NOW }]).then(
-                       this.continue_run.bind(this));
+      addVisits([{ uri: TEST_URI, transition: TRANSITION_FRAMED_LINK,
+                   visitDate: (NOW - 86400000000) },
+                 { uri: TEST_URI, transition: TRANSITION_FRAMED_LINK,
+                  visitDate: NOW }],
+                this.continue_run.bind(this));
     },
     continue_run: function () {
       do_log_info("Remove newer visit.");
       histsvc.QueryInterface(Ci.nsIBrowserHistory).
         removeVisitsByTimeframe(NOW - 10, NOW);
 
-      promiseAsyncUpdates().then(function() {
+      waitForAsyncUpdates(function() {
         do_log_info("URI should still exist in moz_places.");
         do_check_true(page_in_database(TEST_URL));
         do_log_info("Frecency should be zero.")
@@ -374,10 +392,10 @@ function run_test()
 }
 
 function run_next_test() {
-  if (tests.length) {
-    let test = tests.shift();
+  if (gTests.length) {
+    let test = gTests.shift();
     print("\n ***Test: " + test.desc);
-    promiseClearHistory().then(function() {
+    waitForClearHistory(function() {
       remove_all_bookmarks();
       DBConn().executeSimpleSQL("DELETE FROM moz_places");
       test.run.call(test);

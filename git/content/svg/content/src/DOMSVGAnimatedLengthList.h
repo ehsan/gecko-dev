@@ -9,6 +9,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsIDOMSVGAnimatedLengthList.h"
 #include "nsSVGElement.h"
 #include "mozilla/Attributes.h"
 
@@ -103,14 +104,14 @@ class DOMSVGLengthList;
  * One drawback of this design is that objects must look up their parent
  * chain to find their element, but that overhead is relatively small.
  */
-class DOMSVGAnimatedLengthList MOZ_FINAL : public nsISupports,
-                                           public nsWrapperCache
+class DOMSVGAnimatedLengthList MOZ_FINAL : public nsIDOMSVGAnimatedLengthList
 {
   friend class DOMSVGLengthList;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGAnimatedLengthList)
+  NS_DECL_CYCLE_COLLECTION_CLASS(DOMSVGAnimatedLengthList)
+  NS_DECL_NSIDOMSVGANIMATEDLENGTHLIST
 
   /**
    * Factory method to create and return a DOMSVGAnimatedLengthList wrapper
@@ -158,13 +159,6 @@ public:
    */
   bool IsAnimating() const;
 
-  // WebIDL
-  nsSVGElement* GetParentObject() const { return mElement; }
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
-  // These aren't weak refs because mBaseVal and mAnimVal are weak
-  already_AddRefed<DOMSVGLengthList> BaseVal();
-  already_AddRefed<DOMSVGLengthList> AnimVal();
-
 private:
 
   /**
@@ -177,9 +171,7 @@ private:
     , mElement(aElement)
     , mAttrEnum(aAttrEnum)
     , mAxis(aAxis)
-  {
-    SetIsDOMBinding();
-  }
+  {}
 
   ~DOMSVGAnimatedLengthList();
 

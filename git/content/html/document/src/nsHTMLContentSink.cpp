@@ -1288,21 +1288,23 @@ HTMLContentSink::~HTMLContentSink()
   }
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLContentSink)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLContentSink, nsContentSink)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mHTMLDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRoot)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mBody)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mHead)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mHTMLDocument)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRoot)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBody)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mHead)
   for (uint32_t i = 0; i < ArrayLength(tmp->mNodeInfoCache); ++i) {
     NS_IF_RELEASE(tmp->mNodeInfoCache[i]);
   }
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLContentSink,
                                                   nsContentSink)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mHTMLDocument)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRoot)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mBody)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mHead)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mHTMLDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRoot)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBody)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mHead)
   for (uint32_t i = 0; i < ArrayLength(tmp->mNodeInfoCache); ++i) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mNodeInfoCache[i]");
     cb.NoteXPCOMChild(tmp->mNodeInfoCache[i]);
@@ -1341,7 +1343,8 @@ IsScriptEnabled(nsIDocument *aDoc, nsIDocShell *aContainer)
 
   nsIScriptContext *scriptContext = globalObject->GetContext();
   NS_ENSURE_TRUE(scriptContext, true);
-  JSContext *cx = scriptContext->GetNativeContext();
+
+  JSContext* cx = scriptContext->GetNativeContext();
   NS_ENSURE_TRUE(cx, true);
 
   bool enabled = true;
@@ -2068,10 +2071,12 @@ HTMLContentSink::SetDocumentCharset(nsACString& aCharset)
       // it but if we get a null pointer, that's perfectly legal for
       // parent and parentContentViewer
 
-      NS_ENSURE_TRUE(mDocShell, NS_ERROR_FAILURE);
+      nsCOMPtr<nsIDocShellTreeItem> docShellAsItem =
+        do_QueryInterface(mDocShell);
+      NS_ENSURE_TRUE(docShellAsItem, NS_ERROR_FAILURE);
 
       nsCOMPtr<nsIDocShellTreeItem> parentAsItem;
-      mDocShell->GetSameTypeParent(getter_AddRefs(parentAsItem));
+      docShellAsItem->GetSameTypeParent(getter_AddRefs(parentAsItem));
 
       nsCOMPtr<nsIDocShell> parent(do_QueryInterface(parentAsItem));
       if (parent) {

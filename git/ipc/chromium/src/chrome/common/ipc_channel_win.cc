@@ -107,9 +107,7 @@ void Channel::ChannelImpl::Close() {
 }
 
 bool Channel::ChannelImpl::Send(Message* message) {
-  if (thread_check_.get()) {
-    DCHECK(thread_check_->CalledOnValidThread());
-  }
+  DCHECK(thread_check_->CalledOnValidThread());
   chrome::Counters::ipc_send_counter().Increment();
 #ifdef IPC_MESSAGE_DEBUG_EXTRA
   DLOG(INFO) << "sending message @" << message << " on channel @" << this
@@ -146,6 +144,15 @@ bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
   DCHECK(pipe_ == INVALID_HANDLE_VALUE);
   const std::wstring pipe_name = PipeName(channel_id);
   if (mode == MODE_SERVER) {
+    SECURITY_ATTRIBUTES security_attributes = {0};
+    security_attributes.bInheritHandle = FALSE;
+    security_attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+    if (!win_util::GetLogonSessionOnlyDACL(
+        reinterpret_cast<SECURITY_DESCRIPTOR**>(
+            &security_attributes.lpSecurityDescriptor))) {
+      NOTREACHED();
+    }
+
     pipe_ = CreateNamedPipeW(pipe_name.c_str(),
                              PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED |
                                 FILE_FLAG_FIRST_PIPE_INSTANCE,
@@ -156,7 +163,8 @@ bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
                              // input buffer size (XXX tune)
                              Channel::kReadBufferSize,
                              5000,      // timeout in milliseconds (XXX tune)
-                             NULL);
+                             &security_attributes);
+    LocalFree(security_attributes.lpSecurityDescriptor);
   } else {
     pipe_ = CreateFileW(pipe_name.c_str(),
                         GENERIC_READ | GENERIC_WRITE,

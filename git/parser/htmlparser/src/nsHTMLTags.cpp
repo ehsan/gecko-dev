@@ -12,7 +12,6 @@
 #include "nsStaticAtom.h"
 #include "nsUnicharUtils.h"
 #include "mozilla/HashFunctions.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -77,8 +76,6 @@ static const PRUnichar sHTMLTagUnicodeName_colgroup[] =
   {'c', 'o', 'l', 'g', 'r', 'o', 'u', 'p', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_counter[] =
   {'c', 'o', 'u', 'n', 't', 'e', 'r', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_data[] =
-  {'d', 'a', 't', 'a', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_datalist[] =
   {'d', 'a', 't', 'a', 'l', 'i', 's', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_dd[] =
@@ -163,8 +160,6 @@ static const PRUnichar sHTMLTagUnicodeName_link[] =
   {'l', 'i', 'n', 'k', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_listing[] =
   {'l', 'i', 's', 't', 'i', 'n', 'g', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_main[] =
-  {'m', 'a', 'i', 'n', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_map[] =
   {'m', 'a', 'p', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_mark[] =
@@ -257,10 +252,6 @@ static const PRUnichar sHTMLTagUnicodeName_th[] =
   {'t', 'h', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_thead[] =
   {'t', 'h', 'e', 'a', 'd', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_template[] =
-  {'t', 'e', 'm', 'p', 'l', 'a', 't', 'e', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_time[] =
-  {'t', 'i', 'm', 'e', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_title[] =
   {'t', 'i', 't', 'l', 'e', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_tr[] =
@@ -404,7 +395,7 @@ nsHTMLTags::AddRefTable(void)
       uint32_t maxTagNameLength = 0;
       for (i = 0; i < NS_HTML_TAG_MAX; ++i) {
         uint32_t len = NS_strlen(sTagUnicodeTable[i]);
-        maxTagNameLength = std::max(len, maxTagNameLength);        
+        maxTagNameLength = NS_MAX(len, maxTagNameLength);        
       }
       NS_ASSERTION(maxTagNameLength == NS_HTMLTAG_NAME_MAX_LENGTH,
                    "NS_HTMLTAG_NAME_MAX_LENGTH not set correctly!");

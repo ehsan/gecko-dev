@@ -14,7 +14,7 @@ var gTab = null;
 var gDebuggee = null;
 var gDebugger = null;
 var gEditor = null;
-var gSources = null;
+var gScripts = null;
 var gSearchView = null;
 var gSearchBox = null;
 
@@ -27,17 +27,7 @@ function test()
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
-    gDebugger.SourceResults.prototype.alwaysExpand = false;
-
-    gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-      let url = aEvent.detail.url;
-      if (url.indexOf("-02.js") != -1) {
-        scriptShown = true;
-        gDebugger.removeEventListener(aEvent.type, _onEvent);
-        runTest();
-      }
-    });
+    gDebugger = gPane.contentWindow;
 
     gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
       framesAdded = true;
@@ -45,6 +35,15 @@ function test()
     });
 
     gDebuggee.firstCall();
+  });
+
+  window.addEventListener("Debugger:ScriptShown", function _onEvent(aEvent) {
+    let url = aEvent.detail.url;
+    if (url.indexOf("-02.js") != -1) {
+      scriptShown = true;
+      window.removeEventListener(aEvent.type, _onEvent);
+      runTest();
+    }
   });
 
   function runTest()
@@ -56,24 +55,26 @@ function test()
 }
 
 function testScriptSearching() {
-  gEditor = gDebugger.DebuggerView.editor;
-  gSources = gDebugger.DebuggerView.Sources;
-  gSearchView = gDebugger.DebuggerView.GlobalSearch;
-  gSearchBox = gDebugger.DebuggerView.Filtering._searchbox;
+  gDebugger.DebuggerController.activeThread.resume(function() {
+    gEditor = gDebugger.DebuggerView.editor;
+    gScripts = gDebugger.DebuggerView.Scripts;
+    gSearchView = gDebugger.DebuggerView.GlobalSearch;
+    gSearchBox = gScripts._searchbox;
 
-  doSearch();
+    doSearch();
+  });
 }
 
 function doSearch() {
-  is(gSearchView._container._parent.hidden, true,
+  is(gSearchView._pane.hidden, true,
     "The global search pane shouldn't be visible yet.");
 
-  gDebugger.addEventListener("Debugger:GlobalSearch:MatchFound", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
-    info("Current script url:\n" + gSources.selectedValue + "\n");
+  window.addEventListener("Debugger:GlobalSearch:MatchFound", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
+    info("Current script url:\n" + gScripts.selected + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
-    let url = gSources.selectedValue;
+    let url = gScripts.selected;
     if (url.indexOf("-02.js") != -1) {
       executeSoon(function() {
         testFocusLost();
@@ -89,15 +90,15 @@ function doSearch() {
 
 function testFocusLost()
 {
-  is(gSearchView._container._parent.hidden, false,
+  is(gSearchView._pane.hidden, false,
     "The global search pane should be visible after a search.");
 
-  gDebugger.addEventListener("Debugger:GlobalSearch:ViewCleared", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
-    info("Current script url:\n" + gSources.selectedValue + "\n");
+  window.addEventListener("Debugger:GlobalSearch:ViewCleared", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
+    info("Current script url:\n" + gScripts.selected + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
-    let url = gSources.selectedValue;
+    let url = gScripts.selected;
     if (url.indexOf("-02.js") != -1) {
       executeSoon(function() {
         reshowSearch();
@@ -112,15 +113,15 @@ function testFocusLost()
 }
 
 function reshowSearch() {
-  is(gSearchView._container._parent.hidden, true,
+  is(gSearchView._pane.hidden, true,
     "The global search pane shouldn't be visible after the search was stopped.");
 
-  gDebugger.addEventListener("Debugger:GlobalSearch:MatchFound", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
-    info("Current script url:\n" + gSources.selectedValue + "\n");
+  window.addEventListener("Debugger:GlobalSearch:MatchFound", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
+    info("Current script url:\n" + gScripts.selected + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
-    let url = gSources.selectedValue;
+    let url = gScripts.selected;
     if (url.indexOf("-02.js") != -1) {
       executeSoon(function() {
         testEscape();
@@ -136,15 +137,15 @@ function reshowSearch() {
 
 function testEscape()
 {
-  is(gSearchView._container._parent.hidden, false,
+  is(gSearchView._pane.hidden, false,
     "The global search pane should be visible after a re-search.");
 
-  gDebugger.addEventListener("Debugger:GlobalSearch:ViewCleared", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
-    info("Current script url:\n" + gSources.selectedValue + "\n");
+  window.addEventListener("Debugger:GlobalSearch:ViewCleared", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
+    info("Current script url:\n" + gScripts.selected + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
-    let url = gSources.selectedValue;
+    let url = gScripts.selected;
     if (url.indexOf("-02.js") != -1) {
       executeSoon(function() {
         finalCheck();
@@ -160,7 +161,7 @@ function testEscape()
 
 function finalCheck()
 {
-  is(gSearchView._container._parent.hidden, true,
+  is(gSearchView._pane.hidden, true,
     "The global search pane shouldn't be visible after the search was escaped.");
 
   closeDebuggerAndFinish();
@@ -178,19 +179,19 @@ function write(text) {
 
 function sendEnter() {
   gSearchBox.focus();
-  EventUtils.sendKey("ENTER", gDebugger);
+  EventUtils.sendKey("ENTER");
 }
 
 function sendEscape() {
   gSearchBox.focus();
-  EventUtils.sendKey("ESCAPE", gDebugger);
+  EventUtils.sendKey("ESCAPE");
 }
 
 function append(text) {
   gSearchBox.focus();
 
   for (let i = 0; i < text.length; i++) {
-    EventUtils.sendChar(text[i], gDebugger);
+    EventUtils.sendChar(text[i]);
   }
   info("Editor caret position: " + gEditor.getCaretPosition().toSource() + "\n");
 }
@@ -202,7 +203,7 @@ registerCleanupFunction(function() {
   gDebuggee = null;
   gDebugger = null;
   gEditor = null;
-  gSources = null;
+  gScripts = null;
   gSearchView = null;
   gSearchBox = null;
 });

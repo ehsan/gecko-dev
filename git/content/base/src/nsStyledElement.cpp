@@ -8,7 +8,7 @@
 #include "nsGkAtoms.h"
 #include "nsAttrValue.h"
 #include "nsAttrValueInlines.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 #include "nsMutationEvent.h"
 #include "nsDOMCSSDeclaration.h"
 #include "nsDOMCSSAttrDeclaration.h"
@@ -19,10 +19,10 @@
 #include "mozilla/css/Loader.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsXULElement.h"
+#include "nsIDOMSVGStylable.h"
 #include "nsContentUtils.h"
 
 namespace css = mozilla::css;
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // nsIContent methods
@@ -44,7 +44,7 @@ nsStyledElementNotElementCSSInlineStyle::DoGetID() const
 {
   NS_ASSERTION(HasID(), "Unexpected call");
 
-  // The nullcheck here is needed because Element::UnsetAttr calls
+  // The nullcheck here is needed because nsGenericElement::UnsetAttr calls
   // out to various code between removing the attribute and we get a chance to
   // ClearHasID().
 
@@ -107,7 +107,7 @@ nsStyledElementNotElementCSSInlineStyle::UnsetAttr(int32_t aNameSpaceID,
     RemoveFromIdTable();
   }
 
-  return Element::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
+  return nsGenericElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
 }
 
 nsresult
@@ -124,7 +124,8 @@ nsStyledElementNotElementCSSInlineStyle::AfterSetAttr(int32_t aNamespaceID,
     ClearHasID();
   }
 
-  return Element::AfterSetAttr(aNamespaceID, aAttribute, aValue, aNotify);
+  return nsGenericElement::AfterSetAttr(aNamespaceID, aAttribute, aValue,
+                                        aNotify);
 }
 
 nsresult
@@ -190,10 +191,10 @@ nsStyledElementNotElementCSSInlineStyle::GetInlineStyleRule()
 // ---------------------------------------------------------------
 // Others and helpers
 
-nsICSSDeclaration*
-nsStyledElementNotElementCSSInlineStyle::Style()
+nsIDOMCSSStyleDeclaration*
+nsStyledElementNotElementCSSInlineStyle::GetStyle(nsresult* retval)
 {
-  Element::nsDOMSlots *slots = DOMSlots();
+  nsGenericElement::nsDOMSlots *slots = DOMSlots();
 
   if (!slots->mStyle) {
     // Just in case...
@@ -203,6 +204,7 @@ nsStyledElementNotElementCSSInlineStyle::Style()
     SetMayHaveStyle();
   }
 
+  *retval = NS_OK;
   return slots->mStyle;
 }
 

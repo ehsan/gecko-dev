@@ -36,43 +36,11 @@
 #include "cpr_stdlib.h"
 #include <cpr_stdio.h>
 #include <errno.h>
-#if defined(WEBRTC_GONK)
-#include <sys/syscall.h>
-#include <unistd.h>
-#include <linux/msg.h>
-#include <linux/ipc.h>
-#else
 #include <sys/msg.h>
 #include <sys/ipc.h>
-#endif
 #include "plat_api.h"
-#include "CSFLog.h"
-
-static const char *logTag = "cpr_linux_ipc";
 
 #define STATIC static
-
-#if defined(WEBRTC_GONK)
-int msgsnd(int msqid, const void *msgp, size_t msgsz, int msgflg)
-{
-  return syscall(__NR_msgsnd, msqid, msgp, msgsz, msgflg);
-}
-
-ssize_t msgrcv(int msqid, void *msgp, size_t msgsz, long msgtyp, int msgflg)
-{
-  return syscall(__NR_msgrcv, msqid, msgp, msgsz, msgtyp, msgflg);
-}
-
-int msgctl(int msqid, int cmd, struct msqid_ds *buf)
-{
-  return syscall(__NR_msgctl, msqid, cmd, buf);
-}
-
-int msgget(key_t key, int msgflg)
-{
-  return syscall(__NR_msgget, key, msgflg);
-}
-#endif
 
 /* @def The Message Queue depth */
 #define OS_MSGTQL 31
@@ -116,6 +84,7 @@ typedef struct cpr_msg_queue_s
     const char *name;
     pthread_t thread;
     int32_t queueId;
+    uint16_t maxCount;
     uint16_t currentCount;
     uint32_t totalCount;
     uint32_t sendErrors;
@@ -271,7 +240,7 @@ cprCreateMessageQueue (const char *name, uint16_t depth)
      * Find a unique key
      */
     key = ftok("/proc/self", key_id++);
-    CSFLogDebug(logTag, "key = %x\n", key);
+    printf("key = %x\n", key);
 
     if (key == -1) {
         CPR_ERROR("%s: Key generation failed: %d\n", fname, errno);
@@ -285,7 +254,7 @@ cprCreateMessageQueue (const char *name, uint16_t depth)
     msgq->queueId = msgget(key, (IPC_EXCL | IPC_CREAT | 0666));
     if (msgq->queueId == -1) {
         if (errno == EEXIST) {
-            CSFLogDebug(logTag, "Q exists so first remove it and then create again\n");
+            printf("Q exists so first remove it and then create again\n");
                 /* Remove message queue */
             msgq->queueId = msgget(key, (IPC_CREAT | 0666));
             if (msgctl(msgq->queueId, IPC_RMID, &buf) == -1) {
@@ -298,7 +267,7 @@ cprCreateMessageQueue (const char *name, uint16_t depth)
             msgq->queueId = msgget(key, (IPC_CREAT | 0666));
         }
     } else {
-        CSFLogDebug(logTag, "there was no preexisting q..\n");
+        printf("there was no preexisting q..\n");
 
     }
 
@@ -313,7 +282,7 @@ cprCreateMessageQueue (const char *name, uint16_t depth)
         cpr_free(msgq);
         return NULL;
     }
-    CSFLogDebug(logTag, "create message q with id=%x\n", msgq->queueId);
+    printf("create message q with id=%x\n", msgq->queueId);
 
     /* flush the q before ?? */
 
@@ -378,7 +347,7 @@ cprDestroyMessageQueue (cprMsgQueue_t msgQueue)
     cpr_msg_queue_t *msgq;
     void *msg;
     struct msqid_ds buf;
-    CSFLogDebug(logTag, "Destroy message Q called..\n");
+    printf("Destroy message Q called..\n");
 
 
     msgq = (cpr_msg_queue_t *) msgQueue;
@@ -625,20 +594,17 @@ cprSendMessage (cprMsgQueue_t msgQueue, void *msg, void **ppUserData)
              */
             if (msgq->extendedQDepth < msgq->maxExtendedQDepth) {
                 rc = cprPostExtendedQMsg(msgq, msg, ppUserData);
-                // do under lock to avoid races
-                if (rc == CPR_MSGQ_POST_SUCCESS) {
-                    cprPegSendMessageStats(msgq, numAttempts);
-                } else {
-                    msgq->sendErrors++;
-                }
+
                 (void) pthread_mutex_unlock(&msgq->mutex);
 
                 if (rc == CPR_MSGQ_POST_SUCCESS) {
+                    cprPegSendMessageStats(msgq, numAttempts);
                     return CPR_SUCCESS;
                 }
                 else
                 {
                     CPR_ERROR(error_str, fname, msgq->name, "no memory");
+                    msgq->sendErrors++;
                     return CPR_FAILURE;
                 }
             }
@@ -759,6 +725,9 @@ cprPegSendMessageStats (cpr_msg_queue_t *msgq, uint16_t numAttempts)
      * Collect statistics
      */
     msgq->totalCount++;
+    if (msgq->currentCount > msgq->maxCount) {
+        msgq->maxCount = msgq->currentCount;
+    }
 
     if (numAttempts > msgq->highAttempts) {
         msgq->highAttempts = numAttempts;

@@ -20,19 +20,13 @@
 #include "base/basictypes.h"
 #include "prrwlock.h"
 #include <media/MediaProfiles.h>
-#include "DeviceStorage.h"
 #include "nsIDOMCameraManager.h"
 #include "DOMCameraControl.h"
 #include "CameraControlImpl.h"
 #include "CameraCommon.h"
 #include "GonkRecorder.h"
-#include "GonkCameraHwMgr.h"
 
-namespace android {
-class GonkCameraHardware;
-class MediaProfiles;
-class GonkRecorder;
-}
+using namespace android;
 
 namespace mozilla {
 
@@ -47,25 +41,24 @@ class nsGonkCameraControl : public CameraControlImpl
 {
 public:
   nsGonkCameraControl(uint32_t aCameraId, nsIThread* aCameraThread, nsDOMCameraControl* aDOMCameraControl, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId);
-  void DispatchInit(nsDOMCameraControl* aDOMCameraControl, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId);
   nsresult Init();
 
   const char* GetParameter(const char* aKey);
   const char* GetParameterConstChar(uint32_t aKey);
   double GetParameterDouble(uint32_t aKey);
-  void GetParameter(uint32_t aKey, nsTArray<idl::CameraRegion>& aRegions);
-  void GetParameter(uint32_t aKey, nsTArray<idl::CameraSize>& aSizes);
+  void GetParameter(uint32_t aKey, nsTArray<dom::CameraRegion>& aRegions);
   void SetParameter(const char* aKey, const char* aValue);
   void SetParameter(uint32_t aKey, const char* aValue);
   void SetParameter(uint32_t aKey, double aValue);
-  void SetParameter(uint32_t aKey, const nsTArray<idl::CameraRegion>& aRegions);
-  void SetParameter(uint32_t aKey, int aValue);
-  nsresult GetVideoSizes(nsTArray<idl::CameraSize>& aVideoSizes);
+  void SetParameter(uint32_t aKey, const nsTArray<dom::CameraRegion>& aRegions);
+  nsresult GetVideoSizes(nsTArray<CameraSize>& aVideoSizes);
   nsresult PushParameters();
+
+  nsresult SetupRecording(int aFd, int aMaxFileSizeBytes = -1, int aMaxVideoLengthMs = -1);
+  nsresult SetupVideoMode(const nsAString& aProfile);
 
   void AutoFocusComplete(bool aSuccess);
   void TakePictureComplete(uint8_t* aData, uint32_t aLength);
-  void HandleRecorderEvent(int msg, int ext1, int ext2);
 
 protected:
   ~nsGonkCameraControl();
@@ -81,16 +74,12 @@ protected:
   nsresult PushParametersImpl();
   nsresult PullParametersImpl();
   nsresult GetPreviewStreamVideoModeImpl(GetPreviewStreamVideoModeTask* aGetPreviewStreamVideoMode);
-  nsresult ReleaseHardwareImpl(ReleaseHardwareTask* aReleaseHardware);
   already_AddRefed<RecorderProfileManager> GetRecorderProfileManagerImpl();
   already_AddRefed<GonkRecorderProfileManager> GetGonkRecorderProfileManager();
 
-  nsresult SetupRecording(int aFd, int aRotation, int64_t aMaxFileSizeBytes, int64_t aMaxVideoLengthMs);
-  nsresult SetupVideoMode(const nsAString& aProfile);
   void SetPreviewSize(uint32_t aWidth, uint32_t aHeight);
-  void SetupThumbnail(uint32_t aPictureWidth, uint32_t aPictureHeight, uint32_t aPercentQuality);
 
-  android::sp<android::GonkCameraHardware> mCameraHw;
+  uint32_t                  mHwHandle;
   double                    mExposureCompensationMin;
   double                    mExposureCompensationStep;
   bool                      mDeferConfigUpdate;
@@ -98,8 +87,6 @@ protected:
   android::CameraParameters mParams;
   uint32_t                  mWidth;
   uint32_t                  mHeight;
-  uint32_t                  mLastPictureWidth;
-  uint32_t                  mLastPictureHeight;
 
   enum {
     PREVIEW_FORMAT_UNKNOWN,
@@ -112,13 +99,14 @@ protected:
   uint32_t                  mDiscardedFrameCount;
 
   android::MediaProfiles*   mMediaProfiles;
-  nsRefPtr<android::GonkRecorder> mRecorder;
+  android::GonkRecorder*    mRecorder;
+
+  uint32_t                  mVideoRotation;
+  nsString                  mVideoFile;
 
   // camcorder profile settings for the desired quality level
   nsRefPtr<GonkRecorderProfileManager> mProfileManager;
   nsRefPtr<GonkRecorderProfile> mRecorderProfile;
-
-  nsRefPtr<DeviceStorageFile> mVideoFile;
 
 private:
   nsGonkCameraControl(const nsGonkCameraControl&) MOZ_DELETE;

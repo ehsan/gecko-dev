@@ -102,10 +102,6 @@ function disableLogging()
 {
   gAccRetrieval.setLogging("");
 }
-function isLogged(aModule)
-{
-  return gAccRetrieval.isLogged(aModule);
-}
 
 /**
  * Invokes the given function when document is loaded and focused. Preferable
@@ -369,9 +365,6 @@ function testAccessibleTree(aAccOrElmOrID, aAccTree)
       testStates(acc, statesObj.states, statesObj.extraStates,
                  statesObj.absentStates, statesObj.absentExtraStates);
 
-    } else if (prop == "tagName") {
-      is(accTree[prop], acc.DOMNode.tagName, msg);
-
     } else if (prop != "children") {
       is(acc[prop], accTree[prop], msg);
     }
@@ -582,13 +575,13 @@ function getTextFromClipboard()
   var clip = Components.classes["@mozilla.org/widget/clipboard;1"].
     getService(Components.interfaces.nsIClipboard);
   if (!clip)
-    return "";
+    return;
 
   var trans = Components.classes["@mozilla.org/widget/transferable;1"].
     createInstance(Components.interfaces.nsITransferable);
   trans.init(getLoadContext());
   if (!trans)
-    return "";
+    return;
 
   trans.addDataFlavor("text/unicode");
   clip.getData(trans, clip.kGlobalClipboard);
@@ -610,17 +603,6 @@ function getTextFromClipboard()
  */
 function prettyName(aIdentifier)
 {
-  if (aIdentifier instanceof Array) {
-    var msg = "";
-    for (var idx = 0; idx < aIdentifier.length; idx++) {
-      if (msg != "")
-        msg += ", ";
-
-      msg += prettyName(aIdentifier[idx]);
-    }
-    return msg;
-  }
-
   if (aIdentifier instanceof nsIAccessible) {
     var acc = getAccessible(aIdentifier);
     var msg = "[" + getNodePrettyName(acc.DOMNode);

@@ -4,6 +4,7 @@
 
 package org.mozilla.gecko;
 
+import android.app.Activity;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -19,6 +20,8 @@ import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.LinearLayout;
 import android.widget.ListView;
+import android.widget.LinearLayout.LayoutParams;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,44 +35,9 @@ public class GeckoMenu extends ListView
 
     private Context mContext;
 
-    /*
-     * A callback for a menu item selected event.
-     */
-    public static interface Callback {
-        // Called when a menu item is selected, with the actual menu item as the argument.
-        public boolean onMenuItemSelected(MenuItem item);
-    }
-
-    /*
-     * An interface for a presenter to show the menu.
-     * Either an Activity or a View can be a presenter, that can watch for events
-     * and show/hide menu.
-     */
-    public static interface MenuPresenter {
-        // Open the menu.
-        public void openMenu();
-
-        // Show the actual view contaning the menu items. This can either be a parent or sub-menu.
-        public void showMenu(View menu);
-
-        // Close the menu.
-        public void closeMenu();
-    }
-
-    /*
-     * An interface for a presenter of action-items.
-     * Either an Activity or a View can be a presenter, that can watch for events
-     * and add/remove action-items. If not ActionItemBarPresenter, the menu uses a 
-     * DefaultActionItemBarPresenter, that shows the action-items as a header over list-view.
-     */
     public static interface ActionItemBarPresenter {
-        // Add an action-item.
         public void addActionItem(View actionItem);
-
-        // Remove an action-item based on the index. The index used while adding.
         public void removeActionItem(int index);
-
-        // Get the number of action-items shown by the presenter.
         public int getActionItemsCount();
     }
 
@@ -80,12 +48,6 @@ public class GeckoMenu extends ListView
 
     // List of items in action-bar.
     private List<GeckoMenuItem> mActionItems;
-
-    // Reference to a callback for menu events.
-    private Callback mCallback;
-
-    // Reference to menu presenter.
-    private MenuPresenter mMenuPresenter;
 
     // Reference to action-items bar in action-bar.
     private ActionItemBarPresenter mActionItemBarPresenter;
@@ -187,8 +149,6 @@ public class GeckoMenu extends ListView
         MenuItem menuItem = add(groupId, itemId, order, title);
         GeckoSubMenu subMenu = new GeckoSubMenu(mContext, null);
         subMenu.setMenuItem(menuItem);
-        subMenu.setCallback(mCallback);
-        subMenu.setMenuPresenter(mMenuPresenter);
         ((GeckoMenuItem) menuItem).setSubMenu(subMenu);
         return subMenu;
     }
@@ -198,8 +158,6 @@ public class GeckoMenu extends ListView
         MenuItem menuItem = add(groupId, itemId, order, titleRes);
         GeckoSubMenu subMenu = new GeckoSubMenu(mContext, null);
         subMenu.setMenuItem(menuItem);
-        subMenu.setCallback(mCallback);
-        subMenu.setMenuPresenter(mMenuPresenter);
         ((GeckoMenuItem) menuItem).setSubMenu(subMenu);
         return subMenu;
     }
@@ -209,8 +167,6 @@ public class GeckoMenu extends ListView
         MenuItem menuItem = add(title);
         GeckoSubMenu subMenu = new GeckoSubMenu(mContext, null);
         subMenu.setMenuItem(menuItem);
-        subMenu.setCallback(mCallback);
-        subMenu.setMenuPresenter(mMenuPresenter);
         ((GeckoMenuItem) menuItem).setSubMenu(subMenu);
         return subMenu;
     }
@@ -220,8 +176,6 @@ public class GeckoMenu extends ListView
         MenuItem menuItem = add(titleRes);
         GeckoSubMenu subMenu = new GeckoSubMenu(mContext, null);
         subMenu.setMenuItem(menuItem);
-        subMenu.setCallback(mCallback);
-        subMenu.setMenuPresenter(mMenuPresenter);
         ((GeckoMenuItem) menuItem).setSubMenu(subMenu);
         return subMenu;
     }
@@ -367,57 +321,26 @@ public class GeckoMenu extends ListView
 
     @Override
     public boolean onMenuItemClick(MenuItem item) {
+        GeckoApp activity = (GeckoApp) mContext;
+
         if (!item.hasSubMenu()) {
-            if (mMenuPresenter != null) 
-                mMenuPresenter.closeMenu();
-
-            return mCallback.onMenuItemSelected(item);
+            activity.closeOptionsMenu();
+            return activity.onOptionsItemSelected(item);
         } else {
-            // Show the submenu.
-            if (mMenuPresenter != null)
-                mMenuPresenter.showMenu((GeckoSubMenu) item.getSubMenu());
+            // Hide the menu only if we are showing the MenuPopup.
+            if (!activity.hasPermanentMenuKey())
+                activity.closeOptionsMenu();
 
+            // Show the submenu.
+            GeckoApp.MenuPresenter presenter = activity.getMenuPresenter();
+            presenter.show((GeckoSubMenu) item.getSubMenu());
             return true;
         }
     }
 
     public boolean onCustomMenuItemClick(MenuItem item, MenuItem.OnMenuItemClickListener listener) {
-        if (mMenuPresenter != null)
-            mMenuPresenter.closeMenu();
-
+        ((GeckoApp) mContext).closeOptionsMenu();
         return listener.onMenuItemClick(item);
-    }
-
-    public Callback getCallback() {
-        return mCallback;
-    }
-
-    public MenuPresenter getMenuPresenter() {
-        return mMenuPresenter;
-    }
-
-    public void setCallback(Callback callback) {
-        mCallback = callback;
-
-        // Update the submenus just in case this changes on the fly.
-        for (GeckoMenuItem menuItem : mItems) {
-            if (menuItem.hasSubMenu()) {
-                GeckoSubMenu subMenu = (GeckoSubMenu) menuItem.getSubMenu();
-                subMenu.setCallback(mCallback);
-            }
-        }
-    }
-
-    public void setMenuPresenter(MenuPresenter presenter) {
-        mMenuPresenter = presenter;
-
-        // Update the submenus just in case this changes on the fly.
-        for (GeckoMenuItem menuItem : mItems) {
-            if (menuItem.hasSubMenu()) {
-                GeckoSubMenu subMenu = (GeckoSubMenu) menuItem.getSubMenu();
-                subMenu.setMenuPresenter(mMenuPresenter);
-            }
-        }
     }
 
     public void setActionItemBarPresenter(ActionItemBarPresenter presenter) {
@@ -430,6 +353,16 @@ public class GeckoMenu extends ListView
         private Context mContext;
         private LinearLayout mContainer;
         private List<View> mItems;
+
+        private class Divider extends LinearLayout {
+            public Divider(Context context, AttributeSet attrs) {
+                super(context, attrs);
+
+                setLayoutParams(new LinearLayout.LayoutParams((int) context.getResources().getDisplayMetrics().density,
+                                                              LinearLayout.LayoutParams.FILL_PARENT));
+                setBackgroundColor(0xFFD1D5DA);
+            }
+        }
  
         public DefaultActionItemBarPresenter(Context context, LinearLayout container) {
             mContext = context;
@@ -445,8 +378,6 @@ public class GeckoMenu extends ListView
 
             if (mItems.size() > 0) {
                 Divider divider = new Divider(mContext, null);
-                divider.setOrientation(Divider.Orientation.VERTICAL);
-                divider.setBackgroundColor(0xFFD1D5DA);
                 mContainer.addView(divider);
             }
 

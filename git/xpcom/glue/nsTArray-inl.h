@@ -97,11 +97,11 @@ bool nsTArray_base<Alloc>::UsesAutoArrayBuffer() const {
 
 
 template<class Alloc>
-typename Alloc::ResultTypeProxy
+bool
 nsTArray_base<Alloc>::EnsureCapacity(size_type capacity, size_type elemSize) {
   // This should be the most common case so test this first
   if (capacity <= mHdr->mCapacity)
-    return Alloc::SuccessResult();
+    return true;
 
   // If the requested memory allocation exceeds size_type(-1)/2, then
   // our doubling algorithm may not be able to allocate it.
@@ -110,7 +110,7 @@ nsTArray_base<Alloc>::EnsureCapacity(size_type capacity, size_type elemSize) {
   // allocating 2 GB+ arrays anyway.
   if ((uint64_t)capacity * elemSize > size_type(-1)/2) {
     Alloc::SizeTooBig();
-    return Alloc::FailureResult();
+    return false;
   }
 
   if (mHdr == EmptyHdr()) {
@@ -118,13 +118,13 @@ nsTArray_base<Alloc>::EnsureCapacity(size_type capacity, size_type elemSize) {
     Header *header = static_cast<Header*>
                      (Alloc::Malloc(sizeof(Header) + capacity * elemSize));
     if (!header)
-      return Alloc::FailureResult();
+      return false;
     header->mLength = 0;
     header->mCapacity = capacity;
     header->mIsAutoArray = 0;
     mHdr = header;
 
-    return Alloc::SuccessResult();
+    return true;
   }
 
   // We increase our capacity so |capacity * elemSize + sizeof(Header)| is the
@@ -159,14 +159,14 @@ nsTArray_base<Alloc>::EnsureCapacity(size_type capacity, size_type elemSize) {
     // Malloc() and copy
     header = static_cast<Header*>(Alloc::Malloc(bytesToAlloc));
     if (!header)
-      return Alloc::FailureResult();
+      return false;
 
     memcpy(header, mHdr, sizeof(Header) + Length() * elemSize);
   } else {
     // Realloc() existing data
     header = static_cast<Header*>(Alloc::Realloc(mHdr, bytesToAlloc));
     if (!header)
-      return Alloc::FailureResult();
+      return false;
   }
 
   // How many elements can we fit in bytesToAlloc?
@@ -176,7 +176,7 @@ nsTArray_base<Alloc>::EnsureCapacity(size_type capacity, size_type elemSize) {
 
   mHdr = header;
 
-  return Alloc::SuccessResult();
+  return true;
 }
 
 template<class Alloc>
@@ -293,7 +293,7 @@ nsTArray_base<Alloc>::IsAutoArrayRestorer::~IsAutoArrayRestorer() {
     mArray.mHdr = mArray.GetAutoArrayBufferUnsafe(mElemAlign);
     mArray.mHdr->mLength = 0;
   }
-  else if (mArray.mHdr != mArray.EmptyHdr()) {
+  else {
     mArray.mHdr->mIsAutoArray = mIsAuto;
   }
 }
@@ -342,8 +342,8 @@ nsTArray_base<Alloc>::SwapArrayElements(nsTArray_base<Allocator>& other,
   // write Y straight into X's auto buffer, write X's malloc'ed buffer on top
   // of Y, and then switch X to using its auto buffer.)
 
-  if (!Alloc::Successful(EnsureCapacity(other.Length(), elemSize)) ||
-      !Allocator::Successful(other.EnsureCapacity(Length(), elemSize))) {
+  if (!EnsureCapacity(other.Length(), elemSize) ||
+      !other.EnsureCapacity(Length(), elemSize)) {
     return false;
   }
 
@@ -353,8 +353,8 @@ nsTArray_base<Alloc>::SwapArrayElements(nsTArray_base<Allocator>& other,
                     other.UsesAutoArrayBuffer(),
                     "One of the arrays should be using its auto buffer.");
 
-  size_type smallerLength = XPCOM_MIN(Length(), other.Length());
-  size_type largerLength = XPCOM_MAX(Length(), other.Length());
+  size_type smallerLength = NS_MIN(Length(), other.Length());
+  size_type largerLength = NS_MAX(Length(), other.Length());
   void *smallerElements, *largerElements;
   if (Length() <= other.Length()) {
     smallerElements = Hdr() + 1;
@@ -370,8 +370,8 @@ nsTArray_base<Alloc>::SwapArrayElements(nsTArray_base<Allocator>& other,
   // job for AutoTArray!  (One of the two arrays we're swapping is using an
   // auto buffer, so we're likely not allocating a lot of space here.  But one
   // could, in theory, allocate a huge AutoTArray on the heap.)
-  nsAutoArrayBase<nsTArray_Impl<uint8_t, Alloc>, 64> temp;
-  if (!Alloc::Successful(temp.EnsureCapacity(smallerLength, elemSize))) {
+  nsAutoTArray<uint8_t, 64, Alloc> temp;
+  if (!temp.SetCapacity(smallerLength * elemSize)) {
     return false;
   }
 

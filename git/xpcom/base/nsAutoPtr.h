@@ -14,8 +14,6 @@
 #include "nsCOMPtr.h"
 #endif
 
-#include "nsCycleCollectionNoteChild.h"
-
 /*****************************************************************************/
 
 // template <class T> class nsAutoPtrGetterTransfers;
@@ -34,12 +32,8 @@ class nsAutoPtr
       void
       assign( T* newPtr )
         {
+          NS_ABORT_IF_FALSE(mRawPtr != newPtr || !newPtr, "This makes no sense!");
           T* oldPtr = mRawPtr;
-
-          if (newPtr != nullptr && newPtr == oldPtr) {
-            NS_RUNTIMEABORT("Logic flaw in the caller");
-          }
-
           mRawPtr = newPtr;
           delete oldPtr;
         }
@@ -1077,23 +1071,6 @@ class nsRefPtr
 #endif
         }
   };
-
-template <typename T>
-inline void
-ImplCycleCollectionUnlink(nsRefPtr<T>& aField)
-{
-  aField = nullptr;
-}
-
-template <typename T>
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            nsRefPtr<T>& aField,
-                            const char* aName,
-                            uint32_t aFlags = 0)
-{
-  CycleCollectionNoteChild(aCallback, aField.get(), aName, aFlags);
-}
 
 template <class T>
 inline

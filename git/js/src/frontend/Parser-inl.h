@@ -10,29 +10,23 @@
 
 #include "frontend/Parser.h"
 
-#include "frontend/SharedContext-inl.h"
-
 namespace js {
 namespace frontend {
 
-template <typename ParseHandler>
 inline unsigned
-ParseContext<ParseHandler>::blockid()
+ParseContext::blockid()
 {
     return topStmt ? topStmt->blockid : bodyid;
 }
 
-template <typename ParseHandler>
 inline bool
-ParseContext<ParseHandler>::atBodyLevel()
+ParseContext::atBodyLevel()
 {
     return !topStmt;
 }
 
-template <typename ParseHandler>
 inline
-ParseContext<ParseHandler>::ParseContext(Parser<ParseHandler> *prs, SharedContext *sc,
-                                      unsigned staticLevel, uint32_t bodyid)
+ParseContext::ParseContext(Parser *prs, SharedContext *sc, unsigned staticLevel, uint32_t bodyid)
   : sc(sc),
     bodyid(0),           // initialized in init()
     blockidGen(bodyid),  // used to set |bodyid| and subsequently incremented in init()
@@ -42,11 +36,12 @@ ParseContext<ParseHandler>::ParseContext(Parser<ParseHandler> *prs, SharedContex
     staticLevel(staticLevel),
     parenDepth(0),
     yieldCount(0),
-    blockNode(ParseHandler::null()),
+    blockNode(NULL),
     decls_(prs->context),
     args_(prs->context),
     vars_(prs->context),
-    yieldOffset(0),
+    yieldNode(NULL),
+    queuedStrictModeError(NULL),
     parserPC(&prs->pc),
     lexdeps(prs->context),
     parent(prs->pc),
@@ -55,15 +50,13 @@ ParseContext<ParseHandler>::ParseContext(Parser<ParseHandler> *prs, SharedContex
     funHasReturnVoid(false),
     parsingForInit(false),
     parsingWith(prs->pc ? prs->pc->parsingWith : false), // inherit from parent context
-    inDeclDestructuring(false),
-    funBecameStrict(false)
+    inDeclDestructuring(false)
 {
     prs->pc = this;
 }
 
-template <typename ParseHandler>
 inline bool
-ParseContext<ParseHandler>::init()
+ParseContext::init()
 {
     if (!frontend::GenerateBlockId(this, this->bodyid))
         return false;
@@ -71,42 +64,30 @@ ParseContext<ParseHandler>::init()
     return decls_.init() && lexdeps.ensureMap(sc->context);
 }
 
-template <typename ParseHandler>
+inline void
+ParseContext::setQueuedStrictModeError(CompileError *e)
+{
+    JS_ASSERT(!queuedStrictModeError);
+    queuedStrictModeError = e;
+}
+
 inline
-ParseContext<ParseHandler>::~ParseContext()
+ParseContext::~ParseContext()
 {
     // |*parserPC| pointed to this object.  Now that this object is about to
     // die, make |*parserPC| point to this object's parent.
     JS_ASSERT(*parserPC == this);
     *parserPC = this->parent;
     js_delete(funcStmts);
-}
-
-/*
- * Check that it is permitted to introduce a binding for atom.  Strict mode
- * forbids introducing new definitions for 'eval', 'arguments', or for any
- * strict mode reserved keyword.  Use pn for reporting error locations, or use
- * pc's token stream if pn is NULL.
- */
-template <typename ParseHandler>
-static bool
-CheckStrictBinding(JSContext *cx, ParseHandler *handler, ParseContext<ParseHandler> *pc,
-                   HandlePropertyName name, ParseNode *pn)
-{
-    if (!pc->sc->needStrictChecks())
-        return true;
-
-    if (name == cx->names().eval ||
-        name == cx->names().arguments ||
-        FindKeyword(name->charsZ(), name->length()))
-    {
-        JSAutoByteString bytes;
-        if (!js_AtomToPrintableString(cx, name, &bytes))
-            return false;
-        return handler->report(ParseStrictError, pn, JSMSG_BAD_BINDING, bytes.ptr());
+    if (queuedStrictModeError) {
+        // If the parent context is looking for strict mode violations, pass
+        // ours up. Otherwise, free it.
+        if (parent && parent->sc->strictModeState == StrictMode::UNKNOWN &&
+            !parent->queuedStrictModeError)
+            parent->queuedStrictModeError = queuedStrictModeError;
+        else
+            js_delete(queuedStrictModeError);
     }
-
-    return true;
 }
 
 } // namespace frontend

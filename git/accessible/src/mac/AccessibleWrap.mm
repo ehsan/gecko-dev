@@ -60,9 +60,9 @@ AccessibleWrap::GetNativeType ()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  if (IsXULTabpanels())
+  if (IsXULDeck())
     return [mozPaneAccessible class];
-
+  
   roles::Role role = Role();
   switch (role) {
     case roles::PUSHBUTTON:
@@ -198,13 +198,14 @@ AccessibleWrap::InvalidateChildren()
 }
 
 bool
-AccessibleWrap::InsertChildAt(uint32_t aIdx, Accessible* aAccessible)
+AccessibleWrap::AppendChild(Accessible* aAccessible)
 {
-  bool inserted = Accessible::InsertChildAt(aIdx, aAccessible);
-  if (inserted && mNativeObject)
+  bool appended = Accessible::AppendChild(aAccessible);
+  
+  if (appended && mNativeObject)
     [mNativeObject appendChild:aAccessible];
 
-  return inserted;
+  return appended;
 }
 
 bool

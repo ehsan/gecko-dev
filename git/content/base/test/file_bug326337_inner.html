@@ -11,17 +11,36 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=326337
 
 document.domain = "example.com";
 
-runTest();
+runTest1();
 
 var xhr;
 
-function runTest() {
+function runTest1() {
   xhr = new XMLHttpRequest();
   xhr.open("GET", "file_bug326337.xml", true);
   xhr.onreadystatechange = function() {
     if (xhr.readyState == 4) {
       check(xhr.responseXML.documentElement.getAttribute("root"));
-      SpecialPowers.wrap(parent).location.hash = "#done";
+      runTest2();
+    }
+  }
+  xhr.send(null);
+}
+
+function runTest2() {
+  var secondDoc = false;
+  xhr = new XMLHttpRequest();
+  xhr.multipart = true;
+  xhr.open("GET", "file_bug326337_multipart.txt", true);
+  xhr.onreadystatechange = function() {
+    if (xhr.readyState == 4) {
+      check(xhr.responseXML.documentElement.getAttribute("root"));
+      if (secondDoc) {
+        parent.location.hash = "#done";
+      }
+      else {
+        secondDoc = true;
+      }
     }
   }
   xhr.send(null);
@@ -29,7 +48,7 @@ function runTest() {
 
 function check(attr) {
   if (attr != "yes") {
-    SpeciaPowers.wrap(parent).location.hash = "#fail";
+    parent.location.hash = "#fail";
     throw 1;
   }
 }

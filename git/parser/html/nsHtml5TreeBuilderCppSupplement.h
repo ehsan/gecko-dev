@@ -11,7 +11,6 @@
 #include "nsEventDispatcher.h"
 #include "nsNodeUtils.h"
 #include "nsIFrame.h"
-#include "mozilla/Likely.h"
 
 class nsPresContext;
 
@@ -93,8 +92,7 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName, nsHtml5Htm
               InitScript(*url,
                          (charset) ? *charset : EmptyString(),
                          (type) ? *type : EmptyString(),
-                         (crossOrigin) ? *crossOrigin : NullString(),
-                         mode == NS_HTML5TREE_BUILDER_IN_HEAD);
+                         (crossOrigin) ? *crossOrigin : NullString());
             mCurrentHtmlScriptIsAsyncOrDefer = 
               aAttributes->contains(nsHtml5AttributeName::ATTR_ASYNC) ||
               aAttributes->contains(nsHtml5AttributeName::ATTR_DEFER);
@@ -159,8 +157,7 @@ nsHtml5TreeBuilder::createElement(int32_t aNamespace, nsIAtom* aName, nsHtml5Htm
               InitScript(*url,
                          EmptyString(),
                          (type) ? *type : EmptyString(),
-                         (crossOrigin) ? *crossOrigin : NullString(),
-                         mode == NS_HTML5TREE_BUILDER_IN_HEAD);
+                         (crossOrigin) ? *crossOrigin : NullString());
           }
         } else if (nsHtml5Atoms::style == aName) {
           nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
@@ -722,21 +719,11 @@ nsHtml5TreeBuilder::StartPlainTextViewSource(const nsAutoString& aTitle)
            nsHtml5ViewSourceUtils::NewBodyAttributes(),
            false);
 
-  StartPlainTextBody();
+  StartPlainText();
 }
 
 void
 nsHtml5TreeBuilder::StartPlainText()
-{
-  startTag(nsHtml5ElementName::ELT_LINK,
-           nsHtml5PlainTextUtils::NewLinkAttributes(),
-           false);
-
-  StartPlainTextBody();
-}
-
-void
-nsHtml5TreeBuilder::StartPlainTextBody()
 {
   startTag(nsHtml5ElementName::ELT_PRE,
            nsHtml5HtmlAttributes::EMPTY_ATTRIBUTES,
@@ -753,16 +740,6 @@ nsHtml5TreeBuilder::documentMode(nsHtml5DocumentMode m)
   treeOp->Init(m);
 }
 
-nsIContent**
-nsHtml5TreeBuilder::getDocumentFragmentForTemplate(nsIContent** aTemplate)
-{
-  nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
-  NS_ASSERTION(treeOp, "Tree op allocation failed.");
-  nsIContent** fragHandle = AllocateContentHandle();
-  treeOp->Init(eTreeOpGetDocumentFragmentForTemplate, aTemplate, fragHandle);
-  return fragHandle;
-}
-
 // Error reporting
 
 void
@@ -774,7 +751,7 @@ nsHtml5TreeBuilder::EnableViewSource(nsHtml5Highlighter* aHighlighter)
 void
 nsHtml5TreeBuilder::errStrayStartTag(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errStrayStartTag2", aName);
   }
 }
@@ -782,7 +759,7 @@ nsHtml5TreeBuilder::errStrayStartTag(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errStrayEndTag(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errStrayEndTag", aName);
   }
 }
@@ -790,7 +767,7 @@ nsHtml5TreeBuilder::errStrayEndTag(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errUnclosedElements(int32_t aIndex, nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errUnclosedElements", aName);
   }
 }
@@ -798,7 +775,7 @@ nsHtml5TreeBuilder::errUnclosedElements(int32_t aIndex, nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errUnclosedElementsImplied(int32_t aIndex, nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errUnclosedElementsImplied",
         aName);
   }
@@ -807,7 +784,7 @@ nsHtml5TreeBuilder::errUnclosedElementsImplied(int32_t aIndex, nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errUnclosedElementsCell(int32_t aIndex)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errUnclosedElementsCell");
   }
 }
@@ -815,7 +792,7 @@ nsHtml5TreeBuilder::errUnclosedElementsCell(int32_t aIndex)
 void
 nsHtml5TreeBuilder::errStrayDoctype()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errStrayDoctype");
   }
 }
@@ -823,7 +800,7 @@ nsHtml5TreeBuilder::errStrayDoctype()
 void
 nsHtml5TreeBuilder::errAlmostStandardsDoctype()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errAlmostStandardsDoctype");
   }
 }
@@ -831,7 +808,7 @@ nsHtml5TreeBuilder::errAlmostStandardsDoctype()
 void
 nsHtml5TreeBuilder::errQuirkyDoctype()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errQuirkyDoctype");
   }
 }
@@ -839,7 +816,7 @@ nsHtml5TreeBuilder::errQuirkyDoctype()
 void
 nsHtml5TreeBuilder::errNonSpaceInTrailer()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errNonSpaceInTrailer");
   }
 }
@@ -847,7 +824,7 @@ nsHtml5TreeBuilder::errNonSpaceInTrailer()
 void
 nsHtml5TreeBuilder::errNonSpaceAfterFrameset()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errNonSpaceAfterFrameset");
   }
 }
@@ -855,7 +832,7 @@ nsHtml5TreeBuilder::errNonSpaceAfterFrameset()
 void
 nsHtml5TreeBuilder::errNonSpaceInFrameset()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errNonSpaceInFrameset");
   }
 }
@@ -863,7 +840,7 @@ nsHtml5TreeBuilder::errNonSpaceInFrameset()
 void
 nsHtml5TreeBuilder::errNonSpaceAfterBody()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errNonSpaceAfterBody");
   }
 }
@@ -871,7 +848,7 @@ nsHtml5TreeBuilder::errNonSpaceAfterBody()
 void
 nsHtml5TreeBuilder::errNonSpaceInColgroupInFragment()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errNonSpaceInColgroupInFragment");
   }
 }
@@ -879,7 +856,7 @@ nsHtml5TreeBuilder::errNonSpaceInColgroupInFragment()
 void
 nsHtml5TreeBuilder::errNonSpaceInNoscriptInHead()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errNonSpaceInNoscriptInHead");
   }
 }
@@ -887,7 +864,7 @@ nsHtml5TreeBuilder::errNonSpaceInNoscriptInHead()
 void
 nsHtml5TreeBuilder::errFooBetweenHeadAndBody(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errFooBetweenHeadAndBody", aName);
   }
 }
@@ -895,7 +872,7 @@ nsHtml5TreeBuilder::errFooBetweenHeadAndBody(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errStartTagWithoutDoctype()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errStartTagWithoutDoctype");
   }
 }
@@ -903,7 +880,7 @@ nsHtml5TreeBuilder::errStartTagWithoutDoctype()
 void
 nsHtml5TreeBuilder::errNoSelectInTableScope()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errNoSelectInTableScope");
   }
 }
@@ -911,7 +888,7 @@ nsHtml5TreeBuilder::errNoSelectInTableScope()
 void
 nsHtml5TreeBuilder::errStartSelectWhereEndSelectExpected()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun(
         "errStartSelectWhereEndSelectExpected");
   }
@@ -920,7 +897,7 @@ nsHtml5TreeBuilder::errStartSelectWhereEndSelectExpected()
 void
 nsHtml5TreeBuilder::errStartTagWithSelectOpen(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errStartTagWithSelectOpen", aName);
   }
 }
@@ -928,7 +905,7 @@ nsHtml5TreeBuilder::errStartTagWithSelectOpen(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errBadStartTagInHead(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errBadStartTagInHead2", aName);
   }
 }
@@ -936,7 +913,7 @@ nsHtml5TreeBuilder::errBadStartTagInHead(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errImage()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errImage");
   }
 }
@@ -944,7 +921,7 @@ nsHtml5TreeBuilder::errImage()
 void
 nsHtml5TreeBuilder::errIsindex()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errIsindex");
   }
 }
@@ -952,7 +929,7 @@ nsHtml5TreeBuilder::errIsindex()
 void
 nsHtml5TreeBuilder::errFooSeenWhenFooOpen(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errFooSeenWhenFooOpen", aName);
   }
 }
@@ -960,7 +937,7 @@ nsHtml5TreeBuilder::errFooSeenWhenFooOpen(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errHeadingWhenHeadingOpen()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errHeadingWhenHeadingOpen");
   }
 }
@@ -968,7 +945,7 @@ nsHtml5TreeBuilder::errHeadingWhenHeadingOpen()
 void
 nsHtml5TreeBuilder::errFramesetStart()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errFramesetStart");
   }
 }
@@ -976,7 +953,7 @@ nsHtml5TreeBuilder::errFramesetStart()
 void
 nsHtml5TreeBuilder::errNoCellToClose()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errNoCellToClose");
   }
 }
@@ -984,7 +961,7 @@ nsHtml5TreeBuilder::errNoCellToClose()
 void
 nsHtml5TreeBuilder::errStartTagInTable(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errStartTagInTable", aName);
   }
 }
@@ -992,7 +969,7 @@ nsHtml5TreeBuilder::errStartTagInTable(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errFormWhenFormOpen()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errFormWhenFormOpen");
   }
 }
@@ -1000,7 +977,7 @@ nsHtml5TreeBuilder::errFormWhenFormOpen()
 void
 nsHtml5TreeBuilder::errTableSeenWhileTableOpen()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errTableSeenWhileTableOpen");
   }
 }
@@ -1008,7 +985,7 @@ nsHtml5TreeBuilder::errTableSeenWhileTableOpen()
 void
 nsHtml5TreeBuilder::errStartTagInTableBody(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errStartTagInTableBody", aName);
   }
 }
@@ -1016,7 +993,7 @@ nsHtml5TreeBuilder::errStartTagInTableBody(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errEndTagSeenWithoutDoctype()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errEndTagSeenWithoutDoctype");
   }
 }
@@ -1024,7 +1001,7 @@ nsHtml5TreeBuilder::errEndTagSeenWithoutDoctype()
 void
 nsHtml5TreeBuilder::errEndTagAfterBody()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errEndTagAfterBody");
   }
 }
@@ -1032,7 +1009,7 @@ nsHtml5TreeBuilder::errEndTagAfterBody()
 void
 nsHtml5TreeBuilder::errEndTagSeenWithSelectOpen(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errEndTagSeenWithSelectOpen",
         aName);
   }
@@ -1041,7 +1018,7 @@ nsHtml5TreeBuilder::errEndTagSeenWithSelectOpen(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errGarbageInColgroup()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errGarbageInColgroup");
   }
 }
@@ -1049,7 +1026,7 @@ nsHtml5TreeBuilder::errGarbageInColgroup()
 void
 nsHtml5TreeBuilder::errEndTagBr()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errEndTagBr");
   }
 }
@@ -1057,7 +1034,7 @@ nsHtml5TreeBuilder::errEndTagBr()
 void
 nsHtml5TreeBuilder::errNoElementToCloseButEndTagSeen(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun(
         "errNoElementToCloseButEndTagSeen", aName);
   }
@@ -1066,7 +1043,7 @@ nsHtml5TreeBuilder::errNoElementToCloseButEndTagSeen(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errHtmlStartTagInForeignContext(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errHtmlStartTagInForeignContext",
         aName);
   }
@@ -1075,7 +1052,7 @@ nsHtml5TreeBuilder::errHtmlStartTagInForeignContext(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errTableClosedWhileCaptionOpen()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errTableClosedWhileCaptionOpen");
   }
 }
@@ -1083,7 +1060,7 @@ nsHtml5TreeBuilder::errTableClosedWhileCaptionOpen()
 void
 nsHtml5TreeBuilder::errNoTableRowToClose()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errNoTableRowToClose");
   }
 }
@@ -1091,7 +1068,7 @@ nsHtml5TreeBuilder::errNoTableRowToClose()
 void
 nsHtml5TreeBuilder::errNonSpaceInTable()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errNonSpaceInTable");
   }
 }
@@ -1099,7 +1076,7 @@ nsHtml5TreeBuilder::errNonSpaceInTable()
 void
 nsHtml5TreeBuilder::errUnclosedChildrenInRuby()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errUnclosedChildrenInRuby");
   }
 }
@@ -1107,7 +1084,7 @@ nsHtml5TreeBuilder::errUnclosedChildrenInRuby()
 void
 nsHtml5TreeBuilder::errStartTagSeenWithoutRuby(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errStartTagSeenWithoutRuby",
         aName);
   }
@@ -1116,7 +1093,7 @@ nsHtml5TreeBuilder::errStartTagSeenWithoutRuby(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errSelfClosing()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentSlash("errSelfClosing");
   }
 }
@@ -1124,7 +1101,7 @@ nsHtml5TreeBuilder::errSelfClosing()
 void
 nsHtml5TreeBuilder::errNoCheckUnclosedElementsOnStack()
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun(
         "errNoCheckUnclosedElementsOnStack");
   }
@@ -1134,7 +1111,7 @@ void
 nsHtml5TreeBuilder::errEndTagDidNotMatchCurrentOpenElement(nsIAtom* aName,
                                                            nsIAtom* aOther)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun(
         "errEndTagDidNotMatchCurrentOpenElement", aName, aOther);
   }
@@ -1143,7 +1120,7 @@ nsHtml5TreeBuilder::errEndTagDidNotMatchCurrentOpenElement(nsIAtom* aName,
 void
 nsHtml5TreeBuilder::errEndTagViolatesNestingRules(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errEndTagViolatesNestingRules", aName);
   }
 }
@@ -1151,7 +1128,7 @@ nsHtml5TreeBuilder::errEndTagViolatesNestingRules(nsIAtom* aName)
 void
 nsHtml5TreeBuilder::errEndWithUnclosedElements(nsIAtom* aName)
 {
-  if (MOZ_UNLIKELY(mViewSource)) {
+  if (NS_UNLIKELY(mViewSource)) {
     mViewSource->AddErrorToCurrentRun("errEndWithUnclosedElements", aName);
   }
 }

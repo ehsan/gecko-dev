@@ -20,15 +20,11 @@
 #include "nsHTMLParts.h"
 #include "nsIPresShell.h"
 #include "nsCSSRendering.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 #include "nsBoxLayoutState.h"
 #include "nsStackLayout.h"
 #include "nsDisplayList.h"
 #include "nsContainerFrame.h"
-
-#ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
-#endif
 
 nsIFrame*
 NS_NewDeckFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -74,14 +70,16 @@ nsDeckFrame::AttributeChanged(int32_t         aNameSpaceID,
   return rv;
 }
 
-void
+NS_IMETHODIMP
 nsDeckFrame::Init(nsIContent*     aContent,
                   nsIFrame*       aParent,
                   nsIFrame*       aPrevInFlow)
 {
-  nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
 
   mIndex = GetSelectedIndex();
+
+  return rv;
 }
 
 void
@@ -107,14 +105,6 @@ nsDeckFrame::IndexChanged()
     HideBox(currentBox);
 
   mIndex = index;
-
-#ifdef ACCESSIBILITY
-  nsAccessibilityService* accService = GetAccService();
-  if (accService) {
-    accService->DeckPanelSwitched(PresContext()->GetPresShell(), mContent,
-                                  currentBox, GetSelectedBox());
-  }
-#endif
 }
 
 int32_t
@@ -142,19 +132,21 @@ nsDeckFrame::GetSelectedBox()
   return (mIndex >= 0) ? mFrames.FrameAt(mIndex) : nullptr; 
 }
 
-void
+NS_IMETHODIMP
 nsDeckFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists)
 {
   // if a tab is hidden all its children are too.
-  if (!StyleVisibility()->mVisible)
-    return;
+  if (!GetStyleVisibility()->mVisible)
+    return NS_OK;
     
-  nsBoxFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  // REVIEW: The old code skipped painting of background/borders/outline for this
+  // frame and painting of debug boxes ... I've put it back.
+  return nsBoxFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
 }
 
-void
+NS_IMETHODIMP
 nsDeckFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                          const nsRect&           aDirtyRect,
                                          const nsDisplayListSet& aLists)
@@ -162,12 +154,12 @@ nsDeckFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
   // only paint the selected box
   nsIFrame* box = GetSelectedBox();
   if (!box)
-    return;
+    return NS_OK;
 
   // Putting the child in the background list. This is a little weird but
   // it matches what we were doing before.
   nsDisplayListSet set(aLists, aLists.BlockBorderBackgrounds());
-  BuildDisplayListForChild(aBuilder, box, aDirtyRect, set);
+  return BuildDisplayListForChild(aBuilder, box, aDirtyRect, set);
 }
 
 NS_IMETHODIMP

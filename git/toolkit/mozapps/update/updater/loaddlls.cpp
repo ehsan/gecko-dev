@@ -12,15 +12,7 @@ struct AutoLoadSystemDependencies
 {
   AutoLoadSystemDependencies()
   {
-    // Remove the current directory from the search path for dynamically loaded
-    // DLLs as a precaution.  This call has no effect for delay load DLLs.
-    SetDllDirectory(L"");
-
-    static LPCWSTR delayDLLs[] = { L"wsock32.dll", L"crypt32.dll",
-                                   L"cryptsp.dll", L"cryptbase.dll",
-                                   L"msasn1.dll", L"userenv.dll",
-                                   L"secur32.dll" };
-
+    static LPCWSTR delayDLLs[] = { L"wsock32.dll", L"crypt32.dll" };
     WCHAR systemDirectory[MAX_PATH + 1] = { L'\0' };
     // If GetSystemDirectory fails we accept that we'll load the DLLs from the
     // normal search path.

@@ -323,7 +323,6 @@ jsd_GetValueWrappedJSVal(JSDContext* jsdc, JSDValue* jsdval)
     jsval val = jsdval->val;
     if (!JSVAL_IS_PRIMITIVE(val)) {
         cx = JSD_GetDefaultJSContext(jsdc);
-        JSAutoCompartment ac(cx, JSVAL_TO_OBJECT(val));
         obj = JS_ObjectToOuterObject(cx, JSVAL_TO_OBJECT(val));
         if (!obj)
         {

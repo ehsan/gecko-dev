@@ -6,8 +6,6 @@
 #ifndef MOZILLA_LAYERS_SHMEMYCBCRIMAGE_H
 #define MOZILLA_LAYERS_SHMEMYCBCRIMAGE_H
 
-#include "mozilla/DebugOnly.h"
-
 #include "base/basictypes.h"
 #include "Shmem.h"
 #include "gfxPoint.h"
@@ -94,15 +92,6 @@ public:
    * Returns the dimensions of the Cb and Cr Channel.
    */
   gfxIntSize GetCbCrSize();
-
-  /**
-   * Copies the data passed in parameter into the shmem.
-   */
-  bool CopyData(const uint8_t* aYData,
-                const uint8_t* aCbData, const uint8_t* aCrData,
-                gfxIntSize aYSize, uint32_t aYStride,
-                gfxIntSize aCbCrSize, uint32_t aCbCrStride,
-                uint32_t aYSkip, uint32_t aCbCrSkip);
 
 private:
   bool Open(Shmem& aShmem, size_t aOffset = 0);

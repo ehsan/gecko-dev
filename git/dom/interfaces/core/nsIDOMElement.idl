@@ -5,8 +5,6 @@
 
 #include "nsIDOMNode.idl"
 
-interface nsIDOMMozNamedAttrMap;
-
 /**
  * The nsIDOMElement interface represents an element in an HTML or 
  * XML document. 
@@ -15,7 +13,7 @@ interface nsIDOMMozNamedAttrMap;
  * http://dvcs.w3.org/hg/domcore/raw-file/tip/Overview.html#interface-element
  */
 
-[scriptable, uuid(ccc2bbbc-5b44-4b01-b718-dd51f339fef8)]
+[scriptable, uuid(f1465e67-577f-4546-a7a3-bb1293c0dd15)]
 interface nsIDOMElement : nsIDOMNode
 {
   readonly attribute DOMString        tagName;
@@ -23,9 +21,8 @@ interface nsIDOMElement : nsIDOMNode
   /**
    * Returns a DOMTokenList object reflecting the class attribute.
    */
-  readonly attribute nsISupports classList;
+  readonly attribute nsIDOMDOMTokenList classList;
 
-  readonly attribute nsIDOMMozNamedAttrMap attributes;
   DOMString          getAttribute(in DOMString name);
   DOMString          getAttributeNS(in DOMString namespaceURI, 
                                     in DOMString localName);

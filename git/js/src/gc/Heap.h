@@ -16,7 +16,6 @@
 #include "jsutil.h"
 
 #include "ds/BitArray.h"
-#include "js/HeapAPI.h"
 
 struct JSCompartment;
 
@@ -35,14 +34,12 @@ struct ArenaHeader;
 struct Chunk;
 
 /*
- * This flag allows an allocation site to request a specific heap based upon the
- * estimated lifetime or lifetime requirements of objects allocated from that
- * site.
+ * Live objects are marked black. How many other additional colors are available
+ * depends on the size of the GCThing. Objects marked gray are eligible for
+ * cycle collection.
  */
-enum InitialHeap {
-    DefaultHeap,
-    TenuredHeap
-};
+static const uint32_t BLACK = 0;
+static const uint32_t GRAY = 1;
 
 /* The GC allocation kinds. */
 enum AllocKind {
@@ -63,6 +60,9 @@ enum AllocKind {
     FINALIZE_SHAPE,
     FINALIZE_BASE_SHAPE,
     FINALIZE_TYPE_OBJECT,
+#if JS_HAS_XML_SUPPORT
+    FINALIZE_XML,
+#endif
     FINALIZE_SHORT_STRING,
     FINALIZE_STRING,
     FINALIZE_EXTERNAL_STRING,
@@ -84,24 +84,51 @@ static const size_t MAX_BACKGROUND_FINALIZE_KINDS = FINALIZE_LIMIT - FINALIZE_OB
  */
 struct Cell
 {
+    static const size_t CellShift = 3;
+    static const size_t CellSize = size_t(1) << CellShift;
+    static const size_t CellMask = CellSize - 1;
+
+    inline uintptr_t address() const;
     inline ArenaHeader *arenaHeader() const;
-    inline AllocKind tenuredGetAllocKind() const;
+    inline Chunk *chunk() const;
+    inline AllocKind getAllocKind() const;
     MOZ_ALWAYS_INLINE bool isMarked(uint32_t color = BLACK) const;
     MOZ_ALWAYS_INLINE bool markIfUnmarked(uint32_t color = BLACK) const;
     MOZ_ALWAYS_INLINE void unmark(uint32_t color) const;
 
-    inline JSRuntime *runtime() const;
-    inline Zone *tenuredZone() const;
+    inline JSCompartment *compartment() const;
 
 #ifdef DEBUG
     inline bool isAligned() const;
-    bool isTenured() const;
 #endif
-
-  protected:
-    inline uintptr_t address() const;
-    inline Chunk *chunk() const;
 };
+
+/*
+ * Page size must be static to support our arena pointer optimizations, so we
+ * are forced to support each platform with non-4096 pages as a special case.
+ * Note: The freelist supports a maximum arena shift of 15.
+ * Note: Do not use JS_CPU_SPARC here, this header is used outside JS.
+ * Bug 692267: Move page size definition to gc/Memory.h and include it
+ *             directly once jsgc.h is no longer an installed header.
+ */
+#if (defined(SOLARIS) || defined(__FreeBSD__)) && \
+    (defined(__sparc) || defined(__sparcv9) || defined(__ia64))
+const size_t PageShift = 13;
+const size_t ArenaShift = PageShift;
+#elif defined(__powerpc__)
+const size_t PageShift = 16;
+const size_t ArenaShift = 12;
+#else
+const size_t PageShift = 12;
+const size_t ArenaShift = PageShift;
+#endif
+const size_t PageSize = size_t(1) << PageShift;
+const size_t ArenaSize = size_t(1) << ArenaShift;
+const size_t ArenaMask = ArenaSize - 1;
+
+const size_t ChunkShift = 20;
+const size_t ChunkSize = size_t(1) << ChunkShift;
+const size_t ChunkMask = ChunkSize - 1;
 
 /*
  * This is the maximum number of arenas we allow in the FreeCommitted state
@@ -115,7 +142,7 @@ const static uint32_t FreeCommittedArenasThreshold = (32 << 20) / ArenaSize;
  * accessing the bitmap. In addition this allows to use some bits for colored
  * marking during the cycle GC.
  */
-const size_t ArenaCellCount = size_t(1) << (ArenaShift - CellShift);
+const size_t ArenaCellCount = size_t(1) << (ArenaShift - Cell::CellShift);
 const size_t ArenaBitmapBits = ArenaCellCount;
 const size_t ArenaBitmapBytes = ArenaBitmapBits / 8;
 const size_t ArenaBitmapWords = ArenaBitmapBits / JS_BITS_PER_WORD;
@@ -144,7 +171,7 @@ const size_t ArenaBitmapWords = ArenaBitmapBits / JS_BITS_PER_WORD;
  * fully used.
  *
  * Also only for the last span (|last| & 1)! = 0 as all allocation sizes are
- * multiples of CellSize.
+ * multiples of Cell::CellSize.
  */
 struct FreeSpan
 {
@@ -261,7 +288,7 @@ struct FreeSpan
 
     /* See comments before FreeSpan for details. */
     MOZ_ALWAYS_INLINE void *allocate(size_t thingSize) {
-        JS_ASSERT(thingSize % CellSize == 0);
+        JS_ASSERT(thingSize % Cell::CellSize == 0);
         checkSpan();
         uintptr_t thing = first;
         if (thing < last) {
@@ -282,7 +309,7 @@ struct FreeSpan
 
     /* A version of allocate when we know that the span is not empty. */
     MOZ_ALWAYS_INLINE void *infallibleAllocate(size_t thingSize) {
-        JS_ASSERT(thingSize % CellSize == 0);
+        JS_ASSERT(thingSize % Cell::CellSize == 0);
         checkSpan();
         uintptr_t thing = first;
         if (thing < last) {
@@ -330,7 +357,7 @@ struct FreeSpan
                 return;
             }
             size_t spanLength = last - first + 1;
-            JS_ASSERT(spanLength % CellSize == 0);
+            JS_ASSERT(spanLength % Cell::CellSize == 0);
 
             /* Start and end must belong to the same arena. */
             JS_ASSERT((first & ~ArenaMask) == arenaAddr);
@@ -340,7 +367,7 @@ struct FreeSpan
         /* The span is not the last and we have more spans to follow. */
         JS_ASSERT(first <= last);
         size_t spanLengthWithoutOneThing = last - first;
-        JS_ASSERT(spanLengthWithoutOneThing % CellSize == 0);
+        JS_ASSERT(spanLengthWithoutOneThing % Cell::CellSize == 0);
 
         JS_ASSERT((first & ~ArenaMask) == arenaAddr);
 
@@ -350,7 +377,7 @@ struct FreeSpan
          * storing useless empty span reference.
          */
         size_t beforeTail = ArenaSize - (last & ArenaMask);
-        JS_ASSERT(beforeTail >= sizeof(FreeSpan) + CellSize);
+        JS_ASSERT(beforeTail >= sizeof(FreeSpan) + Cell::CellSize);
 
         FreeSpan *next = reinterpret_cast<FreeSpan *>(last);
 
@@ -376,9 +403,11 @@ struct FreeSpan
 };
 
 /* Every arena has a header. */
-struct ArenaHeader : public JS::shadow::ArenaHeader
+struct ArenaHeader
 {
     friend struct FreeLists;
+
+    JSCompartment   *compartment;
 
     /*
      * ArenaHeader::next has two purposes: when unallocated, it points to the
@@ -455,12 +484,12 @@ struct ArenaHeader : public JS::shadow::ArenaHeader
         return allocKind < size_t(FINALIZE_LIMIT);
     }
 
-    void init(Zone *zoneArg, AllocKind kind) {
+    void init(JSCompartment *comp, AllocKind kind) {
         JS_ASSERT(!allocated());
         JS_ASSERT(!markOverflow);
         JS_ASSERT(!allocatedDuringIncremental);
         JS_ASSERT(!hasDelayedMarking);
-        zone = zoneArg;
+        compartment = comp;
 
         JS_STATIC_ASSERT(FINALIZE_LIMIT <= 255);
         allocKind = size_t(kind);
@@ -548,7 +577,7 @@ struct Arena
     }
 
     static size_t thingsPerArena(size_t thingSize) {
-        JS_ASSERT(thingSize % CellSize == 0);
+        JS_ASSERT(thingSize % Cell::CellSize == 0);
 
         /* We should be able to fit FreeSpan in any GC thing. */
         JS_ASSERT(thingSize >= sizeof(FreeSpan));
@@ -598,14 +627,6 @@ struct ChunkInfo
     /* Free arenas are linked together with aheader.next. */
     ArenaHeader     *freeArenasHead;
 
-#if JS_BITS_PER_WORD == 32
-    /*
-     * Calculating sizes and offsets is simpler if sizeof(ChunkInfo) is
-     * architecture-independent.
-     */
-    char            padding[16];
-#endif
-
     /*
      * Decommitted arenas are tracked by a bitmap in the chunk header. We use
      * this offset to start our search iteration close to a decommitted arena
@@ -621,9 +642,6 @@ struct ChunkInfo
 
     /* Number of GC cycles this chunk has survived. */
     uint32_t        age;
-
-    /* This is findable from any address in the Chunk by aligning to 1MiB. */
-    JSRuntime       *runtime;
 };
 
 /*
@@ -663,13 +681,10 @@ const size_t ArenasPerChunk = ChunkBytesAvailable / BytesPerArenaWithHeader;
 /* A chunk bitmap contains enough mark bits for all the cells in a chunk. */
 struct ChunkBitmap
 {
-    volatile uintptr_t bitmap[ArenaBitmapWords * ArenasPerChunk];
+    uintptr_t bitmap[ArenaBitmapWords * ArenasPerChunk];
 
     MOZ_ALWAYS_INLINE void getMarkWordAndMask(const Cell *cell, uint32_t color,
-                                              uintptr_t **wordp, uintptr_t *maskp)
-    {
-        GetGCThingMarkWordAndMask(cell, color, wordp, maskp);
-    }
+                                             uintptr_t **wordp, uintptr_t *maskp);
 
     MOZ_ALWAYS_INLINE bool isMarked(const Cell *cell, uint32_t color) {
         uintptr_t *word, mask;
@@ -703,7 +718,7 @@ struct ChunkBitmap
     }
 
     void clear() {
-        memset((void *)bitmap, 0, sizeof(bitmap));
+        PodArrayZero(bitmap);
     }
 
     uintptr_t *arenaBits(ArenaHeader *aheader) {
@@ -721,7 +736,6 @@ struct ChunkBitmap
 };
 
 JS_STATIC_ASSERT(ArenaBitmapBytes * ArenasPerChunk == sizeof(ChunkBitmap));
-JS_STATIC_ASSERT(js::gc::ChunkMarkBitmapBits == ArenaBitmapBits * ArenasPerChunk);
 
 typedef BitArray<ArenasPerChunk> PerArenaBitmap;
 
@@ -776,11 +790,11 @@ struct Chunk
         return info.numArenasFree != 0;
     }
 
-    inline void addToAvailableList(Zone *zone);
+    inline void addToAvailableList(JSCompartment *compartment);
     inline void insertToAvailableList(Chunk **insertPoint);
     inline void removeFromAvailableList();
 
-    ArenaHeader *allocateArena(JS::Zone *zone, AllocKind kind);
+    ArenaHeader *allocateArena(JSCompartment *comp, AllocKind kind);
 
     void releaseArena(ArenaHeader *aheader);
 
@@ -810,7 +824,7 @@ struct Chunk
     }
 
   private:
-    inline void init(JSRuntime *rt);
+    inline void init();
 
     /* Search for a decommitted arena to allocate. */
     unsigned findDecommittedArenaOffset();
@@ -824,8 +838,15 @@ struct Chunk
 };
 
 JS_STATIC_ASSERT(sizeof(Chunk) == ChunkSize);
-JS_STATIC_ASSERT(js::gc::ChunkMarkBitmapOffset == offsetof(Chunk, bitmap));
-JS_STATIC_ASSERT(js::gc::ChunkRuntimeOffset == offsetof(Chunk, info) + offsetof(ChunkInfo, runtime));
+
+inline uintptr_t
+Cell::address() const
+{
+    uintptr_t addr = uintptr_t(this);
+    JS_ASSERT(addr % Cell::CellSize == 0);
+    JS_ASSERT(Chunk::withinArenasRange(addr));
+    return addr;
+}
 
 inline uintptr_t
 ArenaHeader::address() const
@@ -926,32 +947,44 @@ ArenaHeader::unsetAllocDuringSweep()
     auxNextLink = 0;
 }
 
+JS_ALWAYS_INLINE void
+ChunkBitmap::getMarkWordAndMask(const Cell *cell, uint32_t color,
+                                uintptr_t **wordp, uintptr_t *maskp)
+{
+    size_t bit = (cell->address() & ChunkMask) / Cell::CellSize + color;
+    JS_ASSERT(bit < ArenaBitmapBits * ArenasPerChunk);
+    *maskp = uintptr_t(1) << (bit % JS_BITS_PER_WORD);
+    *wordp = &bitmap[bit / JS_BITS_PER_WORD];
+}
+
 static void
 AssertValidColor(const void *thing, uint32_t color)
 {
 #ifdef DEBUG
     ArenaHeader *aheader = reinterpret_cast<const Cell *>(thing)->arenaHeader();
-    JS_ASSERT_IF(color, color < aheader->getThingSize() / CellSize);
+    JS_ASSERT_IF(color, color < aheader->getThingSize() / Cell::CellSize);
 #endif
 }
 
 inline ArenaHeader *
 Cell::arenaHeader() const
 {
-    JS_ASSERT(isTenured());
     uintptr_t addr = address();
     addr &= ~ArenaMask;
     return reinterpret_cast<ArenaHeader *>(addr);
 }
 
-inline JSRuntime *
-Cell::runtime() const
+Chunk *
+Cell::chunk() const
 {
-    return chunk()->info.runtime;
+    uintptr_t addr = uintptr_t(this);
+    JS_ASSERT(addr % Cell::CellSize == 0);
+    addr &= ~(ChunkSize - 1);
+    return reinterpret_cast<Chunk *>(addr);
 }
 
 AllocKind
-Cell::tenuredGetAllocKind() const
+Cell::getAllocKind() const
 {
     return arenaHeader()->getAllocKind();
 }
@@ -959,7 +992,6 @@ Cell::tenuredGetAllocKind() const
 bool
 Cell::isMarked(uint32_t color /* = BLACK */) const
 {
-    JS_ASSERT(isTenured());
     AssertValidColor(this, color);
     return chunk()->bitmap.isMarked(this, color);
 }
@@ -967,7 +999,6 @@ Cell::isMarked(uint32_t color /* = BLACK */) const
 bool
 Cell::markIfUnmarked(uint32_t color /* = BLACK */) const
 {
-    JS_ASSERT(isTenured());
     AssertValidColor(this, color);
     return chunk()->bitmap.markIfUnmarked(this, color);
 }
@@ -975,17 +1006,15 @@ Cell::markIfUnmarked(uint32_t color /* = BLACK */) const
 void
 Cell::unmark(uint32_t color) const
 {
-    JS_ASSERT(isTenured());
     JS_ASSERT(color != BLACK);
     AssertValidColor(this, color);
     chunk()->bitmap.unmark(this, color);
 }
 
-Zone *
-Cell::tenuredZone() const
+JSCompartment *
+Cell::compartment() const
 {
-    JS_ASSERT(isTenured());
-    return arenaHeader()->zone;
+    return arenaHeader()->compartment;
 }
 
 #ifdef DEBUG
@@ -996,55 +1025,8 @@ Cell::isAligned() const
 }
 #endif
 
-inline uintptr_t
-Cell::address() const
-{
-    uintptr_t addr = uintptr_t(this);
-    JS_ASSERT(addr % CellSize == 0);
-    JS_ASSERT(Chunk::withinArenasRange(addr));
-    return addr;
-}
-
-Chunk *
-Cell::chunk() const
-{
-    uintptr_t addr = uintptr_t(this);
-    JS_ASSERT(addr % CellSize == 0);
-    addr &= ~(ChunkSize - 1);
-    return reinterpret_cast<Chunk *>(addr);
-}
-
-inline bool
-InFreeList(ArenaHeader *aheader, void *thing)
-{
-    if (!aheader->hasFreeThings())
-        return false;
-
-    FreeSpan firstSpan(aheader->getFirstFreeSpan());
-    uintptr_t addr = reinterpret_cast<uintptr_t>(thing);
-
-    for (const FreeSpan *span = &firstSpan;;) {
-        /* If the thing comes before the current span, it's not free. */
-        if (addr < span->first)
-            return false;
-
-        /*
-         * If we find it inside the span, it's dead. We use here "<=" and not
-         * "<" even for the last span as we know that thing is inside the
-         * arena. Thus, for the last span thing < span->end.
-         */
-        if (addr <= span->last)
-            return true;
-
-        /*
-         * The last possible empty span is an the end of the arena. Here
-         * span->end < thing < thingsEnd and so we must have more spans.
-         */
-        span = span->nextSpan();
-    }
-}
-
 } /* namespace gc */
+
 } /* namespace js */
 
 #endif /* gc_heap_h___ */

@@ -32,7 +32,7 @@ ia2AccessibleRelation::QueryInterface(REFIID iid, void** ppv)
   if (!ppv)
     return E_INVALIDARG;
 
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleRelation == iid || IID_IUnknown == iid) {
     *ppv = static_cast<IAccessibleRelation*>(this);
@@ -65,12 +65,11 @@ ia2AccessibleRelation::Release()
 STDMETHODIMP
 ia2AccessibleRelation::get_relationType(BSTR *aRelationType)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   if (!aRelationType)
     return E_INVALIDARG;
 
-  *aRelationType = nullptr;
+  *aRelationType = NULL;
 
   switch (mType) {
     case nsIAccessibleRelation::RELATION_CONTROLLED_BY:
@@ -124,75 +123,70 @@ ia2AccessibleRelation::get_relationType(BSTR *aRelationType)
 
   return *aRelationType ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleRelation::get_localizedRelationType(BSTR *aLocalizedRelationType)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   if (!aLocalizedRelationType)
     return E_INVALIDARG;
 
-  *aLocalizedRelationType = nullptr;
-  return E_NOTIMPL;
+  *aLocalizedRelationType = NULL;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_NOTIMPL;
 }
 
 STDMETHODIMP
 ia2AccessibleRelation::get_nTargets(long *aNTargets)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
  if (!aNTargets)
    return E_INVALIDARG;
 
  *aNTargets = mTargets.Length();
   return S_OK;
-
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleRelation::get_target(long aTargetIndex, IUnknown **aTarget)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  if (aTargetIndex < 0 || (uint32_t)aTargetIndex >= mTargets.Length() || !aTarget)
+__try {
+  if (aTargetIndex < 0 || aTargetIndex >= mTargets.Length() || !aTarget)
     return E_INVALIDARG;
 
-  AccessibleWrap* target =
-    static_cast<AccessibleWrap*>(mTargets[aTargetIndex].get());
-  *aTarget = static_cast<IAccessible*>(target);
-  (*aTarget)->AddRef();
-
+  mTargets[aTargetIndex]->QueryNativeInterface(IID_IUnknown, (void**) aTarget);
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleRelation::get_targets(long aMaxTargets, IUnknown **aTargets,
                                    long *aNTargets)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   if (!aNTargets || !aTargets)
     return E_INVALIDARG;
 
   *aNTargets = 0;
-  long maxTargets = mTargets.Length();
+  uint32_t maxTargets = mTargets.Length();
   if (maxTargets > aMaxTargets)
     maxTargets = aMaxTargets;
 
-  for (long idx = 0; idx < maxTargets; idx++)
+  for (uint32_t idx = 0; idx < maxTargets; idx++)
     get_target(idx, aTargets + idx);
 
   *aNTargets = maxTargets;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 

@@ -11,12 +11,11 @@
 #define nsMenuItemIconX_h_
 
 #include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
 #include "imgINotificationObserver.h"
 
 class nsIURI;
 class nsIContent;
-class imgRequestProxy;
+class imgIRequest;
 class nsMenuObjectX;
 
 #import <Cocoa/Cocoa.h>
@@ -54,13 +53,13 @@ public:
 protected:
   nsresult OnStopFrame(imgIRequest* aRequest);
 
-  nsCOMPtr<nsIContent>      mContent;
-  nsRefPtr<imgRequestProxy> mIconRequest;
-  nsMenuObjectX*            mMenuObject; // [weak]
-  nsIntRect                 mImageRegionRect;
-  bool                      mLoadedIcon;
-  bool                      mSetIcon;
-  NSMenuItem*               mNativeMenuItem; // [weak]
+  nsCOMPtr<nsIContent>  mContent;
+  nsCOMPtr<imgIRequest> mIconRequest;
+  nsMenuObjectX*        mMenuObject; // [weak]
+  nsIntRect             mImageRegionRect;
+  bool                  mLoadedIcon;
+  bool                  mSetIcon;
+  NSMenuItem*           mNativeMenuItem; // [weak]
 };
 
 #endif // nsMenuItemIconX_h_

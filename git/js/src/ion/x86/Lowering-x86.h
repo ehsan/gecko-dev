@@ -27,7 +27,7 @@ class LIRGeneratorX86 : public LIRGeneratorX86Shared
                 LUse::Policy policy = LUse::REGISTER, bool useAtStart = false);
     bool useBoxFixed(LInstruction *lir, size_t n, MDefinition *mir, Register reg1, Register reg2);
 
-    void lowerUntypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock *block, size_t lirIndex);
+    void lowerUntypedPhiInput(MPhi *phi, uint32 inputPosition, LBlock *block, size_t lirIndex);
     bool defineUntypedPhi(MPhi *phi, size_t lirIndex);
 
     bool lowerForShift(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs, 
@@ -39,19 +39,16 @@ class LIRGeneratorX86 : public LIRGeneratorX86Shared
     bool lowerForFPU(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs,
                      MDefinition *rhs);
 
+    bool lowerConstantDouble(double d, MInstruction *ins);
+    bool lowerDivI(MDiv *div);
+
   public:
+    bool visitConstant(MConstant *ins);
     bool visitBox(MBox *box);
     bool visitUnbox(MUnbox *unbox);
     bool visitReturn(MReturn *ret);
     bool visitStoreTypedArrayElement(MStoreTypedArrayElement *ins);
-    bool visitAsmJSUnsignedToDouble(MAsmJSUnsignedToDouble *ins);
-    bool visitAsmJSStoreHeap(MAsmJSStoreHeap *ins);
-    bool visitAsmJSLoadFuncPtr(MAsmJSLoadFuncPtr *ins);
     bool lowerPhi(MPhi *phi);
-
-    static bool allowTypedElementHoleCheck() {
-        return true;
-    }
 };
 
 typedef LIRGeneratorX86 LIRGeneratorSpecific;

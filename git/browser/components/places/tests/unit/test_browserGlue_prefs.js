@@ -22,12 +22,12 @@ function waitForImportAndSmartBookmarks(aCallback) {
     Services.obs.removeObserver(waitImport, "bookmarks-restore-success");
     // Delay to test eventual smart bookmarks creation.
     do_execute_soon(function () {
-      promiseAsyncUpdates().then(aCallback);
+      waitForAsyncUpdates(aCallback);
     });
   }, "bookmarks-restore-success", false);
 }
 
-[
+let gTests = [
 
   // This test must be the first one.
   function test_checkPreferences() {
@@ -263,7 +263,7 @@ function waitForImportAndSmartBookmarks(aCallback) {
                                               TOPICDATA_FORCE_PLACES_INIT);
   }
 
-].forEach(add_test);
+];
 
 do_register_cleanup(function () {
   remove_all_bookmarks();

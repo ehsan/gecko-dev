@@ -10,7 +10,6 @@ const AUS_Cc = Components.classes;
 const AUS_Ci = Components.interfaces;
 const AUS_Cr = Components.results;
 const AUS_Cu = Components.utils;
-const AUS_Cm = Components.manager;
 
 const PREF_APP_UPDATE_AUTO                = "app.update.auto";
 const PREF_APP_UPDATE_STAGE_ENABLED       = "app.update.staging.enabled";
@@ -27,14 +26,11 @@ const PREF_APP_UPDATE_IDLETIME            = "app.update.idletime";
 const PREF_APP_UPDATE_LOG                 = "app.update.log";
 const PREF_APP_UPDATE_NEVER_BRANCH        = "app.update.never.";
 const PREF_APP_UPDATE_PROMPTWAITTIME      = "app.update.promptWaitTime";
-const PREF_APP_UPDATE_SERVICE_ENABLED     = "app.update.service.enabled";
 const PREF_APP_UPDATE_SHOW_INSTALLED_UI   = "app.update.showInstalledUI";
 const PREF_APP_UPDATE_SILENT              = "app.update.silent";
 const PREF_APP_UPDATE_URL                 = "app.update.url";
 const PREF_APP_UPDATE_URL_DETAILS         = "app.update.url.details";
 const PREF_APP_UPDATE_URL_OVERRIDE        = "app.update.url.override";
-const PREF_APP_UPDATE_SOCKET_ERRORS       = "app.update.socket.maxErrors";
-const PREF_APP_UPDATE_RETRY_TIMEOUT       = "app.update.socket.retryTimeout";
 
 const PREF_APP_UPDATE_CERT_INVALID_ATTR_NAME = PREF_APP_UPDATE_CERTS_BRANCH +
                                                "1.invalidName";
@@ -448,26 +444,12 @@ function cleanUpdatesDir(aDir) {
         }
         cleanUpdatesDir(entry);
         entry.permissions = PERMS_DIRECTORY;
-        try {
-          entry.remove(true);
-        }
-        catch (e) {
-          dump("cleanUpdatesDir: unable to remove directory\npath: " +
-               entry.path + "\nException: " + e + "\n");
-          throw(e);
-        }
+        entry.remove(true);
       }
     }
     else {
       entry.permissions = PERMS_FILE;
-      try {
-        entry.remove(false);
-      }
-      catch (e) {
-        dump("cleanUpdatesDir: unable to remove file\npath: " + entry.path +
-             "\nException: " + e + "\n");
-        throw(e);
-      }
+      entry.remove(false);
     }
   }
 }
@@ -499,26 +481,11 @@ function removeDirRecursive(aDir) {
     }
     else {
       entry.permissions = PERMS_FILE;
-      try {
-        entry.remove(false);
-      }
-      catch (e) {
-        dump("removeDirRecursive: unable to remove file\npath: " + entry.path +
-             "\nException: " + e + "\n");
-        throw(e);
-      }
+      entry.remove(false);
     }
   }
-
   aDir.permissions = PERMS_DIRECTORY;
-  try {
-    aDir.remove(true);
-  }
-  catch (e) {
-    dump("removeDirRecursive: unable to remove directory\npath: " + entry.path +
-         "\nException: " + e + "\n");
-    throw(e);
-  }
+  aDir.remove(true);
 }
 
 /**

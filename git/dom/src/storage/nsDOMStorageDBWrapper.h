@@ -211,28 +211,30 @@ public:
   }
 
   /**
-   * Ensures the cache flush timer is running. This is called when we add
+   * Ensures the temp table flush timer is running. This is called when we add
    * data that will need to be flushed.
    */
-  void EnsureCacheFlushTimer();
+  void EnsureTempTableFlushTimer();
 
   /**
-   * Called by the timer or on shutdown/profile change to evict scopes
-   * that have not been used in a long time and to flush new data to disk.
+   * Called by the timer or on shutdown/profile change to flush all temporary
+   * tables that are too long in memory to disk.
+   * Set force to flush even a table doesn't meet the age limits.  Used during
+   * shutdown.
    */
-  nsresult FlushAndEvictFromCache(bool aIsShuttingDown);
+  nsresult FlushAndDeleteTemporaryTables(bool force);
 
   /**
-   * Stops the cache flush timer.
+   * Stops the temp table flush timer.
    */
-  void StopCacheFlushTimer();
+  void StopTempTableFlushTimer();
 
 protected:
   nsDOMStoragePersistentDB mPersistentDB;
   nsDOMStorageMemoryDB mSessionOnlyDB;
   nsDOMStorageMemoryDB mPrivateBrowsingDB;
 
-  nsCOMPtr<nsITimer> mCacheFlushTimer;
+  nsCOMPtr<nsITimer> mTempTableFlushTimer;
 };
 
 #endif /* nsDOMStorageDB_h___ */

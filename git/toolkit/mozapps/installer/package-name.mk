@@ -60,11 +60,10 @@ endif
 PKG_BASENAME = $(MOZ_PKG_APPNAME)-$(MOZ_PKG_VERSION).$(AB_CD).$(MOZ_PKG_PLATFORM)
 PKG_PATH =
 PKG_INST_BASENAME = $(PKG_BASENAME).installer
-PKG_STUB_BASENAME = $(PKG_BASENAME).installer-stub
 PKG_INST_PATH = install/sea/
 PKG_UPDATE_BASENAME = $(PKG_BASENAME)
 CHECKSUMS_FILE_BASENAME = $(PKG_BASENAME)
-MOZ_INFO_BASENAME = $(PKG_BASENAME)
+MOZ_SOURCESTAMP_FILE_BASENAME = $(PKG_BASENAME)
 PKG_UPDATE_PATH = update/
 COMPLETE_MAR = $(PKG_UPDATE_PATH)$(PKG_UPDATE_BASENAME).complete.mar
 # PARTIAL_MAR needs to be processed by $(wildcard) before you use it.
@@ -95,7 +94,6 @@ else
 ifeq (,$(filter-out WINNT, $(OS_ARCH))) # Windows
 PKG_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
 PKG_INST_BASENAME = $(MOZ_PKG_APPNAME) Setup $(MOZ_PKG_LONGVERSION)
-PKG_STUB_BASENAME = $(MOZ_PKG_APPNAME) Setup Stub $(MOZ_PKG_LONGVERSION)
 else # unix (actually, not Windows, Mac or OS/2)
 PKG_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
 PKG_INST_BASENAME = $(MOZ_PKG_APPNAME_LC)-setup-$(MOZ_PKG_VERSION)
@@ -103,12 +101,12 @@ endif
 endif
 PKG_PATH = $(MOZ_PKG_PLATFORM)/$(AB_CD)/
 CHECKSUMS_FILE_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
-MOZ_INFO_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
+MOZ_SOURCESTAMP_FILE_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
 ifeq ($(MOZ_APP_NAME),xulrunner)
 PKG_PATH = runtimes/
 PKG_BASENAME = $(MOZ_APP_NAME)-$(MOZ_PKG_VERSION).$(AB_CD).$(MOZ_PKG_PLATFORM)
 CHECKSUMS_FILE_BASENAME = $(PKG_BASENAME)
-MOZ_INFO_BASENAME = $(PKG_BASENAME)
+MOZ_SOURCESTAMP_FILE_BASENAME = $(PKG_BASENAME)
 endif
 PKG_INST_PATH = $(PKG_PATH)
 PKG_UPDATE_BASENAME = $(MOZ_PKG_APPNAME_LC)-$(MOZ_PKG_VERSION)
@@ -138,21 +136,15 @@ else
 BUILDID = $(shell $(PYTHON) $(MOZILLA_DIR)/config/printconfigsetting.py $(DIST)/bin/platform.ini Build BuildID)
 endif
 
-ifndef INCLUDED_RCS_MK
-  USE_RCS_MK := 1
-  include $(topsrcdir)/config/makefiles/makeutils.mk
-endif
-
 MOZ_SOURCE_STAMP = $(firstword $(shell hg -R $(MOZILLA_DIR) parent --template="{node|short}\n" 2>/dev/null))
 
-###########################################################################
-# bug: 746277 - preserve existing functionality.
-# MOZILLA_DIR="": cd $(SPACE); hg # succeeds if ~/.hg exists
-###########################################################################
-MOZ_SOURCE_REPO = $(call getSourceRepo,$(MOZILLA_DIR)$(NULL) $(NULL))
+# strip a trailing slash from the repo URL because it's not always present,
+# and we want to construct a working URL in the sourcestamp file.
+# make+shell+sed = awful
+_dollar=$$
+MOZ_SOURCE_REPO = $(shell cd $(MOZILLA_DIR) && hg showconfig paths.default 2>/dev/null | head -n1 | sed -e "s/^ssh:/http:/" -e "s/\/$(_dollar)//" )
 
-MOZ_SOURCESTAMP_FILE = $(DIST)/$(PKG_PATH)/$(MOZ_INFO_BASENAME).txt
-MOZ_BUILDINFO_FILE = $(DIST)/$(PKG_PATH)/$(MOZ_INFO_BASENAME).json
+MOZ_SOURCESTAMP_FILE = $(DIST)/$(PKG_PATH)/$(MOZ_SOURCESTAMP_FILE_BASENAME).txt
 
 # JavaScript Shell
 PKG_JSSHELL = $(DIST)/jsshell-$(MOZ_PKG_PLATFORM).zip

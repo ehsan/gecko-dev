@@ -5,7 +5,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["ScratchpadManager"];
+var EXPORTED_SYMBOLS = ["ScratchpadManager"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -21,7 +21,7 @@ Cu.import("resource://gre/modules/Services.jsm");
  * of open scratchpads for session restore. There's only one ScratchpadManager in
  * the life of the browser.
  */
-this.ScratchpadManager = {
+var ScratchpadManager = {
 
   _nextUid: 1,
   _scratchpads: [],
@@ -69,29 +69,11 @@ this.ScratchpadManager = {
   saveOpenWindows: function SPM_saveOpenWindows() {
     this._scratchpads = [];
 
-    function clone(src) {
-      let dest = {};
-
-      for (let key in src) {
-        if (src.hasOwnProperty(key)) {
-          dest[key] = src[key];
-        }
-      }
-
-      return dest;
-    }
-
-    // We need to clone objects we get from Scratchpad instances
-    // because such (cross-window) objects have a property 'parent'
-    // that holds on to a ChromeWindow instance. This means that
-    // such objects are not primitive-values-only anymore so they
-    // can leak.
-
     let enumerator = Services.wm.getEnumerator("devtools:scratchpad");
     while (enumerator.hasMoreElements()) {
       let win = enumerator.getNext();
       if (!win.closed && win.Scratchpad.initialized) {
-        this._scratchpads.push(clone(win.Scratchpad.getState()));
+        this._scratchpads.push(win.Scratchpad.getState());
       }
     }
   },
@@ -124,7 +106,6 @@ this.ScratchpadManager = {
 
     let win = Services.ww.openWindow(null, SCRATCHPAD_WINDOW_URL, "_blank",
                                      SCRATCHPAD_WINDOW_FEATURES, params);
-
     // Only add the shutdown observer if we've opened a scratchpad window.
     ShutdownObserver.init();
 
@@ -147,7 +128,6 @@ var ShutdownObserver = {
     }
 
     Services.obs.addObserver(this, "quit-application-granted", false);
-
     this._initialized = true;
   },
 

@@ -5,9 +5,6 @@
  
 /* the interface (to internal code) for retrieving computed style data */
 
-#include "mozilla/DebugOnly.h"
-
-#include "nsCSSAnonBoxes.h"
 #include "nsStyleConsts.h"
 #include "nsString.h"
 #include "nsPresContext.h"
@@ -19,8 +16,10 @@
 
 #include "nsRuleNode.h"
 #include "nsStyleContext.h"
+#include "prlog.h"
 #include "nsStyleAnimation.h"
-#include "GeckoProfiler.h"
+#include "mozilla/Util.h"
+#include "sampler.h"
 
 #ifdef DEBUG
 // #define NOISY_DEBUG
@@ -34,8 +33,7 @@ using namespace mozilla;
 nsStyleContext::nsStyleContext(nsStyleContext* aParent,
                                nsIAtom* aPseudoTag,
                                nsCSSPseudoElements::Type aPseudoType,
-                               nsRuleNode* aRuleNode,
-                               bool aSkipFlexItemStyleFixup)
+                               nsRuleNode* aRuleNode)
   : mParent(aParent),
     mChild(nullptr),
     mEmptyChild(nullptr),
@@ -51,7 +49,6 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
   MOZ_STATIC_ASSERT((UINT32_MAX >> NS_STYLE_CONTEXT_TYPE_SHIFT) >=
                     nsCSSPseudoElements::ePseudo_MAX,
                     "pseudo element bits no longer fit in a uint32_t");
-  MOZ_ASSERT(aRuleNode);
 
   mNextSibling = this;
   mPrevSibling = this;
@@ -59,7 +56,7 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
     mParent->AddRef();
     mParent->AddChild(this);
 #ifdef DEBUG
-    nsRuleNode *r1 = mParent->RuleNode(), *r2 = aRuleNode;
+    nsRuleNode *r1 = mParent->GetRuleNode(), *r2 = aRuleNode;
     while (r1->GetParent())
       r1 = r1->GetParent();
     while (r2->GetParent())
@@ -68,22 +65,21 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
 #endif
   }
 
-  mRuleNode->AddRef();
-  mRuleNode->SetUsedDirectly(); // before ApplyStyleFixups()!
-
-  ApplyStyleFixups(aSkipFlexItemStyleFixup);
+  ApplyStyleFixups();
 
   #define eStyleStruct_LastItem (nsStyleStructID_Length - 1)
   NS_ASSERTION(NS_STYLE_INHERIT_MASK & NS_STYLE_INHERIT_BIT(LastItem),
                "NS_STYLE_INHERIT_MASK must be bigger, and other bits shifted");
   #undef eStyleStruct_LastItem
+
+  mRuleNode->AddRef();
 }
 
 nsStyleContext::~nsStyleContext()
 {
   NS_ASSERTION((nullptr == mChild) && (nullptr == mEmptyChild), "destructing context with children");
 
-  nsPresContext *presContext = mRuleNode->PresContext();
+  nsPresContext *presContext = mRuleNode->GetPresContext();
 
   mRuleNode->Release();
 
@@ -214,7 +210,7 @@ const void* nsStyleContext::GetCachedStyleData(nsStyleStructID aSID)
   return cachedData;
 }
 
-const void* nsStyleContext::StyleData(nsStyleStructID aSID)
+const void* nsStyleContext::GetStyleData(nsStyleStructID aSID)
 {
   const void* cachedData = GetCachedStyleData(aSID);
   if (cachedData)
@@ -233,7 +229,7 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
   // function really shouldn't be called for style contexts that could
   // have kids depending on the data.  ClearStyleData would be OK, but
   // this test for no mChild or mEmptyChild doesn't catch that case.)
-  const void *current = StyleData(aSID);
+  const void *current = GetStyleData(aSID);
   if (!mChild && !mEmptyChild &&
       !(mBits & nsCachedStyleData::GetBitForSID(aSID)) &&
       GetCachedStyleData(aSID))
@@ -261,6 +257,12 @@ nsStyleContext::GetUniqueStyleData(const nsStyleStructID& aSID)
     return nullptr;
   }
 
+  if (!result) {
+    NS_WARNING("Ran out of memory while trying to allocate memory for a unique style struct! "
+               "Returning the non-unique data.");
+    return const_cast<void*>(current);
+  }
+
   SetStyle(aSID, result);
   mBits &= ~nsCachedStyleData::GetBitForSID(aSID);
 
@@ -282,7 +284,8 @@ nsStyleContext::SetStyle(nsStyleStructID aSID, void* aStruct)
   void** dataSlot;
   if (nsCachedStyleData::IsReset(aSID)) {
     if (!mCachedResetData) {
-      mCachedResetData = new (mRuleNode->PresContext()) nsResetStyleData;
+      mCachedResetData = new (mRuleNode->GetPresContext()) nsResetStyleData;
+      // XXXbz And if that fails?
     }
     dataSlot = &mCachedResetData->mStyleStructs[aSID];
   } else {
@@ -294,7 +297,7 @@ nsStyleContext::SetStyle(nsStyleStructID aSID, void* aStruct)
 }
 
 void
-nsStyleContext::ApplyStyleFixups(bool aSkipFlexItemStyleFixup)
+nsStyleContext::ApplyStyleFixups()
 {
   // See if we have any text decorations.
   // First see if our parent has text decorations.  If our parent does, then we inherit the bit.
@@ -302,7 +305,7 @@ nsStyleContext::ApplyStyleFixups(bool aSkipFlexItemStyleFixup)
     mBits |= NS_STYLE_HAS_TEXT_DECORATION_LINES;
   } else {
     // We might have defined a decoration.
-    const nsStyleTextReset* text = StyleTextReset();
+    const nsStyleTextReset* text = GetStyleTextReset();
     uint8_t decorationLine = text->mTextDecorationLine;
     if (decorationLine != NS_STYLE_TEXT_DECORATION_LINE_NONE &&
         decorationLine != NS_STYLE_TEXT_DECORATION_LINE_OVERRIDE_ALL) {
@@ -315,12 +318,12 @@ nsStyleContext::ApplyStyleFixups(bool aSkipFlexItemStyleFixup)
   }
 
   // Correct tables.
-  const nsStyleDisplay* disp = StyleDisplay();
+  const nsStyleDisplay* disp = GetStyleDisplay();
   if (disp->mDisplay == NS_STYLE_DISPLAY_TABLE) {
     // -moz-center and -moz-right are used for HTML's alignment
     // This is covering the <div align="right"><table>...</table></div> case.
     // In this case, we don't want to inherit the text alignment into the table.
-    const nsStyleText* text = StyleText();
+    const nsStyleText* text = GetStyleText();
     
     if (text->mTextAlign == NS_STYLE_TEXT_ALIGN_MOZ_CENTER ||
         text->mTextAlign == NS_STYLE_TEXT_ALIGN_MOZ_RIGHT)
@@ -357,61 +360,15 @@ nsStyleContext::ApplyStyleFixups(bool aSkipFlexItemStyleFixup)
     }
   }
 
-  // Adjust the "display" values of flex items (but not for raw text,
-  // placeholders, or table-parts). CSS3 Flexbox section 4 says:
-  //   # The computed 'display' of a flex item is determined
-  //   # by applying the table in CSS 2.1 Chapter 9.7.
-  // ...which converts inline-level elements to their block-level equivalents.
-#ifdef MOZ_FLEXBOX
-  if (!aSkipFlexItemStyleFixup && mParent) {
-    const nsStyleDisplay* parentDisp = mParent->StyleDisplay();
-    if ((parentDisp->mDisplay == NS_STYLE_DISPLAY_FLEX ||
-         parentDisp->mDisplay == NS_STYLE_DISPLAY_INLINE_FLEX) &&
-        GetPseudo() != nsCSSAnonBoxes::mozNonElement) {
-      uint8_t displayVal = disp->mDisplay;
-      // Skip table parts.
-      // NOTE: This list needs to be kept in sync with
-      // nsCSSFrameConstructor.cpp's "sDisplayData" array -- specifically,
-      // this should be the list of display-values that have
-      // FCDATA_DESIRED_PARENT_TYPE_TO_BITS specified in that array.
-      if (NS_STYLE_DISPLAY_TABLE_CAPTION      != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_ROW_GROUP    != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_HEADER_GROUP != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_FOOTER_GROUP != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_COLUMN_GROUP != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_COLUMN       != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_ROW          != displayVal &&
-          NS_STYLE_DISPLAY_TABLE_CELL         != displayVal) {
-
-        // NOTE: Technically, we shouldn't modify the 'display' value of
-        // positioned elements, since they aren't flex items. However, we don't
-        // need to worry about checking for that, because if we're positioned,
-        // we'll have already been through a call to EnsureBlockDisplay() in
-        // nsRuleNode, so this call here won't change anything. So we're OK.
-        nsRuleNode::EnsureBlockDisplay(displayVal);
-        if (displayVal != disp->mDisplay) {
-          NS_ASSERTION(!disp->IsAbsolutelyPositionedStyle(),
-                       "We shouldn't be changing the display value of "
-                       "positioned content (and we should have already "
-                       "converted its display value to be block-level...)");
-          nsStyleDisplay *mutable_display =
-            static_cast<nsStyleDisplay*>(GetUniqueStyleData(eStyleStruct_Display));
-          mutable_display->mDisplay = displayVal;
-        }
-      }
-    }
-  }
-#endif // MOZ_FLEXBOX
-
   // Computer User Interface style, to trigger loads of cursors
-  StyleUserInterface();
+  GetStyleUserInterface();
 }
 
 nsChangeHint
 nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
                                     nsChangeHint aParentHintsNotHandledForDescendants)
 {
-  PROFILER_LABEL("nsStyleContext", "CalcStyleDifference");
+  SAMPLE_LABEL("nsStyleContext", "CalcStyleDifference");
 
   NS_ABORT_IF_FALSE(NS_IsHintSubset(aParentHintsNotHandledForDescendants,
                                     nsChangeHint_Hints_NotHandledForDescendants),
@@ -447,7 +404,7 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
   PR_BEGIN_MACRO                                                              \
     const nsStyle##struct_* this##struct_ = PeekStyle##struct_();             \
     if (this##struct_) {                                                      \
-      const nsStyle##struct_* other##struct_ = aOther->Style##struct_();      \
+      const nsStyle##struct_* other##struct_ = aOther->GetStyle##struct_();   \
       nsChangeHint maxDifference = nsStyle##struct_::MaxDifference();         \
       if ((compare ||                                                         \
            (maxDifference & aParentHintsNotHandledForDescendants)) &&         \
@@ -525,24 +482,24 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
     // due to change being true already or due to the old style context
     // not having a style-if-visited), but not the other way around.
     if (PeekStyleColor()) {
-      if (thisVis->StyleColor()->mColor !=
-          otherVis->StyleColor()->mColor) {
+      if (thisVis->GetStyleColor()->mColor !=
+          otherVis->GetStyleColor()->mColor) {
         change = true;
       }
     }
 
     // NB: Calling Peek on |this|, not |thisVis| (see above).
     if (!change && PeekStyleBackground()) {
-      if (thisVis->StyleBackground()->mBackgroundColor !=
-          otherVis->StyleBackground()->mBackgroundColor) {
+      if (thisVis->GetStyleBackground()->mBackgroundColor !=
+          otherVis->GetStyleBackground()->mBackgroundColor) {
         change = true;
       }
     }
 
     // NB: Calling Peek on |this|, not |thisVis| (see above).
     if (!change && PeekStyleBorder()) {
-      const nsStyleBorder *thisVisBorder = thisVis->StyleBorder();
-      const nsStyleBorder *otherVisBorder = otherVis->StyleBorder();
+      const nsStyleBorder *thisVisBorder = thisVis->GetStyleBorder();
+      const nsStyleBorder *otherVisBorder = otherVis->GetStyleBorder();
       NS_FOR_CSS_SIDES(side) {
         bool thisFG, otherFG;
         nscolor thisColor, otherColor;
@@ -557,8 +514,8 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
 
     // NB: Calling Peek on |this|, not |thisVis| (see above).
     if (!change && PeekStyleOutline()) {
-      const nsStyleOutline *thisVisOutline = thisVis->StyleOutline();
-      const nsStyleOutline *otherVisOutline = otherVis->StyleOutline();
+      const nsStyleOutline *thisVisOutline = thisVis->GetStyleOutline();
+      const nsStyleOutline *otherVisOutline = otherVis->GetStyleOutline();
       bool haveColor;
       nscolor thisColor, otherColor;
       if (thisVisOutline->GetOutlineInitialColor() != 
@@ -572,8 +529,8 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
 
     // NB: Calling Peek on |this|, not |thisVis| (see above).
     if (!change && PeekStyleColumn()) {
-      const nsStyleColumn *thisVisColumn = thisVis->StyleColumn();
-      const nsStyleColumn *otherVisColumn = otherVis->StyleColumn();
+      const nsStyleColumn *thisVisColumn = thisVis->GetStyleColumn();
+      const nsStyleColumn *otherVisColumn = otherVis->GetStyleColumn();
       if (thisVisColumn->mColumnRuleColor != otherVisColumn->mColumnRuleColor ||
           thisVisColumn->mColumnRuleColorIsForeground !=
             otherVisColumn->mColumnRuleColorIsForeground) {
@@ -583,8 +540,8 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
 
     // NB: Calling Peek on |this|, not |thisVis| (see above).
     if (!change && PeekStyleTextReset()) {
-      const nsStyleTextReset *thisVisTextReset = thisVis->StyleTextReset();
-      const nsStyleTextReset *otherVisTextReset = otherVis->StyleTextReset();
+      const nsStyleTextReset *thisVisTextReset = thisVis->GetStyleTextReset();
+      const nsStyleTextReset *otherVisTextReset = otherVis->GetStyleTextReset();
       nscolor thisVisDecColor, otherVisDecColor;
       bool thisVisDecColorIsFG, otherVisDecColorIsFG;
       thisVisTextReset->GetDecorationColor(thisVisDecColor,
@@ -599,8 +556,8 @@ nsStyleContext::CalcStyleDifference(nsStyleContext* aOther,
 
     // NB: Calling Peek on |this|, not |thisVis| (see above).
     if (!change && PeekStyleSVG()) {
-      const nsStyleSVG *thisVisSVG = thisVis->StyleSVG();
-      const nsStyleSVG *otherVisSVG = otherVis->StyleSVG();
+      const nsStyleSVG *thisVisSVG = thisVis->GetStyleSVG();
+      const nsStyleSVG *otherVisSVG = otherVis->GetStyleSVG();
       if (thisVisSVG->mFill != otherVisSVG->mFill ||
           thisVisSVG->mStroke != otherVisSVG->mStroke) {
         change = true;
@@ -703,7 +660,7 @@ void
 nsStyleContext::Destroy()
 {
   // Get the pres context from our rule node.
-  nsRefPtr<nsPresContext> presContext = mRuleNode->PresContext();
+  nsRefPtr<nsPresContext> presContext = mRuleNode->GetPresContext();
 
   // Call our destructor.
   this->~nsStyleContext();
@@ -717,14 +674,13 @@ already_AddRefed<nsStyleContext>
 NS_NewStyleContext(nsStyleContext* aParentContext,
                    nsIAtom* aPseudoTag,
                    nsCSSPseudoElements::Type aPseudoType,
-                   nsRuleNode* aRuleNode,
-                   bool aSkipFlexItemStyleFixup)
+                   nsRuleNode* aRuleNode)
 {
   nsStyleContext* context =
-    new (aRuleNode->PresContext())
-    nsStyleContext(aParentContext, aPseudoTag, aPseudoType, aRuleNode,
-                   aSkipFlexItemStyleFixup);
-  context->AddRef();
+    new (aRuleNode->GetPresContext())
+      nsStyleContext(aParentContext, aPseudoTag, aPseudoType, aRuleNode);
+  if (context)
+    context->AddRef();
   return context;
 }
 

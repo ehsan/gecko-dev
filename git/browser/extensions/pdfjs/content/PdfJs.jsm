@@ -33,15 +33,11 @@ const PDF_CONTENT_TYPE = 'application/pdf';
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource://pdf.js.components/PdfStreamConverter.js');
-Cu.import('resource://pdf.js.components/PdfRedirector.js');
 
 let Svc = {};
 XPCOMUtils.defineLazyServiceGetter(Svc, 'mime',
                                    '@mozilla.org/mime;1',
                                    'nsIMIMEService');
-XPCOMUtils.defineLazyServiceGetter(Svc, 'pluginHost',
-                                   '@mozilla.org/plugin/host;1',
-                                   'nsIPluginHost');
 
 function getBoolPref(aPref, aDefaultValue) {
   try {
@@ -59,10 +55,8 @@ function getIntPref(aPref, aDefaultValue) {
   }
 }
 
-// Factory that registers/unregisters a constructor as a component.
-function Factory() {}
-
-Factory.prototype = {
+// Register/unregister a constructor as a component.
+let Factory = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIFactory]),
   _targetConstructor: null,
 
@@ -162,13 +156,6 @@ let PdfJs = {
       types.push(PDF_CONTENT_TYPE);
     }
     prefs.setCharPref(PREF_DISABLED_PLUGIN_TYPES, types.join(','));
-
-    // Update the category manager in case the plugins are already loaded.
-    let categoryManager = Cc["@mozilla.org/categorymanager;1"];
-    categoryManager.getService(Ci.nsICategoryManager).
-                    deleteCategoryEntry("Gecko-Content-Viewers",
-                                        PDF_CONTENT_TYPE,
-                                        false);
   },
 
   // nsIObserver
@@ -192,7 +179,6 @@ let PdfJs = {
     var handlerInfo = Svc.mime.
                         getFromTypeAndExtension('application/pdf', 'pdf');
     return handlerInfo.alwaysAskBeforeHandling == false &&
-           handlerInfo.plugin == null &&
            handlerInfo.preferredAction == Ci.nsIHandlerInfo.handleInternally;
   },
 
@@ -200,14 +186,7 @@ let PdfJs = {
     if (this._registered)
       return;
 
-    this._pdfStreamConverterFactory = new Factory();
-    this._pdfStreamConverterFactory.register(PdfStreamConverter);
-
-    this._pdfRedirectorFactory = new Factory();
-    this._pdfRedirectorFactory.register(PdfRedirector);
-    Svc.pluginHost.registerPlayPreviewMimeType('application/pdf', true,
-      'data:application/x-moz-playpreview-pdfjs;,');
-
+    Factory.register(PdfStreamConverter);
     this._registered = true;
   },
 
@@ -215,13 +194,7 @@ let PdfJs = {
     if (!this._registered)
       return;
 
-    this._pdfStreamConverterFactory.unregister();
-    delete this._pdfStreamConverterFactory;
-
-    this._pdfRedirectorFactory.unregister;
-    delete this._pdfRedirectorFactory;
-    Svc.pluginHost.unregisterPlayPreviewMimeType('application/pdf');
-
+    Factory.unregister();
     this._registered = false;
   }
 };

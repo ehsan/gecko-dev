@@ -9,8 +9,12 @@ import os
 import time
 import traceback
 
-import buildbot_report
 import constants
+
+
+# Language values match constants in Sponge protocol buffer (sponge.proto).
+JAVA = 5
+PYTHON = 7
 
 
 class BaseTestResult(object):
@@ -18,7 +22,7 @@ class BaseTestResult(object):
 
   def __init__(self, name, log):
     self.name = name
-    self.log = log.replace('\r', '')
+    self.log = log
 
 
 class SingleTestResult(BaseTestResult):
@@ -28,10 +32,13 @@ class SingleTestResult(BaseTestResult):
     full_name: Full name of the test.
     start_date: Date in milliseconds when the test began running.
     dur: Duration of the test run in milliseconds.
+    lang: Language of the test (JAVA or PYTHON).
     log: An optional string listing any errors.
+    error: A tuple of a short error message and a longer version used by Sponge
+    if test resulted in a fail or error.  An empty tuple implies a pass.
   """
 
-  def __init__(self, full_name, start_date, dur, log=''):
+  def __init__(self, full_name, start_date, dur, lang, log='', error=()):
     BaseTestResult.__init__(self, full_name, log)
     name_pieces = full_name.rsplit('#')
     if len(name_pieces) > 1:
@@ -42,6 +49,8 @@ class SingleTestResult(BaseTestResult):
       self.test_name = full_name
     self.start_date = start_date
     self.dur = dur
+    self.error = error
+    self.lang = lang
 
 
 class TestResults(object):
@@ -103,7 +112,9 @@ class TestResults(object):
                      full_name='PythonWrapper#' + test_name,
                      start_date=start_date_ms,
                      dur=duration_ms,
-                     log=(str(exc_type) + ' ' + log_msg))
+                     lang=PYTHON,
+                     log=log_msg,
+                     error=(str(exc_type), log_msg))
 
     results = TestResults()
     results.failed.append(exc_result)
@@ -182,12 +193,3 @@ class TestResults(object):
                                            [t.name for t in self.unknown])
     logging.critical(summary_string)
     return summary_string
-
-  def PrintAnnotation(self):
-    """Print buildbot annotations for test results."""
-    if self.timed_out:
-      buildbot_report.PrintWarning()
-    elif self.failed or self.crashed or self.overall_fail:
-      buildbot_report.PrintError()
-    else:
-      print 'Step success!'  # No annotation needed

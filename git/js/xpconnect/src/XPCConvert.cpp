@@ -79,6 +79,14 @@ XPCConvert::GetISupportsFromJSObject(JSObject* obj, nsISupports** iface)
 
 /***************************************************************************/
 
+static void
+FinalizeXPCOMUCString(const JSStringFinalizer *fin, jschar *chars)
+{
+    nsMemory::Free(chars);
+}
+
+static const JSStringFinalizer sXPCOMUCStringFinalizer = { FinalizeXPCOMUCString };
+
 // static
 JSBool
 XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
@@ -237,70 +245,58 @@ XPCConvert::NativeData2JS(XPCLazyCallContext& lccx, jsval* d, const void* s,
             }
         case nsXPTType::T_UTF8STRING:
             {
-                const nsACString* utf8String = *((const nsACString**)s);
+                const nsACString* cString = *((const nsACString**)s);
 
-                if (!utf8String || utf8String->IsVoid())
+                if (!cString)
                     break;
 
-                if (utf8String->IsEmpty()) {
-                    *d = JS_GetEmptyStringValue(cx);
-                    break;
+                if (!cString->IsVoid()) {
+                    uint32_t len;
+                    jschar *p = (jschar *)UTF8ToNewUnicode(*cString, &len);
+
+                    if (!p)
+                        return false;
+
+                    JSString* jsString =
+                        JS_NewExternalString(cx, p, len,
+                                             &sXPCOMUCStringFinalizer);
+
+                    if (!jsString) {
+                        nsMemory::Free(p);
+                        return false;
+                    }
+
+                    *d = STRING_TO_JSVAL(jsString);
                 }
 
-                const uint32_t len = CalcUTF8ToUnicodeLength(*utf8String);
-                // The cString is not empty at this point, but the calculated
-                // UTF-16 length is zero, meaning no valid conversion exists.
-                if (!len)
-                    return false;
-
-                const size_t buffer_size = (len + 1) * sizeof(PRUnichar);
-                PRUnichar* buffer =
-                    static_cast<PRUnichar*>(JS_malloc(cx, buffer_size));
-                if (!buffer)
-                    return false;
-
-                uint32_t copied;
-                if (!UTF8ToUnicodeBuffer(*utf8String, buffer, &copied) ||
-                    len != copied) {
-                    // Copy or conversion during copy failed. Did not copy the
-                    // whole string.
-                    JS_free(cx, buffer);
-                    return false;
-                }
-
-                // JS_NewUCString takes ownership on success, i.e. a
-                // successful call will make it the responsiblity of the JS VM
-                // to free the buffer.
-                JSString* str = JS_NewUCString(cx, (jschar*)buffer, len);
-                if (!str) {
-                    JS_free(cx, buffer);
-                    return false;
-                }
-
-                *d = STRING_TO_JSVAL(str);
                 break;
+
             }
         case nsXPTType::T_CSTRING:
             {
                 const nsACString* cString = *((const nsACString**)s);
 
-                if (!cString || cString->IsVoid())
+                if (!cString)
                     break;
 
-                if (cString->IsEmpty()) {
-                    *d = JS_GetEmptyStringValue(cx);
-                    break;
+                if (!cString->IsVoid()) {
+                    PRUnichar* unicodeString = ToNewUnicode(*cString);
+                    if (!unicodeString)
+                        return false;
+
+                    JSString* jsString = JS_NewExternalString(cx,
+                                                              (jschar*)unicodeString,
+                                                              cString->Length(),
+                                                              &sXPCOMUCStringFinalizer);
+
+                    if (!jsString) {
+                        nsMemory::Free(unicodeString);
+                        return false;
+                    }
+
+                    *d = STRING_TO_JSVAL(jsString);
                 }
 
-                // c-strings (binary blobs) are deliberately not converted from
-                // UTF-8 to UTF-16. T_UTF8Sting is for UTF-8 encoded strings
-                // with automatic conversion.
-                JSString* str = JS_NewStringCopyN(cx, cString->Data(),
-                                                  cString->Length());
-                if (!str)
-                    return false;
-
-                *d = STRING_TO_JSVAL(str);
                 break;
             }
 
@@ -579,7 +575,7 @@ XPCConvert::JSData2Native(JSContext* cx, void* d, jsval s,
         if (!buffer) {
             return false;
         }
-        JS_EncodeStringToBuffer(cx, str, buffer, length);
+        JS_EncodeStringToBuffer(str, buffer, length);
         buffer[length] = '\0';
         *((void**)d) = buffer;
         return true;
@@ -705,7 +701,7 @@ XPCConvert::JSData2Native(JSContext* cx, void* d, jsval s,
         if (rs->Length() != uint32_t(length)) {
             return false;
         }
-        JS_EncodeStringToBuffer(cx, str, rs->BeginWriting(), length);
+        JS_EncodeStringToBuffer(str, rs->BeginWriting(), length);
 
         return true;
     }
@@ -816,7 +812,8 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                       "bad scope for new JSObjects");
 
     JSObject *jsscope = lccx.GetScopeForNewJSObjects();
-    XPCWrappedNativeScope* xpcscope = GetObjectScope(jsscope);
+    XPCWrappedNativeScope* xpcscope =
+        XPCWrappedNativeScope::FindInJSObjectScope(cx, jsscope);
     if (!xpcscope)
         return false;
 
@@ -838,14 +835,16 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                 return false;
 
             if (!flat) {
+                bool triedToWrap;
                 flat = cache->WrapObject(lccx.GetJSContext(),
-                                         xpcscope->GetGlobalJSObject());
-                if (!flat)
+                                         xpcscope->GetGlobalJSObject(),
+                                         &triedToWrap);
+                if (!flat && triedToWrap)
                     return false;
             }
 
             if (flat) {
-                if (allowNativeWrapper && !JS_WrapObject(ccx, &flat))
+                if (!JS_WrapObject(ccx, &flat))
                     return false;
 
                 return CreateHolderIfNeeded(ccx, flat, d, dest);
@@ -978,6 +977,10 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
     if (!JS_WrapObject(ccx, &flat))
         return false;
 
+    // Outerize if necessary.
+    flat = JS_ObjectToOuterObject(cx, flat);
+    MOZ_ASSERT(flat, "bad outer object hook!");
+
     *d = OBJECT_TO_JSVAL(flat);
 
     if (dest) {
@@ -1031,33 +1034,36 @@ XPCConvert::JSObject2NativeInterface(JSContext* cx,
         // If we're looking at a security wrapper, see now if we're allowed to
         // pass it to C++. If we are, then fall through to the code below. If
         // we aren't, throw an exception eagerly.
-        JSObject* inner = js::UnwrapObjectChecked(src, /* stopAtOuter = */ false);
-
-        // Hack - For historical reasons, wrapped chrome JS objects have been
-        // passable as native interfaces. We'd like to fix this, but it
-        // involves fixing the contacts API and PeerConnection to stop using
-        // COWs. This needs to happen, but for now just preserve the old
-        // behavior.
-        if (!inner && MOZ_UNLIKELY(xpc::WrapperFactory::IsCOW(src)))
-            inner = js::UnwrapObject(src);
-        if (!inner) {
-            if (pErr)
-                *pErr = NS_ERROR_XPC_SECURITY_MANAGER_VETO;
-            return false;
+        JSObject* inner = nullptr;
+        if (XPCWrapper::IsSecurityWrapper(src)) {
+            inner = XPCWrapper::Unwrap(cx, src, false);
+            if (!inner) {
+                if (pErr)
+                    *pErr = NS_ERROR_XPC_SECURITY_MANAGER_VETO;
+                return false;
+            }
         }
 
         // Is this really a native xpcom object with a wrapper?
-        XPCWrappedNative* wrappedNative = nullptr;
-        if (IS_WN_WRAPPER(inner))
-            wrappedNative = XPCWrappedNative::Get(inner);
+        XPCWrappedNative* wrappedNative =
+                    XPCWrappedNative::GetWrappedNativeOfJSObject(cx,
+                                                                 inner
+                                                                 ? inner
+                                                                 : src);
         if (wrappedNative) {
             iface = wrappedNative->GetIdentityObject();
             return NS_SUCCEEDED(iface->QueryInterface(*iid, dest));
         }
         // else...
 
+        // XXX E4X breaks the world. Don't try wrapping E4X objects!
+        // This hack can be removed (or changed accordingly) when the
+        // DOM <-> E4X bindings are complete, see bug 270553
+        if (JS_TypeOfValue(cx, OBJECT_TO_JSVAL(src)) == JSTYPE_XML)
+            return false;
+
         // Deal with slim wrappers here.
-        if (GetISupportsFromJSObject(inner ? inner : src, &iface)) {
+        if (GetISupportsFromJSObject(src, &iface)) {
             if (iface)
                 return NS_SUCCEEDED(iface->QueryInterface(*iid, dest));
 
@@ -1176,12 +1182,9 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
         }
 
         // is this really a native xpcom object with a wrapper?
-        JSObject *unwrapped = js::UnwrapObjectChecked(obj, /* stopAtOuter = */ false);
-        if (!unwrapped)
-            return NS_ERROR_XPC_SECURITY_MANAGER_VETO;
-        XPCWrappedNative* wrapper = IS_WN_WRAPPER(unwrapped) ? XPCWrappedNative::Get(unwrapped)
-                                                             : nullptr;
-        if (wrapper) {
+        XPCWrappedNative* wrapper;
+        if (nullptr != (wrapper =
+                       XPCWrappedNative::GetWrappedNativeOfJSObject(cx,obj))) {
             nsISupports* supports = wrapper->GetIdentityObject();
             nsCOMPtr<nsIException> iface = do_QueryInterface(supports);
             if (iface) {
@@ -1206,7 +1209,7 @@ XPCConvert::JSValToXPCException(XPCCallContext& ccx,
                 JSAutoByteString message;
                 JSString* str;
                 if (nullptr != (str = JS_ValueToString(cx, s)))
-                    message.encodeLatin1(cx, str);
+                    message.encode(cx, str);
                 return JSErrorToXPCException(ccx, message.ptr(), ifaceName,
                                              methodName, report, exceptn);
             }
@@ -1481,7 +1484,8 @@ failure:
 // of the output does not exceed UINT32_MAX bytes. Allocate
 // the memory and copy the elements by memcpy.
 static JSBool
-CheckTargetAndPopulate(const nsXPTType& type,
+CheckTargetAndPopulate(JSContext *cx,
+                       const nsXPTType& type,
                        uint8_t requiredType,
                        size_t typeSize,
                        uint32_t count,
@@ -1512,7 +1516,7 @@ CheckTargetAndPopulate(const nsXPTType& type,
         return false;
     }
 
-    memcpy(*output, JS_GetArrayBufferViewData(tArr), byteSize);
+    memcpy(*output, JS_GetArrayBufferViewData(tArr, cx), byteSize);
     return true;
 }
 
@@ -1522,12 +1526,12 @@ CheckTargetAndPopulate(const nsXPTType& type,
 // are not accepted; create a properly typed array view on them
 // first. The element type of array must match the XPCOM
 // type in size, type and signedness exactly. As an exception,
-// Uint8ClampedArray is allowed for arrays of uint8_t. DataViews
-// are not supported.
+// Uint8ClampedArray is allowed for arrays of uint8_t.
 
 // static
 JSBool
-XPCConvert::JSTypedArray2Native(void** d,
+XPCConvert::JSTypedArray2Native(JSContext* cx,
+                                void** d,
                                 JSObject* jsArray,
                                 uint32_t count,
                                 const nsXPTType& type,
@@ -1535,11 +1539,11 @@ XPCConvert::JSTypedArray2Native(void** d,
 {
     NS_ABORT_IF_FALSE(jsArray, "bad param");
     NS_ABORT_IF_FALSE(d, "bad param");
-    NS_ABORT_IF_FALSE(JS_IsTypedArrayObject(jsArray), "not a typed array");
+    NS_ABORT_IF_FALSE(JS_IsTypedArrayObject(jsArray, cx), "not a typed array");
 
     // Check the actual length of the input array against the
     // given size_is.
-    uint32_t len = JS_GetTypedArrayLength(jsArray);
+    uint32_t len = JS_GetTypedArrayLength(jsArray, cx);
     if (len < count) {
         if (pErr)
             *pErr = NS_ERROR_XPC_NOT_ENOUGH_ELEMENTS_IN_ARRAY;
@@ -1549,9 +1553,9 @@ XPCConvert::JSTypedArray2Native(void** d,
 
     void* output = nullptr;
 
-    switch (JS_GetArrayBufferViewType(jsArray)) {
+    switch (JS_GetTypedArrayType(jsArray, cx)) {
     case js::ArrayBufferView::TYPE_INT8:
-        if (!CheckTargetAndPopulate(nsXPTType::T_I8, type,
+        if (!CheckTargetAndPopulate(cx, nsXPTType::T_I8, type,
                                     sizeof(int8_t), count,
                                     jsArray, &output, pErr)) {
             return false;
@@ -1560,7 +1564,7 @@ XPCConvert::JSTypedArray2Native(void** d,
 
     case js::ArrayBufferView::TYPE_UINT8:
     case js::ArrayBufferView::TYPE_UINT8_CLAMPED:
-        if (!CheckTargetAndPopulate(nsXPTType::T_U8, type,
+        if (!CheckTargetAndPopulate(cx, nsXPTType::T_U8, type,
                                     sizeof(uint8_t), count,
                                     jsArray, &output, pErr)) {
             return false;
@@ -1568,7 +1572,7 @@ XPCConvert::JSTypedArray2Native(void** d,
         break;
 
     case js::ArrayBufferView::TYPE_INT16:
-        if (!CheckTargetAndPopulate(nsXPTType::T_I16, type,
+        if (!CheckTargetAndPopulate(cx, nsXPTType::T_I16, type,
                                     sizeof(int16_t), count,
                                     jsArray, &output, pErr)) {
             return false;
@@ -1576,7 +1580,7 @@ XPCConvert::JSTypedArray2Native(void** d,
         break;
 
     case js::ArrayBufferView::TYPE_UINT16:
-        if (!CheckTargetAndPopulate(nsXPTType::T_U16, type,
+        if (!CheckTargetAndPopulate(cx, nsXPTType::T_U16, type,
                                     sizeof(uint16_t), count,
                                     jsArray, &output, pErr)) {
             return false;
@@ -1584,7 +1588,7 @@ XPCConvert::JSTypedArray2Native(void** d,
         break;
 
     case js::ArrayBufferView::TYPE_INT32:
-        if (!CheckTargetAndPopulate(nsXPTType::T_I32, type,
+        if (!CheckTargetAndPopulate(cx, nsXPTType::T_I32, type,
                                     sizeof(int32_t), count,
                                     jsArray, &output, pErr)) {
             return false;
@@ -1592,7 +1596,7 @@ XPCConvert::JSTypedArray2Native(void** d,
         break;
 
     case js::ArrayBufferView::TYPE_UINT32:
-        if (!CheckTargetAndPopulate(nsXPTType::T_U32, type,
+        if (!CheckTargetAndPopulate(cx, nsXPTType::T_U32, type,
                                     sizeof(uint32_t), count,
                                     jsArray, &output, pErr)) {
             return false;
@@ -1600,7 +1604,7 @@ XPCConvert::JSTypedArray2Native(void** d,
         break;
 
     case js::ArrayBufferView::TYPE_FLOAT32:
-        if (!CheckTargetAndPopulate(nsXPTType::T_FLOAT, type,
+        if (!CheckTargetAndPopulate(cx, nsXPTType::T_FLOAT, type,
                                     sizeof(float), count,
                                     jsArray, &output, pErr)) {
             return false;
@@ -1608,7 +1612,7 @@ XPCConvert::JSTypedArray2Native(void** d,
         break;
 
     case js::ArrayBufferView::TYPE_FLOAT64:
-        if (!CheckTargetAndPopulate(nsXPTType::T_DOUBLE, type,
+        if (!CheckTargetAndPopulate(cx, nsXPTType::T_DOUBLE, type,
                                     sizeof(double), count,
                                     jsArray, &output, pErr)) {
             return false;
@@ -1662,8 +1666,8 @@ XPCConvert::JSArray2Native(JSContext* cx, void** d, JS::Value s,
     JSObject* jsarray = &s.toObject();
 
     // If this is a typed array, then try a fast conversion with memcpy.
-    if (JS_IsTypedArrayObject(jsarray)) {
-        return JSTypedArray2Native(d, jsarray, count, type, pErr);
+    if (JS_IsTypedArrayObject(jsarray, cx)) {
+        return JSTypedArray2Native(cx, d, jsarray, count, type, pErr);
     }
 
     if (!JS_IsArrayObject(cx, jsarray)) {
@@ -1873,7 +1877,7 @@ XPCConvert::JSStringWithSize2Native(XPCCallContext& ccx, void* d, jsval s,
             if (!buffer) {
                 return false;
             }
-            JS_EncodeStringToBuffer(cx, str, buffer, len);
+            JS_EncodeStringToBuffer(str, buffer, len);
             buffer[len] = '\0';
             *((char**)d) = buffer;
 

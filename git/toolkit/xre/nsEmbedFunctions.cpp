@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #if defined(MOZ_WIDGET_QT)
 #include "nsQAppInstance.h"
 #endif
@@ -74,7 +72,9 @@
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 
-#include "GeckoProfiler.h"
+#include "mozilla/Util.h" // for DebugOnly
+
+#include "sampler.h"
 
 #ifdef MOZ_IPDL_TESTS
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
@@ -282,8 +282,8 @@ XRE_InitChildProcess(int aArgc,
   NS_ENSURE_ARG_MIN(aArgc, 2);
   NS_ENSURE_ARG_POINTER(aArgv);
   NS_ENSURE_ARG_POINTER(aArgv[0]);
-  profiler_init();
-  PROFILER_LABEL("Startup", "XRE_InitChildProcess");
+  SAMPLER_INIT();
+  SAMPLE_LABEL("Startup", "XRE_InitChildProcess");
 
   sChildProcessType = aProcess;
 
@@ -403,7 +403,8 @@ XRE_InitChildProcess(int aArgc,
   // On Win7+, register the application user model id passed in by
   // parent. This insures windows created by the container properly
   // group with the parent app on the Win7 taskbar.
-  const char* const appModelUserId = aArgv[--aArgc];
+  const char* const appModelUserId = aArgv[aArgc-1];
+  --aArgc;
   if (appModelUserId) {
     // '-' implies no support
     if (*appModelUserId != '-') {
@@ -459,18 +460,8 @@ XRE_InitChildProcess(int aArgc,
         process = new PluginProcessChild(parentHandle);
         break;
 
-      case GeckoProcessType_Content: {
-          process = new ContentProcess(parentHandle);
-          // If passed in grab the application path for xpcom init
-          nsCString appDir;
-          for (int idx = aArgc; idx > 0; idx--) {
-            if (aArgv[idx] && !strcmp(aArgv[idx], "-appdir")) {
-              appDir.Assign(nsDependentCString(aArgv[idx+1]));
-              static_cast<ContentProcess*>(process.get())->SetAppDir(appDir);
-              break;
-            }
-          }
-        }
+      case GeckoProcessType_Content:
+        process = new ContentProcess(parentHandle);
         break;
 
       case GeckoProcessType_IPDLUnitTest:
@@ -612,7 +603,6 @@ nsresult
 XRE_RunAppShell()
 {
     nsCOMPtr<nsIAppShell> appShell(do_GetService(kAppShellCID));
-    NS_ENSURE_TRUE(appShell, NS_ERROR_FAILURE);
 #if defined(XP_MACOSX)
     {
       // In content processes that want XPCOM (and hence want
@@ -695,8 +685,7 @@ ContentParent* gContentParent; //long-lived, manually refcounted
 TestShellParent* GetOrCreateTestShellParent()
 {
     if (!gContentParent) {
-        nsRefPtr<ContentParent> parent = ContentParent::GetNewOrUsed().get();
-        parent.forget(&gContentParent);
+        NS_ADDREF(gContentParent = ContentParent::GetNewOrUsed());
     } else if (!gContentParent->IsAlive()) {
         return nullptr;
     }
@@ -727,7 +716,7 @@ XRE_SendTestShellCommand(JSContext* aCx,
         tsp->SendPTestShellCommandConstructor(command));
     NS_ENSURE_TRUE(callback, false);
 
-    JS::Value callbackVal = *reinterpret_cast<JS::Value*>(aCallback);
+    jsval callbackVal = *reinterpret_cast<jsval*>(aCallback);
     NS_ENSURE_TRUE(callback->SetCallback(aCx, callbackVal), false);
 
     return true;

@@ -51,10 +51,8 @@
 #include "mozilla/Attributes.h"
 #include "FrameMetrics.h"
 #include "ProcessUtils.h"
-#include "mozilla/dom/TabContext.h"
 
 struct gfxMatrix;
-class nsICachedFileDescriptorListener;
 
 namespace mozilla {
 namespace layout {
@@ -80,10 +78,10 @@ public:
   NS_FORWARD_SAFE_NSIMESSAGELISTENERMANAGER(mMessageManager)
   NS_FORWARD_SAFE_NSIMESSAGESENDER(mMessageManager)
   NS_IMETHOD SendSyncMessage(const nsAString& aMessageName,
-                             const JS::Value& aObject,
+                             const jsval& aObject,
                              JSContext* aCx,
                              uint8_t aArgc,
-                             JS::Value* aRetval)
+                             jsval* aRetval)
   {
     return mMessageManager
       ? mMessageManager->SendSyncMessage(aMessageName, aObject, aCx, aArgc, aRetval)
@@ -151,12 +149,10 @@ class TabChild : public PBrowserChild,
                  public nsIDialogCreator,
                  public nsITabChild,
                  public nsIObserver,
-                 public ipc::MessageManagerCallback,
-                 public TabContext
+                 public mozilla::dom::ipc::MessageManagerCallback
 {
-    typedef mozilla::dom::ClonedMessageData ClonedMessageData;
     typedef mozilla::layout::RenderFrameChild RenderFrameChild;
-    typedef mozilla::layout::ScrollingBehavior ScrollingBehavior;
+    typedef mozilla::dom::ClonedMessageData ClonedMessageData;
 
 public:
     /** 
@@ -168,9 +164,11 @@ public:
 
     /** Return a TabChild with the given attributes. */
     static already_AddRefed<TabChild> 
-    Create(const TabContext& aContext, uint32_t aChromeFlags);
+    Create(uint32_t aChromeFlags, bool aIsBrowserElement, uint32_t aAppId);
 
     virtual ~TabChild();
+
+    uint32_t GetAppId() { return mAppId; }
 
     bool IsRootContentDocument();
 
@@ -197,15 +195,11 @@ public:
                                     const mozilla::dom::StructuredCloneData& aData);
 
     virtual bool RecvLoadURL(const nsCString& uri);
-    virtual bool RecvCacheFileDescriptor(const nsString& aPath,
-                                         const FileDescriptor& aFileDescriptor)
-                                         MOZ_OVERRIDE;
     virtual bool RecvShow(const nsIntSize& size);
-    virtual bool RecvUpdateDimensions(const nsRect& rect, const nsIntSize& size, const ScreenOrientation& orientation);
+    virtual bool RecvUpdateDimensions(const nsRect& rect, const nsIntSize& size);
     virtual bool RecvUpdateFrame(const mozilla::layers::FrameMetrics& aFrameMetrics);
     virtual bool RecvHandleDoubleTap(const nsIntPoint& aPoint);
     virtual bool RecvHandleSingleTap(const nsIntPoint& aPoint);
-    virtual bool RecvHandleLongTap(const nsIntPoint& aPoint);
     virtual bool RecvActivate();
     virtual bool RecvDeactivate();
     virtual bool RecvMouseEvent(const nsString& aType,
@@ -263,24 +257,23 @@ public:
 #ifdef DEBUG
     virtual PContentPermissionRequestChild* SendPContentPermissionRequestConstructor(PContentPermissionRequestChild* aActor,
                                                                                      const nsCString& aType,
-                                                                                     const nsCString& aAccess,
                                                                                      const IPC::Principal& aPrincipal)
     {
       PCOMContentPermissionRequestChild* child = static_cast<PCOMContentPermissionRequestChild*>(aActor);
-      PContentPermissionRequestChild* request = PBrowserChild::SendPContentPermissionRequestConstructor(aActor, aType, aAccess, aPrincipal);
+      PContentPermissionRequestChild* request = PBrowserChild::SendPContentPermissionRequestConstructor(aActor, aType, aPrincipal);
       child->mIPCOpen = true;
       return request;
     }
 #endif /* DEBUG */
 
-    virtual PContentPermissionRequestChild* AllocPContentPermissionRequest(const nsCString& aType,
-                                                                           const nsCString& aAccess,
-                                                                           const IPC::Principal& aPrincipal);
+    virtual PContentPermissionRequestChild* AllocPContentPermissionRequest(const nsCString& aType, const IPC::Principal& aPrincipal);
     virtual bool DeallocPContentPermissionRequest(PContentPermissionRequestChild* actor);
 
     virtual POfflineCacheUpdateChild* AllocPOfflineCacheUpdate(
             const URIParams& manifestURI,
             const URIParams& documentURI,
+            const bool& isInBrowserElement,
+            const uint32_t& appId,
             const bool& stickDocument);
     virtual bool DeallocPOfflineCacheUpdate(POfflineCacheUpdateChild* offlineCacheUpdate);
 
@@ -293,42 +286,11 @@ public:
     /** Return the DPI of the widget this TabChild draws to. */
     void GetDPI(float* aDPI);
 
-    gfxSize GetZoom() { return mLastMetrics.mZoom; }
-
-    ScreenOrientation GetOrientation() { return mOrientation; }
-
     void SetBackgroundColor(const nscolor& aColor);
 
     void NotifyPainted();
 
     bool IsAsyncPanZoomEnabled();
-
-    /**
-     * Signal to this TabChild that it should be made visible:
-     * activated widget, retained layer tree, etc.  (Respectively,
-     * made not visible.)
-     */
-    void MakeVisible();
-    void MakeHidden();
-
-    virtual bool RecvSetAppType(const nsString& aAppType);
-
-    /**
-     * Get this object's app type.
-     *
-     * A TabChild's app type corresponds to the value of its frame element's
-     * "mozapptype" attribute.
-     */
-    void GetAppType(nsAString& aAppType) const { aAppType = mAppType; }
-
-    // Returns true if the file descriptor was found in the cache, false
-    // otherwise.
-    bool GetCachedFileDescriptor(const nsAString& aPath,
-                                 nsICachedFileDescriptorListener* aCallback);
-
-    void CancelCachedFileDescriptorCallback(
-                                    const nsAString& aPath,
-                                    nsICachedFileDescriptorListener* aCallback);
 
 protected:
     virtual PRenderFrameChild* AllocPRenderFrame(ScrollingBehavior* aScrolling,
@@ -349,21 +311,15 @@ private:
     /**
      * Create a new TabChild object.
      *
-     * |aOwnOrContainingAppId| is the app-id of our frame or of the closest app
-     * frame in the hierarchy which contains us.
-     *
-     * |aIsBrowserElement| indicates whether we're a browser (but not an app).
+     * |aIsBrowserElement| indicates whether the tab is inside an <iframe mozbrowser>.
+     * |aAppId| is the app id of the app containing this tab. If the tab isn't
+     * contained in an app, aAppId will be nsIScriptSecurityManager::NO_APP_ID.
      */
-    TabChild(const TabContext& aContext, uint32_t aChromeFlags);
+    TabChild(uint32_t aChromeFlags, bool aIsBrowserElement, uint32_t aAppId);
 
     nsresult Init();
 
-    // Notify others that our TabContext has been updated.  (At the moment, this
-    // sets the appropriate app-id and is-browser flags on our docshell.)
-    //
-    // You should call this after calling TabContext::SetTabContext().  We also
-    // call this during Init().
-    void NotifyTabContextUpdated();
+    void SetAppBrowserConfig(bool aIsBrowserElement, uint32_t aAppId);
 
     bool UseDirectCompositor();
 
@@ -397,18 +353,8 @@ private:
     void DispatchMessageManagerMessage(const nsAString& aMessageName,
                                        const nsACString& aJSONData);
 
-    void DispatchSynthesizedMouseEvent(uint32_t aMsg, uint64_t aTime,
-                                       const nsIntPoint& aRefPoint);
-
-    // These methods are used for tracking synthetic mouse events
-    // dispatched for compatibility.  On each touch event, we
-    // UpdateTapState().  If we've detected that the current gesture
-    // isn't a tap, then we CancelTapTracking().  In the meantime, we
-    // may detect a context-menu event, and if so we
-    // FireContextMenuEvent().
-    void FireContextMenuEvent();
-    void CancelTapTracking();
-    void UpdateTapState(const nsTouchEvent& aEvent, nsEventStatus aStatus);
+    // Sends a simulated mouse event from a touch event for compatibility.
+    void DispatchSynthesizedMouseEvent(const nsTouchEvent& aEvent);
 
     nsresult
     BrowserFrameProvideWindow(nsIDOMWindow* aOpener,
@@ -425,9 +371,6 @@ private:
         return utils;
     }
 
-    class CachedFileDescriptorInfo;
-    class CachedFileDescriptorCallbackRunnable;
-
     nsCOMPtr<nsIWebNavigation> mWebNav;
     nsCOMPtr<nsIWidget> mWidget;
     nsCOMPtr<nsIURI> mLastURI;
@@ -437,27 +380,15 @@ private:
     uint32_t mChromeFlags;
     nsIntRect mOuterRect;
     nsIntSize mInnerSize;
-    // When we're tracking a possible tap gesture, this is the "down"
-    // point of the touchstart.
-    nsIntPoint mGestureDownPoint;
-    // The touch identifier of the active gesture.
-    int32_t mActivePointerId;
-    // A timer task that fires if the tap-hold timeout is exceeded by
-    // the touch we're tracking.  That is, if touchend or a touchmove
-    // that exceeds the gesture threshold doesn't happen.
-    CancelableTask* mTapHoldTimer;
-    // At present only 1 of these is really expected.
-    nsAutoTArray<nsAutoPtr<CachedFileDescriptorInfo>, 1>
-        mCachedFileDescriptorInfos;
     float mOldViewportWidth;
     nscolor mLastBackgroundColor;
     ScrollingBehavior mScrolling;
+    uint32_t mAppId;
     bool mDidFakeShow;
+    bool mIsBrowserElement;
     bool mNotified;
     bool mContentDocumentIsDisplayed;
     bool mTriedBrowserInit;
-    nsString mAppType;
-    ScreenOrientation mOrientation;
 
     DISALLOW_EVIL_CONSTRUCTORS(TabChild);
 };

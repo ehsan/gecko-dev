@@ -14,18 +14,17 @@ VPATH     = \
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE         = necko
 LIBRARY_NAME   = nksctp_s
 LIBXUL_LIBRARY = 1
+XPIDL_MODULE   = necko_sctp
+GRE_MODULE     = 1
 FORCE_STATIC_LIB = 1
-NO_PROFILE_GUIDED_OPTIMIZE = 1 # Don't PGO
 
 EXPORTS_NAMESPACES = mozilla/net
 
-ifeq ($(OS_TARGET),Android)
-CPPSRCS = \
-  ifaddrs_android.cpp \
+XPIDLSRCS = \
   $(NULL)
-endif
 
 CSRCS = \
   user_environment.c \
@@ -66,21 +65,13 @@ LOCAL_INCLUDES = \
   -I$(topsrcdir)/xpcom/ds \
   $(NULL)
 
-# Android NDK r5c, used on the builders at the time of this writing, doesn't
-# have the headers we need for IPv6
-ifeq ($(OS_TARGET),Android)
-  IPV6_DEFINE=
-else
-  IPV6_DEFINE=-DINET6=1
-endif
-
 DEFINES = \
   -DSCTP_SIMPLE_ALLOCATOR=1 \
   -DUSE_SCTP_SHA1=1 \
   -DSCTP_PROCESS_LEVEL_LOCKS=1 \
   -D__Userspace__=1 \
   -DINET=1 \
-  $(IPV6_DEFINE) \
+  -DINET6=1 \
   -DCALLBACK_API=1 \
   -DSCTP_DEBUG=1 \
   $(NULL)
@@ -98,10 +89,8 @@ DEFINES += \
   -U__APPLE__ \
   $(NULL)
 else
-ifeq (,$(filter-out Linux Android,$(OS_TARGET)))
+ifeq ($(OS_TARGET),Linux)
 DEFINES += -D__Userspace_os_Linux=1
-# to make sure that in6_pktinfo gets defined on all distros
-DEFINES += -D_GNU_SOURCE
 else
 ifeq ($(OS_TARGET),FreeBSD)
 DEFINES += \

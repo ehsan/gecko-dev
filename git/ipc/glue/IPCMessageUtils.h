@@ -7,13 +7,9 @@
 #ifndef __IPC_GLUE_IPCMESSAGEUTILS_H__
 #define __IPC_GLUE_IPCMESSAGEUTILS_H__
 
-#include "base/process_util.h"
 #include "chrome/common/ipc_message_utils.h"
 
 #include "mozilla/TimeStamp.h"
-#ifdef XP_WIN
-#include "mozilla/TimeStamp_windows.h"
-#endif
 #include "mozilla/Util.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/StandardInteger.h"
@@ -150,13 +146,6 @@ struct EnumSerializer {
     return true;
   }
 };
-
-template <>
-struct ParamTraits<base::ChildPrivileges>
-  : public EnumSerializer<base::ChildPrivileges,
-                          base::PRIVILEGES_DEFAULT,
-                          base::PRIVILEGES_LAST>
-{ };
 
 template<>
 struct ParamTraits<int8_t>
@@ -347,10 +336,10 @@ struct ParamTraits<nsString> : ParamTraits<nsAString>
   typedef nsString paramType;
 };
 
-template <typename E>
-struct ParamTraits<FallibleTArray<E> >
+template <typename E, class A>
+struct ParamTraits<nsTArray<E, A> >
 {
-  typedef FallibleTArray<E> paramType;
+  typedef nsTArray<E, A> paramType;
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
@@ -391,19 +380,17 @@ struct ParamTraits<FallibleTArray<E> >
 };
 
 template<typename E>
-struct ParamTraits<InfallibleTArray<E> >
+struct ParamTraits<InfallibleTArray<E> > :
+  ParamTraits<nsTArray<E, nsTArrayInfallibleAllocator> >
 {
   typedef InfallibleTArray<E> paramType;
 
-  static void Write(Message* aMsg, const paramType& aParam)
-  {
-    WriteParam(aMsg, static_cast<const FallibleTArray<E>&>(aParam));
-  }
+  // use nsTArray Write() method
 
   // deserialize the array fallibly, but return an InfallibleTArray
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    FallibleTArray<E> temp;
+    nsTArray<E> temp;
     if (!ReadParam(aMsg, aIter, &temp))
       return false;
 
@@ -411,10 +398,7 @@ struct ParamTraits<InfallibleTArray<E> >
     return true;
   }
 
-  static void Log(const paramType& aParam, std::wstring* aLog)
-  {
-    LogParam(static_cast<const FallibleTArray<E>&>(aParam), aLog);
-  }
+  // use nsTArray Log() method
 };
 
 template<>
@@ -837,28 +821,6 @@ struct ParamTraits<mozilla::gfx::Rect>
 };
 
 template<>
-struct ParamTraits<mozilla::gfx::Margin>
-{
-  typedef mozilla::gfx::Margin paramType;
-
-  static void Write(Message* msg, const paramType& param)
-  {
-    WriteParam(msg, param.top);
-    WriteParam(msg, param.right);
-    WriteParam(msg, param.bottom);
-    WriteParam(msg, param.left);
-  }
-
-  static bool Read(const Message* msg, void** iter, paramType* result)
-  {
-    return (ReadParam(msg, iter, &result->top) &&
-            ReadParam(msg, iter, &result->right) &&
-            ReadParam(msg, iter, &result->bottom) &&
-            ReadParam(msg, iter, &result->left));
-  }
-};
-
-template<>
 struct ParamTraits<nsRect>
 {
   typedef nsRect paramType;
@@ -950,30 +912,6 @@ struct ParamTraits<mozilla::TimeStamp>
   };
 };
 
-#ifdef XP_WIN
-
-template<>
-struct ParamTraits<mozilla::TimeStampValue>
-{
-  typedef mozilla::TimeStampValue paramType;
-  static void Write(Message* aMsg, const paramType& aParam)
-  {
-    WriteParam(aMsg, aParam.mGTC);
-    WriteParam(aMsg, aParam.mQPC);
-    WriteParam(aMsg, aParam.mHasQPC);
-    WriteParam(aMsg, aParam.mIsNull);
-  }
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
-  {
-    return (ReadParam(aMsg, aIter, &aResult->mGTC) &&
-            ReadParam(aMsg, aIter, &aResult->mQPC) &&
-            ReadParam(aMsg, aIter, &aResult->mHasQPC) &&
-            ReadParam(aMsg, aIter, &aResult->mIsNull));
-  }
-};
-
-#endif
-
 template <>
 struct ParamTraits<mozilla::SerializedStructuredCloneBuffer>
 {
@@ -1027,7 +965,6 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
     WriteParam(aMsg, aParam.mContentRect);
     WriteParam(aMsg, aParam.mScrollOffset);
     WriteParam(aMsg, aParam.mDisplayPort);
-    WriteParam(aMsg, aParam.mCriticalDisplayPort);
     WriteParam(aMsg, aParam.mCompositionBounds);
     WriteParam(aMsg, aParam.mScrollId);
     WriteParam(aMsg, aParam.mResolution);
@@ -1043,7 +980,6 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
             ReadParam(aMsg, aIter, &aResult->mContentRect) &&
             ReadParam(aMsg, aIter, &aResult->mScrollOffset) &&
             ReadParam(aMsg, aIter, &aResult->mDisplayPort) &&
-            ReadParam(aMsg, aIter, &aResult->mCriticalDisplayPort) &&
             ReadParam(aMsg, aIter, &aResult->mCompositionBounds) &&
             ReadParam(aMsg, aIter, &aResult->mScrollId) &&
             ReadParam(aMsg, aIter, &aResult->mResolution) &&

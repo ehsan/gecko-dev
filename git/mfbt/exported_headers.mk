@@ -12,33 +12,24 @@ EXPORTS_mozilla += \
   Assertions.h \
   Attributes.h \
   BloomFilter.h \
-  Char16.h \
   CheckedInt.h \
-  Compiler.h \
   Constants.h \
-  DebugOnly.h \
-  EnumSet.h \
   FloatingPoint.h \
   GuardObjects.h \
   HashFunctions.h \
   Likely.h \
   LinkedList.h \
   MathAlgorithms.h \
-  MemoryChecking.h \
   MSStdInt.h \
   NullPtr.h \
-  PodOperations.h \
-  Range.h \
   RangedPtr.h \
   RefPtr.h \
   Scoped.h \
-  SHA1.h \
-  SplayTree.h \
   StandardInteger.h \
+  SHA1.h \
   ThreadLocal.h \
-  TypedEnum.h \
-  Types.h \
   TypeTraits.h \
+  Types.h \
   Util.h \
   WeakPtr.h \
   $(NULL)

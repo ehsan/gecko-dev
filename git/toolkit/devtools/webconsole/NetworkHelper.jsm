@@ -64,7 +64,7 @@ XPCOMUtils.defineLazyGetter(this, "NetUtil", function () {
   return obj.NetUtil;
 });
 
-this.EXPORTED_SYMBOLS = ["NetworkHelper"];
+var EXPORTED_SYMBOLS = ["NetworkHelper"];
 
 /**
  * Helper object for networking stuff.
@@ -73,7 +73,7 @@ this.EXPORTED_SYMBOLS = ["NetworkHelper"];
  * have been modified to match the Firefox coding rules.
  */
 
-this.NetworkHelper =
+var NetworkHelper =
 {
   /**
    * Converts aText with a given aCharset to unicode.
@@ -290,9 +290,7 @@ this.NetworkHelper =
     let result = [];
 
     cookies.forEach(function(aCookie) {
-      let equal = aCookie.indexOf("=");
-      let name = aCookie.substr(0, equal);
-      let value = aCookie.substr(equal + 1);
+      let [name, value] = aCookie.split("=");
       result.push({name: unescape(name.trim()),
                    value: unescape(value.trim())});
     });
@@ -316,9 +314,8 @@ this.NetworkHelper =
     let cookies = [];
 
     rawCookies.forEach(function(aCookie) {
-      let equal = aCookie.indexOf("=");
-      let name = unescape(aCookie.substr(0, equal).trim());
-      let parts = aCookie.substr(equal + 1).split(";");
+      let name = unescape(aCookie.substr(0, aCookie.indexOf("=")).trim());
+      let parts = aCookie.substr(aCookie.indexOf("=") + 1).split(";");
       let value = unescape(parts.shift().trim());
 
       let cookie = {name: name, value: value};
@@ -422,36 +419,5 @@ this.NetworkHelper =
     "application/x-json": "json",
     "application/json-rpc": "json",
     "application/x-web-app-manifest+json": "json",
-  },
-
-  /**
-   * Check if the given MIME type is a text-only MIME type.
-   *
-   * @param string aMimeType
-   * @return boolean
-   */
-  isTextMimeType: function NH_isTextMimeType(aMimeType)
-  {
-    if (aMimeType.indexOf("text/") == 0) {
-      return true;
-    }
-
-    if (/^application\/[a-z-]+\+xml$/.test(aMimeType)) {
-      return true;
-    }
-
-    switch (NetworkHelper.mimeCategoryMap[aMimeType]) {
-      case "txt":
-      case "js":
-      case "json":
-      case "css":
-      case "html":
-      case "svg":
-      case "xml":
-        return true;
-
-      default:
-        return false;
-    }
-  },
+  }
 }

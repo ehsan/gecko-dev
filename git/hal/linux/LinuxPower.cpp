@@ -7,7 +7,6 @@
 
 #include <unistd.h>
 #include <sys/reboot.h>
-#include "nsIObserverService.h"
 
 namespace mozilla {
 namespace hal_impl {
@@ -15,22 +14,12 @@ namespace hal_impl {
 void
 Reboot()
 {
-  nsCOMPtr<nsIObserverService> obsServ = services::GetObserverService();
-  if (obsServ) {
-    obsServ->NotifyObservers(nullptr, "system-reboot", nullptr);
-  }
-  sync();
   reboot(RB_AUTOBOOT);
 }
 
 void
 PowerOff()
 {
-  nsCOMPtr<nsIObserverService> obsServ = services::GetObserverService();
-  if (obsServ) {
-    obsServ->NotifyObservers(nullptr, "system-power-off", nullptr);
-  }
-  sync();
   reboot(RB_POWER_OFF);
 }
 
@@ -80,16 +69,7 @@ ForceQuitWatchdog(void* aParamPtr)
   if (paramPtr->timeoutSecs > 0 && paramPtr->timeoutSecs <= 30) {
     // If we shut down normally before the timeout, this thread will
     // be harmlessly reaped by the OS.
-    TimeStamp deadline =
-      (TimeStamp::Now() + TimeDuration::FromSeconds(paramPtr->timeoutSecs));
-    while (true) {
-      TimeDuration remaining = (deadline - TimeStamp::Now());
-      int sleepSeconds = int(remaining.ToSeconds());
-      if (sleepSeconds <= 0) {
-        break;
-      }
-      sleep(sleepSeconds);
-    }
+    sleep(paramPtr->timeoutSecs);
   }
   hal::ShutdownMode mode = paramPtr->mode;
   delete paramPtr;

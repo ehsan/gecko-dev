@@ -7,7 +7,7 @@
 
 #include "nsAccUtils.h"
 #include "nsARIAMap.h"
-#include "DocAccessible-inl.h"
+#include "DocAccessible.h"
 #include "Role.h"
 
 #include "nsIDOMHTMLCollection.h"
@@ -28,7 +28,7 @@ HTMLImageMapAccessible::
   HTMLImageMapAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   ImageAccessibleWrap(aContent, aDoc)
 {
-  mType = eImageMapType;
+  mFlags |= eImageMapAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +85,6 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
     return;
 
   bool doReorderEvent = false;
-  nsRefPtr<AccReorderEvent> reorderEvent = new AccReorderEvent(this);
 
   // Remove areas that are not a valid part of the image map anymore.
   for (int32_t childIdx = mChildren.Length() - 1; childIdx >= 0; childIdx--) {
@@ -94,9 +93,8 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
       continue;
 
     if (aDoFireEvents) {
-      nsRefPtr<AccHideEvent> event = new AccHideEvent(area, area->GetContent());
-      mDoc->FireDelayedEvent(event);
-      reorderEvent->AddSubMutationEvent(event);
+      nsRefPtr<AccEvent> event = new AccHideEvent(area, area->GetContent());
+      mDoc->FireDelayedAccessibleEvent(event);
       doReorderEvent = true;
     }
 
@@ -120,17 +118,20 @@ HTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
       }
 
       if (aDoFireEvents) {
-        nsRefPtr<AccShowEvent> event = new AccShowEvent(area, areaContent);
-        mDoc->FireDelayedEvent(event);
-        reorderEvent->AddSubMutationEvent(event);
+        nsRefPtr<AccEvent> event = new AccShowEvent(area, areaContent);
+        mDoc->FireDelayedAccessibleEvent(event);
         doReorderEvent = true;
       }
     }
   }
 
   // Fire reorder event if needed.
-  if (doReorderEvent)
-    mDoc->FireDelayedEvent(reorderEvent);
+  if (doReorderEvent) {
+    nsRefPtr<AccEvent> reorderEvent =
+      new AccEvent(nsIAccessibleEvent::EVENT_REORDER, mContent,
+                   eAutoDetect, AccEvent::eCoalesceFromSameSubtree);
+    mDoc->FireDelayedAccessibleEvent(reorderEvent);
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,7 +154,7 @@ HTMLAreaAccessible::
 {
   // Make HTML area DOM element not accessible. HTML image map accessible
   // manages its tree itself.
-  mStateFlags |= eNotNodeMapEntry;
+  mFlags |= eNotNodeMapEntry;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

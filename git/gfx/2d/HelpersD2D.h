@@ -138,24 +138,24 @@ static inline D2D1_PIXEL_FORMAT D2DPixelFormat(SurfaceFormat aFormat)
 static inline bool IsPatternSupportedByD2D(const Pattern &aPattern)
 {
   if (aPattern.GetType() != PATTERN_RADIAL_GRADIENT) {
-    return true;
+    return false;
   }
 
   const RadialGradientPattern *pat =
     static_cast<const RadialGradientPattern*>(&aPattern);
   
   if (pat->mRadius1 != 0) {
-    return false;
+    return true;
   }
 
   Point diff = pat->mCenter2 - pat->mCenter1;
 
   if (sqrt(diff.x * diff.x + diff.y * diff.y) >= pat->mRadius2) {
     // Inner point lies outside the circle.
-    return false;
+    return true;
   }
 
-  return true;
+  return false;
 }
 
 /**

@@ -6,6 +6,8 @@ let tempScope = {}
 Cu.import("resource:///modules/devtools/CssRuleView.jsm", tempScope);
 let CssRuleView = tempScope.CssRuleView;
 let _ElementStyle = tempScope._ElementStyle;
+let _editableField = tempScope._editableField;
+let inplaceEditor = tempScope._getInplaceEditorForSpan;
 
 let doc;
 let ruleDialog;
@@ -37,7 +39,7 @@ function startTest()
   doc.body.innerHTML = '<div id="testid" class="testclass">Styled Node</div>';
   let testElement = doc.getElementById("testid");
 
-  ruleDialog = openDialog("chrome://browser/content/devtools/cssruleview.xhtml",
+  ruleDialog = openDialog("chrome://browser/content/devtools/cssruleview.xul",
                           "cssruleviewtest",
                           "width=200,height=350");
   ruleDialog.addEventListener("load", function onLoad(evt) {

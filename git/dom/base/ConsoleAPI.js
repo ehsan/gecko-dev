@@ -255,17 +255,13 @@ ConsoleAPI.prototype = {
   {
     let [method, args, meta] = aCall;
 
-    let frame = meta.stack[0];
-    let consoleEvent = {
-      ID: this._outerID,
-      innerID: this._innerID,
-      level: method,
-      filename: frame.filename,
-      lineNumber: frame.lineNumber,
-      functionName: frame.functionName,
+    let notifyMeta = {
+      isPrivate: meta.isPrivate,
       timeStamp: meta.timeStamp,
-      arguments: args,
+      frame: meta.stack[0],
     };
+
+    let notifyArguments = null;
 
     switch (method) {
       case "log":
@@ -273,37 +269,31 @@ ConsoleAPI.prototype = {
       case "warn":
       case "error":
       case "debug":
-        consoleEvent.arguments = this.processArguments(args);
+        notifyArguments = this.processArguments(args);
         break;
       case "trace":
-        consoleEvent.stacktrace = meta.stack;
+        notifyArguments = meta.stack;
         break;
       case "group":
       case "groupCollapsed":
-      case "groupEnd":
-        try {
-          consoleEvent.groupName = Array.prototype.join.call(args, " ");
-        }
-        catch (ex) {
-          Cu.reportError(ex);
-          Cu.reportError(ex.stack);
-          return;
-        }
+        notifyArguments = this.beginGroup(args);
         break;
+      case "groupEnd":
       case "dir":
+        notifyArguments = args;
         break;
       case "time":
-        consoleEvent.timer = this.startTimer(args[0], meta.timeStamp);
+        notifyArguments = this.startTimer(args[0], meta.timeStamp);
         break;
       case "timeEnd":
-        consoleEvent.timer = this.stopTimer(args[0], meta.timeStamp);
+        notifyArguments = this.stopTimer(args[0], meta.timeStamp);
         break;
       default:
         // unknown console API method!
         return;
     }
 
-    this.notifyObservers(method, consoleEvent, meta.isPrivate);
+    this.notifyObservers(method, notifyArguments, notifyMeta);
   },
 
   /**
@@ -311,22 +301,34 @@ ConsoleAPI.prototype = {
    *
    * @param string aLevel
    *        The message level.
-   * @param object aConsoleEvent
-   *        The console event object to send to observers for the given console
-   *        API call.
-   * @param boolean aPrivate
-   *        Tells whether the window is in private browsing mode.
+   * @param mixed aArguments
+   *        The arguments given to the console API call.
+   * @param object aMeta
+   *        Object that holds metadata about the console API call:
+   *        - isPrivate - Whether the window is in private browsing mode.
+   *        - frame - the youngest content frame in the call stack.
+   *        - timeStamp - when the console API call occurred.
    */
-  notifyObservers: function CA_notifyObservers(aLevel, aConsoleEvent, aPrivate)
-  {
-    aConsoleEvent.wrappedJSObject = aConsoleEvent;
+  notifyObservers: function CA_notifyObservers(aLevel, aArguments, aMeta) {
+    let consoleEvent = {
+      ID: this._outerID,
+      innerID: this._innerID,
+      level: aLevel,
+      filename: aMeta.frame.filename,
+      lineNumber: aMeta.frame.lineNumber,
+      functionName: aMeta.frame.functionName,
+      arguments: aArguments,
+      timeStamp: aMeta.timeStamp,
+    };
+
+    consoleEvent.wrappedJSObject = consoleEvent;
 
     // Store non-private messages for which the inner window was not destroyed.
-    if (!aPrivate) {
-      ConsoleAPIStorage.recordEvent(this._innerID, aConsoleEvent);
+    if (!aMeta.isPrivate) {
+      ConsoleAPIStorage.recordEvent(this._innerID, consoleEvent);
     }
 
-    Services.obs.notifyObservers(aConsoleEvent, "console-api-log-event",
+    Services.obs.notifyObservers(consoleEvent, "console-api-log-event",
                                  this._outerID);
   },
 
@@ -416,6 +418,13 @@ ConsoleAPI.prototype = {
     return stack;
   },
 
+  /**
+   * Begin a new group for logging output together.
+   **/
+  beginGroup: function CA_beginGroup() {
+    return Array.prototype.join.call(arguments[0], " ");
+  },
+
   /*
    * A registry of started timers. Timer maps are key-value pairs of timer
    * names to timer start times, for all timers defined in the page. Timer
@@ -476,4 +485,4 @@ ConsoleAPI.prototype = {
   }
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([ConsoleAPI]);
+let NSGetFactory = XPCOMUtils.generateNSGetFactory([ConsoleAPI]);

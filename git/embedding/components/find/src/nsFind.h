@@ -9,7 +9,6 @@
 #include "nsIFind.h"
 
 #include "nsCOMPtr.h"
-#include "nsCycleCollectionParticipant.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMRange.h"
 #include "nsIContentIterator.h"
@@ -28,14 +27,13 @@ class nsFindContentIterator;
 class nsFind : public nsIFind
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIFIND
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsFind)
 
   nsFind();
   virtual ~nsFind();
 
-  static already_AddRefed<nsIDOMRange> CreateRange(nsINode* aNode);
+  static already_AddRefed<nsIDOMRange> CreateRange();
 
 protected:
   // Parameters set from the interface:

@@ -14,12 +14,6 @@ class nsRenderingContext;
 
 typedef nsSVGTextContainerFrame nsSVGTextFrameBase;
 
-namespace mozilla {
-namespace dom {
-class SVGIRect;
-}
-}
-
 class nsSVGTextFrame : public nsSVGTextFrameBase
 {
   friend nsIFrame*
@@ -34,9 +28,9 @@ public:
 
   // nsIFrame:
 #ifdef DEBUG
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 #endif
 
   NS_IMETHOD  AttributeChanged(int32_t         aNameSpaceID,
@@ -57,9 +51,9 @@ public:
   }
 #endif
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   // nsISVGChildFrame interface:
   virtual void NotifySVGChanged(uint32_t aFlags);
@@ -79,11 +73,11 @@ public:
   virtual uint32_t GetNumberOfChars();
   virtual float GetComputedTextLength();
   virtual float GetSubStringLength(uint32_t charnum, uint32_t nchars);
-  virtual int32_t GetCharNumAtPosition(mozilla::nsISVGPoint *point);
+  virtual int32_t GetCharNumAtPosition(nsIDOMSVGPoint *point);
 
-  NS_IMETHOD GetStartPositionOfChar(uint32_t charnum, nsISupports **_retval);
-  NS_IMETHOD GetEndPositionOfChar(uint32_t charnum, nsISupports **_retval);
-  NS_IMETHOD GetExtentOfChar(uint32_t charnum, mozilla::dom::SVGIRect **_retval);
+  NS_IMETHOD GetStartPositionOfChar(uint32_t charnum, nsIDOMSVGPoint **_retval);
+  NS_IMETHOD GetEndPositionOfChar(uint32_t charnum, nsIDOMSVGPoint **_retval);
+  NS_IMETHOD GetExtentOfChar(uint32_t charnum, nsIDOMSVGRect **_retval);
   NS_IMETHOD GetRotationOfChar(uint32_t charnum, float *_retval);
 
   // nsSVGTextFrame

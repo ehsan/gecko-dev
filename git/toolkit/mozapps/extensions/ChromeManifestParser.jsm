@@ -4,7 +4,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["ChromeManifestParser"];
+var EXPORTED_SYMBOLS = ["ChromeManifestParser"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -33,7 +33,7 @@ function flushJarCache(aJarFile) {
 /**
  * Parses chrome manifest files.
  */
-this.ChromeManifestParser = {
+var ChromeManifestParser = {
 
   /**
    * Reads and parses a chrome manifest file located at a specified URI, and all
@@ -152,7 +152,7 @@ this.ChromeManifestParser = {
   * @return True if any matching instructions were found in the manifest.
   */
   hasType: function CMP_hasType(aManifest, aType) {
-    return aManifest.some(function hasType_matchEntryType(aEntry) {
+    return aManifest.some(function(aEntry) {
       return aEntry.type == aType;
     });
   }

@@ -10,8 +10,7 @@
 
 #include "mozilla/Attributes.h"
 #include "nsContainerFrame.h"
-
-class nsLineLayout;
+#include "nsLineLayout.h"
 
 /**  In Bidi left (or right) margin/padding/border should be applied to left
  *  (or right) most frame (or a continuation frame).
@@ -24,15 +23,13 @@ class nsLineLayout;
 
 #define NS_INLINE_FRAME_BIDI_VISUAL_IS_RIGHT_MOST    NS_FRAME_STATE_BIT(23)
 
-typedef nsContainerFrame nsInlineFrameBase;
-
 /**
  * Inline frame class.
  *
  * This class manages a list of child frames that are inline frames. Working with
  * nsLineLayout, the class will reflow and place inline frames on a line.
  */
-class nsInlineFrame : public nsInlineFrameBase
+class nsInlineFrame : public nsContainerFrame
 {
 public:
   NS_DECL_QUERYFRAME_TARGET(nsInlineFrame)
@@ -41,10 +38,17 @@ public:
 
   friend nsIFrame* NS_NewInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
+  /** sets defaults for inline-specific style.
+    * @see nsIFrame::Init
+    */
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
+
   // nsIFrame overrides
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
 #ifdef ACCESSIBILITY
   virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
@@ -57,18 +61,14 @@ public:
 
   virtual bool IsFrameOfType(uint32_t aFlags) const
   {
-    if (aFlags & eSupportsCSSTransforms) {
-      return false;
-    }
     return nsContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eBidiInlineContainer | nsIFrame::eLineParticipant));
   }
 
-  virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0);
-  virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0);
-
   virtual bool IsEmpty() MOZ_OVERRIDE;
   virtual bool IsSelfEmpty() MOZ_OVERRIDE;
+
+  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
   virtual bool PeekOffsetCharacter(bool aForward, int32_t* aOffset,
                                      bool aRespectClusters = true) MOZ_OVERRIDE;
@@ -91,7 +91,7 @@ public:
   virtual bool CanContinueTextRun() const MOZ_OVERRIDE;
 
   virtual void PullOverflowsFromPrevInFlow();
-  virtual nscoord GetBaseline() const MOZ_OVERRIDE;
+  virtual nscoord GetBaseline() const;
 
   /**
    * Return true if the frame is leftmost frame or continuation.
@@ -136,7 +136,7 @@ protected:
 
   nsInlineFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
 
-  virtual int GetSkipSides() const MOZ_OVERRIDE;
+  virtual int GetSkipSides() const;
 
   nsresult ReflowFrames(nsPresContext* aPresContext,
                         const nsHTMLReflowState& aReflowState,

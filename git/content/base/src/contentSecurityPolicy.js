@@ -20,11 +20,6 @@ const Cu = Components.utils;
 
 const CSP_VIOLATION_TOPIC = "csp-on-violate-policy";
 
-// Needed to support CSP 1.0 spec and our original CSP implementation - should
-// be removed when our original implementation is deprecated.
-const CSP_TYPE_XMLHTTPREQUEST_SPEC_COMPLIANT = "csp_type_xmlhttprequest_spec_compliant";
-const CSP_TYPE_WEBSOCKET_SPEC_COMPLIANT = "csp_type_websocket_spec_compliant";
-
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/CSPUtils.jsm");
@@ -35,7 +30,6 @@ function ContentSecurityPolicy() {
   CSPdebug("CSP CREATED");
   this._isInitialized = false;
   this._reportOnlyMode = false;
-
   this._policy = CSPRep.fromString("default-src *");
 
   // default options "wide open" since this policy will be intersected soon
@@ -43,13 +37,9 @@ function ContentSecurityPolicy() {
   this._policy._allowEval = true;
 
   this._request = "";
-  this._requestOrigin = "";
-  this._requestPrincipal = "";
   this._referrer = "";
   this._docRequest = null;
   CSPdebug("CSP POLICY INITED TO 'default-src *'");
-
-  this._cache = { };
 }
 
 /*
@@ -58,14 +48,12 @@ function ContentSecurityPolicy() {
 {
   let cp = Ci.nsIContentPolicy;
   let csp = ContentSecurityPolicy;
-  let cspr_sd_old = CSPRep.SRC_DIRECTIVES_OLD;
-  let cspr_sd_new = CSPRep.SRC_DIRECTIVES_NEW;
+  let cspr_sd = CSPRep.SRC_DIRECTIVES;
 
   csp._MAPPINGS=[];
 
   /* default, catch-all case */
-  // This is the same in old and new CSP so use the new mapping.
-  csp._MAPPINGS[cp.TYPE_OTHER]             =  cspr_sd_new.DEFAULT_SRC;
+  csp._MAPPINGS[cp.TYPE_OTHER]             =  cspr_sd.DEFAULT_SRC;
 
   /* self */
   csp._MAPPINGS[cp.TYPE_DOCUMENT]          =  null;
@@ -74,46 +62,26 @@ function ContentSecurityPolicy() {
   csp._MAPPINGS[cp.TYPE_REFRESH]           =  null;
 
   /* categorized content types */
-  // These are the same in old and new CSP's so just use the new mappings.
-  csp._MAPPINGS[cp.TYPE_SCRIPT]            = cspr_sd_new.SCRIPT_SRC;
-  csp._MAPPINGS[cp.TYPE_IMAGE]             = cspr_sd_new.IMG_SRC;
-  csp._MAPPINGS[cp.TYPE_STYLESHEET]        = cspr_sd_new.STYLE_SRC;
-  csp._MAPPINGS[cp.TYPE_OBJECT]            = cspr_sd_new.OBJECT_SRC;
-  csp._MAPPINGS[cp.TYPE_OBJECT_SUBREQUEST] = cspr_sd_new.OBJECT_SRC;
-  csp._MAPPINGS[cp.TYPE_SUBDOCUMENT]       = cspr_sd_new.FRAME_SRC;
-  csp._MAPPINGS[cp.TYPE_MEDIA]             = cspr_sd_new.MEDIA_SRC;
-  csp._MAPPINGS[cp.TYPE_FONT]              = cspr_sd_new.FONT_SRC;
+  csp._MAPPINGS[cp.TYPE_SCRIPT]            = cspr_sd.SCRIPT_SRC;
+  csp._MAPPINGS[cp.TYPE_IMAGE]             = cspr_sd.IMG_SRC;
+  csp._MAPPINGS[cp.TYPE_STYLESHEET]        = cspr_sd.STYLE_SRC;
+  csp._MAPPINGS[cp.TYPE_OBJECT]            = cspr_sd.OBJECT_SRC;
+  csp._MAPPINGS[cp.TYPE_OBJECT_SUBREQUEST] = cspr_sd.OBJECT_SRC;
+  csp._MAPPINGS[cp.TYPE_SUBDOCUMENT]       = cspr_sd.FRAME_SRC;
+  csp._MAPPINGS[cp.TYPE_MEDIA]             = cspr_sd.MEDIA_SRC;
+  csp._MAPPINGS[cp.TYPE_FONT]              = cspr_sd.FONT_SRC;
+  csp._MAPPINGS[cp.TYPE_XMLHTTPREQUEST]    = cspr_sd.XHR_SRC;
+  csp._MAPPINGS[cp.TYPE_WEBSOCKET]         = cspr_sd.XHR_SRC;
 
-  /* Our original CSP implementation's mappings for XHR and websocket
-   * These should be changed to be = cspr_sd.CONNECT_SRC when we remove
-   * the original implementation - NOTE: order in this array is important !!!
-   */
-  csp._MAPPINGS[cp.TYPE_XMLHTTPREQUEST]    = cspr_sd_old.XHR_SRC;
-  csp._MAPPINGS[cp.TYPE_WEBSOCKET]         = cspr_sd_old.XHR_SRC;
-
-  /* CSP cannot block CSP reports */
-  csp._MAPPINGS[cp.TYPE_CSP_REPORT]        = null;
 
   /* These must go through the catch-all */
-  csp._MAPPINGS[cp.TYPE_XBL]               = cspr_sd_new.DEFAULT_SRC;
-  csp._MAPPINGS[cp.TYPE_PING]              = cspr_sd_new.DEFAULT_SRC;
-  csp._MAPPINGS[cp.TYPE_DTD]               = cspr_sd_new.DEFAULT_SRC;
-
-  /* CSP 1.0 spec compliant mappings for XHR and websocket */
-  // The directive name for XHR, websocket, and EventSource is different
-  // in the 1.0 spec than in our original implementation, these mappings
-  // address this. These won't be needed when we deprecate our original
-  // implementation.
-  csp._MAPPINGS[CSP_TYPE_XMLHTTPREQUEST_SPEC_COMPLIANT]    = cspr_sd_new.CONNECT_SRC;
-  csp._MAPPINGS[CSP_TYPE_WEBSOCKET_SPEC_COMPLIANT]         = cspr_sd_new.CONNECT_SRC;
-  // TODO : EventSource will be here and also will use connect-src
-  // after we fix Bug 802872 - CSP should restrict EventSource using the connect-src
-  // directive. For background see Bug 667490 - EventSource should use the same
-  // nsIContentPolicy type as XHR (which is fixed)
+  csp._MAPPINGS[cp.TYPE_XBL]               = cspr_sd.DEFAULT_SRC;
+  csp._MAPPINGS[cp.TYPE_PING]              = cspr_sd.DEFAULT_SRC;
+  csp._MAPPINGS[cp.TYPE_DTD]               = cspr_sd.DEFAULT_SRC;
 }
 
 ContentSecurityPolicy.prototype = {
-  classID:          Components.ID("{d1680bb4-1ac0-4772-9437-1188375e44f2}"),
+  classID:          Components.ID("{AB36A2BF-CB32-4AA6-AB41-6B4E4444A221}"),
   QueryInterface:   XPCOMUtils.generateQI([Ci.nsIContentSecurityPolicy]),
 
   get isInitialized() {
@@ -128,19 +96,11 @@ ContentSecurityPolicy.prototype = {
     return this._policy.toString();
   },
 
-  getAllowsInlineScript: function(shouldReportViolation) {
-    // report it?
-    shouldReportViolation.value = !this._policy.allowsInlineScripts;
-
-    // allow it to execute?
+  get allowsInlineScript() {
     return this._reportOnlyMode || this._policy.allowsInlineScripts;
   },
 
-  getAllowsEval: function(shouldReportViolation) {
-    // report it?
-    shouldReportViolation.value = !this._policy.allowsEvalInScripts;
-
-    // allow it to execute?
+  get allowsEval() {
     return this._reportOnlyMode || this._policy.allowsEvalInScripts;
   },
 
@@ -207,21 +167,12 @@ ContentSecurityPolicy.prototype = {
 
     // save the document URI (minus <fragment>) and referrer for reporting
     let uri = aChannel.URI.cloneIgnoringRef();
-    try { // GetUserPass throws for some protocols without userPass
-      uri.userPass = '';
-    } catch (ex) {}
+    uri.userPass = '';
     this._request = uri.asciiSpec;
-    this._requestOrigin = uri;
-
-    //store a reference to the principal, that can later be used in shouldLoad
-    this._requestPrincipal = Components.classes["@mozilla.org/scriptsecuritymanager;1"].
-    getService(Components.interfaces.nsIScriptSecurityManager).getChannelPrincipal(aChannel);
 
     if (aChannel.referrer) {
       let referrer = aChannel.referrer.cloneIgnoringRef();
-      try { // GetUserPass throws for some protocols without userPass
-        referrer.userPass = '';
-      } catch (ex) {}
+      referrer.userPass = '';
       this._referrer = referrer.asciiSpec;
     }
   },
@@ -235,10 +186,9 @@ ContentSecurityPolicy.prototype = {
    * the effective policy has to be refined.
    */
   refinePolicy:
-  function csp_refinePolicy(aPolicy, selfURI, aSpecCompliant) {
+  function csp_refinePolicy(aPolicy, selfURI) {
     CSPdebug("REFINE POLICY: " + aPolicy);
     CSPdebug("         SELF: " + selfURI.asciiSpec);
-    CSPdebug("CSP 1.0 COMPLIANT : " + aSpecCompliant);
     // For nested schemes such as view-source: make sure we are taking the
     // innermost URI to use as 'self' since that's where we will extract the
     // scheme, host and port from
@@ -252,35 +202,19 @@ ContentSecurityPolicy.prototype = {
 
     // If there is a policy-uri, fetch the policy, then re-call this function.
     // (1) parse and create a CSPRep object
-    // Note that we pass the full URI since when it's parsed as 'self' to construct a
-    // CSPSource only the scheme, host, and port are kept.
-
-    // If we want to be CSP 1.0 spec compliant, use the new parser.
-    // The old one will be deprecated in the future and will be
-    // removed at that time.
-    var newpolicy;
-    if (aSpecCompliant) {
-      newpolicy = CSPRep.fromStringSpecCompliant(aPolicy,
-                                                 selfURI,
-                                                 this._docRequest,
-                                                 this);
-    } else {
-      newpolicy = CSPRep.fromString(aPolicy,
-                                    selfURI,
-                                    this._docRequest,
-                                    this);
-    }
+    // Note that we pass the full URI since when it's parsed as 'self' to construct a 
+    // CSPSource only the scheme, host, and port are kept. 
+    var newpolicy = CSPRep.fromString(aPolicy,
+				      selfURI,
+                                      this._docRequest,
+                                      this);
 
     // (2) Intersect the currently installed CSPRep object with the new one
     var intersect = this._policy.intersectWith(newpolicy);
-
+ 
     // (3) Save the result
     this._policy = intersect;
-
-    this._policy._specCompliant = !!aSpecCompliant;
-
     this._isInitialized = true;
-    this._cache = {};
   },
 
   /**
@@ -376,9 +310,6 @@ ContentSecurityPolicy.prototype = {
           // we need to set an nsIChannelEventSink on the channel object
           // so we can tell it to not follow redirects when posting the reports
           chan.notificationCallbacks = new CSPReportRedirectSink(this._policy);
-          if (this._docRequest) {
-            chan.loadGroup = this._docRequest.loadGroup;
-          }
 
           chan.QueryInterface(Ci.nsIUploadChannel)
               .setUploadStream(content, "application/json", content.available());
@@ -394,9 +325,8 @@ ContentSecurityPolicy.prototype = {
           try {
             var contentPolicy = Cc["@mozilla.org/layout/content-policy;1"]
                                   .getService(Ci.nsIContentPolicy);
-            if (contentPolicy.shouldLoad(Ci.nsIContentPolicy.TYPE_CSP_REPORT,
-                                         chan.URI, this._requestOrigin,
-                                         null, null, null, this._requestPrincipal)
+            if (contentPolicy.shouldLoad(Ci.nsIContentPolicy.TYPE_OTHER,
+                                         chan.URI, null, null, null, null)
                 != Ci.nsIContentPolicy.ACCEPT) {
               continue; // skip unauthorized URIs
             }
@@ -444,23 +374,16 @@ ContentSecurityPolicy.prototype = {
         if (it.currentURI.scheme === "chrome") {
           break;
         }
-        // delete any userpass
-        let ancestor = it.currentURI.cloneIgnoringRef();
-        try { // GetUserPass throws for some protocols without userPass
-          ancestor.userPass = '';
-        } catch (ex) {}
-
+        let ancestor = it.currentURI;
         CSPdebug(" found frame ancestor " + ancestor.asciiSpec);
         ancestors.push(ancestor);
       }
-    }
+    } 
 
     // scan the discovered ancestors
-    // frame-ancestors is the same in both old and new source directives,
-    // so don't need to differentiate here.
-    let cspContext = CSPRep.SRC_DIRECTIVES_NEW.FRAME_ANCESTORS;
+    let cspContext = CSPRep.SRC_DIRECTIVES.FRAME_ANCESTORS;
     for (let i in ancestors) {
-      let ancestor = ancestors[i];
+      let ancestor = ancestors[i].prePath;
       if (!this._policy.permits(ancestor, cspContext)) {
         // report the frame-ancestor violation
         let directive = this._policy._directives[cspContext];
@@ -483,45 +406,23 @@ ContentSecurityPolicy.prototype = {
    * decides whether or not the policy is satisfied.
    */
   shouldLoad:
-  function csp_shouldLoad(aContentType,
-                          aContentLocation,
-                          aRequestOrigin,
-                          aContext,
-                          aMimeTypeGuess,
+  function csp_shouldLoad(aContentType, 
+                          aContentLocation, 
+                          aRequestOrigin, 
+                          aContext, 
+                          aMimeTypeGuess, 
                           aOriginalUri) {
-    let key = aContentLocation.spec + "!" + aContentType;
-    if (this._cache[key]) {
-      return this._cache[key];
+
+    // don't filter chrome stuff
+    if (aContentLocation.scheme === 'chrome' ||
+        aContentLocation.scheme === 'resource') {
+      return Ci.nsIContentPolicy.ACCEPT;
     }
 
-#ifndef MOZ_B2G
-    // Try to remove as much as possible from the hot path on b2g.
+    // interpret the context, and then pass off to the decision structure
     CSPdebug("shouldLoad location = " + aContentLocation.asciiSpec);
     CSPdebug("shouldLoad content type = " + aContentType);
-#endif
-    // interpret the context, and then pass off to the decision structure
     var cspContext = ContentSecurityPolicy._MAPPINGS[aContentType];
-
-    // The mapping for XHR and websockets is different between our original
-    // implementation and the 1.0 spec, we handle this here.
-    var cspContext;
-
-    let cp = Ci.nsIContentPolicy;
-
-#ifndef MOZ_B2G
-    CSPdebug("policy is " + (this._policy._specCompliant ?
-                             "1.0 compliant" : "pre-1.0"));
-#endif
-
-    if (aContentType == cp.TYPE_XMLHTTPREQUEST && this._policy._specCompliant) {
-      cspContext = ContentSecurityPolicy._MAPPINGS[CSP_TYPE_XMLHTTPREQUEST_SPEC_COMPLIANT];
-    } else if (aContentType == cp.TYPE_WEBSOCKET && this._policy._specCompliant) {
-      cspContext = ContentSecurityPolicy._MAPPINGS[CSP_TYPE_WEBSOCKET_SPEC_COMPLIANT];
-    } else {
-      cspContext = ContentSecurityPolicy._MAPPINGS[aContentType];
-    }
-
-    CSPdebug("shouldLoad cspContext = " + cspContext);
 
     // if the mapping is null, there's no policy, let it through.
     if (!cspContext) {
@@ -529,15 +430,15 @@ ContentSecurityPolicy.prototype = {
     }
 
     // otherwise, honor the translation
-    // var source = aContentLocation.scheme + "://" + aContentLocation.hostPort;
+    // var source = aContentLocation.scheme + "://" + aContentLocation.hostPort; 
     var res = this._policy.permits(aContentLocation, cspContext)
-              ? Ci.nsIContentPolicy.ACCEPT
+              ? Ci.nsIContentPolicy.ACCEPT 
               : Ci.nsIContentPolicy.REJECT_SERVER;
 
     // frame-ancestors is taken care of early on (as this document is loaded)
 
     // If the result is *NOT* ACCEPT, then send report
-    if (res != Ci.nsIContentPolicy.ACCEPT) {
+    if (res != Ci.nsIContentPolicy.ACCEPT) { 
       CSPdebug("blocking request for " + aContentLocation.asciiSpec);
       try {
         let directive = this._policy._directives[cspContext];
@@ -550,11 +451,9 @@ ContentSecurityPolicy.prototype = {
       }
     }
 
-    let ret = this._cache[key] =
-      (this._reportOnlyMode ? Ci.nsIContentPolicy.ACCEPT : res);
-    return ret;
+    return (this._reportOnlyMode ? Ci.nsIContentPolicy.ACCEPT : res);
   },
-
+  
   shouldProcess:
   function csp_shouldProcess(aContentType,
                              aContentLocation,
@@ -671,4 +570,4 @@ CSPReportRedirectSink.prototype = {
   }
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([ContentSecurityPolicy]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([ContentSecurityPolicy]);

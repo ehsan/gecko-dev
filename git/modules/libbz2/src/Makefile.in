@@ -11,6 +11,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= libbz2
 LIBRARY_NAME	= bz2
 HOST_LIBRARY_NAME = hostbz2
 FORCE_STATIC_LIB= 1
@@ -41,6 +42,12 @@ EXPORTS		= \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk
+
+ifdef CROSS_COMPILE
+ifdef HOST_NSPR_MDCPUCFG
+HOST_CFLAGS    += -DMDCPUCFG=$(HOST_NSPR_MDCPUCFG)
+endif
+endif
 
 # The intermediate (.ii/.s) files for host and target can have the same name...
 # disable parallel builds

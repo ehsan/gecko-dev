@@ -29,8 +29,7 @@
 #include "PowerManager.h"
 #include "nsIDOMWakeLock.h"
 #include "nsIPowerManagerService.h"
-#include "mozilla/dom/SmsManager.h"
-#include "mozilla/dom/MobileMessageManager.h"
+#include "SmsManager.h"
 #include "nsISmsService.h"
 #include "mozilla/Hal.h"
 #include "nsIWebNavigation.h"
@@ -38,11 +37,8 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/StaticPtr.h"
 #include "Connection.h"
-#include "nsIObserverService.h"
 #ifdef MOZ_B2G_RIL
 #include "MobileConnection.h"
-#include "mozilla/dom/CellBroadcast.h"
-#include "mozilla/dom/Voicemail.h"
 #endif
 #include "nsIIdleObserver.h"
 #include "nsIPermissionManager.h"
@@ -63,13 +59,10 @@
 #include "nsIDOMCameraManager.h"
 #include "DOMCameraManager.h"
 
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-#include "AudioChannelManager.h"
-#endif
-
 #include "nsIDOMGlobalPropertyInitializer.h"
 
 using namespace mozilla::dom::power;
+using namespace mozilla::dom::sms;
 
 // This should not be in the namespace.
 DOMCI_DATA(Navigator, mozilla::dom::Navigator)
@@ -104,10 +97,6 @@ Navigator::Navigator(nsPIDOMWindow* aWindow)
 {
   NS_ASSERTION(aWindow->IsInnerWindow(),
                "Navigator must get an inner window!");
-  nsCOMPtr<nsIObserverService> obsService =
-    mozilla::services::GetObserverService();
-  if (obsService)
-    obsService->AddObserver(this, "plugin-info-updated", false);
 }
 
 Navigator::~Navigator()
@@ -124,8 +113,6 @@ NS_INTERFACE_MAP_BEGIN(Navigator)
   NS_INTERFACE_MAP_ENTRY(nsINavigatorBattery)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorDesktopNotification)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozNavigatorSms)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMMozNavigatorMobileMessage)
-  NS_INTERFACE_MAP_ENTRY(nsIObserver)
 #ifdef MOZ_MEDIA_NAVIGATOR
   NS_INTERFACE_MAP_ENTRY(nsINavigatorUserMedia)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorUserMedia)
@@ -136,20 +123,13 @@ NS_INTERFACE_MAP_BEGIN(Navigator)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozNavigatorNetwork)
 #ifdef MOZ_B2G_RIL
   NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorMobileConnection)
-  NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorCellBroadcast)
-  NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorVoicemail)
 #endif
 #ifdef MOZ_B2G_BT
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorBluetooth)
 #endif
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorCamera)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorSystemMessages)
-#ifdef MOZ_TIME_MANAGER
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozNavigatorTime)
-#endif
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-  NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorAudioChannelManager)
-#endif
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Navigator)
 NS_INTERFACE_MAP_END
 
@@ -160,12 +140,6 @@ void
 Navigator::Invalidate()
 {
   mWindow = nullptr;
-
-  nsCOMPtr<nsIObserverService> obsService =
-    mozilla::services::GetObserverService();
-  if (obsService) {
-    obsService->RemoveObserver(this, "plugin-info-updated");
-  }
 
   if (mPlugins) {
     mPlugins->Invalidate();
@@ -198,11 +172,6 @@ Navigator::Invalidate()
     mSmsManager = nullptr;
   }
 
-  if (mMobileMessageManager) {
-    mMobileMessageManager->Shutdown();
-    mMobileMessageManager = nullptr;
-  }
-
 #ifdef MOZ_B2G_RIL
   if (mTelephony) {
     mTelephony = nullptr;
@@ -223,10 +192,6 @@ Navigator::Invalidate()
     mMobileConnection->Shutdown();
     mMobileConnection = nullptr;
   }
-
-  if (mCellBroadcast) {
-    mCellBroadcast = nullptr;
-  }
 #endif
 
 #ifdef MOZ_B2G_BT
@@ -240,12 +205,6 @@ Navigator::Invalidate()
 #ifdef MOZ_SYS_MSG
   if (mMessagesManager) {
     mMessagesManager = nullptr;
-  }
-#endif
-
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-  if (mAudioChannelManager) {
-    mAudioChannelManager = nullptr;
   }
 #endif
 
@@ -268,19 +227,6 @@ Navigator::GetWindow()
   return win;
 }
 
-//*****************************************************************************
-//    Navigator::nsIObserver
-//*****************************************************************************
-
-NS_IMETHODIMP
-Navigator::Observe(nsISupports *aSubject, const char *aTopic,
-                   const PRUnichar *aData) {
-  if (!nsCRT::strcmp(aTopic, "plugin-info-updated") && mPlugins) {
-    mPlugins->Refresh(false);
-  }
-
-  return NS_OK;
-}
 
 //*****************************************************************************
 //    Navigator::nsIDOMNavigator
@@ -312,7 +258,7 @@ Navigator::GetUserAgent(nsAString& aUserAgent)
     do_GetService("@mozilla.org/dom/site-specific-user-agent;1");
   NS_ENSURE_TRUE(siteSpecificUA, NS_OK);
 
-  return siteSpecificUA->GetUserAgentForURIAndWindow(codebaseURI, win, aUserAgent);
+  return siteSpecificUA->GetUserAgentForURI(codebaseURI, aUserAgent);
 }
 
 NS_IMETHODIMP
@@ -408,7 +354,7 @@ Navigator::GetPlatform(nsAString& aPlatform)
 NS_IMETHODIMP
 Navigator::GetOscpu(nsAString& aOSCPU)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
     const nsAdoptingString& override =
       Preferences::GetString("general.oscpu.override");
 
@@ -548,7 +494,7 @@ Navigator::GetOnLine(bool* aOnline)
 NS_IMETHODIMP
 Navigator::GetBuildID(nsAString& aBuildID)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
     const nsAdoptingString& override =
       Preferences::GetString("general.buildID.override");
 
@@ -657,7 +603,7 @@ public:
     mDocument = do_GetWeakReference(aDocument);
 
     nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aDocument);
-    NS_NAMED_LITERAL_STRING(visibilitychange, "visibilitychange");
+    NS_NAMED_LITERAL_STRING(visibilitychange, "mozvisibilitychange");
     target->AddSystemEventListener(visibilitychange,
                                    this, /* listener */
                                    true, /* use capture */
@@ -691,7 +637,7 @@ VibrateWindowListener::HandleEvent(nsIDOMEvent* aEvent)
 
   bool hidden = true;
   if (doc) {
-    doc->GetHidden(&hidden);
+    doc->GetMozHidden(&hidden);
   }
 
   if (hidden) {
@@ -716,7 +662,7 @@ VibrateWindowListener::RemoveListener()
   if (!target) {
     return;
   }
-  NS_NAMED_LITERAL_STRING(visibilitychange, "visibilitychange");
+  NS_NAMED_LITERAL_STRING(visibilitychange, "mozvisibilitychange");
   target->RemoveSystemEventListener(visibilitychange, this,
                                     true /* use capture */);
 }
@@ -785,11 +731,11 @@ Navigator::Vibrate(const jsval& aPattern, JSContext* cx)
   nsCOMPtr<nsPIDOMWindow> win = do_QueryReferent(mWindow);
   NS_ENSURE_TRUE(win, NS_OK);
 
-  nsCOMPtr<nsIDOMDocument> domDoc = win->GetExtantDocument();
+  nsIDOMDocument* domDoc = win->GetExtantDocument();
   NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
 
   bool hidden = true;
-  domDoc->GetHidden(&hidden);
+  domDoc->GetMozHidden(&hidden);
   if (hidden) {
     // Hidden documents cannot start or stop a vibration.
     return NS_OK;
@@ -839,7 +785,7 @@ Navigator::Vibrate(const jsval& aPattern, JSContext* cx)
   }
 
   // Add a listener to cancel the vibration if the document becomes hidden,
-  // and remove the old visibility listener, if there was one.
+  // and remove the old mozvisibility listener, if there was one.
 
   if (!gVibrateWindowListener) {
     // If gVibrateWindowListener is null, this is the first time we've vibrated,
@@ -992,44 +938,6 @@ Navigator::MozIsLocallyAvailable(const nsAString &aURI,
 
 NS_IMETHODIMP Navigator::GetDeviceStorage(const nsAString &aType, nsIDOMDeviceStorage** _retval)
 {
-  // We're going to obsolete getDeviceStorage, but want to leave it in for
-  // compatability right now. So we do essentially the same thing as GetDeviceStorages
-  // but only take the first element of the array.
-
-  NS_WARNING("navigator.getDeviceStorage is deprecated. Returning navigator.getDeviceStorages[0]");
-
-  nsCOMPtr<nsIVariant> variantArray;
-
-  nsresult rv = GetDeviceStorages(aType, getter_AddRefs(variantArray));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  uint16_t dataType;
-  variantArray->GetDataType(&dataType);
-
-  if (dataType != nsIDataType::VTYPE_ARRAY) {
-    NS_ASSERTION(dataType == nsIDataType::VTYPE_EMPTY_ARRAY,
-                 "Expecting an empty array");
-    *_retval = nullptr;
-    return NS_OK;
-  }
-
-  uint16_t valueType;
-  nsIID iid;
-  uint32_t valueCount;
-  void* rawArray;
-  variantArray->GetAsArray(&valueType, &iid, &valueCount, &rawArray);
-  NS_ASSERTION(valueCount > 0, "Expecting non-zero array size");
-  nsIDOMDeviceStorage** values = static_cast<nsIDOMDeviceStorage**>(rawArray);
-  *_retval = values[0];
-  for (uint32_t i = 1; i < valueCount; i++) {
-    values[i]->Release();
-  }
-  nsMemory::Free(rawArray);
-  return NS_OK;
-}
-
-NS_IMETHODIMP Navigator::GetDeviceStorages(const nsAString &aType, nsIVariant** _retval)
-{
   if (!Preferences::GetBool("device.storage.enabled", false)) {
     return NS_OK;
   }
@@ -1040,23 +948,15 @@ NS_IMETHODIMP Navigator::GetDeviceStorages(const nsAString &aType, nsIVariant** 
     return NS_ERROR_FAILURE;
   }
 
-  nsTArray<nsRefPtr<nsDOMDeviceStorage> > stores;
-  nsDOMDeviceStorage::CreateDeviceStoragesFor(win, aType, stores);
+  nsRefPtr<nsDOMDeviceStorage> storage;
+  nsDOMDeviceStorage::CreateDeviceStoragesFor(win, aType, getter_AddRefs(storage));
 
-  nsCOMPtr<nsIWritableVariant> result = do_CreateInstance("@mozilla.org/variant;1");
-  NS_ENSURE_TRUE(result, NS_ERROR_FAILURE);
-
-  if (stores.Length() == 0) {
-    result->SetAsEmptyArray();
-  } else {
-    result->SetAsArray(nsIDataType::VTYPE_INTERFACE,
-                       &NS_GET_IID(nsIDOMDeviceStorage),
-                       stores.Length(),
-                       const_cast<void*>(static_cast<const void*>(stores.Elements())));
+  if (!storage) {
+    return NS_OK;
   }
-  result.forget(_retval);
 
-  mDeviceStorageStores.AppendElements(stores);
+  NS_ADDREF(*_retval = storage.get());
+  mDeviceStorageStores.AppendElement(storage);
   return NS_OK;
 }
 
@@ -1176,7 +1076,7 @@ NS_IMETHODIMP Navigator::GetMozNotification(nsIDOMDesktopNotificationCenter** aR
 //*****************************************************************************
 
 NS_IMETHODIMP
-Navigator::GetBattery(nsISupports** aBattery)
+Navigator::GetBattery(nsIDOMBatteryManager** aBattery)
 {
   if (!mBatteryManager) {
     *aBattery = nullptr;
@@ -1249,67 +1149,7 @@ Navigator::GetMozSms(nsIDOMMozSmsManager** aSmsManager)
   return NS_OK;
 }
 
-//*****************************************************************************
-//    Navigator::nsIDOMNavigatorMobileMessage
-//*****************************************************************************
-
-NS_IMETHODIMP
-Navigator::GetMozMobileMessage(nsIDOMMozMobileMessageManager** aMobileMessageManager)
-{
-  *aMobileMessageManager = nullptr;
-
-#ifndef MOZ_WEBSMS_BACKEND
-  return NS_OK;
-#endif
-
-  // First of all, the general pref has to be turned on.
-  bool enabled = false;
-  Preferences::GetBool("dom.sms.enabled", &enabled);
-  NS_ENSURE_TRUE(enabled, NS_OK);
-
-  if (!mMobileMessageManager) {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-    NS_ENSURE_TRUE(window && window->GetDocShell(), NS_OK);
-
-    if (!CheckPermission("sms")) {
-      return NS_OK;
-    }
-
-    mMobileMessageManager = new MobileMessageManager();
-    mMobileMessageManager->Init(window);
-  }
-
-  NS_ADDREF(*aMobileMessageManager = mMobileMessageManager);
-
-  return NS_OK;
-}
-
 #ifdef MOZ_B2G_RIL
-
-//*****************************************************************************
-//    Navigator::nsIMozNavigatorCellBroadcast
-//*****************************************************************************
-
-NS_IMETHODIMP
-Navigator::GetMozCellBroadcast(nsIDOMMozCellBroadcast** aCellBroadcast)
-{
-  *aCellBroadcast = nullptr;
-
-  if (!mCellBroadcast) {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-    NS_ENSURE_TRUE(window, NS_OK);
-
-    if (!CheckPermission("cellbroadcast")) {
-      return NS_OK;
-    }
-
-    nsresult rv = NS_NewCellBroadcast(window, getter_AddRefs(mCellBroadcast));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  NS_ADDREF(*aCellBroadcast = mCellBroadcast);
-  return NS_OK;
-}
 
 //*****************************************************************************
 //    nsNavigator::nsIDOMNavigatorTelephony
@@ -1334,10 +1174,6 @@ Navigator::GetMozTelephony(nsIDOMTelephony** aTelephony)
   telephony.forget(aTelephony);
   return NS_OK;
 }
-
-//*****************************************************************************
-//    nsNavigator::nsINavigatorVoicemail
-//*****************************************************************************
 
 NS_IMETHODIMP
 Navigator::GetMozVoicemail(nsIDOMMozVoicemail** aVoicemail)
@@ -1498,7 +1334,6 @@ Navigator::MozSetMessageHandler(const nsAString& aType,
 //*****************************************************************************
 //    Navigator::nsIDOMNavigatorTime
 //*****************************************************************************
-#ifdef MOZ_TIME_MANAGER
 NS_IMETHODIMP
 Navigator::GetMozTime(nsIDOMMozTimeManager** aTime)
 {
@@ -1515,7 +1350,6 @@ Navigator::GetMozTime(nsIDOMMozTimeManager** aTime)
   NS_ADDREF(*aTime = mTimeManager);
   return NS_OK;
 }
-#endif
 
 //*****************************************************************************
 //    nsNavigator::nsIDOMNavigatorCamera
@@ -1574,9 +1408,7 @@ Navigator::OnNavigation()
 #ifdef MOZ_MEDIA_NAVIGATOR
   // Inform MediaManager in case there are live streams or pending callbacks.
   MediaManager *manager = MediaManager::Get();
-  if (manager) {
-    manager->OnNavigation(win->WindowID());
-  }
+  manager->OnNavigation(win->WindowID());
 #endif
   if (mCameraManager) {
     mCameraManager->OnNavigation(win->WindowID());
@@ -1597,27 +1429,6 @@ Navigator::CheckPermission(const char* type)
   permMgr->TestPermissionFromWindow(window, type, &permission);
   return permission == nsIPermissionManager::ALLOW_ACTION;
 }
-
-//*****************************************************************************
-//    Navigator::nsINavigatorAudioChannelManager
-//*****************************************************************************
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-NS_IMETHODIMP
-Navigator::GetMozAudioChannelManager(nsISupports** aAudioChannelManager)
-{
-  *aAudioChannelManager = nullptr;
-
-  if (!mAudioChannelManager) {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-    NS_ENSURE_TRUE(window, NS_OK);
-    mAudioChannelManager = new system::AudioChannelManager();
-    mAudioChannelManager->Init(window);
-  }
-
-  NS_ADDREF(*aAudioChannelManager = mAudioChannelManager);
-  return NS_OK;
-}
-#endif
 
 } // namespace dom
 } // namespace mozilla
@@ -1641,7 +1452,7 @@ NS_GetNavigatorUserAgent(nsAString& aUserAgent)
 nsresult
 NS_GetNavigatorPlatform(nsAString& aPlatform)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
     const nsAdoptingString& override =
       mozilla::Preferences::GetString("general.platform.override");
 
@@ -1685,7 +1496,7 @@ NS_GetNavigatorPlatform(nsAString& aPlatform)
 nsresult
 NS_GetNavigatorAppVersion(nsAString& aAppVersion)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
     const nsAdoptingString& override =
       mozilla::Preferences::GetString("general.appversion.override");
 
@@ -1720,7 +1531,7 @@ NS_GetNavigatorAppVersion(nsAString& aAppVersion)
 nsresult
 NS_GetNavigatorAppName(nsAString& aAppName)
 {
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
     const nsAdoptingString& override =
       mozilla::Preferences::GetString("general.appname.override");
 

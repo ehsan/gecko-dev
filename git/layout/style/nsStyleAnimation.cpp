@@ -5,11 +5,10 @@
 
 /* Utilities for animation of computed style values */
 
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/Util.h"
+#include "mozilla/MathAlgorithms.h"
 
 #include "nsStyleAnimation.h"
-#include "nsStyleTransformMatrix.h"
 #include "nsCOMArray.h"
 #include "nsIStyleRule.h"
 #include "mozilla/css/StyleRule.h"
@@ -21,9 +20,11 @@
 #include "mozilla/css/Declaration.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/Likely.h"
+#include "prlog.h"
+#include <math.h>
 #include "gfxMatrix.h"
 #include "gfxQuaternion.h"
+#include "nsPrintfCString.h"
 
 using namespace mozilla;
 
@@ -381,42 +382,36 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
           // just like eUnit_Integer.
           int32_t startInt = aStartValue.GetIntValue();
           int32_t endInt = aEndValue.GetIntValue();
-          aDistance = Abs(endInt - startInt);
+          aDistance = NS_ABS(endInt - startInt);
           return true;
         }
         default:
           return false;
       }
    case eUnit_Visibility: {
-      int32_t startEnum = aStartValue.GetIntValue();
-      int32_t endEnum = aEndValue.GetIntValue();
-      if (startEnum == endEnum) {
-        aDistance = 0;
-        return true;
-      }
-      if ((startEnum == NS_STYLE_VISIBILITY_VISIBLE) ==
-          (endEnum == NS_STYLE_VISIBILITY_VISIBLE)) {
-        return false;
-      }
-      aDistance = 1;
+      int32_t startVal =
+        aStartValue.GetIntValue() == NS_STYLE_VISIBILITY_VISIBLE;
+      int32_t endVal =
+        aEndValue.GetIntValue() == NS_STYLE_VISIBILITY_VISIBLE;
+      aDistance = NS_ABS(startVal - endVal);
       return true;
     }
     case eUnit_Integer: {
       int32_t startInt = aStartValue.GetIntValue();
       int32_t endInt = aEndValue.GetIntValue();
-      aDistance = Abs(double(endInt) - double(startInt));
+      aDistance = NS_ABS(endInt - startInt);
       return true;
     }
     case eUnit_Coord: {
       nscoord startCoord = aStartValue.GetCoordValue();
       nscoord endCoord = aEndValue.GetCoordValue();
-      aDistance = Abs(double(endCoord) - double(startCoord));
+      aDistance = fabs(double(endCoord - startCoord));
       return true;
     }
     case eUnit_Percent: {
       float startPct = aStartValue.GetPercentValue();
       float endPct = aEndValue.GetPercentValue();
-      aDistance = Abs(double(endPct) - double(startPct));
+      aDistance = fabs(double(endPct - startPct));
       return true;
     }
     case eUnit_Float: {
@@ -434,7 +429,7 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
 
       float startFloat = aStartValue.GetFloatValue();
       float endFloat = aEndValue.GetFloatValue();
-      aDistance = Abs(double(endFloat) - double(startFloat));
+      aDistance = fabs(double(endFloat - startFloat));
       return true;
     }
     case eUnit_Color: {
@@ -491,7 +486,7 @@ nsStyleAnimation::ComputeDistance(nsCSSProperty aProperty,
       unit[1] = GetCommonUnit(aProperty, pair1->mYValue.GetUnit(),
                               pair2->mYValue.GetUnit());
       if (unit[0] == eCSSUnit_Null || unit[1] == eCSSUnit_Null ||
-          unit[0] == eCSSUnit_URL || unit[0] == eCSSUnit_Enumerated) {
+          unit[0] == eCSSUnit_URL) {
         return false;
       }
 
@@ -883,13 +878,13 @@ MOZ_ALWAYS_INLINE float
 EnsureNotNan(float aValue)
 {
   // This would benefit from a MOZ_FLOAT_IS_NaN if we had one.
-  return MOZ_LIKELY(!MOZ_DOUBLE_IS_NaN(aValue)) ? aValue : 0;
+  return NS_LIKELY(!MOZ_DOUBLE_IS_NaN(aValue)) ? aValue : 0;
 }
 template<>
 MOZ_ALWAYS_INLINE double
 EnsureNotNan(double aValue)
 {
-  return MOZ_LIKELY(!MOZ_DOUBLE_IS_NaN(aValue)) ? aValue : 0;
+  return NS_LIKELY(!MOZ_DOUBLE_IS_NaN(aValue)) ? aValue : 0;
 }
 
 template <typename T>
@@ -1297,7 +1292,7 @@ Decompose2DMatrix(const gfxMatrix &aMatrix, gfxPoint3D &aScale,
   XYshear /= scaleY;
 
   // A*D - B*C should now be 1 or -1
-  NS_ASSERTION(0.99 < Abs(A*D - B*C) && Abs(A*D - B*C) < 1.01,
+  NS_ASSERTION(0.99 < NS_ABS(A*D - B*C) && NS_ABS(A*D - B*C) < 1.01,
                "determinant should now be 1 or -1");
   if (A * D < B * C) {
     A = -A;
@@ -1709,21 +1704,11 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
           return false;
       }
     case eUnit_Visibility: {
-      int32_t enum1 = aValue1.GetIntValue();
-      int32_t enum2 = aValue2.GetIntValue();
-      if (enum1 == enum2) {
-        aResultValue.SetIntValue(enum1, eUnit_Visibility);
-        return true;
-      }
-      if ((enum1 == NS_STYLE_VISIBILITY_VISIBLE) ==
-          (enum2 == NS_STYLE_VISIBILITY_VISIBLE)) {
-        return false;
-      }
-      int32_t val1 = enum1 == NS_STYLE_VISIBILITY_VISIBLE;
-      int32_t val2 = enum2 == NS_STYLE_VISIBILITY_VISIBLE;
+      int32_t val1 = aValue1.GetIntValue() == NS_STYLE_VISIBILITY_VISIBLE;
+      int32_t val2 = aValue2.GetIntValue() == NS_STYLE_VISIBILITY_VISIBLE;
       double interp = aCoeff1 * val1 + aCoeff2 * val2;
       int32_t result = interp > 0.0 ? NS_STYLE_VISIBILITY_VISIBLE
-                                    : (val1 ? enum2 : enum1);
+                                    : NS_STYLE_VISIBILITY_HIDDEN;
       aResultValue.SetIntValue(result, eUnit_Visibility);
       return true;
     }
@@ -1841,7 +1826,7 @@ nsStyleAnimation::AddWeighted(nsCSSProperty aProperty,
       unit[1] = GetCommonUnit(aProperty, pair1->mYValue.GetUnit(),
                               pair2->mYValue.GetUnit());
       if (unit[0] == eCSSUnit_Null || unit[1] == eCSSUnit_Null ||
-          unit[0] == eCSSUnit_URL || unit[0] == eCSSUnit_Enumerated) {
+          unit[0] == eCSSUnit_URL) {
         return false;
       }
 
@@ -2231,6 +2216,10 @@ BuildStyleRule(nsCSSProperty aProperty,
   nsCOMPtr<nsIURI> baseURI = aTargetElement->GetBaseURI();
   nsCSSParser parser(doc->CSSLoader());
 
+  if (aUseSVGMode) {
+    parser.SetSVGMode(true);
+  }
+
   nsCSSProperty propertyToCheck = nsCSSProps::IsShorthand(aProperty) ?
     nsCSSProps::SubpropertyEntryFor(aProperty)[0] : aProperty;
 
@@ -2239,8 +2228,7 @@ BuildStyleRule(nsCSSProperty aProperty,
   if (NS_FAILED(parser.ParseProperty(aProperty, aSpecifiedValue,
                                      doc->GetDocumentURI(), baseURI,
                                      aTargetElement->NodePrincipal(),
-                                     declaration, &changed, false,
-                                     aUseSVGMode)) ||
+                                     declaration, &changed, false)) ||
       // check whether property parsed without CSS parsing errors
       !declaration->HasNonImportantValueFor(propertyToCheck)) {
     NS_WARNING("failure in BuildStyleRule");
@@ -2320,13 +2308,13 @@ nsStyleAnimation::ComputeValue(nsCSSProperty aProperty,
 
     // Force walk of rule tree
     nsStyleStructID sid = nsCSSProps::kSIDTable[aProperty];
-    tmpStyleContext->StyleData(sid);
+    tmpStyleContext->GetStyleData(sid);
 
     // If the rule node will have cached style data if the value is not
     // context-sensitive. So if there's nothing cached, it's not context
     // sensitive.
     *aIsContextSensitive =
-      !tmpStyleContext->RuleNode()->NodeHasCachedData(sid);
+      !tmpStyleContext->GetRuleNode()->NodeHasCachedData(sid);
   }
 
   // If we're not concerned whether the property is context sensitive then just
@@ -2352,9 +2340,12 @@ nsStyleAnimation::ComputeValue(nsCSSProperty aProperty,
 
 bool
 nsStyleAnimation::UncomputeValue(nsCSSProperty aProperty,
+                                 nsPresContext* aPresContext,
                                  const Value& aComputedValue,
                                  nsCSSValue& aSpecifiedValue)
 {
+  NS_ABORT_IF_FALSE(aPresContext, "null pres context");
+
   switch (aComputedValue.GetUnit()) {
     case eUnit_Normal:
       aSpecifiedValue.SetNormalValue();
@@ -2441,9 +2432,11 @@ nsStyleAnimation::UncomputeValue(nsCSSProperty aProperty,
 
 bool
 nsStyleAnimation::UncomputeValue(nsCSSProperty aProperty,
+                                 nsPresContext* aPresContext,
                                  const Value& aComputedValue,
                                  nsAString& aSpecifiedValue)
 {
+  NS_ABORT_IF_FALSE(aPresContext, "null pres context");
   aSpecifiedValue.Truncate(); // Clear outparam, if it's not already empty
 
   if (aComputedValue.GetUnit() == eUnit_UnparsedString) {
@@ -2451,7 +2444,8 @@ nsStyleAnimation::UncomputeValue(nsCSSProperty aProperty,
     return true;
   }
   nsCSSValue val;
-  if (!nsStyleAnimation::UncomputeValue(aProperty, aComputedValue, val)) {
+  if (!nsStyleAnimation::UncomputeValue(aProperty, aPresContext,
+                                        aComputedValue, val)) {
     return false;
   }
 
@@ -2481,7 +2475,7 @@ ExtractBorderColor(nsStyleContext* aStyleContext, const void* aStyleBorder,
     GetBorderColor(aSide, color, foreground);
   if (foreground) {
     // FIXME: should add test for this
-    color = aStyleContext->StyleColor()->mColor;
+    color = aStyleContext->GetStyleColor()->mColor;
   }
   aComputedValue.SetColorValue(color);
 }
@@ -2600,7 +2594,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
                     aProperty < eCSSProperty_COUNT_no_shorthands,
                     "bad property");
   const void* styleStruct =
-    aStyleContext->StyleData(nsCSSProps::kSIDTable[aProperty]);
+    aStyleContext->GetStyleData(nsCSSProps::kSIDTable[aProperty]);
   ptrdiff_t ssOffset = nsCSSProps::kStyleStructOffsetTable[aProperty];
   nsStyleAnimType animType = nsCSSProps::kAnimTypeTable[aProperty];
   NS_ABORT_IF_FALSE(0 <= ssOffset || animType == eStyleAnimType_Custom,
@@ -2652,7 +2646,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
             static_cast<const nsStyleOutline*>(styleStruct);
           nscolor color;
           if (!styleOutline->GetOutlineColor(color))
-            color = aStyleContext->StyleColor()->mColor;
+            color = aStyleContext->GetStyleColor()->mColor;
           aComputedValue.SetColorValue(color);
           break;
         }
@@ -2662,7 +2656,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
             static_cast<const nsStyleColumn*>(styleStruct);
           nscolor color;
           if (styleColumn->mColumnRuleColorIsForeground) {
-            color = aStyleContext->StyleColor()->mColor;
+            color = aStyleContext->GetStyleColor()->mColor;
           } else {
             color = styleColumn->mColumnRuleColor;
           }
@@ -2699,7 +2693,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
           bool isForeground;
           styleTextReset->GetDecorationColor(color, isForeground);
           if (isForeground) {
-            color = aStyleContext->StyleColor()->mColor;
+            color = aStyleContext->GetStyleColor()->mColor;
           }
           aComputedValue.SetColorValue(color);
           break;
@@ -3139,17 +3133,6 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
                                                     eUnit_CSSValuePair);
         return true;
       }
-      if (paint.mType == eStyleSVGPaintType_ObjectFill ||
-          paint.mType == eStyleSVGPaintType_ObjectStroke) {
-        nsAutoPtr<nsCSSValuePair> pair(new nsCSSValuePair);
-        pair->mXValue.SetIntValue(paint.mType == eStyleSVGPaintType_ObjectFill ?
-                                    NS_COLOR_OBJECTFILL : NS_COLOR_OBJECTSTROKE,
-                                  eCSSUnit_Enumerated);
-        pair->mYValue.SetColorValue(paint.mFallbackColor);
-        aComputedValue.SetAndAdoptCSSValuePairValue(pair.forget(),
-                                                    eUnit_CSSValuePair);
-        return true;
-      }
       NS_ABORT_IF_FALSE(paint.mType == eStyleSVGPaintType_None,
           "Unexpected SVG paint type");
       aComputedValue.SetNoneValue();
@@ -3396,7 +3379,7 @@ nsStyleAnimation::Value::SetUnparsedStringValue(const nsString& aString)
   FreeValue();
   mUnit = eUnit_UnparsedString;
   mValue.mString = nsCSSValue::BufferFromString(aString).get();
-  if (MOZ_UNLIKELY(!mValue.mString)) {
+  if (NS_UNLIKELY(!mValue.mString)) {
     // not much we can do here; just make sure that our promise of a
     // non-null mValue.mString holds for string units.
     mUnit = eUnit_Null;

@@ -15,10 +15,10 @@
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsNSSCertHelper.h"
+#include "nsNSSCleaner.h"
 #include "nsIProgrammingLanguage.h"
 #include "nsIArray.h"
 #include "PSMRunnable.h"
-#include "ScopedNSSTypes.h"
 
 #include "secerr.h"
 
@@ -34,6 +34,8 @@
 
 namespace {
 
+NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
+
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 
 } // unnamed namespace
@@ -43,6 +45,8 @@ namespace mozilla { namespace psm {
 TransportSecurityInfo::TransportSecurityInfo()
   : mMutex("TransportSecurityInfo::mMutex"),
     mSecurityState(nsIWebProgressListener::STATE_IS_INSECURE),
+    mSubRequestsHighSecurity(0),
+    mSubRequestsLowSecurity(0),
     mSubRequestsBrokenSecurity(0),
     mSubRequestsNoSecurity(0),
     mErrorCode(0),
@@ -135,6 +139,40 @@ TransportSecurityInfo::SetSecurityState(uint32_t aState)
   return NS_OK;
 }
 
+/* attribute unsigned long countSubRequestsHighSecurity; */
+NS_IMETHODIMP
+TransportSecurityInfo::GetCountSubRequestsHighSecurity(
+  int32_t *aSubRequestsHighSecurity)
+{
+  *aSubRequestsHighSecurity = mSubRequestsHighSecurity;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+TransportSecurityInfo::SetCountSubRequestsHighSecurity(
+  int32_t aSubRequestsHighSecurity)
+{
+  mSubRequestsHighSecurity = aSubRequestsHighSecurity;
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+/* attribute unsigned long countSubRequestsLowSecurity; */
+NS_IMETHODIMP
+TransportSecurityInfo::GetCountSubRequestsLowSecurity(
+  int32_t *aSubRequestsLowSecurity)
+{
+  *aSubRequestsLowSecurity = mSubRequestsLowSecurity;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+TransportSecurityInfo::SetCountSubRequestsLowSecurity(
+  int32_t aSubRequestsLowSecurity)
+{
+  mSubRequestsLowSecurity = aSubRequestsLowSecurity;
+  return NS_OK;
+}
+
 /* attribute unsigned long countSubRequestsBrokenSecurity; */
 NS_IMETHODIMP
 TransportSecurityInfo::GetCountSubRequestsBrokenSecurity(
@@ -215,7 +253,7 @@ TransportSecurityInfo::GetErrorMessage(PRUnichar** aText)
   }
 
   *aText = ToNewUnicode(mErrorMessageCached);
-  return *aText ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
+  return *aText != nullptr ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 void
@@ -300,6 +338,9 @@ TransportSecurityInfo::GetInterface(const nsIID & uuid, void * *result)
   nsresult rv;
   if (!mCallbacks) {
     nsCOMPtr<nsIInterfaceRequestor> ir = new PipUIContext();
+    if (!ir)
+      return NS_ERROR_OUT_OF_MEMORY;
+
     rv = ir->GetInterface(uuid, result);
   } else {
     rv = mCallbacks->GetInterface(uuid, result);
@@ -319,7 +360,7 @@ TransportSecurityInfo::Write(nsIObjectOutputStream* stream)
 
   MutexAutoLock lock(mMutex);
 
-  RefPtr<nsSSLStatus> status(mSSLStatus);
+  nsRefPtr<nsSSLStatus> status = mSSLStatus;
   nsCOMPtr<nsISerializable> certSerializable;
 
   // Write a redundant copy of the certificate for backward compatibility
@@ -370,8 +411,8 @@ TransportSecurityInfo::Write(nsIObjectOutputStream* stream)
   stream->WriteCompoundObject(NS_ISUPPORTS_CAST(nsISSLStatus*, status),
                               NS_GET_IID(nsISupports), true);
 
-  stream->Write32((uint32_t)0);
-  stream->Write32((uint32_t)0);
+  stream->Write32((uint32_t)mSubRequestsHighSecurity);
+  stream->Write32((uint32_t)mSubRequestsLowSecurity);
   stream->Write32((uint32_t)mSubRequestsBrokenSecurity);
   stream->Write32((uint32_t)mSubRequestsNoSecurity);
   return NS_OK;
@@ -473,13 +514,14 @@ TransportSecurityInfo::Read(nsIObjectInputStream* stream)
   }
 
   if (version >= 2) {
-    uint32_t dummySubRequests;
-    stream->Read32((uint32_t*)&dummySubRequests);
-    stream->Read32((uint32_t*)&dummySubRequests);
+    stream->Read32((uint32_t*)&mSubRequestsHighSecurity);
+    stream->Read32((uint32_t*)&mSubRequestsLowSecurity);
     stream->Read32((uint32_t*)&mSubRequestsBrokenSecurity);
     stream->Read32((uint32_t*)&mSubRequestsNoSecurity);
   }
   else {
+    mSubRequestsHighSecurity = 0;
+    mSubRequestsLowSecurity = 0;
     mSubRequestsBrokenSecurity = 0;
     mSubRequestsNoSecurity = 0;
   }
@@ -700,7 +742,7 @@ GetSubjectAltNames(CERTCertificate *nssCert,
   nameCount = 0;
 
   PLArenaPool *san_arena = nullptr;
-  SECItem altNameExtension = {siBuffer, nullptr, 0 };
+  SECItem altNameExtension = {siBuffer, NULL, 0 };
   CERTGeneralName *sanNameList = nullptr;
 
   SECStatus rv = CERT_FindCertExtension(nssCert, SEC_OID_X509_SUBJECT_ALT_NAME,
@@ -778,7 +820,8 @@ AppendErrorTextMismatch(const nsString &host,
   const PRUnichar *params[1];
   nsresult rv;
 
-  ScopedCERTCertificate nssCert;
+  CERTCertificate *nssCert = NULL;
+  CERTCertificateCleaner nssCertCleaner(nssCert);
 
   nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(ix509, &rv);
   if (cert2)
@@ -1012,8 +1055,8 @@ formatOverridableCertErrorMessage(nsISSLStatus & sslStatus,
 
   returnedMessage.Append(NS_LITERAL_STRING("\n\n"));
 
-  RefPtr<nsIX509Cert> ix509;
-  rv = sslStatus.GetServerCert(byRef(ix509));
+  nsRefPtr<nsIX509Cert> ix509;
+  rv = sslStatus.GetServerCert(getter_AddRefs(ix509));
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool isUntrusted;

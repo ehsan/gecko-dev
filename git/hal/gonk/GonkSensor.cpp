@@ -17,14 +17,13 @@
 #include <pthread.h>
 #include <stdio.h>
 
-#include "mozilla/DebugOnly.h"
-
 #include "base/basictypes.h"
 #include "base/thread.h"
 
 #include "Hal.h"
 #include "HalSensor.h"
 #include "hardware/sensors.h"
+#include "mozilla/Util.h"
 
 #undef LOG
 
@@ -33,7 +32,6 @@
 using namespace mozilla::hal;
 
 #define LOGE(args...)  __android_log_print(ANDROID_LOG_ERROR, "GonkSensor" , ## args)
-#define LOGW(args...)  __android_log_print(ANDROID_LOG_WARN, "GonkSensor" , ## args)
 
 namespace mozilla {
 
@@ -114,6 +112,11 @@ public:
   SensorRunnable(const sensors_event_t& data, const sensor_t* sensors, ssize_t size)
   {
     mSensorData.sensor() = HardwareSensorToHalSensor(data.type);
+    if (mSensorData.sensor() == SENSOR_UNKNOWN) {
+      // Emulator is broken and gives us events without types set
+      if (data.sensor < size)
+        mSensorData.sensor() = HardwareSensorToHalSensor(sensors[data.sensor].type);
+    }
     mSensorData.accuracy() = HardwareStatusToHalAccuracy(SensorseventStatus(data));
     mSensorData.timestamp() = data.timestamp;
     if (mSensorData.sensor() == SENSOR_GYROSCOPE) {
@@ -181,23 +184,6 @@ PollSensors()
       // FIXME: bug 802004, add proper support for the magnetic field sensor.
       if (buffer[i].type == SENSOR_TYPE_MAGNETIC_FIELD)
         continue;
-
-      if (HardwareSensorToHalSensor(buffer[i].type) == SENSOR_UNKNOWN) {
-        // Emulator is broken and gives us events without types set
-        int index;
-        for (index = 0; index < size; index++) {
-          if (sensors[index].handle == buffer[i].sensor) {
-            break;
-          }
-        }
-        if (index < size &&
-            HardwareSensorToHalSensor(sensors[index].type) != SENSOR_UNKNOWN) {
-          buffer[i].type = sensors[index].type;
-        } else {
-          LOGW("Could not determine sensor type of event");
-          continue;
-        }
-      }
 
       NS_DispatchToMainThread(new SensorRunnable(buffer[i], sensors, size));
     }

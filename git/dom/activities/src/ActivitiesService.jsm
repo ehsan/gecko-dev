@@ -11,13 +11,12 @@ const Ci = Components.interfaces;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/IndexedDBHelper.jsm");
-Cu.import("resource://gre/modules/ActivitiesServiceFilter.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
                                    "nsIMessageBroadcaster");
 
-this.EXPORTED_SYMBOLS = [];
+const EXPORTED_SYMBOLS = [];
 
 let idbGlobal = this;
 
@@ -40,7 +39,7 @@ ActivitiesDb.prototype = {
     let idbManager = Cc["@mozilla.org/dom/indexeddb/manager;1"]
                        .getService(Ci.nsIIndexedDatabaseManager);
     idbManager.initWindowless(idbGlobal);
-    this.initDBHelper(DB_NAME, DB_VERSION, [STORE_NAME], idbGlobal);
+    this.initDBHelper(DB_NAME, DB_VERSION, STORE_NAME, idbGlobal);
   },
 
   /**
@@ -52,6 +51,7 @@ ActivitiesDb.prototype = {
    *  id:                  String
    *  manifest:            String
    *  name:                String
+   *  title:               String
    *  icon:                String
    *  description:         jsval
    * }
@@ -88,11 +88,12 @@ ActivitiesDb.prototype = {
 
   // Add all the activities carried in the |aObjects| array.
   add: function actdb_add(aObjects, aSuccess, aError) {
-    this.newTxn("readwrite", STORE_NAME, function (txn, store) {
+    this.newTxn("readwrite", function (txn, store) {
       aObjects.forEach(function (aObject) {
         let object = {
           manifest: aObject.manifest,
           name: aObject.name,
+          title: aObject.title || "",
           icon: aObject.icon || "",
           description: aObject.description
         };
@@ -105,7 +106,7 @@ ActivitiesDb.prototype = {
 
   // Remove all the activities carried in the |aObjects| array.
   remove: function actdb_remove(aObjects) {
-    this.newTxn("readwrite", STORE_NAME, function (txn, store) {
+    this.newTxn("readwrite", function (txn, store) {
       aObjects.forEach(function (aObject) {
         let object = {
           manifest: aObject.manifest,
@@ -120,7 +121,7 @@ ActivitiesDb.prototype = {
   find: function actdb_find(aObject, aSuccess, aError, aMatch) {
     debug("Looking for " + aObject.options.name);
 
-    this.newTxn("readonly", STORE_NAME, function (txn, store) {
+    this.newTxn("readonly", function (txn, store) {
       let index = store.index("name");
       let request = index.mozGetAll(aObject.options.name);
       request.onsuccess = function findSuccess(aEvent) {
@@ -138,6 +139,7 @@ ActivitiesDb.prototype = {
 
           txn.result.options.push({
             manifest: result.manifest,
+            title: result.title,
             icon: result.icon,
             description: result.description
           });
@@ -256,8 +258,17 @@ let Activities = {
     };
 
     let matchFunc = function matchFunc(aResult) {
-      return ActivitiesServiceFilter.match(aMsg.options.data,
-                                           aResult.description.filters);
+      // Bug 773383: arrays of strings / regexp.
+      for (let prop in aResult.description.filters) {
+        if (Array.isArray(aResult.description.filters[prop])) {
+          if (aResult.description.filters[prop].indexOf(aMsg.options.data[prop]) == -1) {
+            return false;
+          }
+        } else if (aResult.description.filters[prop] !== aMsg.options.data[prop] ) {
+          return false;
+        }
+      }
+      return true;
     };
 
     this.db.find(aMsg, successCb, errorCb, matchFunc);
@@ -273,13 +284,13 @@ let Activities = {
     if (aMessage.name == "Activity:PostResult" ||
         aMessage.name == "Activity:PostError") {
       caller = this.callers[msg.id];
-      if (!caller) {
+      if (caller) {
+        obsData = JSON.stringify({ manifestURL: caller.manifestURL,
+                                   pageURL: caller.pageURL,
+                                   success: aMessage.name == "Activity:PostResult" });
+      } else {
         debug("!! caller is null for msg.id=" + msg.id);
-        return;
       }
-      obsData = JSON.stringify({ manifestURL: caller.manifestURL,
-                                 pageURL: caller.pageURL,
-                                 success: aMessage.name == "Activity:PostResult" });
     }
 
     switch(aMessage.name) {

@@ -16,7 +16,8 @@
 #include "nsCOMPtr.h"
 #include "nsIDOMLinkStyle.h"
 #include "nsIStyleSheetLinkingElement.h"
-#include "nsCSSStyleSheet.h"
+#include "nsIStyleSheet.h"
+#include "nsIURI.h"
 #include "nsTArray.h"
 #include "mozilla/CORSMode.h"
 
@@ -27,7 +28,6 @@
 #define ALTERNATE     0x00000010
 
 class nsIDocument;
-class nsIURI;
 
 class nsStyleLinkElement : public nsIDOMLinkStyle,
                            public nsIStyleSheetLinkingElement
@@ -41,10 +41,8 @@ public:
   // nsIDOMLinkStyle
   NS_DECL_NSIDOMLINKSTYLE
 
-  nsCSSStyleSheet* GetSheet() const { return mStyleSheet; }
-
   // nsIStyleSheetLinkingElement  
-  NS_IMETHOD SetStyleSheet(nsCSSStyleSheet* aStyleSheet);
+  NS_IMETHOD SetStyleSheet(nsIStyleSheet* aStyleSheet);
   NS_IMETHOD GetStyleSheet(nsIStyleSheet*& aStyleSheet);
   NS_IMETHOD InitStyleLinkElement(bool aDontLoadStyle);
   NS_IMETHOD UpdateStyleSheet(nsICSSLoaderObserver* aObserver,
@@ -71,14 +69,13 @@ protected:
   nsresult UpdateStyleSheetInternal(nsIDocument *aOldDocument,
                                     bool aForceUpdate = false);
 
-  void UpdateStyleSheetScopedness(bool aIsNowScoped);
-
   virtual already_AddRefed<nsIURI> GetStyleSheetURL(bool* aIsInline) = 0;
   virtual void GetStyleSheetInfo(nsAString& aTitle,
                                  nsAString& aType,
                                  nsAString& aMedia,
-                                 bool* aIsScoped,
                                  bool* aIsAlternate) = 0;
+
+  nsIStyleSheet* GetStyleSheet() { return mStyleSheet; }
 
   virtual mozilla::CORSMode GetCORSMode() const
   {
@@ -105,7 +102,7 @@ private:
                               bool* aIsAlternate,
                               bool aForceUpdate);
 
-  nsRefPtr<nsCSSStyleSheet> mStyleSheet;
+  nsCOMPtr<nsIStyleSheet> mStyleSheet;
 protected:
   bool mDontLoadStyle;
   bool mUpdatesEnabled;

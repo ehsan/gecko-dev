@@ -2,18 +2,19 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import mozcrash
+import automationutils
 import threading
 import os
 import Queue
 import re
+import socket
 import shutil
+import sys
 import tempfile
 import time
-import traceback
 
 from automation import Automation
-from devicemanager import NetworkTools
+from devicemanager import DeviceManager, NetworkTools
 from mozprocess import ProcessHandlerMixin
 
 
@@ -47,9 +48,8 @@ class B2GRemoteAutomation(Automation):
 
         # Default our product to b2g
         self._product = "b2g"
-        self.lastTestSeen = "b2gautomation.py"
         # Default log finish to mochitest standard
-        self.logFinish = 'INFO SimpleTest FINISHED'
+        self.logFinish = 'INFO SimpleTest FINISHED' 
         Automation.__init__(self)
 
     def setEmulator(self, is_emulator):
@@ -70,11 +70,6 @@ class B2GRemoteAutomation(Automation):
     def setRemoteLog(self, logfile):
         self._remoteLog = logfile
 
-    def installExtension(self, extensionSource, profileDir, extensionID=None):
-        # Bug 827504 - installing special-powers extension separately causes problems in B2G
-        if extensionID != "special-powers@mozilla.org":
-            Automation.installExtension(self, extensionSource, profileDir, extensionID)
-
     # Set up what we need for the remote environment
     def environment(self, env=None, xrePath=None, crashreporter=True):
         # Because we are running remote, we don't want to mimic the local env
@@ -82,15 +77,11 @@ class B2GRemoteAutomation(Automation):
         if env is None:
             env = {}
 
-        if crashreporter:
-            env['MOZ_CRASHREPORTER'] = '1'
-            env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
-
         # We always hide the results table in B2G; it's much slower if we don't.
         env['MOZ_HIDE_RESULTS_TABLE'] = '1'
         return env
 
-    def waitForNet(self):
+    def waitForNet(self): 
         active = False
         time_out = 0
         while not active and time_out < 40:
@@ -105,30 +96,20 @@ class B2GRemoteAutomation(Automation):
         return active
 
     def checkForCrashes(self, directory, symbolsPath):
-        crashed = False
-        remote_dump_dir = self._remoteProfile + '/minidumps'
-        print "checking for crashes in '%s'" % remote_dump_dir
-        if self._devicemanager.dirExists(remote_dump_dir):
-            local_dump_dir = tempfile.mkdtemp()
-            self._devicemanager.getDirectory(remote_dump_dir, local_dump_dir)
-            try:
-                crashed = mozcrash.check_for_crashes(local_dump_dir, symbolsPath, test_name=self.lastTestSeen)
-            except:
-                traceback.print_exc()
-            finally:
-                shutil.rmtree(local_dump_dir)
-                self._devicemanager.removeDir(remote_dump_dir)
-        return crashed
+        # XXX: This will have to be updated after crash reporting on b2g
+        # is in place.
+        dumpDir = tempfile.mkdtemp()
+        self._devicemanager.getDirectory(self._remoteProfile + '/minidumps/', dumpDir)
+        automationutils.checkForCrashes(dumpDir, symbolsPath, self.lastTestSeen)
+        try:
+          shutil.rmtree(dumpDir)
+        except:
+          print "WARNING: unable to remove directory: %s" % (dumpDir)
 
-    def initializeProfile(self,  profileDir, extraPrefs=[],
-                          useServerLocations=False,
-                          initialProfile=None):
+    def initializeProfile(self, profileDir, extraPrefs = [], useServerLocations = False):
         # add b2g specific prefs
         extraPrefs.extend(["browser.manifestURL='dummy (bug 772307)'"])
-        return Automation.initializeProfile(self, profileDir,
-                                            extraPrefs,
-                                            useServerLocations,
-                                            initialProfile)
+        return Automation.initializeProfile(self, profileDir, extraPrefs, useServerLocations)
 
     def buildCommandLine(self, app, debuggerInfo, profileDir, testURL, extraArgs):
         # if remote profile is specified, use that instead
@@ -150,22 +131,19 @@ class B2GRemoteAutomation(Automation):
             output.
         """
         timeout = timeout or 120
-        responseDueBy = time.time() + timeout
+
+        didTimeout = False
+
+        done = time.time() + timeout
         while True:
             currentlog = proc.stdout
             if currentlog:
-                responseDueBy = time.time() + timeout
+                done = time.time() + timeout
                 print currentlog
-                # Match the test filepath from the last TEST-START line found in the new
-                # log content. These lines are in the form:
-                # ... INFO TEST-START | /filepath/we/wish/to/capture.html\n
-                testStartFilenames = re.findall(r"TEST-START \| ([^\s]*)", currentlog)
-                if testStartFilenames:
-                    self.lastTestSeen = testStartFilenames[-1]
                 if hasattr(self, 'logFinish') and self.logFinish in currentlog:
                     return 0
             else:
-                if time.time() > responseDueBy:
+                if time.time() > done:
                     self.log.info("TEST-UNEXPECTED-FAIL | %s | application timed "
                                   "out after %d seconds with no output",
                                   self.lastTestSeen, int(timeout))
@@ -175,11 +153,11 @@ class B2GRemoteAutomation(Automation):
         # Get the current status of the device.  If we know the device
         # serial number, we look for that, otherwise we use the (presumably
         # only) device shown in 'adb devices'.
-        serial = serial or self._devicemanager._deviceSerial
+        serial = serial or self._devicemanager.deviceSerial
         status = 'unknown'
 
         for line in self._devicemanager._runCmd(['devices']).stdout.readlines():
-            result = re.match('(.*?)\t(.*)', line)
+            result =  re.match('(.*?)\t(.*)', line)
             if result:
                 thisSerial = result.group(1)
                 if not serial or thisSerial == serial:
@@ -237,9 +215,9 @@ class B2GRemoteAutomation(Automation):
         if not self._is_emulator:
             self.rebootDevice()
             time.sleep(5)
-            #wait for wlan to come up
+            #wait for wlan to come up 
             if not self.waitForNet():
-                raise Exception("network did not come up, please configure the network" +
+                raise Exception("network did not come up, please configure the network" + 
                                 " prior to running before running the automation framework")
 
         # stop b2g
@@ -247,7 +225,7 @@ class B2GRemoteAutomation(Automation):
         time.sleep(5)
 
         # relaunch b2g inside b2g instance
-        instance = self.B2GInstance(self._devicemanager, env=env)
+        instance = self.B2GInstance(self._devicemanager)
 
         time.sleep(5)
 
@@ -279,18 +257,26 @@ class B2GRemoteAutomation(Automation):
                 Services.io.offline = false;
                 """)
 
-        if self.context_chrome:
-            self.marionette.set_context(self.marionette.CONTEXT_CHROME)
-        else:
-            self.marionette.set_context(self.marionette.CONTEXT_CONTENT)
+            if not self.context_chrome:
+                self.marionette.set_context(self.marionette.CONTEXT_CONTENT)
 
+        elif self.context_chrome:
+            self.marionette.set_context(self.marionette.CONTEXT_CHROME)
+
+        # start the tests
+        if hasattr(self, 'testURL'):
+            # Start the tests by navigating to the mochitest url, by setting it
+            # as the 'src' attribute to the homescreen mozbrowser element
+            # provided by B2G's shell.js.
+            self.marionette.execute_script("document.getElementById('homescreen').src='%s';" % self.testURL)
         # run the script that starts the tests
-        if self.test_script:
+        elif self.test_script:
             if os.path.isfile(self.test_script):
                 script = open(self.test_script, 'r')
                 self.marionette.execute_script(script.read(), script_args=self.test_script_args)
                 script.close()
-            elif isinstance(self.test_script, basestring):
+            else:
+                # assume test_script is a string
                 self.marionette.execute_script(self.test_script, script_args=self.test_script_args)
         else:
             # assumes the tests are started on startup automatically
@@ -305,9 +291,8 @@ class B2GRemoteAutomation(Automation):
            automation.
         """
 
-        def __init__(self, dm, env=None):
+        def __init__(self, dm):
             self.dm = dm
-            self.env = env or {}
             self.stdout_proc = None
             self.queue = Queue.Queue()
 
@@ -315,12 +300,10 @@ class B2GRemoteAutomation(Automation):
             # into a queue.  The lines in this queue are
             # retrieved and returned by accessing the stdout property of
             # this class.
-            cmd = [self.dm._adbPath]
-            if self.dm._deviceSerial:
-                cmd.extend(['-s', self.dm._deviceSerial])
+            cmd = [self.dm.adbPath]
+            if self.dm.deviceSerial:
+                cmd.extend(['-s', self.dm.deviceSerial])
             cmd.append('shell')
-            for k, v in self.env.iteritems():
-                cmd.append("%s=%s" % (k, v))
             cmd.append('/system/bin/b2g.sh')
             proc = threading.Thread(target=self._save_stdout_proc, args=(cmd, self.queue))
             proc.daemon = True
@@ -331,7 +314,7 @@ class B2GRemoteAutomation(Automation):
             self.stdout_proc.run()
             if hasattr(self.stdout_proc, 'processOutput'):
                 self.stdout_proc.processOutput()
-            self.stdout_proc.wait()
+            self.stdout_proc.waitForFinish()
             self.stdout_proc = None
 
         @property
@@ -351,7 +334,7 @@ class B2GRemoteAutomation(Automation):
                     break
             return '\n'.join(lines)
 
-        def wait(self, timeout=None):
+        def wait(self, timeout = None):
             # this should never happen
             raise Exception("'wait' called on B2GInstance")
 
@@ -359,25 +342,3 @@ class B2GRemoteAutomation(Automation):
             # this should never happen
             raise Exception("'kill' called on B2GInstance")
 
-
-class B2GDesktopAutomation(Automation):
-
-    def buildCommandLine(self, app, debuggerInfo, profileDir, testURL, extraArgs):
-        """ build the application command line """
-
-        cmd = os.path.abspath(app)
-        args = []
-
-        if debuggerInfo:
-            args.extend(debuggerInfo["args"])
-            args.append(cmd)
-            cmd = os.path.abspath(debuggerInfo["path"])
-
-        if self.IS_MAC:
-            args.append("-foreground")
-
-        profileDirectory = profileDir + "/"
-
-        args.extend(("-profile", profileDirectory))
-        args.extend(extraArgs)
-        return cmd, args

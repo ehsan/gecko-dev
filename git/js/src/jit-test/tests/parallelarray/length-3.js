@@ -6,6 +6,4 @@ function testLength() {
   assertEq(p.length, 4);
 }
 
-// FIXME(bug 844988) immutability not enforced
-// if (getBuildConfiguration().parallelJS)
-//   testLength();
+testLength();

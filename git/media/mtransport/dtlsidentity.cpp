@@ -16,7 +16,7 @@
 
 namespace mozilla {
 
-MOZ_MTLOG_MODULE("mtransport")
+MOZ_MTLOG_MODULE("mtransport");
 
 DtlsIdentity::~DtlsIdentity() {
   // XXX: make cert_ a smart pointer to avoid this, after we figure
@@ -41,7 +41,7 @@ TemporaryRef<DtlsIdentity> DtlsIdentity::Generate() {
 
   std::string name;
   char chunk[3];
-  for (size_t i = 0; i < sizeof(random_name); ++i) {
+  for (int i=0; i<sizeof(random_name); ++i) {
     PR_snprintf(chunk, sizeof(chunk), "%.2x", random_name[i]);
     name += chunk;
   }

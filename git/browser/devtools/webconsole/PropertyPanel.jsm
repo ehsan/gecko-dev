@@ -15,7 +15,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "WebConsoleUtils",
                                   "resource://gre/modules/devtools/WebConsoleUtils.jsm");
 
-this.EXPORTED_SYMBOLS = ["PropertyPanel", "PropertyTreeView"];
+var EXPORTED_SYMBOLS = ["PropertyPanel", "PropertyTreeView"];
 
 ///////////////////////////////////////////////////////////////////////////
 //// PropertyTreeView.
@@ -25,7 +25,7 @@ this.EXPORTED_SYMBOLS = ["PropertyPanel", "PropertyTreeView"];
  * interface properties, see the documentation:
  * https://developer.mozilla.org/en/XPCOM_Interface_Reference/nsITreeView
  */
-this.PropertyTreeView = function() {
+var PropertyTreeView = function() {
   this._rows = [];
   this._objectActors = [];
 };
@@ -147,10 +147,6 @@ PropertyTreeView.prototype = {
           let val = aItem[aProp];
           if (val && val.actor) {
             this._objectActors.push(val.actor);
-            if (typeof val.displayString == "object" &&
-                val.displayString.type == "longString") {
-              this._objectActors.push(val.displayString.actor);
-            }
           }
         }, this);
       }
@@ -318,9 +314,9 @@ PropertyTreeView.prototype = {
   performAction: function(action) { },
   performActionOnCell: function(action, index, column) { },
   performActionOnRow: function(action, row) { },
-  getRowProperties: function(idx) { return ""; },
-  getCellProperties: function(idx, column) { return ""; },
-  getColumnProperties: function(column, element) { return ""; },
+  getRowProperties: function(idx, column, prop) { },
+  getCellProperties: function(idx, column, prop) { },
+  getColumnProperties: function(column, element, prop) { },
 
   setCellValue: function(row, col, value)               { },
   setCellText: function(row, col, value)                { },
@@ -408,7 +404,7 @@ function appendChild(aDocument, aParent, aTag, aAttributes)
  * @param array of objects aButtons
  *        Array with buttons to display at the bottom of the panel.
  */
-this.PropertyPanel = function PropertyPanel(aParent, aTitle, aObject, aButtons)
+function PropertyPanel(aParent, aTitle, aObject, aButtons)
 {
   let document = aParent.ownerDocument;
 

@@ -12,11 +12,11 @@
 #include "nsNetUtil.h"
 #include "nsPluginHost.h"
 #include "nsNPAPIPlugin.h"
+#include "nsPluginSafety.h"
 #include "nsPluginLogging.h"
 #include "nsPluginStreamListenerPeer.h"
 
 #include "mozilla/StandardInteger.h"
-#include <algorithm>
 
 nsNPAPIStreamWrapper::nsNPAPIStreamWrapper(nsIOutputStream *outputStream,
                                            nsNPAPIPluginStreamListener *streamListener)
@@ -208,16 +208,13 @@ nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
 
   // Seekable streams have an extra addref when they are created which must
   // be matched here.
-  if (NP_SEEK == mStreamType && mStreamStarted)
+  if (NP_SEEK == mStreamType)
     NS_RELEASE_THIS();
-
-  if (mStreamListenerPeer) {
-    mStreamListenerPeer->CancelRequests(NS_BINDING_ABORTED);
-    mStreamListenerPeer = nullptr;
-  }
-
+  
   if (!mInst || !mInst->CanFireNotifications())
     return rv;
+  
+  mStreamListenerPeer = nullptr;
   
   PluginDestructionGuard guard(mInst);
 
@@ -234,8 +231,7 @@ nsNPAPIPluginStreamListener::CleanUpStream(NPReason reason)
     NPPAutoPusher nppPusher(npp);
 
     NPError error;
-    NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->destroystream)(npp, &mNPStreamWrapper->mNPStream, reason), mInst,
-                            NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
+    NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->destroystream)(npp, &mNPStreamWrapper->mNPStream, reason), mInst);
     
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
                    ("NPP DestroyStream called: this=%p, npp=%p, reason=%d, return=%d, url=%s\n",
@@ -273,8 +269,7 @@ nsNPAPIPluginStreamListener::CallURLNotify(NPReason reason)
     NPP npp;
     mInst->GetNPP(&npp);
     
-    NS_TRY_SAFE_CALL_VOID((*pluginFunctions->urlnotify)(npp, mNotifyURL, reason, mNPStreamWrapper->mNPStream.notifyData), mInst,
-                          NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
+    NS_TRY_SAFE_CALL_VOID((*pluginFunctions->urlnotify)(npp, mNotifyURL, reason, mNPStreamWrapper->mNPStream.notifyData), mInst);
     
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
                    ("NPP URLNotify called: this=%p, npp=%p, notify=%p, reason=%d, url=%s\n",
@@ -285,7 +280,7 @@ nsNPAPIPluginStreamListener::CallURLNotify(NPReason reason)
 nsresult
 nsNPAPIPluginStreamListener::OnStartBinding(nsPluginStreamListenerPeer* streamPeer)
 {
-  if (!mInst || !mInst->CanFireNotifications() || mStreamCleanedUp)
+  if (!mInst || !mInst->CanFireNotifications())
     return NS_ERROR_FAILURE;
 
   PluginDestructionGuard guard(mInst);
@@ -322,8 +317,7 @@ nsNPAPIPluginStreamListener::OnStartBinding(nsPluginStreamListenerPeer* streamPe
   
   NPPAutoPusher nppPusher(npp);
   
-  NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->newstream)(npp, (char*)contentType, &mNPStreamWrapper->mNPStream, seekable, &streamType), mInst,
-                          NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
+  NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->newstream)(npp, (char*)contentType, &mNPStreamWrapper->mNPStream, seekable, &streamType), mInst);
   
   NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
                  ("NPP NewStream called: this=%p, npp=%p, mime=%s, seek=%d, type=%d, return=%d, url=%s\n",
@@ -464,12 +458,12 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
     uint32_t contentLength;
     streamPeer->GetLength(&contentLength);
     
-    mStreamBufferSize = std::max(length, contentLength);
+    mStreamBufferSize = NS_MAX(length, contentLength);
     
     // Limit the size of the initial buffer to MAX_PLUGIN_NECKO_BUFFER
     // (16k). This buffer will grow if needed, as in the case where
     // we're getting data faster than the plugin can process it.
-    mStreamBufferSize = std::min(mStreamBufferSize,
+    mStreamBufferSize = NS_MIN(mStreamBufferSize,
                                uint32_t(MAX_PLUGIN_NECKO_BUFFER));
     
     mStreamBuffer = (char*) PR_Malloc(mStreamBufferSize);
@@ -525,7 +519,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
       }
       
       uint32_t bytesToRead =
-      std::min(length, mStreamBufferSize - mStreamBufferByteCount);
+      NS_MIN(length, mStreamBufferSize - mStreamBufferByteCount);
       
       uint32_t amountRead = 0;
       rv = input->Read(mStreamBuffer + mStreamBufferByteCount, bytesToRead,
@@ -565,8 +559,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
       if (pluginFunctions->writeready) {
         NPPAutoPusher nppPusher(npp);
         
-        NS_TRY_SAFE_CALL_RETURN(numtowrite, (*pluginFunctions->writeready)(npp, &mNPStreamWrapper->mNPStream), mInst,
-                                NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
+        NS_TRY_SAFE_CALL_RETURN(numtowrite, (*pluginFunctions->writeready)(npp, &mNPStreamWrapper->mNPStream), mInst);
         NPP_PLUGIN_LOG(PLUGIN_LOG_NOISY,
                        ("NPP WriteReady called: this=%p, npp=%p, "
                         "return(towrite)=%d, url=%s\n",
@@ -605,7 +598,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
           break;
         }
         
-        numtowrite = std::min(numtowrite, mStreamBufferByteCount);
+        numtowrite = NS_MIN(numtowrite, mStreamBufferByteCount);
       } else {
         // if WriteReady is not supported by the plugin, just write
         // the whole buffer
@@ -615,8 +608,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
       NPPAutoPusher nppPusher(npp);
       
       int32_t writeCount = 0; // bytes consumed by plugin instance
-      NS_TRY_SAFE_CALL_RETURN(writeCount, (*pluginFunctions->write)(npp, &mNPStreamWrapper->mNPStream, streamPosition, numtowrite, ptrStreamBuffer), mInst,
-                              NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
+      NS_TRY_SAFE_CALL_RETURN(writeCount, (*pluginFunctions->write)(npp, &mNPStreamWrapper->mNPStream, streamPosition, numtowrite, ptrStreamBuffer), mInst);
       
       NPP_PLUGIN_LOG(PLUGIN_LOG_NOISY,
                      ("NPP Write called: this=%p, npp=%p, pos=%d, len=%d, "
@@ -634,7 +626,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsPluginStreamListenerPeer* streamP
         NS_ASSERTION(writeCount <= mStreamBufferByteCount,
                      "Plugin read past the end of the available data!");
         
-        writeCount = std::min(writeCount, mStreamBufferByteCount);
+        writeCount = NS_MIN(writeCount, mStreamBufferByteCount);
         mStreamBufferByteCount -= writeCount;
         
         streamPosition += writeCount;
@@ -724,8 +716,7 @@ nsNPAPIPluginStreamListener::OnFileAvailable(nsPluginStreamListenerPeer* streamP
   NPP npp;
   mInst->GetNPP(&npp);
   
-  NS_TRY_SAFE_CALL_VOID((*pluginFunctions->asfile)(npp, &mNPStreamWrapper->mNPStream, fileName), mInst,
-                        NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
+  NS_TRY_SAFE_CALL_VOID((*pluginFunctions->asfile)(npp, &mNPStreamWrapper->mNPStream, fileName), mInst);
   
   NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
                  ("NPP StreamAsFile called: this=%p, npp=%p, url=%s, file=%s\n",
@@ -752,7 +743,7 @@ nsNPAPIPluginStreamListener::OnStopBinding(nsPluginStreamListenerPeer* streamPee
     return NS_ERROR_FAILURE;
 
   NPReason reason = NS_FAILED(status) ? NPRES_NETWORK_ERR : NPRES_DONE;
-  if (mRedirectDenied || status == NS_BINDING_ABORTED) {
+  if (mRedirectDenied) {
     reason = NPRES_USER_BREAK;
   }
 
@@ -867,10 +858,8 @@ nsNPAPIPluginStreamListener::HandleRedirectNotification(nsIChannel *oldChannel, 
           NPP npp;
           mInst->GetNPP(&npp);
 #if defined(XP_WIN) || defined(XP_OS2)
-          NS_TRY_SAFE_CALL_VOID((*pluginFunctions->urlredirectnotify)(npp, spec.get(), static_cast<int32_t>(status), mNPStreamWrapper->mNPStream.notifyData), mInst,
-                                NS_PLUGIN_CALL_UNSAFE_TO_REENTER_GECKO);
+          NS_TRY_SAFE_CALL_VOID((*pluginFunctions->urlredirectnotify)(npp, spec.get(), static_cast<int32_t>(status), mNPStreamWrapper->mNPStream.notifyData), mInst);
 #else
-          MAIN_THREAD_JNI_REF_GUARD;
           (*pluginFunctions->urlredirectnotify)(npp, spec.get(), static_cast<int32_t>(status), mNPStreamWrapper->mNPStream.notifyData);
 #endif
           return true;

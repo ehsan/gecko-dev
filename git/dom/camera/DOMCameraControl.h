@@ -13,10 +13,11 @@
 #include "DOMCameraPreview.h"
 #include "nsIDOMCameraManager.h"
 #include "CameraCommon.h"
-#include "AudioChannelAgent.h"
 
 namespace mozilla {
 
+using namespace mozilla;
+using namespace dom;
 
 // Main camera control.
 class nsDOMCameraControl : public nsICameraControl
@@ -26,9 +27,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMCameraControl)
   NS_DECL_NSICAMERACONTROL
 
-  nsDOMCameraControl(uint32_t aCameraId, nsIThread* aCameraThread,
-                     nsICameraGetCameraCallback* onSuccess,
-                     nsICameraErrorCallback* onError, uint64_t aWindowId);
+  nsDOMCameraControl(uint32_t aCameraId, nsIThread* aCameraThread, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId);
   nsresult Result(nsresult aResult, nsICameraGetCameraCallback* onSuccess, nsICameraErrorCallback* onError, uint64_t aWindowId);
 
   void Shutdown();
@@ -44,8 +43,6 @@ protected:
   /* additional members */
   nsRefPtr<ICameraControl>        mCameraControl; // non-DOM camera control
   nsCOMPtr<nsICameraCapabilities> mDOMCapabilities;
-  // An agent used to join audio channel service.
-  nsCOMPtr<nsIAudioChannelAgent>  mAudioChannelAgent;
 };
 
 } // namespace mozilla

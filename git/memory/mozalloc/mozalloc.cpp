@@ -34,7 +34,7 @@
 extern "C" size_t malloc_usable_size(const void *ptr);
 #endif
 
-#ifdef __GNUC__
+#if defined(__GNUC__) && (__GNUC__ > 2)
 #define LIKELY(x)    (__builtin_expect(!!(x), 1))
 #define UNLIKELY(x)  (__builtin_expect(!!(x), 0))
 #else

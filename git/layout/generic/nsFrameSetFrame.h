@@ -29,7 +29,7 @@ class  nsHTMLFramesetFrame;
 
 #define NO_COLOR 0xFFFFFFFA
 
-// defined at HTMLFrameSetElement.h
+// defined at nsHTMLFrameSetElement.h
 struct nsFramesetSpec;
 
 struct nsBorderColor 
@@ -78,9 +78,9 @@ public:
 
   virtual ~nsHTMLFramesetFrame();
 
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
 
   NS_IMETHOD SetInitialChildList(ChildListID  aListID,
                                  nsFrameList& aChildList);
@@ -93,6 +93,8 @@ public:
                         nsSize&  aSize, 
                         nsIntPoint& aCellIndex);
 
+  static nsHTMLFramesetFrame* GetFramesetParent(nsIFrame* aChild);
+
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
                          nsGUIEvent*     aEvent,
                          nsEventStatus*  aEventStatus) MOZ_OVERRIDE;
@@ -100,9 +102,9 @@ public:
   NS_IMETHOD GetCursor(const nsPoint&    aPoint,
                        nsIFrame::Cursor& aCursor) MOZ_OVERRIDE;
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -178,6 +180,8 @@ protected:
 
   bool GetNoResize(nsIFrame* aChildFrame); 
   
+  virtual int GetSkipSides() const;
+
   void ReflowPlaceChild(nsIFrame*                aChild,
                         nsPresContext*          aPresContext,
                         const nsHTMLReflowState& aReflowState,
@@ -185,11 +189,18 @@ protected:
                         nsSize&                  aSize,
                         nsIntPoint*              aCellIndex = 0);
   
-  bool CanResize(bool aVertical, bool aLeft); 
+  bool CanResize(bool aVertical, 
+                   bool aLeft); 
 
-  bool CanChildResize(bool aVertical, bool aLeft, int32_t aChildX);
+  bool CanChildResize(bool    aVertical, 
+                        bool    aLeft, 
+                        int32_t aChildX,
+                        bool    aFrameset);
   
-  void SetBorderResize(nsHTMLFramesetBorderFrame* aBorderFrame);
+  void SetBorderResize(int32_t*                   aChildTypes, 
+                       nsHTMLFramesetBorderFrame* aBorderFrame);
+
+  bool ChildIsFrameset(nsIFrame* aChild); 
 
   static int FrameResizePrefCallback(const char* aPref, void* aClosure);
 
@@ -199,6 +210,7 @@ protected:
   nsHTMLFramesetFrame* mTopLevelFrameset;
   nsHTMLFramesetBorderFrame** mVerBorders;  // vertical borders
   nsHTMLFramesetBorderFrame** mHorBorders;  // horizontal borders
+  int32_t*         mChildTypes; // frameset/frame distinction of children
   nsFrameborder*   mChildFrameborder; // the frameborder attr of children
   nsBorderColor*   mChildBorderColors;
   nscoord*         mRowSizes;  // currently computed row sizes

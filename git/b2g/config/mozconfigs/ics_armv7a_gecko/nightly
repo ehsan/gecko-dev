@@ -2,9 +2,10 @@
 
 mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/obj-b2g
 
+mk_add_options MOZ_MAKE_FLAGS="-j8"
+
 ac_add_options --enable-application=b2g
 ac_add_options --enable-b2g-camera
-ac_add_options --enable-updater
 
 ac_add_options --target=arm-linux-androideabi
 ac_add_options --with-gonk="$topsrcdir/gonk-toolchain"
@@ -14,6 +15,8 @@ ac_add_options --with-gonk-toolchain-prefix="$topsrcdir/gonk-toolchain/prebuilt/
 ac_add_options --disable-elf-hack
 ac_add_options --enable-debug-symbols
 # ac_add_options --enable-profiling
+# IonMonkey disabled in bug 789373
+ac_add_options --disable-ion
 #ac_add_options --with-ccache
 ENABLE_MARIONETTE=1
 

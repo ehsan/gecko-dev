@@ -455,7 +455,6 @@
         <body><![CDATA[
           // null parameter below specifies HTML response for search
           var submission = this.currentEngine.getSubmission(aData);
-          BrowserSearch.recordSearchInHealthReport(this.currentEngine.name, "searchbar");
           openUILinkIn(submission.uri.spec, aWhere, null, submission.postData);
         ]]></body>
       </method>
@@ -496,18 +495,15 @@
 
         const SUGGEST_TYPE = "application/x-suggestions+json";
         var engine = this.currentEngine;
-        var connector =
+	var connector =
             Services.io.QueryInterface(Components.interfaces.nsISpeculativeConnect);
         var searchURI = engine.getSubmission("dummy").uri;
-        let callbacks = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                              .getInterface(Components.interfaces.nsIWebNavigation)
-                              .QueryInterface(Components.interfaces.nsILoadContext);
-        connector.speculativeConnect(searchURI, callbacks);
+        connector.speculativeConnect(searchURI, null, null);
 
         if (engine.supportsResponseType(SUGGEST_TYPE)) {
-          var suggestURI = engine.getSubmission("dummy", SUGGEST_TYPE).uri;
+	  var suggestURI = engine.getSubmission("dummy", SUGGEST_TYPE).uri;
           if (suggestURI.prePath != searchURI.prePath)
-            connector.speculativeConnect(suggestURI, callbacks);
+            connector.speculativeConnect(suggestURI, null, null);
         }
       ]]></handler>
     </handlers>
@@ -629,7 +625,7 @@
       <!--
         This overrides the searchParam property in autocomplete.xml.  We're
         hijacking this property as a vehicle for delivering the privacy
-        information about the window into the guts of nsSearchSuggestions.
+        information about the window into the guys of nsSearchSuggestions.
 
         Note that the setter is the same as the parent.  We were not sure whether
         we can override just the getter.  If that proves to be the case, the setter

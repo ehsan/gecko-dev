@@ -46,10 +46,12 @@ namespace mozilla {
 namespace safebrowsing {
 
 const uint32_t LOOKUPCACHE_MAGIC = 0x1231af3e;
-const uint32_t CURRENT_VERSION = 2;
+const uint32_t CURRENT_VERSION = 1;
 
-LookupCache::LookupCache(const nsACString& aTableName, nsIFile* aStoreDir)
+LookupCache::LookupCache(const nsACString& aTableName, nsIFile* aStoreDir,
+                         bool aPerClientRandomize)
   : mPrimed(false)
+  , mPerClientRandomize(aPerClientRandomize)
   , mTableName(aTableName)
   , mStoreDirectory(aStoreDir)
 {
@@ -82,7 +84,7 @@ LookupCache::Open()
 
   nsCOMPtr<nsIInputStream> inputStream;
   rv = NS_NewLocalFileInputStream(getter_AddRefs(inputStream), storeFile,
-                                  PR_RDONLY | nsIFile::OS_READAHEAD);
+                                  PR_RDONLY);
 
   if (NS_FAILED(rv) && rv != NS_ERROR_FILE_NOT_FOUND) {
     Reset();
@@ -93,7 +95,8 @@ LookupCache::Open()
     // Simply lacking a .cache file is a recoverable error,
     // as unlike the .pset/.sbstore files it is a pure cache.
     // Just create a new empty one.
-    ClearCompleteCache();
+    Clear();
+    UpdateHeader();
   } else {
     // Read in the .cache file
     rv = ReadHeader(inputStream);
@@ -141,7 +144,7 @@ LookupCache::Reset()
   rv = prefixsetFile->Remove(false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  ClearAll();
+  Clear();
 
   return NS_OK;
 }
@@ -189,25 +192,38 @@ LookupCache::Dump()
 
 nsresult
 LookupCache::Has(const Completion& aCompletion,
-                 bool* aHas, bool* aComplete)
+                 const Completion& aHostkey,
+                 const uint32_t aHashKey,
+                 bool* aHas, bool* aComplete,
+                 Prefix* aOrigPrefix)
 {
   *aHas = *aComplete = false;
 
+  // check completion store first
+  if (mCompletions.BinaryIndexOf(aCompletion) != nsTArray<Completion>::NoIndex) {
+    LOG(("Complete in %s", mTableName.get()));
+    *aComplete = true;
+    *aHas = true;
+    return NS_OK;
+  }
+
   uint32_t prefix = aCompletion.ToUint32();
+  uint32_t hostkey = aHostkey.ToUint32();
+  uint32_t codedkey;
+  nsresult rv = KeyedHash(prefix, hostkey, aHashKey, &codedkey, !mPerClientRandomize);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  Prefix codedPrefix;
+  codedPrefix.FromUint32(codedkey);
+  *aOrigPrefix = codedPrefix;
 
   bool found;
-  nsresult rv = mPrefixSet->Contains(prefix, &found);
+  rv = mPrefixSet->Contains(codedkey, &found);
   NS_ENSURE_SUCCESS(rv, rv);
 
   LOG(("Probe in %s: %X, found %d", mTableName.get(), prefix, found));
 
   if (found) {
-    *aHas = true;
-  }
-
-  if (mCompletions.BinaryIndexOf(aCompletion) != nsTArray<Completion>::NoIndex) {
-    LOG(("Complete in %s", mTableName.get()));
-    *aComplete = true;
     *aHas = true;
   }
 
@@ -259,18 +275,11 @@ LookupCache::WriteFile()
 }
 
 void
-LookupCache::ClearAll()
-{
-  ClearCompleteCache();
-  mPrefixSet->SetPrefixes(nullptr, 0);
-  mPrimed = false;
-}
-
-void
-LookupCache::ClearCompleteCache()
+LookupCache::Clear()
 {
   mCompletions.Clear();
-  UpdateHeader();
+  mPrefixSet->SetPrefixes(nullptr, 0);
+  mPrimed = false;
 }
 
 void
@@ -313,7 +322,8 @@ nsresult
 LookupCache::ReadHeader(nsIInputStream* aInputStream)
 {
   if (!aInputStream) {
-    ClearCompleteCache();
+    Clear();
+    UpdateHeader();
     return NS_OK;
   }
 
@@ -577,6 +587,63 @@ LookupCache::GetHostKeys(const nsACString& aSpec,
     lookupHost2->Append(".");
     lookupHost2->Append(*lookupHost);
   }
+
+  return NS_OK;
+}
+
+/* We have both a prefix and a domain. Drop the domain, but
+   hash the domain, the prefix and a random value together,
+   ensuring any collisions happens at a different points for
+   different users.
+*/
+/* static */ nsresult LookupCache::KeyedHash(uint32_t aPref, uint32_t aHostKey,
+                                             uint32_t aUserKey, uint32_t* aOut,
+                                             bool aPassthrough)
+{
+  /* Do not do any processing in passthrough mode. */
+  if (aPassthrough) {
+    *aOut = aPref;
+    return NS_OK;
+  }
+
+  /* This is a reimplementation of MurmurHash3 32-bit
+     based on the public domain C++ sources.
+     http://code.google.com/p/smhasher/source/browse/trunk/MurmurHash3.cpp
+     for nblocks = 2
+  */
+  uint32_t c1 = 0xCC9E2D51;
+  uint32_t c2 = 0x1B873593;
+  uint32_t c3 = 0xE6546B64;
+  uint32_t c4 = 0x85EBCA6B;
+  uint32_t c5 = 0xC2B2AE35;
+  uint32_t h1 = aPref; // seed
+  uint32_t k1;
+  uint32_t karr[2];
+
+  karr[0] = aHostKey;
+  karr[1] = aUserKey;
+
+  for (uint32_t i = 0; i < 2; i++) {
+    k1 = karr[i];
+    k1 *= c1;
+    k1 = (k1 << 15) | (k1 >> (32-15));
+    k1 *= c2;
+
+    h1 ^= k1;
+    h1 = (h1 << 13) | (h1 >> (32-13));
+    h1 *= 5;
+    h1 += c3;
+  }
+
+  h1 ^= 2; // len
+  // fmix
+  h1 ^= h1 >> 16;
+  h1 *= c4;
+  h1 ^= h1 >> 13;
+  h1 *= c5;
+  h1 ^= h1 >> 16;
+
+  *aOut = h1;
 
   return NS_OK;
 }

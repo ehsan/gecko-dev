@@ -9,7 +9,6 @@
 #include "nscore.h"
 #include "nsAlgorithm.h"
 #include "nsTextFragmentImpl.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace SSE2 {
@@ -34,7 +33,7 @@ FirstNon8Bit(const PRUnichar *str, const PRUnichar *end)
   // Align ourselves to a 16-byte boundary, as required by _mm_load_si128
   // (i.e. MOVDQA).
   int32_t alignLen =
-    std::min(len, int32_t(((-NS_PTR_TO_INT32(str)) & 0xf) / sizeof(PRUnichar)));
+    NS_MIN(len, int32_t(((-NS_PTR_TO_INT32(str)) & 0xf) / sizeof(PRUnichar)));
   for (; i < alignLen; i++) {
     if (str[i] > 255)
       return i;

@@ -49,6 +49,8 @@ public:
 protected:
   nsMathMLmunderoverFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmunderoverFrame();
+  
+  virtual int GetSkipSides() const { return 0; }
 };
 
 

@@ -512,7 +512,7 @@ NS_IMETHODIMP
 nsNativeThemeQt::WidgetStateChanged(nsIFrame* aFrame, uint8_t aWidgetType,
                                     nsIAtom* aAttribute, bool* aShouldRepaint)
 {
-    *aShouldRepaint = true;
+    *aShouldRepaint = TRUE;
     return NS_OK;
 }
 

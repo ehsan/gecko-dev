@@ -5,11 +5,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsBidiKeyboard.h"
+#include "nsObjCExceptions.h"
 #include "nsCocoaUtils.h"
 #include "TextInputHandler.h"
-
-// This must be the last include:
-#include "nsObjCExceptions.h"
 
 using namespace mozilla::widget;
 

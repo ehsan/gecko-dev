@@ -1,3 +1,4 @@
+#
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -10,7 +11,23 @@ relativesrcdir = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= xpcom
 FAIL_ON_WARNINGS = 1
+
+DIRS		= \
+  external \
+  component \
+  bug656331_component \
+  component_no_aslr \
+  $(NULL)
+
+ifeq ($(OS_ARCH),WINNT)
+DIRS		+= windows
+endif
+
+ifdef DEHYDRA_PATH
+DIRS += static-checker
+endif
 
 VPATH += $(topsrcdir)/build
 
@@ -18,7 +35,6 @@ CPPSRCS = \
   nsIFileEnumerator.cpp \
   TestCallTemplates.cpp \
   TestINIParser.cpp \
-  TestPRIntN.cpp \
   TestRacingServiceManager.cpp \
   TestRegistrationOrder.cpp \
   TestThreadPoolListener.cpp \

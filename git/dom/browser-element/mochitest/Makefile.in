@@ -71,10 +71,6 @@ MOCHITEST_FILES = \
 		file_browserElement_XFrameOptionsAllowFrom.sjs \
 		browserElement_FirstPaint.js \
 		test_browserElement_inproc_FirstPaint.html \
-		browserElement_NextPaint.js \
-		test_browserElement_inproc_NextPaint.html \
-		test_browserElement_oop_NextPaint.html \
-		file_browserElement_NextPaint.html \
 		browserElement_Alert.js \
 		test_browserElement_inproc_Alert.html \
 		browserElement_AlertInFrame.js \
@@ -94,9 +90,6 @@ MOCHITEST_FILES = \
 		test_browserElement_inproc_PromptCheck.html \
 		browserElement_PromptConfirm.js \
 		test_browserElement_inproc_PromptConfirm.html \
-		browserElement_CookiesNotThirdParty.js \
-		file_browserElement_CookiesNotThirdParty.html \
-		test_browserElement_inproc_CookiesNotThirdParty.html \
 		browserElement_Close.js \
 		test_browserElement_inproc_Close.html \
 		browserElement_CloseFromOpener.js \
@@ -151,29 +144,18 @@ MOCHITEST_FILES = \
 		file_wyciwyg.html \
 		browserElement_ExposableURI.js \
 		test_browserElement_inproc_ExposableURI.html \
-		browserElement_FrameWrongURI.js \
-		test_browserElement_inproc_FrameWrongURI.html \
-		file_browserElement_FrameWrongURI.html \
-		file_post_request.html \
-		test_browserElement_inproc_ReloadPostRequest.html \
-		browserElement_ReloadPostRequest.js \
-		browserElement_PurgeHistory.js \
-		test_browserElement_inproc_PurgeHistory.html \
-		browserElement_DocumentFirstPaint.js \
-		test_browserElement_inproc_DocumentFirstPaint.html \
 		$(NULL)
 
 # Disabled due to https://bugzilla.mozilla.org/show_bug.cgi?id=774100
 #		test_browserElement_inproc_Reload.html \
 
-# Disabled due to focus issues (no bug that I'm aware of)
-# 		test_browserElement_oop_KeyEvents.html \
-
-# OOP tests don't work on native-fennec (bug 774939).
+# OOP tests don't work on Windows (bug 763081) or native-fennec (bug
+# 774939).
 #
 # Both the "inproc" and "oop" versions of OpenMixedProcess open remote frames,
 # so we don't run that test on platforms which don't support OOP tests.
 
+ifneq ($(OS_ARCH),WINNT) #{
 ifndef MOZ_ANDROID_OMTC #{
 MOCHITEST_FILES += \
 		browserElement_OpenMixedProcess.js \
@@ -190,14 +172,14 @@ MOCHITEST_FILES += \
 		test_browserElement_oop_Iconchange.html \
 		test_browserElement_oop_GetScreenshot.html \
 		test_browserElement_oop_BadScreenshot.html \
+		test_browserElement_oop_SetVisible.html \
+		test_browserElement_oop_SetVisibleFrames.html \
+		test_browserElement_oop_SetVisibleFrames2.html \
+		test_browserElement_oop_KeyEvents.html \
 		test_browserElement_oop_XFrameOptions.html \
 		test_browserElement_oop_XFrameOptionsDeny.html \
 		test_browserElement_oop_XFrameOptionsSameOrigin.html \
 		test_browserElement_oop_XFrameOptionsAllowFrom.html \
-		test_browserElement_oop_SendEvent.html \
-		test_browserElement_oop_SetVisible.html \
-		test_browserElement_oop_SetVisibleFrames.html \
-		test_browserElement_oop_SetVisibleFrames2.html \
 		test_browserElement_oop_FirstPaint.html \
 		test_browserElement_oop_Alert.html \
 		test_browserElement_oop_AlertInFrame.html \
@@ -206,7 +188,6 @@ MOCHITEST_FILES += \
 		test_browserElement_oop_TargetBlank.html \
 		test_browserElement_oop_PromptCheck.html \
 		test_browserElement_oop_PromptConfirm.html \
-		test_browserElement_oop_CookiesNotThirdParty.html \
 		test_browserElement_oop_Close.html \
 		test_browserElement_oop_CloseFromOpener.html \
 		test_browserElement_oop_CloseApp.html \
@@ -220,18 +201,16 @@ MOCHITEST_FILES += \
 		test_browserElement_oop_Reload.html \
 		test_browserElement_oop_Stop.html \
 		test_browserElement_oop_ContextmenuEvents.html \
+		test_browserElement_oop_SendEvent.html \
 		test_browserElement_oop_ScrollEvent.html \
 		test_browserElement_oop_Auth.html \
 		test_browserElement_oop_RemoveBrowserElement.html \
 		test_browserElement_oop_DOMRequestError.html \
 		test_browserElement_oop_AppFramePermission.html \
 		test_browserElement_oop_ExposableURI.html \
-		test_browserElement_oop_FrameWrongURI.html \
-		test_browserElement_oop_ReloadPostRequest.html \
-		test_browserElement_oop_PurgeHistory.html \
-		test_browserElement_oop_DocumentFirstPaint.html \
-	$(NULL)
-
+		$(NULL)
 endif #}
+endif #}
+
 
 include $(topsrcdir)/config/rules.mk

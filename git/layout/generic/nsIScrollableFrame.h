@@ -13,10 +13,8 @@
 #include "nsISupports.h"
 #include "nsCoord.h"
 #include "nsPresContext.h"
-#include "mozilla/gfx/Point.h"
 
-#define NS_DEFAULT_VERTICAL_SCROLL_DISTANCE   3
-#define NS_DEFAULT_HORIZONTAL_SCROLL_DISTANCE 5
+#define NS_DEFAULT_VERTICAL_SCROLL_DISTANCE 3
 
 class nsBoxLayoutState;
 class nsIScrollPositionListener;
@@ -29,7 +27,6 @@ class nsIFrame;
  */
 class nsIScrollableFrame : public nsQueryFrame {
 public:
-  typedef mozilla::gfx::Point Point;
 
   NS_DECL_QUERYFRAME_TARGET(nsIScrollableFrame)
 
@@ -94,10 +91,6 @@ public:
    */
   virtual nsPoint GetScrollPosition() const = 0;
   /**
-   * As GetScrollPosition(), but uses the top-right as origin for RTL frames. 
-   */
-  virtual nsPoint GetLogicalScrollPosition() const = 0;
-  /**
    * Get the area that must contain the scroll position. Typically
    * (but not always, e.g. for RTL content) x and y will be 0, and
    * width or height will be nonzero if the content can be scrolled in
@@ -148,20 +141,9 @@ public:
    * position, rounded to CSS pixels, matches aScrollPosition. If
    * aScrollPosition.x/y is different from the current CSS pixel position,
    * makes sure we only move in the direction given by the difference.
-   * Ensures that GetScrollPositionCSSPixels (the scroll position after
-   * rounding to CSS pixels) will be exactly aScrollPosition.
    * The scroll mode is INSTANT.
    */
   virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) = 0;
-  /**
-   * Scrolls to a particular position in float CSS pixels.
-   * This does not guarantee that GetScrollPositionCSSPixels equals
-   * aScrollPosition afterward. It tries to scroll as close to
-   * aScrollPosition as possible while scrolling by an integer
-   * number of layer pixels (so the operation is fast and looks clean).
-   * The scroll mode is INSTANT.
-   */
-  virtual void ScrollToCSSPixelsApproximate(const Point& aScrollPosition) = 0;
   /**
    * Returns the scroll position in integer CSS pixels, rounded to the nearest
    * pixel.
@@ -233,16 +215,6 @@ public:
    * completely redrawn.
    */
   virtual void ResetScrollPositionForLayerPixelAlignment() = 0;
-  /**
-   * Was the current presentation state for this frame restored from history?
-   */
-  virtual bool DidHistoryRestore() = 0;
-  /**
-   * Clear the flag so that DidHistoryRestore() returns false until the next
-   * RestoreState call.
-   * @see nsIStatefulFrame::RestoreState
-   */
-  virtual void ClearDidHistoryRestore() = 0;
 };
 
 #endif

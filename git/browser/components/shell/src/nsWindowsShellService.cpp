@@ -26,7 +26,6 @@
 #include "nsIWinTaskbar.h"
 #include "nsISupportsPrimitives.h"
 #include "nsThreadUtils.h"
-#include "nsXULAppAPI.h"
 
 #include "windows.h"
 #include "shellapi.h"
@@ -135,9 +134,9 @@ OpenKeyForReading(HKEY aKeyRoot, const nsAString& aKeyName, HKEY* aKey)
 
 // The values checked are all default values so the value name is not needed.
 typedef struct {
-  const char* keyName;
-  const char* valueData;
-  const char* oldValueData;
+  char* keyName;
+  char* valueData;
+  char* oldValueData;
 } SETTING;
 
 #define APP_REG_NAME L"Firefox"
@@ -199,12 +198,12 @@ GetHelperPath(nsAutoString& aPath)
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIFile> appHelper;
-  rv = directoryService->Get(XRE_EXECUTABLE_FILE,
+  rv = directoryService->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
                              NS_GET_IID(nsIFile),
                              getter_AddRefs(appHelper));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = appHelper->SetNativeLeafName(NS_LITERAL_CSTRING("uninstall"));
+  rv = appHelper->AppendNative(NS_LITERAL_CSTRING("uninstall"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = appHelper->AppendNative(NS_LITERAL_CSTRING("helper.exe"));
@@ -317,7 +316,7 @@ IsWin8OrLater()
   osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
   GetVersionExW(&osInfo);
   return osInfo.dwMajorVersion > 6 || 
-         (osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2);
+         osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2;
 }
 
 static bool
@@ -748,16 +747,11 @@ nsWindowsShellService::SetShouldCheckDefaultBrowser(bool aShouldCheck)
 static nsresult
 WriteBitmap(nsIFile* aFile, imgIContainer* aImage)
 {
-  nsresult rv;
-
-  nsRefPtr<gfxASurface> surface;
-  aImage->GetFrame(imgIContainer::FRAME_FIRST,
-                   imgIContainer::FLAG_SYNC_DECODE,
-                   getter_AddRefs(surface));
-  NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
-
-  nsRefPtr<gfxImageSurface> image(surface->GetAsReadableARGB32ImageSurface());
-  NS_ENSURE_TRUE(image, NS_ERROR_FAILURE);
+  nsRefPtr<gfxImageSurface> image;
+  nsresult rv = aImage->CopyFrame(imgIContainer::FRAME_FIRST,
+                                  imgIContainer::FLAG_SYNC_DECODE,
+                                  getter_AddRefs(image));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   int32_t width = image->Width();
   int32_t height = image->Height();

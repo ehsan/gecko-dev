@@ -12,7 +12,7 @@
 #include "nsStyleCoord.h"
 #include "nsStyleStructInlines.h"
 #include "nsIFrame.h"
-#include <algorithm>
+#include "mozilla/AutoRestore.h"
 
 class nsPresContext;
 class nsRenderingContext;
@@ -29,15 +29,6 @@ struct nsStylePadding;
 struct nsStyleText;
 struct nsHypotheticalBox;
 
-
-/**
- * @return aValue clamped to [aMinValue, aMaxValue].
- *
- * @note This function needs to handle aMinValue > aMaxValue. In that case,
- *       aMinValue is returned.
- * @see http://www.w3.org/TR/CSS21/visudet.html#min-max-widths
- * @see http://www.w3.org/TR/CSS21/visudet.html#min-max-heights
- */
 template <class NumericType>
 NumericType
 NS_CSS_MINMAX(NumericType aValue, NumericType aMinValue, NumericType aMaxValue)
@@ -443,9 +434,9 @@ public:
    */
   nscoord ApplyMinMaxWidth(nscoord aWidth) const {
     if (NS_UNCONSTRAINEDSIZE != mComputedMaxWidth) {
-      aWidth = std::min(aWidth, mComputedMaxWidth);
+      aWidth = NS_MIN(aWidth, mComputedMaxWidth);
     }
-    return std::max(aWidth, mComputedMinWidth);
+    return NS_MAX(aWidth, mComputedMinWidth);
   }
   /**
    * Apply the mComputed(Min/Max)Height constraints to the content
@@ -453,9 +444,9 @@ public:
    */
   nscoord ApplyMinMaxHeight(nscoord aHeight) const {
     if (NS_UNCONSTRAINEDSIZE != mComputedMaxHeight) {
-      aHeight = std::min(aHeight, mComputedMaxHeight);
+      aHeight = NS_MIN(aHeight, mComputedMaxHeight);
     }
-    return std::max(aHeight, mComputedMinHeight);
+    return NS_MAX(aHeight, mComputedMinHeight);
   }
 
   bool ShouldReflowAllKids() const {

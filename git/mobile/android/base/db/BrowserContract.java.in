@@ -53,13 +53,10 @@ public class BrowserContract {
         public static final String _ID = "_id";
     }
 
-    public interface DateSyncColumns {
+    public interface SyncColumns {
+        public static final String GUID = "guid";
         public static final String DATE_CREATED = "created";
         public static final String DATE_MODIFIED = "modified";
-    }
-
-    public interface SyncColumns extends DateSyncColumns {
-        public static final String GUID = "guid";
         public static final String IS_DELETED = "deleted";
     }
 
@@ -68,10 +65,9 @@ public class BrowserContract {
         public static final String TITLE = "title";
     }
 
-    public interface FaviconColumns {
+    public interface ImageColumns {
         public static final String FAVICON = "favicon";
-        public static final String FAVICON_ID = "favicon_id";
-        public static final String FAVICON_URL = "favicon_url";
+        public static final String THUMBNAIL = "thumbnail";
     }
 
     public interface HistoryColumns {
@@ -85,32 +81,20 @@ public class BrowserContract {
         public static final String TIME_DELETED = "timeDeleted";
     }
 
-    public static final class Favicons implements CommonColumns, DateSyncColumns {
-        private Favicons() {}
+    public static final class Images implements CommonColumns, ImageColumns, SyncColumns {
+        private Images() {}
+        public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "images");
 
-        public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "favicons");
-
-        public static final String URL = "url";
-        public static final String DATA = "data";
-        public static final String PAGE_URL = "page_url";
+        public static final String URL = "url_key";
+        public static final String FAVICON_URL = "favicon_url";
     }
 
-    public static final class Thumbnails implements CommonColumns {
-        private Thumbnails() {}
-
-        public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "thumbnails");
-
-        public static final String URL = "url";
-        public static final String DATA = "data";
-    }
-
-    public static final class Bookmarks implements CommonColumns, URLColumns, FaviconColumns, SyncColumns {
+    public static final class Bookmarks implements CommonColumns, URLColumns, ImageColumns, SyncColumns {
         private Bookmarks() {}
 
         public static final int FIXED_ROOT_ID = 0;
         public static final int FAKE_DESKTOP_FOLDER_ID = -1;
         public static final int FIXED_READING_LIST_ID = -2;
-        public static final int FIXED_PINNED_LIST_ID = -3;
 
         public static final String MOBILE_FOLDER_GUID = "mobile";
         public static final String PLACES_FOLDER_GUID = "places";
@@ -120,7 +104,6 @@ public class BrowserContract {
         public static final String UNFILED_FOLDER_GUID = "unfiled";
         public static final String READING_LIST_FOLDER_GUID = "readinglist";
         public static final String FAKE_DESKTOP_FOLDER_GUID = "desktop";
-        public static final String PINNED_FOLDER_GUID = "pinned";
 
         public static final int TYPE_FOLDER = 0;
         public static final int TYPE_BOOKMARK = 1;
@@ -144,7 +127,7 @@ public class BrowserContract {
         public static final String KEYWORD = "keyword";
     }
 
-    public static final class History implements CommonColumns, URLColumns, HistoryColumns, FaviconColumns, SyncColumns {
+    public static final class History implements CommonColumns, URLColumns, HistoryColumns, ImageColumns, SyncColumns {
         private History() {}
         public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "history");
         public static final Uri CONTENT_OLD_URI = Uri.withAppendedPath(AUTHORITY_URI, "history/old");
@@ -153,7 +136,7 @@ public class BrowserContract {
     }
 
     // Combined bookmarks and history
-    public static final class Combined implements CommonColumns, URLColumns, HistoryColumns, FaviconColumns  {
+    public static final class Combined implements CommonColumns, URLColumns, HistoryColumns, ImageColumns  {
         private Combined() {}
         public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "combined");
 

@@ -10,8 +10,8 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsIDOMSVGAnimTransformList.h"
 #include "nsSVGElement.h"
-#include "nsWrapperCache.h"
 #include "mozilla/Attributes.h"
 
 namespace mozilla {
@@ -35,14 +35,14 @@ class SVGAnimatedTransformList;
  * nulling out our pointers to them when they die (making our pointers to them
  * true weak refs).
  */
-class DOMSVGAnimatedTransformList MOZ_FINAL : public nsISupports,
-                                              public nsWrapperCache
+class DOMSVGAnimatedTransformList MOZ_FINAL : public nsIDOMSVGAnimatedTransformList
 {
   friend class DOMSVGTransformList;
 
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGAnimatedTransformList)
+  NS_DECL_CYCLE_COLLECTION_CLASS(DOMSVGAnimatedTransformList)
+  NS_DECL_NSIDOMSVGANIMATEDTRANSFORMLIST
 
   /**
    * Factory method to create and return a DOMSVGAnimatedTransformList wrapper
@@ -87,26 +87,17 @@ public:
    */
   bool IsAnimating() const;
 
-  // WebIDL
-  nsSVGElement* GetParentObject() const { return mElement; }
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
-  // These aren't weak refs because mBaseVal and mAnimVal are weak
-  already_AddRefed<DOMSVGTransformList> BaseVal();
-  already_AddRefed<DOMSVGTransformList> AnimVal();
-
 private:
 
   /**
    * Only our static GetDOMWrapper() factory method may create objects of our
    * type.
    */
-  explicit DOMSVGAnimatedTransformList(nsSVGElement *aElement)
+  DOMSVGAnimatedTransformList(nsSVGElement *aElement)
     : mBaseVal(nullptr)
     , mAnimVal(nullptr)
     , mElement(aElement)
-  {
-    SetIsDOMBinding();
-  }
+  {}
 
   ~DOMSVGAnimatedTransformList();
 

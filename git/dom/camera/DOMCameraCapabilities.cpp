@@ -13,18 +13,19 @@
 #include "CameraCommon.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 DOMCI_DATA(CameraCapabilities, nsICameraCapabilities)
 
-NS_INTERFACE_MAP_BEGIN(DOMCameraCapabilities)
+NS_IMPL_CYCLE_COLLECTION_0(DOMCameraCapabilities)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMCameraCapabilities)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY(nsICameraCapabilities)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CameraCapabilities)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_ADDREF(DOMCameraCapabilities)
-NS_IMPL_RELEASE(DOMCameraCapabilities)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMCameraCapabilities)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMCameraCapabilities)
 
 static nsresult
 ParseZoomRatioItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, const char* aStart, char** aEnd)
@@ -43,7 +44,7 @@ ParseZoomRatioItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, cons
   d /= 100;
 #endif
 
-  JS::Value v = JS_NumberValue(d);
+  jsval v = JS_NumberValue(d);
 
   if (!JS_SetElement(aCx, aArray, aIndex, &v)) {
     return NS_ERROR_FAILURE;
@@ -66,7 +67,7 @@ ParseStringItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, const c
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  JS::Value v = STRING_TO_JSVAL(s);
+  jsval v = STRING_TO_JSVAL(s);
   if (!JS_SetElement(aCx, aArray, aIndex, &v)) {
     return NS_ERROR_FAILURE;
   }
@@ -84,8 +85,8 @@ ParseDimensionItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, cons
     aEnd = nullptr;
   }
 
-  JS::Value w = INT_TO_JSVAL(strtol(aStart, &x, 10));
-  JS::Value h = INT_TO_JSVAL(strtol(x + 1, aEnd, 10));
+  jsval w = INT_TO_JSVAL(strtol(aStart, &x, 10));
+  jsval h = INT_TO_JSVAL(strtol(x + 1, aEnd, 10));
 
   JSObject* o = JS_NewObject(aCx, nullptr, nullptr, nullptr);
   if (!o) {
@@ -99,7 +100,7 @@ ParseDimensionItemAndAdd(JSContext* aCx, JSObject* aArray, uint32_t aIndex, cons
     return NS_ERROR_FAILURE;
   }
 
-  JS::Value v = OBJECT_TO_JSVAL(o);
+  jsval v = OBJECT_TO_JSVAL(o);
   if (!JS_SetElement(aCx, aArray, aIndex, &v)) {
     return NS_ERROR_FAILURE;
   }
@@ -348,7 +349,7 @@ DOMCameraCapabilities::GetVideoSizes(JSContext* cx, JS::Value* aVideoSizes)
 {
   NS_ENSURE_TRUE(mCamera, NS_ERROR_NOT_AVAILABLE);
 
-  nsTArray<mozilla::idl::CameraSize> sizes;
+  nsTArray<CameraSize> sizes;
   nsresult rv = mCamera->GetVideoSizes(sizes);
   NS_ENSURE_SUCCESS(rv, rv);
   if (sizes.Length() == 0) {
@@ -364,7 +365,7 @@ DOMCameraCapabilities::GetVideoSizes(JSContext* cx, JS::Value* aVideoSizes)
 
   for (uint32_t i = 0; i < sizes.Length(); ++i) {
     JSObject* o = JS_NewObject(cx, nullptr, nullptr, nullptr);
-    JS::Value v = INT_TO_JSVAL(sizes[i].width);
+    jsval v = INT_TO_JSVAL(sizes[i].width);
     if (!JS_SetProperty(cx, o, "width", &v)) {
       return NS_ERROR_FAILURE;
     }

@@ -13,11 +13,8 @@
 #include "mozilla/dom/EventTargetBinding.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/FileReaderSyncBinding.h"
-#include "mozilla/dom/TextDecoderBinding.h"
-#include "mozilla/dom/TextEncoderBinding.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
-#include "mozilla/dom/URLBinding.h"
 #include "mozilla/OSFileConstants.h"
 #include "nsTraceRefcnt.h"
 #include "xpcpublic.h"
@@ -51,12 +48,11 @@
   JSPROP_ENUMERATE
 
 using namespace mozilla;
-using namespace mozilla::dom;
 USING_WORKERS_NAMESPACE
 
 namespace {
 
-class WorkerGlobalScope : public workers::EventTarget
+class WorkerGlobalScope : public EventTarget
 {
   static JSClass sClass;
   static JSPropertySpec sProperties[];
@@ -128,7 +124,7 @@ protected:
   _trace(JSTracer* aTrc) MOZ_OVERRIDE
   {
     for (int32_t i = 0; i < SLOT_COUNT; i++) {
-      JS_CallValueTracer(aTrc, mSlots[i], "WorkerGlobalScope instance slot");
+      JS_CALL_VALUE_TRACER(aTrc, mSlots[i], "WorkerGlobalScope instance slot");
     }
     mWorker->TraceInternal(aTrc);
     EventTarget::_trace(aTrc);
@@ -650,7 +646,6 @@ const char* const WorkerGlobalScope::sEventStrings[STRING_COUNT] = {
 class DedicatedWorkerGlobalScope : public WorkerGlobalScope
 {
   static DOMJSClass sClass;
-  static DOMIfaceAndProtoJSClass sProtoClass;
   static JSPropertySpec sProperties[];
   static JSFunctionSpec sFunctions[];
 
@@ -670,29 +665,11 @@ public:
     return sClass.ToJSClass();
   }
 
-  static JSClass*
-  ProtoClass()
-  {
-    return sProtoClass.ToJSClass();
-  }
-
-  static DOMClass*
-  DOMClassStruct()
-  {
-    return &sClass.mClass;
-  }
-
   static JSObject*
   InitClass(JSContext* aCx, JSObject* aObj, JSObject* aParentProto)
   {
-    JSObject* proto =
-      JS_InitClass(aCx, aObj, aParentProto, ProtoClass(), Construct, 0,
-                   sProperties, sFunctions, NULL, NULL);
-    if (proto) {
-      js::SetReservedSlot(proto, DOM_PROTO_INSTANCE_CLASS_SLOT,
-                          JS::PrivateValue(DOMClassStruct()));
-    }
-    return proto;
+    return JS_InitClass(aCx, aObj, aParentProto, Class(), Construct, 0,
+                        sProperties, sFunctions, NULL, NULL);
   }
 
   static JSBool
@@ -700,7 +677,7 @@ public:
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
 
-    dom::AllocateProtoAndIfaceCache(aObj);
+    dom::AllocateProtoOrIfaceCache(aObj);
 
     nsRefPtr<DedicatedWorkerGlobalScope> scope =
       new DedicatedWorkerGlobalScope(aCx, aWorkerPrivate);
@@ -792,7 +769,8 @@ private:
   {
     JSClass* classPtr = JS_GetClass(aObj);
     if (classPtr == Class()) {
-      return UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
+      return UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj,
+                                                         eRegularDOMObject);
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
@@ -827,9 +805,9 @@ private:
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
     DedicatedWorkerGlobalScope* scope =
-      UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
+      UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, eRegularDOMObject);
     if (scope) {
-      DestroyProtoAndIfaceCache(aObj);
+      DestroyProtoOrIfaceCache(aObj);
       scope->_finalize(aFop);
     }
   }
@@ -839,9 +817,9 @@ private:
   {
     JS_ASSERT(JS_GetClass(aObj) == Class());
     DedicatedWorkerGlobalScope* scope =
-      UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
+      UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, eRegularDOMObject);
     if (scope) {
-      TraceProtoAndIfaceCache(aTrc, aObj);
+      mozilla::dom::TraceProtoOrIfaceCache(aTrc, aObj);
       scope->_trace(aTrc);
     }
   }
@@ -871,6 +849,11 @@ private:
   }
 };
 
+MOZ_STATIC_ASSERT(prototypes::MaxProtoChainLength == 3,
+                  "The MaxProtoChainLength must match our manual DOMJSClasses");
+
+// When this DOMJSClass is removed and it's the last consumer of
+// sNativePropertyHooks then sNativePropertyHooks should be removed too.
 DOMJSClass DedicatedWorkerGlobalScope::sClass = {
   {
     // We don't have to worry about Xray expando slots here because we'll never
@@ -883,40 +866,11 @@ DOMJSClass DedicatedWorkerGlobalScope::sClass = {
     Finalize, NULL, NULL, NULL, NULL, Trace
   },
   {
-    INTERFACE_CHAIN_1(prototypes::id::EventTarget_workers),
+    { prototypes::id::EventTarget_workers, prototypes::id::_ID_Count,
+      prototypes::id::_ID_Count },
     false,
-    &sWorkerNativePropertyHooks
+    &sNativePropertyHooks
   }
-};
-
-DOMIfaceAndProtoJSClass DedicatedWorkerGlobalScope::sProtoClass = {
-  {
-    // XXXbz we use "DedicatedWorkerGlobalScope" here to match sClass
-    // so that we can JS_InitClass this JSClass and then
-    // call JS_NewObject with our sClass and have it find the right
-    // prototype.
-    "DedicatedWorkerGlobalScope",
-    JSCLASS_IS_DOMIFACEANDPROTOJSCLASS | JSCLASS_HAS_RESERVED_SLOTS(2),
-    JS_PropertyStub,       /* addProperty */
-    JS_PropertyStub,       /* delProperty */
-    JS_PropertyStub,       /* getProperty */
-    JS_StrictPropertyStub, /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub,
-    nullptr,               /* finalize */
-    nullptr,               /* checkAccess */
-    nullptr,               /* call */
-    nullptr,               /* hasInstance */
-    nullptr,               /* construct */
-    nullptr,               /* trace */
-    JSCLASS_NO_INTERNAL_MEMBERS
-  },
-  eInterfacePrototype,
-  &sWorkerNativePropertyHooks,
-  "[object DedicatedWorkerGlobalScope]",
-  prototypes::id::_ID_Count,
-  0
 };
 
 JSPropertySpec DedicatedWorkerGlobalScope::sProperties[] = {
@@ -945,7 +899,7 @@ WorkerGlobalScope::GetInstancePrivate(JSContext* aCx, JSObject* aObj,
   JS_ASSERT(classPtr != Class());
 
   if (classPtr == DedicatedWorkerGlobalScope::Class()) {
-    return UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj);
+    return UnwrapDOMObject<DedicatedWorkerGlobalScope>(aObj, eRegularDOMObject);
   }
 
   JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
@@ -986,7 +940,7 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
   //          -> Object
 
   JSObject* eventTargetProto =
-    EventTargetBinding_workers::GetProtoObject(aCx, global);
+    EventTargetBinding_workers::GetProtoObject(aCx, global, global);
   if (!eventTargetProto) {
     return NULL;
   }
@@ -1013,12 +967,14 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
     return NULL;
   }
 
-  if (worker->IsChromeWorker()) {
-    if (!chromeworker::InitClass(aCx, global, workerProto, false) ||
-        !DefineChromeWorkerFunctions(aCx, global) ||
-        !DefineOSFileConstants(aCx, global)) {
-      return NULL;
-    }
+  if (worker->IsChromeWorker() &&
+      (!chromeworker::InitClass(aCx, global, workerProto, false) ||
+       !DefineChromeWorkerFunctions(aCx, global))) {
+    return NULL;
+  }
+
+  if (!DefineOSFileConstants(aCx, global)) {
+    return NULL;
   }
 
   // Init other classes we care about.
@@ -1031,13 +987,14 @@ CreateDedicatedWorkerGlobalScope(JSContext* aCx)
     return NULL;
   }
 
-  // Init other paris-bindings.
-  if (!FileReaderSyncBinding_workers::GetConstructorObject(aCx, global) ||
-      !TextDecoderBinding_workers::GetConstructorObject(aCx, global) ||
-      !TextEncoderBinding_workers::GetConstructorObject(aCx, global) ||
-      !XMLHttpRequestBinding_workers::GetConstructorObject(aCx, global) ||
-      !XMLHttpRequestUploadBinding_workers::GetConstructorObject(aCx, global) ||
-      !URLBinding_workers::GetConstructorObject(aCx, global)) {
+  // Init other paris-bindings.  Use GetProtoObject so the proto will
+  // be correctly cached in the proto cache.  Otherwise we'll end up
+  // double-calling CreateInterfaceObjects when we actually create an
+  // object which has these protos, which breaks things like
+  // instanceof.
+  if (!FileReaderSyncBinding_workers::GetProtoObject(aCx, global, global) ||
+      !XMLHttpRequestBinding_workers::GetProtoObject(aCx, global, global) ||
+      !XMLHttpRequestUploadBinding_workers::GetProtoObject(aCx, global, global)) {
     return NULL;
   }
 

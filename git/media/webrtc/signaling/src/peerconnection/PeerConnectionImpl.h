@@ -6,19 +6,26 @@
 #define _PEER_CONNECTION_IMPL_H_
 
 #include <string>
+#include <iostream>
 #include <vector>
 #include <map>
 #include <cmath>
 
 #include "prlock.h"
 #include "mozilla/RefPtr.h"
-#include "nsWeakPtr.h"
-#include "nsIWeakReferenceUtils.h" // for the definition of nsWeakPtr
 #include "IPeerConnection.h"
 #include "nsComponentManagerUtils.h"
 #include "nsPIDOMWindow.h"
 
+#ifdef USE_FAKE_MEDIA_STREAMS
+#include "FakeMediaStreams.h"
+#else
+#include "nsDOMMediaStream.h"
+#endif
+
 #include "dtlsidentity.h"
+#include "nricectx.h"
+#include "nricemediastream.h"
 
 #include "peer_connection_types.h"
 #include "CallControlManager.h"
@@ -26,7 +33,7 @@
 #include "CC_Call.h"
 #include "CC_Observer.h"
 #include "MediaPipeline.h"
-#include "PeerConnectionMedia.h"
+
 
 #ifdef MOZILLA_INTERNAL_API
 #include "mozilla/net/DataChannel.h"
@@ -34,7 +41,6 @@
 #include "VideoUtils.h"
 #include "ImageLayers.h"
 #include "VideoSegment.h"
-#include "nsNSSShutDown.h"
 #else
 namespace mozilla {
   class DataChannel;
@@ -45,17 +51,13 @@ using namespace mozilla;
 
 namespace sipcc {
 
-class PeerConnectionWrapper;
-
-struct ConstraintInfo
-{
+struct ConstraintInfo {
   std::string  value;
   bool         mandatory;
 };
 typedef std::map<std::string, ConstraintInfo> constraints_map;
 
-class MediaConstraints
-{
+class MediaConstraints {
 public:
   void setBooleanConstraint(const std::string& constraint, bool enabled, bool mandatory);
 
@@ -65,44 +67,209 @@ private:
   constraints_map  mConstraints;
 };
 
-class IceConfiguration
-{
-public:
-  bool addServer(const std::string& addr, uint16_t port)
-  {
-    NrIceStunServer* server(NrIceStunServer::Create(addr, port));
-    if (!server) {
-      return false;
-    }
-    addServer(*server);
-    return true;
+/* Temporary for providing audio data */
+class Fake_AudioGenerator {
+ public:
+Fake_AudioGenerator(nsDOMMediaStream* aStream) : mStream(aStream), mCount(0) {
+    mTimer = do_CreateInstance("@mozilla.org/timer;1");
+    PR_ASSERT(mTimer);
+
+    // Make a track
+    mozilla::AudioSegment *segment = new mozilla::AudioSegment();
+    segment->Init(1); // 1 Channel
+    mStream->GetStream()->AsSourceStream()->AddTrack(1, 16000, 0, segment);
+
+    // Set the timer
+    mTimer->InitWithFuncCallback(Callback, this, 100, nsITimer::TYPE_REPEATING_PRECISE);
   }
-  void addServer(const NrIceStunServer& server) { mServers.push_back (server); }
-  const std::vector<NrIceStunServer>& getServers() const { return mServers; }
+
+  static void Callback(nsITimer* timer, void *arg) {
+    Fake_AudioGenerator* gen = static_cast<Fake_AudioGenerator*>(arg);
+
+    nsRefPtr<mozilla::SharedBuffer> samples = mozilla::SharedBuffer::Create(1600 * 2 * sizeof(int16_t));
+    for (int i=0; i<1600*2; i++) {
+      reinterpret_cast<int16_t *>(samples->Data())[i] = ((gen->mCount % 8) * 4000) - (7*4000)/2;
+      ++gen->mCount;
+    }
+
+    mozilla::AudioSegment segment;
+    segment.Init(1);
+    segment.AppendFrames(samples.forget(), 1600,
+      0, 1600, nsAudioStream::FORMAT_S16);
+
+    gen->mStream->GetStream()->AsSourceStream()->AppendToTrack(1, &segment);
+  }
+
+ private:
+  nsCOMPtr<nsITimer> mTimer;
+  nsRefPtr<nsDOMMediaStream> mStream;
+  int mCount;
+};
+
+/* Temporary for providing video data */
+#ifdef MOZILLA_INTERNAL_API
+class Fake_VideoGenerator {
+ public:
+  Fake_VideoGenerator(nsDOMMediaStream* aStream) {
+    mStream = aStream;
+    mCount = 0;
+    mTimer = do_CreateInstance("@mozilla.org/timer;1");
+    PR_ASSERT(mTimer);
+
+    // Make a track
+    mozilla::VideoSegment *segment = new mozilla::VideoSegment();
+    mStream->GetStream()->AsSourceStream()->AddTrack(1, USECS_PER_S, 0, segment);
+    mStream->GetStream()->AsSourceStream()->AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
+
+    // Set the timer. Set to 10 fps.
+    mTimer->InitWithFuncCallback(Callback, this, 100, nsITimer::TYPE_REPEATING_SLACK);
+  }
+
+  static void Callback(nsITimer* timer, void *arg) {
+    Fake_VideoGenerator* gen = static_cast<Fake_VideoGenerator*>(arg);
+
+    const uint32_t WIDTH = 640;
+    const uint32_t HEIGHT = 480;
+
+    // Allocate a single blank Image
+    mozilla::ImageFormat format = mozilla::PLANAR_YCBCR;
+    nsRefPtr<mozilla::layers::ImageContainer> container =
+      mozilla::layers::LayerManager::CreateImageContainer();
+
+    nsRefPtr<mozilla::layers::Image> image = container->CreateImage(&format, 1);
+
+    int len = ((WIDTH * HEIGHT) * 3 / 2);
+    mozilla::layers::PlanarYCbCrImage* planar =
+      static_cast<mozilla::layers::PlanarYCbCrImage*>(image.get());
+    uint8_t* frame = (uint8_t*) PR_Malloc(len);
+    ++gen->mCount;
+    memset(frame, (gen->mCount / 8) & 0xff, len); // Rotating colors
+
+    const uint8_t lumaBpp = 8;
+    const uint8_t chromaBpp = 4;
+
+    mozilla::layers::PlanarYCbCrImage::Data data;
+    data.mYChannel = frame;
+    data.mYSize = gfxIntSize(WIDTH, HEIGHT);
+    data.mYStride = (int32_t) (WIDTH * lumaBpp / 8.0);
+    data.mCbCrStride = (int32_t) (WIDTH * chromaBpp / 8.0);
+    data.mCbChannel = frame + HEIGHT * data.mYStride;
+    data.mCrChannel = data.mCbChannel + HEIGHT * data.mCbCrStride / 2;
+    data.mCbCrSize = gfxIntSize(WIDTH / 2, HEIGHT / 2);
+    data.mPicX = 0;
+    data.mPicY = 0;
+    data.mPicSize = gfxIntSize(WIDTH, HEIGHT);
+    data.mStereoMode = mozilla::STEREO_MODE_MONO;
+
+    // SetData copies data, so we can free the frame
+    planar->SetData(data);
+    PR_Free(frame);
+
+    // AddTrack takes ownership of segment
+    mozilla::VideoSegment *segment = new mozilla::VideoSegment();
+    // 10 fps.
+    segment->AppendFrame(image.forget(), USECS_PER_S / 10, gfxIntSize(WIDTH, HEIGHT));
+
+    gen->mStream->GetStream()->AsSourceStream()->AppendToTrack(1, segment);
+  }
+
+ private:
+  nsCOMPtr<nsITimer> mTimer;
+  nsRefPtr<nsDOMMediaStream> mStream;
+  int mCount;
+};
+#endif
+
+class LocalSourceStreamInfo : public mozilla::MediaStreamListener {
+public:
+  LocalSourceStreamInfo(nsDOMMediaStream* aMediaStream)
+    : mMediaStream(aMediaStream) {}
+  ~LocalSourceStreamInfo() {
+    mMediaStream = NULL;
+  }
+
+  /**
+   * Notify that changes to one of the stream tracks have been queued.
+   * aTrackEvents can be any combination of TRACK_EVENT_CREATED and
+   * TRACK_EVENT_ENDED. aQueuedMedia is the data being added to the track
+   * at aTrackOffset (relative to the start of the stream).
+   */
+  virtual void NotifyQueuedTrackChanges(
+    mozilla::MediaStreamGraph* aGraph,
+    mozilla::TrackID aID,
+    mozilla::TrackRate aTrackRate,
+    mozilla::TrackTicks aTrackOffset,
+    uint32_t aTrackEvents,
+    const mozilla::MediaSegment& aQueuedMedia
+  );
+
+  virtual void NotifyPull(mozilla::MediaStreamGraph* aGraph,
+    mozilla::StreamTime aDesiredTime) {}
+
+  nsDOMMediaStream* GetMediaStream() {
+    return mMediaStream;
+  }
+  void StorePipeline(int aTrack, mozilla::RefPtr<mozilla::MediaPipeline> aPipeline);
+
+  void ExpectAudio(const mozilla::TrackID);
+  void ExpectVideo(const mozilla::TrackID);
+  unsigned AudioTrackCount();
+  unsigned VideoTrackCount();
+
+  void Detach() {
+    // Disconnect my own listener
+    GetMediaStream()->GetStream()->RemoveListener(this);
+
+    // walk through all the MediaPipelines and disconnect them.
+    for (std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
+           mPipelines.begin(); it != mPipelines.end();
+         ++it) {
+      it->second->DetachMediaStream();
+    }
+    mMediaStream = NULL;
+  }
+
 private:
-  std::vector<NrIceStunServer> mServers;
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
+  nsRefPtr<nsDOMMediaStream> mMediaStream;
+  nsTArray<mozilla::TrackID> mAudioTracks;
+  nsTArray<mozilla::TrackID> mVideoTracks;
+};
+
+class RemoteSourceStreamInfo {
+ public:
+  RemoteSourceStreamInfo(nsDOMMediaStream* aMediaStream) :
+      mMediaStream(aMediaStream),
+      mPipelines() {}
+
+  nsDOMMediaStream* GetMediaStream() {
+    return mMediaStream;
+  }
+  void StorePipeline(int aTrack, mozilla::RefPtr<mozilla::MediaPipeline> aPipeline);
+
+  void Detach() {
+    // walk through all the MediaPipelines and disconnect them.
+    for (std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> >::iterator it =
+           mPipelines.begin(); it != mPipelines.end();
+         ++it) {
+      it->second->DetachMediaStream();
+    }
+    mMediaStream = NULL;
+  }
+
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RemoteSourceStreamInfo)
+ private:
+  nsRefPtr<nsDOMMediaStream> mMediaStream;
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
 };
 
 class PeerConnectionWrapper;
 
-// Enter an API call and check that the state is OK,
-// the PC isn't closed, etc.
-#define PC_AUTO_ENTER_API_CALL(assert_ice_ready) \
-    do { \
-      /* do/while prevents res from conflicting with locals */    \
-      nsresult res = CheckApiState(assert_ice_ready);             \
-      if (NS_FAILED(res)) return res; \
-    } while(0)
-#define PC_AUTO_ENTER_API_CALL_NO_CHECK() CheckThread()
-
-
 class PeerConnectionImpl MOZ_FINAL : public IPeerConnection,
 #ifdef MOZILLA_INTERNAL_API
                                      public mozilla::DataChannelConnection::DataConnectionListener,
-                                     public nsNSSShutDownObject,
 #endif
-                                     public sigslot::has_slots<>
-{
+                                     public sigslot::has_slots<> {
 public:
   PeerConnectionImpl();
   ~PeerConnectionImpl();
@@ -136,36 +303,14 @@ public:
     kRoleAnswerer
   };
 
-  enum Error {
-    kNoError                          = 0,
-    kInvalidConstraintsType           = 1,
-    kInvalidCandidateType             = 2,
-    kInvalidMediastreamTrack          = 3,
-    kInvalidState                     = 4,
-    kInvalidSessionDescription        = 5,
-    kIncompatibleSessionDescription   = 6,
-    kIncompatibleConstraints          = 7,
-    kIncompatibleMediaStreamTrack     = 8,
-    kInternalError                    = 9
-  };
-
   NS_DECL_ISUPPORTS
   NS_DECL_IPEERCONNECTION
 
   static PeerConnectionImpl* CreatePeerConnection();
-  static nsresult ConvertRTCConfiguration(const JS::Value& aSrc,
-    IceConfiguration *aDst, JSContext* aCx);
-  static nsresult ConvertConstraints(
-    const JS::Value& aConstraints, MediaConstraints* aObj, JSContext* aCx);
-  static nsresult MakeMediaStream(nsIDOMWindow* aWindow,
-                                  uint32_t aHint, nsIDOMMediaStream** aStream);
+  static void Shutdown();
 
-  Role GetRole() const {
-    PC_AUTO_ENTER_API_CALL_NO_CHECK();
-    return mRole;
-  }
-
-  nsresult CreateRemoteSourceStreamInfo(nsRefPtr<RemoteSourceStreamInfo>* aInfo);
+  Role GetRole() const { return mRole; }
+  nsresult CreateRemoteSourceStreamInfo(uint32_t aHint, RemoteSourceStreamInfo** aInfo);
 
   // Implementation of the only observer we need
   virtual void onCallEvent(
@@ -177,117 +322,105 @@ public:
   // DataConnection observers
   void NotifyConnection();
   void NotifyClosedConnection();
-  void NotifyDataChannel(already_AddRefed<mozilla::DataChannel> aChannel);
-
-  // Get the media object
-  const nsRefPtr<PeerConnectionMedia>& media() const {
-    PC_AUTO_ENTER_API_CALL_NO_CHECK();
-    return mMedia;
-  }
+  void NotifyDataChannel(mozilla::DataChannel *aChannel);
 
   // Handle system to allow weak references to be passed through C code
+  static PeerConnectionWrapper *AcquireInstance(const std::string& aHandle);
+  virtual void ReleaseInstance();
   virtual const std::string& GetHandle();
 
   // ICE events
   void IceGatheringCompleted(NrIceCtx *aCtx);
   void IceCompleted(NrIceCtx *aCtx);
-  void IceFailed(NrIceCtx *aCtx);
   void IceStreamReady(NrIceMediaStream *aStream);
+
+  mozilla::RefPtr<NrIceCtx> ice_ctx() const { return mIceCtx; }
+  mozilla::RefPtr<NrIceMediaStream> ice_media_stream(size_t i) const {
+    // TODO(ekr@rtfm.com): If someone asks for a value that doesn't exist,
+    // make one.
+    if (i >= mIceStreams.size()) {
+      return NULL;
+    }
+    return mIceStreams[i];
+  }
+
+  // Get a specific local stream
+  uint32_t LocalStreamsLength()
+  {
+    return mLocalSourceStreams.Length();
+  }
+  LocalSourceStreamInfo* GetLocalStream(int index);
+
+  // Get a specific remote stream
+  uint32_t RemoteStreamsLength()
+  {
+    return mRemoteSourceStreams.Length();
+  }
+  RemoteSourceStreamInfo* GetRemoteStream(int index);
+
+  // Add a remote stream. Returns the index in index
+  nsresult AddRemoteStream(nsRefPtr<RemoteSourceStreamInfo> aInfo, int *aIndex);
+
+  // Get a transport flow either RTP/RTCP for a particular stream
+  // A stream can be of audio/video/datachannel/budled(?) types
+  mozilla::RefPtr<TransportFlow> GetTransportFlow(int aStreamIndex, bool aIsRtcp) {
+    int index_inner = aStreamIndex * 2 + (aIsRtcp ? 1 : 0);
+
+    if (mTransportFlows.find(index_inner) == mTransportFlows.end())
+      return NULL;
+
+    return mTransportFlows[index_inner];
+  }
+
+  // Add a transport flow
+  void AddTransportFlow(int aIndex, bool aRtcp, mozilla::RefPtr<TransportFlow> aFlow) {
+    int index_inner = aIndex * 2 + (aRtcp ? 1 : 0);
+
+    mTransportFlows[index_inner] = aFlow;
+  }
 
   static void ListenThread(void *aData);
   static void ConnectThread(void *aData);
 
   // Get the main thread
-  nsCOMPtr<nsIThread> GetMainThread() {
-    PC_AUTO_ENTER_API_CALL_NO_CHECK();
-    return mThread;
-  }
+  nsCOMPtr<nsIThread> GetMainThread() { return mThread; }
 
   // Get the STS thread
-  nsCOMPtr<nsIEventTarget> GetSTSThread() {
-    PC_AUTO_ENTER_API_CALL_NO_CHECK();
-    return mSTSThread;
-  }
+  nsCOMPtr<nsIEventTarget> GetSTSThread() { return mSTSThread; }
 
   // Get the DTLS identity
-  mozilla::RefPtr<DtlsIdentity> const GetIdentity() {
-    PC_AUTO_ENTER_API_CALL_NO_CHECK();
-    return mIdentity;
-  }
+  mozilla::RefPtr<DtlsIdentity> const GetIdentity() { return mIdentity; }
 
   // Create a fake media stream
   nsresult CreateFakeMediaStream(uint32_t hint, nsIDOMMediaStream** retval);
 
-  nsPIDOMWindow* GetWindow() const {
-    PC_AUTO_ENTER_API_CALL_NO_CHECK();
-    return mWindow;
-  }
+  nsPIDOMWindow* GetWindow() const { return mWindow; }
 
-  // Initialize PeerConnection from an IceConfiguration object.
-  nsresult Initialize(IPeerConnectionObserver* aObserver,
-                      nsIDOMWindow* aWindow,
-                      const IceConfiguration& aConfiguration,
-                      nsIThread* aThread) {
-    return Initialize(aObserver, aWindow, &aConfiguration, nullptr, aThread, nullptr);
-  }
+  NS_IMETHODIMP CreateOffer(MediaConstraints& constraints);
 
-  // Validate constraints and construct a MediaConstraints object
-  // from a JS::Value.
-  NS_IMETHODIMP CreateOffer(MediaConstraints& aConstraints);
-  NS_IMETHODIMP CreateAnswer(MediaConstraints& aConstraints);
-
-  nsresult InitializeDataChannel(int track_id, uint16_t aLocalport,
-                                 uint16_t aRemoteport, uint16_t aNumstreams);
-
-  // Called whenever something is unrecognized by the parser
-  // May be called more than once and does not necessarily mean
-  // that parsing was stopped, only that something was unrecognized.
-  void OnSdpParseError(const char* errorMessage);
-
-  // Called when OnLocal/RemoteDescriptionSuccess/Error
-  // is called to start the list over.
-  void ClearSdpParseErrorMessages();
+  NS_IMETHODIMP CreateAnswer(MediaConstraints& constraints);
 
 private:
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
-  nsresult Initialize(IPeerConnectionObserver* aObserver,
-                      nsIDOMWindow* aWindow,
-                      const IceConfiguration* aConfiguration,
-                      const JS::Value* aRTCConfiguration,
-                      nsIThread* aThread,
-                      JSContext* aCx);
-  NS_IMETHODIMP CreateOfferInt(MediaConstraints& constraints);
-  NS_IMETHODIMP CreateAnswerInt(MediaConstraints& constraints);
-  NS_IMETHODIMP EnsureDataConnection(uint16_t aNumstreams);
 
-  nsresult CloseInt(bool aIsSynchronous);
   void ChangeReadyState(ReadyState aReadyState);
-  nsresult CheckApiState(bool assert_ice_ready) const;
-  void CheckThread() const {
-    NS_ABORT_IF_FALSE(CheckThreadInt(), "Wrong thread");
+  void CheckIceState() {
+    PR_ASSERT(mIceState != kIceGathering);
   }
-  bool CheckThreadInt() const {
-#ifdef MOZILLA_INTERNAL_API
-    // Thread assertions are disabled in the C++ unit tests because those
-    // make API calls off the main thread.
-    // TODO(ekr@rtfm.com): Fix the unit tests so they don't do that.
-    bool on;
-    NS_ENSURE_SUCCESS(mThread->IsOnCurrentThread(&on), false);
-    NS_ENSURE_TRUE(on, false);
-#endif
-    return true;
-  }
-
-#ifdef MOZILLA_INTERNAL_API
-  void virtualDestroyNSSReference() MOZ_FINAL;
-#endif
 
   // Shut down media. Called on any thread.
-  void ShutdownMedia(bool isSynchronous);
+  void ShutdownMedia();
 
-  // ICE callbacks run on the right thread.
-  nsresult IceStateChange_m(IceState aState);
+  // Disconnect the media streams. Must be called on the
+  // main thread.
+  void DisconnectMediaStreams();
+
+  // Shutdown media transport. Must be called on STS thread.
+  void ShutdownMediaTransport();
+
+  nsresult MakeMediaStream(uint32_t aHint, nsIDOMMediaStream** aStream);
+  nsresult MakeRemoteSource(nsDOMMediaStream* aStream, RemoteSourceStreamInfo** aInfo);
 
   // The role we are adopting
   Role mRole;
@@ -296,13 +429,9 @@ private:
   CSF::CC_CallPtr mCall;
   ReadyState mReadyState;
 
-  // ICE State
-  IceState mIceState;
 
   nsCOMPtr<nsIThread> mThread;
-  // Weak pointer to IPeerConnectionObserver
-  // This is only safe to use on the main thread
-  nsWeakPtr mPCObserver;
+  nsCOMPtr<IPeerConnectionObserver> mPCObserver;
   nsCOMPtr<nsPIDOMWindow> mWindow;
 
   // The SDP sent in from JS - here for debugging.
@@ -316,11 +445,27 @@ private:
   std::string mFingerprint;
   std::string mRemoteFingerprint;
 
-  // The DTLS identity
-  mozilla::RefPtr<DtlsIdentity> mIdentity;
+  // A list of streams returned from GetUserMedia
+  PRLock *mLocalSourceStreamsLock;
+  nsTArray<nsRefPtr<LocalSourceStreamInfo> > mLocalSourceStreams;
+
+  // A list of streams provided by the other side
+  PRLock *mRemoteSourceStreamsLock;
+  nsTArray<nsRefPtr<RemoteSourceStreamInfo> > mRemoteSourceStreams;
 
   // A handle to refer to this PC with
   std::string mHandle;
+
+  // ICE objects
+  mozilla::RefPtr<NrIceCtx> mIceCtx;
+  std::vector<mozilla::RefPtr<NrIceMediaStream> > mIceStreams;
+  IceState mIceState;
+
+  // Transport flows: even is RTP, odd is RTCP
+  std::map<int, mozilla::RefPtr<TransportFlow> > mTransportFlows;
+
+  // The DTLS identity
+  mozilla::RefPtr<DtlsIdentity> mIdentity;
 
   // The target to run stuff on
   nsCOMPtr<nsIEventTarget> mSTSThread;
@@ -330,19 +475,8 @@ private:
 	nsRefPtr<mozilla::DataChannelConnection> mDataConnection;
 #endif
 
-  nsRefPtr<PeerConnectionMedia> mMedia;
-
-  // Temporary: used to prevent multiple audio streams or multiple video streams
-  // in a single PC. This is tied up in the IETF discussion around proper
-  // representation of multiple streams in SDP, and strongly related to
-  // Bug 840728.
-  int mNumAudioStreams;
-  int mNumVideoStreams;
-
-  bool mHaveDataStream;
-
-  // Holder for error messages from parsing SDP
-  std::vector<std::string> mSDPParseErrorMessages;
+  // Singleton list of all the PeerConnections
+  static std::map<const std::string, PeerConnectionImpl *> peerconnections;
 
 public:
   //these are temporary until the DataChannel Listen/Connect API is removed
@@ -352,15 +486,19 @@ public:
 };
 
 // This is what is returned when you acquire on a handle
-class PeerConnectionWrapper
-{
+class PeerConnectionWrapper {
  public:
-  PeerConnectionWrapper(const std::string& handle);
+  PeerConnectionWrapper(PeerConnectionImpl *impl) : impl_(impl) {}
+
+  ~PeerConnectionWrapper() {
+    if (impl_)
+      impl_->ReleaseInstance();
+  }
 
   PeerConnectionImpl *impl() { return impl_; }
 
  private:
-  nsRefPtr<PeerConnectionImpl> impl_;
+  PeerConnectionImpl *impl_;
 };
 
 }  // end sipcc namespace

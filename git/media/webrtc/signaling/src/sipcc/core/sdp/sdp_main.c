@@ -5,9 +5,7 @@
 #include "sdp_os_defs.h"
 #include "sdp.h"
 #include "sdp_private.h"
-#include "CSFLog.h"
 
-static const char* logTag = "sdp_main";
 
 /* Note: These *must* be in the same order as the enum types. */
 const sdp_tokenarray_t sdp_token[SDP_MAX_TOKENS] =
@@ -712,7 +710,7 @@ inline tinybool sdp_verify_sdp_ptr (sdp_t *sdp_p)
     if ((sdp_p != NULL) && (sdp_p->magic_num == SDP_MAGIC_NUM)) {
         return (TRUE);
     } else {
-        CSFLogError(logTag, "SDP: Invalid SDP pointer.");
+        sdp_log_errmsg(SDP_ERR_INVALID_SDP_PTR, NULL);
         return (FALSE);
     }
 }
@@ -727,7 +725,7 @@ inline tinybool sdp_verify_sdp_ptr (sdp_t *sdp_p)
  * Parameters:  config_p     The config handle returned by sdp_init_config
  * Returns:     A handle for a new SDP structure as a void ptr.
 */
-sdp_t *sdp_init_description (const char *peerconnection, void *config_p)
+void *sdp_init_description (void *config_p)
 {
     int i;
     sdp_t *sdp_p;
@@ -741,8 +739,6 @@ sdp_t *sdp_init_description (const char *peerconnection, void *config_p)
     if (sdp_p == NULL) {
 	return (NULL);
     }
-
-    sstrncpy(sdp_p->peerconnection, peerconnection, sizeof(sdp_p->peerconnection));
 
     /* Initialize magic number. */
     sdp_p->magic_num = SDP_MAGIC_NUM;
@@ -783,7 +779,7 @@ sdp_t *sdp_init_description (const char *peerconnection, void *config_p)
 }
 
 
-/* Function:    void sdp_debug(sdp_t *sdp_p, sdp_debug_e debug_type,
+/* Function:    void sdp_debug(void *sdp_p, sdp_debug_e debug_type,
  *                             tinybool my_bool);
  * Description:	Define the type of debug for this particular SDP structure.
  *              By default, each SDP description has the settings that are
@@ -796,8 +792,10 @@ sdp_t *sdp_init_description (const char *peerconnection, void *config_p)
  *              my_bool    Defines whether the debug should be enabled or not.
  * Returns:	Nothing.
  */
-void sdp_debug (sdp_t *sdp_p, sdp_debug_e debug_type, tinybool debug_flag)
+void sdp_debug (void *sdp_ptr, sdp_debug_e debug_type, tinybool debug_flag)
 {
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
+
     if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
         return;
     }
@@ -808,18 +806,20 @@ void sdp_debug (sdp_t *sdp_p, sdp_debug_e debug_type, tinybool debug_flag)
 }
 
 
-/* Function:    void sdp_set_string_debug(sdp_t *sdp_p, char *debug_str)
+/* Function:    void sdp_set_string_debug(void *sdp_p, char *debug_str)
  * Description: Define a string to be associated with all debug output
  *              for this SDP. The string will be copied into the SDP
  *              structure and so the library will not be dependent on
  *              the application's memory for this string.
- * Parameters:  sdp_p      The SDP handle returned by sdp_init_description.
+ * Parameters:  sdp_ptr    The SDP handle returned by sdp_init_description.
  *              debug_str  Pointer to a string that should be printed out
  *                         with every debug msg.
  * Returns:     Nothing.
  */
-void sdp_set_string_debug (sdp_t *sdp_p, const char *debug_str)
+void sdp_set_string_debug (void *sdp_ptr, char *debug_str)
 {
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
+
     if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
         return;
     }
@@ -846,10 +846,11 @@ sdp_result_e sdp_validate_sdp (sdp_t *sdp_p)
         num_media_levels = sdp_get_num_media_lines((void *)sdp_p);
         for (i=1; i <= num_media_levels; i++) {
             if (sdp_connection_valid((void *)sdp_p, (unsigned short)i) == FALSE) {
-                sdp_parse_error(sdp_p->peerconnection,
-                    "%s c= connection line not specified for "
-                    "every media level, validation failed.",
-                    sdp_p->debug_str);
+                if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+                    SDP_ERROR("%s c= connection line not specified for "
+                              "every media level, validation failed.",
+                              sdp_p->debug_str);
+                }
                 return (SDP_FAILURE);
             }
         }
@@ -858,25 +859,28 @@ sdp_result_e sdp_validate_sdp (sdp_t *sdp_p)
     /* Validate required lines were specified */
     if ((sdp_owner_valid((void *)sdp_p) == FALSE) &&
         (sdp_p->conf_p->owner_reqd == TRUE)) {
-        sdp_parse_error(sdp_p->peerconnection,
-            "%s o= owner line not specified, validation failed.",
-            sdp_p->debug_str);
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+            SDP_ERROR("%s o= owner line not specified, validation "
+                      "failed.", sdp_p->debug_str);
+        }
         return (SDP_FAILURE);
     }
 
     if ((sdp_session_name_valid((void *)sdp_p) == FALSE) &&
         (sdp_p->conf_p->session_name_reqd == TRUE)) {
-        sdp_parse_error(sdp_p->peerconnection,
-            "%s s= session name line not specified, validation failed.",
-            sdp_p->debug_str);
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+            SDP_ERROR("%s s= session name line not specified, validation "
+                      "failed.", sdp_p->debug_str);
+        }
         return (SDP_FAILURE);
     }
 
     if ((sdp_timespec_valid((void *)sdp_p) == FALSE) &&
         (sdp_p->conf_p->timespec_reqd == TRUE)) {
-        sdp_parse_error(sdp_p->peerconnection,
-            "%s t= timespec line not specified, validation failed.",
-            sdp_p->debug_str);
+        if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+            SDP_ERROR("%s t= timespec line not specified, validation "
+                      "failed.", sdp_p->debug_str);
+        }
         return (SDP_FAILURE);
     }
 
@@ -885,7 +889,7 @@ sdp_result_e sdp_validate_sdp (sdp_t *sdp_p)
 
 /* Function:    sdp_parse
  * Description: Parse an SDP description in the specified buffer.
- * Parameters:  sdp_p    The SDP handle returned by sdp_init_description
+ * Parameters:  sdp_ptr  The SDP handle returned by sdp_init_description
  *              bufp     Pointer to the buffer containing the SDP
  *                       description to parse.
  *              len      The length of the buffer.
@@ -893,7 +897,7 @@ sdp_result_e sdp_validate_sdp (sdp_t *sdp_p)
  *              if not, what type of error was encountered.  The
  *              information from the parse is stored in the sdp_p structure.
  */
-sdp_result_e sdp_parse (sdp_t *sdp_p, char **bufp, u16 len)
+sdp_result_e sdp_parse (void *sdp_ptr, char **bufp, u16 len)
 {
     u8           i;
     u16          cur_level = SDP_SESSION_LEVEL;
@@ -906,6 +910,7 @@ sdp_result_e sdp_parse (sdp_t *sdp_p, char **bufp, u16 len)
     tinybool     end_found = FALSE;
     tinybool     first_line = TRUE;
     tinybool     unrec_token = FALSE;
+    sdp_t       *sdp_p = (sdp_t *)sdp_ptr;
 
     if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
         return (SDP_INVALID_SDP_PTR);
@@ -937,9 +942,10 @@ sdp_result_e sdp_parse (sdp_t *sdp_p, char **bufp, u16 len)
         ptr = next_ptr;
         line_end = sdp_findchar(ptr, "\n");
         if (line_end >= (*bufp + len)) {
-            sdp_parse_error(sdp_p->peerconnection,
-                "%s End of line beyond end of buffer.",
-                sdp_p->debug_str);
+            if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                SDP_WARN("%s End of line beyond end of buffer.",
+                         sdp_p->debug_str);
+            }
             end_found = TRUE;
             break;
         }
@@ -966,15 +972,18 @@ sdp_result_e sdp_parse (sdp_t *sdp_p, char **bufp, u16 len)
                 unrec_token = TRUE;
             }
             if (first_line == TRUE) {
-                sdp_parse_error(sdp_p->peerconnection,
-                    "%s Attempt to parse text not recognized as "
-                    "SDP text, parse fails.", sdp_p->debug_str);
+                if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+                    SDP_ERROR("%s Attempt to parse text not recognized as "
+                              "SDP text, parse fails.", sdp_p->debug_str);
                     /* If we haven't already printed out the line we
                      * were trying to parse, do it now.
                      */
-                if (!sdp_p->debug_flag[SDP_DEBUG_TRACE]) {
-                    SDP_PRINT("%s ", sdp_p->debug_str);
-                    SDP_PRINT("%*s", line_end - ptr, ptr);
+                    if (!sdp_p->debug_flag[SDP_DEBUG_TRACE]) {
+			SDP_PRINT("%s ", sdp_p->debug_str);
+
+		        SDP_PRINT("%*s", line_end - ptr, ptr);
+
+                    }
                 }
                 sdp_p->conf_p->num_not_sdp_desc++;
                 return (SDP_NOT_SDP_DESCRIPTION);
@@ -1009,9 +1018,10 @@ sdp_result_e sdp_parse (sdp_t *sdp_p, char **bufp, u16 len)
                 (i != SDP_TOKEN_B) && (i != SDP_TOKEN_K) &&
                 (i != SDP_TOKEN_A) && (i != SDP_TOKEN_M)) {
                 sdp_p->conf_p->num_invalid_token_order++;
-                sdp_parse_error(sdp_p->peerconnection,
-                    "%s Warning: Invalid token %s found at media level",
-                    sdp_p->debug_str, sdp_token[i].name);
+                if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                    SDP_WARN("%s Warning: Invalid token %s found at media "
+                             "level", sdp_p->debug_str, sdp_token[i].name);
+                }
                 continue;
             }
         }
@@ -1020,9 +1030,10 @@ sdp_result_e sdp_parse (sdp_t *sdp_p, char **bufp, u16 len)
         if (first_line == TRUE) {
             if (i != SDP_TOKEN_V) {
                 if (sdp_p->conf_p->version_reqd == TRUE) {
-                    sdp_parse_error(sdp_p->peerconnection,
-                        "%s First line not v=, parse fails",
-                        sdp_p->debug_str);
+                    if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
+                        SDP_ERROR("%s First line not v=, parse fails",
+                                  sdp_p->debug_str);
+                    }
                     sdp_p->conf_p->num_invalid_token_order++;
                     result = SDP_INVALID_TOKEN_ORDERING;
                     parse_done = TRUE;
@@ -1036,10 +1047,11 @@ sdp_result_e sdp_parse (sdp_t *sdp_p, char **bufp, u16 len)
         } else {
             if (i < last_token) {
                 sdp_p->conf_p->num_invalid_token_order++;
-                sdp_parse_error(sdp_p->peerconnection,
-                    "%s Warning: Invalid token ordering detected, "
-                    "token %s found after token %s", sdp_p->debug_str,
-                    sdp_token[i].name, sdp_token[last_token].name);
+                if (sdp_p->debug_flag[SDP_DEBUG_WARNINGS]) {
+                    SDP_WARN("%s Warning: Invalid token ordering detected, "
+                             "token %s found after token %s", sdp_p->debug_str,
+                             sdp_token[i].name, sdp_token[last_token].name);
+                }
             }
         }
 
@@ -1093,15 +1105,16 @@ sdp_result_e sdp_parse (sdp_t *sdp_p, char **bufp, u16 len)
 /* Function:    sdp_build
  * Description: Build an SDP description in the specified buffer based
  *              on the information in the given SDP structure.
- * Parameters:  sdp_p    The SDP handle returned by sdp_init_description
+ * Parameters:  sdp_ptr  The SDP handle returned by sdp_init_description
  *              fs A flex_string where the SDP description should be built.
  * Returns:     A result value indicating if the build was successful and
  *              if not, what type of error was encountered - e.g.,
  *              description was too long for the given buffer.
  */
-sdp_result_e sdp_build (sdp_t *sdp_p, flex_string *fs)
+sdp_result_e sdp_build (void *sdp_ptr, flex_string *fs)
 {
     int i, j;
+    sdp_t              *sdp_p = (sdp_t *)sdp_ptr;
     sdp_result_e        result = SDP_SUCCESS;
 
     if (sdp_verify_sdp_ptr(sdp_p) == FALSE) {
@@ -1151,15 +1164,16 @@ sdp_result_e sdp_build (sdp_t *sdp_p, flex_string *fs)
 /* Function:    sdp_copy
  * Description: Create a new SDP structure that is an exact copy of the
  *              one passed in.
- * Parameters:  orig_sdp_p  The SDP handle of the SDP to be copied.
+ * Parameters:  sdp_ptr  The SDP handle of the SDP to be copied.
  * Returns:     A handle for a new SDP structure as a void ptr.
 */
-sdp_t *sdp_copy (sdp_t *orig_sdp_p)
+void *sdp_copy (void *sdp_ptr)
 {
     int i, j;
     u16                 cur_level;
     sdp_result_e        rc;
     sdp_t              *new_sdp_p;
+    sdp_t              *orig_sdp_p = (sdp_t *)sdp_ptr;
     sdp_timespec_t     *cur_time_p = NULL;
     sdp_timespec_t     *orig_time_p = NULL;
     sdp_mca_t          *orig_mca_p = NULL;
@@ -1180,9 +1194,6 @@ sdp_t *sdp_copy (sdp_t *orig_sdp_p)
     if (new_sdp_p == NULL) {
         return (NULL);
     }
-
-    sstrncpy(new_sdp_p->peerconnection, orig_sdp_p->peerconnection,
-        sizeof(new_sdp_p->peerconnection));
 
     /* Initialize magic number. */
     new_sdp_p->magic_num = orig_sdp_p->magic_num;
@@ -1370,13 +1381,14 @@ sdp_t *sdp_copy (sdp_t *orig_sdp_p)
 
 /* Function:    sdp_free_description
  * Description:	Free an SDP description and all memory associated with it.
- * Parameters:  sdp_p  The SDP handle returned by sdp_init_description
+ * Parameters:  sdp_ptr  The SDP handle returned by sdp_init_description
  * Returns:     A result value indicating if the free was successful and
  *              if not, what type of error was encountered - e.g., sdp_p
  *              was invalid and didn't point to an SDP structure.
 */
-sdp_result_e sdp_free_description (sdp_t *sdp_p)
+sdp_result_e sdp_free_description (void *sdp_ptr)
 {
+    sdp_t           *sdp_p = (sdp_t *)sdp_ptr;
     sdp_timespec_t  *time_p, *next_time_p;
     sdp_attr_t      *attr_p, *next_attr_p;
     sdp_mca_t       *mca_p, *next_mca_p;
@@ -1446,24 +1458,4 @@ sdp_result_e sdp_free_description (sdp_t *sdp_p)
     SDP_FREE(sdp_p);
 
     return (SDP_SUCCESS);
-}
-
-/*
- * sdp_parse_error
- * Send SDP parsing errors to log and up to peerconnection
- */
-void sdp_parse_error(const char *peerconnection, const char *format, ...) {
-    flex_string fs;
-    va_list ap;
-
-    flex_string_init(&fs);
-
-    va_start(ap, format);
-    flex_string_vsprintf(&fs, format, ap);
-    va_end(ap);
-
-    CSFLogError("SDP Parse", "SDP Parse Error %s, pc %s", fs.buffer, peerconnection);
-    vcmOnSdpParseError(peerconnection, fs.buffer);
-
-    flex_string_free(&fs);
 }

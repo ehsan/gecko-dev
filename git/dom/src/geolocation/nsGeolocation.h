@@ -26,7 +26,6 @@
 #include "nsIDOMGeoPositionCallback.h"
 #include "nsIDOMGeoPositionErrorCallback.h"
 #include "nsIDOMNavigatorGeolocation.h"
-#include "nsIGeolocation.h"
 
 #include "nsPIDOMWindow.h"
 
@@ -54,45 +53,37 @@ class nsGeolocationRequest
   nsGeolocationRequest(nsGeolocation* locator,
                        nsIDOMGeoPositionCallback* callback,
                        nsIDOMGeoPositionErrorCallback* errorCallback,
-                       mozilla::idl::GeoPositionOptions* aOptions,
-                       bool watchPositionRequest = false,
-                       int32_t watchId = 0);
+                       bool watchPositionRequest = false);
+  nsresult Init(JSContext* aCx, const jsval& aOptions);
   void Shutdown();
 
   // Called by the geolocation device to notify that a location has changed.
-  // isBetter: the accuracy is as good or better than the previous position. 
-  bool Update(nsIDOMGeoPosition* aPosition, bool aIsBetter);
+  bool Update(nsIDOMGeoPosition* aPosition);
 
   void SendLocation(nsIDOMGeoPosition* location);
   void MarkCleared();
-  bool WantsHighAccuracy() {return mOptions && mOptions->enableHighAccuracy;}
   bool IsActive() {return !mCleared;}
   bool Allowed() {return mAllowed;}
   void SetTimeoutTimer();
-  nsIPrincipal* GetPrincipal();
 
   ~nsGeolocationRequest();
 
   bool Recv__delete__(const bool& allow);
   void IPDLRelease() { Release(); }
 
-  int32_t WatchId() { return mWatchId; }
  private:
 
   void NotifyError(int16_t errorCode);
   bool mAllowed;
   bool mCleared;
-  bool mIsFirstUpdate;
   bool mIsWatchPositionRequest;
 
   nsCOMPtr<nsITimer> mTimeoutTimer;
   nsCOMPtr<nsIDOMGeoPositionCallback> mCallback;
   nsCOMPtr<nsIDOMGeoPositionErrorCallback> mErrorCallback;
-  nsAutoPtr<mozilla::idl::GeoPositionOptions> mOptions;
+  nsAutoPtr<mozilla::dom::GeoPositionOptions> mOptions;
 
   nsRefPtr<nsGeolocation> mLocator;
-
-  int32_t mWatchId;
 };
 
 /**
@@ -102,8 +93,9 @@ class nsGeolocationService MOZ_FINAL : public nsIGeolocationUpdate, public nsIOb
 {
 public:
 
-  static already_AddRefed<nsGeolocationService> GetGeolocationService();
-  static nsRefPtr<nsGeolocationService> sService;
+  static nsGeolocationService* GetGeolocationService();
+  static nsGeolocationService* GetInstance();  // Non-Addref'ing
+  static nsGeolocationService* gService;
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIGEOLOCATIONUPDATE
@@ -116,7 +108,6 @@ public:
   nsresult Init();
 
   void HandleMozsettingChanged(const PRUnichar* aData);
-  void HandleMozsettingValue(const bool aValue);
 
   // Management of the nsGeolocation objects
   void AddLocator(nsGeolocation* locator);
@@ -124,20 +115,18 @@ public:
 
   void SetCachedPosition(nsIDOMGeoPosition* aPosition);
   nsIDOMGeoPosition* GetCachedPosition();
-  PRBool IsBetterPosition(nsIDOMGeoPosition *aSomewhere);
 
   // Find and startup a geolocation device (gps, nmea, etc.)
-  nsresult StartDevice(nsIPrincipal* aPrincipal, bool aRequestPrivate);
+  nsresult StartDevice();
 
   // Stop the started geolocation device (gps, nmea, etc.)
   void     StopDevice();
-
+  
   // create, or reinitalize the callback timer
   void     SetDisconnectTimer();
 
   // request higher accuracy, if possible
   void     SetHigherAccuracy(bool aEnable);
-  bool     HighAccuracyRequested();
 
 private:
 
@@ -166,24 +155,22 @@ private:
 
 /**
  * Can return a geolocation info
- */
-class nsGeolocation MOZ_FINAL : public nsIDOMGeoGeolocation,
-                                public nsIGeolocation
+ */ 
+class nsGeolocation MOZ_FINAL : public nsIDOMGeoGeolocation
 {
 public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMGEOGEOLOCATION
-  NS_DECL_NSIGEOLOCATION
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGeolocation, nsIDOMGeoGeolocation)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsGeolocation)
 
   nsGeolocation();
 
   nsresult Init(nsIDOMWindow* contentDom=nullptr);
 
   // Called by the geolocation device to notify that a location has changed.
-  void Update(nsIDOMGeoPosition* aPosition, bool aIsBetter);
+  void Update(nsIDOMGeoPosition* aPosition);
 
   // Returns true if any of the callbacks are repeating
   bool HasActiveCallbacks();
@@ -203,21 +190,11 @@ public:
   // Check to see if the widnow still exists
   bool WindowOwnerStillExists();
 
-  // Check to see if any active request requires high accuracy
-  bool HighAccuracyRequested();
-
-  // Notification from the service:
-  void ServiceReady();
-
 private:
 
   ~nsGeolocation();
 
   bool RegisterRequestWithPrompt(nsGeolocationRequest* request);
-
-  // Methods for the service when it's ready to process requests:
-  nsresult GetCurrentPositionReady(nsGeolocationRequest* aRequest);
-  nsresult WatchPositionReady(nsGeolocationRequest* aRequest);
 
   // Two callback arrays.  The first |mPendingCallbacks| holds objects for only
   // one callback and then they are released/removed from the array.  The second
@@ -235,22 +212,6 @@ private:
 
   // owning back pointer.
   nsRefPtr<nsGeolocationService> mService;
-
-  // Watch ID
-  uint32_t mLastWatchId;
-
-  // Pending requests are used when the service is not ready:
-  class PendingRequest
-  {
-  public:
-    nsRefPtr<nsGeolocationRequest> request;
-    enum {
-      GetCurrentPosition,
-      WatchPosition
-    } type;
-  };
-
-  nsTArray<PendingRequest> mPendingRequests;
 };
 
 #endif /* nsGeoLocation_h */

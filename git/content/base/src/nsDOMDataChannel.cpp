@@ -12,22 +12,21 @@
 #include "prlog.h"
 
 #ifdef PR_LOGGING
-extern PRLogModuleInfo* GetDataChannelLog();
+extern PRLogModuleInfo* dataChannelLog;
 #endif
 #undef LOG
-#define LOG(args) PR_LOG(GetDataChannelLog(), PR_LOG_DEBUG, args)
+#define LOG(args) PR_LOG(dataChannelLog, PR_LOG_DEBUG, args)
 
 
 #include "nsDOMDataChannel.h"
 #include "nsIDOMFile.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsIDOMDataChannel.h"
-#include "nsIDOMRTCPeerConnection.h"
 #include "nsIDOMMessageEvent.h"
 #include "nsDOMClassInfo.h"
 #include "nsDOMEventTargetHelper.h"
 
-#include "js/Value.h"
+#include "jsval.h"
 
 #include "nsError.h"
 #include "nsAutoPtr.h"
@@ -45,26 +44,15 @@ extern PRLogModuleInfo* GetDataChannelLog();
 #undef GetBinaryType
 #endif
 
-using namespace mozilla;
-
 class nsDOMDataChannel : public nsDOMEventTargetHelper,
                          public nsIDOMDataChannel,
                          public mozilla::DataChannelListener
 {
 public:
-  nsDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel)
+  nsDOMDataChannel(mozilla::DataChannel* aDataChannel)
     : mDataChannel(aDataChannel)
     , mBinaryType(DC_BINARY_TYPE_BLOB)
   {}
-
-  ~nsDOMDataChannel()
-  {
-    // Don't call us anymore!  Likely isn't an issue (or maybe just less of
-    // one) once we block GC until all the (appropriate) onXxxx handlers
-    // are dropped. (See WebRTC spec)
-    mDataChannel->SetListener(nullptr, nullptr);
-    mDataChannel->Close();
-  }
 
   nsresult Init(nsPIDOMWindow* aDOMWindow);
 
@@ -100,10 +88,11 @@ private:
   // Get msg info out of JS variable being sent (string, arraybuffer, blob)
   nsresult GetSendParams(nsIVariant *aData, nsCString &aStringOut,
                          nsCOMPtr<nsIInputStream> &aStreamOut,
-                         bool &aIsBinary, uint32_t &aOutgoingLength);
+                         bool &aIsBinary, uint32_t &aOutgoingLength,
+                         JSContext *aCx);
 
   // Owning reference
-  nsRefPtr<mozilla::DataChannel> mDataChannel;
+  nsAutoPtr<mozilla::DataChannel> mDataChannel;
   nsString  mOrigin;
   enum
   {
@@ -113,11 +102,8 @@ private:
 };
 
 DOMCI_DATA(DataChannel, nsDOMDataChannel)
-// A bit of a hack for RTCPeerConnection, since it doesn't have a .cpp file of
-// its own.  Note that it's not castable to anything in particular other than
-// nsIDOMRTCPeerConnection, so we can just use nsIDOMRTCPeerConnection as the
-// "class".
-DOMCI_DATA(RTCPeerConnection, nsIDOMRTCPeerConnection)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMDataChannel)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMDataChannel,
                                                   nsDOMEventTargetHelper)
@@ -186,20 +172,6 @@ NS_IMETHODIMP
 nsDOMDataChannel::GetLabel(nsAString& aLabel)
 {
   mDataChannel->GetLabel(aLabel);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMDataChannel::GetProtocol(nsAString& aProtocol)
-{
-  mDataChannel->GetProtocol(aProtocol);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMDataChannel::GetStream(uint16_t *aStream)
-{
-  mDataChannel->GetStream(aStream);
   return NS_OK;
 }
 
@@ -279,7 +251,7 @@ nsDOMDataChannel::Close()
 
 // Almost a clone of nsWebSocketChannel::Send()
 NS_IMETHODIMP
-nsDOMDataChannel::Send(nsIVariant* aData)
+nsDOMDataChannel::Send(nsIVariant* aData, JSContext* aCx)
 {
   MOZ_ASSERT(NS_IsMainThread());
   uint16_t state = mDataChannel->GetReadyState();
@@ -294,7 +266,7 @@ nsDOMDataChannel::Send(nsIVariant* aData)
   nsCOMPtr<nsIInputStream> msgStream;
   bool isBinary;
   uint32_t msgLen;
-  nsresult rv = GetSendParams(aData, msgString, msgStream, isBinary, msgLen);
+  nsresult rv = GetSendParams(aData, msgString, msgStream, isBinary, msgLen, aCx);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (state == mozilla::DataChannel::CLOSING ||
@@ -322,7 +294,8 @@ nsDOMDataChannel::Send(nsIVariant* aData)
 nsresult
 nsDOMDataChannel::GetSendParams(nsIVariant* aData, nsCString& aStringOut,
                                 nsCOMPtr<nsIInputStream>& aStreamOut,
-                                bool& aIsBinary, uint32_t& aOutgoingLength)
+                                bool& aIsBinary, uint32_t& aOutgoingLength,
+                                JSContext* aCx)
 {
   // Get type of data (arraybuffer, blob, or string)
   uint16_t dataType;
@@ -339,14 +312,14 @@ nsDOMDataChannel::GetSendParams(nsIVariant* aData, nsCString& aStringOut,
     nsMemory::Free(iid);
 
     // ArrayBuffer?
-    JS::Value realVal;
+    jsval realVal;
     JSObject* obj;
     nsresult rv = aData->GetAsJSVal(&realVal);
     if (NS_SUCCEEDED(rv) && !JSVAL_IS_PRIMITIVE(realVal) &&
         (obj = JSVAL_TO_OBJECT(realVal)) &&
-        (JS_IsArrayBufferObject(obj))) {
-      int32_t len = JS_GetArrayBufferByteLength(obj);
-      char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj));
+        (JS_IsArrayBufferObject(obj, aCx))) {
+      int32_t len = JS_GetArrayBufferByteLength(obj, aCx);
+      char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj, aCx));
 
       aStringOut.Assign(data, len);
       aIsBinary = true;
@@ -364,7 +337,7 @@ nsDOMDataChannel::GetSendParams(nsIVariant* aData, nsCString& aStringOut,
       uint64_t blobLen;
       rv = blob->GetSize(&blobLen);
       NS_ENSURE_SUCCESS(rv, rv);
-      if (blobLen > UINT32_MAX) {
+      if (blobLen > PR_UINT32_MAX) {
         return NS_ERROR_FILE_TOO_BIG;
       }
       aOutgoingLength = static_cast<uint32_t>(blobLen);
@@ -410,11 +383,11 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
   nsIScriptContext* sc = sgo->GetContext();
   NS_ENSURE_TRUE(sc, NS_ERROR_FAILURE);
 
-  AutoPushJSContext cx(sc->GetNativeContext());
+  JSContext* cx = sc->GetNativeContext();
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   JSAutoRequest ar(cx);
-  JS::Value jsData;
+  jsval jsData;
 
   if (aBinary) {
     if (mBinaryType == DC_BINARY_TYPE_BLOB) {
@@ -438,7 +411,7 @@ nsDOMDataChannel::DoOnMessageAvailable(const nsACString& aData,
   }
 
   nsCOMPtr<nsIDOMEvent> event;
-  rv = NS_NewDOMMessageEvent(getter_AddRefs(event), this, nullptr, nullptr);
+  rv = NS_NewDOMMessageEvent(getter_AddRefs(event), nullptr, nullptr);
   NS_ENSURE_SUCCESS(rv,rv);
 
   nsCOMPtr<nsIDOMMessageEvent> messageEvent = do_QueryInterface(event);
@@ -484,7 +457,7 @@ nsDOMDataChannel::OnSimpleEvent(nsISupports* aContext, const nsAString& aName)
   }
 
   nsCOMPtr<nsIDOMEvent> event;
-  rv = NS_NewDOMEvent(getter_AddRefs(event), this, nullptr, nullptr);
+  rv = NS_NewDOMEvent(getter_AddRefs(event), nullptr, nullptr);
   NS_ENSURE_SUCCESS(rv,rv);
 
   rv = event->InitEvent(aName, false, false);
@@ -519,7 +492,7 @@ nsDOMDataChannel::AppReady()
 
 /* static */
 nsresult
-NS_NewDOMDataChannel(already_AddRefed<mozilla::DataChannel> aDataChannel,
+NS_NewDOMDataChannel(mozilla::DataChannel* aDataChannel,
                      nsPIDOMWindow* aWindow,
                      nsIDOMDataChannel** aDomDataChannel)
 {

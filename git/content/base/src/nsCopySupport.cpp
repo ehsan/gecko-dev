@@ -20,7 +20,6 @@
 #include "nsIPresShell.h"
 #include "nsFocusManager.h"
 #include "nsEventDispatcher.h"
-#include "nsDOMDataTransfer.h"
 
 #include "nsIDocShell.h"
 #include "nsIContentViewerEdit.h"
@@ -46,7 +45,6 @@
 #include "nsContentCID.h"
 
 #include "mozilla/dom/Element.h"
-#include "mozilla/Selection.h"
 
 #include "mozilla/Preferences.h"
 
@@ -294,7 +292,7 @@ nsCopySupport::GetTransferableForNode(nsINode* aNode,
   NS_ENSURE_SUCCESS(rv, rv);
   nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode);
   NS_ENSURE_TRUE(node, NS_ERROR_FAILURE);
-  nsRefPtr<nsRange> range = new nsRange(aNode);
+  nsRefPtr<nsRange> range = new nsRange();
   rv = range->SelectNode(node);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = selection->AddRange(range);
@@ -679,7 +677,6 @@ nsCopySupport::FireClipboardEvent(int32_t aType, nsIPresShell* aPresShell, nsISe
     content = GetSelectionForCopy(doc, getter_AddRefs(sel));
 
   // retrieve the event target node from the start of the selection
-  nsresult rv;
   if (sel) {
     // Only cut or copy when there is an uncollapsed selection
     if (aType == NS_CUT || aType == NS_COPY) {
@@ -690,7 +687,7 @@ nsCopySupport::FireClipboardEvent(int32_t aType, nsIPresShell* aPresShell, nsISe
     }
 
     nsCOMPtr<nsIDOMRange> range;
-    rv = sel->GetRangeAt(0, getter_AddRefs(range));
+    nsresult rv = sel->GetRangeAt(0, getter_AddRefs(range));
     if (NS_SUCCEEDED(rv) && range) {
       nsCOMPtr<nsIDOMNode> startContainer;
       range->GetStartContainer(getter_AddRefs(startContainer));
@@ -710,35 +707,25 @@ nsCopySupport::FireClipboardEvent(int32_t aType, nsIPresShell* aPresShell, nsISe
   if (!nsContentUtils::IsSafeToRunScript())
     return false;
 
-  // next, fire the cut, copy or paste event
-  // XXXndeakin Bug 844941 - why was a preference added here without a running-in-chrome check?
-  bool doDefault = true;
-  nsRefPtr<nsDOMDataTransfer> clipboardData;
+  // next, fire the cut or copy event
   if (Preferences::GetBool("dom.event.clipboardevents.enabled", true)) {
-    clipboardData = new nsDOMDataTransfer(aType, aType == NS_PASTE);
-
     nsEventStatus status = nsEventStatus_eIgnore;
-    nsClipboardEvent evt(true, aType);
-    evt.clipboardData = clipboardData;
+    nsEvent evt(true, aType);
     nsEventDispatcher::Dispatch(content, presShell->GetPresContext(), &evt, nullptr,
                                 &status);
-    // If the event was cancelled, don't do the clipboard operation
-    doDefault = (status != nsEventStatus_eConsumeNoDefault);
+    // if the event was cancelled, don't do the clipboard operation
+    if (status == nsEventStatus_eConsumeNoDefault)
+      return false;
   }
   
+  if (presShell->IsDestroying())
+    return false;
+
   // No need to do anything special during a paste. Either an event listener
   // took care of it and cancelled the event, or the caller will handle it.
-  // Return true to indicate that the event wasn't cancelled.
-  if (aType == NS_PASTE) {
-    // Clear and mark the clipboardData as readonly. This prevents someone
-    // from reading the clipboard contents after the paste event has fired.
-    if (clipboardData) {
-      clipboardData->ClearAll();
-      clipboardData->SetReadOnly();
-    }
-
-    return doDefault;
-  }
+  // Return true to indicate the event wasn't cancelled.
+  if (aType == NS_PASTE)
+    return true;
 
   // Update the presentation in case the event handler modified the selection,
   // see bug 602231.
@@ -746,46 +733,13 @@ nsCopySupport::FireClipboardEvent(int32_t aType, nsIPresShell* aPresShell, nsISe
   if (presShell->IsDestroying())
     return false;
 
-  // if the event was not cancelled, do the default copy. If the event was cancelled,
-  // use the data added to the data transfer and copy that instead.
-  uint32_t count = 0;
-  if (doDefault) {
-    // get the data from the selection if any
-    bool isCollapsed;
-    sel->GetIsCollapsed(&isCollapsed);
-    if (isCollapsed) {
-      return false;
-    }
-    // call the copy code
-    rv = HTMLCopy(sel, doc, nsIClipboard::kGlobalClipboard);
-    if (NS_FAILED(rv)) {
-      return false;
-    }
-  } else if (clipboardData) {
-    // check to see if any data was put on the data transfer.
-    clipboardData->GetMozItemCount(&count);
-    if (count) {
-      nsCOMPtr<nsIClipboard> clipboard(do_GetService("@mozilla.org/widget/clipboard;1"));
-      NS_ENSURE_TRUE(clipboard, false);
-
-      nsCOMPtr<nsITransferable> transferable =
-        clipboardData->GetTransferable(0, doc->GetLoadContext());
-
-      NS_ENSURE_TRUE(transferable, false);
-
-      // put the transferable on the clipboard
-      rv = clipboard->SetData(transferable, nullptr, nsIClipboard::kGlobalClipboard);
-      if (NS_FAILED(rv)) {
-        return false;
-      }
-    }
-  }
+  // call the copy code
+  if (NS_FAILED(nsCopySupport::HTMLCopy(sel, doc, nsIClipboard::kGlobalClipboard)))
+    return false;
 
   // Now that we have copied, update the clipboard commands. This should have
-  // the effect of updating the enabled state of the paste menu item.
-  if (doDefault || count) {
-    piWindow->UpdateCommands(NS_LITERAL_STRING("clipboard"));
-  }
+  // the effect of updating the paste menu item.
+  piWindow->UpdateCommands(NS_LITERAL_STRING("clipboard"));
 
-  return doDefault;
+  return true;
 }

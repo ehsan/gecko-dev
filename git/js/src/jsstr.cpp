@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99:
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99:
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -17,9 +17,7 @@
  */
 
 #include "mozilla/Attributes.h"
-#include "mozilla/CheckedInt.h"
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/PodOperations.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +36,7 @@
 #include "jsobj.h"
 #include "jsopcode.h"
 #include "jsprobes.h"
+#include "jsscope.h"
 #include "jsstr.h"
 #include "jsversion.h"
 
@@ -46,7 +45,6 @@
 #include "vm/GlobalObject.h"
 #include "vm/NumericConversions.h"
 #include "vm/RegExpObject.h"
-#include "vm/Shape.h"
 #include "vm/StringBuffer.h"
 
 #include "jsinferinlines.h"
@@ -65,12 +63,6 @@ using namespace js::gc;
 using namespace js::types;
 using namespace js::unicode;
 
-using mozilla::CheckedInt;
-using mozilla::PodCopy;
-using mozilla::PodEqual;
-
-typedef Handle<JSLinearString*> HandleLinearString;
-
 static JSLinearString *
 ArgToRootedString(JSContext *cx, CallArgs &args, unsigned argno)
 {
@@ -78,7 +70,7 @@ ArgToRootedString(JSContext *cx, CallArgs &args, unsigned argno)
         return cx->names().undefined;
 
     Value &arg = args[argno];
-    JSString *str = ToString<CanGC>(cx, arg);
+    JSString *str = ToString(cx, arg);
     if (!str)
         return NULL;
 
@@ -102,7 +94,6 @@ static JSBool
 str_encodeURI_Component(JSContext *cx, unsigned argc, Value *vp);
 
 static const uint32_t INVALID_UTF8 = UINT32_MAX;
-static const uint32_t REPLACE_UTF8 = 0xFFFD;
 
 static uint32_t
 Utf8ToOneUcs4Char(const uint8_t *utf8Buffer, int utf8Length);
@@ -200,7 +191,7 @@ str_escape(JSContext *cx, unsigned argc, Value *vp)
     JS_ASSERT(ni == newlength);
     newchars[newlength] = 0;
 
-    JSString *retstr = js_NewString<CanGC>(cx, newchars, newlength);
+    JSString *retstr = js_NewString(cx, newchars, newlength);
     if (!retstr) {
         js_free(newchars);
         return false;
@@ -345,7 +336,7 @@ static JSBool
 str_uneval(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    JSString *str = ValueToSource(cx, args.get(0));
+    JSString *str = js_ValueToSource(cx, args.length() != 0 ? args[0] : UndefinedValue());
     if (!str)
         return false;
 
@@ -399,24 +390,24 @@ str_resolve(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
             MutableHandleObject objp)
 {
     if (!JSID_IS_INT(id))
-        return true;
+        return JS_TRUE;
 
-    RootedString str(cx, obj->asString().unbox());
+    JSString *str = obj->asString().unbox();
 
     int32_t slot = JSID_TO_INT(id);
     if ((size_t)slot < str->length()) {
         JSString *str1 = cx->runtime->staticStrings.getUnitStringForElement(cx, str, size_t(slot));
         if (!str1)
-            return false;
+            return JS_FALSE;
         RootedValue value(cx, StringValue(str1));
         if (!JSObject::defineElement(cx, obj, uint32_t(slot), value, NULL, NULL,
                                      STRING_ELEMENT_ATTRS))
         {
-            return false;
+            return JS_FALSE;
         }
         objp.set(obj);
     }
-    return true;
+    return JS_TRUE;
 }
 
 Class js::StringClass = {
@@ -462,7 +453,7 @@ ThisToStringForStringProto(JSContext *cx, CallReceiver call)
         return NULL;
     }
 
-    JSString *str = ToStringSlow<CanGC>(cx, call.thisv());
+    JSString *str = ToStringSlow(cx, call.thisv());
     if (!str)
         return NULL;
 
@@ -486,7 +477,7 @@ static JSBool
 str_quote(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    RootedString str(cx, ThisToStringForStringProto(cx, args));
+    JSString *str = ThisToStringForStringProto(cx, args);
     if (!str)
         return false;
     str = js_QuoteString(cx, str, '"');
@@ -501,7 +492,7 @@ str_toSource_impl(JSContext *cx, CallArgs args)
 {
     JS_ASSERT(IsString(args.thisv()));
 
-    Rooted<JSString*> str(cx, ToString<CanGC>(cx, args.thisv()));
+    Rooted<JSString*> str(cx, ToString(cx, args.thisv()));
     if (!str)
         return false;
 
@@ -576,7 +567,7 @@ str_substring(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    JSString *str = ThisToStringForStringProto(cx, args);
+    RootedString str(cx, ThisToStringForStringProto(cx, args));
     if (!str)
         return false;
 
@@ -584,14 +575,8 @@ str_substring(JSContext *cx, unsigned argc, Value *vp)
     if (args.length() > 0) {
         end = length = int32_t(str->length());
 
-        if (args[0].isInt32()) {
-            begin = args[0].toInt32();
-        } else {
-            RootedString strRoot(cx, str);
-            if (!ValueToIntegerRange(cx, args[0], &begin))
-                return false;
-            str = strRoot;
-        }
+        if (!ValueToIntegerRange(cx, args[0], &begin))
+            return false;
 
         if (begin < 0)
             begin = 0;
@@ -599,14 +584,8 @@ str_substring(JSContext *cx, unsigned argc, Value *vp)
             begin = length;
 
         if (args.hasDefined(1)) {
-            if (args[1].isInt32()) {
-                end = args[1].toInt32();
-            } else {
-                RootedString strRoot(cx, str);
-                if (!ValueToIntegerRange(cx, args[1], &end))
-                    return false;
-                str = strRoot;
-            }
+            if (!ValueToIntegerRange(cx, args[1], &end))
+                return false;
 
             if (end > length) {
                 end = length;
@@ -644,7 +623,7 @@ js_toLowerCase(JSContext *cx, JSString *str)
     for (size_t i = 0; i < n; i++)
         news[i] = unicode::ToLowerCase(s[i]);
     news[n] = 0;
-    str = js_NewString<CanGC>(cx, news, n);
+    str = js_NewString(cx, news, n);
     if (!str) {
         js_free(news);
         return NULL;
@@ -655,7 +634,7 @@ js_toLowerCase(JSContext *cx, JSString *str)
 static inline bool
 ToLowerCaseHelper(JSContext *cx, CallReceiver call)
 {
-    RootedString str(cx, ThisToStringForStringProto(cx, call));
+    JSString *str = ThisToStringForStringProto(cx, call);
     if (!str)
         return false;
 
@@ -682,13 +661,13 @@ str_toLocaleLowerCase(JSContext *cx, unsigned argc, Value *vp)
      * Forcefully ignore the first (or any) argument and return toLowerCase(),
      * ECMA has reserved that argument, presumably for defining the locale.
      */
-    if (cx->runtime->localeCallbacks && cx->runtime->localeCallbacks->localeToLowerCase) {
+    if (cx->localeCallbacks && cx->localeCallbacks->localeToLowerCase) {
         RootedString str(cx, ThisToStringForStringProto(cx, args));
         if (!str)
             return false;
 
         Value result;
-        if (!cx->runtime->localeCallbacks->localeToLowerCase(cx, str, &result))
+        if (!cx->localeCallbacks->localeToLowerCase(cx, str, &result))
             return false;
 
         args.rval().set(result);
@@ -711,7 +690,7 @@ js_toUpperCase(JSContext *cx, JSString *str)
     for (size_t i = 0; i < n; i++)
         news[i] = unicode::ToUpperCase(s[i]);
     news[n] = 0;
-    str = js_NewString<CanGC>(cx, news, n);
+    str = js_NewString(cx, news, n);
     if (!str) {
         js_free(news);
         return NULL;
@@ -722,7 +701,7 @@ js_toUpperCase(JSContext *cx, JSString *str)
 static JSBool
 ToUpperCaseHelper(JSContext *cx, CallReceiver call)
 {
-    RootedString str(cx, ThisToStringForStringProto(cx, call));
+    JSString *str = ThisToStringForStringProto(cx, call);
     if (!str)
         return false;
 
@@ -749,13 +728,13 @@ str_toLocaleUpperCase(JSContext *cx, unsigned argc, Value *vp)
      * Forcefully ignore the first (or any) argument and return toUpperCase(),
      * ECMA has reserved that argument, presumably for defining the locale.
      */
-    if (cx->runtime->localeCallbacks && cx->runtime->localeCallbacks->localeToUpperCase) {
+    if (cx->localeCallbacks && cx->localeCallbacks->localeToUpperCase) {
         RootedString str(cx, ThisToStringForStringProto(cx, args));
         if (!str)
             return false;
 
         Value result;
-        if (!cx->runtime->localeCallbacks->localeToUpperCase(cx, str, &result))
+        if (!cx->localeCallbacks->localeToUpperCase(cx, str, &result))
             return false;
 
         args.rval().set(result);
@@ -765,7 +744,6 @@ str_toLocaleUpperCase(JSContext *cx, unsigned argc, Value *vp)
     return ToUpperCaseHelper(cx, args);
 }
 
-#if !ENABLE_INTL_API
 static JSBool
 str_localeCompare(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -774,28 +752,32 @@ str_localeCompare(JSContext *cx, unsigned argc, Value *vp)
     if (!str)
         return false;
 
-    Value thatValue = args.length() > 0 ? args[0] : UndefinedValue();
-    RootedString thatStr(cx, ToString<CanGC>(cx, thatValue));
-    if (!thatStr)
-        return false;
-
-    if (cx->runtime->localeCallbacks && cx->runtime->localeCallbacks->localeCompare) {
-        Value result;
-        if (!cx->runtime->localeCallbacks->localeCompare(cx, str, thatStr, &result))
+    if (args.length() == 0) {
+        args.rval().setInt32(0);
+    } else {
+        RootedString thatStr(cx, ToString(cx, args[0]));
+        if (!thatStr)
             return false;
 
-        args.rval().set(result);
-        return true;
+        if (cx->localeCallbacks && cx->localeCallbacks->localeCompare) {
+            args[0].setString(thatStr);
+
+            Value result;
+            if (!cx->localeCallbacks->localeCompare(cx, str, thatStr, &result))
+                return true;
+
+            args.rval().set(result);
+            return true;
+        }
+
+        int32_t result;
+        if (!CompareStrings(cx, str, thatStr, &result))
+            return false;
+
+        args.rval().setInt32(result);
     }
-
-    int32_t result;
-    if (!CompareStrings(cx, str, thatStr, &result))
-        return false;
-
-    args.rval().setInt32(result);
     return true;
 }
-#endif
 
 JSBool
 js_str_charAt(JSContext *cx, unsigned argc, Value *vp)
@@ -1042,13 +1024,6 @@ StringMatch(const jschar *text, uint32_t textlen,
 
 static const size_t sRopeMatchThresholdRatioLog2 = 5;
 
-bool
-js::StringHasPattern(const jschar *text, uint32_t textlen,
-                     const jschar *pat, uint32_t patlen)
-{
-    return StringMatch(text, textlen, pat, patlen) != -1;
-}
-
 /*
  * RopeMatch takes the text to search and the pattern to search for in the text.
  * RopeMatch returns false on OOM and otherwise returns the match index through
@@ -1154,104 +1129,107 @@ RopeMatch(JSContext *cx, JSString *textstr, const jschar *pat, uint32_t patlen, 
     return true;
 }
 
-/* ES6 20121026 draft 15.5.4.24. */
+/* ES6 20120708 draft 15.5.4.24. */
 static JSBool
 str_contains(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    // Steps 1, 2, and 3
+    // Steps 1 and 2
     RootedString str(cx, ThisToStringForStringProto(cx, args));
     if (!str)
         return false;
 
-    // Steps 4 and 5
-    Rooted<JSLinearString*> searchStr(cx, ArgToRootedString(cx, args, 0));
-    if (!searchStr)
+    // Step 3
+    Rooted<JSLinearString *> patstr(cx, ArgToRootedString(cx, args, 0));
+    if (!patstr)
         return false;
 
-    // Steps 6 and 7
-    uint32_t pos = 0;
+    // Step 5
+    uint32_t textlen = str->length();
+    const jschar *text = str->getChars(cx);
+    if (!text)
+        return false;
+
+    // XXX fix for moving GC.
+    SkipRoot skip(cx, &text);
+
     if (args.hasDefined(1)) {
-        if (args[1].isInt32()) {
-            int i = args[1].toInt32();
-            pos = (i < 0) ? 0U : uint32_t(i);
-        } else {
-            double d;
-            if (!ToInteger(cx, args[1], &d))
-                return false;
-            pos = uint32_t(Min(Max(d, 0.0), double(UINT32_MAX)));
-        }
+        // Step 4
+        double posDouble;
+        if (!ToInteger(cx, args[1], &posDouble))
+            return false;
+
+        // Step 6
+        uint32_t delta = uint32_t(Min(double(textlen), Max(0.0, posDouble)));
+        text += delta;
+        textlen -= delta;
     }
 
+    // Step 7
+    uint32_t patlen = patstr->length();
+    const jschar *pat = patstr->chars();
+
     // Step 8
-    uint32_t textLen = str->length();
-    const jschar *textChars = str->getChars(cx);
-    if (!textChars)
-        return false;
-
-    // Step 9
-    uint32_t start = Min(Max(pos, 0U), textLen);
-
-    // Step 10
-    uint32_t searchLen = searchStr->length();
-    const jschar *searchChars = searchStr->chars();
-
-    // Step 11
-    textChars += start;
-    textLen -= start;
-    int match = StringMatch(textChars, textLen, searchChars, searchLen);
-    args.rval().setBoolean(match != -1);
+    args.rval().setBoolean(StringMatch(text, textlen, pat, patlen) >= 0);
     return true;
 }
 
-/* ES6 20120927 draft 15.5.4.7. */
 static JSBool
 str_indexOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-
-    // Steps 1, 2, and 3
     RootedString str(cx, ThisToStringForStringProto(cx, args));
     if (!str)
         return false;
 
-    // Steps 4 and 5
-    Rooted<JSLinearString*> searchStr(cx, ArgToRootedString(cx, args, 0));
-    if (!searchStr)
+    JSLinearString *patstr = ArgToRootedString(cx, args, 0);
+    if (!patstr)
         return false;
 
-    // Steps 6 and 7
-    uint32_t pos = 0;
-    if (args.hasDefined(1)) {
+    uint32_t textlen = str->length();
+    const jschar *text = str->getChars(cx);
+    if (!text)
+        return false;
+
+    uint32_t patlen = patstr->length();
+    const jschar *pat = patstr->chars();
+    SkipRoot skipPat(cx, &pat);
+
+    uint32_t start;
+    if (args.length() > 1) {
         if (args[1].isInt32()) {
             int i = args[1].toInt32();
-            pos = (i < 0) ? 0U : uint32_t(i);
+            if (i <= 0) {
+                start = 0;
+            } else if (uint32_t(i) > textlen) {
+                start = textlen;
+                textlen = 0;
+            } else {
+                start = i;
+                text += start;
+                textlen -= start;
+            }
         } else {
             double d;
             if (!ToInteger(cx, args[1], &d))
                 return false;
-            pos = uint32_t(Min(Max(d, 0.0), double(UINT32_MAX)));
+            if (d <= 0) {
+                start = 0;
+            } else if (d > textlen) {
+                start = textlen;
+                textlen = 0;
+            } else {
+                start = (int)d;
+                text += start;
+                textlen -= start;
+            }
         }
+    } else {
+        start = 0;
     }
 
-   // Step 8
-    uint32_t textLen = str->length();
-    const jschar *textChars = str->getChars(cx);
-    if (!textChars)
-        return false;
-
-    // Step 9
-    uint32_t start = Min(Max(pos, 0U), textLen);
-
-    // Step 10
-    uint32_t searchLen = searchStr->length();
-    const jschar *searchChars = searchStr->chars();
-
-    // Step 11
-    textChars += start;
-    textLen -= start;
-    int match = StringMatch(textChars, textLen, searchChars, searchLen);
+    int match = StringMatch(text, textlen, pat, patlen);
     args.rval().setInt32((match == -1) ? -1 : start + match);
     return true;
 }
@@ -1333,57 +1311,49 @@ str_lastIndexOf(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-/* ES6 20120927 draft 15.5.4.22. */
+/* ES6 20120708 draft 15.5.4.22. */
 static JSBool
 str_startsWith(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    // Steps 1, 2, and 3
+    // Steps 1 and 2
     RootedString str(cx, ThisToStringForStringProto(cx, args));
     if (!str)
         return false;
 
-    // Steps 4 and 5
-    Rooted<JSLinearString*> searchStr(cx, ArgToRootedString(cx, args, 0));
-    if (!searchStr)
+    // Step 3
+    Rooted<JSLinearString *> patstr(cx, ArgToRootedString(cx, args, 0));
+    if (!patstr)
         return false;
 
-    // Steps 6 and 7
-    uint32_t pos = 0;
+    // Step 5
+    uint32_t textlen = str->length();
+    const jschar *text = str->getChars(cx);
+    if (!text)
+        return false;
+
+    // XXX fix for moving GC.
+    SkipRoot skip(cx, &text);
+
     if (args.hasDefined(1)) {
-        if (args[1].isInt32()) {
-            int i = args[1].toInt32();
-            pos = (i < 0) ? 0U : uint32_t(i);
-        } else {
-            double d;
-            if (!ToInteger(cx, args[1], &d))
-                return false;
-            pos = uint32_t(Min(Max(d, 0.0), double(UINT32_MAX)));
-        }
+        // Step 4
+        double posDouble;
+        if (!ToInteger(cx, args[1], &posDouble))
+            return false;
+
+        // Step 6
+        uint32_t position = Min(double(textlen), Max(0.0, posDouble));
+        text += position;
+        textlen -= position;
     }
 
-    // Step 8
-    uint32_t textLen = str->length();
-    const jschar *textChars = str->getChars(cx);
-    if (!textChars)
-        return false;
+    // Step 7
+    uint32_t patlen = patstr->length();
+    const jschar *pat = patstr->chars();
 
-    // Step 9
-    uint32_t start = Min(Max(pos, 0U), textLen);
-
-    // Step 10
-    uint32_t searchLen = searchStr->length();
-    const jschar *searchChars = searchStr->chars();
-
-    // Step 11
-    if (searchLen + start < searchLen || searchLen + start > textLen) {
-        args.rval().setBoolean(false);
-        return true;
-    }
-
-    // Steps 12 and 13
-    args.rval().setBoolean(PodEqual(textChars + start, searchChars, searchLen));
+    // Steps 8, 9, and 10.
+    args.rval().setBoolean(textlen >= patlen && PodEqual(text, pat, patlen));
     return true;
 }
 
@@ -1393,56 +1363,41 @@ str_endsWith(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
-    // Steps 1, 2, and 3
+    // Steps 1 and 2
     RootedString str(cx, ThisToStringForStringProto(cx, args));
     if (!str)
         return false;
 
-    // Steps 4 and 5
-    Rooted<JSLinearString *> searchStr(cx, ArgToRootedString(cx, args, 0));
-    if (!searchStr)
+    // Step 3
+    Rooted<JSLinearString *> patstr(cx, ArgToRootedString(cx, args, 0));
+    if (!patstr)
         return false;
 
-    // Step 6
-    uint32_t textLen = str->length();
+    // Step 4
+    uint32_t textlen = str->length();
+    const jschar *text = str->getChars(cx);
+    if (!text)
+        return false;
 
-    // Steps 7 and 8
-    uint32_t pos = textLen;
+    // XXX fix for moving GC.
+    SkipRoot skip(cx, &text);
+
     if (args.hasDefined(1)) {
-        if (args[1].isInt32()) {
-            int i = args[1].toInt32();
-            pos = (i < 0) ? 0U : uint32_t(i);
-        } else {
-            double d;
-            if (!ToInteger(cx, args[1], &d))
-                return false;
-            pos = uint32_t(Min(Max(d, 0.0), double(UINT32_MAX)));
-        }
+        // Step 5
+        double endPosDouble;
+        if (!ToInteger(cx, args[1], &endPosDouble))
+            return false;
+
+        // Step 6
+        textlen = Min(double(textlen), Max(0.0, endPosDouble));
     }
 
-    // Step 6
-    const jschar *textChars = str->getChars(cx);
-    if (!textChars)
-        return false;
+    // Step 7
+    uint32_t patlen = patstr->length();
+    const jschar *pat = patstr->chars();
 
-    // Step 9
-    uint32_t end = Min(Max(pos, 0U), textLen);
-
-    // Step 10
-    uint32_t searchLen = searchStr->length();
-    const jschar *searchChars = searchStr->chars();
-
-    // Step 12
-    if (searchLen > end) {
-        args.rval().setBoolean(false);
-        return true;
-    }
-
-    // Step 11
-    uint32_t start = end - searchLen;
-
-    // Steps 13 and 14
-    args.rval().setBoolean(PodEqual(textChars + start, searchChars, searchLen));
+    // Steps 8-11
+    args.rval().setBoolean(textlen >= patlen && PodEqual(text + textlen - patlen, pat, patlen));
     return true;
 }
 
@@ -1450,7 +1405,7 @@ static JSBool
 js_TrimString(JSContext *cx, Value *vp, JSBool trimLeft, JSBool trimRight)
 {
     CallReceiver call = CallReceiverFromVp(vp);
-    RootedString str(cx, ThisToStringForStringProto(cx, call));
+    JSString *str = ThisToStringForStringProto(cx, call);
     if (!str)
         return false;
     size_t length = str->length();
@@ -1590,16 +1545,13 @@ class StringRegExpGuard
     }
 
   public:
-    StringRegExpGuard(JSContext *cx)
-      : re_(cx), fm(cx)
-    { }
+    StringRegExpGuard(JSContext *cx) : fm(cx) {}
 
     /* init must succeed in order to call tryFlatMatch or normalizeRegExp. */
     bool init(JSContext *cx, CallArgs args, bool convertVoid = false)
     {
         if (args.length() != 0 && IsObjectWithClass(args[0], ESClass_RegExp, cx)) {
-            RootedObject obj(cx, &args[0].toObject());
-            if (!RegExpToShared(cx, obj, &re_))
+            if (!RegExpToShared(cx, args[0].toObject(), &re_))
                 return false;
         } else {
             if (convertVoid && !args.hasDefined(0)) {
@@ -1611,7 +1563,7 @@ class StringRegExpGuard
             if (!arg)
                 return false;
 
-            fm.patstr = AtomizeString<CanGC>(cx, arg);
+            fm.patstr = AtomizeString(cx, arg);
             if (!fm.patstr)
                 return false;
         }
@@ -1670,14 +1622,14 @@ class StringRegExpGuard
         /* Build RegExp from pattern string. */
         RootedString opt(cx);
         if (optarg < args.length()) {
-            opt = ToString<CanGC>(cx, args[optarg]);
+            opt = ToString(cx, args[optarg]);
             if (!opt)
                 return false;
         } else {
             opt = NULL;
         }
 
-        Rooted<JSAtom *> patstr(cx);
+        JSAtom *patstr;
         if (flat) {
             patstr = flattenPattern(cx, fm.patstr);
             if (!patstr)
@@ -1692,6 +1644,13 @@ class StringRegExpGuard
 
     RegExpShared &regExp() { return *re_; }
 };
+
+/* ExecuteRegExp indicates success in two ways, based on the 'test' flag. */
+static JS_ALWAYS_INLINE bool
+Matched(RegExpExecType type, const Value &v)
+{
+    return (type == RegExpTest) ? v.isTrue() : !v.isNull();
+}
 
 typedef bool (*DoMatchCallback)(JSContext *cx, RegExpStatics *res, size_t count, void *data);
 
@@ -1712,65 +1671,40 @@ enum MatchControlFlags {
 /* Factor out looping and matching logic. */
 static bool
 DoMatch(JSContext *cx, RegExpStatics *res, JSString *str, RegExpShared &re,
-        DoMatchCallback callback, void *data, MatchControlFlags flags, MutableHandleValue rval)
+        DoMatchCallback callback, void *data, MatchControlFlags flags, Value *rval)
 {
-    Rooted<JSLinearString*> linearStr(cx, str->ensureLinear(cx));
-    if (!linearStr)
+    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
+    if (!stableStr)
         return false;
 
-    size_t charsLen = linearStr->length();
-
-    ScopedMatchPairs matches(&cx->tempLifoAlloc());
-
     if (re.global()) {
-        bool isTest = bool(flags & TEST_GLOBAL_BIT);
-        for (size_t count = 0, i = 0; i <= charsLen; ++count) {
+        RegExpExecType type = (flags & TEST_GLOBAL_BIT) ? RegExpTest : RegExpExec;
+        for (size_t count = 0, i = 0, length = str->length(); i <= length; ++count) {
             if (!JS_CHECK_OPERATION_LIMIT(cx))
                 return false;
 
-            RegExpRunStatus status = re.execute(cx, linearStr->chars(), charsLen, &i, matches);
-            if (status == RegExpRunStatus_Error)
-                return false;
+            StableCharPtr chars = stableStr->chars();
+            size_t charsLen = stableStr->length();
 
-            if (status == RegExpRunStatus_Success_NotFound) {
-                rval.setNull();
+            if (!ExecuteRegExp(cx, res, re, stableStr, chars, charsLen, &i, type, rval))
+                return false;
+            if (!Matched(type, *rval))
                 break;
-            }
-
-            res->updateFromMatchPairs(cx, linearStr, matches);
-            if (!isTest && !CreateRegExpMatchResult(cx, linearStr, matches, rval))
-                return false;
-
             if (!callback(cx, res, count, data))
                 return false;
             if (!res->matched())
                 ++i;
         }
     } else {
-        bool isTest = bool(flags & TEST_SINGLE_BIT);
+        StableCharPtr chars = stableStr->chars();
+        size_t charsLen = stableStr->length();
+
+        RegExpExecType type = (flags & TEST_SINGLE_BIT) ? RegExpTest : RegExpExec;
         bool callbackOnSingle = !!(flags & CALLBACK_ON_SINGLE_BIT);
         size_t i = 0;
-
-        RegExpRunStatus status = re.execute(cx, linearStr->chars(), charsLen, &i, matches);
-        if (status == RegExpRunStatus_Error)
+        if (!ExecuteRegExp(cx, res, re, stableStr, chars, charsLen, &i, type, rval))
             return false;
-
-        /* Emulate ExecuteRegExpLegacy() behavior. */
-        if (status == RegExpRunStatus_Success_NotFound) {
-            rval.setNull();
-            return true;
-        }
-
-        res->updateFromMatchPairs(cx, linearStr, matches);
-
-        if (isTest) {
-            rval.setBoolean(true);
-        } else {
-            if (!CreateRegExpMatchResult(cx, linearStr, matches, rval))
-                return false;
-        }
-
-        if (callbackOnSingle && !callback(cx, res, 0, data))
+        if (callbackOnSingle && Matched(type, *rval) && !callback(cx, res, 0, data))
             return false;
     }
     return true;
@@ -1785,7 +1719,7 @@ BuildFlatMatchArray(JSContext *cx, HandleString textstr, const FlatMatch &fm, Ca
     }
 
     /* For this non-global match, produce a RegExp.exec-style array. */
-    RootedObject obj(cx, NewDenseEmptyArray(cx));
+    RootedObject obj(cx, NewSlowEmptyArray(cx));
     if (!obj)
         return false;
 
@@ -1824,7 +1758,7 @@ MatchCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
 
     RootedObject obj(cx, arrayobj);
     RootedValue v(cx);
-    return res->createLastMatch(cx, &v) && JSObject::defineElement(cx, obj, count, v);
+    return res->createLastMatch(cx, v.address()) && JSObject::defineElement(cx, obj, count, v);
 }
 
 JSBool
@@ -1852,7 +1786,7 @@ js::str_match(JSContext *cx, unsigned argc, Value *vp)
     RootedObject array(cx);
     MatchArgType arg = array.address();
     RegExpStatics *res = cx->regExpStatics();
-    RootedValue rval(cx);
+    Value rval;
     if (!DoMatch(cx, res, str, g.regExp(), MatchCallback, arg, MATCH_ARGS, &rval))
         return false;
 
@@ -1885,27 +1819,24 @@ js::str_search(JSContext *cx, unsigned argc, Value *vp)
     if (!g.normalizeRegExp(cx, false, 1, args))
         return false;
 
-    Rooted<JSLinearString*> linearStr(cx, str->ensureLinear(cx));
-    if (!linearStr)
+    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
+    if (!stableStr)
         return false;
 
-    const jschar *chars = linearStr->chars();
-    size_t length = linearStr->length();
+    StableCharPtr chars = stableStr->chars();
+    size_t length = stableStr->length();
     RegExpStatics *res = cx->regExpStatics();
 
     /* Per ECMAv5 15.5.4.12 (5) The last index property is ignored and left unchanged. */
     size_t i = 0;
-    MatchPair match;
-
-    RegExpRunStatus status = g.regExp().executeMatchOnly(cx, chars, length, &i, match);
-    if (status == RegExpRunStatus_Error)
+    Value result;
+    if (!ExecuteRegExp(cx, res, g.regExp(), stableStr, chars, length, &i, RegExpTest, &result))
         return false;
 
-    if (status == RegExpRunStatus_Success)
-        res->updateLazily(cx, linearStr, &g.regExp(), 0);
-
-    JS_ASSERT_IF(status == RegExpRunStatus_Success_NotFound, match.start == -1);
-    args.rval().setInt32(match.start);
+    if (result.isTrue())
+        args.rval().setInt32(res->matchStart());
+    else
+        args.rval().setInt32(-1);
     return true;
 }
 
@@ -1948,13 +1879,13 @@ InterpretDollar(RegExpStatics *res, const jschar *dp, const jschar *ep,
     if (JS7_ISDEC(dc)) {
         /* ECMA-262 Edition 3: 1-9 or 01-99 */
         unsigned num = JS7_UNDEC(dc);
-        if (num > res->getMatches().parenCount())
+        if (num > res->parenCount())
             return false;
 
         const jschar *cp = dp + 2;
         if (cp < ep && (dc = *cp, JS7_ISDEC(dc))) {
             unsigned tmp = 10 * num + JS7_UNDEC(dc);
-            if (tmp <= res->getMatches().parenCount()) {
+            if (tmp <= res->parenCount()) {
                 cp++;
                 num = tmp;
             }
@@ -1964,7 +1895,7 @@ InterpretDollar(RegExpStatics *res, const jschar *dp, const jschar *ep,
 
         *skip = cp - dp;
 
-        JS_ASSERT(num <= res->getMatches().parenCount());
+        JS_ASSERT(num <= res->parenCount());
 
         /*
          * Note: we index to get the paren with the (1-indexed) pair
@@ -2000,7 +1931,8 @@ InterpretDollar(RegExpStatics *res, const jschar *dp, const jschar *ep,
 static bool
 FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t *sizep)
 {
-    if (rdata.elembase) {
+    RootedObject base(cx, rdata.elembase);
+    if (base) {
         /*
          * The base object is used when replace was passed a lambda which looks like
          * 'function(a) { return b[a]; }' for the base object b.  b will not change
@@ -2008,10 +1940,10 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
          * to accessing a scripted getter or a value with a scripted toString.
          */
         JS_ASSERT(rdata.lambda);
-        JS_ASSERT(!rdata.elembase->getOps()->lookupProperty);
-        JS_ASSERT(!rdata.elembase->getOps()->getProperty);
+        JS_ASSERT(!base->getOps()->lookupProperty);
+        JS_ASSERT(!base->getOps()->getProperty);
 
-        RootedValue match(cx);
+        Value match;
         if (!res->createLastMatch(cx, &match))
             return false;
         JSString *str = match.toString();
@@ -2020,13 +1952,13 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
         if (str->isAtom()) {
             atom = &str->asAtom();
         } else {
-            atom = AtomizeString<CanGC>(cx, str);
+            atom = AtomizeString(cx, str);
             if (!atom)
                 return false;
         }
 
-        RootedValue v(cx);
-        if (HasDataProperty(cx, rdata.elembase, AtomToId(atom), v.address()) && v.isString()) {
+        Value v;
+        if (HasDataProperty(cx, base, AtomToId(atom), &v) && v.isString()) {
             rdata.repstr = v.toString()->ensureLinear(cx);
             if (!rdata.repstr)
                 return false;
@@ -2041,8 +1973,7 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
         rdata.elembase = NULL;
     }
 
-    if (rdata.lambda) {
-        RootedObject lambda(cx, rdata.lambda);
+    if (JSObject *lambda = rdata.lambda) {
         PreserveRegExpStatics staticsGuard(cx, res);
         if (!staticsGuard.init(cx))
             return false;
@@ -2055,7 +1986,7 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
          * For $&, etc., we must create string jsvals from cx->regExpStatics.
          * We grab up stack space to keep the newborn strings GC-rooted.
          */
-        unsigned p = res->getMatches().parenCount();
+        unsigned p = res->parenCount();
         unsigned argc = 1 + p + 2;
 
         InvokeArgsGuard &args = rdata.fig.args();
@@ -2067,23 +1998,23 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
 
         /* Push $&, $1, $2, ... */
         unsigned argi = 0;
-        if (!res->createLastMatch(cx, args.handleAt(argi++)))
+        if (!res->createLastMatch(cx, &args[argi++]))
             return false;
 
-        for (size_t i = 0; i < res->getMatches().parenCount(); ++i) {
-            if (!res->createParen(cx, i + 1, args.handleAt(argi++)))
+        for (size_t i = 0; i < res->parenCount(); ++i) {
+            if (!res->createParen(cx, i + 1, &args[argi++]))
                 return false;
         }
 
         /* Push match index and input string. */
-        args[argi++].setInt32(res->getMatches()[0].start);
+        args[argi++].setInt32(res->matchStart());
         args[argi].setString(rdata.str);
 
         if (!rdata.fig.invoke(cx))
             return false;
 
         /* root repstr: rdata is on the stack, so scanned by conservative gc. */
-        JSString *repstr = ToString<CanGC>(cx, args.rval());
+        JSString *repstr = ToString(cx, args.rval());
         if (!repstr)
             return false;
         rdata.repstr = repstr->ensureLinear(cx);
@@ -2094,28 +2025,19 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
     }
 
     JSString *repstr = rdata.repstr;
-    CheckedInt<uint32_t> replen = repstr->length();
+    size_t replen = repstr->length();
     for (const jschar *dp = rdata.dollar, *ep = rdata.dollarEnd; dp;
          dp = js_strchr_limit(dp, '$', ep)) {
         JSSubString sub;
         size_t skip;
         if (InterpretDollar(res, dp, ep, rdata, &sub, &skip)) {
-            if (sub.length > skip)
-                replen += sub.length - skip;
-            else
-                replen -= skip - sub.length;
+            replen += sub.length - skip;
             dp += skip;
         } else {
             dp++;
         }
     }
-
-    if (!replen.isValid()) {
-        js_ReportAllocationOverflow(cx);
-        return false;
-    }
-
-    *sizep = replen.value();
+    *sizep = replen;
     return true;
 }
 
@@ -2157,27 +2079,17 @@ ReplaceRegExpCallback(JSContext *cx, RegExpStatics *res, size_t count, void *p)
 {
     ReplaceData &rdata = *static_cast<ReplaceData *>(p);
 
-    const MatchPair &match = res->getMatches()[0];
-    JS_ASSERT(!match.isUndefined());
-    JS_ASSERT(match.limit >= match.start && match.limit >= 0);
-
     rdata.calledBack = true;
     size_t leftoff = rdata.leftIndex;
-    size_t leftlen = match.start - leftoff;
-    rdata.leftIndex = match.limit;
+    size_t leftlen = res->matchStart() - leftoff;
+    rdata.leftIndex = res->matchLimit();
 
     size_t replen = 0;  /* silence 'unused' warning */
     if (!FindReplaceLength(cx, res, rdata, &replen))
         return false;
 
-    CheckedInt<uint32_t> newlen(rdata.sb.length());
-    newlen += leftlen;
-    newlen += replen;
-    if (!newlen.isValid()) {
-        js_ReportAllocationOverflow(cx);
-        return false;
-    }
-    if (!rdata.sb.reserve(newlen.value()))
+    size_t growth = leftlen + replen;
+    if (!rdata.sb.reserve(rdata.sb.length() + growth))
         return false;
 
     JSLinearString &str = rdata.str->asLinear();  /* flattened for regexp */
@@ -2350,163 +2262,6 @@ BuildDollarReplacement(JSContext *cx, JSString *textstrArg, JSLinearString *reps
     return true;
 }
 
-struct StringRange
-{
-    size_t start;
-    size_t length;
-
-    StringRange(size_t s, size_t l)
-      : start(s), length(l)
-    { }
-};
-
-static inline JSShortString *
-FlattenSubstrings(JSContext *cx, const jschar *chars,
-                  const StringRange *ranges, size_t rangesLen, size_t outputLen)
-{
-    JS_ASSERT(JSShortString::lengthFits(outputLen));
-
-    JSShortString *str = js_NewGCShortString<CanGC>(cx);
-    if (!str)
-        return NULL;
-    jschar *buf = str->init(outputLen);
-
-    size_t pos = 0;
-    for (size_t i = 0; i < rangesLen; i++) {
-        PodCopy(buf + pos, chars + ranges[i].start, ranges[i].length);
-        pos += ranges[i].length;
-    }
-    JS_ASSERT(pos == outputLen);
-
-    buf[outputLen] = 0;
-    return str;
-}
-
-static JSString *
-AppendSubstrings(JSContext *cx, Handle<JSStableString*> stableStr,
-                 const StringRange *ranges, size_t rangesLen)
-{
-    JS_ASSERT(rangesLen);
-
-    /* For single substrings, construct a dependent string. */
-    if (rangesLen == 1)
-        return js_NewDependentString(cx, stableStr, ranges[0].start, ranges[0].length);
-
-    const jschar *chars = stableStr->getChars(cx);
-    if (!chars)
-        return NULL;
-
-    /* Collect substrings into a rope */
-    size_t i = 0;
-    RopeBuilder rope(cx);
-    RootedString part(cx, NULL);
-    while (i < rangesLen) {
-
-        /* Find maximum range that fits in JSShortString */
-        size_t substrLen = 0;
-        size_t end = i;
-        for (; end < rangesLen; end++) {
-            if (substrLen + ranges[end].length > JSShortString::MAX_SHORT_LENGTH)
-                break;
-            substrLen += ranges[end].length;
-        }
-
-        if (i == end) {
-            /* Not even one range fits JSShortString, use DependentString */
-            const StringRange &sr = ranges[i++];
-            part = js_NewDependentString(cx, stableStr, sr.start, sr.length);
-        } else {
-            /* Copy the ranges (linearly) into a JSShortString */
-            part = FlattenSubstrings(cx, chars, ranges + i, end - i, substrLen);
-            i = end;
-        }
-
-        if (!part)
-            return NULL;
-
-        /* Appending to the rope permanently roots the substring. */
-        rope.append(part);
-    }
-
-    return rope.result();
-}
-
-static bool
-str_replace_regexp_remove(JSContext *cx, CallArgs args, HandleString str, RegExpShared &re)
-{
-    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
-    if (!stableStr)
-        return false;
-
-    Vector<StringRange, 16, SystemAllocPolicy> ranges;
-
-    StableCharPtr chars = stableStr->chars();
-    size_t charsLen = stableStr->length();
-
-    MatchPair match;
-    size_t startIndex = 0; /* Index used for iterating through the string. */
-    size_t lastIndex = 0;  /* Index after last successful match. */
-    size_t lazyIndex = 0;  /* Index before last successful match. */
-
-    /* Accumulate StringRanges for unmatched substrings. */
-    while (startIndex <= charsLen) {
-        if (!JS_CHECK_OPERATION_LIMIT(cx))
-            return false;
-
-        RegExpRunStatus status = re.executeMatchOnly(cx, chars.get(), charsLen, &startIndex, match);
-        if (status == RegExpRunStatus_Error)
-            return false;
-        if (status == RegExpRunStatus_Success_NotFound)
-            break;
-
-        /* Include the latest unmatched substring. */
-        if (size_t(match.start) > lastIndex) {
-            if (!ranges.append(StringRange(lastIndex, match.start - lastIndex)))
-                return false;
-        }
-
-        lazyIndex = lastIndex;
-        lastIndex = startIndex;
-
-        if (match.isEmpty())
-            startIndex++;
-
-        /* Non-global removal executes at most once. */
-        if (!re.global())
-            break;
-    }
-
-    /* If unmatched, return the input string. */
-    if (!lastIndex) {
-        if (startIndex > 0)
-            cx->regExpStatics()->updateLazily(cx, stableStr, &re, lazyIndex);
-        args.rval().setString(str);
-        return true;
-    }
-
-    /* The last successful match updates the RegExpStatics. */
-    cx->regExpStatics()->updateLazily(cx, stableStr, &re, lazyIndex);
-
-    /* Include any remaining part of the string. */
-    if (lastIndex < charsLen) {
-        if (!ranges.append(StringRange(lastIndex, charsLen - lastIndex)))
-            return false;
-    }
-
-    /* Handle the empty string before calling .begin(). */
-    if (ranges.empty()) {
-        args.rval().setString(cx->runtime->emptyString);
-        return true;
-    }
-
-    JSString *result = AppendSubstrings(cx, stableStr, ranges.begin(), ranges.length());
-    if (!result)
-        return false;
-
-    args.rval().setString(result);
-    return true;
-}
-
 static inline bool
 str_replace_regexp(JSContext *cx, CallArgs args, ReplaceData &rdata)
 {
@@ -2519,13 +2274,7 @@ str_replace_regexp(JSContext *cx, CallArgs args, ReplaceData &rdata)
     RegExpStatics *res = cx->regExpStatics();
     RegExpShared &re = rdata.g.regExp();
 
-    /* Optimize removal. */
-    if (rdata.repstr && rdata.repstr->length() == 0) {
-        JS_ASSERT(!rdata.lambda && !rdata.elembase && !rdata.dollar);
-        return str_replace_regexp_remove(cx, args, rdata.str, re);
-    }
-
-    RootedValue tmp(cx);
+    Value tmp;
     if (!DoMatch(cx, res, rdata.str, re, ReplaceRegExpCallback, &rdata, REPLACE_ARGS, &tmp))
         return false;
 
@@ -2553,7 +2302,7 @@ str_replace_flat_lambda(JSContext *cx, CallArgs outerArgs, ReplaceData &rdata, c
 {
     JS_ASSERT(fm.match() >= 0);
 
-    RootedString matchStr(cx, js_NewDependentString(cx, rdata.str, fm.match(), fm.patternLength()));
+    JSString *matchStr = js_NewDependentString(cx, rdata.str, fm.match(), fm.patternLength());
     if (!matchStr)
         return false;
 
@@ -2574,7 +2323,7 @@ str_replace_flat_lambda(JSContext *cx, CallArgs outerArgs, ReplaceData &rdata, c
     if (!rdata.fig.invoke(cx))
         return false;
 
-    RootedString repstr(cx, ToString<CanGC>(cx, args.rval()));
+    RootedString repstr(cx, ToString(cx, args.rval()));
     if (!repstr)
         return false;
 
@@ -2611,14 +2360,16 @@ static const uint32_t ReplaceOptArg = 2;
 static JSObject *
 LambdaIsGetElem(JSObject &lambda)
 {
+    AutoAssertNoGC nogc;
+
     if (!lambda.isFunction())
         return NULL;
 
     JSFunction *fun = lambda.toFunction();
-    if (!fun->hasScript())
+    if (!fun->isInterpreted())
         return NULL;
 
-    RawScript script = fun->nonLazyScript();
+    RawScript script = fun->script();
     jsbytecode *pc = script->code;
 
     /*
@@ -2691,9 +2442,11 @@ js::str_replace(JSContext *cx, unsigned argc, Value *vp)
             return false;
 
         /* We're about to store pointers into the middle of our string. */
-        JSLinearString *linear = rdata.repstr;
-        rdata.dollarEnd = linear->chars() + linear->length();
-        rdata.dollar = js_strchr_limit(linear->chars(), '$', rdata.dollarEnd);
+        JSStableString *stable = rdata.repstr->ensureStable(cx);
+        if (!stable)
+            return false;
+        rdata.dollarEnd = stable->chars().get() + stable->length();
+        rdata.dollar = js_strchr_limit(stable->chars().get(), '$', rdata.dollarEnd);
     }
 
     rdata.fig.initFunction(ObjectOrNullValue(rdata.lambda));
@@ -2761,7 +2514,7 @@ class SplitMatchResult {
 
 template<class Matcher>
 static JSObject *
-SplitHelper(JSContext *cx, Handle<JSLinearString*> str, uint32_t limit, const Matcher &splitMatch,
+SplitHelper(JSContext *cx, Handle<JSStableString*> str, uint32_t limit, const Matcher &splitMatch,
             Handle<TypeObject*> type)
 {
     size_t strLength = str->length();
@@ -2852,13 +2605,12 @@ SplitHelper(JSContext *cx, Handle<JSLinearString*> str, uint32_t limit, const Ma
         /* Step 13(c)(iii)(6-7). */
         if (Matcher::returnsCaptures) {
             RegExpStatics *res = cx->regExpStatics();
-            const MatchPairs &matches = res->getMatches();
-            for (size_t i = 0; i < matches.parenCount(); i++) {
+            for (size_t i = 0; i < res->parenCount(); i++) {
                 /* Steps 13(c)(iii)(7)(a-c). */
-                if (!matches[i + 1].isUndefined()) {
+                if (res->pairIsPresent(i + 1)) {
                     JSSubString parsub;
                     res->getParen(i + 1, &parsub);
-                    sub = js_NewStringCopyN<CanGC>(cx, parsub.chars, parsub.length);
+                    sub = js_NewStringCopyN(cx, parsub.chars, parsub.length);
                     if (!sub || !splits.append(StringValue(sub)))
                         return NULL;
                 } else {
@@ -2904,24 +2656,19 @@ class SplitRegExpMatcher
 
     static const bool returnsCaptures = true;
 
-    bool operator()(JSContext *cx, Handle<JSLinearString*> str, size_t index,
+    bool operator()(JSContext *cx, Handle<JSStableString*> str, size_t index,
                     SplitMatchResult *result) const
     {
-        const jschar *chars = str->chars();
+        AssertCanGC();
+        Value rval = UndefinedValue();
+        StableCharPtr chars = str->chars();
         size_t length = str->length();
-
-        ScopedMatchPairs matches(&cx->tempLifoAlloc());
-        RegExpRunStatus status = re.execute(cx, chars, length, &index, matches);
-        if (status == RegExpRunStatus_Error)
+        if (!ExecuteRegExp(cx, res, re, str, chars, length, &index, RegExpTest, &rval))
             return false;
-
-        if (status == RegExpRunStatus_Success_NotFound) {
+        if (!rval.isTrue()) {
             result->setFailure();
             return true;
         }
-
-        res->updateFromMatchPairs(cx, str, matches);
-
         JSSubString sep;
         res->getLastMatch(&sep);
 
@@ -2935,7 +2682,7 @@ class SplitStringMatcher
     Rooted<JSLinearString*> sep;
 
   public:
-    SplitStringMatcher(JSContext *cx, HandleLinearString sep)
+    SplitStringMatcher(JSContext *cx, JSLinearString *sep)
       : sep(cx, sep)
     {}
 
@@ -2943,6 +2690,7 @@ class SplitStringMatcher
 
     bool operator()(JSContext *cx, JSLinearString *str, size_t index, SplitMatchResult *res) const
     {
+        AutoAssertNoGC nogc;
         JS_ASSERT(index == 0 || index < str->length());
         const jschar *chars = str->chars();
         int match = StringMatch(chars + index, str->length() - index,
@@ -2983,13 +2731,12 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
     }
 
     /* Step 8. */
-    RegExpGuard re(cx);
-    RootedLinearString sepstr(cx);
+    RegExpGuard re;
+    JSLinearString *sepstr = NULL;
     bool sepDefined = args.hasDefined(0);
     if (sepDefined) {
         if (IsObjectWithClass(args[0], ESClass_RegExp, cx)) {
-            RootedObject obj(cx, &args[0].toObject());
-            if (!RegExpToShared(cx, obj, &re))
+            if (!RegExpToShared(cx, args[0].toObject(), &re))
                 return false;
         } else {
             sepstr = ArgToRootedString(cx, args, 0);
@@ -3010,26 +2757,26 @@ js::str_split(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 10. */
     if (!sepDefined) {
-        RootedValue v(cx, StringValue(str));
-        JSObject *aobj = NewDenseCopiedArray(cx, 1, v.address());
+        Value v = StringValue(str);
+        JSObject *aobj = NewDenseCopiedArray(cx, 1, &v);
         if (!aobj)
             return false;
         aobj->setType(type);
         args.rval().setObject(*aobj);
         return true;
     }
-    Rooted<JSLinearString*> linearStr(cx, str->ensureLinear(cx));
-    if (!linearStr)
+    Rooted<JSStableString*> stableStr(cx, str->ensureStable(cx));
+    if (!stableStr)
         return false;
 
     /* Steps 11-15. */
-    RootedObject aobj(cx);
+    JSObject *aobj;
     if (!re.initialized()) {
         SplitStringMatcher matcher(cx, sepstr);
-        aobj = SplitHelper(cx, linearStr, limit, matcher, type);
+        aobj = SplitHelper(cx, stableStr, limit, matcher, type);
     } else {
         SplitRegExpMatcher matcher(*re, cx->regExpStatics());
-        aobj = SplitHelper(cx, linearStr, limit, matcher, type);
+        aobj = SplitHelper(cx, stableStr, limit, matcher, type);
     }
     if (!aobj)
         return false;
@@ -3055,8 +2802,8 @@ str_substr(JSContext *cx, unsigned argc, Value *vp)
             return false;
 
         if (begin >= length) {
-            args.rval().setString(cx->runtime->emptyString);
-            return true;
+            str = cx->runtime->emptyString;
+            goto out;
         }
         if (begin < 0) {
             begin += length; /* length + INT_MIN will always be less than 0 */
@@ -3069,8 +2816,8 @@ str_substr(JSContext *cx, unsigned argc, Value *vp)
                 return false;
 
             if (len <= 0) {
-                args.rval().setString(cx->runtime->emptyString);
-                return true;
+                str = cx->runtime->emptyString;
+                goto out;
             }
 
             if (uint32_t(length) < uint32_t(begin + len))
@@ -3084,6 +2831,7 @@ str_substr(JSContext *cx, unsigned argc, Value *vp)
             return false;
     }
 
+out:
     args.rval().setString(str);
     return true;
 }
@@ -3095,29 +2843,18 @@ static JSBool
 str_concat(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    JSString *str = ThisToStringForStringProto(cx, args);
+    RootedString str(cx, ThisToStringForStringProto(cx, args));
     if (!str)
         return false;
 
     for (unsigned i = 0; i < args.length(); i++) {
-        JSString *argStr = ToString<NoGC>(cx, args[i]);
-        if (!argStr) {
-            RootedString strRoot(cx, str);
-            argStr = ToString<CanGC>(cx, args[i]);
-            if (!argStr)
-                return false;
-            str = strRoot;
-        }
+        RootedString argStr(cx, ToString(cx, args[i]));
+        if (!argStr)
+            return false;
 
-        JSString *next = ConcatStrings<NoGC>(cx, str, argStr);
-        if (next) {
-            str = next;
-        } else {
-            RootedString strRoot(cx, str), argStrRoot(cx, argStr);
-            str = ConcatStrings<CanGC>(cx, strRoot, argStrRoot);
-            if (!str)
-                return false;
-        }
+        str = js_ConcatStrings(cx, str, argStr);
+        if (!str)
+            return false;
     }
 
     args.rval().setString(str);
@@ -3130,11 +2867,13 @@ str_slice(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     if (args.length() == 1 && args.thisv().isString() && args[0].isInt32()) {
+        size_t begin, end, length;
+
         JSString *str = args.thisv().toString();
-        size_t begin = args[0].toInt32();
-        size_t end = str->length();
+        begin = args[0].toInt32();
+        end = str->length();
         if (begin <= end) {
-            size_t length = end - begin;
+            length = end - begin;
             if (length == 0) {
                 str = cx->runtime->emptyString;
             } else {
@@ -3198,7 +2937,7 @@ str_slice(JSContext *cx, unsigned argc, Value *vp)
  * HTML composition aids.
  */
 static bool
-tagify(JSContext *cx, const char *begin, HandleLinearString param, const char *end,
+tagify(JSContext *cx, const char *begin, JSLinearString *param, const char *end,
        CallReceiver call)
 {
     JSString *thisstr = ThisToStringForStringProto(cx, call);
@@ -3248,7 +2987,7 @@ tagify(JSContext *cx, const char *begin, HandleLinearString param, const char *e
         }
         sb.infallibleAppend('"');
     }
-
+    
     sb.infallibleAppend('>');
 
     MOZ_ALWAYS_TRUE(sb.append(str));
@@ -3271,7 +3010,7 @@ tagify(JSContext *cx, const char *begin, HandleLinearString param, const char *e
 static JSBool
 tagify_value(JSContext *cx, CallArgs args, const char *begin, const char *end)
 {
-    RootedLinearString param(cx, ArgToRootedString(cx, args, 0));
+    JSLinearString *param = ArgToRootedString(cx, args, 0);
     if (!param)
         return false;
 
@@ -3281,19 +3020,19 @@ tagify_value(JSContext *cx, CallArgs args, const char *begin, const char *end)
 static JSBool
 str_bold(JSContext *cx, unsigned argc, Value *vp)
 {
-    return tagify(cx, "b", NullPtr(), NULL, CallReceiverFromVp(vp));
+    return tagify(cx, "b", NULL, NULL, CallReceiverFromVp(vp));
 }
 
 static JSBool
 str_italics(JSContext *cx, unsigned argc, Value *vp)
 {
-    return tagify(cx, "i", NullPtr(), NULL, CallReceiverFromVp(vp));
+    return tagify(cx, "i", NULL, NULL, CallReceiverFromVp(vp));
 }
 
 static JSBool
 str_fixed(JSContext *cx, unsigned argc, Value *vp)
 {
-    return tagify(cx, "tt", NullPtr(), NULL, CallReceiverFromVp(vp));
+    return tagify(cx, "tt", NULL, NULL, CallReceiverFromVp(vp));
 }
 
 static JSBool
@@ -3323,37 +3062,37 @@ str_anchor(JSContext *cx, unsigned argc, Value *vp)
 static JSBool
 str_strike(JSContext *cx, unsigned argc, Value *vp)
 {
-    return tagify(cx, "strike", NullPtr(), NULL, CallReceiverFromVp(vp));
+    return tagify(cx, "strike", NULL, NULL, CallReceiverFromVp(vp));
 }
 
 static JSBool
 str_small(JSContext *cx, unsigned argc, Value *vp)
 {
-    return tagify(cx, "small", NullPtr(), NULL, CallReceiverFromVp(vp));
+    return tagify(cx, "small", NULL, NULL, CallReceiverFromVp(vp));
 }
 
 static JSBool
 str_big(JSContext *cx, unsigned argc, Value *vp)
 {
-    return tagify(cx, "big", NullPtr(), NULL, CallReceiverFromVp(vp));
+    return tagify(cx, "big", NULL, NULL, CallReceiverFromVp(vp));
 }
 
 static JSBool
 str_blink(JSContext *cx, unsigned argc, Value *vp)
 {
-    return tagify(cx, "blink", NullPtr(), NULL, CallReceiverFromVp(vp));
+    return tagify(cx, "blink", NULL, NULL, CallReceiverFromVp(vp));
 }
 
 static JSBool
 str_sup(JSContext *cx, unsigned argc, Value *vp)
 {
-    return tagify(cx, "sup", NullPtr(), NULL, CallReceiverFromVp(vp));
+    return tagify(cx, "sup", NULL, NULL, CallReceiverFromVp(vp));
 }
 
 static JSBool
 str_sub(JSContext *cx, unsigned argc, Value *vp)
 {
-    return tagify(cx, "sub", NullPtr(), NULL, CallReceiverFromVp(vp));
+    return tagify(cx, "sub", NULL, NULL, CallReceiverFromVp(vp));
 }
 #endif /* JS_HAS_STR_HTML_HELPERS */
 
@@ -3381,11 +3120,7 @@ static JSFunctionSpec string_methods[] = {
     JS_FN("trimRight",         str_trimRight,         0,JSFUN_GENERIC_NATIVE),
     JS_FN("toLocaleLowerCase", str_toLocaleLowerCase, 0,JSFUN_GENERIC_NATIVE),
     JS_FN("toLocaleUpperCase", str_toLocaleUpperCase, 0,JSFUN_GENERIC_NATIVE),
-#if ENABLE_INTL_API
-         {"localeCompare",     {NULL, NULL},          1,0, "String_localeCompare"},
-#else
     JS_FN("localeCompare",     str_localeCompare,     1,JSFUN_GENERIC_NATIVE),
-#endif
 
     /* Perl-ish methods (search is actually Python-esque). */
     JS_FN("match",             str_match,             1,JSFUN_GENERIC_NATIVE),
@@ -3426,7 +3161,7 @@ js_String(JSContext *cx, unsigned argc, Value *vp)
 
     RootedString str(cx);
     if (args.length() > 0) {
-        str = ToString<CanGC>(cx, args[0]);
+        str = ToString(cx, args[0]);
         if (!str)
             return false;
     } else {
@@ -3473,7 +3208,7 @@ js::str_fromCharCode(JSContext *cx, unsigned argc, Value *vp)
         chars[i] = (jschar)code;
     }
     chars[args.length()] = 0;
-    JSString *str = js_NewString<CanGC>(cx, chars, args.length());
+    JSString *str = js_NewString(cx, chars, args.length());
     if (!str) {
         js_free(chars);
         return JS_FALSE;
@@ -3485,22 +3220,16 @@ js::str_fromCharCode(JSContext *cx, unsigned argc, Value *vp)
 
 static JSFunctionSpec string_static_methods[] = {
     JS_FN("fromCharCode", js::str_fromCharCode, 1, 0),
-
-    // This must be at the end because of bug 853075: functions listed after
-    // self-hosted methods aren't available in self-hosted code.
-#if ENABLE_INTL_API
-         {"localeCompare",     {NULL, NULL},          2,0, "String_static_localeCompare"},
-#endif
     JS_FS_END
 };
 
-RawShape
+Shape *
 StringObject::assignInitialShape(JSContext *cx)
 {
     JS_ASSERT(nativeEmpty());
 
-    return addDataProperty(cx, cx->names().length, LENGTH_SLOT,
-                           JSPROP_PERMANENT | JSPROP_READONLY);
+    return addDataProperty(cx, NameToId(cx->names().length),
+                           LENGTH_SLOT, JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
 JSObject *
@@ -3530,6 +3259,12 @@ js_InitStringClass(JSContext *cx, HandleObject obj)
         return NULL;
     }
 
+    /* Capture normal data properties pregenerated for String objects. */
+    TypeObject *type = proto->getNewType(cx);
+    if (!type)
+        return NULL;
+    AddTypeProperty(cx, type, "length", Type::Int32Type());
+
     if (!DefineConstructorAndPrototype(cx, global, JSProto_String, ctor, proto))
         return NULL;
 
@@ -3543,18 +3278,45 @@ js_InitStringClass(JSContext *cx, HandleObject obj)
     return proto;
 }
 
-template <AllowGC allowGC>
 JSStableString *
 js_NewString(JSContext *cx, jschar *chars, size_t length)
 {
-    return JSStableString::new_<allowGC>(cx, chars, length);
+    JSStableString *s = JSStableString::new_(cx, chars, length);
+    if (s)
+        Probes::createString(cx, s, length);
+    return s;
 }
 
-template JSStableString *
-js_NewString<CanGC>(JSContext *cx, jschar *chars, size_t length);
+static JSInlineString *
+NewShortString(JSContext *cx, const char *chars, size_t length)
+{
+    JS_ASSERT(JSShortString::lengthFits(length));
+    JSInlineString *str = JSInlineString::lengthFits(length)
+                          ? JSInlineString::new_(cx)
+                          : JSShortString::new_(cx);
+    if (!str)
+        return NULL;
 
-template JSStableString *
-js_NewString<NoGC>(JSContext *cx, jschar *chars, size_t length);
+    jschar *storage = str->init(length);
+    if (js_CStringsAreUTF8) {
+#ifdef DEBUG
+        size_t oldLength = length;
+#endif
+        if (!InflateUTF8StringToBuffer(cx, chars, length, storage, &length))
+            return NULL;
+        JS_ASSERT(length <= oldLength);
+        storage[length] = 0;
+        str->resetLength(length);
+    } else {
+        size_t n = length;
+        jschar *p = storage;
+        while (n--)
+            *p++ = (unsigned char)*chars++;
+        *p = 0;
+    }
+    Probes::createString(cx, str, length);
+    return str;
+}
 
 JSLinearString *
 js_NewDependentString(JSContext *cx, JSString *baseArg, size_t start, size_t length)
@@ -3574,110 +3336,81 @@ js_NewDependentString(JSContext *cx, JSString *baseArg, size_t start, size_t len
     if (JSLinearString *staticStr = cx->runtime->staticStrings.lookup(chars, length))
         return staticStr;
 
-    return JSDependentString::new_(cx, base, chars, length);
+    JSLinearString *s = JSDependentString::new_(cx, base, chars, length);
+    Probes::createString(cx, s, length);
+    return s;
 }
 
-template <AllowGC allowGC>
 JSFlatString *
 js_NewStringCopyN(JSContext *cx, const jschar *s, size_t n)
 {
     if (JSShortString::lengthFits(n))
-        return NewShortString<allowGC>(cx, TwoByteChars(s, n));
+        return NewShortString(cx, s, n);
 
     jschar *news = cx->pod_malloc<jschar>(n + 1);
     if (!news)
         return NULL;
     js_strncpy(news, s, n);
     news[n] = 0;
-    JSFlatString *str = js_NewString<allowGC>(cx, news, n);
+    JSFlatString *str = js_NewString(cx, news, n);
     if (!str)
         js_free(news);
     return str;
 }
 
-template JSFlatString *
-js_NewStringCopyN<CanGC>(JSContext *cx, const jschar *s, size_t n);
-
-template JSFlatString *
-js_NewStringCopyN<NoGC>(JSContext *cx, const jschar *s, size_t n);
-
-template <AllowGC allowGC>
 JSFlatString *
 js_NewStringCopyN(JSContext *cx, const char *s, size_t n)
 {
     if (JSShortString::lengthFits(n))
-        return NewShortString<allowGC>(cx, JS::Latin1Chars(s, n));
+        return NewShortString(cx, s, n);
 
     jschar *chars = InflateString(cx, s, &n);
     if (!chars)
         return NULL;
-    JSFlatString *str = js_NewString<allowGC>(cx, chars, n);
+    JSFlatString *str = js_NewString(cx, chars, n);
     if (!str)
         js_free(chars);
     return str;
 }
 
-template JSFlatString *
-js_NewStringCopyN<CanGC>(JSContext *cx, const char *s, size_t n);
-
-template JSFlatString *
-js_NewStringCopyN<NoGC>(JSContext *cx, const char *s, size_t n);
-
-template <AllowGC allowGC>
 JSFlatString *
 js_NewStringCopyZ(JSContext *cx, const jschar *s)
 {
     size_t n = js_strlen(s);
     if (JSShortString::lengthFits(n))
-        return NewShortString<allowGC>(cx, TwoByteChars(s, n));
+        return NewShortString(cx, s, n);
 
     size_t m = (n + 1) * sizeof(jschar);
     jschar *news = (jschar *) cx->malloc_(m);
     if (!news)
         return NULL;
     js_memcpy(news, s, m);
-    JSFlatString *str = js_NewString<allowGC>(cx, news, n);
+    JSFlatString *str = js_NewString(cx, news, n);
     if (!str)
         js_free(news);
     return str;
 }
 
-template JSFlatString *
-js_NewStringCopyZ<CanGC>(JSContext *cx, const jschar *s);
-
-template JSFlatString *
-js_NewStringCopyZ<NoGC>(JSContext *cx, const jschar *s);
-
-template <AllowGC allowGC>
 JSFlatString *
 js_NewStringCopyZ(JSContext *cx, const char *s)
 {
-    return js_NewStringCopyN<allowGC>(cx, s, strlen(s));
+    return js_NewStringCopyN(cx, s, strlen(s));
 }
-
-template JSFlatString *
-js_NewStringCopyZ<CanGC>(JSContext *cx, const char *s);
-
-template JSFlatString *
-js_NewStringCopyZ<NoGC>(JSContext *cx, const char *s);
 
 const char *
 js_ValueToPrintable(JSContext *cx, const Value &v, JSAutoByteString *bytes, bool asSource)
 {
     JSString *str;
-    if (asSource)
-        str = ValueToSource(cx, v);
-    else
-        str = ToString<CanGC>(cx, v);
+
+    str = (asSource ? js_ValueToSource : ToString)(cx, v);
     if (!str)
         return NULL;
     str = js_QuoteString(cx, str, 0);
     if (!str)
         return NULL;
-    return bytes->encodeLatin1(cx, str);
+    return bytes->encode(cx, str);
 }
 
-template <AllowGC allowGC>
 JSString *
 js::ToStringSlow(JSContext *cx, const Value &arg)
 {
@@ -3685,22 +3418,16 @@ js::ToStringSlow(JSContext *cx, const Value &arg)
     JS_ASSERT(!arg.isString());
 
     Value v = arg;
-    if (!v.isPrimitive()) {
-        if (!allowGC)
-            return NULL;
-        RootedValue v2(cx, v);
-        if (!ToPrimitive(cx, JSTYPE_STRING, &v2))
-            return NULL;
-        v = v2;
-    }
+    if (!ToPrimitive(cx, JSTYPE_STRING, &v))
+        return NULL;
 
     JSString *str;
     if (v.isString()) {
         str = v.toString();
     } else if (v.isInt32()) {
-        str = Int32ToString<allowGC>(cx, v.toInt32());
+        str = Int32ToString(cx, v.toInt32());
     } else if (v.isDouble()) {
-        str = js_NumberToString<allowGC>(cx, v.toDouble());
+        str = js_NumberToString(cx, v.toDouble());
     } else if (v.isBoolean()) {
         str = js_BooleanToString(cx, v.toBoolean());
     } else if (v.isNull()) {
@@ -3711,17 +3438,10 @@ js::ToStringSlow(JSContext *cx, const Value &arg)
     return str;
 }
 
-template JSString *
-js::ToStringSlow<CanGC>(JSContext *cx, const Value &arg);
-
-template JSString *
-js::ToStringSlow<NoGC>(JSContext *cx, const Value &arg);
-
-JSString *
-js::ValueToSource(JSContext *cx, const Value &v)
+JS_FRIEND_API(JSString *)
+js_ValueToSource(JSContext *cx, const Value &v)
 {
     JS_CHECK_RECURSION(cx, return NULL);
-    assertSameCompartment(cx, v);
 
     if (v.isUndefined())
         return cx->names().void0;
@@ -3733,27 +3453,29 @@ js::ValueToSource(JSContext *cx, const Value &v)
             /* NB: _ucNstr rather than _ucstr to indicate non-terminated. */
             static const jschar js_negzero_ucNstr[] = {'-', '0'};
 
-            return js_NewStringCopyN<CanGC>(cx, js_negzero_ucNstr, 2);
+            return js_NewStringCopyN(cx, js_negzero_ucNstr, 2);
         }
-        return ToString<CanGC>(cx, v);
+        return ToString(cx, v);
     }
 
-    RootedValue rval(cx, NullValue());
+    Value rval = NullValue();
     RootedValue fval(cx);
     RootedId id(cx, NameToId(cx->names().toSource));
     Rooted<JSObject*> obj(cx, &v.toObject());
     if (!GetMethod(cx, obj, id, 0, &fval))
         return NULL;
     if (js_IsCallable(fval)) {
-        if (!Invoke(cx, ObjectValue(*obj), fval, 0, NULL, rval.address()))
+        if (!Invoke(cx, ObjectValue(*obj), fval, 0, NULL, &rval))
             return NULL;
     }
 
-    return ToString<CanGC>(cx, rval);
+    return ToString(cx, rval);
 }
 
+namespace js {
+
 bool
-js::EqualStrings(JSContext *cx, JSString *str1, JSString *str2, bool *result)
+EqualStrings(JSContext *cx, JSString *str1, JSString *str2, bool *result)
 {
     if (str1 == str2) {
         *result = true;
@@ -3778,7 +3500,7 @@ js::EqualStrings(JSContext *cx, JSString *str1, JSString *str2, bool *result)
 }
 
 bool
-js::EqualStrings(JSLinearString *str1, JSLinearString *str2)
+EqualStrings(JSLinearString *str1, JSLinearString *str2)
 {
     if (str1 == str2)
         return true;
@@ -3789,6 +3511,10 @@ js::EqualStrings(JSLinearString *str1, JSLinearString *str2)
 
     return PodEqual(str1->chars(), str2->chars(), length1);
 }
+
+}  /* namespace js */
+
+namespace js {
 
 static bool
 CompareStringsImpl(JSContext *cx, JSString *str1, JSString *str2, int32_t *result)
@@ -3813,13 +3539,17 @@ CompareStringsImpl(JSContext *cx, JSString *str1, JSString *str2, int32_t *resul
 }
 
 bool
-js::CompareStrings(JSContext *cx, JSString *str1, JSString *str2, int32_t *result)
+CompareStrings(JSContext *cx, JSString *str1, JSString *str2, int32_t *result)
 {
     return CompareStringsImpl(cx, str1, str2, result);
 }
 
+}  /* namespace js */
+
+namespace js {
+
 bool
-js::StringEqualsAscii(JSLinearString *str, const char *asciiBytes)
+StringEqualsAscii(JSLinearString *str, const char *asciiBytes)
 {
     size_t length = strlen(asciiBytes);
 #ifdef DEBUG
@@ -3835,6 +3565,8 @@ js::StringEqualsAscii(JSLinearString *str, const char *asciiBytes)
     }
     return true;
 }
+
+} /* namespacejs */
 
 size_t
 js_strlen(const jschar *s)
@@ -3880,35 +3612,12 @@ js_strchr_limit(const jschar *s, jschar c, const jschar *limit)
     return NULL;
 }
 
-jschar *
-js::InflateString(JSContext *cx, const char *bytes, size_t *lengthp)
-{
-    size_t nchars;
-    jschar *chars;
-    size_t nbytes = *lengthp;
-
-    nchars = nbytes;
-    chars = cx->pod_malloc<jschar>(nchars + 1);
-    if (!chars)
-        goto bad;
-    for (size_t i = 0; i < nchars; i++)
-        chars[i] = (unsigned char) bytes[i];
-    *lengthp = nchars;
-    chars[nchars] = 0;
-    return chars;
-
-  bad:
-    /*
-     * For compatibility with callers of JS_DecodeBytes we must zero lengthp
-     * on errors.
-     */
-    *lengthp = 0;
-    return NULL;
-}
+namespace js {
 
 jschar *
-js::InflateUTF8String(JSContext *cx, const char *bytes, size_t *lengthp)
+InflateString(JSContext *cx, const char *bytes, size_t *lengthp, FlationCoding fc)
 {
+    AssertCanGC();
     size_t nchars;
     jschar *chars;
     size_t nbytes = *lengthp;
@@ -3916,12 +3625,21 @@ js::InflateUTF8String(JSContext *cx, const char *bytes, size_t *lengthp)
     // Malformed UTF8 chars could trigger errors and hence GC
     MaybeCheckStackRoots(cx);
 
-    if (!InflateUTF8StringToBuffer(cx, bytes, nbytes, NULL, &nchars))
-        goto bad;
-    chars = cx->pod_malloc<jschar>(nchars + 1);
-    if (!chars)
-        goto bad;
-    JS_ALWAYS_TRUE(InflateUTF8StringToBuffer(cx, bytes, nbytes, chars, &nchars));
+    if (js_CStringsAreUTF8 || fc == CESU8Encoding) {
+        if (!InflateUTF8StringToBuffer(cx, bytes, nbytes, NULL, &nchars, fc))
+            goto bad;
+        chars = cx->pod_malloc<jschar>(nchars + 1);
+        if (!chars)
+            goto bad;
+        JS_ALWAYS_TRUE(InflateUTF8StringToBuffer(cx, bytes, nbytes, chars, &nchars, fc));
+    } else {
+        nchars = nbytes;
+        chars = cx->pod_malloc<jschar>(nchars + 1);
+        if (!chars)
+            goto bad;
+        for (size_t i = 0; i < nchars; i++)
+            chars[i] = (unsigned char) bytes[i];
+    }
     *lengthp = nchars;
     chars[nchars] = 0;
     return chars;
@@ -3935,131 +3653,173 @@ js::InflateUTF8String(JSContext *cx, const char *bytes, size_t *lengthp)
     return NULL;
 }
 
-bool
-js::DeflateStringToBuffer(JSContext *maybecx, const jschar *src, size_t srclen,
-                          char *dst, size_t *dstlenp)
+/*
+ * May be called with null cx.
+ */
+char *
+DeflateString(JSContext *cx, const jschar *chars, size_t nchars)
 {
-    size_t dstlen = *dstlenp;
-    if (srclen > dstlen) {
-        for (size_t i = 0; i < dstlen; i++)
-            dst[i] = (char) src[i];
-        if (maybecx) {
-            AutoSuppressGC suppress(maybecx);
-            JS_ReportErrorNumber(maybecx, js_GetErrorMessage, NULL,
-                                 JSMSG_BUFFER_TOO_SMALL);
-        }
-        return JS_FALSE;
+    size_t nbytes, i;
+    char *bytes;
+
+    if (js_CStringsAreUTF8) {
+        nbytes = GetDeflatedStringLength(cx, chars, nchars);
+        if (nbytes == (size_t) -1)
+            return NULL;
+        bytes = (char *) (cx ? cx->malloc_(nbytes + 1) : js_malloc(nbytes + 1));
+        if (!bytes)
+            return NULL;
+        JS_ALWAYS_TRUE(DeflateStringToBuffer(cx, chars, nchars, bytes, &nbytes));
+    } else {
+        nbytes = nchars;
+        bytes = (char *) (cx ? cx->malloc_(nbytes + 1) : js_malloc(nbytes + 1));
+        if (!bytes)
+            return NULL;
+        for (i = 0; i < nbytes; i++)
+            bytes[i] = (char) chars[i];
     }
-    for (size_t i = 0; i < srclen; i++)
-        dst[i] = (char) src[i];
-    *dstlenp = srclen;
-    return JS_TRUE;
+    bytes[nbytes] = 0;
+    return bytes;
+}
+
+size_t
+GetDeflatedStringLength(JSContext *cx, const jschar *chars, size_t nchars)
+{
+    if (!js_CStringsAreUTF8)
+        return nchars;
+
+    return GetDeflatedUTF8StringLength(cx, chars, nchars);
+}
+
+/*
+ * May be called with null cx through public API, see below.
+ */
+size_t
+GetDeflatedUTF8StringLength(JSContext *cx, const jschar *chars,
+                                size_t nchars, FlationCoding fc)
+{
+    size_t nbytes;
+    const jschar *end;
+    unsigned c, c2;
+    char buffer[10];
+    bool useCESU8 = fc == CESU8Encoding;
+
+    nbytes = nchars;
+    for (end = chars + nchars; chars != end; chars++) {
+        c = *chars;
+        if (c < 0x80)
+            continue;
+        if (0xD800 <= c && c <= 0xDFFF && !useCESU8) {
+            /* Surrogate pair. */
+            chars++;
+
+            /* nbytes sets 1 length since this is surrogate pair. */
+            nbytes--;
+            if (c >= 0xDC00 || chars == end)
+                goto bad_surrogate;
+            c2 = *chars;
+            if (c2 < 0xDC00 || c2 > 0xDFFF)
+                goto bad_surrogate;
+            c = ((c - 0xD800) << 10) + (c2 - 0xDC00) + 0x10000;
+        }
+        c >>= 11;
+        nbytes++;
+        while (c) {
+            c >>= 5;
+            nbytes++;
+        }
+    }
+    return nbytes;
+
+  bad_surrogate:
+    if (cx) {
+        JS_snprintf(buffer, 10, "0x%x", c);
+        JS_ReportErrorFlagsAndNumber(cx, JSREPORT_ERROR, js_GetErrorMessage,
+                                     NULL, JSMSG_BAD_SURROGATE_CHAR, buffer);
+    }
+    return (size_t) -1;
 }
 
 bool
-js::InflateStringToBuffer(JSContext *maybecx, const char *src, size_t srclen,
-                          jschar *dst, size_t *dstlenp)
+DeflateStringToBuffer(JSContext *cx, const jschar *src, size_t srclen,
+                          char *dst, size_t *dstlenp)
 {
-    if (dst) {
-        size_t dstlen = *dstlenp;
+    size_t dstlen, i;
+
+    dstlen = *dstlenp;
+    if (!js_CStringsAreUTF8) {
         if (srclen > dstlen) {
-            for (size_t i = 0; i < dstlen; i++)
-                dst[i] = (unsigned char) src[i];
-            if (maybecx) {
-                AutoSuppressGC suppress(maybecx);
-                JS_ReportErrorNumber(maybecx, js_GetErrorMessage, NULL,
+            for (i = 0; i < dstlen; i++)
+                dst[i] = (char) src[i];
+            if (cx) {
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                      JSMSG_BUFFER_TOO_SMALL);
             }
             return JS_FALSE;
         }
-        for (size_t i = 0; i < srclen; i++)
-            dst[i] = (unsigned char) src[i];
+        for (i = 0; i < srclen; i++)
+            dst[i] = (char) src[i];
+        *dstlenp = srclen;
+        return JS_TRUE;
     }
-    *dstlenp = srclen;
-    return JS_TRUE;
+
+    return DeflateStringToUTF8Buffer(cx, src, srclen, dst, dstlenp);
 }
 
 bool
-js::InflateUTF8StringToBufferReplaceInvalid(JSContext *cx, const char *src,
-                                            size_t srclen, jschar *dst,
-                                            size_t *dstlenp)
+DeflateStringToUTF8Buffer(JSContext *cx, const jschar *src, size_t srclen,
+                              char *dst, size_t *dstlenp, FlationCoding fc)
 {
-    mozilla::Maybe<AutoSuppressGC> suppress;
-    if (cx)
-        suppress.construct(cx);
-
-    size_t dstlen, origDstlen, offset, j, n;
+    size_t i, utf8Len;
+    jschar c, c2;
     uint32_t v;
+    uint8_t utf8buf[6];
 
-    dstlen = dst ? *dstlenp : (size_t) -1;
-    origDstlen = dstlen;
-    offset = 0;
+    bool useCESU8 = fc == CESU8Encoding;
+    size_t dstlen = *dstlenp;
+    size_t origDstlen = dstlen;
 
     while (srclen) {
-        v = (uint8_t) *src;
-        n = 1;
-        if (v & 0x80) {
-            while (v & (0x80 >> n))
-                n++;
-            if (n > srclen || n == 1 || n > 4) {
-                /* Incorrect length for decoding. */
-                v = REPLACE_UTF8;
-                n = 1;
-                goto appendCharacter;
-            }
-
-            /*
-             * Check for invalid second byte.
-             *
-             * @From Unicode Standard v6.2, Table 3-7 Well-Formed UTF-8 Byte Sequences.
-             */
-            if ((v == 0xE0 && ((uint8_t)src[1] & 0xE0) != 0xA0) ||  // E0 A0~BF
-                (v == 0xED && ((uint8_t)src[1] & 0xE0) != 0x80) ||  // ED 80~9F
-                (v == 0xF0 && ((uint8_t)src[1] & 0xF0) == 0x80) ||  // F0 90~BF
-                (v == 0xF4 && ((uint8_t)src[1] & 0xF0) != 0x80))    // F4 80~8F
-            {
-                v = REPLACE_UTF8;
-                n = 1;
-                goto appendCharacter;
-            }
-
-            for (j = 1; j < n; j++) {
-                if ((src[j] & 0xC0) != 0x80) {
-                    /* Invalid sub-sequence. */
-                    v = REPLACE_UTF8;
-                    n = j;
-                    goto appendCharacter;
-                }
-            }
-
-            v = Utf8ToOneUcs4Char((uint8_t *)src, n);
-            if (v >= 0x10000) {
-                v -= 0x10000;
-                if (v > 0xFFFFF || dstlen < 2) {
-                    /* Incorrect code point. */
-                    v = REPLACE_UTF8;
-                    n = 1;
-                    goto appendCharacter;
-                }
-                if (dst) {
-                    *dst++ = (jschar)((v >> 10) + 0xD800);
-                    v = (jschar)((v & 0x3FF) + 0xDC00);
-                }
-                dstlen--;
-            }
+        c = *src++;
+        srclen--;
+        if ((c >= 0xDC00) && (c <= 0xDFFF) && !useCESU8)
+            goto badSurrogate;
+        if (c < 0xD800 || c > 0xDBFF || useCESU8) {
+            v = c;
+        } else {
+            if (srclen < 1)
+                goto badSurrogate;
+            c2 = *src;
+            if ((c2 < 0xDC00) || (c2 > 0xDFFF))
+                goto badSurrogate;
+            src++;
+            srclen--;
+            v = ((c - 0xD800) << 10) + (c2 - 0xDC00) + 0x10000;
         }
-appendCharacter:
-        if (!dstlen)
-            goto bufferTooSmall;
-        if (dst)
-            *dst++ = (jschar) v;
-        dstlen--;
-        offset += n;
-        src += n;
-        srclen -= n;
+        if (v < 0x0080) {
+            /* no encoding necessary - performance hack */
+            if (dstlen == 0)
+                goto bufferTooSmall;
+            *dst++ = (char) v;
+            utf8Len = 1;
+        } else {
+            utf8Len = js_OneUcs4ToUtf8Char(utf8buf, v);
+            if (utf8Len > dstlen)
+                goto bufferTooSmall;
+            for (i = 0; i < utf8Len; i++)
+                *dst++ = (char) utf8buf[i];
+        }
+        dstlen -= utf8Len;
     }
     *dstlenp = (origDstlen - dstlen);
-    return true;
+    return JS_TRUE;
+
+badSurrogate:
+    *dstlenp = (origDstlen - dstlen);
+    /* Delegate error reporting to the measurement function. */
+    if (cx)
+        GetDeflatedStringLength(cx, src - 1, srclen + 1);
+    return JS_FALSE;
 
 bufferTooSmall:
     *dstlenp = (origDstlen - dstlen);
@@ -4067,23 +3827,47 @@ bufferTooSmall:
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                              JSMSG_BUFFER_TOO_SMALL);
     }
-    return false;
+    return JS_FALSE;
 }
 
 bool
-js::InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
-                              jschar *dst, size_t *dstlenp)
+InflateStringToBuffer(JSContext *cx, const char *src, size_t srclen,
+                          jschar *dst, size_t *dstlenp)
 {
-    mozilla::Maybe<AutoSuppressGC> suppress;
-    if (cx)
-        suppress.construct(cx);
+    size_t dstlen, i;
 
+    if (js_CStringsAreUTF8)
+        return InflateUTF8StringToBuffer(cx, src, srclen, dst, dstlenp);
+
+    if (dst) {
+        dstlen = *dstlenp;
+        if (srclen > dstlen) {
+            for (i = 0; i < dstlen; i++)
+                dst[i] = (unsigned char) src[i];
+            if (cx) {
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                     JSMSG_BUFFER_TOO_SMALL);
+            }
+            return JS_FALSE;
+        }
+        for (i = 0; i < srclen; i++)
+            dst[i] = (unsigned char) src[i];
+    }
+    *dstlenp = srclen;
+    return JS_TRUE;
+}
+
+bool
+InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
+                              jschar *dst, size_t *dstlenp, FlationCoding fc)
+{
     size_t dstlen, origDstlen, offset, j, n;
     uint32_t v;
 
     dstlen = dst ? *dstlenp : (size_t) -1;
     origDstlen = dstlen;
     offset = 0;
+    bool useCESU8 = fc == CESU8Encoding;
 
     while (srclen) {
         v = (uint8_t) *src;
@@ -4100,7 +3884,7 @@ js::InflateUTF8StringToBuffer(JSContext *cx, const char *src, size_t srclen,
                     goto badCharacter;
             }
             v = Utf8ToOneUcs4Char((uint8_t *)src, n);
-            if (v >= 0x10000) {
+            if (v >= 0x10000 && !useCESU8) {
                 v -= 0x10000;
                 if (v > 0xFFFFF || dstlen < 2) {
                     *dstlenp = (origDstlen - dstlen);
@@ -4154,6 +3938,8 @@ bufferTooSmall:
     }
     return JS_FALSE;
 }
+
+} /* namepsace js */
 
 const jschar js_uriReservedPlusPound_ucstr[] =
     {';', '/', '?', ':', '@', '&', '=', '+', '$', ',', '#', 0};
@@ -4239,12 +4025,12 @@ const bool js_isspace[] = {
 #define URI_CHUNK 64U
 
 static inline bool
-TransferBufferToString(StringBuffer &sb, MutableHandleValue rval)
+TransferBufferToString(StringBuffer &sb, Value *rval)
 {
-    RawString str = sb.finishString();
+    JSString *str = sb.finishString();
     if (!str)
         return false;
-    rval.setString(str);
+    rval->setString(str);
     return true;
 }
 
@@ -4255,19 +4041,22 @@ TransferBufferToString(StringBuffer &sb, MutableHandleValue rval)
  * given in the ECMA specification for the hidden functions
  * 'Encode' and 'Decode'.
  */
-static bool
-Encode(JSContext *cx, Handle<JSLinearString*> str, const jschar *unescapedSet,
-       const jschar *unescapedSet2, MutableHandleValue rval)
+static JSBool
+Encode(JSContext *cx, JSString *str, const jschar *unescapedSet,
+       const jschar *unescapedSet2, Value *rval)
 {
     static const char HexDigits[] = "0123456789ABCDEF"; /* NB: uppercase */
 
     size_t length = str->length();
+    const jschar *chars = str->getChars(cx);
+    if (!chars)
+        return JS_FALSE;
+
     if (length == 0) {
-        rval.setString(cx->runtime->emptyString);
-        return true;
+        rval->setString(cx->runtime->emptyString);
+        return JS_TRUE;
     }
 
-    const jschar *chars = str->chars();
     StringBuffer sb(cx);
     jschar hexBuf[4];
     hexBuf[0] = '%';
@@ -4277,12 +4066,12 @@ Encode(JSContext *cx, Handle<JSLinearString*> str, const jschar *unescapedSet,
         if (js_strchr(unescapedSet, c) ||
             (unescapedSet2 && js_strchr(unescapedSet2, c))) {
             if (!sb.append(c))
-                return false;
+                return JS_FALSE;
         } else {
             if ((c >= 0xDC00) && (c <= 0xDFFF)) {
                 JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                  JSMSG_BAD_URI, NULL);
-                return false;
+                return JS_FALSE;
             }
             uint32_t v;
             if (c < 0xD800 || c > 0xDBFF) {
@@ -4292,13 +4081,13 @@ Encode(JSContext *cx, Handle<JSLinearString*> str, const jschar *unescapedSet,
                 if (k == length) {
                     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                      JSMSG_BAD_URI, NULL);
-                    return false;
+                    return JS_FALSE;
                 }
                 jschar c2 = chars[k];
                 if ((c2 < 0xDC00) || (c2 > 0xDFFF)) {
                     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
                                      JSMSG_BAD_URI, NULL);
-                    return false;
+                    return JS_FALSE;
                 }
                 v = ((c - 0xD800) << 10) + (c2 - 0xDC00) + 0x10000;
             }
@@ -4308,7 +4097,7 @@ Encode(JSContext *cx, Handle<JSLinearString*> str, const jschar *unescapedSet,
                 hexBuf[1] = HexDigits[utf8buf[j] >> 4];
                 hexBuf[2] = HexDigits[utf8buf[j] & 0xf];
                 if (!sb.append(hexBuf, 3))
-                    return false;
+                    return JS_FALSE;
             }
         }
     }
@@ -4316,16 +4105,19 @@ Encode(JSContext *cx, Handle<JSLinearString*> str, const jschar *unescapedSet,
     return TransferBufferToString(sb, rval);
 }
 
-static bool
-Decode(JSContext *cx, Handle<JSLinearString*> str, const jschar *reservedSet, MutableHandleValue rval)
+static JSBool
+Decode(JSContext *cx, JSString *str, const jschar *reservedSet, Value *rval)
 {
     size_t length = str->length();
+    const jschar *chars = str->getChars(cx);
+    if (!chars)
+        return JS_FALSE;
+
     if (length == 0) {
-        rval.setString(cx->runtime->emptyString);
-        return true;
+        rval->setString(cx->runtime->emptyString);
+        return JS_TRUE;
     }
 
-    const jschar *chars = str->chars();
     StringBuffer sb(cx);
     for (size_t k = 0; k < length; k++) {
         jschar c = chars[k];
@@ -4393,51 +4185,71 @@ Decode(JSContext *cx, Handle<JSLinearString*> str, const jschar *reservedSet, Mu
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_URI);
     /* FALL THROUGH */
 
-    return false;
+    return JS_FALSE;
 }
 
 static JSBool
 str_decodeURI(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    Rooted<JSLinearString*> str(cx, ArgToRootedString(cx, args, 0));
+    JSLinearString *str = ArgToRootedString(cx, args, 0);
     if (!str)
         return false;
 
-    return Decode(cx, str, js_uriReservedPlusPound_ucstr, args.rval());
+    Value result;
+    if (!Decode(cx, str, js_uriReservedPlusPound_ucstr, &result))
+        return false;
+
+    args.rval().set(result);
+    return true;
 }
 
 static JSBool
 str_decodeURI_Component(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    Rooted<JSLinearString*> str(cx, ArgToRootedString(cx, args, 0));
+    JSLinearString *str = ArgToRootedString(cx, args, 0);
     if (!str)
         return false;
 
-    return Decode(cx, str, js_empty_ucstr, args.rval());
+    Value result;
+    if (!Decode(cx, str, js_empty_ucstr, &result))
+        return false;
+
+    args.rval().set(result);
+    return true;
 }
 
 static JSBool
 str_encodeURI(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    Rooted<JSLinearString*> str(cx, ArgToRootedString(cx, args, 0));
+    JSLinearString *str = ArgToRootedString(cx, args, 0);
     if (!str)
         return false;
 
-    return Encode(cx, str, js_uriReservedPlusPound_ucstr, js_uriUnescaped_ucstr, args.rval());
+    Value result;
+    if (!Encode(cx, str, js_uriReservedPlusPound_ucstr, js_uriUnescaped_ucstr, &result))
+        return false;
+
+    args.rval().set(result);
+    return true;
 }
 
 static JSBool
 str_encodeURI_Component(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    Rooted<JSLinearString*> str(cx, ArgToRootedString(cx, args, 0));
+    JSLinearString *str = ArgToRootedString(cx, args, 0);
     if (!str)
         return false;
 
-    return Encode(cx, str, js_uriUnescaped_ucstr, NULL, args.rval());
+    Value result;
+    if (!Encode(cx, str, js_uriUnescaped_ucstr, NULL, &result))
+        return false;
+
+    args.rval().set(result);
+    return true;
 }
 
 /*
@@ -4503,9 +4315,10 @@ Utf8ToOneUcs4Char(const uint8_t *utf8Buffer, int utf8Length)
     return ucs4Char;
 }
 
+namespace js {
+
 size_t
-js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, JSLinearString *str,
-                         uint32_t quote)
+PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, JSLinearString *str, uint32_t quote)
 {
     enum {
         STOP, FIRST_QUOTE, LAST_QUOTE, CHARS, ESCAPE_START, ESCAPE_MORE
@@ -4614,3 +4427,5 @@ js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, JSLinearStri
         buffer[n] = '\0';
     return n;
 }
+
+} /* namespace js */

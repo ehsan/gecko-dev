@@ -13,7 +13,7 @@
 #include "nsIDocShell.h"
 #include "nsReadableUtils.h"
 #include "nsDOMClassInfoID.h"
-#include "nsView.h"
+#include "nsIView.h"
 #ifdef MOZ_XUL
 #include "nsIDOMXULElement.h"
 #else
@@ -31,6 +31,8 @@ using namespace mozilla::dom;
 // Static member variable initialization
 
 // Implement our nsISupports methods
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsBoxObject)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsBoxObject)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsBoxObject)
@@ -135,7 +137,7 @@ nsBoxObject::GetPresShell(bool aFlushLayout)
     return nullptr;
   }
 
-  nsCOMPtr<nsIDocument> doc = mContent->GetCurrentDoc();
+  nsIDocument* doc = mContent->GetCurrentDoc();
   if (!doc) {
     return nullptr;
   }
@@ -184,12 +186,12 @@ nsBoxObject::GetOffsetRect(nsIntRect& aRect)
     }
   
     // For the origin, add in the border for the frame
-    const nsStyleBorder* border = frame->StyleBorder();
+    const nsStyleBorder* border = frame->GetStyleBorder();
     origin.x += border->GetComputedBorderWidth(NS_SIDE_LEFT);
     origin.y += border->GetComputedBorderWidth(NS_SIDE_TOP);
 
     // And subtract out the border for the parent
-    const nsStyleBorder* parentBorder = parent->StyleBorder();
+    const nsStyleBorder* parentBorder = parent->GetStyleBorder();
     origin.x -= parentBorder->GetComputedBorderWidth(NS_SIDE_LEFT);
     origin.y -= parentBorder->GetComputedBorderWidth(NS_SIDE_TOP);
 

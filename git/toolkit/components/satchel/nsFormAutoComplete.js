@@ -242,8 +242,7 @@ FormAutoComplete.prototype = {
          * to reduce the amount of moving around by entries while typing.
          */
 
-        let query = "/* do not warn (bug 496471): can't use an index */ " +
-                    "SELECT value, " +
+        let query = "SELECT value, " +
                     "ROUND( " +
                         "timesUsed / MAX(1.0, (lastUsed - firstUsed) / :timeGroupingSize) * " +
                         "MAX(1.0, :maxTimeGroupings - (:now - lastUsed) / :timeGroupingSize) * "+
@@ -428,4 +427,4 @@ FormAutoCompleteResult.prototype = {
 };
 
 let component = [FormAutoComplete];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(component);

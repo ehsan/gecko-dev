@@ -17,6 +17,7 @@
 
 #include "nsAutoPtr.h"
 
+#include "imgIDecoderObserver.h"
 #include "nsIInputStream.h"
 #include "nsIPipe.h"
 #include "qcms.h"
@@ -51,7 +52,7 @@ class RasterImage;
 class nsJPEGDecoder : public Decoder
 {
 public:
-  nsJPEGDecoder(RasterImage &aImage, Decoder::DecodeStyle aDecodeStyle);
+  nsJPEGDecoder(RasterImage &aImage, imgIDecoderObserver* aObserver);
   virtual ~nsJPEGDecoder();
 
   virtual void InitInternal();
@@ -65,6 +66,8 @@ protected:
   void OutputScanlines(bool* suspend);
 
 public:
+  uint8_t *mImageData;
+
   struct jpeg_decompress_struct mInfo;
   struct jpeg_source_mgr mSourceMgr;
   decoder_error_mgr mErr;
@@ -87,8 +90,6 @@ public:
   qcms_transform *mTransform;
 
   bool mReading;
-
-  const Decoder::DecodeStyle mDecodeStyle;
 
   uint32_t mCMSMode;
 };

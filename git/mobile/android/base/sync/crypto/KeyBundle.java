@@ -131,9 +131,4 @@ public class KeyBundle {
       return Arrays.equals(other.encryptionKey, this.encryptionKey) &&
              Arrays.equals(other.hmacKey, this.hmacKey);
     }
-
-    @Override
-    public int hashCode() {
-      throw new UnsupportedOperationException("No hashCode for KeyBundle.");
-    }
 }

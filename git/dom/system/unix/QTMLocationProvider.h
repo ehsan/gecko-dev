@@ -10,7 +10,6 @@
 #include "nsIGeolocationProvider.h"
 #include "nsCOMPtr.h"
 
-
 using namespace QtMobility;
 
 class QTMLocationProvider : public QObject,
@@ -31,7 +30,7 @@ public Q_SLOTS:
 private:
     ~QTMLocationProvider();
 
-    QGeoPositionInfoSource* mLocation;
+    QtMobility::QGeoPositionInfoSource* mLocation;
     nsCOMPtr<nsIGeolocationUpdate> mCallback;
 };
 

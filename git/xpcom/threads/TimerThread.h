@@ -11,7 +11,6 @@
 #include "nsIThread.h"
 
 #include "nsTimerImpl.h"
-#include "nsThreadUtils.h"
 
 #include "nsTArray.h"
 
@@ -41,13 +40,14 @@ public:
   nsresult TimerDelayChanged(nsTimerImpl *aTimer);
   nsresult RemoveTimer(nsTimerImpl *aTimer);
 
+#define FILTER_DURATION         1e3     /* one second */
+#define FILTER_FEEDBACK_MAX     100     /* 1/10th of a second */
+
+  void UpdateFilter(uint32_t aDelay, TimeStamp aTimeout,
+                    TimeStamp aNow);
+
   void DoBeforeSleep();
   void DoAfterSleep();
-
-  bool IsOnTimerThread() const
-  {
-    return mThread == NS_GetCurrentThread();
-  }
 
 private:
   ~TimerThread();
@@ -70,34 +70,15 @@ private:
   bool mSleeping;
   
   nsTArray<nsTimerImpl*> mTimers;
-};
 
-struct TimerAdditionComparator {
-  TimerAdditionComparator(const mozilla::TimeStamp &aNow,
-                          nsTimerImpl *aTimerToInsert) :
-    now(aNow)
-#ifdef DEBUG
-    , timerToInsert(aTimerToInsert)
-#endif
-  {}
+#define DELAY_LINE_LENGTH_LOG2  5
+#define DELAY_LINE_LENGTH_MASK  ((1u << DELAY_LINE_LENGTH_LOG2) - 1)
+#define DELAY_LINE_LENGTH       (1u << DELAY_LINE_LENGTH_LOG2)
 
-  PRBool LessThan(nsTimerImpl *fromArray, nsTimerImpl *newTimer) const {
-    NS_ABORT_IF_FALSE(newTimer == timerToInsert, "Unexpected timer ordering");
-
-    // Skip any overdue timers.
-    return fromArray->mTimeout <= now ||
-           fromArray->mTimeout <= newTimer->mTimeout;
-  }
-
-  PRBool Equals(nsTimerImpl* fromArray, nsTimerImpl* newTimer) const {
-    return PR_FALSE;
-  }
-
-private:
-  const mozilla::TimeStamp &now;
-#ifdef DEBUG
-  const nsTimerImpl * const timerToInsert;
-#endif
+  int32_t  mDelayLine[DELAY_LINE_LENGTH]; // milliseconds
+  uint32_t mDelayLineCounter;
+  uint32_t mMinTimerPeriod;     // milliseconds
+  TimeDuration mTimeoutAdjustment;
 };
 
 #endif /* TimerThread_h___ */

@@ -18,8 +18,8 @@ namespace IPC {
 
 bool
 DeserializeUint8Array(JSRawObject aObj,
-                      const InfallibleTArray<uint8_t>& aBuffer,
-                      JS::Value* aVal)
+                      const nsTArray<uint8_t>& aBuffer,
+                      jsval* aVal)
 {
   JSContext* cx = nsContentUtils::GetSafeJSContext();
   JSAutoRequest ar(cx);
@@ -28,7 +28,7 @@ DeserializeUint8Array(JSRawObject aObj,
   JSObject* obj = JS_NewArrayBuffer(cx, aBuffer.Length());
   if (!obj)
     return false;
-  uint8_t* data = JS_GetArrayBufferData(obj);
+  uint8_t* data = JS_GetArrayBufferData(obj, cx);
   if (!data)
     return false;
   memcpy(data, aBuffer.Elements(), aBuffer.Length());
@@ -135,7 +135,7 @@ TCPSocketChild::RecvCallback(const nsString& aType,
     const SendableData& data = aData.get_SendableData();
 
     if (data.type() == SendableData::TArrayOfuint8_t) {
-      JS::Value val;
+      jsval val;
       IPC::DeserializeUint8Array(mSocketObj, data.get_ArrayOfuint8_t(), &val);
       rv = mSocket->CallListenerArrayBuffer(aType, val);
 
@@ -187,10 +187,10 @@ TCPSocketChild::Send(const JS::Value& aData, JSContext* aCx)
   } else {
     NS_ENSURE_TRUE(aData.isObject(), NS_ERROR_FAILURE);
     JSObject* obj = &aData.toObject();
-    NS_ENSURE_TRUE(JS_IsTypedArrayObject(obj), NS_ERROR_FAILURE);
-    NS_ENSURE_TRUE(JS_IsUint8Array(obj), NS_ERROR_FAILURE);
-    uint32_t nbytes = JS_GetTypedArrayByteLength(obj);
-    uint8_t* data = JS_GetUint8ArrayData(obj);
+    NS_ENSURE_TRUE(JS_IsTypedArrayObject(obj, aCx), NS_ERROR_FAILURE);
+    NS_ENSURE_TRUE(JS_IsUint8Array(obj, aCx), NS_ERROR_FAILURE);
+    uint32_t nbytes = JS_GetTypedArrayByteLength(obj, aCx);
+    uint8_t* data = JS_GetUint8ArrayData(obj, aCx);
     if (!data) {
       return NS_ERROR_OUT_OF_MEMORY;
     }

@@ -9,6 +9,7 @@ VPATH           = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE           = hyphenation
 LIBRARY_NAME     = hyphenation_s
 LIBXUL_LIBRARY   = 1
 

@@ -31,13 +31,15 @@ IMETextTxn::IMETextTxn()
 {
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(IMETextTxn)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IMETextTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mElement)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mElement)
   // mRangeList can't lead to cycles
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IMETextTxn, EditTxn)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElement)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mElement)
   // mRangeList can't lead to cycles
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -314,13 +316,8 @@ NS_IMETHODIMP IMETextTxn::CollapseTextSelection(void)
              if(NS_FAILED(result))
                 break;
 
-             nsCOMPtr<nsIContent> content = do_QueryInterface(mElement);
-             if (!content) {
-               break;
-          }
-
-             nsRefPtr<nsRange> newRange = new nsRange(content);
-             result = newRange->SetStart(content, mOffset+selectionStart);
+             nsRefPtr<nsRange> newRange = new nsRange();
+             result = newRange->SetStart(mElement,mOffset+selectionStart);
              NS_ASSERTION(NS_SUCCEEDED(result), "Cannot SetStart");
              if(NS_FAILED(result))
                 break;

@@ -6,13 +6,10 @@
 
 #include "InterfaceInitFuncs.h"
 
-#include "Accessible-inl.h"
 #include "HyperTextAccessible.h"
 #include "nsMai.h"
 
 #include "nsIPersistentProperties2.h"
-
-#include "mozilla/Likely.h"
 
 using namespace mozilla::a11y;
 
@@ -449,7 +446,7 @@ void
 textInterfaceInitCB(AtkTextIface* aIface)
 {
   NS_ASSERTION(aIface, "Invalid aIface");
-  if (MOZ_UNLIKELY(!aIface))
+  if (NS_UNLIKELY(!aIface))
     return;
 
   aIface->get_text = getTextCB;

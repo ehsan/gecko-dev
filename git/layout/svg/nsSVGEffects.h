@@ -141,7 +141,7 @@ protected:
   
   SourceReference mElement;
   // The frame that this property is attached to
-  nsIFrame *mFrame;
+   nsIFrame *mFrame;
   // When a presshell is torn down, we don't delete the properties for
   // each frame until after the frames are destroyed. So here we remember
   // the presshell for the frames we care about and, before we use the frame,
@@ -185,21 +185,12 @@ protected:
 class nsSVGTextPathProperty : public nsSVGIDRenderingObserver {
 public:
   nsSVGTextPathProperty(nsIURI *aURI, nsIFrame *aFrame, bool aReferenceImage)
-    : nsSVGIDRenderingObserver(aURI, aFrame, aReferenceImage)
-    , mValid(true) {}
+    : nsSVGIDRenderingObserver(aURI, aFrame, aReferenceImage) {}
 
   virtual bool ObservesReflow() MOZ_OVERRIDE { return false; }
 
 protected:
   virtual void DoUpdate() MOZ_OVERRIDE;
-
-private:
-  /**
-   * Returns true if the target of the textPath is the frame of a 'path' element.
-   */
-  bool TargetIsValid();
-
-  bool mValid;
 };
  
 class nsSVGPaintingProperty : public nsSVGIDRenderingObserver {
@@ -347,22 +338,11 @@ public:
    * @param aFrame should be the first continuation
    */
   static EffectProperties GetEffectProperties(nsIFrame *aFrame);
-
   /**
-   * Called when changes to an element (e.g. CSS property changes) cause its
-   * frame to start/stop referencing (or reference different) SVG resource
-   * elements. (_Not_ called for changes to referenced resource elements.)
-   *
-   * This function handles such changes by discarding _all_ the frame's SVG
-   * effects frame properties (causing those properties to stop watching their
-   * target element). It also synchronously (re)creates the filter and marker
-   * frame properties (XXX why not the other properties?), which makes it
-   * useful for initializing those properties during first reflow.
-   *
-   * XXX rename to something more meaningful like RefreshResourceReferences?
+   * Called by nsCSSFrameConstructor when style changes require the
+   * effect properties on aFrame to be updated
    */
   static void UpdateEffects(nsIFrame *aFrame);
-
   /**
    * @param aFrame should be the first continuation
    */

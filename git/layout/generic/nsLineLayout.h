@@ -68,8 +68,11 @@ public:
   void UpdateBand(const nsRect& aNewAvailableSpace,
                   nsIFrame* aFloatFrame);
 
-  void BeginSpan(nsIFrame* aFrame, const nsHTMLReflowState* aSpanReflowState,
-                 nscoord aLeftEdge, nscoord aRightEdge, nscoord* aBaseline);
+  nsresult BeginSpan(nsIFrame* aFrame,
+                     const nsHTMLReflowState* aSpanReflowState,
+                     nscoord aLeftEdge,
+                     nscoord aRightEdge,
+                     nscoord* aBaseline);
 
   // Returns the width of the span
   nscoord EndSpan(nsIFrame* aFrame);
@@ -87,7 +90,8 @@ public:
                        nsHTMLReflowMetrics* aMetrics,
                        bool& aPushedFrame);
 
-  void AddBulletFrame(nsIFrame* aFrame, const nsHTMLReflowMetrics& aMetrics);
+  nsresult AddBulletFrame(nsIFrame* aFrame,
+                          const nsHTMLReflowMetrics& aMetrics);
 
   void RemoveBulletFrame(nsIFrame* aFrame) {
     PushFrame(aFrame);
@@ -385,6 +389,7 @@ protected:
     {
       NS_ASSERTION(aFlag<=PFD_LASTFLAG, "bad flag");
       NS_ASSERTION(aFlag<=UINT8_MAX, "bad flag");
+      NS_ASSERTION(aValue==false || aValue==true, "bad value");
       if (aValue) { // set flag
         mFlags |= aFlag;
       }
@@ -503,15 +508,9 @@ protected:
 #endif
   PLArenaPool mArena; // Per span and per frame data, 4 byte aligned
 
-  /**
-   * Allocate a PerFrameData from the mArena pool. The allocation is infallible.
-   */
-  PerFrameData* NewPerFrameData();
+  nsresult NewPerFrameData(PerFrameData** aResult);
 
-  /**
-   * Allocate a PerSpanData from the mArena pool. The allocation is infallible.
-   */
-  PerSpanData* NewPerSpanData();
+  nsresult NewPerSpanData(PerSpanData** aResult);
 
   void FreeSpan(PerSpanData* psd);
 

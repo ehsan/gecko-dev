@@ -64,7 +64,7 @@ var StarUI = {
           this._restoreCommandsState();
           this._itemId = -1;
           if (this._batching) {
-            PlacesUtils.transactionManager.endBatch(false);
+            PlacesUtils.transactionManager.endBatch();
             this._batching = false;
           }
 
@@ -76,13 +76,13 @@ var StarUI = {
             case "remove": {
               // Remove all bookmarks for the bookmark's url, this also removes
               // the tags for the url.
-              PlacesUtils.transactionManager.beginBatch(null);
+              PlacesUtils.transactionManager.beginBatch();
               let itemIds = PlacesUtils.getBookmarksForURI(this._uriForRemoval);
               for (let i = 0; i < itemIds.length; i++) {
                 let txn = new PlacesRemoveItemTransaction(itemIds[i]);
                 PlacesUtils.transactionManager.doTransaction(txn);
               }
-              PlacesUtils.transactionManager.endBatch(false);
+              PlacesUtils.transactionManager.endBatch();
               break;
             }
           }
@@ -235,7 +235,7 @@ var StarUI = {
 
   beginBatch: function SU_beginBatch() {
     if (!this._batching) {
-      PlacesUtils.transactionManager.beginBatch(null);
+      PlacesUtils.transactionManager.beginBatch();
       this._batching = true;
     }
   }
@@ -269,11 +269,7 @@ var PlacesCommandHook = {
       var description;
       var charset;
       try {
-        let isErrorPage = /^about:(neterror|certerror|blocked)/
-                          .test(webNav.document.documentURI);
-        title = isErrorPage ? PlacesUtils.history.getPageTitle(url)
-                            : webNav.document.title;
-        title = title || url.spec;
+        title = webNav.document.title || url.spec;
         description = PlacesUIUtils.getDescriptionFromDocument(webNav.document);
         charset = webNav.document.characterSet;
       }
@@ -294,8 +290,8 @@ var PlacesCommandHook = {
                                                     title, null, [descAnno]);
       PlacesUtils.transactionManager.doTransaction(txn);
       // Set the character-set
-      if (charset && !PrivateBrowsingUtils.isWindowPrivate(aBrowser.contentWindow))
-        PlacesUtils.setCharsetForURI(uri, charset);
+      if (charset)
+        PlacesUtils.history.setCharsetForURI(uri, charset);
       itemId = PlacesUtils.getMostRecentBookmarkForURI(uri);
     }
 
@@ -444,7 +440,7 @@ var PlacesCommandHook = {
    * @param   aLeftPaneRoot
    *          The query to select in the organizer window - options
    *          are: History, AllBookmarks, BookmarksMenu, BookmarksToolbar,
-   *          UnfiledBookmarks, Tags and Downloads.
+   *          UnfiledBookmarks and Tags.
    */
   showPlacesOrganizer: function PCH_showPlacesOrganizer(aLeftPaneRoot) {
     var organizer = Services.wm.getMostRecentWindow("Places:Organizer");
@@ -664,6 +660,15 @@ HistoryMenu.prototype = {
 #endif
   },
 
+  toggleRestoreLastSession: function PHM_toggleRestoreLastSession() {
+    let restoreItem = this._rootElt.getElementsByClassName("restoreLastSession")[0];
+
+    if (this._ss.canRestoreLastSession)
+      restoreItem.removeAttribute("disabled");
+    else
+      restoreItem.setAttribute("disabled", true);
+  },
+
   _onPopupShowing: function HM__onPopupShowing(aEvent) {
     PlacesMenu.prototype._onPopupShowing.apply(this, arguments);
 
@@ -674,13 +679,13 @@ HistoryMenu.prototype = {
     this.toggleRecentlyClosedTabs();
     this.toggleRecentlyClosedWindows();
     this.toggleTabsFromOtherComputers();
+    this.toggleRestoreLastSession();
   },
 
   _onCommand: function HM__onCommand(aEvent) {
     let placesNode = aEvent.target._placesNode;
     if (placesNode) {
-      if (!PrivateBrowsingUtils.isWindowPrivate(window))
-        PlacesUIUtils.markPageAsTyped(placesNode.uri);
+      PlacesUIUtils.markPageAsTyped(placesNode.uri);
       openUILink(placesNode.uri, aEvent, { ignoreAlt: true });
     }
   }
@@ -1080,6 +1085,7 @@ var PlacesStarButton = {
 
   onBeginUpdateBatch: function () {},
   onEndUpdateBatch: function () {},
+  onBeforeItemRemoved: function () {},
   onItemVisited: function () {},
   onItemMoved: function () {}
 };

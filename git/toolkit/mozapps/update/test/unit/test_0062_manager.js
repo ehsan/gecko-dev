@@ -25,13 +25,7 @@ function run_test() {
 
   standardInit();
 
-  if (IS_TOOLKIT_GONK) {
-    // GONK doesn't resume downloads at boot time, so the updateCount will
-    // always be zero.
-    do_check_eq(gUpdateManager.updateCount, 0);
-  } else {
-    do_check_eq(gUpdateManager.updateCount, 1);
-  }
+  do_check_eq(gUpdateManager.updateCount, 1);
   do_check_eq(gUpdateManager.activeUpdate.state, STATE_DOWNLOADING);
 
   do_test_finished();

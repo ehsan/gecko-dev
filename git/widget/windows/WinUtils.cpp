@@ -17,9 +17,8 @@
 #include "imgITools.h"
 #include "nsStringStream.h"
 #include "nsNetUtil.h"
-#ifdef MOZ_PLACES
 #include "mozIAsyncFavicons.h"
-#endif
+ 
 #include "nsIIconURI.h"
 #include "nsIDownloader.h"
 #include "nsINetUtil.h"
@@ -27,18 +26,11 @@
 #include "nsIObserver.h"
 #include "imgIEncoder.h"
 
-#ifdef NS_ENABLE_TSF
-#include <textstor.h>
-#include "nsTextStore.h"
-#endif // #ifdef NS_ENABLE_TSF
-
 namespace mozilla {
 namespace widget {
 
   NS_IMPL_ISUPPORTS1(myDownloadObserver, nsIDownloadObserver)
-#ifdef MOZ_PLACES
   NS_IMPL_ISUPPORTS1(AsyncFaviconDataReady, nsIFaviconDataCallback)
-#endif
   NS_IMPL_THREADSAFE_ISUPPORTS1(AsyncWriteIconToDisk, nsIRunnable)
   NS_IMPL_THREADSAFE_ISUPPORTS1(AsyncDeleteIconFromDisk, nsIRunnable)
   NS_IMPL_THREADSAFE_ISUPPORTS1(AsyncDeleteAllFaviconsFromDisk, nsIRunnable)
@@ -47,12 +39,8 @@ namespace widget {
   const char FaviconHelper::kJumpListCacheDir[] = "jumpListCache";
   const char FaviconHelper::kShortcutCacheDir[] = "shortcutCache";
 
-// apis available on vista and up.
-WinUtils::SHCreateItemFromParsingNamePtr WinUtils::sCreateItemFromParsingName = NULL;
-WinUtils::SHGetKnownFolderPathPtr WinUtils::sGetKnownFolderPath = NULL;
-
-static const PRUnichar kSehllLibraryName[] =  L"shell32.dll";
-static HMODULE sShellDll = NULL;
+// SHCreateItemFromParsingName is only available on vista and up.
+WinUtils::SHCreateItemFromParsingNamePtr WinUtils::sCreateItemFromParsingName = nullptr;
 
 /* static */ 
 WinUtils::WinVersion
@@ -71,42 +59,6 @@ WinUtils::GetWindowsVersion()
   version =
     (osInfo.dwMajorVersion & 0xff) << 8 | (osInfo.dwMinorVersion & 0xff);
   return static_cast<WinVersion>(version);
-}
-
-/* static */
-bool
-WinUtils::PeekMessage(LPMSG aMsg, HWND aWnd, UINT aFirstMessage,
-                      UINT aLastMessage, UINT aOption)
-{
-#ifdef NS_ENABLE_TSF
-  ITfMessagePump* msgPump = nsTextStore::GetMessagePump();
-  if (msgPump) {
-    BOOL ret = FALSE;
-    HRESULT hr = msgPump->PeekMessageW(aMsg, aWnd, aFirstMessage, aLastMessage,
-                                       aOption, &ret);
-    NS_ENSURE_TRUE(SUCCEEDED(hr), false);
-    return ret;
-  }
-#endif // #ifdef NS_ENABLE_TSF
-  return ::PeekMessageW(aMsg, aWnd, aFirstMessage, aLastMessage, aOption);
-}
-
-/* static */
-bool
-WinUtils::GetMessage(LPMSG aMsg, HWND aWnd, UINT aFirstMessage,
-                     UINT aLastMessage)
-{
-#ifdef NS_ENABLE_TSF
-  ITfMessagePump* msgPump = nsTextStore::GetMessagePump();
-  if (msgPump) {
-    BOOL ret = FALSE;
-    HRESULT hr = msgPump->GetMessageW(aMsg, aWnd, aFirstMessage, aLastMessage,
-                                      &ret);
-    NS_ENSURE_TRUE(SUCCEEDED(hr), false);
-    return ret;
-  }
-#endif // #ifdef NS_ENABLE_TSF
-  return ::GetMessageW(aMsg, aWnd, aFirstMessage, aLastMessage);
 }
 
 /* static */
@@ -409,56 +361,37 @@ WinUtils::InitMSG(UINT aMessage, WPARAM wParam, LPARAM lParam)
 }
 
 /* static */
+bool
+WinUtils::VistaCreateItemFromParsingNameInit()
+{
+  // Load and store Vista+ SHCreateItemFromParsingName
+  if (sCreateItemFromParsingName) {
+    return true;
+  }
+  static HMODULE sShellDll = nullptr;
+  if (sShellDll) {
+    return false;
+  }
+  static const PRUnichar kSehllLibraryName[] =  L"shell32.dll";
+  sShellDll = ::LoadLibraryW(kSehllLibraryName);
+  if (!sShellDll) {
+    return false;
+  }
+  sCreateItemFromParsingName = (SHCreateItemFromParsingNamePtr)
+    GetProcAddress(sShellDll, "SHCreateItemFromParsingName");
+  return sCreateItemFromParsingName != nullptr;
+}
+
+/* static */
 HRESULT
 WinUtils::SHCreateItemFromParsingName(PCWSTR pszPath, IBindCtx *pbc,
                                       REFIID riid, void **ppv)
 {
-  if (sCreateItemFromParsingName) {
-    return sCreateItemFromParsingName(pszPath, pbc, riid, ppv);
-  }
-
-  if (!sShellDll) {
-    sShellDll = ::LoadLibraryW(kSehllLibraryName);
-    if (!sShellDll) {
-      return false;
-    }
-  }
-
-  sCreateItemFromParsingName = (SHCreateItemFromParsingNamePtr)
-    GetProcAddress(sShellDll, "SHCreateItemFromParsingName");
-  if (!sCreateItemFromParsingName)
+  if (!VistaCreateItemFromParsingNameInit())
     return E_FAIL;
-
   return sCreateItemFromParsingName(pszPath, pbc, riid, ppv);
 }
 
-/* static */
-HRESULT 
-WinUtils::SHGetKnownFolderPath(REFKNOWNFOLDERID rfid,
-                               DWORD dwFlags,
-                               HANDLE hToken,
-                               PWSTR *ppszPath)
-{
-  if (sGetKnownFolderPath) {
-    return sGetKnownFolderPath(rfid, dwFlags, hToken, ppszPath);
-  }
-
-  if (!sShellDll) {
-    sShellDll = ::LoadLibraryW(kSehllLibraryName);
-    if (!sShellDll) {
-      return false;
-    }
-  }
-
-  sGetKnownFolderPath = (SHGetKnownFolderPathPtr)
-    GetProcAddress(sShellDll, "SHGetKnownFolderPath");
-  if (!sGetKnownFolderPath)
-    return E_FAIL;
-
-  return sGetKnownFolderPath(rfid, dwFlags, hToken, ppszPath);
-}
-
-#ifdef MOZ_PLACES
 /************************************************************************/
 /* Constructs as AsyncFaviconDataReady Object
 /* @param aIOThread : the thread which performs the action
@@ -556,7 +489,6 @@ AsyncFaviconDataReady::OnComplete(nsIURI *aFaviconURI,
 
   return NS_OK;
 }
-#endif
 
 // Warning: AsyncWriteIconToDisk assumes ownership of the aData buffer passed in
 AsyncWriteIconToDisk::AsyncWriteIconToDisk(const nsAString &aIconPath,
@@ -807,7 +739,7 @@ nsresult FaviconHelper::ObtainCachedIconFile(nsCOMPtr<nsIURI> aFaviconPageURI,
   if (exists) {
 
     // Obtain the file's last modification date in seconds
-    int64_t fileModTime = 0;
+    int64_t fileModTime = LL_ZERO;
     rv = icoFile->GetLastModifiedTime(&fileModTime);
     fileModTime /= PR_MSEC_PER_SEC;
     int32_t icoReCacheSecondsTimeout = GetICOCacheSecondsTimeout();
@@ -914,7 +846,6 @@ nsresult
                                                   nsCOMPtr<nsIThread> &aIOThread,
                                                   bool aURLShortcut)
 {
-#ifdef MOZ_PLACES
   // Obtain the favicon service and get the favicon for the specified page
   nsCOMPtr<mozIAsyncFavicons> favIconSvc(
     do_GetService("@mozilla.org/browser/favicon-service;1"));
@@ -926,7 +857,6 @@ nsresult
                                                aURLShortcut);
 
   favIconSvc->GetFaviconDataForPage(aFaviconPageURI, callback);
-#endif
   return NS_OK;
 }
 
@@ -968,45 +898,6 @@ WinUtils::GetShellItemPath(IShellItem* aItem,
   aResultString.Assign(str);
   CoTaskMemFree(str);
   return !aResultString.IsEmpty();
-}
-
-/* static */
-nsIntRegion
-WinUtils::ConvertHRGNToRegion(HRGN aRgn)
-{
-  NS_ASSERTION(aRgn, "Don't pass NULL region here");
-
-  nsIntRegion rgn;
-
-  DWORD size = ::GetRegionData(aRgn, 0, NULL);
-  nsAutoTArray<uint8_t,100> buffer;
-  if (!buffer.SetLength(size))
-    return rgn;
-
-  RGNDATA* data = reinterpret_cast<RGNDATA*>(buffer.Elements());
-  if (!::GetRegionData(aRgn, size, data))
-    return rgn;
-
-  if (data->rdh.nCount > MAX_RECTS_IN_REGION) {
-    rgn = ToIntRect(data->rdh.rcBound);
-    return rgn;
-  }
-
-  RECT* rects = reinterpret_cast<RECT*>(data->Buffer);
-  for (uint32_t i = 0; i < data->rdh.nCount; ++i) {
-    RECT* r = rects + i;
-    rgn.Or(rgn, ToIntRect(*r));
-  }
-
-  return rgn;
-}
-
-nsIntRect
-WinUtils::ToIntRect(const RECT& aRect)
-{
-  return nsIntRect(aRect.left, aRect.top,
-                   aRect.right - aRect.left,
-                   aRect.bottom - aRect.top);
 }
 
 } // namespace widget

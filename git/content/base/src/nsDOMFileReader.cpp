@@ -10,9 +10,9 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMFile.h"
 #include "nsError.h"
+#include "nsCharsetAlias.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIConverterInputStream.h"
-#include "nsIDocument.h"
 #include "nsIFile.h"
 #include "nsIFileStreams.h"
 #include "nsIInputStream.h"
@@ -20,6 +20,9 @@
 #include "nsIUnicodeDecoder.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
+
+#include "plbase64.h"
+#include "prmem.h"
 
 #include "nsLayoutCID.h"
 #include "nsXPIDLString.h"
@@ -36,10 +39,8 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsLayoutStatics.h"
 #include "nsIScriptObjectPrincipal.h"
-#include "nsHostObjectProtocolHandler.h"
-#include "mozilla/Base64.h"
+#include "nsBlobProtocolHandler.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/dom/EncodingUtils.h"
 #include "xpcpublic.h"
 #include "nsIScriptSecurityManager.h"
 #include "nsDOMJSUtils.h"
@@ -53,20 +54,21 @@ using namespace mozilla;
 #define LOADSTART_STR "loadstart"
 #define LOADEND_STR "loadend"
 
-using mozilla::dom::EncodingUtils;
 using mozilla::dom::FileIOObject;
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMFileReader)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMFileReader,
                                                   FileIOObject)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFile)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrincipal)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mFile)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrincipal)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMFileReader,
                                                 FileIOObject)
   tmp->mResultArrayBuffer = nullptr;
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mFile)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPrincipal)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFile)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPrincipal)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 
@@ -140,7 +142,7 @@ nsDOMFileReader::Init()
 
 NS_IMETHODIMP
 nsDOMFileReader::Initialize(nsISupports* aOwner, JSContext* cx, JSObject* obj,
-                            uint32_t argc, JS::Value *argv)
+                            uint32_t argc, jsval *argv)
 {
   nsCOMPtr<nsPIDOMWindow> owner = do_QueryInterface(aOwner);
   if (!owner) {
@@ -176,7 +178,7 @@ nsDOMFileReader::GetReadyState(uint16_t *aReadyState)
 }
 
 NS_IMETHODIMP
-nsDOMFileReader::GetResult(JSContext* aCx, JS::Value* aResult)
+nsDOMFileReader::GetResult(JSContext* aCx, jsval* aResult)
 {
   if (mDataFormat == FILE_AS_ARRAYBUFFER) {
     if (mReadyState == nsIDOMFileReader::DONE && mResultArrayBuffer) {
@@ -306,7 +308,7 @@ nsDOMFileReader::DoOnDataAvailable(nsIRequest *aRequest,
   }
   else if (mDataFormat == FILE_AS_ARRAYBUFFER) {
     uint32_t bytesRead = 0;
-    aInputStream->Read((char*)JS_GetArrayBufferData(mResultArrayBuffer) + aOffset,
+    aInputStream->Read((char*)JS_GetArrayBufferData(mResultArrayBuffer, NULL) + aOffset,
                        aCount, &bytesRead);
     NS_ASSERTION(bytesRead == aCount, "failed to read data");
   }
@@ -316,7 +318,7 @@ nsDOMFileReader::DoOnDataAvailable(nsIRequest *aRequest,
       // PR_Realloc doesn't support over 4GB memory size even if 64-bit OS
       return NS_ERROR_OUT_OF_MEMORY;
     }
-    mFileData = (char *)moz_realloc(mFileData, aOffset + aCount);
+    mFileData = (char *)PR_Realloc(mFileData, aOffset + aCount);
     NS_ENSURE_TRUE(mFileData, NS_ERROR_OUT_OF_MEMORY);
 
     uint32_t bytesRead = 0;
@@ -461,9 +463,8 @@ nsDOMFileReader::GetAsText(const nsACString &aCharset,
   }
 
   nsAutoCString charset;
-  if (!EncodingUtils::FindEncodingForLabel(charsetGuess, charset)) {
-    return NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR;
-  }
+  rv = nsCharsetAlias::GetPreferred(charsetGuess, charset);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = ConvertStream(aFileData, aDataLen, charset.get(), aResult);
 
@@ -488,11 +489,26 @@ nsDOMFileReader::GetAsDataURL(nsIDOMBlob *aFile,
   }
   aResult.AppendLiteral(";base64,");
 
-  nsCString encodedData;
-  rv = Base64Encode(Substring(aFileData, aDataLen), encodedData);
-  NS_ENSURE_SUCCESS(rv, rv);
+  uint32_t totalRead = 0;
+  while (aDataLen > totalRead) {
+    uint32_t numEncode = 4096;
+    uint32_t amtRemaining = aDataLen - totalRead;
+    if (numEncode > amtRemaining)
+      numEncode = amtRemaining;
 
-  AppendASCIItoUTF16(encodedData, aResult);
+    //Unless this is the end of the file, encode in multiples of 3
+    if (numEncode > 3) {
+      uint32_t leftOver = numEncode % 3;
+      numEncode -= leftOver;
+    }
+
+    //Out buffer should be at least 4/3rds the read buf, plus a terminator
+    char *base64 = PL_Base64Encode(aFileData + totalRead, numEncode, nullptr);
+    AppendASCIItoUTF16(nsDependentCString(base64), aResult);
+    PR_Free(base64);
+
+    totalRead += numEncode;
+  }
 
   return NS_OK;
 }

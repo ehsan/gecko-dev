@@ -10,6 +10,16 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE       = content
+XPIDL_MODULE = content_html
+
+XPIDLSRCS = \
+		nsIFormSubmitObserver.idl \
+		nsIPhonetic.idl \
+		nsIHTMLMenu.idl \
+		nsIMenuBuilder.idl \
+		$(NULL)
+
 EXPORTS = \
 		nsIConstraintValidation.h \
 		nsIFormControl.h \
@@ -20,16 +30,11 @@ EXPORTS = \
 		nsIRadioGroupContainer.h \
 		nsITextControlElement.h \
 		nsFormSubmission.h \
+		nsHTMLAudioElement.h \
+		nsHTMLCanvasElement.h \
+		nsHTMLMediaElement.h \
+		nsHTMLVideoElement.h \
 		nsIHTMLCollection.h \
-		$(NULL)
-
-EXPORTS_NAMESPACES = mozilla/dom
-
-EXPORTS_mozilla/dom = \
-		HTMLCanvasElement.h \
-		HTMLMediaElement.h \
-		HTMLAudioElement.h \
-		HTMLVideoElement.h \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

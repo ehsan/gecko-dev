@@ -40,9 +40,6 @@ public:
 
   nsresult ToDOMAnimatedString(nsIDOMSVGAnimatedString **aResult,
                                nsSVGElement *aSVGElement);
-  already_AddRefed<nsIDOMSVGAnimatedString>
-  ToDOMAnimatedString(nsSVGElement* aSVGElement);
-
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement *aSVGElement);
 
@@ -60,7 +57,6 @@ public:
 
     DOMAnimatedString(nsSVGString *aVal, nsSVGElement *aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
-    virtual ~DOMAnimatedString();
 
     nsSVGString* mVal; // kept alive because it belongs to content
     nsRefPtr<nsSVGElement> mSVGElement;
@@ -91,7 +87,7 @@ public:
 
     // nsISMILAttr methods
     virtual nsresult ValueFromString(const nsAString& aStr,
-                                     const mozilla::dom::SVGAnimationElement *aSrcElement,
+                                     const nsISMILAnimationElement *aSrcElement,
                                      nsSMILValue& aValue,
                                      bool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;

@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ['BookmarksEngine', "PlacesItem", "Bookmark",
-                         "BookmarkFolder", "BookmarkQuery",
-                         "Livemark", "BookmarkSeparator"];
+const EXPORTED_SYMBOLS = ['BookmarksEngine', "PlacesItem", "Bookmark",
+                          "BookmarkFolder", "BookmarkQuery",
+                          "Livemark", "BookmarkSeparator"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -33,7 +33,7 @@ const ANNOS_TO_TRACK = [DESCRIPTION_ANNO, SIDEBAR_ANNO,
 const SERVICE_NOT_SUPPORTED = "Service not supported on this platform";
 const FOLDER_SORTINDEX = 1000000;
 
-this.PlacesItem = function PlacesItem(collection, id, type) {
+function PlacesItem(collection, id, type) {
   CryptoWrapper.call(this, collection, id);
   this.type = type || "item";
 }
@@ -76,7 +76,7 @@ Utils.deferGetSet(PlacesItem,
                   "cleartext",
                   ["hasDupe", "parentid", "parentName", "type"]);
 
-this.Bookmark = function Bookmark(collection, id, type) {
+function Bookmark(collection, id, type) {
   PlacesItem.call(this, collection, id, type || "bookmark");
 }
 Bookmark.prototype = {
@@ -89,7 +89,7 @@ Utils.deferGetSet(Bookmark,
                   ["title", "bmkUri", "description",
                    "loadInSidebar", "tags", "keyword"]);
 
-this.BookmarkQuery = function BookmarkQuery(collection, id) {
+function BookmarkQuery(collection, id) {
   Bookmark.call(this, collection, id, "query");
 }
 BookmarkQuery.prototype = {
@@ -101,7 +101,7 @@ Utils.deferGetSet(BookmarkQuery,
                   "cleartext",
                   ["folderName", "queryId"]);
 
-this.BookmarkFolder = function BookmarkFolder(collection, id, type) {
+function BookmarkFolder(collection, id, type) {
   PlacesItem.call(this, collection, id, type || "folder");
 }
 BookmarkFolder.prototype = {
@@ -112,7 +112,7 @@ BookmarkFolder.prototype = {
 Utils.deferGetSet(BookmarkFolder, "cleartext", ["description", "title",
                                                 "children"]);
 
-this.Livemark = function Livemark(collection, id) {
+function Livemark(collection, id) {
   BookmarkFolder.call(this, collection, id, "livemark");
 }
 Livemark.prototype = {
@@ -122,7 +122,7 @@ Livemark.prototype = {
 
 Utils.deferGetSet(Livemark, "cleartext", ["siteUri", "feedUri"]);
 
-this.BookmarkSeparator = function BookmarkSeparator(collection, id) {
+function BookmarkSeparator(collection, id) {
   PlacesItem.call(this, collection, id, "separator");
 }
 BookmarkSeparator.prototype = {
@@ -191,7 +191,7 @@ let kSpecialIds = {
   get mobile()  this.findMobileRoot(true),
 };
 
-this.BookmarksEngine = function BookmarksEngine(service) {
+function BookmarksEngine(service) {
   SyncEngine.call(this, "Bookmarks", service);
 }
 BookmarksEngine.prototype = {
@@ -369,9 +369,9 @@ BookmarksEngine.prototype = {
     this._store._childrenToOrder = {};
   },
 
-  _processIncoming: function (newitems) {
+  _processIncoming: function _processIncoming() {
     try {
-      SyncEngine.prototype._processIncoming.call(this, newitems);
+      SyncEngine.prototype._processIncoming.call(this);
     } finally {
       // Reorder children.
       this._tracker.ignoreAll = true;
@@ -392,27 +392,19 @@ BookmarksEngine.prototype = {
   },
 
   _createRecord: function _createRecord(id) {
-    // Create the record as usual, but mark it as having dupes if necessary.
+    // Create the record like normal but mark it as having dupes if necessary
     let record = SyncEngine.prototype._createRecord.call(this, id);
     let entry = this._mapDupe(record);
-    if (entry != null && entry.hasDupe) {
+    if (entry != null && entry.hasDupe)
       record.hasDupe = true;
-    }
     return record;
   },
 
   _findDupe: function _findDupe(item) {
-    this._log.trace("Finding dupe for " + item.id +
-                    " (already duped: " + item.hasDupe + ").");
-
-    // Don't bother finding a dupe if the incoming item has duplicates.
-    if (item.hasDupe) {
-      this._log.trace(item.id + " already a dupe: not finding one.");
+    // Don't bother finding a dupe if the incoming item has duplicates
+    if (item.hasDupe)
       return;
-    }
-    let mapped = this._mapDupe(item);
-    this._log.debug(item.id + " mapped to " + mapped);
-    return mapped;
+    return this._mapDupe(item);
   }
 };
 
@@ -442,7 +434,7 @@ BookmarksStore.prototype = {
   preprocessTagQuery: function preprocessTagQuery(record) {
     if (record.type != "query" ||
         record.bmkUri == null ||
-        !record.folderName)
+        record.folderName == null)
       return;
     
     // Yes, this works without chopping off the "place:" prefix.
@@ -493,32 +485,17 @@ BookmarksStore.prototype = {
   },
   
   applyIncoming: function BStore_applyIncoming(record) {
-    this._log.debug("Applying record " + record.id);
-    let isSpecial = record.id in kSpecialIds;
-
+    // Don't bother with pre and post-processing for deletions.
     if (record.deleted) {
-      if (isSpecial) {
-        this._log.warn("Ignoring deletion for special record " + record.id);
-        return;
-      }
-
-      // Don't bother with pre and post-processing for deletions.
       Store.prototype.applyIncoming.call(this, record);
       return;
     }
 
     // For special folders we're only interested in child ordering.
-    if (isSpecial && record.children) {
+    if ((record.id in kSpecialIds) && record.children) {
       this._log.debug("Processing special node: " + record.id);
       // Reorder children later
       this._childrenToOrder[record.id] = record.children;
-      return;
-    }
-
-    // Skip malformed records. (Bug 806460.)
-    if (record.type == "query" &&
-        !record.bmkUri) {
-      this._log.warn("Skipping malformed query bookmark: " + record.id);
       return;
     }
 
@@ -530,14 +507,12 @@ BookmarksStore.prototype = {
     if (!parentGUID) {
       throw "Record " + record.id + " has invalid parentid: " + parentGUID;
     }
-    this._log.debug("Local parent is " + parentGUID);
 
     let parentId = this.idForGUID(parentGUID);
     if (parentId > 0) {
       // Save the parent id for modifying the bookmark later
       record._parent = parentId;
       record._orphan = false;
-      this._log.debug("Record " + record.id + " is not an orphan.");
     } else {
       this._log.trace("Record " + record.id +
                       " is an orphan: could not find parent " + parentGUID);
@@ -786,11 +761,6 @@ BookmarksStore.prototype = {
   },
 
   remove: function BStore_remove(record) {
-    if (kSpecialIds.isSpecialGUID(record.id)) {
-      this._log.warn("Refusing to remove special folder " + record.id);
-      return;
-    }
-
     let itemId = this.idForGUID(record.id);
     if (itemId <= 0) {
       this._log.debug("Item " + record.id + " already removed");
@@ -1414,13 +1384,12 @@ BookmarksTracker.prototype = {
     this._add(folder, parentGuid);
   },
 
-  onItemRemoved: function (itemId, parentId, index, type, uri,
-                           guid, parentGuid) {
-    if (this._ignore(itemId, parentId, guid)) {
+  onItemRemoved: function BMT_onItemRemoved(itemId, parentId, index, type, uri,
+                                            guid, parentGuid) {
+    if (this._ignore(itemId, parentId, guid))
       return;
-    }
 
-    this._log.trace("onItemRemoved: " + itemId);
+    this._log.trace("onBeforeItemRemoved: " + itemId);
     this._add(itemId, guid);
     this._add(parentId, parentGuid);
   },
@@ -1510,5 +1479,6 @@ BookmarksTracker.prototype = {
 
   onBeginUpdateBatch: function () {},
   onEndUpdateBatch: function () {},
+  onBeforeItemRemoved: function () {},
   onItemVisited: function () {}
 };

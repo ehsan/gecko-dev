@@ -9,8 +9,4 @@ function testCopyBigArray() {
     var p = new ParallelArray(a);
   }
 }
-
-if (getBuildConfiguration().parallelJS)
-  testCopyBigArray();
-else
-  throw new TypeError();
+testCopyBigArray();

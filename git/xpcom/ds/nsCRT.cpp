@@ -141,7 +141,7 @@ const char* nsCRT::memmem(const char* haystack, uint32_t haystackLen,
   // No memmem means we need to roll our own.  This isn't really optimized
   // for performance ... if that becomes an issue we can take some inspiration
   // from the js string compare code in jsstr.cpp
-  for (uint32_t i = 0; i < haystackLen - needleLen; i++) {
+  for (int32_t i = 0; i < haystackLen - needleLen; i++) {
     if (!memcmp(haystack + i, needle, needleLen))
       return haystack + i;
   }
@@ -172,13 +172,14 @@ PRUnichar* nsCRT::strndup(const PRUnichar* str, uint32_t len)
 int64_t nsCRT::atoll(const char *str)
 {
     if (!str)
-        return 0;
+        return LL_Zero();
 
-    int64_t ll = 0;
+    int64_t ll = LL_Zero(), digitll = LL_Zero();
 
     while (*str && *str >= '0' && *str <= '9') {
         ll *= 10;
-        ll += *str - '0';
+        LL_UI2L(digitll, (*str - '0'));
+        ll += digitll;
         str++;
     }
 

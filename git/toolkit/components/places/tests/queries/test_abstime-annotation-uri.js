@@ -118,15 +118,10 @@ var testData = [
  *                 AND annotationIsNot(match) GROUP BY Domain, Day SORT BY uri,ascending
  *                 excludeITems(should be ignored)
  */
-function run_test()
-{
-  run_next_test();
-}
+function run_test() {
 
-add_task(function test_abstime_annotation_uri()
-{
   //Initialize database
-  yield task_populateDB(testData);
+  populateDB(testData);
 
   // Query
   var query = PlacesUtils.history.getNewQuery();
@@ -160,14 +155,14 @@ add_task(function test_abstime_annotation_uri()
   // Let's add something first
   var addItem = [{isInQuery: true, isVisit: true, isDetails: true, title: "moz",
                  uri: "http://foo.com/i-am-added.html", lastVisit: jan11_800}];
-  yield task_populateDB(addItem);
+  populateDB(addItem);
   LOG("Adding item foo.com/i-am-added.html");
   do_check_eq(isInResult(addItem, root), true);
 
   // Let's update something by title
   var change1 = [{isDetails: true, uri: "http://foo.com/changeme1",
                   lastVisit: jan12_1730, title: "moz moz mozzie"}];
-  yield task_populateDB(change1);
+  populateDB(change1);
   LOG("LiveUpdate by changing title");
   do_check_eq(isInResult(change1, root), true);
 
@@ -179,14 +174,14 @@ add_task(function test_abstime_annotation_uri()
   // This is bug 424050 - appears to happen for both domain and URI queries
   /*var change2 = [{isPageAnnotation: true, uri: "http://foo.com/badannotaion.html",
                   annoName: "text/mozilla", annoVal: "test"}];
-  yield task_populateDB(change2);
+  populateDB(change2);
   LOG("LiveUpdate by removing annotation");
   do_check_eq(isInResult(change2, root), true);*/
 
   // Let's update by adding a visit in the time range for an existing URI
   var change3 = [{isDetails: true, uri: "http://foo.com/changeme3.htm",
                   title: "moz", lastVisit: jan15_2045}];
-  yield task_populateDB(change3);
+  populateDB(change3);
   LOG("LiveUpdate by adding visit within timerange");
   do_check_eq(isInResult(change3, root), true);
 
@@ -194,15 +189,34 @@ add_task(function test_abstime_annotation_uri()
   // Once more, bug 424050
   /*var change4 = [{isPageAnnotation: true, uri: "http://foo.com/",
                   annoVal: "test", annoName: badAnnoName}];
-  yield task_populateDB(change4);
+  populateDB(change4);
   LOG("LiveUpdate by deleting item from set by adding annotation");
   do_check_eq(isInResult(change4, root), false);*/
 
   // Delete something by changing the title
   var change5 = [{isDetails: true, uri: "http://foo.com/end.html", title: "deleted"}];
-  yield task_populateDB(change5);
+  populateDB(change5);
   LOG("LiveUpdate by deleting item by changing title");
   do_check_eq(isInResult(change5, root), false);
 
+  // Update some in batch mode
+  // Adds http://foo.com/changeme2 to the result set and removes foo.com/begin.html
+  var updateBatch = {
+    runBatched: function (aUserData) {
+      var batchChange = [{isDetails: true, uri: "http://foo.com/changeme2",
+                          title: "moz", lastVisit: jan7_800},
+                         {isPageAnnotation: true, uri: "http://foo.com/begin.html",
+                          annoName: badAnnoName, annoVal: val}];
+      populateDB(batchChange);
+    }
+  };
+
+  PlacesUtils.history.runInBatchMode(updateBatch, null);
+  LOG("LiveUpdate by updating title in batch mode");
+  do_check_eq(isInResult({uri: "http://foo.com/changeme2"}, root), true);
+
+  LOG("LiveUpdate by deleting item by setting annotation in batch mode");
+  do_check_eq(isInResult({uri: "http:/foo.com/begin.html"}, root), false);
+
   root.containerOpen = false;
-});
+}

@@ -39,7 +39,7 @@ UnwrapNW(JSContext *cx, unsigned argc, jsval *vp)
     return true;
   }
 
-  if (WrapperFactory::IsXrayWrapper(obj) && AccessCheck::wrapperSubsumes(obj)) {
+  if (WrapperFactory::IsXrayWrapper(obj) && AccessCheck::isChrome(obj)) {
     return JS_GetProperty(cx, obj, "wrappedJSObject", vp);
   }
 
@@ -85,6 +85,22 @@ AttachNewConstructorObject(XPCCallContext &ccx, JSObject *aGlobalObject)
 }
 
 } // namespace XPCNativeWrapper
+
+namespace xpc {
+
+JSObject *
+Unwrap(JSContext *cx, JSObject *wrapper, bool stopAtOuter)
+{
+  if (js::IsWrapper(wrapper)) {
+    if (xpc::AccessCheck::isScriptAccessOnly(cx, wrapper))
+      return nullptr;
+    return js::UnwrapObject(wrapper, stopAtOuter);
+  }
+
+  return nullptr;
+}
+
+} // namespace xpc
 
 namespace XPCWrapper {
 

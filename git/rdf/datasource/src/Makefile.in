@@ -10,6 +10,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= rdf
 LIBRARY_NAME	= rdfdatasource_s
 LIBXUL_LIBRARY  = 1
 

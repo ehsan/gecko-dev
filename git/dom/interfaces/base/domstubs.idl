@@ -23,11 +23,13 @@ interface nsIDOMDocument;
 interface nsIDOMDocumentFragment;
 interface nsIDOMDocumentType;
 interface nsIDOMElement;
+interface nsIDOMNamedNodeMap;
 interface nsIDOMNode;
 interface nsIDOMNodeList;
 interface nsIDOMProcessingInstruction;
 interface nsIDOMText;
 interface nsIDOMDOMStringList;
+interface nsIDOMDOMTokenList;
 interface nsIDOMClientRect;
 interface nsIDOMClientRectList;
 
@@ -65,6 +67,7 @@ interface nsIDOMHTMLHeadElement;
 
 // CSS
 interface nsIDOMCSSValue;
+interface nsIDOMCSSValueList;
 interface nsIDOMCSSPrimitiveValue;
 interface nsIDOMCSSRule;
 interface nsIDOMCSSRuleList;
@@ -73,6 +76,7 @@ interface nsIDOMCSSStyleSheet;
 interface nsIDOMCSSStyleDeclaration;
 interface nsIDOMCounter;
 interface nsIDOMRect;
+interface nsIDOMRGBColor;
 interface nsIDOMCSSStyleRule;
 interface nsIDOMCSSStyleRuleCollection;
 interface nsIDOMHTMLTableCaptionElement;

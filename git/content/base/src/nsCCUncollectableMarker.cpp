@@ -6,10 +6,10 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsIObserverService.h"
 #include "nsIDocShell.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIContentViewer.h"
 #include "nsIDocument.h"
-#include "XULDocument.h"
 #include "nsIWindowMediator.h"
 #include "nsPIDOMWindow.h"
 #include "nsIWebNavigation.h"
@@ -27,11 +27,9 @@
 #include "nsJSEnvironment.h"
 #include "nsInProcessTabChildGlobal.h"
 #include "nsFrameLoader.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 #include "xpcpublic.h"
 #include "nsObserverService.h"
-
-using namespace mozilla::dom;
 
 static bool sInited = 0;
 uint32_t nsCCUncollectableMarker::sGeneration = 0;
@@ -78,7 +76,7 @@ MarkUserData(void* aNode, nsIAtom* aKey, void* aValue, void* aData)
 {
   nsIDocument* d = static_cast<nsINode*>(aNode)->GetCurrentDoc();
   if (d && nsCCUncollectableMarker::InGeneration(d->GetMarkedCCGeneration())) {
-    Element::MarkUserData(aNode, aKey, aValue, aData);
+    nsGenericElement::MarkUserData(aNode, aKey, aValue, aData);
   }
 }
 
@@ -87,7 +85,7 @@ MarkUserDataHandler(void* aNode, nsIAtom* aKey, void* aValue, void* aData)
 {
   nsIDocument* d = static_cast<nsINode*>(aNode)->GetCurrentDoc();
   if (d && nsCCUncollectableMarker::InGeneration(d->GetMarkedCCGeneration())) {
-    Element::MarkUserDataHandler(aNode, aKey, aValue, aData);
+    nsGenericElement::MarkUserDataHandler(aNode, aKey, aValue, aData);
   }
 }
 
@@ -298,7 +296,7 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
                                  const PRUnichar* aData)
 {
   if (!strcmp(aTopic, "xpcom-shutdown")) {
-    Element::ClearContentUnbinder();
+    nsGenericElement::ClearContentUnbinder();
 
     nsCOMPtr<nsIObserverService> obs =
       mozilla::services::GetObserverService();
@@ -325,10 +323,10 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
 
   bool prepareForCC = !strcmp(aTopic, "cycle-collector-begin");
   if (prepareForCC) {
-    Element::ClearContentUnbinder();
+    nsGenericElement::ClearContentUnbinder();
   }
 
-  // Increase generation to effectively unmark all current objects
+  // Increase generation to effectivly unmark all current objects
   if (!++sGeneration) {
     ++sGeneration;
   }
@@ -366,17 +364,6 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
       nsCOMPtr<nsIDocShellTreeNode> shellTreeNode = do_QueryInterface(shell);
       MarkDocShell(shellTreeNode, cleanupJS, prepareForCC);
     }
-    bool hasHiddenPrivateWindow = false;
-    appShell->GetHasHiddenPrivateWindow(&hasHiddenPrivateWindow);
-    if (hasHiddenPrivateWindow) {
-      appShell->GetHiddenPrivateWindow(getter_AddRefs(hw));
-      if (hw) {
-        nsCOMPtr<nsIDocShell> shell;
-        hw->GetDocShell(getter_AddRefs(shell));
-        nsCOMPtr<nsIDocShellTreeNode> shellTreeNode = do_QueryInterface(shell);
-        MarkDocShell(shellTreeNode, cleanupJS, prepareForCC);
-      }
-    }
   }
 
 #ifdef MOZ_XUL
@@ -405,61 +392,30 @@ nsCCUncollectableMarker::Observe(nsISupports* aSubject, const char* aTopic,
   return NS_OK;
 }
 
-struct TraceClosure
-{
-  TraceClosure(JSTracer* aTrc, uint32_t aGCNumber)
-    : mTrc(aTrc), mGCNumber(aGCNumber)
-  {}
-  JSTracer* mTrc;
-  uint32_t mGCNumber;
-};
-
 static PLDHashOperator
 TraceActiveWindowGlobal(const uint64_t& aId, nsGlobalWindow*& aWindow, void* aClosure)
 {
   if (aWindow->GetDocShell() && aWindow->IsOuterWindow()) {
-    TraceClosure* closure = static_cast<TraceClosure*>(aClosure);
     if (JSObject* global = aWindow->FastGetGlobalJSObject()) {
-      JS_CallObjectTracer(closure->mTrc, global, "active window global");
+      JSTracer* trc = static_cast<JSTracer *>(aClosure);
+      JS_CALL_OBJECT_TRACER(trc, global, "active window global");
     }
-#ifdef MOZ_XUL
-    nsIDocument* doc = aWindow->GetExtantDoc();
-    if (doc && doc->IsXUL()) {
-      XULDocument* xulDoc = static_cast<XULDocument*>(doc);
-      xulDoc->TraceProtos(closure->mTrc, closure->mGCNumber);
-    }
-#endif
   }
   return PL_DHASH_NEXT;
 }
 
 void
-mozilla::dom::TraceBlackJS(JSTracer* aTrc, uint32_t aGCNumber, bool aIsShutdownGC)
+mozilla::dom::TraceBlackJS(JSTracer* aTrc)
 {
-#ifdef MOZ_XUL
-  // Mark the scripts held in the XULPrototypeCache. This is required to keep
-  // the JS script in the cache live across GC.
-  nsXULPrototypeCache* cache = nsXULPrototypeCache::MaybeGetInstance();
-  if (cache) {
-    if (aIsShutdownGC) {
-      cache->FlushScripts();
-    } else {
-      cache->MarkInGC(aTrc);
-    }
-  }
-#endif
-
   if (!nsCCUncollectableMarker::sGeneration) {
     return;
   }
-
-  TraceClosure closure(aTrc, aGCNumber);
 
   // Mark globals of active windows black.
   nsGlobalWindow::WindowByIdTable* windowsById =
     nsGlobalWindow::GetWindowsTable();
   if (windowsById) {
-    windowsById->Enumerate(TraceActiveWindowGlobal, &closure);
+    windowsById->Enumerate(TraceActiveWindowGlobal, aTrc);
   }
 
   // Mark the safe context black

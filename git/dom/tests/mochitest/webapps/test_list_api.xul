@@ -39,7 +39,6 @@ var mgmtProps = {
   applyDownload: "function",
   getAll: "function",
   getNotInstalled: "function",
-  uninstall: "function",
   oninstall: "object",
   onuninstall: "object",
 };

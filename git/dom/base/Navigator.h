@@ -14,16 +14,9 @@
 #include "nsIDOMClientInformation.h"
 #include "nsINavigatorBattery.h"
 #include "nsIDOMNavigatorSms.h"
-#include "nsIDOMNavigatorMobileMessage.h"
 #include "nsIDOMNavigatorNetwork.h"
-#include "nsIObserver.h"
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-#include "nsINavigatorAudioChannelManager.h"
-#endif
 #ifdef MOZ_B2G_RIL
 #include "nsINavigatorMobileConnection.h"
-#include "nsINavigatorCellBroadcast.h"
-#include "nsINavigatorVoicemail.h"
 #endif
 #include "nsAutoPtr.h"
 #include "nsIDOMNavigatorTime.h"
@@ -44,6 +37,7 @@ class nsIDOMMozConnection;
 #ifdef MOZ_B2G_RIL
 #include "nsIDOMNavigatorTelephony.h"
 class nsIDOMTelephony;
+class nsIDOMMozVoicemail;
 #endif
 
 #ifdef MOZ_B2G_BT
@@ -66,8 +60,9 @@ namespace battery {
 class BatteryManager;
 } // namespace battery
 
+namespace sms {
 class SmsManager;
-class MobileMessageManager;
+} // namespace sms
 
 namespace network {
 class Connection;
@@ -84,12 +79,6 @@ namespace time {
 class TimeManager;
 } // namespace time
 
-namespace system {
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-class AudioChannelManager;
-#endif
-} // namespace system
-
 class Navigator : public nsIDOMNavigator
                 , public nsIDOMClientInformation
                 , public nsIDOMNavigatorDeviceStorage
@@ -97,8 +86,6 @@ class Navigator : public nsIDOMNavigator
                 , public nsIDOMNavigatorDesktopNotification
                 , public nsINavigatorBattery
                 , public nsIDOMMozNavigatorSms
-                , public nsIDOMMozNavigatorMobileMessage
-                , public nsIObserver
 #ifdef MOZ_MEDIA_NAVIGATOR
                 , public nsINavigatorUserMedia
                 , public nsIDOMNavigatorUserMedia
@@ -109,20 +96,13 @@ class Navigator : public nsIDOMNavigator
                 , public nsIDOMMozNavigatorNetwork
 #ifdef MOZ_B2G_RIL
                 , public nsIMozNavigatorMobileConnection
-                , public nsIMozNavigatorCellBroadcast
-                , public nsIMozNavigatorVoicemail
 #endif
 #ifdef MOZ_B2G_BT
                 , public nsIDOMNavigatorBluetooth
 #endif
                 , public nsIDOMNavigatorCamera
                 , public nsIDOMNavigatorSystemMessages
-#ifdef MOZ_TIME_MANAGER
                 , public nsIDOMMozNavigatorTime
-#endif
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-                , public nsIMozNavigatorAudioChannelManager
-#endif
 {
 public:
   Navigator(nsPIDOMWindow *aInnerWindow);
@@ -136,8 +116,6 @@ public:
   NS_DECL_NSIDOMNAVIGATORDESKTOPNOTIFICATION
   NS_DECL_NSINAVIGATORBATTERY
   NS_DECL_NSIDOMMOZNAVIGATORSMS
-  NS_DECL_NSIDOMMOZNAVIGATORMOBILEMESSAGE
-  NS_DECL_NSIOBSERVER
 #ifdef MOZ_MEDIA_NAVIGATOR
   NS_DECL_NSINAVIGATORUSERMEDIA
   NS_DECL_NSIDOMNAVIGATORUSERMEDIA
@@ -148,21 +126,14 @@ public:
   NS_DECL_NSIDOMMOZNAVIGATORNETWORK
 #ifdef MOZ_B2G_RIL
   NS_DECL_NSIMOZNAVIGATORMOBILECONNECTION
-  NS_DECL_NSIMOZNAVIGATORCELLBROADCAST
-  NS_DECL_NSIMOZNAVIGATORVOICEMAIL
 #endif
 
 #ifdef MOZ_B2G_BT
   NS_DECL_NSIDOMNAVIGATORBLUETOOTH
 #endif
   NS_DECL_NSIDOMNAVIGATORSYSTEMMESSAGES
-#ifdef MOZ_TIME_MANAGER
   NS_DECL_NSIDOMMOZNAVIGATORTIME
-#endif
 
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-  NS_DECL_NSIMOZNAVIGATORAUDIOCHANNELMANAGER
-#endif
   static void Init();
 
   void Invalidate();
@@ -199,8 +170,7 @@ private:
   nsRefPtr<nsDesktopNotificationCenter> mNotification;
   nsRefPtr<battery::BatteryManager> mBatteryManager;
   nsRefPtr<power::PowerManager> mPowerManager;
-  nsRefPtr<SmsManager> mSmsManager;
-  nsRefPtr<MobileMessageManager> mMobileMessageManager;
+  nsRefPtr<sms::SmsManager> mSmsManager;
 #ifdef MOZ_B2G_RIL
   nsCOMPtr<nsIDOMTelephony> mTelephony;
   nsCOMPtr<nsIDOMMozVoicemail> mVoicemail;
@@ -208,13 +178,9 @@ private:
   nsRefPtr<network::Connection> mConnection;
 #ifdef MOZ_B2G_RIL
   nsRefPtr<network::MobileConnection> mMobileConnection;
-  nsCOMPtr<nsIDOMMozCellBroadcast> mCellBroadcast;
 #endif
 #ifdef MOZ_B2G_BT
   nsCOMPtr<nsIDOMBluetoothManager> mBluetooth;
-#endif
-#ifdef MOZ_AUDIO_CHANNEL_MANAGER
-  nsRefPtr<system::AudioChannelManager> mAudioChannelManager;
 #endif
   nsRefPtr<nsDOMCameraManager> mCameraManager;
   nsCOMPtr<nsIDOMNavigatorSystemMessages> mMessagesManager;

@@ -9,7 +9,7 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 const Cr = Components.results;
 
-this.EXPORTED_SYMBOLS = ['TraversalRules'];
+var EXPORTED_SYMBOLS = ['TraversalRules'];
 
 Cu.import('resource://gre/modules/accessibility/Utils.jsm');
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
@@ -50,7 +50,10 @@ var gSimpleTraversalRoles =
    Ci.nsIAccessibleRole.ROLE_LINK,
    Ci.nsIAccessibleRole.ROLE_PAGETAB,
    Ci.nsIAccessibleRole.ROLE_GRAPHIC,
-   Ci.nsIAccessibleRole.ROLE_STATICTEXT,
+   // XXX: Find a better solution for ROLE_STATICTEXT.
+   // It allows to filter list bullets but at the same time it
+   // filters CSS generated content too as an unwanted side effect.
+   // Ci.nsIAccessibleRole.ROLE_STATICTEXT,
    Ci.nsIAccessibleRole.ROLE_TEXT_LEAF,
    Ci.nsIAccessibleRole.ROLE_PUSHBUTTON,
    Ci.nsIAccessibleRole.ROLE_CHECKBUTTON,
@@ -67,7 +70,7 @@ var gSimpleTraversalRoles =
    // Used for traversing in to child OOP frames.
    Ci.nsIAccessibleRole.ROLE_INTERNAL_FRAME];
 
-this.TraversalRules = {
+var TraversalRules = {
   Simple: new BaseTraversalRule(
     gSimpleTraversalRoles,
     function Simple_match(aAccessible) {
@@ -92,16 +95,6 @@ this.TraversalRules = {
           return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
         else
           return Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
-      case Ci.nsIAccessibleRole.ROLE_STATICTEXT:
-        {
-          let parent = aAccessible.parent;
-          // Ignore prefix static text in list items. They are typically bullets or numbers.
-          if (parent.childCount > 1 && aAccessible.indexInParent == 0 &&
-              parent.role == Ci.nsIAccessibleRole.ROLE_LISTITEM)
-            return Ci.nsIAccessibleTraversalRule.FILTER_IGNORE;
-
-          return Ci.nsIAccessibleTraversalRule.FILTER_MATCH;
-        }
       default:
         // Ignore the subtree, if there is one. So that we don't land on
         // the same content that was already presented by its parent.

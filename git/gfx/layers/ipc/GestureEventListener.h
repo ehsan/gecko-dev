@@ -1,7 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=4 ts=8 et tw=80 : */
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */ /* vim: set sw=4 ts=8 et tw=80 : */ /* This Source Code Form is subject to the terms of the Mozilla Public * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef mozilla_layers_GestureEventListener_h
@@ -108,12 +105,6 @@ protected:
   nsEventStatus HandleSingleTapConfirmedEvent(const MultiTouchInput& aEvent);
 
   /**
-   * Attempts to handle a long tap confirmation. This is what will use
-   * for context menu.
-   */
-  nsEventStatus HandleLongTapEvent(const MultiTouchInput& aEvent);
-
-  /**
    * Attempts to handle a tap event cancellation. This happens when we think
    * something was a tap but it actually wasn't. In general, this will not
    * attempt to block the touch event from being passed along to
@@ -139,11 +130,6 @@ protected:
    * has time to tap again (to make a double tap).
    */
   void TimeoutDoubleTap();
-  /**
-   * Times out a long tap. This should be called a 'long' time after a single
-   * tap is detected.
-   */
-  void TimeoutLongTap();
 
   nsRefPtr<AsyncPanZoomController> mAsyncPanZoomController;
 
@@ -182,13 +168,6 @@ protected:
   uint64_t mTapStartTime;
 
   /**
-   * Stores the time the last tap ends (finger leaves the screen). This is used
-   * when mDoubleTapTimeoutTask cannot be scheduled in time and consecutive
-   * taps are falsely regarded as double taps.
-   */
-  uint64_t mLastTapEndTime;
-
-  /**
    * Cached copy of the last touch input, only valid when in the
    * "GESTURE_WAITING_DOUBLE_TAP" state. This is used to forward along to
    * AsyncPanZoomController if a single tap needs to be sent (since it is sent
@@ -203,13 +182,6 @@ protected:
    * we can cancel it if a double tap actually comes in.
    */
   CancelableTask *mDoubleTapTimeoutTask;
-
-  /**
-   * Task used to timeout a long tap. This gets posted to the UI thread such
-   * that it runs a time when a single tap happens. We cache it so that
-   * we can cancel it if any other touch event happens.
-   */
-  CancelableTask *mLongTapTimeoutTask;
 
   /**
    * Position of the last touch starting. This is only valid during an attempt

@@ -19,6 +19,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsIPresShell.h"
 #include "nsIDocShell.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsISelectionController.h"
 #include "nsIWebNavigation.h"
 #include "nsIContentViewerEdit.h"
@@ -172,8 +173,7 @@ nsSelectionCommandsBase::GetPresShellFromWindow(nsPIDOMWindow *aWindow, nsIPresS
   nsIDocShell *docShell = aWindow->GetDocShell();
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
-  NS_IF_ADDREF(*aPresShell = docShell->GetPresShell());
-  return NS_OK;
+  return docShell->GetPresShell(aPresShell);
 }
 
 nsresult
@@ -242,10 +242,10 @@ nsSelectMoveScrollCommand::DoCommand(const char *aCommandName, nsISupports *aCom
   if (!caretOn) {
     caretOn = Preferences::GetBool("accessibility.browsewithcaret");
     if (caretOn) {
-      nsCOMPtr<nsIDocShell> docShell = piWindow->GetDocShell();
-      if (docShell) {
+      nsCOMPtr<nsIDocShellTreeItem> dsti = do_QueryInterface(piWindow->GetDocShell());
+      if (dsti) {
         int32_t itemType;
-        docShell->GetItemType(&itemType);
+        dsti->GetItemType(&itemType);
         if (itemType == nsIDocShellTreeItem::typeChrome) {
           caretOn = false;
         }
@@ -362,7 +362,8 @@ nsClipboardCommand::DoCommand(const char *aCommandName, nsISupports *aContext)
   nsIDocShell *docShell = window->GetDocShell();
   NS_ENSURE_TRUE(docShell, NS_ERROR_FAILURE);
 
-  nsCOMPtr<nsIPresShell> presShell = docShell->GetPresShell();
+  nsCOMPtr<nsIPresShell> presShell;
+  docShell->GetPresShell(getter_AddRefs(presShell));
   NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
 
   nsCopySupport::FireClipboardEvent(NS_COPY, presShell, nullptr);

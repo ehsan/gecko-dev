@@ -4,29 +4,30 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const TOTAL_SITES = 20;
-
-function run_test()
-{
-  run_next_test();
+// adds a test URI visit to the database, and checks for a valid place ID
+function add_visit(aURI, aWhen, aType) {
+  PlacesUtils.history.addVisit(aURI, aWhen, null, aType, false, 0);
 }
 
-add_task(function test_execute()
-{
+const TOTAL_SITES = 20;
+
+function run_test() {
   let now = Date.now() * 1000;
 
-  for (let i = 0; i < TOTAL_SITES; i++) {
-    let site = "http://www.test-" + i + ".com/";
-    let testURI = uri(site);
-    let testImageURI = uri(site + "blank.gif");
-    let when = now + (i * TOTAL_SITES);
-    yield promiseAddVisits([
-      { uri: testURI, visitDate: when, transition: TRANSITION_TYPED },
-      { uri: testImageURI, visitDate: ++when, transition: TRANSITION_EMBED },
-      { uri: testImageURI, visitDate: ++when, transition: TRANSITION_FRAMED_LINK },
-      { uri: testURI, visitDate: ++when, transition: TRANSITION_LINK },
-    ]);
-  }
+  PlacesUtils.history.runInBatchMode({
+    runBatched: function (aUserData) {
+      for (let i=0; i < TOTAL_SITES; i++) {
+        let site = "http://www.test-" + i + ".com/";
+        let testURI = uri(site);
+        let testImageURI = uri(site + "blank.gif");
+        let when = now + (i * TOTAL_SITES);
+        add_visit(testURI, when, PlacesUtils.history.TRANSITION_TYPED);
+        add_visit(testImageURI, ++when, PlacesUtils.history.TRANSITION_EMBED);
+        add_visit(testImageURI, ++when, PlacesUtils.history.TRANSITION_FRAMED_LINK);
+        add_visit(testURI, ++when, PlacesUtils.history.TRANSITION_LINK);
+      }
+    }
+  }, null);
 
   // verify our visits AS_VISIT, ordered by date descending
   // including hidden
@@ -55,13 +56,13 @@ add_task(function test_execute()
     let node = root.getChild(index);
     let site = "http://www.test-" + (TOTAL_SITES - 1 - i) + ".com/";
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_VISIT);
     node = root.getChild(++index);
     do_check_eq(node.uri, site + "blank.gif");
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_VISIT);
     node = root.getChild(++index);
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_VISIT);
   }
   root.containerOpen = false;
 
@@ -86,10 +87,10 @@ add_task(function test_execute()
     let node = root.getChild(index);
     let site = "http://www.test-" + (TOTAL_SITES - 1 - i) + ".com/";
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_VISIT);
     node = root.getChild(++index);
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_VISIT);
   }
   root.containerOpen = false;
 
@@ -113,7 +114,7 @@ add_task(function test_execute()
     let node = root.getChild(i);
     let site = "http://www.test-" + (TOTAL_SITES - 1 - i) + ".com/";
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_URI);
   }
   root.containerOpen = false;
 
@@ -136,7 +137,7 @@ add_task(function test_execute()
     let node = root.getChild(i);
     let site = "http://www.test-" + (TOTAL_SITES - 1 - i) + ".com/";
     do_check_eq(node.uri, site);
-    do_check_eq(node.type, Ci.nsINavHistoryResultNode.RESULT_TYPE_URI);
+    do_check_eq(node.type, options.RESULTS_AS_URI);
   }
   root.containerOpen = false;
-});
+}

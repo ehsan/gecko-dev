@@ -66,9 +66,6 @@ Usage(const char *progName)
 	"\t-u usage \t 0=SSL client, 1=SSL server, 2=SSL StepUp, 3=SSL CA,\n"
 	"\t\t\t 4=Email signer, 5=Email recipient, 6=Object signer,\n"
 	"\t\t\t 9=ProtectedObjectSigner, 10=OCSP responder, 11=Any CA\n"
-	"\t-T\t\t Trust both explicit trust anchors (-t) and the database.\n"
-	"\t\t\t (Default is to only trust certificates marked -t, if there are any,\n"
-	"\t\t\t or to trust the database if there are certificates marked -t.)\n"
 	"\t-v\t\t Verbose mode. Prints root cert subject(double the\n"
 	"\t\t\t argument for whole root cert info)\n"
 	"\t-w password\t Database password.\n"
@@ -426,14 +423,13 @@ main(int argc, char *argv[], char *envp[])
     int                  revDataIndex = 0;
     PRBool               ocsp_fetchingFailureIsAFailure = PR_TRUE;
     PRBool               useDefaultRevFlags = PR_TRUE;
-    PRBool               onlyTrustAnchors = PR_TRUE;
     int                  vfyCounts = 1;
 
     PR_Init( PR_SYSTEM_THREAD, PR_PRIORITY_NORMAL, 1);
 
     progName = PL_strdup(argv[0]);
 
-    optstate = PL_CreateOptState(argc, argv, "ab:c:d:efg:h:i:m:o:prs:tTu:vw:W:");
+    optstate = PL_CreateOptState(argc, argv, "ab:c:d:efg:h:i:m:o:prs:tu:vw:W:");
     while ((status = PL_GetNextOpt(optstate)) == PL_OPT_OK) {
 	switch(optstate->option) {
 	case  0  : /* positional parameter */  goto breakout;
@@ -482,7 +478,6 @@ main(int argc, char *argv[], char *envp[])
                    revMethodsData[revDataIndex].
                        methodFlagsStr = PL_strdup(optstate->value); break;
 	case 't' : trusted  = PR_TRUE;                        break;
-	case 'T' : onlyTrustAnchors = PR_FALSE;               break;
 	case 'u' : usage    = PORT_Atoi(optstate->value);
 	           if (usage < 0 || usage > 62) Usage(progName);
 		   certUsage = ((SECCertificateUsage)1) << usage; 
@@ -515,11 +510,6 @@ breakout:
             fprintf(stderr, "Cert trust flag can be used only with"
                     " CERT_PKIXVerifyCert(-pp) function.\n");
             Usage(progName);
-        }
-        if (!onlyTrustAnchors) {
-            fprintf(stderr, "Cert trust anchor exclusiveness can be"
-                    " used only with CERT_PKIXVerifyCert(-pp)"
-                    " function.\n");
         }
     }
 
@@ -603,7 +593,7 @@ breakout:
                                            NULL);/* returned usages */
         } else do {
                 static CERTValOutParam cvout[4];
-                static CERTValInParam cvin[7];
+                static CERTValInParam cvin[6];
                 SECOidTag oidTag;
                 int inParamIndex = 0;
                 static PRUint64 revFlagsLeaf[2];
@@ -675,12 +665,6 @@ breakout:
                 if (time) {
                     cvin[inParamIndex].type = cert_pi_date;
                     cvin[inParamIndex].value.scalar.time = time;
-                    inParamIndex++;
-                }
-
-                if (!onlyTrustAnchors) {
-                    cvin[inParamIndex].type = cert_pi_useOnlyTrustAnchors;
-                    cvin[inParamIndex].value.scalar.b = onlyTrustAnchors;
                     inParamIndex++;
                 }
                 

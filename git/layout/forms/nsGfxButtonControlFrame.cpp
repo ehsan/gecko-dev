@@ -50,6 +50,24 @@ nsGfxButtonControlFrame::GetType() const
   return nsGkAtoms::gfxButtonControlFrame;
 }
 
+// Special check for the browse button of a file input.
+//
+// We'll return true if type is NS_FORM_INPUT_BUTTON and our parent
+// is a file input.
+bool
+nsGfxButtonControlFrame::IsFileBrowseButton(int32_t type) const
+{
+  bool rv = false;
+  if (NS_FORM_INPUT_BUTTON == type) {
+    // Check to see if parent is a file input
+    nsCOMPtr<nsIFormControl> formCtrl =
+      do_QueryInterface(mContent->GetParent());
+
+    rv = formCtrl && formCtrl->GetType() == NS_FORM_INPUT_FILE;
+  }
+  return rv;
+}
+
 #ifdef DEBUG
 NS_IMETHODIMP
 nsGfxButtonControlFrame::GetFrameName(nsAString& aResult) const
@@ -114,6 +132,22 @@ nsGfxButtonControlFrame::CreateFrameFor(nsIContent*      aContent)
   return newFrame;
 }
 
+nsresult
+nsGfxButtonControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
+{
+  nsresult rv = NS_OK;
+  if (nsGkAtoms::defaultLabel == aName) {
+    // This property is used by accessibility to get
+    // the default label of the button.
+    nsXPIDLString temp;
+    rv = GetDefaultLabel(temp);
+    aValue = temp;
+  } else {
+    aValue.Truncate();
+  }
+  return rv;
+}
+
 NS_QUERYFRAME_HEAD(nsGfxButtonControlFrame)
   NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
 NS_QUERYFRAME_TAIL_INHERITING(nsHTMLButtonControlFrame)
@@ -137,6 +171,9 @@ nsGfxButtonControlFrame::GetDefaultLabel(nsXPIDLString& aString) const
   }
   else if (type == NS_FORM_INPUT_SUBMIT) {
     prop = "Submit";
+  }
+  else if (IsFileBrowseButton(type)) {
+    prop = "Browse";
   }
   else {
     aString.Truncate();
@@ -167,7 +204,7 @@ nsGfxButtonControlFrame::GetLabel(nsXPIDLString& aLabel)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Compress whitespace out of label if needed.
-  if (!StyleText()->WhiteSpaceIsSignificant()) {
+  if (!GetStyleText()->WhiteSpaceIsSignificant()) {
     aLabel.CompressWhitespace();
   } else if (aLabel.Length() > 2 && aLabel.First() == ' ' &&
              aLabel.CharAt(aLabel.Length() - 1) == ' ') {
@@ -241,7 +278,7 @@ nsGfxButtonControlFrame::HandleEvent(nsPresContext* aPresContext,
   // to be selected (Drawn with an XOR rectangle over the label)
 
   // do we have user-input style?
-  const nsStyleUserInterface* uiStyle = StyleUserInterface();
+  const nsStyleUserInterface* uiStyle = GetStyleUserInterface();
   if (uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE || uiStyle->mUserInput == NS_STYLE_USER_INPUT_DISABLED)
     return nsFrame::HandleEvent(aPresContext, aEvent, aEventStatus);
   

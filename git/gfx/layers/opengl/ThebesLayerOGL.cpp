@@ -98,8 +98,8 @@ public:
 
   bool Initialised() { return mInitialised; }
 
-  virtual nsIntPoint GetOriginOffset() = 0;
 protected:
+  virtual nsIntPoint GetOriginOffset() = 0;
 
   GLContext* gl() const { return mOGLLayer->gl(); }
 
@@ -343,6 +343,7 @@ public:
     return mTexImage ? mTexImage->GetBackingSurface() : nullptr;
   }
 
+protected:
   virtual nsIntPoint GetOriginOffset() {
     return BufferRect().TopLeft() - BufferRotation();
   }
@@ -365,10 +366,6 @@ public:
 
   virtual PaintState BeginPaint(ContentType aContentType,
                                 uint32_t aFlags);
-  virtual nsIntPoint GetOriginOffset() {
-    return mBufferRect.TopLeft() - mBufferRotation;
-  }
-
 
 protected:
   enum XSide {
@@ -378,6 +375,10 @@ protected:
     TOP, BOTTOM
   };
   nsIntRect GetQuadrantRectangle(XSide aXSide, YSide aYSide);
+
+  virtual nsIntPoint GetOriginOffset() {
+    return mBufferRect.TopLeft() - mBufferRotation;
+  }
 
 private:
   nsIntRect mBufferRect;
@@ -586,108 +587,63 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
       // TEXTURE_2D.  This isn't the case on some older X1600-era Radeons.
       if (mOGLLayer->OGLManager()->FBOTextureTarget() == LOCAL_GL_TEXTURE_2D) {
         nsIntRect overlap;
-
-        // The buffer looks like:
-        //  ______
-        // |1  |2 |  Where the center point is offset by mBufferRotation from the top-left corner.
-        // |___|__|
-        // |3  |4 |
-        // |___|__|
-        //
-        // This is drawn to the screen as:
-        //  ______
-        // |4  |3 |  Where the center point is { width - mBufferRotation.x, height - mBufferRotation.y } from
-        // |___|__|  from the top left corner - rotationPoint.
-        // |2  |1 |
-        // |___|__|
-        //
-
-        // The basic idea below is to take all quadrant rectangles from the src and transform them into rectangles
-        // in the destination. Unfortunately, it seems it is overly complex and could perhaps be simplified.
-
-        nsIntRect srcBufferSpaceBottomRight(mBufferRotation.x, mBufferRotation.y, mBufferRect.width - mBufferRotation.x, mBufferRect.height - mBufferRotation.y);
-        nsIntRect srcBufferSpaceTopRight(mBufferRotation.x, 0, mBufferRect.width - mBufferRotation.x, mBufferRotation.y);
-        nsIntRect srcBufferSpaceTopLeft(0, 0, mBufferRotation.x, mBufferRotation.y);
-        nsIntRect srcBufferSpaceBottomLeft(0, mBufferRotation.y, mBufferRotation.x, mBufferRect.height - mBufferRotation.y);
-
         overlap.IntersectRect(mBufferRect, destBufferRect);
 
         nsIntRect srcRect(overlap), dstRect(overlap);
         srcRect.MoveBy(- mBufferRect.TopLeft() + mBufferRotation);
+        dstRect.MoveBy(- destBufferRect.TopLeft());
+        
+        if (mBufferRotation != nsIntPoint(0, 0)) {
+          // If mBuffer is rotated, then BlitTextureImage will only be copying the bottom-right section
+          // of the buffer. We need to invalidate the remaining sections so that they get redrawn too.
+          // Alternatively we could teach BlitTextureImage to rearrange the rotated segments onto
+          // the new buffer.
+          
+          // When the rotated buffer is reorganised, the bottom-right section will be drawn in the top left.
+          // Find the point where this content ends.
+          nsIntPoint rotationPoint(mBufferRect.x + mBufferRect.width - mBufferRotation.x, 
+                                   mBufferRect.y + mBufferRect.height - mBufferRotation.y);
 
-        nsIntRect srcRectDrawTopRight(srcRect);
-        nsIntRect srcRectDrawTopLeft(srcRect);
-        nsIntRect srcRectDrawBottomLeft(srcRect);
-        // transform into the different quadrants
-        srcRectDrawTopRight  .MoveBy(-nsIntPoint(0, mBufferRect.height));
-        srcRectDrawTopLeft   .MoveBy(-nsIntPoint(mBufferRect.width, mBufferRect.height));
-        srcRectDrawBottomLeft.MoveBy(-nsIntPoint(mBufferRect.width, 0));
+          // The buffer looks like:
+          //  ______
+          // |1  |2 |  Where the center point is offset by mBufferRotation from the top-left corner.
+          // |___|__|
+          // |3  |4 |
+          // |___|__|
+          //
+          // This is drawn to the screen as:
+          //  ______
+          // |4  |3 |  Where the center point is { width - mBufferRotation.x, height - mBufferRotation.y } from
+          // |___|__|  from the top left corner - rotationPoint. Since only quadrant 4 will actually be copied, 
+          // |2  |1 |  we need to invalidate the others.
+          // |___|__|
+          //
+          // Quadrants 2 and 1
+          nsIntRect bottom(mBufferRect.x, rotationPoint.y, mBufferRect.width, mBufferRotation.y);
+          // Quadrant 3
+          nsIntRect topright(rotationPoint.x, mBufferRect.y, mBufferRotation.x, rotationPoint.y - mBufferRect.y);
 
-        // Intersect with the quadrant
-        srcRect               = srcRect              .Intersect(srcBufferSpaceBottomRight);
-        srcRectDrawTopRight   = srcRectDrawTopRight  .Intersect(srcBufferSpaceTopRight);
-        srcRectDrawTopLeft    = srcRectDrawTopLeft   .Intersect(srcBufferSpaceTopLeft);
-        srcRectDrawBottomLeft = srcRectDrawBottomLeft.Intersect(srcBufferSpaceBottomLeft);
-
-        dstRect = srcRect;
-        nsIntRect dstRectDrawTopRight(srcRectDrawTopRight);
-        nsIntRect dstRectDrawTopLeft(srcRectDrawTopLeft);
-        nsIntRect dstRectDrawBottomLeft(srcRectDrawBottomLeft);
-
-        // transform back to src buffer space
-        dstRect              .MoveBy(-mBufferRotation);
-        dstRectDrawTopRight  .MoveBy(-mBufferRotation + nsIntPoint(0, mBufferRect.height));
-        dstRectDrawTopLeft   .MoveBy(-mBufferRotation + nsIntPoint(mBufferRect.width, mBufferRect.height));
-        dstRectDrawBottomLeft.MoveBy(-mBufferRotation + nsIntPoint(mBufferRect.width, 0));
-
-        // transform back to draw coordinates
-        dstRect              .MoveBy(mBufferRect.TopLeft());
-        dstRectDrawTopRight  .MoveBy(mBufferRect.TopLeft());
-        dstRectDrawTopLeft   .MoveBy(mBufferRect.TopLeft());
-        dstRectDrawBottomLeft.MoveBy(mBufferRect.TopLeft());
-
-        // transform to destBuffer space
-        dstRect              .MoveBy(-destBufferRect.TopLeft());
-        dstRectDrawTopRight  .MoveBy(-destBufferRect.TopLeft());
-        dstRectDrawTopLeft   .MoveBy(-destBufferRect.TopLeft());
-        dstRectDrawBottomLeft.MoveBy(-destBufferRect.TopLeft());
+          if (!bottom.IsEmpty()) {
+            nsIntRegion temp;
+            temp.And(destBufferRect, bottom);
+            result.mRegionToDraw.Or(result.mRegionToDraw, temp);
+          }
+          if (!topright.IsEmpty()) {
+            nsIntRegion temp;
+            temp.And(destBufferRect, topright);
+            result.mRegionToDraw.Or(result.mRegionToDraw, temp);
+          }
+        }
 
         destBuffer->Resize(destBufferRect.Size());
 
         gl()->BlitTextureImage(mTexImage, srcRect,
                                destBuffer, dstRect);
-        if (mBufferRotation != nsIntPoint(0, 0)) {
-          // Draw the remaining quadrants. We call BlitTextureImage 3 extra
-          // times instead of doing a single draw call because supporting that
-          // with a tiled source is quite tricky.
-          if (!srcRectDrawTopRight.IsEmpty())
-            gl()->BlitTextureImage(mTexImage, srcRectDrawTopRight,
-                                   destBuffer, dstRectDrawTopRight);
-          if (!srcRectDrawTopLeft.IsEmpty())
-            gl()->BlitTextureImage(mTexImage, srcRectDrawTopLeft,
-                                   destBuffer, dstRectDrawTopLeft);
-          if (!srcRectDrawBottomLeft.IsEmpty())
-            gl()->BlitTextureImage(mTexImage, srcRectDrawBottomLeft,
-                                   destBuffer, dstRectDrawBottomLeft);
-        }
         destBuffer->MarkValid();
         if (mode == Layer::SURFACE_COMPONENT_ALPHA) {
           destBufferOnWhite->Resize(destBufferRect.Size());
           gl()->BlitTextureImage(mTexImageOnWhite, srcRect,
                                  destBufferOnWhite, dstRect);
-          if (mBufferRotation != nsIntPoint(0, 0)) {
-            // draw the remaining quadrants
-            if (!srcRectDrawTopRight.IsEmpty())
-              gl()->BlitTextureImage(mTexImageOnWhite, srcRectDrawTopRight,
-                                     destBufferOnWhite, dstRectDrawTopRight);
-            if (!srcRectDrawTopLeft.IsEmpty())
-              gl()->BlitTextureImage(mTexImageOnWhite, srcRectDrawTopLeft,
-                                     destBufferOnWhite, dstRectDrawTopLeft);
-            if (!srcRectDrawBottomLeft.IsEmpty())
-              gl()->BlitTextureImage(mTexImageOnWhite, srcRectDrawBottomLeft,
-                                     destBufferOnWhite, dstRectDrawBottomLeft);
-          }
-
           destBufferOnWhite->MarkValid();
         }
       } else {
@@ -733,29 +689,25 @@ BasicBufferOGL::BeginPaint(ContentType aContentType,
     nsIntRegion drawRegionCopy = result.mRegionToDraw;
     gfxASurface *onBlack = mTexImage->BeginUpdate(drawRegionCopy);
     gfxASurface *onWhite = mTexImageOnWhite->BeginUpdate(result.mRegionToDraw);
-    if (onBlack && onWhite) {
-      NS_ASSERTION(result.mRegionToDraw == drawRegionCopy,
-          "BeginUpdate should always modify the draw region in the same way!");
-      FillSurface(onBlack, result.mRegionToDraw, nsIntPoint(0,0), gfxRGBA(0.0, 0.0, 0.0, 1.0));
-      FillSurface(onWhite, result.mRegionToDraw, nsIntPoint(0,0), gfxRGBA(1.0, 1.0, 1.0, 1.0));
-      gfxASurface* surfaces[2] = { onBlack, onWhite };
-      nsRefPtr<gfxTeeSurface> surf = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
+    NS_ASSERTION(result.mRegionToDraw == drawRegionCopy,
+                 "BeginUpdate should always modify the draw region in the same way!");
+    FillSurface(onBlack, result.mRegionToDraw, nsIntPoint(0,0), gfxRGBA(0.0, 0.0, 0.0, 1.0));
+    FillSurface(onWhite, result.mRegionToDraw, nsIntPoint(0,0), gfxRGBA(1.0, 1.0, 1.0, 1.0));
+    gfxASurface* surfaces[2] = { onBlack, onWhite };
+    nsRefPtr<gfxTeeSurface> surf = new gfxTeeSurface(surfaces, ArrayLength(surfaces));
 
-      // XXX If the device offset is set on the individual surfaces instead of on
-      // the tee surface, we render in the wrong place. Why?
-      gfxPoint deviceOffset = onBlack->GetDeviceOffset();
-      onBlack->SetDeviceOffset(gfxPoint(0, 0));
-      onWhite->SetDeviceOffset(gfxPoint(0, 0));
-      surf->SetDeviceOffset(deviceOffset);
+    // XXX If the device offset is set on the individual surfaces instead of on
+    // the tee surface, we render in the wrong place. Why?
+    gfxPoint deviceOffset = onBlack->GetDeviceOffset();
+    onBlack->SetDeviceOffset(gfxPoint(0, 0));
+    onWhite->SetDeviceOffset(gfxPoint(0, 0));
+    surf->SetDeviceOffset(deviceOffset);
 
-      // Using this surface as a source will likely go horribly wrong, since
-      // only the onBlack surface will really be used, so alpha information will
-      // be incorrect.
-      surf->SetAllowUseAsSource(false);
-      result.mContext = new gfxContext(surf);
-    } else {
-      result.mContext = nullptr;
-    }
+    // Using this surface as a source will likely go horribly wrong, since
+    // only the onBlack surface will really be used, so alpha information will
+    // be incorrect.
+    surf->SetAllowUseAsSource(false);
+    result.mContext = new gfxContext(surf);
   } else {
     result.mContext = new gfxContext(mTexImage->BeginUpdate(result.mRegionToDraw));
     if (mTexImage->GetContentType() == gfxASurface::CONTENT_COLOR_ALPHA) {
@@ -860,7 +812,12 @@ ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 
   uint32_t flags = 0;
 #ifndef MOZ_GFX_OPTIMIZE_MOBILE
-  if (MayResample()) {
+  gfxMatrix transform2d;
+  if (GetEffectiveTransform().Is2D(&transform2d)) {
+    if (transform2d.HasNonIntegerTranslation()) {
+      flags |= ThebesLayerBufferOGL::PAINT_WILL_RESAMPLE;
+    }
+  } else {
     flags |= ThebesLayerBufferOGL::PAINT_WILL_RESAMPLE;
   }
 #endif
@@ -946,10 +903,7 @@ public:
        const nsIntRect& aRect, const nsIntPoint& aRotation,
        nsIntRect* aPrevRect, nsIntPoint* aPrevRotation);
 
-  nsIntPoint Rotation() {
-    return mBufferRotation;
-  }
-
+protected:
   virtual nsIntPoint GetOriginOffset() {
     return mBufferRect.TopLeft() - mBufferRotation;
   }
@@ -1148,17 +1102,6 @@ Layer*
 ShadowThebesLayerOGL::GetLayer()
 {
   return this;
-}
-
-LayerRenderState
-ShadowThebesLayerOGL::GetRenderState()
-{
-  if (!mBuffer || mDestroyed) {
-    return LayerRenderState();
-  }
-  uint32_t flags = (mBuffer->Rotation() != nsIntPoint()) ?
-                   LAYER_RENDER_STATE_BUFFER_ROTATION : 0;
-  return LayerRenderState(&mBufferDescriptor, mBuffer->GetOriginOffset(), flags);
 }
 
 bool

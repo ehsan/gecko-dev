@@ -16,7 +16,7 @@
      target="_blank">Mozilla Bug 741549</a>
   </body>
 
-<script>
+<script> 
 
 var steps = [
   noArgs,
@@ -26,21 +26,15 @@ var steps = [
   invalidContent,
   installPackageNotImplemented,
   invalidLaunchPath,
-  invalidLaunchPath2,
   invalidEntryPoint,
   invalidLocaleEntryPoint,
-  invalidActivityHref,
-  invalidActivityHref2,
-  invalidMessage,
   fileURL,
-  originNotAllowed,
-  originAllowed,
 ];
 
 runAll(steps);
 
 function noArgs(next) {
-  try {
+  try { 
     navigator.mozApps.install();
   } catch (e) {
     is(e.message, "Not enough arguments \[mozIDOMApplicationRegistry.install\]",
@@ -52,6 +46,7 @@ function noArgs(next) {
 function parseError(next) {
   var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/json_syntax_error.webapp";
 
+  confirmNextInstall();
   navigator.mozApps.install(url, null).onerror = function onInstallError() {
     is(this.error.name, "MANIFEST_PARSE_ERROR", "manifest with syntax error");
     next();
@@ -61,6 +56,7 @@ function parseError(next) {
 function invalidManifest(next) {
   var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/missing_required_field.webapp";
 
+  confirmNextInstall();
   navigator.mozApps.install(url, null).onerror = function onInstallError() {
     is(this.error.name, "INVALID_MANIFEST", "manifest missing required field");
     next();
@@ -80,7 +76,7 @@ function permissionDenied(next) {
 
   request.onsuccess = function onInstall() {
     todo(false, "manifest without installs_allowed_from fails");
-    navigator.mozApps.mgmt.uninstall(this.result).onsuccess = function onUninstall() {
+    this.result.uninstall().onsuccess = function onUninstall() {
       next();
     };
   };
@@ -89,6 +85,7 @@ function permissionDenied(next) {
 function invalidContent(next) {
   var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/bad_content_type.webapp";
 
+  confirmNextInstall();
   var request = navigator.mozApps.install(url, null);
 
   request.onerror = function onInstallError() {
@@ -97,8 +94,8 @@ function invalidContent(next) {
   };
 
   request.onsuccess = function onInstall() {
-    ok(false, "manifest with bad content type should fail");
-    navigator.mozApps.mgmt.uninstall(this.result).onsuccess = function onUninstall() {
+    todo(false, "manifest with bad content type fails");
+    this.result.uninstall().onsuccess = function onUninstall() {
       next();
     };
   };
@@ -107,17 +104,9 @@ function invalidContent(next) {
 function invalidLaunchPath(next) {
   var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/invalid_launch_path.webapp";
 
+  confirmNextInstall();
   navigator.mozApps.install(url, null).onerror = function onInstallError() {
-    is(this.error.name, "INVALID_MANIFEST", "Invalid Manifest");
-    next();
-  };
-}
-
-function invalidLaunchPath2(next) {
-  var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/invalid_launch_path2.webapp";
-
-  navigator.mozApps.install(url, null).onerror = function onInstallError() {
-    is(this.error.name, "INVALID_MANIFEST", "Invalid Manifest");
+    is(this.error.name, "INVALID_MANIFEST", "manifest missing required field");
     next();
   };
 }
@@ -125,6 +114,7 @@ function invalidLaunchPath2(next) {
 function invalidEntryPoint(next) {
   var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/invalid_entry_point.webapp";
 
+  confirmNextInstall();
   navigator.mozApps.install(url, null).onerror = function onInstallError() {
     is(this.error.name, "INVALID_MANIFEST", "manifest missing required field");
     next();
@@ -134,35 +124,9 @@ function invalidEntryPoint(next) {
 function invalidLocaleEntryPoint(next) {
   var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/invalid_locale_entry_point.webapp";
 
+  confirmNextInstall();
   navigator.mozApps.install(url, null).onerror = function onInstallError() {
     is(this.error.name, "INVALID_MANIFEST", "manifest missing required field");
-    next();
-  };
-}
-
-function invalidActivityHref(next) {
-  var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/invalid_activity_href.webapp";
-
-  navigator.mozApps.install(url, null).onerror = function onInstallError() {
-    is(this.error.name, "INVALID_MANIFEST", "Manifest has non-relative URI for activity href");
-    next();
-  };
-}
-
-function invalidActivityHref2(next) {
-  var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/invalid_activity_href2.webapp";
-
-  navigator.mozApps.install(url, null).onerror = function onInstallError() {
-    is(this.error.name, "INVALID_MANIFEST", "Manifest has data: URI for activity href");
-    next();
-  };
-}
-
-function invalidMessage(next) {
-  var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/invalid_message.webapp";
-
-  navigator.mozApps.install(url, null).onerror = function onInstallError() {
-    is(this.error.name, "INVALID_MANIFEST", "Manifest has absolute message href");
     next();
   };
 }
@@ -192,43 +156,6 @@ function fileURL(next) {
   }
 
   next();
-}
-
-function originNotAllowed(next) {
-  var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/installs_allowed_from_example.com.webapp";
-
-  var request = navigator.mozApps.install(url, null);
-
-  request.onerror = function onInstallError() {
-    is(this.error.name, "INSTALL_FROM_DENIED", "origin is not in installs_allowed_from");
-    next();
-  };
-
-  request.onsuccess = function onInstall() {
-    ok(false, "test should fail because of installs_allowed_from");
-    navigator.mozApps.mgmt.uninstall(this.result).onsuccess = function onUninstall() {
-      next();
-    };
-  };
-}
-
-function originAllowed(next) {
-  var url = "http://test/chrome/dom/tests/mochitest/webapps/apps/installs_allowed_from_chrome_mochitests.webapp";
-
-  confirmNextInstall();
-  var request = navigator.mozApps.install(url, null);
-
-  request.onerror = function onInstallError() {
-    ok(false, "installation error: " + this.error.name);
-    next();
-  };
-
-  request.onsuccess = function onInstall() {
-    ok(true, "test origin is in installs_allowed_from");
-    navigator.mozApps.mgmt.uninstall(this.result).onsuccess = function onUninstall() {
-      next();
-    };
-  };
 }
 
 </script>

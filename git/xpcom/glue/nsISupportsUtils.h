@@ -88,7 +88,8 @@ ns_if_addref( T expr )
   PR_END_MACRO
 
 /**
- * Macro for releasing a reference to this interface.
+ * Macro for releasing a reference to an interface.
+ * @param _ptr The interface pointer.
  */
 #define NS_RELEASE_THIS() \
     Release()
@@ -100,12 +101,11 @@ ns_if_addref( T expr )
  * goes to zero.
  *
  * @param _ptr The interface pointer.
- * @param _rc  The reference count.
  */
-#define NS_RELEASE2(_ptr, _rc)                                                \
+#define NS_RELEASE2(_ptr,_rv)                                                 \
   PR_BEGIN_MACRO                                                              \
-    _rc = (_ptr)->Release();                                                  \
-    if (0 == (_rc)) (_ptr) = 0;                                               \
+    _rv = (_ptr)->Release();                                                  \
+    if (0 == (_rv)) (_ptr) = 0;                                               \
   PR_END_MACRO
 
 /**

@@ -7,12 +7,13 @@
 "use strict";
 
 SimpleTest.waitForExplicitFinish();
-browserElementTestHelpers.setEnabledPref(true);
-browserElementTestHelpers.addPermission();
 
 function runTest() {
+  browserElementTestHelpers.setEnabledPref(true);
+  browserElementTestHelpers.addPermission();
+
   var iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
   document.body.appendChild(iframe);
 
   iframe.addEventListener("mozbrowsershowmodalprompt", function(e) {
@@ -27,4 +28,5 @@ function runTest() {
                "</body></html>";
 }
 
-addEventListener('testready', runTest);
+runTest();
+

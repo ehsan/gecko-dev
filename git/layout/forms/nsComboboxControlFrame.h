@@ -35,7 +35,7 @@
 #include "nsIDOMEventListener.h"
 #include "nsThreadUtils.h"
 
-class nsView;
+class nsIView;
 class nsStyleContext;
 class nsIListControlFrame;
 class nsComboboxDisplayFrame;
@@ -81,9 +81,9 @@ public:
                          nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   void PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt);
 
@@ -115,6 +115,7 @@ public:
 
   // nsIFormControlFrame
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue) MOZ_OVERRIDE;
+  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const MOZ_OVERRIDE; 
   /**
    * Inform the control that it got (or lost) focus.
    * If it lost focus, the dropdown menu will be rolled up if needed,
@@ -167,7 +168,7 @@ public:
    * Hide the dropdown menu and stop capturing mouse events.
    * @note This method might destroy |this|.
    */
-  virtual bool Rollup(uint32_t aCount, nsIContent** aLastRolledUp);
+  virtual nsIContent* Rollup(uint32_t aCount, bool aGetLastRolledUp = false);
   virtual void NotifyGeometryChange();
 
   /**
@@ -176,9 +177,6 @@ public:
    */
   virtual bool ShouldRollupOnMouseWheelEvent()
     { return true; }
-
-  virtual bool ShouldConsumeOnMouseWheelEvent()
-    { return false; }
 
   /**
    * A combobox should not roll up if activated by a mouse activate message
@@ -190,10 +188,8 @@ public:
   virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain)
     { return 0; }
 
-  virtual nsIWidget* GetRollupWidget();
-
   //nsIStatefulFrame
-  NS_IMETHOD SaveState(nsPresState** aState) MOZ_OVERRIDE;
+  NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState) MOZ_OVERRIDE;
   NS_IMETHOD RestoreState(nsPresState* aState) MOZ_OVERRIDE;
 
   static bool ToolkitHasNativePopup();

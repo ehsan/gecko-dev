@@ -13,10 +13,10 @@
 [PrefControlled]
 interface AudioBufferSourceNode : AudioSourceNode {
 
-    //const unsigned short UNSCHEDULED_STATE = 0;
-    //const unsigned short SCHEDULED_STATE = 1;
-    //const unsigned short PLAYING_STATE = 2;
-    //const unsigned short FINISHED_STATE = 3;
+    const unsigned short UNSCHEDULED_STATE = 0;
+    const unsigned short SCHEDULED_STATE = 1;
+    const unsigned short PLAYING_STATE = 2;
+    const unsigned short FINISHED_STATE = 3;
 
     //readonly attribute unsigned short playbackState;
 
@@ -25,14 +25,11 @@ interface AudioBufferSourceNode : AudioSourceNode {
     attribute AudioBuffer? buffer;
 
     //attribute AudioParam playbackRate;
+    //attribute boolean loop;
 
-    attribute boolean loop;
-    attribute double loopStart;
-    attribute double loopEnd;
+    void start(double when);
+    //void start(double when, double grainOffset, double grainDuration);
+    void stop(double when);
 
-    [Throws]
-    void start(optional double when = 0, optional double grainOffset = 0,
-               optional double grainDuration);
-    [Throws]
-    void stop(optional double when = 0);
 };
+

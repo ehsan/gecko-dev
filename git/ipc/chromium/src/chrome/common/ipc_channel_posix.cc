@@ -363,16 +363,6 @@ bool Channel::ChannelImpl::EnqueueHelloMessage() {
   return true;
 }
 
-static void
-ClearAndShrink(std::string& s, size_t capacity)
-{
-  // This swap trick is the closest thing C++ has to a guaranteed way to
-  // shrink the capacity of a string.
-  std::string tmp;
-  tmp.reserve(capacity);
-  s.swap(tmp);
-}
-
 bool Channel::ChannelImpl::Connect() {
   if (mode_ == MODE_SERVER && uses_fifo_) {
     if (server_listen_pipe_ == -1) {
@@ -499,7 +489,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
     } else {
       if (input_overflow_buf_.size() >
          static_cast<size_t>(kMaximumMessageSize - bytes_read)) {
-        ClearAndShrink(input_overflow_buf_, Channel::kReadBufferSize);
+        input_overflow_buf_.clear();
         LOG(ERROR) << "IPC message is too big";
         return false;
       }
@@ -583,7 +573,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages() {
       }
     }
     if (end == p) {
-      ClearAndShrink(input_overflow_buf_, Channel::kReadBufferSize);
+      input_overflow_buf_.clear();
     } else if (!overflowp) {
       // p is from input_buf_
       input_overflow_buf_.assign(p, end - p);
@@ -642,11 +632,7 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages() {
       struct cmsghdr *cmsg;
       const unsigned num_fds = msg->file_descriptor_set()->size();
 
-      if (num_fds > FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE) {
-        LOG(FATAL) << "Too many file descriptors!";
-        // This should not be reached.
-        return false;
-      }
+      DCHECK_LE(num_fds, FileDescriptorSet::MAX_DESCRIPTORS_PER_MESSAGE);
 
       msgh.msg_control = buf;
       msgh.msg_controllen = CMSG_SPACE(sizeof(int) * num_fds);

@@ -1,6 +1,8 @@
 #filter substitution
 package @ANDROID_PACKAGE_NAME@.tests;
 
+import @ANDROID_PACKAGE_NAME@.*;
+
 /**
  * A basic page load test.
  * - loads a page
@@ -16,7 +18,7 @@ public class testLoad extends PixelTest {
     public void testLoad() {
         String url = getAbsoluteUrl("/robocop/robocop_boxes.html");
 
-        blockForGeckoReady();
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
         loadAndVerifyBoxes(url);
 

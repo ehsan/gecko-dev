@@ -38,7 +38,7 @@ StringBuffer::extractWellSized()
     return buf;
 }
 
-RawFlatString
+JSFlatString *
 StringBuffer::finishString()
 {
     JSContext *cx = context();
@@ -51,7 +51,7 @@ StringBuffer::finishString()
 
     JS_STATIC_ASSERT(JSShortString::MAX_SHORT_LENGTH < CharBuffer::InlineLength);
     if (JSShortString::lengthFits(length))
-        return NewShortString<CanGC>(cx, TwoByteChars(cb.begin(), length));
+        return NewShortString(cx, cb.begin(), length);
 
     if (!cb.append('\0'))
         return NULL;
@@ -60,13 +60,13 @@ StringBuffer::finishString()
     if (!buf)
         return NULL;
 
-    JSFlatString *str = js_NewString<CanGC>(cx, buf, length);
+    JSFlatString *str = js_NewString(cx, buf, length);
     if (!str)
         js_free(buf);
     return str;
 }
 
-RawAtom
+JSAtom *
 StringBuffer::finishAtom()
 {
     JSContext *cx = context();
@@ -75,7 +75,7 @@ StringBuffer::finishAtom()
     if (length == 0)
         return cx->names().empty;
 
-    RawAtom atom = AtomizeChars<CanGC>(cx, cb.begin(), length);
+    JSAtom *atom = AtomizeChars(cx, cb.begin(), length);
     cb.clear();
     return atom;
 }
@@ -83,7 +83,7 @@ StringBuffer::finishAtom()
 bool
 js::ValueToStringBufferSlow(JSContext *cx, const Value &arg, StringBuffer &sb)
 {
-    RootedValue v(cx, arg);
+    Value v = arg;
     if (!ToPrimitive(cx, JSTYPE_STRING, &v))
         return false;
 

@@ -15,18 +15,12 @@
 #include "nsTArray.h"
 
 class nsFrameList;
+class nsIDOMSVGPoint;
+class nsIDOMSVGRect;
 class nsISVGGlyphFragmentNode;
 class nsStyleContext;
 class nsSVGGlyphFrame;
 class nsSVGTextFrame;
-
-namespace mozilla {
-class nsISVGPoint;
-
-namespace dom {
-class SVGIRect;
-}
-}
 
 class nsSVGTextContainerFrame : public nsSVGDisplayContainerFrame
 {
@@ -50,9 +44,9 @@ public:
                           nsFrameList&    aFrameList) MOZ_OVERRIDE;
   NS_IMETHOD RemoveFrame(ChildListID aListID, nsIFrame *aOldFrame) MOZ_OVERRIDE;
 
-  NS_IMETHOD GetStartPositionOfChar(uint32_t charnum, nsISupports **_retval);
-  NS_IMETHOD GetEndPositionOfChar(uint32_t charnum, nsISupports **_retval);
-  NS_IMETHOD GetExtentOfChar(uint32_t charnum, mozilla::dom::SVGIRect **_retval);
+  NS_IMETHOD GetStartPositionOfChar(uint32_t charnum, nsIDOMSVGPoint **_retval);
+  NS_IMETHOD GetEndPositionOfChar(uint32_t charnum, nsIDOMSVGPoint **_retval);
+  NS_IMETHOD GetExtentOfChar(uint32_t charnum, nsIDOMSVGRect **_retval);
   NS_IMETHOD GetRotationOfChar(uint32_t charnum, float *_retval);
 
   /*
@@ -73,7 +67,7 @@ public:
   /*
    * Get the character at the specified position
    */
-  virtual int32_t GetCharNumAtPosition(mozilla::nsISVGPoint *point);
+  virtual int32_t GetCharNumAtPosition(nsIDOMSVGPoint *point);
   void GetEffectiveXY(nsTArray<float> &aX, nsTArray<float> &aY);
   void GetEffectiveDxDy(nsTArray<float> &aDx, nsTArray<float> &aDy);
   void GetEffectiveRotate(nsTArray<float> &aRotate);

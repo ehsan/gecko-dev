@@ -42,7 +42,6 @@ public class FindInPageBar extends RelativeLayout implements TextWatcher, View.O
         mFindText = (CustomEditText) content.findViewById(R.id.find_text);
         mFindText.addTextChangedListener(this);
         mFindText.setOnKeyPreImeListener(new CustomEditText.OnKeyPreImeListener() {
-            @Override
             public boolean onKeyPreIme(View v, int keyCode, KeyEvent event) {
                 if (keyCode == KeyEvent.KEYCODE_BACK) {
                     hide();
@@ -68,8 +67,7 @@ public class FindInPageBar extends RelativeLayout implements TextWatcher, View.O
         } else {
             // showSoftInput won't work until after the window is focused.
             mFindText.setOnWindowFocusChangeListener(new CustomEditText.OnWindowFocusChangeListener() {
-                @Override
-                public void onWindowFocusChanged(boolean hasFocus) {
+               public void onWindowFocusChanged(boolean hasFocus) {
                    if (!hasFocus)
                        return;
                    mFindText.setOnWindowFocusChangeListener(null);
@@ -92,24 +90,20 @@ public class FindInPageBar extends RelativeLayout implements TextWatcher, View.O
 
     // TextWatcher implementation
 
-    @Override
     public void afterTextChanged(Editable s) {
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Find", s.toString()));
     }
 
-    @Override
     public void beforeTextChanged(CharSequence s, int start, int count, int after) {
         // ignore
     }
 
-    @Override
     public void onTextChanged(CharSequence s, int start, int before, int count) {
         // ignore
     }
 
     // View.OnClickListener implementation
 
-    @Override
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.find_prev:

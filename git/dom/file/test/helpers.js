@@ -13,14 +13,11 @@ var fileStorages = [
 
 var utils = SpecialPowers.getDOMWindowUtils(window);
 
-var archiveReaderEnabled = false;
-
 var testGenerator = testSteps();
 
 function runTest()
 {
   allowUnlimitedQuota();
-  enableArchiveReader();
 
   SimpleTest.waitForExplicitFinish();
   testGenerator.next();
@@ -29,7 +26,6 @@ function runTest()
 function finishTest()
 {
   resetUnlimitedQuota();
-  resetArchiveReader();
 
   SimpleTest.executeSoon(function() {
     testGenerator.close();
@@ -102,17 +98,6 @@ function resetUnlimitedQuota(url)
   removePermission("indexedDB-unlimited", url);
 }
 
-function enableArchiveReader()
-{
-  archiveReaderEnabled = SpecialPowers.getBoolPref("dom.archivereader.enabled");
-  SpecialPowers.setBoolPref("dom.archivereader.enabled", true);
-}
-
-function resetArchiveReader()
-{
-  SpecialPowers.setBoolPref("dom.archivereader.enabled", archiveReaderEnabled);
-}
-
 function getFileHandle(fileStorageKey, name)
 {
   var requestService = SpecialPowers.getDOMRequestService();
@@ -179,7 +164,7 @@ function compareBuffers(buffer1, buffer2)
 
 function getBlob(type, buffer)
 {
-  return SpecialPowers.unwrap(utils.getBlob([buffer], {type: type}));
+  return utils.getBlob([buffer], {type: type});
 }
 
 function getRandomBlob(size)
@@ -189,5 +174,5 @@ function getRandomBlob(size)
 
 function getFileId(blob)
 {
-  return SpecialPowers.unwrap(utils.getFileId(blob));
+  return utils.getFileId(blob);
 }

@@ -63,6 +63,8 @@ else
 	endif
 endif
 
+INCLUDES   += -I/usr/dt/include -I/usr/openwin/include
+
 RANLIB      = echo
 CPU_ARCH    = sparc
 OS_DEFINES += -DSVR4 -DSYSV -D__svr4 -D__svr4__ -DSOLARIS -D_REENTRANT

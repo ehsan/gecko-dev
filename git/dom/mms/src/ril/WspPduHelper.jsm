@@ -6,7 +6,7 @@
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
-Cu.import("resource://gre/modules/wap_consts.js", this);
+Cu.import("resource://gre/modules/wap_consts.js");
 
 let DEBUG; // set to true to see debug messages
 
@@ -26,7 +26,7 @@ const ASCIIS = 128;
 /**
  * Error class for generic encoding/decoding failures.
  */
-this.CodeError = function CodeError(message) {
+function CodeError(message) {
   this.name = "CodeError";
   this.message = message || "Invalid format";
 }
@@ -56,7 +56,7 @@ NullCharError.prototype.constructor = NullCharError;
  * @param message [optional]
  *        A short description for the error.
  */
-this.FatalCodeError = function FatalCodeError(message) {
+function FatalCodeError(message) {
   this.name = "FatalCodeError";
   this.message = message || "Decoding fails";
 }
@@ -76,7 +76,7 @@ FatalCodeError.prototype.constructor = FatalCodeError;
  * @param message [optional]
  *        A short description for the error.
  */
-this.NotWellKnownEncodingError = function NotWellKnownEncodingError(message) {
+function NotWellKnownEncodingError(message) {
   this.name = "NotWellKnownEncodingError";
   this.message = message || "Not well known encoding";
 }
@@ -96,7 +96,7 @@ NotWellKnownEncodingError.prototype.constructor = NotWellKnownEncodingError;
  *
  * @throws FatalCodeError if headers[name] is undefined.
  */
-this.ensureHeader = function ensureHeader(headers, name) {
+function ensureHeader(headers, name) {
   let value = headers[name];
   // Header field might have a null value as NoValue
   if (value === undefined) {
@@ -130,7 +130,7 @@ this.ensureHeader = function ensureHeader(headers, name) {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.1.2
  */
-this.skipValue = function skipValue(data) {
+function skipValue(data) {
   let begin = data.offset;
   let value = Octet.decode(data);
   if (value <= 31) {
@@ -165,7 +165,7 @@ this.skipValue = function skipValue(data) {
  *
  * @return Decoded value.
  */
-this.decodeAlternatives = function decodeAlternatives(data, options) {
+function decodeAlternatives(data, options) {
   let begin = data.offset;
   for (let i = 2; i < arguments.length; i++) {
     try {
@@ -191,7 +191,7 @@ this.decodeAlternatives = function decodeAlternatives(data, options) {
  * @param options
  *        Extra context for encoding.
  */
-this.encodeAlternatives = function encodeAlternatives(data, value, options) {
+function encodeAlternatives(data, value, options) {
   let begin = data.offset;
   for (let i = 3; i < arguments.length; i++) {
     try {
@@ -208,7 +208,7 @@ this.encodeAlternatives = function encodeAlternatives(data, value, options) {
   }
 }
 
-this.Octet = {
+let Octet = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -315,7 +315,7 @@ this.Octet = {
  *
  * @see RFC 2616 clause 2.2 Basic Rules
  */
-this.Text = {
+let Text = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -399,7 +399,7 @@ this.Text = {
   },
 };
 
-this.NullTerminatedTexts = {
+let NullTerminatedTexts = {
   /**
    * Decode internal referenced null terminated text string.
    *
@@ -443,7 +443,7 @@ this.NullTerminatedTexts = {
  *
  * @see RFC 2616 clause 2.2 Basic Rules
  */
-this.Token = {
+let Token = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -519,7 +519,7 @@ this.Token = {
  *
  * @see RFC 2396 Uniform Resource Indentifiers (URI)
  */
-this.URIC = {
+let URIC = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -555,7 +555,7 @@ this.URIC = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.1
  */
-this.TextString = {
+let TextString = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -611,7 +611,7 @@ this.TextString = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.1
  */
-this.TokenText = {
+let TokenText = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -654,7 +654,7 @@ this.TokenText = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.1
  */
-this.QuotedString = {
+let QuotedString = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -693,7 +693,7 @@ this.QuotedString = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.1
  */
-this.ShortInteger = {
+let ShortInteger = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -739,7 +739,7 @@ this.ShortInteger = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.1
  */
-this.LongInteger = {
+let LongInteger = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -821,7 +821,7 @@ this.LongInteger = {
 /**
  * @see WAP-230-WSP-20010705-a clause 8.4.2.1
  */
-this.UintVar = {
+let UintVar = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -867,16 +867,14 @@ this.UintVar = {
 /**
  * This encoding is used for token values, which have no well-known binary
  * encoding, or when the assigned number of the well-known encoding is small
- * enough to fit into Short-Integer. We change Extension-Media from 
- * NullTerminatedTexts to TextString because of Bug 823816. 
+ * enough to fit into Short-Integer.
  *
  *   Constrained-encoding = Extension-Media | Short-integer
- *   Extension-Media = TextString
+ *   Extension-Media = *TEXT End-of-string
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.1
- * @see https://bugzilla.mozilla.org/show_bug.cgi?id=823816
  */
-this.ConstrainedEncoding = {
+let ConstrainedEncoding = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -884,7 +882,7 @@ this.ConstrainedEncoding = {
    * @return Decode integer value or string.
    */
   decode: function decode(data) {
-    return decodeAlternatives(data, null, TextString, ShortInteger);
+    return decodeAlternatives(data, null, NullTerminatedTexts, ShortInteger);
   },
 
   /**
@@ -897,7 +895,7 @@ this.ConstrainedEncoding = {
     if (typeof value == "number") {
       ShortInteger.encode(data, value);
     } else {
-      TextString.encode(data, value);
+      NullTerminatedTexts.encode(data, value);
     }
   },
 };
@@ -910,7 +908,7 @@ this.ConstrainedEncoding = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.2
  */
-this.ValueLength = {
+let ValueLength = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -952,7 +950,7 @@ this.ValueLength = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.3
  */
-this.NoValue = {
+let NoValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -983,7 +981,7 @@ this.NoValue = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.3
  */
-this.TextValue = {
+let TextValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1010,7 +1008,7 @@ this.TextValue = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.3
  */
-this.IntegerValue = {
+let IntegerValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1046,7 +1044,7 @@ this.IntegerValue = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.3
  */
-this.DateValue = {
+let DateValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1089,7 +1087,7 @@ this.DateValue = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.3
  */
-this.DeltaSecondsValue = IntegerValue;
+let DeltaSecondsValue = IntegerValue;
 
 /**
  * Quality factor 0 and quality factors with one or two decimal digits are
@@ -1099,7 +1097,7 @@ this.DeltaSecondsValue = IntegerValue;
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.3
  */
-this.QValue = {
+let QValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1155,7 +1153,7 @@ this.QValue = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.3
  */
-this.VersionValue = {
+let VersionValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1220,7 +1218,7 @@ this.VersionValue = {
  * @see WAP-230-WSP-20010705-a clause 8.4.2.3
  * @see RFC 2616 clause 2.2 Basic Rules
  */
-this.UriValue = {
+let UriValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1247,7 +1245,7 @@ this.UriValue = {
  *
  * @see WAP-230-WSP-20010705-a table 38
  */
-this.TypeValue = {
+let TypeValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1279,9 +1277,9 @@ this.TypeValue = {
   encode: function encode(data, type) {
     let entry = WSP_WELL_KNOWN_CONTENT_TYPES[type.toLowerCase()];
     if (entry) {
-      ConstrainedEncoding.encode(data, entry.number);
+      ShortInteger.encode(data, entry.number);
     } else {
-      ConstrainedEncoding.encode(data, type);
+      NullTerminatedTexts.encode(data, type);
     }
   },
 };
@@ -1308,7 +1306,7 @@ this.TypeValue = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.4
  */
-this.Parameter = {
+let Parameter = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1502,7 +1500,7 @@ this.Parameter = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.6
  */
-this.Header = {
+let Header = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1553,7 +1551,7 @@ this.Header = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.6
  */
-this.WellKnownHeader = {
+let WellKnownHeader = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1619,7 +1617,7 @@ this.WellKnownHeader = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.6
  */
-this.ApplicationHeader = {
+let ApplicationHeader = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1676,7 +1674,7 @@ this.ApplicationHeader = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.6
  */
-this.FieldName = {
+let FieldName = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1728,7 +1726,7 @@ this.FieldName = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.8
  */
-this.AcceptCharsetValue = {
+let AcceptCharsetValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1843,7 +1841,7 @@ this.AcceptCharsetValue = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.8
  */
-this.WellKnownCharset = {
+let WellKnownCharset = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -1917,7 +1915,7 @@ this.WellKnownCharset = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.24
  */
-this.ContentTypeValue = {
+let ContentTypeValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -2039,7 +2037,7 @@ this.ContentTypeValue = {
    */
   encodeConstrainedMedia: function encodeConstrainedMedia(data, value) {
     if (value.params) {
-      throw new CodeError("Constrained-media: should use general form instead");
+      throw new CodeError("Constrained-media: should use general form instread");
     }
 
     TypeValue.encode(data, value.media);
@@ -2105,7 +2103,7 @@ this.ContentTypeValue = {
  *
  * @see WAP-230-WSP-20010705-a clause 8.4.2.54
  */
-this.ApplicationIdValue = {
+let ApplicationIdValue = {
   /**
    * @param data
    *        A wrapped object containing raw PDU data.
@@ -2141,59 +2139,7 @@ this.ApplicationIdValue = {
   },
 };
 
-this.PduHelper = {
-  /**
-   * @param data
-   *        A UInt8Array of data for decode.
-   * @param charset
-   *        charset for decode
-   *
-   * @return Decoded string.
-   */
-  decodeStringContent: function decodeStringContent(data, charset) {
-      let conv = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-                 .createInstance(Ci.nsIScriptableUnicodeConverter);
-
-      let entry;
-      if (charset) {
-        entry = WSP_WELL_KNOWN_CHARSETS[charset];
-      }
-      // Set converter to default one if (entry && entry.converter) is null.
-      // @see OMA-TS-MMS-CONF-V1_3-20050526-D 7.1.9
-      conv.charset = (entry && entry.converter) || "UTF-8";
-      try {
-        return conv.convertFromByteArray(data, data.length);
-      } catch (e) {
-      }
-      return null;
-  },
-
-  /**
-  * @param strContent
-  *        Decoded string content.
-  * @param charset
-  *        Charset for encode.
-  *
-  * @return An encoded UInt8Array of string content.
-  */
-  encodeStringContent: function encodeStringContent(strContent, charset) {
-    let conv = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
-               .createInstance(Ci.nsIScriptableUnicodeConverter);
-
-    let entry;
-    if (charset) {
-      entry = WSP_WELL_KNOWN_CHARSETS[charset];
-    }
-    // Set converter to default one if (entry && entry.converter) is null.
-    // @see OMA-TS-MMS-CONF-V1_3-20050526-D 7.1.9
-    conv.charset = (entry && entry.converter) || "UTF-8";
-    try {
-      return conv.convertToByteArray(strContent);
-    } catch (e) {
-    }
-    return null;
-  },
-
+let PduHelper = {
   /**
    * Parse multiple header fields with end mark.
    *
@@ -2289,23 +2235,7 @@ this.PduHelper = {
 
         headers = this.parseHeaders(data, headersEnd, headers);
 
-        let octetArray = Octet.decodeMultiple(data, contentEnd);
-        let content = null;
-        if (octetArray) {
-          // If the content is a SMIL type, convert it to a string.
-          // We hope to save and expose the SMIL content as a string way.
-          if (headers["content-type"].media == "application/smil") {
-            let charset = headers["content-type"].params &&
-                          headers["content-type"].params.charset
-                        ? headers["content-type"].params.charset["charset"]
-                        : null;
-            content = this.decodeStringContent(octetArray, charset);
-          }
-          if (!content) {
-            content = new Blob([octetArray],
-                               {type : headers["content-type"].media});
-          }
-        }
+        let content = Octet.decodeMultiple(data, contentEnd);
 
         parts[i] = {
           index: i,
@@ -2429,19 +2359,7 @@ this.PduHelper = {
       // Encode headersLen, DataLen
       let headersLen = data.offset;
       UintVar.encode(data, headersLen);
-      if (typeof part.content === "string") {
-        let charset;
-        if (contentType && contentType.params && contentType.params.charset &&
-          contentType.params.charset.charset) {
-          charset = contentType.params.charset.charset;
-        }
-        part.content = this.encodeStringContent(part.content, charset);
-        UintVar.encode(data, part.content.length);
-      } else if (part.content instanceof Uint8Array) {
-        UintVar.encode(data, part.content.length);
-      } else {
-        throw new TypeError();
-      }
+      UintVar.encode(data, part.content.length);
 
       // Move them to the beginning of encoded octet array.
       let slice1 = data.array.slice(headersLen);
@@ -2462,7 +2380,7 @@ this.PduHelper = {
 //       Deprecated items should only be supported for backward compatibility
 //       purpose.
 // @see WAP-230-WSP-20010705-a Appendix A. Assigned Numbers.
-this.WSP_HEADER_FIELDS = (function () {
+const WSP_HEADER_FIELDS = (function () {
   let names = {};
   function add(name, number, coder) {
     let entry = {
@@ -2557,8 +2475,8 @@ this.WSP_HEADER_FIELDS = (function () {
 })();
 
 // WSP Content Type Assignments
-// @see http://www.openmobilealliance.org/tech/omna/omna-wsp-content-type.aspx
-this.WSP_WELL_KNOWN_CONTENT_TYPES = (function () {
+// @see http://www.wapforum.org/wina
+const WSP_WELL_KNOWN_CONTENT_TYPES = (function () {
   let types = {};
 
   function add(type, number) {
@@ -2566,115 +2484,18 @@ this.WSP_WELL_KNOWN_CONTENT_TYPES = (function () {
       type: type,
       number: number,
     };
-    // For case like "text/x-vCalendar", we need toLoweCase() for generating
-    // the same index.
-    types[type.toLowerCase()] = types[number] = entry;
+    types[type] = types[number] = entry;
   }
 
   // Well Known Values
   // Encoding Version: 1.1
-  add("*/*", 0x00);
-  add("text/*", 0x01);
-  add("text/html", 0x02);
-  add("text/plain", 0x03);
-  add("text/x-hdml", 0x04);
-  add("text/x-ttml", 0x05);
-  add("text/x-vCalendar", 0x06);
-  add("text/x-vCard", 0x07);
-  add("text/vnd.wap.wml", 0x08);
-  add("text/vnd.wap.wmlscript", 0x09);
-  add("text/vnd.wap.wta-event", 0x0A);
-  add("multipart/*", 0x0B);
-  add("multipart/mixed", 0x0C);
-  add("multipart/form-data", 0x0D);
-  add("multipart/byterantes", 0x0E);
-  add("multipart/alternative", 0x0F);
-  add("application/*", 0x10);
-  add("application/java-vm", 0x11);
-  add("application/x-www-form-urlencoded", 0x12);
-  add("application/x-hdmlc", 0x13);
-  add("application/vnd.wap.wmlc", 0x14);
-  add("application/vnd.wap.wmlscriptc", 0x15);
-  add("application/vnd.wap.wta-eventc", 0x16);
-  add("application/vnd.wap.uaprof", 0x17);
-  add("application/vnd.wap.wtls-ca-certificate", 0x18);
-  add("application/vnd.wap.wtls-user-certificate", 0x19);
-  add("application/x-x509-ca-cert", 0x1A);
-  add("application/x-x509-user-cert", 0x1B);
-  add("image/*", 0x1C);
-  add("image/gif", 0x1D);
-  add("image/jpeg", 0x1E);
-  add("image/tiff", 0x1F);
-  add("image/png", 0x20);
-  add("image/vnd.wap.wbmp", 0x21);
-  add("application/vnd.wap.multipart.*", 0x22);
   add("application/vnd.wap.multipart.mixed", 0x23);
-  add("application/vnd.wap.multipart.form-data", 0x24);
-  add("application/vnd.wap.multipart.byteranges", 0x25);
-  add("application/vnd.wap.multipart.alternative", 0x26);
-  add("application/xml", 0x27);
-  add("text/xml", 0x28);
-  add("application/vnd.wap.wbxml", 0x29);
-  add("application/x-x968-cross-cert", 0x2A);
-  add("application/x-x968-ca-cert", 0x2B);
-  add("application/x-x968-user-cert", 0x2C);
-  add("text/vnd.wap.si", 0x2D);
 
   // Encoding Version: 1.2
-  add("application/vnd.wap.sic", 0x2E);
-  add("text/vnd.wap.sl", 0x2F);
-  add("application/vnd.wap.slc", 0x30);
-  add("text/vnd.wap.co", 0x31);
-  add("application/vnd.wap.coc", 0x32);
   add("application/vnd.wap.multipart.related", 0x33);
-  add("application/vnd.wap.sia", 0x34);
-
-  // Encoding Version: 1.3
-  add("text/vnd.wap.connectivity-xml", 0x35);
-  add("application/vnd.wap.connectivity-wbxml", 0x36);
 
   // Encoding Version: 1.4
-  add("application/pkcs7-mime", 0x37);
-  add("application/vnd.wap.hashed-certificate", 0x38);
-  add("application/vnd.wap.signed-certificate", 0x39);
-  add("application/vnd.wap.cert-response", 0x3A);
-  add("application/xhtml+xml", 0x3B);
-  add("application/wml+xml", 0x3C);
-  add("text/css", 0x3D);
   add("application/vnd.wap.mms-message", 0x3E);
-  add("application/vnd.wap.rollover-certificate", 0x3F);
-
-  // Encoding Version: 1.5
-  add("application/vnd.wap.locc+wbxml", 0x40);
-  add("application/vnd.wap.loc+xml", 0x41);
-  add("application/vnd.syncml.dm+wbxml", 0x42);
-  add("application/vnd.syncml.dm+xml", 0x43);
-  add("application/vnd.syncml.notification", 0x44);
-  add("application/vnd.wap.xhtml+xml", 0x45);
-  add("application/vnd.wv.csp.cir", 0x46);
-  add("application/vnd.oma.dd+xml", 0x47);
-  add("application/vnd.oma.drm.message", 0x48);
-  add("application/vnd.oma.drm.content", 0x49);
-  add("application/vnd.oma.drm.rights+xml", 0x4A);
-  add("application/vnd.oma.drm.rights+wbxml", 0x4B);
-  add("application/vnd.wv.csp+xml", 0x4C);
-  add("application/vnd.wv.csp+wbxml", 0x4D);
-  add("application/vnd.syncml.ds.notification", 0x4E);
-
-  // Encoding Version: 1.6
-  add("audio/*", 0x4F);
-  add("video/*", 0x50);
-
-  // Encoding Version: TBD
-  add("application/vnd.oma.dd2+xml", 0x51);
-  add("application/mikey", 0x52);
-  add("application/vnd.oma.dcd", 0x53);
-  add("application/vnd.oma.dcdc", 0x54);
-  add("text/x-vMessage", 0x55);
-  add("application/vnd.omads-email+wbxml", 0x56);
-  add("text/x-vBookmark", 0x57);
-  add("application/vnd.syncml.dm.notification", 0x58);
-  add("application/octet-stream", 0x5A);
 
   return types;
 })();
@@ -2683,7 +2504,7 @@ this.WSP_WELL_KNOWN_CONTENT_TYPES = (function () {
 // Note: Items commented out are either deprecated or not implemented.
 //       Deprecated items should not be used.
 // @see WAP-230-WSP-20010705-a Appendix A. Assigned Numbers.
-this.WSP_WELL_KNOWN_PARAMS = (function () {
+const WSP_WELL_KNOWN_PARAMS = (function () {
   let params = {};
 
   function add(name, number, coder) {
@@ -2738,7 +2559,7 @@ this.WSP_WELL_KNOWN_PARAMS = (function () {
 // WSP Character Set Assignments
 // @see WAP-230-WSP-20010705-a Appendix A. Assigned Numbers.
 // @see http://www.iana.org/assignments/character-sets
-this.WSP_WELL_KNOWN_CHARSETS = (function () {
+const WSP_WELL_KNOWN_CHARSETS = (function () {
   let charsets = {};
 
   function add(name, number, converter) {
@@ -2751,33 +2572,9 @@ this.WSP_WELL_KNOWN_CHARSETS = (function () {
     charsets[name] = charsets[number] = entry;
   }
 
-  add("us-ascii",           3, null);
-  add("iso-8859-1",         4, "ISO-8859-1");
-  add("iso-8859-2",         5, "ISO-8859-2");
-  add("iso-8859-3",         6, "ISO-8859-3");
-  add("iso-8859-4",         7, "ISO-8859-4");
-  add("iso-8859-5",         8, "ISO-8859-5");
-  add("iso-8859-6",         9, "ISO-8859-6");
-  add("iso-8859-7",        10, "ISO-8859-7");
-  add("iso-8859-8",        11, "ISO-8859-8");
-  add("iso-8859-9",        12, "ISO-8859-9");
-  add("iso-8859-10",       13, "ISO-8859-10");
-  add("shift_jis",         17, "Shift_JIS");
-  add("euc-jp",            18, "EUC-JP");
-  add("iso-2022-kr",       37, "ISO-2022-KR");
-  add("euc-kr",            38, "EUC-KR");
-  add("iso-2022-jp",       39, "ISO-2022-JP");
-  add("iso-2022-jp-2",     40, "iso-2022-jp-2");
-  add("iso-8859-6-e",      81, "ISO-8859-6-E");
-  add("iso-8859-6-i",      82, "ISO-8859-6-I");
-  add("iso-8859-8-e",      84, "ISO-8859-8-E");
-  add("iso-8859-8-i",      85, "ISO-8859-8-I");
+  add("ansi_x3.4-1968",     3, null);
+  add("iso_8859-1:1987",    4, "ISO-8859-1");
   add("utf-8",            106, "UTF-8");
-  add("iso-10646-ucs-2", 1000, "iso-10646-ucs-2");
-  add("utf-16",          1015, "UTF-16");
-  add("gb2312",          2025, "GB2312");
-  add("big5",            2026, "Big5");
-  add("koi8-r",          2084, "KOI8-R");
   add("windows-1252",    2252, "windows-1252");
 
   return charsets;
@@ -2785,7 +2582,7 @@ this.WSP_WELL_KNOWN_CHARSETS = (function () {
 
 // OMNA PUSH Application ID
 // @see http://www.openmobilealliance.org/tech/omna/omna-push-app-id.aspx
-this.OMNA_PUSH_APPLICATION_IDS = (function () {
+const OMNA_PUSH_APPLICATION_IDS = (function () {
   let ids = {};
 
   function add(urn, number) {
@@ -2811,7 +2608,7 @@ if (DEBUG) {
   debug = function (s) {};
 }
 
-this.EXPORTED_SYMBOLS = ALL_CONST_SYMBOLS.concat([
+const EXPORTED_SYMBOLS = ALL_CONST_SYMBOLS.concat([
   // Constant values
   "WSP_HEADER_FIELDS",
   "WSP_WELL_KNOWN_CONTENT_TYPES",
@@ -2866,3 +2663,4 @@ this.EXPORTED_SYMBOLS = ALL_CONST_SYMBOLS.concat([
   // Parser
   "PduHelper",
 ]);
+

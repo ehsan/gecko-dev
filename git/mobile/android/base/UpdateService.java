@@ -6,6 +6,7 @@
 package org.mozilla.gecko.updater;
 
 import org.mozilla.gecko.R;
+import org.mozilla.gecko.GeckoApp;
 
 import org.mozilla.apache.commons.codec.binary.Hex;
 
@@ -19,19 +20,26 @@ import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
+
+import android.os.Bundle;
 import android.os.Environment;
+import android.os.IBinder;
+
 import android.util.Log;
 
-import java.net.Proxy;
-import java.net.ProxySelector;
+import android.widget.RemoteViews;
+
 import java.net.URL;
 import java.net.URLConnection;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -39,14 +47,19 @@ import java.io.FileOutputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+
 import java.security.MessageDigest;
+
 import java.util.Calendar;
+import java.util.Date;
 import java.util.GregorianCalendar;
-import java.util.List;
+import java.util.Locale;
+import java.util.Random;
 import java.util.TimeZone;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+
 
 public class UpdateService extends IntentService {
     private static final int BUFSIZE = 8192;
@@ -62,7 +75,6 @@ public class UpdateService extends IntentService {
     private static final String KEY_LAST_BUILDID = "UpdateService.lastBuildID";
     private static final String KEY_LAST_HASH_FUNCTION = "UpdateService.lastHashFunction";
     private static final String KEY_LAST_HASH_VALUE = "UpdateService.lastHashValue";
-    private static final String KEY_LAST_FILE_NAME = "UpdateService.lastFileName";
     private static final String KEY_LAST_ATTEMPT_DATE = "UpdateService.lastAttemptDate";
     private static final String KEY_AUTODOWNLOAD_POLICY = "UpdateService.autoDownloadPolicy";
 
@@ -115,9 +127,6 @@ public class UpdateService extends IntentService {
             registerForUpdates(false);
         } else if (UpdateServiceHelper.ACTION_CHECK_FOR_UPDATE.equals(intent.getAction())) {
             startUpdate(intent.getIntExtra(UpdateServiceHelper.EXTRA_UPDATE_FLAGS_NAME, 0));
-        } else if (UpdateServiceHelper.ACTION_DOWNLOAD_UPDATE.equals(intent.getAction())) {
-            // We always want to do the download here
-            startUpdate(UpdateServiceHelper.FLAG_FORCE_DOWNLOAD);
         } else if (UpdateServiceHelper.ACTION_APPLY_UPDATE.equals(intent.getAction())) {
             applyUpdate(intent.getStringExtra(UpdateServiceHelper.EXTRA_PACKAGE_PATH_NAME));
         }
@@ -127,9 +136,9 @@ public class UpdateService extends IntentService {
         return (flags & flag) == flag;
     }
 
-    private void sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult result) {
+    private void sendCheckUpdateResult(boolean result) {
         Intent resultIntent = new Intent(UpdateServiceHelper.ACTION_CHECK_UPDATE_RESULT);
-        resultIntent.putExtra("result", result.toString());
+        resultIntent.putExtra("result", result);
         sendBroadcast(resultIntent);
     }
 
@@ -181,7 +190,7 @@ public class UpdateService extends IntentService {
         if (netInfo == null || !netInfo.isConnected()) {
             Log.i(LOGTAG, "not connected to the network");
             registerForUpdates(true);
-            sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.NOT_AVAILABLE);
+            sendCheckUpdateResult(false);
             return;
         }
 
@@ -189,10 +198,10 @@ public class UpdateService extends IntentService {
 
         UpdateInfo info = findUpdate(hasFlag(flags, UpdateServiceHelper.FLAG_REINSTALL));
         boolean haveUpdate = (info != null);
+        sendCheckUpdateResult(haveUpdate);
 
         if (!haveUpdate) {
             Log.i(LOGTAG, "no update available");
-            sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.NOT_AVAILABLE);
             return;
         }
 
@@ -200,29 +209,19 @@ public class UpdateService extends IntentService {
         
         int connectionType = netInfo.getType();
         int autoDownloadPolicy = getAutoDownloadPolicy();
-
-
-        /**
-         * We only start a download automatically if one of following criteria are met:
-         *
-         * - We have a FORCE_DOWNLOAD flag passed in
-         * - The preference is set to 'always'
-         * - The preference is set to 'wifi' and we are actually using wifi (or regular ethernet)
-         */
-        boolean shouldStartDownload = hasFlag(flags, UpdateServiceHelper.FLAG_FORCE_DOWNLOAD) ||
-            autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_ENABLED ||
+        if (!hasFlag(flags, UpdateServiceHelper.FLAG_FORCE_DOWNLOAD) &&
+            autoDownloadPolicy != UpdateServiceHelper.AUTODOWNLOAD_ENABLED &&
             (autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_WIFI &&
-             (connectionType == ConnectivityManager.TYPE_WIFI || connectionType == ConnectivityManager.TYPE_ETHERNET));
-
-        if (!shouldStartDownload) {
+             connectionType != ConnectivityManager.TYPE_WIFI &&
+             connectionType != ConnectivityManager.TYPE_ETHERNET)) {
             Log.i(LOGTAG, "not initiating automatic update download due to policy " + autoDownloadPolicy);
-            sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.AVAILABLE);
 
             // We aren't autodownloading here, so prompt to start the update
             Notification notification = new Notification(R.drawable.ic_status_logo, null, System.currentTimeMillis());
 
-            Intent notificationIntent = new Intent(UpdateServiceHelper.ACTION_DOWNLOAD_UPDATE);
+            Intent notificationIntent = new Intent(UpdateServiceHelper.ACTION_CHECK_FOR_UPDATE);
             notificationIntent.setClass(this, UpdateService.class);
+            notificationIntent.putExtra(UpdateServiceHelper.EXTRA_UPDATE_FLAGS_NAME, UpdateServiceHelper.FLAG_FORCE_DOWNLOAD);
 
             PendingIntent contentIntent = PendingIntent.getService(this, 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
             notification.flags = Notification.FLAG_AUTO_CANCEL;
@@ -237,15 +236,12 @@ public class UpdateService extends IntentService {
         }
 
         File pkg = downloadUpdatePackage(info, hasFlag(flags, UpdateServiceHelper.FLAG_OVERWRITE_EXISTING));
-        if (pkg == null) {
-            sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.NOT_AVAILABLE);
+        if (pkg == null)
             return;
-        }
 
         Log.i(LOGTAG, "have update package at " + pkg);
 
-        saveUpdateInfo(info, pkg);
-        sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.DOWNLOADED);
+        saveUpdateInfo(info);
 
         if (mApplyImmediately) {
             applyUpdate(pkg);
@@ -268,27 +264,12 @@ public class UpdateService extends IntentService {
         }
     }
 
-    private URLConnection openConnectionWithProxy(URL url) throws java.net.URISyntaxException, java.io.IOException {
-        Log.i(LOGTAG, "openning connection with url: " + url);
-
-        ProxySelector ps = ProxySelector.getDefault();
-        Proxy proxy = Proxy.NO_PROXY;
-        if (ps != null) {
-            List<Proxy> proxies = ps.select(url.toURI());
-            if (proxies != null && !proxies.isEmpty()) {
-                proxy = proxies.get(0);
-            }
-        }
-
-        return url.openConnection(proxy);
-    }
-
     private UpdateInfo findUpdate(boolean force) {
         try {
             URL url = UpdateServiceHelper.getUpdateUrl(this, force);
 
             DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-            Document dom = builder.parse(openConnectionWithProxy(url).getInputStream());
+            Document dom = builder.parse(url.openConnection().getInputStream());
 
             NodeList nodes = dom.getElementsByTagName("update");
             if (nodes == null || nodes.getLength() == 0)
@@ -344,7 +325,7 @@ public class UpdateService extends IntentService {
     private MessageDigest createMessageDigest(String hashFunction) {
         String javaHashFunction = null;
 
-        if ("sha512".equalsIgnoreCase(hashFunction)) {
+        if ("sha512".equals(hashFunction)) {
             javaHashFunction = "SHA-512";
         } else {
             Log.e(LOGTAG, "Unhandled hash function: " + hashFunction);
@@ -414,7 +395,6 @@ public class UpdateService extends IntentService {
         }
 
         Log.i(LOGTAG, "downloading update package");
-        sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.DOWNLOADING);
 
         OutputStream output = null;
         InputStream input = null;
@@ -423,7 +403,7 @@ public class UpdateService extends IntentService {
         showDownloadNotification(downloadFile);
 
         try {
-            URLConnection conn = openConnectionWithProxy(info.url);
+            URLConnection conn = info.url.openConnection();
             int length = conn.getContentLength();
 
             output = new BufferedOutputStream(new FileOutputStream(downloadFile));
@@ -501,9 +481,6 @@ public class UpdateService extends IntentService {
     }
 
     private void applyUpdate(String updatePath) {
-        if (updatePath == null) {
-            updatePath = mPrefs.getString(KEY_LAST_FILE_NAME, null);
-        }
         applyUpdate(new File(updatePath));
     }
 
@@ -564,12 +541,11 @@ public class UpdateService extends IntentService {
         editor.commit();
     }
 
-    private void saveUpdateInfo(UpdateInfo info, File downloaded) {
+    private void saveUpdateInfo(UpdateInfo info) {
         SharedPreferences.Editor editor = mPrefs.edit();
         editor.putString(KEY_LAST_BUILDID, info.buildID);
         editor.putString(KEY_LAST_HASH_FUNCTION, info.hashFunction);
         editor.putString(KEY_LAST_HASH_VALUE, info.hashValue);
-        editor.putString(KEY_LAST_FILE_NAME, downloaded.toString());
         editor.commit();
     }
 

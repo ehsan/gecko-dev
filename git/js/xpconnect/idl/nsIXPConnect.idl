@@ -44,7 +44,6 @@ class nsWrapperCache;
 [ref] native nsCCTraversalCallbackRef(nsCycleCollectionTraversalCallback);
 [ptr] native nsAXPCNativeCallContextPtr(nsAXPCNativeCallContext);
 [ptr] native nsWrapperCachePtr(nsWrapperCache);
-      native ZoneSpecifier(uintptr_t);
 
 /***************************************************************************/
 
@@ -68,7 +67,7 @@ interface nsIXPConnectJSObjectHolder : nsISupports
     readonly attribute JSObjectPtr      JSObject;
 };
 
-[uuid(92e98688-0154-4b65-971b-0d4afe8fd7cb)]
+[uuid(f819a95a-6ab5-4a02-bda6-32861e859581)]
 interface nsIXPConnectWrappedNative : nsIXPConnectJSObjectHolder
 {
     /* attribute 'JSObject' inherited from nsIXPConnectJSObjectHolder */
@@ -82,7 +81,6 @@ interface nsIXPConnectWrappedNative : nsIXPConnectJSObjectHolder
     readonly attribute nsIXPConnect XPConnect;
     nsIInterfaceInfo FindInterfaceWithMember(in jsid nameID);
     nsIInterfaceInfo FindInterfaceWithName(in jsid nameID);
-    [notxpcom] bool HasNativeMember(in jsid name);
 
     void debugDump(in short depth);
 
@@ -290,7 +288,7 @@ interface nsIXPCFunctionThisTranslator : nsISupports
     { 0xbd, 0xd6, 0x0, 0x0, 0x64, 0x65, 0x73, 0x74 } }
 %}
 
-[uuid(7e7a9a90-4607-4e3a-8ef1-b0f4b8de1c27)]
+[uuid(e28a33ce-dfe9-4816-ae20-0f1dc8077230)]
 interface nsIXPConnect : nsISupports
 {
 %{ C++
@@ -323,8 +321,7 @@ interface nsIXPConnect : nsISupports
                   in JSContextPtr aJSContext,
                   in nsISupports  aCOMObj,
                   in nsIPrincipal aPrincipal,
-                  in uint32_t     aFlags,
-                  in ZoneSpecifier aZoneSpec);
+                  in uint32_t     aFlags);
 
     const uint32_t INIT_JS_STANDARD_CLASSES  = 1 << 0;
     // Free bit here!
@@ -439,6 +436,10 @@ interface nsIXPConnect : nsISupports
     getNativeOfWrapper(in JSContextPtr aJSContext,
                        in JSObjectPtr  aJSObj);
 
+    JSObjectPtr
+    getJSObjectOfWrapper(in JSContextPtr aJSContext,
+                         in JSObjectPtr  aJSObj);
+
     void setSecurityManagerForJSContext(in JSContextPtr aJSContext,
                                         in nsIXPCSecurityManager aManager,
                                         in uint16_t flags);
@@ -517,7 +518,7 @@ interface nsIXPConnect : nsISupports
     setFunctionThisTranslator(in nsIIDRef aIID,
                               in nsIXPCFunctionThisTranslator aTranslator);
 
-    void
+    nsIXPConnectJSObjectHolder
     reparentWrappedNativeIfFound(in JSContextPtr aJSContext,
                                  in JSObjectPtr  aScope,
                                  in JSObjectPtr  aNewParent,
@@ -553,7 +554,6 @@ interface nsIXPConnect : nsISupports
      * other running scripts.
      *
      * @param source The source of the script to evaluate.
-     * @param filename The filename of the script. May be null.
      * @param cx The context to use when setting up the evaluation of
      *           the script. The actual evaluation will happen on a new
      *           temporary context.
@@ -567,9 +567,8 @@ interface nsIXPConnect : nsISupports
      *         is responsible for rooting the jsval before making a call
      *         to this method.
      */
-    [noscript] jsval evalInSandboxObject(in AString source, in string filename,
-                                         in JSContextPtr cx,
-                                         in JSObjectPtr sandbox,
+    [noscript] jsval evalInSandboxObject(in AString source, in JSContextPtr cx,
+                                         in nsIXPConnectJSObjectHolder sandbox,
                                          in boolean returnStringOnly);
 
     /**
@@ -577,21 +576,21 @@ interface nsIXPConnect : nsISupports
      * @param aHolder The object that hold the JS objects that should be rooted.
      * @param aTrace The tracer for aHolder.
      */
-    [noscript,notxpcom] void addJSHolder(in voidPtr aHolder,
-                                         in nsScriptObjectTracerPtr aTracer);
+    [noscript] void addJSHolder(in voidPtr aHolder,
+                                in nsScriptObjectTracerPtr aTracer);
 
     /**
      * Stop rooting the JS objects held by aHolder.
      * @param aHolder The object that hold the rooted JS objects.
      */
-    [noscript,notxpcom] void removeJSHolder(in voidPtr aHolder);
+    [noscript] void removeJSHolder(in voidPtr aHolder);
 
     /**
      * Test to see if a JS holder is in our hashtable.
      * Only available in debug builds.
      * @param aHolder The object to test for.
      */
-    [noscript,notxpcom] bool testJSHolder(in voidPtr aHolder);
+    [noscript] bool testJSHolder(in voidPtr aHolder);
 
     /**
      * Note aJSContext as a child to the cycle collector.

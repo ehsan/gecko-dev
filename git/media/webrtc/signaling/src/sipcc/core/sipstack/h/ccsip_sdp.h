@@ -10,7 +10,7 @@
 #include "pmhutils.h"
 #include "sdp.h"
 #include "ccapi.h"
-#include "mozilla-config.h"
+
 
 /* SDP bitmask values */
 #define CCSIP_SRC_SDP_BIT       0x1
@@ -21,11 +21,10 @@
  * appropriate values initialized
  */
 PMH_EXTERN boolean sip_sdp_init(void);
-PMH_EXTERN sdp_t *sipsdp_create(const char *peerconnection);
+PMH_EXTERN void *sipsdp_create(void);
 PMH_EXTERN cc_sdp_t *sipsdp_info_create(void);
 PMH_EXTERN void sipsdp_src_dest_free(uint16_t flags, cc_sdp_t **sdp_info);
-PMH_EXTERN void sipsdp_src_dest_create(const char *peerconnection,
-    uint16_t flags, cc_sdp_t **sdp_info);
+PMH_EXTERN void sipsdp_src_dest_create(uint16_t flags, cc_sdp_t **sdp_info);
 PMH_EXTERN void sipsdp_free(cc_sdp_t **sip_sdp);
 
 /*
@@ -40,11 +39,23 @@ PMH_EXTERN void sipsdp_free(cc_sdp_t **sip_sdp);
 #define SIPSDP_MAX_SESSION_VERSION_LENGTH 32
 
 /*
+ * Create a SDP structure from a packet got from the network. This
+ * also parses the message and fills in the values of address, port etc.
+ * Memory is allocated. To free it properly, use sipsdp_free_internal(),
+ * followed by free()
+ * buf = raw message.
+ * nbytes = number of bytes in buf.
+ *
+ */
+PMH_EXTERN cc_sdp_t *sipsdp_create_from_buf(char *buf, uint32_t nbytes,
+                                            cc_sdp_t *sdp);
+
+/*
  * Standard session-level parameters
  */
 #define SIPSDP_VERSION              0
 // RAMC_DEBUG #define SIPSDP_ORIGIN_USERNAME      "CiscoSystemsSIP-GW-UserAgent"
-#define SIPSDP_ORIGIN_USERNAME      "Mozilla-SIPUA-" MOZ_APP_UA_VERSION
+#define SIPSDP_ORIGIN_USERNAME      "Mozilla-SIPUA"
 #define SIPSDP_SESSION_NAME         "SIP Call"
 
 /* Possible encoding names fo static payload types*/
@@ -142,7 +153,7 @@ PMH_EXTERN void sipsdp_free(cc_sdp_t **sip_sdp);
  * Memory is allocated and should be freed by the user when done
  * Returns NULL on failure.
  */
-PMH_EXTERN char *sipsdp_write_to_buf(sdp_t *, uint32_t *);
+PMH_EXTERN char *sipsdp_write_to_buf(cc_sdp_t *, uint32_t *);
 
 #define SIPSDP_FREE(x) \
 if (x) \

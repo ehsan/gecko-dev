@@ -8,7 +8,6 @@
 #include "prenv.h"
 #include "prprf.h"
 #include "nsHashKeys.h"
-#include "nsVersionComparator.h"
 
 #include "AndroidBridge.h"
 
@@ -123,43 +122,28 @@ GfxInfo::EnsureInitializedFromGfxInfoData()
   // as it's useful information that isn't given anywhere else in about:support of in crash reports.
   // But we should really move this out of GfxInfo.
   if (mozilla::AndroidBridge::Bridge()) {
-    if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", mModel)) {
-      mAdapterDescription.AppendPrintf(" -- Model: %s",  NS_LossyConvertUTF16toASCII(mModel).get());
+    nsAutoString str;
+    if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", str)) {
+      mAdapterDescription.AppendPrintf(" -- Model: %s",  NS_LossyConvertUTF16toASCII(str).get());
     }
 
-    if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "PRODUCT", mProduct)) {
-      mAdapterDescription.AppendPrintf(", Product: %s", NS_LossyConvertUTF16toASCII(mProduct).get());
+    if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "PRODUCT", str)) {
+      mAdapterDescription.AppendPrintf(", Product: %s", NS_LossyConvertUTF16toASCII(str).get());
     }
 
-    if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MANUFACTURER", mManufacturer)) {
-      mAdapterDescription.AppendPrintf(", Manufacturer: %s", NS_LossyConvertUTF16toASCII(mManufacturer).get());
+    if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MANUFACTURER", str)) {
+      mAdapterDescription.AppendPrintf(", Manufacturer: %s", NS_LossyConvertUTF16toASCII(str).get());
     }
 
-    int32_t sdkVersion;
-    if (!mozilla::AndroidBridge::Bridge()->GetStaticIntField("android/os/Build$VERSION", "SDK_INT", &sdkVersion))
-      sdkVersion = 0;
+    int32_t version; // the HARDWARE field isn't available on Android SDK < 8
+    if (!mozilla::AndroidBridge::Bridge()->GetStaticIntField("android/os/Build$VERSION", "SDK_INT", &version))
+      version = 0;
 
-    // the HARDWARE field isn't available on Android SDK < 8
-    if (sdkVersion >= 8 && mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", mHardware)) {
-      mAdapterDescription.AppendPrintf(", Hardware: %s", NS_LossyConvertUTF16toASCII(mHardware).get());
+    if (version >= 8 && mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
+      if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
+        mAdapterDescription.AppendPrintf(", Hardware: %s", NS_LossyConvertUTF16toASCII(str).get());
+      }
     }
-
-    nsString release;
-    mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build$VERSION", "RELEASE", release);
-    mOSVersion = NS_LossyConvertUTF16toASCII(release);
-
-    mOSVersionInteger = 0;
-    char a[5], b[5], c[5], d[5];
-    SplitDriverVersion(mOSVersion.get(), a, b, c, d);
-    uint8_t na = atoi(a);
-    uint8_t nb = atoi(b);
-    uint8_t nc = atoi(c);
-    uint8_t nd = atoi(d);
-
-    mOSVersionInteger = (uint32_t(na) << 24) |
-                        (uint32_t(nb) << 16) |
-                        (uint32_t(nc) << 8)  |
-                        uint32_t(nd);
   }
 
   AddCrashReportAnnotations();
@@ -299,10 +283,17 @@ const nsTArray<GfxDriverInfo>&
 GfxInfo::GetGfxDriverInfo()
 {
   if (mDriverInfo->IsEmpty()) {
+#ifdef MOZ_ANDROID_OMTC
     APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_ALL,
       (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAll), GfxDriverInfo::allDevices,
       nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_NO_INFO,
       DRIVER_COMPARISON_IGNORED, GfxDriverInfo::allDriverVersions );
+#else
+    APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_ALL,
+      (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAll), GfxDriverInfo::allDevices,
+      nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_BLOCKED_DEVICE,
+      DRIVER_COMPARISON_IGNORED, GfxDriverInfo::allDriverVersions );
+#endif
   }
 
   return *mDriverInfo;
@@ -318,7 +309,7 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
   NS_ENSURE_ARG_POINTER(aStatus);
   aSuggestedDriverVersion.SetIsVoid(true);
   *aStatus = nsIGfxInfo::FEATURE_STATUS_UNKNOWN;
-  OperatingSystem os = mOS;
+  OperatingSystem os = DRIVER_OS_ANDROID;
   if (aOS)
     *aOS = os;
 
@@ -337,102 +328,6 @@ GfxInfo::GetFeatureStatusImpl(int32_t aFeature,
       {
         *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
         return NS_OK;
-      }
-
-      if (mHardware.Equals(NS_LITERAL_STRING("ville"))) {
-        *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
-        return NS_OK;
-      }
-    }
-
-    if (aFeature == FEATURE_STAGEFRIGHT) {
-      NS_LossyConvertUTF16toASCII cManufacturer(mManufacturer);
-      NS_LossyConvertUTF16toASCII cModel(mModel);
-      if (CompareVersions(mOSVersion.get(), "2.2.0") >= 0 &&
-          CompareVersions(mOSVersion.get(), "2.3.0") < 0)
-      {
-        // Froyo LG devices are whitelisted.
-        // All other Froyo
-        bool isWhitelisted =
-          cManufacturer.Equals("lge", nsCaseInsensitiveCStringComparator());
-
-        if (!isWhitelisted) {
-          *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
-          return NS_OK;
-        }
-      }
-      else if (CompareVersions(mOSVersion.get(), "2.3.0") >= 0 &&
-          CompareVersions(mOSVersion.get(), "2.4.0") < 0)
-      {
-        // Gingerbread HTC devices are whitelisted.
-        // Gingerbread Samsung devices are whitelisted.
-        // All other Gingerbread devices are blacklisted.
-	bool isWhitelisted =
-          cManufacturer.Equals("htc", nsCaseInsensitiveCStringComparator()) ||
-          cManufacturer.Equals("samsung", nsCaseInsensitiveCStringComparator());
-
-        if (!isWhitelisted) {
-          *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
-          return NS_OK;
-        }
-      }
-      else if (CompareVersions(mOSVersion.get(), "3.0.0") >= 0 &&
-          CompareVersions(mOSVersion.get(), "4.0.0") < 0)
-      {
-        // Honeycomb Samsung devices are whitelisted.
-        // All other Honeycomb devices are blacklisted.
-	bool isWhitelisted =
-          cManufacturer.Equals("samsung", nsCaseInsensitiveCStringComparator());
-
-        if (!isWhitelisted) {
-          *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
-          return NS_OK;
-        }
-      }
-      else if (CompareVersions(mOSVersion.get(), "4.0.0") < 0)
-      {
-        *aStatus = nsIGfxInfo::FEATURE_BLOCKED_OS_VERSION;
-        return NS_OK;
-      }
-      else if (CompareVersions(mOSVersion.get(), "4.1.0") < 0)
-      {
-        // Whitelist:
-        //   All Samsung ICS devices
-        //   All Galaxy nexus ICS devices
-        //   Sony Xperia Ion (LT28) ICS devices
-        bool isWhitelisted =
-          cModel.Equals("LT28h", nsCaseInsensitiveCStringComparator()) ||
-          cManufacturer.Equals("samsung", nsCaseInsensitiveCStringComparator()) ||
-          cModel.Equals("galaxy nexus", nsCaseInsensitiveCStringComparator()); // some Galaxy Nexus have manufacturer=amazon
-
-        if (!isWhitelisted) {
-          *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
-          return NS_OK;
-        }
-      }
-      else if (CompareVersions(mOSVersion.get(), "4.2.0") < 0)
-      {
-        // Whitelist:
-        //   All JB phones except for those in blocklist below
-        // Blocklist:
-        //   Samsung SPH-L710 (Bug 812881)
-        //   Samsung SGH-T999 (Bug 812881)
-        //   Samsung SCH-I535 (Bug 812881)
-        //   Samsung GT-I8190 (Bug 812881)
-        //   Samsung SGH-I747M (Bug 812881)
-        //   Samsung SGH-I747 (Bug 812881)
-        bool isBlocklisted =
-          cModel.Equals("SAMSUNG-SPH-L710", nsCaseInsensitiveCStringComparator()) ||
-          cModel.Equals("SAMSUNG-SGH-T999", nsCaseInsensitiveCStringComparator()) ||
-          cModel.Equals("SAMSUNG-SCH-I535", nsCaseInsensitiveCStringComparator()) ||
-          cModel.Equals("SAMSUNG-GT-I8190", nsCaseInsensitiveCStringComparator()) ||
-          cModel.Equals("SAMSUNG-SGH-I747M", nsCaseInsensitiveCStringComparator()) ||
-          cModel.Equals("SAMSUNG-SGH-I747", nsCaseInsensitiveCStringComparator());
-
-        if (isBlocklisted) {
-          *aStatus = nsIGfxInfo::FEATURE_BLOCKED_DEVICE;
-          return NS_OK;
-        }
       }
     }
   }
@@ -471,34 +366,7 @@ NS_IMETHODIMP GfxInfo::SpoofDriverVersion(const nsAString & aDriverVersion)
 /* void spoofOSVersion (in unsigned long aVersion); */
 NS_IMETHODIMP GfxInfo::SpoofOSVersion(uint32_t aVersion)
 {
-  EnsureInitializedFromGfxInfoData(); // initialization from GfxInfo data overwrites mOSVersion
-  mOSVersion = aVersion;
   return NS_OK;
 }
 
 #endif
-
-nsString GfxInfo::Model() const
-{
-  return mModel;
-}
-
-nsString GfxInfo::Hardware() const
-{
-  return mHardware;
-}
-
-nsString GfxInfo::Product() const
-{
-  return mProduct;
-}
-
-nsString GfxInfo::Manufacturer() const
-{
-  return mManufacturer;
-}
-
-uint32_t GfxInfo::OperatingSystemVersion() const
-{
-  return mOSVersionInteger;
-}

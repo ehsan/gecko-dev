@@ -1,30 +1,6 @@
 // Copyright (c) 2006-2011 The Chromium Authors. All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions
-// are met:
-//  * Redistributions of source code must retain the above copyright
-//    notice, this list of conditions and the following disclaimer.
-//  * Redistributions in binary form must reproduce the above copyright
-//    notice, this list of conditions and the following disclaimer in
-//    the documentation and/or other materials provided with the
-//    distribution.
-//  * Neither the name of Google, Inc. nor the names of its contributors
-//    may be used to endorse or promote products derived from this
-//    software without specific prior written permission.
-// 
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-// COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-// BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-// OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-// AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
-// OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-// SUCH DAMAGE.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 /*
 # vim: sw=2
@@ -59,7 +35,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include "platform.h"
-#include "GeckoProfilerImpl.h"
+#include "sps_sampler.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -78,7 +54,7 @@ pid_t gettid()
 static Sampler* sActiveSampler = NULL;
 
 
-#ifdef ANDROID
+#if !defined(__GLIBC__) && (defined(__arm__) || defined(__thumb__))
 #include "android-signal-defs.h"
 #endif
 
@@ -117,7 +93,7 @@ static void ProfilerSignalHandler(int signal, siginfo_t* info, void* context) {
     sample->fp = reinterpret_cast<Address>(mcontext.gregs[REG_RBP]);
 #elif V8_HOST_ARCH_ARM
 // An undefined macro evaluates to 0, so this applies to Android's Bionic also.
-#if !defined(ANDROID) && (__GLIBC__ < 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ <= 3))
+#if (__GLIBC__ < 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ <= 3))
     sample->pc = reinterpret_cast<Address>(mcontext.gregs[R15]);
     sample->sp = reinterpret_cast<Address>(mcontext.gregs[R13]);
     sample->fp = reinterpret_cast<Address>(mcontext.gregs[R11]);
@@ -224,7 +200,7 @@ Sampler::~Sampler() {
 
 
 void Sampler::Start() {
-  LOG("Sampler started");
+  LOG("Sampler Started");
   if (sActiveSampler != NULL) return;
 
   // Request profiling signals.
@@ -291,8 +267,8 @@ static struct sigaction old_sigstart_signal_handler;
 const int SIGSTART = SIGUSR1;
 
 static void StartSignalHandler(int signal, siginfo_t* info, void* context) {
-  profiler_start(PROFILE_DEFAULT_ENTRY, PROFILE_DEFAULT_INTERVAL,
-                 PROFILE_DEFAULT_FEATURES, PROFILE_DEFAULT_FEATURE_COUNT);
+  mozilla_sampler_start(PROFILE_DEFAULT_ENTRY, PROFILE_DEFAULT_INTERVAL,
+                        PROFILE_DEFAULT_FEATURES, PROFILE_DEFAULT_FEATURE_COUNT);
 }
 
 void OS::RegisterStartHandler()

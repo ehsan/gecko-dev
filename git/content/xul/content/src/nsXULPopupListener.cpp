@@ -40,7 +40,7 @@
 #include "nsIPresShell.h"
 #include "nsFocusManager.h"
 #include "nsPIDOMWindow.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 #include "nsError.h"
 #include "nsMenuFrame.h"
 
@@ -232,7 +232,7 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
     nsIFrame* targetFrame = content->GetPrimaryFrame();
     if (!targetFrame) return NS_ERROR_FAILURE;
 
-    const nsStyleUserInterface* ui = targetFrame->StyleUserInterface();
+    const nsStyleUserInterface* ui = targetFrame->GetStyleUserInterface();
     bool suppressBlur = (ui->mUserFocus == NS_STYLE_USER_FOCUS_IGNORE);
 
     nsCOMPtr<nsIDOMElement> element;

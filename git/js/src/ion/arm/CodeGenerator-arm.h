@@ -15,7 +15,6 @@ namespace js {
 namespace ion {
 
 class OutOfLineBailout;
-class OutOfLineTableSwitch;
 
 class CodeGeneratorARM : public CodeGeneratorShared
 {
@@ -55,7 +54,11 @@ class CodeGeneratorARM : public CodeGeneratorShared
     bool generateEpilogue();
     bool generateOutOfLineCode();
 
+    void emitDoubleToInt32(const FloatRegister &src, const Register &dest, Label *fail, bool negativeZeroCheck = true);
     void emitRoundDouble(const FloatRegister &src, const Register &dest, Label *fail);
+
+    // Emits a conditional set.
+    void emitSet(Assembler::Condition cond, const Register &dest);
 
     // Emits a branch that directs control flow to the true block if |cond| is
     // true, and the false block if |cond| is false.
@@ -92,9 +95,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
     virtual bool visitCompareDAndBranch(LCompareDAndBranch *comp);
     virtual bool visitCompareB(LCompareB *lir);
     virtual bool visitCompareBAndBranch(LCompareBAndBranch *lir);
-    virtual bool visitCompareV(LCompareV *lir);
-    virtual bool visitCompareVAndBranch(LCompareVAndBranch *lir);
-    virtual bool visitUInt32ToDouble(LUInt32ToDouble *lir);
     virtual bool visitNotI(LNotI *ins);
     virtual bool visitNotD(LNotD *ins);
 
@@ -105,12 +105,10 @@ class CodeGeneratorARM : public CodeGeneratorShared
 
     // Out of line visitors.
     bool visitOutOfLineBailout(OutOfLineBailout *ool);
-    bool visitOutOfLineTableSwitch(OutOfLineTableSwitch *ool);
 
   protected:
     ValueOperand ToValue(LInstruction *ins, size_t pos);
     ValueOperand ToOutValue(LInstruction *ins);
-    ValueOperand ToTempValue(LInstruction *ins, size_t pos);
 
     // Functions for LTestVAndBranch.
     Register splitTagForTest(const ValueOperand &value);
@@ -118,8 +116,11 @@ class CodeGeneratorARM : public CodeGeneratorShared
     void storeElementTyped(const LAllocation *value, MIRType valueType, MIRType elementType,
                            const Register &elements, const LAllocation *index);
 
+  protected:
+    void linkAbsoluteLabels();
+
   public:
-    CodeGeneratorARM(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm);
+    CodeGeneratorARM(MIRGenerator *gen, LIRGraph &graph);
 
   public:
     bool visitBox(LBox *box);
@@ -139,11 +140,10 @@ class CodeGeneratorARM : public CodeGeneratorShared
     bool visitGuardClass(LGuardClass *guard);
     bool visitImplicitThis(LImplicitThis *lir);
 
+    bool visitRecompileCheck(LRecompileCheck *lir);
     bool visitInterruptCheck(LInterruptCheck *lir);
 
     bool generateInvalidateEpilogue();
-
-    void postAsmJSCall(LAsmJSCall *lir) {}
 };
 
 typedef CodeGeneratorARM CodeGeneratorSpecific;
@@ -152,10 +152,10 @@ typedef CodeGeneratorARM CodeGeneratorSpecific;
 class OutOfLineBailout : public OutOfLineCodeBase<CodeGeneratorARM>
 {
     LSnapshot *snapshot_;
-    uint32_t frameSize_;
+    uint32 frameSize_;
 
   public:
-    OutOfLineBailout(LSnapshot *snapshot, uint32_t frameSize)
+    OutOfLineBailout(LSnapshot *snapshot, uint32 frameSize)
       : snapshot_(snapshot),
         frameSize_(frameSize)
     { }
@@ -167,8 +167,8 @@ class OutOfLineBailout : public OutOfLineCodeBase<CodeGeneratorARM>
     }
 };
 
-} // namespace ion
-} // namespace js
+} // ion
+} // js
 
 #endif // jsion_codegen_arm_h__
 

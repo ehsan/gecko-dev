@@ -9,12 +9,10 @@ import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.Passwords;
 import org.mozilla.gecko.db.LocalBrowserDB;
-import org.mozilla.gecko.mozglue.GeckoLoader;
 import org.mozilla.gecko.sqlite.SQLiteBridge;
 import org.mozilla.gecko.sqlite.SQLiteBridgeException;
 import org.mozilla.gecko.sync.setup.SyncAccounts;
 import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import android.accounts.Account;
 import android.content.ContentProviderOperation;
@@ -610,8 +608,7 @@ public class ProfileMigrator {
             final String clientName = mSyncSettingsMap.get("services.sync.client.name");
             final String clientGuid = mSyncSettingsMap.get("services.sync.client.GUID");
 
-            ThreadUtils.postToBackgroundThread(new Runnable() {
-                @Override
+            GeckoAppShell.getHandler().post(new Runnable() {
                 public void run() {
                     if (userName == null || syncKey == null || syncPass == null) {
                         // This isn't going to work. Give up.
@@ -638,8 +635,7 @@ public class ProfileMigrator {
         }
 
         protected void registerAndRequest() {
-            ThreadUtils.postToBackgroundThread(new Runnable() {
-                @Override
+            GeckoAppShell.getHandler().post(new Runnable() {
                 public void run() {
                     requestValues();
                 }
@@ -653,8 +649,7 @@ public class ProfileMigrator {
                 @Override
                 protected void onPostExecute(Boolean result) {
                     if (result.booleanValue()) {
-                        ThreadUtils.postToBackgroundThread(new Runnable() {
-                            @Override
+                        GeckoAppShell.getHandler().post(new Runnable() {
                             public void run() {
                                 Log.i(LOGTAG, "Sync account already configured, skipping.");
                                 setMigratedSync();
@@ -671,7 +666,7 @@ public class ProfileMigrator {
 
     private class MiscTask implements Runnable {
         protected void cleanupXULLibCache() {
-            File cacheFile = GeckoLoader.getCacheDir(mContext);
+            File cacheFile = GeckoAppShell.getCacheDir(mContext);
             File[] files = cacheFile.listFiles();
             if (files != null) {
                 Iterator<File> cacheFiles = Arrays.asList(files).iterator();
@@ -934,8 +929,7 @@ public class ProfileMigrator {
 
             // GlobalHistory access communicates with Gecko
             // and must run on its thread.
-            ThreadUtils.postToBackgroundThread(new Runnable() {
-                    @Override
+            GeckoAppShell.getHandler().post(new Runnable() {
                     public void run() {
                         for (String url : placesHistory) {
                             GlobalHistory.getInstance().addToGeckoOnly(url);
@@ -1279,7 +1273,7 @@ public class ProfileMigrator {
             File dbFileShm = new File(dbPathShm);
 
             SQLiteBridge db = null;
-            GeckoLoader.loadSQLiteLibs(mContext, mContext.getPackageResourcePath());
+            GeckoAppShell.loadSQLiteLibs(mContext, mContext.getPackageResourcePath());
             try {
                 db = new SQLiteBridge(dbPath);
                 if (!checkPlacesSchema(db)) {

@@ -13,10 +13,6 @@
  * LinkedListElement<T>.  A given object may be in only one linked list at a
  * time.
  *
- * A LinkedListElement automatically removes itself from the list upon
- * destruction, and a LinkedList will fatally assert in debug builds if it's
- * non-empty when it's destructed.
- *
  * For example, you might use LinkedList in a simple observer list class as
  * follows.
  *
@@ -40,8 +36,6 @@
  *       void removeObserver(Observer* observer) {
  *         // Will assert if |observer| is not part of some list.
  *         observer.remove();
- *         // Or, will assert if |observer| is not part of |list| specifically.
- *         // observer.removeFrom(list);
  *       }
  *
  *       void notifyObservers(char* topic) {
@@ -116,11 +110,6 @@ class LinkedListElement
         isSentinel(false)
     { }
 
-    ~LinkedListElement() {
-      if (!isSentinel && isInList())
-        remove();
-    }
-
     /*
      * Get the next element in the list, or NULL if this is the last element in
      * the list.
@@ -176,15 +165,6 @@ class LinkedListElement
     }
 
     /*
-     * Identical to remove(), but also asserts in debug builds that this element
-     * is in list.
-     */
-    void removeFrom(const LinkedList<T>& list) {
-      list.assertContains(asT());
-      remove();
-    }
-
-    /*
      * Return true if |this| part is of a linked list, and false otherwise.
      */
     bool isInList() const {
@@ -201,10 +181,11 @@ class LinkedListElement
     };
 
     LinkedListElement(NodeKind nodeKind)
-      : next(thisDuringConstruction()),
-        prev(thisDuringConstruction()),
+      : next(this),
+        prev(this),
         isSentinel(nodeKind == NODE_KIND_SENTINEL)
-    { }
+    {
+    }
 
     /*
      * Return |this| cast to T* if we're a normal node, or return NULL if we're
@@ -264,10 +245,6 @@ class LinkedList
 
   public:
     LinkedList() : sentinel(LinkedListElement<T>::NODE_KIND_SENTINEL) { }
-
-    ~LinkedList() {
-      MOZ_ASSERT(isEmpty());
-    }
 
     /*
      * Add elem to the front of the list.
@@ -404,21 +381,6 @@ class LinkedList
     }
 
   private:
-    friend class LinkedListElement<T>;
-
-    void assertContains(const T* t) const {
-#ifdef DEBUG
-      for (const T* elem = getFirst();
-           elem;
-           elem = elem->getNext())
-      {
-        if (elem == t)
-          return;
-      }
-      MOZ_NOT_REACHED("element wasn't found in this list!");
-#endif
-    }
-
     LinkedList& operator=(const LinkedList<T>& other) MOZ_DELETE;
     LinkedList(const LinkedList<T>& other) MOZ_DELETE;
 };

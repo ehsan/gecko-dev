@@ -17,7 +17,7 @@
 
 class nsRange;
 class nsIFrame;
-class nsIDocShell;
+class nsIDocShellTreeItem;
 class nsITreeColumn;
 class nsITreeBoxObject;
 class nsIWidget;
@@ -176,9 +176,10 @@ public:
   static nsIntPoint GetScreenCoordsForWindow(nsINode *aNode);
 
   /**
-   * Return document shell for the given DOM node.
+   * Return document shell tree item for the given DOM node.
    */
-  static already_AddRefed<nsIDocShell> GetDocShellFor(nsINode *aNode);
+  static already_AddRefed<nsIDocShellTreeItem>
+    GetDocShellTreeItemFor(nsINode *aNode);
 
   /**
    * Return true if the given document is root document.
@@ -222,6 +223,14 @@ public:
    */
   static bool GetUIntAttr(nsIContent *aContent, nsIAtom *aAttr,
                             int32_t *aUInt);
+
+  /**
+   * Check if the given element is XLink.
+   *
+   * @param aContent  the given element
+   * @return          true if the given element is XLink
+   */
+  static bool IsXLink(nsIContent *aContent);
 
   /**
    * Returns language for the given node.
@@ -303,8 +312,8 @@ public:
 class nsAccessibleDOMStringList : public nsIDOMDOMStringList
 {
 public:
-  nsAccessibleDOMStringList() {}
-  virtual ~nsAccessibleDOMStringList() {}
+  nsAccessibleDOMStringList() {};
+  virtual ~nsAccessibleDOMStringList() {};
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMDOMSTRINGLIST

@@ -136,14 +136,15 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
 
     // container-relevant attribute
     if (relevant.IsEmpty() &&
-        HasDefinedARIAToken(ancestor, nsGkAtoms::aria_relevant) &&
+        nsAccUtils::HasDefinedARIAToken(ancestor, nsGkAtoms::aria_relevant) &&
         ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_relevant, relevant))
       SetAccAttr(aAttributes, nsGkAtoms::containerRelevant, relevant);
 
     // container-live, and container-live-role attributes
     if (live.IsEmpty()) {
       nsRoleMapEntry* role = aria::GetRoleMap(ancestor);
-      if (HasDefinedARIAToken(ancestor, nsGkAtoms::aria_live)) {
+      if (nsAccUtils::HasDefinedARIAToken(ancestor,
+                                          nsGkAtoms::aria_live)) {
         ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_live,
                           live);
       } else if (role) {
@@ -152,21 +153,21 @@ nsAccUtils::SetLiveContainerAttributes(nsIPersistentProperties *aAttributes,
       if (!live.IsEmpty()) {
         SetAccAttr(aAttributes, nsGkAtoms::containerLive, live);
         if (role) {
-          SetAccAttr(aAttributes, nsGkAtoms::containerLiveRole,
-                     role->ARIARoleString());
+          nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::containerLiveRole,
+                                 role->ARIARoleString());
         }
       }
     }
 
     // container-atomic attribute
     if (atomic.IsEmpty() &&
-        HasDefinedARIAToken(ancestor, nsGkAtoms::aria_atomic) &&
+        nsAccUtils::HasDefinedARIAToken(ancestor, nsGkAtoms::aria_atomic) &&
         ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_atomic, atomic))
       SetAccAttr(aAttributes, nsGkAtoms::containerAtomic, atomic);
 
     // container-busy attribute
     if (busy.IsEmpty() &&
-        HasDefinedARIAToken(ancestor, nsGkAtoms::aria_busy) &&
+        nsAccUtils::HasDefinedARIAToken(ancestor, nsGkAtoms::aria_busy) &&
         ancestor->GetAttr(kNameSpaceID_None, nsGkAtoms::aria_busy, busy))
       SetAccAttr(aAttributes, nsGkAtoms::containerBusy, busy);
 
@@ -197,7 +198,7 @@ nsAccUtils::HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom)
 nsIAtom*
 nsAccUtils::GetARIAToken(dom::Element* aElement, nsIAtom* aAttr)
 {
-  if (!HasDefinedARIAToken(aElement, aAttr))
+  if (!nsAccUtils::HasDefinedARIAToken(aElement, aAttr))
     return nsGkAtoms::_empty;
 
   static nsIContent::AttrValuesArray tokens[] =
@@ -239,7 +240,7 @@ nsAccUtils::GetSelectableContainer(Accessible* aAccessible, uint64_t aState)
 
   Accessible* parent = aAccessible;
   while ((parent = parent->Parent()) && !parent->IsSelect()) {
-    if (parent->Role() == roles::PANE)
+    if (Role(parent) == nsIAccessibleRole::ROLE_PANE)
       return nullptr;
   }
   return parent;
@@ -293,12 +294,15 @@ nsAccUtils::GetTextAccessibleFromSelection(nsISelection* aSelection)
   return nullptr;
 }
 
-nsIntPoint
+nsresult
 nsAccUtils::ConvertToScreenCoords(int32_t aX, int32_t aY,
                                   uint32_t aCoordinateType,
-                                  Accessible* aAccessible)
+                                  nsAccessNode *aAccessNode,
+                                  nsIntPoint *aCoords)
 {
-  nsIntPoint coords(aX, aY);
+  NS_ENSURE_ARG_POINTER(aCoords);
+
+  aCoords->MoveTo(aX, aY);
 
   switch (aCoordinateType) {
     case nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE:
@@ -306,27 +310,29 @@ nsAccUtils::ConvertToScreenCoords(int32_t aX, int32_t aY,
 
     case nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE:
     {
-      coords += nsCoreUtils::GetScreenCoordsForWindow(aAccessible->GetNode());
+      NS_ENSURE_ARG(aAccessNode);
+      *aCoords += GetScreenCoordsForWindow(aAccessNode);
       break;
     }
 
     case nsIAccessibleCoordinateType::COORDTYPE_PARENT_RELATIVE:
     {
-      coords += GetScreenCoordsForParent(aAccessible);
+      NS_ENSURE_ARG(aAccessNode);
+      *aCoords += GetScreenCoordsForParent(aAccessNode);
       break;
     }
 
     default:
-      NS_NOTREACHED("invalid coord type!");
+      return NS_ERROR_INVALID_ARG;
   }
 
-  return coords;
+  return NS_OK;
 }
 
-void
+nsresult
 nsAccUtils::ConvertScreenCoordsTo(int32_t *aX, int32_t *aY,
                                   uint32_t aCoordinateType,
-                                  Accessible* aAccessible)
+                                  nsAccessNode *aAccessNode)
 {
   switch (aCoordinateType) {
     case nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE:
@@ -334,7 +340,8 @@ nsAccUtils::ConvertScreenCoordsTo(int32_t *aX, int32_t *aY,
 
     case nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE:
     {
-      nsIntPoint coords = nsCoreUtils::GetScreenCoordsForWindow(aAccessible->GetNode());
+      NS_ENSURE_ARG(aAccessNode);
+      nsIntPoint coords = nsAccUtils::GetScreenCoordsForWindow(aAccessNode);
       *aX -= coords.x;
       *aY -= coords.y;
       break;
@@ -342,21 +349,31 @@ nsAccUtils::ConvertScreenCoordsTo(int32_t *aX, int32_t *aY,
 
     case nsIAccessibleCoordinateType::COORDTYPE_PARENT_RELATIVE:
     {
-      nsIntPoint coords = GetScreenCoordsForParent(aAccessible);
+      NS_ENSURE_ARG(aAccessNode);
+      nsIntPoint coords = nsAccUtils::GetScreenCoordsForParent(aAccessNode);
       *aX -= coords.x;
       *aY -= coords.y;
       break;
     }
 
     default:
-    NS_NOTREACHED("invalid coord type!");
+      return NS_ERROR_INVALID_ARG;
   }
+
+  return NS_OK;
 }
 
 nsIntPoint
-nsAccUtils::GetScreenCoordsForParent(Accessible* aAccessible)
+nsAccUtils::GetScreenCoordsForWindow(nsAccessNode *aAccessNode)
 {
-  Accessible* parent = aAccessible->Parent();
+  return nsCoreUtils::GetScreenCoordsForWindow(aAccessNode->GetNode());
+}
+
+nsIntPoint
+nsAccUtils::GetScreenCoordsForParent(nsAccessNode *aAccessNode)
+{
+  DocAccessible* document = aAccessNode->Document();
+  Accessible* parent = document->GetContainerAccessible(aAccessNode->GetNode());
   if (!parent)
     return nsIntPoint(0, 0);
 
@@ -408,7 +425,7 @@ nsAccUtils::IsTextInterfaceSupportCorrect(Accessible* aAccessible)
   uint32_t childCount = aAccessible->ChildCount();
   for (uint32_t childIdx = 0; childIdx < childCount; childIdx++) {
     Accessible* child = aAccessible->GetChildAt(childIdx);
-    if (!IsEmbeddedObject(child)) {
+    if (IsText(child)) {
       foundText = true;
       break;
     }
@@ -428,7 +445,7 @@ nsAccUtils::IsTextInterfaceSupportCorrect(Accessible* aAccessible)
 uint32_t
 nsAccUtils::TextLength(Accessible* aAccessible)
 {
-  if (IsEmbeddedObject(aAccessible))
+  if (!IsText(aAccessible))
     return 1;
 
   TextLeafAccessible* textLeaf = aAccessible->AsTextLeaf();

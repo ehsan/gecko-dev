@@ -6,7 +6,6 @@
 
 #include "ArchiveRequest.h"
 
-#include "mozilla/dom/ArchiveRequestBinding.h"
 #include "nsContentUtils.h"
 #include "nsLayoutStatics.h"
 #include "nsEventDispatcher.h"
@@ -45,15 +44,13 @@ ArchiveRequestEvent::Run()
   return NS_OK;
 }
 
-// ArchiveRequest
+/* ArchiveRequest */
 
 ArchiveRequest::ArchiveRequest(nsIDOMWindow* aWindow,
                                ArchiveReader* aReader)
 : DOMRequest(aWindow),
   mArchiveReader(aReader)
 {
-  MOZ_ASSERT(aReader);
-
   MOZ_COUNT_CTOR(ArchiveRequest);
   nsLayoutStatics::AddRef();
 
@@ -76,18 +73,14 @@ ArchiveRequest::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return NS_OK;
 }
 
-/* virtual */ JSObject*
-ArchiveRequest::WrapObject(JSContext* aCx, JSObject* aScope)
-{
-  return ArchiveRequestBinding::Wrap(aCx, aScope, this);
-}
-
-ArchiveReader*
-ArchiveRequest::Reader() const
+NS_IMETHODIMP
+ArchiveRequest::GetReader(nsIDOMArchiveReader** aArchiveReader)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  return mArchiveReader;
+  nsCOMPtr<nsIDOMArchiveReader> archiveReader(mArchiveReader);
+  archiveReader.forget(aArchiveReader);
+  return NS_OK;
 }
 
 // Here the request is processed:
@@ -97,9 +90,8 @@ ArchiveRequest::Run()
   // Register this request to the reader.
   // When the reader is ready to return data, a 'Ready()' will be called
   nsresult rv = mArchiveReader->RegisterRequest(this);
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv))
     FireError(rv);
-  }
 }
 
 void
@@ -115,12 +107,6 @@ ArchiveRequest::OpGetFile(const nsAString& aFilename)
   mFilename = aFilename;
 }
 
-void
-ArchiveRequest::OpGetFiles()
-{
-  mOperation = GetFiles;
-}
-
 nsresult
 ArchiveRequest::ReaderReady(nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList,
                             nsresult aStatus)
@@ -130,13 +116,13 @@ ArchiveRequest::ReaderReady(nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList,
     return NS_OK;
   }
 
-  JS::Value result;
+  jsval result;
   nsresult rv;
 
   nsIScriptContext* sc = GetContextForEventHandlers(&rv);
   NS_ENSURE_STATE(sc);
 
-  AutoPushJSContext cx(sc->GetNativeContext());
+  JSContext* cx = sc->GetNativeContext();
   NS_ASSERTION(cx, "Failed to get a context!");
 
   JSObject* global = sc->GetNativeGlobal();
@@ -153,10 +139,6 @@ ArchiveRequest::ReaderReady(nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList,
     case GetFile:
       rv = GetFileResult(cx, &result, aFileList);
       break;
-
-      case GetFiles:
-        rv = GetFilesResult(cx, &result, aFileList);
-        break;
   }
 
   if (NS_FAILED(rv)) {
@@ -175,7 +157,7 @@ ArchiveRequest::ReaderReady(nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList,
 
 nsresult
 ArchiveRequest::GetFilenamesResult(JSContext* aCx,
-                                   JS::Value* aValue,
+                                   jsval* aValue,
                                    nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList)
 {
   JSObject* array = JS_NewArrayObject(aCx, aFileList.Length(), nullptr);
@@ -195,7 +177,7 @@ ArchiveRequest::GetFilenamesResult(JSContext* aCx,
     JSString* str = JS_NewUCStringCopyZ(aCx, filename.get());
     NS_ENSURE_TRUE(str, NS_ERROR_OUT_OF_MEMORY);
 
-    JS::Value item = STRING_TO_JSVAL(str);
+    jsval item = STRING_TO_JSVAL(str);
 
     if (NS_FAILED(rv) || !JS_SetElement(aCx, array, i, &item)) {
       return NS_ERROR_FAILURE;
@@ -205,14 +187,14 @@ ArchiveRequest::GetFilenamesResult(JSContext* aCx,
   if (!JS_FreezeObject(aCx, array)) {
     return NS_ERROR_FAILURE;
   }
-
+  
   *aValue = OBJECT_TO_JSVAL(array);
   return NS_OK;
 }
 
 nsresult
 ArchiveRequest::GetFileResult(JSContext* aCx,
-                              JS::Value* aValue,
+                              jsval* aValue,
                               nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList)
 {
   for (uint32_t i = 0; i < aFileList.Length(); ++i) {
@@ -223,39 +205,13 @@ ArchiveRequest::GetFileResult(JSContext* aCx,
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (filename == mFilename) {
-      nsresult rv = nsContentUtils::WrapNative(
-                      aCx, JS_GetGlobalForScopeChain(aCx),
-                      file, &NS_GET_IID(nsIDOMFile), aValue);
+      JSObject* scope = JS_GetGlobalForScopeChain(aCx);
+      nsresult rv = nsContentUtils::WrapNative(aCx, scope, file, aValue, nullptr, true);
       return rv;
     }
   }
 
   return NS_ERROR_FAILURE;
-}
-
-nsresult
-ArchiveRequest::GetFilesResult(JSContext* aCx,
-                               JS::Value* aValue,
-                               nsTArray<nsCOMPtr<nsIDOMFile> >& aFileList)
-{
-  JSObject* array = JS_NewArrayObject(aCx, aFileList.Length(), nullptr);
-  if (!array) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-
-  for (uint32_t i = 0; i < aFileList.Length(); ++i) {
-    nsCOMPtr<nsIDOMFile> file = aFileList[i];
-
-    JS::Value value;
-    nsresult rv = nsContentUtils::WrapNative(aCx, JS_GetGlobalForScopeChain(aCx),
-                                             file, &NS_GET_IID(nsIDOMFile), &value);
-    if (NS_FAILED(rv) || !JS_SetElement(aCx, array, i, &value)) {
-      return NS_ERROR_FAILURE;
-    }
-  }
-
-  aValue->setObject(*array);
-  return NS_OK;
 }
 
 // static
@@ -270,10 +226,23 @@ ArchiveRequest::Create(nsIDOMWindow* aOwner,
   return request.forget();
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(ArchiveRequest, DOMRequest,
-                                     mArchiveReader)
+NS_IMPL_CYCLE_COLLECTION_CLASS(ArchiveRequest)
+
+// C++ traverse
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(ArchiveRequest,
+                                                  DOMRequest)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mArchiveReader, nsIDOMArchiveReader)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+// Unlink
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(ArchiveRequest,
+                                                DOMRequest)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mArchiveReader)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(ArchiveRequest)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMArchiveRequest)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ArchiveRequest)
 NS_INTERFACE_MAP_END_INHERITING(DOMRequest)
 
 NS_IMPL_ADDREF_INHERITED(ArchiveRequest, DOMRequest)

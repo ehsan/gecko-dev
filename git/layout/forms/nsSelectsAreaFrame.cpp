@@ -133,38 +133,40 @@ public:
   NS_DISPLAY_DECL_NAME("ListFocus", TYPE_LIST_FOCUS)
 };
 
-void
+NS_IMETHODIMP
 nsSelectsAreaFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
-  if (!aBuilder->IsForEventDelivery()) {
-    BuildDisplayListInternal(aBuilder, aDirtyRect, aLists);
-    return;
-  }
+  if (!aBuilder->IsForEventDelivery())
+    return BuildDisplayListInternal(aBuilder, aDirtyRect, aLists);
     
   nsDisplayListCollection set;
-  BuildDisplayListInternal(aBuilder, aDirtyRect, set);
+  nsresult rv = BuildDisplayListInternal(aBuilder, aDirtyRect, set);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   nsOptionEventGrabberWrapper wrapper;
-  wrapper.WrapLists(aBuilder, this, set, aLists);
+  return wrapper.WrapLists(aBuilder, this, set, aLists);
 }
 
-void
+nsresult
 nsSelectsAreaFrame::BuildDisplayListInternal(nsDisplayListBuilder*   aBuilder,
                                              const nsRect&           aDirtyRect,
                                              const nsDisplayListSet& aLists)
 {
-  nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  nsresult rv = nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsListControlFrame* listFrame = GetEnclosingListFrame(this);
   if (listFrame && listFrame->IsFocused()) {
     // we can't just associate the display item with the list frame,
     // because then the list's scrollframe won't clip it (the scrollframe
     // only clips contained descendants).
-    aLists.Outlines()->AppendNewToTop(new (aBuilder)
+    return aLists.Outlines()->AppendNewToTop(new (aBuilder)
       nsDisplayListFocus(aBuilder, this));
   }
+  
+  return NS_OK;
 }
 
 NS_IMETHODIMP 
@@ -197,7 +199,7 @@ nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext,
                                     aReflowState, aStatus);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Check whether we need to suppress scrollbar updates.  We want to do that if
+  // Check whether we need to suppress scrolbar updates.  We want to do that if
   // we're in a possible first pass and our height of a row has changed.
   if (list->MightNeedSecondPass()) {
     nscoord newHeightOfARow = list->CalcHeightOfARow();

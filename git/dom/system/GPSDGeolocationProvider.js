@@ -121,7 +121,7 @@ GPSDProvider.prototype = {
     this.transport.close(Components.results.NS_OK);
   },
   
-  watch: function(c, isPrivate) {
+  watch: function(c) {
     LOG("watch called\n");    
     try {
         // Go into "watcher" mode
@@ -201,4 +201,4 @@ GPSDProvider.prototype = {
   
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([GPSDProvider]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([GPSDProvider]);

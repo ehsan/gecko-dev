@@ -23,9 +23,8 @@
 
 using namespace mozilla;
 
-nsDOMUIEvent::nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
-                           nsPresContext* aPresContext, nsGUIEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext, aEvent ?
+nsDOMUIEvent::nsDOMUIEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent)
+  : nsDOMEvent(aPresContext, aEvent ?
                static_cast<nsEvent *>(aEvent) :
                static_cast<nsEvent *>(new nsUIEvent(false, 0, 0)))
   , mClientPoint(0, 0), mLayerPoint(0, 0), mPagePoint(0, 0), mMovementPoint(0, 0)
@@ -76,29 +75,14 @@ nsDOMUIEvent::nsDOMUIEvent(mozilla::dom::EventTarget* aOwner,
   }
 }
 
-//static
-already_AddRefed<nsDOMUIEvent>
-nsDOMUIEvent::Constructor(const mozilla::dom::GlobalObject& aGlobal,
-                          const nsAString& aType,
-                          const mozilla::dom::UIEventInit& aParam,
-                          mozilla::ErrorResult& aRv)
-{
-  nsCOMPtr<mozilla::dom::EventTarget> t = do_QueryInterface(aGlobal.Get());
-  nsRefPtr<nsDOMUIEvent> e = new nsDOMUIEvent(t, nullptr, nullptr);
-  e->SetIsDOMBinding();
-  bool trusted = e->Init(t);
-  aRv = e->InitUIEvent(aType, aParam.mBubbles, aParam.mCancelable, aParam.mView,
-                       aParam.mDetail);
-  e->SetTrusted(trusted);
-  return e.forget();
-}
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMUIEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMUIEvent, nsDOMEvent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mView)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mView)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMUIEvent, nsDOMEvent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mView)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mView)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsDOMUIEvent, nsDOMEvent)
@@ -126,12 +110,13 @@ nsDOMUIEvent::GetMovementPoint()
   }
 
   if (!mEvent ||
-      (mEvent->eventStructType != NS_MOUSE_EVENT &&
-       mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
-       mEvent->eventStructType != NS_WHEEL_EVENT &&
-       mEvent->eventStructType != NS_DRAG_EVENT &&
-       mEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT) ||
-       !(static_cast<nsGUIEvent*>(mEvent)->widget)) {
+      !((nsGUIEvent*)mEvent)->widget ||
+       (mEvent->eventStructType != NS_MOUSE_EVENT &&
+        mEvent->eventStructType != NS_POPUP_EVENT &&
+        mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
+        mEvent->eventStructType != NS_WHEEL_EVENT &&
+        mEvent->eventStructType != NS_DRAG_EVENT &&
+        mEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT)) {
     return nsIntPoint(0, 0);
   }
 
@@ -173,10 +158,6 @@ nsDOMUIEvent::InitUIEvent(const nsAString& typeArg,
                           nsIDOMWindow* viewArg,
                           int32_t detailArg)
 {
-  if (viewArg) {
-    nsCOMPtr<nsPIDOMWindow> view = do_QueryInterface(viewArg);
-    NS_ENSURE_TRUE(view, NS_ERROR_INVALID_ARG);
-  }
   nsresult rv = nsDOMEvent::InitEvent(typeArg, canBubbleArg, cancelableArg);
   NS_ENSURE_SUCCESS(rv, rv);
   
@@ -188,9 +169,9 @@ nsDOMUIEvent::InitUIEvent(const nsAString& typeArg,
 
 nsresult
 nsDOMUIEvent::InitFromCtor(const nsAString& aType,
-                           JSContext* aCx, JS::Value* aVal)
+                           JSContext* aCx, jsval* aVal)
 {
-  mozilla::idl::UIEventInit d;
+  mozilla::dom::UIEventInit d;
   nsresult rv = d.Init(aCx, aVal);
   NS_ENSURE_SUCCESS(rv, rv);
   return InitUIEvent(aType, d.bubbles, d.cancelable, d.view, d.detail);
@@ -256,14 +237,17 @@ nsDOMUIEvent::GetWhich(uint32_t* aWhich)
   return Which(aWhich);
 }
 
-already_AddRefed<nsINode>
-nsDOMUIEvent::GetRangeParent()
+NS_IMETHODIMP
+nsDOMUIEvent::GetRangeParent(nsIDOMNode** aRangeParent)
 {
+  NS_ENSURE_ARG_POINTER(aRangeParent);
   nsIFrame* targetFrame = nullptr;
 
   if (mPresContext) {
     targetFrame = mPresContext->EventStateManager()->GetEventTarget();
   }
+
+  *aRangeParent = nullptr;
 
   if (targetFrame) {
     nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(mEvent,
@@ -272,24 +256,12 @@ nsDOMUIEvent::GetRangeParent()
     if (parent) {
       if (parent->ChromeOnlyAccess() &&
           !nsContentUtils::CanAccessNativeAnon()) {
-        return nullptr;
+        return NS_OK;
       }
-      return parent.forget().get();
+      return CallQueryInterface(parent, aRangeParent);
     }
   }
 
-  return nullptr;
-}
-
-NS_IMETHODIMP
-nsDOMUIEvent::GetRangeParent(nsIDOMNode** aRangeParent)
-{
-  NS_ENSURE_ARG_POINTER(aRangeParent);
-  *aRangeParent = nullptr;
-  nsCOMPtr<nsINode> n = GetRangeParent();
-  if (n) {
-    CallQueryInterface(n, aRangeParent);
-  }
   return NS_OK;
 }
 
@@ -317,14 +289,19 @@ NS_IMETHODIMP
 nsDOMUIEvent::GetCancelBubble(bool* aCancelBubble)
 {
   NS_ENSURE_ARG_POINTER(aCancelBubble);
-  *aCancelBubble = CancelBubble();
+  *aCancelBubble =
+    (mEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) ? true : false;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMUIEvent::SetCancelBubble(bool aCancelBubble)
 {
-  mEvent->mFlags.mPropagationStopped = aCancelBubble;
+  if (aCancelBubble) {
+    mEvent->flags |= NS_EVENT_FLAG_STOP_DISPATCH;
+  } else {
+    mEvent->flags &= ~NS_EVENT_FLAG_STOP_DISPATCH;
+  }
   return NS_OK;
 }
 
@@ -333,6 +310,7 @@ nsDOMUIEvent::GetLayerPoint()
 {
   if (!mEvent ||
       (mEvent->eventStructType != NS_MOUSE_EVENT &&
+       mEvent->eventStructType != NS_POPUP_EVENT &&
        mEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
        mEvent->eventStructType != NS_WHEEL_EVENT &&
        mEvent->eventStructType != NS_TOUCH_EVENT &&
@@ -532,11 +510,9 @@ nsDOMUIEvent::GetModifierStateInternal(const nsAString& aKey)
 
 
 nsresult NS_NewDOMUIEvent(nsIDOMEvent** aInstancePtrResult,
-                          mozilla::dom::EventTarget* aOwner,
                           nsPresContext* aPresContext,
                           nsGUIEvent *aEvent) 
 {
-  nsDOMUIEvent* it = new nsDOMUIEvent(aOwner, aPresContext, aEvent);
-  it->SetIsDOMBinding();
+  nsDOMUIEvent* it = new nsDOMUIEvent(aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }

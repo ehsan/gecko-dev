@@ -1,4 +1,7 @@
-/*
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Copyright (C) 2011 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -21,7 +24,8 @@
  * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. 
- */
+ *
+ * ***** END LICENSE BLOCK ***** */
 
 #include "YarrSyntaxChecker.h"
 
@@ -49,7 +53,7 @@ public:
     void disjunction() {}
 };
 
-ErrorCode checkSyntax(const String& pattern)
+ErrorCode checkSyntax(const UString& pattern)
 {
     SyntaxChecker syntaxChecker;
     return parse(syntaxChecker, pattern);

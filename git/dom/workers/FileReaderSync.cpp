@@ -12,6 +12,7 @@
 #include "nsDOMClassInfoID.h"
 #include "nsError.h"
 #include "nsIDOMFile.h"
+#include "nsCharsetAlias.h"
 #include "nsICharsetDetector.h"
 #include "nsIConverterInputStream.h"
 #include "nsIInputStream.h"
@@ -26,12 +27,10 @@
 #include "DOMBindingInlines.h"
 
 #include "mozilla/Base64.h"
-#include "mozilla/dom/EncodingUtils.h"
 
 USING_WORKERS_NAMESPACE
-using namespace mozilla;
+using mozilla::ErrorResult;
 using mozilla::dom::Optional;
-using mozilla::dom::WorkerGlobalObject;
 
 NS_IMPL_ADDREF_INHERITED(FileReaderSync, DOMBindingBase)
 NS_IMPL_RELEASE_INHERITED(FileReaderSync, DOMBindingBase)
@@ -58,11 +57,12 @@ FileReaderSync::_finalize(JSFreeOp* aFop)
 
 // static
 FileReaderSync*
-FileReaderSync::Constructor(const WorkerGlobalObject& aGlobal, ErrorResult& aRv)
+FileReaderSync::Constructor(JSContext* aCx, JSObject* aGlobal,
+                            ErrorResult& aRv)
 {
-  nsRefPtr<FileReaderSync> frs = new FileReaderSync(aGlobal.GetContext());
+  nsRefPtr<FileReaderSync> frs = new FileReaderSync(aCx);
 
-  if (!Wrap(aGlobal.GetContext(), aGlobal.Get(), frs)) {
+  if (!Wrap(aCx, aGlobal, frs)) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
@@ -95,8 +95,8 @@ FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JSObject* aBlob,
     return nullptr;
   }
 
-  uint32_t bufferLength = JS_GetArrayBufferByteLength(jsArrayBuffer);
-  uint8_t* arrayBuffer = JS_GetArrayBufferData(jsArrayBuffer);
+  uint32_t bufferLength = JS_GetArrayBufferByteLength(jsArrayBuffer, aCx);
+  uint8_t* arrayBuffer = JS_GetArrayBufferData(jsArrayBuffer, aCx);
 
   nsCOMPtr<nsIInputStream> stream;
   rv = blob->GetInternalStream(getter_AddRefs(stream));
@@ -195,8 +195,9 @@ FileReaderSync::ReadAsText(JSObject* aBlob,
   }
 
   nsCString charset;
-  if (!EncodingUtils::FindEncodingForLabel(charsetGuess, charset)) {
-    aRv.Throw(NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR);
+  rv = nsCharsetAlias::GetPreferred(charsetGuess, charset);
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
     return;
   }
 

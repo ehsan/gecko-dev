@@ -50,7 +50,6 @@
  */
 
 #include "cpr.h"
-#include "cpr_assert.h"
 #include "cpr_socket.h"
 #include "cpr_stdlib.h"
 #include "cpr_stdio.h"
@@ -224,31 +223,32 @@ cprSleep (uint32_t duration)
  */
 static cprRC_t addTimerToList (cpr_timer_t *cprTimerPtr, uint32_t duration, void *data)
 {
-#ifdef CPR_TIMERS_ENABLED
+
+    static const char fname[] = "addTimerToList";
     timer_ipc_t tmr_cmd = {0};
     timer_ipc_t tmr_rsp={0};
 
     API_ENTER();
 
     //CPR_INFO("%s: cprTimerptr=0x%x dur=%d user_data=%x\n",
-    //       __FUNCTION__, cprTimerPtr, duration, data);
+    //       fname, cprTimerPtr, duration, data);
     tmr_cmd.msg_type = TMR_CMD_ADD;
     tmr_cmd.u.cmd.timer_ptr = cprTimerPtr;
     tmr_cmd.u.cmd.user_data_ptr = data;
     tmr_cmd.u.cmd.duration = duration;
 
-//CPR_INFO("%s:sending messge of type=%d\n", __FUNCTION__, tmr_cmd.msg_type);
+//CPR_INFO("%s:sending messge of type=%d\n", fname, tmr_cmd.msg_type);
     /* simply post a request here to the timer service.*/
     if (client_sock != -1) {
         if (sendto(client_sock, &tmr_cmd, sizeof(timer_ipc_t), 0,
                    (struct sockaddr *)&tmr_serv_addr, sizeof(tmr_serv_addr)) < 0) {
             CPR_ERROR("Failed to tx IPC msg to timer service, errno = %s %s\n",
-                   strerror(errno), __FUNCTION__);
+                   strerror(errno), fname);
             API_RETURN(CPR_FAILURE);
         }
 
     } else {
-        CPR_ERROR("can not make IPC connection, client_sock is invalid %s\n", __FUNCTION__);
+        CPR_ERROR("can not make IPC connection, client_sock is invalid %s\n", fname);
         API_RETURN(CPR_FAILURE);
     }
 
@@ -264,11 +264,6 @@ static cprRC_t addTimerToList (cpr_timer_t *cprTimerPtr, uint32_t duration, void
         //CPR_INFO("received response from the timer result=%d\n", tmr_rsp.u.result);
         API_RETURN(tmr_rsp.u.result);
     }
-#else
-    cprAssert(FALSE, CPR_FAILURE);
-    CPR_ERROR("CPR Timers are disabled! %s\n", __FUNCTION__);
-    return CPR_SUCCESS;
-#endif
 }
 
 

@@ -7,7 +7,7 @@
 #include "compiler/OutputHLSL.h"
 
 #include "common/angleutils.h"
-#include "compiler/compiler_debug.h"
+#include "compiler/compilerdebug.h"
 #include "compiler/InfoSink.h"
 #include "compiler/UnfoldShortCircuit.h"
 #include "compiler/SearchSymbol.h"
@@ -1340,7 +1340,7 @@ bool OutputHLSL::visitAggregate(Visit visit, TIntermAggregate *node)
       case EOpPrototype:
         if (visit == PreVisit)
         {
-            out << typeString(node->getType()) << " " << decorate(node->getName()) << (mOutputLod0Function ? "Lod0(" : "(");
+            out << typeString(node->getType()) << " " << decorate(node->getName()) << "(";
 
             TIntermSequence &arguments = node->getSequence();
 
@@ -1361,14 +1361,6 @@ bool OutputHLSL::visitAggregate(Visit visit, TIntermAggregate *node)
             }
 
             out << ");\n";
-
-            // Also prototype the Lod0 variant if needed
-            if (mContainsLoopDiscontinuity && !mOutputLod0Function)
-            {
-                mOutputLod0Function = true;
-                node->traverse(this);
-                mOutputLod0Function = false;
-            }
 
             return false;
         }

@@ -10,16 +10,10 @@
  * liability, trademark and document use rules apply.
  */
 
-callback DecodeSuccessCallback = void (AudioBuffer decodedData);
-callback DecodeErrorCallback = void ();
-
 [Constructor, PrefControlled]
-interface AudioContext {
+interface mozAudioContext {
 
     readonly attribute AudioDestinationNode destination;
-    readonly attribute float sampleRate;
-    readonly attribute double currentTime;
-    readonly attribute AudioListener listener;
 
     [Creator, Throws]
     AudioBuffer createBuffer(unsigned long numberOfChannels, unsigned long length, float sampleRate);
@@ -27,27 +21,11 @@ interface AudioContext {
     // [Creator, Throws]
     // AudioBuffer createBuffer(ArrayBuffer buffer, boolean mixToMono);
 
-    void decodeAudioData(ArrayBuffer audioData,
-                         DecodeSuccessCallback successCallback,
-                         optional DecodeErrorCallback errorCallback);
-
     // AudioNode creation 
     [Creator]
     AudioBufferSourceNode createBufferSource();
 
-    [Creator]
-    AnalyserNode createAnalyser();
-    [Creator]
-    GainNode createGain();
-    [Creator, Throws]
-    DelayNode createDelay(optional double maxDelayTime = 1);
-    [Creator]
-    BiquadFilterNode createBiquadFilter();
-    [Creator]
-    PannerNode createPanner();
-
-    [Creator]
-    DynamicsCompressorNode createDynamicsCompressor();
-
 };
+
+typedef mozAudioContext AudioContext;
 

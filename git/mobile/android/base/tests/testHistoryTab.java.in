@@ -3,18 +3,25 @@ package @ANDROID_PACKAGE_NAME@.tests;
 
 import @ANDROID_PACKAGE_NAME@.*;
 
+import android.app.Activity;
 import android.view.ViewGroup;
 import android.view.View;
 import android.widget.ListView;
+import android.widget.ExpandableListView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.ImageView;
+import android.widget.TabHost;
 import android.text.TextUtils;
 
+import android.content.ContentValues;
 import android.content.ContentResolver;
+import android.database.Cursor;
 import android.net.Uri;
 
 import java.util.Arrays;
 import java.util.ArrayList;
+import java.io.File;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
 
@@ -24,7 +31,8 @@ import java.util.GregorianCalendar;
 
 public class testHistoryTab extends PixelTest {
     private static final String ABOUT_HOME_URL = "about:home";
-    private static ListView listview = null;
+    private static final String OPEN_NEW_TAB = "Open in New Tab";
+    private static final int WAIT_FOR_CHILD_TIMEOUT = 2000;
     private String[] bookmarks = new String[] {
         "http://mochi.test:8888/tests/robocop/robocop_blank_01.html"
     };
@@ -37,7 +45,7 @@ public class testHistoryTab extends PixelTest {
     }
 
     public void testHistoryTab() {
-        blockForGeckoReady();
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
         // very approximate date-rollover detection
         Calendar cal = new GregorianCalendar();
@@ -52,36 +60,8 @@ public class testHistoryTab extends PixelTest {
         loadAndPaint(url);
 
         mActions.sendSpecialKey(Actions.SpecialKey.MENU);
-        waitForText("Settings");
-
-        // On ICS+ phones, there is no button labeled "Bookmarks"
-        // instead we have to just dig through every button on the screen
-        ArrayList<View> images = mSolo.getCurrentViews();
-        for (int i = 0; i < images.size(); i++) {
-          final View view = images.get(i);
-          boolean found = false;
-          found = "Bookmark".equals(view.getContentDescription());
-
-          // on older android versions, try looking at the button's text
-          if (!found) {
-              if (view instanceof TextView) {
-                 found = "Bookmark".equals(((TextView)view).getText());
-              }
-          }
-
-          if (found) {
-            int[] xy = new int[2];
-            view.getLocationOnScreen(xy);
-
-            final int viewWidth = view.getWidth();
-            final int viewHeight = view.getHeight();
-            final float x = xy[0] + (viewWidth / 2.0f);
-            float y = xy[1] + (viewHeight / 2.0f);
-
-            mSolo.clickOnScreen(x, y);
-          }
-        }
-        
+        mSolo.waitForText("Bookmark");
+        mSolo.clickOnText("Bookmark");
         mAsserter.is(mSolo.waitForText("Bookmark added"), true, "bookmark added successfully");
 
         testList(url);
@@ -89,21 +69,26 @@ public class testHistoryTab extends PixelTest {
         testClick(url);
     }
 
+    private ListView list;
+
     private void testList(String url) {
-        listview = getHistoryList("Today|Yesterday", 3);
-        mAsserter.isnot(listview,  null, "checking that history list exists and has 3 children");
-        final int count = listview.getAdapter().getCount();
+        list = getHistoryList();
+        // clear VKB
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
+        mSolo.waitForText(url);
+
+        mAsserter.ok(list != null, "checking that history list exists", list.toString());
+
+        mAsserter.is(list.getChildCount(), 3, "history list has 3 children");
+
+        final int count = list.getChildCount();
         String loadUrl = "";
         for (int i = count - 1; i >= 0; i--) {
-            View child = listview.getChildAt(i);
-            if (child == null) {
-                // this may simply indicate that the item is not visible
-                Object item = listview.getAdapter().getItem(i);
-                mAsserter.ok(item != null, "adapter item is set", item != null ? item.toString() : "null!");
-                continue;
-            }
+            View child = list.getChildAt(i);
+
             ArrayList<View> views = mSolo.getViews(child);
             ArrayList<ImageView> imageViews = new ArrayList<ImageView>();
+
             int expectedImages = 1;
             for (int j = 0; j < views.size(); j++) {
                 View v = views.get(j);
@@ -147,15 +132,16 @@ public class testHistoryTab extends PixelTest {
     }
 
     private void testContextMenu(String url) {
-        listview = getHistoryList("Today|Yesterday");
-        waitForText(url);
+        list = getHistoryList();
+        // clear VKB
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
+        mSolo.waitForText(url);
 
         // wait for the history list to be populated
         mFirstChild = null;
         boolean success = waitForTest(new BooleanTest() {
-            @Override
             public boolean test() {
-                mFirstChild = listview.getChildAt(1);
+                mFirstChild = list.getChildAt(1);
                 if (mFirstChild == null) {
                     return false;
                 }
@@ -176,22 +162,22 @@ public class testHistoryTab extends PixelTest {
                 }
                 return true;
             }
-        }, MAX_WAIT_MS);
+        }, WAIT_FOR_CHILD_TIMEOUT);
         if (success == true && mFirstChild != null) {
             mAsserter.dumpLog("clickLongOnView: "+mFirstChild);
             mSolo.clickLongOnView(mFirstChild);
 
             // TODO: Test clicking these does the right thing
-            mAsserter.ok(mSolo.waitForText("Share"), "Context menu has Share option", "Share");
+            mAsserter.ok(mSolo.waitForText("Open in New Tab"), "Context menu has New Tab option", "Open in New Tab");
+            mAsserter.ok(mSolo.searchText("Share", true), "Context menu has Share option", "Share");
             mAsserter.ok(mSolo.searchText("Remove", true), "Context menu has Remove option", "Remove");
             mAsserter.ok(mSolo.searchText("Add to Home Screen", true), "Context menu has Add to Home Screen option", "Add to Home Screen");
 
             mActions.sendSpecialKey(Actions.SpecialKey.BACK);
 
-            View child = listview.getChildAt(0);
-            mAsserter.ok(child != null, "first list item can be retrieved", child != null ? child.toString() : "null!");
+            View child = list.getChildAt(0);
             mSolo.clickLongOnView(child);
-            mAsserter.is(false, mSolo.waitForText("Share"), "Header rows should not show a context menu");
+            mAsserter.is(false, mSolo.waitForText("Open in New Tab"), "Header rows should not show a context menu");
 
         } else {
             mAsserter.ok(false, "waiting for history item", "history item available");
@@ -200,26 +186,26 @@ public class testHistoryTab extends PixelTest {
     }
 
     private void testClick(String url) {
-        listview = getHistoryList("Today|Yesterday");
-        waitForText(url);
+        list = getHistoryList();
+        // clear VKB
+        mActions.sendSpecialKey(Actions.SpecialKey.BACK);
+        mSolo.waitForText(url);
 
-        View child = listview.getChildAt(0);
-        mAsserter.ok(child != null, "first list item can be retrieved", child != null ? child.toString() : "null!");
+        View child = list.getChildAt(0);
         mSolo.clickOnView(child);
         // nothing should happen
 
         Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
         mFirstChild = null;
         boolean success = waitForTest(new BooleanTest() {
-            @Override
             public boolean test() {
-                mFirstChild = listview.getChildAt(1);
+                mFirstChild = list.getChildAt(1);
                 if (mFirstChild == null) {
                     return false;
                 }
                 return true;
             }
-        }, MAX_WAIT_MS);
+        }, WAIT_FOR_CHILD_TIMEOUT);
         if (success == true && mFirstChild != null) {
             mSolo.clickOnView(mFirstChild);
             contentEventExpecter.blockForEvent();
@@ -229,7 +215,14 @@ public class testHistoryTab extends PixelTest {
         }
     }
 
-    @Override
+    private ListView getHistoryList() {
+        Activity awesomeBarActivity = clickOnAwesomeBar();
+        mSolo.clickOnText("History");
+
+        TabHost tabHost = (TabHost)mSolo.getView(TabHost.class, 0);
+        return (ListView)tabHost.getCurrentView();
+    }
+
     public void tearDown() throws Exception {
         ContentResolver resolver = getActivity().getContentResolver();
         Uri uri = Uri.parse("content://@ANDROID_PACKAGE_NAME@.db.browser/history");

@@ -13,6 +13,7 @@
 #include "nsIPrincipal.h"
 #include "LookupCache.h"
 
+using namespace mozilla::safebrowsing;
 
 /**
  * Thread proxy from the main thread to the worker thread.
@@ -123,7 +124,7 @@ public:
   {
   public:
     CacheCompletionsRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
-                             mozilla::safebrowsing::CacheResultArray *aEntries)
+                             CacheResultArray *aEntries)
       : mTarget(aTarget)
       , mEntries(aEntries)
     { }
@@ -132,14 +133,14 @@ public:
 
   private:
     nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
-     mozilla::safebrowsing::CacheResultArray *mEntries;
+     CacheResultArray *mEntries;
   };
 
   class CacheMissesRunnable : public nsRunnable
   {
   public:
     CacheMissesRunnable(nsIUrlClassifierDBServiceWorker* aTarget,
-                        mozilla::safebrowsing::PrefixArray *aEntries)
+                        PrefixArray *aEntries)
       : mTarget(aTarget)
       , mEntries(aEntries)
     { }
@@ -148,7 +149,7 @@ public:
 
   private:
     nsCOMPtr<nsIUrlClassifierDBServiceWorker> mTarget;
-    mozilla::safebrowsing::PrefixArray *mEntries;
+    PrefixArray *mEntries;
   };
 
 private:
@@ -172,7 +173,7 @@ public:
   {
   public:
     LookupCompleteRunnable(nsMainThreadPtrHolder<nsIUrlClassifierLookupCallback>* aTarget,
-                           mozilla::safebrowsing::LookupResultArray *aResults)
+                           LookupResultArray *aResults)
       : mTarget(aTarget)
       , mResults(aResults)
     { }
@@ -181,7 +182,7 @@ public:
 
   private:
     nsMainThreadPtrHandle<nsIUrlClassifierLookupCallback> mTarget;
-    mozilla::safebrowsing::LookupResultArray * mResults;
+    LookupResultArray * mResults;
   };
 
 private:

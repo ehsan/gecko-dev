@@ -4,7 +4,6 @@
 
 """Takes care of sharding the python-drive tests in multiple devices."""
 
-import copy
 import logging
 import multiprocessing
 
@@ -51,13 +50,15 @@ class PythonTestRunner(object):
   DEFAULT_PORT + shard_index) if the test so wishes.
   """
 
-  def __init__(self, options):
+  def __init__(self, device_id, shard_index):
     """Constructor.
 
     Args:
-      options: Options to use for setting up tests.
+      device_id: ID of the device which this test will talk to.
+      shard_index: shard index, used to create such as unique port numbers.
     """
-    self.options = options
+    self.device_id = device_id
+    self.shard_index = shard_index
 
   def RunTests(self):
     """Runs tests from the shared pool of tests, aggregating results.
@@ -69,7 +70,7 @@ class PythonTestRunner(object):
 
     results = []
     for t in tests:
-      res = CallPythonTest(t, self.options)
+      res = CallPythonTest(t, self.device_id, self.shard_index)
       results.append(res)
 
     return TestResults.FromTestResults(results)
@@ -85,18 +86,17 @@ class PythonTestSharder(object):
 
   Args:
     attached_devices: a list of device IDs attached to the host.
+    shard_retries: number of retries for any given test.
     available_tests: a list of tests to run which subclass PythonTestBase.
-    options: Options to use for setting up tests.
 
   Returns:
     An aggregated list of test results.
   """
   tests_container = None
 
-  def __init__(self, attached_devices, available_tests, options):
-    self.options = options
+  def __init__(self, attached_devices, shard_retries, available_tests):
     self.attached_devices = attached_devices
-    self.retries = options.shard_retries
+    self.retries = shard_retries
     self.tests = available_tests
 
   def _SetupSharding(self, tests):
@@ -178,10 +178,7 @@ class PythonTestSharder(object):
       logging.warning('*' * 80)
       # Bind the PythonTestRunner to a device & shard index. Give it the
       # runnable which it will use to actually execute the tests.
-      test_options = copy.deepcopy(self.options)
-      test_options.ensure_value('device_id', device)
-      test_options.ensure_value('shard_index', index)
-      test_runner = PythonTestRunner(test_options)
+      test_runner = PythonTestRunner(device, index)
       test_runners.append(test_runner)
 
     return test_runners

@@ -30,7 +30,7 @@ var body = [
   isupports_string
 ];
 
-for (var i of body) {
+for each (var i in body) {
   var xhr = new XMLHttpRequest();
   xhr.open("POST", url, true);
   if (i == isupports_string)

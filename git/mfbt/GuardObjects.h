@@ -66,7 +66,7 @@ namespace detail {
  * For more details, and examples of using these macros, see
  * https://developer.mozilla.org/en/Using_RAII_classes_in_Mozilla
  */
-class MOZ_EXPORT GuardObjectNotifier
+class MOZ_EXPORT_API(GuardObjectNotifier)
 {
   private:
     bool* statementDone;
@@ -83,7 +83,7 @@ class MOZ_EXPORT GuardObjectNotifier
     }
 };
 
-class MOZ_EXPORT GuardObjectNotificationReceiver
+class MOZ_EXPORT_API(GuardObjectNotificationReceiver)
 {
   private:
     bool statementDone;
@@ -126,8 +126,6 @@ class MOZ_EXPORT GuardObjectNotificationReceiver
          mozilla::detail::GuardObjectNotifier()
 #  define MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL \
      , const mozilla::detail::GuardObjectNotifier& _notifier
-#  define MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM_IN_IMPL \
-     const mozilla::detail::GuardObjectNotifier& _notifier
 #  define MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT \
      , _notifier
 #  define MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM_TO_PARENT \
@@ -139,7 +137,6 @@ class MOZ_EXPORT GuardObjectNotificationReceiver
 #  define MOZ_GUARD_OBJECT_NOTIFIER_PARAM
 #  define MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM
 #  define MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL
-#  define MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM_IN_IMPL
 #  define MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM_TO_PARENT
 #  define MOZ_GUARD_OBJECT_NOTIFIER_PARAM_TO_PARENT
 #  define MOZ_GUARD_OBJECT_NOTIFIER_INIT do { } while (0)

@@ -6,10 +6,10 @@
 #define nsTableCellFrame_h__
 
 #include "mozilla/Attributes.h"
-#include "celldata.h"
 #include "nsITableCellLayout.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
+#include "nsTableRowFrame.h"  // need to actually include this here to inline GetRowIndex
 #include "nsStyleContext.h"
 #include "nsIPercentHeightObserver.h"
 #include "nsGkAtoms.h"
@@ -50,9 +50,9 @@ public:
   nsTableCellFrame(nsStyleContext* aContext);
   ~nsTableCellFrame();
 
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 
 #ifdef ACCESSIBILITY
   virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
@@ -93,9 +93,9 @@ public:
     */
   friend nsIFrame* NS_NewTableCellFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   void PaintCellBackground(nsRenderingContext& aRenderingContext,
                            const nsRect& aDirtyRect, nsPoint aPt,
@@ -210,18 +210,14 @@ public:
                             nsPoint              aPt);
 
   virtual bool UpdateOverflow();
-
-  virtual bool IsFrameOfType(uint32_t aFlags) const
-  {
-    return nsContainerFrame::IsFrameOfType(aFlags & ~(nsIFrame::eTablePart));
-  }
   
   virtual void InvalidateFrame(uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
   virtual void InvalidateFrameWithRect(const nsRect& aRect, uint32_t aDisplayItemKey = 0) MOZ_OVERRIDE;
   virtual void InvalidateFrameForRemoval() MOZ_OVERRIDE { InvalidateFrameSubtree(); }
 
 protected:
-  virtual int GetSkipSides() const MOZ_OVERRIDE;
+  /** implement abstract method on nsContainerFrame */
+  virtual int GetSkipSides() const;
 
   /**
    * GetBorderOverflow says how far the cell's own borders extend

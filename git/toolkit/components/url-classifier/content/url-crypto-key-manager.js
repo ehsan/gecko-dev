@@ -228,7 +228,7 @@ PROT_UrlCryptoKeyManager.prototype.hasKey = function() {
 
 PROT_UrlCryptoKeyManager.prototype.unUrlSafe = function(key)
 {
-    return key ? key.replace(/-/g, "+").replace(/_/g, "/") : "";
+    return key ? key.replace("-", "+").replace("_", "/") : "";
 }
 
 /**

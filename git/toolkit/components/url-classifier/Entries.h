@@ -10,6 +10,16 @@
 #include "nsString.h"
 #include "nsICryptoHash.h"
 #include "nsNetUtil.h"
+#include "prlog.h"
+
+extern PRLogModuleInfo *gUrlClassifierDbServiceLog;
+#if defined(PR_LOGGING)
+#define LOG(args) PR_LOG(gUrlClassifierDbServiceLog, PR_LOG_DEBUG, args)
+#define LOG_ENABLED() PR_LOG_TEST(gUrlClassifierDbServiceLog, 4)
+#else
+#define LOG(args)
+#define LOG_ENABLED() (false)
+#endif
 
 #if DEBUG
 #include "plbase64.h"
@@ -270,6 +280,6 @@ WriteTArray(nsIOutputStream* aStream, nsTArray<T>& aArray)
                         &written);
 }
 
-} // namespace safebrowsing
-} // namespace mozilla
-#endif // SBEntries_h__
+}
+}
+#endif

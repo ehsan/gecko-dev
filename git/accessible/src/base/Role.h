@@ -69,7 +69,7 @@ enum Role {
    * Assistive Technologies typically respond to the role by reading the entire
    * onscreen contents of containers advertising this role. Should be used for
    * warning dialogs, etc. The role is used by xul:browsermessage,
-   * role="alert".
+   * role="alert", xforms:message.
    */
   ALERT = 8,
 
@@ -209,7 +209,8 @@ enum Role {
   /**
    * Represents a link to something else. This object might look like text or
    * a graphic, but it acts like a button. It is used for
-   * xul:label@class="text-link", html:a, html:area.
+   * xul:label@class="text-link", html:a, html:area,
+   * xforms:trigger@appearance="minimal".
    */
   LINK = 30,
 
@@ -275,7 +276,8 @@ enum Role {
   /**
    * Represents read-only text, such as labels for other controls or
    * instructions in a dialog box. Static text cannot be modified or selected.
-   * Is is used for xul:label, xul:description, html:label, role="label".
+   * Is is used for xul:label, xul:description, html:label, role="label",
+   * or xforms:output.
    */
   STATICTEXT = 41,
 
@@ -286,13 +288,13 @@ enum Role {
 
   /**
    * Represents a push button control. It is used for xul:button, html:button,
-   * role="button".
+   * role="button", xforms:trigger, xforms:submit.
    */
   PUSHBUTTON = 43,
 
   /**
    * Represents a check box control. It is used for xul:checkbox,
-   * html:input@type="checkbox", role="checkbox".
+   * html:input@type="checkbox", role="checkbox", boolean xforms:input.
    */
   CHECKBUTTON = 44,
   
@@ -313,7 +315,7 @@ enum Role {
   COMBOBOX = 46,
 
   /**
-   * Represents the calendar control.
+   * Represents the calendar control. It is used for date xforms:input.
    */
   DROPLIST = 47,
 
@@ -338,7 +340,7 @@ enum Role {
   /**
    * Represents a slider, which allows the user to adjust a setting in given
    * increments between minimum and maximum values. It is used by xul:scale,
-   * role="slider".
+   * role="slider", xforms:range.
    */
   SLIDER = 51,
 
@@ -587,8 +589,9 @@ enum Role {
   TOGGLE_BUTTON = 93,
 
   /**
-   * Represent a control that is capable of expanding and collapsing rows as
+   * Representas a control that is capable of expanding and collapsing rows as
    * well as showing multiple columns of data.
+   * XXX: it looks like this role is dupe of OUTLINE.
    */
   TREE_TABLE = 94,
 

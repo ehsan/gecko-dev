@@ -17,14 +17,8 @@ var testData = [
     parentFolder: PlacesUtils.toolbarFolderId, readOnly: true }
 ];
 
-function run_test()
-{
-  run_next_test();
-}
-
-add_task(function test_excludeReadOnlyFolders()
-{
-  yield task_populateDB(testData);
+function run_test() {
+  populateDB(testData);
 
   var query = PlacesUtils.history.getNewQuery();
   query.setFolders([PlacesUtils.toolbarFolderId], 1);
@@ -45,4 +39,4 @@ add_task(function test_excludeReadOnlyFolders()
   do_check_eq("Folder 1", root.getChild(0).title);
 
   root.containerOpen = false;
-});
+}

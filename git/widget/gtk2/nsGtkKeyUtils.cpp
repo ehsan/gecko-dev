@@ -10,7 +10,6 @@
 #include "nsGtkKeyUtils.h"
 
 #include <gdk/gdkkeysyms.h>
-#include <algorithm>
 #ifndef GDK_Sleep
 #define GDK_Sleep 0x1008ff2f
 #endif
@@ -56,7 +55,6 @@ static const KeyPair kKeyPairs[] = {
     { NS_VK_RETURN,     GDK_Return },
     { NS_VK_SHIFT,      GDK_Shift_L },
     { NS_VK_SHIFT,      GDK_Shift_R },
-    { NS_VK_SHIFT,      GDK_Shift_Lock },
     { NS_VK_CONTROL,    GDK_Control_L },
     { NS_VK_CONTROL,    GDK_Control_R },
     { NS_VK_ALT,        GDK_Alt_L },
@@ -80,8 +78,6 @@ static const KeyPair kKeyPairs[] = {
     // applications on such locale may want to know AltGraph key press.
     // Therefore, we should map AltGr keycode for them only on GTK.
     { NS_VK_ALTGR,      GDK_ISO_Level3_Shift },
-    { NS_VK_ALTGR,      GDK_ISO_Level5_Shift },
-    // We assume that Mode_switch is always used for level3 shift.
     { NS_VK_ALTGR,      GDK_Mode_switch },
 
     { NS_VK_PAUSE,      GDK_Pause },
@@ -97,7 +93,7 @@ static const KeyPair kKeyPairs[] = {
     { NS_VK_CONVERT,    GDK_Henkan },
     { NS_VK_NONCONVERT, GDK_Muhenkan },
     // { NS_VK_ACCEPT,     GDK_XXX },
-    // { NS_VK_MODECHANGE, GDK_XXX },
+    { NS_VK_MODECHANGE, GDK_Mode_switch },
     { NS_VK_SPACE,      GDK_space },
     { NS_VK_PAGE_UP,    GDK_Page_Up },
     { NS_VK_PAGE_DOWN,  GDK_Page_Down },
@@ -165,14 +161,6 @@ static const KeyPair kKeyPairs[] = {
     // x86 keyboards, located between right 'Windows' key and right Ctrl key
     { NS_VK_CONTEXT_MENU, GDK_Menu },
     { NS_VK_SLEEP,      GDK_Sleep },
-
-    { NS_VK_ATTN,       GDK_3270_Attn },
-    { NS_VK_CRSEL,      GDK_3270_CursorSelect },
-    { NS_VK_EXSEL,      GDK_3270_ExSelect },
-    { NS_VK_EREOF,      GDK_3270_EraseEOF },
-    { NS_VK_PLAY,       GDK_3270_Play },
-    //{ NS_VK_ZOOM,       GDK_XXX },
-    { NS_VK_PA1,        GDK_3270_PA1 },
 };
 
 // map Sun Keyboard special keysyms on to NS_VK keys
@@ -205,8 +193,7 @@ KeymapWrapper::GetModifierName(Modifier aModifier)
         case SUPER:        return "Super";
         case HYPER:        return "Hyper";
         case META:         return "Meta";
-        case LEVEL3:       return "Level3";
-        case LEVEL5:       return "Level5";
+        case ALTGR:        return "AltGr";
         case NOT_MODIFIER: return "NotModifier";
         default:           return "InvalidValue";
     }
@@ -221,7 +208,6 @@ KeymapWrapper::GetModifierForGDKKeyval(guint aGdkKeyval)
         case GDK_Caps_Lock:        return CAPS_LOCK;
         case GDK_Num_Lock:         return NUM_LOCK;
         case GDK_Scroll_Lock:      return SCROLL_LOCK;
-        case GDK_Shift_Lock:
         case GDK_Shift_L:
         case GDK_Shift_R:          return SHIFT;
         case GDK_Control_L:
@@ -235,8 +221,7 @@ KeymapWrapper::GetModifierForGDKKeyval(guint aGdkKeyval)
         case GDK_Meta_L:
         case GDK_Meta_R:           return META;
         case GDK_ISO_Level3_Shift:
-        case GDK_Mode_switch:      return LEVEL3;
-        case GDK_ISO_Level5_Shift: return LEVEL5;
+        case GDK_Mode_switch:      return ALTGR;
         default:                   return NOT_MODIFIER;
     }
 }
@@ -263,10 +248,8 @@ KeymapWrapper::GetModifierMask(Modifier aModifier) const
             return mModifierMasks[INDEX_HYPER];
         case META:
             return mModifierMasks[INDEX_META];
-        case LEVEL3:
-            return mModifierMasks[INDEX_LEVEL3];
-        case LEVEL5:
-            return mModifierMasks[INDEX_LEVEL5];
+        case ALTGR:
+            return mModifierMasks[INDEX_ALTGR];
         default:
             return 0;
     }
@@ -337,12 +320,11 @@ KeymapWrapper::Init()
 
     PR_LOG(gKeymapWrapperLog, PR_LOG_ALWAYS,
         ("KeymapWrapper(%p): Init, CapsLock=0x%X, NumLock=0x%X, "
-         "ScrollLock=0x%X, Level3=0x%X, Level5=0x%X, "
-         "Shift=0x%X, Ctrl=0x%X, Alt=0x%X, Meta=0x%X, Super=0x%X, Hyper=0x%X",
+         "ScrollLock=0x%X, AltGr=0x%X, Shift=0x%X, Ctrl=0x%X, Alt=0x%X, "
+         "Meta=0x%X, Super=0x%X, Hyper=0x%X",
          this,
          GetModifierMask(CAPS_LOCK), GetModifierMask(NUM_LOCK),
-         GetModifierMask(SCROLL_LOCK), GetModifierMask(LEVEL3),
-         GetModifierMask(LEVEL5),
+         GetModifierMask(SCROLL_LOCK), GetModifierMask(ALTGR),
          GetModifierMask(SHIFT), GetModifierMask(CTRL),
          GetModifierMask(ALT), GetModifierMask(META),
          GetModifierMask(SUPER), GetModifierMask(HYPER)));
@@ -462,7 +444,7 @@ KeymapWrapper::InitBySystemSettings()
                     // If new modifier is more important than stored value,
                     // we should overwrite it with new modifier.
                     if (j == foundLevel[modIndex]) {
-                        mod[modIndex] = std::min(modifier, mod[modIndex]);
+                        mod[modIndex] = NS_MIN(modifier, mod[modIndex]);
                         break;
                     }
                     foundLevel[modIndex] = j;
@@ -493,11 +475,8 @@ KeymapWrapper::InitBySystemSettings()
             case INDEX_HYPER:
                 modifier = HYPER;
                 break;
-            case INDEX_LEVEL3:
-                modifier = LEVEL3;
-                break;
-            case INDEX_LEVEL5:
-                modifier = LEVEL5;
+            case INDEX_ALTGR:
+                modifier = ALTGR;
                 break;
             default:
                 MOZ_NOT_REACHED("All indexes must be handled here");
@@ -610,8 +589,7 @@ KeymapWrapper::InitInputEvent(nsInputEvent& aInputEvent,
         keymapWrapper->AreModifiersActive(HYPER, aModifierState)) {
         aInputEvent.modifiers |= MODIFIER_OS;
     }
-    if (keymapWrapper->AreModifiersActive(LEVEL3, aModifierState) ||
-        keymapWrapper->AreModifiersActive(LEVEL5, aModifierState)) {
+    if (keymapWrapper->AreModifiersActive(ALTGR, aModifierState)) {
         aInputEvent.modifiers |= MODIFIER_ALTGRAPH;
     }
     if (keymapWrapper->AreModifiersActive(CAPS_LOCK, aModifierState)) {
@@ -1197,7 +1175,7 @@ void
 KeymapWrapper::InitKeypressEvent(nsKeyEvent& aKeyEvent,
                                  GdkEventKey* aGdkKeyEvent)
 {
-    NS_ENSURE_TRUE_VOID(aKeyEvent.message == NS_KEY_PRESS);
+    NS_ENSURE_TRUE(aKeyEvent.message == NS_KEY_PRESS, );
 
     aKeyEvent.charCode = GetCharCodeFor(aGdkKeyEvent);
     if (!aKeyEvent.charCode) {

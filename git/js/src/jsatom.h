@@ -23,8 +23,6 @@
 #include "js/HashTable.h"
 #include "vm/CommonPropertyNames.h"
 
-ForwardDeclareJS(Atom);
-
 struct JSIdArray {
     int length;
     js::HeapId vector[1];    /* actually, length jsid words */
@@ -37,10 +35,11 @@ JS_STATIC_ASSERT(sizeof(HashNumber) == 4);
 static JS_ALWAYS_INLINE js::HashNumber
 HashId(jsid id)
 {
-    return mozilla::HashGeneric(JSID_BITS(id));
+    return HashGeneric(JSID_BITS(id));
 }
 
-struct JsidHasher
+template<>
+struct DefaultHasher<jsid>
 {
     typedef jsid Lookup;
     static HashNumber hash(const Lookup &l) {
@@ -81,7 +80,7 @@ class AtomStateEntry
   public:
     AtomStateEntry() : bits(0) {}
     AtomStateEntry(const AtomStateEntry &other) : bits(other.bits) {}
-    AtomStateEntry(RawAtom ptr, bool tagged)
+    AtomStateEntry(JSAtom *ptr, bool tagged)
       : bits(uintptr_t(ptr) | uintptr_t(tagged))
     {
         JS_ASSERT((uintptr_t(ptr) & 0x1) == 0);
@@ -119,6 +118,29 @@ struct AtomHasher
 };
 
 typedef HashSet<AtomStateEntry, AtomHasher, SystemAllocPolicy> AtomSet;
+
+/*
+ * On encodings:
+ *
+ * - Some string functions have an optional FlationCoding argument that allow
+ *   the caller to force CESU-8 encoding handling.
+ * - Functions that don't take a FlationCoding base their NormalEncoding
+ *   behavior on the js_CStringsAreUTF8 value. NormalEncoding is either raw
+ *   (simple zero-extension) or UTF-8 depending on js_CStringsAreUTF8.
+ * - Functions that explicitly state their encoding do not use the
+ *   js_CStringsAreUTF8 value.
+ *
+ * CESU-8 (Compatibility Encoding Scheme for UTF-16: 8-bit) is a variant of
+ * UTF-8 that allows us to store any wide character string as a narrow
+ * character string. For strings containing mostly ascii, it saves space.
+ * http://www.unicode.org/reports/tr26/
+ */
+
+enum FlationCoding
+{
+    NormalEncoding,
+    CESU8Encoding
+};
 
 class PropertyName;
 
@@ -222,36 +244,30 @@ enum InternBehavior
     InternAtom = true
 };
 
-extern RawAtom
+extern JSAtom *
 Atomize(JSContext *cx, const char *bytes, size_t length,
-        js::InternBehavior ib = js::DoNotInternAtom);
+        js::InternBehavior ib = js::DoNotInternAtom,
+        js::FlationCoding fc = js::NormalEncoding);
 
-template <AllowGC allowGC>
-extern RawAtom
+extern JSAtom *
 AtomizeChars(JSContext *cx, const jschar *chars, size_t length,
              js::InternBehavior ib = js::DoNotInternAtom);
 
-template <AllowGC allowGC>
-extern RawAtom
+extern JSAtom *
 AtomizeString(JSContext *cx, JSString *str, js::InternBehavior ib = js::DoNotInternAtom);
 
-template <AllowGC allowGC>
 inline JSAtom *
 ToAtom(JSContext *cx, const js::Value &v);
 
-template <AllowGC allowGC>
 bool
 InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval,
-                      typename MaybeRooted<jsid, allowGC>::MutableHandleType idp,
-                      typename MaybeRooted<Value, allowGC>::MutableHandleType vp);
+                      jsid *idp, MutableHandleValue vp);
 
-template <AllowGC allowGC>
 inline bool
-InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval,
-                      typename MaybeRooted<jsid, allowGC>::MutableHandleType idp)
+InternNonIntElementId(JSContext *cx, JSObject *obj, const Value &idval, jsid *idp)
 {
-    typename MaybeRooted<Value, allowGC>::RootType dummy(cx);
-    return InternNonIntElementId<allowGC>(cx, obj, idval, idp, &dummy);
+    RootedValue dummy(cx);
+    return InternNonIntElementId(cx, obj, idval, idp, &dummy);
 }
 
 template<XDRMode mode>

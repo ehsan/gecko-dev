@@ -20,7 +20,7 @@
 #include "nsIPresShell.h"
 #include "nsIXMLContentSink.h"
 #include "nsContentCID.h"
-#include "mozilla/dom/XMLDocument.h"
+#include "nsXMLDocument.h"
 #include "nsIStreamListener.h"
 
 #include "nsXBLBinding.h"
@@ -44,8 +44,6 @@
 
 #include "nsThreadUtils.h"
 #include "mozilla/dom/NodeListBinding.h"
-
-using namespace mozilla;
 
 // ==================================================================
 // = nsAnonymousContentList 
@@ -79,9 +77,10 @@ public:
   nsXBLInsertionPoint* GetInsertionPointAt(int32_t i) { return static_cast<nsXBLInsertionPoint*>(mElements->ElementAt(i)); }
   void RemoveInsertionPointAt(int32_t i) { mElements->RemoveElementAt(i); }
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap)
   {
-    return mozilla::dom::NodeListBinding::Wrap(cx, scope, this);
+    return mozilla::dom::NodeListBinding::Wrap(cx, scope, this, triedToWrap);
   }
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ANONYMOUS_CONTENT_LIST_IID)
@@ -111,28 +110,36 @@ nsAnonymousContentList::~nsAnonymousContentList()
   delete mElements;
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsAnonymousContentList)
+
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsAnonymousContentList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsAnonymousContentList)
 
 NS_INTERFACE_TABLE_HEAD(nsAnonymousContentList)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_TABLE3(nsAnonymousContentList, nsINodeList, nsIDOMNodeList,
-                      nsAnonymousContentList)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsAnonymousContentList)
+  NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsAnonymousContentList)
+    NS_INTERFACE_TABLE_ENTRY(nsAnonymousContentList, nsINodeList)
+    NS_INTERFACE_TABLE_ENTRY(nsAnonymousContentList, nsIDOMNodeList)
+    NS_INTERFACE_TABLE_ENTRY(nsAnonymousContentList, nsAnonymousContentList)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NodeList)
+  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsAnonymousContentList)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsAnonymousContentList)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mContent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContent)
   tmp->mElements->Clear();
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsAnonymousContentList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mContent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContent)
   {
     int32_t i, count = tmp->mElements->Length();
     for (i = 0; i < count; ++i) {
-      NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElements->ElementAt(i));
+      NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mElements->ElementAt(i),
+                                                      nsXBLInsertionPoint);
     }
   }
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
@@ -371,7 +378,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsBindingManager)
     PL_DHashTableFinish(&(tmp->mWrapperTable));
   tmp->mWrapperTable.ops = nullptr;
 
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAttachedStack)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mAttachedStack)
 
   if (tmp->mProcessAttachedQueueEvent) {
     tmp->mProcessAttachedQueueEvent->Revoke();
@@ -409,10 +416,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsBindingManager)
       tmp->mDocumentTable.EnumerateRead(&DocumentInfoHashtableTraverser, &cb);
   if (tmp->mLoadingDocTable.IsInitialized())
       tmp->mLoadingDocTable.EnumerateRead(&LoadingDocHashtableTraverser, &cb);
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAttachedStack)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_MEMBER(mAttachedStack,
+                                                    nsXBLBinding)
   // No need to traverse mProcessAttachedQueueEvent, since it'll just
   // fire at some point or become revoke and drop its ref to us.
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsBindingManager)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsBindingManager)
   NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
@@ -831,7 +841,29 @@ nsBindingManager::GetSingleInsertionPoint(nsIContent* aParent,
 }
 
 nsresult
-nsBindingManager::ClearBinding(nsIContent* aContent)
+nsBindingManager::AddLayeredBinding(nsIContent* aContent, nsIURI* aURL,
+                                    nsIPrincipal* aOriginPrincipal)
+{
+  // First we need to load our binding.
+  nsXBLService* xblService = nsXBLService::GetInstance();
+  if (!xblService)
+    return NS_ERROR_FAILURE;
+
+  // Load the bindings.
+  nsRefPtr<nsXBLBinding> binding;
+  bool dummy;
+  xblService->LoadBindings(aContent, aURL, aOriginPrincipal, true,
+                           getter_AddRefs(binding), &dummy);
+  if (binding) {
+    AddToAttachedQueue(binding);
+    ProcessAttachedQueue();
+  }
+
+  return NS_OK;
+}
+
+nsresult
+nsBindingManager::RemoveLayeredBinding(nsIContent* aContent, nsIURI* aURL)
 {
   // Hold a ref to the binding so it won't die when we remove it from our table
   nsRefPtr<nsXBLBinding> binding = GetBinding(aContent);
@@ -842,6 +874,11 @@ nsBindingManager::ClearBinding(nsIContent* aContent)
 
   // For now we can only handle removing a binding if it's the only one
   NS_ENSURE_FALSE(binding->GetBaseBinding(), NS_ERROR_FAILURE);
+
+  // Make sure that the binding has the URI that is requested to be removed
+  if (!binding->PrototypeBinding()->CompareBindingURI(aURL)) {
+    return NS_OK;
+  }
 
   // Make sure it isn't a style binding
   if (binding->IsStyleBinding()) {
@@ -1178,13 +1215,23 @@ nsBindingManager::GetBindingImplementation(nsIContent* aContent, REFNSIID aIID,
       if (!context)
         return NS_NOINTERFACE;
 
-      AutoPushJSContext jscontext(context->GetNativeContext());
+      JSContext* jscontext = context->GetNativeContext();
       if (!jscontext)
         return NS_NOINTERFACE;
 
       nsIXPConnect *xpConnect = nsContentUtils::XPConnect();
 
-      JSObject* jsobj = aContent->GetWrapper();
+      nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
+      xpConnect->GetWrappedNativeOfNativeObject(jscontext,
+                                                global->GetGlobalJSObject(),
+                                                aContent,
+                                                NS_GET_IID(nsISupports),
+                                                getter_AddRefs(wrapper));
+      NS_ENSURE_TRUE(wrapper, NS_NOINTERFACE);
+
+      JSObject* jsobj = nullptr;
+
+      wrapper->GetJSObject(&jsobj);
       NS_ENSURE_TRUE(jsobj, NS_NOINTERFACE);
 
       nsresult rv = xpConnect->WrapJSAggregatedToNative(aContent, jscontext,
@@ -1209,7 +1256,7 @@ nsBindingManager::GetBindingImplementation(nsIContent* aContent, REFNSIID aIID,
 
 nsresult
 nsBindingManager::WalkRules(nsIStyleRuleProcessor::EnumFunc aFunc,
-                            ElementDependentRuleProcessorData* aData,
+                            RuleProcessorData* aData,
                             bool* aCutOffInheritance)
 {
   *aCutOffInheritance = false;
@@ -1274,7 +1321,7 @@ EnumRuleProcessors(nsISupports *aKey, nsXBLBinding *aBinding, void* aClosure)
 
 struct WalkAllRulesData {
   nsIStyleRuleProcessor::EnumFunc mFunc;
-  ElementDependentRuleProcessorData* mData;
+  RuleProcessorData* mData;
 };
 
 static PLDHashOperator
@@ -1291,7 +1338,7 @@ EnumWalkAllRules(nsPtrHashKey<nsIStyleRuleProcessor> *aKey, void* aClosure)
 
 void
 nsBindingManager::WalkAllRules(nsIStyleRuleProcessor::EnumFunc aFunc,
-                               ElementDependentRuleProcessorData* aData)
+                               RuleProcessorData* aData)
 {
   if (!mBindingTable.IsInitialized())
     return;
@@ -1671,7 +1718,8 @@ nsBindingManager::Traverse(nsIContent *aContent,
   if (binding) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "[via binding manager] mBindingTable key");
     cb.NoteXPCOMChild(aContent);
-    CycleCollectionNoteChild(cb, binding, "[via binding manager] mBindingTable value");
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_PTR(binding, nsXBLBinding,
+                                  "[via binding manager] mBindingTable value")
   }
   if (mContentListTable.ops &&
       (value = LookupObject(mContentListTable, aContent))) {

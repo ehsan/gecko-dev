@@ -15,6 +15,7 @@
 
 #include "vm/NumericConversions.h"
 
+extern double js_NaN;
 extern double js_PositiveInfinity;
 extern double js_NegativeInfinity;
 
@@ -23,10 +24,8 @@ namespace js {
 extern bool
 InitRuntimeNumberState(JSRuntime *rt);
 
-#if !ENABLE_INTL_API
 extern void
 FinishRuntimeNumberState(JSRuntime *rt);
-#endif
 
 } /* namespace js */
 
@@ -49,13 +48,11 @@ class JSString;
  * ECMA-262-5 section 9.8.1; but note that it handles integers specially for
  * performance.  See also js::NumberToCString().
  */
-template <js::AllowGC allowGC>
 extern JSString *
 js_NumberToString(JSContext *cx, double d);
 
 namespace js {
 
-template <AllowGC allowGC>
 extern JSFlatString *
 Int32ToString(JSContext *cx, int32_t i);
 
@@ -128,6 +125,7 @@ GetPrefixInteger(JSContext *cx, const jschar *start, const jschar *end, int base
 JS_ALWAYS_INLINE bool
 ToNumber(JSContext *cx, Value *vp)
 {
+    AssertCanGC();
 #ifdef DEBUG
     {
         SkipRoot skip(cx, vp);
@@ -210,6 +208,7 @@ IsDefinitelyIndex(const Value &v, uint32_t *indexp)
 static inline bool
 ToInteger(JSContext *cx, const js::Value &v, double *dp)
 {
+    AssertCanGC();
 #ifdef DEBUG
     {
         SkipRoot skip(cx, &v);

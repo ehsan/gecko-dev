@@ -5,6 +5,7 @@
 #include "nsTableColGroupFrame.h"
 #include "nsTableColFrame.h"
 #include "nsTableFrame.h"
+#include "nsIDOMHTMLTableColElement.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
@@ -163,7 +164,7 @@ nsTableColGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
      
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   if (tableFrame->IsBorderCollapse() &&
-      tableFrame->BCRecalcNeeded(aOldStyleContext, StyleContext())) {
+      tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
     int32_t colCount = GetColCount();
     if (!colCount)
       return; // this is a degenerated colgroup 
@@ -300,9 +301,9 @@ nsTableColGroupFrame::RemoveFrame(ChildListID     aListID,
       while (col && col->GetColType() == eColAnonymousCol) {
 #ifdef DEBUG
         nsIFrame* providerFrame = colFrame->GetParentStyleContextFrame();
-        if (colFrame->StyleContext()->GetParent() ==
-            providerFrame->StyleContext()) {
-          NS_ASSERTION(col->StyleContext() == colFrame->StyleContext() &&
+        if (colFrame->GetStyleContext()->GetParent() ==
+            providerFrame->GetStyleContext()) {
+          NS_ASSERTION(col->GetStyleContext() == colFrame->GetStyleContext() &&
                        col->GetContent() == colFrame->GetContent(),
                        "How did that happen??");
         }
@@ -359,7 +360,7 @@ NS_METHOD nsTableColGroupFrame::Reflow(nsPresContext*          aPresContext,
   NS_ASSERTION(nullptr!=mContent, "bad state -- null content for frame");
   nsresult rv=NS_OK;
   
-  const nsStyleVisibility* groupVis = StyleVisibility();
+  const nsStyleVisibility* groupVis = GetStyleVisibility();
   bool collapseGroup = (NS_STYLE_VISIBILITY_COLLAPSE == groupVis->mVisible);
   if (collapseGroup) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
@@ -405,7 +406,7 @@ nsTableColFrame * nsTableColGroupFrame::GetNextColumn(nsIFrame *aChildFrame)
   while (childFrame)
   {
     if (NS_STYLE_DISPLAY_TABLE_COLUMN ==
-        childFrame->StyleDisplay()->mDisplay)
+        childFrame->GetStyleDisplay()->mDisplay)
     {
       result = (nsTableColFrame *)childFrame;
       break;
@@ -417,7 +418,7 @@ nsTableColFrame * nsTableColGroupFrame::GetNextColumn(nsIFrame *aChildFrame)
 
 int32_t nsTableColGroupFrame::GetSpan()
 {
-  return StyleTable()->mSpan;
+  return GetStyleTable()->mSpan;
 }
 
 void nsTableColGroupFrame::SetContinuousBCBorderWidth(uint8_t     aForSide,

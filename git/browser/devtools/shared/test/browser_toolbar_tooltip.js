@@ -6,17 +6,10 @@
 const TEST_URI = "data:text/html;charset=utf-8,<p>Tooltip Tests</p>";
 
 function test() {
-  addTab(TEST_URI, function(browser, tab) {
-    info("Starting browser_toolbar_tooltip.js");
-    openTest();
+  DeveloperToolbarTest.test(TEST_URI, function(browser, tab) {
+    runTest();
+    finish();
   });
-}
-
-function openTest() {
-  ok(!DeveloperToolbar.visible, "DeveloperToolbar is not visible in runTest");
-
-  oneTimeObserve(DeveloperToolbar.NOTIFICATIONS.SHOW, catchFail(runTest));
-  document.getElementById("Tools:DevToolbar").doCommand();
 }
 
 function runTest() {
@@ -44,8 +37,6 @@ function runTest() {
   is(tooltipPanel._dimensions.start, 0,
           'search param start, when cursor at start');
   ok(getLeftMargin() > 9, 'tooltip offset, when cursor at start')
-
-  finish();
 }
 
 function getLeftMargin() {

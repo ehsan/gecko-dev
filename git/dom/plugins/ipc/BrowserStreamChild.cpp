@@ -30,7 +30,7 @@ BrowserStreamChild::BrowserStreamChild(PluginInstanceChild* instance,
   , mURL(url)
   , mHeaders(headers)
   , mStreamNotify(notifyData)
-  , ALLOW_THIS_IN_INITIALIZER_LIST(mDeliveryTracker(this))
+  , mDeliveryTracker(this)
 {
   PLUGIN_LOG_DEBUG(("%s (%s, %i, %i, %p, %s, %s)", FULLFUNCTION,
                     url.get(), length, lastmodified, (void*) notifyData,

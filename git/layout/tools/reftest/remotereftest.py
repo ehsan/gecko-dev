@@ -6,7 +6,6 @@ import sys
 import os
 import time
 import tempfile
-import traceback
 
 # We need to know our current directory so that we can serve our test files from it.
 SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
@@ -15,7 +14,7 @@ from runreftest import RefTest
 from runreftest import ReftestOptions
 from automation import Automation
 import devicemanager, devicemanagerADB, devicemanagerSUT
-from remoteautomation import RemoteAutomation, fennecLogcatFilters
+from remoteautomation import RemoteAutomation
 
 class RemoteOptions(ReftestOptions):
     def __init__(self, automation):
@@ -24,6 +23,7 @@ class RemoteOptions(ReftestOptions):
         defaults = {}
         defaults["logFile"] = "reftest.log"
         # app, xrePath and utilityPath variables are set in main function
+        defaults["remoteTestRoot"] = None
         defaults["app"] = ""
         defaults["xrePath"] = ""
         defaults["utilityPath"] = ""
@@ -86,19 +86,13 @@ class RemoteOptions(ReftestOptions):
                     help = "the transport to use to communicate with device: [adb|sut]; default=sut")
         defaults["dm_trans"] = "sut"
 
-        self.add_option("--remoteTestRoot", action = "store",
-                    type = "string", dest = "remoteTestRoot",
-                    help = "remote directory to use as test root (eg. /mnt/sdcard/tests or /data/local/tests)")
-        defaults["remoteTestRoot"] = None
-
         defaults["localLogName"] = None
 
         self.set_defaults(**defaults)
 
     def verifyRemoteOptions(self, options):
         # Ensure our defaults are set properly for everything we can infer
-        if not options.remoteTestRoot:
-            options.remoteTestRoot = self._automation._devicemanager.getDeviceRoot() + '/reftest'
+        options.remoteTestRoot = self._automation._devicemanager.getDeviceRoot() + '/reftest'
         options.remoteProfile = options.remoteTestRoot + "/profile"
 
         # Verify that our remotewebserver is set properly
@@ -189,14 +183,6 @@ class ReftestServer:
 
         xpcshell = os.path.join(self._utilityPath,
                                 "xpcshell" + self._automation.BIN_SUFFIX)
-
-        if not os.access(xpcshell, os.F_OK):
-            raise Exception('xpcshell not found at %s' % xpcshell)
-        if self._automation.elf_arm(xpcshell):
-            raise Exception('xpcshell at %s is an ARM binary; please use '
-                            'the --utility-path argument to specify the path '
-                            'to a desktop version.' % xpcshell)
-
         self._process = self._automation.Process([xpcshell] + args, env = env)
         pid = self._process.pid
         if pid < 0:
@@ -328,11 +314,8 @@ user_pref("browser.firstrun.show.localepicker", false);
 user_pref("font.size.inflation.emPerLine", 0);
 user_pref("font.size.inflation.minTwips", 0);
 user_pref("reftest.remote", true);
-// Set a future policy version to avoid the telemetry prompt.
-user_pref("toolkit.telemetry.prompted", 999);
-user_pref("toolkit.telemetry.notifiedOptOut", 999);
+user_pref("toolkit.telemetry.prompted", true);
 user_pref("reftest.uri", "%s");
-user_pref("datareporting.policy.dataSubmissionPolicyBypassAcceptance", true);
 """ % reftestlist)
 
         #workaround for jsreftests.
@@ -392,11 +375,11 @@ def main(args):
     try:
         if (options.dm_trans == "adb"):
             if (options.deviceIP):
-                dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
+                dm = devicemanagerADB.DeviceManagerADB(options.deviceIP, options.devicePort)
             else:
-                dm = devicemanagerADB.DeviceManagerADB(None, None, deviceRoot=options.remoteTestRoot)
+                dm = devicemanagerADB.DeviceManagerADB(None, None)
         else:
-            dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort, deviceRoot=options.remoteTestRoot)
+            dm = devicemanagerSUT.DeviceManagerSUT(options.deviceIP, options.devicePort)
     except devicemanager.DMError:
         print "Error: exception while initializing devicemanager.  Most likely the device is not in a testable state."
         return 1
@@ -424,7 +407,6 @@ def main(args):
     automation.setRemoteProfile(options.remoteProfile)
     automation.setRemoteLog(options.remoteLogFile)
     reftest = RemoteReftest(automation, dm, options, SCRIPT_DIRECTORY)
-    options = parser.verifyCommonOptions(options, reftest)
 
     # Hack in a symbolic link for jsreftest
     os.system("ln -s ../jsreftest " + str(os.path.join(SCRIPT_DIRECTORY, "jsreftest")))
@@ -453,27 +435,23 @@ def main(args):
 
 #an example manifest name to use on the cli
 #    manifest = "http://" + options.remoteWebServer + "/reftests/layout/reftests/reftest-sanity/reftest.list"
-    retVal = 0
+    logcat = []
     try:
         cmdlineArgs = ["-reftest", manifest]
         if options.bootstrap:
             cmdlineArgs = []
         dm.recordLogcat()
-        retVal = reftest.runTests(manifest, options, cmdlineArgs)
+        reftest.runTests(manifest, options, cmdlineArgs)
+        logcat = dm.getLogcat()
     except:
-        print "Automation Error: Exception caught while running tests"
-        traceback.print_exc()
-        retVal = 1
+        print "TEST-UNEXPECTED-FAIL | | exception while running reftests"
+        reftest.stopWebServer(options)
+        return 1
 
     reftest.stopWebServer(options)
-    try:
-        logcat = dm.getLogcat(filterOutRegexps=fennecLogcatFilters)
-        print ''.join(logcat)
-        print dm.getInfo()
-    except devicemanager.DMError:
-        print "WARNING: Error getting device information at end of test"
-
-    return retVal
+    print ''.join(logcat[-500:-1])
+    print dm.getInfo()
+    return 0
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

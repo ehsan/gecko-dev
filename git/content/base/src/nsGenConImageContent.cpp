@@ -15,7 +15,6 @@
 #include "nsImageLoadingContent.h"
 #include "imgIRequest.h"
 #include "nsEventStates.h"
-#include "nsEventDispatcher.h"
 
 class nsGenConImageContent : public nsXMLElement,
                              public nsImageLoadingContent
@@ -29,7 +28,7 @@ public:
     AddStatesSilently(NS_EVENT_STATE_SUPPRESSED);
   }
 
-  nsresult Init(imgRequestProxy* aImageRequest)
+  nsresult Init(imgIRequest* aImageRequest)
   {
     // No need to notify, since we have no frame.
     return UseAsPrimaryRequest(aImageRequest, false);
@@ -41,17 +40,6 @@ public:
                               bool aCompileEventHandlers);
   virtual void UnbindFromTree(bool aDeep, bool aNullParent);
   virtual nsEventStates IntrinsicState() const;
-
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor)
-  {
-    MOZ_ASSERT(IsInNativeAnonymousSubtree());
-    if (aVisitor.mEvent->message == NS_LOAD ||
-        aVisitor.mEvent->message == NS_LOAD_ERROR) {
-      // Don't propagate the events to the parent.
-      return NS_OK;
-    }
-    return nsXMLElement::PreHandleEvent(aVisitor);
-  }
   
 private:
   virtual ~nsGenConImageContent();
@@ -68,7 +56,7 @@ NS_IMPL_ISUPPORTS_INHERITED3(nsGenConImageContent,
 
 nsresult
 NS_NewGenConImageContent(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNodeInfo,
-                         imgRequestProxy* aImageRequest)
+                         imgIRequest* aImageRequest)
 {
   NS_PRECONDITION(aImageRequest, "Must have request!");
   nsGenConImageContent *it = new nsGenConImageContent(aNodeInfo);

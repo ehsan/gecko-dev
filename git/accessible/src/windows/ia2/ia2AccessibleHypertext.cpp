@@ -11,15 +11,12 @@
 
 #include "HyperTextAccessibleWrap.h"
 
-using namespace mozilla::a11y;
-
 // IAccessibleHypertext
 
 STDMETHODIMP
 ia2AccessibleHypertext::get_nHyperlinks(long* aHyperlinkCount)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aHyperlinkCount = 0;
 
   HyperTextAccessibleWrap* hyperText = static_cast<HyperTextAccessibleWrap*>(this);
@@ -29,38 +26,43 @@ ia2AccessibleHypertext::get_nHyperlinks(long* aHyperlinkCount)
   *aHyperlinkCount = hyperText->GetLinkCount();
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleHypertext::get_hyperlink(long aLinkIndex,
                                       IAccessibleHyperlink** aHyperlink)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  *aHyperlink = nullptr;
+__try {
+  *aHyperlink = NULL;
 
   HyperTextAccessibleWrap* hyperText = static_cast<HyperTextAccessibleWrap*>(this);
   if (hyperText->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
   Accessible* hyperLink = hyperText->GetLinkAt(aLinkIndex);
-  if (!hyperLink)
+  nsCOMPtr<nsIWinAccessNode> winAccessNode(do_QueryObject(hyperLink));
+  if (!winAccessNode)
     return E_FAIL;
 
-  *aHyperlink =
-    static_cast<IAccessibleHyperlink*>(static_cast<AccessibleWrap*>(hyperLink));
-  (*aHyperlink)->AddRef();
+  void *instancePtr = NULL;
+  nsresult rv =  winAccessNode->QueryNativeInterface(IID_IAccessibleHyperlink,
+                                                     &instancePtr);
+  if (NS_FAILED(rv))
+    return E_FAIL;
+
+  *aHyperlink = static_cast<IAccessibleHyperlink*>(instancePtr);
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleHypertext::get_hyperlinkIndex(long aCharIndex, long* aHyperlinkIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aHyperlinkIndex = 0;
 
   HyperTextAccessibleWrap* hyperAcc = static_cast<HyperTextAccessibleWrap*>(this);
@@ -70,6 +72,7 @@ ia2AccessibleHypertext::get_hyperlinkIndex(long aCharIndex, long* aHyperlinkInde
   *aHyperlinkIndex = hyperAcc->GetLinkIndexAtOffset(aCharIndex);
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 

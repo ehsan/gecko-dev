@@ -88,11 +88,11 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=377611
 
         var feeds = [];
 
-        for (var aFeed of discovered) {
+        for each (var aFeed in discovered) {
           feeds[aFeed.href] = true;
         }
 
-        for (var aLink of document.getElementsByTagName("link")) {
+        for each (var aLink in document.getElementsByTagName("link")) {
           // ignore real stylesheets, and anything without an href property
           if (aLink.type != "text/css" && aLink.href) {
             if (/bogus/i.test(aLink.title)) {

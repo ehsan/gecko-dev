@@ -27,7 +27,6 @@
 #include "nsIAssociatedContentSecurity.h"
 #include "nsIChildChannel.h"
 #include "nsIHttpChannelChild.h"
-#include "mozilla/net/DNS.h"
 
 namespace mozilla {
 namespace net {
@@ -70,7 +69,6 @@ public:
   NS_IMETHOD SetRequestHeader(const nsACString& aHeader, 
                               const nsACString& aValue, 
                               bool aMerge);
-  NS_IMETHOD RedirectTo(nsIURI *newURI);
   // nsIHttpChannelInternal
   NS_IMETHOD SetupFallbackChannel(const char *aFallbackKey);
   NS_IMETHOD GetLocalAddress(nsACString& addr);
@@ -99,8 +97,8 @@ protected:
                           const uint32_t& cacheExpirationTime,
                           const nsCString& cachedCharset,
                           const nsCString& securityInfoSerialization,
-                          const mozilla::net::NetAddr& selfAddr,
-                          const mozilla::net::NetAddr& peerAddr);
+                          const PRNetAddr& selfAddr,
+                          const PRNetAddr& peerAddr);
   bool RecvOnTransportAndData(const nsresult& status,
                               const uint64_t& progress,
                               const uint64_t& progressMax,
@@ -153,8 +151,8 @@ private:
                       const uint32_t& cacheExpirationTime,
                       const nsCString& cachedCharset,
                       const nsCString& securityInfoSerialization,
-                      const mozilla::net::NetAddr& selfAddr,
-                      const mozilla::net::NetAddr& peerAddr);
+                      const PRNetAddr& selfAddr,
+                      const PRNetAddr& peerAddr);
   void OnTransportAndData(const nsresult& status,
                           const uint64_t progress,
                           const uint64_t& progressMax,

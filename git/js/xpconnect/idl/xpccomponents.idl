@@ -13,7 +13,6 @@
 %}
 
 interface xpcIJSWeakReference;
-interface nsIClassInfo;
 
 /**
 * interface of Components.interfacesByID
@@ -119,7 +118,7 @@ interface ScheduledGCCallback : nsISupports
 /**
 * interface of Components.utils
 */
-[scriptable, uuid(ab50492f-a9de-4a68-9a75-9406f1542a6c)]
+[scriptable, uuid(a93e230d-e883-4ff8-9aeb-dbe5cc771059)]
 interface nsIXPCComponents_Utils : nsISupports
 {
 
@@ -304,14 +303,6 @@ interface nsIXPCComponents_Utils : nsISupports
     /*
      * To be called from JS only.
      *
-     * Returns a date given timestamp |msec| created in |vobj|'s compartment.
-     */
-    [implicit_jscontext]
-    jsval createDateIn(in jsval vobj, in long long msec);
-
-    /*
-     * To be called from JS only.
-     *
      * Ensures that all functions come from vobj's scope (and aren't cross
      * compartment wrappers).
      */
@@ -332,21 +323,11 @@ interface nsIXPCComponents_Utils : nsISupports
      * disappear at any moment.
      *
      * Forces a recomputation of all wrappers in and out of the compartment
-     * containing |vobj|. If |vobj| is not an object, all wrappers system-wide
+     * containing |obj|. If |obj| is not an object, all wrappers system-wide
      * are recomputed.
      */
     [implicit_jscontext]
     void recomputeWrappers([optional] in jsval vobj);
-
-    /*
-     * To be called from JS only. This is for Gecko internal use only, and may
-     * disappear at any moment.
-     *
-     * Enables Xray vision for same-compartment access for the compartment
-     * indicated by |vscope|. All outgoing wrappers are recomputed.
-     */
-    [implicit_jscontext]
-    void setWantXrays(in jsval vscope);
 
     /*
      * This seemingly-paradoxical API allows privileged code to explicitly give
@@ -383,6 +364,12 @@ interface nsIXPCComponents_Utils : nsISupports
     attribute boolean werror;
 
     [implicit_jscontext]
+    attribute boolean atline;
+
+    [implicit_jscontext]
+    attribute boolean xml;
+
+    [implicit_jscontext]
     attribute boolean methodjit;
 
     [implicit_jscontext]
@@ -390,7 +377,7 @@ interface nsIXPCComponents_Utils : nsISupports
 
     [implicit_jscontext]
     attribute boolean strict_mode;
-
+    
     [implicit_jscontext]
     attribute boolean ion;
 
@@ -399,17 +386,6 @@ interface nsIXPCComponents_Utils : nsISupports
 
     [implicit_jscontext]
     void nukeSandbox(in jsval obj);
-
-    /**
-     * Check whether the given object is an XrayWrapper.
-     */
-    bool isXrayWrapper(in jsval obj);
-
-    /**
-     * Get a DOM classinfo for the given classname.  Only some class
-     * names are supported.
-     */
-    nsIClassInfo getDOMClassInfo(in AString aClassName);
 };
 
 /**

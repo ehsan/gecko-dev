@@ -39,14 +39,7 @@ public:
    * CONSTRUCTION PHASE ONLY
    * Set the filter used to resample this image if necessary.
    */
-  void SetFilter(gfxPattern::GraphicsFilter aFilter)
-  {
-    if (mFilter != aFilter) {
-      MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) Filter", this));
-      mFilter = aFilter;
-      Mutated();
-    }
-  }
+  void SetFilter(gfxPattern::GraphicsFilter aFilter) { mFilter = aFilter; }
 
   /**
    * CONSTRUCTION PHASE ONLY
@@ -73,11 +66,8 @@ public:
    */
   void SetForceSingleTile(bool aForceSingleTile)
   {
-    if (mForceSingleTile != aForceSingleTile) {
-      MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) ForceSingleTile", this));
-      mForceSingleTile = aForceSingleTile;
-      Mutated();
-    }
+    mForceSingleTile = aForceSingleTile;
+    Mutated();
   }
 
 protected:

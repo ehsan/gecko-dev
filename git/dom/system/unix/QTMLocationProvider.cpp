@@ -6,6 +6,8 @@
 #include "QTMLocationProvider.h"
 #include "nsGeoPosition.h"
 
+using namespace QtMobility;
+
 using namespace mozilla;
 
 NS_IMPL_ISUPPORTS1(QTMLocationProvider, nsIGeolocationProvider)
@@ -63,7 +65,7 @@ QTMLocationProvider::Startup()
 }
 
 NS_IMETHODIMP
-QTMLocationProvider::Watch(nsIGeolocationUpdate* aCallback, bool aRequestPrivate)
+QTMLocationProvider::Watch(nsIGeolocationUpdate* aCallback)
 {
     mCallback = aCallback;
 

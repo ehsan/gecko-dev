@@ -35,13 +35,13 @@
 struct hb_fallback_shaper_face_data_t {};
 
 hb_fallback_shaper_face_data_t *
-_hb_fallback_shaper_face_data_create (hb_face_t *face HB_UNUSED)
+_hb_fallback_shaper_face_data_create (hb_face_t *face)
 {
   return (hb_fallback_shaper_face_data_t *) HB_SHAPER_DATA_SUCCEEDED;
 }
 
 void
-_hb_fallback_shaper_face_data_destroy (hb_fallback_shaper_face_data_t *data HB_UNUSED)
+_hb_fallback_shaper_face_data_destroy (hb_fallback_shaper_face_data_t *data)
 {
 }
 
@@ -53,13 +53,13 @@ _hb_fallback_shaper_face_data_destroy (hb_fallback_shaper_face_data_t *data HB_U
 struct hb_fallback_shaper_font_data_t {};
 
 hb_fallback_shaper_font_data_t *
-_hb_fallback_shaper_font_data_create (hb_font_t *font HB_UNUSED)
+_hb_fallback_shaper_font_data_create (hb_font_t *font)
 {
   return (hb_fallback_shaper_font_data_t *) HB_SHAPER_DATA_SUCCEEDED;
 }
 
 void
-_hb_fallback_shaper_font_data_destroy (hb_fallback_shaper_font_data_t *data HB_UNUSED)
+_hb_fallback_shaper_font_data_destroy (hb_fallback_shaper_font_data_t *data)
 {
 }
 
@@ -89,7 +89,7 @@ _hb_fallback_shaper_shape_plan_data_destroy (hb_fallback_shaper_shape_plan_data_
  */
 
 hb_bool_t
-_hb_fallback_shape (hb_shape_plan_t    *shape_plan HB_UNUSED,
+_hb_fallback_shape (hb_shape_plan_t    *shape_plan,
 		    hb_font_t          *font,
 		    hb_buffer_t        *buffer,
 		    const hb_feature_t *features HB_UNUSED,
@@ -98,14 +98,14 @@ _hb_fallback_shape (hb_shape_plan_t    *shape_plan HB_UNUSED,
   hb_codepoint_t space;
   font->get_glyph (' ', 0, &space);
 
-  buffer->guess_segment_properties ();
+  buffer->guess_properties ();
   buffer->clear_positions ();
 
   unsigned int count = buffer->len;
 
   for (unsigned int i = 0; i < count; i++)
   {
-    if (buffer->unicode->is_default_ignorable (buffer->info[i].codepoint)) {
+    if (buffer->unicode->is_zero_width (buffer->info[i].codepoint)) {
       buffer->info[i].codepoint = space;
       buffer->pos[i].x_advance = 0;
       buffer->pos[i].y_advance = 0;

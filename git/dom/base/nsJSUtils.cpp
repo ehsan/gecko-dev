@@ -25,9 +25,6 @@
 
 #include "nsDOMJSUtils.h" // for GetScriptContextFromJSContext
 
-#include "nsContentUtils.h"
-#include "nsJSPrincipals.h"
-
 #include "mozilla/dom/BindingUtils.h"
 
 JSBool
@@ -48,7 +45,7 @@ nsJSUtils::GetCallingLocation(JSContext* aContext, const char* *aFilename,
 }
 
 nsIScriptGlobalObject *
-nsJSUtils::GetStaticScriptGlobal(JSObject* aObj)
+nsJSUtils::GetStaticScriptGlobal(JSContext* aContext, JSObject* aObj)
 {
   JSClass* clazz;
   JSObject* glob = aObj; // starting point for search
@@ -56,7 +53,7 @@ nsJSUtils::GetStaticScriptGlobal(JSObject* aObj)
   if (!glob)
     return nullptr;
 
-  glob = js::GetGlobalForObjectCrossCompartment(glob);
+  glob = JS_GetGlobalForObject(aContext, glob);
   NS_ABORT_IF_FALSE(glob, "Infallible returns null");
 
   clazz = JS_GetClass(glob);
@@ -81,9 +78,7 @@ nsJSUtils::GetStaticScriptGlobal(JSObject* aObj)
   nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryInterface(supports));
   if (!sgo) {
     nsCOMPtr<nsIXPConnectWrappedNative> wrapper(do_QueryInterface(supports));
-    if (!wrapper) {
-      return nullptr;
-    }
+    NS_ENSURE_TRUE(wrapper, nullptr);
     sgo = do_QueryWrappedNative(wrapper);
   }
 
@@ -93,9 +88,9 @@ nsJSUtils::GetStaticScriptGlobal(JSObject* aObj)
 }
 
 nsIScriptContext *
-nsJSUtils::GetStaticScriptContext(JSObject* aObj)
+nsJSUtils::GetStaticScriptContext(JSContext* aContext, JSObject* aObj)
 {
-  nsIScriptGlobalObject *nativeGlobal = GetStaticScriptGlobal(aObj);
+  nsIScriptGlobalObject *nativeGlobal = GetStaticScriptGlobal(aContext, aObj);
   if (!nativeGlobal)
     return nullptr;
 
@@ -127,7 +122,8 @@ nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(JSContext *aContext)
 
   JSObject *jsGlobal = JS_GetGlobalForScopeChain(aContext);
   if (jsGlobal) {
-    nsIScriptGlobalObject *scriptGlobal = GetStaticScriptGlobal(jsGlobal);
+    nsIScriptGlobalObject *scriptGlobal = GetStaticScriptGlobal(aContext,
+                                                                jsGlobal);
     if (scriptGlobal) {
       nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(scriptGlobal);
       if (win)
@@ -138,54 +134,3 @@ nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(JSContext *aContext)
   return innerWindowID;
 }
 
-void
-nsJSUtils::ReportPendingException(JSContext *aContext)
-{
-  if (JS_IsExceptionPending(aContext)) {
-    bool saved = JS_SaveFrameChain(aContext);
-    JS_ReportPendingException(aContext);
-    if (saved) {
-      JS_RestoreFrameChain(aContext);
-    }
-  }
-}
-
-nsresult
-nsJSUtils::CompileFunction(JSContext* aCx,
-                           JS::HandleObject aTarget,
-                           JS::CompileOptions& aOptions,
-                           const nsACString& aName,
-                           uint32_t aArgCount,
-                           const char** aArgArray,
-                           const nsAString& aBody,
-                           JSObject** aFunctionObject)
-{
-  MOZ_ASSERT(js::GetEnterCompartmentDepth(aCx) > 0);
-  MOZ_ASSERT_IF(aTarget, js::IsObjectInContextCompartment(aTarget, aCx));
-  MOZ_ASSERT_IF(aOptions.versionSet, aOptions.version != JSVERSION_UNKNOWN);
-  mozilla::DebugOnly<nsIScriptContext*> ctx = GetScriptContextFromJSContext(aCx);
-  MOZ_ASSERT_IF(ctx, ctx->IsContextInitialized());
-
-  // Since aTarget and aCx are same-compartment, there should be no distinction
-  // between the object principal and the cx principal.
-  // However, aTarget may be null in the wacky aShared case. So use the cx.
-  JSPrincipals* p = JS_GetCompartmentPrincipals(js::GetContextCompartment(aCx));
-  aOptions.setPrincipals(p);
-
-  // Do the junk Gecko is supposed to do before calling into JSAPI.
-  xpc_UnmarkGrayObject(aTarget);
-
-  // Compile.
-  JSFunction* fun = JS::CompileFunction(aCx, aTarget, aOptions,
-                                        PromiseFlatCString(aName).get(),
-                                        aArgCount, aArgArray,
-                                        PromiseFlatString(aBody).get(),
-                                        aBody.Length());
-  if (!fun) {
-    ReportPendingException(aCx);
-    return NS_ERROR_FAILURE;
-  }
-
-  *aFunctionObject = JS_GetFunctionObject(fun);
-  return NS_OK;
-}

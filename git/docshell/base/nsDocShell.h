@@ -26,6 +26,7 @@
 
 #include "nsDocLoader.h"
 #include "nsIURILoader.h"
+#include "nsIEditorDocShell.h"
 
 #include "nsWeakReference.h"
 
@@ -130,6 +131,7 @@ typedef enum {
 
 class nsDocShell : public nsDocLoader,
                    public nsIDocShell,
+                   public nsIDocShellTreeItem, 
                    public nsIDocShellHistory,
                    public nsIWebNavigation,
                    public nsIBaseWindow, 
@@ -140,6 +142,7 @@ class nsDocShell : public nsDocLoader,
                    public nsIScriptGlobalObjectOwner,
                    public nsIRefreshURI,
                    public nsIWebProgressListener,
+                   public nsIEditorDocShell,
                    public nsIWebPageDescriptor,
                    public nsIAuthPromptProvider,
                    public nsIObserver,
@@ -173,6 +176,7 @@ public:
     NS_DECL_NSIWEBPROGRESSLISTENER
     NS_DECL_NSIREFRESHURI
     NS_DECL_NSICONTENTVIEWERCONTAINER
+    NS_DECL_NSIEDITORDOCSHELL
     NS_DECL_NSIWEBPAGEDESCRIPTOR
     NS_DECL_NSIAUTHPROMPTPROVIDER
     NS_DECL_NSIOBSERVER
@@ -193,14 +197,12 @@ public:
     NS_IMETHOD OnLinkClick(nsIContent* aContent,
         nsIURI* aURI,
         const PRUnichar* aTargetSpec,
-        const nsAString& aFileName,
         nsIInputStream* aPostDataStream,
         nsIInputStream* aHeadersDataStream,
         bool aIsTrusted);
     NS_IMETHOD OnLinkClickSync(nsIContent* aContent,
         nsIURI* aURI,
         const PRUnichar* aTargetSpec,
-        const nsAString& aFileName,
         nsIInputStream* aPostDataStream = 0,
         nsIInputStream* aHeadersDataStream = 0,
         nsIDocShell** aDocShell = 0,
@@ -225,7 +227,6 @@ public:
     NS_IMETHOD GetIsContent(bool*);
     NS_IMETHOD GetUsePrivateBrowsing(bool*);
     NS_IMETHOD SetUsePrivateBrowsing(bool);
-    NS_IMETHOD SetPrivateBrowsing(bool);
 
     // Restores a cached presentation from history (mLSHE).
     // This method swaps out the content viewer and simulates loads for
@@ -289,7 +290,6 @@ protected:
                                bool aSendReferrer,
                                nsISupports * aOwner,
                                const char * aTypeHint,
-                               const nsAString & aFileName,
                                nsIInputStream * aPostData,
                                nsIInputStream * aHeadersData,
                                bool firstParty,
@@ -664,14 +664,13 @@ protected:
     bool JustStartedNetworkLoad();
 
     enum FrameType {
-        eFrameTypeRegular,
-        eFrameTypeBrowser,
-        eFrameTypeApp
+        eFrameTypeRegular  = 0x0, // 0000
+        eFrameTypeBrowser  = 0x1, // 0001
+        eFrameTypeApp      = 0x2  // 0010
     };
 
     FrameType GetInheritedFrameType();
-
-    bool HasUnloadedParent();
+    FrameType GetFrameType();
 
     // hash of session storages, keyed by domain
     nsInterfaceHashtable<nsCStringHashKey, nsIDOMStorage> mStorages;
@@ -741,10 +740,6 @@ protected:
     nsCOMPtr<nsIChannel>       mFailedChannel;
     uint32_t                   mFailedLoadType;
 
-    // Set in DoURILoad when the LOAD_RELOAD_ALLOW_MIXED_CONTENT flag is set.
-    // Checked in nsMixedContentBlocker, to see if the channels match.
-    nsCOMPtr<nsIChannel>       mMixedContentChannel;
-
     // WEAK REFERENCES BELOW HERE.
     // Note these are intentionally not addrefd.  Doing so will create a cycle.
     // For that reasons don't use nsCOMPtr.
@@ -777,14 +772,14 @@ protected:
 
     // mFullscreenAllowed stores how we determine whether fullscreen is allowed
     // when GetFullscreenAllowed() is called. Fullscreen is allowed in a
-    // docshell when all containing iframes have the allowfullscreen
+    // docshell when all containing iframes have the mozallowfullscreen
     // attribute set to true. When mFullscreenAllowed is CHECK_ATTRIBUTES
-    // we check this docshell's containing frame for the allowfullscreen
+    // we check this docshell's containing frame for the mozallowfullscreen
     // attribute, and recurse onto the parent docshell to ensure all containing
-    // frames also have the allowfullscreen attribute. If we find an ancestor
+    // frames also have the mozallowfullscreen attribute. If we find an ancestor
     // docshell with mFullscreenAllowed not equal to CHECK_ATTRIBUTES, we've
     // reached a content boundary, and mFullscreenAllowed denotes whether the
-    // parent across the content boundary has allowfullscreen=true in all its
+    // parent across the content boundary has mozallowfullscreen=true in all its
     // containing iframes. mFullscreenAllowed defaults to CHECK_ATTRIBUTES and
     // is set otherwise when docshells which are content boundaries are created.
     enum FullscreenAllowedState {
@@ -812,6 +807,7 @@ protected:
     bool                       mIsAppTab;
     bool                       mUseGlobalHistory;
     bool                       mInPrivateBrowsing;
+    bool                       mIsBrowserFrame;
 
     // This boolean is set to true right before we fire pagehide and generally
     // unset when we embed a new content viewer.  While it's true no navigation
@@ -842,25 +838,13 @@ protected:
 #ifdef DEBUG
     bool                       mInEnsureScriptEnv;
 #endif
-    bool                       mAffectPrivateSessionLifetime;
     uint64_t                   mHistoryID;
 
     static nsIURIFixup *sURIFixup;
 
     nsRefPtr<nsDOMNavigationTiming> mTiming;
 
-    // Are we a regular frame, a browser frame, or an app frame?
-    FrameType mFrameType;
-
-    // We only expect mOwnOrContainingAppId to be something other than
-    // UNKNOWN_APP_ID if mFrameType != eFrameTypeRegular.  For vanilla iframes
-    // inside an app, we'll retrieve the containing app-id by walking up the
-    // docshell hierarchy.
-    //
-    // (This needs to be the docshell's own /or containing/ app id because the
-    // containing app frame might be in another process, in which case we won't
-    // find it by walking up the docshell hierarchy.)
-    uint32_t mOwnOrContainingAppId;
+    uint32_t mAppId;
 
 private:
     nsCOMPtr<nsIAtom> mForcedCharset;

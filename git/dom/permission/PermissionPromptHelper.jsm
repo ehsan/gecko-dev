@@ -20,107 +20,62 @@
 "use strict";
 
 let DEBUG = 0;
-let debug;
 if (DEBUG)
   debug = function (s) { dump("-*- Permission Prompt Helper component: " + s + "\n"); }
 else
   debug = function (s) {}
 
-const Cu = Components.utils;
+const Cu = Components.utils; 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 
-this.EXPORTED_SYMBOLS = ["PermissionPromptHelper"];
+let EXPORTED_SYMBOLS = ["PermissionPromptHelper"];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/PermissionsInstaller.jsm");
-Cu.import("resource://gre/modules/PermissionsTable.jsm");
 
 XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "@mozilla.org/parentprocessmessagemanager;1",
                                    "nsIMessageListenerManager");
 
-XPCOMUtils.defineLazyServiceGetter(this, "permissionPromptService",
-                                   "@mozilla.org/permission-prompt-service;1",
-                                   "nsIPermissionPromptService");
+var permissionManager = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
+var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
+var appsService = Cc["@mozilla.org/AppsService;1"].getService(Ci.nsIAppsService);
 
-let permissionManager = Cc["@mozilla.org/permissionmanager;1"].getService(Ci.nsIPermissionManager);
-let secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].getService(Ci.nsIScriptSecurityManager);
-let appsService = Cc["@mozilla.org/AppsService;1"].getService(Ci.nsIAppsService);
-
-this.PermissionPromptHelper = {
-  init: function init() {
+let PermissionPromptHelper = {
+  init: function() {
     debug("Init");
     ppmm.addMessageListener("PermissionPromptHelper:AskPermission", this);
     Services.obs.addObserver(this, "profile-before-change", false);
   },
 
-  askPermission: function askPermission(aMessage, aCallbacks) {
+  askPermission: function(aMessage, aCallbacks) {
     let msg = aMessage.json;
-
-    let access;
-    if (PermissionsTable[msg.type].access) {
-      access = "readwrite"; // XXXddahl: Not sure if this should be set to READWRITE
-    }
-    // Expand permission names.
-    let expandedPermNames = expandPermissions(msg.type, access);
-    let installedPermValues = [];
+    debug("askPerm: " + JSON.stringify(aMessage.json));
     let uri = Services.io.newURI(msg.origin, null, null);
-    let principal =
-      secMan.getAppCodebasePrincipal(uri, msg.appID, msg.browserFlag);
+    let principal = secMan.getAppCodebasePrincipal(uri, msg.appID, msg.browserFlag);
+    let perm = permissionManager.testExactPermissionFromPrincipal(principal, msg.type);
 
-    for (let idx in expandedPermNames) {
-      let access = msg.access ? expandedPermNames[idx] : msg.type;
-      let permValue =
-        permissionManager.testExactPermissionFromPrincipal(principal, access);
-      installedPermValues.push(permValue);
-    }
-
-    // TODO: see bug 804623, We are preventing "read" operations
-    // even if just "write" has been set to DENY_ACTION
-    for (let idx in installedPermValues) {
-      // if any of the installedPermValues are deny, run aCallbacks.cancel
-      if (installedPermValues[idx] == Ci.nsIPermissionManager.DENY_ACTION ||
-          installedPermValues[idx] == Ci.nsIPermissionManager.UNKNOWN_ACTION) {
-        aCallbacks.cancel();
-        return;
-      }
-    }
-
-    for (let idx in installedPermValues) {
-      if (installedPermValues[idx] == Ci.nsIPermissionManager.PROMPT_ACTION) {
-        // create a nsIContentPermissionRequest
-        let request = {
-          type: msg.type,
-          access: msg.access ? msg.access : "unused",
-          principal: principal,
-          QueryInterface: XPCOMUtils.generateQI([Ci.nsIContentPermissionRequest]),
-          allow: aCallbacks.allow,
-          cancel: aCallbacks.cancel,
-          window: Services.wm.getMostRecentWindow("navigator:browser")
-        };
-
-        permissionPromptService.getPermission(request);
-        return;
-      }
-    }
-
-    for (let idx in installedPermValues) {
-      if (installedPermValues[idx] == Ci.nsIPermissionManager.ALLOW_ACTION) {
+    switch(perm) {
+      case Ci.nsIPermissionManager.ALLOW_ACTION:
         aCallbacks.allow();
         return;
-      }
+      case Ci.nsIPermissionManager.DENY_ACTION:
+        aCallbacks.cancel();
+        return;
     }
+
+  // FIXXMEE PROMPT MAGIC! Bug 773114.
+  // We have to diplay the prompt here.
   },
 
-  observe: function observe(aSubject, aTopic, aData) {
+  observe: function(aSubject, aTopic, aData) {
     ppmm.removeMessageListener("PermissionPromptHelper:AskPermission", this);
     Services.obs.removeObserver(this, "profile-before-change");
     ppmm = null;
   },
 
-  receiveMessage: function receiveMessage(aMessage) {
+  receiveMessage: function(aMessage) {
     debug("PermissionPromptHelper::receiveMessage " + aMessage.name);
     let mm = aMessage.target;
     let msg = aMessage.data;
@@ -129,14 +84,10 @@ this.PermissionPromptHelper = {
     if (aMessage.name == "PermissionPromptHelper:AskPermission") {
       this.askPermission(aMessage, {
         cancel: function() {
-          mm.sendAsyncMessage("PermissionPromptHelper:AskPermission:OK",
-                              { result: Ci.nsIPermissionManager.DENY_ACTION,
-                                requestID: msg.requestID });
+          mm.sendAsyncMessage("PermissionPromptHelper:AskPermission:OK", {result: Ci.nsIPermissionManager.DENY_ACTION, requestID: msg.requestID});
         },
         allow: function() {
-          mm.sendAsyncMessage("PermissionPromptHelper:AskPermission:OK",
-                              { result: Ci.nsIPermissionManager.ALLOW_ACTION,
-                                requestID: msg.requestID });
+          mm.sendAsyncMessage("PermissionPromptHelper:AskPermission:OK", {result: Ci.nsIPermissionManager.ALLOW_ACTION, requestID: msg.requestID});
         }
       });
     }

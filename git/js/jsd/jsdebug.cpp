@@ -765,16 +765,17 @@ JSD_EvaluateUCScriptInStackFrame(JSDContext* jsdc,
                                  JSDThreadState* jsdthreadstate,
                                  JSDStackFrameInfo* jsdframe,
                                  const jschar *bytes, unsigned length,
-                                 const char *filename, unsigned lineno, JS::MutableHandleValue rval)
+                                 const char *filename, unsigned lineno, jsval *rval)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JS_ASSERT(bytes);
     JS_ASSERT(length);
     JS_ASSERT(filename);
+    JS_ASSERT(rval);
 
     return jsd_EvaluateUCScriptInStackFrame(jsdc, jsdthreadstate,jsdframe,
                                             bytes, length, filename, lineno,
-                                            JS_TRUE, rval);
+                                             JS_TRUE, rval);
 }
 
 JSD_PUBLIC_API(JSBool)
@@ -783,12 +784,13 @@ JSD_AttemptUCScriptInStackFrame(JSDContext* jsdc,
                                 JSDStackFrameInfo* jsdframe,
                                 const jschar *bytes, unsigned length,
                                 const char *filename, unsigned lineno,
-                                JS::MutableHandleValue rval)
+                                jsval *rval)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JS_ASSERT(bytes);
     JS_ASSERT(length);
     JS_ASSERT(filename);
+    JS_ASSERT(rval);
 
     return jsd_EvaluateUCScriptInStackFrame(jsdc, jsdthreadstate,jsdframe,
                                             bytes, length, filename, lineno,
@@ -800,12 +802,13 @@ JSD_EvaluateScriptInStackFrame(JSDContext* jsdc,
                                JSDThreadState* jsdthreadstate,
                                JSDStackFrameInfo* jsdframe,
                                const char *bytes, unsigned length,
-                               const char *filename, unsigned lineno, JS::MutableHandleValue rval)
+                               const char *filename, unsigned lineno, jsval *rval)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JS_ASSERT(bytes);
     JS_ASSERT(length);
     JS_ASSERT(filename);
+    JS_ASSERT(rval);
 
     return jsd_EvaluateScriptInStackFrame(jsdc, jsdthreadstate,jsdframe,
                                           bytes, length,
@@ -817,12 +820,13 @@ JSD_AttemptScriptInStackFrame(JSDContext* jsdc,
                               JSDThreadState* jsdthreadstate,
                               JSDStackFrameInfo* jsdframe,
                               const char *bytes, unsigned length,
-                              const char *filename, unsigned lineno, JS::MutableHandleValue rval)
+                              const char *filename, unsigned lineno, jsval *rval)
 {
     JSD_ASSERT_VALID_CONTEXT(jsdc);
     JS_ASSERT(bytes);
     JS_ASSERT(length);
     JS_ASSERT(filename);
+    JS_ASSERT(rval);
 
     return jsd_EvaluateScriptInStackFrame(jsdc, jsdthreadstate,jsdframe,
                                           bytes, length,

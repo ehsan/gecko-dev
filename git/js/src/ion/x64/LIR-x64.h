@@ -19,7 +19,7 @@ class LBox : public LInstructionHelper<1, 1, 0>
     MIRType type_;
 
   public:
-    LIR_HEADER(Box)
+    LIR_HEADER(Box);
 
     LBox(MIRType type, const LAllocation &payload)
       : type_(type)
@@ -50,7 +50,7 @@ class LUnboxBase : public LInstructionHelper<1, 1, 0>
 
 class LUnbox : public LUnboxBase {
   public:
-    LIR_HEADER(Unbox)
+    LIR_HEADER(Unbox);
 
     LUnbox(const LAllocation &input)
       : LUnboxBase(input)
@@ -59,40 +59,27 @@ class LUnbox : public LUnboxBase {
 
 class LUnboxDouble : public LUnboxBase {
   public:
-    LIR_HEADER(UnboxDouble)
+    LIR_HEADER(UnboxDouble);
 
     LUnboxDouble(const LAllocation &input)
       : LUnboxBase(input)
     { }
 };
 
-// Convert a 32-bit unsigned integer to a double.
-class LUInt32ToDouble : public LInstructionHelper<1, 1, 0>
+// Constant double.
+class LDouble : public LInstructionHelper<1, 0, 0>
 {
-  public:
-    LIR_HEADER(UInt32ToDouble)
+    double d_;
 
-    LUInt32ToDouble(const LAllocation &input) {
-        setOperand(0, input);
-    }
-};
-
-class LAsmJSLoadFuncPtr : public LInstructionHelper<1, 1, 1>
-{
   public:
-    LIR_HEADER(AsmJSLoadFuncPtr);
-    LAsmJSLoadFuncPtr(const LAllocation &index, const LDefinition &temp) {
-        setOperand(0, index);
-        setTemp(0, temp);
-    }
-    MAsmJSLoadFuncPtr *mir() const {
-        return mir_->toAsmJSLoadFuncPtr();
-    }
-    const LAllocation *index() {
-        return getOperand(0);
-    }
-    const LDefinition *temp() {
-        return getTemp(0);
+    LIR_HEADER(Double);
+
+    LDouble(double d)
+      : d_(d)
+    { }
+
+    double getDouble() const {
+        return d_;
     }
 };
 

@@ -326,7 +326,7 @@ NS_IMPL_ISUPPORTS2(nsSupportsPRUint64Impl, nsISupportsPRUint64,
                    nsISupportsPrimitive)
 
 nsSupportsPRUint64Impl::nsSupportsPRUint64Impl()
-    : mData(0)
+    : mData(LL_ZERO)
 {
 }
 
@@ -371,7 +371,7 @@ NS_IMPL_ISUPPORTS2(nsSupportsPRTimeImpl, nsISupportsPRTime,
                    nsISupportsPrimitive)
 
 nsSupportsPRTimeImpl::nsSupportsPRTimeImpl()
-    : mData(0)
+    : mData(LL_ZERO)
 {
 }
 
@@ -551,7 +551,7 @@ NS_IMPL_ISUPPORTS2(nsSupportsPRInt64Impl, nsISupportsPRInt64,
                    nsISupportsPrimitive)
 
 nsSupportsPRInt64Impl::nsSupportsPRInt64Impl()
-    : mData(0)
+    : mData(LL_ZERO)
 {
 }
 

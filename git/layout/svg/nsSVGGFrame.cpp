@@ -8,13 +8,11 @@
 
 // Keep others in (case-insensitive) order:
 #include "nsGkAtoms.h"
-#include "SVGTransformableElement.h"
+#include "nsIDOMSVGTransformable.h"
 #include "nsIFrame.h"
-#include "SVGGraphicsElement.h"
+#include "nsSVGGraphicElement.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGUtils.h"
-
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // Implementation
@@ -28,16 +26,16 @@ NS_NewSVGGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGGFrame)
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGGFrame::Init(nsIContent* aContent,
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG() &&
-               static_cast<nsSVGElement*>(aContent)->IsTransformable(),
-               "The element doesn't support nsIDOMSVGTransformable");
+  nsCOMPtr<nsIDOMSVGTransformable> transformable = do_QueryInterface(aContent);
+  NS_ASSERTION(transformable,
+               "The element doesn't support nsIDOMSVGTransformable\n");
 
-  nsSVGGFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGGFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 
@@ -77,7 +75,7 @@ nsSVGGFrame::GetCanvasTM(uint32_t aFor)
     NS_ASSERTION(mParent, "null parent");
 
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
-    SVGGraphicsElement *content = static_cast<SVGGraphicsElement*>(mContent);
+    nsSVGGraphicElement *content = static_cast<nsSVGGraphicElement*>(mContent);
 
     gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
 
@@ -93,8 +91,7 @@ nsSVGGFrame::AttributeChanged(int32_t         aNameSpaceID,
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       aAttribute == nsGkAtoms::transform) {
-    nsSVGUtils::InvalidateBounds(this, false);
-    nsSVGUtils::ScheduleReflowSVG(this);
+    nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
     NotifySVGChanged(TRANSFORM_CHANGED);
   }
   

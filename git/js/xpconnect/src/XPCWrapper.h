@@ -47,6 +47,12 @@ IsSecurityWrapper(JSObject *wrapper)
   return js::IsWrapper(wrapper);
 }
 
+inline JSObject *
+Unwrap(JSContext *cx, JSObject *wrapper, bool stopAtOuter = true)
+{
+  return xpc::Unwrap(cx, wrapper, stopAtOuter);
+}
+
 JSObject *
 UnsafeUnwrapSecurityWrapper(JSObject *obj);
 

@@ -4,10 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsReadableUtils.h"
-
 #include "nsMemory.h"
 #include "nsString.h"
-#include "nsTArray.h"
 #include "nsUTF8Utils.h"
 
 void
@@ -70,11 +68,33 @@ CopyUTF8toUTF16( const char* aSource, nsAString& aDest )
     AppendUTF8toUTF16(aSource, aDest);
   }
 
+// Like GetMutableData, but returns false if it can't
+// allocate enough memory (e.g. due to OOM) rather than
+// returning zero (which could have other meanings) and
+// throws away the out-param pointer.
+bool
+SetLengthForWriting(nsAString& aDest, uint32_t aDesiredLength)
+  {
+    PRUnichar* dummy;
+    uint32_t len = aDest.GetMutableData(&dummy, aDesiredLength);
+    return (len >= aDesiredLength);
+  }
+
+bool
+SetLengthForWritingC(nsACString& aDest, uint32_t aDesiredLength)
+  {
+    char* dummy;
+    uint32_t len = aDest.GetMutableData(&dummy, aDesiredLength);
+    return (len >= aDesiredLength);
+  }
+
+
 void
 LossyAppendUTF16toASCII( const nsAString& aSource, nsACString& aDest )
   {
     uint32_t old_dest_length = aDest.Length();
-    aDest.SetLength(old_dest_length + aSource.Length());
+    if (!SetLengthForWritingC(aDest, old_dest_length + aSource.Length()))
+        return;
 
     nsAString::const_iterator fromBegin, fromEnd;
 
@@ -93,7 +113,8 @@ void
 AppendASCIItoUTF16( const nsACString& aSource, nsAString& aDest )
   {
     uint32_t old_dest_length = aDest.Length();
-    aDest.SetLength(old_dest_length + aSource.Length());
+    if (!SetLengthForWriting(aDest, old_dest_length + aSource.Length()))
+        return;
 
     nsACString::const_iterator fromBegin, fromEnd;
 
@@ -139,7 +160,8 @@ AppendUTF16toUTF8( const nsAString& aSource, nsACString& aDest )
         uint32_t old_dest_length = aDest.Length();
 
         // Grow the buffer if we need to.
-        aDest.SetLength(old_dest_length + count);
+        if(!SetLengthForWritingC(aDest, old_dest_length + count))
+            return;
 
         // All ready? Time to convert
 
@@ -155,15 +177,6 @@ AppendUTF16toUTF8( const nsAString& aSource, nsACString& aDest )
 
 void
 AppendUTF8toUTF16( const nsACString& aSource, nsAString& aDest )
-{
-  if (!AppendUTF8toUTF16(aSource, aDest, mozilla::fallible_t())) {
-    NS_RUNTIMEABORT("OOM");
-  }
-}
-
-bool
-AppendUTF8toUTF16( const nsACString& aSource, nsAString& aDest,
-                   const mozilla::fallible_t& )
   {
     nsACString::const_iterator source_start, source_end;
     CalculateUTF8Length calculator;
@@ -178,9 +191,8 @@ AppendUTF8toUTF16( const nsACString& aSource, nsAString& aDest,
         uint32_t old_dest_length = aDest.Length();
 
         // Grow the buffer if we need to.
-        if (!aDest.SetLength(old_dest_length + count, mozilla::fallible_t())) {
-          return false;
-        }
+        if(!SetLengthForWriting(aDest, old_dest_length + count))
+          return;
 
         // All ready? Time to convert
 
@@ -198,8 +210,6 @@ AppendUTF8toUTF16( const nsACString& aSource, nsAString& aDest,
             aDest.SetLength(old_dest_length);
           }
       }
-
-    return true;
   }
 
 void
@@ -315,45 +325,28 @@ ToNewUnicode( const nsACString& aSource )
     return result;
   }
 
-uint32_t
-CalcUTF8ToUnicodeLength( const nsACString& aSource)
+PRUnichar*
+UTF8ToNewUnicode( const nsACString& aSource, uint32_t *aUTF16Count )
   {
     nsACString::const_iterator start, end;
     CalculateUTF8Length calculator;
     copy_string(aSource.BeginReading(start), aSource.EndReading(end),
                 calculator);
-    return calculator.Length();
-  }
 
-PRUnichar*
-UTF8ToUnicodeBuffer( const nsACString& aSource, PRUnichar* aBuffer, uint32_t *aUTF16Count )
-  {
-    nsACString::const_iterator start, end;
-    ConvertUTF8toUTF16 converter(aBuffer);
-    copy_string(aSource.BeginReading(start),
-                aSource.EndReading(end),
-                converter).write_terminator();
     if (aUTF16Count)
-      *aUTF16Count = converter.Length();
-    return aBuffer;
-  }
+      *aUTF16Count = calculator.Length();
 
-PRUnichar*
-UTF8ToNewUnicode( const nsACString& aSource, uint32_t *aUTF16Count )
-  {
-    const uint32_t length = CalcUTF8ToUnicodeLength(aSource);
-    const size_t buffer_size = (length + 1) * sizeof(PRUnichar);
-    PRUnichar *buffer = static_cast<PRUnichar*>(nsMemory::Alloc(buffer_size));
-    if (!buffer)
+    PRUnichar *result = static_cast<PRUnichar*>
+                                   (nsMemory::Alloc(sizeof(PRUnichar) * (calculator.Length() + 1)));
+    if (!result)
       return nullptr;
 
-    uint32_t copied;
-    UTF8ToUnicodeBuffer(aSource, buffer, &copied);
-    NS_ASSERTION(length == copied, "length mismatch");
+    ConvertUTF8toUTF16 converter(result);
+    copy_string(aSource.BeginReading(start), aSource.EndReading(end),
+                converter).write_terminator();
+    NS_ASSERTION(calculator.Length() == converter.Length(), "length mismatch");
 
-    if (aUTF16Count)
-      *aUTF16Count = copied;
-    return buffer;
+    return result;
   }
 
 PRUnichar*
@@ -371,7 +364,8 @@ CopyUnicodeTo( const nsAString::const_iterator& aSrcStart,
                nsAString& aDest )
   {
     nsAString::iterator writer;
-    aDest.SetLength(Distance(aSrcStart, aSrcEnd));
+    if (!SetLengthForWriting(aDest, Distance(aSrcStart, aSrcEnd)))
+        return;
 
     aDest.BeginWriting(writer);
     nsAString::const_iterator fromBegin(aSrcStart);
@@ -386,7 +380,8 @@ AppendUnicodeTo( const nsAString::const_iterator& aSrcStart,
   {
     nsAString::iterator writer;
     uint32_t oldLength = aDest.Length();
-    aDest.SetLength(oldLength + Distance(aSrcStart, aSrcEnd));
+    if(!SetLengthForWriting(aDest, oldLength + Distance(aSrcStart, aSrcEnd)))
+        return;
 
     aDest.BeginWriting(writer).advance(oldLength);
     nsAString::const_iterator fromBegin(aSrcStart);
@@ -583,7 +578,7 @@ class CopyToUpperCase
       uint32_t
       write( const char* aSource, uint32_t aSourceLength )
         {
-          uint32_t len = XPCOM_MIN(uint32_t(mIter.size_forward()), aSourceLength);
+          uint32_t len = NS_MIN(uint32_t(mIter.size_forward()), aSourceLength);
           char* cp = mIter.get();
           const char* end = aSource + len;
           while (aSource != end) {
@@ -608,7 +603,8 @@ ToUpperCase( const nsACString& aSource, nsACString& aDest )
   {
     nsACString::const_iterator fromBegin, fromEnd;
     nsACString::iterator toBegin;
-    aDest.SetLength(aSource.Length());
+    if (!SetLengthForWritingC(aDest, aSource.Length()))
+        return;
 
     CopyToUpperCase converter(aDest.BeginWriting(toBegin));
     copy_string(aSource.BeginReading(fromBegin), aSource.EndReading(fromEnd), converter);
@@ -661,7 +657,7 @@ class CopyToLowerCase
       uint32_t
       write( const char* aSource, uint32_t aSourceLength )
         {
-          uint32_t len = XPCOM_MIN(uint32_t(mIter.size_forward()), aSourceLength);
+          uint32_t len = NS_MIN(uint32_t(mIter.size_forward()), aSourceLength);
           char* cp = mIter.get();
           const char* end = aSource + len;
           while (aSource != end) {
@@ -686,7 +682,8 @@ ToLowerCase( const nsACString& aSource, nsACString& aDest )
   {
     nsACString::const_iterator fromBegin, fromEnd;
     nsACString::iterator toBegin;
-    aDest.SetLength(aSource.Length());
+    if (!SetLengthForWritingC(aDest, aSource.Length()))
+        return;
 
     CopyToLowerCase converter(aDest.BeginWriting(toBegin));
     copy_string(aSource.BeginReading(fromBegin), aSource.EndReading(fromEnd), converter);

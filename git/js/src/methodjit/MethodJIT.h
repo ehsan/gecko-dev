@@ -8,8 +8,6 @@
 #if !defined jsjaeger_h__ && defined JS_METHODJIT
 #define jsjaeger_h__
 
-#include "mozilla/PodOperations.h"
-
 #ifdef JSGC_INCREMENTAL
 #define JSGC_INCREMENTAL_MJ
 #endif
@@ -220,7 +218,7 @@ struct VMFrame
     inline unsigned chunkIndex();
 
     /* Get the inner script/PC in case of inlining. */
-    inline JSScript *script();
+    inline Return<JSScript*> script();
     inline jsbytecode *pc();
 
 #if defined(JS_CPU_SPARC)
@@ -336,8 +334,10 @@ enum RejoinState {
     /* Triggered a recompilation while placing the arguments to an apply on the stack. */
     REJOIN_CALL_SPLAT,
 
-    /* Like REJOIN_FALLTHROUGH, but handles getprop used as part of JSOP_INSTANCEOF. */
+    /* FALLTHROUGH ops which can be implemented as part of an IncOp. */
     REJOIN_GETTER,
+    REJOIN_POS,
+    REJOIN_BINARY,
 
     /*
      * For an opcode fused with IFEQ/IFNE, call returns a boolean indicating
@@ -597,7 +597,6 @@ namespace mjit {
 
 struct InlineFrame;
 struct CallSite;
-struct CompileTrigger;
 
 struct NativeMapEntry {
     size_t          bcOff;  /* bytecode offset in script */
@@ -658,7 +657,6 @@ struct JITChunk
                                            .ncode values may not be NULL. */
     uint32_t        nInlineFrames;
     uint32_t        nCallSites;
-    uint32_t        nCompileTriggers;
     uint32_t        nRootedTemplates;
     uint32_t        nRootedRegExps;
     uint32_t        nMonitoredBytecodes;
@@ -689,7 +687,6 @@ struct JITChunk
     NativeMapEntry *nmap() const;
     js::mjit::InlineFrame *inlineFrames() const;
     js::mjit::CallSite *callSites() const;
-    js::mjit::CompileTrigger *compileTriggers() const;
     JSObject **rootedTemplates() const;
     RegExpShared **rootedRegExps() const;
 
@@ -750,7 +747,7 @@ struct ChunkDescriptor
     /* Optional compiled code for the chunk. */
     JITChunk *chunk;
 
-    ChunkDescriptor() { mozilla::PodZero(this); }
+    ChunkDescriptor() { PodZero(this); }
 };
 
 /* Jump or fallthrough edge in the bytecode which crosses a chunk boundary. */
@@ -786,7 +783,7 @@ struct CrossChunkEdge
      */
     void *shimLabel;
 
-    CrossChunkEdge() { mozilla::PodZero(this); }
+    CrossChunkEdge() { PodZero(this); }
 };
 
 struct JITScript
@@ -936,20 +933,18 @@ ReleaseScriptCode(FreeOp *fop, JSScript *script)
     script->destroyMJITInfo(fop);
 }
 
-// Cripple any JIT code for the specified script, such that the next time
-// execution reaches the script's entry or the OSR PC the script's code will
-// be destroyed.
+/* Can be called at any time. */
 void
-DisableScriptCodeForIon(JSScript *script, jsbytecode *osrPC);
+ReleaseScriptCodeFromVM(JSContext *cx, JSScript *script);
 
 // Expand all stack frames inlined by the JIT within a compartment.
 void
-ExpandInlineFrames(JS::Zone *zone);
+ExpandInlineFrames(JSCompartment *compartment);
 
 // Return all VMFrames in a compartment to the interpreter. This must be
 // followed by destroying all JIT code in the compartment.
 void
-ClearAllFrames(JS::Zone *zone);
+ClearAllFrames(JSCompartment *compartment);
 
 // Information about a frame inlined during compilation.
 struct InlineFrame
@@ -980,25 +975,6 @@ struct CallSite
 
     bool isTrap() const {
         return rejoin == REJOIN_TRAP;
-    }
-};
-
-// Information about a check inserted into the script for triggering Ion
-// compilation at a function or loop entry point.
-struct CompileTrigger
-{
-    uint32_t pcOffset;
-
-    // Offsets into the generated code of the conditional jump in the inline
-    // path and the start of the sync code for the trigger call in the out of
-    // line path.
-    JSC::CodeLocationJump inlineJump;
-    JSC::CodeLocationLabel stubLabel;
-
-    void initialize(uint32_t pcOffset, JSC::CodeLocationJump inlineJump, JSC::CodeLocationLabel stubLabel) {
-        this->pcOffset = pcOffset;
-        this->inlineJump = inlineJump;
-        this->stubLabel = stubLabel;
     }
 };
 
@@ -1037,7 +1013,7 @@ IsLowerableFunCallOrApply(jsbytecode *pc)
 #endif
 }
 
-RawShape
+Shape *
 GetPICSingleShape(JSContext *cx, JSScript *script, jsbytecode *pc, bool constructing);
 
 static inline void
@@ -1066,17 +1042,19 @@ VMFrame::chunkIndex()
     return jit()->chunkIndex(regs.pc);
 }
 
-inline JSScript *
+inline Return<JSScript*>
 VMFrame::script()
 {
+    AutoAssertNoGC nogc;
     if (regs.inlined())
-        return chunk()->inlineFrames()[regs.inlined()->inlineIndex].fun->nonLazyScript();
+        return chunk()->inlineFrames()[regs.inlined()->inlineIndex].fun->script();
     return fp()->script();
 }
 
 inline jsbytecode *
 VMFrame::pc()
 {
+    AutoAssertNoGC nogc;
     if (regs.inlined())
         return script()->code + regs.inlined()->pcOffset;
     return regs.pc;
@@ -1087,7 +1065,7 @@ VMFrame::pc()
 inline void *
 JSScript::nativeCodeForPC(bool constructing, jsbytecode *pc)
 {
-    js::mjit::JITScript *jit = getJIT(constructing, zone()->compileBarriers());
+    js::mjit::JITScript *jit = getJIT(constructing, compartment()->compileBarriers());
     if (!jit)
         return NULL;
     js::mjit::JITChunk *chunk = jit->chunk(pc);

@@ -9,7 +9,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/PContentChild.h"
-#include "mozilla/dom/TabContext.h"
 #include "mozilla/dom/ipc/Blob.h"
 
 #include "nsTArray.h"
@@ -79,10 +78,9 @@ public:
     AllocPImageBridge(mozilla::ipc::Transport* aTransport,
                       base::ProcessId aOtherProcess) MOZ_OVERRIDE;
 
-    virtual bool RecvSetProcessPrivileges(const ChildPrivileges& aPrivs);
-
-    virtual PBrowserChild* AllocPBrowser(const IPCTabContext &aContext,
-                                         const uint32_t &chromeFlags);
+    virtual PBrowserChild* AllocPBrowser(const uint32_t& aChromeFlags,
+                                         const bool& aIsBrowserElement,
+                                         const AppId& aAppId);
     virtual bool DeallocPBrowser(PBrowserChild*);
 
     virtual PDeviceStorageRequestChild* AllocPDeviceStorageRequest(const DeviceStorageParams&);
@@ -113,9 +111,6 @@ public:
     RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child);
 
     virtual bool
-    RecvAudioChannelNotify();
-
-    virtual bool
     RecvDumpMemoryReportsToFile(const nsString& aIdentifier,
                                 const bool& aMinimizeMemoryUsage,
                                 const bool& aDumpChildProcesses);
@@ -126,6 +121,11 @@ public:
     virtual PTestShellChild* AllocPTestShell();
     virtual bool DeallocPTestShell(PTestShellChild*);
     virtual bool RecvPTestShellConstructor(PTestShellChild*);
+
+    virtual PAudioChild* AllocPAudio(const int32_t&,
+                                     const int32_t&,
+                                     const int32_t&);
+    virtual bool DeallocPAudio(PAudioChild*);
 
     virtual PNeckoChild* AllocPNecko();
     virtual bool DeallocPNecko(PNeckoChild*);
@@ -184,10 +184,7 @@ public:
     virtual bool RecvLastPrivateDocShellDestroyed();
 
     virtual bool RecvFilePathUpdate(const nsString& type, const nsString& path, const nsCString& reason);
-    virtual bool RecvFileSystemUpdate(const nsString& aFsName,
-                                      const nsString& aName,
-                                      const int32_t& aState,
-                                      const int32_t& aMountGeneration);
+    virtual bool RecvFileSystemUpdate(const nsString& aFsName, const nsString& aName, const int32_t& aState);
 
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }
@@ -203,11 +200,6 @@ public:
     bool IsForBrowser() { return mIsForBrowser; }
 
     BlobChild* GetOrCreateActorForBlob(nsIDOMBlob* aBlob);
-
-protected:
-    virtual bool RecvPBrowserConstructor(PBrowserChild* actor,
-                                         const IPCTabContext& context,
-                                         const uint32_t& chromeFlags);
 
 private:
     virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;

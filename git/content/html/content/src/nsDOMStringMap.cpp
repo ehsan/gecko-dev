@@ -7,16 +7,16 @@
 #include "nsError.h"
 #include "nsDOMStringMap.h"
 
+#include "nsDOMClassInfoID.h"
 #include "nsGenericHTMLElement.h"
 #include "nsContentUtils.h"
-#include "mozilla/dom/DOMStringMapBinding.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
+DOMCI_DATA(DOMStringMap, nsDOMStringMap)
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMStringMap)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMStringMap)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElement)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mElement)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMStringMap)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
@@ -34,7 +34,9 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMStringMap)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsIDOMDOMStringMap)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(DOMStringMap)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMStringMap)
@@ -44,7 +46,6 @@ nsDOMStringMap::nsDOMStringMap(nsGenericHTMLElement* aElement)
   : mElement(aElement),
     mRemovingProp(false)
 {
-  SetIsDOMBinding();
 }
 
 nsDOMStringMap::~nsDOMStringMap()
@@ -56,58 +57,84 @@ nsDOMStringMap::~nsDOMStringMap()
   }
 }
 
-/* virtual */
-JSObject*
-nsDOMStringMap::WrapObject(JSContext *cx, JSObject *scope)
+class nsDOMStringMapRemoveProp : public nsRunnable {
+public:
+  nsDOMStringMapRemoveProp(nsDOMStringMap* aDataset, nsIAtom* aProperty)
+  : mDataset(aDataset),
+    mProperty(aProperty)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    return mDataset->RemovePropInternal(mProperty);
+  }
+
+  virtual ~nsDOMStringMapRemoveProp()
+  {
+  }
+
+protected:
+  nsRefPtr<nsDOMStringMap> mDataset;
+  nsCOMPtr<nsIAtom> mProperty;
+};
+
+/* [notxpcom] boolean hasDataAttr (in DOMString prop); */
+NS_IMETHODIMP_(bool) nsDOMStringMap::HasDataAttr(const nsAString& aProp)
 {
-  return DOMStringMapBinding::Wrap(cx, scope, this);
+  nsAutoString attr;
+  if (!DataPropToAttr(aProp, attr)) {
+    return false;
+  }
+
+  nsCOMPtr<nsIAtom> attrAtom = do_GetAtom(attr);
+  if (!attrAtom) {
+    return false;
+  }
+
+  return mElement->HasAttr(kNameSpaceID_None, attrAtom);
 }
 
-void
-nsDOMStringMap::NamedGetter(const nsAString& aProp, bool& found,
-                            nsString& aResult) const
+/* [noscript] DOMString getDataAttr (in DOMString prop); */
+NS_IMETHODIMP nsDOMStringMap::GetDataAttr(const nsAString& aProp,
+                                          nsAString& aResult)
 {
   nsAutoString attr;
 
   if (!DataPropToAttr(aProp, attr)) {
-    found = false;
-    return;
+    aResult.SetIsVoid(true);
+    return NS_OK;
   }
 
   nsCOMPtr<nsIAtom> attrAtom = do_GetAtom(attr);
-  MOZ_ASSERT(attrAtom, "Should be infallible");
+  NS_ENSURE_TRUE(attrAtom, NS_ERROR_OUT_OF_MEMORY);
 
-  found = mElement->GetAttr(kNameSpaceID_None, attrAtom, aResult);
+  if (!mElement->GetAttr(kNameSpaceID_None, attrAtom, aResult)) {
+    aResult.SetIsVoid(true);
+    return NS_OK;
+  }
+
+  return NS_OK;
 }
 
-void
-nsDOMStringMap::NamedSetter(const nsAString& aProp,
-                            const nsAString& aValue,
-                            ErrorResult& rv)
+/* [noscript] void setDataAttr (in DOMString prop, in DOMString value); */
+NS_IMETHODIMP nsDOMStringMap::SetDataAttr(const nsAString& aProp,
+                                          const nsAString& aValue)
 {
   nsAutoString attr;
-  if (!DataPropToAttr(aProp, attr)) {
-    rv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
-    return;
-  }
+  NS_ENSURE_TRUE(DataPropToAttr(aProp, attr), NS_ERROR_DOM_SYNTAX_ERR);
 
-  nsresult res = nsContentUtils::CheckQName(attr, false);
-  if (NS_FAILED(res)) {
-    rv.Throw(res);
-    return;
-  }
+  nsresult rv = nsContentUtils::CheckQName(attr, false);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIAtom> attrAtom = do_GetAtom(attr);
-  MOZ_ASSERT(attrAtom, "Should be infallible");
+  NS_ENSURE_TRUE(attrAtom, NS_ERROR_OUT_OF_MEMORY);
 
-  res = mElement->SetAttr(kNameSpaceID_None, attrAtom, aValue, true);
-  if (NS_FAILED(res)) {
-    rv.Throw(res);
-  }
+  return mElement->SetAttr(kNameSpaceID_None, attrAtom, aValue, true);
 }
 
-void
-nsDOMStringMap::NamedDeleter(const nsAString& aProp, bool& found)
+/* [notxpcom] void removeDataAttr (in DOMString prop); */
+NS_IMETHODIMP_(void) nsDOMStringMap::RemoveDataAttr(const nsAString& aProp)
 {
   // Currently removing property, attribute is already removed.
   if (mRemovingProp) {
@@ -120,19 +147,60 @@ nsDOMStringMap::NamedDeleter(const nsAString& aProp, bool& found)
   }
 
   nsCOMPtr<nsIAtom> attrAtom = do_GetAtom(attr);
-  MOZ_ASSERT(attrAtom, "Should be infallible");
-
-  found = mElement->HasAttr(kNameSpaceID_None, attrAtom);
-
-  if (found) {
-    mRemovingProp = true;
-    mElement->UnsetAttr(kNameSpaceID_None, attrAtom, true);
-    mRemovingProp = false;
+  if (!attrAtom) {
+    return;
   }
+
+  mElement->UnsetAttr(kNameSpaceID_None, attrAtom, true);
 }
 
-void
-nsDOMStringMap::GetSupportedNames(nsTArray<nsString>& aNames)
+nsGenericHTMLElement* nsDOMStringMap::GetElement()
+{
+  return mElement;
+}
+
+/* [notxpcom] void removeProp (in nsIAtom attr); */
+NS_IMETHODIMP_(void) nsDOMStringMap::RemoveProp(nsIAtom* aAttr)
+{
+  nsContentUtils::AddScriptRunner(new nsDOMStringMapRemoveProp(this, aAttr));
+}
+
+nsresult nsDOMStringMap::RemovePropInternal(nsIAtom* aAttr)
+{
+  nsAutoString attr;
+  aAttr->ToString(attr);
+  nsAutoString prop;
+  NS_ENSURE_TRUE(AttrToDataProp(attr, prop), NS_OK);
+
+  jsval val;
+  JSContext* cx = nsContentUtils::GetCurrentJSContext();
+  nsresult rv = nsContentUtils::WrapNative(cx, JS_GetGlobalForScopeChain(cx),
+                                           this, &val);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  JSAutoCompartment ac(cx, JSVAL_TO_OBJECT(val));
+
+  // Guard against infinite recursion. Prevents the stack from looking like
+  // ...
+  // RemoveProp
+  // ...
+  // RemoveDataAttr
+  // ...
+  // RemoveProp
+  mRemovingProp = true;
+  jsval dummy;
+  JS_DeleteUCProperty2(cx, JSVAL_TO_OBJECT(val), prop.get(), prop.Length(),
+                       &dummy);
+  mRemovingProp = false;
+
+  return NS_OK;
+}
+
+/**
+ * Returns a list of dataset properties corresponding to the data
+ * attributes on the element.
+ */
+nsresult nsDOMStringMap::GetDataPropList(nsTArray<nsString>& aResult)
 {
   uint32_t attrCount = mElement->GetAttrCount();
 
@@ -141,10 +209,6 @@ nsDOMStringMap::GetSupportedNames(nsTArray<nsString>& aNames)
   for (uint32_t i = 0; i < attrCount; ++i) {
     nsAutoString attrString;
     const nsAttrName* attrName = mElement->GetAttrNameAt(i);
-    // Skip the ones that are not in the null namespace
-    if (attrName->NamespaceID() != kNameSpaceID_None) {
-      continue;
-    }
     attrName->LocalName()->ToString(attrString);
 
     nsAutoString prop;
@@ -152,8 +216,10 @@ nsDOMStringMap::GetSupportedNames(nsTArray<nsString>& aNames)
       continue;
     }
 
-    aNames.AppendElement(prop);
+    aResult.AppendElement(prop);
   }
+
+  return NS_OK;
 }
 
 /**

@@ -18,8 +18,8 @@ public:
   NS_DECL_NSIDOMFONTFACE
 
   nsFontFace(gfxFontEntry*      aFontEntry,
-             gfxFontGroup*      aFontGroup,
-             uint8_t            aMatchInfo);
+             uint8_t            aMatchInfo,
+             nsCSSFontFaceRule* aRule);
   virtual ~nsFontFace();
 
   gfxFontEntry* GetFontEntry() const { return mFontEntry.get(); }
@@ -30,7 +30,7 @@ public:
 
 protected:
   nsRefPtr<gfxFontEntry> mFontEntry;
-  nsRefPtr<gfxFontGroup> mFontGroup;
+  nsRefPtr<nsCSSFontFaceRule> mRule;
   uint8_t mMatchType;
 };
 

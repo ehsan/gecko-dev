@@ -14,6 +14,7 @@ import codecs
 import contextlib
 import httplib
 import os
+import pexpect
 import random
 import shutil
 import socket
@@ -23,7 +24,7 @@ import tempfile
 import time
 
 from pylib import constants
-from pylib import pexpect
+
 
 class LighttpdServer(object):
   """Wraps lighttpd server, providing robust startup.

@@ -1200,7 +1200,7 @@ init_declarator_list
         if (context->structQualifierErrorCheck($3.line, $$.type))
             context->recover();
 
-        if (context->nonInitConstErrorCheck($3.line, *$3.string, $$.type, false))
+        if (context->nonInitConstErrorCheck($3.line, *$3.string, $$.type))
             context->recover();
 
         TVariable* variable = 0;
@@ -1213,7 +1213,7 @@ init_declarator_list
         if (context->structQualifierErrorCheck($3.line, $1.type))
             context->recover();
 
-        if (context->nonInitConstErrorCheck($3.line, *$3.string, $1.type, true))
+        if (context->nonInitConstErrorCheck($3.line, *$3.string, $1.type))
             context->recover();
 
         $$ = $1;
@@ -1231,7 +1231,7 @@ init_declarator_list
         if (context->structQualifierErrorCheck($3.line, $1.type))
             context->recover();
 
-        if (context->nonInitConstErrorCheck($3.line, *$3.string, $1.type, true))
+        if (context->nonInitConstErrorCheck($3.line, *$3.string, $1.type))
             context->recover();
 
         $$ = $1;
@@ -1285,7 +1285,7 @@ single_declaration
         if (context->structQualifierErrorCheck($2.line, $$.type))
             context->recover();
 
-        if (context->nonInitConstErrorCheck($2.line, *$2.string, $$.type, false))
+        if (context->nonInitConstErrorCheck($2.line, *$2.string, $$.type))
             context->recover();
             
             $$.type = $1;
@@ -1316,7 +1316,7 @@ single_declaration
         if (context->structQualifierErrorCheck($2.line, $1))
             context->recover();
 
-        if (context->nonInitConstErrorCheck($2.line, *$2.string, $1, true))
+        if (context->nonInitConstErrorCheck($2.line, *$2.string, $1))
             context->recover();
 
         $$.type = $1;

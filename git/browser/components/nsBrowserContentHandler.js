@@ -5,11 +5,6 @@
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
-                                  "resource://gre/modules/PrivateBrowsingUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "RecentWindow",
-                                  "resource:///modules/RecentWindow.jsm");
-
 const nsISupports            = Components.interfaces.nsISupports;
 
 const nsIBrowserDOMWindow    = Components.interfaces.nsIBrowserDOMWindow;
@@ -82,8 +77,6 @@ function resolveURIInternal(aCmdLine, aArgument) {
 
   return uri;
 }
-
-var gFirstWindow = false;
 
 const OVERRIDE_NONE        = 0;
 const OVERRIDE_NEW_PROFILE = 1;
@@ -299,6 +292,13 @@ function getMostRecentWindow(aType) {
   return wm.getMostRecentWindow(aType);
 }
 
+// this returns the most recent non-popup browser window
+function getMostRecentBrowserWindow() {
+  var browserGlue = Components.classes["@mozilla.org/browser/browserglue;1"]
+                              .getService(Components.interfaces.nsIBrowserGlue);
+  return browserGlue.getMostRecentBrowserWindow();
+}
+
 function doSearch(searchTerm, cmdLine) {
   var ss = Components.classes["@mozilla.org/browser/search-service;1"]
                      .getService(nsIBrowserSearchService);
@@ -511,23 +511,13 @@ nsBrowserContentHandler.prototype = {
     }
     if (cmdLine.handleFlag("silent", false))
       cmdLine.preventDefault = true;
-    if (cmdLine.handleFlag("private-window", false)) {
-      openWindow(null, this.chromeURL, "_blank",
-        "chrome,dialog=no,private,all" + this.getFeatures(cmdLine),
-        "about:privatebrowsing");
+    if (cmdLine.findFlag("private-toggle", false) >= 0)
       cmdLine.preventDefault = true;
-    }
 
     var searchParam = cmdLine.handleFlagWithParam("search", false);
     if (searchParam) {
       doSearch(searchParam, cmdLine);
       cmdLine.preventDefault = true;
-    }
-
-    // The global PB Service consumes this flag, so only eat it in per-window
-    // PB builds.
-    if (cmdLine.handleFlag("private", false)) {
-      PrivateBrowsingUtils.enterTemporaryAutoStartMode();
     }
 
     var fileParam = cmdLine.handleFlagWithParam("file", false);
@@ -572,13 +562,6 @@ nsBrowserContentHandler.prototype = {
   get defaultArgs() {
     var prefb = Components.classes["@mozilla.org/preferences-service;1"]
                           .getService(nsIPrefBranch);
-
-    if (!gFirstWindow) {
-      gFirstWindow = true;
-      if (PrivateBrowsingUtils.isInTemporaryAutoStartMode) {
-        return "about:privatebrowsing";
-      }
-    }
 
     var overridePage = "";
     var haveUpdateSession = false;
@@ -669,12 +652,6 @@ nsBrowserContentHandler.prototype = {
       }
       catch (e) {
       }
-
-      // The global PB Service consumes this flag, so only eat it in per-window
-      // PB builds.
-      if (PrivateBrowsingUtils.isInTemporaryAutoStartMode) {
-        this.mFeatures = ",private";
-      }
     }
 
     return this.mFeatures;
@@ -721,9 +698,7 @@ function handURIToExistingBrowser(uri, location, cmdLine)
   if (!shouldLoadURI(uri))
     return;
 
-  // Do not open external links in private windows, unless we're in perma-private mode
-  var allowPrivate = PrivateBrowsingUtils.permanentPrivateBrowsing;
-  var navWin = RecentWindow.getMostRecentBrowserWindow({private: allowPrivate});
+  var navWin = getMostRecentBrowserWindow();
   if (!navWin) {
     // if we couldn't load it in an existing window, open a new one
     openWindow(null, gBrowserContentHandler.chromeURL, "_blank",
@@ -850,4 +825,4 @@ nsDefaultCommandLineHandler.prototype = {
 };
 
 var components = [nsBrowserContentHandler, nsDefaultCommandLineHandler];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

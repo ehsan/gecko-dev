@@ -5,22 +5,24 @@
 "use strict";
 
 SimpleTest.waitForExplicitFinish();
-browserElementTestHelpers.setEnabledPref(true);
-browserElementTestHelpers.addPermission();
 
 var iframeScript = function() {
-  content.document.addEventListener("visibilitychange", function() {
+  content.document.addEventListener("mozvisibilitychange", function() {
     sendAsyncMessage('test:visibilitychange', {
-      hidden: content.document.hidden
+      hidden: content.document.mozHidden
     });
   }, false);
 }
 
 function runTest() {
+
+  browserElementTestHelpers.setEnabledPref(true);
+  browserElementTestHelpers.addPermission();
+
   var mm;
   var numEvents = 0;
   var iframe1 = document.createElement('iframe');
-  SpecialPowers.wrap(iframe1).mozbrowser = true;
+  iframe1.mozbrowser = true;
   iframe1.src = 'data:text/html,1';
 
   document.body.appendChild(iframe1);
@@ -30,39 +32,22 @@ function runTest() {
     numEvents++;
     if (numEvents === 1) {
       ok(true, 'iframe recieved visibility changed');
-      ok(msg.json.hidden === true, 'hidden attribute correctly set');
+      ok(msg.json.hidden === true, 'mozHidden attribute correctly set');
       iframe1.setVisible(false);
       iframe1.setVisible(true);
     } else if (numEvents === 2) {
-      ok(msg.json.hidden === false, 'hidden attribute correctly set');
+      ok(msg.json.hidden === false, 'mozHidden attribute correctly set');
       // Allow some time in case we generate too many events
       setTimeout(function() {
         mm.removeMessageListener('test:visibilitychange', recvVisibilityChanged);
         SimpleTest.finish();
       }, 100);
     } else {
-      ok(false, 'Too many visibilitychange events');
+      ok(false, 'Too many mozhidden events');
     }
   }
 
   function iframeLoaded() {
-    testGetVisible();
-  }
-
-  function testGetVisible() {
-    iframe1.setVisible(false);
-    iframe1.getVisible().onsuccess = function(evt) {
-      ok(evt.target.result === false, 'getVisible() responds false after setVisible(false)');
-
-      iframe1.setVisible(true);
-      iframe1.getVisible().onsuccess = function(evt) {
-        ok(evt.target.result === true, 'getVisible() responds true after setVisible(true)');
-        testVisibilityChanges();
-      };
-    };
-  }
-
-  function testVisibilityChanges() {
     mm = SpecialPowers.getBrowserFrameMessageManager(iframe1);
     mm.addMessageListener('test:visibilitychange', recvVisibilityChanged);
     mm.loadFrameScript('data:,(' + iframeScript.toString() + ')();', false);
@@ -72,4 +57,6 @@ function runTest() {
   iframe1.addEventListener('mozbrowserloadend', iframeLoaded);
 }
 
-addEventListener('testready', runTest);
+addEventListener('load', function() { SimpleTest.executeSoon(runTest); });
+
+

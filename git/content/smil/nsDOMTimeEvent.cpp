@@ -9,9 +9,8 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsDOMClassInfoID.h"
 
-nsDOMTimeEvent::nsDOMTimeEvent(mozilla::dom::EventTarget* aOwner,
-                               nsPresContext* aPresContext, nsEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext, aEvent ? aEvent : new nsUIEvent(false, 0, 0)),
+nsDOMTimeEvent::nsDOMTimeEvent(nsPresContext* aPresContext, nsEvent* aEvent)
+  : nsDOMEvent(aPresContext, aEvent ? aEvent : new nsUIEvent(false, 0, 0)),
     mDetail(0)
 {
   if (aEvent) {
@@ -26,8 +25,8 @@ nsDOMTimeEvent::nsDOMTimeEvent(mozilla::dom::EventTarget* aOwner,
     mDetail = event->detail;
   }
 
-  mEvent->mFlags.mBubbles = false;
-  mEvent->mFlags.mCancelable = false;
+  mEvent->flags |= NS_EVENT_FLAG_CANT_BUBBLE |
+                   NS_EVENT_FLAG_CANT_CANCEL;
 
   if (mPresContext) {
     nsCOMPtr<nsISupports> container = mPresContext->GetContainer();
@@ -40,12 +39,14 @@ nsDOMTimeEvent::nsDOMTimeEvent(mozilla::dom::EventTarget* aOwner,
   }
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMTimeEvent)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMTimeEvent, nsDOMEvent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mView)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mView)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMTimeEvent, nsDOMEvent)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mView)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mView)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsDOMTimeEvent, nsDOMEvent)
@@ -89,10 +90,9 @@ nsDOMTimeEvent::InitTimeEvent(const nsAString& aTypeArg,
 }
 
 nsresult NS_NewDOMTimeEvent(nsIDOMEvent** aInstancePtrResult,
-                            mozilla::dom::EventTarget* aOwner,
                             nsPresContext* aPresContext,
                             nsEvent* aEvent)
 {
-  nsDOMTimeEvent* it = new nsDOMTimeEvent(aOwner, aPresContext, aEvent);
+  nsDOMTimeEvent* it = new nsDOMTimeEvent(aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }

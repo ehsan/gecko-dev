@@ -4,6 +4,7 @@ srcdir          = @srcdir@
 VPATH           = @srcdir@
 relativesrcdir  = @relativesrcdir@
 
+MODULE          = test_domsystem
 MOCHITEST_CHROME_FILES = \
 	test_constants.xul \
 	worker_constants.js \

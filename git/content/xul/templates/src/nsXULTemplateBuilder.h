@@ -8,6 +8,7 @@
 
 #include "nsStubDocumentObserver.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsIContent.h"
 #include "nsIObserver.h"
 #include "nsIRDFCompositeDataSource.h"
 #include "nsIRDFContainer.h"
@@ -17,6 +18,7 @@
 #include "nsIRDFService.h"
 #include "nsIXULTemplateBuilder.h"
 
+#include "nsFixedSizeAllocator.h"
 #include "nsCOMArray.h"
 #include "nsTArray.h"
 #include "nsDataHashtable.h"
@@ -30,10 +32,9 @@
 extern PRLogModuleInfo* gXULTemplateLog;
 #endif
 
-class nsIContent;
-class nsIObserverService;
-class nsIRDFCompositeDataSource;
 class nsIXULDocument;
+class nsIRDFCompositeDataSource;
+class nsIObserverService;
 
 /**
  * An object that translates an RDF graph into a presentation using a
@@ -381,6 +382,16 @@ protected:
      */
     nsDataHashtable<nsISupportsHashKey, nsTemplateMatch*> mMatchMap;
 
+    /**
+     * Fixed size allocator used to allocate matches
+     */
+    nsFixedSizeAllocator mPool;
+
+public:
+
+    nsFixedSizeAllocator& GetPool() { return mPool; }
+
+protected:
     // pseudo-constants
     static nsrefcnt gRefCnt;
     static nsIRDFService*            gRDFService;

@@ -6,7 +6,7 @@ MARIONETTE_TIMEOUT = 10000;
 SpecialPowers.addPermission("telephony", true, document);
 
 let telephony = window.navigator.mozTelephony;
-let number = "****5555552368****";
+let number = "not a valid phone number";
 let outgoing;
 let calls;
 
@@ -21,12 +21,7 @@ function verifyInitialState() {
   runEmulatorCmd("gsm list", function(result) {
     log("Initial call list: " + result);
     is(result[0], "OK");
-    if (result[0] == "OK") {
-      dial();
-    } else {
-      log("Call exists from a previous test, failing out.");
-      cleanUp();
-    }
+    dial();
   });
 }
 
@@ -38,16 +33,16 @@ function dial() {
   is(outgoing.number, number);
   is(outgoing.state, "dialing");
 
-  is(outgoing, telephony.active);
-  //ok(telephony.calls === calls); // bug 717414
-  is(telephony.calls.length, 1);
-  is(telephony.calls[0], outgoing);
+  //is(outgoing, telephony.active); // bug 757587
+  //ok(telephony.calls === calls); // bug 757587
+  //is(calls.length, 1); // bug 757587
+  //is(calls[0], outgoing); // bug 757587
 
   outgoing.onerror = function onerror(event) {
     log("Received 'error' event.");
     is(event.call, outgoing);
-    ok(event.call.error);
-    is(event.call.error.name, "BadNumberError");
+    ok(call.error);
+    is(call.error.name, "BadNumberError");
 
     runEmulatorCmd("gsm list", function(result) {
       log("Initial call list: " + result);

@@ -129,9 +129,7 @@ void CloseSuperfluousFds(const base::InjectiveMultimap& saved_map);
 enum ChildPrivileges {
   PRIVILEGES_DEFAULT,
   PRIVILEGES_UNPRIVILEGED,
-  PRIVILEGES_CAMERA,
-  PRIVILEGES_INHERIT,
-  PRIVILEGES_LAST
+  PRIVILEGES_INHERIT
 };
 
 #if defined(OS_WIN)
@@ -179,11 +177,8 @@ bool LaunchApp(const std::vector<std::string>& argv,
                const environment_map& env_vars_to_set,
                bool wait, ProcessHandle* process_handle,
                ProcessArchitecture arch=GetCurrentProcessArchitecture());
-#endif
 
-// Adjust the privileges of this process to match |privs|.  Only
-// returns if privileges were successfully adjusted.
-void SetCurrentProcessPrivileges(ChildPrivileges privs);
+#endif
 
 // Executes the application specified by cl. This function delegates to one
 // of the above two platform-specific functions.

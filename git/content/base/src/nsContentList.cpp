@@ -14,17 +14,13 @@
 #include "nsIContent.h"
 #include "nsIDOMNode.h"
 #include "nsIDocument.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsContentUtils.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsGkAtoms.h"
 #include "mozilla/dom/HTMLCollectionBinding.h"
 #include "mozilla/dom/NodeListBinding.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/Likely.h"
-#include "nsGenericHTMLElement.h"
-#include <algorithm>
 
 // Form related includes
 #include "nsIDOMHTMLFormElement.h"
@@ -44,17 +40,18 @@ nsBaseContentList::~nsBaseContentList()
 {
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsBaseContentList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsBaseContentList)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mElements)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSTARRAY(mElements)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsBaseContentList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
   if (nsCCUncollectableMarker::sGeneration && tmp->IsBlack() &&
-      MOZ_LIKELY(!cb.WantAllTraces())) {
+      NS_LIKELY(!cb.WantAllTraces())) {
     return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mElements)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mElements)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsBaseContentList)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
@@ -67,7 +64,7 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsBaseContentList)
       if (c->IsPurple()) {
         c->RemovePurple();
       }
-      Element::MarkNodeChildren(c);
+      nsGenericElement::MarkNodeChildren(c);
     }
     return true;
   }
@@ -85,11 +82,17 @@ NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_THIS_END
     NS_INTERFACE_TABLE_ENTRY(_class, nsINodeList)                             \
     NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMNodeList)
 
+DOMCI_DATA(NodeList, nsBaseContentList)
+
 // QueryInterface implementation for nsBaseContentList
 NS_INTERFACE_TABLE_HEAD(nsBaseContentList)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
-  NS_INTERFACE_TABLE2(nsBaseContentList, nsINodeList, nsIDOMNodeList)
-  NS_INTERFACE_TABLE_TO_MAP_SEGUE_CYCLE_COLLECTION(nsBaseContentList)
+  NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsBaseContentList)
+    NS_CONTENT_LIST_INTERFACES(nsBaseContentList)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsBaseContentList)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NodeList)
 NS_INTERFACE_MAP_END
 
 
@@ -138,13 +141,14 @@ nsBaseContentList::IndexOf(nsIContent* aContent)
   return IndexOf(aContent, true);
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsSimpleContentList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsSimpleContentList,
                                                   nsBaseContentList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRoot)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRoot)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsSimpleContentList,
                                                 nsBaseContentList)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRoot)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRoot)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsSimpleContentList)
@@ -155,9 +159,10 @@ NS_IMPL_ADDREF_INHERITED(nsSimpleContentList, nsBaseContentList)
 NS_IMPL_RELEASE_INHERITED(nsSimpleContentList, nsBaseContentList)
 
 JSObject*
-nsSimpleContentList::WrapObject(JSContext *cx, JSObject *scope)
+nsSimpleContentList::WrapObject(JSContext *cx, JSObject *scope,
+                                bool *triedToWrap)
 {
-  return NodeListBinding::Wrap(cx, scope, this);
+  return NodeListBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 // nsFormContentList
@@ -288,16 +293,18 @@ const nsCacheableFuncStringContentList::ContentListType
 #endif
 
 JSObject*
-nsCacheableFuncStringNodeList::WrapObject(JSContext *cx, JSObject *scope)
+nsCacheableFuncStringNodeList::WrapObject(JSContext *cx, JSObject *scope,
+                                          bool *triedToWrap)
 {
-  return NodeListBinding::Wrap(cx, scope, this);
+  return NodeListBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 
 JSObject*
-nsCacheableFuncStringHTMLCollection::WrapObject(JSContext *cx, JSObject *scope)
+nsCacheableFuncStringHTMLCollection::WrapObject(JSContext *cx, JSObject *scope,
+                                                bool *triedToWrap)
 {
-  return HTMLCollectionBinding::Wrap(cx, scope, this);
+  return HTMLCollectionBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 // Hashtable for storing nsCacheableFuncStringContentList
@@ -513,14 +520,28 @@ nsContentList::~nsContentList()
 }
 
 JSObject*
-nsContentList::WrapObject(JSContext *cx, JSObject *scope)
+nsContentList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  return HTMLCollectionBinding::Wrap(cx, scope, this);
+  return HTMLCollectionBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
-NS_IMPL_ISUPPORTS_INHERITED3(nsContentList, nsBaseContentList,
-                             nsIHTMLCollection, nsIDOMHTMLCollection,
-                             nsIMutationObserver)
+DOMCI_DATA(ContentList, nsContentList)
+
+// QueryInterface implementation for nsContentList
+NS_INTERFACE_TABLE_HEAD(nsContentList)
+  NS_NODELIST_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsContentList)
+    NS_CONTENT_LIST_INTERFACES(nsContentList)
+    NS_INTERFACE_TABLE_ENTRY(nsContentList, nsIHTMLCollection)
+    NS_INTERFACE_TABLE_ENTRY(nsContentList, nsIDOMHTMLCollection)
+    NS_INTERFACE_TABLE_ENTRY(nsContentList, nsIMutationObserver)
+  NS_OFFSET_AND_INTERFACE_TABLE_END
+  NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(ContentList)
+NS_INTERFACE_MAP_END_INHERITING(nsBaseContentList)
+
+
+NS_IMPL_ADDREF_INHERITED(nsContentList, nsBaseContentList)
+NS_IMPL_RELEASE_INHERITED(nsContentList, nsBaseContentList)
 
 uint32_t
 nsContentList::Length(bool aDoFlush)
@@ -543,7 +564,7 @@ nsContentList::Item(uint32_t aIndex, bool aDoFlush)
   }
 
   if (mState != LIST_UP_TO_DATE)
-    PopulateSelf(std::min(aIndex, UINT32_MAX - 1) + 1);
+    PopulateSelf(NS_MIN(aIndex, UINT32_MAX - 1) + 1);
 
   ASSERT_IN_SYNC;
   NS_ASSERTION(!mRootNode || mState != LIST_DIRTY,
@@ -576,42 +597,6 @@ nsContentList::NamedItem(const nsAString& aName, bool aDoFlush)
   }
 
   return nullptr;
-}
-
-void
-nsContentList::GetSupportedNames(nsTArray<nsString>& aNames)
-{
-  BringSelfUpToDate(true);
-
-  nsAutoTArray<nsIAtom*, 8> atoms;
-  for (uint32_t i = 0; i < mElements.Length(); ++i) {
-    nsIContent *content = mElements.ElementAt(i);
-    nsGenericHTMLElement* el = nsGenericHTMLElement::FromContent(content);
-    if (el) {
-      // XXXbz should we be checking for particular tags here?  How
-      // stable is this part of the spec?
-      // Note: nsINode::HasName means the name is exposed on the document,
-      // which is false for options, so we don't check it here.
-      const nsAttrValue* val = el->GetParsedAttr(nsGkAtoms::name);
-      if (val && val->Type() == nsAttrValue::eAtom) {
-        nsIAtom* name = val->GetAtomValue();
-        if (!atoms.Contains(name)) {
-          atoms.AppendElement(name);
-        }
-      }
-    }
-    if (content->HasID()) {
-      nsIAtom* id = content->GetID();
-      if (!atoms.Contains(id)) {
-        atoms.AppendElement(id);
-      }
-    }
-  }
-
-  aNames.SetCapacity(atoms.Length());
-  for (uint32_t i = 0; i < atoms.Length(); ++i) {
-    aNames.AppendElement(nsDependentAtomString(atoms[i]));
-  }
 }
 
 int32_t
@@ -677,10 +662,10 @@ nsContentList::NamedItem(const nsAString& aName, nsIDOMNode** aReturn)
   return NS_OK;
 }
 
-Element*
+nsGenericElement*
 nsContentList::GetElementAt(uint32_t aIndex)
 {
-  return static_cast<Element*>(Item(aIndex, true));
+  return static_cast<nsGenericElement*>(Item(aIndex, true));
 }
 
 nsIContent*

@@ -105,19 +105,21 @@ sip_sdp_init (void)
 }
 
 /*
- * sipsdp_create()
+ * sip_sdp_create()
  *
  * Allocate a standard SDP with SIP config and set debug options
  * based on ccsip debug settings
  */
-sdp_t *
-sipsdp_create (const char *peerconnection)
+void *
+sipsdp_create (void)
 {
-    sdp_t *sdp;
+    const char *fname = "sipsdp_create :";
+    void *sdp;
+//    char debug_str[80];
 
-    sdp = sdp_init_description(peerconnection, ccsip_sdp_config);
+    sdp = sdp_init_description(ccsip_sdp_config);
     if (!sdp) {
-        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"SDP allocation failure\n", __FUNCTION__);
+        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"SDP allocation failure\n", fname);
         return (NULL);
     }
 
@@ -280,8 +282,7 @@ sipsdp_src_dest_free (uint16_t flags, cc_sdp_t **sdp_info)
  *          NULL                         - failure to allocate storage
  */
 void
-sipsdp_src_dest_create (const char *peerconnection,
-    uint16_t flags, cc_sdp_t **sdp_info)
+sipsdp_src_dest_create (uint16_t flags, cc_sdp_t **sdp_info)
 {
 
     if (!(*sdp_info)) {
@@ -293,7 +294,7 @@ sipsdp_src_dest_create (const char *peerconnection,
 
     /* Create the SRC and/or DEST SDP */
     if (flags & CCSIP_SRC_SDP_BIT) {
-        (*sdp_info)->src_sdp = sipsdp_create(peerconnection);
+        (*sdp_info)->src_sdp = sipsdp_create();
         if (!((*sdp_info)->src_sdp)) {
             sipsdp_src_dest_free(flags, sdp_info);
             return;
@@ -301,12 +302,56 @@ sipsdp_src_dest_create (const char *peerconnection,
     }
 
     if (flags & CCSIP_DEST_SDP_BIT) {
-        (*sdp_info)->dest_sdp = sipsdp_create(peerconnection);
+        (*sdp_info)->dest_sdp = sipsdp_create();
         if (!((*sdp_info)->dest_sdp)) {
             sipsdp_src_dest_free(flags, sdp_info);
             return;
         }
     }
+}
+
+/*
+ * sipsdp_create_from_buf()
+ *
+ * Parse buffer into common SDP structure
+ *
+ * Returns: NULL if non-recoverable error encountered
+ *
+ */
+cc_sdp_t *
+sipsdp_create_from_buf (char *buf, uint32_t nbytes, cc_sdp_t *sdp)
+{
+    const char *fname = "sipsdp_create_from_buf";
+    cc_sdp_t *sip_info = NULL;
+
+    if (!buf) {
+        return (NULL);
+    }
+
+    if (sdp) {
+        sip_info = sdp;
+    } else {
+        sipsdp_src_dest_create(CCSIP_DEST_SDP_BIT | CCSIP_SRC_SDP_BIT,
+                               &sip_info);
+    }
+
+    if (!sip_info) {
+        /*
+         * make sure that the src_sdp and dest_sdp are
+         * valid as well.
+         */
+        return (NULL);
+    }
+
+
+    if (sdp_parse(sip_info->dest_sdp, &buf, (uint16_t)nbytes) != SDP_SUCCESS) {
+        sipsdp_src_dest_free(CCSIP_DEST_SDP_BIT | CCSIP_SRC_SDP_BIT,
+                             &sip_info);
+        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"Error parsing SDP\n", fname);
+        return (NULL);
+    }
+
+    return (sip_info);
 }
 
 /*
@@ -322,7 +367,7 @@ sipsdp_src_dest_create (const char *peerconnection,
  *                              and by examining SDP library error counters.
  */
 char *
-sipsdp_write_to_buf (sdp_t *sdp_info, uint32_t *retbytes)
+sipsdp_write_to_buf (cc_sdp_t *sdp_info, uint32_t *retbytes)
 {
     flex_string fs;
     uint32_t sdp_len;
@@ -330,12 +375,12 @@ sipsdp_write_to_buf (sdp_t *sdp_info, uint32_t *retbytes)
 
     flex_string_init(&fs);
 
-    if (!sdp_info) {
+    if (!sdp_info || !sdp_info->src_sdp) {
         CCSIP_DEBUG_ERROR(SIP_F_PREFIX"NULL sdp_info or src_sdp\n", __FUNCTION__);
         return (NULL);
     }
 
-    if ((rc = sdp_build(sdp_info, &fs))
+    if ((rc = sdp_build(sdp_info->src_sdp, &fs))
         != SDP_SUCCESS) {
         CCSIP_DEBUG_TASK(DEB_F_PREFIX"sdp_build rc=%s\n", DEB_F_PREFIX_ARGS(SIP_SDP, __FUNCTION__),
                          sdp_get_result_name(rc));

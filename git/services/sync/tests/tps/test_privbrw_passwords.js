@@ -90,7 +90,7 @@ Phase('phase2', [
 
 Phase('phase3', [
   [Sync],
-  [Windows.add, { private: true }],
+  [SetPrivateBrowsing, true],
   [Passwords.verify, passwords_after_first_change],
   [Passwords.modify, passwords_after_first_change],
   [Passwords.verify, passwords_after_second_change],

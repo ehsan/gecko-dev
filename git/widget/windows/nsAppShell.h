@@ -10,10 +10,6 @@
 #include <windows.h>
 #include "mozilla/TimeStamp.h"
 
-// The maximum time we allow before forcing a native event callback.
-// In seconds.
-#define NATIVE_EVENT_STARVATION_LIMIT 1
-
 /**
  * Native Win32 Application shell wrapper
  */
@@ -32,8 +28,9 @@ public:
   static UINT GetTaskbarButtonCreatedMessage();
 
 protected:
+#if defined(_MSC_VER) && defined(_M_IX86)
   NS_IMETHOD Run();
-  NS_IMETHOD Exit();
+#endif
   virtual void ScheduleNativeEventCallback();
   virtual bool ProcessNextNativeEvent(bool mayWait);
   virtual ~nsAppShell();

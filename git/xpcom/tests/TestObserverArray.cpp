@@ -54,21 +54,21 @@ int main(int argc, char **argv)
 
   // Basic sanity
   static int test1Expected[] = { 3, 4 };
-  DO_TEST(ForwardIterator, test1Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test1Expected, );
 
   // Appends
   static int test2Expected[] = { 3, 4, 2 };
   DO_TEST(ForwardIterator, test2Expected,
           if (count == 1) arr.AppendElement(2);
           );
-  DO_TEST(ForwardIterator, test2Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test2Expected, );
 
   DO_TEST(EndLimitedIterator, test2Expected,
           if (count == 1) arr.AppendElement(5);
           );
 
   static int test5Expected[] = { 3, 4, 2, 5 };
-  DO_TEST(ForwardIterator, test5Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test5Expected, );
 
   // Removals
   DO_TEST(ForwardIterator, test5Expected,
@@ -76,27 +76,27 @@ int main(int argc, char **argv)
           );
 
   static int test7Expected[] = { 4, 2, 5 };
-  DO_TEST(ForwardIterator, test7Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test7Expected, );
 
   static int test8Expected[] = { 4, 5 };
   DO_TEST(ForwardIterator, test8Expected,
           if (count == 1) arr.RemoveElementAt(1);
           );
-  DO_TEST(ForwardIterator, test8Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test8Expected, );
 
   arr.AppendElement(2);
   arr.AppendElementUnlessExists(6);
   static int test10Expected[] = { 4, 5, 2, 6 };
-  DO_TEST(ForwardIterator, test10Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test10Expected, );
 
   arr.AppendElementUnlessExists(5);
-  DO_TEST(ForwardIterator, test10Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test10Expected, );
 
   static int test12Expected[] = { 4, 5, 6 };
   DO_TEST(ForwardIterator, test12Expected,
           if (count == 1) arr.RemoveElementAt(2);
           );
-  DO_TEST(ForwardIterator, test12Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test12Expected, );
 
   // Removals + Appends
   static int test14Expected[] = { 4, 6, 7 };
@@ -106,11 +106,11 @@ int main(int argc, char **argv)
             arr.AppendElement(7);
           }
           );
-  DO_TEST(ForwardIterator, test14Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test14Expected, );
 
   arr.AppendElement(2);
   static int test16Expected[] = { 4, 6, 7, 2 };
-  DO_TEST(ForwardIterator, test16Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test16Expected, );
 
   static int test17Expected[] = { 4, 7, 2 };
   DO_TEST(EndLimitedIterator, test17Expected,
@@ -121,15 +121,15 @@ int main(int argc, char **argv)
           );
 
   static int test18Expected[] = { 4, 7, 2, 8 };
-  DO_TEST(ForwardIterator, test18Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test18Expected, );
 
   // Prepends
   arr.PrependElementUnlessExists(3);
   static int test19Expected[] = { 3, 4, 7, 2, 8 };
-  DO_TEST(ForwardIterator, test19Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test19Expected, );
 
   arr.PrependElementUnlessExists(7);
-  DO_TEST(ForwardIterator, test19Expected, { /* nothing */ });
+  DO_TEST(ForwardIterator, test19Expected, );
 
   // Commented out because it fails; bug 474369 will fix
   /*  DO_TEST(ForwardIterator, test19Expected,
@@ -139,7 +139,7 @@ int main(int argc, char **argv)
           );
 
   static int test22Expected[] = { 9, 3, 4, 7, 2, 8 };
-  DO_TEST(ForwardIterator, test22Expected, { });
+  DO_TEST(ForwardIterator, test22Expected, );
   */
   
   return rv;

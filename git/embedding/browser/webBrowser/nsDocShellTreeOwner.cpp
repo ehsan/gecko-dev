@@ -32,8 +32,8 @@
 #include "nsIDOMDocumentType.h"
 #include "nsIDOMElement.h"
 #include "Link.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/dom/SVGTitleElement.h"
+#include "nsIDOMSVGElement.h"
+#include "nsIDOMSVGTitleElement.h"
 #include "nsIDOMEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIFormControl.h"
@@ -60,8 +60,8 @@
 #include "imgIContainer.h"
 #include "nsContextMenuInfo.h"
 #include "nsPresContext.h"
-#include "nsViewManager.h"
-#include "nsView.h"
+#include "nsIViewManager.h"
+#include "nsIView.h"
 #include "nsEventListenerManager.h"
 #include "nsIDOMDragEvent.h"
 #include "nsIConstraintValidation.h"
@@ -214,16 +214,17 @@ nsDocShellTreeOwner::FindItemWithName(const PRUnichar* aName,
   // see bug 217886 for details
   // XXXbz what if our browser isn't targetable?  We need to handle that somehow.
   if(name.LowerCaseEqualsLiteral("_content") || name.EqualsLiteral("_main")) {
-    *aFoundItem = mWebBrowser->mDocShell;
+    *aFoundItem = mWebBrowser->mDocShellAsItem;
     NS_IF_ADDREF(*aFoundItem);
     return NS_OK;
   }
 
-  if (!SameCOMIdentity(aRequestor, mWebBrowser->mDocShell)) {
+  if (!SameCOMIdentity(aRequestor, mWebBrowser->mDocShellAsItem)) {
     // This isn't a request coming up from our kid, so check with said kid
     nsISupports* thisSupports = static_cast<nsIDocShellTreeOwner*>(this);
-    rv = mWebBrowser->mDocShell->FindItemWithName(aName, thisSupports,
-                                                  aOriginalRequestor, aFoundItem);
+    rv =
+      mWebBrowser->mDocShellAsItem->FindItemWithName(aName, thisSupports,
+                                                     aOriginalRequestor, aFoundItem);
     if (NS_FAILED(rv) || *aFoundItem) {
       return rv;
     }
@@ -233,7 +234,7 @@ nsDocShellTreeOwner::FindItemWithName(const PRUnichar* aName,
   if(mTreeOwner) {
     nsCOMPtr<nsIDocShellTreeOwner> reqAsTreeOwner(do_QueryInterface(aRequestor));
     if (mTreeOwner != reqAsTreeOwner)
-      return mTreeOwner->FindItemWithName(aName, mWebBrowser->mDocShell,
+      return mTreeOwner->FindItemWithName(aName, mWebBrowser->mDocShellAsItem,
                                           aOriginalRequestor, aFoundItem);
     return NS_OK;
   }
@@ -354,7 +355,7 @@ nsDocShellTreeOwner::GetPrimaryContentShell(nsIDocShellTreeItem** aShell)
    if(mTreeOwner)
        return mTreeOwner->GetPrimaryContentShell(aShell);
 
-   *aShell = (mPrimaryContentShell ? mPrimaryContentShell : mWebBrowser->mDocShell);
+   *aShell = (mPrimaryContentShell ? mPrimaryContentShell : mWebBrowser->mDocShellAsItem.get());
    NS_IF_ADDREF(*aShell);
 
    return NS_OK;
@@ -371,7 +372,7 @@ nsDocShellTreeOwner::SizeShellTo(nsIDocShellTreeItem* aShellItem,
    if(mTreeOwner)
       return mTreeOwner->SizeShellTo(aShellItem, aCX, aCY);
 
-   if(aShellItem == mWebBrowser->mDocShell)
+   if(aShellItem == mWebBrowser->mDocShellAsItem)
       return webBrowserChrome->SizeBrowserTo(aCX, aCY);
 
    nsCOMPtr<nsIWebNavigation> webNav(do_QueryInterface(aShellItem));
@@ -858,9 +859,11 @@ nsDocShellTreeOwner::AddChromeListeners()
   nsEventListenerManager* elmP = target->GetListenerManager(true);
   if (elmP) {
     elmP->AddEventListenerByType(this, NS_LITERAL_STRING("dragover"),
-                                 dom::TrustedEventsAtSystemGroupBubble());
+                                 NS_EVENT_FLAG_BUBBLE |
+                                 NS_EVENT_FLAG_SYSTEM_EVENT);
     elmP->AddEventListenerByType(this, NS_LITERAL_STRING("drop"),
-                                 dom::TrustedEventsAtSystemGroupBubble());
+                                 NS_EVENT_FLAG_BUBBLE |
+                                 NS_EVENT_FLAG_SYSTEM_EVENT);
   }
 
   return rv;
@@ -889,9 +892,11 @@ nsDocShellTreeOwner::RemoveChromeListeners()
   if (elmP)
   {
     elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("dragover"),
-                                    dom::TrustedEventsAtSystemGroupBubble());
+                                    NS_EVENT_FLAG_BUBBLE |
+                                    NS_EVENT_FLAG_SYSTEM_EVENT);
     elmP->RemoveEventListenerByType(this, NS_LITERAL_STRING("drop"),
-                                    dom::TrustedEventsAtSystemGroupBubble());
+                                    NS_EVENT_FLAG_BUBBLE |
+                                    NS_EVENT_FLAG_SYSTEM_EVENT);
   }
 
   return NS_OK;
@@ -1013,11 +1018,19 @@ DefaultTooltipTextProvider::DefaultTooltipTextProvider()
 static bool
 UseSVGTitle(nsIDOMElement *currElement)
 {
-  nsCOMPtr<dom::Element> element(do_QueryInterface(currElement));
-  if (!element || !element->IsSVG() || !element->GetParentNode())
+  nsCOMPtr<nsIDOMSVGElement> svgContent(do_QueryInterface(currElement));
+  if (!svgContent)
     return false;
 
-  return element->GetParentNode()->NodeType() != nsIDOMNode::DOCUMENT_NODE;
+  nsCOMPtr<nsIDOMNode> parent;
+  currElement->GetParentNode(getter_AddRefs(parent));
+  if (!parent)
+    return false;
+
+  uint16_t nodeType;
+  nsresult rv = parent->GetNodeType(&nodeType);
+
+  return NS_SUCCEEDED(rv) && nodeType != nsIDOMNode::DOCUMENT_NODE;
 }
 
 /* void getNodeText (in nsIDOMNode aNode, out wstring aText); */
@@ -1027,10 +1040,8 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
 {
   NS_ENSURE_ARG_POINTER(aNode);
   NS_ENSURE_ARG_POINTER(aText);
-
+    
   nsString outText;
-
-  nsCOMPtr<nsINode> node = do_QueryInterface(aNode);
 
   bool lookingForSVGTitle = true;
   bool found = false;
@@ -1088,12 +1099,16 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
                 lookingForSVGTitle = UseSVGTitle(currElement);
               }
               if (lookingForSVGTitle) {
-                nsINodeList* childNodes = node->ChildNodes();
-                uint32_t childNodeCount = childNodes->Length();
+                nsCOMPtr<nsIDOMNodeList>childNodes;
+                aNode->GetChildNodes(getter_AddRefs(childNodes));
+                uint32_t childNodeCount;
+                childNodes->GetLength(&childNodeCount);
                 for (uint32_t i = 0; i < childNodeCount; i++) {
-                  nsIContent* child = childNodes->Item(i);
-                  if (child->IsSVG(nsGkAtoms::title)) {
-                    static_cast<dom::SVGTitleElement*>(child)->GetTextContent(outText);
+                  nsCOMPtr<nsIDOMNode>childNode;
+                  childNodes->Item(i, getter_AddRefs(childNode));
+                  nsCOMPtr<nsIDOMSVGTitleElement> titleElement(do_QueryInterface(childNode));
+                  if (titleElement) {
+                    titleElement->GetTextContent(outText);
                     if ( outText.Length() )
                       found = true;
                     break;
@@ -1105,7 +1120,7 @@ DefaultTooltipTextProvider::GetNodeText(nsIDOMNode *aNode, PRUnichar **aText,
         }
       }
     }
-
+    
     // not found here, walk up to the parent and keep trying
     if ( !found ) {
       nsCOMPtr<nsIDOMNode> temp ( current );
@@ -1426,14 +1441,14 @@ ChromeTooltipListener::sTooltipCallback(nsITimer *aTimer,
       do_GetInterface(static_cast<nsIWebBrowser*>(self->mWebBrowser));
     nsCOMPtr<nsIPresShell> shell;
     if (docShell) {
-      shell = docShell->GetPresShell();
+      docShell->GetPresShell(getter_AddRefs(shell));
     }
 
     nsIWidget* widget = nullptr;
     if (shell) {
-      nsViewManager* vm = shell->GetViewManager();
+      nsIViewManager* vm = shell->GetViewManager();
       if (vm) {
-        nsView* view = vm->GetRootView();
+        nsIView* view = vm->GetRootView();
         if (view) {
           nsPoint offset;
           widget = view->GetNearestWidget(&offset);

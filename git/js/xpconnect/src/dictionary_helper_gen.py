@@ -5,7 +5,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import sys, os, xpidl, makeutils
+import sys, os.path, re, xpidl, itertools
+
+# --makedepend-output support.
+make_dependencies = []
+make_targets = []
 
 def strip_begin(text, suffix):
     if not text.startswith(suffix):
@@ -16,6 +20,24 @@ def strip_end(text, suffix):
     if not text.endswith(suffix):
         return text
     return text[:-len(suffix)]
+
+# Copied from dombindingsgen.py
+def makeQuote(filename):
+    return filename.replace(' ', '\\ ')  # enjoy!
+
+def writeMakeDependOutput(filename):
+    print "Creating makedepend file", filename
+    f = open(filename, 'w')
+    try:
+        if len(make_targets) > 0:
+            f.write("%s:" % makeQuote(make_targets[0]))
+            for filename in make_dependencies:
+                f.write(' \\\n\t\t%s' % makeQuote(filename))
+            f.write('\n\n')
+            for filename in make_targets[1:]:
+                f.write('%s: %s\n' % (makeQuote(filename), makeQuote(make_targets[0])))
+    finally:
+        f.close()
 
 def findIDL(includePath, interfaceFileName):
     for d in includePath:
@@ -30,8 +52,8 @@ def findIDL(includePath, interfaceFileName):
 
 def loadIDL(parser, includePath, filename):
     idlFile = findIDL(includePath, filename)
-    if not idlFile in makeutils.dependencies:
-        makeutils.dependencies.append(idlFile)
+    if not idlFile in make_dependencies:
+        make_dependencies.append(idlFile)
     idl = p.parse(open(idlFile).read(), idlFile)
     idl.resolve(includePath, p)
     return idl
@@ -55,7 +77,7 @@ def attributeVariableTypeAndName(a):
         l = ["nsCOMPtr<%s> %s" % (a.realtype.nativeType('in').strip('* '),
                    a.name)]
     elif a.realtype.nativeType('in').count("nsAString"):
-        l = ["nsString %s" % a.name]
+        l = ["nsAutoString %s" % a.name]
     elif a.realtype.nativeType('in').count("JS::Value"):
         l = ["JS::Value %s" % a.name]
     else:
@@ -110,7 +132,7 @@ def print_header_file(fd, conf):
 
     fd.write("\n"
              "namespace mozilla {\n"
-             "namespace idl {\n\n")
+             "namespace dom {\n\n")
 
     dicts = []
     for d in conf.dictionaries:
@@ -193,7 +215,7 @@ def print_cpp_file(fd, conf):
       if not c in conf.exclude_automatic_type_include:
             fd.write("#include \"%s.h\"\n" % c)
 
-    fd.write("\nusing namespace mozilla::idl;\n\n")
+    fd.write("\nusing namespace mozilla::dom;\n\n")
 
     for a in attrnames:
         fd.write("static jsid %s = JSID_VOID;\n"% get_jsid(a))
@@ -243,23 +265,18 @@ def init_value(attribute):
             return "JSVAL_VOID"
         return "0"
     else:
-        if realtype.count("double") and attribute.defvalue == "Infinity":
-            return "MOZ_DOUBLE_POSITIVE_INFINITY()"
-        if realtype.count("double") and attribute.defvalue == "-Infinity":
-            return "MOZ_DOUBLE_NEGATIVE_INFINITY()"
         if realtype.count("nsAString"):
             return "NS_LITERAL_STRING(\"%s\")" % attribute.defvalue
         if realtype.count("nsACString"):
             return "NS_LITERAL_CSTRING(\"%s\")" % attribute.defvalue
-        raise xpidl.IDLError("Default value of %s is not supported for type %s" %
-                             (attribute.defvalue, realtype), attribute.location)
+        raise IDLError("Default value is not supported for type %s" % realtype)
 
 def write_header(iface, fd):
     attributes = []
     for member in iface.members:
         if isinstance(member, xpidl.Attribute):
             attributes.append(member)
-
+    
     fd.write("class %s" % iface.name)
     if iface.base is not None:
         fd.write(" : public %s" % iface.base)
@@ -270,7 +287,7 @@ def write_header(iface, fd):
     fd.write("  // If aCx or aVal is null, NS_OK is returned and \n"
              "  // dictionary will use the default values. \n"
              "  nsresult Init(JSContext* aCx, const jsval* aVal);\n")
-
+    
     fd.write("\n")
 
     for member in attributes:
@@ -284,7 +301,7 @@ def write_getter(a, iface, fd):
         fd.write("    NS_ENSURE_STATE(JS_GetPropertyById(aCx, aObj, %s, &aDict.%s));\n"
                  % (get_jsid(a.name), a.name))
     else:
-        fd.write("    NS_ENSURE_STATE(JS_GetPropertyById(aCx, aObj, %s, v.address()));\n"
+        fd.write("    NS_ENSURE_STATE(JS_GetPropertyById(aCx, aObj, %s, &v));\n"
                  % get_jsid(a.name))
     if realtype.count("bool"):
         fd.write("    JSBool b;\n")
@@ -314,9 +331,9 @@ def write_getter(a, iface, fd):
         fd.write("    aDict.%s = (float) d;\n" % a.name)
     elif realtype.count("nsAString"):
         if a.nullable:
-            fd.write("    xpc_qsDOMString d(aCx, v, v.address(), xpc_qsDOMString::eNull, xpc_qsDOMString::eNull);\n")
+            fd.write("    xpc_qsDOMString d(aCx, v, &v, xpc_qsDOMString::eNull, xpc_qsDOMString::eNull);\n")
         else:
-            fd.write("    xpc_qsDOMString d(aCx, v, v.address(), xpc_qsDOMString::eStringify, xpc_qsDOMString::eStringify);\n")
+            fd.write("    xpc_qsDOMString d(aCx, v, &v, xpc_qsDOMString::eStringify, xpc_qsDOMString::eStringify);\n")
         fd.write("    NS_ENSURE_STATE(d.IsValid());\n")
         fd.write("    aDict.%s = d;\n" % a.name)
     elif realtype.count("nsIVariant"):
@@ -326,7 +343,7 @@ def write_getter(a, iface, fd):
     elif realtype.endswith('*'):
         fd.write("    %s d;\n" % realtype)
         fd.write("    xpc_qsSelfRef ref;\n")
-        fd.write("    nsresult rv = xpc_qsUnwrapArg<%s>(aCx, v, &d, &ref.ptr, v.address());\n" % realtype.strip('* '))
+        fd.write("    nsresult rv = xpc_qsUnwrapArg<%s>(aCx, v, &d, &ref.ptr, &v);\n" % realtype.strip('* '))
         fd.write("    NS_ENSURE_SUCCESS(rv, rv);\n")
         fd.write("    aDict.%s = d;\n" % a.name)
     elif not realtype.count("JS::Value"):
@@ -365,7 +382,7 @@ def write_cpp(iface, fd):
     fd.write("}\n\n")
     fd.write("%s::~%s() {}\n\n" % (iface.name, iface.name))
 
-    fd.write("static nsresult\n%s_InitInternal(%s& aDict, JSContext* aCx, JS::HandleObject aObj)\n" %
+    fd.write("static nsresult\n%s_InitInternal(%s& aDict, JSContext* aCx, JSObject* aObj)\n" %
              (iface.name, iface.name))
     fd.write("{\n")
     if iface.base is not None:
@@ -373,7 +390,7 @@ def write_cpp(iface, fd):
                  iface.base)
         fd.write("  NS_ENSURE_SUCCESS(rv, rv);\n")
 
-    fd.write("  JSBool found = JS_FALSE;\n")
+    fd.write("  JSBool found = PR_FALSE;\n")
     needjsval = False
     needccx = False
     for a in attributes:
@@ -382,7 +399,7 @@ def write_cpp(iface, fd):
         if a.realtype.nativeType('in').count("nsIVariant"):
             needccx = True
     if needjsval:
-        fd.write("  JS::RootedValue v(aCx, JSVAL_VOID);\n")
+        fd.write("  jsval v = JSVAL_VOID;\n")
     if needccx:
         fd.write("  XPCCallContext ccx(NATIVE_CALLER, aCx);\n")
         fd.write("  NS_ENSURE_STATE(ccx.IsValid());\n")
@@ -404,9 +421,9 @@ def write_cpp(iface, fd):
              "  if (!aVal->isObject()) {\n"
              "    return aVal->isNullOrUndefined() ? NS_OK : NS_ERROR_TYPE_ERR;\n"
              "  }\n\n"
-             "  JS::RootedObject obj(aCx, &aVal->toObject());\n"
+             "  JSObject* obj = &aVal->toObject();\n"
              "  nsCxPusher pusher;\n"
-             "  pusher.Push(aCx);\n"
+             "  NS_ENSURE_STATE(pusher.Push(aCx, false));\n"
              "  JSAutoRequest ar(aCx);\n"
              "  JSAutoCompartment ac(aCx, obj);\n")
 
@@ -458,10 +475,10 @@ if __name__ == '__main__':
         print_header_file(outfd, conf)
         outfd.close()
     if options.stub_output is not None:
-        makeutils.targets.append(options.stub_output)
+        make_targets.append(options.stub_output)
         outfd = open(options.stub_output, 'w')
         print_cpp_file(outfd, conf)
         outfd.close()
         if options.makedepend_output is not None:
-            makeutils.writeMakeDependOutput(options.makedepend_output)
+            writeMakeDependOutput(options.makedepend_output)
 

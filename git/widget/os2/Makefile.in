@@ -10,11 +10,13 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= widget
 LIBRARY_NAME	= wdgtos2
 EXPORT_LIBRARY	= 1
 IS_COMPONENT	= 1
 RESFILE		= widget.res
 MODULE_NAME	= nsWidgetOS2Module
+GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
 
@@ -63,11 +65,8 @@ endif
 libs::	install-readme
 	$(INSTALL) $(srcdir)/MozSounds.cmd $(DIST)/bin/
 
-export-preqs = \
-    $(call mkdir_deps,res) \
-    $(NULL)
-
-export:: $(export-preqs)
+export::
+	test -d ./res || mkdir ./res
 	test -f ./res/aliasb.ptr || cp $(srcdir)/res/*.* ./res
 
 

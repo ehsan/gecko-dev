@@ -11,6 +11,9 @@ relativesrcdir = @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+# Module name for xpcshell tests.
+MODULE = test_prompter
+
 # Mochitest tests
 MOCHITEST_FILES = \
     test_modal_select.html \

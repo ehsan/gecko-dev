@@ -13,12 +13,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.CommandProcessor;
 import org.mozilla.gecko.sync.CommandProcessor.Command;
 import org.mozilla.gecko.sync.CryptoRecord;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
+import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.HTTPFailureException;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.NoCollectionKeysSetException;
 import org.mozilla.gecko.sync.Utils;
 import org.mozilla.gecko.sync.crypto.CryptoException;
@@ -39,7 +40,7 @@ import org.mozilla.gecko.sync.repositories.domain.VersionConstants;
 
 import ch.boye.httpclientandroidlib.HttpStatus;
 
-public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
+public class SyncClientsEngineStage implements GlobalSyncStage {
   private static final String LOG_TAG = "SyncClientsEngineStage";
 
   public static final String COLLECTION_NAME       = "clients";
@@ -47,6 +48,7 @@ public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
   public static final int CLIENTS_TTL_REFRESH      = 604800000;   // 7 days in milliseconds.
   public static final int MAX_UPLOAD_FAILURE_COUNT = 5;
 
+  protected final GlobalSession session;
   protected final ClientRecordFactory factory = new ClientRecordFactory();
   protected ClientUploadDelegate clientUploadDelegate;
   protected ClientDownloadDelegate clientDownloadDelegate;
@@ -58,6 +60,13 @@ public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
   protected volatile boolean commandsProcessedShouldUpload;
   protected final AtomicInteger uploadAttemptsCount = new AtomicInteger();
   protected final List<ClientRecord> toUpload = new ArrayList<ClientRecord>();
+
+  public SyncClientsEngineStage(GlobalSession session) {
+    if (session == null) {
+      throw new IllegalArgumentException("session must not be null.");
+    }
+    this.session = session;
+  }
 
   protected int getClientsCount() {
     return getClientsDatabaseAccessor().clientsCount();
@@ -333,7 +342,7 @@ public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
   }
 
   @Override
-  protected void resetLocal() {
+  public void resetLocal() {
     // Clear timestamps and local data.
     session.config.persistServerClientRecordTimestamp(0L);   // TODO: roll these into one.
     session.config.persistServerClientsTimestamp(0L);
@@ -347,7 +356,7 @@ public class SyncClientsEngineStage extends AbstractSessionManagingSyncStage {
   }
 
   @Override
-  protected void wipeLocal() throws Exception {
+  public void wipeLocal() throws Exception {
     // Nothing more to do.
     this.resetLocal();
   }

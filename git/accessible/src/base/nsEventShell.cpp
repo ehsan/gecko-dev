@@ -7,8 +7,6 @@
 
 #include "nsAccUtils.h"
 
-using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsEventShell
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,7 +20,7 @@ nsEventShell::FireEvent(AccEvent* aEvent)
   Accessible* accessible = aEvent->GetAccessible();
   NS_ENSURE_TRUE_VOID(accessible);
 
-  nsINode* node = accessible->GetNode();
+  nsINode* node = aEvent->GetNode();
   if (node) {
     sEventTargetNode = node;
     sEventFromUserInput = aEvent->IsFromUserInput();

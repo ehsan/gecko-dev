@@ -42,26 +42,20 @@ public:
   virtual nsRestyleHint
     HasAttributeDependentStyle(AttributeRuleProcessorData* aData) MOZ_OVERRIDE;
   virtual bool MediumFeaturesChanged(nsPresContext* aPresContext) MOZ_OVERRIDE;
-  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
-    const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
-    const MOZ_MUST_OVERRIDE MOZ_OVERRIDE;
+  virtual NS_MUST_OVERRIDE size_t
+    SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
+  virtual NS_MUST_OVERRIDE size_t
+    SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   /**
    * Notify the manager that the pres context is going away.
    */
   void Disconnect();
 
-  enum FlushFlags {
-    Can_Throttle,
-    Cannot_Throttle
-  };
-
   static bool ExtractComputedValueForTransition(
                   nsCSSProperty aProperty,
                   nsStyleContext* aStyleContext,
                   nsStyleAnimation::Value& aComputedValue);
-  static bool ThrottlingEnabled();
 protected:
   friend struct CommonElementAnimationData; // for ElementDataRemoved
 
@@ -135,7 +129,6 @@ struct CommonElementAnimationData : public PRCList
     : mElement(aElement)
     , mElementProperty(aElementProperty)
     , mManager(aManager)
-    , mAnimationGeneration(0)
 #ifdef DEBUG
     , mCalledPropertyDtor(false)
 #endif
@@ -158,28 +151,10 @@ struct CommonElementAnimationData : public PRCList
     mElement->DeleteProperty(mElementProperty);
   }
 
-  bool CanThrottleTransformChanges(mozilla::TimeStamp aTime);
-
-  bool CanThrottleAnimation(mozilla::TimeStamp aTime);
-
-  enum CanAnimateFlags {
-    // Testing for width, height, top, right, bottom, or left.
-    CanAnimate_HasGeometricProperty = 1,
-    // Allow the case where OMTA is allowed in general, but not for the
-    // specified property.
-    CanAnimate_AllowPartial = 2
-  };
-
   static bool
   CanAnimatePropertyOnCompositor(const dom::Element *aElement,
                                  nsCSSProperty aProperty,
-                                 CanAnimateFlags aFlags);
-
-  // True if this animation can be performed on the compositor thread.
-  // Do not pass CanAnimate_AllowPartial to make sure that all properties of this
-  // animation are supported by the compositor.
-  virtual bool CanPerformOnCompositorThread(CanAnimateFlags aFlags) const = 0;
-  virtual bool HasAnimationOfProperty(nsCSSProperty aProperty) const = 0;
+                                 bool aHasGeometricProperties);
 
   static void LogAsyncAnimationFailure(nsCString& aMessage,
                                        const nsIContent* aContent = nullptr);
@@ -200,16 +175,6 @@ struct CommonElementAnimationData : public PRCList
   // NOTE: If we don't need to apply any styles, mStyleRule will be
   // null, but mStyleRuleRefreshTime will still be valid.
   nsRefPtr<mozilla::css::AnimValuesStyleRule> mStyleRule;
-
-  // nsCSSFrameConstructor keeps track of the number of animation 'mini-flushes'
-  // (see nsTransitionManager::UpdateAllThrottledStyles()). mFlushCount is
-  // the last flush where a transition/animation changed. We keep a similar
-  // count on the corresponding layer so we can check that the layer is up to
-  // date with the animation manager.
-  uint64_t mAnimationGeneration;
-  // Update mFlushCount to nsCSSFrameConstructor's count
-  void UpdateAnimationGeneration(nsPresContext* aPresContext);
-
   // The refresh time associated with mStyleRule.
   TimeStamp mStyleRuleRefreshTime;
 

@@ -4,19 +4,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SVGMotionSMILAnimationFunction.h"
+#include "nsISMILAnimationElement.h"
 #include "nsSMILParserUtils.h"
 #include "nsSVGAngle.h"
 #include "SVGMotionSMILType.h"
 #include "SVGMotionSMILPathUtils.h"
 #include "nsSVGPathDataParser.h"
-#include "mozilla/dom/SVGAnimationElement.h"
-#include "mozilla/dom/SVGPathElement.h" // for nsSVGPathList
-#include "mozilla/dom/SVGMPathElement.h"
+#include "nsSVGPathElement.h" // for nsSVGPathList
+#include "nsSVGMpathElement.h"
 #include "nsAttrValueInlines.h"
 
 namespace mozilla {
-
-using namespace dom;
 
 SVGMotionSMILAnimationFunction::SVGMotionSMILAnimationFunction()
   : mRotateType(eRotateType_Explicit),
@@ -126,14 +124,14 @@ SVGMotionSMILAnimationFunction::GetCalcMode() const
  * Returns the first <mpath> child of the given element
  */
 
-static SVGMPathElement*
-GetFirstMPathChild(nsIContent* aElem)
+static nsSVGMpathElement*
+GetFirstMpathChild(nsIContent* aElem)
 {
   for (nsIContent* child = aElem->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
     if (child->IsSVG(nsGkAtoms::mpath)) {
-      return static_cast<SVGMPathElement*>(child);
+      return static_cast<nsSVGMpathElement*>(child);
     }
   }
 
@@ -212,12 +210,12 @@ SVGMotionSMILAnimationFunction::
 
 void
 SVGMotionSMILAnimationFunction::
-  RebuildPathAndVerticesFromMpathElem(SVGMPathElement* aMpathElem)
+  RebuildPathAndVerticesFromMpathElem(nsSVGMpathElement* aMpathElem)
 {
   mPathSourceType = ePathSourceType_Mpath;
 
   // Use the path that's the target of our chosen <mpath> child.
-  SVGPathElement* pathElem = aMpathElem->GetReferencedPath();
+  nsSVGPathElement* pathElem = aMpathElem->GetReferencedPath();
   if (pathElem) {
     const SVGPathData &path = pathElem->GetAnimPathSegList()->GetAnimValue();
     // Path data must contain of at least one path segment (if the path data
@@ -272,7 +270,8 @@ SVGMotionSMILAnimationFunction::
 
   // Do we have a mpath child? if so, it trumps everything. Otherwise, we look
   // through our list of path-defining attributes, in order of priority.
-  SVGMPathElement* firstMpathChild = GetFirstMPathChild(mAnimationElement);
+  nsSVGMpathElement* firstMpathChild =
+    GetFirstMpathChild(&mAnimationElement->AsElement());
 
   if (firstMpathChild) {
     RebuildPathAndVerticesFromMpathElem(firstMpathChild);
@@ -360,7 +359,7 @@ SVGMotionSMILAnimationFunction::IsToAnimation() const
   // attribute, because they'll override any 'to' attr we might have.
   // NOTE: We can't rely on mPathSourceType, because it might not have been
   // set to a useful value yet (or it might be stale).
-  return !GetFirstMPathChild(mAnimationElement) &&
+  return !GetFirstMpathChild(&mAnimationElement->AsElement()) &&
     !HasAttr(nsGkAtoms::path) &&
     nsSMILAnimationFunction::IsToAnimation();
 }
@@ -451,9 +450,9 @@ SVGMotionSMILAnimationFunction::SetRotate(const nsAString& aRotate,
 
     // Convert to radian units, if we're not already in radians.
     uint8_t angleUnit = svgAngle.GetBaseValueUnit();
-    if (angleUnit != SVG_ANGLETYPE_RAD) {
+    if (angleUnit != nsIDOMSVGAngle::SVG_ANGLETYPE_RAD) {
       mRotateAngle *= nsSVGAngle::GetDegreesPerUnit(angleUnit) /
-        nsSVGAngle::GetDegreesPerUnit(SVG_ANGLETYPE_RAD);
+        nsSVGAngle::GetDegreesPerUnit(nsIDOMSVGAngle::SVG_ANGLETYPE_RAD);
     }
   }
   return NS_OK;

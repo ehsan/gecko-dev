@@ -11,19 +11,22 @@
 #include <math.h>
 
 #include "gfxMatrix.h"
+#include "nsCOMPtr.h"
 
 class nsIContent;
 class nsIDocument;
+class nsIDOMSVGElement;
 class nsIFrame;
 class nsStyleContext;
 class nsSVGElement;
+class nsSVGLength2;
+class nsSVGSVGElement;
 
 namespace mozilla {
 class SVGAnimatedPreserveAspectRatio;
 class SVGPreserveAspectRatio;
 namespace dom {
 class Element;
-class SVGSVGElement;
 } // namespace dom
 } // namespace mozilla
 
@@ -54,7 +57,7 @@ public:
   /*
    * Get the outer SVG element of an nsIContent
    */
-  static mozilla::dom::SVGSVGElement *GetOuterSVGElement(nsSVGElement *aSVGElement);
+  static nsSVGSVGElement *GetOuterSVGElement(nsSVGElement *aSVGElement);
 
   /**
    * Activates the animation element aContent as a result of navigation to the
@@ -103,7 +106,7 @@ public:
    */
   static bool EstablishesViewport(nsIContent *aContent);
 
-  static nsSVGElement*
+  static already_AddRefed<nsIDOMSVGElement>
   GetNearestViewportElement(nsIContent *aContent);
 
   /* enum for specifying coordinate direction for ObjectSpace/UserSpace */
@@ -121,13 +124,15 @@ public:
   /* Generate a viewbox to viewport tranformation matrix */
 
   static gfxMatrix
-  GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
+  GetViewBoxTransform(const nsSVGElement* aElement,
+                      float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
                       const SVGAnimatedPreserveAspectRatio &aPreserveAspectRatio);
 
   static gfxMatrix
-  GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
+  GetViewBoxTransform(const nsSVGElement* aElement,
+                      float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
                       const SVGPreserveAspectRatio &aPreserveAspectRatio);

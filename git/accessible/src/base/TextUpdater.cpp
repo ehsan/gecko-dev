@@ -8,7 +8,6 @@
 #include "Accessible-inl.h"
 #include "DocAccessible-inl.h"
 #include "TextLeafAccessible.h"
-#include <algorithm>
 
 using namespace mozilla::a11y;
 
@@ -20,7 +19,7 @@ TextUpdater::Run(DocAccessible* aDocument, TextLeafAccessible* aTextLeaf,
 
   const nsString& oldText = aTextLeaf->Text();
   uint32_t oldLen = oldText.Length(), newLen = aNewText.Length();
-  uint32_t minLen = std::min(oldLen, newLen);
+  uint32_t minLen = NS_MIN(oldLen, newLen);
 
   // Skip coinciding begin substrings.
   uint32_t skipStart = 0;
@@ -56,7 +55,7 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
                "Text leaf hasn't offset within hyper text!");
 
   uint32_t oldLen = aOldText.Length(), newLen = aNewText.Length();
-  uint32_t minLen = std::min(oldLen, newLen);
+  uint32_t minLen = NS_MIN(oldLen, newLen);
 
   // Trim coinciding substrings from the end.
   uint32_t skipEnd = 0;
@@ -83,14 +82,14 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
       // Fire text change event for removal.
       nsRefPtr<AccEvent> textRemoveEvent =
         new AccTextChangeEvent(mHyperText, mTextOffset, str1, false);
-      mDocument->FireDelayedEvent(textRemoveEvent);
+      mDocument->FireDelayedAccessibleEvent(textRemoveEvent);
     }
 
     if (strLen2 > 0) {
       // Fire text change event for insertion.
       nsRefPtr<AccEvent> textInsertEvent =
         new AccTextChangeEvent(mHyperText, mTextOffset, str2, true);
-      mDocument->FireDelayedEvent(textInsertEvent);
+      mDocument->FireDelayedAccessibleEvent(textInsertEvent);
     }
 
     mDocument->MaybeNotifyOfValueChange(mHyperText);
@@ -121,7 +120,7 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
         uint32_t left = row[colIdx - 1];
         uint32_t up = prevRow[colIdx];
         uint32_t upleft = prevRow[colIdx - 1];
-        row[colIdx] = std::min(upleft, std::min(left, up)) + 1;
+        row[colIdx] = NS_MIN(upleft, NS_MIN(left, up)) + 1;
       } else {
         row[colIdx] = prevRow[colIdx - 1];
       }
@@ -136,7 +135,7 @@ TextUpdater::DoUpdate(const nsAString& aNewText, const nsAString& aOldText,
 
   // Fire events.
   for (int32_t idx = events.Length() - 1; idx >= 0; idx--)
-    mDocument->FireDelayedEvent(events[idx]);
+    mDocument->FireDelayedAccessibleEvent(events[idx]);
 
   mDocument->MaybeNotifyOfValueChange(mHyperText);
 

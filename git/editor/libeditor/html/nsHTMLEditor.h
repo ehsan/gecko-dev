@@ -20,6 +20,7 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMEventListener.h"
 #include "nsICSSLoaderObserver.h"
+#include "nsITableLayout.h"
 
 #include "nsEditRules.h"
 
@@ -51,7 +52,6 @@ class TypeInState;
 class nsIContentFilter;
 class nsIURL;
 class nsILinkHandler;
-class nsTableOuterFrame;
 struct PropItem;
 
 namespace mozilla {
@@ -105,7 +105,6 @@ public:
   NS_IMETHOD BeginningOfDocument();
   virtual nsresult HandleKeyPressEvent(nsIDOMKeyEvent* aKeyEvent);
   virtual already_AddRefed<nsIContent> GetFocusedContent();
-  virtual already_AddRefed<nsIContent> GetFocusedContentForIME();
   virtual bool IsActiveInDOMWindow();
   virtual already_AddRefed<nsIDOMEventTarget> GetDOMEventTarget();
   virtual mozilla::dom::Element* GetEditorRoot() MOZ_OVERRIDE;
@@ -441,8 +440,8 @@ protected:
   NS_IMETHOD SetColSpan(nsIDOMElement *aCell, int32_t aColSpan);
   NS_IMETHOD SetRowSpan(nsIDOMElement *aCell, int32_t aRowSpan);
 
-  // Helper used to get nsTableOuterFrame for a table.
-  nsTableOuterFrame* GetTableFrame(nsIDOMElement* aTable);
+  // Helper used to get nsITableLayout interface for methods implemented in nsTableFrame
+  NS_IMETHOD GetTableLayoutObject(nsIDOMElement* aTable, nsITableLayout **tableLayoutObject);
   // Needed to do appropriate deleting when last cell or row is about to be deleted
   // This doesn't count cells that don't start in the given row (are spanning from row above)
   int32_t  GetNumberOfCellsInRow(nsIDOMElement* aTable, int32_t rowIndex);
@@ -676,24 +675,18 @@ protected:
   bool IsOnlyAttribute(const nsIContent* aElement, const nsAString& aAttribute);
 
   nsresult RemoveBlockContainer(nsIDOMNode *inNode);
-
   nsIContent* GetPriorHTMLSibling(nsINode* aNode);
   nsresult GetPriorHTMLSibling(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode);
   nsIContent* GetPriorHTMLSibling(nsINode* aParent, int32_t aOffset);
   nsresult GetPriorHTMLSibling(nsIDOMNode *inParent, int32_t inOffset, nsCOMPtr<nsIDOMNode> *outNode);
-
   nsIContent* GetNextHTMLSibling(nsINode* aNode);
   nsresult GetNextHTMLSibling(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode);
   nsIContent* GetNextHTMLSibling(nsINode* aParent, int32_t aOffset);
   nsresult GetNextHTMLSibling(nsIDOMNode *inParent, int32_t inOffset, nsCOMPtr<nsIDOMNode> *outNode);
-
-  nsIContent* GetPriorHTMLNode(nsINode* aNode, bool aNoBlockCrossing = false);
   nsresult GetPriorHTMLNode(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode, bool bNoBlockCrossing = false);
+  nsresult GetPriorHTMLNode(nsIDOMNode *inParent, int32_t inOffset, nsCOMPtr<nsIDOMNode> *outNode, bool bNoBlockCrossing = false);
   nsIContent* GetPriorHTMLNode(nsINode* aParent, int32_t aOffset,
                                bool aNoBlockCrossing = false);
-  nsresult GetPriorHTMLNode(nsIDOMNode *inParent, int32_t inOffset, nsCOMPtr<nsIDOMNode> *outNode, bool bNoBlockCrossing = false);
-
-  nsIContent* GetNextHTMLNode(nsINode* aNode, bool aNoBlockCrossing = false);
   nsresult GetNextHTMLNode(nsIDOMNode *inNode, nsCOMPtr<nsIDOMNode> *outNode, bool bNoBlockCrossing = false);
   nsIContent* GetNextHTMLNode(nsINode* aParent, int32_t aOffset,
                               bool aNoBlockCrossing = false);

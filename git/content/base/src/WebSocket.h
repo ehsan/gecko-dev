@@ -16,7 +16,6 @@
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/EventHandlerBinding.h"
 
 // Need this for BinaryType.
 #include "mozilla/dom/WebSocketBinding.h"
@@ -43,6 +42,21 @@
 
 namespace mozilla {
 namespace dom {
+
+#define IMPL_EVENT_HANDLER(_lowercase)                                  \
+  inline JSObject* GetOn##_lowercase(JSContext* aCx)                    \
+  {                                                                     \
+    JS::Value val;                                                      \
+    nsresult rv = GetOn##_lowercase(aCx, &val);                         \
+    return NS_SUCCEEDED(rv) ? JSVAL_TO_OBJECT(val) : nullptr;           \
+  }                                                                     \
+  void SetOn##_lowercase(JSContext* aCx, JSObject* aCallback,           \
+                         ErrorResult& aRv)                              \
+  {                                                                     \
+    aRv = SetOn##_lowercase(aCx, OBJECT_TO_JSVAL(aCallback));           \
+  }                                                                     \
+  NS_IMETHOD GetOn##_lowercase(JSContext* cx, JS::Value* aVal);         \
+  NS_IMETHOD SetOn##_lowercase(JSContext* cx, const JS::Value& aVal);
 
 class WebSocket : public nsDOMEventTargetHelper,
                   public nsIInterfaceRequestor,
@@ -86,7 +100,9 @@ public:
   // nsWrapperCache
   nsPIDOMWindow* GetParentObject() { return GetOwner(); }
 
-  JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  JSObject* WrapObject(JSContext *cx,
+                       JSObject *scope,
+                       bool *triedToWrap);
 
 public: // static helpers:
 
@@ -96,19 +112,19 @@ public: // static helpers:
 public: // WebIDL interface:
 
   // Constructor:
-  static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
-                                                 JSContext *aCx,
+  static already_AddRefed<WebSocket> Constructor(JSContext *aCx,
+                                                 nsISupports* aGlobal,
                                                  const nsAString& aUrl,
                                                  ErrorResult& rv);
 
-  static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
-                                                 JSContext *aCx,
+  static already_AddRefed<WebSocket> Constructor(JSContext *aCx,
+                                                 nsISupports* aGlobal,
                                                  const nsAString& aUrl,
                                                  const nsAString& aProtocol,
                                                  ErrorResult& rv);
 
-  static already_AddRefed<WebSocket> Constructor(const GlobalObject& aGlobal,
-                                                 JSContext *aCx,
+  static already_AddRefed<WebSocket> Constructor(JSContext *aCx,
+                                                 nsISupports* aGlobal,
                                                  const nsAString& aUrl,
                                                  const Sequence<nsString>& aProtocols,
                                                  ErrorResult& rv);
@@ -180,8 +196,8 @@ protected:
   nsresult EstablishConnection();
 
   // These methods when called can release the WebSocket object
-  void FailConnection(uint16_t reasonCode,
-                      const nsACString& aReasonString = EmptyCString());
+  nsresult FailConnection(uint16_t reasonCode,
+                          const nsACString& aReasonString = EmptyCString());
   nsresult CloseConnection(uint16_t reasonCode,
                            const nsACString& aReasonString = EmptyCString());
   nsresult Disconnect();

@@ -15,7 +15,6 @@
 #include "nsPIDOMWindow.h"
 
 #include "jsapi.h"
-#include "mozilla/Assertions.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/TimeStamp.h"
@@ -32,9 +31,7 @@
 #include "WorkerFeature.h"
 
 class JSAutoStructuredCloneBuffer;
-class nsIChannel;
 class nsIDocument;
-class nsIMemoryMultiReporter;
 class nsIPrincipal;
 class nsIScriptContext;
 class nsIURI;
@@ -44,6 +41,7 @@ class nsIXPCScriptNotify;
 
 BEGIN_WORKERS_NAMESPACE
 
+class WorkerMemoryReporter;
 class WorkerPrivate;
 
 class WorkerRunnable : public nsIRunnable
@@ -135,34 +133,6 @@ protected:
   DispatchInternal();
 };
 
-class MainThreadSyncRunnable : public WorkerSyncRunnable
-{
-public:
-  MainThreadSyncRunnable(WorkerPrivate* aWorkerPrivate,
-                         ClearingBehavior aClearingBehavior,
-                         uint32_t aSyncQueueKey,
-                         bool aBypassSyncEventQueue)
-  : WorkerSyncRunnable(aWorkerPrivate, aSyncQueueKey, aBypassSyncEventQueue,
-                       aClearingBehavior)
-  {
-    AssertIsOnMainThread();
-  }
-
-  bool
-  PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
-  {
-    AssertIsOnMainThread();
-    return true;
-  }
-
-  void
-  PostDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate,
-               bool aDispatchResult) MOZ_OVERRIDE
-  {
-    AssertIsOnMainThread();
-  }
-};
-
 class WorkerControlRunnable : public WorkerRunnable
 {
 protected:
@@ -176,58 +146,6 @@ protected:
 
   virtual bool
   DispatchInternal();
-};
-
-// SharedMutex is a small wrapper around an (internal) reference-counted Mutex
-// object. It exists to avoid changing a lot of code to use Mutex* instead of
-// Mutex&.
-class SharedMutex
-{
-  typedef mozilla::Mutex Mutex;
-
-  class RefCountedMutex : public Mutex
-  {
-  public:
-    RefCountedMutex(const char* aName)
-    : Mutex(aName)
-    { }
-
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RefCountedMutex)
-
-  private:
-    ~RefCountedMutex()
-    { }
-  };
-
-  nsRefPtr<RefCountedMutex> mMutex;
-
-public:
-  SharedMutex(const char* aName)
-  : mMutex(new RefCountedMutex(aName))
-  { }
-
-  SharedMutex(SharedMutex& aOther)
-  : mMutex(aOther.mMutex)
-  { }
-
-  operator Mutex&()
-  {
-    MOZ_ASSERT(mMutex);
-    return *mMutex;
-  }
-
-  operator const Mutex&() const
-  {
-    MOZ_ASSERT(mMutex);
-    return *mMutex;
-  }
-
-  void
-  AssertCurrentThreadOwns() const
-  {
-    MOZ_ASSERT(mMutex);
-    mMutex->AssertCurrentThreadOwns();
-  }
 };
 
 template <class Derived>
@@ -247,9 +165,8 @@ public:
   };
 
 protected:
-  SharedMutex mMutex;
+  mozilla::Mutex mMutex;
   mozilla::CondVar mCondVar;
-  mozilla::CondVar mMemoryReportCondVar;
 
 private:
   JSObject* mJSObject;
@@ -266,7 +183,6 @@ private:
   nsCOMPtr<nsIURI> mBaseURI;
   nsCOMPtr<nsIURI> mScriptURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  nsCOMPtr<nsIChannel> mChannel;
   nsCOMPtr<nsIContentSecurityPolicy> mCSP;
 
   // Only used for top level workers.
@@ -276,7 +192,6 @@ private:
   Status mParentStatus;
   uint32_t mJSContextOptions;
   uint32_t mJSRuntimeHeapSize;
-  uint32_t mJSWorkerAllocationThreshold;
   uint8_t mGCZeal;
   bool mJSObjectRooted;
   bool mParentSuspended;
@@ -284,7 +199,6 @@ private:
   bool mPrincipalIsSystem;
   bool mMainThreadObjectsForgotten;
   bool mEvalAllowed;
-  bool mReportCSPViolations;
 
 protected:
   WorkerPrivateParent(JSContext* aCx, JSObject* aObject, WorkerPrivate* aParent,
@@ -294,10 +208,8 @@ protected:
                       nsCOMPtr<nsIScriptContext>& aScriptContext,
                       nsCOMPtr<nsIURI>& aBaseURI,
                       nsCOMPtr<nsIPrincipal>& aPrincipal,
-                      nsCOMPtr<nsIChannel>& aChannel,
                       nsCOMPtr<nsIContentSecurityPolicy>& aCSP,
-                      bool aEvalAllowed,
-                      bool aReportCSPViolations);
+                      bool aEvalAllowed);
 
   ~WorkerPrivateParent();
 
@@ -382,7 +294,7 @@ public:
   ForgetMainThreadObjects(nsTArray<nsCOMPtr<nsISupports> >& aDoomed);
 
   bool
-  PostMessage(JSContext* aCx, JS::Value aMessage, JS::Value aTransferable);
+  PostMessage(JSContext* aCx, jsval aMessage, jsval aTransferable);
 
   uint64_t
   GetInnerWindowId();
@@ -391,7 +303,7 @@ public:
   UpdateJSContextOptions(JSContext* aCx, uint32_t aOptions);
 
   void
-  UpdateJSWorkerMemoryParameter(JSContext* aCx, JSGCParamKey key, uint32_t value);
+  UpdateJSRuntimeHeapSize(JSContext* aCx, uint32_t aJSRuntimeHeapSize);
 
 #ifdef JS_GC_ZEAL
   void
@@ -426,10 +338,9 @@ public:
   {
     AssertIsOnParentThread();
     bool acceptingEvents;
-    {
-      mozilla::MutexAutoLock lock(mMutex);
-      acceptingEvents = mParentStatus < Terminating;
-    }
+    mMutex.Lock();
+    acceptingEvents = mParentStatus < Terminating;
+    mMutex.Unlock();
     return acceptingEvents;
   }
 
@@ -515,13 +426,6 @@ public:
     return mPrincipalIsSystem;
   }
 
-  nsIChannel*
-  GetChannel() const
-  {
-    AssertIsOnMainThread();
-    return mChannel;
-  }
-
   nsIDocument*
   GetDocument() const
   {
@@ -562,12 +466,6 @@ public:
     mEvalAllowed = aEvalAllowed;
   }
 
-  bool
-  GetReportCSPViolations() const
-  {
-    return mReportCSPViolations;
-  }
-
   LocationInfo&
   GetLocationInfo()
   {
@@ -584,12 +482,6 @@ public:
   GetJSRuntimeHeapSize() const
   {
     return mJSRuntimeHeapSize;
-  }
-
-  uint32_t
-  GetJSWorkerAllocationThreshold() const
-  {
-    return mJSWorkerAllocationThreshold;
   }
 
 #ifdef JS_GC_ZEAL
@@ -626,6 +518,7 @@ public:
 class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 {
   friend class WorkerPrivateParent<WorkerPrivate>;
+  friend class WorkerMemoryReporter;
   typedef WorkerPrivateParent<WorkerPrivate> ParentType;
 
   struct TimeoutInfo;
@@ -653,9 +546,6 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
     }
   };
 
-  class MemoryReporter;
-  friend class MemoryReporter;
-
   nsTArray<nsAutoPtr<SyncQueue> > mSyncQueues;
 
   // Touched on multiple threads, protected with mMutex.
@@ -668,7 +558,7 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   nsTArray<nsAutoPtr<TimeoutInfo> > mTimeouts;
 
   nsCOMPtr<nsITimer> mTimer;
-  nsRefPtr<MemoryReporter> mMemoryReporter;
+  nsRefPtr<WorkerMemoryReporter> mMemoryReporter;
 
   mozilla::TimeStamp mKillTime;
   uint32_t mErrorHandlerRecursionCount;
@@ -680,7 +570,6 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
   bool mCloseHandlerStarted;
   bool mCloseHandlerFinished;
   bool mMemoryReporterRunning;
-  bool mBlockedForMemoryReporter;
   bool mXHRParamsAllowed;
 
 #ifdef DEBUG
@@ -772,9 +661,6 @@ public:
   void
   StopSyncLoop(uint32_t aSyncLoopKey, bool aSyncResult);
 
-  void
-  DestroySyncLoop(uint32_t aSyncLoopKey);
-
   bool
   PostMessageToParent(JSContext* aCx, jsval aMessage,
                       jsval transferable);
@@ -815,13 +701,16 @@ public:
   UpdateJSContextOptionsInternal(JSContext* aCx, uint32_t aOptions);
 
   void
-  UpdateJSWorkerMemoryParameterInternal(JSContext* aCx, JSGCParamKey key, uint32_t aValue);
+  UpdateJSRuntimeHeapSizeInternal(JSContext* aCx, uint32_t aJSRuntimeHeapSize);
 
   void
   ScheduleDeletion(bool aWasPending);
 
   bool
-  BlockAndCollectRuntimeStats(bool aIsQuick, void* aData);
+  BlockAndCollectRuntimeStats(bool isQuick, void* aData);
+
+  bool
+  DisableMemoryReporter();
 
   bool
   XHRParamsAllowed() const
@@ -869,30 +758,6 @@ public:
   WorkerCrossThreadDispatcher*
   GetCrossThreadDispatcher();
 
-  // This may block!
-  void
-  BeginCTypesCall();
-
-  // This may block!
-  void
-  EndCTypesCall();
-
-  void
-  BeginCTypesCallback()
-  {
-    // If a callback is beginning then we need to do the exact same thing as
-    // when a ctypes call ends.
-    EndCTypesCall();
-  }
-
-  void
-  EndCTypesCallback()
-  {
-    // If a callback is ending then we need to do the exact same thing as
-    // when a ctypes call begins.
-    BeginCTypesCall();
-  }
-
 private:
   WorkerPrivate(JSContext* aCx, JSObject* aObject, WorkerPrivate* aParent,
                 JSContext* aParentJSContext, const nsAString& aScriptURL,
@@ -900,9 +765,8 @@ private:
                 nsCOMPtr<nsPIDOMWindow>& aWindow,
                 nsCOMPtr<nsIScriptContext>& aScriptContext,
                 nsCOMPtr<nsIURI>& aBaseURI, nsCOMPtr<nsIPrincipal>& aPrincipal,
-                nsCOMPtr<nsIChannel>& aChannel,
                 nsCOMPtr<nsIContentSecurityPolicy>& aCSP, bool aEvalAllowed,
-                bool aReportCSPViolations, bool aXHRParamsAllowed);
+                bool aXHRParamsAllowed);
 
   static bool
   GetContentSecurityPolicy(JSContext *aCx,
@@ -963,15 +827,6 @@ private:
   bool
   ProcessAllControlRunnables();
 
-  void
-  EnableMemoryReporter();
-
-  void
-  DisableMemoryReporter();
-
-  void
-  WaitForWorkerEvents(PRIntervalTime interval = PR_INTERVAL_NO_TIMEOUT);
-
   static bool
   CheckXHRParamsAllowed(nsPIDOMWindow* aWindow);
 };
@@ -992,42 +847,6 @@ WorkerStructuredCloneCallbacks(bool aMainRuntime);
 
 JSStructuredCloneCallbacks*
 ChromeWorkerStructuredCloneCallbacks(bool aMainRuntime);
-
-class AutoSyncLoopHolder
-{
-public:
-  AutoSyncLoopHolder(WorkerPrivate* aWorkerPrivate)
-  : mWorkerPrivate(aWorkerPrivate), mSyncLoopKey(UINT32_MAX)
-  {
-    mSyncLoopKey = mWorkerPrivate->CreateNewSyncLoop();
-  }
-
-  ~AutoSyncLoopHolder()
-  {
-    if (mWorkerPrivate) {
-      mWorkerPrivate->StopSyncLoop(mSyncLoopKey, false);
-      mWorkerPrivate->DestroySyncLoop(mSyncLoopKey);
-    }
-  }
-
-  bool
-  RunAndForget(JSContext* aCx)
-  {
-    WorkerPrivate* workerPrivate = mWorkerPrivate;
-    mWorkerPrivate = nullptr;
-    return workerPrivate->RunSyncLoop(aCx, mSyncLoopKey);
-  }
-
-  uint32_t
-  SyncQueueKey() const
-  {
-    return mSyncLoopKey;
-  }
-
-private:
-  WorkerPrivate* mWorkerPrivate;
-  uint32_t mSyncLoopKey;
-};
 
 END_WORKERS_NAMESPACE
 

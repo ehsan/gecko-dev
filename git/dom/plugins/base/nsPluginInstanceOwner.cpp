@@ -45,7 +45,7 @@ using mozilla::DefaultXDisplay;
 #include "nsIWebBrowserChrome.h"
 #include "nsLayoutUtils.h"
 #include "nsIPluginWidget.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 #include "nsIDocShellTreeOwner.h"
 #include "nsIDOMHTMLObjectElement.h"
 #include "nsIAppShell.h"
@@ -57,6 +57,7 @@ using mozilla::DefaultXDisplay;
 #include "nsIScrollableFrame.h"
 #include "nsIDocShell.h"
 #include "ImageContainer.h"
+#include "nsIDOMHTMLCollection.h"
 
 #include "nsContentCID.h"
 #include "nsWidgetsCID.h"
@@ -93,7 +94,6 @@ using namespace mozilla::dom;
 #endif
 
 using namespace mozilla;
-using namespace mozilla::layers;
 
 // special class for handeling DOM context menu events because for
 // some reason it starves other mouse events if implemented on the
@@ -168,25 +168,20 @@ static void OnDestroyImage(void* aPluginInstanceOwner)
 already_AddRefed<ImageContainer>
 nsPluginInstanceOwner::GetImageContainer()
 {
-  if (!mInstance)
-    return nullptr;
-
-  nsRefPtr<ImageContainer> container;
-
 #if MOZ_WIDGET_ANDROID
   // Right now we only draw with Gecko layers on Honeycomb and higher. See Paint()
   // for what we do on other versions.
   if (AndroidBridge::Bridge()->GetAPIVersion() < 11)
     return NULL;
   
-  container = LayerManager::CreateImageContainer();
+  nsRefPtr<ImageContainer> container = LayerManager::CreateImageContainer();
 
   ImageFormat format = ImageFormat::SHARED_TEXTURE;
   nsRefPtr<Image> img = container->CreateImage(&format, 1);
 
   SharedTextureImage::Data data;
   data.mHandle = mInstance->CreateSharedHandle();
-  data.mShareType = mozilla::gl::GLContext::SameProcess;
+  data.mShareType = mozilla::gl::TextureImage::ThreadShared;
   data.mInverted = mInstance->Inverted();
 
   gfxRect r = GetPluginRect();
@@ -205,21 +200,24 @@ nsPluginInstanceOwner::GetImageContainer()
   return container.forget();
 #endif
 
-  mInstance->GetImageContainer(getter_AddRefs(container));
-  if (container) {
+  if (mInstance) {
+    nsRefPtr<ImageContainer> container;
+    // Every call to nsIPluginInstance::GetImage() creates
+    // a new image.  See nsIPluginInstance.idl.
+    mInstance->GetImageContainer(getter_AddRefs(container));
+    if (container) {
 #ifdef XP_MACOSX
-    AutoLockImage autoLock(container);
-    Image* image = autoLock.GetImage();
-    if (image && image->GetFormat() == MAC_IO_SURFACE && mObjectFrame) {
-      // With this drawing model, every call to
-      // nsIPluginInstance::GetImage() creates a new image.
-      MacIOSurfaceImage *oglImage = static_cast<MacIOSurfaceImage*>(image);
-      NS_ADDREF_THIS();
-      oglImage->SetUpdateCallback(&DrawPlugin, this);
-      oglImage->SetDestroyCallback(&OnDestroyImage);
-    }
+      AutoLockImage autoLock(container);
+      Image* image = autoLock.GetImage();
+      if (image && image->GetFormat() == MAC_IO_SURFACE && mObjectFrame) {
+        MacIOSurfaceImage *oglImage = static_cast<MacIOSurfaceImage*>(image);
+        NS_ADDREF_THIS();
+        oglImage->SetUpdateCallback(&DrawPlugin, this);
+        oglImage->SetDestroyCallback(&OnDestroyImage);
+      }
 #endif
-    return container.forget();
+      return container.forget();
+    }
   }
   return nullptr;
 }
@@ -304,6 +302,7 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
 
   mObjectFrame = nullptr;
   mContent = nullptr;
+  mTagText = nullptr;
   mWidgetCreationComplete = false;
 #ifdef XP_MACOSX
   memset(&mCGPluginPortCopy, 0, sizeof(NP_CGContext));
@@ -372,6 +371,11 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
   if (mCachedAttrParamValues) {
     NS_Free(mCachedAttrParamValues);
     mCachedAttrParamValues = nullptr;
+  }
+
+  if (mTagText) {
+    NS_Free(mTagText);
+    mTagText = nullptr;
   }
 
   PLUG_DeletePluginNativeWindow(mPluginWindow);
@@ -531,7 +535,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetURL(const char *aURL,
   nsAutoString  unitarget;
   unitarget.AssignASCII(aTarget); // XXX could this be nonascii?
 
-  nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
 
   // Create an absolute URL
   nsCOMPtr<nsIURI> uri;
@@ -557,7 +561,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetURL(const char *aURL,
     Preferences::GetInt("privacy.popups.disable_from_plugins");
   nsAutoPopupStatePusher popupStatePusher((PopupControlState)blockPopups);
 
-  rv = lh->OnLinkClick(mContent, uri, unitarget.get(), NullString(),
+  rv = lh->OnLinkClick(mContent, uri, unitarget.get(), 
                        aPostStream, headersDataStream, true);
 
   return rv;
@@ -631,14 +635,11 @@ NS_IMETHODIMP nsPluginInstanceOwner::InvalidateRect(NPRect *invalidRect)
   if (!mObjectFrame || !invalidRect || !mWidgetVisible)
     return NS_ERROR_FAILURE;
 
-#if defined(XP_MACOSX) || defined(MOZ_WIDGET_ANDROID)
   // Each time an asynchronously-drawing plugin sends a new surface to display,
-  // the image in the ImageContainer is updated and InvalidateRect is called.
-  // MacIOSurfaceImages callbacks are attached here.
-  // There are different side effects for (sync) Android plugins.
+  // InvalidateRect is called. We notify reftests that painting is up to
+  // date and update our ImageContainer with the new surface.
   nsRefPtr<ImageContainer> container;
   mInstance->GetImageContainer(getter_AddRefs(container));
-#endif
 
 #ifndef XP_MACOSX
   // Windowed plugins should not be calling NPN_InvalidateRect, but
@@ -687,7 +688,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
   
 #if defined(XP_WIN) || defined(XP_OS2)
   void** pvalue = (void**)value;
-  nsViewManager* vm = mObjectFrame->PresContext()->GetPresShell()->GetViewManager();
+  nsIViewManager* vm = mObjectFrame->PresContext()->GetPresShell()->GetViewManager();
   if (!vm)
     return NS_ERROR_FAILURE;
 #if defined(XP_WIN)
@@ -721,7 +722,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
     
     nsIWidget* win = mObjectFrame->GetNearestWidget();
     if (win) {
-      nsView *view = nsView::GetViewFor(win);
+      nsIView *view = nsIView::GetViewFor(win);
       NS_ASSERTION(view, "No view for widget");
       nsPoint offset = view->GetOffsetTo(nullptr);
       
@@ -737,14 +738,14 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetNetscapeWindow(void *value)
 #endif
   // simply return the topmost document window
   nsCOMPtr<nsIWidget> widget;
-  vm->GetRootWidget(getter_AddRefs(widget));
+  nsresult rv = vm->GetRootWidget(getter_AddRefs(widget));            
   if (widget) {
     *pvalue = (void*)widget->GetNativeData(NS_NATIVE_WINDOW);
   } else {
     NS_ASSERTION(widget, "couldn't get doc's widget in getting doc's window handle");
   }
 
-  return NS_OK;
+  return rv;
 #elif (defined(MOZ_WIDGET_GTK) || defined(MOZ_WIDGET_QT)) && defined(MOZ_X11)
   // X11 window managers want the toplevel window for WM_TRANSIENT_FOR.
   nsIWidget* win = mObjectFrame->GetNearestWidget();
@@ -831,6 +832,49 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetTagType(nsPluginTagType *result)
   return NS_OK;
 }
 
+NS_IMETHODIMP nsPluginInstanceOwner::GetTagText(const char* *result)
+{
+  NS_ENSURE_ARG_POINTER(result);
+  if (nullptr == mTagText) {
+    nsresult rv;
+    nsCOMPtr<nsIDOMNode> node(do_QueryInterface(mContent, &rv));
+    if (NS_FAILED(rv))
+      return rv;
+
+    nsCOMPtr<nsIDocument> document;
+    rv = GetDocument(getter_AddRefs(document));
+    if (NS_FAILED(rv))
+      return rv;
+
+    nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(document);
+    NS_ASSERTION(domDoc, "Need a document");
+
+    nsCOMPtr<nsIDocumentEncoder> docEncoder(do_CreateInstance(NS_DOC_ENCODER_CONTRACTID_BASE "text/html", &rv));
+    if (NS_FAILED(rv))
+      return rv;
+    rv = docEncoder->Init(domDoc, NS_LITERAL_STRING("text/html"), nsIDocumentEncoder::OutputEncodeBasicEntities);
+    if (NS_FAILED(rv))
+      return rv;
+
+    nsRefPtr<nsRange> range = new nsRange();
+    rv = range->SelectNode(node);
+    if (NS_FAILED(rv))
+      return rv;
+
+    docEncoder->SetRange(range);
+    nsString elementHTML;
+    rv = docEncoder->EncodeToString(elementHTML);
+    if (NS_FAILED(rv))
+      return rv;
+
+    mTagText = ToNewUTF8String(elementHTML);
+    if (!mTagText)
+      return NS_ERROR_OUT_OF_MEMORY;
+  }
+  *result = mTagText;
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsPluginInstanceOwner::GetParameters(uint16_t& n, const char*const*& names, const char*const*& values)
 {
   nsresult rv = EnsureCachedAttrParamArrays();
@@ -865,7 +909,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetParameter(const char* name, const char* 
 
   return NS_ERROR_FAILURE;
 }
-
+  
 NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentBase(const char* *result)
 {
   NS_ENSURE_ARG_POINTER(result);
@@ -916,7 +960,7 @@ static const moz2javaCharset charsets[] =
     {"windows-1257",    "Cp1257"},
     {"windows-1258",    "Cp1258"},
     {"EUC-JP",          "EUC_JP"},
-    {"EUC-KR",          "MS949"},
+    {"EUC-KR",          "EUC_KR"},
     {"x-euc-tw",        "EUC_TW"},
     {"gb18030",         "GB18030"},
     {"gbk",             "GBK"},
@@ -934,6 +978,7 @@ static const moz2javaCharset charsets[] =
     {"x-johab",         "Johab"},
     {"KOI8-R",          "KOI8_R"},
     {"TIS-620",         "MS874"},
+    {"x-windows-949",   "MS949"},
     {"x-mac-arabic",    "MacArabic"},
     {"x-mac-croatian",  "MacCroatia"},
     {"x-mac-cyrillic",  "MacCyrillic"},
@@ -969,7 +1014,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::GetDocumentEncoding(const char* *result)
   if (charset.EqualsLiteral("us-ascii")) {
     *result = PL_strdup("US_ASCII");
   } else if (charset.EqualsLiteral("ISO-8859-1") ||
-      !nsCRT::strncmp(charset.get(), "UTF", 3)) {
+      !nsCRT::strncmp(PromiseFlatCString(charset).get(), "UTF", 3)) {
     *result = ToNewCString(charset);
   } else {
     if (!gCharsetMap) {
@@ -1674,10 +1719,8 @@ already_AddRefed<ImageContainer> nsPluginInstanceOwner::GetImageContainerForVide
 
   SharedTextureImage::Data data;
 
-  data.mShareType = gl::GLContext::SameProcess;
-  data.mHandle = mInstance->GLContext()->CreateSharedHandle(data.mShareType,
-                                                            aVideoInfo->mSurfaceTexture,
-                                                            gl::GLContext::SurfaceTexture);
+  data.mHandle = mInstance->GLContext()->CreateSharedHandle(gl::TextureImage::ThreadShared, aVideoInfo->mSurfaceTexture, gl::GLContext::SurfaceTexture);
+  data.mShareType = mozilla::gl::TextureImage::ThreadShared;
 
   // The logic below for Honeycomb is just a guess, but seems to work. We don't have a separate
   // inverted flag for video.
@@ -1779,7 +1822,7 @@ nsresult nsPluginInstanceOwner::DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent)
   nsEvent* theEvent = aFocusEvent->GetInternalNSEvent();
   if (theEvent) {
     // we only care about the message in ProcessEvent
-    nsGUIEvent focusEvent(theEvent->mFlags.mIsTrusted, theEvent->message,
+    nsGUIEvent focusEvent(NS_IS_TRUSTED_EVENT(theEvent), theEvent->message,
                           nullptr);
     nsEventStatus rv = ProcessEvent(focusEvent);
     if (nsEventStatus_eConsumeNoDefault == rv) {
@@ -1953,7 +1996,7 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
   nsCOMPtr<nsIDOMDragEvent> dragEvent(do_QueryInterface(aEvent));
   if (dragEvent && mInstance) {
     nsEvent* ievent = aEvent->GetInternalNSEvent();
-    if ((ievent && ievent->mFlags.mIsTrusted) &&
+    if ((ievent && NS_IS_TRUSTED_EVENT(ievent)) &&
          ievent->message != NS_DRAGDROP_ENTER && ievent->message != NS_DRAGDROP_OVER) {
       aEvent->PreventDefault();
     }
@@ -2066,7 +2109,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
   int16_t response = kNPEventNotHandled;
   void* window = FixUpPluginWindow(ePluginPaintEnable);
   if (window || (eventModel == NPEventModelCocoa)) {
-    mInstance->HandleEvent(event, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+    mInstance->HandleEvent(event, &response);
   }
 
   if (eventModel == NPEventModelCocoa && response == kNPEventStartIME) {
@@ -2182,7 +2225,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 
   if (pPluginEvent) {
     int16_t response = kNPEventNotHandled;
-    mInstance->HandleEvent(pPluginEvent, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+    mInstance->HandleEvent(pPluginEvent, &response);
     if (response == kNPEventHandled)
       rv = nsEventStatus_eConsumeNoDefault;
   }
@@ -2440,7 +2483,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
   event.send_event = False;
 
   int16_t response = kNPEventNotHandled;
-  mInstance->HandleEvent(&pluginEvent, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+  mInstance->HandleEvent(&pluginEvent, &response);
   if (response == kNPEventHandled)
     rv = nsEventStatus_eConsumeNoDefault;
 #endif
@@ -2492,7 +2535,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
               event.data.mouse.action = kDown_ANPMouseAction;
               event.data.mouse.x = pluginPoint.x;
               event.data.mouse.y = pluginPoint.y;
-              mInstance->HandleEvent(&event, nullptr, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+              mInstance->HandleEvent(&event, nullptr);
             }
             break;
           case NS_MOUSE_BUTTON_UP:
@@ -2503,7 +2546,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
               event.data.mouse.action = kUp_ANPMouseAction;
               event.data.mouse.x = pluginPoint.x;
               event.data.mouse.y = pluginPoint.y;
-              mInstance->HandleEvent(&event, nullptr, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+              mInstance->HandleEvent(&event, nullptr);
             }
             break;
           }
@@ -2519,13 +2562,9 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
        if (pluginEvent) {
          MOZ_ASSERT(pluginEvent->inSize == sizeof(ANPEvent));
          MOZ_ASSERT(pluginEvent->eventType == kKey_ANPEventType);
-         mInstance->HandleEvent(pluginEvent, nullptr, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+         mInstance->HandleEvent(pluginEvent, nullptr);
        }
      }
-     break;
-
-    default:
-      break;
     }
     rv = nsEventStatus_eConsumeNoDefault;
 #endif
@@ -3334,8 +3373,6 @@ nsPluginInstanceOwner::UpdateDocumentActiveState(bool aIsActive)
   if (mInstance) {
     if (!mPluginDocumentActiveState)
       RemovePluginView();
-    else if (mPluginDocumentActiveState && mFullScreen)
-      AddPluginView();
 
     mInstance->NotifyOnScreen(mPluginDocumentActiveState);
 
@@ -3395,6 +3432,30 @@ void nsPluginInstanceOwner::SetFrame(nsObjectFrame *aFrame)
 
   // If we already have a frame that is changing or going away...
   if (mObjectFrame) {
+    // We have an old frame.
+    // Drop image reference because the child may destroy the surface after we return.
+    nsRefPtr<ImageContainer> container = mObjectFrame->GetImageContainer();
+    if (container) {
+#ifdef XP_MACOSX
+      AutoLockImage autoLock(container);
+      Image *image = autoLock.GetImage();
+      if (image && (image->GetFormat() == MAC_IO_SURFACE) && mObjectFrame) {
+        // Undo what we did to the current image in SetCurrentImageInTransaction().
+        MacIOSurfaceImage *oglImage = static_cast<MacIOSurfaceImage*>(image);
+        oglImage->SetUpdateCallback(nullptr, nullptr);
+        oglImage->SetDestroyCallback(nullptr);
+        // If we have a current image here, its destructor hasn't yet been
+        // called, so OnDestroyImage() can't yet have been called.  So we need
+        // to do ourselves what OnDestroyImage() would have done.
+        NS_RELEASE_THIS();
+      }
+      // Important! Unlock here otherwise SetCurrentImageInTransaction will deadlock with
+      // our lock if we have a RemoteImage.
+      autoLock.Unlock();
+#endif
+      container->SetCurrentImageInTransaction(nullptr);
+    }
+
     // Make sure the old frame isn't holding a reference to us.
     mObjectFrame->SetInstanceOwner(nullptr);
   }
@@ -3430,8 +3491,9 @@ nsObjectFrame* nsPluginInstanceOwner::GetFrame()
 // |value| for certain inputs of |name|
 void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
 {
-  if (name.LowerCaseEqualsLiteral("pluginspage")) {
-    nsCOMPtr<nsIURI> baseURI = GetBaseURI();
+  if (name.LowerCaseEqualsLiteral("pluginurl") ||
+      name.LowerCaseEqualsLiteral("pluginspage")) {        
+    nsCOMPtr<nsIURI> baseURI = mContent->GetBaseURI();
     nsAutoString newURL;
     NS_MakeAbsoluteURI(newURL, value, baseURI);
     if (!newURL.IsEmpty())
@@ -3442,14 +3504,6 @@ void nsPluginInstanceOwner::FixUpURLS(const nsString &name, nsAString &value)
 NS_IMETHODIMP nsPluginInstanceOwner::PrivateModeChanged(bool aEnabled)
 {
   return mInstance ? mInstance->PrivateModeStateChanged(aEnabled) : NS_OK;
-}
-
-already_AddRefed<nsIURI> nsPluginInstanceOwner::GetBaseURI() const
-{
-  if (!mContent) {
-    return nullptr;
-  }
-  return mContent->GetBaseURI();
 }
 
 // nsPluginDOMContextMenuListener class implementation

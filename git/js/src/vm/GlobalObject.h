@@ -9,7 +9,6 @@
 #define GlobalObject_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/DebugOnly.h"
 
 #include "jsarray.h"
 #include "jsbool.h"
@@ -49,10 +48,11 @@ class Debugger;
  *   for the corresponding JSProtoKey offset from 2 * JSProto_LIMIT.
  * [3 * JSProto_LIMIT, RESERVED_SLOTS)
  *   Various one-off values: ES5 13.2.3's [[ThrowTypeError]], RegExp statics,
- *   the original eval for this global object (implementing |var eval =
- *   otherWindow.eval; eval(...)| as an indirect eval), a bit indicating
- *   whether this object has been cleared (see JS_ClearScope), and a cache for
- *   whether eval is allowed (per the global's Content Security Policy).
+ *   the Namespace object for E4X's function::, the original eval for this
+ *   global object (implementing |var eval = otherWindow.eval; eval(...)| as an
+ *   indirect eval), a bit indicating whether this object has been cleared
+ *   (see JS_ClearScope), and a cache for whether eval is allowed (per the
+ *   global's Content Security Policy).
  *
  * The first two ranges are necessary to implement js::FindClassObject,
  * FindClassPrototype, and spec language speaking in terms of "the original
@@ -95,10 +95,7 @@ class GlobalObject : public JSObject
     static const unsigned GENERATOR_PROTO         = ELEMENT_ITERATOR_PROTO + 1;
     static const unsigned MAP_ITERATOR_PROTO      = GENERATOR_PROTO + 1;
     static const unsigned SET_ITERATOR_PROTO      = MAP_ITERATOR_PROTO + 1;
-    static const unsigned COLLATOR_PROTO          = SET_ITERATOR_PROTO + 1;
-    static const unsigned NUMBER_FORMAT_PROTO     = COLLATOR_PROTO + 1;
-    static const unsigned DATE_TIME_FORMAT_PROTO  = NUMBER_FORMAT_PROTO + 1;
-    static const unsigned REGEXP_STATICS          = DATE_TIME_FORMAT_PROTO + 1;
+    static const unsigned REGEXP_STATICS          = SET_ITERATOR_PROTO + 1;
     static const unsigned FUNCTION_NS             = REGEXP_STATICS + 1;
     static const unsigned RUNTIME_CODEGEN_ENABLED = FUNCTION_NS + 1;
     static const unsigned DEBUGGERS               = RUNTIME_CODEGEN_ENABLED + 1;
@@ -313,24 +310,13 @@ class GlobalObject : public JSObject
         return &self->getPrototype(key).toObject();
     }
 
-    JSObject *getOrCreateIntlObject(JSContext *cx) {
-        return getOrCreateObject(cx, JSProto_Intl, initIntlObject);
-    }
-
-    JSObject *getOrCreateCollatorPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, COLLATOR_PROTO, initCollatorProto);
-    }
-
-    JSObject *getOrCreateNumberFormatPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, NUMBER_FORMAT_PROTO, initNumberFormatProto);
-    }
-
-    JSObject *getOrCreateDateTimeFormatPrototype(JSContext *cx) {
-        return getOrCreateObject(cx, DATE_TIME_FORMAT_PROTO, initDateTimeFormatProto);
-    }
-
     JSObject *getIteratorPrototype() {
         return &getPrototype(JSProto_Iterator).toObject();
+    }
+
+    JSObject *getIntrinsicsHolder() {
+        JS_ASSERT(!getSlotRef(INTRINSICS).isUndefined());
+        return &getSlotRef(INTRINSICS).toObject();
     }
 
   private:
@@ -376,24 +362,25 @@ class GlobalObject : public JSObject
         return &self->getPrototype(JSProto_DataView).toObject();
     }
 
-    JSObject *intrinsicsHolder() {
-        JS_ASSERT(!getSlotRef(INTRINSICS).isUndefined());
-        return &getSlotRef(INTRINSICS).toObject();
+    bool hasIntrinsicFunction(JSContext *cx, PropertyName *name) {
+        Rooted<GlobalObject *> self(cx, this);
+        Value fun = NullValue();
+        return HasDataProperty(cx, self, NameToId(name), &fun);
     }
 
-    bool getIntrinsicValue(JSContext *cx, HandlePropertyName name, MutableHandleValue value) {
-        RootedObject holder(cx, intrinsicsHolder());
+    bool getIntrinsicValue(JSContext *cx, PropertyName *name, MutableHandleValue value) {
+        RootedObject holder(cx, &getSlotRef(INTRINSICS).toObject());
         RootedId id(cx, NameToId(name));
         if (HasDataProperty(cx, holder, id, value.address()))
             return true;
-        if (!cx->runtime->cloneSelfHostedValue(cx, name, value))
+        bool ok = cx->runtime->cloneSelfHostedValueById(cx, id, holder, value);
+        if (!ok)
             return false;
-        mozilla::DebugOnly<bool> ok = JS_DefinePropertyById(cx, holder, id, value, NULL, NULL, 0);
+
+        ok = JS_DefinePropertyById(cx, holder, id, value, NULL, NULL, 0);
         JS_ASSERT(ok);
         return true;
     }
-
-    inline bool setIntrinsicValue(JSContext *cx, PropertyName *name, HandleValue value);
 
     inline RegExpStatics *getRegExpStatics() const;
 
@@ -420,12 +407,14 @@ class GlobalObject : public JSObject
         return getSlot(PROTO_GETTER);
     }
 
-    static bool isRuntimeCodeGenEnabled(JSContext *cx, Handle<GlobalObject*> global);
+    bool isRuntimeCodeGenEnabled(JSContext *cx);
 
     const Value &getOriginalEval() const {
         JS_ASSERT(getSlot(EVAL).isObject());
         return getSlot(EVAL);
     }
+
+    bool getFunctionNamespace(JSContext *cx, Value *vp);
 
     // Implemented in jsiter.cpp.
     static bool initIteratorClasses(JSContext *cx, Handle<GlobalObject*> global);
@@ -433,12 +422,6 @@ class GlobalObject : public JSObject
     // Implemented in builtin/MapObject.cpp.
     static bool initMapIteratorProto(JSContext *cx, Handle<GlobalObject*> global);
     static bool initSetIteratorProto(JSContext *cx, Handle<GlobalObject*> global);
-
-    // Implemented in Intl.cpp.
-    static bool initIntlObject(JSContext *cx, Handle<GlobalObject*> global);
-    static bool initCollatorProto(JSContext *cx, Handle<GlobalObject*> global);
-    static bool initNumberFormatProto(JSContext *cx, Handle<GlobalObject*> global);
-    static bool initDateTimeFormatProto(JSContext *cx, Handle<GlobalObject*> global);
 
     static bool initStandardClasses(JSContext *cx, Handle<GlobalObject*> global);
 

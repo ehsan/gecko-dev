@@ -11,52 +11,38 @@
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jslock.h"
+#include "jsscope.h"
+#include "jsxml.h"
 
-#include "js/RootingAPI.h"
 #include "js/TemplateLib.h"
-#include "vm/Shape.h"
+
+using namespace JS;
 
 namespace js {
 
-class Shape;
-
-/*
- * This auto class should be used around any code that might cause a mark bit to
- * be set on an object in a dead zone. See AutoMaybeTouchDeadZones
- * for more details.
- */
-struct AutoMarkInDeadZone
-{
-    AutoMarkInDeadZone(JS::Zone *zone)
-      : zone(zone),
-        scheduled(zone->scheduledForDestruction)
-    {
-        if (zone->rt->gcManipulatingDeadZones && zone->scheduledForDestruction) {
-            zone->rt->gcObjectsMarkedInDeadZones++;
-            zone->scheduledForDestruction = false;
-        }
-    }
-
-    ~AutoMarkInDeadZone() {
-        zone->scheduledForDestruction = scheduled;
-    }
-
-  private:
-    JS::Zone *zone;
-    bool scheduled;
-};
+struct Shape;
 
 namespace gc {
 
+inline JSGCTraceKind
+GetGCThingTraceKind(const void *thing)
+{
+    AutoAssertNoGC nogc;
+    JS_ASSERT(thing);
+    const Cell *cell = reinterpret_cast<const Cell *>(thing);
+    return MapAllocToTraceKind(cell->getAllocKind());
+}
+
 /* Capacity for slotsToThingKind */
 const size_t SLOTS_TO_THING_KIND_LIMIT = 17;
-
-extern AllocKind slotsToThingKind[];
 
 /* Get the best kind to use when making an object with the given slot count. */
 static inline AllocKind
 GetGCObjectKind(size_t numSlots)
 {
+    extern AllocKind slotsToThingKind[];
+
+    AutoAssertNoGC nogc;
     if (numSlots >= SLOTS_TO_THING_KIND_LIMIT)
         return FINALIZE_OBJECT16;
     return slotsToThingKind[numSlots];
@@ -65,6 +51,7 @@ GetGCObjectKind(size_t numSlots)
 static inline AllocKind
 GetGCObjectKind(Class *clasp)
 {
+    AutoAssertNoGC nogc;
     if (clasp == &FunctionClass)
         return JSFunction::FinalizeKind;
     uint32_t nslots = JSCLASS_RESERVED_SLOTS(clasp);
@@ -85,6 +72,7 @@ GetGCArrayKind(size_t numSlots)
      * maximum number of fixed slots is needed then the fixed slots will be
      * unused.
      */
+    AutoAssertNoGC nogc;
     JS_STATIC_ASSERT(ObjectElements::VALUES_PER_HEADER == 2);
     if (numSlots > JSObject::NELEMENTS_LIMIT || numSlots + 2 >= SLOTS_TO_THING_KIND_LIMIT)
         return FINALIZE_OBJECT2;
@@ -96,6 +84,7 @@ GetGCObjectFixedSlotsKind(size_t numFixedSlots)
 {
     extern AllocKind slotsToThingKind[];
 
+    AutoAssertNoGC nogc;
     JS_ASSERT(numFixedSlots < SLOTS_TO_THING_KIND_LIMIT);
     return slotsToThingKind[numFixedSlots];
 }
@@ -103,6 +92,7 @@ GetGCObjectFixedSlotsKind(size_t numFixedSlots)
 static inline AllocKind
 GetBackgroundAllocKind(AllocKind kind)
 {
+    AutoAssertNoGC nogc;
     JS_ASSERT(!IsBackgroundFinalized(kind));
     JS_ASSERT(kind <= FINALIZE_OBJECT_LAST);
     return (AllocKind) (kind + 1);
@@ -115,6 +105,7 @@ GetBackgroundAllocKind(AllocKind kind)
 static inline bool
 TryIncrementAllocKind(AllocKind *kindp)
 {
+    AutoAssertNoGC nogc;
     size_t next = size_t(*kindp) + 2;
     if (next >= size_t(FINALIZE_OBJECT_LIMIT))
         return false;
@@ -126,6 +117,7 @@ TryIncrementAllocKind(AllocKind *kindp)
 static inline size_t
 GetGCKindSlots(AllocKind thingKind)
 {
+    AutoAssertNoGC nogc;
     /* Using a switch in hopes that thingKind will usually be a compile-time constant. */
     switch (thingKind) {
       case FINALIZE_OBJECT0:
@@ -155,6 +147,7 @@ GetGCKindSlots(AllocKind thingKind)
 static inline size_t
 GetGCKindSlots(AllocKind thingKind, Class *clasp)
 {
+    AutoAssertNoGC nogc;
     size_t nslots = GetGCKindSlots(thingKind);
 
     /* An object's private data uses the space taken by its last fixed slot. */
@@ -173,43 +166,21 @@ GetGCKindSlots(AllocKind thingKind, Class *clasp)
     return nslots;
 }
 
-#ifdef JSGC_GENERATIONAL
-template <typename NurseryType>
-inline bool
-ShouldNurseryAllocate(const NurseryType &nursery, AllocKind kind, InitialHeap heap)
-{
-    return nursery.isEnabled() && IsNurseryAllocable(kind) && heap != TenuredHeap;
-}
-#endif
-
-inline bool
-IsInsideNursery(JSRuntime *rt, const void *thing)
-{
-#ifdef JSGC_GENERATIONAL
-#if JS_GC_ZEAL
-    if (rt->gcVerifyPostData)
-        return rt->gcVerifierNursery.isInside(thing);
-#endif
-#endif
-    return false;
-}
-
-inline JSGCTraceKind
-GetGCThingTraceKind(const void *thing)
-{
-    JS_ASSERT(thing);
-    const Cell *cell = static_cast<const Cell *>(thing);
-#ifdef JSGC_GENERATIONAL
-    if (IsInsideNursery(cell->runtime(), cell))
-        return JSTRACE_OBJECT;
-#endif
-    return MapAllocToTraceKind(cell->tenuredGetAllocKind());
-}
-
 static inline void
-GCPoke(JSRuntime *rt)
+GCPoke(JSRuntime *rt, Value oldval)
 {
+    AutoAssertNoGC nogc;
+
+    /*
+     * Since we're forcing a GC from JS_GC anyway, don't bother wasting cycles
+     * loading oldval.  XXX remove implied force, fix jsinterp.c's "second arg
+     * ignored", etc.
+     */
+#if 1
     rt->gcPoke = true;
+#else
+    rt->gcPoke = oldval.isGCThing();
+#endif
 
 #ifdef JS_GC_ZEAL
     /* Schedule a GC to happen "soon" after a GC poke. */
@@ -228,8 +199,8 @@ class ArenaIter
         init();
     }
 
-    ArenaIter(JS::Zone *zone, AllocKind kind) {
-        init(zone, kind);
+    ArenaIter(JSCompartment *comp, AllocKind kind) {
+        init(comp, kind);
     }
 
     void init() {
@@ -242,9 +213,9 @@ class ArenaIter
         remainingHeader = NULL;
     }
 
-    void init(JS::Zone *zone, AllocKind kind) {
-        aheader = zone->allocator.arenas.getFirstArena(kind);
-        remainingHeader = zone->allocator.arenas.getFirstArenaToSweep(kind);
+    void init(JSCompartment *comp, AllocKind kind) {
+        aheader = comp->arenas.getFirstArena(kind);
+        remainingHeader = comp->arenas.getFirstArenaToSweep(kind);
         if (!aheader) {
             aheader = remainingHeader;
             remainingHeader = NULL;
@@ -282,8 +253,8 @@ class CellIterImpl
     CellIterImpl() {
     }
 
-    void initSpan(JS::Zone *zone, AllocKind kind) {
-        JS_ASSERT(zone->allocator.arenas.isSynchronizedFreeList(kind));
+    void initSpan(JSCompartment *comp, AllocKind kind) {
+        JS_ASSERT(comp->arenas.isSynchronizedFreeList(kind));
         firstThingOffset = Arena::firstThingOffset(kind);
         thingSize = Arena::thingSize(kind);
         firstSpan.initAsEmpty();
@@ -292,15 +263,15 @@ class CellIterImpl
     }
 
     void init(ArenaHeader *singleAheader) {
-        initSpan(singleAheader->zone, singleAheader->getAllocKind());
+        initSpan(singleAheader->compartment, singleAheader->getAllocKind());
         aiter.init(singleAheader);
         next();
         aiter.init();
     }
 
-    void init(JS::Zone *zone, AllocKind kind) {
-        initSpan(zone, kind);
-        aiter.init(zone, kind);
+    void init(JSCompartment *comp, AllocKind kind) {
+        initSpan(comp, kind);
+        aiter.init(comp, kind);
         next();
     }
 
@@ -346,13 +317,13 @@ class CellIterImpl
 class CellIterUnderGC : public CellIterImpl
 {
   public:
-    CellIterUnderGC(JS::Zone *zone, AllocKind kind) {
-        JS_ASSERT(zone->rt->isHeapBusy());
-        init(zone, kind);
+    CellIterUnderGC(JSCompartment *comp, AllocKind kind) {
+        JS_ASSERT(comp->rt->isHeapBusy());
+        init(comp, kind);
     }
 
     CellIterUnderGC(ArenaHeader *aheader) {
-        JS_ASSERT(aheader->zone->rt->isHeapBusy());
+        JS_ASSERT(aheader->compartment->rt->isHeapBusy());
         init(aheader);
     }
 };
@@ -365,32 +336,28 @@ class CellIter : public CellIterImpl
     size_t *counter;
 #endif
   public:
-    CellIter(JS::Zone *zone, AllocKind kind)
-      : lists(&zone->allocator.arenas),
+    CellIter(JSCompartment *comp, AllocKind kind)
+      : lists(&comp->arenas),
         kind(kind)
     {
         /*
          * We have a single-threaded runtime, so there's no need to protect
          * against other threads iterating or allocating. However, we do have
-         * background finalization; we have to wait for this to finish if it's
-         * currently active.
+         * background finalization; make sure people aren't using CellIter to
+         * walk such allocation kinds.
          */
-        if (IsBackgroundFinalized(kind) &&
-            zone->allocator.arenas.needBackgroundFinalizeWait(kind))
-        {
-            gc::FinishBackgroundFinalize(zone->rt);
-        }
+        JS_ASSERT(!IsBackgroundFinalized(kind));
         if (lists->isSynchronizedFreeList(kind)) {
             lists = NULL;
         } else {
-            JS_ASSERT(!zone->rt->isHeapBusy());
+            JS_ASSERT(!comp->rt->isHeapBusy());
             lists->copyFreeListToArena(kind);
         }
 #ifdef DEBUG
-        counter = &zone->rt->noGCOrAllocationCheck;
+        counter = &comp->rt->noGCOrAllocationCheck;
         ++*counter;
 #endif
-        init(zone, kind);
+        init(comp, kind);
     }
 
     ~CellIter() {
@@ -403,65 +370,58 @@ class CellIter : public CellIterImpl
     }
 };
 
-class GCZonesIter
+/*
+ * Invoke ArenaOp and CellOp on every arena and cell in a compartment which
+ * have the specified thing kind.
+ */
+template <class ArenaOp, class CellOp>
+void
+ForEachArenaAndCell(JSCompartment *compartment, AllocKind thingKind,
+                    ArenaOp arenaOp, CellOp cellOp)
 {
+    for (ArenaIter aiter(compartment, thingKind); !aiter.done(); aiter.next()) {
+        ArenaHeader *aheader = aiter.get();
+        arenaOp(aheader->getArena());
+        for (CellIterUnderGC iter(aheader); !iter.done(); iter.next())
+            cellOp(iter.getCell());
+    }
+}
+
+/* Signatures for ArenaOp and CellOp above. */
+
+inline void EmptyArenaOp(Arena *arena) {}
+inline void EmptyCellOp(Cell *t) {}
+
+class GCCompartmentsIter {
   private:
-    ZonesIter zone;
+    JSCompartment **it, **end;
 
   public:
-    GCZonesIter(JSRuntime *rt) : zone(rt) {
-        if (!zone->isCollecting())
+    GCCompartmentsIter(JSRuntime *rt) {
+        JS_ASSERT(rt->isHeapBusy());
+        it = rt->compartments.begin();
+        end = rt->compartments.end();
+        if (!(*it)->isCollecting())
             next();
     }
 
-    bool done() const { return zone.done(); }
+    bool done() const { return it == end; }
 
     void next() {
         JS_ASSERT(!done());
         do {
-            zone.next();
-        } while (!zone.done() && !zone->isCollecting());
+            it++;
+        } while (it != end && !(*it)->isCollecting());
     }
 
-    JS::Zone *get() const {
+    JSCompartment *get() const {
         JS_ASSERT(!done());
-        return zone;
+        return *it;
     }
 
-    operator JS::Zone *() const { return get(); }
-    JS::Zone *operator->() const { return get(); }
+    operator JSCompartment *() const { return get(); }
+    JSCompartment *operator->() const { return get(); }
 };
-
-typedef CompartmentsIterT<GCZonesIter> GCCompartmentsIter;
-
-/* Iterates over all zones in the current zone group. */
-class GCZoneGroupIter {
-  private:
-    JS::Zone *current;
-
-  public:
-    GCZoneGroupIter(JSRuntime *rt) {
-        JS_ASSERT(rt->isHeapBusy());
-        current = rt->gcCurrentZoneGroup;
-    }
-
-    bool done() const { return !current; }
-
-    void next() {
-        JS_ASSERT(!done());
-        current = current->nextNodeInGroup();
-    }
-
-    JS::Zone *get() const {
-        JS_ASSERT(!done());
-        return current;
-    }
-
-    operator JS::Zone *() const { return get(); }
-    JS::Zone *operator->() const { return get(); }
-};
-
-typedef CompartmentsIterT<GCZoneGroupIter> GCCompartmentGroupIter;
 
 /*
  * Allocates a new GC thing. After a successful allocation the caller must
@@ -470,15 +430,14 @@ typedef CompartmentsIterT<GCZoneGroupIter> GCCompartmentGroupIter;
  * in the partially initialized thing.
  */
 
-template <typename T, AllowGC allowGC>
+template <typename T>
 inline T *
-NewGCThing(JSContext *cx, AllocKind kind, size_t thingSize, InitialHeap heap)
+NewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
 {
+    AssertCanGC();
     JS_ASSERT(thingSize == js::gc::Arena::thingSize(kind));
     JS_ASSERT_IF(cx->compartment == cx->runtime->atomsCompartment,
-                 kind == FINALIZE_STRING ||
-                 kind == FINALIZE_SHORT_STRING ||
-                 kind == FINALIZE_IONCODE);
+                 kind == js::gc::FINALIZE_STRING || kind == js::gc::FINALIZE_SHORT_STRING);
     JS_ASSERT(!cx->runtime->isHeapBusy());
     JS_ASSERT(!cx->runtime->noGCOrAllocationCheck);
 
@@ -486,116 +445,121 @@ NewGCThing(JSContext *cx, AllocKind kind, size_t thingSize, InitialHeap heap)
     JS_OOM_POSSIBLY_FAIL_REPORT(cx);
 
 #ifdef JS_GC_ZEAL
-    if (cx->runtime->needZealousGC() && allowGC)
+    if (cx->runtime->needZealousGC())
         js::gc::RunDebugGC(cx);
 #endif
 
-    if (allowGC)
-        MaybeCheckStackRoots(cx);
+    MaybeCheckStackRoots(cx, /* relax = */ false);
 
-    JS::Zone *zone = cx->zone();
-    T *t = static_cast<T *>(zone->allocator.arenas.allocateFromFreeList(kind, thingSize));
+    JSCompartment *comp = cx->compartment;
+    void *t = comp->arenas.allocateFromFreeList(kind, thingSize);
     if (!t)
-        t = static_cast<T *>(js::gc::ArenaLists::refillFreeList<allowGC>(cx, kind));
+        t = js::gc::ArenaLists::refillFreeList(cx, kind);
 
-    JS_ASSERT_IF(t && zone->wasGCStarted() && (zone->isGCMarking() || zone->isGCSweeping()),
-                 t->arenaHeader()->allocatedDuringIncremental);
+    JS_ASSERT_IF(t && comp->wasGCStarted() && comp->needsBarrier(),
+                 static_cast<T *>(t)->arenaHeader()->allocatedDuringIncremental);
 
 #if defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)
-    if (cx->runtime->gcVerifyPostData &&
-        ShouldNurseryAllocate(cx->runtime->gcVerifierNursery, kind, heap))
-    {
-        JS_ASSERT(!IsAtomsCompartment(cx->compartment));
-        cx->runtime->gcVerifierNursery.insertPointer(t);
-    }
+    if (cx->runtime->gcVerifyPostData && IsNurseryAllocable(kind) && !IsAtomsCompartment(comp))
+        comp->gcNursery.insertPointer(t);
 #endif
-
-    return t;
+    return static_cast<T *>(t);
 }
 
-/*
- * Instances of this class set the |JSRuntime::suppressGC| flag for the duration
- * that they are live. Use of this class is highly discouraged. Please carefully
- * read the comment in jscntxt.h above |suppressGC| and take all appropriate
- * precautions before instantiating this class.
- */
-class AutoSuppressGC
+/* Alternate form which allocates a GC thing if doing so cannot trigger a GC. */
+template <typename T>
+inline T *
+TryNewGCThing(JSContext *cx, js::gc::AllocKind kind, size_t thingSize)
 {
-    int32_t &suppressGC_;
+    AssertCanGC();
+    JS_ASSERT(thingSize == js::gc::Arena::thingSize(kind));
+    JS_ASSERT_IF(cx->compartment == cx->runtime->atomsCompartment,
+                 kind == js::gc::FINALIZE_STRING || kind == js::gc::FINALIZE_SHORT_STRING);
+    JS_ASSERT(!cx->runtime->isHeapBusy());
+    JS_ASSERT(!cx->runtime->noGCOrAllocationCheck);
 
-  public:
-    AutoSuppressGC(JSContext *cx)
-      : suppressGC_(cx->runtime->mainThread.suppressGC)
-    {
-        suppressGC_++;
-    }
+#ifdef JS_GC_ZEAL
+    if (cx->runtime->needZealousGC())
+        return NULL;
+#endif
 
-    AutoSuppressGC(JSCompartment *comp)
-      : suppressGC_(comp->rt->mainThread.suppressGC)
-    {
-        suppressGC_++;
-    }
+    void *t = cx->compartment->arenas.allocateFromFreeList(kind, thingSize);
+    JS_ASSERT_IF(t && cx->compartment->wasGCStarted() && cx->compartment->needsBarrier(),
+                 static_cast<T *>(t)->arenaHeader()->allocatedDuringIncremental);
 
-    ~AutoSuppressGC()
-    {
-        suppressGC_--;
-    }
-};
+#if defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)
+    JSCompartment *comp = cx->compartment;
+    if (cx->runtime->gcVerifyPostData && IsNurseryAllocable(kind) && !IsAtomsCompartment(comp))
+        comp->gcNursery.insertPointer(t);
+#endif
+    return static_cast<T *>(t);
+}
 
 } /* namespace gc */
 } /* namespace js */
 
-template <js::AllowGC allowGC>
 inline JSObject *
-js_NewGCObject(JSContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap)
+js_NewGCObject(JSContext *cx, js::gc::AllocKind kind)
 {
+    AssertCanGC();
     JS_ASSERT(kind >= js::gc::FINALIZE_OBJECT0 && kind <= js::gc::FINALIZE_OBJECT_LAST);
-    return js::gc::NewGCThing<JSObject, allowGC>(cx, kind, js::gc::Arena::thingSize(kind), heap);
+    return js::gc::NewGCThing<JSObject>(cx, kind, js::gc::Arena::thingSize(kind));
 }
 
-template <js::AllowGC allowGC>
+inline JSObject *
+js_TryNewGCObject(JSContext *cx, js::gc::AllocKind kind)
+{
+    AssertCanGC();
+    JS_ASSERT(kind >= js::gc::FINALIZE_OBJECT0 && kind <= js::gc::FINALIZE_OBJECT_LAST);
+    return js::gc::TryNewGCThing<JSObject>(cx, kind, js::gc::Arena::thingSize(kind));
+}
+
 inline JSString *
 js_NewGCString(JSContext *cx)
 {
-    return js::gc::NewGCThing<JSString, allowGC>(cx, js::gc::FINALIZE_STRING,
-                                                 sizeof(JSString), js::gc::TenuredHeap);
+    AssertCanGC();
+    return js::gc::NewGCThing<JSString>(cx, js::gc::FINALIZE_STRING, sizeof(JSString));
 }
 
-template <js::AllowGC allowGC>
 inline JSShortString *
 js_NewGCShortString(JSContext *cx)
 {
-    return js::gc::NewGCThing<JSShortString, allowGC>(cx, js::gc::FINALIZE_SHORT_STRING,
-                                                      sizeof(JSShortString), js::gc::TenuredHeap);
+    AssertCanGC();
+    return js::gc::NewGCThing<JSShortString>(cx, js::gc::FINALIZE_SHORT_STRING, sizeof(JSShortString));
 }
 
 inline JSExternalString *
 js_NewGCExternalString(JSContext *cx)
 {
-    return js::gc::NewGCThing<JSExternalString, js::CanGC>(cx, js::gc::FINALIZE_EXTERNAL_STRING,
-                                                           sizeof(JSExternalString), js::gc::TenuredHeap);
+    AssertCanGC();
+    return js::gc::NewGCThing<JSExternalString>(cx, js::gc::FINALIZE_EXTERNAL_STRING,
+                                                sizeof(JSExternalString));
 }
 
 inline JSScript *
 js_NewGCScript(JSContext *cx)
 {
-    return js::gc::NewGCThing<JSScript, js::CanGC>(cx, js::gc::FINALIZE_SCRIPT,
-                                                   sizeof(JSScript), js::gc::TenuredHeap);
+    AssertCanGC();
+    return js::gc::NewGCThing<JSScript>(cx, js::gc::FINALIZE_SCRIPT, sizeof(JSScript));
 }
 
-inline js::RawShape
+inline js::Shape *
 js_NewGCShape(JSContext *cx)
 {
-    return js::gc::NewGCThing<js::Shape, js::CanGC>(cx, js::gc::FINALIZE_SHAPE,
-                                                    sizeof(js::Shape), js::gc::TenuredHeap);
+    AssertCanGC();
+    return js::gc::NewGCThing<js::Shape>(cx, js::gc::FINALIZE_SHAPE, sizeof(js::Shape));
 }
 
-template <js::AllowGC allowGC>
-inline js::RawBaseShape
+inline js::BaseShape *
 js_NewGCBaseShape(JSContext *cx)
 {
-    return js::gc::NewGCThing<js::BaseShape, allowGC>(cx, js::gc::FINALIZE_BASE_SHAPE,
-                                                      sizeof(js::BaseShape), js::gc::TenuredHeap);
+    AssertCanGC();
+    return js::gc::NewGCThing<js::BaseShape>(cx, js::gc::FINALIZE_BASE_SHAPE, sizeof(js::BaseShape));
 }
+
+#if JS_HAS_XML_SUPPORT
+extern JSXML *
+js_NewGCXML(JSContext *cx);
+#endif
 
 #endif /* jsgcinlines_h___ */

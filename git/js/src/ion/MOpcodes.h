@@ -19,8 +19,6 @@ namespace ion {
     _(TableSwitch)                                                          \
     _(Goto)                                                                 \
     _(Test)                                                                 \
-    _(TypeObjectDispatch)                                                   \
-    _(FunctionDispatch)                                                     \
     _(PolyInlineDispatch)                                                   \
     _(Compare)                                                              \
     _(Phi)                                                                  \
@@ -29,18 +27,13 @@ namespace ion {
     _(OsrScopeChain)                                                        \
     _(ReturnFromCtor)                                                       \
     _(CheckOverRecursed)                                                    \
+    _(RecompileCheck)                                                       \
     _(DefVar)                                                               \
-    _(DefFun)                                                               \
     _(CreateThis)                                                           \
-    _(CreateThisWithProto)                                                  \
-    _(CreateThisWithTemplate)                                               \
     _(PrepareCall)                                                          \
     _(PassArg)                                                              \
     _(Call)                                                                 \
     _(ApplyArgs)                                                            \
-    _(GetDynamicName)                                                       \
-    _(FilterArguments)                                                      \
-    _(CallDirectEval)                                                       \
     _(BitNot)                                                               \
     _(TypeOf)                                                               \
     _(ToId)                                                                 \
@@ -76,16 +69,13 @@ namespace ion {
     _(TruncateToInt32)                                                      \
     _(ToString)                                                             \
     _(NewSlots)                                                             \
-    _(NewParallelArray)                                                     \
     _(NewArray)                                                             \
     _(NewObject)                                                            \
-    _(NewDeclEnvObject)                                                     \
     _(NewCallObject)                                                        \
     _(NewStringObject)                                                      \
     _(InitProp)                                                             \
     _(Start)                                                                \
     _(OsrEntry)                                                             \
-    _(Nop)                                                                  \
     _(RegExp)                                                               \
     _(RegExpTest)                                                           \
     _(Lambda)                                                               \
@@ -93,7 +83,6 @@ namespace ion {
     _(Slots)                                                                \
     _(Elements)                                                             \
     _(ConstantElements)                                                     \
-    _(ConvertElementsToDoubles)                                             \
     _(LoadSlot)                                                             \
     _(StoreSlot)                                                            \
     _(FunctionEnvironment)                                                  \
@@ -112,7 +101,6 @@ namespace ion {
     _(Not)                                                                  \
     _(BoundsCheck)                                                          \
     _(BoundsCheckLower)                                                     \
-    _(InArray)                                                              \
     _(LoadElement)                                                          \
     _(LoadElementHole)                                                      \
     _(StoreElement)                                                         \
@@ -123,14 +111,11 @@ namespace ion {
     _(LoadTypedArrayElement)                                                \
     _(LoadTypedArrayElementHole)                                            \
     _(StoreTypedArrayElement)                                               \
-    _(EffectiveAddress)                                                     \
     _(ClampToUint8)                                                         \
     _(LoadFixedSlot)                                                        \
     _(StoreFixedSlot)                                                       \
     _(CallGetProperty)                                                      \
     _(GetNameCache)                                                         \
-    _(CallGetIntrinsicValue)                                                \
-    _(CallsiteCloneCache)                                                   \
     _(CallGetElement)                                                       \
     _(CallSetElement)                                                       \
     _(CallSetProperty)                                                      \
@@ -147,52 +132,17 @@ namespace ion {
     _(Round)                                                                \
     _(In)                                                                   \
     _(InstanceOf)                                                           \
-    _(CallInstanceOf)                                                       \
     _(InterruptCheck)                                                       \
     _(FunctionBoundary)                                                     \
     _(GetDOMProperty)                                                       \
-    _(SetDOMProperty)                                                       \
-    _(AsmJSNeg)                                                             \
-    _(AsmJSUDiv)                                                            \
-    _(AsmJSUMod)                                                            \
-    _(AsmJSUnsignedToDouble)                                                \
-    _(AsmJSLoadHeap)                                                        \
-    _(AsmJSStoreHeap)                                                       \
-    _(AsmJSLoadGlobalVar)                                                   \
-    _(AsmJSStoreGlobalVar)                                                  \
-    _(AsmJSLoadFuncPtr)                                                     \
-    _(AsmJSLoadFFIFunc)                                                     \
-    _(AsmJSReturn)                                                          \
-    _(AsmJSParameter)                                                       \
-    _(AsmJSVoidReturn)                                                      \
-    _(AsmJSPassStackArg)                                                    \
-    _(AsmJSCall)                                                            \
-    _(AsmJSCheckOverRecursed)                                               \
-    _(ParCheckOverRecursed)                                                 \
-    _(ParNewCallObject)                                                     \
-    _(ParNew)                                                               \
-    _(ParNewDenseArray)                                                     \
-    _(ParBailout)                                                           \
-    _(ParLambda)                                                            \
-    _(ParSlice)                                                             \
-    _(ParWriteGuard)                                                        \
-    _(ParDump)                                                              \
-    _(ParCheckInterrupt)
+    _(SetDOMProperty)
 
 // Forward declarations of MIR types.
 #define FORWARD_DECLARE(op) class M##op;
  MIR_OPCODE_LIST(FORWARD_DECLARE)
 #undef FORWARD_DECLARE
 
-class MInstructionVisitor // interface i.e. pure abstract class
-{
-  public:
-#define VISIT_INS(op) virtual bool visit##op(M##op *) = 0;
-    MIR_OPCODE_LIST(VISIT_INS)
-#undef VISIT_INS
-};
-
-class MInstructionVisitorWithDefaults : public MInstructionVisitor
+class MInstructionVisitor
 {
   public:
 #define VISIT_INS(op) virtual bool visit##op(M##op *) { JS_NOT_REACHED("NYI: " #op); return false; }

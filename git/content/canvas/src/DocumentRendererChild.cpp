@@ -11,6 +11,8 @@
 #include "nsPIDOMWindow.h"
 #include "nsIDOMWindow.h"
 #include "nsIDocShell.h"
+#include "nsIDocShellTreeNode.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsComponentManagerUtils.h"
 #include "nsCSSParser.h"
@@ -75,8 +77,8 @@ DocumentRendererChild::RenderDocument(nsIDOMWindow *window,
     nsRefPtr<gfxContext> ctx = new gfxContext(surf);
     ctx->SetMatrix(transform);
 
-    nsCOMPtr<nsIPresShell> shell = presContext->PresShell();
-    shell->RenderDocument(documentRect, renderFlags, bgColor, ctx);
+    presContext->PresShell()->
+      RenderDocument(documentRect, renderFlags, bgColor, ctx);
 
     return true;
 }

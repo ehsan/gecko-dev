@@ -134,30 +134,26 @@ public:
 
   struct ContainerParameters {
     ContainerParameters() :
-      mXScale(1), mYScale(1), mAncestorClipRect(nullptr),
+      mXScale(1), mYScale(1),
       mInTransformedSubtree(false), mInActiveTransformedSubtree(false),
       mDisableSubpixelAntialiasingInDescendants(false)
     {}
     ContainerParameters(float aXScale, float aYScale) :
-      mXScale(aXScale), mYScale(aYScale), mAncestorClipRect(nullptr),
+      mXScale(aXScale), mYScale(aYScale),
       mInTransformedSubtree(false), mInActiveTransformedSubtree(false),
       mDisableSubpixelAntialiasingInDescendants(false)
     {}
     ContainerParameters(float aXScale, float aYScale,
                         const nsIntPoint& aOffset,
                         const ContainerParameters& aParent) :
-      mXScale(aXScale), mYScale(aYScale), mAncestorClipRect(nullptr),
+      mXScale(aXScale), mYScale(aYScale),
       mOffset(aOffset),
       mInTransformedSubtree(aParent.mInTransformedSubtree),
       mInActiveTransformedSubtree(aParent.mInActiveTransformedSubtree),
       mDisableSubpixelAntialiasingInDescendants(aParent.mDisableSubpixelAntialiasingInDescendants)
     {}
     float mXScale, mYScale;
-    /**
-     * An ancestor clip rect that can be applied to restrict the visibility
-     * of this container. Null if none available.
-     */
-    const nsIntRect* mAncestorClipRect;
+
     /**
      * An offset to append to the transform set on all child layers created.
      */
@@ -177,9 +173,6 @@ public:
       // ThebesLayer to ensure that snapping exactly matches the ideal transform.
       return mInTransformedSubtree && !mInActiveTransformedSubtree;
     }
-  };
-  enum {
-    CONTAINER_NOT_CLIPPED_BY_ANCESTORS = 0x01
   };
   /**
    * Build a container layer for a display item that contains a child
@@ -205,8 +198,7 @@ public:
                          nsDisplayItem* aContainerItem,
                          const nsDisplayList& aChildren,
                          const ContainerParameters& aContainerParameters,
-                         const gfx3DMatrix* aTransform,
-                         uint32_t aFlags = 0);
+                         const gfx3DMatrix* aTransform);
 
   /**
    * Get a retained layer for a display item that needs to create its own
@@ -308,10 +300,17 @@ public:
   Layer* GetOldLayerFor(nsDisplayItem* aItem, 
                         nsDisplayItemGeometry** aOldGeometry = nullptr, 
                         Clip** aOldClip = nullptr,
-                        nsTArray<nsIFrame*>* aChangedFrames = nullptr,
-                        bool *aIsInvalid = nullptr);
+                        nsTArray<nsIFrame*>* aChangedFrames = nullptr);
 
   static Layer* GetDebugOldLayerFor(nsIFrame* aFrame, uint32_t aDisplayItemKey);
+
+  /**
+   * Try to determine whether the ThebesLayer aLayer paints an opaque
+   * single color everywhere it's visible in aRect.
+   * If successful, return that color, otherwise return NS_RGBA(0,0,0,0).
+   */
+  nscolor FindOpaqueColorCovering(nsDisplayListBuilder* aBuilder,
+                                  ThebesLayer* aLayer, const nsRect& aRect);
 
   /**
    * Destroy any stored LayerManagerDataProperty and the associated data for
@@ -322,15 +321,20 @@ public:
   LayerManager* GetRetainingLayerManager() { return mRetainingManager; }
 
   /**
+   * Returns true if the given item (which we assume here is
+   * background-attachment:fixed) needs to be repainted as we scroll in its
+   * document.
+   * Returns false if it doesn't need to be repainted because the layer system
+   * is ensuring its fixed-ness for us.
+   */
+  static bool NeedToInvalidateFixedDisplayItem(nsDisplayListBuilder* aBuilder,
+                                                 nsDisplayItem* aItem);
+
+  /**
    * Returns true if the given display item was rendered during the previous
    * paint. Returns false otherwise.
    */
   static bool HasRetainedDataFor(nsIFrame* aFrame, uint32_t aDisplayItemKey);
-
-  class DisplayItemData;
-  typedef void (*DisplayItemDataCallback)(nsIFrame *aFrame, DisplayItemData* aItem);
-
-  static void IterateRetainedDataFor(nsIFrame* aFrame, DisplayItemDataCallback aCallback);
 
   /**
    * Save transform that was in aLayer when we last painted, and the position
@@ -462,6 +466,7 @@ public:
   NS_DECLARE_FRAME_PROPERTY_WITH_FRAME_IN_DTOR(LayerManagerDataProperty,
                                                RemoveFrameFromLayerManager)
 
+protected:
   /**
    * Retained data storage:
    *
@@ -480,12 +485,6 @@ public:
    */
   class DisplayItemData {
   public:
-    friend class FrameLayerBuilder;
-
-    uint32_t GetDisplayItemKey() { return mDisplayItemKey; }
-    Layer* GetLayer() { return mLayer; }
-    void Invalidate() { mIsInvalid = true; }
-  protected:
 
     DisplayItemData(LayerManagerData* aParent, uint32_t aKey, Layer* aLayer, LayerState aLayerState, uint32_t aGeneration);
     DisplayItemData(DisplayItemData &toCopy);
@@ -497,7 +496,6 @@ public:
     ~DisplayItemData();
 
     NS_INLINE_DECL_REFCOUNTING(DisplayItemData)
-
 
     /**
      * Associates this DisplayItemData with a frame, and adds it
@@ -533,10 +531,7 @@ public:
      * paint) has been updated in the current paint.
      */
     bool            mUsed;
-    bool            mIsInvalid;
   };
-
-protected:
 
   friend class LayerManagerData;
 
@@ -662,13 +657,15 @@ public:
     return mThebesLayerItems.GetEntry(aLayer);
   }
 
+  static PLDHashOperator ProcessRemovedDisplayItems(nsRefPtrHashKey<DisplayItemData>* aEntry,
+                                                    void* aUserArg);
 protected:
   void RemoveThebesItemsAndOwnerDataForLayerSubtree(Layer* aLayer,
                                                     bool aRemoveThebesItems,
                                                     bool aRemoveOwnerData);
 
-  static PLDHashOperator ProcessRemovedDisplayItems(nsRefPtrHashKey<DisplayItemData>* aEntry,
-                                                    void* aUserArg);
+  static PLDHashOperator UpdateDisplayItemDataForFrame(nsRefPtrHashKey<DisplayItemData>* aEntry,
+                                                       void* aUserArg);
   static PLDHashOperator RestoreDisplayItemData(nsRefPtrHashKey<DisplayItemData>* aEntry,
                                                 void *aUserArg);
 

@@ -36,7 +36,7 @@
 #include <unistd.h>
 #include <sys/sysctl.h>
 
-#include <common/scoped_ptr.h>
+#include <processor/scoped_ptr.h>
 
 #pragma mark -
 #pragma mark Private Methods
@@ -110,7 +110,6 @@ NSString* GetPlatform() {
     queue_ = dispatch_queue_create("com.google.BreakpadQueue", NULL);
     configuration_ = [[[NSBundle mainBundle] infoDictionary] mutableCopy];
     enableUploads_ = NO;
-    started_ = NO;
     NSString* uploadInterval =
         [configuration_ valueForKey:@BREAKPAD_REPORT_INTERVAL];
     [self setUploadInterval:[uploadInterval intValue]];
@@ -129,9 +128,6 @@ NSString* GetPlatform() {
 #pragma mark -
 
 - (void)start:(BOOL)onCurrentThread {
-  if (started_)
-    return;
-  started_ = YES;
   void(^startBlock)() = ^{
       assert(!breakpadRef_);
       breakpadRef_ = BreakpadCreate(configuration_);
@@ -146,9 +142,6 @@ NSString* GetPlatform() {
 }
 
 - (void)stop {
-  if (!started_)
-    return;
-  started_ = NO;
   dispatch_sync(queue_, ^{
       if (breakpadRef_) {
         BreakpadRelease(breakpadRef_);
@@ -158,8 +151,6 @@ NSString* GetPlatform() {
 }
 
 - (void)setUploadingEnabled:(BOOL)enabled {
-  NSAssert(started_,
-      @"The controller must be started before setUploadingEnabled is called");
   dispatch_async(queue_, ^{
       if (enabled == enableUploads_)
         return;
@@ -178,8 +169,6 @@ NSString* GetPlatform() {
 }
 
 - (void)updateConfiguration:(NSDictionary*)configuration {
-  NSAssert(!started_,
-      @"The controller must not be started when updateConfiguration is called");
   [configuration_ addEntriesFromDictionary:configuration];
   NSString* uploadInterval =
       [configuration_ valueForKey:@BREAKPAD_REPORT_INTERVAL];
@@ -188,14 +177,10 @@ NSString* GetPlatform() {
 }
 
 - (void)setUploadingURL:(NSString*)url {
-  NSAssert(!started_,
-      @"The controller must not be started when setUploadingURL is called");
   [configuration_ setValue:url forKey:@BREAKPAD_URL];
 }
 
 - (void)setUploadInterval:(int)intervalInSeconds {
-  NSAssert(!started_,
-      @"The controller must not be started when setUploadInterval is called");
   [configuration_ removeObjectForKey:@BREAKPAD_REPORT_INTERVAL];
   uploadIntervalInSeconds_ = intervalInSeconds;
   if (uploadIntervalInSeconds_ < 0)
@@ -203,8 +188,6 @@ NSString* GetPlatform() {
 }
 
 - (void)addUploadParameter:(NSString*)value forKey:(NSString*)key {
-  NSAssert(started_,
-      @"The controller must be started before addUploadParameter is called");
   dispatch_async(queue_, ^{
       if (breakpadRef_)
         BreakpadAddUploadParameter(breakpadRef_, key, value);
@@ -212,8 +195,6 @@ NSString* GetPlatform() {
 }
 
 - (void)removeUploadParameterForKey:(NSString*)key {
-  NSAssert(started_, @"The controller must be started before "
-                     "removeUploadParameterForKey is called");
   dispatch_async(queue_, ^{
       if (breakpadRef_)
         BreakpadRemoveUploadParameter(breakpadRef_, key);
@@ -221,20 +202,11 @@ NSString* GetPlatform() {
 }
 
 - (void)withBreakpadRef:(void(^)(BreakpadRef))callback {
-  NSAssert(started_,
-      @"The controller must be started before withBreakpadRef is called");
   dispatch_async(queue_, ^{
       callback(breakpadRef_);
   });
 }
 
-- (void)hasReportToUpload:(void(^)(BOOL))callback {
-  NSAssert(started_, @"The controller must be started before "
-                     "hasReportToUpload is called");
-  dispatch_async(queue_, ^{
-      callback(breakpadRef_ && BreakpadHasCrashReportToUpload(breakpadRef_));
-  });
-}
 
 #pragma mark -
 

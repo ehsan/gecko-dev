@@ -8,6 +8,7 @@
 #define imgRequest_h__
 
 #include "nsIChannelEventSink.h"
+#include "nsIContentSniffer.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIRequest.h"
 #include "nsIProperties.h"
@@ -15,9 +16,8 @@
 #include "nsIURI.h"
 #include "nsIPrincipal.h"
 #include "nsITimedChannel.h"
-#include "nsIApplicationCache.h"
 
-#include "nsAutoPtr.h"
+#include "nsCategoryCache.h"
 #include "nsCOMPtr.h"
 #include "nsStringGlue.h"
 #include "nsError.h"
@@ -63,6 +63,8 @@ public:
 
   nsresult RemoveProxy(imgRequestProxy *proxy, nsresult aStatus);
 
+  void SniffMimeType(const char *buf, uint32_t len, nsACString& newType);
+
   // Cancel, but also ensure that all work done in Init() is undone. Call this
   // only when the channel has failed to open, and so calling Cancel() on it
   // won't be sufficient.
@@ -89,12 +91,6 @@ public:
   // wins.
   static void SetCacheValidation(imgCacheEntry* aEntry, nsIRequest* aRequest);
 
-  // Check if application cache of the original load is different from
-  // application cache of the new load.  Also lack of application cache
-  // on one of the loads is considered a change of a loading cache since
-  // HTTP cache may contain a different data then app cache.
-  bool CacheChanged(nsIRequest* aNewRequest);
-
   bool GetMultipart() const { return mIsMultiPartChannel; }
 
   // The CORS mode for which we loaded this image.
@@ -114,7 +110,7 @@ public:
   imgStatusTracker& GetStatusTracker();
 
   // Get the current principal of the image. No AddRefing.
-  inline nsIPrincipal* GetPrincipal() const { return mPrincipal.get(); }
+  inline nsIPrincipal* GetPrincipal() const { return mPrincipal.get(); };
 
   // Resize the cache entry to 0 if it exists
   void ResetCacheEntry();
@@ -147,7 +143,7 @@ private:
   inline nsIProperties *Properties() {
     return mProperties;
   }
-
+    
   // Reset the cache entry after we've dropped our reference to it. Used by the
   // imgLoader when our cache entry is re-requested after we've dropped our
   // reference to it.
@@ -198,13 +194,12 @@ private:
   // The principal of this image.
   nsCOMPtr<nsIPrincipal> mPrincipal;
   // Status-tracker -- transferred to mImage, when it gets instantiated
-  nsRefPtr<imgStatusTracker> mStatusTracker;
+  nsAutoPtr<imgStatusTracker> mStatusTracker;
   nsRefPtr<mozilla::image::Image> mImage;
   nsCOMPtr<nsIProperties> mProperties;
   nsCOMPtr<nsISupports> mSecurityInfo;
   nsCOMPtr<nsIChannel> mChannel;
   nsCOMPtr<nsIInterfaceRequestor> mPrevChannelSink;
-  nsCOMPtr<nsIApplicationCache> mApplicationCache;
 
   nsCOMPtr<nsITimedChannel> mTimedChannel;
 
@@ -215,6 +210,7 @@ private:
   void *mLoadId;
 
   imgCacheValidator *mValidator;
+  nsCategoryCache<nsIContentSniffer> mImageSniffers;
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
 

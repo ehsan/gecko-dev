@@ -30,8 +30,8 @@ class MoveResolver
         };
 
         Kind kind_;
-        uint32_t code_;
-        int32_t disp_;
+        uint32 code_;
+        int32 disp_;
 
       public:
         enum AddressKind {
@@ -45,7 +45,7 @@ class MoveResolver
         { }
         explicit MoveOperand(const FloatRegister &reg) : kind_(FLOAT_REG), code_(reg.code())
         { }
-        MoveOperand(const Register &reg, int32_t disp, AddressKind addrKind = MEMORY)
+        MoveOperand(const Register &reg, int32 disp, AddressKind addrKind = MEMORY)
             : kind_((Kind) addrKind),
             code_(reg.code()),
             disp_(disp)
@@ -82,7 +82,7 @@ class MoveResolver
             JS_ASSERT(isMemory() || isEffectiveAddress());
             return Register::FromCode(code_);
         }
-        int32_t disp() const {
+        int32 disp() const {
             return disp_;
         }
 
@@ -200,9 +200,6 @@ class MoveResolver
     }
     bool hasCycles() const {
         return hasCycles_;
-    }
-    void clearTempObjectPool() {
-        movePool_.clear();
     }
 };
 

@@ -22,7 +22,7 @@ const gPrefBranch = Services.prefs;
 const gClipboardHelper = Components.classes[nsClipboardHelper_CONTRACTID].getService(nsIClipboardHelper);
 const gAtomService = Components.classes[nsAtomService_CONTRACTID].getService(nsIAtomService);
 
-var gLockProps = ["default", "user", "locked"];
+var gLockAtoms = [gAtomService.getAtom("default"), gAtomService.getAtom("user"), gAtomService.getAtom("locked")];
 // we get these from a string bundle
 var gLockStrs = [];
 var gTypeStrs = [];
@@ -57,14 +57,12 @@ var view = {
         return value;
     }
   },
-  getRowProperties : function(index) { return ""; },
-  getCellProperties : function(index, col) {
+  getRowProperties : function(index, prop) {},
+  getCellProperties : function(index, col, prop) {
     if (index in gPrefView)
-      return gLockProps[gPrefView[index].lockCol];
-
-    return "";
+      prop.AppendElement(gLockAtoms[gPrefView[index].lockCol]);
   },
-  getColumnProperties : function(col) { return ""; },
+  getColumnProperties : function(col, prop) {},
   treebox : null,
   selection : null,
   isContainer : function(index) { return false; },
@@ -411,7 +409,7 @@ function onConfigUnload()
 function FilterPrefs()
 {
   if (document.getElementById("configDeck").getAttribute("selectedIndex") != 1) {
-    return;
+    return false;
   }
 
   var substring = document.getElementById("textbox").value;

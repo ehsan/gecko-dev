@@ -138,80 +138,7 @@ public:
 private:
   std::vector<uint8_t> mData;
   uint32_t mRefCnt;
-};
-
-static BYTE
-GetSystemTextQuality()
-{
-  BOOL font_smoothing;
-  UINT smoothing_type;
-
-  if (!SystemParametersInfo(SPI_GETFONTSMOOTHING, 0, &font_smoothing, 0)) {
-    return DEFAULT_QUALITY;
-  }
-
-  if (font_smoothing) {
-      if (!SystemParametersInfo(SPI_GETFONTSMOOTHINGTYPE,
-                                0, &smoothing_type, 0)) {
-        return DEFAULT_QUALITY;
-      }
-
-      if (smoothing_type == FE_FONTSMOOTHINGCLEARTYPE) {
-        return CLEARTYPE_QUALITY;
-      }
-
-      return ANTIALIASED_QUALITY;
-  }
-
-  return DEFAULT_QUALITY;
-}
-
-#define GASP_TAG 0x70736167
-#define GASP_DOGRAY 0x2
-
-static inline unsigned short
-readShort(const char *aBuf)
-{
-  return (*aBuf << 8) | *(aBuf + 1);
-}
-
-static bool
-DoGrayscale(IDWriteFontFace *aDWFace, Float ppem)
-{
-  void *tableContext;
-  char *tableData;
-  UINT32 tableSize;
-  BOOL exists;
-  aDWFace->TryGetFontTable(GASP_TAG, (const void**)&tableData, &tableSize, &tableContext, &exists);
-
-  if (exists) {
-    if (tableSize < 4) {
-      aDWFace->ReleaseFontTable(tableContext);
-      return true;
-    }
-    struct gaspRange {
-      unsigned short maxPPEM; // Stored big-endian
-      unsigned short behavior; // Stored big-endian
-    };
-    unsigned short numRanges = readShort(tableData + 2);
-    if (tableSize < (UINT)4 + numRanges * 4) {
-      aDWFace->ReleaseFontTable(tableContext);
-      return true;
-    }
-    gaspRange *ranges = (gaspRange *)(tableData + 4);
-    for (int i = 0; i < numRanges; i++) {
-      if (readShort((char*)&ranges[i].maxPPEM) > ppem) {
-        if (!(readShort((char*)&ranges[i].behavior) & GASP_DOGRAY)) {
-          aDWFace->ReleaseFontTable(tableContext);
-          return false;
-        }
-        break;
-      }
-    }
-    aDWFace->ReleaseFontTable(tableContext);
-  }
-  return true;
-}
+}; 
 
 IDWriteFontFileLoader* DWriteFontFileLoader::mInstance = NULL;
 
@@ -266,15 +193,11 @@ DWriteFontFileStream::ReadFileFragment(const void **fragmentStart,
                                        void **fragmentContext)
 {
   // We are required to do bounds checking.
-  if (fileOffset + fragmentSize > mData.size()) {
+  if (fileOffset + fragmentSize > (UINT64)mData.size()) {
     return E_FAIL;
   }
-
-  // truncate the 64 bit fileOffset to size_t sized index into mData
-  size_t index = static_cast<size_t>(fileOffset);
-
   // We should be alive for the duration of this.
-  *fragmentStart = &mData[index];
+  *fragmentStart = &mData[fileOffset];
   *fragmentContext = NULL;
   return S_OK;
 }
@@ -310,7 +233,9 @@ TemporaryRef<Path>
 ScaledFontDWrite::GetPathForGlyphs(const GlyphBuffer &aBuffer, const DrawTarget *aTarget)
 {
   if (aTarget->GetType() != BACKEND_DIRECT2D) {
-    return ScaledFontBase::GetPathForGlyphs(aBuffer, aTarget);
+    // For now we only support Direct2D.
+    gfxWarning() << "Attempt to use Direct Write font with non-Direct2D backend";
+    return nullptr;
   }
 
   RefPtr<PathBuilder> pathBuilder = aTarget->CreatePathBuilder();
@@ -383,14 +308,9 @@ ScaledFontDWrite::GetFontFileData(FontFileDataOutput aDataCallback, void *aBaton
   RefPtr<IDWriteFontFileStream> stream;
   loader->CreateStreamFromKey(referenceKey, refKeySize, byRef(stream));
 
-  UINT64 fileSize64;
-  stream->GetFileSize(&fileSize64);
-  if (fileSize64 > UINT32_MAX) {
-    MOZ_ASSERT(false);
-    return false;
-  }
-  
-  uint32_t fileSize = static_cast<uint32_t>(fileSize64);
+  UINT64 fileSize;
+  stream->GetFileSize(&fileSize);
+
   const void *fragmentStart;
   void *context;
   stream->ReadFileFragment(&fragmentStart, 0, fileSize, &context);
@@ -400,31 +320,6 @@ ScaledFontDWrite::GetFontFileData(FontFileDataOutput aDataCallback, void *aBaton
   stream->ReleaseFileFragment(context);
 
   return true;
-}
-
-AntialiasMode
-ScaledFontDWrite::GetDefaultAAMode()
-{
-  AntialiasMode defaultMode = AA_SUBPIXEL;
-
-  switch (GetSystemTextQuality()) {
-  case CLEARTYPE_QUALITY:
-    defaultMode = AA_SUBPIXEL;
-    break;
-  case ANTIALIASED_QUALITY:
-    defaultMode = AA_GRAY;
-    break;
-  case DEFAULT_QUALITY:
-    defaultMode = AA_NONE;
-    break;
-  }
-
-  if (defaultMode == AA_GRAY) {
-    if (!DoGrayscale(mFontFace, mSize)) {
-      defaultMode = AA_NONE;
-    }
-  }
-  return defaultMode;
 }
 
 }

@@ -38,7 +38,6 @@ static const FourCCAliasEntry kFourCCAliases[] = {
   {FOURCC_BGR3, FOURCC_24BG},
 };
 
-LIBYUV_API
 uint32 CanonicalFourCC(uint32 fourcc) {
   for (int i = 0; i < ARRAY_SIZE(kFourCCAliases); ++i) {
     if (kFourCCAliases[i].alias == fourcc) {

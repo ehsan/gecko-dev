@@ -9,11 +9,9 @@
 #define jsion_ion_spewer_h__
 
 #include <stdarg.h>
-
-#include "mozilla/DebugOnly.h"
-
 #include "C1Spewer.h"
 #include "JSONSpewer.h"
+#include "mozilla/Util.h"
 
 namespace js {
 namespace ion {
@@ -34,7 +32,7 @@ namespace ion {
     _(Range)                                \
     /* Information during LICM */           \
     _(LICM)                                 \
-    /* Information during regalloc */       \
+    /* Information during LSRA */           \
     _(RegAlloc)                             \
     /* Information during inlining */       \
     _(Inlining)                             \
@@ -52,8 +50,6 @@ namespace ion {
     _(Safepoints)                           \
     /* Debug info about Pools*/             \
     _(Pools)                                \
-    /* Calls to js::ion::Trace() */         \
-    _(Trace)                                \
     /* Debug info about the I$ */           \
     _(CacheFlush)
 
@@ -76,28 +72,27 @@ class IonSpewer
 {
   private:
     MIRGraph *graph;
-    HandleScript function;
+    JSScript *function;
     C1Spewer c1Spewer;
     JSONSpewer jsonSpewer;
     bool inited_;
 
   public:
     IonSpewer()
-      : graph(NULL), function(NullPtr()), inited_(false)
+      : graph(NULL), function(NULL), inited_(false)
     { }
 
     // File output is terminated safely upon destruction.
     ~IonSpewer();
 
     bool init();
-    void beginFunction(MIRGraph *graph, HandleScript);
-    bool isSpewingFunction() const;
+    void beginFunction(MIRGraph *graph, JSScript *);
     void spewPass(const char *pass);
     void spewPass(const char *pass, LinearScanAllocator *ra);
     void endFunction();
 };
 
-void IonSpewNewFunction(MIRGraph *graph, HandleScript function);
+void IonSpewNewFunction(MIRGraph *graph, JSScript *function);
 void IonSpewPass(const char *pass);
 void IonSpewPass(const char *pass, LinearScanAllocator *ra);
 void IonSpewEndFunction();
@@ -120,7 +115,7 @@ void EnableIonDebugLogging();
 
 #else
 
-static inline void IonSpewNewFunction(MIRGraph *graph, HandleScript function)
+static inline void IonSpewNewFunction(MIRGraph *graph, JSScript *function)
 { }
 static inline void IonSpewPass(const char *pass)
 { }

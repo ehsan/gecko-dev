@@ -24,12 +24,13 @@ namespace {
 bool
 IsChromeType(nsIDocShell *aDocShell)
 {
-  if (!aDocShell) {
+  nsCOMPtr<nsIDocShellTreeItem> ds = do_QueryInterface(aDocShell);
+  if (!ds) {
     return false;
   }
 
   int32_t itemType;
-  aDocShell->GetItemType(&itemType);
+  ds->GetItemType(&itemType);
   return itemType == nsIDocShellTreeItem::typeChrome;
 }
 
@@ -62,7 +63,6 @@ nsScreen::Create(nsPIDOMWindow* aWindow)
 nsScreen::nsScreen()
   : mEventListener(nullptr)
 {
-  SetIsDOMBinding();
 }
 
 void
@@ -88,9 +88,23 @@ nsScreen::~nsScreen()
 }
 
 
+DOMCI_DATA(Screen, nsScreen)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsScreen)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsScreen,
+                                                  nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsScreen,
+                                                nsDOMEventTargetHelper)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
 // QueryInterface implementation for nsScreen
-NS_INTERFACE_MAP_BEGIN(nsScreen)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsScreen)
   NS_INTERFACE_MAP_ENTRY(nsIDOMScreen)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMScreen)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Screen)
 NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(nsScreen, nsDOMEventTargetHelper)
@@ -283,7 +297,7 @@ nsScreen::MozLockOrientation(const JS::Value& aOrientation, JSContext* aCx,
         return NS_ERROR_FAILURE;
       }
 
-      JS::RootedString jsString(aCx, JS_ValueToString(aCx, temp));
+      js::RootedString jsString(aCx, JS_ValueToString(aCx, temp));
       if (!jsString) {
         return NS_ERROR_FAILURE;
       }
@@ -301,7 +315,7 @@ nsScreen::MozLockOrientation(const JS::Value& aOrientation, JSContext* aCx,
     return rv.ErrorCode();
   }
 
-  JS::RootedString jsString(aCx, JS_ValueToString(aCx, aOrientation));
+  js::RootedString jsString(aCx, JS_ValueToString(aCx, aOrientation));
   if (!jsString) {
     return NS_ERROR_FAILURE;
   }
@@ -364,20 +378,19 @@ nsScreen::MozLockOrientation(const Sequence<nsString>& aOrientations,
     case LOCK_ALLOWED:
       return hal::LockScreenOrientation(orientation);
     case FULLSCREEN_LOCK_ALLOWED: {
-      // We need to register a listener so we learn when we leave full-screen
-      // and when we will have to unlock the screen.
-      // This needs to be done before LockScreenOrientation call to make sure
-      // the locking can be unlocked.
-      nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(GetOwner());
-      if (!target) {
-        return false;
-      }
-
       if (!hal::LockScreenOrientation(orientation)) {
         return false;
       }
 
       // We are fullscreen and lock has been accepted.
+      // Now, we need to register a listener so we learn when we leave
+      // full-screen and when we will have to unlock the screen.
+      nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(GetOwner());
+      if (!target) {
+        // XXX: Bug 796873
+        return true;
+      }
+
       if (!mEventListener) {
         mEventListener = new FullScreenEventListener();
       }
@@ -409,9 +422,9 @@ nsScreen::SlowMozUnlockOrientation()
 
 /* virtual */
 JSObject*
-nsScreen::WrapObject(JSContext* aCx, JSObject* aScope)
+nsScreen::WrapObject(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
 {
-  return ScreenBinding::Wrap(aCx, aScope, this);
+  return ScreenBinding::Wrap(aCx, aScope, this, aTriedToWrap);
 }
 
 NS_IMPL_ISUPPORTS1(nsScreen::FullScreenEventListener, nsIDOMEventListener)

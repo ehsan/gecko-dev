@@ -6,6 +6,7 @@
 #import <Cocoa/Cocoa.h>
 
 #include "nsFilePicker.h"
+#include "nsObjCExceptions.h"
 #include "nsCOMPtr.h"
 #include "nsReadableUtils.h"
 #include "nsNetUtil.h"
@@ -18,9 +19,6 @@
 #include "nsCocoaFeatures.h"
 #include "nsCocoaUtils.h"
 #include "mozilla/Preferences.h"
-
-// This must be included last:
-#include "nsObjCExceptions.h"
 
 using namespace mozilla;
 
@@ -317,9 +315,11 @@ nsFilePicker::GetLocalFiles(const nsString& inTitle, bool inAllowMultiple, nsCOM
     theDir = @"/Applications/";
   }
 
+  // On 10.6+, we let users change the filters. Unfortunately, some methods
+  // are not available on 10.5 and without using them it happens to be buggy.
   int result;
   nsCocoaUtils::PrepareForNativeAppModalDialog();
-  if (mFilters.Length() > 1) {
+  if (mFilters.Length() > 1 && nsCocoaFeatures::OnSnowLeopardOrLater()) {
     // [NSURL initWithString:] (below) throws an exception if URLString is nil.
     if (!theDir) {
       theDir = @"";

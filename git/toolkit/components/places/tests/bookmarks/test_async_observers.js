@@ -9,25 +9,15 @@ const NOW = Date.now() * 1000;
 let observer = {
   bookmarks: [],
   observedBookmarks: 0,
-  observedVisitId: 0,
-  deferred: null,
-
-  /**
-   * Returns a promise that is resolved when the observer determines that the
-   * test can continue.  This is required rather than calling run_next_test
-   * directly in the observer because there are cases where we must wait for
-   * other asynchronous events to be completed in addition to this.
-   */
-  setupCompletionPromise: function ()
+  visitId: 0,
+  reset: function ()
   {
     this.observedBookmarks = 0;
-    this.deferred = Promise.defer();
-    return this.deferred.promise;
   },
-
   onBeginUpdateBatch: function () {},
   onEndUpdateBatch: function () {},
   onItemAdded: function () {},
+  onBeforeItemRemoved: function () {},
   onItemRemoved: function () {},
   onItemMoved: function () {},
   onItemChanged: function(aItemId, aProperty, aIsAnnotation, aNewValue,
@@ -52,17 +42,17 @@ let observer = {
     }
 
     if (++this.observedBookmarks == this.bookmarks.length) {
-      this.deferred.resolve();
+      run_next_test();
     }
   },
   onItemVisited: function(aItemId, aVisitId, aTime)
   {
     do_log_info("Check that we got the correct visit information.");
     do_check_neq(this.bookmarks.indexOf(aItemId), -1);
-    this.observedVisitId = aVisitId;
+    do_check_eq(aVisitId, this.visitId);
     do_check_eq(aTime, NOW);
     if (++this.observedBookmarks == this.bookmarks.length) {
-      this.deferred.resolve();
+      run_next_test();
     }
   },
 
@@ -72,56 +62,33 @@ let observer = {
 };
 PlacesUtils.bookmarks.addObserver(observer, false);
 
-add_task(function test_add_visit()
-{
-  let observerPromise = observer.setupCompletionPromise();
-
-  // Add a visit to the bookmark and wait for the observer.
-  let visitId;
-  let deferUpdatePlaces = Promise.defer();
-  PlacesUtils.asyncHistory.updatePlaces({
-    uri: NetUtil.newURI("http://book.ma.rk/"),
-    visits: [{ transitionType: TRANSITION_TYPED, visitDate: NOW }]
-  }, {
-    handleError: function TAV_handleError() {
-      deferUpdatePlaces.reject(new Error("Unexpected error in adding visit."));
-    },
-    handleResult: function (aPlaceInfo) {
-      visitId = aPlaceInfo.visits[0].visitId;
-    },
-    handleCompletion: function TAV_handleCompletion() {
-      deferUpdatePlaces.resolve();
-    }
-  });
-
-  // Wait for both the observer and the asynchronous update, in any order.
-  yield deferUpdatePlaces.promise;
-  yield observerPromise;
-
-  // Check that both asynchronous results are consistent.
-  do_check_eq(observer.observedVisitId, visitId);
-});
-
-add_task(function test_add_icon()
-{
-  let observerPromise = observer.setupCompletionPromise();
-  PlacesUtils.favicons.setAndFetchFaviconForPage(NetUtil.newURI("http://book.ma.rk/"),
+let gTests = [
+  function add_visit_test()
+  {
+    observer.reset();
+    // Add a visit to the bookmark and wait for the observer.
+    observer.visitId =
+      PlacesUtils.history.addVisit(NetUtil.newURI("http://book.ma.rk/"), NOW, null,
+                                   PlacesUtils.history.TRANSITION_TYPED, false, 0);
+  },
+  function add_icon_test()
+  {
+    observer.reset();
+    PlacesUtils.favicons.setAndFetchFaviconForPage(NetUtil.newURI("http://book.ma.rk/"),
                                                    SMALLPNG_DATA_URI, true,
                                                    PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
-  yield observerPromise;
-});
-
-add_task(function test_remove_page()
-{
-  let observerPromise = observer.setupCompletionPromise();
-  PlacesUtils.history.removePage(NetUtil.newURI("http://book.ma.rk/"));
-  yield observerPromise;
-});
-
-add_task(function cleanup()
-{
-  PlacesUtils.bookmarks.removeObserver(observer, false);
-});
+  },
+  function remove_page_test()
+  {
+    observer.reset();
+    PlacesUtils.history.removePage(NetUtil.newURI("http://book.ma.rk/"));
+  },
+  function cleanup()
+  {
+    PlacesUtils.bookmarks.removeObserver(observer, false);
+    run_next_test();
+  },
+];
 
 function run_test()
 {

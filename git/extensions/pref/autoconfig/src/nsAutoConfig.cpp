@@ -14,6 +14,7 @@
 #include "nsThreadUtils.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "prmem.h"
+#include "nsIProfile.h"
 #include "nsIObserverService.h"
 #include "nsLiteralString.h"
 #include "nsIPromptService.h"
@@ -21,7 +22,6 @@
 #include "nsIStringBundle.h"
 #include "nsCRT.h"
 #include "nspr.h"
-#include <algorithm>
 
 PRLogModuleInfo *MCD;
 
@@ -104,7 +104,7 @@ nsAutoConfig::OnDataAvailable(nsIRequest *request,
     char buf[1024];
     
     while (aLength) {
-        size = std::min<size_t>(aLength, sizeof(buf));
+        size = NS_MIN<size_t>(aLength, sizeof(buf));
         rv = aIStream->Read(buf, size, &amt);
         if (NS_FAILED(rv))
             return rv;
@@ -179,6 +179,21 @@ NS_IMETHODIMP nsAutoConfig::Observe(nsISupports *aSubject,
 {
     nsresult rv = NS_OK;
     if (!nsCRT::strcmp(aTopic, "profile-after-change")) {
+
+        // Getting the current profile name since we already have the 
+        // pointer to the object.
+        nsCOMPtr<nsIProfile> profile = do_QueryInterface(aSubject);
+        if (profile) {
+            nsXPIDLString profileName;
+            rv = profile->GetCurrentProfile(getter_Copies(profileName));
+            if (NS_SUCCEEDED(rv)) {
+                // setting the member variable to the current profile name
+                CopyUTF16toUTF8(profileName, mCurrProfile);
+            }
+            else {
+                NS_WARNING("nsAutoConfig::GetCurrentProfile() failed");
+            }
+        } 
 
         // We will be calling downloadAutoConfig even if there is no profile 
         // name. Nothing will be passed as a parameter to the URL and the
@@ -481,8 +496,8 @@ nsresult nsAutoConfig::getEmailAddr(nsACString & emailAddr)
                                   getter_Copies(prefValue));
         if (NS_SUCCEEDED(rv) && !prefValue.IsEmpty())
             emailAddr = prefValue;
-        else
-            PromptForEMailAddress(emailAddr);
+        else if (NS_FAILED(PromptForEMailAddress(emailAddr))  && (!mCurrProfile.IsEmpty()))
+            emailAddr = mCurrProfile;
     }
     
     return NS_OK;

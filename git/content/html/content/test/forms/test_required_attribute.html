@@ -164,10 +164,6 @@ function checkInputRequiredValidity(type)
     element.value = 'http://mozilla.org/';
   } else if (element.type == 'number') {
     element.value = '42';
-  } else if (element.type == 'date') {
-    element.value = '2010-10-10';
-  } else if (element.type == 'time') {
-    element.value = '21:21';
   } else {
     element.value = 'foo';
   }
@@ -362,24 +358,24 @@ checkTextareaRequiredValidity();
 // First of all, checks for types that make the element barred from
 // constraint validation.
 var typeBarredFromConstraintValidation = ["hidden", "button", "reset", "submit", "image"];
-for (type of typeBarredFromConstraintValidation) {
+for each (type in typeRequireNotApply) {
   checkInputRequiredNotApply(type, true);
 }
 
 // Then, checks for the types which do not use the required attribute.
-// TODO: check 'color' when they will be implemented.
-var typeRequireNotApply = ['range'];
-for (type of typeRequireNotApply) {
+// TODO: check 'color' and 'range' when they will be implemented.
+var typeRequireNotApply = [];
+for each (type in typeRequireNotApply) {
   checkInputRequiredNotApply(type, false);
 }
 
 // Now, checking for all types which accept the required attribute.
-// TODO: check 'datetime', 'month', 'week' and 'datetime-local'
+// TODO: check 'datetime', 'date', 'month', 'week', 'time' and 'datetime-local'
 //       when they will be implemented.
 var typeRequireApply = ["text", "password", "search", "tel", "email", "url",
-                        "number", "date", "time"];
+                        "number"];
 
-for (type of typeRequireApply) {
+for each (type in typeRequireApply) {
   checkInputRequiredValidity(type);
 }
 

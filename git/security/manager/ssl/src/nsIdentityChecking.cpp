@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/RefPtr.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsStreamUtils.h"
 #include "nsNetUtil.h"
@@ -17,9 +16,7 @@
 #include "nsNSSComponent.h"
 #include "nsSSLStatus.h"
 #include "nsNSSCertificate.h"
-#include "ScopedNSSTypes.h"
-
-using namespace mozilla;
+#include "nsNSSCleaner.h"
 
 #ifdef DEBUG
 #ifndef PSM_ENABLE_TEST_EV_ROOTS
@@ -30,6 +27,10 @@ using namespace mozilla;
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
+
+NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
+NSSCleanupAutoPtrClass(CERTCertList, CERT_DestroyCertList)
+NSSCleanupAutoPtrClass_WithParam(SECItem, SECITEM_FreeItem, TrueParam, true)
 
 #define CONST_OID static const unsigned char
 #define OI(x) { siDEROID, (unsigned char *)x, sizeof x }
@@ -45,62 +46,6 @@ struct nsMyTrustedEVInfo
   const char *serial_base64;
   CERTCertificate *cert;
 };
-
-/* HOWTO enable additional CA root certificates for EV:
- *
- * For each combination of "root certificate" and "policy OID",
- * one entry must be added to the array named myTrustedEVInfos.
- *
- * We use the combination of "issuer name" and "serial number" to
- * uniquely identify the certificate. In order to avoid problems
- * because of encodings when comparing certificates, we don't
- * use plain text representation, we rather use the original encoding
- * as it can be found in the root certificate (in base64 format).
- *
- * We can use the NSS utility named "pp" to extract the encoding.
- *
- * Build standalone NSS including the NSS tools, then run
- *   pp -t certificate-identity -i the-cert-filename
- *
- * You will need the output from sections "Issuer", "Fingerprint (SHA1)",
- * "Issuer DER Base64" and "Serial DER Base64".
- *
- * The new section consists of 8 lines:
- *
- * - a comment that should contain the human readable issuer name
- *   of the certificate, as printed by the pp tool
- * - the EV policy OID that is associated to the EV grant
- * - a text description of the EV policy OID. The array can contain
- *   multiple entries with the same OID.
- *   Please make sure to use the identical OID text description for
- *   all entries with the same policy OID (use the text search
- *   feature of your text editor to find duplicates).
- *   When adding a new policy OID that is not yet contained in the array,
- *   please make sure that your new description is different from
- *   all the other descriptions (again use the text search feature
- *   to be sure).
- * - the constant SEC_OID_UNKNOWN
- *   (it will be replaced at runtime with another identifier)
- * - the UPPERCASE version of the SHA1 fingerprint, hexadecimal,
- *   bytes separated by colons (as printed by pp)
- * - the "Issuer DER Base64" as printed by the pp tool.
- *   Remove all whitespaces. If you use multiple lines, make sure that
- *   only the final line will be followed by a comma.
- * - the "Serial DER Base64" (as printed by pp)
- * - a NULL pointer value
- *
- * After adding an entry, test it locally against the test site that
- * has been provided by the CA. Note that you must use a version of NSS
- * where the root certificate has already been added and marked as trusted
- * for issueing SSL server certificates (at least).
- *
- * If you are able to connect to the site without certificate errors,
- * but you don't see the EV status indicator, then most likely the CA
- * has a problem in their infrastructure. The most common problems are
- * related to the CA's OCSP infrastructure, either they use an incorrect
- * OCSP signing certificate, or OCSP for the intermediate certificates
- * isn't working, or OCSP isn't working at all.
- */
 
 static struct nsMyTrustedEVInfo myTrustedEVInfos[] = {
   /*
@@ -1115,7 +1060,7 @@ static SECStatus getFirstEVPolicy(CERTCertificate *cert, SECOidTag &outOidTag)
     return SECFailure;
 
   if (cert->extensions) {
-    for (int i=0; cert->extensions[i]; i++) {
+    for (int i=0; cert->extensions[i] != nullptr; i++) {
       const SECItem *oid = &cert->extensions[i]->id;
 
       SECOidTag oidTag = SECOID_FindOIDTag(oid);
@@ -1134,7 +1079,7 @@ static SECStatus getFirstEVPolicy(CERTCertificate *cert, SECOidTag &outOidTag)
       policyInfos = policies->policyInfos;
 
       bool found = false;
-      while (*policyInfos) {
+      while (*policyInfos != NULL) {
         policyInfo = *policyInfos++;
 
         SECOidTag oid_tag = policyInfo->oid;
@@ -1196,12 +1141,17 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, bool &validEV)
     return nrv;
   nssComponent->EnsureIdentityInfoLoaded();
 
-  RefPtr<nsCERTValInParamWrapper> certVal;
-  nrv = nssComponent->GetDefaultCERTValInParam(certVal);
-  NS_ENSURE_SUCCESS(nrv, nrv);
-
   validEV = false;
   resultOidTag = SEC_OID_UNKNOWN;
+
+  bool isOCSPEnabled = false;
+  nsCOMPtr<nsIX509CertDB> certdb;
+  certdb = do_GetService(NS_X509CERTDB_CONTRACTID);
+  if (certdb)
+    certdb->GetIsOcspOn(&isOCSPEnabled);
+  // No OCSP, no EV
+  if (!isOCSPEnabled)
+    return NS_OK;
 
   SECOidTag oid_tag;
   SECStatus rv = getFirstEVPolicy(mCert, oid_tag);
@@ -1211,7 +1161,8 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, bool &validEV)
   if (oid_tag == SEC_OID_UNKNOWN) // not in our list of OIDs accepted for EV
     return NS_OK;
 
-  ScopedCERTCertList rootList(getRootsForOid(oid_tag));
+  CERTCertList *rootList = getRootsForOid(oid_tag);
+  CERTCertListCleaner rootListCleaner(rootList);
 
   CERTRevocationMethodIndex preferedRevMethods[1] = { 
     cert_revocation_method_ocsp
@@ -1219,8 +1170,7 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, bool &validEV)
 
   uint64_t revMethodFlags = 
     CERT_REV_M_TEST_USING_THIS_METHOD
-    | (certVal->IsOCSPDownloadEnabled() ? CERT_REV_M_ALLOW_NETWORK_FETCHING
-                                        : CERT_REV_M_FORBID_NETWORK_FETCHING)
+    | CERT_REV_M_ALLOW_NETWORK_FETCHING
     | CERT_REV_M_ALLOW_IMPLICIT_DEFAULT_SOURCE
     | CERT_REV_M_REQUIRE_INFO_ON_MISSING_SOURCE
     | CERT_REV_M_IGNORE_MISSING_FRESH_INFO
@@ -1230,7 +1180,10 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, bool &validEV)
     CERT_REV_MI_TEST_ALL_LOCAL_INFORMATION_FIRST
     | CERT_REV_MI_REQUIRE_SOME_FRESH_INFO_AVAILABLE;
 
-  uint64_t methodFlags[2];
+  // We need a PRUint64 here instead of a nice int64_t (until bug 634793 is
+  // fixed) to match the type used in security/nss/lib/certdb/certt.h for
+  // cert_rev_flags_per_method.
+  PRUint64 methodFlags[2];
   methodFlags[cert_revocation_method_crl] = revMethodFlags;
   methodFlags[cert_revocation_method_ocsp] = revMethodFlags;
 
@@ -1268,13 +1221,14 @@ nsNSSCertificate::hasValidEVOidTag(SECOidTag &resultOidTag, bool &validEV)
   cvout[0].value.pointer.cert = nullptr;
   cvout[1].type = cert_po_end;
 
-  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("calling CERT_PKIXVerifyCert nss cert %p\n", mCert.get()));
+  PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("calling CERT_PKIXVerifyCert nss cert %p\n", mCert));
   rv = CERT_PKIXVerifyCert(mCert, certificateUsageSSLServer,
                            cvin, cvout, nullptr);
   if (rv != SECSuccess)
     return NS_OK;
 
-  ScopedCERTCertificate issuerCert(cvout[0].value.pointer.cert);
+  CERTCertificate *issuerCert = cvout[0].value.pointer.cert;
+  CERTCertificateCleaner issuerCleaner(issuerCert);
 
 #ifdef PR_LOGGING
   if (PR_LOG_TEST(gPIPNSSLog, PR_LOG_DEBUG)) {

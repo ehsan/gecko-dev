@@ -130,6 +130,10 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
   }
 
   for (nsDisplayItem* i = aList.GetBottom(); i != nullptr; i = i->GetAbove()) {
+#ifdef DEBUG
+    if (aList.DidComputeVisibility() && i->GetVisibleRect().IsEmpty())
+      continue;
+#endif
     if (aDumpHtml) {
       fprintf(aOutput, "<li>");
     } else {
@@ -160,8 +164,12 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     nscolor color;
     nsRect vis = i->GetVisibleRect();
     nsRect component = i->GetComponentAlphaBounds(aBuilder);
-    nsDisplayList* list = i->GetChildren();
+    nsDisplayList* list = i->GetList();
     nsRegion opaque;
+    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
+        nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
+        list = t->GetStoredList()->GetList();
+    }
 #ifdef DEBUG
     if (!list || list->DidComputeVisibility()) {
       opaque = i->GetOpaqueRegion(aBuilder, &snap);
@@ -181,9 +189,8 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
             i->IsUniform(aBuilder, &color) ? " uniform" : "");
     nsRegionRectIterator iter(opaque);
     for (const nsRect* r = iter.Next(); r; r = iter.Next()) {
-      fprintf(aOutput, "(opaque %d,%d,%d,%d)", r->x, r->y, r->width, r->height);
+      printf("(opaque %d,%d,%d,%d)", r->x, r->y, r->width, r->height);
     }
-    i->WriteDebugInfo(aOutput);
     if (aDumpHtml && i->Painted()) {
       fprintf(aOutput, "</a>");
     }

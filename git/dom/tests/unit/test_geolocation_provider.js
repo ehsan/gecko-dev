@@ -74,8 +74,6 @@ function run_test()
 
     var prefs = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
     prefs.setCharPref("geo.wifi.uri", "http://localhost:4444/geo");
-    prefs.setBoolPref("geo.testing.ignore_ipc_principal", true);
-    prefs.setBoolPref("geo.wifi.scan", false);
 
     var obs = Cc["@mozilla.org/observer-service;1"].getService();
     obs = obs.QueryInterface(Ci.nsIObserverService);
@@ -84,3 +82,4 @@ function run_test()
     geolocation = Cc["@mozilla.org/geolocation;1"].getService(Ci.nsIDOMGeoGeolocation);
     watchID = geolocation.watchPosition(successCallback, errorCallback);
 }
+

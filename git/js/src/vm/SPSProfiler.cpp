@@ -5,8 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "jsnum.h"
 #include "jsscript.h"
 
@@ -17,8 +15,6 @@
 #include "vm/StringBuffer.h"
 
 using namespace js;
-
-using mozilla::DebugOnly;
 
 SPSProfiler::SPSProfiler(JSRuntime *rt)
   : rt(rt),
@@ -50,7 +46,7 @@ SPSProfiler::setProfilingStack(ProfileEntry *stack, uint32_t *size, uint32_t max
 {
     JS_ASSERT_IF(size_ && *size_ != 0, !enabled());
     if (!strings.initialized())
-        strings.init();
+        strings.init(max);
     stack_ = stack;
     size_  = size;
     max_   = max;
@@ -70,7 +66,7 @@ SPSProfiler::enable(bool enabled)
 
 /* Lookup the string for the function/script, creating one if necessary */
 const char*
-SPSProfiler::profileString(JSContext *cx, RawScript script, RawFunction maybeFun)
+SPSProfiler::profileString(JSContext *cx, JSScript *script, JSFunction *maybeFun)
 {
     JS_ASSERT(strings.initialized());
     ProfileStringMap::AddPtr s = strings.lookupForAdd(script);
@@ -87,7 +83,7 @@ SPSProfiler::profileString(JSContext *cx, RawScript script, RawFunction maybeFun
 }
 
 void
-SPSProfiler::onScriptFinalized(RawScript script)
+SPSProfiler::onScriptFinalized(JSScript *script)
 {
     /*
      * This function is called whenever a script is destroyed, regardless of
@@ -106,7 +102,7 @@ SPSProfiler::onScriptFinalized(RawScript script)
 }
 
 bool
-SPSProfiler::enter(JSContext *cx, RawScript script, RawFunction maybeFun)
+SPSProfiler::enter(JSContext *cx, JSScript *script, JSFunction *maybeFun)
 {
     const char *str = profileString(cx, script, maybeFun);
     if (str == NULL)
@@ -119,7 +115,7 @@ SPSProfiler::enter(JSContext *cx, RawScript script, RawFunction maybeFun)
 }
 
 void
-SPSProfiler::exit(JSContext *cx, RawScript script, RawFunction maybeFun)
+SPSProfiler::exit(JSContext *cx, JSScript *script, JSFunction *maybeFun)
 {
     pop();
 
@@ -129,19 +125,6 @@ SPSProfiler::exit(JSContext *cx, RawScript script, RawFunction maybeFun)
         const char *str = profileString(cx, script, maybeFun);
         /* Can't fail lookup because we should already be in the set */
         JS_ASSERT(str != NULL);
-
-        // Bug 822041
-        if (!stack_[*size_].js()) {
-            fprintf(stderr, "--- ABOUT TO FAIL ASSERTION ---\n");
-            fprintf(stderr, " stack=%p size=%d/%d\n", (void*) stack_, *size_, max_);
-            for (int32_t i = *size_; i >= 0; i--) {
-                if (stack_[i].js())
-                    fprintf(stderr, "  [%d] JS %s\n", i, stack_[i].label());
-                else
-                    fprintf(stderr, "  [%d] C line %d %s\n", i, stack_[i].line(), stack_[i].label());
-            }
-        }
-
         JS_ASSERT(stack_[*size_].js());
         JS_ASSERT(stack_[*size_].script() == script);
         JS_ASSERT(strcmp((const char*) stack_[*size_].label(), str) == 0);
@@ -152,25 +135,7 @@ SPSProfiler::exit(JSContext *cx, RawScript script, RawFunction maybeFun)
 }
 
 void
-SPSProfiler::enterNative(const char *string, void *sp)
-{
-    /* these operations cannot be re-ordered, so volatile-ize operations */
-    volatile ProfileEntry *stack = stack_;
-    volatile uint32_t *size = size_;
-    uint32_t current = *size;
-
-    JS_ASSERT(enabled());
-    if (current < max_) {
-        stack[current].setLabel(string);
-        stack[current].setStackAddress(sp);
-        stack[current].setScript(NULL);
-        stack[current].setLine(0);
-    }
-    *size = current + 1;
-}
-
-void
-SPSProfiler::push(const char *string, void *sp, RawScript script, jsbytecode *pc)
+SPSProfiler::push(const char *string, void *sp, JSScript *script, jsbytecode *pc)
 {
     /* these operations cannot be re-ordered, so volatile-ize operations */
     volatile ProfileEntry *stack = stack_;
@@ -202,7 +167,7 @@ SPSProfiler::pop()
  * AddPtr held while invoking allocProfileString.
  */
 const char*
-SPSProfiler::allocProfileString(JSContext *cx, RawScript script, RawFunction maybeFun)
+SPSProfiler::allocProfileString(JSContext *cx, JSScript *script, JSFunction *maybeFun)
 {
     DebugOnly<uint64_t> gcBefore = cx->runtime->gcNumber;
     StringBuffer buf(cx);
@@ -213,8 +178,8 @@ SPSProfiler::allocProfileString(JSContext *cx, RawScript script, RawFunction may
         if (!buf.append(" ("))
             return NULL;
     }
-    if (script->filename()) {
-        if (!buf.appendInflated(script->filename(), strlen(script->filename())))
+    if (script->filename) {
+        if (!buf.appendInflated(script->filename, strlen(script->filename)))
             return NULL;
     } else if (!buf.append("<unknown>")) {
         return NULL;
@@ -255,7 +220,7 @@ JMChunkInfo::JMChunkInfo(mjit::JSActiveFrame *frame,
 {}
 
 jsbytecode*
-SPSProfiler::ipToPC(RawScript script, size_t ip)
+SPSProfiler::ipToPC(JSScript *script, size_t ip)
 {
     if (!jminfo.initialized())
         return NULL;
@@ -283,7 +248,7 @@ SPSProfiler::ipToPC(RawScript script, size_t ip)
 }
 
 jsbytecode*
-JMChunkInfo::convert(RawScript script, size_t ip)
+JMChunkInfo::convert(JSScript *script, size_t ip)
 {
     if (mainStart <= ip && ip < mainEnd) {
         size_t offset = 0;
@@ -381,7 +346,7 @@ SPSProfiler::registerScript(mjit::JSActiveFrame *frame,
 
 bool
 SPSProfiler::registerICCode(mjit::JITChunk *chunk,
-                            RawScript script, jsbytecode *pc,
+                            JSScript *script, jsbytecode *pc,
                             void *base, size_t size)
 {
     JS_ASSERT(jminfo.initialized());
@@ -399,11 +364,11 @@ SPSProfiler::discardMJITCode(mjit::JITScript *jscr,
 
     unregisterScript(jscr->script, chunk);
     for (unsigned i = 0; i < chunk->nInlineFrames; i++)
-        unregisterScript(chunk->inlineFrames()[i].fun->nonLazyScript(), chunk);
+        unregisterScript(chunk->inlineFrames()[i].fun->script(), chunk);
 }
 
 void
-SPSProfiler::unregisterScript(RawScript script, mjit::JITChunk *chunk)
+SPSProfiler::unregisterScript(JSScript *script, mjit::JITChunk *chunk)
 {
     JITInfoMap::Ptr ptr = jminfo.lookup(script);
     if (!ptr)
@@ -422,11 +387,10 @@ SPSProfiler::unregisterScript(RawScript script, mjit::JITChunk *chunk)
 }
 #endif
 
-SPSEntryMarker::SPSEntryMarker(JSRuntime *rt
-                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM_IN_IMPL)
+SPSEntryMarker::SPSEntryMarker(JSRuntime *rt JS_GUARD_OBJECT_NOTIFIER_PARAM_NO_INIT)
     : profiler(&rt->spsProfiler)
 {
-    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    JS_GUARD_OBJECT_NOTIFIER_INIT;
     if (!profiler->enabled()) {
         profiler = NULL;
         return;

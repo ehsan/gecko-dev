@@ -10,6 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
+interface NamedNodeMap;
 interface Principal;
 interface URI;
 interface UserDataHandler;
@@ -27,35 +28,24 @@ interface Node : EventTarget {
   const unsigned short DOCUMENT_TYPE_NODE = 10;
   const unsigned short DOCUMENT_FRAGMENT_NODE = 11;
   const unsigned short NOTATION_NODE = 12; // historical
-  [Constant]
   readonly attribute unsigned short nodeType;
-  [Pure]
   readonly attribute DOMString nodeName;
 
-  [Pure]
   readonly attribute DOMString? baseURI;
 
-  [Pure]
   readonly attribute Document? ownerDocument;
-  [Pure]
   readonly attribute Node? parentNode;
-  [Pure]
   readonly attribute Element? parentElement;
   boolean hasChildNodes();
-  [Constant]
   readonly attribute NodeList childNodes;
-  [Pure]
   readonly attribute Node? firstChild;
-  [Pure]
   readonly attribute Node? lastChild;
-  [Pure]
   readonly attribute Node? previousSibling;
-  [Pure]
   readonly attribute Node? nextSibling;
 
-  [SetterThrows, Pure]
+  [SetterThrows]
            attribute DOMString? nodeValue;
-  [SetterThrows, Pure]
+  [SetterThrows]
            attribute DOMString? textContent;
   [Throws]
   Node insertBefore(Node node, Node? child);
@@ -86,19 +76,19 @@ interface Node : EventTarget {
 
   // Mozilla-specific stuff
   // These have been moved to Element in the spec.
-  // If we move namespaceURI, prefix and localName to Element they should return
-  // a non-nullable type.
-  [Constant]
-  readonly attribute DOMString? namespaceURI;
-  [Constant]
-  readonly attribute DOMString? prefix;
-  [Constant]
-  readonly attribute DOMString? localName;
+  readonly attribute NamedNodeMap? attributes;
+  [Throws]
+  readonly attribute DOMString namespaceURI;
+  readonly attribute DOMString prefix;
+  readonly attribute DOMString localName;
+
+  // This has been removed from the spec.
+  boolean isSupported(DOMString feature, DOMString version);
 
   boolean hasAttributes();
-  [Throws, Func="nsINode::ShouldExposeUserData"]
-  any setUserData(DOMString key, any data, UserDataHandler? handler);
-  [Throws, Func="nsINode::ShouldExposeUserData"]
+  [Throws]
+  any setUserData(DOMString key, any data, UserDataHandler handler);
+  [Throws]
   any getUserData(DOMString key);
   [ChromeOnly]
   readonly attribute Principal nodePrincipal;

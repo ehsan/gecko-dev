@@ -35,7 +35,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=429785
     function step2() {
       is(errorLogged, false, "Should be no errors");
 
-      serv.logStringMessage("This is a test");
+      serv.registerListener(listener);    
+      try {
+        serv.logStringMessage("This is a test");
+      } finally {
+        serv.unregisterListener(listener);
+      }
 
       setTimeout(step3, 0);
 
@@ -43,19 +48,20 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=429785
 
     function step3() {
       is(errorLogged, true, "Should see errors when they happen");
-      serv.unregisterListener(listener);
       SimpleTest.finish();
     }
         
     serv.registerListener(listener);    
+    try {
+      var p = new DOMParser();
+      p.parseFromString("<root/>", "application/xml");
 
-    var p = new DOMParser();
-    p.parseFromString("<root/>", "application/xml");
-
-    // nsConsoleService notifies its listeners via async proxies, so we need
-    // to wait to see whether there was an error reported.
-    setTimeout(step2, 0);
-
+      // nsConsoleService notifies its listeners via async proxies, so we need
+      // to wait to see whether there was an error reported.
+      setTimeout(step2, 0);
+    } finally {
+      serv.unregisterListener(listener);
+    }
 
   ]]></script>
 </window>

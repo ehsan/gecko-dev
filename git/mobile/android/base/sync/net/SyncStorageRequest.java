@@ -10,8 +10,8 @@ import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
 import java.util.HashMap;
 
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.SyncConstants;
+import org.mozilla.gecko.sync.Logger;
 
 import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpResponse;
@@ -81,7 +81,7 @@ public class SyncStorageRequest implements Resource {
   /**
    * A ResourceDelegate that mediates between Resource-level notifications and the SyncStorageRequest.
    */
-  public class SyncStorageResourceDelegate extends BaseResourceDelegate {
+  public class SyncStorageResourceDelegate extends SyncResourceDelegate {
     private static final String LOG_TAG = "SSResourceDelegate";
     protected SyncStorageRequest request;
 
@@ -91,13 +91,8 @@ public class SyncStorageRequest implements Resource {
     }
 
     @Override
-    public AuthHeaderProvider getAuthHeaderProvider() {
-      String credentials = request.delegate.credentials();
-      if (credentials == null) {
-        return null;
-      }
-
-      return new BasicAuthHeaderProvider(credentials);
+    public String getCredentials() {
+      return this.request.delegate.credentials();
     }
 
     @Override
@@ -150,7 +145,7 @@ public class SyncStorageRequest implements Resource {
     }
   }
 
-  protected BaseResourceDelegate resourceDelegate;
+  protected SyncResourceDelegate resourceDelegate;
   public SyncStorageRequestDelegate delegate;
   protected BaseResource resource;
 
@@ -159,7 +154,7 @@ public class SyncStorageRequest implements Resource {
   }
 
   // Default implementation. Override this.
-  protected BaseResourceDelegate makeResourceDelegate(SyncStorageRequest request) {
+  protected SyncResourceDelegate makeResourceDelegate(SyncStorageRequest request) {
     return new SyncStorageResourceDelegate(request);
   }
 

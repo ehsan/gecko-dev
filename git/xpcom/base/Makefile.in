@@ -10,7 +10,10 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= xpcom
+XPIDL_MODULE	= xpcom_base
 LIBRARY_NAME	= xpcombase_s
+GRE_MODULE	= 1
 MOZILLA_INTERNAL_API =1
 LIBXUL_LIBRARY = 1
 
@@ -38,9 +41,7 @@ CPPSRCS		= \
 		VisualEventTracer.cpp \
 		nsErrorAsserts.cpp \
 		nsGZFileWriter.cpp \
-		nsMemoryInfoDumper.cpp \
-		nsMessageLoop.cpp \
-		AvailableMemoryTracker.cpp \
+		MemoryInfoDumper.cpp \
 		$(NULL)
 
 ifeq ($(OS_ARCH),Linux)
@@ -50,10 +51,6 @@ endif
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS		+= nsMacUtilsImpl.cpp
 endif
-
-CSRCS = \
-		nsErrorAssertsC.c \
-		$(NULL)
 
 EXPORTS		= \
 		nsAgg.h \
@@ -69,13 +66,14 @@ EXPORTS		= \
 		nsWeakPtr.h \
 		nsInterfaceRequestorAgg.h \
 		nsGZFileWriter.h \
+		NSPRFormatTime.h \
 		$(NULL)
 
 EXPORTS_NAMESPACES = mozilla
 
 EXPORTS_mozilla = \
 	MapsMemoryReporter.h \
-	nsMemoryInfoDumper.h \
+	MemoryInfoDumper.h \
 	ClearOnShutdown.h \
 	StaticPtr.h \
 	AvailableMemoryTracker.h \
@@ -94,14 +92,25 @@ CSRCS		+= pure_api.c
 EXPORTS		+= pure.h
 endif
 
+CPPSRCS += AvailableMemoryTracker.cpp
+
 endif #if OS_ARCH == WINNT
+
+SDK_XPIDLSRCS   = \
+		nsIDebug.idl               \
+		nsIInterfaceRequestor.idl  \
+		nsIMemory.idl		   \
+		nsIProgrammingLanguage.idl \
+		nsISupports.idl		   \
+		nsITraceRefcnt.idl         \
+		nsIWeakReference.idl	   \
+		nsrootidl.idl
 
 SDK_HEADERS     = \
 		nsAutoPtr.h \
 		nsError.h \
 		ErrorList.h \
-		ErrorListCxxDefines.h \
-		ErrorListCDefines.h \
+		ErrorListDefines.h \
 		nsISupportsBase.h \
 		nscore.h \
 		nsAtomicRefcnt.h \
@@ -112,6 +121,26 @@ ifeq ($(OS_ARCH),WINNT)
 SDK_HEADERS += \
 		nsWindowsHelpers.h \
 		$(NULL)
+endif
+
+XPIDLSRCS	= \
+		nsIConsoleListener.idl \
+		nsIConsoleMessage.idl \
+		nsIConsoleService.idl \
+		nsICycleCollectorListener.idl \
+		nsIDebug2.idl \
+		nsIErrorService.idl \
+		nsIException.idl \
+		nsIExceptionService.idl \
+		nsIVersionComparator.idl \
+		nsIUUIDGenerator.idl \
+		nsIMutable.idl \
+		nsIMemoryReporter.idl \
+		nsIGZFileWriter.idl \
+		$(NULL)
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+XPIDLSRCS	+= nsIMacUtils.idl
 endif
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
@@ -133,16 +162,10 @@ LOCAL_INCLUDES += \
 		-I$(topsrcdir)/xpcom/ds \
 		$(NULL)
 
-# We generate ErrorListCxxDefines.h from ErrorList.h using regex.  The -n option
+# We generate ErrorListDefines.h from ErrorList.h using regex.  The -n option
 # suppresses printing the pattern space, and the p at the end prints it anyway,
 # so we don't print lines that don't match the pattern to start with.
-ErrorListCxxDefines.h: ErrorList.h Makefile
+ErrorListDefines.h: ErrorList.h
 		sed -n 's/.*ERROR(\([A-Z_0-9]*\).*/#define \1 nsresult::\1/p' < $< > $@
 
-ErrorListCDefines.h: ErrorList.h Makefile
-		sed 's/.*ERROR(\([A-Z_0-9]*\),\( *\)\(.*\))[^)]*/#define \1 \2((nsresult)(\3))/' < $< > $@
-
-GARBAGE += \
-	ErrorListCxxDefines.h \
-	ErrorListCDefines.h \
-	$(NULL)
+GARBAGE += ErrorListDefines.h

@@ -31,6 +31,8 @@ protected:
   nsMathMLmmultiscriptsFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmmultiscriptsFrame();
   
+  virtual int GetSkipSides() const { return 0; }
+
 private:
   nscoord mSubScriptShift;
   nscoord mSupScriptShift;

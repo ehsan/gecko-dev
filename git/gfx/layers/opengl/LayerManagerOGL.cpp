@@ -3,15 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "LayerManagerOGL.h"
-
 #include "mozilla/layers/PLayers.h"
-#include <algorithm>
 
 /* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
 #include "mozilla/Util.h"
 
-#include "Composer2D.h"
+#include "LayerManagerOGL.h"
 #include "ThebesLayerOGL.h"
 #include "ContainerLayerOGL.h"
 #include "ImageLayerOGL.h"
@@ -35,7 +32,7 @@
 
 #include "gfxCrashReporterUtils.h"
 
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 #ifdef MOZ_WIDGET_ANDROID
 #include <android/log.h>
@@ -53,94 +50,6 @@ using namespace mozilla::gl;
 #ifdef CHECK_CURRENT_PROGRAM
 int ShaderProgramOGL::sCurrentProgramKey = 0;
 #endif
-
-bool
-LayerManagerOGL::Initialize(bool force)
-{
-  return Initialize(CreateContext(), force);
-}
-
-int32_t
-LayerManagerOGL::GetMaxTextureSize() const
-{
-  int32_t maxSize;
-  mGLContext->MakeCurrent();
-  mGLContext->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &maxSize);
-  return maxSize;
-}
-
-void
-LayerManagerOGL::MakeCurrent(bool aForce)
-{
-  if (mDestroyed) {
-    NS_WARNING("Call on destroyed layer manager");
-    return;
-  }
-  mGLContext->MakeCurrent(aForce);
-}
-
-void*
-LayerManagerOGL::GetNSOpenGLContext() const
-{
-  return gl()->GetNativeData(GLContext::NativeGLContext);
-}
-
-
-void
-LayerManagerOGL::BindQuadVBO() {
-  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mQuadVBO);
-}
-
-void
-LayerManagerOGL::QuadVBOVerticesAttrib(GLuint aAttribIndex) {
-  mGLContext->fVertexAttribPointer(aAttribIndex, 2,
-                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
-                                   (GLvoid*) QuadVBOVertexOffset());
-}
-
-void
-LayerManagerOGL::QuadVBOTexCoordsAttrib(GLuint aAttribIndex) {
-  mGLContext->fVertexAttribPointer(aAttribIndex, 2,
-                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
-                                   (GLvoid*) QuadVBOTexCoordOffset());
-}
-
-void
-LayerManagerOGL::QuadVBOFlippedTexCoordsAttrib(GLuint aAttribIndex) {
-  mGLContext->fVertexAttribPointer(aAttribIndex, 2,
-                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
-                                   (GLvoid*) QuadVBOFlippedTexCoordOffset());
-}
-
-// Super common
-
-void
-LayerManagerOGL::BindAndDrawQuad(GLuint aVertAttribIndex,
-                     GLuint aTexCoordAttribIndex,
-                     bool aFlipped)
-{
-  BindQuadVBO();
-  QuadVBOVerticesAttrib(aVertAttribIndex);
-
-  if (aTexCoordAttribIndex != GLuint(-1)) {
-    if (aFlipped)
-      QuadVBOFlippedTexCoordsAttrib(aTexCoordAttribIndex);
-    else
-      QuadVBOTexCoordsAttrib(aTexCoordAttribIndex);
-
-    mGLContext->fEnableVertexAttribArray(aTexCoordAttribIndex);
-  }
-
-  mGLContext->fEnableVertexAttribArray(aVertAttribIndex);
-
-  mGLContext->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
-
-  mGLContext->fDisableVertexAttribArray(aVertAttribIndex);
-
-  if (aTexCoordAttribIndex != GLuint(-1)) {
-    mGLContext->fDisableVertexAttribArray(aTexCoordAttribIndex);
-  }
-}
 
 static const double kFpsWindowMs = 250.0;
 static const size_t kNumFrameTimeStamps = 16;
@@ -178,7 +87,7 @@ private:
       const TimeStamp& frame = mFrames[i];
       if (!frame.IsNull() && frame > beginningOfWindow) {
         ++numFramesDrawnInWindow;
-        earliestFrameInWindow = std::min(earliestFrameInWindow, frame);
+        earliestFrameInWindow = NS_MIN(earliestFrameInWindow, frame);
       }
     }
     double realWindowSecs = (aNow - earliestFrameInWindow).ToSeconds();
@@ -391,9 +300,6 @@ LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget, int aSurfaceWidth, int aSur
   , mBackBufferSize(-1, -1)
   , mHasBGRA(0)
   , mIsRenderingToEGLSurface(aIsRenderingToEGLSurface)
-#ifdef DEBUG
-  , mMaybeInvalidTree(false)
-#endif
 {
 }
 
@@ -522,9 +428,6 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext, bool force)
 
   // initialise a common shader to check that we can actually compile a shader
   if (!mPrograms[gl::RGBALayerProgramType].mVariations[MaskNone]->Initialize()) {
-#ifdef MOZ_WIDGET_ANDROID
-    NS_RUNTIMEABORT("Shader initialization failed");
-#endif
     return false;
   }
 
@@ -595,9 +498,6 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext, bool force)
 
     if (mFBOTextureTarget == LOCAL_GL_NONE) {
       /* Unable to find a texture target that works with FBOs and NPOT textures */
-#ifdef MOZ_WIDGET_ANDROID
-      NS_RUNTIMEABORT("No texture target");
-#endif
       return false;
     }
   } else {
@@ -615,9 +515,6 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext, bool force)
      * texture2DRect).
      */
     if (!mGLContext->IsExtensionSupported(gl::GLContext::ARB_texture_rectangle))
-#ifdef MOZ_WIDGET_ANDROID
-      NS_RUNTIMEABORT("No texture rectangle");
-#endif
       return false;
   }
 
@@ -683,8 +580,6 @@ LayerManagerOGL::Initialize(nsRefPtr<GLContext> aContext, bool force)
     NS_DispatchToMainThread(new ReadDrawFPSPref());
   }
 
-  mComposer2D = mWidget->GetComposer2D();
-
   reporter.SetSuccessful();
   return true;
 }
@@ -699,18 +594,12 @@ void
 LayerManagerOGL::BeginTransaction()
 {
   mInTransaction = true;
-#ifdef DEBUG
-  mMaybeInvalidTree = false;
-#endif
 }
 
 void
 LayerManagerOGL::BeginTransactionWithTarget(gfxContext *aTarget)
 {
   mInTransaction = true;
-#ifdef DEBUG
-  mMaybeInvalidTree = false;
-#endif
 
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("[----- BeginTransaction"));
@@ -728,10 +617,6 @@ LayerManagerOGL::BeginTransactionWithTarget(gfxContext *aTarget)
 bool
 LayerManagerOGL::EndEmptyTransaction(EndTransactionFlags aFlags)
 {
-  // NB: this makes the somewhat bogus assumption that pure
-  // compositing txns don't call BeginTransaction(), because that's
-  // the behavior of CompositorParent.
-  MOZ_ASSERT(!mMaybeInvalidTree);
   mInTransaction = false;
 
   if (!mRoot)
@@ -773,31 +658,7 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
     mThebesLayerCallbackData = aCallbackData;
     SetCompositingDisabled(aFlags & END_NO_COMPOSITE);
 
-    bool needGLRender = true;
-    if (mComposer2D && mComposer2D->TryRender(mRoot, mWorldMatrix)) {
-      needGLRender = false;
-
-      if (sDrawFPS) {
-        if (!mFPS) {
-          mFPS = new FPSState();
-        }
-        double fps = mFPS->mCompositionFps.AddFrameAndGetFps(TimeStamp::Now());
-        printf_stderr("HWComposer: FPS is %g\n", fps);
-      }
-
-      // This lets us reftest and screenshot content rendered by the
-      // 2d composer.
-      if (mTarget) {
-        MakeCurrent();
-        CopyToTarget(mTarget);
-        mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-      }
-      MOZ_ASSERT(!needGLRender);
-    }
-
-    if (needGLRender) {
-      Render();
-    }
+    Render();
 
     mThebesLayerCallback = nullptr;
     mThebesLayerCallbackData = nullptr;
@@ -878,41 +739,6 @@ LayerManagerOGL::CreateCanvasLayer()
   return layer.forget();
 }
 
-static LayerOGL*
-ToLayerOGL(Layer* aLayer)
-{
-  return static_cast<LayerOGL*>(aLayer->ImplData());
-}
-
-static void ClearSubtree(Layer* aLayer)
-{
-  ToLayerOGL(aLayer)->CleanupResources();
-  for (Layer* child = aLayer->GetFirstChild(); child;
-       child = child->GetNextSibling()) {
-    ClearSubtree(child);
-  }
-}
-
-void
-LayerManagerOGL::ClearCachedResources(Layer* aSubtree)
-{
-  MOZ_ASSERT(!aSubtree || aSubtree->Manager() == this);
-  Layer* subtree = aSubtree ? aSubtree : mRoot.get();
-  if (!subtree) {
-    return;
-  }
-
-  ClearSubtree(subtree);
-#ifdef DEBUG
-  // If this subtree is reachable from the root layer, then it's
-  // possibly onscreen, and the resource clear means that composites
-  // until the next received transaction may draw garbage to the
-  // framebuffer.
-  for(; subtree && subtree != mRoot; subtree = subtree->GetParent());
-  mMaybeInvalidTree = (subtree == mRoot);
-#endif  // DEBUG
-}
-
 LayerOGL*
 LayerManagerOGL::RootLayer() const
 {
@@ -921,7 +747,7 @@ LayerManagerOGL::RootLayer() const
     return nullptr;
   }
 
-  return ToLayerOGL(mRoot);
+  return static_cast<LayerOGL*>(mRoot->ImplData());
 }
 
 bool LayerManagerOGL::sDrawFPS = false;
@@ -931,7 +757,7 @@ static uint16_t sFrameCount = 0;
 void
 FPSState::DrawFrameCounter(GLContext* context)
 {
-  profiler_set_frame_number(sFrameCount);
+  SAMPLER_FRAME_NUMBER(sFrameCount);
 
   context->fEnable(LOCAL_GL_SCISSOR_TEST);
 
@@ -1038,7 +864,7 @@ LayerManagerOGL::NotifyShadowTreeTransaction()
 void
 LayerManagerOGL::Render()
 {
-  PROFILER_LABEL("LayerManagerOGL", "Render");
+  SAMPLE_LABEL("LayerManagerOGL", "Render");
   if (mDestroyed) {
     NS_WARNING("Call on destroyed layer manager");
     return;
@@ -1048,14 +874,10 @@ LayerManagerOGL::Render()
   if (mIsRenderingToEGLSurface) {
     rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
   } else {
-    rect = mRenderBounds;
-    // If render bounds is not updated explicitly, try to infer it from widget
-    if (rect.width == 0 || rect.height == 0) {
-      // FIXME/bug XXXXXX this races with rotation changes on the main
-      // thread, and undoes all the care we take with layers txns being
-      // sent atomically with rotation changes
-      mWidget->GetClientBounds(rect);
-    }
+    // FIXME/bug XXXXXX this races with rotation changes on the main
+    // thread, and undoes all the care we take with layers txns being
+    // sent atomically with rotation changes
+    mWidget->GetClientBounds(rect);
   }
   WorldTransformRect(rect);
 
@@ -1121,10 +943,6 @@ LayerManagerOGL::Render()
 
   // Allow widget to render a custom background.
   mWidget->DrawWindowUnderlay(this, rect);
-
-  // Reset some state that might of been clobbered by the underlay.
-  mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
-                                 LOCAL_GL_ONE, LOCAL_GL_ONE);
 
   // Render our layers.
   RootLayer()->RenderLayer(mGLContext->IsDoubleBuffered() ? 0 : mBackBufferFBO,
@@ -1278,12 +1096,6 @@ LayerManagerOGL::WorldTransformRect(nsIntRect& aRect)
   gfxRect grect(aRect.x, aRect.y, aRect.width, aRect.height);
   grect = mWorldMatrix.TransformBounds(grect);
   aRect.SetRect(grect.X(), grect.Y(), grect.Width(), grect.Height());
-}
-
-void
-LayerManagerOGL::UpdateRenderBounds(const nsIntRect& aRect)
-{
-  mRenderBounds = aRect;
 }
 
 void
@@ -1639,226 +1451,6 @@ LayerManagerOGL::CreateDrawTarget(const IntSize &aSize,
   }
 #endif
   return LayerManager::CreateDrawTarget(aSize, aFormat);
-}
-
-static void
-SubtractTransformedRegion(nsIntRegion& aRegion,
-                          const nsIntRegion& aRegionToSubtract,
-                          const gfx3DMatrix& aTransform)
-{
-  if (aRegionToSubtract.IsEmpty()) {
-    return;
-  }
-
-  // For each rect in the region, find out its bounds in screen space and
-  // subtract it from the screen region.
-  nsIntRegionRectIterator it(aRegionToSubtract);
-  while (const nsIntRect* rect = it.Next()) {
-    gfxRect incompleteRect = aTransform.TransformBounds(gfxRect(*rect));
-    aRegion.Sub(aRegion, nsIntRect(incompleteRect.x,
-                                   incompleteRect.y,
-                                   incompleteRect.width,
-                                   incompleteRect.height));
-  }
-}
-
-/* static */ void
-LayerManagerOGL::ComputeRenderIntegrityInternal(Layer* aLayer,
-                                                nsIntRegion& aScreenRegion,
-                                                nsIntRegion& aLowPrecisionScreenRegion,
-                                                const gfx3DMatrix& aTransform)
-{
-  if (aLayer->GetOpacity() <= 0.f ||
-      (aScreenRegion.IsEmpty() && aLowPrecisionScreenRegion.IsEmpty())) {
-    return;
-  }
-
-  // If the layer's a container, recurse into all of its children
-  ContainerLayer* container = aLayer->AsContainerLayer();
-  if (container) {
-    // Accumulate the transform of intermediate surfaces
-    gfx3DMatrix transform = aTransform;
-    if (container->UseIntermediateSurface()) {
-      transform = aLayer->GetEffectiveTransform();
-      transform.PreMultiply(aTransform);
-    }
-    for (Layer* child = aLayer->GetFirstChild(); child;
-         child = child->GetNextSibling()) {
-      ComputeRenderIntegrityInternal(child, aScreenRegion, aLowPrecisionScreenRegion, transform);
-    }
-    return;
-  }
-
-  // Only thebes layers can be incomplete
-  ThebesLayer* thebesLayer = aLayer->AsThebesLayer();
-  if (!thebesLayer) {
-    return;
-  }
-
-  // See if there's any incomplete rendering
-  nsIntRegion incompleteRegion = aLayer->GetEffectiveVisibleRegion();
-  incompleteRegion.Sub(incompleteRegion, thebesLayer->GetValidRegion());
-
-  if (!incompleteRegion.IsEmpty()) {
-    // Calculate the transform to get between screen and layer space
-    gfx3DMatrix transformToScreen = aLayer->GetEffectiveTransform();
-    transformToScreen.PreMultiply(aTransform);
-
-    SubtractTransformedRegion(aScreenRegion, incompleteRegion, transformToScreen);
-
-    // See if there's any incomplete low-precision rendering
-    TiledLayerComposer* composer = nullptr;
-    ShadowLayer* shadow = aLayer->AsShadowLayer();
-    if (shadow) {
-      composer = shadow->AsTiledLayerComposer();
-      if (composer) {
-        incompleteRegion.Sub(incompleteRegion, composer->GetValidLowPrecisionRegion());
-        if (!incompleteRegion.IsEmpty()) {
-          SubtractTransformedRegion(aLowPrecisionScreenRegion, incompleteRegion, transformToScreen);
-        }
-      }
-    }
-
-    // If we can't get a valid low precision region, assume it's the same as
-    // the high precision region.
-    if (!composer) {
-      SubtractTransformedRegion(aLowPrecisionScreenRegion, incompleteRegion, transformToScreen);
-    }
-  }
-}
-
-static int
-GetRegionArea(const nsIntRegion& aRegion)
-{
-  int area = 0;
-  nsIntRegionRectIterator it(aRegion);
-  while (const nsIntRect* rect = it.Next()) {
-    area += rect->width * rect->height;
-  }
-  return area;
-}
-
-#ifdef MOZ_ANDROID_OMTC
-static float
-GetDisplayportCoverage(const gfx::Rect& aDisplayPort,
-                       const gfx3DMatrix& aTransformToScreen,
-                       const nsIntRect& aScreenRect)
-{
-  gfxRect transformedDisplayport =
-    aTransformToScreen.TransformBounds(gfxRect(aDisplayPort.x,
-                                               aDisplayPort.y,
-                                               aDisplayPort.width,
-                                               aDisplayPort.height));
-  transformedDisplayport.RoundOut();
-  nsIntRect displayport = nsIntRect(transformedDisplayport.x,
-                                    transformedDisplayport.y,
-                                    transformedDisplayport.width,
-                                    transformedDisplayport.height);
-  if (!displayport.Contains(aScreenRect)) {
-    nsIntRegion coveredRegion;
-    coveredRegion.And(aScreenRect, displayport);
-    return GetRegionArea(coveredRegion) / (float)(aScreenRect.width * aScreenRect.height);
-  }
-
-  return 1.0f;
-}
-#endif // MOZ_ANDROID_OMTC
-
-float
-LayerManagerOGL::ComputeRenderIntegrity()
-{
-  // We only ever have incomplete rendering when progressive tiles are enabled.
-  Layer* root = GetRoot();
-  if (!gfxPlatform::UseProgressiveTilePainting() || !root) {
-    return 1.f;
-  }
-
-  const FrameMetrics& rootMetrics = root->AsContainerLayer()->GetFrameMetrics();
-  nsIntRect screenRect(rootMetrics.mCompositionBounds.x,
-                       rootMetrics.mCompositionBounds.y,
-                       rootMetrics.mCompositionBounds.width,
-                       rootMetrics.mCompositionBounds.height);
-
-  float lowPrecisionMultiplier = 1.0f;
-  float highPrecisionMultiplier = 1.0f;
-#ifdef MOZ_ANDROID_OMTC
-  // Use the transform on the primary scrollable layer and its FrameMetrics
-  // to find out how much of the viewport the current displayport covers
-  Layer* primaryScrollable = GetPrimaryScrollableLayer();
-  if (primaryScrollable) {
-    // This is derived from the code in
-    // gfx/layers/ipc/CompositorParent.cpp::TransformShadowTree.
-    const gfx3DMatrix& rootTransform = root->GetTransform();
-    float devPixelRatioX = 1 / rootTransform.GetXScale();
-    float devPixelRatioY = 1 / rootTransform.GetYScale();
-
-    gfx3DMatrix transform = primaryScrollable->GetEffectiveTransform();
-    transform.ScalePost(devPixelRatioX, devPixelRatioY, 1);
-    const FrameMetrics& metrics = primaryScrollable->AsContainerLayer()->GetFrameMetrics();
-
-    // Clip the screen rect to the document bounds
-    gfxRect documentBounds =
-      transform.TransformBounds(gfxRect(metrics.mScrollableRect.x - metrics.mScrollOffset.x,
-                                        metrics.mScrollableRect.y - metrics.mScrollOffset.y,
-                                        metrics.mScrollableRect.width,
-                                        metrics.mScrollableRect.height));
-    documentBounds.RoundOut();
-    screenRect = screenRect.Intersect(nsIntRect(documentBounds.x, documentBounds.y,
-                                                documentBounds.width, documentBounds.height));
-
-    // If the screen rect is empty, the user has scrolled entirely into
-    // over-scroll and so we can be considered to have full integrity.
-    if (screenRect.IsEmpty()) {
-      return 1.0f;
-    }
-
-    // Work out how much of the critical display-port covers the screen
-    bool hasLowPrecision = false;
-    if (!metrics.mCriticalDisplayPort.IsEmpty()) {
-      hasLowPrecision = true;
-      highPrecisionMultiplier =
-        GetDisplayportCoverage(metrics.mCriticalDisplayPort, transform, screenRect);
-    }
-
-    // Work out how much of the display-port covers the screen
-    if (!metrics.mDisplayPort.IsEmpty()) {
-      if (hasLowPrecision) {
-        lowPrecisionMultiplier =
-          GetDisplayportCoverage(metrics.mDisplayPort, transform, screenRect);
-      } else {
-        lowPrecisionMultiplier = highPrecisionMultiplier =
-          GetDisplayportCoverage(metrics.mDisplayPort, transform, screenRect);
-      }
-    }
-  }
-
-  // If none of the screen is covered, we have zero integrity.
-  if (highPrecisionMultiplier <= 0.0f && lowPrecisionMultiplier <= 0.0f) {
-    return 0.0f;
-  }
-#endif // MOZ_ANDROID_OMTC
-
-  nsIntRegion screenRegion(screenRect);
-  nsIntRegion lowPrecisionScreenRegion(screenRect);
-  gfx3DMatrix transform;
-  ComputeRenderIntegrityInternal(root, screenRegion,
-                                 lowPrecisionScreenRegion, transform);
-
-  if (!screenRegion.IsEqual(screenRect)) {
-    // Calculate the area of the region. All rects in an nsRegion are
-    // non-overlapping.
-    float screenArea = screenRect.width * screenRect.height;
-    float highPrecisionIntegrity = GetRegionArea(screenRegion) / screenArea;
-    float lowPrecisionIntegrity = 1.f;
-    if (!lowPrecisionScreenRegion.IsEqual(screenRect)) {
-      lowPrecisionIntegrity = GetRegionArea(lowPrecisionScreenRegion) / screenArea;
-    }
-
-    return ((highPrecisionIntegrity * highPrecisionMultiplier) +
-            (lowPrecisionIntegrity * lowPrecisionMultiplier)) / 2;
-  }
-
-  return 1.f;
 }
 
 } /* layers */

@@ -5,7 +5,6 @@
 
 #include "OuterDocAccessible.h"
 
-#include "Accessible-inl.h"
 #include "nsAccUtils.h"
 #include "DocAccessible.h"
 #include "Role.h"
@@ -136,23 +135,21 @@ OuterDocAccessible::Shutdown()
 void
 OuterDocAccessible::InvalidateChildren()
 {
-  // Do not invalidate children because DocManager is responsible for
+  // Do not invalidate children because nsAccDocManager is responsible for
   // document accessible lifetime when DOM document is created or destroyed. If
   // DOM document isn't destroyed but its presshell is destroyed (for example,
   // when DOM node of outerdoc accessible is hidden), then outerdoc accessible
-  // notifies DocManager about this. If presshell is created for existing
+  // notifies nsAccDocManager about this. If presshell is created for existing
   // DOM document (for example when DOM node of outerdoc accessible is shown)
-  // then allow DocManager to handle this case since the document
+  // then allow nsAccDocManager to handle this case since the document
   // accessible is created and appended as a child when it's requested.
 
   SetChildrenFlag(eChildrenUninitialized);
 }
 
 bool
-OuterDocAccessible::InsertChildAt(uint32_t aIdx, Accessible* aAccessible)
+OuterDocAccessible::AppendChild(Accessible* aAccessible)
 {
-  NS_ASSERTION(aAccessible->IsDoc(),
-               "OuterDocAccessible should only have document child!");
   // We keep showing the old document for a bit after creating the new one,
   // and while building the new DOM and frame tree. That's done on purpose
   // to avoid weird flashes of default background color.
@@ -161,7 +158,7 @@ OuterDocAccessible::InsertChildAt(uint32_t aIdx, Accessible* aAccessible)
   if (mChildren.Length())
     mChildren[0]->Shutdown();
 
-  if (!AccessibleWrap::InsertChildAt(0, aAccessible))
+  if (!AccessibleWrap::AppendChild(aAccessible))
     return false;
 
 #ifdef A11Y_LOG

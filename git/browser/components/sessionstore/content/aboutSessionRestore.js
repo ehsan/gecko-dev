@@ -230,6 +230,16 @@ function restoreSingleTab(aIx, aShifted) {
 // Tree controller
 
 var treeView = {
+  _atoms: {},
+  _getAtom: function(aName)
+  {
+    if (!this._atoms[aName]) {
+      var as = Cc["@mozilla.org/atom-service;1"].getService(Ci.nsIAtomService);
+      this._atoms[aName] = as.getAtom(aName);
+    }
+    return this._atoms[aName];
+  },
+
   treeBox: null,
   selection: null,
 
@@ -285,21 +295,17 @@ var treeView = {
     this.treeBox.invalidateRow(idx);
   },
 
-  getCellProperties: function(idx, column) {
+  getCellProperties: function(idx, column, prop) {
     if (column.id == "restore" && this.isContainer(idx) && gTreeData[idx].checked === 0)
-      return "partial";
+      prop.AppendElement(this._getAtom("partial"));
     if (column.id == "title")
-      return this.getImageSrc(idx, column) ? "icon" : "noicon";
-
-    return "";
+      prop.AppendElement(this._getAtom(this.getImageSrc(idx, column) ? "icon" : "noicon"));
   },
 
-  getRowProperties: function(idx) {
+  getRowProperties: function(idx, prop) {
     var winState = gTreeData[idx].parent || gTreeData[idx];
     if (winState.ix % 2 != 0)
-      return "alternate";
-
-    return "";
+      prop.AppendElement(this._getAtom("alternate"));
   },
 
   getImageSrc: function(idx, column) {
@@ -314,5 +320,5 @@ var treeView = {
   selectionChanged: function() { },
   performAction: function(action) { },
   performActionOnCell: function(action, index, column) { },
-  getColumnProperties: function(column) { return ""; }
+  getColumnProperties: function(column, prop) { }
 };

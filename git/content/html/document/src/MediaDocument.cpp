@@ -9,7 +9,7 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIScrollable.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 #include "nsITextToSubURI.h"
 #include "nsIURL.h"
 #include "nsIContentViewer.h"
@@ -18,7 +18,6 @@
 #include "nsCharsetSource.h" // kCharsetFrom* macro definition
 #include "nsNodeInfoManager.h"
 #include "nsContentUtils.h"
-#include "nsDocElementCreatedNotificationRunner.h"
 
 namespace mozilla {
 namespace dom {

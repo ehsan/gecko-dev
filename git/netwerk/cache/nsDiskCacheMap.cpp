@@ -4,12 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsCache.h"
 #include "nsDiskCacheMap.h"
 #include "nsDiskCacheBinding.h"
 #include "nsDiskCacheEntry.h"
 #include "nsDiskCacheDevice.h"
 #include "nsCacheService.h"
+
+#include "nsCache.h"
 
 #include <string.h>
 #include "nsPrintfCString.h"
@@ -18,8 +19,6 @@
 #include "nsSerializationHelper.h"
 
 #include "mozilla/Telemetry.h"
-#include "mozilla/VisualEventTracer.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -182,8 +181,12 @@ nsDiskCacheMap::Open(nsIFile *  cacheDirectory,
         goto error_exit;
     }
     
-    Telemetry::Accumulate(Telemetry::HTTP_DISK_CACHE_OVERHEAD,
-                          (uint32_t)SizeOfExcludingThis(moz_malloc_size_of));
+    {
+        // extra scope so the compiler doesn't barf on the above gotos jumping
+        // past this declaration down here
+        uint32_t overhead = moz_malloc_size_of(mRecordArray);
+        Telemetry::Accumulate(Telemetry::HTTP_DISK_CACHE_OVERHEAD, overhead);
+    }
 
     *corruptInfo = nsDiskCache::kNotCorrupt;
     return NS_OK;
@@ -890,12 +893,6 @@ nsDiskCacheMap::WriteDiskCacheEntry(nsDiskCacheBinding *  binding)
     CACHE_LOG_DEBUG(("CACHE: WriteDiskCacheEntry [%x]\n",
         binding->mRecord.HashNumber()));
 
-    mozilla::eventtracer::AutoEventTracer writeDiskCacheEntry(
-        binding->mCacheEntry,
-        mozilla::eventtracer::eExec,
-        mozilla::eventtracer::eDone,
-        "net::cache::WriteDiskCacheEntry");
-
     nsresult            rv        = NS_OK;
     uint32_t            size;
     nsDiskCacheEntry *  diskEntry =  CreateDiskCacheEntry(binding, &size);
@@ -1019,12 +1016,6 @@ nsDiskCacheMap::WriteDataCacheBlocks(nsDiskCacheBinding * binding, char * buffer
 {
     CACHE_LOG_DEBUG(("CACHE: WriteDataCacheBlocks [%x size=%u]\n",
         binding->mRecord.HashNumber(), size));
-
-    mozilla::eventtracer::AutoEventTracer writeDataCacheBlocks(
-        binding->mCacheEntry,
-        mozilla::eventtracer::eExec,
-        mozilla::eventtracer::eDone,
-        "net::cache::WriteDataCacheBlocks");
 
     nsresult  rv = NS_OK;
     
@@ -1219,29 +1210,11 @@ nsDiskCacheMap::NotifyCapacityChange(uint32_t capacity)
   // Heuristic 2. we don't want more than 32MB reserved to store the record
   //              map in memory.
   const int32_t RECORD_COUNT_LIMIT = 32 * 1024 * 1024 / sizeof(nsDiskCacheRecord);
-  int32_t maxRecordCount = std::min(int32_t(capacity), RECORD_COUNT_LIMIT);
+  int32_t maxRecordCount = NS_MIN(int32_t(capacity), RECORD_COUNT_LIMIT);
   if (mMaxRecordCount < maxRecordCount) {
     // We can only grow
     mMaxRecordCount = maxRecordCount;
   }
-}
-
-size_t
-nsDiskCacheMap::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-  size_t usage = aMallocSizeOf(mRecordArray);
-
-  usage += aMallocSizeOf(mBuffer);
-  usage += aMallocSizeOf(mMapFD);
-  usage += aMallocSizeOf(mCleanFD);
-  usage += aMallocSizeOf(mCacheDirectory);
-  usage += aMallocSizeOf(mCleanCacheTimer);
-
-  for (int i = 0; i < kNumBlockFiles; i++) {
-    usage += mBlockFile[i].SizeOfExcludingThis(aMallocSizeOf);
-  }
-
-  return usage;
 }
 
 nsresult

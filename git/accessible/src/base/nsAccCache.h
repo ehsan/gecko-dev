@@ -21,7 +21,7 @@ template <class T>
 static PLDHashOperator
 ClearCacheEntry(const void* aKey, nsRefPtr<T>& aAccessible, void* aUserArg)
 {
-  NS_ASSERTION(aAccessible, "Calling ClearCacheEntry with a nullptr pointer!");
+  NS_ASSERTION(aAccessible, "Calling ClearCacheEntry with a NULL pointer!");
   if (aAccessible)
     aAccessible->Shutdown();
 
@@ -33,9 +33,9 @@ ClearCacheEntry(const void* aKey, nsRefPtr<T>& aAccessible, void* aUserArg)
  */
 
 static void
-ClearCache(mozilla::a11y::AccessibleHashtable& aCache)
+ClearCache(AccessibleHashtable& aCache)
 {
-  aCache.Enumerate(ClearCacheEntry<mozilla::a11y::Accessible>, nullptr);
+  aCache.Enumerate(ClearCacheEntry<Accessible>, nullptr);
 }
 
 /**
@@ -57,25 +57,14 @@ CycleCollectorTraverseCacheEntry(const void *aKey, T *aAccessible,
 }
 
 /**
- * Unlink the accessible cache for the cycle collector.
- */
-inline void
-ImplCycleCollectionUnlink(mozilla::a11y::AccessibleHashtable& aCache)
-{
-  ClearCache(aCache);
-}
-
-/**
  * Traverse the accessible cache for cycle collector.
  */
-inline void
-ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
-                            mozilla::a11y::AccessibleHashtable& aCache,
-                            const char* aName,
-                            uint32_t aFlags = 0)
+
+static void
+CycleCollectorTraverseCache(AccessibleHashtable& aCache,
+                            nsCycleCollectionTraversalCallback *aCallback)
 {
-  aCache.EnumerateRead(CycleCollectorTraverseCacheEntry<mozilla::a11y::Accessible>,
-                       &aCallback);
+  aCache.EnumerateRead(CycleCollectorTraverseCacheEntry<Accessible>, aCallback);
 }
 
 #endif

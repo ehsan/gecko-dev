@@ -17,13 +17,10 @@
 
 const DEBUG = false;
 
-const PERSIST_SYS_USB_CONFIG_PROPERTY = "persist.sys.usb.config";
-const SYS_USB_CONFIG_PROPERTY         = "sys.usb.config";
-const SYS_USB_STATE_PROPERTY          = "sys.usb.state";
-
-const USB_FUNCTION_RNDIS  = "rndis";
-const USB_FUNCTION_ADB    = "adb";
-
+const USB_FUNCTION_PATH  = "sys.usb.config";
+const USB_FUNCTION_STATE = "sys.usb.state";
+const USB_FUNCTION_RNDIS = "rndis,adb";
+const USB_FUNCTION_ADB   = "adb";
 // Retry 20 times (2 seconds) for usb state transition.
 const USB_FUNCTION_RETRY_TIMES = 20;
 // Check "sys.usb.state" every 100ms.
@@ -96,7 +93,7 @@ function usbTetheringFail(params) {
   chain(params, gUSBFailChain, null);
 
   // Disable usb rndis function.
-  enableUsbRndis({enable: false, report: false});
+  setUSBFunction({usbfunc: USB_FUNCTION_ADB, report: false});
 }
 
 function usbTetheringSuccess(params) {
@@ -126,9 +123,11 @@ function networkInterfaceStatsSuccess(params) {
  *        Name of the network interface.
  */
 function getIFProperties(ifname) {
+  let gateway_str = libcutils.property_get("net." + ifname + ".gw");
   return {
     ifname:      ifname,
-    gateway_str: libcutils.property_get("net." + ifname + ".gw"),
+    gateway:     netHelpers.stringToIP(gateway_str),
+    gateway_str: gateway_str,
     dns1_str:    libcutils.property_get("net." + ifname + ".dns1"),
     dns2_str:    libcutils.property_get("net." + ifname + ".dns2"),
   };
@@ -160,15 +159,13 @@ function setDefaultRouteAndDNS(options) {
     libnetutils.ifc_remove_default_route(options.oldIfname);
   }
 
-  let ifprops = getIFProperties(options.ifname);
-  let gateway_str = options.gateway_str || ifprops.gateway_str;
-  let dns1_str = options.dns1_str || ifprops.dns1_str;
-  let dns2_str = options.dns2_str || ifprops.dns2_str;
-  let gateway = netHelpers.stringToIP(gateway_str);
+  if (!options.gateway || !options.dns1_str) {
+    options = getIFProperties(options.ifname);
+  }
 
-  libnetutils.ifc_set_default_route(options.ifname, gateway);
-  libcutils.property_set("net.dns1", dns1_str);
-  libcutils.property_set("net.dns2", dns2_str);
+  libnetutils.ifc_set_default_route(options.ifname, options.gateway);
+  libcutils.property_set("net.dns1", options.dns1_str);
+  libcutils.property_set("net.dns2", options.dns2_str);
 
   // Bump the DNS change property.
   let dnschange = libcutils.property_get("net.dnschange", "0");
@@ -382,18 +379,13 @@ function getTxBytes(params, callback) {
   return doCommand(command, callback);
 }
 
-function escapeQuote(str) {
-  str = str.replace(/\\/g, "\\\\");
-  return str.replace(/"/g, "\\\"");
-}
-
 // The command format is "softap set wlan0 wl0.1 hotspot456 open null 6 0 8".
 function setAccessPoint(params, callback) {
   let command = "softap set " + params.ifname +
                 " " + params.wifictrlinterfacename +
-                " \"" + escapeQuote(params.ssid) + "\"" +
+                " " + params.ssid +
                 " " + params.security +
-                " \"" + escapeQuote(params.key) + "\"" +
+                " " + params.key +
                 " " + "6 0 8";
   return doCommand(command, callback);
 }
@@ -401,58 +393,20 @@ function setAccessPoint(params, callback) {
 /**
  * Modify usb function's property to turn on USB RNDIS function
  */
-function enableUsbRndis(params) {
+function setUSBFunction(params) {
   let report = params.report;
   let retry = 0;
+  let i = 0;
 
-  // For some reason, rndis doesn't play well with diag,modem,nmea.
-  // So when turning rndis on, we set sys.usb.config to either "rndis"
-  // or "rndis,adb". When turning rndis off, we go back to
-  // persist.sys.usb.config.
-  //
-  // On the otoro/unagi, persist.sys.usb.config should be one of:
-  //
-  //    diag,modem,nmea,mass_storage
-  //    diag,modem,nmea,mass_storage,adb
-  //
-  // When rndis is enabled, sys.usb.config should be one of:
-  //
-  //    rdnis
-  //    rndis,adb
-  //
-  // and when rndis is disabled, it should revert to persist.sys.usb.config
-
-  let currentConfig = libcutils.property_get(SYS_USB_CONFIG_PROPERTY);
-  let configFuncs = currentConfig.split(",");
-  let persistConfig = libcutils.property_get(PERSIST_SYS_USB_CONFIG_PROPERTY);
-  let persistFuncs = persistConfig.split(",");
-
-  if (params.enable) {
-    configFuncs = [USB_FUNCTION_RNDIS];
-    if (persistFuncs.indexOf(USB_FUNCTION_ADB) >= 0) {
-      configFuncs.push(USB_FUNCTION_ADB);
-    }
-  } else {
-    // We're turning rndis off, revert back to the persist setting.
-    // adb will already be correct there, so we don't need to do any
-    // further adjustments.
-    configFuncs = persistFuncs;
-  }
-  let newConfig = configFuncs.join(",");
-  if (newConfig != currentConfig) {
-    libcutils.property_set(SYS_USB_CONFIG_PROPERTY, newConfig);
-  }
-
+  libcutils.property_set(USB_FUNCTION_PATH, params.usbfunc);
   // Trigger the timer to check usb state and report the result to NetworkManager.
   if (report) {
-    setTimeout(checkUsbRndisState, USB_FUNCTION_RETRY_INTERVAL, params);
+    setTimeout(checkUSBFunction, USB_FUNCTION_RETRY_INTERVAL, params);
   }
 
-  function checkUsbRndisState(params) {
-    let currentState = libcutils.property_get(SYS_USB_STATE_PROPERTY);
-    let stateFuncs = currentState.split(",");
-    let rndisPresent = (stateFuncs.indexOf(USB_FUNCTION_RNDIS) >= 0);
-    if (params.enable == rndisPresent) {
+  function checkUSBFunction(params) {
+    let result = libcutils.property_get(USB_FUNCTION_STATE);
+    if (result == params.usbfunc) {
       params.result = true;
       postMessage(params);
       retry = 0;
@@ -460,7 +414,7 @@ function enableUsbRndis(params) {
     }
     if (retry < USB_FUNCTION_RETRY_TIMES) {
       retry++;
-      setTimeout(checkUsbRndisState, USB_FUNCTION_RETRY_INTERVAL, params);
+      setTimeout(checkUSBFunction, USB_FUNCTION_RETRY_INTERVAL, params);
       return;
     }
     params.result = false;
@@ -550,12 +504,8 @@ function setWifiTethering(params) {
   let enable = params.enable;
   let interfaceProperties = getIFProperties(params.externalIfname);
 
-  if (interfaceProperties.dns1_str) {
-    params.dns1 = interfaceProperties.dns1_str;
-  }
-  if (interfaceProperties.dns2_str) {
-    params.dns2 = interfaceProperties.dns2_str;
-  }
+  params.dns1 = interfaceProperties.dns1_str;
+  params.dns2 = interfaceProperties.dns2_str;
   dumpParams(params, "WIFI");
 
   if (enable) {
@@ -593,13 +543,8 @@ function setUSBTethering(params) {
   let enable = params.enable;
   let interfaceProperties = getIFProperties(params.externalIfname);
 
-  if (interfaceProperties.dns1_str) {
-    params.dns1 = interfaceProperties.dns1_str;
-  }
-  if (interfaceProperties.dns2_str) {
-    params.dns2 = interfaceProperties.dns2_str;
-  }
-
+  params.dns1 = interfaceProperties.dns1_str;
+  params.dns2 = interfaceProperties.dns2_str;
   dumpParams(params, "USB");
 
   if (enable) {

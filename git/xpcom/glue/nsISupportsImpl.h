@@ -31,19 +31,6 @@
 #include "nsCycleCollectorUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/Likely.h"
-
-inline nsISupports*
-ToSupports(nsISupports* p)
-{
-    return p;
-}
-
-inline nsISupports*
-ToCanonicalSupports(nsISupports* p)
-{
-    return NULL;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // Macros to help detect thread-safety:
@@ -65,8 +52,8 @@ private:
 #define NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class) \
   do { \
     if (NS_IsCycleCollectorThread()) { \
-      MOZ_NOT_REACHED("Changing refcount of " #_class " object during Traverse is " \
-                      "not permitted!"); \
+      NS_ERROR("Changing refcount of " #_class " object during Traverse is " \
+               "not permitted!"); \
     } \
     else { \
       NS_ASSERT_OWNINGTHREAD(_class); \
@@ -129,7 +116,7 @@ public:
 
   MOZ_ALWAYS_INLINE nsrefcnt incr(void *owner)
   {
-    if (MOZ_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT)) {
+    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT)) {
       // The sentinel value "purple bit alone, refcount 0" means
       // that we're stabilized, during finalization. In this
       // state we lie about our actual refcount if anyone asks
@@ -142,13 +129,18 @@ public:
     nsrefcnt refcount;
     if (HasPurpleBufferEntry()) {
       nsPurpleBufferEntry *e = NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged);
-      MOZ_ASSERT(e->mObject == owner, "wrong entry");
-      MOZ_ASSERT(int32_t(e->mRefCnt) > 0, "purple ISupports with bad refcnt");
+      NS_ASSERTION(e->mObject == owner, "wrong entry");
+      NS_ASSERTION(e->mRefCnt, "purple ISupports pointer with zero refcnt");
       refcount = ++(e->mRefCnt);
+#ifdef DEBUG_CC
+      if (!e->mNotPurple) {
+        nsCycleCollector_logPurpleRemoval(
+          NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mObject);
+      }
+#endif
       e->mNotPurple = true;
     } else {
       refcount = NS_CCAR_TAGGED_TO_REFCNT(mTagged);
-      MOZ_ASSERT(int32_t(refcount) >= 0, "bad refcount");
       ++refcount;
       mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
     }
@@ -168,28 +160,36 @@ public:
 
   MOZ_ALWAYS_INLINE nsrefcnt decr(void *owner, nsCycleCollectionParticipant *p)
   {
-    if (MOZ_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
+    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
       return 1;
 
     nsrefcnt refcount;
     if (HasPurpleBufferEntry()) {
       nsPurpleBufferEntry *e = NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged);
-      MOZ_ASSERT(e->mObject == owner, "wrong entry");
-      MOZ_ASSERT(int32_t(e->mRefCnt) > 0, "purple ISupports with bad refcnt");
+      NS_ASSERTION(e->mObject == owner, "wrong entry");
       refcount = --(e->mRefCnt);
-      if (MOZ_UNLIKELY(refcount == 0)) {
+      if (NS_UNLIKELY(refcount == 0)) {
+#ifdef DEBUG_CC
+        nsCycleCollector_logPurpleRemoval(
+          NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mObject);
+#endif
         e->mObject = nullptr;
         mTagged = NS_CCAR_REFCNT_TO_TAGGED(0);
       } else {
+#ifdef DEBUG_CC
+        if (e->mNotPurple) {
+          nsCycleCollector_logPurpleAddition(
+            NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mObject, p);
+        }
+#endif
         e->mNotPurple = false;
       }
     } else {
       refcount = NS_CCAR_TAGGED_TO_REFCNT(mTagged);
-      MOZ_ASSERT(int32_t(refcount) > 0, "bad refcount");
       --refcount;
 
       nsPurpleBufferEntry *e;
-      if (MOZ_LIKELY(refcount > 0) &&
+      if (NS_LIKELY(refcount > 0) &&
           ((e = NS_CycleCollectorSuspect2(owner, p)))) {
         e->mRefCnt = refcount;
         mTagged = NS_CCAR_PURPLE_ENTRY_TO_TAGGED(e);
@@ -203,14 +203,18 @@ public:
 
   MOZ_ALWAYS_INLINE void ReleasePurpleBufferEntry()
   {
-    MOZ_ASSERT(HasPurpleBufferEntry(), "must have purple buffer entry");
+    NS_ASSERTION(HasPurpleBufferEntry(), "must have purple buffer entry");
     nsrefcnt refcount = NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mRefCnt;
     mTagged = NS_CCAR_REFCNT_TO_TAGGED(refcount);
   }
 
   MOZ_ALWAYS_INLINE void RemovePurple()
   {
-    MOZ_ASSERT(IsPurple(), "must be purple");
+    NS_ASSERTION(IsPurple(), "must be purple");
+#ifdef DEBUG_CC
+    nsCycleCollector_logPurpleRemoval(
+      NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mObject);
+#endif
     // The entry will be added to the free list later. 
     NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mObject = nullptr;
     ReleasePurpleBufferEntry();
@@ -218,8 +222,8 @@ public:
 
   MOZ_ALWAYS_INLINE bool HasPurpleBufferEntry() const
   {
-    MOZ_ASSERT(mTagged != NS_CCAR_TAGGED_STABILIZED_REFCNT,
-               "should have checked for stabilization first");
+    NS_ASSERTION(mTagged != NS_CCAR_TAGGED_STABILIZED_REFCNT,
+                 "should have checked for stabilization first");
     return !(NS_PTR_TO_INT32(mTagged) & NS_CCAR_REFCNT_BIT);
   }
 
@@ -231,10 +235,10 @@ public:
 
   MOZ_ALWAYS_INLINE nsrefcnt get() const
   {
-    if (MOZ_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
+    if (NS_UNLIKELY(mTagged == NS_CCAR_TAGGED_STABILIZED_REFCNT))
       return 1;
 
-    return MOZ_UNLIKELY(HasPurpleBufferEntry())
+    return NS_UNLIKELY(HasPurpleBufferEntry())
              ? NS_CCAR_TAGGED_TO_PURPLE_ENTRY(mTagged)->mRefCnt
              : NS_CCAR_TAGGED_TO_REFCNT(mTagged);
   }
@@ -294,7 +298,7 @@ public:                                                                       \
   NS_IMETHOD_(nsrefcnt) Release(void);                                        \
   void UnmarkIfPurple()                                                       \
   {                                                                           \
-    if (MOZ_LIKELY(mRefCnt.HasPurpleBufferEntry()))                           \
+    if (NS_LIKELY(mRefCnt.HasPurpleBufferEntry()))                            \
       mRefCnt.ReleasePurpleBufferEntry();                                     \
   }                                                                           \
 protected:                                                                    \
@@ -311,18 +315,18 @@ public:
  */
 
 #define NS_IMPL_CC_NATIVE_ADDREF_BODY(_class)                                 \
-    MOZ_ASSERT(int32_t(mRefCnt) >= 0, "illegal refcnt");                      \
+    NS_PRECONDITION(int32_t(mRefCnt) >= 0, "illegal refcnt");                 \
     NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                          \
     nsrefcnt count = mRefCnt.incr(this);                                      \
     NS_LOG_ADDREF(this, count, #_class, sizeof(*this));                       \
     return count;
 
 #define NS_IMPL_CC_NATIVE_RELEASE_BODY(_class)                                \
-    MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");                          \
+    NS_PRECONDITION(0 != mRefCnt, "dup release");                             \
     NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                          \
     nsrefcnt count =                                                          \
       mRefCnt.decr(static_cast<void*>(this),                                  \
-                   _class::NS_CYCLE_COLLECTION_INNERCLASS::GetParticipant()); \
+                   _class::NS_CYCLE_COLLECTION_INNERNAME.GetParticipant());   \
     NS_LOG_RELEASE(this, count, #_class);                                     \
     if (count == 0) {                                                         \
       NS_ASSERT_OWNINGTHREAD(_class);                                         \
@@ -376,14 +380,14 @@ public:
 #define NS_INLINE_DECL_REFCOUNTING(_class)                                    \
 public:                                                                       \
   NS_METHOD_(nsrefcnt) AddRef(void) {                                         \
-    MOZ_ASSERT(int32_t(mRefCnt) >= 0, "illegal refcnt");                      \
+    NS_PRECONDITION(int32_t(mRefCnt) >= 0, "illegal refcnt");                 \
     NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                          \
     ++mRefCnt;                                                                \
     NS_LOG_ADDREF(this, mRefCnt, #_class, sizeof(*this));                     \
     return mRefCnt;                                                           \
   }                                                                           \
   NS_METHOD_(nsrefcnt) Release(void) {                                        \
-    MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");                          \
+    NS_PRECONDITION(0 != mRefCnt, "dup release");                             \
     NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                          \
     --mRefCnt;                                                                \
     NS_LOG_RELEASE(this, mRefCnt, #_class);                                   \
@@ -411,13 +415,13 @@ public:
 #define NS_INLINE_DECL_THREADSAFE_REFCOUNTING(_class)                         \
 public:                                                                       \
   NS_METHOD_(nsrefcnt) AddRef(void) {                                         \
-    MOZ_ASSERT(int32_t(mRefCnt) >= 0, "illegal refcnt");                      \
+    NS_PRECONDITION(int32_t(mRefCnt) >= 0, "illegal refcnt");                 \
     nsrefcnt count = NS_AtomicIncrementRefcnt(mRefCnt);                       \
     NS_LOG_ADDREF(this, count, #_class, sizeof(*this));                       \
     return (nsrefcnt) count;                                                  \
   }                                                                           \
   NS_METHOD_(nsrefcnt) Release(void) {                                        \
-    MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");                          \
+    NS_PRECONDITION(0 != mRefCnt, "dup release");                             \
     nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);                       \
     NS_LOG_RELEASE(this, count, #_class);                                     \
     if (count == 0) {                                                         \
@@ -437,7 +441,7 @@ public:
 #define NS_IMPL_ADDREF(_class)                                                \
 NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 {                                                                             \
-  MOZ_ASSERT(int32_t(mRefCnt) >= 0, "illegal refcnt");                        \
+  NS_PRECONDITION(int32_t(mRefCnt) >= 0, "illegal refcnt");                   \
   NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                            \
   ++mRefCnt;                                                                  \
   NS_LOG_ADDREF(this, mRefCnt, #_class, sizeof(*this));                       \
@@ -480,7 +484,7 @@ NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 #define NS_IMPL_RELEASE_WITH_DESTROY(_class, _destroy)                        \
 NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 {                                                                             \
-  MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");                            \
+  NS_PRECONDITION(0 != mRefCnt, "dup release");                               \
   NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                            \
   --mRefCnt;                                                                  \
   NS_LOG_RELEASE(this, mRefCnt, #_class);                                     \
@@ -527,7 +531,7 @@ NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 #define NS_IMPL_CYCLE_COLLECTING_ADDREF(_class)                               \
 NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 {                                                                             \
-  MOZ_ASSERT(int32_t(mRefCnt) >= 0, "illegal refcnt");                        \
+  NS_PRECONDITION(int32_t(mRefCnt) >= 0, "illegal refcnt");                   \
   NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                            \
   nsrefcnt count =                                                            \
     mRefCnt.incr(NS_CYCLE_COLLECTION_CLASSNAME(_class)::Upcast(this));        \
@@ -538,7 +542,7 @@ NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 #define NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_DESTROY(_class, _destroy)       \
 NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 {                                                                             \
-  MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");                            \
+  NS_PRECONDITION(0 != mRefCnt, "dup release");                               \
   NS_ASSERT_OWNINGTHREAD_AND_NOT_CCTHREAD(_class);                            \
   nsISupports *base = NS_CYCLE_COLLECTION_CLASSNAME(_class)::Upcast(this);    \
   nsrefcnt count = mRefCnt.decr(base);                                        \
@@ -599,14 +603,14 @@ NS_IMETHODIMP _class::QueryInterface(REFNSIID aIID, void** aInstancePtr)      \
 
 #define NS_INTERFACE_TABLE_ENTRY(_class, _interface)                          \
   { &_interface::COMTypeInfo<int>::kIID,                                      \
-    int32_t(reinterpret_cast<char*>(                                          \
+    int32_t(reinterpret_cast<char*>(                                       \
                         static_cast<_interface*>((_class*) 0x1000)) -         \
                reinterpret_cast<char*>((_class*) 0x1000))                     \
   },
 
 #define NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, _interface, _implClass)    \
   { &_interface::COMTypeInfo<int>::kIID,                                      \
-    int32_t(reinterpret_cast<char*>(                                          \
+    int32_t(reinterpret_cast<char*>(                                       \
                         static_cast<_interface*>(                             \
                                        static_cast<_implClass*>(              \
                                                       (_class*) 0x1000))) -   \
@@ -614,7 +618,7 @@ NS_IMETHODIMP _class::QueryInterface(REFNSIID aIID, void** aInstancePtr)      \
   },
 
 #define NS_INTERFACE_TABLE_END_WITH_PTR(_ptr)                                 \
-  { nullptr, 0 } };                                                           \
+  { nullptr, 0 } };                                                            \
   rv = NS_TableDrivenQI(static_cast<void*>(_ptr),                             \
                         table, aIID, aInstancePtr);
 
@@ -1364,7 +1368,7 @@ NS_IMETHODIMP_(nsrefcnt) Class::Release(void)                                 \
 #define NS_IMPL_THREADSAFE_ADDREF(_class)                                     \
 NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 {                                                                             \
-  MOZ_ASSERT(int32_t(mRefCnt) >= 0, "illegal refcnt");                        \
+  NS_PRECONDITION(int32_t(mRefCnt) >= 0, "illegal refcnt");                   \
   nsrefcnt count = NS_AtomicIncrementRefcnt(mRefCnt);                         \
   NS_LOG_ADDREF(this, count, #_class, sizeof(*this));                         \
   return (nsrefcnt) count;                                                    \
@@ -1383,7 +1387,7 @@ NS_IMETHODIMP_(nsrefcnt) _class::AddRef(void)                                 \
 #define NS_IMPL_THREADSAFE_RELEASE(_class)                                    \
 NS_IMETHODIMP_(nsrefcnt) _class::Release(void)                                \
 {                                                                             \
-  MOZ_ASSERT(int32_t(mRefCnt) > 0, "dup release");                            \
+  NS_PRECONDITION(0 != mRefCnt, "dup release");                               \
   nsrefcnt count = NS_AtomicDecrementRefcnt(mRefCnt);                         \
   NS_LOG_RELEASE(this, count, #_class);                                       \
   if (0 == count) {                                                           \
@@ -1492,28 +1496,28 @@ _class::GetInterfaces(uint32_t* _count, nsIID*** _array)                      \
 NS_IMETHODIMP                                                                 \
 _class::GetHelperForLanguage(uint32_t _language, nsISupports** _retval)       \
 {                                                                             \
-  *_retval = nullptr;                                                         \
+  *_retval = nullptr;                                                          \
   return NS_OK;                                                               \
 }                                                                             \
                                                                               \
 NS_IMETHODIMP                                                                 \
 _class::GetContractID(char** _contractID)                                     \
 {                                                                             \
-  *_contractID = nullptr;                                                     \
+  *_contractID = nullptr;                                                      \
   return NS_OK;                                                               \
 }                                                                             \
                                                                               \
 NS_IMETHODIMP                                                                 \
 _class::GetClassDescription(char** _classDescription)                         \
 {                                                                             \
-  *_classDescription = nullptr;                                               \
+  *_classDescription = nullptr;                                                \
   return NS_OK;                                                               \
 }                                                                             \
                                                                               \
 NS_IMETHODIMP                                                                 \
 _class::GetClassID(nsCID** _classID)                                          \
 {                                                                             \
-  *_classID = nullptr;                                                        \
+  *_classID = nullptr;                                                         \
   return NS_OK;                                                               \
 }                                                                             \
                                                                               \

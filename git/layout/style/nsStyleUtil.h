@@ -7,12 +7,16 @@
 
 #include "nsCoord.h"
 #include "nsCSSProperty.h"
+#include "gfxFontFeatures.h"
+#include "nsTArray.h"
+#include "nsCSSValue.h"
 
-class nsCSSValue;
+struct nsStyleBackground;
+class nsString;
 class nsStringComparator;
 class nsIContent;
-struct gfxFontFeature;
-template <class E> class nsTArray;
+
+
 
 // Style utility functions
 class nsStyleUtil {
@@ -21,17 +25,14 @@ public:
  static bool DashMatchCompare(const nsAString& aAttributeValue,
                                 const nsAString& aSelectorValue,
                                 const nsStringComparator& aComparator);
-
-  // Append a quoted (with 'quoteChar') and escaped version of aString
-  // to aResult.  'quoteChar' must be ' or ".
-  static void AppendEscapedCSSString(const nsAString& aString,
-                                     nsAString& aResult,
-                                     PRUnichar quoteChar = '"');
-
+                                
+  // Append a quoted (with "") and escaped version of aString to aResult.
+  static void AppendEscapedCSSString(const nsString& aString,
+                                     nsAString& aResult);
   // Append the identifier given by |aIdent| to |aResult|, with
   // appropriate escaping so that it can be reparsed to the same
   // identifier.
-  static void AppendEscapedCSSIdent(const nsAString& aIdent,
+  static void AppendEscapedCSSIdent(const nsString& aIdent,
                                     nsAString& aResult);
 
   // Append a bitmask-valued property's value(s) (space-separated) to aResult.
@@ -40,8 +41,6 @@ public:
                                     int32_t aFirstMask,
                                     int32_t aLastMask,
                                     nsAString& aResult);
-
-  static void AppendPaintOrderValue(uint8_t aValue, nsAString& aResult);
 
   static void AppendFontFeatureSettings(const nsTArray<gfxFontFeature>& aFeatures,
                                         nsAString& aResult);

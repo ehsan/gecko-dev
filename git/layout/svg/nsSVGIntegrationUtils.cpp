@@ -8,7 +8,6 @@
 
 // Keep others in (case-insensitive) order:
 #include "gfxDrawable.h"
-#include "nsCSSAnonBoxes.h"
 #include "nsDisplayList.h"
 #include "nsLayoutUtils.h"
 #include "nsRenderingContext.h"
@@ -105,7 +104,7 @@ private:
     // property set, that would be bad, since then our GetVisualOverflowRect()
     // call would give us the post-effects, and post-transform, overflow rect.
     //
-    NS_ASSERTION(aFrame->GetParent()->StyleContext()->GetPseudo() ==
+    NS_ASSERTION(aFrame->GetParent()->GetStyleContext()->GetPseudo() ==
                    nsCSSAnonBoxes::mozAnonymousBlock,
                  "How did we getting here, then?");
     NS_ASSERTION(!aFrame->Properties().Get(
@@ -149,7 +148,7 @@ nsSVGIntegrationUtils::UsingEffectsForFrame(const nsIFrame* aFrame)
   // does not adversely affect any of our callers. Therefore we don't bother
   // checking the SDL prefs here, since we don't know if we're being called for
   // painting or hit-testing anyway.
-  const nsStyleSVGReset *style = aFrame->StyleSVGReset();
+  const nsStyleSVGReset *style = aFrame->GetStyleSVGReset();
   return (style->mFilter || style->mClipPath || style->mMask);
 }
 
@@ -283,7 +282,6 @@ nsRect
 
 nsIntRect
 nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(nsIFrame* aFrame,
-                                                      const nsPoint& aToReferenceFrame,
                                                       const nsIntRect& aInvalidRect)
 {
   // Don't bother calling GetEffectProperties; the filter property should
@@ -306,25 +304,19 @@ nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(nsIFrame* aFrame,
   if (!filterFrame) {
     // The frame is either not there or not currently available,
     // perhaps because we're in the middle of tearing stuff down.
-    // Be conservative, return our visual overflow rect relative
-    // to the reference frame.
-    nsRect overflow = aFrame->GetVisualOverflowRect() + aToReferenceFrame;
+    // Be conservative.
+    nsRect overflow = aFrame->GetVisualOverflowRect();
     return overflow.ToOutsidePixels(appUnitsPerDevPixel);
   }
 
   // Convert aInvalidRect into "user space" in app units:
   nsPoint toUserSpace =
     aFrame->GetOffsetTo(firstFrame) + GetOffsetToUserSpace(firstFrame);
-  // The initial rect was relative to the reference frame, so we need to
-  // remove that offset to get a rect relative to the current frame.
-  toUserSpace -= aToReferenceFrame;
   nsRect preEffectsRect = aInvalidRect.ToAppUnits(appUnitsPerDevPixel) + toUserSpace;
 
-  // Adjust the dirty area for effects, and shift it back to being relative to
-  // the reference frame.
+  // Return ther result, relative to aFrame, not in user space:
   nsRect result = filterFrame->GetPostFilterDirtyArea(firstFrame, preEffectsRect) -
            toUserSpace;
-  // Return the result, in pixels relative to the reference frame.
   return result.ToOutsidePixels(appUnitsPerDevPixel);
 }
 
@@ -357,13 +349,8 @@ nsSVGIntegrationUtils::HitTestFrameForEffects(nsIFrame* aFrame, const nsPoint& a
   nsIFrame* firstFrame =
     nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
   // Convert aPt to user space:
-  nsPoint toUserSpace;
-  if (aFrame->GetStateBits() & NS_FRAME_SVG_LAYOUT) {
-    toUserSpace = aFrame->GetPosition();
-  } else {
-    toUserSpace =
-      aFrame->GetOffsetTo(firstFrame) + GetOffsetToUserSpace(firstFrame);
-  }
+  nsPoint toUserSpace =
+    aFrame->GetOffsetTo(firstFrame) + GetOffsetToUserSpace(firstFrame);
   nsPoint pt = aPt + toUserSpace;
   return nsSVGUtils::HitTestClip(firstFrame, pt);
 }
@@ -433,7 +420,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
     }
   }
 
-  float opacity = aFrame->StyleDisplay()->mOpacity;
+  float opacity = aFrame->GetStyleDisplay()->mOpacity;
   if (opacity == 0.0f) {
     return;
   }
@@ -466,8 +453,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   nsPoint offset = aBuilder->ToReferenceFrame(firstFrame) - firstFrameOffset;
   nsPoint offsetWithoutSVGGeomFramePos = offset;
   nsPoint svgGeomFramePos;
-  if (aFrame->IsFrameOfType(nsIFrame::eSVGGeometry) ||
-      aFrame->IsSVGText()) {
+  if (aFrame->IsFrameOfType(nsIFrame::eSVGGeometry)) {
     // SVG leaf frames apply their offset themselves, we need to unapply it at
     // various points below to prevent it being double counted.
     svgGeomFramePos = aFrame->GetPosition();
@@ -484,8 +470,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   if (opacity != 1.0f || maskFrame || (clipPathFrame && !isTrivialClip)) {
     complexEffects = true;
     gfx->Save();
-    aCtx->IntersectClip(aFrame->GetVisualOverflowRectRelativeToSelf() +
-                        svgGeomFramePos);
+    aCtx->IntersectClip(aFrame->GetVisualOverflowRect() + svgGeomFramePos);
     gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
   }
 

@@ -11,7 +11,6 @@
 #include "AliasAnalysis.h"
 #include "MIRGraph.h"
 #include "Ion.h"
-#include "IonBuilder.h"
 #include "IonSpewer.h"
 
 using namespace js;
@@ -21,7 +20,7 @@ using namespace js::ion;
 class AliasSetIterator
 {
   private:
-    uint32_t flags;
+    uint32 flags;
     unsigned pos;
 
   public:
@@ -44,37 +43,14 @@ class AliasSetIterator
         return !!flags;
     }
     unsigned operator *() const {
-        JS_ASSERT(pos < AliasSet::NumCategories);
         return pos;
     }
 };
 
-AliasAnalysis::AliasAnalysis(MIRGenerator *mir, MIRGraph &graph)
-  : mir(mir),
-    graph_(graph),
+AliasAnalysis::AliasAnalysis(MIRGraph &graph)
+  : graph_(graph),
     loop_(NULL)
 {
-}
-
-// Whether there might be a path from src to dest, excluding loop backedges. This is
-// approximate and really ought to depend on precomputed reachability information.
-static inline bool
-BlockMightReach(MBasicBlock *src, MBasicBlock *dest)
-{
-    while (src->id() <= dest->id()) {
-        if (src == dest)
-            return true;
-        switch (src->numSuccessors()) {
-          case 0:
-            return false;
-          case 1:
-            src = src->getSuccessor(0);
-            break;
-          default:
-            return true;
-        }
-    }
-    return false;
 }
 
 // This pass annotates every load instruction with the last store instruction
@@ -94,24 +70,21 @@ BlockMightReach(MBasicBlock *src, MBasicBlock *dest)
 bool
 AliasAnalysis::analyze()
 {
-    FixedArityList<MDefinitionVector, AliasSet::NumCategories> stores;
+    Vector<MDefinition *, 16, SystemAllocPolicy> stores;
 
     // Initialize to the first instruction.
     MDefinition *firstIns = *graph_.begin()->begin();
-    for (unsigned i=0; i < AliasSet::NumCategories; i++) {
-        if (!stores[i].append(firstIns))
+    for (unsigned i=0; i < NUM_ALIAS_SETS; i++) {
+        if (!stores.append(firstIns))
             return false;
     }
 
     // Type analysis may have inserted new instructions. Since this pass depends
     // on the instruction number ordering, all instructions are renumbered.
     // We start with 1 because some passes use 0 to denote failure.
-    uint32_t newId = 1;
+    uint32 newId = 1;
 
     for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
-        if (mir->shouldCancel("Alias Analysis (main loop)"))
-            return false;
-
         if (block->isLoopHeader()) {
             IonSpew(IonSpew_Alias, "Processing loop header %d", block->id());
             loop_ = new LoopAliasInfo(loop_, *block);
@@ -125,26 +98,21 @@ AliasAnalysis::analyze()
                 continue;
 
             if (set.isStore()) {
-                for (AliasSetIterator iter(set); iter; iter++) {
-                    if (!stores[*iter].append(*def))
-                        return false;
-                }
+                for (AliasSetIterator iter(set); iter; iter++)
+                    stores[*iter] = *def;
 
                 IonSpew(IonSpew_Alias, "Processing store %d (flags %x)", def->id(), set.flags());
+
+                if (loop_)
+                    loop_->addStore(set);
             } else {
                 // Find the most recent store on which this instruction depends.
-                MDefinition *lastStore = firstIns;
+                MDefinition *lastStore = NULL;
 
                 for (AliasSetIterator iter(set); iter; iter++) {
-                    MDefinitionVector &aliasedStores = stores[*iter];
-                    for (int i = aliasedStores.length() - 1; i >= 0; i--) {
-                        MDefinition *store = aliasedStores[i];
-                        if (def->mightAlias(store) && BlockMightReach(store->block(), *block)) {
-                            if (lastStore->id() < store->id())
-                                lastStore = store;
-                            break;
-                        }
-                    }
+                    MDefinition *store = stores[*iter];
+                    if (!lastStore || lastStore->id() < store->id())
+                        lastStore = store;
                 }
 
                 def->setDependency(lastStore);
@@ -165,7 +133,10 @@ AliasAnalysis::analyze()
             IonSpew(IonSpew_Alias, "Processing loop backedge %d (header %d)", block->id(),
                     loop_->loopHeader()->id());
             LoopAliasInfo *outerLoop = loop_->outer();
-            MInstruction *firstLoopIns = *loop_->loopHeader()->begin();
+
+            // Propagate stores in this loop to the outer loop.
+            if (outerLoop)
+                outerLoop->addStore(loop_->loopStores());
 
             const InstructionVector &invariant = loop_->invariantLoads();
 
@@ -174,31 +145,7 @@ AliasAnalysis::analyze()
                 AliasSet set = ins->getAliasSet();
                 JS_ASSERT(set.isLoad());
 
-                bool hasAlias = false;
-                for (AliasSetIterator iter(set); iter; iter++) {
-                    MDefinitionVector &aliasedStores = stores[*iter];
-                    for (int i = aliasedStores.length() - 1;; i--) {
-                        MDefinition *store = aliasedStores[i];
-                        if (store->id() < firstLoopIns->id())
-                            break;
-                        if (ins->mightAlias(store)) {
-                            hasAlias = true;
-                            break;
-                        }
-                    }
-                    if (hasAlias)
-                        break;
-                }
-
-                if (hasAlias) {
-                    // This instruction depends on stores inside the loop body. Mark it as having a
-                    // dependency on the last instruction of the loop header. The last instruction is a
-                    // control instruction and these are never hoisted.
-                    MControlInstruction *controlIns = loop_->loopHeader()->lastIns();
-                    IonSpew(IonSpew_Alias, "Load %d depends on %d (due to stores in loop body)",
-                            ins->id(), controlIns->id());
-                    ins->setDependency(controlIns);
-                } else {
+                if ((loop_->loopStores() & set).isNone()) {
                     IonSpew(IonSpew_Alias, "Load %d does not depend on any stores in this loop",
                             ins->id());
 
@@ -207,6 +154,14 @@ AliasAnalysis::analyze()
                         if (!outerLoop->addInvariantLoad(ins))
                             return false;
                     }
+                } else {
+                    // This instruction depends on stores inside the loop body. Mark it as having a
+                    // dependency on the last instruction of the loop header. The last instruction is a
+                    // control instruction and these are never hoisted.
+                    MControlInstruction *controlIns = loop_->loopHeader()->lastIns();
+                    IonSpew(IonSpew_Alias, "Load %d depends on %d (due to stores in loop body)",
+                            ins->id(), controlIns->id());
+                    ins->setDependency(controlIns);
                 }
             }
             loop_ = loop_->outer();

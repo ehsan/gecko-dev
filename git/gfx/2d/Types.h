@@ -84,11 +84,10 @@ enum FontStyle
   FONT_STYLE_BOLD_ITALIC
 };
 
-enum CompositionOp { OP_OVER, OP_ADD, OP_ATOP, OP_OUT, OP_IN, OP_SOURCE, OP_DEST_IN, OP_DEST_OUT, OP_DEST_OVER, OP_DEST_ATOP, OP_XOR, 
-  OP_MULTIPLY, OP_SCREEN, OP_OVERLAY, OP_DARKEN, OP_LIGHTEN, OP_COLOR_DODGE, OP_COLOR_BURN, OP_HARD_LIGHT, OP_SOFT_LIGHT,  OP_DIFFERENCE, OP_EXCLUSION, OP_HUE, OP_SATURATION, OP_COLOR, OP_LUMINOSITY, OP_COUNT };
+enum CompositionOp { OP_OVER, OP_ADD, OP_ATOP, OP_OUT, OP_IN, OP_SOURCE, OP_DEST_IN, OP_DEST_OUT, OP_DEST_OVER, OP_DEST_ATOP, OP_XOR, OP_COUNT };
 enum ExtendMode { EXTEND_CLAMP, EXTEND_REPEAT, EXTEND_REFLECT };
 enum FillRule { FILL_WINDING, FILL_EVEN_ODD };
-enum AntialiasMode { AA_NONE, AA_GRAY, AA_SUBPIXEL, AA_DEFAULT };
+enum AntialiasMode { AA_NONE, AA_GRAY, AA_SUBPIXEL };
 enum Snapping { SNAP_NONE, SNAP_ALIGNED };
 enum Filter { FILTER_LINEAR, FILTER_POINT };
 enum PatternType { PATTERN_COLOR, PATTERN_SURFACE, PATTERN_LINEAR_GRADIENT, PATTERN_RADIAL_GRADIENT };
@@ -118,12 +117,6 @@ public:
                    ((aColor >> 24) & 0xff) * (1.0f / 255.0f));
 
     return newColor;
-  }
-
-  uint32_t ToABGR() const
-  {
-    return uint32_t(r * 255.0f) | uint32_t(g * 255.0f) << 8 |
-           uint32_t(b * 255.0f) << 16 | uint32_t(a * 255.0f) << 24;
   }
 
   Float r, g, b, a;

@@ -42,6 +42,7 @@
 #include "xpcpublic.h"
 #include "nsContentPolicyUtils.h"
 #include "jsfriendapi.h"
+#include "prmem.h"
 #include "nsDOMFile.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMEventTargetHelper.h"
@@ -191,7 +192,7 @@ WebSocket::ConsoleError()
 }
 
 
-void
+nsresult
 WebSocket::FailConnection(uint16_t aReasonCode,
                           const nsACString& aReasonString)
 {
@@ -200,6 +201,8 @@ WebSocket::FailConnection(uint16_t aReasonCode,
   ConsoleError();
   mFailed = true;
   CloseConnection(aReasonCode, aReasonString);
+
+  return NS_OK;
 }
 
 nsresult
@@ -476,9 +479,9 @@ WebSocket::~WebSocket()
 }
 
 JSObject*
-WebSocket::WrapObject(JSContext* cx, JSObject* scope)
+WebSocket::WrapObject(JSContext* cx, JSObject* scope, bool* triedToWrap)
 {
-  return WebSocketBinding::Wrap(cx, scope, this);
+  return WebSocketBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 //---------------------------------------------------------------------------
@@ -487,30 +490,30 @@ WebSocket::WrapObject(JSContext* cx, JSObject* scope)
 
 // Constructor:
 already_AddRefed<WebSocket>
-WebSocket::Constructor(const GlobalObject& aGlobal,
-                       JSContext* aCx,
+WebSocket::Constructor(JSContext* aCx,
+                       nsISupports* aGlobal,
                        const nsAString& aUrl,
                        ErrorResult& aRv)
 {
   Sequence<nsString> protocols;
-  return WebSocket::Constructor(aGlobal, aCx, aUrl, protocols, aRv);
+  return WebSocket::Constructor(aCx, aGlobal, aUrl, protocols, aRv);
 }
 
 already_AddRefed<WebSocket>
-WebSocket::Constructor(const GlobalObject& aGlobal,
-                       JSContext* aCx,
+WebSocket::Constructor(JSContext* aCx,
+                       nsISupports* aGlobal,
                        const nsAString& aUrl,
                        const nsAString& aProtocol,
                        ErrorResult& aRv)
 {
   Sequence<nsString> protocols;
   protocols.AppendElement(aProtocol);
-  return WebSocket::Constructor(aGlobal, aCx, aUrl, protocols, aRv);
+  return WebSocket::Constructor(aCx, aGlobal, aUrl, protocols, aRv);
 }
 
 already_AddRefed<WebSocket>
-WebSocket::Constructor(const GlobalObject& aGlobal,
-                       JSContext* aCx,
+WebSocket::Constructor(JSContext* aCx,
+                       nsISupports* aGlobal,
                        const nsAString& aUrl,
                        const Sequence<nsString>& aProtocols,
                        ErrorResult& aRv)
@@ -520,8 +523,7 @@ WebSocket::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  nsCOMPtr<nsIScriptObjectPrincipal> scriptPrincipal =
-    do_QueryInterface(aGlobal.Get());
+  nsCOMPtr<nsIScriptObjectPrincipal> scriptPrincipal = do_QueryInterface(aGlobal);
   if (!scriptPrincipal) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -533,13 +535,13 @@ WebSocket::Constructor(const GlobalObject& aGlobal,
     return nullptr;
   }
 
-  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aGlobal.Get());
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(aGlobal);
   if (!sgo) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
-  nsCOMPtr<nsPIDOMWindow> ownerWindow = do_QueryInterface(aGlobal.Get());
+  nsCOMPtr<nsPIDOMWindow> ownerWindow = do_QueryInterface(aGlobal);
   if (!ownerWindow) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -577,6 +579,8 @@ WebSocket::Constructor(const GlobalObject& aGlobal,
   return webSocket.forget();
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(WebSocket)
+
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(WebSocket)
   bool isBlack = tmp->IsBlack();
   if (isBlack|| tmp->mKeepingAlive) {
@@ -604,17 +608,17 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(WebSocket,
                                                   nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrincipal)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mURI)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChannel)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrincipal)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mURI)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mChannel)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(WebSocket,
                                                 nsDOMEventTargetHelper)
   tmp->Disconnect();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPrincipal)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mURI)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mChannel)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPrincipal)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mURI)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mChannel)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(WebSocket)
@@ -627,6 +631,11 @@ NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(WebSocket, nsDOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(WebSocket, nsDOMEventTargetHelper)
+
+NS_IMPL_EVENT_HANDLER(WebSocket, open)
+NS_IMPL_EVENT_HANDLER(WebSocket, error)
+NS_IMPL_EVENT_HANDLER(WebSocket, message)
+NS_IMPL_EVENT_HANDLER(WebSocket, close)
 
 void
 WebSocket::DisconnectFromOwner()
@@ -852,14 +861,15 @@ WebSocket::CreateAndDispatchSimpleEvent(const nsString& aName)
   }
 
   nsCOMPtr<nsIDOMEvent> event;
-  rv = NS_NewDOMEvent(getter_AddRefs(event), this, nullptr, nullptr);
+  rv = NS_NewDOMEvent(getter_AddRefs(event), nullptr, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // it doesn't bubble, and it isn't cancelable
   rv = event->InitEvent(aName, false, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
 }
@@ -881,11 +891,11 @@ WebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
   nsIScriptContext* scriptContext = sgo->GetContext();
   NS_ENSURE_TRUE(scriptContext, NS_ERROR_FAILURE);
 
-  AutoPushJSContext cx(scriptContext->GetNativeContext());
+  JSContext* cx = scriptContext->GetNativeContext();
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   // Create appropriate JS object for message
-  JS::Value jsData;
+  jsval jsData;
   {
     JSAutoRequest ar(cx);
     if (isBinary) {
@@ -916,7 +926,7 @@ WebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
   // which does not bubble, is not cancelable, and has no default action
 
   nsCOMPtr<nsIDOMEvent> event;
-  rv = NS_NewDOMMessageEvent(getter_AddRefs(event), this, nullptr, nullptr);
+  rv = NS_NewDOMMessageEvent(getter_AddRefs(event), nullptr, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMMessageEvent> messageEvent = do_QueryInterface(event);
@@ -927,7 +937,8 @@ WebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
                                       EmptyString(), nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
 }
@@ -948,7 +959,7 @@ WebSocket::CreateAndDispatchCloseEvent(bool aWasClean,
   // which does not bubble, is not cancelable, and has no default action
 
   nsCOMPtr<nsIDOMEvent> event;
-  rv = NS_NewDOMCloseEvent(getter_AddRefs(event), this, nullptr, nullptr);
+  rv = NS_NewDOMCloseEvent(getter_AddRefs(event), nullptr, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMCloseEvent> closeEvent = do_QueryInterface(event);
@@ -957,7 +968,8 @@ WebSocket::CreateAndDispatchCloseEvent(bool aWasClean,
                                   aWasClean, aCode, aReason);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   return DispatchDOMEvent(nullptr, event, nullptr, nullptr);
 }
@@ -1069,10 +1081,10 @@ WebSocket::UpdateMustKeepAlive()
     {
       case WebSocket::CONNECTING:
       {
-        if (mListenerManager->HasListenersFor(nsGkAtoms::onopen) ||
-            mListenerManager->HasListenersFor(nsGkAtoms::onmessage) ||
-            mListenerManager->HasListenersFor(nsGkAtoms::onerror) ||
-            mListenerManager->HasListenersFor(nsGkAtoms::onclose)) {
+        if (mListenerManager->HasListenersFor(NS_LITERAL_STRING("open")) ||
+            mListenerManager->HasListenersFor(NS_LITERAL_STRING("message")) ||
+            mListenerManager->HasListenersFor(NS_LITERAL_STRING("error")) ||
+            mListenerManager->HasListenersFor(NS_LITERAL_STRING("close"))) {
           shouldKeepAlive = true;
         }
       }
@@ -1081,9 +1093,9 @@ WebSocket::UpdateMustKeepAlive()
       case WebSocket::OPEN:
       case WebSocket::CLOSING:
       {
-        if (mListenerManager->HasListenersFor(nsGkAtoms::onmessage) ||
-            mListenerManager->HasListenersFor(nsGkAtoms::onerror) ||
-            mListenerManager->HasListenersFor(nsGkAtoms::onclose) ||
+        if (mListenerManager->HasListenersFor(NS_LITERAL_STRING("message")) ||
+            mListenerManager->HasListenersFor(NS_LITERAL_STRING("error")) ||
+            mListenerManager->HasListenersFor(NS_LITERAL_STRING("close")) ||
             mOutgoingBufferedAmount != 0) {
           shouldKeepAlive = true;
         }

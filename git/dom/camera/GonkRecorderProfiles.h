@@ -18,6 +18,7 @@
   } while(0)
 #endif
 
+using namespace android;
 
 namespace android {
 class GonkRecorder;
@@ -33,10 +34,10 @@ class GonkRecorderVideoProfile : public RecorderVideoProfile
 public:
   GonkRecorderVideoProfile(uint32_t aCameraId, uint32_t aQualityIndex);
   ~GonkRecorderVideoProfile();
-  android::video_encoder GetPlatformCodec() const { return mPlatformCodec; }
+  video_encoder GetPlatformCodec() const { return mPlatformCodec; }
 
 protected:
-  android::video_encoder mPlatformCodec;
+  video_encoder mPlatformCodec;
 };
 
 /**
@@ -47,10 +48,10 @@ class GonkRecorderAudioProfile : public RecorderAudioProfile
 public:
   GonkRecorderAudioProfile(uint32_t aCameraId, uint32_t aQualityIndex);
   ~GonkRecorderAudioProfile();
-  android::audio_encoder GetPlatformCodec() const { return mPlatformCodec; }
+  audio_encoder GetPlatformCodec() const { return mPlatformCodec; }
 
 protected:
-  android::audio_encoder mPlatformCodec;
+  audio_encoder mPlatformCodec;
 };
 
 /**
@@ -64,13 +65,13 @@ public:
   GonkRecorderAudioProfile* GetGonkAudioProfile() { return &mAudio; }
   GonkRecorderVideoProfile* GetGonkVideoProfile() { return &mVideo; }
 
-  android::output_format GetOutputFormat() const { return mPlatformOutputFormat; }
-  nsresult ConfigureRecorder(android::GonkRecorder* aRecorder);
+  output_format GetOutputFormat() const { return mPlatformOutputFormat; }
+  nsresult ConfigureRecorder(GonkRecorder* aRecorder);
 
 protected:
   virtual ~GonkRecorderProfile();
 
-  android::output_format mPlatformOutputFormat;
+  output_format mPlatformOutputFormat;
 };
 
 /**
@@ -86,7 +87,7 @@ public:
    * supported by the camera hardware.  (Just because it appears in a recorder
    * profile doesn't mean the hardware can handle it.)
    */
-  void SetSupportedResolutions(const nsTArray<idl::CameraSize>& aSizes)
+  void SetSupportedResolutions(const nsTArray<CameraSize>& aSizes)
     { mSupportedSizes = aSizes; }
 
   /**
@@ -104,7 +105,7 @@ public:
 protected:
   virtual ~GonkRecorderProfileManager();
 
-  nsTArray<idl::CameraSize> mSupportedSizes;
+  nsTArray<CameraSize> mSupportedSizes;
 };
 
 }; // namespace mozilla

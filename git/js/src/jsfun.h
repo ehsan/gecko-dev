@@ -13,56 +13,51 @@
 #include "jspubtd.h"
 #include "jsobj.h"
 #include "jsatom.h"
+#include "jsscript.h"
 #include "jsstr.h"
 
 #include "gc/Barrier.h"
 
-ForwardDeclareJS(Atom);
+/*
+ * The high two bits of JSFunction.flags encode whether the function is native
+ * or interpreted, and if interpreted, what kind of optimized closure form (if
+ * any) it might be.
+ *
+ *   00   not interpreted
+ *   01   interpreted, not null closure
+ *   11   interpreted, null closure
+ *
+ * NB: JSFUN_EXPR_CLOSURE reuses JSFUN_STUB_GSOPS, which is an API request flag
+ * bit only, never stored in fun->flags.
+ *
+ * If we need more bits in the future, all flags for interpreted functions can
+ * move to u.i.script->flags. For now we use function flag bits to minimize
+ * pointer-chasing.
+ */
+#define JSFUN_PROTOTYPE     0x0800  /* function is Function.prototype for some
+                                       global object */
+
+#define JSFUN_EXPR_CLOSURE  0x1000  /* expression closure: function(x) x*x */
+#define JSFUN_EXTENDED      0x2000  /* structure is FunctionExtended */
+/*
+ * NB: JSFUN_INTERPRETED is hardcode duplicated in SET_JITINFO() in
+ * jsfriendapi.h. If it changes, it must also be updated there.
+ */
+#define JSFUN_INTERPRETED   0x4000  /* use u.i if kind >= this value else u.native */
+
+#define JSFUN_HAS_GUESSED_ATOM  0x8000  /* function had no explicit name, but a
+                                           name was guessed for it anyway */
 
 namespace js { class FunctionExtended; }
 
-class JSFunction : public JSObject
+struct JSFunction : public JSObject
 {
-  public:
-    enum Flags {
-        INTERPRETED      = 0x0001,  /* function has a JSScript and environment. */
-        NATIVE_CTOR      = 0x0002,  /* native that can be called as a constructor */
-        EXTENDED         = 0x0004,  /* structure is FunctionExtended */
-        HEAVYWEIGHT      = 0x0008,  /* activation requires a Call object */
-        IS_FUN_PROTO     = 0x0010,  /* function is Function.prototype for some global object */
-        EXPR_CLOSURE     = 0x0020,  /* expression closure: function(x) x*x */
-        HAS_GUESSED_ATOM = 0x0040,  /* function had no explicit name, but a
-                                       name was guessed for it anyway */
-        LAMBDA           = 0x0080,  /* function comes from a FunctionExpression, ArrowFunction, or
-                                       Function() call (not a FunctionDeclaration or nonstandard
-                                       function-statement) */
-        SELF_HOSTED      = 0x0100,  /* function is self-hosted builtin and must not be
-                                       decompilable nor constructible. */
-        SELF_HOSTED_CTOR = 0x0200,  /* function is self-hosted builtin constructor and
-                                       must be constructible but not decompilable. */
-        HAS_REST         = 0x0400,  /* function has a rest (...) parameter */
-        HAS_DEFAULTS     = 0x0800,  /* function has at least one default parameter */
-        INTERPRETED_LAZY = 0x1000,  /* function is interpreted but doesn't have a script yet */
-        ARROW            = 0x2000,  /* ES6 '(args) => body' syntax */
-
-        /* Derived Flags values for convenience: */
-        NATIVE_FUN = 0,
-        INTERPRETED_LAMBDA = INTERPRETED | LAMBDA,
-        INTERPRETED_LAMBDA_ARROW = INTERPRETED | LAMBDA | ARROW
-    };
-
-    static void staticAsserts() {
-        JS_STATIC_ASSERT(INTERPRETED == JS_FUNCTION_INTERPRETED_BIT);
-        MOZ_STATIC_ASSERT(sizeof(JSFunction) == sizeof(js::shadow::Function),
-                          "shadow interface must match actual interface");
-    }
-
     uint16_t        nargs;        /* maximum number of specified arguments,
                                      reflected as f.length/f.arity */
-    uint16_t        flags;        /* bitfield composed of the above Flags enum */
+    uint16_t        flags;        /* flags, see JSFUN_* below and in jsapi.h */
     union U {
         class Native {
-            friend class JSFunction;
+            friend struct JSFunction;
             js::Native          native;       /* native method pointer or null */
             const JSJitInfo     *jitinfo;     /* Information about this function to be
                                                  used by the JIT;
@@ -78,110 +73,50 @@ class JSFunction : public JSObject
     } u;
   private:
     js::HeapPtrAtom  atom_;       /* name for diagnostics and decompiling */
-
   public:
 
-    /* A function can be classified as either native (C++) or interpreted (JS): */
-    bool isInterpreted()            const { return flags & (INTERPRETED | INTERPRETED_LAZY); }
-    bool isNative()                 const { return !isInterpreted(); }
-
-    /* Possible attributes of a native function: */
-    bool isNativeConstructor()      const { return flags & NATIVE_CTOR; }
-
-    /* Possible attributes of an interpreted function: */
-    bool isHeavyweight()            const { return flags & HEAVYWEIGHT; }
-    bool isFunctionPrototype()      const { return flags & IS_FUN_PROTO; }
-    bool isInterpretedLazy()        const { return flags & INTERPRETED_LAZY; }
-    bool hasScript()                const { return isInterpreted() && u.i.script_; }
-    bool isExprClosure()            const { return flags & EXPR_CLOSURE; }
-    bool hasGuessedAtom()           const { return flags & HAS_GUESSED_ATOM; }
-    bool isLambda()                 const { return flags & LAMBDA; }
-    bool isSelfHostedBuiltin()      const { return flags & SELF_HOSTED; }
-    bool isSelfHostedConstructor()  const { return flags & SELF_HOSTED_CTOR; }
-    bool hasRest()                  const { return flags & HAS_REST; }
-    bool hasDefaults()              const { return flags & HAS_DEFAULTS; }
-
-    // Arrow functions are a little weird.
-    //
-    // Like all functions, (1) when the compiler parses an arrow function, it
-    // creates a function object that gets stored with the enclosing script;
-    // and (2) at run time the script's function object is cloned.
-    //
-    // But then, unlike other functions, (3) a bound function is created with
-    // the clone as its target.
-    //
-    // isArrow() is true for all three of these Function objects.
-    // isBoundFunction() is true only for the last one.
-    bool isArrow()                  const { return flags & ARROW; }
-
-    /* Compound attributes: */
-    bool isBuiltin() const {
-        return isNative() || isSelfHostedBuiltin();
-    }
+    bool hasDefaults()       const { return flags & JSFUN_HAS_DEFAULTS; }
+    bool hasRest()           const { return flags & JSFUN_HAS_REST; }
+    bool hasGuessedAtom()    const { return flags & JSFUN_HAS_GUESSED_ATOM; }
+    bool isInterpreted()     const { return flags & JSFUN_INTERPRETED; }
+    bool isNative()          const { return !isInterpreted(); }
+    bool isSelfHostedBuiltin() const { return flags & JSFUN_SELF_HOSTED; }
+    bool isBuiltin()         const { return isNative() || isSelfHostedBuiltin(); }
+    bool isSelfHostedConstructor() const { return flags & JSFUN_SELF_HOSTED_CTOR; }
+    bool isNativeConstructor() const { return flags & JSFUN_CONSTRUCTOR; }
+    bool isHeavyweight()     const { return JSFUN_HEAVYWEIGHT_TEST(flags); }
+    bool isFunctionPrototype() const { return flags & JSFUN_PROTOTYPE; }
     bool isInterpretedConstructor() const {
         return isInterpreted() && !isFunctionPrototype() &&
                (!isSelfHostedBuiltin() || isSelfHostedConstructor());
     }
     bool isNamedLambda()     const {
-        return isLambda() && atom_ && !hasGuessedAtom();
+        return (flags & JSFUN_LAMBDA) && atom_ && !hasGuessedAtom();
     }
 
     /* Returns the strictness of this function, which must be interpreted. */
-    inline bool strict() const;
+    inline bool inStrictMode() const;
 
-    // Can be called multiple times by the parser.
     void setArgCount(uint16_t nargs) {
-        JS_ASSERT(this->nargs == 0 || this->nargs == nargs);
+        JS_ASSERT(this->nargs == 0);
         this->nargs = nargs;
     }
 
-    // Can be called multiple times by the parser.
     void setHasRest() {
-        flags |= HAS_REST;
+        JS_ASSERT(!hasRest());
+        this->flags |= JSFUN_HAS_REST;
     }
 
-    // Can be called multiple times by the parser.
     void setHasDefaults() {
-        flags |= HAS_DEFAULTS;
-    }
-
-    void setIsSelfHostedBuiltin() {
-        JS_ASSERT(!isSelfHostedBuiltin());
-        flags |= SELF_HOSTED;
-    }
-
-    void setIsSelfHostedConstructor() {
-        JS_ASSERT(!isSelfHostedConstructor());
-        flags |= SELF_HOSTED_CTOR;
-    }
-
-    void setIsFunctionPrototype() {
-        JS_ASSERT(!isFunctionPrototype());
-        flags |= IS_FUN_PROTO;
-    }
-
-    void setIsHeavyweight() {
-        flags |= HEAVYWEIGHT;
-    }
-
-    // Can be called multiple times by the parser.
-    void setIsExprClosure() {
-        flags |= EXPR_CLOSURE;
-    }
-
-    void markNotLazy() {
-        JS_ASSERT(isInterpretedLazy());
-        JS_ASSERT(hasScript());
-        flags |= INTERPRETED;
-        flags &= ~INTERPRETED_LAZY;
+        JS_ASSERT(!hasDefaults());
+        this->flags |= JSFUN_HAS_DEFAULTS;
     }
 
     JSAtom *atom() const { return hasGuessedAtom() ? NULL : atom_.get(); }
-    js::PropertyName *name() const { return hasGuessedAtom() || !atom_ ? NULL : atom_->asPropertyName(); }
     inline void initAtom(JSAtom *atom);
     JSAtom *displayAtom() const { return atom_; }
 
-    inline void setGuessedAtom(js::RawAtom atom);
+    inline void setGuessedAtom(JSAtom *atom);
 
     /* uint16_t representation bounds number of call object dynamic slots. */
     enum { MAX_ARGS_AND_VARS = 2 * ((1U << 16) - 1) };
@@ -197,39 +132,9 @@ class JSFunction : public JSObject
     static inline size_t offsetOfEnvironment() { return offsetof(JSFunction, u.i.env_); }
     static inline size_t offsetOfAtom() { return offsetof(JSFunction, atom_); }
 
-    bool initializeLazyScript(JSContext *cx);
-
-    js::RawScript getOrCreateScript(JSContext *cx) {
+    js::Return<JSScript*> script() const {
         JS_ASSERT(isInterpreted());
-        if (isInterpretedLazy()) {
-            JS::RootedFunction self(cx, this);
-            js::MaybeCheckStackRoots(cx);
-            if (!self->initializeLazyScript(cx))
-                return NULL;
-            return self->u.i.script_;
-        }
-        JS_ASSERT(hasScript());
-        return u.i.script_;
-    }
-
-    static bool maybeGetOrCreateScript(JSContext *cx, js::HandleFunction fun,
-                                       js::MutableHandle<JSScript*> script)
-    {
-        if (fun->isNative()) {
-            script.set(NULL);
-            return true;
-        }
-        script.set(fun->getOrCreateScript(cx));
-        return fun->hasScript();
-    }
-
-    js::RawScript nonLazyScript() const {
-        JS_ASSERT(hasScript());
         return JS::HandleScript::fromMarkedLocation(&u.i.script_);
-    }
-
-    js::RawScript maybeNonLazyScript() const {
-        return isInterpreted() ? nonLazyScript() : NULL;
     }
 
     js::HeapPtrScript &mutableScript() {
@@ -239,6 +144,10 @@ class JSFunction : public JSObject
 
     inline void setScript(JSScript *script_);
     inline void initScript(JSScript *script_);
+
+    js::Return<JSScript*> maybeScript() const {
+        return isInterpreted() ? script() : JS::NullPtr();
+    }
 
     JSNative native() const {
         JS_ASSERT(isNative());
@@ -283,13 +192,13 @@ class JSFunction : public JSObject
     inline js::FunctionExtended *toExtended();
     inline const js::FunctionExtended *toExtended() const;
 
-  public:
     inline bool isExtended() const {
         JS_STATIC_ASSERT(FinalizeKind != ExtendedFinalizeKind);
-        JS_ASSERT_IF(isTenured(), !!(flags & EXTENDED) == (tenuredGetAllocKind() == ExtendedFinalizeKind));
-        return !!(flags & EXTENDED);
+        JS_ASSERT(!!(flags & JSFUN_EXTENDED) == (getAllocKind() == ExtendedFinalizeKind));
+        return !!(flags & JSFUN_EXTENDED);
     }
 
+  public:
     /* Accessors for data stored in extended functions. */
     inline void initializeExtended();
     inline void setExtendedSlot(size_t which, const js::Value &val);
@@ -299,16 +208,11 @@ class JSFunction : public JSObject
     static bool setTypeForScriptedFunction(JSContext *cx, js::HandleFunction fun,
                                            bool singleton = false);
 
-    /* GC support. */
-    js::gc::AllocKind getAllocKind() const {
-        js::gc::AllocKind kind = FinalizeKind;
-        if (isExtended())
-            kind = ExtendedFinalizeKind;
-        JS_ASSERT_IF(isTenured(), kind == tenuredGetAllocKind());
-        return kind;
-    }
-
   private:
+    static void staticAsserts() {
+        MOZ_STATIC_ASSERT(sizeof(JSFunction) == sizeof(js::shadow::Function),
+                          "shadow interface must match actual interface");
+    }
     /*
      * These member functions are inherited from JSObject, but should never be applied to
      * a value statically known to be a JSFunction.
@@ -334,48 +238,35 @@ JSObject::toFunction() const
 extern JSString *
 fun_toStringHelper(JSContext *cx, js::HandleObject obj, unsigned indent);
 
-inline JSFunction::Flags
-JSAPIToJSFunctionFlags(unsigned flags)
-{
-    return (flags & JSFUN_CONSTRUCTOR)
-           ? JSFunction::NATIVE_CTOR
-           : JSFunction::NATIVE_FUN;
-}
+extern JSFunction *
+js_NewFunction(JSContext *cx, js::HandleObject funobj, JSNative native, unsigned nargs,
+               unsigned flags, js::HandleObject parent, js::HandleAtom atom,
+               js::gc::AllocKind kind = JSFunction::FinalizeKind);
+
+extern JSFunction * JS_FASTCALL
+js_CloneFunctionObject(JSContext *cx, js::HandleFunction fun,
+                       js::HandleObject parent, js::HandleObject proto,
+                       js::gc::AllocKind kind = JSFunction::FinalizeKind);
+
+extern JSFunction *
+js_DefineFunction(JSContext *cx, js::HandleObject obj, js::HandleId id, JSNative native,
+                  unsigned nargs, unsigned flags, const char *selfHostedName = NULL,
+                  js::gc::AllocKind kind = JSFunction::FinalizeKind);
 
 namespace js {
 
-extern JSFunction *
-NewFunction(JSContext *cx, HandleObject funobj, JSNative native, unsigned nargs,
-            JSFunction::Flags flags, HandleObject parent, HandleAtom atom,
-            gc::AllocKind allocKind = JSFunction::FinalizeKind,
-            NewObjectKind newKind = GenericObject);
-
-extern JSFunction *
-DefineFunction(JSContext *cx, HandleObject obj, HandleId id, JSNative native,
-               unsigned nargs, unsigned flags,
-               gc::AllocKind allocKind = JSFunction::FinalizeKind,
-               NewObjectKind newKind = GenericObject);
-
 /*
  * Function extended with reserved slots for use by various kinds of functions.
- * Most functions do not have these extensions, but enough do that efficient
+ * Most functions do not have these extensions, but enough are that efficient
  * storage is required (no malloc'ed reserved slots).
  */
 class FunctionExtended : public JSFunction
 {
-  public:
-    static const unsigned NUM_EXTENDED_SLOTS = 2;
-
-  private:
-    friend class JSFunction;
+    friend struct JSFunction;
 
     /* Reserved slots available for storage by particular native functions. */
-    HeapValue extendedSlots[NUM_EXTENDED_SLOTS];
+    HeapValue extendedSlots[2];
 };
-
-extern JSFunction *
-CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
-                    gc::AllocKind kind = JSFunction::FinalizeKind);
 
 } // namespace js
 
@@ -419,11 +310,6 @@ ReportIncompatibleMethod(JSContext *cx, CallReceiver call, Class *clasp);
  */
 extern void
 ReportIncompatible(JSContext *cx, CallReceiver call);
-
-JSBool
-CallOrConstructBoundFunction(JSContext *, unsigned, js::Value *);
-
-extern JSFunctionSpec function_methods[];
 
 } /* namespace js */
 

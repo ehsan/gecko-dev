@@ -5,11 +5,11 @@
 #ifndef nsTableFrame_h__
 #define nsTableFrame_h__
 
-#include "celldata.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
 #include "nsStyleCoord.h"
 #include "nsStyleConsts.h"
+#include "nsITableLayout.h"
 #include "nsTableColFrame.h"
 #include "nsTableColGroupFrame.h"
 #include "nsCellMap.h"
@@ -17,9 +17,7 @@
 #include "nsDisplayList.h"
 
 class nsTableCellFrame;
-class nsTableCellMap;
 class nsTableColFrame;
-class nsColGroupFrame;
 class nsTableRowGroupFrame;
 class nsTableRowFrame;
 class nsTableColGroupFrame;
@@ -36,10 +34,10 @@ static inline bool IS_TABLE_CELL(nsIAtom* frameType) {
 }
 
 static inline bool FrameHasBorderOrBackground(nsIFrame* f) {
-  return (f->StyleVisibility()->IsVisible() &&
-          (!f->StyleBackground()->IsTransparent() ||
-           f->StyleDisplay()->mAppearance ||
-           f->StyleBorder()->HasBorder()));
+  return (f->GetStyleVisibility()->IsVisible() &&
+          (!f->GetStyleBackground()->IsTransparent() ||
+           f->GetStyleDisplay()->mAppearance ||
+           f->GetStyleBorder()->HasBorder()));
 }
 
 class nsDisplayTableItem : public nsDisplayItem
@@ -105,7 +103,7 @@ private:
   * The principal child list contains row group frames. There is also an
   * additional child list, kColGroupList, which contains the col group frames.
   */
-class nsTableFrame : public nsContainerFrame
+class nsTableFrame : public nsContainerFrame, public nsITableLayout
 {
 public:
   NS_DECL_QUERYFRAME
@@ -124,9 +122,9 @@ public:
   /** sets defaults for table-specific style.
     * @see nsIFrame::Init 
     */
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 
   static float GetTwipsToPixels(nsPresContext* aPresContext);
 
@@ -179,11 +177,11 @@ public:
   /** helper method to find the table parent of any table frame object */
   static nsTableFrame* GetTableFrame(nsIFrame* aSourceFrame);
                                  
-  typedef void (* DisplayGenericTablePartTraversal)
+  typedef nsresult (* DisplayGenericTablePartTraversal)
       (nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
        const nsRect& aDirtyRect, const nsDisplayListSet& aLists);
-  static void GenericTraversal(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
-                               const nsRect& aDirtyRect, const nsDisplayListSet& aLists);
+  static nsresult GenericTraversal(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
+                                   const nsRect& aDirtyRect, const nsDisplayListSet& aLists);
 
   /**
    * Helper method to handle display common to table frames, rowgroup frames
@@ -196,12 +194,12 @@ public:
    * part's child frames and add their display list items to a
    * display list set.
    */
-  static void DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
-                                      nsFrame* aFrame,
-                                      const nsRect& aDirtyRect,
-                                      const nsDisplayListSet& aLists,
-                                      nsDisplayTableItem* aDisplayItem,
-                                      DisplayGenericTablePartTraversal aTraversal = GenericTraversal);
+  static nsresult DisplayGenericTablePart(nsDisplayListBuilder* aBuilder,
+                                          nsFrame* aFrame,
+                                          const nsRect& aDirtyRect,
+                                          const nsDisplayListSet& aLists,
+                                          nsDisplayTableItem* aDisplayItem,
+                                          DisplayGenericTablePartTraversal aTraversal = GenericTraversal);
 
   // Return the closest sibling of aPriorChildFrame (including aPriroChildFrame)
   // of type aChildType.
@@ -224,9 +222,9 @@ public:
   virtual const nsFrameList& GetChildList(ChildListID aListID) const;
   virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   /**
    * Paint the background of the table and its parts (column groups,
@@ -335,29 +333,21 @@ public:
    */
   virtual nsIAtom* GetType() const;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
-  {
-    if (aFlags & eSupportsCSSTransforms) {
-      return false;
-    }
-    return nsContainerFrame::IsFrameOfType(aFlags);
-  }
-
 #ifdef DEBUG
   /** @see nsIFrame::GetFrameName */
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
   /** return the width of the column at aColIndex    */
-  int32_t GetColumnWidth(int32_t aColIndex);
+  virtual int32_t GetColumnWidth(int32_t aColIndex);
 
   /** helper to get the cell spacing X style value */
-  nscoord GetCellSpacingX();
+  virtual nscoord GetCellSpacingX();
 
   /** helper to get the cell spacing Y style value */
-  nscoord GetCellSpacingY();
+  virtual nscoord GetCellSpacingY();
  
-  virtual nscoord GetBaseline() const MOZ_OVERRIDE;
+  virtual nscoord GetBaseline() const;
   /** return the row span of a cell, taking into account row span magic at the bottom
     * of a table. The row span equals the number of rows spanned by aCell starting at
     * aStartRowIndex, and can be smaller if aStartRowIndex is greater than the row
@@ -369,10 +359,10 @@ public:
     * @return  the row span, correcting for row spans that extend beyond the bottom
     *          of the table.
     */
-  int32_t  GetEffectiveRowSpan(int32_t                 aStartRowIndex,
-                               const nsTableCellFrame& aCell) const;
-  int32_t  GetEffectiveRowSpan(const nsTableCellFrame& aCell,
-                               nsCellMap*              aCellMap = nullptr);
+  virtual int32_t  GetEffectiveRowSpan(int32_t                 aStartRowIndex,
+                                       const nsTableCellFrame& aCell) const;
+  virtual int32_t  GetEffectiveRowSpan(const nsTableCellFrame& aCell,
+                                       nsCellMap*              aCellMap = nullptr);
 
   /** return the col span of a cell, taking into account col span magic at the edge
     * of a table.
@@ -382,8 +372,8 @@ public:
     * @return  the col span, correcting for col spans that extend beyond the edge
     *          of the table.
     */
-  int32_t  GetEffectiveColSpan(const nsTableCellFrame& aCell,
-                               nsCellMap*              aCellMap = nullptr) const;
+  virtual int32_t  GetEffectiveColSpan(const nsTableCellFrame& aCell,
+                                       nsCellMap*              aCellMap = nullptr) const;
 
   /** indicate whether the row has more than one cell that either originates
     * or is spanned from the rows above
@@ -427,15 +417,15 @@ public:
 
   void DidResizeColumns();
 
-  void AppendCell(nsTableCellFrame& aCellFrame,
-                  int32_t           aRowIndex);
+  virtual void AppendCell(nsTableCellFrame& aCellFrame,
+                          int32_t           aRowIndex);
 
-  void InsertCells(nsTArray<nsTableCellFrame*>& aCellFrames,
-                   int32_t                      aRowIndex,
-                   int32_t                      aColIndexBefore);
+  virtual void InsertCells(nsTArray<nsTableCellFrame*>& aCellFrames,
+                           int32_t                      aRowIndex,
+                           int32_t                      aColIndexBefore);
 
-  void RemoveCell(nsTableCellFrame* aCellFrame,
-                  int32_t           aRowIndex);
+  virtual void RemoveCell(nsTableCellFrame* aCellFrame,
+                          int32_t           aRowIndex);
 
   void AppendRows(nsTableRowGroupFrame*       aRowGroupFrame,
                   int32_t                     aRowIndex,
@@ -446,9 +436,9 @@ public:
                      int32_t                     aRowIndex,
                      bool                        aConsiderSpans);
 
-  void RemoveRows(nsTableRowFrame& aFirstRowFrame,
-                  int32_t          aNumRowsToRemove,
-                  bool             aConsiderSpans);
+  virtual void RemoveRows(nsTableRowFrame& aFirstRowFrame,
+                          int32_t          aNumRowsToRemove,
+                          bool             aConsiderSpans);
 
   /** Insert multiple rowgroups into the table cellmap handling
     * @param aRowGroups - iterator that iterates over the rowgroups to insert
@@ -458,10 +448,13 @@ public:
   void InsertColGroups(int32_t                   aStartColIndex,
                        const nsFrameList::Slice& aColgroups);
 
-  void RemoveCol(nsTableColGroupFrame* aColGroupFrame,
-                 int32_t               aColIndex,
-                 bool                  aRemoveFromCache,
-                 bool                  aRemoveFromCellMap);
+  virtual void RemoveCol(nsTableColGroupFrame* aColGroupFrame,
+                         int32_t               aColIndex,
+                         bool                  aRemoveFromCache,
+                         bool                  aRemoveFromCellMap);
+
+  NS_IMETHOD GetIndexByRowAndColumn(int32_t aRow, int32_t aColumn, int32_t *aIndex);
+  NS_IMETHOD GetRowAndColumnByIndex(int32_t aIndex, int32_t *aRow, int32_t *aColumn);
 
   bool ColumnHasCellSpacingBefore(int32_t aColIndex) const;
 
@@ -502,7 +495,8 @@ protected:
 
   void InitChildReflowState(nsHTMLReflowState& aReflowState);
 
-  virtual int GetSkipSides() const MOZ_OVERRIDE;
+  /** implement abstract method on nsContainerFrame */
+  virtual int GetSkipSides() const;
 
 public:
   bool IsRowInserted() const;
@@ -656,7 +650,7 @@ public:
   /** Get the cell map for this table frame.  It is not always mCellMap.
     * Only the firstInFlow has a legit cell map
     */
-  nsTableCellMap* GetCellMap() const;
+  virtual nsTableCellMap* GetCellMap() const;
 
   /** Iterate over the row groups and adjust the row indices of all rows 
     * whose index is >= aRowIndex.  
@@ -718,7 +712,25 @@ public: /* ----- Cell Map public methods ----- */
   int32_t GetIndexOfLastRealCol();
 
   /** returns true if table-layout:auto  */
-  bool IsAutoLayout();
+  virtual bool IsAutoLayout();
+
+  /*---------------- nsITableLayout methods ------------------------*/
+  
+  /** Get the cell and associated data for a table cell from the frame's cellmap */
+  NS_IMETHOD GetCellDataAt(int32_t aRowIndex, int32_t aColIndex, 
+                           nsIDOMElement* &aCell,   //out params
+                           int32_t& aStartRowIndex, int32_t& aStartColIndex, 
+                           int32_t& aRowSpan, int32_t& aColSpan,
+                           int32_t& aActualRowSpan, int32_t& aActualColSpan,
+                           bool& aIsSelected);
+
+  /** Get the number of rows and column for a table from the frame's cellmap 
+    *  Some rows may not have enough cells (the number returned is the maximum possible),
+    *  which displays as a ragged-right edge table
+    */
+  NS_IMETHOD GetTableSize(int32_t& aRowCount, int32_t& aColCount);
+
+  /*------------end of nsITableLayout methods -----------------------*/
 
 public:
  
@@ -729,10 +741,6 @@ public:
 #endif
 
 protected:
-  /**
-   * Helper method for RemoveFrame.
-   */
-  void DoRemoveFrame(ChildListID aListID, nsIFrame* aOldFrame);
 #ifdef DEBUG
   void DumpRowGroup(nsIFrame* aChildFrame);
 #endif

@@ -8,7 +8,6 @@
 
 #include "nsIAlertsService.h"
 #include "nsCOMPtr.h"
-#include "nsXULAlerts.h"
 
 #ifdef XP_WIN
 typedef enum tagMOZ_QUERY_USER_NOTIFICATION_STATE {
@@ -40,7 +39,6 @@ public:
 
 protected:
   bool ShouldShowAlert();
-  nsXULAlerts mXULAlerts;
 };
 
 #endif /* nsAlertsService_h__ */

@@ -86,20 +86,10 @@ struct AutoCloseFDTraits
 {
   typedef int type;
   static int empty() { return -1; }
-  static void release(int fd) { if (fd != -1) close(fd); }
+  static void release(int fd) { close(fd); }
 };
 typedef mozilla::Scoped<AutoCloseFDTraits> AutoCloseFD;
 
-/**
- * AutoCloseFILE is a RAII wrapper for POSIX streams
- */
-struct AutoCloseFILETraits
-{
-  typedef FILE *type;
-  static FILE *empty() { return NULL; }
-  static void release(FILE *f) { if (f) fclose(f); }
-};
-typedef mozilla::Scoped<AutoCloseFILETraits> AutoCloseFILE;
 
 /**
  * MappedPtr is a RAII wrapper for mmap()ed memory. It can be used as
@@ -227,10 +217,6 @@ public:
     return contents[index];
   }
 
-  operator const T *() const
-  {
-    return contents;
-  }
   /**
    * Returns whether the array points somewhere
    */

@@ -27,9 +27,7 @@ public:
   nsMathMLElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     : nsMathMLElementBase(aNodeInfo), Link(this),
       mIncrementScriptLevel(false)
-  {
-    SetIsDOMBinding();
-  }
+  {}
 
   // Implementation of nsISupports is inherited from nsMathMLElementBase
   NS_DECL_ISUPPORTS_INHERITED
@@ -37,7 +35,7 @@ public:
   // Forward implementations of parent interfaces of nsMathMLElement to 
   // our base class
   NS_FORWARD_NSIDOMNODE_TO_NSINODE
-  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMELEMENT(nsMathMLElementBase::)
 
   nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                       nsIContent* aBindingParent,
@@ -55,18 +53,15 @@ public:
 
   enum {
     PARSE_ALLOW_UNITLESS = 0x01, // unitless 0 will be turned into 0px
-    PARSE_ALLOW_NEGATIVE = 0x02,
-    PARSE_SUPPRESS_WARNINGS = 0x04,
-    CONVERT_UNITLESS_TO_PERCENT = 0x08
+    PARSE_ALLOW_NEGATIVE = 0x02
   };
   static bool ParseNamedSpaceValue(const nsString& aString,
                                    nsCSSValue&     aCSSValue,
                                    uint32_t        aFlags);
 
   static bool ParseNumericValue(const nsString& aString,
-                                nsCSSValue&     aCSSValue,
-                                uint32_t        aFlags,
-                                nsIDocument*    aDocument);
+                                  nsCSSValue&     aCSSValue,
+                                  uint32_t        aFlags);
 
   static void MapMathMLAttributesInto(const nsMappedAttributes* aAttributes, 
                                       nsRuleData* aRuleData);
@@ -103,11 +98,9 @@ public:
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
 
+  virtual nsXPCClassInfo* GetClassInfo();
+
   virtual nsIDOMNode* AsDOMNode() { return this; }
-
-protected:
-  virtual JSObject* WrapNode(JSContext *aCx, JSObject *aScope) MOZ_OVERRIDE;
-
 private:
   bool mIncrementScriptLevel;
 };

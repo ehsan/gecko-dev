@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -21,38 +20,50 @@
 #include "nsIDOMNode.h"
 #include "nsGkAtoms.h"
 
+class nsFixedSizeAllocator;
+
 class nsNodeInfo : public nsINodeInfo
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_CLASS(nsNodeInfo)
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsNodeInfo)
 
   // nsINodeInfo
-  virtual void GetNamespaceURI(nsAString& aNameSpaceURI) const;
+  virtual nsresult GetNamespaceURI(nsAString& aNameSpaceURI) const;
   virtual bool NamespaceEquals(const nsAString& aNamespaceURI) const;
 
   // nsNodeInfo
+  // Create objects with Create
 public:
   /*
    * aName and aOwnerManager may not be null.
    */
-  nsNodeInfo(nsIAtom *aName, nsIAtom *aPrefix, int32_t aNamespaceID,
-             uint16_t aNodeType, nsIAtom *aExtraName,
-             nsNodeInfoManager *aOwnerManager);
-
+  static nsNodeInfo *Create(nsIAtom *aName, nsIAtom *aPrefix,
+                            int32_t aNamespaceID, uint16_t aNodeType,
+                            nsIAtom *aExtraName,
+                            nsNodeInfoManager *aOwnerManager);
 private:
   nsNodeInfo(); // Unimplemented
   nsNodeInfo(const nsNodeInfo& aOther); // Unimplemented
+  nsNodeInfo(nsIAtom *aName, nsIAtom *aPrefix, int32_t aNamespaceID,
+             uint16_t aNodeType, nsIAtom *aExtraName,
+             nsNodeInfoManager *aOwnerManager);
 protected:
   virtual ~nsNodeInfo();
 
 public:
-  bool CanSkip();
+  /**
+   * Call before shutdown to clear the cache and free memory for this class.
+   */
+  static void ClearCache();
 
 private:
+  static nsFixedSizeAllocator* sNodeInfoPool;
+
   /**
-   * This method gets called by Release() when it's time to delete
-   * this object.
+   * This method gets called by Release() when it's time to delete 
+   * this object, instead of always deleting the object we'll put the
+   * object in the cache unless the cache is already full.
    */
   void LastRelease();
 };

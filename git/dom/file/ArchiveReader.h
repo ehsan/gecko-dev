@@ -7,7 +7,8 @@
 #ifndef mozilla_dom_file_domarchivereader_h__
 #define mozilla_dom_file_domarchivereader_h__
 
-#include "nsWrapperCache.h"
+#include "nsIDOMArchiveReader.h"
+#include "nsIJSNativeInitializer.h"
 
 #include "FileCommon.h"
 
@@ -16,49 +17,32 @@
 #include "nsIDOMFile.h"
 #include "mozilla/Attributes.h"
 
-namespace mozilla {
-namespace dom {
-class ArchiveReaderOptions;
-class GlobalObject;
-} // namespace dom
-} // namespace mozilla
-
 BEGIN_FILE_NAMESPACE
 
 class ArchiveRequest;
 
-/**
- * This is the ArchiveReader object
- */
-class ArchiveReader MOZ_FINAL : public nsISupports,
-                                public nsWrapperCache
+class ArchiveReader MOZ_FINAL : public nsIDOMArchiveReader,
+                                public nsIJSNativeInitializer
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(ArchiveReader)
 
-  static already_AddRefed<ArchiveReader>
-  Constructor(const GlobalObject& aGlobal, nsIDOMBlob* aBlob,
-              const ArchiveReaderOptions& aOptions, ErrorResult& aError);
+  NS_DECL_NSIDOMARCHIVEREADER
 
-  ArchiveReader(nsIDOMBlob* aBlob, nsPIDOMWindow* aWindow,
-                const nsString& aEncoding);
+  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(ArchiveReader,
+                                           nsIDOMArchiveReader)
 
-  nsIDOMWindow* GetParentObject() const
-  {
-    return mWindow;
-  }
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  ArchiveReader();
 
-  already_AddRefed<ArchiveRequest> GetFilenames();
-  already_AddRefed<ArchiveRequest> GetFile(const nsAString& filename);
-  already_AddRefed<ArchiveRequest> GetFiles();
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner,
+                        JSContext* aCx,
+                        JSObject* aObj,
+                        uint32_t aArgc,
+                        jsval* aArgv);
 
   nsresult GetInputStream(nsIInputStream** aInputStream);
   nsresult GetSize(uint64_t* aSize);
-
-  static bool PrefEnabled();
 
 public: // for the ArchiveRequest:
   nsresult RegisterRequest(ArchiveRequest* aRequest);
@@ -106,8 +90,6 @@ protected:
     nsTArray<nsCOMPtr<nsIDOMFile> > fileList;
     nsresult status;
   } mData;
-
-  nsString mEncoding;
 };
 
 END_FILE_NAMESPACE

@@ -6,7 +6,6 @@ import imp
 import os
 import re
 import sys
-import time
 import types
 import unittest
 import weakref
@@ -30,7 +29,6 @@ class CommonTestCase(unittest.TestCase):
         unittest.TestCase.__init__(self, methodName)
         self.loglines = None
         self.perfdata = None
-        self.duration = 0
 
     @classmethod
     def match(cls, filename):
@@ -50,15 +48,6 @@ class CommonTestCase(unittest.TestCase):
         Adds all the tests in the specified file to the specified suite.
         """
         raise NotImplementedError
-
-    @property
-    def test_name(self):
-        if hasattr(self, 'jsFile'):
-            return os.path.basename(self.jsFile)
-        else:
-            return '%s.py %s.%s' % (self.__class__.__module__,
-                                    self.__class__.__name__,
-                                    self._testMethodName)
 
     def set_up_test_page(self, emulator, url="test.html", permissions=None):
         emulator.set_context("content")
@@ -84,13 +73,11 @@ permissions.forEach(function (perm) {
         # duration of the test; this is deleted in tearDown() to prevent
         # a persistent circular reference which in turn would prevent
         # proper garbage collection.
-        self.start_time = time.time()
         self.marionette = self._marionette_weakref()
         if self.marionette.session is None:
             self.marionette.start_session()
 
     def tearDown(self):
-        self.duration = time.time() - self.start_time
         if self.marionette.session is not None:
             self.loglines = self.marionette.get_logs()
             self.perfdata = self.marionette.get_perf_data()
@@ -125,10 +112,8 @@ class MarionetteTestCase(CommonTestCase):
                                   methodName=testname,
                                   filepath=filepath,
                                   testvars=testvars))
-
     def setUp(self):
         CommonTestCase.setUp(self)
-        self.marionette.test_name = self.test_name
         self.marionette.execute_script("log('TEST-START: %s:%s')" % 
                                        (self.filepath.replace('\\', '\\\\'), self.methodName))
 
@@ -136,7 +121,6 @@ class MarionetteTestCase(CommonTestCase):
         self.marionette.set_context("content")
         self.marionette.execute_script("log('TEST-END: %s:%s')" % 
                                        (self.filepath.replace('\\', '\\\\'), self.methodName))
-        self.marionette.test_name = None
         CommonTestCase.tearDown(self)
 
     def get_new_emulator(self):
@@ -175,7 +159,6 @@ class MarionetteJSTestCase(CommonTestCase):
     def runTest(self):
         if self.marionette.session is None:
             self.marionette.start_session()
-        self.marionette.test_name = os.path.basename(self.jsFile)
         self.marionette.execute_script("log('TEST-START: %s');" % self.jsFile.replace('\\', '\\\\'))
 
         f = open(self.jsFile, 'r')
@@ -201,7 +184,8 @@ class MarionetteJSTestCase(CommonTestCase):
             self.marionette.set_context(context)
 
         if context != "chrome":
-            self.marionette.navigate('data:text/html,<html>test page</html>')
+            page = self.marionette.absolute_url("empty.html")
+            self.marionette.navigate(page)
 
         timeout = self.timeout_re.search(js)
         if timeout:
@@ -222,8 +206,7 @@ class MarionetteJSTestCase(CommonTestCase):
                 for failure in results['failures']:
                     diag = "" if failure.get('diag') is None else "| %s " % failure['diag']
                     name = "got false, expected true" if failure.get('name') is None else failure['name']
-                    fails.append('TEST-UNEXPECTED-FAIL | %s %s| %s' %
-                                 (os.path.basename(self.jsFile), diag, name))
+                    fails.append('TEST-UNEXPECTED-FAIL %s| %s' % (diag, name))
                 self.assertEqual(0, results['failed'],
                                  '%d tests failed:\n%s' % (results['failed'], '\n'.join(fails)))
 
@@ -240,4 +223,6 @@ class MarionetteJSTestCase(CommonTestCase):
                 raise
 
         self.marionette.execute_script("log('TEST-END: %s');" % self.jsFile.replace('\\', '\\\\'))
-        self.marionette.test_name = None
+
+
+

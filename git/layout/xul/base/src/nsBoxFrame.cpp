@@ -41,8 +41,8 @@
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
 #include "nsHTMLParts.h"
-#include "nsViewManager.h"
-#include "nsView.h"
+#include "nsIViewManager.h"
+#include "nsIView.h"
 #include "nsIPresShell.h"
 #include "nsCSSRendering.h"
 #include "nsIServiceManager.h"
@@ -60,7 +60,6 @@
 #include "nsIDOMEvent.h"
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
-#include <algorithm>
 
 // Needed for Print Preview
 #include "nsIURI.h"
@@ -135,7 +134,7 @@ nsBoxFrame::SetInitialChildList(ChildListID     aListID,
   if (r == NS_OK) {
     // initialize our list of infos.
     nsBoxLayoutState state(PresContext());
-    CheckBoxOrder();
+    CheckBoxOrder(state);
     if (mLayoutManager)
       mLayoutManager->ChildrenSet(this, state, mFrames.FirstChild());
   } else {
@@ -158,12 +157,13 @@ nsBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 /**
  * Initialize us. This is a good time to get the alignment of the box
  */
-void
+NS_IMETHODIMP
 nsBoxFrame::Init(nsIContent*      aContent,
                  nsIFrame*        aParent,
                  nsIFrame*        aPrevInFlow)
 {
-  nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult  rv = nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (GetStateBits() & NS_FRAME_FONT_INFLATION_CONTAINER) {
     AddStateBits(NS_FRAME_FONT_INFLATION_FLOW_ROOT);
@@ -182,7 +182,9 @@ nsBoxFrame::Init(nsIContent*      aContent,
   UpdateMouseThrough();
 
   // register access key
-  RegUnregAccessKey(true);
+  rv = RegUnregAccessKey(true);
+
+  return rv;
 }
 
 void nsBoxFrame::UpdateMouseThrough()
@@ -322,7 +324,7 @@ nsBoxFrame::GetInitialHAlignment(nsBoxFrame::Halignment& aHalign)
   // Now that we've checked for the attribute it's time to check CSS.  For 
   // horizontal boxes we're checking PACK.  For vertical boxes we are checking
   // ALIGN.
-  const nsStyleXUL* boxInfo = StyleXUL();
+  const nsStyleXUL* boxInfo = GetStyleXUL();
   if (IsHorizontal()) {
     switch (boxInfo->mBoxPack) {
       case NS_STYLE_BOX_PACK_START:
@@ -397,7 +399,7 @@ nsBoxFrame::GetInitialVAlignment(nsBoxFrame::Valignment& aValign)
   // Now that we've checked for the attribute it's time to check CSS.  For 
   // horizontal boxes we're checking ALIGN.  For vertical boxes we are checking
   // PACK.
-  const nsStyleXUL* boxInfo = StyleXUL();
+  const nsStyleXUL* boxInfo = GetStyleXUL();
   if (IsHorizontal()) {
     switch (boxInfo->mBoxAlign) {
       case NS_STYLE_BOX_ALIGN_START:
@@ -443,7 +445,7 @@ nsBoxFrame::GetInitialOrientation(bool& aIsHorizontal)
     return;
 
   // Check the style system first.
-  const nsStyleXUL* boxInfo = StyleXUL();
+  const nsStyleXUL* boxInfo = GetStyleXUL();
   if (boxInfo->mBoxOrient == NS_STYLE_BOX_ORIENT_HORIZONTAL)
     aIsHorizontal = true;
   else 
@@ -469,13 +471,13 @@ nsBoxFrame::GetInitialDirection(bool& aIsNormal)
   if (IsHorizontal()) {
     // For horizontal boxes only, we initialize our value based off the CSS 'direction' property.
     // This means that BiDI users will end up with horizontally inverted chrome.
-    aIsNormal = (StyleVisibility()->mDirection == NS_STYLE_DIRECTION_LTR); // If text runs RTL then so do we.
+    aIsNormal = (GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_LTR); // If text runs RTL then so do we.
   }
   else
     aIsNormal = true; // Assume a normal direction in the vertical case.
 
   // Now check the style system to see if we should invert aIsNormal.
-  const nsStyleXUL* boxInfo = StyleXUL();
+  const nsStyleXUL* boxInfo = GetStyleXUL();
   if (boxInfo->mBoxDirection == NS_STYLE_BOX_DIRECTION_REVERSE)
     aIsNormal = !aIsNormal; // Invert our direction.
   
@@ -533,7 +535,7 @@ nsBoxFrame::GetInitialAutoStretch(bool& aStretch)
   }
 
   // Check the CSS box-align property.
-  const nsStyleXUL* boxInfo = StyleXUL();
+  const nsStyleXUL* boxInfo = GetStyleXUL();
   aStretch = (boxInfo->mBoxAlign == NS_STYLE_BOX_ALIGN_STRETCH);
 
   return true;
@@ -588,7 +590,7 @@ nsBoxFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
   GetBorderAndPadding(bp);
 
   result = minSize.width - bp.LeftRight();
-  result = std::max(result, 0);
+  result = NS_MAX(result, 0);
 
   return result;
 }
@@ -610,7 +612,7 @@ nsBoxFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
   GetBorderAndPadding(bp);
 
   result = prefSize.width - bp.LeftRight();
-  result = std::max(result, 0);
+  result = NS_MAX(result, 0);
 
   return result;
 }
@@ -941,6 +943,8 @@ nsBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
   // clean up the container box's layout manager and child boxes
   SetLayoutManager(nullptr);
 
+  DestroyAbsoluteFrames(aDestructRoot);
+
   nsContainerFrame::DestroyFrom(aDestructRoot);
 } 
 
@@ -1037,7 +1041,7 @@ nsBoxFrame::InsertFrames(ChildListID     aListID,
    // manager; otherwise the slice we give the layout manager will
    // just be bogus.  If the layout manager cares about the order, we
    // just lose.
-   CheckBoxOrder();
+   CheckBoxOrder(state);
 
 #ifdef DEBUG_LAYOUT
    // if we are in debug make sure our children are in debug as well.
@@ -1070,7 +1074,7 @@ nsBoxFrame::AppendFrames(ChildListID     aListID,
    // manager; otherwise the slice we give the layout manager will
    // just be bogus.  If the layout manager cares about the order, we
    // just lose.
-   CheckBoxOrder();
+   CheckBoxOrder(state);
 
 #ifdef DEBUG_LAYOUT
    // if we are in debug make sure our children are in debug as well.
@@ -1221,7 +1225,7 @@ nsBoxFrame::AttributeChanged(int32_t aNameSpaceID,
     // kPopupList and RelayoutChildAtOrdinal() only handles
     // principal children.
     if (parent && !(GetStateBits() & NS_FRAME_OUT_OF_FLOW) &&
-        StyleDisplay()->mDisplay != NS_STYLE_DISPLAY_POPUP) {
+        GetStyleDisplay()->mDisplay != NS_STYLE_DISPLAY_POPUP) {
       parent->RelayoutChildAtOrdinal(state, this);
       // XXXldb Should this instead be a tree change on the child or parent?
       PresContext()->PresShell()->
@@ -1285,7 +1289,7 @@ PaintXULDebugBackground(nsIFrame* aFrame, nsRenderingContext* aCtx,
 }
 #endif
 
-void
+nsresult
 nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                              const nsRect&           aDirtyRect,
                              const nsDisplayListSet& aLists)
@@ -1298,7 +1302,7 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // Check for frames that are marked as a part of the region used
   // in calculating glass margins on Windows.
   if (GetContent()->IsXUL()) {
-      const nsStyleDisplay* styles = StyleDisplay();
+      const nsStyleDisplay* styles = mStyleContext->GetStyleDisplay();
       if (styles && styles->mAppearance == NS_THEME_WIN_EXCLUDE_GLASS) {
         nsRect rect = nsRect(aBuilder->ToReferenceFrame(this), GetSize());
         aBuilder->AddExcludedGlassRegion(rect);
@@ -1308,22 +1312,27 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsDisplayListCollection tempLists;
   const nsDisplayListSet& destination = forceLayer ? tempLists : aLists;
 
-  DisplayBorderBackgroundOutline(aBuilder, destination);
+  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, destination);
+  NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DEBUG_LAYOUT
   if (mState & NS_STATE_CURRENTLY_IN_DEBUG) {
-    destination.BorderBackground()->AppendNewToTop(new (aBuilder)
-      nsDisplayGeneric(aBuilder, this, PaintXULDebugBackground,
-                       "XULDebugBackground"));
-    destination.Outlines()->AppendNewToTop(new (aBuilder)
-      nsDisplayXULDebug(aBuilder, this));
+    rv = destination.BorderBackground()->AppendNewToTop(new (aBuilder)
+        nsDisplayGeneric(aBuilder, this, PaintXULDebugBackground,
+                         "XULDebugBackground"));
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = destination.Outlines()->AppendNewToTop(new (aBuilder)
+        nsDisplayXULDebug(aBuilder, this));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 #endif
 
-  BuildDisplayListForChildren(aBuilder, aDirtyRect, destination);
+  rv = BuildDisplayListForChildren(aBuilder, aDirtyRect, destination);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // see if we have to draw a selection frame around this container
-  DisplaySelectionOverlay(aBuilder, destination.Content());
+  rv = DisplaySelectionOverlay(aBuilder, destination.Content());
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if (forceLayer) {
     // This is a bit of a hack. Collect up all descendant display items
@@ -1338,12 +1347,14 @@ nsBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     masterList.AppendToTop(tempLists.PositionedDescendants());
     masterList.AppendToTop(tempLists.Outlines());
     // Wrap the list to make it its own layer
-    aLists.Content()->AppendNewToTop(new (aBuilder)
-      nsDisplayOwnLayer(aBuilder, this, &masterList));
+    rv = aLists.Content()->AppendNewToTop(new (aBuilder)
+        nsDisplayOwnLayer(aBuilder, this, &masterList));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsBoxFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                         const nsRect&           aDirtyRect,
                                         const nsDisplayListSet& aLists)
@@ -1354,9 +1365,11 @@ nsBoxFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
   nsDisplayListSet set(aLists, aLists.BlockBorderBackgrounds());
   // The children should be in the right order
   while (kid) {
-    BuildDisplayListForChild(aBuilder, kid, aDirtyRect, set);
+    nsresult rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, set);
+    NS_ENSURE_SUCCESS(rv, rv);
     kid = kid->GetNextSibling();
   }
+  return NS_OK;
 }
 
 // REVIEW: PaintChildren did a few things none of which are a big deal
@@ -1841,10 +1854,12 @@ nsBoxFrame::GetFrameSizeWithMargin(nsIFrame* aBox, nsSize& aSize)
 
 // If you make changes to this function, check its counterparts
 // in nsTextBoxFrame and nsXULLabelFrame
-void
+nsresult
 nsBoxFrame::RegUnregAccessKey(bool aDoReg)
 {
-  MOZ_ASSERT(mContent);
+  // if we have no content, we can't do anything
+  if (!mContent)
+    return NS_ERROR_FAILURE;
 
   // find out what type of element this is
   nsIAtom *atom = mContent->Tag();
@@ -1856,14 +1871,14 @@ nsBoxFrame::RegUnregAccessKey(bool aDoReg)
       atom != nsGkAtoms::textbox &&
       atom != nsGkAtoms::tab &&
       atom != nsGkAtoms::radio) {
-    return;
+    return NS_OK;
   }
 
   nsAutoString accessKey;
   mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, accessKey);
 
   if (accessKey.IsEmpty())
-    return;
+    return NS_OK;
 
   // With a valid PresContext we can get the ESM 
   // and register the access key
@@ -1874,6 +1889,8 @@ nsBoxFrame::RegUnregAccessKey(bool aDoReg)
     esm->RegisterAccessKey(mContent, key);
   else
     esm->UnregisterAccessKey(mContent, key);
+
+  return NS_OK;
 }
 
 bool
@@ -1882,22 +1899,120 @@ nsBoxFrame::SupportsOrdinalsInChildren()
   return true;
 }
 
-// Helper less-than-or-equal function, used in CheckBoxOrder() as a
-// template-parameter for the sorting functions.
-bool
-IsBoxOrdinalLEQ(nsIFrame* aFrame1,
-                nsIFrame* aFrame2)
+static nsIFrame*
+SortedMerge(nsBoxLayoutState& aState, nsIFrame *aLeft, nsIFrame *aRight)
 {
-  return aFrame1->GetOrdinal() <= aFrame2->GetOrdinal();
+  NS_PRECONDITION(aLeft && aRight, "SortedMerge must have non-empty lists");
+
+  nsIFrame *result;
+  // Unroll first iteration to avoid null-check 'result' inside the loop.
+  if (aLeft->GetOrdinal(aState) <= aRight->GetOrdinal(aState)) {
+    result = aLeft;
+    aLeft = aLeft->GetNextSibling();
+    if (!aLeft) {
+      result->SetNextSibling(aRight);
+      return result;
+    }
+  }
+  else {
+    result = aRight;
+    aRight = aRight->GetNextSibling();
+    if (!aRight) {
+      result->SetNextSibling(aLeft);
+      return result;
+    }
+  }
+
+  nsIFrame *last = result;
+  for (;;) {
+    if (aLeft->GetOrdinal(aState) <= aRight->GetOrdinal(aState)) {
+      last->SetNextSibling(aLeft);
+      last = aLeft;
+      aLeft = aLeft->GetNextSibling();
+      if (!aLeft) {
+        last->SetNextSibling(aRight);
+        return result;
+      }
+    }
+    else {
+      last->SetNextSibling(aRight);
+      last = aRight;
+      aRight = aRight->GetNextSibling();
+      if (!aRight) {
+        last->SetNextSibling(aLeft);
+        return result;
+      }
+    }
+  }
+}
+
+static nsIFrame*
+MergeSort(nsBoxLayoutState& aState, nsIFrame *aSource)
+{
+  NS_PRECONDITION(aSource, "MergeSort null arg");
+
+  nsIFrame *sorted[32] = { nullptr };
+  nsIFrame **fill = &sorted[0];
+  nsIFrame **left;
+  nsIFrame *rest = aSource;
+
+  do {
+    nsIFrame *current = rest;
+    rest = rest->GetNextSibling();
+    current->SetNextSibling(nullptr);
+
+    // Merge it with sorted[0] if present; then merge the result with sorted[1] etc.
+    // sorted[0] is a list of length 1 (or nullptr).
+    // sorted[1] is a list of length 2 (or nullptr).
+    // sorted[2] is a list of length 4 (or nullptr). etc.
+    for (left = &sorted[0]; left != fill && *left; ++left) {
+      current = SortedMerge(aState, *left, current);
+      *left = nullptr;
+    }
+
+    // Fill the empty slot that we couldn't merge with the last result.
+    *left = current;
+
+    if (left == fill)
+      ++fill;
+  } while (rest);
+
+  // Collect and merge the results.
+  nsIFrame *result = nullptr;
+  for (left = &sorted[0]; left != fill; ++left) {
+    if (*left) {
+      result = result ? SortedMerge(aState, *left, result) : *left;
+    }
+  }
+  return result;
 }
 
 void 
-nsBoxFrame::CheckBoxOrder()
+nsBoxFrame::CheckBoxOrder(nsBoxLayoutState& aState)
 {
-  if (SupportsOrdinalsInChildren() &&
-      !nsLayoutUtils::IsFrameListSorted<IsBoxOrdinalLEQ>(mFrames)) {
-    nsLayoutUtils::SortFrameList<IsBoxOrdinalLEQ>(mFrames);
+  nsIFrame *child = mFrames.FirstChild();
+  if (!child)
+    return;
+
+  if (!SupportsOrdinalsInChildren())
+    return;
+
+  // Run through our list of children and check whether we
+  // need to sort them.
+  uint32_t maxOrdinal = child->GetOrdinal(aState);
+  child = child->GetNextSibling();
+  for ( ; child; child = child->GetNextSibling()) {
+    uint32_t ordinal = child->GetOrdinal(aState);
+    if (ordinal < maxOrdinal)
+      break;
+    maxOrdinal = ordinal;
   }
+
+  if (!child)
+    return;
+
+  nsIFrame* head = MergeSort(aState, mFrames.FirstChild());
+  mFrames = nsFrameList(head, nsLayoutUtils::GetLastSibling(head));
 }
 
 nsresult
@@ -1922,13 +2037,13 @@ nsBoxFrame::RelayoutChildAtOrdinal(nsBoxLayoutState& aState, nsIFrame* aChild)
   if (!SupportsOrdinalsInChildren())
     return NS_OK;
 
-  uint32_t ord = aChild->GetOrdinal();
+  uint32_t ord = aChild->GetOrdinal(aState);
   
   nsIFrame* child = mFrames.FirstChild();
   nsIFrame* newPrevSib = nullptr;
 
   while (child) {
-    if (ord < child->GetOrdinal()) {
+    if (ord < child->GetOrdinal(aState)) {
       break;
     }
 
@@ -2043,13 +2158,13 @@ private:
   nsIFrame* mTargetFrame;
 };
 
-void
+nsresult
 nsBoxFrame::WrapListsInRedirector(nsDisplayListBuilder*   aBuilder,
                                   const nsDisplayListSet& aIn,
                                   const nsDisplayListSet& aOut)
 {
   nsXULEventRedirectorWrapper wrapper(this);
-  wrapper.WrapLists(aBuilder, this, aIn, aOut);
+  return wrapper.WrapLists(aBuilder, this, aIn, aOut);
 }
 
 bool

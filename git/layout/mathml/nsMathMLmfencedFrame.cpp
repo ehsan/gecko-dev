@@ -12,7 +12,6 @@
 #include "nsRenderingContext.h"
 
 #include "nsMathMLmfencedFrame.h"
-#include <algorithm>
 
 //
 // <mfenced> -- surround content with a pair of fences
@@ -172,29 +171,34 @@ nsMathMLmfencedFrame::CreateFencesAndSeparators(nsPresContext* aPresContext)
   }
 }
 
-void
+NS_IMETHODIMP
 nsMathMLmfencedFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                        const nsRect&           aDirtyRect,
                                        const nsDisplayListSet& aLists)
 {
   /////////////
   // display the content
-  nsMathMLContainerFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  nsresult rv = nsMathMLContainerFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   ////////////
   // display fences and separators
   uint32_t count = 0;
   if (mOpenChar) {
-    mOpenChar->Display(aBuilder, this, aLists, count++);
+    rv = mOpenChar->Display(aBuilder, this, aLists, count++);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   
   if (mCloseChar) {
-    mCloseChar->Display(aBuilder, this, aLists, count++);
+    rv = mCloseChar->Display(aBuilder, this, aLists, count++);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
   
   for (int32_t i = 0; i < mSeparatorsCount; i++) {
-    mSeparatorsChar[i].Display(aBuilder, this, aLists, count++);
+    rv = mSeparatorsChar[i].Display(aBuilder, this, aLists, count++);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -209,7 +213,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   aDesiredSize.mBoundingMetrics = nsBoundingMetrics();
 
   int32_t i;
-  const nsStyleFont* font = StyleFont();
+  const nsStyleFont* font = GetStyleFont();
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   aReflowState.rendContext->SetFont(fm);
@@ -312,7 +316,7 @@ nsMathMLmfencedFrame::Reflow(nsPresContext*          aPresContext,
   // adjust the origin of children.
 
   // we need to center around the axis
-  nscoord delta = std::max(containerSize.ascent - axisHeight, 
+  nscoord delta = NS_MAX(containerSize.ascent - axisHeight, 
                          containerSize.descent + axisHeight);
   containerSize.ascent = delta + axisHeight;
   containerSize.descent = delta - axisHeight;
@@ -575,7 +579,7 @@ nsMathMLmfencedFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext)
   nscoord width = 0;
 
   nsPresContext* presContext = PresContext();
-  const nsStyleFont* font = StyleFont();
+  const nsStyleFont* font = GetStyleFont();
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   nscoord em;

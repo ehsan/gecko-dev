@@ -18,17 +18,17 @@
 #include "nsPromiseFlatString.h"
 #include "nsThreadUtils.h"
 #include "nsStringBuffer.h"
-#include "ScopedNSSTypes.h"
-#include "SharedSSLState.h"
-
+#include "nsAutoPtr.h"
 #include "nspr.h"
 #include "pk11pub.h"
 #include "certdb.h"
 #include "sechash.h"
 #include "ssl.h" // For SSL_ClearSessionCache
 
+#include "nsNSSCleaner.h"
+NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
+
 using namespace mozilla;
-using mozilla::psm::SharedSSLState;
 
 static const char kCertOverrideFileName[] = "cert_override.txt";
 
@@ -130,7 +130,6 @@ nsCertOverrideService::Init()
     Observe(nullptr, "profile-do-change", nullptr);
   }
 
-  SharedSSLState::NoteCertOverrideServiceInstantiated();
   return NS_OK;
 }
 
@@ -416,10 +415,11 @@ GetCertFingerprintByOidTag(nsIX509Cert *aCert,
   if (!cert2)
     return NS_ERROR_FAILURE;
 
-  ScopedCERTCertificate nsscert(cert2->GetCert());
+  CERTCertificate* nsscert = cert2->GetCert();
   if (!nsscert)
     return NS_ERROR_FAILURE;
 
+  CERTCertificateCleaner nsscertCleaner(nsscert);
   return GetCertFingerprintByOidTag(nsscert, aOidTag, fp);
 }
 
@@ -454,10 +454,11 @@ GetCertFingerprintByDottedOidString(nsIX509Cert *aCert,
   if (!cert2)
     return NS_ERROR_FAILURE;
 
-  ScopedCERTCertificate nsscert(cert2->GetCert());
+  CERTCertificate* nsscert = cert2->GetCert();
   if (!nsscert)
     return NS_ERROR_FAILURE;
 
+  CERTCertificateCleaner nsscertCleaner(nsscert);
   return GetCertFingerprintByDottedOidString(nsscert, dottedOid, fp);
 }
 
@@ -477,14 +478,16 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, in
   if (!cert2)
     return NS_ERROR_FAILURE;
 
-  ScopedCERTCertificate nsscert(cert2->GetCert());
+  CERTCertificate* nsscert = cert2->GetCert();
   if (!nsscert)
     return NS_ERROR_FAILURE;
+
+  CERTCertificateCleaner nsscertCleaner(nsscert);
 
   char* nickname = nsNSSCertificate::defaultServerNickname(nsscert);
   if (!aTemporary && nickname && *nickname)
   {
-    ScopedPK11SlotInfo slot(PK11_GetInternalKeySlot());
+    PK11SlotInfo *slot = PK11_GetInternalKeySlot();
     if (!slot) {
       PR_Free(nickname);
       return NS_ERROR_FAILURE;
@@ -492,6 +495,8 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, in
   
     SECStatus srv = PK11_ImportCert(slot, nsscert, CK_INVALID_HANDLE, 
                                     nickname, false);
+    PK11_FreeSlot(slot);
+  
     if (srv != SECSuccess) {
       PR_Free(nickname);
       return NS_ERROR_FAILURE;
@@ -505,7 +510,7 @@ nsCertOverrideService::RememberValidityOverride(const nsACString & aHostName, in
   if (NS_FAILED(rv))
     return rv;
 
-  char *dbkey = nullptr;
+  char *dbkey = NULL;
   rv = aCert->GetDbKey(&dbkey);
   if (NS_FAILED(rv) || !dbkey)
     return rv;
@@ -692,7 +697,7 @@ nsCertOverrideService::GetAllOverrideHostsWithPorts(uint32_t *aCount,
 static bool
 matchesDBKey(nsIX509Cert *cert, const char *match_dbkey)
 {
-  char *dbkey = nullptr;
+  char *dbkey = NULL;
   nsresult rv = cert->GetDbKey(&dbkey);
   if (NS_FAILED(rv) || !dbkey)
     return false;

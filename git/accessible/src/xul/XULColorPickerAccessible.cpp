@@ -7,11 +7,11 @@
 
 #include "Accessible-inl.h"
 #include "nsAccUtils.h"
+#include "nsAccTreeWalker.h"
 #include "nsCoreUtils.h"
 #include "DocAccessible.h"
 #include "Role.h"
 #include "States.h"
-#include "TreeWalker.h"
 
 #include "nsIDOMElement.h"
 #include "nsMenuPopupFrame.h"
@@ -88,7 +88,7 @@ XULColorPickerAccessible::
   XULColorPickerAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   XULColorPickerTileAccessible(aContent, aDoc)
 {
-  mGenericTypes |= eMenuButton;
+  mFlags |= eMenuButtonAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,7 +141,7 @@ XULColorPickerAccessible::CacheChildren()
 {
   NS_ENSURE_TRUE_VOID(mDoc);
 
-  TreeWalker walker(this, mContent);
+  nsAccTreeWalker walker(mDoc, mContent, true);
 
   Accessible* child = nullptr;
   while ((child = walker.NextChild())) {

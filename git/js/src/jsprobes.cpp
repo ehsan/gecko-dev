@@ -5,6 +5,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef MOZ_ETW
+
+#include "jswin.h"
+#include <evntprov.h>
+#include <sys/types.h>
+
+/* Generated from ETWProvider.man */
+#include "ETWProvider.h"
+#endif
+
 #include "jsapi.h"
 #include "jsutil.h"
 #include "jsatom.h"
@@ -63,7 +73,7 @@ Probes::discardMJITCode(FreeOp *fop, mjit::JITScript *jscr, mjit::JITChunk *chun
 
 bool
 Probes::registerICCode(JSContext *cx,
-                       mjit::JITChunk *chunk, RawScript script, jsbytecode* pc,
+                       mjit::JITChunk *chunk, JSScript *script, jsbytecode* pc,
                        void *start, size_t size)
 {
     if (cx->runtime->spsProfiler.enabled() &&
@@ -85,25 +95,77 @@ Probes::discardExecutableRegion(void *start, size_t size)
      */
 }
 
+static JSRuntime *initRuntime;
+
+JSBool
+Probes::startEngine()
+{
+    bool ok = true;
+
+    return ok;
+}
+
+bool
+Probes::createRuntime(JSRuntime *rt)
+{
+    bool ok = true;
+
+    static JSCallOnceType once = { 0 };
+    initRuntime = rt;
+    if (!JS_CallOnce(&once, Probes::startEngine))
+        ok = false;
+
+#ifdef MOZ_ETW
+    if (!ETWCreateRuntime(rt))
+        ok = false;
+#endif
+
+    return ok;
+}
+
+bool
+Probes::destroyRuntime(JSRuntime *rt)
+{
+    bool ok = true;
+#ifdef MOZ_ETW
+    if (!ETWDestroyRuntime(rt))
+        ok = false;
+#endif
+
+    return ok;
+}
+
+bool
+Probes::shutdown()
+{
+    bool ok = true;
+#ifdef MOZ_ETW
+    if (!ETWShutdown())
+        ok = false;
+#endif
+
+    return ok;
+}
+
 #ifdef INCLUDE_MOZILLA_DTRACE
 static const char *
-ScriptFilename(const RawScript script)
+ScriptFilename(const JSScript *script)
 {
     if (!script)
         return Probes::nullName;
-    if (!script->filename())
+    if (!script->filename)
         return Probes::anonymousName;
-    return script->filename();
+    return script->filename;
 }
 
 static const char *
-FunctionName(JSContext *cx, RawFunction fun, JSAutoByteString* bytes)
+FunctionName(JSContext *cx, const JSFunction *fun, JSAutoByteString* bytes)
 {
     if (!fun)
         return Probes::nullName;
     if (!fun->displayAtom())
         return Probes::anonymousName;
-    return bytes->encodeLatin1(cx, fun->displayAtom()) ? bytes->ptr() : Probes::nullName;
+    return bytes->encode(cx, fun->displayAtom()) ? bytes->ptr() : Probes::nullName;
 }
 
 /*
@@ -114,7 +176,7 @@ FunctionName(JSContext *cx, RawFunction fun, JSAutoByteString* bytes)
  * a number of usually unused lines of code would cause.
  */
 void
-Probes::DTraceEnterJSFun(JSContext *cx, RawFunction fun, RawScript script)
+Probes::DTraceEnterJSFun(JSContext *cx, JSFunction *fun, JSScript *script)
 {
     JSAutoByteString funNameBytes;
     JAVASCRIPT_FUNCTION_ENTRY(ScriptFilename(script), Probes::nullName,
@@ -122,10 +184,265 @@ Probes::DTraceEnterJSFun(JSContext *cx, RawFunction fun, RawScript script)
 }
 
 void
-Probes::DTraceExitJSFun(JSContext *cx, RawFunction fun, RawScript script)
+Probes::DTraceExitJSFun(JSContext *cx, JSFunction *fun, JSScript *script)
 {
     JSAutoByteString funNameBytes;
     JAVASCRIPT_FUNCTION_RETURN(ScriptFilename(script), Probes::nullName,
                                FunctionName(cx, fun, &funNameBytes));
 }
+#endif
+
+#ifdef MOZ_ETW
+static void
+current_location(JSContext *cx, int* lineno, char const **filename)
+{
+    JSScript *script = cx->stack.currentScript()
+    if (! script) {
+        *lineno = -1;
+        *filename = "(uninitialized)";
+        return;
+    }
+    *lineno = js_PCToLineNumber(cx, script, js_GetCurrentBytecodePC(cx));
+    *filename = ScriptFilename(script);
+}
+
+/*
+ * ETW (Event Tracing for Windows)
+ *
+ * These are here rather than in the .h file to avoid having to include
+ * windows.h in a header.
+ */
+bool
+Probes::ETWCallTrackingActive()
+{
+    return MCGEN_ENABLE_CHECK(MozillaSpiderMonkey_Context, EvtFunctionEntry);
+}
+
+bool
+Probes::ETWCreateRuntime(JSRuntime *rt)
+{
+    static bool registered = false;
+    if (!registered) {
+        EventRegisterMozillaSpiderMonkey();
+        registered = true;
+    }
+    return true;
+}
+
+bool
+Probes::ETWDestroyRuntime(JSRuntime *rt)
+{
+    return true;
+}
+
+bool
+Probes::ETWShutdown()
+{
+    EventUnregisterMozillaSpiderMonkey();
+    return true;
+}
+
+bool
+Probes::ETWEnterJSFun(JSContext *cx, JSFunction *fun, JSScript *script, int counter)
+{
+    int lineno = script ? script->lineno : -1;
+    JSAutoByteString bytes;
+    return (EventWriteEvtFunctionEntry(ScriptFilename(script), lineno,
+                                       ObjectClassname((JSObject *)fun),
+                                       FunctionName(cx, fun, &bytes)) == ERROR_SUCCESS);
+}
+
+bool
+Probes::ETWExitJSFun(JSContext *cx, JSFunction *fun, JSScript *script, int counter)
+{
+    int lineno = script ? script->lineno : -1;
+    JSAutoByteString bytes;
+    return (EventWriteEvtFunctionExit(ScriptFilename(script), lineno,
+                                      ObjectClassname((JSObject *)fun),
+                                      FunctionName(cx, fun, &bytes)) == ERROR_SUCCESS);
+}
+
+bool
+Probes::ETWCreateObject(JSContext *cx, JSObject *obj)
+{
+    int lineno;
+    const char * script_filename;
+    current_location(cx, &lineno, &script_filename);
+
+    return EventWriteEvtObjectCreate(script_filename, lineno,
+                                     ObjectClassname(obj), reinterpret_cast<uint64_t_t>(obj),
+                                     obj ? obj->computedSizeOfIncludingThis() : 0) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWFinalizeObject(JSObject *obj)
+{
+    return EventWriteEvtObjectFinalize(ObjectClassname(obj),
+                                       reinterpret_cast<uint64_t_t>(obj)) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWResizeObject(JSContext *cx, JSObject *obj, size_t oldSize, size_t newSize)
+{
+    int lineno;
+    const char *script_filename;
+    current_location(cx, &lineno, &script_filename);
+
+    return EventWriteEvtObjectResize(script_filename, lineno,
+                                     ObjectClassname(obj), reinterpret_cast<uint64_t_t>(obj),
+                                     oldSize, newSize) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWCreateString(JSContext *cx, JSString *string, size_t length)
+{
+    int lineno;
+    const char *script_filename;
+    current_location(cx, &lineno, &script_filename);
+
+    return EventWriteEvtStringCreate(script_filename, lineno,
+                                     reinterpret_cast<uint64_t_t>(string), length) ==
+           ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWFinalizeString(JSString *string)
+{
+    return EventWriteEvtStringFinalize(reinterpret_cast<uint64_t>(string),
+                                       string->length()) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWCompileScriptBegin(const char *filename, int lineno)
+{
+    return EventWriteEvtScriptCompileBegin(filename, lineno) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWCompileScriptEnd(const char *filename, int lineno)
+{
+    return EventWriteEvtScriptCompileEnd(filename, lineno) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWCalloutBegin(JSContext *cx, JSFunction *fun)
+{
+    const char *script_filename;
+    int lineno;
+    JSAutoByteString bytes;
+    current_location(cx, &lineno, &script_filename);
+
+    return EventWriteEvtCalloutBegin(script_filename,
+                                     lineno,
+                                     ObjectClassname((JSObject *)fun),
+                                     FunctionName(cx, fun, &bytes)) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWCalloutEnd(JSContext *cx, JSFunction *fun)
+{
+        const char *script_filename;
+        int lineno;
+        JSAutoByteString bytes;
+        current_location(cx, &lineno, &script_filename);
+
+        return EventWriteEvtCalloutEnd(script_filename,
+                                       lineno,
+                                       ObjectClassname((JSObject *)fun),
+                                       FunctionName(cx, fun, &bytes)) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWAcquireMemory(JSContext *cx, void *address, size_t nbytes)
+{
+    return EventWriteEvtMemoryAcquire(reinterpret_cast<uint64_t>(cx->compartment),
+                                      reinterpret_cast<uint64_t>(address),
+                                      nbytes) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWReleaseMemory(JSContext *cx, void *address, size_t nbytes)
+{
+    return EventWriteEvtMemoryRelease(reinterpret_cast<uint64_t>(cx->compartment),
+                                      reinterpret_cast<uint64_t>(address),
+                                      nbytes) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWGCStart(JSCompartment *compartment)
+{
+    return EventWriteEvtGCStart(reinterpret_cast<uint64_t>(compartment)) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWGCEnd(JSCompartment *compartment)
+{
+    return EventWriteEvtGCEnd(reinterpret_cast<uint64_t>(compartment)) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWGCStartMarkPhase(JSCompartment *compartment)
+{
+    return EventWriteEvtGCStartMarkPhase(reinterpret_cast<uint64_t>(compartment)) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWGCEndMarkPhase(JSCompartment *compartment)
+{
+    return EventWriteEvtGCEndMarkPhase(reinterpret_cast<uint64_t>(compartment)) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWGCStartSweepPhase(JSCompartment *compartment)
+{
+    return EventWriteEvtGCStartSweepPhase(reinterpret_cast<uint64_t>(compartment)) ==
+           ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWGCEndSweepPhase(JSCompartment *compartment)
+{
+    return EventWriteEvtGCEndSweepPhase(reinterpret_cast<uint64_t>(compartment)) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWCustomMark(JSString *string)
+{
+    const jschar *chars = string->getCharsZ(NULL);
+    return !chars || EventWriteEvtCustomString(chars) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWCustomMark(const char *string)
+{
+    return EventWriteEvtCustomANSIString(string) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWCustomMark(int marker)
+{
+    return EventWriteEvtCustomInt(marker) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWStartExecution(JSScript *script)
+{
+    int lineno = script ? script->lineno : -1;
+    return EventWriteEvtExecuteStart(ScriptFilename(script), lineno) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWStopExecution(JSScript *script)
+{
+    int lineno = script ? script->lineno : -1;
+    return EventWriteEvtExecuteDone(ScriptFilename(script), lineno) == ERROR_SUCCESS;
+}
+
+bool
+Probes::ETWResizeHeap(JSCompartment *compartment, size_t oldSize, size_t newSize)
+{
+    return EventWriteEvtHeapResize(reinterpret_cast<uint64_t>(compartment),
+                                   oldSize, newSize) == ERROR_SUCCESS;
+}
+
 #endif

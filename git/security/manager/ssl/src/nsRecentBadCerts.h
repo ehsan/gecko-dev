@@ -13,7 +13,6 @@
 #include "nsIRecentBadCertsService.h"
 #include "nsTHashtable.h"
 #include "nsString.h"
-#include "cert.h"
 #include "secitem.h"
 
 class RecentBadCert
@@ -54,14 +53,16 @@ private:
   RecentBadCert &operator=(const RecentBadCert &other) MOZ_DELETE;
 };
 
-class nsRecentBadCerts MOZ_FINAL : public nsIRecentBadCerts
+class nsRecentBadCertsService MOZ_FINAL : public nsIRecentBadCertsService
 {
 public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIRECENTBADCERTS
+  NS_DECL_NSIRECENTBADCERTSSERVICE
 
-  nsRecentBadCerts();
-  ~nsRecentBadCerts();
+  nsRecentBadCertsService();
+  ~nsRecentBadCertsService();
+
+  nsresult Init();
 
 protected:
     mozilla::ReentrantMonitor monitor;

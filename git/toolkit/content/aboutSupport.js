@@ -186,8 +186,6 @@ let snapshotFormatters = {
     userJSFile.append("user.js");
     $("prefs-user-js-link").href = Services.io.newFileURI(userJSFile).spec;
     $("prefs-user-js-section").style.display = "";
-    // Clear the no-copy class
-    $("prefs-user-js-section").className = "";
   },
 };
 
@@ -242,9 +240,11 @@ function copyRawDataToClipboard(button) {
 #ifdef ANDROID
       // Present a toast notification.
       let message = {
-        type: "Toast:Show",
-        message: stringBundle().GetStringFromName("rawDataCopied"),
-        duration: "short"
+        gecko: {
+          type: "Toast:Show",
+          message: stringBundle().GetStringFromName("rawDataCopied"),
+          duration: "short"
+        }
       };
       Cc["@mozilla.org/android/bridge;1"].
         getService(Ci.nsIAndroidBridge).
@@ -298,9 +298,11 @@ function copyContentsToClipboard() {
 #ifdef ANDROID
   // Present a toast notification.
   let message = {
-    type: "Toast:Show",
-    message: stringBundle().GetStringFromName("textCopied"),
-    duration: "short"
+    gecko: {
+      type: "Toast:Show",
+      message: stringBundle().GetStringFromName("textCopied"),
+      duration: "short"
+    }
   };
   Cc["@mozilla.org/android/bridge;1"].
     getService(Ci.nsIAndroidBridge).

@@ -9,6 +9,9 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= content
+XPIDL_MODULE	= content_base
+GRE_MODULE	= 1
 
 EXPORTS		= \
 mozFlushType.h \
@@ -17,9 +20,7 @@ nsIAttribute.h \
 nsIContentIterator.h \
 nsContentPolicyUtils.h \
 nsContentUtils.h \
-nsDocElementCreatedNotificationRunner.h \
 nsIDocument.h \
-nsIDocumentInlines.h \
 nsDeprecatedOperationList.h \
 nsIDocumentObserver.h \
 nsIMutationObserver.h \
@@ -39,9 +40,9 @@ nsDOMFile.h \
 nsLineBreaker.h \
 nsReferencedElement.h \
 nsTreeSanitizer.h \
-nsViewportInfo.h \
 nsXMLNameSpaceMap.h \
-nsHostObjectProtocolHandler.h \
+nsIXFormsUtilityService.h \
+nsBlobProtocolHandler.h \
 $(NULL)
 
 EXPORTS_NAMESPACES = mozilla/dom mozilla
@@ -55,6 +56,35 @@ EXPORTS_mozilla/dom = \
 
 EXPORTS_mozilla = \
 		CORSMode.h \
+		$(NULL)
+
+SDK_XPIDLSRCS   = \
+		nsISelection.idl  \
+		$(NULL)
+
+XPIDLSRCS	= \
+		nsIContentPolicy.idl        \
+		nsIDocumentEncoder.idl      \
+	        nsIDOMDataChannel.idl \
+		nsIDOMFile.idl \
+		nsIDOMFileReader.idl \
+		nsIDOMFileList.idl \
+		nsIDOMFormData.idl \
+		nsIDOMParser.idl \
+		nsIDOMSerializer.idl \
+		nsISelectionController.idl  \
+		nsISelectionDisplay.idl  \
+		nsISelectionListener.idl  \
+		nsISelectionPrivate.idl  \
+		nsIScriptLoaderObserver.idl  \
+		nsIDroppedLinkHandler.idl \
+		nsIImageLoadingContent.idl \
+		nsIObjectLoadingContent.idl \
+		nsIFrameLoader.idl \
+		nsIXMLHttpRequest.idl \
+		nsIContentSecurityPolicy.idl \
+		nsIMessageManager.idl \
+		nsIEventSource.idl \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -7,22 +7,15 @@
 
 ifndef INCLUDED_TESTS_MOCHITEST_MK #{
 
-#   $1- test directory name
-#   $2- optional: if passed dot used to flatten directory hierarchy copy
-# else- relativesrcdir
-# else- determine relative path
-mochitestdir = \
-    $(strip \
-      $(if $(2),$(DEPTH)/_tests/testing/mochitest/$1/. \
-        ,$(if $(value relativesrcdir) \
-          ,$(DEPTH)/_tests/testing/mochitest/$1/$(relativesrcdir) \
-          ,$(DEPTH)/_tests/testing/mochitest/$1/$(subst $(topsrcdir),,$(srcdir)) \
-    )))
-
+ifdef relativesrcdir
+  mochitestdir = $(DEPTH)/_tests/testing/mochitest/$1/$(relativesrcdir)
+else
+  mochitestdir = $(DEPTH)/_tests/testing/mochitest/$1/$(subst $(topsrcdir),,$(srcdir))
+endif
 
 define mochitest-libs-rule-template
 libs:: $$($(1))
-	$$(call install_cmd,$$(foreach f,$$^,"$$(f)") $$(call mochitestdir,$(2),$(3)))
+	$$(call install_cmd,$$(foreach f,$$^,"$$(f)") $$(call mochitestdir,$(2)))
 endef
 
 # Provide support for modules with such a large number of tests that
@@ -56,10 +49,6 @@ endif
 
 ifdef MOCHITEST_A11Y_FILES
 $(eval $(call mochitest-libs-rule-template,MOCHITEST_A11Y_FILES,a11y))
-endif
-
-ifdef MOCHITEST_ROBOCOP_FILES
-$(eval $(call mochitest-libs-rule-template,MOCHITEST_ROBOCOP_FILES,tests/robocop,flat_hierarchy))
 endif
 
 ifdef MOCHITEST_WEBAPPRT_CHROME_FILES

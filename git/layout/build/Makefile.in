@@ -15,14 +15,14 @@ ifeq ($(OS_ARCH),SunOS)
 SHELL := ksh
 endif
 
+MODULE		= layout
 LIBRARY_NAME	= gklayout
 EXPORT_LIBRARY = 1
 IS_COMPONENT	= 1
 MODULE_NAME	= nsLayoutModule
+GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
-ifndef _MSC_VER
 FAIL_ON_WARNINGS = 1
-endif # !_MSC_VER
 
 
 CPPSRCS		= \
@@ -69,19 +69,17 @@ SHARED_LIBRARY_LIBS = \
 	$(DEPTH)/dom/encoding/$(LIB_PREFIX)domencoding_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/file/$(LIB_PREFIX)domfile_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/power/$(LIB_PREFIX)dom_power_s.$(LIB_SUFFIX) \
-	$(DEPTH)/dom/quota/$(LIB_PREFIX)domquota_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/settings/$(LIB_PREFIX)jsdomsettings_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/permission/$(LIB_PREFIX)jsdompermissionsettings_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/network/src/$(LIB_PREFIX)dom_network_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/media/$(LIB_PREFIX)dom_media_s.$(LIB_SUFFIX) \
-	$(DEPTH)/dom/mobilemessage/src/$(LIB_PREFIX)dom_mobilemessage_s.$(LIB_SUFFIX) \
+	$(DEPTH)/dom/sms/src/$(LIB_PREFIX)dom_sms_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/events/$(LIB_PREFIX)jsdomevents_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/json/$(LIB_PREFIX)json_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/jsurl/$(LIB_PREFIX)jsurl_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/storage/$(LIB_PREFIX)jsdomstorage_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/offline/$(LIB_PREFIX)jsdomoffline_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/geolocation/$(LIB_PREFIX)jsdomgeolocation_s.$(LIB_SUFFIX) \
-        $(DEPTH)/dom/audiochannel/$(LIB_PREFIX)domaudiochannel_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/src/notification/$(LIB_PREFIX)jsdomnotification_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/system/$(LIB_PREFIX)domsystem_s.$(LIB_SUFFIX) \
 	$(DEPTH)/dom/workers/$(LIB_PREFIX)domworkers_s.$(LIB_SUFFIX) \
@@ -147,8 +145,6 @@ SHARED_LIBRARY_LIBS	+= \
   $(DEPTH)/dom/system/gonk/$(LIB_PREFIX)domsystemgonk_s.$(LIB_SUFFIX) \
   $(DEPTH)/dom/telephony/$(LIB_PREFIX)domtelephony_s.$(LIB_SUFFIX) \
   $(DEPTH)/dom/icc/src/$(LIB_PREFIX)dom_icc_s.$(LIB_SUFFIX) \
-  $(DEPTH)/dom/cellbroadcast/src/$(LIB_PREFIX)dom_cellbroadcast_s.$(LIB_SUFFIX) \
-  $(DEPTH)/dom/voicemail/$(LIB_PREFIX)domvoicemail_s.$(LIB_SUFFIX) \
   $(NULL)
 endif #}
 
@@ -178,12 +174,6 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
-ifdef MOZ_WMF
-SHARED_LIBRARY_LIBS 	+= \
-	$(DEPTH)/content/media/wmf/$(LIB_PREFIX)gkconwmf_s.$(LIB_SUFFIX) \
-	$(NULL)
-endif
-
 ifdef MOZ_WAVE
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/content/media/wave/$(LIB_PREFIX)gkconwave_s.$(LIB_SUFFIX) \
@@ -205,12 +195,6 @@ endif
 ifdef MOZ_DASH
 SHARED_LIBRARY_LIBS += \
   $(DEPTH)/content/media/dash/$(LIB_PREFIX)gkcondash_s.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-
-ifdef MOZ_WEBSPEECH
-SHARED_LIBRARY_LIBS += \
-  $(DEPTH)/content/media/webspeech/$(LIB_PREFIX)gkconwebspeech_s.$(LIB_SUFFIX) \
   $(NULL)
 endif
 
@@ -241,8 +225,8 @@ endif
 
 ifdef MOZ_XUL
 SHARED_LIBRARY_LIBS += \
-		../xul/tree/$(LIB_PREFIX)gkxultree_s.$(LIB_SUFFIX) \
-		../xul/grid/$(LIB_PREFIX)gkxulgrid_s.$(LIB_SUFFIX) \
+		../xul/base/src/tree/src/$(LIB_PREFIX)gkxultree_s.$(LIB_SUFFIX) \
+		../xul/base/src/grid/$(LIB_PREFIX)gkxulgrid_s.$(LIB_SUFFIX) \
 		$(DEPTH)/content/xul/content/src/$(LIB_PREFIX)gkconxulcon_s.$(LIB_SUFFIX) \
 		$(DEPTH)/content/xul/templates/src/$(LIB_PREFIX)gkconxultmpl_s.$(LIB_SUFFIX) \
 		$(NULL)
@@ -252,6 +236,12 @@ LOCAL_INCLUDES  += \
       -I$(srcdir)/../inspector/src \
       $(NULL)
 SHARED_LIBRARY_LIBS += ../inspector/src/$(LIB_PREFIX)inspector_s.$(LIB_SUFFIX)
+
+ifdef MOZ_XTF
+SHARED_LIBRARY_LIBS += \
+		$(DEPTH)/content/xtf/src/$(LIB_PREFIX)gkcontentxtf_s.$(LIB_SUFFIX) \
+		$(NULL)
+endif
 
 SHARED_LIBRARY_LIBS += \
 		../svg/$(LIB_PREFIX)gksvgbase_s.$(LIB_SUFFIX) \
@@ -304,12 +294,10 @@ LOCAL_INCLUDES	+= -I$(srcdir)/../base \
 		   -I$(topsrcdir)/dom/src/storage \
 		   -I$(topsrcdir)/dom/src/offline \
 		   -I$(topsrcdir)/dom/src/geolocation \
-		   -I$(topsrcdir)/dom/audiochannel \
 		   -I$(topsrcdir)/dom/contacts \
 		   -I$(topsrcdir)/dom/settings \
 		   -I$(topsrcdir)/dom/permission \
 		   -I$(topsrcdir)/dom/telephony \
-		   -I$(topsrcdir)/dom/media \
 		   -I. \
 		   -I$(topsrcdir)/editor/libeditor/base \
 		   -I$(topsrcdir)/editor/libeditor/text \
@@ -325,10 +313,6 @@ LOCAL_INCLUDES	+= -I$(srcdir)/../base \
 		   -I$(topsrcdir)/extensions/cookie \
 		   -I$(topsrcdir)/netwerk/cookie \
 		   $(NULL)
-
-ifdef MOZ_GSTREAMER
-LOCAL_INCLUDES	+= $(GSTREAMER_CFLAGS)
-endif
 
 ifdef MOZ_B2G_RIL #{
 LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/system/gonk

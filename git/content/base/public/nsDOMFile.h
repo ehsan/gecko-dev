@@ -17,12 +17,11 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsIXMLHttpRequest.h"
+#include "prmem.h"
 #include "nsAutoPtr.h"
 
 #include "mozilla/GuardObjects.h"
-#include "mozilla/LinkedList.h"
 #include "mozilla/StandardInteger.h"
-#include "mozilla/StaticPtr.h"
 #include "mozilla/dom/DOMError.h"
 #include "mozilla/dom/indexedDB/FileInfo.h"
 #include "mozilla/dom/indexedDB/FileManager.h"
@@ -200,7 +199,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMFileCC, nsIDOMFile)
 };
 
-class nsDOMFileFile : public nsDOMFile
+class nsDOMFileFile : public nsDOMFile,
+                      public nsIJSNativeInitializer
 {
 public:
   // Create as a file
@@ -212,19 +212,6 @@ public:
     // Lazily get the content type and size
     mContentType.SetIsVoid(true);
     mFile->GetLeafName(mName);
-  }
-
-  nsDOMFileFile(nsIFile *aFile, FileInfo *aFileInfo)
-    : nsDOMFile(EmptyString(), EmptyString(), UINT64_MAX, UINT64_MAX),
-      mFile(aFile), mWholeFile(true), mStoredFile(true)
-  {
-    NS_ASSERTION(mFile, "must have file");
-    NS_ASSERTION(aFileInfo, "must have file info");
-    // Lazily get the content type and size
-    mContentType.SetIsVoid(true);
-    mFile->GetLeafName(mName);
-
-    mFileInfos.AppendElement(aFileInfo);
   }
 
   // Create as a file
@@ -244,17 +231,24 @@ public:
     NS_ASSERTION(mFile, "must have file");
   }
 
+  // Create as a blob
+  nsDOMFileFile(nsIFile *aFile, const nsAString& aContentType,
+                nsISupports *aCacheToken)
+    : nsDOMFile(aContentType, UINT64_MAX),
+      mFile(aFile), mWholeFile(true), mStoredFile(false),
+      mCacheToken(aCacheToken)
+  {
+    NS_ASSERTION(mFile, "must have file");
+  }
+
   // Create as a file with custom name
-  nsDOMFileFile(nsIFile *aFile, const nsAString& aName,
-                const nsAString& aContentType)
-    : nsDOMFile(aName, aContentType, UINT64_MAX, UINT64_MAX),
+  nsDOMFileFile(nsIFile *aFile, const nsAString& aName)
+    : nsDOMFile(aName, EmptyString(), UINT64_MAX, UINT64_MAX),
       mFile(aFile), mWholeFile(true), mStoredFile(false)
   {
     NS_ASSERTION(mFile, "must have file");
-    if (aContentType.IsEmpty()) {
-      // Lazily get the content type and size
-      mContentType.SetIsVoid(true);
-    }
+    // Lazily get the content type and size
+    mContentType.SetIsVoid(true);
   }
 
   // Create as a stored file
@@ -288,6 +282,15 @@ public:
     mName.SetIsVoid(true);
   }
 
+  NS_DECL_ISUPPORTS_INHERITED
+
+  // nsIJSNativeInitializer
+  NS_IMETHOD Initialize(nsISupports* aOwner,
+                        JSContext* aCx,
+                        JSObject* aObj,
+                        uint32_t aArgc,
+                        jsval* aArgv);
+
   // Overrides
   NS_IMETHOD GetSize(uint64_t* aSize);
   NS_IMETHOD GetType(nsAString& aType);
@@ -296,13 +299,17 @@ public:
   NS_IMETHOD GetMozFullPathInternal(nsAString& aFullPath);
   NS_IMETHOD GetInternalStream(nsIInputStream**);
 
+  // DOMClassInfo constructor (for File("foo"))
+  static nsresult
+  NewFile(nsISupports* *aNewObject);
+
 protected:
   // Create slice
   nsDOMFileFile(const nsDOMFileFile* aOther, uint64_t aStart, uint64_t aLength,
                 const nsAString& aContentType)
     : nsDOMFile(aContentType, aOther->mStart + aStart, aLength),
       mFile(aOther->mFile), mWholeFile(false),
-      mStoredFile(aOther->mStoredFile)
+      mStoredFile(aOther->mStoredFile), mCacheToken(aOther->mCacheToken)
   {
     NS_ASSERTION(mFile, "must have file");
     mImmutable = aOther->mImmutable;
@@ -341,6 +348,7 @@ protected:
   nsCOMPtr<nsIFile> mFile;
   bool mWholeFile;
   bool mStoredFile;
+  nsCOMPtr<nsISupports> mCacheToken;
 };
 
 class nsDOMMemoryFile : public nsDOMFile
@@ -352,7 +360,7 @@ public:
                   const nsAString& aName,
                   const nsAString& aContentType)
     : nsDOMFile(aName, aContentType, aLength, UINT64_MAX),
-      mDataOwner(new DataOwner(aMemoryBuffer, aLength))
+      mDataOwner(new DataOwner(aMemoryBuffer))
   {
     NS_ASSERTION(mDataOwner && mDataOwner->mData, "must have data");
   }
@@ -362,7 +370,7 @@ public:
                   uint64_t aLength,
                   const nsAString& aContentType)
     : nsDOMFile(aContentType, aLength),
-      mDataOwner(new DataOwner(aMemoryBuffer, aLength))
+      mDataOwner(new DataOwner(aMemoryBuffer))
   {
     NS_ASSERTION(mDataOwner && mDataOwner->mData, "must have data");
   }
@@ -383,40 +391,18 @@ protected:
   CreateSlice(uint64_t aStart, uint64_t aLength,
               const nsAString& aContentType);
 
-  // These classes need to see DataOwner.
-  friend class DataOwnerAdapter;
-  friend class nsDOMMemoryFileDataOwnerMemoryReporter;
-
-  class DataOwner : public mozilla::LinkedListElement<DataOwner> {
+  friend class DataOwnerAdapter; // Needs to see DataOwner
+  class DataOwner {
   public:
     NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DataOwner)
-    DataOwner(void* aMemoryBuffer, uint64_t aLength)
+    DataOwner(void* aMemoryBuffer)
       : mData(aMemoryBuffer)
-      , mLength(aLength)
     {
-      if (!sDataOwners) {
-        sDataOwners = new mozilla::LinkedList<DataOwner>();
-        EnsureMemoryReporterRegistered();
-      }
-      sDataOwners->insertBack(this);
     }
-
     ~DataOwner() {
-      remove();
-      if (sDataOwners->isEmpty()) {
-        // Free the linked list if it's empty.
-        sDataOwners = nullptr;
-      }
-
-      moz_free(mData);
+      PR_Free(mData);
     }
-
-    static void EnsureMemoryReporterRegistered();
-
-    static bool sMemoryReporterRegistered;
-    static mozilla::StaticAutoPtr<mozilla::LinkedList<DataOwner> > sDataOwners;
     void* mData;
-    uint64_t mLength;
   };
 
   // Used when backed by a memory store
@@ -437,7 +423,8 @@ public:
 
   NS_DECL_NSIDOMFILELIST
 
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
 
   nsISupports* GetParentObject()
   {

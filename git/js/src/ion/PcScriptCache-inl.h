@@ -16,7 +16,7 @@ namespace ion {
 // Get a value from the cache. May perform lazy allocation.
 bool
 PcScriptCache::get(JSRuntime *rt, uint32_t hash, uint8_t *addr,
-                   JSScript **scriptRes, jsbytecode **pcRes)
+                   MutableHandleScript scriptRes, jsbytecode **pcRes)
 {
     // If a GC occurred, lazily clear the cache now.
     if (gcNumber != rt->gcNumber) {
@@ -27,7 +27,7 @@ PcScriptCache::get(JSRuntime *rt, uint32_t hash, uint8_t *addr,
     if (entries[hash].returnAddress != addr)
         return false;
 
-    *scriptRes = entries[hash].script;
+    scriptRes.set(entries[hash].script);
     if (pcRes)
         *pcRes = entries[hash].pc;
 

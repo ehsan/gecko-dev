@@ -26,7 +26,9 @@ include $(CORE_DEPTH)/coreconf/config.mk
 # (4) Include "local" platform-dependent assignments (OPTIONAL).      #
 #######################################################################
 
-
+ifeq ($(OS_TARGET),WINCE)
+DIRS	= lib	# omit cmd since wince has no command line shell
+endif
 
 #######################################################################
 # (5) Execute "global" rules. (OPTIONAL)                              #
@@ -49,10 +51,10 @@ nss_build_all: build_coreconf build_nspr build_dbm all
 nss_clean_all: clobber_coreconf clobber_nspr clobber_dbm clobber
 
 build_coreconf:
-	$(MAKE) -C $(CORE_DEPTH)/coreconf
+	cd $(CORE_DEPTH)/coreconf ;  $(MAKE)
 
 clobber_coreconf:
-	$(MAKE) -C $(CORE_DEPTH)/coreconf clobber
+	cd $(CORE_DEPTH)/coreconf ;  $(MAKE) clobber
 
 NSPR_CONFIG_STATUS = $(CORE_DEPTH)/../nsprpub/$(OBJDIR_NAME)/config.status
 NSPR_CONFIGURE = $(CORE_DEPTH)/../nsprpub/configure
@@ -61,9 +63,6 @@ NSPR_CONFIGURE = $(CORE_DEPTH)/../nsprpub/configure
 # Translate coreconf build options to NSPR configure options.
 #
 
-ifeq ($(OS_TARGET),Android)
-NSPR_CONFIGURE_OPTS += --with-android-ndk=$(ANDROID_NDK) --target=arm-linux-androideabi --with-android-version=$(OS_TARGET_RELEASE)
-endif
 ifdef BUILD_OPT
 NSPR_CONFIGURE_OPTS += --disable-debug --enable-optimize
 endif
@@ -110,20 +109,20 @@ $(NSPR_CONFIG_STATUS): $(NSPR_CONFIGURE)
 	--with-dist-includedir='$(NSPR_PREFIX)/include'
 
 build_nspr: $(NSPR_CONFIG_STATUS)
-	$(MAKE) -C $(CORE_DEPTH)/../nsprpub/$(OBJDIR_NAME)
+	cd $(CORE_DEPTH)/../nsprpub/$(OBJDIR_NAME) ; $(MAKE)
 
 clobber_nspr: $(NSPR_CONFIG_STATUS)
-	$(MAKE) -C $(CORE_DEPTH)/../nsprpub/$(OBJDIR_NAME) clobber
+	cd $(CORE_DEPTH)/../nsprpub/$(OBJDIR_NAME) ; $(MAKE) clobber
 
 build_dbm:
 ifdef NSS_DISABLE_DBM
 	@echo "skipping the build of DBM"
 else
-	$(MAKE) -C $(CORE_DEPTH)/dbm export libs
+	cd $(CORE_DEPTH)/dbm ; $(MAKE) export libs
 endif
 
 clobber_dbm:
-	$(MAKE) -C $(CORE_DEPTH)/dbm clobber
+	cd $(CORE_DEPTH)/dbm ; $(MAKE) clobber
 
 moz_import::
 ifeq (,$(filter-out WIN%,$(OS_TARGET)))
@@ -153,3 +152,31 @@ nss_RelEng_bld: build_coreconf import build_dbm all
 package:
 	$(MAKE) -C pkg publish
 
+TESTPACKAGE="nss-$(OS_TARGET)$(CPU_TAG).tgz"
+package_for_testing:
+	echo "export OBJDIR=$(OBJDIR_NAME)"     > $(DIST)/platform.cfg
+	echo "export OS_ARCH=$(ANDROID)"       >> $(DIST)/platform.cfg
+	echo "export DLL_PREFIX=$(DLL_PREFIX)" >> $(DIST)/platform.cfg
+	echo "export DLL_SUFFIX=$(DLL_SUFFIX)" >> $(DIST)/platform.cfg
+ifeq ($(OS_TARGET),Android)
+	# Android doesn't support FIPS tests, so don't run them
+	echo "export NSS_TEST_DISABLE_FIPS=1"  >> $(DIST)/platform.cfg
+endif
+	echo 'echo "set HOST and DOMSUF if your system is not registered in DNS"; sleep 5' > $(DIST)/../../runtests.sh
+	echo 'export NSS_TESTS=$(NSS_TESTS)'         >> $(DIST)/../../runtests.sh
+	echo 'export NSS_SSL_TESTS=$(NSS_SSL_TESTS)' >> $(DIST)/../../runtests.sh
+	echo 'export NSS_SSL_RUN=$(NSS_SSL_RUN)'     >> $(DIST)/../../runtests.sh
+	echo 'export NSS_CYCLES=$(NSS_CYCLES)'       >> $(DIST)/../../runtests.sh
+	echo 'export OBJDIR=$(OBJDIR_NAME)'          >> $(DIST)/../../runtests.sh
+	echo 'export USE_64=$(USE_64)'               >> $(DIST)/../../runtests.sh
+	echo 'export BUILD_OPT=$(BUILD_OPT)'         >> $(DIST)/../../runtests.sh
+	echo 'rm -rf test_results'                   >> $(DIST)/../../runtests.sh
+	echo 'echo "running tests"'                  >> $(DIST)/../../runtests.sh
+	echo 'cd security/nss/tests; ./all.sh > ../../../logfile 2>&1 ; cd ../../../' >> $(DIST)/../../runtests.sh
+	echo 'tar czf tests_results.tgz tests_results' >> $(DIST)/../../runtests.sh
+	echo 'echo "created tests_results.tgz"' >> $(DIST)/../../runtests.sh
+	echo 'echo "results are in directory: "`ls -1d tests_results/security/*.1`' >> $(DIST)/../../runtests.sh
+	echo 'echo -n "number of PASSED tests: "; grep -cw PASSED logfile;'  >> $(DIST)/../../runtests.sh
+	echo 'echo -n "number of FAILED tests: "; grep -cw FAILED logfile;'  >> $(DIST)/../../runtests.sh
+	rm -f $(TESTPACKAGE)
+	(cd $(DIST)/../.. ; tar czhf dist/$(TESTPACKAGE) runtests.sh dist/$(OBJDIR_NAME) dist/public security/nss/tests security/nss/cmd/bltest/tests; echo "created "`pwd`"/dist/$(TESTPACKAGE)")

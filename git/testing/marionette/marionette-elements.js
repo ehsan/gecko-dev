@@ -11,29 +11,19 @@
  * server uses maps this reference to the actual element when it executes the command.
  */
 
-this.EXPORTED_SYMBOLS = [
-  "ElementManager",
-  "CLASS_NAME",
-  "SELECTOR",
-  "ID",
-  "NAME",
-  "LINK_TEXT",
-  "PARTIAL_LINK_TEXT",
-  "TAG",
-  "XPATH"
-];
+let EXPORTED_SYMBOLS = ["ElementManager", "CLASS_NAME", "SELECTOR", "ID", "NAME", "LINK_TEXT", "PARTIAL_LINK_TEXT", "TAG", "XPATH"];
 
 let uuidGen = Components.classes["@mozilla.org/uuid-generator;1"]
              .getService(Components.interfaces.nsIUUIDGenerator);
 
-this.CLASS_NAME = "class name";
-this.SELECTOR = "css selector";
-this.ID = "id";
-this.NAME = "name";
-this.LINK_TEXT = "link text";
-this.PARTIAL_LINK_TEXT = "partial link text";
-this.TAG = "tag name";
-this.XPATH = "xpath";
+let CLASS_NAME = "class name";
+let SELECTOR = "css selector";
+let ID = "id";
+let NAME = "name";
+let LINK_TEXT = "link text";
+let PARTIAL_LINK_TEXT = "partial link text";
+let TAG = "tag name";
+let XPATH = "xpath";
 
 function ElementException(msg, num, stack) {
   this.message = msg;
@@ -42,7 +32,7 @@ function ElementException(msg, num, stack) {
 }
 
 /* NOTE: Bug 736592 has been created to replace seenItems with a weakRef map */
-this.ElementManager = function ElementManager(notSupported) {
+function ElementManager(notSupported) {
   this.searchTimeout = 0;
   this.seenItems = {};
   this.timer = Components.classes["@mozilla.org/timer;1"].createInstance(Components.interfaces.nsITimer);
@@ -97,8 +87,8 @@ ElementManager.prototype = {
     if (!el) {
       throw new ElementException("Element has not been seen before", 17, null);
     }
-    // use XPCNativeWrapper to compare elements; see bug 834266
-    if (!(XPCNativeWrapper(el).ownerDocument == XPCNativeWrapper(win).document)) {
+    el = el;
+    if (!(el.ownerDocument == win.document)) {
       throw new ElementException("Stale element reference", 10, null);
     }
     return el;
@@ -256,7 +246,7 @@ ElementManager.prototype = {
    * @return nsIDOMElement or list of nsIDOMElements
    *        Returns the element(s) by calling the on_success function.
    */
-  find: function EM_find(win, values, on_success, on_error, all, command_id) {
+  find: function EM_find(win, values, on_success, on_error, all) {
     let startTime = values.time ? values.time : new Date().getTime();
     let startNode = (values.element != undefined) ? this.getKnownElement(values.element, win) : win.document;
     if (this.elementStrategies.indexOf(values.using) < 0) {
@@ -270,23 +260,19 @@ ElementManager.prototype = {
         for (let i = 0 ; i < found.length ; i++) {
           ids.push(this.addToKnownElements(found[i]));
         }
-        on_success(ids, command_id);
+        on_success(ids);
       }
       else {
         let id = this.addToKnownElements(found);
-        on_success(id, command_id);
+        on_success(id);
       }
       return;
     } else {
       if (this.searchTimeout == 0 || new Date().getTime() - startTime > this.searchTimeout) {
-        on_error("Unable to locate element: " + values.value, 7, null, command_id);
+        on_error("Unable to locate element: " + values.value, 7, null);
       } else {
         values.time = startTime;
-        this.timer.initWithCallback(this.find.bind(this, win, values,
-                                                   on_success, on_error, all,
-                                                   command_id),
-                                    100,
-                                    Components.interfaces.nsITimer.TYPE_ONE_SHOT);
+        this.timer.initWithCallback(this.find.bind(this, win, values, on_success, on_error, all), 100, Components.interfaces.nsITimer.TYPE_ONE_SHOT);
       }
     }
   },

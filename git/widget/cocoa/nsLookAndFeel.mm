@@ -5,15 +5,13 @@
 
 #include "nsLookAndFeel.h"
 #include "nsCocoaFeatures.h"
+#include "nsObjCExceptions.h"
 #include "nsIServiceManager.h"
 #include "nsNativeThemeColors.h"
 #include "nsStyleConsts.h"
 #include "gfxFont.h"
 
 #import <Cocoa/Cocoa.h>
-
-// This must be included last:
-#include "nsObjCExceptions.h"
 
 nsLookAndFeel::nsLookAndFeel() : nsXPLookAndFeel()
 {
@@ -232,7 +230,8 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       aColor = NS_RGB(0xA3,0xA3,0xA3);
       break;          
     case eColorID__moz_mac_menutextdisable:
-      aColor = NS_RGB(0x88,0x88,0x88);
+      aColor = nsCocoaFeatures::OnSnowLeopardOrLater() ?
+                 NS_RGB(0x88,0x88,0x88) : NS_RGB(0x98,0x98,0x98);
       break;      
     case eColorID__moz_mac_menutextselect:
       aColor = GetColorFromNSColor([NSColor selectedMenuItemTextColor]);
@@ -370,9 +369,6 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
       break;
     case eIntID_MacLionTheme:
       aResult = nsCocoaFeatures::OnLionOrLater();
-      break;
-    case eIntID_AlertNotificationOrigin:
-      aResult = NS_ALERT_TOP;
       break;
     case eIntID_TabFocusModel:
     {

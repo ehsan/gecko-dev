@@ -25,7 +25,6 @@
 #include "nsGkAtoms.h"
 #include "nsGUIEvent.h"
 #include "nsCRT.h"
-#include "nsBaseWidget.h"
 
 #include "nsIDocument.h"
 #include "nsIContent.h"
@@ -37,18 +36,20 @@
 #include "nsBindingManager.h"
 #include "nsIServiceManager.h"
 #include "nsXULPopupManager.h"
-#include "nsContentUtils.h"
 
 #include "jsapi.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptContext.h"
 #include "nsIXPConnect.h"
 
+// externs defined in nsChildView.mm
+extern nsIRollupListener * gRollupListener;
+extern nsIWidget         * gRollupWidget;
+
 static bool gConstructingMenu = false;
 static bool gMenuMethodsSwizzled = false;
 
 int32_t nsMenuX::sIndexingMenuLevel = 0;
-using mozilla::AutoPushJSContext;
 
 
 //
@@ -107,7 +108,8 @@ nsMenuX::nsMenuX()
     // SCTGRLIndex class) is loaded on demand, whenever the user first opens
     // a menu (which normally hasn't happened yet).  So we need to load it
     // here explicitly.
-    dlopen("/System/Library/PrivateFrameworks/Shortcut.framework/Shortcut", RTLD_LAZY);
+    if (nsCocoaFeatures::OnSnowLeopardOrLater())
+      dlopen("/System/Library/PrivateFrameworks/Shortcut.framework/Shortcut", RTLD_LAZY);
     Class SCTGRLIndexClass = ::NSClassFromString(@"SCTGRLIndex");
     nsToolkit::SwizzleMethods(SCTGRLIndexClass, @selector(indexMenuBarDynamically),
                               @selector(nsMenuX_SCTGRLIndex_indexMenuBarDynamically));
@@ -416,7 +418,7 @@ void nsMenuX::MenuConstruct()
         nsCOMPtr<nsIScriptContext> scriptContext = sgo->GetContext();
         JSObject* global = sgo->GetGlobalJSObject();
         if (scriptContext && global) {
-          AutoPushJSContext cx(scriptContext->GetNativeContext());
+          JSContext* cx = (JSContext*)scriptContext->GetNativeContext();
           if (cx) {
             nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
             xpconnect->WrapNative(cx, global,
@@ -825,14 +827,10 @@ nsresult nsMenuX::SetupIcon()
   if (nsMenuX::sIndexingMenuLevel > 0)
     return;
 
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
-  if (rollupListener) {
-    nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
-    if (rollupWidget) {
-      rollupListener->Rollup(0, nullptr);
-      [menu cancelTracking];
-      return;
-    }
+  if (gRollupListener && gRollupWidget) {
+    gRollupListener->Rollup(0);
+    [menu cancelTracking];
+    return;
   }
   mGeckoMenu->MenuOpened();
 }

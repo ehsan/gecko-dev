@@ -1,11 +1,11 @@
-/* -*- Mode: js2; tab-width: 8; indent-tabs-mode: nil; js2-basic-offset: 2 -*-*/
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: js2; js2-basic-offset: 4; indent-tabs-mode: nil; -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // This file is used for both about:memory and about:compartments.
-
+//
+//
 // about:memory will by default show information about the browser's current
 // memory usage, but you can direct it to load information from a file by
 // providing a file= query string.  For example,
@@ -48,20 +48,17 @@ let gUnnamedProcessStr = "Main Process";
 // Because about:memory and about:compartments are non-standard URLs,
 // location.search is undefined, so we have to use location.href here.
 // The toLowerCase() calls ensure that addresses like "ABOUT:MEMORY" work.
-let gVerbose = false;
-let gIsDiff = false;
+let gVerbose;
 {
   let split = document.location.href.split('?');
   document.title = split[0].toLowerCase();
 
-  if (split.length === 2) {
+  gVerbose = false;
+  if (split.length == 2) {
     let searchSplit = split[1].split('&');
     for (let i = 0; i < searchSplit.length; i++) {
-      if (searchSplit[i].toLowerCase() === 'verbose') {
+      if (searchSplit[i].toLowerCase() == 'verbose') {
         gVerbose = true;
-      }
-      if (searchSplit[i].toLowerCase() === 'diff') {
-        gIsDiff = true;
       }
     }
   }
@@ -289,8 +286,7 @@ const kTreeDescriptions = {
 "This tree covers explicit memory allocations by the application, both at the \
 operating system level (via calls to functions such as VirtualAlloc, \
 vm_allocate, and mmap), and at the heap allocation level (via functions such \
-as malloc, calloc, realloc, memalign, operator new, and operator new[]) that \
-have not been explicitly decommitted (i.e. evicted from memory and swap). \
+as malloc, calloc, realloc, memalign, operator new, and operator new[]).\
 \n\n\
 It excludes memory that is mapped implicitly such as code and data segments, \
 and thread stacks.  It also excludes heap memory that has been freed by the \
@@ -561,39 +557,34 @@ function appendAboutMemoryMain(aBody, aProcess, aHasMozMallocUsableSize,
   getTreesByProcess(aProcess, treesByProcess, degeneratesByProcess,
                     heapTotalByProcess, aForceShowSmaps);
 
-  // Sort our list of processes.
+  // Sort our list of processes.  Always start with the main process, then sort
+  // by resident size (descending).  Processes with no resident reporter go at
+  // the end of the list.
   let processes = Object.keys(treesByProcess);
-  processes.sort(function(aProcessA, aProcessB) {
-    assert(aProcessA != aProcessB,
-           "Elements of Object.keys() should be unique, but " +
-           "saw duplicate '" + aProcessA + "' elem.");
+  processes.sort(function(a, b) {
+    assert(a != b, "Elements of Object.keys() should be unique, but " +
+                   "saw duplicate " + a + " elem.");
 
-    // Always put the main process first.
-    if (aProcessA == gUnnamedProcessStr) {
+    if (a == gUnnamedProcessStr) {
       return -1;
     }
-    if (aProcessB == gUnnamedProcessStr) {
+
+    if (b == gUnnamedProcessStr) {
       return 1;
     }
 
-    // Then sort by resident size.
-    let nodeA = degeneratesByProcess[aProcessA]['resident'];
-    let nodeB = degeneratesByProcess[aProcessB]['resident'];
-    let residentA = nodeA ? nodeA._amount : -1;
-    let residentB = nodeB ? nodeB._amount : -1;
+    let nodeA = degeneratesByProcess[a]['resident'];
+    let nodeB = degeneratesByProcess[b]['resident'];
 
-    if (residentA > residentB) {
-      return -1;
-    }
-    if (residentA < residentB) {
-      return 1;
+    if (nodeA && nodeB) {
+      return TreeNode.compareAmounts(nodeA, nodeB);
     }
 
-    // Then sort by process name.
-    if (aProcessA < aProcessB) {
+    if (nodeA) {
       return -1;
     }
-    if (aProcessA > aProcessB) {
+
+    if (nodeB) {
       return 1;
     }
 
@@ -729,23 +720,12 @@ function getTreesByProcess(aProcessMemoryReports, aTreesByProcess,
   // "ghost-windows" multi-reporters all the time.  (Note that reports from
   // these multi-reporters can reach here as single reports if they were in the
   // child process.)
-  //
-  // Also ignore the resident-fast reporter; we use the vanilla resident
-  // reporter because it's more important that we get accurate results than
-  // that we avoid the (small) possibility of a long pause when loading
-  // about:memory.
-  //
-  // We don't show both resident and resident-fast because running the resident
-  // reporter can purge pages on MacOS, which affects the results of the
-  // resident-fast reporter.  We don't want about:memory's results to be
-  // affected by the order of memory reporter execution.
 
   function ignoreSingle(aUnsafePath)
   {
     return (isSmapsPath(aUnsafePath) && !gVerbose && !aForceShowSmaps) ||
            aUnsafePath.startsWith("compartments/") ||
-           aUnsafePath.startsWith("ghost-windows/") ||
-           aUnsafePath == "resident-fast";
+           aUnsafePath.startsWith("ghost-windows/");
   }
 
   function ignoreMulti(aMRName)
@@ -887,30 +867,13 @@ TreeNode.prototype = {
   }
 };
 
-// Sort TreeNodes first by size, then by name.  This is particularly important
-// for the about:memory tests, which need a predictable ordering of reporters
-// which have the same amount.
-TreeNode.compareAmounts = function(aA, aB) {
-  let a, b;
-  if (gIsDiff) {
-    a = Math.abs(aA._amount);
-    b = Math.abs(aB._amount);
-  } else {
-    a = aA._amount;
-    b = aB._amount;
-  }
-  if (a > b) {
-    return -1;
-  }
-  if (a < b) {
-    return 1;
-  }
-  return TreeNode.compareUnsafeNames(aA, aB);
+TreeNode.compareAmounts = function(a, b) {
+  return b._amount - a._amount;
 };
 
-TreeNode.compareUnsafeNames = function(aA, aB) {
-  return aA._unsafeName < aB._unsafeName ? -1 :
-         aA._unsafeName > aB._unsafeName ?  1 :
+TreeNode.compareUnsafeNames = function(a, b) {
+  return a._unsafeName < b._unsafeName ? -1 :
+         a._unsafeName > b._unsafeName ?  1 :
          0;
 };
 
@@ -1528,12 +1491,11 @@ function appendTreeElements(aP, aRoot, aProcess, aPadText)
     let treelineText = aTreelineText1 + aTreelineText2a;
     appendElementWithText(aP, "span", "treeline", treelineText);
 
-    // Detect and record invalid values.  But not if gIsDiff is true, because
-    // we expect negative values in that case.
+    // Detect and record invalid values.
     assertInput(aRoot._units === aT._units,
                 "units within a tree are inconsistent");
     let tIsInvalid = false;
-    if (!gIsDiff && !(0 <= aT._amount && aT._amount <= aRoot._amount)) {
+    if (!(0 <= aT._amount && aT._amount <= aRoot._amount)) {
       tIsInvalid = true;
       let unsafePath = aUnsafeNames.join("/");
       gUnsafePathsWithInvalidValuesForThisProcess.push(unsafePath);

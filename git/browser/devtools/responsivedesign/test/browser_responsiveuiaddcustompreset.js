@@ -3,7 +3,6 @@
 
 function test() {
   let instance, deletedPresetA, deletedPresetB, oldPrompt;
-  let mgr = ResponsiveUI.ResponsiveUIManager;
 
   waitForExplicitFinish();
 
@@ -19,17 +18,14 @@ function test() {
     // Mocking prompt
     oldPrompt = Services.prompt;
     Services.prompt = {
-      value: "",
-      returnBool: true,
       prompt: function(aParent, aDialogTitle, aText, aValue, aCheckMsg, aCheckState) {
-        aValue.value = this.value;
-        return this.returnBool;
+        aValue.value = "Testing preset";
       }
     };
 
     document.getElementById("Tools:ResponsiveUI").removeAttribute("disabled");
-    mgr.once("on", onUIOpen);
     synthesizeKeyFromKeyTag("key_responsiveUI");
+    executeSoon(onUIOpen);
   }
 
   function onUIOpen() {
@@ -46,52 +42,27 @@ function test() {
   }
 
   function testAddCustomPreset() {
-    // Tries to add a custom preset and cancel the prompt
-    let idx = instance.menulist.selectedIndex;
-    let presetCount = instance.presets.length;
-
-    Services.prompt.value = "";
-    Services.prompt.returnBool = false;
-    instance.addbutton.doCommand();
-
-    is(idx, instance.menulist.selectedIndex, "selected item didn't change after add preset and cancel");
-    is(presetCount, instance.presets.length, "number of presets didn't change after add preset and cancel");
-
     let customHeight = 123, customWidth = 456;
     instance.setSize(customWidth, customHeight);
 
-    // Adds the custom preset with "Testing preset"
-    Services.prompt.value = "Testing preset";
-    Services.prompt.returnBool = true;
+    // Adds the custom preset with "Testing preset" as label (look at mock upper)
     instance.addbutton.doCommand();
 
     instance.menulist.selectedIndex = 1;
 
-    mgr.once("off", restart);
-
-    // We're still in the loop of initializing the responsive mode.
-    // Let's wait next loop to stop it.
-    executeSoon(function() {
-      EventUtils.synthesizeKey("VK_ESCAPE", {});
-    });
+    EventUtils.synthesizeKey("VK_ESCAPE", {});
+    executeSoon(restart);
   }
 
   function restart() {
-    info("Restarting Responsive Mode");
-    mgr.once("on", function() {
-      let container = gBrowser.getBrowserContainer();
-      is(container.getAttribute("responsivemode"), "true", "In responsive mode.");
+    synthesizeKeyFromKeyTag("key_responsiveUI");
 
-      instance = gBrowser.selectedTab.__responsiveUI;
+    let container = gBrowser.getBrowserContainer();
+    is(container.getAttribute("responsivemode"), "true", "In responsive mode.");
 
-      testCustomPresetInList();
-    });
+    instance = gBrowser.selectedTab.__responsiveUI;
 
-    // We're still in the loop of destroying the responsive mode.
-    // Let's wait next loop to start it.
-    executeSoon(function() {
-      synthesizeKeyFromKeyTag("key_responsiveUI");
-    });
+    testCustomPresetInList();
   }
 
   function testCustomPresetInList() {

@@ -21,7 +21,6 @@
 #include "nsFontMetrics.h"
 #include "mozilla/dom/Element.h"
 #include "nsContentList.h"
-#include <algorithm>
 
 
 nsIFrame*
@@ -74,7 +73,7 @@ nsProgressFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   nsCSSPseudoElements::Type pseudoType = nsCSSPseudoElements::ePseudo_mozProgressBar;
   nsRefPtr<nsStyleContext> newStyleContext = PresContext()->StyleSet()->
     ResolvePseudoElementStyle(mContent->AsElement(), pseudoType,
-                              StyleContext());
+                              GetStyleContext());
 
   if (!aElements.AppendElement(ContentInfo(mBarDiv, newStyleContext))) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -96,12 +95,12 @@ NS_QUERYFRAME_HEAD(nsProgressFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 
-void
+NS_IMETHODIMP
 nsProgressFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                   const nsRect&           aDirtyRect,
                                   const nsDisplayListSet& aLists)
 {
-  BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
+  return BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
 }
 
 NS_IMETHODIMP nsProgressFrame::Reflow(nsPresContext*           aPresContext,
@@ -148,7 +147,7 @@ nsProgressFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
                                 const nsHTMLReflowState& aReflowState,
                                 nsReflowStatus&          aStatus)
 {
-  bool vertical = StyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL;
+  bool vertical = GetStyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL;
   nsHTMLReflowState reflowState(aPresContext, aReflowState, aBarFrame,
                                 nsSize(aReflowState.ComputedWidth(),
                                        NS_UNCONSTRAINEDSIZE));
@@ -168,7 +167,7 @@ nsProgressFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
     size *= position;
   }
 
-  if (!vertical && StyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
+  if (!vertical && GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
     xoffset += aReflowState.ComputedWidth() - size;
   }
 
@@ -186,12 +185,12 @@ nsProgressFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
 
       size -= reflowState.mComputedMargin.TopBottom() +
               reflowState.mComputedBorderPadding.TopBottom();
-      size = std::max(size, 0);
+      size = NS_MAX(size, 0);
       reflowState.SetComputedHeight(size);
     } else {
       size -= reflowState.mComputedMargin.LeftRight() +
               reflowState.mComputedBorderPadding.LeftRight();
-      size = std::max(size, 0);
+      size = NS_MAX(size, 0);
       reflowState.SetComputedWidth(size);
     }
   } else if (vertical) {
@@ -236,12 +235,17 @@ nsProgressFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, bool aShrinkWrap)
 {
-  nsSize autoSize;
-  autoSize.height = autoSize.width =
-    NSToCoordRound(StyleFont()->mFont.size *
-                   nsLayoutUtils::FontSizeInflationFor(this)); // 1em
+  float inflation = nsLayoutUtils::FontSizeInflationFor(this);
+  nsRefPtr<nsFontMetrics> fontMet;
+  NS_ENSURE_SUCCESS(nsLayoutUtils::GetFontMetricsForFrame(this,
+                                                          getter_AddRefs(fontMet),
+                                                          inflation),
+                    nsSize(0, 0));
 
-  if (StyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL) {
+  nsSize autoSize;
+  autoSize.height = autoSize.width = fontMet->Font().size; // 1em
+
+  if (GetStyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL) {
     autoSize.height *= 10; // 10em
   } else {
     autoSize.width *= 10; // 10em
@@ -259,9 +263,7 @@ nsProgressFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 
   nscoord minWidth = fontMet->Font().size; // 1em
 
-  if (StyleDisplay()->mOrient == NS_STYLE_ORIENT_AUTO ||
-      StyleDisplay()->mOrient == NS_STYLE_ORIENT_HORIZONTAL) {
-    // The orientation is horizontal
+  if (GetStyleDisplay()->mOrient == NS_STYLE_ORIENT_HORIZONTAL) {
     minWidth *= 10; // 10em
   }
 
@@ -281,8 +283,8 @@ nsProgressFrame::ShouldUseNativeStyle() const
   // - both frames use the native appearance;
   // - neither frame has author specified rules setting the border or the
   //   background.
-  return StyleDisplay()->mAppearance == NS_THEME_PROGRESSBAR &&
-         mBarDiv->GetPrimaryFrame()->StyleDisplay()->mAppearance == NS_THEME_PROGRESSBAR_CHUNK &&
+  return GetStyleDisplay()->mAppearance == NS_THEME_PROGRESSBAR &&
+         mBarDiv->GetPrimaryFrame()->GetStyleDisplay()->mAppearance == NS_THEME_PROGRESSBAR_CHUNK &&
          !PresContext()->HasAuthorSpecifiedRules(const_cast<nsProgressFrame*>(this),
                                                  NS_AUTHOR_SPECIFIED_BORDER | NS_AUTHOR_SPECIFIED_BACKGROUND) &&
          !PresContext()->HasAuthorSpecifiedRules(mBarDiv->GetPrimaryFrame(),

@@ -18,7 +18,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
 
 
 ["LOG", "WARN", "ERROR"].forEach(function(aName) {
-  this.__defineGetter__(aName, function logFuncGetter () {
+  this.__defineGetter__(aName, function() {
     Components.utils.import("resource://gre/modules/AddonLogging.jsm");
 
     LogManager.getLogger("addons.xpi-utils", this);
@@ -78,7 +78,11 @@ const PREFIX_ITEM_URI                 = "urn:mozilla:item:";
 const RDFURI_ITEM_ROOT                = "urn:mozilla:item:root"
 const PREFIX_NS_EM                    = "http://www.mozilla.org/2004/em-rdf#";
 
-this.__defineGetter__("gRDF", function gRDFGetter() {
+
+var XPIProvider;
+
+
+this.__defineGetter__("gRDF", function() {
   delete this.gRDF;
   return this.gRDF = Cc["@mozilla.org/rdf/rdf-service;1"].
                      getService(Ci.nsIRDFService);
@@ -141,12 +145,12 @@ AsyncAddonListCallback.prototype = {
   count: 0,
   addons: null,
 
-  handleResult: function AsyncAddonListCallback_handleResult(aResults) {
+  handleResult: function(aResults) {
     let row = null;
     while ((row = aResults.getNextRow())) {
       this.count++;
       let self = this;
-      XPIDatabase.makeAddonFromRowAsync(row, function handleResult_makeAddonFromRowAsync(aAddon) {
+      XPIDatabase.makeAddonFromRowAsync(row, function(aAddon) {
         function completeAddon(aRepositoryAddon) {
           aAddon._repositoryAddon = aRepositoryAddon;
           aAddon.compatibilityOverrides = aRepositoryAddon ?
@@ -167,7 +171,7 @@ AsyncAddonListCallback.prototype = {
 
   handleError: asyncErrorLogger,
 
-  handleCompletion: function AsyncAddonListCallback_handleCompletion(aReason) {
+  handleCompletion: function(aReason) {
     this.complete = true;
     if (this.addons.length == this.count)
       this.callback(this.addons);
@@ -293,7 +297,7 @@ function copyRowProperties(aRow, aProperties, aTarget) {
   return aTarget;
 }
 
-this.XPIDatabase = {
+var XPIDatabase = {
   // true if the database connection has been opened
   initialized: false,
   // A cache of statements that are used and need to be finalized on shutdown
@@ -852,12 +856,12 @@ this.XPIDatabase = {
 
       // Re-create the connection smart getter to allow the database to be
       // re-loaded during testing.
-      this.__defineGetter__("connection", function connectionGetter() {
+      this.__defineGetter__("connection", function() {
         this.openConnection(true);
         return this.connection;
       });
 
-      connection.asyncClose(function shutdown_asyncClose() {
+      connection.asyncClose(function() {
         LOG("Database closed");
         aCallback();
       });
@@ -1117,7 +1121,7 @@ this.XPIDatabase = {
 
       stmt.params.id = aLocale.id;
       stmt.executeAsync({
-        handleResult: function readLocaleStrings_handleResult(aResults) {
+        handleResult: function(aResults) {
           let row = null;
           while ((row = aResults.getNextRow())) {
             let type = row.getResultByName("type");
@@ -1129,7 +1133,7 @@ this.XPIDatabase = {
 
         handleError: asyncErrorLogger,
 
-        handleCompletion: function readLocaleStrings_handleCompletion(aReason) {
+        handleCompletion: function(aReason) {
           aCallback();
         }
       });
@@ -1141,7 +1145,7 @@ this.XPIDatabase = {
 
       stmt.params.id = aAddon._defaultLocale;
       stmt.executeAsync({
-        handleResult: function readDefaultLocale_handleResult(aResults) {
+        handleResult: function(aResults) {
           aAddon.defaultLocale = copyRowProperties(aResults.getNextRow(),
                                                    PROP_LOCALE_SINGLE);
           aAddon.defaultLocale.id = aAddon._defaultLocale;
@@ -1149,7 +1153,7 @@ this.XPIDatabase = {
 
         handleError: asyncErrorLogger,
 
-        handleCompletion: function readDefaultLocale_handleCompletion(aReason) {
+        handleCompletion: function(aReason) {
           if (aAddon.defaultLocale) {
             readLocaleStrings(aAddon.defaultLocale, readLocales);
           }
@@ -1168,7 +1172,7 @@ this.XPIDatabase = {
 
       stmt.params.internal_id = aAddon._internal_id;
       stmt.executeAsync({
-        handleResult: function readLocales_handleResult(aResults) {
+        handleResult: function(aResults) {
           let row = null;
           while ((row = aResults.getNextRow())) {
             let locale = {
@@ -1182,7 +1186,7 @@ this.XPIDatabase = {
 
         handleError: asyncErrorLogger,
 
-        handleCompletion: function readLocales_handleCompletion(aReason) {
+        handleCompletion: function(aReason) {
           let pos = 0;
           function readNextLocale() {
             if (pos < aAddon.locales.length)
@@ -1203,7 +1207,7 @@ this.XPIDatabase = {
 
       stmt.params.internal_id = aAddon._internal_id;
       stmt.executeAsync({
-        handleResult: function readTargetApplications_handleResult(aResults) {
+        handleResult: function(aResults) {
           let row = null;
           while ((row = aResults.getNextRow()))
             aAddon.targetApplications.push(copyRowProperties(row, PROP_TARGETAPP));
@@ -1211,7 +1215,7 @@ this.XPIDatabase = {
 
         handleError: asyncErrorLogger,
 
-        handleCompletion: function readTargetApplications_handleCompletion(aReason) {
+        handleCompletion: function(aReason) {
           readTargetPlatforms();
         }
       });
@@ -1224,7 +1228,7 @@ this.XPIDatabase = {
 
       stmt.params.internal_id = aAddon._internal_id;
       stmt.executeAsync({
-        handleResult: function readTargetPlatforms_handleResult(aResults) {
+        handleResult: function(aResults) {
           let row = null;
           while ((row = aResults.getNextRow()))
             aAddon.targetPlatforms.push(copyRowProperties(row, ["os", "abi"]));
@@ -1232,7 +1236,7 @@ this.XPIDatabase = {
 
         handleError: asyncErrorLogger,
 
-        handleCompletion: function readTargetPlatforms_handleCompletion(aReason) {
+        handleCompletion: function(aReason) {
           let callbacks = aAddon._pendingCallbacks;
           delete aAddon._pendingCallbacks;
           callbacks.forEach(function(aCallback) {
@@ -1349,7 +1353,7 @@ this.XPIDatabase = {
 
     stmt.params.id = aId;
     stmt.params.location = aLocation;
-    stmt.executeAsync(new AsyncAddonListCallback(function getAddonInLocation_executeAsync(aAddons) {
+    stmt.executeAsync(new AsyncAddonListCallback(function(aAddons) {
       if (aAddons.length == 0) {
         aCallback(null);
         return;
@@ -1379,7 +1383,7 @@ this.XPIDatabase = {
     let stmt = this.getStatement("getVisibleAddonForID");
 
     stmt.params.id = aId;
-    stmt.executeAsync(new AsyncAddonListCallback(function getVisibleAddonForID_executeAsync(aAddons) {
+    stmt.executeAsync(new AsyncAddonListCallback(function(aAddons) {
       if (aAddons.length == 0) {
         aCallback(null);
         return;
@@ -1523,7 +1527,7 @@ this.XPIDatabase = {
     let stmt = this.getStatement("getAddonBySyncGUID");
     stmt.params.syncGUID = aGUID;
 
-    stmt.executeAsync(new AsyncAddonListCallback(function getAddonBySyncGUID_executeAsync(aAddons) {
+    stmt.executeAsync(new AsyncAddonListCallback(function(aAddons) {
       if (aAddons.length == 0) {
         aCallback(null);
         return;

@@ -18,7 +18,8 @@ SVGViewBoxSMILType::Init(nsSMILValue& aValue) const
 {
   NS_ABORT_IF_FALSE(aValue.IsNull(), "Unexpected value type");
 
-  aValue.mU.mPtr = new nsSVGViewBoxRect();
+  nsSVGViewBoxRect* viewBox = new nsSVGViewBoxRect();
+  aValue.mU.mPtr = viewBox;
   aValue.mType = this;
 }
 
@@ -83,10 +84,6 @@ SVGViewBoxSMILType::ComputeDistance(const nsSMILValue& aFrom,
   const nsSVGViewBoxRect* from = static_cast<const nsSVGViewBoxRect*>(aFrom.mU.mPtr);
   const nsSVGViewBoxRect* to = static_cast<const nsSVGViewBoxRect*>(aTo.mU.mPtr);
 
-  if (from->none || to->none) {
-    return NS_ERROR_FAILURE;
-  }
-
   // We use the distances between the edges rather than the difference between
   // the x, y, width and height for the "distance". This is necessary in
   // order for the "distance" result that we calculate to be the same for a
@@ -114,14 +111,9 @@ SVGViewBoxSMILType::Interpolate(const nsSMILValue& aStartVal,
   NS_PRECONDITION(aStartVal.mType == this,
                   "Unexpected types for interpolation");
   NS_PRECONDITION(aResult.mType == this, "Unexpected result type");
-
+  
   const nsSVGViewBoxRect* start = static_cast<const nsSVGViewBoxRect*>(aStartVal.mU.mPtr);
   const nsSVGViewBoxRect* end = static_cast<const nsSVGViewBoxRect*>(aEndVal.mU.mPtr);
-
-  if (start->none || end->none) {
-    return NS_ERROR_FAILURE;
-  }
-
   nsSVGViewBoxRect* current = static_cast<nsSVGViewBoxRect*>(aResult.mU.mPtr);
 
   float x = (start->x + (end->x - start->x) * aUnitDistance);

@@ -26,8 +26,6 @@
 #include "nsIArray.h"
 #include "nsIVariant.h"
 #include "nsThreadUtils.h"
-#include "nsISerializable.h"
-#include "nsSerializationHelper.h"
 
 #include "mozIStorageService.h"
 #include "mozIStorageStatement.h"
@@ -478,19 +476,6 @@ CreateCacheEntry(nsOfflineCacheDevice *device,
 
   entry->UnflattenMetaData((const char *) rec.metaData, rec.metaDataLen);
 
-  // Restore security info, if present
-  const char* info = entry->GetMetaDataElement("security-info");
-  if (info) {
-    nsCOMPtr<nsISupports> infoObj;
-    rv = NS_DeserializeObject(nsDependentCString(info),
-                              getter_AddRefs(infoObj));
-    if (NS_FAILED(rv)) {
-      delete entry;
-      return nullptr;
-    }
-    entry->SetSecurityInfo(infoObj);
-  }
-
   // create a binding object for this entry
   nsOfflineCacheBinding *binding =
       nsOfflineCacheBinding::Create(device->CacheDirectory(),
@@ -933,21 +918,6 @@ nsOfflineCacheDevice::UpdateEntry(nsCacheEntry *entry)
   if (!DecomposeCacheEntryKey(entry->Key(), &cid, &key, keyBuf))
     return NS_ERROR_UNEXPECTED;
 
-  // Store security info, if it is serializable
-  nsCOMPtr<nsISupports> infoObj = entry->SecurityInfo();
-  nsCOMPtr<nsISerializable> serializable = do_QueryInterface(infoObj);
-  if (infoObj && !serializable)
-    return NS_ERROR_UNEXPECTED;
-
-  if (serializable) {
-    nsCString info;
-    nsresult rv = NS_SerializeToString(serializable, info);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = entry->SetMetaDataElement("security-info", info.get());
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   nsCString metaDataBuf;
   uint32_t mdSize = entry->MetaDataSize();
   if (!EnsureStringLength(metaDataBuf, mdSize))
@@ -1289,15 +1259,26 @@ AppendJARIdentifier(nsACString &_result, int32_t appId, bool isInBrowserElement)
 
 nsresult
 GetJARIdentifier(nsIURI *aURI,
-                 uint32_t appId, bool isInBrowserElement,
+                 nsILoadContext *aLoadContext,
                  nsACString &_result)
 {
     _result.Truncate();
+
+    if (!aLoadContext)
+        return NS_OK;
 
     // These lines are here for compatibility only.  We must not fill the
     // JAR identifier when this is no-app context, otherwise web content
     // offline application cache loads would not be satisfied (cache would
     // not be found).
+    bool isInBrowserElement;
+    nsresult rv = aLoadContext->GetIsInBrowserElement(&isInBrowserElement);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    uint32_t appId;
+    rv = aLoadContext->GetAppId(&appId);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     if (!isInBrowserElement && appId == NECKO_NO_APP_ID)
         return NS_OK;
 
@@ -1310,7 +1291,7 @@ GetJARIdentifier(nsIURI *aURI,
 // static
 nsresult
 nsOfflineCacheDevice::BuildApplicationCacheGroupID(nsIURI *aManifestURL,
-                                                   uint32_t appId, bool isInBrowserElement,
+                                                   nsILoadContext *aLoadContext,
                                                    nsACString &_result)
 {
   nsCOMPtr<nsIURI> newURI;
@@ -1324,7 +1305,7 @@ nsOfflineCacheDevice::BuildApplicationCacheGroupID(nsIURI *aManifestURL,
   _result.Assign(manifestSpec);
 
   nsAutoCString jarid;
-  rv = GetJARIdentifier(aManifestURL, appId, isInBrowserElement, jarid);
+  rv = GetJARIdentifier(aManifestURL, aLoadContext, jarid);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Include JAR ID, i.e. the extended origin if present.
@@ -2461,24 +2442,11 @@ nsOfflineCacheDevice::CanUseCache(nsIURI *keyURI,
                               GetStrictFileOriginPolicy()))
     return false;
 
-  // Get extended origin attributes
-  uint32_t appId = NECKO_NO_APP_ID;
-  bool isInBrowserElement = false;
-
-  if (loadContext) {
-      rv = loadContext->GetAppId(&appId);
-      NS_ENSURE_SUCCESS(rv, false);
-
-      rv = loadContext->GetIsInBrowserElement(&isInBrowserElement);
-      NS_ENSURE_SUCCESS(rv, false);
-  }
-
   // Check the groupID we found is equal to groupID based
   // on the load context demanding load from app cache.
   // This is check of extended origin.
   nsAutoCString demandedGroupID;
-  rv = BuildApplicationCacheGroupID(groupURI, appId, isInBrowserElement,
-                                    demandedGroupID);
+  rv = BuildApplicationCacheGroupID(groupURI, loadContext, demandedGroupID);
   NS_ENSURE_SUCCESS(rv, false);
 
   if (groupID != demandedGroupID)

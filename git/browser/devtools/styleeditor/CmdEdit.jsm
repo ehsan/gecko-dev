@@ -4,13 +4,13 @@
 
 const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-this.EXPORTED_SYMBOLS = [ ];
+let EXPORTED_SYMBOLS = [ ];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/devtools/gcli.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
-                                  "resource:///modules/devtools/gDevTools.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "HUDService",
+                                  "resource:///modules/HUDService.jsm");
 
 /**
  * 'edit' command
@@ -40,11 +40,7 @@ gcli.addCommand({
      }
    ],
    exec: function(args, context) {
-     let target = context.environment.target;
-     return gDevTools.showToolbox(target, "styleeditor").then(function(toolbox) {
-       let styleEditor = toolbox.getCurrentPanel();
-       styleEditor.selectStyleSheet(args.resource.element, args.line);
-       return null;
-     });
+     let win = HUDService.currentContext();
+     win.StyleEditor.openChrome(args.resource.element, args.line);
    }
 });

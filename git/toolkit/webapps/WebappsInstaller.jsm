@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["WebappsInstaller"];
+let EXPORTED_SYMBOLS = ["WebappsInstaller"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -12,9 +12,8 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
-Cu.import("resource://gre/modules/osfile.jsm");
 
-this.WebappsInstaller = {
+let WebappsInstaller = {
   /**
    * Creates a native installation of the web app in the OS
    *
@@ -319,7 +318,7 @@ WinNativeApp.prototype = {
    */
   _createConfigFiles: function() {
     // ${InstallDir}/webapp.json
-    writeToFile(this.configJson, JSON.stringify(this.webappJson));
+    writeToFile(this.configJson, JSON.stringify(this.webappJson), function() {});
 
     let factory = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
                     .getService(Ci.nsIINIParserFactory);
@@ -350,7 +349,7 @@ WinNativeApp.prototype = {
       "File: \\chrome\\icons\\default\\default.ico";
     let uninstallLog = this.uninstallDir.clone();
     uninstallLog.append("uninstall.log");
-    writeToFile(uninstallLog, uninstallContent);
+    writeToFile(uninstallLog, uninstallContent, function() {});
   },
 
   /**
@@ -557,7 +556,7 @@ MacNativeApp.prototype = {
     // ${ProfileDir}/webapp.json
     let configJson = this.appProfileDir.clone();
     configJson.append("webapp.json");
-    writeToFile(configJson, JSON.stringify(this.webappJson));
+    writeToFile(configJson, JSON.stringify(this.webappJson), function() {});
 
     // ${InstallDir}/Contents/MacOS/webapp.ini
     let applicationINI = this.macOSDir.clone().QueryInterface(Ci.nsILocalFile);
@@ -601,7 +600,7 @@ MacNativeApp.prototype = {
 
     let infoPListFile = this.contentsDir.clone();
     infoPListFile.append("Info.plist");
-    writeToFile(infoPListFile, infoPListContent);
+    writeToFile(infoPListFile, infoPListContent, function() {});
   },
 
   _moveToApplicationsFolder: function() {
@@ -800,7 +799,7 @@ LinuxNativeApp.prototype = {
 
   _createConfigFiles: function() {
     // ${InstallDir}/webapp.json
-    writeToFile(this.configJson, JSON.stringify(this.webappJson));
+    writeToFile(this.configJson, JSON.stringify(this.webappJson), function() {});
 
     let factory = Cc["@mozilla.org/xpcom/ini-processor-factory;1"]
                     .getService(Ci.nsIINIParserFactory);
@@ -881,11 +880,15 @@ LinuxNativeApp.prototype = {
  *
  * @param aFile     the nsIFile to write to
  * @param aData     a string with the data to be written
+ * @param aCallback a callback to be called after the process is finished
  */
-function writeToFile(aFile, aData) {
-  let path = aFile.path;
-  let data = new TextEncoder().encode(aData);
-  return OS.File.writeAtomic(path, data, { tmpPath: path + ".tmp" });
+function writeToFile(aFile, aData, aCallback) {
+  let ostream = FileUtils.openSafeFileOutputStream(aFile);
+  let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"]
+                    .createInstance(Ci.nsIScriptableUnicodeConverter);
+  converter.charset = "UTF-8";
+  let istream = converter.convertToInputStream(aData);
+  NetUtil.asyncCopy(istream, ostream, function(x) aCallback(x));
 }
 
 /**

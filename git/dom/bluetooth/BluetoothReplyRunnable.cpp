@@ -6,7 +6,7 @@
 
 #include "base/basictypes.h"
 #include "BluetoothReplyRunnable.h"
-#include "DOMRequest.h"
+#include "nsIDOMDOMRequest.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 
 USING_BLUETOOTH_NAMESPACE
@@ -31,12 +31,17 @@ BluetoothReplyRunnable::~BluetoothReplyRunnable()
 {}
 
 nsresult
-BluetoothReplyRunnable::FireReply(const JS::Value& aVal)
+BluetoothReplyRunnable::FireReply(const jsval& aVal)
 {
   nsCOMPtr<nsIDOMRequestService> rs =
-    do_GetService(DOMREQUEST_SERVICE_CONTRACTID);
-  NS_ENSURE_TRUE(rs, NS_ERROR_FAILURE);
-
+    do_GetService("@mozilla.org/dom/dom-request-service;1");
+  
+  if (!rs) {
+    NS_WARNING("No DOMRequest Service!");
+    return NS_ERROR_FAILURE;
+  }
+  
+  
   return mReply->type() == BluetoothReply::TBluetoothReplySuccess ?
     rs->FireSuccessAsync(mDOMRequest, aVal) :
     rs->FireErrorAsync(mDOMRequest, mReply->get_BluetoothReplyError().error());
@@ -47,8 +52,12 @@ BluetoothReplyRunnable::FireErrorString()
 {
   nsCOMPtr<nsIDOMRequestService> rs =
     do_GetService("@mozilla.org/dom/dom-request-service;1");
-  NS_ENSURE_TRUE(rs, NS_ERROR_FAILURE);
-
+  
+  if (!rs) {
+    NS_WARNING("No DOMRequest Service!");
+    return NS_ERROR_FAILURE;
+  }
+  
   return rs->FireErrorAsync(mDOMRequest, mErrorString);
 }
 
@@ -64,7 +73,7 @@ BluetoothReplyRunnable::Run()
   if (mReply->type() != BluetoothReply::TBluetoothReplySuccess) {
     rv = FireReply(JSVAL_VOID);
   } else {
-    JS::Value v; 
+    jsval v; 
     if (!ParseSuccessfulReply(&v)) {
       rv = FireErrorString();
     } else {

@@ -7,12 +7,13 @@
 #define nsCocoaFeatures_h_
 
 #include "mozilla/StandardInteger.h"
+#include "prtypes.h"
 
 class nsCocoaFeatures {
 public:
   static int32_t OSXVersion();
+  static bool OnSnowLeopardOrLater();
   static bool OnLionOrLater();
-  static bool OnMountainLionOrLater();
   static bool SupportCoreAnimationPlugins();
 
 private:

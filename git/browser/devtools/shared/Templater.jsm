@@ -14,17 +14,18 @@
  * limitations under the License.
  */
 
-this.EXPORTED_SYMBOLS = [ "template" ];
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "console",
-                                  "resource://gre/modules/devtools/Console.jsm");
 
-// WARNING: do not 'use_strict' without reading the notes in _envEval();
+var EXPORTED_SYMBOLS = [ "Templater", "template" ];
+
+Components.utils.import("resource://gre/modules/Services.jsm");
+const Node = Components.interfaces.nsIDOMNode;
 
 /**
  * For full documentation, see:
  * https://github.com/mozilla/domtemplate/blob/master/README.md
  */
+
+// WARNING: do not 'use_strict' without reading the notes in _envEval();
 
 /**
  * Begin a new templating process.
@@ -131,7 +132,6 @@ Templater.prototype.processNode = function(node, data) {
       for (var i = 0; i < attrs.length; i++) {
         var value = attrs[i].value;
         var name = attrs[i].name;
-
         this.stack.push(name);
         try {
           if (name === 'save') {
@@ -139,62 +139,39 @@ Templater.prototype.processNode = function(node, data) {
             value = this._stripBraces(value);
             this._property(value, data, node);
             node.removeAttribute('save');
-          }
-          else if (name.substring(0, 2) === 'on') {
-            // If this attribute value contains only an expression
-            if (value.substring(0, 2) === '${' && value.slice(-1) === '}' &&
-                    value.indexOf('${', 2) === -1) {
-              value = this._stripBraces(value);
-              var func = this._property(value, data);
-              if (typeof func === 'function') {
-                node.removeAttribute(name);
-                var capture = node.hasAttribute('capture' + name.substring(2));
-                node.addEventListener(name.substring(2), func, capture);
-                if (capture) {
-                  node.removeAttribute('capture' + name.substring(2));
-                }
-              }
-              else {
-                // Attribute value is not a function - use as a DOM-L0 string
-                node.setAttribute(name, func);
-              }
+          } else if (name.substring(0, 2) === 'on') {
+            // Event registration relies on property doing a bind
+            value = this._stripBraces(value);
+            var func = this._property(value, data);
+            if (typeof func !== 'function') {
+              this._handleError('Expected ' + value +
+                ' to resolve to a function, but got ' + typeof func);
             }
-            else {
-              // Attribute value is not a single expression use as DOM-L0
-              node.setAttribute(name, this._processString(value, data));
-            }
-          }
-          else {
             node.removeAttribute(name);
+            var capture = node.hasAttribute('capture' + name.substring(2));
+            node.addEventListener(name.substring(2), func, capture);
+            if (capture) {
+              node.removeAttribute('capture' + name.substring(2));
+            }
+          } else {
+            // Replace references in all other attributes
+            var newValue = value.replace(this._templateRegion, function(path) {
+              var insert = this._envEval(path.slice(2, -1), data, value);
+              if (this.options.blankNullUndefined && insert == null) {
+                insert = '';
+              }
+              return insert;
+            }.bind(this));
             // Remove '_' prefix of attribute names so the DOM won't try
             // to use them before we've processed the template
             if (name.charAt(0) === '_') {
-              name = name.substring(1);
-            }
-
-            // Async attributes can only work if the whole attribute is async
-            var replacement;
-            if (value.indexOf('${') === 0 && value.charAt(value.length - 1) === '}') {
-              replacement = this._envEval(value.slice(2, -1), data, value);
-              if (replacement && typeof replacement.then === 'function') {
-                node.setAttribute(name, '');
-                replacement.then(function(newValue) {
-                  node.setAttribute(name, newValue);
-                }.bind(this)).then(null, console.error);
-              }
-              else {
-                if (this.options.blankNullUndefined && replacement == null) {
-                  replacement = '';
-                }
-                node.setAttribute(name, replacement);
-              }
-            }
-            else {
-              node.setAttribute(name, this._processString(value, data));
+              node.removeAttribute(name);
+              node.setAttribute(name.substring(1), newValue);
+            } else if (value !== newValue) {
+              attrs[i].value = newValue;
             }
           }
-        }
-        finally {
+        } finally {
           this.stack.pop();
         }
       }
@@ -210,23 +187,12 @@ Templater.prototype.processNode = function(node, data) {
     if (node.nodeType === 3 /*Node.TEXT_NODE*/) {
       this._processTextNode(node, data);
     }
-  }
-  finally {
+  } finally {
     if (pushedNode) {
       data.__element = this.nodes.pop();
     }
     this.stack.pop();
   }
-};
-
-/**
- * Handle attribute values where the output can only be a string
- */
-Templater.prototype._processString = function(value, data) {
-  return value.replace(this._templateRegion, function(path) {
-    var insert = this._envEval(path.slice(2, -1), data, value);
-    return this.options.blankNullUndefined && insert == null ? '' : insert;
-  }.bind(this));
 };
 
 /**
@@ -244,8 +210,7 @@ Templater.prototype._processIf = function(node, data) {
     try {
       var reply = this._envEval(value, data, originalValue);
       recurse = !!reply;
-    }
-    catch (ex) {
+    } catch (ex) {
       this._handleError('Error with \'' + value + '\'', ex);
       recurse = false;
     }
@@ -254,8 +219,7 @@ Templater.prototype._processIf = function(node, data) {
     }
     node.removeAttribute('if');
     return recurse;
-  }
-  finally {
+  } finally {
     this.stack.pop();
   }
 };
@@ -280,8 +244,7 @@ Templater.prototype._processForEach = function(node, data) {
     if (value.charAt(0) === '$') {
       // No custom loop variable name. Use the default: 'param'
       value = this._stripBraces(value);
-    }
-    else {
+    } else {
       // Extract the loop variable name from 'NAME in ${ARRAY}'
       var nameArr = value.split(' in ');
       paramName = nameArr[0].trim();
@@ -294,12 +257,10 @@ Templater.prototype._processForEach = function(node, data) {
         this._processForEachLoop(reply, node, siblingNode, data, paramName);
       }.bind(this));
       node.parentNode.removeChild(node);
-    }
-    catch (ex) {
+    } catch (ex) {
       this._handleError('Error with \'' + value + '\'', ex);
     }
-  }
-  finally {
+  } finally {
     this.stack.pop();
   }
 };
@@ -320,8 +281,7 @@ Templater.prototype._processForEachLoop = function(set, template, sibling, data,
     set.forEach(function(member, i) {
       this._processForEachMember(member, template, sibling, data, paramName, '' + i);
     }, this);
-  }
-  else {
+  } else {
     for (var member in set) {
       if (set.hasOwnProperty(member)) {
         this._processForEachMember(member, template, sibling, data, paramName, member);
@@ -347,25 +307,21 @@ Templater.prototype._processForEachMember = function(member, template, siblingNo
   try {
     this._handleAsync(member, siblingNode, function(reply, node) {
       data[paramName] = reply;
-      if (node.parentNode != null) {
-        if (template.nodeName.toLowerCase() === 'loop') {
-          for (var i = 0; i < template.childNodes.length; i++) {
-            var clone = template.childNodes[i].cloneNode(true);
-            node.parentNode.insertBefore(clone, node);
-            this.processNode(clone, data);
-          }
-        }
-        else {
-          var clone = template.cloneNode(true);
-          clone.removeAttribute('foreach');
+      if (template.nodeName.toLowerCase() === 'loop') {
+        for (var i = 0; i < template.childNodes.length; i++) {
+          var clone = template.childNodes[i].cloneNode(true);
           node.parentNode.insertBefore(clone, node);
           this.processNode(clone, data);
         }
+      } else {
+        var clone = template.cloneNode(true);
+        clone.removeAttribute('foreach');
+        node.parentNode.insertBefore(clone, node);
+        this.processNode(clone, data);
       }
       delete data[paramName];
     }.bind(this));
-  }
-  finally {
+  } finally {
     this.stack.pop();
   }
 };
@@ -408,8 +364,7 @@ Templater.prototype._processTextNode = function(node, data) {
           // i.e. if (reply instanceof Element) { ...
           reply = this._maybeImportNode(reply, doc);
           siblingNode.parentNode.insertBefore(reply, siblingNode);
-        }
-        else if (typeof reply.item === 'function' && reply.length) {
+        } else if (typeof reply.item === 'function' && reply.length) {
           // NodeLists can be live, in which case _maybeImportNode can
           // remove them from the document, and thus the NodeList, which in
           // turn breaks iteration. So first we clone the list
@@ -424,6 +379,7 @@ Templater.prototype._processTextNode = function(node, data) {
           reply = doc.createTextNode(reply.toString());
           siblingNode.parentNode.insertBefore(reply, siblingNode);
         }
+
       }.bind(this));
     }, this);
     node.parentNode.removeChild(node);
@@ -457,12 +413,8 @@ Templater.prototype._handleAsync = function(thing, siblingNode, inserter) {
     siblingNode.parentNode.insertBefore(tempNode, siblingNode);
     thing.then(function(delayed) {
       inserter(delayed, tempNode);
-      if (tempNode.parentNode != null) {
-        tempNode.parentNode.removeChild(tempNode);
-      }
-    }.bind(this)).then(null, function(error) {
-      console.error(error.stack);
-    });
+      tempNode.parentNode.removeChild(tempNode);
+    }.bind(this));
   }
   else {
     inserter(thing, siblingNode);
@@ -519,8 +471,7 @@ Templater.prototype._property = function(path, data, newValue) {
       return null;
     }
     return this._property(path.slice(1), value, newValue);
-  }
-  catch (ex) {
+  } catch (ex) {
     this._handleError('Path error with \'' + path + '\'', ex);
     return '${' + path + '}';
   }
@@ -544,8 +495,7 @@ Templater.prototype._envEval = function(script, data, frame) {
     this.stack.push(frame.replace(/\s+/g, ' '));
     if (this._isPropertyScript.test(script)) {
       return this._property(script, data);
-    }
-    else {
+    } else {
       if (!this.options.allowEval) {
         this._handleError('allowEval is not set, however \'' + script + '\'' +
             ' can not be resolved using a simple property path.');
@@ -555,12 +505,10 @@ Templater.prototype._envEval = function(script, data, frame) {
         return eval(script);
       }
     }
-  }
-  catch (ex) {
+  } catch (ex) {
     this._handleError('Template error evaluating \'' + script + '\'', ex);
     return '${' + script + '}';
-  }
-  finally {
+  } finally {
     this.stack.pop();
   }
 };
@@ -578,17 +526,12 @@ Templater.prototype._handleError = function(message, ex) {
   }
 };
 
+
 /**
  * A generic way of reporting errors, for easy overloading in different
  * environments.
  * @param message the error message to report.
  */
 Templater.prototype._logError = function(message) {
-  console.log(message);
+  Services.console.logStringMessage(message);
 };
-
-//
-this.template = template;
-//
-
-// });

@@ -52,7 +52,7 @@ protected:
   ~nsDOMCameraManager();
 
 private:
-  nsDOMCameraManager() MOZ_DELETE;
+  nsDOMCameraManager();
   nsDOMCameraManager(uint64_t aWindowId);
   nsDOMCameraManager(const nsDOMCameraManager&) MOZ_DELETE;
   nsDOMCameraManager& operator=(const nsDOMCameraManager&) MOZ_DELETE;

@@ -8,7 +8,6 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/ipc/URIUtils.h"
-#include "mozilla/net/NeckoCommon.h"
 
 #include "nsIApplicationCacheContainer.h"
 #include "nsIApplicationCacheChannel.h"
@@ -32,8 +31,6 @@
 #include "nsIAsyncVerifyRedirectCallback.h"
 
 using namespace mozilla::ipc;
-using namespace mozilla::net;
-using mozilla::dom::TabChild;
 
 #if defined(PR_LOGGING)
 //
@@ -85,8 +82,6 @@ OfflineCacheUpdateChild::OfflineCacheUpdateChild(nsIDOMWindow* aWindow)
     : mState(STATE_UNINITIALIZED)
     , mIsUpgrade(false)
     , mIPCActivated(false)
-    , mAppID(NECKO_NO_APP_ID)
-    , mInBrowser(false)
     , mWindow(aWindow)
     , mByteProgress(0)
 {
@@ -188,8 +183,7 @@ OfflineCacheUpdateChild::Init(nsIURI *aManifestURI,
                               nsIURI *aDocumentURI,
                               nsIDOMDocument *aDocument,
                               nsIFile *aCustomProfileDir,
-                              uint32_t aAppID,
-                              bool aInBrowser)
+                              nsILoadContext *aLoadContext)
 {
     nsresult rv;
 
@@ -230,8 +224,7 @@ OfflineCacheUpdateChild::Init(nsIURI *aManifestURI,
     if (aDocument)
         SetDocument(aDocument);
 
-    mAppID = aAppID;
-    mInBrowser = aInBrowser;
+    mLoadContext = aLoadContext;
 
     return NS_OK;
 }
@@ -244,17 +237,6 @@ OfflineCacheUpdateChild::InitPartial(nsIURI *aManifestURI,
     NS_NOTREACHED("Not expected to do partial offline cache updates"
                   " on the child process");
     // For now leaving this method, we may discover we need it.
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-OfflineCacheUpdateChild::InitForUpdateCheck(nsIURI *aManifestURI,
-                                            uint32_t aAppID,
-                                            bool aInBrowser,
-                                            nsIObserver *aObserver)
-{
-    NS_NOTREACHED("Not expected to do only update checks"
-                  " from the child process");
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -323,12 +305,6 @@ OfflineCacheUpdateChild::GetIsUpgrade(bool *aIsUpgrade)
 
 NS_IMETHODIMP
 OfflineCacheUpdateChild::AddDynamicURI(nsIURI *aURI)
-{
-    return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-OfflineCacheUpdateChild::Cancel()
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -409,11 +385,8 @@ OfflineCacheUpdateChild::Schedule()
     item->GetTreeOwner(getter_AddRefs(owner));
 
     nsCOMPtr<nsITabChild> tabchild = do_GetInterface(owner);
-    // because owner implements nsITabChild, we can assume that it is
-    // the one and only TabChild.
-    TabChild* child = tabchild ? static_cast<TabChild*>(tabchild.get()) : nullptr;
-
-    if (MissingRequiredTabChild(child, "offlinecacheupdate")) {
+    if (!tabchild) {
+      NS_WARNING("tab is null");
       return NS_ERROR_FAILURE;
     }
 
@@ -421,6 +394,10 @@ OfflineCacheUpdateChild::Schedule()
     SerializeURI(mManifestURI, manifestURI);
     SerializeURI(mDocumentURI, documentURI);
 
+    // because owner implements nsITabChild, we can assume that it is
+    // the one and only TabChild.
+    mozilla::dom::TabChild* child = static_cast<mozilla::dom::TabChild*>(tabchild.get());
+    
     nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
     if (observerService) {
@@ -439,10 +416,19 @@ OfflineCacheUpdateChild::Schedule()
     // See also nsOfflineCacheUpdate::ScheduleImplicit.
     bool stickDocument = mDocument != nullptr; 
 
+    // Carry load context to the parent
+    bool isInBrowserElement = false;
+    uint32_t appId = NECKO_NO_APP_ID;
+    if (mLoadContext) {
+        mLoadContext->GetIsInBrowserElement(&isInBrowserElement);
+        mLoadContext->GetAppId(&appId);
+    }
+
     // Need to addref ourself here, because the IPC stack doesn't hold
     // a reference to us. Will be released in RecvFinish() that identifies 
     // the work has been done.
     child->SendPOfflineCacheUpdateConstructor(this, manifestURI, documentURI,
+                                              isInBrowserElement, appId,
                                               stickDocument);
 
     mIPCActivated = true;

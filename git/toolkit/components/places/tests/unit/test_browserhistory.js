@@ -9,7 +9,7 @@ const TEST_SUBDOMAIN_URI = NetUtil.newURI("http://foobar.mozilla.com/");
 
 add_test(function test_addPage()
 {
-  promiseAddVisits(TEST_URI).then(function () {
+  addVisits(TEST_URI, function () {
     do_check_eq(1, PlacesUtils.history.hasHistoryEntries);
     run_next_test();
   });
@@ -29,7 +29,7 @@ add_test(function test_removePages()
     pages.push(NetUtil.newURI(TEST_URI.spec + i));
   }
 
-  promiseAddVisits(pages.map(function (uri) ({ uri: uri }))).then(function () {
+  addVisits(pages.map(function (uri) ({ uri: uri })), function () {
     // Bookmarked item should not be removed from moz_places.
     const ANNO_INDEX = 1;
     const ANNO_NAME = "testAnno";
@@ -62,7 +62,7 @@ add_test(function test_removePages()
   
     // Cleanup.
     PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.unfiledBookmarksFolderId);
-    promiseClearHistory().then(run_next_test);
+    waitForClearHistory(run_next_test);
   });
 });
 
@@ -77,7 +77,7 @@ add_test(function test_removePagesByTimeframe()
     });
   }
 
-  promiseAddVisits(visits).then(function () {
+  addVisits(visits, function () {
     // Delete all pages except the first and the last.
     PlacesUtils.bhistory.removePagesByTimeframe(startDate + 1, startDate + 8);
   
@@ -96,7 +96,7 @@ add_test(function test_removePagesByTimeframe()
 
 add_test(function test_removePagesFromHost()
 {
-  promiseAddVisits(TEST_URI).then(function () {
+  addVisits(TEST_URI, function () {
     PlacesUtils.bhistory.removePagesFromHost("mozilla.com", true);
     do_check_eq(0, PlacesUtils.history.hasHistoryEntries);
     run_next_test();
@@ -105,7 +105,7 @@ add_test(function test_removePagesFromHost()
 
 add_test(function test_removePagesFromHost_keepSubdomains()
 {
-  promiseAddVisits([{ uri: TEST_URI }, { uri: TEST_SUBDOMAIN_URI }]).then(function () {
+  addVisits([{ uri: TEST_URI }, { uri: TEST_SUBDOMAIN_URI }], function () {
     PlacesUtils.bhistory.removePagesFromHost("mozilla.com", false);
     do_check_eq(1, PlacesUtils.history.hasHistoryEntries);
     run_next_test();

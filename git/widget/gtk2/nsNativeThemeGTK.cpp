@@ -12,7 +12,7 @@
 #include "nsIFrame.h"
 #include "nsIPresShell.h"
 #include "nsIContent.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 #include "nsINameSpaceManager.h"
 #include "nsGfxCIID.h"
 #include "nsTransform2D.h"
@@ -29,7 +29,6 @@
 #include "gfxContext.h"
 #include "gfxPlatformGtk.h"
 #include "gfxGdkNativeRenderer.h"
-#include <algorithm>
 
 NS_IMPL_ISUPPORTS_INHERITED2(nsNativeThemeGTK, nsNativeTheme, nsITheme,
                                                               nsIObserver)
@@ -76,7 +75,7 @@ nsNativeThemeGTK::RefreshWidgetWindow(nsIFrame* aFrame)
   if (!shell)
     return;
 
-  nsViewManager* vm = shell->GetViewManager();
+  nsIViewManager* vm = shell->GetViewManager();
   if (!vm)
     return;
  
@@ -131,7 +130,7 @@ static GtkTextDirection GetTextDirection(nsIFrame* aFrame)
   if (!aFrame)
     return GTK_TEXT_DIR_NONE;
 
-  switch (aFrame->StyleVisibility()->mDirection) {
+  switch (aFrame->GetStyleVisibility()->mDirection) {
     case NS_STYLE_DIRECTION_RTL:
       return GTK_TEXT_DIR_RTL;
     case NS_STYLE_DIRECTION_LTR:
@@ -149,8 +148,8 @@ nsNativeThemeGTK::GetTabMarginPixels(nsIFrame* aFrame)
     IsBottomTab(aFrame) ? aFrame->GetUsedMargin().top
     : aFrame->GetUsedMargin().bottom;
 
-  return std::min<gint>(MOZ_GTK_TAB_MARGIN_MASK,
-                std::max(0,
+  return NS_MIN<gint>(MOZ_GTK_TAB_MARGIN_MASK,
+                NS_MAX(0,
                        aFrame->PresContext()->AppUnitsToDevPixels(-margin)));
 }
 
@@ -386,32 +385,6 @@ nsNativeThemeGTK::GetGtkWidgetAndState(uint8_t aWidgetType, nsIFrame* aFrame,
   case NS_THEME_SPINNER_TEXTFIELD:
     aGtkWidgetType = MOZ_GTK_SPINBUTTON_ENTRY;
     break;
-  case NS_THEME_RANGE:
-    {
-      if (IsRangeHorizontal(aFrame)) {
-        if (aWidgetFlags)
-          *aWidgetFlags = GTK_ORIENTATION_HORIZONTAL;
-        aGtkWidgetType = MOZ_GTK_SCALE_HORIZONTAL;
-      } else {
-        if (aWidgetFlags)
-          *aWidgetFlags = GTK_ORIENTATION_VERTICAL;
-        aGtkWidgetType = MOZ_GTK_SCALE_VERTICAL;
-      }
-      break;
-    }
-  case NS_THEME_RANGE_THUMB:
-    {
-      if (IsRangeHorizontal(aFrame)) {
-        if (aWidgetFlags)
-          *aWidgetFlags = GTK_ORIENTATION_HORIZONTAL;
-        aGtkWidgetType = MOZ_GTK_SCALE_THUMB_HORIZONTAL;
-      } else {
-        if (aWidgetFlags)
-          *aWidgetFlags = GTK_ORIENTATION_VERTICAL;
-        aGtkWidgetType = MOZ_GTK_SCALE_THUMB_VERTICAL;
-      }
-      break;
-    }
   case NS_THEME_SCALE_HORIZONTAL:
     if (aWidgetFlags)
       *aWidgetFlags = GTK_ORIENTATION_HORIZONTAL;
@@ -560,7 +533,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(uint8_t aWidgetType, nsIFrame* aFrame,
       nsEventStates eventStates = GetContentState(stateFrame, aWidgetType);
 
       aGtkWidgetType = IsIndeterminateProgress(stateFrame, eventStates)
-                         ? (stateFrame->StyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL)
+                         ? (stateFrame->GetStyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL)
                            ? MOZ_GTK_PROGRESS_CHUNK_VERTICAL_INDETERMINATE
                            : MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE
                          : MOZ_GTK_PROGRESS_CHUNK;
@@ -638,7 +611,6 @@ nsNativeThemeGTK::GetGtkWidgetAndState(uint8_t aWidgetType, nsIFrame* aFrame,
   return true;
 }
 
-#if defined(MOZ_WIDGET_GTK2)
 class ThemeRenderer : public gfxGdkNativeRenderer {
 public:
   ThemeRenderer(GtkWidgetState aState, GtkThemeWidgetType aGTKWidgetType,
@@ -681,7 +653,6 @@ ThemeRenderer::DrawWithGDK(GdkDrawable * drawable, gint offsetX,
 
   return NS_OK;
 }
-#endif
 
 bool
 nsNativeThemeGTK::GetExtraSizeForWidget(nsIFrame* aFrame, uint8_t aWidgetType,
@@ -748,6 +719,12 @@ nsNativeThemeGTK::GetExtraSizeForWidget(nsIFrame* aFrame, uint8_t aWidgetType,
         aExtra->bottom = extra;
       }
     }
+  case NS_THEME_TEXTFIELD:
+    {
+      aExtra->top = aExtra->bottom = 1;
+      aExtra->left = aExtra->right = 1;
+      return true;
+    }
   default:
     return false;
   }
@@ -810,8 +787,23 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
 
   // gdk rectangles are wrt the drawing rect.
 
+  // The gdk_clip is just advisory here, meaning "you don't
+  // need to draw outside this rect if you don't feel like it!"
+  GdkRectangle gdk_clip = {0, 0, drawingRect.width, drawingRect.height};
+
   GdkRectangle gdk_rect = {-drawingRect.x, -drawingRect.y,
                            widgetRect.width, widgetRect.height};
+
+  ThemeRenderer renderer(state, gtkWidgetType, flags, direction,
+                         gdk_rect, gdk_clip);
+
+  // Some themes (e.g. Clearlooks) just don't clip properly to any
+  // clip rect we provide, so we cannot advertise support for clipping within
+  // the widget bounds.
+  uint32_t rendererFlags = 0;
+  if (GetWidgetTransparency(aFrame, aWidgetType) == eOpaque) {
+    rendererFlags |= gfxGdkNativeRenderer::DRAW_IS_OPAQUE;
+  }
 
   // translate everything so (0,0) is the top left of the drawingRect
   gfxContextAutoSaveRestore autoSR(ctx);
@@ -830,31 +822,11 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
     gdk_error_trap_push ();
   }
 
-#if defined(MOZ_WIDGET_GTK2)
-  // The gdk_clip is just advisory here, meaning "you don't
-  // need to draw outside this rect if you don't feel like it!"
-  GdkRectangle gdk_clip = {0, 0, drawingRect.width, drawingRect.height};
-
-  ThemeRenderer renderer(state, gtkWidgetType, flags, direction,
-                         gdk_rect, gdk_clip);
-
-  // Some themes (e.g. Clearlooks) just don't clip properly to any
-  // clip rect we provide, so we cannot advertise support for clipping within
-  // the widget bounds.
-  uint32_t rendererFlags = 0;
-  if (GetWidgetTransparency(aFrame, aWidgetType) == eOpaque) {
-    rendererFlags |= gfxGdkNativeRenderer::DRAW_IS_OPAQUE;
-  }
-
   // GtkStyles (used by the widget drawing backend) are created for a
   // particular colormap/visual.
   GdkColormap* colormap = moz_gtk_widget_get_colormap();
 
   renderer.Draw(ctx, drawingRect.Size(), rendererFlags, colormap);
-#else 
-  moz_gtk_widget_paint(gtkWidgetType, ctx->GetCairo(), &gdk_rect, 
-                       &state, flags, direction);
-#endif
 
   if (!safeState) {
     gdk_flush();
@@ -965,7 +937,6 @@ nsNativeThemeGTK::GetWidgetPadding(nsDeviceContext* aContext,
     case NS_THEME_BUTTON_ARROW_DOWN:
     case NS_THEME_BUTTON_ARROW_NEXT:
     case NS_THEME_BUTTON_ARROW_PREVIOUS:
-    case NS_THEME_RANGE_THUMB:
     // Radios and checkboxes return a fixed size in GetMinimumWidgetSize
     // and have a meaningful baseline, so they can't have
     // author-specified padding.
@@ -1012,15 +983,17 @@ nsNativeThemeGTK::GetWidgetOverflow(nsDeviceContext* aContext,
                                     nsIFrame* aFrame, uint8_t aWidgetType,
                                     nsRect* aOverflowRect)
 {
+  nsMargin m;
+  int32_t p2a;
   nsIntMargin extraSize;
   if (!GetExtraSizeForWidget(aFrame, aWidgetType, &extraSize))
     return false;
 
-  int32_t p2a = aContext->AppUnitsPerDevPixel();
-  nsMargin m(NSIntPixelsToAppUnits(extraSize.top, p2a),
-             NSIntPixelsToAppUnits(extraSize.right, p2a),
-             NSIntPixelsToAppUnits(extraSize.bottom, p2a),
-             NSIntPixelsToAppUnits(extraSize.left, p2a));
+  p2a = aContext->AppUnitsPerDevPixel();
+  m = nsMargin(NSIntPixelsToAppUnits(extraSize.left, p2a),
+               NSIntPixelsToAppUnits(extraSize.top, p2a),
+               NSIntPixelsToAppUnits(extraSize.right, p2a),
+               NSIntPixelsToAppUnits(extraSize.bottom, p2a));
 
   aOverflowRect->Inflate(m);
   return true;
@@ -1084,9 +1057,9 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
       moz_gtk_get_scrollbar_metrics(&metrics);
 
       if (aWidgetType == NS_THEME_SCROLLBAR_TRACK_VERTICAL)
-        aResult->width = metrics.slider_width + 2 * metrics.trough_border;
+        aResult->width = metrics.slider_width;
       else
-        aResult->height = metrics.slider_width + 2 * metrics.trough_border;
+        aResult->height = metrics.slider_width;
 
       *aIsOverridable = false;
     }
@@ -1112,28 +1085,13 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
 
         if (aWidgetType == NS_THEME_SCROLLBAR_THUMB_VERTICAL) {
           aResult->width = metrics.slider_width;
-          aResult->height = std::min(NSAppUnitsToIntPixels(rect.height, p2a),
+          aResult->height = NS_MIN(NSAppUnitsToIntPixels(rect.height, p2a),
                                    metrics.min_slider_size);
         } else {
           aResult->height = metrics.slider_width;
-          aResult->width = std::min(NSAppUnitsToIntPixels(rect.width, p2a),
+          aResult->width = NS_MIN(NSAppUnitsToIntPixels(rect.width, p2a),
                                   metrics.min_slider_size);
         }
-
-        *aIsOverridable = false;
-      }
-      break;
-    case NS_THEME_RANGE_THUMB:
-      {
-        gint thumb_length, thumb_height;
-
-        if (IsRangeHorizontal(aFrame)) {
-          moz_gtk_get_scalethumb_metrics(GTK_ORIENTATION_HORIZONTAL, &thumb_length, &thumb_height);
-        } else {
-          moz_gtk_get_scalethumb_metrics(GTK_ORIENTATION_VERTICAL, &thumb_height, &thumb_length);
-        }
-        aResult->width = thumb_length;
-        aResult->height = thumb_height;
 
         *aIsOverridable = false;
       }
@@ -1397,8 +1355,6 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   case NS_THEME_TEXTFIELD_MULTILINE:
   case NS_THEME_TEXTFIELD_CARET:
   case NS_THEME_DROPDOWN_TEXTFIELD:
-  case NS_THEME_RANGE:
-  case NS_THEME_RANGE_THUMB:
   case NS_THEME_SCALE_HORIZONTAL:
   case NS_THEME_SCALE_THUMB_HORIZONTAL:
   case NS_THEME_SCALE_VERTICAL:
@@ -1441,7 +1397,6 @@ nsNativeThemeGTK::WidgetIsContainer(uint8_t aWidgetType)
   // XXXdwh At some point flesh all of this out.
   if (aWidgetType == NS_THEME_DROPDOWN_BUTTON ||
       aWidgetType == NS_THEME_RADIO ||
-      aWidgetType == NS_THEME_RANGE_THUMB ||
       aWidgetType == NS_THEME_CHECKBOX ||
       aWidgetType == NS_THEME_TAB_SCROLLARROW_BACK ||
       aWidgetType == NS_THEME_TAB_SCROLLARROW_FORWARD ||
@@ -1477,6 +1432,8 @@ nsNativeThemeGTK::GetWidgetTransparency(nsIFrame* aFrame, uint8_t aWidgetType)
   // These widgets always draw a default background.
   case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
   case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:
+  case NS_THEME_SCALE_HORIZONTAL:
+  case NS_THEME_SCALE_VERTICAL:
   case NS_THEME_TOOLBAR:
   case NS_THEME_MENUBAR:
   case NS_THEME_MENUPOPUP:

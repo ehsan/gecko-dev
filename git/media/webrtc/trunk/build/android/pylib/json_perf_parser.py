@@ -16,12 +16,12 @@ def GetAverageRunInfo(json_data, name):
   [
     { "cat": "Java",
       "ts": 10000000000,
-      "ph": "S",
+      "ph": "B",
       "name": "TestTrace"
     },
     { "cat": "Java",
       "ts": 10000004000,
-      "ph": "F",
+      "ph": "E",
       "name": "TestTrace"
     },
     ...
@@ -106,11 +106,11 @@ def GetAverageRunInfo(json_data, name):
       raise Exception('Entry did not contain expected value type "%s" '
                       'information: %s' % (val_type, entry))
     val = GetVal(entry)
-    if (entry['ph'] == 'S' and
+    if (entry['ph'] == 'B' and
         (result['type'] == 'Unknown' or result['type'] == 'Span')):
       result['type'] = 'Span'
       last_val = val
-    elif ((entry['ph'] == 'F' and result['type'] == 'Span') or
+    elif ((entry['ph'] == 'E' and result['type'] == 'Span') or
           (entry['ph'] == 'I' and (result['type'] == 'Unknown' or
                                    result['type'] == 'Instant'))):
       if last_val > 0:

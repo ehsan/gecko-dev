@@ -9,6 +9,7 @@
 #import <Cocoa/Cocoa.h>
 
 #include "nsCOMPtr.h"
+#include "nsObjCExceptions.h"
 #include "nsNativeAppSupportBase.h"
 
 #include "nsIAppShellService.h"
@@ -24,9 +25,6 @@
 #include "nsIWebNavigation.h"
 #include "nsIWidget.h"
 #include "nsIWindowMediator.h"
-
-// This must be included last:
-#include "nsObjCExceptions.h"
 
 nsresult
 GetNativeWindowPointerFromDOMWindow(nsIDOMWindow *a_window, NSWindow **a_nativeWindow)
@@ -67,6 +65,7 @@ public:
 
 private:
   bool mCanShowUI;
+
 };
 
 NS_IMETHODIMP
@@ -75,8 +74,6 @@ nsNativeAppSupportCocoa::Enable()
   mCanShowUI = true;
   return NS_OK;
 }
-
-#define MAC_OS_X_VERSION_10_6_HEX 0x00001060
 
 NS_IMETHODIMP nsNativeAppSupportCocoa::Start(bool *_retval)
 {
@@ -91,7 +88,12 @@ NS_IMETHODIMP nsNativeAppSupportCocoa::Start(bool *_retval)
   // alert here.  But the alert's message and buttons would require custom
   // localization.  So (for now at least) we just log an English message
   // to the console before quitting.
-  if ((err != noErr) || response < MAC_OS_X_VERSION_10_6_HEX) {
+#ifdef __LP64__
+  SInt32 minimumOS = 0x00001060;
+#else
+  SInt32 minimumOS = 0x00001050;
+#endif
+  if ((err != noErr) || response < minimumOS) {
     NSLog(@"Minimum OS version requirement not met!");
     return NS_OK;
   }

@@ -26,7 +26,6 @@
 #include "nsIDocument.h"
 #include "jsfriendapi.h"
 #include "xpcprivate.h"
-#include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 
@@ -47,7 +46,7 @@ nsSecurityNameSet::~nsSecurityNameSet()
 NS_IMPL_ISUPPORTS1(nsSecurityNameSet, nsIScriptExternalNameSet)
 
 static JSBool
-netscape_security_enablePrivilege(JSContext *cx, unsigned argc, JS::Value *vp)
+netscape_security_enablePrivilege(JSContext *cx, unsigned argc, jsval *vp)
 {
     Telemetry::Accumulate(Telemetry::ENABLE_PRIVILEGE_EVER_CALLED, true);
     return xpc::EnableUniversalXPConnect(cx);
@@ -65,7 +64,7 @@ static JSFunctionSpec PrivilegeManager_static_methods[] = {
 NS_IMETHODIMP 
 nsSecurityNameSet::InitializeNameSet(nsIScriptContext* aScriptContext)
 {
-    AutoPushJSContext cx(aScriptContext->GetNativeContext());
+    JSContext* cx = aScriptContext->GetNativeContext();
     JSObject *global = JS_ObjectToInnerObject(cx, JS_GetGlobalObject(cx));
 
     /*

@@ -7,7 +7,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/EventHandlerBinding.h"
 #include "mozilla/dom/ScreenOrientation.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/Hal.h"
@@ -105,7 +104,17 @@ public:
 
   void GetMozOrientation(nsString& aOrientation);
 
-  IMPL_EVENT_HANDLER(mozorientationchange)
+  JSObject* GetOnmozorientationchange(JSContext* aCx)
+  {
+    JS::Value val;
+    nsresult rv = GetOnmozorientationchange(aCx, &val);
+    return NS_SUCCEEDED(rv) ? val.toObjectOrNull() : nullptr;
+  }
+  void SetOnmozorientationchange(JSContext* aCx, JSObject* aCallback,
+                                 ErrorResult& aRv)
+  {
+    aRv = SetOnmozorientationchange(aCx, JS::ObjectOrNullValue(aCallback));
+  }
 
   bool MozLockOrientation(const nsAString& aOrientation, ErrorResult& aRv);
   bool MozLockOrientation(const mozilla::dom::Sequence<nsString>& aOrientations, ErrorResult& aRv);
@@ -114,7 +123,8 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsScreen,
                                            nsDOMEventTargetHelper)
 
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
+                               bool* aTriedToWrap);
 
   void Notify(const mozilla::hal::ScreenConfiguration& aConfiguration);
 

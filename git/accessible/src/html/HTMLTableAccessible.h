@@ -86,27 +86,6 @@ public:
 
 
 /**
- * HTML table row accessible (html:tr).
- */
-class HTMLTableRowAccessible : public AccessibleWrap
-{
-public:
-  HTMLTableRowAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    AccessibleWrap(aContent, aDoc)
-  {
-    mType = eHTMLTableRowType;
-    mGenericTypes |= eTableRow;
-  }
-  virtual ~HTMLTableRowAccessible() { }
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-  // Accessible
-  virtual a11y::role NativeRole();
-};
-
-
-/**
  * HTML table accessible (html:table).
  */
 
@@ -121,12 +100,7 @@ class HTMLTableAccessible : public AccessibleWrap,
                             public TableAccessible
 {
 public:
-  HTMLTableAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    AccessibleWrap(aContent, aDoc), xpcAccessibleTable(this)
-  {
-    mType = eHTMLTableType;
-    mGenericTypes |= eTable;
-  }
+  HTMLTableAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -173,6 +147,19 @@ public:
   virtual uint64_t NativeState();
   virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
   virtual Relation RelationByType(uint32_t aRelationType);
+
+  // HTMLTableAccessible
+
+  /**
+   * Retun cell element at the given row and column index.
+   */
+  nsresult GetCellAt(int32_t aRowIndex, int32_t aColIndex,
+                     nsIDOMElement* &aCell);
+
+  /**
+   * Return nsITableLayout for the frame of the accessible table.
+   */
+  nsITableLayout* GetTableLayout();
 
 protected:
   // Accessible

@@ -17,7 +17,7 @@ function test()
   debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
 
     testFrameParameters();
   });
@@ -25,13 +25,26 @@ function test()
 
 function testFrameParameters()
 {
+  dump("Started testFrameParameters!\n");
+
   gDebugger.addEventListener("Debugger:FetchedVariables", function test() {
+    dump("Entered Debugger:FetchedVariables!\n");
+
     gDebugger.removeEventListener("Debugger:FetchedVariables", test, false);
     Services.tm.currentThread.dispatch({ run: function() {
 
-      var frames = gDebugger.DebuggerView.StackFrames._container._list,
-          localScope = gDebugger.DebuggerView.Variables._list.querySelector(".variables-view-scope"),
-          localNodes = localScope.querySelector(".variables-view-element-details").childNodes;
+      dump("After currentThread.dispatch!\n");
+
+      var frames = gDebugger.DebuggerView.StackFrames._frames,
+          childNodes = frames.childNodes,
+          localScope = gDebugger.DebuggerView.Properties._vars.firstChild,
+          localNodes = localScope.querySelector(".details").childNodes;
+
+      dump("Got our variables:\n");
+      dump("frames     - " + frames.constructor + "\n");
+      dump("childNodes - " + childNodes.constructor + "\n");
+      dump("localScope - " + localScope.constructor + "\n");
+      dump("localNodes - " + localNodes.constructor + "\n");
 
       is(gDebugger.DebuggerController.activeThread.state, "paused",
         "Should only be getting stack frames while paused.");
@@ -39,7 +52,7 @@ function testFrameParameters()
       is(frames.querySelectorAll(".dbg-stackframe").length, 3,
         "Should have three frames.");
 
-      is(localNodes.length, 12,
+      is(localNodes.length, 11,
         "The localScope should contain all the created variable elements.");
 
       is(localNodes[0].querySelector(".value").getAttribute("value"), "[object Proxy]",
@@ -88,7 +101,7 @@ function resumeAndFinish() {
   gDebugger.addEventListener("Debugger:AfterFramesCleared", function listener() {
     gDebugger.removeEventListener("Debugger:AfterFramesCleared", listener, true);
 
-    var frames = gDebugger.DebuggerView.StackFrames._container._list;
+    var frames = gDebugger.DebuggerView.StackFrames._frames;
     is(frames.querySelectorAll(".dbg-stackframe").length, 0,
       "Should have no frames.");
 

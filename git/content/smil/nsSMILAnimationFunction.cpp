@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/SVGAnimationElement.h"
 #include "nsSMILAnimationFunction.h"
 #include "nsISMILAttr.h"
 #include "nsSMILParserUtils.h"
 #include "nsSMILNullType.h"
+#include "nsISMILAnimationElement.h"
 #include "nsSMILTimedElement.h"
 #include "nsAttrValueInlines.h"
 #include "nsGkAtoms.h"
@@ -19,9 +19,6 @@
 #include "nsReadableUtils.h"
 #include "nsString.h"
 #include <math.h>
-#include <algorithm>
-
-using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
 // Static members
@@ -71,7 +68,7 @@ nsSMILAnimationFunction::nsSMILAnimationFunction()
 
 void
 nsSMILAnimationFunction::SetAnimationElement(
-    SVGAnimationElement* aAnimationElement)
+    nsISMILAnimationElement* aAnimationElement)
 {
   mAnimationElement = aAnimationElement;
 }
@@ -303,10 +300,13 @@ nsSMILAnimationFunction::CompareTo(const nsSMILAnimationFunction* aOther) const
 
   // Animations that appear later in the document sort after those earlier in
   // the document
-  NS_ABORT_IF_FALSE(mAnimationElement != aOther->mAnimationElement,
+  nsIContent& thisContent = mAnimationElement->AsElement();
+  nsIContent& otherContent = aOther->mAnimationElement->AsElement();
+
+  NS_ABORT_IF_FALSE(&thisContent != &otherContent,
       "Two animations cannot have the same animation content element!");
 
-  return (nsContentUtils::PositionIsBefore(mAnimationElement, aOther->mAnimationElement))
+  return (nsContentUtils::PositionIsBefore(&thisContent, &otherContent))
           ? -1 : 1;
 }
 
@@ -554,7 +554,7 @@ nsSMILAnimationFunction::ComputePacedPosition(const nsSMILValueArray& aValues,
 
     NS_ASSERTION(curIntervalDist >= 0, "distance values must be non-negative");
     // Clamp distance value at 0, just in case ComputeDistance is evil.
-    curIntervalDist = std::max(curIntervalDist, 0.0);
+    curIntervalDist = NS_MAX(curIntervalDist, 0.0);
 
     if (remainingDist >= curIntervalDist) {
       remainingDist -= curIntervalDist;
@@ -605,7 +605,7 @@ nsSMILAnimationFunction::ComputePacedTotalDistance(
     // Clamp distance value to 0, just in case we have an evil ComputeDistance
     // implementation somewhere
     NS_ABORT_IF_FALSE(tmpDist >= 0.0f, "distance values must be non-negative");
-    tmpDist = std::max(tmpDist, 0.0);
+    tmpDist = NS_MAX(tmpDist, 0.0);
 
     totalDistance += tmpDist;
   }

@@ -14,6 +14,7 @@
 #include "mozilla/dom/Nullable.h"
 #include "mozilla/ErrorResult.h"
 
+using namespace mozilla::dom;
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -46,9 +47,9 @@ public:
                       bool aCapture, ErrorResult& aRv);
 
   bool
-  DispatchEvent(JSObject& aEvent, ErrorResult& aRv) const
+  DispatchEvent(JSObject* aEvent, ErrorResult& aRv) const
   {
-    return mListenerManager.DispatchEvent(GetJSContext(), *this, &aEvent, aRv);
+    return mListenerManager.DispatchEvent(GetJSContext(), *this, aEvent, aRv);
   }
 
   JSObject*

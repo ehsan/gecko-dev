@@ -8,8 +8,8 @@
 #include "mozilla/Attributes.h"
 #include "nscore.h"
 #include "nsContainerFrame.h"
-#include "nsCellMap.h"
 #include "nsBlockFrame.h"
+#include "nsITableLayout.h"
 #include "nsTableFrame.h"
 
 class nsTableCaptionFrame : public nsBlockFrame
@@ -51,13 +51,11 @@ protected:
  * the nsTableOuterFrame contains 0 or one caption frame, and a nsTableFrame
  * pseudo-frame (referred to as the "inner frame').
  */
-class nsTableOuterFrame : public nsContainerFrame
+class nsTableOuterFrame : public nsContainerFrame, public nsITableLayout
 {
 public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
-
-  NS_DECL_QUERYFRAME_TARGET(nsTableOuterFrame)
 
   /** instantiate a new instance of nsTableRowFrame.
     * @param aPresShell the pres shell for this frame
@@ -94,15 +92,15 @@ public:
   virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
 #endif
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  void BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilder,
-                                     const nsRect&           aDirtyRect,
-                                     const nsDisplayListSet& aLists);
+  nsresult BuildDisplayListForInnerTable(nsDisplayListBuilder*   aBuilder,
+                                         const nsRect&           aDirtyRect,
+                                         const nsDisplayListSet& aLists);
 
-  virtual nscoord GetBaseline() const MOZ_OVERRIDE;
+  virtual nscoord GetBaseline() const;
 
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
@@ -132,82 +130,21 @@ public:
 
   virtual nsIFrame* GetParentStyleContextFrame() const MOZ_OVERRIDE;
 
-  /**
-   * Return the content for the cell at the given row and column.
-   */
-  nsIContent* GetCellAt(uint32_t aRowIdx, uint32_t aColIdx) const;
+  /*---------------- nsITableLayout methods ------------------------*/
 
-  /**
-   * Return the number of rows in the table.
-   */
-  int32_t GetRowCount() const
-  {
-    return InnerTableFrame()->GetRowCount();
-  }
+  /** @see nsITableFrame::GetCellDataAt */
+  NS_IMETHOD GetCellDataAt(int32_t aRowIndex, int32_t aColIndex, 
+                           nsIDOMElement* &aCell,   //out params
+                           int32_t& aStartRowIndex, int32_t& aStartColIndex, 
+                           int32_t& aRowSpan, int32_t& aColSpan,
+                           int32_t& aActualRowSpan, int32_t& aActualColSpan,
+                           bool& aIsSelected);
 
-  /**
-   * Return the number of columns in the table.
-   */
-  int32_t GetColCount() const
-  {
-    return InnerTableFrame()->GetColCount();
-  }
+  /** @see nsITableFrame::GetTableSize */
+  NS_IMETHOD GetTableSize(int32_t& aRowCount, int32_t& aColCount) MOZ_OVERRIDE;
 
-  /**
-   * Return the index of the cell at the given row and column.
-   */
-  int32_t GetIndexByRowAndColumn(int32_t aRowIdx, int32_t aColIdx) const
-  {
-    nsTableCellMap* cellMap = InnerTableFrame()->GetCellMap();
-    if (!cellMap)
-      return -1;
-
-    return cellMap->GetIndexByRowAndColumn(aRowIdx, aColIdx);
-  }
-
-  /**
-   * Get the row and column indices for the cell at the given index.
-   */
-  void GetRowAndColumnByIndex(int32_t aCellIdx, int32_t* aRowIdx,
-                              int32_t* aColIdx) const
-  {
-    *aRowIdx = *aColIdx = 0;
-    nsTableCellMap* cellMap = InnerTableFrame()->GetCellMap();
-    if (cellMap) {
-      cellMap->GetRowAndColumnByIndex(aCellIdx, aRowIdx, aColIdx);
-    }
-  }
-
-  /**
-   * return the frame for the cell at the given row and column.
-   */
-  nsTableCellFrame* GetCellFrameAt(uint32_t aRowIdx, uint32_t aColIdx) const
-  {
-    nsTableCellMap* map = InnerTableFrame()->GetCellMap();
-    if (!map) {
-      return nullptr;
-    }
-
-    return map->GetCellInfoAt(aRowIdx, aColIdx);
-  }
-
-  /**
-   * Return the col span of the cell at the given row and column indices.
-   */
-  uint32_t GetEffectiveColSpanAt(uint32_t aRowIdx, uint32_t aColIdx) const
-  {
-    nsTableCellMap* map = InnerTableFrame()->GetCellMap();
-    return map->GetEffectiveColSpan(aRowIdx, aColIdx);
-  }
-
-  /**
-   * Return the effective row span of the cell at the given row and column.
-   */
-  uint32_t GetEffectiveRowSpanAt(uint32_t aRowIdx, uint32_t aColIdx) const
-  {
-    nsTableCellMap* map = InnerTableFrame()->GetCellMap();
-    return map->GetEffectiveRowSpan(aRowIdx, aColIdx);
-  }
+  NS_IMETHOD GetIndexByRowAndColumn(int32_t aRow, int32_t aColumn, int32_t *aIndex) MOZ_OVERRIDE;
+  NS_IMETHOD GetRowAndColumnByIndex(int32_t aIndex, int32_t *aRow, int32_t *aColumn) MOZ_OVERRIDE;
 
 protected:
 
@@ -217,6 +154,11 @@ protected:
 
   void InitChildReflowState(nsPresContext&    aPresContext,                     
                             nsHTMLReflowState& aReflowState);
+
+  /** Always returns 0, since the outer table frame has no border of its own
+    * The inner table frame can answer this question in a meaningful way.
+    * @see nsContainerFrame::GetSkipSides */
+  virtual int GetSkipSides() const;
 
   uint8_t GetCaptionSide(); // NS_STYLE_CAPTION_SIDE_* or NO_SIDE
 
@@ -277,12 +219,6 @@ protected:
                       nscoord                  aAvailableWidth,
                       nsMargin&                aMargin);
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
-  {
-    return nsContainerFrame::IsFrameOfType(aFlags &
-                                           (~eCanContainOverflowContainers));
-  }
-
   nsTableFrame* InnerTableFrame() const {
     return static_cast<nsTableFrame*>(mFrames.FirstChild());
   }
@@ -290,5 +226,8 @@ protected:
 private:
   nsFrameList   mCaptionFrames;
 };
+
+inline int nsTableOuterFrame::GetSkipSides() const
+{ return 0; }
 
 #endif

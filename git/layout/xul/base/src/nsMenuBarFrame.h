@@ -50,9 +50,9 @@ public:
   void InstallKeyboardNavigator();
   void RemoveKeyboardNavigator();
 
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
@@ -61,11 +61,8 @@ public:
 
 // Non-interface helpers
 
-  // The 'stay active' flag is set when navigating from one top-level menu
-  // to another, to prevent the menubar from deactivating and submenus from
-  // firing extra DOMMenuItemActive events.
-  bool GetStayActive() { return mStayActive; }
-  void SetStayActive(bool aStayActive) { mStayActive = aStayActive; }
+  void
+  SetStayActive(bool aStayActive) { mStayActive = aStayActive; }
 
   // Called when a menu on the menu bar is clicked on. Returns a menu if one
   // needs to be closed.

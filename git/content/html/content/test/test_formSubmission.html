@@ -411,22 +411,24 @@ var myFile1, myFile2, emptyFile;
   multiFile = [basePath + "file_formSubmission_text.txt",
                basePath + "file_formSubmission_img.jpg"];
 
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+
   var addList = document.getElementsByClassName("setfile");
   let i = 0;
   var input;
   while (input = addList[i++]) {
     if (input.classList.contains("multi")) {
-      SpecialPowers.wrap(input).mozSetFileNameArray(multiFile, multiFile.length);
+      input.mozSetFileNameArray(multiFile, multiFile.length);
     }
     else {
-      SpecialPowers.wrap(input).value = singleFile;
+      input.value = singleFile;
     }
   }
 
   input = document.createElement("input");
   input.type = "file";
   input.multiple = true;
-  SpecialPowers.wrap(input).mozSetFileNameArray(multiFile, multiFile.length);
+  input.mozSetFileNameArray(multiFile, multiFile.length);
   myFile1 = input.files[0];
   myFile2 = input.files[1];
   is(myFile1.size, 20, "File1 size");

@@ -77,8 +77,7 @@ MozQWidget::~MozQWidget()
 
 void MozQWidget::paint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, QWidget* aWidget /*= 0*/)
 {
-    if (mReceiver)
-        mReceiver->DoPaint(aPainter, aOption, aWidget);
+    mReceiver->DoPaint(aPainter, aOption, aWidget);
 }
 
 void MozQWidget::activate()
@@ -406,17 +405,13 @@ void MozQWidget::closeEvent(QCloseEvent* aEvent)
 
 void MozQWidget::hideEvent(QHideEvent* aEvent)
 {
-    if (mReceiver) {
-        mReceiver->hideEvent(aEvent);
-    }
+    mReceiver->hideEvent(aEvent);
     QGraphicsWidget::hideEvent(aEvent);
 }
 
 void MozQWidget::showEvent(QShowEvent* aEvent)
 {
-    if (mReceiver) {
-        mReceiver->showEvent(aEvent);
-    }
+    mReceiver->showEvent(aEvent);
     QGraphicsWidget::showEvent(aEvent);
 }
 

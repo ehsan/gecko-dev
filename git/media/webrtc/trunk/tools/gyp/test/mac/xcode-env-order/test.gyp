@@ -10,9 +10,6 @@
       'mac_bundle': 1,
       'sources': [
         'main.c',
-        'file.ext1',
-        'file.ext2',
-        'file.ext3',
       ],
       # Env vars in copies.
       'copies': [
@@ -29,12 +26,11 @@
           'files': [ 'main.c', ],  # $SOURCE_ROOT doesn't work with xcode
         },
       ],
-      # Env vars in actions. The $FOO's are here to test that env vars that
-      # aren't defined are handled in some way that doesn't break the build.
+      # Env vars in actions.
       'actions': [
         {
-          'action_name': 'Action copy braces ${PRODUCT_NAME} ${FOO}',
-          'description': 'Action copy braces ${PRODUCT_NAME} ${FOO}',
+          'action_name': 'Action copy braces ${PRODUCT_NAME}',
+          'description': 'Action copy braces ${PRODUCT_NAME}',
           'inputs': [ '${SOURCE_ROOT}/main.c' ],
           # Referencing ${PRODUCT_NAME} in action outputs doesn't work with
           # the Xcode generator (PRODUCT_NAME expands to "Test Support").
@@ -43,27 +39,27 @@
                       '<(PRODUCT_DIR)/action-copy-brace.txt' ],
         },
         {
-          'action_name': 'Action copy parens $(PRODUCT_NAME) $(FOO)',
-          'description': 'Action copy parens $(PRODUCT_NAME) $(FOO)',
-          'inputs': [ '$(SOURCE_ROOT)/main.c' ],
-          # Referencing $(PRODUCT_NAME) in action outputs doesn't work with
+          'action_name': 'Action copy parens ${PRODUCT_NAME}',
+          'description': 'Action copy parens ${PRODUCT_NAME}',
+          'inputs': [ '${SOURCE_ROOT}/main.c' ],
+          # Referencing ${PRODUCT_NAME} in action outputs doesn't work with
           # the Xcode generator (PRODUCT_NAME expands to "Test Support").
           'outputs': [ '<(PRODUCT_DIR)/action-copy-paren.txt' ],
-          'action': [ 'cp', '$(SOURCE_ROOT)/main.c',
+          'action': [ 'cp', '${SOURCE_ROOT}/main.c',
                       '<(PRODUCT_DIR)/action-copy-paren.txt' ],
         },
         {
-          'action_name': 'Action copy bare $PRODUCT_NAME $FOO',
-          'description': 'Action copy bare $PRODUCT_NAME $FOO',
-          'inputs': [ '$SOURCE_ROOT/main.c' ],
-          # Referencing $PRODUCT_NAME in action outputs doesn't work with
+          'action_name': 'Action copy bare ${PRODUCT_NAME}',
+          'description': 'Action copy bare ${PRODUCT_NAME}',
+          'inputs': [ '${SOURCE_ROOT}/main.c' ],
+          # Referencing ${PRODUCT_NAME} in action outputs doesn't work with
           # the Xcode generator (PRODUCT_NAME expands to "Test Support").
           'outputs': [ '<(PRODUCT_DIR)/action-copy-bare.txt' ],
-          'action': [ 'cp', '$SOURCE_ROOT/main.c',
+          'action': [ 'cp', '${SOURCE_ROOT}/main.c',
                       '<(PRODUCT_DIR)/action-copy-bare.txt' ],
         },
       ],
-      # Env vars in xcode_settings.
+      # Env vars in copies.
       'xcode_settings': {
         'INFOPLIST_FILE': 'Info.plist',
         'STRING_KEY': '/Source/Project',
@@ -82,40 +78,6 @@
 
         'MIXED_DEPENDENT_KEY': '${STRING_KEY}:$(PRODUCT_NAME):$MACH_O_TYPE',
       },
-      # Env vars in rules. The $FOO's are here to test that env vars that
-      # aren't defined are handled in some way that doesn't break the build.
-      'rules': [
-        {
-          'rule_name': 'brace_rule',
-          'message': 'Rule braces ${PRODUCT_NAME} ${FOO} <(RULE_INPUT_NAME)',
-          'extension': 'ext1',
-          'inputs': [ '${SOURCE_ROOT}/main.c' ],
-          'outputs': [ '<(PRODUCT_DIR)/rule-copy-brace.txt' ],
-          'action': [ 'cp', '${SOURCE_ROOT}/main.c',
-                      '<(PRODUCT_DIR)/rule-copy-brace.txt' ],
-        },
-        {
-          'rule_name': 'paren_rule',
-          'message': 'Rule parens $(PRODUCT_NAME) $(FOO) <(RULE_INPUT_NAME)',
-          'extension': 'ext2',
-          'inputs': [ '$(SOURCE_ROOT)/main.c' ],
-          'outputs': [ '<(PRODUCT_DIR)/rule-copy-paren.txt' ],
-          'action': [ 'cp', '$(SOURCE_ROOT)/main.c',
-                      '<(PRODUCT_DIR)/rule-copy-paren.txt' ],
-        },
-        # TODO: Fails in xcode. Looks like a bug in the xcode generator though
-        #       (which uses makefiles for rules, and thinks $PRODUCT_NAME is
-        #       $(P)RODUCT_NAME).
-        #{
-        #  'rule_name': 'bare_rule',
-        #  'message': 'Rule copy bare $PRODUCT_NAME $FOO',
-        #  'extension': 'ext3',
-        #  'inputs': [ '$SOURCE_ROOT/main.c' ],
-        #  'outputs': [ '<(PRODUCT_DIR)/rule-copy-bare.txt' ],
-        #  'action': [ 'cp', '$SOURCE_ROOT/main.c',
-        #              '<(PRODUCT_DIR)/rule-copy-bare.txt' ],
-        #},
-      ],
     },
   ],
 }

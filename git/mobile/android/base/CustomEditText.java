@@ -9,11 +9,12 @@ import android.content.Context;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.View;
+import android.widget.EditText;
 
-public class CustomEditText extends GeckoEditText {
-    private OnKeyPreImeListener mOnKeyPreImeListener;
-    private OnSelectionChangedListener mOnSelectionChangedListener;
-    private OnWindowFocusChangeListener mOnWindowFocusChangeListener;
+public class CustomEditText extends EditText {
+    OnKeyPreImeListener mOnKeyPreImeListener;
+    OnSelectionChangedListener mOnSelectionChangedListener;
+    OnWindowFocusChangeListener mOnWindowFocusChangeListener;
 
     public CustomEditText(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -65,14 +66,5 @@ public class CustomEditText extends GeckoEditText {
         super.onWindowFocusChanged(hasFocus);
         if (mOnWindowFocusChangeListener != null)
             mOnWindowFocusChangeListener.onWindowFocusChanged(hasFocus);
-    }
-
-    @Override
-    public void setPrivateMode(boolean isPrivate) {
-        super.setPrivateMode(isPrivate);
-
-        // android:textColorHighlight cannot support a ColorStateList.
-        int colorId = isPrivate ? R.color.url_bar_text_highlight_pb : R.color.url_bar_text_highlight;
-        setHighlightColor(getContext().getResources().getColor(colorId));
     }
 }

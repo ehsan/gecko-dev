@@ -7,8 +7,6 @@
 
 #include "MoveResolver.h"
 
-#include "jsscriptinlines.h"
-
 using namespace js;
 using namespace js::ion;
 
@@ -26,8 +24,6 @@ MoveResolver::resetState()
 bool
 MoveResolver::addMove(const MoveOperand &from, const MoveOperand &to, Move::Kind kind)
 {
-    // Assert that we're not doing no-op moves.
-    JS_ASSERT(!(from == to));
     PendingMove *pm = movePool_.allocate();
     if (!pm)
         return false;

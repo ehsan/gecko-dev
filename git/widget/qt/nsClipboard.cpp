@@ -176,22 +176,16 @@ nsClipboard::SetNativeClipboardData( nsITransferable *aTransferable,
                 if (!image)  // Not getting an image for an image mime type!?
                    continue;
 
-                nsRefPtr<gfxASurface> surface;
-                image->GetFrame(imgIContainer::FRAME_CURRENT,
-                                imgIContainer::FLAG_SYNC_DECODE,
-                                getter_AddRefs(surface));
-                if (!surface)
-                  continue;
+                nsRefPtr<gfxImageSurface> imageSurface;
+                image->CopyFrame(imgIContainer::FRAME_CURRENT,
+                                 imgIContainer::FLAG_SYNC_DECODE,
+                                 getter_AddRefs(imageSurface));
 
-                nsRefPtr<gfxImageSurface> frame(surface->GetAsReadableARGB32ImageSurface());
-                if (!frame)
-                  continue;
-
-                QImage qImage(frame->Data(),
-                              frame->Width(),
-                              frame->Height(),
-                              frame->Stride(),
-                              _gfximage_to_qformat(frame->Format()));
+                QImage qImage(imageSurface->Data(),
+                              imageSurface->Width(),
+                              imageSurface->Height(),
+                              imageSurface->Stride(),
+                              _gfximage_to_qformat(imageSurface->Format()));
 
                 // Add image to the mimeData
                 mimeData->setImageData(qImage);

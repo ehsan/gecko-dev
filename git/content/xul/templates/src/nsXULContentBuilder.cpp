@@ -1116,7 +1116,7 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
             continue;
 
         nsTemplateMatch *newmatch =
-            nsTemplateMatch::Create(aQuerySet->Priority(),
+            nsTemplateMatch::Create(mPool, aQuerySet->Priority(),
                                     nextresult, aElement);
         if (!newmatch)
             return NS_ERROR_OUT_OF_MEMORY;
@@ -1177,7 +1177,7 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
             rv = DetermineMatchedRule(aElement, nextresult, aQuerySet,
                                       &matchedrule, &ruleindex);
             if (NS_FAILED(rv)) {
-                nsTemplateMatch::Destroy(newmatch, false);
+                nsTemplateMatch::Destroy(mPool, newmatch, false);
                 return rv;
             }
 
@@ -1185,7 +1185,7 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
                 rv = newmatch->RuleMatched(aQuerySet, matchedrule,
                                            ruleindex, nextresult);
                 if (NS_FAILED(rv)) {
-                    nsTemplateMatch::Destroy(newmatch, false);
+                    nsTemplateMatch::Destroy(mPool, newmatch, false);
                     return rv;
                 }
 
@@ -1210,7 +1210,7 @@ nsXULContentBuilder::CreateContainerContentsForQuerySet(nsIContent* aElement,
 
         if (removematch) {
             newmatch->mNext = removematch->mNext;
-            nsTemplateMatch::Destroy(removematch, true);
+            nsTemplateMatch::Destroy(mPool, removematch, true);
         }
         else {
             newmatch->mNext = existingmatch;

@@ -61,7 +61,6 @@
 #define JS_HAS_CONST            0       /* has JS2 const as alternative var */
 #define JS_HAS_FUN_EXPR_STMT    0       /* has function expression statement */
 #define JS_HAS_NO_SUCH_METHOD   0       /* has o.__noSuchMethod__ handler */
-#define JS_HAS_FOR_EACH_IN      0       /* has for each (lhs in iterable) */
 #define JS_HAS_GENERATORS       0       /* has yield in generator function */
 #define JS_HAS_BLOCK_SCOPE      0       /* has block scope via let/arraycomp */
 #define JS_HAS_DESTRUCTURING    0       /* has [a,b] = ... or {p:a,q:b} = ... */
@@ -83,7 +82,6 @@
 #define JS_HAS_CONST            1       /* has JS2 const as alternative var */
 #define JS_HAS_FUN_EXPR_STMT    1       /* has function expression statement */
 #define JS_HAS_NO_SUCH_METHOD   1       /* has o.__noSuchMethod__ handler */
-#define JS_HAS_FOR_EACH_IN      0       /* has for each (lhs in iterable) */
 #define JS_HAS_GENERATORS       0       /* has yield in generator function */
 #define JS_HAS_BLOCK_SCOPE      0       /* has block scope via let/arraycomp */
 #define JS_HAS_DESTRUCTURING    0       /* has [a,b] = ... or {p:a,q:b} = ... */
@@ -101,7 +99,6 @@
 #define JS_HAS_CONST            1       /* has JS2 const as alternative var */
 #define JS_HAS_FUN_EXPR_STMT    1       /* has function expression statement */
 #define JS_HAS_NO_SUCH_METHOD   1       /* has o.__noSuchMethod__ handler */
-#define JS_HAS_FOR_EACH_IN      1       /* has for each (lhs in iterable) */
 #define JS_HAS_GENERATORS       0       /* has yield in generator function */
 #define JS_HAS_BLOCK_SCOPE      0       /* has block scope via let/arraycomp */
 #define JS_HAS_DESTRUCTURING    0       /* has [a,b] = ... or {p:a,q:b} = ... */
@@ -119,7 +116,6 @@
 #define JS_HAS_CONST            1       /* has JS2 const as alternative var */
 #define JS_HAS_FUN_EXPR_STMT    1       /* has function expression statement */
 #define JS_HAS_NO_SUCH_METHOD   1       /* has o.__noSuchMethod__ handler */
-#define JS_HAS_FOR_EACH_IN      1       /* has for each (lhs in iterable) */
 #define JS_HAS_GENERATORS       1       /* has yield in generator function */
 #define JS_HAS_BLOCK_SCOPE      1       /* has block scope via let/arraycomp */
 #define JS_HAS_DESTRUCTURING    1       /* has [a,b] = ... or {p:a,q:b} = ... */
@@ -137,7 +133,6 @@
 #define JS_HAS_CONST            1       /* has JS2 const as alternative var */
 #define JS_HAS_FUN_EXPR_STMT    1       /* has function expression statement */
 #define JS_HAS_NO_SUCH_METHOD   1       /* has o.__noSuchMethod__ handler */
-#define JS_HAS_FOR_EACH_IN      1       /* has for each (lhs in iterable) */
 #define JS_HAS_GENERATORS       1       /* has yield in generator function */
 #define JS_HAS_BLOCK_SCOPE      1       /* has block scope via let/arraycomp */
 #define JS_HAS_DESTRUCTURING    2       /* has [a,b] = ... or {p:a,q:b} = ... */
@@ -174,8 +169,5 @@
 #  define NEW_OBJECT_REPRESENTATION_ONLY() \
      MOZ_NOT_REACHED("don't call this!  to be used in the new object representation")
 #endif
-
-/* ECMAScript Internationalization API isn't fully implemented yet. */
-#define ENABLE_INTL_API 0
 
 #endif /* jsversion_h___ */

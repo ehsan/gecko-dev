@@ -6,10 +6,10 @@
 #ifndef __NS_SVGPATHGEOMETRYELEMENT_H__
 #define __NS_SVGPATHGEOMETRYELEMENT_H__
 
-#include "SVGGraphicsElement.h"
-
-struct gfxMatrix;
-template <class E> class nsTArray;
+#include "DOMSVGTests.h"
+#include "gfxMatrix.h"
+#include "nsSVGGraphicElement.h"
+#include "nsTArray.h"
 
 struct nsSVGMark {
   float x, y, angle;
@@ -19,12 +19,16 @@ struct nsSVGMark {
 
 class gfxContext;
 
-typedef mozilla::dom::SVGGraphicsElement nsSVGPathGeometryElementBase;
+typedef nsSVGGraphicElement nsSVGPathGeometryElementBase;
 
-class nsSVGPathGeometryElement : public nsSVGPathGeometryElementBase
+class nsSVGPathGeometryElement : public nsSVGPathGeometryElementBase,
+                                 public DOMSVGTests
 {
 public:
   nsSVGPathGeometryElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+
+  // interfaces:
+  NS_DECL_ISUPPORTS_INHERITED
 
   virtual bool AttributeDefinesGeometry(const nsIAtom *aName);
   virtual bool IsMarkable();

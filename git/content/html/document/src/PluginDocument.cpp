@@ -9,7 +9,6 @@
 #include "nsIPresShell.h"
 #include "nsIObjectFrame.h"
 #include "nsNPAPIPluginInstance.h"
-#include "nsIDocumentInlines.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
@@ -17,7 +16,7 @@
 #include "nsIPropertyBag2.h"
 #include "mozilla/dom/Element.h"
 #include "nsObjectLoadingContent.h"
-#include "GeckoProfiler.h"
+#include "sampler.h"
 
 namespace mozilla {
 namespace dom {
@@ -46,6 +45,10 @@ public:
   const nsCString& GetType() const { return mMimeType; }
   nsIContent*      GetPluginContent() { return mPluginContent; }
 
+  void AllowNormalInstantiation() {
+    mWillHandleInstantiation = false;
+  }
+
   void StartLayout() { MediaDocument::StartLayout(); }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(PluginDocument, MediaDocument)
@@ -55,6 +58,11 @@ protected:
   nsCOMPtr<nsIContent>                     mPluginContent;
   nsRefPtr<MediaDocumentStreamListener>    mStreamListener;
   nsCString                                mMimeType;
+
+  // Hack to handle the fact that plug-in loading lives in frames and that the
+  // frames may not be around when we need to instantiate.  Once plug-in
+  // loading moves to content, this can all go away.
+  bool                                     mWillHandleInstantiation;
 };
 
 class PluginStreamListener : public MediaDocumentStreamListener
@@ -66,6 +74,8 @@ public:
   {}
   NS_IMETHOD OnStartRequest(nsIRequest* request, nsISupports *ctxt);
 private:
+  nsresult SetupPlugin();
+
   nsRefPtr<PluginDocument> mPluginDoc;
 };
 
@@ -73,48 +83,76 @@ private:
 NS_IMETHODIMP
 PluginStreamListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
 {
-  PROFILER_LABEL("PluginStreamListener", "OnStartRequest");
+  SAMPLE_LABEL("PluginStreamListener", "OnStartRequest");
+  // Have to set up our plugin stuff before we call OnStartRequest, so
+  // that the plugin listener can get that call.
+  nsresult rv = SetupPlugin();
+
+  NS_ASSERTION(NS_FAILED(rv) || mNextStream,
+               "We should have a listener by now");
+  nsresult rv2 = MediaDocumentStreamListener::OnStartRequest(request, ctxt);
+  return NS_SUCCEEDED(rv) ? rv2 : rv;
+}
+
+nsresult
+PluginStreamListener::SetupPlugin()
+{
+  NS_ENSURE_TRUE(mDocument, NS_ERROR_FAILURE);
+  mPluginDoc->StartLayout();
 
   nsCOMPtr<nsIContent> embed = mPluginDoc->GetPluginContent();
-  nsCOMPtr<nsIObjectLoadingContent> objlc = do_QueryInterface(embed);
-  nsCOMPtr<nsIStreamListener> objListener = do_QueryInterface(objlc);
 
-  if (!objListener) {
-    NS_NOTREACHED("PluginStreamListener without appropriate content node");
+  // Now we have a frame for our <embed>, start the load
+  nsCOMPtr<nsIPresShell> shell = mDocument->GetShell();
+  if (!shell) {
+    // Can't instantiate w/o a shell
+    mPluginDoc->AllowNormalInstantiation();
     return NS_BINDING_ABORTED;
   }
 
-  SetStreamListener(objListener);
+  // Flush out layout before we go to instantiate, because some
+  // plug-ins depend on NPP_SetWindow() being called early enough and
+  // nsObjectFrame does that at the end of reflow.
+  shell->FlushPendingNotifications(Flush_Layout);
 
-  // Sets up the ObjectLoadingContent tag as if it is waiting for a
-  // channel, so it can proceed with a load normally once it gets OnStartRequest
-  nsresult rv = objlc->InitializeFromChannel(request);
+  nsCOMPtr<nsIObjectLoadingContent> olc(do_QueryInterface(embed));
+  if (!olc) {
+    return NS_ERROR_UNEXPECTED;
+  }
+  nsObjectLoadingContent* olcc = static_cast<nsObjectLoadingContent*>(olc.get());
+  nsresult rv = olcc->InstantiatePluginInstance();
   if (NS_FAILED(rv)) {
-    NS_NOTREACHED("InitializeFromChannel failed");
     return rv;
   }
 
-  // Note that because we're now hooked up to a plugin listener, this will
-  // likely spawn a plugin, which may re-enter.
-  return MediaDocumentStreamListener::OnStartRequest(request, ctxt);
+  // Now that we're done, allow normal instantiation in the future
+  // (say if there's a reframe of this entire presentation).
+  mPluginDoc->AllowNormalInstantiation();
+
+  return NS_OK;
 }
+
 
   // NOTE! nsDocument::operator new() zeroes out all members, so don't
   // bother initializing members to 0.
 
 PluginDocument::PluginDocument()
-{}
+  : mWillHandleInstantiation(true)
+{
+}
 
 PluginDocument::~PluginDocument()
-{}
+{
+}
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(PluginDocument)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(PluginDocument, MediaDocument)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPluginContent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPluginContent)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(PluginDocument, MediaDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPluginContent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPluginContent)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_ADDREF_INHERITED(PluginDocument, MediaDocument)
@@ -188,8 +226,6 @@ PluginDocument::StartDocumentLoad(const char*         aCommand,
     return rv;
   }
 
-  MediaDocument::UpdateTitleAndCharset(mMimeType);
-
   mStreamListener = new PluginStreamListener(this);
   if (!mStreamListener) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -254,13 +290,25 @@ PluginDocument::CreateSyntheticPluginDocument()
   mPluginContent->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                           NS_ConvertUTF8toUTF16(mMimeType), false);
 
-  // nsHTML(Shared)ObjectElement does not kick off a load on BindToTree if it is
-  // to a PluginDocument
+  // This will not start the load because nsObjectLoadingContent checks whether
+  // its document is an nsIPluginDocument
   body->AppendChildTo(mPluginContent, false);
 
   return NS_OK;
 
 
+}
+
+NS_IMETHODIMP
+PluginDocument::SetStreamListener(nsIStreamListener *aListener)
+{
+  if (mStreamListener) {
+    mStreamListener->SetStreamListener(aListener);
+  }
+
+  MediaDocument::UpdateTitleAndCharset(mMimeType);
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -284,6 +332,13 @@ PluginDocument::Print()
     }
   }
 
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+PluginDocument::GetWillHandleInstantiation(bool* aWillHandle)
+{
+  *aWillHandle = mWillHandleInstantiation;
   return NS_OK;
 }
 

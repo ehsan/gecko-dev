@@ -14,21 +14,13 @@
 #include "jsprototypes.h"
 #include "jstypes.h"
 
-
-namespace JS {
-
 /*
  * Allow headers to reference JS::Value without #including the whole jsapi.h.
  * Unfortunately, typedefs (hence jsval) cannot be declared.
  */
-class Value;
-
-template <typename T>
-class Rooted;
-
-struct Zone;
-
-} /* namespace JS */
+#ifdef __cplusplus
+namespace JS { class Value; }
+#endif
 
 /*
  * In release builds, jsid is defined to be an integral type. This
@@ -68,6 +60,8 @@ typedef ptrdiff_t jsid;
 # define JSID_BITS(id) (id)
 #endif
 
+JS_BEGIN_EXTERN_C
+
 #ifdef WIN32
 typedef wchar_t   jschar;
 #else
@@ -80,7 +74,13 @@ typedef uint16_t  jschar;
  * #if expressions.
  */
 typedef enum JSVersion {
+    JSVERSION_1_0     = 100,
+    JSVERSION_1_1     = 110,
+    JSVERSION_1_2     = 120,
+    JSVERSION_1_3     = 130,
+    JSVERSION_1_4     = 140,
     JSVERSION_ECMA_3  = 148,
+    JSVERSION_1_5     = 150,
     JSVERSION_1_6     = 160,
     JSVERSION_1_7     = 170,
     JSVERSION_1_8     = 180,
@@ -89,6 +89,9 @@ typedef enum JSVersion {
     JSVERSION_UNKNOWN = -1,
     JSVERSION_LATEST  = JSVERSION_ECMA_5
 } JSVersion;
+
+#define JSVERSION_IS_ECMA(version) \
+    ((version) == JSVERSION_DEFAULT || (version) >= JSVERSION_1_3)
 
 /* Result of typeof operator enumeration. */
 typedef enum JSType {
@@ -99,6 +102,7 @@ typedef enum JSType {
     JSTYPE_NUMBER,              /* number */
     JSTYPE_BOOLEAN,             /* boolean */
     JSTYPE_NULL,                /* null */
+    JSTYPE_XML,                 /* xml object */
     JSTYPE_LIMIT
 } JSType;
 
@@ -161,13 +165,16 @@ typedef enum {
      * implements JSTraceCallback.
      */
     JSTRACE_IONCODE,
+#if JS_HAS_XML_SUPPORT
+    JSTRACE_XML,
+#endif
     JSTRACE_SHAPE,
     JSTRACE_BASE_SHAPE,
     JSTRACE_TYPE_OBJECT,
     JSTRACE_LAST = JSTRACE_TYPE_OBJECT
 } JSGCTraceKind;
 
-/* Struct typedefs and class forward declarations. */
+/* Struct typedefs. */
 typedef struct JSClass                      JSClass;
 typedef struct JSCompartment                JSCompartment;
 typedef struct JSConstDoubleSpec            JSConstDoubleSpec;
@@ -175,9 +182,11 @@ typedef struct JSContext                    JSContext;
 typedef struct JSCrossCompartmentCall       JSCrossCompartmentCall;
 typedef struct JSErrorReport                JSErrorReport;
 typedef struct JSExceptionState             JSExceptionState;
+typedef struct JSFunction                   JSFunction;
 typedef struct JSFunctionSpec               JSFunctionSpec;
 typedef struct JSIdArray                    JSIdArray;
 typedef struct JSLocaleCallbacks            JSLocaleCallbacks;
+typedef struct JSObject                     JSObject;
 typedef struct JSObjectMap                  JSObjectMap;
 typedef struct JSPrincipals                 JSPrincipals;
 typedef struct JSPropertyDescriptor         JSPropertyDescriptor;
@@ -185,6 +194,8 @@ typedef struct JSPropertyName               JSPropertyName;
 typedef struct JSPropertySpec               JSPropertySpec;
 typedef struct JSRuntime                    JSRuntime;
 typedef struct JSSecurityCallbacks          JSSecurityCallbacks;
+typedef struct JSStackFrame                 JSStackFrame;
+typedef struct JSScript          JSScript;
 typedef struct JSStructuredCloneCallbacks   JSStructuredCloneCallbacks;
 typedef struct JSStructuredCloneReader      JSStructuredCloneReader;
 typedef struct JSStructuredCloneWriter      JSStructuredCloneWriter;
@@ -192,16 +203,9 @@ typedef struct JSTracer                     JSTracer;
 
 #ifdef __cplusplus
 class                                       JSFlatString;
-class                                       JSFunction;
-class                                       JSObject;
-class                                       JSScript;
-class                                       JSStableString;  // long story
 class                                       JSString;
 #else
 typedef struct JSFlatString                 JSFlatString;
-typedef struct JSFunction                   JSFunction;
-typedef struct JSObject                     JSObject;
-typedef struct JSScript                     JSScript;
 typedef struct JSString                     JSString;
 #endif /* !__cplusplus */
 
@@ -212,25 +216,14 @@ typedef JSBool                   JSCallOnceType;
 #endif
 typedef JSBool                 (*JSInitCallback)(void);
 
+JS_END_EXTERN_C
+
 #ifdef __cplusplus
-
-namespace JS {
-namespace shadow {
-
-struct Runtime
-{
-    /* Restrict zone access during Minor GC. */
-    bool needsBarrier_;
-
-    Runtime() : needsBarrier_(false) {}
-};
-
-} /* namespace shadow */
-} /* namespace JS */
 
 namespace js {
 
-class Allocator;
+template <typename T>
+class Rooted;
 
 class SkipRoot;
 
@@ -241,8 +234,8 @@ enum ThingRootKind
     THING_ROOT_BASE_SHAPE,
     THING_ROOT_TYPE_OBJECT,
     THING_ROOT_STRING,
-    THING_ROOT_ION_CODE,
     THING_ROOT_SCRIPT,
+    THING_ROOT_XML,
     THING_ROOT_ID,
     THING_ROOT_PROPERTY_ID,
     THING_ROOT_VALUE,
@@ -275,15 +268,8 @@ template <> struct RootKind<JS::Value> : SpecificRootKind<JS::Value, THING_ROOT_
 struct ContextFriendFields {
     JSRuntime *const    runtime;
 
-    /* The current compartment. */
-    JSCompartment       *compartment;
-
-    /* The current zone. */
-    JS::Zone            *zone_;
-
-    explicit ContextFriendFields(JSRuntime *rt)
-      : runtime(rt), compartment(NULL), zone_(NULL)
-    { }
+    ContextFriendFields(JSRuntime *rt)
+      : runtime(rt) { }
 
     static const ContextFriendFields *get(const JSContext *cx) {
         return reinterpret_cast<const ContextFriendFields *>(cx);
@@ -298,7 +284,7 @@ struct ContextFriendFields {
      * Stack allocated GC roots for stack GC heap pointers, which may be
      * overwritten if moved during a GC.
      */
-    JS::Rooted<void*> *thingGCRooters[THING_ROOT_LIMIT];
+    Rooted<void*> *thingGCRooters[THING_ROOT_LIMIT];
 #endif
 
 #if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
@@ -314,70 +300,30 @@ struct ContextFriendFields {
 #endif
 };
 
-class PerThreadData;
+struct RuntimeFriendFields {
+    /*
+     * If non-zero, we were been asked to call the operation callback as soon
+     * as possible.
+     */
+    volatile int32_t    interrupt;
 
-struct PerThreadDataFriendFields
-{
-  private:
-    // Note: this type only exists to permit us to derive the offset of
-    // the perThread data within the real JSRuntime* type in a portable
-    // way.
-    struct RuntimeDummy : JS::shadow::Runtime
-    {
-        struct PerThreadDummy {
-            void *field1;
-            uintptr_t field2;
-#ifdef DEBUG
-            uint64_t field3;
-#endif
-        } mainThread;
-    };
-
-  public:
-
-    PerThreadDataFriendFields();
+    /* Limit pointer for checking native stack consumption. */
+    uintptr_t           nativeStackLimit;
 
 #if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
     /*
      * Stack allocated GC roots for stack GC heap pointers, which may be
      * overwritten if moved during a GC.
      */
-    JS::Rooted<void*> *thingGCRooters[THING_ROOT_LIMIT];
+    Rooted<void*> *thingGCRooters[THING_ROOT_LIMIT];
 #endif
 
-#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
-    /*
-     * Stack allocated list of stack locations which hold non-relocatable
-     * GC heap pointers (where the target is rooted somewhere else) or integer
-     * values which may be confused for GC heap pointers. These are used to
-     * suppress false positives which occur when a rooting analysis treats the
-     * location as holding a relocatable pointer, but have no other effect on
-     * GC behavior.
-     */
-    SkipRoot *skipGCRooters;
-#endif
+    RuntimeFriendFields()
+      : interrupt(0),
+        nativeStackLimit(0) { }
 
-    /* Limit pointer for checking native stack consumption. */
-    uintptr_t nativeStackLimit;
-
-    static const size_t RuntimeMainThreadOffset = offsetof(RuntimeDummy, mainThread);
-
-    static inline PerThreadDataFriendFields *get(js::PerThreadData *pt) {
-        return reinterpret_cast<PerThreadDataFriendFields *>(pt);
-    }
-
-    static inline PerThreadDataFriendFields *getMainThread(JSRuntime *rt) {
-        // mainThread must always appear directly after |JS::shadow::Runtime|.
-        // Tested by a JS_STATIC_ASSERT in |jsfriendapi.cpp|
-        return reinterpret_cast<PerThreadDataFriendFields *>(
-            reinterpret_cast<char*>(rt) + RuntimeMainThreadOffset);
-    }
-
-    static inline const PerThreadDataFriendFields *getMainThread(const JSRuntime *rt) {
-        // mainThread must always appear directly after |JS::shadow::Runtime|.
-        // Tested by a JS_STATIC_ASSERT in |jsfriendapi.cpp|
-        return reinterpret_cast<const PerThreadDataFriendFields *>(
-            reinterpret_cast<const char*>(rt) + RuntimeMainThreadOffset);
+    static const RuntimeFriendFields *get(const JSRuntime *rt) {
+        return reinterpret_cast<const RuntimeFriendFields *>(rt);
     }
 };
 

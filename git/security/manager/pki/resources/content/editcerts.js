@@ -28,10 +28,12 @@ function setWindowName()
   //cert = isupport.QueryInterface(nsIX509Cert);
   cert = certdb.findCertByDBKey(dbkey, null);
 
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var windowReference = document.getElementById('editCaCert');
 
-  var message1 = bundle.getFormattedString("editTrustCA", [cert.commonName]);
+  var message1 = bundle.formatStringFromName("editTrustCA",
+                                             [ cert.commonName ],
+                                             1);
   setText("certmsg", message1);
 
   var ssl = document.getElementById("trustSSL");
@@ -81,10 +83,12 @@ function doLoadForSSLCert()
   certdb = Components.classes[nsX509CertDB].getService(nsIX509CertDB);
   cert = certdb.findCertByDBKey(dbkey, null);
 
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var windowReference = document.getElementById('editWebsiteCert');
 
-  var message1 = bundle.getFormattedString("editTrustSSL", [cert.commonName]);
+  var message1 = bundle.formatStringFromName("editTrustSSL",
+                                             [ cert.commonName ],
+                                             1);
   setText("certmsg", message1);
 
   setText("issuer", cert.issuerName);
@@ -92,16 +96,16 @@ function doLoadForSSLCert()
   var cacert = getCaCertForEntityCert(cert);
   if(cacert == null)
   {
-     setText("explanations", bundle.getString("issuerNotKnown"));
+     setText("explanations", bundle.GetStringFromName("issuerNotKnown"));
   }
   else if(certdb.isCertTrusted(cacert, nsIX509Cert.CA_CERT,
                                                 nsIX509CertDB.TRUSTED_SSL))
   {
-     setText("explanations", bundle.getString("issuerTrusted"));
+     setText("explanations", bundle.GetStringFromName("issuerTrusted"));
   }
   else
   {
-     setText("explanations", bundle.getString("issuerNotTrusted"));
+     setText("explanations", bundle.GetStringFromName("issuerNotTrusted"));
   }
 /*
   if(cacert == null)
@@ -134,10 +138,12 @@ function doLoadForEmailCert()
   certdb = Components.classes[nsX509CertDB].getService(nsIX509CertDB);
   cert = certdb.findCertByDBKey(dbkey, null);
 
-  var bundle = document.getElementById("pippki_bundle");
+  var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
   var windowReference = document.getElementById('editEmailCert');
 
-  var message1 = bundle.getFormattedString("editTrustEmail", [cert.commonName]);
+  var message1 = bundle.formatStringFromName("editTrustEmail",
+                                             [ cert.commonName ],
+                                             1);
   setText("certmsg", message1);
 
   setText("issuer", cert.issuerName);
@@ -145,16 +151,16 @@ function doLoadForEmailCert()
   var cacert = getCaCertForEntityCert(cert);
   if(cacert == null)
   {
-     setText("explanations", bundle.getString("issuerNotKnown"));
+     setText("explanations", bundle.GetStringFromName("issuerNotKnown"));
   }
   else if(certdb.isCertTrusted(cacert, nsIX509Cert.CA_CERT,
                                                 nsIX509CertDB.TRUSTED_EMAIL))
   {
-     setText("explanations", bundle.getString("issuerTrusted"));
+     setText("explanations", bundle.GetStringFromName("issuerTrusted"));
   }
   else
   {
-     setText("explanations", bundle.getString("issuerNotTrusted"));
+     setText("explanations", bundle.GetStringFromName("issuerNotTrusted"));
   }
 /*
   if(cacert == null)
@@ -189,8 +195,8 @@ function editCaTrust()
    }
    else
    {
-      var bundle = document.getElementById("pippki_bundle");
-      doPrompt(bundle.getString("issuerCertNotFound"));
+      var bundle = srGetStrBundle("chrome://pippki/locale/pippki.properties");
+      doPrompt(bundle.GetStringFromName("issuerCertNotFound"));
    }
 }
 

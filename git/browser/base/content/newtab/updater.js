@@ -126,7 +126,7 @@ let gUpdater = {
    * @param aCallback The callback to call when finished.
    */
   _removeLegacySites: function Updater_removeLegacySites(aSites, aCallback) {
-    let batch = [];
+    let batch = new Batch(aCallback);
 
     // Delete sites that were removed from the grid.
     gGrid.sites.forEach(function (aSite) {
@@ -134,8 +134,7 @@ let gUpdater = {
       if (!aSite || aSites.indexOf(aSite) != -1)
         return;
 
-      let deferred = Promise.defer();
-      batch.push(deferred.promise);
+      batch.push();
 
       // Fade out the to-be-removed site.
       gTransformation.hideSite(aSite, function () {
@@ -143,12 +142,11 @@ let gUpdater = {
 
         // Remove the site from the DOM.
         node.parentNode.removeChild(node);
-        deferred.resolve();
+        batch.pop();
       });
     });
 
-    let wait = Promise.promised(aCallback);
-    wait.apply(null, batch);
+    batch.close();
   },
 
   /**
@@ -158,15 +156,14 @@ let gUpdater = {
    */
   _fillEmptyCells: function Updater_fillEmptyCells(aLinks, aCallback) {
     let {cells, sites} = gGrid;
-    let batch = [];
+    let batch = new Batch(aCallback);
 
     // Find empty cells and fill them.
     sites.forEach(function (aSite, aIndex) {
       if (aSite || !aLinks[aIndex])
         return;
 
-      let deferred = Promise.defer();
-      batch.push(deferred.promise);
+      batch.push();
 
       // Create the new site and fade it in.
       let site = gGrid.createSite(aLinks[aIndex], cells[aIndex]);
@@ -177,10 +174,9 @@ let gUpdater = {
       // Flush all style changes for the dynamically inserted site to make
       // the fade-in transition work.
       window.getComputedStyle(site.node).opacity;
-      gTransformation.showSite(site, function () deferred.resolve());
+      gTransformation.showSite(site, function () batch.pop());
     });
 
-    let wait = Promise.promised(aCallback);
-    wait.apply(null, batch);
+    batch.close();
   }
 };

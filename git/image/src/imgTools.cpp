@@ -5,16 +5,15 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "imgTools.h"
-
 #include "nsCOMPtr.h"
-#include "nsIDocument.h"
-#include "nsIDOMDocument.h"
 #include "nsString.h"
 #include "nsError.h"
-#include "imgLoader.h"
+#include "imgILoader.h"
 #include "imgICache.h"
 #include "imgIContainer.h"
 #include "imgIEncoder.h"
+#include "imgIDecoderObserver.h"
+#include "imgIContainerObserver.h"
 #include "gfxContext.h"
 #include "nsStringStream.h"
 #include "nsComponentManagerUtils.h"
@@ -23,12 +22,14 @@
 #include "nsStreamUtils.h"
 #include "nsNetUtil.h"
 #include "nsContentUtils.h"
-#include "ImageFactory.h"
-#include "Image.h"
+#include "RasterImage.h"
 #include "ScriptedNotificationObserver.h"
 #include "imgIScriptedNotificationObserver.h"
 
 using namespace mozilla::image;
+
+class nsIDOMDocument;
+class nsIDocument;
 
 /* ========== imgITools implementation ========== */
 
@@ -46,33 +47,32 @@ imgTools::~imgTools()
   /* destructor code */
 }
 
+
 NS_IMETHODIMP imgTools::DecodeImageData(nsIInputStream* aInStr,
                                         const nsACString& aMimeType,
                                         imgIContainer **aContainer)
 {
-  NS_ABORT_IF_FALSE(*aContainer == nullptr,
-                    "Cannot provide an existing image container to DecodeImageData");
-
-  return DecodeImage(aInStr, aMimeType, aContainer);
-}
-
-NS_IMETHODIMP imgTools::DecodeImage(nsIInputStream* aInStr,
-                                    const nsACString& aMimeType,
-                                    imgIContainer **aContainer)
-{
   nsresult rv;
-  nsRefPtr<Image> image;
+  RasterImage* image;  // convenience alias for *aContainer
 
   NS_ENSURE_ARG_POINTER(aInStr);
 
-  // Create a new image container to hold the decoded data.
-  nsAutoCString mimeType(aMimeType);
-  image = ImageFactory::CreateAnonymousImage(mimeType);
+  // If the caller didn't provide an imgIContainer, create one.
+  if (*aContainer) {
+    NS_ABORT_IF_FALSE((*aContainer)->GetType() == imgIContainer::TYPE_RASTER,
+                      "wrong type of imgIContainer for decoding into");
+    image = static_cast<RasterImage*>(*aContainer);
+  } else {
+    *aContainer = image = new RasterImage();
+    NS_ADDREF(image);
+  }
 
-  if (image->HasError())
-    return NS_ERROR_FAILURE;
+  // Initialize the Image. If we're using the one from the caller, we
+  // require that it not be initialized.
+  nsCString mimeType(aMimeType);
+  rv = image->Init(nullptr, mimeType.get(), "<unknown>", Image::INIT_FLAG_NONE);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  // Prepare the input stream.
   nsCOMPtr<nsIInputStream> inStream = aInStr;
   if (!NS_InputStreamIsBuffered(aInStr)) {
     nsCOMPtr<nsIInputStream> bufStream;
@@ -81,21 +81,27 @@ NS_IMETHODIMP imgTools::DecodeImage(nsIInputStream* aInStr,
       inStream = bufStream;
   }
 
-  // Figure out how much data we've been passed.
+  // Figure out how much data we've been passed
   uint64_t length;
   rv = inStream->Available(&length);
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(length <= UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
 
-  // Send the source data to the Image.
-  rv = image->OnImageDataAvailable(nullptr, nullptr, inStream, 0, uint32_t(length));
+  // Send the source data to the Image. WriteToRasterImage always
+  // consumes everything it gets if it doesn't run out of memory.
+  uint32_t bytesRead;
+  rv = inStream->ReadSegments(RasterImage::WriteToRasterImage,
+                              static_cast<void*>(image),
+                              (uint32_t)length, &bytesRead);
   NS_ENSURE_SUCCESS(rv, rv);
-  // Let the Image know we've sent all the data.
-  rv = image->OnImageDataComplete(nullptr, nullptr, NS_OK, true);
+  NS_ABORT_IF_FALSE(bytesRead == length || image->HasError(),
+  "WriteToRasterImage should consume everything or the image must be in error!");
+
+  // Let the Image know we've sent all the data
+  rv = image->SourceDataComplete();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // All done.
-  NS_ADDREF(*aContainer = image.get());
+  // All done
   return NS_OK;
 }
 
@@ -261,14 +267,11 @@ NS_IMETHODIMP imgTools::EncodeImageData(gfxImageSurface *aSurface,
 NS_IMETHODIMP imgTools::GetFirstImageFrame(imgIContainer *aContainer,
                                            gfxImageSurface **aSurface)
 {
-  nsRefPtr<gfxASurface> surface;
-  aContainer->GetFrame(imgIContainer::FRAME_FIRST,
-                       imgIContainer::FLAG_SYNC_DECODE,
-                       getter_AddRefs(surface));
-  NS_ENSURE_TRUE(surface, NS_ERROR_NOT_AVAILABLE);
-
-  nsRefPtr<gfxImageSurface> frame(surface->CopyToARGB32ImageSurface());
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
+  nsRefPtr<gfxImageSurface> frame;
+  nsresult rv = aContainer->CopyFrame(imgIContainer::FRAME_CURRENT, true,
+                                      getter_AddRefs(frame));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(frame, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(frame->Width() && frame->Height(), NS_ERROR_FAILURE);
 
   frame.forget(aSurface);

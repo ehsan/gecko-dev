@@ -11,6 +11,13 @@ include $(DEPTH)/config/autoconf.mk
 
 FAIL_ON_WARNINGS := 1
 
+MODULE := services-crypto
+XPIDL_MODULE := services-crypto-component
+
+XPIDLSRCS := \
+  nsISyncJPAKE.idl \
+  $(NULL)
+
 LIBRARY_NAME := services-crypto
 EXPORT_LIBRARY := 1
 IS_COMPONENT := 1
@@ -21,5 +28,7 @@ MOZILLA_INTERNAL_API := 1
 CPPSRCS := \
   nsSyncJPAKE.cpp \
   $(NULL)
+
+TEST_DIRS += tests
 
 include $(topsrcdir)/config/rules.mk

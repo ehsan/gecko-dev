@@ -104,7 +104,7 @@
 
   </keyset>
   
-  <tooltip id="aHTMLTooltip" page="true"/>
+  <tooltip id="aHTMLTooltip" onpopupshowing="return FillInHTMLTooltip(document.tooltipNode);"/>
 
   <menupopup id="viewSourceContextMenu"
              onpopupshowing="contextMenuShowing();">

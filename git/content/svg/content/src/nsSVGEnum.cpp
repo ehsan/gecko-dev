@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsError.h"
-#include "nsSVGAttrTearoffTable.h"
 #include "nsSVGEnum.h"
 #include "nsIAtom.h"
 #include "nsSVGElement.h"
@@ -25,9 +24,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGEnum::DOMAnimatedEnum)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedEnumeration)
 NS_INTERFACE_MAP_END
-
-static nsSVGAttrTearoffTable<nsSVGEnum, nsSVGEnum::DOMAnimatedEnum>
-  sSVGAnimatedEnumTearoffTable;
 
 nsSVGEnumMapping *
 nsSVGEnum::GetMapping(nsSVGElement *aSVGElement)
@@ -57,7 +53,7 @@ nsSVGEnum::SetBaseValueAtom(const nsIAtom* aValue, nsSVGElement *aSVGElement)
           aSVGElement->AnimationNeedsResample();
         }
         // We don't need to call DidChange* here - we're only called by
-        // nsSVGElement::ParseAttribute under Element::SetAttr,
+        // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
         // which takes care of notifying.
       }
       return NS_OK;
@@ -126,26 +122,12 @@ nsresult
 nsSVGEnum::ToDOMAnimatedEnum(nsIDOMSVGAnimatedEnumeration **aResult,
                              nsSVGElement *aSVGElement)
 {
-  *aResult = ToDOMAnimatedEnum(aSVGElement).get();
+  *aResult = new DOMAnimatedEnum(this, aSVGElement);
+  if (!*aResult)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-already_AddRefed<nsIDOMSVGAnimatedEnumeration>
-nsSVGEnum::ToDOMAnimatedEnum(nsSVGElement* aSVGElement)
-{
-  nsRefPtr<DOMAnimatedEnum> domAnimatedEnum =
-    sSVGAnimatedEnumTearoffTable.GetTearoff(this);
-  if (!domAnimatedEnum) {
-    domAnimatedEnum = new DOMAnimatedEnum(this, aSVGElement);
-    sSVGAnimatedEnumTearoffTable.AddTearoff(this, domAnimatedEnum);
-  }
-
-  return domAnimatedEnum.forget();
-}
-
-nsSVGEnum::DOMAnimatedEnum::~DOMAnimatedEnum()
-{
-  sSVGAnimatedEnumTearoffTable.RemoveTearoff(mVal);
 }
 
 nsISMILAttr*
@@ -156,7 +138,7 @@ nsSVGEnum::ToSMILAttr(nsSVGElement *aSVGElement)
 
 nsresult
 nsSVGEnum::SMILEnum::ValueFromString(const nsAString& aStr,
-                                     const dom::SVGAnimationElement* /*aSrcElement*/,
+                                     const nsISMILAnimationElement* /*aSrcElement*/,
                                      nsSMILValue& aValue,
                                      bool& aPreventCachingOfSandwich) const
 {

@@ -6,6 +6,7 @@
 #include "nsIInputStream.h"
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
+#include "nsCharsetAlias.h"
 #include "nsIParser.h"
 #include "nsParserCIID.h"
 #include "nsStreamUtils.h"
@@ -16,23 +17,29 @@
 #include "nsSAXXMLReader.h"
 #include "nsCharsetSource.h"
 
-#include "mozilla/dom/EncodingUtils.h"
-
-using mozilla::dom::EncodingUtils;
-
 #define XMLNS_URI "http://www.w3.org/2000/xmlns/"
 
 static NS_DEFINE_CID(kParserCID, NS_PARSER_CID);
 
-NS_IMPL_CYCLE_COLLECTION_8(nsSAXXMLReader,
-                           mContentHandler,
-                           mDTDHandler,
-                           mErrorHandler,
-                           mLexicalHandler,
-                           mDeclarationHandler,
-                           mBaseURI,
-                           mListener,
-                           mParserObserver)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsSAXXMLReader)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsSAXXMLReader)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mContentHandler)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDTDHandler)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mErrorHandler)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLexicalHandler)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mBaseURI)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mListener)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mParserObserver)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsSAXXMLReader)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContentHandler)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDTDHandler)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mErrorHandler)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLexicalHandler)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mBaseURI)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mListener)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mParserObserver)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSAXXMLReader)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSAXXMLReader)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSAXXMLReader)
@@ -45,9 +52,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSAXXMLReader)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISAXXMLReader)
 NS_INTERFACE_MAP_END
 
-nsSAXXMLReader::nsSAXXMLReader() :
-    mIsAsyncParse(false),
-    mEnableNamespacePrefixes(false)
+nsSAXXMLReader::nsSAXXMLReader() : mIsAsyncParse(false)
 {
 }
 
@@ -96,7 +101,7 @@ nsSAXXMLReader::HandleStartElement(const PRUnichar *aName,
     // XXX don't have attr type information
     NS_NAMED_LITERAL_STRING(cdataType, "CDATA");
     // could support xmlns reporting, it's a standard SAX feature
-    if (mEnableNamespacePrefixes || !uri.EqualsLiteral(XMLNS_URI)) {
+    if (!uri.EqualsLiteral(XMLNS_URI)) {
       NS_ASSERTION(aAtts[1], "null passed to handler");
       atts->AddAttribute(uri, localName, qName, cdataType,
                          nsDependentString(aAtts[1]));
@@ -169,8 +174,8 @@ nsSAXXMLReader::HandleStartDTD(const PRUnichar *aName,
   mPublicId = aPublicId;
   if (mLexicalHandler) {
     return mLexicalHandler->StartDTD(nsDependentString(aName),
-                                     nsDependentString(aPublicId),
-                                     nsDependentString(aSystemId));
+                                     nsDependentString(aSystemId),
+                                     nsDependentString(aPublicId));
   }
 
   return NS_OK;
@@ -290,15 +295,8 @@ nsSAXXMLReader::HandleXMLDeclaration(const PRUnichar *aVersion,
                                      const PRUnichar *aEncoding,
                                      int32_t aStandalone)
 {
-  NS_ASSERTION(aVersion, "null passed to handler");
-  if (mDeclarationHandler) {
-    PRUnichar nullChar = PRUnichar(0);
-    if (!aEncoding)
-      aEncoding = &nullChar;
-    mDeclarationHandler->HandleXMLDeclaration(nsDependentString(aVersion),
-                                              nsDependentString(aEncoding),
-                                              aStandalone > 0);
-  }
+  // XXX need to decide what to do with this. It's a separate
+  // optional interface in SAX.
   return NS_OK;
 }
 
@@ -399,33 +397,13 @@ nsSAXXMLReader::SetErrorHandler(nsISAXErrorHandler *aErrorHandler)
 NS_IMETHODIMP
 nsSAXXMLReader::SetFeature(const nsAString &aName, bool aValue)
 {
-  if (aName.EqualsLiteral("http://xml.org/sax/features/namespace-prefixes")) {
-    mEnableNamespacePrefixes = aValue;
-    return NS_OK;
-  }
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP
 nsSAXXMLReader::GetFeature(const nsAString &aName, bool *aResult)
 {
-  if (aName.EqualsLiteral("http://xml.org/sax/features/namespace-prefixes")) {
-    *aResult = mEnableNamespacePrefixes;
-    return NS_OK;
-  }
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsSAXXMLReader::GetDeclarationHandler(nsIMozSAXXMLDeclarationHandler **aDeclarationHandler) {
-  NS_IF_ADDREF(*aDeclarationHandler = mDeclarationHandler);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsSAXXMLReader::SetDeclarationHandler(nsIMozSAXXMLDeclarationHandler *aDeclarationHandler) {
-  mDeclarationHandler = aDeclarationHandler;
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -645,7 +623,7 @@ nsSAXXMLReader::TryChannelCharset(nsIChannel *aChannel,
     nsresult rv = aChannel->GetContentCharset(charsetVal);
     if (NS_SUCCEEDED(rv)) {
       nsAutoCString preferred;
-      if (!EncodingUtils::FindEncodingForLabel(charsetVal, preferred))
+      if (NS_FAILED(nsCharsetAlias::GetPreferred(charsetVal, preferred)))
         return false;
 
       aCharset = preferred;

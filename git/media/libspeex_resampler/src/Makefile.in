@@ -9,6 +9,7 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = speex_resampler
 LIBRARY_NAME = speex_resampler
 FORCE_STATIC_LIB = 1
 
@@ -33,9 +34,7 @@ CSRCS = \
     $(NULL)
 
 EXPORTS_speex = \
-    speex_config_types.h \
     speex_resampler.h \
-    speex_types.h \
     $(NULL)
 
 include $(topsrcdir)/config/rules.mk

@@ -12,15 +12,11 @@
  * definitions for use by Yarr.
  */
 
-#include <stdio.h>
-#include <stdarg.h>
 #include "jsstr.h"
 #include "jsprvtd.h"
 #include "vm/String.h"
 #include "assembler/wtf/Platform.h"
 #include "assembler/jit/ExecutableAllocator.h"
-#include "CheckedArithmetic.h"
-#include "js/TemplateLib.h"
 
 namespace JSC { namespace Yarr {
 
@@ -28,16 +24,15 @@ namespace JSC { namespace Yarr {
  * Basic type definitions.
  */
 
-typedef char LChar;
 typedef jschar UChar;
 typedef JSLinearString UString;
-typedef JSLinearString String;
 
+using namespace js::unicode;
 
 class Unicode {
   public:
-    static UChar toUpper(UChar c) { return js::unicode::ToUpperCase(c); }
-    static UChar toLower(UChar c) { return js::unicode::ToLowerCase(c); }
+    static UChar toUpper(UChar c) { return ToUpperCase(c); }
+    static UChar toLower(UChar c) { return ToLowerCase(c); }
 };
 
 /*
@@ -110,8 +105,7 @@ PassRefPtr<T> adoptRef(T *p) { return PassRefPtr<T>(p); }
 template<typename T>
 PassOwnPtr<T> adoptPtr(T *p) { return PassOwnPtr<T>(p); }
 
-// Dummy wrapper.
-#define WTF_MAKE_FAST_ALLOCATED void make_fast_allocated_()
+#define WTF_MAKE_FAST_ALLOCATED
 
 template<typename T>
 class Ref {
@@ -133,7 +127,8 @@ class Vector {
     Vector() {}
 
     Vector(const Vector &v) {
-        append(v);
+        // XXX yarr-oom
+        (void) append(v);
     }
 
     size_t size() const {
@@ -166,19 +161,19 @@ class Vector {
 
     template <typename U>
     void append(const U &u) {
-        if (!impl.append(static_cast<T>(u)))
-            MOZ_CRASH();
+        // XXX yarr-oom
+        (void) impl.append(static_cast<T>(u));
     }
 
     template <size_t M>
     void append(const Vector<T,M> &v) {
-        if (!impl.append(v.impl))
-            MOZ_CRASH();
+        // XXX yarr-oom
+        (void) impl.append(v.impl);
     }
 
     void insert(size_t i, const T& t) {
-        if (!impl.insert(&impl[i], t))
-            MOZ_CRASH();
+        // XXX yarr-oom
+        (void) impl.insert(&impl[i], t);
     }
 
     void remove(size_t i) {
@@ -190,22 +185,14 @@ class Vector {
     }
 
     void shrink(size_t newLength) {
+        // XXX yarr-oom
         JS_ASSERT(newLength <= impl.length());
-        if (!impl.resize(newLength))
-            MOZ_CRASH();
-    }
-
-    void swap(Vector &other) {
-        impl.swap(other.impl);
+        (void) impl.resize(newLength);
     }
 
     void deleteAllValues() {
         for (T *p = impl.begin(); p != impl.end(); ++p)
             js_delete(*p);
-    }
-
-    bool reserve(size_t capacity) {
-        return impl.reserve(capacity);
     }
 };
 
@@ -221,8 +208,8 @@ class Vector<OwnPtr<T> > {
     }
 
     void append(T *t) {
-        if (!impl.append(t))
-            MOZ_CRASH();
+        // XXX yarr-oom
+        (void) impl.append(t);
     }
 
     PassOwnPtr<T> operator[](size_t i) {
@@ -234,26 +221,12 @@ class Vector<OwnPtr<T> > {
             delete_(*p);
         return impl.clear();
     }
-
-    void reserve(size_t capacity) {
-        if (!impl.reserve(capacity))
-            MOZ_CRASH();
-    }
 };
 
 template <typename T, size_t N>
 inline void
 deleteAllValues(Vector<T, N> &v) {
     v.deleteAllValues();
-}
-
-static inline void
-dataLog(const char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
 }
 
 #if ENABLE_YARR_JIT
@@ -270,6 +243,11 @@ class JSGlobalData {
 };
 
 #endif
+
+/*
+ * Sentinel value used in Yarr.
+ */
+const size_t notFound = size_t(-1);
 
  /*
   * Do-nothing version of a macro used by WTF to avoid unused
@@ -294,8 +272,6 @@ namespace std {
 # undef min
 # undef max
 #endif
-
-#define NO_RETURN_DUE_TO_ASSERT
 
 template<typename T>
 inline T
@@ -322,16 +298,5 @@ swap(T &t1, T &t2)
 } /* namespace std */
 
 } /* namespace JSC */
-
-namespace WTF {
-
-/*
- * Sentinel value used in Yarr.
- */
-const size_t notFound = size_t(-1);
-
-}
-
-#define JS_EXPORT_PRIVATE
 
 #endif

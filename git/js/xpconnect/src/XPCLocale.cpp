@@ -5,8 +5,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Assertions.h"
-
+#include "prinit.h"
 #include "plstr.h"
 
 #include "jsapi.h"
@@ -23,79 +22,41 @@
 #include "xpcpublic.h"
 
 /**
- * JS locale callbacks implemented by XPCOM modules.  These are theoretically
- * safe for use on multiple threads.  Unfortunately, the intl code underlying
- * these XPCOM modules doesn't yet support this, so in practice
- * XPCLocaleCallbacks are limited to the main thread.
+ * JS locale callbacks implemented by XPCOM modules.  This
+ * implementation is "safe" up to the following restrictions
+ *
+ * - All JSContexts for which xpc_LocalizeContext() is called belong
+ *   to the same JSRuntime
+ *
+ * - Each JSContext is destroyed on the thread on which its locale
+ *   functions are called.
+ *
+ * Unfortunately, the intl code underlying these XPCOM modules doesn't
+ * yet support this model, so in practice XPCLocaleCallbacks are
+ * limited to the main thread.
  */
 struct XPCLocaleCallbacks : public JSLocaleCallbacks
 {
-  XPCLocaleCallbacks()
-#ifdef DEBUG
-    : mThread(PR_GetCurrentThread())
-#endif
-  {
-    MOZ_COUNT_CTOR(XPCLocaleCallbacks);
-
-    localeToUpperCase = LocaleToUpperCase;
-    localeToLowerCase = LocaleToLowerCase;
-    localeCompare = LocaleCompare;
-    localeToUnicode = LocaleToUnicode;
-    localeGetErrorMessage = nullptr;
-  }
-
-  ~XPCLocaleCallbacks()
-  {
-    AssertThreadSafety();
-    MOZ_COUNT_DTOR(XPCLocaleCallbacks);
-  }
-
   /**
-   * Return the XPCLocaleCallbacks that's hidden away in |rt|. (This impl uses
-   * the locale callbacks struct to store away its per-runtime data.)
+   * Return the XPCLocaleCallbacks that's hidden away in |cx|, or null
+   * if there isn't one. (This impl uses the locale callbacks struct
+   * to store away its per-context data.)
+   *
+   * NB: If the returned XPCLocaleCallbacks hasn't yet been bound to a
+   * thread, then a side effect of calling MaybeThis() is to bind it
+   * to the calling thread.
    */
   static XPCLocaleCallbacks*
-  This(JSRuntime *rt)
+  MaybeThis(JSContext* cx)
   {
-    // Locale information for |rt| was associated using xpc_LocalizeRuntime;
-    // assert and double-check this.
-    JSLocaleCallbacks* lc = JS_GetLocaleCallbacks(rt);
-    MOZ_ASSERT(lc);
-    MOZ_ASSERT(lc->localeToUpperCase == LocaleToUpperCase);
-    MOZ_ASSERT(lc->localeToLowerCase == LocaleToLowerCase);
-    MOZ_ASSERT(lc->localeCompare == LocaleCompare);
-    MOZ_ASSERT(lc->localeToUnicode == LocaleToUnicode);
-
-    XPCLocaleCallbacks* ths = static_cast<XPCLocaleCallbacks*>(lc);
-    ths->AssertThreadSafety();
-    return ths;
+    JSLocaleCallbacks* lc = JS_GetLocaleCallbacks(cx);
+    return (lc &&
+            lc->localeToUpperCase == LocaleToUpperCase &&
+            lc->localeToLowerCase == LocaleToLowerCase &&
+            lc->localeCompare == LocaleCompare &&
+            lc->localeToUnicode == LocaleToUnicode) ? This(cx) : nullptr;
   }
 
-  static JSBool
-  LocaleToUpperCase(JSContext *cx, JSString *src, jsval *rval)
-  {
-    return ChangeCase(cx, src, rval, ToUpperCase);
-  }
-
-  static JSBool
-  LocaleToLowerCase(JSContext *cx, JSString *src, jsval *rval)
-  {
-    return ChangeCase(cx, src, rval, ToLowerCase);
-  }
-
-  static JSBool
-  LocaleToUnicode(JSContext* cx, const char* src, jsval* rval)
-  {
-    return This(JS_GetRuntime(cx))->ToUnicode(cx, src, rval);
-  }
-
-  static JSBool
-  LocaleCompare(JSContext *cx, JSString *src1, JSString *src2, jsval *rval)
-  {
-    return This(JS_GetRuntime(cx))->Compare(cx, src1, src2, rval);
-  }
-
-private:
   static JSBool
   ChangeCase(JSContext* cx, JSString* src, jsval* rval,
              void(*changeCaseFnc)(const nsAString&, nsAString&))
@@ -115,54 +76,70 @@ private:
     }
 
     *rval = STRING_TO_JSVAL(ucstr);
+
     return true;
   }
 
-  JSBool
-  Compare(JSContext *cx, JSString *src1, JSString *src2, jsval *rval)
+  static JSBool
+  LocaleToUpperCase(JSContext *cx, JSString *src, jsval *rval)
   {
-    nsresult rv;
+    return ChangeCase(cx, src, rval, ToUpperCase);
+  }
 
-    if (!mCollation) {
-      nsCOMPtr<nsILocaleService> localeService =
-        do_GetService(NS_LOCALESERVICE_CONTRACTID, &rv);
+  static JSBool
+  LocaleToLowerCase(JSContext *cx, JSString *src, jsval *rval)
+  {
+    return ChangeCase(cx, src, rval, ToLowerCase);
+  }
 
-      if (NS_SUCCEEDED(rv)) {
-        nsCOMPtr<nsILocale> locale;
-        rv = localeService->GetApplicationLocale(getter_AddRefs(locale));
+  /**
+   * Return an XPCLocaleCallbacks out of |cx|.  Callers must know that
+   * |cx| has an XPCLocaleCallbacks; i.e., the checks in MaybeThis()
+   * would be pointless to run from the calling context.
+   *
+   * NB: If the returned XPCLocaleCallbacks hasn't yet been bound to a
+   * thread, then a side effect of calling This() is to bind it to the
+   * calling thread.
+   */
+  static XPCLocaleCallbacks*
+  This(JSContext* cx)
+  {
+    XPCLocaleCallbacks* ths =
+      static_cast<XPCLocaleCallbacks*>(JS_GetLocaleCallbacks(cx));
+    ths->AssertThreadSafety();
+    return ths;
+  }
 
-        if (NS_SUCCEEDED(rv)) {
-          nsCOMPtr<nsICollationFactory> colFactory =
-            do_CreateInstance(NS_COLLATIONFACTORY_CONTRACTID, &rv);
+  static JSBool
+  LocaleToUnicode(JSContext* cx, const char* src, jsval* rval)
+  {
+    return This(cx)->ToUnicode(cx, src, rval);
+  }
 
-          if (NS_SUCCEEDED(rv)) {
-            rv = colFactory->CreateCollation(locale, getter_AddRefs(mCollation));
-          }
-        }
-      }
+  static JSBool
+  LocaleCompare(JSContext *cx, JSString *src1, JSString *src2, jsval *rval)
+  {
+    return This(cx)->Compare(cx, src1, src2, rval);
+  }
 
-      if (NS_FAILED(rv)) {
-        xpc::Throw(cx, rv);
-        return false;
-      }
-    }
+  XPCLocaleCallbacks()
+#ifdef DEBUG
+    : mThread(nullptr)
+#endif
+  {
+    MOZ_COUNT_CTOR(XPCLocaleCallbacks);
 
-    nsDependentJSString depStr1, depStr2;
-    if (!depStr1.init(cx, src1) || !depStr2.init(cx, src2)) {
-      return false;
-    }
+    localeToUpperCase = LocaleToUpperCase;
+    localeToLowerCase = LocaleToLowerCase;
+    localeCompare = LocaleCompare;
+    localeToUnicode = LocaleToUnicode;
+    localeGetErrorMessage = nullptr;
+  }
 
-    int32_t result;
-    rv = mCollation->CompareString(nsICollation::kCollationStrengthDefault,
-                                   depStr1, depStr2, &result);
-
-    if (NS_FAILED(rv)) {
-      xpc::Throw(cx, rv);
-      return false;
-    }
-
-    *rval = INT_TO_JSVAL(result);
-    return true;
+  ~XPCLocaleCallbacks()
+  {
+    MOZ_COUNT_DTOR(XPCLocaleCallbacks);
+    AssertThreadSafety();
   }
 
   JSBool
@@ -240,47 +217,144 @@ private:
     return true;
   }
 
-  void AssertThreadSafety()
+  JSBool
+  Compare(JSContext *cx, JSString *src1, JSString *src2, jsval *rval)
   {
-    MOZ_ASSERT(mThread == PR_GetCurrentThread(),
-               "XPCLocaleCallbacks used unsafely!");
+    nsresult rv;
+
+    if (!mCollation) {
+      nsCOMPtr<nsILocaleService> localeService =
+        do_GetService(NS_LOCALESERVICE_CONTRACTID, &rv);
+
+      if (NS_SUCCEEDED(rv)) {
+        nsCOMPtr<nsILocale> locale;
+        rv = localeService->GetApplicationLocale(getter_AddRefs(locale));
+
+        if (NS_SUCCEEDED(rv)) {
+          nsCOMPtr<nsICollationFactory> colFactory =
+            do_CreateInstance(NS_COLLATIONFACTORY_CONTRACTID, &rv);
+
+          if (NS_SUCCEEDED(rv)) {
+            rv = colFactory->CreateCollation(locale, getter_AddRefs(mCollation));
+          }
+        }
+      }
+
+      if (NS_FAILED(rv)) {
+        xpc::Throw(cx, rv);
+
+        return false;
+      }
+    }
+
+    nsDependentJSString depStr1, depStr2;
+    if (!depStr1.init(cx, src1) || !depStr2.init(cx, src2)) {
+      return false;
+    }
+
+    int32_t result;
+    rv = mCollation->CompareString(nsICollation::kCollationStrengthDefault,
+                                   depStr1, depStr2, &result);
+
+    if (NS_FAILED(rv)) {
+      xpc::Throw(cx, rv);
+
+      return false;
+    }
+
+    *rval = INT_TO_JSVAL(result);
+
+    return true;
   }
 
   nsCOMPtr<nsICollation> mCollation;
   nsCOMPtr<nsIUnicodeDecoder> mDecoder;
+
 #ifdef DEBUG
   PRThread* mThread;
-#endif
+
+  // Assert that |this| being used in a way consistent with its
+  // restrictions.  If |this| hasn't been bound to a thread yet, then
+  // it will be bound to calling thread.
+  void AssertThreadSafety()
+  {
+    NS_ABORT_IF_FALSE(!mThread || mThread == PR_GetCurrentThread(),
+                      "XPCLocaleCallbacks used unsafely!");
+    if (!mThread) {
+      mThread = PR_GetCurrentThread();
+    }
+  }
+#else
+    void AssertThreadSafety() { }
+#endif  // DEBUG
 };
 
-NS_EXPORT_(bool)
-xpc_LocalizeRuntime(JSRuntime *rt)
+
+/**
+ * There can only be one JSRuntime in which JSContexts are hooked with
+ * XPCLocaleCallbacks.  |sHookedRuntime| is it.
+ *
+ * Initializing the JSContextCallback must be thread safe.
+ * |sOldContextCallback| and |sHookedRuntime| are protected by
+ * |sHookRuntime|.  After that, however, the context callback itself
+ * doesn't need to be thread safe, since it operates on
+ * JSContext-local data.
+ */
+static PRCallOnceType sHookRuntime;
+static JSContextCallback sOldContextCallback;
+#ifdef DEBUG
+static JSRuntime* sHookedRuntime;
+#endif  // DEBUG
+
+static JSBool
+DelocalizeContextCallback(JSContext *cx, unsigned contextOp)
 {
-  JS_SetLocaleCallbacks(rt, new XPCLocaleCallbacks());
+  NS_ABORT_IF_FALSE(JS_GetRuntime(cx) == sHookedRuntime, "unknown runtime!");
 
-  // Set the default locale.
-  nsCOMPtr<nsILocaleService> localeService =
-    do_GetService(NS_LOCALESERVICE_CONTRACTID);
-  if (!localeService)
-    return false;
+  JSBool ok = true;
+  if (sOldContextCallback && !sOldContextCallback(cx, contextOp)) {
+    ok = false;
+    // Even if the old callback fails, we still have to march on or
+    // else we might leak the intl stuff hooked onto |cx|
+  }
 
-  nsCOMPtr<nsILocale> appLocale;
-  nsresult rv = localeService->GetApplicationLocale(getter_AddRefs(appLocale));
-  if (NS_FAILED(rv))
-    return false;
+  if (contextOp == JSCONTEXT_DESTROY) {
+    if (XPCLocaleCallbacks* lc = XPCLocaleCallbacks::MaybeThis(cx)) {
+      // This is a JSContext for which xpc_LocalizeContext() was called.
+      JS_SetLocaleCallbacks(cx, nullptr);
+      delete lc;
+    }
+  }
 
-  nsAutoString localeStr;
-  rv = appLocale->GetCategory(NS_LITERAL_STRING(NSILOCALE_TIME), localeStr);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "failed to get app locale info");
-  NS_LossyConvertUTF16toASCII locale(localeStr);
+  return ok;
+}
 
-  return !!JS_SetDefaultLocale(rt, locale.get());
+static PRStatus
+HookRuntime(void* arg)
+{
+  JSRuntime* rt = static_cast<JSRuntime*>(arg);
+
+  NS_ABORT_IF_FALSE(!sHookedRuntime && !sOldContextCallback,
+                    "PRCallOnce called twice?");
+
+  // XXX it appears that in practice we only have to worry about
+  // xpconnect's context hook, and it chains properly.  However, it
+  // *will* stomp our callback on shutdown.
+  sOldContextCallback = JS_SetContextCallback(rt, DelocalizeContextCallback);
+#ifdef DEBUG
+  sHookedRuntime = rt;
+#endif
+
+  return PR_SUCCESS;
 }
 
 NS_EXPORT_(void)
-xpc_DelocalizeRuntime(JSRuntime *rt)
+xpc_LocalizeContext(JSContext *cx)
 {
-  XPCLocaleCallbacks* lc = XPCLocaleCallbacks::This(rt);
-  JS_SetLocaleCallbacks(rt, nullptr);
-  delete lc;
+  JSRuntime* rt = JS_GetRuntime(cx);
+  PR_CallOnceWithArg(&sHookRuntime, HookRuntime, rt);
+
+  NS_ABORT_IF_FALSE(sHookedRuntime == rt, "created multiple JSRuntimes?");
+
+  JS_SetLocaleCallbacks(cx, new XPCLocaleCallbacks());
 }

@@ -40,10 +40,7 @@ nsStreamListenerTee::OnStopRequest(nsIRequest *request,
     if (mEventTarget) {
         nsIOutputStream *sink = nullptr;
         mSink.swap(sink);
-        if (NS_FAILED(NS_ProxyRelease(mEventTarget, sink))) {
-            NS_WARNING("Releasing sink on the current thread!");
-            NS_RELEASE(sink);
-        }
+        NS_ProxyRelease(mEventTarget, sink);
     }
     else {
         mSink = 0;

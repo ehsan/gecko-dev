@@ -17,7 +17,7 @@ function test()
   debug_tab_pane(TAB_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
     gDebuggee = aDebuggee;
 
     testAddBreakpoint();
@@ -26,10 +26,10 @@ function test()
 
 function testAddBreakpoint()
 {
-  gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
-    Services.tm.currentThread.dispatch({ run: function() {
-
-      var frames = gDebugger.DebuggerView.StackFrames._container._list;
+  gDebugger.addEventListener("Debugger:FetchedVariables", function test() {
+    gDebugger.removeEventListener("Debugger:FetchedVariables", test, false);
+    executeSoon(function() {
+      var frames = gDebugger.DebuggerView.StackFrames._frames;
 
       is(gDebugger.DebuggerController.activeThread.state, "paused",
          "The debugger statement was reached.");
@@ -37,20 +37,18 @@ function testAddBreakpoint()
       is(frames.querySelectorAll(".dbg-stackframe").length, 1,
          "Should have one frame.");
 
-      gPane.addBreakpoint({ url: TAB_URL, line: 9 }, function (aResponse, bpClient) {
+      let location = { url: TAB_URL, line: 9 };
+      gPane.addBreakpoint(location, function (aResponse, bpClient) {
         testResume();
       });
-    }}, 0);
-  });
+    });
+  }, false);
 
   gDebuggee.runDebuggerStatement();
 }
 
 function testResume()
 {
-  is(gDebugger.DebuggerController.activeThread.state, "paused",
-    "The breakpoint wasn't hit yet.");
-
   let thread = gDebugger.DebuggerController.activeThread;
   thread.addOneTimeListener("resumed", function() {
     thread.addOneTimeListener("paused", function() {
@@ -59,6 +57,7 @@ function testResume()
 
     EventUtils.sendMouseEvent({ type: "click" },
       content.document.querySelector("button"));
+
   });
 
   thread.resume();
@@ -69,6 +68,10 @@ function testBreakpointHit()
   is(gDebugger.DebuggerController.activeThread.state, "paused",
     "The breakpoint was hit.");
 
+  resumeAndFinish();
+}
+
+function resumeAndFinish() {
   let thread = gDebugger.DebuggerController.activeThread;
   thread.addOneTimeListener("paused", function test(aEvent, aPacket) {
     thread.addOneTimeListener("resumed", function() {
@@ -78,6 +81,7 @@ function testBreakpointHit()
     is(aPacket.why.type, "debuggerStatement", "Execution has advanced to the next line.");
     isnot(aPacket.why.type, "breakpoint", "No ghost breakpoint was hit.");
     thread.resume();
+
   });
 
   thread.resume();

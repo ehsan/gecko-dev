@@ -125,24 +125,23 @@ static int32_t getColorFormat(const char* colorFormat) {
 }
 
 GonkCameraSource *GonkCameraSource::Create(
-    const sp<GonkCameraHardware>& aCameraHw,
+    int32_t cameraHandle,
     Size videoSize,
     int32_t frameRate,
     bool storeMetaDataInVideoBuffers) {
 
-    GonkCameraSource *source = new GonkCameraSource(aCameraHw,
+    GonkCameraSource *source = new GonkCameraSource(cameraHandle,
                     videoSize, frameRate,
                     storeMetaDataInVideoBuffers);
     return source;
 }
 
 GonkCameraSource::GonkCameraSource(
-    const sp<GonkCameraHardware>& aCameraHw,
+    int32_t cameraHandle,
     Size videoSize,
     int32_t frameRate,
     bool storeMetaDataInVideoBuffers)
-    : mCameraHw(aCameraHw),
-      mCameraFlags(0),
+    : mCameraFlags(0),
       mVideoFrameRate(-1),
       mNumFramesReceived(0),
       mLastFrameTimestampUs(0),
@@ -156,6 +155,8 @@ GonkCameraSource::GonkCameraSource(
       mCollectStats(false) {
     mVideoSize.width  = -1;
     mVideoSize.height = -1;
+
+    mCameraHandle = cameraHandle;
 
     mInitCheck = init(
                     videoSize, frameRate,
@@ -309,7 +310,7 @@ status_t GonkCameraSource::configureCamera(
 
     if (isCameraParamChanged) {
         // Either frame rate or frame size needs to be changed.
-        if (OK != mCameraHw->PushParameters(*params)) {
+        if (OK != GonkCameraHardware::PushParameters(mCameraHandle,*params)) {
             LOGE("Could not change settings."
                  " Someone else is using camera ?");
             return -EBUSY;
@@ -433,7 +434,7 @@ status_t GonkCameraSource::init(
     //TODO: need to do something here to check the sanity of camera
 
     CameraParameters params;
-    mCameraHw->PullParameters(params);
+    GonkCameraHardware::PullParameters(mCameraHandle, params);
     if ((err = isCameraColorFormatSupported(params)) != OK) {
         return err;
     }
@@ -448,7 +449,7 @@ status_t GonkCameraSource::init(
 
     // Check on video frame size and frame rate.
     CameraParameters newCameraParams;
-    mCameraHw->PullParameters(newCameraParams);
+    GonkCameraHardware::PullParameters(mCameraHandle, newCameraParams);
     if ((err = checkVideoSize(newCameraParams,
                 videoSize.width, videoSize.height)) != OK) {
         return err;
@@ -459,9 +460,9 @@ status_t GonkCameraSource::init(
 
     // By default, do not store metadata in video buffers
     mIsMetaDataStoredInVideoBuffers = false;
-    mCameraHw->StoreMetaDataInBuffers(false);
+    GonkCameraHardware::StoreMetaDataInBuffers(mCameraHandle, false);
     if (storeMetaDataInVideoBuffers) {
-        if (OK == mCameraHw->StoreMetaDataInBuffers(true)) {
+        if (OK == GonkCameraHardware::StoreMetaDataInBuffers(mCameraHandle, true)) {
             mIsMetaDataStoredInVideoBuffers = true;
         }
     }
@@ -512,14 +513,12 @@ GonkCameraSource::~GonkCameraSource() {
     }
 }
 
-int GonkCameraSource::startCameraRecording() {
+void GonkCameraSource::startCameraRecording() {
     LOGV("startCameraRecording");
-    return mCameraHw->StartRecording();
+    CHECK_EQ(OK, GonkCameraHardware::StartRecording(mCameraHandle));
 }
 
 status_t GonkCameraSource::start(MetaData *meta) {
-    int rv;
-
     LOGV("start");
     CHECK(!mStarted);
     if (mInitCheck != OK) {
@@ -541,17 +540,17 @@ status_t GonkCameraSource::start(MetaData *meta) {
     }
 
     // Register a listener with GonkCameraHardware so that we can get callbacks
-    mCameraHw->SetListener(new GonkCameraSourceListener(this));
+    GonkCameraHardware::SetListener(mCameraHandle, new GonkCameraSourceListener(this));
 
-    rv = startCameraRecording();
+    startCameraRecording();
 
-    mStarted = (rv == OK);
-    return rv;
+    mStarted = true;
+    return OK;
 }
 
 void GonkCameraSource::stopCameraRecording() {
     LOGV("stopCameraRecording");
-    mCameraHw->StopRecording();
+    GonkCameraHardware::StopRecording(mCameraHandle);
 }
 
 void GonkCameraSource::releaseCamera() {
@@ -594,7 +593,7 @@ status_t GonkCameraSource::stop() {
 
 void GonkCameraSource::releaseRecordingFrame(const sp<IMemory>& frame) {
     LOGV("releaseRecordingFrame");
-    mCameraHw->ReleaseRecordingFrame(frame);
+    GonkCameraHardware::ReleaseRecordingFrame(mCameraHandle, frame);
 }
 
 void GonkCameraSource::releaseQueuedFrames() {

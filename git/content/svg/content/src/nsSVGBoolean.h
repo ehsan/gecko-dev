@@ -6,22 +6,17 @@
 #ifndef __NS_SVGBOOLEAN_H__
 #define __NS_SVGBOOLEAN_H__
 
-#include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
+#include "nsCycleCollectionParticipant.h"
 #include "nsError.h"
+#include "nsIDOMSVGAnimatedBoolean.h"
 #include "nsISMILAttr.h"
+#include "nsISupportsImpl.h"
+#include "nsSVGElement.h"
 #include "mozilla/Attributes.h"
 
-class nsIAtom;
-class nsISupports;
+class nsISMILAnimationElement;
 class nsSMILValue;
-class nsSVGElement;
-
-namespace mozilla {
-namespace dom {
-class SVGAnimationElement;
-class SVGAnimatedBoolean;
-}
-}
 
 class nsSVGBoolean
 {
@@ -44,8 +39,8 @@ public:
   bool GetAnimValue() const
     { return mAnimVal; }
 
-  already_AddRefed<mozilla::dom::SVGAnimatedBoolean>
-    ToDOMAnimatedBoolean(nsSVGElement* aSVGElement);
+  nsresult ToDOMAnimatedBoolean(nsIDOMSVGAnimatedBoolean **aResult,
+                                nsSVGElement* aSVGElement);
   // Returns a new nsISMILAttr object that the caller must delete
   nsISMILAttr* ToSMILAttr(nsSVGElement* aSVGElement);
 
@@ -57,21 +52,47 @@ private:
   uint8_t mAttrEnum; // element specified tracking for attribute
 
 public:
+  struct DOMAnimatedBoolean MOZ_FINAL : public nsIDOMSVGAnimatedBoolean
+  {
+    NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+    NS_DECL_CYCLE_COLLECTION_CLASS(DOMAnimatedBoolean)
+
+    DOMAnimatedBoolean(nsSVGBoolean* aVal, nsSVGElement *aSVGElement)
+      : mVal(aVal), mSVGElement(aSVGElement) {}
+
+    nsSVGBoolean* mVal; // kept alive because it belongs to content
+    nsRefPtr<nsSVGElement> mSVGElement;
+
+    NS_IMETHOD GetBaseVal(bool* aResult)
+      { *aResult = mVal->GetBaseValue(); return NS_OK; }
+    NS_IMETHOD SetBaseVal(bool aValue)
+      { mVal->SetBaseValue(aValue, mSVGElement); return NS_OK; }
+
+    // Script may have modified animation parameters or timeline -- DOM getters
+    // need to flush any resample requests to reflect these modifications.
+    NS_IMETHOD GetAnimVal(bool* aResult)
+    {
+      mSVGElement->FlushAnimations();
+      *aResult = mVal->GetAnimValue();
+      return NS_OK;
+    }
+  };
+
   struct SMILBool : public nsISMILAttr
   {
   public:
     SMILBool(nsSVGBoolean* aVal, nsSVGElement* aSVGElement)
       : mVal(aVal), mSVGElement(aSVGElement) {}
-
+    
     // These will stay alive because a nsISMILAttr only lives as long
     // as the Compositing step, and DOM elements don't get a chance to
     // die during that.
     nsSVGBoolean* mVal;
     nsSVGElement* mSVGElement;
-
+    
     // nsISMILAttr methods
     virtual nsresult ValueFromString(const nsAString& aStr,
-                                     const mozilla::dom::SVGAnimationElement* aSrcElement,
+                                     const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
                                      bool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;

@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozIThirdPartyUtil.h"
 #include "nscore.h"
 #include "nsScriptSecurityManager.h"
 #include "nsString.h"
@@ -17,6 +16,7 @@
 #include "nsNetUtil.h"
 #include "nsJSPrincipals.h"
 #include "nsVoidArray.h"
+#include "nsHashtable.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIClassInfoImpl.h"
@@ -144,7 +144,7 @@ void nsPrincipal::dumpImpl()
 }
 #endif 
 
-NS_IMPL_CLASSINFO(nsPrincipal, nullptr, nsIClassInfo::MAIN_THREAD_ONLY,
+NS_IMPL_CLASSINFO(nsPrincipal, NULL, nsIClassInfo::MAIN_THREAD_ONLY,
                   NS_PRINCIPAL_CID)
 NS_IMPL_QUERY_INTERFACE2_CI(nsPrincipal,
                             nsIPrincipal,
@@ -263,42 +263,34 @@ nsPrincipal::GetOrigin(char **aOrigin)
 NS_IMETHODIMP
 nsPrincipal::Equals(nsIPrincipal *aOther, bool *aResult)
 {
-  *aResult = false;
-
   if (!aOther) {
     NS_WARNING("Need a principal to compare this to!");
+    *aResult = false;
     return NS_OK;
   }
 
-  if (aOther == this) {
-    *aResult = true;
+  if (this != aOther) {
+
+    // Codebases are equal if they have the same origin.
+    *aResult =
+      NS_SUCCEEDED(nsScriptSecurityManager::CheckSameOriginPrincipal(this,
+                                                                     aOther));
     return NS_OK;
   }
 
-  // Codebases are equal if they have the same origin.
-  *aResult = NS_SUCCEEDED(
-               nsScriptSecurityManager::CheckSameOriginPrincipal(this, aOther));
+  *aResult = true;
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsPrincipal::EqualsIgnoringDomain(nsIPrincipal *aOther, bool *aResult)
 {
-  *aResult = false;
-
-  if (!aOther) {
-    NS_WARNING("Need a principal to compare this to!");
-    return NS_OK;
-  }
-
-  if (aOther == this) {
+  if (this == aOther) {
     *aResult = true;
     return NS_OK;
   }
 
-  if (!nsScriptSecurityManager::AppAttributesEqual(this, aOther)) {
-    return NS_OK;
-  }
+  *aResult = false;
 
   nsCOMPtr<nsIURI> otherURI;
   nsresult rv = aOther->GetURI(getter_AddRefs(otherURI));
@@ -441,7 +433,7 @@ nsPrincipal::CheckMayLoad(nsIURI* aURI, bool aReport, bool aAllowIfInheritsPrinc
       nsScriptSecurityManager::ReportError(
         nullptr, NS_LITERAL_STRING("CheckSameOriginError"), mCodebase, aURI);
     }
-
+    
     return NS_ERROR_DOM_BAD_URI;
   }
 
@@ -485,13 +477,14 @@ nsPrincipal::SetDomain(nsIURI* aDomain)
 {
   mDomain = NS_TryToMakeImmutable(aDomain);
   mDomainImmutable = URIIsImmutable(mDomain);
-
+  
   // Domain has changed, forget cached security policy
   SetSecurityPolicy(nullptr);
 
   // Recompute all wrappers between compartments using this principal and other
   // non-chrome compartments.
-  SafeAutoJSContext cx;
+  JSContext *cx = nsContentUtils::GetSafeJSContext();
+  NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
   JSPrincipals *principals = nsJSPrincipals::get(static_cast<nsIPrincipal*>(this));
   bool success = js::RecomputeWrappers(cx, js::ContentCompartmentsOnly(),
                                        js::CompartmentsWithPrincipals(principals));
@@ -552,29 +545,6 @@ NS_IMETHODIMP
 nsPrincipal::GetIsNullPrincipal(bool* aIsNullPrincipal)
 {
   *aIsNullPrincipal = false;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPrincipal::GetBaseDomain(nsACString& aBaseDomain)
-{
-  // For a file URI, we return the file path.
-  if (URIIsLocalFile(mCodebase)) {
-    nsCOMPtr<nsIURL> url = do_QueryInterface(mCodebase);
-
-    if (url) {
-      return url->GetFilePath(aBaseDomain);
-    }
-  }
-
-  // For everything else, we ask the TLD service via
-  // the ThirdPartyUtil.
-  nsCOMPtr<mozIThirdPartyUtil> thirdPartyUtil =
-    do_GetService(THIRDPARTYUTIL_CONTRACTID);
-  if (thirdPartyUtil) {
-    return thirdPartyUtil->GetBaseDomain(mCodebase, aBaseDomain);
-  }
-
   return NS_OK;
 }
 
@@ -691,7 +661,7 @@ nsPrincipal::GetAppStatus()
 
 static const char EXPANDED_PRINCIPAL_SPEC[] = "[Expanded Principal]";
 
-NS_IMPL_CLASSINFO(nsExpandedPrincipal, nullptr, nsIClassInfo::MAIN_THREAD_ONLY,
+NS_IMPL_CLASSINFO(nsExpandedPrincipal, NULL, nsIClassInfo::MAIN_THREAD_ONLY,
                   NS_EXPANDEDPRINCIPAL_CID)
 NS_IMPL_QUERY_INTERFACE2_CI(nsExpandedPrincipal,
                             nsIPrincipal,
@@ -710,20 +680,20 @@ nsExpandedPrincipal::nsExpandedPrincipal(nsTArray<nsCOMPtr <nsIPrincipal> > &aWh
 nsExpandedPrincipal::~nsExpandedPrincipal()
 { }
 
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsExpandedPrincipal::GetDomain(nsIURI** aDomain)
 {
   *aDomain = nullptr;
   return NS_OK;
 }
 
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsExpandedPrincipal::SetDomain(nsIURI* aDomain)
 {
   return NS_OK;
 }
 
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsExpandedPrincipal::GetOrigin(char** aOrigin)
 {
   *aOrigin = ToNewCString(NS_LITERAL_CSTRING(EXPANDED_PRINCIPAL_SPEC));
@@ -735,10 +705,10 @@ typedef nsresult (NS_STDCALL nsIPrincipal::*nsIPrincipalMemFn)(nsIPrincipal* aOt
 #define CALL_MEMBER_FUNCTION(THIS,MEM_FN)  ((THIS)->*(MEM_FN))
 
 // nsExpandedPrincipal::Equals and nsExpandedPrincipal::EqualsIgnoringDomain
-// shares the same logic. The difference only that Equals requires 'this'
-// and 'aOther' to Subsume each other while EqualsIgnoringDomain requires
+// shares the same logic. The difference only that Equals requires 'this' 
+// and 'aOther' to Subsume each other while EqualsIgnoringDomain requires 
 // bidirectional SubsumesIgnoringDomain.
-static nsresult
+static nsresult 
 Equals(nsExpandedPrincipal* aThis, nsIPrincipalMemFn aFn, nsIPrincipal* aOther,
        bool* aResult)
 {
@@ -772,14 +742,14 @@ nsExpandedPrincipal::EqualsIgnoringDomain(nsIPrincipal* aOther, bool* aResult)
 // nsExpandedPrincipal::Subsumes and nsExpandedPrincipal::SubsumesIgnoringDomain
 // shares the same logic. The difference only that Subsumes calls are replaced
 //with SubsumesIgnoringDomain calls in the second case.
-static nsresult
-Subsumes(nsExpandedPrincipal* aThis, nsIPrincipalMemFn aFn, nsIPrincipal* aOther,
+static nsresult 
+Subsumes(nsExpandedPrincipal* aThis, nsIPrincipalMemFn aFn, nsIPrincipal* aOther, 
          bool* aResult)
 {
   nsresult rv;
-  nsCOMPtr<nsIExpandedPrincipal> expanded = do_QueryInterface(aOther);
+  nsCOMPtr<nsIExpandedPrincipal> expanded = do_QueryInterface(aOther);  
   if (expanded) {
-    // If aOther is an ExpandedPrincipal too, check if all of its
+    // If aOther is an ExpandedPrincipal too, check if all of its 
     // principals are subsumed.
     nsTArray< nsCOMPtr<nsIPrincipal> >* otherList;
     expanded->GetWhiteList(&otherList);
@@ -788,7 +758,7 @@ Subsumes(nsExpandedPrincipal* aThis, nsIPrincipalMemFn aFn, nsIPrincipal* aOther
       NS_ENSURE_SUCCESS(rv, rv);
       if (!*aResult) {
         // If we don't subsume at least one principal of aOther, return false.
-        return NS_OK;
+        return NS_OK;    
       }
     }
   } else {
@@ -848,7 +818,7 @@ nsExpandedPrincipal::GetURI(nsIURI** aURI)
   return NS_OK;
 }
 
-NS_IMETHODIMP
+NS_IMETHODIMP 
 nsExpandedPrincipal::GetWhiteList(nsTArray<nsCOMPtr<nsIPrincipal> >** aWhiteList)
 {
   *aWhiteList = &mPrincipals;
@@ -894,12 +864,6 @@ nsExpandedPrincipal::GetIsNullPrincipal(bool* aIsNullPrincipal)
 {
   *aIsNullPrincipal = false;
   return NS_OK;
-}
-
-NS_IMETHODIMP
-nsExpandedPrincipal::GetBaseDomain(nsACString& aBaseDomain)
-{
-  return NS_ERROR_NOT_AVAILABLE;
 }
 
 void

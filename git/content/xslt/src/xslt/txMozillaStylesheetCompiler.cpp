@@ -5,6 +5,7 @@
 
 #include "nsCOMArray.h"
 #include "nsIAuthPrompt.h"
+#include "nsCharsetAlias.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
 #include "nsIDocument.h"
@@ -38,12 +39,10 @@
 #include "nsIURL.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsError.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/EncodingUtils.h"
+#include "mozilla/Attributes.h"
 
 using namespace mozilla;
-using mozilla::dom::EncodingUtils;
 
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
 
@@ -259,7 +258,7 @@ txStylesheetSink::OnStartRequest(nsIRequest *aRequest, nsISupports *aContext)
     nsAutoCString charsetVal;
     nsAutoCString charset;
     if (NS_SUCCEEDED(channel->GetContentCharset(charsetVal))) {
-        if (EncodingUtils::FindEncodingForLabel(charsetVal, charset)) {
+        if (NS_SUCCEEDED(nsCharsetAlias::GetPreferred(charsetVal, charset))) {
             charsetSource = kCharsetFromChannel;
         }
     }

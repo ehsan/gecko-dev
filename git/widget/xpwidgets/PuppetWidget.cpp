@@ -57,11 +57,7 @@ MightNeedIMEFocus(const nsWidgetInitData* aInitData)
 {
   // In the puppet-widget world, popup widgets are just dummies and
   // shouldn't try to mess with IME state.
-#ifdef MOZ_CROSS_PROCESS_IME
   return !IsPopup(aInitData);
-#else
-  return false;
-#endif
 }
 
 
@@ -122,9 +118,7 @@ PuppetWidget::InitIMEState()
 {
   if (mNeedIMEStateInit) {
     uint32_t chromeSeqno;
-    if (mTabChild) {
-      mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
-    }
+    mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
     mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
     mNeedIMEStateInit = false;
   }
@@ -168,29 +162,20 @@ PuppetWidget::Show(bool aState)
   bool wasVisible = mVisible;
   mVisible = aState;
 
-  if (mChild) {
-    mChild->mVisible = aState;
-  }
-
-  if (!mVisible && mLayerManager) {
-    mLayerManager->ClearCachedResources();
-  }
-
   if (!wasVisible && mVisible) {
     Resize(mBounds.width, mBounds.height, false);
-    Invalidate(mBounds);
   }
 
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PuppetWidget::Resize(double aWidth,
-                     double aHeight,
-                     bool   aRepaint)
+PuppetWidget::Resize(int32_t aWidth,
+                     int32_t aHeight,
+                     bool    aRepaint)
 {
   nsIntRect oldBounds = mBounds;
-  mBounds.SizeTo(nsIntSize(NSToIntRound(aWidth), NSToIntRound(aHeight)));
+  mBounds.SizeTo(nsIntSize(aWidth, aHeight));
 
   if (mChild) {
     return mChild->Resize(aWidth, aHeight, aRepaint);
@@ -269,6 +254,8 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
 
   aStatus = nsEventStatus_eIgnore;
 
+  NS_ABORT_IF_FALSE(mAttachedWidgetListener, "No listener!");
+
   if (event->message == NS_COMPOSITION_START) {
     mIMEComposing = true;
   }
@@ -288,13 +275,9 @@ PuppetWidget::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
     if (mIMELastReceivedSeqno < mIMELastBlurSeqno)
       return NS_OK;
     break;
-  default:
-    break;
   }
 
-  if (mAttachedWidgetListener) {
-    aStatus = mAttachedWidgetListener->HandleEvent(event, mUseAttachedEvents);
-  }
+  aStatus = mAttachedWidgetListener->HandleEvent(event, mUseAttachedEvents);
 
   if (event->message == NS_COMPOSITION_END) {
     mIMEComposing = false;
@@ -341,10 +324,6 @@ PuppetWidget::GetThebesSurface()
 nsresult
 PuppetWidget::IMEEndComposition(bool aCancel)
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return NS_OK;
-#endif
-
   nsEventStatus status;
   nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
   InitEvent(textEvent, nullptr);
@@ -369,33 +348,21 @@ PuppetWidget::IMEEndComposition(bool aCancel)
 }
 
 NS_IMETHODIMP
-PuppetWidget::NotifyIME(NotificationToIME aNotification)
+PuppetWidget::ResetInputState()
 {
-  switch (aNotification) {
-    case NOTIFY_IME_OF_CURSOR_POS_CHANGED:
-    case REQUEST_TO_COMMIT_COMPOSITION:
-      return IMEEndComposition(false);
-    case REQUEST_TO_CANCEL_COMPOSITION:
-      return IMEEndComposition(true);
-    case NOTIFY_IME_OF_FOCUS:
-      return NotifyIMEOfFocusChange(true);
-    case NOTIFY_IME_OF_BLUR:
-      return NotifyIMEOfFocusChange(false);
-    case NOTIFY_IME_OF_SELECTION_CHANGE:
-      return NotifyIMEOfSelectionChange();
-    default:
-      return NS_ERROR_NOT_IMPLEMENTED;
-  }
+  return IMEEndComposition(false);
+}
+
+NS_IMETHODIMP
+PuppetWidget::CancelComposition()
+{
+  return IMEEndComposition(true);
 }
 
 NS_IMETHODIMP_(void)
 PuppetWidget::SetInputContext(const InputContext& aContext,
                               const InputContextAction& aAction)
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return;
-#endif
-
   if (!mTabChild) {
     return;
   }
@@ -412,29 +379,19 @@ PuppetWidget::SetInputContext(const InputContext& aContext,
 NS_IMETHODIMP_(InputContext)
 PuppetWidget::GetInputContext()
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return InputContext();
-#endif
-
   InputContext context;
   if (mTabChild) {
     int32_t enabled, open;
-    intptr_t nativeIMEContext;
-    mTabChild->SendGetInputContext(&enabled, &open, &nativeIMEContext);
+    mTabChild->SendGetInputContext(&enabled, &open);
     context.mIMEState.mEnabled = static_cast<IMEState::Enabled>(enabled);
     context.mIMEState.mOpen = static_cast<IMEState::Open>(open);
-    context.mNativeIMEContext = reinterpret_cast<void*>(nativeIMEContext);
   }
   return context;
 }
 
-nsresult
-PuppetWidget::NotifyIMEOfFocusChange(bool aFocus)
+NS_IMETHODIMP
+PuppetWidget::OnIMEFocusChange(bool aFocus)
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return NS_OK;
-#endif
-
   if (!mTabChild)
     return NS_ERROR_FAILURE;
 
@@ -450,8 +407,8 @@ PuppetWidget::NotifyIMEOfFocusChange(bool aFocus)
       mTabChild->SendNotifyIMETextHint(queryEvent.mReply.mString);
     }
   } else {
-    // Might not have been committed composition yet
-    IMEEndComposition(false);
+    // ResetInputState might not have been called yet
+    ResetInputState();
   }
 
   uint32_t chromeSeqno;
@@ -461,30 +418,19 @@ PuppetWidget::NotifyIMEOfFocusChange(bool aFocus)
     return NS_ERROR_FAILURE;
 
   if (aFocus) {
-    if (mIMEPreference.mWantUpdates && mIMEPreference.mWantHints) {
-      NotifyIMEOfSelectionChange(); // Update selection
-    }
+    if (!mIMEPreference.mWantUpdates && !mIMEPreference.mWantHints)
+      // call OnIMEFocusChange on blur but no other updates
+      return NS_SUCCESS_IME_NO_UPDATES;
+    OnIMESelectionChange(); // Update selection
   } else {
     mIMELastBlurSeqno = chromeSeqno;
   }
   return NS_OK;
 }
 
-nsIMEUpdatePreference
-PuppetWidget::GetIMEUpdatePreference()
-{
-  return mIMEPreference;
-}
-
 NS_IMETHODIMP
-PuppetWidget::NotifyIMEOfTextChange(uint32_t aStart,
-                                    uint32_t aEnd,
-                                    uint32_t aNewEnd)
+PuppetWidget::OnIMETextChange(uint32_t aStart, uint32_t aEnd, uint32_t aNewEnd)
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return NS_OK;
-#endif
-
   if (!mTabChild)
     return NS_ERROR_FAILURE;
 
@@ -505,13 +451,9 @@ PuppetWidget::NotifyIMEOfTextChange(uint32_t aStart,
   return NS_OK;
 }
 
-nsresult
-PuppetWidget::NotifyIMEOfSelectionChange()
+NS_IMETHODIMP
+PuppetWidget::OnIMESelectionChange(void)
 {
-#ifndef MOZ_CROSS_PROCESS_IME
-  return NS_OK;
-#endif
-
   if (!mTabChild)
     return NS_ERROR_FAILURE;
 
@@ -537,7 +479,8 @@ PuppetWidget::SetCursor(nsCursor aCursor)
     return NS_OK;
   }
 
-  if (mTabChild && !mTabChild->SendSetCursor(aCursor)) {
+  if (!mTabChild ||
+      !mTabChild->SendSetCursor(aCursor)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -560,32 +503,26 @@ PuppetWidget::Paint()
   mDirtyRegion.SetEmpty();
   mPaintTask.Revoke();
 
-  mAttachedWidgetListener->WillPaintWindow(this);
-
-  if (mAttachedWidgetListener) {
+  {
 #ifdef DEBUG
     debug_DumpPaintEvent(stderr, this, region,
                          nsAutoCString("PuppetWidget"), 0);
 #endif
 
     if (mozilla::layers::LAYERS_D3D10 == mLayerManager->GetBackendType()) {
-      mAttachedWidgetListener->PaintWindow(this, region, 0);
+      mAttachedWidgetListener->PaintWindow(this, region, nsIWidgetListener::WILL_SEND_DID_PAINT);
     } else {
       nsRefPtr<gfxContext> ctx = new gfxContext(mSurface);
       ctx->Rectangle(gfxRect(0,0,0,0));
       ctx->Clip();
       AutoLayerManagerSetup setupLayerManager(this, ctx,
                                               BUFFER_NONE);
-      mAttachedWidgetListener->PaintWindow(this, region, 0);
-      if (mTabChild) {
-        mTabChild->NotifyPainted();
-      }
+      mAttachedWidgetListener->PaintWindow(this, region, nsIWidgetListener::WILL_SEND_DID_PAINT);
+      mTabChild->NotifyPainted();
     }
   }
 
-  if (mAttachedWidgetListener) {
-    mAttachedWidgetListener->DidPaintWindow();
-  }
+  mAttachedWidgetListener->DidPaintWindow();
 
   return NS_OK;
 }
@@ -609,21 +546,12 @@ PuppetWidget::PaintTask::Run()
   return NS_OK;
 }
 
-bool
-PuppetWidget::NeedsPaint()
-{
-  return mVisible;
-}
-
 float
 PuppetWidget::GetDPI()
 {
   if (mDPI < 0) {
-    if (mTabChild) {
-      mTabChild->GetDPI(&mDPI);
-    } else {
-      mDPI = 96.0;
-    }
+    NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the DPI from!");
+    mTabChild->GetDPI(&mDPI);
   }
 
   return mDPI;
@@ -636,9 +564,7 @@ PuppetWidget::GetNativeData(uint32_t aDataType)
   case NS_NATIVE_SHAREABLE_WINDOW: {
     NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the nativeWindow from!");
     mozilla::WindowsHandle nativeData = 0;
-    if (mTabChild) {
-      mTabChild->SendGetWidgetNativeData(&nativeData);
-    }
+    mTabChild->SendGetWidgetNativeData(&nativeData);
     return (void*)nativeData;
   }
   case NS_NATIVE_WINDOW:

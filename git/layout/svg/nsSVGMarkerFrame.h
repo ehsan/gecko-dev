@@ -21,12 +21,7 @@ class nsIPresShell;
 class nsRenderingContext;
 class nsStyleContext;
 class nsSVGPathGeometryFrame;
-
-namespace mozilla {
-namespace dom {
-class SVGSVGElement;
-}
-}
+class nsSVGSVGElement;
 
 struct nsSVGMark;
 
@@ -51,14 +46,16 @@ public:
 
   // nsIFrame interface:
 #ifdef DEBUG
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 #endif
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) {
+    return NS_OK;
+  }
 
   NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
                               nsIAtom*        aAttribute,
@@ -113,7 +110,7 @@ private:
   };
 
   // nsSVGMarkerFrame methods:
-  void SetParentCoordCtxProvider(mozilla::dom::SVGSVGElement *aContext);
+  void SetParentCoordCtxProvider(nsSVGSVGElement *aContext);
 
   // recursion prevention flag
   bool mInUse;

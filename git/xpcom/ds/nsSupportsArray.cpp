@@ -275,14 +275,15 @@ nsSupportsArray::Equals(const nsISupportsArray* aOther)
   return false;
 }
 
-NS_IMETHODIMP
-nsSupportsArray::GetElementAt(uint32_t aIndex, nsISupports **aOutPtr)
+NS_IMETHODIMP_(nsISupports*)
+nsSupportsArray::ElementAt(uint32_t aIndex)
 {
-  *aOutPtr = nullptr;
   if (aIndex < mCount) {
-    NS_IF_ADDREF(*aOutPtr = mArray[aIndex]);
+    nsISupports*  element = mArray[aIndex];
+    NS_IF_ADDREF(element);
+    return element;
   }
-  return NS_OK;
+  return 0;
 }
 
 NS_IMETHODIMP_(int32_t)
@@ -570,6 +571,30 @@ nsSupportsArray::SizeTo(int32_t aSize)
   return true;
 }
 
+NS_IMETHODIMP_(bool)
+nsSupportsArray::EnumerateForwards(nsISupportsArrayEnumFunc aFunc, void* aData)
+{
+  int32_t aIndex = -1;
+  bool    running = true;
+
+  while (running && (++aIndex < (int32_t)mCount)) {
+    running = (*aFunc)(mArray[aIndex], aData);
+  }
+  return running;
+}
+
+NS_IMETHODIMP_(bool)
+nsSupportsArray::EnumerateBackwards(nsISupportsArrayEnumFunc aFunc, void* aData)
+{
+  uint32_t aIndex = mCount;
+  bool    running = true;
+
+  while (running && (0 < aIndex--)) {
+    running = (*aFunc)(mArray[aIndex], aData);
+  }
+  return running;
+}
+
 NS_IMETHODIMP
 nsSupportsArray::Enumerate(nsIEnumerator* *result)
 {
@@ -581,22 +606,24 @@ nsSupportsArray::Enumerate(nsIEnumerator* *result)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsSupportsArray::Clone(nsISupportsArray** aResult)
+static bool
+CopyElement(nsISupports* aElement, void *aData)
 {
-  nsCOMPtr<nsISupportsArray> newArray;
-  nsresult rv = NS_NewISupportsArray(getter_AddRefs(newArray));
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsresult rv;
+  nsISupportsArray* newArray = (nsISupportsArray*)aData;
+  rv = newArray->AppendElement(aElement);
+  return NS_SUCCEEDED(rv);
+}
 
-  uint32_t count = 0;
-  Count(&count);
-  for (uint32_t i = 0; i < count; i++) {
-    if (!newArray->InsertElementAt(mArray[i], i)) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
-
-  newArray.forget(aResult);
+NS_IMETHODIMP
+nsSupportsArray::Clone(nsISupportsArray* *result)
+{
+  nsresult rv;
+  nsISupportsArray* newArray;
+  rv = NS_NewISupportsArray(&newArray);
+  bool ok = EnumerateForwards(CopyElement, newArray);
+  if (!ok) return NS_ERROR_OUT_OF_MEMORY;
+  *result = newArray;
   return NS_OK;
 }
 
@@ -607,4 +634,90 @@ NS_NewISupportsArray(nsISupportsArray** aInstancePtrResult)
   rv = nsSupportsArray::Create(NULL, NS_GET_IID(nsISupportsArray),
                                (void**)aInstancePtrResult);
   return rv;
+}
+
+class nsArrayEnumerator MOZ_FINAL : public nsISimpleEnumerator
+{
+public:
+    // nsISupports interface
+    NS_DECL_ISUPPORTS
+
+    // nsISimpleEnumerator interface
+    NS_IMETHOD HasMoreElements(bool* aResult);
+    NS_IMETHOD GetNext(nsISupports** aResult);
+
+    // nsArrayEnumerator methods
+    nsArrayEnumerator(nsISupportsArray* aValueArray);
+
+private:
+    ~nsArrayEnumerator(void);
+
+protected:
+    nsISupportsArray* mValueArray;
+    int32_t mIndex;
+};
+
+nsArrayEnumerator::nsArrayEnumerator(nsISupportsArray* aValueArray)
+    : mValueArray(aValueArray),
+      mIndex(0)
+{
+    NS_IF_ADDREF(mValueArray);
+}
+
+nsArrayEnumerator::~nsArrayEnumerator(void)
+{
+    NS_IF_RELEASE(mValueArray);
+}
+
+NS_IMPL_ISUPPORTS1(nsArrayEnumerator, nsISimpleEnumerator)
+
+NS_IMETHODIMP
+nsArrayEnumerator::HasMoreElements(bool* aResult)
+{
+    NS_PRECONDITION(aResult != 0, "null ptr");
+    if (! aResult)
+        return NS_ERROR_NULL_POINTER;
+
+    if (!mValueArray) {
+        *aResult = false;
+        return NS_OK;
+    }
+
+    uint32_t cnt;
+    nsresult rv = mValueArray->Count(&cnt);
+    if (NS_FAILED(rv)) return rv;
+    *aResult = (mIndex < (int32_t) cnt);
+    return NS_OK;
+}
+
+NS_IMETHODIMP
+nsArrayEnumerator::GetNext(nsISupports** aResult)
+{
+    NS_PRECONDITION(aResult != 0, "null ptr");
+    if (! aResult)
+        return NS_ERROR_NULL_POINTER;
+
+    if (!mValueArray) {
+        *aResult = nullptr;
+        return NS_OK;
+    }
+
+    uint32_t cnt;
+    nsresult rv = mValueArray->Count(&cnt);
+    if (NS_FAILED(rv)) return rv;
+    if (mIndex >= (int32_t) cnt)
+        return NS_ERROR_UNEXPECTED;
+
+    *aResult = mValueArray->ElementAt(mIndex++);
+    return NS_OK;
+}
+
+nsresult
+NS_NewArrayEnumerator(nsISimpleEnumerator* *result,
+                      nsISupportsArray* array)
+{
+    nsArrayEnumerator* enumer = new nsArrayEnumerator(array);
+    *result = enumer; 
+    NS_ADDREF(*result);
+    return NS_OK;
 }

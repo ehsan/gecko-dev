@@ -34,21 +34,22 @@
 #include "nsICharsetConverterManager.h"
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
+#include "nsIEnumerator.h"
 #include "nsIParserService.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
-#include "mozilla/Selection.h"
+#include "nsISelection.h"
 #include "nsISelectionPrivate.h"
 #include "nsITransferable.h" // for kUnicodeMime
 #include "nsContentUtils.h"
-#include "nsNodeUtils.h"
 #include "nsUnicharUtils.h"
 #include "nsReadableUtils.h"
 #include "nsTArray.h"
 #include "nsIFrame.h"
 #include "nsStringBuffer.h"
 #include "mozilla/dom/Element.h"
+#include "nsIEditorDocShell.h"
 #include "nsIEditor.h"
 #include "nsIHTMLEditor.h"
 #include "nsIDocShell.h"
@@ -118,7 +119,7 @@ protected:
           }
           return false;
         }
-        bool isVisible = frame->StyleVisibility()->IsVisible();
+        bool isVisible = frame->GetStyleVisibility()->IsVisible();
         if (!isVisible && aNode->IsNodeOfType(nsINode::eTEXT))
           return false;
       }
@@ -163,6 +164,8 @@ protected:
   nsStringBuffer*   mCachedBuffer;
 };
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocumentEncoder)
+
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDocumentEncoder)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDocumentEncoder)
 
@@ -172,19 +175,19 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDocumentEncoder)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocumentEncoder)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocument)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mSelection)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRange)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mNode)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mCommonParent)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mSelection)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRange)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCommonParent)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDocumentEncoder)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocument)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSelection)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRange)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNode)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCommonParent)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mSelection)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRange, nsIDOMRange)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNode)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCommonParent)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 nsDocumentEncoder::nsDocumentEncoder() : mCachedBuffer(nullptr)
@@ -343,14 +346,17 @@ IsInvisibleBreak(nsINode *aNode) {
     if (window) {
       nsIDocShell *docShell = window->GetDocShell();
       if (docShell) {
-        nsCOMPtr<nsIEditor> editor;
-        docShell->GetEditor(getter_AddRefs(editor));
-        nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(editor);
-        if (htmlEditor) {
-          bool isVisible = false;
-          nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(aNode);
-          htmlEditor->BreakIsVisible(domNode, &isVisible);
-          return !isVisible;
+        nsCOMPtr<nsIEditorDocShell> editorDocShell = do_QueryInterface(docShell);
+        if (editorDocShell) {
+          nsCOMPtr<nsIEditor> editor;
+          editorDocShell->GetEditor(getter_AddRefs(editor));
+          nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(editor);
+          if (htmlEditor) {
+            bool isVisible = false;
+            nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(aNode);
+            htmlEditor->BreakIsVisible(domNode, &isVisible);
+            return !isVisible;
+          }
         }
       }
     }
@@ -496,8 +502,7 @@ nsDocumentEncoder::SerializeToStringRecursive(nsINode* aNode,
 
   nsINode* node = serializeClonedChildren ? maybeFixedNode : aNode;
 
-  for (nsINode* child = nsNodeUtils::GetFirstChildOfTemplateOrNode(node);
-       child;
+  for (nsINode* child = node->GetFirstChild(); child;
        child = child->GetNextSibling()) {
     rv = SerializeToStringRecursive(child, aStr, false);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1197,17 +1202,11 @@ nsDocumentEncoder::EncodeToStream(nsIOutputStream* aStream)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  bool chromeCaller = nsContentUtils::IsCallerChrome();
-  if (chromeCaller) {
-    mStream = aStream;
-  }
+  mStream = aStream;
+
   nsAutoString buf;
 
   rv = EncodeToString(buf);
-
-  if (!chromeCaller) {
-    mStream = aStream;
-  }
 
   // Force a flush of the last chunk of data.
   FlushText(buf, true);
@@ -1345,17 +1344,19 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
   
   nsCOMPtr<nsIDOMRange> range;
   nsCOMPtr<nsIDOMNode> commonParent;
-  Selection* selection = static_cast<Selection*>(aSelection);
-  uint32_t rangeCount = selection->GetRangeCount();
+  int32_t count = 0;
+
+  nsresult rv = aSelection->GetRangeCount(&count);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // if selection is uninitialized return
-  if (!rangeCount)
+  if (!count)
     return NS_ERROR_FAILURE;
   
   // we'll just use the common parent of the first range.  Implicit assumption
   // here that multi-range selections are table cell selections, in which case
   // the common parent is somewhere in the table and we don't really care where.
-  nsresult rv = aSelection->GetRangeAt(0, getter_AddRefs(range));
+  rv = aSelection->GetRangeAt(0, getter_AddRefs(range));
   NS_ENSURE_SUCCESS(rv, rv);
   if (!range)
     return NS_ERROR_NULL_POINTER;
@@ -1407,10 +1408,25 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
   //NS_ENSURE_SUCCESS(rv, rv);
   NS_NewDomSelection(getter_AddRefs(mSelection));
   NS_ENSURE_TRUE(mSelection, NS_ERROR_FAILURE);
+  nsCOMPtr<nsISelectionPrivate> privSelection( do_QueryInterface(aSelection) );
+  NS_ENSURE_TRUE(privSelection, NS_ERROR_FAILURE);
   
+  // get selection range enumerator
+  nsCOMPtr<nsIEnumerator> enumerator;
+  rv = privSelection->GetEnumerator(getter_AddRefs(enumerator));
+  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+
   // loop thru the ranges in the selection
-  for (uint32_t rangeIdx = 0; rangeIdx < rangeCount; ++rangeIdx) {
-    range = selection->GetRangeAt(rangeIdx);
+  enumerator->First(); 
+  nsCOMPtr<nsISupports> currentItem;
+  while (static_cast<nsresult>(NS_ENUMERATOR_FALSE) == enumerator->IsDone())
+  {
+    rv = enumerator->CurrentItem(getter_AddRefs(currentItem));
+    NS_ENSURE_SUCCESS(rv, rv);
+    NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+    
+    range = do_QueryInterface(currentItem);
     NS_ENSURE_TRUE(range, NS_ERROR_FAILURE);
     nsCOMPtr<nsIDOMRange> myRange;
     range->CloneRange(getter_AddRefs(myRange));
@@ -1422,6 +1438,8 @@ nsHTMLCopyEncoder::SetSelection(nsISelection* aSelection)
     
     rv = mSelection->AddRange(myRange);
     NS_ENSURE_SUCCESS(rv, rv);
+
+    enumerator->Next();
   }
 
   return NS_OK;

@@ -4,13 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
- * Implementation of the |attributes| property of DOM Core's Element object.
+ * Implementation of the |attributes| property of DOM Core's nsIDOMNode object.
  */
 
 #include "nsDOMAttributeMap.h"
 #include "nsDOMAttribute.h"
 #include "nsIDOMDocument.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 #include "nsIDocument.h"
 #include "nsINameSpaceManager.h"
 #include "nsError.h"
@@ -18,8 +18,6 @@
 #include "nsNodeInfoManager.h"
 #include "nsAttrName.h"
 #include "nsUnicharUtils.h"
-
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 
@@ -55,6 +53,8 @@ nsDOMAttributeMap::DropReference()
   mContent = nullptr;
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMAttributeMap)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMAttributeMap)
   tmp->DropReference();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -76,16 +76,16 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMAttributeMap)
   tmp->mAttributeCache.Enumerate(TraverseMapEntry, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-DOMCI_DATA(MozNamedAttrMap, nsDOMAttributeMap)
+DOMCI_DATA(NamedNodeMap, nsDOMAttributeMap)
 
 // QueryInterface implementation for nsDOMAttributeMap
 NS_INTERFACE_TABLE_HEAD(nsDOMAttributeMap)
   NS_OFFSET_AND_INTERFACE_TABLE_BEGIN(nsDOMAttributeMap)
-    NS_INTERFACE_TABLE_ENTRY(nsDOMAttributeMap, nsIDOMMozNamedAttrMap)
+    NS_INTERFACE_TABLE_ENTRY(nsDOMAttributeMap, nsIDOMNamedNodeMap)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDOMAttributeMap)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(MozNamedAttrMap)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(NamedNodeMap)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMAttributeMap)
@@ -124,10 +124,13 @@ nsDOMAttributeMap::DropAttribute(int32_t aNamespaceID, nsIAtom* aLocalName)
   }
 }
 
-already_AddRefed<nsDOMAttribute>
-nsDOMAttributeMap::RemoveAttribute(nsINodeInfo* aNodeInfo)
+nsresult
+nsDOMAttributeMap::RemoveAttribute(nsINodeInfo* aNodeInfo, nsIDOMNode** aReturn)
 {
   NS_ASSERTION(aNodeInfo, "RemoveAttribute() called with aNodeInfo == nullptr!");
+  NS_ASSERTION(aReturn, "RemoveAttribute() called with aReturn == nullptr");
+
+  *aReturn = nullptr;
 
   nsAttrKey attr(aNodeInfo->NamespaceID(), aNodeInfo->NameAtom());
 
@@ -138,7 +141,12 @@ nsDOMAttributeMap::RemoveAttribute(nsINodeInfo* aNodeInfo)
     // the attribute node.
     mContent->GetAttr(aNodeInfo->NamespaceID(), aNodeInfo->NameAtom(), value);
     nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-    node = new nsDOMAttribute(nullptr, ni.forget(), value, true);
+    nsCOMPtr<nsIDOMNode> newAttr =
+      new nsDOMAttribute(nullptr, ni.forget(), value, true);
+    if (!newAttr) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    newAttr.swap(*aReturn);
   }
   else {
     // Break link to map
@@ -146,9 +154,11 @@ nsDOMAttributeMap::RemoveAttribute(nsINodeInfo* aNodeInfo)
 
     // Remove from cache
     mAttributeCache.Remove(attr);
+
+    node.forget(aReturn);
   }
 
-  return node.forget();
+  return NS_OK;
 }
 
 nsDOMAttribute*
@@ -171,8 +181,10 @@ nsDOMAttributeMap::GetAttribute(nsINodeInfo* aNodeInfo, bool aNsAware)
 }
 
 nsDOMAttribute*
-nsDOMAttributeMap::GetNamedItem(const nsAString& aAttrName)
+nsDOMAttributeMap::GetNamedItem(const nsAString& aAttrName, nsresult *aResult)
 {
+  *aResult = NS_OK;
+
   if (mContent) {
     nsCOMPtr<nsINodeInfo> ni =
       mContent->GetExistingAttrNameFromQName(aAttrName);
@@ -186,44 +198,47 @@ nsDOMAttributeMap::GetNamedItem(const nsAString& aAttrName)
 
 NS_IMETHODIMP
 nsDOMAttributeMap::GetNamedItem(const nsAString& aAttrName,
-                                nsIDOMAttr** aAttribute)
+                                nsIDOMNode** aAttribute)
 {
   NS_ENSURE_ARG_POINTER(aAttribute);
 
-  NS_IF_ADDREF(*aAttribute = GetNamedItem(aAttrName));
+  nsresult rv;
+  NS_IF_ADDREF(*aAttribute = GetNamedItem(aAttrName, &rv));
 
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
-nsDOMAttributeMap::SetNamedItem(nsIDOMAttr* aAttr, nsIDOMAttr** aReturn)
+nsDOMAttributeMap::SetNamedItem(nsIDOMNode *aNode, nsIDOMNode **aReturn)
 {
-  ErrorResult rv;
-  *aReturn = SetNamedItemInternal(aAttr, false, rv).get();
-  return rv.ErrorCode();
+  return SetNamedItemInternal(aNode, aReturn, false);
 }
 
 NS_IMETHODIMP
-nsDOMAttributeMap::SetNamedItemNS(nsIDOMAttr* aAttr, nsIDOMAttr** aReturn)
+nsDOMAttributeMap::SetNamedItemNS(nsIDOMNode *aNode, nsIDOMNode **aReturn)
 {
-  ErrorResult rv;
-  *aReturn = SetNamedItemInternal(aAttr, true, rv).get();
-  return rv.ErrorCode();
+  return SetNamedItemInternal(aNode, aReturn, true);
 }
 
-already_AddRefed<nsDOMAttribute>
-nsDOMAttributeMap::SetNamedItemInternal(nsIDOMAttr* aAttr,
-                                        bool aWithNS,
-                                        ErrorResult& aError)
+nsresult
+nsDOMAttributeMap::SetNamedItemInternal(nsIDOMNode *aNode,
+                                        nsIDOMNode **aReturn,
+                                        bool aWithNS)
 {
+  NS_ENSURE_ARG_POINTER(aNode);
+  NS_ENSURE_ARG_POINTER(aReturn);
+
+  nsresult rv = NS_OK;
+  *aReturn = nullptr;
+  nsCOMPtr<nsIDOMNode> tmpReturn;
+
   if (mContent) {
-    // XXX should check same-origin between mContent and aAttr however
+    // XXX should check same-origin between mContent and aNode however
     // nsContentUtils::CheckSameOrigin can't deal with attributenodes yet
     
-    nsCOMPtr<nsIAttribute> iAttribute(do_QueryInterface(aAttr));
+    nsCOMPtr<nsIAttribute> iAttribute(do_QueryInterface(aNode));
     if (!iAttribute) {
-      aError.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
-      return nullptr;
+      return NS_ERROR_DOM_HIERARCHY_REQUEST_ERR;
     }
 
     nsDOMAttribute *attribute = static_cast<nsDOMAttribute*>(iAttribute.get());
@@ -232,47 +247,40 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMAttr* aAttr,
     nsDOMAttributeMap* owner = iAttribute->GetMap();
     if (owner) {
       if (owner != this) {
-        aError.Throw(NS_ERROR_DOM_INUSE_ATTRIBUTE_ERR);
-        return nullptr;
+        return NS_ERROR_DOM_INUSE_ATTRIBUTE_ERR;
       }
 
       // setting a preexisting attribute is a no-op, just return the same
       // node.
-      NS_ADDREF(attribute);
-      return attribute;
+      NS_ADDREF(*aReturn = aNode);
+      
+      return NS_OK;
     }
 
-    nsresult rv;
     if (!mContent->HasSameOwnerDoc(iAttribute)) {
       nsCOMPtr<nsIDOMDocument> domDoc =
         do_QueryInterface(mContent->OwnerDoc(), &rv);
-      if (NS_FAILED(rv)) {
-        aError.Throw(rv);
-        return nullptr;
-      }
+      NS_ENSURE_SUCCESS(rv, rv);
 
       nsCOMPtr<nsIDOMNode> adoptedNode;
-      rv = domDoc->AdoptNode(aAttr, getter_AddRefs(adoptedNode));
-      if (NS_FAILED(rv)) {
-        aError.Throw(rv);
-        return nullptr;
-      }
+      rv = domDoc->AdoptNode(aNode, getter_AddRefs(adoptedNode));
+      NS_ENSURE_SUCCESS(rv, rv);
 
-      NS_ASSERTION(adoptedNode == aAttr, "Uh, adopt node changed nodes?");
+      NS_ASSERTION(adoptedNode == aNode, "Uh, adopt node changed nodes?");
     }
 
     // Get nodeinfo and preexisting attribute (if it exists)
     nsAutoString name;
     nsCOMPtr<nsINodeInfo> ni;
 
-    nsRefPtr<nsDOMAttribute> attr;
     // SetNamedItemNS()
     if (aWithNS) {
       // Return existing attribute, if present
       ni = iAttribute->NodeInfo();
 
       if (mContent->HasAttr(ni->NamespaceID(), ni->NameAtom())) {
-        attr = RemoveAttribute(ni);
+        rv = RemoveAttribute(ni, getter_AddRefs(tmpReturn));
+        NS_ENSURE_SUCCESS(rv, rv);
       }
     }
     else { // SetNamedItem()
@@ -281,7 +289,8 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMAttr* aAttr,
       // get node-info of old attribute
       ni = mContent->GetExistingAttrNameFromQName(name);
       if (ni) {
-        attr = RemoveAttribute(ni);
+        rv = RemoveAttribute(ni, getter_AddRefs(tmpReturn));
+        NS_ENSURE_SUCCESS(rv, rv);
       }
       else {
         if (mContent->IsInHTMLDocument() &&
@@ -292,10 +301,7 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMAttr* aAttr,
         rv = mContent->NodeInfo()->NodeInfoManager()->
           GetNodeInfo(name, nullptr, kNameSpaceID_None,
                       nsIDOMNode::ATTRIBUTE_NODE, getter_AddRefs(ni));
-        if (NS_FAILED(rv)) {
-          aError.Throw(rv);
-          return nullptr;
-        }
+        NS_ENSURE_SUCCESS(rv, rv);
         // value is already empty
       }
     }
@@ -312,19 +318,18 @@ nsDOMAttributeMap::SetNamedItemInternal(nsIDOMAttr* aAttr,
     rv = mContent->SetAttr(ni->NamespaceID(), ni->NameAtom(),
                            ni->GetPrefixAtom(), value, true);
     if (NS_FAILED(rv)) {
-      aError.Throw(rv);
       DropAttribute(ni->NamespaceID(), ni->NameAtom());
     }
-
-    return attr.forget();
   }
 
-  return nullptr;
+  tmpReturn.swap(*aReturn); // transfers ref.
+
+  return rv;
 }
 
 NS_IMETHODIMP
 nsDOMAttributeMap::RemoveNamedItem(const nsAString& aName,
-                                   nsIDOMAttr** aReturn)
+                                   nsIDOMNode** aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = nullptr;
@@ -374,7 +379,7 @@ nsDOMAttributeMap::GetItemAt(uint32_t aIndex, nsresult *aResult)
 }
 
 NS_IMETHODIMP
-nsDOMAttributeMap::Item(uint32_t aIndex, nsIDOMAttr** aReturn)
+nsDOMAttributeMap::Item(uint32_t aIndex, nsIDOMNode** aReturn)
 {
   nsresult rv;
   NS_IF_ADDREF(*aReturn = GetItemAt(aIndex, &rv));
@@ -399,33 +404,22 @@ nsDOMAttributeMap::GetLength(uint32_t *aLength)
 NS_IMETHODIMP
 nsDOMAttributeMap::GetNamedItemNS(const nsAString& aNamespaceURI,
                                   const nsAString& aLocalName,
-                                  nsIDOMAttr** aReturn)
+                                  nsIDOMNode** aReturn)
 {
-  ErrorResult rv;
-  NS_IF_ADDREF(*aReturn = GetNamedItemNS(aNamespaceURI, aLocalName, rv));
-  return rv.ErrorCode();
+  return GetNamedItemNSInternal(aNamespaceURI, aLocalName, aReturn);
 }
 
-nsDOMAttribute*
-nsDOMAttributeMap::GetNamedItemNS(const nsAString& aNamespaceURI,
-                                  const nsAString& aLocalName,
-                                  ErrorResult& aError)
+nsresult
+nsDOMAttributeMap::GetNamedItemNSInternal(const nsAString& aNamespaceURI,
+                                          const nsAString& aLocalName,
+                                          nsIDOMNode** aReturn,
+                                          bool aRemove)
 {
-  nsCOMPtr<nsINodeInfo> ni = GetAttrNodeInfo(aNamespaceURI, aLocalName, aError);
-  if (!ni) {
-    return nullptr;
-  }
+  NS_ENSURE_ARG_POINTER(aReturn);
+  *aReturn = nullptr;
 
-  return GetAttribute(ni, true);
-}
-
-already_AddRefed<nsINodeInfo>
-nsDOMAttributeMap::GetAttrNodeInfo(const nsAString& aNamespaceURI,
-                                   const nsAString& aLocalName,
-                                   mozilla::ErrorResult& aError)
-{
   if (!mContent) {
-    return nullptr;
+    return NS_OK;
   }
 
   int32_t nameSpaceID = kNameSpaceID_None;
@@ -435,7 +429,7 @@ nsDOMAttributeMap::GetAttrNodeInfo(const nsAString& aNamespaceURI,
       nsContentUtils::NameSpaceManager()->GetNameSpaceID(aNamespaceURI);
 
     if (nameSpaceID == kNameSpaceID_Unknown) {
-      return nullptr;
+      return NS_OK;
     }
   }
 
@@ -451,40 +445,47 @@ nsDOMAttributeMap::GetAttrNodeInfo(const nsAString& aNamespaceURI,
       ni = mContent->NodeInfo()->NodeInfoManager()->
         GetNodeInfo(nameAtom, name->GetPrefix(), nameSpaceID,
                     nsIDOMNode::ATTRIBUTE_NODE);
-      if (!ni) {
-        aError.Throw(NS_ERROR_OUT_OF_MEMORY);
+      NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
+
+      if (aRemove) {
+        return RemoveAttribute(ni, aReturn);
       }
 
-      return ni.forget();
+      NS_ADDREF(*aReturn = GetAttribute(ni, true));
+
+      return NS_OK;
     }
   }
 
-  return nullptr;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsDOMAttributeMap::RemoveNamedItemNS(const nsAString& aNamespaceURI,
                                      const nsAString& aLocalName,
-                                     nsIDOMAttr** aReturn)
+                                     nsIDOMNode** aReturn)
 {
   NS_ENSURE_ARG_POINTER(aReturn);
   *aReturn = nullptr;
 
-  ErrorResult error;
-  nsCOMPtr<nsINodeInfo> ni = GetAttrNodeInfo(aNamespaceURI, aLocalName, error);
-  if (error.Failed()) {
-    return error.ErrorCode();
-  }
+  nsresult rv = GetNamedItemNSInternal(aNamespaceURI,
+                                       aLocalName,
+                                       aReturn,
+                                       true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  if (!ni) {
+  if (!*aReturn) {
     return NS_ERROR_DOM_NOT_FOUND_ERR;
   }
 
-  nsRefPtr<nsDOMAttribute> attr = RemoveAttribute(ni);
-  nsINodeInfo *attrNi = attr->NodeInfo();
-  mContent->UnsetAttr(attrNi->NamespaceID(), attrNi->NameAtom(), true);
+  nsCOMPtr<nsIAttribute> attr = do_QueryInterface(*aReturn);
+  NS_ASSERTION(attr, "attribute returned from nsDOMAttributeMap::GetNameItemNS "
+               "didn't implement nsIAttribute");
+  NS_ENSURE_TRUE(attr, NS_ERROR_UNEXPECTED);
 
-  attr.forget(aReturn);
+  nsINodeInfo *ni = attr->NodeInfo();
+  mContent->UnsetAttr(ni->NamespaceID(), ni->NameAtom(), true);
+
   return NS_OK;
 }
 

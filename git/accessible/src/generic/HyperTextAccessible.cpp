@@ -1,5 +1,4 @@
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 sw=2 et tw=78: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -30,7 +29,6 @@
 #include "nsTextFragment.h"
 #include "mozilla/Selection.h"
 #include "gfxSkipChars.h"
-#include <algorithm>
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -43,7 +41,7 @@ HyperTextAccessible::
   HyperTextAccessible(nsIContent* aNode, DocAccessible* aDoc) :
   AccessibleWrap(aNode, aDoc)
 {
-  mGenericTypes |= eHyperText;
+  mFlags |= eHyperTextAccessible;
 }
 
 NS_IMPL_ADDREF_INHERITED(HyperTextAccessible, AccessibleWrap)
@@ -180,7 +178,7 @@ HyperTextAccessible::GetBoundsForString(nsIFrame* aFrame, uint32_t aStartRendere
     frame->GetOffsets(startFrameTextOffset, endFrameTextOffset);
     int32_t frameTotalTextLength = endFrameTextOffset - startFrameTextOffset;
     int32_t seekLength = endContentOffset - startContentOffset;
-    int32_t frameSubStringLength = std::min(frameTotalTextLength - startContentOffsetInFrame, seekLength);
+    int32_t frameSubStringLength = NS_MIN(frameTotalTextLength - startContentOffsetInFrame, seekLength);
 
     // Add the point where the string starts to the frameScreenRect
     nsPoint frameTextStartPoint;
@@ -215,8 +213,18 @@ HyperTextAccessible::GetPosAndText(int32_t& aStartOffset, int32_t& aEndOffset,
                                    Accessible** aStartAcc,
                                    Accessible** aEndAcc)
 {
-  aStartOffset = ConvertMagicOffset(aStartOffset);
-  aEndOffset = ConvertMagicOffset(aEndOffset);
+  if (aStartOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
+    aStartOffset = CharacterCount();
+  }
+  if (aStartOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
+    GetCaretOffset(&aStartOffset);
+  }
+  if (aEndOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
+    aEndOffset = CharacterCount();
+  }
+  if (aEndOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
+    GetCaretOffset(&aEndOffset);
+  }
 
   int32_t startOffset = aStartOffset;
   int32_t endOffset = aEndOffset;
@@ -236,7 +244,6 @@ HyperTextAccessible::GetPosAndText(int32_t& aStartOffset, int32_t& aEndOffset,
   }
 
   nsIFrame *startFrame = nullptr;
- nsIFrame* endFrame = nullptr;
   if (aEndFrame) {
     *aEndFrame = nullptr;
   }
@@ -266,8 +273,7 @@ HyperTextAccessible::GetPosAndText(int32_t& aStartOffset, int32_t& aEndOffset,
       continue;
     }
     nsIFrame *primaryFrame = frame;
-    endFrame = frame;
-    if (!nsAccUtils::IsEmbeddedObject(childAcc)) {
+    if (nsAccUtils::IsText(childAcc)) {
       // We only need info up to rendered offset -- that is what we're
       // converting to content offset
       int32_t substringEndOffset = -1;
@@ -288,8 +294,7 @@ HyperTextAccessible::GetPosAndText(int32_t& aStartOffset, int32_t& aEndOffset,
         // should go away after list bullet rewrite
         substringEndOffset = nsAccUtils::TextLength(childAcc);
       }
-      if (startOffset < substringEndOffset ||
-          (startOffset == substringEndOffset && (childIdx == childCount - 1))) {
+      if (startOffset < substringEndOffset) {
         // Our start is within this substring
         if (startOffset > 0 || endOffset < substringEndOffset) {
           // We don't want the whole string for this accessible
@@ -393,9 +398,9 @@ HyperTextAccessible::GetPosAndText(int32_t& aStartOffset, int32_t& aEndOffset,
     NS_IF_ADDREF(*aStartAcc = lastAccessible);
   }
   if (aEndFrame && !*aEndFrame) {
-    *aEndFrame = endFrame;
-    if (aEndAcc && !*aEndAcc)
-      NS_IF_ADDREF(*aEndAcc = lastAccessible);
+    *aEndFrame = startFrame;
+    if (aStartAcc && aEndAcc)
+      NS_IF_ADDREF(*aEndAcc = *aStartAcc);
   }
 
   return startFrame;
@@ -524,32 +529,22 @@ HyperTextAccessible::DOMPointToHypertextOffset(nsINode* aNode,
   } else {
     // findNode could be null if aNodeOffset == # of child nodes, which means
     // one of two things:
-    // 1) there are no children, and the passed-in node is not mContent -- use
-    //    parentContent for the node to find
+    // 1) we're at the end of the children, keep findNode = null, so that we get
+    //    the last possible offset
     // 2) there are no children and the passed-in node is mContent, which means
-    //    we're an empty nsIAccessibleText
-    // 3) there are children and we're at the end of the children
+    //    we're an aempty nsIAccessibleText
+    // 3) there are no children, and the passed-in node is not mContent -- use
+    //    parentContent for the node to find
 
     findNode = aNode->GetChildAt(aNodeOffset);
-    if (!findNode) {
-      if (aNodeOffset == 0) {
-        if (aNode == GetNode()) {
-          // Case #1: this accessible has no children and thus has empty text,
-          // we can only be at hypertext offset 0.
-          *aHyperTextOffset = 0;
-          return nullptr;
-        }
-
-        // Case #2: there are no children, we're at this node.
-        findNode = aNode;
-      } else if (aNodeOffset == aNode->GetChildCount()) {
-        // Case #3: we're after the last child, get next node to this one.
-        for (nsINode* tmpNode = aNode;
-             !findNode && tmpNode && tmpNode != mContent;
-             tmpNode = tmpNode->GetParent()) {
-          findNode = tmpNode->GetNextSibling();
-        }
+    if (!findNode && !aNodeOffset) {
+      if (aNode == GetNode()) {
+        // There are no children, which means this is an empty nsIAccessibleText, in which
+        // case we can only be at hypertext offset 0
+        *aHyperTextOffset = 0;
+        return nullptr;
       }
+      findNode = aNode; // Case #2: there are no children
     }
   }
 
@@ -694,29 +689,35 @@ HyperTextAccessible::GetRelativeOffset(nsIPresShell* aPresShell,
                                        Accessible* aFromAccessible,
                                        nsSelectionAmount aAmount,
                                        nsDirection aDirection,
-                                       bool aNeedsStart,
-                                       EWordMovementType aWordMovementType)
+                                       bool aNeedsStart)
 {
   const bool kIsJumpLinesOk = true;          // okay to jump lines
   const bool kIsScrollViewAStop = false;     // do not stop at scroll views
   const bool kIsKeyboardSelect = true;       // is keyboard selection
   const bool kIsVisualBidi = false;          // use visual order for bidi text
 
+  EWordMovementType wordMovementType = aNeedsStart ? eStartWord : eEndWord;
+  if (aAmount == eSelectLine) {
+    aAmount = (aDirection == eDirNext) ? eSelectEndLine : eSelectBeginLine;
+  }
+
   // Ask layout for the new node and offset, after moving the appropriate amount
 
   nsresult rv;
   int32_t contentOffset = aFromOffset;
-  nsIFrame *frame = aFromAccessible->GetFrame();
-  NS_ENSURE_TRUE(frame, -1);
+  if (nsAccUtils::IsText(aFromAccessible)) {
+    nsIFrame *frame = aFromAccessible->GetFrame();
+    NS_ENSURE_TRUE(frame, -1);
 
-  if (frame->GetType() == nsGkAtoms::textFrame) {
-    rv = RenderedToContentOffset(frame, aFromOffset, &contentOffset);
-    NS_ENSURE_SUCCESS(rv, -1);
+    if (frame->GetType() == nsGkAtoms::textFrame) {
+      rv = RenderedToContentOffset(frame, aFromOffset, &contentOffset);
+      NS_ENSURE_SUCCESS(rv, -1);
+    }
   }
 
   nsPeekOffsetStruct pos(aAmount, aDirection, contentOffset,
                          0, kIsJumpLinesOk, kIsScrollViewAStop, kIsKeyboardSelect, kIsVisualBidi,
-                         aWordMovementType);
+                         wordMovementType);
   rv = aFromFrame->PeekOffset(&pos);
   if (NS_FAILED(rv)) {
     if (aDirection == eDirPrevious) {
@@ -781,37 +782,6 @@ HyperTextAccessible::GetRelativeOffset(nsIPresShell* aPresShell,
   return hyperTextOffset;
 }
 
-int32_t
-HyperTextAccessible::FindWordBoundary(int32_t aOffset, nsDirection aDirection,
-                                      EWordMovementType aWordMovementType)
-{
-  // Convert hypertext offset to frame-relative offset.
-  int32_t offsetInFrame = aOffset, notUsedOffset = aOffset;
-  nsRefPtr<Accessible> accAtOffset;
-  nsIFrame* frameAtOffset =
-    GetPosAndText(offsetInFrame, notUsedOffset, nullptr, nullptr,
-                  nullptr, getter_AddRefs(accAtOffset));
-  if (!frameAtOffset) {
-    if (aOffset == CharacterCount()) {
-      // Asking for start of line, while on last character.
-      if (accAtOffset)
-        frameAtOffset = accAtOffset->GetFrame();
-    }
-    NS_ASSERTION(frameAtOffset, "No start frame for text getting!");
-    if (!frameAtOffset)
-      return -1;
-
-    // We're on the last continuation since we're on the last character.
-    frameAtOffset = frameAtOffset->GetLastContinuation();
-  }
-
-  // Return hypertext offset of the boundary of the found word.
-  return GetRelativeOffset(mDoc->PresShell(), frameAtOffset, offsetInFrame,
-                           accAtOffset, eSelectWord, aDirection,
-                           (aWordMovementType == eStartWord),
-                           aWordMovementType);
-}
-
 /*
 Gets the specified text relative to aBoundaryType, which means:
 BOUNDARY_CHAR             The character before/at/after the offset is returned.
@@ -822,10 +792,8 @@ BOUNDARY_LINE_END         From the line end before/at/after the offset to the ne
 */
 
 nsresult
-HyperTextAccessible::GetTextHelper(EGetTextType aType,
-                                   AccessibleTextBoundary aBoundaryType,
-                                   int32_t aOffset,
-                                   int32_t* aStartOffset, int32_t* aEndOffset,
+HyperTextAccessible::GetTextHelper(EGetTextType aType, AccessibleTextBoundary aBoundaryType,
+                                   int32_t aOffset, int32_t* aStartOffset, int32_t* aEndOffset,
                                    nsAString& aText)
 {
   aText.Truncate();
@@ -834,28 +802,45 @@ HyperTextAccessible::GetTextHelper(EGetTextType aType,
   NS_ENSURE_ARG_POINTER(aEndOffset);
   *aStartOffset = *aEndOffset = 0;
 
-  int32_t offset = ConvertMagicOffset(aOffset);
-  if (offset < 0)
-    return NS_ERROR_INVALID_ARG;
+  if (!mDoc)
+    return NS_ERROR_FAILURE;
 
-  if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET && offset > 0 &&
-      (aBoundaryType == BOUNDARY_LINE_START ||
-       aBoundaryType == BOUNDARY_LINE_END)) {
-    // It is the same character offset when the caret is visually at
-    // the very end of a line or the start of a new line. Getting text at
-    // the line should provide the line with the visual caret,
-    // otherwise screen readers will announce the wrong line as the user
-    // presses up or down arrow and land at the end of a line.
-    nsRefPtr<nsFrameSelection> frameSelection = FrameSelection();
-    if (frameSelection &&
-        frameSelection->GetHint() == nsFrameSelection::HINTLEFT) {
-      -- offset;  // We are at the start of a line
+  nsIPresShell* presShell = mDoc->PresShell();
+  if (!presShell) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (aOffset == nsIAccessibleText::TEXT_OFFSET_END_OF_TEXT) {
+    aOffset = CharacterCount();
+  }
+  if (aOffset == nsIAccessibleText::TEXT_OFFSET_CARET) {
+    GetCaretOffset(&aOffset);
+    if (aOffset > 0 && (aBoundaryType == BOUNDARY_LINE_START ||
+                        aBoundaryType == BOUNDARY_LINE_END)) {
+      // It is the same character offset when the caret is visually at the very end of a line
+      // or the start of a new line. Getting text at the line should provide the line with the visual caret,
+      // otherwise screen readers will announce the wrong line as the user presses up or down arrow and land
+      // at the end of a line.
+      nsRefPtr<nsFrameSelection> frameSelection = FrameSelection();
+      if (frameSelection &&
+          frameSelection->GetHint() == nsFrameSelection::HINTLEFT) {
+        -- aOffset;  // We are at the start of a line
+      }
     }
+  }
+  else if (aOffset < 0) {
+    return NS_ERROR_FAILURE;
   }
 
   nsSelectionAmount amount;
   bool needsStart = false;
   switch (aBoundaryType) {
+    case BOUNDARY_CHAR:
+      amount = eSelectCluster;
+      if (aType == eGetAt)
+        aType = eGetAfter; // Avoid returning 2 characters
+      break;
+
     case BOUNDARY_WORD_START:
       needsStart = true;
       amount = eSelectWord;
@@ -882,7 +867,7 @@ HyperTextAccessible::GetTextHelper(EGetTextType aType,
 
     case BOUNDARY_ATTRIBUTE_RANGE:
     {
-      nsresult rv = GetTextAttributes(false, offset,
+      nsresult rv = GetTextAttributes(false, aOffset,
                                       aStartOffset, aEndOffset, nullptr);
       NS_ENSURE_SUCCESS(rv, rv);
       
@@ -893,7 +878,7 @@ HyperTextAccessible::GetTextHelper(EGetTextType aType,
       return NS_ERROR_INVALID_ARG;
   }
 
-  int32_t startOffset = offset + (aBoundaryType == BOUNDARY_LINE_END);  // Avoid getting the previous line
+  int32_t startOffset = aOffset + (aBoundaryType == BOUNDARY_LINE_END);  // Avoid getting the previous line
   int32_t endOffset = startOffset;
 
   // Convert offsets to frame-relative
@@ -903,13 +888,13 @@ HyperTextAccessible::GetTextHelper(EGetTextType aType,
 
   if (!startFrame) {
     int32_t textLength = CharacterCount();
-    if (aBoundaryType == BOUNDARY_LINE_START && offset > 0 && offset == textLength) {
+    if (aBoundaryType == BOUNDARY_LINE_START && aOffset > 0 && aOffset == textLength) {
       // Asking for start of line, while on last character
       if (startAcc)
         startFrame = startAcc->GetFrame();
     }
     if (!startFrame) {
-      return offset > textLength ? NS_ERROR_FAILURE : NS_OK;
+      return aOffset > textLength ? NS_ERROR_FAILURE : NS_OK;
     }
     else {
       // We're on the last continuation since we're on the last character
@@ -917,26 +902,22 @@ HyperTextAccessible::GetTextHelper(EGetTextType aType,
     }
   }
 
-  int32_t finalStartOffset = 0, finalEndOffset = 0;
-  EWordMovementType wordMovementType = needsStart ? eStartWord : eEndWord;
+  int32_t finalStartOffset, finalEndOffset;
 
-  nsIPresShell* presShell = mDoc->PresShell();
   // If aType == eGetAt we'll change both the start and end offset from
   // the original offset
   if (aType == eGetAfter) {
-    finalStartOffset = offset;
+    finalStartOffset = aOffset;
   }
   else {
     finalStartOffset = GetRelativeOffset(presShell, startFrame, startOffset,
-                                         startAcc,
-                                         (amount == eSelectLine ? eSelectBeginLine : amount),
-                                         eDirPrevious, needsStart,
-                                         wordMovementType);
+                                         startAcc, amount, eDirPrevious,
+                                         needsStart);
     NS_ENSURE_TRUE(finalStartOffset >= 0, NS_ERROR_FAILURE);
   }
 
   if (aType == eGetBefore) {
-    finalEndOffset = offset;
+    finalEndOffset = aOffset;
   }
   else {
     // Start moving forward from the start so that we don't get 
@@ -961,16 +942,14 @@ HyperTextAccessible::GetTextHelper(EGetTextType aType,
       return NS_ERROR_FAILURE;
     }
     finalEndOffset = GetRelativeOffset(presShell, endFrame, endOffset, endAcc,
-                                       (amount == eSelectLine ? eSelectEndLine : amount),
-                                       eDirNext, needsStart, wordMovementType);
+                                       amount, eDirNext, needsStart);
     NS_ENSURE_TRUE(endOffset >= 0, NS_ERROR_FAILURE);
-    if (finalEndOffset == offset) {
+    if (finalEndOffset == aOffset) {
       if (aType == eGetAt && amount == eSelectWord) { 
         // Fix word error for the first character in word: PeekOffset() will return the previous word when 
-        // offset points to the first character of the word, but accessibility APIs want the current word
+        // aOffset points to the first character of the word, but accessibility APIs want the current word 
         // that the first character is in
-        return GetTextHelper(eGetAfter, aBoundaryType, offset,
-                             aStartOffset, aEndOffset, aText);
+        return GetTextHelper(eGetAfter, aBoundaryType, aOffset, aStartOffset, aEndOffset, aText);
       }
       int32_t textLength = CharacterCount();
       if (finalEndOffset < textLength) {
@@ -985,8 +964,8 @@ HyperTextAccessible::GetTextHelper(EGetTextType aType,
   *aStartOffset = finalStartOffset;
   *aEndOffset = finalEndOffset;
 
-  NS_ASSERTION((finalStartOffset < offset && finalEndOffset >= offset) || aType != eGetBefore, "Incorrect results for GetTextHelper");
-  NS_ASSERTION((finalStartOffset <= offset && finalEndOffset > offset) || aType == eGetBefore, "Incorrect results for GetTextHelper");
+  NS_ASSERTION((finalStartOffset < aOffset && finalEndOffset >= aOffset) || aType != eGetBefore, "Incorrect results for GetTextHelper");
+  NS_ASSERTION((finalStartOffset <= aOffset && finalEndOffset > aOffset) || aType == eGetBefore, "Incorrect results for GetTextHelper");
 
   GetPosAndText(finalStartOffset, finalEndOffset, &aText);
   return NS_OK;
@@ -1001,60 +980,12 @@ HyperTextAccessible::GetTextBeforeOffset(int32_t aOffset,
                                          int32_t* aStartOffset,
                                          int32_t* aEndOffset, nsAString& aText)
 {
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  int32_t offset = ConvertMagicOffset(aOffset);
-  if (offset < 0)
-    return NS_ERROR_INVALID_ARG;
-
-  switch (aBoundaryType) {
-    case BOUNDARY_CHAR:
-      GetCharAt(offset, eGetBefore, aText, aStartOffset, aEndOffset);
-      return NS_OK;
-
-    case BOUNDARY_WORD_START: {
-      if (offset == 0) { // no word before 0 offset
-        *aStartOffset = *aEndOffset = 0;
-        return NS_OK;
-      }
-
-      // If the offset is a word start then move backward to find start offset
-      // (end offset is the given offset). Otherwise move backward twice to find
-      // both start and end offsets.
-      int32_t midOffset = FindWordBoundary(offset, eDirPrevious, eStartWord);
-      *aEndOffset = FindWordBoundary(midOffset, eDirNext, eStartWord);
-      if (*aEndOffset == offset) {
-        *aStartOffset = midOffset;
-        return GetText(*aStartOffset, *aEndOffset, aText);
-      }
-
-      *aStartOffset = FindWordBoundary(midOffset, eDirPrevious, eStartWord);
-      *aEndOffset = midOffset;
-      return GetText(*aStartOffset, *aEndOffset, aText);
-    }
-
-    case BOUNDARY_WORD_END: {
-      if (offset == 0) { // no word before 0 offset
-        *aStartOffset = *aEndOffset = 0;
-        return NS_OK;
-      }
-
-      // Move word backward twice to find start and end offsets.
-      *aEndOffset = FindWordBoundary(offset, eDirPrevious, eEndWord);
-      *aStartOffset = FindWordBoundary(*aEndOffset, eDirPrevious, eEndWord);
-      return GetText(*aStartOffset, *aEndOffset, aText);
-    }
-
-    case BOUNDARY_LINE_START:
-    case BOUNDARY_LINE_END:
-    case BOUNDARY_ATTRIBUTE_RANGE:
-      return GetTextHelper(eGetBefore, aBoundaryType, aOffset,
-                           aStartOffset, aEndOffset, aText);
-
-    default:
-      return NS_ERROR_INVALID_ARG;
+  if (aBoundaryType == BOUNDARY_CHAR) {
+    GetCharAt(aOffset, eGetBefore, aText, aStartOffset, aEndOffset);
+    return NS_OK;
   }
+
+  return GetTextHelper(eGetBefore, aBoundaryType, aOffset, aStartOffset, aEndOffset, aText);
 }
 
 NS_IMETHODIMP
@@ -1063,71 +994,24 @@ HyperTextAccessible::GetTextAtOffset(int32_t aOffset,
                                      int32_t* aStartOffset,
                                      int32_t* aEndOffset, nsAString& aText)
 {
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  int32_t offset = ConvertMagicOffset(aOffset);
-  if (offset < 0)
-    return NS_ERROR_INVALID_ARG;
-
-  EWordMovementType wordMovementType = eDefaultBehavior;
-  bool moveForwardThenBack = true;
-
-  switch (aBoundaryType) {
-    case BOUNDARY_CHAR:
-      return GetCharAt(aOffset, eGetAt, aText, aStartOffset, aEndOffset) ?
-        NS_OK : NS_ERROR_INVALID_ARG;
-
-    case BOUNDARY_WORD_START: {
-      uint32_t textLen =  CharacterCount();
-      if (offset == textLen) {
-        *aStartOffset = *aEndOffset = textLen;
-        return NS_OK;
-      }
-
-      *aEndOffset = FindWordBoundary(offset, eDirNext, eStartWord);
-      *aStartOffset = FindWordBoundary(*aEndOffset, eDirPrevious, eStartWord);
-      return GetText(*aStartOffset, *aEndOffset, aText);
-    }
-
-    case BOUNDARY_WORD_END: {
-      if (offset == 0) {
-        *aStartOffset = *aEndOffset = 0;
-        return NS_OK;
-      }
-
-      *aStartOffset = FindWordBoundary(offset, eDirPrevious, eEndWord);
-      *aEndOffset = FindWordBoundary(*aStartOffset, eDirNext, eEndWord);
-      return GetText(*aStartOffset, *aEndOffset, aText);
-    }
-
-    case BOUNDARY_LINE_START:
-    case BOUNDARY_LINE_END:
-    case BOUNDARY_ATTRIBUTE_RANGE:
-      return GetTextHelper(eGetAt, aBoundaryType, aOffset,
-                           aStartOffset, aEndOffset, aText);
-
-    default:
-      return NS_ERROR_INVALID_ARG;
+  if (aBoundaryType == BOUNDARY_CHAR) {
+    GetCharAt(aOffset, eGetAt, aText, aStartOffset, aEndOffset);
+    return NS_OK;
   }
+
+  return GetTextHelper(eGetAt, aBoundaryType, aOffset, aStartOffset, aEndOffset, aText);
 }
 
 NS_IMETHODIMP
-HyperTextAccessible::GetTextAfterOffset(int32_t aOffset,
-                                        AccessibleTextBoundary aBoundaryType,
-                                        int32_t* aStartOffset,
-                                        int32_t* aEndOffset, nsAString& aText)
+HyperTextAccessible::GetTextAfterOffset(int32_t aOffset, AccessibleTextBoundary aBoundaryType,
+                                        int32_t* aStartOffset, int32_t* aEndOffset, nsAString& aText)
 {
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
   if (aBoundaryType == BOUNDARY_CHAR) {
     GetCharAt(aOffset, eGetAfter, aText, aStartOffset, aEndOffset);
     return NS_OK;
   }
 
-  return GetTextHelper(eGetAfter, aBoundaryType, aOffset,
-                       aStartOffset, aEndOffset, aText);
+  return GetTextHelper(eGetAfter, aBoundaryType, aOffset, aStartOffset, aEndOffset, aText);
 }
 
 // nsIPersistentProperties
@@ -1156,8 +1040,6 @@ HyperTextAccessible::GetTextAttributes(bool aIncludeDefAttrs,
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  int32_t offset = ConvertMagicOffset(aOffset);
-
   if (aAttributes) {
     *aAttributes = nullptr;
 
@@ -1168,11 +1050,11 @@ HyperTextAccessible::GetTextAttributes(bool aIncludeDefAttrs,
     NS_ADDREF(*aAttributes = attributes);
   }
 
-  Accessible* accAtOffset = GetChildAtOffset(offset);
+  Accessible* accAtOffset = GetChildAtOffset(aOffset);
   if (!accAtOffset) {
     // Offset 0 is correct offset when accessible has empty text. Include
     // default attributes if they were requested, otherwise return empty set.
-    if (offset == 0) {
+    if (aOffset == 0) {
       if (aIncludeDefAttrs) {
         TextAttrsMgr textAttrsMgr(this);
         textAttrsMgr.GetAttributes(*aAttributes);
@@ -1185,7 +1067,7 @@ HyperTextAccessible::GetTextAttributes(bool aIncludeDefAttrs,
   int32_t accAtOffsetIdx = accAtOffset->IndexInParent();
   int32_t startOffset = GetChildOffset(accAtOffsetIdx);
   int32_t endOffset = GetChildOffset(accAtOffsetIdx + 1);
-  int32_t offsetInAcc = offset - startOffset;
+  int32_t offsetInAcc = aOffset - startOffset;
 
   TextAttrsMgr textAttrsMgr(this, aIncludeDefAttrs, accAtOffset,
                             accAtOffsetIdx);
@@ -1277,52 +1159,25 @@ HyperTextAccessible::NativeAttributes()
     }
   }
 
-  if (!HasOwnContent())
-    return attributes.forget();
-
   // For the html landmark elements we expose them like we do aria landmarks to
-  // make AT navigation schemes "just work".
-  nsIAtom* tag = mContent->Tag();
-  if (tag == nsGkAtoms::nav) {
+  // make AT navigation schemes "just work". Note html:header is redundant as
+  // a landmark since it usually contains headings. We're not yet sure how the
+  // web will use html:footer but our best bet right now is as contentinfo.
+  if (mContent->Tag() == nsGkAtoms::nav)
     nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
                            NS_LITERAL_STRING("navigation"));
-  } else if (tag == nsGkAtoms::section)  {
+  else if (mContent->Tag() == nsGkAtoms::section) 
     nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
                            NS_LITERAL_STRING("region"));
-  } else if (tag == nsGkAtoms::header || tag == nsGkAtoms::footer) {
-    // Only map header and footer if they are not descendants
-    // of an article or section tag.
-    nsIContent* parent = mContent->GetParent();
-    while (parent) {
-      if (parent->Tag() == nsGkAtoms::article ||
-          parent->Tag() == nsGkAtoms::section)
-        break;
-      parent = parent->GetParent();
-    }
-
-    // No article or section elements found.
-    if (!parent) {
-      if (tag == nsGkAtoms::header) {
-        nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
-                               NS_LITERAL_STRING("banner"));
-      } else if (tag == nsGkAtoms::footer) {
-        nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
-                               NS_LITERAL_STRING("contentinfo"));
-      }
-    }
-  } else if (tag == nsGkAtoms::footer) {
+  else if (mContent->Tag() == nsGkAtoms::footer) 
     nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
                            NS_LITERAL_STRING("contentinfo"));
-  } else if (tag == nsGkAtoms::aside) {
+  else if (mContent->Tag() == nsGkAtoms::aside) 
     nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
                            NS_LITERAL_STRING("complementary"));
-  } else if (tag == nsGkAtoms::article) {
+  else if (mContent->Tag() == nsGkAtoms::article)
     nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
                            NS_LITERAL_STRING("article"));
-  } else if (tag == nsGkAtoms::main) {
-    nsAccUtils::SetAccAttr(attributes, nsGkAtoms::xmlroles,
-                           NS_LITERAL_STRING("main"));
-  }
 
   return attributes.forget();
 }
@@ -1359,8 +1214,7 @@ HyperTextAccessible::GetRangeExtents(int32_t aStartOffset, int32_t aEndOffset,
   *aWidth = boundsRect.width;
   *aHeight = boundsRect.height;
 
-  nsAccUtils::ConvertScreenCoordsTo(aX, aY, aCoordType, this);
-  return NS_OK;
+  return nsAccUtils::ConvertScreenCoordsTo(aX, aY, aCoordType, this);
 }
 
 /*
@@ -1381,8 +1235,10 @@ HyperTextAccessible::GetOffsetAtPoint(int32_t aX, int32_t aY,
     return NS_ERROR_FAILURE;
   }
 
-  nsIntPoint coords = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordType,
-                                                        this);
+  nsIntPoint coords;
+  nsresult rv = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordType,
+                                                  this, &coords);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsPresContext* presContext = mDoc->PresContext();
   nsPoint coordsInAppUnits =
@@ -1618,8 +1474,9 @@ HyperTextAccessible::GetEditor() const
     return nullptr;
   }
 
-  nsCOMPtr<nsIDocShell> docShell = nsCoreUtils::GetDocShellFor(mContent);
-  nsCOMPtr<nsIEditingSession> editingSession(do_GetInterface(docShell));
+  nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
+    nsCoreUtils::GetDocShellTreeItemFor(mContent);
+  nsCOMPtr<nsIEditingSession> editingSession(do_GetInterface(docShellTreeItem));
   if (!editingSession)
     return nullptr; // No editing session interface
 
@@ -1637,14 +1494,6 @@ HyperTextAccessible::GetEditor() const
 nsresult
 HyperTextAccessible::SetSelectionRange(int32_t aStartPos, int32_t aEndPos)
 {
-  // Before setting the selection range, we need to ensure that the editor
-  // is initialized. (See bug 804927.)
-  // Otherwise, it's possible that lazy editor initialization will override
-  // the selection we set here and leave the caret at the end of the text.
-  // By calling GetEditor here, we ensure that editor initialization is
-  // completed before we set the selection.
-  nsCOMPtr<nsIEditor> editor = GetEditor();
-
   bool isFocusable = InteractiveState() & states::FOCUSABLE;
 
   // If accessible is focusable then focus it before setting the selection to
@@ -1944,9 +1793,6 @@ HyperTextAccessible::SetSelectionBounds(int32_t aSelectionNum,
   if (aSelectionNum < 0)
     return NS_ERROR_INVALID_ARG;
 
-  int32_t startOffset = ConvertMagicOffset(aStartOffset);
-  int32_t endOffset = ConvertMagicOffset(aEndOffset);
-
   nsRefPtr<nsFrameSelection> frameSelection = FrameSelection();
   NS_ENSURE_STATE(frameSelection);
 
@@ -1960,11 +1806,11 @@ HyperTextAccessible::SetSelectionBounds(int32_t aSelectionNum,
 
   nsRefPtr<nsRange> range;
   if (aSelectionNum == rangeCount)
-    range = new nsRange(mContent);
+    range = new nsRange();
   else
     range = domSel->GetRangeAt(aSelectionNum);
 
-  nsresult rv = HypertextOffsetsToDOMRange(startOffset, endOffset, range);
+  nsresult rv = HypertextOffsetsToDOMRange(aStartOffset, aEndOffset, range);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // If new range was created then add it, otherwise notify selection listeners
@@ -2022,7 +1868,7 @@ HyperTextAccessible::ScrollSubstringTo(int32_t aStartIndex, int32_t aEndIndex,
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsRefPtr<nsRange> range = new nsRange(mContent);
+  nsRefPtr<nsRange> range = new nsRange();
   nsresult rv = HypertextOffsetsToDOMRange(aStartIndex, aEndIndex, range);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -2043,11 +1889,13 @@ HyperTextAccessible::ScrollSubstringToPoint(int32_t aStartIndex,
   if (!frame)
     return NS_ERROR_FAILURE;
 
-  nsIntPoint coords = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordinateType,
-                                                        this);
+  nsIntPoint coords;
+  nsresult rv = nsAccUtils::ConvertToScreenCoords(aX, aY, aCoordinateType,
+                                                  this, &coords);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<nsRange> range = new nsRange(mContent);
-  nsresult rv = HypertextOffsetsToDOMRange(aStartIndex, aEndIndex, range);
+  nsRefPtr<nsRange> range = new nsRange();
+  rv = HypertextOffsetsToDOMRange(aStartIndex, aEndIndex, range);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsPresContext* presContext = frame->PresContext();

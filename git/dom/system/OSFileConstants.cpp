@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "fcntl.h"
 #include "errno.h"
 
@@ -30,8 +28,6 @@
 // Used to provide information on the OS
 
 #include "nsThreadUtils.h"
-#include "nsIObserverService.h"
-#include "nsIObserver.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsIXULRuntime.h"
 #include "nsXPCOMCIDInternal.h"
@@ -40,15 +36,9 @@
 #include "nsAutoPtr.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "mozJSComponentLoader.h"
 
 #include "OSFileConstants.h"
 #include "nsIOSFileConstantsService.h"
-
-#if defined(__DragonFly__) || defined(__FreeBSD__) \
-  || defined(__NetBSD__) || defined(__OpenBSD__)
-#define __dd_fd dd_fd
-#endif
 
 /**
  * This module defines the basic libc constants (error numbers, open modes,
@@ -66,23 +56,14 @@ namespace {
  */
 bool gInitialized = false;
 
-struct Paths {
+typedef struct {
   /**
    * The name of the directory holding all the libraries (libxpcom, libnss, etc.)
    */
   nsString libDir;
   nsString tmpDir;
   nsString profileDir;
-  nsString localProfileDir;
-
-  Paths()
-  {
-    libDir.SetIsVoid(true);
-    tmpDir.SetIsVoid(true);
-    profileDir.SetIsVoid(true);
-    localProfileDir.SetIsVoid(true);
-  }
-};
+} Paths;
 
 /**
  * System directories.
@@ -106,47 +87,11 @@ nsresult GetPathToSpecialDir(const char *aKey, nsString& aOutPath)
     return rv;
   }
 
-  return file->GetPath(aOutPath);
-}
-
-/**
- * In some cases, OSFileConstants may be instantiated before the
- * profile is setup. In such cases, |OS.Constants.Path.profileDir| and
- * |OS.Constants.Path.localProfileDir| are undefined. However, we want
- * to ensure that this does not break existing code, so that future
- * workers spawned after the profile is setup have these constants.
- *
- * For this purpose, we register an observer to set |gPaths->profileDir|
- * and |gPaths->localProfileDir| once the profile is setup.
- */
-class DelayedPathSetter MOZ_FINAL: public nsIObserver
-{
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  DelayedPathSetter() {}
-};
-
-NS_IMPL_ISUPPORTS1(DelayedPathSetter, nsIObserver)
-
-NS_IMETHODIMP
-DelayedPathSetter::Observe(nsISupports*, const char * aTopic, const PRUnichar*)
-{
-  if (gPaths == nullptr) {
-    // Initialization of gPaths has not taken place, something is wrong,
-    // don't make things worse.
-    return NS_OK;
-  }
-  nsresult rv = GetPathToSpecialDir(NS_APP_USER_PROFILE_50_DIR, gPaths->profileDir);
+  rv = file->GetPath(aOutPath);
   if (NS_FAILED(rv)) {
-    return rv;
+    aOutPath.SetIsVoid(true);
   }
-  rv = GetPathToSpecialDir(NS_APP_USER_PROFILE_LOCAL_50_DIR, gPaths->localProfileDir);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  return NS_OK;
+  return rv;
 }
 
 /**
@@ -182,32 +127,11 @@ nsresult InitOSFileConstants()
     return rv;
   }
 
-  // Setup profileDir and localProfileDir immediately if possible (we
-  // assume that NS_APP_USER_PROFILE_50_DIR and
-  // NS_APP_USER_PROFILE_LOCAL_50_DIR are set simultaneously)
-  rv = GetPathToSpecialDir(NS_APP_USER_PROFILE_50_DIR, paths->profileDir);
-  if (NS_SUCCEEDED(rv)) {
-    rv = GetPathToSpecialDir(NS_APP_USER_PROFILE_LOCAL_50_DIR, paths->localProfileDir);
-  }
-
-  // Otherwise, delay setup of profileDir/localProfileDir until they
-  // become available.
-  if (NS_FAILED(rv)) {
-    nsCOMPtr<nsIObserverService> obsService = do_GetService(NS_OBSERVERSERVICE_CONTRACTID, &rv);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    nsRefPtr<DelayedPathSetter> pathSetter = new DelayedPathSetter();
-    rv = obsService->AddObserver(pathSetter, "profile-do-change", false);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-  }
-
   // For other directories, ignore errors (they may be undefined on
   // some platforms or in non-Firefox embeddings of Gecko).
 
   GetPathToSpecialDir(NS_OS_TEMP_DIR, paths->tmpDir);
+  GetPathToSpecialDir(NS_APP_USER_PROFILE_50_DIR, paths->profileDir);
 
   gPaths = paths.forget();
   return NS_OK;
@@ -456,13 +380,6 @@ static dom::ConstantSpec gLibcProperties[] =
   { "OSFILE_OFFSETOF_DIRENT_D_TYPE", INT_TO_JSVAL(offsetof (struct dirent, d_type)) },
 #endif // defined(DT_UNKNOWN)
 
-  // Under MacOS X and BSDs, |dirfd| is a macro rather than a
-  // function, so we need a little help to get it to work
-#if defined(dirfd)
-  { "OSFILE_SIZEOF_DIR", INT_TO_JSVAL(sizeof (DIR)) },
-
-  { "OSFILE_OFFSETOF_DIR_DD_FD", INT_TO_JSVAL(offsetof (DIR, __dd_fd)) },
-#endif
 
   // Defining |stat|
 
@@ -482,11 +399,6 @@ static dom::ConstantSpec gLibcProperties[] =
   { "OSFILE_OFFSETOF_STAT_ST_MTIME", INT_TO_JSVAL(offsetof (struct stat, st_mtime)) },
   { "OSFILE_OFFSETOF_STAT_ST_CTIME", INT_TO_JSVAL(offsetof (struct stat, st_ctime)) },
 #endif // defined(HAVE_ST_ATIME)
-
-  // Several OSes have a birthtime field. For the moment, supporting only Darwin.
-#if defined(_DARWIN_FEATURE_64_BIT_INODE)
-  { "OSFILE_OFFSETOF_STAT_ST_BIRTHTIME", INT_TO_JSVAL(offsetof (struct stat, st_birthtime)) },
-#endif // defined(_DARWIN_FEATURE_64_BIT_INODE)
 
 #endif // defined(XP_UNIX)
 
@@ -588,7 +500,6 @@ static dom::ConstantSpec gWinProperties[] =
   INT_CONSTANT(ERROR_ALREADY_EXISTS),
   INT_CONSTANT(ERROR_FILE_NOT_FOUND),
   INT_CONSTANT(ERROR_NO_MORE_FILES),
-  INT_CONSTANT(ERROR_PATH_NOT_FOUND),
 
   PROP_END
 };
@@ -632,8 +543,7 @@ bool SetStringProperty(JSContext *cx, JSObject *aObject, const char *aProperty,
     return true;
   }
   JSString* strValue = JS_NewUCStringCopyZ(cx, aValue.get());
-  NS_ENSURE_TRUE(strValue, false);
-  JS::Value valValue = STRING_TO_JSVAL(strValue);
+  jsval valValue = STRING_TO_JSVAL(strValue);
   return JS_SetProperty(cx, aObject, aProperty, &valValue);
 }
 
@@ -706,7 +616,7 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
       return false;
     }
 
-    JS::Value valVersion = STRING_TO_JSVAL(strVersion);
+    jsval valVersion = STRING_TO_JSVAL(strVersion);
     if (!JS_SetProperty(cx, objSys, "Name", &valVersion)) {
       return false;
     }
@@ -749,15 +659,7 @@ bool DefineOSFileConstants(JSContext *cx, JSObject *global)
     return false;
   }
 
-  // Configure profileDir only if it is available at this stage
-  if (!gPaths->profileDir.IsVoid()
-    && !SetStringProperty(cx, objPath, "profileDir", gPaths->profileDir)) {
-    return false;
-  }
-
-  // Configure localProfileDir only if it is available at this stage
-  if (!gPaths->localProfileDir.IsVoid()
-    && !SetStringProperty(cx, objPath, "localProfileDir", gPaths->localProfileDir)) {
+  if (!SetStringProperty(cx, objPath, "profileDir", gPaths->profileDir)) {
     return false;
   }
 
@@ -785,13 +687,11 @@ OSFileConstantsService::Init(JSContext *aCx)
     return rv;
   }
 
-  JSObject *targetObj = nullptr;
-
-  mozJSComponentLoader* loader = mozJSComponentLoader::Get();
-  rv = loader->FindTargetObject(aCx, &targetObj);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!mozilla::DefineOSFileConstants(aCx, targetObj)) {
+  JSObject *global = JS_GetGlobalForScopeChain(aCx);
+  if (!global) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  if (!mozilla::DefineOSFileConstants(aCx, global)) {
     return NS_ERROR_FAILURE;
   }
 

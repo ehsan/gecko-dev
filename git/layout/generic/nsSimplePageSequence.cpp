@@ -20,9 +20,8 @@
 #include "nsDisplayList.h"
 #include "mozilla/Preferences.h"
 #include "nsHTMLCanvasFrame.h"
-#include "mozilla/dom/HTMLCanvasElement.h"
+#include "nsHTMLCanvasElement.h"
 #include "nsICanvasRenderingContextInternal.h"
-#include <algorithm>
 
 // DateTime Includes
 #include "nsDateTimeFormatCID.h"
@@ -35,7 +34,6 @@
 #include "nsIServiceManager.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 static const char sPrintOptionsContractID[] = "@mozilla.org/gfx/printsettings-service;1";
 
@@ -43,15 +41,8 @@ static const char sPrintOptionsContractID[] = "@mozilla.org/gfx/printsettings-se
 
 #include "prlog.h"
 #ifdef PR_LOGGING 
-PRLogModuleInfo *
-GetLayoutPrintingLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("printing-layout");
-  return sLog;
-}
-#define PR_PL(_p1)  PR_LOG(GetLayoutPrintingLog(), PR_LOG_DEBUG, _p1)
+PRLogModuleInfo * kLayoutPrintingLogMod = PR_NewLogModule("printing-layout");
+#define PR_PL(_p1)  PR_LOG(kLayoutPrintingLogMod, PR_LOG_DEBUG, _p1)
 #else
 #define PR_PL(_p1)
 #endif
@@ -67,6 +58,7 @@ nsSharedPageData::nsSharedPageData() :
   mDocURL(nullptr),
   mReflowSize(0,0),
   mReflowMargin(0,0,0,0),
+  mExtraMargin(0,0,0,0),
   mEdgePaperMargin(0,0,0,0),
   mPageContentXMost(0),
   mPageContentSize(0)
@@ -106,7 +98,7 @@ nsSimplePageSequenceFrame::nsSimplePageSequenceFrame(nsStyleContext* aContext) :
   mPageData = new nsSharedPageData();
   mPageData->mHeadFootFont =
     new nsFont(*PresContext()->GetDefaultFont(kGenericFont_serif,
-                                              aContext->StyleFont()->mLanguage));
+                                              aContext->GetStyleFont()->mLanguage));
   mPageData->mHeadFootFont->size = nsPresContext::CSSPointsToAppUnits(10);
 
   nsresult rv;
@@ -139,9 +131,9 @@ nsSimplePageSequenceFrame::SetDesiredSize(nsHTMLReflowMetrics& aDesiredSize,
     // can act as a background in print preview but also handle overflow
     // in child page frames correctly.
     // Use availableWidth so we don't cause a needless horizontal scrollbar.
-    aDesiredSize.width = std::max(aReflowState.availableWidth,
+    aDesiredSize.width = NS_MAX(aReflowState.availableWidth,
                                 nscoord(aWidth * PresContext()->GetPrintPreviewScale()));
-    aDesiredSize.height = std::max(aReflowState.ComputedHeight(),
+    aDesiredSize.height = NS_MAX(aReflowState.ComputedHeight(),
                                  nscoord(aHeight * PresContext()->GetPrintPreviewScale()));
 }
 
@@ -221,11 +213,30 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
   }
   mPageData->mReflowMargin = mMargin;
 
+  // Compute the size of each page and the x coordinate that each page will
+  // be placed at
+  nscoord extraThreshold = NS_MAX(pageSize.width, pageSize.height)/10;
+  int32_t gapInTwips = Preferences::GetInt("print.print_extra_margin");
+  gapInTwips = NS_MAX(0, gapInTwips);
+
+  nscoord extraGap = aPresContext->CSSTwipsToAppUnits(gapInTwips);
+  extraGap = NS_MIN(extraGap, extraThreshold); // clamp to 1/10 of the largest dim of the page
+
+  nsMargin extraMargin(0,0,0,0);
+  if (aPresContext->IsScreen()) {
+    extraMargin.SizeTo(extraGap, extraGap, extraGap, extraGap);
+  }
+
+  mPageData->mExtraMargin = extraMargin;
+
   // We use the CSS "margin" property on the -moz-page pseudoelement
   // to determine the space between each page in print preview.
   // Keep a running y-offset for each page.
   nscoord y = 0;
   nscoord maxXMost = 0;
+
+  nsSize availSize(pageSize.width + extraMargin.LeftRight(),
+                   pageSize.height + extraMargin.TopBottom());
 
   // Tile the pages vertically
   nsHTMLReflowMetrics kidSize;
@@ -236,7 +247,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 
     // Reflow the page
     nsHTMLReflowState kidReflowState(aPresContext, aReflowState, kidFrame,
-                                     pageSize);
+                                     availSize);
     nsReflowStatus  status;
 
     kidReflowState.SetComputedWidth(kidReflowState.availableWidth);
@@ -255,7 +266,7 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     y += kidSize.height;
     y += pageCSSMargin.bottom;
 
-    maxXMost = std::max(maxXMost, x + kidSize.width + pageCSSMargin.right);
+    maxXMost = NS_MAX(maxXMost, x + kidSize.width + pageCSSMargin.right);
 
     // Is the page complete?
     nsIFrame* kidNextInFlow = kidFrame->GetNextInFlow();
@@ -265,8 +276,12 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
     } else if (!kidNextInFlow) {
       // The page isn't complete and it doesn't have a next-in-flow, so
       // create a continuing page.
-      nsIFrame* continuingPage = aPresContext->PresShell()->FrameConstructor()->
-        CreateContinuingFrame(aPresContext, kidFrame, this);
+      nsIFrame* continuingPage;
+      nsresult rv = aPresContext->PresShell()->FrameConstructor()->
+        CreateContinuingFrame(aPresContext, kidFrame, this, &continuingPage);
+      if (NS_FAILED(rv)) {
+        break;
+      }
 
       // Add it to our child list
       mFrames.InsertFrame(nullptr, kidFrame, continuingPage);
@@ -480,7 +495,7 @@ nsSimplePageSequenceFrame::StartPrint(nsPresContext*   aPresContext,
 }
 
 void
-GetPrintCanvasElementsInFrame(nsIFrame* aFrame, nsTArray<nsRefPtr<HTMLCanvasElement> >* aArr)
+GetPrintCanvasElementsInFrame(nsIFrame* aFrame, nsTArray<nsRefPtr<nsHTMLCanvasElement> >* aArr)
 {
   if (!aFrame) {
     return;
@@ -497,8 +512,8 @@ GetPrintCanvasElementsInFrame(nsIFrame* aFrame, nsTArray<nsRefPtr<HTMLCanvasElem
 
       // If there is a canvasFrame, try to get actual canvas element.
       if (canvasFrame) {
-        HTMLCanvasElement* canvas =
-          HTMLCanvasElement::FromContentOrNull(canvasFrame->GetContent());
+        nsHTMLCanvasElement* canvas =
+          nsHTMLCanvasElement::FromContent(canvasFrame->GetContent());
         nsCOMPtr<nsIPrintCallback> printCallback;
         if (canvas &&
             NS_SUCCEEDED(canvas->GetMozPrintCallback(getter_AddRefs(printCallback))) &&
@@ -517,8 +532,8 @@ GetPrintCanvasElementsInFrame(nsIFrame* aFrame, nsTArray<nsRefPtr<HTMLCanvasElem
         }
       }
       // The current child is not a nsHTMLCanvasFrame OR it is but there is
-      // no HTMLCanvasElement on it. Check if children of `child` might
-      // contain a HTMLCanvasElement.
+      // no nsHTMLCanvasElement on it. Check if children of `child` might
+      // contain a nsHTMLCanvasElement.
       GetPrintCanvasElementsInFrame(child, aArr);
     }
   }
@@ -588,7 +603,7 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
   DetermineWhetherToPrintPage();
   // Nothing to do if the current page doesn't get printed OR rendering to
   // preview. For preview, the `CallPrintCallback` is called from within the
-  // HTMLCanvasElement::HandlePrintCallback.
+  // nsHTMLCanvasElement::HandlePrintCallback.
   if (!mPrintThisPage || !PresContext()->IsRootPaginatedDocument()) {
     *aDone = true;
     return NS_OK;
@@ -621,7 +636,7 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
       NS_ENSURE_TRUE(renderingSurface, NS_ERROR_OUT_OF_MEMORY);
 
       for (int32_t i = mCurrentCanvasList.Length() - 1; i >= 0 ; i--) {
-        HTMLCanvasElement* canvas = mCurrentCanvasList[i];
+        nsHTMLCanvasElement* canvas = mCurrentCanvasList[i];
         nsIntSize size = canvas->GetSize();
 
         nsRefPtr<gfxASurface> printSurface = renderingSurface->
@@ -629,10 +644,6 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
              gfxASurface::CONTENT_COLOR_ALPHA,
              size
            );
-
-        if (!printSurface) {
-          continue;
-        }
 
         nsICanvasRenderingContextInternal* ctx = canvas->GetContextAtIndex(0);
 
@@ -652,7 +663,7 @@ nsSimplePageSequenceFrame::PrePrintNextPage(nsITimerCallback* aCallback, bool* a
   }
   uint32_t doneCounter = 0;
   for (int32_t i = mCurrentCanvasList.Length() - 1; i >= 0 ; i--) {
-    HTMLCanvasElement* canvas = mCurrentCanvasList[i];
+    nsHTMLCanvasElement* canvas = mCurrentCanvasList[i];
 
     if (canvas->IsPrintCallbackDone()) {
       doneCounter++;
@@ -668,7 +679,7 @@ NS_IMETHODIMP
 nsSimplePageSequenceFrame::ResetPrintCanvasList()
 {
   for (int32_t i = mCurrentCanvasList.Length() - 1; i >= 0 ; i--) {
-    HTMLCanvasElement* canvas = mCurrentCanvasList[i];
+    nsHTMLCanvasElement* canvas = mCurrentCanvasList[i];
     canvas->ResetPrintCallback();
   }
 
@@ -799,25 +810,29 @@ ComputePageSequenceTransform(nsIFrame* aFrame, float aAppUnitsPerPixel)
   return gfx3DMatrix::ScalingMatrix(scale, scale, 1);
 }
 
-void
+NS_IMETHODIMP
 nsSimplePageSequenceFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                             const nsRect&           aDirtyRect,
                                             const nsDisplayListSet& aLists)
 {
-  DisplayBorderBackgroundOutline(aBuilder, aLists);
+  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsDisplayList content;
   nsIFrame* child = GetFirstPrincipalChild();
   while (child) {
-    child->BuildDisplayListForStackingContext(aBuilder,
+    rv = child->BuildDisplayListForStackingContext(aBuilder,
         child->GetVisualOverflowRectRelativeToSelf(), &content);
+    NS_ENSURE_SUCCESS(rv, rv);
     child = child->GetNextSibling();
   }
 
-  content.AppendNewToTop(new (aBuilder)
+  rv = content.AppendNewToTop(new (aBuilder)
       nsDisplayTransform(aBuilder, this, &content, ::ComputePageSequenceTransform));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   aLists.Content()->AppendToTop(&content);
+  return NS_OK;
 }
 
 nsIAtom*

@@ -46,7 +46,7 @@ HTMLLIAccessible::
   HTMLLIAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   HyperTextAccessibleWrap(aContent, aDoc), mBullet(nullptr)
 {
-  mType = eHTMLLiType;
+  mFlags |= eHTMLListItemAccessible;
 
   nsBlockFrame* blockFrame = do_QueryFrame(GetFrame());
   if (blockFrame && blockFrame->HasBullet()) {
@@ -145,7 +145,7 @@ HTMLListBulletAccessible::
   HTMLListBulletAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   LeafAccessible(aContent, aDoc)
 {
-  mStateFlags |= eSharedNode;
+  mFlags |= eSharedNode;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

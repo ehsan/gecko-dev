@@ -115,11 +115,11 @@ public:
    * the PAC file, any asynchronous PAC queries will be queued up to be
    * processed once the PAC file finishes loading.
    *
-   * @param pacSpec
-   *        The non normalized uri spec of this URI used for comparison with
-   *        system proxy settings to determine if the PAC uri has changed.
+   * @param pacURI
+   *        The nsIURI of the PAC file to load.  If this parameter is null,
+   *        then the previous PAC URI is simply reloaded.
    */
-  nsresult LoadPACFromURI(const nsCString &pacSpec);
+  nsresult LoadPACFromURI(nsIURI *pacURI);
 
   /**
    * Returns true if we are currently loading the PAC file.
@@ -127,26 +127,17 @@ public:
   bool IsLoading() { return mLoader != nullptr; }
 
   /**
-   * Returns true if the given URI matches the URI of our PAC file or the
-   * URI it has been redirected to. In the case of a chain of redirections
-   * only the current one being followed and the original are considered
-   * becuase this information is used, respectively, to determine if we
-   * should bypass the proxy (to fetch the pac file) or if the pac
-   * configuration has changed (and we should reload the pac file)
+   * Returns true if the given URI matches the URI of our PAC file.
    */
-  bool IsPACURI(const nsACString &spec)
-  {
-    return mPACURISpec.Equals(spec) || mPACURIRedirectSpec.Equals(spec) ||
-      mNormalPACURISpec.Equals(spec);
+  bool IsPACURI(nsIURI *uri) {
+    bool result;
+    return mPACURI && NS_SUCCEEDED(mPACURI->Equals(uri, &result)) && result;
   }
 
-  bool IsPACURI(nsIURI *uri) {
-    if (mPACURISpec.IsEmpty() && mPACURIRedirectSpec.IsEmpty())
-      return false;
-
+  bool IsPACURI(nsACString &spec)
+  {
     nsAutoCString tmp;
-    uri->GetSpec(tmp);
-    return IsPACURI(tmp);
+    return (mPACURI && NS_SUCCEEDED(mPACURI->GetSpec(tmp)) && tmp.Equals(spec));
   }
 
   NS_HIDDEN_(nsresult) Init(nsISystemProxySettings *);
@@ -207,13 +198,8 @@ private:
 
   mozilla::LinkedList<PendingPACQuery> mPendingQ; /* pac thread only */
 
-  // These specs are not nsIURI so that they can be used off the main thread.
-  // The non-normalized versions are directly from the configuration, the
-  // normalized version has been extracted from an nsIURI
-  nsCString                    mPACURISpec;
-  nsCString                    mPACURIRedirectSpec;
-  nsCString                    mNormalPACURISpec;
-
+  nsCOMPtr<nsIURI>             mPACURI;
+  nsCString                    mPACURISpec; // for use off main thread
   nsCOMPtr<nsIStreamLoader>    mLoader;
   bool                         mLoadPending;
   bool                         mShutdown;

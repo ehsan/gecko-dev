@@ -16,9 +16,6 @@
   unicode-bidi: embed;
 }
 
-bdi:-moz-dir(ltr), [dir="auto"]:-moz-dir(ltr) { direction: ltr; }
-bdi:-moz-dir(rtl), [dir="auto"]:-moz-dir(rtl) { direction: rtl; }
-
 /* To ensure http://www.w3.org/TR/REC-html40/struct/dirlang.html#style-bidi:
  *
  * "When a block element that does not have a dir attribute is transformed to
@@ -62,7 +59,6 @@ html, html[dir],
 legend, legend[dir],
 li, li[dir],
 listing, listing[dir],
-main, main[dir],
 marquee, marquee[dir],
 menu, menu[dir],
 nav, nav[dir],
@@ -108,7 +104,6 @@ form,
 header,
 hgroup,
 html,
-main,
 nav,
 section {
   display: block;
@@ -689,7 +684,7 @@ canvas {
 
 /* hidden elements */
 base, basefont, datalist, head, meta, script, style, title,
-noembed, param, template {
+noembed, param {
    display: none;
 }
 
@@ -713,7 +708,6 @@ video > xul|videocontrols, audio > xul|videocontrols {
 video:not([controls]) > xul|videocontrols,
 audio:not([controls]) > xul|videocontrols {
   visibility: hidden;
-  -moz-binding: none;
 }
 
 audio:not([controls]) {
@@ -724,19 +718,6 @@ audio:not([controls]) {
   display: block !important;
   /* we want to be an absolute and fixed container */
   -moz-transform: translate(0) !important;
-}
-
-video > div {
-  text-align: center;
-  font-weight: bold;
-  font-size: 24px;
-  pointer-events: none;
-}
-
-video > div p {
-  color: gold;
-  background-color: rgba(105,105,105,0.4);
-  pointer-events: auto;
 }
 
 /* emulation of non-standard HTML <marquee> tag */

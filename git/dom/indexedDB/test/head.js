@@ -87,12 +87,9 @@ function dismissNotification(popup)
   });
 }
 
-function setFinishedCallback(callback, win)
+function setFinishedCallback(callback)
 {
-  if (!win) {
-    win = window;
-  }
-  let testPage = win.gBrowser.selectedBrowser.contentWindow.wrappedJSObject;
+  let testPage = gBrowser.selectedBrowser.contentWindow.wrappedJSObject;
   testPage.testFinishedCallback = function(result, exception) {
     setTimeout(function() {
       info("got finished callback");

@@ -14,7 +14,7 @@ struct ID2D1GeometrySink;
 namespace mozilla {
 namespace gfx {
 
-class ScaledFontDWrite MOZ_FINAL : public ScaledFontBase
+class ScaledFontDWrite : public ScaledFontBase
 {
 public:
   ScaledFontDWrite(IDWriteFontFace *aFont, Float aSize)
@@ -31,8 +31,6 @@ public:
   void CopyGlyphsToSink(const GlyphBuffer &aBuffer, ID2D1GeometrySink *aSink);
 
   virtual bool GetFontFileData(FontFileDataOutput aDataCallback, void *aBaton);
-
-  virtual AntialiasMode GetDefaultAAMode();
 
 #ifdef USE_SKIA
   virtual SkTypeface* GetSkTypeface()

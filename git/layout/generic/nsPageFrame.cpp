@@ -25,8 +25,8 @@
 
 #include "prlog.h"
 #ifdef PR_LOGGING 
-extern PRLogModuleInfo *GetLayoutPrintingLog();
-#define PR_PL(_p1)  PR_LOG(GetLayoutPrintingLog(), PR_LOG_DEBUG, _p1)
+extern PRLogModuleInfo * kLayoutPrintingLogMod;
+#define PR_PL(_p1)  PR_LOG(kLayoutPrintingLogMod, PR_LOG_DEBUG, _p1)
 #else
 #define PR_PL(_p1)
 #endif
@@ -72,9 +72,10 @@ NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*           aPresContext,
     if (mPD->mReflowSize.height == NS_UNCONSTRAINEDSIZE) {
       avHeight = NS_UNCONSTRAINEDSIZE;
     } else {
-      avHeight = mPD->mReflowSize.height;
+      avHeight = mPD->mReflowSize.height - mPD->mReflowMargin.TopBottom();
     }
-    nsSize  maxSize(mPD->mReflowSize.width, avHeight);
+    nsSize  maxSize(mPD->mReflowSize.width - mPD->mReflowMargin.LeftRight(),
+                    avHeight);
     float scale = aPresContext->GetPageScale();
     maxSize.width = NSToCoordCeil(maxSize.width / scale);
     if (maxSize.height != NS_UNCONSTRAINEDSIZE) {
@@ -96,46 +97,9 @@ NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*           aPresContext,
     kidReflowState.mFlags.mIsTopOfPage = true;
     kidReflowState.mFlags.mTableIsSplittable = true;
 
-    // Use the margins given in the @page rule.
-    // If a margin is 'auto', use the margin from the print settings for that side.
-    nsMargin pageContentMargin;
-    const nsStyleSides& marginStyle = kidReflowState.mStyleMargin->mMargin;
-    NS_FOR_CSS_SIDES(side) {
-      if (marginStyle.GetUnit(side) == eStyleUnit_Auto) {
-        pageContentMargin.Side(side) = mPD->mReflowMargin.Side(side);
-      } else {
-        pageContentMargin.Side(side) = kidReflowState.mComputedMargin.Side(side);
-      }
-    }
-
-
-    nscoord maxWidth = maxSize.width - pageContentMargin.LeftRight() / scale;
-    nscoord maxHeight;
-    if (maxSize.height == NS_UNCONSTRAINEDSIZE) {
-      maxHeight = NS_UNCONSTRAINEDSIZE;
-    } else {
-      maxHeight = maxSize.height - pageContentMargin.TopBottom() / scale;
-    }
-
-    // Check the width and height, if they're too small we reset the margins
-    // back to the default.
-    if (maxWidth < onePixelInTwips ||
-       (maxHeight != NS_UNCONSTRAINEDSIZE && maxHeight < onePixelInTwips)) {
-      NS_FOR_CSS_SIDES(side) {
-        pageContentMargin.Side(side) = mPD->mReflowMargin.Side(side);
-      }
-      maxWidth = maxSize.width - pageContentMargin.LeftRight() / scale;
-      if (maxHeight != NS_UNCONSTRAINEDSIZE) {
-        maxHeight = maxSize.height - pageContentMargin.TopBottom() / scale;
-      }
-    }
-
-    kidReflowState.SetComputedWidth(maxWidth);
-    kidReflowState.SetComputedHeight(maxHeight);
-
     // calc location of frame
-    nscoord xc = pageContentMargin.left;
-    nscoord yc = pageContentMargin.top;
+    nscoord xc = mPD->mReflowMargin.left + mPD->mExtraMargin.left;
+    nscoord yc = mPD->mReflowMargin.top + mPD->mExtraMargin.top;
 
     // Get the child's desired size
     ReflowChild(frame, aPresContext, aDesiredSize, kidReflowState, xc, yc, 0, aStatus);
@@ -256,7 +220,7 @@ nscoord nsPageFrame::GetXPosition(nsRenderingContext& aRenderingContext,
   nscoord x = aRect.x;
   switch (aJust) {
     case nsIPrintSettings::kJustLeft:
-      x += mPD->mEdgePaperMargin.left;
+      x += mPD->mExtraMargin.left + mPD->mEdgePaperMargin.left;
       break;
 
     case nsIPrintSettings::kJustCenter:
@@ -264,7 +228,7 @@ nscoord nsPageFrame::GetXPosition(nsRenderingContext& aRenderingContext,
       break;
 
     case nsIPrintSettings::kJustRight:
-      x += aRect.width - width - mPD->mEdgePaperMargin.right;
+      x += aRect.width - width - mPD->mExtraMargin.right - mPD->mEdgePaperMargin.right;
       break;
   } // switch
 
@@ -381,9 +345,9 @@ nsPageFrame::DrawHeaderFooter(nsRenderingContext& aRenderingContext,
     nscoord x = GetXPosition(aRenderingContext, aRect, aJust, str);
     nscoord y;
     if (aHeaderFooter == eHeader) {
-      y = aRect.y + mPD->mEdgePaperMargin.top;
+      y = aRect.y + mPD->mExtraMargin.top + mPD->mEdgePaperMargin.top;
     } else {
-      y = aRect.YMost() - aHeight - mPD->mEdgePaperMargin.bottom;
+      y = aRect.YMost() - aHeight - mPD->mExtraMargin.bottom - mPD->mEdgePaperMargin.bottom;
     }
 
     // set up new clip and draw the text
@@ -417,7 +381,7 @@ PruneDisplayListForExtraPage(nsDisplayListBuilder* aBuilder,
     nsDisplayItem* i = aList->RemoveBottom();
     if (!i)
       break;
-    nsDisplayList* subList = i->GetSameCoordinateSystemChildren();
+    nsDisplayList* subList = i->GetList();
     if (subList) {
       PruneDisplayListForExtraPage(aBuilder, aPage, aExtraPage, aY, subList);
       nsDisplayItem::Type type = i->GetType();
@@ -467,7 +431,10 @@ BuildDisplayListForExtraPage(nsDisplayListBuilder* aBuilder,
   // have already been marked as NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO.
   // Note that we should still do a prune step since we don't want to
   // rely on dirty-rect checking for correctness.
-  aExtraPage->BuildDisplayListForStackingContext(aBuilder, nsRect(), &list);
+  nsresult rv =
+    aExtraPage->BuildDisplayListForStackingContext(aBuilder, nsRect(), &list);
+  if (NS_FAILED(rv))
+    return rv;
   PruneDisplayListForExtraPage(aBuilder, aPage, aExtraPage, aY, &list);
   aList->AppendToTop(&list);
   return NS_OK;
@@ -505,21 +472,24 @@ static gfx3DMatrix ComputePageTransform(nsIFrame* aFrame, float aAppUnitsPerPixe
 }
 
 //------------------------------------------------------------------------------
-void
+NS_IMETHODIMP
 nsPageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists)
 {
   nsDisplayListCollection set;
+  nsresult rv;
 
   if (PresContext()->IsScreen()) {
-    DisplayBorderBackgroundOutline(aBuilder, aLists);
+    rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsDisplayList content;
   nsIFrame *child = mFrames.FirstChild();
-  child->BuildDisplayListForStackingContext(aBuilder,
+  rv = child->BuildDisplayListForStackingContext(aBuilder,
       child->GetVisualOverflowRectRelativeToSelf(), &content);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // We may need to paint out-of-flow frames whose placeholders are
   // on other pages. Add those pages to our display list. Note that
@@ -531,23 +501,18 @@ nsPageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsIFrame* page = child;
   nscoord y = child->GetSize().height;
   while ((page = GetNextPage(page)) != nullptr) {
-    BuildDisplayListForExtraPage(aBuilder, this, page, y, &content);
+    rv = BuildDisplayListForExtraPage(aBuilder, this, page, y, &content);
+    if (NS_FAILED(rv))
+      break;
     y += page->GetSize().height;
   }
-  
-  // Add the canvas background color to the bottom of the list. This
-  // happens after we've built the list so that AddCanvasBackgroundColorItem
-  // can monkey with the contents if necessary.
-  nsRect backgroundRect =
-    nsRect(aBuilder->ToReferenceFrame(child), child->GetSize());
-  PresContext()->GetPresShell()->AddCanvasBackgroundColorItem(
-    *aBuilder, content, child, backgroundRect, NS_RGBA(0,0,0,0));
 
   float scale = PresContext()->GetPageScale();
   nsRect clipRect(nsPoint(0, 0), child->GetSize());
   // Note: this computation matches how we compute maxSize.height
   // in nsPageFrame::Reflow
-  nscoord expectedPageContentHeight = NSToCoordCeil(GetSize().height / scale);
+  nscoord expectedPageContentHeight = 
+    NSToCoordCeil((GetSize().height - mPD->mReflowMargin.TopBottom()) / scale);
   if (clipRect.height > expectedPageContentHeight) {
     // We're doing print-selection, with one long page-content frame.
     // Clip to the appropriate page-content slice for the current page.
@@ -563,19 +528,24 @@ nsPageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                  "Should be clipping to region inside the page content bounds");
   }
   clipRect += aBuilder->ToReferenceFrame(child);
-  content.AppendNewToTop(new (aBuilder) nsDisplayClip(aBuilder, child, &content, clipRect));
-  content.AppendNewToTop(new (aBuilder) nsDisplayTransform(aBuilder, child, &content, ::ComputePageTransform));
+  rv = content.AppendNewToTop(new (aBuilder) nsDisplayClip(aBuilder, child, &content, clipRect));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = content.AppendNewToTop(new (aBuilder) nsDisplayTransform(aBuilder, child, &content, ::ComputePageTransform));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   set.Content()->AppendToTop(&content);
 
   if (PresContext()->IsRootPaginatedDocument()) {
-    set.Content()->AppendNewToTop(new (aBuilder)
+    rv = set.Content()->AppendNewToTop(new (aBuilder)
         nsDisplayGeneric(aBuilder, this, ::PaintHeaderFooter,
                          "HeaderFooter",
                          nsDisplayItem::TYPE_HEADER_FOOTER));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   set.MoveTo(aLists);
+  return NS_OK;
 }
 
 //------------------------------------------------------------------------------

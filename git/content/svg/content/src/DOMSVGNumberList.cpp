@@ -11,7 +11,6 @@
 #include "nsCOMPtr.h"
 #include "nsContentUtils.h"
 #include "mozilla/dom/SVGNumberListBinding.h"
-#include <algorithm>
 
 // See the comment in this file's header.
 
@@ -22,7 +21,7 @@ namespace {
 
 using mozilla::DOMSVGNumber;
 
-void UpdateListIndicesFromIndex(FallibleTArray<DOMSVGNumber*>& aItemsArray,
+void UpdateListIndicesFromIndex(nsTArray<DOMSVGNumber*>& aItemsArray,
                                 uint32_t aStartingIndex)
 {
   uint32_t length = aItemsArray.Length();
@@ -40,6 +39,7 @@ void UpdateListIndicesFromIndex(FallibleTArray<DOMSVGNumber*>& aItemsArray,
 // clear our DOMSVGAnimatedNumberList's weak ref to us to be safe. (The other
 // option would be to not unlink and rely on the breaking of the other edges in
 // the cycle, as NS_SVG_VAL_IMPL_CYCLE_COLLECTION does.)
+NS_IMPL_CYCLE_COLLECTION_CLASS(DOMSVGNumberList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGNumberList)
   if (tmp->mAList) {
     if (tmp->IsAnimValList()) {
@@ -47,12 +47,12 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGNumberList)
     } else {
       tmp->mAList->mBaseVal = nullptr;
     }
-    NS_IMPL_CYCLE_COLLECTION_UNLINK(mAList)
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mAList)
   }
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(DOMSVGNumberList)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAList)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mAList)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(DOMSVGNumberList)
@@ -62,16 +62,22 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMSVGNumberList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMSVGNumberList)
 
+} // namespace mozilla
+DOMCI_DATA(SVGNumberList, mozilla::DOMSVGNumberList)
+namespace mozilla {
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGNumberList)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGNumberList)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGNumberList)
 NS_INTERFACE_MAP_END
 
 
 JSObject*
-DOMSVGNumberList::WrapObject(JSContext *cx, JSObject *scope)
+DOMSVGNumberList::WrapObject(JSContext *cx, JSObject *scope, bool *triedToWrap)
 {
-  return mozilla::dom::SVGNumberListBinding::Wrap(cx, scope, this);
+  return mozilla::dom::SVGNumberListBinding::Wrap(cx, scope, this, triedToWrap);
 }
 
 void
@@ -119,6 +125,16 @@ DOMSVGNumberList::InternalList() const
   return IsAnimValList() && alist->mAnimVal ? *alist->mAnimVal : alist->mBaseVal;
 }
 
+// ----------------------------------------------------------------------------
+// nsIDOMSVGNumberList implementation:
+
+NS_IMETHODIMP
+DOMSVGNumberList::GetNumberOfItems(uint32_t *aNumberOfItems)
+{
+  *aNumberOfItems = NumberOfItems();
+  return NS_OK;
+}
+
 void
 DOMSVGNumberList::Clear(ErrorResult& error)
 {
@@ -141,6 +157,14 @@ DOMSVGNumberList::Clear(ErrorResult& error)
       Element()->AnimationNeedsResample();
     }
   }
+}
+
+NS_IMETHODIMP
+DOMSVGNumberList::Clear()
+{
+  ErrorResult rv;
+  Clear(rv);
+  return rv.ErrorCode();
 }
 
 already_AddRefed<nsIDOMSVGNumber>
@@ -169,9 +193,17 @@ DOMSVGNumberList::Initialize(nsIDOMSVGNumber *newItem,
     newItem = domItem->Clone();
   }
 
-  Clear(error);
-  MOZ_ASSERT(!error.Failed());
+  Clear();
   return InsertItemBefore(newItem, 0, error);
+}
+
+NS_IMETHODIMP
+DOMSVGNumberList::Initialize(nsIDOMSVGNumber *newItem,
+                             nsIDOMSVGNumber **_retval)
+{
+  ErrorResult rv;
+  *_retval = Initialize(newItem, rv).get();
+  return rv.ErrorCode();
 }
 
 nsIDOMSVGNumber*
@@ -188,6 +220,15 @@ DOMSVGNumberList::IndexedGetter(uint32_t index, bool& found, ErrorResult& error)
   return nullptr;
 }
 
+NS_IMETHODIMP
+DOMSVGNumberList::GetItem(uint32_t index,
+                          nsIDOMSVGNumber **_retval)
+{
+  ErrorResult rv;
+  NS_IF_ADDREF(*_retval = GetItem(index, rv));
+  return rv.ErrorCode();
+}
+
 already_AddRefed<nsIDOMSVGNumber>
 DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
                                    uint32_t index,
@@ -198,7 +239,7 @@ DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
     return nullptr;
   }
 
-  index = std::min(index, LengthNoFlush());
+  index = NS_MIN(index, LengthNoFlush());
   if (index >= DOMSVGNumber::MaxListIndex()) {
     error.Throw(NS_ERROR_DOM_INDEX_SIZE_ERR);
     return nullptr;
@@ -239,6 +280,16 @@ DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
     Element()->AnimationNeedsResample();
   }
   return domItem.forget();
+}
+
+NS_IMETHODIMP
+DOMSVGNumberList::InsertItemBefore(nsIDOMSVGNumber *newItem,
+                                   uint32_t index,
+                                   nsIDOMSVGNumber **_retval)
+{
+  ErrorResult rv;
+  *_retval = InsertItemBefore(newItem, index, rv).get();
+  return rv.ErrorCode();
 }
 
 already_AddRefed<nsIDOMSVGNumber>
@@ -285,6 +336,16 @@ DOMSVGNumberList::ReplaceItem(nsIDOMSVGNumber *newItem,
   return domItem.forget();
 }
 
+NS_IMETHODIMP
+DOMSVGNumberList::ReplaceItem(nsIDOMSVGNumber *newItem,
+                              uint32_t index,
+                              nsIDOMSVGNumber **_retval)
+{
+  ErrorResult rv;
+  *_retval = ReplaceItem(newItem, index, rv).get();
+  return rv.ErrorCode();
+}
+
 already_AddRefed<nsIDOMSVGNumber>
 DOMSVGNumberList::RemoveItem(uint32_t index,
                              ErrorResult& error)
@@ -323,6 +384,31 @@ DOMSVGNumberList::RemoveItem(uint32_t index,
     Element()->AnimationNeedsResample();
   }
   return result.forget();
+}
+
+NS_IMETHODIMP
+DOMSVGNumberList::RemoveItem(uint32_t index,
+                             nsIDOMSVGNumber **_retval)
+{
+  ErrorResult rv;
+  *_retval = RemoveItem(index, rv).get();
+  return rv.ErrorCode();
+}
+
+NS_IMETHODIMP
+DOMSVGNumberList::AppendItem(nsIDOMSVGNumber *newItem,
+                             nsIDOMSVGNumber **_retval)
+{
+  ErrorResult rv;
+  *_retval = AppendItem(newItem, rv).get();
+  return rv.ErrorCode();
+}
+
+NS_IMETHODIMP
+DOMSVGNumberList::GetLength(uint32_t *aLength)
+{
+  *aLength = Length();
+  return NS_OK;
 }
 
 void

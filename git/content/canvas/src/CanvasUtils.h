@@ -6,8 +6,11 @@
 #ifndef _CANVASUTILS_H_
 #define _CANVASUTILS_H_
 
+#include "prtypes.h"
+
 #include "mozilla/CheckedInt.h"
 
+class nsHTMLCanvasElement;
 class nsIPrincipal;
 
 namespace mozilla {
@@ -16,12 +19,9 @@ namespace gfx {
 class Matrix;
 }
 
-namespace dom {
-class HTMLCanvasElement;
-}
-
 namespace CanvasUtils {
 
+using namespace gfx;
 
 // Check that the rectangle [x,y,w,h] is a subrectangle of [0,0,realWidth,realHeight]
 
@@ -40,7 +40,7 @@ inline bool CheckSaneSubrectSize(int32_t x, int32_t y, int32_t w, int32_t h,
 // Flag aCanvasElement as write-only if drawing an image with aPrincipal
 // onto it would make it such.
 
-void DoDrawImageSecurityCheck(dom::HTMLCanvasElement *aCanvasElement,
+void DoDrawImageSecurityCheck(nsHTMLCanvasElement *aCanvasElement,
                               nsIPrincipal *aPrincipal,
                               bool forceWriteOnly,
                               bool CORSUsed);
@@ -48,7 +48,19 @@ void DoDrawImageSecurityCheck(dom::HTMLCanvasElement *aCanvasElement,
 // Make a double out of |v|, treating undefined values as 0.0 (for
 // the sake of sparse arrays).  Return true iff coercion
 // succeeded.
-bool CoerceDouble(JS::Value v, double* d);
+bool CoerceDouble(jsval v, double* d);
+
+// Return true iff the conversion succeeded, false otherwise.  *rv is
+// the value to return to script if this returns false.
+bool JSValToMatrix(JSContext* cx, const jsval& val,
+                   gfxMatrix* matrix, nsresult* rv);
+bool JSValToMatrix(JSContext* cx, const jsval& val,
+                   Matrix* matrix, nsresult* rv);
+
+nsresult MatrixToJSVal(const gfxMatrix& matrix,
+                       JSContext* cx, jsval* val);
+nsresult MatrixToJSVal(const Matrix& matrix,
+                       JSContext* cx, jsval* val);
 
     /* Float validation stuff */
 #define VALIDATE(_f)  if (!NS_finite(_f)) return false
@@ -87,17 +99,17 @@ inline bool FloatValidate (double f1, double f2, double f3, double f4, double f5
 
 template<typename T>
 nsresult
-JSValToDashArray(JSContext* cx, const JS::Value& val,
+JSValToDashArray(JSContext* cx, const jsval& val,
                  FallibleTArray<T>& dashArray);
 
 template<typename T>
 nsresult
 DashArrayToJSVal(FallibleTArray<T>& dashArray,
-                 JSContext* cx, JS::Value* val);
+                 JSContext* cx, jsval* val);
 
 template<typename T>
 nsresult
-JSValToDashArray(JSContext* cx, const JS::Value& patternArray,
+JSValToDashArray(JSContext* cx, const jsval& patternArray,
                  FallibleTArray<T>& dashes)
 {
     // The cap is pretty arbitrary.  16k should be enough for
@@ -117,7 +129,7 @@ JSValToDashArray(JSContext* cx, const JS::Value& patternArray,
 
         bool haveNonzeroElement = false;
         for (uint32_t i = 0; i < length; ++i) {
-            JS::Value elt;
+            jsval elt;
             double d;
             if (!JS_GetElement(cx, obj, i, &elt)) {
                 return NS_ERROR_FAILURE;
@@ -151,7 +163,7 @@ JSValToDashArray(JSContext* cx, const JS::Value& patternArray,
 template<typename T>
 nsresult
 DashArrayToJSVal(FallibleTArray<T>& dashes,
-                 JSContext* cx, JS::Value* val)
+                 JSContext* cx, jsval* val)
 {
     if (dashes.IsEmpty()) {
         *val = JSVAL_NULL;
@@ -162,7 +174,7 @@ DashArrayToJSVal(FallibleTArray<T>& dashes,
         }
         for (uint32_t i = 0; i < dashes.Length(); ++i) {
             double d = dashes[i];
-            JS::Value elt = DOUBLE_TO_JSVAL(d);
+            jsval elt = DOUBLE_TO_JSVAL(d);
             if (!JS_SetElement(cx, obj, i, &elt)) {
                 return NS_ERROR_FAILURE;
             }

@@ -6,10 +6,7 @@
 #include "pk11func.h"
 #include "nsNSSComponent.h"
 #include "nsSmartCardMonitor.h"
-#include "nsIDOMSmartCardEvent.h"
-#include "mozilla/unused.h"
-
-using namespace mozilla;
+#include "nsSmartCardEvent.h"
 
 //
 // The SmartCard monitoring thread should start up for each module we load
@@ -28,6 +25,8 @@ using namespace mozilla;
 
 
 static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
+#include <assert.h>
 
 // self linking and removing double linked entry
 // adopts the thread it is passed.
@@ -74,7 +73,8 @@ SmartCardThreadList::~SmartCardThreadList()
 void
 SmartCardThreadList::Remove(SECMODModule *aModule)
 {
-  for (SmartCardThreadEntry *current = head; current; current = current->next) {
+  SmartCardThreadEntry *current;
+  for (current = head; current; current=current->next) {
     if (current->thread->GetModule() == aModule) {
       // NOTE: automatically stops the thread and dequeues it from the list
       delete current;
@@ -83,16 +83,17 @@ SmartCardThreadList::Remove(SECMODModule *aModule)
   }
 }
 
-// adopts the thread passed to it. Starts the thread as well
+// adopts the thread passwd to it. Starts the thread as well
 nsresult
 SmartCardThreadList::Add(SmartCardMonitoringThread *thread)
 {
   SmartCardThreadEntry *current = new SmartCardThreadEntry(thread, head, nullptr,
                                                            &head);
-  // OK to forget current here, it's on the list.
-  unused << current;
-
-  return thread->Start();
+  if (current) {  
+     // OK to forget current here, it's on the list
+    return thread->Start();
+  }
+  return NS_ERROR_OUT_OF_MEMORY;
 }
 
 
@@ -274,7 +275,7 @@ void SmartCardMonitoringThread::Execute()
   // loop starts..
   do {
     slot = SECMOD_WaitForAnyTokenEvent(mModule, 0, PR_SecondsToInterval(1)  );
-    if (!slot) {
+    if (slot == nullptr) {
       break;
     }
 

@@ -7,12 +7,10 @@
 #include "nsFrame.h"
 #include "nsGkAtoms.h"
 #include "nsSVGOuterSVGFrame.h"
-#include "mozilla/dom/SVGSVGElement.h"
-#include "mozilla/dom/SVGViewElement.h"
+#include "nsSVGSVGElement.h"
+#include "nsSVGViewElement.h"
 
 typedef nsFrame SVGViewFrameBase;
-
-using namespace mozilla::dom;
 
 /**
  * While views are not directly rendered in SVG they can be linked to
@@ -35,9 +33,9 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG
-  virtual void Init(nsIContent* aContent,
-                    nsIFrame*   aParent,
-                    nsIFrame*   aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent* aContent,
+                  nsIFrame*   aParent,
+                  nsIFrame*   aPrevInFlow);
 #endif
 
   virtual bool IsFrameOfType(uint32_t aFlags) const
@@ -78,15 +76,15 @@ NS_NewSVGViewFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(SVGViewFrame)
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 SVGViewFrame::Init(nsIContent* aContent,
                    nsIFrame* aParent,
                    nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::view),
-               "Content is not an SVG view");
+  nsCOMPtr<nsIDOMSVGViewElement> elem = do_QueryInterface(aContent);
+  NS_ASSERTION(elem, "Content is not an SVG view");
 
-  SVGViewFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return SVGViewFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 
@@ -109,11 +107,11 @@ SVGViewFrame::AttributeChanged(int32_t  aNameSpaceID,
        aAttribute == nsGkAtoms::viewTarget)) {
 
     nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
-    NS_ASSERTION(outerSVGFrame->GetContent()->IsSVG(nsGkAtoms::svg),
+    NS_ASSERTION(outerSVGFrame->GetContent()->Tag() == nsGkAtoms::svg,
                  "Expecting an <svg> element");
 
-    SVGSVGElement* svgElement =
-      static_cast<SVGSVGElement*>(outerSVGFrame->GetContent());
+    nsSVGSVGElement* svgElement =
+      static_cast<nsSVGSVGElement*>(outerSVGFrame->GetContent());
 
     nsAutoString viewID;
     mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::id, viewID);

@@ -80,17 +80,17 @@ const TESTS = [
     category: "malformed-xml",
     matchString: "</html>",
   },
-  { // #13
+  { // #14
     file: "test-bug-595934-empty-getelementbyid.html",
     category: "DOM",
     matchString: "getElementById",
   },
-  { // #14
+  { // #15
     file: "test-bug-595934-canvas-css.html",
     category: "CSS Parser",
     matchString: "foobarCanvasCssParser",
   },
-  { // #15
+  { // #16
     file: "test-bug-595934-image.html",
     category: "Image",
     matchString: "corrupt",
@@ -132,8 +132,7 @@ let TestObserver = {
 
 function consoleOpened(hud) {
   output = hud.outputNode;
-
-  nodeInsertedListener.observe(output, {childList: true});
+  output.addEventListener("DOMNodeInserted", onDOMNodeInserted, false);
   jsterm = hud.jsterm;
 
   Services.console.registerListener(TestObserver);
@@ -151,7 +150,6 @@ function testNext() {
   pageError = false;
 
   pos++;
-  info("testNext: #" + pos);
   if (pos < TESTS.length) {
     waitForSuccess({
       timeout: 10000,
@@ -201,26 +199,17 @@ function testNext() {
 
 function testEnd() {
   Services.console.unregisterListener(TestObserver);
-  nodeInsertedListener.disconnect();
+  output.removeEventListener("DOMNodeInserted", onDOMNodeInserted, false);
   TestObserver = output = jsterm = null;
 }
 
-var nodeInsertedListener = new MutationObserver(function(mutations) {
-  if (testEnded) {
-    return;
+function onDOMNodeInserted(aEvent) {
+  let textContent = output.textContent;
+  foundText = textContent.indexOf(TESTS[pos].matchString) > -1;
+  if (foundText) {
+    ok(foundText, "test #" + pos + ": message found '" + TESTS[pos].matchString + "'");
   }
-
-  for (var mutation of mutations) {
-    if (mutation.addedNodes) {
-      let textContent = output.textContent;
-      foundText = textContent.indexOf(TESTS[pos].matchString) > -1;
-      if (foundText) {
-        ok(foundText, "test #" + pos + ": message found '" + TESTS[pos].matchString + "'");
-      }
-      return;
-    }
-  }
-});
+}
 
 function test() {
   requestLongerTimeout(2);

@@ -29,7 +29,6 @@ class nsRenderingContext;
  */
 class nsImageRenderer {
 public:
-  typedef mozilla::layers::LayerManager LayerManager;
   typedef mozilla::layers::ImageContainer ImageContainer;
 
   enum {
@@ -61,9 +60,9 @@ public:
             const nsPoint&       aAnchor,
             const nsRect&        aDirty);
 
-  bool IsRasterImage();
-  already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager);
 
+  bool IsRasterImage();
+  already_AddRefed<ImageContainer> GetContainer();
 private:
   /*
    * Compute the "unscaled" dimensions of the image in aUnscaled{Width,Height}
@@ -243,8 +242,9 @@ struct nsCSSRendering {
    * backgrounds between BODY, the root element, and the canvas.
    * @return true if there is some meaningful background.
    */
-  static bool FindBackground(nsIFrame* aForFrame,
-                             nsStyleContext** aBackgroundSC);
+  static bool FindBackground(nsPresContext* aPresContext,
+                               nsIFrame* aForFrame,
+                               nsStyleContext** aBackgroundSC);
 
   /**
    * As FindBackground, but the passed-in frame is known to be a root frame
@@ -274,7 +274,7 @@ struct nsCSSRendering {
     // This should always give transparent, so we'll fill it in with the
     // default color if needed.  This seems to happen a bit while a page is
     // being loaded.
-    return aForFrame->StyleContext();
+    return aForFrame->GetStyleContext();
   }
 
   /**
@@ -299,14 +299,6 @@ struct nsCSSRendering {
                            nsIFrame* aFrame,
                            bool& aDrawBackgroundImage,
                            bool& aDrawBackgroundColor);
-
-  static nsRect
-  ComputeBackgroundPositioningArea(nsPresContext* aPresContext,
-                                   nsIFrame* aForFrame,
-                                   const nsRect& aBorderArea,
-                                   const nsStyleBackground& aBackground,
-                                   const nsStyleBackground::Layer& aLayer,
-                                   nsIFrame** aAttachedToFrame);
 
   static nsBackgroundLayerState
   PrepareBackgroundLayer(nsPresContext* aPresContext,
@@ -345,13 +337,6 @@ struct nsCSSRendering {
                               uint32_t aFlags,
                               nsRect* aBGClipRect = nullptr,
                               int32_t aLayer = -1);
- 
-  static void PaintBackgroundColor(nsPresContext* aPresContext,
-                                   nsRenderingContext& aRenderingContext,
-                                   nsIFrame* aForFrame,
-                                   const nsRect& aDirtyRect,
-                                   const nsRect& aBorderArea,
-                                   uint32_t aFlags);
 
   /**
    * Same as |PaintBackground|, except using the provided style structs.
@@ -373,14 +358,6 @@ struct nsCSSRendering {
                                     nsRect* aBGClipRect = nullptr,
                                     int32_t aLayer = -1);
 
-  static void PaintBackgroundColorWithSC(nsPresContext* aPresContext,
-                                         nsRenderingContext& aRenderingContext,
-                                         nsIFrame* aForFrame,
-                                         const nsRect& aDirtyRect,
-                                         const nsRect& aBorderArea,
-                                         nsStyleContext *aStyleContext,
-                                         const nsStyleBorder& aBorder,
-                                         uint32_t aFlags);
   /**
    * Returns the rectangle covered by the given background layer image, taking
    * into account background positioning, sizing, and repetition, but not
@@ -389,21 +366,14 @@ struct nsCSSRendering {
   static nsRect GetBackgroundLayerRect(nsPresContext* aPresContext,
                                        nsIFrame* aForFrame,
                                        const nsRect& aBorderArea,
-                                       const nsRect& aClipRect,
                                        const nsStyleBackground& aBackground,
                                        const nsStyleBackground::Layer& aLayer);
 
   /**
-   * Called when we start creating a display list. The frame tree will not
-   * change until a matching EndFrameTreeLocked is called.
+   * Called by the presShell when painting is finished, so we can clear our
+   * inline background data cache.
    */
-  static void BeginFrameTreesLocked();
-  /**
-   * Called when we've finished using a display list. When all
-   * BeginFrameTreeLocked calls have been balanced by an EndFrameTreeLocked,
-   * the frame tree may start changing again.
-   */
-  static void EndFrameTreesLocked();
+  static void DidPaint();
 
   // Draw a border segment in the table collapsing border model without
   // beveling corners

@@ -7,6 +7,8 @@
 #include "ImageLogging.h"
 #include "nsJPEGDecoder.h"
 
+#include "imgIContainerObserver.h"
+
 #include "nsIInputStream.h"
 
 #include "nspr.h"
@@ -33,26 +35,11 @@ namespace mozilla {
 namespace image {
 
 #if defined(PR_LOGGING)
-static PRLogModuleInfo *
-GetJPEGLog()
-{
-  static PRLogModuleInfo *sJPEGLog;
-  if (!sJPEGLog)
-    sJPEGLog = PR_NewLogModule("JPEGDecoder");
-  return sJPEGLog;
-}
-
-static PRLogModuleInfo *
-GetJPEGDecoderAccountingLog()
-{
-  static PRLogModuleInfo *sJPEGDecoderAccountingLog;
-  if (!sJPEGDecoderAccountingLog)
-    sJPEGDecoderAccountingLog = PR_NewLogModule("JPEGDecoderAccounting");
-  return sJPEGDecoderAccountingLog;
-}
+PRLogModuleInfo *gJPEGlog = PR_NewLogModule("JPEGDecoder");
+static PRLogModuleInfo *gJPEGDecoderAccountingLog = PR_NewLogModule("JPEGDecoderAccounting");
 #else
-#define GetJPEGLog()
-#define GetJPEGDecoderAccountingLog()
+#define gJPEGlog
+#define gJPEGDecoderAccountingLog
 #endif
 
 static qcms_profile*
@@ -80,9 +67,8 @@ METHODDEF(void) my_error_exit (j_common_ptr cinfo);
 #define MAX_JPEG_MARKER_LENGTH  (((uint32_t)1 << 16) - 1)
 
 
-nsJPEGDecoder::nsJPEGDecoder(RasterImage& aImage, Decoder::DecodeStyle aDecodeStyle)
- : Decoder(aImage)
- , mDecodeStyle(aDecodeStyle)
+nsJPEGDecoder::nsJPEGDecoder(RasterImage &aImage, imgIDecoderObserver* aObserver)
+ : Decoder(aImage, aObserver)
 {
   mState = JPEG_HEADER;
   mReading = true;
@@ -104,7 +90,7 @@ nsJPEGDecoder::nsJPEGDecoder(RasterImage& aImage, Decoder::DecodeStyle aDecodeSt
 
   mCMSMode = 0;
 
-  PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+  PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
          ("nsJPEGDecoder::nsJPEGDecoder: Creating JPEG decoder %p",
           this));
 }
@@ -121,7 +107,7 @@ nsJPEGDecoder::~nsJPEGDecoder()
   if (mInProfile)
     qcms_profile_release(mInProfile);
 
-  PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+  PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
          ("nsJPEGDecoder::~nsJPEGDecoder: Destroying JPEG decoder %p",
           this));
 }
@@ -204,7 +190,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
       /* Error due to corrupt stream - return NS_OK and consume silently
          so that libpr0n doesn't throw away a partial image load */
       mState = JPEG_SINK_NON_JPEG_TRAILER;
-      PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+      PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
              ("} (setjmp returned NS_ERROR_FAILURE)"));
       return;
     } else {
@@ -213,23 +199,23 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
          mozilla is seconds away from falling flat on its face. */
       PostDecoderError(error_code);
       mState = JPEG_ERROR;
-      PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+      PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
              ("} (setjmp returned an error)"));
       return;
     }
   }
 
-  PR_LOG(GetJPEGLog(), PR_LOG_DEBUG,
+  PR_LOG(gJPEGlog, PR_LOG_DEBUG,
          ("[this=%p] nsJPEGDecoder::Write -- processing JPEG data\n", this));
 
   switch (mState) {
   case JPEG_HEADER:
   {
-    LOG_SCOPE(GetJPEGLog(), "nsJPEGDecoder::Write -- entering JPEG_HEADER case");
+    LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::Write -- entering JPEG_HEADER case");
 
     /* Step 3: read file parameters with jpeg_read_header() */
     if (jpeg_read_header(&mInfo, TRUE) == JPEG_SUSPENDED) {
-      PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+      PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
              ("} (JPEG_SUSPENDED)"));
       return; /* I/O suspension */
     }
@@ -281,7 +267,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
       default:
         mState = JPEG_ERROR;
         PostDataError();
-        PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+        PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
                ("} (unknown colorpsace (1))"));
         return;
       }
@@ -298,7 +284,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
         default:
           mState = JPEG_ERROR;
           PostDataError();
-          PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+          PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
                  ("} (unknown colorpsace (2))"));
           return;
         }
@@ -355,7 +341,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
       default:
         mState = JPEG_ERROR;
         PostDataError();
-        PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+        PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
                ("} (unknown colorpsace (3))"));
         return;
         break;
@@ -364,31 +350,37 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 
     /*
      * Don't allocate a giant and superfluous memory buffer
-     * when not doing a progressive decode.
+     * when the image is a sequential JPEG.
      */
-    mInfo.buffered_image = mDecodeStyle == PROGRESSIVE && jpeg_has_multiple_scans(&mInfo);
+    mInfo.buffered_image = jpeg_has_multiple_scans(&mInfo);
 
     /* Used to set up image size so arrays can be allocated */
     jpeg_calc_output_dimensions(&mInfo);
 
-    if (!mImageData) {
+    uint32_t imagelength;
+    if (NS_FAILED(mImage.EnsureFrame(0, 0, 0, mInfo.image_width, mInfo.image_height,
+                                     gfxASurface::ImageFormatRGB24,
+                                     &mImageData, &imagelength))) {
       mState = JPEG_ERROR;
       PostDecoderError(NS_ERROR_OUT_OF_MEMORY);
-      PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+      PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
              ("} (could not initialize image frame)"));
       return;
     }
 
-    PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+    PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
            ("        JPEGDecoderAccounting: nsJPEGDecoder::Write -- created image frame with %ux%u pixels",
             mInfo.image_width, mInfo.image_height));
+
+    // Tell the superclass we're starting a frame
+    PostFrameStart();
 
     mState = JPEG_START_DECOMPRESS;
   }
 
   case JPEG_START_DECOMPRESS:
   {
-    LOG_SCOPE(GetJPEGLog(), "nsJPEGDecoder::Write -- entering JPEG_START_DECOMPRESS case");
+    LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::Write -- entering JPEG_START_DECOMPRESS case");
     /* Step 4: set parameters for decompression */
 
     /* FIXME -- Should reset dct_method and dither mode
@@ -402,7 +394,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 
     /* Step 5: Start decompressor */
     if (jpeg_start_decompress(&mInfo) == FALSE) {
-      PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+      PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
              ("} (I/O suspension after jpeg_start_decompress())"));
       return; /* I/O suspension */
     }
@@ -416,13 +408,13 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
   {
     if (mState == JPEG_DECOMPRESS_SEQUENTIAL)
     {
-      LOG_SCOPE(GetJPEGLog(), "nsJPEGDecoder::Write -- JPEG_DECOMPRESS_SEQUENTIAL case");
+      LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::Write -- JPEG_DECOMPRESS_SEQUENTIAL case");
       
       bool suspend;
       OutputScanlines(&suspend);
       
       if (suspend) {
-        PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+        PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
                ("} (I/O suspension after OutputScanlines() - SEQUENTIAL)"));
         return; /* I/O suspension */
       }
@@ -437,7 +429,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
   {
     if (mState == JPEG_DECOMPRESS_PROGRESSIVE)
     {
-      LOG_SCOPE(GetJPEGLog(), "nsJPEGDecoder::Write -- JPEG_DECOMPRESS_PROGRESSIVE case");
+      LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::Write -- JPEG_DECOMPRESS_PROGRESSIVE case");
 
       int status;
       do {
@@ -458,7 +450,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
             scan--;
 
           if (!jpeg_start_output(&mInfo, scan)) {
-            PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+            PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
                    ("} (I/O suspension after jpeg_start_output() - PROGRESSIVE)"));
             return; /* I/O suspension */
           }
@@ -476,7 +468,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
                jpeg_start_output() multiple times for the same scan */
             mInfo.output_scanline = 0xffffff;
           }
-          PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+          PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
                  ("} (I/O suspension after OutputScanlines() - PROGRESSIVE)"));
           return; /* I/O suspension */
         }
@@ -484,7 +476,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
         if (mInfo.output_scanline == mInfo.output_height)
         {
           if (!jpeg_finish_output(&mInfo)) {
-            PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+            PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
                    ("} (I/O suspension after jpeg_finish_output() - PROGRESSIVE)"));
             return; /* I/O suspension */
           }
@@ -503,12 +495,12 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 
   case JPEG_DONE:
   {
-    LOG_SCOPE(GetJPEGLog(), "nsJPEGDecoder::ProcessData -- entering JPEG_DONE case");
+    LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::ProcessData -- entering JPEG_DONE case");
 
     /* Step 7: Finish decompression */
 
     if (jpeg_finish_decompress(&mInfo) == FALSE) {
-      PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+      PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
              ("} (I/O suspension after jpeg_finish_decompress() - DONE)"));
       return; /* I/O suspension */
     }
@@ -519,7 +511,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
     break;
   }
   case JPEG_SINK_NON_JPEG_TRAILER:
-    PR_LOG(GetJPEGLog(), PR_LOG_DEBUG,
+    PR_LOG(gJPEGlog, PR_LOG_DEBUG,
            ("[this=%p] nsJPEGDecoder::ProcessData -- entering JPEG_SINK_NON_JPEG_TRAILER case\n", this));
 
     break;
@@ -528,7 +520,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
     NS_ABORT_IF_FALSE(0, "Should always return immediately after error and not re-enter decoder");
   }
 
-  PR_LOG(GetJPEGDecoderAccountingLog(), PR_LOG_DEBUG,
+  PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
          ("} (end of function)"));
   return;
 }
@@ -536,7 +528,7 @@ nsJPEGDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 void
 nsJPEGDecoder::NotifyDone()
 {
-  PostFrameStop(RasterImage::kFrameOpaque);
+  PostFrameStop();
   PostDecodeDone();
 }
 

@@ -5,8 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "mozilla/layers/PLayers.h"
 #include "mozilla/layers/ShadowLayers.h"
 #include "mozilla/Telemetry.h"
@@ -18,6 +16,7 @@
 #include "ReadbackLayer.h"
 #include "gfxUtils.h"
 #include "nsPrintfCString.h"
+#include "mozilla/Util.h"
 #include "LayerSorter.h"
 #include "AnimationCommon.h"
 
@@ -230,36 +229,6 @@ LayerManager::GetPrimaryScrollableLayer()
   return mRoot;
 }
 
-void
-LayerManager::GetScrollableLayers(nsTArray<Layer*>& aArray)
-{
-  if (!mRoot) {
-    return;
-  }
-
-  nsTArray<Layer*> queue;
-  queue.AppendElement(mRoot);
-  while (!queue.IsEmpty()) {
-    ContainerLayer* containerLayer = queue.LastElement()->AsContainerLayer();
-    queue.RemoveElementAt(queue.Length() - 1);
-    if (!containerLayer) {
-      continue;
-    }
-
-    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
-    if (frameMetrics.IsScrollable()) {
-      aArray.AppendElement(containerLayer);
-      continue;
-    }
-
-    Layer* child = containerLayer->GetFirstChild();
-    while (child) {
-      queue.AppendElement(child);
-      child = child->GetNextSibling();
-    }
-  }
-}
-
 already_AddRefed<gfxASurface>
 LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
                                    gfxASurface::gfxImageFormat aFormat)
@@ -320,9 +289,7 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mUseClipRect(false),
   mUseTileSourceRect(false),
   mIsFixedPosition(false),
-  mMargins(0, 0, 0, 0),
-  mDebugColorIndex(0),
-  mAnimationGeneration(0)
+  mDebugColorIndex(0)
 {}
 
 Layer::~Layer()
@@ -332,8 +299,6 @@ Animation*
 Layer::AddAnimation(TimeStamp aStart, TimeDuration aDuration, float aIterations,
                     int aDirection, nsCSSProperty aProperty, const AnimationData& aData)
 {
-  MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) AddAnimation", this));
-
   Animation* anim = mAnimations.AppendElement();
   anim->startTime() = aStart;
   anim->duration() = aDuration;
@@ -349,11 +314,6 @@ Layer::AddAnimation(TimeStamp aStart, TimeDuration aDuration, float aIterations,
 void
 Layer::ClearAnimations()
 {
-  if (mAnimations.IsEmpty() && mAnimationData.IsEmpty()) {
-    return;
-  }
-
-  MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) ClearAnimations", this));
   mAnimations.Clear();
   mAnimationData.Clear();
   Mutated();
@@ -481,15 +441,12 @@ CreateCSSValueList(const InfallibleTArray<TransformFunction>& aFunctions)
 void
 Layer::SetAnimations(const AnimationArray& aAnimations)
 {
-  MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) SetAnimations", this));
-
   mAnimations = aAnimations;
   mAnimationData.Clear();
   for (uint32_t i = 0; i < mAnimations.Length(); i++) {
     AnimData* data = mAnimationData.AppendElement();
     InfallibleTArray<css::ComputedTimingFunction*>& functions = data->mFunctions;
-    const InfallibleTArray<AnimationSegment>& segments =
-      mAnimations.ElementAt(i).segments();
+    nsTArray<AnimationSegment> segments = mAnimations.ElementAt(i).segments();
     for (uint32_t j = 0; j < segments.Length(); j++) {
       TimingFunction tf = segments.ElementAt(j).sampleFn();
       css::ComputedTimingFunction* ctf = new css::ComputedTimingFunction();
@@ -588,37 +545,6 @@ Layer::GetEffectiveVisibleRegion()
 }
 
 gfx3DMatrix
-Layer::SnapTransformTranslation(const gfx3DMatrix& aTransform,
-                                gfxMatrix* aResidualTransform)
-{
-  if (aResidualTransform) {
-    *aResidualTransform = gfxMatrix();
-  }
-
-  gfxMatrix matrix2D;
-  gfx3DMatrix result;
-  if (mManager->IsSnappingEffectiveTransforms() &&
-      aTransform.Is2D(&matrix2D) &&
-      !matrix2D.HasNonTranslation() &&
-      matrix2D.HasNonIntegerTranslation()) {
-    gfxPoint snappedTranslation(matrix2D.GetTranslation());
-    snappedTranslation.Round();
-    gfxMatrix snappedMatrix = gfxMatrix().Translate(snappedTranslation);
-    result = gfx3DMatrix::From2D(snappedMatrix);
-    if (aResidualTransform) {
-      // set aResidualTransform so that aResidual * snappedMatrix == matrix2D.
-      // (I.e., appying snappedMatrix after aResidualTransform gives the
-      // ideal transform.)
-      *aResidualTransform =
-        gfxMatrix().Translate(matrix2D.GetTranslation() - snappedTranslation);
-    }
-  } else {
-    result = aTransform;
-  }
-  return result;
-}
-
-gfx3DMatrix
 Layer::SnapTransform(const gfx3DMatrix& aTransform,
                      const gfxRect& aSnapRect,
                      gfxMatrix* aResidualTransform)
@@ -631,18 +557,26 @@ Layer::SnapTransform(const gfx3DMatrix& aTransform,
   gfx3DMatrix result;
   if (mManager->IsSnappingEffectiveTransforms() &&
       aTransform.Is2D(&matrix2D) &&
-      gfxSize(1.0, 1.0) <= aSnapRect.Size() &&
-      matrix2D.PreservesAxisAlignedRectangles()) {
-    gfxPoint transformedTopLeft = matrix2D.Transform(aSnapRect.TopLeft());
-    transformedTopLeft.Round();
-    gfxPoint transformedTopRight = matrix2D.Transform(aSnapRect.TopRight());
-    transformedTopRight.Round();
-    gfxPoint transformedBottomRight = matrix2D.Transform(aSnapRect.BottomRight());
-    transformedBottomRight.Round();
-
-    gfxMatrix snappedMatrix = gfxUtils::TransformRectToRect(aSnapRect,
-      transformedTopLeft, transformedTopRight, transformedBottomRight);
-
+      matrix2D.HasNonIntegerTranslation() &&
+      !matrix2D.IsSingular() &&
+      !matrix2D.HasNonAxisAlignedTransform()) {
+    gfxMatrix snappedMatrix;
+    gfxPoint topLeft = matrix2D.Transform(aSnapRect.TopLeft());
+    topLeft.Round();
+    // first compute scale factors that scale aSnapRect to the snapped rect
+    if (aSnapRect.IsEmpty()) {
+      snappedMatrix.xx = matrix2D.xx;
+      snappedMatrix.yy = matrix2D.yy;
+    } else {
+      gfxPoint bottomRight = matrix2D.Transform(aSnapRect.BottomRight());
+      bottomRight.Round();
+      snappedMatrix.xx = (bottomRight.x - topLeft.x)/aSnapRect.Width();
+      snappedMatrix.yy = (bottomRight.y - topLeft.y)/aSnapRect.Height();
+    }
+    // compute translation factors that will move aSnapRect to the snapped rect
+    // given those scale factors
+    snappedMatrix.x0 = topLeft.x - aSnapRect.X()*snappedMatrix.xx;
+    snappedMatrix.y0 = topLeft.y - aSnapRect.Y()*snappedMatrix.yy;
     result = gfx3DMatrix::From2D(snappedMatrix);
     if (aResidualTransform && !snappedMatrix.IsSingular()) {
       // set aResidualTransform so that aResidual * snappedMatrix == matrix2D.
@@ -656,26 +590,6 @@ Layer::SnapTransform(const gfx3DMatrix& aTransform,
     result = aTransform;
   }
   return result;
-}
-
-static bool
-AncestorLayerMayChangeTransform(Layer* aLayer)
-{
-  for (Layer* l = aLayer; l; l = l->GetParent()) {
-    if (l->GetContentFlags() & Layer::CONTENT_MAY_CHANGE_TRANSFORM) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool
-Layer::MayResample()
-{
-  gfxMatrix transform2d;
-  return !GetEffectiveTransform().Is2D(&transform2d) ||
-         transform2d.HasNonIntegerTranslation() ||
-         AncestorLayerMayChangeTransform(this);
 }
 
 nsIntRect
@@ -765,7 +679,6 @@ void
 Layer::ApplyPendingUpdatesForThisTransaction()
 {
   if (mPendingTransform && *mPendingTransform != mTransform) {
-    MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) PendingUpdatesForThisTransaction", this));
     mTransform = *mPendingTransform;
     Mutated();
   }
@@ -809,8 +722,7 @@ Layer::ComputeEffectiveTransformForMaskLayer(const gfx3DMatrix& aTransformToSurf
 void
 ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 {
-  aAttrs = ContainerLayerAttributes(GetFrameMetrics(), mPreXScale, mPreYScale,
-                                    mInheritedXScale, mInheritedYScale);
+  aAttrs = ContainerLayerAttributes(GetFrameMetrics(), mPreXScale, mPreYScale);
 }
 
 bool
@@ -860,7 +772,7 @@ ContainerLayer::DefaultComputeEffectiveTransforms(const gfx3DMatrix& aTransformT
   gfxMatrix residual;
   gfx3DMatrix idealTransform = GetLocalTransform()*aTransformToSurface;
   idealTransform.ProjectTo2D();
-  mEffectiveTransform = SnapTransformTranslation(idealTransform, &residual);
+  mEffectiveTransform = SnapTransform(idealTransform, gfxRect(0, 0, 0, 0), &residual);
 
   bool useIntermediateSurface;
   if (GetMaskLayer()) {
@@ -951,94 +863,19 @@ RefLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
   aAttrs = RefLayerAttributes(GetReferentId());
 }
 
-/** 
- * StartFrameTimeRecording, together with StopFrameTimeRecording
- * enable recording of frame intrvals and paint times.
- * (Paint start time is set from the refresh driver right before starting
- * flush/paint and ends at PostPresent. Intervals are measured at PostPresent).
- *
- * To allow concurrent consumers, 2 cyclic arrays are used (for intervals, paints)
- * which serve all consumers, practically stateless with regard to consumers.
- *
- * To save resources, the buffers are allocated on first call to StartFrameTimeRecording
- * and recording is paused if no consumer which called StartFrameTimeRecording is able
- * to get valid results (because the cyclic buffers were overwritten since that call).
- *
- * To determine availability of the data upon StopFrameTimeRecording:
- * - mRecording.mNextIndex increases on each PostPresent, and never resets.
- * - Cyclic buffer position is realized as mNextIndex % bufferSize.
- * - StartFrameTimeRecording returns mNextIndex. When StopFrameTimeRecording is called,
- *   the required start index is passed as an arg, and we're able to calculate the required
- *   length. If this length is bigger than bufferSize, it means data was overwritten.
- *   otherwise, we can return the entire sequence.
- * - To determine if we need to pause, mLatestStartIndex is updated to mNextIndex
- *   on each call to StartFrameTimeRecording. If this index gets overwritten,
- *   it means that all earlier start indices obtained via StartFrameTimeRecording
- *   were also overwritten, hence, no point in recording, so pause.
- * - mCurrentRunStartIndex indicates the oldest index of the recording after which
- *   the recording was not paused. If StopFrameTimeRecording is invoked with a start index
- *   older than this, it means that some frames were not recorded, so data is invalid.
- */
-uint32_t
+void
 LayerManager::StartFrameTimeRecording()
 {
-  if (mRecording.mIsPaused) {
-    mRecording.mIsPaused = false;
-
-    if (!mRecording.mIntervals.Length()) { // Initialize recording buffers
-      const uint32_t kRecordingMinSize = 60 * 10; // 10 seconds @60 fps.
-      const uint32_t kRecordingMaxSize = 60 * 60 * 60; // One hour
-      uint32_t bufferSize = Preferences::GetUint("toolkit.framesRecording.bufferSize",
-                                                 kRecordingMinSize);
-      bufferSize = std::min(bufferSize, kRecordingMaxSize);
-      bufferSize = std::max(bufferSize, kRecordingMinSize);
-
-      if (!mRecording.mIntervals.SetLength(bufferSize) || !mRecording.mPaints.SetLength(bufferSize)) {
-        mRecording.mIsPaused = true; // OOM
-        mRecording.mIntervals.Clear();
-        mRecording.mPaints.Clear();
-      }
-    }
-
-    // After being paused, recent values got invalid. Update them to now.
-    mRecording.mLastFrameTime = TimeStamp::Now();
-    mRecording.mPaintStartTime = mRecording.mLastFrameTime;
-
-    // Any recording which started before this is invalid, since we were paused.
-    mRecording.mCurrentRunStartIndex = mRecording.mNextIndex;
-  }
-
-  // If we'll overwrite this index, there are no more consumers with aStartIndex
-  // for which we're able to provide the full recording, so no point in keep recording.
-  mRecording.mLatestStartIndex = mRecording.mNextIndex;
-  return mRecording.mNextIndex;
-}
-
-void
-LayerManager::SetPaintStartTime(TimeStamp& aTime)
-{
-  if (!mRecording.mIsPaused) {
-    mRecording.mPaintStartTime = aTime;
-  }
+  mLastFrameTime = TimeStamp::Now();
 }
 
 void
 LayerManager::PostPresent()
 {
-  if (!mRecording.mIsPaused) {
+  if (!mLastFrameTime.IsNull()) {
     TimeStamp now = TimeStamp::Now();
-    uint32_t i = mRecording.mNextIndex % mRecording.mIntervals.Length();
-    mRecording.mIntervals[i] = static_cast<float>((now - mRecording.mLastFrameTime)
-                                                  .ToMilliseconds());
-    mRecording.mPaints[i]    = static_cast<float>((now - mRecording.mPaintStartTime)
-                                                  .ToMilliseconds());
-    mRecording.mNextIndex++;
-    mRecording.mLastFrameTime = now;
-
-    if (mRecording.mNextIndex > (mRecording.mLatestStartIndex + mRecording.mIntervals.Length())) {
-      // We've just overwritten the most recent recording start -> pause.
-      mRecording.mIsPaused = true;
-    }
+    mFrameTimes.AppendElement((now - mLastFrameTime).ToMilliseconds());
+    mLastFrameTime = now;
   }
   if (!mTabSwitchStart.IsNull()) {
     Telemetry::Accumulate(Telemetry::FX_TAB_SWITCH_TOTAL_MS,
@@ -1047,34 +884,13 @@ LayerManager::PostPresent()
   }
 }
 
-void
-LayerManager::StopFrameTimeRecording(uint32_t         aStartIndex,
-                                     nsTArray<float>& aFrameIntervals,
-                                     nsTArray<float>& aPaintTimes)
+nsTArray<float>
+LayerManager::StopFrameTimeRecording()
 {
-  uint32_t bufferSize = mRecording.mIntervals.Length();
-  uint32_t length = mRecording.mNextIndex - aStartIndex;
-  if (mRecording.mIsPaused || length > bufferSize || aStartIndex < mRecording.mCurrentRunStartIndex) {
-    // aStartIndex is too old. Also if aStartIndex was issued before mRecordingNextIndex overflowed (uint32_t)
-    //   and stopped after the overflow (would happen once every 828 days of constant 60fps).
-    length = 0;
-  }
-
-  // Set length in advance to avoid possibly repeated reallocations (and OOM checks).
-  if (!length || !aFrameIntervals.SetLength(length) || !aPaintTimes.SetLength(length)) {
-    aFrameIntervals.Clear();
-    aPaintTimes.Clear();
-    return; // empty recording or OOM, return empty arrays.
-  }
-
-  uint32_t cyclicPos = aStartIndex % bufferSize;
-  for (uint32_t i = 0; i < length; i++, cyclicPos++) {
-    if (cyclicPos == bufferSize) {
-      cyclicPos = 0;
-    }
-    aFrameIntervals[i] = mRecording.mIntervals[cyclicPos];
-    aPaintTimes[i]     = mRecording.mPaints[cyclicPos];
-  }
+  mLastFrameTime = TimeStamp();
+  nsTArray<float> result = mFrameTimes;
+  mFrameTimes.Clear();
+  return result;
 }
 
 void

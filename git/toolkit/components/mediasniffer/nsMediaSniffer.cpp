@@ -10,12 +10,8 @@
 #include "nsString.h"
 #include "nsMimeTypes.h"
 #include "mozilla/ModuleUtils.h"
-#ifdef MOZ_WEBM
-#include "nestegg/nestegg.h"
-#endif
 
 #include "nsIClassInfoImpl.h"
-#include <algorithm>
 
 // The minimum number of bytes that are needed to attempt to sniff an mp4 file.
 static const unsigned MP4_MIN_BYTES_COUNT = 12;
@@ -29,6 +25,8 @@ nsMediaSniffer::nsMediaSnifferEntry nsMediaSniffer::sSnifferEntries[] = {
   PATTERN_ENTRY("\xFF\xFF\xFF\xFF\xFF", "OggS", APPLICATION_OGG),
   // The string RIFF, followed by four bytes, followed by the string WAVE
   PATTERN_ENTRY("\xFF\xFF\xFF\xFF\x00\x00\x00\x00\xFF\xFF\xFF\xFF", "RIFF\x00\x00\x00\x00WAVE", AUDIO_WAV),
+  // WebM
+  PATTERN_ENTRY("\xFF\xFF\xFF\xFF", "\x1A\x45\xDF\xA3", VIDEO_WEBM),
   // mp3 with ID3 tags, the string "ID3".
   PATTERN_ENTRY("\xFF\xFF\xFF", "ID3", AUDIO_MP3)
 };
@@ -68,15 +66,6 @@ static bool MatchesMP4(const uint8_t* aData, const uint32_t aLength)
   return false;
 }
 
-static bool MatchesWebM(const uint8_t* aData, const uint32_t aLength)
-{
-#ifdef MOZ_WEBM
-  return nestegg_sniff((uint8_t*)aData, aLength) ? true : false;
-#else
-  return false;
-#endif
-}
-
 NS_IMETHODIMP
 nsMediaSniffer::GetMIMETypeFromContent(nsIRequest* aRequest,
                                        const uint8_t* aData,
@@ -86,18 +75,19 @@ nsMediaSniffer::GetMIMETypeFromContent(nsIRequest* aRequest,
   // For media, we want to sniff only if the Content-Type is unknown, or if it
   // is application/octet-stream.
   nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
-  if (channel) {
-    nsAutoCString contentType;
-    nsresult rv = channel->GetContentType(contentType);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (!contentType.IsEmpty() &&
-        !contentType.EqualsLiteral(APPLICATION_OCTET_STREAM) &&
-        !contentType.EqualsLiteral(UNKNOWN_CONTENT_TYPE)) {
-      return NS_ERROR_NOT_AVAILABLE;
-    }
+  if (!channel) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+  nsAutoCString contentType;
+  nsresult rv = channel->GetContentType(contentType);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!contentType.IsEmpty() &&
+      !contentType.EqualsLiteral(APPLICATION_OCTET_STREAM) &&
+      !contentType.EqualsLiteral(UNKNOWN_CONTENT_TYPE)) {
+    return NS_ERROR_NOT_AVAILABLE;
   }
 
-  const uint32_t clampedLength = std::min(aLength, MAX_BYTES_SNIFFED);
+  const uint32_t clampedLength = NS_MIN(aLength, MAX_BYTES_SNIFFED);
 
   for (uint32_t i = 0; i < NS_ARRAY_LENGTH(sSnifferEntries); ++i) {
     const nsMediaSnifferEntry& currentEntry = sSnifferEntries[i];
@@ -119,11 +109,6 @@ nsMediaSniffer::GetMIMETypeFromContent(nsIRequest* aRequest,
 
   if (MatchesMP4(aData, clampedLength)) {
     aSniffedType.AssignLiteral(VIDEO_MP4);
-    return NS_OK;
-  }
-
-  if (MatchesWebM(aData, clampedLength)) {
-    aSniffedType.AssignLiteral(VIDEO_WEBM);
     return NS_OK;
   }
 

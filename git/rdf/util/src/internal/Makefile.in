@@ -18,6 +18,7 @@ include $(srcdir)/../objs.mk
 
 EXTRA_DEPS += $(srcdir)/../objs.mk
 
+MODULE		= rdfutil
 LIBRARY_NAME	= rdfutil_s
 MOZILLA_INTERNAL_API = 1
 

@@ -18,9 +18,6 @@
 #include "nsConsoleService.h"
 #include "nsConsoleMessage.h"
 #include "nsIClassInfoImpl.h"
-#include "nsThreadUtils.h"
-
-#include "mozilla/Preferences.h"
 
 #if defined(ANDROID)
 #include <android/log.h>
@@ -36,9 +33,6 @@ NS_IMPL_THREADSAFE_RELEASE(nsConsoleService)
 NS_IMPL_CLASSINFO(nsConsoleService, NULL, nsIClassInfo::THREADSAFE | nsIClassInfo::SINGLETON, NS_CONSOLESERVICE_CID)
 NS_IMPL_QUERY_INTERFACE1_CI(nsConsoleService, nsIConsoleService)
 NS_IMPL_CI_INTERFACE_GETTER1(nsConsoleService, nsIConsoleService)
-
-static bool sLoggingEnabled = true;
-static bool sLoggingBuffered = true;
 
 nsConsoleService::nsConsoleService()
     : mMessages(nullptr)
@@ -65,25 +59,6 @@ nsConsoleService::~nsConsoleService()
         nsMemory::Free(mMessages);
 }
 
-class AddConsolePrefWatchers : public nsRunnable
-{
-public:
-    AddConsolePrefWatchers(nsConsoleService* aConsole) : mConsole(aConsole) {}
-
-    NS_IMETHOD Run()
-    {
-        Preferences::AddBoolVarCache(&sLoggingEnabled, "consoleservice.enabled", true);
-        Preferences::AddBoolVarCache(&sLoggingBuffered, "consoleservice.buffered", true);
-        if (!sLoggingBuffered) {
-            mConsole->Reset();
-        }
-        return NS_OK;
-    }
-
-private:
-    nsRefPtr<nsConsoleService> mConsole;
-};
-
 nsresult
 nsConsoleService::Init()
 {
@@ -96,7 +71,6 @@ nsConsoleService::Init()
     memset(mMessages, 0, mBufferSize * sizeof(nsIConsoleMessage *));
 
     mListeners.Init();
-    NS_DispatchToMainThread(new AddConsolePrefWatchers(this));
 
     return NS_OK;
 }
@@ -111,42 +85,40 @@ public:
         , mService(service)
     { }
 
+    void AddListener(nsIConsoleListener* listener) {
+        mListeners.AppendObject(listener);
+    }
+
     NS_DECL_NSIRUNNABLE
 
 private:
     nsCOMPtr<nsIConsoleMessage> mMessage;
     nsRefPtr<nsConsoleService> mService;
+    nsCOMArray<nsIConsoleListener> mListeners;
 };
-
-typedef nsCOMArray<nsIConsoleListener> ListenerArrayType;
-
-PLDHashOperator
-CollectCurrentListeners(nsISupports* aKey, nsIConsoleListener* aValue,
-                        void* closure)
-{
-    ListenerArrayType* listeners = static_cast<ListenerArrayType*>(closure);
-    listeners->AppendObject(aValue);
-    return PL_DHASH_NEXT;
-}
 
 NS_IMETHODIMP
 LogMessageRunnable::Run()
 {
     MOZ_ASSERT(NS_IsMainThread());
 
-    // Snapshot of listeners so that we don't reenter this hash during
-    // enumeration.
-    nsCOMArray<nsIConsoleListener> listeners;
-    mService->EnumerateListeners(CollectCurrentListeners, &listeners);
-
     mService->SetIsDelivering();
 
-    for (int32_t i = 0; i < listeners.Count(); ++i)
-        listeners[i]->Observe(mMessage);
+    for (int32_t i = 0; i < mListeners.Count(); ++i)
+        mListeners[i]->Observe(mMessage);
 
     mService->SetDoneDelivering();
 
     return NS_OK;
+}
+
+PLDHashOperator
+CollectCurrentListeners(nsISupports* aKey, nsIConsoleListener* aValue,
+                        void* closure)
+{
+    LogMessageRunnable* r = static_cast<LogMessageRunnable*>(closure);
+    r->AddListener(aValue);
+    return PL_DHASH_NEXT;
 }
 
 } // anonymous namespace
@@ -155,18 +127,8 @@ LogMessageRunnable::Run()
 NS_IMETHODIMP
 nsConsoleService::LogMessage(nsIConsoleMessage *message)
 {
-    return LogMessageWithMode(message, OutputToLog);
-}
-
-nsresult
-nsConsoleService::LogMessageWithMode(nsIConsoleMessage *message, nsConsoleService::OutputMode outputMode)
-{
     if (message == nullptr)
         return NS_ERROR_INVALID_ARG;
-
-    if (!sLoggingEnabled) {
-        return NS_OK;
-    }
 
     if (NS_IsMainThread() && mDeliveringMessage) {
         NS_WARNING("Some console listener threw an error while inside itself. Discarding this message");
@@ -176,9 +138,7 @@ nsConsoleService::LogMessageWithMode(nsIConsoleMessage *message, nsConsoleServic
     nsRefPtr<LogMessageRunnable> r;
     nsIConsoleMessage *retiredMessage;
 
-    if (sLoggingBuffered) {
-        NS_ADDREF(message); // early, in case it's same as replaced below.
-    }
+    NS_ADDREF(message); // early, in case it's same as replaced below.
 
     /*
      * Lock while updating buffer, and while taking snapshot of
@@ -188,7 +148,6 @@ nsConsoleService::LogMessageWithMode(nsIConsoleMessage *message, nsConsoleServic
         MutexAutoLock lock(mLock);
 
 #if defined(ANDROID)
-        if (outputMode == OutputToLog)
         {
             nsXPIDLString msg;
             message->GetMessageMoz(getter_Copies(msg));
@@ -212,17 +171,23 @@ nsConsoleService::LogMessageWithMode(nsIConsoleMessage *message, nsConsoleServic
          * save a pointer to it, so we can release below outside the lock.
          */
         retiredMessage = mMessages[mCurrent];
-
-        if (sLoggingBuffered) {
-            mMessages[mCurrent++] = message;
-            if (mCurrent == mBufferSize) {
-                mCurrent = 0; // wrap around.
-                mFull = true;
-            }
+        
+        mMessages[mCurrent++] = message;
+        if (mCurrent == mBufferSize) {
+            mCurrent = 0; // wrap around.
+            mFull = true;
         }
 
+        /*
+         * Copy the listeners into the snapshot array - in case a listener
+         * is removed during an Observe(...) notification. If there are no
+         * listeners, don't bother to create the Runnable, since we don't
+         * need to run it and it will hold onto the memory for the message
+         * unnecessarily.
+         */
         if (mListeners.Count() > 0) {
             r = new LogMessageRunnable(message, this);
+            mListeners.EnumerateRead(CollectCurrentListeners, r);
         }
     }
 
@@ -235,27 +200,15 @@ nsConsoleService::LogMessageWithMode(nsIConsoleMessage *message, nsConsoleServic
     return NS_OK;
 }
 
-void
-nsConsoleService::EnumerateListeners(ListenerHash::EnumReadFunction aFunction,
-                                     void* aClosure)
-{
-    MutexAutoLock lock(mLock);
-    mListeners.EnumerateRead(aFunction, aClosure);
-}
-
 NS_IMETHODIMP
 nsConsoleService::LogStringMessage(const PRUnichar *message)
 {
-    if (!sLoggingEnabled) {
-        return NS_OK;
-    }
-
-    nsRefPtr<nsConsoleMessage> msg(new nsConsoleMessage(message));
+    nsConsoleMessage *msg = new nsConsoleMessage(message);
     return this->LogMessage(msg);
 }
 
 NS_IMETHODIMP
-nsConsoleService::GetMessageArray(uint32_t *count, nsIConsoleMessage ***messages)
+nsConsoleService::GetMessageArray(nsIConsoleMessage ***messages, uint32_t *count)
 {
     nsIConsoleMessage **messageArray;
 
@@ -276,7 +229,7 @@ nsConsoleService::GetMessageArray(uint32_t *count, nsIConsoleMessage ***messages
         *messageArray = nullptr;
         *messages = messageArray;
         *count = 0;
-
+        
         return NS_OK;
     }
 

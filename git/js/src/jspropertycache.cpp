@@ -5,33 +5,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/PodOperations.h"
-
+#include "jspropertycache.h"
 #include "jscntxt.h"
 #include "jsnum.h"
-#include "jspropertycache.h"
-
 #include "jsobjinlines.h"
 #include "jsopcodeinlines.h"
 #include "jspropertycacheinlines.h"
 
 using namespace js;
 
-using mozilla::PodArrayZero;
-
 PropertyCacheEntry *
 PropertyCache::fill(JSContext *cx, JSObject *obj, JSObject *pobj, Shape *shape)
 {
     JS_ASSERT(this == &cx->propertyCache());
     JS_ASSERT(!cx->runtime->isHeapBusy());
-
-    /*
-     * Don't cache entries on indexed properties. Indexes can be added or
-     * deleted from the dense elements of objects along the prototype chain
-     * wihout any shape changes.
-     */
-    if (JSID_IS_INT(shape->propid()))
-        return JS_NO_PROP_CACHE_FILL;
 
     /*
      * Check for overdeep scope and prototype chain. Because resolve, getter,
@@ -121,7 +108,7 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
                         PropertyCacheEntry *entry)
 {
     JSObject *obj, *pobj;
-    RootedScript script(cx, cx->stack.currentScript());
+    JSScript *script = cx->stack.currentScript();
 
     JS_ASSERT(this == &cx->propertyCache());
     JS_ASSERT(uint32_t(pc - script->code) < script->length);
@@ -177,7 +164,7 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
     if (pobj->lastProperty() == entry->pshape) {
 #ifdef DEBUG
         Rooted<PropertyName*> name(cx, GetNameFromBytecode(cx, script, pc, op));
-        JS_ASSERT(pobj->nativeContains(cx, name));
+        JS_ASSERT(pobj->nativeContainsNoAllocation(name));
 #endif
         *pobjp = pobj;
         return NULL;

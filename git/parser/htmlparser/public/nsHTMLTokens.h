@@ -73,6 +73,8 @@ protected:
  *  @update  gess 3/25/98
  */
 class CStartToken: public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CStartToken(eHTMLTags aTag=eHTMLTag_unknown);
   CStartToken(const nsAString& aString);
@@ -118,6 +120,8 @@ protected:
  *  @update  gess 3/25/98
  */
 class CEndToken: public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CEndToken(eHTMLTags aTag);
   CEndToken(const nsAString& aString);
@@ -144,6 +148,8 @@ protected:
  *  @update  gess 3/25/98
  */
 class CCommentToken: public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CCommentToken();
   CCommentToken(const nsAString& aString);
@@ -169,6 +175,8 @@ protected:
  *  @update  gess 3/25/98
  */
 class CEntityToken : public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CEntityToken();
   CEntityToken(const nsAString& aString);
@@ -196,6 +204,8 @@ protected:
  *  @update  gess 3/25/98
  */
 class CWhitespaceToken: public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CWhitespaceToken();
   CWhitespaceToken(const nsAString& aString);
@@ -215,6 +225,8 @@ protected:
  *  @update  gess 3/25/98
  */
 class CTextToken: public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CTextToken();
   CTextToken(const nsAString& aString);
@@ -253,6 +265,8 @@ protected:
  *  @update  vidur 11/12/98
  */
 class CCDATASectionToken : public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CCDATASectionToken(eHTMLTags aTag = eHTMLTag_unknown);
   CCDATASectionToken(const nsAString& aString);
@@ -272,6 +286,8 @@ protected:
  *
  */
 class CMarkupDeclToken : public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CMarkupDeclToken();
   CMarkupDeclToken(const nsAString& aString);
@@ -293,6 +309,8 @@ protected:
  *  @update  gess 3/25/98
  */
 class CAttributeToken: public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CAttributeToken();
   CAttributeToken(const nsAString& aString);
@@ -323,6 +341,8 @@ protected:
  *  @update  gess 3/25/98
  */
 class CNewlineToken: public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CNewlineToken();
   virtual nsresult Consume(PRUnichar aChar,nsScanner& aScanner,int32_t aMode);
@@ -342,6 +362,8 @@ public:
  *  @update  gess 3/25/98
  */
 class CInstructionToken: public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CInstructionToken();
   CInstructionToken(const nsAString& aString);
@@ -361,6 +383,8 @@ protected:
  */
 
 class CDoctypeDeclToken: public CHTMLToken {
+  CTOKEN_IMPL_SIZEOF
+
 public:
   CDoctypeDeclToken(eHTMLTags aTag=eHTMLTag_unknown);
   CDoctypeDeclToken(const nsAString& aString,eHTMLTags aTag=eHTMLTag_unknown);

@@ -10,6 +10,7 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= widget
 LIBRARY_NAME	= widget_shared
 LIBXUL_LIBRARY  = 1
 
@@ -17,6 +18,10 @@ LIBXUL_LIBRARY  = 1
 DEFINES += \
   -D_IMPL_NS_WIDGET \
   $(NULL)
+
+ifdef MOZ_X11
+PARALLEL_DIRS  = x11
+endif
 
 CPPSRCS		= \
 		WidgetUtils.cpp \

@@ -13,7 +13,6 @@
 #include "MIR.h"
 #include "MIRGraph.h"
 #include "LinearScan.h"
-#include "RangeAnalysis.h"
 using namespace js;
 using namespace js::ion;
 
@@ -178,13 +177,13 @@ JSONSpewer::init(const char *path)
 }
 
 void
-JSONSpewer::beginFunction(RawScript script)
+JSONSpewer::beginFunction(JSScript *script)
 {
     if (inFunction_)
         endFunction();
 
     beginObject();
-    stringProperty("name", "%s:%d", script->filename(), script->lineno);
+    stringProperty("name", "%s:%d", script->filename, script->lineno);
     beginListProperty("passes");
 
     inFunction_ = true;
@@ -256,18 +255,8 @@ JSONSpewer::spewMDef(MDefinition *def)
         integerValue(use.def()->id());
     endList();
 
-    bool isTruncated = false;
-    if (def->isAdd() || def->isSub() || def->isMod() || def->isMul() || def->isDiv())
-        isTruncated = static_cast<MBinaryArithInstruction*>(def)->isTruncated();
-
-    if (def->range()) {
-        Sprinter sp(GetIonContext()->cx);
-        sp.init();
-        def->range()->print(sp);
-        stringProperty("type", "%s : %s%s", sp.string(), StringFromMIRType(def->type()), (isTruncated ? " (t)" : ""));
-    } else {
-        stringProperty("type", "%s%s", StringFromMIRType(def->type()), (isTruncated ? " (t)" : ""));
-    }
+    stringProperty("type", "%s : [%d, %d]", StringFromMIRType(def->type()),
+                   def->range()->lower(), def->range()->upper());
 
     if (def->isInstruction()) {
         if (MResumePoint *rp = def->toInstruction()->resumePoint())
@@ -400,7 +389,7 @@ JSONSpewer::spewIntervals(LinearScanAllocator *regalloc)
                 VirtualRegister *vreg = &regalloc->vregs[ins->getDef(k)->virtualRegister()];
 
                 beginObject();
-                integerProperty("vreg", vreg->id());
+                integerProperty("vreg", vreg->reg());
                 beginListProperty("intervals");
 
                 for (size_t i = 0; i < vreg->numIntervals(); i++) {
@@ -409,7 +398,9 @@ JSONSpewer::spewIntervals(LinearScanAllocator *regalloc)
                     if (live->numRanges()) {
                         beginObject();
                         property("allocation");
-                        fprintf(fp_, "\"%s\"", live->getAllocation()->toString());
+                        fprintf(fp_, "\"");
+                        LAllocation::PrintAllocation(fp_, live->getAllocation());
+                        fprintf(fp_, "\"");
                         beginListProperty("ranges");
 
                         for (size_t j = 0; j < live->numRanges(); j++) {

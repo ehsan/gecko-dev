@@ -45,17 +45,6 @@ var DESCRIPTION;
 var EXPECTED;
 
 /*
- * Signals to results.py that the current test case should be considered to
- * have passed if it doesn't throw an exception.
- *
- * When the test suite is run in the browser, this function gets overridden by
- * the same-named function in browser.js.
- */
-function testPassesUnlessItThrows() {
-  print(PASSED);
-}
-
-/*
  * wrapper for test case constructor that doesn't require the SECTION
  * argument.
  */
@@ -143,7 +132,7 @@ function reportFailure (msg)
   var l;
   var funcName = currentFunc();
   var prefix = (funcName) ? "[reported from " + funcName + "] ": "";
-
+   
   for (var i=0; i<lines.length; i++)
     print (FAILED + prefix + lines[i]);
 }
@@ -176,7 +165,14 @@ function printBugNumber (num)
 
 function toPrinted(value)
 {
-  value = String(value);
+  if (typeof value == "xml") 
+  {
+    value = value.toXMLString();
+  } 
+  else 
+  {
+    value = String(value);
+  }
   value = value.replace(/\\n/g, 'NL')
                .replace(/\n/g, 'NL')
                .replace(/\\r/g, 'CR')
@@ -387,7 +383,7 @@ function enterFunc (funcName)
 function exitFunc (funcName)
 {
   var lastFunc = callStack.pop();
-
+   
   if (funcName)
   {
     if (!funcName.match(/\(\)$/))
@@ -497,7 +493,7 @@ function BigO(data)
     {
       var Ydiff = Y[i] - this.Yavg;
       var Xdiff = X[i] - this.Xavg;
-
+       
       SUM_Ydiff2 += Ydiff * Ydiff;
       SUM_Xdiff2 += Xdiff * Xdiff;
       SUM_XdiffYdiff += Xdiff * Ydiff;
@@ -533,7 +529,7 @@ function BigO(data)
     {
       deriv.X[i] = (X[i] + X[i+1])/2;
       deriv.Y[i] = (Y[i+1] - Y[i])/(X[i+1] - X[i]);
-    }
+    } 
     return deriv;
   }
 
@@ -609,9 +605,9 @@ function optionsInit() {
 }
 
 function optionsClear() {
-
+       
   // turn off current settings
-  // except jit.
+  // except jit and allow_xml.
   var optionNames = options().split(',');
   for (var i = 0; i < optionNames.length; i++)
   {
@@ -619,7 +615,8 @@ function optionsClear() {
     if (optionName &&
         optionName != "methodjit" &&
         optionName != "methodjit_always" &&
-        optionName != "ion")
+        optionName != "ion" &&
+        optionName != "allow_xml")
     {
       options(optionName);
     }
@@ -855,3 +852,5 @@ function OptLevel( i ) {
   cx.setOptimizationLevel(i);
 }
 /* end of Rhino functions */
+
+

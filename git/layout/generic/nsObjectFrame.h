@@ -50,9 +50,9 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_QUERYFRAME_TARGET(nsObjectFrame)
 
-  virtual void Init(nsIContent* aContent,
-                    nsIFrame* aParent,
-                    nsIFrame* aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent* aContent,
+                  nsIFrame* aParent,
+                  nsIFrame* aPrevInFlow);
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
   NS_IMETHOD Reflow(nsPresContext* aPresContext,
@@ -62,9 +62,9 @@ public:
   NS_IMETHOD DidReflow(nsPresContext* aPresContext,
                        const nsHTMLReflowState* aReflowState,
                        nsDidReflowStatus aStatus);
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   NS_IMETHOD  HandleEvent(nsPresContext* aPresContext,
                           nsGUIEvent* aEvent,
@@ -173,6 +173,7 @@ public:
   LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                            LayerManager* aManager);
 
+  already_AddRefed<ImageContainer> GetImageContainer();
   /**
    * Get the rectangle (relative to this frame) which it will paint. Normally
    * the frame's content-box but may be smaller if the plugin is rendering
@@ -266,7 +267,7 @@ private:
   };
 
   nsPluginInstanceOwner*          mInstanceOwner; // WEAK
-  nsView*                        mInnerView;
+  nsIView*                        mInnerView;
   nsCOMPtr<nsIWidget>             mWidget;
   nsIntRect                       mWindowlessRect;
   /**
@@ -288,6 +289,10 @@ private:
   nsTArray<nsIntRect>             mNextConfigurationClipRegion;
 
   bool mReflowCallbackPosted;
+
+  // A reference to the ImageContainer which contains the current frame
+  // of plugin to display.
+  nsRefPtr<ImageContainer> mImageContainer;
 
   // We keep this reference to ensure we can always unregister the
   // plugins we register on the root PresContext.

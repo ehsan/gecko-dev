@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ * vim: set ts=8 sw=4 et tw=99 ft=cpp:
  *
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -17,7 +17,6 @@
 #include "jsstrinlines.h"
 
 #include "RegExpStatics-inl.h"
-#include "String-inl.h"
 
 inline js::RegExpObject &
 JSObject::asRegExp()
@@ -100,82 +99,32 @@ RegExpObject::setSticky(bool enabled)
     setSlot(STICKY_FLAG_SLOT, BooleanValue(enabled));
 }
 
+#if ENABLE_YARR_JIT
 /* This function should be deleted once bad Android platforms phase out. See bug 604774. */
 inline bool
-RegExpShared::isJITRuntimeEnabled(JSContext *cx)
+detail::RegExpCode::isJITRuntimeEnabled(JSContext *cx)
 {
-#if ENABLE_YARR_JIT
-# if defined(ANDROID) && defined(JS_METHODJIT)
+#if defined(ANDROID) && defined(JS_METHODJIT)
     return cx->methodJitEnabled;
-# else
-    return true;
-# endif
 #else
-    return false;
+    return true;
 #endif
 }
+#endif
 
 inline bool
-RegExpToShared(JSContext *cx, HandleObject obj, RegExpGuard *g)
+RegExpToShared(JSContext *cx, JSObject &obj, RegExpGuard *g)
 {
-    if (obj->isRegExp())
-        return obj->asRegExp().getShared(cx, g);
-    return Proxy::regexp_toShared(cx, obj, g);
+    JS_ASSERT(ObjectClassIs(obj, ESClass_RegExp, cx));
+    if (obj.isRegExp())
+        return obj.asRegExp().getShared(cx, g);
+    return Proxy::regexp_toShared(cx, &obj, g);
 }
 
 inline void
 RegExpShared::prepareForUse(JSContext *cx)
 {
     gcNumberWhenUsed = cx->runtime->gcNumber;
-}
-
-RegExpGuard::RegExpGuard(JSContext *cx)
-  : re_(NULL), source_(cx)
-{
-}
-
-RegExpGuard::RegExpGuard(JSContext *cx, RegExpShared &re)
-  : re_(&re), source_(cx, re.source)
-{
-    re_->incRef();
-}
-
-RegExpGuard::~RegExpGuard()
-{
-    release();
-}
-
-inline void
-RegExpGuard::init(RegExpShared &re)
-{
-    JS_ASSERT(!initialized());
-    re_ = &re;
-    re_->incRef();
-    source_ = re_->source;
-}
-
-inline void
-RegExpGuard::release()
-{
-    if (re_) {
-        re_->decRef();
-        re_ = NULL;
-        source_ = NULL;
-    }
-}
-
-inline void
-MatchPairs::checkAgainst(size_t inputLength)
-{
-#ifdef DEBUG
-    for (size_t i = 0; i < pairCount_; i++) {
-        const MatchPair &p = pair(i);
-        JS_ASSERT(p.check());
-        if (p.isUndefined())
-            continue;
-        JS_ASSERT(size_t(p.limit) <= inputLength);
-    }
-#endif
 }
 
 } /* namespace js */

@@ -8,28 +8,20 @@ DEPTH		= @DEPTH@
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
+FAIL_ON_WARNINGS := 1
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= necko
 LIBRARY_NAME	= neckobase_s
 LIBXUL_LIBRARY  = 1
-FAIL_ON_WARNINGS := 1
 
 EXPORTS = \
 		nsMIMEInputStream.h \
 		nsURLHelper.h \
-		nsFileStreams.h \
-		$(NULL)
-
-EXPORTS_NAMESPACES = mozilla/net
-
-EXPORTS_mozilla/net = \
-		Dashboard.h \
-		DashboardTypes.h \
 		$(NULL)
 
 CPPSRCS		= \
-		BackgroundFileSaver.cpp \
 		nsTransportUtils.cpp \
 		nsAsyncStreamCopier.cpp \
 		nsAsyncRedirectVerifyHelper.cpp \
@@ -59,7 +51,6 @@ CPPSRCS		= \
 		nsSocketTransport2.cpp \
 		nsSocketTransportService2.cpp \
 		nsServerSocket.cpp \
-		nsUDPServerSocket.cpp \
 		nsStreamListenerTee.cpp \
 		nsStreamLoader.cpp \
 		nsSyncStreamListener.cpp \
@@ -76,15 +67,8 @@ CPPSRCS		= \
 		nsPreloadedStream.cpp \
 		nsStreamListenerWrapper.cpp \
 		ProxyAutoConfig.cpp \
-		Dashboard.cpp \
 		NetworkActivityMonitor.cpp \
 		$(NULL)
-
-ifdef MOZ_MEDIA
-CPPSRCS		+= \
-		nsMediaFragmentURIParser.cpp \
-		$(NULL)
-endif
 
 LOCAL_INCLUDES	+= -I$(topsrcdir)/dom/base
 

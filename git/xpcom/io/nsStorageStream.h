@@ -28,6 +28,7 @@
 }
 
 #define NS_STORAGESTREAM_CONTRACTID "@mozilla.org/storagestream;1"
+#define NS_STORAGESTREAM_CLASSNAME "Storage Stream"
 
 class nsSegmentedBuffer;
 

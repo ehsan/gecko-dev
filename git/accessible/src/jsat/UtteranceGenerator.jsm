@@ -18,7 +18,7 @@ var gStringBundle = Cc['@mozilla.org/intl/stringbundle;1'].
   createBundle('chrome://global/locale/AccessFu.properties');
 
 
-this.EXPORTED_SYMBOLS = ['UtteranceGenerator'];
+var EXPORTED_SYMBOLS = ['UtteranceGenerator'];
 
 Cu.import('resource://gre/modules/accessibility/Utils.jsm');
 
@@ -38,7 +38,7 @@ Cu.import('resource://gre/modules/accessibility/Utils.jsm');
  * clicked event. Speaking only 'clicked' makes sense. Speaking 'button' does
  * not.
  */
-this.UtteranceGenerator = {
+var UtteranceGenerator = {
   gActionMap: {
     jump: 'jumpAction',
     press: 'pressAction',
@@ -98,20 +98,6 @@ this.UtteranceGenerator = {
   },
 
   /**
-   * Generates an utterance for an announcement. Basically attempts to localize
-   * the announcement string.
-   * @param {string} aAnnouncement unlocalized announcement.
-   * @return {Array} A one string array with the announcement.
-   */
-  genForAnnouncement: function genForAnnouncement(aAnnouncement) {
-    try {
-      return [gStringBundle.GetStringFromName(aAnnouncement)];
-    } catch (x) {
-      return [aAnnouncement];
-    }
-  },
-
-  /**
    * Generates an utterance for a tab state change.
    * @param {nsIAccessible} aAccessible accessible object of the tab's attached
    *    document.
@@ -161,7 +147,6 @@ this.UtteranceGenerator = {
     'toolbar': INCLUDE_DESC,
     'table': INCLUDE_DESC | INCLUDE_NAME,
     'link': INCLUDE_DESC,
-    'list': INCLUDE_DESC | INCLUDE_NAME,
     'listitem': INCLUDE_DESC,
     'outline': INCLUDE_DESC,
     'outlineitem': INCLUDE_DESC,
@@ -198,8 +183,7 @@ this.UtteranceGenerator = {
     'combobox option': INCLUDE_DESC,
     'image map': INCLUDE_DESC,
     'option': INCLUDE_DESC,
-    'listbox': INCLUDE_DESC,
-    'definitionlist': INCLUDE_DESC | INCLUDE_NAME},
+    'listbox': INCLUDE_DESC},
 
   objectUtteranceFunctions: {
     defaultFunc: function defaultFunc(aAccessible, aRoleStr, aStates, aFlags) {
@@ -251,38 +235,18 @@ this.UtteranceGenerator = {
 
     listitem: function listitem(aAccessible, aRoleStr, aStates, aFlags) {
       let name = (aFlags & INCLUDE_NAME) ? (aAccessible.name || '') : '';
+      let localizedRole = this._getLocalizedRole(aRoleStr);
       let itemno = {};
       let itemof = {};
       aAccessible.groupPosition({}, itemof, itemno);
-      let utterance = [];
-      if (itemno.value == 1) // Start of list
-        utterance.push(gStringBundle.GetStringFromName('listStart'));
-      else if (itemno.value == itemof.value) // last item
-        utterance.push(gStringBundle.GetStringFromName('listEnd'));
+      let utterance =
+        [gStringBundle.formatStringFromName(
+           'objItemOf', [localizedRole, itemno.value, itemof.value], 3)];
 
       if (name)
         utterance.push(name);
 
       return utterance;
-    },
-
-    list: function list(aAccessible, aRoleStr, aStates, aFlags) {
-      return this._getListUtterance
-        (aAccessible, aRoleStr, aFlags, aAccessible.childCount);
-    },
-
-    definitionlist: function definitionlist(aAccessible, aRoleStr, aStates, aFlags) {
-      return this._getListUtterance
-        (aAccessible, aRoleStr, aFlags, aAccessible.childCount / 2);
-    },
-
-    application: function application(aAccessible, aRoleStr, aStates, aFlags) {
-      // Don't utter location of applications, it gets tiring.
-      if (aAccessible.name != aAccessible.DOMNode.location)
-        return this.objectUtteranceFunctions.defaultFunc(
-          aAccessible, aRoleStr, aStates, aFlags);
-
-      return [];
     }
   },
 
@@ -322,21 +286,5 @@ this.UtteranceGenerator = {
     }
 
     return stateUtterances;
-  },
-
-  _getListUtterance: function _getListUtterance(aAccessible, aRoleStr, aFlags, aItemCount) {
-    let name = (aFlags & INCLUDE_NAME) ? (aAccessible.name || '') : '';
-    let desc = [];
-    let roleStr = this._getLocalizedRole(aRoleStr);
-    if (roleStr)
-      desc.push(roleStr);
-    desc.push
-      (gStringBundle.formatStringFromName('listItemCount', [aItemCount], 1));
-    let utterance = [desc.join(' ')];
-
-    if (name)
-      utterance.push(name);
-
-    return utterance;
   }
 };

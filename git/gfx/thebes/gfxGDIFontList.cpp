@@ -3,8 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-#include <algorithm>
+#include "mozilla/Util.h"
 
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG /* Allow logging in the release build */
@@ -427,8 +426,8 @@ GDIFontEntry::InitLogFont(const nsAString& aName,
     mLogFont.lfItalic         = mItalic;
     mLogFont.lfWeight         = mWeight;
 
-    int len = std::min<int>(aName.Length(), LF_FACESIZE - 1);
-    memcpy(&mLogFont.lfFaceName, aName.BeginReading(), len * sizeof(PRUnichar));
+    int len = NS_MIN<int>(aName.Length(), LF_FACESIZE - 1);
+    memcpy(&mLogFont.lfFaceName, nsPromiseFlatString(aName).get(), len * 2);
     mLogFont.lfFaceName[len] = '\0';
 }
 
@@ -502,7 +501,8 @@ GDIFontFamily::FamilyAddStylesProc(const ENUMLOGFONTEXW *lpelfe,
 
     // We can't set the hasItalicFace flag correctly here,
     // because we might not have seen the family's italic face(s) yet.
-    // So we'll set that flag for all members after loading all the faces.
+    // Later code does _not_ rely on this flag for platform fonts;
+    // it is only needed for fonts loaded with src:local
     fe = GDIFontEntry::CreateFontEntry(nsDependentString(lpelfe->elfFullName),
                                        feType, (logFont.lfItalic == 0xFF),
                                        (uint16_t) (logFont.lfWeight), 0,
@@ -560,8 +560,11 @@ GDIFontFamily::FindStyleVariations()
     memset(&logFont, 0, sizeof(LOGFONTW));
     logFont.lfCharSet = DEFAULT_CHARSET;
     logFont.lfPitchAndFamily = 0;
-    uint32_t l = std::min<uint32_t>(mName.Length(), LF_FACESIZE - 1);
-    memcpy(logFont.lfFaceName, mName.get(), l * sizeof(PRUnichar));
+    uint32_t l = NS_MIN<uint32_t>(mName.Length(), LF_FACESIZE - 1);
+    memcpy(logFont.lfFaceName,
+           nsPromiseFlatString(mName).get(),
+           l * sizeof(PRUnichar));
+    logFont.lfFaceName[l] = 0;
 
     EnumFontFamiliesExW(hdc, &logFont,
                         (FONTENUMPROCW)GDIFontFamily::FamilyAddStylesProc,
@@ -575,23 +578,8 @@ GDIFontFamily::FindStyleVariations()
 
     ReleaseDC(nullptr, hdc);
 
-    if (mIsBadUnderlineFamily) {
+    if (mIsBadUnderlineFamily)
         SetBadUnderlineFonts();
-    }
-
-    // check for existence of italic face(s); if present, set the
-    // FamilyHasItalic flag on all faces so that we'll know *not*
-    // to use GDI's fake-italic effect with them
-    size_t count = mAvailableFonts.Length();
-    for (size_t i = 0; i < count; ++i) {
-        if (mAvailableFonts[i]->IsItalic()) {
-            for (uint32_t j = 0; j < count; ++j) {
-                static_cast<GDIFontEntry*>(mAvailableFonts[j].get())->
-                    mFamilyHasItalicFace = true;
-            }
-            break;
-        }
-    }
 }
 
 /***************************************************************
@@ -779,7 +767,7 @@ gfxGDIFontList::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
         gfxWindowsFontType(isCFF ? GFX_FONT_TYPE_PS_OPENTYPE : GFX_FONT_TYPE_TRUETYPE) /*type*/, 
         lookup->mItalic ? NS_FONT_STYLE_ITALIC : NS_FONT_STYLE_NORMAL,
         lookup->mWeight, aProxyEntry->mStretch, nullptr,
-        static_cast<GDIFontEntry*>(lookup)->mFamilyHasItalicFace);
+        lookup->Family()->HasItalicFace());
         
     if (!fe)
         return nullptr;
@@ -864,7 +852,7 @@ public:
 
         while (mCurrentChunk < mNumChunks && bytesLeft) {
             FontDataChunk& currentChunk = mDataChunks[mCurrentChunk];
-            uint32_t bytesToCopy = std::min(bytesLeft, 
+            uint32_t bytesToCopy = NS_MIN(bytesLeft, 
                                           currentChunk.mLength - mChunkOffset);
             memcpy(out, currentChunk.mData + mChunkOffset, bytesToCopy);
             bytesLeft -= bytesToCopy;
@@ -928,7 +916,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         uint32_t eotlen;
 
         isEmbedded = true;
-        uint32_t nameLen = std::min<uint32_t>(uniqueName.Length(), LF_FACESIZE - 1);
+        uint32_t nameLen = NS_MIN<uint32_t>(uniqueName.Length(), LF_FACESIZE - 1);
         nsAutoString fontName(Substring(uniqueName, 0, nameLen));
         
         FontDataOverlay overlayNameData = {0, 0, 0};
@@ -954,8 +942,7 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
             if (ret != E_NONE) {
                 fontRef = nullptr;
                 char buf[256];
-                sprintf(buf, "font (%s) not loaded using TTLoadEmbeddedFont - error %8.8x",
-                        NS_ConvertUTF16toUTF8(aProxyEntry->Name()).get(), ret);
+                sprintf(buf, "font (%s) not loaded using TTLoadEmbeddedFont - error %8.8x", NS_ConvertUTF16toUTF8(aProxyEntry->FamilyName()).get(), ret);
                 NS_WARNING(buf);
             }
         }
@@ -1019,8 +1006,8 @@ gfxGDIFontList::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
     return fe;
 }
 
-gfxFontFamily*
-gfxGDIFontList::GetDefaultFont(const gfxFontStyle* aStyle)
+gfxFontEntry*
+gfxGDIFontList::GetDefaultFont(const gfxFontStyle* aStyle, bool& aNeedsBold)
 {
     // this really shouldn't fail to find a font....
     HGDIOBJ hGDI = ::GetStockObject(DEFAULT_GUI_FONT);
@@ -1028,7 +1015,7 @@ gfxGDIFontList::GetDefaultFont(const gfxFontStyle* aStyle)
     if (hGDI && ::GetObjectW(hGDI, sizeof(logFont), &logFont)) {
         nsAutoString resolvedName;
         if (ResolveFontName(nsDependentString(logFont.lfFaceName), resolvedName)) {
-            return FindFamily(resolvedName);
+            return FindFontForFamily(resolvedName, aStyle, aNeedsBold);
         }
     }
 
@@ -1040,7 +1027,7 @@ gfxGDIFontList::GetDefaultFont(const gfxFontStyle* aStyle)
     if (status) {
         nsAutoString resolvedName;
         if (ResolveFontName(nsDependentString(ncm.lfMessageFont.lfFaceName), resolvedName)) {
-            return FindFamily(resolvedName);
+            return FindFontForFamily(resolvedName, aStyle, aNeedsBold);
         }
     }
 

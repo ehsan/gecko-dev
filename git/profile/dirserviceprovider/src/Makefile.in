@@ -10,6 +10,7 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 include $(srcdir)/objs.mk
 
+MODULE		= profdirserviceprovider
 LIBRARY_NAME	= profdirserviceprovider_s
 MOZILLA_INTERNAL_API = 1
 

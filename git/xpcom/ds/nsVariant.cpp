@@ -650,11 +650,11 @@ nsVariant::ConvertToInt64(const nsDiscriminatedUnion& data, int64_t *_retval)
         *_retval = tempData.u.mInt32Value;
         return rv;
     case nsIDataType::VTYPE_UINT32:
-        *_retval = tempData.u.mUint32Value;
+        LL_UI2L(*_retval, tempData.u.mUint32Value);
         return rv;
     case nsIDataType::VTYPE_DOUBLE:
         // XXX should check for data loss here!
-        *_retval = tempData.u.mDoubleValue;
+        LL_D2L(*_retval, tempData.u.mDoubleValue);
         return rv;
     default:
         NS_ERROR("bad type returned from ToManageableNumber");

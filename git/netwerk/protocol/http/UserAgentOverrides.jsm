@@ -4,7 +4,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = [ "UserAgentOverrides" ];
+var EXPORTED_SYMBOLS = [ "UserAgentOverrides" ];
 
 const Ci = Components.interfaces;
 const Cc = Components.classes;
@@ -23,24 +23,20 @@ var gOverrideFunctions = [
   function (aHttpChannel) UserAgentOverrides.getOverrideForURI(aHttpChannel.URI)
 ];
 
-this.UserAgentOverrides = {
+var UserAgentOverrides = {
   init: function uao_init() {
     if (gInitialized)
       return;
+    gInitialized = true;
 
     gPrefBranch = Services.prefs.getBranch("general.useragent.override.");
     gPrefBranch.addObserver("", buildOverrides, false);
 
     Services.prefs.addObserver(PREF_OVERRIDES_ENABLED, buildOverrides, false);
 
-    try {
-      Services.obs.addObserver(HTTP_on_modify_request, "http-on-modify-request", false);
-    } catch (x) {
-      // The http-on-modify-request notification is disallowed in content processes.
-    }
+    Services.obs.addObserver(HTTP_on_modify_request, "http-on-modify-request", false);
 
     buildOverrides();
-    gInitialized = true;
   },
 
   addComplexOverride: function uao_addComplexOverride(callback) {

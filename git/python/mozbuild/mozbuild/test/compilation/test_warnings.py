@@ -5,21 +5,16 @@
 import os
 import unittest
 
-from mozfile.mozfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile
 
 from mozbuild.compilation.warnings import CompilerWarning
 from mozbuild.compilation.warnings import WarningsCollector
 from mozbuild.compilation.warnings import WarningsDatabase
 
-from mozunit import main
 
 CLANG_TESTS = [
     ('foobar.cpp:123:10: warning: you messed up [-Wfoo]',
-     'foobar.cpp', 123, 10, 'you messed up', '-Wfoo'),
-    ("c_locale_dummy.c:457:1: warning: (near initialization for "
-     "'full_wmonthname[0]') [-Wpointer-sign]",
-     'c_locale_dummy.c', 457, 1,
-     "(near initialization for 'full_wmonthname[0]')", '-Wpointer-sign')
+     'foobar.cpp', 123, 10, 'you messed up', '-Wfoo')
 ]
 
 MSVC_TESTS = [
@@ -81,47 +76,6 @@ class TestCompilerWarning(unittest.TestCase):
 
         self.assertEqual(w1, w2)
 
-    def test_comparison(self):
-        w1 = CompilerWarning()
-        w2 = CompilerWarning()
-
-        w1['filename'] = '/aaa.c'
-        w1['line'] = 5
-        w1['column'] = 5
-
-        w2['filename'] = '/bbb.c'
-        w2['line'] = 5
-        w2['column'] = 5
-
-        self.assertLess(w1, w2)
-        self.assertGreater(w2, w1)
-        self.assertGreaterEqual(w2, w1)
-
-        w2['filename'] = '/aaa.c'
-        w2['line'] = 4
-        w2['column'] = 6
-
-        self.assertLess(w2, w1)
-        self.assertGreater(w1, w2)
-        self.assertGreaterEqual(w1, w2)
-
-        w2['filename'] = '/aaa.c'
-        w2['line'] = 5
-        w2['column'] = 10
-
-        self.assertLess(w1, w2)
-        self.assertGreater(w2, w1)
-        self.assertGreaterEqual(w2, w1)
-
-        w2['filename'] = '/aaa.c'
-        w2['line'] = 5
-        w2['column'] = 5
-
-        self.assertLessEqual(w1, w2)
-        self.assertLessEqual(w2, w1)
-        self.assertGreaterEqual(w2, w1)
-        self.assertGreaterEqual(w1, w2)
-
 class TestWarningsParsing(unittest.TestCase):
     def test_clang_parsing(self):
         for source, filename, line, column, message, flag in CLANG_TESTS:
@@ -143,7 +97,7 @@ class TestWarningsParsing(unittest.TestCase):
 
             self.assertIsNotNone(warning)
 
-            self.assertEqual(warning['filename'], os.path.normpath(filename))
+            self.assertEqual(warning['filename'], filename)
             self.assertEqual(warning['line'], line)
             self.assertEqual(warning['flag'], flag)
             self.assertEqual(warning['message'], message)
@@ -226,16 +180,12 @@ class TestWarningsDatabase(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertEqual(warnings[0]['column'], w['column'])
 
-        # If we delete the source file, calling prune should cause the warnings
+        # If we delete the source file, calling prune should call the warnings
         # to go away.
         old_filename = source_files[0].name
-        del source_files[0]
+        source_files[0].close()
 
         self.assertFalse(os.path.exists(old_filename))
 
         db.prune()
         self.assertEqual(len(db), 19)
-
-
-if __name__ == '__main__':
-    main()

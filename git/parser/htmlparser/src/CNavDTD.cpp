@@ -29,7 +29,6 @@
 #include "nsUnicharUtils.h"
 #include "nsIServiceManager.h"
 #include "nsParserConstants.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -414,7 +413,7 @@ IsHiddenInput(CToken* aToken, nsITokenizer* aTokenizer)
   NS_ASSERTION(ac <= aTokenizer->GetCount(),
                "Not enough tokens in the tokenizer");
   // But we don't really trust ourselves to get that right
-  ac = std::min(ac, aTokenizer->GetCount());
+  ac = NS_MIN(ac, aTokenizer->GetCount());
   
   for (int32_t i = 0; i < ac; ++i) {
     NS_ASSERTION(eHTMLTokenTypes(aTokenizer->GetTokenAt(i)->GetTokenType()) ==

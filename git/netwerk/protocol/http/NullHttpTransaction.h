@@ -10,6 +10,7 @@
 #include "nsAHttpTransaction.h"
 #include "nsAHttpConnection.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIEventTarget.h"
 #include "nsHttpConnectionInfo.h"
 #include "nsHttpRequestHead.h"
 #include "mozilla/Attributes.h"
@@ -29,7 +30,8 @@ public:
 
   NullHttpTransaction(nsHttpConnectionInfo *ci,
                       nsIInterfaceRequestor *callbacks,
-                      uint32_t caps);
+                      nsIEventTarget *target,
+                      uint8_t caps);
   ~NullHttpTransaction();
 
   nsHttpConnectionInfo *ConnectionInfo() { return mConnectionInfo; }
@@ -40,9 +42,10 @@ public:
 private:
 
   nsresult mStatus;
-  uint32_t mCaps;
+  uint8_t  mCaps;
   nsRefPtr<nsAHttpConnection> mConnection;
   nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
+  nsCOMPtr<nsIEventTarget> mEventTarget;
   nsRefPtr<nsHttpConnectionInfo> mConnectionInfo;
   nsHttpRequestHead *mRequestHead;
   bool mIsDone;

@@ -14,6 +14,26 @@
 namespace js {
 namespace ion {
 
+// The ordering of this enumeration is important: Anything < Value is a
+// specialized type. Furthermore, anything < String has trivial conversion to
+// a number.
+enum MIRType
+{
+    MIRType_Undefined,
+    MIRType_Null,
+    MIRType_Boolean,
+    MIRType_Int32,
+    MIRType_Double,
+    MIRType_String,
+    MIRType_Object,
+    MIRType_Magic,
+    MIRType_Value,
+    MIRType_None,       // Invalid, used as a placeholder.
+    MIRType_Slots,      // A slots vector
+    MIRType_Elements,   // An elements vector
+    MIRType_StackFrame  // StackFrame pointer for OSR.
+};
+
 enum LazyArgumentsType {
     MaybeArguments = 0,
     DefinitelyArguments,
@@ -45,183 +65,146 @@ class TypeOracle
     };
 
   public:
-    virtual UnaryTypes unaryTypes(RawScript script, jsbytecode *pc) = 0;
-    virtual BinaryTypes binaryTypes(RawScript script, jsbytecode *pc) = 0;
-    virtual Unary unaryOp(RawScript script, jsbytecode *pc) = 0;
-    virtual Binary binaryOp(RawScript script, jsbytecode *pc) = 0;
-    virtual types::StackTypeSet *thisTypeSet(RawScript script) { return NULL; }
+    virtual UnaryTypes unaryTypes(JSScript *script, jsbytecode *pc) = 0;
+    virtual BinaryTypes binaryTypes(JSScript *script, jsbytecode *pc) = 0;
+    virtual Unary unaryOp(JSScript *script, jsbytecode *pc) = 0;
+    virtual Binary binaryOp(JSScript *script, jsbytecode *pc) = 0;
+    virtual types::StackTypeSet *thisTypeSet(JSScript *script) { return NULL; }
     virtual bool getOsrTypes(jsbytecode *osrPc, Vector<MIRType> &slotTypes) { return true; }
-    virtual types::StackTypeSet *parameterTypeSet(RawScript script, size_t index) { return NULL; }
-    virtual types::HeapTypeSet *globalPropertyTypeSet(RawScript script, jsbytecode *pc, jsid id) {
+    virtual types::StackTypeSet *parameterTypeSet(JSScript *script, size_t index) { return NULL; }
+    virtual types::HeapTypeSet *globalPropertyTypeSet(JSScript *script, jsbytecode *pc, jsid id) {
         return NULL;
     }
-    virtual types::StackTypeSet *propertyRead(RawScript script, jsbytecode *pc) {
+    virtual types::StackTypeSet *propertyRead(JSScript *script, jsbytecode *pc) {
         return NULL;
     }
-    virtual types::StackTypeSet *propertyReadBarrier(HandleScript script, jsbytecode *pc) {
+    virtual types::StackTypeSet *propertyReadBarrier(JSScript *script, jsbytecode *pc) {
         return NULL;
     }
-    virtual bool propertyReadIdempotent(HandleScript script, jsbytecode *pc, HandleId id) {
+    virtual bool propertyReadIdempotent(JSScript *script, jsbytecode *pc, HandleId id) {
         return false;
     }
-    virtual bool propertyReadAccessGetter(RawScript script, jsbytecode *pc) {
+    virtual bool propertyReadAccessGetter(JSScript *script, jsbytecode *pc) {
         return false;
     }
-    virtual types::HeapTypeSet *globalPropertyWrite(RawScript script, jsbytecode *pc,
+    virtual types::HeapTypeSet *globalPropertyWrite(JSScript *script, jsbytecode *pc,
                                                 jsid id, bool *canSpecialize) {
         *canSpecialize = true;
         return NULL;
     }
-    virtual types::StackTypeSet *returnTypeSet(RawScript script, jsbytecode *pc, types::StackTypeSet **barrier) {
+    virtual types::StackTypeSet *returnTypeSet(JSScript *script, jsbytecode *pc, types::StackTypeSet **barrier) {
         *barrier = NULL;
         return NULL;
     }
-    virtual bool inObjectIsDenseNativeWithoutExtraIndexedProperties(HandleScript script, jsbytecode *pc) {
+    virtual bool elementReadIsDenseArray(JSScript *script, jsbytecode *pc) {
         return false;
     }
-    virtual bool inArrayIsPacked(RawScript script, jsbytecode *pc) {
+    virtual bool elementReadIsTypedArray(JSScript *script, jsbytecode *pc, int *arrayType) {
         return false;
     }
-    virtual bool elementReadIsDenseNative(RawScript script, jsbytecode *pc) {
+    virtual bool elementReadIsString(JSScript *script, jsbytecode *pc) {
         return false;
     }
-    virtual bool elementReadIsTypedArray(RawScript script, jsbytecode *pc, int *arrayType) {
+    virtual bool elementReadIsPacked(JSScript *script, jsbytecode *pc) {
         return false;
     }
-    virtual bool elementReadIsString(RawScript script, jsbytecode *pc) {
-        return false;
-    }
-    virtual bool elementReadShouldAlwaysLoadDoubles(RawScript script, jsbytecode *pc) {
-        return false;
-    }
-    virtual bool elementReadHasExtraIndexedProperty(RawScript, jsbytecode *pc) {
-        return false;
-    }
-    virtual bool elementReadIsPacked(RawScript script, jsbytecode *pc) {
-        return false;
-    }
-    virtual void elementReadGeneric(RawScript script, jsbytecode *pc, bool *cacheable, bool *monitorResult, bool *intIndex) {
+    virtual void elementReadGeneric(JSScript *script, jsbytecode *pc, bool *cacheable, bool *monitorResult) {
         *cacheable = false;
         *monitorResult = true;
-        *intIndex = false;
     }
-    virtual bool setElementHasWrittenHoles(RawScript script, jsbytecode *pc) {
+    virtual bool setElementHasWrittenHoles(JSScript *script, jsbytecode *pc) {
         return true;
     }
-    virtual bool elementWriteIsDenseNative(HandleScript script, jsbytecode *pc) {
+    virtual bool elementWriteIsDenseArray(JSScript *script, jsbytecode *pc) {
         return false;
     }
-    virtual bool elementWriteIsDenseNative(types::StackTypeSet *obj, types::StackTypeSet *id) {
+    virtual bool elementWriteIsTypedArray(JSScript *script, jsbytecode *pc, int *arrayType) {
         return false;
     }
-    virtual bool elementWriteIsTypedArray(RawScript script, jsbytecode *pc, int *arrayType) {
+    virtual bool elementWriteIsPacked(JSScript *script, jsbytecode *pc) {
         return false;
     }
-    virtual bool elementWriteIsTypedArray(types::StackTypeSet *obj, types::StackTypeSet *id, int *arrayType) {
-        return false;
-    }
-    virtual bool elementWriteNeedsDoubleConversion(RawScript script, jsbytecode *pc) {
-        return false;
-    }
-    virtual bool elementWriteHasExtraIndexedProperty(RawScript script, jsbytecode *pc) {
-        return false;
-    }
-    virtual bool elementWriteIsPacked(RawScript script, jsbytecode *pc) {
-        return false;
-    }
-    virtual bool arrayResultShouldHaveDoubleConversion(RawScript script, jsbytecode *pc) {
-        return false;
-    }
-    virtual bool propertyWriteCanSpecialize(RawScript script, jsbytecode *pc) {
+    virtual bool propertyWriteCanSpecialize(JSScript *script, jsbytecode *pc) {
         return true;
     }
-    virtual bool propertyWriteNeedsBarrier(RawScript script, jsbytecode *pc, RawId id) {
+    virtual bool propertyWriteNeedsBarrier(JSScript *script, jsbytecode *pc, jsid id) {
         return true;
     }
-    virtual bool elementWriteNeedsBarrier(RawScript script, jsbytecode *pc) {
+    virtual bool elementWriteNeedsBarrier(JSScript *script, jsbytecode *pc) {
         return true;
     }
-    virtual MIRType elementWrite(RawScript script, jsbytecode *pc) {
+    virtual MIRType elementWrite(JSScript *script, jsbytecode *pc) {
         return MIRType_None;
+    }
+    virtual bool arrayPrototypeHasIndexedProperty() {
+        return true;
+    }
+    virtual bool canInlineCalls() {
+        return false;
     }
 
     /* |pc| must be a |JSOP_CALL|. */
-    virtual types::StackTypeSet *getCallTarget(RawScript caller, uint32_t argc, jsbytecode *pc) {
+    virtual types::StackTypeSet *getCallTarget(JSScript *caller, uint32 argc, jsbytecode *pc) {
         // Same assertion as TypeInferenceOracle::getCallTarget.
         JS_ASSERT(js_CodeSpec[*pc].format & JOF_INVOKE && JSOp(*pc) != JSOP_EVAL);
         return NULL;
     }
-    virtual types::StackTypeSet *getCallArg(RawScript script, uint32_t argc, uint32_t arg, jsbytecode *pc) {
+    virtual types::StackTypeSet *getCallArg(JSScript *script, uint32 argc, uint32 arg, jsbytecode *pc) {
         return NULL;
     }
-    virtual types::StackTypeSet *getCallReturn(RawScript script, jsbytecode *pc) {
+    virtual types::StackTypeSet *getCallReturn(JSScript *script, jsbytecode *pc) {
         return NULL;
     }
-    virtual bool canInlineCall(HandleScript caller, jsbytecode *pc) {
+    virtual bool canInlineCall(JSScript *caller, jsbytecode *pc) {
         return false;
     }
-    virtual types::TypeBarrier *callArgsBarrier(HandleScript caller, jsbytecode *pc) {
-        return NULL;
-    }
-    virtual bool canEnterInlinedFunction(RawFunction callee) {
+    virtual bool canEnterInlinedFunction(JSFunction *callee) {
         return false;
-    }
-    virtual bool callReturnTypeSetMatches(RawScript callerScript, jsbytecode *callerPc,
-                                     RawFunction callee)
-    {
-        return false;
-    }
-    virtual bool callArgsTypeSetIntersects(types::StackTypeSet *thisType, Vector<types::StackTypeSet *> &argvType, RawFunction callee)
-    {
-        return false;
-    }
-    virtual bool callArgsTypeSetMatches(types::StackTypeSet *thisType, Vector<types::StackTypeSet *> &argvType, RawFunction callee)
-    {
-        return false;
-    }
-    virtual types::StackTypeSet *aliasedVarBarrier(RawScript script, jsbytecode *pc,
-                                                   types::StackTypeSet **barrier)
-    {
-        return NULL;
     }
 
     virtual LazyArgumentsType isArgumentObject(types::StackTypeSet *obj) {
         return MaybeArguments;
     }
-    virtual LazyArgumentsType propertyReadMagicArguments(RawScript script, jsbytecode *pc) {
+    virtual LazyArgumentsType propertyReadMagicArguments(JSScript *script, jsbytecode *pc) {
         return MaybeArguments;
     }
-    virtual LazyArgumentsType elementReadMagicArguments(RawScript script, jsbytecode *pc) {
+    virtual LazyArgumentsType elementReadMagicArguments(JSScript *script, jsbytecode *pc) {
         return MaybeArguments;
     }
-    virtual LazyArgumentsType elementWriteMagicArguments(RawScript script, jsbytecode *pc) {
+    virtual LazyArgumentsType elementWriteMagicArguments(JSScript *script, jsbytecode *pc) {
         return MaybeArguments;
+    }
+    virtual BinaryTypes incslot(JSScript *script, jsbytecode *pc) {
+        return binaryTypes(script, pc);
+    }
+    virtual types::StackTypeSet *aliasedVarBarrier(JSScript *script, jsbytecode *pc, types::StackTypeSet **barrier) {
+        return NULL;
     }
 };
 
 class DummyOracle : public TypeOracle
 {
   public:
-    UnaryTypes unaryTypes(RawScript script, jsbytecode *pc) {
+    UnaryTypes unaryTypes(JSScript *script, jsbytecode *pc) {
         UnaryTypes u;
         u.inTypes = NULL;
         u.outTypes = NULL;
         return u;
     }
-    BinaryTypes binaryTypes(RawScript script, jsbytecode *pc) {
+    BinaryTypes binaryTypes(JSScript *script, jsbytecode *pc) {
         BinaryTypes b;
         b.lhsTypes = NULL;
         b.rhsTypes = NULL;
         b.outTypes = NULL;
         return b;
     }
-    Unary unaryOp(RawScript script, jsbytecode *pc) {
+    Unary unaryOp(JSScript *script, jsbytecode *pc) {
         Unary u;
         u.ival = MIRType_Int32;
         u.rval = MIRType_Int32;
         return u;
     }
-    Binary binaryOp(RawScript script, jsbytecode *pc) {
+    Binary binaryOp(JSScript *script, jsbytecode *pc) {
         Binary b;
         b.lhs = MIRType_Int32;
         b.rhs = MIRType_Int32;
@@ -243,60 +226,48 @@ class TypeInferenceOracle : public TypeOracle
 
     bool init(JSContext *cx, JSScript *script);
 
-    RawScript script() { return script_.get(); }
-
-    UnaryTypes unaryTypes(RawScript script, jsbytecode *pc);
-    BinaryTypes binaryTypes(RawScript script, jsbytecode *pc);
-    Unary unaryOp(RawScript script, jsbytecode *pc);
-    Binary binaryOp(RawScript script, jsbytecode *pc);
-    types::StackTypeSet *thisTypeSet(RawScript script);
+    UnaryTypes unaryTypes(JSScript *script, jsbytecode *pc);
+    BinaryTypes binaryTypes(JSScript *script, jsbytecode *pc);
+    Unary unaryOp(JSScript *script, jsbytecode *pc);
+    Binary binaryOp(JSScript *script, jsbytecode *pc);
+    types::StackTypeSet *thisTypeSet(JSScript *script);
     bool getOsrTypes(jsbytecode *osrPc, Vector<MIRType> &slotTypes);
-    types::StackTypeSet *parameterTypeSet(RawScript script, size_t index);
-    types::HeapTypeSet *globalPropertyTypeSet(RawScript script, jsbytecode *pc, jsid id);
-    types::StackTypeSet *propertyRead(RawScript script, jsbytecode *pc);
-    types::StackTypeSet *propertyReadBarrier(HandleScript script, jsbytecode *pc);
-    bool propertyReadIdempotent(HandleScript script, jsbytecode *pc, HandleId id);
-    bool propertyReadAccessGetter(RawScript script, jsbytecode *pc);
-    types::HeapTypeSet *globalPropertyWrite(RawScript script, jsbytecode *pc, jsid id, bool *canSpecialize);
-    types::StackTypeSet *returnTypeSet(RawScript script, jsbytecode *pc, types::StackTypeSet **barrier);
-    types::StackTypeSet *getCallTarget(RawScript caller, uint32_t argc, jsbytecode *pc);
-    types::StackTypeSet *getCallArg(RawScript caller, uint32_t argc, uint32_t arg, jsbytecode *pc);
-    types::StackTypeSet *getCallReturn(RawScript caller, jsbytecode *pc);
-    bool inObjectIsDenseNativeWithoutExtraIndexedProperties(HandleScript script, jsbytecode *pc);
-    bool inArrayIsPacked(RawScript script, jsbytecode *pc);
-    bool elementReadIsDenseNative(RawScript script, jsbytecode *pc);
-    bool elementReadIsTypedArray(RawScript script, jsbytecode *pc, int *atype);
-    bool elementReadIsString(RawScript script, jsbytecode *pc);
-    bool elementReadShouldAlwaysLoadDoubles(RawScript script, jsbytecode *pc);
-    bool elementReadHasExtraIndexedProperty(RawScript, jsbytecode *pc);
-    bool elementReadIsPacked(RawScript script, jsbytecode *pc);
-    void elementReadGeneric(RawScript script, jsbytecode *pc, bool *cacheable, bool *monitorResult, bool *intIndex);
-    bool elementWriteIsDenseNative(HandleScript script, jsbytecode *pc);
-    bool elementWriteIsDenseNative(types::StackTypeSet *obj, types::StackTypeSet *id);
-    bool elementWriteIsTypedArray(RawScript script, jsbytecode *pc, int *arrayType);
-    bool elementWriteIsTypedArray(types::StackTypeSet *obj, types::StackTypeSet *id, int *arrayType);
-    bool elementWriteNeedsDoubleConversion(RawScript script, jsbytecode *pc);
-    bool elementWriteHasExtraIndexedProperty(RawScript script, jsbytecode *pc);
-    bool elementWriteIsPacked(RawScript script, jsbytecode *pc);
-    bool arrayResultShouldHaveDoubleConversion(RawScript script, jsbytecode *pc);
-    bool setElementHasWrittenHoles(RawScript script, jsbytecode *pc);
-    bool propertyWriteCanSpecialize(RawScript script, jsbytecode *pc);
-    bool propertyWriteNeedsBarrier(RawScript script, jsbytecode *pc, RawId id);
-    bool elementWriteNeedsBarrier(RawScript script, jsbytecode *pc);
-    MIRType elementWrite(RawScript script, jsbytecode *pc);
-    bool canInlineCall(HandleScript caller, jsbytecode *pc);
-    types::TypeBarrier *callArgsBarrier(HandleScript caller, jsbytecode *pc);
-    bool canEnterInlinedFunction(RawFunction callee);
-    bool callReturnTypeSetMatches(RawScript callerScript, jsbytecode *callerPc, RawFunction callee);
-    bool callArgsTypeSetIntersects(types::StackTypeSet *thisType, Vector<types::StackTypeSet *> &argvType, RawFunction callee);
-    bool callArgsTypeSetMatches(types::StackTypeSet *thisType, Vector<types::StackTypeSet *> &argvType, RawFunction callee);
-    types::StackTypeSet *aliasedVarBarrier(RawScript script, jsbytecode *pc, types::StackTypeSet **barrier);
+    types::StackTypeSet *parameterTypeSet(JSScript *script, size_t index);
+    types::HeapTypeSet *globalPropertyTypeSet(JSScript *script, jsbytecode *pc, jsid id);
+    types::StackTypeSet *propertyRead(JSScript *script, jsbytecode *pc);
+    types::StackTypeSet *propertyReadBarrier(JSScript *script, jsbytecode *pc);
+    bool propertyReadIdempotent(JSScript *script, jsbytecode *pc, HandleId id);
+    bool propertyReadAccessGetter(JSScript *script, jsbytecode *pc);
+    types::HeapTypeSet *globalPropertyWrite(JSScript *script, jsbytecode *pc, jsid id, bool *canSpecialize);
+    types::StackTypeSet *returnTypeSet(JSScript *script, jsbytecode *pc, types::StackTypeSet **barrier);
+    types::StackTypeSet *getCallTarget(JSScript *caller, uint32 argc, jsbytecode *pc);
+    types::StackTypeSet *getCallArg(JSScript *caller, uint32 argc, uint32 arg, jsbytecode *pc);
+    types::StackTypeSet *getCallReturn(JSScript *caller, jsbytecode *pc);
+    bool elementReadIsDenseArray(JSScript *script, jsbytecode *pc);
+    bool elementReadIsTypedArray(JSScript *script, jsbytecode *pc, int *atype);
+    bool elementReadIsString(JSScript *script, jsbytecode *pc);
+    bool elementReadIsPacked(JSScript *script, jsbytecode *pc);
+    void elementReadGeneric(JSScript *script, jsbytecode *pc, bool *cacheable, bool *monitorResult);
+    bool elementWriteIsDenseArray(JSScript *script, jsbytecode *pc);
+    bool elementWriteIsTypedArray(JSScript *script, jsbytecode *pc, int *arrayType);
+    bool elementWriteIsPacked(JSScript *script, jsbytecode *pc);
+    bool setElementHasWrittenHoles(JSScript *script, jsbytecode *pc);
+    bool propertyWriteCanSpecialize(JSScript *script, jsbytecode *pc);
+    bool propertyWriteNeedsBarrier(JSScript *script, jsbytecode *pc, jsid id);
+    bool elementWriteNeedsBarrier(JSScript *script, jsbytecode *pc);
+    MIRType elementWrite(JSScript *script, jsbytecode *pc);
+    bool arrayPrototypeHasIndexedProperty();
+    bool canInlineCalls();
+    bool canInlineCall(JSScript *caller, jsbytecode *pc);
+    bool canEnterInlinedFunction(JSFunction *callee);
+    types::StackTypeSet *aliasedVarBarrier(JSScript *script, jsbytecode *pc, types::StackTypeSet **barrier);
 
     LazyArgumentsType isArgumentObject(types::StackTypeSet *obj);
-    LazyArgumentsType propertyReadMagicArguments(RawScript script, jsbytecode *pc);
-    LazyArgumentsType elementReadMagicArguments(RawScript script, jsbytecode *pc);
-    LazyArgumentsType elementWriteMagicArguments(RawScript script, jsbytecode *pc);
+    LazyArgumentsType propertyReadMagicArguments(JSScript *script, jsbytecode *pc);
+    LazyArgumentsType elementReadMagicArguments(JSScript *script, jsbytecode *pc);
+    LazyArgumentsType elementWriteMagicArguments(JSScript *script, jsbytecode *pc);
 
+    BinaryTypes incslot(JSScript *script, jsbytecode *pc);
 };
 
 static inline MIRType
@@ -385,10 +356,8 @@ StringFromMIRType(MIRType type)
       return "Slots";
     case MIRType_Elements:
       return "Elements";
-    case MIRType_Pointer:
-      return "Pointer";
-    case MIRType_ForkJoinSlice:
-      return "ForkJoinSlice";
+    case MIRType_StackFrame:
+      return "StackFrame";
     default:
       JS_NOT_REACHED("Unknown MIRType.");
       return "";

@@ -25,6 +25,7 @@
 #include "nsITokenizer.h"
 #include "nsString.h"
 #include "nsIParserNode.h"
+#include "nsFixedSizeAllocator.h"
 #include "nsCOMArray.h"
 #include "nsIParserService.h"
 #include "nsReadableUtils.h"
@@ -221,10 +222,10 @@ public:
   CToken* CreateTokenOfType(eHTMLTokenTypes aType,eHTMLTags aTag, const nsAString& aString);
   CToken* CreateTokenOfType(eHTMLTokenTypes aType,eHTMLTags aTag);
 
-  nsDummyAllocator& GetArenaPool() { return mArenaPool; }
+  nsFixedSizeAllocator& GetArenaPool() { return mArenaPool; }
 
 protected:
-  nsDummyAllocator mArenaPool;
+  nsFixedSizeAllocator mArenaPool;
 #ifdef  DEBUG
   int mTotals[eToken_last-1];
 #endif
@@ -249,7 +250,7 @@ public:
   ~nsNodeAllocator();
   nsCParserNode* CreateNode(CToken* aToken=nullptr, nsTokenAllocator* aTokenAllocator=0);
 
-  nsDummyAllocator&  GetArenaPool() { return mNodePool; }
+  nsFixedSizeAllocator&  GetArenaPool() { return mNodePool; }
 
 #ifdef HEAP_ALLOCATED_NODES
   void Recycle(nsCParserNode* aNode) { mSharedNodes.Push(static_cast<void*>(aNode)); }
@@ -261,7 +262,7 @@ protected:
 #endif
 
 protected:
-  nsDummyAllocator mNodePool;
+  nsFixedSizeAllocator mNodePool;
 };
 
 /************************************************************************
@@ -324,10 +325,10 @@ public:
  **************************************************************/
 class CTokenDeallocator: public nsDequeFunctor{
 protected:
-  nsDummyAllocator& mArenaPool;
+  nsFixedSizeAllocator& mArenaPool;
 
 public:
-  CTokenDeallocator(nsDummyAllocator& aArenaPool)
+  CTokenDeallocator(nsFixedSizeAllocator& aArenaPool)
     : mArenaPool(aArenaPool) {}
 
   virtual void* operator()(void* anObject) {

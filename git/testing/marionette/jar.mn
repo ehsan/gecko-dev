@@ -29,4 +29,3 @@ marionette.jar:
 
 % resource specialpowers %modules/
   modules/MockFilePicker.jsm (../specialpowers/content/MockFilePicker.jsm)
-  modules/MockPermissionPrompt.jsm (../specialpowers/content/MockPermissionPrompt.jsm)

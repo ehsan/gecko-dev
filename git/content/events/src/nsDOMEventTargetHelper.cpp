@@ -13,17 +13,15 @@
 #include "prprf.h"
 #include "nsGlobalWindow.h"
 #include "nsDOMEvent.h"
-#include "mozilla/Likely.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMEventTargetHelper)
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDOMEventTargetHelper)
-  if (MOZ_UNLIKELY(cb.WantDebugInfo())) {
+  if (NS_UNLIKELY(cb.WantDebugInfo())) {
     char name[512];
     nsAutoString uri;
     if (tmp->mOwner && tmp->mOwner->GetExtantDocument()) {
@@ -37,12 +35,13 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDOMEventTargetHelper)
   }
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mListenerManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mListenerManager,
+                                                  nsEventListenerManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mListenerManager)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mListenerManager)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(nsDOMEventTargetHelper)
@@ -66,14 +65,12 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMEventTargetHelper)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
-  NS_INTERFACE_MAP_ENTRY(mozilla::dom::EventTarget)
-  NS_INTERFACE_MAP_ENTRY(nsDOMEventTargetHelper)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsDOMEventTargetHelper)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMEventTargetHelper)
 
-NS_IMPL_DOMTARGET_DEFAULTS(nsDOMEventTargetHelper)
+NS_IMPL_DOMTARGET_DEFAULTS(nsDOMEventTargetHelper);
 
 nsDOMEventTargetHelper::~nsDOMEventTargetHelper()
 {
@@ -211,8 +208,7 @@ nsDOMEventTargetHelper::DispatchEvent(nsIDOMEvent* aEvent, bool* aRetVal)
 nsresult
 nsDOMEventTargetHelper::DispatchTrustedEvent(const nsAString& aEventName)
 {
-  nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMEvent(getter_AddRefs(event), this, nullptr, nullptr);
+  nsRefPtr<nsDOMEvent> event = new nsDOMEvent(nullptr, nullptr);
   nsresult rv = event->InitEvent(aEventName, false, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -222,7 +218,8 @@ nsDOMEventTargetHelper::DispatchTrustedEvent(const nsAString& aEventName)
 nsresult
 nsDOMEventTargetHelper::DispatchTrustedEvent(nsIDOMEvent* event)
 {
-  event->SetTrusted(true);
+  nsresult rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   bool dummy;
   return DispatchEvent(event, &dummy);
@@ -233,24 +230,15 @@ nsDOMEventTargetHelper::SetEventHandler(nsIAtom* aType,
                                         JSContext* aCx,
                                         const JS::Value& aValue)
 {
+  nsEventListenerManager* elm = GetListenerManager(true);
+
   JSObject* obj = GetWrapper();
   if (!obj) {
     return NS_OK;
   }
-
-  nsRefPtr<EventHandlerNonNull> handler;
-  JSObject* callable;
-  if (aValue.isObject() &&
-      JS_ObjectIsCallable(aCx, callable = &aValue.toObject())) {
-    bool ok;
-    handler = new EventHandlerNonNull(aCx, obj, callable, &ok);
-    if (!ok) {
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-  }
-  ErrorResult rv;
-  SetEventHandler(aType, handler, rv);
-  return rv.ErrorCode();
+  
+  return elm->SetEventHandlerToJsval(aType, aCx, obj, aValue,
+                                     HasOrHasHadOwner());
 }
 
 void
@@ -258,11 +246,11 @@ nsDOMEventTargetHelper::GetEventHandler(nsIAtom* aType,
                                         JSContext* aCx,
                                         JS::Value* aValue)
 {
-  EventHandlerNonNull* handler = GetEventHandler(aType);
-  if (handler) {
-    *aValue = JS::ObjectValue(*handler->Callable());
-  } else {
-    *aValue = JS::NullValue();
+  *aValue = JSVAL_NULL;
+
+  nsEventListenerManager* elm = GetListenerManager(false);
+  if (elm) {
+    elm->GetEventHandler(aType, aValue);
   }
 }
 

@@ -1,14 +1,12 @@
-. "$topsrcdir/build/mozconfig.common"
-
 # Use Clang as specified in manifest
 export CC="$topsrcdir/clang/bin/clang -fgnu89-inline"
 export CXX="$topsrcdir/clang/bin/clang++"
 
 # Mandatory flags for ASan
-export ASANFLAGS="-fsanitize=address -Dxmalloc=myxmalloc -fPIC"
+export ASANFLAGS="-faddress-sanitizer -Dxmalloc=myxmalloc -fPIC"
 export CFLAGS="$ASANFLAGS"
 export CXXFLAGS="$ASANFLAGS"
-export LDFLAGS="-fsanitize=address"
+export LDFLAGS="-faddress-sanitizer"
 
 # Enable ASan specific code and build workarounds
 ac_add_options --enable-address-sanitizer

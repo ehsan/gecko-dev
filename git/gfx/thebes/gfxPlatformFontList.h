@@ -144,8 +144,9 @@ public:
 
     // pure virtual functions, to be provided by concrete subclasses
 
-    // get the system default font family
-    virtual gfxFontFamily* GetDefaultFont(const gfxFontStyle* aStyle) = 0;
+    // get the system default font
+    virtual gfxFontEntry* GetDefaultFont(const gfxFontStyle* aStyle,
+                                         bool& aNeedsBold) = 0;
 
     // look up a font by name on the host platform
     virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
@@ -194,17 +195,15 @@ protected:
                                                void* userArg);
 
     // returns default font for a given character, null otherwise
-    gfxFontEntry* CommonFontFallback(const uint32_t aCh,
-                                     int32_t aRunScript,
-                                     const gfxFontStyle* aMatchStyle,
-                                     gfxFontFamily** aMatchedFamily);
+    virtual gfxFontEntry* CommonFontFallback(const uint32_t aCh,
+                                             int32_t aRunScript,
+                                             const gfxFontStyle* aMatchStyle);
 
     // search fonts system-wide for a given character, null otherwise
     virtual gfxFontEntry* GlobalFontFallback(const uint32_t aCh,
                                              int32_t aRunScript,
                                              const gfxFontStyle* aMatchStyle,
-                                             uint32_t& aCmapCount,
-                                             gfxFontFamily** aMatchedFamily);
+                                             uint32_t& aCmapCount);
 
     // whether system-based font fallback is used or not
     // if system fallback is used, no need to load all cmaps
@@ -283,7 +282,7 @@ protected:
 
     // the family to use for U+FFFD fallback, to avoid expensive search every time
     // on pages with lots of problems
-    nsRefPtr<gfxFontFamily> mReplacementCharFallbackFamily;
+    nsString mReplacementCharFallbackFamily;
 
     nsTHashtable<nsStringHashKey> mBadUnderlineFamilyNames;
 

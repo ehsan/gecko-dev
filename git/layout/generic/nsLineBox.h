@@ -10,11 +10,9 @@
 #define nsLineBox_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/Likely.h"
 
 #include "nsILineIterator.h"
 #include "nsIFrame.h"
-#include <algorithm>
 
 class nsLineBox;
 class nsFloatCache;
@@ -146,9 +144,12 @@ protected:
 #define LINE_MAX_BREAK_TYPE  ((1 << 4) - 1)
 #define LINE_MAX_CHILD_COUNT INT32_MAX
 
+#if NS_STYLE_CLEAR_LAST_VALUE > 15
+need to rearrange the mBits bitfield;
+#endif
+
 /**
  * Function to create a line box and initialize it with a single frame.
- * The allocation is infallible.
  * If the frame was moved from another line then you're responsible
  * for notifying that line using NoteFrameRemoved().  Alternatively,
  * it's better to use the next function that does that for you in an
@@ -158,7 +159,7 @@ nsLineBox* NS_NewLineBox(nsIPresShell* aPresShell, nsIFrame* aFrame,
                          bool aIsBlock);
 /**
  * Function to create a line box and initialize it with aCount frames
- * that are currently on aFromLine.  The allocation is infallible.
+ * that are currently on aFromLine.
  */
 nsLineBox* NS_NewLineBox(nsIPresShell* aPresShell, nsLineBox* aFromLine,
                          nsIFrame* aFrame, int32_t aCount);
@@ -344,8 +345,8 @@ private:
     mFrames = new nsTHashtable< nsPtrHashKey<nsIFrame> >();
     mFlags.mHasHashedFrames = 1;
     uint32_t minSize =
-      std::max(kMinChildCountForHashtable, uint32_t(PL_DHASH_MIN_SIZE));
-    mFrames->Init(std::max(count, minSize));
+      NS_MAX(kMinChildCountForHashtable, uint32_t(PL_DHASH_MIN_SIZE));
+    mFrames->Init(NS_MAX(count, minSize));
     for (nsIFrame* f = mFirstChild; count-- > 0; f = f->GetNextSibling()) {
       mFrames->PutEntry(f);
     }
@@ -360,14 +361,14 @@ private:
 
 public:
   int32_t GetChildCount() const {
-    return MOZ_UNLIKELY(mFlags.mHasHashedFrames) ? mFrames->Count() : mChildCount;
+    return NS_UNLIKELY(mFlags.mHasHashedFrames) ? mFrames->Count() : mChildCount;
   }
 
   /**
    * Register that aFrame is now on this line.
    */
   void NoteFrameAdded(nsIFrame* aFrame) {
-    if (MOZ_UNLIKELY(mFlags.mHasHashedFrames)) {
+    if (NS_UNLIKELY(mFlags.mHasHashedFrames)) {
       mFrames->PutEntry(aFrame);
     } else {
       if (++mChildCount >= kMinChildCountForHashtable) {
@@ -381,7 +382,7 @@ public:
    */
   void NoteFrameRemoved(nsIFrame* aFrame) {
     MOZ_ASSERT(GetChildCount() > 0);
-    if (MOZ_UNLIKELY(mFlags.mHasHashedFrames)) {
+    if (NS_UNLIKELY(mFlags.mHasHashedFrames)) {
       mFrames->RemoveEntry(aFrame);
       if (mFrames->Count() < kMinChildCountForHashtable) {
         SwitchToCounter();
@@ -509,7 +510,7 @@ private:
 public:
 
   bool Contains(nsIFrame* aFrame) const {
-    return MOZ_UNLIKELY(mFlags.mHasHashedFrames) ? mFrames->Contains(aFrame)
+    return NS_UNLIKELY(mFlags.mHasHashedFrames) ? mFrames->Contains(aFrame)
                                                 : IndexOf(aFrame) >= 0;
   }
 

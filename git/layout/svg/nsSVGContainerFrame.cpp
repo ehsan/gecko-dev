@@ -80,7 +80,7 @@ nsSVGContainerFrame::UpdateOverflow()
   return nsSVGContainerFrameBase::UpdateOverflow();
 }
 
-void
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
                                  nsIFrame* aParent,
                                  nsIFrame* aPrevInFlow)
@@ -89,17 +89,17 @@ nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
     AddStateBits(aParent->GetStateBits() &
       (NS_STATE_SVG_NONDISPLAY_CHILD | NS_STATE_SVG_CLIPPATH_CHILD));
   }
-  nsSVGContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsSVGContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  return rv;
 }
 
-void
+NS_IMETHODIMP
 nsSVGDisplayContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                              const nsRect&           aDirtyRect,
                                              const nsDisplayListSet& aLists)
 {
-  if (mContent->IsSVG() &&
-      !static_cast<const nsSVGElement*>(mContent)->HasValidDimensions()) {
-    return;
+  if (!static_cast<const nsSVGElement*>(mContent)->HasValidDimensions()) {
+    return NS_OK;
   }
   return BuildDisplayListForNonBlockChildren(aBuilder, aDirtyRect, aLists);
 }
@@ -177,16 +177,14 @@ nsSVGDisplayContainerFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
                        HasChildrenOnlyTransform(aFromParentTransform);
   }
 
-  if (mContent->IsSVG()) {
-    nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
-    if (content->GetAnimatedTransformList() ||
-        content->GetAnimateMotionTransform()) {
-      if (aOwnTransform) {
-        *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),
-                                    nsSVGElement::eUserSpaceToParent);
-      }
-      foundTransform = true;
+  nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
+  if (content->GetAnimatedTransformList() ||
+      content->GetAnimateMotionTransform()) {
+    if (aOwnTransform) {
+      *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),
+                                  nsSVGElement::eUserSpaceToParent);
     }
+    foundTransform = true;
   }
   return foundTransform;
 }
@@ -204,7 +202,7 @@ nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
                "If display lists are enabled, only painting of non-display "
                "SVG should take this code path");
 
-  const nsStyleDisplay *display = StyleDisplay();
+  const nsStyleDisplay *display = mStyleContext->GetStyleDisplay();
   if (display->mOpacity == 0.0)
     return NS_OK;
 
@@ -270,7 +268,6 @@ nsSVGDisplayContainerFrame::ReflowSVG()
     if (SVGFrame) {
       NS_ABORT_IF_FALSE(!(kid->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                         "Check for this explicitly in the |if|, then");
-      kid->AddStateBits(mState & NS_FRAME_IS_DIRTY);
       SVGFrame->ReflowSVG();
 
       // We build up our child frame overflows here instead of using
@@ -300,12 +297,26 @@ nsSVGDisplayContainerFrame::ReflowSVG()
     nsSVGEffects::UpdateEffects(this);
   }
 
+  // We only invalidate if we are dirty, if our outer-<svg> has already had its
+  // initial reflow (since if it hasn't, its entire area will be invalidated
+  // when it gets that initial reflow), and if our parent is not dirty (since
+  // if it is, then it will invalidate its entire new area, which will include
+  // our new area).
+  bool invalidate = (mState & NS_FRAME_IS_DIRTY) &&
+    !(GetParent()->GetStateBits() &
+       (NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY));
+
   FinishAndStoreOverflow(overflowRects, mRect.Size());
 
   // Remove state bits after FinishAndStoreOverflow so that it doesn't
   // invalidate on first reflow:
   mState &= ~(NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY |
               NS_FRAME_HAS_DIRTY_CHILDREN);
+
+  if (invalidate) {
+    // XXXSDL Let FinishAndStoreOverflow do this.
+    nsSVGUtils::InvalidateBounds(this, true);
+  }
 }  
 
 void

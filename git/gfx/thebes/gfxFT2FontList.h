@@ -70,7 +70,7 @@ public:
 
     // Check for various kinds of brokenness, and set flags on the entry
     // accordingly so that we avoid using bad font tables
-    void CheckForBrokenFont(gfxFontFamily *aFamily);
+    void CheckForBrokenFont();
 
     virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
@@ -99,7 +99,8 @@ class gfxFT2FontList : public gfxPlatformFontList
 public:
     gfxFT2FontList();
 
-    virtual gfxFontFamily* GetDefaultFont(const gfxFontStyle* aStyle);
+    virtual gfxFontEntry* GetDefaultFont(const gfxFontStyle* aStyle,
+                                         bool& aNeedsBold);
 
     virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
                                           const nsAString& aFontName);

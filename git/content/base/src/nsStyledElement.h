@@ -14,7 +14,7 @@
 #define __NS_STYLEDELEMENT_H_
 
 #include "nsString.h"
-#include "mozilla/dom/Element.h"
+#include "nsGenericElement.h"
 
 namespace mozilla {
 namespace css {
@@ -22,7 +22,7 @@ class StyleRule;
 }
 }
 
-typedef mozilla::dom::Element nsStyledElementBase;
+typedef nsGenericElement nsStyledElementBase;
 
 class nsStyledElementNotElementCSSInlineStyle : public nsStyledElementBase
 {
@@ -50,7 +50,7 @@ public:
   virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                                 const nsAttrValue* aValue, bool aNotify);
 
-  nsICSSDeclaration* Style();
+  nsIDOMCSSStyleDeclaration* GetStyle(nsresult* retval);
 
 protected:
 
@@ -68,7 +68,7 @@ protected:
   virtual bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
                                 const nsAString& aValue, nsAttrValue& aResult);
 
-  friend class mozilla::dom::Element;
+  friend class nsGenericElement;
 
   /**
    * Create the style struct from the style attr.  Used when an element is

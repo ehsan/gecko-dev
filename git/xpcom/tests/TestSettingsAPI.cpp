@@ -58,14 +58,14 @@ public:
 
   SettingsServiceCallback() { }
 
-  NS_IMETHOD Handle(const nsAString &name, const JS::Value &result) {
+  NS_IMETHOD Handle(const nsAString &name, const JS::Value &result, JSContext *cx) {
     if (callbackCount == 9) {
       CHECK(JSVAL_IS_BOOLEAN(result));
-      CHECK(!!JSVAL_TO_BOOLEAN(result) == true);
+      CHECK(JSVAL_TO_BOOLEAN(result) == true);
       passed("boolean");
     } else if (callbackCount == 7) {
       CHECK(JSVAL_IS_BOOLEAN(result));
-      CHECK(!!JSVAL_TO_BOOLEAN(result) == false);
+      CHECK(JSVAL_TO_BOOLEAN(result) == false);
       passed("Lock order");
     } else if (callbackCount == 5) {
       CHECK(JSVAL_IS_INT(result));
@@ -85,13 +85,13 @@ public:
     }
     callbackCount--;
     return NS_OK;
-  }
+  };
 
-  NS_IMETHOD HandleError(const nsAString &name) {
+  NS_IMETHOD HandleError(const nsAString &name, JSContext *cx) {
     fprintf(stderr, "HANDLE Error! %s\n", NS_LossyConvertUTF16toASCII(name).get());
     errors++;
     return NS_OK;
-  }
+  };
 };
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(SettingsServiceCallback, nsISettingsServiceCallback)

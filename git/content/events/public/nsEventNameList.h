@@ -129,24 +129,6 @@
 #define DEFINED_NON_IDL_EVENT
 #endif /* NON_IDL_EVENT */
 
-#ifdef DEFINED_ERROR_EVENT
-#error "Don't define DEFINED_ERROR_EVENT"
-#endif /* DEFINED_ERROR_EVENT */
-
-#ifndef ERROR_EVENT
-#define ERROR_EVENT FORWARDED_EVENT
-#define DEFINED_ERROR_EVENT
-#endif /* ERROR_EVENT */
-
-#ifdef DEFINED_BEFOREUNLOAD_EVENT
-#error "Don't define DEFINED_BEFOREUNLOAD_EVENT"
-#endif /* DEFINED_BEFOREUNLOAD_EVENT */
-
-#ifndef BEFOREUNLOAD_EVENT
-#define BEFOREUNLOAD_EVENT WINDOW_EVENT
-#define DEFINED_BEFOREUNLOAD_EVENT
-#endif /* BEFOREUNLOAD_EVENT */
-
 EVENT(abort,
       NS_IMAGE_ABORT,
       (EventNameType_HTMLXUL | EventNameType_SVGSVG),
@@ -363,19 +345,19 @@ EVENT(wheel,
       NS_WHEEL_WHEEL,
       EventNameType_All,
       NS_WHEEL_EVENT)
+// Gecko-specific extensions that apply to elements
 EVENT(copy,
       NS_COPY,
       EventNameType_HTMLXUL,
-      NS_CLIPBOARD_EVENT)
+      NS_EVENT)
 EVENT(cut,
       NS_CUT,
       EventNameType_HTMLXUL,
-      NS_CLIPBOARD_EVENT)
+      NS_EVENT)
 EVENT(paste,
       NS_PASTE,
       EventNameType_HTMLXUL,
-      NS_CLIPBOARD_EVENT)
-// Gecko-specific extensions that apply to elements
+      NS_EVENT)
 EVENT(beforescriptexecute,
       NS_BEFORE_SCRIPT_EXECUTE,
       EventNameType_HTMLXUL,
@@ -389,10 +371,10 @@ FORWARDED_EVENT(blur,
                 NS_BLUR_CONTENT,
                 EventNameType_HTMLXUL,
                 NS_FOCUS_EVENT)
-ERROR_EVENT(error,
-            NS_LOAD_ERROR,
-            (EventNameType_HTMLXUL | EventNameType_SVGSVG),
-            NS_EVENT)
+FORWARDED_EVENT(error,
+                NS_LOAD_ERROR,
+                (EventNameType_HTMLXUL | EventNameType_SVGSVG),
+                NS_EVENT)
 FORWARDED_EVENT(focus,
                 NS_FOCUS_CONTENT,
                 EventNameType_HTMLXUL,
@@ -408,53 +390,49 @@ FORWARDED_EVENT(scroll,
 
 WINDOW_EVENT(afterprint,
              NS_AFTERPRINT,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT)
 WINDOW_EVENT(beforeprint,
              NS_BEFOREPRINT,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT)
-BEFOREUNLOAD_EVENT(beforeunload,
-                   NS_BEFORE_PAGE_UNLOAD,
-                   EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
-                   NS_EVENT)
+WINDOW_EVENT(beforeunload,
+             NS_BEFORE_PAGE_UNLOAD,
+             EventNameType_HTMLXUL,
+             NS_EVENT)
 WINDOW_EVENT(hashchange,
              NS_HASHCHANGE,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT)
-// XXXbz Should the onmessage attribute on <body> really not work?  If so, do we
-// need a different macro to flag things like that (IDL, but not content
-// attributes on body/frameset), or is just using EventNameType_None enough?
 WINDOW_EVENT(message,
              NS_MESSAGE,
              EventNameType_None,
              NS_EVENT)
 WINDOW_EVENT(offline,
              NS_OFFLINE,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT)
 WINDOW_EVENT(online,
              NS_ONLINE,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT)
 WINDOW_EVENT(pagehide,
              NS_PAGE_HIDE,
-             EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTML,
              NS_EVENT)
 WINDOW_EVENT(pageshow,
              NS_PAGE_SHOW,
-             EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTML,
              NS_EVENT)
 WINDOW_EVENT(popstate,
              NS_POPSTATE,
-             EventNameType_XUL | EventNameType_HTMLBodyOrFramesetOnly,
+             EventNameType_HTMLXUL,
              NS_EVENT_NULL)
 // Not supported yet
 // WINDOW_EVENT(redo)
 WINDOW_EVENT(resize,
              NS_RESIZE_EVENT,
-             (EventNameType_XUL | EventNameType_SVGSVG |
-              EventNameType_HTMLBodyOrFramesetOnly),
+             (EventNameType_HTMLXUL | EventNameType_SVGSVG),
              NS_EVENT)
 // Not supported yet
 // WINDOW_EVENT(storage)
@@ -462,8 +440,7 @@ WINDOW_EVENT(resize,
 // WINDOW_EVENT(undo)
 WINDOW_EVENT(unload,
              NS_PAGE_UNLOAD,
-             (EventNameType_XUL | EventNameType_SVGSVG |
-              EventNameType_HTMLBodyOrFramesetOnly),
+             (EventNameType_HTMLXUL | EventNameType_SVGSVG),
              NS_EVENT)
 
 WINDOW_ONLY_EVENT(devicemotion,
@@ -486,8 +463,6 @@ WINDOW_ONLY_EVENT(devicelight,
                   NS_DEVICE_LIGHT,
                   EventNameType_None,
                   NS_EVENT)
-
-#ifdef MOZ_B2G
 WINDOW_ONLY_EVENT(moztimechange,
                   NS_MOZ_TIME_CHANGE_EVENT,
                   EventNameType_None,
@@ -500,7 +475,6 @@ WINDOW_ONLY_EVENT(moznetworkdownload,
                   NS_NETWORK_DOWNLOAD_EVENT,
                   EventNameType_None,
                   NS_EVENT)
-#endif // MOZ_B2G
 
 TOUCH_EVENT(touchstart,
             NS_TOUCH_START,
@@ -671,27 +645,27 @@ NON_IDL_EVENT(underflow,
 NON_IDL_EVENT(SVGLoad,
               NS_SVG_LOAD,
               EventNameType_None,
-              NS_EVENT)
+              NS_SVG_EVENT)
 NON_IDL_EVENT(SVGUnload,
               NS_SVG_UNLOAD,
               EventNameType_None,
-              NS_EVENT)
+              NS_SVG_EVENT)
 NON_IDL_EVENT(SVGAbort,
               NS_SVG_ABORT,
               EventNameType_None,
-              NS_EVENT)
+              NS_SVG_EVENT)
 NON_IDL_EVENT(SVGError,
               NS_SVG_ERROR,
               EventNameType_None,
-              NS_EVENT)
+              NS_SVG_EVENT)
 NON_IDL_EVENT(SVGResize,
               NS_SVG_RESIZE,
               EventNameType_None,
-              NS_EVENT)
+              NS_SVG_EVENT)
 NON_IDL_EVENT(SVGScroll,
               NS_SVG_SCROLL,
               EventNameType_None,
-              NS_EVENT)
+              NS_SVG_EVENT)
 
 NON_IDL_EVENT(SVGZoom,
               NS_SVG_ZOOM,
@@ -753,29 +727,6 @@ NON_IDL_EVENT(MozScrolledAreaChanged,
               NS_SCROLLEDAREACHANGED,
               EventNameType_None,
               NS_SCROLLAREA_EVENT)
-
-#ifdef MOZ_GAMEPAD
-NON_IDL_EVENT(gamepadbuttondown,
-              NS_GAMEPAD_BUTTONDOWN,
-              EventNameType_None,
-              NS_EVENT_NULL)
-NON_IDL_EVENT(gamepadbuttonup,
-              NS_GAMEPAD_BUTTONUP,
-              EventNameType_None,
-              NS_EVENT_NULL)
-NON_IDL_EVENT(gamepadaxismove,
-              NS_GAMEPAD_AXISMOVE,
-              EventNameType_None,
-              NS_EVENT_NULL)
-NON_IDL_EVENT(gamepadconnected,
-              NS_GAMEPAD_CONNECTED,
-              EventNameType_None,
-              NS_EVENT_NULL)
-NON_IDL_EVENT(gamepaddisconnected,
-              NS_GAMEPAD_DISCONNECTED,
-              EventNameType_None,
-              NS_EVENT_NULL)
-#endif
 
 // Simple gesture events
 NON_IDL_EVENT(MozSwipeGesture,
@@ -865,16 +816,6 @@ NON_IDL_EVENT(animationiteration,
 #undef DEFINED_NON_IDL_EVENT
 #undef NON_IDL_EVENT
 #endif /* DEFINED_NON_IDL_EVENT */
-
-#ifdef DEFINED_ERROR_EVENT
-#undef DEFINED_ERROR_EVENT
-#undef ERROR_EVENT
-#endif /* DEFINED_ERROR_EVENT */
-
-#ifdef DEFINED_BEFOREUNLOAD_EVENT
-#undef DEFINED_BEFOREUNLOAD_EVENT
-#undef BEFOREUNLOAD_EVENT
-#endif /* BEFOREUNLOAD_EVENT */
 
 #ifdef ID_TO_EVENT
 #undef EVENT

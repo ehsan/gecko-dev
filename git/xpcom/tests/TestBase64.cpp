@@ -5,7 +5,6 @@
 
 #include "TestHarness.h"
 
-#include "mozilla/Attributes.h"
 #include "nsIScriptableBase64Encoder.h"
 #include "nsIInputStream.h"
 #include "nsAutoPtr.h"
@@ -143,7 +142,7 @@ static Test kTests[] =
     )
   };
 
-class FakeInputStream MOZ_FINAL : public nsIInputStream
+class FakeInputStream : public nsIInputStream
 {
 public:
 

@@ -324,6 +324,7 @@ PK11_MakeCertFromHandle(PK11SlotInfo *slot,CK_OBJECT_HANDLE certID,
     if (trust == NULL) 
     	goto loser;
     PORT_Memset(trust,0, sizeof(CERTCertTrust));
+    cert->trust = trust;
 
     if(! pk11_HandleTrustObject(slot, cert, trust) ) {
 	unsigned int type;
@@ -364,10 +365,6 @@ PK11_MakeCertFromHandle(PK11SlotInfo *slot,CK_OBJECT_HANDLE certID,
 	trust->emailFlags |= CERTDB_USER;
 	/*    trust->objectSigningFlags |= CERTDB_USER; */
     }
-    CERT_LockCertTrust(cert);
-    cert->trust = trust;
-    CERT_UnlockCertTrust(cert);
-
     return cert;
 
 loser:
@@ -1413,7 +1410,6 @@ pk11_FindCertObjectByRecipientNew(PK11SlotInfo *slot, NSSCMSRecipient **recipien
     NSSCMSRecipient *ri = NULL;
     int i;
     PRBool tokenRescanDone = PR_FALSE;
-    CERTCertTrust trust;
 
     for (i=0; (ri = recipientlist[i]) != NULL; i++) {
 	CERTCertificate *cert = NULL;
@@ -1494,8 +1490,8 @@ pk11_FindCertObjectByRecipientNew(PK11SlotInfo *slot, NSSCMSRecipient **recipien
 	}
 	if (cert) {
 	    /* this isn't our cert */
-	    if (CERT_GetCertTrust(cert, &trust) != SECSuccess ||
-       		((trust.emailFlags & CERTDB_USER) != CERTDB_USER)) {
+	    if ((cert->trust == NULL) ||
+       		((cert->trust->emailFlags & CERTDB_USER) != CERTDB_USER)) {
 		 CERT_DestroyCertificate(cert);
 		continue;
 	    }
@@ -1554,7 +1550,6 @@ pk11_FindCertObjectByRecipient(PK11SlotInfo *slot,
 	SEC_PKCS7RecipientInfo **rip, void *pwarg)
 {
     SEC_PKCS7RecipientInfo *ri = NULL;
-    CERTCertTrust trust;
     int i;
 
     for (i=0; (ri = recipientArray[i]) != NULL; i++) {
@@ -1564,8 +1559,8 @@ pk11_FindCertObjectByRecipient(PK11SlotInfo *slot,
 								pwarg);
         if (cert) {
 	    /* this isn't our cert */
-	    if (CERT_GetCertTrust(cert, &trust) != SECSuccess ||
-       		((trust.emailFlags & CERTDB_USER) != CERTDB_USER)) {
+	    if ((cert->trust == NULL) ||
+       		((cert->trust->emailFlags & CERTDB_USER) != CERTDB_USER)) {
 		 CERT_DestroyCertificate(cert);
 		continue;
 	    }
@@ -2265,10 +2260,9 @@ PK11_FortezzaHasKEA(CERTCertificate *cert)
 {
    /* look at the subject and see if it is a KEA for MISSI key */
    SECOidData *oid;
-   CERTCertTrust trust;
 
-   if (CERT_GetCertTrust(cert, &trust) != SECSuccess ||
-       ((trust.sslFlags & CERTDB_USER) != CERTDB_USER)) {
+   if ((cert->trust == NULL) ||
+       ((cert->trust->sslFlags & CERTDB_USER) != CERTDB_USER)) {
        return PR_FALSE;
    }
 
@@ -2669,7 +2663,7 @@ PK11_GetAllSlotsForCert(CERTCertificate *cert, void *arg)
 	nssCryptokiObject *instance = *ip;
 	PK11SlotInfo *slot = instance->token->pk11slot;
 	if (slot) {
-	    PK11_AddSlotToList(slotList, slot, PR_TRUE);
+	    PK11_AddSlotToList(slotList, slot);
 	    found = PR_TRUE;
 	}
     }

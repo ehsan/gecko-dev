@@ -11,6 +11,10 @@ relativesrcdir	= @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS	= \
+	offset \
+	$(NULL)
+
 MOCHITEST_FILES	= \
 	cow.jpg \
 	dashboard.xml \

@@ -21,8 +21,8 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsIScrollableFrame.h"
 #include "nsScrollbarFrame.h"
-#include "nsView.h"
-#include "nsViewManager.h"
+#include "nsIView.h"
+#include "nsIViewManager.h"
 #include "nsStyleContext.h"
 #include "nsFontMetrics.h"
 #include "nsITimer.h"
@@ -35,7 +35,6 @@
 #include "nsContentUtils.h"
 #include "nsChildIterator.h"
 #include "nsRenderingContext.h"
-#include <algorithm>
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -176,12 +175,13 @@ NS_QUERYFRAME_TAIL_INHERITING(nsBoxFrame)
 
 ////////// nsIFrame /////////////////
 
-void
+NS_IMETHODIMP
 nsListBoxBodyFrame::Init(nsIContent*     aContent,
                          nsIFrame*       aParent, 
                          nsIFrame*       aPrevInFlow)
 {
-  nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
+  NS_ENSURE_SUCCESS(rv, rv);
   nsIScrollableFrame* scrollFrame = nsLayoutUtils::GetScrollableFrameFor(this);
   if (scrollFrame) {
     nsIFrame* verticalScrollbar = scrollFrame->GetScrollbarBox(true);
@@ -193,6 +193,8 @@ nsListBoxBodyFrame::Init(nsIContent*     aContent,
   nsRefPtr<nsFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   mRowHeight = fm->MaxHeight();
+
+  return rv;
 }
 
 void
@@ -264,7 +266,7 @@ nsListBoxBodyFrame::DoLayout(nsBoxLayoutState& aBoxLayoutState)
     nsSize prefSize = mLayoutManager->GetPrefSize(this, aBoxLayoutState);
     NS_FOR_FRAME_OVERFLOW_TYPES(otype) {
       nsRect& o = overflow.Overflow(otype);
-      o.height = std::max(o.height, prefSize.height);
+      o.height = NS_MAX(o.height, prefSize.height);
     }
   }
   FinishAndStoreOverflow(overflow, GetSize());
@@ -665,10 +667,10 @@ nsListBoxBodyFrame::ComputeIntrinsicWidth(nsBoxLayoutState& aBoxLayoutState)
     nscoord width = 0;
     nsMargin margin(0,0,0,0);
 
-    if (styleContext->StylePadding()->GetPadding(margin))
+    if (styleContext->GetStylePadding()->GetPadding(margin))
       width += margin.LeftRight();
-    width += styleContext->StyleBorder()->GetComputedBorder().LeftRight();
-    if (styleContext->StyleMargin()->GetMargin(margin))
+    width += styleContext->GetStyleBorder()->GetComputedBorder().LeftRight();
+    if (styleContext->GetStyleMargin()->GetMargin(margin))
       width += margin.LeftRight();
 
 
@@ -1466,8 +1468,15 @@ void
 nsListBoxBodyFrame::RemoveChildFrame(nsBoxLayoutState &aState,
                                      nsIFrame         *aFrame)
 {
-  MOZ_ASSERT(mFrames.ContainsFrame(aFrame));
-  MOZ_ASSERT(aFrame != GetContentInsertionFrame());
+  if (!mFrames.ContainsFrame(aFrame)) {
+    NS_ERROR("tried to remove a child frame which isn't our child");
+    return;
+  }
+
+  if (aFrame == GetContentInsertionFrame()) {
+    // Don't touch that one
+    return;
+  }
 
 #ifdef ACCESSIBILITY
   nsAccessibilityService* accService = nsIPresShell::AccService();

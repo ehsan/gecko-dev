@@ -335,19 +335,6 @@ MapsReporter::ParseMapping(
   return NS_OK;
 }
 
-static bool
-IsAnonymous(const nsACString &aName)
-{
-  // Recent kernels (e.g. 3.5) have multiple [stack:nnnn] entries, where |nnnn|
-  // is a thread ID.  However, [stack:nnnn] entries count both stack memory
-  // *and* anonymous memory because the kernel only knows about the start of
-  // each thread stack, not its end.  So we treat such entries as anonymous
-  // memory instead of stack.  This is consistent with older kernels that don't
-  // even show [stack:nnnn] entries.
-  return aName.IsEmpty() ||
-         StringBeginsWith(aName, NS_LITERAL_CSTRING("[stack:"));
-}
-
 void
 MapsReporter::GetReporterNameAndDescription(
   const char *aPath,
@@ -389,7 +376,7 @@ MapsReporter::GetReporterNameAndDescription(
                  "perform some privileged actions without the overhead of a "
                  "syscall.");
   }
-  else if (!IsAnonymous(basename)) {
+  else if (!basename.IsEmpty()) {
     nsAutoCString dirname;
     GetDirname(absPath, dirname);
 
@@ -425,7 +412,7 @@ MapsReporter::GetReporterNameAndDescription(
                  "by brk() / sbrk().");
   }
 
-  aName.Append("/[");
+  aName.Append(" [");
   aName.Append(aPerms);
   aName.Append("]");
 
@@ -527,55 +514,10 @@ MapsReporter::ParseMapBody(
   return NS_OK;
 }
 
-static nsresult GetUSS(int64_t *n)
-{
-    // You might be tempted to calculate USS by subtracting the "shared" value
-    // from the "resident" value in /proc/<pid>/statm.  But at least on Linux,
-    // statm's "shared" value actually counts pages backed by files, which has
-    // little to do with whether the pages are actually shared.  smaps on the
-    // other hand appears to give us the correct information.
-    //
-    // We could calculate this data during the smaps multi-reporter, but the
-    // overhead of the smaps reporter is considerable (we don't even run the
-    // smaps reporter in normal about:memory operation).  Hopefully this
-    // implementation is fast enough not to matter.
-
-    *n = 0;
-
-    FILE *f = fopen("/proc/self/smaps", "r");
-    NS_ENSURE_STATE(f);
-
-    int64_t total = 0;
-    char line[256];
-    while(fgets(line, sizeof(line), f)) {
-        long long val = 0;
-        if(sscanf(line, "Private_Dirty: %lld kB", &val) == 1 ||
-           sscanf(line, "Private_Clean: %lld kB", &val) == 1) {
-            total += val * 1024; // convert from kB to bytes
-        }
-    }
-    *n = total;
-
-    fclose(f);
-    return NS_OK;
-}
-
-NS_FALLIBLE_MEMORY_REPORTER_IMPLEMENT(USS,
-    "resident-unique",
-    KIND_OTHER,
-    UNITS_BYTES,
-    GetUSS,
-    "Memory mapped by the process that is present in physical memory and not "
-    "shared with any other processes.  This is also known as the process's "
-    "unique set size (USS).  This is the amount of RAM we'd expect to be freed "
-    "if we closed this process.")
-
 void Init()
 {
   nsCOMPtr<nsIMemoryMultiReporter> reporter = new MapsReporter();
   NS_RegisterMemoryMultiReporter(reporter);
-
-  NS_RegisterMemoryReporter(new NS_MEMORY_REPORTER_NAME(USS));
 }
 
 } // namespace MapsMemoryReporter

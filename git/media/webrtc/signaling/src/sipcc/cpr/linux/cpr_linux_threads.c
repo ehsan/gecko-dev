@@ -5,9 +5,6 @@
 #include "cpr.h"
 #include "cpr_stdlib.h"
 #include "cpr_stdio.h"
-#include "thread_monitor.h"
-#include "prtypes.h"
-#include "mozilla/Assertions.h"
 #include <pthread.h>
 #include <errno.h>
 #include <unistd.h>
@@ -16,7 +13,6 @@
 #define LINUX_MIN_THREAD_PRIORITY (-20)	/* tbd: check MV linux: current val from Larry port */
 #define LINUX_MAX_THREAD_PRIORITY (+19)	/* tbd: check MV linux. current val from Larry port */
 
-void CSFLogRegisterThread(const cprThread_t thread);
 
 /**
  * cprCreateThread
@@ -94,7 +90,6 @@ cprCreateThread (const char *name,
          */
         threadPtr->u.handleInt = threadId;
         threadPtr->threadId = ++id;
-        CSFLogRegisterThread(threadPtr);
         return (cprThread_t)threadPtr;
     }
 
@@ -104,19 +99,6 @@ cprCreateThread (const char *name,
     return (cprThread_t)NULL;
 }
 
-/*
- * cprJoinThread
- *
- * wait for thread termination
- */
-void cprJoinThread(cprThread_t thread)
-{
-    cpr_thread_t *cprThreadPtr;
-
-    cprThreadPtr = (cpr_thread_t *) thread;
-    MOZ_ASSERT(cprThreadPtr);
-    pthread_join(cprThreadPtr->u.handleInt, NULL);
-}
 
 /**
  * cprDestroyThread
@@ -136,28 +118,29 @@ void cprJoinThread(cprThread_t thread)
 cprRC_t
 cprDestroyThread (cprThread_t thread)
 {
+    static const char fname[] = "cprDestroyThread";
     cpr_thread_t *cprThreadPtr;
 
     cprThreadPtr = (cpr_thread_t *) thread;
-    if (cprThreadPtr) {
+    if (cprThreadPtr != NULL) {
         /*
          * Make sure thread is trying to destroy itself.
          */
         if ((pthread_t) cprThreadPtr->u.handleInt == pthread_self()) {
-            CPR_INFO("%s: Destroying Thread %d", __FUNCTION__, cprThreadPtr->threadId);
+            cprThreadPtr->threadId = 0;
+            cpr_free(cprThreadPtr);
             pthread_exit(NULL);
             return CPR_SUCCESS;
         }
 
-        CPR_ERROR("%s: Thread attempted to destroy another thread, not itself.",
-                  __FUNCTION__);
-        MOZ_ASSERT(PR_FALSE);
+        CPR_ERROR("%s: Thread attempted to destroy another thread, not itself.\n",
+                  fname);
         errno = EINVAL;
         return CPR_FAILURE;
     }
 
-    CPR_ERROR("%s - NULL pointer passed in.", __FUNCTION__);
-    MOZ_ASSERT(PR_FALSE);
+    /* Bad application! */
+    CPR_ERROR("%s - NULL pointer passed in.\n", fname);
     errno = EINVAL;
     return CPR_FAILURE;
 }
@@ -214,6 +197,7 @@ cprGetThreadId (cprThread_t thread)
     }
     return 0;
 }
+
 /**
   * @}
   */

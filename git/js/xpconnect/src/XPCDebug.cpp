@@ -71,6 +71,10 @@ xpcDumpEvalErrorReporter(JSContext *cx, const char *message,
 JSBool
 xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
 {
+    JSStackFrame* fp;
+    JSStackFrame* iter = nullptr;
+    uint32_t num = 0;
+
     if (!cx || !text) {
         DebugDump("%s", "invalid params passed to xpc_DumpEvalInJSStackFrame!\n");
         return false;
@@ -78,21 +82,13 @@ xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
 
     DebugDump("js[%d]> %s\n", frameno, text);
 
-    uint32_t num = 0;
-
-    JSAbstractFramePtr frame = JSNullFramePtr();
-
-    JSBrokenFrameIterator iter(cx);
-    while (!iter.done()) {
-        if (num == frameno) {
-            frame = iter.abstractFramePtr();
+    while (nullptr != (fp = JS_BrokenFrameIterator(cx, &iter))) {
+        if (num == frameno)
             break;
-        }
-        ++iter;
         num++;
     }
 
-    if (!frame) {
+    if (!fp) {
         DebugDump("%s", "invalid frame number!\n");
         return false;
     }
@@ -102,12 +98,12 @@ xpc_DumpEvalInJSStackFrame(JSContext* cx, uint32_t frameno, const char* text)
     JSExceptionState* exceptionState = JS_SaveExceptionState(cx);
     JSErrorReporter older = JS_SetErrorReporter(cx, xpcDumpEvalErrorReporter);
 
-    JS::RootedValue rval(cx);
+    jsval rval;
     JSString* str;
     JSAutoByteString bytes;
-    if (frame.evaluateInStackFrame(cx, text, strlen(text), "eval", 1, &rval) &&
+    if (JS_EvaluateInStackFrame(cx, fp, text, strlen(text), "eval", 1, &rval) &&
         nullptr != (str = JS_ValueToString(cx, rval)) &&
-        bytes.encodeLatin1(cx, str)) {
+        bytes.encode(cx, str)) {
         DebugDump("%s\n", bytes.ptr());
     } else
         DebugDump("%s", "eval failed!\n");

@@ -54,7 +54,7 @@ AbstractFile.prototype = {
       bytes = this.stat().size;
     }
     let buffer = new Uint8Array(bytes);
-    let size = this.readTo(buffer, {bytes: bytes});
+    let size = this.readTo(buffer, bytes);
     if (size == bytes) {
       return buffer;
     } else {
@@ -80,7 +80,8 @@ AbstractFile.prototype = {
    * @return {number} The number of bytes actually read, which may be
    * less than |bytes| if the file did not contain that many bytes left.
    */
-  readTo: function readTo(buffer, options = noOptions) {
+  readTo: function readTo(buffer, options) {
+    options = options || noOptions;
     let {ptr, bytes} = AbstractFile.normalizeToPointer(buffer, options.bytes);
     let pos = 0;
     while (pos < bytes) {
@@ -112,7 +113,8 @@ AbstractFile.prototype = {
    *
    * @return {number} The number of bytes actually written.
    */
-  write: function write(buffer, options = noOptions) {
+  write: function write(buffer, options) {
+    options = options || noOptions;
 
     let {ptr, bytes} = AbstractFile.normalizeToPointer(buffer, options.bytes);
 
@@ -306,17 +308,11 @@ AbstractFile.read = function read(path, bytes) {
 };
 
 /**
- * Write a file in one operation.
+ * Write a file, atomically.
  *
- * By default, this operation ensures that, until the contents are
- * fully written, the destination file is not modified. By default,
- * files are flushed for additional safety, i.e. to lower the risks of
- * losing data in case the device is suddenly removed or in case of
- * sudden shutdown. This additional safety is important for
- * user-critical data (e.g. preferences, application data, etc.) but
- * comes at a performance cost. For non-critical data (e.g. cache,
- * thumbnails, etc.), you may wish to deactivate flushing by passing
- * option |flush: false|.
+ * By opposition to a regular |write|, this operation ensures that,
+ * until the contents are fully written, the destination file is
+ * not modified.
  *
  * Important note: In the current implementation, option |tmpPath|
  * is required. This requirement should disappear as part of bug 793660.
@@ -330,45 +326,22 @@ AbstractFile.read = function read(path, bytes) {
  * - {string} tmpPath The path at which to write the temporary file.
  * - {bool} noOverwrite - If set, this function will fail if a file already
  * exists at |path|. The |tmpPath| is not overwritten if |path| exist.
- * - {bool} flush - If set to |false|, the function will not flush the
- * file. This improves performance considerably, but the resulting
- * behavior is slightly less safe: if the system shuts down improperly
- * (typically due to a kernel freeze or a power failure) or if the
- * device is disconnected or removed before the buffer is flushed, the
- * file may be corrupted.
  *
  * @return {number} The number of bytes actually written.
  */
 AbstractFile.writeAtomic =
-     function writeAtomic(path, buffer, options = noOptions) {
-
-  let noOverwrite = options.noOverwrite;
-  if (noOverwrite && OS.File.exists(path)) {
-    throw OS.File.Error.exists("writeAtomic");
-  }
-
-  if (typeof buffer == "string") {
-    // Normalize buffer to a C buffer by encoding it
-    let encoding = options.encoding || "utf-8";
-    buffer = new TextEncoder(encoding).encode(buffer);
-  }
-
-  if ("flush" in options && !options.flush) {
-    // Just write, without any renaming trick
-    let dest;
-    try {
-      dest = OS.File.open(path, {write: true, truncate: true});
-      return dest.write(buffer, options);
-    } finally {
-      dest.close();
-    }
-  }
+     function writeAtomic(path, buffer, options) {
+  options = options || noOptions;
 
   let tmpPath = options.tmpPath;
   if (!tmpPath) {
     throw new TypeError("Expected option tmpPath");
   }
 
+  let noOverwrite = options.noOverwrite;
+  if (noOverwrite && OS.File.exists(path)) {
+    throw OS.File.Error.exists("writeAtomic");
+  }
 
   let tmpFile = OS.File.open(tmpPath, {write: true, truncate: true});
   let bytesWritten;

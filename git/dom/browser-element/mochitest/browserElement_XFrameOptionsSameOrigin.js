@@ -8,12 +8,13 @@
 "use strict";
 
 SimpleTest.waitForExplicitFinish();
-browserElementTestHelpers.setEnabledPref(true);
-browserElementTestHelpers.addPermission();
 
 function runTest() {
+  browserElementTestHelpers.setEnabledPref(true);
+  browserElementTestHelpers.addPermission();
+
   var iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
 
   // The innermost page we load will fire an alert when it successfully loads.
   iframe.addEventListener('mozbrowsershowmodalprompt', function(e) {
@@ -25,4 +26,4 @@ function runTest() {
   iframe.src = 'http://example.com/tests/dom/browser-element/mochitest/file_browserElement_XFrameOptionsSameOrigin.html';
 }
 
-addEventListener('testready', runTest);
+runTest();

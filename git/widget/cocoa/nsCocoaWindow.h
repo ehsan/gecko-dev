@@ -18,7 +18,6 @@
 class nsCocoaWindow;
 class nsChildView;
 class nsMenuBarX;
-@class ChildView;
 
 // Value copied from BITMAP_MAX_AREA, used in nsNativeThemeCocoa.mm
 #define CUIDRAW_MAX_AREA 500000
@@ -108,10 +107,8 @@ typedef struct _nsCocoaWindowList {
 
 // If we set the window's stylemask to be textured, the corners on the bottom of
 // the window are rounded by default. We use this private method to make
-// the corners square again, a la Safari. Starting with 10.7, all windows have
-// rounded bottom corners, so this call doesn't have any effect there.
+// the corners square again, a la Safari.
 - (void)setBottomCornerRounded:(BOOL)rounded;
-- (BOOL)bottomCornerRounded;
 
 @end
 
@@ -179,7 +176,6 @@ typedef struct _nsCocoaWindowList {
   TitlebarAndBackgroundColor *mColor;
   float mUnifiedToolbarHeight;
   NSColor *mBackgroundColor;
-  NSView *mTitlebarView; // strong
 }
 // Pass nil here to get the default appearance.
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
@@ -190,7 +186,6 @@ typedef struct _nsCocoaWindowList {
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect sync:(BOOL)aSync;
 - (void)setTitlebarNeedsDisplayInRect:(NSRect)aRect;
 - (void)setDrawsContentsIntoWindowFrame:(BOOL)aState;
-- (ChildView*)mainChildView;
 @end
 
 class nsCocoaWindow : public nsBaseWidget, public nsPIWidgetCocoa
@@ -231,15 +226,15 @@ public:
     NS_IMETHOD              ConstrainPosition(bool aAllowSlop,
                                               int32_t *aX, int32_t *aY);
     virtual void            SetSizeConstraints(const SizeConstraints& aConstraints);
-    NS_IMETHOD              Move(double aX, double aY);
+    NS_IMETHOD              Move(int32_t aX, int32_t aY);
     NS_IMETHOD              PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
                                         nsIWidget *aWidget, bool aActivate);
     NS_IMETHOD              SetSizeMode(int32_t aMode);
     NS_IMETHOD              HideWindowChrome(bool aShouldHide);
     void                    EnteredFullScreen(bool aFullScreen);
     NS_IMETHOD              MakeFullScreen(bool aFullScreen);
-    NS_IMETHOD              Resize(double aWidth, double aHeight, bool aRepaint);
-    NS_IMETHOD              Resize(double aX, double aY, double aWidth, double aHeight, bool aRepaint);
+    NS_IMETHOD              Resize(int32_t aWidth,int32_t aHeight, bool aRepaint);
+    NS_IMETHOD              Resize(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, bool aRepaint);
     NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
     NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
     void                    ReportMoveEvent();
@@ -249,7 +244,7 @@ public:
 
     CGFloat                 BackingScaleFactor();
     void                    BackingScaleFactorChanged();
-    virtual double          GetDefaultScaleInternal();
+    virtual double          GetDefaultScale();
 
     NS_IMETHOD              SetTitle(const nsAString& aTitle);
 
@@ -260,7 +255,7 @@ public:
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr);
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
-    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, bool aDoCapture);
+    NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, bool aDoCapture, bool aConsumeRollupEvent);
     NS_IMETHOD GetAttention(int32_t aCycleCount);
     virtual bool HasPendingInputEvent();
     virtual nsTransparencyMode GetTransparencyMode();
@@ -288,6 +283,7 @@ public:
     void SetMenuBar(nsMenuBarX* aMenuBar);
     nsMenuBarX *GetMenuBar();
 
+    NS_IMETHOD ResetInputState();
     NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                       const InputContextAction& aAction)
     {
@@ -295,16 +291,6 @@ public:
     }
     NS_IMETHOD_(InputContext) GetInputContext()
     {
-      NSView* view = mWindow ? [mWindow contentView] : nil;
-      if (view) {
-        mInputContext.mNativeIMEContext = [view inputContext];
-      }
-      // If inputContext isn't available on this window, returns this window's
-      // pointer since nullptr means the platform has only one context per
-      // process.
-      if (!mInputContext.mNativeIMEContext) {
-        mInputContext.mNativeIMEContext = this;
-      }
       return mInputContext;
     }
     NS_IMETHOD BeginSecureKeyboardInput();
@@ -329,7 +315,7 @@ protected:
   void                 CleanUpWindowFilter();
   void                 UpdateBounds();
 
-  nsresult             DoResize(double aX, double aY, double aWidth, double aHeight,
+  nsresult             DoResize(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight,
                                 bool aRepaint, bool aConstrainToCurrentScreen);
 
   virtual already_AddRefed<nsIWidget>

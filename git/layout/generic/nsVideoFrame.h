@@ -43,9 +43,9 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   NS_IMETHOD AttributeChanged(int32_t aNameSpaceID,
                               nsIAtom* aAttribute,
@@ -89,8 +89,6 @@ public:
   // a video frame, the poster will never be displayed again.
   bool ShouldDisplayPoster();
 
-  nsIContent *GetCaptionOverlay() { return mCaptionDiv; }
-
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
@@ -125,10 +123,6 @@ protected:
 
   // Anonymous child which is the image element of the poster frame.
   nsCOMPtr<nsIContent> mPosterImage;
-
-  // Anonymous child which is the text track caption display div.
-  nsCOMPtr<nsIContent> mCaptionDiv;
-
 };
 
 #endif /* nsVideoFrame_h___ */

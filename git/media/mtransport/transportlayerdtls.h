@@ -59,7 +59,7 @@ class TransportLayerDtls : public TransportLayer {
 
   enum Role { CLIENT, SERVER};
   enum Verification { VERIFY_UNSET, VERIFY_ALLOW_ALL, VERIFY_DIGEST};
-  const static size_t kMaxDigestLength = HASH_LENGTH_MAX;
+  const static int kMaxDigestLength = HASH_LENGTH_MAX;
 
   // DTLS-specific operations
   void SetRole(Role role) { role_ = role;}
@@ -113,7 +113,7 @@ class TransportLayerDtls : public TransportLayer {
       len_ = len;
     }
 
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VerificationDigest)
+    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VerificationDigest);
 
     std::string algorithm_;
     size_t len_;
@@ -157,6 +157,7 @@ class TransportLayerDtls : public TransportLayer {
   ScopedPRFileDesc ssl_fd_;
 
   ScopedCERTCertificate peer_cert_;
+  nsCOMPtr<nsIEventTarget> target_;
   nsCOMPtr<nsITimer> timer_;
   bool auth_hook_called_;
   bool cert_ok_;

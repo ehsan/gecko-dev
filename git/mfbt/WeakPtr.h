@@ -91,7 +91,7 @@ class SupportsWeakPtr
     class WeakReference : public RefCounted<WeakReference>
     {
       public:
-        explicit WeakReference(T* p) : ptr(p) {}
+        explicit WeakReference(T* ptr) : ptr(ptr) {}
         T* get() const {
           return ptr;
         }
@@ -113,8 +113,7 @@ class WeakPtr
 {
   public:
     WeakPtr(const WeakPtr<T>& o) : ref(o.ref) {}
-    // Ensure that ref is dereferenceable in the uninitialized state
-    WeakPtr() : ref(new typename SupportsWeakPtr<T>::WeakReference(nullptr)) {}
+    WeakPtr() : ref(nullptr) {}
 
     operator T*() const {
       return ref->get();

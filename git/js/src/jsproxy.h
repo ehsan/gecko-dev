@@ -26,9 +26,7 @@ class JS_FRIEND_API(Wrapper);
  *
  * Proxy traps are grouped into fundamental and derived traps. Every proxy has
  * to at least provide implementations for the fundamental traps, but the
- * derived traps can be implemented in terms of the fundamental ones
- * BaseProxyHandler provides implementations of the derived traps in terms of
- * the (pure virtual) fundamental traps.
+ * derived traps can be implemented in terms of the fundamental ones.
  *
  * To minimize code duplication, a set of abstract proxy handler classes is
  * provided, from which other handlers may inherit. These abstract classes
@@ -36,9 +34,9 @@ class JS_FRIEND_API(Wrapper);
  *
  * BaseProxyHandler
  * |
+ * IndirectProxyHandler
+ * |                    
  * DirectProxyHandler
- * |
- * Wrapper
  */
 
 /*
@@ -48,15 +46,12 @@ class JS_FRIEND_API(Wrapper);
  * the derived traps in terms of the fundamental ones. This allows consumers of
  * this class to define any custom behavior they want.
  */
-class JS_FRIEND_API(BaseProxyHandler)
-{
+class JS_FRIEND_API(BaseProxyHandler) {
     void *mFamily;
     bool mHasPrototype;
-    bool mHasPolicy;
   protected:
     // Subclasses may set this in their constructor.
-    void setHasPrototype(bool aHasPrototype) { mHasPrototype = aHasPrototype; }
-    void setHasPolicy(bool aHasPolicy) { mHasPolicy = aHasPolicy; }
+    void setHasPrototype(bool hasPrototype) { mHasPrototype = hasPrototype; }
 
   public:
     explicit BaseProxyHandler(void *family);
@@ -64,10 +59,6 @@ class JS_FRIEND_API(BaseProxyHandler)
 
     bool hasPrototype() {
         return mHasPrototype;
-    }
-
-    bool hasPolicy() {
-        return mHasPolicy;
     }
 
     inline void *family() {
@@ -78,185 +69,187 @@ class JS_FRIEND_API(BaseProxyHandler)
         return false;
     }
 
-    virtual bool finalizeInBackground(Value priv) {
-        /*
-         * Called on creation of a proxy to determine whether its finalize
-         * method can be finalized on the background thread.
-         */
-        return true;
+    /*
+     * The function Wrapper::wrapperHandler takes a pointer to a
+     * BaseProxyHandler and returns a pointer to a Wrapper if and only if the
+     * BaseProxyHandler is a wrapper handler (otherwise, it returns NULL).
+     *
+     * Unfortunately, we can't inherit Wrapper from BaseProxyHandler, since that
+     * would create a dreaded diamond, and we can't use dynamic_cast to cast
+     * BaseProxyHandler to Wrapper, since that would require us to compile with
+     * run-time type information. Hence the need for this virtual function.
+     */
+    virtual Wrapper *toWrapper() {
+        return NULL;
     }
 
-    /* Policy enforcement traps.
-     *
-     * enter() allows the policy to specify whether the caller may perform |act|
-     * on the proxy's |id| property. In the case when |act| is CALL, |id| is
-     * generally JSID_VOID.
-     *
-     * The |act| parameter to enter() specifies the action being performed.
-     * If |bp| is false, the trap suggests that the caller throw (though it
-     * may still decide to squelch the error).
-     */
-    enum Action {
-        GET,
-        SET,
-        CALL
-    };
-    virtual bool enter(JSContext *cx, HandleObject wrapper, HandleId id, Action act,
-                       bool *bp);
-
     /* ES5 Harmony fundamental proxy traps. */
-    virtual bool preventExtensions(JSContext *cx, HandleObject proxy) = 0;
-    virtual bool getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                                       PropertyDescriptor *desc, unsigned flags) = 0;
-    virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy,
-                                          HandleId id, PropertyDescriptor *desc,
-                                          unsigned flags) = 0;
-    virtual bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
+    virtual bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id,
+                                       bool set, PropertyDescriptor *desc) = 0;
+    virtual bool getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy,
+                                          jsid id, bool set,
+                                          PropertyDescriptor *desc) = 0;
+    virtual bool defineProperty(JSContext *cx, JSObject *proxy, jsid id,
                                 PropertyDescriptor *desc) = 0;
-    virtual bool getOwnPropertyNames(JSContext *cx, HandleObject proxy,
+    virtual bool getOwnPropertyNames(JSContext *cx, JSObject *proxy,
                                      AutoIdVector &props) = 0;
-    virtual bool delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp) = 0;
-    virtual bool enumerate(JSContext *cx, HandleObject proxy, AutoIdVector &props) = 0;
+    virtual bool delete_(JSContext *cx, JSObject *proxy, jsid id, bool *bp) = 0;
+    virtual bool enumerate(JSContext *cx, JSObject *proxy,
+                           AutoIdVector &props) = 0;
 
     /* ES5 Harmony derived proxy traps. */
-    virtual bool has(JSContext *cx, HandleObject proxy, HandleId id, bool *bp);
-    virtual bool hasOwn(JSContext *cx, HandleObject proxy, HandleId id, bool *bp);
-    virtual bool get(JSContext *cx, HandleObject proxy, HandleObject receiver,
-                     HandleId id, MutableHandleValue vp);
-    virtual bool set(JSContext *cx, HandleObject proxy, HandleObject receiver,
-                     HandleId id, bool strict, MutableHandleValue vp);
-    virtual bool keys(JSContext *cx, HandleObject proxy, AutoIdVector &props);
-    virtual bool iterate(JSContext *cx, HandleObject proxy, unsigned flags,
-                         MutableHandleValue vp);
+    virtual bool has(JSContext *cx, JSObject *proxy, jsid id, bool *bp);
+    virtual bool hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp);
+    virtual bool get(JSContext *cx, JSObject *proxy, JSObject *receiver,
+                     jsid id, Value *vp);
+    virtual bool set(JSContext *cx, JSObject *proxy, JSObject *receiver,
+                     jsid id, bool strict, Value *vp);
+    virtual bool keys(JSContext *cx, JSObject *proxy, AutoIdVector &props);
+    virtual bool iterate(JSContext *cx, JSObject *proxy, unsigned flags,
+                         Value *vp);
 
     /* Spidermonkey extensions. */
-    virtual bool isExtensible(JSObject *proxy) = 0;
-    virtual bool call(JSContext *cx, HandleObject proxy, unsigned argc, Value *vp);
-    virtual bool construct(JSContext *cx, HandleObject proxy, unsigned argc,
-                           Value *argv, MutableHandleValue rval);
+    virtual bool call(JSContext *cx, JSObject *proxy, unsigned argc, Value *vp);
+    virtual bool construct(JSContext *cx, JSObject *proxy, unsigned argc, Value *argv, Value *rval);
     virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args);
     virtual bool hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool *bp);
-    virtual bool objectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx);
-    virtual JSString *obj_toString(JSContext *cx, HandleObject proxy);
-    virtual JSString *fun_toString(JSContext *cx, HandleObject proxy, unsigned indent);
-    virtual bool regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g);
-    virtual bool defaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp);
+    virtual JSType typeOf(JSContext *cx, JSObject *proxy);
+    virtual bool objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx);
+    virtual JSString *obj_toString(JSContext *cx, JSObject *proxy);
+    virtual JSString *fun_toString(JSContext *cx, JSObject *proxy, unsigned indent);
+    virtual bool regexp_toShared(JSContext *cx, JSObject *proxy, RegExpGuard *g);
+    virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
+    virtual bool iteratorNext(JSContext *cx, JSObject *proxy, Value *vp);
     virtual void finalize(JSFreeOp *fop, JSObject *proxy);
-    virtual bool getElementIfPresent(JSContext *cx, HandleObject obj, HandleObject receiver,
-                                     uint32_t index, MutableHandleValue vp, bool *present);
-    virtual bool getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject protop);
+    virtual bool getElementIfPresent(JSContext *cx, JSObject *obj, JSObject *receiver,
+                                     uint32_t index, Value *vp, bool *present);
+    virtual bool getPrototypeOf(JSContext *cx, JSObject *proxy, JSObject **protop);
 
     /* See comment for weakmapKeyDelegateOp in jsclass.h. */
     virtual JSObject *weakmapKeyDelegate(JSObject *proxy);
 };
 
 /*
- * DirectProxyHandler includes a notion of a target object. All traps are
- * reimplemented such that they forward their behavior to the target. This
- * allows consumers of this class to forward to another object as transparently
- * and efficiently as possible.
+ * IndirectProxyHandler assumes that a target exists. Moreover, it assumes the
+ * target is a JSObject. Consequently, it provides default implementations for
+ * the fundamental traps that forward their behavior to the target. The derived
+ * traps, however, are inherited from BaseProxyHandler, and therefore still
+ * implemented in terms of the fundamental ones. This allows consumers of this
+ * class to define custom behavior without implementing the entire gamut of
+ * proxy traps. 
  */
-class JS_PUBLIC_API(DirectProxyHandler) : public BaseProxyHandler
-{
+class JS_PUBLIC_API(IndirectProxyHandler) : public BaseProxyHandler {
   public:
-    explicit DirectProxyHandler(void *family);
+    explicit IndirectProxyHandler(void *family);
 
     /* ES5 Harmony fundamental proxy traps. */
-    virtual bool preventExtensions(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE;
-    virtual bool getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                                       PropertyDescriptor *desc, unsigned flags) MOZ_OVERRIDE;
-    virtual bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy,
-                                          HandleId id, PropertyDescriptor *desc,
-                                          unsigned flags) MOZ_OVERRIDE;
-    virtual bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id,
+    virtual bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id,
+                                       bool set,
+                                       PropertyDescriptor *desc) MOZ_OVERRIDE;
+    virtual bool getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy,
+                                          jsid id, bool set,
+                                          PropertyDescriptor *desc) MOZ_OVERRIDE;
+    virtual bool defineProperty(JSContext *cx, JSObject *proxy, jsid id,
                                 PropertyDescriptor *desc) MOZ_OVERRIDE;
-    virtual bool getOwnPropertyNames(JSContext *cx, HandleObject proxy,
+    virtual bool getOwnPropertyNames(JSContext *cx, JSObject *proxy,
                                      AutoIdVector &props) MOZ_OVERRIDE;
-    virtual bool delete_(JSContext *cx, HandleObject proxy, HandleId id,
+    virtual bool delete_(JSContext *cx, JSObject *proxy, jsid id,
                          bool *bp) MOZ_OVERRIDE;
-    virtual bool enumerate(JSContext *cx, HandleObject proxy,
+    virtual bool enumerate(JSContext *cx, JSObject *proxy,
                            AutoIdVector &props) MOZ_OVERRIDE;
 
-    /* ES5 Harmony derived proxy traps. */
-    virtual bool has(JSContext *cx, HandleObject proxy, HandleId id,
-                     bool *bp) MOZ_OVERRIDE;
-    virtual bool hasOwn(JSContext *cx, HandleObject proxy, HandleId id,
-                        bool *bp) MOZ_OVERRIDE;
-    virtual bool get(JSContext *cx, HandleObject proxy, HandleObject receiver,
-                     HandleId id, MutableHandleValue vp) MOZ_OVERRIDE;
-    virtual bool set(JSContext *cx, HandleObject proxy, HandleObject receiver,
-                     HandleId id, bool strict, MutableHandleValue vp) MOZ_OVERRIDE;
-    virtual bool keys(JSContext *cx, HandleObject proxy,
-                      AutoIdVector &props) MOZ_OVERRIDE;
-    virtual bool iterate(JSContext *cx, HandleObject proxy, unsigned flags,
-                         MutableHandleValue vp) MOZ_OVERRIDE;
-
     /* Spidermonkey extensions. */
-    virtual bool isExtensible(JSObject *proxy) MOZ_OVERRIDE;
-    virtual bool call(JSContext *cx, HandleObject proxy, unsigned argc, Value *vp) MOZ_OVERRIDE;
-    virtual bool construct(JSContext *cx, HandleObject proxy, unsigned argc,
-                           Value *argv, MutableHandleValue rval) MOZ_OVERRIDE;
+    virtual bool call(JSContext *cx, JSObject *proxy, unsigned argc,
+                      Value *vp) MOZ_OVERRIDE;
+    virtual bool construct(JSContext *cx, JSObject *proxy, unsigned argc,
+                           Value *argv, Value *rval) MOZ_OVERRIDE;
     virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
                             CallArgs args) MOZ_OVERRIDE;
     virtual bool hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v,
                              bool *bp) MOZ_OVERRIDE;
-    virtual bool objectClassIs(HandleObject obj, ESClassValue classValue,
+    virtual JSType typeOf(JSContext *cx, JSObject *proxy) MOZ_OVERRIDE;
+    virtual bool objectClassIs(JSObject *obj, ESClassValue classValue,
                                JSContext *cx) MOZ_OVERRIDE;
-    virtual JSString *obj_toString(JSContext *cx, HandleObject proxy) MOZ_OVERRIDE;
-    virtual JSString *fun_toString(JSContext *cx, HandleObject proxy,
+    virtual JSString *obj_toString(JSContext *cx, JSObject *proxy) MOZ_OVERRIDE;
+    virtual JSString *fun_toString(JSContext *cx, JSObject *proxy,
                                    unsigned indent) MOZ_OVERRIDE;
-    virtual bool regexp_toShared(JSContext *cx, HandleObject proxy,
+    virtual bool regexp_toShared(JSContext *cx, JSObject *proxy,
                                  RegExpGuard *g) MOZ_OVERRIDE;
-    virtual bool defaultValue(JSContext *cx, HandleObject obj, JSType hint,
-                              MutableHandleValue vp) MOZ_OVERRIDE;
+    virtual bool defaultValue(JSContext *cx, JSObject *obj, JSType hint,
+                              Value *vp) MOZ_OVERRIDE;
+    virtual bool iteratorNext(JSContext *cx, JSObject *proxy,
+                              Value *vp) MOZ_OVERRIDE;
     virtual JSObject *weakmapKeyDelegate(JSObject *proxy);
 };
 
-/* Dispatch point for handlers that executes the appropriate C++ or scripted traps. */
-class Proxy
-{
-  public:
-    /* ES5 Harmony fundamental proxy traps. */
-    static bool preventExtensions(JSContext *cx, HandleObject proxy);
-    static bool getPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                                      PropertyDescriptor *desc, unsigned flags);
-    static bool getPropertyDescriptor(JSContext *cx, HandleObject proxy, unsigned flags, HandleId id,
-                                      MutableHandleValue vp);
-    static bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, HandleId id,
-                                         PropertyDescriptor *desc, unsigned flags);
-    static bool getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, unsigned flags, HandleId id,
-                                         MutableHandleValue vp);
-    static bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id, PropertyDescriptor *desc);
-    static bool defineProperty(JSContext *cx, HandleObject proxy, HandleId id, HandleValue v);
-    static bool getOwnPropertyNames(JSContext *cx, HandleObject proxy, AutoIdVector &props);
-    static bool delete_(JSContext *cx, HandleObject proxy, HandleId id, bool *bp);
-    static bool enumerate(JSContext *cx, HandleObject proxy, AutoIdVector &props);
+/*
+ * DirectProxyHandler has the same assumptions about the target as its base,
+ * IndirectProxyHandler. Its fundamental traps are inherited from this class,
+ * and therefore forward their behavior to the target. The derived traps,
+ * however, are overrided so that, they too, forward their behavior to the
+ * target. This allows consumers of this class to forward to another object as
+ * transparently as possible.
+ */
+class JS_PUBLIC_API(DirectProxyHandler) : public IndirectProxyHandler {
+public:
+    explicit DirectProxyHandler(void *family);
 
     /* ES5 Harmony derived proxy traps. */
-    static bool has(JSContext *cx, HandleObject proxy, HandleId id, bool *bp);
-    static bool hasOwn(JSContext *cx, HandleObject proxy, HandleId id, bool *bp);
-    static bool get(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
-                    MutableHandleValue vp);
+    virtual bool has(JSContext *cx, JSObject *proxy, jsid id,
+                     bool *bp) MOZ_OVERRIDE;
+    virtual bool hasOwn(JSContext *cx, JSObject *proxy, jsid id,
+                        bool *bp) MOZ_OVERRIDE;
+    virtual bool get(JSContext *cx, JSObject *proxy, JSObject *receiver,
+                     jsid id, Value *vp) MOZ_OVERRIDE;
+    virtual bool set(JSContext *cx, JSObject *proxy, JSObject *receiver,
+                     jsid id, bool strict, Value *vp) MOZ_OVERRIDE;
+    virtual bool keys(JSContext *cx, JSObject *proxy,
+                      AutoIdVector &props) MOZ_OVERRIDE;
+    virtual bool iterate(JSContext *cx, JSObject *proxy, unsigned flags,
+                         Value *vp) MOZ_OVERRIDE;
+};
+
+/* Dispatch point for handlers that executes the appropriate C++ or scripted traps. */
+class Proxy {
+  public:
+    /* ES5 Harmony fundamental proxy traps. */
+    static bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set,
+                                      PropertyDescriptor *desc);
+    static bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set, Value *vp);
+    static bool getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set,
+                                         PropertyDescriptor *desc);
+    static bool getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set,
+                                         Value *vp);
+    static bool defineProperty(JSContext *cx, JSObject *proxy, jsid id, PropertyDescriptor *desc);
+    static bool defineProperty(JSContext *cx, JSObject *proxy, jsid id, const Value &v);
+    static bool getOwnPropertyNames(JSContext *cx, JSObject *proxy, AutoIdVector &props);
+    static bool delete_(JSContext *cx, JSObject *proxy, jsid id, bool *bp);
+    static bool enumerate(JSContext *cx, JSObject *proxy, AutoIdVector &props);
+
+    /* ES5 Harmony derived proxy traps. */
+    static bool has(JSContext *cx, JSObject *proxy, jsid id, bool *bp);
+    static bool hasOwn(JSContext *cx, JSObject *proxy, jsid id, bool *bp);
+    static bool get(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id, MutableHandleValue vp);
     static bool getElementIfPresent(JSContext *cx, HandleObject proxy, HandleObject receiver,
                                     uint32_t index, MutableHandleValue vp, bool *present);
-    static bool set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
-                    bool strict, MutableHandleValue vp);
-    static bool keys(JSContext *cx, HandleObject proxy, AutoIdVector &props);
+    static bool set(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id, bool strict,
+                    MutableHandleValue vp);
+    static bool keys(JSContext *cx, JSObject *proxy, AutoIdVector &props);
     static bool iterate(JSContext *cx, HandleObject proxy, unsigned flags, MutableHandleValue vp);
 
     /* Spidermonkey extensions. */
-    static bool isExtensible(JSObject *proxy);
-    static bool call(JSContext *cx, HandleObject proxy, unsigned argc, Value *vp);
-    static bool construct(JSContext *cx, HandleObject proxy, unsigned argc, Value *argv,
-                          MutableHandleValue rval);
+    static bool call(JSContext *cx, JSObject *proxy, unsigned argc, Value *vp);
+    static bool construct(JSContext *cx, JSObject *proxy, unsigned argc, Value *argv, Value *rval);
     static bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args);
     static bool hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool *bp);
-    static bool objectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx);
-    static JSString *obj_toString(JSContext *cx, HandleObject proxy);
-    static JSString *fun_toString(JSContext *cx, HandleObject proxy, unsigned indent);
-    static bool regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g);
-    static bool defaultValue(JSContext *cx, HandleObject obj, JSType hint, MutableHandleValue vp);
-    static bool getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject protop);
+    static JSType typeOf(JSContext *cx, JSObject *proxy);
+    static bool objectClassIs(JSObject *obj, ESClassValue classValue, JSContext *cx);
+    static JSString *obj_toString(JSContext *cx, JSObject *proxy);
+    static JSString *fun_toString(JSContext *cx, JSObject *proxy, unsigned indent);
+    static bool regexp_toShared(JSContext *cx, JSObject *proxy, RegExpGuard *g);
+    static bool defaultValue(JSContext *cx, JSObject *obj, JSType hint, Value *vp);
+    static bool iteratorNext(JSContext *cx, JSObject *proxy, Value *vp);
+    static bool getPrototypeOf(JSContext *cx, JSObject *proxy, JSObject **protop);
 
     static JSObject * const LazyProto;
 };
@@ -288,14 +281,8 @@ inline bool IsProxy(RawObject obj)
 }
 
 /* Shared between object and function proxies. */
-/*
- * NOTE: JSSLOT_PROXY_PRIVATE is 0, because that way slot 0 is usable by API
- * clients for both proxy and non-proxy objects.  So an API client that only
- * needs to store one slot's worth of data doesn't need to branch on what sort
- * of object it has.
- */
-const uint32_t JSSLOT_PROXY_PRIVATE = 0;
-const uint32_t JSSLOT_PROXY_HANDLER = 1;
+const uint32_t JSSLOT_PROXY_HANDLER = 0;
+const uint32_t JSSLOT_PROXY_PRIVATE = 1;
 const uint32_t JSSLOT_PROXY_EXTRA   = 2;
 /* Function proxies only. */
 const uint32_t JSSLOT_PROXY_CALL = 4;
@@ -323,6 +310,13 @@ GetProxyTargetObject(RawObject obj)
 }
 
 inline const Value &
+GetProxyCall(RawObject obj)
+{
+    JS_ASSERT(IsFunctionProxy(obj));
+    return GetReservedSlot(obj, JSSLOT_PROXY_CALL);
+}
+
+inline const Value &
 GetProxyExtra(RawObject obj, size_t n)
 {
     JS_ASSERT(IsProxy(obj));
@@ -337,6 +331,13 @@ SetProxyHandler(RawObject obj, BaseProxyHandler *handler)
 }
 
 inline void
+SetProxyPrivate(RawObject obj, const Value &value)
+{
+    JS_ASSERT(IsProxy(obj));
+    SetReservedSlot(obj, JSSLOT_PROXY_PRIVATE, value);
+}
+
+inline void
 SetProxyExtra(RawObject obj, size_t n, const Value &extra)
 {
     JS_ASSERT(IsProxy(obj));
@@ -344,92 +345,18 @@ SetProxyExtra(RawObject obj, size_t n, const Value &extra)
     SetReservedSlot(obj, JSSLOT_PROXY_EXTRA + n, extra);
 }
 
-enum ProxyCallable {
-    ProxyNotCallable = false,
-    ProxyIsCallable = true
-};
-
 JS_FRIEND_API(JSObject *)
 NewProxyObject(JSContext *cx, BaseProxyHandler *handler, const Value &priv,
-               JSObject *proto, JSObject *parent, ProxyCallable callable = ProxyNotCallable);
-
-JSObject *
-RenewProxyObject(JSContext *cx, JSObject *obj, BaseProxyHandler *handler, Value priv);
-
-class JS_FRIEND_API(AutoEnterPolicy)
-{
-  public:
-    typedef BaseProxyHandler::Action Action;
-    AutoEnterPolicy(JSContext *cx, BaseProxyHandler *handler,
-                    HandleObject wrapper, HandleId id, Action act, bool mayThrow)
-#ifdef DEBUG
-        : context(NULL)
-#endif
-    {
-        allow = handler->hasPolicy() ? handler->enter(cx, wrapper, id, act, &rv)
-                                     : true;
-        recordEnter(cx, wrapper, id);
-        // We want to throw an exception if all of the following are true:
-        // * The policy disallowed access.
-        // * The policy set rv to false, indicating that we should throw.
-        // * The caller did not instruct us to ignore exceptions.
-        // * The policy did not throw itself.
-        if (!allow && !rv && mayThrow && !JS_IsExceptionPending(cx))
-            reportError(cx, id);
-    }
-
-    virtual ~AutoEnterPolicy() { recordLeave(); }
-    inline bool allowed() { return allow; }
-    inline bool returnValue() { JS_ASSERT(!allowed()); return rv; }
-
-  protected:
-    // no-op constructor for subclass
-    AutoEnterPolicy()
-#ifdef DEBUG
-        : context(NULL)
-#endif
-        {};
-    void reportError(JSContext *cx, jsid id);
-    bool allow;
-    bool rv;
-
-#ifdef DEBUG
-    JSContext *context;
-    mozilla::Maybe<HandleObject> enteredProxy;
-    mozilla::Maybe<HandleId> enteredId;
-    // NB: We explicitly don't track the entered action here, because sometimes
-    // SET traps do an implicit GET during their implementation, leading to
-    // spurious assertions.
-    AutoEnterPolicy *prev;
-    void recordEnter(JSContext *cx, HandleObject proxy, HandleId id);
-    void recordLeave();
-
-    friend JS_FRIEND_API(void) assertEnteredPolicy(JSContext *cx, JSObject *proxy, jsid id);
-#else
-    inline void recordEnter(JSContext *cx, JSObject *proxy, jsid id) {}
-    inline void recordLeave() {}
-#endif
-
-};
-
-#ifdef DEBUG
-class JS_FRIEND_API(AutoWaivePolicy) : public AutoEnterPolicy {
-public:
-    AutoWaivePolicy(JSContext *cx, HandleObject proxy, HandleId id)
-    {
-        allow = true;
-        recordEnter(cx, proxy, id);
-    }
-};
-#else
-class JS_FRIEND_API(AutoWaivePolicy) {
-    public: AutoWaivePolicy(JSContext *cx, HandleObject proxy, HandleId id) {};
-};
-#endif
+               JSObject *proto, JSObject *parent,
+               JSObject *call = NULL, JSObject *construct = NULL);
 
 } /* namespace js */
 
+JS_BEGIN_EXTERN_C
+
 extern JS_FRIEND_API(JSObject *)
 js_InitProxyClass(JSContext *cx, JSHandleObject obj);
+
+JS_END_EXTERN_C
 
 #endif

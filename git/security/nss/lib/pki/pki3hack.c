@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifdef DEBUG
-static const char CVS_ID[] = "@(#) $RCSfile: pki3hack.c,v $ $Revision: 1.111 $ $Date: 2013/01/07 04:11:51 $";
+static const char CVS_ID[] = "@(#) $RCSfile: pki3hack.c,v $ $Revision: 1.109 $ $Date: 2012/07/27 21:41:52 $";
 #endif /* DEBUG */
 
 /*
@@ -805,9 +805,7 @@ fill_CERTCertificateFields(NSSCertificate *c, CERTCertificate *cc, PRBool forced
                 /* we should destroy cc->trust before replacing it, but it's
                    allocated in cc->arena, so memory growth will occur on each
                    refresh */
-                CERT_LockCertTrust(cc);
                 cc->trust = trust;
-                CERT_UnlockCertTrust(cc);
             }
 	    nssTrust_Destroy(nssTrust);
 	}
@@ -828,9 +826,7 @@ fill_CERTCertificateFields(NSSCertificate *c, CERTCertificate *cc, PRBool forced
             /* we should destroy cc->trust before replacing it, but it's
                allocated in cc->arena, so memory growth will occur on each
                refresh */
-            CERT_LockCertTrust(cc);
             cc->trust = trust;
-            CERT_UnlockCertTrust(cc);
         }
 	nssCryptokiObject_Destroy(instance);
     } 
@@ -857,7 +853,6 @@ stan_GetCERTCertificate(NSSCertificate *c, PRBool forceUpdate)
 {
     nssDecodedCert *dc = NULL;
     CERTCertificate *cc = NULL;
-    CERTCertTrust certTrust;
 
     nssPKIObject_Lock(&c->object);
 
@@ -892,18 +887,14 @@ stan_GetCERTCertificate(NSSCertificate *c, PRBool forceUpdate)
     }
     if (!cc->nssCertificate || forceUpdate) {
         fill_CERTCertificateFields(c, cc, forceUpdate);
-    } else if (CERT_GetCertTrust(cc, &certTrust) != SECSuccess &&
-               !c->object.cryptoContext) {
+    } else if (!cc->trust && !c->object.cryptoContext) {
         /* if it's a perm cert, it might have been stored before the
          * trust, so look for the trust again.  But a temp cert can be
          * ignored.
          */
         CERTCertTrust* trust = NULL;
         trust = nssTrust_GetCERTCertTrustForCert(c, cc);
-
-        CERT_LockCertTrust(cc);
         cc->trust = trust;
-        CERT_UnlockCertTrust(cc);
     }
 
   loser:
@@ -1095,14 +1086,13 @@ STAN_ChangeCertTrust(CERTCertificate *cc, CERTCertTrust *trust)
     NSSTrust *nssTrust;
     NSSArena *arena;
     CERTCertTrust *oldTrust;
-    CERTCertTrust *newTrust;
     nssListIterator *tokens;
     PRBool moving_object;
     nssCryptokiObject *newInstance;
     nssPKIObject *pkiob;
 
     if (c == NULL) {
-        return PR_FAILURE;
+        return SECFailure;
     }
     oldTrust = nssTrust_GetCERTCertTrustForCert(c, cc);
     if (oldTrust) {
@@ -1111,15 +1101,12 @@ STAN_ChangeCertTrust(CERTCertificate *cc, CERTCertTrust *trust)
 	    return PR_SUCCESS;
 	} else {
 	    /* take over memory already allocated in cc's arena */
-	    newTrust = oldTrust;
+	    cc->trust = oldTrust;
 	}
     } else {
-	newTrust = PORT_ArenaAlloc(cc->arena, sizeof(CERTCertTrust));
+	cc->trust = PORT_ArenaAlloc(cc->arena, sizeof(CERTCertTrust));
     }
-    memcpy(newTrust, trust, sizeof(CERTCertTrust));
-    CERT_LockCertTrust(cc);
-    cc->trust = newTrust;
-    CERT_UnlockCertTrust(cc);
+    memcpy(cc->trust, trust, sizeof(CERTCertTrust));
     /* Set the NSSCerticate's trust */
     arena = nssArena_Create();
     if (!arena) return PR_FAILURE;

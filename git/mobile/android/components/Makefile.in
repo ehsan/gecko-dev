@@ -9,6 +9,13 @@ VPATH      = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = MobileComponents
+XPIDL_MODULE = MobileComponents
+
+XPIDLSRCS = \
+        SessionStore.idl \
+        $(NULL)
+
 EXTRA_PP_COMPONENTS = \
         MobileComponents.manifest \
         AboutRedirector.js \
@@ -30,8 +37,16 @@ EXTRA_COMPONENTS = \
         FormAutoComplete.js \
         LoginManagerPrompter.js \
         BlocklistPrompt.js \
-        NSSDialogService.js \
-        SiteSpecificUserAgent.js \
         $(NULL)
+
+ifdef MOZ_SAFE_BROWSING
+DEFINES += \
+        -DMOZ_APP_UA_NAME=$(MOZ_APP_UA_NAME) \
+        $(NULL)
+
+EXTRA_PP_JS_MODULES = \
+        SafeBrowsing.jsm \
+        $(NULL)
+endif
 
 include $(topsrcdir)/config/rules.mk

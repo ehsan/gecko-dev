@@ -10,20 +10,15 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= content
 LIBRARY_NAME	= gkconxmldoc_s
 LIBXUL_LIBRARY	= 1
 FAIL_ON_WARNINGS = 1
 
-EXPORTS_NAMESPACES = mozilla/dom
-
-EXPORTS_mozilla/dom = \
-  XMLDocument.h \
-  $(NULL)
-
 CPPSRCS		= \
 		nsXMLContentSink.cpp \
 		nsXMLFragmentContentSink.cpp \
-		XMLDocument.cpp \
+		nsXMLDocument.cpp \
 		nsXMLPrettyPrinter.cpp \
 		$(NULL)
 

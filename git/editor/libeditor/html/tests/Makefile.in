@@ -13,7 +13,6 @@ include $(DEPTH)/config/autoconf.mk
 
 MOCHITEST_FILES = \
 		green.png \
-		test_bug200416.html \
 		test_bug290026.html \
 		test_bug291780.html \
 		test_bug316447.html \
@@ -82,9 +81,7 @@ MOCHITEST_FILES = \
 		test_bug767684.html \
 		test_bug780035.html \
 		test_bug787432.html \
-		test_bug790475.html \
 		test_bug796839.html \
-		test_bug832025.html \
 		test_spellcheck_pref.html \
 		$(NULL)
 

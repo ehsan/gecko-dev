@@ -4,15 +4,10 @@
 
 const PREF_RESTORE_ON_DEMAND = "browser.sessionstore.restore_on_demand";
 
-function test() {
-  TestRunner.run();
-}
+let stateBackup = ss.getBrowserState();
 
-function runTests() {
-  // Request a longer timeout because the test takes quite a while
-  // to complete on slow Windows debug machines and we would otherwise
-  // see a lot of (not so) intermittent test failures.
-  requestLongerTimeout(2);
+function test() {
+  waitForExplicitFinish();
 
   Services.prefs.setBoolPref(PREF_RESTORE_ON_DEMAND, true);
   registerCleanupFunction(function () {
@@ -61,7 +56,7 @@ function runTests() {
         gProgressListener.unsetCallback();
         executeSoon(function () {
           reloadAllTabs(state, function () {
-            waitForBrowserState(TestRunner.backupState, testCascade);
+            waitForBrowserState(JSON.parse(stateBackup), testCascade);
           });
         });
       } else {
@@ -71,7 +66,7 @@ function runTests() {
     }
   });
 
-  yield ss.setBrowserState(JSON.stringify(state));
+  ss.setBrowserState(JSON.stringify(state));
 }
 
 function testCascade() {
@@ -94,7 +89,9 @@ function testCascade() {
 
     gProgressListener.unsetCallback();
     executeSoon(function () {
-      reloadAllTabs(state, next);
+      reloadAllTabs(state, function () {
+        waitForBrowserState(JSON.parse(stateBackup), finish);
+      });
     });
   });
 

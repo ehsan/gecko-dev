@@ -13,7 +13,6 @@
 #include "nsIOutputStream.h"
 #include "nsCRT.h"
 #include "nsThreadUtils.h"
-#include <algorithm>
 
 #define kMinDecompressReadBufLen 1024
 #define kMinCompressWriteBufLen  1024
@@ -78,11 +77,10 @@ nsCacheEntryDescriptor::nsCacheEntryDescriptor(nsCacheEntry * entry,
                                                nsCacheAccessMode accessGranted)
     : mCacheEntry(entry),
       mAccessGranted(accessGranted),
-      mOutputWrapper(nullptr),
+      mOutput(nullptr),
       mLock("nsCacheEntryDescriptor.mLock"),
       mAsyncDoomPending(false),
-      mDoomedOnClose(false),
-      mClosingDescriptor(false)
+      mDoomedOnClose(false)
 {
     PR_INIT_CLIST(this);
     NS_ADDREF(nsCacheService::GlobalInstance());  // ensure it lives for the lifetime of the descriptor
@@ -98,10 +96,6 @@ nsCacheEntryDescriptor::~nsCacheEntryDescriptor()
     // method during xpcom-shutdown, so we don't need to complain about it.
     if (mCacheEntry)
         Close();
-
-    NS_ASSERTION(mInputWrappers.Count() == 0,
-                 "We have still some input wrapper!");
-    NS_ASSERTION(!mOutputWrapper, "We have still an output wrapper!");
 
     nsCacheService * service = nsCacheService::GlobalInstance();
     NS_RELEASE(service);
@@ -315,31 +309,25 @@ nsCacheEntryDescriptor::OpenInputStream(uint32_t offset, nsIInputStream ** resul
 {
     NS_ENSURE_ARG_POINTER(result);
 
-    nsInputStreamWrapper* cacheInput = nullptr;
     {
         nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHEENTRYDESCRIPTOR_OPENINPUTSTREAM));
         if (!mCacheEntry)                  return NS_ERROR_NOT_AVAILABLE;
         if (!mCacheEntry->IsStreamData())  return NS_ERROR_CACHE_DATA_IS_NOT_STREAM;
 
-        // Don't open any new stream when closing descriptor or clearing entries
-        if (mClosingDescriptor || nsCacheService::GetClearingEntries())
-            return NS_ERROR_NOT_AVAILABLE;
-
         // ensure valid permissions
         if (!(mAccessGranted & nsICache::ACCESS_READ))
             return NS_ERROR_CACHE_READ_ACCESS_DENIED;
-
-        const char *val;
-        val = mCacheEntry->GetMetaDataElement("uncompressed-len");
-        if (val) {
-            cacheInput = new nsDecompressInputStreamWrapper(this, offset);
-        } else {
-            cacheInput = new nsInputStreamWrapper(this, offset);
-        }
-        if (!cacheInput) return NS_ERROR_OUT_OF_MEMORY;
-
-        mInputWrappers.AppendElement(cacheInput);
     }
+
+    nsInputStreamWrapper* cacheInput = nullptr;
+    const char *val;
+    val = mCacheEntry->GetMetaDataElement("uncompressed-len");
+    if (val) {
+        cacheInput = new nsDecompressInputStreamWrapper(this, offset);
+    } else {
+        cacheInput = new nsInputStreamWrapper(this, offset);
+    }
+    if (!cacheInput) return NS_ERROR_OUT_OF_MEMORY;
 
     NS_ADDREF(*result = cacheInput);
     return NS_OK;
@@ -350,36 +338,30 @@ nsCacheEntryDescriptor::OpenOutputStream(uint32_t offset, nsIOutputStream ** res
 {
     NS_ENSURE_ARG_POINTER(result);
 
-    nsOutputStreamWrapper* cacheOutput = nullptr;
     {
         nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHEENTRYDESCRIPTOR_OPENOUTPUTSTREAM));
         if (!mCacheEntry)                  return NS_ERROR_NOT_AVAILABLE;
         if (!mCacheEntry->IsStreamData())  return NS_ERROR_CACHE_DATA_IS_NOT_STREAM;
 
-        // Don't open any new stream when closing descriptor or clearing entries
-        if (mClosingDescriptor || nsCacheService::GetClearingEntries())
-            return NS_ERROR_NOT_AVAILABLE;
-
         // ensure valid permissions
         if (!(mAccessGranted & nsICache::ACCESS_WRITE))
             return NS_ERROR_CACHE_WRITE_ACCESS_DENIED;
-
-        int32_t compressionLevel = nsCacheService::CacheCompressionLevel();
-        const char *val;
-        val = mCacheEntry->GetMetaDataElement("uncompressed-len");
-        if ((compressionLevel > 0) && val) {
-            cacheOutput = new nsCompressOutputStreamWrapper(this, offset);
-        } else {
-            // clear compression flag when compression disabled - see bug 715198
-            if (val) {
-                mCacheEntry->SetMetaDataElement("uncompressed-len", nullptr);
-            }
-            cacheOutput = new nsOutputStreamWrapper(this, offset);
-        }
-        if (!cacheOutput) return NS_ERROR_OUT_OF_MEMORY;
-
-        mOutputWrapper = cacheOutput;
     }
+
+    nsOutputStreamWrapper* cacheOutput = nullptr;
+    int32_t compressionLevel = nsCacheService::CacheCompressionLevel();
+    const char *val;
+    val = mCacheEntry->GetMetaDataElement("uncompressed-len");
+    if ((compressionLevel > 0) && val) {
+        cacheOutput = new nsCompressOutputStreamWrapper(this, offset);
+    } else {
+        // clear compression flag when compression disabled - see bug #715198
+        if (val) {
+            mCacheEntry->SetMetaDataElement("uncompressed-len", nullptr);
+        }
+        cacheOutput = new nsOutputStreamWrapper(this, offset);
+    }
+    if (!cacheOutput) return NS_ERROR_OUT_OF_MEMORY;
 
     NS_ADDREF(*result = cacheOutput);
     return NS_OK;
@@ -555,37 +537,6 @@ nsCacheEntryDescriptor::MarkValid()
 NS_IMETHODIMP
 nsCacheEntryDescriptor::Close()
 {
-    nsRefPtr<nsOutputStreamWrapper> outputWrapper;
-    nsTArray<nsRefPtr<nsInputStreamWrapper> > inputWrappers;
-
-    {
-        nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHEENTRYDESCRIPTOR_CLOSE));
-        if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
-
-        // Make sure no other stream can be opened
-        mClosingDescriptor = true;
-        outputWrapper = mOutputWrapper;
-        for (int32_t i = 0 ; i < mInputWrappers.Count() ; i++)
-            inputWrappers.AppendElement(static_cast<nsInputStreamWrapper *>(
-                        mInputWrappers[i]));
-    }
-
-    // Call Close() on the streams outside the lock since it might need to call
-    // methods that grab the cache service lock, e.g. compressed output stream
-    // when it finalizes the entry
-    if (outputWrapper) {
-        if (NS_FAILED(outputWrapper->Close())) {
-            NS_WARNING("Dooming entry because Close() failed!!!");
-            Doom();
-        }
-        outputWrapper = nullptr;
-    }
-
-    for (uint32_t i = 0 ; i < inputWrappers.Length() ; i++)
-        inputWrappers[i]->Close();
-
-    inputWrappers.Clear();
-
     nsCacheServiceAutoLock lock(LOCK_TELEM(NSCACHEENTRYDESCRIPTOR_CLOSE));
     if (!mCacheEntry)  return NS_ERROR_NOT_AVAILABLE;
 
@@ -654,62 +605,12 @@ nsCacheEntryDescriptor::VisitMetaData(nsICacheMetaDataVisitor * visitor)
  *                      open while referenced.
  ******************************************************************************/
 
-NS_IMPL_THREADSAFE_ADDREF(nsCacheEntryDescriptor::nsInputStreamWrapper)
-NS_IMETHODIMP_(nsrefcnt)
-nsCacheEntryDescriptor::nsInputStreamWrapper::Release()
-{
-    // Holding a reference to descriptor ensures that cache service won't go
-    // away. Do not grab cache service lock if there is no descriptor.
-    nsRefPtr<nsCacheEntryDescriptor> desc;
-
-    {
-        mozilla::MutexAutoLock lock(mLock);
-        desc = mDescriptor;
-    }
-
-    if (desc)
-        nsCacheService::Lock(LOCK_TELEM(NSINPUTSTREAMWRAPPER_RELEASE));
-
-    nsrefcnt count;
-    NS_PRECONDITION(0 != mRefCnt, "dup release");
-    count = NS_AtomicDecrementRefcnt(mRefCnt);
-    NS_LOG_RELEASE(this, count, "nsCacheEntryDescriptor::nsInputStreamWrapper");
-
-    if (0 == count) {
-        // don't use desc here since mDescriptor might be already nulled out
-        if (mDescriptor) {
-            NS_ASSERTION(mDescriptor->mInputWrappers.IndexOf(this) != -1,
-                         "Wrapper not found in array!");
-            mDescriptor->mInputWrappers.RemoveElement(this);
-        }
-
-        if (desc)
-            nsCacheService::Unlock();
-
-        mRefCnt = 1;
-        delete (this);
-        return 0;
-    }
-
-    if (desc)
-        nsCacheService::Unlock();
-
-    return count;
-}
-
-NS_INTERFACE_MAP_BEGIN(nsCacheEntryDescriptor::nsInputStreamWrapper)
-  NS_INTERFACE_MAP_ENTRY(nsIInputStream)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END_THREADSAFE
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCacheEntryDescriptor::nsInputStreamWrapper,
+                              nsIInputStream)
 
 nsresult nsCacheEntryDescriptor::
 nsInputStreamWrapper::LazyInit()
 {
-    // Check if we have the descriptor. If not we can't even grab the cache
-    // lock since it is not ensured that the cache service still exists.
-    if (!mDescriptor)
-        return NS_ERROR_NOT_AVAILABLE;
-
     nsCacheServiceAutoLock lock(LOCK_TELEM(NSINPUTSTREAMWRAPPER_LAZYINIT));
 
     nsCacheAccessMode mode;
@@ -736,67 +637,17 @@ nsInputStreamWrapper::LazyInit()
 }
 
 nsresult nsCacheEntryDescriptor::
-nsInputStreamWrapper::EnsureInit()
-{
-    if (mInitialized) {
-        NS_ASSERTION(mDescriptor, "Bad state");
-        return NS_OK;
-    }
-
-    return LazyInit();
-}
-
-void nsCacheEntryDescriptor::
-nsInputStreamWrapper::CloseInternal()
-{
-    mLock.AssertCurrentThreadOwns();
-    if (!mDescriptor) {
-        NS_ASSERTION(!mInitialized, "Bad state");
-        NS_ASSERTION(!mInput, "Bad state");
-        return;
-    }
-
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSINPUTSTREAMWRAPPER_CLOSEINTERNAL));
-
-    if (mDescriptor) {
-        mDescriptor->mInputWrappers.RemoveElement(this);
-        nsCacheService::ReleaseObject_Locked(mDescriptor);
-        mDescriptor = nullptr;
-    }
-    mInitialized = false;
-    mInput = nullptr;
-}
-
-nsresult nsCacheEntryDescriptor::
 nsInputStreamWrapper::Close()
 {
-    mozilla::MutexAutoLock lock(mLock);
-
-    return Close_Locked();
-}
-
-nsresult nsCacheEntryDescriptor::
-nsInputStreamWrapper::Close_Locked()
-{
     nsresult rv = EnsureInit();
-    if (NS_SUCCEEDED(rv)) {
-        rv = mInput->Close();
-    } else {
-        NS_ASSERTION(!mInput,
-                     "Shouldn't have mInput when EnsureInit() failed");
-    }
+    if (NS_FAILED(rv)) return rv;
 
-    // Call CloseInternal() even when EnsureInit() failed, e.g. in case we are
-    // closing streams with nsCacheService::CloseAllStream()
-    CloseInternal();
-    return rv;
+    return mInput->Close();
 }
 
 nsresult nsCacheEntryDescriptor::
 nsInputStreamWrapper::Available(uint64_t *avail)
 {
-    mozilla::MutexAutoLock lock(mLock);
-
     nsresult rv = EnsureInit();
     if (NS_FAILED(rv)) return rv;
 
@@ -805,14 +656,6 @@ nsInputStreamWrapper::Available(uint64_t *avail)
 
 nsresult nsCacheEntryDescriptor::
 nsInputStreamWrapper::Read(char *buf, uint32_t count, uint32_t *countRead)
-{
-    mozilla::MutexAutoLock lock(mLock);
-
-    return Read_Locked(buf, count, countRead);
-}
-
-nsresult nsCacheEntryDescriptor::
-nsInputStreamWrapper::Read_Locked(char *buf, uint32_t count, uint32_t *countRead)
 {
     nsresult rv = EnsureInit();
     if (NS_SUCCEEDED(rv))
@@ -846,63 +689,14 @@ nsInputStreamWrapper::IsNonBlocking(bool *result)
  * nsDecompressInputStreamWrapper - an input stream wrapper that decompresses
  ******************************************************************************/
 
-NS_IMPL_THREADSAFE_ADDREF(nsCacheEntryDescriptor::nsDecompressInputStreamWrapper)
-NS_IMETHODIMP_(nsrefcnt)
-nsCacheEntryDescriptor::nsDecompressInputStreamWrapper::Release()
-{
-    // Holding a reference to descriptor ensures that cache service won't go
-    // away. Do not grab cache service lock if there is no descriptor.
-    nsRefPtr<nsCacheEntryDescriptor> desc;
-
-    {
-        mozilla::MutexAutoLock lock(mLock);
-        desc = mDescriptor;
-    }
-
-    if (desc)
-        nsCacheService::Lock(LOCK_TELEM(
-                             NSDECOMPRESSINPUTSTREAMWRAPPER_RELEASE));
-
-    nsrefcnt count;
-    NS_PRECONDITION(0 != mRefCnt, "dup release");
-    count = NS_AtomicDecrementRefcnt(mRefCnt);
-    NS_LOG_RELEASE(this, count,
-                   "nsCacheEntryDescriptor::nsDecompressInputStreamWrapper");
-
-    if (0 == count) {
-        // don't use desc here since mDescriptor might be already nulled out
-        if (mDescriptor) {
-            NS_ASSERTION(mDescriptor->mInputWrappers.IndexOf(this) != -1,
-                         "Wrapper not found in array!");
-            mDescriptor->mInputWrappers.RemoveElement(this);
-        }
-
-        if (desc)
-            nsCacheService::Unlock();
-
-        mRefCnt = 1;
-        delete (this);
-        return 0;
-    }
-
-    if (desc)
-        nsCacheService::Unlock();
-
-    return count;
-}
-
-NS_INTERFACE_MAP_BEGIN(nsCacheEntryDescriptor::nsDecompressInputStreamWrapper)
-  NS_INTERFACE_MAP_ENTRY(nsIInputStream)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END_THREADSAFE
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCacheEntryDescriptor::nsDecompressInputStreamWrapper,
+                              nsIInputStream)
 
 NS_IMETHODIMP nsCacheEntryDescriptor::
 nsDecompressInputStreamWrapper::Read(char *    buf, 
                                      uint32_t  count, 
                                      uint32_t *countRead)
 {
-    mozilla::MutexAutoLock lock(mLock);
-
     int zerr = Z_OK;
     nsresult rv = NS_OK;
 
@@ -922,7 +716,7 @@ nsDecompressInputStreamWrapper::Read(char *    buf,
         // input stream at one time. Making the buffer size proportional
         // to the request size is not necessary, but helps minimize the
         // number of read requests to the input stream.
-        uint32_t newBufLen = std::max(count, (uint32_t)kMinDecompressReadBufLen);
+        uint32_t newBufLen = NS_MAX(count, (uint32_t)kMinDecompressReadBufLen);
         unsigned char* newBuf;
         newBuf = (unsigned char*)nsMemory::Realloc(mReadBuffer, 
             newBufLen);
@@ -943,9 +737,9 @@ nsDecompressInputStreamWrapper::Read(char *    buf,
            mZstream.avail_out > 0 &&
            count > 0) {
         if (mZstream.avail_in == 0) {
-            rv = nsInputStreamWrapper::Read_Locked((char*)mReadBuffer,
-                                                   mReadBufferLen,
-                                                   &mZstream.avail_in);
+            rv = nsInputStreamWrapper::Read((char*)mReadBuffer, 
+                                            mReadBufferLen, 
+                                            &mZstream.avail_in);
             if (NS_FAILED(rv) || !mZstream.avail_in) {
                 break;
             }
@@ -980,29 +774,18 @@ nsDecompressInputStreamWrapper::Read(char *    buf,
 nsresult nsCacheEntryDescriptor::
 nsDecompressInputStreamWrapper::Close()
 {
-    mozilla::MutexAutoLock lock(mLock);
-
-    if (!mDescriptor)
-        return NS_ERROR_NOT_AVAILABLE;
-
     EndZstream();
     if (mReadBuffer) {
         nsMemory::Free(mReadBuffer);
         mReadBuffer = 0;
         mReadBufferLen = 0;
     }
-    return nsInputStreamWrapper::Close_Locked();
+    return nsInputStreamWrapper::Close();
 }
 
 nsresult nsCacheEntryDescriptor::
 nsDecompressInputStreamWrapper::InitZstream()
 {
-    if (!mDescriptor)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    if (mStreamEnded)
-        return NS_ERROR_FAILURE;
-
     // Initialize zlib inflate stream
     mZstream.zalloc = Z_NULL;
     mZstream.zfree = Z_NULL;
@@ -1023,7 +806,6 @@ nsDecompressInputStreamWrapper::EndZstream()
 {
     if (mStreamInitialized && !mStreamEnded) {
         inflateEnd(&mZstream);
-        mStreamInitialized = false;
         mStreamEnded = true;
     }
     return NS_OK;
@@ -1036,60 +818,12 @@ nsDecompressInputStreamWrapper::EndZstream()
  *                       - also keeps the cache entry open while referenced.
  ******************************************************************************/
 
-NS_IMPL_THREADSAFE_ADDREF(nsCacheEntryDescriptor::nsOutputStreamWrapper)
-NS_IMETHODIMP_(nsrefcnt)
-nsCacheEntryDescriptor::nsOutputStreamWrapper::Release()
-{
-    // Holding a reference to descriptor ensures that cache service won't go
-    // away. Do not grab cache service lock if there is no descriptor.
-    nsRefPtr<nsCacheEntryDescriptor> desc;
-
-    {
-        mozilla::MutexAutoLock lock(mLock);
-        desc = mDescriptor;
-    }
-
-    if (desc)
-        nsCacheService::Lock(LOCK_TELEM(NSOUTPUTSTREAMWRAPPER_RELEASE));
-
-    nsrefcnt count;
-    NS_PRECONDITION(0 != mRefCnt, "dup release");
-    count = NS_AtomicDecrementRefcnt(mRefCnt);
-    NS_LOG_RELEASE(this, count,
-                   "nsCacheEntryDescriptor::nsOutputStreamWrapper");
-
-    if (0 == count) {
-        // don't use desc here since mDescriptor might be already nulled out
-        if (mDescriptor)
-            mDescriptor->mOutputWrapper = nullptr;
-
-        if (desc)
-            nsCacheService::Unlock();
-
-        mRefCnt = 1;
-        delete (this);
-        return 0;
-    }
-
-    if (desc)
-        nsCacheService::Unlock();
-
-    return count;
-}
-
-NS_INTERFACE_MAP_BEGIN(nsCacheEntryDescriptor::nsOutputStreamWrapper)
-  NS_INTERFACE_MAP_ENTRY(nsIOutputStream)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END_THREADSAFE
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCacheEntryDescriptor::nsOutputStreamWrapper,
+                              nsIOutputStream)
 
 nsresult nsCacheEntryDescriptor::
 nsOutputStreamWrapper::LazyInit()
 {
-    // Check if we have the descriptor. If not we can't even grab the cache
-    // lock since it is not ensured that the cache service still exists.
-    if (!mDescriptor)
-        return NS_ERROR_NOT_AVAILABLE;
-
     nsCacheServiceAutoLock lock(LOCK_TELEM(NSOUTPUTSTREAMWRAPPER_LAZYINIT));
 
     nsCacheAccessMode mode;
@@ -1123,28 +857,14 @@ nsOutputStreamWrapper::LazyInit()
     // If anything above failed, clean up internal state and get out of here
     // (see bug #654926)...
     if (NS_FAILED(rv)) {
-        nsCacheService::ReleaseObject_Locked(stream.forget().get());
-        mDescriptor->mOutputWrapper = nullptr;
-        nsCacheService::ReleaseObject_Locked(mDescriptor);
-        mDescriptor = nullptr;
-        mInitialized = false;
+        mDescriptor->InternalCleanup(stream);
         return rv;
     }
 
-    mOutput = stream;
+    // ... otherwise, set members and mark initialized
+    mDescriptor->mOutput = mOutput = stream;
     mInitialized = true;
     return NS_OK;
-}
-
-nsresult nsCacheEntryDescriptor::
-nsOutputStreamWrapper::EnsureInit()
-{
-    if (mInitialized) {
-        NS_ASSERTION(mDescriptor, "Bad state");
-        return NS_OK;
-    }
-
-    return LazyInit();
 }
 
 nsresult nsCacheEntryDescriptor::
@@ -1154,58 +874,18 @@ nsOutputStreamWrapper::OnWrite(uint32_t count)
     return mDescriptor->RequestDataSizeChange((int32_t)count);
 }
 
-void nsCacheEntryDescriptor::
-nsOutputStreamWrapper::CloseInternal()
-{
-    mLock.AssertCurrentThreadOwns();
-    if (!mDescriptor) {
-        NS_ASSERTION(!mInitialized, "Bad state");
-        NS_ASSERTION(!mOutput, "Bad state");
-        return;
-    }
-
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSOUTPUTSTREAMWRAPPER_CLOSEINTERNAL));
-
-    if (mDescriptor) {
-        mDescriptor->mOutputWrapper = nullptr;
-        nsCacheService::ReleaseObject_Locked(mDescriptor);
-        mDescriptor = nullptr;
-    }
-    mInitialized = false;
-    mOutput = nullptr;
-}
-
-
 NS_IMETHODIMP nsCacheEntryDescriptor::
 nsOutputStreamWrapper::Close()
 {
-    mozilla::MutexAutoLock lock(mLock);
-
-    return Close_Locked();
-}
-
-nsresult nsCacheEntryDescriptor::
-nsOutputStreamWrapper::Close_Locked()
-{
     nsresult rv = EnsureInit();
-    if (NS_SUCCEEDED(rv)) {
-        rv = mOutput->Close();
-    } else {
-        NS_ASSERTION(!mOutput,
-                     "Shouldn't have mOutput when EnsureInit() failed");
-    }
+    if (NS_FAILED(rv)) return rv;
 
-    // Call CloseInternal() even when EnsureInit() failed, e.g. in case we are
-    // closing streams with nsCacheService::CloseAllStream()
-    CloseInternal();
-    return rv;
+    return mOutput->Close();
 }
 
 NS_IMETHODIMP nsCacheEntryDescriptor::
 nsOutputStreamWrapper::Flush()
 {
-    mozilla::MutexAutoLock lock(mLock);
-
     nsresult rv = EnsureInit();
     if (NS_FAILED(rv)) return rv;
 
@@ -1216,15 +896,6 @@ NS_IMETHODIMP nsCacheEntryDescriptor::
 nsOutputStreamWrapper::Write(const char * buf,
                              uint32_t     count,
                              uint32_t *   result)
-{
-    mozilla::MutexAutoLock lock(mLock);
-    return Write_Locked(buf, count, result);
-}
-
-nsresult nsCacheEntryDescriptor::
-nsOutputStreamWrapper::Write_Locked(const char * buf,
-                                    uint32_t count,
-                                    uint32_t * result)
 {
     nsresult rv = EnsureInit();
     if (NS_FAILED(rv)) return rv;
@@ -1266,59 +937,14 @@ nsOutputStreamWrapper::IsNonBlocking(bool *result)
  *   data before it is written
  ******************************************************************************/
 
-NS_IMPL_THREADSAFE_ADDREF(nsCacheEntryDescriptor::nsCompressOutputStreamWrapper)
-NS_IMETHODIMP_(nsrefcnt)
-nsCacheEntryDescriptor::nsCompressOutputStreamWrapper::Release()
-{
-    // Holding a reference to descriptor ensures that cache service won't go
-    // away. Do not grab cache service lock if there is no descriptor.
-    nsRefPtr<nsCacheEntryDescriptor> desc;
-
-    {
-        mozilla::MutexAutoLock lock(mLock);
-        desc = mDescriptor;
-    }
-
-    if (desc)
-        nsCacheService::Lock(LOCK_TELEM(NSCOMPRESSOUTPUTSTREAMWRAPPER_RELEASE));
-
-    nsrefcnt count;
-    NS_PRECONDITION(0 != mRefCnt, "dup release");
-    count = NS_AtomicDecrementRefcnt(mRefCnt);
-    NS_LOG_RELEASE(this, count,
-                   "nsCacheEntryDescriptor::nsCompressOutputStreamWrapper");
-
-    if (0 == count) {
-        // don't use desc here since mDescriptor might be already nulled out
-        if (mDescriptor)
-            mDescriptor->mOutputWrapper = nullptr;
-
-        if (desc)
-            nsCacheService::Unlock();
-
-        mRefCnt = 1;
-        delete (this);
-        return 0;
-    }
-
-    if (desc)
-        nsCacheService::Unlock();
-
-    return count;
-}
-
-NS_INTERFACE_MAP_BEGIN(nsCacheEntryDescriptor::nsCompressOutputStreamWrapper)
-  NS_INTERFACE_MAP_ENTRY(nsIOutputStream)
-  NS_INTERFACE_MAP_ENTRY(nsISupports)
-NS_INTERFACE_MAP_END_THREADSAFE
+NS_IMPL_THREADSAFE_ISUPPORTS1(nsCacheEntryDescriptor::nsCompressOutputStreamWrapper,
+                              nsIOutputStream)
 
 NS_IMETHODIMP nsCacheEntryDescriptor::
 nsCompressOutputStreamWrapper::Write(const char * buf,
                                      uint32_t     count,
                                      uint32_t *   result)
 {
-    mozilla::MutexAutoLock lock(mLock);
-
     int zerr = Z_OK;
     nsresult rv = NS_OK;
 
@@ -1333,7 +959,7 @@ nsCompressOutputStreamWrapper::Write(const char * buf,
         // Once allocated, this buffer is referenced by the zlib stream and
         // cannot be grown. We use 2x(initial write request) to approximate
         // a stream buffer size proportional to request buffers.
-        mWriteBufferLen = std::max(count*2, (uint32_t)kMinCompressWriteBufLen);
+        mWriteBufferLen = NS_MAX(count*2, (uint32_t)kMinCompressWriteBufLen);
         mWriteBuffer = (unsigned char*)nsMemory::Alloc(mWriteBufferLen);
         if (!mWriteBuffer) {
             mWriteBufferLen = 0;
@@ -1351,7 +977,6 @@ nsCompressOutputStreamWrapper::Write(const char * buf,
         zerr = deflate(&mZstream, Z_NO_FLUSH);
         if (zerr == Z_STREAM_ERROR) {
             deflateEnd(&mZstream);
-            mStreamEnded = true;
             mStreamInitialized = false;
             return NS_ERROR_FAILURE;
         }
@@ -1363,7 +988,6 @@ nsCompressOutputStreamWrapper::Write(const char * buf,
             rv = WriteBuffer();
             if (NS_FAILED(rv)) {
                 deflateEnd(&mZstream);
-                mStreamEnded = true;
                 mStreamInitialized = false;
                 return rv;
             }
@@ -1377,13 +1001,7 @@ nsCompressOutputStreamWrapper::Write(const char * buf,
 NS_IMETHODIMP nsCacheEntryDescriptor::
 nsCompressOutputStreamWrapper::Close()
 {
-    mozilla::MutexAutoLock lock(mLock);
-
-    if (!mDescriptor)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    nsresult retval = NS_OK;
-    nsresult rv;
+    nsresult rv = NS_OK;
     int zerr = 0;
 
     if (mStreamInitialized) {
@@ -1391,14 +1009,9 @@ nsCompressOutputStreamWrapper::Close()
         do {
             zerr = deflate(&mZstream, Z_FINISH);
             rv = WriteBuffer();
-            if (NS_FAILED(rv))
-                retval = rv;
         } while (zerr == Z_OK && rv == NS_OK);
         deflateEnd(&mZstream);
-        mStreamInitialized = false;
     }
-    // Do not allow to initialize stream after calling Close().
-    mStreamEnded = true;
 
     if (mDescriptor->CacheEntry()) {
         nsAutoCString uncompressedLenStr;
@@ -1414,8 +1027,6 @@ nsCompressOutputStreamWrapper::Close()
         uncompressedLenStr.AppendInt(mUncompressedCount);
         rv = mDescriptor->SetMetaDataElement("uncompressed-len",
             uncompressedLenStr.get());
-        if (NS_FAILED(rv))
-            retval = rv;
     }
 
     if (mWriteBuffer) {
@@ -1424,22 +1035,12 @@ nsCompressOutputStreamWrapper::Close()
         mWriteBufferLen = 0;
     }
 
-    rv = nsOutputStreamWrapper::Close_Locked();
-    if (NS_FAILED(rv))
-        retval = rv;
-
-    return retval;
+    return nsOutputStreamWrapper::Close();
 }
 
 nsresult nsCacheEntryDescriptor::
 nsCompressOutputStreamWrapper::InitZstream()
 {
-    if (!mDescriptor)
-        return NS_ERROR_NOT_AVAILABLE;
-
-    if (mStreamEnded)
-        return NS_ERROR_FAILURE;
-
     // Determine compression level: Aggressive compression
     // may impact performance on mobile devices, while a
     // lower compression level still provides substantial
@@ -1467,7 +1068,7 @@ nsCompressOutputStreamWrapper::WriteBuffer()
 {
     uint32_t bytesToWrite = mWriteBufferLen - mZstream.avail_out;
     uint32_t result = 0;
-    nsresult rv = nsCacheEntryDescriptor::nsOutputStreamWrapper::Write_Locked(
+    nsresult rv = nsCacheEntryDescriptor::nsOutputStreamWrapper::Write(
         (const char *)mWriteBuffer, bytesToWrite, &result);
     mZstream.next_out = mWriteBuffer;
     mZstream.avail_out = mWriteBufferLen;

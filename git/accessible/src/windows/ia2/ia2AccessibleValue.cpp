@@ -10,16 +10,13 @@
 #include "AccessibleValue_i.c"
 
 #include "AccessibleWrap.h"
-#include "Accessible-inl.h"
-
-using namespace mozilla::a11y;
 
 // IUnknown
 
 STDMETHODIMP
 ia2AccessibleValue::QueryInterface(REFIID iid, void** ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleValue == iid) {
     AccessibleWrap* valueAcc = static_cast<AccessibleWrap*>(this);
@@ -40,8 +37,7 @@ ia2AccessibleValue::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 ia2AccessibleValue::get_currentValue(VARIANT* aCurrentValue)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   VariantInit(aCurrentValue);
 
   AccessibleWrap* valueAcc = static_cast<AccessibleWrap*>(this);
@@ -57,14 +53,14 @@ ia2AccessibleValue::get_currentValue(VARIANT* aCurrentValue)
   aCurrentValue->dblVal = currentValue;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleValue::setCurrentValue(VARIANT aValue)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   AccessibleWrap* valueAcc = static_cast<AccessibleWrap*>(this);
   if (valueAcc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
@@ -75,14 +71,14 @@ ia2AccessibleValue::setCurrentValue(VARIANT aValue)
   nsresult rv = valueAcc->SetCurrentValue(aValue.dblVal);
   return GetHRESULT(rv);
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleValue::get_maximumValue(VARIANT* aMaximumValue)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   VariantInit(aMaximumValue);
 
   AccessibleWrap* valueAcc = static_cast<AccessibleWrap*>(this);
@@ -98,14 +94,14 @@ ia2AccessibleValue::get_maximumValue(VARIANT* aMaximumValue)
   aMaximumValue->dblVal = maximumValue;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleValue::get_minimumValue(VARIANT* aMinimumValue)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   VariantInit(aMinimumValue);
 
   AccessibleWrap* valueAcc = static_cast<AccessibleWrap*>(this);
@@ -121,6 +117,7 @@ ia2AccessibleValue::get_minimumValue(VARIANT* aMinimumValue)
   aMinimumValue->dblVal = minimumValue;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 

@@ -28,7 +28,7 @@
 
 namespace mozilla {
 
-MOZ_MTLOG_MODULE("mtransport")
+MOZ_MTLOG_MODULE("mtransport");
 
 static PRDescIdentity transport_layer_identity = PR_INVALID_IO_LAYER;
 
@@ -380,7 +380,7 @@ void TransportLayerDtls::WasInserted() {
   if (!Setup()) {
     SetState(TS_ERROR);
   }
-}
+};
 
 
 nsresult TransportLayerDtls::SetVerificationAllowAll() {
@@ -420,7 +420,6 @@ TransportLayerDtls::SetVerificationDigest(const std::string digest_algorithm,
 // TODO: make sure this is called from STS. Otherwise
 // we have thread safety issues
 bool TransportLayerDtls::Setup() {
-  CheckThread();
   SECStatus rv;
 
   if (!downward_) {
@@ -465,7 +464,6 @@ bool TransportLayerDtls::Setup() {
   pr_fd.forget(); // ownership transfered to ssl_fd;
 
   if (role_ == CLIENT) {
-    MOZ_MTLOG(PR_LOG_DEBUG, "Setting up DTLS as client");
     rv = SSL_GetClientAuthDataHook(ssl_fd, GetClientAuthDataHook,
                                    this);
     if (rv != SECSuccess) {
@@ -473,7 +471,6 @@ bool TransportLayerDtls::Setup() {
       return false;
     }
   } else {
-    MOZ_MTLOG(PR_LOG_DEBUG, "Setting up DTLS as server");
     // Server side
     rv = SSL_ConfigSecureServer(ssl_fd, identity_->cert(),
                                 identity_->privkey(),
@@ -679,7 +676,6 @@ void TransportLayerDtls::Handshake() {
 void TransportLayerDtls::PacketReceived(TransportLayer* layer,
                                         const unsigned char *data,
                                         size_t len) {
-  CheckThread();
   MOZ_MTLOG(PR_LOG_DEBUG, LAYER_INFO << "PacketReceived(" << len << ")");
 
   if (state_ != TS_CONNECTING && state_ != TS_OPEN) {
@@ -721,7 +717,6 @@ void TransportLayerDtls::PacketReceived(TransportLayer* layer,
 
 TransportResult TransportLayerDtls::SendPacket(const unsigned char *data,
                                                size_t len) {
-  CheckThread();
   if (state_ != TS_OPEN) {
     MOZ_MTLOG(PR_LOG_ERROR, LAYER_INFO << "Can't call SendPacket() in state "
          << state_);
@@ -761,7 +756,6 @@ SECStatus TransportLayerDtls::GetClientAuthDataHook(void *arg, PRFileDesc *fd,
   MOZ_MTLOG(PR_LOG_DEBUG, "Server requested client auth");
 
   TransportLayerDtls *stream = reinterpret_cast<TransportLayerDtls *>(arg);
-  stream->CheckThread();
 
   if (!stream->identity_) {
     MOZ_MTLOG(PR_LOG_ERROR, "No identity available");
@@ -794,7 +788,6 @@ nsresult TransportLayerDtls::SetSrtpCiphers(std::vector<uint16_t> ciphers) {
 }
 
 nsresult TransportLayerDtls::GetSrtpCipher(uint16_t *cipher) {
-  CheckThread();
   SECStatus rv = SSL_GetSRTPCipher(ssl_fd_, cipher);
   if (rv != SECSuccess) {
     MOZ_MTLOG(PR_LOG_DEBUG, "No SRTP cipher negotiated");
@@ -809,7 +802,6 @@ nsresult TransportLayerDtls::ExportKeyingMaterial(const std::string& label,
                                                   const std::string& context,
                                                   unsigned char *out,
                                                   unsigned int outlen) {
-  CheckThread();
   SECStatus rv = SSL_ExportKeyingMaterial(ssl_fd_,
                                           label.c_str(),
                                           label.size(),
@@ -832,7 +824,7 @@ SECStatus TransportLayerDtls::AuthCertificateHook(void *arg,
                                                   PRBool checksig,
                                                   PRBool isServer) {
   TransportLayerDtls *stream = reinterpret_cast<TransportLayerDtls *>(arg);
-  stream->CheckThread();
+
   return stream->AuthCertificateHook(fd, checksig, isServer);
 }
 
@@ -879,7 +871,6 @@ TransportLayerDtls::CheckDigest(const RefPtr<VerificationDigest>&
 SECStatus TransportLayerDtls::AuthCertificateHook(PRFileDesc *fd,
                                                   PRBool checksig,
                                                   PRBool isServer) {
-  CheckThread();
   ScopedCERTCertificate peer_cert;
   peer_cert = SSL_PeerCertificate(fd);
 

@@ -5,16 +5,13 @@
 package org.mozilla.gecko;
 
 import android.app.Application;
-import org.mozilla.gecko.mozglue.GeckoLoader;
-import org.mozilla.gecko.util.HardwareUtils;
+
+import java.util.ArrayList;
 
 public class GeckoApplication extends Application {
 
     private boolean mInited;
     private boolean mInBackground;
-    private boolean mPausedGecko;
-
-    private LightweightTheme mLightweightTheme;
 
     protected void initialize() {
         if (mInited)
@@ -25,57 +22,32 @@ public class GeckoApplication extends Application {
             Class.forName("android.os.AsyncTask");
         } catch (ClassNotFoundException e) {}
 
-        mLightweightTheme = new LightweightTheme(this);
-
         GeckoConnectivityReceiver.getInstance().init(getApplicationContext());
         GeckoBatteryManager.getInstance().init(getApplicationContext());
         GeckoBatteryManager.getInstance().start();
         GeckoNetworkManager.getInstance().init(getApplicationContext());
         MemoryMonitor.getInstance().init(getApplicationContext());
-
         mInited = true;
     }
 
-    protected void onActivityPause(GeckoActivityStatus activity) {
+    protected void onActivityPause(GeckoActivity activity) {
         mInBackground = true;
 
-        if ((activity.isFinishing() == false) &&
-            (activity.isGeckoActivityOpened() == false)) {
-            // Notify Gecko that we are pausing; the cache service will be
-            // shutdown, closing the disk cache cleanly. If the android
-            // low memory killer subsequently kills us, the disk cache will
-            // be left in a consistent state, avoiding costly cleanup and
-            // re-creation. 
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createAppBackgroundingEvent());
-            mPausedGecko = true;
-        }
+        GeckoAppShell.sendEventToGecko(GeckoEvent.createPauseEvent(true));
         GeckoConnectivityReceiver.getInstance().stop();
         GeckoNetworkManager.getInstance().stop();
     }
 
-    protected void onActivityResume(GeckoActivityStatus activity) {
-        if (mPausedGecko) {
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createAppForegroundingEvent());
-            mPausedGecko = false;
-        }
+    protected void onActivityResume(GeckoActivity activity) {
+        if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning))
+            GeckoAppShell.sendEventToGecko(GeckoEvent.createResumeEvent(true));
         GeckoConnectivityReceiver.getInstance().start();
         GeckoNetworkManager.getInstance().start();
 
         mInBackground = false;
     }
 
-    @Override
-    public void onCreate() {
-        HardwareUtils.init(getApplicationContext());
-        GeckoLoader.loadMozGlue(getApplicationContext());
-        super.onCreate();
-    }
-
     public boolean isApplicationInBackground() {
         return mInBackground;
-    }
-
-    public LightweightTheme getLightweightTheme() {
-        return mLightweightTheme;
     }
 }

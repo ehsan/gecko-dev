@@ -10,18 +10,16 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= content
 LIBRARY_NAME	= gkconevents_s
 LIBXUL_LIBRARY  = 1
-ifndef _MSC_VER
 FAIL_ON_WARNINGS = 1
-endif # !_MSC_VER
 
 EXPORTS		= \
 		nsEventStateManager.h \
 		nsEventListenerManager.h \
 		nsDOMEventTargetHelper.h \
 		nsDOMEvent.h \
-		nsDOMGamepad.h \
 		nsDOMTouchEvent.h \
 		nsDOMUIEvent.h \
 		$(NULL)
@@ -45,6 +43,8 @@ CPPSRCS		= \
 		nsDOMMessageEvent.cpp \
 		nsPaintRequest.cpp \
 		nsPrivateTextRange.cpp \
+		nsXMLEventsManager.cpp \
+		nsXMLEventsElement.cpp \
 		nsAsyncDOMEvent.cpp \
 		nsEventDispatcher.cpp \
 		nsIMEStateManager.cpp \
@@ -60,16 +60,9 @@ CPPSRCS		= \
 		nsDOMAnimationEvent.cpp \
 		nsDOMTouchEvent.cpp \
 		nsDOMCompositionEvent.cpp \
-		nsDOMClipboardEvent.cpp \
 		DOMWheelEvent.cpp \
 		TextComposition.cpp \
 		$(NULL)
-
-ifdef MOZ_GAMEPAD
-CPPSRCS += \
-  nsDOMGamepad.cpp \
-  $(NULL)
-endif
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
@@ -88,7 +81,7 @@ LOCAL_INCLUDES	+= \
              -I$(srcdir)/../../../dom/src/storage \
              -I$(srcdir)/../../../layout/generic \
              -I$(srcdir)/../../../layout/xul/base/src \
-             -I$(srcdir)/../../../layout/xul/tree/ \
+             -I$(srcdir)/../../../layout/xul/base/src/tree/src \
              $(NULL)
 
 ifdef MOZ_B2G_RIL

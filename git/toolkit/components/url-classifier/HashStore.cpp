@@ -118,7 +118,7 @@ namespace mozilla {
 namespace safebrowsing {
 
 const uint32_t STORE_MAGIC = 0x1231af3b;
-const uint32_t CURRENT_VERSION = 3;
+const uint32_t CURRENT_VERSION = 2;
 
 void
 TableUpdate::NewAddPrefix(uint32_t aAddChunk, const Prefix& aHash)
@@ -185,8 +185,7 @@ HashStore::Reset()
 }
 
 nsresult
-HashStore::CheckChecksum(nsIFile* aStoreFile,
-                         uint32_t aFileSize)
+HashStore::CheckChecksum(nsIFile* aStoreFile)
 {
   // Check for file corruption by
   // comparing the stored checksum to actual checksum of data
@@ -195,17 +194,21 @@ HashStore::CheckChecksum(nsIFile* aStoreFile,
   char *data;
   uint32_t read;
 
-  nsresult rv = CalculateChecksum(hash, aFileSize, true);
+  int64_t fileSize;
+  nsresult rv = aStoreFile->GetFileSize(&fileSize);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (fileSize < 0) {
+    return NS_ERROR_FAILURE;
+  }
+
+  rv = CalculateChecksum(hash, fileSize, true);
   NS_ENSURE_SUCCESS(rv, rv);
 
   compareHash.GetMutableData(&data, hash.Length());
 
-  if (hash.Length() > aFileSize) {
-    NS_WARNING("SafeBrowing file not long enough to store its hash");
-    return NS_ERROR_FAILURE;
-  }
   nsCOMPtr<nsISeekableStream> seekIn = do_QueryInterface(mInputStream);
-  rv = seekIn->Seek(nsISeekableStream::NS_SEEK_SET, aFileSize - hash.Length());
+  rv = seekIn->Seek(nsISeekableStream::NS_SEEK_SET, fileSize-hash.Length());
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = mInputStream->Read(data, hash.Length(), &read);
@@ -232,7 +235,7 @@ HashStore::Open()
 
   nsCOMPtr<nsIInputStream> origStream;
   rv = NS_NewLocalFileInputStream(getter_AddRefs(origStream), storeFile,
-                                  PR_RDONLY | nsIFile::OS_READAHEAD);
+                                  PR_RDONLY);
 
   if (rv == NS_ERROR_FILE_NOT_FOUND) {
     UpdateHeader();
@@ -245,17 +248,11 @@ HashStore::Open()
   rv = storeFile->GetFileSize(&fileSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (fileSize < 0 || fileSize > UINT32_MAX) {
-    return NS_ERROR_FAILURE;
-  }
-
-  uint32_t fileSize32 = static_cast<uint32_t>(fileSize);
-
   rv = NS_NewBufferedInputStream(getter_AddRefs(mInputStream), origStream,
-                                 fileSize32);
+                                 fileSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = CheckChecksum(storeFile, fileSize32);
+  rv = CheckChecksum(storeFile);
   SUCCESS_OR_RESET(rv);
 
   rv = ReadHeader();
@@ -304,7 +301,7 @@ HashStore::SanityCheck()
 
 nsresult
 HashStore::CalculateChecksum(nsAutoCString& aChecksum,
-                             uint32_t aFileSize,
+                             int64_t aSize,
                              bool aChecksumPresent)
 {
   aChecksum.Truncate();
@@ -327,11 +324,7 @@ HashStore::CalculateChecksum(nsAutoCString& aChecksum,
     rv = hash->UpdateFromStream(mInputStream, UINT32_MAX);
   } else {
     // Hash everything but last checksum bytes
-    if (aFileSize < CHECKSUM_SIZE) {
-      NS_WARNING("SafeBrowsing file isn't long enough to store its checksum");
-      return NS_ERROR_FAILURE;
-    }
-    rv = hash->UpdateFromStream(mInputStream, aFileSize - CHECKSUM_SIZE);
+    rv = hash->UpdateFromStream(mInputStream, aSize-CHECKSUM_SIZE);
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -517,17 +510,6 @@ HashStore::Rebuild()
   UpdateHeader();
 
   return NS_OK;
-}
-
-void
-HashStore::ClearCompletes()
-{
-  NS_ASSERTION(mInUpdate, "Must be in update to clear completes.");
-
-  mAddCompletes.Clear();
-  mSubCompletes.Clear();
-
-  UpdateHeader();
 }
 
 template<class T>
@@ -993,6 +975,13 @@ HashStore::ProcessSubs()
 
   RemoveMatchingPrefixes(mSubPrefixes, &mAddCompletes);
   RemoveMatchingPrefixes(mSubPrefixes, &mSubCompletes);
+
+  // Clean up temporary subs (without per-client randomization),
+  // that we temporarily stored so we could knock out completes.
+  ChunkSet dummyChunks;
+  dummyChunks.Set(0);
+  ExpireEntries(&mSubPrefixes, dummyChunks);
+  mSubChunks.Remove(dummyChunks);
 
   // Remove any remaining subbed prefixes from both addprefixes
   // and addcompletes.

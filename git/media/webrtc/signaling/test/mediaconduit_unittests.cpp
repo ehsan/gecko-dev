@@ -12,7 +12,6 @@ using namespace std;
 
 #include "mozilla/Scoped.h"
 #include <MediaConduitInterface.h>
-#include "nsIEventTarget.h"
 #include "nsStaticComponents.h"
 #include "FakeMediaStreamsImpl.h"
 
@@ -21,7 +20,7 @@ using namespace std;
 #include "gtest_utils.h"
 
 #include "mtransport_test_utils.h"
-MtransportTestUtils *test_utils;
+MtransportTestUtils test_utils;
 
 //Video Frame Color
 const int COLOR = 0x80; //Gray
@@ -113,7 +112,7 @@ class AudioSendAndReceive
 {
 public:
   static const unsigned int PLAYOUT_SAMPLE_FREQUENCY; //default is 16000
-  static const unsigned int PLAYOUT_SAMPLE_LENGTH; //default is 160000
+  static const unsigned int PLAYOUT_SAMPLE_LENGTH; //default is 160
 
   AudioSendAndReceive()
   {
@@ -150,7 +149,7 @@ private:
 };
 
 const unsigned int AudioSendAndReceive::PLAYOUT_SAMPLE_FREQUENCY = 16000;
-const unsigned int AudioSendAndReceive::PLAYOUT_SAMPLE_LENGTH  = 160000;
+const unsigned int AudioSendAndReceive::PLAYOUT_SAMPLE_LENGTH  = 160;
 
 int AudioSendAndReceive::WriteWaveHeader(int rate, int channels, FILE* outFile)
 {
@@ -271,14 +270,13 @@ void AudioSendAndReceive::GenerateAndReadSamples()
    int16_t audioOutput[PLAYOUT_SAMPLE_LENGTH];
    short* inbuf;
    int sampleLengthDecoded = 0;
-   int SAMPLES = (PLAYOUT_SAMPLE_FREQUENCY * 10); //10 seconds
+   int SAMPLES = PLAYOUT_SAMPLE_FREQUENCY * 10; //10 milliseconds
    int CHANNELS = 1; //mono audio
-   int sampleLengthInBytes = sizeof(audioInput);
+   int sampleLengthInBytes = PLAYOUT_SAMPLE_LENGTH * sizeof(short);
    //generated audio buffer
    inbuf = (short *)moz_xmalloc(sizeof(short)*SAMPLES*CHANNELS);
    memset(audioInput,0,sampleLengthInBytes);
    memset(audioOutput,0,sampleLengthInBytes);
-   MOZ_ASSERT(SAMPLES <= PLAYOUT_SAMPLE_LENGTH);
 
    FILE* inFile = fopen( iFile.c_str(), "wb+");
    if(!inFile) {
@@ -329,7 +327,7 @@ void AudioSendAndReceive::GenerateAndReadSamples()
       cerr << "Couldn't Write " << sampleLengthInBytes << "bytes" << endl;
       break;
     }
-   }while(numSamplesReadFromInput < SAMPLES);
+   }while(numSamplesReadFromInput <= (SAMPLES));
 
    FinishWaveHeader(outFile);
    fclose(outFile);
@@ -490,11 +488,11 @@ class TransportConduitTest : public ::testing::Test
   {
     //get pointer to AudioSessionConduit
     int err=0;
-    mAudioSession = mozilla::AudioSessionConduit::Create(NULL);
+    mAudioSession = mozilla::AudioSessionConduit::Create();
     if( !mAudioSession )
       ASSERT_NE(mAudioSession, (void*)NULL);
 
-    mAudioSession2 = mozilla::AudioSessionConduit::Create(NULL);
+    mAudioSession2 = mozilla::AudioSessionConduit::Create();
     if( !mAudioSession2 )
       ASSERT_NE(mAudioSession2, (void*)NULL);
 
@@ -511,7 +509,7 @@ class TransportConduitTest : public ::testing::Test
 
     //configure send and recv codecs on the audio-conduit
     //mozilla::AudioCodecConfig cinst1(124,"PCMU",8000,80,1,64000);
-    mozilla::AudioCodecConfig cinst1(124,"opus",48000,960,1,64000);
+    mozilla::AudioCodecConfig cinst1(124,"opus",48000,480,1,64000);
     mozilla::AudioCodecConfig cinst2(125,"L16",16000,320,1,256000);
 
 
@@ -749,14 +747,9 @@ TEST_F(TransportConduitTest, TestVideoConduitCodecAPI) {
 
 int main(int argc, char **argv)
 {
-  // This test can cause intermittent oranges on the builders
-  CHECK_ENVIRONMENT_FLAG("MOZ_WEBRTC_TESTS")
-
-  test_utils = new MtransportTestUtils();
+  test_utils.InitServices();
   ::testing::InitGoogleTest(&argc, argv);
-  int rv = RUN_ALL_TESTS();
-  delete test_utils;
-  return rv;
+  return RUN_ALL_TESTS();
 }
 
 

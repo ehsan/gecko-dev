@@ -815,7 +815,7 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
     if (!aKeyEvent.IsMeta() && !aKeyEvent.IsControl() && IsOpenedIMEMode()) {
       UInt32 state =
         nsCocoaUtils::ConvertToCarbonModifier([aNativeKeyEvent modifierFlags]);
-      uint32_t ch = TranslateToChar(nativeKeyCode, state, kbType);
+      PRUint32 ch = TranslateToChar(nativeKeyCode, state, kbType);
       if (ch) {
         insertString = ch;
       }
@@ -1479,7 +1479,7 @@ TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent)
           IsNormalCharInputtingEvent(keypressEvent))) {
       if (currentKeyEvent->mKeyDownHandled ||
           currentKeyEvent->mCausedOtherKeyEvents) {
-        keypressEvent.mFlags.mDefaultPrevented = true;
+        keypressEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
       }
       currentKeyEvent->mKeyPressHandled = DispatchEvent(keypressEvent);
       PR_LOG(gLog, PR_LOG_ALWAYS,
@@ -1609,8 +1609,6 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
       // is caused by pressing or releasing a modifier key.
       bool isKeyDown = ([aNativeEvent modifierFlags] & diff) != 0;
       DispatchKeyEventForFlagsChanged(aNativeEvent, isKeyDown);
-      // XXX Some applications might send the event with incorrect device-
-      //     dependent flags.
       if (isKeyDown && ((diff & ~NSDeviceIndependentModifierFlagsMask) != 0)) {
         unsigned short keyCode = [aNativeEvent keyCode];
         ModifierKey* modifierKey = GetModifierKeyForDeviceDependentFlags(diff);
@@ -1644,65 +1642,41 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
           continue;
         }
 
-        // Given correct information from the application, a flag change here
-        // will normally be a deactivation (except for some lockable modifiers
-        // such as CapsLock).  But some applications (like VNC) can send an
-        // activating event with a zero keyCode.  So we need to check for that
-        // here.
-        bool dispatchKeyDown = ((flag & [aNativeEvent modifierFlags]) != 0);
-
         unsigned short keyCode = 0;
+        bool dispatchKeyDown = false;
         if (flag & NSDeviceIndependentModifierFlagsMask) {
           switch (flag) {
             case NSAlphaShiftKeyMask:
               keyCode = kVK_CapsLock;
               dispatchKeyDown = true;
               break;
-
             case NSNumericPadKeyMask:
-              // NSNumericPadKeyMask is fired by VNC a lot. But not all of
-              // these events can really be Clear key events, so we just ignore
-              // them.
-              continue;
-
+              keyCode = kVK_ANSI_KeypadClear;
+              dispatchKeyDown = true;
+              break;
             case NSHelpKeyMask:
+              // NSHelpKeyMask change here must be a deactivation.
+              MOZ_ASSERT(!(flag & [aNativeEvent modifierFlags]));
               keyCode = kVK_Help;
               break;
-
             case NSFunctionKeyMask:
-              // An NSFunctionKeyMask change here will normally be a
-              // deactivation.  But sometimes it will be an activation send (by
-              // VNC for example) with a zero keyCode.
+              // NSFunctionKeyMask change here must be a deactivation.
+              MOZ_ASSERT(!(flag & [aNativeEvent modifierFlags]));
+              // We don't dispatch function key event for now.
               continue;
-
-            // These cases (NSShiftKeyMask, NSControlKeyMask, NSAlternateKeyMask
-            // and NSCommandKeyMask) should be handled by the other branch of
-            // the if statement, below (which handles device dependent flags).
-            // However, some applications (like VNC) can send key events without
-            // any device dependent flags, so we handle them here instead.
-            case NSShiftKeyMask:
-              keyCode = (modifiers & 0x0004) ? kVK_RightShift : kVK_Shift;
-              break;
-            case NSControlKeyMask:
-              keyCode = (modifiers & 0x2000) ? kVK_RightControl : kVK_Control;
-              break;
-            case NSAlternateKeyMask:
-              keyCode = (modifiers & 0x0040) ? kVK_RightOption : kVK_Option;
-              break;
-            case NSCommandKeyMask:
-              keyCode = (modifiers & 0x0010) ? kVK_RightCommand : kVK_Command;
-              break;
-
             default:
+              // The other cases (NSShiftKeyMask, NSControlKeyMask,
+              // NSAlternateKeyMask and NSCommandKeyMask) are handled by the
+              // other branch of the if statement, below (which handles device
+              // dependent flags).
               continue;
           }
         } else {
+          // Any modifier change here must be a deactivation.
+          MOZ_ASSERT(!(flag & [aNativeEvent modifierFlags]));
           ModifierKey* modifierKey =
             GetModifierKeyForDeviceDependentFlags(flag);
           if (!modifierKey) {
-            // See the note above (in the other branch of the if statement)
-            // about the NSShiftKeyMask, NSControlKeyMask, NSAlternateKeyMask
-            // and NSCommandKeyMask cases.
             continue;
           }
           keyCode = modifierKey->keyCode;
@@ -1944,13 +1918,10 @@ TextInputHandler::InsertText(NSAttributedString *aAttrString)
     NSEvent* keyEvent = currentKeyEvent->mKeyEvent;
     InitKeyEvent(keyEvent, keypressEvent, &str);
     if (currentKeyEvent->mKeyDownHandled) {
-      keypressEvent.mFlags.mDefaultPrevented = true;
+      keypressEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
     }
   } else {
     nsCocoaUtils::InitInputEvent(keypressEvent, static_cast<NSEvent*>(nullptr));
-    if (keypressEvent.isChar) {
-      keypressEvent.charCode = str.CharAt(0);
-    }
     // Note that insertText is not called only at key pressing.
     if (!keypressEvent.charCode) {
       keypressEvent.keyCode =
@@ -2000,7 +1971,7 @@ TextInputHandler::DoCommandBySelector(const char* aSelector)
     InitKeyEvent(currentKeyEvent->mKeyEvent, keypressEvent);
     if (currentKeyEvent->mKeyDownHandled ||
         currentKeyEvent->mCausedOtherKeyEvents) {
-      keypressEvent.mFlags.mDefaultPrevented = true;
+      keypressEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
     }
     currentKeyEvent->mKeyPressHandled = DispatchEvent(keypressEvent);
     currentKeyEvent->mKeyPressDispatched = true;
@@ -3000,6 +2971,8 @@ IMEInputHandler::OnFocusChangeInGecko(bool aFocus)
 
   // This is called when the native focus is changed and when the native focus
   // isn't changed but the focus is changed in Gecko.
+  // XXX currently, we're not called this method with false, we need to
+  // improve the nsIMEStateManager implementation.
   if (!aFocus) {
     if (sFocusedIMEHandler == this)
       sFocusedIMEHandler = nullptr;

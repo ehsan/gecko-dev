@@ -93,8 +93,7 @@ OfflineCacheUpdateGlue::Init(nsIURI *aManifestURI,
                              nsIURI *aDocumentURI,
                              nsIDOMDocument *aDocument,
                              nsIFile *aCustomProfileDir,
-                             uint32_t aAppID,
-                             bool aInBrowser)
+                             nsILoadContext *aLoadContext)
 {
     if (!EnsureUpdate())
         return NS_ERROR_NULL_POINTER;
@@ -104,7 +103,7 @@ OfflineCacheUpdateGlue::Init(nsIURI *aManifestURI,
     if (aDocument)
         SetDocument(aDocument);
 
-    return mUpdate->Init(aManifestURI, aDocumentURI, nullptr, aCustomProfileDir, aAppID, aInBrowser);
+    return mUpdate->Init(aManifestURI, aDocumentURI, nullptr, aCustomProfileDir, aLoadContext);
 }
 
 void

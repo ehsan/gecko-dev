@@ -22,8 +22,6 @@
 #endif
 #include "nsDOMClassInfoID.h"
 
-using namespace mozilla::dom;
-
 NS_IMPL_CYCLE_COLLECTION_1(nsEventListenerInfo, mListener)
 
 DOMCI_DATA(EventListenerInfo, nsEventListenerInfo)
@@ -65,21 +63,11 @@ nsEventListenerInfo::GetInSystemEventGroup(bool* aInSystemEventGroup)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsEventListenerInfo::GetListenerObject(JSContext* aCx, JS::Value* aObject)
-{
-  mozilla::Maybe<JSAutoCompartment> ac;
-  GetJSVal(aCx, ac, aObject);
-  return NS_OK;
-}
-
 NS_IMPL_ISUPPORTS1(nsEventListenerService, nsIEventListenerService)
 
 // Caller must root *aJSVal!
 bool
-nsEventListenerInfo::GetJSVal(JSContext* aCx,
-                              mozilla::Maybe<JSAutoCompartment>& aAc,
-                              JS::Value* aJSVal)
+nsEventListenerInfo::GetJSVal(JSContext* aCx, mozilla::Maybe<JSAutoCompartment>& aAc, jsval* aJSVal)
 {
   *aJSVal = JSVAL_NULL;
   nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(mListener);
@@ -95,7 +83,7 @@ nsEventListenerInfo::GetJSVal(JSContext* aCx,
 
   nsCOMPtr<nsIJSEventListener> jsl = do_QueryInterface(mListener);
   if (jsl) {
-    JSObject *handler = jsl->GetHandler().Ptr()->Callable();
+    JSObject *handler = jsl->GetHandler();
     if (handler) {
       aAc.construct(aCx, handler);
       *aJSVal = OBJECT_TO_JSVAL(handler);
@@ -119,7 +107,7 @@ nsEventListenerInfo::ToSource(nsAString& aResult)
         // Extra block to finish the auto request before calling pop
         JSAutoRequest ar(cx);
         mozilla::Maybe<JSAutoCompartment> ac;
-        JS::Value v = JSVAL_NULL;
+        jsval v = JSVAL_NULL;
         if (GetJSVal(cx, ac, &v)) {
           JSString* str = JS_ValueToSource(cx, v);
           if (str) {
@@ -161,7 +149,7 @@ nsEventListenerInfo::GetDebugObject(nsISupports** aRetVal)
         // Extra block to finish the auto request before calling pop
         JSAutoRequest ar(cx);
         mozilla::Maybe<JSAutoCompartment> ac;
-        JS::Value v = JSVAL_NULL;
+        jsval v = JSVAL_NULL;
         if (GetJSVal(cx, ac, &v)) {
           nsCOMPtr<jsdIValue> jsdValue;
           rv = jsd->WrapValue(v, getter_AddRefs(jsdValue));
@@ -262,9 +250,10 @@ nsEventListenerService::AddSystemEventListener(nsIDOMEventTarget *aTarget,
   nsEventListenerManager* manager = aTarget->GetListenerManager(true);
   NS_ENSURE_STATE(manager);
 
-  EventListenerFlags flags =
-    aUseCapture ? TrustedEventsAtSystemGroupCapture() :
-                  TrustedEventsAtSystemGroupBubble();
+  int32_t flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE |
+                                NS_EVENT_FLAG_SYSTEM_EVENT :
+                                NS_EVENT_FLAG_BUBBLE |
+                                NS_EVENT_FLAG_SYSTEM_EVENT;
   manager->AddEventListenerByType(aListener, aType, flags);
   return NS_OK;
 }
@@ -280,41 +269,13 @@ nsEventListenerService::RemoveSystemEventListener(nsIDOMEventTarget *aTarget,
 
   nsEventListenerManager* manager = aTarget->GetListenerManager(false);
   if (manager) {
-    EventListenerFlags flags =
-      aUseCapture ? TrustedEventsAtSystemGroupCapture() :
-                    TrustedEventsAtSystemGroupBubble();
+    int32_t flags = aUseCapture ? NS_EVENT_FLAG_CAPTURE |
+                                  NS_EVENT_FLAG_SYSTEM_EVENT :
+                                  NS_EVENT_FLAG_BUBBLE |
+                                  NS_EVENT_FLAG_SYSTEM_EVENT;
     manager->RemoveEventListenerByType(aListener, aType, flags);
   }
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsEventListenerService::AddListenerForAllEvents(nsIDOMEventTarget* aTarget,
-                                                nsIDOMEventListener* aListener,
-                                                bool aUseCapture,
-                                                bool aWantsUntrusted,
-                                                bool aSystemEventGroup)
-{
-  NS_ENSURE_STATE(aTarget && aListener);
-  nsEventListenerManager* manager = aTarget->GetListenerManager(true);
-  NS_ENSURE_STATE(manager);
-  manager->AddListenerForAllEvents(aListener, aUseCapture, aWantsUntrusted,
-                               aSystemEventGroup);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsEventListenerService::RemoveListenerForAllEvents(nsIDOMEventTarget* aTarget,
-                                                   nsIDOMEventListener* aListener,
-                                                   bool aUseCapture,
-                                                   bool aSystemEventGroup)
-{
-  NS_ENSURE_STATE(aTarget && aListener);
-  nsEventListenerManager* manager = aTarget->GetListenerManager(false);
-  if (manager) {
-    manager->RemoveListenerForAllEvents(aListener, aUseCapture, aSystemEventGroup);
-  }
   return NS_OK;
 }
 

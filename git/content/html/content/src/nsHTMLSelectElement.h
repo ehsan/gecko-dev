@@ -5,21 +5,150 @@
 #ifndef nsHTMLSelectElement_h___
 #define nsHTMLSelectElement_h___
 
+#include "nsCOMPtr.h"
+#include "nsCOMArray.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLSelectElement.h"
+#include "nsIDOMHTMLFormElement.h"
+#include "nsIDOMHTMLOptGroupElement.h"
+#include "nsIDOMHTMLOptionElement.h"
+#include "nsIDOMHTMLOptionsCollection.h"
+#include "nsISelectControlFrame.h"
+#include "nsIHTMLCollection.h"
 #include "nsIConstraintValidation.h"
 
-#include "mozilla/dom/HTMLOptionsCollection.h"
-#include "mozilla/ErrorResult.h"
+// PresState
+#include "nsXPCOM.h"
+#include "nsPresState.h"
+#include "nsIComponentManager.h"
 #include "nsCheapSets.h"
-#include "nsCOMPtr.h"
 #include "nsError.h"
+#include "nsHTMLOptGroupElement.h"
+#include "nsHTMLOptionElement.h"
 #include "nsHTMLFormElement.h"
+#include "mozilla/ErrorResult.h"
+#include "mozilla/dom/UnionTypes.h"
 
 class nsHTMLSelectElement;
-class nsIDOMHTMLOptionElement;
-class nsISelectControlFrame;
-class nsPresState;
+
+/**
+ * The collection of options in the select (what you get back when you do
+ * select.options in DOM)
+ */
+class nsHTMLOptionCollection: public nsIHTMLCollection,
+                              public nsIDOMHTMLOptionsCollection,
+                              public nsWrapperCache
+{
+typedef mozilla::dom::HTMLOptionElementOrHTMLOptGroupElement HTMLOptionOrOptGroupElement;
+typedef mozilla::dom::HTMLElementOrLong HTMLElementOrLong;
+public:
+  nsHTMLOptionCollection(nsHTMLSelectElement* aSelect);
+  virtual ~nsHTMLOptionCollection();
+
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
+
+  // nsIDOMHTMLOptionsCollection interface
+  NS_DECL_NSIDOMHTMLOPTIONSCOLLECTION
+
+  // nsIDOMHTMLCollection interface, all its methods are defined in
+  // nsIDOMHTMLOptionsCollection
+
+  virtual nsGenericElement* GetElementAt(uint32_t aIndex);
+  virtual nsINode* GetParentObject();
+
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsHTMLOptionCollection,
+                                                         nsIHTMLCollection)
+
+  // Helpers for nsHTMLSelectElement
+  /**
+   * Insert an option
+   * @param aOption the option to insert
+   * @param aIndex the index to insert at
+   */
+  void InsertOptionAt(nsHTMLOptionElement* aOption, uint32_t aIndex)
+  {
+    mElements.InsertElementAt(aIndex, aOption);
+  }
+
+  /**
+   * Remove an option
+   * @param aIndex the index of the option to remove
+   */
+  void RemoveOptionAt(uint32_t aIndex)
+  {
+    mElements.RemoveElementAt(aIndex);
+  }
+
+  /**
+   * Get the option at the index
+   * @param aIndex the index
+   * @param aReturn the option returned [OUT]
+   */
+  nsHTMLOptionElement *ItemAsOption(uint32_t aIndex)
+  {
+    return mElements.SafeElementAt(aIndex, nullptr);
+  }
+
+  /**
+   * Clears out all options
+   */
+  void Clear()
+  {
+    mElements.Clear();
+  }
+
+  /**
+   * Append an option to end of array
+   */
+  void AppendOption(nsHTMLOptionElement* aOption)
+  {
+    mElements.AppendElement(aOption);
+  }
+
+  /**
+   * Drop the reference to the select.  Called during select destruction.
+   */
+  void DropReference();
+
+  /**
+   * Finds the index of a given option element.
+   * If the option isn't part of the collection, return NS_ERROR_FAILURE
+   * without setting aIndex.
+   *
+   * @param aOption the option to get the index of
+   * @param aStartIndex the index to start looking at
+   * @param aForward TRUE to look forward, FALSE to look backward
+   * @return the option index
+   */
+  nsresult GetOptionIndex(mozilla::dom::Element* aOption,
+                          int32_t aStartIndex, bool aForward,
+                          int32_t* aIndex);
+
+  virtual JSObject* NamedItem(JSContext* aCx, const nsAString& aName,
+                              mozilla::ErrorResult& error);
+
+  inline void Add(const HTMLOptionOrOptGroupElement& aElement,
+                  const Nullable<HTMLElementOrLong>& aBefore,
+                  mozilla::ErrorResult& aError);
+  void Remove(int32_t aIndex, mozilla::ErrorResult& aError);
+  int32_t GetSelectedIndex(mozilla::ErrorResult& aError);
+  void SetSelectedIndex(int32_t aSelectedIndex, mozilla::ErrorResult& aError);
+  void IndexedSetter(uint32_t aIndex, nsIDOMHTMLOptionElement *aOption,
+                     mozilla::ErrorResult& aError)
+  {
+    aError = SetOption(aIndex, aOption);
+  }
+
+private:
+  /** The list of options (holds strong references).  This is infallible, so
+   * various members such as InsertOptionAt are also infallible. */
+  nsTArray<nsRefPtr<nsHTMLOptionElement> > mElements;
+  /** The select element that contains this array */
+  nsHTMLSelectElement* mSelect;
+};
 
 #define NS_SELECT_STATE_IID                        \
 { /* 4db54c7c-d159-455f-9d8e-f60ee466dbf3 */       \
@@ -101,15 +230,20 @@ class nsHTMLSelectElement : public nsGenericHTMLFormElement,
                             public nsIConstraintValidation
 {
 public:
-  typedef mozilla::dom::HTMLOptionsCollection HTMLOptionsCollection;
   using nsIConstraintValidation::GetValidationMessage;
 
   nsHTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
                       mozilla::dom::FromParser aFromParser = mozilla::dom::NOT_FROM_PARSER);
   virtual ~nsHTMLSelectElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLSelectElement, select)
-
+  /** Typesafe, non-refcounting cast from nsIContent.  Cheaper than QI. **/
+  static nsHTMLSelectElement* FromContent(nsIContent* aContent)
+  {
+    if (aContent && aContent->IsHTML(nsGkAtoms::select))
+      return static_cast<nsHTMLSelectElement*>(aContent);
+    return nullptr;
+  }
+ 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -117,99 +251,20 @@ public:
   NS_FORWARD_NSIDOMNODE_TO_NSINODE
 
   // nsIDOMElement
-  NS_FORWARD_NSIDOMELEMENT_TO_GENERIC
+  NS_FORWARD_NSIDOMELEMENT(nsGenericHTMLFormElement::)
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT_TO_GENERIC
-
+  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
   virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
 
   // nsIDOMHTMLSelectElement
   NS_DECL_NSIDOMHTMLSELECTELEMENT
 
-  // WebIdl HTMLSelectElement
-  bool Autofocus() const
-  {
-    return GetBoolAttr(nsGkAtoms::autofocus);
-  }
-  void SetAutofocus(bool aVal, mozilla::ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::autofocus, aVal, aRv);
-  }
-  bool Disabled() const
-  {
-    return GetBoolAttr(nsGkAtoms::disabled);
-  }
-  void SetDisabled(bool aVal, mozilla::ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::disabled, aVal, aRv);
-  }
-  nsHTMLFormElement* GetForm() const
-  {
-    return nsGenericHTMLFormElement::GetForm();
-  }
-  bool Multiple() const
-  {
-    return GetBoolAttr(nsGkAtoms::multiple);
-  }
-  void SetMultiple(bool aVal, mozilla::ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::multiple, aVal, aRv);
-  }
-  uint32_t Size()
-  {
-    return GetHTMLUnsignedIntAttr(nsGkAtoms::size, 0);
-  }
-  void SetSize(uint32_t aSize, mozilla::ErrorResult& aRv)
-  {
-    SetHTMLUnsignedIntAttr(nsGkAtoms::size, aSize, aRv);
-  }
-  void GetName(nsString& aName, mozilla::ErrorResult& aRv) const
-  {
-    GetHTMLAttr(nsGkAtoms::name, aName);
-  }
-  void SetName(const nsAString& aName, mozilla::ErrorResult& aRv)
-  {
-    SetHTMLAttr(nsGkAtoms::name, aName, aRv);
-  }
-  bool Required() const
-  {
-    return GetBoolAttr(nsGkAtoms::required);
-  }
-  void SetRequired(bool aVal, mozilla::ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::required, aVal, aRv);
-  }
-  HTMLOptionsCollection* Options() const
-  {
-    return mOptions;
-  }
-  void Remove(int32_t aIdx, mozilla::ErrorResult& aRv)
-  {
-    aRv = Remove(aIdx);
-  }
-  int32_t SelectedIndex() const
-  {
-    return mSelectedIndex;
-  }
-  void SetSelectedIndex(int32_t aIdx, mozilla::ErrorResult& aRv)
-  {
-    aRv = SetSelectedIndexInternal(aIdx, true);
-  }
-  mozilla::dom::Element* IndexedGetter(uint32_t aIdx, bool& aFound) const
-  {
-    return mOptions->IndexedGetter(aIdx, aFound);
-  }
-  uint32_t Length() const
-  {
-    return mOptions->Length();
-  }
-
   // nsIContent
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor);
 
-  virtual bool IsHTMLFocusable(bool aWithMouse, bool* aIsFocusable, int32_t* aTabIndex);
+  virtual bool IsHTMLFocusable(bool aWithMouse, bool *aIsFocusable, int32_t *aTabIndex);
   virtual nsresult InsertChildAt(nsIContent* aKid, uint32_t aIndex,
                                  bool aNotify);
   virtual void RemoveChildAt(uint32_t aIndex, bool aNotify);
@@ -220,7 +275,6 @@ public:
   NS_IMETHOD SubmitNamesValues(nsFormSubmission* aFormSubmission);
   NS_IMETHOD SaveState();
   virtual bool RestoreState(nsPresState* aState);
-  virtual bool IsDisabledForEvents(uint32_t aMessage);
 
   virtual void FieldSetDisabledChanged(bool aNotify);
 
@@ -260,7 +314,7 @@ public:
    * @return whether the option is disabled
    */
   NS_IMETHOD IsOptionDisabled(int32_t aIndex,
-                              bool* aIsDisabled);
+                              bool *aIsDisabled);
 
   /**
    * Sets multiple options (or just sets startIndex if select is single)
@@ -329,17 +383,17 @@ public:
                                               int32_t aModType) const;
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* aAttribute) const;
 
-  virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLSelectElement,
-                                           nsGenericHTMLFormElement)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLSelectElement,
+                                                     nsGenericHTMLFormElement)
 
-  HTMLOptionsCollection* GetOptions()
+  nsHTMLOptionCollection *GetOptions()
   {
     return mOptions;
   }
 
-  static nsHTMLSelectElement* FromSupports(nsISupports* aSupports)
+  static nsHTMLSelectElement *FromSupports(nsISupports *aSupports)
   {
     return static_cast<nsHTMLSelectElement*>(static_cast<nsINode*>(aSupports));
   }
@@ -355,16 +409,15 @@ public:
   /**
    * Insert aElement before the node given by aBefore
    */
-  void Add(nsGenericHTMLElement& aElement, nsGenericHTMLElement* aBefore,
-           mozilla::ErrorResult& aError);
-  void Add(nsGenericHTMLElement& aElement, int32_t aIndex,
-           mozilla::ErrorResult& aError)
+  nsresult Add(nsIDOMHTMLElement* aElement, nsIDOMHTMLElement* aBefore = nullptr);
+  nsresult Add(nsIDOMHTMLElement* aElement, int32_t aIndex)
   {
     // If item index is out of range, insert to last.
     // (since beforeElement becomes null, it is inserted to last)
-    nsIContent* beforeContent = mOptions->GetElementAt(aIndex);
-    return Add(aElement, nsGenericHTMLElement::FromContentOrNull(beforeContent),
-               aError);
+    nsCOMPtr<nsIDOMHTMLElement> beforeElement =
+      do_QueryInterface(mOptions->GetElementAt(aIndex));
+
+    return Add(aElement, beforeElement);
   }
 
 protected:
@@ -401,7 +454,7 @@ protected:
    * @param aIndex the index that was selected or deselected
    * @param aSelected whether the index was selected or deselected
    * @param aChangeOptionState if false, don't do anything to the
-   *                           HTMLOptionElement at aIndex.  If true, change
+   *                           nsHTMLOptionElement at aIndex.  If true, change
    *                           its selected state to aSelected.
    * @param aNotify whether to notify the style system and such
    */
@@ -506,7 +559,7 @@ protected:
    * Get the frame as an nsISelectControlFrame (MAY RETURN NULL)
    * @return the select frame, or null
    */
-  nsISelectControlFrame* GetSelectFrame();
+  nsISelectControlFrame *GetSelectFrame();
 
   /**
    * Is this a combobox?
@@ -561,7 +614,7 @@ protected:
   }
 
   /** The options[] array */
-  nsRefPtr<HTMLOptionsCollection> mOptions;
+  nsRefPtr<nsHTMLOptionCollection> mOptions;
   /** false if the parser is in the middle of adding children. */
   bool            mIsDoneAddingChildren;
   /** true if our disabled state has changed from the default **/
@@ -606,5 +659,26 @@ protected:
    */
   nsCOMPtr<nsSelectState> mRestoreState;
 };
+
+void
+nsHTMLOptionCollection::Add(const HTMLOptionOrOptGroupElement& aElement,
+                            const Nullable<HTMLElementOrLong>& aBefore,
+                            mozilla::ErrorResult& aError)
+{
+  nsIDOMHTMLElement* element;
+  if (aElement.IsHTMLOptionElement()) {
+    element = aElement.GetAsHTMLOptionElement();
+  } else {
+    element = aElement.GetAsHTMLOptGroupElement();
+  }
+
+  if (aBefore.IsNull()) {
+    aError = mSelect->Add(element, (nsIDOMHTMLElement*)nullptr);
+  } else if (aBefore.Value().IsHTMLElement()) {
+    aError = mSelect->Add(element, aBefore.Value().GetAsHTMLElement());
+  } else {
+    aError = mSelect->Add(element, aBefore.Value().GetAsLong());
+  }
+}
 
 #endif

@@ -4,12 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsLoadGroup.h"
-
-#include "nsArrayEnumerator.h"
-#include "nsCOMArray.h"
+#include "nsISupportsArray.h"
 #include "nsEnumeratorUtils.h"
 #include "nsIServiceManager.h"
 #include "nsCOMPtr.h"
@@ -136,7 +132,9 @@ nsLoadGroup::nsLoadGroup(nsISupports* outer)
 
 nsLoadGroup::~nsLoadGroup()
 {
-    DebugOnly<nsresult> rv = Cancel(NS_BINDING_ABORTED);
+    nsresult rv;
+
+    rv = Cancel(NS_BINDING_ABORTED);
     NS_ASSERTION(NS_SUCCEEDED(rv), "Cancel failed");
 
     if (mRequests.ops) {
@@ -148,6 +146,30 @@ nsLoadGroup::~nsLoadGroup()
     LOG(("LOADGROUP [%x]: Destroyed.\n", this));
 }
 
+
+nsresult nsLoadGroup::Init()
+{
+    static PLDHashTableOps hash_table_ops =
+    {
+        PL_DHashAllocTable,
+        PL_DHashFreeTable,
+        PL_DHashVoidPtrKeyStub,
+        RequestHashMatchEntry,
+        PL_DHashMoveEntryStub,
+        RequestHashClearEntry,
+        PL_DHashFinalizeStub,
+        RequestHashInitEntry
+    };
+
+    if (!PL_DHashTableInit(&mRequests, &hash_table_ops, nullptr,
+                           sizeof(RequestMapEntry), 16)) {
+        mRequests.ops = nullptr;
+
+        return NS_ERROR_OUT_OF_MEMORY;
+    }
+
+    return NS_OK;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsISupports methods:
@@ -693,27 +715,42 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
 }
 
 // PLDHashTable enumeration callback that appends all items in the
-// hash to an nsCOMArray
+// hash to an nsISupportsArray.
 static PLDHashOperator
-AppendRequestsToCOMArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                         uint32_t number, void *arg)
+AppendRequestsToISupportsArray(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                               uint32_t number, void *arg)
 {
     RequestMapEntry *e = static_cast<RequestMapEntry *>(hdr);
-    static_cast<nsCOMArray<nsIRequest>*>(arg)->AppendObject(e->mKey);
+    nsISupportsArray *array = static_cast<nsISupportsArray *>(arg);
+
+    // nsISupportsArray::AppendElement returns a bool disguised as nsresult
+    bool ok = array->AppendElement(e->mKey) == NS_OK ? false : true;
+
+    if (!ok) {
+        return PL_DHASH_STOP;
+    }
+
     return PL_DHASH_NEXT;
 }
 
 NS_IMETHODIMP
 nsLoadGroup::GetRequests(nsISimpleEnumerator * *aRequests)
 {
-    nsCOMArray<nsIRequest> requests;
-    if (!requests.SetCapacity(mRequests.entryCount)) {
+    nsCOMPtr<nsISupportsArray> array;
+    nsresult rv = NS_NewISupportsArray(getter_AddRefs(array));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    PL_DHashTableEnumerate(&mRequests, AppendRequestsToISupportsArray,
+                           array.get());
+
+    uint32_t count;
+    array->Count(&count);
+
+    if (count != mRequests.entryCount) {
         return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    PL_DHashTableEnumerate(&mRequests, AppendRequestsToCOMArray, &requests);
-
-    return NS_NewArrayEnumerator(aRequests, requests);
+    return NS_NewArrayEnumerator(aRequests, array);
 }
 
 NS_IMETHODIMP
@@ -752,15 +789,6 @@ NS_IMETHODIMP
 nsLoadGroup::SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks)
 {
     mCallbacks = aCallbacks;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroup::GetConnectionInfo(nsILoadGroupConnectionInfo **aCI)
-{
-    NS_ENSURE_ARG_POINTER(aCI);
-    *aCI = mConnectionInfo;
-    NS_IF_ADDREF(*aCI);
     return NS_OK;
 }
 
@@ -976,74 +1004,4 @@ nsresult nsLoadGroup::MergeLoadFlags(nsIRequest *aRequest, nsLoadFlags& outFlags
 
     outFlags = flags;
     return rv;
-}
-
-// nsLoadGroupConnectionInfo
-
-class nsLoadGroupConnectionInfo MOZ_FINAL : public nsILoadGroupConnectionInfo
-{
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSILOADGROUPCONNECTIONINFO
-
-    nsLoadGroupConnectionInfo();
-private:
-    int32_t       mBlockingTransactionCount; // signed for PR_ATOMIC_*
-};
-
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsLoadGroupConnectionInfo, nsILoadGroupConnectionInfo)
-
-nsLoadGroupConnectionInfo::nsLoadGroupConnectionInfo()
-    : mBlockingTransactionCount(0)
-{
-}
-
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::GetBlockingTransactionCount(uint32_t *aBlockingTransactionCount)
-{
-    NS_ENSURE_ARG_POINTER(aBlockingTransactionCount);
-    *aBlockingTransactionCount = static_cast<uint32_t>(mBlockingTransactionCount);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::AddBlockingTransaction()
-{
-    PR_ATOMIC_INCREMENT(&mBlockingTransactionCount);
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsLoadGroupConnectionInfo::RemoveBlockingTransaction(uint32_t *_retval)
-{
-    NS_ENSURE_ARG_POINTER(_retval);
-    *_retval =
-        static_cast<uint32_t>(PR_ATOMIC_DECREMENT(&mBlockingTransactionCount));
-    return NS_OK;
-}
-
-nsresult nsLoadGroup::Init()
-{
-    static PLDHashTableOps hash_table_ops =
-    {
-        PL_DHashAllocTable,
-        PL_DHashFreeTable,
-        PL_DHashVoidPtrKeyStub,
-        RequestHashMatchEntry,
-        PL_DHashMoveEntryStub,
-        RequestHashClearEntry,
-        PL_DHashFinalizeStub,
-        RequestHashInitEntry
-    };
-
-    if (!PL_DHashTableInit(&mRequests, &hash_table_ops, nullptr,
-                           sizeof(RequestMapEntry), 16)) {
-        mRequests.ops = nullptr;
-
-        return NS_ERROR_OUT_OF_MEMORY;
-    }
-
-    mConnectionInfo = new nsLoadGroupConnectionInfo();
-
-    return NS_OK;
 }

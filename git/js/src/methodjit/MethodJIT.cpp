@@ -5,25 +5,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "MethodJIT.h"
+#include "Logging.h"
+#include "assembler/jit/ExecutableAllocator.h"
+#include "assembler/assembler/RepatchBuffer.h"
+#include "gc/Marking.h"
+#include "js/MemoryMetrics.h"
 #include "BaseAssembler.h"
 #include "Compiler.h"
-#include "jscntxtinlines.h"
-#include "jscompartment.h"
-#include "Logging.h"
-#include "MethodJIT.h"
 #include "MonoIC.h"
 #include "PolyIC.h"
-#include "Retcon.h"
 #include "TrampolineCompiler.h"
-
-#include "assembler/assembler/RepatchBuffer.h"
-#include "assembler/jit/ExecutableAllocator.h"
-#include "gc/Marking.h"
+#include "jscntxtinlines.h"
+#include "jscompartment.h"
+#include "jsscope.h"
 #include "ion/Ion.h"
-#include "ion/IonCode.h"
 #include "ion/IonCompartment.h"
-#include "js/MemoryMetrics.h"
-#include "vm/Shape.h"
+#include "methodjit/Retcon.h"
 
 #include "jsgcinlines.h"
 #include "jsinterpinlines.h"
@@ -40,6 +38,12 @@ using namespace js::mjit;
 #else
 # define CFI(str)
 #endif
+
+// Put manually-inserted call frame unwinding information into .debug_frame
+// rather than .eh_frame, because we compile with -fno-exceptions which might
+// discard the .eh_frame section. (See
+// http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43232).
+CFI(asm(".cfi_sections .debug_frame");)
 
 js::mjit::CompilerAllocPolicy::CompilerAllocPolicy(JSContext *cx, Compiler &compiler)
 : TempAllocPolicy(cx),
@@ -634,10 +638,8 @@ JS_STATIC_ASSERT(JSReturnReg_Data == JSC::ARMRegisters::r4);
   ".align 2\n" \
   ".thumb\n" \
   ".thumb_func\n"
-#define BRANCH_AND_LINK(x) "blx " x
 #else
 #define FUNCTION_HEADER_EXTRA
-#define BRANCH_AND_LINK(x) "bl " x
 #endif
 
 asm (
@@ -696,7 +698,7 @@ SYMBOL_STRING(JaegerTrampoline) ":"         "\n"
 "   mov     r10, r1"                            "\n"
 
 "   mov     r0, sp"                             "\n"
-"   " BRANCH_AND_LINK(SYMBOL_STRING_VMFRAME(PushActiveVMFrame)) "\n"
+"   blx  " SYMBOL_STRING_VMFRAME(PushActiveVMFrame)"\n"
 
     /* Call the compiled JavaScript function. */
 "   bx     r4"                                  "\n"
@@ -711,7 +713,7 @@ SYMBOL_STRING(JaegerTrampolineReturn) ":"         "\n"
 
     /* Tidy up. */
 "   mov     r0, sp"                         "\n"
-"   " BRANCH_AND_LINK(SYMBOL_STRING_VMFRAME(PopActiveVMFrame)) "\n"
+"   blx  " SYMBOL_STRING_VMFRAME(PopActiveVMFrame) "\n"
 
     /* Skip past the parameters we pushed (such as cx and the like). */
 "   add     sp, sp, #(4*7 + 4*6)"           "\n"
@@ -730,7 +732,7 @@ SYMBOL_STRING(JaegerThrowpoline) ":"        "\n"
 "   mov     r0, sp"                         "\n"
 
     /* Call the utility function that sets up the internal throw routine. */
-"   " BRANCH_AND_LINK(SYMBOL_STRING_RELOC(js_InternalThrow)) "\n"
+"   blx  " SYMBOL_STRING_RELOC(js_InternalThrow) "\n"
 
     /* If js_InternalThrow found a scripted handler, jump to it. Otherwise, tidy
      * up and return. */
@@ -740,7 +742,7 @@ SYMBOL_STRING(JaegerThrowpoline) ":"        "\n"
 
     /* Tidy up, then return '0' to represent an unhandled exception. */
 "   mov     r0, sp"                         "\n"
-"   " BRANCH_AND_LINK(SYMBOL_STRING_VMFRAME(PopActiveVMFrame)) "\n"
+"   blx  " SYMBOL_STRING_VMFRAME(PopActiveVMFrame) "\n"
 "   add     sp, sp, #(4*7 + 4*6)"           "\n"
 "   mov     r0, #0"                         "\n"
 "   pop     {r4-r11,pc}"                    "\n"
@@ -764,7 +766,7 @@ SYMBOL_STRING(JaegerInterpoline) ":"        "\n"
 "   mov     r2, r0"                         "\n"    /* returnReg */
 "   mov     r1, r5"                         "\n"    /* returnType */
 "   mov     r0, r4"                         "\n"    /* returnData */
-"   " BRANCH_AND_LINK(SYMBOL_STRING_RELOC(js_InternalInterpret)) "\n"
+"   blx  " SYMBOL_STRING_RELOC(js_InternalInterpret) "\n"
 "   cmp     r0, #0"                         "\n"
 "   ldr     r10, [sp, #(4*7)]"              "\n"    /* Load (StackFrame*)f->regs->fp_ */
 "   ldrd    r4, r5, [r10, #(4*6)]"          "\n"    /* Load rval payload and type. */
@@ -773,7 +775,7 @@ SYMBOL_STRING(JaegerInterpoline) ":"        "\n"
 "   bxne    r0"                             "\n"
     /* Tidy up, then return 0. */
 "   mov     r0, sp"                         "\n"
-"   " BRANCH_AND_LINK(SYMBOL_STRING_VMFRAME(PopActiveVMFrame)) "\n"
+"   blx  " SYMBOL_STRING_VMFRAME(PopActiveVMFrame) "\n"
 "   add     sp, sp, #(4*7 + 4*6)"           "\n"
 "   mov     r0, #0"                         "\n"
 "   pop     {r4-r11,pc}"                    "\n"
@@ -1020,7 +1022,7 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
 {
 #ifdef JS_METHODJIT_SPEW
     JaegerSpew(JSpew_Prof, "%s jaeger script, line %d\n",
-               fp->script()->filename(), fp->script()->lineno);
+               fp->script()->filename, fp->script()->lineno);
     Profiler prof;
     prof.start();
 #endif
@@ -1032,9 +1034,8 @@ mjit::EnterMethodJIT(JSContext *cx, StackFrame *fp, void *code, Value *stackLimi
         AssertCompartmentUnchanged pcc(cx);
 
 #ifdef JS_ION
-        ion::IonContext ictx(cx, NULL);
+        ion::IonContext ictx(cx, cx->compartment, NULL);
         ion::IonActivation activation(cx, NULL);
-        ion::AutoFlushInhibitor afi(cx->compartment->ionCompartment());
 #endif
 
         JSAutoResolveFlags rf(cx, RESOLVE_INFER);
@@ -1104,7 +1105,7 @@ JaegerStatus
 mjit::JaegerShot(JSContext *cx, bool partial)
 {
     StackFrame *fp = cx->fp();
-    JITScript *jit = fp->script()->getJIT(fp->isConstructing(), cx->zone()->compileBarriers());
+    JITScript *jit = fp->script()->getJIT(fp->isConstructing(), cx->compartment->compileBarriers());
 
     JS_ASSERT(cx->regs().pc == fp->script()->code);
 
@@ -1148,16 +1149,10 @@ JITChunk::callSites() const
     return (js::mjit::CallSite *)&inlineFrames()[nInlineFrames];
 }
 
-js::mjit::CompileTrigger *
-JITChunk::compileTriggers() const
-{
-    return (CompileTrigger *)&callSites()[nCallSites];
-}
-
 JSObject **
 JITChunk::rootedTemplates() const
 {
-    return (JSObject **)&compileTriggers()[nCompileTriggers];
+    return (JSObject **)&callSites()[nCallSites];
 }
 
 RegExpShared **
@@ -1334,8 +1329,8 @@ JITScript::destroyChunk(FreeOp *fop, unsigned chunkIndex, bool resetUses)
          * Write barrier: Before we destroy the chunk, trace through the objects
          * it holds.
          */
-        if (script->zone()->needsBarrier())
-            desc.chunk->trace(script->zone()->barrierTracer());
+        if (script->compartment()->needsBarrier())
+            desc.chunk->trace(script->compartment()->barrierTracer());
 
         Probes::discardMJITCode(fop, this, desc.chunk, desc.chunk->code.m_code.executableAddress());
         fop->delete_(desc.chunk);
@@ -1386,7 +1381,7 @@ JITScript::trace(JSTracer *trc)
 static ic::PICInfo *
 GetPIC(JSContext *cx, JSScript *script, jsbytecode *pc, bool constructing)
 {
-    JITScript *jit = script->getJIT(constructing, cx->zone()->needsBarrier());
+    JITScript *jit = script->getJIT(constructing, cx->compartment->needsBarrier());
     if (!jit)
         return NULL;
 
@@ -1403,7 +1398,7 @@ GetPIC(JSContext *cx, JSScript *script, jsbytecode *pc, bool constructing)
     return NULL;
 }
 
-RawShape
+Shape *
 mjit::GetPICSingleShape(JSContext *cx, JSScript *script, jsbytecode *pc, bool constructing)
 {
     ic::PICInfo *pic = GetPIC(cx, script, pc, constructing);
@@ -1496,7 +1491,6 @@ mjit::JITChunk::computedSizeOfIncludingThis()
            sizeof(NativeMapEntry) * nNmapPairs +
            sizeof(InlineFrame) * nInlineFrames +
            sizeof(CallSite) * nCallSites +
-           sizeof(CompileTrigger) * nCompileTriggers +
            sizeof(JSObject*) * nRootedTemplates +
            sizeof(RegExpShared*) * nRootedRegExps +
            sizeof(uint32_t) * nMonitoredBytecodes +
@@ -1537,47 +1531,13 @@ JSScript::ReleaseCode(FreeOp *fop, JITScriptHandle *jith)
     }
 }
 
-static void
-DisableScriptAtPC(JITScript *jit, jsbytecode *pc)
-{
-    JS_ASSERT(jit->script->hasIonScript());
-
-    JITChunk *chunk = jit->chunk(pc);
-    if (!chunk)
-        return;
-
-    CompileTrigger *triggers = chunk->compileTriggers();
-    for (size_t i = 0; i < chunk->nCompileTriggers; i++) {
-        const CompileTrigger &trigger = triggers[i];
-        if (trigger.pcOffset != pc - jit->script->code)
-            continue;
-
-        // The inline jump in the trigger is 'script->useCount >= threshold',
-        // which should hold at the specified pc because the script has been
-        // compiled for Ion. Normally, if this jump passes it will then take
-        // a second jump to test for !script->ion. Patch the first jump to
-        // bypass the second jump and directly call TriggerIonCompile, which
-        // will recognize this case and destroy the chunk.
-        ic::Repatcher repatcher(chunk);
-        repatcher.relink(trigger.inlineJump, trigger.stubLabel);
-    }
-}
-
 void
-mjit::DisableScriptCodeForIon(JSScript *script, jsbytecode *osrPC)
+mjit::ReleaseScriptCodeFromVM(JSContext *cx, JSScript *script)
 {
-    if (!script->hasMJITInfo())
-        return;
-
-    for (int constructing = 0; constructing <= 1; constructing++) {
-        for (int barriers = 0; barriers <= 1; barriers++) {
-            JITScript *jit = script->getJIT((bool) constructing, (bool) barriers);
-            if (jit) {
-                DisableScriptAtPC(jit, script->code);
-                if (osrPC)
-                    DisableScriptAtPC(jit, osrPC);
-            }
-        }
+    if (script->hasMJITInfo()) {
+        ExpandInlineFrames(cx->compartment);
+        Recompiler::clearStackReferences(cx->runtime->defaultFreeOp(), script);
+        ReleaseScriptCode(cx->runtime->defaultFreeOp(), script);
     }
 }
 
@@ -1660,11 +1620,6 @@ JITChunk::trace(JSTracer *trc)
         /* We use a manual write barrier in destroyChunk. */
         MarkObjectUnbarriered(trc, &rootedTemplates_[i], "jitchunk_template");
     }
-
-    /* RegExpShared objects require the RegExp source string. */
-    RegExpShared **rootedRegExps_ = rootedRegExps();
-    for (size_t i = 0; i < nRootedRegExps; i++)
-        rootedRegExps_[i]->trace(trc);
 }
 
 void

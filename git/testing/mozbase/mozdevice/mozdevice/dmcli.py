@@ -6,7 +6,6 @@
 Command-line client to control a device
 """
 
-import errno
 import os
 import posixpath
 import StringIO
@@ -17,19 +16,12 @@ from optparse import OptionParser
 
 class DMCli(object):
 
-    def __init__(self):
-        # a value of None for 'max_args' means there is no limit to the number
-        # of arguments.  'min_args' should always have an integer value >= 0.
+    def __init__(self, args=sys.argv[1:]):
         self.commands = { 'install': { 'function': self.install,
                                        'min_args': 1,
                                        'max_args': 1,
                                        'help_args': '<file>',
                                        'help': 'push this package file to the device and install it' },
-                          'uninstall': { 'function': lambda a: self.dm.uninstallApp(a),
-                                         'min_args': 1,
-                                         'max_args': 1,
-                                         'help_args': '<packagename>',
-                                         'help': 'uninstall the named app from the device' },
                           'killapp': { 'function': self.killapp,
                                        'min_args': 1,
                                        'max_args': 1,
@@ -56,7 +48,7 @@ class DMCli(object):
                                      'help_args': '<command>',
                                      'help': 'run shell command on device' },
                           'info': { 'function': self.getinfo,
-                                    'min_args': 0,
+                                    'min_args': None,
                                     'max_args': 1,
                                     'help_args': '[os|id|uptime|systime|screen|memory|processes]',
                                     'help': 'get information on a specified '
@@ -64,16 +56,10 @@ class DMCli(object):
                                     'given, print all available information)'
                                     },
                           'ps': { 'function': self.processlist,
-                                    'min_args': 0,
+                                    'min_args': None,
                                     'max_args': 0,
                                     'help_args': '',
                                     'help': 'get information on running processes on device'
-                                },
-                          'logcat' : { 'function': self.logcat,
-                                       'min_args': 0,
-                                       'max_args': 0,
-                                       'help_args': '',
-                                       'help': 'get logcat from device'
                                 },
                           'ls': { 'function': self.listfiles,
                                   'min_args': 1,
@@ -87,18 +73,6 @@ class DMCli(object):
                                     'help_args': '<remote>',
                                     'help': 'remove file from device'
                                 },
-                          'isdir': { 'function': self.isdir,
-                                     'min_args': 1,
-                                     'max_args': 1,
-                                     'help_args': '<remote>',
-                                     'help': 'print if remote file is a directory'
-                                },
-                          'mkdir': { 'function': lambda d: self.dm.mkDir(d),
-                                     'min_args': 1,
-                                     'max_args': 1,
-                                     'help_args': '<remote>',
-                                     'help': 'makes a directory on device'
-                                },
                           'rmdir': { 'function': lambda d: self.dm.removeDir(d),
                                     'min_args': 1,
                                     'max_args': 1,
@@ -110,13 +84,7 @@ class DMCli(object):
                                           'max_args': 1,
                                           'help_args': '<png file>',
                                           'help': 'capture screenshot of device in action'
-                                          },
-                          'sutver': { 'function': self.sutver,
-                                      'min_args': 0,
-                                      'max_args': 0,
-                                      'help_args': '',
-                                      'help': 'SUTAgent\'s product name and version (SUT only)'
-                                   },
+                                          }
 
                           }
 
@@ -132,8 +100,6 @@ class DMCli(object):
         self.parser = OptionParser(usage)
         self.add_options(self.parser)
 
-
-    def run(self, args=sys.argv[1:]):
         (self.options, self.args) = self.parser.parse_args(args)
 
         if len(self.args) < 1:
@@ -150,20 +116,15 @@ class DMCli(object):
                               " ".join(self.commands.keys()))
 
         command = self.commands[command_name]
-        if (len(command_args) < command['min_args'] or
-            (command['max_args'] is not None and len(command_args) > 
-             command['max_args'])):
+        if command['min_args'] and len(command_args) < command['min_args'] or \
+                command['max_args'] and len(command_args) > command['max_args']:
             self.parser.error("Wrong number of arguments")
 
         self.dm = self.getDevice(dmtype=self.options.dmtype,
                                  hwid=self.options.hwid,
                                  host=self.options.host,
                                  port=self.options.port)
-        ret = command['function'](*command_args)
-        if ret is None:
-            ret = 0
-
-        sys.exit(ret)
+        command['function'](*command_args)
 
     def add_options(self, parser):
         parser.add_option("-v", "--verbose", action="store_true",
@@ -271,9 +232,6 @@ class DMCli(object):
             else:
                 print "%s" % "\n".join(infoitem)
 
-    def logcat(self):
-        print ''.join(self.dm.getLogcat())
-
     def processlist(self):
         pslist = self.dm.getProcessList()
         for ps in pslist:
@@ -284,25 +242,9 @@ class DMCli(object):
         for file in filelist:
             print file
 
-    def isdir(self, file):
-        if self.dm.dirExists(file):
-            print "TRUE"
-            return 0
-
-        print "FALSE"
-        return errno.ENOTDIR
-
-    def sutver(self):
-        if self.options.dmtype == 'sut':
-            print '%s Version %s' % (self.dm.agentProductName,
-                                     self.dm.agentVersion)
-        else:
-            print 'Must use SUT transport to get SUT version.'
-
 def cli(args=sys.argv[1:]):
     # process the command line
-    cli = DMCli()
-    cli.run(args)
+    cli = DMCli(args)
 
 if __name__ == '__main__':
     cli()

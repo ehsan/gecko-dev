@@ -11,35 +11,8 @@
 using namespace js;
 using namespace js::ion;
 
-ABIArgGenerator::ABIArgGenerator()
-  : stackOffset_(0),
-    current_()
-{}
-
-ABIArg
-ABIArgGenerator::next(MIRType type)
-{
-    current_ = ABIArg(stackOffset_);
-    switch (type) {
-      case MIRType_Int32:
-      case MIRType_Pointer:
-        stackOffset_ += sizeof(uint32_t);
-        break;
-      case MIRType_Double:
-        stackOffset_ += sizeof(uint64_t);
-        break;
-      default:
-        JS_NOT_REACHED("Unexpected argument type");
-    }
-    return current_;
-}
-
-const Register ABIArgGenerator::NonArgReturnVolatileReg1 = ecx;
-const Register ABIArgGenerator::NonArgReturnVolatileReg2 = edx;
-const Register ABIArgGenerator::NonVolatileReg = ebx;
-
 void
-Assembler::executableCopy(uint8_t *buffer)
+Assembler::executableCopy(uint8 *buffer)
 {
     AssemblerX86Shared::executableCopy(buffer);
 
@@ -52,7 +25,7 @@ Assembler::executableCopy(uint8_t *buffer)
 class RelocationIterator
 {
     CompactBufferReader reader_;
-    uint32_t offset_;
+    uint32 offset_;
 
   public:
     RelocationIterator(CompactBufferReader &reader)
@@ -66,15 +39,15 @@ class RelocationIterator
         return true;
     }
 
-    uint32_t offset() const {
+    uint32 offset() const {
         return offset_;
     }
 };
 
 static inline IonCode *
-CodeFromJump(uint8_t *jump)
+CodeFromJump(uint8 *jump)
 {
-    uint8_t *target = (uint8_t *)JSC::X86Assembler::getRel32Target(jump);
+    uint8 *target = (uint8 *)JSC::X86Assembler::getRel32Target(jump);
     return IonCode::FromExecutable(target);
 }
 

@@ -8,7 +8,6 @@
 
 #include "AsyncConnectionHelper.h"
 
-#include "mozilla/dom/quota/QuotaManager.h"
 #include "mozilla/storage.h"
 #include "nsComponentManagerUtils.h"
 #include "nsContentUtils.h"
@@ -22,10 +21,8 @@
 #include "TransactionThreadPool.h"
 
 #include "ipc/IndexedDBChild.h"
-#include "ipc/IndexedDBParent.h"
 
 USING_INDEXEDDB_NAMESPACE
-using mozilla::dom::quota::QuotaManager;
 
 namespace {
 
@@ -206,47 +203,36 @@ AsyncConnectionHelper::Run()
       MaybeSendResponseToChildProcess(mResultCode) :
       Success_NotSent;
 
-    switch (sendResult) {
-      case Success_Sent: {
-        if (mRequest) {
-          mRequest->NotifyHelperSentResultsToChildProcess(NS_OK);
+    NS_ASSERTION(sendResult == Success_Sent || sendResult == Success_NotSent ||
+                 sendResult == Error,
+                 "Unknown result from MaybeSendResultsToChildProcess!");
+
+    if (sendResult == Success_Sent) {
+      if (mRequest) {
+        mRequest->NotifyHelperSentResultsToChildProcess(NS_OK);
+      }
+    }
+    else if (sendResult == Error) {
+      NS_WARNING("MaybeSendResultsToChildProcess failed!");
+      mResultCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+      if (mRequest) {
+        mRequest->NotifyHelperSentResultsToChildProcess(mResultCode);
+      }
+    }
+    else if (sendResult == Success_NotSent) {
+      if (mRequest) {
+        nsresult rv = mRequest->NotifyHelperCompleted(this);
+        if (NS_SUCCEEDED(mResultCode) && NS_FAILED(rv)) {
+          mResultCode = rv;
         }
-        break;
       }
 
-      case Success_NotSent: {
-        if (mRequest) {
-          nsresult rv = mRequest->NotifyHelperCompleted(this);
-          if (NS_SUCCEEDED(mResultCode) && NS_FAILED(rv)) {
-            mResultCode = rv;
-          }
-        }
-
-        // Call OnError if the database had an error or if the OnSuccess
-        // handler has an error.
-        if (NS_FAILED(mResultCode) ||
-            NS_FAILED((mResultCode = OnSuccess()))) {
-          OnError();
-        }
-        break;
+      // Call OnError if the database had an error or if the OnSuccess handler
+      // has an error.
+      if (NS_FAILED(mResultCode) ||
+          NS_FAILED((mResultCode = OnSuccess()))) {
+        OnError();
       }
-
-      case Success_ActorDisconnected: {
-        // Nothing needs to be done here.
-        break;
-      }
-
-      case Error: {
-        NS_WARNING("MaybeSendResultsToChildProcess failed!");
-        mResultCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-        if (mRequest) {
-          mRequest->NotifyHelperSentResultsToChildProcess(mResultCode);
-        }
-        break;
-      }
-
-      default:
-        MOZ_NOT_REACHED("Unknown value for ChildProcessSendResult!");
     }
 
     NS_ASSERTION(gCurrentTransaction == mTransaction, "Should be unchanged!");
@@ -289,7 +275,7 @@ AsyncConnectionHelper::Run()
   if (NS_SUCCEEDED(rv)) {
     bool hasSavepoint = false;
     if (mDatabase) {
-      QuotaManager::SetCurrentWindow(mDatabase->GetOwner());
+      IndexedDatabaseManager::SetCurrentWindow(mDatabase->GetOwner());
 
       // Make the first savepoint.
       if (mTransaction) {
@@ -315,7 +301,7 @@ AsyncConnectionHelper::Run()
 
       // Don't unset this until we're sure that all SQLite activity has
       // completed!
-      QuotaManager::SetCurrentWindow(nullptr);
+      IndexedDatabaseManager::SetCurrentWindow(nullptr);
     }
   }
   else {
@@ -420,10 +406,10 @@ AsyncConnectionHelper::Init()
   return NS_OK;
 }
 
-already_AddRefed<nsIDOMEvent>
-AsyncConnectionHelper::CreateSuccessEvent(mozilla::dom::EventTarget* aOwner)
+already_AddRefed<nsDOMEvent>
+AsyncConnectionHelper::CreateSuccessEvent()
 {
-  return CreateGenericEvent(mRequest, NS_LITERAL_STRING(SUCCESS_EVT_STR),
+  return CreateGenericEvent(NS_LITERAL_STRING(SUCCESS_EVT_STR),
                             eDoesNotBubble, eNotCancelable);
 }
 
@@ -433,7 +419,7 @@ AsyncConnectionHelper::OnSuccess()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(mRequest, "Null request!");
 
-  nsRefPtr<nsIDOMEvent> event = CreateSuccessEvent(mRequest);
+  nsRefPtr<nsDOMEvent> event = CreateSuccessEvent();
   if (!event) {
     NS_ERROR("Failed to create event!");
     return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
@@ -451,7 +437,7 @@ AsyncConnectionHelper::OnSuccess()
                mTransaction->IsAborted(),
                "How else can this be closed?!");
 
-  if (internalEvent->mFlags.mExceptionHasBeenRisen &&
+  if ((internalEvent->flags & NS_EVENT_FLAG_EXCEPTION_THROWN) &&
       mTransaction &&
       mTransaction->IsOpen()) {
     rv = mTransaction->Abort(NS_ERROR_DOM_INDEXEDDB_ABORT_ERR);
@@ -468,8 +454,8 @@ AsyncConnectionHelper::OnError()
   NS_ASSERTION(mRequest, "Null request!");
 
   // Make an error event and fire it at the target.
-  nsRefPtr<nsIDOMEvent> event =
-    CreateGenericEvent(mRequest, NS_LITERAL_STRING(ERROR_EVT_STR), eDoesBubble,
+  nsRefPtr<nsDOMEvent> event =
+    CreateGenericEvent(NS_LITERAL_STRING(ERROR_EVT_STR), eDoesBubble,
                        eCancelable);
   if (!event) {
     NS_ERROR("Failed to create event!");
@@ -487,7 +473,7 @@ AsyncConnectionHelper::OnError()
     nsEvent* internalEvent = event->GetInternalNSEvent();
     NS_ASSERTION(internalEvent, "This should never be null!");
 
-    if (internalEvent->mFlags.mExceptionHasBeenRisen &&
+    if ((internalEvent->flags & NS_EVENT_FLAG_EXCEPTION_THROWN) &&
         mTransaction &&
         mTransaction->IsOpen() &&
         NS_FAILED(mTransaction->Abort(NS_ERROR_DOM_INDEXEDDB_ABORT_ERR))) {
@@ -546,8 +532,7 @@ AsyncConnectionHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
   }
 
   // Are we shutting down the child?
-  IndexedDBDatabaseParent* dbActor = trans->Database()->GetActorParent();
-  if (dbActor && dbActor->IsDisconnected()) {
+  if (trans->Database()->IsDisconnectedFromActor()) {
     return Success_ActorDisconnected;
   }
 
@@ -579,7 +564,7 @@ AsyncConnectionHelper::OnParentProcessRequestComplete(
 
 // static
 nsresult
-AsyncConnectionHelper::ConvertToArrayAndCleanup(
+AsyncConnectionHelper::ConvertCloneReadInfosToArray(
                                   JSContext* aCx,
                                   nsTArray<StructuredCloneReadInfo>& aReadInfos,
                                   jsval* aResult)
@@ -622,22 +607,19 @@ StackBasedEventTarget::QueryInterface(REFNSIID aIID,
 }
 
 NS_IMETHODIMP
-ImmediateRunEventTarget::Dispatch(nsIRunnable* aRunnable,
-                                  uint32_t aFlags)
+MainThreadEventTarget::Dispatch(nsIRunnable* aRunnable,
+                                uint32_t aFlags)
 {
   NS_ASSERTION(aRunnable, "Null pointer!");
 
-  nsCOMPtr<nsIRunnable> runnable(aRunnable);
-  DebugOnly<nsresult> rv =
-    runnable->Run();
-  MOZ_ASSERT(NS_SUCCEEDED(rv));
-  return NS_OK;
+  nsCOMPtr<nsIRunnable> runnable = aRunnable;
+  return NS_DispatchToMainThread(aRunnable, aFlags);
 }
 
 NS_IMETHODIMP
-ImmediateRunEventTarget::IsOnCurrentThread(bool* aIsOnCurrentThread)
+MainThreadEventTarget::IsOnCurrentThread(bool* aIsOnCurrentThread)
 {
-  *aIsOnCurrentThread = true;
+  *aIsOnCurrentThread = NS_IsMainThread();
   return NS_OK;
 }
 

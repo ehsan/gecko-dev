@@ -2,6 +2,8 @@
 package @ANDROID_PACKAGE_NAME@.tests;
 
 import @ANDROID_PACKAGE_NAME@.*;
+import android.app.Activity;
+import android.util.Log;
 
 /* Tests related to the about: page:
  *  - check that about: loads from the awesome bar
@@ -14,7 +16,7 @@ public class testAboutPage extends PixelTest {
     }
 
     public void testAboutPage() {
-        blockForGeckoReady();
+        mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
 
         // Load the about: page and verify its title
         String url = "about:";

@@ -4,100 +4,38 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef AudioBufferSourceNode_h_
-#define AudioBufferSourceNode_h_
+#pragma once
 
 #include "AudioSourceNode.h"
 #include "AudioBuffer.h"
-#include "mozilla/dom/BindingUtils.h"
 
 namespace mozilla {
 namespace dom {
 
-class AudioBufferSourceNode : public AudioSourceNode,
-                              public MainThreadMediaStreamListener
+class AudioBufferSourceNode : public AudioSourceNode
 {
 public:
   explicit AudioBufferSourceNode(AudioContext* aContext);
-  virtual ~AudioBufferSourceNode();
-
-  virtual void DestroyMediaStream() MOZ_OVERRIDE
-  {
-    if (mStream) {
-      mStream->RemoveMainThreadListener(this);
-    }
-    AudioSourceNode::DestroyMediaStream();
-  }
-  virtual bool SupportsMediaStreams() const MOZ_OVERRIDE
-  {
-    return true;
-  }
-
-  void JSBindingFinalized()
-  {
-    // If the JS binding goes away on a node which never received a start()
-    // call, then it can no longer produce output.
-    if (!mStartCalled) {
-      SetProduceOwnOutput(false);
-    }
-    AudioSourceNode::JSBindingFinalized();
-  }
 
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(AudioBufferSourceNode, AudioSourceNode)
 
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope);
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
+                               bool* aTriedToWrap);
 
-  void Start(JSContext* aCx, double aWhen, double aOffset,
-             const Optional<double>& aDuration, ErrorResult& aRv);
-  void Stop(double aWhen, ErrorResult& aRv);
+  void Start(double) { /* no-op for now */ }
+  void Stop(double) { /* no-op for now */ }
 
   AudioBuffer* GetBuffer() const
   {
     return mBuffer;
   }
-  void SetBuffer(AudioBuffer* aBuffer)
-  {
-    mBuffer = aBuffer;
-  }
-
-  bool Loop() const
-  {
-    return mLoop;
-  }
-  void SetLoop(bool aLoop)
-  {
-    mLoop = aLoop;
-  }
-  double LoopStart() const
-  {
-    return mLoopStart;
-  }
-  void SetLoopStart(double aStart)
-  {
-    mLoopStart = aStart;
-  }
-  double LoopEnd() const
-  {
-    return mLoopEnd;
-  }
-  void SetLoopEnd(double aEnd)
-  {
-    mLoopEnd = aEnd;
-  }
-
-  virtual void NotifyMainThreadStateChanged() MOZ_OVERRIDE;
+  void SetBuffer(AudioBuffer* aBuffer);
 
 private:
   nsRefPtr<AudioBuffer> mBuffer;
-  double mLoopStart;
-  double mLoopEnd;
-  bool mLoop;
-  bool mStartCalled;
 };
 
 }
 }
-
-#endif
 

@@ -25,7 +25,7 @@ class MDefinition;
 class MInstruction;
 class LOsiPoint;
 
-class LIRGeneratorShared : public MInstructionVisitorWithDefaults
+class LIRGeneratorShared : public MInstructionVisitor
 {
   protected:
     MIRGenerator *gen;
@@ -73,7 +73,6 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
     inline LUse useRegisterAtStart(MDefinition *mir);
     inline LUse useFixed(MDefinition *mir, Register reg);
     inline LUse useFixed(MDefinition *mir, FloatRegister reg);
-    inline LUse useFixed(MDefinition *mir, AnyRegister reg);
     inline LAllocation useOrConstant(MDefinition *mir);
     // "Any" is architecture dependent, and will include registers and stack slots on X86,
     // and only registers on ARM.
@@ -100,7 +99,7 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
     inline LDefinition temp(LDefinition::Type type = LDefinition::GENERAL,
                             LDefinition::Policy policy = LDefinition::DEFAULT);
     inline LDefinition tempFloat();
-    inline LDefinition tempCopy(MDefinition *input, uint32_t reusedInput);
+    inline LDefinition tempCopy(MDefinition *input, uint32 reusedInput);
 
     // Note that the fixed register has a GENERAL type.
     inline LDefinition tempFixed(Register reg);
@@ -113,7 +112,11 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
     inline bool defineBox(LInstructionHelper<BOX_PIECES, Ops, Temps> *lir, MDefinition *mir,
                           LDefinition::Policy policy = LDefinition::DEFAULT);
 
-    inline bool defineReturn(LInstruction *lir, MDefinition *mir);
+    template <size_t Ops, size_t Temps>
+    inline bool defineReturn(LInstructionHelper<BOX_PIECES, Ops, Temps> *lir, MDefinition *mir);
+
+    template <size_t Defs, size_t Ops, size_t Temps>
+    inline bool defineVMReturn(LInstructionHelper<Defs, Ops, Temps> *lir, MDefinition *mir);
 
     template <size_t Ops, size_t Temps>
     inline bool define(LInstructionHelper<1, Ops, Temps> *lir, MDefinition *mir,
@@ -124,7 +127,7 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
                        LDefinition::Policy policy = LDefinition::DEFAULT);
 
     template <size_t Ops, size_t Temps>
-    inline bool defineReuseInput(LInstructionHelper<1, Ops, Temps> *lir, MDefinition *mir, uint32_t operand);
+    inline bool defineReuseInput(LInstructionHelper<1, Ops, Temps> *lir, MDefinition *mir, uint32 operand);
 
     // Rather than defining a new virtual register, sets |ins| to have the same
     // virtual register as |as|.
@@ -134,14 +137,14 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
     // redefine(), but used when creating new LIR.
     inline bool defineAs(LInstruction *outLir, MDefinition *outMir, MDefinition *inMir);
 
-    uint32_t getVirtualRegister() {
+    uint32 getVirtualRegister() {
         return lirGraph_.getVirtualRegister();
     }
 
     template <typename T> void annotate(T *ins);
     template <typename T> bool add(T *ins, MInstruction *mir = NULL);
 
-    void lowerTypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock *block, size_t lirIndex);
+    void lowerTypedPhiInput(MPhi *phi, uint32 inputPosition, LBlock *block, size_t lirIndex);
     bool defineTypedPhi(MPhi *phi, size_t lirIndex);
 
     LOsiPoint *popOsiPoint() {
@@ -166,11 +169,6 @@ class LIRGeneratorShared : public MInstructionVisitorWithDefaults
 
   public:
     bool visitConstant(MConstant *ins);
-
-    // Whether to generate typed reads for element accesses with hole checks.
-    static bool allowTypedElementHoleCheck() {
-        return false;
-    }
 };
 
 } // namespace ion

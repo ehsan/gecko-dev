@@ -10,7 +10,6 @@
 #include "xpcpublic.h"
 #include "xpcprivate.h"
 #include "qsObjectHelper.h"
-#include "mozilla/dom/BindingUtils.h"
 
 /* XPCQuickStubs.h - Support functions used only by quick stubs. */
 
@@ -20,8 +19,8 @@ class XPCCallContext;
 
 struct xpc_qsPropertySpec {
     uint16_t name_index;
-    JSNative getter;
-    JSNative setter;
+    JSPropertyOp getter;
+    JSStrictPropertyOp setter;
 };
 
 struct xpc_qsFunctionSpec {
@@ -37,7 +36,6 @@ struct xpc_qsHashEntry {
     uint16_t n_props;
     uint16_t func_index;
     uint16_t n_funcs;
-    const mozilla::dom::NativeProperties* newBindingProperties;
     // These last two fields index to other entries in the same table.
     // XPC_QS_NULL_ENTRY indicates there are no more entries in the chain.
     uint16_t parentInterface;
@@ -72,13 +70,6 @@ xpc_qsThrow(JSContext *cx, nsresult rv);
 JSBool
 xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
                               JSObject *obj, jsid memberId);
-// And variants using strings and string tables
-JSBool
-xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
-                              JSObject *obj, const char* memberName);
-JSBool
-xpc_qsThrowGetterSetterFailed(JSContext *cx, nsresult rv,
-                              JSObject *obj, uint16_t memberIndex);
 
 /**
  * Fail after an XPCOM method returned rv.
@@ -119,20 +110,10 @@ xpc_qsThrowBadArgWithDetails(JSContext *cx, nsresult rv, unsigned paramnum,
 void
 xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
                           jsid propId);
-// And variants using strings and string tables
-void
-xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
-                          const char* propName);
-void
-xpc_qsThrowBadSetterValue(JSContext *cx, nsresult rv, JSObject *obj,
-                          uint16_t name_index);
 
 
 JSBool
 xpc_qsGetterOnlyPropertyStub(JSContext *cx, JSHandleObject obj, JSHandleId id, JSBool strict, JSMutableHandleValue vp);
-
-JSBool
-xpc_qsGetterOnlyNativeStub(JSContext *cx, unsigned argc, jsval *vp);
 
 /* Functions for converting values between COM and JS. */
 
@@ -415,22 +396,10 @@ xpc_qsUnwrapThis(JSContext *cx,
     return true;
 }
 
-MOZ_ALWAYS_INLINE bool
-HasBitInInterfacesBitmap(JSObject *obj, uint32_t interfaceBit)
-{
-    NS_ASSERTION(IS_WRAPPER_CLASS(js::GetObjectClass(obj)), "Not a wrapper?");
-
-    XPCWrappedNativeJSClass *clasp =
-      (XPCWrappedNativeJSClass*)js::GetObjectClass(obj);
-    return (clasp->interfacesBitmap & (1 << interfaceBit)) != 0;
-}
-
 MOZ_ALWAYS_INLINE nsISupports*
 castNativeFromWrapper(JSContext *cx,
                       JSObject *obj,
                       uint32_t interfaceBit,
-                      uint32_t protoID,
-                      int32_t protoDepth,
                       nsISupports **pRef,
                       jsval *pVal,
                       XPCLazyCallContext *lccx,
@@ -456,37 +425,35 @@ castNativeFromWrapper(JSContext *cx,
     if (wrapper) {
         native = wrapper->GetIdentityObject();
         cur = wrapper->GetFlatJSObject();
-        if (!native || !HasBitInInterfacesBitmap(cur, interfaceBit)) {
-            native = nullptr;
-        } else if (lccx) {
-            lccx->SetWrapper(wrapper, tearoff);
-        }
     } else if (cur && IS_SLIM_WRAPPER(cur)) {
         native = static_cast<nsISupports*>(xpc_GetJSPrivate(cur));
-        if (!native || !HasBitInInterfacesBitmap(cur, interfaceBit)) {
-            native = nullptr;
-        } else if (lccx) {
-            lccx->SetWrapper(cur);
-        }
-    } else if (cur && protoDepth >= 0) {
-        const mozilla::dom::DOMClass* domClass =
-            mozilla::dom::GetDOMClass(cur);
-        native = mozilla::dom::UnwrapDOMObject<nsISupports>(cur);
-        if (native &&
-            (uint32_t)domClass->mInterfaceChain[protoDepth] != protoID) {
-            native = nullptr;
-        }
     } else {
         native = nullptr;
     }
 
-    if (native) {
-        *pRef = nullptr;
-        *pVal = OBJECT_TO_JSVAL(cur);
-        *rv = NS_OK;
-    } else {
-        *rv = NS_ERROR_XPC_BAD_CONVERT_JS;
+    *rv = NS_ERROR_XPC_BAD_CONVERT_JS;
+
+    if (!native)
+        return nullptr;
+
+    NS_ASSERTION(IS_WRAPPER_CLASS(js::GetObjectClass(cur)), "Not a wrapper?");
+
+    XPCWrappedNativeJSClass *clasp =
+      (XPCWrappedNativeJSClass*)js::GetObjectClass(cur);
+    if (!(clasp->interfacesBitmap & (1 << interfaceBit)))
+        return nullptr;
+
+    *pRef = nullptr;
+    *pVal = OBJECT_TO_JSVAL(cur);
+
+    if (lccx) {
+        if (wrapper)
+            lccx->SetWrapper(wrapper, tearoff);
+        else
+            lccx->SetWrapper(cur);
     }
+
+    *rv = NS_OK;
 
     return native;
 }
@@ -516,23 +483,8 @@ xpc_qsUnwrapThisFromCcx(XPCCallContext &ccx,
                                        pThisVal);
 }
 
-MOZ_ALWAYS_INLINE JSObject*
-xpc_qsUnwrapObj(jsval v, nsISupports **ppArgRef, nsresult *rv)
-{
-    *rv = NS_OK;
-    if (v.isObject()) {
-        return &v.toObject();
-    }
-
-    if (!v.isNullOrUndefined()) {
-        *rv = ((v.isInt32() && v.toInt32() == 0)
-               ? NS_ERROR_XPC_BAD_CONVERT_JS_ZERO_ISNOT_NULL
-               : NS_ERROR_XPC_BAD_CONVERT_JS);
-    }
-
-    *ppArgRef = nullptr;
-    return nullptr;
-}
+JSObject*
+xpc_qsUnwrapObj(jsval v, nsISupports **ppArgRef, nsresult *rv);
 
 nsresult
 xpc_qsUnwrapArgImpl(JSContext *cx, jsval v, const nsIID &iid, void **ppArg,
@@ -552,12 +504,10 @@ xpc_qsUnwrapArg(JSContext *cx, jsval v, Interface **ppArg,
     return rv;
 }
 
-MOZ_ALWAYS_INLINE nsISupports*
+inline nsISupports*
 castNativeArgFromWrapper(JSContext *cx,
                          jsval v,
                          uint32_t bit,
-                         uint32_t protoID,
-                         int32_t protoDepth,
                          nsISupports **pArgRef,
                          jsval *vp,
                          nsresult *rv)
@@ -566,8 +516,7 @@ castNativeArgFromWrapper(JSContext *cx,
     if (!src)
         return nullptr;
 
-    return castNativeFromWrapper(cx, src, bit, protoID, protoDepth, pArgRef, vp,
-                                 nullptr, rv);
+    return castNativeFromWrapper(cx, src, bit, pArgRef, vp, nullptr, rv);
 }
 
 inline nsWrapperCache*
@@ -665,7 +614,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
     JS::CallArgs args = CallArgsFromVp(argc, vp);
 
     JSObject *callee = &args.callee();
-    JS::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
+    js::RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
     if (!obj)
         return false;
 
@@ -677,7 +626,7 @@ PropertyOpForwarder(JSContext *cx, unsigned argc, jsval *vp)
     v = js::GetFunctionNativeReserved(callee, 1);
 
     jsval argval = (argc > 0) ? args[0] : JSVAL_VOID;
-    JS::RootedId id(cx);
+    js::RootedId id(cx);
     if (!JS_ValueToId(cx, v, id.address()))
         return false;
     args.rval().set(argval);

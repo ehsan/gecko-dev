@@ -22,7 +22,7 @@ class HTMLListAccessible : public HyperTextAccessibleWrap
 {
 public:
   HTMLListAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    HyperTextAccessibleWrap(aContent, aDoc) { mGenericTypes |= eList; }
+    HyperTextAccessibleWrap(aContent, aDoc) { }
   virtual ~HTMLListAccessible() { }
 
   // nsISupports
@@ -96,14 +96,15 @@ public:
   bool IsInside() const;
 };
 
-
-inline HTMLLIAccessible*
-Accessible::AsHTMLListItem()
-{
-  return IsHTMLListItem() ? static_cast<HTMLLIAccessible*>(this) : nullptr;
-}
-
 } // namespace a11y
 } // namespace mozilla
+
+
+inline mozilla::a11y::HTMLLIAccessible*
+Accessible::AsHTMLListItem()
+{
+  return mFlags & eHTMLListItemAccessible ?
+    static_cast<mozilla::a11y::HTMLLIAccessible*>(this) : nullptr;
+}
 
 #endif

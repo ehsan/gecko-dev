@@ -45,7 +45,7 @@ public:
                          nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
 
-  virtual nscoord GetBaseline() const MOZ_OVERRIDE;
+  virtual nscoord GetBaseline() const;
 
   /**
     * Respond to the request to resize and/or reflow
@@ -65,6 +65,8 @@ public:
   // nsIFormControlFrame
   virtual nsresult SetFormProperty(nsIAtom* aName, const nsAString& aValue) MOZ_OVERRIDE;
 
+  virtual nsresult GetFormProperty(nsIAtom* aName, nsAString& aValue) const MOZ_OVERRIDE; 
+  
   // AccessKey Helper function
   static nsresult RegUnRegAccessKey(nsIFrame * aFrame, bool aDoReg);
 

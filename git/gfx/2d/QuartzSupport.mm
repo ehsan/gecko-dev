@@ -489,10 +489,6 @@ void nsCARenderer::Destroy() {
     caRenderer.layer = nullptr;
     [caRenderer release];
   }
-  if (mWrapperCALayer) {
-    CALayer* wrapperLayer = (CALayer*)mWrapperCALayer;
-    [wrapperLayer release];
-  }
   if (mOpenGLContext) {
     if (mFBO || mIOTexture || mFBOTexture) {
       // Release these resources with the context that allocated them
@@ -521,7 +517,6 @@ void nsCARenderer::Destroy() {
   // mCGData is deallocated by cgdata_release_callback
 
   mCARenderer = nil;
-  mWrapperCALayer = nil;
   mFBOTexture = 0;
   mOpenGLContext = nullptr;
   mCGImage = nullptr;
@@ -542,6 +537,9 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight,
       aHeight == mUnsupportedHeight) {
     return NS_ERROR_FAILURE;
   }
+
+  CALayer* layer = (CALayer*)aCALayer;
+  CARenderer* caRenderer = nullptr;
 
   CGLPixelFormatAttribute attributes[] = {
     kCGLPFAAccelerated,
@@ -571,27 +569,17 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight,
   }
   ::CGLDestroyPixelFormat(format);
 
-  CARenderer* caRenderer = [[CARenderer rendererWithCGLContext:mOpenGLContext 
-                                                       options:nil] retain];
+  caRenderer = [[CARenderer rendererWithCGLContext:mOpenGLContext 
+                            options:nil] retain];
+  mCARenderer = caRenderer;
   if (caRenderer == nil) {
     mUnsupportedWidth = aWidth;
     mUnsupportedHeight = aHeight;
     Destroy();
     return NS_ERROR_FAILURE;
   }
-  CALayer* wrapperCALayer = [[CALayer layer] retain];
-  if (wrapperCALayer == nil) {
-    [caRenderer release];
-    mUnsupportedWidth = aWidth;
-    mUnsupportedHeight = aHeight;
-    Destroy();
-    return NS_ERROR_FAILURE;
-  }
 
-  mCARenderer = caRenderer;
-  mWrapperCALayer = wrapperCALayer;
-  caRenderer.layer = wrapperCALayer;
-  [wrapperCALayer addSublayer:(CALayer*)aCALayer];
+  caRenderer.layer = layer;
   mContentsScaleFactor = aContentsScaleFactor;
   size_t intScaleFactor = ceil(mContentsScaleFactor);
   SetBounds(aWidth, aHeight);
@@ -708,54 +696,71 @@ nsresult nsCARenderer::SetupRenderer(void *aCALayer, int aWidth, int aHeight,
 
 void nsCARenderer::SetBounds(int aWidth, int aHeight) {
   CARenderer* caRenderer = (CARenderer*)mCARenderer;
-  CALayer* wrapperLayer = (CALayer*)mWrapperCALayer;
-  NSArray* sublayers = [wrapperLayer sublayers];
-  CALayer* pluginLayer = (CALayer*) [sublayers objectAtIndex:0];
+  CALayer* layer = [mCARenderer layer];
 
   // Create a transaction and disable animations
   // to make the position update instant.
   [CATransaction begin];
-  NSMutableDictionary *newActions =
-    [[NSMutableDictionary alloc] initWithObjectsAndKeys:
-      [NSNull null], @"onOrderIn",
-      [NSNull null], @"onOrderOut",
-      [NSNull null], @"sublayers",
-      [NSNull null], @"contents",
-      [NSNull null], @"position",
-      [NSNull null], @"bounds",
-      nil];
-  wrapperLayer.actions = newActions;
+  NSMutableDictionary *newActions = [[NSMutableDictionary alloc] initWithObjectsAndKeys:[NSNull null], @"onOrderIn",
+                                   [NSNull null], @"onOrderOut",
+                                   [NSNull null], @"sublayers",
+                                   [NSNull null], @"contents",
+                                   [NSNull null], @"position",
+                                   [NSNull null], @"bounds",
+                                   nil];
+  layer.actions = newActions;
   [newActions release];
 
   // If we're in HiDPI mode, mContentsScaleFactor will (presumably) be 2.0.
   // For some reason, to make things work properly in HiDPI mode we need to
   // make caRenderer's 'bounds' and 'layer' different sizes -- to set 'bounds'
-  // to the size of 'layer's backing store.  And to avoid this possibly
-  // confusing the plugin, we need to hide it's effects from the plugin by
-  // making pluginLayer (usually the CALayer* provided by the plugin) a
-  // sublayer of our own wrapperLayer (see bug 829284).
+  // to the size of 'layer's backing store.  To make plugins display at HiDPI
+  // resolution we also need to set 'layer's contentScale to
+  // mContentsScaleFactor.
   size_t intScaleFactor = ceil(mContentsScaleFactor);
   [CATransaction setValue: [NSNumber numberWithFloat:0.0f] forKey: kCATransactionAnimationDuration];
   [CATransaction setValue: (id) kCFBooleanTrue forKey: kCATransactionDisableActions];
-  [wrapperLayer setBounds:CGRectMake(0, 0, aWidth, aHeight)];
-  [wrapperLayer setPosition:CGPointMake(aWidth/2.0, aHeight/2.0)];
-  [pluginLayer setBounds:CGRectMake(0, 0, aWidth, aHeight)];
-  [pluginLayer setFrame:CGRectMake(0, 0, aWidth, aHeight)];
+  [layer setBounds:CGRectMake(0, 0, aWidth, aHeight)];
+  [layer setPosition:CGPointMake(aWidth/2.0, aHeight/2.0)];
   caRenderer.bounds = CGRectMake(0, 0, aWidth * intScaleFactor, aHeight * intScaleFactor);
   if (mContentsScaleFactor != 1.0) {
-    CGAffineTransform affineTransform = [wrapperLayer affineTransform];
+    CGAffineTransform affineTransform = [layer affineTransform];
     affineTransform.a = mContentsScaleFactor;
     affineTransform.d = mContentsScaleFactor;
     affineTransform.tx = ((double)aWidth)/mContentsScaleFactor;
     affineTransform.ty = ((double)aHeight)/mContentsScaleFactor;
-    [wrapperLayer setAffineTransform:affineTransform];
+    [layer setAffineTransform:affineTransform];
+    if ([layer respondsToSelector:@selector(setContentsScale:)]) {
+      // For reasons that aren't clear (perhaps one or more OS bugs), OOP
+      // Core Graphics plugins (ones that use CGBridgeLayer) can only use
+      // HiDPI mode if the tree is built with the 10.7 SDK or up.
+#if !defined(MAC_OS_X_VERSION_10_7) || \
+    MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
+      Class CGBridgeLayerClass = ::NSClassFromString(@"CGBridgeLayer");
+      if (!CGBridgeLayerClass || ![layer isKindOfClass:CGBridgeLayerClass])
+#endif
+      {
+        layer.contentsScale = mContentsScaleFactor;
+      }
+    }
   } else {
     // These settings are the default values.  But they might have been
     // changed as above if we were previously running in a HiDPI mode
     // (i.e. if we just switched from that to a non-HiDPI mode).
-    [wrapperLayer setAffineTransform:CGAffineTransformIdentity];
+    [layer setAffineTransform:CGAffineTransformIdentity];
+    if ([layer respondsToSelector:@selector(setContentsScale:)]) {
+#if !defined(MAC_OS_X_VERSION_10_7) || \
+    MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_7
+      Class CGBridgeLayerClass = ::NSClassFromString(@"CGBridgeLayer");
+      if (!CGBridgeLayerClass || ![layer isKindOfClass:CGBridgeLayerClass])
+#endif
+      {
+        layer.contentsScale = 1.0;
+      }
+    }
   }
   [CATransaction commit];
+
 }
 
 void nsCARenderer::SetViewport(int aWidth, int aHeight) {
@@ -839,12 +844,11 @@ nsresult nsCARenderer::Render(int aWidth, int aHeight,
   if (aWidth == 0 || aHeight == 0 || aContentsScaleFactor <= 0)
     return NS_OK;
 
-  if (!mCARenderer || !mWrapperCALayer) {
+  if (!mCARenderer) {
     return NS_ERROR_FAILURE;
   }
 
   CARenderer* caRenderer = (CARenderer*)mCARenderer;
-  CALayer* wrapperLayer = (CALayer*)mWrapperCALayer;
   size_t intScaleFactor = ceil(aContentsScaleFactor);
   int renderer_width = caRenderer.bounds.size.width / intScaleFactor;
   int renderer_height = caRenderer.bounds.size.height / intScaleFactor;
@@ -853,10 +857,9 @@ nsresult nsCARenderer::Render(int aWidth, int aHeight,
       mContentsScaleFactor != aContentsScaleFactor) {
     // XXX: This should be optimized to not rescale the buffer
     //      if we are resizing down.
-    // caLayer may be the CALayer* provided by the plugin, so we need to
-    // preserve it across the call to Destroy().
-    NSArray* sublayers = [wrapperLayer sublayers];
-    CALayer* caLayer = (CALayer*) [sublayers objectAtIndex:0];
+    // caLayer is the CALayer* provided by the plugin, so we need to preserve
+    // it across the call to Destroy().
+    CALayer* caLayer = [caRenderer layer];
     // mIOSurface is set by AttachIOSurface(), not by SetupRenderer().  So
     // since it may have been set by a prior call to AttachIOSurface(), we
     // need to preserve it across the call to Destroy().
@@ -991,19 +994,17 @@ nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext,
   return NS_OK;
 }
 
-void nsCARenderer::DetachCALayer() {
-  CALayer* wrapperLayer = (CALayer*)mWrapperCALayer;
-  NSArray* sublayers = [wrapperLayer sublayers];
-  CALayer* oldLayer = (CALayer*) [sublayers objectAtIndex:0];
-  [oldLayer removeFromSuperlayer];
+void nsCARenderer::DettachCALayer() {
+  CARenderer* caRenderer = (CARenderer*)mCARenderer;
+
+  caRenderer.layer = nil;
 }
 
 void nsCARenderer::AttachCALayer(void *aCALayer) {
-  CALayer* wrapperLayer = (CALayer*)mWrapperCALayer;
-  NSArray* sublayers = [wrapperLayer sublayers];
-  CALayer* oldLayer = (CALayer*) [sublayers objectAtIndex:0];
-  [oldLayer removeFromSuperlayer];
-  [wrapperLayer addSublayer:(CALayer*)aCALayer];
+  CARenderer* caRenderer = (CARenderer*)mCARenderer;
+
+  CALayer* caLayer = (CALayer*)aCALayer;
+  caRenderer.layer = caLayer;
 }
 
 #ifdef DEBUG

@@ -566,86 +566,6 @@ function testCachedResultsWithExpire() {
     });
 }
 
-function testCachedResultsUpdate()
-{
-  var existUrls = ["foo.com/a"];
-  setupCachedResults(existUrls, function() {
-    // This is called after setupCachedResults().  Verify that
-    // checking the url again does not cause a completer request.
-
-    // install a new completer, this one should never be queried.
-    var newCompleter = installCompleter('test-phish-simple', [[1, []]], []);
-
-    var assertions = {
-      "urlsExist" : existUrls,
-      "completerQueried" : [newCompleter, []]
-    };
-
-    var addUrls = ["foobar.org/a"];
-
-    var update2 = buildPhishingUpdate(
-        [
-          { "chunkNum" : 2,
-            "urls" : addUrls
-          }],
-        4);
-
-    checkAssertions(assertions, function () {
-      // Apply the update. The cached completes should be gone.
-      doStreamUpdate(update2, function() {
-        // Now the completer gets queried again.
-        var newCompleter2 = installCompleter('test-phish-simple', [[1, existUrls]], []);
-        var assertions2 = {
-          "tableData" : "test-phish-simple;a:1-2",
-          "urlsExist" : existUrls,
-          "completerQueried" : [newCompleter2, existUrls]
-        };
-        checkAssertions(assertions2, runNextTest);
-      }, updateError);
-    });
-  });
-}
-
-function testCachedResultsFailure()
-{
-  var existUrls = ["foo.com/a"];
-  setupCachedResults(existUrls, function() {
-    // This is called after setupCachedResults().  Verify that
-    // checking the url again does not cause a completer request.
-
-    // install a new completer, this one should never be queried.
-    var newCompleter = installCompleter('test-phish-simple', [[1, []]], []);
-
-    var assertions = {
-      "urlsExist" : existUrls,
-      "completerQueried" : [newCompleter, []]
-    };
-
-    var addUrls = ["foobar.org/a"];
-
-    var update2 = buildPhishingUpdate(
-        [
-          { "chunkNum" : 2,
-            "urls" : addUrls
-          }],
-        4);
-
-    checkAssertions(assertions, function() {
-      // Apply the update. The cached completes should be gone.
-      doErrorUpdate("test-phish-simple,test-malware-simple", function() {
-        // Now the completer gets queried again.
-        var newCompleter2 = installCompleter('test-phish-simple', [[1, existUrls]], []);
-        var assertions2 = {
-          "tableData" : "test-phish-simple;a:1",
-          "urlsExist" : existUrls,
-          "completerQueried" : [newCompleter2, existUrls]
-        };
-        checkAssertions(assertions2, runNextTest);
-      }, updateError);
-    });
-  });
-}
-
 function setupUncachedResults(addUrls, part2)
 {
   var update = buildPhishingUpdate(
@@ -696,9 +616,7 @@ function testErrorList()
           { "chunkNum" : 1,
             "urls" : addUrls
           }],
-    4);
-  // The update failure should will kill the completes, so the above
-  // must be a prefix to get any hit at all past the update failure.
+    32);
 
   var completer = installCompleter('test-phish-simple', [[1, addUrls]], []);
 
@@ -743,7 +661,7 @@ function testStaleList()
   };
 
   // Consider a match stale after one second.
-  prefBranch.setIntPref("urlclassifier.max-complete-age", 1);
+  prefBranch.setIntPref("urlclassifier.confirm-age", 1);
 
   // Apply the update.
   doStreamUpdate(update, function() {
@@ -752,7 +670,7 @@ function testStaleList()
       new Timer(3000, function() {
           // Now the lists should be marked stale.  Check assertions.
           checkAssertions(assertions, function() {
-              prefBranch.setIntPref("urlclassifier.max-complete-age", 2700);
+              prefBranch.setIntPref("urlclassifier.confirm-age", 2700);
               runNextTest();
             });
         }, updateError);
@@ -783,7 +701,7 @@ function testStaleListEmpty()
   };
 
   // Consider a match stale after one second.
-  prefBranch.setIntPref("urlclassifier.max-complete-age", 1);
+  prefBranch.setIntPref("urlclassifier.confirm-age", 1);
 
   // Apply the update.
   doStreamUpdate(update, function() {
@@ -792,7 +710,7 @@ function testStaleListEmpty()
       new Timer(3000, function() {
           // Now the lists should be marked stale.  Check assertions.
           checkAssertions(assertions, function() {
-              prefBranch.setIntPref("urlclassifier.max-complete-age", 2700);
+              prefBranch.setIntPref("urlclassifier.confirm-age", 2700);
               runNextTest();
             });
         }, updateError);
@@ -811,9 +729,7 @@ function testErrorListIndependent()
           { "chunkNum" : 1,
             "urls" : phishUrls
           }],
-    4);
-  // These have to persist past the update failure, so they must be prefixes,
-  // not completes.
+    32);
 
   update += buildMalwareUpdate(
         [
@@ -863,8 +779,6 @@ function run_test()
       testCachedResults,
       testCachedResultsWithSub,
       testCachedResultsWithExpire,
-      testCachedResultsUpdate,
-      testCachedResultsFailure,
       testUncachedResults,
       testStaleList,
       testStaleListEmpty,

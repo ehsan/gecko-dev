@@ -5,7 +5,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/PodOperations.h"
 #include "mozilla/RangedPtr.h"
 
 #include "gc/Marking.h"
@@ -15,21 +14,18 @@
 
 #include "jsobjinlines.h"
 
+using namespace mozilla;
 using namespace js;
 
-using mozilla::PodCopy;
-using mozilla::RangedPtr;
-
+#ifdef DEBUG
 bool
 JSString::isShort() const
 {
-    // It's possible for short strings to be converted to flat strings;  as a
-    // result, checking just for the arena isn't enough to determine if a
-    // string is short.  Hence the isInline() check.
-    bool is_short = (getAllocKind() == gc::FINALIZE_SHORT_STRING) && isInline();
+    bool is_short = (getAllocKind() == gc::FINALIZE_SHORT_STRING);
     JS_ASSERT_IF(is_short, isFlat());
     return is_short;
 }
+#endif
 
 bool
 JSString::isExternal() const
@@ -203,7 +199,7 @@ JSRope::flattenInternal(JSContext *maybecx)
     jschar *wholeChars;
     JSString *str = this;
     jschar *pos;
-    JSRuntime *rt = runtime();
+    JSCompartment *comp = compartment();
 
     if (this->leftChild()->isExtensible()) {
         JSExtensibleString &left = this->leftChild()->asExtensible();
@@ -221,8 +217,8 @@ JSRope::flattenInternal(JSContext *maybecx)
             JS_STATIC_ASSERT(!(EXTENSIBLE_FLAGS & DEPENDENT_FLAGS));
             left.d.lengthAndFlags = bits ^ (EXTENSIBLE_FLAGS | DEPENDENT_FLAGS);
             left.d.s.u2.base = (JSLinearString *)this;  /* will be true on exit */
-            StringWriteBarrierPostRemove(rt, &left.d.u1.left);
-            StringWriteBarrierPost(rt, (JSString **)&left.d.s.u2.base);
+            StringWriteBarrierPostRemove(comp, &left.d.u1.left);
+            StringWriteBarrierPost(comp, (JSString **)&left.d.s.u2.base);
             goto visit_right_child;
         }
     }
@@ -239,7 +235,7 @@ JSRope::flattenInternal(JSContext *maybecx)
 
         JSString &left = *str->d.u1.left;
         str->d.u1.chars = pos;
-        StringWriteBarrierPostRemove(rt, &str->d.u1.left);
+        StringWriteBarrierPostRemove(comp, &str->d.u1.left);
         if (left.isRope()) {
             left.d.s.u3.parent = str;          /* Return to this when 'left' done, */
             left.d.lengthAndFlags = 0x200;     /* but goto visit_right_child. */
@@ -269,14 +265,14 @@ JSRope::flattenInternal(JSContext *maybecx)
             str->d.lengthAndFlags = buildLengthAndFlags(wholeLength, EXTENSIBLE_FLAGS);
             str->d.u1.chars = wholeChars;
             str->d.s.u2.capacity = wholeCapacity;
-            StringWriteBarrierPostRemove(rt, &str->d.u1.left);
-            StringWriteBarrierPostRemove(rt, &str->d.s.u2.right);
+            StringWriteBarrierPostRemove(comp, &str->d.u1.left);
+            StringWriteBarrierPostRemove(comp, &str->d.s.u2.right);
             return &this->asFlat();
         }
         size_t progress = str->d.lengthAndFlags;
         str->d.lengthAndFlags = buildLengthAndFlags(pos - str->d.u1.chars, DEPENDENT_FLAGS);
         str->d.s.u2.base = (JSLinearString *)this;       /* will be true on exit */
-        StringWriteBarrierPost(rt, (JSString **)&str->d.s.u2.base);
+        StringWriteBarrierPost(comp, (JSString **)&str->d.s.u2.base);
         str = str->d.s.u3.parent;
         if (progress == 0x200)
             goto visit_right_child;
@@ -289,7 +285,7 @@ JSFlatString *
 JSRope::flatten(JSContext *maybecx)
 {
 #if JSGC_INCREMENTAL
-    if (zone()->needsBarrier())
+    if (compartment()->needsBarrier())
         return flattenInternal<WithIncrementalBarrier>(maybecx);
     else
         return flattenInternal<NoBarrier>(maybecx);
@@ -298,14 +294,11 @@ JSRope::flatten(JSContext *maybecx)
 #endif
 }
 
-template <AllowGC allowGC>
 JSString *
-js::ConcatStrings(JSContext *cx,
-                  typename MaybeRooted<JSString*, allowGC>::HandleType left,
-                  typename MaybeRooted<JSString*, allowGC>::HandleType right)
+js_ConcatStrings(JSContext *cx, HandleString left, HandleString right)
 {
-    JS_ASSERT_IF(!left->isAtom(), left->zone() == cx->zone());
-    JS_ASSERT_IF(!right->isAtom(), right->zone() == cx->zone());
+    JS_ASSERT_IF(!left->isAtom(), left->compartment() == cx->compartment);
+    JS_ASSERT_IF(!right->isAtom(), right->compartment() == cx->compartment);
 
     size_t leftLen = left->length();
     if (leftLen == 0)
@@ -316,12 +309,11 @@ js::ConcatStrings(JSContext *cx,
         return left;
 
     size_t wholeLength = leftLen + rightLen;
-    JSContext *cxIfCanGC = allowGC ? cx : NULL;
-    if (!JSString::validateLength(cxIfCanGC, wholeLength))
+    if (!JSString::validateLength(cx, wholeLength))
         return NULL;
 
     if (JSShortString::lengthFits(wholeLength)) {
-        JSShortString *str = js_NewGCShortString<allowGC>(cx);
+        JSShortString *str = js_NewGCShortString(cx);
         if (!str)
             return NULL;
         const jschar *leftChars = left->getChars(cx);
@@ -338,14 +330,8 @@ js::ConcatStrings(JSContext *cx,
         return str;
     }
 
-    return JSRope::new_<allowGC>(cx, left, right, wholeLength);
+    return JSRope::new_(cx, left, right, wholeLength);
 }
-
-template JSString *
-js::ConcatStrings<CanGC>(JSContext *cx, HandleString left, HandleString right);
-
-template JSString *
-js::ConcatStrings<NoGC>(JSContext *cx, JSString *left, JSString *right);
 
 JSFlatString *
 JSDependentString::undepend(JSContext *cx)
@@ -483,7 +469,7 @@ StaticStrings::init(JSContext *cx)
 
     for (uint32_t i = 0; i < UNIT_STATIC_LIMIT; i++) {
         jschar buffer[] = { jschar(i), '\0' };
-        JSFlatString *s = js_NewStringCopyN<CanGC>(cx, buffer, 1);
+        JSFlatString *s = js_NewStringCopyN(cx, buffer, 1);
         if (!s)
             return false;
         unitStaticTable[i] = s->morphAtomizedStringIntoAtom();
@@ -491,7 +477,7 @@ StaticStrings::init(JSContext *cx)
 
     for (uint32_t i = 0; i < NUM_SMALL_CHARS * NUM_SMALL_CHARS; i++) {
         jschar buffer[] = { FROM_SMALL_CHAR(i >> 6), FROM_SMALL_CHAR(i & 0x3F), '\0' };
-        JSFlatString *s = js_NewStringCopyN<CanGC>(cx, buffer, 2);
+        JSFlatString *s = js_NewStringCopyN(cx, buffer, 2);
         if (!s)
             return false;
         length2StaticTable[i] = s->morphAtomizedStringIntoAtom();
@@ -509,7 +495,7 @@ StaticStrings::init(JSContext *cx)
                                 jschar('0' + ((i / 10) % 10)),
                                 jschar('0' + (i % 10)),
                                 '\0' };
-            JSFlatString *s = js_NewStringCopyN<CanGC>(cx, buffer, 3);
+            JSFlatString *s = js_NewStringCopyN(cx, buffer, 3);
             if (!s)
                 return false;
             intStaticTable[i] = s->morphAtomizedStringIntoAtom();

@@ -21,7 +21,6 @@
 #include "nsCRTGlue.h"
 #include "nsAutoPtr.h"
 #include "nsIScriptSecurityManager.h"
-#include <algorithm>
 
 static const char kXPConnectServiceCID[] = "@mozilla.org/js/xpc/XPConnect;1";
 
@@ -57,8 +56,7 @@ WarnDeprecatedMethod(DeprecationWarning warning)
 }
 
 NS_IMETHODIMP
-nsJSON::Encode(const JS::Value& aValue, JSContext* cx, uint8_t aArgc,
-               nsAString &aJSON)
+nsJSON::Encode(const JS::Value& aValue, JSContext* cx, uint8_t aArgc, nsAString &aJSON)
 {
   // This function should only be called from JS.
   nsresult rv = WarnDeprecatedMethod(EncodeWarning);
@@ -195,8 +193,7 @@ nsJSON::EncodeFromJSVal(JS::Value *value, JSContext *cx, nsAString &result)
 }
 
 nsresult
-nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue,
-                       nsJSONWriter* writer)
+nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue, nsJSONWriter* writer)
 {
   JSAutoRequest ar(cx);
 
@@ -216,7 +213,7 @@ nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue,
    * Note: It is perfectly fine to not implement toJSON, so it is
    * perfectly fine for GetMethod to fail
    */
-  JS::Value toJSON;
+  jsval toJSON;
   if (JS_GetMethod(cx, obj, "toJSON", NULL, &toJSON) &&
       !JSVAL_IS_PRIMITIVE(toJSON) &&
       JS_ObjectIsCallable(cx, JSVAL_TO_OBJECT(toJSON))) {
@@ -241,9 +238,9 @@ nsJSON::EncodeInternal(JSContext* cx, const JS::Value& aValue,
     return NS_OK;
 
   // Backward compatibility:
-  // function shall not pass, just "plain" objects and arrays
+  // function/xml shall not pass, just "plain" objects and arrays
   JSType type = JS_TypeOfValue(cx, val);
-  if (type == JSTYPE_FUNCTION)
+  if (type == JSTYPE_FUNCTION || type == JSTYPE_XML)
     return NS_ERROR_INVALID_ARG;
 
   // We're good now; try to stringify
@@ -390,7 +387,7 @@ nsJSON::DecodeFromStream(nsIInputStream *aStream, int32_t aContentLength,
 }
 
 NS_IMETHODIMP
-nsJSON::DecodeToJSVal(const nsAString &str, JSContext *cx, JS::Value *result)
+nsJSON::DecodeToJSVal(const nsAString &str, JSContext *cx, jsval *result)
 {
   JSAutoRequest ar(cx);
 
@@ -499,11 +496,11 @@ nsJSON::LegacyDecodeFromStream(nsIInputStream *aStream, int32_t aContentLength,
 }
 
 NS_IMETHODIMP
-nsJSON::LegacyDecodeToJSVal(const nsAString &str, JSContext *cx, JS::Value *result)
+nsJSON::LegacyDecodeToJSVal(const nsAString &str, JSContext *cx, jsval *result)
 {
   JSAutoRequest ar(cx);
 
-  JS::RootedValue reviver(cx, JS::NullValue()), value(cx);
+  js::RootedValue reviver(cx, JS::NullValue()), value(cx);
 
   JS::StableCharPtr chars(static_cast<const jschar*>(PromiseFlatString(str).get()),
                           str.Length());
@@ -529,7 +526,7 @@ NS_NewJSON(nsISupports* aOuter, REFNSIID aIID, void** aResult)
   return NS_OK;
 }
 
-nsJSONListener::nsJSONListener(JSContext *cx, JS::Value *rootVal,
+nsJSONListener::nsJSONListener(JSContext *cx, jsval *rootVal,
                                bool needsConverter,
                                DecodingMode mode /* = STRICT */)
   : mNeedsConverter(needsConverter), 
@@ -574,7 +571,7 @@ nsJSONListener::OnStopRequest(nsIRequest *aRequest, nsISupports *aContext,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  JS::RootedValue reviver(mCx, JS::NullValue()), value(mCx);
+  js::RootedValue reviver(mCx, JS::NullValue()), value(mCx);
 
   JS::StableCharPtr chars(reinterpret_cast<const jschar*>(mBufferedChars.Elements()),
                           mBufferedChars.Length());
@@ -609,7 +606,7 @@ nsJSONListener::OnDataAvailable(nsIRequest *aRequest, nsISupports *aContext,
   while (bytesRemaining) {
     unsigned int bytesRead;
     rv = aStream->Read(buffer,
-                       std::min((unsigned long)sizeof(buffer), bytesRemaining),
+                       NS_MIN((unsigned long)sizeof(buffer), bytesRemaining),
                        &bytesRead);
     NS_ENSURE_SUCCESS(rv, rv);
     rv = ProcessBytes(buffer, bytesRead);

@@ -39,6 +39,7 @@
 #include "nsIDOMDocumentFragment.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMHTMLAnchorElement.h"
+#include "nsIDOMHTMLBodyElement.h"
 #include "nsIDOMHTMLEmbedElement.h"
 #include "nsIDOMHTMLFrameElement.h"
 #include "nsIDOMHTMLIFrameElement.h"
@@ -47,6 +48,9 @@
 #include "nsIDOMHTMLLinkElement.h"
 #include "nsIDOMHTMLObjectElement.h"
 #include "nsIDOMHTMLScriptElement.h"
+#include "nsIDOMHTMLTableCellElement.h"
+#include "nsIDOMHTMLTableElement.h"
+#include "nsIDOMHTMLTableRowElement.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMRange.h"
 #include "nsIDocument.h"
@@ -152,8 +156,6 @@ NS_IMETHODIMP nsHTMLEditor::LoadHTML(const nsAString & aInputString)
 
   nsTextRulesInfo ruleInfo(EditAction::loadHTML);
   bool cancel, handled;
-  // Protect the edit rules object from dying
-  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
   nsresult rv = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   NS_ENSURE_SUCCESS(rv, rv);
   if (cancel) {
@@ -735,24 +737,30 @@ nsHTMLEditor::GetAttributeToModifyOnNode(nsIDOMNode *aNode, nsAString &aAttr)
   }
 
   NS_NAMED_LITERAL_STRING(bgStr, "background");
-  nsCOMPtr<dom::Element> element = do_QueryInterface(aNode);
-  if (element && element->IsHTML(nsGkAtoms::body)) {
+  nsCOMPtr<nsIDOMHTMLBodyElement> nodeAsBody = do_QueryInterface(aNode);
+  if (nodeAsBody)
+  {
     aAttr = bgStr;
     return NS_OK;
   }
 
-  if (element && element->IsHTML(nsGkAtoms::table)) {
+  nsCOMPtr<nsIDOMHTMLTableElement> nodeAsTable = do_QueryInterface(aNode);
+  if (nodeAsTable)
+  {
     aAttr = bgStr;
     return NS_OK;
   }
 
-  if (element && element->IsHTML(nsGkAtoms::tr)) {
+  nsCOMPtr<nsIDOMHTMLTableRowElement> nodeAsTableRow = do_QueryInterface(aNode);
+  if (nodeAsTableRow)
+  {
     aAttr = bgStr;
     return NS_OK;
   }
 
-  if (element &&
-      (element->IsHTML(nsGkAtoms::td) || element->IsHTML(nsGkAtoms::th))) {
+  nsCOMPtr<nsIDOMHTMLTableCellElement> nodeAsTableCell = do_QueryInterface(aNode);
+  if (nodeAsTableCell)
+  {
     aAttr = bgStr;
     return NS_OK;
   }
@@ -1704,8 +1712,6 @@ NS_IMETHODIMP nsHTMLEditor::PasteAsCitedQuotation(const nsAString & aCitation,
   // give rules a chance to handle or cancel
   nsTextRulesInfo ruleInfo(EditAction::insertElement);
   bool cancel, handled;
-  // Protect the edit rules object from dying
-  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
   nsresult rv = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   NS_ENSURE_SUCCESS(rv, rv);
   if (cancel || handled) {
@@ -1910,8 +1916,6 @@ nsHTMLEditor::InsertAsPlaintextQuotation(const nsAString & aQuotedText,
   // give rules a chance to handle or cancel
   nsTextRulesInfo ruleInfo(EditAction::insertElement);
   bool cancel, handled;
-  // Protect the edit rules object from dying
-  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
   nsresult rv = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   NS_ENSURE_SUCCESS(rv, rv);
   if (cancel || handled) {
@@ -2005,8 +2009,6 @@ nsHTMLEditor::InsertAsCitedQuotation(const nsAString & aQuotedText,
   // give rules a chance to handle or cancel
   nsTextRulesInfo ruleInfo(EditAction::insertElement);
   bool cancel, handled;
-  // Protect the edit rules object from dying
-  nsCOMPtr<nsIEditRules> kungFuDeathGrip(mRules);
   nsresult rv = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
   NS_ENSURE_SUCCESS(rv, rv);
   if (cancel || handled) {
@@ -2096,7 +2098,7 @@ void RemoveBodyAndHead(nsIDOMNode *aNode)
 /**
  * This function finds the target node that we will be pasting into. aStart is
  * the context that we're given and aResult will be the target. Initially,
- * *aResult must be nullptr.
+ * *aResult must be NULL.
  *
  * The target for a paste is found by either finding the node that contains
  * the magical comment node containing kInsertCookie or, failing that, the
@@ -2113,7 +2115,7 @@ nsresult FindTargetNode(nsIDOMNode *aStart, nsCOMPtr<nsIDOMNode> &aResult)
 
   if (!child)
   {
-    // If the current result is nullptr, then aStart is a leaf, and is the
+    // If the current result is NULL, then aStart is a leaf, and is the
     // fallback result.
     if (!aResult)
       aResult = aStart;

@@ -15,8 +15,10 @@
 
 #include "nss.h"
 
+extern "C" {
 #include "pkcs12.h"
 #include "p12plcy.h"
+}
 
 class nsIX509Cert;
 
@@ -76,6 +78,7 @@ private:
 
   // NSPR file I/O for export file
   PRFileDesc *mTmpFile;
+  char       *mTmpFilePath;
 
   // simulated file I/O for "in memory" temporary digest data
   nsCString                 *mDigest;
@@ -94,3 +97,4 @@ private:
 };
 
 #endif /* _NS_PKCS12BLOB_H_ */
+

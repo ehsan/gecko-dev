@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebSocketLog.h"
-#include "base/compiler_specific.h"
 #include "mozilla/dom/TabChild.h"
 #include "mozilla/net/NeckoChild.h"
 #include "WebSocketChannelChild.h"
@@ -49,7 +48,7 @@ NS_INTERFACE_MAP_BEGIN(WebSocketChannelChild)
 NS_INTERFACE_MAP_END
 
 WebSocketChannelChild::WebSocketChannelChild(bool aSecure)
-: ALLOW_THIS_IN_INITIALIZER_LIST(mEventQ(static_cast<nsIWebSocketChannel*>(this)))
+: mEventQ(static_cast<nsIWebSocketChannel*>(this))
 , mIPCOpen(false)
 {
   LOG(("WebSocketChannelChild::WebSocketChannelChild() %p\n", this));
@@ -332,9 +331,6 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
   if (iTabChild) {
     tabChild = static_cast<mozilla::dom::TabChild*>(iTabChild.get());
   }
-  if (MissingRequiredTabChild(tabChild, "websocket")) {
-    return NS_ERROR_ILLEGAL_VALUE;
-  }
 
   URIParams uri;
   SerializeURI(aURI, uri);
@@ -342,11 +338,9 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
   // Corresponding release in DeallocPWebSocket
   AddIPDLReference();
 
-  gNeckoChild->SendPWebSocketConstructor(this, tabChild,
-                                         IPC::SerializedLoadContext(this));
+  gNeckoChild->SendPWebSocketConstructor(this, tabChild);
   if (!SendAsyncOpen(uri, nsCString(aOrigin), mProtocol, mEncrypted,
-                     mPingInterval, mClientSetPingInterval,
-                     mPingResponseTimeout, mClientSetPingTimeout))
+                     IPC::SerializedLoadContext(this)))
     return NS_ERROR_UNEXPECTED;
 
   mOriginalURI = aURI;
@@ -354,7 +348,6 @@ WebSocketChannelChild::AsyncOpen(nsIURI *aURI,
   mListener = aListener;
   mContext = aContext;
   mOrigin = aOrigin;
-  mWasOpened = 1;
 
   return NS_OK;
 }

@@ -9,6 +9,8 @@ VPATH     = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE    = xulrunner
+
 # Statically link against the RTL on windows
 USE_STATIC_LIBS = 1
 # Don't create a dependency on mozglue
@@ -65,18 +67,25 @@ ifdef _MSC_VER
 WIN32_EXE_LDFLAGS += -ENTRY:wmainCRTStartup
 endif
 
+include $(topsrcdir)/config/rules.mk
+
+ifeq ($(OS_ARCH),WINNT)
+OS_LIBS += $(call EXPAND_LIBNAME,shell32)
+endif
+
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 
 FRAMEWORK_NAME = XUL
 FRAMEWORK_VERSION = $(MOZILLA_VERSION)
 
-FINAL_TARGET = \
+FRAMEWORK_DIR = \
    $(DIST)/$(FRAMEWORK_NAME).framework/Versions/$(FRAMEWORK_VERSION)
 
-endif
+$(FRAMEWORK_DIR):
+	$(NSINSTALL) -D $@
 
-include $(topsrcdir)/config/rules.mk
+$(FRAMEWORK_DIR)/$(PROGRAM): $(PROGRAM) $(FRAMEWORK_DIR)
+	$(NSINSTALL) $(PROGRAM) $(FRAMEWORK_DIR)
 
-ifeq ($(OS_ARCH),WINNT)
-OS_LIBS += $(call EXPAND_LIBNAME,shell32)
+libs:: $(FRAMEWORK_DIR)/$(PROGRAM)
 endif

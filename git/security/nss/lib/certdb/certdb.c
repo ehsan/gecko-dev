@@ -5,7 +5,7 @@
 /*
  * Certificate handling code
  *
- * $Id: certdb.c,v 1.124 2013/01/07 04:11:50 ryan.sleevi%gmail.com Exp $
+ * $Id: certdb.c,v 1.123 2012/04/25 14:49:26 gerv%gerv.net Exp $
  */
 
 #include "nssilock.h"
@@ -2051,38 +2051,35 @@ cert_Version(CERTCertificate *cert)
 static unsigned int
 cert_ComputeTrustOverrides(CERTCertificate *cert, unsigned int cType)
 {
-    CERTCertTrust trust;
-    SECStatus rv = SECFailure;
+    CERTCertTrust *trust = cert->trust;
 
-    rv = CERT_GetCertTrust(cert, &trust);
+    if (trust && (trust->sslFlags |
+		  trust->emailFlags |
+		  trust->objectSigningFlags)) {
 
-    if (rv == SECSuccess && (trust.sslFlags |
-		  trust.emailFlags |
-		  trust.objectSigningFlags)) {
-
-	if (trust.sslFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
+	if (trust->sslFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
 	    cType |= NS_CERT_TYPE_SSL_SERVER|NS_CERT_TYPE_SSL_CLIENT;
-	if (trust.sslFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
+	if (trust->sslFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
 	    cType |= NS_CERT_TYPE_SSL_CA;
 #if defined(CERTDB_NOT_TRUSTED)
-	if (trust.sslFlags & CERTDB_NOT_TRUSTED) 
+	if (trust->sslFlags & CERTDB_NOT_TRUSTED) 
 	    cType &= ~(NS_CERT_TYPE_SSL_SERVER|NS_CERT_TYPE_SSL_CLIENT|
 	               NS_CERT_TYPE_SSL_CA);
 #endif
-	if (trust.emailFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
+	if (trust->emailFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
 	    cType |= NS_CERT_TYPE_EMAIL;
-	if (trust.emailFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
+	if (trust->emailFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
 	    cType |= NS_CERT_TYPE_EMAIL_CA;
 #if defined(CERTDB_NOT_TRUSTED)
-	if (trust.emailFlags & CERTDB_NOT_TRUSTED) 
+	if (trust->emailFlags & CERTDB_NOT_TRUSTED) 
 	    cType &= ~(NS_CERT_TYPE_EMAIL|NS_CERT_TYPE_EMAIL_CA);
 #endif
-	if (trust.objectSigningFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
+	if (trust->objectSigningFlags & (CERTDB_TERMINAL_RECORD|CERTDB_TRUSTED)) 
 	    cType |= NS_CERT_TYPE_OBJECT_SIGNING;
-	if (trust.objectSigningFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
+	if (trust->objectSigningFlags & (CERTDB_VALID_CA|CERTDB_TRUSTED_CA)) 
 	    cType |= NS_CERT_TYPE_OBJECT_SIGNING_CA;
 #if defined(CERTDB_NOT_TRUSTED)
-	if (trust.objectSigningFlags & CERTDB_NOT_TRUSTED) 
+	if (trust->objectSigningFlags & CERTDB_NOT_TRUSTED) 
 	    cType &= ~(NS_CERT_TYPE_OBJECT_SIGNING|
 	               NS_CERT_TYPE_OBJECT_SIGNING_CA);
 #endif
@@ -2821,14 +2818,10 @@ loser:
 
 PRBool CERT_IsUserCert(CERTCertificate* cert)
 {
-    CERTCertTrust trust;
-    SECStatus rv = SECFailure;
-
-    rv = CERT_GetCertTrust(cert, &trust);
-    if (rv == SECSuccess &&
-        ((trust.sslFlags & CERTDB_USER ) ||
-         (trust.emailFlags & CERTDB_USER ) ||
-         (trust.objectSigningFlags & CERTDB_USER )) ) {
+    if ( cert->trust &&
+        ((cert->trust->sslFlags & CERTDB_USER ) ||
+         (cert->trust->emailFlags & CERTDB_USER ) ||
+         (cert->trust->objectSigningFlags & CERTDB_USER )) ) {
         return PR_TRUE;
     } else {
         return PR_FALSE;

@@ -14,13 +14,12 @@
 #include "nsGkAtoms.h"
 #include "nsFrameManager.h"
 #include "nsIDOMNode.h"
-#include "nsIDOMMozNamedAttrMap.h"
+#include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMAttr.h"
 #include "nsITheme.h"
 #include "nsIServiceManager.h"
 #include "nsBoxLayout.h"
 #include "FrameLayerBuilder.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -67,19 +66,20 @@ nsBox::ListBox(nsAutoString& aResult)
     // add on all the set attributes
     if (content) {
       nsCOMPtr<nsIDOMNode> node(do_QueryInterface(content));
-      nsCOMPtr<nsIDOMMozNamedAttrMap> namedMap;
+      nsCOMPtr<nsIDOMNamedNodeMap> namedMap;
 
       node->GetAttributes(getter_AddRefs(namedMap));
       uint32_t length;
       namedMap->GetLength(&length);
 
-      nsCOMPtr<nsIDOMAttr> attribute;
+      nsCOMPtr<nsIDOMNode> attribute;
       for (uint32_t i = 0; i < length; ++i)
       {
         namedMap->Item(i, getter_AddRefs(attribute));
-        attribute->GetName(name);
+        nsCOMPtr<nsIDOMAttr> attr(do_QueryInterface(attribute));
+        attr->GetName(name);
         nsAutoString value;
-        attribute->GetValue(value);
+        attr->GetValue(value);
         AppendAttribute(name, value, aResult);
       }
     }
@@ -307,7 +307,7 @@ nsBox::GetBorder(nsMargin& aMargin)
 {
   aMargin.SizeTo(0,0,0,0);
     
-  const nsStyleDisplay* disp = StyleDisplay();
+  const nsStyleDisplay* disp = GetStyleDisplay();
   if (disp->mAppearance && gTheme) {
     // Go to the theme for the border.
     nsPresContext *context = PresContext();
@@ -323,7 +323,7 @@ nsBox::GetBorder(nsMargin& aMargin)
     }
   }
 
-  aMargin = StyleBorder()->GetComputedBorder();
+  aMargin = GetStyleBorder()->GetComputedBorder();
 
   return NS_OK;
 }
@@ -331,7 +331,7 @@ nsBox::GetBorder(nsMargin& aMargin)
 NS_IMETHODIMP
 nsBox::GetPadding(nsMargin& aMargin)
 {
-  const nsStyleDisplay *disp = StyleDisplay();
+  const nsStyleDisplay *disp = GetStyleDisplay();
   if (disp->mAppearance && gTheme) {
     // Go to the theme for the padding.
     nsPresContext *context = PresContext();
@@ -353,7 +353,7 @@ nsBox::GetPadding(nsMargin& aMargin)
   }
 
   aMargin.SizeTo(0,0,0,0);
-  StylePadding()->GetPadding(aMargin);
+  GetStylePadding()->GetPadding(aMargin);
 
   return NS_OK;
 }
@@ -362,7 +362,7 @@ NS_IMETHODIMP
 nsBox::GetMargin(nsMargin& aMargin)
 {
   aMargin.SizeTo(0,0,0,0);
-  StyleMargin()->GetMargin(aMargin);
+  GetStyleMargin()->GetMargin(aMargin);
 
   return NS_OK;
 }
@@ -463,9 +463,9 @@ nsBox::GetFlex(nsBoxLayoutState& aState)
 }
 
 uint32_t
-nsIFrame::GetOrdinal()
+nsIFrame::GetOrdinal(nsBoxLayoutState& aState)
 {
-  uint32_t ordinal = StyleXUL()->mBoxOrdinal;
+  uint32_t ordinal = GetStyleXUL()->mBoxOrdinal;
 
   // When present, attribute value overrides CSS.
   nsIContent* content = GetContent();
@@ -494,7 +494,7 @@ nsBox::GetBoxAscent(nsBoxLayoutState& aState)
 bool
 nsBox::IsCollapsed()
 {
-  return StyleVisibility()->mVisible == NS_STYLE_VISIBILITY_COLLAPSE;
+  return GetStyleVisibility()->mVisible == NS_STYLE_VISIBILITY_COLLAPSE;
 }
 
 nsresult
@@ -517,7 +517,7 @@ nsIFrame::Layout(nsBoxLayoutState& aState)
 bool
 nsBox::DoesClipChildren()
 {
-  const nsStyleDisplay* display = StyleDisplay();
+  const nsStyleDisplay* display = GetStyleDisplay();
   NS_ASSERTION((display->mOverflowY == NS_STYLE_OVERFLOW_CLIP) ==
                (display->mOverflowX == NS_STYLE_OVERFLOW_CLIP),
                "If one overflow is clip, the other should be too");
@@ -571,7 +571,7 @@ nsBox::SyncLayout(nsBoxLayoutState& aState)
     visualOverflow = overflowAreas.VisualOverflow();
   }
 
-  nsView* view = GetView();
+  nsIView* view = GetView();
   if (view) {
     // Make sure the frame's view is properly sized and positioned and has
     // things like opacity correct
@@ -602,7 +602,7 @@ nsIFrame::AddCSSPrefSize(nsIFrame* aBox, nsSize& aSize, bool &aWidthSet, bool &a
     aHeightSet = false;
 
     // add in the css min, max, pref
-    const nsStylePosition* position = aBox->StylePosition();
+    const nsStylePosition* position = aBox->GetStylePosition();
 
     // see if the width or height was specifically set
     // XXX Handle eStyleUnit_Enumerated?
@@ -678,7 +678,7 @@ nsIFrame::AddCSSMinSize(nsBoxLayoutState& aState, nsIFrame* aBox, nsSize& aSize,
     bool canOverride = true;
 
     // See if a native theme wants to supply a minimum size.
-    const nsStyleDisplay* display = aBox->StyleDisplay();
+    const nsStyleDisplay* display = aBox->GetStyleDisplay();
     if (display->mAppearance) {
       nsITheme *theme = aState.PresContext()->GetTheme();
       if (theme && theme->ThemeSupportsWidget(aState.PresContext(), aBox, display->mAppearance)) {
@@ -700,7 +700,7 @@ nsIFrame::AddCSSMinSize(nsBoxLayoutState& aState, nsIFrame* aBox, nsSize& aSize,
     }
 
     // add in the css min, max, pref
-    const nsStylePosition* position = aBox->StylePosition();
+    const nsStylePosition* position = aBox->GetStylePosition();
 
     // same for min size. Unfortunately min size is always set to 0. So for now
     // we will assume 0 (as a coord) means not set.
@@ -785,7 +785,7 @@ nsIFrame::AddCSSMaxSize(nsIFrame* aBox, nsSize& aSize, bool &aWidthSet, bool &aH
     aHeightSet = false;
 
     // add in the css min, max, pref
-    const nsStylePosition* position = aBox->StylePosition();
+    const nsStylePosition* position = aBox->GetStylePosition();
 
     // and max
     // see if the width or height was specifically set
@@ -843,7 +843,7 @@ nsIFrame::AddCSSFlex(nsBoxLayoutState& aState, nsIFrame* aBox, nscoord& aFlex)
     bool flexSet = false;
 
     // get the flexibility
-    aFlex = aBox->StyleXUL()->mBoxFlex;
+    aFlex = aBox->GetStyleXUL()->mBoxFlex;
 
     // attribute value overrides CSS
     nsIContent* content = aBox->GetContent();
@@ -914,8 +914,8 @@ nsBox::BoundsCheck(nscoord aMin, nscoord aPref, nscoord aMax)
 nsSize
 nsBox::BoundsCheckMinMax(const nsSize& aMinSize, const nsSize& aMaxSize)
 {
-  return nsSize(std::max(aMaxSize.width, aMinSize.width),
-                std::max(aMaxSize.height, aMinSize.height));
+  return nsSize(NS_MAX(aMaxSize.width, aMinSize.width),
+                NS_MAX(aMaxSize.height, aMinSize.height));
 }
 
 nsSize

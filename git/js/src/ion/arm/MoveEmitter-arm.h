@@ -25,14 +25,14 @@ class MoveEmitterARM
     MacroAssemblerARMCompat &masm;
 
     // Original stack push value.
-    uint32_t pushedAtStart_;
+    uint32 pushedAtStart_;
 
     // These store stack offsets to spill locations, snapshotting
     // codegen->framePushed_ at the time they were allocated. They are -1 if no
     // stack space has been allocated for that particular spill.
-    int32_t pushedAtCycle_;
-    int32_t pushedAtSpill_;
-    int32_t pushedAtDoubleSpill_;
+    int32 pushedAtCycle_;
+    int32 pushedAtSpill_;
+    int32 pushedAtDoubleSpill_;
 
     // These are registers that are available for temporary use. They may be
     // assigned InvalidReg. If no corresponding spill space has been assigned,
@@ -63,8 +63,8 @@ class MoveEmitterARM
 
 typedef MoveEmitterARM MoveEmitter;
 
-} // namespace ion
-} // namespace js
+} // ion
+} // js
 
 #endif // jsion_move_resolver_arm_shared_h__
 

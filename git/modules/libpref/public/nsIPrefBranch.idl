@@ -23,7 +23,7 @@ interface nsIObserver;
  * @see nsIPrefService
  */
 
-[scriptable, uuid(55d25e49-793f-4727-a69f-de8b15f4b985)]
+[scriptable, uuid(7df46a54-d8b0-448e-903c-4341a1b2499c)]
 interface nsIPrefBranch : nsISupports
 {
 
@@ -410,6 +410,7 @@ interface nsIPrefBranch : nsISupports
 %{C++
 
 #define NS_PREFBRANCH_CONTRACTID "@mozilla.org/preferencesbranch;1"
+#define NS_PREFBRANCH_CLASSNAME "Preferences Branch"
 /**
  * Notification sent when a preference changes.
  */

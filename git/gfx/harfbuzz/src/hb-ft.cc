@@ -242,7 +242,7 @@ hb_ft_get_glyph_name (hb_font_t *font HB_UNUSED,
   FT_Face ft_face = (FT_Face) font_data;
 
   hb_bool_t ret = !FT_Get_Glyph_Name (ft_face, glyph, name, size);
-  if (!ret || (size && !*name))
+  if (!ret)
     snprintf (name, size, "gid%u", glyph);
 
   return ret;
@@ -403,7 +403,7 @@ hb_ft_font_create (FT_Face           ft_face,
 
 static FT_Library ft_library;
 
-static inline
+static
 void free_ft_library (void)
 {
   FT_Done_FreeType (ft_library);

@@ -1,5 +1,6 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=4 et sw=4 tw=80: */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:expandtab:shiftwidth=4:tabstop=4:
+ */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -16,7 +17,6 @@
 #include "nsGtkIMModule.h"
 #include "nsWindow.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Likely.h"
 
 #ifdef MOZ_PLATFORM_MAEMO
 #include "nsServiceManagerUtils.h"
@@ -294,20 +294,20 @@ nsGtkIMModule::PrepareToDestroyContext(GtkIMContext *aContext)
         static gpointer gtk_xim_context_class =
             g_type_class_ref(slaveType);
         // Mute unused variable warning:
-        (void)gtk_xim_context_class;
+        gtk_xim_context_class = gtk_xim_context_class;
     } else if (strcmp(im_type_name, "GtkIMContextIIIM") == 0) {
         // Add a reference to prevent the IIIM module from being unloaded
         static gpointer gtk_iiim_context_class =
             g_type_class_ref(slaveType);
         // Mute unused variable warning:
-        (void)gtk_iiim_context_class;
+        gtk_iiim_context_class = gtk_iiim_context_class;
     }
 }
 
 void
 nsGtkIMModule::OnFocusWindow(nsWindow* aWindow)
 {
-    if (MOZ_UNLIKELY(IsDestroyed())) {
+    if (NS_UNLIKELY(IsDestroyed())) {
         return;
     }
 
@@ -321,7 +321,7 @@ nsGtkIMModule::OnFocusWindow(nsWindow* aWindow)
 void
 nsGtkIMModule::OnBlurWindow(nsWindow* aWindow)
 {
-    if (MOZ_UNLIKELY(IsDestroyed())) {
+    if (NS_UNLIKELY(IsDestroyed())) {
         return;
     }
 
@@ -342,7 +342,7 @@ nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent,
 {
     NS_PRECONDITION(aEvent, "aEvent must be non-null");
 
-    if (!IsEditable() || MOZ_UNLIKELY(IsDestroyed())) {
+    if (!IsEditable() || NS_UNLIKELY(IsDestroyed())) {
         return false;
     }
 
@@ -364,7 +364,7 @@ nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent,
     }
 
     GtkIMContext* im = GetContext();
-    if (MOZ_UNLIKELY(!im)) {
+    if (NS_UNLIKELY(!im)) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, there are no context"));
         return false;
@@ -444,7 +444,7 @@ nsGtkIMModule::ResetIME()
          this, GetCompositionStateName(), mIsIMFocused ? "YES" : "NO"));
 
     GtkIMContext *im = GetContext();
-    if (MOZ_UNLIKELY(!im)) {
+    if (NS_UNLIKELY(!im)) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, there are no context"));
         return;
@@ -455,15 +455,14 @@ nsGtkIMModule::ResetIME()
 }
 
 nsresult
-nsGtkIMModule::CommitIMEComposition(nsWindow* aCaller)
+nsGtkIMModule::ResetInputState(nsWindow* aCaller)
 {
-    if (MOZ_UNLIKELY(IsDestroyed())) {
+    if (NS_UNLIKELY(IsDestroyed())) {
         return NS_OK;
     }
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): CommitIMEComposition, aCaller=%p, "
-         "mCompositionState=%s",
+        ("GtkIMModule(%p): ResetInputState, aCaller=%p, mCompositionState=%s",
          this, aCaller, GetCompositionStateName()));
 
     if (aCaller != mLastFocusedWindow) {
@@ -487,7 +486,7 @@ nsGtkIMModule::CommitIMEComposition(nsWindow* aCaller)
 nsresult
 nsGtkIMModule::CancelIMEComposition(nsWindow* aCaller)
 {
-    if (MOZ_UNLIKELY(IsDestroyed())) {
+    if (NS_UNLIKELY(IsDestroyed())) {
         return NS_OK;
     }
 
@@ -507,7 +506,7 @@ nsGtkIMModule::CancelIMEComposition(nsWindow* aCaller)
     }
 
     GtkIMContext *im = GetContext();
-    if (MOZ_UNLIKELY(!im)) {
+    if (NS_UNLIKELY(!im)) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
             ("    FAILED, there are no context"));
         return NS_OK;
@@ -524,7 +523,7 @@ nsGtkIMModule::SetInputContext(nsWindow* aCaller,
                                const InputContext* aContext,
                                const InputContextAction* aAction)
 {
-    if (MOZ_UNLIKELY(IsDestroyed())) {
+    if (NS_UNLIKELY(IsDestroyed())) {
         return;
     }
 
@@ -559,7 +558,7 @@ nsGtkIMModule::SetInputContext(nsWindow* aCaller,
 
     // Release current IME focus if IME is enabled.
     if (changingEnabledState && IsEditable()) {
-        CommitIMEComposition(mLastFocusedWindow);
+        ResetInputState(mLastFocusedWindow);
         Blur();
     }
 

@@ -11,6 +11,7 @@ include $(DEPTH)/config/autoconf.mk
 
 LOCAL_INCLUDES += -I$(topsrcdir)/toolkit/crashreporter
 
+MODULE = ipc
 LIBRARY_NAME = mozipc_s
 FORCE_STATIC_LIB = 1
 LIBXUL_LIBRARY = 1
@@ -25,7 +26,6 @@ EXPORTS_mozilla/ipc = \
   BrowserProcessSubThread.h \
   CrossProcessMutex.h \
   FileDescriptor.h \
-  FileDescriptorUtils.h \
   GeckoChildProcessHost.h \
   InputStreamUtils.h \
   IOThreadChild.h \
@@ -71,7 +71,6 @@ CPPSRCS += \
   AsyncChannel.cpp \
   BrowserProcessSubThread.cpp \
   FileDescriptor.cpp \
-  FileDescriptorUtils.cpp \
   GeckoChildProcessHost.cpp \
   InputStreamUtils.cpp \
   MessagePump.cpp \

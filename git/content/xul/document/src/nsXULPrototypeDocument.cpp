@@ -5,13 +5,12 @@
 
 
 #include "nsXULPrototypeDocument.h"
-#include "XULDocument.h"
+#include "nsXULDocument.h"
 
 #include "nsAString.h"
 #include "nsIObjectInputStream.h"
 #include "nsIObjectOutputStream.h"
 #include "nsIPrincipal.h"
-#include "nsJSPrincipals.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptSecurityManager.h"
@@ -32,9 +31,7 @@
 #include "xpcpublic.h"
 #include "mozilla/dom/BindingUtils.h"
 
-using mozilla::dom::DestroyProtoAndIfaceCache;
-using mozilla::AutoPushJSContext;
-using mozilla::dom::XULDocument;
+using mozilla::dom::DestroyProtoOrIfaceCache;
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -97,6 +94,8 @@ nsXULPDGlobalObject_finalize(JSFreeOp *fop, JSObject *obj)
 
     // The addref was part of JSObject construction
     NS_RELEASE(nativeThis);
+
+    DestroyProtoOrIfaceCache(obj);
 }
 
 
@@ -111,12 +110,11 @@ nsXULPDGlobalObject_resolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 
 JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
     "nsXULPrototypeScript compilation scope",
-    JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS |
-    JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_GLOBAL_FLAGS_WITH_SLOTS(0),
+    XPCONNECT_GLOBAL_FLAGS,
     JS_PropertyStub,  JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
     JS_EnumerateStub, nsXULPDGlobalObject_resolve,  JS_ConvertStub,
     nsXULPDGlobalObject_finalize, NULL, NULL, NULL, NULL,
-    NULL
+    TraceXPCGlobal
 };
 
 
@@ -129,8 +127,7 @@ JSClass nsXULPDGlobalObject::gSharedGlobalClass = {
 nsXULPrototypeDocument::nsXULPrototypeDocument()
     : mRoot(nullptr),
       mLoaded(false),
-      mCCGeneration(0),
-      mGCNumber(0)
+      mCCGeneration(0)
 {
     ++gRefCnt;
 }
@@ -161,6 +158,7 @@ nsXULPrototypeDocument::~nsXULPrototypeDocument()
     }
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPrototypeDocument)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeDocument)
     tmp->mPrototypeWaiters.Clear();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -168,10 +166,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPrototypeDocument)
     if (nsCCUncollectableMarker::InGeneration(cb, tmp->mCCGeneration)) {
         return NS_SUCCESS_INTERRUPTED_TRAVERSE;
     }
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRoot)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mRoot,
+                                                    nsXULPrototypeElement)
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mGlobalObject");
     cb.NoteXPCOMChild(static_cast<nsIScriptGlobalObject*>(tmp->mGlobalObject));
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mNodeInfoManager)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mNodeInfoManager,
+                                                    nsNodeInfoManager)
     for (uint32_t i = 0; i < tmp->mPrototypeWaiters.Length(); ++i) {
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mPrototypeWaiters[i]");
         cb.NoteXPCOMChild(static_cast<nsINode*>(tmp->mPrototypeWaiters[i].get()));
@@ -480,7 +480,10 @@ nsXULPrototypeDocument::Write(nsIObjectOutputStream* aStream)
         NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
 
         nsAutoString namespaceURI;
-        nodeInfo->GetNamespaceURI(namespaceURI);
+        tmp = nodeInfo->GetNamespaceURI(namespaceURI);
+        if (NS_FAILED(tmp)) {
+          rv = tmp;
+        }
         tmp = aStream->WriteWStringZ(namespaceURI.get());
         if (NS_FAILED(tmp)) {
           rv = tmp;
@@ -638,7 +641,7 @@ nsXULPrototypeDocument::GetNodeInfoManager()
 
 
 nsresult
-nsXULPrototypeDocument::AwaitLoadDone(XULDocument* aDocument, bool* aResult)
+nsXULPrototypeDocument::AwaitLoadDone(nsXULDocument* aDocument, bool* aResult)
 {
     nsresult rv = NS_OK;
 
@@ -677,20 +680,6 @@ nsXULPrototypeDocument::NotifyLoadDone()
     return rv;
 }
 
-void
-nsXULPrototypeDocument::TraceProtos(JSTracer* aTrc, uint32_t aGCNumber)
-{
-  // Only trace the protos once per GC.
-  if (mGCNumber == aGCNumber) {
-    return;
-  }
-
-  mGCNumber = aGCNumber;
-  if (mRoot) {
-    mRoot->TraceAllScripts(aTrc);
-  }
-}
-
 //----------------------------------------------------------------------
 //
 // nsIScriptGlobalObjectOwner methods
@@ -721,9 +710,10 @@ nsXULPDGlobalObject::~nsXULPDGlobalObject()
 {
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPDGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsXULPDGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPDGlobalObject)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mContext)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mContext)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsXULPDGlobalObject)
@@ -752,21 +742,23 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
   nsresult rv = NS_GetJSRuntime(getter_AddRefs(languageRuntime));
   NS_ENSURE_SUCCESS(rv, NS_OK);
 
-  nsCOMPtr<nsIScriptContext> ctxNew = languageRuntime->CreateContext(false, nullptr);
+  nsCOMPtr<nsIScriptContext> ctxNew = languageRuntime->CreateContext();
   MOZ_ASSERT(ctxNew);
 
   // We have to setup a special global object.  We do this then
   // attach it as the global for this context.  Then, we
   // will re-fetch the global and set it up in our language globals array.
   {
-    AutoPushJSContext cx(ctxNew->GetNativeContext());
+    JSContext *cx = ctxNew->GetNativeContext();
     JSAutoRequest ar(cx);
 
-    JSObject *newGlob = JS_NewGlobalObject(cx, &gSharedGlobalClass,
-                                           nsJSPrincipals::get(GetPrincipal()),
-                                           JS::SystemZone);
-    if (!newGlob)
-        return NS_OK;
+    nsIPrincipal *principal = GetPrincipal();
+    JSObject *newGlob;
+    JSCompartment *compartment;
+
+    rv = xpc::CreateGlobalObject(cx, &gSharedGlobalClass, principal, false,
+                                 &newGlob, &compartment);
+    NS_ENSURE_SUCCESS(rv, NS_OK);
 
     ::JS_SetGlobalObject(cx, newGlob);
 
@@ -781,6 +773,7 @@ nsXULPDGlobalObject::EnsureScriptEnvironment()
   rv = ctxNew->InitContext();
   NS_ENSURE_SUCCESS(rv, NS_OK);
 
+  ctxNew->SetGCOnDestruction(false);
   ctxNew->DidInitializeContext();
 
   JSObject* global = ctxNew->GetNativeGlobal();

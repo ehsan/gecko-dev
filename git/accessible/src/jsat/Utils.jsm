@@ -10,26 +10,14 @@ const Ci = Components.interfaces;
 
 Cu.import('resource://gre/modules/Services.jsm');
 
-this.EXPORTED_SYMBOLS = ['Utils', 'Logger'];
+var EXPORTED_SYMBOLS = ['Utils', 'Logger'];
 
-this.Utils = {
+var Utils = {
   _buildAppMap: {
     '{3c2e2abc-06d4-11e1-ac3b-374f68613e61}': 'b2g',
     '{ec8030f7-c20a-464f-9b0e-13a3a9e97384}': 'browser',
     '{aa3c5121-dab2-40e2-81ca-7ea25febc110}': 'mobile/android',
     '{a23983c0-fd0e-11dc-95ff-0800200c9a66}': 'mobile/xul'
-  },
-
-  init: function Utils_init(aWindow) {
-    if (this._win)
-      // XXX: only supports attaching to one window now.
-      throw new Error('Only one top-level window could used with AccessFu');
-
-    this._win = Cu.getWeakReference(aWindow);
-  },
-
-  get win() {
-    return this._win.get();
   },
 
   get AccRetrieval() {
@@ -81,46 +69,28 @@ this.Utils = {
     this._AndroidSdkVersion = value;
   },
 
-  get BrowserApp() {
+  getBrowserApp: function getBrowserApp(aWindow) {
     switch (this.MozBuildApp) {
       case 'mobile/android':
-        return this.win.BrowserApp;
+        return aWindow.BrowserApp;
       case 'browser':
-        return this.win.gBrowser;
+        return aWindow.gBrowser;
       case 'b2g':
-        return this.win.shell;
+        return aWindow.shell;
       default:
         return null;
     }
   },
 
-  get CurrentBrowser() {
+  getCurrentBrowser: function getCurrentBrowser(aWindow) {
     if (this.MozBuildApp == 'b2g')
-      return this.BrowserApp.contentBrowser;
-    return this.BrowserApp.selectedBrowser;
+      return this.getBrowserApp(aWindow).contentBrowser;
+    return this.getBrowserApp(aWindow).selectedBrowser;
   },
 
-  get CurrentContentDoc() {
-    let browser = this.CurrentBrowser;
+  getCurrentContentDoc: function getCurrentContentDoc(aWindow) {
+    let browser = this.getCurrentBrowser(aWindow);
     return browser ? browser.contentDocument : null;
-  },
-
-  get AllMessageManagers() {
-    let messageManagers = [];
-
-    for (let i = 0; i < this.win.messageManager.childCount; i++)
-      messageManagers.push(this.win.messageManager.getChildAt(i));
-
-    let document = this.CurrentContentDoc;
-
-    if (document) {
-      let remoteframes = document.querySelectorAll('iframe[remote=true]');
-
-      for (let i = 0; i < remoteframes.length; ++i)
-        messageManagers.push(this.getMessageManager(remoteframes[i]));
-    }
-
-    return messageManagers;
   },
 
   getMessageManager: function getMessageManager(aBrowser) {
@@ -131,6 +101,24 @@ this.Utils = {
       Logger.logException(x);
       return null;
     }
+  },
+
+  getAllMessageManagers: function getAllMessageManagers(aWindow) {
+    let messageManagers = [];
+
+    for (let i = 0; i < aWindow.messageManager.childCount; i++)
+      messageManagers.push(aWindow.messageManager.getChildAt(i));
+
+    let document = this.getCurrentContentDoc(aWindow);
+
+    if (document) {
+      let remoteframes = document.querySelectorAll('iframe[remote=true]');
+
+      for (let i = 0; i < remoteframes.length; ++i)
+        messageManagers.push(this.getMessageManager(remoteframes[i]));
+    }
+
+    return messageManagers;
   },
 
   getViewport: function getViewport(aWindow) {
@@ -168,7 +156,7 @@ this.Utils = {
   }
 };
 
-this.Logger = {
+var Logger = {
   DEBUG: 0,
   INFO: 1,
   WARNING: 2,
@@ -231,7 +219,7 @@ this.Logger = {
     let str = Utils.AccRetrieval.getStringEventType(aEvent.eventType);
     if (aEvent.eventType == Ci.nsIAccessibleEvent.EVENT_STATE_CHANGE) {
       let event = aEvent.QueryInterface(Ci.nsIAccessibleStateChangeEvent);
-      let stateStrings = event.isExtraState ?
+      let stateStrings = (event.isExtraState()) ?
         Utils.AccRetrieval.getStringStates(0, event.state) :
         Utils.AccRetrieval.getStringStates(event.state, 0);
       str += ' (' + stateStrings.item(0) + ')';

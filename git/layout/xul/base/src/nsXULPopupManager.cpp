@@ -20,10 +20,11 @@
 #include "nsEventStateManager.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsLayoutUtils.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 #include "nsIComponentManager.h"
 #include "nsITimer.h"
 #include "nsFocusManager.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsIDocShell.h"
 #include "nsPIDOMWindow.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -34,9 +35,8 @@
 #include "nsPIWindowRoot.h"
 #include "nsFrameManager.h"
 #include "nsIObserverService.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/LookAndFeel.h"
 #include "mozilla/Services.h"
+#include "mozilla/LookAndFeel.h"
 
 using namespace mozilla;
 
@@ -164,18 +164,17 @@ nsXULPopupManager::Observe(nsISupports *aSubject,
 nsXULPopupManager*
 nsXULPopupManager::GetInstance()
 {
-  MOZ_ASSERT(sInstance);
   return sInstance;
 }
 
-bool
-nsXULPopupManager::Rollup(uint32_t aCount, nsIContent** aLastRolledUp)
+nsIContent*
+nsXULPopupManager::Rollup(uint32_t aCount, bool aGetLastRolledUp)
 {
-  bool consume = false;
+  nsIContent* lastRolledUpPopup = nullptr;
 
   nsMenuChainItem* item = GetTopVisibleMenu();
   if (item) {
-    if (aLastRolledUp) {
+    if (aGetLastRolledUp) {
       // we need to get the popup that will be closed last, so that
       // widget can keep track of it so it doesn't reopen if a mouse
       // down event is going to processed.
@@ -187,10 +186,8 @@ nsXULPopupManager::Rollup(uint32_t aCount, nsIContent** aLastRolledUp)
       nsMenuChainItem* first = item;
       while (first->GetParent())
         first = first->GetParent();
-      *aLastRolledUp = first->Content();
+      lastRolledUpPopup = first->Content();
     }
-
-    consume = item->Frame()->ConsumeOutsideClicks();
 
     // if a number of popups to close has been specified, determine the last
     // popup to close
@@ -208,7 +205,7 @@ nsXULPopupManager::Rollup(uint32_t aCount, nsIContent** aLastRolledUp)
     HidePopup(item->Content(), true, true, false, lastPopup);
   }
 
-  return consume;
+  return lastRolledUpPopup;
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -225,32 +222,9 @@ bool nsXULPopupManager::ShouldRollupOnMouseWheelEvent()
   if (!content)
     return false;
 
-  if (content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::rolluponmousewheel,
-                           nsGkAtoms::_true, eCaseMatters))
-    return true;
-
-  if (content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::rolluponmousewheel,
-                           nsGkAtoms::_false, eCaseMatters))
-    return false;
-
   nsAutoString value;
   content->GetAttr(kNameSpaceID_None, nsGkAtoms::type, value);
   return StringBeginsWith(value, NS_LITERAL_STRING("autocomplete"));
-}
-
-bool nsXULPopupManager::ShouldConsumeOnMouseWheelEvent()
-{
-  nsMenuChainItem* item = GetTopVisibleMenu();
-  if (!item)
-    return false;
-
-  nsMenuPopupFrame* frame = item->Frame();
-  if (frame->PopupType() != ePopupTypePanel)
-    return true;
-
-  nsIContent* content = frame->GetContent();
-  return !(content && content->AttrValueIs(kNameSpaceID_None, nsGkAtoms::type,
-                                           nsGkAtoms::arrow, eCaseMatters));
 }
 
 // a menu should not roll up if activated by a mouse activate message (eg. X-mouse)
@@ -288,13 +262,6 @@ nsXULPopupManager::GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain)
   }
 
   return sameTypeCount;
-}
-
-nsIWidget*
-nsXULPopupManager::GetRollupWidget()
-{
-  nsMenuChainItem* item = GetTopVisibleMenu();
-  return item ? item->Frame()->GetWidget() : nullptr;
 }
 
 void
@@ -381,28 +348,26 @@ nsXULPopupManager::PopupResized(nsIFrame* aFrame, nsIntSize aSize)
   if (!menuPopupFrame)
     return;
 
-  nsView* view = menuPopupFrame->GetView();
-  if (!view)
-    return;
-
-  nsIntRect curDevSize = view->CalcWidgetBounds(eWindowType_popup);
-  // If the size is what we think it is, we have nothing to do.
-  if (curDevSize.width == aSize.width && curDevSize.height == aSize.height)
-    return;
-
-  // The size is different. Convert the actual size to css pixels and store it
-  // as 'width' and 'height' attributes on the popup.
   nsPresContext* presContext = menuPopupFrame->PresContext();
 
+  nsSize currentSize = menuPopupFrame->GetSize();
+
+  // convert both current and new sizes to integer CSS pixels for comparison;
+  // we won't set attributes if there is only a sub-CSS-pixel discrepancy
+  nsIntSize currCSS(nsPresContext::AppUnitsToIntCSSPixels(currentSize.width),
+                    nsPresContext::AppUnitsToIntCSSPixels(currentSize.height));
   nsIntSize newCSS(presContext->DevPixelsToIntCSSPixels(aSize.width),
                    presContext->DevPixelsToIntCSSPixels(aSize.height));
 
-  nsIContent* popup = menuPopupFrame->GetContent();
-  nsAutoString width, height;
-  width.AppendInt(newCSS.width);
-  height.AppendInt(newCSS.height);
-  popup->SetAttr(kNameSpaceID_None, nsGkAtoms::width, width, false);
-  popup->SetAttr(kNameSpaceID_None, nsGkAtoms::height, height, true);
+  if (newCSS.width != currCSS.width || newCSS.height != currCSS.height) {
+    // for resizes, we just set the width and height attributes
+    nsIContent* popup = menuPopupFrame->GetContent();
+    nsAutoString width, height;
+    width.AppendInt(newCSS.width);
+    height.AppendInt(newCSS.height);
+    popup->SetAttr(kNameSpaceID_None, nsGkAtoms::width, width, false);
+    popup->SetAttr(kNameSpaceID_None, nsGkAtoms::height, height, true);
+  }
 }
 
 nsMenuPopupFrame*
@@ -1349,15 +1314,15 @@ nsXULPopupManager::GetTopPopup(nsPopupType aType)
   return nullptr;
 }
 
-void
-nsXULPopupManager::GetVisiblePopups(nsTArray<nsIFrame *>& aPopups)
+nsTArray<nsIFrame *>
+nsXULPopupManager::GetVisiblePopups()
 {
-  aPopups.Clear();
+  nsTArray<nsIFrame *> popups;
 
   nsMenuChainItem* item = mPopups;
   while (item) {
     if (item->Frame()->PopupState() == ePopupOpenAndVisible)
-      aPopups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
+      popups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
     item = item->GetParent();
   }
 
@@ -1366,10 +1331,12 @@ nsXULPopupManager::GetVisiblePopups(nsTArray<nsIFrame *>& aPopups)
     // skip panels which are not open and visible as well as draggable popups,
     // as those don't respond to events.
     if (item->Frame()->PopupState() == ePopupOpenAndVisible && !item->Frame()->IsDragPopup()) {
-      aPopups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
+      popups.AppendElement(static_cast<nsIFrame*>(item->Frame()));
     }
     item = item->GetParent();
   }
+
+  return popups;
 }
 
 already_AddRefed<nsIDOMNode>
@@ -1578,7 +1545,7 @@ nsXULPopupManager::SetCaptureState(nsIContent* aOldPopup)
     return;
 
   if (mWidget) {
-    mWidget->CaptureRollupEvents(nullptr, false);
+    mWidget->CaptureRollupEvents(this, false, false);
     mWidget = nullptr;
   }
 
@@ -1586,7 +1553,7 @@ nsXULPopupManager::SetCaptureState(nsIContent* aOldPopup)
     nsMenuPopupFrame* popup = item->Frame();
     mWidget = popup->GetWidget();
     if (mWidget) {
-      mWidget->CaptureRollupEvents(nullptr, true);
+      mWidget->CaptureRollupEvents(this, true, popup->ConsumeOutsideClicks());
       popup->AttachedDismissalListener();
     }
   }
@@ -1635,11 +1602,7 @@ nsXULPopupManager::UpdateMenuItems(nsIContent* aPopup)
   // Walk all of the menu's children, checking to see if any of them has a
   // command attribute. If so, then several attributes must potentially be updated.
  
-  nsCOMPtr<nsIDocument> document = aPopup->GetCurrentDoc();
-  if (!document) {
-    return;
-  }
-
+  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(aPopup->GetDocument()));
   for (nsCOMPtr<nsIContent> grandChild = aPopup->GetFirstChild();
        grandChild;
        grandChild = grandChild->GetNextSibling()) {
@@ -1649,12 +1612,13 @@ nsXULPopupManager::UpdateMenuItems(nsIContent* aPopup)
       grandChild->GetAttr(kNameSpaceID_None, nsGkAtoms::command, command);
       if (!command.IsEmpty()) {
         // We do! Look it up in our document
-        nsRefPtr<dom::Element> commandElement =
-          document->GetElementById(command);
-        if (commandElement) {
+        nsCOMPtr<nsIDOMElement> commandElt;
+        domDoc->GetElementById(command, getter_AddRefs(commandElt));
+        nsCOMPtr<nsIContent> commandContent(do_QueryInterface(commandElt));
+        if (commandContent) {
           nsAutoString commandValue;
           // The menu's disabled state needs to be updated to match the command.
-          if (commandElement->GetAttr(kNameSpaceID_None, nsGkAtoms::disabled, commandValue))
+          if (commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::disabled, commandValue))
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled, commandValue, true);
           else
             grandChild->UnsetAttr(kNameSpaceID_None, nsGkAtoms::disabled, true);
@@ -1662,16 +1626,16 @@ nsXULPopupManager::UpdateMenuItems(nsIContent* aPopup)
           // The menu's label, accesskey checked and hidden states need to be updated
           // to match the command. Note that unlike the disabled state if the
           // command has *no* value, we assume the menu is supplying its own.
-          if (commandElement->GetAttr(kNameSpaceID_None, nsGkAtoms::label, commandValue))
+          if (commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::label, commandValue))
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::label, commandValue, true);
 
-          if (commandElement->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, commandValue))
+          if (commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, commandValue))
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::accesskey, commandValue, true);
 
-          if (commandElement->GetAttr(kNameSpaceID_None, nsGkAtoms::checked, commandValue))
+          if (commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::checked, commandValue))
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::checked, commandValue, true);
 
-          if (commandElement->GetAttr(kNameSpaceID_None, nsGkAtoms::hidden, commandValue))
+          if (commandContent->GetAttr(kNameSpaceID_None, nsGkAtoms::hidden, commandValue))
             grandChild->SetAttr(kNameSpaceID_None, nsGkAtoms::hidden, commandValue, true);
         }
       }
@@ -2138,7 +2102,7 @@ nsXULPopupManager::KeyDown(nsIDOMKeyEvent* aKeyEvent)
         // The access key just went down and no other
         // modifiers are already down.
         if (mPopups)
-          Rollup(0, nullptr);
+          Rollup(0);
         else if (mActiveMenuBar)
           mActiveMenuBar->MenuClosed();
       }
@@ -2215,7 +2179,7 @@ nsXULPopupManager::KeyPress(nsIDOMKeyEvent* aKeyEvent)
   ) {
     // close popups or deactivate menubar when Tab or F10 are pressed
     if (item)
-      Rollup(0, nullptr);
+      Rollup(0);
     else if (mActiveMenuBar)
       mActiveMenuBar->MenuClosed();
   }
@@ -2286,7 +2250,7 @@ nsXULMenuCommandEvent::Run()
   if (!pm)
     return NS_OK;
 
-  // The order of the nsViewManager and nsIPresShell COM pointers is
+  // The order of the nsIViewManager and nsIPresShell COM pointers is
   // important below.  We want the pres shell to get released before the
   // associated view manager on exit from this function.
   // See bug 54233.
@@ -2319,7 +2283,7 @@ nsXULMenuCommandEvent::Run()
 
     nsPresContext* presContext = menuFrame->PresContext();
     nsCOMPtr<nsIPresShell> shell = presContext->PresShell();
-    nsRefPtr<nsViewManager> kungFuDeathGrip = shell->GetViewManager();
+    nsCOMPtr<nsIViewManager> kungFuDeathGrip = shell->GetViewManager();
 
     // Deselect ourselves.
     if (mCloseMenuMode != CloseMenuMode_None)

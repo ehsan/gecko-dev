@@ -15,7 +15,7 @@ function test() {
   debug_tab_pane(STACK_URL, function(aTab, aDebuggee, aPane) {
     gTab = aTab;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
     gView = gDebugger.DebuggerView;
     gLH = gDebugger.LayoutHelpers;
     gL10N = gDebugger.L10N;
@@ -30,22 +30,20 @@ function testPause() {
 
   let button = gDebugger.document.getElementById("resume");
   is(button.getAttribute("tooltiptext"),
-     gL10N.getFormatStr("pauseButtonTooltip", [
-      gLH.prettyKey(gDebugger.document.getElementById("resumeKey"))]),
+     gL10N.getFormatStr("pauseButtonTooltip", [gLH.prettyKey(gView._resumeKey)]),
     "Button tooltip should be pause when running.");
 
   gDebugger.DebuggerController.activeThread.addOneTimeListener("paused", function() {
     Services.tm.currentThread.dispatch({ run: function() {
 
-      let frames = gDebugger.DebuggerView.StackFrames._container._list;
+      let frames = gDebugger.DebuggerView.StackFrames._frames;
       let childNodes = frames.childNodes;
 
       is(gDebugger.DebuggerController.activeThread.paused, true,
         "Should be paused after an interrupt request.");
 
       is(button.getAttribute("tooltiptext"),
-         gL10N.getFormatStr("resumeButtonTooltip", [
-          gLH.prettyKey(gDebugger.document.getElementById("resumeKey"))]),
+         gL10N.getFormatStr("resumeButtonTooltip", [gLH.prettyKey(gView._resumeKey)]),
         "Button tooltip should be resume when paused.");
 
       is(frames.querySelectorAll(".dbg-stackframe").length, 0,
@@ -55,7 +53,7 @@ function testPause() {
     }}, 0);
   });
 
-  EventUtils.sendMouseEvent({ type: "mousedown" },
+  EventUtils.sendMouseEvent({ type: "click" },
     gDebugger.document.getElementById("resume"),
     gDebugger);
 }
@@ -69,15 +67,14 @@ function testResume() {
 
       let button = gDebugger.document.getElementById("resume");
       is(button.getAttribute("tooltiptext"),
-         gL10N.getFormatStr("pauseButtonTooltip", [
-          gLH.prettyKey(gDebugger.document.getElementById("resumeKey"))]),
+         gL10N.getFormatStr("pauseButtonTooltip", [gLH.prettyKey(gView._resumeKey)]),
         "Button tooltip should be pause when running.");
 
       closeDebuggerAndFinish();
     }}, 0);
   });
 
-  EventUtils.sendMouseEvent({ type: "mousedown" },
+  EventUtils.sendMouseEvent({ type: "click" },
     gDebugger.document.getElementById("resume"),
     gDebugger);
 }

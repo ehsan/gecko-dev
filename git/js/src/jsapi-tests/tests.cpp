@@ -6,7 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "tests.h"
-#include "js/RootingAPI.h"
+#include "gc/Root.h"
 #include "jsobj.h"
 #include <stdio.h>
 
@@ -20,8 +20,11 @@ bool JSAPITest::init()
     cx = createContext();
     if (!cx)
         return false;
+#ifdef JS_GC_ZEAL
+    JS_SetGCZeal(cx, 0, 0);
+#endif
     JS_BeginRequest(cx);
-    JS::RootedObject global(cx, createGlobal());
+    js::RootedObject global(cx, createGlobal());
     if (!global)
         return false;
     oldCompartment = JS_EnterCompartment(cx, global);
@@ -30,7 +33,7 @@ bool JSAPITest::init()
 
 bool JSAPITest::exec(const char *bytes, const char *filename, int lineno)
 {
-    JS::RootedValue v(cx);
+    js::RootedValue v(cx);
     JS::HandleObject global = JS::HandleObject::fromMarkedLocation(&this->global);
     return JS_EvaluateScript(cx, global, bytes, strlen(bytes), filename, lineno, v.address()) ||
         fail(bytes, filename, lineno);
@@ -72,6 +75,8 @@ int main(int argc, char *argv[])
     int total = 0;
     int failures = 0;
     const char *filter = (argc == 2) ? argv[1] : NULL;
+
+    JS_SetCStringsAreUTF8();
 
     for (JSAPITest *test = JSAPITest::list; test; test = test->next) {
         const char *name = test->name();

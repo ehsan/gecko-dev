@@ -6,11 +6,10 @@
 #include "nsDOMMouseScrollEvent.h"
 #include "nsDOMClassInfoID.h"
 
-nsDOMMouseScrollEvent::nsDOMMouseScrollEvent(mozilla::dom::EventTarget* aOwner,
-                                             nsPresContext* aPresContext,
+nsDOMMouseScrollEvent::nsDOMMouseScrollEvent(nsPresContext* aPresContext,
                                              nsInputEvent* aEvent)
-  : nsDOMMouseEvent(aOwner, aPresContext,
-                    aEvent ? aEvent : new nsMouseScrollEvent(false, 0, nullptr))
+  : nsDOMMouseEvent(aPresContext, aEvent ? aEvent :
+                                  new nsMouseScrollEvent(false, 0, nullptr))
 {
   if (aEvent) {
     mEventIsInternal = false;
@@ -90,11 +89,9 @@ nsDOMMouseScrollEvent::GetAxis(int32_t* aResult)
 }
 
 nsresult NS_NewDOMMouseScrollEvent(nsIDOMEvent** aInstancePtrResult,
-                                   mozilla::dom::EventTarget* aOwner,
                                    nsPresContext* aPresContext,
                                    nsInputEvent *aEvent) 
 {
-  nsDOMMouseScrollEvent* it =
-    new nsDOMMouseScrollEvent(aOwner, aPresContext, aEvent);
+  nsDOMMouseScrollEvent* it = new nsDOMMouseScrollEvent(aPresContext, aEvent);
   return CallQueryInterface(it, aInstancePtrResult);
 }

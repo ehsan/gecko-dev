@@ -21,16 +21,15 @@
  * DASH is an adaptive bitrate streaming technology where a multimedia file is
  * partitioned into one or more segments and delivered to a client using HTTP.
  *
- * see DASHDecoder.cpp for info on DASH interaction with the media engine.
+ * see nsDASHDecoder.cpp for info on DASH interaction with the media engine.
  */
 
 #include "prlog.h"
 #include "nsNetUtil.h"
-#include "nsIDOMAttr.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMParser.h"
-#include "nsIDOMMozNamedAttrMap.h"
+#include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMNode.h"
 #include "nsString.h"
 #include "IMPDManager.h"
@@ -137,32 +136,32 @@ nsDASHMPDParser::PrintDOMElement(nsIDOMElement* aElem, int32_t offset)
     ss.Append(NS_LITERAL_STRING(" "));
   // Tag name.
   nsAutoString tagName;
-  NS_ENSURE_SUCCESS_VOID(aElem->GetTagName(tagName));
+  NS_ENSURE_SUCCESS(aElem->GetTagName(tagName),);
   ss += NS_LITERAL_STRING("<");
   ss += tagName;
 
   // Attributes.
-  nsCOMPtr<nsIDOMMozNamedAttrMap> attributes;
-  NS_ENSURE_SUCCESS_VOID(aElem->GetAttributes(getter_AddRefs(attributes)));
+  nsCOMPtr<nsIDOMNamedNodeMap> attributes;
+  NS_ENSURE_SUCCESS(aElem->GetAttributes(getter_AddRefs(attributes)),);
 
   uint32_t count;
-  NS_ENSURE_SUCCESS_VOID(attributes->GetLength(&count));
+  NS_ENSURE_SUCCESS(attributes->GetLength(&count),);
 
   for(uint32_t i = 0; i < count; i++)
   {
     ss += NS_LITERAL_STRING(" ");
-    nsCOMPtr<nsIDOMAttr> attr;
-    NS_ENSURE_SUCCESS_VOID(attributes->Item(i, getter_AddRefs(attr)));
+    nsCOMPtr<nsIDOMNode> node;
+    NS_ENSURE_SUCCESS(attributes->Item(i, getter_AddRefs(node)), );
 
-    nsAutoString name;
-    NS_ENSURE_SUCCESS_VOID(attr->GetName(name));
-    ss += name;
+    nsAutoString nodeName;
+    NS_ENSURE_SUCCESS(node->GetNodeName(nodeName),);
+    ss += nodeName;
 
-    nsAutoString value;
-    NS_ENSURE_SUCCESS_VOID(attr->GetValue(value));
-    if (!value.IsEmpty()) {
+    nsAutoString nodeValue;
+    NS_ENSURE_SUCCESS(node->GetNodeValue(nodeValue),);
+    if(!nodeValue.IsEmpty()) {
       ss += NS_LITERAL_STRING("=");
-      ss += value;
+      ss += nodeValue;
     }
   }
   ss += NS_LITERAL_STRING(">");
@@ -172,12 +171,12 @@ nsDASHMPDParser::PrintDOMElement(nsIDOMElement* aElem, int32_t offset)
 
   // Print for each child.
   nsCOMPtr<nsIDOMElement> child;
-  NS_ENSURE_SUCCESS_VOID(aElem->GetFirstElementChild(getter_AddRefs(child)));
+  NS_ENSURE_SUCCESS(aElem->GetFirstElementChild(getter_AddRefs(child)),);
 
   while(child)
   {
     PrintDOMElement(child, offset);
-    NS_ENSURE_SUCCESS_VOID(child->GetNextElementSibling(getter_AddRefs(child)));
+    NS_ENSURE_SUCCESS(child->GetNextElementSibling(getter_AddRefs(child)),);
   }
 }
 
@@ -185,10 +184,10 @@ nsDASHMPDParser::PrintDOMElement(nsIDOMElement* aElem, int32_t offset)
 void
 nsDASHMPDParser::PrintDOMElements(nsIDOMElement* aRoot)
 {
-  NS_ENSURE_TRUE_VOID(aRoot);
+  NS_ENSURE_TRUE(aRoot, );
 
   DASHMPDProfile profile;
-  NS_ENSURE_SUCCESS_VOID(GetProfile(aRoot, profile));
+  NS_ENSURE_SUCCESS(GetProfile(aRoot, profile), );
   LOG("Profile Is %d",(int32_t)profile);
   PrintDOMElement(aRoot, 0);
 }

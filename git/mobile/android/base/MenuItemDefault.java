@@ -6,120 +6,101 @@ package org.mozilla.gecko;
 
 import android.content.Context;
 import android.content.res.Resources;
-import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.util.AttributeSet;
 import android.view.View;
+import android.widget.AbsListView;
+import android.widget.CheckBox;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
-public class MenuItemDefault extends TextView
+public class MenuItemDefault extends LinearLayout
                              implements GeckoMenuItem.Layout {
-    private static final int[] STATE_MORE = new int[] { R.attr.state_more };
-    private static final int[] STATE_CHECKED = new int[] { android.R.attr.state_checkable, android.R.attr.state_checked };
-    private static final int[] STATE_UNCHECKED = new int[] { android.R.attr.state_checkable };
+    private static final String LOGTAG = "GeckoMenuItemDefault";
 
-    private Drawable mIcon;
-    private Drawable mState;
-    private static Rect sIconBounds;
+    private ImageView mIcon;
+    private TextView mTitle;
+    private CheckBox mCheck;
+    private ImageView mMore;
 
-    private boolean mCheckable = false;
-    private boolean mChecked = false;
-    private boolean mHasSubMenu = false;
+    private boolean mCheckable;
+    private boolean mChecked;
+    private boolean mHasSubMenu;
 
     public MenuItemDefault(Context context, AttributeSet attrs) {
         super(context, attrs);
 
         Resources res = context.getResources();
-        int stateIconSize = res.getDimensionPixelSize(R.dimen.menu_item_state_icon);
-        Rect stateIconBounds = new Rect(0, 0, stateIconSize, stateIconSize);
+        setLayoutParams(new AbsListView.LayoutParams((int) (res.getDimension(R.dimen.menu_item_row_width)),
+                                                     (int) (res.getDimension(R.dimen.menu_item_row_height))));
 
-        mState = res.getDrawable(R.drawable.menu_item_state);
-        mState.setBounds(stateIconBounds);
+        inflate(context, R.layout.menu_item, this);
+        mIcon = (ImageView) findViewById(R.id.icon);
+        mTitle = (TextView) findViewById(R.id.title);
+        mCheck = (CheckBox) findViewById(R.id.check);
+        mMore = (ImageView) findViewById(R.id.more);
 
-        if (sIconBounds == null) {
-            int iconSize = res.getDimensionPixelSize(R.dimen.menu_item_icon);
-            sIconBounds = new Rect(0, 0, iconSize, iconSize);
-        }
-
-        setCompoundDrawables(mIcon, null, mState, null);
+        mCheckable = false;
+        mChecked = false;
+        mHasSubMenu = false;
     }
 
     @Override
-    public int[] onCreateDrawableState(int extraSpace) {
-        final int[] drawableState = super.onCreateDrawableState(extraSpace + 2);
-
-        if (mHasSubMenu)
-            mergeDrawableStates(drawableState, STATE_MORE);
-        else if (mCheckable && mChecked)
-            mergeDrawableStates(drawableState, STATE_CHECKED);
-        else if (mCheckable && !mChecked)
-            mergeDrawableStates(drawableState, STATE_UNCHECKED);
-
-        return drawableState;
-    }
-
-    @Override
-    public View getView() {
+    public View getLayout() {
         return this;
     }
 
     @Override
     public void setIcon(Drawable icon) {
-        mIcon = icon;
-
-        if (mIcon != null)
-            mIcon.setBounds(sIconBounds);
-
-        setCompoundDrawables(mIcon, null, mState, null);
+        if (icon != null) {
+            mIcon.setImageDrawable(icon);
+            mIcon.setVisibility(VISIBLE);
+        } else {
+            mIcon.setVisibility(GONE);
+        }
     }
 
     @Override
     public void setIcon(int icon) {
-        Drawable drawable = null;
-
-        if (icon != 0)
-            drawable = getContext().getResources().getDrawable(icon);
-         
-        setIcon(drawable);
+        if (icon != 0) {
+            mIcon.setImageResource(icon);
+            mIcon.setVisibility(VISIBLE);
+        } else {
+            mIcon.setVisibility(GONE);
+        }
     }
 
     @Override
     public void setTitle(CharSequence title) {
-        setText(title);
+        mTitle.setText(title);
     }
 
     @Override
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
-
-        if (mIcon != null)
-            mIcon.setAlpha(enabled ? 255 : 99);
-
-        if (mState != null)
-            mState.setAlpha(enabled ? 255 : 99);
+        mTitle.setEnabled(enabled);
+        mCheck.setEnabled(enabled);
+        mIcon.setColorFilter(enabled ? 0 : 0xFF999999);
+        mMore.setColorFilter(enabled ? 0 : 0xFF999999);
     }
 
     @Override
     public void setCheckable(boolean checkable) {
-        if (mCheckable != checkable) {
-            mCheckable = checkable;
-            refreshDrawableState();
-        }
+        mCheckable = checkable;
+        mCheck.setVisibility(mCheckable && !mHasSubMenu ? VISIBLE : GONE);
     }
 
     @Override
     public void setChecked(boolean checked) {
-        if (mChecked != checked) {
-            mChecked = checked;
-            refreshDrawableState();
-        }
+        mChecked = checked;
+        mCheck.setChecked(mChecked);
     }
 
     @Override
     public void setSubMenuIndicator(boolean hasSubMenu) {
-        if (mHasSubMenu != hasSubMenu) {
-            mHasSubMenu = hasSubMenu;
-            refreshDrawableState();
-        }
+        mHasSubMenu = hasSubMenu;
+        mMore.setVisibility(mHasSubMenu ? VISIBLE : GONE);
+        mCheck.setVisibility(mCheckable && !mHasSubMenu ? VISIBLE : GONE);
     }
 }

@@ -70,7 +70,7 @@ PluginProcessChild::Init()
                 setInterpose.Append(interpose);
             }
             // Values passed to PR_SetEnv() must be seperately allocated.
-            char* setInterposePtr = strdup(setInterpose.get());
+            char* setInterposePtr = strdup(PromiseFlatCString(setInterpose).get());
             PR_SetEnv(setInterposePtr);
         }
     }

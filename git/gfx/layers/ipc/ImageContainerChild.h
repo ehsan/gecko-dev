@@ -10,7 +10,6 @@
 #include "mozilla/layers/ImageBridgeChild.h"
 
 namespace mozilla {
-class ReentrantMonitor;
 namespace layers {
 
 class ImageBridgeCopyAndSendTask;
@@ -43,7 +42,7 @@ public:
   /**
    * Sends an image to the compositor without using the main thread.
    *
-   * This method should be called by ImageContainer only, and can be called
+   * This method should be called by ImageContainer only, and can be called 
    * from any thread.
    */
   void SendImageAsync(ImageContainer* aContainer, Image* aImage);
@@ -106,45 +105,18 @@ public:
   void DispatchDestroy();
 
   /**
-   * Flush and deallocate the shared images in the pool.
+   * Dispatches a task on the ImageBridgeChild's thread that will call SendFlush
+   * and deallocate the shared images in the pool.
+   * Can be called on any thread.
    */
-  void SetIdle();
+  void DispatchSetIdle();
 
   /**
-   * Can be called from any thread.
-   * deallocates or places aImage in a pool.
-   * If this method is not called on the ImageBridgeChild thread, a task is
-   * is dispatched and the recycling/deallocation happens asynchronously on
-   * the ImageBridgeChild thread.
+   * Must be called on the ImageBridgeChild's thread.
    */
-  void RecycleSharedImage(SharedImage* aImage);
-
-  /**
-   * Creates a YCbCrImage using shared memory to store its data.
-   * Use a uint32_t for formats list to avoid #include horribleness.
-   */
-  already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
-                                      uint32_t aNumFormats);
-
-  /**
-   * Allocates an unsafe shmem.
-   * Unlike AllocUnsafeShmem, this method can be called from any thread.
-   * If the calling thread is not the ImageBridgeChild thread, this method will
-   * dispatch a synchronous call to AllocUnsafeShmem on the ImageBridgeChild
-   * thread meaning that the calling thread will be blocked until
-   * AllocUnsafeShmem returns on the ImageBridgeChild thread.
-   */
-  bool AllocUnsafeShmemSync(size_t aBufSize,
-                            SharedMemory::SharedMemoryType aType,
-                            ipc::Shmem* aShmem);
-
-  /**
-   * Dispatches a task on the ImageBridgeChild thread to deallocate a shmem.
-   */
-  void DeallocShmemAsync(ipc::Shmem& aShmem);
-
+  void SetIdleNow();
+  
 protected:
-
   virtual PGrallocBufferChild*
   AllocPGrallocBuffer(const gfxIntSize&, const gfxContentType&,
                       MaybeMagicGrallocBufferHandle*) MOZ_OVERRIDE
@@ -161,31 +133,14 @@ protected:
   }
 
   /**
-   * Must be called on the ImageBridgeChild's thread.
+   * Must be called on the ImageBridgeCHild's thread.
    */
   void DestroyNow();
-  
-  /**
-   * Dispatches a task on the ImageBridgeChild's thread that will call SendFlush
-   * and deallocate the shared images in the pool.
-   * Can be called on any thread.
-   */
-  void SetIdleSync(Monitor* aBarrier, bool* aDone);
-
-  /**
-   * Must be called on the ImageBridgeChild's thread.
-   */
-  void SetIdleNow();
 
   inline void SetID(uint64_t id)
   {
     mImageContainerID = id;
   }
-
-  /**
-   * Must be called on the ImageBirdgeChild thread. (See RecycleSharedImage)
-   */
-  void RecycleSharedImageNow(SharedImage* aImage);
 
   /**
    * Deallocates a shared image's shared memory.
@@ -203,52 +158,36 @@ protected:
   bool AddSharedImageToPool(SharedImage* img);
 
   /**
-   * Must be called on the ImageBridgeChild's thread.
-   *
-   * creates and sends a shared image containing the same data as the image passed
-   * in parameter.
+   * Removes a shared image from the pool and returns it.
+   * Returns nullptr if the pool is empty.
+   */
+  SharedImage* GetSharedImageFor(Image* aImage);
+  /**
+   * Seallocates all the shared images from the pool and clears the pool.
+   */
+
+  void ClearSharedImagePool();
+  /**
+   * Returns a shared image containing the same data as the image passed in 
+   * parameter.
    * - If the image's data is already in shared memory, this should just acquire
-   * the data rather tahn copying it
+   * the data rather tahn copying it (TODO)
    * - If There is an available shared image of the same size in the pool, reuse
    * it rather than allocating shared memory.
    * - worst case, allocate shared memory and copy the image's data into it. 
    */
-  void SendImageNow(Image* aImage);
-
-
-  /**
-   * Returns a SharedImage if the image passed in parameter can be shared
-   * directly without a copy, returns nullptr otherwise.
-   */
-  SharedImage* AsSharedImage(Image* aImage);
-
-  /**
-   * Removes a shared image from the pool and returns it.
-   * Returns nullptr if the pool is empty.
-   * The returned image does not contain the image data, a copy still needs to
-   * be done afterward (see CopyDataIntoSharedImage).
-   */
-  SharedImage* GetSharedImageFor(Image* aImage);
-
-  /**
-   * Allocates a SharedImage.
-   * Returns nullptr in case of failure.
-   * The returned image does not contain the image data, a copy still needs to
-   * be done afterward (see CopyDataIntoSharedImage).
-   * Must be called on the ImageBridgeChild thread.
-   */
-  SharedImage* AllocateSharedImageFor(Image* aImage);
+  SharedImage* ImageToSharedImage(Image* toCopy);
 
   /**
    * Called by ImageToSharedImage.
    */
   bool CopyDataIntoSharedImage(Image* src, SharedImage* dest);
 
-
   /**
-   * Deallocates all the shared images from the pool and clears the pool.
+   * Allocates a SharedImage and copy aImage's data into it.
+   * Called by ImageToSharedImage.
    */
-  void ClearSharedImagePool();
+  SharedImage * CreateSharedImageFromData(Image* aImage);
 
 private:
   uint64_t mImageContainerID;

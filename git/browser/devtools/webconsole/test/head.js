@@ -8,13 +8,6 @@ Cu.import("resource:///modules/HUDService.jsm", tempScope);
 let HUDService = tempScope.HUDService;
 Cu.import("resource://gre/modules/devtools/WebConsoleUtils.jsm", tempScope);
 let WebConsoleUtils = tempScope.WebConsoleUtils;
-Cu.import("resource:///modules/devtools/gDevTools.jsm", tempScope);
-let gDevTools = tempScope.gDevTools;
-Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
-let TargetFactory = tempScope.TargetFactory;
-Components.utils.import("resource://gre/modules/devtools/Console.jsm", tempScope);
-let console = tempScope.console;
-
 const WEBCONSOLE_STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
 let WCU_l10n = new WebConsoleUtils.l10n(WEBCONSOLE_STRINGS_URI);
 
@@ -39,7 +32,8 @@ let tab, browser, hudId, hud, hudBox, filterBox, outputNode, cs;
 
 function addTab(aURL)
 {
-  gBrowser.selectedTab = gBrowser.addTab(aURL);
+  gBrowser.selectedTab = gBrowser.addTab();
+  content.location.assign(aURL);
   tab = gBrowser.selectedTab;
   browser = gBrowser.getBrowserForTab(tab);
 }
@@ -139,12 +133,23 @@ function findLogEntry(aString)
  *        Optional function to invoke after the Web Console completes
  *        initialization (web-console-created).
  */
-function openConsole(aTab, aCallback = function() { })
+function openConsole(aTab, aCallback)
 {
-  let target = TargetFactory.forTab(aTab || tab);
-  gDevTools.showToolbox(target, "webconsole").then(function(toolbox) {
-    aCallback(toolbox.getCurrentPanel().hud);
-  });
+  function onWebConsoleOpen(aSubject, aTopic)
+  {
+    if (aTopic == "web-console-created") {
+      Services.obs.removeObserver(onWebConsoleOpen, "web-console-created");
+      aSubject.QueryInterface(Ci.nsISupportsString);
+      let hud = HUDService.getHudReferenceById(aSubject.data);
+      executeSoon(aCallback.bind(null, hud));
+    }
+  }
+
+  if (aCallback) {
+    Services.obs.addObserver(onWebConsoleOpen, "web-console-created", false);
+  }
+
+  HUDService.activateHUDForContext(aTab || tab);
 }
 
 /**
@@ -157,25 +162,23 @@ function openConsole(aTab, aCallback = function() { })
  *        Optional function to invoke after the Web Console completes
  *        closing (web-console-destroyed).
  */
-function closeConsole(aTab, aCallback = function() { })
+function closeConsole(aTab, aCallback)
 {
-  let target = TargetFactory.forTab(aTab || tab);
-  let toolbox = gDevTools.getToolbox(target);
-  if (toolbox) {
-    let panel = toolbox.getPanel("webconsole");
-    if (panel) {
-      let hudId = panel.hud.hudId;
-      toolbox.destroy().then(function() {
-        executeSoon(aCallback.bind(null, hudId));
-      }).then(null, console.error);
-    }
-    else {
-      toolbox.destroy().then(aCallback.bind(null));
+  function onWebConsoleClose(aSubject, aTopic)
+  {
+    if (aTopic == "web-console-destroyed") {
+      Services.obs.removeObserver(onWebConsoleClose, "web-console-destroyed");
+      aSubject.QueryInterface(Ci.nsISupportsString);
+      let hudId = aSubject.data;
+      executeSoon(aCallback.bind(null, hudId));
     }
   }
-  else {
-    aCallback();
+
+  if (aCallback) {
+    Services.obs.addObserver(onWebConsoleClose, "web-console-destroyed", false);
   }
+
+  HUDService.deactivateHUDForContext(aTab || tab);
 }
 
 /**
@@ -238,19 +241,16 @@ function finishTest()
     finish();
     return;
   }
-  if (hud.jsterm) {
-    hud.jsterm.clearOutput(true);
-  }
+  hud.jsterm.clearOutput(true);
 
-  closeConsole(hud.target.tab, finish);
+  closeConsole(hud.tab, finish);
 
   hud = null;
 }
 
 function tearDown()
 {
-  let target = TargetFactory.forTab(gBrowser.selectedTab);
-  gDevTools.closeToolbox(target);
+  HUDService.deactivateHUDForContext(gBrowser.selectedTab);
   while (gBrowser.tabs.length > 1) {
     gBrowser.removeCurrentTab();
   }
@@ -306,12 +306,4 @@ function waitForSuccess(aOptions)
   }
 
   wait(aOptions.validatorFn, aOptions.successFn, aOptions.failureFn);
-}
-
-function openInspector(aCallback, aTab = gBrowser.selectedTab)
-{
-  let target = TargetFactory.forTab(aTab);
-  gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
-    aCallback(toolbox.getCurrentPanel());
-  });
 }

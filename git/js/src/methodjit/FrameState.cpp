@@ -4,9 +4,6 @@
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "mozilla/PodOperations.h"
-
 #include "jscntxt.h"
 #include "FrameState.h"
 #include "FrameState-inl.h"
@@ -15,9 +12,6 @@
 using namespace js;
 using namespace js::mjit;
 using namespace js::analyze;
-
-using mozilla::PodArrayZero;
-using mozilla::PodCopy;
 
 /* Because of Value alignment */
 JS_STATIC_ASSERT(sizeof(FrameEntry) % 8 == 0);
@@ -368,7 +362,10 @@ FrameState::bestEvictReg(uint32_t mask, bool includePinned) const
 static inline bool
 CanFakeSync(FrameEntry *fe)
 {
-    return fe->isType(JSVAL_TYPE_INT32) || fe->isType(JSVAL_TYPE_BOOLEAN);
+    return fe->isNotType(JSVAL_TYPE_OBJECT)
+        && fe->isNotType(JSVAL_TYPE_STRING)
+        && fe->isNotType(JSVAL_TYPE_DOUBLE)
+        && fe->isNotType(JSVAL_TYPE_MAGIC);
 }
 
 void
@@ -2533,12 +2530,29 @@ FrameState::binaryEntryLive(FrameEntry *fe) const
     /*
      * Compute whether fe is live after the binary operation performed at the current
      * bytecode. This is similar to variableLive except that it returns false for the
-     * top two stack entries.
+     * top two stack entries and special cases LOCALINC/ARGINC and friends, which fuse
+     * a binary operation before writing over the local/arg.
      */
     JS_ASSERT(cx->typeInferenceEnabled());
 
     if (deadEntry(fe, 2))
         return false;
+
+    switch (JSOp(*a->PC)) {
+      case JSOP_INCLOCAL:
+      case JSOP_DECLOCAL:
+      case JSOP_LOCALINC:
+      case JSOP_LOCALDEC:
+        if (fe - a->locals == (int) GET_SLOTNO(a->PC))
+            return false;
+      case JSOP_INCARG:
+      case JSOP_DECARG:
+      case JSOP_ARGINC:
+      case JSOP_ARGDEC:
+        if (fe - a->args == (int) GET_SLOTNO(a->PC))
+            return false;
+      default:;
+    }
 
     JS_ASSERT(fe != a->callee_);
 

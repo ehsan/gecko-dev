@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "NSPRFormatTime.h" // must include before any headers that include prtime.h
 #include "nsAppRunner.h"
 
 #include "prio.h"
@@ -57,7 +58,7 @@ WriteConsoleLog()
   nsIConsoleMessage** messages;
   uint32_t mcount;
 
-  rv = csrv->GetMessageArray(&mcount, &messages);
+  rv = csrv->GetMessageArray(&messages, &mcount);
   if (NS_FAILED(rv)) {
     PR_Close(file);
     return;

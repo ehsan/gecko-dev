@@ -124,13 +124,14 @@ protected:
     // nsIWidgetListener
     virtual void WindowRaised(nsIWidget* aWidget);
     virtual void WindowLowered(nsIWidget* aWidget);
-    virtual bool PaintWindow(nsIWidget* aWidget, nsIntRegion aRegion, uint32_t aFlags) MOZ_OVERRIDE;
+    virtual bool PaintWindow(nsIWidget* aWidget, bool isRequest, nsIntRegion aRegion, bool aWillSendDidPaint);
 
 protected:
    nsDocShellTreeOwner*       mDocShellTreeOwner;
    nsCOMPtr<nsIDocShell>      mDocShell;
    nsCOMPtr<nsIInterfaceRequestor> mDocShellAsReq;
    nsCOMPtr<nsIBaseWindow>    mDocShellAsWin;
+   nsCOMPtr<nsIDocShellTreeItem> mDocShellAsItem;
    nsCOMPtr<nsIWebNavigation> mDocShellAsNav;
    nsCOMPtr<nsIScrollable>    mDocShellAsScrollable;
    nsCOMPtr<nsITextScroll>    mDocShellAsTextScroll;

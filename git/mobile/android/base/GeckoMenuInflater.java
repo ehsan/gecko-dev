@@ -10,7 +10,6 @@ import org.xmlpull.v1.XmlPullParserException;
 import android.content.Context;
 import android.content.res.TypedArray;
 import android.content.res.XmlResourceParser;
-import android.os.Build;
 import android.util.AttributeSet;
 import android.util.Xml;
 import android.view.InflateException;
@@ -52,7 +51,6 @@ public class GeckoMenuInflater extends MenuInflater {
         isSubMenu = false;
     }
 
-    @Override
     public void inflate(int menuRes, Menu menu) {
 
         // This does not check for a well-formed XML.
@@ -136,9 +134,7 @@ public class GeckoMenuInflater extends MenuInflater {
         item.checked = a.getBoolean(R.styleable.MenuItem_android_checked, false);
         item.visible = a.getBoolean(R.styleable.MenuItem_android_visible, true);
         item.enabled = a.getBoolean(R.styleable.MenuItem_android_enabled, true);
-
-        if (Build.VERSION.SDK_INT >= 11)
-            item.showAsAction = a.getInt(R.styleable.MenuItem_android_showAsAction, 0);
+        item.showAsAction = a.getInt(R.styleable.MenuItem_android_showAsAction, 0);
 
         a.recycle();
     }
@@ -148,9 +144,7 @@ public class GeckoMenuInflater extends MenuInflater {
                 .setVisible(item.visible)
                 .setEnabled(item.enabled)
                 .setCheckable(item.checkable)
-                .setIcon(item.iconRes);
-
-        if (Build.VERSION.SDK_INT >= 11)
-            menuItem.setShowAsAction(item.showAsAction);
+                .setIcon(item.iconRes)
+                .setShowAsAction(item.showAsAction);
     }
 }

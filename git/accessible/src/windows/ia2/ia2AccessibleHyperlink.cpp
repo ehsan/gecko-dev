@@ -10,15 +10,14 @@
 #include "AccessibleHyperlink_i.c"
 
 #include "AccessibleWrap.h"
-
-using namespace mozilla::a11y;
+#include "nsIWinAccessNode.h"
 
 // IUnknown
 
 STDMETHODIMP
 ia2AccessibleHyperlink::QueryInterface(REFIID iid, void** ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleHyperlink == iid) {
     if (!static_cast<AccessibleWrap*>(this)->IsLink())
@@ -37,8 +36,7 @@ ia2AccessibleHyperlink::QueryInterface(REFIID iid, void** ppv)
 STDMETHODIMP
 ia2AccessibleHyperlink::get_anchor(long aIndex, VARIANT* aAnchor)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   VariantInit(aAnchor);
 
   Accessible* thisObj = static_cast<AccessibleWrap*>(this);
@@ -56,7 +54,7 @@ ia2AccessibleHyperlink::get_anchor(long aIndex, VARIANT* aAnchor)
   if (!anchor)
     return S_FALSE;
 
-  void* instancePtr = nullptr;
+  void* instancePtr = NULL;
   HRESULT result = anchor->QueryInterface(IID_IUnknown, &instancePtr);
   if (FAILED(result))
     return result;
@@ -66,14 +64,14 @@ ia2AccessibleHyperlink::get_anchor(long aIndex, VARIANT* aAnchor)
   aAnchor->vt = VT_UNKNOWN;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleHyperlink::get_anchorTarget(long aIndex, VARIANT* aAnchorTarget)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   VariantInit(aAnchorTarget);
 
   Accessible* thisObj = static_cast<AccessibleWrap*>(this);
@@ -109,14 +107,14 @@ ia2AccessibleHyperlink::get_anchorTarget(long aIndex, VARIANT* aAnchorTarget)
                                                stringURI.Length());
   return aAnchorTarget->bstrVal ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleHyperlink::get_startIndex(long* aIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aIndex = 0;
 
   Accessible* thisObj = static_cast<AccessibleWrap*>(this);
@@ -129,14 +127,14 @@ ia2AccessibleHyperlink::get_startIndex(long* aIndex)
   *aIndex = thisObj->StartOffset();
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleHyperlink::get_endIndex(long* aIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aIndex = 0;
 
   Accessible* thisObj = static_cast<AccessibleWrap*>(this);
@@ -149,14 +147,14 @@ ia2AccessibleHyperlink::get_endIndex(long* aIndex)
   *aIndex = thisObj->EndOffset();
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleHyperlink::get_valid(boolean* aValid)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aValid = false;
 
   Accessible* thisObj = static_cast<AccessibleWrap*>(this);
@@ -169,6 +167,7 @@ ia2AccessibleHyperlink::get_valid(boolean* aValid)
   *aValid = thisObj->IsLinkValid();
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 

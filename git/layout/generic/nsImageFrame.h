@@ -30,7 +30,6 @@ class nsPresContext;
 class nsImageFrame;
 class nsTransform2D;
 class nsImageLoadingContent;
-class imgRequestProxy;
 
 namespace mozilla {
 namespace layers {
@@ -74,12 +73,12 @@ public:
   NS_DECL_QUERYFRAME
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
   virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
   virtual IntrinsicSize GetIntrinsicSize();
@@ -116,7 +115,7 @@ public:
   NS_IMETHOD List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const;
 #endif
 
-  virtual int GetSkipSides() const MOZ_OVERRIDE;
+  virtual int GetSkipSides() const;
 
   nsresult GetIntrinsicImageSize(nsSize& aSize);
 
@@ -299,7 +298,7 @@ private:
   // loading / broken images
   nsresult LoadIcons(nsPresContext *aPresContext);
   nsresult LoadIcon(const nsAString& aSpec, nsPresContext *aPresContext,
-                    imgRequestProxy **aRequest);
+                    imgIRequest **aRequest);
 
   class IconLoad MOZ_FINAL : public nsIObserver,
                              public imgINotificationObserver {
@@ -334,8 +333,8 @@ private:
 
 
   public:
-    nsRefPtr<imgRequestProxy> mLoadingImage;
-    nsRefPtr<imgRequestProxy> mBrokenImage;
+    nsCOMPtr<imgIRequest> mLoadingImage;
+    nsCOMPtr<imgIRequest> mBrokenImage;
     bool             mPrefForceInlineAltText;
     bool             mPrefShowPlaceholders;
   };
@@ -371,19 +370,13 @@ public:
    * Returns an ImageContainer for this image if the image type
    * supports it (TYPE_RASTER only).
    */
-  virtual already_AddRefed<ImageContainer> GetContainer(LayerManager* aManager,
-                                                        nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE;
+  virtual already_AddRefed<ImageContainer> GetContainer() MOZ_OVERRIDE;
 
   gfxRect GetDestRect();
 
   virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
                                    LayerManager* aManager,
                                    const ContainerParameters& aParameters) MOZ_OVERRIDE;
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
-  {
-    *aSnap = true;
-    return nsRect(ToReferenceFrame(), GetUnderlyingFrame()->GetSize());
-  }
 
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                              LayerManager* aManager,

@@ -21,6 +21,7 @@
 #include "nsIAsyncInputStream.h"
 #include "nsIAsyncOutputStream.h"
 #include "nsIInterfaceRequestor.h"
+#include "nsIEventTarget.h"
 
 class nsHttpRequestHead;
 class nsHttpResponseHead;
@@ -59,12 +60,12 @@ public:
     nsresult Init(nsHttpConnectionInfo *info, uint16_t maxHangTime,
                   nsISocketTransport *, nsIAsyncInputStream *,
                   nsIAsyncOutputStream *, nsIInterfaceRequestor *,
-                  PRIntervalTime);
+                  nsIEventTarget *, PRIntervalTime);
 
     // Activate causes the given transaction to be processed on this
     // connection.  It fails if there is already an existing transaction unless
     // a multiplexing protocol such as SPDY is being used
-    nsresult Activate(nsAHttpTransaction *, uint32_t caps, int32_t pri);
+    nsresult Activate(nsAHttpTransaction *, uint8_t caps, int32_t pri);
 
     // Close the underlying socket transport.
     void Close(nsresult reason);
@@ -131,7 +132,6 @@ public:
 
     bool UsingSpdy() { return !!mUsingSpdyVersion; }
     bool EverUsedSpdy() { return mEverUsedSpdy; }
-    PRIntervalTime Rtt() { return mRtt; }
 
     // true when connection SSL NPN phase is complete and we know
     // authoritatively whether UsingSpdy() or not.
@@ -151,7 +151,6 @@ public:
 
     int64_t BytesWritten() { return mTotalBytesWritten; }
 
-    void    SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks);
     void    PrintDiagnostics(nsCString &log);
 
 private:
@@ -171,7 +170,7 @@ private:
     // Makes certain the SSL handshake is complete and NPN negotiation
     // has had a chance to happen
     bool     EnsureNPNComplete();
-    void     SetupNPN(uint32_t caps);
+    void     SetupNPN(uint8_t caps);
 
     // Inform the connection manager of any SPDY Alternate-Protocol
     // redirections
@@ -198,8 +197,8 @@ private:
     // transaction is open, otherwise it is null.
     nsRefPtr<nsAHttpTransaction>    mTransaction;
 
-    mozilla::Mutex                  mCallbacksLock;
     nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
+    nsCOMPtr<nsIEventTarget>        mCallbackTarget;
 
     nsRefPtr<nsHttpConnectionInfo> mConnInfo;
 

@@ -12,7 +12,6 @@
 
 #include "nsIPlatformCharset.h"
 #include "nsIFile.h"
-#include <algorithm>
 
 #ifdef MOZ_TOOLKIT_SEARCH
 #include "nsIBrowserSearchService.h"
@@ -21,7 +20,6 @@
 #include "nsIURIFixup.h"
 #include "nsDefaultURIFixup.h"
 #include "mozilla/Preferences.h"
-#include "nsIObserverService.h"
 
 using namespace mozilla;
 
@@ -39,7 +37,7 @@ nsDefaultURIFixup::~nsDefaultURIFixup()
   /* destructor code */
 }
 
-/* nsIURI createExposableURI (in nsIURI aURI); */
+/* nsIURI createExposableURI (in nsIRUI aURI); */
 NS_IMETHODIMP
 nsDefaultURIFixup::CreateExposableURI(nsIURI *aURI, nsIURI **aReturn)
 {
@@ -346,17 +344,7 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
 
         spec.Insert(url, 0);
 
-        nsresult rv = NS_NewURI(aURI, spec);
-        if (NS_FAILED(rv))
-            return rv;
-
-        nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
-        if (obsSvc) {
-            obsSvc->NotifyObservers(*aURI,
-                                    "defaultURIFixup-using-keyword-pref",
-                                    nullptr);
-        }
-        return NS_OK;
+        return NS_NewURI(aURI, spec);
     }
 
 #ifdef MOZ_TOOLKIT_SEARCH
@@ -367,12 +355,22 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
         searchSvc->GetOriginalDefaultEngine(getter_AddRefs(defaultEngine));
         if (defaultEngine) {
             nsCOMPtr<nsISearchSubmission> submission;
-            // We allow default search plugins to specify alternate
-            // parameters that are specific to keyword searches.
+            // We want to allow default search plugins to specify alternate
+            // parameters that are specific to keyword searches. For the moment,
+            // do this by first looking for a magic
+            // "application/x-moz-keywordsearch" submission type. In the future,
+            // we should instead use a solution that relies on bug 587780.
             defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
-                                         EmptyString(),
-                                         NS_LITERAL_STRING("keyword"),
+                                         NS_LITERAL_STRING("application/x-moz-keywordsearch"),
                                          getter_AddRefs(submission));
+            // If getting the special x-moz-keywordsearch submission type failed,
+            // fall back to the default response type.
+            if (!submission) {
+                defaultEngine->GetSubmission(NS_ConvertUTF8toUTF16(keyword),
+                                             EmptyString(),
+                                             getter_AddRefs(submission));
+            }
+
             if (submission) {
                 // The submission depends on POST data (i.e. the search engine's
                 // "method" is POST), we can't use this engine for keyword
@@ -381,20 +379,6 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
                 submission->GetPostData(getter_AddRefs(postData));
                 if (postData) {
                     return NS_ERROR_NOT_AVAILABLE;
-                }
-
-                // This notification is meant for Firefox Health Report so it
-                // can increment counts from the search engine. The assumption
-                // here is that this keyword/submission will eventually result
-                // in a search. Since we only generate a URI here, there is the
-                // possibility we'll increment the counter without actually
-                // incurring a search. A robust solution would involve currying
-                // the search engine's name through various function calls.
-                nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
-                if (obsSvc) {
-                  nsAutoString name;
-                  defaultEngine->GetName(name);
-                  obsSvc->NotifyObservers(nullptr, "keyword-search", name.get());
                 }
 
                 return submission->GetUri(aURI);
@@ -816,7 +800,7 @@ nsresult nsDefaultURIFixup::KeywordURIFixup(const nsACString & aURIString,
         spaceLoc = uint32_t(kNotFound);
     }
     uint32_t qMarkLoc = uint32_t(aURIString.FindChar('?'));
-    uint32_t quoteLoc = std::min(uint32_t(aURIString.FindChar('"')),
+    uint32_t quoteLoc = NS_MIN(uint32_t(aURIString.FindChar('"')),
                                uint32_t(aURIString.FindChar('\'')));
 
     if (((spaceLoc < dotLoc || quoteLoc < dotLoc) &&

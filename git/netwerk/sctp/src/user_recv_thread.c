@@ -32,7 +32,10 @@
 #include <sys/types.h>
 #if !defined(__Userspace_os_Windows)
 #include <sys/socket.h>
+/*  to make sure some OSs define in6_pktinfo */
+#define __USE_GNU
 #include <netinet/in.h>
+#undef __USE_GNU
 #include <unistd.h>
 #include <pthread.h>
 #if !defined(__Userspace_os_FreeBSD)
@@ -315,7 +318,7 @@ recv_function_raw(void *arg)
 			   as usual without having the packet header.
 			   Have tried both sending and receiving
 			 */
-			recvmbuf[i] = sctp_get_mbuf_for_msg(iovlen, want_header, M_NOWAIT, want_ext, MT_DATA);
+			recvmbuf[i] = sctp_get_mbuf_for_msg(iovlen, want_header, M_DONTWAIT, want_ext, MT_DATA);
 #if !defined(__Userspace_os_Windows)
 			recv_iovec[i].iov_base = (caddr_t)recvmbuf[i]->m_data;
 			recv_iovec[i].iov_len = iovlen;
@@ -442,7 +445,6 @@ recv_function_raw(void *arg)
 #else
 	pthread_exit(NULL);
 #endif
-	return (NULL);
 }
 #endif
 
@@ -493,7 +495,7 @@ recv_function_raw6(void *arg)
 			   as usual without having the packet header.
 			   Have tried both sending and receiving
 			 */
-			recvmbuf6[i] = sctp_get_mbuf_for_msg(iovlen, want_header, M_NOWAIT, want_ext, MT_DATA);
+			recvmbuf6[i] = sctp_get_mbuf_for_msg(iovlen, want_header, M_DONTWAIT, want_ext, MT_DATA);
 #if !defined(__Userspace_os_Windows)
 			recv_iovec[i].iov_base = (caddr_t)recvmbuf6[i]->m_data;
 			recv_iovec[i].iov_len = iovlen;
@@ -626,7 +628,6 @@ recv_function_raw6(void *arg)
 #else
 	pthread_exit(NULL);
 #endif
-	return (NULL);
 }
 #endif
 
@@ -677,7 +678,7 @@ recv_function_udp(void *arg)
 			   as usual without having the packet header.
 			   Have tried both sending and receiving
 			 */
-			udprecvmbuf[i] = sctp_get_mbuf_for_msg(iovlen, want_header, M_NOWAIT, want_ext, MT_DATA);
+			udprecvmbuf[i] = sctp_get_mbuf_for_msg(iovlen, want_header, M_DONTWAIT, want_ext, MT_DATA);
 #if !defined(__Userspace_os_Windows)
 			iov[i].iov_base = (caddr_t)udprecvmbuf[i]->m_data;
 			iov[i].iov_len = iovlen;
@@ -831,7 +832,6 @@ recv_function_udp(void *arg)
 #else
 	pthread_exit(NULL);
 #endif
-	return (NULL);
 }
 #endif
 
@@ -877,7 +877,7 @@ recv_function_udp6(void *arg)
 			   as usual without having the packet header.
 			   Have tried both sending and receiving
 			 */
-			udprecvmbuf6[i] = sctp_get_mbuf_for_msg(iovlen, want_header, M_NOWAIT, want_ext, MT_DATA);
+			udprecvmbuf6[i] = sctp_get_mbuf_for_msg(iovlen, want_header, M_DONTWAIT, want_ext, MT_DATA);
 #if !defined(__Userspace_os_Windows)
 			iov[i].iov_base = (caddr_t)udprecvmbuf6[i]->m_data;
 			iov[i].iov_len = iovlen;
@@ -1018,7 +1018,6 @@ recv_function_udp6(void *arg)
 #else
 	pthread_exit(NULL);
 #endif
-	return (NULL);
 }
 #endif
 

@@ -9,7 +9,6 @@
 #include "Accessible-inl.h"
 #include "nsMai.h"
 #include "Role.h"
-#include "mozilla/Likely.h"
 
 #include "nsString.h"
 
@@ -117,7 +116,7 @@ void
 actionInterfaceInitCB(AtkActionIface* aIface)
 {
   NS_ASSERTION(aIface, "Invalid aIface");
-  if (MOZ_UNLIKELY(!aIface))
+  if (NS_UNLIKELY(!aIface))
     return;
 
   aIface->do_action = doActionCB;

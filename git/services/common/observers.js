@@ -2,16 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef MERGED_COMPARTMENT
-
-this.EXPORTED_SYMBOLS = ["Observers"];
+let EXPORTED_SYMBOLS = ["Observers"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
-
-#endif
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
@@ -21,7 +17,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
  *
  * @version 0.2
  */
-this.Observers = {
+let Observers = {
   /**
    * Register the given callback as an observer of the given topic.
    *

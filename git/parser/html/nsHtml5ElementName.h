@@ -28,6 +28,7 @@
 #ifndef nsHtml5ElementName_h__
 #define nsHtml5ElementName_h__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
@@ -198,7 +199,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_MARK;
     static nsHtml5ElementName* ELT_MASK;
     static nsHtml5ElementName* ELT_MEAN;
-    static nsHtml5ElementName* ELT_MAIN;
     static nsHtml5ElementName* ELT_MSUP;
     static nsHtml5ElementName* ELT_MENU;
     static nsHtml5ElementName* ELT_MROW;
@@ -395,7 +395,6 @@ class nsHtml5ElementName
     static nsHtml5ElementName* ELT_QUOTIENT;
     static nsHtml5ElementName* ELT_SELECTOR;
     static nsHtml5ElementName* ELT_TEXTAREA;
-    static nsHtml5ElementName* ELT_TEMPLATE;
     static nsHtml5ElementName* ELT_TEXTPATH;
     static nsHtml5ElementName* ELT_VARIANCE;
     static nsHtml5ElementName* ELT_ANIMATION;

@@ -21,13 +21,14 @@ function test() {
         is(aFrecency, 0, "Frecency should be 0");
         fieldForUrl(aURI, "hidden", function (aHidden) {
           is(aHidden, 0, "Page should not be hidden");
-          promiseClearHistory().then(finish);
+          waitForClearHistory(finish);
         });
       });
     },
     onBeginUpdateBatch: function () {},
     onEndUpdateBatch: function () {},
     onTitleChanged: function () {},
+    onBeforeDeleteURI: function () {},
     onDeleteURI: function () {},
     onClearHistory: function () {},
     onPageChanged: function () {},

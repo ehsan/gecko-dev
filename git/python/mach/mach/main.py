@@ -17,9 +17,9 @@ import traceback
 import uuid
 import sys
 
-from .base import CommandContext
+from mozbuild.base import BuildConfig
 
-from .decorators import (
+from .base import (
     CommandArgument,
     CommandProvider,
     Command,
@@ -28,8 +28,14 @@ from .decorators import (
 from .config import ConfigSettings
 from .logging import LoggingManager
 
-from .registrar import Registrar
+from .registrar import populate_argument_parser
 
+
+# Classes inheriting from ConfigProvider that provide settings.
+# TODO this should come from auto-discovery somehow.
+SETTINGS_PROVIDERS = [
+    BuildConfig,
+]
 
 # Settings for argument parser that don't get proxied to sub-module. i.e. these
 # are things consumed by the driver itself.
@@ -39,9 +45,9 @@ CONSUMED_ARGUMENTS = [
     'logfile',
     'log_interval',
     'command',
-    'mach_class',
-    'mach_method',
-    'mach_pass_context',
+    'cls',
+    'method',
+    'func',
 ]
 
 MACH_ERROR = r'''
@@ -69,7 +75,7 @@ command. Consider filing a bug for this issue.
 '''.lstrip()
 
 MODULE_ERROR = r'''
-The error occurred in code that was called by the mach command. This is either
+The error occured in code that was called by the mach command. This is either
 a bug in the called code itself or in the way that mach is calling it.
 
 You should consider filing a bug for this issue.
@@ -127,11 +133,12 @@ You tell mach the command you want to perform and it does it for you.
 Some common commands are:
 
     %(prog)s build     Build/compile the source tree.
+    %(prog)s test      Run tests.
     %(prog)s help      Show full help, including the list of all commands.
 
 To see more help for a specific command, run:
 
-  %(prog)s help <command>
+  %(prog)s <command> --help
 """
 
     def __init__(self, cwd):
@@ -143,6 +150,28 @@ To see more help for a specific command, run:
         self.settings = ConfigSettings()
 
         self.log_manager.register_structured_logger(self.logger)
+
+    def load_commands_from_sys_path(self):
+        """Discover and load mach command modules from sys.path.
+
+        This iterates over all paths on sys.path. If the path contains a
+        "mach/commands" subdirectory, all .py files in that directory will be
+        loaded and examined for mach commands.
+        """
+        # Create parent module otherwise Python complains when the parent is
+        # missing.
+        if b'mach.commands' not in sys.modules:
+            mod = imp.new_module(b'mach.commands')
+            sys.modules[b'mach.commands'] = mod
+
+        for path in sys.path:
+            # We only support importing .py files from directories.
+            commands_path = os.path.join(path, 'mach', 'commands')
+
+            if not os.path.isdir(commands_path):
+                continue
+
+            self.load_commands_from_directory(commands_path)
 
     def load_commands_from_directory(self, path):
         """Scan for mach commands from modules in a directory.
@@ -167,12 +196,6 @@ To see more help for a specific command, run:
         chosen.
         """
         if module_name is None:
-            # Ensure parent module is present otherwise we'll (likely) get
-            # an error due to unknown parent.
-            if b'mach.commands' not in sys.modules:
-                mod = imp.new_module(b'mach.commands')
-                sys.modules[b'mach.commands'] = mod
-
             module_name = 'mach.commands.%s' % uuid.uuid1().get_hex()
 
         imp.load_source(module_name, path)
@@ -252,14 +275,13 @@ To see more help for a specific command, run:
 
         if args.command == 'help':
             if args.subcommand is None:
-                parser.usage = \
-                    '%(prog)s [global arguments] command [command arguments]'
                 parser.print_help()
                 return 0
 
-            handler = Registrar.command_handlers[args.subcommand]
-            handler.parser.print_help()
-            return 0
+            # ArgumentParser doesn't seem to have a public API to expose the
+            # subparsers. So, we just simulate the behavior that causes
+            # ArgumentParser to do the printing for us.
+            return self._run([args.subcommand, '--help'])
 
         # Add JSON logging to a file if requested.
         if args.logfile:
@@ -282,21 +304,18 @@ To see more help for a specific command, run:
         stripped = {k: getattr(args, k) for k in vars(args) if k not in
             CONSUMED_ARGUMENTS}
 
-        context = CommandContext(topdir=self.cwd, cwd=self.cwd,
-            settings=self.settings, log_manager=self.log_manager,
-            commands=Registrar)
+        # If the command is associated with a class, instantiate and run it.
+        # All classes must be Base-derived and take the expected argument list.
+        if hasattr(args, 'cls'):
+            cls = getattr(args, 'cls')
+            instance = cls(self.cwd, self.settings, self.log_manager)
+            fn = getattr(instance, getattr(args, 'method'))
 
-        if not hasattr(args, 'mach_class'):
-            raise Exception('ArgumentParser result missing mach_class.')
-
-        cls = getattr(args, 'mach_class')
-
-        if getattr(args, 'mach_pass_context'):
-            instance = cls(context)
+        # If the command is associated with a function, call it.
+        elif hasattr(args, 'func'):
+            fn = getattr(args, 'func')
         else:
-            instance = cls()
-
-        fn = getattr(instance, getattr(args, 'mach_method'))
+            raise Exception('Dispatch configuration error in module.')
 
         try:
             result = fn(**stripped)
@@ -304,7 +323,7 @@ To see more help for a specific command, run:
             if not result:
                 result = 0
 
-            assert isinstance(result, (int, long))
+            assert isinstance(result, int)
 
             return result
         except KeyboardInterrupt as ki:
@@ -314,18 +333,6 @@ To see more help for a specific command, run:
 
             # The first frame is us and is never used.
             stack = traceback.extract_tb(exc_tb)[1:]
-
-            # If we have nothing on the stack, the exception was raised as part
-            # of calling the @Command method itself. This likely means a
-            # mismatch between @CommandArgument and arguments to the method.
-            # e.g. there exists a @CommandArgument without the corresponding
-            # argument on the method. We handle that here until the module
-            # loader grows the ability to validate better.
-            if not len(stack):
-                print(COMMAND_ERROR)
-                self._print_exception(sys.stdout, exc_type, exc_value,
-                    traceback.extract_tb(exc_tb))
-                return 1
 
             # Split the frames into those from the module containing the
             # command and everything else.
@@ -400,7 +407,7 @@ To see more help for a specific command, run:
         self.settings = None
         return False
 
-        for provider in Registrar.settings_providers:
+        for provider in SETTINGS_PROVIDERS:
             provider.register_settings()
             self.settings.register_provider(provider)
 
@@ -419,7 +426,7 @@ To see more help for a specific command, run:
         """Returns an argument parser for the command-line interface."""
 
         parser = ArgumentParser(add_help=False,
-            usage='%(prog)s [global arguments]')
+            usage='%(prog)s [global arguments] command [command arguments]')
 
         # Order is important here as it dictates the order the auto-generated
         # help messages are printed.
@@ -446,7 +453,7 @@ To see more help for a specific command, run:
                 'than relative time. Note that this is NOT execution time '
                 'if there are parallel operations.')
 
-        Registrar.populate_argument_parser(subparser)
+        populate_argument_parser(subparser)
 
         return parser
 

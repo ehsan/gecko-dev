@@ -23,59 +23,6 @@ XPCOMUtils.defineLazyGetter(window, "gChromeWin", function()
 
 XPCOMUtils.defineLazyGetter(window, "SelectHelper", function() gChromeWin.SelectHelper);
 
-var ContextMenus = {
-  target: null,
-
-  init: function() {
-    document.addEventListener("contextmenu", this, false);
-  },
-
-  handleEvent: function(event) {
-    // store the target of context menu events so that we know which app to act on
-    this.target = event.target;
-    while (!this.target.hasAttribute("contextmenu")) {
-      this.target = this.target.parentNode;
-    }
-
-    if (!this.target) {
-      document.getElementById("contextmenu-enable").setAttribute("hidden", "true");
-      document.getElementById("contextmenu-disable").setAttribute("hidden", "true");
-      document.getElementById("contextmenu-uninstall").setAttribute("hidden", "true");
-      return;
-    }
-
-    let addon = this.target.addon;
-    if (addon.scope == AddonManager.SCOPE_APPLICATION) {
-      document.getElementById("contextmenu-uninstall").setAttribute("hidden", "true");
-    } else {
-      document.getElementById("contextmenu-uninstall").removeAttribute("hidden");
-    }
-
-    if (this.target.getAttribute("isDisabled") != "true") {
-      document.getElementById("contextmenu-enable").setAttribute("hidden", "true");
-      document.getElementById("contextmenu-disable").removeAttribute("hidden");
-    } else {
-      document.getElementById("contextmenu-enable").removeAttribute("hidden");
-      document.getElementById("contextmenu-disable").setAttribute("hidden", "true");
-    }
-  },
-
-  enable: function(event) {
-    Addons.setEnabled(true, this.target.addon);
-    this.target = null;
-  },
-  
-  disable: function (event) {
-    Addons.setEnabled(false, this.target.addon);
-    this.target = null;
-  },
-  
-  uninstall: function (event) {
-    Addons.uninstall(this.target.addon);
-    this.target = null;
-  },
-}
-
 function init() {
   window.addEventListener("popstate", onPopState, false);
   Services.obs.addObserver(Addons, "browser-search-engine-modified", false);
@@ -84,7 +31,6 @@ function init() {
   AddonManager.addAddonListener(Addons);
   Addons.getAddons();
   showList();
-  ContextMenus.init();
 }
 
 function uninit() {
@@ -130,16 +76,15 @@ var Addons = {
   _createItem: function _createItem(aAddon) {
     let outer = document.createElement("div");
     outer.setAttribute("addonID", aAddon.id);
-    outer.className = "addon-item list-item";
+    outer.className = "addon-item";
     outer.setAttribute("role", "button");
-    outer.setAttribute("contextmenu", "addonmenu");
     outer.addEventListener("click", function() {
       this.showDetails(outer);
       history.pushState({ id: aAddon.id }, document.title);
     }.bind(this), true);
 
     let img = document.createElement("img");
-    img.className = "icon";
+    img.className = "favicon";
     img.setAttribute("src", aAddon.iconURL);
     outer.appendChild(img);
 
@@ -242,7 +187,6 @@ var Addons = {
         addon.version = "";
         addon.description = engine.description || defaultDescription;
         addon.iconURL = engine.iconURI ? engine.iconURI.spec : "";
-        addon.optionsURL = "";
         addon.appDisabled = false;
         addon.scope = isDefault(engine) ? AddonManager.SCOPE_APPLICATION : AddonManager.SCOPE_PROFILE;
         addon.engine = engine;
@@ -251,7 +195,6 @@ var Addons = {
         item.setAttribute("isDisabled", engine.hidden);
         item.setAttribute("updateable", "false");
         item.setAttribute("opType", "");
-        item.setAttribute("optionsURL", "");
         item.addon = addon;
         list.appendChild(item);
       }
@@ -291,7 +234,7 @@ var Addons = {
     detailItem.setAttribute("optionsURL", aListItem.getAttribute("optionsURL"));
     let addon = detailItem.addon = aListItem.addon;
 
-    let favicon = document.querySelector("#addons-details > .addon-item .icon");
+    let favicon = document.querySelector("#addons-details > .addon-item .favicon");
     if (addon.iconURL)
       favicon.setAttribute("src", addon.iconURL);
     else
@@ -304,7 +247,7 @@ var Addons = {
     detailItem.querySelector(".status-uninstalled").textContent =
       gStringBundle.formatStringFromName("addonStatus.uninstalled", [addon.name], 1);
 
-    let enableBtn = document.getElementById("enable-btn");
+    let enableBtn = document.getElementById("uninstall-btn");
     if (addon.appDisabled)
       enableBtn.setAttribute("disabled", "true");
     else
@@ -328,30 +271,28 @@ var Addons = {
       if (xhr.responseXML) {
         // Only allow <setting> for now
         let settings = xhr.responseXML.querySelectorAll(":root > setting");
-        if (settings.length > 0) {
-          for (let i = 0; i < settings.length; i++) {
-            var setting = settings[i];
-            var desc = stripTextNodes(setting).trim();
-            if (!setting.hasAttribute("desc"))
-              setting.setAttribute("desc", desc);
-            box.appendChild(setting);
-          }
-          // Send an event so add-ons can prepopulate any non-preference based
-          // settings
-          let event = document.createEvent("Events");
-          event.initEvent("AddonOptionsLoad", true, false);
-          window.dispatchEvent(event);
-  
-          // Also send a notification to match the behavior of desktop Firefox
-          let id = aListItem.getAttribute("addonID");
-          Services.obs.notifyObservers(document, AddonManager.OPTIONS_NOTIFICATION_DISPLAYED, id);
-        } else {
-          // No options, so hide the header and reset the list item
-          detailItem.setAttribute("optionsURL", "");
-          aListItem.setAttribute("optionsURL", "");
+        for (let i = 0; i < settings.length; i++) {
+          var setting = settings[i];
+          var desc = stripTextNodes(setting).trim();
+          if (!setting.hasAttribute("desc"))
+            setting.setAttribute("desc", desc);
+          box.appendChild(setting);
         }
+        // Send an event so add-ons can prepopulate any non-preference based
+        // settings
+        let event = document.createEvent("Events");
+        event.initEvent("AddonOptionsLoad", true, false);
+        window.dispatchEvent(event);
+
+        // Also send a notification to match the behavior of desktop Firefox
+        let id = aListItem.getAttribute("addonID");
+        Services.obs.notifyObservers(document,
+                                     AddonManager.OPTIONS_NOTIFICATION_DISPLAYED,
+                                     id);
       }
-    } catch (e) { }
+    } catch (e) {
+      Cu.reportError(e)
+    }
 
     let list = document.querySelector("#addons-list");
     list.style.display = "none";
@@ -378,8 +319,7 @@ var Addons = {
         let item = list.firstElementChild;
         while (item) {
           if (item.addon && (item.addon.type == "theme") && (item.addon.isActive)) {
-            item.addon.userDisabled = true;
-            item.setAttribute("isDisabled", true);
+            this.setEnabled(false, item);
             break;
           }
           item = item.nextSibling;
@@ -426,11 +366,11 @@ var Addons = {
     this.setEnabled(false);
   },
 
-  uninstall: function uninstall(aAddon) {
+  uninstall: function uninstall() {
     let list = document.getElementById("addons-list");
     let detailItem = document.querySelector("#addons-details > .addon-item");
 
-    let addon = aAddon || detailItem.addon;
+    let addon = detailItem.addon;
     if (!addon)
       return;
 

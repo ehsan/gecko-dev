@@ -5,16 +5,15 @@
 #include "tests.h"
 #include "jsatom.h"
 
-#include "gc/Marking.h"
 #include "vm/String.h"
 
-using mozilla::ArrayLength;
+using namespace mozilla;
 
 BEGIN_TEST(testAtomizedIsNotInterned)
 {
     /* Try to pick a string that won't be interned by other tests in this runtime. */
     static const char someChars[] = "blah blah blah? blah blah blah";
-    JS::Rooted<JSAtom*> atom(cx, js::Atomize(cx, someChars, ArrayLength(someChars)));
+    JSAtom *atom = js::Atomize(cx, someChars, ArrayLength(someChars));
     CHECK(!JS_StringHasBeenInterned(cx, atom));
     CHECK(JS_InternJSString(cx, atom));
     CHECK(JS_StringHasBeenInterned(cx, atom));
@@ -31,8 +30,8 @@ struct StringWrapper
 void
 FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool isCompartmentGC)
 {
-    if (status == JSFINALIZE_GROUP_START)
-        sw.strOk = js::gc::IsStringMarked(&sw.str);
+    if (status == JSFINALIZE_START)
+        sw.strOk = !JS_IsAboutToBeFinalized(sw.str);
 }
 
 BEGIN_TEST(testInternAcrossGC)

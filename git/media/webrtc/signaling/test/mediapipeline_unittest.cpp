@@ -26,7 +26,6 @@
 #include "transportflow.h"
 #include "transportlayerprsock.h"
 #include "transportlayerdtls.h"
-#include "mozilla/SyncRunnable.h"
 
 
 #include "mtransport_test_utils.h"
@@ -37,9 +36,10 @@
 #include "gtest_utils.h"
 
 using namespace mozilla;
-MOZ_MTLOG_MODULE("mediapipeline")
+MOZ_MTLOG_MODULE("mediapipeline");
 
-MtransportTestUtils *test_utils;
+MtransportTestUtils test_utils;
+
 
 namespace {
 class TestAgent {
@@ -48,8 +48,8 @@ class TestAgent {
       audio_flow_(new TransportFlow()),
       audio_prsock_(new TransportLayerPrsock()),
       audio_dtls_(new TransportLayerDtls()),
-      audio_config_(109, "opus", 48000, 960, 2, 64000),
-      audio_conduit_(mozilla::AudioSessionConduit::Create(NULL)),
+      audio_config_(109, "opus", 48000, 480, 1, 64000),
+      audio_conduit_(mozilla::AudioSessionConduit::Create()),
       audio_(),
       audio_pipeline_(),
       video_flow_(new TransportFlow()),
@@ -65,10 +65,8 @@ class TestAgent {
     res = audio_prsock_->Init();
     ASSERT_EQ((nsresult)NS_OK, res);
 
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(audio_prsock_, &TransportLayerPrsock::Import, fd, &res));
-
+    test_utils.sts_target()->Dispatch(WrapRunnable(audio_prsock_, &TransportLayerPrsock::Import,
+                                   fd, &res), NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(res));
 
     ASSERT_EQ((nsresult)NS_OK, audio_flow_->PushLayer(audio_prsock_));
@@ -82,17 +80,15 @@ class TestAgent {
     audio_flow_->PushLayer(audio_dtls_);
   }
 
-  virtual void CreatePipelines_s() = 0;
-
   void Start() {
     nsresult ret;
 
     MOZ_MTLOG(PR_LOG_DEBUG, "Starting");
 
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnableRet(audio_->GetStream(), &Fake_MediaStream::Start, &ret));
-
+    test_utils.sts_target()->Dispatch(
+        WrapRunnableRet(audio_->GetStream(),
+                        &Fake_MediaStream::Start, &ret),
+        NS_DISPATCH_SYNC);
     ASSERT_TRUE(NS_SUCCEEDED(ret));
   }
 
@@ -100,25 +96,16 @@ class TestAgent {
     audio_->GetStream()->Stop();
     audio_flow_ = NULL;
     video_flow_ = NULL;
-    if (audio_pipeline_)
-      audio_pipeline_->ShutdownTransport_s();
-    if (video_pipeline_)
-      video_pipeline_->ShutdownTransport_s();
+    audio_pipeline_ = NULL;
+    video_pipeline_ = NULL;
   }
 
   void Stop() {
     MOZ_MTLOG(PR_LOG_DEBUG, "Stopping");
 
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(this, &TestAgent::StopInt));
-
-    if (audio_pipeline_)
-      audio_pipeline_->ShutdownMedia_m();
-    if (video_pipeline_)
-      video_pipeline_->ShutdownMedia_m();
-    audio_pipeline_ = NULL;
-    video_pipeline_ = NULL;
+    test_utils.sts_target()->Dispatch(
+        WrapRunnable(this, &TestAgent::StopInt),
+        NS_DISPATCH_SYNC);
 
     PR_Sleep(1000); // Deal with race condition
   }
@@ -130,37 +117,31 @@ class TestAgent {
   TransportLayerDtls *audio_dtls_;
   mozilla::AudioCodecConfig audio_config_;
   mozilla::RefPtr<mozilla::MediaSessionConduit> audio_conduit_;
-  nsRefPtr<DOMMediaStream> audio_;
+  nsRefPtr<nsDOMMediaStream> audio_;
   mozilla::RefPtr<mozilla::MediaPipeline> audio_pipeline_;
   mozilla::RefPtr<TransportFlow> video_flow_;
   TransportLayerPrsock *video_prsock_;
   mozilla::VideoCodecConfig video_config_;
   mozilla::RefPtr<mozilla::MediaSessionConduit> video_conduit_;
-  nsRefPtr<DOMMediaStream> video_;
+  nsRefPtr<nsDOMMediaStream> video_;
   mozilla::RefPtr<mozilla::MediaPipeline> video_pipeline_;
 };
 
 class TestAgentSend : public TestAgent {
  public:
-  virtual void CreatePipelines_s() {
-    audio_ = new Fake_DOMMediaStream(new Fake_AudioStreamSource());
+  TestAgentSend() {
+    audio_ = new Fake_nsDOMMediaStream(new Fake_AudioStreamSource());
 
     mozilla::MediaConduitErrorCode err =
         static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get())->
         ConfigureSendMediaCodec(&audio_config_);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
 
-    std::string test_pc("PC");
+    audio_pipeline_ = new mozilla::MediaPipelineTransmit(NULL,
+      test_utils.sts_target(),
+      audio_, audio_conduit_, audio_flow_, NULL);
 
-    audio_pipeline_ = new mozilla::MediaPipelineTransmit(
-        test_pc,
-        NULL,
-        test_utils->sts_target(),
-        audio_->GetStream(), 1, audio_conduit_, audio_flow_, NULL);
-
-    audio_pipeline_->Init();
-
-//    video_ = new Fake_DOMMediaStream(new Fake_VideoStreamSource());
+//    video_ = new Fake_nsDOMMediaStream(new Fake_VideoStreamSource());
 //    video_pipeline_ = new mozilla::MediaPipelineTransmit(video_, video_conduit_, &video_flow_, &video_flow_);
   }
 
@@ -170,15 +151,16 @@ class TestAgentSend : public TestAgent {
 
 class TestAgentReceive : public TestAgent {
  public:
-  virtual void CreatePipelines_s() {
+  TestAgentReceive() {
     mozilla::SourceMediaStream *audio = new Fake_SourceMediaStream();
     audio->SetPullEnabled(true);
 
     mozilla::AudioSegment* segment= new mozilla::AudioSegment();
+    segment->Init(1);
     audio->AddTrack(0, 100, 0, segment);
     audio->AdvanceKnownTracksTime(mozilla::STREAM_TIME_MAX);
 
-    audio_ = new Fake_DOMMediaStream(audio);
+    audio_ = new Fake_nsDOMMediaStream(audio);
 
     std::vector<mozilla::AudioCodecConfig *> codecs;
     codecs.push_back(&audio_config_);
@@ -188,16 +170,11 @@ class TestAgentReceive : public TestAgent {
         ConfigureRecvMediaCodecs(codecs);
     EXPECT_EQ(mozilla::kMediaConduitNoError, err);
 
-    std::string test_pc("PC");
-    audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(
-        test_pc,
-        NULL,
-        test_utils->sts_target(),
-        audio_->GetStream(), 1,
-        static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),
-        audio_flow_, NULL);
-
-    audio_pipeline_->Init();
+    audio_pipeline_ = new mozilla::MediaPipelineReceiveAudio(NULL,
+      test_utils.sts_target(),
+      audio_,
+      static_cast<mozilla::AudioSessionConduit *>(audio_conduit_.get()),
+      audio_flow_, NULL);
   }
 
  private:
@@ -214,21 +191,8 @@ class MediaPipelineTest : public ::testing::Test {
     PRStatus status = PR_NewTCPSocketPair(fds_);
     ASSERT_EQ(status, PR_SUCCESS);
 
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(&p1_, &TestAgent::ConnectSocket, fds_[0], false));
-
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(&p2_, &TestAgent::ConnectSocket, fds_[1], false));
-
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(&p1_, &TestAgent::CreatePipelines_s));
-
-    mozilla::SyncRunnable::DispatchToThread(
-      test_utils->sts_target(),
-      WrapRunnable(&p2_, &TestAgent::CreatePipelines_s));
+    p1_.ConnectSocket(fds_[0], false);
+    p2_.ConnectSocket(fds_[1], true);
   }
 
  protected:
@@ -249,16 +213,15 @@ TEST_F(MediaPipelineTest, AudioSend) {
 }  // end namespace
 
 
-int main(int argc, char **argv) {
-  test_utils = new MtransportTestUtils();
+int main(int argc, char **argv)
+{
+  test_utils.InitServices();
   // Start the tests
   NSS_NoDB_Init(NULL);
   NSS_SetDomesticPolicy();
   ::testing::InitGoogleTest(&argc, argv);
 
-  int rv = RUN_ALL_TESTS();
-  delete test_utils;
-  return rv;
+  return RUN_ALL_TESTS();
 }
 
 

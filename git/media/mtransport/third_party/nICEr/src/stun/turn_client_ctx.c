@@ -101,8 +101,7 @@ nr_turn_client_next_action(nr_turn_client_ctx *ctx, int stun_ctx_state)
 #if 0
             ctx->state = NR_TURN_CLIENT_STATE_ACTIVE;
 #else
-            assert(0);
-            ABORT(R_INTERNAL);
+            UNIMPLEMENTED;
 #endif
             r_log(NR_LOG_TURN,LOG_DEBUG,"TURN-CLIENT(%s): Active", ctx->label);
         }
@@ -113,9 +112,6 @@ nr_turn_client_next_action(nr_turn_client_ctx *ctx, int stun_ctx_state)
         }
         else {
             ++(ctx->phase);
-            if (ctx->phase > NUMBER_OF_STUN_CTX) {
-                ABORT(R_INTERNAL);
-            }
 
             ctx->state=NR_TURN_CLIENT_STATE_RUNNING;
 
@@ -441,7 +437,7 @@ nr_turn_client_relay_indication_data(nr_socket *sock, const UCHAR *msg, size_t l
 
     params.data.data = (UCHAR*)msg;
     params.data.len = len;
-
+ 
     if ((r=nr_stun_build_send_indication(&params, &ind)))
         ABORT(r);
 

@@ -4,8 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef AudioDestinationNode_h_
-#define AudioDestinationNode_h_
+#pragma once
 
 #include "AudioNode.h"
 
@@ -14,37 +13,27 @@ namespace dom {
 
 class AudioContext;
 
-/**
- * Need to have an nsWrapperCache on AudioDestinationNodes since
- * AudioContext.destination returns them.
- */
-class AudioDestinationNode : public AudioNode,
-                             public nsWrapperCache
+class AudioDestinationNode : public AudioNode
 {
 public:
-  AudioDestinationNode(AudioContext* aContext, MediaStreamGraph* aGraph);
+  explicit AudioDestinationNode(AudioContext* aContext);
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(AudioDestinationNode,
-                                                         AudioNode)
 
-  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope,
+                               bool* aTriedToWrap);
 
-  virtual uint32_t NumberOfOutputs() const MOZ_FINAL MOZ_OVERRIDE
+  virtual uint32_t MaxNumberOfInputs() const MOZ_FINAL MOZ_OVERRIDE
+  {
+    return 1;
+  }
+  virtual uint32_t MaxNumberOfOutputs() const MOZ_FINAL MOZ_OVERRIDE
   {
     return 0;
-  }
-
-  void JSBindingFinalized()
-  {
-    // Don't do anything special for destination nodes, as they will always
-    // remain accessible through the AudioContext.
   }
 
 };
 
 }
 }
-
-#endif
 

@@ -24,7 +24,7 @@ public class Server11Repository extends Repository {
 
   private String serverURI;
   private String username;
-  protected String collection;
+  private String collection;
   private String collectionPath;
   private URI collectionPathURI;
   public CredentialsSource credentialsSource;
@@ -100,12 +100,9 @@ public class Server11Repository extends Repository {
   }
 
   // Override these.
-  @SuppressWarnings("static-method")
   protected long getDefaultFetchLimit() {
     return -1;
   }
-
-  @SuppressWarnings("static-method")
   protected String getDefaultSort() {
     return null;
   }

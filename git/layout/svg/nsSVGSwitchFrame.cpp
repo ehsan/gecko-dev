@@ -8,7 +8,7 @@
 #include "gfxRect.h"
 #include "nsSVGEffects.h"
 #include "nsSVGGFrame.h"
-#include "mozilla/dom/SVGSwitchElement.h"
+#include "nsSVGSwitchElement.h"
 #include "nsSVGUtils.h"
 
 class nsRenderingContext;
@@ -27,9 +27,9 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 #endif
 
   /**
@@ -46,9 +46,9 @@ public:
   }
 #endif
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   // nsISVGChildFrame interface:
   NS_IMETHOD PaintSVG(nsRenderingContext* aContext, const nsIntRect *aDirtyRect);
@@ -74,15 +74,15 @@ NS_NewSVGSwitchFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGSwitchFrame)
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGSwitchFrame::Init(nsIContent* aContent,
                        nsIFrame* aParent,
                        nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::svgSwitch),
-               "Content is not an SVG switch");
+  nsCOMPtr<nsIDOMSVGSwitchElement> svgSwitch = do_QueryInterface(aContent);
+  NS_ASSERTION(svgSwitch, "Content is not an SVG switch\n");
 
-  nsSVGSwitchFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGSwitchFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 
@@ -92,15 +92,16 @@ nsSVGSwitchFrame::GetType() const
   return nsGkAtoms::svgSwitchFrame;
 }
 
-void
+NS_IMETHODIMP
 nsSVGSwitchFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                    const nsRect&           aDirtyRect,
                                    const nsDisplayListSet& aLists)
 {
   nsIFrame* kid = GetActiveChildFrame();
   if (kid) {
-    BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    return BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
   }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -112,7 +113,8 @@ nsSVGSwitchFrame::PaintSVG(nsRenderingContext* aContext,
                "If display lists are enabled, only painting of non-display "
                "SVG should take this code path");
 
-  if (StyleDisplay()->mOpacity == 0.0)
+  const nsStyleDisplay *display = mStyleContext->GetStyleDisplay();
+  if (display->mOpacity == 0.0)
     return NS_OK;
 
   nsIFrame *kid = GetActiveChildFrame();
@@ -208,12 +210,26 @@ nsSVGSwitchFrame::ReflowSVG()
     nsSVGEffects::UpdateEffects(this);
   }
 
+  // We only invalidate if we are dirty, if our outer-<svg> has already had its
+  // initial reflow (since if it hasn't, its entire area will be invalidated
+  // when it gets that initial reflow), and if our parent is not dirty (since
+  // if it is, then it will invalidate its entire new area, which will include
+  // our new area).
+  bool invalidate = (mState & NS_FRAME_IS_DIRTY) &&
+    !(GetParent()->GetStateBits() &
+       (NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY));
+
   FinishAndStoreOverflow(overflowRects, mRect.Size());
 
   // Remove state bits after FinishAndStoreOverflow so that it doesn't
   // invalidate on first reflow:
   mState &= ~(NS_FRAME_FIRST_REFLOW | NS_FRAME_IS_DIRTY |
               NS_FRAME_HAS_DIRTY_CHILDREN);
+
+  if (invalidate) {
+    // XXXSDL Let FinishAndStoreOverflow do this.
+    nsSVGUtils::InvalidateBounds(this, true);
+  }
 }
 
 SVGBBox
@@ -240,7 +256,7 @@ nsIFrame *
 nsSVGSwitchFrame::GetActiveChildFrame()
 {
   nsIContent *activeChild =
-    static_cast<mozilla::dom::SVGSwitchElement*>(mContent)->GetActiveChild();
+    static_cast<nsSVGSwitchElement*>(mContent)->GetActiveChild();
 
   if (activeChild) {
     for (nsIFrame* kid = mFrames.FirstChild(); kid;

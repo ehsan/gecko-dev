@@ -14,6 +14,7 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsIWebNavigation.h"
 #include "nsIHistoryEntry.h"
 #include "nsIURI.h"
@@ -64,10 +65,6 @@ NS_IMPL_RELEASE(nsHistory)
 NS_IMETHODIMP
 nsHistory::GetLength(int32_t* aLength)
 {
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
-  if (!win || !nsContentUtils::CanCallerAccess(win->GetOuterWindow()))
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsCOMPtr<nsISHistory>   sHistory;
 
   // Get session History from docshell
@@ -79,7 +76,7 @@ nsHistory::GetLength(int32_t* aLength)
 NS_IMETHODIMP
 nsHistory::GetCurrent(nsAString& aCurrent)
 {
-  if (!nsContentUtils::IsCallerChrome())
+  if (!nsContentUtils::IsCallerTrustedForRead())
     return NS_ERROR_DOM_SECURITY_ERR;
 
   int32_t curIndex=0;
@@ -111,7 +108,7 @@ nsHistory::GetCurrent(nsAString& aCurrent)
 NS_IMETHODIMP
 nsHistory::GetPrevious(nsAString& aPrevious)
 {
-  if (!nsContentUtils::IsCallerChrome())
+  if (!nsContentUtils::IsCallerTrustedForRead())
     return NS_ERROR_DOM_SECURITY_ERR;
 
   int32_t curIndex;
@@ -143,7 +140,7 @@ nsHistory::GetPrevious(nsAString& aPrevious)
 NS_IMETHODIMP
 nsHistory::GetNext(nsAString& aNext)
 {
-  if (!nsContentUtils::IsCallerChrome())
+  if (!nsContentUtils::IsCallerTrustedForRead())
     return NS_ERROR_DOM_SECURITY_ERR;
 
   int32_t curIndex;
@@ -175,10 +172,6 @@ nsHistory::GetNext(nsAString& aNext)
 NS_IMETHODIMP
 nsHistory::Back()
 {
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
-  if (!win || !nsContentUtils::CanCallerAccess(win->GetOuterWindow()))
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsCOMPtr<nsISHistory>  sHistory;
 
   GetSessionHistoryFromDocShell(GetDocShell(), getter_AddRefs(sHistory));
@@ -195,10 +188,6 @@ nsHistory::Back()
 NS_IMETHODIMP
 nsHistory::Forward()
 {
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
-  if (!win || !nsContentUtils::CanCallerAccess(win->GetOuterWindow()))
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   nsCOMPtr<nsISHistory>  sHistory;
 
   GetSessionHistoryFromDocShell(GetDocShell(), getter_AddRefs(sHistory));
@@ -215,10 +204,6 @@ nsHistory::Forward()
 NS_IMETHODIMP
 nsHistory::Go(int32_t aDelta)
 {
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mInnerWindow));
-  if (!win || !nsContentUtils::CanCallerAccess(win->GetOuterWindow()))
-    return NS_ERROR_DOM_SECURITY_ERR;
-
   if (aDelta == 0) {
     nsCOMPtr<nsPIDOMWindow> window(do_GetInterface(GetDocShell()));
 
@@ -350,7 +335,7 @@ NS_IMETHODIMP
 nsHistory::Item(uint32_t aIndex, nsAString& aReturn)
 {
   aReturn.Truncate();
-  if (!nsContentUtils::IsCallerChrome()) {
+  if (!nsContentUtils::IsCallerTrustedForRead()) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
@@ -392,11 +377,12 @@ nsHistory::GetSessionHistoryFromDocShell(nsIDocShell * aDocShell,
    */
   
   // QI mDocShell to nsIDocShellTreeItem
-  NS_ENSURE_TRUE(aDocShell, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIDocShellTreeItem> dsTreeItem(do_QueryInterface(aDocShell));
+  NS_ENSURE_TRUE(dsTreeItem, NS_ERROR_FAILURE);
 
   // Get the root DocShell from it
   nsCOMPtr<nsIDocShellTreeItem> root;
-  aDocShell->GetSameTypeRootTreeItem(getter_AddRefs(root));
+  dsTreeItem->GetSameTypeRootTreeItem(getter_AddRefs(root));
   NS_ENSURE_TRUE(root, NS_ERROR_FAILURE);
   
   //QI root to nsIWebNavigation

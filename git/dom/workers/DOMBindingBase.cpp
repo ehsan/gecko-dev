@@ -12,8 +12,6 @@
 #include "nsContentUtils.h"
 #include "nsWrapperCacheInlines.h"
 
-using namespace mozilla;
-using namespace mozilla::dom;
 USING_WORKERS_NAMESPACE
 
 DOMBindingBase::DOMBindingBase(JSContext* aCx)
@@ -43,7 +41,7 @@ DOMBindingBase::_trace(JSTracer* aTrc)
 {
   JSObject* obj = GetJSObject();
   if (obj) {
-    JS_CallObjectTracer(aTrc, obj, "cached wrapper");
+    JS_CALL_OBJECT_TRACER(aTrc, obj, "cached wrapper");
   }
 }
 

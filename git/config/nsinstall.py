@@ -9,7 +9,7 @@
 # a full build environment set up.
 # The basic limitation is, it doesn't even try to link and ignores
 # all related options.
-from __future__ import print_function
+
 from optparse import OptionParser
 import os
 import os.path
@@ -39,7 +39,7 @@ def _nsinstall_internal(argv):
   # The remaining arguments are not used in our tree, thus they're not
   # implented.
   def BadArg(option, opt, value, parser):
-    parser.error('option not supported: {0}'.format(opt))
+    parser.error('option not supported: %s' % opt)
     
   p.add_option('-C', action="callback", metavar="CWD",
                callback=BadArg,
@@ -56,8 +56,7 @@ def _nsinstall_internal(argv):
     try:
       options.m = int(options.m, 8)
     except:
-      sys.stderr.write('nsinstall: {0} is not a valid mode\n'
-                       .format(options.m))
+      sys.stderr.write('nsinstall: ' + options.m + ' is not a valid mode\n')
       return 1
 
   # just create one directory?
@@ -65,7 +64,7 @@ def _nsinstall_internal(argv):
     dir = os.path.abspath(dir)
     if os.path.exists(dir):
       if not os.path.isdir(dir):
-        print('nsinstall: {0} is not a directory'.format(dir), file=sys.stderr)
+        print >> sys.stderr, ('nsinstall: %s is not a directory' % dir)
         return 1
       if mode:
         os.chmod(dir, mode)
@@ -76,11 +75,11 @@ def _nsinstall_internal(argv):
         os.makedirs(dir, mode)
       else:
         os.makedirs(dir)
-    except Exception as e:
+    except Exception, e:
       # We might have hit EEXIST due to a race condition (see bug 463411) -- try again once
       if try_again:
         return maybe_create_dir(dir, mode, False)
-      print("nsinstall: failed to create directory {0}: {1}".format(dir, e))
+      print >> sys.stderr, ("nsinstall: failed to create directory %s: %s" % (dir, e))
       return 1
     else:
       return 0

@@ -11,8 +11,32 @@ srcdir		= @srcdir@
 run_for_side_effects := $(shell echo "MAKE: $(MAKE)")
 include $(DEPTH)/config/autoconf.mk
 
+DIRS		= config
+
+ifdef DEHYDRA_PATH
+DIRS += analysis-tests
+endif
+
+ifdef JS_NATIVE_EDITLINE
+DIRS += editline
+endif
+
+# editline needs to get built before the shell
+ifndef JS_DISABLE_SHELL
+DIRS += shell
+endif
+
+# FIXME: bug 530688 covers getting these working on Android
+ifneq ($(OS_ARCH),ANDROID)
+TEST_DIRS += jsapi-tests
+endif
+
+TEST_DIRS += tests
+
+MODULE		    = js
 LIBRARY_NAME	    = mozjs
 STATIC_LIBRARY_NAME = js_static
+GRE_MODULE	    = 1
 
 LIBS		= $(NSPR_LIBS)
 
@@ -30,14 +54,7 @@ endif
 FORCE_STATIC_LIB = 1
 DIST_INSTALL = 1
 
-###############################################
-# BEGIN include sources for low-level code shared with mfbt
-#
-MFBT_ROOT = $(srcdir)/../../mfbt
-VPATH += $(MFBT_ROOT)
-include $(MFBT_ROOT)/exported_headers.mk
-
-VPATH		+= \
+VPATH		= \
 		$(srcdir) \
 		$(srcdir)/builtin \
 		$(srcdir)/devtools \
@@ -84,6 +101,7 @@ CPPSRCS		= \
 		jspropertycache.cpp \
 		jspropertytree.cpp \
 		jsreflect.cpp \
+		jsscope.cpp \
 		jsscript.cpp \
 		jsstr.cpp \
 		jstypedarray.cpp \
@@ -91,36 +109,26 @@ CPPSRCS		= \
 		jswatchpoint.cpp \
 		jsweakmap.cpp \
 		jsworkers.cpp \
-		ThreadPool.cpp \
-		Monitor.cpp \
-		ForkJoin.cpp \
 		jswrapper.cpp \
+		jsxml.cpp \
 		prmjtime.cpp \
 		sharkctl.cpp \
 		ArgumentsObject.cpp \
-		DateTime.cpp \
+		ScopeObject.cpp \
 		Debugger.cpp \
 		GlobalObject.cpp \
-		Object.cpp \
 		ObjectImpl.cpp \
-		PropertyKey.cpp \
-		ScopeObject.cpp \
-		Shape.cpp \
 		Stack.cpp \
 		String.cpp \
 		BytecodeCompiler.cpp \
 		BytecodeEmitter.cpp \
-		CharacterEncoding.cpp \
 		FoldConstants.cpp \
-		Intl.cpp \
 		NameFunctions.cpp \
-		ParallelDo.cpp \
 		ParallelArray.cpp \
 		ParseMaps.cpp \
 		ParseNode.cpp \
 		Parser.cpp \
 		SPSProfiler.cpp \
-		SelfHosting.cpp \
 		TokenStream.cpp \
 		TestingFunctions.cpp \
 		Profilers.cpp \
@@ -130,25 +138,14 @@ CPPSRCS		= \
 		RegExpObject.cpp \
 		RegExpStatics.cpp \
 		RegExp.cpp \
-		RootMarking.cpp \
 		Marking.cpp \
 		Memory.cpp \
 		Statistics.cpp \
 		StoreBuffer.cpp \
-		Iteration.cpp \
-		Zone.cpp \
-		Verifier.cpp \
 		StringBuffer.cpp \
 		Unicode.cpp \
 		Xdr.cpp \
-		Module.cpp \
 		$(NULL)
-
-ifdef MOZ_INSTRUMENTS
-CPPSRCS		+= \
-		Instruments.cpp \
-		$(NULL)
-endif
 
 # Changes to internal header files, used externally, massively slow down
 # browser builds.  Don't add new files here unless you know what you're
@@ -164,6 +161,7 @@ INSTALLED_HEADERS = \
 		jsdbgapi.h \
 		jsdhash.h \
 		jsfriendapi.h \
+		jsgc.h \
 		jslock.h \
 		json.h \
 		jsproxy.h \
@@ -175,6 +173,25 @@ INSTALLED_HEADERS = \
 		jsutil.h \
 		jsversion.h \
 		jswrapper.h \
+		jsval.h \
+		$(NULL)
+
+######################################################
+# BEGIN exported headers that are only exported
+#       because of inclusion by an INSTALLED_HEADER
+#
+EXPORTS_NAMESPACES += ds gc
+
+EXPORTS_ds = \
+		BitArray.h \
+		$(NULL)
+
+EXPORTS_gc = \
+		Barrier.h \
+		Heap.h \
+		Root.h \
+		Statistics.h \
+		StoreBuffer.h \
 		$(NULL)
 
 ######################################################
@@ -194,30 +211,21 @@ EXPORTS_NAMESPACES += js
 # that we ensure we don't over-expose our internal integer typedefs.  Note that
 # LegacyIntTypes.h below is deliberately exempted from this requirement.
 EXPORTS_js = \
-		Anchor.h \
-		CallArgs.h \
-		CharacterEncoding.h \
-		GCAPI.h \
 		HashTable.h \
-		HeapAPI.h \
 		LegacyIntTypes.h \
 		MemoryMetrics.h \
-		PropertyKey.h \
-		RequiredDefines.h \
-		RootingAPI.h \
 		TemplateLib.h \
 		Utility.h \
-		Value.h \
 		Vector.h \
 		$(NULL)
 
 ###############################################
-# BEGIN enable non-releasable features
+# BEGIN include sources for low-level code shared with mfbt
 #
-ifeq (,$(filter beta release esr,$(MOZ_UPDATE_CHANNEL)))
-DEFINES += -DENABLE_TYPEDARRAY_MOVE
-DEFINES += -DENABLE_PARALLEL_JS
-endif
+MFBT_ROOT = $(srcdir)/../../mfbt
+VPATH += $(MFBT_ROOT)
+include $(MFBT_ROOT)/exported_headers.mk
+
 
 ifdef ENABLE_TRACE_LOGGING
 
@@ -258,7 +266,8 @@ VPATH +=	$(srcdir)/ion
 VPATH +=	$(srcdir)/ion/shared
 
 CPPSRCS +=	MIR.cpp \
-		BacktrackingAllocator.cpp \
+                BaselineCompiler.cpp \
+                BaselineJIT.cpp \
 		Bailouts.cpp \
 		BitSet.cpp \
 		C1Spewer.cpp \
@@ -275,30 +284,20 @@ CPPSRCS +=	MIR.cpp \
 		LICM.cpp \
 		LinearScan.cpp \
 		LIR.cpp \
-		LiveRangeAllocator.cpp \
 		Lowering.cpp \
 		Lowering-shared.cpp \
 		MCallOptimize.cpp \
 		MIRGraph.cpp \
 		MoveResolver.cpp \
 		EdgeCaseAnalysis.cpp \
-		RegisterAllocator.cpp \
 		Snapshots.cpp \
 		Safepoints.cpp \
-		StupidAllocator.cpp \
 		TypeOracle.cpp \
 		TypePolicy.cpp \
 		ValueNumbering.cpp \
 		RangeAnalysis.cpp \
 		VMFunctions.cpp \
-		ParallelFunctions.cpp \
 		AliasAnalysis.cpp \
-		ParallelArrayAnalysis.cpp \
-		UnreachableCodeElimination.cpp \
-		EffectiveAddressAnalysis.cpp \
-		AsmJS.cpp \
-		AsmJSLink.cpp \
-		AsmJSSignalHandlers.cpp \
 		$(NULL)
 endif #ENABLE_ION
 ifeq (86, $(findstring 86,$(TARGET_CPU)))
@@ -391,7 +390,6 @@ CPPSRCS += 	ExecutableAllocator.cpp \
 		YarrInterpreter.cpp \
 		YarrPattern.cpp \
 		YarrSyntaxChecker.cpp \
-		YarrCanonicalizeUCS2.cpp \
 		$(NONE)
 
 ifdef ENABLE_METHODJIT_SPEW
@@ -414,7 +412,10 @@ CPPSRCS += ExecutableAllocatorOS2.cpp \
            $(NONE)
 endif
 
-ifneq (,$(ENABLE_METHODJIT)$(ENABLE_ION)$(ENABLE_YARR_JIT))
+ifneq (,$(filter arm% sparc %86 x86_64 mips%,$(TARGET_CPU)))
+ENABLE_YARR_JIT = 1
+DEFINES += -DENABLE_YARR_JIT=1
+
 VPATH += 	$(srcdir)/assembler/assembler \
 		$(srcdir)/methodjit \
 		$(NONE)
@@ -422,11 +423,8 @@ VPATH += 	$(srcdir)/assembler/assembler \
 CPPSRCS +=	ARMAssembler.cpp \
 		MacroAssemblerARM.cpp \
 		MacroAssemblerX86Common.cpp \
+		YarrJIT.cpp \
 		$(NONE)
-
-ifdef ENABLE_YARR_JIT
-CPPSRCS +=	YarrJIT.cpp
-endif
 
 ifeq (86, $(findstring 86,$(TARGET_CPU)))
 ifeq (x86_64, $(TARGET_CPU))
@@ -583,14 +581,6 @@ distclean clean::
 endif
 endif
 
-# ICU headers need to be available whether we build with the complete
-# Internationalization API or not - ICU stubs rely on them.
-
-LOCAL_INCLUDES += \
-    -I$(topsrcdir)/../../intl/icu/source/common \
-    -I$(topsrcdir)/../../intl/icu/source/i18n \
-    $(NULL)
-
 # The "find any vanilla new/new[] calls" script is tailored to Linux, so
 # only run it there.  That should be enough to catch any such calls that
 # creep in.
@@ -730,10 +720,6 @@ Compiler.$(OBJ_SUFFIX): CXXFLAGS += -GL-
 # Ditto (Bug 772303)
 RegExp.$(OBJ_SUFFIX): CXXFLAGS += -GL-
 endif
-# Ditto (Bug 810661)
-ifeq ($(CPU_ARCH),x86_64)
-CTypes.$(OBJ_SUFFIX): CXXFLAGS += -GL-
-endif
 endif # _MSC_VER
 
 ifeq ($(OS_ARCH),FreeBSD)
@@ -826,69 +812,8 @@ js-config: js-config.in Makefile $(DEPTH)/config/autoconf.mk $(topsrcdir)/config
 SCRIPTS = js-config
 SDK_BINARY = js-config
 
-######################################################
-# BEGIN SpiderMonkey header installation
-#
-# Mozilla/Gecko/Firefox mostly doesn't concern itself with defining a sensible
-# install target, because it's shipping primarily packaged builds.  And even if
-# it did, those builds wouldn't really have reason to include header files.  So
-# we have to install public headers ourselves, rather than using something from
-# config/rules.mk or similar.
-#
-# The overall directory structure of the installed headers looks like so:
-#
-#   $(includedir)/
-#      $(MODULE)/
-#        jsapi.h, jspubtd.h, etc. (all of INSTALLED_HEADERS)
-#        js/
-#          js/public/* headers (all are public)
-#        ds/
-#          js/src/ds/* public headers
-#        gc/
-#          js/src/gc/* public headers
-#        mozilla/
-#          mfbt headers
-#
-# Currently $(MODULE) is just js, but we'll soon be changing it to include the
-# SpiderMonkey version, so that headers for multiple SpiderMonkey installs can
-# exist on a system at once.  (This permits embedders depending on system
-# SpiderMonkey to independently update their embeddings to newer SpiderMonkey
-# releases at different paces.)
-#
-# It is expected that embedders will then add -I$(includedir)/$(MODULE) to
-# their compiler invocations, which will then expose all of jsapi.h and friends
-# as they've always been exported.  (This will happen naturally for anyone using
-# pkgconfig systems to determine compiler/linker flags and the like.)  Headers
-# in subdirectories will show up as "mozilla/Assertions.h" and so on.  Also,
-# this system keeps #include "js/CharacterEncoding.h" in internal headers
-# working -- not that this is required, but it does simplify things.  (At some
-# point we may want to convert SpiderMonkey, and maybe Gecko, to this system, in
-# the interest of being a more conventional embedder, but it's probably a ways
-# off.)
-#
-# Eventually we'll probably trim this structure down to having the mfbt headers
-# in mozilla/, and every SpiderMonkey-specific header in js/*.  In the meantime
-# this is the structure implemented below.
-#
-
 install:: $(INSTALLED_HEADERS)
 	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)
-
-install:: $(EXPORTS_ds)
-	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)/ds
-
-install:: $(EXPORTS_gc)
-	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)/gc
-
-install:: $(EXPORTS_js)
-	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)/js
-
-install:: $(EXPORTS_mozilla)
-	$(SYSINSTALL) $^ $(DESTDIR)$(includedir)/$(MODULE)/mozilla
-
-#
-# END SpiderMonkey header installation
-#############################################
 
 install:: $(SCRIPTS)
 	$(SYSINSTALL) $^ $(DESTDIR)$(bindir)
@@ -960,33 +885,23 @@ export:: selfhosting
 selfhosting:: selfhosted.out.h
 
 selfhosting_srcs := \
-  $(srcdir)/builtin/Utilities.js \
-  $(srcdir)/builtin/Array.js \
-  $(srcdir)/builtin/Date.js \
-  $(srcdir)/builtin/Intl.js \
-  $(srcdir)/builtin/IntlData.js \
-  $(srcdir)/builtin/Number.js \
-  $(srcdir)/builtin/ParallelArray.js \
-  $(srcdir)/builtin/String.js \
+  $(srcdir)/builtin/array.js \
   $(NULL)
 
 selfhosted_out_h_deps := \
   $(selfhosting_srcs) \
   $(srcdir)/js.msg \
-  $(srcdir)/builtin/embedjs.py \
-  $(NULL)
+  $(srcdir)/builtin/macros.py \
+  $(srcdir)/builtin/js2c.py \
+  $(srcdir)/builtin/embedjs.py
 
 ifeq ($(MOZ_DEBUG),1)
-selfhosting_defines += -DDEBUG
-endif
-
-ifneq (,$(MOZ_ZLIB_LIBS)$(MOZ_GLUE_LDFLAGS))
-selfhosting_defines += -DUSE_ZLIB
+selfhosting_embed_flags += -d
 endif
 
 selfhosted.out.h: $(selfhosted_out_h_deps)
-	$(PYTHON) $(srcdir)/builtin/embedjs.py $(selfhosting_defines) \
-	  -p '$(CPP)' -m $(srcdir)/js.msg -o $@ $(selfhosting_srcs)
+	$(PYTHON) $(srcdir)/builtin/embedjs.py $(selfhosting_embed_flags) $@ \
+	  $(srcdir)/js.msg $(srcdir)/builtin/macros.py $(selfhosting_srcs)
 
 ###############################################
 # BEGIN kludges for the Nitro assembler

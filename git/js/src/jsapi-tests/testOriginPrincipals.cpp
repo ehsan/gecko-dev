@@ -61,7 +61,7 @@ eval(const char *asciiChars, JSPrincipals *principals, JSPrincipals *originPrinc
         chars[i] = asciiChars[i];
     chars[len] = 0;
 
-    JS::RootedObject global(cx, JS_NewGlobalObject(cx, getGlobalClass(), principals));
+    js::RootedObject global(cx, JS_NewGlobalObject(cx, getGlobalClass(), principals));
     CHECK(global);
     JSAutoCompartment ac(cx, global);
     CHECK(JS_InitStandardClasses(cx, global));
@@ -85,8 +85,8 @@ testOuter(const char *asciiChars)
 bool
 testInner(const char *asciiChars, JSPrincipals *principal, JSPrincipals *originPrincipal)
 {
-    JS::RootedValue rval(cx);
-    CHECK(eval(asciiChars, principal, originPrincipal, rval.address()));
+    jsval rval;
+    CHECK(eval(asciiChars, principal, originPrincipal, &rval));
 
     JSScript *script = JS_GetFunctionScript(cx, JSVAL_TO_OBJECT(rval)->toFunction());
     CHECK(JS_GetScriptPrincipals(script) == principal);

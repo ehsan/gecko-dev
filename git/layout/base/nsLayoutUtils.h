@@ -18,13 +18,16 @@ class nsDisplayItem;
 class nsFontMetrics;
 class nsClientRectList;
 class nsFontFaceList;
+class nsHTMLCanvasElement;
+class nsHTMLVideoElement;
 class nsIImageLoadingContent;
+class nsHTMLImageElement;
 
 #include "nsChangeHint.h"
 #include "nsStyleContext.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsIFrame.h"
 #include "nsThreadUtils.h"
 #include "nsIPresShell.h"
@@ -37,18 +40,13 @@ class nsIImageLoadingContent;
 #include "FrameMetrics.h"
 
 #include <limits>
-#include <algorithm>
 
 class nsBlockFrame;
 class gfxDrawable;
 
 namespace mozilla {
-class SVGImageContext;
 namespace dom {
 class Element;
-class HTMLImageElement;
-class HTMLCanvasElement;
-class HTMLVideoElement;
 } // namespace dom
 } // namespace mozilla
 
@@ -79,11 +77,6 @@ public:
    * Get display port for the given element.
    */
   static bool GetDisplayPort(nsIContent* aContent, nsRect *aResult);
-
-  /**
-   * Get the critical display port for the given element.
-   */
-  static bool GetCriticalDisplayPort(nsIContent* aContent, nsRect* aResult);
 
   /**
    * Use heuristics to figure out the child list that
@@ -239,23 +232,6 @@ public:
                                        nsIFrame* aCommonAncestor = nullptr);
 
   /**
-   * Sorts the given nsFrameList, so that for every two adjacent frames in the
-   * list, the former is less than or equal to the latter, according to the
-   * templated IsLessThanOrEqual method.
-   *
-   * Note: this method uses a stable merge-sort algorithm.
-   */
-  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
-  static void SortFrameList(nsFrameList& aFrameList);
-
-  /**
-   * Returns true if the given frame list is already sorted, according to the
-   * templated IsLessThanOrEqual function.
-   */
-  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
-  static bool IsFrameListSorted(nsFrameList& aFrameList);
-
-  /**
    * GetLastContinuationWithChild gets the last continuation in aFrame's chain
    * that has a child, or the first continuation if the frame has no children.
    */
@@ -274,7 +250,7 @@ public:
    * corresponding content is before aFrame's content (view siblings
    * are in reverse content order).
    */
-  static nsView* FindSiblingViewFor(nsView* aParentView, nsIFrame* aFrame);
+  static nsIView* FindSiblingViewFor(nsIView* aParentView, nsIFrame* aFrame);
 
   /**
    * Get the parent of aFrame. If aFrame is the root frame for a document,
@@ -376,17 +352,6 @@ public:
   static nsIScrollableFrame* GetNearestScrollableFrame(nsIFrame* aFrame);
 
   /**
-   * GetScrolledRect returns the range of allowable scroll offsets
-   * for aScrolledFrame, assuming the scrollable overflow area is
-   * aScrolledFrameOverflowArea and the scrollport size is aScrollPortSize.
-   * aDirection is either NS_STYLE_DIRECTION_LTR or NS_STYLE_DIRECTION_RTL.
-   */
-  static nsRect GetScrolledRect(nsIFrame* aScrolledFrame,
-                                const nsRect& aScrolledFrameOverflowArea,
-                                const nsSize& aScrollPortSize,
-                                uint8_t aDirection);
-
-  /**
    * HasPseudoStyle returns true if aContent (whose primary style
    * context is aStyleContext) has the aPseudoElement pseudo-style
    * attached to it; returns false otherwise.
@@ -474,7 +439,7 @@ public:
   static nsIFrame* GetPopupFrameForEventCoordinates(nsPresContext* aPresContext,
                                                     const nsEvent* aEvent);
 
-  /**
+/**
    * Translate from widget coordinates to the view's coordinates
    * @param aPresContext the PresContext for the view
    * @param aWidget the widget
@@ -484,7 +449,7 @@ public:
    */
   static nsPoint TranslateWidgetToView(nsPresContext* aPresContext,
                                        nsIWidget* aWidget, nsIntPoint aPt,
-                                       nsView* aView);
+                                       nsIView* aView);
 
   /**
    * Given a matrix and a point, let T be the transformation matrix translating points
@@ -589,18 +554,7 @@ public:
    * @return aPoint, expressed in aFrame's canonical coordinate space.
    */
   static nsPoint TransformRootPointToFrame(nsIFrame* aFrame,
-                                           const nsPoint &aPoint)
-  {
-    return TransformAncestorPointToFrame(aFrame, aPoint, nullptr);
-  }
-
-  /**
-   * Transform aPoint relative to aAncestor down to the coordinate system of
-   * aFrame.
-   */
-  static nsPoint TransformAncestorPointToFrame(nsIFrame* aFrame,
-                                               const nsPoint& aPoint,
-                                               nsIFrame* aAncestor);
+                                           const nsPoint &aPt);
 
   /**
    * Helper function that, given a rectangle and a matrix, returns the smallest
@@ -667,8 +621,7 @@ public:
     PAINT_ALL_CONTINUATIONS = 0x40,
     PAINT_TO_WINDOW = 0x80,
     PAINT_EXISTING_TRANSACTION = 0x100,
-    PAINT_NO_COMPOSITE = 0x200,
-    PAINT_NO_CLEAR_INVALIDATIONS = 0x400
+    PAINT_NO_COMPOSITE = 0x200
   };
 
   /**
@@ -776,9 +729,10 @@ public:
 
   struct RectListBuilder : public RectCallback {
     nsClientRectList* mRectList;
+    nsresult          mRV;
 
     RectListBuilder(nsClientRectList* aList);
-    virtual void AddRect(const nsRect& aRect);
+     virtual void AddRect(const nsRect& aRect);
   };
 
   static nsIFrame* GetContainingBlockForClientRect(nsIFrame* aFrame);
@@ -991,7 +945,7 @@ public:
     nscoord result =
       nsRuleNode::ComputeCoordPercentCalc(aCoord, aContainingBlockHeight);
     // Clamp calc(), and the subtraction for box-sizing.
-    return std::max(0, result - aContentEdgeToBoxSizingBoxEdge);
+    return NS_MAX(0, result - aContentEdgeToBoxSizingBoxEdge);
   }
 
   static bool IsAutoHeight(const nsStyleCoord &aCoord, nscoord aCBHeight)
@@ -1286,25 +1240,19 @@ public:
    *   @param aImage            The image.
    *   @param aDest             The area that the image should fill
    *   @param aDirty            Pixels outside this area may be skipped.
-   *   @param aSVGContext       If non-null, SVG-related rendering context
-   *                            such as overridden attributes on the image
-   *                            document's root <svg> node. Ignored for
-   *                            raster images.
-   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_*
-   *                            variety.
    *   @param aSourceArea       If non-null, this area is extracted from
    *                            the image and drawn in aDest. It's
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
+   *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
-  static nsresult DrawSingleImage(nsRenderingContext*    aRenderingContext,
-                                  imgIContainer*         aImage,
-                                  GraphicsFilter         aGraphicsFilter,
-                                  const nsRect&          aDest,
-                                  const nsRect&          aDirty,
-                                  const mozilla::SVGImageContext* aSVGContext,
-                                  uint32_t               aImageFlags,
-                                  const nsRect*          aSourceArea = nullptr);
+  static nsresult DrawSingleImage(nsRenderingContext* aRenderingContext,
+                                  imgIContainer*       aImage,
+                                  GraphicsFilter       aGraphicsFilter,
+                                  const nsRect&        aDest,
+                                  const nsRect&        aDirty,
+                                  uint32_t             aImageFlags,
+                                  const nsRect*        aSourceArea = nullptr);
 
   /**
    * Given an imgIContainer, this method attempts to obtain an intrinsic
@@ -1501,14 +1449,14 @@ public:
                                                      uint32_t aSurfaceFlags = 0);
   static SurfaceFromElementResult SurfaceFromElement(nsIImageLoadingContent *aElement,
                                                      uint32_t aSurfaceFlags = 0);
-  // Need an HTMLImageElement overload, because otherwise the
+  // Need an nsHTMLImageElement overload, because otherwise the
   // nsIImageLoadingContent and mozilla::dom::Element overloads are ambiguous
-  // for HTMLImageElement.
-  static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLImageElement *aElement,
+  // for nsHTMLImageElement.
+  static SurfaceFromElementResult SurfaceFromElement(nsHTMLImageElement *aElement,
                                                      uint32_t aSurfaceFlags = 0);
-  static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLCanvasElement *aElement,
+  static SurfaceFromElementResult SurfaceFromElement(nsHTMLCanvasElement *aElement,
                                                      uint32_t aSurfaceFlags = 0);
-  static SurfaceFromElementResult SurfaceFromElement(mozilla::dom::HTMLVideoElement *aElement,
+  static SurfaceFromElementResult SurfaceFromElement(nsHTMLVideoElement *aElement,
                                                      uint32_t aSurfaceFlags = 0);
 
   /**
@@ -1600,13 +1548,6 @@ public:
    * Checks if we should warn about animations that can't be async
    */
   static bool IsAnimationLoggingEnabled();
-
-  /**
-   * Find the maximum scale for an element (aContent) over the course of any
-   * animations and transitions on the element. Will return 1,1 if there is no
-   * animated scaling.
-   */
-  static gfxSize GetMaximumAnimatedScale(nsIContent* aContent);
 
   /**
    * Checks if we should forcibly use nearest pixel filtering for the
@@ -1702,14 +1643,6 @@ public:
     return sFontSizeInflationLineThreshold;
   }
 
-  static bool FontSizeInflationForceEnabled() {
-    return sFontSizeInflationForceEnabled;
-  }
-
-  static bool FontSizeInflationDisabledInMasterProcess() {
-    return sFontSizeInflationDisabledInMasterProcess;
-  }
-
   /**
    * See comment above "font.size.inflation.mappingIntercept" in
    * modules/libpref/src/init/all.js .
@@ -1803,14 +1736,6 @@ public:
   static bool PointIsCloserToRect(PointType aPoint, const RectType& aRect,
                                   CoordType& aClosestXDistance,
                                   CoordType& aClosestYDistance);
-  /**
-   * Computes the box shadow rect for the frame, or returns an empty rect if
-   * there are no shadows.
-   *
-   * @param aFrame Frame to compute shadows for.
-   * @param aFrameSize Size of aFrame (in case it hasn't been set yet).
-   */
-  static nsRect GetBoxShadowRectForFrame(nsIFrame* aFrame, const nsSize& aFrameSize);
 
 #ifdef DEBUG
   /**
@@ -1831,153 +1756,12 @@ public:
 #endif
 
 private:
-  // Helper-functions for SortFrameList():
-  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
-  static nsIFrame* SortedMerge(nsIFrame *aLeft, nsIFrame *aRight);
-
-  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
-  static nsIFrame* MergeSort(nsIFrame *aSource);
-
   static uint32_t sFontSizeInflationEmPerLine;
   static uint32_t sFontSizeInflationMinTwips;
   static uint32_t sFontSizeInflationLineThreshold;
   static int32_t  sFontSizeInflationMappingIntercept;
   static uint32_t sFontSizeInflationMaxRatio;
-  static bool sFontSizeInflationForceEnabled;
-  static bool sFontSizeInflationDisabledInMasterProcess;
 };
-
-// Helper-functions for nsLayoutUtils::SortFrameList()
-// ---------------------------------------------------
-
-template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
-/* static */ nsIFrame*
-nsLayoutUtils::SortedMerge(nsIFrame *aLeft, nsIFrame *aRight)
-{
-  NS_PRECONDITION(aLeft && aRight, "SortedMerge must have non-empty lists");
-
-  nsIFrame *result;
-  // Unroll first iteration to avoid null-check 'result' inside the loop.
-  if (IsLessThanOrEqual(aLeft, aRight)) {
-    result = aLeft;
-    aLeft = aLeft->GetNextSibling();
-    if (!aLeft) {
-      result->SetNextSibling(aRight);
-      return result;
-    }
-  }
-  else {
-    result = aRight;
-    aRight = aRight->GetNextSibling();
-    if (!aRight) {
-      result->SetNextSibling(aLeft);
-      return result;
-    }
-  }
-
-  nsIFrame *last = result;
-  for (;;) {
-    if (IsLessThanOrEqual(aLeft, aRight)) {
-      last->SetNextSibling(aLeft);
-      last = aLeft;
-      aLeft = aLeft->GetNextSibling();
-      if (!aLeft) {
-        last->SetNextSibling(aRight);
-        return result;
-      }
-    }
-    else {
-      last->SetNextSibling(aRight);
-      last = aRight;
-      aRight = aRight->GetNextSibling();
-      if (!aRight) {
-        last->SetNextSibling(aLeft);
-        return result;
-      }
-    }
-  }
-}
-
-template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
-/* static */ nsIFrame*
-nsLayoutUtils::MergeSort(nsIFrame *aSource)
-{
-  NS_PRECONDITION(aSource, "MergeSort null arg");
-
-  nsIFrame *sorted[32] = { nullptr };
-  nsIFrame **fill = &sorted[0];
-  nsIFrame **left;
-  nsIFrame *rest = aSource;
-
-  do {
-    nsIFrame *current = rest;
-    rest = rest->GetNextSibling();
-    current->SetNextSibling(nullptr);
-
-    // Merge it with sorted[0] if present; then merge the result with sorted[1] etc.
-    // sorted[0] is a list of length 1 (or nullptr).
-    // sorted[1] is a list of length 2 (or nullptr).
-    // sorted[2] is a list of length 4 (or nullptr). etc.
-    for (left = &sorted[0]; left != fill && *left; ++left) {
-      current = SortedMerge<IsLessThanOrEqual>(*left, current);
-      *left = nullptr;
-    }
-
-    // Fill the empty slot that we couldn't merge with the last result.
-    *left = current;
-
-    if (left == fill)
-      ++fill;
-  } while (rest);
-
-  // Collect and merge the results.
-  nsIFrame *result = nullptr;
-  for (left = &sorted[0]; left != fill; ++left) {
-    if (*left) {
-      result = result ? SortedMerge<IsLessThanOrEqual>(*left, result) : *left;
-    }
-  }
-  return result;
-}
-
-template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
-/* static */ void
-nsLayoutUtils::SortFrameList(nsFrameList& aFrameList)
-{
-  nsIFrame* head = MergeSort<IsLessThanOrEqual>(aFrameList.FirstChild());
-  aFrameList = nsFrameList(head, GetLastSibling(head));
-  MOZ_ASSERT(IsFrameListSorted<IsLessThanOrEqual>(aFrameList),
-             "After we sort a frame list, it should be in sorted order...");
-}
-
-template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
-/* static */ bool
-nsLayoutUtils::IsFrameListSorted(nsFrameList& aFrameList)
-{
-  if (aFrameList.IsEmpty()) {
-    // empty lists are trivially sorted.
-    return true;
-  }
-
-  // We'll walk through the list with two iterators, one trailing behind the
-  // other. The list is sorted IFF trailingIter <= iter, across the whole list.
-  nsFrameList::Enumerator trailingIter(aFrameList);
-  nsFrameList::Enumerator iter(aFrameList);
-  iter.Next(); // Skip |iter| past first frame. (List is nonempty, so we can.)
-
-  // Now, advance the iterators in parallel, comparing each adjacent pair.
-  while (!iter.AtEnd()) {
-    MOZ_ASSERT(!trailingIter.AtEnd(), "trailing iter shouldn't finish first");
-    if (!IsLessThanOrEqual(trailingIter.get(), iter.get())) {
-      return false;
-    }
-    trailingIter.Next();
-    iter.Next();
-  }
-
-  // We made it to the end without returning early, so the list is sorted.
-  return true;
-}
 
 template<typename PointType, typename RectType, typename CoordType>
 /* static */ bool
@@ -1992,7 +1776,7 @@ nsLayoutUtils::PointIsCloserToRect(PointType aPoint, const RectType& aRect,
   if (fromLeft >= 0 && fromRight <= 0) {
     xDistance = 0;
   } else {
-    xDistance = std::min(abs(fromLeft), abs(fromRight));
+    xDistance = NS_MIN(abs(fromLeft), abs(fromRight));
   }
 
   if (xDistance <= aClosestXDistance) {
@@ -2007,7 +1791,7 @@ nsLayoutUtils::PointIsCloserToRect(PointType aPoint, const RectType& aRect,
     if (fromTop >= 0 && fromBottom <= 0) {
       yDistance = 0;
     } else {
-      yDistance = std::min(abs(fromTop), abs(fromBottom));
+      yDistance = NS_MIN(abs(fromTop), abs(fromBottom));
     }
 
     if (yDistance < aClosestYDistance) {

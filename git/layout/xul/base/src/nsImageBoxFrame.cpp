@@ -82,7 +82,7 @@ nsImageBoxFrameEvent::Run()
   nsEventStatus status = nsEventStatus_eIgnore;
   nsEvent event(true, mMessage);
 
-  event.mFlags.mBubbles = false;
+  event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
   nsEventDispatcher::Dispatch(mContent, pres_context, &event, nullptr, &status);
   return NS_OK;
 }
@@ -144,8 +144,7 @@ nsImageBoxFrame::nsImageBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext)
   mRequestRegistered(false),
   mLoadFlags(nsIRequest::LOAD_NORMAL),
   mUseSrcAttr(false),
-  mSuppressStyleCheck(false),
-  mFireEventOnDecode(false)
+  mSuppressStyleCheck(false)
 {
   MarkIntrinsicWidthsDirty();
 }
@@ -180,7 +179,7 @@ nsImageBoxFrame::DestroyFrom(nsIFrame* aDestructRoot)
 }
 
 
-void
+NS_IMETHODIMP
 nsImageBoxFrame::Init(nsIContent*      aContent,
                       nsIFrame*        aParent,
                       nsIFrame*        aPrevInFlow)
@@ -194,11 +193,13 @@ nsImageBoxFrame::Init(nsIContent*      aContent,
   }
 
   mSuppressStyleCheck = true;
-  nsLeafBoxFrame::Init(aContent, aParent, aPrevInFlow);
+  nsresult rv = nsLeafBoxFrame::Init(aContent, aParent, aPrevInFlow);
   mSuppressStyleCheck = false;
 
   UpdateLoadFlags();
   UpdateImage();
+
+  return rv;
 }
 
 void
@@ -245,11 +246,11 @@ nsImageBoxFrame::UpdateImage()
   } else {
     // Only get the list-style-image if we aren't being drawn
     // by a native theme.
-    uint8_t appearance = StyleDisplay()->mAppearance;
+    uint8_t appearance = GetStyleDisplay()->mAppearance;
     if (!(appearance && nsBox::gTheme &&
           nsBox::gTheme->ThemeSupportsWidget(nullptr, this, appearance))) {
       // get the list-style-image
-      imgRequestProxy *styleRequest = StyleList()->GetListStyleImage();
+      imgIRequest *styleRequest = GetStyleList()->GetListStyleImage();
       if (styleRequest) {
         styleRequest->Clone(mListener, getter_AddRefs(mImageRequest));
       }
@@ -285,30 +286,34 @@ nsImageBoxFrame::UpdateLoadFlags()
   }
 }
 
-void
+NS_IMETHODIMP
 nsImageBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                   const nsRect&           aDirtyRect,
                                   const nsDisplayListSet& aLists)
 {
-  nsLeafBoxFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  nsresult rv = nsLeafBoxFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   if ((0 == mRect.width) || (0 == mRect.height)) {
     // Do not render when given a zero area. This avoids some useless
     // scaling work while we wait for our image dimensions to arrive
     // asynchronously.
-    return;
+    return NS_OK;
   }
 
   if (!IsVisibleForPainting(aBuilder))
-    return;
+    return NS_OK;
+
 
   nsDisplayList list;
-  list.AppendNewToTop(
-    new (aBuilder) nsDisplayXULImage(aBuilder, this));
+  rv = list.AppendNewToTop(
+      new (aBuilder) nsDisplayXULImage(aBuilder, this));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   CreateOwnLayerIfNeeded(aBuilder, &list);
 
   aLists.Content()->AppendToTop(&list);
+  return NS_OK;
 }
 
 void
@@ -336,7 +341,7 @@ nsImageBoxFrame::PaintImage(nsRenderingContext& aRenderingContext,
     bool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
     nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
-        rect, dirty, nullptr, aFlags, hasSubRect ? &mSubRect : nullptr);
+        rect, dirty, aFlags, hasSubRect ? &mSubRect : nullptr);
   }
 }
 
@@ -383,13 +388,13 @@ nsDisplayXULImage::ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& aOffset)
 }
 
 already_AddRefed<ImageContainer>
-nsDisplayXULImage::GetContainer(LayerManager* aManager, nsDisplayListBuilder* aBuilder)
+nsDisplayXULImage::GetContainer()
 {
-  return static_cast<nsImageBoxFrame*>(mFrame)->GetContainer(aManager);
+  return static_cast<nsImageBoxFrame*>(mFrame)->GetContainer();
 }
 
 already_AddRefed<ImageContainer>
-nsImageBoxFrame::GetContainer(LayerManager* aManager)
+nsImageBoxFrame::GetContainer()
 {
   bool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
   if (hasSubRect || !mImageRequest) {
@@ -403,7 +408,7 @@ nsImageBoxFrame::GetContainer(LayerManager* aManager)
   }
   
   nsRefPtr<ImageContainer> container;
-  nsresult rv = imgCon->GetImageContainer(aManager, getter_AddRefs(container));
+  nsresult rv = imgCon->GetImageContainer(getter_AddRefs(container));
   NS_ENSURE_SUCCESS(rv, nullptr);
   return container.forget();
 }
@@ -420,14 +425,14 @@ nsImageBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
   nsLeafBoxFrame::DidSetStyleContext(aOldStyleContext);
 
   // Fetch our subrect.
-  const nsStyleList* myList = StyleList();
+  const nsStyleList* myList = GetStyleList();
   mSubRect = myList->mImageRegion; // before |mSuppressStyleCheck| test!
 
   if (mUseSrcAttr || mSuppressStyleCheck)
     return; // No more work required, since the image isn't specified by style.
 
   // If we're using a native theme implementation, we shouldn't draw anything.
-  const nsStyleDisplay* disp = StyleDisplay();
+  const nsStyleDisplay* disp = GetStyleDisplay();
   if (disp->mAppearance && nsBox::gTheme &&
       nsBox::gTheme->ThemeSupportsWidget(nullptr, this, disp->mAppearance))
     return;
@@ -631,22 +636,6 @@ nsresult nsImageBoxFrame::OnStartContainer(imgIRequest *request,
 
 nsresult nsImageBoxFrame::OnStopDecode(imgIRequest *request)
 {
-  if (mFireEventOnDecode) {
-    mFireEventOnDecode = false;
-
-    uint32_t reqStatus;
-    request->GetImageStatus(&reqStatus);
-    if (!(reqStatus & imgIRequest::STATUS_ERROR)) {
-      FireImageDOMEvent(mContent, NS_LOAD);
-    } else {
-      // Fire an onerror DOM event.
-      mIntrinsicSize.SizeTo(0, 0);
-      PresContext()->PresShell()->
-        FrameNeedsReflow(this, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
-      FireImageDOMEvent(mContent, NS_LOAD_ERROR);
-    }
-  }
-
   nsBoxLayoutState state(PresContext());
   this->Redraw(state);
 
@@ -656,26 +645,15 @@ nsresult nsImageBoxFrame::OnStopDecode(imgIRequest *request)
 nsresult nsImageBoxFrame::OnStopRequest(imgIRequest *request,
                                         nsresult aStatus)
 {
-  uint32_t reqStatus;
-  request->GetImageStatus(&reqStatus);
-
-  // We want to give the decoder a chance to find errors. If we haven't found
-  // an error yet and we've already started decoding, we must only fire these
-  // events after we finish decoding.
-  if (NS_SUCCEEDED(aStatus) && !(reqStatus & imgIRequest::STATUS_ERROR) &&
-      reqStatus & imgIRequest::STATUS_DECODE_STARTED) {
-    mFireEventOnDecode = true;
-  } else {
-    if (NS_SUCCEEDED(aStatus)) {
-      // Fire an onload DOM event.
-      FireImageDOMEvent(mContent, NS_LOAD);
-    } else {
-      // Fire an onerror DOM event.
-      mIntrinsicSize.SizeTo(0, 0);
-      PresContext()->PresShell()->
-        FrameNeedsReflow(this, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
-      FireImageDOMEvent(mContent, NS_LOAD_ERROR);
-    }
+  if (NS_SUCCEEDED(aStatus))
+    // Fire an onload DOM event.
+    FireImageDOMEvent(mContent, NS_LOAD);
+  else {
+    // Fire an onerror DOM event.
+    mIntrinsicSize.SizeTo(0, 0);
+    PresContext()->PresShell()->
+      FrameNeedsReflow(this, nsIPresShell::eStyleChange, NS_FRAME_IS_DIRTY);
+    FireImageDOMEvent(mContent, NS_LOAD_ERROR);
   }
 
   return NS_OK;
@@ -701,7 +679,7 @@ nsresult nsImageBoxFrame::FrameChanged(imgIRequest *aRequest)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS2(nsImageBoxListener, imgINotificationObserver, imgIOnloadBlocker)
+NS_IMPL_ISUPPORTS1(nsImageBoxListener, imgINotificationObserver)
 
 nsImageBoxListener::nsImageBoxListener()
 {
@@ -718,26 +696,4 @@ nsImageBoxListener::Notify(imgIRequest *request, int32_t aType, const nsIntRect*
     return NS_OK;
 
   return mFrame->Notify(request, aType, aData);
-}
-
-/* void blockOnload (in imgIRequest aRequest); */
-NS_IMETHODIMP
-nsImageBoxListener::BlockOnload(imgIRequest *aRequest)
-{
-  if (mFrame && mFrame->GetContent() && mFrame->GetContent()->GetCurrentDoc()) {
-    mFrame->GetContent()->GetCurrentDoc()->BlockOnload();
-  }
-
-  return NS_OK;
-}
-
-/* void unblockOnload (in imgIRequest aRequest); */
-NS_IMETHODIMP
-nsImageBoxListener::UnblockOnload(imgIRequest *aRequest)
-{
-  if (mFrame && mFrame->GetContent() && mFrame->GetContent()->GetCurrentDoc()) {
-    mFrame->GetContent()->GetCurrentDoc()->UnblockOnload(false);
-  }
-
-  return NS_OK;
 }

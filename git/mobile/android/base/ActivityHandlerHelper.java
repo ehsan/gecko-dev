@@ -6,7 +6,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.util.ActivityResultHandler;
 import org.mozilla.gecko.util.ActivityResultHandlerMap;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -28,7 +27,7 @@ import java.util.List;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeUnit;
 
-public class ActivityHandlerHelper {
+class ActivityHandlerHelper {
     private static final String LOGTAG = "GeckoActivityHandlerHelper";
 
     private final SynchronousQueue<String> mFilePickerResult;
@@ -39,7 +38,7 @@ public class ActivityHandlerHelper {
     private final CameraImageResultHandler mCameraImageResultHandler;
     private final CameraVideoResultHandler mCameraVideoResultHandler;
 
-    public ActivityHandlerHelper() {
+    ActivityHandlerHelper() {
         mFilePickerResult = new SynchronousQueue<String>();
         mActivityResultHandlerMap = new ActivityResultHandlerMap();
         mFilePickerResultHandlerSync = new FilePickerResultHandlerSync(mFilePickerResult);
@@ -48,12 +47,8 @@ public class ActivityHandlerHelper {
         mCameraVideoResultHandler = new CameraVideoResultHandler(mFilePickerResult);
     }
 
-    public int makeRequestCodeForAwesomebar() {
+    int makeRequestCodeForAwesomebar() {
         return mActivityResultHandlerMap.put(mAwesomebarResultHandler);
-    }
-
-    public int makeRequestCode(ActivityResultHandler aHandler) {
-        return mActivityResultHandlerMap.put(aHandler);
     }
 
     private int addIntentActivitiesToList(Context context, Intent intent, ArrayList<PromptService.PromptListItem> items, ArrayList<Intent> aIntents) {
@@ -153,7 +148,7 @@ public class ActivityHandlerHelper {
         }
 
         Runnable filePicker = new FilePickerPromptRunnable(getFilePickerTitle(context, aMimeType), items);
-        ThreadUtils.postToUiThread(filePicker);
+        GeckoAppShell.getMainHandler().post(filePicker);
 
         String promptServiceResult = "";
         try {
@@ -241,7 +236,6 @@ public class ActivityHandlerHelper {
             mItems = aItems;
         }
 
-        @Override
         public void run() {
             GeckoApp.mAppContext.getPromptService().show(mTitle, "", mItems, false);
         }

@@ -5,7 +5,7 @@
 
 // Keep in (case-insensitive) order:
 #include "gfxMatrix.h"
-#include "mozilla/dom/SVGAElement.h"
+#include "nsSVGAElement.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGTSpanFrame.h"
 #include "nsSVGUtils.h"
@@ -32,9 +32,9 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
 #endif
 
   // nsIFrame:
@@ -86,16 +86,17 @@ NS_IMPL_FRAMEARENA_HELPERS(nsSVGAFrame)
 //----------------------------------------------------------------------
 // nsIFrame methods
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGAFrame::Init(nsIContent* aContent,
                   nsIFrame* aParent,
                   nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::a),
+  nsCOMPtr<nsIDOMSVGAElement> elem = do_QueryInterface(aContent);
+  NS_ASSERTION(elem,
                "Trying to construct an SVGAFrame for a "
                "content element that doesn't support the right interfaces");
 
-  nsSVGAFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGAFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 
@@ -106,8 +107,7 @@ nsSVGAFrame::AttributeChanged(int32_t         aNameSpaceID,
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       aAttribute == nsGkAtoms::transform) {
-    nsSVGUtils::InvalidateBounds(this, false);
-    nsSVGUtils::ScheduleReflowSVG(this);
+    nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
     NotifySVGChanged(TRANSFORM_CHANGED);
   }
 
@@ -153,7 +153,7 @@ nsSVGAFrame::GetCanvasTM(uint32_t aFor)
     NS_ASSERTION(mParent, "null parent");
 
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
-    dom::SVGAElement *content = static_cast<dom::SVGAElement*>(mContent);
+    nsSVGAElement *content = static_cast<nsSVGAElement*>(mContent);
 
     gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
 

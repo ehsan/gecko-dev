@@ -23,8 +23,7 @@ class nsDOMSVGZoomEvent : public nsDOMUIEvent,
 public:
   typedef mozilla::DOMSVGPoint DOMSVGPoint;
 
-  nsDOMSVGZoomEvent(mozilla::dom::EventTarget* aOwner,
-                    nsPresContext* aPresContext, nsGUIEvent* aEvent);
+  nsDOMSVGZoomEvent(nsPresContext* aPresContext, nsGUIEvent* aEvent);
                      
   // nsISupports interface:
   NS_DECL_ISUPPORTS_INHERITED

@@ -35,9 +35,9 @@ class nsFlexContainerFrame : public nsFlexContainerFrameSuper {
 
 public:
   // nsIFrame overrides
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -60,21 +60,13 @@ protected:
   // Protected constructor & destructor
   nsFlexContainerFrame(nsStyleContext* aContext) :
     nsFlexContainerFrameSuper(aContext),
-    mChildrenHaveBeenReordered(false)
+    mCachedContentBoxCrossSize(nscoord_MIN),
+    mCachedAscent(nscoord_MIN)
   {}
   virtual ~nsFlexContainerFrame();
 
-  /**
-   * Checks whether our child-frame list "mFrames" is sorted, using the given
-   * IsLessThanOrEqual function, and sorts it if it's not already sorted.
-   *
-   * XXXdholbert Once we support pagination, we need to make this function
-   * check our continuations as well (or wrap it in a function that does).
-   *
-   * @return true if we had to sort mFrames, false if it was already sorted.
-   */
-  template<bool IsLessThanOrEqual(nsIFrame*, nsIFrame*)>
-  bool SortChildrenIfNeeded();
+  // Protected nsIFrame overrides:
+  virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   // Protected flex-container-specific methods / member-vars
 #ifdef DEBUG
@@ -111,7 +103,7 @@ protected:
 
   nsresult SizeItemInCrossAxis(nsPresContext* aPresContext,
                                const FlexboxAxisTracker& aAxisTracker,
-                               nsHTMLReflowState& aChildReflowState,
+                               const nsHTMLReflowState& aChildReflowState,
                                FlexItem& aItem);
 
   void PositionItemInCrossAxis(
@@ -119,8 +111,11 @@ protected:
     SingleLineCrossAxisPositionTracker& aLineCrossAxisPosnTracker,
     FlexItem& aItem);
 
-  bool    mChildrenHaveBeenReordered; // Have we ever had to reorder our kids
-                                      // to satisfy their 'order' values?
+  // Cached values from running flexbox layout algorithm, used in setting our
+  // reflow metrics w/out actually reflowing all of our children, in any
+  // reflows where we're not dirty:
+  nscoord mCachedContentBoxCrossSize; // cross size of our content-box size
+  nscoord mCachedAscent;              // our ascent, in prev. reflow.
 };
 
 #endif /* nsFlexContainerFrame_h___ */

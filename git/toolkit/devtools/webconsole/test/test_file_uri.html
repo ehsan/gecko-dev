@@ -69,8 +69,7 @@ function onFileActivity(aType, aPacket)
 
   gState.dbgClient.removeListener("fileActivity", onFileActivity);
 
-  info("aPacket.uri: " + aPacket.uri);
-  ok(/\bbug798764\b.*\.html$/.test(aPacket.uri), "file URI match");
+  ok(/bug798764\.html$/.test(aPacket.uri), "file URI match");
 
   testEnd();
 }
@@ -78,16 +77,8 @@ function onFileActivity(aType, aPacket)
 function testEnd()
 {
   if (gTmpFile) {
-    SimpleTest.executeSoon(function() {
-      try {
-        gTmpFile.remove(false);
-      }
-      catch (ex if (ex.name == "NS_ERROR_FILE_IS_LOCKED")) {
-        // Sometimes remove() throws because the file is not unlocked soon
-        // enough.
-      }
-      gTmpFile = null;
-    });
+    gTmpFile.remove(false);
+    gTmpFile = null;
   }
 
   if (gState) {

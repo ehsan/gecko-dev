@@ -6,17 +6,14 @@
 #include "Layers.h"
 #include "ImageTypes.h"
 #include "ImageContainer.h"
-#include "mtransport/runnable_utils.h"
 
 namespace mozilla {
 
 #ifdef PR_LOGGING
-extern PRLogModuleInfo* GetMediaManagerLog();
-#define LOG(msg) PR_LOG(GetMediaManagerLog(), PR_LOG_DEBUG, msg)
-#define LOGFRAME(msg) PR_LOG(GetMediaManagerLog(), 6, msg)
+extern PRLogModuleInfo* gMediaManagerLog;
+#define LOG(msg) PR_LOG(gMediaManagerLog, PR_LOG_DEBUG, msg)
 #else
 #define LOG(msg)
-#define LOGFRAME(msg)
 #endif
 
 /**
@@ -31,7 +28,6 @@ MediaEngineWebRTCVideoSource::FrameSizeChange(
 {
   mWidth = w;
   mHeight = h;
-  LOG(("Video FrameSizeChange: %ux%u", w, h));
   return 0;
 }
 
@@ -40,24 +36,18 @@ int
 MediaEngineWebRTCVideoSource::DeliverFrame(
    unsigned char* buffer, int size, uint32_t time_stamp, int64_t render_time)
 {
-  // mInSnapshotMode can only be set before the camera is turned on and
-  // the renderer is started, so this amounts to a 1-shot
   if (mInSnapshotMode) {
     // Set the condition variable to false and notify Snapshot().
-    MonitorAutoLock lock(mMonitor);
+    PR_Lock(mSnapshotLock);
     mInSnapshotMode = false;
-    lock.Notify();
+    PR_NotifyCondVar(mSnapshotCondVar);
+    PR_Unlock(mSnapshotLock);
     return 0;
   }
 
   // Check for proper state.
   if (mState != kStarted) {
     LOG(("DeliverFrame: video not started"));
-    return 0;
-  }
-
-  MOZ_ASSERT(mWidth*mHeight*3/2 == size);
-  if (mWidth*mHeight*3/2 != size) {
     return 0;
   }
 
@@ -87,15 +77,14 @@ MediaEngineWebRTCVideoSource::DeliverFrame(
 
   videoImage->SetData(data);
 
-#ifdef DEBUG
+#ifdef LOG_ALL_FRAMES
   static uint32_t frame_num = 0;
-  LOGFRAME(("frame %d (%dx%d); timestamp %u, render_time %lu", frame_num++,
-            mWidth, mHeight, time_stamp, render_time));
+  LOG(("frame %d; timestamp %u, render_time %lu", frame_num++, time_stamp, render_time));
 #endif
 
   // we don't touch anything in 'this' until here (except for snapshot,
   // which has it's own lock)
-  MonitorAutoLock lock(mMonitor);
+  ReentrantMonitorAutoEnter enter(mMonitor);
 
   // implicitly releases last image
   mImage = image.forget();
@@ -108,63 +97,43 @@ MediaEngineWebRTCVideoSource::DeliverFrame(
 // this means that no *real* frame can be inserted during this period.
 void
 MediaEngineWebRTCVideoSource::NotifyPull(MediaStreamGraph* aGraph,
-                                         SourceMediaStream *aSource,
-                                         TrackID aID,
-                                         StreamTime aDesiredTime,
-                                         TrackTicks &aLastEndTime)
+                                         StreamTime aDesiredTime)
 {
   VideoSegment segment;
 
-  MonitorAutoLock lock(mMonitor);
+  ReentrantMonitorAutoEnter enter(mMonitor);
   if (mState != kStarted)
     return;
 
   // Note: we're not giving up mImage here
   nsRefPtr<layers::Image> image = mImage;
   TrackTicks target = TimeToTicksRoundUp(USECS_PER_S, aDesiredTime);
-  TrackTicks delta = target - aLastEndTime;
-  LOGFRAME(("NotifyPull, desired = %ld, target = %ld, delta = %ld %s", (int64_t) aDesiredTime, 
-            (int64_t) target, (int64_t) delta, image ? "" : "<null>"));
-
-  // Bug 846188 We may want to limit incoming frames to the requested frame rate
-  // mFps - if you want 30FPS, and the camera gives you 60FPS, this could
-  // cause issues.
-  // We may want to signal if the actual frame rate is below mMinFPS -
-  // cameras often don't return the requested frame rate especially in low
-  // light; we should consider surfacing this so that we can switch to a
-  // lower resolution (which may up the frame rate)
-
-  // Don't append if we've already provided a frame that supposedly goes past the current aDesiredTime
-  // Doing so means a negative delta and thus messes up handling of the graph
-  if (delta > 0) {
-    // NULL images are allowed
-    if (image) {
-      segment.AppendFrame(image.forget(), delta, gfxIntSize(mWidth, mHeight));
-    } else {
-      segment.AppendFrame(nullptr, delta, gfxIntSize(0,0));
-    }
-    // This can fail if either a) we haven't added the track yet, or b)
-    // we've removed or finished the track.
-    if (aSource->AppendToTrack(aID, &(segment))) {
-      aLastEndTime = target;
-    }
-  }
+  TrackTicks delta = target - mLastEndTime;
+#ifdef LOG_ALL_FRAMES
+  LOG(("NotifyPull, target = %lu, delta = %lu", (uint64_t) target, (uint64_t) delta));
+#endif
+  // NULL images are allowed
+  segment.AppendFrame(image ? image.forget() : nullptr, delta, gfxIntSize(mWidth, mHeight));
+  mSource->AppendToTrack(mTrackID, &(segment));
+  mLastEndTime = target;
 }
 
 void
-MediaEngineWebRTCVideoSource::ChooseCapability(const MediaEnginePrefs &aPrefs)
+MediaEngineWebRTCVideoSource::ChooseCapability(uint32_t aWidth, uint32_t aHeight, uint32_t aMinFPS)
 {
   int num = mViECapture->NumberOfCapabilities(mUniqueId, KMaxUniqueIdLength);
 
-  LOG(("ChooseCapability: prefs: %dx%d @%d-%dfps", aPrefs.mWidth, aPrefs.mHeight, aPrefs.mFPS, aPrefs.mMinFPS));
+  NS_WARN_IF_FALSE(!mCapabilityChosen,"Shouldn't select capability of a device twice");
 
   if (num <= 0) {
     // Set to default values
-    mCapability.width  = aPrefs.mWidth;
-    mCapability.height = aPrefs.mHeight;
-    mCapability.maxFPS = MediaEngine::DEFAULT_VIDEO_FPS;
+    mCapability.width  = mOpts.mWidth  = aWidth;
+    mCapability.height = mOpts.mHeight = aHeight;
+    mCapability.maxFPS = mOpts.mMaxFPS = DEFAULT_VIDEO_FPS;
+    mOpts.codecType = kVideoCodecI420;
 
     // Mac doesn't support capabilities.
+    mCapabilityChosen = true;
     return;
   }
 
@@ -177,26 +146,30 @@ MediaEngineWebRTCVideoSource::ChooseCapability(const MediaEnginePrefs &aPrefs)
     mViECapture->GetCaptureCapability(mUniqueId, KMaxUniqueIdLength, i, cap);
     if (higher) {
       if (i == 0 ||
-          (mCapability.width > cap.width && mCapability.height > cap.height)) {
-        // closer than the current choice
+          (mOpts.mWidth > cap.width && mOpts.mHeight > cap.height)) {
+        mOpts.mWidth = cap.width;
+        mOpts.mHeight = cap.height;
+        mOpts.mMaxFPS = cap.maxFPS;
         mCapability = cap;
         // FIXME: expose expected capture delay?
       }
-      if (cap.width <= (uint32_t) aPrefs.mWidth && cap.height <= (uint32_t) aPrefs.mHeight) {
+      if (cap.width <= aWidth && cap.height <= aHeight) {
         higher = false;
       }
     } else {
-      if (cap.width > (uint32_t) aPrefs.mWidth || cap.height > (uint32_t) aPrefs.mHeight ||
-          cap.maxFPS < (uint32_t) aPrefs.mMinFPS) {
+      if (cap.width > aWidth || cap.height > aHeight || cap.maxFPS < aMinFPS) {
         continue;
       }
-      if (mCapability.width < cap.width && mCapability.height < cap.height) {
+      if (mOpts.mWidth < cap.width && mOpts.mHeight < cap.height) {
+        mOpts.mWidth = cap.width;
+        mOpts.mHeight = cap.height;
+        mOpts.mMaxFPS = cap.maxFPS;
         mCapability = cap;
         // FIXME: expose expected capture delay?
       }
     }
   }
-  LOG(("chose cap %dx%d @%dfps", mCapability.width, mCapability.height, mCapability.maxFPS));
+  mCapabilityChosen = true;
 }
 
 void
@@ -214,86 +187,70 @@ MediaEngineWebRTCVideoSource::GetUUID(nsAString& aUUID)
 }
 
 nsresult
-MediaEngineWebRTCVideoSource::Allocate(const MediaEnginePrefs &aPrefs)
+MediaEngineWebRTCVideoSource::Allocate()
 {
-  LOG((__FUNCTION__));
-  if (mState == kReleased && mInitDone) {
-    // Note: if shared, we don't allow a later opener to affect the resolution.
-    // (This may change depending on spec changes for Constraints/settings)
-
-    ChooseCapability(aPrefs);
-
-    if (mViECapture->AllocateCaptureDevice(mUniqueId, KMaxUniqueIdLength, mCaptureIndex)) {
-      return NS_ERROR_FAILURE;
-    }
-    mState = kAllocated;
-    LOG(("Video device %d allocated", mCaptureIndex));
-  } else if (mSources.IsEmpty()) {
-    LOG(("Video device %d reallocated", mCaptureIndex));
-  } else {
-    LOG(("Video device %d allocated shared", mCaptureIndex));
+  if (mState != kReleased) {
+    return NS_ERROR_FAILURE;
   }
 
+  if (!mCapabilityChosen) {
+    // XXX these should come from constraints
+    ChooseCapability(mWidth, mHeight, mMinFps);
+  }
+
+  if (mViECapture->AllocateCaptureDevice(mUniqueId, KMaxUniqueIdLength, mCaptureIndex)) {
+    return NS_ERROR_FAILURE;
+  }
+
+  mState = kAllocated;
   return NS_OK;
 }
 
 nsresult
 MediaEngineWebRTCVideoSource::Deallocate()
 {
-  LOG((__FUNCTION__));
-  if (mSources.IsEmpty()) {
-    if (mState != kStopped && mState != kAllocated) {
-      return NS_ERROR_FAILURE;
-    }
-
-#ifdef XP_MACOSX
-    // Bug 829907 - on mac, in shutdown, the mainthread stops processing
-    // 'native' events, and the QTKit code uses events to the main native CFRunLoop
-    // in order to provide thread safety.  In order to avoid this locking us up,
-    // release the ViE capture device synchronously on MainThread (so the native
-    // event isn't needed).
-    // XXX Note if MainThread Dispatch()es NS_DISPATCH_SYNC to us we can deadlock.
-    // XXX It might be nice to only do this if we're in shutdown...  Hard to be
-    // sure when that is though.
-    // Thread safety: a) we call this synchronously, and don't use ViECapture from
-    // another thread anywhere else, b) ViEInputManager::DestroyCaptureDevice() grabs
-    // an exclusive object lock and deletes it in a critical section, so all in all
-    // this should be safe threadwise.
-    NS_DispatchToMainThread(WrapRunnable(mViECapture,
-                                         &webrtc::ViECapture::ReleaseCaptureDevice,
-                                         mCaptureIndex),
-                            NS_DISPATCH_SYNC);
-#else
-    mViECapture->ReleaseCaptureDevice(mCaptureIndex);
-#endif
-    mState = kReleased;
-    LOG(("Video device %d deallocated", mCaptureIndex));
-  } else {
-    LOG(("Video device %d deallocated but still in use", mCaptureIndex));
+  if (mState != kStopped && mState != kAllocated) {
+    return NS_ERROR_FAILURE;
   }
+
+  mViECapture->ReleaseCaptureDevice(mCaptureIndex);
+  mState = kReleased;
   return NS_OK;
+}
+
+const MediaEngineVideoOptions*
+MediaEngineWebRTCVideoSource::GetOptions()
+{
+  if (!mCapabilityChosen) {
+    ChooseCapability(mWidth, mHeight, mMinFps);
+  }
+  return &mOpts;
 }
 
 nsresult
 MediaEngineWebRTCVideoSource::Start(SourceMediaStream* aStream, TrackID aID)
 {
-  LOG((__FUNCTION__));
   int error = 0;
-  if (!mInitDone || !aStream) {
+  if (!mInitDone || mState != kAllocated) {
     return NS_ERROR_FAILURE;
   }
 
-  mSources.AppendElement(aStream);
-
-  aStream->AddTrack(aID, USECS_PER_S, 0, new VideoSegment());
-  aStream->AdvanceKnownTracksTime(STREAM_TIME_MAX);
+  if (!aStream) {
+    return NS_ERROR_FAILURE;
+  }
 
   if (mState == kStarted) {
     return NS_OK;
   }
-  mState = kStarted;
+
+  mSource = aStream;
+  mTrackID = aID;
 
   mImageContainer = layers::LayerManager::CreateImageContainer();
+
+  mSource->AddTrack(aID, USECS_PER_S, 0, new VideoSegment());
+  mSource->AdvanceKnownTracksTime(STREAM_TIME_MAX);
+  mLastEndTime = 0;
 
   error = mViERender->AddRenderer(mCaptureIndex, webrtc::kVideoI420, (webrtc::ExternalRenderer*)this);
   if (error == -1) {
@@ -309,32 +266,21 @@ MediaEngineWebRTCVideoSource::Start(SourceMediaStream* aStream, TrackID aID)
     return NS_ERROR_FAILURE;
   }
 
+  mState = kStarted;
   return NS_OK;
 }
 
 nsresult
-MediaEngineWebRTCVideoSource::Stop(SourceMediaStream *aSource, TrackID aID)
+MediaEngineWebRTCVideoSource::Stop()
 {
-  LOG((__FUNCTION__));
-  if (!mSources.RemoveElement(aSource)) {
-    // Already stopped - this is allowed
-    return NS_OK;
-  }
-  if (!mSources.IsEmpty()) {
-    return NS_OK;
-  }
-
   if (mState != kStarted) {
     return NS_ERROR_FAILURE;
   }
 
   {
-    MonitorAutoLock lock(mMonitor);
+    ReentrantMonitorAutoEnter enter(mMonitor);
     mState = kStopped;
-    aSource->EndTrack(aID);
-    // Drop any cached image so we don't start with a stale image on next
-    // usage
-    mImage = nullptr;
+    mSource->EndTrack(mTrackID);
   }
 
   mViERender->StopRender(mCaptureIndex);
@@ -368,10 +314,11 @@ MediaEngineWebRTCVideoSource::Snapshot(uint32_t aDuration, nsIDOMFile** aFile)
     return NS_ERROR_FAILURE;
   }
 
-  {
-    MonitorAutoLock lock(mMonitor);
-    mInSnapshotMode = true;
-  }
+  mSnapshotLock = PR_NewLock();
+  mSnapshotCondVar = PR_NewCondVar(mSnapshotLock);
+
+  PR_Lock(mSnapshotLock);
+  mInSnapshotMode = true;
 
   // Start the rendering (equivalent to calling Start(), but without a track).
   int error = 0;
@@ -387,23 +334,18 @@ MediaEngineWebRTCVideoSource::Snapshot(uint32_t aDuration, nsIDOMFile** aFile)
     return NS_ERROR_FAILURE;
   }
 
-  if (mViECapture->StartCapture(mCaptureIndex, mCapability) < 0) {
-    return NS_ERROR_FAILURE;
-  }
-
   // Wait for the condition variable, will be set in DeliverFrame.
-  // We use a while loop, because even if Wait() returns, it's not
+  // We use a while loop, because even if PR_WaitCondVar returns, it's not
   // guaranteed that the condition variable changed.
-  // FIX: we need need a way to cancel this and to bail if it appears to not be working
-  // Perhaps a maximum time, though some cameras can take seconds to start.  10 seconds?
-  {
-    MonitorAutoLock lock(mMonitor);
-    while (mInSnapshotMode) {
-      lock.Wait();
-    }
+  while (mInSnapshotMode) {
+    PR_WaitCondVar(mSnapshotCondVar, PR_INTERVAL_NO_TIMEOUT);
   }
 
   // If we get here, DeliverFrame received at least one frame.
+  PR_Unlock(mSnapshotLock);
+  PR_DestroyCondVar(mSnapshotCondVar);
+  PR_DestroyLock(mSnapshotLock);
+
   webrtc::ViEFile* vieFile = webrtc::ViEFile::GetInterface(mVideoEngine);
   if (!vieFile) {
     return NS_ERROR_FAILURE;
@@ -452,11 +394,6 @@ MediaEngineWebRTCVideoSource::Init()
   mDeviceName[0] = '\0'; // paranoia
   mUniqueId[0] = '\0';
 
-  // fix compile warning for these being unused. (remove once used)
-  (void) mFps;
-  (void) mMinFps;
-
-  LOG((__FUNCTION__));
   if (mVideoEngine == NULL) {
     return;
   }
@@ -486,20 +423,22 @@ MediaEngineWebRTCVideoSource::Init()
 void
 MediaEngineWebRTCVideoSource::Shutdown()
 {
-  LOG((__FUNCTION__));
+  bool continueShutdown = false;
+
   if (!mInitDone) {
     return;
   }
 
   if (mState == kStarted) {
-    while (!mSources.IsEmpty()) {
-      Stop(mSources[0], kVideoTrack); // XXX change to support multiple tracks
-    }
-    MOZ_ASSERT(mState == kStopped);
+    mViERender->StopRender(mCaptureIndex);
+    mViERender->RemoveRenderer(mCaptureIndex);
+    continueShutdown = true;
   }
 
-  if (mState == kAllocated || mState == kStopped) {
-    Deallocate();
+  if (mState == kAllocated || continueShutdown) {
+    mViECapture->StopCapture(mCaptureIndex);
+    mViECapture->ReleaseCaptureDevice(mCaptureIndex);
+    continueShutdown = false;
   }
 
   mViECapture->Release();

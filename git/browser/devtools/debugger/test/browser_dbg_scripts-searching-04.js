@@ -14,7 +14,7 @@ var gTab = null;
 var gDebuggee = null;
 var gDebugger = null;
 var gEditor = null;
-var gSources = null;
+var gScripts = null;
 var gSearchView = null;
 var gSearchBox = null;
 
@@ -27,17 +27,7 @@ function test()
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
-    gDebugger.SourceResults.prototype.alwaysExpand = false;
-
-    gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-      let url = aEvent.detail.url;
-      if (url.indexOf("-02.js") != -1) {
-        scriptShown = true;
-        gDebugger.removeEventListener(aEvent.type, _onEvent);
-        runTest();
-      }
-    });
+    gDebugger = gPane.contentWindow;
 
     gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
       framesAdded = true;
@@ -45,6 +35,15 @@ function test()
     });
 
     gDebuggee.firstCall();
+  });
+
+  window.addEventListener("Debugger:ScriptShown", function _onEvent(aEvent) {
+    let url = aEvent.detail.url;
+    if (url.indexOf("-02.js") != -1) {
+      scriptShown = true;
+      window.removeEventListener(aEvent.type, _onEvent);
+      runTest();
+    }
   });
 
   function runTest()
@@ -58,40 +57,40 @@ function test()
 function testScriptSearching() {
   gDebugger.DebuggerController.activeThread.resume(function() {
     gEditor = gDebugger.DebuggerView.editor;
-    gSources = gDebugger.DebuggerView.Sources;
+    gScripts = gDebugger.DebuggerView.Scripts;
     gSearchView = gDebugger.DebuggerView.GlobalSearch;
-    gSearchBox = gDebugger.DebuggerView.Filtering._searchbox;
+    gSearchBox = gScripts._searchbox;
 
     doSearch();
   });
 }
 
 function doSearch() {
-  is(gSearchView._container._list.childNodes.length, 0,
+  is(gSearchView._pane.childNodes.length, 0,
     "The global search pane shouldn't have any child nodes yet.");
-  is(gSearchView._container._parent.hidden, true,
+  is(gSearchView._pane.hidden, true,
     "The global search pane shouldn't be visible yet.");
   is(gSearchView._splitter.hidden, true,
     "The global search pane splitter shouldn't be visible yet.");
 
-  gDebugger.addEventListener("Debugger:GlobalSearch:MatchFound", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
-    info("Current script url:\n" + gSources.selectedValue + "\n");
+  window.addEventListener("Debugger:GlobalSearch:MatchFound", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
+    info("Current script url:\n" + gScripts.selected + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
-    let url = gSources.selectedValue;
+    let url = gScripts.selected;
     if (url.indexOf("-02.js") != -1) {
       executeSoon(function() {
         info("Editor caret position: " + gEditor.getCaretPosition().toSource() + "\n");
         ok(gEditor.getCaretPosition().line == 5 &&
            gEditor.getCaretPosition().col == 0,
           "The editor shouldn't have jumped to a matching line yet.");
-        is(gSources.visibleItems.length, 2,
+        is(gScripts.visibleItemsCount, 2,
           "Not all the scripts are shown after the global search.");
 
-        isnot(gSearchView._container._list.childNodes.length, 0,
+        isnot(gSearchView._pane.childNodes.length, 0,
           "The global search pane should be visible now.");
-        isnot(gSearchView._container._parent.hidden, true,
+        isnot(gSearchView._pane.hidden, true,
           "The global search pane should be visible now.");
         isnot(gSearchView._splitter.hidden, true,
           "The global search pane splitter should be visible now.");
@@ -108,8 +107,8 @@ function doSearch() {
 }
 
 function doFirstJump() {
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
+  window.addEventListener("Debugger:ScriptShown", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
     info("Current script url:\n" + aEvent.detail.url + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
@@ -120,7 +119,7 @@ function doFirstJump() {
         ok(gEditor.getCaretPosition().line == 4 &&
            gEditor.getCaretPosition().col == 6,
           "The editor didn't jump to the correct line. (1)");
-        is(gSources.visibleItems.length, 2,
+        is(gScripts.visibleItemsCount, 2,
           "Not all the correct scripts are shown after the search. (1)");
 
         doSecondJump();
@@ -130,13 +129,13 @@ function doFirstJump() {
     }
   });
   executeSoon(function() {
-    EventUtils.sendKey("DOWN", gDebugger);
+    EventUtils.sendKey("DOWN");
   });
 }
 
 function doSecondJump() {
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
+  window.addEventListener("Debugger:ScriptShown", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
     info("Current script url:\n" + aEvent.detail.url + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
@@ -147,7 +146,7 @@ function doSecondJump() {
         ok(gEditor.getCaretPosition().line == 5 &&
            gEditor.getCaretPosition().col == 6,
           "The editor didn't jump to the correct line. (2)");
-        is(gSources.visibleItems.length, 2,
+        is(gScripts.visibleItemsCount, 2,
           "Not all the correct scripts are shown after the search. (2)");
 
         doWrapAroundJump();
@@ -157,13 +156,13 @@ function doSecondJump() {
     }
   });
   executeSoon(function() {
-    EventUtils.sendKey("RETURN", gDebugger);
+    EventUtils.sendKey("RETURN");
   });
 }
 
 function doWrapAroundJump() {
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
+  window.addEventListener("Debugger:ScriptShown", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
     info("Current script url:\n" + aEvent.detail.url + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
@@ -174,7 +173,7 @@ function doWrapAroundJump() {
         ok(gEditor.getCaretPosition().line == 4 &&
            gEditor.getCaretPosition().col == 6,
           "The editor didn't jump to the correct line. (3)");
-        is(gSources.visibleItems.length, 2,
+        is(gScripts.visibleItemsCount, 2,
           "Not all the correct scripts are shown after the search. (3)");
 
         doBackwardsWrapAroundJump();
@@ -184,13 +183,13 @@ function doWrapAroundJump() {
     }
   });
   executeSoon(function() {
-    EventUtils.sendKey("ENTER", gDebugger);
+    EventUtils.sendKey("ENTER");
   });
 }
 
 function doBackwardsWrapAroundJump() {
-  gDebugger.addEventListener("Debugger:SourceShown", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
+  window.addEventListener("Debugger:ScriptShown", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
     info("Current script url:\n" + aEvent.detail.url + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
@@ -201,7 +200,7 @@ function doBackwardsWrapAroundJump() {
         ok(gEditor.getCaretPosition().line == 5 &&
            gEditor.getCaretPosition().col == 6,
           "The editor didn't jump to the correct line. (4)");
-        is(gSources.visibleItems.length, 2,
+        is(gScripts.visibleItemsCount, 2,
           "Not all the correct scripts are shown after the search. (4)");
 
         testSearchTokenEmpty();
@@ -211,29 +210,29 @@ function doBackwardsWrapAroundJump() {
     }
   });
   executeSoon(function() {
-    EventUtils.sendKey("UP", gDebugger);
+    EventUtils.sendKey("UP");
   });
 }
 
 function testSearchTokenEmpty() {
-  gDebugger.addEventListener("Debugger:GlobalSearch:TokenEmpty", function _onEvent(aEvent) {
-    gDebugger.removeEventListener(aEvent.type, _onEvent);
-    info("Current script url:\n" + gSources.selectedValue + "\n");
+  window.addEventListener("Debugger:GlobalSearch:TokenEmpty", function _onEvent(aEvent) {
+    window.removeEventListener(aEvent.type, _onEvent);
+    info("Current script url:\n" + gScripts.selected + "\n");
     info("Debugger editor text:\n" + gEditor.getText() + "\n");
 
-    let url = gSources.selectedValue;
+    let url = gScripts.selected;
     if (url.indexOf("-02.js") != -1) {
       executeSoon(function() {
         info("Editor caret position: " + gEditor.getCaretPosition().toSource() + "\n");
         ok(gEditor.getCaretPosition().line == 5 &&
            gEditor.getCaretPosition().col == 6,
           "The editor didn't remain at the correct line. (5)");
-        is(gSources.visibleItems.length, 2,
+        is(gScripts.visibleItemsCount, 2,
           "Not all the correct scripts are shown after the search. (5)");
 
-        is(gSearchView._container._list.childNodes.length, 0,
+        is(gSearchView._pane.childNodes.length, 0,
           "The global search pane shouldn't have any child nodes after clear().");
-        is(gSearchView._container._parent.hidden, true,
+        is(gSearchView._pane.hidden, true,
           "The global search pane shouldn't be visible after clear().");
         is(gSearchView._splitter.hidden, true,
           "The global search pane splitter shouldn't be visible after clear().");
@@ -259,7 +258,7 @@ function write(text) {
 
 function backspace(times) {
   for (let i = 0; i < times; i++) {
-    EventUtils.sendKey("BACK_SPACE", gDebugger);
+    EventUtils.sendKey("BACK_SPACE")
   }
 }
 
@@ -267,7 +266,7 @@ function append(text) {
   gSearchBox.focus();
 
   for (let i = 0; i < text.length; i++) {
-    EventUtils.sendChar(text[i], gDebugger);
+    EventUtils.sendChar(text[i]);
   }
   info("Editor caret position: " + gEditor.getCaretPosition().toSource() + "\n");
 }
@@ -279,7 +278,7 @@ registerCleanupFunction(function() {
   gDebuggee = null;
   gDebugger = null;
   gEditor = null;
-  gSources = null;
+  gScripts = null;
   gSearchView = null;
   gSearchBox = null;
 });

@@ -7,6 +7,8 @@
 #ifndef nsDOMStringMap_h
 #define nsDOMStringMap_h
 
+#include "nsIDOMDOMStringMap.h"
+
 #include "nsCycleCollectionParticipant.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
@@ -14,15 +16,12 @@
 #include "nsWrapperCache.h"
 #include "nsGenericHTMLElement.h"
 
-namespace mozilla {
-class ErrorResult;
-}
-
-class nsDOMStringMap : public nsISupports,
+class nsDOMStringMap : public nsIDOMDOMStringMap,
                        public nsWrapperCache
 {
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_NSIDOMDOMSTRINGMAP
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMStringMap)
 
   nsINode* GetParentObject()
@@ -30,15 +29,35 @@ public:
     return mElement;
   }
 
+  static nsDOMStringMap* FromSupports(nsISupports* aSupports)
+  {
+    nsIDOMDOMStringMap* map =
+      static_cast<nsDOMStringMap*>(aSupports);
+#ifdef DEBUG
+    {
+      nsCOMPtr<nsIDOMDOMStringMap> map_qi =
+        do_QueryInterface(aSupports);
+
+      // If this assertion fires the QI implementation for the object in
+      // question doesn't use the nsIDOMDOMStringMap pointer as the
+      // nsISupports pointer. That must be fixed, or we'll crash...
+      NS_ASSERTION(map_qi == map, "Uh, fix QI!");
+    }
+#endif
+
+    return static_cast<nsDOMStringMap*>(map);
+  }
+
+  
   nsDOMStringMap(nsGenericHTMLElement* aElement);
 
-  // WebIDL API
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
-  void NamedGetter(const nsAString& aProp, bool& found, nsString& aResult) const;
-  void NamedSetter(const nsAString& aProp, const nsAString& aValue,
-                   mozilla::ErrorResult& rv);
-  void NamedDeleter(const nsAString& aProp, bool &found);
-  void GetSupportedNames(nsTArray<nsString>& aNames);
+  // GetDataPropList is not defined in IDL due to difficulty
+  // of returning arrays in IDL. Instead, we cast to this
+  // class if this method needs to be called.
+  nsresult GetDataPropList(nsTArray<nsString>& aResult);
+
+  nsresult RemovePropInternal(nsIAtom* aAttr);
+  nsGenericHTMLElement* GetElement();
 
 private:
   virtual ~nsDOMStringMap();
@@ -47,8 +66,8 @@ protected:
   nsRefPtr<nsGenericHTMLElement> mElement;
   // Flag to guard against infinite recursion.
   bool mRemovingProp;
-  static bool DataPropToAttr(const nsAString& aProp, nsAString& aResult);
-  static bool AttrToDataProp(const nsAString& aAttr, nsAString& aResult);
+  bool DataPropToAttr(const nsAString& aProp, nsAString& aResult);
+  bool AttrToDataProp(const nsAString& aAttr, nsAString& aResult);
 };
 
 #endif

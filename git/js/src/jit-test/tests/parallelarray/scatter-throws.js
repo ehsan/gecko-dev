@@ -27,5 +27,4 @@ function testScatterThrows() {
 
 }
 
-// FIXME(bug 844886) sanity check argument types
-// if (getBuildConfiguration().parallelJS) testScatterThrows();
+testScatterThrows();

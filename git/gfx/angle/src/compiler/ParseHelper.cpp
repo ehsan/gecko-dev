@@ -10,7 +10,7 @@
 #include <stdio.h>
 
 #include "compiler/glslang.h"
-#include "compiler/preprocessor/SourceLocation.h"
+#include "compiler/preprocessor/new/SourceLocation.h"
 
 ///////////////////////////////////////////////////////////////////////
 //
@@ -846,26 +846,14 @@ bool TParseContext::arraySetMaxSize(TIntermSymbol *node, TType* type, int size, 
 //
 // Returns true if there was an error.
 //
-bool TParseContext::nonInitConstErrorCheck(int line, TString& identifier, TPublicType& type, bool array)
+bool TParseContext::nonInitConstErrorCheck(int line, TString& identifier, TPublicType& type)
 {
-    if (type.qualifier == EvqConst)
-    {
-        // Make the qualifier make sense.
+    //
+    // Make the qualifier make sense.
+    //
+    if (type.qualifier == EvqConst) {
         type.qualifier = EvqTemporary;
-        
-        if (array)
-        {
-            error(line, "arrays may not be declared constant since they cannot be initialized", identifier.c_str());
-        }
-        else if (type.isStructureContainingArrays())
-        {
-            error(line, "structures containing arrays may not be declared constant since they cannot be initialized", identifier.c_str());
-        }
-        else
-        {
-            error(line, "variables with qualifier 'const' must be initialized", identifier.c_str());
-        }
-
+        error(line, "variables with qualifier 'const' must be initialized", identifier.c_str());
         return true;
     }
 

@@ -14,6 +14,8 @@
 #include "nsNetUtil.h"
 #include "nsISupportsPriority.h"
 #include "nsIAuthPromptProvider.h"
+#include "nsIDocShellTreeItem.h"
+#include "nsIBadCertListener2.h"
 #include "nsICacheEntryDescriptor.h"
 #include "nsSerializationHelper.h"
 #include "nsISerializable.h"

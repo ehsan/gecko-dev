@@ -8,7 +8,6 @@
 
 #include "mozStorageSQLFunctions.h"
 #include "nsUnicharUtils.h"
-#include <algorithm>
 
 namespace mozilla {
 namespace storage {
@@ -251,7 +250,7 @@ levenshteinDistance(const nsAString &aStringS,
             int aPrime = prevRow[si - 1] + cost;
             int bPrime = prevRow[si] + 1;
             int cPrime = currRow[si - 1] + 1;
-            currRow[si] = std::min(aPrime, std::min(bPrime, cPrime));
+            currRow[si] = NS_MIN(aPrime, NS_MIN(bPrime, cPrime));
         }
 
         // Advance to the next row.  The current row becomes the previous

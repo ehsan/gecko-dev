@@ -21,8 +21,6 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "WindowIdentifier.h"
 #include "mozilla/dom/ScreenOrientation.h"
-#include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/ContentParent.h"
 
 #ifdef XP_WIN
 #include <process.h>
@@ -30,12 +28,11 @@
 #endif
 
 using namespace mozilla::services;
-using namespace mozilla::dom;
 
 #define PROXY_IF_SANDBOXED(_call)                 \
   do {                                            \
     if (InSandbox()) {                            \
-      if (!hal_sandbox::HalChildDestroyed()) {    \
+      if (!hal_sandbox::IsHalChildLive()) {  \
         hal_sandbox::_call;                       \
       }                                           \
     } else {                                      \
@@ -46,7 +43,7 @@ using namespace mozilla::dom;
 #define RETURN_PROXY_IF_SANDBOXED(_call, defValue)\
   do {                                            \
     if (InSandbox()) {                            \
-      if (hal_sandbox::HalChildDestroyed()) {     \
+      if (hal_sandbox::IsHalChildLive()) {   \
         return defValue;                          \
       }                                           \
       return hal_sandbox::_call;                  \
@@ -58,15 +55,7 @@ using namespace mozilla::dom;
 namespace mozilla {
 namespace hal {
 
-PRLogModuleInfo *
-GetHalLog()
-{
-  static PRLogModuleInfo *sHalLog;
-  if (!sHalLog) {
-    sHalLog = PR_NewLogModule("hal");
-  }
-  return sHalLog;
-}
+PRLogModuleInfo *sHalLog = PR_NewLogModule("hal");
 
 namespace {
 
@@ -98,7 +87,7 @@ WindowIsActive(nsIDOMWindow *window)
   NS_ENSURE_TRUE(doc, false);
 
   bool hidden = true;
-  doc->GetHidden(&hidden);
+  doc->GetMozHidden(&hidden);
   return !hidden;
 }
 
@@ -134,17 +123,20 @@ Vibrate(const nsTArray<uint32_t>& pattern, const WindowIdentifier &id)
     return;
   }
 
-  if (!InSandbox()) {
-    if (!gLastIDToVibrate) {
-      InitLastIDToVibrate();
-    }
-    *gLastIDToVibrate = id.AsArray();
+  if (InSandbox()) {
+    hal_sandbox::Vibrate(pattern, id);
   }
+  else {
+    if (!gLastIDToVibrate)
+      InitLastIDToVibrate();
+    *gLastIDToVibrate = id.AsArray();
 
-  // Don't forward our ID if we are not in the sandbox, because hal_impl 
-  // doesn't need it, and we don't want it to be tempted to read it.  The
-  // empty identifier will assert if it's used.
-  PROXY_IF_SANDBOXED(Vibrate(pattern, InSandbox() ? id : WindowIdentifier()));
+    HAL_LOG(("Vibrate: Forwarding to hal_impl."));
+
+    // hal_impl doesn't need |id|. Send it an empty id, which will
+    // assert if it's used.
+    hal_impl::Vibrate(pattern, WindowIdentifier());
+  }
 }
 
 void
@@ -175,11 +167,15 @@ CancelVibrate(const WindowIdentifier &id)
   // to start a vibration, and only accepts cancellation requests from
   // the same window.  All other cancellation requests are ignored.
 
-  if (InSandbox() || (gLastIDToVibrate && *gLastIDToVibrate == id.AsArray())) {
-    // Don't forward our ID if we are not in the sandbox, because hal_impl 
-    // doesn't need it, and we don't want it to be tempted to read it.  The
-    // empty identifier will assert if it's used.
-    PROXY_IF_SANDBOXED(CancelVibrate(InSandbox() ? id : WindowIdentifier()));
+  if (InSandbox()) {
+    hal_sandbox::CancelVibrate(id);
+  }
+  else if (gLastIDToVibrate && *gLastIDToVibrate == id.AsArray()) {
+    // Don't forward our ID to hal_impl. It doesn't need it, and we
+    // don't want it to be tempted to read it.  The empty identifier
+    // will assert if it's used.
+    HAL_LOG(("CancelVibrate: Forwarding to hal_impl."));
+    hal_impl::CancelVibrate(WindowIdentifier());
   }
 }
 
@@ -629,16 +625,6 @@ void StartForceQuitWatchdog(ShutdownMode aMode, int32_t aTimeoutSecs)
   PROXY_IF_SANDBOXED(StartForceQuitWatchdog(aMode, aTimeoutSecs));
 }
 
-void StartMonitoringGamepadStatus()
-{
-  PROXY_IF_SANDBOXED(StartMonitoringGamepadStatus());
-}
-
-void StopMonitoringGamepadStatus()
-{
-  PROXY_IF_SANDBOXED(StopMonitoringGamepadStatus());
-}
-
 void
 RegisterWakeLockObserver(WakeLockObserver* aObserver)
 {
@@ -654,24 +640,16 @@ UnregisterWakeLockObserver(WakeLockObserver* aObserver)
 }
 
 void
-ModifyWakeLock(const nsAString& aTopic,
+ModifyWakeLock(const nsAString &aTopic,
                WakeLockControl aLockAdjust,
-               WakeLockControl aHiddenAdjust,
-               uint64_t aProcessID /* = CONTENT_PROCESS_ID_UNKNOWN */)
+               WakeLockControl aHiddenAdjust)
 {
   AssertMainThread();
-
-  if (aProcessID == CONTENT_PROCESS_ID_UNKNOWN) {
-    aProcessID = InSandbox() ? ContentChild::GetSingleton()->GetID() :
-                               CONTENT_PROCESS_ID_MAIN;
-  }
-
-  PROXY_IF_SANDBOXED(ModifyWakeLock(aTopic, aLockAdjust,
-                                    aHiddenAdjust, aProcessID));
+  PROXY_IF_SANDBOXED(ModifyWakeLock(aTopic, aLockAdjust, aHiddenAdjust));
 }
 
 void
-GetWakeLockInfo(const nsAString& aTopic, WakeLockInformation* aWakeLockInfo)
+GetWakeLockInfo(const nsAString &aTopic, WakeLockInformation *aWakeLockInfo)
 {
   AssertMainThread();
   PROXY_IF_SANDBOXED(GetWakeLockInfo(aTopic, aWakeLockInfo));
@@ -851,31 +829,6 @@ void
 SetProcessPriority(int aPid, ProcessPriority aPriority)
 {
   PROXY_IF_SANDBOXED(SetProcessPriority(aPid, aPriority));
-}
-
-// From HalTypes.h.
-const char*
-ProcessPriorityToString(ProcessPriority aPriority)
-{
-  switch (aPriority) {
-  case PROCESS_PRIORITY_MASTER:
-    return "MASTER";
-  case PROCESS_PRIORITY_FOREGROUND_HIGH:
-    return "FOREGROUND_HIGH";
-  case PROCESS_PRIORITY_FOREGROUND:
-    return "FOREGROUND";
-  case PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE:
-    return "BACKGROUND_PERCEIVABLE";
-  case PROCESS_PRIORITY_BACKGROUND_HOMESCREEN:
-    return "BACKGROUND_HOMESCREEN";
-  case PROCESS_PRIORITY_BACKGROUND:
-    return "BACKGROUND";
-  case PROCESS_PRIORITY_UNKNOWN:
-    return "UNKNOWN";
-  default:
-    MOZ_ASSERT(false);
-    return "???";
-  }
 }
 
 static StaticAutoPtr<ObserverList<FMRadioOperationInformation> > sFMRadioObservers;

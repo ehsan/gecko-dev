@@ -13,7 +13,7 @@ function test() {
     gTab = aTab;
     gDebuggee = aDebuggee;
     gPane = aPane;
-    gDebugger = gPane.panelWin;
+    gDebugger = gPane.contentWindow;
 
     testSimpleCall();
   });
@@ -23,29 +23,28 @@ function testSimpleCall() {
   gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
     Services.tm.currentThread.dispatch({ run: function() {
 
-      testlabelshortening();
+      testScriptLabelShortening();
     }}, 0);
   });
 
   gDebuggee.simpleCall();
 }
 
-function testlabelshortening() {
+function testScriptLabelShortening() {
   gDebugger.DebuggerController.activeThread.resume(function() {
-    let sv = gDebugger.SourceUtils;
-    let vs = gDebugger.DebuggerView.Sources;
+    let vs = gDebugger.DebuggerView.Scripts;
     let ss = gDebugger.DebuggerController.SourceScripts;
     vs.empty();
-    vs._container.removeEventListener("select", vs._onScriptsChange, false);
+    vs._scripts.removeEventListener("select", vs._onScriptsChange, false);
 
-    is(sv.trimUrlQuery("a/b/c.d?test=1&random=4#reference"), "a/b/c.d",
+    is(ss.trimUrlQuery("a/b/c.d?test=1&random=4#reference"), "a/b/c.d",
       "Trimming the url query isn't done properly.");
 
     let ellipsis = Services.prefs.getComplexValue("intl.ellipsis", Ci.nsIPrefLocalizedString);
     let nanana = new Array(20).join(NaN);
 
     let superLargeLabel = new Array(100).join("Beer can in Jamaican sounds like Bacon!");
-    let trimmedLargeLabel = sv.trimUrlLength(superLargeLabel, 1234);
+    let trimmedLargeLabel = ss.trimUrlLength(superLargeLabel, 1234);
     is(trimmedLargeLabel.length, 1235,
       "Trimming large labels isn't done properly.");
     ok(trimmedLargeLabel.endsWith(ellipsis),
@@ -61,11 +60,11 @@ function testlabelshortening() {
       { href: "ftp://interesting.address.com/random/", leaf: "script.js" },
       { href: "ftp://interesting.address.com/random/", leaf: "x/script.js" },
       { href: "ftp://interesting.address.com/random/", leaf: "x/y/script.js?a=1" },
-      { href: "ftp://interesting.address.com/random/x/", leaf: "y/script.js?a=1&b=2" },
-      { href: "ftp://interesting.address.com/random/x/y/", leaf: "script.js?a=1&b=2&c=3" },
-      { href: "ftp://interesting.address.com/random/", leaf: "x/y/script.js?a=2" },
-      { href: "ftp://interesting.address.com/random/x/", leaf: "y/script.js?a=2&b=3" },
-      { href: "ftp://interesting.address.com/random/x/y/", leaf: "script.js?a=2&b=3&c=4" },
+      { href: "ftp://interesting.address.com/random/x/", leaf: "y/script.js?a=1&b=2", dupe: true },
+      { href: "ftp://interesting.address.com/random/x/y/", leaf: "script.js?a=1&b=2&c=3", dupe: true },
+      { href: "ftp://interesting.address.com/random/", leaf: "x/y/script.js?a=2", dupe: true },
+      { href: "ftp://interesting.address.com/random/x/", leaf: "y/script.js?a=2&b=3", dupe: true },
+      { href: "ftp://interesting.address.com/random/x/y/", leaf: "script.js?a=2&b=3&c=4", dupe: true },
 
       { href: "file://random/", leaf: "script_t1.js&a=1&b=2&c=3" },
       { href: "file://random/", leaf: "script_t2_1.js#id" },
@@ -81,23 +80,23 @@ function testlabelshortening() {
     urls.forEach(function(url) {
       executeSoon(function() {
         let loc = url.href + url.leaf;
-        vs.push([sv.trimUrlLength(sv.getSourceLabel(loc)), loc], { forced: true });
+        vs.addScript(ss.getScriptLabel(loc, url.href), { url: loc }, true);
       });
     });
 
     executeSoon(function() {
       info("Script labels:");
-      info(vs.labels.toSource());
+      info(vs.scriptLabels.toSource());
 
       info("Script locations:");
-      info(vs.values.toSource());
+      info(vs.scriptLocations.toSource());
 
       urls.forEach(function(url) {
         let loc = url.href + url.leaf;
         if (url.dupe) {
-          ok(!vs.containsValue(loc), "Shouldn't contain script: " + loc);
+          ok(!vs.contains(loc), "Shouldn't contain script: " + loc);
         } else {
-          ok(vs.containsValue(loc), "Should contain script: " + loc);
+          ok(vs.contains(loc), "Should contain script: " + loc);
         }
       });
 
@@ -137,18 +136,18 @@ function testlabelshortening() {
       ok(vs.containsLabel(nanana + "Batman!" + ellipsis),
         "Script (15) label is incorrect.");
 
-      is(vs.itemCount, urls.filter(function(url) !url.dupe).length,
+      is(vs._scripts.itemCount, urls.filter(function(url) !url.dupe).length,
         "Didn't get the correct number of scripts in the list.");
 
-      is(vs.getItemByValue("http://some.address.com/random/subrandom/").label, "random/subrandom/",
-        "Scripts.getItemByValue isn't functioning properly (0).");
-      is(vs.getItemByValue("http://some.address.com/random/suprandom/?a=1").label, "random/suprandom/?a=1",
-        "Scripts.getItemByValue isn't functioning properly (1).");
+      is(vs.getScriptByLocation("http://some.address.com/random/subrandom/").label, "random/subrandom/",
+        "Scripts.getScriptByLocation isn't functioning properly (0).");
+      is(vs.getScriptByLocation("http://some.address.com/random/suprandom/?a=1").label, "random/suprandom/?a=1",
+        "Scripts.getScriptByLocation isn't functioning properly (1).");
 
-      is(vs.getItemByLabel("random/subrandom/").value, "http://some.address.com/random/subrandom/",
-        "Scripts.getItemByLabel isn't functioning properly (0).");
-      is(vs.getItemByLabel("random/suprandom/?a=1").value, "http://some.address.com/random/suprandom/?a=1",
-        "Scripts.getItemByLabel isn't functioning properly (1).");
+      is(vs.getScriptByLabel("random/subrandom/").value, "http://some.address.com/random/subrandom/",
+        "Scripts.getScriptByLabel isn't functioning properly (0).");
+      is(vs.getScriptByLabel("random/suprandom/?a=1").value, "http://some.address.com/random/suprandom/?a=1",
+        "Scripts.getScriptByLabel isn't functioning properly (1).");
 
 
       closeDebuggerAndFinish();

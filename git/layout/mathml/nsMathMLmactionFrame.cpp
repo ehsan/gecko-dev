@@ -91,7 +91,7 @@ nsMathMLmactionFrame::~nsMathMLmactionFrame()
   }
 }
 
-void
+NS_IMETHODIMP
 nsMathMLmactionFrame::Init(nsIContent*      aContent,
                            nsIFrame*        aParent,
                            nsIFrame*        aPrevInFlow)
@@ -104,7 +104,7 @@ nsMathMLmactionFrame::Init(nsIContent*      aContent,
   mActionType = GetActionType(aContent);
 
   // Let the base class do the rest
-  nsMathMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
+  return nsMathMLContainerFrame::Init(aContent, aParent, aPrevInFlow);
 }
 
 NS_IMETHODIMP
@@ -271,7 +271,7 @@ nsMathMLmactionFrame::AttributeChanged(int32_t  aNameSpaceID,
 }
 
 //  Only paint the selected child...
-void
+NS_IMETHODIMP
 nsMathMLmactionFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                        const nsRect&           aDirtyRect,
                                        const nsDisplayListSet& aLists)
@@ -280,24 +280,26 @@ nsMathMLmactionFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // We can't call nsDisplayMathMLError from here,
   // so ask nsMathMLContainerFrame to do the work for us.
   if (NS_MATHML_HAS_ERROR(mPresentationData.flags)) {
-    nsMathMLContainerFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
-    return;
+    return nsMathMLContainerFrame::BuildDisplayList(aBuilder, aDirtyRect, aLists);
   }
 
-  DisplayBorderBackgroundOutline(aBuilder, aLists);
+  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsIFrame* childFrame = GetSelectedFrame();
   if (childFrame) {
     // Put the child's background directly onto the content list
     nsDisplayListSet set(aLists, aLists.Content());
     // The children should be in content order
-    BuildDisplayListForChild(aBuilder, childFrame, aDirtyRect, set);
+    rv = BuildDisplayListForChild(aBuilder, childFrame, aDirtyRect, set);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
 #if defined(DEBUG) && defined(SHOW_BOUNDING_BOX)
   // visual debug
-  DisplayBoundingMetrics(aBuilder, this, mReference, mBoundingMetrics, aLists);
+  rv = DisplayBoundingMetrics(aBuilder, this, mReference, mBoundingMetrics, aLists);
 #endif
+  return rv;
 }
 
 // Only reflow the selected child ...

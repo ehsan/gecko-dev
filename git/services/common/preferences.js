@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["Preferences"];
+let EXPORTED_SYMBOLS = ["Preferences"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -18,15 +18,14 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 const MAX_INT = Math.pow(2, 31) - 1;
 const MIN_INT = -MAX_INT;
 
-this.Preferences =
-  function Preferences(args) {
+function Preferences(args) {
     if (isObject(args)) {
       if (args.branch)
         this._prefBranch = args.branch;
       if (args.defaultBranch)
         this._defaultBranch = args.defaultBranch;
-      if (args.privacyContext)
-        this._privacyContext = args.privacyContext;
+      if (args.site)
+        this._site = args.site;
     }
     else if (args)
       this._prefBranch = args;
@@ -48,7 +47,10 @@ Preferences.prototype = {
     if (Array.isArray(prefName))
       return prefName.map(function(v) this.get(v, defaultValue), this);
 
-    return this._get(prefName, defaultValue);
+    if (this._site)
+      return this._siteGet(prefName, defaultValue);
+    else
+      return this._get(prefName, defaultValue);
   },
 
   _get: function(prefName, defaultValue) {
@@ -71,6 +73,11 @@ Preferences.prototype = {
               this._prefSvc.getPrefType(prefName) + ", which I don't know " +
               "how to handle.";
     }
+  },
+
+  _siteGet: function(prefName, defaultValue) {
+    let value = this._contentPrefSvc.getPref(this._site, this._prefBranch + prefName);
+    return typeof value != "undefined" ? value : defaultValue;
   },
 
   /**
@@ -102,7 +109,10 @@ Preferences.prototype = {
       return;
     }
 
-    this._set(prefName, prefValue);
+    if (this._site)
+      this._siteSet(prefName, prefValue);
+    else
+      this._set(prefName, prefValue);
   },
 
   _set: function(prefName, prefValue) {
@@ -149,6 +159,10 @@ Preferences.prototype = {
     }
   },
 
+  _siteSet: function(prefName, prefValue) {
+    this._contentPrefSvc.setPref(this._site, this._prefBranch + prefName, prefValue);
+  },
+
   /**
    * Whether or not the given pref has a value.  This is different from isSet
    * because it returns true whether the value of the pref is a default value
@@ -167,11 +181,18 @@ Preferences.prototype = {
     if (Array.isArray(prefName))
       return prefName.map(this.has, this);
 
-    return this._has(prefName);
+    if (this._site)
+      return this._siteHas(prefName);
+    else
+      return this._has(prefName);
   },
 
   _has: function(prefName) {
     return (this._prefSvc.getPrefType(prefName) != Ci.nsIPrefBranch.PREF_INVALID);
+  },
+
+  _siteHas: function(prefName) {
+    return this._contentPrefSvc.hasPref(this._site, this._prefBranch + prefName);
   },
 
   /**
@@ -208,7 +229,10 @@ Preferences.prototype = {
       return;
     }
 
-    this._reset(prefName);
+    if (this._site)
+      this._siteReset(prefName);
+    else
+      this._reset(prefName);
   },
 
   _reset: function(prefName) {
@@ -226,6 +250,10 @@ Preferences.prototype = {
       if (ex.result != Cr.NS_ERROR_UNEXPECTED)
         throw ex;
     }
+  },
+
+  _siteReset: function(prefName) {
+    return this._contentPrefSvc.removePref(this._site, this._prefBranch + prefName);
   },
 
   /**
@@ -359,6 +387,12 @@ Preferences.prototype = {
    */
   _prefBranch: "",
 
+  site: function(site) {
+    if (!(site instanceof Ci.nsIURI))
+      site = this._ioSvc.newURI("http://" + site, null, null);
+    return new Preferences({ branch: this._prefBranch, site: site });
+  },
+
   /**
    * Preferences Service
    * @private
@@ -385,6 +419,17 @@ Preferences.prototype = {
                 getService(Ci.nsIIOService);
     this.__defineGetter__("_ioSvc", function() ioSvc);
     return this._ioSvc;
+  },
+
+  /**
+   * Site Preferences Service
+   * @private
+   */
+  get _contentPrefSvc() {
+    let contentPrefSvc = Cc["@mozilla.org/content-pref/service;1"].
+                         getService(Ci.nsIContentPrefService);
+    this.__defineGetter__("_contentPrefSvc", function() contentPrefSvc);
+    return this._contentPrefSvc;
   }
 
 };

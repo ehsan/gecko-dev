@@ -5,7 +5,7 @@
 // This file tests that dbs are using 32k pagesize
 
 const kExpectedPageSize = 32768; // 32K
-const kExpectedCacheSize = -2048; // 2MiB
+const kExpectedCacheSize = 128; // (4MiB / 32KiB)
 
 function check_size(db)
 {

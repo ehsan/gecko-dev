@@ -3,8 +3,6 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const DEFAULT_QUOTA = 50 * 1024 * 1024;
-
 var bufferCache = [];
 var utils = SpecialPowers.getDOMWindowUtils(window);
 
@@ -49,12 +47,12 @@ function compareBuffers(buffer1, buffer2)
 
 function getBlob(type, view)
 {
-  return SpecialPowers.unwrap(utils.getBlob([view], {type: type}));
+  return utils.getBlob([view], {type: type});
 }
 
 function getFile(name, type, view)
 {
-  return SpecialPowers.unwrap(utils.getFile(name, [view], {type: type}));
+  return utils.getFile(name, [view], {type: type});
 }
 
 function getRandomBlob(size)
@@ -173,8 +171,8 @@ function grabFileUsageAndContinueHandler(usage, fileUsage)
 function getUsage(usageHandler)
 {
   let comp = SpecialPowers.wrap(Components);
-  let quotaManager = comp.classes["@mozilla.org/dom/quota/manager;1"]
-                         .getService(comp.interfaces.nsIQuotaManager);
+  let idbManager = comp.classes["@mozilla.org/dom/indexeddb/manager;1"]
+                       .getService(comp.interfaces.nsIIndexedDatabaseManager);
 
   let uri = SpecialPowers.getDocumentURIObject(window.document);
   let callback = {
@@ -183,7 +181,26 @@ function getUsage(usageHandler)
     }
   };
 
-  quotaManager.getUsageForURI(uri, callback);
+  idbManager.getUsageForURI(uri, callback);
+}
+
+function getUsageSync()
+{
+  let usage;
+
+  getUsage(function(aUsage, aFileUsage) {
+    usage = aUsage;
+  });
+
+  let comp = SpecialPowers.wrap(Components);
+  let thread = comp.classes["@mozilla.org/thread-manager;1"]
+                   .getService(comp.interfaces.nsIThreadManager)
+                   .currentThread;
+  while (!usage) {
+    thread.processNextEvent(true);
+  }
+
+  return usage;
 }
 
 function scheduleGC()

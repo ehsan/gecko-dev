@@ -39,10 +39,7 @@ LIRGeneratorShared::use(MDefinition *mir, LUse policy)
 template <size_t X, size_t Y> bool
 LIRGeneratorShared::define(LInstructionHelper<1, X, Y> *lir, MDefinition *mir, const LDefinition &def)
 {
-    // Call instructions should use defineReturn.
-    JS_ASSERT(!lir->isCall());
-
-    uint32_t vreg = getVirtualRegister();
+    uint32 vreg = getVirtualRegister();
     if (vreg >= MAX_VIRTUAL_REGISTERS)
         return false;
 
@@ -76,7 +73,7 @@ LIRGeneratorShared::defineFixed(LInstructionHelper<1, X, Y> *lir, MDefinition *m
 }
 
 template <size_t Ops, size_t Temps> bool
-LIRGeneratorShared::defineReuseInput(LInstructionHelper<1, Ops, Temps> *lir, MDefinition *mir, uint32_t operand)
+LIRGeneratorShared::defineReuseInput(LInstructionHelper<1, Ops, Temps> *lir, MDefinition *mir, uint32 operand)
 {
     // The input should be used at the start of the instruction, to avoid moves.
     JS_ASSERT(lir->getOperand(operand)->toUse()->usedAtStart());
@@ -93,10 +90,7 @@ template <size_t Ops, size_t Temps> bool
 LIRGeneratorShared::defineBox(LInstructionHelper<BOX_PIECES, Ops, Temps> *lir, MDefinition *mir,
                               LDefinition::Policy policy)
 {
-    // Call instructions should use defineReturn.
-    JS_ASSERT(!lir->isCall());
-
-    uint32_t vreg = getVirtualRegister();
+    uint32 vreg = getVirtualRegister();
     if (vreg >= MAX_VIRTUAL_REGISTERS)
         return false;
 
@@ -114,14 +108,30 @@ LIRGeneratorShared::defineBox(LInstructionHelper<BOX_PIECES, Ops, Temps> *lir, M
     return add(lir);
 }
 
-bool
-LIRGeneratorShared::defineReturn(LInstruction *lir, MDefinition *mir)
+template <size_t Ops, size_t Temps> bool
+LIRGeneratorShared::defineReturn(LInstructionHelper<BOX_PIECES, Ops, Temps> *lir, MDefinition *mir)
+{
+    if (!defineBox(lir, mir, LDefinition::PRESET))
+        return false;
+
+#if defined(JS_NUNBOX32)
+    lir->getDef(TYPE_INDEX)->setOutput(LGeneralReg(JSReturnReg_Type));
+    lir->getDef(PAYLOAD_INDEX)->setOutput(LGeneralReg(JSReturnReg_Data));
+#elif defined(JS_PUNBOX64)
+    lir->getDef(0)->setOutput(LGeneralReg(JSReturnReg));
+#endif
+
+    return true;
+}
+
+template <size_t Defs, size_t Ops, size_t Temps> bool
+LIRGeneratorShared::defineVMReturn(LInstructionHelper<Defs, Ops, Temps> *lir, MDefinition *mir)
 {
     lir->setMir(mir);
 
     JS_ASSERT(lir->isCall());
 
-    uint32_t vreg = getVirtualRegister();
+    uint32 vreg = getVirtualRegister();
     if (vreg >= MAX_VIRTUAL_REGISTERS)
         return false;
 
@@ -139,12 +149,8 @@ LIRGeneratorShared::defineReturn(LInstruction *lir, MDefinition *mir)
         lir->setDef(0, LDefinition(vreg, LDefinition::BOX, LGeneralReg(JSReturnReg)));
 #endif
         break;
-      case MIRType_Double:
-        lir->setDef(0, LDefinition(vreg, LDefinition::DOUBLE, LFloatReg(ReturnFloatReg)));
-        break;
       default:
         LDefinition::Type type = LDefinition::TypeFrom(mir->type());
-        JS_ASSERT(type != LDefinition::DOUBLE);
         lir->setDef(0, LDefinition(vreg, type, LGeneralReg(ReturnReg)));
         break;
     }
@@ -182,7 +188,7 @@ LIRGeneratorShared::redefine(MDefinition *def, MDefinition *as)
 bool
 LIRGeneratorShared::defineAs(LInstruction *outLir, MDefinition *outMir, MDefinition *inMir)
 {
-    uint32_t vreg = inMir->virtualRegister();
+    uint32 vreg = inMir->virtualRegister();
     LDefinition::Policy policy = LDefinition::PASSTHROUGH;
 
     if (outMir->type() == MIRType_Value) {
@@ -316,16 +322,10 @@ LIRGeneratorShared::useFixed(MDefinition *mir, FloatRegister reg)
     return use(mir, LUse(reg));
 }
 
-LUse
-LIRGeneratorShared::useFixed(MDefinition *mir, AnyRegister reg)
-{
-    return reg.isFloat() ? use(mir, reg.fpu()) : use(mir, reg.gpr());
-}
-
 LDefinition
 LIRGeneratorShared::temp(LDefinition::Type type, LDefinition::Policy policy)
 {
-    uint32_t vreg = getVirtualRegister();
+    uint32 vreg = getVirtualRegister();
     if (vreg >= MAX_VIRTUAL_REGISTERS) {
         gen->abort("max virtual registers");
         return LDefinition();
@@ -348,7 +348,7 @@ LIRGeneratorShared::tempFloat()
 }
 
 LDefinition
-LIRGeneratorShared::tempCopy(MDefinition *input, uint32_t reusedInput)
+LIRGeneratorShared::tempCopy(MDefinition *input, uint32 reusedInput)
 {
     JS_ASSERT(input->virtualRegister());
     LDefinition t = temp(LDefinition::TypeFrom(input->type()), LDefinition::MUST_REUSE_INPUT);
@@ -378,7 +378,7 @@ LIRGeneratorShared::add(T *ins, MInstruction *mir)
 // abstracted because MBox is a special value-returning instruction that
 // redefines its input payload if its input is not constant. Therefore, it is
 // illegal to request a box's payload by adding VREG_DATA_OFFSET to its raw id.
-static inline uint32_t
+static inline uint32
 VirtualRegisterOfPayload(MDefinition *mir)
 {
     if (mir->isBox()) {

@@ -11,7 +11,6 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/quota/QuotaManager.h"
 
 #include "AsyncConnectionHelper.h"
 #include "DatabaseInfo.h"
@@ -20,11 +19,11 @@
 #include "IDBIndex.h"
 #include "IDBObjectStore.h"
 #include "IDBTransaction.h"
+#include "IndexedDatabaseManager.h"
 
 USING_INDEXEDDB_NAMESPACE
 
 using namespace mozilla::dom;
-using mozilla::dom::quota::QuotaManager;
 
 namespace {
 
@@ -92,8 +91,8 @@ public:
   virtual nsresult
   DoDatabaseWork(mozIStorageConnection* aConnection) MOZ_OVERRIDE;
 
-  virtual already_AddRefed<nsIDOMEvent>
-  CreateSuccessEvent(mozilla::dom::EventTarget* aOwner) MOZ_OVERRIDE;
+  virtual already_AddRefed<nsDOMEvent>
+  CreateSuccessEvent() MOZ_OVERRIDE;
 
   virtual nsresult
   GetSuccessResult(JSContext* aCx, jsval* aVal) MOZ_OVERRIDE;
@@ -141,7 +140,7 @@ public:
     }
 
     nsRefPtr<nsDOMEvent> event =
-      IDBVersionChangeEvent::Create(mDatabase, mOldVersion, mNewVersion);
+      IDBVersionChangeEvent::Create(mOldVersion, mNewVersion);
     MOZ_ASSERT(event);
 
     bool dummy;
@@ -160,9 +159,6 @@ public:
 
 IndexedDBChild::IndexedDBChild(const nsCString& aASCIIOrigin)
 : mFactory(nullptr), mASCIIOrigin(aASCIIOrigin)
-#ifdef DEBUG
-  , mDisconnected(false)
-#endif
 {
   MOZ_COUNT_CTOR(IndexedDBChild);
 }
@@ -181,21 +177,6 @@ IndexedDBChild::SetFactory(IDBFactory* aFactory)
 
   aFactory->SetActor(this);
   mFactory = aFactory;
-}
-
-void
-IndexedDBChild::Disconnect()
-{
-#ifdef DEBUG
-  MOZ_ASSERT(!mDisconnected);
-  mDisconnected = true;
-#endif
-
-  const InfallibleTArray<PIndexedDBDatabaseChild*>& databases =
-    ManagedPIndexedDBDatabaseChild();
-  for (uint32_t i = 0; i < databases.Length(); ++i) {
-    static_cast<IndexedDBDatabaseChild*>(databases[i])->Disconnect();
-  }
 }
 
 void
@@ -265,16 +246,6 @@ IndexedDBDatabaseChild::SetRequest(IDBOpenDBRequest* aRequest)
   mRequest = aRequest;
 }
 
-void
-IndexedDBDatabaseChild::Disconnect()
-{
-  const InfallibleTArray<PIndexedDBTransactionChild*>& transactions =
-    ManagedPIndexedDBTransactionChild();
-  for (uint32_t i = 0; i < transactions.Length(); ++i) {
-    static_cast<IndexedDBTransactionChild*>(transactions[i])->Disconnect();
-  }
-}
-
 bool
 IndexedDBDatabaseChild::EnsureDatabase(
                            IDBOpenDBRequest* aRequest,
@@ -286,7 +257,8 @@ IndexedDBDatabaseChild::EnsureDatabase(
     databaseId = mDatabase->Id();
   }
   else {
-    databaseId = QuotaManager::GetStorageId(aDBInfo.origin, aDBInfo.name);
+    databaseId =
+      IndexedDatabaseManager::GetDatabaseId(aDBInfo.origin, aDBInfo.name);
   }
   NS_ENSURE_TRUE(databaseId, false);
 
@@ -386,7 +358,7 @@ IndexedDBDatabaseChild::RecvSuccess(
     openHelper = new IPCOpenDatabaseHelper(mDatabase, request);
   }
 
-  ImmediateRunEventTarget target;
+  MainThreadEventTarget target;
   if (NS_FAILED(openHelper->Dispatch(&target))) {
     NS_WARNING("Dispatch of IPCOpenDatabaseHelper failed!");
     return false;
@@ -418,7 +390,7 @@ IndexedDBDatabaseChild::RecvError(const nsresult& aRv)
 
   openHelper->SetError(aRv);
 
-  ImmediateRunEventTarget target;
+  MainThreadEventTarget target;
   if (NS_FAILED(openHelper->Dispatch(&target))) {
     NS_WARNING("Dispatch of IPCOpenDatabaseHelper failed!");
     return false;
@@ -434,9 +406,10 @@ IndexedDBDatabaseChild::RecvBlocked(const uint64_t& aOldVersion)
   MOZ_ASSERT(!mDatabase);
 
   nsCOMPtr<nsIRunnable> runnable =
-    IDBVersionChangeEvent::CreateBlockedRunnable(mRequest, aOldVersion, mVersion);
+    IDBVersionChangeEvent::CreateBlockedRunnable(aOldVersion, mVersion,
+                                                 mRequest);
 
-  ImmediateRunEventTarget target;
+  MainThreadEventTarget target;
   if (NS_FAILED(target.Dispatch(runnable, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Dispatch of blocked event failed!");
   }
@@ -453,7 +426,7 @@ IndexedDBDatabaseChild::RecvVersionChange(const uint64_t& aOldVersion,
   nsCOMPtr<nsIRunnable> runnable =
     new VersionChangeRunnable(mDatabase, aOldVersion, aNewVersion);
 
-  ImmediateRunEventTarget target;
+  MainThreadEventTarget target;
   if (NS_FAILED(target.Dispatch(runnable, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Dispatch of versionchange event failed!");
   }
@@ -521,13 +494,13 @@ IndexedDBDatabaseChild::RecvPIndexedDBTransactionConstructor(
   mDatabase->EnterSetVersionTransaction();
   mDatabase->mPreviousDatabaseInfo->version = oldVersion;
 
-  actor->SetTransaction(transaction);
-
-  ImmediateRunEventTarget target;
+  MainThreadEventTarget target;
   if (NS_FAILED(versionHelper->Dispatch(&target))) {
     NS_WARNING("Dispatch of IPCSetVersionHelper failed!");
     return false;
   }
+
+  actor->SetTransaction(transaction);
 
   mOpenHelper = helper.forget();
   return true;
@@ -580,16 +553,6 @@ IndexedDBTransactionChild::SetTransaction(IDBTransaction* aTransaction)
 }
 
 void
-IndexedDBTransactionChild::Disconnect()
-{
-  const InfallibleTArray<PIndexedDBObjectStoreChild*>& objectStores =
-    ManagedPIndexedDBObjectStoreChild();
-  for (uint32_t i = 0; i < objectStores.Length(); ++i) {
-    static_cast<IndexedDBObjectStoreChild*>(objectStores[i])->Disconnect();
-  }
-}
-
-void
 IndexedDBTransactionChild::FireCompleteEvent(nsresult aRv)
 {
   MOZ_ASSERT(mTransaction);
@@ -604,7 +567,7 @@ IndexedDBTransactionChild::FireCompleteEvent(nsresult aRv)
 
   nsRefPtr<CommitHelper> helper = new CommitHelper(transaction, aRv);
 
-  ImmediateRunEventTarget target;
+  MainThreadEventTarget target;
   if (NS_FAILED(target.Dispatch(helper, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Dispatch of CommitHelper failed!");
   }
@@ -689,28 +652,6 @@ IndexedDBObjectStoreChild::~IndexedDBObjectStoreChild()
 {
   MOZ_COUNT_DTOR(IndexedDBObjectStoreChild);
   MOZ_ASSERT(!mObjectStore);
-}
-
-void
-IndexedDBObjectStoreChild::Disconnect()
-{
-  const InfallibleTArray<PIndexedDBRequestChild*>& requests =
-    ManagedPIndexedDBRequestChild();
-  for (uint32_t i = 0; i < requests.Length(); ++i) {
-    static_cast<IndexedDBRequestChildBase*>(requests[i])->Disconnect();
-  }
-
-  const InfallibleTArray<PIndexedDBIndexChild*>& indexes =
-    ManagedPIndexedDBIndexChild();
-  for (uint32_t i = 0; i < indexes.Length(); ++i) {
-    static_cast<IndexedDBIndexChild*>(indexes[i])->Disconnect();
-  }
-
-  const InfallibleTArray<PIndexedDBCursorChild*>& cursors =
-    ManagedPIndexedDBCursorChild();
-  for (uint32_t i = 0; i < cursors.Length(); ++i) {
-    static_cast<IndexedDBCursorChild*>(cursors[i])->Disconnect();
-  }
 }
 
 void
@@ -817,22 +758,6 @@ IndexedDBIndexChild::~IndexedDBIndexChild()
 {
   MOZ_COUNT_DTOR(IndexedDBIndexChild);
   MOZ_ASSERT(!mIndex);
-}
-
-void
-IndexedDBIndexChild::Disconnect()
-{
-  const InfallibleTArray<PIndexedDBRequestChild*>& requests =
-    ManagedPIndexedDBRequestChild();
-  for (uint32_t i = 0; i < requests.Length(); ++i) {
-    static_cast<IndexedDBRequestChildBase*>(requests[i])->Disconnect();
-  }
-
-  const InfallibleTArray<PIndexedDBCursorChild*>& cursors =
-    ManagedPIndexedDBCursorChild();
-  for (uint32_t i = 0; i < cursors.Length(); ++i) {
-    static_cast<IndexedDBCursorChild*>(cursors[i])->Disconnect();
-  }
 }
 
 void
@@ -958,16 +883,6 @@ IndexedDBCursorChild::SetCursor(IDBCursor* aCursor)
 }
 
 void
-IndexedDBCursorChild::Disconnect()
-{
-  const InfallibleTArray<PIndexedDBRequestChild*>& requests =
-    ManagedPIndexedDBRequestChild();
-  for (uint32_t i = 0; i < requests.Length(); ++i) {
-    static_cast<IndexedDBRequestChildBase*>(requests[i])->Disconnect();
-  }
-}
-
-void
 IndexedDBCursorChild::ActorDestroy(ActorDestroyReason aWhy)
 {
   if (mCursor) {
@@ -1011,24 +926,7 @@ IndexedDBRequestChildBase::~IndexedDBRequestChildBase()
 IDBRequest*
 IndexedDBRequestChildBase::GetRequest() const
 {
-  return mHelper ? mHelper->GetRequest() : nullptr;
-}
-
-void
-IndexedDBRequestChildBase::Disconnect()
-{
-  if (mHelper) {
-    IDBRequest* request = mHelper->GetRequest();
-
-    if (request->IsPending()) {
-      request->SetError(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-      IDBTransaction* transaction = mHelper->GetTransaction();
-      if (transaction) {
-        transaction->OnRequestDisconnected();
-      }
-    }
-  }
+  return mHelper ? mHelper->GetRequest() : NULL;
 }
 
 bool
@@ -1240,7 +1138,7 @@ IndexedDBDeleteDatabaseRequestChild::Recv__delete__(const nsresult& aRv)
     helper->SetError(aRv);
   }
 
-  ImmediateRunEventTarget target;
+  MainThreadEventTarget target;
   if (NS_FAILED(helper->Dispatch(&target))) {
     NS_WARNING("Dispatch of IPCSetVersionHelper failed!");
     return false;
@@ -1256,10 +1154,10 @@ IndexedDBDeleteDatabaseRequestChild::RecvBlocked(
   MOZ_ASSERT(mOpenRequest);
 
   nsCOMPtr<nsIRunnable> runnable =
-    IDBVersionChangeEvent::CreateBlockedRunnable(mOpenRequest,
-                                                 aCurrentVersion, 0);
+    IDBVersionChangeEvent::CreateBlockedRunnable(aCurrentVersion, 0,
+                                                 mOpenRequest);
 
-  ImmediateRunEventTarget target;
+  MainThreadEventTarget target;
   if (NS_FAILED(target.Dispatch(runnable, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Dispatch of blocked event failed!");
   }
@@ -1322,11 +1220,10 @@ IPCSetVersionHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   return NS_ERROR_FAILURE;
 }
 
-already_AddRefed<nsIDOMEvent>
-IPCSetVersionHelper::CreateSuccessEvent(mozilla::dom::EventTarget* aOwner)
+already_AddRefed<nsDOMEvent>
+IPCSetVersionHelper::CreateSuccessEvent()
 {
-  return IDBVersionChangeEvent::CreateUpgradeNeeded(aOwner,
-                                                    mOldVersion,
+  return IDBVersionChangeEvent::CreateUpgradeNeeded(mOldVersion,
                                                     mRequestedVersion);
 }
 

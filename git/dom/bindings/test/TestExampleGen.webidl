@@ -7,10 +7,8 @@
  Constructor(DOMString str),
  Constructor(unsigned long num, boolean? boolArg),
  Constructor(TestInterface? iface),
- Constructor(long arg1, IndirectlyImplementedInterface iface),
- // Constructor(long arg1, long arg2, (TestInterface or OnlyForUseInConstructor) arg3),
- NamedConstructor=Example,
- NamedConstructor=Example(DOMString str)
+ Constructor(TestNonCastableInterface iface)
+ // , Constructor(long arg1, long arg2, (TestInterface or OnlyForUseInConstructor) arg3)
  ]
 interface TestExampleInterface {
   // Integer types
@@ -23,7 +21,6 @@ interface TestExampleInterface {
   void passOptionalByteWithDefault(optional byte arg = 0);
   void passNullableByte(byte? arg);
   void passOptionalNullableByte(optional byte? arg);
-  void passVariadicByte(byte... arg);
 
   readonly attribute short readonlyShort;
   attribute short writableShort;
@@ -74,40 +71,6 @@ interface TestExampleInterface {
   void passOptionalUnsignedLongLong(optional unsigned long long arg);
   void passOptionalUnsignedLongLongWithDefault(optional unsigned long long arg = 17);
 
-  attribute float writableFloat;
-  attribute unrestricted float writableUnrestrictedFloat;
-  attribute float? writableNullableFloat;
-  attribute unrestricted float? writableNullableUnrestrictedFloat;
-  attribute double writableDouble;
-  attribute unrestricted double writableUnrestrictedDouble;
-  attribute double? writableNullableDouble;
-  attribute unrestricted double? writableNullableUnrestrictedDouble;
-  void passFloat(float arg1, unrestricted float arg2,
-                 float? arg3, unrestricted float? arg4,
-                 double arg5, unrestricted double arg6,
-                 double? arg7, unrestricted double? arg8,
-                 sequence<float> arg9, sequence<unrestricted float> arg10,
-                 sequence<float?> arg11, sequence<unrestricted float?> arg12,
-                 sequence<double> arg13, sequence<unrestricted double> arg14,
-                 sequence<double?> arg15, sequence<unrestricted double?> arg16);
-  [LenientFloat]
-  void passLenientFloat(float arg1, unrestricted float arg2,
-                        float? arg3, unrestricted float? arg4,
-                        double arg5, unrestricted double arg6,
-                        double? arg7, unrestricted double? arg8,
-                        sequence<float> arg9,
-                        sequence<unrestricted float> arg10,
-                        sequence<float?> arg11,
-                        sequence<unrestricted float?> arg12,
-                        sequence<double> arg13,
-                        sequence<unrestricted double> arg14,
-                        sequence<double?> arg15,
-                        sequence<unrestricted double?> arg16);
-  [LenientFloat]
-  attribute float lenientFloatAttr;
-  [LenientFloat]
-  attribute double lenientDoubleAttr;
-
   // Castable interface types
   // XXXbz add tests for throwing versions of all the castable interface stuff
   TestInterface receiveSelf();
@@ -141,21 +104,21 @@ interface TestExampleInterface {
   sequence<TestNonWrapperCacheInterface?>? receiveNullableNonWrapperCacheInterfaceNullableSequence();
 
   // Non-castable interface types
-  IndirectlyImplementedInterface receiveOther();
-  IndirectlyImplementedInterface? receiveNullableOther();
-  IndirectlyImplementedInterface receiveWeakOther();
-  IndirectlyImplementedInterface? receiveWeakNullableOther();
-  // A verstion to test for casting to IndirectlyImplementedInterface&
-  void passOther(IndirectlyImplementedInterface arg);
+  TestNonCastableInterface receiveOther();
+  TestNonCastableInterface? receiveNullableOther();
+  TestNonCastableInterface receiveWeakOther();
+  TestNonCastableInterface? receiveWeakNullableOther();
+  // A verstion to test for casting to TestNonCastableInterface&
+  void passOther(TestNonCastableInterface arg);
   // A version we can use to test for the exact type passed in
-  void passOther2(IndirectlyImplementedInterface arg);
-  void passNullableOther(IndirectlyImplementedInterface? arg);
-  attribute IndirectlyImplementedInterface nonNullOther;
-  attribute IndirectlyImplementedInterface? nullableOther;
+  void passOther2(TestNonCastableInterface arg);
+  void passNullableOther(TestNonCastableInterface? arg);
+  attribute TestNonCastableInterface nonNullOther;
+  attribute TestNonCastableInterface? nullableOther;
   // Optional arguments
-  void passOptionalOther(optional IndirectlyImplementedInterface? arg);
-  void passOptionalNonNullOther(optional IndirectlyImplementedInterface arg);
-  void passOptionalOtherWithDefault(optional IndirectlyImplementedInterface? arg = null);
+  void passOptionalOther(optional TestNonCastableInterface? arg);
+  void passOptionalNonNullOther(optional TestNonCastableInterface arg);
+  void passOptionalOtherWithDefault(optional TestNonCastableInterface? arg = null);
 
   // External interface types
   TestExternalInterface receiveExternal();
@@ -223,18 +186,12 @@ interface TestExampleInterface {
   void passOptionalNullableSequence(optional sequence<long>? arg);
   void passOptionalNullableSequenceWithDefaultValue(optional sequence<long>? arg = null);
   void passOptionalObjectSequence(optional sequence<TestInterface> arg);
-  void passExternalInterfaceSequence(sequence<TestExternalInterface> arg);
-  void passNullableExternalInterfaceSequence(sequence<TestExternalInterface?> arg);
 
   sequence<DOMString> receiveStringSequence();
   void passStringSequence(sequence<DOMString> arg);
 
   sequence<any> receiveAnySequence();
   sequence<any>? receiveNullableAnySequence();
-
-  void passSequenceOfSequences(sequence<sequence<long>> arg);
-  //XXXbz No support for sequence of sequence return values yet.
-  //sequence<sequence<long>> receiveSequenceOfSequences();
 
   // Typed array types
   void passArrayBuffer(ArrayBuffer arg);
@@ -261,7 +218,6 @@ interface TestExampleInterface {
   void passOptionalStringWithDefaultValue(optional DOMString arg = "abc");
   void passOptionalNullableString(optional DOMString? arg);
   void passOptionalNullableStringWithDefaultValue(optional DOMString? arg = null);
-  void passVariadicString(DOMString... arg);
 
   // Enumerated types
   void passEnum(TestEnum arg);
@@ -315,9 +271,7 @@ interface TestExampleInterface {
   void passUnionWithArrayBuffer((ArrayBuffer or long) arg);
   void passUnionWithString((DOMString or object) arg);
   //void passUnionWithEnum((TestEnum or object) arg);
-  // Trying to use a callback in a union won't include the test
-  // headers, unfortunately, so won't compile.
-  //  void passUnionWithCallback((TestCallback or long) arg);
+  void passUnionWithCallback((TestCallback or long) arg);
   void passUnionWithObject((object or long) arg);
   //void passUnionWithDict((Dict or long) arg);
 
@@ -328,7 +282,6 @@ interface TestExampleInterface {
   attribute byte attributeRenamedFrom;
 
   void passDictionary(optional Dict x);
-  //UNSUPPORTED  Dict receiveDictionary();
   void passOtherDictionary(optional GrandparentDict x);
   void passSequenceOfDictionaries(sequence<Dict> x);
   void passDictionaryOrLong(optional Dict x);
@@ -336,7 +289,6 @@ interface TestExampleInterface {
 
   void passDictContainingDict(optional DictContainingDict arg);
   void passDictContainingSequence(optional DictContainingSequence arg);
-  //UNSUPPORTED DictContainingSequence receiveDictContainingSequence();
 
   // EnforceRange/Clamp tests
   void dontEnforceRangeOrClamp(byte arg);
@@ -349,92 +301,8 @@ interface TestExampleInterface {
   AnotherNameForTestInterface exerciseTypedefInterfaces2(NullableTestInterface arg);
   void exerciseTypedefInterfaces3(YetAnotherNameForTestInterface arg);
 
-  // Static methods and attributes
-  static attribute boolean staticAttribute;
-  static void staticMethod(boolean arg);
-  static void staticMethodWithContext(any arg);
-
-  // Overload resolution tests
-  //void overload1(DOMString... strs);
-  boolean overload1(TestInterface arg);
-  TestInterface overload1(DOMString strs, TestInterface arg);
-  void overload2(TestInterface arg);
-  void overload2(optional Dict arg);
-  void overload2(DOMString arg);
-  void overload3(TestInterface arg);
-  void overload3(TestCallback arg);
-  void overload3(DOMString arg);
-  void overload4(TestInterface arg);
-  void overload4(TestCallbackInterface arg);
-  void overload4(DOMString arg);
-
-  // Variadic handling
-  void passVariadicThirdArg(DOMString arg1, long arg2, TestInterface... arg3);
-
-  // Conditionally exposed methods/attributes
-  [Pref="abc.def"]
-  readonly attribute boolean prefable1;
-  [Pref="abc.def"]
-  readonly attribute boolean prefable2;
-  [Pref="ghi.jkl"]
-  readonly attribute boolean prefable3;
-  [Pref="ghi.jkl"]
-  readonly attribute boolean prefable4;
-  [Pref="abc.def"]
-  readonly attribute boolean prefable5;
-  [Pref="abc.def", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  readonly attribute boolean prefable6;
-  [Pref="abc.def", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  readonly attribute boolean prefable7;
-  [Pref="ghi.jkl", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  readonly attribute boolean prefable8;
-  [Pref="abc.def", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  readonly attribute boolean prefable9;
-  [Pref="abc.def"]
-  void prefable10();
-  [Pref="abc.def", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  void prefable11();
-  [Pref="abc.def", Func="TestFuncControlledMember"]
-  readonly attribute boolean prefable12;
-  [Pref="abc.def", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  void prefable13();
-  [Pref="abc.def", Func="TestFuncControlledMember"]
-  readonly attribute boolean prefable14;
-  [Func="TestFuncControlledMember"]
-  readonly attribute boolean prefable15;
-  [Func="TestFuncControlledMember"]
-  readonly attribute boolean prefable16;
-  [Pref="abc.def", Func="TestFuncControlledMember"]
-  void prefable17();
-  [Func="TestFuncControlledMember"]
-  void prefable18();
-  [Func="TestFuncControlledMember"]
-  void prefable19();
-
   // Miscellania
   [LenientThis] attribute long attrWithLenientThis;
-  [Unforgeable] readonly attribute long unforgeableAttr;
-  [Unforgeable, ChromeOnly] readonly attribute long unforgeableAttr2;
-  stringifier;
-  void passRenamedInterface(TestRenamedInterface arg);
-  [PutForwards=writableByte] readonly attribute TestExampleInterface putForwardsAttr;
-  [PutForwards=writableByte, LenientThis] readonly attribute TestExampleInterface putForwardsAttr2;
-  [PutForwards=writableByte, ChromeOnly] readonly attribute TestExampleInterface putForwardsAttr3;
-  [Throws] void throwingMethod();
-  [Throws] attribute boolean throwingAttr;
-  [GetterThrows] attribute boolean throwingGetterAttr;
-  [SetterThrows] attribute boolean throwingSetterAttr;
-  legacycaller short(unsigned long arg1, TestInterface arg2);
 
-  // If you add things here, add them to TestCodeGen and TestJSImplGen as well
-};
-
-interface TestExampleProxyInterface {
-  getter long longIndexedGetter(unsigned long ix);
-  deleter void (unsigned long ix);
-  setter creator void longIndexedSetter(unsigned long y, long z);
-  stringifier DOMString myStringifier();
-  getter short shortNameGetter(DOMString nom);
-  deleter void (DOMString nomnom);
-  setter creator void shortNamedSetter(DOMString me, short value);
+  // If you add things here, add them to TestCodeGen as well
 };

@@ -11,6 +11,7 @@ VPATH            = \
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE         = dom
 LIBRARY_NAME   = jsdomsettings_s
 LIBXUL_LIBRARY = 1
 
@@ -26,6 +27,8 @@ EXTRA_JS_MODULES =   \
   SettingsDB.jsm     \
   SettingsChangeNotifier.jsm \
   $(NULL)
+
+TEST_DIRS += tests
 
 # Add VPATH to LOCAL_INCLUDES so we are going to include the correct backend
 # subdirectory (and the ipc one).

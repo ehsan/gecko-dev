@@ -7,7 +7,6 @@ if the entry does not already exist.
 
 Usage: buildlist.py <filename> <entry> [<entry> ...]
 '''
-from __future__ import print_function
 
 import sys
 import os
@@ -21,14 +20,14 @@ def addEntriesToListFile(listFile, entries):
   try:
     if os.path.exists(listFile):
       f = open(listFile)
-      existing = set(x.strip() for x in f.readlines())
+      existing = set([x.strip() for x in f.readlines()])
       f.close()
     else:
       existing = set()
     f = open(listFile, 'a')
     for e in entries:
       if e not in existing:
-        f.write("{0}\n".format(e))
+        f.write("%s\n" % e)
         existing.add(e)
     f.close()
   finally:
@@ -36,7 +35,6 @@ def addEntriesToListFile(listFile, entries):
 
 if __name__ == '__main__':
   if len(sys.argv) < 3:
-    print("Usage: buildlist.py <list file> <entry> [<entry> ...]",
-          file=sys.stderr)
+    print >>sys.stderr, "Usage: buildlist.py <list file> <entry> [<entry> ...]"
     sys.exit(1)
   addEntriesToListFile(sys.argv[1], sys.argv[2:])

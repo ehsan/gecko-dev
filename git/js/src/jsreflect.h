@@ -54,6 +54,8 @@ enum BinaryOperator {
     BINOP_BITOR, BINOP_BITXOR, BINOP_BITAND,
     /* misc */
     BINOP_IN, BINOP_INSTANCEOF,
+    /* xml */
+    BINOP_DBLDOT,
 
     BINOP_LIMIT
 };
@@ -95,5 +97,6 @@ extern char const *unopNames[];
 extern char const *nodeTypeNames[];
 
 } /* namespace js */
+
 
 #endif /* jsreflect_h___ */

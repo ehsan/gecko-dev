@@ -30,6 +30,7 @@
 #include "nsAutoPtr.h"
 
 #include "nsQuickSort.h"
+#include "prmem.h"
 #include "pldhash.h"
 
 #include "prefapi.h"
@@ -151,7 +152,6 @@ struct CacheData {
     bool defaultValueBool;
     int32_t defaultValueInt;
     uint32_t defaultValueUint;
-    float defaultValueFloat;
   };
 };
 
@@ -159,7 +159,7 @@ static nsTArray<nsAutoPtr<CacheData> >* gCacheData = nullptr;
 static nsRefPtrHashtable<ValueObserverHashKey,
                          ValueObserver>* gObserverTable = nullptr;
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(PreferencesMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(PreferencesMallocSizeOf, "preferences")
 
 static size_t
 SizeOfObserverEntryExcludingThis(ValueObserverHashKey* aKey,
@@ -177,8 +177,6 @@ SizeOfObserverEntryExcludingThis(ValueObserverHashKey* aKey,
 int64_t
 Preferences::GetPreferencesMemoryUsed()
 {
-  NS_ENSURE_TRUE(InitStaticMembers(), 0);
-
   size_t n = 0;
   n += PreferencesMallocSizeOf(sPreferences);
   if (gHashTable.ops) {
@@ -211,18 +209,6 @@ NS_MEMORY_REPORTER_IMPLEMENT(Preferences,
   Preferences::GetPreferencesMemoryUsed,
   "Memory used by the preferences system.")
 
-namespace {
-class AddPreferencesMemoryReporterRunnable : public nsRunnable
-{
-  NS_IMETHOD Run()
-  {
-    nsCOMPtr<nsIMemoryReporter> reporter =
-      new NS_MEMORY_REPORTER_NAME(Preferences);
-    return NS_RegisterMemoryReporter(reporter);
-  }
-};
-} // anonymous namespace
-
 // static
 Preferences*
 Preferences::GetInstanceForService()
@@ -253,13 +239,8 @@ Preferences::GetInstanceForService()
   gObserverTable = new nsRefPtrHashtable<ValueObserverHashKey, ValueObserver>();
   gObserverTable->Init();
 
-  // Preferences::GetInstanceForService() can be called from GetService(), and
-  // NS_RegisterMemoryReporter calls GetService(nsIMemoryReporter).  To avoid a
-  // potential recursive GetService() call, we can't register the memory
-  // reporter here; instead, do it off a runnable.
-  nsRefPtr<AddPreferencesMemoryReporterRunnable> runnable =
-    new AddPreferencesMemoryReporterRunnable();
-  NS_DispatchToMainThread(runnable);
+  nsCOMPtr<nsIMemoryReporter> reporter(new NS_MEMORY_REPORTER_NAME(Preferences));
+  NS_RegisterMemoryReporter(reporter);
 
   NS_ADDREF(sPreferences);
   return sPreferences;
@@ -772,8 +753,10 @@ Preferences::WritePrefFile(nsIFile* aFile)
   if (NS_FAILED(rv)) 
       return rv;  
 
-  nsAutoArrayPtr<char*> valueArray(new char*[gHashTable.entryCount]);
-  memset(valueArray, 0, gHashTable.entryCount * sizeof(char*));
+  char** valueArray = (char **)PR_Calloc(sizeof(char *), gHashTable.entryCount);
+  if (!valueArray)
+    return NS_ERROR_OUT_OF_MEMORY;
+  
   pref_saveArgs saveArgs;
   saveArgs.prefArray = valueArray;
   saveArgs.saveTypes = SAVE_ALL;
@@ -795,6 +778,7 @@ Preferences::WritePrefFile(nsIFile* aFile)
       NS_Free(*walker);
     }
   }
+  PR_Free(valueArray);
 
   // tell the safe output stream to overwrite the real prefs file
   // (it'll abort if there were any errors during writing)
@@ -1484,19 +1468,6 @@ Preferences::RegisterCallback(PrefChangedFunc aCallback,
 
 // static
 nsresult
-Preferences::RegisterCallbackAndCall(PrefChangedFunc aCallback,
-                                     const char* aPref,
-                                     void* aClosure)
-{
-  nsresult rv = RegisterCallback(aCallback, aPref, aClosure);
-  if (NS_SUCCEEDED(rv)) {
-    (*aCallback)(aPref, aClosure);
-  }
-  return rv;
-}
-
-// static
-nsresult
 Preferences::UnregisterCallback(PrefChangedFunc aCallback,
                                 const char* aPref,
                                 void* aClosure)
@@ -1588,29 +1559,6 @@ Preferences::AddUintVarCache(uint32_t* aCache,
   data->defaultValueUint = aDefault;
   gCacheData->AppendElement(data);
   return RegisterCallback(UintVarChanged, aPref, data);
-}
-
-static int FloatVarChanged(const char* aPref, void* aClosure)
-{
-  CacheData* cache = static_cast<CacheData*>(aClosure);
-  *((float*)cache->cacheLocation) =
-    Preferences::GetFloat(aPref, cache->defaultValueFloat);
-  return 0;
-}
-
-// static
-nsresult
-Preferences::AddFloatVarCache(float* aCache,
-                             const char* aPref,
-                             float aDefault)
-{
-  NS_ASSERTION(aCache, "aCache must not be NULL");
-  *aCache = Preferences::GetFloat(aPref, aDefault);
-  CacheData* data = new CacheData();
-  data->cacheLocation = aCache;
-  data->defaultValueFloat = aDefault;
-  gCacheData->AppendElement(data);
-  return RegisterCallback(FloatVarChanged, aPref, data);
 }
 
 // static

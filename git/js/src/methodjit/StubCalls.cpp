@@ -5,41 +5,39 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"
 
 #include "jscntxt.h"
+#include "jsscope.h"
 #include "jsobj.h"
 #include "jslibmath.h"
 #include "jsiter.h"
 #include "jsnum.h"
+#include "jsxml.h"
 #include "jsbool.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "jstypes.h"
 
 #include "gc/Marking.h"
-#include "ion/AsmJS.h"
 #include "vm/Debugger.h"
 #include "vm/NumericConversions.h"
-#include "vm/Shape.h"
 #include "vm/String.h"
 #include "methodjit/Compiler.h"
 #include "methodjit/StubCalls.h"
 #include "methodjit/Retcon.h"
 
-#include "jsatominlines.h"
-#include "jsboolinlines.h"
-#include "jscntxtinlines.h"
-#include "jsfuninlines.h"
 #include "jsinterpinlines.h"
+#include "jsscopeinlines.h"
+#include "jsscriptinlines.h"
 #include "jsnuminlines.h"
 #include "jsobjinlines.h"
-#include "jsscriptinlines.h"
+#include "jscntxtinlines.h"
+#include "jsatominlines.h"
+#include "StubCalls-inl.h"
+#include "jsfuninlines.h"
 #include "jstypedarray.h"
 
-#include "StubCalls-inl.h"
 #include "vm/RegExpObject-inl.h"
-#include "vm/Shape-inl.h"
 #include "vm/String-inl.h"
 
 #ifdef JS_ION
@@ -56,8 +54,6 @@ using namespace js;
 using namespace js::mjit;
 using namespace js::types;
 using namespace JSC;
-
-using mozilla::DebugOnly;
 
 void JS_FASTCALL
 stubs::BindName(VMFrame &f, PropertyName *name_)
@@ -78,6 +74,7 @@ stubs::BindGlobalName(VMFrame &f)
 void JS_FASTCALL
 stubs::SetName(VMFrame &f, PropertyName *name)
 {
+    AssertCanGC();
     JSContext *cx = f.cx;
     RootedObject scope(cx, &f.regs.sp[-2].toObject());
     HandleValue value = HandleValue::fromMarkedLocation(&f.regs.sp[-1]);
@@ -94,21 +91,6 @@ stubs::Name(VMFrame &f)
 {
     RootedValue rval(f.cx);
     if (!NameOperation(f.cx, f.pc(), &rval))
-        THROW();
-    f.regs.sp[0] = rval;
-}
-
-void JS_FASTCALL
-stubs::IntrinsicName(VMFrame &f, PropertyName *nameArg)
-{
-    RootedValue rval(f.cx);
-
-    // PropertyNames are atoms and will never be allocated from the nursery,
-    // and the ones passed to this stub are referenced by the script so it will
-    // root them. The compacting GC will discard methodjit code.
-    SkipRoot skip(f.cx, &nameArg);
-    HandlePropertyName name = HandlePropertyName::fromMarkedLocation(&nameArg);
-    if (!f.cx->global().get()->getIntrinsicValue(f.cx, name, &rval))
         THROW();
     f.regs.sp[0] = rval;
 }
@@ -141,7 +123,7 @@ stubs::SetElem(VMFrame &f)
     if (!obj)
         THROW();
 
-    if (!FetchElementId(f.cx, obj, idval, &id,
+    if (!FetchElementId(f.cx, obj, idval, id.address(),
                         MutableHandleValue::fromMarkedLocation(&regs.sp[-2])))
     {
         THROW();
@@ -149,18 +131,28 @@ stubs::SetElem(VMFrame &f)
 
     TypeScript::MonitorAssign(cx, obj, id);
 
-    if (obj->isArray() && JSID_IS_INT(id)) {
-        uint32_t length = obj->getDenseInitializedLength();
-        int32_t i = JSID_TO_INT(id);
-        if ((uint32_t)i >= length) {
-            if (f.script()->hasAnalysis())
-                f.script()->analysis()->getCode(f.pc()).arrayWriteHole = true;
+    do {
+        if (obj->isDenseArray() && JSID_IS_INT(id)) {
+            uint32_t length = obj->getDenseArrayInitializedLength();
+            int32_t i = JSID_TO_INT(id);
+            if ((uint32_t)i < length) {
+                if (obj->getDenseArrayElement(i).isMagic(JS_ARRAY_HOLE)) {
+                    if (js_PrototypeHasIndexedProperties(obj))
+                        break;
+                    if ((uint32_t)i >= obj->getArrayLength())
+                        JSObject::setArrayLength(cx, obj, i + 1);
+                }
+                JSObject::setDenseArrayElementWithType(cx, obj, i, rval);
+                goto end_setelem;
+            } else {
+                if (f.script()->hasAnalysis())
+                    f.script()->analysis()->getCode(f.pc()).arrayWriteHole = true;
+            }
         }
-    }
-
+    } while (0);
     if (!JSObject::setGeneric(cx, obj, obj, id, &rval, strict))
         THROW();
-
+  end_setelem:
     /* :FIXME: Moving the assigned object into the lowest stack slot
      * is a temporary hack. What we actually want is an implementation
      * of popAfterSet() that allows popping more than one value;
@@ -182,7 +174,7 @@ stubs::ToId(VMFrame &f)
         THROW();
 
     RootedId id(f.cx);
-    if (!FetchElementId(f.cx, obj, idval, &id, idval))
+    if (!FetchElementId(f.cx, obj, idval, id.address(), idval))
         THROW();
 
     if (!idval.isInt32()) {
@@ -201,7 +193,7 @@ stubs::ImplicitThis(VMFrame &f, PropertyName *name_)
     if (!LookupNameWithGlobalDefault(f.cx, name, scopeObj, &obj))
         THROW();
 
-    if (!ComputeImplicitThis(f.cx, obj, MutableHandleValue::fromMarkedLocation(&f.regs.sp[0])))
+    if (!ComputeImplicitThis(f.cx, obj, &f.regs.sp[0]))
         THROW();
 }
 
@@ -318,7 +310,7 @@ stubs::DefFun(VMFrame &f, JSFunction *funArg)
      * requests in server-side JS.
      */
     HandleObject scopeChain = f.fp()->scopeChain();
-    if (fun->isNative() || fun->environment() != scopeChain) {
+    if (fun->environment() != scopeChain) {
         fun = CloneFunctionObjectIfNotSingleton(cx, fun, scopeChain);
         if (!fun)
             THROW();
@@ -407,9 +399,9 @@ template void JS_FASTCALL stubs::DefFun<false>(VMFrame &f, JSFunction *fun);
         Value &rval = regs.sp[-1];                                            \
         Value &lval = regs.sp[-2];                                            \
         bool cond;                                                            \
-        if (!ToPrimitive(cx, JSTYPE_NUMBER, MutableHandleValue::fromMarkedLocation(&lval))) \
+        if (!ToPrimitive(cx, JSTYPE_NUMBER, &lval))                           \
             THROWV(JS_FALSE);                                                 \
-        if (!ToPrimitive(cx, JSTYPE_NUMBER, MutableHandleValue::fromMarkedLocation(&rval))) \
+        if (!ToPrimitive(cx, JSTYPE_NUMBER, &rval))                           \
             THROWV(JS_FALSE);                                                 \
         if (lval.isString() && rval.isString()) {                             \
             JSString *l = lval.toString(), *r = rval.toString();              \
@@ -471,8 +463,9 @@ StubEqualityOp(VMFrame &f)
     JSContext *cx = f.cx;
     FrameRegs &regs = f.regs;
 
-    Value &rval = regs.sp[-1];
-    Value &lval = regs.sp[-2];
+    RootedValue rval_(cx, regs.sp[-1]);
+    RootedValue lval_(cx, regs.sp[-2]);
+    Value &rval = rval_.get(), &lval = lval_.get();
 
     bool cond;
 
@@ -484,7 +477,19 @@ StubEqualityOp(VMFrame &f)
         if (!EqualStrings(cx, l, r, &equal))
             return false;
         cond = equal == EQ;
-    } else if (SameType(lval, rval)) {
+    } else
+#if JS_HAS_XML_SUPPORT
+    if ((lval.isObject() && lval.toObject().isXML()) ||
+        (rval.isObject() && rval.toObject().isXML()))
+    {
+        JSBool equal;
+        if (!js_TestXMLEquality(cx, lval, rval, &equal))
+            return false;
+        cond = !!equal == EQ;
+    } else
+#endif
+
+    if (SameType(lval, rval)) {
         JS_ASSERT(!lval.isString());    /* this case is handled above */
         if (lval.isDouble()) {
             double l = lval.toDouble();
@@ -495,7 +500,16 @@ StubEqualityOp(VMFrame &f)
                 cond = (l != r);
         } else if (lval.isObject()) {
             JSObject *l = &lval.toObject(), *r = &rval.toObject();
-            cond = (l == r) == EQ;
+            if (JSEqualityOp eq = l->getClass()->ext.equality) {
+                JSBool equal;
+                RootedObject lobj(cx, l);
+                RootedValue r(cx, rval);
+                if (!eq(cx, lobj, r, &equal))
+                    return false;
+                cond = !!equal == EQ;
+            } else {
+                cond = (l == r) == EQ;
+            }
         } else if (lval.isNullOrUndefined()) {
             cond = EQ;
         } else {
@@ -503,15 +517,13 @@ StubEqualityOp(VMFrame &f)
         }
     } else {
         if (lval.isNullOrUndefined()) {
-            cond = (rval.isNullOrUndefined() ||
-                    (rval.isObject() && EmulatesUndefined(&rval.toObject()))) ==
-                    EQ;
+            cond = rval.isNullOrUndefined() == EQ;
         } else if (rval.isNullOrUndefined()) {
-            cond = (lval.isObject() && EmulatesUndefined(&lval.toObject())) == EQ;
+            cond = !EQ;
         } else {
-            if (!ToPrimitive(cx, MutableHandleValue::fromMarkedLocation(&lval)))
+            if (!ToPrimitive(cx, &lval))
                 return false;
-            if (!ToPrimitive(cx, MutableHandleValue::fromMarkedLocation(&rval)))
+            if (!ToPrimitive(cx, &rval))
                 return false;
 
             /*
@@ -563,44 +575,58 @@ stubs::Add(VMFrame &f)
 {
     JSContext *cx = f.cx;
     FrameRegs &regs = f.regs;
-    Value &rval = regs.sp[-1];
-    Value &lval = regs.sp[-2];
+    RootedValue rval_(cx, regs.sp[-1]);
+    RootedValue lval_(cx, regs.sp[-2]);
+    Value &rval = rval_.get(), &lval = lval_.get();
 
     /* The string + string case is easily the hottest;  try it first. */
     bool lIsString = lval.isString();
     bool rIsString = rval.isString();
-    JSString *lstr, *rstr;
+    RootedString lstr(cx), rstr(cx);
     if (lIsString && rIsString) {
         lstr = lval.toString();
         rstr = rval.toString();
         goto string_concat;
 
-    } else {
-        bool lIsObject = lval.isObject(), rIsObject = rval.isObject();
-        if (!ToPrimitive(f.cx, MutableHandleValue::fromMarkedLocation(&lval)))
+    } else
+#if JS_HAS_XML_SUPPORT
+    if (lval.isObject() && lval.toObject().isXML() &&
+        rval.isObject() && rval.toObject().isXML()) {
+        if (!js_ConcatenateXML(cx, &lval.toObject(), &rval.toObject(), &rval))
             THROW();
-        if (!ToPrimitive(f.cx, MutableHandleValue::fromMarkedLocation(&rval)))
+        regs.sp[-2] = rval;
+        regs.sp--;
+        RootedScript fscript(cx, f.script());
+        TypeScript::MonitorUnknown(cx, fscript, f.pc());
+    } else
+#endif
+    {
+        bool lIsObject = lval.isObject(), rIsObject = rval.isObject();
+        if (!ToPrimitive(f.cx, &lval))
+            THROW();
+        if (!ToPrimitive(f.cx, &rval))
             THROW();
         if ((lIsString = lval.isString()) || (rIsString = rval.isString())) {
             if (lIsString) {
                 lstr = lval.toString();
             } else {
-                lstr = ToString<CanGC>(cx, lval);
+                lstr = ToString(cx, lval);
                 if (!lstr)
                     THROW();
+                regs.sp[-2].setString(lstr);
             }
             if (rIsString) {
                 rstr = rval.toString();
             } else {
-                // Save/restore lstr in case of GC activity under ToString.
-                regs.sp[-2].setString(lstr);
-                rstr = ToString<CanGC>(cx, rval);
+                rstr = ToString(cx, rval);
                 if (!rstr)
                     THROW();
-                lstr = regs.sp[-2].toString();
+                regs.sp[-1].setString(rstr);
             }
-            if (lIsObject || rIsObject)
-                TypeScript::MonitorString(cx, f.script(), f.pc());
+            if (lIsObject || rIsObject) {
+                RootedScript fscript(cx, f.script());
+                TypeScript::MonitorString(cx, fscript, f.pc());
+            }
             goto string_concat;
 
         } else {
@@ -608,25 +634,19 @@ stubs::Add(VMFrame &f)
             if (!ToNumber(cx, lval, &l) || !ToNumber(cx, rval, &r))
                 THROW();
             l += r;
-            Value nres = NumberValue(l);
-            if (nres.isDouble() &&
-                (lIsObject || rIsObject || (!lval.isDouble() && !rval.isDouble())))
-            {
-                TypeScript::MonitorOverflow(cx, f.script(), f.pc());
+            if (!regs.sp[-2].setNumber(l) &&
+                (lIsObject || rIsObject || (!lval.isDouble() && !rval.isDouble()))) {
+                RootedScript fscript(cx, f.script());
+                TypeScript::MonitorOverflow(cx, fscript, f.pc());
             }
-            regs.sp[-2] = nres;
         }
     }
     return;
 
   string_concat:
-    JSString *str = ConcatStrings<NoGC>(cx, lstr, rstr);
-    if (!str) {
-        RootedString nlstr(cx, lstr), nrstr(cx, rstr);
-        str = ConcatStrings<CanGC>(cx, nlstr, nrstr);
-        if (!str)
-            THROW();
-    }
+    JSString *str = js_ConcatStrings(cx, lstr, rstr);
+    if (!str)
+        THROW();
     regs.sp[-2].setString(str);
     regs.sp--;
 }
@@ -729,6 +749,7 @@ stubs::Mod(VMFrame &f)
 void JS_FASTCALL
 stubs::DebuggerStatement(VMFrame &f, jsbytecode *pc)
 {
+    AssertCanGC();
     JSDebuggerHandler handler = f.cx->runtime->debugHooks.debuggerHandler;
     if (handler || !f.cx->compartment->getDebuggees().empty()) {
         JSTrapStatus st = JSTRAP_CONTINUE;
@@ -738,7 +759,7 @@ stubs::DebuggerStatement(VMFrame &f, jsbytecode *pc)
             st = handler(f.cx, fscript, pc, rval.address(), f.cx->runtime->debugHooks.debuggerHandlerData);
         }
         if (st == JSTRAP_CONTINUE)
-            st = Debugger::onDebuggerStatement(f.cx, &rval);
+            st = Debugger::onDebuggerStatement(f.cx, rval.address());
 
         switch (st) {
           case JSTRAP_THROW:
@@ -774,42 +795,17 @@ stubs::Interrupt(VMFrame &f, jsbytecode *pc)
 void JS_FASTCALL
 stubs::TriggerIonCompile(VMFrame &f)
 {
+    AssertCanGC();
     RootedScript script(f.cx, f.script());
 
-    if (ion::js_IonOptions.parallelCompilation && !f.cx->runtime->profilingScripts) {
-        if (script->hasIonScript()) {
-            /*
-             * Normally TriggerIonCompile is not called if !script->ion, but the
-             * latter jump can be bypassed if DisableScriptCodeForIon wants this
-             * code to be destroyed so that the Ion code can start running.
-             */
-            ExpandInlineFrames(f.cx->zone());
-            Recompiler::clearStackReferences(f.cx->runtime->defaultFreeOp(), script);
-            f.jit()->destroyChunk(f.cx->runtime->defaultFreeOp(), f.chunkIndex(),
-                                  /* resetUses = */ false);
-            return;
-        }
-
-        /*
-         * Also check for other possible values of script->ion, which could show up
-         * if Ion code was invalidated after calling DisableScriptCodeForIon.
-         */
-        if (!script->canIonCompile() || script->isIonCompilingOffThread())
-            return;
+    if (ion::js_IonOptions.parallelCompilation) {
+        JS_ASSERT(!script->ion);
 
         jsbytecode *osrPC = f.regs.pc;
         if (*osrPC != JSOP_LOOPENTRY)
             osrPC = NULL;
 
-        ion::MethodStatus compileStatus;
-        if (osrPC) {
-            compileStatus = ion::CanEnterAtBranch(f.cx, script, f.cx->fp(), osrPC,
-                                                  f.fp()->isConstructing());
-        } else {
-            compileStatus = ion::CanEnter(f.cx, script, f.cx->fp(), f.fp()->isConstructing());
-        }
-
-        if (compileStatus != ion::Method_Compiled) {
+        if (!ion::TestIonCompile(f.cx, script, script->function(), osrPC, f.fp()->isConstructing())) {
             if (f.cx->isExceptionPending())
                 THROW();
         }
@@ -817,7 +813,7 @@ stubs::TriggerIonCompile(VMFrame &f)
         return;
     }
 
-    ExpandInlineFrames(f.cx->zone());
+    ExpandInlineFrames(f.cx->compartment);
     Recompiler::clearStackReferences(f.cx->runtime->defaultFreeOp(), script);
 
     if (ion::IsEnabled(f.cx) && f.jit()->nchunks == 1 &&
@@ -839,7 +835,8 @@ stubs::TriggerIonCompile(VMFrame &f)
 void JS_FASTCALL
 stubs::RecompileForInline(VMFrame &f)
 {
-    ExpandInlineFrames(f.cx->zone());
+    AutoAssertNoGC nogc;
+    ExpandInlineFrames(f.cx->compartment);
     Recompiler::clearStackReferences(f.cx->runtime->defaultFreeOp(), f.script());
     f.jit()->destroyChunk(f.cx->runtime->defaultFreeOp(), f.chunkIndex(), /* resetUses = */ false);
 }
@@ -847,7 +844,7 @@ stubs::RecompileForInline(VMFrame &f)
 void JS_FASTCALL
 stubs::Trap(VMFrame &f, uint32_t trapTypes)
 {
-    RootedValue rval(f.cx);
+    Value rval;
 
     /*
      * Trap may be called for a single-step interrupt trap and/or a
@@ -863,8 +860,7 @@ stubs::Trap(VMFrame &f, uint32_t trapTypes)
         JSInterruptHook hook = f.cx->runtime->debugHooks.interruptHook;
         if (hook) {
             RootedScript fscript(f.cx, f.script());
-            result = hook(f.cx, fscript, f.pc(), rval.address(),
-                          f.cx->runtime->debugHooks.interruptHookData);
+            result = hook(f.cx, fscript, f.pc(), &rval, f.cx->runtime->debugHooks.interruptHookData);
         }
 
         if (result == JSTRAP_CONTINUE)
@@ -928,17 +924,15 @@ void JS_FASTCALL
 stubs::NewInitArray(VMFrame &f, uint32_t count)
 {
     Rooted<TypeObject*> type(f.cx, (TypeObject *) f.scratch);
-    RootedScript fscript(f.cx, f.script());
-
-    NewObjectKind newKind = UseNewTypeForInitializer(f.cx, fscript, f.pc(), &ArrayClass);
-    RootedObject obj(f.cx, NewDenseAllocatedArray(f.cx, count, NULL, newKind));
+    RootedObject obj(f.cx, NewDenseAllocatedArray(f.cx, count));
     if (!obj)
         THROW();
 
     if (type) {
         obj->setType(type);
     } else {
-        if (!SetInitializerObjectType(f.cx, fscript, f.pc(), obj, newKind))
+        RootedScript fscript(f.cx, f.script());
+        if (!SetInitializerObjectType(f.cx, fscript, f.pc(), obj))
             THROW();
     }
 
@@ -950,16 +944,14 @@ stubs::NewInitObject(VMFrame &f, JSObject *baseobj)
 {
     JSContext *cx = f.cx;
     Rooted<TypeObject*> type(f.cx, (TypeObject *) f.scratch);
-    RootedScript fscript(f.cx, f.script());
 
-    NewObjectKind newKind = UseNewTypeForInitializer(f.cx, fscript, f.pc(), &ObjectClass);
     RootedObject obj(cx);
     if (baseobj) {
         Rooted<JSObject*> base(cx, baseobj);
-        obj = CopyInitializerObject(cx, base, newKind);
+        obj = CopyInitializerObject(cx, base);
     } else {
-        gc::AllocKind allocKind = GuessObjectGCKind(0);
-        obj = NewBuiltinClassInstance(cx, &ObjectClass, allocKind, newKind);
+        gc::AllocKind kind = GuessObjectGCKind(0);
+        obj = NewBuiltinClassInstance(cx, &ObjectClass, kind);
     }
 
     if (!obj)
@@ -968,7 +960,8 @@ stubs::NewInitObject(VMFrame &f, JSObject *baseobj)
     if (type) {
         obj->setType(type);
     } else {
-        if (!SetInitializerObjectType(cx, fscript, f.pc(), obj, newKind))
+        RootedScript fscript(f.cx, f.script());
+        if (!SetInitializerObjectType(cx, fscript, f.pc(), obj))
             THROW();
     }
 
@@ -976,7 +969,7 @@ stubs::NewInitObject(VMFrame &f, JSObject *baseobj)
 }
 
 void JS_FASTCALL
-stubs::InitElem(VMFrame &f)
+stubs::InitElem(VMFrame &f, uint32_t last)
 {
     JSContext *cx = f.cx;
     FrameRegs &regs = f.regs;
@@ -984,26 +977,43 @@ stubs::InitElem(VMFrame &f)
     /* Pop the element's value into rval. */
     JS_ASSERT(regs.stackDepth() >= 3);
     HandleValue rref = HandleValue::fromMarkedLocation(&regs.sp[-1]);
-    MutableHandleValue idval = MutableHandleValue::fromMarkedLocation(&regs.sp[-2]);
 
     /* Find the object being initialized at top of stack. */
     const Value &lref = regs.sp[-3];
     JS_ASSERT(lref.isObject());
     RootedObject obj(cx, &lref.toObject());
 
-    if (!InitElemOperation(cx, obj, idval, rref))
+    /* Fetch id now that we have obj. */
+    RootedId id(cx);
+    MutableHandleValue idval = MutableHandleValue::fromMarkedLocation(&regs.sp[-2]);
+    if (!FetchElementId(f.cx, obj, idval, id.address(), idval))
         THROW();
+
+    /*
+     * If rref is a hole, do not call JSObject::defineProperty. In this case,
+     * obj must be an array, so if the current op is the last element
+     * initialiser, set the array length to one greater than id.
+     */
+    if (rref.isMagic(JS_ARRAY_HOLE)) {
+        JS_ASSERT(obj->isArray());
+        JS_ASSERT(JSID_IS_INT(id));
+        JS_ASSERT(uint32_t(JSID_TO_INT(id)) < StackSpace::ARGS_LENGTH_MAX);
+        if (last && !SetLengthProperty(cx, obj, (uint32_t) (JSID_TO_INT(id) + 1)))
+            THROW();
+    } else {
+        if (!JSObject::defineGeneric(cx, obj, id, rref, NULL, NULL, JSPROP_ENUMERATE))
+            THROW();
+    }
 }
 
 void JS_FASTCALL
-stubs::RegExp(VMFrame &f, JSObject *regexArg)
+stubs::RegExp(VMFrame &f, JSObject *regex)
 {
     /*
      * Push a regexp object cloned from the regexp literal object mapped by the
      * bytecode at pc.
      */
-    RootedObject regex(f.cx, regexArg);
-    RootedObject proto(f.cx, f.fp()->global().getOrCreateRegExpPrototype(f.cx));
+    JSObject *proto = f.fp()->global().getOrCreateRegExpPrototype(f.cx);
     if (!proto)
         THROW();
     JS_ASSERT(proto);
@@ -1017,19 +1027,27 @@ JSObject * JS_FASTCALL
 stubs::Lambda(VMFrame &f, JSFunction *fun_)
 {
     RootedFunction fun(f.cx, fun_);
-    JSObject *clone = Lambda(f.cx, fun, f.fp()->scopeChain());
-    if (!clone)
+    fun = CloneFunctionObjectIfNotSingleton(f.cx, fun, f.fp()->scopeChain());
+    if (!fun)
         THROWV(NULL);
 
-    return clone;
+    return fun;
 }
 
 void JS_FASTCALL
 stubs::GetProp(VMFrame &f, PropertyName *name)
 {
+    JSContext *cx = f.cx;
+    FrameRegs &regs = f.regs;
+
     MutableHandleValue objval = MutableHandleValue::fromMarkedLocation(&f.regs.sp[-1]);
-    if (!GetPropertyOperation(f.cx, f.script(), f.pc(), objval, objval))
+
+    RootedValue rval(cx);
+    RootedScript fscript(cx, f.script());
+    if (!GetPropertyOperation(cx, fscript, f.pc(), objval, &rval))
         THROW();
+
+    regs.sp[-1] = rval;
 }
 
 void JS_FASTCALL
@@ -1283,6 +1301,63 @@ FindNativeCode(VMFrame &f, jsbytecode *target)
 }
 
 void * JS_FASTCALL
+stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
+{
+    AutoAssertNoGC nogc;
+    jsbytecode *jpc = pc;
+    JSScript *script = f.fp()->script();
+
+    /* This is correct because the compiler adjusts the stack beforehand. */
+    Value lval = f.regs.sp[-1];
+
+    if (!lval.isPrimitive())
+        return FindNativeCode(f, pc + GET_JUMP_OFFSET(pc));
+
+    JS_ASSERT(pc[0] == JSOP_LOOKUPSWITCH);
+
+    pc += JUMP_OFFSET_LEN;
+    uint32_t npairs = GET_UINT16(pc);
+    pc += UINT16_LEN;
+
+    JS_ASSERT(npairs);
+
+    if (lval.isString()) {
+        JSLinearString *str = lval.toString()->ensureLinear(f.cx);
+        if (!str)
+            THROWV(NULL);
+        for (uint32_t i = 1; i <= npairs; i++) {
+            Value rval = script->getConst(GET_UINT32_INDEX(pc));
+            pc += UINT32_INDEX_LEN;
+            if (rval.isString()) {
+                JSLinearString *rhs = &rval.toString()->asLinear();
+                if (rhs == str || EqualStrings(str, rhs))
+                    return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
+            }
+            pc += JUMP_OFFSET_LEN;
+        }
+    } else if (lval.isNumber()) {
+        double d = lval.toNumber();
+        for (uint32_t i = 1; i <= npairs; i++) {
+            Value rval = script->getConst(GET_UINT32_INDEX(pc));
+            pc += UINT32_INDEX_LEN;
+            if (rval.isNumber() && d == rval.toNumber())
+                return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
+            pc += JUMP_OFFSET_LEN;
+        }
+    } else {
+        for (uint32_t i = 1; i <= npairs; i++) {
+            Value rval = script->getConst(GET_UINT32_INDEX(pc));
+            pc += UINT32_INDEX_LEN;
+            if (lval == rval)
+                return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
+            pc += JUMP_OFFSET_LEN;
+        }
+    }
+
+    return FindNativeCode(f, jpc + GET_JUMP_OFFSET(jpc));
+}
+
+void * JS_FASTCALL
 stubs::TableSwitch(VMFrame &f, jsbytecode *origPc)
 {
     jsbytecode * const originalPC = origPc;
@@ -1353,7 +1428,7 @@ stubs::DelName(VMFrame &f, PropertyName *name_)
         THROW();
 
     /* Strict mode code should never contain JSOP_DELNAME opcodes. */
-    JS_ASSERT(!f.script()->strict);
+    JS_ASSERT(!f.script()->strictModeCode);
 
     /* ECMA says to return true if name is undefined or inherited. */
     f.regs.sp++;
@@ -1449,7 +1524,7 @@ stubs::In(VMFrame &f)
 
     RootedObject obj(cx, &rref.toObject());
     RootedId id(cx);
-    if (!FetchElementId(f.cx, obj, f.regs.sp[-2], &id,
+    if (!FetchElementId(f.cx, obj, f.regs.sp[-2], id.address(),
                         MutableHandleValue::fromMarkedLocation(&f.regs.sp[-2])))
     {
         THROWV(JS_FALSE);
@@ -1483,7 +1558,7 @@ stubs::TypeBarrierHelper(VMFrame &f, uint32_t which)
      */
     RootedScript fscript(f.cx, f.script());
     if (fscript->hasAnalysis() && fscript->analysis()->ranInference()) {
-        AutoEnterAnalysis enter(f.cx);
+        AutoEnterTypeInference enter(f.cx);
         fscript->analysis()->breakTypeBarriers(f.cx, f.pc() - fscript->code, false);
     }
 
@@ -1497,7 +1572,7 @@ stubs::StubTypeHelper(VMFrame &f, int32_t which)
 
     RootedScript fscript(f.cx, f.script());
     if (fscript->hasAnalysis() && fscript->analysis()->ranInference()) {
-        AutoEnterAnalysis enter(f.cx);
+        AutoEnterTypeInference enter(f.cx);
         fscript->analysis()->breakTypeBarriers(f.cx, f.pc() - fscript->code, false);
     }
 
@@ -1528,12 +1603,12 @@ stubs::CheckArgumentTypes(VMFrame &f)
 {
     StackFrame *fp = f.fp();
     JSFunction *fun = fp->fun();
-    RootedScript fscript(f.cx, fun->nonLazyScript());
+    RootedScript fscript(f.cx, fun->script());
     RecompilationMonitor monitor(f.cx);
 
     {
         /* Postpone recompilations until all args have been updated. */
-        types::AutoEnterAnalysis enter(f.cx);
+        types::AutoEnterTypeInference enter(f.cx);
 
         if (!f.fp()->isConstructing())
             TypeScript::SetThis(f.cx, fscript, fp->thisValue());
@@ -1553,9 +1628,10 @@ stubs::CheckArgumentTypes(VMFrame &f)
 void JS_FASTCALL
 stubs::AssertArgumentTypes(VMFrame &f)
 {
+    AutoAssertNoGC nogc;
     StackFrame *fp = f.fp();
     JSFunction *fun = fp->fun();
-    RawScript script = fun->nonLazyScript();
+    RawScript script = fun->script();
 
     /*
      * Don't check the type of 'this' for constructor frames, the 'this' value
@@ -1585,6 +1661,7 @@ void JS_FASTCALL stubs::MissedBoundsCheckHead(VMFrame &f) {}
 void * JS_FASTCALL
 stubs::InvariantFailure(VMFrame &f, void *rval)
 {
+    AutoAssertNoGC nogc;
     /*
      * Patch this call to the return site of the call triggering the invariant
      * failure (or a MissedBoundsCheck* function if the failure occurred on
@@ -1603,7 +1680,7 @@ stubs::InvariantFailure(VMFrame &f, void *rval)
     JS_ASSERT(!script->failedBoundsCheck);
     script->failedBoundsCheck = true;
 
-    ExpandInlineFrames(f.cx->zone());
+    ExpandInlineFrames(f.cx->compartment);
 
     mjit::Recompiler::clearStackReferences(f.cx->runtime->defaultFreeOp(), script);
     mjit::ReleaseScriptCode(f.cx->runtime->defaultFreeOp(), script);
@@ -1720,21 +1797,21 @@ void JS_FASTCALL
 stubs::WriteBarrier(VMFrame &f, Value *addr)
 {
 #ifdef JS_GC_ZEAL
-    if (!f.cx->zone()->needsBarrier())
+    if (!f.cx->compartment->needsBarrier())
         return;
 #endif
-    gc::MarkValueUnbarriered(f.cx->zone()->barrierTracer(), addr, "write barrier");
+    gc::MarkValueUnbarriered(f.cx->compartment->barrierTracer(), addr, "write barrier");
 }
 
 void JS_FASTCALL
 stubs::GCThingWriteBarrier(VMFrame &f, Value *addr)
 {
 #ifdef JS_GC_ZEAL
-    if (!f.cx->zone()->needsBarrier())
+    if (!f.cx->compartment->needsBarrier())
         return;
 #endif
 
     gc::Cell *cell = (gc::Cell *)addr->toGCThing();
     if (cell && !cell->isMarked())
-        gc::MarkValueUnbarriered(f.cx->zone()->barrierTracer(), addr, "write barrier");
+        gc::MarkValueUnbarriered(f.cx->compartment->barrierTracer(), addr, "write barrier");
 }

@@ -37,10 +37,10 @@ public:
   NS_FORWARD_SAFE_NSIMESSAGELISTENERMANAGER(mMessageManager)
   NS_FORWARD_SAFE_NSIMESSAGESENDER(mMessageManager)
   NS_IMETHOD SendSyncMessage(const nsAString& aMessageName,
-                             const JS::Value& aObject,
+                             const jsval& aObject,
                              JSContext* aCx,
                              uint8_t aArgc,
-                             JS::Value* aRetval)
+                             jsval* aRetval)
   {
     return mMessageManager
       ? mMessageManager->SendSyncMessage(aMessageName, aObject, aCx, aArgc, aRetval)
@@ -122,10 +122,9 @@ protected:
   bool mLoadingScript;
   bool mDelayedDisconnect;
 
-  // Is this the message manager for an in-process <iframe mozbrowser> or
-  // <iframe mozapp>?  This affects where events get sent, so it affects
-  // PreHandleEvent.
-  bool mIsBrowserOrAppFrame;
+  // Is this the message manager for an in-process <iframe mozbrowser>?  This
+  // affects where events get sent, so it affects PreHandleEvent.
+  bool mIsBrowserFrame;
 public:
   nsIContent* mOwner;
   nsFrameMessageManager* mChromeMessageManager;

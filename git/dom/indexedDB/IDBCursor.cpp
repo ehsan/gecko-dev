@@ -321,7 +321,10 @@ IDBCursor::CreateCommon(IDBRequest* aRequest,
   cursor->mScriptOwner = database->GetScriptOwner();
 
   if (cursor->mScriptOwner) {
-    NS_HOLD_JS_OBJECTS(cursor, IDBCursor);
+    if (NS_FAILED(NS_HOLD_JS_OBJECTS(cursor, IDBCursor))) {
+      return nullptr;
+    }
+
     cursor->mRooted = true;
   }
 
@@ -366,26 +369,10 @@ IDBCursor::~IDBCursor()
     NS_ASSERTION(!mActorChild, "Should have cleared in Send__delete__!");
   }
 
-  DropJSObjects();
-  IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
-}
-
-void
-IDBCursor::DropJSObjects()
-{
-  if (!mRooted) {
-    return;
+  if (mRooted) {
+    NS_DROP_JS_OBJECTS(this, IDBCursor);
   }
-  mScriptOwner = nullptr;
-  mCachedKey = JSVAL_VOID;
-  mCachedPrimaryKey = JSVAL_VOID;
-  mCachedValue = JSVAL_VOID;
-  mHaveCachedKey = false;
-  mHaveCachedPrimaryKey = false;
-  mHaveCachedValue = false;
-  mRooted = false;
-  mHaveValue = false;
-  NS_DROP_JS_OBJECTS(this, IDBCursor);
+  IDBObjectStore::ClearCloneReadInfo(mCloneReadInfo);
 }
 
 nsresult
@@ -442,12 +429,16 @@ IDBCursor::ContinueInternal(const Key& aKey,
   return NS_OK;
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(IDBCursor)
+
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBCursor)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRequest)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTransaction)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mObjectStore)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mIndex)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRequest,
+                                                       nsIDOMEventTarget)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mTransaction,
+                                                       nsIDOMEventTarget)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mObjectStore)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mIndex)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBCursor)
@@ -466,8 +457,19 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBCursor)
   // Don't unlink mObjectStore, mIndex, or mTransaction!
-  tmp->DropJSObjects();
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mRequest)
+  if (tmp->mRooted) {
+    NS_DROP_JS_OBJECTS(tmp, IDBCursor);
+    tmp->mScriptOwner = nullptr;
+    tmp->mCachedKey = JSVAL_VOID;
+    tmp->mCachedPrimaryKey = JSVAL_VOID;
+    tmp->mCachedValue = JSVAL_VOID;
+    tmp->mHaveCachedKey = false;
+    tmp->mHaveCachedPrimaryKey = false;
+    tmp->mHaveCachedValue = false;
+    tmp->mRooted = false;
+    tmp->mHaveValue = false;
+  }
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRequest)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(IDBCursor)
@@ -766,12 +768,6 @@ CursorHelper::Dispatch(nsIEventTarget* aDatabaseThread)
     return AsyncConnectionHelper::Dispatch(aDatabaseThread);
   }
 
-  // If we've been invalidated then there's no point sending anything to the
-  // parent process.
-  if (mCursor->Transaction()->Database()->IsInvalidated()) {
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-
   IndexedDBCursorChild* cursorActor = mCursor->GetActorChild();
   NS_ASSERTION(cursorActor, "Must have an actor here!");
 
@@ -922,7 +918,7 @@ ContinueHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = continueResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 

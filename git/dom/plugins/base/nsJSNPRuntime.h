@@ -31,8 +31,6 @@ public:
   const NPP mNpp;
 };
 
-extern JSClass sNPObjectJSWrapperClass;
-
 class nsJSObjWrapper : public NPObject,
                        public nsJSObjWrapperKey
 {
@@ -75,7 +73,7 @@ public:
 };
 
 bool
-JSValToNPVariant(NPP npp, JSContext *cx, JS::Value val, NPVariant *variant);
+JSValToNPVariant(NPP npp, JSContext *cx, jsval val, NPVariant *variant);
 
 
 #endif // nsJSNPRuntime_h_

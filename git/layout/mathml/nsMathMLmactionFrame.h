@@ -24,10 +24,10 @@ public:
   NS_IMETHOD
   TransmitAutomaticData();
 
-  virtual void
+  NS_IMETHOD
   Init(nsIContent*      aContent,
        nsIFrame*        aParent,
-       nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+       nsIFrame*        aPrevInFlow);
 
   NS_IMETHOD
   SetInitialChildList(ChildListID     aListID,
@@ -36,9 +36,9 @@ public:
   virtual nsresult
   ChildListChanged(int32_t aModType) MOZ_OVERRIDE;
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
@@ -66,7 +66,7 @@ private:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIDOMEVENTLISTENER
 
-    MouseListener(nsMathMLmactionFrame* aOwner) : mOwner(aOwner) { }
+    MouseListener(nsMathMLmactionFrame* aOwner) : mOwner(aOwner) { };
 
     nsMathMLmactionFrame* mOwner;
   };
@@ -75,6 +75,8 @@ protected:
   nsMathMLmactionFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmactionFrame();
   
+  virtual int GetSkipSides() const { return 0; }
+
 private:
   int32_t         mActionType;
   int32_t         mChildCount;

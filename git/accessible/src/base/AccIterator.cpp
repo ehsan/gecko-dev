@@ -5,11 +5,7 @@
 #include "AccIterator.h"
 
 #include "nsAccessibilityService.h"
-#include "AccGroupInfo.h"
-#include "Accessible-inl.h"
-#ifdef MOZ_XUL
-#include "XULTreeAccessible.h"
-#endif
+#include "Accessible.h"
 
 #include "mozilla/dom/Element.h"
 #include "nsBindingManager.h"
@@ -333,11 +329,6 @@ IDRefsIterator::Next()
   return nextElm ? mDoc->GetAccessible(nextElm) : nullptr;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-// SingleAccIterator
-////////////////////////////////////////////////////////////////////////////////
-
 Accessible*
 SingleAccIterator::Next()
 {
@@ -346,56 +337,3 @@ SingleAccIterator::Next()
   return (nextAcc && !nextAcc->IsDefunct()) ? nextAcc : nullptr;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-// ItemIterator
-////////////////////////////////////////////////////////////////////////////////
-
-Accessible*
-ItemIterator::Next()
-{
-  if (mContainer) {
-    mAnchor = AccGroupInfo::FirstItemOf(mContainer);
-    mContainer = nullptr;
-    return mAnchor;
-  }
-
-  return mAnchor ? (mAnchor = AccGroupInfo::NextItemTo(mAnchor)) : nullptr;
-}
-
-
-////////////////////////////////////////////////////////////////////////////////
-// XULTreeItemIterator
-////////////////////////////////////////////////////////////////////////////////
-
-XULTreeItemIterator::XULTreeItemIterator(XULTreeAccessible* aXULTree,
-                                         nsITreeView* aTreeView,
-                                         int32_t aRowIdx) :
-  mXULTree(aXULTree), mTreeView(aTreeView), mRowCount(-1),
-  mContainerLevel(-1), mCurrRowIdx(aRowIdx + 1)
-{
-  mTreeView->GetRowCount(&mRowCount);
-  if (aRowIdx != -1)
-    mTreeView->GetLevel(aRowIdx, &mContainerLevel);
-}
-
-Accessible*
-XULTreeItemIterator::Next()
-{
-  while (mCurrRowIdx < mRowCount) {
-    int32_t level = 0;
-    mTreeView->GetLevel(mCurrRowIdx, &level);
-
-    if (level == mContainerLevel + 1)
-      return mXULTree->GetTreeItemAccessible(mCurrRowIdx++);
-
-    if (level <= mContainerLevel) { // got level up
-      mCurrRowIdx = mRowCount;
-      break;
-    }
-
-    mCurrRowIdx++;
-  }
-
-  return nullptr;
-}

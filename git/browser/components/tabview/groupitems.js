@@ -1004,7 +1004,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
 
         // if it matches the selected tab or no active tab and the browser
         // tab is hidden, the active group item would be set.
-        if (item.tab.selected ||
+        if (item.tab == gBrowser.selectedTab ||
             (!GroupItems.getActiveGroupItem() && !item.tab.hidden))
           UI.setActive(this);
       }
@@ -2542,7 +2542,7 @@ let GroupItems = {
     let groupItem;
 
     // switch to the appropriate tab first.
-    if (tab.selected) {
+    if (gBrowser.selectedTab == tab) {
       if (gBrowser.visibleTabs.length > 1) {
         gBrowser._blurTab(tab);
         shouldUpdateTabBar = true;

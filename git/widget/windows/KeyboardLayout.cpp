@@ -22,7 +22,6 @@
 
 #include <windows.h>
 #include <winuser.h>
-#include <algorithm>
 
 #ifndef WINABLEAPI
 #include <winable.h>
@@ -121,8 +120,6 @@ ModifierKeyState::InitInputEvent(nsInputEvent& aInputEvent) const
     case NS_SIMPLE_GESTURE_EVENT:
       InitMouseEvent(aInputEvent);
       break;
-    default:
-      break;
   }
 }
 
@@ -199,7 +196,7 @@ UniCharsAndModifiers::UniCharsCaseInsensitiveEqual(
 UniCharsAndModifiers&
 UniCharsAndModifiers::operator+=(const UniCharsAndModifiers& aOther)
 {
-  uint32_t copyCount = std::min(aOther.mLength, 5 - mLength);
+  uint32_t copyCount = NS_MIN(aOther.mLength, 5 - mLength);
   NS_ENSURE_TRUE(copyCount > 0, *this);
   memcpy(&mChars[mLength], aOther.mChars, copyCount * sizeof(PRUnichar));
   memcpy(&mModifiers[mLength], aOther.mModifiers,
@@ -1125,13 +1122,6 @@ KeyboardLayout::ConvertNativeKeyCodeToDOMKeyCode(UINT aNativeKeyCode) const
     case VK_SLEEP:
     case VK_NUMLOCK:
     case VK_SCROLL: // SCROLL LOCK
-    case VK_ATTN: // Attension key of IBM midrange computers, e.g., AS/400
-    case VK_CRSEL: // Cursor Selection
-    case VK_EXSEL: // Extend Selection
-    case VK_EREOF: // Erase EOF key of IBM 3270 keyboard layout
-    case VK_PLAY:
-    case VK_ZOOM:
-    case VK_PA1: // PA1 key of IBM 3270 keyboard layout
       return uint32_t(aNativeKeyCode);
 
     case VK_HELP:
@@ -1143,13 +1133,6 @@ KeyboardLayout::ConvertNativeKeyCodeToDOMKeyCode(UINT aNativeKeyCode) const
     case VK_RWIN:
       return NS_VK_WIN;
 
-    case VK_VOLUME_MUTE:
-      return NS_VK_VOLUME_MUTE;
-    case VK_VOLUME_DOWN:
-      return NS_VK_VOLUME_DOWN;
-    case VK_VOLUME_UP:
-      return NS_VK_VOLUME_UP;
-
     // Following keycodes are not defined in our DOM keycodes.
     case VK_BROWSER_BACK:
     case VK_BROWSER_FORWARD:
@@ -1158,6 +1141,9 @@ KeyboardLayout::ConvertNativeKeyCodeToDOMKeyCode(UINT aNativeKeyCode) const
     case VK_BROWSER_SEARCH:
     case VK_BROWSER_FAVORITES:
     case VK_BROWSER_HOME:
+    case VK_VOLUME_MUTE:
+    case VK_VOLUME_DOWN:
+    case VK_VOLUME_UP:
     case VK_MEDIA_NEXT_TRACK:
     case VK_MEDIA_STOP:
     case VK_MEDIA_PLAY_PAUSE:
@@ -1165,22 +1151,17 @@ KeyboardLayout::ConvertNativeKeyCodeToDOMKeyCode(UINT aNativeKeyCode) const
     case VK_LAUNCH_MEDIA_SELECT:
     case VK_LAUNCH_APP1:
     case VK_LAUNCH_APP2:
+    case VK_ATTN: // Attension key of IBM midrange computers, e.g., AS/400
+    case VK_CRSEL: // Cursor Selection
+    case VK_EXSEL: // Extend Selection
+    case VK_EREOF: // Erase EOF key of IBM 3270 keyboard layout
+    case VK_PLAY:
+    case VK_ZOOM:
+    case VK_PA1: // PA1 key of IBM 3270 keyboard layout
+    case VK_OEM_CLEAR:
       return 0;
 
-    // Following OEM specific virtual keycodes should pass through DOM keyCode
-    // for compatibility with the other browsers on Windows.
-
-    // Following OEM specific virtual keycodes are defined for Fujitsu/OASYS.
-    case VK_OEM_FJ_JISHO:
-    case VK_OEM_FJ_MASSHOU:
-    case VK_OEM_FJ_TOUROKU:
-    case VK_OEM_FJ_LOYA:
-    case VK_OEM_FJ_ROYA:
-    // Not sure what means "ICO".
-    case VK_ICO_HELP:
-    case VK_ICO_00:
-    case VK_ICO_CLEAR:
-    // Following OEM specific virtual keycodes are defined for Nokia/Ericsson.
+    // Following keycodes are only used by Nokia/Ericsson, we don't define them
     case VK_OEM_RESET:
     case VK_OEM_JUMP:
     case VK_OEM_PA1:
@@ -1194,15 +1175,6 @@ KeyboardLayout::ConvertNativeKeyCodeToDOMKeyCode(UINT aNativeKeyCode) const
     case VK_OEM_AUTO:
     case VK_OEM_ENLW:
     case VK_OEM_BACKTAB:
-    // VK_OEM_CLEAR is defined as not OEM specific, but let's pass though
-    // DOM keyCode like other OEM specific virtual keycodes.
-    case VK_OEM_CLEAR:
-      return uint32_t(aNativeKeyCode);
-
-    // 0xE1 is an OEM specific virtual keycode. However, the value is already
-    // used in our DOM keyCode for AltGr on Linux. So, this virtual keycode
-    // cannot pass through DOM keyCode.
-    case 0xE1:
       return 0;
 
     // Following keycodes are OEM keys which are keycodes for non-alphabet and
@@ -1222,7 +1194,10 @@ KeyboardLayout::ConvertNativeKeyCodeToDOMKeyCode(UINT aNativeKeyCode) const
     case VK_OEM_6:
     case VK_OEM_7:
     case VK_OEM_8:
+    case 0xE1: // OEM specific
     case VK_OEM_102:
+    case 0xE3: // OEM specific
+    case 0xE4: // OEM specific
     {
       NS_ASSERTION(IsPrintableCharKey(aNativeKeyCode),
                    "The key must be printable");

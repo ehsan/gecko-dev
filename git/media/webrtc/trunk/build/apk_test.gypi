@@ -20,10 +20,7 @@
 
 {
   'variables': {
-    'input_jars_paths': [
-      # Needed by ChromeNativeTestActivity.java.
-      '<(PRODUCT_DIR)/lib.java/chromium_base.jar',
-    ],
+    'input_jars_paths': [],
   },
   'target_conditions': [
     ['_toolset == "target"', {
@@ -52,6 +49,7 @@
               '--strip-binary=<(android_strip)',
               '--app_abi',
               '<(android_app_abi)',
+              '--sdk-build=<(sdk_build)',
               '--ant-args',
               '-DPRODUCT_DIR=<(ant_build_out)',
               '--ant-args',
@@ -63,7 +61,7 @@
               '--ant-args',
               '-DANDROID_SDK_VERSION=<(android_sdk_version)',
               '--ant-args',
-              '-DANDROID_GDBSERVER=<(android_gdbserver)',
+              '-DANDROID_TOOLCHAIN=<(android_toolchain)',
               '--ant-args',
               '-DCHROMIUM_SRC=<(ant_build_out)/../..',
             ],

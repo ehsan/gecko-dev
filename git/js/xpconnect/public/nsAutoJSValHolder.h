@@ -18,8 +18,7 @@
 class nsAutoJSValHolder
 {
 public:
-  nsAutoJSValHolder()
-    : mVal(JSVAL_NULL), mRt(nullptr)
+  nsAutoJSValHolder() : mVal(JSVAL_NULL), mRt(nullptr)
   {
     // nothing to do
   }
@@ -31,9 +30,7 @@ public:
     Release();
   }
 
-  nsAutoJSValHolder(const nsAutoJSValHolder& aOther)
-    : mVal(JSVAL_NULL), mRt(nullptr)
-  {
+  nsAutoJSValHolder(const nsAutoJSValHolder& aOther) {
     *this = aOther;
   }
 
@@ -69,7 +66,7 @@ public:
       mRt = nullptr;
     }
 
-    if (!mRt && JS_AddNamedValueRootRT(aRt, &mVal, "nsAutoJSValHolder")) {
+    if (!mRt && js_AddRootRT(aRt, &mVal, "nsAutoJSValHolder")) {
       mRt = aRt;
     }
 
@@ -84,7 +81,7 @@ public:
     jsval oldval = mVal;
 
     if (mRt) {
-      JS_RemoveValueRootRT(mRt, &mVal); // infallible
+      js_RemoveRoot(mRt, &mVal); // infallible
       mRt = nullptr;
     }
 

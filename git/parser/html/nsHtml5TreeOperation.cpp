@@ -6,7 +6,6 @@
 
 #include "nsHtml5TreeOperation.h"
 #include "nsContentUtils.h"
-#include "nsDocElementCreatedNotificationRunner.h"
 #include "nsNodeUtils.h"
 #include "nsAttrName.h"
 #include "nsHtml5TreeBuilder.h"
@@ -31,13 +30,11 @@
 #include "nsIServiceManager.h"
 #include "nsEscape.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/HTMLTemplateElement.h"
 #include "nsHtml5SVGLoadDispatcher.h"
 #include "nsIURI.h"
 #include "nsIProtocolHandler.h"
 #include "nsNetUtil.h"
 #include "nsIHTMLDocument.h"
-#include "mozilla/Likely.h"
 
 namespace dom = mozilla::dom;
 
@@ -53,7 +50,7 @@ class NS_STACK_CLASS nsHtml5OtherDocUpdate {
     {
       NS_PRECONDITION(aCurrentDoc, "Node has no doc?");
       NS_PRECONDITION(aExecutorDoc, "Executor has no doc?");
-      if (MOZ_LIKELY(aCurrentDoc == aExecutorDoc)) {
+      if (NS_LIKELY(aCurrentDoc == aExecutorDoc)) {
         mDocument = nullptr;
       } else {
         mDocument = aCurrentDoc;
@@ -63,7 +60,7 @@ class NS_STACK_CLASS nsHtml5OtherDocUpdate {
 
     ~nsHtml5OtherDocUpdate()
     {
-      if (MOZ_UNLIKELY(mDocument)) {
+      if (NS_UNLIKELY(mDocument)) {
         mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
       }
     }
@@ -182,7 +179,7 @@ nsHtml5TreeOperation::Append(nsIContent* aNode,
   nsIDocument* parentDoc = aParent->OwnerDoc();
   NS_ASSERTION(parentDoc, "Null owner doc on old node.");
 
-  if (MOZ_LIKELY(executorDoc == parentDoc)) {
+  if (NS_LIKELY(executorDoc == parentDoc)) {
     // the usual case. the parent is in the parser's doc
     rv = aParent->AppendChildTo(aNode, false);
     if (NS_SUCCEEDED(rv)) {
@@ -333,7 +330,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsHtml5HtmlAttributes* attributes = mThree.attributes;
       
       bool isKeygen = (name == nsHtml5Atoms::keygen && ns == kNameSpaceID_XHTML);
-      if (MOZ_UNLIKELY(isKeygen)) {
+      if (NS_UNLIKELY(isKeygen)) {
         name = nsHtml5Atoms::select;
       }
       
@@ -352,13 +349,13 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
 
       aBuilder->HoldElement(*target = newContent);      
 
-      if (MOZ_UNLIKELY(name == nsHtml5Atoms::style || name == nsHtml5Atoms::link)) {
+      if (NS_UNLIKELY(name == nsHtml5Atoms::style || name == nsHtml5Atoms::link)) {
         nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(newContent));
         if (ssle) {
           ssle->InitStyleLinkElement(false);
           ssle->SetEnableUpdates(false);
         }
-      } else if (MOZ_UNLIKELY(isKeygen)) {
+      } else if (NS_UNLIKELY(isKeygen)) {
         // Adapted from CNavDTD
         nsCOMPtr<nsIFormProcessor> theFormProcessor =
           do_GetService(kFormProcessorCID, &rv);
@@ -558,13 +555,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       NS_ASSERTION(docType, "Doctype creation failed.");
       nsCOMPtr<nsIContent> asContent = do_QueryInterface(docType);
       return AppendToDocument(asContent, aBuilder);
-    }
-    case eTreeOpGetDocumentFragmentForTemplate: {
-      dom::HTMLTemplateElement* tempElem =
-        static_cast<dom::HTMLTemplateElement*>(*mOne.node);
-      nsRefPtr<dom::DocumentFragment> frag = tempElem->Content();
-      *mTwo.node = frag.get();
-      return rv;
     }
     case eTreeOpMarkAsBroken: {
       aBuilder->MarkAsBroken(NS_ERROR_OUT_OF_MEMORY);
@@ -819,4 +809,3 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
   }
   return rv; // keep compiler happy
 }
-

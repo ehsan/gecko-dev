@@ -6,7 +6,6 @@
 #include "SpecialSystemDirectory.h"
 #include "nsString.h"
 #include "nsDependentString.h"
-#include "nsAutoPtr.h"
 
 #if defined(XP_WIN)
 
@@ -16,9 +15,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <direct.h>
-#include <shlobj.h>
-#include <knownfolders.h>
-#include <guiddef.h>
 
 #elif defined(XP_OS2)
 
@@ -105,8 +101,9 @@ static nsresult GetKnownFolder(GUID* guid, nsIFile** aFile)
     return rv;
 }
 
-static nsresult
-GetWindowsFolder(int folder, nsIFile** aFile)
+//----------------------------------------------------------------------------------------
+static nsresult GetWindowsFolder(int folder, nsIFile** aFile)
+//----------------------------------------------------------------------------------------
 {
     WCHAR path_orig[MAX_PATH + 3];
     WCHAR *path = path_orig+1;
@@ -124,65 +121,6 @@ GetWindowsFolder(int folder, nsIFile** aFile)
     }
 
     return NS_NewLocalFile(nsDependentString(path, len), true, aFile);
-}
-
-__inline HRESULT
-SHLoadLibraryFromKnownFolder(REFKNOWNFOLDERID aFolderId, DWORD aMode,
-                             REFIID riid, void **ppv)
-{
-    *ppv = NULL;
-    IShellLibrary *plib;
-    HRESULT hr = CoCreateInstance(CLSID_ShellLibrary, NULL,
-                                  CLSCTX_INPROC_SERVER,
-                                  IID_PPV_ARGS(&plib));
-    if (SUCCEEDED(hr)) {
-        hr = plib->LoadLibraryFromKnownFolder(aFolderId, aMode);
-        if (SUCCEEDED(hr)) {
-            hr = plib->QueryInterface(riid, ppv);
-        }
-        plib->Release();
-    }
-    return hr;
-}
-
-/*
- * Check to see if we're on Win7 and up, and if so, returns the default
- * save-to location for the Windows Library passed in through aFolderId.
- * Otherwise falls back on pre-win7 GetWindowsFolder.
- */
-static nsresult
-GetLibrarySaveToPath(int aFallbackFolderId, REFKNOWNFOLDERID aFolderId,
-                     nsIFile** aFile)
-{
-    // Skip off checking for library support if the os is Vista or lower.
-    DWORD dwVersion = GetVersion();
-    if ((DWORD)(LOBYTE(LOWORD(dwVersion))) < 6 ||
-        ((DWORD)(LOBYTE(LOWORD(dwVersion))) == 6 &&
-         (DWORD)(HIBYTE(LOWORD(dwVersion))) == 0))
-      return GetWindowsFolder(aFallbackFolderId, aFile);
-
-    nsRefPtr<IShellLibrary> shellLib;
-    nsRefPtr<IShellItem> savePath;
-    HRESULT hr =
-        SHLoadLibraryFromKnownFolder(aFolderId, STGM_READ,
-                                     IID_IShellLibrary, getter_AddRefs(shellLib));
-
-    if (shellLib &&
-        SUCCEEDED(shellLib->GetDefaultSaveFolder(DSFT_DETECT, IID_IShellItem,
-                                                 getter_AddRefs(savePath)))) {
-        PRUnichar* str = nullptr;
-        if (SUCCEEDED(savePath->GetDisplayName(SIGDN_FILESYSPATH, &str))) {
-            nsAutoString path;
-            path.Assign(str);
-            path.AppendLiteral("\\");
-            nsresult rv =
-                NS_NewLocalFile(path, false, aFile);
-            CoTaskMemFree(str);
-            return rv;
-        }
-    }
-
-    return GetWindowsFolder(aFallbackFolderId, aFile);
 }
 
 /**
@@ -809,29 +747,17 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
                 rv = GetRegWindowsAppDataFolder(true, aFile);
             return rv;
         }
-        case Win_Documents:
-        {
-            return GetLibrarySaveToPath(CSIDL_MYDOCUMENTS,
-                                        FOLDERID_DocumentsLibrary,
-                                        aFile);
-        }
         case Win_Pictures:
         {
-            return GetLibrarySaveToPath(CSIDL_MYPICTURES,
-                                        FOLDERID_PicturesLibrary,
-                                        aFile);
+            return GetWindowsFolder(CSIDL_MYPICTURES, aFile);
         }
         case Win_Music:
         {
-            return GetLibrarySaveToPath(CSIDL_MYMUSIC,
-                                        FOLDERID_MusicLibrary,
-                                        aFile);
+            return GetWindowsFolder(CSIDL_MYMUSIC, aFile);
         }
         case Win_Videos:
         {
-            return GetLibrarySaveToPath(CSIDL_MYVIDEO,
-                                        FOLDERID_VideosLibrary,
-                                        aFile);
+            return GetWindowsFolder(CSIDL_MYVIDEO, aFile);
         }
 #endif  // XP_WIN
 

@@ -34,11 +34,7 @@ volatile bool gDebugDisableHangMonitor = false;
 
 const char kHangMonitorPrefName[] = "hangmonitor.timeout";
 
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-const char kTelemetryPrefName[] = "toolkit.telemetry.enabledPreRelease";
-#else
 const char kTelemetryPrefName[] = "toolkit.telemetry.enabled";
-#endif
 
 // Monitor protects gShutdown and gTimeout, but not gTimestamp which rely on
 // being atomically set by the processor; synchronization doesn't really matter
@@ -137,13 +133,12 @@ GetChromeHangReport(Telemetry::ProcessedStack &aStack)
   DWORD ret = ::SuspendThread(winMainThreadHandle);
   if (ret == -1)
     return;
-  NS_StackWalk(ChromeStackWalker, /* skipFrames */ 0, /* maxFrames */ 0,
-               reinterpret_cast<void*>(&rawStack),
-               reinterpret_cast<uintptr_t>(winMainThreadHandle), nullptr);
+  NS_StackWalk(ChromeStackWalker, 0, reinterpret_cast<void*>(&rawStack),
+               reinterpret_cast<uintptr_t>(winMainThreadHandle));
   ret = ::ResumeThread(winMainThreadHandle);
   if (ret == -1)
     return;
-  aStack = Telemetry::GetStackAndModules(rawStack);
+  aStack = Telemetry::GetStackAndModules(rawStack, false);
 }
 #endif
 
@@ -229,7 +224,7 @@ Startup()
   if (GeckoProcessType_Default != XRE_GetProcessType())
     return;
 
-  MOZ_ASSERT(!gMonitor, "Hang monitor already initialized");
+  NS_ASSERTION(!gMonitor, "Hang monitor already initialized");
   gMonitor = new Monitor("HangMonitor");
 
   Preferences::RegisterCallback(PrefChanged, kHangMonitorPrefName, NULL);
@@ -261,7 +256,7 @@ Shutdown()
   if (GeckoProcessType_Default != XRE_GetProcessType())
     return;
 
-  MOZ_ASSERT(gMonitor, "Hang monitor not started");
+  NS_ASSERTION(gMonitor, "Hang monitor not started");
 
   { // Scope the lock we're going to delete later
     MonitorAutoLock lock(*gMonitor);
@@ -302,8 +297,8 @@ IsUIMessageWaiting()
 void
 NotifyActivity(ActivityType activityType)
 {
-  MOZ_ASSERT(NS_IsMainThread(),
-             "HangMonitor::Notify called from off the main thread.");
+  NS_ASSERTION(NS_IsMainThread(),
+    "HangMonitor::Notify called from off the main thread.");
 
   // Determine the activity type more specifically
   if (activityType == kGeneralActivity) {
@@ -350,8 +345,7 @@ NotifyActivity(ActivityType activityType)
 void
 Suspend()
 {
-  MOZ_ASSERT(NS_IsMainThread(),
-             "HangMonitor::Suspend called from off the main thread.");
+  NS_ASSERTION(NS_IsMainThread(), "HangMonitor::Suspend called from off the main thread.");
 
   // Because gTimestamp changes this resets the wait count.
   gTimestamp = PR_INTERVAL_NO_WAIT;

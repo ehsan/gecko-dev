@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "CSFLog.h"
 #include "base/basictypes.h"
 #include "MediaStreamList.h"
 #ifdef MOZILLA_INTERNAL_API
@@ -51,7 +50,7 @@ MediaStreamList::WrapObject(JSContext* cx, ErrorResult& error)
 }
 
 template<class T>
-static DOMMediaStream*
+static nsIDOMMediaStream*
 GetStreamFromInfo(T* info, bool& found)
 {
   if (!info) {
@@ -63,23 +62,21 @@ GetStreamFromInfo(T* info, bool& found)
   return info->GetMediaStream();
 }
 
-DOMMediaStream*
+nsIDOMMediaStream*
 MediaStreamList::IndexedGetter(uint32_t index, bool& found)
 {
   if (mType == Local) {
-    return GetStreamFromInfo(mPeerConnection->media()->
-      GetLocalStream(index), found);
+    return GetStreamFromInfo(mPeerConnection->GetLocalStream(index), found);
   }
 
-  return GetStreamFromInfo(mPeerConnection->media()->
-    GetRemoteStream(index), found);
+  return GetStreamFromInfo(mPeerConnection->GetRemoteStream(index), found);
 }
 
 uint32_t
 MediaStreamList::Length()
 {
-  return mType == Local ? mPeerConnection->media()->LocalStreamsLength() :
-      mPeerConnection->media()->RemoteStreamsLength();
+  return mType == Local ? mPeerConnection->LocalStreamsLength() :
+                          mPeerConnection->RemoteStreamsLength();
 }
 
 } // namespace dom

@@ -7,7 +7,6 @@
 #ifndef ParseNode_inl_h__
 #define ParseNode_inl_h__
 
-#include "frontend/Parser.h"
 #include "frontend/ParseNode.h"
 
 namespace js {
@@ -32,20 +31,33 @@ UpvarCookie::set(JSContext *cx, unsigned newLevel, uint16_t newSlot)
 inline PropertyName *
 ParseNode::name() const
 {
-    JS_ASSERT(isKind(PNK_FUNCTION) || isKind(PNK_NAME));
+    JS_ASSERT(isKind(PNK_FUNCTION) || isKind(PNK_NAME) || isKind(PNK_INTRINSICNAME));
     JSAtom *atom = isKind(PNK_FUNCTION) ? pn_funbox->function()->atom() : pn_atom;
     return atom->asPropertyName();
 }
 
-inline JSAtom *
-ParseNode::atom() const
+inline bool
+ParseNode::isConstant()
 {
-    JS_ASSERT(isKind(PNK_MODULE) || isKind(PNK_STRING));
-    return isKind(PNK_MODULE) ? pn_modulebox->module()->atom() : pn_atom;
+    switch (pn_type) {
+      case PNK_NUMBER:
+      case PNK_STRING:
+      case PNK_NULL:
+      case PNK_FALSE:
+      case PNK_TRUE:
+        return true;
+      case PNK_ARRAY:
+      case PNK_OBJECT:
+        return isOp(JSOP_NEWINIT) && !(pn_xflags & PNX_NONCONST);
+      default:
+        return false;
+    }
 }
 
+struct ParseContext;
+
 inline void
-NameNode::initCommon(ParseContext<FullParseHandler> *pc)
+NameNode::initCommon(ParseContext *pc)
 {
     pn_expr = NULL;
     pn_cookie.makeFree();

@@ -8,7 +8,7 @@
 #include "nsSVGLength2.h"
 #include "prdtoa.h"
 #include "nsTextFormatter.h"
-#include "mozilla/dom/SVGSVGElement.h"
+#include "nsSVGSVGElement.h"
 #include "nsIFrame.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGAttrTearoffTable.h"
@@ -16,20 +16,23 @@
 #include "nsSMILValue.h"
 #include "nsSMILFloatType.h"
 #include "nsAttrValueInlines.h"
-#include "mozilla/dom/SVGAnimatedLength.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGLength2::DOMBaseVal, mSVGElement)
 
 NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGLength2::DOMAnimVal, mSVGElement)
+
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(nsSVGLength2::DOMAnimatedLength, mSVGElement)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGLength2::DOMBaseVal)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGLength2::DOMBaseVal)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGLength2::DOMAnimVal)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGLength2::DOMAnimVal)
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsSVGLength2::DOMAnimatedLength)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsSVGLength2::DOMAnimatedLength)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMBaseVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLength)
@@ -41,6 +44,14 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMAnimVal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMSVGLength)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGLength)
+NS_INTERFACE_MAP_END
+
+DOMCI_DATA(SVGAnimatedLength, nsSVGLength2::DOMAnimatedLength)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGLength2::DOMAnimatedLength)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedLength)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedLength)
 NS_INTERFACE_MAP_END
 
 static nsIAtom** const unitMap[] =
@@ -58,7 +69,7 @@ static nsIAtom** const unitMap[] =
   &nsGkAtoms::pc
 };
 
-static nsSVGAttrTearoffTable<nsSVGLength2, SVGAnimatedLength>
+static nsSVGAttrTearoffTable<nsSVGLength2, nsSVGLength2::DOMAnimatedLength>
   sSVGAnimatedLengthTearoffTable;
 static nsSVGAttrTearoffTable<nsSVGLength2, nsSVGLength2::DOMBaseVal>
   sBaseSVGLengthTearoffTable;
@@ -158,7 +169,7 @@ FixAxisLength(float aLength)
 }
 
 float
-nsSVGLength2::GetAxisLength(SVGSVGElement *aCtx) const
+nsSVGLength2::GetAxisLength(nsSVGSVGElement *aCtx) const
 {
   if (!aCtx)
     return 1;
@@ -208,7 +219,7 @@ nsSVGLength2::GetUnitScaleFactor(nsSVGElement *aSVGElement,
 }
 
 float
-nsSVGLength2::GetUnitScaleFactor(SVGSVGElement *aCtx, uint8_t aUnitType) const
+nsSVGLength2::GetUnitScaleFactor(nsSVGSVGElement *aCtx, uint8_t aUnitType) const
 {
   switch (aUnitType) {
   case nsIDOMSVGLength::SVG_LENGTHTYPE_NUMBER:
@@ -475,24 +486,18 @@ nsresult
 nsSVGLength2::ToDOMAnimatedLength(nsIDOMSVGAnimatedLength **aResult,
                                   nsSVGElement *aSVGElement)
 {
-  *aResult = ToDOMAnimatedLength(aSVGElement).get();
+  nsRefPtr<DOMAnimatedLength> domAnimatedLength =
+    sSVGAnimatedLengthTearoffTable.GetTearoff(this);
+  if (!domAnimatedLength) {
+    domAnimatedLength = new DOMAnimatedLength(this, aSVGElement);
+    sSVGAnimatedLengthTearoffTable.AddTearoff(this, domAnimatedLength);
+  }
+
+  domAnimatedLength.forget(aResult);
   return NS_OK;
 }
 
-already_AddRefed<SVGAnimatedLength>
-nsSVGLength2::ToDOMAnimatedLength(nsSVGElement* aSVGElement)
-{
-  nsRefPtr<SVGAnimatedLength> svgAnimatedLength =
-    sSVGAnimatedLengthTearoffTable.GetTearoff(this);
-  if (!svgAnimatedLength) {
-    svgAnimatedLength = new SVGAnimatedLength(this, aSVGElement);
-    sSVGAnimatedLengthTearoffTable.AddTearoff(this, svgAnimatedLength);
-  }
-
-  return svgAnimatedLength.forget();
-}
-
-SVGAnimatedLength::~SVGAnimatedLength()
+nsSVGLength2::DOMAnimatedLength::~DOMAnimatedLength()
 {
   sSVGAnimatedLengthTearoffTable.RemoveTearoff(mVal);
 }
@@ -505,7 +510,7 @@ nsSVGLength2::ToSMILAttr(nsSVGElement *aSVGElement)
 
 nsresult
 nsSVGLength2::SMILLength::ValueFromString(const nsAString& aStr,
-                                 const SVGAnimationElement* /*aSrcElement*/,
+                                 const nsISMILAnimationElement* /*aSrcElement*/,
                                  nsSMILValue& aValue,
                                  bool& aPreventCachingOfSandwich) const
 {

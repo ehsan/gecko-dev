@@ -56,6 +56,7 @@ void UpdateLog::Flush()
   fflush(logFP);
 }
 
+
 void UpdateLog::Printf(const char *fmt, ... )
 {
   if (!logFP)
@@ -64,19 +65,5 @@ void UpdateLog::Printf(const char *fmt, ... )
   va_list ap;
   va_start(ap, fmt);
   vfprintf(logFP, fmt, ap);
-  fprintf(logFP, "\n");
-  va_end(ap);
-}
-
-void UpdateLog::WarnPrintf(const char *fmt, ... )
-{
-  if (!logFP)
-    return;
-
-  va_list ap;
-  va_start(ap, fmt);
-  fprintf(logFP, "*** Warning: ");
-  vfprintf(logFP, fmt, ap);
-  fprintf(logFP, "***\n");
   va_end(ap);
 }

@@ -26,6 +26,7 @@ public:
   virtual void Shutdown();
 
   // SelectAccessible
+  virtual bool IsSelect();
   virtual already_AddRefed<nsIArray> SelectedItems();
   virtual uint32_t SelectedItemCount();
   virtual Accessible* GetSelectedItem(uint32_t aIndex);

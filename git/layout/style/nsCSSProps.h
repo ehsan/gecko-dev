@@ -101,12 +101,6 @@ MOZ_STATIC_ASSERT((CSS_PROPERTY_PARSE_PROPERTY_MASK &
 // Is this property (which must be a shorthand) really an alias?
 #define CSS_PROPERTY_IS_ALIAS                     (1<<17)
 
-// Does the property apply to ::-moz-placeholder?
-#define CSS_PROPERTY_APPLIES_TO_PLACEHOLDER       (1<<18)
-
-// This property is allowed in an @page rule.
-#define CSS_PROPERTY_APPLIES_TO_PAGE_RULE         (1<<19)
-
 /**
  * Types of animatable values.
  */
@@ -320,13 +314,12 @@ public:
   }
 
 private:
-  static bool gPropertyEnabled[eCSSProperty_COUNT_with_aliases];
+  static bool gPropertyEnabled[eCSSProperty_COUNT];
 
 public:
 
   static bool IsEnabled(nsCSSProperty aProperty) {
-    NS_ABORT_IF_FALSE(0 <= aProperty &&
-                      aProperty < eCSSProperty_COUNT_with_aliases,
+    NS_ABORT_IF_FALSE(0 <= aProperty && aProperty < eCSSProperty_COUNT,
                       "out of range");
     return gPropertyEnabled[aProperty];
   }
@@ -407,7 +400,6 @@ public:
   static const int32_t kLineHeightKTable[];
   static const int32_t kListStylePositionKTable[];
   static const int32_t kListStyleKTable[];
-  static const int32_t kMaskTypeKTable[];
   static const int32_t kObjectOpacityKTable[];
   static const int32_t kObjectPatternKTable[];
   static const int32_t kOrientKTable[];

@@ -17,9 +17,9 @@
 #include "vm/String-inl.h"
 
 inline bool
-JSFunction::strict() const
+JSFunction::inStrictMode() const
 {
-    return nonLazyScript()->strict;
+    return script()->strictModeCode;
 }
 
 inline void
@@ -29,13 +29,13 @@ JSFunction::initAtom(JSAtom *atom)
 }
 
 inline void
-JSFunction::setGuessedAtom(js::RawAtom atom)
+JSFunction::setGuessedAtom(JSAtom *atom)
 {
-    JS_ASSERT(atom_ == NULL);
+    JS_ASSERT(this->atom_ == NULL);
     JS_ASSERT(atom != NULL);
     JS_ASSERT(!hasGuessedAtom());
-    atom_ = atom;
-    flags |= HAS_GUESSED_ATOM;
+    this->atom_ = atom;
+    this->flags |= JSFUN_HAS_GUESSED_ATOM;
 }
 
 inline JSObject *
@@ -86,7 +86,7 @@ JSFunction::initializeExtended()
 {
     JS_ASSERT(isExtended());
 
-    JS_ASSERT(mozilla::ArrayLength(toExtended()->extendedSlots) == 2);
+    JS_ASSERT(js::ArrayLength(toExtended()->extendedSlots) == 2);
     toExtended()->extendedSlots[0].init(js::UndefinedValue());
     toExtended()->extendedSlots[1].init(js::UndefinedValue());
 }
@@ -94,18 +94,78 @@ JSFunction::initializeExtended()
 inline void
 JSFunction::setExtendedSlot(size_t which, const js::Value &val)
 {
-    JS_ASSERT(which < mozilla::ArrayLength(toExtended()->extendedSlots));
+    JS_ASSERT(which < js::ArrayLength(toExtended()->extendedSlots));
     toExtended()->extendedSlots[which] = val;
 }
 
 inline const js::Value &
 JSFunction::getExtendedSlot(size_t which) const
 {
-    JS_ASSERT(which < mozilla::ArrayLength(toExtended()->extendedSlots));
+    JS_ASSERT(which < js::ArrayLength(toExtended()->extendedSlots));
     return toExtended()->extendedSlots[which];
 }
 
 namespace js {
+
+static JS_ALWAYS_INLINE bool
+IsFunctionObject(const js::Value &v)
+{
+    return v.isObject() && v.toObject().isFunction();
+}
+
+static JS_ALWAYS_INLINE bool
+IsFunctionObject(const js::Value &v, JSFunction **fun)
+{
+    if (v.isObject() && v.toObject().isFunction()) {
+        *fun = v.toObject().toFunction();
+        return true;
+    }
+    return false;
+}
+
+static JS_ALWAYS_INLINE bool
+IsNativeFunction(const js::Value &v)
+{
+    JSFunction *fun;
+    return IsFunctionObject(v, &fun) && fun->isNative();
+}
+
+static JS_ALWAYS_INLINE bool
+IsNativeFunction(const js::Value &v, JSFunction **fun)
+{
+    return IsFunctionObject(v, fun) && (*fun)->isNative();
+}
+
+static JS_ALWAYS_INLINE bool
+IsNativeFunction(const js::Value &v, JSNative native)
+{
+    JSFunction *fun;
+    return IsFunctionObject(v, &fun) && fun->maybeNative() == native;
+}
+
+/*
+ * When we have an object of a builtin class, we don't quite know what its
+ * valueOf/toString methods are, since these methods may have been overwritten
+ * or shadowed. However, we can still do better than the general case by
+ * hard-coding the necessary properties for us to find the native we expect.
+ *
+ * TODO: a per-thread shape-based cache would be faster and simpler.
+ */
+static JS_ALWAYS_INLINE bool
+ClassMethodIsNative(JSContext *cx, HandleObject obj, Class *clasp, HandleId methodid, JSNative native)
+{
+    JS_ASSERT(!obj->isProxy());
+    JS_ASSERT(obj->getClass() == clasp);
+
+    Value v;
+    if (!HasDataProperty(cx, obj, methodid, &v)) {
+        RootedObject proto(cx, obj->getProto());
+        if (!proto || proto->getClass() != clasp || !HasDataProperty(cx, proto, methodid, &v))
+            return false;
+    }
+
+    return js::IsNativeFunction(v, native);
+}
 
 extern JS_ALWAYS_INLINE bool
 SameTraceType(const Value &lhs, const Value &rhs)
@@ -123,7 +183,7 @@ IsConstructing(const Value *vp)
     JSObject *callee = &JS_CALLEE(cx, vp).toObject();
     if (callee->isFunction()) {
         JSFunction *fun = callee->toFunction();
-        JS_ASSERT(fun->isNativeConstructor());
+        JS_ASSERT((fun->flags & JSFUN_CONSTRUCTOR) != 0);
     } else {
         JS_ASSERT(callee->getClass()->construct != NULL);
     }
@@ -142,9 +202,11 @@ GetFunctionNameBytes(JSContext *cx, JSFunction *fun, JSAutoByteString *bytes)
 {
     JSAtom *atom = fun->atom();
     if (atom)
-        return bytes->encodeLatin1(cx, atom);
+        return bytes->encode(cx, atom);
     return js_anonymous_str;
 }
+
+extern JSFunctionSpec function_methods[];
 
 extern JSBool
 Function(JSContext *cx, unsigned argc, Value *vp);
@@ -163,6 +225,18 @@ SkipScopeParent(JSObject *parent)
 }
 
 inline JSFunction *
+CloneFunctionObject(JSContext *cx, HandleFunction fun, HandleObject parent,
+                    gc::AllocKind kind = JSFunction::FinalizeKind)
+{
+    JS_ASSERT(parent);
+    RootedObject proto(cx, parent->global().getOrCreateFunctionPrototype(cx));
+    if (!proto)
+        return NULL;
+
+    return js_CloneFunctionObject(cx, fun, parent, proto, kind);
+}
+
+inline JSFunction *
 CloneFunctionObjectIfNotSingleton(JSContext *cx, HandleFunction fun, HandleObject parent)
 {
     /*
@@ -171,32 +245,36 @@ CloneFunctionObjectIfNotSingleton(JSContext *cx, HandleFunction fun, HandleObjec
      * was called pessimistically, and we need to preserve the type's
      * property that if it is singleton there is only a single object
      * with its type in existence.
-     *
-     * For functions inner to run once lambda, it may be possible that
-     * the lambda runs multiple times and we repeatedly clone it. In these
-     * cases, fall through to CloneFunctionObject, which will deep clone
-     * the function's script.
      */
     if (fun->hasSingletonType()) {
-        RootedScript script(cx, fun->getOrCreateScript(cx));
-        if (!script->hasBeenCloned) {
-            script->hasBeenCloned = true;
-            Rooted<JSObject*> obj(cx, SkipScopeParent(parent));
-            if (!JSObject::setParent(cx, fun, obj))
-                return NULL;
-            fun->setEnvironment(parent);
-            return fun;
-        }
+        Rooted<JSObject*> obj(cx, SkipScopeParent(parent));
+        if (!JSObject::setParent(cx, fun, obj))
+            return NULL;
+        fun->setEnvironment(parent);
+        return fun;
     }
 
-    // These intermediate variables are needed to avoid link errors on some
-    // platforms.  Sigh.
-    gc::AllocKind finalizeKind = JSFunction::FinalizeKind;
-    gc::AllocKind extendedFinalizeKind = JSFunction::ExtendedFinalizeKind;
-    gc::AllocKind kind = fun->isExtended()
-                         ? extendedFinalizeKind
-                         : finalizeKind;
-    return CloneFunctionObject(cx, fun, parent, kind);
+    return CloneFunctionObject(cx, fun, parent);
+}
+
+inline JSFunction *
+CloneFunctionObject(JSContext *cx, HandleFunction fun)
+{
+    /*
+     * Variant which makes an exact clone of fun, preserving parent and proto.
+     * Calling the above version CloneFunctionObject(cx, fun, fun->getParent())
+     * is not equivalent: API clients, including XPConnect, can reparent
+     * objects so that fun->global() != fun->getProto()->global().
+     * See ReparentWrapperIfFound.
+     */
+    JS_ASSERT(fun->getParent() && fun->getProto());
+
+    if (fun->hasSingletonType())
+        return fun;
+
+    Rooted<JSObject*> env(cx, fun->environment());
+    Rooted<JSObject*> proto(cx, fun->getProto());
+    return js_CloneFunctionObject(cx, fun, env, proto, JSFunction::ExtendedFinalizeKind);
 }
 
 } /* namespace js */
@@ -213,16 +291,6 @@ JSFunction::initScript(JSScript *script_)
 {
     JS_ASSERT(isInterpreted());
     mutableScript().init(script_);
-}
-
-inline JSObject *
-JSFunction::getBoundFunctionTarget() const
-{
-    JS_ASSERT(isFunction());
-    JS_ASSERT(isBoundFunction());
-
-    /* Bound functions abuse |parent| to store their target function. */
-    return getParent();
 }
 
 #endif /* jsfuninlines_h___ */

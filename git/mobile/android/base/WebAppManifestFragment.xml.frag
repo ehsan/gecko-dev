@@ -2,10 +2,9 @@
                   android:label="@string/webapp_generic_name"
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
-                  android:launchMode="singleTask"
+                  android:launchMode="singleInstance"
                   android:taskAffinity="org.mozilla.gecko.WEBAPP@APPNUM@"
                   android:process=":@ANDROID_PACKAGE_NAME@.WebApp@APPNUM@"
-                  android:excludeFromRecents="true"
                   android:theme="@style/Gecko.App">
             <intent-filter>
                 <action android:name="org.mozilla.gecko.WEBAPP@APPNUM@" />

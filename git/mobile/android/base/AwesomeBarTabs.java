@@ -6,10 +6,7 @@
 package org.mozilla.gecko;
 
 import android.content.Context;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.StateListDrawable;
-import android.support.v4.view.ViewPager;
-import android.support.v4.view.PagerAdapter;
+import android.net.Uri;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -19,22 +16,16 @@ import android.view.ViewGroup;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.TabHost;
 import android.widget.TabWidget;
+import android.widget.TextView;
 
-public class AwesomeBarTabs extends TabHost
-                            implements LightweightTheme.OnChangeListener { 
+public class AwesomeBarTabs extends TabHost {
     private static final String LOGTAG = "GeckoAwesomeBarTabs";
 
     private Context mContext;
-    private GeckoActivity mActivity;
-
     private boolean mInflated;
     private LayoutInflater mInflater;
     private OnUrlOpenListener mUrlOpenListener;
     private View.OnTouchListener mListTouchListener;
-    private boolean mSearching = false;
-    private String mTarget;
-    private ViewPager mViewPager;
-    private AwesomePagerAdapter mPagerAdapter;
     
     private AwesomeBarTab mTabs[];
 
@@ -43,45 +34,14 @@ public class AwesomeBarTabs extends TabHost
     private static final int MAX_RESULTS = 100;
 
     public interface OnUrlOpenListener {
-        public void onUrlOpen(String url, String title);
+        public void onUrlOpen(String url);
         public void onSearch(String engine, String text);
         public void onEditSuggestion(String suggestion);
     }
 
-    private class AwesomePagerAdapter extends PagerAdapter {
-        public AwesomePagerAdapter() {
-            super();
-        }
-
-        @Override
-        public Object instantiateItem(ViewGroup group, int index) {
-            AwesomeBarTab tab = mTabs[index];
-            group.addView(tab.getView());
-            return tab;
-        }
-
-        @Override
-        public void destroyItem(ViewGroup group, int index, Object obj) {
-            AwesomeBarTab tab = (AwesomeBarTab)obj;
-            group.removeView(tab.getView());
-        }
-
-        @Override
-        public int getCount() {
-            if (mSearching)
-                return 1;
-            return mTabs.length;
-        }
-
-        @Override
-        public boolean isViewFromObject(View view, Object object) {
-            return getAwesomeBarTabForView(view) == object;
-        }
-    }
-
     private AwesomeBarTab getCurrentAwesomeBarTab() {
-        int index = mViewPager.getCurrentItem();
-        return mTabs[index];
+        String tag = getCurrentTabTag();
+        return getAwesomeBarTabForTag(tag);
     }
 
     public AwesomeBarTab getAwesomeBarTabForView(View view) {
@@ -91,7 +51,7 @@ public class AwesomeBarTabs extends TabHost
 
     public AwesomeBarTab getAwesomeBarTabForTag(String tag) {
         for (AwesomeBarTab tab : mTabs) {
-            if (tag.equals(tab.getTag())) {
+            if (tag == tab.getTag()) {
                 return tab;
             }
         }
@@ -111,8 +71,6 @@ public class AwesomeBarTabs extends TabHost
         Log.d(LOGTAG, "Creating AwesomeBarTabs");
 
         mContext = context;
-        mActivity = (GeckoActivity) context;
-
         mInflated = false;
         mInflater = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
     }
@@ -134,9 +92,8 @@ public class AwesomeBarTabs extends TabHost
         setup();
 
         mListTouchListener = new View.OnTouchListener() {
-            @Override
             public boolean onTouch(View view, MotionEvent event) {
-                if (event.getActionMasked() == MotionEvent.ACTION_DOWN)
+                if (event.getAction() == MotionEvent.ACTION_DOWN)
                     hideSoftInput(view);
                 return false;
             }
@@ -148,106 +105,35 @@ public class AwesomeBarTabs extends TabHost
             new HistoryTab(mContext)
         };
 
-        final TabWidget tabWidget = (TabWidget) findViewById(android.R.id.tabs);
-        // hide the strip since we aren't using the TabHost...
-        tabWidget.setStripEnabled(false);
+        for (AwesomeBarTab tab : mTabs) {
+            addAwesomeTab(tab);
+        }
 
-        mViewPager = (ViewPager) findViewById(R.id.tabviewpager);
-        mPagerAdapter = new AwesomePagerAdapter();
-        mViewPager.setAdapter(mPagerAdapter);
-        mViewPager.setCurrentItem(0);
-        mViewPager.setOnPageChangeListener(new ViewPager.OnPageChangeListener() {
-            @Override
-            public void onPageScrollStateChanged(int state) { }
-            @Override
-            public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) { }
-            @Override
-            public void onPageSelected(int position) {
-                tabWidget.setCurrentTab(position);
-                styleSelectedTab();
-                hideSoftInput(mViewPager);
+        styleSelectedTab();
+
+         setOnTabChangedListener(new TabHost.OnTabChangeListener() {
+             public void onTabChanged(String tabId) {
+                 styleSelectedTab();
              }
          });
 
-        for (int i = 0; i < mTabs.length; i++) {
-            mTabs[i].setListTouchListener(mListTouchListener);
-            addAwesomeTab(mTabs[i].getTag(),
-                          mTabs[i].getTitleStringId(),
-                          i);
-        }
-
-        tabWidget.setCurrentTab(0);
-
-        styleSelectedTab();
-
-        // Initialize "All Pages" list with no filter
+        // Initialize "App Pages" list with no filter
         filter("");
     }
 
-    @Override
-    public void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        mActivity.getLightweightTheme().addListener(this);
-    }
-
-    @Override
-    public void onDetachedFromWindow() {
-        super.onDetachedFromWindow();
-        mActivity.getLightweightTheme().removeListener(this);
-    }
-
-    @Override
-    public void onLightweightThemeChanged() {
-        styleSelectedTab();
-    }
-
-    @Override
-    public void onLightweightThemeReset() {
-        styleSelectedTab();
-    }
-
-    public void setCurrentItemByTag(String tag) {
-        for (int i = 0; i < mTabs.length; i++) {
-            if (tag.equals(mTabs[i].getTag())) {
-                mViewPager.setCurrentItem(i);
-                break;
-            }
-        }
-    }
-
     private void styleSelectedTab() {
-        int selIndex = mViewPager.getCurrentItem();
+        int selIndex = getCurrentTab();
         TabWidget tabWidget = getTabWidget();
-        boolean isPrivate = false;
-
-        if (mTarget != null && mTarget.equals(AwesomeBar.Target.CURRENT_TAB.name())) {
-            Tab tab = Tabs.getInstance().getSelectedTab();
-            if (tab != null)
-                isPrivate = tab.isPrivate();
-        }
-
         for (int i = 0; i < tabWidget.getTabCount(); i++) {
-            GeckoTextView view = (GeckoTextView) tabWidget.getChildTabViewAt(i);
-            if (isPrivate) {
-                view.resetTheme();
-                view.setPrivateMode((i == selIndex) ? false : true);
-            } else {
-                if (i == selIndex)
-                    view.resetTheme();
-                else if (mActivity.getLightweightTheme().isEnabled())
-                    view.setTheme(mActivity.getLightweightTheme().isLightTheme());
-                else
-                    view.resetTheme();
-            }
+             if (i == selIndex)
+                 continue;
 
-            if (i < (selIndex - 1))
-                view.getBackground().setLevel(3);
-            else if (i == (selIndex - 1))
-                view.getBackground().setLevel(1);
-            else if (i == (selIndex + 1))
-                view.getBackground().setLevel(2);
-            else if (i > (selIndex + 1))
-                view.getBackground().setLevel(4);
+             if (i == (selIndex - 1))
+                 tabWidget.getChildTabViewAt(i).getBackground().setLevel(1);
+             else if (i == (selIndex + 1))
+                 tabWidget.getChildTabViewAt(i).getBackground().setLevel(2);
+             else
+                 tabWidget.getChildTabViewAt(i).getBackground().setLevel(0);
         }
 
         if (selIndex == 0)
@@ -262,22 +148,23 @@ public class AwesomeBarTabs extends TabHost
     }
 
 
-    private View addAwesomeTab(String id, int titleId, final int contentId) {
-        GeckoTextView indicatorView = (GeckoTextView) mInflater.inflate(R.layout.awesomebar_tab_indicator, null);
+    private void addAwesomeTab(AwesomeBarTab tab) {
+        TabSpec tabspec = getTabSpec(tab.getTag(), tab.getTitleStringId());
+        tabspec.setContent(tab.getFactory());
+        addTab(tabspec);
+        tab.setListTouchListener(mListTouchListener);
+ 
+        return;
+    }
+
+    private TabSpec getTabSpec(String id, int titleId) {
+        TabSpec tab = newTabSpec(id);
+
+        TextView indicatorView = (TextView) mInflater.inflate(R.layout.awesomebar_tab_indicator, null);
         indicatorView.setText(titleId);
 
-        getTabWidget().addView(indicatorView);
-
-        // this MUST be done after tw.addView to overwrite the listener added by tabWidget
-        // which delegates to TabHost (which we don't have)
-        indicatorView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mViewPager.setCurrentItem(contentId, true);
-            }
-        });
-
-        return indicatorView;
+        tab.setIndicator(indicatorView);
+        return tab;
     }
 
     private boolean hideSoftInput(View view) {
@@ -324,10 +211,7 @@ public class AwesomeBarTabs extends TabHost
         setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
 
         // The tabs should only be visible if there's no on-going search
-        mSearching = searchTerm.length() != 0;
-        // reset the pager adapter to force repopulating the cache
-        mViewPager.setAdapter(mPagerAdapter);
-        int tabsVisibility = !mSearching ? View.VISIBLE : View.GONE;
+        int tabsVisibility = (searchTerm.length() == 0 ? View.VISIBLE : View.GONE);
         findViewById(R.id.tab_widget_container).setVisibility(tabsVisibility);
 
         // Perform the actual search
@@ -336,56 +220,5 @@ public class AwesomeBarTabs extends TabHost
 
     public boolean isInReadingList() {
         return getBookmarksTab().isInReadingList();
-    }
-
-    public void setTarget(String target) {
-        mTarget = target;
-        styleSelectedTab();
-        if (mTarget.equals(AwesomeBar.Target.CURRENT_TAB.name())) {
-            Tab tab = Tabs.getInstance().getSelectedTab();
-            if (tab != null && tab.isPrivate())
-                ((BackgroundLayout) findViewById(R.id.tab_widget_container)).setPrivateMode(true);
-        }
-    }
-
-    public static class BackgroundLayout extends GeckoLinearLayout {
-        private GeckoActivity mActivity;
-
-        public BackgroundLayout(Context context, AttributeSet attrs) {
-            super(context, attrs);
-            mActivity = (GeckoActivity) context;
-        }
-
-        @Override
-        public void onLightweightThemeChanged() {
-            LightweightThemeDrawable drawable = mActivity.getLightweightTheme().getColorDrawable(this);
-            if (drawable == null)
-                return;
-
-            drawable.setAlpha(255, 0);
-
-            StateListDrawable stateList = new StateListDrawable();
-            stateList.addState(new int[] { R.attr.state_private }, new ColorDrawable(mActivity.getResources().getColor(R.color.background_private)));
-            stateList.addState(new int[] {}, drawable);
-
-            int[] padding =  new int[] { getPaddingLeft(),
-                                         getPaddingTop(),
-                                         getPaddingRight(),
-                                         getPaddingBottom()
-                                       };
-            setBackgroundDrawable(stateList);
-            setPadding(padding[0], padding[1], padding[2], padding[3]);
-        }
-
-        @Override
-        public void onLightweightThemeReset() {
-            int[] padding =  new int[] { getPaddingLeft(),
-                                         getPaddingTop(),
-                                         getPaddingRight(),
-                                         getPaddingBottom()
-                                       };
-            setBackgroundResource(R.drawable.address_bar_bg);
-            setPadding(padding[0], padding[1], padding[2], padding[3]);
-        }
     }
 }

@@ -14,20 +14,10 @@
 
   <body xmlns="http://www.w3.org/1999/xhtml" style="height: 300px; overflow: auto;"/>
 
-  <data id="output"/>
-
-  <data id="rebuilt-output">
-    <listitem anyid="true" label="Barn Owl"/>
-    <listitem anyid="true" label="Emu"/>
-    <listitem anyid="true" label="Raven"/>
-  </data>
-
 <script src="templates_shared.js"/>
 
 <script>
 <![CDATA[
-SimpleTest.expectAssertions(1, 2);
-
 SimpleTest.waitForExplicitFinish();
 
 copyToProfile('animals.sqlite');
@@ -35,7 +25,7 @@ copyToProfile('animals.sqlite');
 function test_storage_template()
 {
   var root = document.getElementById("root");
-  expectedOutput = document.getElementById("output");
+  expectedOutput = <output></output>;
   checkResults(root, 0);
 
   document.getElementById("species-id").textContent = '2';
@@ -50,7 +40,11 @@ var myBuilderListener = {
    },
    didRebuild: function (aBuilder) {
         var root = document.getElementById("root");
-        expectedOutput = document.getElementById("rebuilt-output");
+        expectedOutput = <output>
+            <listitem anyid="true" label="Barn Owl"/>
+            <listitem anyid="true" label="Emu"/>
+            <listitem anyid="true" label="Raven"/>
+        </output>;
         checkResults(root, 0);
         SimpleTest.finish();
    }
@@ -62,7 +56,10 @@ var isTreeBuilder = false;
 var needsOpen = false;
 var notWorkingYet = false;
 var notWorkingYetDynamic = false;
-var expectedOutput = document.getElementById("output");
+var expectedOutput =
+<output>
+
+</output>;
 
 var changes = [];
 ]]>

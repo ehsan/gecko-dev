@@ -5,6 +5,7 @@
 #ifndef nsHtml5TreeOpExecutor_h__
 #define nsHtml5TreeOpExecutor_h__
 
+#include "prtypes.h"
 #include "nsIAtom.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
@@ -392,8 +393,7 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     void PreloadScript(const nsAString& aURL,
                        const nsAString& aCharset,
                        const nsAString& aType,
-                       const nsAString& aCrossOrigin,
-                       bool aScriptFromHead);
+                       const nsAString& aCrossOrigin);
 
     void PreloadStyle(const nsAString& aURL, const nsAString& aCharset,
 		      const nsAString& aCrossOrigin);

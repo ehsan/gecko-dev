@@ -5,7 +5,6 @@
 
 #include "ContainerLayerOGL.h"
 #include "gfxUtils.h"
-#include "gfxPlatform.h"
 
 namespace mozilla {
 namespace layers {
@@ -193,19 +192,8 @@ ContainerRender(Container* aContainer,
   const gfx3DMatrix& transform = aContainer->GetEffectiveTransform();
   bool needsFramebuffer = aContainer->UseIntermediateSurface();
   if (needsFramebuffer) {
-    nsIntRect framebufferRect = visibleRect;
-    // we're about to create a framebuffer backed by textures to use as an intermediate
-    // surface. What to do if its size (as given by framebufferRect) would exceed the
-    // maximum texture size supported by the GL? The present code chooses the compromise
-    // of just clamping the framebuffer's size to the max supported size.
-    // This gives us a lower resolution rendering of the intermediate surface (children layers).
-    // See bug 827170 for a discussion.
-    GLint maxTexSize;
-    aContainer->gl()->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE, &maxTexSize);
-    framebufferRect.width = std::min(framebufferRect.width, maxTexSize);
-    framebufferRect.height = std::min(framebufferRect.height, maxTexSize);
-
     LayerManagerOGL::InitMode mode = LayerManagerOGL::InitModeClear;
+    nsIntRect framebufferRect = visibleRect;
     if (aContainer->GetEffectiveVisibleRegion().GetNumRects() == 1 && 
         (aContainer->GetContentFlags() & Layer::CONTENT_OPAQUE))
     {
@@ -221,12 +209,10 @@ ContainerRender(Container* aContainer,
       // not safe.
       if (HasOpaqueAncestorLayer(aContainer) &&
           transform3D.Is2D(&transform) && !transform.HasNonIntegerTranslation()) {
-        mode = gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering() ?
-		LayerManagerOGL::InitModeCopy :
-		LayerManagerOGL::InitModeClear;
+        mode = LayerManagerOGL::InitModeCopy;
         framebufferRect.x += transform.x0;
         framebufferRect.y += transform.y0;
-        aContainer->mSupportsComponentAlphaChildren = gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering();
+        aContainer->mSupportsComponentAlphaChildren = true;
       }
     }
 
@@ -504,7 +490,6 @@ ShadowRefLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 void
 ShadowRefLayerOGL::CleanupResources()
 {
-  MOZ_ASSERT(!mFirstChild);
 }
 
 } /* layers */

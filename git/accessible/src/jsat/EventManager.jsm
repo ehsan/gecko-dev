@@ -8,29 +8,39 @@ var Cu = Components.utils;
 var Cr = Components.results;
 
 Cu.import('resource://gre/modules/accessibility/Utils.jsm');
-Cu.import('resource://gre/modules/accessibility/Presentation.jsm');
+Cu.import('resource://gre/modules/accessibility/Presenters.jsm');
 Cu.import('resource://gre/modules/accessibility/TraversalRules.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 
-this.EXPORTED_SYMBOLS = ['EventManager'];
+var EXPORTED_SYMBOLS = ['EventManager'];
 
-this.EventManager = {
+var EventManager = {
   editState: {},
 
   start: function start(aSendMsgFunc) {
     try {
       if (!this._started) {
         this.sendMsgFunc = aSendMsgFunc || function() {};
+        this.presenters = [new VisualPresenter()];
 
-        Logger.info('EventManager.start', Utils.MozBuildApp);
+        if (Utils.MozBuildApp == 'b2g') {
+          this.presenters.push(new SpeechPresenter());
+        } else if (Utils.MozBuildApp == 'mobile/android') {
+          this.presenters.push(new AndroidPresenter());
+        }
+
+        Logger.info('EventManager.start', Utils.MozBuildApp, [p.type for each(p in this.presenters)].join(', '));
 
         this._started = true;
         Services.obs.addObserver(this, 'accessible-event', false);
       }
 
-      this.present(Presentation.tabStateChanged(null, 'newtab'));
-
+      this.present(
+        function(p) {
+          return p.tabStateChanged(null, 'newtab');
+        }
+      );
     } catch (x) {
       Logger.error('Failed to start EventManager');
       Logger.logException(x);
@@ -39,6 +49,7 @@ this.EventManager = {
 
   stop: function stop() {
     Services.obs.removeObserver(this, 'accessible-event');
+    this.presenters = [];
     this._started = false;
   },
 
@@ -57,7 +68,11 @@ this.EventManager = {
         if (state & Ci.nsIAccessibleStates.STATE_CHECKABLE)
           return;
 
-        this.present(Presentation.actionInvoked(activatedAcc, 'click'));
+        this.present(
+          function(p) {
+            return p.actionInvoked(activatedAcc, 'click');
+          }
+        );
         break;
       }
       case 'scroll':
@@ -71,7 +86,11 @@ this.EventManager = {
           window = aEvent.target.defaultView;
         else if (aEvent.target instanceof Ci.nsIDOMElement)
           window = aEvent.target.ownerDocument.defaultView;
-        this.present(Presentation.viewportChanged(window));
+        this.present(
+          function(p) {
+            return p.viewportChanged(window);
+          }
+        );
         break;
       }
       }
@@ -111,25 +130,31 @@ this.EventManager = {
           break;
         let event = aEvent.
           QueryInterface(Ci.nsIAccessibleVirtualCursorChangeEvent);
+        let presenterContext =
+          new PresenterContext(position, event.oldAccessible);
         let reason = event.reason;
 
         if (this.editState.editing)
           aEvent.accessibleDocument.takeFocus();
 
         this.present(
-          Presentation.pivotChanged(position, event.oldAccessible, reason));
-
+          function(p) {
+            return p.pivotChanged(presenterContext, reason);
+          }
+        );
         break;
       }
       case Ci.nsIAccessibleEvent.EVENT_STATE_CHANGE:
       {
         let event = aEvent.QueryInterface(Ci.nsIAccessibleStateChangeEvent);
         if (event.state == Ci.nsIAccessibleStates.STATE_CHECKED &&
-            !(event.isExtraState)) {
+            !(event.isExtraState())) {
           this.present(
-            Presentation.
-              actionInvoked(aEvent.accessible,
-                            event.isEnabled ? 'check' : 'uncheck'));
+            function(p) {
+              return p.actionInvoked(aEvent.accessible,
+                                     event.isEnabled() ? 'check' : 'uncheck');
+            }
+          );
         }
         break;
       }
@@ -161,7 +186,11 @@ this.EventManager = {
           break;
 
         if (editState.editing != this.editState.editing)
-          this.present(Presentation.editingModeChanged(editState.editing));
+          this.present(
+            function(p) {
+              return p.editingModeChanged(editState.editing);
+            }
+          );
 
         if (editState.editing != this.editState.editing ||
             editState.multiline != this.editState.multiline ||
@@ -191,9 +220,12 @@ this.EventManager = {
             if (txtIface.characterCount)
               throw x;
           }
-          this.present(Presentation.textChanged(
-                         isInserted, event.start, event.length,
-                         text, event.modifiedText));
+          this.present(
+            function(p) {
+              return p.textChanged(isInserted, event.start, event.length,
+                                   text, event.modifiedText);
+            }
+          );
         }
         break;
       }
@@ -212,13 +244,26 @@ this.EventManager = {
     }
   },
 
-  present: function present(aPresentationData) {
-    this.sendMsgFunc("AccessFu:Present", aPresentationData);
+  present: function present(aPresenterFunc) {
+    try {
+      this.sendMsgFunc(
+        "AccessFu:Present",
+        [aPresenterFunc(p) for each (p in this.presenters)].
+          filter(function(d) {return !!d;}));
+    } catch (x) {
+      Logger.logException(x);
+    }
   },
 
   presentVirtualCursorPosition: function presentVirtualCursorPosition(aVirtualCursor) {
-    this.present(Presentation.pivotChanged(aVirtualCursor.position, null,
-                                           Ci.nsIAccessiblePivot.REASON_NONE));
+    let presenterContext =
+      new PresenterContext(aVirtualCursor.position, null);
+
+    this.present(
+      function(p) {
+        return p.pivotChanged(presenterContext, Ci.nsIAccessiblePivot.REASON_NONE);
+      }
+    );
   },
 
   onStateChange: function onStateChange(aWebProgress, aRequest, aStateFlags, aStatus) {
@@ -238,7 +283,11 @@ this.EventManager = {
 
     if (tabstate) {
       let docAcc = Utils.AccRetrieval.getAccessibleFor(aWebProgress.DOMWindow.document);
-      this.present(Presentation.tabStateChanged(docAcc, tabstate));
+      this.present(
+        function(p) {
+          return p.tabStateChanged(docAcc, tabstate);
+        }
+      );
     }
   },
 
@@ -246,7 +295,11 @@ this.EventManager = {
 
   onLocationChange: function onLocationChange(aWebProgress, aRequest, aLocation, aFlags) {
     let docAcc = Utils.AccRetrieval.getAccessibleFor(aWebProgress.DOMWindow.document);
-    this.present(Presentation.tabStateChanged(docAcc, 'newdoc'));
+    this.present(
+      function(p) {
+        return p.tabStateChanged(docAcc, 'newdoc');
+      }
+    );
   },
 
   onStatusChange: function onStatusChange() {},

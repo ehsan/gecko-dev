@@ -21,7 +21,8 @@ var icos = Cc["@mozilla.org/browser/favicon-service;1"].
            getService(Ci.nsIFaviconService);
 var ps = Cc["@mozilla.org/preferences-service;1"].
          getService(Ci.nsIPrefBranch);
-
+var ies = Cc["@mozilla.org/browser/places/import-export-service;1"].
+          getService(Ci.nsIPlacesImportExportService);
 Cu.import("resource://gre/modules/BookmarkHTMLUtils.jsm");
 
 const DESCRIPTION_ANNO = "bookmarkProperties/description";
@@ -32,51 +33,69 @@ const TEST_FAVICON_PAGE_URL = "http://en-US.www.mozilla.com/en-US/firefox/centra
 const TEST_FAVICON_DATA_SIZE = 580;
 
 function run_test() {
-  run_next_test();
-}
+  do_test_pending();
 
-add_task(function test_corrupt_file() {
   // avoid creating the places smart folder during tests
   ps.setIntPref("browser.places.smartBookmarksVersion", -1);
 
-  // Import bookmarks from the corrupt file.
-  yield BookmarkHTMLUtils.importFromFile(do_get_file("bookmarks.corrupt.html"),
-                                         true);
+  // import bookmarks from corrupt file
+  var corruptBookmarksFile = do_get_file("bookmarks.corrupt.html");
+  try {
+    BookmarkHTMLUtils.importFromFile(corruptBookmarksFile, true, after_import);
+  } catch(ex) { do_throw("couldn't import corrupt bookmarks file: " + ex); }
+}
 
-  // Check that bookmarks that are not corrupt have been imported.
-  yield Task.spawn(database_check);
-});
+function after_import(success) {
+  if (!success) {
+    do_throw("Couldn't import corrupt bookmarks file.");
+  }
 
-add_task(function test_corrupt_database() {
-  // Create corruption in the database, then export.
-  var corruptItemId = bs.insertBookmark(bs.toolbarFolder,
-                                        uri("http://test.mozilla.org"),
-                                        bs.DEFAULT_INDEX, "We love belugas");
-  var stmt = dbConn.createStatement("UPDATE moz_bookmarks SET fk = NULL WHERE id = :itemId");
-  stmt.params.itemId = corruptItemId;
-  stmt.execute();
-  stmt.finalize();
+  // Check that every bookmark is correct
+  // Corrupt bookmarks should not have been imported
+  database_check(function () {
+    // Create corruption in database
+    var corruptItemId = bs.insertBookmark(bs.toolbarFolder,
+                                          uri("http://test.mozilla.org"),
+                                          bs.DEFAULT_INDEX, "We love belugas");
+    var stmt = dbConn.createStatement("UPDATE moz_bookmarks SET fk = NULL WHERE id = :itemId");
+    stmt.params.itemId = corruptItemId;
+    stmt.execute();
+    stmt.finalize();
 
-  let bookmarksFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-  bookmarksFile.append("bookmarks.exported.html");
-  if (bookmarksFile.exists())
-    bookmarksFile.remove(false);
-  yield BookmarkHTMLUtils.exportToFile(bookmarksFile);
+    // Export bookmarks
+    var bookmarksFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
+    bookmarksFile.append("bookmarks.exported.html");
+    if (bookmarksFile.exists())
+      bookmarksFile.remove(false);
+    bookmarksFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, 0600);
+    if (!bookmarksFile.exists())
+      do_throw("couldn't create file: bookmarks.exported.html");
+    try {
+      ies.exportHTMLToFile(bookmarksFile);
+    } catch(ex) { do_throw("couldn't export to bookmarks.exported.html: " + ex); }
 
-  // Import again and check for correctness.
-  remove_all_bookmarks();
-  yield BookmarkHTMLUtils.importFromFile(bookmarksFile, true);
-  yield Task.spawn(database_check);
-});
+    // Clear all bookmarks
+    remove_all_bookmarks();
+
+    // Import bookmarks
+    try {
+    BookmarkHTMLUtils.importFromFile(bookmarksFile, true, before_database_check);
+    } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
+  });
+}
+
+function before_database_check(success) {
+  // Check that every bookmark is correct
+  database_check(do_test_finished);
+}
 
 /*
  * Check for imported bookmarks correctness
  *
- * @return {Promise}
- * @resolves When the checks are finished.
- * @rejects Never.
+ * @param aCallback
+ *        Called when the checks are finished.
  */
-function database_check() {
+function database_check(aCallback) {
   // BOOKMARKS MENU
   var query = hs.getNewQuery();
   query.setFolders([bs.bookmarksMenuFolder], 1);
@@ -129,8 +148,7 @@ function database_check() {
               as.getItemAnnotation(testBookmark1.itemId, POST_DATA_ANNO));
   // last charset
   var testURI = uri(testBookmark1.uri);
-  do_check_eq((yield PlacesUtils.getCharsetForURI(testURI)), "ISO-8859-1");
-
+  do_check_eq("ISO-8859-1", hs.getCharsetForURI(testURI));
   // description
   do_check_true(as.itemHasAnnotation(testBookmark1.itemId,
                                           DESCRIPTION_ANNO));
@@ -148,7 +166,7 @@ function database_check() {
   var toolbar = result.root;
   toolbar.containerOpen = true;
   do_check_eq(toolbar.childCount, 3);
-
+  
   // livemark
   var livemark = toolbar.getChild(1);
   // title
@@ -184,6 +202,6 @@ function database_check() {
       // simplicity, instead of converting the data we receive to a "data:" URI
       // and comparing it, we just check the data size.
       do_check_eq(TEST_FAVICON_DATA_SIZE, aDataLen);
-    }
-  );
+      aCallback();
+    });
 }

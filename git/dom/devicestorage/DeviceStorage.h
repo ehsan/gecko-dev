@@ -10,89 +10,29 @@
 #include "nsIPrincipal.h"
 #include "nsIObserver.h"
 #include "nsDOMEventTargetHelper.h"
-#include "mozilla/StaticPtr.h"
-
-class DeviceStorageFile MOZ_FINAL
-  : public nsISupports {
-public:
-  nsCOMPtr<nsIFile> mFile;
-  nsString mPath;
-  nsString mStorageType;
-  bool mEditable;
-
-  DeviceStorageFile(const nsAString& aStorageType, nsIFile* aFile, const nsAString& aPath);
-  DeviceStorageFile(const nsAString& aStorageType, nsIFile* aFile);
-  void SetPath(const nsAString& aPath);
-  void SetEditable(bool aEditable);
-
-  NS_DECL_ISUPPORTS
-
-  // we want to make sure that the names of file can't reach
-  // outside of the type of storage the user asked for.
-  bool IsSafePath();
-
-  nsresult Remove();
-  nsresult Write(nsIInputStream* aInputStream);
-  nsresult Write(InfallibleTArray<uint8_t>& bits);
-  void CollectFiles(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, PRTime aSince = 0);
-  void collectFilesInternal(nsTArray<nsRefPtr<DeviceStorageFile> > &aFiles, PRTime aSince, nsAString& aRootPath);
-
-  static void DirectoryDiskUsage(nsIFile* aFile, uint64_t* aSoFar, const nsAString& aStorageType);
-
-private:
-  void NormalizeFilePath();
-  void AppendRelativePath();
-};
-
-/*
-  The FileUpdateDispatcher converts file-watcher-notify
-  observer events to file-watcher-update events.  This is
-  used to be able to broadcast events from one child to
-  another child in B2G.  (f.e., if one child decides to add
-  a file, we want to be able to able to send a onchange
-  notifications to every other child watching that device
-  storage object).
-
-  We create this object (via GetSingleton) in two places:
-    * ContentParent::Init (for IPC)
-    * nsDOMDeviceStorage::Init (for non-ipc)
-*/
-class FileUpdateDispatcher MOZ_FINAL
-  : public nsIObserver
-{
- public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
-
-  static FileUpdateDispatcher* GetSingleton();
- private:
-  static mozilla::StaticRefPtr<FileUpdateDispatcher> sSingleton;
-};
 
 class nsDOMDeviceStorage MOZ_FINAL
-  : public nsDOMEventTargetHelper
-  , public nsIDOMDeviceStorage
+  : public nsIDOMDeviceStorage
+  , public nsDOMEventTargetHelper
   , public nsIObserver
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMDEVICESTORAGE
 
   NS_DECL_NSIOBSERVER
   NS_DECL_NSIDOMEVENTTARGET
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsDOMDeviceStorage, nsDOMEventTargetHelper)
 
   nsDOMDeviceStorage();
 
-  nsresult Init(nsPIDOMWindow* aWindow, const nsAString &aType, const nsAString &aVolName);
+  nsresult Init(nsPIDOMWindow* aWindow, const nsAString &aType);
 
-  void SetRootDirectoryForType(const nsAString& aType, const nsAString &aVolName);
-
-  static void GetOrderedVolumeNames(const nsAString &aType,
-                                    nsTArray<nsString> &aVolumeNames);
+  void SetRootDirectoryForType(const nsAString& aType);
 
   static void CreateDeviceStoragesFor(nsPIDOMWindow* aWin,
                                       const nsAString &aType,
-                                      nsTArray<nsRefPtr<nsDOMDeviceStorage> > &aStores);
+                                      nsDOMDeviceStorage** aStore);
   void Shutdown();
 
 private:
@@ -106,13 +46,12 @@ private:
   nsresult EnumerateInternal(const JS::Value & aName,
                              const JS::Value & aOptions,
                              JSContext* aCx,
-                             uint8_t aArgc,
-                             bool aEditable,
-                             nsIDOMDOMCursor** aRetval);
+                             uint8_t aArgc, 
+                             bool aEditable, 
+                             nsIDOMDeviceStorageCursor** aRetval);
 
   nsString mStorageType;
   nsCOMPtr<nsIFile> mRootDirectory;
-  nsString mVolumeName;
 
   nsCOMPtr<nsIPrincipal> mPrincipal;
 

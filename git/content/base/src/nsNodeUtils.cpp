@@ -14,6 +14,7 @@
 #include "nsIDOMUserDataHandler.h"
 #include "nsEventListenerManager.h"
 #include "nsIXPConnect.h"
+#include "nsGenericElement.h"
 #include "pldhash.h"
 #include "nsIDOMAttr.h"
 #include "nsCOMArray.h"
@@ -25,13 +26,12 @@
 #include "nsBindingManager.h"
 #include "nsGenericHTMLElement.h"
 #ifdef MOZ_MEDIA
-#include "mozilla/dom/HTMLMediaElement.h"
+#include "nsHTMLMediaElement.h"
 #endif // MOZ_MEDIA
+#include "jsgc.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsObjectLoadingContent.h"
 #include "nsDOMMutationObserver.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/HTMLTemplateElement.h"
 
 using namespace mozilla::dom;
 
@@ -46,7 +46,8 @@ using namespace mozilla::dom;
   nsINode* node = content_;                                       \
   NS_ASSERTION(node->OwnerDoc() == doc, "Bogus document");        \
   if (doc) {                                                      \
-    doc->BindingManager()->func_ params_;                         \
+    static_cast<nsIMutationObserver*>(doc->BindingManager())->    \
+      func_ params_;                                              \
   }                                                               \
   do {                                                            \
     nsINode::nsSlots* slots = node->GetExistingSlots();           \
@@ -402,9 +403,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
 
   nsresult rv;
   JSObject *wrapper;
-  bool isDOMBinding;
-  if (aCx && (wrapper = aNode->GetWrapper()) &&
-      !(isDOMBinding = IsDOMObject(wrapper))) {
+  if (aCx && (wrapper = aNode->GetWrapper())) {
       rv = xpc_MorphSlimWrapper(aCx, aNode);
       NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -439,7 +438,9 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     nodeInfo = newNodeInfo;
   }
 
-  Element *elem = aNode->IsElement() ? aNode->AsElement() : nullptr;
+  nsGenericElement *elem = aNode->IsElement() ?
+                           static_cast<nsGenericElement*>(aNode) :
+                           nullptr;
 
   nsCOMPtr<nsINode> clone;
   if (aClone) {
@@ -509,7 +510,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
 #ifdef MOZ_MEDIA
       nsCOMPtr<nsIDOMHTMLMediaElement> domMediaElem(do_QueryInterface(aNode));
       if (domMediaElem) {
-        HTMLMediaElement* mediaElem = static_cast<HTMLMediaElement*>(aNode);
+        nsHTMLMediaElement* mediaElem = static_cast<nsHTMLMediaElement*>(aNode);
         mediaElem->NotifyOwnerDocumentActivityChanged();
       }
 #endif
@@ -529,18 +530,17 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
     }
 
     if (aCx && wrapper) {
-      if (isDOMBinding) {
-        rv = ReparentWrapper(aCx, wrapper);
-      } else {
-        nsIXPConnect *xpc = nsContentUtils::XPConnect();
-        if (xpc) {
-          rv = xpc->ReparentWrappedNativeIfFound(aCx, wrapper, aNewScope, aNode);
-        }
-      }
-      if (NS_FAILED(rv)) {
-        aNode->mNodeInfo.swap(nodeInfo);
+      nsIXPConnect *xpc = nsContentUtils::XPConnect();
+      if (xpc) {
+        nsCOMPtr<nsIXPConnectJSObjectHolder> oldWrapper;
+        rv = xpc->ReparentWrappedNativeIfFound(aCx, wrapper, aNewScope, aNode,
+                                               getter_AddRefs(oldWrapper));
 
-        return rv;
+        if (NS_FAILED(rv)) {
+          aNode->mNodeInfo.swap(nodeInfo);
+
+          return rv;
+        }
       }
     }
   }
@@ -558,29 +558,6 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
       nsCOMPtr<nsINode> child;
       rv = CloneAndAdopt(cloneChild, aClone, true, nodeInfoManager,
                          aCx, aNewScope, aNodesWithProperties, clone,
-                         getter_AddRefs(child));
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
-
-  // Cloning template element.
-  if (aDeep && aClone && IsTemplateElement(aNode)) {
-    DocumentFragment* origContent =
-      static_cast<HTMLTemplateElement*>(aNode)->Content();
-    DocumentFragment* cloneContent =
-      static_cast<HTMLTemplateElement*>(clone.get())->Content();
-
-    // Clone the children into the clone's template content owner
-    // document's nodeinfo manager.
-    nsNodeInfoManager* ownerNodeInfoManager =
-      cloneContent->mNodeInfo->NodeInfoManager();
-
-    for (nsIContent* cloneChild = origContent->GetFirstChild();
-         cloneChild;
-         cloneChild = cloneChild->GetNextSibling()) {
-      nsCOMPtr<nsINode> child;
-      rv = CloneAndAdopt(cloneChild, aClone, aDeep, ownerNodeInfoManager,
-                         aCx, aNewScope, aNodesWithProperties, cloneContent,
                          getter_AddRefs(child));
       NS_ENSURE_SUCCESS(rv, rv);
     }
@@ -633,22 +610,3 @@ nsNodeUtils::UnlinkUserData(nsINode *aNode)
   document->PropertyTable(DOM_USER_DATA)->DeleteAllPropertiesFor(aNode);
   document->PropertyTable(DOM_USER_DATA_HANDLER)->DeleteAllPropertiesFor(aNode);
 }
-
-bool
-nsNodeUtils::IsTemplateElement(const nsINode *aNode)
-{
-  return aNode->IsElement() && aNode->AsElement()->IsHTML(nsGkAtoms::_template);
-}
-
-nsIContent*
-nsNodeUtils::GetFirstChildOfTemplateOrNode(nsINode* aNode)
-{
-  if (nsNodeUtils::IsTemplateElement(aNode)) {
-    DocumentFragment* frag =
-      static_cast<HTMLTemplateElement*>(aNode)->Content();
-    return frag->GetFirstChild();
-  }
-
-  return aNode->GetFirstChild();
-}
-

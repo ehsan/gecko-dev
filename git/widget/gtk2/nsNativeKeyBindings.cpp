@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/Util.h"
 
 #include "nsNativeKeyBindings.h"
@@ -99,8 +98,8 @@ delete_from_cursor_cb(GtkWidget *w, GtkDeleteType del_type,
   if (!cmd)
     return; // unsupported command
 
-  unsigned int absCount = Abs(count);
-  for (unsigned int i = 0; i < absCount; ++i) {
+  count = NS_ABS(count);
+  for (int i = 0; i < count; ++i) {
     gCurrentCallback(cmd, gCurrentCallbackData);
   }
 }
@@ -169,8 +168,8 @@ move_cursor_cb(GtkWidget *w, GtkMovementStep step, gint count,
     return; // unsupported command
 
   
-  unsigned int absCount = Abs(count);
-  for (unsigned int i = 0; i < absCount; ++i) {
+  count = NS_ABS(count);
+  for (int i = 0; i < count; ++i) {
     gCurrentCallback(cmd, gCurrentCallbackData);
   }
 }

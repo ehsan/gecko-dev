@@ -14,7 +14,6 @@
 #include "ImageLayers.h"
 #include "mozilla/ipc/SharedMemory.h"
 #include "mozilla/WidgetUtils.h"
-#include "mozilla/dom/ScreenOrientation.h"
 
 class gfxSharedImageSurface;
 
@@ -24,6 +23,7 @@ namespace gl {
 class GLContext;
 class TextureImage;
 }
+using namespace gl;
 
 namespace layers {
 
@@ -117,9 +117,7 @@ public:
    * ShadowLayerManager.
    */
   void BeginTransaction(const nsIntRect& aTargetBounds,
-                        ScreenRotation aRotation,
-                        const nsIntRect& aClientBounds,
-                        mozilla::dom::ScreenOrientation aOrientation);
+                        ScreenRotation aRotation);
 
   /**
    * The following methods may only be called after BeginTransaction()
@@ -219,9 +217,6 @@ public:
   void PaintedCanvas(ShadowableLayer* aCanvas,
                      bool aNeedYFlip,
                      const SurfaceDescriptor& aNewFrontSurface);
-  void PaintedCanvasNoSwap(ShadowableLayer* aCanvas,
-                           bool aNeedYFlip,
-                           const SurfaceDescriptor& aNewFrontSurface);
 
   /**
    * End the current transaction and forward it to ShadowLayerManager.
@@ -421,8 +416,8 @@ public:
    * underlying surface supports direct texturing, a non-null
    * TextureImage is returned.  Otherwise null is returned.
    */
-  static already_AddRefed<gl::TextureImage>
-  OpenDescriptorForDirectTexturing(gl::GLContext* aContext,
+  static already_AddRefed<TextureImage>
+  OpenDescriptorForDirectTexturing(GLContext* aContext,
                                    const SurfaceDescriptor& aDescriptor,
                                    GLenum aWrapMode);
 
@@ -584,7 +579,6 @@ public:
    */
   virtual void SetValidRegion(const nsIntRegion& aRegion)
   {
-    MOZ_LAYERS_LOG_IF_SHADOWABLE(this, ("Layer::Mutated(%p) ValidRegion", this));
     mValidRegion = aRegion;
     Mutated();
   }

@@ -11,12 +11,7 @@
 #include "jspubtd.h"
 #include "mozilla/dom/NonRefcountedDOMObject.h"
 
-#ifdef USE_FAKE_MEDIA_STREAMS
-#include "FakeMediaStreams.h"
-#else
-#include "DOMMediaStream.h"
-#endif
-
+class nsIDOMMediaStream;
 namespace sipcc {
 class PeerConnectionImpl;
 } // namespace sipcc
@@ -37,7 +32,7 @@ public:
 
   JSObject* WrapObject(JSContext* cx, ErrorResult& error);
 
-  DOMMediaStream* IndexedGetter(uint32_t index, bool& found);
+  nsIDOMMediaStream* IndexedGetter(uint32_t index, bool& found);
   uint32_t Length();
 
 private:

@@ -9,8 +9,6 @@
 #include "nsMemory.h"
 #include "nsString.h"
 #include "nsNativeCharsetUtils.h"
-#include "mozilla/Preferences.h"
-#include "mozJSComponentLoader.h"
 
 #define JSCTYPES_CONTRACTID \
   "@mozilla.org/jsctypes;1"
@@ -66,14 +64,9 @@ Module::~Module()
 static JSBool
 SealObjectAndPrototype(JSContext* cx, JSObject* parent, const char* name)
 {
-  JS::Value prop;
+  jsval prop;
   if (!JS_GetProperty(cx, parent, name, &prop))
     return false;
-
-  if (prop.isUndefined()) {
-    // Pretend we sealed the object.
-    return true;
-  }
 
   JSObject* obj = JSVAL_TO_OBJECT(prop);
   if (!JS_GetProperty(cx, obj, "prototype", &prop))
@@ -91,7 +84,7 @@ InitAndSealCTypesClass(JSContext* cx, JSObject* global)
     return false;
 
   // Set callbacks for charset conversion and such.
-  JS::Value ctypes;
+  jsval ctypes;
   if (!JS_GetProperty(cx, global, "ctypes", &ctypes))
     return false;
 
@@ -116,17 +109,15 @@ Module::Call(nsIXPConnectWrappedNative* wrapper,
              JSContext* cx,
              JSObject* obj,
              uint32_t argc,
-             JS::Value* argv,
-             JS::Value* vp,
+             jsval* argv,
+             jsval* vp,
              bool* _retval)
 {
-  JSObject* targetObj = nullptr;
+  JSObject* global = JS_GetGlobalForScopeChain(cx);
+  if (!global)
+    return NS_ERROR_NOT_AVAILABLE;
 
-  mozJSComponentLoader* loader = mozJSComponentLoader::Get();
-  nsresult rv = loader->FindTargetObject(cx, &targetObj);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *_retval = InitAndSealCTypesClass(cx, targetObj);
+  *_retval = InitAndSealCTypesClass(cx, global);
   return NS_OK;
 }
 

@@ -10,10 +10,8 @@
 #include "nsLiteralString.h"
 #include "nsSVGEffects.h"
 #include "nsSVGFilters.h"
-#include "mozilla/dom/SVGFEImageElement.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 typedef nsFrame SVGFEImageFrameBase;
 
@@ -31,9 +29,9 @@ protected:
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  virtual void Init(nsIContent* aContent,
-                    nsIFrame*   aParent,
-                    nsIFrame*   aPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD Init(nsIContent* aContent,
+                  nsIFrame*   aParent,
+                  nsIFrame*   aPrevInFlow);
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
 
   virtual bool IsFrameOfType(uint32_t aFlags) const
@@ -90,20 +88,22 @@ SVGFEImageFrame::DestroyFrom(nsIFrame* aDestructRoot)
 
   if (imageLoader) {
     imageLoader->FrameDestroyed(this);
-    imageLoader->DecrementVisibleCount();
   }
 
   SVGFEImageFrameBase::DestroyFrom(aDestructRoot);
 }
 
-void
+NS_IMETHODIMP
 SVGFEImageFrame::Init(nsIContent* aContent,
                         nsIFrame* aParent,
                         nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::feImage),
+#ifdef DEBUG
+  nsCOMPtr<nsIDOMSVGFEImageElement> elem = do_QueryInterface(aContent);
+  NS_ASSERTION(elem,
                "Trying to construct an SVGFEImageFrame for a "
                "content element that doesn't support the right interfaces");
+#endif /* DEBUG */
 
   SVGFEImageFrameBase::Init(aContent, aParent, aPrevInFlow);
   nsCOMPtr<nsIImageLoadingContent> imageLoader =
@@ -111,9 +111,9 @@ SVGFEImageFrame::Init(nsIContent* aContent,
 
   if (imageLoader) {
     imageLoader->FrameCreated(this);
-    // We assume that feImage's are always visible.
-    imageLoader->IncrementVisibleCount();
   }
+
+  return NS_OK;
 }
 
 nsIAtom *
@@ -127,7 +127,7 @@ SVGFEImageFrame::AttributeChanged(int32_t  aNameSpaceID,
                                   nsIAtom* aAttribute,
                                   int32_t  aModType)
 {
-  SVGFEImageElement *element = static_cast<SVGFEImageElement*>(mContent);
+  nsSVGFEImageElement *element = static_cast<nsSVGFEImageElement*>(mContent);
   if (element->AttributeAffectsRendering(aNameSpaceID, aAttribute)) {
     nsSVGEffects::InvalidateRenderingObservers(this);
   }
@@ -139,7 +139,7 @@ SVGFEImageFrame::AttributeChanged(int32_t  aNameSpaceID,
       return NS_OK;
     }
 
-    if (element->mStringAttributes[SVGFEImageElement::HREF].IsExplicitlySet()) {
+    if (element->mStringAttributes[nsSVGFEImageElement::HREF].IsExplicitlySet()) {
       element->LoadSVGImage(true, true);
     } else {
       element->CancelImageRequests(true);

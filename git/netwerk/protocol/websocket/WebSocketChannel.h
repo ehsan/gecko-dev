@@ -26,7 +26,6 @@
 #include "nsIHttpChannelInternal.h"
 #include "nsIRandomGenerator.h"
 #include "BaseWebSocketChannel.h"
-#include "nsIDashboardEventNotifier.h"
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -133,7 +132,6 @@ private:
   nsresult ApplyForAdmission();
   nsresult StartWebsocketData();
   uint16_t ResultToCloseCode(nsresult resultCode);
-  void     ReportConnectionTelemetry();
 
   void StopSession(nsresult reason);
   void AbortSession(nsresult reason);
@@ -151,13 +149,6 @@ private:
                         uint32_t accumulatedFragments,
                         uint32_t *available);
 
-  inline void ResetPingTimer()
-  {
-    if (mPingTimer) {
-      mPingOutstanding = 0;
-      mPingTimer->SetDelay(mPingInterval);
-    }
-  }
 
   nsCOMPtr<nsIEventTarget>                 mSocketThread;
   nsCOMPtr<nsIHttpChannelInternal>         mChannel;
@@ -186,6 +177,8 @@ private:
   nsCOMPtr<nsITimer>              mReconnectDelayTimer;
 
   nsCOMPtr<nsITimer>              mPingTimer;
+  uint32_t                        mPingTimeout;  /* milliseconds */
+  uint32_t                        mPingResponseTimeout;  /* milliseconds */
 
   nsCOMPtr<nsITimer>              mLingeringCloseTimer;
   const static int32_t            kLingeringCloseTimeout =   1000;
@@ -193,7 +186,7 @@ private:
 
   int32_t                         mMaxConcurrentConnections;
 
-  uint32_t                        mGotUpgradeOK              : 1;
+  uint32_t                        mRecvdHttpOnStartRequest   : 1;
   uint32_t                        mRecvdHttpUpgradeTransport : 1;
   uint32_t                        mRequestedClose            : 1;
   uint32_t                        mClientClosed              : 1;
@@ -205,6 +198,7 @@ private:
   uint32_t                        mAutoFollowRedirects       : 1;
   uint32_t                        mReleaseOnTransmit         : 1;
   uint32_t                        mTCPClosed                 : 1;
+  uint32_t                        mWasOpened                 : 1;
   uint32_t                        mOpenedHttpChannel         : 1;
   uint32_t                        mDataStarted               : 1;
   uint32_t                        mIncrementedSessionCount   : 1;
@@ -247,10 +241,6 @@ private:
   nsWSCompression                *mCompressor;
   uint32_t                        mDynamicOutputSize;
   uint8_t                        *mDynamicOutput;
-
-  nsCOMPtr<nsIDashboardEventNotifier> mConnectionLogService;
-  uint32_t mSerial;
-  static uint32_t sSerialSeed;
 };
 
 class WebSocketSSLChannel : public WebSocketChannel

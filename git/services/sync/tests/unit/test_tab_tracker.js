@@ -51,8 +51,6 @@ function run_test() {
 
   _("We assume that tabs have changed at startup.");
   let tracker = engine._tracker;
-  tracker.persistChangedIDs = false;
-
   do_check_true(tracker.modified);
   do_check_true(Utils.deepEquals(Object.keys(engine.getChangedIDs()),
                                  [clientsEngine.localID]));
@@ -115,4 +113,7 @@ function run_test() {
   do_check_true(Utils.deepEquals(Object.keys(engine.getChangedIDs()),
                                  [clientsEngine.localID]));
   do_check_eq(logs.length, idx); // test that setTabValue isn't called
+  if (tracker._lazySave) {
+    tracker._lazySave.clear();
+  }
 }

@@ -11,8 +11,8 @@
 #include "nsCharsetSource.h"
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
+#include "mozilla/LoadContext.h"
 #include "mozilla/ipc/URIUtils.h"
-#include "mozilla/net/NeckoParent.h"
 
 using namespace mozilla::ipc;
 
@@ -21,7 +21,6 @@ namespace net {
 
 WyciwygChannelParent::WyciwygChannelParent()
  : mIPCClosed(false)
- , mReceivedAppData(false)
 {
 #if defined(PR_LOGGING)
   if (!gWyciwygLog)
@@ -39,9 +38,6 @@ WyciwygChannelParent::ActorDestroy(ActorDestroyReason why)
   // We may still have refcount>0 if the channel hasn't called OnStopRequest
   // yet, but we must not send any more msgs to child.
   mIPCClosed = true;
-
-  // We need to force the cycle to break here
-  mChannel->SetNotificationCallbacks(nullptr);
 }
 
 //-----------------------------------------------------------------------------
@@ -88,48 +84,9 @@ WyciwygChannelParent::RecvInit(const URIParams& aURI)
 }
 
 bool
-WyciwygChannelParent::RecvAppData(const IPC::SerializedLoadContext& loadContext,
-                                  PBrowserParent* parent)
-{
-  LOG(("WyciwygChannelParent RecvAppData [this=%x]\n", this));
-
-  if (!SetupAppData(loadContext, parent))
-    return false;
-
-  mChannel->SetNotificationCallbacks(this);
-  return true;
-}
-
-bool
-WyciwygChannelParent::SetupAppData(const IPC::SerializedLoadContext& loadContext,
-                                   PBrowserParent* aParent)
-{
-  if (!mChannel)
-    return true;
-
-  const char* error = NeckoParent::CreateChannelLoadContext(aParent, loadContext,
-                                                            mLoadContext);
-  if (error) {
-    printf_stderr(nsPrintfCString("WyciwygChannelParent::SetupAppData: FATAL ERROR: %s\n",
-                                  error).get());
-    return false;
-  }
-
-  if (!mLoadContext && loadContext.IsPrivateBitValid()) {
-    nsCOMPtr<nsIPrivateBrowsingChannel> pbChannel = do_QueryInterface(mChannel);
-    if (pbChannel)
-      pbChannel->SetPrivate(loadContext.mUsePrivateBrowsing);
-  }
-
-  mReceivedAppData = true;
-  return true;
-}
-
-bool
 WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
                                     const uint32_t& aLoadFlags,
-                                    const IPC::SerializedLoadContext& loadContext,
-                                    PBrowserParent* aParent)
+                                    const IPC::SerializedLoadContext& loadContext)
 {
   nsCOMPtr<nsIURI> original = DeserializeURI(aOriginal);
   if (!original)
@@ -150,13 +107,13 @@ WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
 
-  if (!mReceivedAppData && !SetupAppData(loadContext, aParent)) {
-    return false;
+  if (loadContext.IsNotNull())
+    mLoadContext = new LoadContext(loadContext);
+  else if (loadContext.IsPrivateBitValid()) {
+    nsCOMPtr<nsIPrivateBrowsingChannel> pbChannel = do_QueryInterface(mChannel);
+    if (pbChannel)
+      pbChannel->SetPrivate(loadContext.mUsePrivateBrowsing);
   }
-
-  rv = mChannel->SetNotificationCallbacks(this);
-  if (NS_FAILED(rv))
-    return SendCancelEarly(rv);
 
   rv = mChannel->AsyncOpen(this, nullptr);
   if (NS_FAILED(rv))
@@ -168,11 +125,6 @@ WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
 bool
 WyciwygChannelParent::RecvWriteToCacheEntry(const nsString& data)
 {
-  if (!mReceivedAppData) {
-    printf_stderr("WyciwygChannelParent::RecvWriteToCacheEntry: FATAL ERROR: didn't receive app data\n");
-    return false;
-  }
-
   if (mChannel)
     mChannel->WriteToCacheEntry(data);
 
@@ -182,9 +134,8 @@ WyciwygChannelParent::RecvWriteToCacheEntry(const nsString& data)
 bool
 WyciwygChannelParent::RecvCloseCacheEntry(const nsresult& reason)
 {
-  if (mChannel) {
+  if (mChannel)
     mChannel->CloseCacheEntry(reason);
-  }
 
   return true;
 }

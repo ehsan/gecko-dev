@@ -36,7 +36,6 @@ struct PKIX_ProcessingParamsStruct {
         PKIX_ResourceLimits *resourceLimits;
         PKIX_Boolean useAIAForCertFetching;
         PKIX_Boolean qualifyTargetCert;
-        PKIX_Boolean useOnlyTrustAnchors;
 };
 
 /* see source file for function documentation */

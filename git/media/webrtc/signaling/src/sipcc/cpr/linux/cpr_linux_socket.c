@@ -12,13 +12,8 @@
 #include "cpr_errno.h"
 #include "cpr_stdlib.h"
 #include "cpr_string.h"
-#if defined(WEBRTC_GONK)
-#include <syslog.h>
-#include <linux/fcntl.h>
-#else
 #include <sys/syslog.h>
 #include <sys/fcntl.h>
-#endif
 #include <ctype.h>
 
 
@@ -745,7 +740,7 @@ cpr_inet_pton (int af, const char *src, void *dst)
  *
  *  @param[in] addr - socket fd to bind with the IPC address.
  *  @param[in] name - pointer to the name of socket to bind to.
- *  @param[in] pid  - process id (only used if name contains %d)
+ *
  *
  *  @pre  (name != NULL)
  */
@@ -754,7 +749,7 @@ void cpr_set_sockun_addr (cpr_sockaddr_un_t *addr, const char *name, pid_t pid)
     /* Bind to the local socket */
     memset(addr, 0, sizeof(cpr_sockaddr_un_t));
     addr->sun_family = AF_LOCAL;
-    snprintf(addr->sun_path, sizeof(addr->sun_path), name, pid);
+    snprintf((char *) addr->sun_path, sizeof(addr->sun_path), "%s_%d", name, pid);
 }
 
 /* int

@@ -9,8 +9,6 @@
  * support queries (specifically QueryStringToQueries and QueriesToQueryString).
  */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsNavHistory.h"
 #include "nsNavBookmarks.h"
 #include "nsEscape.h"
@@ -18,6 +16,7 @@
 #include "nsNetUtil.h"
 #include "nsTArray.h"
 #include "prprf.h"
+#include "mozilla/Util.h"
 
 using namespace mozilla;
 
@@ -213,38 +212,43 @@ namespace PlacesFolderConversion {
    * @param aFolderID
    *        The folder ID to convert to the proper named constant.
    */
-  inline nsresult AppendFolder(nsCString &aQuery, int64_t aFolderID)
+  inline void AppendFolder(nsCString &aQuery, int64_t aFolderID)
   {
     nsNavBookmarks *bs = nsNavBookmarks::GetBookmarksService();
-    NS_ENSURE_STATE(bs);
     int64_t folderID;
 
-    if (NS_SUCCEEDED(bs->GetPlacesRoot(&folderID)) &&
-        aFolderID == folderID) {
+    (void)bs->GetPlacesRoot(&folderID);
+    if (aFolderID == folderID) {
       aQuery.AppendLiteral(PLACES_ROOT_FOLDER);
-    }
-    else if (NS_SUCCEEDED(bs->GetBookmarksMenuFolder(&folderID)) &&
-             aFolderID == folderID) {
-      aQuery.AppendLiteral(BOOKMARKS_MENU_FOLDER);
-    }
-    else if (NS_SUCCEEDED(bs->GetTagsFolder(&folderID)) &&
-             aFolderID == folderID) {
-      aQuery.AppendLiteral(TAGS_FOLDER);
-    }
-    else if (NS_SUCCEEDED(bs->GetUnfiledBookmarksFolder(&folderID)) &&
-             aFolderID == folderID) {
-      aQuery.AppendLiteral(UNFILED_BOOKMARKS_FOLDER);
-    }
-    else if (NS_SUCCEEDED(bs->GetToolbarFolder(&folderID)) &&
-             aFolderID == folderID) {
-      aQuery.AppendLiteral(TOOLBAR_FOLDER);
-    }
-    else {
-      // It wasn't one of our named constants, so just convert it to a string.
-      aQuery.AppendInt(aFolderID);
+      return;
     }
 
-    return NS_OK;
+    (void)bs->GetBookmarksMenuFolder(&folderID);
+    if (aFolderID == folderID) {
+      aQuery.AppendLiteral(BOOKMARKS_MENU_FOLDER);
+      return;
+    }
+
+    (void)bs->GetTagsFolder(&folderID);
+    if (aFolderID == folderID) {
+      aQuery.AppendLiteral(TAGS_FOLDER);
+      return;
+    }
+
+    (void)bs->GetUnfiledBookmarksFolder(&folderID);
+    if (aFolderID == folderID) {
+      aQuery.AppendLiteral(UNFILED_BOOKMARKS_FOLDER);
+      return;
+    }
+
+    (void)bs->GetToolbarFolder(&folderID);
+    if (aFolderID == folderID) {
+      aQuery.AppendLiteral(TOOLBAR_FOLDER);
+      return;
+    }
+
+    // It wasn't one of our named constants, so just convert it to a string 
+    aQuery.AppendInt(aFolderID);
   }
 }
 
@@ -468,8 +472,7 @@ nsNavHistory::QueriesToQueryString(nsINavHistoryQuery **aQueries,
     for (uint32_t i = 0; i < folderCount; ++i) {
       AppendAmpersandIfNonempty(queryString);
       queryString += NS_LITERAL_CSTRING(QUERYKEY_FOLDER "=");
-      nsresult rv = PlacesFolderConversion::AppendFolder(queryString, folders[i]);
-      NS_ENSURE_SUCCESS(rv, rv);
+      PlacesFolderConversion::AppendFolder(queryString, folders[i]);
     }
     nsMemory::Free(folders);
 

@@ -3,16 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsMimeTypes.h"
-
 #include "Image.h"
 
 namespace mozilla {
 namespace image {
 
 // Constructor
-ImageResource::ImageResource(imgStatusTracker* aStatusTracker, nsIURI* aURI) :
-  mURI(aURI),
+Image::Image(imgStatusTracker* aStatusTracker) :
   mInnerWindowId(0),
   mAnimationConsumers(0),
   mAnimationMode(kNormalAnimMode),
@@ -24,16 +21,16 @@ ImageResource::ImageResource(imgStatusTracker* aStatusTracker, nsIURI* aURI) :
     mStatusTracker = aStatusTracker;
     mStatusTracker->SetImage(this);
   } else {
-    mStatusTracker = new imgStatusTracker(this);
+    mStatusTracker = new imgStatusTracker(this, nullptr);
   }
 }
 
 uint32_t
-ImageResource::SizeOfData()
+Image::SizeOfData()
 {
   if (mError)
     return 0;
-
+  
   // This is not used by memory reporters, but for sizing the cache, which is
   // why it uses |moz_malloc_size_of| rather than an
   // |NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN|.
@@ -51,59 +48,53 @@ Image::GetDecoderType(const char *aMimeType)
   eDecoderType rv = eDecoderType_unknown;
 
   // PNG
-  if (!strcmp(aMimeType, IMAGE_PNG))
+  if (!strcmp(aMimeType, "image/png"))
     rv = eDecoderType_png;
-  else if (!strcmp(aMimeType, IMAGE_X_PNG))
+  else if (!strcmp(aMimeType, "image/x-png"))
     rv = eDecoderType_png;
 
   // GIF
-  else if (!strcmp(aMimeType, IMAGE_GIF))
+  else if (!strcmp(aMimeType, "image/gif"))
     rv = eDecoderType_gif;
 
 
   // JPEG
-  else if (!strcmp(aMimeType, IMAGE_JPEG))
+  else if (!strcmp(aMimeType, "image/jpeg"))
     rv = eDecoderType_jpeg;
-  else if (!strcmp(aMimeType, IMAGE_PJPEG))
+  else if (!strcmp(aMimeType, "image/pjpeg"))
     rv = eDecoderType_jpeg;
-  else if (!strcmp(aMimeType, IMAGE_JPG))
+  else if (!strcmp(aMimeType, "image/jpg"))
     rv = eDecoderType_jpeg;
 
   // BMP
-  else if (!strcmp(aMimeType, IMAGE_BMP))
+  else if (!strcmp(aMimeType, "image/bmp"))
     rv = eDecoderType_bmp;
-  else if (!strcmp(aMimeType, IMAGE_BMP_MS))
+  else if (!strcmp(aMimeType, "image/x-ms-bmp"))
     rv = eDecoderType_bmp;
 
 
   // ICO
-  else if (!strcmp(aMimeType, IMAGE_ICO))
+  else if (!strcmp(aMimeType, "image/x-icon"))
     rv = eDecoderType_ico;
-  else if (!strcmp(aMimeType, IMAGE_ICO_MS))
+  else if (!strcmp(aMimeType, "image/vnd.microsoft.icon"))
     rv = eDecoderType_ico;
 
   // Icon
-  else if (!strcmp(aMimeType, IMAGE_ICON_MS))
+  else if (!strcmp(aMimeType, "image/icon"))
     rv = eDecoderType_icon;
-
-#ifdef MOZ_WBMP
-  // WBMP
-  else if (!strcmp(aMimeType, IMAGE_WBMP))
-    rv = eDecoderType_wbmp;
-#endif
 
   return rv;
 }
 
 void
-ImageResource::IncrementAnimationConsumers()
+Image::IncrementAnimationConsumers()
 {
   mAnimationConsumers++;
   EvaluateAnimation();
 }
 
 void
-ImageResource::DecrementAnimationConsumers()
+Image::DecrementAnimationConsumers()
 {
   NS_ABORT_IF_FALSE(mAnimationConsumers >= 1, "Invalid no. of animation consumers!");
   mAnimationConsumers--;
@@ -111,7 +102,7 @@ ImageResource::DecrementAnimationConsumers()
 }
 
 nsresult
-ImageResource::GetAnimationModeInternal(uint16_t* aAnimationMode)
+Image::GetAnimationModeInternal(uint16_t* aAnimationMode)
 {
   if (mError)
     return NS_ERROR_FAILURE;
@@ -123,7 +114,7 @@ ImageResource::GetAnimationModeInternal(uint16_t* aAnimationMode)
 }
 
 nsresult
-ImageResource::SetAnimationModeInternal(uint16_t aAnimationMode)
+Image::SetAnimationModeInternal(uint16_t aAnimationMode)
 {
   if (mError)
     return NS_ERROR_FAILURE;
@@ -141,7 +132,7 @@ ImageResource::SetAnimationModeInternal(uint16_t aAnimationMode)
 }
 
 void
-ImageResource::EvaluateAnimation()
+Image::EvaluateAnimation()
 {
   if (!mAnimating && ShouldAnimate()) {
     nsresult rv = StartAnimation();

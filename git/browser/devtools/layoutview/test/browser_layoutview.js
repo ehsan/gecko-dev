@@ -1,10 +1,6 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-let tempScope = {};
-Cu.import("resource:///modules/devtools/Target.jsm", tempScope);
-let TargetFactory = tempScope.TargetFactory;
-
 function test() {
   waitForExplicitFinish();
 
@@ -14,7 +10,6 @@ function test() {
   let doc;
   let node;
   let view;
-  let inspector;
 
   // Expected values:
   let res1 = [
@@ -66,50 +61,58 @@ function test() {
     node = doc.querySelector("div");
     ok(node, "node found");
 
-    let target = TargetFactory.forTab(gBrowser.selectedTab);
-    gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
-      openLayoutView(toolbox.getCurrentPanel());
-    });
+    Services.obs.addObserver(openLayoutView,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED, false);
+    InspectorUI.toggleInspectorUI();
   }
 
-  function openLayoutView(aInspector) {
-    inspector = aInspector;
+  function openLayoutView() {
+    Services.obs.removeObserver(openLayoutView,
+      InspectorUI.INSPECTOR_NOTIFICATIONS.OPENED);
 
     info("Inspector open");
 
-    inspector.selection.setNode(node);
-    inspector.sidebar.select("layoutview");
-    inspector.sidebar.once("layoutview-ready", viewReady);
+    let highlighter = InspectorUI.highlighter;
+    highlighter.highlight(node);
+    highlighter.lock();
+
+    window.addEventListener("message", viewReady, true);
   }
 
-  function viewReady() {
+  function viewReady(e) {
+    if (e.data != "layoutview-ready") return;
+
+    window.removeEventListener("message", viewReady, true);
+
     info("Layout view ready");
 
-    view = inspector.sidebar.getWindowForTab("layoutview");
+    view = InspectorUI._sidebar._layoutview;
 
-    ok(!!view.layoutview, "LayoutView document is alive.");
+    ok(!!view, "LayoutView document is alive.");
+
+    view.open();
+
+    ok(view.iframe.getAttribute("open"), "true", "View is open.");
 
     test1();
   }
 
   function test1() {
-    let viewdoc = view.document;
+    let viewdoc = view.iframe.contentDocument;
 
     for (let i = 0; i < res1.length; i++) {
       let elt = viewdoc.querySelector(res1[i].selector);
       is(elt.textContent, res1[i].value, res1[i].selector + " has the right value.");
     }
 
-    gBrowser.selectedBrowser.addEventListener("MozAfterPaint", test2, false);
+    InspectorUI.selection.style.height = "150px";
+    InspectorUI.selection.style.paddingRight = "50px";
 
-    inspector.selection.node.style.height = "150px";
-    inspector.selection.node.style.paddingRight = "50px";
+    setTimeout(test2, 200); // Should be enough to get a MozAfterPaint event
   }
 
   function test2() {
-    gBrowser.selectedBrowser.removeEventListener("MozAfterPaint", test2, false);
-
-    let viewdoc = view.document;
+    let viewdoc = view.iframe.contentDocument;
 
     for (let i = 0; i < res2.length; i++) {
       let elt = viewdoc.querySelector(res2[i].selector);
@@ -117,14 +120,16 @@ function test() {
     }
 
     executeSoon(function() {
-      gDevTools.once("toolbox-destroyed", finishUp);
-      inspector._toolbox.destroy();
+      Services.obs.addObserver(finishUp,
+        InspectorUI.INSPECTOR_NOTIFICATIONS.CLOSED, false);
+      InspectorUI.closeInspectorUI();
     });
   }
 
   function finishUp() {
     Services.prefs.clearUserPref("devtools.layoutview.enabled");
     Services.prefs.clearUserPref("devtools.inspector.sidebarOpen");
+    Services.obs.removeObserver(finishUp, InspectorUI.INSPECTOR_NOTIFICATIONS.CLOSED);
     gBrowser.removeCurrentTab();
     finish();
   }

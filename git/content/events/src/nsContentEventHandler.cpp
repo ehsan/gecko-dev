@@ -16,7 +16,7 @@
 #include "nsCopySupport.h"
 #include "nsFrameSelection.h"
 #include "nsIFrame.h"
-#include "nsView.h"
+#include "nsIView.h"
 #include "nsIContentIterator.h"
 #include "nsTextFragment.h"
 #include "nsTextFrame.h"
@@ -26,10 +26,6 @@
 #include "nsLayoutUtils.h"
 #include "nsIMEStateManager.h"
 #include "nsIObjectFrame.h"
-#include "mozilla/dom/Element.h"
-#include <algorithm>
-
-using namespace mozilla::dom;
 
 /******************************************************************/
 /* nsContentEventHandler                                          */
@@ -187,7 +183,7 @@ static uint32_t CountNewlinesInXPLength(nsIContent* aContent,
   NS_ABORT_IF_FALSE(
     (aXPLength == UINT32_MAX || aXPLength <= text->GetLength()),
     "aXPLength is out-of-bounds");
-  const uint32_t length = std::min(aXPLength, text->GetLength());
+  const uint32_t length = NS_MIN(aXPLength, text->GetLength());
   uint32_t newlines = 0;
   for (uint32_t i = 0; i < length; ++i) {
     if (text->CharAt(i) == '\n') {
@@ -226,8 +222,7 @@ static uint32_t CountNewlinesInNativeLength(nsIContent* aContent,
 }
 #endif
 
-/* static */ uint32_t
-nsContentEventHandler::GetNativeTextLength(nsIContent* aContent, uint32_t aMaxLength)
+static uint32_t GetNativeTextLength(nsIContent* aContent, uint32_t aMaxLength = UINT32_MAX)
 {
   if (aContent->IsNodeOfType(nsINode::eTEXT)) {
     uint32_t textLengthDifference =
@@ -248,7 +243,7 @@ nsContentEventHandler::GetNativeTextLength(nsIContent* aContent, uint32_t aMaxLe
     const nsTextFragment* text = aContent->GetText();
     if (!text)
       return 0;
-    uint32_t length = std::min(text->GetLength(), aMaxLength);
+    uint32_t length = NS_MIN(text->GetLength(), aMaxLength);
     return length + textLengthDifference;
   } else if (IsContentBR(aContent)) {
 #if defined(XP_WIN)
@@ -374,7 +369,7 @@ nsContentEventHandler::SetRangeFromFlatTextOffset(
                               uint32_t aNativeLength,
                               bool aExpandToClusterBoundaries)
 {
-  nsCOMPtr<nsIContentIterator> iter = NS_NewPreContentIterator();
+  nsCOMPtr<nsIContentIterator> iter = NS_NewContentIterator();
   nsresult rv = iter->Init(mRootContent);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -515,7 +510,7 @@ nsContentEventHandler::OnQueryTextContent(nsQueryContentEvent* aEvent)
   NS_ASSERTION(aEvent->mReply.mString.IsEmpty(),
                "The reply string must be empty");
 
-  nsRefPtr<nsRange> range = new nsRange(mRootContent);
+  nsRefPtr<nsRange> range = new nsRange();
   rv = SetRangeFromFlatTextOffset(range, aEvent->mInput.mOffset,
                                   aEvent->mInput.mLength, false);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -572,7 +567,7 @@ nsContentEventHandler::OnQueryTextRect(nsQueryContentEvent* aEvent)
   if (NS_FAILED(rv))
     return rv;
 
-  nsRefPtr<nsRange> range = new nsRange(mRootContent);
+  nsRefPtr<nsRange> range = new nsRange();
   rv = SetRangeFromFlatTextOffset(range, aEvent->mInput.mOffset,
                                   aEvent->mInput.mLength, true);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -716,7 +711,7 @@ nsContentEventHandler::OnQueryCaretRect(nsQueryContentEvent* aEvent)
   }
 
   // Otherwise, we should set the guessed caret rect.
-  nsRefPtr<nsRange> range = new nsRange(mRootContent);
+  nsRefPtr<nsRange> range = new nsRange();
   rv = SetRangeFromFlatTextOffset(range, aEvent->mInput.mOffset, 0, true);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -795,7 +790,7 @@ nsContentEventHandler::OnQueryCharacterAtPoint(nsQueryContentEvent* aEvent)
   // a popup but the rootFrame is the document root.
   if (rootWidget != aEvent->widget) {
     NS_PRECONDITION(aEvent->widget, "The event must have the widget");
-    nsView* view = nsView::GetViewFor(aEvent->widget);
+    nsIView* view = nsIView::GetViewFor(aEvent->widget);
     NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
     rootFrame = view->GetFrame();
     NS_ENSURE_TRUE(rootFrame, NS_ERROR_FAILURE);
@@ -874,8 +869,10 @@ nsContentEventHandler::OnQueryDOMWidgetHittest(nsQueryContentEvent* aEvent)
   eventLoc.x -= docFrameRect.x;
   eventLoc.y -= docFrameRect.y;
 
-  Element* contentUnderMouse =
-    doc->ElementFromPointHelper(eventLoc.x, eventLoc.y, false, false);
+  nsCOMPtr<nsIDOMElement> elementUnderMouse;
+  doc->ElementFromPointHelper(eventLoc.x, eventLoc.y, false, false,
+                              getter_AddRefs(elementUnderMouse));
+  nsCOMPtr<nsIContent> contentUnderMouse = do_QueryInterface(elementUnderMouse);
   if (contentUnderMouse) {
     nsIWidget* targetWidget = nullptr;
     nsIFrame* targetFrame = contentUnderMouse->GetPrimaryFrame();
@@ -899,10 +896,9 @@ nsContentEventHandler::GetFlatTextOffsetOfRange(nsIContent* aRootContent,
                                                 int32_t aNodeOffset,
                                                 uint32_t* aNativeOffset)
 {
-  NS_ENSURE_STATE(aRootContent);
   NS_ASSERTION(aNativeOffset, "param is invalid");
 
-  nsRefPtr<nsRange> prev = new nsRange(aRootContent);
+  nsRefPtr<nsRange> prev = new nsRange();
   nsCOMPtr<nsIDOMNode> rootDOMNode(do_QueryInterface(aRootContent));
   prev->SetStart(rootDOMNode, 0);
 
@@ -984,7 +980,7 @@ nsContentEventHandler::ConvertToRootViewRelativeOffset(nsIFrame* aFrame,
 {
   NS_ASSERTION(aFrame, "aFrame must not be null");
 
-  nsView* view = nullptr;
+  nsIView* view = nullptr;
   nsPoint posInView;
   aFrame->GetOffsetFromView(posInView, &view);
   if (!view)
@@ -1012,7 +1008,7 @@ static void AdjustRangeForSelection(nsIContent* aRoot,
     brContent = node->GetChildAt(--offset - 1);
   }
   *aNode = node;
-  *aOffset = std::max(offset, 0);
+  *aOffset = NS_MAX(offset, 0);
 }
 
 nsresult
@@ -1034,7 +1030,7 @@ nsContentEventHandler::OnSelectionEvent(nsSelectionEvent* aEvent)
   }
 
   // Get range from offset and length
-  nsRefPtr<nsRange> range = new nsRange(mRootContent);
+  nsRefPtr<nsRange> range = new nsRange();
   NS_ENSURE_TRUE(range, NS_ERROR_OUT_OF_MEMORY);
   rv = SetRangeFromFlatTextOffset(range, aEvent->mOffset, aEvent->mLength,
                                   aEvent->mExpandToClusterBoundary);

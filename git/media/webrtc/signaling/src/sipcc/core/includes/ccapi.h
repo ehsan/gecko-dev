@@ -5,9 +5,7 @@
 #ifndef _CCAPI_H_
 #define _CCAPI_H_
 
-#include "mozilla/Assertions.h"
-#include "mozilla/Util.h"
-
+#include "prtypes.h"
 #include "cpr_types.h"
 #include "cpr_memory.h"
 #include "phone_types.h"
@@ -26,6 +24,7 @@ typedef int cc_causes_t;
 #define  CC_CALL_NONE       CC_CALL_TYPE_NONE
 #define  CC_CALL_INCOMING   CC_CALL_TYPE_INCOMING
 #define  SDP_SIZE           4096   /* must increase this */
+#define  PC_HANDLE_SIZE     17 /* 8 random bytes in hex plus null */
 #define  CANDIDATE_SIZE     150
 #define  MID_SIZE           150
 
@@ -93,6 +92,8 @@ typedef enum {
     CC_FEATURE_CREATEANSWER,
     CC_FEATURE_SETLOCALDESC,
     CC_FEATURE_SETREMOTEDESC,
+    CC_FEATURE_LOCALDESC,
+    CC_FEATURE_REMOTEDESC,
     CC_FEATURE_SETPEERCONNECTION,
     CC_FEATURE_ADDSTREAM,
     CC_FEATURE_REMOVESTREAM,
@@ -106,7 +107,7 @@ typedef enum {
 /* please update the following cc_feature_names whenever this feature list is changed */
 
 #ifdef __CC_FEATURE_STRINGS__
-static const char *const cc_feature_names[] = {
+static const char *cc_feature_names[] = {
     "NONE",
     "HOLD",
     "RESUME",
@@ -158,6 +159,8 @@ static const char *const cc_feature_names[] = {
     "CREATEANSWER",
     "SETLOCALDESC",
     "SETREMOTEDESC",
+    "LOCALDESC",
+    "REMOTEDESC",
     "SETPEERCONNECTION",
     "ADDSTREAM",
     "REMOVESTREAM",
@@ -168,8 +171,7 @@ static const char *const cc_feature_names[] = {
 /* This checks at compile-time that the cc_feature_names list
  * is the same size as the cc_group_feature_t enum
  */
-MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(cc_feature_names) == CC_FEATURE_MAX + 1,
-                  "cc_feature_names size == cc_group_feature_t size?");
+PR_STATIC_ASSERT(PR_ARRAY_SIZE(cc_feature_names) == CC_FEATURE_MAX + 1);
 
 #endif
 
@@ -231,6 +233,8 @@ typedef enum cc_msgs_t_ {
     CC_MSG_CREATEANSWER,
     CC_MSG_SETLOCALDESC,
     CC_MSG_SETREMOTEDESC,
+    CC_MSG_REMOTEDESC,
+    CC_MSG_LOCALDESC,
     CC_MSG_SETPEERCONNECTION,
     CC_MSG_ADDSTREAM,
     CC_MSG_REMOVESTREAM,
@@ -247,7 +251,7 @@ typedef enum cc_msgs_t_ {
 } cc_msgs_t;
 
 #ifdef __CC_MESSAGES_STRINGS__
-static const char *const cc_msg_names[] = {
+static const char *cc_msg_names[] = {
     "SETUP",
     "SETUP_ACK",
     "PROCEEDING",
@@ -270,6 +274,8 @@ static const char *const cc_msg_names[] = {
     "CREATEANSWER",
     "SETLOCALDESC",
     "SETREMOTEDESC",
+    "REMOTEDESC",
+    "LOCALDESC",
     "SETPEERCONNECTION",
     "ADDSTREAM",
     "REMOVESTREAM",
@@ -287,8 +293,7 @@ static const char *const cc_msg_names[] = {
 /* This checks at compile-time that the cc_msg_names list
  * is the same size as the cc_msgs_t enum
  */
-MOZ_STATIC_ASSERT(MOZ_ARRAY_LENGTH(cc_msg_names) == CC_MSG_MAX + 1,
-                  "cc_msg_names size == cc_msgs_t size?");
+PR_STATIC_ASSERT(PR_ARRAY_SIZE(cc_msg_names) == CC_MSG_MAX + 1);
 
 #endif //__CC_MESSAGES_STRINGS__
 
@@ -381,8 +386,8 @@ typedef struct cc_sdp_data_t_ {
 } cc_sdp_data_t;
 
 typedef struct cc_sdp_t_ {
-    sdp_t         *src_sdp;     /* pointer to source SDP */
-    sdp_t         *dest_sdp;    /* pointer to received SDP */
+    void          *src_sdp;     /* pointer to source SDP */
+    void          *dest_sdp;    /* pointer to received SDP */
 } cc_sdp_t;
 
 typedef enum
@@ -782,9 +787,7 @@ typedef struct cc_media_track_t_ {
 } cc_media_track_t;
 
 typedef struct cc_media_remote_track_table_t_ {
-    boolean           created;
     uint32_t          num_tracks;
-    uint32_t          num_tracks_notified;
     uint32_t          media_stream_id;
     cc_media_track_t  track[CC_MAX_TRACKS];
 } cc_media_remote_track_table_t;
@@ -833,7 +836,8 @@ typedef struct cc_feature_candidate_t_ {
 } cc_feature_candidate_t;
 
 typedef struct cc_feature_session_t_ {
-  cc_media_constraints_t    *constraints;
+  unsigned int  sessionid;
+  cc_boolean    has_constraints;
 } cc_feature_session_t;
 
 
@@ -1188,6 +1192,12 @@ void cc_setlocaldesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line
 void cc_setremotedesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line_t line,
                     cc_features_t feature_id, cc_jsep_action_t action, string_t sdp, cc_feature_data_t *data);
 
+void cc_localdesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line_t line,
+                    cc_features_t feature_id, cc_feature_data_t *data);
+
+void cc_remotedesc (cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id, line_t line,
+                    cc_features_t feature_id, cc_feature_data_t *data);
+
 void cc_int_feature_ack(cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
                         line_t line, cc_features_t feature_id,
                         cc_feature_data_t *data, cc_causes_t cause);
@@ -1200,8 +1210,7 @@ void cc_int_offhook(cc_srcs_t src_id, cc_srcs_t dst_id, callid_t prim_call_id,
 
 void cc_int_onhook(cc_srcs_t src_id, cc_srcs_t dst_id, callid_t prim_call_id,
                    cc_hold_resume_reason_e consult_reason, callid_t call_id,
-                   line_t line, boolean softkey, cc_onhook_reason_e active_list,
-                   const char *filename, int fileline);
+                   line_t line, boolean softkey, cc_onhook_reason_e active_list);
 
 void cc_int_line(cc_srcs_t src_id, cc_srcs_t dst_id, callid_t call_id,
                  line_t line);
@@ -1261,8 +1270,8 @@ void cc_int_fail_fallback(cc_srcs_t src_id, cc_srcs_t dst_id, int rsp_type,
         cc_int_feature_ack(a, CC_SRC_GSM, b, c, d, e, f)
 #define cc_offhook(a, b, c)           cc_int_offhook(a, CC_SRC_GSM, CC_NO_CALL_ID, CC_REASON_NONE, b, c, NULL, CC_MONITOR_NONE,CFWDALL_NONE)
 #define cc_offhook_ext(a, b, c, d, e) cc_int_offhook(a, CC_SRC_GSM, CC_NO_CALL_ID, CC_REASON_NONE, b, c, d, e,CFWDALL_NONE)
-#define cc_onhook(a, b, c, d)         cc_int_onhook(a, CC_SRC_GSM, CC_NO_CALL_ID, CC_REASON_NONE, b, c, d, CC_REASON_NULL,__FILE__,__LINE__)
-#define cc_onhook_ext(a, b, c, d, e)  cc_int_onhook(a, CC_SRC_GSM, CC_NO_CALL_ID, CC_REASON_NONE, b, c, d, e,__FILE__,__LINE__)
+#define cc_onhook(a, b, c, d)         cc_int_onhook(a, CC_SRC_GSM, CC_NO_CALL_ID, CC_REASON_NONE, b, c, d, CC_REASON_NULL)
+#define cc_onhook_ext(a, b, c, d, e)  cc_int_onhook(a, CC_SRC_GSM, CC_NO_CALL_ID, CC_REASON_NONE, b, c, d, e)
 #define cc_line(a, b, c)              cc_int_line(a, CC_SRC_GSM, b, c)
 #define cc_digit_begin(a, b, c, d)    cc_int_digit_begin(a, CC_SRC_GSM, b, c, d)
 #define cc_dialstring(a, b, c, d)     cc_int_dialstring(a, CC_SRC_GSM, b, c, d, NULL, CC_MONITOR_NONE)

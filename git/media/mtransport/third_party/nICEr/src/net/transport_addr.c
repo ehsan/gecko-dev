@@ -39,7 +39,6 @@ static char *RCSSTRING __UNUSED__="$Id: transport_addr.c,v 1.2 2008/04/28 17:59:
 #include <stdio.h>
 #include <memory.h>
 #include <sys/types.h>
-#include <errno.h>
 #ifdef WIN32
 #include <winsock2.h>
 #else
@@ -52,25 +51,16 @@ static char *RCSSTRING __UNUSED__="$Id: transport_addr.c,v 1.2 2008/04/28 17:59:
 #include "nr_api.h"
 #include "transport_addr.h"
 
-int nr_transport_addr_fmt_addr_string(nr_transport_addr *addr)
+static int fmt_addr_string(nr_transport_addr *addr)
   {
     int _status;
-    /* Max length for normalized IPv6 address string represntation is 39 */
-    char buffer[40];
 
     switch(addr->ip_version){
       case NR_IPV4:
-        if (!inet_ntop(AF_INET, &addr->u.addr4.sin_addr,buffer,sizeof(buffer)))
-          strcpy(buffer, "[error]");
-        snprintf(addr->as_string,sizeof(addr->as_string),"IP4:%s:%d",buffer,ntohs(addr->u.addr4.sin_port));
+        snprintf(addr->as_string,40,"IP4:%s:%d",inet_ntoa(addr->u.addr4.sin_addr),ntohs(addr->u.addr4.sin_port));
         break;
-      case NR_IPV6:
-        if (!inet_ntop(AF_INET6, &addr->u.addr6.sin6_addr,buffer,sizeof(buffer)))
-          strcpy(buffer, "[error]");
-        snprintf(addr->as_string,sizeof(addr->as_string),"IP6:[%s]:%d",buffer,ntohs(addr->u.addr6.sin6_port));
-        break;
-      default:
-        ABORT(R_INTERNAL);
+    default:
+      ABORT(R_INTERNAL);
     }
 
     _status=0;
@@ -97,7 +87,7 @@ int nr_sockaddr_to_transport_addr(struct sockaddr *saddr, int saddr_len, int pro
       }
       addr->ip_version=NR_IPV4;
       addr->protocol=protocol;
-
+      
       memcpy(&addr->u.addr4,saddr,sizeof(struct sockaddr_in));
       addr->addr=(struct sockaddr *)&addr->u.addr4;
       addr->addr_len=saddr_len;
@@ -109,7 +99,7 @@ int nr_sockaddr_to_transport_addr(struct sockaddr *saddr, int saddr_len, int pro
     else
       ABORT(R_BAD_ARGS);
 
-    if(r=nr_transport_addr_fmt_addr_string(addr))
+    if(r=fmt_addr_string(addr))
       ABORT(r);
 
     _status=0;
@@ -122,7 +112,7 @@ int nr_transport_addr_copy(nr_transport_addr *to, nr_transport_addr *from)
   {
     memcpy(to,from,sizeof(nr_transport_addr));
     to->addr=(struct sockaddr *)((char *)to + ((char *)from->addr - (char *)from));
-
+    
     return(0);
   }
 
@@ -144,7 +134,7 @@ int nr_ip4_port_to_transport_addr(UINT4 ip4, UINT2 port, int protocol, nr_transp
     addr->addr=(struct sockaddr *)&addr->u.addr4;
     addr->addr_len=sizeof(struct sockaddr_in);
 
-    if(r=nr_transport_addr_fmt_addr_string(addr))
+    if(r=fmt_addr_string(addr))
       ABORT(r);
 
     _status=0;
@@ -169,27 +159,24 @@ int nr_ip4_str_port_to_transport_addr(char *ip4, UINT2 port, int protocol, nr_tr
 
 int nr_transport_addr_get_addrstring(nr_transport_addr *addr, char *str, int maxlen)
   {
+    char buf[100]; // Long enough
     int _status;
-    const char *res;
-
+    
     switch(addr->ip_version){
       case NR_IPV4:
-        res = inet_ntop(AF_INET, &addr->u.addr4.sin_addr,str,maxlen);
+        if(!(addr2ascii(AF_INET, &addr->u.addr4.sin_addr,sizeof(struct in_addr),buf)))
+          ABORT(R_INTERNAL);
+        if(strlen(buf)>(maxlen-1))
+          ABORT(R_BAD_ARGS);
+        strcpy(str,buf);
         break;
       case NR_IPV6:
-        res = inet_ntop(AF_INET6, &addr->u.addr6.sin6_addr,str,maxlen);
-        break;
+        UNIMPLEMENTED;
       default:
         ABORT(R_INTERNAL);
     }
 
-    if(!res){
-      if (errno == ENOSPC){
-        ABORT(R_BAD_ARGS);
-      }
-      ABORT(R_INTERNAL);
-    }
-
+            
     _status=0;
   abort:
     return(_status);
@@ -205,26 +192,6 @@ int nr_transport_addr_get_port(nr_transport_addr *addr, int *port)
         break;
       case NR_IPV6:
         *port=ntohs(addr->u.addr6.sin6_port);
-        break;
-      default:
-        ABORT(R_INTERNAL);
-    }
-
-    _status=0;
-  abort:
-    return(_status);
-  }
-
-int nr_transport_addr_set_port(nr_transport_addr *addr, int port)
-  {
-    int _status;
-
-    switch(addr->ip_version){
-      case NR_IPV4:
-        addr->u.addr4.sin_port=htons(port);
-        break;
-      case NR_IPV6:
-        addr->u.addr6.sin6_port=htons(port);
         break;
       default:
         ABORT(R_INTERNAL);

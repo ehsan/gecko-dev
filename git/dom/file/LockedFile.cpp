@@ -12,6 +12,7 @@
 #include "nsISeekableStream.h"
 
 #include "jsfriendapi.h"
+#include "nsCharsetAlias.h"
 #include "nsEventDispatcher.h"
 #include "nsNetUtil.h"
 #include "nsDOMClassInfoID.h"
@@ -32,12 +33,9 @@
 #include "nsError.h"
 #include "nsContentUtils.h"
 
-#include "mozilla/dom/EncodingUtils.h"
-
 #define STREAM_COPY_BLOCK_SIZE 32768
 
 USING_FILE_NAMESPACE
-using mozilla::dom::EncodingUtils;
 
 namespace {
 
@@ -63,7 +61,7 @@ public:
   DoAsyncRun(nsISupports* aStream);
 
   nsresult
-  GetSuccessResult(JSContext* aCx, JS::Value* aVal);
+  GetSuccessResult(JSContext* aCx, jsval* aVal);
 
 protected:
   uint64_t mLocation;
@@ -85,7 +83,7 @@ public:
   { }
 
   nsresult
-  GetSuccessResult(JSContext* aCx, JS::Value* aVal);
+  GetSuccessResult(JSContext* aCx, jsval* aVal);
 
 private:
   nsString mEncoding;
@@ -197,31 +195,30 @@ private:
   nsCOMPtr<nsIInputStream> mStream;
 };
 
-already_AddRefed<nsIDOMEvent>
-CreateGenericEvent(mozilla::dom::EventTarget* aEventOwner,
-                   const nsAString& aType, bool aBubbles, bool aCancelable)
+already_AddRefed<nsDOMEvent>
+CreateGenericEvent(const nsAString& aType, bool aBubbles, bool aCancelable)
 {
-  nsCOMPtr<nsIDOMEvent> event;
-  NS_NewDOMEvent(getter_AddRefs(event), aEventOwner, nullptr, nullptr);
+  nsRefPtr<nsDOMEvent> event(new nsDOMEvent(nullptr, nullptr));
   nsresult rv = event->InitEvent(aType, aBubbles, aCancelable);
   NS_ENSURE_SUCCESS(rv, nullptr);
 
-  event->SetTrusted(true);
+  rv = event->SetTrusted(true);
+  NS_ENSURE_SUCCESS(rv, nullptr);
 
   return event.forget();
 }
 
 inline nsresult
-GetInputStreamForJSVal(const JS::Value& aValue, JSContext* aCx,
+GetInputStreamForJSVal(const jsval& aValue, JSContext* aCx,
                        nsIInputStream** aInputStream, uint64_t* aInputLength)
 {
   nsresult rv;
 
   if (!JSVAL_IS_PRIMITIVE(aValue)) {
     JSObject* obj = JSVAL_TO_OBJECT(aValue);
-    if (JS_IsArrayBufferObject(obj)) {
-      char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj));
-      uint32_t length = JS_GetArrayBufferByteLength(obj);
+    if (JS_IsArrayBufferObject(obj, aCx)) {
+      char* data = reinterpret_cast<char*>(JS_GetArrayBufferData(obj, aCx));
+      uint32_t length = JS_GetArrayBufferByteLength(obj, aCx);
 
       rv = NS_NewByteInputStream(aInputStream, data, length,
                                  NS_ASSIGNMENT_COPY);
@@ -324,8 +321,18 @@ LockedFile::~LockedFile()
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 }
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_1(LockedFile, nsDOMEventTargetHelper,
-                                     mFileHandle)
+NS_IMPL_CYCLE_COLLECTION_CLASS(LockedFile)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(LockedFile,
+                                                  nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mFileHandle,
+                                                       nsIDOMEventTarget)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(LockedFile,
+                                                nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mFileHandle)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(LockedFile)
   NS_INTERFACE_MAP_ENTRY(nsIDOMLockedFile)
@@ -384,7 +391,7 @@ LockedFile::CreateParallelStream(nsISupports** aStream)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   nsIFileStorage* fileStorage = mFileHandle->mFileStorage;
-  if (fileStorage->IsInvalidated()) {
+  if (fileStorage->IsStorageInvalidated()) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -404,7 +411,7 @@ LockedFile::GetOrCreateStream(nsISupports** aStream)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   nsIFileStorage* fileStorage = mFileHandle->mFileStorage;
-  if (fileStorage->IsInvalidated()) {
+  if (fileStorage->IsStorageInvalidated()) {
     return NS_ERROR_NOT_AVAILABLE;
   }
 
@@ -496,7 +503,7 @@ LockedFile::GetActive(bool* aActive)
 
 NS_IMETHODIMP
 LockedFile::GetLocation(JSContext* aCx,
-                        JS::Value* aLocation)
+                        jsval* aLocation)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -511,7 +518,7 @@ LockedFile::GetLocation(JSContext* aCx,
 
 NS_IMETHODIMP
 LockedFile::SetLocation(JSContext* aCx,
-                        const JS::Value& aLocation)
+                        const jsval& aLocation)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -531,9 +538,9 @@ LockedFile::SetLocation(JSContext* aCx,
 }
 
 NS_IMETHODIMP
-LockedFile::GetMetadata(const JS::Value& aParameters,
+LockedFile::GetMetadata(const jsval& aParameters,
                         JSContext* aCx,
-                        nsISupports** _retval)
+                        nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -570,15 +577,14 @@ LockedFile::GetMetadata(const JS::Value& aParameters,
   nsresult rv = helper->Enqueue();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 LockedFile::ReadAsArrayBuffer(uint64_t aSize,
                               JSContext* aCx,
-                              nsISupports** _retval)
+                              nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -613,15 +619,14 @@ LockedFile::ReadAsArrayBuffer(uint64_t aSize,
 
   mLocation += aSize;
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 LockedFile::ReadAsText(uint64_t aSize,
                        const nsAString& aEncoding,
-                       nsISupports** _retval)
+                       nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -656,15 +661,14 @@ LockedFile::ReadAsText(uint64_t aSize,
 
   mLocation += aSize;
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-LockedFile::Write(const JS::Value& aValue,
+LockedFile::Write(const jsval& aValue,
                   JSContext* aCx,
-                  nsISupports** _retval)
+                  nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -672,9 +676,9 @@ LockedFile::Write(const JS::Value& aValue,
 }
 
 NS_IMETHODIMP
-LockedFile::Append(const JS::Value& aValue,
+LockedFile::Append(const jsval& aValue,
                    JSContext* aCx,
-                   nsISupports** _retval)
+                   nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -684,7 +688,7 @@ LockedFile::Append(const JS::Value& aValue,
 NS_IMETHODIMP
 LockedFile::Truncate(uint64_t aSize,
                      uint8_t aOptionalArgCount,
-                     nsISupports** _retval)
+                     nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -727,13 +731,12 @@ LockedFile::Truncate(uint64_t aSize,
     mLocation = aSize;
   }
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-LockedFile::Flush(nsISupports** _retval)
+LockedFile::Flush(nsIDOMFileRequest** _retval)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
@@ -758,8 +761,7 @@ LockedFile::Flush(nsISupports** _retval)
   nsresult rv = helper->Enqueue();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
@@ -840,9 +842,9 @@ LockedFile::OpenInputStream(bool aWholeFile, uint64_t aStart, uint64_t aLength,
 }
 
 nsresult
-LockedFile::WriteOrAppend(const JS::Value& aValue,
+LockedFile::WriteOrAppend(const jsval& aValue,
                           JSContext* aCx,
-                          nsISupports** _retval,
+                          nsIDOMFileRequest** _retval,
                           bool aAppend)
 {
   if (!IsOpen()) {
@@ -891,8 +893,7 @@ LockedFile::WriteOrAppend(const JS::Value& aValue,
     mLocation += inputLength;
   }
 
-  nsRefPtr<nsIDOMDOMRequest> request = fileRequest.forget();
-  request.forget(_retval);
+  fileRequest.forget(_retval);
   return NS_OK;
 }
 
@@ -937,12 +938,10 @@ FinishHelper::Run()
 
     nsCOMPtr<nsIDOMEvent> event;
     if (mAborted) {
-      event = CreateGenericEvent(mLockedFile, NS_LITERAL_STRING("abort"),
-                                 true, false);
+      event = CreateGenericEvent(NS_LITERAL_STRING("abort"), true, false);
     }
     else {
-      event = CreateGenericEvent(mLockedFile, NS_LITERAL_STRING("complete"),
-                                 false, false);
+      event = CreateGenericEvent(NS_LITERAL_STRING("complete"), false, false);
     }
     NS_ENSURE_TRUE(event, NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR);
 
@@ -957,15 +956,15 @@ FinishHelper::Run()
   }
 
   nsIFileStorage* fileStorage = mLockedFile->mFileHandle->mFileStorage;
-  if (fileStorage->IsInvalidated()) {
+  if (fileStorage->IsStorageInvalidated()) {
     mAborted = true;
   }
 
   for (uint32_t index = 0; index < mParallelStreams.Length(); index++) {
-    nsCOMPtr<nsIInputStream> stream =
+    nsCOMPtr<nsIOutputStream> ostream =
       do_QueryInterface(mParallelStreams[index]);
 
-    if (NS_FAILED(stream->Close())) {
+    if (NS_FAILED(ostream->Close())) {
       NS_WARNING("Failed to close stream!");
     }
 
@@ -973,9 +972,9 @@ FinishHelper::Run()
   }
 
   if (mStream) {
-    nsCOMPtr<nsIInputStream> stream = do_QueryInterface(mStream);
+    nsCOMPtr<nsIOutputStream> ostream = do_QueryInterface(mStream);
 
-    if (NS_FAILED(stream->Close())) {
+    if (NS_FAILED(ostream->Close())) {
       NS_WARNING("Failed to close stream!");
     }
 
@@ -1025,7 +1024,7 @@ ReadHelper::DoAsyncRun(nsISupports* aStream)
 
 nsresult
 ReadHelper::GetSuccessResult(JSContext* aCx,
-                             JS::Value* aVal)
+                             jsval* aVal)
 {
   JSObject *arrayBuffer;
   nsresult rv =
@@ -1039,7 +1038,7 @@ ReadHelper::GetSuccessResult(JSContext* aCx,
 
 nsresult
 ReadTextHelper::GetSuccessResult(JSContext* aCx,
-                                 JS::Value* aVal)
+                                 jsval* aVal)
 {
   nsresult rv;
 
@@ -1055,9 +1054,8 @@ ReadTextHelper::GetSuccessResult(JSContext* aCx,
   }
 
   nsCString charset;
-  if (!EncodingUtils::FindEncodingForLabel(charsetGuess, charset)) {
-    return NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR;
-  }
+  rv = nsCharsetAlias::GetPreferred(charsetGuess, charset);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsString tmpString;
   rv = nsContentUtils::ConvertStringFromCharset(charset, mStream->Data(),

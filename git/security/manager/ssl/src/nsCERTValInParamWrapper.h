@@ -26,7 +26,7 @@
  * In order to protect against the race, we use a reference counted wrapper.
  * Each user of a foreign nsCERTValInParamWrapper object
  * (e.g. the current global default object)
- * must use RefPtr<nsCERTValInParamWrapper> = other-object
+ * must use nsRefPtr<nsCERTValInParamWrapper> = other-object
  * prior to calling CERT_PKIXVerifyCert.
  * 
  * This guarantees the object will still be alive after the call,
@@ -36,12 +36,11 @@
  */
 class nsCERTValInParamWrapper
 {
+ public:
+    NS_IMETHOD_(nsrefcnt) AddRef();
+    NS_IMETHOD_(nsrefcnt) Release();
+
 public:
-  NS_IMETHOD_(nsrefcnt) AddRef();
-  NS_IMETHOD_(nsrefcnt) Release();
-
-  bool IsOCSPDownloadEnabled() const { return mOCSPDownloadEnabled; }
-
   nsCERTValInParamWrapper();
   virtual ~nsCERTValInParamWrapper();
 
@@ -62,7 +61,6 @@ private:
   bool mAlreadyConstructed;
   CERTValInParam *mCVIN;
   CERTRevocationFlags *mRev;
-  bool mOCSPDownloadEnabled;
   
 public:
   CERTValInParam *GetRawPointerForNSS() { return mCVIN; }

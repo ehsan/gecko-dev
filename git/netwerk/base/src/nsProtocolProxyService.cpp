@@ -39,16 +39,9 @@ using namespace mozilla;
 
 #include "prlog.h"
 #if defined(PR_LOGGING)
-static PRLogModuleInfo *
-GetProxyLog()
-{
-    static PRLogModuleInfo *sLog;
-    if (!sLog)
-        sLog = PR_NewLogModule("proxy");
-    return sLog;
-}
+static PRLogModuleInfo *sLog = PR_NewLogModule("proxy");
 #endif
-#define LOG(args) PR_LOG(GetProxyLog(), PR_LOG_DEBUG, args)
+#define LOG(args) PR_LOG(sLog, PR_LOG_DEBUG, args)
 
 //----------------------------------------------------------------------------
 
@@ -197,14 +190,6 @@ private:
 
     void DoCallback()
     {
-        if (mStatus == NS_ERROR_NOT_AVAILABLE && !mProxyInfo) {
-            // If the PAC service is not avail (e.g. failed pac load
-            // or shutdown) then we will be going direct. Make that
-            // mapping now so that any filters are still applied.
-            mPACString = NS_LITERAL_CSTRING("DIRECT;");
-            mStatus = NS_OK;
-        }
-
         // Generate proxy info from the PAC string if appropriate
         if (NS_SUCCEEDED(mStatus) && !mProxyInfo && !mPACString.IsEmpty()) {
             mPPS->ProcessPACString(mPACString, mResolveFlags,
@@ -658,17 +643,13 @@ nsProtocolProxyService::CanUseProxy(nsIURI *aURI, int32_t defaultPort)
     return true;
 }
 
-// kProxyType\* may be referred to externally in
-// nsProxyInfo in order to compare by string pointer
-namespace mozilla {
-const char *kProxyType_HTTP    = "http";
-const char *kProxyType_PROXY   = "proxy";
-const char *kProxyType_SOCKS   = "socks";
-const char *kProxyType_SOCKS4  = "socks4";
-const char *kProxyType_SOCKS5  = "socks5";
-const char *kProxyType_DIRECT  = "direct";
-const char *kProxyType_UNKNOWN = "unknown";
-}
+static const char kProxyType_HTTP[]    = "http";
+static const char kProxyType_PROXY[]   = "proxy";
+static const char kProxyType_SOCKS[]   = "socks";
+static const char kProxyType_SOCKS4[]  = "socks4";
+static const char kProxyType_SOCKS5[]  = "socks5";
+static const char kProxyType_DIRECT[]  = "direct";
+static const char kProxyType_UNKNOWN[] = "unknown";
 
 const char *
 nsProtocolProxyService::ExtractProxyInfo(const char *start,
@@ -904,12 +885,17 @@ nsProtocolProxyService::ConfigureFromPAC(const nsCString &spec,
 {
     SetupPACThread();
 
-    if (mPACMan->IsPACURI(spec) && !forceReload)
+    nsCOMPtr<nsIURI> pacURI;
+    nsresult rv = NS_NewURI(getter_AddRefs(pacURI), spec);
+    if (NS_FAILED(rv))
+        return rv;
+
+    if (mPACMan->IsPACURI(pacURI) && !forceReload)
         return NS_OK;
 
     mFailedProxies.Clear();
 
-    return mPACMan->LoadPACFromURI(spec);
+    return mPACMan->LoadPACFromURI(pacURI);
 }
 
 void

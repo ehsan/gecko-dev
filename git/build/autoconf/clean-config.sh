@@ -23,7 +23,9 @@ if [ ! -f configure.in ]; then
   exit 1
 fi
 
-rm -fr \
+. allmakefiles.sh
+
+rm -fr $MAKEFILES \
     config-defs.h \
     config.cache \
     config.log \

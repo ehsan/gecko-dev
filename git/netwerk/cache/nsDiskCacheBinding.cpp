@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsCache.h"
 #include <limits.h>
 
 #include "nscore.h"
@@ -368,56 +367,4 @@ nsDiskCacheBindery::ActiveBindings()
     PL_DHashTableEnumerate(&table, ActiveBinding, &activeBinding);
 
     return activeBinding;
-}
-
-struct AccumulatorArg {
-    size_t mUsage;
-    nsMallocSizeOfFun mMallocSizeOf;
-};
-
-PLDHashOperator
-AccumulateHeapUsage(PLDHashTable *table, PLDHashEntryHdr *hdr, uint32_t number,
-                    void *arg)
-{
-    nsDiskCacheBinding *binding = ((HashTableEntry *)hdr)->mBinding;
-    NS_ASSERTION(binding, "### disk cache binding = nsnull!");
-
-    AccumulatorArg *acc = (AccumulatorArg *)arg;
-
-    nsDiskCacheBinding *head = binding;
-    do {
-        acc->mUsage += acc->mMallocSizeOf(binding);
-
-        if (binding->mStreamIO) {
-            acc->mUsage += binding->mStreamIO->SizeOfIncludingThis(acc->mMallocSizeOf);
-        }
-
-        /* No good way to get at mDeactivateEvent internals for proper size, so
-           we use this as an estimate. */
-        if (binding->mDeactivateEvent) {
-            acc->mUsage += acc->mMallocSizeOf(binding->mDeactivateEvent);
-        }
-
-        binding = (nsDiskCacheBinding *)PR_NEXT_LINK(binding);
-    } while (binding != head);
-
-    return PL_DHASH_NEXT;
-}
-
-/**
- * SizeOfExcludingThis: return the amount of heap memory (bytes) being used by the bindery
- */
-size_t
-nsDiskCacheBindery::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
-{
-    NS_ASSERTION(initialized, "nsDiskCacheBindery not initialized");
-    if (!initialized) return 0;
-
-    AccumulatorArg arg;
-    arg.mUsage = 0;
-    arg.mMallocSizeOf = aMallocSizeOf;
-
-    PL_DHashTableEnumerate(&table, AccumulateHeapUsage, &arg);
-
-    return arg.mUsage;
 }

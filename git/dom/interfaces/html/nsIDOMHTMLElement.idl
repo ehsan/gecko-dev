@@ -6,7 +6,9 @@
 #include "nsIDOMElement.idl"
 #include "nsIVariant.idl"
 
+interface nsIDOMDOMStringMap;
 interface nsIDOMHTMLMenuElement;
+interface nsIDOMHTMLPropertiesCollection;
 
 /**
  * The nsIDOMHTMLElement interface is the primary [X]HTML element
@@ -19,7 +21,7 @@ interface nsIDOMHTMLMenuElement;
  * with changes from the work-in-progress WHATWG HTML specification:
  * http://www.whatwg.org/specs/web-apps/current-work/
  */
-[scriptable, uuid(56d50046-31af-4cdc-af51-217fb2fd0a4d)]
+[scriptable, uuid(9a677a5b-e6f7-4e2e-9ef9-22c2ac9967b3)]
 interface nsIDOMHTMLElement : nsIDOMElement
 {
   // metadata attributes
@@ -28,12 +30,12 @@ interface nsIDOMHTMLElement : nsIDOMElement
            attribute DOMString        lang;
            attribute DOMString        dir;
            attribute DOMString        className;
-  readonly attribute nsISupports      dataset;
+  readonly attribute nsIDOMDOMStringMap dataset;
 
            attribute boolean                        itemScope;
            attribute nsIVariant                     itemType;
            attribute DOMString                      itemId;
-  readonly attribute nsISupports                    properties;
+  readonly attribute nsIDOMHTMLPropertiesCollection properties; 
   // The following attributes are really nsDOMSettableTokenList, which has
   // PutForwards, so we express them as nsIVariants to deal with this.
            attribute nsIVariant                     itemValue;
@@ -50,8 +52,8 @@ interface nsIDOMHTMLElement : nsIDOMElement
   [binaryname(DOMClick)]
   void click();
            attribute long             tabIndex;
+  [binaryname(DOMFocus)]
   void focus();
-  [binaryname(DOMBlur)]
   void blur();
            attribute DOMString        accessKey;
   readonly attribute DOMString        accessKeyLabel;
@@ -63,6 +65,7 @@ interface nsIDOMHTMLElement : nsIDOMElement
 
 
   // DOM Parsing and Serialization
+  [binaryname(DOMInnerHTML)]
            attribute DOMString        innerHTML;
            attribute DOMString        outerHTML;
   void insertAdjacentHTML(in DOMString position,

@@ -18,25 +18,31 @@
         <xul:vbox class="console-rows" role="console-rows" xbl:inherits="dir=sortOrder"/>
       </xul:vbox>
     </content>
-
+  
     <implementation>
       <field name="limit" readonly="true">
         250
       </field>
+      <field name="_showChromeErrors">-1</field>
 
-      <field name="fieldMaxLength" readonly="true">
-        <!-- Limit displayed string lengths to avoid performance issues. (Bug 796179 and 831020) -->
-        200
-      </field>
+      <property name="showChromeErrors">
+        <getter><![CDATA[
+          if (this._showChromeErrors != -1)
+            return this._showChromeErrors;
 
-      <field name="showChromeErrors" readonly="true">
-        Services.prefs.getBoolPref("javascript.options.showInConsole");
-      </field>
+          try {
+            return this._showChromeErrors = Services.prefs.getBoolPref("javascript.options.showInConsole");
+          }
+          catch(ex) {
+            return this._showChromeErrors = false;
+          }
+        ]]></getter>
+      </property>
 
       <property name="count" readonly="true">
         <getter>return this.mCount</getter>
       </property>
-
+    
       <property name="mode">
         <getter>return this.mMode;</getter>
         <setter><![CDATA[
@@ -50,14 +56,11 @@
       </property>
 
       <property name="filter">
-        <getter>return this.mFilter;</getter>
         <setter><![CDATA[
           val = val.toLowerCase();
           if (this.mFilter != val) {
             this.mFilter = val;
-            for (let aRow of this.mConsoleRowBox.children) {
-              this.filterElement(aRow);
-            }
+            setTimeout(this.applyFilter.bind(this), 0);
           }
           return val;
         ]]></setter>
@@ -73,7 +76,7 @@
         <setter><![CDATA[
           if (this.mSelectedItem)
             this.mSelectedItem.removeAttribute("selected");
-
+          
           this.mSelectedItem = val;
           if (val)
             val.setAttribute("selected", "true");
@@ -83,11 +86,11 @@
           return val;
         ]]></setter>
       </property>
-
+    
       <method name="init">
         <body><![CDATA[
           this.mCount = 0;
-
+          
           this.mConsoleListener = {
             console: this, 
             observe : function(aObject) {
@@ -97,7 +100,7 @@
                 this.console.appendItem(aObject);
             }
           };
-
+          
           this.mConsoleRowBox = document.getAnonymousElementByAttribute(this, "role", "console-rows");
           this.mStrBundle = document.getAnonymousElementByAttribute(this, "role", "string-bundle");
 
@@ -127,20 +130,22 @@
 
       <method name="appendInitialItems">
         <body><![CDATA[
-          var messages = Services.console.getMessageArray();
-
+          var out = {}; // Throwaway references to support 'out' parameters.
+          Services.console.getMessageArray(out, {});
+          var messages = out.value;
+      
           // In case getMessageArray returns 0-length array as null
           if (!messages)
             messages = [];
-
+      
           var limit = messages.length - this.limit;
           if (limit < 0) limit = 0;
-
+        
           // Checks if console ever been cleared
           for (var i = messages.length - 1; i >= limit; --i)
             if (!messages[i].message)
               break;
-
+        
           // Populate with messages after latest "clear"
           while (++i < messages.length)
             this.appendItem(messages[i]);
@@ -153,14 +158,16 @@
           try {
             // Try to QI it to a script error to get more info
             var scriptError = aObject.QueryInterface(Components.interfaces.nsIScriptError);
-
+            
             // filter chrome urls
             if (!this.showChromeErrors && scriptError.sourceName.substr(0, 9) == "chrome://")
               return;
 
+#ifdef MOZ_PER_WINDOW_PRIVATE_BROWSING
             // filter private windows
             if (scriptError.isFromPrivateWindow)
               return;
+#endif
 
             this.appendError(scriptError);
           } catch (ex) {
@@ -179,51 +186,15 @@
         ]]></body>
       </method>
 
-      <method name="_truncateIfNecessary">
-        <parameter name="aString"/>
-        <parameter name="aMiddleCharacter"/>
-        <body><![CDATA[
-          if (!aString || aString.length <= this.fieldMaxLength)
-            return {string: aString, column: aMiddleCharacter};
-          let halfLimit = this.fieldMaxLength / 2;
-          if (!aMiddleCharacter || aMiddleCharacter < 0 || aMiddleCharacter > aString.length)
-            aMiddleCharacter = halfLimit;
-
-          let startPosition = 0;
-          let endPosition = aString.length;
-          if (aMiddleCharacter - halfLimit >= 0)
-            startPosition = aMiddleCharacter - halfLimit;
-          if (aMiddleCharacter + halfLimit <= aString.length)
-            endPosition = aMiddleCharacter + halfLimit;
-          if (endPosition - startPosition < this.fieldMaxLength)
-            endPosition += this.fieldMaxLength - (endPosition - startPosition);
-          let truncatedString = aString.substring(startPosition, endPosition);
-          let Ci = Components.interfaces;
-          let ellipsis = Services.prefs.getComplexValue("intl.ellipsis",
-                                                        Ci.nsIPrefLocalizedString).data;
-          if (startPosition > 0) {
-            truncatedString = ellipsis + truncatedString;
-            aMiddleCharacter += ellipsis.length;
-          }
-          if (endPosition < aString.length)
-            truncatedString = truncatedString + ellipsis;
-
-          return {
-            string: truncatedString,
-            column: aMiddleCharacter - startPosition
-          };
-        ]]></body>
-      </method>
-
       <method name="appendError">
         <parameter name="aObject"/>
         <body><![CDATA[
           var row = this.createConsoleRow();
           var nsIScriptError = Components.interfaces.nsIScriptError;
-
+          
           // Is this error actually just a non-fatal warning?
           var warning = aObject.flags & nsIScriptError.warningFlag != 0;
-
+  
           var typetext = warning ? "typeWarning" : "typeError";
           row.setAttribute("typetext", this.mStrBundle.getString(typetext));
           row.setAttribute("type", warning ? "warning" : "error");
@@ -231,20 +202,16 @@
           row.setAttribute("category", aObject.category);
           row.setAttribute("time", this.properFormatTime(aObject.timeStamp));
           if (aObject.lineNumber || aObject.sourceName) {
-            row.setAttribute("href", this._truncateIfNecessary(aObject.sourceName).string);
-            row.mSourceName = aObject.sourceName;
+            row.setAttribute("href", aObject.sourceName);
             row.setAttribute("line", aObject.lineNumber);
           } else {
             row.setAttribute("hideSource", "true");
           }
           if (aObject.sourceLine) {
-            let sourceLine = aObject.sourceLine.replace(/\s/g, " ");
-            let truncatedLineObj = this._truncateIfNecessary(sourceLine, aObject.columnNumber);
-            row.setAttribute("code", truncatedLineObj.string);
-            row.mSourceLine = sourceLine;
+            row.setAttribute("code", aObject.sourceLine.replace(/\s/g, " "));
             if (aObject.columnNumber) {
               row.setAttribute("col", aObject.columnNumber);
-              row.setAttribute("errorDots", this.repeatChar(" ", truncatedLineObj.column));
+              row.setAttribute("errorDots", this.repeatChar(" ", aObject.columnNumber));
               row.setAttribute("errorCaret", " ");
             } else {
               row.setAttribute("hideCaret", "true");
@@ -256,7 +223,7 @@
           this.appendConsoleRow(row);
         ]]></body>
       </method>
-
+            
       <method name="appendMessage">
         <parameter name="aMessage"/>
         <parameter name="aType"/>
@@ -267,7 +234,7 @@
           this.appendConsoleRow(row);
         ]]></body>
       </method>
-
+      
       <method name="clear">
         <body><![CDATA[
           // add a "clear" message (mainly for other listeners)
@@ -301,7 +268,7 @@
           }
         ]]></body>
       </method>
-
+                  
       <method name="createConsoleRow">
         <body><![CDATA[
           var row = document.createElement("box");
@@ -311,7 +278,7 @@
           return row;
         ]]></body>
       </method>
-
+            
       <method name="appendConsoleRow">
         <parameter name="aRow"/>
         <body><![CDATA[
@@ -320,7 +287,7 @@
           if (++this.mCount > this.limit) this.deleteFirst();
         ]]></body>
       </method>
-
+            
       <method name="deleteFirst">
         <body><![CDATA[
           var node = this.mConsoleRowBox.firstChild;
@@ -328,13 +295,13 @@
           --this.mCount;
         ]]></body>
       </method>
-
+            
       <method name="clearConsole">
         <body><![CDATA[
           if (this.mCount == 0) // already clear
             return;
           this.mCount = 0;
-
+          
           var newRows = this.mConsoleRowBox.cloneNode(false);
           this.mConsoleRowBox.parentNode.replaceChild(newRows, this.mConsoleRowBox);
           this.mConsoleRowBox = newRows;
@@ -345,16 +312,24 @@
       <method name="filterElement">
         <parameter name="aRow" />
         <body><![CDATA[
-          let anyMatch = ["msg", "line", "code"].some(function (key) {
-            return (aRow.hasAttribute(key) &&
+          let anyMatch = ["msg", "href", "line", "code"].some(function (key) {
+            return (aRow.hasAttribute(key) && 
                     this.stringMatchesFilters(aRow.getAttribute(key), this.mFilter));
-          }, this) || (aRow.mSourceName &&
-                       this.stringMatchesFilters(aRow.mSourceName, this.mFilter));
+          }, this);
 
           if (anyMatch) {
             aRow.classList.remove("filtered-by-string")
           } else {
             aRow.classList.add("filtered-by-string")
+          }
+        ]]></body>
+      </method>
+
+      <method name="applyFilter">
+        <parameter name="aFilter" />
+        <body><![CDATA[
+          for (let aRow of this.mConsoleRowBox.children) {
+            this.filterElement(aRow);
           }
         ]]></body>
       </method>
@@ -421,12 +396,12 @@
         onEvent: function() { }
       });]]></field>
     </implementation>
-
+    
     <handlers>
       <handler event="mousedown"><![CDATA[
         if (event.button == 0 || event.button == 2) {
           var target = event.originalTarget;
-
+  
           while (target && !("_IsConsoleRow" in target))
             target = target.parentNode;
 
@@ -471,9 +446,6 @@
     </content>
 
     <implementation>
-      <field name="mSourceName">null</field>
-      <field name="mSourceLine">null</field>
-
       <method name="toString">
         <body><![CDATA[
           let msg = "";
@@ -484,9 +456,9 @@
 
           msg += this.getAttribute("typetext") + " " + this.getAttribute("msg");
 
-          if (this.hasAttribute("line") && this.mSourceName) {
+          if (this.hasAttribute("line") && this.hasAttribute("href")) {
             msg += "\n" + strBundle.getFormattedString("errFile",
-                                        [this.mSourceName]) + "\n";
+                                        [this.getAttribute("href")]) + "\n";
             if (this.hasAttribute("col")) {
               msg += strBundle.getFormattedString("errLineCol",
                          [this.getAttribute("line"), this.getAttribute("col")]);
@@ -495,7 +467,7 @@
           }
 
           if (this.hasAttribute("code"))
-            msg += "\n" + strBundle.getString("errCode") + "\n" + this.mSourceLine;
+            msg += "\n" + strBundle.getString("errCode") + "\n" + this.getAttribute("code");
 
           return msg;
         ]]></body>
@@ -503,7 +475,7 @@
     </implementation>
 
   </binding>
-
+  
   <binding id="message" extends="xul:box">
     <content>
       <xul:box class="console-internal-box" flex="1">
@@ -529,13 +501,13 @@
 
   <binding id="console-error-source" extends="xul:box">
     <content>
-      <xul:label class="text-link" xbl:inherits="value=href" crop="right"/>
+      <xul:label class="text-link" xbl:inherits="href,value=href" crop="right"/>
     </content>
 
     <handlers>
       <handler event="click" phase="capturing" button="0" preventdefault="true">
         <![CDATA[
-          var url = document.getBindingParent(this).mSourceName;
+          var url = this.getAttribute("href");
           url = url.substring(url.lastIndexOf(" ") + 1);
           var line = getAttribute("line");
           gViewSourceUtils.viewSource(url, null, null, line);

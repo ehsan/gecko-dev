@@ -16,7 +16,7 @@ namespace ion {
 class IonCommonFrameLayout
 {
   private:
-    uint8_t *returnAddress_;
+    uint8 *returnAddress_;
     uintptr_t descriptor_;
 
     static const uintptr_t FrameTypeMask = (1 << FRAMETYPE_BITS) - 1;
@@ -41,7 +41,7 @@ class IonCommonFrameLayout
     void setFrameDescriptor(size_t size, FrameType type) {
         descriptor_ = (size << FRAMESIZE_SHIFT) | type;
     }
-    uint8_t *returnAddress() const {
+    uint8 *returnAddress() const {
         return returnAddress_;
     }
 };
@@ -80,12 +80,55 @@ class IonJSFrameLayout : public IonCommonFrameLayout
 
     // Computes a reference to a slot, where a slot is a distance from the base
     // frame pointer (as would be used for LStackSlot).
-    uintptr_t *slotRef(uint32_t slot) {
-        return (uintptr_t *)((uint8_t *)this - (slot * STACK_SLOT_SIZE));
+    uintptr_t *slotRef(uint32 slot) {
+        return (uintptr_t *)((uint8 *)this - (slot * STACK_SLOT_SIZE));
     }
 
     static inline size_t Size() {
         return sizeof(IonJSFrameLayout);
+    }
+};
+
+class IonBaselineJSFrameLayout : public IonCommonFrameLayout
+{
+    void *calleeToken_;
+    uintptr_t numActualArgs_;
+
+  public:
+    CalleeToken calleeToken() const {
+        return calleeToken_;
+    }
+    void replaceCalleeToken(void *value) {
+        calleeToken_ = value;
+    }
+
+    static size_t offsetOfCalleeToken() {
+        return offsetof(IonBaselineJSFrameLayout, calleeToken_);
+    }
+    static size_t offsetOfNumActualArgs() {
+        return offsetof(IonBaselineJSFrameLayout, numActualArgs_);
+    }
+    static size_t offsetOfActualArgs() {
+        IonBaselineJSFrameLayout *base = NULL;
+        // +1 to skip |this|.
+        return reinterpret_cast<size_t>(&base->argv()[1]);
+    }
+
+    Value *argv() {
+        return (Value *)(this + 1);
+    }
+    uintptr_t numActualArgs() const {
+        return numActualArgs_;
+    }
+
+    // Computes a reference to a slot, where a slot is a distance from the base
+    // frame pointer (as would be used for LStackSlot).
+    uintptr_t *slotRef(uint32 slot) {
+        return (uintptr_t *)((uint8 *)this - (slot * STACK_SLOT_SIZE));
+    }
+
+    static inline size_t Size() {
+        return sizeof(IonBaselineJSFrameLayout);
     }
 };
 
@@ -106,11 +149,11 @@ class IonRectifierFrameLayout : public IonJSFrameLayout
 };
 
 // The callee token is now dead.
-class IonUnwoundRectifierFrameLayout : public IonRectifierFrameLayout
+class IonBailedRectifierFrameLayout : public IonRectifierFrameLayout
 {
   public:
     static inline size_t Size() {
-        return sizeof(IonUnwoundRectifierFrameLayout);
+        return sizeof(IonBailedRectifierFrameLayout);
     }
 };
 
@@ -147,8 +190,8 @@ class IonDOMExitFrameLayout;
 
 class IonExitFrameLayout : public IonCommonFrameLayout
 {
-    inline uint8_t *top() {
-        return reinterpret_cast<uint8_t *>(this + 1);
+    inline uint8 *top() {
+        return reinterpret_cast<uint8 *>(this + 1);
     }
 
   public:
@@ -160,14 +203,14 @@ class IonExitFrameLayout : public IonCommonFrameLayout
     }
 
     inline IonExitFooterFrame *footer() {
-        uint8_t *sp = reinterpret_cast<uint8_t *>(this);
+        uint8 *sp = reinterpret_cast<uint8 *>(this);
         return reinterpret_cast<IonExitFooterFrame *>(sp - IonExitFooterFrame::Size());
     }
 
     // argBase targets the point which precedes the exit frame. Arguments of VM
     // each wrapper are pushed before the exit frame.  This correspond exactly
     // to the value of the argBase register of the generateVMWrapper function.
-    inline uint8_t *argBase() {
+    inline uint8 *argBase() {
         JS_ASSERT(footer()->ionCode() != NULL);
         return top();
     }
@@ -405,11 +448,11 @@ class InvalidationBailoutStack
     double      fpregs_[FloatRegisters::Total];
     uintptr_t   regs_[Registers::Total];
     IonScript   *ionScript_;
-    uint8_t       *osiPointReturnAddress_;
+    uint8       *osiPointReturnAddress_;
 
   public:
-    uint8_t *sp() const {
-        return (uint8_t *) this + sizeof(InvalidationBailoutStack);
+    uint8 *sp() const {
+        return (uint8 *) this + sizeof(InvalidationBailoutStack);
     }
     IonJSFrameLayout *fp() const;
     MachineState machine() {
@@ -419,7 +462,7 @@ class InvalidationBailoutStack
     IonScript *ionScript() const {
         return ionScript_;
     }
-    uint8_t *osiPointReturnAddress() const {
+    uint8 *osiPointReturnAddress() const {
         return osiPointReturnAddress_;
     }
 

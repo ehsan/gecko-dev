@@ -20,7 +20,6 @@
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 #include "nsInterfaceHashtable.h"
-#include "nsRefPtrHashtable.h"
 
 #include "mozilla/dom/indexedDB/IDBDatabase.h"
 #include "mozilla/dom/indexedDB/IDBWrapperCache.h"
@@ -102,7 +101,6 @@ public:
 
   void OnNewRequest();
   void OnRequestFinished();
-  void OnRequestDisconnected();
 
   void RemoveObjectStore(const nsAString& aName);
 
@@ -188,12 +186,6 @@ public:
   GetActorChild() const
   {
     return mActorChild;
-  }
-
-  IndexedDBTransactionParent*
-  GetActorParent() const
-  {
-    return mActorParent;
   }
 
   nsresult

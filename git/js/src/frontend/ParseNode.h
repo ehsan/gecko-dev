@@ -18,10 +18,7 @@
 namespace js {
 namespace frontend {
 
-template <typename ParseHandler>
 struct ParseContext;
-
-class FullParseHandler;
 
 /*
  * Indicates a location in the stack that an upvar value can be retrieved from
@@ -68,8 +65,18 @@ class UpvarCookie
     F(COMMA) \
     F(CONDITIONAL) \
     F(COLON) \
+    F(OR) \
+    F(AND) \
+    F(BITOR) \
+    F(BITXOR) \
+    F(BITAND) \
     F(POS) \
     F(NEG) \
+    F(ADD) \
+    F(SUB) \
+    F(STAR) \
+    F(DIV) \
+    F(MOD) \
     F(PREINCREMENT) \
     F(POSTINCREMENT) \
     F(PREDECREMENT) \
@@ -78,9 +85,11 @@ class UpvarCookie
     F(ELEM) \
     F(ARRAY) \
     F(STATEMENTLIST) \
+    F(XMLCURLYEXPR) \
     F(OBJECT) \
     F(CALL) \
     F(NAME) \
+    F(INTRINSICNAME) \
     F(NUMBER) \
     F(STRING) \
     F(REGEXP) \
@@ -99,6 +108,7 @@ class UpvarCookie
     F(FOR) \
     F(BREAK) \
     F(CONTINUE) \
+    F(IN) \
     F(VAR) \
     F(CONST) \
     F(WITH) \
@@ -110,9 +120,30 @@ class UpvarCookie
     F(CATCHLIST) \
     F(FINALLY) \
     F(THROW) \
+    F(INSTANCEOF) \
     F(DEBUGGER) \
+    F(DEFXMLNS) \
+    F(XMLSTAGO) \
+    F(XMLETAGO) \
+    F(XMLPTAGC) \
+    F(XMLTAGC) \
+    F(XMLNAME) \
+    F(XMLATTR) \
+    F(XMLSPACE) \
+    F(XMLTEXT) \
+    F(XMLCOMMENT) \
+    F(XMLCDATA) \
+    F(XMLPI) \
+    F(XMLUNARY) \
+    F(AT) \
+    F(FUNCTIONNS) \
+    F(DBLCOLON) \
+    F(ANYNAME) \
+    F(DBLDOT) \
+    F(FILTER) \
+    F(XMLELEM) \
+    F(XMLLIST) \
     F(YIELD) \
-    F(GENEXP) \
     F(ARRAYCOMP) \
     F(ARRAYPUSH) \
     F(LEXICALSCOPE) \
@@ -122,7 +153,12 @@ class UpvarCookie
     F(FORHEAD) \
     F(ARGSBODY) \
     F(SPREAD) \
-    F(MODULE) \
+    \
+    /* Equality operators. */ \
+    F(STRICTEQ) \
+    F(EQ) \
+    F(STRICTNE) \
+    F(NE) \
     \
     /* Unary operators. */ \
     F(TYPEOF) \
@@ -130,33 +166,16 @@ class UpvarCookie
     F(NOT) \
     F(BITNOT) \
     \
-    /* \
-     * Binary operators. \
-     * These must be in the same order as TOK_OR and friends in TokenStream.h. \
-     */ \
-    F(OR) \
-    F(AND) \
-    F(BITOR) \
-    F(BITXOR) \
-    F(BITAND) \
-    F(STRICTEQ) \
-    F(EQ) \
-    F(STRICTNE) \
-    F(NE) \
+    /* Relational operators (< <= > >=). */ \
     F(LT) \
     F(LE) \
     F(GT) \
     F(GE) \
-    F(INSTANCEOF) \
-    F(IN) \
+    \
+    /* Shift operators (<< >> >>>). */ \
     F(LSH) \
     F(RSH) \
     F(URSH) \
-    F(ADD) \
-    F(SUB) \
-    F(STAR) \
-    F(DIV) \
-    F(MOD) \
     \
     /* Assignment operators (= += -= etc.). */ \
     /* ParseNode::isAssignment assumes all these are consecutive. */ \
@@ -188,8 +207,6 @@ enum ParseNodeKind {
     FOR_EACH_PARSE_NODE_KIND(EMIT_ENUM)
 #undef EMIT_ENUM
     PNK_LIMIT, /* domain size */
-    PNK_BINOP_FIRST = PNK_OR,
-    PNK_BINOP_LAST = PNK_MOD,
     PNK_ASSIGNMENT_START = PNK_ASSIGN,
     PNK_ASSIGNMENT_LAST = PNK_MODASSIGN
 };
@@ -208,8 +225,7 @@ enum ParseNodeKind {
  *                                   PNK_RETURN for expression closure, or
  *                                   PNK_SEQ for expression closure with
  *                                     destructured formal parameters
- *                                   PNK_LEXICALSCOPE for implicit function
- *                                     in generator-expression
+ *                                   PNK_CALL see isGeneratorExpr def below
  *                          pn_cookie: static level and var index for function
  *                          pn_dflags: PND_* definition/use flags (see below)
  *                          pn_blockid: block id number
@@ -349,15 +365,13 @@ enum ParseNodeKind {
  *                          pn_count: 1 + N (where N is number of args)
  *                          ctor is a MEMBER expr
  * PNK_DELETE   unary       pn_kid: MEMBER expr
- * PNK_DOT      name        pn_expr: MEMBER expr to left of .
- *                          pn_atom: name to right of .
+ * PNK_DOT,     name        pn_expr: MEMBER expr to left of .
+ * PNK_DBLDOT               pn_atom: name to right of .
  * PNK_ELEM     binary      pn_left: MEMBER expr to left of [
  *                          pn_right: expr between [ and ]
  * PNK_CALL     list        pn_head: list of call, arg1, arg2, ... argN
  *                          pn_count: 1 + N (where N is number of args)
  *                          call is a MEMBER expr naming a callable object
- * PNK_GENEXP   list        Exactly like PNK_CALL, used for the implicit call
- *                          in the desugaring of a generator-expression.
  * PNK_ARRAY    list        pn_head: list of pn_count array element exprs
  *                          [,,] holes are represented by PNK_COMMA nodes
  *                          pn_xflags: PN_ENDCOMMA if extra comma at end
@@ -383,23 +397,90 @@ enum ParseNodeKind {
  * PNK_NULL,
  * PNK_THIS
  *
- * PNK_LEXICALSCOPE name    pn_op: JSOP_LEAVEBLOCK or JSOP_LEAVEBLOCKEXPR
- *                          pn_objbox: block object in ObjectBox holder
- *                          pn_expr: block body
- * PNK_ARRAYCOMP    list    pn_count: 1
- *                          pn_head: list of 1 element, which is block
- *                          enclosing for loop(s) and optionally
- *                          if-guarded PNK_ARRAYPUSH
- * PNK_ARRAYPUSH    unary   pn_op: JSOP_ARRAYCOMP
- *                          pn_kid: array comprehension expression
- * PNK_NOP          nullary
+ * <E4X node descriptions>
+ * PNK_XMLUNARY unary       pn_kid: PNK_AT, PNK_ANYNAME, or PNK_DBLCOLON node
+ *                          pn_op: JSOP_XMLNAME, JSOP_BINDXMLNAME, or
+ *                                 JSOP_SETXMLNAME
+ * PNK_DEFXMLNS name        pn_kid: namespace expr
+ * PNK_FILTER   binary      pn_left: container expr, pn_right: filter expr
+ * PNK_DBLDOT   binary      pn_left: container expr, pn_right: selector expr
+ * PNK_ANYNAME  nullary     pn_op: JSOP_ANYNAME
+ *                          pn_atom: cx->runtime->atomState.starAtom
+ * PNK_AT       unary       pn_op: JSOP_TOATTRNAME; pn_kid attribute id/expr
+ * PNK_FUNCTIONNS nullary   special E4X "function::" namespace
+ * PNK_DBLCOLON binary      pn_op: JSOP_QNAME
+ *                          pn_left: PNK_ANYNAME or PNK_NAME node
+ *                          pn_right: PNK_STRING "*" node, or expr within []
+ *              name        pn_op: JSOP_QNAMECONST
+ *                          pn_expr: PNK_ANYNAME or PNK_NAME left operand
+ *                          pn_atom: name on right of ::
+ * PNK_XMLELEM  list        XML element node
+ *                          pn_head: start tag, content1, ... contentN, end tag
+ *                          pn_count: 2 + N where N is number of content nodes
+ *                                    N may be > x.length() if {expr} embedded
+ *                            After constant folding, these contents may be
+ *                            concatenated into string nodes.
+ * PNK_XMLLIST  list        XML list node
+ *                          pn_head: content1, ... contentN
+ * PNK_XMLSTAGO, list       XML start, end, and point tag contents
+ * PNK_XMLETAGO,            pn_head: tag name or {expr}, ... XML attrs ...
+ * PNK_XMLPTAGC
+ * PNK_XMLNAME  nullary     pn_atom: XML name, with no {expr} embedded
+ * PNK_XMLNAME  list        pn_head: tag name or {expr}, ... name or {expr}
+ * PNK_XMLATTR, nullary     pn_atom: attribute value string; pn_op: JSOP_STRING
+ * PNK_XMLCDATA,
+ * PNK_XMLCOMMENT
+ * PNK_XMLPI    nullary     pn_pitarget: XML processing instruction target
+ *                          pn_pidata: XML PI data, or null if no data
+ * PNK_XMLTEXT  nullary     pn_atom: marked-up text, or null if empty string
+ * PNK_XMLCURLYEXPR unary   {expr} in XML tag or content; pn_kid is expr
+ *
+ * So an XML tag with no {expr} and three attributes is a list with the form:
+ *
+ *    (tagname attrname1 attrvalue1 attrname2 attrvalue2 attrname2 attrvalue3)
+ *
+ * An XML tag with embedded expressions like so:
+ *
+ *    <name1{expr1} name2{expr2}name3={expr3}>
+ *
+ * would have the form:
+ *
+ *    ((name1 {expr1}) (name2 {expr2} name3) {expr3})
+ *
+ * where () bracket a list with elements separated by spaces, and {expr} is a
+ * PNK_XMLCURLYEXPR unary node with expr as its kid.
+ *
+ * Thus, the attribute name/value pairs occupy successive odd and even list
+ * locations, where pn_head is the PNK_XMLNAME node at list location 0.  The
+ * parser builds the same sort of structures for elements:
+ *
+ *    <a x={x}>Hi there!<b y={y}>How are you?</b><answer>{x + y}</answer></a>
+ *
+ * translates to:
+ *
+ *    ((a x {x}) 'Hi there!' ((b y {y}) 'How are you?') ((answer) {x + y}))
+ *
+ * <Non-E4X node descriptions, continued>
+ *
+ * Label              Variant   Members
+ * -----              -------   -------
+ * PNK_LEXICALSCOPE   name      pn_op: JSOP_LEAVEBLOCK or JSOP_LEAVEBLOCKEXPR
+ *                              pn_objbox: block object in ObjectBox holder
+ *                              pn_expr: block body
+ * PNK_ARRAYCOMP      list      pn_count: 1
+ *                              pn_head: list of 1 element, which is block
+ *                                enclosing for loop(s) and optionally
+ *                                if-guarded PNK_ARRAYPUSH
+ * PNK_ARRAYPUSH      unary     pn_op: JSOP_ARRAYCOMP
+ *                              pn_kid: array comprehension expression
+ * PNK_NOP            nullary
  */
 enum ParseNodeArity {
     PN_NULLARY,                         /* 0 kids, only pn_atom/pn_dval/etc. */
     PN_UNARY,                           /* one kid, plus a couple of scalars */
     PN_BINARY,                          /* two kids, plus a couple of scalars */
     PN_TERNARY,                         /* three kids */
-    PN_CODE,                            /* module or function definition node */
+    PN_FUNC,                            /* function definition node */
     PN_LIST,                            /* generic singly linked list */
     PN_NAME                             /* name use or definition node */
 };
@@ -409,9 +490,9 @@ struct Definition;
 class LoopControlStatement;
 class BreakStatement;
 class ContinueStatement;
+class XMLProcessingInstruction;
 class ConditionalExpression;
 class PropertyAccess;
-class ModuleBox;
 
 struct ParseNode {
   private:
@@ -431,8 +512,10 @@ struct ParseNode {
         pn_offset(0), pn_next(NULL), pn_link(NULL)
     {
         JS_ASSERT(kind < PNK_LIMIT);
-        pn_pos.begin = 0;
-        pn_pos.end = 0;
+        pn_pos.begin.index = 0;
+        pn_pos.begin.lineno = 0;
+        pn_pos.end.index = 0;
+        pn_pos.end.lineno = 0;
         memset(&pn_u, 0, sizeof pn_u);
     }
 
@@ -462,9 +545,24 @@ struct ParseNode {
     bool isArity(ParseNodeArity a) const   { return getArity() == a; }
     void setArity(ParseNodeArity a)        { pn_arity = a; }
 
+    bool isXMLNameOp() const {
+        ParseNodeKind kind = getKind();
+        return kind == PNK_ANYNAME || kind == PNK_AT || kind == PNK_DBLCOLON;
+    }
     bool isAssignment() const {
         ParseNodeKind kind = getKind();
         return PNK_ASSIGNMENT_START <= kind && kind <= PNK_ASSIGNMENT_LAST;
+    }
+
+    bool isXMLPropertyIdentifier() const {
+        ParseNodeKind kind = getKind();
+        return kind == PNK_ANYNAME || kind == PNK_AT || kind == PNK_DBLCOLON;
+    }
+
+    bool isXMLItem() const {
+        ParseNodeKind kind = getKind();
+        return kind == PNK_XMLCOMMENT || kind == PNK_XMLCDATA || kind == PNK_XMLPI ||
+               kind == PNK_XMLELEM || kind == PNK_XMLLIST;
     }
 
     /* Boolean attributes. */
@@ -496,7 +594,8 @@ struct ParseNode {
         struct {                        /* two kids if binary */
             ParseNode   *left;
             ParseNode   *right;
-            unsigned    iflags;         /* JSITER_* flags for PNK_FOR node */
+            Value       *pval;          /* switch case value */
+            unsigned       iflags;         /* JSITER_* flags for PNK_FOR node */
         } binary;
         struct {                        /* one kid if unary */
             ParseNode   *kid;
@@ -506,16 +605,14 @@ struct ParseNode {
         } unary;
         struct {                        /* name, labeled statement, etc. */
             union {
-                JSAtom      *atom;      /* lexical name or label atom */
-                ObjectBox   *objbox;    /* block or regexp object */
-                ModuleBox   *modulebox; /* module object */
-                FunctionBox *funbox;    /* function object */
+                JSAtom        *atom;    /* lexical name or label atom */
+                FunctionBox   *funbox;  /* function object */
+                ObjectBox     *objbox;  /* block or regexp object */
             };
             union {
-                ParseNode   *expr;      /* module or function body, var
-                                           initializer, argument default, or
-                                           base object of PNK_DOT */
-                Definition  *lexdef;    /* lexical definition for this use */
+                ParseNode    *expr;     /* function body, var initializer, argument default,
+                                           or base object of PNK_DOT */
+                Definition   *lexdef;   /* lexical definition for this use */
             };
             UpvarCookie cookie;         /* upvar cookie with absolute frame
                                            level (not relative skip), possibly
@@ -524,17 +621,18 @@ struct ParseNode {
                         blockid:20;     /* block number, for subset dominance
                                            computation */
         } name;
-        struct {
-            double      value;          /* aligned numeric literal value */
-            DecimalPoint decimalPoint;  /* Whether the number has a decimal point */
-        } number;
+        double        dval;             /* aligned numeric literal value */
         class {
             friend class LoopControlStatement;
             PropertyName     *label;    /* target of break/continue statement */
         } loopControl;
+        class {                         /* E4X <?target data?> XML PI */
+            friend class XMLProcessingInstruction;
+            PropertyName     *target;   /* non-empty */
+            JSAtom           *data;     /* may be empty, never null */
+        } xmlpi;
     } pn_u;
 
-#define pn_modulebox    pn_u.name.modulebox
 #define pn_funbox       pn_u.name.funbox
 #define pn_body         pn_u.name.expr
 #define pn_cookie       pn_u.name.cookie
@@ -559,7 +657,7 @@ struct ParseNode {
 #define pn_objbox       pn_u.name.objbox
 #define pn_expr         pn_u.name.expr
 #define pn_lexdef       pn_u.name.lexdef
-#define pn_dval         pn_u.number.value
+#define pn_dval         pn_u.dval
 
   protected:
     void init(TokenKind type, JSOp op, ParseNodeArity arity) {
@@ -572,7 +670,7 @@ struct ParseNode {
         pn_next = pn_link = NULL;
     }
 
-    static ParseNode *create(ParseNodeKind kind, ParseNodeArity arity, FullParseHandler *handler);
+    static ParseNode *create(ParseNodeKind kind, ParseNodeArity arity, Parser *parser);
 
   public:
     /*
@@ -580,7 +678,7 @@ struct ParseNode {
      * kind and op, and op must be left-associative.
      */
     static ParseNode *
-    append(ParseNodeKind tt, JSOp op, ParseNode *left, ParseNode *right, FullParseHandler *handler);
+    append(ParseNodeKind tt, JSOp op, ParseNode *left, ParseNode *right);
 
     /*
      * Either append right to left, if left meets the conditions necessary to
@@ -589,11 +687,9 @@ struct ParseNode {
      */
     static ParseNode *
     newBinaryOrAppend(ParseNodeKind kind, JSOp op, ParseNode *left, ParseNode *right,
-                      FullParseHandler *handler, ParseContext<FullParseHandler> *pc,
-                      bool foldConstants);
+                      Parser *parser);
 
     inline PropertyName *name() const;
-    inline JSAtom *atom() const;
 
     /*
      * The pn_expr and lexdef members are arms of an unsafe union. Unless you
@@ -603,7 +699,7 @@ struct ParseNode {
      */
     ParseNode *expr() const {
         JS_ASSERT(!pn_used);
-        JS_ASSERT(pn_arity == PN_NAME || pn_arity == PN_CODE);
+        JS_ASSERT(pn_arity == PN_NAME || pn_arity == PN_FUNC);
         return pn_expr;
     }
 
@@ -618,7 +714,7 @@ struct ParseNode {
 
     Definition *resolve();
 
-/* PN_CODE and PN_NAME pn_dflags bits. */
+/* PN_FUNC and PN_NAME pn_dflags bits. */
 #define PND_LET                 0x01    /* let (block-scoped) binding */
 #define PND_CONST               0x02    /* const binding (orthogonal to let) */
 #define PND_ASSIGNED            0x04    /* set if ever LHS of assignment */
@@ -645,61 +741,39 @@ struct ParseNode {
                                            needs popping */
 #define PNX_FORINVAR    0x08            /* PNK_VAR is left kid of PNK_FORIN node
                                            which is left kid of PNK_FOR */
-#define PNX_GROUPINIT   0x10            /* var [a, b] = [c, d]; unit list */
-#define PNX_FUNCDEFS    0x20            /* contains top-level function statements */
-#define PNX_SETCALL     0x40            /* call expression in lvalue context */
-#define PNX_DESTRUCT    0x80            /* destructuring special cases:
+#define PNX_ENDCOMMA    0x10            /* array literal has comma at end */
+#define PNX_XMLROOT     0x20            /* top-most node in XML literal tree */
+#define PNX_GROUPINIT   0x40            /* var [a, b] = [c, d]; unit list */
+#define PNX_NEEDBRACES  0x80            /* braces necessary due to closure */
+#define PNX_FUNCDEFS   0x100            /* contains top-level function statements */
+#define PNX_SETCALL    0x100            /* call expression in lvalue context */
+#define PNX_DESTRUCT   0x200            /* destructuring special cases:
                                            1. shorthand syntax used, at present
                                               object destructuring ({x,y}) only;
                                            2. code evaluating destructuring
                                               arguments occurs before function
                                               body */
-#define PNX_SPECIALARRAYINIT 0x100      /* one or more of
-                                           1. array initialiser has holes
-                                           2. array initializer has spread node */
-#define PNX_NONCONST   0x200            /* initialiser has non-constants */
+#define PNX_HOLEY      0x400            /* array initialiser has holes */
+#define PNX_NONCONST   0x800            /* initialiser has non-constants */
 
     unsigned frameLevel() const {
-        JS_ASSERT(pn_arity == PN_CODE || pn_arity == PN_NAME);
+        JS_ASSERT(pn_arity == PN_FUNC || pn_arity == PN_NAME);
         return pn_cookie.level();
     }
 
     unsigned frameSlot() const {
-        JS_ASSERT(pn_arity == PN_CODE || pn_arity == PN_NAME);
+        JS_ASSERT(pn_arity == PN_FUNC || pn_arity == PN_NAME);
         return pn_cookie.slot();
     }
 
     bool functionIsHoisted() const {
-        JS_ASSERT(pn_arity == PN_CODE && getKind() == PNK_FUNCTION);
+        JS_ASSERT(pn_arity == PN_FUNC);
         JS_ASSERT(isOp(JSOP_LAMBDA) ||    // lambda, genexpr
                   isOp(JSOP_DEFFUN) ||    // non-body-level function statement
                   isOp(JSOP_NOP) ||       // body-level function stmt in global code
                   isOp(JSOP_GETLOCAL) ||  // body-level function stmt in function code
                   isOp(JSOP_GETARG));     // body-level function redeclaring formal
         return !(isOp(JSOP_LAMBDA) || isOp(JSOP_DEFFUN));
-    }
-
-    /*
-     * True if this statement node could be a member of a Directive Prologue: an
-     * expression statement consisting of a single string literal.
-     *
-     * This considers only the node and its children, not its context. After
-     * parsing, check the node's pn_prologue flag to see if it is indeed part of
-     * a directive prologue.
-     *
-     * Note that a Directive Prologue can contain statements that cannot
-     * themselves be directives (string literals that include escape sequences
-     * or escaped newlines, say). This member function returns true for such
-     * nodes; we use it to determine the extent of the prologue.
-     */
-    JSAtom *isStringExprStatement() const {
-        if (getKind() == PNK_SEMI) {
-            JS_ASSERT(pn_arity == PN_UNARY);
-            ParseNode *kid = pn_kid;
-            if (kid && kid->getKind() == PNK_STRING && !kid->pn_parens)
-                return kid->pn_atom;
-        }
-        return NULL;
     }
 
     inline bool test(unsigned flag) const;
@@ -713,6 +787,9 @@ struct ParseNode {
     bool isClosed() const       { return test(PND_CLOSED); }
     bool isBound() const        { return test(PND_BOUND); }
     bool isImplicitArguments() const { return test(PND_IMPLICITARGUMENTS); }
+
+    void become(ParseNode *pn2);
+    void clear();
 
     /* True if pn is a parsenode representing a literal constant. */
     bool isLiteral() const {
@@ -732,8 +809,20 @@ struct ParseNode {
 #endif
 
 #ifdef JS_HAS_GENERATOR_EXPRS
+    /*
+     * True if this node is a desugared generator expression.
+     */
+    bool isGeneratorExpr() const {
+        if (isKind(PNK_CALL)) {
+            ParseNode *callee = this->pn_head;
+            if (callee->getKind() == PNK_FUNCTION && callee->pn_body->getKind() == PNK_LEXICALSCOPE)
+                return true;
+        }
+        return false;
+    }
+
     ParseNode *generatorExpr() const {
-        JS_ASSERT(isKind(PNK_GENEXP));
+        JS_ASSERT(isGeneratorExpr());
         ParseNode *callee = this->pn_head;
         ParseNode *body = callee->pn_body;
         JS_ASSERT(body->isKind(PNK_LEXICALSCOPE));
@@ -749,13 +838,6 @@ struct ParseNode {
         JS_ASSERT(pn_arity == PN_LIST);
         JS_ASSERT(pn_count != 0);
         return (ParseNode *)(uintptr_t(pn_tail) - offsetof(ParseNode, pn_next));
-    }
-
-    void initNumber(double value, DecimalPoint decimalPoint) {
-        JS_ASSERT(pn_arity == PN_NULLARY);
-        JS_ASSERT(getKind() == PNK_NUMBER);
-        pn_u.number.value = value;
-        pn_u.number.decimalPoint = decimalPoint;
     }
 
     void makeEmpty() {
@@ -794,7 +876,7 @@ struct ParseNode {
 #endif
     ;
 
-    bool getConstantValue(JSContext *cx, bool strictChecks, MutableHandleValue vp);
+    bool getConstantValue(JSContext *cx, bool strictChecks, Value *vp);
     inline bool isConstant();
 
     /* Casting operations. */
@@ -817,8 +899,8 @@ struct ParseNode {
 };
 
 struct NullaryNode : public ParseNode {
-    static inline NullaryNode *create(ParseNodeKind kind, FullParseHandler *handler) {
-        return (NullaryNode *) ParseNode::create(kind, PN_NULLARY, handler);
+    static inline NullaryNode *create(ParseNodeKind kind, Parser *parser) {
+        return (NullaryNode *) ParseNode::create(kind, PN_NULLARY, parser);
     }
 
     static bool test(const ParseNode &node) {
@@ -837,8 +919,8 @@ struct UnaryNode : public ParseNode {
         pn_kid = kid;
     }
 
-    static inline UnaryNode *create(ParseNodeKind kind, FullParseHandler *handler) {
-        return (UnaryNode *) ParseNode::create(kind, PN_UNARY, handler);
+    static inline UnaryNode *create(ParseNodeKind kind, Parser *parser) {
+        return (UnaryNode *) ParseNode::create(kind, PN_UNARY, parser);
     }
 
     static bool test(const ParseNode &node) {
@@ -865,8 +947,8 @@ struct BinaryNode : public ParseNode {
         pn_right = right;
     }
 
-    static inline BinaryNode *create(ParseNodeKind kind, FullParseHandler *handler) {
-        return (BinaryNode *) ParseNode::create(kind, PN_BINARY, handler);
+    static inline BinaryNode *create(ParseNodeKind kind, Parser *parser) {
+        return (BinaryNode *) ParseNode::create(kind, PN_BINARY, parser);
     }
 
     static bool test(const ParseNode &node) {
@@ -889,8 +971,8 @@ struct TernaryNode : public ParseNode {
         pn_kid3 = kid3;
     }
 
-    static inline TernaryNode *create(ParseNodeKind kind, FullParseHandler *handler) {
-        return (TernaryNode *) ParseNode::create(kind, PN_TERNARY, handler);
+    static inline TernaryNode *create(ParseNodeKind kind, Parser *parser) {
+        return (TernaryNode *) ParseNode::create(kind, PN_TERNARY, parser);
     }
 
     static bool test(const ParseNode &node) {
@@ -902,17 +984,9 @@ struct TernaryNode : public ParseNode {
 #endif
 };
 
-struct ListNode : public ParseNode
-{
-    ListNode(ParseNodeKind kind, JSOp op, ParseNode *kid)
-      : ParseNode(kind, op, PN_LIST)
-    {
-        pn_pos = kid->pn_pos;
-        initList(kid);
-    }
-
-    static inline ListNode *create(ParseNodeKind kind, FullParseHandler *handler) {
-        return (ListNode *) ParseNode::create(kind, PN_LIST, handler);
+struct ListNode : public ParseNode {
+    static inline ListNode *create(ParseNodeKind kind, Parser *parser) {
+        return (ListNode *) ParseNode::create(kind, PN_LIST, parser);
     }
 
     static bool test(const ParseNode &node) {
@@ -924,13 +998,13 @@ struct ListNode : public ParseNode
 #endif
 };
 
-struct CodeNode : public ParseNode {
-    static inline CodeNode *create(ParseNodeKind kind, FullParseHandler *handler) {
-        return (CodeNode *) ParseNode::create(kind, PN_CODE, handler);
+struct FunctionNode : public ParseNode {
+    static inline FunctionNode *create(ParseNodeKind kind, Parser *parser) {
+        return (FunctionNode *) ParseNode::create(kind, PN_FUNC, parser);
     }
 
     static bool test(const ParseNode &node) {
-        return node.isArity(PN_CODE);
+        return node.isArity(PN_FUNC);
     }
 
 #ifdef DEBUG
@@ -939,10 +1013,9 @@ struct CodeNode : public ParseNode {
 };
 
 struct NameNode : public ParseNode {
-    static NameNode *create(ParseNodeKind kind, JSAtom *atom,
-                            FullParseHandler *handler, ParseContext<FullParseHandler> *pc);
+    static NameNode *create(ParseNodeKind kind, JSAtom *atom, Parser *parser, ParseContext *pc);
 
-    inline void initCommon(ParseContext<FullParseHandler> *pc);
+    inline void initCommon(ParseContext *pc);
 
     static bool test(const ParseNode &node) {
         return node.isArity(PN_NAME);
@@ -954,14 +1027,15 @@ struct NameNode : public ParseNode {
 };
 
 struct LexicalScopeNode : public ParseNode {
-    static inline LexicalScopeNode *create(ParseNodeKind kind, FullParseHandler *handler) {
-        return (LexicalScopeNode *) ParseNode::create(kind, PN_NAME, handler);
+    static inline LexicalScopeNode *create(ParseNodeKind kind, Parser *parser) {
+        return (LexicalScopeNode *) ParseNode::create(kind, PN_NAME, parser);
     }
 };
 
 class LoopControlStatement : public ParseNode {
   protected:
-    LoopControlStatement(ParseNodeKind kind, PropertyName *label, uint32_t begin, uint32_t end)
+    LoopControlStatement(ParseNodeKind kind, PropertyName *label,
+                         const TokenPtr &begin, const TokenPtr &end)
       : ParseNode(kind, JSOP_NOP, PN_NULLARY, TokenPos::make(begin, end))
     {
         JS_ASSERT(kind == PNK_BREAK || kind == PNK_CONTINUE);
@@ -984,7 +1058,7 @@ class LoopControlStatement : public ParseNode {
 
 class BreakStatement : public LoopControlStatement {
   public:
-    BreakStatement(PropertyName *label, uint32_t begin, uint32_t end)
+    BreakStatement(PropertyName *label, const TokenPtr &begin, const TokenPtr &end)
       : LoopControlStatement(PNK_BREAK, label, begin, end)
     { }
 
@@ -998,7 +1072,7 @@ class BreakStatement : public LoopControlStatement {
 
 class ContinueStatement : public LoopControlStatement {
   public:
-    ContinueStatement(PropertyName *label, uint32_t begin, uint32_t end)
+    ContinueStatement(PropertyName *label, TokenPtr &begin, TokenPtr &end)
       : LoopControlStatement(PNK_CONTINUE, label, begin, end)
     { }
 
@@ -1016,6 +1090,33 @@ class DebuggerStatement : public ParseNode {
       : ParseNode(PNK_DEBUGGER, JSOP_NOP, PN_NULLARY, pos)
     { }
 };
+
+#if JS_HAS_XML_SUPPORT
+class XMLProcessingInstruction : public ParseNode {
+  public:
+    XMLProcessingInstruction(PropertyName *target, JSAtom *data, const TokenPos &pos)
+      : ParseNode(PNK_XMLPI, JSOP_NOP, PN_NULLARY, pos)
+    {
+        pn_u.xmlpi.target = target;
+        pn_u.xmlpi.data = data;
+    }
+
+    static bool test(const ParseNode &node) {
+        bool match = node.isKind(PNK_XMLPI);
+        JS_ASSERT_IF(match, node.isArity(PN_NULLARY));
+        JS_ASSERT_IF(match, node.isOp(JSOP_NOP));
+        return match;
+    }
+
+    PropertyName *target() const {
+        return pn_u.xmlpi.target;
+    }
+
+    JSAtom *data() const {
+        return pn_u.xmlpi.data;
+    }
+};
+#endif
 
 class ConditionalExpression : public ParseNode {
   public:
@@ -1068,9 +1169,68 @@ class BooleanLiteral : public ParseNode {
     { }
 };
 
+class XMLDoubleColonProperty : public ParseNode {
+  public:
+    XMLDoubleColonProperty(ParseNode *lhs, ParseNode *rhs,
+                           const TokenPtr &begin, const TokenPtr &end)
+      : ParseNode(PNK_ELEM, JSOP_GETELEM, PN_BINARY, TokenPos::make(begin, end))
+    {
+        JS_ASSERT(rhs->isKind(PNK_DBLCOLON));
+        pn_u.binary.left = lhs;
+        pn_u.binary.right = rhs;
+    }
+
+    ParseNode &left() const {
+        return *pn_u.binary.left;
+    }
+
+    ParseNode &right() const {
+        return *pn_u.binary.right;
+    }
+};
+
+class XMLFilterExpression : public ParseNode {
+  public:
+    XMLFilterExpression(ParseNode *lhs, ParseNode *filterExpr,
+                        const TokenPtr &begin, const TokenPtr &end)
+      : ParseNode(PNK_FILTER, JSOP_FILTER, PN_BINARY, TokenPos::make(begin, end))
+    {
+        pn_u.binary.left = lhs;
+        pn_u.binary.right = filterExpr;
+    }
+
+    ParseNode &left() const {
+        return *pn_u.binary.left;
+    }
+
+    ParseNode &filter() const {
+        return *pn_u.binary.right;
+    }
+};
+
+class XMLProperty : public ParseNode {
+  public:
+    XMLProperty(ParseNode *lhs, ParseNode *propertyId,
+                const TokenPtr &begin, const TokenPtr &end)
+      : ParseNode(PNK_ELEM, JSOP_GETELEM, PN_BINARY, TokenPos::make(begin, end))
+    {
+        pn_u.binary.left = lhs;
+        pn_u.binary.right = propertyId;
+    }
+
+    ParseNode &left() const {
+        return *pn_u.binary.left;
+    }
+
+    ParseNode &right() const {
+        return *pn_u.binary.right;
+    }
+};
+
 class PropertyAccess : public ParseNode {
   public:
-    PropertyAccess(ParseNode *lhs, PropertyName *name, uint32_t begin, uint32_t end)
+    PropertyAccess(ParseNode *lhs, PropertyName *name,
+                   const TokenPtr &begin, const TokenPtr &end)
       : ParseNode(PNK_DOT, JSOP_GETPROP, PN_NAME, TokenPos::make(begin, end))
     {
         JS_ASSERT(lhs != NULL);
@@ -1096,13 +1256,17 @@ class PropertyAccess : public ParseNode {
 
 class PropertyByValue : public ParseNode {
   public:
-    PropertyByValue(ParseNode *lhs, ParseNode *propExpr, uint32_t begin, uint32_t end)
+    PropertyByValue(ParseNode *lhs, ParseNode *propExpr,
+                    const TokenPtr &begin, const TokenPtr &end)
       : ParseNode(PNK_ELEM, JSOP_GETELEM, PN_BINARY, TokenPos::make(begin, end))
     {
         pn_u.binary.left = lhs;
         pn_u.binary.right = propExpr;
     }
 };
+
+ParseNode *
+CloneLeftHandSide(ParseNode *opn, Parser *parser);
 
 #ifdef DEBUG
 void DumpParseTree(ParseNode *pn, int indent = 0);
@@ -1259,7 +1423,7 @@ class ParseNodeAllocator {
 inline bool
 ParseNode::test(unsigned flag) const
 {
-    JS_ASSERT(pn_defn || pn_arity == PN_CODE || pn_arity == PN_NAME);
+    JS_ASSERT(pn_defn || pn_arity == PN_FUNC || pn_arity == PN_NAME);
 #ifdef DEBUG
     if ((flag & PND_ASSIGNED) && pn_defn && !(pn_dflags & flag)) {
         for (ParseNode *pn = ((Definition *) this)->dn_uses; pn; pn = pn->pn_link) {
@@ -1280,24 +1444,6 @@ ParseNode::resolve()
     return (Definition *)lexdef();
 }
 
-inline bool
-ParseNode::isConstant()
-{
-    switch (pn_type) {
-      case PNK_NUMBER:
-      case PNK_STRING:
-      case PNK_NULL:
-      case PNK_FALSE:
-      case PNK_TRUE:
-        return true;
-      case PNK_ARRAY:
-      case PNK_OBJECT:
-        return isOp(JSOP_NEWINIT) && !(pn_xflags & PNX_NONCONST);
-      default:
-        return false;
-    }
-}
-
 inline void
 LinkUseToDef(ParseNode *pn, Definition *dn)
 {
@@ -1316,10 +1462,8 @@ class ObjectBox {
     JSObject *object;
 
     ObjectBox(JSObject *object, ObjectBox *traceLink);
-    bool isModuleBox() { return object->isModule(); }
     bool isFunctionBox() { return object->isFunction(); }
-    ModuleBox *asModuleBox();
-    FunctionBox *asFunctionBox();
+    FunctionBox *asFunctionBox() { JS_ASSERT(isFunctionBox()); return (FunctionBox *)(this); }
     void trace(JSTracer *trc);
 
   protected:
@@ -1329,17 +1473,7 @@ class ObjectBox {
     ObjectBox *emitLink;
 
     ObjectBox(JSFunction *function, ObjectBox *traceLink);
-    ObjectBox(Module *module, ObjectBox *traceLink);
 };
-
-enum ParseReportKind {
-    ParseError,
-    ParseWarning,
-    ParseStrictWarning,
-    ParseStrictError
-};
-
-enum FunctionSyntaxKind { Expression, Statement, Arrow };
 
 } /* namespace frontend */
 } /* namespace js */

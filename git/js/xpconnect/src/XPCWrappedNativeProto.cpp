@@ -90,9 +90,10 @@ XPCWrappedNativeProto::Init(XPCCallContext& ccx,
 
     JSObject *parent = mScope->GetGlobalJSObject();
 
-    mJSProtoObject = JS_NewObjectWithUniqueType(ccx, js::Jsvalify(jsclazz),
-                                                JS_GetObjectPrototype(ccx, parent),
-                                                parent);
+    mJSProtoObject =
+        xpc_NewSystemInheritingJSObject(ccx, js::Jsvalify(jsclazz),
+                                        mScope->GetPrototypeJSObject(),
+                                        true, parent);
 
     bool success = !!mJSProtoObject;
     if (success) {

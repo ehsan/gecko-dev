@@ -11,6 +11,8 @@ relativesrcdir	= @relativesrcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+DIRS = sub sub2
+
 MOCHITEST_FILES	= \
         opp.html \
         script.js \

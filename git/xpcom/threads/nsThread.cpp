@@ -41,16 +41,9 @@
 using namespace mozilla;
 
 #ifdef PR_LOGGING
-static PRLogModuleInfo *
-GetThreadLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("nsThread");
-  return sLog;
-}
+static PRLogModuleInfo *sLog = PR_NewLogModule("nsThread");
 #endif
-#define LOG(args) PR_LOG(GetThreadLog(), PR_LOG_DEBUG, args)
+#define LOG(args) PR_LOG(sLog, PR_LOG_DEBUG, args)
 
 NS_DECL_CI_INTERFACE_GETTER(nsThread)
 
@@ -486,7 +479,7 @@ nsThread::Shutdown()
 #ifdef DEBUG
   {
     MutexAutoLock lock(mLock);
-    MOZ_ASSERT(!mObserver, "Should have been cleared at shutdown!");
+    NS_ASSERTION(!mObserver, "Should have been cleared at shutdown!");
   }
 #endif
 
@@ -626,8 +619,8 @@ nsThread::ProcessNextEvent(bool mayWait, bool *result)
         HangMonitor::NotifyActivity();
       event->Run();
     } else if (mayWait) {
-      MOZ_ASSERT(ShuttingDown(),
-                 "This should only happen when shutting down");
+      NS_ASSERTION(ShuttingDown(),
+                   "This should only happen when shutting down");
       rv = NS_ERROR_UNEXPECTED;
     }
   }

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["DOMHelpers"];
+const EXPORTED_SYMBOLS = ["DOMHelpers"];
 
 /**
  * DOMHelpers
@@ -12,7 +12,7 @@ this.EXPORTED_SYMBOLS = ["DOMHelpers"];
  * @param nsIDOMWindow aWindow
  *        The content window, owning the document to traverse.
  */
-this.DOMHelpers = function DOMHelpers(aWindow) {
+function DOMHelpers(aWindow) {
   this.window = aWindow;
 };
 
@@ -96,7 +96,7 @@ DOMHelpers.prototype = {
   {
     let SHOW_ALL = Components.interfaces.nsIDOMNodeFilter.SHOW_ALL;
     this.treeWalker = node.ownerDocument.createTreeWalker(node,
-      SHOW_ALL, null);
+      SHOW_ALL, null, false);
     return this.treeWalker.firstChild();
   },
 

@@ -26,42 +26,42 @@ BEGIN_TEST(testGetPropertyDefault_bug594060)
     {
         // Check JS_GetPropertyDefault
 
-        JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
+        js::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
         CHECK(obj);
 
-        JS::RootedValue v0(cx, JSVAL_TRUE);
-        CHECK(JS_SetProperty(cx, obj, "here", v0.address()));
+        jsval v0 = JSVAL_TRUE;
+        CHECK(JS_SetProperty(cx, obj, "here", &v0));
 
-        JS::RootedValue v1(cx);
-        CHECK(JS_GetPropertyDefault(cx, obj, "here", JSVAL_FALSE, v1.address()));
+        jsval v1;
+        CHECK(JS_GetPropertyDefault(cx, obj, "here", JSVAL_FALSE, &v1));
         CHECK(JSVAL_IS_TRUE(v1));
 
-        JS::RootedValue v2(cx);
-        CHECK(JS_GetPropertyDefault(cx, obj, "nothere", JSVAL_FALSE, v2.address()));
+        jsval v2;
+        CHECK(JS_GetPropertyDefault(cx, obj, "nothere", JSVAL_FALSE, &v2));
         CHECK(JSVAL_IS_FALSE(v2));
     }
 
     {
         // Check JS_GetPropertyByIdDefault
 
-        JS::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
+        js::RootedObject obj(cx, JS_NewObject(cx, NULL, NULL, NULL));
         CHECK(obj);
 
-        JS::RootedId hereid(cx);
-        CHECK(stringToId(cx, "here", hereid.address()));
+        jsid hereid;
+        CHECK(stringToId(cx, "here", &hereid));
 
-        JS::RootedId nothereid(cx);
-        CHECK(stringToId(cx, "nothere", nothereid.address()));
+        jsid nothereid;
+        CHECK(stringToId(cx, "nothere", &nothereid));
 
-        JS::RootedValue v0(cx, JSVAL_TRUE);
-        CHECK(JS_SetPropertyById(cx, obj, hereid, v0.address()));
+        jsval v0 = JSVAL_TRUE;
+        CHECK(JS_SetPropertyById(cx, obj, hereid, &v0));
 
-        JS::RootedValue v1(cx);
-        CHECK(JS_GetPropertyByIdDefault(cx, obj, hereid, JSVAL_FALSE, v1.address()));
+        jsval v1;
+        CHECK(JS_GetPropertyByIdDefault(cx, obj, hereid, JSVAL_FALSE, &v1));
         CHECK(JSVAL_IS_TRUE(v1));
 
-        JS::RootedValue v2(cx);
-        CHECK(JS_GetPropertyByIdDefault(cx, obj, nothereid, JSVAL_FALSE, v2.address()));
+        jsval v2;
+        CHECK(JS_GetPropertyByIdDefault(cx, obj, nothereid, JSVAL_FALSE, &v2));
         CHECK(JSVAL_IS_FALSE(v2));
     }
 

@@ -9,6 +9,7 @@
 #include "nsIAutoCompleteSimpleResult.h"
 
 #include "nsString.h"
+#include "prtypes.h"
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
 #include "mozilla/Attributes.h"

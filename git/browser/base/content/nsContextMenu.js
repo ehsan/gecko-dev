@@ -4,19 +4,21 @@
 
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-function nsContextMenu(aXulMenu, aIsShift) {
+function nsContextMenu(aXulMenu, aBrowser, aIsShift) {
   this.shouldDisplay = true;
-  this.initMenu(aXulMenu, aIsShift);
+  this.initMenu(aBrowser, aXulMenu, aIsShift);
 }
 
 // Prototype for nsContextMenu "class."
 nsContextMenu.prototype = {
-  initMenu: function CM_initMenu(aXulMenu, aIsShift) {
+  initMenu: function CM_initMenu(aBrowser, aXulMenu, aIsShift) {
     // Get contextual info.
     this.setTarget(document.popupNode, document.popupRangeParent,
                    document.popupRangeOffset);
     if (!this.shouldDisplay)
       return;
+
+    this.browser = aBrowser;
 
     this.hasPageMenu = false;
     if (!aIsShift) {
@@ -55,7 +57,6 @@ nsContextMenu.prototype = {
     this.initClipboardItems();
     this.initMediaPlayerItems();
     this.initLeaveDOMFullScreenItems();
-    this.initClickToPlayItems();
   },
 
   initPageMenuSeparator: function CM_initPageMenuSeparator() {
@@ -137,9 +138,7 @@ nsContextMenu.prototype = {
     }
 
     var shouldShow = this.onSaveableLink || isMailtoInternal || this.onPlainTextLink;
-    var isWindowPrivate = PrivateBrowsingUtils.isWindowPrivate(window);
-    this.showItem("context-openlink", shouldShow && !isWindowPrivate);
-    this.showItem("context-openlinkprivate", shouldShow);
+    this.showItem("context-openlink", shouldShow);
     this.showItem("context-openlinkintab", shouldShow);
     this.showItem("context-openlinkincurrent", this.onPlainTextLink);
     this.showItem("context-sep-open", shouldShow);
@@ -148,20 +147,13 @@ nsContextMenu.prototype = {
   initNavigationItems: function CM_initNavigationItems() {
     var shouldShow = !(this.isContentSelected || this.onLink || this.onImage ||
                        this.onCanvas || this.onVideo || this.onAudio ||
-                       this.onTextInput || this.onSocial);
+                       this.onTextInput);
     this.showItem("context-back", shouldShow);
     this.showItem("context-forward", shouldShow);
-
-    let stopped = XULBrowserWindow.stopCommand.getAttribute("disabled") == "true";
-
-    let stopReloadItem = "";
-    if (shouldShow || this.onSocial) {
-      stopReloadItem = (stopped || this.onSocial) ? "reload" : "stop";
-    }
-
-    this.showItem("context-reload", stopReloadItem == "reload");
-    this.showItem("context-stop", stopReloadItem == "stop");
-    this.showItem("context-sep-stop", !!stopReloadItem);
+    var shouldShowReload = XULBrowserWindow.stopCommand.getAttribute("disabled") == "true";
+    this.showItem("context-reload", shouldShow && shouldShowReload);
+    this.showItem("context-stop", shouldShow && !shouldShowReload);
+    this.showItem("context-sep-stop", shouldShow);
 
     // XXX: Stop is determined in browser.js; the canStop broadcaster is broken
     //this.setItemAttrFromNode( "context-stop", "disabled", "canStop" );
@@ -212,7 +204,7 @@ nsContextMenu.prototype = {
                        this.onImage || this.onCanvas ||
                        this.onVideo || this.onAudio ||
                        this.onLink || this.onTextInput);
-    var showInspect = !this.onSocial && gPrefService.getBoolPref("devtools.inspector.enabled");
+    var showInspect = gPrefService.getBoolPref("devtools.inspector.enabled");
     this.showItem("context-viewsource", shouldShow);
     this.showItem("context-viewinfo", shouldShow);
     this.showItem("inspect-separator", showInspect);
@@ -269,9 +261,8 @@ nsContextMenu.prototype = {
     // Use "Bookmark This Link" if on a link.
     this.showItem("context-bookmarkpage",
                   !(this.isContentSelected || this.onTextInput || this.onLink ||
-                    this.onImage || this.onVideo || this.onAudio || this.onSocial));
-    this.showItem("context-bookmarklink", (this.onLink && !this.onMailtoLink &&
-                                           !this.onSocial) || this.onPlainTextLink);
+                    this.onImage || this.onVideo || this.onAudio));
+    this.showItem("context-bookmarklink", (this.onLink && !this.onMailtoLink) || this.onPlainTextLink);
     this.showItem("context-searchselect", isTextSelected);
     this.showItem("context-keywordfield",
                   this.onTextInput && this.onKeywordField);
@@ -392,7 +383,6 @@ nsContextMenu.prototype = {
     this.showItem("context-media-pause", onMedia && !this.target.paused && !this.target.ended);
     this.showItem("context-media-mute",   onMedia && !this.target.muted);
     this.showItem("context-media-unmute", onMedia && this.target.muted);
-    this.showItem("context-media-playbackrate", onMedia);
     this.showItem("context-media-showcontrols", onMedia && !this.target.controls);
     this.showItem("context-media-hidecontrols", onMedia && this.target.controls);
     this.showItem("context-video-fullscreen", this.onVideo && this.target.ownerDocument.mozFullScreenElement == null);
@@ -402,21 +392,12 @@ nsContextMenu.prototype = {
 
     // Disable them when there isn't a valid media source loaded.
     if (onMedia) {
-      this.setItemAttr("context-media-playbackrate-050x", "checked", this.target.playbackRate == 0.5);
-      this.setItemAttr("context-media-playbackrate-100x", "checked", this.target.playbackRate == 1.0);
-      this.setItemAttr("context-media-playbackrate-150x", "checked", this.target.playbackRate == 1.5);
-      this.setItemAttr("context-media-playbackrate-200x", "checked", this.target.playbackRate == 2.0);
       var hasError = this.target.error != null ||
                      this.target.networkState == this.target.NETWORK_NO_SOURCE;
       this.setItemAttr("context-media-play",  "disabled", hasError);
       this.setItemAttr("context-media-pause", "disabled", hasError);
       this.setItemAttr("context-media-mute",   "disabled", hasError);
       this.setItemAttr("context-media-unmute", "disabled", hasError);
-      this.setItemAttr("context-media-playbackrate", "disabled", hasError);
-      this.setItemAttr("context-media-playbackrate-050x", "disabled", hasError);
-      this.setItemAttr("context-media-playbackrate-100x", "disabled", hasError);
-      this.setItemAttr("context-media-playbackrate-150x", "disabled", hasError);
-      this.setItemAttr("context-media-playbackrate-200x", "disabled", hasError);
       this.setItemAttr("context-media-showcontrols", "disabled", hasError);
       this.setItemAttr("context-media-hidecontrols", "disabled", hasError);
       if (this.onVideo) {
@@ -430,21 +411,13 @@ nsContextMenu.prototype = {
     this.showItem("context-media-sep-commands",  onMedia);
   },
 
-  initClickToPlayItems: function() {
-    this.showItem("context-ctp-play", this.onCTPPlugin);
-    this.showItem("context-ctp-hide", this.onCTPPlugin);
-    this.showItem("context-sep-ctp", this.onCTPPlugin);
-  },
-
   inspectNode: function CM_inspectNode() {
-    let gBrowser = this.browser.ownerDocument.defaultView.gBrowser;
-    let imported = {};
-    Cu.import("resource:///modules/devtools/Target.jsm", imported);
-    let tt = imported.TargetFactory.forTab(gBrowser.selectedTab);
-    return gDevTools.showToolbox(tt, "inspector").then(function(toolbox) {
-      let inspector = toolbox.getCurrentPanel();
-      inspector.selection.setNode(this.target, "browser-context-menu");
-    }.bind(this));
+    if (InspectorUI.isTreePanelOpen) {
+      InspectorUI.inspectNode(this.target);
+      InspectorUI.stopInspecting();
+    } else {
+      InspectorUI.openInspectorUI(this.target);
+    }
   },
 
   // Set various context menu attributes based on the state of the world.
@@ -452,7 +425,7 @@ nsContextMenu.prototype = {
     const xulNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
     if (aNode.namespaceURI == xulNS ||
         aNode.nodeType == Node.DOCUMENT_NODE ||
-        this.isDisabledForEvents(aNode)) {
+        this.isTargetAFormControl(aNode)) {
       this.shouldDisplay = false;
       return;
     }
@@ -481,17 +454,9 @@ nsContextMenu.prototype = {
     this.bgImageURL        = "";
     this.onEditableArea    = false;
     this.isDesignMode      = false;
-    this.onCTPPlugin       = false;
 
     // Remember the node that was clicked.
     this.target = aNode;
-
-    this.browser = this.target.ownerDocument.defaultView
-                                .QueryInterface(Ci.nsIInterfaceRequestor)
-                                .getInterface(Ci.nsIWebNavigation)
-                                .QueryInterface(Ci.nsIDocShell)
-                                .chromeEventHandler;
-    this.onSocial = !!this.browser.getAttribute("origin");
 
     // Check if we are in a synthetic document (stand alone image, video, etc.).
     this.inSyntheticDoc =  this.target.ownerDocument.mozSyntheticDocument;
@@ -565,12 +530,6 @@ nsContextMenu.prototype = {
                                               computedURL);
           }
         }
-      }
-      else if ((this.target instanceof HTMLEmbedElement ||
-                this.target instanceof HTMLObjectElement ||
-                this.target instanceof HTMLAppletElement) &&
-               this.target.mozMatchesSelector(":-moz-handler-clicktoplay")) {
-        this.onCTPPlugin = true;
       }
     }
 
@@ -717,16 +676,6 @@ nsContextMenu.prototype = {
                  referrerURI: doc.documentURIObject });
   },
 
-  // Open linked-to URL in a new private window.
-  openLinkInPrivateWindow : function () {
-    var doc = this.target.ownerDocument;
-    urlSecurityCheck(this.linkURL, doc.nodePrincipal);
-    openLinkIn(this.linkURL, "window",
-               { charset: doc.characterSet,
-                 referrerURI: doc.documentURIObject,
-                 private: true });
-  },
-
   // Open linked-to URL in a new tab.
   openLinkInTab: function() {
     var doc = this.target.ownerDocument;
@@ -780,18 +729,6 @@ nsContextMenu.prototype = {
     var referrer = doc.referrer;
     openUILinkIn(frameURL, "current", { disallowInheritPrincipal: true,
                                         referrerURI: referrer ? makeURI(referrer) : null });
-  },
-
-  reload: function(event) {
-    if (this.onSocial) {
-      // full reload of social provider
-      Social.enabled = false;
-      Services.tm.mainThread.dispatch(function() {
-        Social.enabled = true;
-      }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
-    } else {
-      BrowserReloadOrDuplicate(event);
-    }
   },
 
   // View Partial Source
@@ -1154,14 +1091,6 @@ nsContextMenu.prototype = {
     MailIntegration.sendMessage(this.mediaURL, "");
   },
 
-  playPlugin: function() {
-    gPluginHandler.activateSinglePlugin(this.target.ownerDocument.defaultView.top, this.target);
-  },
-
-  hidePlugin: function() {
-    gPluginHandler.hideClickToPlayOverlay(this.target);
-  },
-
   // Generate email address and put it on clipboard.
   copyEmail: function() {
     // Copy the comma-separated list of email addresses only.
@@ -1344,14 +1273,16 @@ nsContextMenu.prototype = {
            "contextMenu.hasBGImage = " + this.hasBGImage + "\n";
   },
 
-  isDisabledForEvents: function(aNode) {
-    let ownerDoc = aNode.ownerDocument;
-    return
-      ownerDoc.defaultView &&
-      ownerDoc.defaultView
-              .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-              .getInterface(Components.interfaces.nsIDOMWindowUtils)
-              .isNodeDisabledForEvents(aNode);
+  // Returns true if aNode is a from control (except text boxes and images).
+  // This is used to disable the context menu for form controls.
+  isTargetAFormControl: function(aNode) {
+    if (aNode instanceof HTMLInputElement)
+      return (!aNode.mozIsTextField(false) && aNode.type != "image");
+
+    return (aNode instanceof HTMLButtonElement) ||
+           (aNode instanceof HTMLSelectElement) ||
+           (aNode instanceof HTMLOptionElement) ||
+           (aNode instanceof HTMLOptGroupElement);
   },
 
   isTargetATextBox: function(node) {
@@ -1480,7 +1411,7 @@ nsContextMenu.prototype = {
     SwitchDocumentDirection(this.browser.contentWindow);
   },
 
-  mediaCommand : function CM_mediaCommand(command, data) {
+  mediaCommand : function CM_mediaCommand(command) {
     var media = this.target;
 
     switch (command) {
@@ -1495,9 +1426,6 @@ nsContextMenu.prototype = {
         break;
       case "unmute":
         media.muted = false;
-        break;
-      case "playbackRate":
-        media.playbackRate = data;
         break;
       case "hidecontrols":
         media.removeAttribute("controls");

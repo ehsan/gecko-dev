@@ -12,8 +12,13 @@
 #include "nsDOMCSSDeclaration.h"
 
 #include "nsAutoPtr.h"
+#include "nsString.h"
 
 namespace mozilla {
+namespace css {
+class Loader;
+}
+
 namespace dom {
 class Element;
 }

@@ -9,7 +9,6 @@ import android.content.Intent;
 import android.graphics.drawable.Drawable;
 import android.view.ActionProvider;
 import android.view.ContextMenu;
-import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.SubMenu;
 import android.view.View;
@@ -28,7 +27,7 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
         public void setOnClickListener(View.OnClickListener listener);
         public void setSubMenuIndicator(boolean hasSubMenu);
         public void setVisibility(int visible);
-        public View getView();
+        public View getLayout();
     }
 
     public static interface OnShowAsActionChangedListener {
@@ -43,7 +42,7 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
     private Context mContext;
     private int mId;
     private int mOrder;
-    private Layout mLayout;
+    private GeckoMenuItem.Layout mLayout;
     private boolean mActionItem;
     private CharSequence mTitle;
     private CharSequence mTitleCondensed;
@@ -61,7 +60,7 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
 
     public GeckoMenuItem(Context context, int id) {
         mContext = context;
-        mLayout = (MenuItemDefault) LayoutInflater.from(mContext).inflate(R.layout.menu_item, null);
+        mLayout = new MenuItemDefault(context, null);
         mLayout.setId(id);
 
         mId = id;
@@ -111,14 +110,7 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
 
     @Override
     public Drawable getIcon() {
-        if (mIcon == null) {
-            if (mIconRes != 0)
-                return mContext.getResources().getDrawable(mIconRes);
-            else
-                return null;
-        } else {
-            return mIcon;
-        }
+        return null;
     }
 
     @Override
@@ -132,7 +124,7 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
     }
 
     public View getLayout() {
-        return mLayout.getView();
+        return mLayout.getLayout();
     }
 
     public void setMenu(GeckoMenu menu) {
@@ -296,7 +288,7 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
             mLayout = new MenuItemActionBar(mContext, null);
         } else {
             // Change the type to default
-            mLayout = (MenuItemDefault) LayoutInflater.from(mContext).inflate(R.layout.menu_item, null);
+            mLayout = new MenuItemDefault(mContext, null);
         }
 
         mActionItem = (actionEnum > 0);         

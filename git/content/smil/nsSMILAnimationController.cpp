@@ -10,12 +10,10 @@
 #include "nsITimer.h"
 #include "mozilla/dom/Element.h"
 #include "nsIDocument.h"
-#include "mozilla/dom/SVGAnimationElement.h"
+#include "nsISMILAnimationElement.h"
+#include "nsIDOMSVGAnimationElement.h"
 #include "nsSMILTimedElement.h"
-#include <algorithm>
-#include "mozilla/AutoRestore.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 //----------------------------------------------------------------------
@@ -119,7 +117,7 @@ nsSMILAnimationController::WillRefresh(mozilla::TimeStamp aTime)
   // doing so we get sampled by a refresh driver whose most recent refresh time
   // predates when we were initialised, so to be safe we make sure to take the
   // most recent time here.
-  aTime = std::max(mCurrentSampleTime, aTime);
+  aTime = NS_MAX(mCurrentSampleTime, aTime);
 
   // Sleep detection: If the time between samples is a whole lot greater than we
   // were expecting then we assume the computer went to sleep or someone's
@@ -137,18 +135,18 @@ nsSMILAnimationController::WillRefresh(mozilla::TimeStamp aTime)
 
   nsSMILTime elapsedTime =
     (nsSMILTime)(aTime - mCurrentSampleTime).ToMilliseconds();
+  // First sample:
   if (mAvgTimeBetweenSamples == 0) {
-    // First sample.
     mAvgTimeBetweenSamples = elapsedTime;
+  // Unexpectedly long delay between samples:
+  } else if (elapsedTime > SAMPLE_DEV_THRESHOLD * mAvgTimeBetweenSamples) {
+    NS_WARNING("Detected really long delay between samples, continuing from "
+               "previous sample");
+    mParentOffset += elapsedTime - mAvgTimeBetweenSamples;
+  // Usual case, update moving average:
   } else {
-    if (elapsedTime > SAMPLE_DEV_THRESHOLD * mAvgTimeBetweenSamples) {
-      // Unexpectedly long delay between samples.
-      NS_WARNING("Detected really long delay between samples, continuing from "
-                 "previous sample");
-      mParentOffset += elapsedTime - mAvgTimeBetweenSamples;
-    }
-    // Update the moving average. Due to truncation here the average will
-    // normally be a little less than it should be but that's probably ok.
+    // Due to truncation here the average will normally be a little less than
+    // it should be but that's probably ok
     mAvgTimeBetweenSamples =
       (nsSMILTime)(elapsedTime * SAMPLE_DUR_WEIGHTING +
       mAvgTimeBetweenSamples * (1.0 - SAMPLE_DUR_WEIGHTING));
@@ -163,7 +161,7 @@ nsSMILAnimationController::WillRefresh(mozilla::TimeStamp aTime)
 
 void
 nsSMILAnimationController::RegisterAnimationElement(
-                                  SVGAnimationElement* aAnimationElement)
+                                  nsISMILAnimationElement* aAnimationElement)
 {
   mAnimationElementTable.PutEntry(aAnimationElement);
   if (mDeferredStartSampling) {
@@ -181,7 +179,7 @@ nsSMILAnimationController::RegisterAnimationElement(
 
 void
 nsSMILAnimationController::UnregisterAnimationElement(
-                                  SVGAnimationElement* aAnimationElement)
+                                  nsISMILAnimationElement* aAnimationElement)
 {
   mAnimationElementTable.RemoveEntry(aAnimationElement);
 }
@@ -368,8 +366,14 @@ nsSMILAnimationController::DoSample(bool aSkipUnchangedContainers)
   mResampleNeeded = false;
   // Set running sample flag -- do this before flushing styles so that when we
   // flush styles we don't end up requesting extra samples
-  AutoRestore<bool> autoRestoreRunningSample(mRunningSample);
   mRunningSample = true;
+  nsCOMPtr<nsIDocument> kungFuDeathGrip(mDocument);  // keeps 'this' alive too
+  mDocument->FlushPendingNotifications(Flush_Style);
+
+  // WARNING: 
+  // WARNING: the above flush may have destroyed the pres shell and/or
+  // WARNING: frames and other layout related objects.
+  // WARNING:
   
   // STEP 1: Bring model up to date
   // (i)  Rewind elements where necessary
@@ -391,7 +395,7 @@ nsSMILAnimationController::DoSample(bool aSkipUnchangedContainers)
   //         (ii) Create a table of compositors
   //
   // (i) Here we sample the timed elements (fetched from the
-  // SVGAnimationElements) which determine from the active time if the
+  // nsISMILAnimationElements) which determine from the active time if the
   // element is active and what its simple time etc. is. This information is
   // then passed to its time client (nsSMILAnimationFunction).
   //
@@ -437,26 +441,13 @@ nsSMILAnimationController::DoSample(bool aSkipUnchangedContainers)
     mLastCompositorTable->EnumerateEntries(DoClearAnimationEffects, nullptr);
   }
 
-  // return early if there are no active animations to avoid a style flush
-  if (currentCompositorTable->Count() == 0) {
-    mLastCompositorTable = nullptr;
-    return;
-  }
-
-  nsCOMPtr<nsIDocument> kungFuDeathGrip(mDocument);  // keeps 'this' alive too
-  mDocument->FlushPendingNotifications(Flush_Style);
-
-  // WARNING: 
-  // WARNING: the above flush may have destroyed the pres shell and/or
-  // WARNING: frames and other layout related objects.
-  // WARNING:
-
   // STEP 5: Compose currently-animated attributes.
   // XXXdholbert: This step traverses our animation targets in an effectively
   // random order. For animation from/to 'inherit' values to work correctly
   // when the inherited value is *also* being animated, we really should be
   // traversing our animated nodes in an ancestors-first order (bug 501183)
   currentCompositorTable->EnumerateEntries(DoComposeAttribute, nullptr);
+  mRunningSample = false;
 
   // Update last compositor table
   mLastCompositorTable = currentCompositorTable.forget();
@@ -497,7 +488,7 @@ nsSMILAnimationController::RewindNeeded(TimeContainerPtrKey* aKey,
 nsSMILAnimationController::RewindAnimation(AnimationElementPtrKey* aKey,
                                            void* aData)
 {
-  SVGAnimationElement* animElem = aKey->GetKey();
+  nsISMILAnimationElement* animElem = aKey->GetKey();
   nsSMILTimeContainer* timeContainer = animElem->GetTimeContainer();
   if (timeContainer && timeContainer->NeedsRewind()) {
     animElem->TimedElement().Rewind();
@@ -563,10 +554,10 @@ nsSMILAnimationController::DoMilestoneSamples()
     // Because we're only performing this clamping at the last moment, the
     // animations will still all get sampled in the correct order and
     // dependencies will be appropriately resolved.
-    sampleTime = std::max(nextMilestone.mTime, sampleTime);
+    sampleTime = NS_MAX(nextMilestone.mTime, sampleTime);
 
     for (uint32_t i = 0; i < length; ++i) {
-      SVGAnimationElement* elem = params.mElements[i].get();
+      nsISMILAnimationElement* elem = params.mElements[i].get();
       NS_ABORT_IF_FALSE(elem, "NULL animation element in list");
       nsSMILTimeContainer* container = elem->GetTimeContainer();
       if (!container)
@@ -580,7 +571,7 @@ nsSMILAnimationController::DoMilestoneSamples()
         continue;
 
       // Clamp the converted container time to non-negative values.
-      nsSMILTime containerTime = std::max<nsSMILTime>(0, containerTimeValue.GetMillis());
+      nsSMILTime containerTime = NS_MAX<nsSMILTime>(0, containerTimeValue.GetMillis());
 
       if (nextMilestone.mIsEnd) {
         elem->TimedElement().SampleEndAt(containerTime);
@@ -669,7 +660,7 @@ nsSMILAnimationController::SampleAnimation(AnimationElementPtrKey* aKey,
   NS_ENSURE_TRUE(aKey->GetKey(), PL_DHASH_NEXT);
   NS_ENSURE_TRUE(aData, PL_DHASH_NEXT);
 
-  SVGAnimationElement* animElem = aKey->GetKey();
+  nsISMILAnimationElement* animElem = aKey->GetKey();
   if (animElem->PassesConditionalProcessingTests()) {
     SampleAnimationParams* params = static_cast<SampleAnimationParams*>(aData);
 
@@ -682,7 +673,7 @@ nsSMILAnimationController::SampleAnimation(AnimationElementPtrKey* aKey,
 
 /*static*/ void
 nsSMILAnimationController::SampleTimedElement(
-  SVGAnimationElement* aElement, TimeContainerHashtable* aActiveContainers)
+  nsISMILAnimationElement* aElement, TimeContainerHashtable* aActiveContainers)
 {
   nsSMILTimeContainer* timeContainer = aElement->GetTimeContainer();
   if (!timeContainer)
@@ -709,7 +700,7 @@ nsSMILAnimationController::SampleTimedElement(
 
 /*static*/ void
 nsSMILAnimationController::AddAnimationToCompositorTable(
-  SVGAnimationElement* aElement, nsSMILCompositorTable* aCompositorTable)
+  nsISMILAnimationElement* aElement, nsSMILCompositorTable* aCompositorTable)
 {
   // Add a compositor to the hash table if there's not already one there
   nsSMILTargetIdentifier key;
@@ -744,21 +735,12 @@ nsSMILAnimationController::AddAnimationToCompositorTable(
   }
 }
 
-static inline bool
-IsTransformAttribute(int32_t aNamespaceID, nsIAtom *aAttributeName)
-{
-  return aNamespaceID == kNameSpaceID_None &&
-         (aAttributeName == nsGkAtoms::transform ||
-          aAttributeName == nsGkAtoms::patternTransform ||
-          aAttributeName == nsGkAtoms::gradientTransform);
-}
-
-// Helper function that, given a SVGAnimationElement, looks up its target
+// Helper function that, given a nsISMILAnimationElement, looks up its target
 // element & target attribute and populates a nsSMILTargetIdentifier
 // for this target.
 /*static*/ bool
 nsSMILAnimationController::GetTargetIdentifierForAnimation(
-    SVGAnimationElement* aAnimElem, nsSMILTargetIdentifier& aResult)
+    nsISMILAnimationElement* aAnimElem, nsSMILTargetIdentifier& aResult)
 {
   // Look up target (animated) element
   Element* targetElem = aAnimElem->GetTargetElementContent();
@@ -774,12 +756,6 @@ nsSMILAnimationController::GetTargetIdentifierForAnimation(
   if (!aAnimElem->GetTargetAttributeName(&attributeNamespaceID,
                                          getter_AddRefs(attributeName)))
     // Animation has no target attr -- skip it.
-    return false;
-
-  // animateTransform can only animate transforms, conversely transforms
-  // can only be animated by animateTransform
-  if (IsTransformAttribute(attributeNamespaceID, attributeName) !=
-      (aAnimElem->Tag() == nsGkAtoms::animateTransform))
     return false;
 
   // Look up target (animated) attribute-type

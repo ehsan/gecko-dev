@@ -6,10 +6,8 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.PropertyAnimator.Property;
-import org.mozilla.gecko.widget.TwoWayView;
 
 import android.content.Context;
-import android.content.res.TypedArray;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
@@ -20,26 +18,28 @@ import android.view.VelocityTracker;
 import android.view.View;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
+import android.widget.AbsListView;
+import android.widget.AbsListView.RecyclerListener;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.ImageButton;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.ListView;
 import android.widget.TextView;
 
 import java.util.ArrayList;
-import java.util.List;
 
-public class TabsTray extends TwoWayView
+public class TabsTray extends LinearLayout 
                       implements TabsPanel.PanelView {
     private static final String LOGTAG = "GeckoTabsTray";
 
     private Context mContext;
     private TabsPanel mTabsPanel;
 
+    private static ListView mList;
     private TabsAdapter mTabsAdapter;
-
-    private List<View> mPendingClosedTabs;
-    private int mCloseAnimationCount;
+    private boolean mWaitingForClose;
 
     private TabSwipeGestureListener mSwipeListener;
 
@@ -52,28 +52,23 @@ public class TabsTray extends TwoWayView
         super(context, attrs);
         mContext = context;
 
-        mCloseAnimationCount = 0;
-        mPendingClosedTabs = new ArrayList<View>();
+        LayoutInflater.from(context).inflate(R.layout.tabs_tray, this);
 
-        //setItemsCanFocus(true);
+        mList = (ListView) findViewById(R.id.list);
+        mList.setItemsCanFocus(true);
 
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.TabsTray);
-        boolean isPrivate = (a.getInt(R.styleable.TabsTray_tabs, 0x0) == 1);
-        a.recycle();
+        mTabsAdapter = new TabsAdapter(mContext);
+        mList.setAdapter(mTabsAdapter);
 
-        mTabsAdapter = new TabsAdapter(mContext, isPrivate);
-        setAdapter(mTabsAdapter);
+        mSwipeListener = new TabSwipeGestureListener(mList);
+        mList.setOnTouchListener(mSwipeListener);
+        mList.setOnScrollListener(mSwipeListener.makeScrollListener());
 
-        mSwipeListener = new TabSwipeGestureListener();
-        setOnTouchListener(mSwipeListener);
-        setOnScrollListener(mSwipeListener.makeScrollListener());
-
-        setRecyclerListener(new RecyclerListener() {
+        mList.setRecyclerListener(new RecyclerListener() {
             @Override
             public void onMovedToScrapHeap(View view) {
                 TabRow row = (TabRow) view.getTag();
                 row.thumbnail.setImageDrawable(null);
-                row.close.setVisibility(View.VISIBLE);
             }
         });
     }
@@ -90,7 +85,7 @@ public class TabsTray extends TwoWayView
 
     @Override
     public void show() {
-        setVisibility(View.VISIBLE);
+        mWaitingForClose = false;
         Tabs.getInstance().refreshThumbnails();
         Tabs.registerOnTabsChangedListener(mTabsAdapter);
         mTabsAdapter.refreshTabsData();
@@ -98,18 +93,12 @@ public class TabsTray extends TwoWayView
 
     @Override
     public void hide() {
-        setVisibility(View.GONE);
         Tabs.unregisterOnTabsChangedListener(mTabsAdapter);
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Screenshot:Cancel",""));
         mTabsAdapter.clear();
     }
 
-    @Override
-    public boolean shouldExpand() {
-        return isVertical();
-    }
-
-    private void autoHidePanel() {
+    void autoHidePanel() {
         mTabsPanel.autoHidePanel();
     }
 
@@ -119,10 +108,10 @@ public class TabsTray extends TwoWayView
         TextView title;
         ImageView thumbnail;
         ImageButton close;
-        ViewGroup info;
+        LinearLayout info;
 
         public TabRow(View view) {
-            info = (ViewGroup) view;
+            info = (LinearLayout) view;
             title = (TextView) view.findViewById(R.id.title);
             thumbnail = (ImageView) view.findViewById(R.id.thumbnail);
             close = (ImageButton) view.findViewById(R.id.close);
@@ -132,27 +121,22 @@ public class TabsTray extends TwoWayView
     // Adapter to bind tabs into a list
     private class TabsAdapter extends BaseAdapter implements Tabs.OnTabsChangedListener {
         private Context mContext;
-        private boolean mIsPrivate;
         private ArrayList<Tab> mTabs;
         private LayoutInflater mInflater;
         private Button.OnClickListener mOnCloseClickListener;
 
-        public TabsAdapter(Context context, boolean isPrivate) {
+        public TabsAdapter(Context context) {
             mContext = context;
             mInflater = LayoutInflater.from(mContext);
-            mIsPrivate = isPrivate;
 
             mOnCloseClickListener = new Button.OnClickListener() {
-                @Override
                 public void onClick(View v) {
                     TabRow tab = (TabRow) v.getTag();
-                    final int pos = (isVertical() ? tab.info.getWidth() : tab.info.getHeight());
-                    animateClose(tab.info, pos);
+                    animateClose(tab.info, tab.info.getWidth());
                 }
             };
         }
 
-        @Override
         public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
             switch (msg) {
                 case ADDED:
@@ -161,6 +145,7 @@ public class TabsTray extends TwoWayView
                     break;
 
                 case CLOSED:
+                    mWaitingForClose = false;
                     removeTab(tab);
                     break;
 
@@ -171,7 +156,7 @@ public class TabsTray extends TwoWayView
                     // We just need to update the style for the unselected tab...
                 case THUMBNAIL:
                 case TITLE:
-                    View view = TabsTray.this.getChildAt(getPositionForTab(tab) - TabsTray.this.getFirstVisiblePosition());
+                    View view = mList.getChildAt(getPositionForTab(tab) - mList.getFirstVisiblePosition());
                     if (view == null)
                         return;
 
@@ -188,8 +173,7 @@ public class TabsTray extends TwoWayView
 
             Iterable<Tab> tabs = Tabs.getInstance().getTabsInOrder();
             for (Tab tab : tabs) {
-                if (tab.isPrivate() == mIsPrivate)
-                    mTabs.add(tab);
+                mTabs.add(tab);
             }
 
             notifyDataSetChanged(); // Be sure to call this whenever mTabs changes.
@@ -199,11 +183,10 @@ public class TabsTray extends TwoWayView
         // Updates the selected position in the list so that it will be scrolled to the right place.
         private void updateSelectedPosition() {
             int selected = getPositionForTab(Tabs.getInstance().getSelectedTab());
-            for (int i=0; i < getCount(); i++)
-                 TabsTray.this.setItemChecked(i, (i == selected));
+            if (selected == -1)
+                return;
 
-            if (selected != -1)
-                TabsTray.this.setSelection(selected);
+            mList.setSelection(selected);
         }
 
         public void clear() {
@@ -211,17 +194,14 @@ public class TabsTray extends TwoWayView
             notifyDataSetChanged(); // Be sure to call this whenever mTabs changes.
         }
 
-        @Override
         public int getCount() {
             return (mTabs == null ? 0 : mTabs.size());
         }
 
-        @Override
         public Tab getItem(int position) {
             return mTabs.get(position);
         }
 
-        @Override
         public long getItemId(int position) {
             return position;
         }
@@ -234,11 +214,8 @@ public class TabsTray extends TwoWayView
         }
 
         private void removeTab(Tab tab) {
-            if (tab.isPrivate() == mIsPrivate && mTabs != null) {
-                mTabs.remove(tab);
-                notifyDataSetChanged(); // Be sure to call this whenever mTabs changes.
-                updateSelectedPosition();
-            }
+            mTabs.remove(tab);
+            notifyDataSetChanged(); // Be sure to call this whenever mTabs changes.
         }
 
         private void assignValues(TabRow row, Tab tab) {
@@ -255,18 +232,26 @@ public class TabsTray extends TwoWayView
             else
                 row.thumbnail.setImageResource(R.drawable.tab_thumbnail_default);
 
+            if (Tabs.getInstance().isSelectedTab(tab))
+                row.info.setBackgroundResource(R.drawable.tabs_tray_active_selector);
+            else
+                row.info.setBackgroundResource(R.drawable.tabs_tray_default_selector);
+
             row.title.setText(tab.getDisplayTitle());
+
             row.close.setTag(row);
+            row.close.setVisibility(mTabs.size() > 1 ? View.VISIBLE : View.INVISIBLE);
         }
 
-        @Override
         public View getView(int position, View convertView, ViewGroup parent) {
             TabRow row;
 
             if (convertView == null) {
                 convertView = mInflater.inflate(R.layout.tabs_row, null);
+
                 row = new TabRow(convertView);
                 row.close.setOnClickListener(mOnCloseClickListener);
+
                 convertView.setTag(row);
             } else {
                 row = (TabRow) convertView.getTag();
@@ -279,75 +264,48 @@ public class TabsTray extends TwoWayView
         }
     }
 
-    private boolean isVertical() {
-        return (getOrientation().compareTo(TwoWayView.Orientation.VERTICAL) == 0);
+    private boolean hasOnlyOneTab() {
+        return (mTabsAdapter != null && mTabsAdapter.getCount() == 1);
     }
 
-    private void animateClose(final View view, int pos) {
+    private void animateClose(final View view, int x) {
+        // Just bail out, if we're already closing
+        if (mWaitingForClose)
+            return;
+
         PropertyAnimator animator = new PropertyAnimator(ANIMATION_DURATION);
         animator.attach(view, Property.ALPHA, 0);
+        animator.attach(view, Property.TRANSLATION_X, x);
 
-        if (isVertical())
-            animator.attach(view, Property.TRANSLATION_X, pos);
-        else
-            animator.attach(view, Property.TRANSLATION_Y, pos);
-
-        mCloseAnimationCount++;
-        mPendingClosedTabs.add(view);
+        mWaitingForClose = true;
 
         animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
-            @Override
             public void onPropertyAnimationStart() { }
-            @Override
             public void onPropertyAnimationEnd() {
-                mCloseAnimationCount--;
-                if (mCloseAnimationCount > 0)
-                    return;
-
-                for (View pendingView : mPendingClosedTabs) {
-                    animateFinishClose(pendingView);
-                }
-
-                mPendingClosedTabs.clear();
+                animateFinishClose(view);
             }
         });
-
-        if (mTabsAdapter.getCount() == 1)
-            autoHidePanel();
 
         animator.start();
     }
 
     private void animateFinishClose(final View view) {
         PropertyAnimator animator = new PropertyAnimator(ANIMATION_DURATION);
-
-        final boolean isVertical = isVertical();
-        if (isVertical)
-            animator.attach(view, Property.HEIGHT, 1);
-        else
-            animator.attach(view, Property.WIDTH, 1);
+        animator.attach(view, Property.HEIGHT, 1);
 
         TabRow tab = (TabRow)view.getTag();
         final int tabId = tab.id;
-        final int originalSize = (isVertical ? view.getHeight() : view.getWidth());
+        final int originalHeight = view.getHeight();
 
         animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
-            @Override
             public void onPropertyAnimationStart() { }
-            @Override
             public void onPropertyAnimationEnd() {
                 // Reset view presentation as it will be recycled in the
                 // list view by the adapter.
                 AnimatorProxy proxy = AnimatorProxy.create(view);
                 proxy.setAlpha(1);
-
-                if (isVertical) {
-                    proxy.setHeight(originalSize);
-                    proxy.setTranslationX(0);
-                } else {
-                    proxy.setWidth(originalSize);
-                    proxy.setTranslationY(0);
-                }
+                proxy.setTranslationX(0);
+                proxy.setHeight(originalHeight);
 
                 Tabs tabs = Tabs.getInstance();
                 Tab tab = tabs.getTab(tabId);
@@ -361,20 +319,15 @@ public class TabsTray extends TwoWayView
     private void animateCancel(final View view) {
         PropertyAnimator animator = new PropertyAnimator(ANIMATION_DURATION);
         animator.attach(view, Property.ALPHA, 1);
-
-        if (isVertical())
-            animator.attach(view, Property.TRANSLATION_X, 0);
-        else
-            animator.attach(view, Property.TRANSLATION_Y, 0);
-
+        animator.attach(view, Property.TRANSLATION_X, 0);
 
         animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener() {
-            @Override
             public void onPropertyAnimationStart() { }
-            @Override
             public void onPropertyAnimationEnd() {
-                TabRow tab = (TabRow) view.getTag();
-                tab.close.setVisibility(View.VISIBLE);
+                if (!hasOnlyOneTab()) {
+                    TabRow tab = (TabRow) view.getTag();
+                    tab.close.setVisibility(View.VISIBLE);
+                }
             }
         });
 
@@ -382,39 +335,35 @@ public class TabsTray extends TwoWayView
     }
 
     private class TabSwipeGestureListener implements View.OnTouchListener {
-        // same value the stock browser uses for after drag animation velocity in pixels/sec
-        // http://androidxref.com/4.0.4/xref/packages/apps/Browser/src/com/android/browser/NavTabScroller.java#61
-        private static final float MIN_VELOCITY = 750;
-
         private int mSwipeThreshold;
         private int mMinFlingVelocity;
-
         private int mMaxFlingVelocity;
         private VelocityTracker mVelocityTracker;
 
+        private ListView mListView;
         private int mListWidth = 1;
-        private int mListHeight = 1;
 
         private View mSwipeView;
         private AnimatorProxy mSwipeProxy;
         private int mSwipeViewPosition;
         private Runnable mPendingCheckForTap;
 
-        private float mSwipeStartX;
-        private float mSwipeStartY;
+        private float mSwipeStart;
         private boolean mSwiping;
         private boolean mEnabled;
 
-        public TabSwipeGestureListener() {
+        public TabSwipeGestureListener(ListView listView) {
+            mListView = listView;
+
             mSwipeView = null;
             mSwipeProxy = null;
-            mSwipeViewPosition = TwoWayView.INVALID_POSITION;
+            mSwipeViewPosition = ListView.INVALID_POSITION;
             mSwiping = false;
             mEnabled = true;
 
-            ViewConfiguration vc = ViewConfiguration.get(TabsTray.this.getContext());
+            ViewConfiguration vc = ViewConfiguration.get(listView.getContext());
             mSwipeThreshold = vc.getScaledTouchSlop();
-            mMinFlingVelocity = (int) (getContext().getResources().getDisplayMetrics().density * MIN_VELOCITY);
+            mMinFlingVelocity = vc.getScaledMinimumFlingVelocity();
             mMaxFlingVelocity = vc.getScaledMaximumFlingVelocity();
         }
 
@@ -422,15 +371,15 @@ public class TabsTray extends TwoWayView
             mEnabled = enabled;
         }
 
-        public TwoWayView.OnScrollListener makeScrollListener() {
-            return new TwoWayView.OnScrollListener() {
+        public AbsListView.OnScrollListener makeScrollListener() {
+            return new AbsListView.OnScrollListener() {
                 @Override
-                public void onScrollStateChanged(TwoWayView twoWayView, int scrollState) {
-                    setEnabled(scrollState != TwoWayView.OnScrollListener.SCROLL_STATE_TOUCH_SCROLL);
+                public void onScrollStateChanged(AbsListView absListView, int scrollState) {
+                    setEnabled(scrollState != AbsListView.OnScrollListener.SCROLL_STATE_TOUCH_SCROLL);
                 }
 
                 @Override
-                public void onScroll(TwoWayView twoWayView, int i, int i1, int i2) {
+                public void onScroll(AbsListView absListView, int i, int i1, int i2) {
                 }
             };
         }
@@ -440,10 +389,8 @@ public class TabsTray extends TwoWayView
             if (!mEnabled)
                 return false;
 
-            if (mListWidth < 2 || mListHeight < 2) {
-                mListWidth = TabsTray.this.getWidth();
-                mListHeight = TabsTray.this.getHeight();
-            }
+            if (mListWidth < 2)
+                mListWidth = mListView.getWidth();
 
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN: {
@@ -451,16 +398,12 @@ public class TabsTray extends TwoWayView
                     // touched view after a standard delay.
                     triggerCheckForTap();
 
-                    final float x = e.getRawX();
-                    final float y = e.getRawY();
-
                     // Find out which view is being touched
-                    mSwipeView = findViewAt(x, y);
+                    mSwipeView = findViewAt(e.getRawX(), e.getRawY());
 
                     if (mSwipeView != null) {
-                        mSwipeStartX = e.getRawX();
-                        mSwipeStartY = e.getRawY();
-                        mSwipeViewPosition = TabsTray.this.getPositionForView(mSwipeView);
+                        mSwipeStart = e.getRawX();
+                        mSwipeViewPosition = mListView.getPositionForView(mSwipeView);
 
                         mVelocityTracker = VelocityTracker.obtain();
                         mVelocityTracker.addMovement(e);
@@ -484,6 +427,8 @@ public class TabsTray extends TwoWayView
                         break;
                     }
 
+                    float deltaX = mSwipeProxy.getTranslationX();
+
                     mVelocityTracker.addMovement(e);
                     mVelocityTracker.computeCurrentVelocity(1000, mMaxFlingVelocity);
 
@@ -491,49 +436,28 @@ public class TabsTray extends TwoWayView
                     float velocityY = Math.abs(mVelocityTracker.getYVelocity());
 
                     boolean dismiss = false;
-                    boolean dismissDirection = false;
-                    int dismissTranslation = 0;
+                    boolean dismissRight = false;
 
-                    if (isVertical()) {
-                        float deltaX = mSwipeProxy.getTranslationX();
-
-                        if (Math.abs(deltaX) > mListWidth / 2) {
-                            dismiss = true;
-                            dismissDirection = (deltaX > 0);
-                        } else if (mMinFlingVelocity <= velocityX && velocityX <= mMaxFlingVelocity
-                                && velocityY < velocityX) {
-                            dismiss = mSwiping && (deltaX * mVelocityTracker.getXVelocity() > 0);
-                            dismissDirection = (mVelocityTracker.getXVelocity() > 0);
-                        }
-
-                        dismissTranslation = (dismissDirection ? mListWidth : -mListWidth);
-                    } else {
-                        float deltaY = mSwipeProxy.getTranslationY();
-
-                        if (Math.abs(deltaY) > mListHeight / 2) {
-                            dismiss = true;
-                            dismissDirection = (deltaY > 0);
-                        } else if (mMinFlingVelocity <= velocityY && velocityY <= mMaxFlingVelocity
-                                && velocityX < velocityY) {
-                            dismiss = mSwiping && (deltaY * mVelocityTracker.getYVelocity() > 0);
-                            dismissDirection = (mVelocityTracker.getYVelocity() > 0);
-                        }
-
-                        dismissTranslation = (dismissDirection ? mListHeight : -mListHeight);
-                     }
+                    if (Math.abs(deltaX) > mListWidth / 2) {
+                        dismiss = true;
+                        dismissRight = (deltaX > 0);
+                    } else if (mMinFlingVelocity <= velocityX && velocityX <= mMaxFlingVelocity
+                            && velocityY < velocityX) {
+                        dismiss = mSwiping && !hasOnlyOneTab() && (deltaX * mVelocityTracker.getXVelocity() > 0);
+                        dismissRight = (mVelocityTracker.getXVelocity() > 0);
+                    }
 
                     if (dismiss)
-                        animateClose(mSwipeView, dismissTranslation);
+                        animateClose(mSwipeView, (dismissRight ? mListWidth : -mListWidth));
                     else
                         animateCancel(mSwipeView);
 
                     mVelocityTracker = null;
                     mSwipeView = null;
-                    mSwipeViewPosition = TwoWayView.INVALID_POSITION;
+                    mSwipeViewPosition = ListView.INVALID_POSITION;
                     mSwipeProxy = null;
 
-                    mSwipeStartX = 0;
-                    mSwipeStartY = 0;
+                    mSwipeStart = 0;
                     mSwiping = false;
 
                     break;
@@ -545,24 +469,14 @@ public class TabsTray extends TwoWayView
 
                     mVelocityTracker.addMovement(e);
 
-                    final boolean isVertical = isVertical();
-
-                    float deltaX = e.getRawX() - mSwipeStartX;
-                    float deltaY = e.getRawY() - mSwipeStartY;
-                    float delta = (isVertical ? deltaX : deltaY);
-
-                    boolean isScrollingX = Math.abs(deltaX) > mSwipeThreshold;
-                    boolean isScrollingY = Math.abs(deltaY) > mSwipeThreshold;
-                    boolean isSwipingToClose = (isVertical ? isScrollingX : isScrollingY);
-
-                    // If we're actually swiping, make sure we don't
-                    // set pressed state on the swiped view.
-                    if (isScrollingX || isScrollingY)
+                    float deltaX = e.getRawX() - mSwipeStart;
+                    if (Math.abs(deltaX) > mSwipeThreshold) {
+                        // If we're actually swiping, make sure we don't
+                        // set pressed state on the swiped view.
                         cancelCheckForTap();
 
-                    if (isSwipingToClose) {
                         mSwiping = true;
-                        TabsTray.this.requestDisallowInterceptTouchEvent(true);
+                        mListView.requestDisallowInterceptTouchEvent(true);
 
                         TabRow tab = (TabRow) mSwipeView.getTag();
                         tab.close.setVisibility(View.INVISIBLE);
@@ -572,19 +486,19 @@ public class TabsTray extends TwoWayView
                         MotionEvent cancelEvent = MotionEvent.obtain(e);
                         cancelEvent.setAction(MotionEvent.ACTION_CANCEL |
                                 (e.getActionIndex() << MotionEvent.ACTION_POINTER_INDEX_SHIFT));
-                        TabsTray.this.onTouchEvent(cancelEvent);
+                        mListView.onTouchEvent(cancelEvent);
 
                         mSwipeProxy = AnimatorProxy.create(mSwipeView);
                     }
 
                     if (mSwiping) {
-                        if (isVertical)
-                            mSwipeProxy.setTranslationX(delta);
-                        else
-                            mSwipeProxy.setTranslationY(delta);
-
-                        mSwipeProxy.setAlpha(Math.max(0.1f, Math.min(1f,
-                                1f - 2f * Math.abs(delta) / (isVertical ? mListWidth : mListHeight))));
+                        if (hasOnlyOneTab()) {
+                            mSwipeProxy.setTranslationX(deltaX / 4);
+                        } else {
+                            mSwipeProxy.setTranslationX(deltaX);
+                            mSwipeProxy.setAlpha(Math.max(0.1f, Math.min(1f,
+                                    1f - 2f * Math.abs(deltaX) / mListWidth)));
+                        }
 
                         return true;
                     }
@@ -597,16 +511,19 @@ public class TabsTray extends TwoWayView
         }
 
         private View findViewAt(float rawX, float rawY) {
+            if (mList == null)
+                return null;
+
             Rect rect = new Rect();
 
             int[] listViewCoords = new int[2];
-            TabsTray.this.getLocationOnScreen(listViewCoords);
+            mListView.getLocationOnScreen(listViewCoords);
 
             int x = (int) rawX - listViewCoords[0];
             int y = (int) rawY - listViewCoords[1];
 
-            for (int i = 0; i < TabsTray.this.getChildCount(); i++) {
-                View child = TabsTray.this.getChildAt(i);
+            for (int i = 0; i < mListView.getChildCount(); i++) {
+                View child = mListView.getChildAt(i);
                 child.getHitRect(rect);
 
                 if (rect.contains(x, y))
@@ -620,14 +537,14 @@ public class TabsTray extends TwoWayView
             if (mPendingCheckForTap == null)
                 mPendingCheckForTap = new CheckForTap();
 
-            TabsTray.this.postDelayed(mPendingCheckForTap, ViewConfiguration.getTapTimeout());
+            mListView.postDelayed(mPendingCheckForTap, ViewConfiguration.getTapTimeout());
         }
 
         private void cancelCheckForTap() {
             if (mPendingCheckForTap == null)
                 return;
 
-            TabsTray.this.removeCallbacks(mPendingCheckForTap);
+            mListView.removeCallbacks(mPendingCheckForTap);
         }
 
         private class CheckForTap implements Runnable {

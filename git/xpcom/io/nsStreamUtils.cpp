@@ -217,7 +217,6 @@ public:
     nsAStreamCopier()
         : mLock("nsAStreamCopier.mLock")
         , mCallback(nullptr)
-        , mProgressCallback(nullptr)
         , mClosure(nullptr)
         , mChunkSize(0)
         , mEventInProcess(false)
@@ -242,8 +241,7 @@ public:
                    void *closure,
                    uint32_t chunksize,
                    bool closeSource,
-                   bool closeSink,
-                   nsAsyncCopyProgressFun progressCallback)
+                   bool closeSink)
     {
         mSource = source;
         mSink = sink;
@@ -253,7 +251,6 @@ public:
         mChunkSize = chunksize;
         mCloseSource = closeSource;
         mCloseSink = closeSink;
-        mProgressCallback = progressCallback;
 
         mAsyncSource = do_QueryInterface(mSource);
         mAsyncSink = do_QueryInterface(mSink);
@@ -288,9 +285,6 @@ public:
             bool copyFailed = false;
             if (!canceled) {
                 uint32_t n = DoCopy(&sourceCondition, &sinkCondition);
-                if (n > 0 && mProgressCallback) {
-                    mProgressCallback(mClosure, n);
-                }
                 copyFailed = NS_FAILED(sourceCondition) ||
                              NS_FAILED(sinkCondition) || n == 0;
 
@@ -455,7 +449,6 @@ protected:
     nsCOMPtr<nsIEventTarget>       mTarget;
     Mutex                          mLock;
     nsAsyncCopyCallbackFun         mCallback;
-    nsAsyncCopyProgressFun         mProgressCallback;
     void                          *mClosure;
     uint32_t                       mChunkSize;
     bool                           mEventInProcess;
@@ -569,8 +562,7 @@ NS_AsyncCopy(nsIInputStream         *source,
              void                   *closure,
              bool                    closeSource,
              bool                    closeSink,
-             nsISupports           **aCopierCtx,
-             nsAsyncCopyProgressFun  progressCallback)
+             nsISupports           **aCopierCtx)
 {
     NS_ASSERTION(target, "non-null target required");
 
@@ -588,7 +580,7 @@ NS_AsyncCopy(nsIInputStream         *source,
     // Start() takes an owning ref to the copier...
     NS_ADDREF(copier);
     rv = copier->Start(source, sink, target, callback, closure, chunkSize,
-                       closeSource, closeSink, progressCallback);
+                       closeSource, closeSink);
 
     if (aCopierCtx) {
         *aCopierCtx = static_cast<nsISupports*>(
@@ -629,7 +621,7 @@ NS_ConsumeStream(nsIInputStream *stream, uint32_t maxCount, nsACString &result)
         if (avail64 == 0)
             break;
 
-        uint32_t avail = (uint32_t)XPCOM_MIN<uint64_t>(avail64, maxCount);
+        uint32_t avail = (uint32_t)NS_MIN<uint64_t>(avail64, maxCount);
 
         // resize result buffer
         uint32_t length = result.Length();

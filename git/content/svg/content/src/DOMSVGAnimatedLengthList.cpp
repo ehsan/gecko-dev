@@ -9,8 +9,6 @@
 #include "nsSVGElement.h"
 #include "nsCOMPtr.h"
 #include "nsSVGAttrTearoffTable.h"
-#include "mozilla/dom/SVGAnimatedLengthListBinding.h"
-#include "nsContentUtils.h"
 
 // See the architecture comment in this file's header.
 
@@ -19,40 +17,39 @@ namespace mozilla {
 static nsSVGAttrTearoffTable<SVGAnimatedLengthList, DOMSVGAnimatedLengthList>
   sSVGAnimatedLengthListTearoffTable;
 
-NS_SVG_VAL_IMPL_CYCLE_COLLECTION_WRAPPERCACHED(DOMSVGAnimatedLengthList, mElement)
+NS_SVG_VAL_IMPL_CYCLE_COLLECTION(DOMSVGAnimatedLengthList, mElement)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMSVGAnimatedLengthList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMSVGAnimatedLengthList)
 
+} // namespace mozilla
+DOMCI_DATA(SVGAnimatedLengthList, mozilla::DOMSVGAnimatedLengthList)
+namespace mozilla {
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(DOMSVGAnimatedLengthList)
-  NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedLengthList)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedLengthList)
 NS_INTERFACE_MAP_END
 
-JSObject*
-DOMSVGAnimatedLengthList::WrapObject(JSContext* aCx, JSObject* aScope)
-{
-  return dom::SVGAnimatedLengthListBinding::Wrap(aCx, aScope, this);
-}
-
-already_AddRefed<DOMSVGLengthList>
-DOMSVGAnimatedLengthList::BaseVal()
+NS_IMETHODIMP
+DOMSVGAnimatedLengthList::GetBaseVal(nsIDOMSVGLengthList **_retval)
 {
   if (!mBaseVal) {
     mBaseVal = new DOMSVGLengthList(this, InternalAList().GetBaseValue());
   }
-  nsRefPtr<DOMSVGLengthList> baseVal = mBaseVal;
-  return baseVal.forget();
+  NS_ADDREF(*_retval = mBaseVal);
+  return NS_OK;
 }
 
-already_AddRefed<DOMSVGLengthList>
-DOMSVGAnimatedLengthList::AnimVal()
+NS_IMETHODIMP
+DOMSVGAnimatedLengthList::GetAnimVal(nsIDOMSVGLengthList **_retval)
 {
   if (!mAnimVal) {
     mAnimVal = new DOMSVGLengthList(this, InternalAList().GetAnimValue());
   }
-  nsRefPtr<DOMSVGLengthList> animVal = mAnimVal;
-  return animVal.forget();
+  NS_ADDREF(*_retval = mAnimVal);
+  return NS_OK;
 }
 
 /* static */ already_AddRefed<DOMSVGAnimatedLengthList>

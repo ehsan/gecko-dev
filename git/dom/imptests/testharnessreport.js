@@ -197,7 +197,7 @@ var W3CTest = {
     add_completion_callback(W3CTest.finish.bind(W3CTest));
     setup({
       "output": false,
-      "explicit_timeout": true
+      "timeout": 1000000
     });
   } catch (e) {
     W3CTest.logFailure("Unexpected exception: " + e);

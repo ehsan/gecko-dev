@@ -38,7 +38,7 @@ public:
 
     int exec();
 
-private Q_SLOTS:
+private slots:
     void contentItemSelected(const QString& aItem);
     void contentItemsSelected(const QStringList& aItems);
     void backButtonClicked();

@@ -20,7 +20,6 @@ include "gfxMatrix.h";
 include "FrameMetrics.h";
 include "IPC/nsGUIEventIPC.h";
 include "mozilla/dom/TabMessageUtils.h";
-include "mozilla/dom/ScreenOrientation.h";
 include "mozilla/dom/PermissionMessageUtils.h";
 include "mozilla/layout/RenderFrameUtils.h";
 
@@ -31,7 +30,6 @@ using gfxSize;
 using mozilla::layers::LayersBackend;
 using mozilla::layers::FrameMetrics;
 using mozilla::layout::ScrollingBehavior;
-using mozilla::void_t;
 using mozilla::WindowsHandle;
 using nscolor;
 using nsCompositionEvent;
@@ -49,7 +47,6 @@ using nsSelectionEvent;
 using nsTextEvent;
 using nsTouchEvent;
 using RemoteDOMEvent;
-using mozilla::dom::ScreenOrientation;
 
 namespace mozilla {
 namespace dom {
@@ -159,8 +156,7 @@ parent:
      */
     sync EndIMEComposition(bool cancel) returns (nsString composition);
 
-    sync GetInputContext() returns (int32_t IMEEnabled, int32_t IMEOpen,
-                                    intptr_t NativeIMEContext);
+    sync GetInputContext() returns (int32_t IMEEnabled, int32_t IMEOpen);
 
     SetInputContext(int32_t IMEEnabled,
                     int32_t IMEOpen,
@@ -189,8 +185,6 @@ parent:
      *
      * @param aType
      *   The type of permission to request.
-     * @param aAccess
-     *   Access type. "read" for example.
      * @param aPrincipal
      *   The principal of the request.
      *
@@ -198,7 +192,7 @@ parent:
      *       principals that can live in the content process should
      *       provided.
      */
-    PContentPermissionRequest(nsCString aType, nsCString aAccess, Principal principal);
+    PContentPermissionRequest(nsCString aType, Principal principal);
 
     PContentDialog(uint32_t aType, nsCString aName, nsCString aFeatures,
                    int32_t[] aIntParams, nsString[] aStringParams);
@@ -217,6 +211,8 @@ parent:
      *   URI of the manifest to fetch, the application cache group ID
      * @param documentURI
      *   URI of the document that referred the manifest
+     * @param clientID
+     *   The group cache version identifier to use
      * @param stickDocument
      *   True if the update was initiated by a document load that referred
      *   a manifest.
@@ -234,6 +230,7 @@ parent:
      *   has already been cached (stickDocument=false).
      */
     POfflineCacheUpdate(URIParams manifestURI, URIParams documentURI,
+                        bool isInBrowserElement, uint32_t appId,
                         bool stickDocument);
 
     sync PIndexedDB(nsCString asciiOrigin)
@@ -291,9 +288,7 @@ child:
 
     LoadURL(nsCString uri);
 
-    CacheFileDescriptor(nsString path, FileDescriptor fd);
-
-    UpdateDimensions(nsRect rect, nsIntSize size, ScreenOrientation orientation) compress;
+    UpdateDimensions(nsRect rect, nsIntSize size) compress;
 
     UpdateFrame(FrameMetrics frame) compress;
 
@@ -310,13 +305,6 @@ child:
      * "mouseup" series of events at this point.
      */
     HandleSingleTap(nsIntPoint point);
-
-    /**
-     * Requests handling of a long tap. |point| is in CSS pixels, relative to
-     * the scroll offset. This message is expected to send a "contextmenu"
-     * events at this point.
-     */
-    HandleLongTap(nsIntPoint point);
 
     /**
      * Sending an activate message moves focus to the child.
@@ -383,20 +371,6 @@ child:
                       nsString bgcolor,
                       uint32_t renderFlags, bool flushLayout,
                       nsIntSize renderSize);
-
-    /**
-     * Send the child its app type.  The app type identifies the kind of app
-     * shown in this PBrowser.  Currently, the only recognized app type is
-     * "homescreen".
-     *
-     * The value here corresponds to the "mozapptype" attribute on iframes.  For
-     * example, <iframe mozbrowser mozapp="..." mozapptype="homescreen">.
-     *
-     * Only app frames (i.e., frames with an app-id) should have a non-empty app
-     * type.  If you try to SetAppType() with a non-empty app type on a non-app
-     * PBrowserChild, we may assert.
-     */
-    SetAppType(nsString appType);
 
     /**
      * Sent by the chrome process when it no longer wants this remote

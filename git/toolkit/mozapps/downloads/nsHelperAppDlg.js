@@ -109,6 +109,7 @@ function nsUnknownContentTypeDialog() {
   // Initialize data properties.
   this.mLauncher = null;
   this.mContext  = null;
+  this.mSourcePath = null;
   this.chosenApp = null;
   this.givenDefaultApp = false;
   this.updateSelf = true;
@@ -189,10 +190,6 @@ nsUnknownContentTypeDialog.prototype = {
   // Note - this function is called without a dialog, so it cannot access any part
   // of the dialog XUL as other functions on this object do.
   promptForSaveToFile: function(aLauncher, aContext, aDefaultFile, aSuggestedFileExtension, aForcePrompt) {
-    throw new Components.Exception("Async version must be used", Components.results.NS_ERROR_NOT_AVAILABLE);
-  },
-
-  promptForSaveToFileAsync: function(aLauncher, aContext, aDefaultFile, aSuggestedFileExtension, aForcePrompt) {
     var result = null;
 
     this.mLauncher = aLauncher;
@@ -230,16 +227,13 @@ nsUnknownContentTypeDialog.prototype = {
                            bundle.GetStringFromName("badPermissions.title"),
                            bundle.GetStringFromName("badPermissions"));
 
-            aLauncher.saveDestinationAvailable(null);
             return;
           }
         }
 
         // Check to make sure we have a valid directory, otherwise, prompt
-        if (result) {
-          aLauncher.saveDestinationAvailable(result);
-          return;
-        }
+        if (result)
+          return result;
       }
     }
 
@@ -279,39 +273,42 @@ nsUnknownContentTypeDialog.prototype = {
                             .getService(Components.interfaces.nsIDownloadManager);
     picker.displayDirectory = dnldMgr.userDownloadsDirectory;
 
-    gDownloadLastDir.getFileAsync(aLauncher.source, function LastDirCallback(lastDir) {
-      if (lastDir && isUsableDirectory(lastDir))
+    // The last directory preference may not exist, which will throw.
+    try {
+      var lastDir = gDownloadLastDir.getFile(aLauncher.source);
+      if (isUsableDirectory(lastDir))
         picker.displayDirectory = lastDir;
+    }
+    catch (ex) {
+    }
 
-      if (picker.show() == nsIFilePicker.returnCancel) {
-        // null result means user cancelled.
-        aLauncher.saveDestinationAvailable(null);
-        return;
+    if (picker.show() == nsIFilePicker.returnCancel) {
+      // null result means user cancelled.
+      return null;
+    }
+
+    // Be sure to save the directory the user chose through the Save As...
+    // dialog  as the new browser.download.dir since the old one
+    // didn't exist.
+    result = picker.file;
+
+    if (result) {
+      try {
+        // Remove the file so that it's not there when we ensure non-existence later;
+        // this is safe because for the file to exist, the user would have had to
+        // confirm that he wanted the file overwritten.
+        if (result.exists())
+          result.remove(false);
       }
+      catch (e) { }
+      var newDir = result.parent.QueryInterface(Components.interfaces.nsILocalFile);
 
-      // Be sure to save the directory the user chose through the Save As...
-      // dialog  as the new browser.download.dir since the old one
-      // didn't exist.
-      result = picker.file;
+      // Do not store the last save directory as a pref inside the private browsing mode
+      gDownloadLastDir.setFile(aLauncher.source, newDir);
 
-      if (result) {
-        try {
-          // Remove the file so that it's not there when we ensure non-existence later;
-          // this is safe because for the file to exist, the user would have had to
-          // confirm that he wanted the file overwritten.
-          if (result.exists())
-            result.remove(false);
-        }
-        catch (e) { }
-        var newDir = result.parent.QueryInterface(Components.interfaces.nsILocalFile);
-
-        // Do not store the last save directory as a pref inside the private browsing mode
-        gDownloadLastDir.setFile(aLauncher.source, newDir);
-
-        result = this.validateLeafName(newDir, result.leafName, null);
-      }
-      aLauncher.saveDestinationAvailable(result);
-    }.bind(this));
+      result = this.validateLeafName(newDir, result.leafName, null);
+    }
+    return result;
   },
 
   /**
@@ -373,10 +370,7 @@ nsUnknownContentTypeDialog.prototype = {
     var suggestedFileName = this.mLauncher.suggestedFileName;
 
     // Some URIs do not implement nsIURL, so we can't just QI.
-    var url = this.mLauncher.source;
-    if (url instanceof Components.interfaces.nsINestedURI)
-      url = url.innermostURI;
-
+    var url   = this.mLauncher.source;
     var fname = "";
     var iconPath = "goat";
     this.mSourcePath = url.prePath;
@@ -520,17 +514,28 @@ nsUnknownContentTypeDialog.prototype = {
     this.dialogElement( "location" ).setAttribute("realname", filename);
     this.dialogElement( "location" ).setAttribute("tooltiptext", displayname);
 
-    // if mSourcePath is a local file, then let's use the pretty path name
-    // instead of an ugly url...
-    var pathString;
-    if (url instanceof Components.interfaces.nsIFileURL) {
-      try {
-        // Getting .file might throw, or .parent could be null
-        pathString = url.file.parent.path;
-      } catch (ex) {}
-    }
+    // if mSourcePath is a local file, then let's use the pretty path name instead of an ugly
+    // url...
+    var pathString = this.mSourcePath;
+    try
+    {
+      var fileURL = url.QueryInterface(Components.interfaces.nsIFileURL);
+      if (fileURL)
+      {
+        var fileObject = fileURL.file;
+        if (fileObject)
+        {
+          var parentObject = fileObject.parent;
+          if (parentObject)
+          {
+            pathString = parentObject.path;
+          }
+        }
+      }
+    } catch(ex) {}
 
-    if (!pathString) {
+    if (pathString == this.mSourcePath)
+    {
       // wasn't a fileURL
       var tmpurl = url.clone(); // don't want to change the real url
       try {
@@ -1076,4 +1081,4 @@ nsUnknownContentTypeDialog.prototype = {
   }
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([nsUnknownContentTypeDialog]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([nsUnknownContentTypeDialog]);

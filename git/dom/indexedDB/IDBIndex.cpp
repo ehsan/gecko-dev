@@ -414,7 +414,6 @@ IDBIndex::~IDBIndex()
   NS_ASSERTION(!mActorParent, "Actor parent owns us, how can we be dying?!");
 
   if (mRooted) {
-    mCachedKeyPath = JSVAL_VOID;
     NS_DROP_JS_OBJECTS(this, IDBIndex);
   }
 
@@ -670,13 +669,15 @@ IDBIndex::OpenCursorFromChildProcess(
   return NS_OK;
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(IDBIndex)
+
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(IDBIndex)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mCachedKeyPath)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(IDBIndex)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mObjectStore)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mObjectStore)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(IDBIndex)
@@ -1016,12 +1017,6 @@ IndexHelper::Dispatch(nsIEventTarget* aDatabaseThread)
     return AsyncConnectionHelper::Dispatch(aDatabaseThread);
   }
 
-  // If we've been invalidated then there's no point sending anything to the
-  // parent process.
-  if (mIndex->ObjectStore()->Transaction()->Database()->IsInvalidated()) {
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-
   IndexedDBIndexChild* indexActor = mIndex->GetActorChild();
   NS_ASSERTION(indexActor, "Must have an actor here!");
 
@@ -1133,7 +1128,7 @@ GetKeyHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = getKeyResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -1276,7 +1271,7 @@ GetHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = getResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -1453,7 +1448,7 @@ GetAllKeysHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = getAllKeysResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -1540,12 +1535,13 @@ GetAllHelper::GetSuccessResult(JSContext* aCx,
 {
   NS_ASSERTION(mCloneReadInfos.Length() <= mLimit, "Too many results!");
 
-  nsresult rv = ConvertToArrayAndCleanup(aCx, mCloneReadInfos, aVal);
+  nsresult rv = ConvertCloneReadInfosToArray(aCx, mCloneReadInfos, aVal);
 
-  NS_ASSERTION(mCloneReadInfos.IsEmpty(),
-               "Should have cleared in ConvertToArrayAndCleanup");
+  for (uint32_t index = 0; index < mCloneReadInfos.Length(); index++) {
+    mCloneReadInfos[index].mCloneBuffer.clear();
+  }
+
   NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }
 
@@ -1642,7 +1638,7 @@ GetAllHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = getAllResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -1665,7 +1661,7 @@ GetAllHelper::UnpackResponseFromParentProcess(
 
   for (uint32_t index = 0; index < cloneInfos.Length(); index++) {
     const SerializedStructuredCloneReadInfo srcInfo = cloneInfos[index];
-    const InfallibleTArray<PBlobChild*>& blobs = blobArrays[index].blobsChild();
+    const InfallibleTArray<PBlobChild*> blobs = blobArrays[index].blobsChild();
 
     StructuredCloneReadInfo* destInfo = mCloneReadInfos.AppendElement();
     if (!destInfo->SetFromSerialized(srcInfo)) {
@@ -1947,15 +1943,19 @@ OpenKeyCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
       params.objectKey() = mObjectKey;
       params.optionalCloneInfo() = mozilla::void_t();
 
-      if (!indexActor->OpenCursor(mCursor, params, openCursorResponse)) {
+      IndexedDBCursorParent* cursorActor = new IndexedDBCursorParent(mCursor);
+
+      if (!indexActor->SendPIndexedDBCursorConstructor(cursorActor, params)) {
         return Error;
       }
+
+      openCursorResponse = cursorActor;
     }
 
     response = openCursorResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -2303,15 +2303,19 @@ OpenCursorHelper::SendResponseToChildProcess(nsresult aResultCode)
       params.optionalCloneInfo() = mSerializedCloneReadInfo;
       params.blobsParent().SwapElements(blobsParent);
 
-      if (!indexActor->OpenCursor(mCursor, params, openCursorResponse)) {
+      IndexedDBCursorParent* cursorActor = new IndexedDBCursorParent(mCursor);
+
+      if (!indexActor->SendPIndexedDBCursorConstructor(cursorActor, params)) {
         return Error;
       }
+
+      openCursorResponse = cursorActor;
     }
 
     response = openCursorResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 
@@ -2428,7 +2432,7 @@ CountHelper::SendResponseToChildProcess(nsresult aResultCode)
     response = countResponse;
   }
 
-  if (!actor->SendResponse(response)) {
+  if (!actor->Send__delete__(actor, response)) {
     return Error;
   }
 

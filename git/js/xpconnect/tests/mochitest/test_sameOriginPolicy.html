@@ -14,6 +14,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=801576
 <p id="display"></p>
 <div id="content" style="display: none">
 </div>
+<iframe id="ifr" onload="go();" src="file_empty.html"></iframe>
 <pre id="test">
 <script type="application/javascript">
 
@@ -54,7 +55,7 @@ function isCrossOriginWritable(obj, prop) {
   if (obj == "Window")
     return prop == 'location';
   if (obj == "Location")
-    return prop == 'href';
+    return prop == 'hash' || prop == 'href';
 }
 
 // NB: we don't want to succeed with writes, so we only check them when it should be denied.
@@ -72,7 +73,7 @@ function testAll(sameOrigin) {
   for (var prop in window.location) {
     check(win.location, prop, sameOrigin || isCrossOriginReadable('Location', prop));
     if (!sameOrigin && !isCrossOriginWritable('Location', prop))
-      check(win.location, prop, false, /* write = */ true);
+      check(win, prop, false, /* write = */ true);
   }
 }
 
@@ -92,6 +93,5 @@ function go() {
 
 </script>
 </pre>
-<iframe id="ifr" onload="go();" src="file_empty.html"></iframe>
 </body>
 </html>

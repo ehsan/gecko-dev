@@ -28,10 +28,6 @@
 #include <windows.h>
 #include <objbase.h>
 
-#ifdef CAIRO_HAS_D2D_SURFACE
-#include <dxgi.h>
-#endif
-
 class nsIMemoryMultiReporter;
 
 // Utility to get a Windows HDC from a thebes context,
@@ -151,20 +147,7 @@ public:
      */
     void VerifyD2DDevice(bool aAttemptForce);
 
-#ifdef CAIRO_HAS_D2D_SURFACE
-    HRESULT CreateDevice(nsRefPtr<IDXGIAdapter1> &adapter1, int featureLevelIndex);
-#endif
-
     HDC GetScreenDC() { return mScreenDC; }
-
-    /**
-     * Return the resolution scaling factor to convert between "logical" or
-     * "screen" pixels as used by Windows (dependent on the DPI scaling option
-     * in the Display control panel) and actual device pixels.
-     */
-    double GetDPIScale() {
-        return GetDeviceCaps(mScreenDC, LOGPIXELSY) / 96.0;
-    }
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
@@ -257,6 +240,7 @@ public:
 #endif
 
     static bool IsOptimus();
+    static bool IsRunningInWindows8Metro();
 
 protected:
     RenderMode mRenderMode;

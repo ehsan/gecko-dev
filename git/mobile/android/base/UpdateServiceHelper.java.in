@@ -26,7 +26,6 @@ public class UpdateServiceHelper {
     public static final String ACTION_UNREGISTER_FOR_UPDATES = "@ANDROID_PACKAGE_NAME@.UNREGISTER_FOR_UPDATES";
     public static final String ACTION_CHECK_FOR_UPDATE = "@ANDROID_PACKAGE_NAME@.CHECK_FOR_UPDATE";
     public static final String ACTION_CHECK_UPDATE_RESULT = "@ANDROID_PACKAGE_NAME@.CHECK_UPDATE_RESULT";
-    public static final String ACTION_DOWNLOAD_UPDATE = "@ANDROID_PACKAGE_NAME@.DOWNLOAD_UPDATE";
     public static final String ACTION_APPLY_UPDATE = "@ANDROID_PACKAGE_NAME@.APPLY_UPDATE";
 
     // Flags for ACTION_CHECK_FOR_UPDATE
@@ -61,14 +60,6 @@ public class UpdateServiceHelper {
     private static final String UPDATE_URL = "https://aus2.mozilla.org/update/4/@MOZ_APP_BASENAME@/@MOZ_APP_VERSION@/%BUILDID%/Android_@MOZ_APP_ABI@/%LOCALE%/@MOZ_UPDATE_CHANNEL@/%OS_VERSION%/default/default/@MOZ_APP_VERSION@/update.xml";  
 #endif
     
-    public enum CheckUpdateResult {
-        // Keep these in sync with mobile/android/chrome/content/about.xhtml
-        NOT_AVAILABLE,
-        AVAILABLE,
-        DOWNLOADING,
-        DOWNLOADED
-    }
-
     public static URL getUpdateUrl(Context context, boolean force) {
         PackageManager pm = context.getPackageManager();
 

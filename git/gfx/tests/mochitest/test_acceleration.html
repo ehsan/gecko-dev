@@ -33,13 +33,8 @@ var acceleratedWindows = 0;
 while (windows.hasMoreElements()) {
   windowutils = windows.getNext().QueryInterface(Ci.nsIInterfaceRequestor)
                                  .getInterface(Ci.nsIDOMWindowUtils);
-  try {
-    if (windowutils.layerManagerType != "Basic") {
-      acceleratedWindows++;
-    }
-  } catch (e) {
-    // The window may not have a layer manager, in which case we get an error.
-    // Don't count it as an accelerated window.
+  if (windowutils.layerManagerType != "Basic") {
+    acceleratedWindows++;
   }
 }
 

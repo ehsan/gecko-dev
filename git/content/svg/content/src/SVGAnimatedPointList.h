@@ -10,14 +10,11 @@
 #include "nsISMILAttr.h"
 #include "SVGPointList.h"
 
+class nsISMILAnimationElement;
 class nsSMILValue;
 class nsSVGElement;
 
 namespace mozilla {
-
-namespace dom {
-class SVGAnimationElement;
-}
 
 /**
  * Class SVGAnimatedPointList
@@ -114,7 +111,7 @@ private:
 
     // nsISMILAttr methods
     virtual nsresult ValueFromString(const nsAString& aStr,
-                                     const dom::SVGAnimationElement* aSrcElement,
+                                     const nsISMILAnimationElement* aSrcElement,
                                      nsSMILValue& aValue,
                                      bool& aPreventCachingOfSandwich) const;
     virtual nsSMILValue GetBaseValue() const;

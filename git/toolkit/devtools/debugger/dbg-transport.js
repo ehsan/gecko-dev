@@ -5,7 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 "use strict";
-Components.utils.import("resource://gre/modules/NetUtil.jsm");
+Cu.import("resource://gre/modules/NetUtil.jsm");
 
 /**
  * An adapter that handles data transfers between the debugger client and
@@ -14,7 +14,7 @@ Components.utils.import("resource://gre/modules/NetUtil.jsm");
  *
  * @param aInput nsIInputStream
  *        The input stream.
- * @param aOutput nsIAsyncOutputStream
+ * @param aOutput nsIOutputStream
  *        The output stream.
  *
  * Given a DebuggerTransport instance dt:
@@ -39,7 +39,7 @@ Components.utils.import("resource://gre/modules/NetUtil.jsm");
  * ([length]:[packet]). The contents of the JSON packet are specified in
  * the Remote Debugging Protocol specification.
  */
-this.DebuggerTransport = function DebuggerTransport(aInput, aOutput)
+function DebuggerTransport(aInput, aOutput)
 {
   this._input = aInput;
   this._output = aOutput;
@@ -123,11 +123,7 @@ DebuggerTransport.prototype = {
                                                         aStream.available());
       while (this._processIncoming()) {};
     } catch(e) {
-      let msg = "Unexpected error reading from debugging connection: " + e + " - " + e.stack;
-      if (Cu.reportError) {
-        Cu.reportError(msg);
-      }
-      dump(msg + "\n");
+      dumpn("Unexpected error reading from debugging connection: " + e + " - " + e.stack);
       this.close();
       return;
     }
@@ -162,11 +158,7 @@ DebuggerTransport.prototype = {
       packet = this._converter.ConvertToUnicode(packet);
       var parsed = JSON.parse(packet);
     } catch(e) {
-      let msg = "Error parsing incoming packet: " + packet + " (" + e + " - " + e.stack + ")";
-      if (Cu.reportError) {
-        Cu.reportError(msg);
-      }
-      dump(msg + "\n");
+      dumpn("Error parsing incoming packet: " + packet + " (" + e + " - " + e.stack + ")");
       return true;
     }
 
@@ -177,11 +169,7 @@ DebuggerTransport.prototype = {
         self.hooks.onPacket(parsed);
       }}, 0);
     } catch(e) {
-      let msg = "Error handling incoming packet: " + e + " - " + e.stack;
-      if (Cu.reportError) {
-        Cu.reportError(msg);
-      }
-      dump(msg + "\n");
+      dumpn("Error handling incoming packet: " + e + " - " + e.stack);
       dumpn("Packet was: " + packet);
     }
 
@@ -214,22 +202,18 @@ LocalDebuggerTransport.prototype = {
    */
   send: function LDT_send(aPacket) {
     try {
-      // Avoid the cost of JSON.stringify() when logging is disabled.
+      // Avoid the cost of uneval() when logging is disabled.
       if (wantLogging) {
-        dumpn("Got: " + JSON.stringify(aPacket, null, 2));
+        dumpn("Got: " + uneval(aPacket));
       }
       this._deepFreeze(aPacket);
-      let other = this.other;
+      let self = this;
       Services.tm.currentThread.dispatch({run: function() {
-        other.hooks.onPacket(aPacket);
+        self.other.hooks.onPacket(aPacket);
       }}, 0);
     } catch(e) {
-      let msg = "Error handling incoming packet: " + e + " - " + e.stack;
-      if (Cu.reportError) {
-        Cu.reportError(msg);
-      }
-      dump(msg + "\n");
-      dumpn("Packet was: " + aPacket + "\n");
+      dumpn("Error handling incoming packet: " + e + " - " + e.stack);
+      dumpn("Packet was: " + aPacket);
     }
   },
 

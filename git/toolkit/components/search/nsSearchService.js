@@ -8,24 +8,9 @@ const Cr = Components.results;
 
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
-Components.utils.import("resource://gre/modules/commonjs/sdk/core/promise.js");
-Components.utils.import("resource://gre/modules/Deprecated.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "DeferredTask",
   "resource://gre/modules/DeferredTask.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "OS",
-  "resource://gre/modules/osfile.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Task",
-  "resource://gre/modules/Task.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
-  "resource://gre/modules/TelemetryStopwatch.jsm");
-
-// A text encoder to UTF8, used whenever we commit the
-// engine metadata to disk.
-XPCOMUtils.defineLazyGetter(this, "gEncoder",
-                            function() {
-                              return new TextEncoder();
-                            });
 
 const PERMS_FILE      = 0644;
 const PERMS_DIRECTORY = 0755;
@@ -71,11 +56,6 @@ const SEARCH_SERVICE_TOPIC       = "browser-search-service";
  * Sent whenever metadata is fully written to disk.
  */
 const SEARCH_SERVICE_METADATA_WRITTEN  = "write-metadata-to-disk-complete";
-
-/**
- * Sent whenever the cache is fully written to disk.
- */
-const SEARCH_SERVICE_CACHE_WRITTEN  = "write-cache-to-disk-complete";
 
 const SEARCH_TYPE_MOZSEARCH      = Ci.nsISearchEngine.TYPE_MOZSEARCH;
 const SEARCH_TYPE_OPENSEARCH     = Ci.nsISearchEngine.TYPE_OPENSEARCH;
@@ -207,19 +187,19 @@ function isUsefulLine(aLine) {
   return !(/^\s*($|#)/i.test(aLine));
 }
 
-this.__defineGetter__("FileUtils", function() {
+__defineGetter__("FileUtils", function() {
   delete this.FileUtils;
   Components.utils.import("resource://gre/modules/FileUtils.jsm");
   return FileUtils;
 });
 
-this.__defineGetter__("NetUtil", function() {
+__defineGetter__("NetUtil", function() {
   delete this.NetUtil;
   Components.utils.import("resource://gre/modules/NetUtil.jsm");
   return NetUtil;
 });
 
-this.__defineGetter__("gChromeReg", function() {
+__defineGetter__("gChromeReg", function() {
   delete this.gChromeReg;
   return this.gChromeReg = Cc["@mozilla.org/chrome/chrome-registry;1"].
                            getService(Ci.nsIChromeRegistry);
@@ -286,71 +266,6 @@ function FAIL(message, resultCode) {
 }
 
 /**
- * Utilities for dealing with promises and Task.jsm
- */
-const TaskUtils = {
-  /**
-   * Add logging to a promise.
-   *
-   * @param {Promise} promise
-   * @return {Promise} A promise behaving as |promise|, but with additional
-   * logging in case of uncaught error.
-   */
-  captureErrors: function captureErrors(promise) {
-    return promise.then(
-      null,
-      function onError(reason) {
-        LOG("Uncaught asynchronous error: " + reason + " at\n" + reason.stack);
-        throw reason;
-      }
-    );
-  },
-  /**
-   * Spawn a new Task from a generator.
-   *
-   * This function behaves as |Task.spawn|, with the exception that it
-   * adds logging in case of uncaught error. For more information, see
-   * the documentation of |Task.jsm|.
-   *
-   * @param {generator} gen Some generator.
-   * @return {Promise} A promise built from |gen|, with the same semantics
-   * as |Task.spawn(gen)|.
-   */
-  spawn: function spawn(gen) {
-    return this.captureErrors(Task.spawn(gen));
-  },
-  /**
-   * Execute a mozIStorage statement asynchronously, wrapping the
-   * result in a promise.
-   *
-   * @param {mozIStorageStaement} statement A statement to be executed
-   * asynchronously. The semantics are the same as these of |statement.execute|.
-   * @param {function*} onResult A callback, called for each successive result.
-   *
-   * @return {Promise} A promise, resolved successfully if |statement.execute|
-   * succeeds, rejected if it fails.
-   */
-  executeStatement: function executeStatement(statement, onResult) {
-    let deferred = Promise.defer();
-    onResult = onResult || function() {};
-    statement.executeAsync({
-      handleResult: onResult,
-      handleError: function handleError(aError) {
-        deferred.reject(aError);
-      },
-      handleCompletion: function handleCompletion(aReason) {
-        statement.finalize();
-        // Note that, in case of error, deferred.reject(aError)
-        // has already been called by this point, so the call to
-        // |deferred.resolve| is simply ignored.
-        deferred.resolve(aReason);
-      }
-    });
-    return deferred.promise;
-  }
-};
-
-/**
  * Ensures an assertion is met before continuing. Should be used to indicate
  * fatal errors.
  * @param  assertion
@@ -386,6 +301,8 @@ loadListener.prototype = {
         aIID.equals(Ci.nsIStreamListener)     ||
         aIID.equals(Ci.nsIChannelEventSink)   ||
         aIID.equals(Ci.nsIInterfaceRequestor) ||
+        aIID.equals(Ci.nsIBadCertListener2)   ||
+        aIID.equals(Ci.nsISSLErrorListener)   ||
         // See FIXME comment below
         aIID.equals(Ci.nsIHttpEventSink)      ||
         aIID.equals(Ci.nsIProgressEventSink)  ||
@@ -440,6 +357,16 @@ loadListener.prototype = {
   // nsIInterfaceRequestor
   getInterface: function SRCH_load_GI(aIID) {
     return this.QueryInterface(aIID);
+  },
+
+  // nsIBadCertListener2
+  notifyCertProblem: function SRCH_certProblem(socketInfo, status, targetSite) {
+    return true;
+  },
+
+  // nsISSLErrorListener
+  notifySSLError: function SRCH_SSLError(socketInfo, error, targetSite) {
+    return true;
   },
 
   // FIXME: bug 253127
@@ -768,13 +695,12 @@ function  parseJsonFromStream(aInputStream) {
 /**
  * Simple object representing a name/value pair.
  */
-function QueryParameter(aName, aValue, aPurpose) {
+function QueryParameter(aName, aValue) {
   if (!aName || (aValue == null))
     FAIL("missing name or value for QueryParameter!");
 
   this.name = aName;
   this.value = aValue;
-  this.purpose = aPurpose;
 }
 
 /**
@@ -800,21 +726,13 @@ function ParamSubstitution(aParamValue, aSearchTerms, aEngine) {
     distributionID = Services.prefs.getCharPref(BROWSER_SEARCH_PREF + "distributionID");
   }
   catch (ex) { }
-  var official = MOZ_OFFICIAL;
-  try {
-    if (Services.prefs.getBoolPref(BROWSER_SEARCH_PREF + "official"))
-      official = "official";
-    else
-      official = "unofficial";
-  }
-  catch (ex) { }
 
   // Custom search parameters. These are only available to default search
   // engines.
   if (aEngine._isDefault) {
     value = value.replace(MOZ_PARAM_LOCALE, getLocale());
     value = value.replace(MOZ_PARAM_DIST_ID, distributionID);
-    value = value.replace(MOZ_PARAM_OFFICIAL, official);
+    value = value.replace(MOZ_PARAM_OFFICIAL, MOZ_OFFICIAL);
   }
 
   // Insert the OpenSearch parameters we're confident about
@@ -890,33 +808,23 @@ function EngineURL(aType, aMethod, aTemplate) {
 }
 EngineURL.prototype = {
 
-  addParam: function SRCH_EURL_addParam(aName, aValue, aPurpose) {
-    this.params.push(new QueryParameter(aName, aValue, aPurpose));
+  addParam: function SRCH_EURL_addParam(aName, aValue) {
+    this.params.push(new QueryParameter(aName, aValue));
   },
 
-  // Note: This method requires that aObj has a unique name or the previous MozParams entry with
-  // that name will be overwritten.
   _addMozParam: function SRCH_EURL__addMozParam(aObj) {
     aObj.mozparam = true;
     this.mozparams[aObj.name] = aObj;
   },
 
-  getSubmission: function SRCH_EURL_getSubmission(aSearchTerms, aEngine, aPurpose) {
+  getSubmission: function SRCH_EURL_getSubmission(aSearchTerms, aEngine) {
     var url = ParamSubstitution(this.template, aSearchTerms, aEngine);
-    // Default to an empty string if the purpose is not provided so that default purpose params
-    // (purpose="") work consistently rather than having to define "null" and "" purposes.
-    var purpose = aPurpose || "";
 
     // Create an application/x-www-form-urlencoded representation of our params
     // (name=value&name=value&name=value)
     var dataString = "";
     for (var i = 0; i < this.params.length; ++i) {
       var param = this.params[i];
-
-      // If this parameter has a purpose, only add it if the purpose matches
-      if (param.purpose !== undefined && param.purpose != purpose)
-        continue;
-
       var value = ParamSubstitution(param.value, aSearchTerms, aEngine);
 
       dataString += (i > 0 ? "&" : "") + param.name + "=" + value;
@@ -970,7 +878,7 @@ EngineURL.prototype = {
         this._addMozParam(param);
       }
       else
-        this.addParam(param.name, param.value, param.purpose);
+        this.addParam(param.name, param.value);
     }
   },
 
@@ -1074,9 +982,6 @@ Engine.prototype = {
   // The engine's alias (can be null). Initialized to |undefined| to indicate
   // not-initialized-from-engineMetadataService.
   _alias: undefined,
-  // A distribution-unique identifier for the engine. Either null or set
-  // when loaded. See getter.
-  _identifier: undefined,
   // The data describing the engine. Is either an array of bytes, for Sherlock
   // files, or an XML document element, for XML plugins.
   _data: null,
@@ -1632,13 +1537,6 @@ Engine.prototype = {
                  this._isDefault) {
         var value;
         switch (param.getAttribute("condition")) {
-          case "purpose":
-            url.addParam(param.getAttribute("name"),
-                         param.getAttribute("value"),
-                         param.getAttribute("purpose"));
-            // _addMozParam is not needed here since it can be serialized fine without. _addMozParam
-            // also requires a unique "name" which is not normally the case when @purpose is used.
-            break;
           case "defaultEngine":
             // If this engine was the default search engine, use the true value
             if (this._isDefaultEngine())
@@ -2271,38 +2169,6 @@ Engine.prototype = {
     notifyAction(this, SEARCH_ENGINE_CHANGED);
   },
 
-  /**
-   * Return the built-in identifier of app-provided engines.
-   *
-   * Note that this identifier is substantially similar to _id, with the
-   * following exceptions:
-   *
-   * * There is no trailing file extension.
-   * * There is no [app] prefix.
-   *
-   * @return a string identifier, or null.
-   */
-  get identifier() {
-    if (this._identifier !== undefined) {
-      return this._identifier;
-    }
-
-    // No identifier if If the engine isn't app-provided
-    if (!this._isInAppDir && !this._isInJAR) {
-      return this._identifier = null;
-    }
-
-    let leaf = this._getLeafName();
-    ENSURE_WARN(leaf, "identifier: app-provided engine has no leafName");
-
-    // Strip file extension.
-    let ext = leaf.lastIndexOf(".");
-    if (ext == -1) {
-      return this._identifier = leaf;
-    }
-    return this._identifier = leaf.substring(0, ext);
-  },
-
   get description() {
     return this._description;
   },
@@ -2346,29 +2212,12 @@ Engine.prototype = {
     return "";
   },
 
-  /**
-   * @return the leaf name of the filename or URI of this plugin,
-   *         or null if no file or URI is known.
-   */
-  _getLeafName: function () {
-    if (this._file) {
-      return this._file.leafName;
-    }
-    if (this._uri && this._uri instanceof Ci.nsIURL) {
-      return this._uri.fileName;
-    }
-    return null;
-  },
-    
   // The file that the plugin is loaded from is a unique identifier for it.  We
   // use this as the identifier to store data in the sqlite database
   __id: null,
   get _id() {
-    if (this.__id) {
+    if (this.__id)
       return this.__id;
-    }
-
-    let leafName = this._getLeafName();
 
     // Treat engines loaded from JARs the same way we treat app shipped
     // engines.
@@ -2380,25 +2229,28 @@ Engine.prototype = {
     // different engine name. People using the JAR functionality should be
     // careful not to do that!
     if (this._isInAppDir || this._isInJAR) {
-      // App dir and JAR engines should always have leafNames
-      ENSURE_WARN(leafName, "_id: no leafName for appDir or JAR engine",
-                  Cr.NS_ERROR_UNEXPECTED);
+      let leafName;
+      if (this._file)
+        leafName = this._file.leafName;
+      else {
+        // If we've reached this point, we must be loaded from a JAR, which
+        // also means we should have a URL.
+        ENSURE_WARN(this._isInJAR && (this._uri instanceof Ci.nsIURL),
+                    "_id: not inJAR, or no URI", Cr.NS_ERROR_UNEXPECTED);
+        leafName = this._uri.fileName;
+      }
+
       return this.__id = "[app]/" + leafName;
     }
 
-    if (this._isInProfile) {
-      ENSURE_WARN(leafName, "_id: no leafName for profile engine",
-                  Cr.NS_ERROR_UNEXPECTED);
-      return this.__id = "[profile]/" + leafName;
-    }
+    ENSURE_WARN(this._file, "_id: no _file!", Cr.NS_ERROR_UNEXPECTED);
 
-    // If the engine isn't a JAR engine, it should have a file.
-    ENSURE_WARN(this._file, "_id: no _file for non-JAR engine",
-                Cr.NS_ERROR_UNEXPECTED);
+    if (this._isInProfile)
+      return this.__id = "[profile]/" + this._file.leafName;
 
     // We're not in the profile or appdir, so this must be an extension-shipped
     // plugin. Use the full filename.
-    return this.__id = this._file.path;
+    return this.__id  = this._file.path;
   },
 
   get _installLocation() {
@@ -2491,7 +2343,7 @@ Engine.prototype = {
   },
 
   // from nsISearchEngine
-  getSubmission: function SRCH_ENG_getSubmission(aData, aResponseType, aPurpose) {
+  getSubmission: function SRCH_ENG_getSubmission(aData, aResponseType) {
     if (!aResponseType)
       aResponseType = URLTYPE_SEARCH_HTML;
 
@@ -2505,7 +2357,7 @@ Engine.prototype = {
       return new Submission(makeURI(this.searchForm), null);
     }
 
-    LOG("getSubmission: In data: \"" + aData + "\"; Purpose: \"" + aPurpose + "\"");
+    LOG("getSubmission: In data: \"" + aData + "\"");
     var textToSubURI = Cc["@mozilla.org/intl/texttosuburi;1"].
                        getService(Ci.nsITextToSubURI);
     var data = "";
@@ -2516,7 +2368,7 @@ Engine.prototype = {
       data = textToSubURI.ConvertAndEscape(DEFAULT_QUERY_CHARSET, aData);
     }
     LOG("getSubmission: Out data: \"" + data + "\"");
-    return url.getSubmission(data, this, aPurpose);
+    return url.getSubmission(data, this);
   },
 
   // from nsISearchEngine
@@ -2568,7 +2420,13 @@ function SearchService() {
   if (getBoolPref(BROWSER_SEARCH_PREF + "log", false))
     LOG = DO_LOG;
 
-  this._initObservers = Promise.defer();
+  /**
+   * If initialization is not complete yet, an array of
+   * |nsIBrowserSearchInitObserver| expecting the result of the end of
+   * initialization.
+   * Once initialization is complete, |null|.
+   */
+  this._initObservers = [];
 }
 
 SearchService.prototype = {
@@ -2584,9 +2442,15 @@ SearchService.prototype = {
   _ensureInitialized: function  SRCH_SVC__ensureInitialized() {
     if (gInitialized) {
       if (!Components.isSuccessCode(this._initRV)) {
-        LOG("_ensureInitialized: failure");
         throw this._initRV;
       }
+
+      // Ensure that the following calls to |_ensureInitialized| can be inlined
+      // to a noop. Note that we could do this at the end of both |_init| and
+      // |_syncInit|, to save one call to a non-empty |_ensureInitialized|, but
+      // this would complicate code.
+      delete this._ensureInitialized;
+      this._ensureInitialized = function SRCH_SVC__ensureInitializedDone() { };
       return;
     }
 
@@ -2600,7 +2464,6 @@ SearchService.prototype = {
     //Components.utils.reportError(warning);
     LOG(warning);
 
-    engineMetadataService.syncInit();
     this._syncInit();
     if (!Components.isSuccessCode(this._initRV)) {
       throw this._initRV;
@@ -2608,11 +2471,11 @@ SearchService.prototype = {
   },
 
   // Synchronous implementation of the initializer.
-  // Used by |_ensureInitialized| as a fallback if initialization is not
+  // Used as by |_ensureInitialized| as a fallback if initialization is not
   // complete. In this implementation, it is also used by |init|.
   _syncInit: function SRCH_SVC__syncInit() {
     try {
-      this._syncLoadEngines();
+      this._loadEngines();
     } catch (ex) {
       this._initRV = Cr.NS_ERROR_FAILURE;
       LOG("_syncInit: failure loading engines: " + ex);
@@ -2620,8 +2483,16 @@ SearchService.prototype = {
     this._addObservers();
 
     gInitialized = true;
-    this._initObservers.resolve(this._initRV);
-    LOG("_syncInit: Completed _syncInit");
+
+    // Notify all of the init observers
+    this._initObservers.forEach(function (observer) {
+      try {
+        observer.onInitComplete(this._initRV);
+      } catch (x) {
+        LOG("nsIBrowserInitObserver failed with error " + x);
+      }
+    }, this);
+    this._initObservers = null;
   },
 
   _engines: { },
@@ -2640,7 +2511,6 @@ SearchService.prototype = {
     if (!getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true))
       return;
 
-    TelemetryStopwatch.start("SEARCH_SERVICE_BUILD_CACHE_MS");
     let cache = {};
     let locale = getLocale();
     let buildID = Services.appinfo.platformBuildID;
@@ -2701,28 +2571,31 @@ SearchService.prototype = {
       cache.directories[cacheKey].engines.push(engine._serializeToJSON(true));
     }
 
+    let ostream = Cc["@mozilla.org/network/file-output-stream;1"].
+                  createInstance(Ci.nsIFileOutputStream);
+    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
+                    createInstance(Ci.nsIScriptableUnicodeConverter);
+    let cacheFile = getDir(NS_APP_USER_PROFILE_50_DIR);
+    cacheFile.append("search.json");
+
     try {
       LOG("_buildCache: Writing to cache file.");
-      let path = OS.Path.join(OS.Constants.Path.profileDir, "search.json");
-      let data = gEncoder.encode(JSON.stringify(cache));
-      let promise = OS.File.writeAtomic(path, data, { tmpPath: path + ".tmp"});
+      ostream.init(cacheFile, (MODE_WRONLY | MODE_CREATE | MODE_TRUNCATE), PERMS_FILE, ostream.DEFER_OPEN);
+      converter.charset = "UTF-8";
+      let data = converter.convertToInputStream(JSON.stringify(cache));
 
-      promise.then(
-        function onSuccess() {
-          Services.obs.notifyObservers(null, SEARCH_SERVICE_TOPIC, SEARCH_SERVICE_CACHE_WRITTEN);
-        },
-        function onError(e) {
-          LOG("_buildCache: failure during writeAtomic: " + e);
-        }
-      );
+      // Write to the cache file asynchronously
+      NetUtil.asyncCopy(data, ostream, function(rv) {
+        if (!Components.isSuccessCode(rv))
+          LOG("_buildCache: failure during asyncCopy: " + rv);
+      });
     } catch (ex) {
       LOG("_buildCache: Could not write to cache file: " + ex);
     }
-    TelemetryStopwatch.finish("SEARCH_SERVICE_BUILD_CACHE_MS");
   },
 
-  _syncLoadEngines: function SRCH_SVC__syncLoadEngines() {
-    LOG("_syncLoadEngines: start");
+  _loadEngines: function SRCH_SVC__loadEngines() {
+    LOG("_loadEngines: start");
     // See if we have a cache file so we don't have to parse a bunch of XML.
     let cache = {};
     let cacheEnabled = getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true);
@@ -2754,8 +2627,8 @@ SearchService.prototype = {
               cache.directories[aDir.path].lastModifiedTime != aDir.lastModifiedTime);
     }
 
-    function notInCachePath(aPathToLoad)
-      cachePaths.indexOf(aPathToLoad.path) == -1;
+    function notInToLoad(aCachePath, aIndex)
+      aCachePath != toLoad[aIndex].path;
 
     let buildID = Services.appinfo.platformBuildID;
     let cachePaths = [path for (path in cache.directories)];
@@ -2765,7 +2638,7 @@ SearchService.prototype = {
                        cache.locale != getLocale() ||
                        cache.buildID != buildID ||
                        cachePaths.length != toLoad.length ||
-                       toLoad.some(notInCachePath) ||
+                       cachePaths.some(notInToLoad) ||
                        toLoad.some(modifiedDir);
 
     if (!cacheEnabled || rebuildCache) {
@@ -3291,40 +3164,26 @@ SearchService.prototype = {
 
   // nsIBrowserSearchService
   init: function SRCH_SVC_init(observer) {
-    let self = this;
-    if (!this._initStarted) {
-      TelemetryStopwatch.start("SEARCH_SERVICE_INIT_MS");
-      this._initStarted = true;
-      TaskUtils.spawn(function task() {
-        try {
-          yield engineMetadataService.init();
-          if (gInitialized) {
-            // No need to pursue asynchronous initialization,
-            // synchronous fallback had to be called and has finished.
-            return;
-          }
-          // Complete initialization. In the current implementation,
-          // this is done by calling the synchronous initializer.
-          // Future versions might introduce an actually synchronous
-          // implementation.
-          self._syncInit();
-          TelemetryStopwatch.finish("SEARCH_SERVICE_INIT_MS");
-        } catch (ex) {
-          self._initObservers.reject(ex);
-          TelemetryStopwatch.cancel("SEARCH_SERVICE_INIT_MS");
-        }
-      });
+    if (gInitialized) {
+      if (observer) {
+        executeSoon(function () {
+          observer.onInitComplete(this._initRV);
+        });
+      }
+      return;
     }
-    if (observer) {
-      TaskUtils.captureErrors(this._initObservers.promise.then(
-        function onSuccess() {
-          observer.onInitComplete(self._initRV);
-        },
-        function onError(aReason) {
-          Components.utils.reportError("Internal error while initializing SearchService: " + aReason);
-          observer.onInitComplete(Components.results.NS_ERROR_UNEXPECTED);
-        }
-      ));
+
+    if (observer)
+      this._initObservers.push(observer);
+
+    if (!this._initStarted) {
+      executeSoon((function () {
+        // Someone may have since called syncInit via ensureInitialized - if so,
+        // nothing to do here.
+        if (!gInitialized)
+          this._syncInit();
+      }).bind(this));
+      this._initStarted = true;
     }
   },
 
@@ -3709,184 +3568,48 @@ SearchService.prototype = {
 };
 
 var engineMetadataService = {
-  _jsonFile: OS.Path.join(OS.Constants.Path.profileDir, "search-metadata.json"),
-
   /**
-   * Possible values for |_initState|.
-   *
-   * We have two paths to perform initialization: a default asynchronous
-   * path and a fallback synchronous path that can interrupt the async
-   * path. For this reason, initialization is actually something of a
-   * finite state machine, represented with the following states:
-   *
-   * @enum
+   * @type {nsIFile|null} The file holding the metadata.
    */
-  _InitStates: {
-    NOT_STARTED: "NOT_STARTED"
-      /**Initialization has not started*/,
-    JSON_LOADING_ATTEMPTED: "JSON_LOADING_ATTEMPTED"
-      /**JSON file was loaded or does not exist*/,
-    FINISHED_SUCCESS: "FINISHED_SUCCESS"
-      /**Setup complete, with a success*/
+  get _jsonFile() {
+    delete this._jsonFile;
+    return this._jsonFile = FileUtils.getFile(NS_APP_USER_PROFILE_50_DIR,
+                                              ["search-metadata.json"]);
   },
 
   /**
-   * The latest step completed by initialization. One of |InitStates|
-   *
-   * @type {engineMetadataService._InitStates}
+   * Lazy getter for the file containing json data.
    */
-  _initState: null,
-
-  // A promise fulfilled once initialization is complete
-  _initializer: null,
-
-  /**
-   * Asynchronous initializer
-   *
-   * Note: In the current implementation, initialization never fails.
-   */
-  init: function epsInit() {
-    if (!this._initializer) {
-      // Launch asynchronous initialization
-      let initializer = this._initializer = Promise.defer();
-      TaskUtils.spawn((function task_init() {
-        LOG("metadata init: starting");
-        switch(this._initState) {
-          case engineMetadataService._InitStates.NOT_STARTED:
-            // 1. Load json file if it exists
-            try {
-              let contents = yield OS.File.read(this._jsonFile);
-              if (this._initState == engineMetadataService._InitStates.FINISHED_SUCCESS) {
-                // No need to pursue asynchronous initialization,
-                // synchronous fallback was called and has finished.
-                return;
-              }
-              this._store = JSON.parse(new TextDecoder().decode(contents));
-              this._initState = engineMetadataService._InitStates.FINISHED_SUCCESS;
-            } catch (ex) {
-              if (this._initState == engineMetadataService._InitStates.FINISHED_SUCCESS) {
-                // No need to pursue asynchronous initialization,
-                // synchronous fallback was called and has finished.
-                return;
-              }
-              if (ex.becauseNoSuchFile) {
-                // If the file does not exist, we need to continue initialization
-                this._initState = engineMetadataService._InitStates.JSON_LOADING_ATTEMPTED;
-              } else {
-                // Otherwise, we are done
-                LOG("metadata init: could not load JSON file " + ex);
-                this._store = {};
-                this._initState = engineMetadataService._InitStates.FINISHED_SUCCESS;
-                return;
-              }
-            }
-            // Fall through to the next state
-
-          case engineMetadataService._InitStates.JSON_LOADING_ATTEMPTED:
-              // 2. Otherwise, load db
-            try {
-              let store = yield this._asyncMigrateOldDB();
-              if (this._initState == engineMetadataService._InitStates.FINISHED_SUCCESS) {
-                // No need to pursue asynchronous initialization,
-                // synchronous fallback was called and has finished.
-                return;
-              }
-              if (!store) {
-                LOG("metadata init: No store to migrate to disk");
-                this._store = {};
-              } else {
-                // Commit the migrated store to disk immediately
-                LOG("metadata init: Committing the migrated store to disk");
-                this._store = store;
-                this._commit(store);
-              }
-            } catch (ex) {
-              if (this._initState == engineMetadataService._InitStates.FINISHED_SUCCESS) {
-                // No need to pursue asynchronous initialization,
-                // synchronous fallback was called and has finished.
-                return;
-              }
-              LOG("metadata init: Error migrating store, using an empty store: " + ex);
-              this._store = {};
-            }
-            this._initState = engineMetadataService._InitStates.FINISHED_SUCCESS;
-            break;
-
-          default:
-              throw new Error("Internal error: invalid state " + this._initState);
-          }}).bind(this)).then(
-
-        // 3. Inform any observers
-        function onSuccess() {
-          initializer.resolve();
-        },
-        function onError() {
-          initializer.reject();
-        }
-      );
-    }
-    return TaskUtils.captureErrors(this._initializer.promise);
+  get _store() {
+    delete this._store;
+    return this._store = this._loadStore();
   },
 
-  /**
-   * Synchronous implementation of initializer
-   *
-   * This initializer is able to pick wherever the async initializer
-   * is waiting. The asynchronous initializer is expected to stop
-   * if it detects that the synchronous initializer has completed
-   * initialization.
-   */
-  syncInit: function epsSyncInit() {
-    Deprecated.warning("Search service falling back to deprecated synchronous initializer.", "https://developer.mozilla.org/en-US/docs/XPCOM_Interface_Reference/nsIBrowserSearchService#async_warning");
-    LOG("metadata syncInit: starting");
-    switch(this._initState) {
-      case engineMetadataService._InitStates.NOT_STARTED:
-        let jsonFile = new FileUtils.File(this._jsonFile);
-        // 1. Load json file if it exists
-        if (jsonFile.exists()) {
-          try {
-            let uri = Services.io.newFileURI(jsonFile);
-            let stream = Services.io.newChannelFromURI(uri).open();
-            this._store = parseJsonFromStream(stream);
-          } catch (x) {
-            LOG("metadata syncInit: could not load JSON file " + x);
-            this._store = {};
-          }
-          this._initState = this._InitStates.FINISHED_SUCCESS;
-          break;
-        }
-        this._initState = this._InitStates.JSON_LOADING_ATTEMPTED;
-        // Fall through to the next state
+  // Perform loading the first time |_store| is accessed.
+  _loadStore: function() {
+    let jsonFile = this._jsonFile;
+    if (!jsonFile.exists()) {
+      LOG("loadStore: search-metadata.json does not exist");
 
-      case engineMetadataService._InitStates.JSON_LOADING_ATTEMPTED:
-        // 2. No json, attempt to migrate from a database
-        try {
-          let store = this._syncMigrateOldDB();
-          if (!store) {
-            LOG("metadata syncInit: No store to migrate to disk");
-            this._store = {};
-          } else {
-            // Commit the migrated store to disk immediately
-            LOG("metadata syncInit: Committing the migrated store to disk");
-            this._store = store;
-            this._commit(store);
-          }
-        } catch (ex) {
-          LOG("metadata syncInit: Error migrating store, using an empty store: " + ex);
-          this._store = {};
-        }
-        this._initState = engineMetadataService._InitStates.FINISHED_SUCCESS;
-        break;
+      // First check to see whether there's an existing SQLite DB to migrate
+      let store = this._migrateOldDB();
+      if (store) {
+        // Commit the migrated store to disk immediately
+        LOG("Committing the migrated store to disk");
+        this._commit(store);
+        return store;
+      }
 
-      default:
-        throw new Error("Internal error: invalid state " + this._initState);
+       // Migration failed, or this is a first-run - just use an empty store
+      return {};
     }
 
-    // 3. Inform any observers
-    if (this._initializer) {
-      this._initializer.resolve();
-    } else {
-      this._initializer = Promise.resolve();
+    LOG("loadStore: attempting to load store from JSON file");
+    try {
+      return parseJsonFromStream(NetUtil.newChannel(jsonFile).open());
+    } catch (x) {
+      LOG("loadStore failed to load file: "+x);
+      return {};
     }
   },
 
@@ -3966,86 +3689,44 @@ var engineMetadataService = {
     }
   },
 
-   _syncMigrateOldDB: function SRCH_SVC_EMS_migrate() {
-     LOG("SRCH_SVC_EMS_migrate start");
-     let sqliteFile = FileUtils.getFile(NS_APP_USER_PROFILE_50_DIR,
-                                        ["search.sqlite"]);
-     if (!sqliteFile.exists()) {
-       LOG("SRCH_SVC_EMS_migrate search.sqlite does not exist");
-       return null;
-     }
-     let store = {};
-     try {
-       LOG("SRCH_SVC_EMS_migrate Migrating data from SQL");
-       const sqliteDb = Services.storage.openDatabase(sqliteFile);
-       const statement = sqliteDb.createStatement("SELECT * from engine_data");
-       while (statement.executeStep()) {
-         let row = statement.row;
-         let engine = row.engineid;
-         let name   = row.name;
-         let value  = row.value;
-         if (!store[engine]) {
-           store[engine] = {};
-         }
+  /**
+   * Migrate search.sqlite
+   *
+   * Notes:
+   * - we do not remove search.sqlite after migration, so as to allow
+   * downgrading and forensics;
+   */
+  _migrateOldDB: function SRCH_SVC_EMS_migrate() {
+    LOG("SRCH_SVC_EMS_migrate start");
+    let sqliteFile = FileUtils.getFile(NS_APP_USER_PROFILE_50_DIR,
+                                       ["search.sqlite"]);
+    if (!sqliteFile.exists()) {
+      LOG("SRCH_SVC_EMS_migrate search.sqlite does not exist");
+      return null;
+    }
+    let store = {};
+    try {
+      LOG("SRCH_SVC_EMS_migrate Migrating data from SQL");
+      const sqliteDb = Services.storage.openDatabase(sqliteFile);
+      const statement = sqliteDb.createStatement("SELECT * from engine_data");
+      while (statement.executeStep()) {
+        let row = statement.row;
+        let engine = row.engineid;
+        let name   = row.name;
+        let value  = row.value;
+        if (!store[engine]) {
+          store[engine] = {};
+        }
         store[engine][name] = value;
       }
       statement.finalize();
       sqliteDb.close();
-     } catch (ex) {
-       LOG("SRCH_SVC_EMS_migrate failed: " + ex);
-       return null;
-     }
-     return store;
-   },
-
-  /**
-   * Migrate search.sqlite, asynchronously
-    *
-    * Notes:
-    * - we do not remove search.sqlite after migration, so as to allow
-    * downgrading and forensics;
-    */
-   _asyncMigrateOldDB: function SRCH_SVC_EMS_asyncMigrate() {
-     LOG("SRCH_SVC_EMS_asyncMigrate start");
-     return TaskUtils.spawn(function task() {
-       let sqliteFile = FileUtils.getFile(NS_APP_USER_PROFILE_50_DIR,
-           ["search.sqlite"]);
-       if (!(yield OS.File.exists(sqliteFile.path))) {
-         LOG("SRCH_SVC_EMS_migrate search.sqlite does not exist");
-         throw new Task.Result(); // Bail out
-       }
-       let store = {};
-       LOG("SRCH_SVC_EMS_migrate Migrating data from SQL");
-       const sqliteDb = Services.storage.openDatabase(sqliteFile);
-       const statement = sqliteDb.createStatement("SELECT * from engine_data");
-       try {
-         yield TaskUtils.executeStatement(
-           statement,
-           function onResult(aResultSet) {
-             while (true) {
-               let row = aResultSet.getNextRow();
-               if (!row) {
-                 break;
-               }
-               let engine = row.engineid;
-               let name   = row.name;
-               let value  = row.value;
-               if (!store[engine]) {
-                 store[engine] = {};
-               }
-               store[engine][name] = value;
-             }
-           }
-         );
-       } catch(ex) {
-         // If loading the db failed, ignore the db
-         throw new Task.Result(); // Bail out
-       } finally {
-         sqliteDb.asyncClose();
-       }
-       throw new Task.Result(store);
-     });
-   },
+    } catch (ex) {
+      LOG("SRCH_SVC_EMS_migrate failed: " + ex);
+      return null;
+    }
+    return store;
+  },
 
   /**
    * Commit changes to disk, asynchronously.
@@ -4060,6 +3741,7 @@ var engineMetadataService = {
    */
   _commit: function epsCommit(aStore) {
     LOG("epsCommit: start");
+
     let store = aStore || this._store;
     if (!store) {
       LOG("epsCommit: nothing to do");
@@ -4068,31 +3750,38 @@ var engineMetadataService = {
 
     if (!this._lazyWriter) {
       LOG("epsCommit: initializing lazy writer");
+      let jsonFile = this._jsonFile;
       function writeCommit() {
         LOG("epsWriteCommit: start");
-        let data = gEncoder.encode(JSON.stringify(store));
-        let path = engineMetadataService._jsonFile;
-        LOG("epsCommit path " + path);
-        let promise = OS.File.writeAtomic(path, data, { tmpPath: path + ".tmp" });
-        promise = promise.then(
-          function onSuccess() {
+        let ostream = FileUtils.
+          openSafeFileOutputStream(jsonFile,
+                                   MODE_WRONLY | MODE_CREATE | MODE_TRUNCATE);
+
+        // Obtain a converter to convert our data to a UTF-8 encoded input stream.
+        let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].
+          createInstance(Ci.nsIScriptableUnicodeConverter);
+        converter.charset = "UTF-8";
+
+        let callback = function(result) {
+          if (Components.isSuccessCode(result)) {
+            ostream.close();
             Services.obs.notifyObservers(null,
-              SEARCH_SERVICE_TOPIC,
-              SEARCH_SERVICE_METADATA_WRITTEN);
-            LOG("epsWriteCommit: done");
+                                         SEARCH_SERVICE_TOPIC,
+                                         SEARCH_SERVICE_METADATA_WRITTEN);
           }
-        );
-        TaskUtils.captureErrors(promise);
+          LOG("epsWriteCommit: done " + result);
+        };
+        // Asynchronously copy the data to the file.
+        let istream = converter.convertToInputStream(JSON.stringify(store));
+        NetUtil.asyncCopy(istream, ostream, callback);
       }
       this._lazyWriter = new DeferredTask(writeCommit, LAZY_SERIALIZE_DELAY);
     }
     LOG("epsCommit: (re)setting timer");
     this._lazyWriter.start();
   },
-  _lazyWriter: null
+  _lazyWriter: null,
 };
-
-engineMetadataService._initState = engineMetadataService._InitStates.NOT_STARTED;
 
 const SEARCH_UPDATE_LOG_PREFIX = "*** Search update: ";
 
@@ -4159,6 +3848,6 @@ var engineUpdateService = {
   }
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SearchService]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([SearchService]);
 
 #include ../../../toolkit/content/debug.js

@@ -1,5 +1,5 @@
 // Test timeout (seconds)
-var gTimeoutSeconds = 30;
+const TIMEOUT_SECONDS = 30;
 var gConfig;
 
 if (Cc === undefined) {
@@ -19,18 +19,13 @@ function testOnLoad() {
   window.removeEventListener("load", testOnLoad, false);
 
   gConfig = readConfig();
-  if (gConfig.testRoot == "browser" ||
-      gConfig.testRoot == "metro" ||
-      gConfig.testRoot == "webapprtChrome") {
+  if (gConfig.testRoot == "browser" || gConfig.testRoot == "webapprtChrome") {
     // Make sure to launch the test harness for the first opened window only
     var prefs = Services.prefs;
     if (prefs.prefHasUserValue("testing.browserTestHarness.running"))
       return;
 
     prefs.setBoolPref("testing.browserTestHarness.running", true);
-
-    if (prefs.prefHasUserValue("testing.browserTestHarness.timeout"))
-      gTimeoutSeconds = prefs.getIntPref("testing.browserTestHarness.timeout");
 
     var sstring = Cc["@mozilla.org/supports-string;1"].
                   createInstance(Ci.nsISupportsString);
@@ -92,15 +87,6 @@ Tester.prototype = {
   },
 
   start: function Tester_start() {
-    // Check whether this window is ready to run tests.
-    if (window.BrowserChromeTest) {
-      BrowserChromeTest.runWhenReady(this.actuallyStart.bind(this));
-      return;
-    }
-    this.actuallyStart();
-  },
-
-  actuallyStart: function Tester_actuallyStart() {
     //if testOnLoad was not called, then gConfig is not defined
     if (!gConfig)
       gConfig = readConfig();
@@ -110,11 +96,8 @@ Tester.prototype = {
     Services.obs.addObserver(this, "chrome-document-global-created", false);
     Services.obs.addObserver(this, "content-document-global-created", false);
     this._globalProperties = Object.keys(window);
-    this._globalPropertyWhitelist = [
-      "navigator", "constructor", "top",
-      "Application",
-      "__SS_tabsToRestore", "__SSi",
-      "webConsoleCommandController",
+    this._globalPropertyWhitelist = ["navigator", "constructor", "Application",
+      "__SS_tabsToRestore", "__SSi", "webConsoleCommandController",
     ];
 
     if (this.tests.length)
@@ -263,25 +246,11 @@ Tester.prototype = {
         }
       };
 
-      let winUtils = window.QueryInterface(Ci.nsIInterfaceRequestor)
-                           .getInterface(Ci.nsIDOMWindowUtils);
-      if (winUtils.isTestControllingRefreshes) {
-        this.currentTest.addResult(new testResult(false, "test left refresh driver under test control", "", false));
-        winUtils.restoreNormalRefresh();
-      }
-
       if (this.SimpleTest.isExpectingUncaughtException()) {
         this.currentTest.addResult(new testResult(false, "expectUncaughtException was called but no uncaught exception was detected!", "", false));
       }
 
       Object.keys(window).forEach(function (prop) {
-        if (parseInt(prop) == prop) {
-          // This is a string which when parsed as an integer and then
-          // stringified gives the original string.  As in, this is in fact a
-          // string representation of an integer, so an index into
-          // window.frames.  Skip those.
-          return;
-        }
         if (this._globalProperties.indexOf(prop) == -1) {
           this._globalProperties.push(prop);
           if (this._globalPropertyWhitelist.indexOf(prop) == -1)
@@ -426,14 +395,14 @@ Tester.prototype = {
             "Longer timeout required, waiting longer...  Remaining timeouts: " +
             self.currentTest.scope.__timeoutFactor);
           self.currentTest.scope.__waitTimer =
-            setTimeout(arguments.callee, gTimeoutSeconds * 1000);
+            setTimeout(arguments.callee, TIMEOUT_SECONDS * 1000);
           return;
         }
         self.currentTest.addResult(new testResult(false, "Test timed out", "", false));
         self.currentTest.timedOut = true;
         self.currentTest.scope.__waitTimer = null;
         self.nextTest();
-      }, gTimeoutSeconds * 1000);
+      }, TIMEOUT_SECONDS * 1000);
     }
   },
 

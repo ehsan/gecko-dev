@@ -10,20 +10,12 @@ typedef TestInterface? NullableTestInterface;
 
 interface TestExternalInterface;
 
-interface TestRenamedInterface {
+interface TestNonCastableInterface {
 };
 
 callback interface TestCallbackInterface {
   readonly attribute long foo;
-  attribute DOMString bar;
   void doSomething();
-  long doSomethingElse(DOMString arg, TestInterface otherArg);
-  void doSequenceLongArg(sequence<long> arg);
-  void doSequenceStringArg(sequence<DOMString> arg);
-};
-
-callback interface TestSingleOperationCallbackInterface {
-  TestInterface doSomething(short arg, sequence<double> anotherArg);
 };
 
 enum TestEnum {
@@ -33,53 +25,6 @@ enum TestEnum {
 
 callback TestCallback = void();
 [TreatNonCallableAsNull] callback TestTreatAsNullCallback = void();
-
-// Callback return value tests
-callback TestIntegerReturn = long();
-callback TestNullableIntegerReturn = long?();
-callback TestBooleanReturn = boolean();
-callback TestFloatReturn = float();
-callback TestStringReturn = DOMString(long arg);
-callback TestEnumReturn = TestEnum();
-callback TestInterfaceReturn = TestInterface();
-callback TestNullableInterfaceReturn = TestInterface?();
-callback TestExternalInterfaceReturn = TestExternalInterface();
-callback TestNullableExternalInterfaceReturn = TestExternalInterface?();
-callback TestCallbackInterfaceReturn = TestCallbackInterface();
-callback TestNullableCallbackInterfaceReturn = TestCallbackInterface?();
-callback TestCallbackReturn = TestCallback();
-callback TestNullableCallbackReturn = TestCallback?();
-callback TestObjectReturn = object();
-callback TestNullableObjectReturn = object?();
-callback TestTypedArrayReturn = ArrayBuffer();
-callback TestNullableTypedArrayReturn = ArrayBuffer?();
-callback TestSequenceReturn = sequence<boolean>();
-callback TestNullableSequenceReturn = sequence<boolean>?();
-// Callback argument tests
-callback TestIntegerArguments = sequence<long>(long arg1, long? arg2,
-                                               sequence<long> arg3,
-                                               sequence<long?>? arg4);
-callback TestInterfaceArguments = void(TestInterface arg1, TestInterface? arg2,
-                                       TestExternalInterface arg3,
-                                       TestExternalInterface? arg4,
-                                       TestCallbackInterface arg5,
-                                       TestCallbackInterface? arg6,
-                                       sequence<TestInterface> arg7,
-                                       sequence<TestInterface?>? arg8,
-                                       sequence<TestExternalInterface> arg9,
-                                       sequence<TestExternalInterface?>? arg10,
-                                       sequence<TestCallbackInterface> arg11,
-                                       sequence<TestCallbackInterface?>? arg12);
-callback TestStringEnumArguments = void(DOMString myString, DOMString? nullString,
-                                        TestEnum myEnum);
-callback TestObjectArguments = void(object anObj, object? anotherObj,
-                                    ArrayBuffer buf, ArrayBuffer? buf2);
-callback TestOptionalArguments = void(optional DOMString aString,
-                                      optional object something,
-                                      optional sequence<TestInterface> aSeq,
-                                      optional TestInterface? anInterface,
-                                      optional TestInterface anotherInterface,
-                                      optional long aLong);
 
 TestInterface implements ImplementedInterface;
 
@@ -91,10 +36,8 @@ interface OnlyForUseInConstructor {
  Constructor(DOMString str),
  Constructor(unsigned long num, boolean? boolArg),
  Constructor(TestInterface? iface),
- Constructor(long arg1, IndirectlyImplementedInterface iface),
- // Constructor(long arg1, long arg2, (TestInterface or OnlyForUseInConstructor) arg3),
- NamedConstructor=Test,
- NamedConstructor=Test(DOMString str)
+ Constructor(TestNonCastableInterface iface)
+ // , Constructor(long arg1, long arg2, (TestInterface or OnlyForUseInConstructor) arg3)
  ]
 interface TestInterface {
   // Integer types
@@ -107,7 +50,6 @@ interface TestInterface {
   void passOptionalByteWithDefault(optional byte arg = 0);
   void passNullableByte(byte? arg);
   void passOptionalNullableByte(optional byte? arg);
-  void passVariadicByte(byte... arg);
 
   readonly attribute short readonlyShort;
   attribute short writableShort;
@@ -158,40 +100,6 @@ interface TestInterface {
   void passOptionalUnsignedLongLong(optional unsigned long long arg);
   void passOptionalUnsignedLongLongWithDefault(optional unsigned long long arg = 17);
 
-  attribute float writableFloat;
-  attribute unrestricted float writableUnrestrictedFloat;
-  attribute float? writableNullableFloat;
-  attribute unrestricted float? writableNullableUnrestrictedFloat;
-  attribute double writableDouble;
-  attribute unrestricted double writableUnrestrictedDouble;
-  attribute double? writableNullableDouble;
-  attribute unrestricted double? writableNullableUnrestrictedDouble;
-  void passFloat(float arg1, unrestricted float arg2,
-                 float? arg3, unrestricted float? arg4,
-                 double arg5, unrestricted double arg6,
-                 double? arg7, unrestricted double? arg8,
-                 sequence<float> arg9, sequence<unrestricted float> arg10,
-                 sequence<float?> arg11, sequence<unrestricted float?> arg12,
-                 sequence<double> arg13, sequence<unrestricted double> arg14,
-                 sequence<double?> arg15, sequence<unrestricted double?> arg16);
-  [LenientFloat]
-  void passLenientFloat(float arg1, unrestricted float arg2,
-                        float? arg3, unrestricted float? arg4,
-                        double arg5, unrestricted double arg6,
-                        double? arg7, unrestricted double? arg8,
-                        sequence<float> arg9,
-                        sequence<unrestricted float> arg10,
-                        sequence<float?> arg11,
-                        sequence<unrestricted float?> arg12,
-                        sequence<double> arg13,
-                        sequence<unrestricted double> arg14,
-                        sequence<double?> arg15,
-                        sequence<unrestricted double?> arg16);
-  [LenientFloat]
-  attribute float lenientFloatAttr;
-  [LenientFloat]
-  attribute double lenientDoubleAttr;
-
   // Castable interface types
   // XXXbz add tests for throwing versions of all the castable interface stuff
   TestInterface receiveSelf();
@@ -225,21 +133,21 @@ interface TestInterface {
   sequence<TestNonWrapperCacheInterface?>? receiveNullableNonWrapperCacheInterfaceNullableSequence();
 
   // Non-castable interface types
-  IndirectlyImplementedInterface receiveOther();
-  IndirectlyImplementedInterface? receiveNullableOther();
-  IndirectlyImplementedInterface receiveWeakOther();
-  IndirectlyImplementedInterface? receiveWeakNullableOther();
-  // A verstion to test for casting to IndirectlyImplementedInterface&
-  void passOther(IndirectlyImplementedInterface arg);
+  TestNonCastableInterface receiveOther();
+  TestNonCastableInterface? receiveNullableOther();
+  TestNonCastableInterface receiveWeakOther();
+  TestNonCastableInterface? receiveWeakNullableOther();
+  // A verstion to test for casting to TestNonCastableInterface&
+  void passOther(TestNonCastableInterface arg);
   // A version we can use to test for the exact type passed in
-  void passOther2(IndirectlyImplementedInterface arg);
-  void passNullableOther(IndirectlyImplementedInterface? arg);
-  attribute IndirectlyImplementedInterface nonNullOther;
-  attribute IndirectlyImplementedInterface? nullableOther;
+  void passOther2(TestNonCastableInterface arg);
+  void passNullableOther(TestNonCastableInterface? arg);
+  attribute TestNonCastableInterface nonNullOther;
+  attribute TestNonCastableInterface? nullableOther;
   // Optional arguments
-  void passOptionalOther(optional IndirectlyImplementedInterface? arg);
-  void passOptionalNonNullOther(optional IndirectlyImplementedInterface arg);
-  void passOptionalOtherWithDefault(optional IndirectlyImplementedInterface? arg = null);
+  void passOptionalOther(optional TestNonCastableInterface? arg);
+  void passOptionalNonNullOther(optional TestNonCastableInterface arg);
+  void passOptionalOtherWithDefault(optional TestNonCastableInterface? arg = null);
 
   // External interface types
   TestExternalInterface receiveExternal();
@@ -307,17 +215,12 @@ interface TestInterface {
   void passOptionalNullableSequence(optional sequence<long>? arg);
   void passOptionalNullableSequenceWithDefaultValue(optional sequence<long>? arg = null);
   void passOptionalObjectSequence(optional sequence<TestInterface> arg);
-  void passExternalInterfaceSequence(sequence<TestExternalInterface> arg);
-  void passNullableExternalInterfaceSequence(sequence<TestExternalInterface?> arg);
 
   sequence<DOMString> receiveStringSequence();
   void passStringSequence(sequence<DOMString> arg);
 
   sequence<any> receiveAnySequence();
   sequence<any>? receiveNullableAnySequence();
-
-  void passSequenceOfSequences(sequence<sequence<long>> arg);
-  sequence<sequence<long>> receiveSequenceOfSequences();
 
   // Typed array types
   void passArrayBuffer(ArrayBuffer arg);
@@ -344,7 +247,6 @@ interface TestInterface {
   void passOptionalStringWithDefaultValue(optional DOMString arg = "abc");
   void passOptionalNullableString(optional DOMString? arg);
   void passOptionalNullableStringWithDefaultValue(optional DOMString? arg = null);
-  void passVariadicString(DOMString... arg);
 
   // Enumerated types
   void passEnum(TestEnum arg);
@@ -369,8 +271,6 @@ interface TestInterface {
   void passNullableTreatAsNullCallback(TestTreatAsNullCallback? arg);
   void passOptionalNullableTreatAsNullCallback(optional TestTreatAsNullCallback? arg);
   void passOptionalNullableTreatAsNullCallbackWithDefaultValue(optional TestTreatAsNullCallback? arg = null);
-  attribute TestTreatAsNullCallback treatAsNullCallback;
-  attribute TestTreatAsNullCallback? nullableTreatAsNullCallback;
 
   // Any types
   void passAny(any arg);
@@ -400,9 +300,7 @@ interface TestInterface {
   void passUnionWithArrayBuffer((ArrayBuffer or long) arg);
   void passUnionWithString((DOMString or object) arg);
   //void passUnionWithEnum((TestEnum or object) arg);
-  // Trying to use a callback in a union won't include the test
-  // headers, unfortunately, so won't compile.
-  //void passUnionWithCallback((TestCallback or long) arg);
+  void passUnionWithCallback((TestCallback or long) arg);
   void passUnionWithObject((object or long) arg);
   //void passUnionWithDict((Dict or long) arg);
 
@@ -421,7 +319,6 @@ interface TestInterface {
 
   void passDictContainingDict(optional DictContainingDict arg);
   void passDictContainingSequence(optional DictContainingSequence arg);
-  DictContainingSequence receiveDictContainingSequence();
 
   // EnforceRange/Clamp tests
   void dontEnforceRangeOrClamp(byte arg);
@@ -434,96 +331,15 @@ interface TestInterface {
   AnotherNameForTestInterface exerciseTypedefInterfaces2(NullableTestInterface arg);
   void exerciseTypedefInterfaces3(YetAnotherNameForTestInterface arg);
 
-  // Static methods and attributes
-  static attribute boolean staticAttribute;
-  static void staticMethod(boolean arg);
-  static void staticMethodWithContext(any arg);
-
-  // Overload resolution tests
-  //void overload1(DOMString... strs);
-  boolean overload1(TestInterface arg);
-  TestInterface overload1(DOMString strs, TestInterface arg);
-  void overload2(TestInterface arg);
-  void overload2(optional Dict arg);
-  void overload2(DOMString arg);
-  void overload3(TestInterface arg);
-  void overload3(TestCallback arg);
-  void overload3(DOMString arg);
-  void overload4(TestInterface arg);
-  void overload4(TestCallbackInterface arg);
-  void overload4(DOMString arg);
-
-  // Variadic handling
-  void passVariadicThirdArg(DOMString arg1, long arg2, TestInterface... arg3);
-
-  // Conditionally exposed methods/attributes
-  [Pref="abc.def"]
-  readonly attribute boolean prefable1;
-  [Pref="abc.def"]
-  readonly attribute boolean prefable2;
-  [Pref="ghi.jkl"]
-  readonly attribute boolean prefable3;
-  [Pref="ghi.jkl"]
-  readonly attribute boolean prefable4;
-  [Pref="abc.def"]
-  readonly attribute boolean prefable5;
-  [Pref="abc.def", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  readonly attribute boolean prefable6;
-  [Pref="abc.def", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  readonly attribute boolean prefable7;
-  [Pref="ghi.jkl", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  readonly attribute boolean prefable8;
-  [Pref="abc.def", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  readonly attribute boolean prefable9;
-  [Pref="abc.def"]
-  void prefable10();
-  [Pref="abc.def", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  void prefable11();
-  [Pref="abc.def", Func="TestFuncControlledMember"]
-  readonly attribute boolean prefable12;
-  [Pref="abc.def", Func="nsGenericHTMLElement::TouchEventsEnabled"]
-  void prefable13();
-  [Pref="abc.def", Func="TestFuncControlledMember"]
-  readonly attribute boolean prefable14;
-  [Func="TestFuncControlledMember"]
-  readonly attribute boolean prefable15;
-  [Func="TestFuncControlledMember"]
-  readonly attribute boolean prefable16;
-  [Pref="abc.def", Func="TestFuncControlledMember"]
-  void prefable17();
-  [Func="TestFuncControlledMember"]
-  void prefable18();
-  [Func="TestFuncControlledMember"]
-  void prefable19();
-
   // Miscellania
   [LenientThis] attribute long attrWithLenientThis;
-  [Unforgeable] readonly attribute long unforgeableAttr;
-  [Unforgeable, ChromeOnly] readonly attribute long unforgeableAttr2;
-  stringifier;
-  void passRenamedInterface(TestRenamedInterface arg);
-  [PutForwards=writableByte] readonly attribute TestInterface putForwardsAttr;
-  [PutForwards=writableByte, LenientThis] readonly attribute TestInterface putForwardsAttr2;
-  [PutForwards=writableByte, ChromeOnly] readonly attribute TestInterface putForwardsAttr3;
-  [Throws] void throwingMethod();
-  [Throws] attribute boolean throwingAttr;
-  [GetterThrows] attribute boolean throwingGetterAttr;
-  [SetterThrows] attribute boolean throwingSetterAttr;
-  legacycaller short(unsigned long arg1, TestInterface arg2);
 
-  // If you add things here, add them to TestExampleGen and TestJSImplGen as well
-};
-
-interface TestParentInterface {
-};
-
-interface TestChildInterface : TestParentInterface {
+  // If you add things here, add them to TestExampleGen as well
 };
 
 interface TestNonWrapperCacheInterface {
 };
 
-[NoInterfaceObject]
 interface ImplementedInterfaceParent {
   void implementedParentMethod();
   attribute boolean implementedParentProperty;
@@ -541,7 +357,6 @@ interface IndirectlyImplementedInterface {
   const long indirectlyImplementedConstant = 9;
 };
 
-[NoInterfaceObject]
 interface ImplementedInterface : ImplementedInterfaceParent {
   void implementedMethod();
   attribute boolean implementedProperty;
@@ -549,20 +364,15 @@ interface ImplementedInterface : ImplementedInterfaceParent {
   const long implementedConstant = 5;
 };
 
-[NoInterfaceObject]
 interface DiamondImplements {
   readonly attribute long diamondImplementedProperty;
 };
-[NoInterfaceObject]
 interface DiamondBranch1A {
 };
-[NoInterfaceObject]
 interface DiamondBranch1B {
 };
-[NoInterfaceObject]
 interface DiamondBranch2A : DiamondImplements {
 };
-[NoInterfaceObject]
 interface DiamondBranch2B : DiamondImplements {
 };
 TestInterface implements DiamondBranch1A;
@@ -583,12 +393,6 @@ dictionary Dict : ParentDict {
   TestEnum otherEnum = "b";
   DOMString otherStr = "def";
   DOMString? yetAnotherStr = null;
-  DOMString template;
-  object someObj;
-  boolean prototype;
-  object? anotherObj = null;
-  TestCallback? someCallback = null;
-  any someAny;
 };
 
 dictionary ParentDict : GrandparentDict {
@@ -603,11 +407,11 @@ dictionary DictContainingDict {
 
 dictionary DictContainingSequence {
   sequence<long> ourSequence;
-  sequence<TestInterface> ourSequence2;
 };
 
 interface TestIndexedGetterInterface {
-  getter long item(unsigned long idx);
+  getter long item(unsigned long index);
+  [Infallible]
   readonly attribute unsigned long length;
 };
 
@@ -615,33 +419,24 @@ interface TestNamedGetterInterface {
   getter DOMString (DOMString name);
 };
 
-interface TestIndexedGetterAndSetterAndNamedGetterInterface {
-  getter DOMString (DOMString myName);
-  getter long (unsigned long index);
-  setter creator void (unsigned long index, long arg);
-};
-
 interface TestIndexedAndNamedGetterInterface {
   getter long (unsigned long index);
   getter DOMString namedItem(DOMString name);
+  [Infallible]
   readonly attribute unsigned long length;
 };
 
 interface TestIndexedSetterInterface {
-  setter creator void setItem(unsigned long idx, DOMString item);
-  getter DOMString (unsigned long idx);
+  setter creator void setItem(unsigned long index, DOMString item);
 };
 
 interface TestNamedSetterInterface {
-  setter creator void (DOMString myName, TestIndexedSetterInterface item);
-  getter TestIndexedSetterInterface (DOMString name);
+  setter creator void (DOMString name, TestIndexedSetterInterface item);
 };
 
 interface TestIndexedAndNamedSetterInterface {
   setter creator void (unsigned long index, TestIndexedSetterInterface item);
-  getter TestIndexedSetterInterface (unsigned long index);
   setter creator void setNamedItem(DOMString name, TestIndexedSetterInterface item);
-  getter TestIndexedSetterInterface (DOMString name);
 };
 
 interface TestIndexedAndNamedGetterAndSetterInterface : TestIndexedSetterInterface {
@@ -649,40 +444,8 @@ interface TestIndexedAndNamedGetterAndSetterInterface : TestIndexedSetterInterfa
   getter DOMString namedItem(DOMString name);
   setter creator void (unsigned long index, long item);
   setter creator void (DOMString name, DOMString item);
+  [Infallible]
   stringifier DOMString ();
+  [Infallible]
   readonly attribute unsigned long length;
 };
-
-interface TestIndexedDeleterInterface {
-  deleter void delItem(unsigned long idx);
-  getter long (unsigned long index);
-};
-
-interface TestIndexedDeleterWithRetvalInterface {
-  deleter boolean delItem(unsigned long index);
-  getter long (unsigned long index);
-};
-
-interface TestNamedDeleterInterface {
-  deleter void (DOMString name);
-  getter long (DOMString name);
-};
-
-interface TestNamedDeleterWithRetvalInterface {
-  deleter boolean delNamedItem(DOMString name);
-  getter long (DOMString name);
-};
-
-interface TestIndexedAndNamedDeleterInterface {
-  deleter void (unsigned long index);
-  getter long (unsigned long index);
-  deleter void delNamedItem(DOMString name);
-  getter long (DOMString name);
-};
-
-interface TestCppKeywordNamedMethodsInterface {
-  boolean continue();
-  boolean delete();
-  long volatile();
-};
-

@@ -44,7 +44,6 @@ public:
   {
     dt->PrepareForDrawing(ctx);
     cairo_save(mCtx);
-    MOZ_ASSERT(cairo_status(mCtx) || dt->GetTransform() == GetTransform());
   }
 
   AutoPrepareForDrawing(DrawTargetCairo* dt, cairo_t* ctx, const Path* path)
@@ -52,21 +51,11 @@ public:
   {
     dt->PrepareForDrawing(ctx, path);
     cairo_save(mCtx);
-    MOZ_ASSERT(cairo_status(mCtx) || dt->GetTransform() == GetTransform());
   }
 
   ~AutoPrepareForDrawing() { cairo_restore(mCtx); }
 
 private:
-#ifdef DEBUG
-  Matrix GetTransform()
-  {
-    cairo_matrix_t mat;
-    cairo_get_matrix(mCtx, &mat);
-    return Matrix(mat.xx, mat.yx, mat.xy, mat.yy, mat.x0, mat.y0);
-  }
-#endif
-
   cairo_t* mCtx;
 };
 
@@ -173,15 +162,6 @@ GetCairoSurfaceForSourceSurface(SourceSurface *aSurface)
                                         data->GetSize().width,
                                         data->GetSize().height,
                                         data->Stride());
-
-  // In certain scenarios, requesting larger than 8k image fails.  Bug 803568
-  // covers the details of how to run into it, but the full detailed
-  // investigation hasn't been done to determine the underlying cause.  We
-  // will just handle the failure to allocate the surface to avoid a crash.
-  if (cairo_surface_status(surf)) {
-    return nullptr;
-  }
-
   cairo_surface_set_user_data(surf,
  				                      &surfaceDataKey,
  				                      data.forget().drop(),
@@ -285,6 +265,21 @@ GfxPatternToCairoPattern(const Pattern& aPattern, Float aAlpha)
   return pat;
 }
 
+/**
+ * Returns true iff the the given operator should affect areas of the
+ * destination where the source is transparent. Among other things, this
+ * implies that a fully transparent source would still affect the canvas.
+ */
+static bool
+OperatorAffectsUncoveredAreas(CompositionOp op)
+{
+  return op == OP_IN ||
+         op == OP_OUT ||
+         op == OP_DEST_IN ||
+         op == OP_DEST_ATOP ||
+         op == OP_DEST_OUT;
+}
+
 static bool
 NeedIntermediateSurface(const Pattern& aPattern, const DrawOptions& aOptions)
 {
@@ -379,18 +374,19 @@ DrawTargetCairo::DrawSurface(SourceSurface *aSurface,
 
   cairo_translate(mContext, aDest.X(), aDest.Y());
 
-  if (IsOperatorBoundByMask(aOptions.mCompositionOp)) {
-    cairo_new_path(mContext);
-    cairo_rectangle(mContext, 0, 0, aDest.Width(), aDest.Height());
-    cairo_clip(mContext);
-    cairo_set_source(mContext, pat);
-  } else {
+  if (OperatorAffectsUncoveredAreas(aOptions.mCompositionOp) ||
+      aOptions.mCompositionOp == OP_SOURCE) {
     cairo_push_group(mContext);
       cairo_new_path(mContext);
       cairo_rectangle(mContext, 0, 0, aDest.Width(), aDest.Height());
       cairo_set_source(mContext, pat);
       cairo_fill(mContext);
     cairo_pop_group_to_source(mContext);
+  } else {
+    cairo_new_path(mContext);
+    cairo_rectangle(mContext, 0, 0, aDest.Width(), aDest.Height());
+    cairo_clip(mContext);
+    cairo_set_source(mContext, pat);
   }
 
   cairo_set_operator(mContext, GfxOpToCairoOp(aOptions.mCompositionOp));
@@ -440,22 +436,14 @@ DrawTargetCairo::DrawSurfaceWithShadow(SourceSurface *aSurface,
 
   WillChange();
   ClearSurfaceForUnboundedSource(aOperator);
-
+  
   cairo_save(mContext);
   cairo_set_operator(mContext, GfxOpToCairoOp(aOperator));
   cairo_identity_matrix(mContext);
   cairo_translate(mContext, aDest.x, aDest.y);
 
-  if (IsOperatorBoundByMask(aOperator)){
-    cairo_set_source_rgba(mContext, aColor.r, aColor.g, aColor.b, aColor.a);
-    cairo_mask_surface(mContext, blursurf, aOffset.x, aOffset.y);
-
-    // Now that the shadow has been drawn, we can draw the surface on top.
-    cairo_set_source_surface(mContext, surf, 0, 0);
-    cairo_new_path(mContext);
-    cairo_rectangle(mContext, 0, 0, width, height);
-    cairo_fill(mContext);
-  } else {
+  if (OperatorAffectsUncoveredAreas(aOperator) ||
+      aOperator == OP_SOURCE){
     cairo_push_group(mContext);
       cairo_set_source_rgba(mContext, aColor.r, aColor.g, aColor.b, aColor.a);
       cairo_mask_surface(mContext, blursurf, aOffset.x, aOffset.y);
@@ -467,6 +455,15 @@ DrawTargetCairo::DrawSurfaceWithShadow(SourceSurface *aSurface,
       cairo_fill(mContext);
     cairo_pop_group_to_source(mContext);
     cairo_paint(mContext);
+  } else {
+    cairo_set_source_rgba(mContext, aColor.r, aColor.g, aColor.b, aColor.a);
+    cairo_mask_surface(mContext, blursurf, aOffset.x, aOffset.y);
+
+    // Now that the shadow has been drawn, we can draw the surface on top.
+    cairo_set_source_surface(mContext, surf, 0, 0);
+    cairo_new_path(mContext);
+    cairo_rectangle(mContext, 0, 0, width, height);
+    cairo_fill(mContext);
   }
 
   cairo_restore(mContext);
@@ -486,7 +483,7 @@ DrawTargetCairo::DrawPattern(const Pattern& aPattern,
   cairo_set_source(mContext, pat);
 
   if (NeedIntermediateSurface(aPattern, aOptions) ||
-      !IsOperatorBoundByMask(aOptions.mCompositionOp)) {
+      OperatorAffectsUncoveredAreas(aOptions.mCompositionOp)) {
     cairo_push_group_with_content(mContext, CAIRO_CONTENT_COLOR_ALPHA);
 
     ClearSurfaceForUnboundedSource(aOptions.mCompositionOp);
@@ -755,13 +752,6 @@ CopyDataToCairoSurface(cairo_surface_t* aSurface,
                        int32_t aPixelWidth)
 {
   unsigned char* surfData = cairo_image_surface_get_data(aSurface);
-  // In certain scenarios, requesting larger than 8k image fails.  Bug 803568
-  // covers the details of how to run into it, but the full detailed
-  // investigation hasn't been done to determine the underlying cause.  We
-  // will just handle the failure to allocate the surface to avoid a crash.
-  if (!surfData) {
-    return;
-  }
   for (int32_t y = 0; y < aSize.height; ++y) {
     memcpy(surfData + y * aSize.width * aPixelWidth,
            aData + y * aStride,
@@ -779,16 +769,8 @@ DrawTargetCairo::CreateSourceSurfaceFromData(unsigned char *aData,
   cairo_surface_t* surf = cairo_image_surface_create(GfxFormatToCairoFormat(aFormat),
                                                      aSize.width,
                                                      aSize.height);
-  // In certain scenarios, requesting larger than 8k image fails.  Bug 803568
-  // covers the details of how to run into it, but the full detailed
-  // investigation hasn't been done to determine the underlying cause.  We
-  // will just handle the failure to allocate the surface to avoid a crash.
-  if (cairo_surface_status(surf)) {
-    return nullptr;
-  }
-
   CopyDataToCairoSurface(surf, aData, aSize, aStride, BytesPerPixel(aFormat));
-
+    
   RefPtr<SourceSurfaceCairo> source_surf = new SourceSurfaceCairo(surf, aSize, aFormat);
   cairo_surface_destroy(surf);
 

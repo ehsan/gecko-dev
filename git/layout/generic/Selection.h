@@ -19,6 +19,7 @@ class nsAutoScrollTimer;
 class nsIContentIterator;
 class nsIFrame;
 struct SelectionDetails;
+class nsSelectionIterator;
 
 struct RangeData
 {
@@ -51,9 +52,8 @@ public:
   NS_DECL_NSISELECTIONPRIVATE
 
   // utility methods for scrolling the selection into view
-  nsPresContext* GetPresContext() const;
-  nsIPresShell* GetPresShell() const;
-  nsFrameSelection* GetFrameSelection() const { return mFrameSelection; }
+  nsresult      GetPresContext(nsPresContext **aPresContext);
+  nsresult      GetPresShell(nsIPresShell **aPresShell);
   // Returns a rect containing the selection region, and frame that that
   // position is relative to. For SELECTION_ANCHOR_REGION or
   // SELECTION_FOCUS_REGION the rect is a zero-width rectangle. For
@@ -142,6 +142,7 @@ public:
   nsresult     NotifySelectionListeners();
 
 private:
+  friend class ::nsSelectionIterator;
 
   class ScrollSelectionIntoViewEvent;
   friend class ScrollSelectionIntoViewEvent;
@@ -211,6 +212,7 @@ private:
 
   nsRefPtr<nsRange> mAnchorFocusRange;
   nsRefPtr<nsFrameSelection> mFrameSelection;
+  nsWeakPtr mPresShellWeak;
   nsRefPtr<nsAutoScrollTimer> mAutoScrollTimer;
   nsCOMArray<nsISelectionListener> mSelectionListeners;
   nsRevocableEventPtr<ScrollSelectionIntoViewEvent> mScrollEvent;
@@ -220,5 +222,31 @@ private:
 };
 
 } // namespace mozilla
+
+class nsSelectionIterator : public nsIBidirectionalEnumerator
+{
+public:
+/*BEGIN nsIEnumerator interfaces
+see the nsIEnumerator for more details*/
+
+  NS_DECL_ISUPPORTS
+
+  NS_DECL_NSIENUMERATOR
+
+  NS_DECL_NSIBIDIRECTIONALENUMERATOR
+
+/*END nsIEnumerator interfaces*/
+/*BEGIN Helper Methods*/
+  nsRange* CurrentItem();
+/*END Helper Methods*/
+
+  nsSelectionIterator(mozilla::Selection*);
+  virtual ~nsSelectionIterator();
+
+private:
+  int32_t             mIndex;
+  mozilla::Selection* mDomSelection;
+};
+
 
 #endif // mozilla_Selection_h__

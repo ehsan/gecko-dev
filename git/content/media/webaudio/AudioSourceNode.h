@@ -4,8 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef AudioSourceNode_h_
-#define AudioSourceNode_h_
+#pragma once
 
 #include "AudioNode.h"
 
@@ -19,14 +18,17 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  virtual uint32_t NumberOfInputs() const MOZ_FINAL MOZ_OVERRIDE
+  virtual uint32_t MaxNumberOfInputs() const MOZ_FINAL MOZ_OVERRIDE
   {
     return 0;
   }
+  virtual uint32_t MaxNumberOfOutputs() const MOZ_FINAL MOZ_OVERRIDE
+  {
+    return 1;
+  }
+
 };
 
 }
 }
-
-#endif
 

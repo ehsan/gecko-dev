@@ -15,9 +15,10 @@ const FRAME_UPDATE = 0x02;
 const FRAME_COMPLETE = 0x04;
 const LOAD_COMPLETE = 0x08;
 const DECODE_COMPLETE = 0x10;
+const ALL_BITS = SIZE_AVAILABLE | FRAME_COMPLETE | DECODE_COMPLETE | LOAD_COMPLETE;
 
-// An implementation of imgIScriptedNotificationObserver with the ability to
-// call specified functions on onStartRequest and onStopRequest.
+// An implementation of imgIDecoderObserver with the ability to call specified
+// functions on onStartRequest and onStopRequest.
 function ImageListener(start_callback, stop_callback)
 {
   this.sizeAvailable = function onSizeAvailable(aRequest)
@@ -45,11 +46,9 @@ function ImageListener(start_callback, stop_callback)
   {
     do_check_false(this.synchronous);
 
-    try {
-      aRequest.requestDecode();
-    } catch (e) {
-      do_print("requestDecode threw " + e);
-    }
+    // We have to cancel the request when we're done with it to break any
+    // reference loops!
+    aRequest.cancelAndForgetObserver(0);
 
     this.state |= LOAD_COMPLETE;
 

@@ -69,9 +69,10 @@
 !endif
 
 ; When including WinVer.nsh check if ___WINVER__NSH___ is defined to prevent
-; loading the file a second time.
+; loading the file a second time. NSIS versions prior to 2.21 didn't include
+; WinVer.nsh so include it with the /NOFATAL option.
 !ifndef ___WINVER__NSH___
-  !include WinVer.nsh
+  !include /NONFATAL WinVer.nsh
 !endif
 
 !include x64.nsh
@@ -82,12 +83,6 @@
 !define SHORTCUTS_LOG "shortcuts_log.ini"
 !define TO_BE_DELETED "to_be_deleted"
 
-; !define SHCNF_DWORD     0x0003
-; !define SHCNF_FLUSH     0x1000
-!define SHCNF_DWORDFLUSH  0x1003
-!ifndef SHCNE_ASSOCCHANGED
-  !define SHCNE_ASSOCCHANGED 0x08000000
-!endif
 
 ################################################################################
 # Macros for debugging
@@ -1505,7 +1500,6 @@
       WriteRegStr SHCTX "$R3\$R5\DefaultIcon" "" "$R7"
 
       ; Main command handler for the app
-      WriteRegStr SHCTX "$R3\$R5\shell" "" "open"
       WriteRegStr SHCTX "$R3\$R5\shell\open\command" "" "$R6"
 
       ; Drop support for DDE (bug 491947), and remove old dde entries if
@@ -5032,13 +5026,6 @@
       IfFileExists "$INSTDIR\${FileMainEXE}" +2 +1
       Quit ; Nothing initialized so no need to call OnEndCommon
 
-!ifmacrodef InitHashAppModelId
-      ; setup the application model id registration value
-      !ifdef AppName
-      ${InitHashAppModelId} "$INSTDIR" "Software\Mozilla\${AppName}\TaskBarIDs"
-      !endif
-!endif
-
       ; Prevents breaking apps that don't use SetBrandNameVars
       !ifdef SetBrandNameVars
         ${SetBrandNameVars} "$INSTDIR\distribution\setup.ini"
@@ -5152,7 +5139,7 @@
 
       finish:
       ${UnloadUAC}
-      System::Call "shell32::SHChangeNotify(i ${SHCNE_ASSOCCHANGED}, i 0, i 0, i 0)"
+      System::Call "shell32::SHChangeNotify(i 0x08000000, i 0, i 0, i 0)"
       Quit ; Nothing initialized so no need to call OnEndCommon
 
       continue:
@@ -7000,21 +6987,32 @@
 
       ${If} ${AtLeastWin7}
         ${${_MOZFUNC_UN}GetLongPath} "$R9" $R9
-        ; Always create a new AppUserModelID and overwrite the existing one
-        ; for the current installation path.
-        CityHash::GetCityHash64 "$R9"
-        Pop $AppUserModelID
-        ${If} $AppUserModelID == "error"
-          GoTo end
-        ${EndIf}
         ClearErrors
-        WriteRegStr HKLM "$R8" "$R9" "$AppUserModelID"
+        ReadRegStr $R7 HKLM "$R8" "$R9"
         ${If} ${Errors}
           ClearErrors
-          WriteRegStr HKCU "$R8" "$R9" "$AppUserModelID"
+          ReadRegStr $R7 HKCU "$R8" "$R9"
           ${If} ${Errors}
-            StrCpy $AppUserModelID "error"
+            ; If it doesn't exist, create a new one and store it
+            CityHash::GetCityHash64 "$R9"
+            Pop $AppUserModelID
+            ${If} $AppUserModelID == "error"
+              GoTo end
+            ${EndIf}
+            ClearErrors
+            WriteRegStr HKLM "$R8" "$R9" "$AppUserModelID"
+            ${If} ${Errors}
+              ClearErrors
+              WriteRegStr HKCU "$R8" "$R9" "$AppUserModelID"
+              ${If} ${Errors}
+                StrCpy $AppUserModelID "error"
+              ${EndIf}
+            ${EndIf}
+          ${Else}
+            StrCpy $AppUserModelID $R7
           ${EndIf}
+        ${Else}
+          StrCpy $AppUserModelID $R7
         ${EndIf}
       ${EndIf}
 
@@ -7070,8 +7068,6 @@
 
 ################################################################################
 # Helpers for the new user interface
-
-!define MAXDWORD 0xffffffff
 
 !define DT_WORDBREAK 0x0010
 !define DT_SINGLELINE 0x0020
@@ -7470,47 +7466,6 @@
     !define _MOZFUNC_UN
     !verbose pop
   !endif
-!macroend
-
-/**
- * Gets the elapsed time in seconds between two values in milliseconds stored as
- * an int64. The caller will typically get the millisecond values using
- * GetTickCount with a long return value as follows.
- * System::Call "kernel32::GetTickCount()l .s"
- * Pop $varname
- *
- * _START_TICK_COUNT    
- * _FINISH_TICK_COUNT   
- * _RES_ELAPSED_SECONDS return value - elapsed time between _START_TICK_COUNT
- *                      and _FINISH_TICK_COUNT in seconds.
- */
-!macro GetSecondsElapsedCall _START_TICK_COUNT _FINISH_TICK_COUNT _RES_ELAPSED_SECONDS
-  Push "${_START_TICK_COUNT}"
-  Push "${_FINISH_TICK_COUNT}"
-  ${CallArtificialFunction} GetSecondsElapsed_
-  Pop ${_RES_ELAPSED_SECONDS}
-!macroend
-
-!define GetSecondsElapsed "!insertmacro GetSecondsElapsedCall"
-!define un.GetSecondsElapsed "!insertmacro GetSecondsElapsedCall"
-
-!macro GetSecondsElapsed_
-  Exch $0 ; finish tick count
-  Exch 1
-  Exch $1 ; start tick count
-
-  System::Int64Op $0 - $1
-  Pop $0
-  ; Discard the top bits of the int64 by bitmasking with MAXDWORD
-  System::Int64Op $0 & ${MAXDWORD}
-  Pop $0
-
-  ; Convert from milliseconds to seconds
-  System::Int64Op $0 / 1000
-  Pop $0
-
-  Pop $1
-  Exch $0 ; return elapsed seconds
 !macroend
 
 !ifdef MOZ_METRO

@@ -8,17 +8,24 @@ import inspect
 import logging
 from optparse import OptionParser
 import os
+import types
 import unittest
 import socket
 import sys
 import time
-import traceback
 import platform
-import moznetwork
+import weakref
 import xml.dom.minidom as dom
 
-from manifestparser import TestManifest
-from mozhttpd import MozHttpd
+try:
+    from manifestparser import TestManifest
+    from mozhttpd import iface, MozHttpd
+except ImportError:
+    print "manifestparser or mozhttpd not found!  Please install mozbase:\n"
+    print "\tgit clone git://github.com/mozilla/mozbase.git"
+    print "\tpython setup_development.py\n"
+    import sys
+    sys.exit(1)
 
 from marionette import Marionette
 from marionette_test import MarionetteJSTestCase, MarionetteTestCase
@@ -40,7 +47,12 @@ class MarionetteTestResult(unittest._TextTestResult):
         self.tests_passed.append(test)
 
     def getInfo(self, test):
-        return test.test_name
+        if hasattr(test, 'jsFile'):
+            return os.path.basename(test.jsFile)
+        else:
+            return '%s.py:%s.%s' % (test.__class__.__module__,
+                                    test.__class__.__name__,
+                                    test._testMethodName)
 
     def getDescription(self, test):
         doc_first_line = test.shortDescription()
@@ -55,19 +67,9 @@ class MarionetteTestResult(unittest._TextTestResult):
     def printLogs(self, test):
         for testcase in test._tests:
             if hasattr(testcase, 'loglines') and testcase.loglines:
-                # Don't dump loglines to the console if they only contain
-                # TEST-START and TEST-END.
-                skip_log = True
-                for line in testcase.loglines:
-                    str_line = ' '.join(line)
-                    if not 'TEST-END' in str_line and not 'TEST-START' in str_line:
-                        skip_log = False
-                        break
-                if skip_log:
-                    return
                 self.stream.writeln('START LOG:')
                 for line in testcase.loglines:
-                    self.stream.writeln(' '.join(line).encode('ascii', 'replace'))
+                    self.stream.writeln(' '.join(line))
                 self.stream.writeln('END LOG:')
 
     def getPerfData(self, test):
@@ -81,16 +83,12 @@ class MarionetteTestResult(unittest._TextTestResult):
     def printErrorList(self, flavour, errors):
         for test, err in errors:
             self.stream.writeln(self.separator1)
-            self.stream.writeln("%s: %s" % (flavour, self.getDescription(test)))
+            self.stream.writeln("%s: %s" % (flavour,self.getDescription(test)))
             self.stream.writeln(self.separator2)
             errlines = err.strip().split('\n')
             for line in errlines[0:-1]:
                 self.stream.writeln("%s" % line)
-            if "TEST-UNEXPECTED-FAIL" in errlines[-1]:
-                self.stream.writeln(errlines[-1])
-            else:
-                self.stream.writeln("TEST-UNEXPECTED-FAIL | %s | %s" %
-                                    (self.getInfo(test), errlines[-1]))
+            self.stream.writeln("TEST-UNEXPECTED-FAIL : %s" % errlines[-1])
 
     def stopTest(self, *args, **kwargs):
         unittest._TextTestResult.stopTest(self, *args, **kwargs)
@@ -187,8 +185,7 @@ class MarionetteTestRunner(object):
                  es_server=None, rest_server=None, logger=None,
                  testgroup="marionette", noWindow=False, logcat_dir=None,
                  xml_output=None, repeat=0, perf=False, perfserv=None,
-                 gecko_path=None, testvars=None, tree=None, device=None,
-                 symbols_path=None):
+                 gecko_path=None, testvars=None):
         self.address = address
         self.emulator = emulator
         self.emulatorBinary = emulatorBinary
@@ -214,12 +211,9 @@ class MarionetteTestRunner(object):
         self.perf = perf
         self.perfserv = perfserv
         self.gecko_path = gecko_path
-        self.testvars = {}
-        self.tree = tree
-        self.device = device
-        self.symbols_path = symbols_path
+        self.testvars = None
 
-        if testvars:
+        if testvars is not None:
             if not os.path.exists(testvars):
                 raise Exception('--testvars file does not exist')
 
@@ -243,7 +237,6 @@ class MarionetteTestRunner(object):
                 os.mkdir(self.logcat_dir)
 
         # for XML output
-        self.testvars['xml_output'] = self.xml_output
         self.results = []
 
     def reset_test_stats(self):
@@ -254,7 +247,7 @@ class MarionetteTestRunner(object):
         self.perfrequest = None
 
     def start_httpd(self):
-        host = moznetwork.get_ip()
+        host = iface.get_lan_ip()
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind(("",0))
         port = s.getsockname()[1]
@@ -280,21 +273,18 @@ class MarionetteTestRunner(object):
         elif self.address:
             host, port = self.address.split(':')
             if self.emulator:
-                self.marionette = Marionette.getMarionetteOrExit(
-                                             host=host, port=int(port),
+                self.marionette = Marionette(host=host, port=int(port),
                                              connectToRunningEmulator=True,
                                              homedir=self.homedir,
                                              baseurl=self.baseurl,
                                              logcat_dir=self.logcat_dir,
-                                             gecko_path=self.gecko_path,
-                                             symbols_path=self.symbols_path)
+                                             gecko_path=self.gecko_path)
             else:
                 self.marionette = Marionette(host=host,
                                              port=int(port),
                                              baseurl=self.baseurl)
         elif self.emulator:
-            self.marionette = Marionette.getMarionetteOrExit(
-                                         emulator=self.emulator,
+            self.marionette = Marionette(emulator=self.emulator,
                                          emulatorBinary=self.emulatorBinary,
                                          emulatorImg=self.emulatorImg,
                                          emulator_res=self.emulator_res,
@@ -302,8 +292,7 @@ class MarionetteTestRunner(object):
                                          baseurl=self.baseurl,
                                          noWindow=self.noWindow,
                                          logcat_dir=self.logcat_dir,
-                                         gecko_path=self.gecko_path,
-                                         symbols_path=self.symbols_path)
+                                         gecko_path=self.gecko_path)
         else:
             raise Exception("must specify binary, address or emulator")
 
@@ -331,7 +320,7 @@ class MarionetteTestRunner(object):
             logfile = logfile)
 
         testgroup.set_primary_product(
-            tree = self.tree,
+            tree = 'b2g',
             buildtype = 'opt',
             revision = self.revision)
 
@@ -360,11 +349,6 @@ class MarionetteTestRunner(object):
         self.logger.info('passed: %d' % self.passed)
         self.logger.info('failed: %d' % self.failed)
         self.logger.info('todo: %d' % self.todo)
-        try:
-            self.marionette.check_for_crash()
-        except:
-            traceback.print_exc()
-
         self.elapsedtime = datetime.utcnow() - starttime
         if self.autolog:
             self.post_to_autolog(self.elapsedtime)
@@ -376,9 +360,6 @@ class MarionetteTestRunner(object):
                 print e
 
         if self.xml_output:
-            xml_dir = os.path.dirname(os.path.abspath(self.xml_output))
-            if not os.path.exists(xml_dir):
-                os.makedirs(xml_dir)
             with open(self.xml_output, 'w') as f:
                 f.write(self.generate_xml(self.results))
 
@@ -414,7 +395,7 @@ class MarionetteTestRunner(object):
         suite = unittest.TestSuite()
 
         if file_ext == '.ini':
-            testargs = {}
+            testargs = { 'skip': 'false' }
             if testtype is not None:
                 testtypes = testtype.replace('+', ' +').replace('-', ' -').split()
                 for atype in testtypes:
@@ -452,9 +433,9 @@ class MarionetteTestRunner(object):
                              id=os.getenv('BUILD_ID'),
                              test_date=int(time.time()))
 
-            manifest_tests = manifest.active_tests(disabled=False)
+            manifest_tests = manifest.get(**testargs)
 
-            for i in manifest.get(tests=manifest_tests, **testargs):
+            for i in manifest_tests:
                 self.run_test(i["path"], testtype)
                 if self.marionette.check_for_crash():
                     return
@@ -498,70 +479,92 @@ class MarionetteTestRunner(object):
 
     def generate_xml(self, results_list):
 
-        def _extract_xml(test, text='', result='passed'):
+        def _extract_xml(test, text='', result='Pass'):
             cls_name = test.__class__.__name__
 
-            testcase = doc.createElement('testcase')
-            testcase.setAttribute('classname', cls_name)
-            testcase.setAttribute('name', unicode(test).split()[0])
-            testcase.setAttribute('time', str(test.duration))
-            testsuite.appendChild(testcase)
+            # if the test class is not already created, create it
+            if cls_name not in classes:
+                cls = doc.createElement('class')
+                cls.setAttribute('name', cls_name)
+                assembly.appendChild(cls)
+                classes[cls_name] = cls
 
-            if result in ['failure', 'error', 'skipped']:
-                f = doc.createElement(result)
-                f.setAttribute('message', 'test %s' % result)
-                f.appendChild(doc.createTextNode(text))
-                testcase.appendChild(f)
+            t = doc.createElement('test')
+            t.setAttribute('name', unicode(test).split()[0])
+            t.setAttribute('result', result)
+
+            if result == 'Fail':
+                f = doc.createElement('failure')
+                st = doc.createElement('stack-trace')
+                st.appendChild(doc.createTextNode(text))
+
+                f.appendChild(st)
+                t.appendChild(f)
+
+            elif result == 'Skip':
+                r = doc.createElement('reason')
+                msg = doc.createElement('message')
+                msg.appendChild(doc.createTextNode(text))
+
+                r.appendChild(msg)
+                t.appendChild(f)
+
+            cls = classes[cls_name]
+            cls.appendChild(t)
 
         doc = dom.Document()
 
-        testsuite = doc.createElement('testsuite')
-        testsuite.setAttribute('name', 'Marionette')
-        testsuite.setAttribute('time', str(self.elapsedtime.total_seconds()))
-        testsuite.setAttribute('tests', str(sum([results.testsRun for
-                                                 results in results_list])))
+        assembly = doc.createElement('assembly')
+        assembly.setAttribute('name', 'Tests')
+        assembly.setAttribute('time', str(self.elapsedtime))
+        assembly.setAttribute('total', str(sum([results.testsRun for
+                                                    results in results_list])))
+        assembly.setAttribute('passed', str(sum([results.passed for
+                                                     results in results_list])))
 
         def failed_count(results):
-            count = len(results.failures)
+            count = len(results.failures) + len(results.errors)
             if hasattr(results, 'unexpectedSuccesses'):
                 count += len(results.unexpectedSuccesses)
             return count
 
-        testsuite.setAttribute('failures', str(sum([failed_count(results)
-                                               for results in results_list])))
-        testsuite.setAttribute('errors', str(sum([len(results.errors)
-                                             for results in results_list])))
+        assembly.setAttribute('failed', str(sum([failed_count(results)
+                                                 for results in results_list])))
         if hasattr(results, 'skipped'):
-            testsuite.setAttribute('skips', str(sum([len(results.skipped) +
-                                                     len(results.expectedFailures)
-                                                     for results in results_list])))
+            assembly.setAttribute('skipped', str(sum([len(results.skipped) +
+                                                      len(results.expectedFailures)
+                                                      for results in results_list])))
 
         for results in results_list:
+            classes = {} # str -> xml class element
 
             for tup in results.errors:
-                _extract_xml(*tup, result='error')
+                _extract_xml(*tup, result='Fail')
 
             for tup in results.failures:
-                _extract_xml(*tup, result='failure')
+                _extract_xml(*tup, result='Fail')
 
             if hasattr(results, 'unexpectedSuccesses'):
                 for test in results.unexpectedSuccesses:
                     # unexpectedSuccesses is a list of Testcases only, no tuples
-                    _extract_xml(test, text='TEST-UNEXPECTED-PASS', result='failure')
+                    _extract_xml(test, text='TEST-UNEXPECTED-PASS', result='Fail')
 
             if hasattr(results, 'skipped'):
                 for tup in results.skipped:
-                    _extract_xml(*tup, result='skipped')
+                    _extract_xml(*tup, result='Skip')
 
             if hasattr(results, 'expectedFailures'):
                 for tup in results.expectedFailures:
-                    _extract_xml(*tup, result='skipped')
+                    _extract_xml(*tup, result='Skip')
 
             for test in results.tests_passed:
                 _extract_xml(test)
 
-        doc.appendChild(testsuite)
-        return doc.toprettyxml(encoding='utf-8')
+            for cls in classes.itervalues():
+                assembly.appendChild(cls)
+
+        doc.appendChild(assembly)
+        return doc.toxml(encoding='utf-8')
 
 
 def parse_options():
@@ -594,7 +597,7 @@ def parse_options():
                       help = "Use a specific image file instead of a fresh one")
     parser.add_option('--emulator-res',
                       action = 'store', dest = 'emulator_res',
-                      default = None, type= 'str',
+                      default = '480x800', type= 'str',
                       help = 'Set a custom resolution for the emulator. '
                       'Example: "480x800"')
     parser.add_option("--no-window",
@@ -606,8 +609,6 @@ def parse_options():
                       help='directory to store logcat dump files')
     parser.add_option('--address', dest='address', action='store',
                       help='host:port of running Gecko instance to connect to')
-    parser.add_option('--device', dest='device', action='store',
-                      help='serial ID of a device to use for adb / fastboot')
     parser.add_option('--type', dest='type', action='store',
                       default='browser+b2g',
                       help = "The type of test to run, can be a combination "
@@ -642,14 +643,7 @@ def parse_options():
                       'installed on the device or emulator')
     parser.add_option('--testvars', dest='testvars', action='store',
                       default=None,
-                      help='path to a JSON file with any test data required')
-    parser.add_option('--tree', dest='tree', action='store',
-                      default='b2g',
-                      help='the tree that the revsion parameter refers to')
-    parser.add_option('--symbols-path', dest='symbols_path', action='store',
-                      default=None,
-                      help='absolute path to directory containing breakpad '
-                      'symbols, or the URL of a zip file containing symbols')
+                     help='path to a JSON file with any test data required')
 
     options, tests = parser.parse_args()
 
@@ -671,12 +665,11 @@ def parse_options():
 
     # check for valid resolution string, strip whitespaces
     try:
-        if options.emulator_res:
-            dims = options.emulator_res.split('x')
-            assert len(dims) == 2
-            width = str(int(dims[0]))
-            height = str(int(dims[1]))
-            options.emulator_res = 'x'.join([width, height])
+        dims = options.emulator_res.split('x')
+        assert len(dims) == 2
+        width = str(int(dims[0]))
+        height = str(int(dims[1]))
+        options.emulator_res = 'x'.join([width, height])
     except:
         raise ValueError('Invalid emulator resolution format. '
                          'Should be like "480x800".')
@@ -696,16 +689,13 @@ def startTestRunner(runner_class, options, tests):
                           noWindow=options.noWindow,
                           revision=options.revision,
                           testgroup=options.testgroup,
-                          tree=options.tree,
                           autolog=options.autolog,
                           xml_output=options.xml_output,
                           repeat=options.repeat,
                           perf=options.perf,
                           perfserv=options.perfserv,
                           gecko_path=options.gecko_path,
-                          testvars=options.testvars,
-                          device=options.device,
-                          symbols_path=options.symbols_path)
+                          testvars=options.testvars)
     runner.run_tests(tests, testtype=options.type)
     return runner
 
@@ -717,3 +707,5 @@ def cli(runner_class=MarionetteTestRunner):
 
 if __name__ == "__main__":
     cli()
+
+

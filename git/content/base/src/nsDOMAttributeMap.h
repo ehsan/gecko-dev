@@ -4,18 +4,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /*
- * Implementation of the |attributes| property of DOM Core's Element object.
+ * Implementation of the |attributes| property of DOM Core's nsIDOMNode object.
  */
 
-#ifndef nsDOMAttributeMap_h
-#define nsDOMAttributeMap_h
+#ifndef nsDOMAttributeMap_h___
+#define nsDOMAttributeMap_h___
 
-#include "nsIDOMMozNamedAttrMap.h"
+#include "nsIDOMNamedNodeMap.h"
 #include "nsStringGlue.h"
 #include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIDOMAttr.h"
-#include "mozilla/ErrorResult.h"
+#include "nsIDOMNode.h"
 
 class nsIAtom;
 class nsDOMAttribute;
@@ -86,8 +85,8 @@ private:
   nsAttrKey mKey;
 };
 
-// Helper class that implements the nsIDOMMozNamedAttrMap interface.
-class nsDOMAttributeMap : public nsIDOMMozNamedAttrMap
+// Helper class that implements the nsIDOMNamedNodeMap interface.
+class nsDOMAttributeMap : public nsIDOMNamedNodeMap
 {
 public:
   typedef mozilla::dom::Element Element;
@@ -97,8 +96,8 @@ public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  // nsIDOMMozNamedAttrMap interface
-  NS_DECL_NSIDOMMOZNAMEDATTRMAP
+  // nsIDOMNamedNodeMap interface
+  NS_DECL_NSIDOMNAMEDNODEMAP
 
   void DropReference();
 
@@ -139,18 +138,18 @@ public:
   uint32_t Enumerate(AttrCache::EnumReadFunction aFunc, void *aUserArg) const;
 
   nsDOMAttribute* GetItemAt(uint32_t aIndex, nsresult *rv);
-  nsDOMAttribute* GetNamedItem(const nsAString& aAttrName);
+  nsDOMAttribute* GetNamedItem(const nsAString& aAttrName, nsresult *rv);
 
   static nsDOMAttributeMap* FromSupports(nsISupports* aSupports)
   {
 #ifdef DEBUG
     {
-      nsCOMPtr<nsIDOMMozNamedAttrMap> map_qi = do_QueryInterface(aSupports);
+      nsCOMPtr<nsIDOMNamedNodeMap> map_qi = do_QueryInterface(aSupports);
 
       // If this assertion fires the QI implementation for the object in
-      // question doesn't use the nsIDOMMozNamedAttrMap pointer as the nsISupports
+      // question doesn't use the nsIDOMNamedNodeMap pointer as the nsISupports
       // pointer. That must be fixed, or we'll crash...
-      NS_ASSERTION(map_qi == static_cast<nsIDOMMozNamedAttrMap*>(aSupports),
+      NS_ASSERTION(map_qi == static_cast<nsIDOMNamedNodeMap*>(aSupports),
                    "Uh, fix QI!");
     }
 #endif
@@ -159,16 +158,6 @@ public:
   }
 
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDOMAttributeMap)
-
-  nsDOMAttribute* GetNamedItemNS(const nsAString& aNamespaceURI,
-                                 const nsAString& aLocalName,
-                                 mozilla::ErrorResult& aError);
-
-  already_AddRefed<nsDOMAttribute> SetNamedItemNS(nsIDOMAttr *aNode,
-                                                  mozilla::ErrorResult& aError)
-  {
-    return SetNamedItemInternal(aNode, true, aError);
-  }
 
   size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
@@ -184,23 +173,27 @@ private:
    * SetNamedItem() (aWithNS = false) and SetNamedItemNS() (aWithNS =
    * true) implementation.
    */
-  already_AddRefed<nsDOMAttribute>
-    SetNamedItemInternal(nsIDOMAttr *aNode,
-                         bool aWithNS,
-                         mozilla::ErrorResult& aError);
+  nsresult SetNamedItemInternal(nsIDOMNode *aNode,
+                                nsIDOMNode **aReturn,
+                                bool aWithNS);
 
-  already_AddRefed<nsINodeInfo>
-  GetAttrNodeInfo(const nsAString& aNamespaceURI,
-                  const nsAString& aLocalName,
-                  mozilla::ErrorResult& aError);
+  /**
+   * GetNamedItemNS() implementation taking |aRemove| for GetAttribute(),
+   * which is used by RemoveNamedItemNS().
+   */
+  nsresult GetNamedItemNSInternal(const nsAString& aNamespaceURI,
+                                  const nsAString& aLocalName,
+                                  nsIDOMNode** aReturn,
+                                  bool aRemove = false);
 
   nsDOMAttribute* GetAttribute(nsINodeInfo* aNodeInfo, bool aNsAware);
 
   /**
    * Remove an attribute, returns the removed node.
    */
-  already_AddRefed<nsDOMAttribute> RemoveAttribute(nsINodeInfo* aNodeInfo);
+  nsresult RemoveAttribute(nsINodeInfo*     aNodeInfo,
+                           nsIDOMNode**     aReturn);
 };
 
 
-#endif /* nsDOMAttributeMap_h */
+#endif /* nsDOMAttributeMap_h___ */

@@ -17,12 +17,9 @@
 typedef DWORD FILESIZE_T; // Limit to 4GB for now...
 #define FILESIZE_UNKNOWN (-1)
 
-#define MAX_STRLEN 1024
-
 HINSTANCE g_hInst;
 NSIS::stack_t*g_pLocations = NULL;
 HANDLE g_hThread = NULL;
-HANDLE g_hGETStartedEvent = NULL;
 volatile UINT g_FilesTotal = 0;
 volatile UINT g_FilesCompleted = 0;
 volatile UINT g_Status = STATUS_INITIAL;
@@ -31,10 +28,6 @@ volatile FILESIZE_T g_cbCurrTot = FILESIZE_UNKNOWN;
 CRITICAL_SECTION g_CritLock;
 UINT g_N_CCH;
 PTSTR g_N_Vars;
-TCHAR g_ServerIP[128] = { _T('\0') };
-
-DWORD g_ConnectTimeout = 0;
-DWORD g_ReceiveTimeout = 0;
 
 #define NSISPI_INITGLOBALS(N_CCH, N_Vars) do { \
   g_N_CCH = N_CCH; \
@@ -78,15 +71,6 @@ NSIS::stack_t* StackPopItem(NSIS::stack_t**ppST)
 
 void Reset()
 {
-  // The g_hGETStartedEvent event is used to make sure that the Get() call will
-  // acquire the lock before the Reset() call acquires the lock.
-  if (g_hGETStartedEvent) {
-    TRACE(_T("InetBgDl: waiting on g_hGETStartedEvent\n"));
-    WaitForSingleObject(g_hGETStartedEvent, INFINITE);
-    CloseHandle(g_hGETStartedEvent);
-    g_hGETStartedEvent = NULL;
-  }
-
   TaskLock_AcquireExclusive();
 #ifndef ONELOCKTORULETHEMALL
   StatsLock_AcquireExclusive();
@@ -94,15 +78,13 @@ void Reset()
   g_FilesTotal = 0; // This causes the Task thread to exit the transfer loop
   if (g_hThread)
   {
-    TRACE(_T("InetBgDl: waiting on g_hThread\n"));
     if (WAIT_OBJECT_0 != WaitForSingleObject(g_hThread, 10 * 1000))
     {
-      TRACE(_T("InetBgDl: terminating g_hThread\n"));
       TerminateThread(g_hThread, ERROR_OPERATION_ABORTED);
     }
     CloseHandle(g_hThread);
-    g_hThread = NULL;
   }
+  g_hThread = NULL;
   g_FilesTotal = 0;
   g_FilesCompleted = 0;
   g_Status = STATUS_INITIAL;
@@ -130,155 +112,16 @@ UINT_PTR __cdecl NSISPluginCallback(UINT Event)
   return NULL;
 }
 
-void __stdcall InetStatusCallback(HINTERNET hInternet, DWORD_PTR dwContext,
-                                  DWORD dwInternetStatus,
-                                  LPVOID lpvStatusInformation,
-                                  DWORD dwStatusInformationLength)
-{
-  if (dwInternetStatus == INTERNET_STATUS_NAME_RESOLVED) {
-    // The documentation states the IP address is a PCTSTR but it is usually a
-    // PCSTR and only sometimes a PCTSTR.
-    StatsLock_AcquireExclusive();
-    wsprintf(g_ServerIP, _T("%S"), lpvStatusInformation);
-    if (wcslen(g_ServerIP) == 1)
-    {
-      wsprintf(g_ServerIP, _T("%s"), lpvStatusInformation);
-    }
-    StatsLock_ReleaseExclusive();
-  }
-
-#if defined(PLUGIN_DEBUG)
-  switch (dwInternetStatus)
-  {
-    case INTERNET_STATUS_RESOLVING_NAME:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_RESOLVING_NAME (%d), name=%s\n"),
-            dwStatusInformationLength, lpvStatusInformation);
-      break;
-    case INTERNET_STATUS_NAME_RESOLVED:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_NAME_RESOLVED (%d), resolved name=%s\n"),
-            dwStatusInformationLength, g_ServerIP);
-      break;
-    case INTERNET_STATUS_CONNECTING_TO_SERVER:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_CONNECTING_TO_SERVER (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_CONNECTED_TO_SERVER:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_CONNECTED_TO_SERVER (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_SENDING_REQUEST:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_SENDING_REQUEST (%d)\n"),
-               dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_REQUEST_SENT:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_REQUEST_SENT (%d), bytes sent=%d\n"),
-             dwStatusInformationLength, lpvStatusInformation);
-      break;
-    case INTERNET_STATUS_RECEIVING_RESPONSE:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_RECEIVING_RESPONSE (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_RESPONSE_RECEIVED:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_RESPONSE_RECEIVED (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_CTL_RESPONSE_RECEIVED:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_CTL_RESPONSE_RECEIVED (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_PREFETCH:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_PREFETCH (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_CLOSING_CONNECTION:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_CLOSING_CONNECTION (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_CONNECTION_CLOSED:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_CONNECTION_CLOSED (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_HANDLE_CREATED:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_HANDLE_CREATED (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_HANDLE_CLOSING:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_HANDLE_CLOSING (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_DETECTING_PROXY:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_DETECTING_PROXY (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_REQUEST_COMPLETE:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_REQUEST_COMPLETE (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_REDIRECT:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_REDIRECT (%d), new url=%s\n"),
-            dwStatusInformationLength, lpvStatusInformation);
-      break;
-    case INTERNET_STATUS_INTERMEDIATE_RESPONSE:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_INTERMEDIATE_RESPONSE (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_USER_INPUT_REQUIRED:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_USER_INPUT_REQUIRED (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_STATE_CHANGE:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_STATE_CHANGE (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_COOKIE_SENT:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_COOKIE_SENT (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_COOKIE_RECEIVED:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_COOKIE_RECEIVED (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_PRIVACY_IMPACTED:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_PRIVACY_IMPACTED (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_P3P_HEADER:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_P3P_HEADER (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_P3P_POLICYREF:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_P3P_POLICYREF (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    case INTERNET_STATUS_COOKIE_HISTORY:
-      TRACE(_T("InetBgDl: INTERNET_STATUS_COOKIE_HISTORY (%d)\n"),
-            dwStatusInformationLength);
-      break;
-    default:
-      TRACE(_T("InetBgDl: Unknown Status %d\n"), dwInternetStatus);
-      break;
-  }
-#endif
-}
-
 DWORD CALLBACK TaskThreadProc(LPVOID ThreadParam)
 {
   NSIS::stack_t *pURL,*pFile;
-  HINTERNET hInetSes = NULL, hInetFile = NULL;
-  DWORD cbio = sizeof(DWORD);
+  HINTERNET hInetSes = NULL;
   HANDLE hLocalFile;
   bool completedFile = false;
 startnexttask:
   hLocalFile = INVALID_HANDLE_VALUE;
   pFile = NULL;
   TaskLock_AcquireExclusive();
-  // Now that we've acquired the lock, we can set the event to indicate this.
-  // SetEvent will likely never fail, but if it does we should set it to NULL
-  // to avoid anyone waiting on it.
-  if (!SetEvent(g_hGETStartedEvent)) {
-    CloseHandle(g_hGETStartedEvent);
-    g_hGETStartedEvent = NULL;
-  }
   pURL = g_pLocations;
   if (pURL)
   {
@@ -288,8 +131,7 @@ startnexttask:
 #ifndef ONELOCKTORULETHEMALL
   StatsLock_AcquireExclusive();
 #endif
-  if (completedFile)
-  {
+  if (completedFile) {
     ++g_FilesCompleted;
   }
   completedFile = false;
@@ -299,8 +141,7 @@ startnexttask:
   {
     if (g_FilesTotal)
     {
-      if (g_FilesTotal == g_FilesCompleted)
-      {
+      if (g_FilesTotal == g_FilesCompleted) {
         g_Status = STATUS_COMPLETEDALL;
       }
     }
@@ -338,11 +179,8 @@ diegle:
     hInetSes = InternetOpen(USERAGENT, INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
     if (!hInetSes)
     {
-      TRACE(_T("InetBgDl: InternetOpen failed with gle=%u\n"),
-            GetLastError());
       goto diegle;
     }
-    InternetSetStatusCallback(hInetSes, (INTERNET_STATUS_CALLBACK)InetStatusCallback);
 
     //msdn.microsoft.com/library/default.asp?url=/workshop/components/offline/offline.asp#Supporting Offline Browsing in Applications and Components
     ULONG longOpt;
@@ -355,154 +193,69 @@ diegle:
         InternetSetOption(hInetSes, INTERNET_OPTION_CONNECTED_STATE, &ci, sizeof(ci));
       }
     }
-
-    // Change the default connect timeout if specified.
-    if(g_ConnectTimeout > 0)
-    {
-      InternetSetOption(hInetSes, INTERNET_OPTION_CONNECT_TIMEOUT,
-                        &g_ConnectTimeout, sizeof(g_ConnectTimeout));
-    }
-
-    // Change the default receive timeout if specified.
-    if (g_ReceiveTimeout)
-    {
-      InternetSetOption(hInetSes, INTERNET_OPTION_RECEIVE_TIMEOUT,
-                        &g_ReceiveTimeout, sizeof(DWORD));
-    }
   }
 
   DWORD ec = ERROR_SUCCESS;
-  hLocalFile = CreateFile(pFile->text, GENERIC_WRITE,FILE_SHARE_READ | FILE_SHARE_DELETE,NULL,CREATE_ALWAYS, 0, NULL);
-  if (INVALID_HANDLE_VALUE == hLocalFile)
-  {
-    TRACE(_T("InetBgDl: CreateFile file handle invalid\n"));
+  hLocalFile = CreateFile(pFile->text,GENERIC_WRITE,FILE_SHARE_READ|FILE_SHARE_DELETE,NULL,CREATE_ALWAYS,0,NULL);
+  if (INVALID_HANDLE_VALUE == hLocalFile) {
     goto diegle;
   }
 
-  const DWORD IOURedirFlags = INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTP |
-                              INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTPS;
-  const DWORD IOUCacheFlags = INTERNET_FLAG_RESYNCHRONIZE |
-                              INTERNET_FLAG_NO_CACHE_WRITE |
-                              INTERNET_FLAG_PRAGMA_NOCACHE |
-                              INTERNET_FLAG_RELOAD;
+  const DWORD IOUFTPFlags = INTERNET_FLAG_PASSIVE;
+  const DWORD IOURedirFlags = INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTP | INTERNET_FLAG_IGNORE_REDIRECT_TO_HTTPS;
+  const DWORD IOUCacheFlags = INTERNET_FLAG_RESYNCHRONIZE | INTERNET_FLAG_NO_CACHE_WRITE;
   const DWORD IOUCookieFlags = INTERNET_FLAG_NO_COOKIES;
-  DWORD IOUFlags = IOURedirFlags | IOUCacheFlags | IOUCookieFlags |
-                   INTERNET_FLAG_NO_UI | INTERNET_FLAG_EXISTING_CONNECT;
-
-  TCHAR *hostname = (TCHAR*) GlobalAlloc(GPTR, MAX_STRLEN * sizeof(TCHAR)),
-        *urlpath = (TCHAR*) GlobalAlloc(GPTR, MAX_STRLEN * sizeof(TCHAR)),
-        *extrainfo = (TCHAR*) GlobalAlloc(GPTR, MAX_STRLEN * sizeof(TCHAR));
-
-  URL_COMPONENTS uc = { sizeof(URL_COMPONENTS), NULL, 0, (INTERNET_SCHEME)0,
-                        hostname, MAX_STRLEN, (INTERNET_PORT)0, NULL, 0,
-                        NULL, 0, urlpath, MAX_STRLEN, extrainfo, MAX_STRLEN};
-  uc.dwHostNameLength = uc.dwUrlPathLength = uc.dwExtraInfoLength = MAX_STRLEN;
-
-  if (!InternetCrackUrl(pURL->text, 0, ICU_ESCAPE, &uc))
-  {
-    // Bad url or param passed in
-    TRACE(_T("InetBgDl: InternetCrackUrl false with url=%s, gle=%u\n"),
-          pURL->text, GetLastError());
+  DWORD IOUFlags = IOUFTPFlags | IOURedirFlags | IOUCacheFlags | IOUCookieFlags | INTERNET_FLAG_NO_UI | INTERNET_FLAG_EXISTING_CONNECT;
+  HINTERNET hInetFile = InternetOpenUrl(hInetSes, pURL->text, NULL, 0, IOUFlags, NULL);
+  if (!hInetFile) {
     goto diegle;
   }
 
-  TRACE(_T("InetBgDl: scheme_id=%d, hostname=%s, port=%d, urlpath=%s, extrainfo=%s\n"),
-        uc.nScheme, hostname, uc.nPort, urlpath, extrainfo);
-
-  // Only http and https are supported
-  if (uc.nScheme != INTERNET_SCHEME_HTTP &&
-      uc.nScheme != INTERNET_SCHEME_HTTPS)
-  {
-    TRACE(_T("InetBgDl: only http and https is supported, aborting...\n"));
-    goto diegle;
-  }
-
-  TRACE(_T("InetBgDl: calling InternetOpenUrl with url=%s\n"), pURL->text);
-  hInetFile = InternetOpenUrl(hInetSes, pURL->text,
-                              NULL, 0, IOUFlags |
-                              (uc.nScheme == INTERNET_SCHEME_HTTPS ?
-                               INTERNET_FLAG_SECURE : 0), 1);
-  if (!hInetFile)
-  {
-    TRACE(_T("InetBgDl: InternetOpenUrl failed with gle=%u\n"),
-          GetLastError());
-    goto diegle;
-  }
-
-  // Get the file length via the Content-Length header
   FILESIZE_T cbThisFile;
-  cbio = sizeof(cbThisFile);
-  if (!HttpQueryInfo(hInetFile,
-                     HTTP_QUERY_CONTENT_LENGTH | HTTP_QUERY_FLAG_NUMBER,
-                     &cbThisFile, &cbio, NULL))
+  DWORD cbio = sizeof(cbThisFile);
+  if (!HttpQueryInfo(hInetFile, HTTP_QUERY_CONTENT_LENGTH|HTTP_QUERY_FLAG_NUMBER, &cbThisFile, &cbio, NULL))
   {
     cbThisFile = FILESIZE_UNKNOWN;
-  }
-  TRACE(_T("InetBgDl: file size=%d bytes\n"), cbThisFile);
-
-  // Setup a buffer of size 256KiB to store the downloaded data.
-  const UINT cbBufXF = 262144;
-  // Use a 4MiB read buffer for the connection.
-  // Bigger buffers will be faster.
-  // cbReadBufXF should be a multiple of cbBufXF.
-  const UINT cbReadBufXF = 4194304;
-  BYTE bufXF[cbBufXF];
-
-  // Up the default internal buffer size from 4096 to internalReadBufferSize.
-  DWORD internalReadBufferSize = cbReadBufXF;
-  if (!InternetSetOption(hInetFile, INTERNET_OPTION_READ_BUFFER_SIZE,
-                         &internalReadBufferSize, sizeof(DWORD)))
-  {
-    TRACE(_T("InetBgDl: InternetSetOption failed to set read buffer size to %u bytes, gle=%u\n"),
-          internalReadBufferSize, GetLastError());
-
-    // Maybe it's too big, try half of the optimal value.  If that fails just
-    // use the default.
-    internalReadBufferSize /= 2;
-    if (!InternetSetOption(hInetFile, INTERNET_OPTION_READ_BUFFER_SIZE,
-                           &internalReadBufferSize, sizeof(DWORD)))
-    {
-      TRACE(_T("InetBgDl: InternetSetOption failed to set read buffer size ") \
-            _T("to %u bytes (using default read buffer size), gle=%u\n"),
-            internalReadBufferSize, GetLastError());
-    }
   }
 
   for(;;)
   {
-    DWORD cbio = 0, cbXF = 0;
+#if PLUGIN_DEBUG
+    const UINT cbBufXF = 512;
+    BYTE bufXF[cbBufXF];
+#else
+    const UINT cbBufXF = 4096;
+    BYTE*bufXF = (BYTE*) pURL->text;
+#endif
+    DWORD cbio,cbXF;
     BOOL retXF = InternetReadFile(hInetFile, bufXF, cbBufXF, &cbio);
     if (!retXF)
     {
       ec = GetLastError();
-      TRACE(_T("InetBgDl: InternetReadFile failed, gle=%u\n"), ec);
+      TRACE1(_T("InternetReadFile failed, gle=%u\n"), ec);
       break;
     }
-
     if (0 == cbio)
     {
       ASSERT(ERROR_SUCCESS == ec);
       // EOF or broken connection?
       // TODO: Can InternetQueryDataAvailable detect this?
 
-      TRACE(_T("InetBgDl: InternetReadFile true with 0 cbio, cbThisFile=%d, gle=%u\n"),
-            cbThisFile, GetLastError());
+      TRACE2(_T("InternetReadFile true with 0 cbio, cbThisFile=%d gle=%u\n"), cbThisFile, GetLastError());
       // If we haven't transferred all of the file, and we know how big the file
       // is, and we have no more data to read from the HTTP request, then set a
       // broken pipe error. Reading without StatsLock is ok in this thread.
       if (FILESIZE_UNKNOWN != cbThisFile && g_cbCurrXF != cbThisFile)
       {
-        TRACE(_T("InetBgDl: downloaded file size of %d bytes doesn't equal ") \
-              _T("expected file size of %d bytes\n"), g_cbCurrXF, cbThisFile);
         ec = ERROR_BROKEN_PIPE;
       }
+
       break;
     }
 
-    // Check if we canceled the download
-    if (0 == g_FilesTotal)
+    if (0==g_FilesTotal)
     {
-      TRACE(_T("InetBgDl: 0 == g_FilesTotal, aborting transfer loop...\n"));
+      TRACEA("0==g_FilesTotal, aborting transfer loop...\n");
       ec = ERROR_CANCELLED;
       break;
     }
@@ -511,7 +264,7 @@ diegle:
     if (cbXF)
     {
       retXF = WriteFile(hLocalFile, bufXF, cbXF, &cbio, NULL);
-      if (!retXF || cbXF != cbio)
+      if (!retXF || cbXF!=cbio)
       {
         ec = GetLastError();
         break;
@@ -526,12 +279,10 @@ diegle:
     }
   }
 
-  TRACE(_T("InetBgDl: TaskThreadProc completed %s, ec=%u\n"), pURL->text, ec);
+  TRACE2(_T("TaskThreadProc completed %s, ec=%u\n"), pURL->text, ec);
   InternetCloseHandle(hInetFile);
-  if (ERROR_SUCCESS == ec)
-  {
-    if (INVALID_HANDLE_VALUE != hLocalFile)
-    {
+  if (ERROR_SUCCESS == ec) {
+    if (INVALID_HANDLE_VALUE != hLocalFile) {
       CloseHandle(hLocalFile);
       hLocalFile = INVALID_HANDLE_VALUE;
     }
@@ -541,7 +292,6 @@ diegle:
   }
   else
   {
-    TRACE(_T("InetBgDl: failed with ec=%u\n"), ec);
     SetLastError(ec);
     goto diegle;
   }
@@ -554,39 +304,25 @@ NSISPIEXPORTFUNC Get(HWND hwndNSIS, UINT N_CCH, TCHAR*N_Vars, NSIS::stack_t**ppS
   for (;;)
   {
     NSIS::stack_t*pURL = StackPopItem(ppST);
-    if (!pURL)
-    {
+    if (!pURL) {
       break;
     }
 
-    if (lstrcmpi(pURL->text, _T("/connecttimeout")) == 0)
-    {
-      NSIS::stack_t*pConnectTimeout = StackPopItem(ppST);
-      g_ConnectTimeout = _tcstol(pConnectTimeout->text, NULL, 10) * 1000;
-      continue;
-    }
-    else if (lstrcmpi(pURL->text, _T("/receivetimeout")) == 0)
-    {
-      NSIS::stack_t*pReceiveTimeout = StackPopItem(ppST);
-      g_ReceiveTimeout = _tcstol(pReceiveTimeout->text, NULL, 10) * 1000;
-      continue;
-    }
-    else if (lstrcmpi(pURL->text, _T("/reset")) == 0)
-    {
-      StackFreeItem(pURL);
-      Reset();
-      continue;
-    }
-    else if (lstrcmpi(pURL->text, _T("/end")) == 0)
+    if (0==lstrcmp(pURL->text,_T("/END")))
     {
 freeurlandexit:
       StackFreeItem(pURL);
       break;
     }
+    if (0==lstrcmp(pURL->text,_T("/RESET")))
+    {
+      StackFreeItem(pURL);
+      Reset();
+      continue;
+    }
 
     NSIS::stack_t*pFile = StackPopItem(ppST);
-    if (!pFile)
-    {
+    if (!pFile) {
       goto freeurlandexit;
     }
 
@@ -607,16 +343,11 @@ freeurlandexit:
 
     if (!g_hThread)
     {
-      DWORD tid;
-      if (g_hGETStartedEvent) {
-        CloseHandle(g_hGETStartedEvent);
-      }
-      g_hGETStartedEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+      DWORD tid;tid;
       g_hThread = CreateThread(NULL, 0, TaskThreadProc, NULL, 0, &tid);
     }
 
-    if (!g_hThread)
-    {
+    if (!g_hThread) {
       goto freeurlandexit;
     }
 
@@ -640,11 +371,9 @@ NSISPIEXPORTFUNC GetStats(HWND hwndNSIS, UINT N_CCH, TCHAR*N_Vars, NSIS::stack_t
   NSIS_SetRegUINT(2, g_FilesTotal - g_FilesCompleted);
   NSIS_SetRegUINT(3, g_cbCurrXF);
   NSIS_SetRegStrEmpty(4);
-  if (FILESIZE_UNKNOWN != g_cbCurrTot)
-  {
+  if (FILESIZE_UNKNOWN != g_cbCurrTot) {
     NSIS_SetRegUINT(4, g_cbCurrTot);
   }
-  NSIS_SetRegStr(5, g_ServerIP);
   StatsLock_ReleaseShared();
 }
 
@@ -661,12 +390,4 @@ EXTERN_C BOOL WINAPI _DllMainCRTStartup(HMODULE hInst, UINT Reason, LPVOID pCtx)
 BOOL WINAPI DllMain(HINSTANCE hInst, ULONG Reason, LPVOID pCtx)
 {
   return _DllMainCRTStartup(hInst, Reason, pCtx);
-}
-
-// For some reason VC6++ doesn't like wcsicmp and swprintf.
-// If you use them, you get a linking error about _main
-// as an unresolved external.
-int main(int argc, char**argv)
-{
-  return 0;
 }

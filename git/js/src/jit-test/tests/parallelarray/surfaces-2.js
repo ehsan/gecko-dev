@@ -20,11 +20,8 @@ function test(obj) {
     testcase(obj, ParallelArray.prototype.get, [1]);
 }
 
-// FIXME(bug 844887) check type of this
-// if (getBuildConfiguration().parallelJS) {
-// test(ParallelArray.prototype);
-// test(Object.create(new ParallelArray));
-// test({});
-// test(null);
-// test(undefined);
-// }
+test(ParallelArray.prototype);
+test(Object.create(new ParallelArray));
+test({});
+test(null);
+test(undefined);

@@ -9,12 +9,10 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource:///modules/devtools/gDevTools.jsm");
 Cu.import("resource:///modules/devtools/FloatingScrollbars.jsm");
 Cu.import("resource:///modules/devtools/EventEmitter.jsm");
-Cu.import("resource:///modules/devtools/Target.jsm");
 
-this.EXPORTED_SYMBOLS = ["ResponsiveUIManager"];
+var EXPORTED_SYMBOLS = ["ResponsiveUIManager"];
 
 const MIN_WIDTH = 50;
 const MIN_HEIGHT = 50;
@@ -22,7 +20,7 @@ const MIN_HEIGHT = 50;
 const MAX_WIDTH = 10000;
 const MAX_HEIGHT = 10000;
 
-this.ResponsiveUIManager = {
+let ResponsiveUIManager = {
   /**
    * Check if the a tab is in a responsive mode.
    * Leave the responsive mode if active,
@@ -35,17 +33,8 @@ this.ResponsiveUIManager = {
     if (aTab.__responsiveUI) {
       aTab.__responsiveUI.close();
     } else {
-      new ResponsiveUI(aWindow, aTab);
+      aTab.__responsiveUI = new ResponsiveUI(aWindow, aTab);
     }
-  },
-
-  /**
-   * Returns true if responsive view is active for the provided tab.
-   *
-   * @param aTab the tab targeted.
-   */
-  isActiveForTab: function(aTab) {
-    return !!aTab.__responsiveUI;
   },
 
   /**
@@ -60,13 +49,13 @@ this.ResponsiveUIManager = {
     switch (aCommand) {
       case "resize to":
         if (!aTab.__responsiveUI) {
-          new ResponsiveUI(aWindow, aTab);
+          aTab.__responsiveUI = new ResponsiveUI(aWindow, aTab);
         }
         aTab.__responsiveUI.setSize(aArgs.width, aArgs.height);
         break;
       case "resize on":
         if (!aTab.__responsiveUI) {
-          new ResponsiveUI(aWindow, aTab);
+          aTab.__responsiveUI = new ResponsiveUI(aWindow, aTab);
         }
         break;
       case "resize off":
@@ -78,10 +67,15 @@ this.ResponsiveUIManager = {
           this.toggle(aWindow, aTab);
       default:
     }
-  }
-}
+  },
 
-EventEmitter.decorate(ResponsiveUIManager);
+  get events() {
+    if (!this._eventEmitter) {
+      this._eventEmitter = new EventEmitter();
+    }
+    return this._eventEmitter;
+  },
+}
 
 let presets = [
   // Phones
@@ -154,7 +148,6 @@ function ResponsiveUI(aWindow, aTab)
   this.bound_addPreset = this.addPreset.bind(this);
   this.bound_removePreset = this.removePreset.bind(this);
   this.bound_rotate = this.rotate.bind(this);
-  this.bound_close = this.close.bind(this);
   this.bound_startResizing = this.startResizing.bind(this);
   this.bound_stopResizing = this.stopResizing.bind(this);
   this.bound_onDrag = this.onDrag.bind(this);
@@ -168,6 +161,8 @@ function ResponsiveUI(aWindow, aTab)
   this.buildUI();
   this.checkMenus();
 
+  this.inspectorWasOpen = this.mainWindow.InspectorUI.isInspectorOpen;
+
   try {
     if (Services.prefs.getBoolPref("devtools.responsiveUI.rotate")) {
       this.rotate();
@@ -177,14 +172,12 @@ function ResponsiveUI(aWindow, aTab)
   if (this._floatingScrollbars)
     switchToFloatingScrollbars(this.tab);
 
-  this.tab.__responsiveUI = this;
-
-  ResponsiveUIManager.emit("on", this.tab, this);
+  ResponsiveUIManager.events.emit("on", this.tab, this);
 }
 
 ResponsiveUI.prototype = {
   _transitionsEnabled: true,
-  _floatingScrollbars: true,
+  _floatingScrollbars: false, // See bug 799471
   get transitionsEnabled() this._transitionsEnabled,
   set transitionsEnabled(aValue) {
     this._transitionsEnabled = aValue;
@@ -223,7 +216,6 @@ ResponsiveUI.prototype = {
     this.tab.removeEventListener("TabClose", this);
     this.tabContainer.removeEventListener("TabSelect", this);
     this.rotatebutton.removeEventListener("command", this.bound_rotate, true);
-    this.closebutton.removeEventListener("command", this.bound_close, true);
     this.addbutton.removeEventListener("command", this.bound_addPreset, true);
     this.removebutton.removeEventListener("command", this.bound_removePreset, true);
 
@@ -237,7 +229,7 @@ ResponsiveUI.prototype = {
     this.stack.removeAttribute("responsivemode");
 
     delete this.tab.__responsiveUI;
-    ResponsiveUIManager.emit("off", this.tab, this);
+    ResponsiveUIManager.events.emit("off", this.tab, this);
   },
 
   /**
@@ -249,9 +241,16 @@ ResponsiveUI.prototype = {
     if (aEvent.keyCode == this.mainWindow.KeyEvent.DOM_VK_ESCAPE &&
         this.mainWindow.gBrowser.selectedBrowser == this.browser) {
 
-      aEvent.preventDefault();
-      aEvent.stopPropagation();
-      this.close();
+      // If the inspector wasn't open at first but is open now,
+      // we don't want to close the Responsive Mode on Escape.
+      // We let the inspector close first.
+
+      let isInspectorOpen = this.mainWindow.InspectorUI.isInspectorOpen;
+      if (this.inspectorWasOpen || !isInspectorOpen) {
+        aEvent.preventDefault();
+        aEvent.stopPropagation();
+        this.close();
+      }
     }
   },
 
@@ -294,7 +293,6 @@ ResponsiveUI.prototype = {
    *  <toolbar class="devtools-toolbar devtools-responsiveui-toolbar">
    *    <menulist class="devtools-menulist"/> // presets
    *    <toolbarbutton tabindex="0" class="devtools-toolbarbutton" label="rotate"/> // rotate
-   *    <toolbarbutton tabindex="0" class="devtools-toolbarbutton devtools-closebutton" tooltiptext="Leave Responsive Design View"/> // close
    *  </toolbar>
    *  <stack class="browserStack"> From tabbrowser.xml
    *    <browser/>
@@ -337,13 +335,6 @@ ResponsiveUI.prototype = {
     this.rotatebutton.className = "devtools-toolbarbutton";
     this.rotatebutton.addEventListener("command", this.bound_rotate, true);
 
-    this.closebutton = this.chromeDoc.createElement("toolbarbutton");
-    this.closebutton.setAttribute("tabindex", "0");
-    this.closebutton.className = "devtools-toolbarbutton devtools-closebutton";
-    this.closebutton.setAttribute("tooltiptext", this.strings.GetStringFromName("responsiveUI.close"));
-    this.closebutton.addEventListener("command", this.bound_close, true);
-
-    this.toolbar.appendChild(this.closebutton);
     this.toolbar.appendChild(this.menulist);
     this.toolbar.appendChild(this.rotatebutton);
 
@@ -455,15 +446,7 @@ ResponsiveUI.prototype = {
 
     let title = this.strings.GetStringFromName("responsiveUI.customNamePromptTitle");
     let message = this.strings.formatStringFromName("responsiveUI.customNamePromptMsg", [w, h], 2);
-    let promptOk = Services.prompt.prompt(null, title, message, newName, null, {});
-
-    if (!promptOk) {
-      // Prompt has been cancelled
-      let menuitem = this.customMenuitem;
-      this.menulist.selectedItem = menuitem;
-      this.currentPresetKey = this.customPreset.key;
-      return;
-    }
+    Services.prompt.prompt(null, title, message, newName, null, {});
 
     let newPreset = {
       key: w + "x" + h,
@@ -613,8 +596,8 @@ ResponsiveUI.prototype = {
     this._resizing = true;
     this.stack.setAttribute("notransition", "true");
 
-    this.lastScreenX = aEvent.screenX;
-    this.lastScreenY = aEvent.screenY;
+    this.lastClientX = aEvent.clientX;
+    this.lastClientY = aEvent.clientY;
 
     this.ignoreY = (aEvent.target === this.resizeBar);
 
@@ -627,8 +610,8 @@ ResponsiveUI.prototype = {
    * @param aEvent
    */
   onDrag: function RUI_onDrag(aEvent) {
-    let deltaX = aEvent.screenX - this.lastScreenX;
-    let deltaY = aEvent.screenY - this.lastScreenY;
+    let deltaX = aEvent.clientX - this.lastClientX;
+    let deltaY = aEvent.clientY - this.lastClientY;
 
     if (this.ignoreY)
       deltaY = 0;
@@ -639,13 +622,13 @@ ResponsiveUI.prototype = {
     if (width < MIN_WIDTH) {
         width = MIN_WIDTH;
     } else {
-        this.lastScreenX = aEvent.screenX;
+        this.lastClientX = aEvent.clientX;
     }
 
     if (height < MIN_HEIGHT) {
         height = MIN_HEIGHT;
     } else {
-        this.lastScreenY = aEvent.screenY;
+        this.lastClientY = aEvent.clientY;
     }
 
     this.setSize(width, height);

@@ -17,7 +17,6 @@
 #include "video_engine/include/vie_render.h"
 #include "video_engine/include/vie_network.h"
 #include "video_engine/include/vie_file.h"
-#include "video_engine/include/vie_rtp_rtcp.h"
 
 /** This file hosts several structures identifying different aspects
  * of a RTP Session.
@@ -33,8 +32,6 @@
 
 namespace mozilla {
 
-class WebrtcAudioConduit;
-
 /**
  * Concrete class for Video session. Hooks up
  *  - media-source and target to external transport
@@ -48,11 +45,6 @@ public:
 
   //VoiceEngine defined constant for Payload Name Size.
   static const unsigned int CODEC_PLNAME_SIZE;
-
-  /**
-   * Set up A/V sync between this (incoming) VideoConduit and an audio conduit.
-   */
-  void SyncTo(WebrtcAudioConduit *aConduit);
 
   /**
    * Function to attach Renderer end-point for the Media-Video conduit.
@@ -191,6 +183,7 @@ private:
 
   //Utility function to dump recv codec database
   void DumpCodecDB() const;
+
   webrtc::VideoEngine* mVideoEngine;
 
   mozilla::RefPtr<TransportInterface> mTransport;
@@ -202,7 +195,6 @@ private:
   webrtc::ViENetwork* mPtrViENetwork;
   webrtc::ViERender* mPtrViERender;
   webrtc::ViEExternalCapture*  mPtrExtCapture;
-  webrtc::ViERTP_RTCP* mPtrRTP;
 
   // Engine state we are concerned with.
   bool mEngineTransmitting; //If true ==> Transmit Sub-system is up and running
@@ -213,8 +205,6 @@ private:
   int mCapId;   // Capturer for this conduit
   RecvCodecList    mRecvCodecList;
   VideoCodecConfig* mCurSendCodecConfig;
-
-  mozilla::RefPtr<WebrtcAudioConduit> mSyncedTo;
 };
 
 

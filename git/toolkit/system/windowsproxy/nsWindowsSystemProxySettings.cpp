@@ -7,7 +7,6 @@
 #include <ras.h>
 #include <wininet.h>
 
-#include "mozilla/Attributes.h"
 #include "mozilla/Util.h"
 #include "nsISystemProxySettings.h"
 #include "nsIServiceManager.h"
@@ -17,7 +16,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsIURI.h"
 
-class nsWindowsSystemProxySettings MOZ_FINAL : public nsISystemProxySettings
+class nsWindowsSystemProxySettings : public nsISystemProxySettings
 {
 public:
     NS_DECL_ISUPPORTS
@@ -68,12 +67,8 @@ static nsresult ReadInternetOption(uint32_t aOption, uint32_t& aFlags,
 {
     DWORD connFlags = 0;
     WCHAR connName[RAS_MaxEntryName + 1];
-    MOZ_SEH_TRY {
-        InternetGetConnectedStateExW(&connFlags, connName,
-                                     mozilla::ArrayLength(connName), 0);
-    } MOZ_SEH_EXCEPT(EXCEPTION_EXECUTE_HANDLER) {
-        return NS_ERROR_FAILURE;
-    }
+    InternetGetConnectedStateExW(&connFlags, connName,
+                                 mozilla::ArrayLength(connName), 0);
 
     INTERNET_PER_CONN_OPTIONW options[2];
     options[0].dwOption = INTERNET_PER_CONN_FLAGS_UI;
@@ -95,12 +90,8 @@ static nsresult ReadInternetOption(uint32_t aOption, uint32_t& aFlags,
         }
         options[0].dwOption = INTERNET_PER_CONN_FLAGS;
         size = sizeof(INTERNET_PER_CONN_OPTION_LISTW);
-        MOZ_SEH_TRY {
-            if (!InternetQueryOptionW(NULL, INTERNET_OPTION_PER_CONNECTION_OPTION,
-                                      &list, &size)) {
-                return NS_ERROR_FAILURE;
-            }
-        } MOZ_SEH_EXCEPT(EXCEPTION_EXECUTE_HANDLER) {
+        if (!InternetQueryOptionW(NULL, INTERNET_OPTION_PER_CONNECTION_OPTION,
+                                  &list, &size)) {
             return NS_ERROR_FAILURE;
         }
     }

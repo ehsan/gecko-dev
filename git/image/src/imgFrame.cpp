@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
@@ -17,8 +17,7 @@
 static bool gDisableOptimize = false;
 
 #include "cairo.h"
-#include "GeckoProfiler.h"
-#include "mozilla/Likely.h"
+#include "sampler.h"
 
 #if defined(XP_WIN)
 
@@ -43,30 +42,30 @@ static bool AllowedImageSize(int32_t aWidth, int32_t aHeight)
 {
   // reject over-wide or over-tall images
   const int32_t k64KLimit = 0x0000FFFF;
-  if (MOZ_UNLIKELY(aWidth > k64KLimit || aHeight > k64KLimit )) {
+  if (NS_UNLIKELY(aWidth > k64KLimit || aHeight > k64KLimit )) {
     NS_WARNING("image too big");
     return false;
   }
 
   // protect against invalid sizes
-  if (MOZ_UNLIKELY(aHeight <= 0 || aWidth <= 0)) {
+  if (NS_UNLIKELY(aHeight <= 0 || aWidth <= 0)) {
     return false;
   }
 
   // check to make sure we don't overflow a 32-bit
   int32_t tmp = aWidth * aHeight;
-  if (MOZ_UNLIKELY(tmp / aHeight != aWidth)) {
+  if (NS_UNLIKELY(tmp / aHeight != aWidth)) {
     NS_WARNING("width or height too large");
     return false;
   }
   tmp = tmp * 4;
-  if (MOZ_UNLIKELY(tmp / 4 != aWidth * aHeight)) {
+  if (NS_UNLIKELY(tmp / 4 != aWidth * aHeight)) {
     NS_WARNING("width or height too large");
     return false;
   }
 #if defined(XP_MACOSX)
   // CoreGraphics is limited to images < 32K in *height*, so clamp all surfaces on the Mac to that height
-  if (MOZ_UNLIKELY(aHeight > SHRT_MAX)) {
+  if (NS_UNLIKELY(aHeight > SHRT_MAX)) {
     NS_WARNING("image too big");
     return false;
   }
@@ -146,7 +145,7 @@ imgFrame::~imgFrame()
   }
 }
 
-nsresult imgFrame::Init(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight,
+nsresult imgFrame::Init(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight, 
                         gfxASurface::gfxImageFormat aFormat, uint8_t aPaletteDepth /* = 0 */)
 {
   // assert for properties that should be verified by decoders, warn for properties related to bad content
@@ -438,7 +437,7 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
                     const nsIntMargin &aPadding, const nsIntRect &aSubimage,
                     uint32_t aImageFlags)
 {
-  PROFILER_LABEL("image", "imgFrame::Draw");
+  SAMPLE_LABEL("image", "imgFrame::Draw");
   NS_ASSERTION(!aFill.IsEmpty(), "zero dest size --- fix caller");
   NS_ASSERTION(!aSubimage.IsEmpty(), "zero source size --- fix caller");
   NS_ASSERTION(!mPalettedImageData, "Directly drawing a paletted image!");
@@ -492,7 +491,7 @@ nsresult imgFrame::Extract(const nsIntRect& aRegion, imgFrame** aResult)
   // (albeit slower) Cairo fallback scaler will be used.
   subImage->mNeverUseDeviceSurface = true;
 
-  nsresult rv = subImage->Init(0, 0, aRegion.width, aRegion.height,
+  nsresult rv = subImage->Init(0, 0, aRegion.width, aRegion.height, 
                                mFormat, mPaletteDepth);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -707,34 +706,7 @@ nsresult imgFrame::UnlockImageData()
   if (mQuartzSurface)
     mQuartzSurface->Flush();
 #endif
-
   return NS_OK;
-}
-
-void imgFrame::MarkImageDataDirty()
-{
-  if (mImageSurface)
-    mImageSurface->Flush();
-
-#ifdef USE_WIN_SURFACE
-  if (mWinSurface)
-    mWinSurface->Flush();
-#endif
-
-  if (mImageSurface)
-    mImageSurface->MarkDirty();
-
-#ifdef USE_WIN_SURFACE
-  if (mWinSurface)
-    mWinSurface->MarkDirty();
-#endif
-
-#ifdef XP_MACOSX
-  // The quartz image surface (ab)uses the flush method to get the
-  // cairo_image_surface data into a CGImage, so we have to call Flush() here.
-  if (mQuartzSurface)
-    mQuartzSurface->Flush();
-#endif
 }
 
 int32_t imgFrame::GetTimeout() const
@@ -817,9 +789,6 @@ void imgFrame::SetCompositingFailed(bool val)
   mCompositingFailed = val;
 }
 
-// If |aLocation| indicates this is heap memory, we try to measure things with
-// |aMallocSizeOf|.  If that fails (because the platform doesn't support it) or
-// it's non-heap memory, we fall back to computing the size analytically.
 size_t
 imgFrame::SizeOfExcludingThisWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation, nsMallocSizeOfFun aMallocSizeOf) const
 {
@@ -833,13 +802,14 @@ imgFrame::SizeOfExcludingThisWithComputedFallbackIfHeap(gfxASurface::MemoryLocat
   size_t n = 0;
 
   if (mPalettedImageData && aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) {
-    size_t n2 = aMallocSizeOf(mPalettedImageData);
-    if (n2 == 0) {
-      n2 = GetImageDataLength() + PaletteDataLength();
+    size_t usable = aMallocSizeOf(mPalettedImageData);
+    if (!usable) {
+      usable = GetImageDataLength() + PaletteDataLength();
     }
-    n += n2;
+    n += usable;
   }
 
+  // XXX: should pass aMallocSizeOf here.  See bug 723827.
 #ifdef USE_WIN_SURFACE
   if (mWinSurface && aLocation == mWinSurface->GetMemoryLocation()) {
     n += mWinSurface->KnownMemoryUsed();
@@ -851,27 +821,11 @@ imgFrame::SizeOfExcludingThisWithComputedFallbackIfHeap(gfxASurface::MemoryLocat
   } else
 #endif
   if (mImageSurface && aLocation == mImageSurface->GetMemoryLocation()) {
-    size_t n2 = 0;
-    if (aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP) { // HEAP: measure
-      n2 = mImageSurface->SizeOfIncludingThis(aMallocSizeOf);
-    }
-    if (n2 == 0) {  // non-HEAP or computed fallback for HEAP
-      n2 = mImageSurface->KnownMemoryUsed();
-    }
-    n += n2;
+    n += mImageSurface->KnownMemoryUsed();
   }
 
   if (mOptSurface && aLocation == mOptSurface->GetMemoryLocation()) {
-    size_t n2 = 0;
-    if (aLocation == gfxASurface::MEMORY_IN_PROCESS_HEAP &&
-        mOptSurface->SizeOfIsMeasured()) {
-      // HEAP: measure (but only if the sub-class is capable of measuring)
-      n2 = mOptSurface->SizeOfIncludingThis(aMallocSizeOf);
-    }
-    if (n2 == 0) {  // non-HEAP or computed fallback for HEAP
-      n2 = mOptSurface->KnownMemoryUsed();
-    }
-    n += n2;
+    n += mOptSurface->KnownMemoryUsed();
   }
 
   return n;

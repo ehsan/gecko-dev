@@ -17,7 +17,6 @@
 
 #include "jsapi.h"
 
-using namespace xpc;
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
 
 // the value of this variable is never used - we use its address as a sentinel
@@ -492,7 +491,6 @@ nsXPCWrappedJSClass::IsWrappedJS(nsISupports* aPtr)
            result == WrappedJSIdentity::GetSingleton();
 }
 
-// NB: This returns null unless there's nothing on the JSContext stack.
 static JSContext *
 GetContextFromObject(JSObject *obj)
 {
@@ -508,7 +506,8 @@ GetContextFromObject(JSObject *obj)
         return nullptr;
 
     JSAutoCompartment ac(ccx, obj);
-    XPCWrappedNativeScope* scope = GetObjectScope(obj);
+    XPCWrappedNativeScope* scope =
+        XPCWrappedNativeScope::FindInJSObjectScope(ccx, obj);
     XPCContext *xpcc = scope->GetContext();
 
     if (xpcc) {
@@ -752,7 +751,7 @@ nsXPCWrappedJSClass::GetRootJSObject(JSContext* cx, JSObject* aJSObj)
                                                     NS_GET_IID(nsISupports));
     if (!result)
         return aJSObj;
-    JSObject* inner = js::UnwrapObject(result);
+    JSObject* inner = XPCWrapper::Unwrap(cx, result);
     if (inner)
         return inner;
     return result;
@@ -1114,7 +1113,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
 
 NS_IMETHODIMP
 nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
-                                const XPTMethodDescriptor* info_,
+                                const XPTMethodDescriptor* info,
                                 nsXPTCMiniVariant* nativeParams)
 {
     jsval* sp = nullptr;
@@ -1125,7 +1124,6 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
     JSBool success;
     JSBool readyToDoTheCall = false;
     nsID  param_iid;
-    const nsXPTMethodInfo* info = static_cast<const nsXPTMethodInfo*>(info_);
     const char* name = info->name;
     jsval fval;
     JSBool foundDependentParam;
@@ -1144,17 +1142,6 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
 
     if (!cx || !xpcc || !IsReflectable(methodIndex))
         return NS_ERROR_FAILURE;
-
-    // [implicit_jscontext] and [optional_argc] have a different calling
-    // convention, which we don't support for JS-implemented components.
-    if (info->WantsOptArgc() || info->WantsContext()) {
-        const char *str = "IDL methods marked with [implicit_jscontext] "
-                          "or [optional_argc] may not be implemented in JS";
-        // Throw and warn for good measure.
-        JS_ReportError(cx, str);
-        NS_WARNING(str);
-        return NS_ERROR_FAILURE;
-    }
 
     JSObject *obj = wrapper->GetJSObject();
     JSObject *thisObj = obj;

@@ -45,8 +45,6 @@ class ScrollbarActivity;
 
 class nsGfxScrollFrameInner : public nsIReflowCallback {
 public:
-  typedef mozilla::gfx::Point Point;
-
   class AsyncScroll;
 
   nsGfxScrollFrameInner(nsContainerFrame* aOuter, bool aIsRoot);
@@ -69,9 +67,9 @@ public:
 
   bool ShouldBuildLayer() const;
 
-  void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                        const nsRect&           aDirtyRect,
-                        const nsDisplayListSet& aLists);
+  nsresult BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                            const nsRect&           aDirtyRect,
+                            const nsDisplayListSet& aLists);
 
   void AppendScrollPartsTo(nsDisplayListBuilder*   aBuilder,
                            const nsRect&           aDirtyRect,
@@ -169,7 +167,6 @@ public:
     ScrollToWithOrigin(aScrollPosition, aMode, nsGkAtoms::other, aRange);
   }
   void ScrollToCSSPixels(nsIntPoint aScrollPosition);
-  void ScrollToCSSPixelsApproximate(const Point& aScrollPosition);
   nsIntPoint GetScrollPositionCSSPixels();
   void ScrollToImpl(nsPoint aScrollPosition, const nsRect& aRange);
   void ScrollVisual(nsPoint aOldScrolledFramePosition);
@@ -179,7 +176,7 @@ public:
   nsSize GetLineScrollAmount() const;
   nsSize GetPageScrollAmount() const;
 
-  nsPresState* SaveState();
+  nsPresState* SaveState(nsIStatefulFrame::SpecialStateID aStateID);
   void RestoreState(nsPresState* aState);
 
   nsIFrame* GetScrolledFrame() const { return mScrolledFrame; }
@@ -299,9 +296,6 @@ public:
   nsCOMPtr<nsITimer> mScrollActivityTimer;
   nsPoint mScrollPosForLayerPixelAlignment;
 
-  // The scroll position where we last updated image visibility.
-  nsPoint mLastUpdateImagesPos;
-
   bool mNeverHasVerticalScrollbar:1;
   bool mNeverHasHorizontalScrollbar:1;
   bool mHasVerticalScrollbar:1;
@@ -340,9 +334,6 @@ public:
   // Used for asynchronous scrolling.
   bool mShouldBuildLayer:1;
 
-  // True if this frame has been scrolled at least once
-  bool mHasBeenScrolled:1;
-
 protected:
   void ScrollToWithOrigin(nsPoint aScrollPosition,
                           nsIScrollableFrame::ScrollMode aMode,
@@ -374,10 +365,10 @@ public:
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList) MOZ_OVERRIDE;
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE {
-    mInner.BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) {
+    return mInner.BuildDisplayList(aBuilder, aDirtyRect, aLists);
   }
 
   bool TryLayout(ScrollReflowState* aState,
@@ -409,10 +400,6 @@ public:
                     nsHTMLReflowMetrics&     aDesiredSize,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus);
-
-  virtual bool UpdateOverflow() MOZ_OVERRIDE {
-    return mInner.UpdateOverflow();
-  }
 
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
@@ -477,9 +464,6 @@ public:
   virtual nsPoint GetScrollPosition() const MOZ_OVERRIDE {
     return mInner.GetScrollPosition();
   }
-  virtual nsPoint GetLogicalScrollPosition() const MOZ_OVERRIDE {
-    return mInner.GetLogicalScrollPosition();
-  }
   virtual nsRect GetScrollRange() const MOZ_OVERRIDE {
     return mInner.GetScrollRange();
   }
@@ -498,9 +482,6 @@ public:
   }
   virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) MOZ_OVERRIDE {
     mInner.ScrollToCSSPixels(aScrollPosition);
-  }
-  virtual void ScrollToCSSPixelsApproximate(const Point& aScrollPosition) MOZ_OVERRIDE {
-    mInner.ScrollToCSSPixelsApproximate(aScrollPosition);
   }
   virtual nsIntPoint GetScrollPositionCSSPixels() MOZ_OVERRIDE {
     return mInner.GetScrollPositionCSSPixels();
@@ -534,17 +515,14 @@ public:
   virtual void ResetScrollPositionForLayerPixelAlignment() {
     mInner.ResetScrollPositionForLayerPixelAlignment();
   }
-  virtual bool DidHistoryRestore() MOZ_OVERRIDE {
-    return mInner.mDidHistoryRestore;
-  }
-  virtual void ClearDidHistoryRestore() MOZ_OVERRIDE {
-    mInner.mDidHistoryRestore = false;
+  virtual bool UpdateOverflow() {
+    return mInner.UpdateOverflow();
   }
 
   // nsIStatefulFrame
-  NS_IMETHOD SaveState(nsPresState** aState) MOZ_OVERRIDE {
+  NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState) MOZ_OVERRIDE {
     NS_ENSURE_ARG_POINTER(aState);
-    *aState = mInner.SaveState();
+    *aState = mInner.SaveState(aStateID);
     return NS_OK;
   }
   NS_IMETHOD RestoreState(nsPresState* aState) MOZ_OVERRIDE {
@@ -564,12 +542,16 @@ public:
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 
+  bool DidHistoryRestore() { return mInner.mDidHistoryRestore; }
+
 #ifdef ACCESSIBILITY
   virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
 #endif
 
 protected:
   nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, bool aIsRoot);
+  virtual int GetSkipSides() const;
+  
   void SetSuppressScrollbarUpdate(bool aSuppress) {
     mInner.mSupppressScrollbarUpdate = aSuppress;
   }
@@ -620,20 +602,16 @@ public:
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,
                                  nsFrameList&    aChildList);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE {
-    mInner.BuildDisplayList(aBuilder, aDirtyRect, aLists);
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE {
+    return mInner.BuildDisplayList(aBuilder, aDirtyRect, aLists);
   }
 
   // XXXldb Is this actually used?
 #if 0
   virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 #endif
-
-  virtual bool UpdateOverflow() MOZ_OVERRIDE {
-    return mInner.UpdateOverflow();
-  }
 
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
@@ -733,9 +711,6 @@ public:
   virtual nsPoint GetScrollPosition() const MOZ_OVERRIDE {
     return mInner.GetScrollPosition();
   }
-  virtual nsPoint GetLogicalScrollPosition() const MOZ_OVERRIDE {
-    return mInner.GetLogicalScrollPosition();
-  }
   virtual nsRect GetScrollRange() const MOZ_OVERRIDE {
     return mInner.GetScrollRange();
   }
@@ -754,9 +729,6 @@ public:
   }
   virtual void ScrollToCSSPixels(nsIntPoint aScrollPosition) MOZ_OVERRIDE {
     mInner.ScrollToCSSPixels(aScrollPosition);
-  }
-  virtual void ScrollToCSSPixelsApproximate(const Point& aScrollPosition) MOZ_OVERRIDE {
-    mInner.ScrollToCSSPixelsApproximate(aScrollPosition);
   }
   virtual nsIntPoint GetScrollPositionCSSPixels() MOZ_OVERRIDE {
     return mInner.GetScrollPositionCSSPixels();
@@ -790,17 +762,14 @@ public:
   virtual void ResetScrollPositionForLayerPixelAlignment() {
     mInner.ResetScrollPositionForLayerPixelAlignment();
   }
-  virtual bool DidHistoryRestore() MOZ_OVERRIDE {
-    return mInner.mDidHistoryRestore;
-  }
-  virtual void ClearDidHistoryRestore() MOZ_OVERRIDE {
-    mInner.mDidHistoryRestore = false;
+  virtual bool UpdateOverflow() {
+    return mInner.UpdateOverflow();
   }
 
   // nsIStatefulFrame
-  NS_IMETHOD SaveState(nsPresState** aState) MOZ_OVERRIDE {
+  NS_IMETHOD SaveState(SpecialStateID aStateID, nsPresState** aState) MOZ_OVERRIDE {
     NS_ENSURE_ARG_POINTER(aState);
-    *aState = mInner.SaveState();
+    *aState = mInner.SaveState(aStateID);
     return NS_OK;
   }
   NS_IMETHOD RestoreState(nsPresState* aState) MOZ_OVERRIDE {
@@ -830,6 +799,7 @@ public:
 
 protected:
   nsXULScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, bool aIsRoot);
+  virtual int GetSkipSides() const;
 
   void ClampAndSetBounds(nsBoxLayoutState& aState, 
                          nsRect& aRect,

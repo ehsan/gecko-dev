@@ -5,7 +5,6 @@
 #include "nsIServiceManager.h"
 #include "nsIComponentRegistrar.h"
 #include "nsISupportsArray.h"
-#include <algorithm>
 
 namespace TestPerf {
 
@@ -84,7 +83,7 @@ MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctx,
     char buf[4096];
     uint32_t n, bytesRead;
     while (count) {
-        n = std::min<uint32_t>(count, sizeof(buf));
+        n = NS_MIN<uint32_t>(count, sizeof(buf));
         rv = stream->Read(buf, n, &bytesRead);
         if (NS_FAILED(rv))
             break;

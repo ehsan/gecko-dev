@@ -202,10 +202,12 @@ AboutReader.prototype = {
         dump("Reader:Add (in reader) success=" + success);
 
         gChromeWin.sendMessageToJava({
-          type: "Reader:Added",
-          success: success,
-          title: this._article.title,
-          url: this._article.url,
+          gecko: {
+            type: "Reader:Added",
+            success: success,
+            title: this._article.title,
+            url: this._article.url,
+          }
         });
       }.bind(this));
     } else {
@@ -213,8 +215,10 @@ AboutReader.prototype = {
         dump("Reader:Remove (in reader) success=" + success);
 
         gChromeWin.sendMessageToJava({
-          type: "Reader:Removed",
-          url: this._article.url
+          gecko: {
+            type: "Reader:Removed",
+            url: this._article.url
+          }
         });
       }.bind(this));
     }
@@ -224,7 +228,11 @@ AboutReader.prototype = {
     if (!this._article)
       return;
 
-    gChromeWin.sendMessageToJava({ type: "Reader:GoToReadingList" });
+    gChromeWin.sendMessageToJava({
+      gecko: {
+        type: "Reader:GoToReadingList"
+      }
+    });
   },
 
   _onShare: function Reader_onShare() {
@@ -232,9 +240,11 @@ AboutReader.prototype = {
       return;
 
     gChromeWin.sendMessageToJava({
-      type: "Reader:Share",
-      url: this._article.url,
-      title: this._article.title
+      gecko: {
+        type: "Reader:Share",
+        url: this._article.url,
+        title: this._article.title
+      }
     });
   },
 
@@ -353,8 +363,10 @@ AboutReader.prototype = {
 
   _requestFavicon: function Reader_requestFavicon() {
     gChromeWin.sendMessageToJava({
-      type: "Reader:FaviconRequest",
-      url: this._article.url
+      gecko: {
+        type: "Reader:FaviconRequest",
+        url: this._article.url
+      }
     });
   },
 
@@ -415,15 +427,6 @@ AboutReader.prototype = {
     }
   },
 
-  _maybeSetTextDirection: function Read_maybeSetTextDirection(article){
-    if(!article.dir)
-      return;
-
-    //Set "dir" attribute on content
-    this._contentElement.setAttribute("dir", article.dir);
-    this._headerElement.setAttribute("dir", article.dir);
-  },
-
   _showError: function Reader_showError(error) {
     this._headerElement.style.display = "none";
     this._contentElement.style.display = "none";
@@ -446,7 +449,7 @@ AboutReader.prototype = {
 
     this._creditsElement.innerHTML = article.byline;
 
-    this._titleElement.textContent = article.title;
+    this._titleElement.innerHTML = article.title;
     this._doc.title = article.title;
 
     this._headerElement.style.display = "block";
@@ -457,7 +460,6 @@ AboutReader.prototype = {
     this._contentElement.innerHTML = "";
     this._contentElement.appendChild(contentFragment);
     this._updateImageMargins();
-    this._maybeSetTextDirection(article);
 
     this._contentElement.style.display = "block";
 
@@ -546,7 +548,6 @@ AboutReader.prototype = {
       link.innerHTML = option.name;
       item.appendChild(link);
 
-      link.style.MozUserSelect = 'none';
       segmentedButton.appendChild(item);
 
       link.addEventListener("click", function(aEvent) {
@@ -627,9 +628,6 @@ AboutReader.prototype = {
           return;
 
         aEvent.stopPropagation();
-
-        if (!this._getToolbarVisibility())
-          return;
 
         let dropdownClasses = dropdown.classList;
 

@@ -17,10 +17,8 @@
 
 BEGIN_FILE_NAMESPACE
 
-/**
- * This class contains all the info needed for a single item
- * It must contain the implementation of the File() method.
- */
+// This class contains all the info needed for a single item
+// It must contain the implementation of the File() method.
 class ArchiveItem : public nsISupports
 {
 public:
@@ -30,11 +28,11 @@ public:
   virtual ~ArchiveItem();
 
   // Getter/Setter for the type
-  nsCString GetType();
-  void SetType(const nsCString& aType);
+  virtual nsCString GetType();
+  virtual void SetType(const nsCString& aType);
 
   // Getter for the filename
-  virtual nsresult GetFilename(nsString& aFilename) = 0;
+  virtual nsCString GetFilename() = 0;
 
   // Generate a DOMFile
   virtual nsIDOMFile* File(ArchiveReader* aArchiveReader) = 0;
@@ -43,11 +41,9 @@ protected:
   nsCString mType;
 };
 
-/**
- * This class must be extended by any archive format supported by ArchiveReader API
- * This class runs in a different thread and it calls the 'exec()' method.
- * The exec() must populate mFileList and mStatus then it must call RunShare();
- */
+// This class must be extended by any archive format supported by ArchiveReader API
+// This class runs in a different thread and it calls the 'exec()' method.
+// The exec() must populate mFileList and mStatus then it must call RunShare();
 class ArchiveReaderEvent : public nsRunnable
 {
 public:

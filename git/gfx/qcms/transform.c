@@ -35,83 +35,6 @@
 #define X86
 #endif /* _M_IX86 || __i386__ || __i386 || _M_AMD64 || __x86_64__ || __x86_64 */
 
-/**
- * AltiVec detection for PowerPC CPUs
- * In case we have a method of detecting do the runtime detection.
- * Otherwise statically choose the AltiVec path in case the compiler
- * was told to build with AltiVec support.
- */
-#if (defined(__POWERPC__) || defined(__powerpc__))
-#if defined(__linux__)
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <elf.h>
-#include <linux/auxvec.h>
-#include <asm/cputable.h>
-#include <link.h>
-
-static inline qcms_bool have_altivec() {
-	static int available = -1;
-	int new_avail = 0;
-        ElfW(auxv_t) auxv;
-	ssize_t count;
-	int fd, i;
-
-	if (available != -1)
-		return (available != 0 ? true : false);
-
-	fd = open("/proc/self/auxv", O_RDONLY);
-	if (fd < 0)
-		goto out;
-	do {
-		count = read(fd, &auxv, sizeof(auxv));
-		if (count < 0)
-			goto out_close;
-
-		if (auxv.a_type == AT_HWCAP) {
-			new_avail = !!(auxv.a_un.a_val & PPC_FEATURE_HAS_ALTIVEC);
-			goto out_close;
-		}
-	} while (auxv.a_type != AT_NULL);
-
-out_close:
-	close(fd);
-out:
-	available = new_avail;
-	return (available != 0 ? true : false);
-}
-#elif defined(__APPLE__) && defined(__MACH__)
-#include <sys/sysctl.h>
-
-/**
- * rip-off from ffmpeg AltiVec detection code.
- * this code also appears on Apple's AltiVec pages.
- */
-static inline qcms_bool have_altivec() {
-	int sels[2] = {CTL_HW, HW_VECTORUNIT};
-	static int available = -1;
-	size_t len = sizeof(available);
-	int err;
-
-	if (available != -1)
-		return (available != 0 ? true : false);
-
-	err = sysctl(sels, 2, &available, &len, NULL, 0);
-
-	if (err == 0)
-		if (available != 0)
-			return true;
-
-	return false;
-}
-#elif defined(__ALTIVEC__) || defined(__APPLE_ALTIVEC__)
-#define have_altivec() true
-#else
-#define have_altivec() false
-#endif
-#endif // (defined(__POWERPC__) || defined(__powerpc__))
-
 // Build a White point, primary chromas transfer matrix from RGB to CIE XYZ
 // This is just an approximation, I am not handling all the non-linear
 // aspects of the RGB to XYZ process, and assumming that the gamma correction
@@ -512,12 +435,12 @@ static void qcms_transform_data_clut(qcms_transform *transform, unsigned char *s
 		unsigned char in_b = *src++;
 		float linear_r = in_r/255.0f, linear_g=in_g/255.0f, linear_b = in_b/255.0f;
 
-		int x = floorf(linear_r * (transform->grid_size-1));
-		int y = floorf(linear_g * (transform->grid_size-1));
-		int z = floorf(linear_b * (transform->grid_size-1));
-		int x_n = ceilf(linear_r * (transform->grid_size-1));
-		int y_n = ceilf(linear_g * (transform->grid_size-1));
-		int z_n = ceilf(linear_b * (transform->grid_size-1));
+		int x = floor(linear_r * (transform->grid_size-1));
+		int y = floor(linear_g * (transform->grid_size-1));
+		int z = floor(linear_b * (transform->grid_size-1));
+		int x_n = ceil(linear_r * (transform->grid_size-1));
+		int y_n = ceil(linear_g * (transform->grid_size-1));
+		int z_n = ceil(linear_b * (transform->grid_size-1));
 		float x_d = linear_r * (transform->grid_size-1) - x; 
 		float y_d = linear_g * (transform->grid_size-1) - y;
 		float z_d = linear_b * (transform->grid_size-1) - z; 
@@ -553,10 +476,6 @@ static void qcms_transform_data_clut(qcms_transform *transform, unsigned char *s
 }
 */
 
-static int int_div_ceil(int value, int div) {
-	return ((value  + div - 1) / div);
-}
-
 // Using lcms' tetra interpolation algorithm.
 static void qcms_transform_data_tetra_clut_rgba(qcms_transform *transform, unsigned char *src, unsigned char *dest, size_t length) {
 	unsigned int i;
@@ -577,12 +496,12 @@ static void qcms_transform_data_tetra_clut_rgba(qcms_transform *transform, unsig
 		unsigned char in_a = *src++;
 		float linear_r = in_r/255.0f, linear_g=in_g/255.0f, linear_b = in_b/255.0f;
 
-		int x = in_r * (transform->grid_size-1) / 255;
-		int y = in_g * (transform->grid_size-1) / 255;
-		int z = in_b * (transform->grid_size-1) / 255;
-		int x_n = int_div_ceil(in_r * (transform->grid_size-1), 255);
-		int y_n = int_div_ceil(in_g * (transform->grid_size-1), 255);
-		int z_n = int_div_ceil(in_b * (transform->grid_size-1), 255);
+		int x = floor(linear_r * (transform->grid_size-1));
+		int y = floor(linear_g * (transform->grid_size-1));
+		int z = floor(linear_b * (transform->grid_size-1));
+		int x_n = ceil(linear_r * (transform->grid_size-1));
+		int y_n = ceil(linear_g * (transform->grid_size-1));
+		int z_n = ceil(linear_b * (transform->grid_size-1));
 		float rx = linear_r * (transform->grid_size-1) - x; 
 		float ry = linear_g * (transform->grid_size-1) - y;
 		float rz = linear_b * (transform->grid_size-1) - z; 
@@ -692,15 +611,15 @@ static void qcms_transform_data_tetra_clut(qcms_transform *transform, unsigned c
 		unsigned char in_b = *src++;
 		float linear_r = in_r/255.0f, linear_g=in_g/255.0f, linear_b = in_b/255.0f;
 
-		int x = in_r * (transform->grid_size-1) / 255;
-		int y = in_g * (transform->grid_size-1) / 255;
-		int z = in_b * (transform->grid_size-1) / 255;
-		int x_n = int_div_ceil(in_r * (transform->grid_size-1), 255);
-		int y_n = int_div_ceil(in_g * (transform->grid_size-1), 255);
-		int z_n = int_div_ceil(in_b * (transform->grid_size-1), 255);
-		float rx = linear_r * (transform->grid_size-1) - x;
+		int x = floor(linear_r * (transform->grid_size-1));
+		int y = floor(linear_g * (transform->grid_size-1));
+		int z = floor(linear_b * (transform->grid_size-1));
+		int x_n = ceil(linear_r * (transform->grid_size-1));
+		int y_n = ceil(linear_g * (transform->grid_size-1));
+		int z_n = ceil(linear_b * (transform->grid_size-1));
+		float rx = linear_r * (transform->grid_size-1) - x; 
 		float ry = linear_g * (transform->grid_size-1) - y;
-		float rz = linear_b * (transform->grid_size-1) - z;
+		float rz = linear_b * (transform->grid_size-1) - z; 
 
 		c0_r = CLU(r_table, x, y, z);
 		c0_g = CLU(g_table, x, y, z);
@@ -886,17 +805,9 @@ static void qcms_transform_data_rgb_out_linear(qcms_transform *transform, unsign
 }
 #endif
 
-/*
- * If users create and destroy objects on different threads, even if the same
- * objects aren't used on different threads at the same time, we can still run
- * in to trouble with refcounts if they aren't atomic.
- *
- * This can lead to us prematurely deleting the precache if threads get unlucky
- * and write the wrong value to the ref count.
- */
 static struct precache_output *precache_reference(struct precache_output *p)
 {
-	qcms_atomic_increment(p->ref_count);
+	p->ref_count++;
 	return p;
 }
 
@@ -910,7 +821,7 @@ static struct precache_output *precache_create()
 
 void precache_release(struct precache_output *p)
 {
-	if (qcms_atomic_decrement(p->ref_count) == 0) {
+	if (--p->ref_count == 0) {
 		free(p);
 	}
 }
@@ -1217,11 +1128,7 @@ qcms_transform* qcms_transform_create(
 		precache = true;
 	}
 
-	// This precache assumes RGB_SIGNATURE (fails on GRAY_SIGNATURE, for instance)
-	if (qcms_supports_iccv4 &&
-			(in_type == QCMS_DATA_RGB_8 || in_type == QCMS_DATA_RGBA_8) &&
-			(in->A2B0 || out->B2A0 || in->mAB || out->mAB))
-		{
+	if (qcms_supports_iccv4 && (in->A2B0 || out->B2A0 || in->mAB || out->mAB)) {
 		// Precache the transformation to a CLUT 33x33x33 in size.
 		// 33 is used by many profiles and works well in pratice. 
 		// This evenly divides 256 into blocks of 8x8x8.
@@ -1281,14 +1188,6 @@ qcms_transform* qcms_transform_create(
 			    else
 				    transform->transform_fn = qcms_transform_data_rgba_out_lut_sse1;
 #endif
-		    } else
-#endif
-#if (defined(__POWERPC__) || defined(__powerpc__))
-		    if (have_altivec()) {
-			    if (in_type == QCMS_DATA_RGB_8)
-				    transform->transform_fn = qcms_transform_data_rgb_out_lut_altivec;
-			    else
-				    transform->transform_fn = qcms_transform_data_rgba_out_lut_altivec;
 		    } else
 #endif
 			{

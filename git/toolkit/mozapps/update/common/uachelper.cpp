@@ -166,8 +166,8 @@ UACHelper::DisableUnneededPrivileges(HANDLE token,
     // Note: This handle is a pseudo-handle and need not be closed
     HANDLE process = GetCurrentProcess();
     if (!OpenProcessToken(process, TOKEN_ALL_ACCESS_P, &obtainedToken)) {
-      LOG_WARN(("Could not obtain token for current process, no "
-                "privileges changed. (%d)", GetLastError()));
+      LOG(("Could not obtain token for current process, no "
+           "privileges changed. (%d)\n", GetLastError()));
       return FALSE;
     }
     token = obtainedToken;
@@ -176,10 +176,10 @@ UACHelper::DisableUnneededPrivileges(HANDLE token,
   BOOL result = TRUE;
   for (size_t i = 0; i < count; i++) {
     if (SetPrivilege(token, unneededPrivs[i], FALSE)) {
-      LOG(("Disabled unneeded token privilege: %s.",
+      LOG(("Disabled unneeded token privilege: %s.\n", 
            unneededPrivs[i]));
     } else {
-      LOG(("Could not disable token privilege value: %s. (%d)",
+      LOG(("Could not disable token privilege value: %s. (%d)\n", 
            unneededPrivs[i], GetLastError()));
       result = FALSE;
     }

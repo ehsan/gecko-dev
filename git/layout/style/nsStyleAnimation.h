@@ -16,7 +16,9 @@
 #include "nsColor.h"
 #include "nsCSSValue.h"
 
+class nsPresContext;
 class nsStyleContext;
+struct nsCSSRect;
 class gfx3DMatrix;
 
 namespace mozilla {
@@ -167,11 +169,13 @@ public:
    * @return true on success, false on failure.
    */
   static bool UncomputeValue(nsCSSProperty aProperty,
-                             const Value& aComputedValue,
-                             nsCSSValue& aSpecifiedValue);
+                               nsPresContext* aPresContext,
+                               const Value& aComputedValue,
+                               nsCSSValue& aSpecifiedValue);
   static bool UncomputeValue(nsCSSProperty aProperty,
-                             const Value& aComputedValue,
-                             nsAString& aSpecifiedValue);
+                               nsPresContext* aPresContext,
+                               const Value& aComputedValue,
+                               nsAString& aSpecifiedValue);
 
   /**
    * Gets the computed value for the given property from the given style

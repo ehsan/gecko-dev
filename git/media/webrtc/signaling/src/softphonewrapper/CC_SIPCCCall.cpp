@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "CSFLog.h"
-
 #include "CC_Common.h"
 
 #include "CC_SIPCCCall.h"
@@ -23,6 +21,7 @@ extern "C"
 using namespace std;
 using namespace CSF;
 
+#include "CSFLogStream.h"
 static const char* logTag = "CC_SIPCCCall";
 
 CSF_IMPLEMENT_WRAP(CC_SIPCCCall, cc_call_handle_t);
@@ -32,7 +31,7 @@ CC_SIPCCCall::CC_SIPCCCall (cc_call_handle_t aCallHandle) :
             pMediaData(new CC_SIPCCCallMediaData(NULL,false,false,-1)),
             m_lock("CC_SIPCCCall")
 {
-    CSFLogInfo( logTag, "Creating  CC_SIPCCCall %u", callHandle );
+    CSFLogInfoS( logTag, "Creating  CC_SIPCCCall " << callHandle );
 
     AudioControl * audioControl = VcmSIPCCBinding::getAudioControl();
 
@@ -68,7 +67,7 @@ void CC_SIPCCCall::setRemoteWindow (VideoWindowHandle window)
 
     if (!pVideo)
     {
-        CSFLogWarn( logTag, "setRemoteWindow: no video provider found");
+        CSFLogWarnS( logTag, "setRemoteWindow: no video provider found");
         return;
     }
 
@@ -83,7 +82,7 @@ void CC_SIPCCCall::setRemoteWindow (VideoWindowHandle window)
             return;
         }
     }
-    CSFLogInfo( logTag, "setRemoteWindow:no video stream found in call %u", callHandle );
+    CSFLogInfoS( logTag, "setRemoteWindow:no video stream found in call " << callHandle );
 }
 
 int CC_SIPCCCall::setExternalRenderer(VideoFormat vFormat, ExternalRendererHandle renderer)
@@ -94,7 +93,7 @@ int CC_SIPCCCall::setExternalRenderer(VideoFormat vFormat, ExternalRendererHandl
 
     if (!pVideo)
     {
-        CSFLogWarn( logTag, "setExternalRenderer: no video provider found");
+        CSFLogWarnS( logTag, "setExternalRenderer: no video provider found");
         return -1;
     }
 
@@ -107,7 +106,7 @@ int CC_SIPCCCall::setExternalRenderer(VideoFormat vFormat, ExternalRendererHandl
             return pVideo->setExternalRenderer(streamId,  pMediaData->videoFormat, pMediaData->extRenderer);
         }
     }
-    CSFLogInfo( logTag, "setExternalRenderer:no video stream found in call %u", callHandle );
+    CSFLogInfoS( logTag, "setExternalRenderer:no video stream found in call " << callHandle );
 	return -1;
 }
 
@@ -126,7 +125,7 @@ CC_CallInfoPtr CC_SIPCCCall::getCallInfo ()
     cc_callinfo_ref_t callInfo = CCAPI_Call_getCallInfo(callHandle);
     CC_SIPCCCallInfoPtr callInfoPtr = CC_SIPCCCallInfo::wrap(callInfo);
     callInfoPtr->setMediaData( pMediaData);
-    return callInfoPtr.get();
+    return callInfoPtr;
 }
 
 
@@ -234,7 +233,7 @@ bool CC_SIPCCCall::sendDigit (cc_digit_t digit)
 			}
 			else
 			{
-				CSFLogWarn( logTag, "sendDigit:sendDtmf returned fail");
+				CSFLogWarnS( logTag, "sendDigit:sendDtmf returned fail");
 			}
 		}
     }
@@ -357,7 +356,7 @@ bool CC_SIPCCCall::setAudioMute(bool mute)
 				}
 				else
 				{
-					CSFLogWarn( logTag, "setAudioMute:audio mute returned fail");
+					CSFLogWarnS( logTag, "setAudioMute:audio mute returned fail");
 				}
 			}
 	    }
@@ -391,7 +390,7 @@ bool CC_SIPCCCall::setVideoMute(bool mute)
 				}
 				else
 				{
-					CSFLogWarn( logTag, "setVideoMute:video mute returned fail");
+					CSFLogWarnS( logTag, "setVideoMute:video mute returned fail");
 				}
 			}
 	    }
@@ -408,8 +407,7 @@ bool CC_SIPCCCall::setVideoMute(bool mute)
 void CC_SIPCCCall::addStream(int streamId, bool isVideo)
 {
 
-	CSFLogInfo( logTag, "addStream: %d video=%s callhandle=%u",
-        streamId, isVideo ? "TRUE" : "FALSE", callHandle);
+	CSFLogInfoS( logTag, "addStream: " << streamId << "video=" << isVideo << "callhandle=" << callHandle);
 	{
 		mozilla::MutexAutoLock lock(m_lock);
 		pMediaData->streamMap[streamId].isVideo = isVideo;
@@ -428,7 +426,7 @@ void CC_SIPCCCall::addStream(int streamId, bool isVideo)
         }
         else
         {
-            CSFLogInfo( logTag, "addStream: remoteWindow is NULL");
+            CSFLogInfoS( logTag, "addStream: remoteWindow is NULL");
         }
 
 		if(pMediaData->extRenderer != NULL)
@@ -437,7 +435,7 @@ void CC_SIPCCCall::addStream(int streamId, bool isVideo)
 		}
 		else
 		{
-            CSFLogInfo( logTag, "addStream: externalRenderer is NULL");
+            CSFLogInfoS( logTag, "addStream: externalRenderer is NULL");
 
 		}
 
@@ -452,10 +450,10 @@ void CC_SIPCCCall::addStream(int streamId, bool isVideo)
         }
 		if (!pVideo->mute(streamId,  pMediaData->videoMuteState))
 		{
-			CSFLogError( logTag, "setting video mute state failed for new stream: %d", streamId);
+			CSFLogErrorS( logTag, "setting video mute state failed for new stream: " << streamId);
 		} else
 		{
-			CSFLogError( logTag, "setting video mute state SUCCEEDED for new stream: %d", streamId);
+			CSFLogErrorS( logTag, "setting video mute state SUCCEEDED for new stream: " << streamId);
 
 		}
 #endif
@@ -465,11 +463,11 @@ void CC_SIPCCCall::addStream(int streamId, bool isVideo)
 		AudioTermination * pAudio = VcmSIPCCBinding::getAudioTermination();
 		if (!pAudio->mute(streamId,  pMediaData->audioMuteState))
 		{
-			CSFLogError( logTag, "setting audio mute state failed for new stream: %d", streamId);
+			CSFLogErrorS( logTag, "setting audio mute state failed for new stream: " << streamId);
 		}
         if (!pAudio->setVolume(streamId,  pMediaData->volume))
         {
-			CSFLogError( logTag, "setting volume state failed for new stream: %d", streamId);
+			CSFLogErrorS( logTag, "setting volume state failed for new stream: " << streamId);
         }
 	}
 }
@@ -480,7 +478,7 @@ void CC_SIPCCCall::removeStream(int streamId)
 
 	if ( pMediaData->streamMap.erase(streamId) != 1)
 	{
-		CSFLogError( logTag, "removeStream stream that was never in the streamMap: %d", streamId);
+		CSFLogErrorS( logTag, "removeStream stream that was never in the streamMap: " << streamId);
 	}
 }
 
@@ -508,8 +506,7 @@ bool CC_SIPCCCall::setVolume(int volume)
 			    }
 			    else
 			    {
-				    CSFLogWarn( logTag, "setVolume:set volume on stream %d returned fail",
-                        streamId);
+				    CSFLogWarnS( logTag, "setVolume:set volume on stream " << streamId << " returned fail");
                 }
             }
 	    }
@@ -531,13 +528,13 @@ void CC_SIPCCCall::originateP2PCall (cc_sdp_direction_t video_pref, const std::s
 /*
  * This method works asynchronously, is an onCallEvent with the resulting SDP
  */
-void CC_SIPCCCall::createOffer (cc_media_constraints_t *constraints) {
+void CC_SIPCCCall::createOffer (const cc_media_constraints_t *constraints) {
     CCAPI_CreateOffer(callHandle, constraints);
 }
 /*
  * This method works asynchronously, there is onCallEvent with the resulting SDP
  */
-void CC_SIPCCCall::createAnswer (cc_media_constraints_t *constraints) {
+void CC_SIPCCCall::createAnswer (const cc_media_constraints_t *constraints) {
     CCAPI_CreateAnswer(callHandle, constraints);
 
 }

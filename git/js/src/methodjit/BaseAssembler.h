@@ -8,8 +8,6 @@
 #if !defined jsjaeger_baseassembler_h__ && defined JS_METHODJIT
 #define jsjaeger_baseassembler_h__
 
-#include "mozilla/DebugOnly.h"
-
 #include "jscntxt.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "assembler/assembler/MacroAssembler.h"
@@ -19,11 +17,8 @@
 #include "methodjit/MachineRegs.h"
 #include "CodeGenIncludes.h"
 #include "jsobjinlines.h"
+#include "jsscopeinlines.h"
 #include "jstypedarrayinlines.h"
-
-#include "vm/Shape-inl.h"
-
-using mozilla::DebugOnly;
 
 namespace js {
 namespace mjit {
@@ -148,6 +143,7 @@ class Assembler : public ValueAssembler
         vmframe(vmframe),
         pc(NULL)
     {
+        AutoAssertNoGC nogc;
         startLabel = label();
         if (vmframe)
             sps->setPushed(vmframe->script());
@@ -199,7 +195,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
         loadPtr(Address(obj, JSObject::offsetOfShape()), shape);
     }
 
-    Jump guardShape(RegisterID objReg, RawShape shape) {
+    Jump guardShape(RegisterID objReg, Shape *shape) {
         return branchPtr(NotEqual, Address(objReg, JSObject::offsetOfShape()), ImmPtr(shape));
     }
 
@@ -723,16 +719,14 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
                               DataLabelPtr *pinlined, int32_t frameDepth) {
         setupInfallibleVMFrame(frameDepth);
 
-        // regs->fp = fp
+        /* regs->fp = fp */
         storePtr(JSFrameReg, FrameAddress(VMFrame::offsetOfFp));
 
-        // PC -> regs->pc :(  Note: If pc is null, we are emitting a trampoline,
-        // so regs->pc is already correct.
-        if (pc)
-            storePtr(ImmPtr(pc), FrameAddress(VMFrame::offsetOfRegsPc()));
+        /* PC -> regs->pc :( */
+        storePtr(ImmPtr(pc), FrameAddress(VMFrame::offsetOfRegsPc()));
 
         if (inlining) {
-            // inlined -> regs->inlined :(
+            /* inlined -> regs->inlined :( */
             DataLabelPtr ptr = storePtrWithPatch(ImmPtr(NULL),
                                                  FrameAddress(VMFrame::offsetOfInlined));
             if (pinlined)
@@ -779,10 +773,6 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     // A fallible VM call is a stub call (taking a VMFrame & and one optional
     // parameter) that needs the entire VMFrame to be coherent, meaning that
     // |pc|, |inlined| and |fp| are guaranteed to be up-to-date.
-    //
-    // If |pc| is null, the caller guarantees that the current regs->pc may be
-    // trusted. This is the case for a single debug-only path; see
-    // generateForceReturn.
     Call fallibleVMCall(bool inlining, void *ptr, jsbytecode *pc,
                         DataLabelPtr *pinlined, int32_t frameDepth) {
         setupFallibleVMFrame(inlining, pc, pinlined, frameDepth);
@@ -924,8 +914,8 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     }
 
     void loadObjClass(RegisterID obj, RegisterID dest) {
-        loadPtr(Address(obj, JSObject::offsetOfType()), dest);
-        loadPtr(Address(dest, offsetof(types::TypeObject, clasp)), dest);
+        loadBaseShape(obj, dest);
+        loadPtr(Address(dest, BaseShape::offsetOfClass()), dest);
     }
 
     Jump testClass(Condition cond, RegisterID claspReg, js::Class *clasp) {
@@ -933,8 +923,8 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     }
 
     Jump testObjClass(Condition cond, RegisterID obj, RegisterID temp, js::Class *clasp) {
-        loadPtr(Address(obj, JSObject::offsetOfType()), temp);
-        return branchPtr(cond, Address(temp, offsetof(types::TypeObject, clasp)), ImmPtr(clasp));
+        loadBaseShape(obj, temp);
+        return branchPtr(cond, Address(temp, BaseShape::offsetOfClass()), ImmPtr(clasp));
     }
 
     Jump testFunction(Condition cond, RegisterID fun, RegisterID temp) {
@@ -983,7 +973,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     }
 
     void loadObjProp(JSObject *obj, RegisterID objReg,
-                     js::RawShape shape,
+                     js::Shape *shape,
                      RegisterID typeReg, RegisterID dataReg)
     {
         if (obj->isFixedSlot(shape->slot()))
@@ -1147,9 +1137,6 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
     }
 
     template <typename T>
-#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 7 && defined(JS_CPU_ARM)
-    __attribute__((optimize("-O1")))
-#endif
     void storeToTypedArray(int atype, ValueRemat vr, T address)
     {
         if (atype == js::TypedArray::TYPE_FLOAT32 || atype == js::TypedArray::TYPE_FLOAT64) {
@@ -1347,7 +1334,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
      */
     Jump getNewObject(JSContext *cx, RegisterID result, JSObject *templateObject)
     {
-        gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
+        gc::AllocKind allocKind = templateObject->getAllocKind();
 
         JS_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
         int thingSize = (int)gc::Arena::thingSize(allocKind);
@@ -1366,7 +1353,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
          * span is not empty is handled.
          */
         gc::FreeSpan *list = const_cast<gc::FreeSpan *>
-                             (cx->zone()->allocator.arenas.getFreeList(allocKind));
+                             (cx->compartment->arenas.getFreeList(allocKind));
         loadPtr(&list->first, result);
 
         Jump jump = branchPtr(Assembler::BelowOrEqual, AbsoluteAddress(&list->last), result);
@@ -1391,8 +1378,8 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
          * as for dense arrays we will need to get the address of the fixed
          * elements first.
          */
-        if (templateObject->isArray()) {
-            JS_ASSERT(!templateObject->getDenseInitializedLength());
+        if (templateObject->isDenseArray()) {
+            JS_ASSERT(!templateObject->getDenseArrayInitializedLength());
             addPtr(Imm32(-thingSize + elementsOffset), result);
             storePtr(result, Address(result, -elementsOffset + JSObject::offsetOfElements()));
             addPtr(Imm32(-elementsOffset), result);
@@ -1405,18 +1392,14 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
         storePtr(ImmPtr(templateObject->type()), Address(result, JSObject::offsetOfType()));
         storePtr(ImmPtr(NULL), Address(result, JSObject::offsetOfSlots()));
 
-        if (templateObject->isArray()) {
+        if (templateObject->isDenseArray()) {
             /* Fill in the elements header. */
-            store32(Imm32(templateObject->getDenseCapacity()),
+            store32(Imm32(templateObject->getDenseArrayCapacity()),
                     Address(result, elementsOffset + ObjectElements::offsetOfCapacity()));
-            store32(Imm32(templateObject->getDenseInitializedLength()),
+            store32(Imm32(templateObject->getDenseArrayInitializedLength()),
                     Address(result, elementsOffset + ObjectElements::offsetOfInitializedLength()));
             store32(Imm32(templateObject->getArrayLength()),
                     Address(result, elementsOffset + ObjectElements::offsetOfLength()));
-            store32(Imm32(templateObject->shouldConvertDoubleElements()
-                          ? ObjectElements::CONVERT_DOUBLE_ELEMENTS
-                          : 0),
-                    Address(result, elementsOffset + ObjectElements::offsetOfFlags()));
         } else {
             /*
              * Fixed slots of non-array objects are required to be initialized;
@@ -1512,7 +1495,7 @@ static const JSC::MacroAssembler::RegisterID JSParamReg_Argc  = JSC::MIPSRegiste
 
 /* Return f<true> if the script is strict mode code, f<false> otherwise. */
 #define STRICT_VARIANT(script, f)                                             \
-    (FunctionTemplateConditional(script->strict,                              \
+    (FunctionTemplateConditional(script->strictModeCode,                      \
                                  f<true>, f<false>))
 
 /* Save some typing. */

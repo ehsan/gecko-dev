@@ -221,6 +221,8 @@ splitmenu {
   -moz-binding: url(chrome://browser/content/urlbarBindings.xml#urlbar);
 }
 
+.uri-element-right-align:-moz-locale-dir(rtl),
+html|input.uri-element-right-align:-moz-locale-dir(rtl),
 .ac-url-text:-moz-locale-dir(rtl),
 .ac-title:-moz-locale-dir(rtl) > description {
   direction: ltr !important;
@@ -389,14 +391,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   opacity: 0.0;
 }
 
-/* When the modal fullscreen approval UI is showing, don't allow interaction
-   with the page, but when we're just showing the warning upon entering
-   fullscreen on an already approved page, do allow interaction with the page.
- */
-#full-screen-warning-container:not([obscure-browser]) {
-  pointer-events: none;
-}
-
 #full-screen-warning-message {
   /* We must specify a max-width, otherwise word-wrap:break-word doesn't
      work in descendant <description> and <label> elements. Bug 630864. */
@@ -418,17 +412,21 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   display: none;
 }
 
-/* ::::: Ctrl-Tab Panel ::::: */
+/* ::::: Keyboard UI Panel ::::: */
+.KUI-panel-closebutton {
+  -moz-binding: url("chrome://global/content/bindings/toolbarbutton.xml#toolbarbutton-image");
+}
 
-.ctrlTab-preview > html|img,
-.ctrlTab-preview > html|canvas {
+:-moz-any(.ctrlTab-preview, .allTabs-preview) > html|img,
+:-moz-any(.ctrlTab-preview, .allTabs-preview) > html|canvas {
   min-width: inherit;
   max-width: inherit;
   min-height: inherit;
   max-height: inherit;
 }
 
-.ctrlTab-favicon-container {
+.ctrlTab-favicon-container,
+.allTabs-favicon-container {
   -moz-box-align: start;
 %ifdef XP_MACOSX
   -moz-box-pack: end;
@@ -437,13 +435,25 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 %endif
 }
 
-.ctrlTab-favicon {
+.ctrlTab-favicon,
+.allTabs-favicon {
   width: 16px;
   height: 16px;
 }
 
+/* ::::: Ctrl-Tab Panel ::::: */
 .ctrlTab-preview {
   -moz-binding: url("chrome://browser/content/browser-tabPreviews.xml#ctrlTab-preview");
+}
+
+/* ::::: All Tabs Panel ::::: */
+.allTabs-preview {
+  -moz-binding: url("chrome://browser/content/browser-tabPreviews.xml#allTabs-preview");
+}
+
+#allTabs-tab-close-button {
+  -moz-binding: url("chrome://global/content/bindings/toolbarbutton.xml#toolbarbutton-image");
+  margin: 0;
 }
 
 
@@ -464,6 +474,10 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 
 #invalid-form-popup > description {
   max-width: 280px;
+}
+
+#geolocation-notification {
+  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#geolocation-notification");
 }
 
 #addon-progress-notification {
@@ -548,6 +562,10 @@ statuspanel[inactive][previoustype=overLink] {
   -moz-box-align: end;
 }
 
+.styleInspector {
+  min-width: 350px;
+}
+
 .panel-inner-arrowcontentfooter[footertype="promobox"] {
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#promobox");
 }
@@ -575,14 +593,20 @@ html|*#gcli-output-frame,
   direction: ltr;
 }
 
-#developer-toolbar-toolbox-button[error-count] > .toolbarbutton-icon {
+#developer-toolbar-webconsole[error-count] > .toolbarbutton-icon {
   display: none;
 }
 
-#developer-toolbar-toolbox-button[error-count]:before {
+#developer-toolbar-webconsole[error-count]:before {
   content: attr(error-count);
   display: -moz-box;
   -moz-box-pack: center;
+}
+
+/* We don't show the Style Editor button in the developer toolbar for now.
+   See bug 771203 */
+#developer-toolbar-styleeditor {
+  display: none;
 }
 
 /* Responsive Mode */
@@ -608,10 +632,6 @@ html|*#gcli-output-frame,
   transition: none;
 }
 
-.social-notification-container > .toolbarbutton-1[badge]:not([badge=""])::after {
-  content: attr(badge);
-}
-
 chatbox {
   -moz-binding: url("chrome://browser/content/socialchat.xml#chatbox");
 }
@@ -619,5 +639,4 @@ chatbox {
 chatbar {
   -moz-binding: url("chrome://browser/content/socialchat.xml#chatbar");
   height: 0;
-  max-height: 0;
 }

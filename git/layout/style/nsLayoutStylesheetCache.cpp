@@ -8,6 +8,7 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "mozilla/css/Loader.h"
 #include "nsIFile.h"
+#include "nsLayoutCID.h"
 #include "nsIMemoryReporter.h"
 #include "nsNetUtil.h"
 #include "nsIObserverService.h"
@@ -15,7 +16,8 @@
 #include "nsIXULRuntime.h"
 #include "nsCSSStyleSheet.h"
 
-NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(LayoutStyleSheetCacheMallocSizeOf)
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(LayoutStyleSheetCacheMallocSizeOf,
+                                     "layout/style-sheet-cache")
 
 static int64_t
 GetStylesheetCacheSize()

@@ -10,7 +10,6 @@
 
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Attributes.h"
-#include <algorithm>
 
 class nsDOMMultipartFile : public nsDOMFile,
                            public nsIJSNativeInitializer
@@ -26,7 +25,7 @@ public:
   }
 
   // Create as a blob
-  nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> >& aBlobs,
+  nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> > aBlobs,
                      const nsAString& aContentType)
     : nsDOMFile(aContentType, UINT64_MAX),
       mBlobs(aBlobs)
@@ -52,16 +51,13 @@ public:
                         JSContext* aCx,
                         JSObject* aObj,
                         uint32_t aArgc,
-                        JS::Value* aArgv);
+                        jsval* aArgv);
 
   typedef nsIDOMBlob* (*UnwrapFuncPtr)(JSContext*, JSObject*);
-  nsresult InitBlob(JSContext* aCx,
-                    uint32_t aArgc,
-                    JS::Value* aArgv,
-                    UnwrapFuncPtr aUnwrapFunc);
-  nsresult InitFile(JSContext* aCx,
-                    uint32_t aArgc,
-                    JS::Value* aArgv);
+  nsresult InitInternal(JSContext* aCx,
+                        uint32_t aArgc,
+                        jsval* aArgv,
+                        UnwrapFuncPtr aUnwrapFunc);
 
   already_AddRefed<nsIDOMBlob>
   CreateSlice(uint64_t aStart, uint64_t aLength, const nsAString& aContentType);
@@ -75,16 +71,6 @@ public:
   // DOMClassInfo constructor (for Blob([b1, "foo"], { type: "image/png" }))
   static nsresult
   NewBlob(nsISupports* *aNewObject);
-
-  // DOMClassInfo constructor (for File([b1, "foo"], { type: "image/png",
-  //                                                   name: "foo.png" }))
-  inline static nsresult
-  NewFile(nsISupports* *aNewObject)
-  {
-    // Initialization will set the filename, so we can pass in an empty string
-    // for now.
-    return NewFile(EmptyString(), aNewObject);
-  }
 
   virtual const nsTArray<nsCOMPtr<nsIDOMBlob> >*
   GetSubBlobs() const { return &mBlobs; }
@@ -102,7 +88,7 @@ public:
   nsresult AppendVoidPtr(const void* aData, uint32_t aLength);
   nsresult AppendString(JSString* aString, bool nativeEOL, JSContext* aCx);
   nsresult AppendBlob(nsIDOMBlob* aBlob);
-  nsresult AppendArrayBuffer(JSObject* aBuffer);
+  nsresult AppendArrayBuffer(JSObject* aBuffer, JSContext *aCx);
   nsresult AppendBlobs(const nsTArray<nsCOMPtr<nsIDOMBlob> >& aBlob);
 
   nsTArray<nsCOMPtr<nsIDOMBlob> >& GetBlobs() { Flush(); return mBlobs; }
@@ -126,15 +112,15 @@ protected:
     }
 
     // Start at 1 or we'll loop forever.
-    CheckedUint32 bufferLen =
-      std::max<uint32_t>(static_cast<uint32_t>(mDataBufferLen), 1);
+    CheckedUint32 bufferLen = NS_MAX<uint32_t>(mDataBufferLen, 1);
     while (bufferLen.isValid() && bufferLen.value() < mDataLen + aSize)
       bufferLen *= 2;
 
     if (!bufferLen.isValid())
       return false;
 
-    void* data = moz_realloc(mData, bufferLen.value());
+    // PR_ memory functions are still fallible
+    void* data = PR_Realloc(mData, bufferLen.value());
     if (!data)
       return false;
 

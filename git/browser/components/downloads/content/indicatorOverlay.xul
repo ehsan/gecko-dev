@@ -9,12 +9,7 @@
 <?xml-stylesheet href="chrome://browser/content/downloads/downloads.css"?>
 <?xml-stylesheet href="chrome://browser/skin/downloads/downloads.css"?>
 
-<!DOCTYPE overlay [
-  <!ENTITY % browserDTD SYSTEM "chrome://browser/locale/browser.dtd" >
-  %browserDTD;
-  <!ENTITY % downloadsDTD SYSTEM "chrome://browser/locale/downloads/downloads.dtd" >
-  %downloadsDTD;
-]>
+<!DOCTYPE overlay SYSTEM "chrome://browser/locale/downloads/downloads.dtd">
 
 <overlay xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
          xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
@@ -28,14 +23,13 @@
          toolbar handling code could remove it from the document. -->
     <toolbarbutton id="downloads-indicator"
                    class="toolbarbutton-1 chromeclass-toolbar-additional"
-                   tooltiptext="&downloads.tooltip;"
+                   tooltiptext="&indicator.tooltiptext;"
                    collapsed="true"
                    oncommand="DownloadsIndicatorView.onCommand(event);"
                    ondrop="DownloadsIndicatorView.onDrop(event);"
                    ondragover="DownloadsIndicatorView.onDragOver(event);"
                    ondragenter="DownloadsIndicatorView.onDragOver(event);"
-                   ondragleave="DownloadsIndicatorView.onDragLeave(event);"
-                   skipintoolbarset="true">
+                   ondragleave="DownloadsIndicatorView.onDragLeave(event);">
       <!-- The panel's anchor area is smaller than the outer button, but must
            always be visible and must not move or resize when the indicator
            state changes, otherwise the panel could change its position or lose
@@ -53,8 +47,6 @@
         <vbox id="downloads-indicator-icon"/>
         <vbox id="downloads-indicator-notification"/>
       </stack>
-      <label class="toolbarbutton-text" crop="right" flex="1"
-             value="&downloads.label;"/>
     </toolbarbutton>
   </popupset>
 </overlay>

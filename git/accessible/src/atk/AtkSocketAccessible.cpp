@@ -9,11 +9,8 @@
 
 #include "InterfaceInitFuncs.h"
 #include "nsMai.h"
-#include "mozilla/Likely.h"
 
-using namespace mozilla::a11y;
-
-AtkSocketEmbedType AtkSocketAccessible::g_atk_socket_embed = nullptr;
+AtkSocketEmbedType AtkSocketAccessible::g_atk_socket_embed = NULL;
 GType AtkSocketAccessible::g_atk_socket_type = G_TYPE_INVALID;
 const char* AtkSocketAccessible::sATKSocketEmbedSymbol = "atk_socket_embed";
 const char* AtkSocketAccessible::sATKSocketGetTypeSymbol = "atk_socket_get_type";
@@ -69,11 +66,11 @@ mai_atk_socket_init(MaiAtkSocket* aAcc)
 static AtkObject*
 mai_atk_socket_new(AccessibleWrap* aAccWrap)
 {
-  NS_ENSURE_TRUE(aAccWrap, nullptr);
+  NS_ENSURE_TRUE(aAccWrap, NULL);
 
   MaiAtkSocket* acc = nullptr;
-  acc = static_cast<MaiAtkSocket*>(g_object_new(MAI_TYPE_ATK_SOCKET, nullptr));
-  NS_ENSURE_TRUE(acc, nullptr);
+  acc = static_cast<MaiAtkSocket*>(g_object_new(MAI_TYPE_ATK_SOCKET, NULL));
+  NS_ENSURE_TRUE(acc, NULL);
 
   acc->accWrap = aAccWrap;
   return ATK_OBJECT(acc);
@@ -108,7 +105,7 @@ void
 mai_atk_component_iface_init(AtkComponentIface* aIface)
 {
   NS_ASSERTION(aIface, "Invalid Interface");
-  if (MOZ_UNLIKELY(!aIface))
+  if (NS_UNLIKELY(!aIface))
     return;
 
   aIface->ref_accessible_at_point = RefAccessibleAtPoint;

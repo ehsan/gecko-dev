@@ -32,7 +32,6 @@
 
 class imgRequestNotifyRunnable;
 class imgStatusNotifyRunnable;
-class ProxyBehaviour;
 
 namespace mozilla {
 namespace image {
@@ -40,8 +39,8 @@ class Image;
 } // namespace image
 } // namespace mozilla
 
-class imgRequestProxy : public imgIRequest,
-                        public nsISupportsPriority,
+class imgRequestProxy : public imgIRequest, 
+                        public nsISupportsPriority, 
                         public nsISecurityInfoProvider,
                         public nsITimedChannel
 {
@@ -58,10 +57,9 @@ public:
 
   // Callers to Init or ChangeOwner are required to call NotifyListener after
   // (although not immediately after) doing so.
-  nsresult Init(imgRequest* aOwner,
+  nsresult Init(imgStatusTracker* aStatusTracker,
                 nsILoadGroup *aLoadGroup,
-                nsIURI* aURI,
-                imgINotificationObserver *aObserver);
+                nsIURI* aURI, imgINotificationObserver *aObserver);
 
   nsresult ChangeOwner(imgRequest *aNewOwner); // this will change mOwner.  Do not call this if the previous
                                                // owner has already sent notifications out!
@@ -104,9 +102,6 @@ public:
   // imgRequest::RemoveProxy
   void ClearAnimationConsumers();
 
-  nsresult Clone(imgINotificationObserver* aObserver, imgRequestProxy** aClone);
-  nsresult GetStaticRequest(imgRequestProxy** aReturn);
-
 protected:
   friend class imgStatusTracker;
   friend class imgStatusNotifyRunnable;
@@ -136,14 +131,12 @@ protected:
   // class) imgStatusTracker is the only class allowed to send us
   // notifications.
 
-  /* non-virtual imgDecoderObserver methods */
-  void OnStartDecode     ();
+  /* non-virtual imgIDecoderObserver methods */
   void OnStartContainer  ();
   void OnFrameUpdate     (const nsIntRect * aRect);
   void OnStopFrame       ();
   void OnStopDecode      ();
   void OnDiscard         ();
-  void OnUnlockedDraw    ();
   void OnImageIsAnimated ();
 
   /* non-virtual sort-of-nsIRequestObserver methods */
@@ -168,31 +161,34 @@ protected:
   // live either on mOwner or mImage, depending on whether
   //   (a) we have an mOwner at all
   //   (b) whether mOwner has instantiated its image yet
-  imgStatusTracker& GetStatusTracker() const;
+  virtual imgStatusTracker& GetStatusTracker() const;
 
   nsITimedChannel* TimedChannel()
   {
-    if (!GetOwner())
+    if (!mOwner)
       return nullptr;
-    return GetOwner()->mTimedChannel;
+    return mOwner->mTimedChannel;
   }
 
-  mozilla::image::Image* GetImage() const;
-  imgRequest* GetOwner() const;
+  virtual mozilla::image::Image* GetImage() const;
 
   nsresult PerformClone(imgINotificationObserver* aObserver,
                         imgRequestProxy* (aAllocFn)(imgRequestProxy*),
-                        imgRequestProxy** aClone);
+                        imgIRequest** aClone);
 
 public:
   NS_FORWARD_SAFE_NSITIMEDCHANNEL(TimedChannel())
 
-protected:
-  nsAutoPtr<ProxyBehaviour> mBehaviour;
-
 private:
   friend class imgCacheValidator;
-  friend imgRequestProxy* NewStaticProxy(imgRequestProxy* aThis);
+
+  // We maintain the following invariant:
+  // The proxy is registered at most with a single imgRequest as an observer,
+  // and whenever it is, mOwner points to that object. This helps ensure that
+  // imgRequestProxy::~imgRequestProxy unregisters the proxy as an observer
+  // from whatever request it was registered with (if any). This, in turn,
+  // means that imgRequest::mObservers will not have any stale pointers in it.
+  nsRefPtr<imgRequest> mOwner;
 
   // The URI of our request.
   nsCOMPtr<nsIURI> mURI;
@@ -218,6 +214,9 @@ private:
   // We only want to send OnStartContainer once for each proxy, but we might
   // get multiple OnStartContainer calls.
   bool mSentStartContainer;
+
+  protected:
+    bool mOwnerHasImage;
 };
 
 // Used for static image proxies for which no requests are available, so
@@ -227,9 +226,15 @@ class imgRequestProxyStatic : public imgRequestProxy
 
 public:
   imgRequestProxyStatic(mozilla::image::Image* aImage,
-                        nsIPrincipal* aPrincipal);
+                        nsIPrincipal* aPrincipal)
+                       : mImage(aImage)
+                       , mPrincipal(aPrincipal)
+  {
+    mOwnerHasImage = true;
+  };
 
   NS_IMETHOD GetImagePrincipal(nsIPrincipal** aPrincipal) MOZ_OVERRIDE;
+  virtual imgStatusTracker& GetStatusTracker() const MOZ_OVERRIDE;
 
   NS_IMETHOD Clone(imgINotificationObserver* aObserver,
                    imgIRequest** aClone) MOZ_OVERRIDE;
@@ -237,9 +242,16 @@ public:
 protected:
   friend imgRequestProxy* NewStaticProxy(imgRequestProxy*);
 
+  // Our image. We have to hold a strong reference here, because that's normally
+  // the job of the underlying request.
+  nsRefPtr<mozilla::image::Image> mImage;
+
   // Our principal. We have to cache it, rather than accessing the underlying
   // request on-demand, because static proxies don't have an underlying request.
   nsCOMPtr<nsIPrincipal> mPrincipal;
+
+  mozilla::image::Image* GetImage() const MOZ_OVERRIDE;
+  using imgRequestProxy::GetImage;
 };
 
 #endif // imgRequestProxy_h__

@@ -11,6 +11,9 @@
  * related or neighboring rights to this work.
  */
 
+interface Document;
+interface DocumentType;
+
 interface DOMImplementation {
   boolean hasFeature(DOMString feature,
                      [TreatNullAs=EmptyString] DOMString version);
@@ -19,8 +22,7 @@ interface DOMImplementation {
   DocumentType createDocumentType(DOMString qualifiedName, DOMString publicId,
                                   DOMString systemId);
   [Throws]
-  Document createDocument(DOMString? namespace,
-                          [TreatNullAs=EmptyString] DOMString qualifiedName,
+  Document createDocument(DOMString? namespace, DOMString? qualifiedName,
                           DocumentType? doctype);
   [Throws]
   Document createHTMLDocument(DOMString title);

@@ -20,13 +20,15 @@ JSObject * const UNSET_BUFFER_LINK = (JSObject*)0x2;
 inline void
 js::ArrayBufferObject::setElementsHeader(js::ObjectElements *header, uint32_t bytes)
 {
-    header->flags = 0;
+    /*
+     * Note that |bytes| may not be a multiple of |sizeof(Value)|, so
+     * |capacity * sizeof(Value)| may underestimate the size by up to
+     * |sizeof(Value) - 1| bytes.
+     */
+    header->capacity = bytes / sizeof(js::Value);
     header->initializedLength = bytes;
-
-    // NB: one or both of these fields is clobbered by GetViewList to store the
-    // 'views' link. Set them to 0 to effectively initialize 'views' to NULL.
     header->length = 0;
-    header->capacity = 0;
+    header->unused = 0;
 }
 
 inline uint32_t
@@ -62,12 +64,6 @@ inline bool
 ArrayBufferObject::hasData() const
 {
     return getClass() == &ArrayBufferClass;
-}
-
-inline bool
-ArrayBufferObject::isAsmJSArrayBuffer() const
-{
-    return getElementsHeader()->isAsmJSArrayBuffer();
 }
 
 static inline int32_t
@@ -209,21 +205,11 @@ InitTypedArrayDataPointer(JSObject *obj, ArrayBufferObject *buffer, size_t byteO
      */
     obj->initPrivate(buffer->dataPointer() + byteOffset);
 #ifdef JSGC_GENERATIONAL
-    if (IsInsideNursery(obj->runtime(), buffer))
-        obj->runtime()->gcStoreBuffer.putGeneric(TypedArrayPrivateRef(obj, buffer, byteOffset));
+    JSCompartment *comp = obj->compartment();
+    JS_ASSERT(comp == buffer->compartment());
+    if (comp->gcNursery.isInside(buffer))
+        comp->gcStoreBuffer.putGeneric(TypedArrayPrivateRef(obj, buffer, byteOffset));
 #endif
-}
-
-static NewObjectKind
-DataViewNewObjectKind(JSContext *cx, uint32_t byteLength, JSObject *proto)
-{
-    if (!proto && byteLength >= TypedArray::SINGLETON_TYPE_BYTE_LENGTH)
-        return SingletonObject;
-    jsbytecode *pc;
-    JSScript *script = cx->stack.currentScript(&pc);
-    if (!script)
-        return GenericObject;
-    return types::UseNewTypeForInitializer(cx, script, pc, &DataViewClass);
 }
 
 inline DataViewObject *
@@ -234,26 +220,24 @@ DataViewObject::create(JSContext *cx, uint32_t byteOffset, uint32_t byteLength,
     JS_ASSERT(byteLength <= INT32_MAX);
 
     RootedObject proto(cx, protoArg);
-    RootedObject obj(cx);
-
-    NewObjectKind newKind = DataViewNewObjectKind(cx, byteLength, proto);
-    obj = NewBuiltinClassInstance(cx, &DataViewClass, newKind);
+    RootedObject obj(cx, NewBuiltinClassInstance(cx, &DataViewClass));
     if (!obj)
         return NULL;
 
     if (proto) {
-        types::TypeObject *type = proto->getNewType(cx, &DataViewClass);
+        types::TypeObject *type = proto->getNewType(cx);
         if (!type)
             return NULL;
         obj->setType(type);
     } else if (cx->typeInferenceEnabled()) {
         if (byteLength >= TypedArray::SINGLETON_TYPE_BYTE_LENGTH) {
-            JS_ASSERT(obj->hasSingletonType());
+            if (!JSObject::setSingletonType(cx, obj))
+                return NULL;
         } else {
             jsbytecode *pc;
             RootedScript script(cx, cx->stack.currentScript(&pc));
             if (script) {
-                if (!types::SetInitializerObjectType(cx, script, pc, obj, newKind))
+                if (!types::SetInitializerObjectType(cx, script, pc, obj))
                     return NULL;
             }
         }

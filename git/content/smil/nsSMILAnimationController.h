@@ -18,13 +18,8 @@
 #include "nsRefreshDriver.h"
 
 struct nsSMILTargetIdentifier;
+class nsISMILAnimationElement;
 class nsIDocument;
-
-namespace mozilla {
-namespace dom {
-class SVGAnimationElement;
-}
-}
 
 //----------------------------------------------------------------------
 // nsSMILAnimationController
@@ -61,8 +56,8 @@ public:
   virtual void WillRefresh(mozilla::TimeStamp aTime);
 
   // Methods for registering and enumerating animation elements
-  void RegisterAnimationElement(mozilla::dom::SVGAnimationElement* aAnimationElement);
-  void UnregisterAnimationElement(mozilla::dom::SVGAnimationElement* aAnimationElement);
+  void RegisterAnimationElement(nsISMILAnimationElement* aAnimationElement);
+  void UnregisterAnimationElement(nsISMILAnimationElement* aAnimationElement);
 
   // Methods for resampling all animations
   // (A resample performs the same operations as a sample but doesn't advance
@@ -109,7 +104,7 @@ protected:
   // Typedefs
   typedef nsPtrHashKey<nsSMILTimeContainer> TimeContainerPtrKey;
   typedef nsTHashtable<TimeContainerPtrKey> TimeContainerHashtable;
-  typedef nsPtrHashKey<mozilla::dom::SVGAnimationElement> AnimationElementPtrKey;
+  typedef nsPtrHashKey<nsISMILAnimationElement> AnimationElementPtrKey;
   typedef nsTHashtable<AnimationElementPtrKey> AnimationElementHashtable;
 
   struct SampleTimeContainerParams
@@ -126,8 +121,8 @@ protected:
 
   struct GetMilestoneElementsParams
   {
-    nsTArray<nsRefPtr<mozilla::dom::SVGAnimationElement> > mElements;
-    nsSMILMilestone                                        mMilestone;
+    nsTArray<nsRefPtr<nsISMILAnimationElement> > mElements;
+    nsSMILMilestone                              mMilestone;
   };
 
   // Cycle-collection implementation helpers
@@ -166,12 +161,12 @@ protected:
       TimeContainerPtrKey* aKey, void* aData);
   static PLDHashOperator SampleAnimation(
       AnimationElementPtrKey* aKey, void* aData);
-  static void SampleTimedElement(mozilla::dom::SVGAnimationElement* aElement,
+  static void SampleTimedElement(nsISMILAnimationElement* aElement,
                                  TimeContainerHashtable* aActiveContainers);
   static void AddAnimationToCompositorTable(
-    mozilla::dom::SVGAnimationElement* aElement, nsSMILCompositorTable* aCompositorTable);
+    nsISMILAnimationElement* aElement, nsSMILCompositorTable* aCompositorTable);
   static bool GetTargetIdentifierForAnimation(
-      mozilla::dom::SVGAnimationElement* aAnimElem, nsSMILTargetIdentifier& aResult);
+      nsISMILAnimationElement* aAnimElem, nsSMILTargetIdentifier& aResult);
 
   // Methods for adding/removing time containers
   virtual nsresult AddChild(nsSMILTimeContainer& aChild);

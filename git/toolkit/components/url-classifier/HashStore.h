@@ -45,8 +45,8 @@ public:
   void NewAddComplete(uint32_t aChunk, const Completion& aCompletion);
   void NewSubComplete(uint32_t aAddChunk, const Completion& aCompletion,
                       uint32_t aSubChunk);
-  void SetLocalUpdate(void) { mLocalUpdate = true; }
-  bool IsLocalUpdate(void) { return mLocalUpdate; }
+  void SetLocalUpdate(void) { mLocalUpdate = true; };
+  bool IsLocalUpdate(void) { return mLocalUpdate; };
 
   ChunkSet& AddChunks() { return mAddChunks; }
   ChunkSet& SubChunks() { return mSubChunks; }
@@ -79,7 +79,7 @@ public:
   HashStore(const nsACString& aTableName, nsIFile* aStoreFile);
   ~HashStore();
 
-  const nsCString& TableName() const { return mTableName; }
+  const nsCString& TableName() const { return mTableName; };
 
   nsresult Open();
   nsresult AugmentAdds(const nsTArray<uint32_t>& aPrefixes);
@@ -111,17 +111,13 @@ public:
   // have a mess on your hands.
   nsresult WriteFile();
 
-  // Wipe out all Completes.
-  void ClearCompletes();
-
 private:
   nsresult Reset();
 
   nsresult ReadHeader();
   nsresult SanityCheck();
-  nsresult CalculateChecksum(nsAutoCString& aChecksum, uint32_t aFileSize,
-                             bool aChecksumPresent);
-  nsresult CheckChecksum(nsIFile* aStoreFile, uint32_t aFileSize);
+  nsresult CalculateChecksum(nsAutoCString& aChecksum, int64_t aSize, bool aChecksumPresent);
+  nsresult CheckChecksum(nsIFile* aStoreFile);
   void UpdateHeader();
 
   nsresult ReadChunkNumbers();

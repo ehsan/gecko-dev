@@ -14,6 +14,8 @@
 
 // NOTE: much of the fancy footwork is done in xpcstubs.cpp
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXPCWrappedJS)
+
 NS_IMETHODIMP
 NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS)::TraverseImpl
    (NS_CYCLE_COLLECTION_CLASSNAME(nsXPCWrappedJS) *that, void *p,
@@ -214,7 +216,7 @@ nsXPCWrappedJS::TraceJS(JSTracer* trc)
 {
     NS_ASSERTION(mRefCnt >= 2 && IsValid(), "must be strongly referenced");
     JS_SET_TRACING_DETAILS(trc, GetTraceName, this, 0);
-    JS_CallObjectTracer(trc, GetJSObjectPreserveColor(), "nsXPCWrappedJS::mJSObj");
+    JS_CallTracer(trc, GetJSObjectPreserveColor(), JSTRACE_OBJECT);
 }
 
 // static

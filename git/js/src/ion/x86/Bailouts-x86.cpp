@@ -40,7 +40,7 @@ class BailoutStack
         JS_ASSERT(frameClass() != FrameSizeClass::None());
         return tableOffset_;
     }
-    uint32_t frameSize() const {
+    uint32 frameSize() const {
         if (frameClass() == FrameSizeClass::None())
             return frameSize_;
         return frameClass().frameSize();
@@ -52,10 +52,10 @@ class BailoutStack
         JS_ASSERT(frameClass() == FrameSizeClass::None());
         return snapshotOffset_;
     }
-    uint8_t *parentStackPointer() const {
+    uint8 *parentStackPointer() const {
         if (frameClass() == FrameSizeClass::None())
-            return (uint8_t *)this + sizeof(BailoutStack);
-        return (uint8_t *)this + offsetof(BailoutStack, snapshotOffset_);
+            return (uint8 *)this + sizeof(BailoutStack);
+        return (uint8 *)this + offsetof(BailoutStack, snapshotOffset_);
     }
 };
 
@@ -71,11 +71,11 @@ IonBailoutIterator::IonBailoutIterator(const IonActivationIterator &activations,
   : IonFrameIterator(activations),
     machine_(bailout->machine())
 {
-    uint8_t *sp = bailout->parentStackPointer();
-    uint8_t *fp = sp + bailout->frameSize();
+    uint8 *sp = bailout->parentStackPointer();
+    uint8 *fp = sp + bailout->frameSize();
 
     current_ = fp;
-    type_ = IonFrame_OptimizedJS;
+    type_ = IonFrame_JS;
     topFrameSize_ = current_ - sp;
     topIonScript_ = script()->ion;
 
@@ -96,7 +96,7 @@ IonBailoutIterator::IonBailoutIterator(const IonActivationIterator &activations,
               tableOffset < tableStart + code->instructionsSize());
     JS_ASSERT((tableOffset - tableStart) % BAILOUT_TABLE_ENTRY_SIZE == 0);
 
-    uint32_t bailoutId = ((tableOffset - tableStart) / BAILOUT_TABLE_ENTRY_SIZE) - 1;
+    uint32 bailoutId = ((tableOffset - tableStart) / BAILOUT_TABLE_ENTRY_SIZE) - 1;
     JS_ASSERT(bailoutId < BAILOUT_TABLE_SIZE);
 
     snapshotOffset_ = topIonScript_->bailoutToSnapshot(bailoutId);
@@ -111,8 +111,8 @@ IonBailoutIterator::IonBailoutIterator(const IonActivationIterator &activations,
     topIonScript_ = bailout->ionScript();
     const OsiIndex *osiIndex = topIonScript_->getOsiIndex(returnAddressToFp_);
 
-    current_ = (uint8_t*) bailout->fp();
-    type_ = IonFrame_OptimizedJS;
+    current_ = (uint8*) bailout->fp();
+    type_ = IonFrame_JS;
     topFrameSize_ = current_ - bailout->sp();
     snapshotOffset_ = osiIndex->snapshotOffset();
 }

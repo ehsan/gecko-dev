@@ -4,8 +4,6 @@
 
 #include "ReusableTileStoreOGL.h"
 
-#include "GLContext.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -29,94 +27,69 @@ ReusableTileStoreOGL::InvalidateTiles(TiledThebesLayerOGL* aLayer,
   printf_stderr("Invalidating reused tiles\n");
 #endif
 
-  // XXX We use GetTransform instead of GetEffectiveTransform in this function
-  //     as we want the transform of the shadowable layers and not that of the
-  //     shadow layers, which may have been modified due to async scrolling/
-  //     zooming.
-  gfx3DMatrix transform = aLayer->GetTransform();
-
   // Find out the area of the nearest display-port to invalidate retained
   // tiles.
-  gfxRect displayPort;
-  gfxSize parentResolution = aResolution;
+  gfxRect renderBounds;
   for (ContainerLayer* parent = aLayer->GetParent(); parent; parent = parent->GetParent()) {
-    const FrameMetrics& metrics = parent->GetFrameMetrics();
-    if (displayPort.IsEmpty()) {
+      const FrameMetrics& metrics = parent->GetFrameMetrics();
       if (!metrics.mDisplayPort.IsEmpty()) {
           // We use the bounds to cut down on complication/computation time.
           // This will be incorrect when the transform involves rotation, but
           // it'd be quite hard to retain invalid tiles correctly in this
           // situation anyway.
-          displayPort = gfxRect(metrics.mDisplayPort.x,
-                                metrics.mDisplayPort.y,
-                                metrics.mDisplayPort.width,
-                                metrics.mDisplayPort.height);
-          displayPort.ScaleRoundOut(parentResolution.width, parentResolution.height);
+          renderBounds = parent->GetEffectiveTransform().TransformBounds(
+              gfxRect(metrics.mDisplayPort.x, metrics.mDisplayPort.y,
+                      metrics.mDisplayPort.width, metrics.mDisplayPort.height));
+          break;
       }
-      parentResolution.width /= metrics.mResolution.width;
-      parentResolution.height /= metrics.mResolution.height;
-    }
-    if (parent->UseIntermediateSurface()) {
-      transform.PreMultiply(parent->GetTransform());
-    }
   }
 
   // If no display port was found, use the widget size from the layer manager.
-  if (displayPort.IsEmpty()) {
-    LayerManagerOGL* manager = static_cast<LayerManagerOGL*>(aLayer->Manager());
-    const nsIntSize& widgetSize = manager->GetWidgetSize();
-    displayPort.width = widgetSize.width;
-    displayPort.height = widgetSize.height;
+  if (renderBounds.IsEmpty()) {
+      LayerManagerOGL* manager = static_cast<LayerManagerOGL*>(aLayer->Manager());
+      const nsIntSize& widgetSize = manager->GetWidgetSize();
+      renderBounds.width = widgetSize.width;
+      renderBounds.height = widgetSize.height;
   }
-
-  // Transform the display port into layer space.
-  displayPort = transform.Inverse().TransformBounds(displayPort);
 
   // Iterate over existing harvested tiles and release any that are contained
   // within the new valid region, the display-port or the widget area. The
   // assumption is that anything within this area should be valid, so there's
   // no need to keep invalid tiles there.
   mContext->MakeCurrent();
-  const nsIntRegion& visibleRegion = aLayer->GetEffectiveVisibleRegion();
   for (uint32_t i = 0; i < mTiles.Length();) {
     ReusableTiledTextureOGL* tile = mTiles[i];
-
-    nsIntRegion tileRegion = tile->mTileRegion;
-    if (tile->mResolution != aResolution) {
-      tileRegion.ScaleRoundOut(tile->mResolution.width / aResolution.width,
-                               tile->mResolution.height / aResolution.height);
-    }
 
     // Check if the tile region is contained within the new valid region.
     nsIntRect tileRect;
     bool release = false;
-    bool forceKeep = false;
-    if (aValidRegion.Contains(tile->mTileRegion)) {
-      release = true;
-    } else if (visibleRegion.Contains(tile->mTileRegion)) {
-      forceKeep = true;
+    if (tile->mResolution == aResolution) {
+      if (aValidRegion.Contains(tile->mTileRegion)) {
+        release = true;
+      } else {
+        tileRect = tile->mTileRegion.GetBounds();
+      }
     } else {
-      tileRect = tile->mTileRegion.GetBounds();
-    }
-
-    // Keep tiles that are within the visible region but outside of the valid
-    // region, this signifies area that is in a progressive update and will
-    // shortly be refreshed.
-    if (forceKeep) {
-      i++;
-      continue;
+      nsIntRegion transformedTileRegion(tile->mTileRegion);
+      transformedTileRegion.ScaleRoundOut(tile->mResolution.width / aResolution.width,
+                                          tile->mResolution.height / aResolution.height);
+      if (aValidRegion.Contains(transformedTileRegion))
+        release = true;
+      else
+        tileRect = transformedTileRegion.GetBounds();
     }
 
     // If the tile region wasn't contained within the valid region, check if
     // it intersects with the currently rendered region.
     if (!release) {
-      if (displayPort.Contains(tileRegion.GetBounds())) {
+      // Transform the tile region to see if it falls inside the rendered bounds
+      gfxRect tileBounds = aLayer->GetEffectiveTransform().TransformBounds(gfxRect(tileRect));
+      if (renderBounds.Contains(tileBounds))
         release = true;
-      }
     }
 
     if (release) {
-#if GFX_TILEDLAYER_PREF_WARNINGS
+#ifdef GFX_TILEDLAYER_PREF_WARNINGS
       nsIntRect tileBounds = tile->mTileRegion.GetBounds();
       printf_stderr("Releasing obsolete reused tile at %d,%d, x%f\n",
                     tileBounds.x, tileBounds.y, tile->mResolution.width);
@@ -138,9 +111,6 @@ ReusableTileStoreOGL::HarvestTiles(TiledThebesLayerOGL* aLayer,
                                    const gfxSize& aOldResolution,
                                    const gfxSize& aNewResolution)
 {
-  NS_ASSERTION(aVideoMemoryTiledBuffer->GetResolution() == 1.0f,
-               "ReusableTileStoreOGL cannot harvest scaled tiles!");
-
   gfxSize scaleFactor = gfxSize(aNewResolution.width / aOldResolution.width,
                                 aNewResolution.height / aOldResolution.height);
 
@@ -149,14 +119,13 @@ ReusableTileStoreOGL::HarvestTiles(TiledThebesLayerOGL* aLayer,
 #endif
 
   // Iterate over the tiles and decide which ones we're going to harvest.
-  // We harvest any tile that is entirely outside of the visible region, or
-  // any tile that is partially outside of the visible region and whose
+  // We harvest any tile that is entirely outside of the new valid region, or
+  // any tile that is partially outside of the valid region and whose
   // resolution has changed.
   // XXX Tile iteration needs to be abstracted, or have some utility functions
   //     to make it simpler.
   uint16_t tileSize = aVideoMemoryTiledBuffer->GetTileLength();
   nsIntRect validBounds = aOldValidRegion.GetBounds();
-  nsIntRegion visibleRegion = aLayer->GetEffectiveVisibleRegion();
   for (int x = validBounds.x; x < validBounds.XMost();) {
     int w = tileSize - aVideoMemoryTiledBuffer->GetTileStart(x);
     if (x + w > validBounds.x + validBounds.width)
@@ -174,54 +143,29 @@ ReusableTileStoreOGL::HarvestTiles(TiledThebesLayerOGL* aLayer,
 
       nsIntRegion intersectingRegion;
       bool retainTile = false;
-      if (fabs(aNewResolution.width - aOldResolution.width) > 1e-6) {
+      if (aNewResolution != aOldResolution) {
         // Reconcile resolution changes.
         // If the resolution changes, we know the backing layer will have been
         // invalidated, so retain tiles that are partially encompassed by the
         // new valid area, instead of just tiles that don't intersect at all.
         nsIntRegion transformedTileRegion(tileRegion);
         transformedTileRegion.ScaleRoundOut(scaleFactor.width, scaleFactor.height);
-        if (!visibleRegion.Contains(transformedTileRegion))
+        if (!aNewValidRegion.Contains(transformedTileRegion))
           retainTile = true;
-      } else if (intersectingRegion.And(tileRegion, visibleRegion).IsEmpty()) {
+      } else if (intersectingRegion.And(tileRegion, aNewValidRegion).IsEmpty()) {
         retainTile = true;
       }
 
       if (retainTile) {
+#ifdef GFX_TILEDLAYER_PREF_WARNINGS
+        printf_stderr("Retaining tile at %d,%d, x%f for reuse\n", x, y, aOldResolution.width);
+#endif
         TiledTexture removedTile;
         if (aVideoMemoryTiledBuffer->RemoveTile(nsIntPoint(x, y), removedTile)) {
           ReusableTiledTextureOGL* reusedTile =
             new ReusableTiledTextureOGL(removedTile, nsIntPoint(x, y), tileRegion,
                                         tileSize, aOldResolution);
           mTiles.AppendElement(reusedTile);
-
-#ifdef GFX_TILEDLAYER_PREF_WARNINGS
-          bool replacedATile = false;
-#endif
-          // Remove any tile that is superseded by this new tile.
-          // (same resolution, same area)
-          for (uint32_t i = 0; i < mTiles.Length() - 1; i++) {
-            // XXX Perhaps we should check the region instead of the origin
-            //     so a partial tile doesn't replace a full older tile?
-            if (aVideoMemoryTiledBuffer->RoundDownToTileEdge(mTiles[i]->mTileOrigin.x) == aVideoMemoryTiledBuffer->RoundDownToTileEdge(x) &&
-                aVideoMemoryTiledBuffer->RoundDownToTileEdge(mTiles[i]->mTileOrigin.y) == aVideoMemoryTiledBuffer->RoundDownToTileEdge(y) &&
-                abs(mTiles[i]->mResolution.width - aOldResolution.width) < 1e-5) {
-              mContext->fDeleteTextures(1, &mTiles[i]->mTexture.mTextureHandle);
-              mTiles.RemoveElementAt(i);
-#ifdef GFX_TILEDLAYER_PREF_WARNINGS
-              replacedATile = true;
-#endif
-              // There should only be one similar tile
-              break;
-            }
-          }
-#ifdef GFX_TILEDLAYER_PREF_WARNINGS
-          if (replacedATile) {
-            printf_stderr("Replaced tile at %d,%d, x%f for reuse\n", x, y, aOldResolution.width);
-          } else {
-            printf_stderr("New tile at %d,%d, x%f for reuse\n", x, y, aOldResolution.width);
-          }
-#endif
         }
 #ifdef GFX_TILEDLAYER_PREF_WARNINGS
         else
@@ -238,25 +182,9 @@ ReusableTileStoreOGL::HarvestTiles(TiledThebesLayerOGL* aLayer,
   // Make sure we don't hold onto tiles that may cause visible rendering glitches
   InvalidateTiles(aLayer, aNewValidRegion, aNewResolution);
 
-  // Calculate the maximum number of tiles we should have. We base this on the
-  // number of tiles it would take to cover the visible region.
-  uint32_t maxTiles = 0;
-  while (!visibleRegion.IsEmpty()) {
-    nsIntRegionRectIterator it(visibleRegion);
-    const nsIntRect* rect = it.Next();
-    nsIntRect tileRect;
-    tileRect.x = aVideoMemoryTiledBuffer->RoundDownToTileEdge(rect->x);
-    tileRect.y = aVideoMemoryTiledBuffer->RoundDownToTileEdge(rect->y);
-    tileRect.width = aVideoMemoryTiledBuffer->RoundDownToTileEdge(rect->XMost() + tileSize - 1) - tileRect.x;
-    tileRect.height = aVideoMemoryTiledBuffer->RoundDownToTileEdge(rect->YMost() + tileSize - 1) - tileRect.y;
-    visibleRegion.Sub(visibleRegion, tileRect);
-    maxTiles += (tileRect.width / tileSize) * (tileRect.height / tileSize);
-  }
-  maxTiles *= mSizeLimit;
-
   // Now prune our reused tile store of its oldest tiles if it gets too large.
-  while (mTiles.Length() > maxTiles) {
-#if GFX_TILEDLAYER_PREF_WARNINGS
+  while (mTiles.Length() > aVideoMemoryTiledBuffer->GetTileCount() * mSizeLimit) {
+#ifdef GFX_TILEDLAYER_PREF_WARNINGS
     nsIntRect tileBounds = mTiles[0]->mTileRegion.GetBounds();
     printf_stderr("Releasing old reused tile at %d,%d, x%f\n",
                   tileBounds.x, tileBounds.y, mTiles[0]->mResolution.width);
@@ -265,7 +193,7 @@ ReusableTileStoreOGL::HarvestTiles(TiledThebesLayerOGL* aLayer,
     mTiles.RemoveElementAt(0);
   }
 
-#if GFX_TILEDLAYER_PREF_WARNINGS
+#ifdef GFX_TILEDLAYER_PREF_WARNINGS
   printf_stderr("Retained %d tiles\n", mTiles.Length());
 #endif
 }
@@ -283,15 +211,18 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
   // scrollable child, in conjunction with its content area and viewport offset
   // to establish the screen coordinates to which the content area will be
   // rendered.
-  gfxRect compositionBounds;
+  gfxRect contentBounds, displayPort;
   ContainerLayer* scrollableLayer = nullptr;
   for (ContainerLayer* parent = aLayer->GetParent(); parent; parent = parent->GetParent()) {
       const FrameMetrics& parentMetrics = parent->GetFrameMetrics();
       if (parentMetrics.IsScrollable())
         scrollableLayer = parent;
       if (!parentMetrics.mDisplayPort.IsEmpty() && scrollableLayer) {
-          // Get the composition bounds, so as not to waste rendering time.
-          compositionBounds = gfxRect(parentMetrics.mCompositionBounds);
+          // Get the display-port bounds in screen-space.
+          displayPort = gfxRect(parentMetrics.mDisplayPort.x,
+                                parentMetrics.mDisplayPort.y,
+                                parentMetrics.mDisplayPort.width,
+                                parentMetrics.mDisplayPort.height);
 
           // Calculate the scale transform applied to the root layer to determine
           // the content resolution.
@@ -310,19 +241,13 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
             nsIntPoint(NS_lround(scrollOffset.x), NS_lround(scrollOffset.y));
           gfxRect contentRect = gfxRect(contentOrigin.x, contentOrigin.y,
                                         contentSize.width, contentSize.height);
-          gfxRect contentBounds = scrollableLayer->GetEffectiveTransform().
-            TransformBounds(contentRect);
-
-          // Clip the composition bounds to the content bounds
-          compositionBounds.IntersectRect(compositionBounds, contentBounds);
+          contentBounds = scrollableLayer->GetEffectiveTransform().TransformBounds(contentRect);
           break;
       }
   }
 
   // Render old tiles to fill in gaps we haven't had the time to render yet.
-  // Simultaneously reorder tiles in LRU order.
-  nsTArray< nsAutoPtr<ReusableTiledTextureOGL> > reorderedTiles(mTiles.Length());
-  for (uint32_t i = 0, lastOldTile = 0; i < mTiles.Length(); i++) {
+  for (uint32_t i = 0; i < mTiles.Length(); i++) {
     ReusableTiledTextureOGL* tile = mTiles[i];
 
     // Work out the scaling factor in case of resolution differences.
@@ -333,7 +258,6 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
     gfx3DMatrix transform = aTransform;
     if (aResolution != tile->mResolution)
       transform.Scale(scaleFactor.width, scaleFactor.height, 1);
-    gfx3DMatrix inverseTransform = transform.Inverse();
 
     // Subtract the layer's valid region from the tile region.
     nsIntRegion transformedValidRegion(aValidRegion);
@@ -343,22 +267,29 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
     nsIntRegion tileRegion;
     tileRegion.Sub(tile->mTileRegion, transformedValidRegion);
 
-    // Intersect the tile region with the composition bounds.
-    if (!compositionBounds.IsEmpty()) {
-      // Transform the composition bounds from screen space to layer space.
-      gfxRect transformedCompositionBounds = inverseTransform.TransformBounds(compositionBounds);
-      tileRegion.And(tileRegion, nsIntRect(transformedCompositionBounds.x,
-                                           transformedCompositionBounds.y,
-                                           transformedCompositionBounds.width,
-                                           transformedCompositionBounds.height));
+    // Subtract the display-port from the tile region.
+    if (!displayPort.IsEmpty()) {
+      // Transform the display-port from screen space to layer space.
+      gfxRect transformedRenderBounds = transform.Inverse().TransformBounds(displayPort);
+      tileRegion.Sub(tileRegion, nsIntRect(transformedRenderBounds.x,
+                                           transformedRenderBounds.y,
+                                           transformedRenderBounds.width,
+                                           transformedRenderBounds.height));
+    }
+
+    // Intersect the tile region with the content area.
+    if (!contentBounds.IsEmpty()) {
+      // Transform the content bounds from screen space to layer space.
+      gfxRect transformedRenderBounds = transform.Inverse().TransformBounds(contentBounds);
+      tileRegion.And(tileRegion, nsIntRect(transformedRenderBounds.x,
+                                           transformedRenderBounds.y,
+                                           transformedRenderBounds.width,
+                                           transformedRenderBounds.height));
     }
 
     // If the tile region is empty, skip drawing.
-    if (tileRegion.IsEmpty()) {
-      reorderedTiles.InsertElementAt(lastOldTile++, mTiles[i].forget());
+    if (tileRegion.IsEmpty())
       continue;
-    }
-    reorderedTiles.AppendElement(mTiles[i].forget());
 
     // XXX If we have multiple tiles covering the same area, we will
     //     end up with rendering artifacts if the aLayer isn't opaque.
@@ -378,8 +309,6 @@ ReusableTileStoreOGL::DrawTiles(TiledThebesLayerOGL* aLayer,
     nsIntSize textureSize(tile->mTileSize, tile->mTileSize);
     aLayer->RenderTile(tile->mTexture, transform, aRenderOffset, tileRegion, tileOffset, textureSize, aMaskLayer);
   }
-
-  mTiles.SwapElements(reorderedTiles);
 }
 
 } // mozilla

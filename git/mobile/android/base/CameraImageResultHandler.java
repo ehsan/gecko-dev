@@ -24,7 +24,6 @@ class CameraImageResultHandler implements ActivityResultHandler {
         mFilePickerResult = resultQueue;
     }
 
-    @Override
     public void onActivityResult(int resultCode, Intent data) {
         try {
             if (resultCode != Activity.RESULT_OK) {

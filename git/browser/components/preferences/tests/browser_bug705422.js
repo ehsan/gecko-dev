@@ -2,12 +2,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 function test() {
-  waitForExplicitFinish();
-  // Allow all cookies, then actually set up the test
-  SpecialPowers.pushPrefEnv({"set": [["network.cookie.cookieBehavior", 0]]}, initTest);
-}
-
-function initTest() {
+    waitForExplicitFinish();
     const searchTerm = "example";
     const dummyTerm = "elpmaxe";
 

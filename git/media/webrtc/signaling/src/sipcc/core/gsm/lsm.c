@@ -33,8 +33,7 @@
 #include "fim.h"
 #include "util_string.h"
 #include "platform_api.h"
-
-static const char* logTag = "lsm";
+#include "vcm_util.h"
 
 #ifndef NO
 #define NO  (0)
@@ -50,6 +49,12 @@ static const char* logTag = "lsm";
 #define LSM_DISPLAY_STR_LEN 256
 
 static cc_rcs_t lsm_stop_tone (lsm_lcb_t *lcb, cc_action_data_tone_t *data);
+
+extern cc_media_cap_table_t g_media_table;
+vcm_media_payload_type_t vcmRtpToMediaPayload (int32_t ptype,
+                                            int32_t dynamic_ptype_value,
+                                            uint16_t mode);
+
 
 static lsm_lcb_t *lsm_lcbs;
 static uint32_t lsm_call_perline[MAX_REG_LINES];
@@ -554,7 +559,7 @@ lsm_internal_update_call_info (lsm_lcb_t *lcb, fsmdef_dcb_t *dcb)
  *
  * @param[in] lcb       - pointer to the lsm_lcb_t.
  * @param[in/out] data  - pointer to the cc_action_data_open_rcv_t.
- *                        Upon a successful return, the port element
+ *                        Upon a successful return, the port elelment
  *                        of this structure will be filled with the actual
  *                        receive port.
  * @param[in]     media - pointer to the fsmdef_media_t if a specific
@@ -638,16 +643,16 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
           char **candidates;
           int candidate_ct;
           char *default_addr;
-          short status;
 
-          status = vcmRxAllocICE(media->cap_index, dcb->group_id, media->refid,
+          vcmRxAllocICE(media->cap_index, dcb->group_id, media->refid,
             lsm_get_ms_ui_call_handle(lcb->line, lcb->call_id, lcb->ui_id),
             dcb->peerconnection,
             media->level,
             &default_addr, &port_allocated,
             &candidates, &candidate_ct);
 
-          if (!status) {
+          // Check that we got a valid address and port
+          if (default_addr && (strlen(default_addr) > 0) && (port_allocated != -1)) {
             sstrncpy(dcb->ice_default_candidate_addr, default_addr, sizeof(dcb->ice_default_candidate_addr));
 
             data->port = (uint16_t)port_allocated;
@@ -659,10 +664,8 @@ lsm_open_rx (lsm_lcb_t *lcb, cc_action_data_open_rcv_t *data,
       }
     }
 
-    if (rc == CC_RC_SUCCESS) {
-      LSM_DEBUG(get_debug_string(LSM_DBG_INT1), lcb->call_id, lcb->line, fname,
-                "allocated port", port_allocated);
-    }
+    LSM_DEBUG(get_debug_string(LSM_DBG_INT1), lcb->call_id, lcb->line, fname,
+              "allocated port", port_allocated);
 
     return (rc);
 }
@@ -907,20 +910,11 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
          * For SRTP, the receive can not be opened if the remote's crypto
          * parameters are not received yet.
          */
-        if (media->type != SDP_MEDIA_APPLICATION &&
-            !gsmsdp_is_crypto_ready(media, TRUE)) {
+        if (!gsmsdp_is_crypto_ready(media, TRUE)) {
             LSM_DEBUG(DEB_L_C_F_PREFIX"%s: Not ready to open receive port (%d)\n",
                       DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line, dcb->call_id, fname1), fname, media->src_port);
             continue;
         }
-
-        /* TODO(ekr@rtfm.com): Needs changing for when we
-           have > 2 streams. (adam@nostrum.com): For now,
-           we use all the same stream so pc_stream_id == 0
-           and the tracks are assigned in order and are
-           equal to the level in the media objects */
-        pc_stream_id = 0;
-        pc_track_id = media->level;
 
         /*
          * Open the RTP receive channel if it is not already open.
@@ -986,16 +980,23 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                     media->src_port = open_rcv.port;
                 }
 
+                /* TODO(ekr@rtfm.com): Needs changing for when we have > 2 streams */
                 if ( media->cap_index == CC_VIDEO_1 ) {
                     attrs.video.opaque = media->video;
+                    pc_stream_id = 1;
                 } else {
                     attrs.audio.packetization_period = media->packetization_period;
                     attrs.audio.max_packetization_period = media->max_packetization_period;
                     attrs.audio.avt_payload_type = media->avt_payload_type;
                     attrs.audio.mixing_mode = mix_mode;
                     attrs.audio.mixing_party = mix_party;
+                    pc_stream_id = 0;
                 }
+                pc_track_id = 0;
                 dcb->cur_video_avail &= ~CC_ATTRIB_CAST;
+                if (media->local_dynamic_payload_type_value == RTP_NONE) {
+                    media->local_dynamic_payload_type_value = media->payload;
+                }
 
                 config_get_value(CFGID_SDPMODE, &sdpmode, sizeof(sdpmode));
                 if (dcb->peerconnection) {
@@ -1011,13 +1012,11 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                     FSM_NEGOTIATED_CRYPTO_DIGEST(media),
                     &attrs);
                 } else if (!sdpmode) {
-                    if (media->payloads == NULL) {
-                        LSM_ERR_MSG(get_debug_string(DEBUG_INPUT_NULL), fname1);
-                        return;
-                    }
                     ret_val =  vcmRxStart(media->cap_index, group_id, media->refid,
                                           lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
-                                          media->payloads,
+                                          vcmRtpToMediaPayload(media->payload,
+                                          media->local_dynamic_payload_type_value,
+                                          media->mode),
                                           media->is_multicast ? &media->dest_addr:&media->src_addr,
                                           port,
                                           FSM_NEGOTIATED_CRYPTO_ALGORITHM_ID(media),
@@ -1052,13 +1051,6 @@ lsm_rx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                                                                direction);
                 }
             }
-        }
-
-        if (media->type == SDP_MEDIA_APPLICATION) {
-          /* Enable datachannels
-             Datachannels are always two-way so initializing only here in rx_start.
-          */
-          lsm_initialize_datachannel(dcb, media, pc_track_id);
         }
     }
 }
@@ -1239,15 +1231,13 @@ lsm_tx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
 
             dcb->cur_video_avail &= ~CC_ATTRIB_CAST;
 
-            if (media->payloads == NULL) {
-                LSM_ERR_MSG(get_debug_string(DEBUG_INPUT_NULL), fname1);
-                return;
-            }
             if (!strlen(dcb->peerconnection)){
               if (vcmTxStart(media->cap_index, group_id,
                   media->refid,
                   lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
-                  media->payloads,
+                  vcmRtpToMediaPayload(media->payload,
+                    media->remote_dynamic_payload_type_value,
+                    media->mode),
                   (short)dscp,
                   &media->src_addr,
                   media->src_port,
@@ -1273,7 +1263,9 @@ lsm_tx_start (lsm_lcb_t *lcb, const char *fname, fsmdef_media_t *media)
                   dcb->media_cap_tbl->cap[media->cap_index].pc_track,
                   lsm_get_ms_ui_call_handle(dcb->line, call_id, CC_NO_CALL_ID),
                   dcb->peerconnection,
-                  media->payloads,
+                  vcmRtpToMediaPayload(media->payload,
+                    media->remote_dynamic_payload_type_value,
+                    media->mode),
                   (short)dscp,
                   FSM_NEGOTIATED_CRYPTO_DIGEST_ALGORITHM(media),
                   FSM_NEGOTIATED_CRYPTO_DIGEST(media),
@@ -1957,7 +1949,7 @@ lsm_get_free_lcb (callid_t call_id, line_t line, fsmdef_dcb_t *dcb)
             lcb->mru     = mru;
             lcb->dcb     = dcb;
             // start unmuted if txPref is true
-            lcb->vid_mute = cc_media_getVideoAutoTxPref() ? FALSE : TRUE;
+            lcb->vid_mute = cc_media_getVideoAutoTxPref()?FALSE:TRUE;
 
             lcb->ui_id = call_id;   /* default UI ID is the same as call_id */
             break;
@@ -3818,7 +3810,6 @@ lsm_update_media (lsm_lcb_t *lcb, const char *caller_fname)
     boolean        rx_refresh;
     boolean        tx_refresh;
     char           addr_str[MAX_IPADDR_STR_LEN];
-    int            i;
 
     dcb = lcb->dcb;
     if (dcb == NULL) {
@@ -3866,16 +3857,12 @@ lsm_update_media (lsm_lcb_t *lcb, const char *caller_fname)
         if (LSMDebug) {
             /* debug is enabled, format the dest addr into string */
             ipaddr2dotted(addr_str, &media->dest_addr);
-            for (i = 0; i < media->num_payloads; i++)
-            {
-                LSM_DEBUG(DEB_L_C_F_PREFIX"%d rx, tx refresh's are %d %d"
-                          ", dir=%d, payload=%d addr=%s, multicast=%d\n",
-                          DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line,
-                          dcb->call_id, fname), media->refid, rx_refresh,
-                          tx_refresh, media->direction,
-                          media->payloads[i], addr_str, media->is_multicast );
-            }
         }
+        LSM_DEBUG(DEB_L_C_F_PREFIX"%d rx, tx refresh's are %d %d"
+                  ", dir=%d, payload=%d addr=%s, multicast=%d\n",
+                  DEB_L_C_F_PREFIX_ARGS(LSM, dcb->line, dcb->call_id, fname),
+                  media->refid, rx_refresh, tx_refresh, media->direction,
+                  media->payload, addr_str, media->is_multicast );
         if (rx_refresh ||
             (media->is_multicast &&
              media->direction_set &&
@@ -4010,8 +3997,7 @@ lsm_connected (lsm_lcb_t *lcb, cc_state_data_connected_t *data)
 
     /* Start ICE */
     if (start_ice) {
-      short res = vcmStartIceChecks(dcb->peerconnection, !dcb->inbound);
-
+      short res = vcmStartIceChecks(dcb->peerconnection);
       /* TODO(emannion): Set state to dead here. */
       if (res)
         return CC_RC_SUCCESS;
@@ -5009,14 +4995,14 @@ lsm_init (void)
      */
     lsm_tmr_tones = cprCreateTimer("lsm_tmr_tones",
                                    GSM_MULTIPART_TONES_TIMER,
-                                   TIMER_EXPIRATION, gsm_msgq);
+                                   TIMER_EXPIRATION, gsm_msg_queue);
     lsm_continuous_tmr_tones = cprCreateTimer("lsm_continuous_tmr_tones",
                                               GSM_CONTINUOUS_TONES_TIMER,
                                               TIMER_EXPIRATION,
-                                              gsm_msgq);
+                                              gsm_msg_queue);
     lsm_tone_duration_tmr = cprCreateTimer("lsm_tone_duration_tmr",
                                    		   GSM_TONE_DURATION_TIMER,
-                                   		   TIMER_EXPIRATION, gsm_msgq);
+                                   		   TIMER_EXPIRATION, gsm_msg_queue);
     lsm_init_config();
 
     for (i=0 ; i<MAX_REG_LINES; i++) {
@@ -5303,46 +5289,48 @@ void lsm_add_remote_stream (line_t line, callid_t call_id, fsmdef_media_t *media
             return;
         }
 
-        vcmCreateRemoteStream(media->cap_index, dcb->peerconnection,
-                pc_stream_id);
+        vcmCreateRemoteStream(media->cap_index, dcb->peerconnection, pc_stream_id,
+                vcmRtpToMediaPayload(media->payload,
+                media->local_dynamic_payload_type_value,media->mode));
 
     }
 }
 
 /*
- * lsm_initialize_datachannel
+ * lsm_data_channel_negotiated
  *
  * Description:
- *    The function initializes the datachannel with port and
- *    protocol info.
+ *    The function informs the API of a negotiated data channel m= line
  *
  * Parameters:
- *   [in]  dcb - pointer to get the peerconnection id
- *   [in]  media - pointer to get the datachannel info
- *   [in]  track_id - track ID (aka m-line number)
+ *   [in]  line - line
+ *   [in]  call_id - GSM call ID
+ *   [in]  media - media line to add as remote stream
+ *   [out] pc_stream_id
  * Returns: None
  */
-void lsm_initialize_datachannel (fsmdef_dcb_t *dcb, fsmdef_media_t *media,
-                                 int track_id)
+void lsm_data_channel_negotiated (line_t line, callid_t call_id, fsmdef_media_t *media, int *pc_stream_id)
 {
-    if (!dcb) {
-        CSFLogError(logTag, "%s DCB is NULL", __FUNCTION__);
-        return;
-    }
+    static const char fname[] = "lsm_data_channel_negotiated";
+    fsmdef_dcb_t   *dcb;
+    lsm_lcb_t *lcb;
 
-    if (!media) {
-        CSFLogError(logTag, "%s media is NULL", __FUNCTION__);
-        return;
-    }
+    lcb = lsm_get_lcb_by_call_id(call_id);
+    if (lcb) {
+        dcb = lcb->dcb;
+        if (dcb == NULL) {
+            LSM_ERR_MSG(get_debug_string(DEBUG_INPUT_NULL), fname);
+            return;
+        }
 
-    /*
-     * have access to media->cap_index, media->streams, media->protocol,
-     * media->local/remote_datachannel_port
-     */
-    vcmInitializeDataChannel(dcb->peerconnection,
-        track_id, media->datachannel_streams,
-        media->local_datachannel_port, media->remote_datachannel_port,
-        media->datachannel_protocol);
+        /*
+         * have access to media->streams, media->protocol, media->sctp_port
+         * vcmSetDataChannelParameters may need renaming TODO: jesup
+         */
+
+        vcmSetDataChannelParameters(dcb->peerconnection, media->streams, media->sctp_port, media->protocol);
+
+    }
 }
 
 /**

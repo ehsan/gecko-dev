@@ -9,7 +9,6 @@
 #define ParseMaps_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/TypeTraits.h"
 
 #include "ds/InlineMap.h"
 #include "js/HashTable.h"
@@ -416,13 +415,14 @@ typedef AtomDefnListMap::Range  AtomDefnListRange;
 
 } /* namespace frontend */
 
-} /* namespace js */
+namespace tl {
 
-namespace mozilla {
+template <> struct IsPodType<frontend::DefinitionList> {
+    static const bool result = true;
+};
 
-template <>
-struct IsPod<js::frontend::DefinitionList> : TrueType {};
+} /* namespace tl */
 
-} /* namespace mozilla */
+} /* namepsace js */
 
 #endif

@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsCOMPtr.h"
-#include "nsICollation.h"
 #include "nsIDOMNode.h"
 #include "nsIRDFNode.h"
 #include "nsIRDFObserver.h"
@@ -46,6 +45,7 @@ nsIRDFContainerUtils*     nsXULTemplateQueryProcessorRDF::gRDFContainerUtils;
 nsIRDFResource*           nsXULTemplateQueryProcessorRDF::kNC_BookmarkSeparator;
 nsIRDFResource*           nsXULTemplateQueryProcessorRDF::kRDF_type;
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULTemplateQueryProcessorRDF)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULTemplateQueryProcessorRDF)
     tmp->Done();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -94,8 +94,8 @@ RuleToBindingTraverser(nsISupports* key, RDFBindingSet* binding, void* userArg)
 }
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateQueryProcessorRDF)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDB)
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLastRef)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDB)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLastRef)
     if (tmp->mBindingDependencies.IsInitialized()) {
         tmp->mBindingDependencies.EnumerateRead(BindingDependenciesTraverser,
                                                 &cb);
@@ -107,7 +107,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULTemplateQueryProcessorRDF)
     if (tmp->mRuleToBindingsMap.IsInitialized()) {
         tmp->mRuleToBindingsMap.EnumerateRead(RuleToBindingTraverser, &cb);
     }
-    NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mQueries)
+    NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSTARRAY_OF_NSCOMPTR(mQueries)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsXULTemplateQueryProcessorRDF)
@@ -170,7 +170,7 @@ nsXULTemplateQueryProcessorRDF::InitGlobals()
                              &kRDF_type);
     }
 
-    return NS_OK;
+    return MemoryElement::Init() ? NS_OK : NS_ERROR_FAILURE;
 }
 
 //----------------------------------------------------------------------

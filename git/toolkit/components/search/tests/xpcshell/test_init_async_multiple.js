@@ -15,7 +15,7 @@ function run_test() {
   do_print("Setting up test");
 
   do_test_pending();
-  updateAppInfo();
+  createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "2");
 
   do_print("Test starting");
   let numberOfInitializers = 4;

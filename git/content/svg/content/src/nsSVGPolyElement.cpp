@@ -3,6 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/Util.h"
+
 #include "nsSVGPolyElement.h"
 #include "DOMSVGPointList.h"
 #include "gfxContext.h"
@@ -17,6 +19,7 @@ NS_IMPL_ADDREF_INHERITED(nsSVGPolyElement,nsSVGPolyElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGPolyElement,nsSVGPolyElementBase)
 
 NS_INTERFACE_MAP_BEGIN(nsSVGPolyElement)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGAnimatedPoints)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGPolyElementBase)
 
 //----------------------------------------------------------------------
@@ -25,24 +28,29 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGPolyElementBase)
 nsSVGPolyElement::nsSVGPolyElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsSVGPolyElementBase(aNodeInfo)
 {
+
 }
 
-already_AddRefed<DOMSVGPointList>
-nsSVGPolyElement::Points()
+//----------------------------------------------------------------------
+// nsIDOMSGAnimatedPoints methods:
+
+/* readonly attribute nsIDOMSVGPointList points; */
+NS_IMETHODIMP 
+nsSVGPolyElement::GetPoints(nsIDOMSVGPointList * *aPoints)
 {
   void *key = mPoints.GetBaseValKey();
-  nsRefPtr<DOMSVGPointList> points = DOMSVGPointList::GetDOMWrapper(key, this, false);
-  return points.forget();
+  *aPoints = DOMSVGPointList::GetDOMWrapper(key, this, false).get();
+  return NS_OK;
 }
 
-already_AddRefed<DOMSVGPointList>
-nsSVGPolyElement::AnimatedPoints()
+/* readonly attribute nsIDOMSVGPointList animatedPoints; */
+NS_IMETHODIMP 
+nsSVGPolyElement::GetAnimatedPoints(nsIDOMSVGPointList * *aAnimatedPoints)
 {
   void *key = mPoints.GetAnimValKey();
-  nsRefPtr<DOMSVGPointList> points = DOMSVGPointList::GetDOMWrapper(key, this, true);
-  return points.forget();
+  *aAnimatedPoints = DOMSVGPointList::GetDOMWrapper(key, this, true).get();
+  return NS_OK;
 }
-
 
 //----------------------------------------------------------------------
 // nsIContent methods

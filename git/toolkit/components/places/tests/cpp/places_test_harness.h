@@ -16,16 +16,15 @@
 #include "mozilla/IHistory.h"
 #include "mozIStorageConnection.h"
 #include "mozIStorageStatement.h"
-#include "mozIStorageAsyncStatement.h"
-#include "mozIStorageStatementCallback.h"
-#include "mozIStoragePendingStatement.h"
 #include "nsPIPlacesDatabase.h"
 #include "nsIObserver.h"
 #include "prinrval.h"
 #include "mozilla/Attributes.h"
 
+#define TOPIC_FRECENCY_UPDATED "places-frecency-updated"
 #define WAITFORTOPIC_TIMEOUT_SECONDS 5
 
+using namespace mozilla;
 
 static size_t gTotalTests = 0;
 static size_t gPassedTests = 0;
@@ -145,59 +144,27 @@ NS_IMPL_ISUPPORTS1(
 )
 
 /**
- * Spins current thread until an async statement is executed.
+ * Adds a URI to the database.
+ *
+ * @param aURI
+ *        The URI to add to the database.
  */
-class AsyncStatementSpinner MOZ_FINAL : public mozIStorageStatementCallback
+void
+addURI(nsIURI* aURI)
 {
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGESTATEMENTCALLBACK
+  nsRefPtr<WaitForTopicSpinner> spinner =
+    new WaitForTopicSpinner(TOPIC_FRECENCY_UPDATED);
 
-  AsyncStatementSpinner();
-  void SpinUntilCompleted();
-  uint16_t completionReason;
+  nsCOMPtr<nsINavHistoryService> hist =
+    do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID);
+  int64_t id;
+  nsresult rv = hist->AddVisit(aURI, PR_Now(), nullptr,
+                               nsINavHistoryService::TRANSITION_LINK, false,
+                               0, &id);
+  do_check_success(rv);
 
-protected:
-  volatile bool mCompleted;
-};
-
-NS_IMPL_ISUPPORTS1(AsyncStatementSpinner,
-                   mozIStorageStatementCallback)
-
-AsyncStatementSpinner::AsyncStatementSpinner()
-: completionReason(0)
-, mCompleted(false)
-{
-}
-
-NS_IMETHODIMP
-AsyncStatementSpinner::HandleResult(mozIStorageResultSet *aResultSet)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-AsyncStatementSpinner::HandleError(mozIStorageError *aError)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-AsyncStatementSpinner::HandleCompletion(uint16_t aReason)
-{
-  completionReason = aReason;
-  mCompleted = true;
-  return NS_OK;
-}
-
-void AsyncStatementSpinner::SpinUntilCompleted()
-{
-  nsCOMPtr<nsIThread> thread(::do_GetCurrentThread());
-  nsresult rv = NS_OK;
-  bool processed = true;
-  while (!mCompleted && NS_SUCCEEDED(rv)) {
-    rv = thread->ProcessNextEvent(true, &processed);
-  }
+  // Wait for frecency update.
+  spinner->Spin();
 }
 
 struct PlaceRecord
@@ -216,10 +183,10 @@ struct VisitRecord
   int32_t transitionType;
 };
 
-already_AddRefed<mozilla::IHistory>
+already_AddRefed<IHistory>
 do_get_IHistory()
 {
-  nsCOMPtr<mozilla::IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
+  nsCOMPtr<IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
   do_check_true(history);
   return history.forget();
 }
@@ -328,41 +295,6 @@ do_get_lastVisit(int64_t placeId, VisitRecord& result)
   do_check_success(rv);
   rv = stmt->GetInt32(2, &result.transitionType);
   do_check_success(rv);
-}
-
-void
-do_wait_async_updates() {
-  nsCOMPtr<mozIStorageConnection> db = do_get_db();
-  nsCOMPtr<mozIStorageAsyncStatement> stmt;
-
-  db->CreateAsyncStatement(NS_LITERAL_CSTRING("BEGIN EXCLUSIVE"),
-                           getter_AddRefs(stmt));
-  nsCOMPtr<mozIStoragePendingStatement> pending;
-  (void)stmt->ExecuteAsync(nullptr, getter_AddRefs(pending));
-
-  db->CreateAsyncStatement(NS_LITERAL_CSTRING("COMMIT"),
-                           getter_AddRefs(stmt));
-  nsRefPtr<AsyncStatementSpinner> spinner = new AsyncStatementSpinner();
-  (void)stmt->ExecuteAsync(spinner, getter_AddRefs(pending));
-
-  spinner->SpinUntilCompleted();
-}
-
-/**
- * Adds a URI to the database.
- *
- * @param aURI
- *        The URI to add to the database.
- */
-void
-addURI(nsIURI* aURI)
-{
-  nsCOMPtr<mozilla::IHistory> history = do_GetService(NS_IHISTORY_CONTRACTID);
-  do_check_true(history);
-  nsresult rv = history->VisitURI(aURI, nullptr, mozilla::IHistory::TOP_LEVEL);
-  do_check_success(rv);
-
-  do_wait_async_updates();
 }
 
 static const char TOPIC_PROFILE_CHANGE[] = "profile-before-change";

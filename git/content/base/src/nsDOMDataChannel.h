@@ -10,7 +10,6 @@
 // This defines only what's necessary to create nsDOMDataChannels, since this
 // gets used with MOZ_INTERNAL_API not set for media/webrtc/signaling/testing
 
-#include "nsCOMPtr.h"
 #include "nsIDOMDataChannel.h"
 
 namespace mozilla {
@@ -20,7 +19,7 @@ namespace mozilla {
 class nsPIDOMWindow;
 
 nsresult
-NS_NewDOMDataChannel(already_AddRefed<mozilla::DataChannel> dataChannel,
+NS_NewDOMDataChannel(mozilla::DataChannel* dataChannel,
                      nsPIDOMWindow* aWindow,
                      nsIDOMDataChannel** domDataChannel);
 

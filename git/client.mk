@@ -108,17 +108,6 @@ endef
 # before evaluation.
 $(eval $(subst ||,$(CR),$(shell _PYMAKE=$(.PYMAKE) $(TOPSRCDIR)/$(MOZCONFIG_LOADER) $(TOPSRCDIR) 2> $(TOPSRCDIR)/.mozconfig.out | sed 's/$$/||/')))
 
-ifdef NO_AUTOCLOBBER
-export NO_AUTOCLOBBER=1
-endif
-
-# Automatically add -jN to make flags if not defined. N defaults to number of cores.
-ifeq (,$(findstring -j,$(MOZ_MAKE_FLAGS)))
-  cores=$(shell $(PYTHON) -c 'import multiprocessing; print(multiprocessing.cpu_count())')
-  MOZ_MAKE_FLAGS += -j$(cores)
-endif
-
-
 ifndef MOZ_OBJDIR
   MOZ_OBJDIR = obj-$(CONFIG_GUESS)
 else
@@ -206,8 +195,7 @@ endif
 profiledbuild::
 	$(MAKE) -f $(TOPSRCDIR)/client.mk realbuild MOZ_PROFILE_GENERATE=1 MOZ_PGO_INSTRUMENTED=1
 	$(MAKE) -C $(PGO_OBJDIR) package MOZ_PGO_INSTRUMENTED=1 MOZ_INTERNAL_SIGNING_FORMAT= MOZ_EXTERNAL_SIGNING_FORMAT=
-	rm -f ${PGO_OBJDIR}/jarlog/en-US.log
-	MOZ_PGO_INSTRUMENTED=1 OBJDIR=${PGO_OBJDIR} JARLOG_FILE=${PGO_OBJDIR}/jarlog/en-US.log $(PROFILE_GEN_SCRIPT)
+	MOZ_PGO_INSTRUMENTED=1 OBJDIR=${PGO_OBJDIR} JARLOG_DIR=${PGO_OBJDIR}/jarlog/en-US $(PROFILE_GEN_SCRIPT)
 	$(MAKE) -f $(TOPSRCDIR)/client.mk maybe_clobber_profiledbuild
 	$(MAKE) -f $(TOPSRCDIR)/client.mk realbuild MOZ_PROFILE_USE=1
 
@@ -282,14 +270,13 @@ $(CONFIGURES): %: %.in $(EXTRA_CONFIG_DEPS)
 CONFIG_STATUS_DEPS := \
   $(wildcard $(TOPSRCDIR)/*/confvars.sh) \
   $(CONFIGURES) \
-  $(TOPSRCDIR)/CLOBBER \
+  $(TOPSRCDIR)/allmakefiles.sh \
   $(TOPSRCDIR)/nsprpub/configure \
   $(TOPSRCDIR)/config/milestone.txt \
   $(TOPSRCDIR)/js/src/config/milestone.txt \
   $(TOPSRCDIR)/browser/config/version.txt \
   $(TOPSRCDIR)/build/virtualenv/packages.txt \
   $(TOPSRCDIR)/build/virtualenv/populate_virtualenv.py \
-  $(TOPSRCDIR)/testing/mozbase/packages.txt \
   $(NULL)
 
 CONFIGURE_ENV_ARGS += \
@@ -305,13 +292,9 @@ else
   CONFIGURE = $(TOPSRCDIR)/configure
 endif
 
-check-clobber:
-	$(PYTHON) $(TOPSRCDIR)/python/mozbuild/mozbuild/controller/clobber.py $(TOPSRCDIR) $(OBJDIR)
-
 configure-files: $(CONFIGURES)
 
 configure-preqs = \
-  check-clobber \
   configure-files \
   $(call mkdir_deps,$(OBJDIR)) \
   $(if $(MOZ_BUILD_PROJECTS),$(call mkdir_deps,$(MOZ_OBJDIR))) \
@@ -449,23 +432,4 @@ echo-variable-%:
 # in parallel.
 .NOTPARALLEL:
 
-.PHONY: checkout \
-    real_checkout \
-    depend \
-    realbuild \
-    build \
-    profiledbuild \
-    cleansrcdir \
-    pull_all \
-    build_all \
-    check-clobber \
-    clobber \
-    clobber_all \
-    pull_and_build_all \
-    everything \
-    configure \
-    preflight_all \
-    preflight \
-    postflight \
-    postflight_all \
-    $(OBJDIR_TARGETS)
+.PHONY: checkout real_checkout depend realbuild build profiledbuild cleansrcdir pull_all build_all clobber clobber_all pull_and_build_all everything configure preflight_all preflight postflight postflight_all $(OBJDIR_TARGETS)

@@ -18,7 +18,6 @@
 #include "nsThreadUtils.h"
 #include "mozilla/FileUtils.h"
 
-#include <cutils/properties.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/videodev2.h>
@@ -71,29 +70,12 @@ static void
 initTavaruaRadio(hal::FMRadioSettings &aInfo)
 {
   mozilla::ScopedClose fd(sRadioFD);
-  char version[64];
-  int rc;
-  snprintf(version, sizeof(version), "%d", sTavaruaVersion);
-  property_set("hw.fm.version", version);
-
-  /* Set the mode for soc downloader */
-  property_set("hw.fm.mode", "normal");
-  /* start fm_dl service */
-  property_set("ctl.start", "fm_dl");
-
-  /*
-   * Fix bug 800263. Wait until the FM radio chips initialization is done
-   * then set other properties, or the system will hang and reboot. This
-   * work around is from codeaurora
-   * (git://codeaurora.org/platform/frameworks/base.git).
-   */
-  for (int i = 0; i < 4; ++i) {
-    sleep(1);
-    char value[PROPERTY_VALUE_MAX];
-    property_get("hw.fm.init", value, "0");
-    if (!strcmp(value, "1")) {
-      break;
-    }
+  char command[64];
+  snprintf(command, sizeof(command), "/system/bin/fm_qsoc_patches %d 0", sTavaruaVersion);
+  int rc = system(command);
+  if (rc) {
+    HAL_LOG(("Unable to initialize radio"));
+    return;
   }
 
   rc = setControl(V4L2_CID_PRIVATE_TAVARUA_STATE, FM_RECV);
@@ -160,35 +142,10 @@ initTavaruaRadio(hal::FMRadioSettings &aInfo)
     return;
   }
 
-  // Some devices do not support analog audio routing. This should be
-  // indicated by the 'ro.moz.fm.noAnalog' property at build time.
-  char propval[PROPERTY_VALUE_MAX];
-  property_get("ro.moz.fm.noAnalog", propval, "");
-  bool noAnalog = !strcmp(propval, "true");
-
-  rc = setControl(V4L2_CID_PRIVATE_TAVARUA_SET_AUDIO_PATH,
-                  noAnalog ? FM_DIGITAL_PATH : FM_ANALOG_PATH);
+  rc = setControl(V4L2_CID_PRIVATE_TAVARUA_SET_AUDIO_PATH, FM_DIGITAL_PATH);
   if (rc < 0) {
     HAL_LOG(("Unable to set audio path"));
     return;
-  }
-
-  if (!noAnalog) {
-    /* Set the mode for soc downloader */
-    property_set("hw.fm.mode", "config_dac");
-    /* Use analog mode FM */
-    property_set("hw.fm.isAnalog", "true");
-    /* start fm_dl service */
-    property_set("ctl.start", "fm_dl");
-
-    for (int i = 0; i < 4; ++i) {
-      sleep(1);
-      char value[PROPERTY_VALUE_MAX];
-      property_get("hw.fm.init", value, "0");
-      if (!strcmp(value, "1")) {
-        break;
-      }
-    }
   }
 
   fd.forget();
@@ -214,17 +171,13 @@ runTavaruaRadio(void *)
   buffer.m.userptr = (long unsigned int)buf;
 
   while (sRadioEnabled) {
-    if (ioctl(sRadioFD, VIDIOC_DQBUF, &buffer) < 0) {
-      if (errno == EINTR)
-        continue;
+    if (ioctl(sRadioFD, VIDIOC_DQBUF, &buffer) < 0)
       break;
-    }
 
     for (unsigned int i = 0; i < buffer.bytesused; i++) {
       switch (buf[i]) {
       case TAVARUA_EVT_RADIO_READY:
-        NS_DispatchToMainThread(new RadioUpdate(hal::FM_RADIO_OPERATION_ENABLE,
-                                                hal::FM_RADIO_OPERATION_STATUS_SUCCESS));
+        NS_DispatchToMainThread(new RadioUpdate(hal::FM_RADIO_OPERATION_ENABLE,                                                 hal::FM_RADIO_OPERATION_STATUS_SUCCESS));
         break;
       case TAVARUA_EVT_SEEK_COMPLETE:
         NS_DispatchToMainThread(new RadioUpdate(hal::FM_RADIO_OPERATION_SEEK,

@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "nsIOService.h"
 #include "nsIProtocolHandler.h"
 #include "nsIFileProtocolHandler.h"
@@ -45,11 +43,10 @@
 #include "nsIProtocolProxyCallback.h"
 #include "nsICancelable.h"
 
+
 #if defined(XP_WIN) || defined(MOZ_PLATFORM_MAEMO)
 #include "nsNativeConnectionHelper.h"
 #endif
-
-using namespace mozilla;
 
 #define PORT_PREF_PREFIX           "network.security.ports."
 #define PORT_PREF(x)               PORT_PREF_PREFIX x
@@ -154,6 +151,7 @@ nsIOService::nsIOService()
     , mShutdown(false)
     , mNetworkLinkServiceInitialized(false)
     , mChannelEventSinks(NS_CHANNEL_EVENT_SINK_CATEGORY)
+    , mContentSniffers(NS_CONTENT_SNIFFER_CATEGORY)
     , mAutoDialEnabled(false)
 {
 }
@@ -192,8 +190,6 @@ nsIOService::Init()
         prefBranch->AddObserver(PORT_PREF_PREFIX, this, true);
         prefBranch->AddObserver(AUTODIAL_PREF, this, true);
         prefBranch->AddObserver(MANAGE_OFFLINE_STATUS_PREF, this, true);
-        prefBranch->AddObserver(NECKO_BUFFER_CACHE_COUNT_PREF, this, true);
-        prefBranch->AddObserver(NECKO_BUFFER_CACHE_SIZE_PREF, this, true);
         PrefsChanged(prefBranch);
     }
     
@@ -667,7 +663,7 @@ nsIOService::SetOffline(bool offline)
 {
     // When someone wants to go online (!offline) after we got XPCOM shutdown
     // throw ERROR_NOT_AVAILABLE to prevent return to online state.
-    if ((mShutdown || mOfflineForProfileChange) && !offline)
+    if (mShutdown && !offline)
         return NS_ERROR_NOT_AVAILABLE;
 
     // SetOffline() may re-enter while it's shutting down services.
@@ -696,6 +692,7 @@ nsIOService::SetOffline(bool offline)
     }
 
     nsIIOService *subject = static_cast<nsIIOService *>(this);
+    nsresult rv;
     while (mSetOfflineValue != mOffline) {
         offline = mSetOfflineValue;
 
@@ -724,7 +721,7 @@ nsIOService::SetOffline(bool offline)
             // go online
             if (mDNSService) {
                 mDNSService->SetOffline(false);
-                DebugOnly<nsresult> rv = mDNSService->Init();
+                rv = mDNSService->Init();
                 NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service init failed");
             }
             InitializeSocketTransportService();
@@ -744,15 +741,15 @@ nsIOService::SetOffline(bool offline)
     }
 
     // Don't notify here, as the above notifications (if used) suffice.
-    if ((mShutdown || mOfflineForProfileChange) && mOffline) {
+    if (mShutdown && mOffline) {
         // be sure to try and shutdown both (even if the first fails)...
         // shutdown dns service first, because it has callbacks for socket transport
         if (mDNSService) {
-            DebugOnly<nsresult> rv = mDNSService->Shutdown();
+            rv = mDNSService->Shutdown();
             NS_ASSERTION(NS_SUCCEEDED(rv), "DNS service shutdown failed");
         }
         if (mSocketTransportService) {
-            DebugOnly<nsresult> rv = mSocketTransportService->Shutdown();
+            rv = mSocketTransportService->Shutdown();
             NS_ASSERTION(NS_SUCCEEDED(rv), "socket transport service shutdown failed");
         }
     }
@@ -825,8 +822,7 @@ nsIOService::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 
     if (!pref || strcmp(pref, MANAGE_OFFLINE_STATUS_PREF) == 0) {
         bool manage;
-        if (mNetworkLinkServiceInitialized &&
-            NS_SUCCEEDED(prefs->GetBoolPref(MANAGE_OFFLINE_STATUS_PREF,
+        if (NS_SUCCEEDED(prefs->GetBoolPref(MANAGE_OFFLINE_STATUS_PREF,
                                             &manage)))
             SetManageOfflineStatus(manage);
     }
@@ -916,8 +912,8 @@ nsIOService::Observe(nsISupports *subject,
     }
     else if (!strcmp(topic, kProfileChangeNetTeardownTopic)) {
         if (!mOffline) {
-            mOfflineForProfileChange = true;
             SetOffline(true);
+            mOfflineForProfileChange = true;
         }
     }
     else if (!strcmp(topic, kProfileChangeNetRestoreTopic)) {
@@ -936,10 +932,6 @@ nsIOService::Observe(nsISupports *subject,
             // Set up the initilization flag regardless the actuall result.
             // If we fail here, we will fail always on.
             mNetworkLinkServiceInitialized = true;
-            // And now reflect the preference setting
-            nsCOMPtr<nsIPrefBranch> prefBranch;
-            GetPrefBranch(getter_AddRefs(prefBranch));
-            PrefsChanged(prefBranch, MANAGE_OFFLINE_STATUS_PREF);
         }
     }
     else if (!strcmp(topic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
@@ -1185,13 +1177,16 @@ public:
     NS_DECL_NSIPROTOCOLPROXYCALLBACK
 
     IOServiceProxyCallback(nsIInterfaceRequestor *aCallbacks,
+                           nsIEventTarget *aTarget,
                            nsIOService *aIOService)
         : mCallbacks(aCallbacks)
+        , mTarget(aTarget)
         , mIOService(aIOService)
     { }
 
 private:
     nsRefPtr<nsIInterfaceRequestor> mCallbacks;
+    nsRefPtr<nsIEventTarget>        mTarget;
     nsRefPtr<nsIOService>           mIOService;
 };
 
@@ -1227,13 +1222,15 @@ IOServiceProxyCallback::OnProxyAvailable(nsICancelable *request, nsIURI *aURI,
         return NS_OK;
 
     speculativeHandler->SpeculativeConnect(aURI,
-                                           mCallbacks);
+                                           mCallbacks,
+                                           mTarget);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsIOService::SpeculativeConnect(nsIURI *aURI,
-                                nsIInterfaceRequestor *aCallbacks)
+                                nsIInterfaceRequestor *aCallbacks,
+                                nsIEventTarget *aTarget)
 {
     // Check for proxy information. If there is a proxy configured then a
     // speculative connect should not be performed because the potential
@@ -1246,6 +1243,6 @@ nsIOService::SpeculativeConnect(nsIURI *aURI,
 
     nsCOMPtr<nsICancelable> cancelable;
     nsRefPtr<IOServiceProxyCallback> callback =
-        new IOServiceProxyCallback(aCallbacks, this);
+        new IOServiceProxyCallback(aCallbacks, aTarget, this);
     return pps->AsyncResolve(aURI, 0, callback, getter_AddRefs(cancelable));
 }

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,78 +8,28 @@
 
 #include "nsIDOMClientRect.h"
 #include "nsIDOMClientRectList.h"
-#include "nsTArray.h"
+#include "nsCOMArray.h"
 #include "nsRect.h"
 #include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
 #include "nsWrapperCache.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/Attributes.h"
 
-class nsClientRect MOZ_FINAL : public nsIDOMClientRect
-                             , public nsWrapperCache
+class nsClientRect : public nsIDOMClientRect
 {
 public:
-  nsClientRect(nsISupports* aParent)
-    : mParent(aParent), mX(0.0), mY(0.0), mWidth(0.0), mHeight(0.0)
-  {
-    SetIsDOMBinding();
-  }
-  virtual ~nsClientRect() {}
+  NS_DECL_ISUPPORTS
 
-  
+  nsClientRect();
   void SetRect(float aX, float aY, float aWidth, float aHeight) {
     mX = aX; mY = aY; mWidth = aWidth; mHeight = aHeight;
   }
-  void SetLayoutRect(const nsRect& aLayoutRect);
-
-
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsClientRect)
+  virtual ~nsClientRect() {}
+  
   NS_DECL_NSIDOMCLIENTRECT
 
-
-  nsISupports* GetParentObject() const
-  {
-    MOZ_ASSERT(mParent);
-    return mParent;
-  }
-  virtual JSObject*
-  WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
-
-
-  float Left() const
-  {
-    return mX;
-  }
-
-  float Top() const
-  {
-    return mY;
-  }
-
-  float Right() const
-  {
-    return mX + mWidth;
-  }
-
-  float Bottom() const
-  {
-    return mY + mHeight;
-  }
-
-  float Width() const
-  {
-    return mWidth;
-  }
-
-  float Height() const
-  {
-    return mHeight;
-  }
+  void SetLayoutRect(const nsRect& aLayoutRect);
 
 protected:
-  nsCOMPtr<nsISupports> mParent;
   float mX, mY, mWidth, mHeight;
 };
 
@@ -97,14 +47,15 @@ public:
 
   NS_DECL_NSIDOMCLIENTRECTLIST
   
-  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope,
+                               bool *triedToWrap);
 
   nsISupports* GetParentObject()
   {
     return mParent;
   }
 
-  void Append(nsClientRect* aElement) { mArray.AppendElement(aElement); }
+  void Append(nsIDOMClientRect* aElement) { mArray.AppendObject(aElement); }
 
   static nsClientRectList* FromSupports(nsISupports* aSupports)
   {
@@ -125,25 +76,22 @@ public:
 
   uint32_t Length()
   {
-    return mArray.Length();
+    return mArray.Count();
   }
-  nsClientRect* Item(uint32_t aIndex)
+  nsIDOMClientRect* Item(uint32_t aIndex)
   {
-    return mArray.SafeElementAt(aIndex);
+    return mArray.SafeObjectAt(aIndex);
   }
-  nsClientRect* IndexedGetter(uint32_t aIndex, bool& aFound)
+  nsIDOMClientRect* IndexedGetter(uint32_t aIndex, bool& aFound)
   {
-    aFound = aIndex < mArray.Length();
-    if (!aFound) {
-      return nullptr;
-    }
-    return mArray[aIndex];
+    aFound = aIndex < static_cast<uint32_t>(mArray.Count());
+    return aFound ? mArray.ObjectAt(aIndex) : nullptr;
   }
 
 protected:
   virtual ~nsClientRectList() {}
 
-  nsTArray< nsRefPtr<nsClientRect> > mArray;
+  nsCOMArray<nsIDOMClientRect> mArray;
   nsCOMPtr<nsISupports> mParent;
 };
 

@@ -259,15 +259,7 @@ Elf::Elf(std::ifstream &file)
         // Make sure that our view of segments corresponds to the original
         // ELF file.
         assert(segment->getFileSize() == phdr.p_filesz);
-        // gold makes TLS segments end on an aligned virtual address, even
-        // when the underlying section ends before that, while bfd ld
-        // doesn't. It's fine if we don't keep that alignment.
-        unsigned int memsize = segment->getMemSize();
-        if (phdr.p_type == PT_TLS && memsize != phdr.p_memsz) {
-            unsigned int align = segment->getAlign();
-            memsize = (memsize + align - 1) & ~(align - 1);
-        }
-        assert(memsize == phdr.p_memsz);
+        assert(segment->getMemSize() == phdr.p_memsz);
         segments.push_back(segment);
     }
 
@@ -337,30 +329,12 @@ ElfSection *Elf::getSectionAt(unsigned int offset)
     return NULL;
 }
 
-ElfSegment *Elf::getSegmentByType(unsigned int type, ElfSegment *last)
+ElfSegment *Elf::getSegmentByType(unsigned int type)
 {
-    std::vector<ElfSegment *>::iterator seg;
-    if (last) {
-        seg = std::find(segments.begin(), segments.end(), last);
-        ++seg;
-    } else
-        seg = segments.begin();
-    for (; seg != segments.end(); seg++)
+    for (std::vector<ElfSegment *>::iterator seg = segments.begin(); seg != segments.end(); seg++)
         if ((*seg)->getType() == type)
             return *seg;
     return NULL;
-}
-
-void Elf::removeSegment(ElfSegment *segment)
-{
-    if (!segment)
-        return;
-    std::vector<ElfSegment *>::iterator seg;
-    seg = std::find(segments.begin(), segments.end(), segment);
-    if (seg == segments.end())
-        return;
-    segment->clear();
-    segments.erase(seg);
 }
 
 ElfDynamic_Section *Elf::getDynSection()
@@ -385,15 +359,20 @@ void Elf::normalize()
         section->getShdr().sh_name = eh_shstrndx->getStrIndex(section->getName());
     }
     ehdr->markDirty();
-    // Check segments consistency
+    // Adjust PT_LOAD segments
     int i = 0;
     for (std::vector<ElfSegment *>::iterator seg = segments.begin(); seg != segments.end(); seg++, i++) {
-        std::list<ElfSection *>::iterator it = (*seg)->begin();
-        for (ElfSection *last = *(it++); it != (*seg)->end(); last = *(it++)) {
-            if (((*it)->getType() != SHT_NOBITS) &&
-                ((*it)->getAddr() - last->getAddr()) != ((*it)->getOffset() - last->getOffset())) {
-                    throw std::runtime_error("Segments inconsistency");
-            }
+        if ((*seg)->getType() == PT_LOAD) {
+            std::list<ElfSection *>::iterator it = (*seg)->begin();
+            for (ElfSection *last = *(it++); it != (*seg)->end(); last = *(it++)) {
+               if (((*it)->getType() != SHT_NOBITS) &&
+                   ((*it)->getAddr() - last->getAddr()) != ((*it)->getOffset() - last->getOffset())) {
+                   std::vector<ElfSegment *>::iterator next = seg;
+                   segments.insert(++next, (*seg)->splitBefore(*it));
+                   seg = segments.begin() + i;
+                   break;
+               }
+           }
         }
     }
     // fixup ehdr before writing
@@ -502,15 +481,6 @@ unsigned int ElfSection::getOffset()
         return (shdr.sh_offset = 0);
 
     unsigned int offset = previous->getOffset();
-
-    ElfSegment *ptload = getSegmentByType(PT_LOAD);
-    ElfSegment *prev_ptload = previous->getSegmentByType(PT_LOAD);
-
-    if (ptload && (ptload == prev_ptload)) {
-        offset += getAddr() - previous->getAddr();
-        return (shdr.sh_offset = offset);
-    }
-
     if (previous->getType() != SHT_NOBITS)
         offset += previous->getSize();
 
@@ -585,15 +555,9 @@ void ElfSegment::addSection(ElfSection *section)
     section->addToSegment(this);
 }
 
-void ElfSegment::removeSection(ElfSection *section)
-{
-    sections.remove(section);
-    section->removeFromSegment(this);
-}
-
 unsigned int ElfSegment::getFileSize()
 {
-    if (type == PT_GNU_RELRO || isElfHackFillerSegment())
+    if (type == PT_GNU_RELRO)
         return filesz;
 
     if (sections.empty())
@@ -612,7 +576,7 @@ unsigned int ElfSegment::getFileSize()
 
 unsigned int ElfSegment::getMemSize()
 {
-    if (type == PT_GNU_RELRO || isElfHackFillerSegment())
+    if (type == PT_GNU_RELRO)
         return memsz;
 
     if (sections.empty())
@@ -629,10 +593,6 @@ unsigned int ElfSegment::getOffset()
         (sections.front()->getAddr() != vaddr))
         throw std::runtime_error("PT_GNU_RELRO segment doesn't start on a section start");
 
-    // Neither bionic nor glibc linkers seem to like when the offset of that segment is 0
-    if (isElfHackFillerSegment())
-        return vaddr;
-
     return sections.empty() ? 0 : sections.front()->getOffset();
 }
 
@@ -642,17 +602,34 @@ unsigned int ElfSegment::getAddr()
         (sections.front()->getAddr() != vaddr))
         throw std::runtime_error("PT_GNU_RELRO segment doesn't start on a section start");
 
-    if (isElfHackFillerSegment())
-        return vaddr;
-
     return sections.empty() ? 0 : sections.front()->getAddr();
 }
 
-void ElfSegment::clear()
+ElfSegment *ElfSegment::splitBefore(ElfSection *section)
 {
-    for (std::list<ElfSection *>::iterator i = sections.begin(); i != sections.end(); ++i)
+    std::list<ElfSection *>::iterator i, rm;
+    for (i = sections.begin(); (*i != section) && (i != sections.end()); ++i);
+    if (i == sections.end())
+        return NULL;
+
+    // Probably very wrong.
+    Elf_Phdr phdr;
+    phdr.p_type = type;
+    phdr.p_vaddr = 0;
+    phdr.p_paddr = phdr.p_vaddr + v_p_diff;
+    phdr.p_flags = flags;
+    phdr.p_align = getAlign();
+    phdr.p_filesz = (unsigned int)-1;
+    phdr.p_memsz = (unsigned int)-1;
+    ElfSegment *segment = new ElfSegment(&phdr);
+
+    for (rm = i; i != sections.end(); ++i) {
         (*i)->removeFromSegment(this);
-    sections.clear();
+        segment->addSection(*i);
+    }
+    sections.erase(rm, sections.end());
+
+    return segment;
 }
 
 ElfValue *ElfDynamic_Section::getValueForType(unsigned int tag)

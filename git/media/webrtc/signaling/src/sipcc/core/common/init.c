@@ -21,8 +21,6 @@
 #include "misc_apps_task.h"
 #include "plat_api.h"
 #include "ccapp_task.h"
-#include "thread_monitor.h"
-#include "mozilla/Assertions.h"
 
 #include "phone_platform_constants.h"
 /** The following defines are used to tune the total memory that pSIPCC
@@ -213,12 +211,10 @@ ccInit ()
 
     platInit();
 
-    strlib_init();
-
     /*
      * below should move to cprPreInit. keep it here until then
      */
-#if defined(_WIN32) && defined(CPR_TIMERS_ENABLED)
+#ifdef _WIN32
     cprTimerSystemInit();
 #endif
 
@@ -268,10 +264,7 @@ thread_init ()
     ccapp_thread = cprCreateThread("CCAPP Task",
                                  (cprThreadStartRoutine) CCApp_task,
                                  GSMSTKSZ, CCPROVIDER_THREAD_RELATIVE_PRIORITY /* pri */, ccapp_msgq);
-    MOZ_ASSERT(ccapp_thread);
-    if (ccapp_thread) {
-        thread_started(THREADMON_CCAPP, ccapp_thread);
-    } else {
+    if (ccapp_thread == NULL) {
         err_msg("failed to create CCAPP task \n");
     }
 
@@ -291,10 +284,7 @@ thread_init ()
     sip_thread = cprCreateThread("SIPStack task",
                                  (cprThreadStartRoutine) sip_platform_task_loop,
                                  STKSZ, SIP_THREAD_RELATIVE_PRIORITY /* pri */, sip_msgq);
-    MOZ_ASSERT(sip_thread);
-    if (sip_thread) {
-        thread_started(THREADMON_SIP, sip_thread);
-    } else {
+    if (sip_thread == NULL) {
         err_msg("failed to create sip task \n");
     }
 
@@ -304,10 +294,7 @@ thread_init ()
                                           (cprThreadStartRoutine)
                                           sip_platform_task_msgqwait,
                                           STKSZ, SIP_THREAD_RELATIVE_PRIORITY /* pri */, sip_msgq);
-    MOZ_ASSERT(sip_msgqwait_thread);
-    if (sip_msgqwait_thread) {
-        thread_started(THREADMON_MSGQ, sip_msgqwait_thread);
-    } else {
+    if (sip_msgqwait_thread == NULL) {
         err_msg("failed to create sip message queue wait task\n");
     }
 #endif
@@ -315,10 +302,7 @@ thread_init ()
     gsm_thread = cprCreateThread("GSM Task",
                                  (cprThreadStartRoutine) GSMTask,
                                  GSMSTKSZ, GSM_THREAD_RELATIVE_PRIORITY /* pri */, gsm_msgq);
-    MOZ_ASSERT(gsm_thread);
-    if (gsm_thread) {
-        thread_started(THREADMON_GSM, gsm_thread);
-    } else {
+    if (gsm_thread == NULL) {
         err_msg("failed to create gsm task \n");
     }
 
@@ -583,11 +567,8 @@ ccUnload (void)
 
     send_task_unload_msg(CC_SRC_CCAPP);
 
-    gStopTickTask = TRUE;
+    cprSleep(200);
 
-    /*
-     * Here we are waiting until all threads that were started exit.
-     */
-    join_all_threads();
+    gStopTickTask = TRUE;
 }
 

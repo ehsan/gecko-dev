@@ -11,6 +11,7 @@
 #include "RootAccessible.h"
 
 #include "nsIDocShell.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsIDOMWindow.h"
 #include "nsIFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
@@ -81,13 +82,14 @@ nsAccessNode::Shutdown()
 RootAccessible*
 nsAccessNode::RootAccessible() const
 {
-  nsCOMPtr<nsIDocShell> docShell = nsCoreUtils::GetDocShellFor(GetNode());
-  NS_ASSERTION(docShell, "No docshell for mContent");
-  if (!docShell) {
+  nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
+    nsCoreUtils::GetDocShellTreeItemFor(mContent);
+  NS_ASSERTION(docShellTreeItem, "No docshell tree item for mContent");
+  if (!docShellTreeItem) {
     return nullptr;
   }
   nsCOMPtr<nsIDocShellTreeItem> root;
-  docShell->GetRootTreeItem(getter_AddRefs(root));
+  docShellTreeItem->GetRootTreeItem(getter_AddRefs(root));
   NS_ASSERTION(root, "No root content tree item");
   if (!root) {
     return nullptr;
@@ -119,7 +121,7 @@ nsAccessNode::Language(nsAString& aLanguage)
 
   nsCoreUtils::GetLanguageFor(mContent, nullptr, aLanguage);
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
-    mDoc->DocumentNode()->GetHeaderData(nsGkAtoms::headerContentLanguage,
+    mContent->OwnerDoc()->GetHeaderData(nsGkAtoms::headerContentLanguage,
                                         aLanguage);
   }
 }

@@ -31,13 +31,16 @@ XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
 XPCOMUtils.defineLazyServiceGetter(this, "gSessionStartup",
                                    "@mozilla.org/browser/sessionstartup;1",
                                    "nsISessionStartup");
+XPCOMUtils.defineLazyServiceGetter(this, "gPrivateBrowsingService",
+                                   "@mozilla.org/privatebrowsing;1",
+                                   "nsIPrivateBrowsingService");
 
 const kObservedTopics = [
   "sessionstore-windows-restored",
   "sessionstore-browser-state-restored",
   "download-manager-initialized",
   "download-manager-change-retention",
-  "last-pb-context-exited",
+  "private-browsing-transition-complete",
   "browser-lastwindow-close-granted",
   "quit-application",
   "profile-change-teardown",
@@ -95,7 +98,7 @@ DownloadsStartup.prototype = {
         // database to see if there are completed downloads to recover and show
         // in the panel, in addition to in-progress downloads.
         if (gSessionStartup.sessionType != Ci.nsISessionStartup.NO_SESSION) {
-          this._restoringSession = true;
+          this._recoverAllDownloads = true;
         }
         this._ensureDataLoaded();
         break;
@@ -110,8 +113,8 @@ DownloadsStartup.prototype = {
         // Start receiving events for active and new downloads before we return
         // from this observer function.  We can't defer the execution of this
         // step, to ensure that we don't lose events raised in the meantime.
-        DownloadsCommon.initializeAllDataLinks(
-                        aSubject.QueryInterface(Ci.nsIDownloadManager));
+        DownloadsCommon.data.initializeDataLink(
+                             aSubject.QueryInterface(Ci.nsIDownloadManager));
 
         this._downloadsServiceInitialized = true;
 
@@ -123,11 +126,23 @@ DownloadsStartup.prototype = {
         break;
 
       case "download-manager-change-retention":
-        // If we're using the Downloads Panel, we override the retention
-        // preference to always retain downloads on completion.
+        // When the panel interface is enabled, we use a different preference to
+        // determine whether downloads should be removed from view as soon as
+        // they are finished.  We do this to allow proper migration to the new
+        // feature when using the same profile on multiple versions of the
+        // product (bug 697678).
         if (!DownloadsCommon.useToolkitUI) {
-          aSubject.QueryInterface(Ci.nsISupportsPRInt32).data = 2;
+          let removeFinishedDownloads = Services.prefs.getBoolPref(
+                            "browser.download.panel.removeFinishedDownloads");
+          aSubject.QueryInterface(Ci.nsISupportsPRInt32)
+                  .data = removeFinishedDownloads ? 0 : 2;
         }
+        break;
+
+      case "private-browsing-transition-complete":
+        // Ensure that persistent data is reloaded only when the database
+        // connection is available again.
+        this._ensureDataLoaded();
         break;
 
       case "browser-lastwindow-close-granted":
@@ -143,14 +158,6 @@ DownloadsStartup.prototype = {
         }
         break;
 
-      case "last-pb-context-exited":
-        // Similar to the above notification, but for private downloads.
-        if (this._downloadsServiceInitialized &&
-            !DownloadsCommon.useToolkitUI) {
-          Services.downloads.cleanUpPrivate();
-        }
-        break;
-
       case "quit-application":
         // When the application is shutting down, we must free all resources in
         // addition to cleaning up completed downloads.  If the Download Manager
@@ -162,7 +169,7 @@ DownloadsStartup.prototype = {
           break;
         }
 
-        DownloadsCommon.terminateAllDataLinks();
+        DownloadsCommon.data.terminateDataLink();
 
         // When using the panel interface, downloads that are already completed
         // should be removed when quitting the application.
@@ -181,14 +188,6 @@ DownloadsStartup.prototype = {
         if (this._cleanupOnShutdown) {
           Services.downloads.cleanUp();
         }
-
-        if (!DownloadsCommon.useToolkitUI) {
-          // If we got this far, that means that we finished our first session
-          // with the Downloads Panel without crashing. This means that we don't
-          // have to force displaying only active downloads on the next startup
-          // now.
-          this._firstSessionCompleted = true;
-        }
         break;
     }
   },
@@ -197,11 +196,10 @@ DownloadsStartup.prototype = {
   //// Private
 
   /**
-   * Indicates whether we're restoring a previous session. This is used by
-   * _recoverAllDownloads to determine whether or not we should load and
-   * display all downloads data, or restrict it to only the active downloads.
+   * Indicates whether we should load all downloads from the previous session,
+   * including completed items as well as active downloads.
    */
-  _restoringSession: false,
+  _recoverAllDownloads: false,
 
   /**
    * Indicates whether the Download Manager service has been initialized.  This
@@ -222,47 +220,23 @@ DownloadsStartup.prototype = {
   _cleanupOnShutdown: false,
 
   /**
-   * True if we should display all downloads, as opposed to just active
-   * downloads. We decide to display all downloads if we're restoring a session,
-   * or if we're using the Downloads Panel anytime after the first session with
-   * it has completed.
-   */
-  get _recoverAllDownloads() {
-    return this._restoringSession ||
-           (!DownloadsCommon.useToolkitUI && this._firstSessionCompleted);
-  },
-
-  /**
-   * True if we've ever completed a session with the Downloads Panel enabled.
-   */
-  get _firstSessionCompleted() {
-    return Services.prefs
-                   .getBoolPref("browser.download.panel.firstSessionCompleted");
-  },
-
-  set _firstSessionCompleted(aValue) {
-    Services.prefs.setBoolPref("browser.download.panel.firstSessionCompleted",
-                               aValue);
-    return aValue;
-  },
-
-  /**
    * Ensures that persistent download data is reloaded at the appropriate time.
    */
   _ensureDataLoaded: function DS_ensureDataLoaded()
   {
-    if (!this._downloadsServiceInitialized) {
+    if (!this._downloadsServiceInitialized ||
+        gPrivateBrowsingService.privateBrowsingEnabled) {
       return;
     }
 
     // If the previous session has been already restored, then we ensure that
     // all the downloads are loaded.  Otherwise, we only ensure that the active
     // downloads from the previous session are loaded.
-    DownloadsCommon.ensureAllPersistentDataLoaded(!this._recoverAllDownloads);
+    DownloadsCommon.data.ensurePersistentDataLoaded(!this._recoverAllDownloads);
   }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Module
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([DownloadsStartup]);
+const NSGetFactory = XPCOMUtils.generateNSGetFactory([DownloadsStartup]);

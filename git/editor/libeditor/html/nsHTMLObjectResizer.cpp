@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/MathAlgorithms.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/mozalloc.h"
 #include "nsAString.h"
@@ -43,7 +42,6 @@
 #include "nsStringFwd.h"
 #include "nsSubstringTuple.h"
 #include "nscore.h"
-#include <algorithm>
 
 class nsISelection;
 
@@ -798,7 +796,7 @@ nsHTMLEditor::GetNewResizingX(int32_t aX, int32_t aY)
   int32_t resized = mResizedObjectX +
                     GetNewResizingIncrement(aX, aY, kX) * mXIncrementFactor;
   int32_t max =   mResizedObjectX + mResizedObjectWidth;
-  return std::min(resized, max);
+  return NS_MIN(resized, max);
 }
 
 int32_t
@@ -807,7 +805,7 @@ nsHTMLEditor::GetNewResizingY(int32_t aX, int32_t aY)
   int32_t resized = mResizedObjectY +
                     GetNewResizingIncrement(aX, aY, kY) * mYIncrementFactor;
   int32_t max =   mResizedObjectY + mResizedObjectHeight;
-  return std::min(resized, max);
+  return NS_MIN(resized, max);
 }
 
 int32_t
@@ -816,7 +814,7 @@ nsHTMLEditor::GetNewResizingWidth(int32_t aX, int32_t aY)
   int32_t resized = mResizedObjectWidth +
                      GetNewResizingIncrement(aX, aY, kWidth) *
                          mWidthIncrementFactor;
-  return std::max(resized, 1);
+  return NS_MAX(resized, 1);
 }
 
 int32_t
@@ -825,7 +823,7 @@ nsHTMLEditor::GetNewResizingHeight(int32_t aX, int32_t aY)
   int32_t resized = mResizedObjectHeight +
                      GetNewResizingIncrement(aX, aY, kHeight) *
                          mHeightIncrementFactor;
-  return std::max(resized, 1);
+  return NS_MAX(resized, 1);
 }
 
 
@@ -875,8 +873,8 @@ nsHTMLEditor::MouseMove(nsIDOMEvent* aMouseEvent)
     int32_t yThreshold =
       LookAndFeel::GetInt(LookAndFeel::eIntID_DragThresholdY, 1);
 
-    if (DeprecatedAbs(clientX - mOriginalX) * 2 >= xThreshold ||
-        DeprecatedAbs(clientY - mOriginalY) * 2 >= yThreshold) {
+    if (NS_ABS(clientX - mOriginalX ) * 2 >= xThreshold ||
+        NS_ABS(clientY - mOriginalY ) * 2 >= yThreshold) {
       mGrabberClicked = false;
       StartMoving(nullptr);
     }

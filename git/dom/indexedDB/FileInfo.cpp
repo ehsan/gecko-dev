@@ -6,8 +6,6 @@
 
 #include "FileInfo.h"
 
-#include "mozilla/dom/quota/QuotaManager.h"
-
 USING_INDEXEDDB_NAMESPACE
 
 // static
@@ -93,7 +91,7 @@ FileInfo::UpdateReferences(nsAutoRefCnt& aRefCount, int32_t aDelta,
 void
 FileInfo::Cleanup()
 {
-  if (quota::QuotaManager::IsShuttingDown() ||
+  if (IndexedDatabaseManager::IsShuttingDown() ||
       mFileManager->Invalidated()) {
     return;
   }

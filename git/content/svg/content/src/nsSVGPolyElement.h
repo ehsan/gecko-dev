@@ -6,6 +6,7 @@
 #ifndef NS_SVGPOLYELEMENT_H_
 #define NS_SVGPOLYELEMENT_H_
 
+#include "nsIDOMSVGAnimatedPoints.h"
 #include "nsSVGPathGeometryElement.h"
 #include "SVGAnimatedPointList.h"
 
@@ -13,19 +14,17 @@ typedef nsSVGPathGeometryElement nsSVGPolyElementBase;
 
 class gfxContext;
 
-namespace mozilla {
-class DOMSVGPointList;
-}
-
-class nsSVGPolyElement : public nsSVGPolyElementBase
+class nsSVGPolyElement : public nsSVGPolyElementBase,
+                         public nsIDOMSVGAnimatedPoints
 {
 protected:
   nsSVGPolyElement(already_AddRefed<nsINodeInfo> aNodeInfo);
 
 public:
   //interfaces
-
+  
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGANIMATEDPOINTS
 
   // nsIContent interface
   NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
@@ -42,10 +41,6 @@ public:
   virtual bool IsMarkable() { return true; }
   virtual void GetMarkPoints(nsTArray<nsSVGMark> *aMarks);
   virtual void ConstructPath(gfxContext *aCtx);
-
-  // WebIDL
-  already_AddRefed<mozilla::DOMSVGPointList> Points();
-  already_AddRefed<mozilla::DOMSVGPointList> AnimatedPoints();
 
 protected:
   SVGAnimatedPointList mPoints;

@@ -1,36 +1,6 @@
 // Copyright (c) 2006-2011 The Chromium Authors. All rights reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions
-// are met:
-//  * Redistributions of source code must retain the above copyright
-//    notice, this list of conditions and the following disclaimer.
-//  * Redistributions in binary form must reproduce the above copyright
-//    notice, this list of conditions and the following disclaimer in
-//    the documentation and/or other materials provided with the
-//    distribution.
-//  * Neither the name of Google, Inc. nor the names of its contributors
-//    may be used to endorse or promote products derived from this
-//    software without specific prior written permission.
-// 
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-// FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-// COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-// INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-// BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-// OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-// AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-// OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
-// OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
-// SUCH DAMAGE.
-
-#ifndef TOOLS_PLATFORM_H_
-#define TOOLS_PLATFORM_H_
-
-// Uncomment this line to force desktop logging
-//#define SPS_FORCE_LOG
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
 
 #ifdef ANDROID
 #include <android/log.h>
@@ -42,7 +12,6 @@
 #include "mozilla/Util.h"
 #include "mozilla/unused.h"
 #include "mozilla/TimeStamp.h"
-#include "PlatformMacros.h"
 #include "v8-support.h"
 #include <vector>
 #define ASSERT(a) MOZ_ASSERT(a)
@@ -51,14 +20,11 @@
 #define ENABLE_SPS_LEAF_DATA
 #define ENABLE_ARM_LR_SAVING
 #endif
-#define LOG(text) __android_log_write(ANDROID_LOG_ERROR, "Profiler", text)
-#define LOGF(format, ...) __android_log_print(ANDROID_LOG_ERROR, "Profiler", format, __VA_ARGS__)
-#elif defined(SPS_FORCE_LOG)
-#define LOG(text) fprintf(stderr, "Profiler: %s\n", text)
-#define LOGF(format, ...) fprintf(stderr, "Profiler: " format "\n", __VA_ARGS__)
+#define LOG(text) __android_log_write(ANDROID_LOG_ERROR, "profiler", text)
+#define LOGF(format, ...) __android_log_print(ANDROID_LOG_ERROR, "profiler", format, __VA_ARGS__)
 #else
-#define LOG(TEXT) do {} while(0)
-#define LOGF(format, ...) do {} while(0)
+#define LOG(text) printf("Profiler: %s\n", text)
+#define LOGF(format, ...) printf("Profiler: " format "\n", __VA_ARGS__)
 #endif
 
 #if defined(XP_MACOSX) || defined(XP_WIN)
@@ -191,24 +157,7 @@ class Thread {
   DISALLOW_COPY_AND_ASSIGN(Thread);
 };
 
-// ----------------------------------------------------------------------------
-// HAVE_NATIVE_UNWIND
-//
-// Pseudo backtraces are available on all platforms.  Native
-// backtraces are available only on selected platforms.  Breakpad is
-// the only supported native unwinder.  HAVE_NATIVE_UNWIND is set at
-// build time to indicate whether native unwinding is possible on this
-// platform.  The actual unwind mode currently in use is stored in
-// sUnwindMode.
 
-#undef HAVE_NATIVE_UNWIND
-#if defined(MOZ_PROFILING) \
-    && (defined(SPS_PLAT_amd64_linux) || defined(SPS_PLAT_arm_android) \
-        || defined(SPS_PLAT_x86_linux) \
-        || defined(SPS_OS_windows) \
-        || defined(SPS_OS_darwin))
-# define HAVE_NATIVE_UNWIND
-#endif
 
 // ----------------------------------------------------------------------------
 // Sampler
@@ -238,8 +187,7 @@ class TickSample {
   Address lr;  // ARM link register
 #endif
   Address function;  // The last called JS function.
-  void*   context;   // The context from the signal handler, if available. On
-                     // Win32 this may contain the windows thread context.
+  void*   context;   // The context from the signal handler, if available
   static const int kMaxFramesCount = 64;
   Address stack[kMaxFramesCount];  // Call stack.
   int frames_count;  // Number of captured frames.
@@ -303,4 +251,3 @@ class Sampler {
   PlatformData* data_;  // Platform specific data.
 };
 
-#endif /* ndef TOOLS_PLATFORM_H_ */

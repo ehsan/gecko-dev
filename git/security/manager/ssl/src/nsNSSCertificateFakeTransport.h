@@ -7,9 +7,14 @@
 #define _NS_NSSCERTIFICATECHILD_H_
 
 #include "nsIX509Cert.h"
+#include "nsNSSShutDown.h"
 #include "nsISerializable.h"
 #include "nsIClassInfo.h"
-#include "secitem.h"
+
+#include "nsNSSCertHeader.h"
+
+class nsINSSComponent;
+class nsIASN1Sequence;
 
 /* Certificate */
 class nsNSSCertificateFakeTransport : public nsIX509Cert,

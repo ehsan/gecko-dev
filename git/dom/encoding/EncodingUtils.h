@@ -14,12 +14,11 @@ namespace dom {
 class EncodingUtils
 {
 public:
+  NS_INLINE_DECL_REFCOUNTING(EncodingUtils)
 
   /**
    * Implements decode algorithm's step 1 & 2 from Encoding spec.
    * http://encoding.spec.whatwg.org/#decode
-   * The returned name may not be lowercased due to compatibility with
-   * our internal implementations.
    *
    * @param     aData, incoming byte stream of data.
    * @param     aLength, incoming byte stream length.
@@ -30,29 +29,21 @@ public:
    */
   static uint32_t IdentifyDataOffset(const char* aData,
                                      const uint32_t aLength,
-                                     nsACString& aRetval);
+                                     const char*& aRetval);
 
   /**
    * Implements get an encoding algorithm from Encoding spec.
    * http://encoding.spec.whatwg.org/#concept-encoding-get
    * Given a label, this function returns the corresponding encoding or a
    * false.
-   * The returned name may not be lowercased due to compatibility with
-   * our internal implementations.
    *
    * @param      aLabel, incoming label describing charset to be decoded.
    * @param      aRetEncoding, returning corresponding encoding for label.
    * @return     false if no encoding was found for label.
    *             true if valid encoding found.
    */
-  static bool FindEncodingForLabel(const nsACString& aLabel,
-                                   nsACString& aOutEncoding);
-
   static bool FindEncodingForLabel(const nsAString& aLabel,
-                                   nsACString& aOutEncoding)
-  {
-    return FindEncodingForLabel(NS_ConvertUTF16toUTF8(aLabel), aOutEncoding);
-  }
+                                   const char*& aOutEncoding);
 
   /**
    * Remove any leading and trailing space characters, following the
@@ -64,23 +55,19 @@ public:
    *
    * @param      aString, string to be trimmed.
    */
-  template<class T>
-  static void TrimSpaceCharacters(T& aString)
+  static void TrimSpaceCharacters(nsString& aString)
   {
     aString.Trim(" \t\n\f\r");
   }
 
-  /**
-   * Check is the encoding is ASCII-compatible in the sense that Basic Latin
-   * encodes to ASCII bytes. (The reverse may not be true!)
-   *
-   * @param aPreferredName a preferred encoding label
-   * @return whether the encoding is ASCII-compatible
-   */
-  static bool IsAsciiCompatible(const nsACString& aPreferredName);
+  /* Called to free up Encoding instance. */
+  static void Shutdown();
 
-private:
-  EncodingUtils() MOZ_DELETE;
+protected:
+  nsDataHashtable<nsStringHashKey, const char *> mLabelsEncodings;
+  EncodingUtils();
+  virtual ~EncodingUtils();
+  static already_AddRefed<EncodingUtils> GetOrCreate();
 };
 
 } // dom

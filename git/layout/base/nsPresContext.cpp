@@ -5,14 +5,13 @@
 
 /* a presentation of a document, part 1 */
 
-#include "mozilla/DebugOnly.h"
-
 #include "base/basictypes.h"
 
 #include "nsCOMPtr.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsILinkHandler.h"
+#include "nsIDocShellTreeItem.h"
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
 #include "nsPIDOMWindow.h"
@@ -42,7 +41,7 @@
 #include "nsThreadUtils.h"
 #include "nsFrameManager.h"
 #include "nsLayoutUtils.h"
-#include "nsViewManager.h"
+#include "nsIViewManager.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsStyleChangeList.h"
@@ -88,7 +87,6 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::layers;
 
 uint8_t gNotifySubDocInvalidationData;
 
@@ -314,6 +312,8 @@ nsPresContext::~nsPresContext()
                                   this);
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsPresContext)
+
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsPresContext)
    NS_INTERFACE_MAP_ENTRY(nsISupports)
    NS_INTERFACE_MAP_ENTRY(nsIObserver)
@@ -323,9 +323,9 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPresContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPresContext)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocument);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDocument);
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mDeviceContext); // not xpcom
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mEventManager);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mEventManager, nsIObserver);
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLanguage); // an atom
 
   // We own only the items in mDOMMediaQueryLists that have listeners;
@@ -340,15 +340,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
     }
   }
 
-  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTheme); // a service
-  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLangService); // a service
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrintSettings);
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrefChangedTimer);
+  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTheme); // a service
+  // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLangService); // a service
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrintSettings);
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mPrefChangedTimer);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocument);
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mDeviceContext); // worth bothering?
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDocument);
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mDeviceContext); // worth bothering?
   if (tmp->mEventManager) {
     // unclear if these are needed, but can't hurt
     tmp->mEventManager->NotifyDestroyPresContext(tmp);
@@ -369,9 +369,9 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
 
   // NS_RELEASE(tmp->mLanguage); // an atom
 
-  // NS_IMPL_CYCLE_COLLECTION_UNLINK(mTheme); // a service
-  // NS_IMPL_CYCLE_COLLECTION_UNLINK(mLangService); // a service
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPrintSettings);
+  // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTheme); // a service
+  // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLangService); // a service
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mPrintSettings);
   if (tmp->mPrefChangedTimer)
   {
     tmp->mPrefChangedTimer->Cancel();
@@ -413,7 +413,7 @@ nsPresContext::GetFontPrefsForLang(nsIAtom *aLanguage) const
 {
   // Get language group for aLanguage:
 
-  nsresult rv = NS_OK;
+  nsresult rv;
   nsIAtom *langGroupAtom = nullptr;
   if (!aLanguage) {
     aLanguage = mLanguage;
@@ -806,12 +806,11 @@ nsPresContext::AppUnitsPerDevPixelChanged()
 
   mDeviceContext->FlushFontCache();
 
+  // All cached style data must be recomputed.
   if (HasCachedStyleData()) {
-    // All cached style data must be recomputed.
-    MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
+    MediaFeatureValuesChanged(true);
+    RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
   }
-
-  mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
 }
 
 void
@@ -825,7 +824,7 @@ nsPresContext::PreferenceChanged(const char* aPrefName)
       // Re-fetch the view manager's window dimensions in case there's a deferred
       // resize which hasn't affected our mVisibleArea yet
       nscoord oldWidthAppUnits, oldHeightAppUnits;
-      nsViewManager* vm = mShell->GetViewManager();
+      nsIViewManager* vm = mShell->GetViewManager();
       vm->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
       float oldWidthDevPixels = oldWidthAppUnits/oldAppUnitsPerDevPixel;
       float oldHeightDevPixels = oldHeightAppUnits/oldAppUnitsPerDevPixel;
@@ -948,14 +947,7 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
         nsCOMPtr<nsIDocShellTreeItem> parentItem;
         ourItem->GetSameTypeParent(getter_AddRefs(parentItem));
         if (parentItem) {
-          Element* containingElement =
-            parent->FindContentForSubDocument(mDocument);
-          if (!containingElement->IsXUL() ||
-              !containingElement->
-                HasAttr(kNameSpaceID_None,
-                        nsGkAtoms::forceOwnRefreshDriver)) {
-            mRefreshDriver = parent->GetShell()->GetPresContext()->RefreshDriver();
-          }
+          mRefreshDriver = parent->GetShell()->GetPresContext()->RefreshDriver();
         }
       }
     }
@@ -964,10 +956,6 @@ nsPresContext::Init(nsDeviceContext* aDeviceContext)
       mRefreshDriver = new nsRefreshDriver(this);
     }
   }
-
-  // Initialise refresh tick counters for OMTA
-  mLastStyleUpdateForAllAnimations =
-    mLastUpdateThrottledStyle = mRefreshDriver->MostRecentRefresh();
 
   mLangService = do_GetService(NS_LANGUAGEATOMSERVICE_CONTRACTID);
 
@@ -1159,21 +1147,11 @@ nsPresContext::GetParentPresContext()
 {
   nsIPresShell* shell = GetPresShell();
   if (shell) {
-    nsViewManager* viewManager = shell->GetViewManager();
-    if (viewManager) {
-      nsView* view = viewManager->GetRootView();
-      if (view) {
-        view = view->GetParent(); // anonymous inner view
-        if (view) {
-          view = view->GetParent(); // subdocumentframe's view
-          if (view) {
-            nsIFrame* f = view->GetFrame();
-            if (f) {
-              return f->PresContext();
-            }
-          }
-        }
-      }
+    nsIFrame* rootFrame = shell->FrameManager()->GetRootFrame();
+    if (rootFrame) {
+      nsIFrame* f = nsLayoutUtils::GetCrossDocParentFrame(rootFrame);
+      if (f)
+        return f->PresContext();
     }
   }
   return nullptr;
@@ -1200,19 +1178,6 @@ nsPresContext::GetNearestWidget(nsPoint* aOffset)
   nsIFrame* frame = mShell->GetRootFrame();
   NS_ENSURE_TRUE(frame, nullptr);
   return frame->GetView()->GetNearestWidget(aOffset);
-}
-
-nsIWidget*
-nsPresContext::GetRootWidget()
-{
-  NS_ENSURE_TRUE(mShell, nullptr);
-  nsViewManager* vm = mShell->GetViewManager();
-  if (!vm) {
-    return nullptr;
-  }
-  nsCOMPtr<nsIWidget> widget;
-  vm->GetRootWidget(getter_AddRefs(widget));
-  return widget.get();
 }
 
 // We may want to replace this with something faster, maybe caching the root prescontext
@@ -1421,6 +1386,8 @@ nsPresContext::SetFullZoom(float aZoom)
   AppUnitsPerDevPixelChanged();
 
   mSupressResizeReflow = false;
+
+  mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
 }
 
 float
@@ -1605,11 +1572,13 @@ nsPresContext::ThemeChangedInternal()
   nsCSSRuleProcessor::FreeSystemMetrics();
 
   // Changes to system metrics can change media queries on them.
+  MediaFeatureValuesChanged(true);
+
   // Changes in theme can change system colors (whose changes are
   // properly reflected in computed style data), system fonts (whose
   // changes are not), and -moz-appearance (whose changes likewise are
   // not), so we need to reflow.
-  MediaFeatureValuesChanged(eAlwaysRebuildStyle, NS_STYLE_HINT_REFLOW);
+  RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
 }
 
 void
@@ -1676,8 +1645,7 @@ nsPresContext::UIResolutionChangedInternal()
 {
   mPendingUIResolutionChanged = false;
 
-  mDeviceContext->CheckDPIChange();
-  if (mCurAppUnitsPerDevPixel != AppUnitsPerDevPixel()) {
+  if (mDeviceContext->CheckDPIChange()) {
     AppUnitsPerDevPixelChanged();
   }
 
@@ -1693,7 +1661,6 @@ nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint)
     return;
   }
 
-  mUsesRootEMUnits = false;
   mUsesViewportUnits = false;
   RebuildUserFontSet();
   AnimationManager()->KeyframesListIsDirty();
@@ -1712,22 +1679,17 @@ nsPresContext::PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint)
 }
 
 void
-nsPresContext::MediaFeatureValuesChanged(StyleRebuildType aShouldRebuild,
-                                         nsChangeHint aChangeHint)
+nsPresContext::MediaFeatureValuesChanged(bool aCallerWillRebuildStyleData)
 {
-  NS_ASSERTION(aShouldRebuild == eAlwaysRebuildStyle || aChangeHint == 0,
-               "If you don't know if we need a rebuild, how can you provide a hint?");
-
   mPendingMediaFeatureValuesChanged = false;
 
   // MediumFeaturesChanged updates the applied rules, so it always gets called.
   bool mediaFeaturesDidChange = mShell ? mShell->StyleSet()->MediumFeaturesChanged(this)
                                        : false;
 
-  if (aShouldRebuild == eAlwaysRebuildStyle ||
-      mediaFeaturesDidChange ||
-      (mUsesViewportUnits && mPendingViewportChange)) {
-    RebuildAllStyleData(aChangeHint);
+  if (!aCallerWillRebuildStyleData &&
+      (mediaFeaturesDidChange || (mUsesViewportUnits && mPendingViewportChange))) {
+    RebuildAllStyleData(nsChangeHint(0));
   }
 
   mPendingViewportChange = false;
@@ -1806,7 +1768,7 @@ nsPresContext::HandleMediaFeatureValuesChangedEvent()
   // Null-check mShell in case the shell has been destroyed (and the
   // event is the only thing holding the pres context alive).
   if (mPendingMediaFeatureValuesChanged && mShell) {
-    MediaFeatureValuesChanged(eRebuildStyleIfNeeded);
+    MediaFeatureValuesChanged(false);
   }
 }
 
@@ -1907,7 +1869,7 @@ nsPresContext::InvalidateIsChromeCacheExternal()
 nsPresContext::HasAuthorSpecifiedRules(nsIFrame *aFrame, uint32_t ruleTypeMask) const
 {
   return
-    nsRuleNode::HasAuthorSpecifiedRules(aFrame->StyleContext(),
+    nsRuleNode::HasAuthorSpecifiedRules(aFrame->GetStyleContext(),
                                         ruleTypeMask,
                                         UseDocumentColors());
 }
@@ -2078,8 +2040,8 @@ nsPresContext::FireDOMPaintEvent(nsInvalidateRequestList* aList)
   if (!ourWindow)
     return;
 
-  nsCOMPtr<EventTarget> dispatchTarget = do_QueryInterface(ourWindow);
-  nsCOMPtr<EventTarget> eventTarget = dispatchTarget;
+  nsCOMPtr<nsIDOMEventTarget> dispatchTarget = do_QueryInterface(ourWindow);
+  nsCOMPtr<nsIDOMEventTarget> eventTarget = dispatchTarget;
   if (!IsChrome() && !mSendAfterPaintToContent) {
     // Don't tell the window about this event, it should not know that
     // something happened in a subdocument. Tell only the chrome event handler.
@@ -2096,7 +2058,7 @@ nsPresContext::FireDOMPaintEvent(nsInvalidateRequestList* aList)
   // This will empty our list in case dispatching the event causes more damage
   // (hopefully it won't, or we're likely to get an infinite loop! At least
   // it won't be blocking app execution though).
-  NS_NewDOMNotifyPaintEvent(getter_AddRefs(event), eventTarget, this, nullptr,
+  NS_NewDOMNotifyPaintEvent(getter_AddRefs(event), this, nullptr,
                             NS_AFTERPAINT, aList);
   if (!event) {
     return;
@@ -2366,11 +2328,9 @@ enum InterruptMode {
 // "random" (except on Windows) or "counter".  If neither is used, the mode is
 // ModeEvent.
 static InterruptMode sInterruptMode = ModeEvent;
-#ifndef XP_WIN
 // Used for the "random" mode.  Controlled by the GECKO_REFLOW_INTERRUPT_SEED
 // env var.
 static uint32_t sInterruptSeed = 1;
-#endif
 // Used for the "counter" mode.  This is the number of unskipped interrupt
 // checks that have to happen before we interrupt.  Controlled by the
 // GECKO_REFLOW_INTERRUPT_FREQUENCY env var.
@@ -2548,7 +2508,7 @@ nsPresContext::IsRootContentDocument()
     return false;
   }
   // We may not have a root frame, so use views.
-  nsView* view = PresShell()->GetViewManager()->GetRootView();
+  nsIView* view = PresShell()->GetViewManager()->GetRootView();
   if (!view) {
     return false;
   }
@@ -2654,13 +2614,7 @@ nsRootPresContext::ComputePluginGeometryUpdates(nsIFrame* aFrame,
     aList->ComputeVisibilityForRoot(aBuilder, &region);
   }
 
-#ifdef XP_MACOSX
-  // We control painting of Mac plugins, so just apply geometry updates now.
-  // This is not happening during a paint event.
-  ApplyPluginGeometryUpdates();
-#else
   InitApplyPluginGeometryTimer();
-#endif
 }
 
 static void

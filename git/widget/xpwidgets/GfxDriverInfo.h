@@ -3,27 +3,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "prtypes.h"
+#include "nsString.h"
+
 #ifndef __mozilla_widget_GfxDriverInfo_h__
 #define __mozilla_widget_GfxDriverInfo_h__
-
-#include "mozilla/Util.h" // ArrayLength
-#include "nsString.h"
 
 // Macros for adding a blocklist item to the static list.
 #define APPEND_TO_DRIVER_BLOCKLIST(os, vendor, devices, feature, featureStatus, driverComparator, driverVersion, suggestedVersion) \
     mDriverInfo->AppendElement(GfxDriverInfo(os, vendor, devices, feature, featureStatus, driverComparator, driverVersion, suggestedVersion))
 #define APPEND_TO_DRIVER_BLOCKLIST2(os, vendor, devices, feature, featureStatus, driverComparator, driverVersion) \
     mDriverInfo->AppendElement(GfxDriverInfo(os, vendor, devices, feature, featureStatus, driverComparator, driverVersion))
-
-#define APPEND_TO_DRIVER_BLOCKLIST_RANGE(os, vendor, devices, feature, featureStatus, driverComparator, driverVersion, driverVersionMax, suggestedVersion) \
-    do { \
-      MOZ_ASSERT(driverComparator == DRIVER_BETWEEN_EXCLUSIVE || \
-                 driverComparator == DRIVER_BETWEEN_INCLUSIVE || \
-                 driverComparator == DRIVER_BETWEEN_INCLUSIVE_START); \
-      GfxDriverInfo info(os, vendor, devices, feature, featureStatus, driverComparator, driverVersion, suggestedVersion); \
-      info.mDriverVersionMax = driverVersionMax; \
-      mDriverInfo->AppendElement(info); \
-    } while (false)
 
 namespace mozilla {
 namespace widget {
@@ -64,7 +54,6 @@ enum DeviceFamily {
   IntelGMA3150,
   IntelGMAX3000,
   IntelGMAX4500HD,
-  IntelMobileHDGraphics,
   NvidiaBlockD3D9Layers,
   RadeonX1000,
   Geforce7300GT,
@@ -97,7 +86,6 @@ struct GfxDriverInfo
   ~GfxDriverInfo();
 
   OperatingSystem mOperatingSystem;
-  uint32_t mOperatingSystemVersion;
 
   nsString mAdapterVendor;
 
@@ -129,14 +117,12 @@ struct GfxDriverInfo
 
   static const nsAString& GetDeviceVendor(DeviceVendor id);
   static nsAString* mDeviceVendors[DeviceVendorMax];
-
-  nsString mModel, mHardware, mProduct, mManufacturer;
 };
 
 #define GFX_DRIVER_VERSION(a,b,c,d) \
   ((uint64_t(a)<<48) | (uint64_t(b)<<32) | (uint64_t(c)<<16) | uint64_t(d))
 
-inline uint64_t
+static uint64_t
 V(uint32_t a, uint32_t b, uint32_t c, uint32_t d)
 {
   // We make sure every driver number is padded by 0s, this will allow us the
@@ -155,13 +141,13 @@ V(uint32_t a, uint32_t b, uint32_t c, uint32_t d)
 }
 
 // All destination string storage needs to have at least 5 bytes available.
-inline bool SplitDriverVersion(const char *aSource, char *aAStr, char *aBStr, char *aCStr, char *aDStr)
+static bool SplitDriverVersion(const char *aSource, char *aAStr, char *aBStr, char *aCStr, char *aDStr)
 {
   // sscanf doesn't do what we want here to we parse this manually.
   int len = strlen(aSource);
   char *dest[4] = { aAStr, aBStr, aCStr, aDStr };
-  unsigned destIdx = 0;
-  unsigned destPos = 0;
+  int destIdx = 0;
+  int destPos = 0;
 
   for (int i = 0; i < len; i++) {
     if (destIdx > ArrayLength(dest)) {
@@ -193,12 +179,12 @@ inline bool SplitDriverVersion(const char *aSource, char *aAStr, char *aBStr, ch
   return true;
 }
 
-// This allows us to pad driver version 'substrings' with 0s, this
+// This allows us to pad driver versiopn 'substrings' with 0s, this
 // effectively allows us to treat the version numbers as 'decimals'. This is
 // a little strange but this method seems to do the right thing for all
 // different vendor's driver strings. i.e. .98 will become 9800, which is
 // larger than .978 which would become 9780.
-inline void PadDriverDecimal(char *aString)
+static void PadDriverDecimal(char *aString)
 {
   for (int i = 0; i < 4; i++) {
     if (!aString[i]) {

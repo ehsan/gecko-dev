@@ -7,11 +7,8 @@
 #include "sdp_os_defs.h"
 #include "sdp.h"
 #include "sdp_private.h"
-#include "CSFLog.h"
 
 #define MKI_BUF_LEN 4
-
-static const char* logTag = "sdp_utils";
 
 sdp_mca_t *sdp_alloc_mca () {
     sdp_mca_t           *mca_p;
@@ -731,7 +728,7 @@ tinybool sdp_checkrange (sdp_t *sdp_p, char *num, ulong *u_val)
 
     if (*num == '-') {
         if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
-            CSFLogError(logTag, "%s ERROR: Parameter value is a negative number: %s",
+            SDP_ERROR("%s ERROR: Parameter value is a negative number: %s",
                       sdp_p->debug_str, num);
         }
         return FALSE;
@@ -742,7 +739,7 @@ tinybool sdp_checkrange (sdp_t *sdp_p, char *num, ulong *u_val)
 
         if (l_val > 4294967295UL) {
 	    if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
-		CSFLogError(logTag, "%s ERROR: Parameter value: %s is greater than 4294967295",
+		SDP_ERROR("%s ERROR: Parameter value: %s is greater than 4294967295",
 			  sdp_p->debug_str, num);
 	    }
 	    return FALSE;
@@ -757,7 +754,7 @@ tinybool sdp_checkrange (sdp_t *sdp_p, char *num, ulong *u_val)
 	     */
 	    if (strcmp("4294967295", num)) {
 		if (sdp_p->debug_flag[SDP_DEBUG_ERRORS]) {
-		    CSFLogError(logTag, "%s ERROR: Parameter value: %s is greater than 4294967295",
+		    SDP_ERROR("%s ERROR: Parameter value: %s is greater than 4294967295",
 			      sdp_p->debug_str, num);
 		}
 		return FALSE;

@@ -40,7 +40,7 @@ function checkInvalid(elmt)
           "rgb(255, 0, 0)", ":invalid pseudo-class should apply");
 }
 
-for (var elmtName of elements) {
+for each (var elmtName in elements) {
   var elmt = document.createElement(elmtName);
   content.appendChild(elmt);
 

@@ -79,8 +79,6 @@
 #include "nsIPrivateBrowsingChannel.h"
 #include "mozIApplicationClearPrivateDataParams.h"
 #include "nsIOfflineCacheUpdate.h"
-#include "nsIContentSniffer.h"
-#include "nsCategoryCache.h"
 
 #include <limits>
 
@@ -284,7 +282,8 @@ NS_OpenURI(nsIStreamListener     *listener,
 inline nsresult
 NS_MakeAbsoluteURI(nsACString       &result,
                    const nsACString &spec, 
-                   nsIURI           *baseURI)
+                   nsIURI           *baseURI, 
+                   nsIIOService     *unused = nullptr)
 {
     nsresult rv;
     if (!baseURI) {
@@ -302,7 +301,8 @@ NS_MakeAbsoluteURI(nsACString       &result,
 inline nsresult
 NS_MakeAbsoluteURI(char        **result,
                    const char   *spec, 
-                   nsIURI       *baseURI)
+                   nsIURI       *baseURI, 
+                   nsIIOService *unused = nullptr)
 {
     nsresult rv;
     nsAutoCString resultBuf;
@@ -318,7 +318,8 @@ NS_MakeAbsoluteURI(char        **result,
 inline nsresult
 NS_MakeAbsoluteURI(nsAString       &result,
                    const nsAString &spec, 
-                   nsIURI          *baseURI)
+                   nsIURI          *baseURI,
+                   nsIIOService    *unused = nullptr)
 {
     nsresult rv;
     if (!baseURI) {
@@ -384,7 +385,8 @@ NS_StringToACE(const nsACString &idn, nsACString &result)
  * concept of ports or if there was an error getting the port.
  */
 inline int32_t
-NS_GetRealPort(nsIURI* aURI)
+NS_GetRealPort(nsIURI* aURI,
+               nsIIOService* ioService = nullptr)     // pass in nsIIOService to optimize callers
 {
     int32_t port;
     nsresult rv = aURI->GetPort(&port);
@@ -657,13 +659,13 @@ NS_ImplementChannelOpen(nsIChannel      *channel,
 inline nsresult
 NS_NewRequestObserverProxy(nsIRequestObserver **result,
                            nsIRequestObserver  *observer,
-                           nsISupports         *context)
+                           nsIEventTarget      *target = nullptr)
 {
     nsresult rv;
     nsCOMPtr<nsIRequestObserverProxy> proxy =
         do_CreateInstance(NS_REQUESTOBSERVERPROXY_CONTRACTID, &rv);
     if (NS_SUCCEEDED(rv)) {
-        rv = proxy->Init(observer, context);
+        rv = proxy->Init(observer, target);
         if (NS_SUCCEEDED(rv))
             NS_ADDREF(*result = proxy);  // cannot use nsCOMPtr::swap
     }
@@ -1097,7 +1099,9 @@ NS_BufferOutputStream(nsIOutputStream *aOutputStream,
 inline nsresult
 NS_NewPostDataStream(nsIInputStream  **result,
                      bool              isFile,
-                     const nsACString &data)
+                     const nsACString &data,
+                     uint32_t          encodeFlags,
+                     nsIIOService     *unused = nullptr)
 {
     nsresult rv;
 
@@ -1500,21 +1504,12 @@ NS_QueryNotificationCallbacks(const nsCOMPtr<nsIChannel> &aChannel,
 inline nsresult
 NS_NewNotificationCallbacksAggregation(nsIInterfaceRequestor  *callbacks,
                                        nsILoadGroup           *loadGroup,
-                                       nsIEventTarget         *target,
                                        nsIInterfaceRequestor **result)
 {
     nsCOMPtr<nsIInterfaceRequestor> cbs;
     if (loadGroup)
         loadGroup->GetNotificationCallbacks(getter_AddRefs(cbs));
-    return NS_NewInterfaceRequestorAggregation(callbacks, cbs, target, result);
-}
-
-inline nsresult
-NS_NewNotificationCallbacksAggregation(nsIInterfaceRequestor  *callbacks,
-                                       nsILoadGroup           *loadGroup,
-                                       nsIInterfaceRequestor **result)
-{
-    return NS_NewNotificationCallbacksAggregation(callbacks, loadGroup, nullptr, result);
+    return NS_NewInterfaceRequestorAggregation(callbacks, cbs, result);
 }
 
 /**
@@ -2011,7 +2006,9 @@ NS_GetContentDispositionFromToken(const nsAString& aDispToken)
       // Broken sites just send
       // Content-Disposition: filename="file"
       // without a disposition token... screen those out.
-      StringHead(aDispToken, 8).LowerCaseEqualsLiteral("filename"))
+      StringHead(aDispToken, 8).LowerCaseEqualsLiteral("filename") ||
+      // Also in use is Content-Disposition: name="file"
+      StringHead(aDispToken, 4).LowerCaseEqualsLiteral("name"))
     return nsIChannel::DISPOSITION_INLINE;
 
   return nsIChannel::DISPOSITION_ATTACHMENT;
@@ -2039,8 +2036,8 @@ NS_GetContentDispositionFromHeader(const nsACString& aHeader, nsIChannel *aChan 
   }
 
   nsAutoString dispToken;
-  rv = mimehdrpar->GetParameterHTTP(aHeader, "", fallbackCharset, true, nullptr,
-                                    dispToken);
+  rv = mimehdrpar->GetParameter(aHeader, "", fallbackCharset, true, nullptr,
+                                dispToken);
 
   if (NS_FAILED(rv)) {
     // special case (see bug 272541): empty disposition type handled as "inline"
@@ -2077,9 +2074,14 @@ NS_GetFilenameFromDisposition(nsAString& aFilename,
   if (url)
     url->GetOriginCharset(fallbackCharset);
   // Get the value of 'filename' parameter
-  rv = mimehdrpar->GetParameterHTTP(aDisposition, "filename",
-                                    fallbackCharset, true, nullptr,
-                                    aFilename);
+  rv = mimehdrpar->GetParameter(aDisposition, "filename",
+                                fallbackCharset, true, nullptr,
+                                aFilename);
+  if (NS_FAILED(rv) || aFilename.IsEmpty()) {
+    // Try 'name' parameter, instead.
+    rv = mimehdrpar->GetParameter(aDisposition, "name", fallbackCharset,
+                                  true, nullptr, aFilename);
+  }
 
   if (NS_FAILED(rv)) {
     aFilename.Truncate();
@@ -2148,50 +2150,6 @@ NS_GenerateHostPort(const nsCString& host, int32_t port,
         hostLine.AppendInt(port);
     }
     return NS_OK;
-}
-
-/**
- * Sniff the content type for a given request or a given buffer.
- *
- * aSnifferType can be either NS_CONTENT_SNIFFER_CATEGORY or
- * NS_DATA_SNIFFER_CATEGORY.  The function returns the sniffed content type
- * in the aSniffedType argument.  This argument will not be modified if the
- * content type could not be sniffed.
- */
-inline void
-NS_SniffContent(const char* aSnifferType, nsIRequest* aRequest,
-                const uint8_t* aData, uint32_t aLength,
-                nsACString& aSniffedType)
-{
-  typedef nsCategoryCache<nsIContentSniffer> ContentSnifferCache;
-  extern NS_HIDDEN_(ContentSnifferCache*) gNetSniffers;
-  extern NS_HIDDEN_(ContentSnifferCache*) gDataSniffers;
-  ContentSnifferCache* cache = nullptr;
-  if (!strcmp(aSnifferType, NS_CONTENT_SNIFFER_CATEGORY)) {
-    if (!gNetSniffers) {
-      gNetSniffers = new ContentSnifferCache(NS_CONTENT_SNIFFER_CATEGORY);
-    }
-    cache = gNetSniffers;
-  } else if (!strcmp(aSnifferType, NS_DATA_SNIFFER_CATEGORY)) {
-    if (!gDataSniffers) {
-      gDataSniffers = new ContentSnifferCache(NS_DATA_SNIFFER_CATEGORY);
-    }
-    cache = gDataSniffers;
-  } else {
-    // Invalid content sniffer type was requested
-    MOZ_ASSERT(false);
-    return;
-  }
-
-  const nsCOMArray<nsIContentSniffer>& sniffers = cache->GetEntries();
-  for (int32_t i = 0; i < sniffers.Count(); ++i) {
-    nsresult rv = sniffers[i]->GetMIMETypeFromContent(aRequest, aData, aLength, aSniffedType);
-    if (NS_SUCCEEDED(rv) && !aSniffedType.IsEmpty()) {
-      return;
-    }
-  }
-
-  aSniffedType.Truncate();
 }
 
 #endif // !nsNetUtil_h__

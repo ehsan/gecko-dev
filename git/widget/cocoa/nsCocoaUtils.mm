@@ -315,17 +315,15 @@ nsresult nsCocoaUtils::CreateNSImageFromCGImage(CGImageRef aInputImage, NSImage 
 
 nsresult nsCocoaUtils::CreateNSImageFromImageContainer(imgIContainer *aImage, uint32_t aWhichFrame, NSImage **aResult)
 {
-  nsRefPtr<gfxASurface> surface;
-  aImage->GetFrame(aWhichFrame,
-                   imgIContainer::FLAG_SYNC_DECODE,
-                   getter_AddRefs(surface));
-  NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
-
-  nsRefPtr<gfxImageSurface> frame(surface->GetAsReadableARGB32ImageSurface());
-  NS_ENSURE_TRUE(frame, NS_ERROR_FAILURE);
-
+  nsRefPtr<gfxImageSurface> frame;
+  nsresult rv = aImage->CopyFrame(aWhichFrame,
+                                  imgIContainer::FLAG_SYNC_DECODE,
+                                  getter_AddRefs(frame));
+  if (NS_FAILED(rv) || !frame) {
+    return NS_ERROR_FAILURE;
+  }
   CGImageRef imageRef = NULL;
-  nsresult rv = nsCocoaUtils::CreateCGImageFromSurface(frame, &imageRef);
+  rv = nsCocoaUtils::CreateCGImageFromSurface(frame, &imageRef);
   if (NS_FAILED(rv) || !imageRef) {
     return NS_ERROR_FAILURE;
   }
@@ -432,7 +430,7 @@ nsCocoaUtils::InitInputEvent(nsInputEvent &aInputEvent,
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   NSUInteger modifiers =
-    aNativeEvent ? [aNativeEvent modifierFlags] : [NSEvent modifierFlags];
+    aNativeEvent ? [aNativeEvent modifierFlags] : GetCurrentModifiers();
   InitInputEvent(aInputEvent, modifiers);
 
   aInputEvent.time = PR_IntervalNow();
@@ -482,6 +480,45 @@ nsCocoaUtils::InitInputEvent(nsInputEvent &aInputEvent,
   // other keys are pressed. We cannot check whether 'fn' key is pressed or
   // not by the flag.
 
+}
+
+// static
+NSUInteger
+nsCocoaUtils::GetCurrentModifiers()
+{
+  // NOTE: [[NSApp currentEvent] modifiers] isn't useful because it sometime 0
+  //       and we cannot check if it's actual state.
+  if (nsCocoaFeatures::OnSnowLeopardOrLater()) {
+    // XXX [NSEvent modifierFlags] returns "current" modifier state, so,
+    //     it's not event-queue-synchronized.  GetCurrentEventKeyModifiers()
+    //     might be better, but it's Carbon API, we shouldn't use it as far as
+    //     possible.
+    return [NSEvent modifierFlags];
+  }
+
+  // If [NSEvent modifierFlags] isn't available, use carbon API.
+  // GetCurrentEventKeyModifiers() might be better?
+  // It's event-queue-synchronized.
+  UInt32 carbonModifiers = ::GetCurrentKeyModifiers();
+  NSUInteger cocoaModifiers = 0;
+
+  if (carbonModifiers & alphaLock) {
+    cocoaModifiers |= NSAlphaShiftKeyMask;
+  }
+  if (carbonModifiers & (controlKey | rightControlKey)) {
+    cocoaModifiers |= NSControlKeyMask;
+  }
+  if (carbonModifiers & (optionKey | rightOptionKey)) {
+    cocoaModifiers |= NSAlternateKeyMask;
+  }
+  if (carbonModifiers & (shiftKey | rightShiftKey)) {
+    cocoaModifiers |= NSShiftKeyMask;
+  }
+  if (carbonModifiers & cmdKey) {
+    cocoaModifiers |= NSCommandKeyMask;
+  }
+
+  return cocoaModifiers;
 }
 
 // static

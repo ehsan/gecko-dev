@@ -213,7 +213,7 @@ public:
   void NotifyPaintWaiter(nsDisplayListBuilder* aBuilder);
 
   // Returns the image container that has our currently displayed image.
-  already_AddRefed<mozilla::layers::ImageContainer> GetImageContainer();
+  already_AddRefed<ImageContainer> GetImageContainer();
 
   /**
    * Returns the bounds of the current async-rendered surface. This can only
@@ -231,12 +231,10 @@ public:
   
   bool UseAsyncRendering();
 
-  already_AddRefed<nsIURI> GetBaseURI() const;
-
 #ifdef MOZ_WIDGET_ANDROID
   // Returns the image container for the specified VideoInfo
   void GetVideos(nsTArray<nsNPAPIPluginInstance::VideoInfo*>& aVideos);
-  already_AddRefed<mozilla::layers::ImageContainer> GetImageContainerForVideo(nsNPAPIPluginInstance::VideoInfo* aVideoInfo);
+  already_AddRefed<ImageContainer> GetImageContainerForVideo(nsNPAPIPluginInstance::VideoInfo* aVideoInfo);
 
   void Invalidate();
 
@@ -272,6 +270,7 @@ private:
   nsObjectFrame              *mObjectFrame;
   nsIContent                 *mContent; // WEAK, content owns us
   nsCString                   mDocumentBase;
+  char                       *mTagText;
   bool                        mWidgetCreationComplete;
   nsCOMPtr<nsIWidget>         mWidget;
   nsRefPtr<nsPluginHost>      mPluginHost;

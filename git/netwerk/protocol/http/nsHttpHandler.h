@@ -16,7 +16,6 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsWeakReference.h"
-#include "mozilla/Telemetry.h"
 
 #include "nsIHttpProtocolHandler.h"
 #include "nsIProtocolProxyService.h"
@@ -26,6 +25,7 @@
 #include "nsIStreamConverterService.h"
 #include "nsICacheSession.h"
 #include "nsICookieService.h"
+#include "nsIIDNService.h"
 #include "nsITimer.h"
 #include "nsIStrictTransportSecurityService.h"
 #include "nsISpeculativeConnect.h"
@@ -60,7 +60,7 @@ public:
     nsresult Init();
     nsresult AddStandardRequestHeaders(nsHttpHeaderArray *);
     nsresult AddConnectionHeader(nsHttpHeaderArray *,
-                                 uint32_t capabilities);
+                                 uint8_t capabilities);
     bool     IsAcceptableEncoding(const char *encoding);
 
     const nsAFlatCString &UserAgent();
@@ -74,6 +74,7 @@ public:
     PRIntervalTime SpdyTimeout()             { return mSpdyTimeout; }
     uint16_t       MaxRequestAttempts()      { return mMaxRequestAttempts; }
     const char    *DefaultSocketType()       { return mDefaultSocketType.get(); /* ok to return null */ }
+    nsIIDNService *IDNConverter()            { return mIDNConverter; }
     uint32_t       PhishyUserPassLength()    { return mPhishyUserPassLength; }
     uint8_t        GetQoSBits()              { return mQoSBits; }
     uint16_t       GetIdleSynTimeout()       { return mIdleSynTimeout; }
@@ -91,20 +92,15 @@ public:
     bool           IsSpdyV3Enabled() { return mSpdyV3; }
     bool           CoalesceSpdy() { return mCoalesceSpdy; }
     bool           UseAlternateProtocol() { return mUseAlternateProtocol; }
-    bool           UseSpdyPersistentSettings() { return mSpdyPersistentSettings; }
     uint32_t       SpdySendingChunkSize() { return mSpdySendingChunkSize; }
     uint32_t       SpdySendBufferSize()      { return mSpdySendBufferSize; }
     PRIntervalTime SpdyPingThreshold() { return mSpdyPingThreshold; }
     PRIntervalTime SpdyPingTimeout() { return mSpdyPingTimeout; }
     uint32_t       ConnectTimeout()  { return mConnectTimeout; }
-    uint32_t       ParallelSpeculativeConnectLimit() { return mParallelSpeculativeConnectLimit; }
-    bool           CritialRequestPrioritization() { return mCritialRequestPrioritization; }
 
     bool           PromptTempRedirect()      { return mPromptTempRedirect; }
 
-    nsHttpAuthCache     *AuthCache(bool aPrivate) {
-        return aPrivate ? &mPrivateAuthCache : &mAuthCache;
-    }
+    nsHttpAuthCache     *AuthCache() { return &mAuthCache; }
     nsHttpConnectionMgr *ConnMgr()   { return mConnMgr; }
 
     // cache support
@@ -156,20 +152,16 @@ public:
         return mConnMgr->ProcessPendingQ(cinfo);
     }
 
-    nsresult ProcessPendingQ()
-    {
-        return mConnMgr->ProcessPendingQ();
-    }
-
     nsresult GetSocketThreadTarget(nsIEventTarget **target)
     {
         return mConnMgr->GetSocketThreadTarget(target);
     }
 
     nsresult SpeculativeConnect(nsHttpConnectionInfo *ci,
-                                nsIInterfaceRequestor *callbacks)
+                                nsIInterfaceRequestor *callbacks,
+                                nsIEventTarget *target)
     {
-        return mConnMgr->SpeculativeConnect(ci, callbacks);
+        return mConnMgr->SpeculativeConnect(ci, callbacks, target);
     }
 
     //
@@ -183,12 +175,6 @@ public:
 
     // callable from socket thread only
     uint32_t Get32BitsOfPseudoRandom();
-
-    // Called by the channel synchronously during asyncOpen
-    void OnOpeningRequest(nsIHttpChannel *chan)
-    {
-        NotifyObservers(chan, NS_HTTP_ON_OPENING_REQUEST_TOPIC);
-    }
 
     // Called by the channel before writing a request
     void OnModifyRequest(nsIHttpChannel *chan)
@@ -253,12 +239,6 @@ public:
     // returns true in between Init and Shutdown states
     bool Active() { return mHandlerActive; }
 
-    static void GetCacheSessionNameForStoragePolicy(
-            nsCacheStoragePolicy storagePolicy,
-            bool isPrivate,
-            uint32_t appId,
-            bool inBrowser,
-            nsACString& sessionName);
 private:
 
     //
@@ -284,11 +264,11 @@ private:
     nsCOMPtr<nsIStreamConverterService> mStreamConvSvc;
     nsCOMPtr<nsIObserverService>        mObserverService;
     nsCOMPtr<nsICookieService>          mCookieService;
+    nsCOMPtr<nsIIDNService>             mIDNConverter;
     nsCOMPtr<nsIStrictTransportSecurityService> mSTSService;
 
     // the authentication credentials cache
     nsHttpAuthCache mAuthCache;
-    nsHttpAuthCache mPrivateAuthCache;
 
     // the connection manager
     nsHttpConnectionMgr *mConnMgr;
@@ -299,7 +279,7 @@ private:
 
     uint8_t  mHttpVersion;
     uint8_t  mProxyHttpVersion;
-    uint32_t mCapabilities;
+    uint8_t  mCapabilities;
     uint8_t  mReferrerLevel;
 
     bool mFastFallbackToIPv4;
@@ -375,10 +355,9 @@ private:
     // Persistent HTTPS caching flag
     bool           mEnablePersistentHttpsCaching;
 
-    // For broadcasting tracking preference
+    // For broadcasting the preference to not be tracked
     bool           mDoNotTrackEnabled;
-    uint8_t        mDoNotTrackValue;
-
+    
     // Whether telemetry is reported or not
     bool           mTelemetryEnabled;
 
@@ -395,7 +374,6 @@ private:
     bool           mSpdyV3;
     bool           mCoalesceSpdy;
     bool           mUseAlternateProtocol;
-    bool           mSpdyPersistentSettings;
     uint32_t       mSpdySendingChunkSize;
     uint32_t       mSpdySendBufferSize;
     PRIntervalTime mSpdyPingThreshold;
@@ -404,33 +382,6 @@ private:
     // The maximum amount of time to wait for socket transport to be
     // established. In milliseconds.
     uint32_t       mConnectTimeout;
-
-    // The maximum number of current global half open sockets allowable
-    // when starting a new speculative connection.
-    uint32_t       mParallelSpeculativeConnectLimit;
-
-    // Whether or not to block requests for non head js/css items (e.g. media)
-    // while those elements load.
-    bool           mCritialRequestPrioritization;
-
-
-public:
-    // For the Cache Effect Experiment (see StartCacheExperiment in cpp)
-
-    static void StartCacheExperiment(nsITimer * aTimer, void * aClosure);
-    static void FinishCacheExperiment(nsITimer * aTimer, void * aClosure);
-
-    const static uint32_t kExperimentStartupDelay = 1000 * 60 * 2; // 2 mins
-    const static uint32_t kExperimentStartupDuration = 1000 * 60 * 15; // 15 mins
-    const static mozilla::Telemetry::ID kNullTelemetryID = static_cast<mozilla::Telemetry::ID>(0);
-
-    mozilla::Telemetry::ID mCacheEffectExperimentTelemetryID;
-    bool     mCacheEffectExperimentOnce;
-    nsCOMPtr<nsITimer> mCacheEffectExperimentTimer;
-
-    // only update these on the socket thread, but reading them from the main thread is ok
-    uint64_t mCacheEffectExperimentSlowConn;
-    uint64_t mCacheEffectExperimentFastConn;
 };
 
 //-----------------------------------------------------------------------------

@@ -52,20 +52,14 @@
 
 using namespace mozilla;
 
-static PRLogModuleInfo *
-GetNativeModuleLoaderLog()
-{
-    static PRLogModuleInfo *sLog;
-    if (!sLog)
-        sLog = PR_NewLogModule("nsNativeModuleLoader");
-    return sLog;
-}
+static PRLogModuleInfo *nsNativeModuleLoaderLog =
+    PR_NewLogModule("nsNativeModuleLoader");
 
 bool gInXPCOMLoadOnMainThread = false;
 
-#define LOG(level, args) PR_LOG(GetNativeModuleLoaderLog(), level, args)
+#define LOG(level, args) PR_LOG(nsNativeModuleLoaderLog, level, args)
 
-NS_IMPL_QUERY_INTERFACE1(nsNativeModuleLoader,
+NS_IMPL_QUERY_INTERFACE1(nsNativeModuleLoader, 
                          mozilla::ModuleLoader)
 
 NS_IMPL_ADDREF_USING_AGGREGATOR(nsNativeModuleLoader,
@@ -76,7 +70,8 @@ NS_IMPL_RELEASE_USING_AGGREGATOR(nsNativeModuleLoader,
 nsresult
 nsNativeModuleLoader::Init()
 {
-    MOZ_ASSERT(NS_IsMainThread(), "Startup not on main thread?");
+    NS_ASSERTION(NS_IsMainThread(), "Startup not on main thread?");
+
     LOG(PR_LOG_DEBUG, ("nsNativeModuleLoader::Init()"));
     mLibraries.Init();
     return NS_OK;
@@ -209,7 +204,7 @@ PLDHashOperator
 nsNativeModuleLoader::UnloaderFunc(nsIHashable* aHashedFile,
                                    NativeLoadData& aLoadData, void*)
 {
-    if (PR_LOG_TEST(GetNativeModuleLoaderLog(), PR_LOG_DEBUG)) {
+    if (PR_LOG_TEST(nsNativeModuleLoaderLog, PR_LOG_DEBUG)) {
         nsCOMPtr<nsIFile> file(do_QueryInterface(aHashedFile));
 
         nsAutoCString filePath;
@@ -240,7 +235,8 @@ nsNativeModuleLoader::UnloaderFunc(nsIHashable* aHashedFile,
 void
 nsNativeModuleLoader::UnloadLibraries()
 {
-    MOZ_ASSERT(NS_IsMainThread(), "Shutdown not on main thread?");
+    NS_ASSERTION(NS_IsMainThread(), "Shutdown not on main thread?");
+
     mLibraries.Enumerate(ReleaserFunc, nullptr);
     mLibraries.Enumerate(UnloaderFunc, nullptr);
 }

@@ -6,16 +6,20 @@
 package @ANDROID_PACKAGE_NAME@.db;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.gecko.db.BrowserContract.CommonColumns;
 import org.mozilla.gecko.db.BrowserContract.Clients;
 import org.mozilla.gecko.db.BrowserContract.Tabs;
 import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.db.DBUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.gecko.sync.Utils;
+import org.mozilla.gecko.util.GeckoBackgroundThread;
 
 import android.content.ContentProvider;
 import android.content.ContentUris;
@@ -23,6 +27,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.UriMatcher;
 import android.database.Cursor;
+import android.database.DatabaseUtils;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
@@ -169,6 +174,8 @@ public class TabsProvider extends ContentProvider {
             debug("Upgrading tabs.db: " + db.getPath() + " from " +
                     oldVersion + " to " + newVersion);
 
+            db.beginTransaction();
+
             // We have to do incremental upgrades until we reach the current
             // database schema version.
             for (int v = oldVersion + 1; v <= newVersion; v++) {
@@ -178,19 +185,14 @@ public class TabsProvider extends ContentProvider {
                         break;
                  }
              }
+
+             db.setTransactionSuccessful();
+             db.endTransaction();
         }
 
         @Override
         public void onOpen(SQLiteDatabase db) {
             debug("Opening tabs.db: " + db.getPath());
-
-            Cursor cursor = null;
-            try {
-                cursor = db.rawQuery("PRAGMA synchronous=OFF", null);
-            } finally {
-                if (cursor != null)
-                    cursor.close();
-            }
 
             // From Honeycomb on, it's possible to run several db
             // commands in parallel using multiple connections.
@@ -198,6 +200,13 @@ public class TabsProvider extends ContentProvider {
                 db.enableWriteAheadLogging();
             } else {
                 // Pre-Honeycomb, we can do some lesser optimizations.
+                Cursor cursor = null;
+                try {
+                    cursor = db.rawQuery("PRAGMA synchronous=NORMAL", null);
+                } finally {
+                    if (cursor != null)
+                        cursor.close();
+                }
                 cursor = null;
                 try {
                     cursor = db.rawQuery("PRAGMA journal_mode=PERSIST", null);
@@ -227,19 +236,15 @@ public class TabsProvider extends ContentProvider {
             }
 
             String databasePath = getDatabasePath(profile);
-
-            // Before bug 768532, the database was located outside if the
-            // profile on Android 2.2. Make sure it is moved inside the profile
-            // directory.
-            if (Build.VERSION.SDK_INT == 8) {
-                File oldPath = mContext.getDatabasePath("tabs-" + profile + ".db");
-                if (oldPath.exists()) {
-                    oldPath.renameTo(new File(databasePath));
-                }
-            }
-
             dbHelper = new DatabaseHelper(getContext(), databasePath);
             mDatabasePerProfile.put(profile, dbHelper);
+
+            // When running on Android releases older than 8, the returned
+            // database path is just filename, not the full path. We need
+            // the full path when unlocking the database.
+            if (Build.VERSION.SDK_INT <= 8) {
+                databasePath = mContext.getDatabasePath(databasePath).getAbsolutePath();
+            }
 
             DBUtils.ensureDatabaseIsNotLocked(dbHelper, databasePath);
         }
@@ -250,6 +255,13 @@ public class TabsProvider extends ContentProvider {
 
     private String getDatabasePath(String profile) {
         trace("Getting database path for profile: " + profile);
+
+        // On Android releases older than 2.3, it's not possible to use
+        // SQLiteOpenHelper with a full path. Fallback to using separate
+        // db files per profile in the app directory.
+        if (Build.VERSION.SDK_INT <= 8) {
+            return "tabs-" + profile + ".db";
+        }
 
         File profileDir = GeckoProfile.get(mContext, profile).getDir();
         if (profileDir == null) {
@@ -289,8 +301,7 @@ public class TabsProvider extends ContentProvider {
     public boolean onCreate() {
         debug("Creating TabsProvider");
 
-        ThreadUtils.postToBackgroundThread(new Runnable() {
-            @Override
+        GeckoBackgroundThread.post(new Runnable() {
             public void run() {
                 // Kick this off early. It is synchronized so that other callers will wait
                 try {
@@ -637,9 +648,6 @@ public class TabsProvider extends ContentProvider {
         } finally {
             db.endTransaction();
         }
-
-        if (successes > 0)
-            mContext.getContentResolver().notifyChange(uri, null);
 
         return successes;
     }

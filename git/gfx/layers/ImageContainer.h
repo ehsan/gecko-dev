@@ -12,7 +12,6 @@
 #include "LayersTypes.h" // for LayersBackend
 #include "mozilla/TimeStamp.h"
 #include "ImageTypes.h"
-#include "nsTArray.h"
 
 #ifdef XP_WIN
 struct ID3D10Texture2D;
@@ -40,7 +39,6 @@ class Shmem;
 namespace layers {
 
 class ImageContainerChild;
-class SharedPlanarYCbCrImage;
 
 struct ImageBackendData
 {
@@ -84,15 +82,11 @@ public:
 
   int32_t GetSerial() { return mSerial; }
 
-  void MarkSent() { mSent = true; }
-  bool IsSentToCompositor() { return mSent; }
-
 protected:
   Image(void* aImplData, ImageFormat aFormat) :
     mImplData(aImplData),
     mSerial(PR_ATOMIC_INCREMENT(&sSerialCounter)),
-    mFormat(aFormat),
-    mSent(false)
+    mFormat(aFormat)
   {}
 
   nsAutoPtr<ImageBackendData> mBackendData[mozilla::layers::LAYERS_LAST];
@@ -101,7 +95,6 @@ protected:
   int32_t mSerial;
   ImageFormat mFormat;
   static int32_t sSerialCounter;
-  bool mSent;
 };
 
 /**
@@ -445,15 +438,6 @@ public:
   }
 
   /**
-   * Resets the paint count to zero.
-   * Can be called from any thread.
-   */
-  void ResetPaintCount() {
-    ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-    mPaintCount = 0;
-  }
-
-  /**
    * Increments mPaintCount if this is the first time aPainted has been
    * painted, and sets mPaintTime if the painted image is the current image.
    * current image.  Can be called from any thread.
@@ -690,20 +674,6 @@ public:
   virtual void SetData(const Data& aData);
 
   /**
-   * This doesn't make a copy of the data buffers. Can be used when mBuffer is
-   * pre allocated with AllocateAndGetNewBuffer(size) and then SetDataNoCopy is
-   * called to only update the picture size, planes etc. fields in mData.
-   * The GStreamer media backend uses this to decode into PlanarYCbCrImage(s)
-   * directly.
-   */
-  virtual void SetDataNoCopy(const Data &aData);
-
-  /**
-   * This allocates and returns a new buffer
-   */
-  virtual uint8_t* AllocateAndGetNewBuffer(uint32_t aSize);
-
-  /**
    * Ask this Image to not convert YUV to RGB during SetData, and make
    * the original data available through GetData. This is optional,
    * and not all PlanarYCbCrImages will support it.
@@ -726,8 +696,6 @@ public:
 
   PlanarYCbCrImage(BufferRecycleBin *aRecycleBin);
 
-  virtual SharedPlanarYCbCrImage *AsSharedPlanarYCbCrImage() { return nullptr; }
-
 protected:
   /**
    * Make a copy of the YCbCr data into local storage.
@@ -746,7 +714,7 @@ protected:
   already_AddRefed<gfxASurface> GetAsSurface();
 
   void SetOffscreenFormat(gfxASurface::gfxImageFormat aFormat) { mOffscreenFormat = aFormat; }
-  gfxASurface::gfxImageFormat GetOffscreenFormat();
+  gfxASurface::gfxImageFormat GetOffscreenFormat() { return mOffscreenFormat; }
 
   nsAutoArrayPtr<uint8_t> mBuffer;
   uint32_t mBufferSize;

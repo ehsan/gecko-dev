@@ -117,7 +117,7 @@ PR_STATIC_ASSERT((NS_VK_HOME == NS_VK_END + 1) &&
 extern const nsNavigationDirection DirectionFromKeyCodeTable[2][6];
 
 #define NS_DIRECTION_FROM_KEY_CODE(frame, keycode)                     \
-  (DirectionFromKeyCodeTable[frame->StyleVisibility()->mDirection]  \
+  (DirectionFromKeyCodeTable[frame->GetStyleVisibility()->mDirection]  \
                             [keycode - NS_VK_END])
 
 // nsMenuChainItem holds info about an open popup. Items are stored in a
@@ -286,13 +286,11 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   // nsIRollupListener
-  virtual bool Rollup(uint32_t aCount, nsIContent** aLastRolledUp);
+  virtual nsIContent* Rollup(uint32_t aCount, bool aGetLastRolledUp = false);
   virtual bool ShouldRollupOnMouseWheelEvent();
-  virtual bool ShouldConsumeOnMouseWheelEvent();
   virtual bool ShouldRollupOnMouseActivate();
   virtual uint32_t GetSubmenuWidgetChain(nsTArray<nsIWidget*> *aWidgetChain);
   virtual void NotifyGeometryChange() {}
-  virtual nsIWidget* GetRollupWidget();
 
   static nsXULPopupManager* sInstance;
 
@@ -491,7 +489,7 @@ public:
    * Return an array of all the open and visible popup frames for
    * menus, in order from top to bottom.
    */
-  void GetVisiblePopups(nsTArray<nsIFrame *>& aPopups);
+  nsTArray<nsIFrame *> GetVisiblePopups();
 
   /**
    * Get the node that last triggered a popup or tooltip in the document

@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
+#include "mozilla/Util.h"
 
 #include "jsversion.h"
 
@@ -24,9 +24,10 @@
 
 #include "jsobjinlines.h"
 
+using namespace mozilla;
 using namespace js;
 
-using mozilla::DebugOnly;
+namespace js {
 
 void
 XDRBuffer::freeBuffer()
@@ -148,7 +149,7 @@ XDRState<mode>::codeScript(MutableHandleScript scriptp)
 
     if (mode == XDR_DECODE) {
         JS_ASSERT(!script->compileAndGo);
-        CallNewScriptHook(cx(), script, NullPtr());
+        js_CallNewScriptHook(cx(), script, NULL);
         Debugger::onNewScript(cx(), script, NULL);
         scriptp.set(script);
     }
@@ -165,5 +166,8 @@ XDRDecoder::XDRDecoder(JSContext *cx, const void *data, uint32_t length,
     this->originPrincipals = JSScript::normalizeOriginPrincipals(principals, originPrincipals);
 }
 
-template class js::XDRState<XDR_ENCODE>;
-template class js::XDRState<XDR_DECODE>;
+template class XDRState<XDR_ENCODE>;
+template class XDRState<XDR_DECODE>;
+
+} /* namespace js */
+

@@ -16,21 +16,19 @@
 #include "../TestCodeGenBinding.h"
 #include "mozilla/dom/UnionTypes.h"
 
-extern bool TestFuncControlledMember(JSContext*, JSObject*);
-
 namespace mozilla {
 namespace dom {
 
-// IID for nsRenamedInterface
-#define NS_RENAMED_INTERFACE_IID \
-{ 0xd4b19ef3, 0xe68b, 0x4e3f, \
- { 0x94, 0xbc, 0xc9, 0xde, 0x3a, 0x69, 0xb0, 0xe8 } }
+// IID for the TestNonCastableInterface
+#define NS_TEST_NONCASTABLE_INTERFACE_IID \
+{ 0x7c9f8ee2, 0xc9bf, 0x46ca, \
+ { 0xa0, 0xa9, 0x03, 0xa8, 0xd6, 0x30, 0x0e, 0xde } }
 
-class nsRenamedInterface : public nsISupports,
-                           public nsWrapperCache
+class TestNonCastableInterface : public nsISupports,
+                                 public nsWrapperCache
 {
 public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_RENAMED_INTERFACE_IID)
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_TEST_NONCASTABLE_INTERFACE_IID)
   NS_DECL_ISUPPORTS
 
   // We need a GetParentObject to make binding codegen happy
@@ -68,6 +66,17 @@ public:
   NS_DECL_ISUPPORTS
 };
 
+// IID for the TestCallbackInterface
+#define NS_TEST_CALLBACK_INTERFACE_IID \
+{ 0xbf711ba4, 0xc8f6, 0x46cf, \
+ { 0xba, 0x5b, 0xaa, 0xe2, 0x78, 0x18, 0xe6, 0x4a } }
+class TestCallbackInterface : public nsISupports
+{
+public:
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_TEST_CALLBACK_INTERFACE_IID)
+  NS_DECL_ISUPPORTS
+};
+
 class TestNonWrapperCacheInterface : public nsISupports
 {
 public:
@@ -97,33 +106,28 @@ public:
   // And now our actual WebIDL API
   // Constructors
   static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*, ErrorResult&);
   static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, const nsAString&, ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*, const nsAString&,
+                                              ErrorResult&);
   static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, uint32_t, const Nullable<bool>&,
-                ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*, uint32_t,
+                                              const Nullable<bool>&,
+                                              ErrorResult&);
   static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, TestInterface*, ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*, TestInterface*,
+                                              ErrorResult&);
   static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, uint32_t, IndirectlyImplementedInterface&, ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*,
+                                              TestNonCastableInterface&,
+                                              ErrorResult&);
   /*  static
-  already_AddRefed<TestInterface>
-    Constructor(const GlobalObject&, uint32_t, uint32_t,
-                const TestInterfaceOrOnlyForUseInConstructor&, ErrorResult&);
+  already_AddRefed<TestInterface> Constructor(nsISupports*,
+                                              uint32_t, uint32_t,
+                                              const TestInterfaceOrOnlyForUseInConstructor&,
+                                              ErrorResult&);
   */
-
-  static
-  already_AddRefed<TestInterface> Test(const GlobalObject&, ErrorResult&);
-  static
-  already_AddRefed<TestInterface> Test(const GlobalObject&, const nsAString&,
-                                       ErrorResult&);
-
+  
   // Integer types
   int8_t ReadonlyByte();
   int8_t WritableByte();
@@ -134,7 +138,6 @@ public:
   void PassOptionalByteWithDefault(int8_t);
   void PassNullableByte(const Nullable<int8_t>&);
   void PassOptionalNullableByte(const Optional< Nullable<int8_t> >&);
-  void PassVariadicByte(const Sequence<int8_t>&);
 
   int16_t ReadonlyShort();
   int16_t WritableShort();
@@ -192,43 +195,6 @@ public:
   void PassOptionalUnsignedLongLong(const Optional<uint64_t>&);
   void PassOptionalUnsignedLongLongWithDefault(uint64_t);
 
-  float WritableFloat() const;
-  void SetWritableFloat(float);
-  float WritableUnrestrictedFloat() const;
-  void SetWritableUnrestrictedFloat(float);
-  Nullable<float> GetWritableNullableFloat() const;
-  void SetWritableNullableFloat(Nullable<float>);
-  Nullable<float> GetWritableNullableUnrestrictedFloat() const;
-  void SetWritableNullableUnrestrictedFloat(Nullable<float>);
-  double WritableDouble() const;
-  void SetWritableDouble(double);
-  double WritableUnrestrictedDouble() const;
-  void SetWritableUnrestrictedDouble(double);
-  Nullable<double> GetWritableNullableDouble() const;
-  void SetWritableNullableDouble(Nullable<double>);
-  Nullable<double> GetWritableNullableUnrestrictedDouble() const;
-  void SetWritableNullableUnrestrictedDouble(Nullable<double>);
-  void PassFloat(float, float, Nullable<float>, Nullable<float>,
-                 double, double, Nullable<double>, Nullable<double>,
-                 const Sequence<float>&, const Sequence<float>&,
-                 const Sequence<Nullable<float> >&,
-                 const Sequence<Nullable<float> >&,
-                 const Sequence<double>&, const Sequence<double>&,
-                 const Sequence<Nullable<double> >&,
-                 const Sequence<Nullable<double> >&);
-  void PassLenientFloat(float, float, Nullable<float>, Nullable<float>,
-                        double, double, Nullable<double>, Nullable<double>,
-                        const Sequence<float>&, const Sequence<float>&,
-                        const Sequence<Nullable<float> >&,
-                        const Sequence<Nullable<float> >&,
-                        const Sequence<double>&, const Sequence<double>&,
-                        const Sequence<Nullable<double> >&,
-                        const Sequence<Nullable<double> >&);
-  float LenientFloatAttr() const;
-  void SetLenientFloatAttr(float);
-  double LenientDoubleAttr() const;
-  void SetLenientDoubleAttr(double);
-
   // Interface types
   already_AddRefed<TestInterface> ReceiveSelf();
   already_AddRefed<TestInterface> ReceiveNullableSelf();
@@ -252,20 +218,20 @@ public:
   void ReceiveNonWrapperCacheInterfaceNullableSequence(Nullable<nsTArray<nsRefPtr<TestNonWrapperCacheInterface> > >&);
   void ReceiveNullableNonWrapperCacheInterfaceNullableSequence(Nullable<nsTArray<nsRefPtr<TestNonWrapperCacheInterface> > >&);
 
-  already_AddRefed<IndirectlyImplementedInterface> ReceiveOther();
-  already_AddRefed<IndirectlyImplementedInterface> ReceiveNullableOther();
-  IndirectlyImplementedInterface* ReceiveWeakOther();
-  IndirectlyImplementedInterface* ReceiveWeakNullableOther();
-  void PassOther(IndirectlyImplementedInterface&);
-  void PassOther2(NonNull<IndirectlyImplementedInterface>&);
-  void PassNullableOther(IndirectlyImplementedInterface*);
-  already_AddRefed<IndirectlyImplementedInterface> NonNullOther();
-  void SetNonNullOther(IndirectlyImplementedInterface&);
-  already_AddRefed<IndirectlyImplementedInterface> GetNullableOther();
-  void SetNullableOther(IndirectlyImplementedInterface*);
-  void PassOptionalOther(const Optional<IndirectlyImplementedInterface*>&);
-  void PassOptionalNonNullOther(const Optional<NonNull<IndirectlyImplementedInterface> >&);
-  void PassOptionalOtherWithDefault(IndirectlyImplementedInterface*);
+  already_AddRefed<TestNonCastableInterface> ReceiveOther();
+  already_AddRefed<TestNonCastableInterface> ReceiveNullableOther();
+  TestNonCastableInterface* ReceiveWeakOther();
+  TestNonCastableInterface* ReceiveWeakNullableOther();
+  void PassOther(TestNonCastableInterface&);
+  void PassOther2(NonNull<TestNonCastableInterface>&);
+  void PassNullableOther(TestNonCastableInterface*);
+  already_AddRefed<TestNonCastableInterface> NonNullOther();
+  void SetNonNullOther(TestNonCastableInterface&);
+  already_AddRefed<TestNonCastableInterface> GetNullableOther();
+  void SetNullableOther(TestNonCastableInterface*);
+  void PassOptionalOther(const Optional<TestNonCastableInterface*>&);
+  void PassOptionalNonNullOther(const Optional<NonNull<TestNonCastableInterface> >&);
+  void PassOptionalOtherWithDefault(TestNonCastableInterface*);
 
   already_AddRefed<TestExternalInterface> ReceiveExternal();
   already_AddRefed<TestExternalInterface> ReceiveNullableExternal();
@@ -328,17 +294,12 @@ public:
   void PassOptionalNullableSequence(const Optional<Nullable<Sequence<int32_t> > >&);
   void PassOptionalNullableSequenceWithDefaultValue(const Nullable< Sequence<int32_t> >&);
   void PassOptionalObjectSequence(const Optional<Sequence<OwningNonNull<TestInterface> > >&);
-  void PassExternalInterfaceSequence(const Sequence<nsRefPtr<TestExternalInterface> >&);
-  void PassNullableExternalInterfaceSequence(const Sequence<nsRefPtr<TestExternalInterface> >&);
 
   void ReceiveStringSequence(nsTArray<nsString>&);
   void PassStringSequence(const Sequence<nsString>&);
 
   void ReceiveAnySequence(JSContext*, nsTArray<JS::Value>&);
   void ReceiveNullableAnySequence(JSContext*, Nullable<nsTArray<JS::Value> >);
-
-  void PassSequenceOfSequences(const Sequence< Sequence<int32_t> >&);
-  void ReceiveSequenceOfSequences(nsTArray< nsTArray<int32_t> >&);
 
   // Typed array types
   void PassArrayBuffer(ArrayBuffer&);
@@ -365,7 +326,6 @@ public:
   void PassOptionalStringWithDefaultValue(const nsAString&);
   void PassOptionalNullableString(const Optional<nsAString>&);
   void PassOptionalNullableStringWithDefaultValue(const nsAString&);
-  void PassVariadicString(const Sequence<nsString>&);
 
   // Enumerated types
   void PassEnum(TestEnum);
@@ -377,20 +337,16 @@ public:
   void SetEnumAttribute(TestEnum);
 
   // Callback types
-  void PassCallback(TestCallback&);
-  void PassNullableCallback(TestCallback*);
-  void PassOptionalCallback(const Optional<OwningNonNull<TestCallback> >&);
-  void PassOptionalNullableCallback(const Optional<nsRefPtr<TestCallback> >&);
-  void PassOptionalNullableCallbackWithDefaultValue(TestCallback*);
-  already_AddRefed<TestCallback> ReceiveCallback();
-  already_AddRefed<TestCallback> ReceiveNullableCallback();
-  void PassNullableTreatAsNullCallback(TestTreatAsNullCallback*);
-  void PassOptionalNullableTreatAsNullCallback(const Optional<nsRefPtr<TestTreatAsNullCallback> >&);
-  void PassOptionalNullableTreatAsNullCallbackWithDefaultValue(TestTreatAsNullCallback*);
-  void SetTreatAsNullCallback(TestTreatAsNullCallback&);
-  already_AddRefed<TestTreatAsNullCallback> TreatAsNullCallback();
-  void SetNullableTreatAsNullCallback(TestTreatAsNullCallback*);
-  already_AddRefed<TestTreatAsNullCallback> GetNullableTreatAsNullCallback();
+  void PassCallback(JSContext*, JSObject&);
+  void PassNullableCallback(JSContext*, JSObject*);
+  void PassOptionalCallback(JSContext*, const Optional<NonNull<JSObject> >&);
+  void PassOptionalNullableCallback(JSContext*, const Optional<JSObject*>&);
+  void PassOptionalNullableCallbackWithDefaultValue(JSContext*, JSObject*);
+  JSObject* ReceiveCallback(JSContext*);
+  JSObject* ReceiveNullableCallback(JSContext*);
+  void PassNullableTreatAsNullCallback(JSContext*, JSObject*);
+  void PassOptionalNullableTreatAsNullCallback(JSContext*, const Optional<JSObject*>&);
+  void PassOptionalNullableTreatAsNullCallbackWithDefaultValue(JSContext*, JSObject*);
 
   // Any types
   void PassAny(JSContext*, JS::Value);
@@ -431,7 +387,7 @@ public:
   void PassUnionWithArrayBuffer(const ArrayBufferOrLong&);
   void PassUnionWithString(JSContext*, const StringOrObject&);
   //void PassUnionWithEnum(JSContext*, const TestEnumOrObject&);
-  //void PassUnionWithCallback(JSContext*, const TestCallbackOrLong&);
+  void PassUnionWithCallback(JSContext*, const TestCallbackOrLong&);
   void PassUnionWithObject(JSContext*, const ObjectOrLong&);
 
   // binaryNames tests
@@ -450,76 +406,15 @@ public:
   void PassDictionaryOrLong(int32_t);
   void PassDictContainingDict(const DictContainingDict&);
   void PassDictContainingSequence(const DictContainingSequence&);
-  void ReceiveDictContainingSequence(DictContainingSequence&);
 
   // Typedefs
   void ExerciseTypedefInterfaces1(TestInterface&);
   already_AddRefed<TestInterface> ExerciseTypedefInterfaces2(TestInterface*);
   void ExerciseTypedefInterfaces3(TestInterface&);
 
-  // Static methods and attributes
-  static void StaticMethod(const GlobalObject&, bool);
-  static void StaticMethodWithContext(const GlobalObject&, JSContext*,
-                                      JS::Value);
-  static bool StaticAttribute(const GlobalObject&);
-  static void SetStaticAttribute(const GlobalObject&, bool);
-
-  // Overload resolution tests
-  bool Overload1(TestInterface&);
-  TestInterface* Overload1(const nsAString&, TestInterface&);
-  void Overload2(TestInterface&);
-  void Overload2(const Dict&);
-  void Overload2(const nsAString&);
-  void Overload3(TestInterface&);
-  void Overload3(const TestCallback&);
-  void Overload3(const nsAString&);
-  void Overload4(TestInterface&);
-  void Overload4(TestCallbackInterface&);
-  void Overload4(const nsAString&);
-
-  // Variadic handling
-  void PassVariadicThirdArg(const nsAString&, int32_t,
-                            const Sequence<OwningNonNull<TestInterface> >&);
-
-  // Conditionally exposed methods/attributes
-  bool Prefable1();
-  bool Prefable2();
-  bool Prefable3();
-  bool Prefable4();
-  bool Prefable5();
-  bool Prefable6();
-  bool Prefable7();
-  bool Prefable8();
-  bool Prefable9();
-  void Prefable10();
-  void Prefable11();
-  bool Prefable12();
-  void Prefable13();
-  bool Prefable14();
-  bool Prefable15();
-  bool Prefable16();
-  void Prefable17();
-  void Prefable18();
-  void Prefable19();
-
   // Miscellania
   int32_t AttrWithLenientThis();
   void SetAttrWithLenientThis(int32_t);
-  uint32_t UnforgeableAttr();
-  uint32_t UnforgeableAttr2();
-  void Stringify(nsString&);
-  void PassRenamedInterface(nsRenamedInterface&);
-  TestInterface* PutForwardsAttr();
-  TestInterface* PutForwardsAttr2();
-  TestInterface* PutForwardsAttr3();
-  void ThrowingMethod(ErrorResult& aRv);
-  bool GetThrowingAttr(ErrorResult& aRv) const;
-  void SetThrowingAttr(bool arg, ErrorResult& aRv);
-  bool GetThrowingGetterAttr(ErrorResult& aRv) const;
-  void SetThrowingGetterAttr(bool arg);
-  bool ThrowingSetterAttr() const;
-  void SetThrowingSetterAttr(bool arg, ErrorResult& aRv);
-  int16_t LegacyCall(JS::Value, uint32_t, TestInterface&);
 
   // Methods and properties imported via "implements"
   bool ImplementedProperty();
@@ -552,7 +447,6 @@ private:
   void PassOptionalByte(const Optional<T>&) MOZ_DELETE;
   template<typename T>
   void PassOptionalByteWithDefault(T) MOZ_DELETE;
-  void PassVariadicByte(Sequence<int8_t>&) MOZ_DELETE;
 
   void SetReadonlyShort(int16_t) MOZ_DELETE;
   template<typename T>
@@ -641,8 +535,8 @@ private:
   void PassOptionalUnsignedLongLong(Optional<uint64_t>&) MOZ_DELETE;
   void PassOptionalSelf(Optional<TestInterface*> &) MOZ_DELETE;
   void PassOptionalNonNullSelf(Optional<NonNull<TestInterface> >&) MOZ_DELETE;
-  void PassOptionalOther(Optional<IndirectlyImplementedInterface*>&);
-  void PassOptionalNonNullOther(Optional<NonNull<IndirectlyImplementedInterface> >&);
+  void PassOptionalOther(Optional<TestNonCastableInterface*>&);
+  void PassOptionalNonNullOther(Optional<NonNull<TestNonCastableInterface> >&);
   void PassOptionalExternal(Optional<TestExternalInterface*>&) MOZ_DELETE;
   void PassOptionalNonNullExternal(Optional<TestExternalInterface*>&) MOZ_DELETE;
   void PassOptionalSequence(Optional<Sequence<int32_t> >&) MOZ_DELETE;
@@ -662,7 +556,7 @@ private:
   void PassOptionalStringWithDefaultValue(nsAString&) MOZ_DELETE;
   void PassOptionalNullableString(Optional<nsAString>&) MOZ_DELETE;
   void PassOptionalNullableStringWithDefaultValue(nsAString&) MOZ_DELETE;
-  void PassVariadicString(Sequence<nsString>&) MOZ_DELETE;
+
 };
 
 class TestIndexedGetterInterface : public nsISupports,
@@ -691,23 +585,6 @@ public:
   virtual nsISupports* GetParentObject();
 
   void NamedGetter(const nsAString&, bool&, nsAString&);
-  void GetSupportedNames(nsTArray<nsString>&);
-};
-
-class TestIndexedGetterAndSetterAndNamedGetterInterface : public nsISupports,
-                                                          public nsWrapperCache
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  // We need a GetParentObject to make binding codegen happy
-  virtual nsISupports* GetParentObject();
-
-  void NamedGetter(const nsAString&, bool&, nsAString&);
-  void GetSupportedNames(nsTArray<nsString>&);
-  int32_t IndexedGetter(uint32_t, bool&);
-  void IndexedSetter(uint32_t, int32_t);
-  uint32_t Length();
 };
 
 class TestIndexedAndNamedGetterInterface : public nsISupports,
@@ -723,7 +600,6 @@ public:
   void NamedGetter(const nsAString&, bool&, nsAString&);
   void NamedItem(const nsAString&, nsAString&);
   uint32_t Length();
-  void GetSupportedNames(nsTArray<nsString>&);
 };
 
 class TestIndexedSetterInterface : public nsISupports,
@@ -736,8 +612,6 @@ public:
   virtual nsISupports* GetParentObject();
 
   void IndexedSetter(uint32_t, const nsAString&);
-  void IndexedGetter(uint32_t, bool&, nsString&);
-  uint32_t Length();
   void SetItem(uint32_t, const nsAString&);
 };
 
@@ -751,8 +625,6 @@ public:
   virtual nsISupports* GetParentObject();
 
   void NamedSetter(const nsAString&, TestIndexedSetterInterface&);
-  TestIndexedSetterInterface* NamedGetter(const nsAString&, bool&);
-  void GetSupportedNames(nsTArray<nsString>&);
 };
 
 class TestIndexedAndNamedSetterInterface : public nsISupports,
@@ -765,12 +637,8 @@ public:
   virtual nsISupports* GetParentObject();
 
   void IndexedSetter(uint32_t, TestIndexedSetterInterface&);
-  TestIndexedSetterInterface* IndexedGetter(uint32_t, bool&);
-  uint32_t Length();
   void NamedSetter(const nsAString&, TestIndexedSetterInterface&);
-  TestIndexedSetterInterface* NamedGetter(const nsAString&, bool&);
   void SetNamedItem(const nsAString&, TestIndexedSetterInterface&);
-  void GetSupportedNames(nsTArray<nsString>&);
 };
 
 class TestIndexedAndNamedGetterAndSetterInterface : public TestIndexedSetterInterface
@@ -785,121 +653,6 @@ public:
   void NamedSetter(const nsAString&, const nsAString&);
   void Stringify(nsAString&);
   uint32_t Length();
-  void GetSupportedNames(nsTArray<nsString>&);
-};
-
-class TestCppKeywordNamedMethodsInterface : public nsISupports,
-                                            public nsWrapperCache
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  // We need a GetParentObject to make binding codegen happy
-  virtual nsISupports* GetParentObject();
-
-  bool Continue();
-  bool Delete();
-  int32_t Volatile();
-};
-
-class TestIndexedDeleterInterface : public nsISupports,
-                                    public nsWrapperCache
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  // We need a GetParentObject to make binding codegen happy
-  virtual nsISupports* GetParentObject();
-
-  void IndexedDeleter(uint32_t, bool&);
-  void IndexedDeleter(uint32_t) MOZ_DELETE;
-  long IndexedGetter(uint32_t, bool&);
-  uint32_t Length();
-  void DelItem(uint32_t);
-  void DelItem(uint32_t, bool&) MOZ_DELETE;
-};
-
-class TestIndexedDeleterWithRetvalInterface : public nsISupports,
-                                              public nsWrapperCache
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  // We need a GetParentObject to make binding codegen happy
-  virtual nsISupports* GetParentObject();
-
-  bool IndexedDeleter(uint32_t, bool&);
-  bool IndexedDeleter(uint32_t) MOZ_DELETE;
-  long IndexedGetter(uint32_t, bool&);
-  uint32_t Length();
-  bool DelItem(uint32_t);
-  bool DelItem(uint32_t, bool&) MOZ_DELETE;
-};
-
-class TestNamedDeleterInterface : public nsISupports,
-                                  public nsWrapperCache
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  // We need a GetParentObject to make binding codegen happy
-  virtual nsISupports* GetParentObject();
-
-  void NamedDeleter(const nsAString&, bool&);
-  long NamedGetter(const nsAString&, bool&);
-  void GetSupportedNames(nsTArray<nsString>&);
-};
-
-class TestNamedDeleterWithRetvalInterface : public nsISupports,
-                                            public nsWrapperCache
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  // We need a GetParentObject to make binding codegen happy
-  virtual nsISupports* GetParentObject();
-
-  bool NamedDeleter(const nsAString&, bool&);
-  bool NamedDeleter(const nsAString&) MOZ_DELETE;
-  long NamedGetter(const nsAString&, bool&);
-  bool DelNamedItem(const nsAString&);
-  bool DelNamedItem(const nsAString&, bool&) MOZ_DELETE;
-  void GetSupportedNames(nsTArray<nsString>&);
-};
-
-class TestIndexedAndNamedDeleterInterface : public nsISupports,
-                                            public nsWrapperCache
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  // We need a GetParentObject to make binding codegen happy
-  virtual nsISupports* GetParentObject();
-
-  void IndexedDeleter(uint32_t, bool&);
-  long IndexedGetter(uint32_t, bool&);
-  uint32_t Length();
-
-  void NamedDeleter(const nsAString&, bool&);
-  void NamedDeleter(const nsAString&) MOZ_DELETE;
-  long NamedGetter(const nsAString&, bool&);
-  void DelNamedItem(const nsAString&);
-  void DelNamedItem(const nsAString&, bool&) MOZ_DELETE;
-  void GetSupportedNames(nsTArray<nsString>&);
-};
-
-class TestParentInterface : public nsISupports,
-                            public nsWrapperCache
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  // We need a GetParentObject to make binding codegen happy
-  virtual nsISupports* GetParentObject();
-};
-
-class TestChildInterface : public TestParentInterface
-{
 };
 
 } // namespace dom

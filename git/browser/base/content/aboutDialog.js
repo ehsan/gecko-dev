@@ -45,11 +45,9 @@ function init(aEvent)
 #ifdef MOZ_UPDATER
   gAppUpdater = new appUpdater();
 
-#if MOZ_UPDATE_CHANNEL != release
   let defaults = Services.prefs.getDefaultBranch("");
   let channelLabel = document.getElementById("currentChannel");
   channelLabel.value = defaults.getCharPref("app.update.channel");
-#endif
 #endif
 
 #ifdef XP_MACOSX
@@ -284,10 +282,17 @@ appUpdater.prototype =
 
   /**
    * Implements nsIUpdateCheckListener. The methods implemented by
-   * nsIUpdateCheckListener are in a different scope from nsIIncrementalDownload
-   * to make it clear which are used by each interface.
+   * nsIUpdateCheckListener have to be in a different scope from
+   * nsIIncrementalDownload because both nsIUpdateCheckListener and
+   * nsIIncrementalDownload implement onProgress.
    */
   updateCheckListener: {
+    /**
+     * See nsIUpdateService.idl
+     */
+    onProgress: function(aRequest, aPosition, aTotalSize) {
+    },
+
     /**
      * See nsIUpdateService.idl
      */
@@ -492,9 +497,7 @@ appUpdater.prototype =
   },
 
   removeDownloadListener: function() {
-    if (this.aus) {
-      this.aus.removeDownloadListener(this);
-    }
+    this.aus.removeDownloadListener(this);
   },
 
   /**

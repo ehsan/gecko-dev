@@ -32,12 +32,10 @@
   -. 'method' is designed to be as input for CSS2Properties and similar
   callers.  It must always be the same as 'name' except it must use
   InterCaps and all hyphens ('-') must be removed.  Callers using this
-  parameter must also define the CSS_PROP_PUBLIC_OR_PRIVATE(publicname_,
-  privatename_) macro to yield either publicname_ or privatename_.
-  The names differ in that publicname_ has Moz prefixes where they are
-  used, and also in CssFloat vs. Float.  The caller's choice depends on
-  whether the use is for internal use such as eCSSProperty_* or
-  nsRuleData::ValueFor* or external use such as exposing DOM properties.
+  parameter must also define the CSS_PROP_DOMPROP_PREFIXED(prop) macro,
+  either to be Moz ## prop or to just be prop, depending on whether they
+  want Moz prefixes or not (i.e., whether the use is for internal use
+  such as nsRuleData::ValueFor* or external use).
 
   -. 'pref' is the name of a pref that controls whether the property
   is enabled.  The property is enabled if 'pref' is an empty string,
@@ -77,9 +75,6 @@
 #define CSS_PROP_SHORTHAND(name_, id_, method_, flags_, pref_) /* nothing */
 #define DEFINED_CSS_PROP_SHORTHAND
 #endif
-
-#define CSS_PROP_DOMPROP_PREFIXED(name_) \
-  CSS_PROP_PUBLIC_OR_PRIVATE(Moz ## name_, name_)
 
 #define CSS_PROP_NO_OFFSET (-1)
 
@@ -345,8 +340,7 @@ CSS_PROP_FONT(
     _x_system_font,
     CSS_PROP_DOMPROP_PREFIXED(SystemFont),
     CSS_PROPERTY_PARSE_INACCESSIBLE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     0,
     kFontKTable,
@@ -464,7 +458,6 @@ CSS_PROP_BACKGROUND(
     BackgroundAttachment,
     CSS_PROPERTY_PARSE_VALUE_LIST |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     "",
     VARIANT_KEYWORD, // used by list parsing
@@ -477,7 +470,6 @@ CSS_PROP_BACKGROUND(
     BackgroundClip,
     CSS_PROPERTY_PARSE_VALUE_LIST |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     "",
     VARIANT_KEYWORD, // used by list parsing
@@ -490,7 +482,6 @@ CSS_PROP_BACKGROUND(
     BackgroundColor,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED |
         CSS_PROPERTY_HASHLESS_COLOR_QUIRK,
     "",
@@ -504,7 +495,6 @@ CSS_PROP_BACKGROUND(
     BackgroundImage,
     CSS_PROPERTY_PARSE_VALUE_LIST |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED |
         CSS_PROPERTY_START_IMAGE_LOADS,
@@ -518,8 +508,7 @@ CSS_PROP_BACKGROUND(
     _moz_background_inline_policy,
     CSS_PROP_DOMPROP_PREFIXED(BackgroundInlinePolicy),
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     VARIANT_HK,
     kBackgroundInlinePolicyKTable,
@@ -531,7 +520,6 @@ CSS_PROP_BACKGROUND(
     BackgroundOrigin,
     CSS_PROPERTY_PARSE_VALUE_LIST |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     "",
     VARIANT_KEYWORD, // used by list parsing
@@ -544,7 +532,6 @@ CSS_PROP_BACKGROUND(
     BackgroundPosition,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
         CSS_PROPERTY_STORES_CALC,
     "",
@@ -558,7 +545,6 @@ CSS_PROP_BACKGROUND(
     BackgroundRepeat,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     "",
     VARIANT_KEYWORD, // used by list parsing
@@ -571,7 +557,6 @@ CSS_PROP_BACKGROUND(
     BackgroundSize,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_STORES_CALC,
@@ -1380,7 +1365,6 @@ CSS_PROP_COLOR(
     Color,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED |
         CSS_PROPERTY_HASHLESS_COLOR_QUIRK,
     "",
@@ -1535,11 +1519,7 @@ CSS_PROP_DISPLAY(
     display,
     display,
     Display,
-    CSS_PROPERTY_PARSE_VALUE |
-        // This is allowed because we need to make the placeholder
-        // pseudo-element an inline-block in the UA stylesheet. It is a block
-        // by default.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+    CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HK,
     kDisplayKTable,
@@ -1659,7 +1639,7 @@ CSS_PROP_POSITION(
 CSS_PROP_DISPLAY(
     float,
     float,
-    CSS_PROP_PUBLIC_OR_PRIVATE(CssFloat, Float),
+    CssFloat,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER,
     "",
@@ -1689,8 +1669,7 @@ CSS_PROP_FONT(
     FontFamily,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_PARSER_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     0,
     nullptr,
@@ -1702,8 +1681,7 @@ CSS_PROP_FONT(
     CSS_PROP_DOMPROP_PREFIXED(FontFeatureSettings),
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_PARSER_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     0,
     nullptr,
@@ -1714,8 +1692,7 @@ CSS_PROP_FONT(
     font_language_override,
     CSS_PROP_DOMPROP_PREFIXED(FontLanguageOverride),
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     VARIANT_NORMAL | VARIANT_INHERIT | VARIANT_STRING,
     nullptr,
@@ -1728,7 +1705,6 @@ CSS_PROP_FONT(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
     "",
     VARIANT_HKLP | VARIANT_SYSFONT | VARIANT_CALC,
@@ -1743,8 +1719,7 @@ CSS_PROP_FONT(
     FontSizeAdjust,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     VARIANT_HON | VARIANT_SYSFONT,
     nullptr,
@@ -1755,8 +1730,7 @@ CSS_PROP_FONT(
     font_stretch,
     FontStretch,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     VARIANT_HK | VARIANT_SYSFONT,
     kFontStretchKTable,
@@ -1767,8 +1741,7 @@ CSS_PROP_FONT(
     font_style,
     FontStyle,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     VARIANT_HK | VARIANT_SYSFONT,
     kFontStyleKTable,
@@ -1779,8 +1752,7 @@ CSS_PROP_FONT(
     font_variant,
     FontVariant,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     VARIANT_HK | VARIANT_SYSFONT,
     kFontVariantKTable,
@@ -1792,8 +1764,7 @@ CSS_PROP_FONT(
     FontWeight,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_PARSER_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
         // NOTE: This property has range restrictions on interpolation!
     "",
     0,
@@ -1862,7 +1833,6 @@ CSS_PROP_TEXT(
     LetterSpacing,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
     "",
     VARIANT_HL | VARIANT_NORMAL | VARIANT_CALC,
@@ -1875,8 +1845,7 @@ CSS_PROP_TEXT(
     LineHeight,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     VARIANT_HLPN | VARIANT_KEYWORD | VARIANT_NORMAL | VARIANT_SYSFONT,
     kLineHeightKTable,
@@ -1924,8 +1893,7 @@ CSS_PROP_SHORTHAND(
     margin,
     Margin,
     CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
     "")
 CSS_PROP_MARGIN(
     margin-bottom,
@@ -1934,8 +1902,7 @@ CSS_PROP_MARGIN(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_STORES_CALC |
-        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
     "",
     VARIANT_AHLP | VARIANT_CALC,
     nullptr,
@@ -1945,8 +1912,7 @@ CSS_PROP_SHORTHAND(
     -moz-margin-end,
     margin_end,
     CSS_PROP_DOMPROP_PREFIXED(MarginEnd),
-    CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+    CSS_PROPERTY_PARSE_FUNCTION,
     "")
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_MARGIN(
@@ -1955,8 +1921,7 @@ CSS_PROP_MARGIN(
     MarginEndValue,
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_STORES_CALC |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_STORES_CALC,
     "",
     VARIANT_AHLP | VARIANT_CALC, // for internal use
     nullptr,
@@ -1968,8 +1933,7 @@ CSS_PROP_SHORTHAND(
     margin_left,
     MarginLeft,
     CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
     "")
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_MARGIN(
@@ -1979,8 +1943,7 @@ CSS_PROP_MARGIN(
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_REPORT_OTHER_NAME |
-        CSS_PROPERTY_STORES_CALC |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_STORES_CALC,
     "",
     VARIANT_AHLP | VARIANT_CALC, // for internal use
     nullptr,
@@ -1992,8 +1955,7 @@ CSS_PROP_MARGIN(
     MarginLeftLTRSource,
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_DIRECTIONAL_SOURCE |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_DIRECTIONAL_SOURCE,
     "",
     0,
     kBoxPropSourceKTable,
@@ -2005,8 +1967,7 @@ CSS_PROP_MARGIN(
     MarginLeftRTLSource,
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_DIRECTIONAL_SOURCE |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_DIRECTIONAL_SOURCE,
     "",
     0,
     kBoxPropSourceKTable,
@@ -2018,8 +1979,7 @@ CSS_PROP_SHORTHAND(
     margin_right,
     MarginRight,
     CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
     "")
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_MARGIN(
@@ -2029,8 +1989,7 @@ CSS_PROP_MARGIN(
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_REPORT_OTHER_NAME |
-        CSS_PROPERTY_STORES_CALC |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_STORES_CALC,
     "",
     VARIANT_AHLP | VARIANT_CALC, // for internal use
     nullptr,
@@ -2042,8 +2001,7 @@ CSS_PROP_MARGIN(
     MarginRightLTRSource,
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_DIRECTIONAL_SOURCE |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_DIRECTIONAL_SOURCE,
     "",
     0,
     kBoxPropSourceKTable,
@@ -2055,8 +2013,7 @@ CSS_PROP_MARGIN(
     MarginRightRTLSource,
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_DIRECTIONAL_SOURCE |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_DIRECTIONAL_SOURCE,
     "",
     0,
     kBoxPropSourceKTable,
@@ -2067,8 +2024,7 @@ CSS_PROP_SHORTHAND(
     -moz-margin-start,
     margin_start,
     CSS_PROP_DOMPROP_PREFIXED(MarginStart),
-    CSS_PROPERTY_PARSE_FUNCTION |
-    CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+    CSS_PROPERTY_PARSE_FUNCTION,
     "")
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 CSS_PROP_MARGIN(
@@ -2077,8 +2033,7 @@ CSS_PROP_MARGIN(
     MarginStartValue,
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        CSS_PROPERTY_STORES_CALC |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_STORES_CALC,
     "",
     VARIANT_AHLP | VARIANT_CALC, // for internal use
     nullptr,
@@ -2092,8 +2047,7 @@ CSS_PROP_MARGIN(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
         CSS_PROPERTY_STORES_CALC |
-        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK |
-        CSS_PROPERTY_APPLIES_TO_PAGE_RULE,
+        CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
     "",
     VARIANT_AHLP | VARIANT_CALC,
     nullptr,
@@ -2150,7 +2104,7 @@ CSS_PROP_POSITION(
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_STORES_CALC,
     "",
-    VARIANT_HLP | VARIANT_CALC,
+    VARIANT_AHLP | VARIANT_CALC,
     nullptr,
     offsetof(nsStylePosition, mMinHeight),
     eStyleAnimType_Coord)
@@ -2162,7 +2116,7 @@ CSS_PROP_POSITION(
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_STORES_CALC,
     "",
-    VARIANT_HKLP | VARIANT_CALC,
+    VARIANT_AHKLP | VARIANT_CALC,
     kWidthKTable,
     offsetof(nsStylePosition, mMinWidth),
     eStyleAnimType_Coord)
@@ -2170,8 +2124,7 @@ CSS_PROP_DISPLAY(
     opacity,
     opacity,
     Opacity,
-    CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+    CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HN,
     nullptr,
@@ -2254,9 +2207,7 @@ CSS_PROP_DISPLAY(
     overflow-x,
     overflow_x,
     OverflowX,
-    CSS_PROPERTY_PARSE_VALUE |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+    CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HK,
     kOverflowSubKTable,
@@ -2266,9 +2217,7 @@ CSS_PROP_DISPLAY(
     overflow-y,
     overflow_y,
     OverflowY,
-    CSS_PROPERTY_PARSE_VALUE |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+    CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HK,
     kOverflowSubKTable,
@@ -2288,8 +2237,6 @@ CSS_PROP_PADDING(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
     "",
@@ -2311,8 +2258,6 @@ CSS_PROP_PADDING(
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_STORES_CALC,
     "",
     VARIANT_HLP | VARIANT_CALC, // for internal use
@@ -2335,8 +2280,6 @@ CSS_PROP_PADDING(
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_REPORT_OTHER_NAME |
         CSS_PROPERTY_STORES_CALC,
     "",
@@ -2350,8 +2293,6 @@ CSS_PROP_PADDING(
     PaddingLeftLTRSource,
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     "",
     0,
@@ -2364,8 +2305,6 @@ CSS_PROP_PADDING(
     PaddingLeftRTLSource,
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     "",
     0,
@@ -2388,8 +2327,6 @@ CSS_PROP_PADDING(
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_REPORT_OTHER_NAME |
         CSS_PROPERTY_STORES_CALC,
     "",
@@ -2403,8 +2340,6 @@ CSS_PROP_PADDING(
     PaddingRightLTRSource,
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_DIRECTIONAL_SOURCE,
     "",
     0,
@@ -2438,8 +2373,6 @@ CSS_PROP_PADDING(
     CSS_PROPERTY_PARSE_INACCESSIBLE |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_STORES_CALC,
     "",
     VARIANT_HLP | VARIANT_CALC, // for internal use
@@ -2454,8 +2387,6 @@ CSS_PROP_PADDING(
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_NONNEGATIVE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_STORES_CALC |
         CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
     "",
@@ -2491,32 +2422,19 @@ CSS_PROP_DISPLAY(
     kPageBreakKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None) // temp fix for bug 24000
-CSS_PROP_DISPLAY(
+CSS_PROP_BACKENDONLY(
     page-break-inside,
     page_break_inside,
     PageBreakInside,
     CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HK,
-    kPageBreakInsideKTable,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_SVG(
-    paint-order,
-    paint_order,
-    PaintOrder,
-    CSS_PROPERTY_PARSE_FUNCTION,
-    "svg.paint-order.enabled",
-    0,
-    nullptr,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
+    kPageBreakInsideKTable)
 CSS_PROP_VISIBILITY(
     pointer-events,
     pointer_events,
     PointerEvents,
-    CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+    CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HK,
     kPointerEventsKTable,
@@ -2546,11 +2464,7 @@ CSS_PROP_DISPLAY(
     resize,
     resize,
     Resize,
-    CSS_PROPERTY_PARSE_VALUE |
-        // This is allowed because the UA stylesheet sets 'resize: both;' on
-        // textarea and we need to disable this for the placeholder
-        // pseudo-element.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+    CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HK,
     kResizeKTable,
@@ -2619,8 +2533,7 @@ CSS_PROP_TEXTRESET(
     text_blink,
     CSS_PROP_DOMPROP_PREFIXED(TextBlink),
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     VARIANT_HK,
     kTextBlinkKTable,
@@ -2632,7 +2545,6 @@ CSS_PROP_TEXTRESET(
     CSS_PROP_DOMPROP_PREFIXED(TextDecorationColor),
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
     "",
     VARIANT_HCK,
@@ -2645,8 +2557,7 @@ CSS_PROP_TEXTRESET(
     CSS_PROP_DOMPROP_PREFIXED(TextDecorationLine),
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_VALUE_PARSER_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     0,
     kTextDecorationLineKTable,
@@ -2657,8 +2568,7 @@ CSS_PROP_TEXTRESET(
     text_decoration_style,
     CSS_PROP_DOMPROP_PREFIXED(TextDecorationStyle),
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     VARIANT_HK,
     kTextDecorationStyleKTable,
@@ -2680,8 +2590,7 @@ CSS_PROP_TEXTRESET(
     text_overflow,
     TextOverflow,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_VALUE_PARSER_FUNCTION |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_VALUE_PARSER_FUNCTION,
     "",
     0,
     kTextOverflowKTable,
@@ -2693,7 +2602,6 @@ CSS_PROP_TEXT(
     TextShadow,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS |
         CSS_PROPERTY_IGNORED_WHEN_COLORS_DISABLED,
         // NOTE: some components must be nonnegative
@@ -2717,8 +2625,7 @@ CSS_PROP_TEXT(
     text_transform,
     TextTransform,
     CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+        CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
     "",
     VARIANT_HK,
     kTextTransformKTable,
@@ -2907,7 +2814,6 @@ CSS_PROP_TEXTRESET(
     VerticalAlign,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_STORES_CALC,
     "",
     VARIANT_HKLP | VARIANT_CALC,
@@ -2928,9 +2834,7 @@ CSS_PROP_TEXT(
     white-space,
     white_space,
     WhiteSpace,
-    CSS_PROPERTY_PARSE_VALUE |
-        // This is required by the UA stylesheet and can't be overridden.
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER,
+    CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HK,
     kWhitespaceKTable,
@@ -2984,7 +2888,6 @@ CSS_PROP_TEXT(
     WordSpacing,
     CSS_PROPERTY_PARSE_VALUE |
         CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
-        CSS_PROPERTY_APPLIES_TO_PLACEHOLDER |
         CSS_PROPERTY_UNITLESS_LENGTH_QUIRK,
     "",
     VARIANT_HL | VARIANT_NORMAL | VARIANT_CALC,
@@ -3310,16 +3213,6 @@ CSS_PROP_SVGRESET(
     nullptr,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
-CSS_PROP_SVGRESET(
-    mask-type,
-    mask_type,
-    MaskType,
-    CSS_PROPERTY_PARSE_VALUE,
-    "layout.css.masking.enabled",
-    VARIANT_HK,
-    kMaskTypeKTable,
-    offsetof(nsStyleSVGReset, mMaskType),
-    eStyleAnimType_EnumU8)
 CSS_PROP_SVG(
     shape-rendering,
     shape_rendering,
@@ -3473,7 +3366,7 @@ CSS_PROP_SHORTHAND(
     MozTransform,
     CSS_PROPERTY_PARSE_FUNCTION |
         CSS_PROPERTY_IS_ALIAS,
-    "layout.css.prefixes.transforms")
+    "")
 
 #ifndef CSS_PROP_LIST_EXCLUDE_INTERNAL
 // We have a few properties that are in style structs but are not stored
@@ -3485,11 +3378,22 @@ CSS_PROP_SHORTHAND(
 #ifdef CSS_PROP_STUB_NOT_CSS
 CSS_PROP_STUB_NOT_CSS
 CSS_PROP_STUB_NOT_CSS
+CSS_PROP_STUB_NOT_CSS
 #else
 CSS_PROP_FONT(
     -x-lang,
     _x_lang,
     Lang,
+    CSS_PROPERTY_PARSE_INACCESSIBLE,
+    "",
+    0,
+    nullptr,
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
+CSS_PROP_TABLE(
+    -x-cols,
+    _x_cols,
+    Cols,
     CSS_PROPERTY_PARSE_INACCESSIBLE,
     "",
     0,
@@ -3645,5 +3549,3 @@ CSS_PROP_TABLE(
 #undef CSS_PROP_SHORTHAND
 #undef DEFINED_CSS_PROP_SHORTHAND
 #endif
-
-#undef CSS_PROP_DOMPROP_PREFIXED

@@ -13,13 +13,13 @@
 
 #include "libyuv/cpu_id.h"
 #include "libyuv/scale_argb.h"
-#include "../unit_test/unit_test.h"
+#include "unit_test/unit_test.h"
 
 namespace libyuv {
 
 static int ARGBTestFilter(int src_width, int src_height,
                           int dst_width, int dst_height,
-                          FilterMode f, int benchmark_iterations) {
+                          FilterMode f) {
   const int b = 128;
   int src_argb_plane_size = (src_width + b * 2) * (src_height + b * 2) * 4;
   int src_stride_argb = (b * 2 + src_width) * 4;
@@ -39,6 +39,7 @@ static int ARGBTestFilter(int src_width, int src_height,
     }
   }
 
+  const int runs = 1000;
   align_buffer_16(dst_argb_c, dst_argb_plane_size)
   align_buffer_16(dst_argb_opt, dst_argb_plane_size)
   memset(dst_argb_c, 2, dst_argb_plane_size);
@@ -58,23 +59,23 @@ static int ARGBTestFilter(int src_width, int src_height,
 
   MaskCpuFlags(0);  // Disable all CPU optimization.
   double c_time = get_time();
-  for (i = 0; i < benchmark_iterations; ++i) {
+  for (i = 0; i < runs; ++i) {
     ARGBScale(src_argb + (src_stride_argb * b) + b * 4, src_stride_argb,
               src_width, src_height,
               dst_argb_c + (dst_stride_argb * b) + b * 4, dst_stride_argb,
               dst_width, dst_height, f);
   }
-  c_time = (get_time() - c_time) / benchmark_iterations;
+  c_time = (get_time() - c_time) / runs;
 
   MaskCpuFlags(-1);  // Enable all CPU optimization.
   double opt_time = get_time();
-  for (i = 0; i < benchmark_iterations; ++i) {
+  for (i = 0; i < runs; ++i) {
     ARGBScale(src_argb + (src_stride_argb * b) + b * 4, src_stride_argb,
               src_width, src_height,
               dst_argb_opt + (dst_stride_argb * b) + b * 4, dst_stride_argb,
               dst_width, dst_height, f);
   }
-  opt_time = (get_time() - opt_time) / benchmark_iterations;
+  opt_time = (get_time() - opt_time) / runs;
 
   // Report performance of C vs OPT
   printf("filter %d - %8d us C - %8d us OPT\n",
@@ -110,8 +111,7 @@ TEST_F(libyuvTest, ARGBScaleDownBy2) {
   for (int f = 0; f < 2; ++f) {
     int max_diff = ARGBTestFilter(src_width, src_height,
                                   dst_width, dst_height,
-                                  static_cast<FilterMode>(f),
-                                  benchmark_iterations_);
+                                  static_cast<FilterMode>(f));
     EXPECT_LE(max_diff, 1);
   }
 }
@@ -125,8 +125,7 @@ TEST_F(libyuvTest, ARGBScaleDownBy4) {
   for (int f = 0; f < 2; ++f) {
     int max_diff = ARGBTestFilter(src_width, src_height,
                                   dst_width, dst_height,
-                                  static_cast<FilterMode>(f),
-                                  benchmark_iterations_);
+                                  static_cast<FilterMode>(f));
     EXPECT_LE(max_diff, 1);
   }
 }
@@ -140,8 +139,7 @@ TEST_F(libyuvTest, ARGBScaleDownBy5) {
   for (int f = 0; f < 2; ++f) {
     int max_diff = ARGBTestFilter(src_width, src_height,
                                   dst_width, dst_height,
-                                  static_cast<FilterMode>(f),
-                                  benchmark_iterations_);
+                                  static_cast<FilterMode>(f));
     EXPECT_LE(max_diff, 1);
   }
 }
@@ -155,8 +153,7 @@ TEST_F(libyuvTest, ARGBScaleDownBy8) {
   for (int f = 0; f < 2; ++f) {
     int max_diff = ARGBTestFilter(src_width, src_height,
                                   dst_width, dst_height,
-                                  static_cast<FilterMode>(f),
-                                  benchmark_iterations_);
+                                  static_cast<FilterMode>(f));
     EXPECT_LE(max_diff, 1);
   }
 }
@@ -170,8 +167,7 @@ TEST_F(libyuvTest, ARGBScaleDownBy16) {
   for (int f = 0; f < 2; ++f) {
     int max_diff = ARGBTestFilter(src_width, src_height,
                                   dst_width, dst_height,
-                                  static_cast<FilterMode>(f),
-                                  benchmark_iterations_);
+                                  static_cast<FilterMode>(f));
     EXPECT_LE(max_diff, 1);
   }
 }
@@ -185,8 +181,7 @@ TEST_F(libyuvTest, ARGBScaleDownBy34) {
   for (int f = 0; f < 2; ++f) {
     int max_diff = ARGBTestFilter(src_width, src_height,
                                   dst_width, dst_height,
-                                  static_cast<FilterMode>(f),
-                                  benchmark_iterations_);
+                                  static_cast<FilterMode>(f));
     EXPECT_LE(max_diff, 1);
   }
 }
@@ -200,8 +195,7 @@ TEST_F(libyuvTest, ARGBScaleDownBy38) {
   for (int f = 0; f < 2; ++f) {
     int max_diff = ARGBTestFilter(src_width, src_height,
                                   dst_width, dst_height,
-                                  static_cast<FilterMode>(f),
-                                  benchmark_iterations_);
+                                  static_cast<FilterMode>(f));
     EXPECT_LE(max_diff, 1);
   }
 }
@@ -215,8 +209,7 @@ TEST_F(libyuvTest, ARGBScaleTo1366) {
   for (int f = 0; f < 2; ++f) {
     int max_diff = ARGBTestFilter(src_width, src_height,
                                   dst_width, dst_height,
-                                  static_cast<FilterMode>(f),
-                                  benchmark_iterations_);
+                                  static_cast<FilterMode>(f));
     EXPECT_LE(max_diff, 1);
   }
 }
@@ -230,8 +223,7 @@ TEST_F(libyuvTest, ARGBScaleTo4074) {
   for (int f = 0; f < 2; ++f) {
     int max_diff = ARGBTestFilter(src_width, src_height,
                                   dst_width, dst_height,
-                                  static_cast<FilterMode>(f),
-                                  benchmark_iterations_);
+                                  static_cast<FilterMode>(f));
     EXPECT_LE(max_diff, 1);
   }
 }
@@ -246,8 +238,7 @@ TEST_F(libyuvTest, ARGBScaleTo853) {
   for (int f = 0; f < 2; ++f) {
     int max_diff = ARGBTestFilter(src_width, src_height,
                                   dst_width, dst_height,
-                                  static_cast<FilterMode>(f),
-                                  benchmark_iterations_);
+                                  static_cast<FilterMode>(f));
     EXPECT_LE(max_diff, 1);
   }
 }

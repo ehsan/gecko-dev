@@ -48,7 +48,7 @@ function PlacesCategoriesStarter()
     }
   }).bind(this);
   [ "onItemAdded", "onItemRemoved", "onItemChanged", "onBeginUpdateBatch",
-    "onEndUpdateBatch", "onItemVisited",
+    "onEndUpdateBatch", "onBeforeItemRemoved", "onItemVisited",
     "onItemMoved" ].forEach(function(aMethod) {
       this[aMethod] = notify;
     }, this);
@@ -109,4 +109,4 @@ PlacesCategoriesStarter.prototype = {
 //// Module Registration
 
 let components = [PlacesCategoriesStarter];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);

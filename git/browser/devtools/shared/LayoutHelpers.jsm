@@ -18,9 +18,9 @@ XPCOMUtils.defineLazyGetter(this, "PlatformKeys", function() {
     "chrome://global-platform/locale/platformKeys.properties");
 });
 
-this.EXPORTED_SYMBOLS = ["LayoutHelpers"];
+var EXPORTED_SYMBOLS = ["LayoutHelpers"];
 
-this.LayoutHelpers = LayoutHelpers = {
+LayoutHelpers = {
 
   /**
    * Compute the position and the dimensions for the visible portion
@@ -326,12 +326,10 @@ this.LayoutHelpers = LayoutHelpers = {
    *
    * @param Node aElemKey
    *        The key element to get the modifiers from.
-   * @param boolean aAllowCloverleaf
-   *        Pass true to use the cloverleaf symbol instead of a descriptive string.
    * @return string
    *         A prettified and properly separated modifier keys string.
    */
-  prettyKey: function LH_prettyKey(aElemKey, aAllowCloverleaf)
+  prettyKey: function LH_prettyKey(aElemKey)
   {
     let elemString = "";
     let elemMod = aElemKey.getAttribute("modifiers");
@@ -340,12 +338,9 @@ this.LayoutHelpers = LayoutHelpers = {
       if (Services.appinfo.OS == "Darwin") {
         // XXX bug 779642 Use "Cmd-" literal vs. cloverleaf meta-key until
         // Orion adds variable height lines.
-        if (!aAllowCloverleaf) {
-          elemString += "Cmd-";
-        } else {
-          elemString += PlatformKeys.GetStringFromName("VK_META") +
-                        PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
-        }
+        // elemString += PlatformKeys.GetStringFromName("VK_META") +
+        //               PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
+        elemString += "Cmd-";
       } else {
         elemString += PlatformKeys.GetStringFromName("VK_CONTROL") +
                       PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
@@ -368,7 +363,7 @@ this.LayoutHelpers = LayoutHelpers = {
       elemString += PlatformKeys.GetStringFromName("VK_ALT") +
                     PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
     }
-    if (elemMod.match("ctrl") || elemMod.match("control")) {
+    if (elemMod.match("ctrl")) {
       elemString += PlatformKeys.GetStringFromName("VK_CONTROL") +
                     PlatformKeys.GetStringFromName("MODIFIER_SEPARATOR");
     }

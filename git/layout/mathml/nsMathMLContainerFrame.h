@@ -16,7 +16,6 @@
 #include "nsMathMLChar.h"
 #include "nsMathMLFrame.h"
 #include "nsMathMLParts.h"
-#include "mozilla/Likely.h"
 
 /*
  * Base class for MathML container frames. It acts like an inferred 
@@ -82,6 +81,8 @@ public:
               ~(nsIFrame::eMathML | nsIFrame::eExcludesIgnorableWhitespace));
   }
 
+  virtual int GetSkipSides() const { return 0; }
+
   NS_IMETHOD
   AppendFrames(ChildListID     aListID,
                nsFrameList&    aFrameList);
@@ -130,9 +131,9 @@ public:
     return nsContainerFrame::DidReflow(aPresContext, aReflowState, aStatus);
   }
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   virtual bool UpdateOverflow();
 
@@ -241,31 +242,6 @@ public:
   nsresult
   ReflowError(nsRenderingContext& aRenderingContext,
               nsHTMLReflowMetrics& aDesiredSize);
-  /*
-   * Helper to call ReportErrorToConsole for parse errors involving 
-   * attribute/value pairs.
-   * @param aAttribute The attribute for which the parse error occured.
-   * @param aValue The value for which the parse error occured.
-   */
-  nsresult
-  ReportParseError(const PRUnichar*           aAttribute,
-                   const PRUnichar*           aValue);
-
-  /*
-   * Helper to call ReportErrorToConsole when certain tags
-   * have more than the expected amount of children.
-   */
-  nsresult
-  ReportChildCountError();
-
-  /*
-   * Helper to call ReportToConsole when an error occurs.
-   * @param aParams see nsContentUtils::ReportToConsole
-   */
-  nsresult
-  ReportErrorToConsole(const char*       aErrorMsgId,
-                       const PRUnichar** aParams = nullptr,
-                       uint32_t          aParamCount = 0);
 
   // helper method to reflow a child frame. We are inline frames, and we don't
   // know our positions until reflow is finished. That's why we ask the
@@ -421,7 +397,7 @@ public:
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
     nsresult rv = nsBlockFrame::AppendFrames(aListID, aFrameList);
-    if (MOZ_LIKELY(aListID == kPrincipalList))
+    if (NS_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }
@@ -434,7 +410,7 @@ public:
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
     nsresult rv = nsBlockFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
-    if (MOZ_LIKELY(aListID == kPrincipalList))
+    if (NS_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }
@@ -446,7 +422,7 @@ public:
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
     nsresult rv = nsBlockFrame::RemoveFrame(aListID, aOldFrame);
-    if (MOZ_LIKELY(aListID == kPrincipalList))
+    if (NS_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }
@@ -491,7 +467,7 @@ public:
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
     nsresult rv = nsInlineFrame::AppendFrames(aListID, aFrameList);
-    if (MOZ_LIKELY(aListID == kPrincipalList))
+    if (NS_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }
@@ -504,7 +480,7 @@ public:
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
     nsresult rv = nsInlineFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
-    if (MOZ_LIKELY(aListID == kPrincipalList))
+    if (NS_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }
@@ -516,7 +492,7 @@ public:
     NS_ASSERTION(aListID == kPrincipalList || aListID == kNoReflowPrincipalList,
                  "unexpected frame list");
     nsresult rv = nsInlineFrame::RemoveFrame(aListID, aOldFrame);
-    if (MOZ_LIKELY(aListID == kPrincipalList))
+    if (NS_LIKELY(aListID == kPrincipalList))
       nsMathMLContainerFrame::ReLayoutChildren(this);
     return rv;
   }

@@ -7,7 +7,6 @@
 #include "nsClientAuthRemember.h"
 
 #include "nsIX509Cert.h"
-#include "mozilla/RefPtr.h"
 #include "nsCRT.h"
 #include "nsNetUtil.h"
 #include "nsIObserverService.h"
@@ -16,15 +15,16 @@
 #include "nsPromiseFlatString.h"
 #include "nsThreadUtils.h"
 #include "nsStringBuffer.h"
-#include "cert.h"
 #include "nspr.h"
 #include "pk11pub.h"
 #include "certdb.h"
 #include "sechash.h"
-#include "SharedSSLState.h"
+
+#include "nsNSSCleaner.h"
 
 using namespace mozilla;
-using namespace mozilla::psm;
+
+NSSCleanupAutoPtrClass(CERTCertificate, CERT_DestroyCertificate)
 
 NS_IMPL_THREADSAFE_ISUPPORTS2(nsClientAuthRememberService, 
                               nsIObserver,
@@ -82,16 +82,6 @@ void nsClientAuthRememberService::ClearRememberedDecisions()
   RemoveAllFromMemory();
 }
 
-void nsClientAuthRememberService::ClearAllRememberedDecisions()
-{
-  RefPtr<nsClientAuthRememberService> svc =
-    PublicSSLState()->GetClientAuthRememberService();
-  svc->ClearRememberedDecisions();
-
-  svc = PrivateSSLState()->GetClientAuthRememberService();
-  svc->ClearRememberedDecisions();
-}
-
 void
 nsClientAuthRememberService::RemoveAllFromMemory()
 {
@@ -104,7 +94,7 @@ GetCertFingerprintByOidTag(CERTCertificate* nsscert,
                            nsCString &fp)
 {
   unsigned int hash_len = HASH_ResultLenByOidTag(aOidTag);
-  RefPtr<nsStringBuffer> fingerprint(nsStringBuffer::Alloc(hash_len));
+  nsRefPtr<nsStringBuffer> fingerprint = nsStringBuffer::Alloc(hash_len);
   if (!fingerprint)
     return NS_ERROR_OUT_OF_MEMORY;
 
@@ -123,7 +113,7 @@ nsresult
 nsClientAuthRememberService::RememberDecision(const nsACString & aHostName, 
                                               CERTCertificate *aServerCert, CERTCertificate *aClientCert)
 {
-  // aClientCert == nullptr means: remember that user does not want to use a cert
+  // aClientCert == NULL means: remember that user does not want to use a cert
   NS_ENSURE_ARG_POINTER(aServerCert);
   if (aHostName.IsEmpty())
     return NS_ERROR_INVALID_ARG;
@@ -137,7 +127,7 @@ nsClientAuthRememberService::RememberDecision(const nsACString & aHostName,
     ReentrantMonitorAutoEnter lock(monitor);
     if (aClientCert) {
       nsNSSCertificate pipCert(aClientCert);
-      char *dbkey = nullptr;
+      char *dbkey = NULL;
       rv = pipCert.GetDbKey(&dbkey);
       if (NS_SUCCEEDED(rv) && dbkey) {
         AddEntryToList(aHostName, fpStr, 

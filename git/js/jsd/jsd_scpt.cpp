@@ -278,7 +278,7 @@ JSDScript *
 jsd_FindOrCreateJSDScript(JSDContext    *jsdc,
                           JSContext     *cx,
                           JSScript      *script,
-                          JSAbstractFramePtr frame)
+                          JSStackFrame  *fp)
 {
     JSDScript *jsdscript;
     JS_ASSERT(JSD_SCRIPTS_LOCKED(jsdc));
@@ -288,12 +288,9 @@ jsd_FindOrCreateJSDScript(JSDContext    *jsdc,
         return jsdscript;
 
     /* Fallback for unknown scripts: create a new script. */
-    if (!frame) {
-        JSBrokenFrameIterator iter(cx);
-        if (!iter.done())
-            frame = iter.abstractFramePtr();
-    }
-    if (frame)
+    if (!fp)
+        JS_BrokenFrameIterator(cx, &fp);
+    if (fp)
         jsdscript = _newJSDScript(jsdc, cx, script);
 
     return jsdscript;

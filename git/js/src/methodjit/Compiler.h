@@ -120,7 +120,6 @@ class Compiler : public BaseCompiler
          * more comments.
          */
         uint32_t     callIndex;
-        Label        funGuardLabel;
         DataLabelPtr funGuard;
         Jump         funJump;
         Jump         hotJump;
@@ -288,12 +287,6 @@ class Compiler : public BaseCompiler
         { }
     };
 
-    struct InternalCompileTrigger {
-        jsbytecode *pc;
-        Jump inlineJump;
-        Label stubLabel;
-    };
-
     struct DoublePatch {
         double d;
         DataLabelPtr label;
@@ -436,7 +429,6 @@ private:
 #endif
     js::Vector<CallPatchInfo, 64, CompilerAllocPolicy> callPatches;
     js::Vector<InternalCallSite, 64, CompilerAllocPolicy> callSites;
-    js::Vector<InternalCompileTrigger, 4, CompilerAllocPolicy> compileTriggers;
     js::Vector<DoublePatch, 16, CompilerAllocPolicy> doubleList;
     js::Vector<JSObject*, 0, CompilerAllocPolicy> rootedTemplates;
     js::Vector<RegExpShared*, 0, CompilerAllocPolicy> rootedRegExps;
@@ -495,7 +487,7 @@ private:
     }
 
     JITScript *outerJIT() {
-        return outerScript->getJIT(isConstructing, cx->zone()->compileBarriers());
+        return outerScript->getJIT(isConstructing, cx->compartment->compileBarriers());
     }
 
     ChunkDescriptor &outerChunkRef() {
@@ -550,7 +542,7 @@ private:
     void markUndefinedLocal(uint32_t offset, uint32_t i);
     void markUndefinedLocals();
     void fixDoubleTypes(jsbytecode *target);
-    bool watchGlobalReallocation();
+    void watchGlobalReallocation();
     void updateVarType();
     void updateJoinVarTypes();
     void restoreVarType();
@@ -626,9 +618,9 @@ private:
     bool startLoop(jsbytecode *head, Jump entry, jsbytecode *entryTarget);
     bool finishLoop(jsbytecode *head);
     inline bool shouldStartLoop(jsbytecode *head);
-    void jsop_bindname(HandlePropertyName name);
+    void jsop_bindname(PropertyName *name);
     void jsop_setglobal(uint32_t index);
-    void jsop_getprop_slow(HandlePropertyName name, bool forPrototype = false);
+    void jsop_getprop_slow(PropertyName *name, bool forPrototype = false);
     void jsop_aliasedArg(unsigned i, bool get, bool poppedAfter = false);
     void jsop_aliasedVar(ScopeCoordinate sc, bool get, bool poppedAfter = false);
     void jsop_this();
@@ -653,20 +645,20 @@ private:
     void fixPrimitiveReturn(Assembler *masm, FrameEntry *fe);
     bool jsop_getgname(uint32_t index);
     void jsop_getgname_slow(uint32_t index);
-    bool jsop_setgname(HandlePropertyName name, bool popGuaranteed);
-    void jsop_setgname_slow(HandlePropertyName name);
+    bool jsop_setgname(PropertyName *name, bool popGuaranteed);
+    void jsop_setgname_slow(PropertyName *name);
     void jsop_bindgname();
     void jsop_setelem_slow();
     void jsop_getelem_slow();
-    bool jsop_getprop(HandlePropertyName name, JSValueType type,
+    bool jsop_getprop(PropertyName *name, JSValueType type,
                       bool typeCheck = true, bool forPrototype = false);
-    bool jsop_getprop_dispatch(HandlePropertyName name);
-    bool jsop_setprop(HandlePropertyName name, bool popGuaranteed);
-    void jsop_setprop_slow(HandlePropertyName name);
+    bool jsop_getprop_dispatch(PropertyName *name);
+    bool jsop_setprop(PropertyName *name, bool popGuaranteed);
+    void jsop_setprop_slow(PropertyName *name);
     bool jsop_instanceof();
-    bool jsop_intrinsic(HandlePropertyName name, JSValueType type);
-    void jsop_name(HandlePropertyName name, JSValueType type);
-    bool jsop_xname(HandlePropertyName name);
+    void jsop_intrinsicname(PropertyName *name, JSValueType type);
+    void jsop_name(PropertyName *name, JSValueType type);
+    bool jsop_xname(PropertyName *name);
     void enterBlock(StaticBlockObject *block);
     void leaveBlock();
     void emitEval(uint32_t argc);
@@ -711,12 +703,14 @@ private:
     bool booleanJumpScript(JSOp op, jsbytecode *target);
     bool jsop_ifneq(JSOp op, jsbytecode *target);
     bool jsop_andor(JSOp op, jsbytecode *target);
+    bool jsop_arginc(JSOp op, uint32_t slot);
+    bool jsop_localinc(JSOp op, uint32_t slot);
     bool jsop_newinit();
     bool jsop_regexp();
     void jsop_initmethod();
     void jsop_initprop();
-    void jsop_initelem_array();
-    void jsop_setelem_dense(types::StackTypeSet::DoubleConversion conversion);
+    void jsop_initelem();
+    void jsop_setelem_dense();
 #ifdef JS_METHODJIT_TYPED_ARRAY
     void jsop_setelem_typed(int atype);
     void convertForTypedArray(int atype, ValueRemat *vr, bool *allocated);
@@ -780,8 +774,7 @@ private:
     CompileStatus compileMathMinMaxInt(FrameEntry *arg1, FrameEntry *arg2,
                                        Assembler::Condition cond);
     CompileStatus compileMathPowSimple(FrameEntry *arg1, FrameEntry *arg2);
-    CompileStatus compileArrayPush(FrameEntry *thisv, FrameEntry *arg,
-                                   types::StackTypeSet::DoubleConversion conversion);
+    CompileStatus compileArrayPush(FrameEntry *thisv, FrameEntry *arg);
     CompileStatus compileArrayConcat(types::TypeSet *thisTypes, types::TypeSet *argTypes,
                                      FrameEntry *thisValue, FrameEntry *argValue);
     CompileStatus compileArrayPopShift(FrameEntry *thisv, bool isPacked, bool isArrayPop);

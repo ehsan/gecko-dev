@@ -6,10 +6,9 @@
 #include "nsDOMClassInfoID.h"
 #include "nsDOMCommandEvent.h"
 
-nsDOMCommandEvent::nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
-                                     nsPresContext* aPresContext,
+nsDOMCommandEvent::nsDOMCommandEvent(nsPresContext* aPresContext,
                                      nsCommandEvent* aEvent)
-  : nsDOMEvent(aOwner, aPresContext, aEvent ? aEvent :
+  : nsDOMEvent(aPresContext, aEvent ? aEvent :
                new nsCommandEvent(false, nullptr, nullptr, nullptr))
 {
   mEvent->time = PR_Now();
@@ -18,7 +17,6 @@ nsDOMCommandEvent::nsDOMCommandEvent(mozilla::dom::EventTarget* aOwner,
   } else {
     mEventIsInternal = true;
   }
-  SetIsDOMBinding();
 }
 
 nsDOMCommandEvent::~nsDOMCommandEvent()
@@ -65,11 +63,10 @@ nsDOMCommandEvent::InitCommandEvent(const nsAString& aTypeArg,
 }
 
 nsresult NS_NewDOMCommandEvent(nsIDOMEvent** aInstancePtrResult,
-                               mozilla::dom::EventTarget* aOwner,
                                nsPresContext* aPresContext,
                                nsCommandEvent* aEvent)
 {
-  nsDOMCommandEvent* it = new nsDOMCommandEvent(aOwner, aPresContext, aEvent);
+  nsDOMCommandEvent* it = new nsDOMCommandEvent(aPresContext, aEvent);
   if (nullptr == it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }

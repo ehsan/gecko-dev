@@ -469,10 +469,6 @@ LoginManagerStorage_legacy.prototype = {
         throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
     },
 
-    get isLoggedIn() {
-        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-    },
-
 
 
 
@@ -1463,4 +1459,4 @@ LoginManagerStorage_legacy.prototype = {
     }
 }; // end of nsLoginManagerStorage_legacy implementation
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([LoginManagerStorage_legacy]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([LoginManagerStorage_legacy]);

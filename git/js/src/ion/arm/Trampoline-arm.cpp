@@ -1,4 +1,3 @@
-
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=4 sw=4 et tw=99:
  *
@@ -6,15 +5,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "ion/IonSpewer.h"
 #include "jscompartment.h"
 #include "assembler/assembler/MacroAssembler.h"
 #include "ion/IonCompartment.h"
 #include "ion/IonLinker.h"
 #include "ion/IonFrames.h"
-#include "ion/IonSpewer.h"
 #include "ion/Bailouts.h"
 #include "ion/VMFunctions.h"
-#include "ion/ExecutionModeInlines.h"
 
 using namespace js;
 using namespace js::ion;
@@ -72,8 +70,9 @@ struct EnterJITStack
  *   ...using standard EABI calling convention
  */
 IonCode *
-IonRuntime::generateEnterJIT(JSContext *cx)
+IonCompartment::generateEnterJIT(JSContext *cx)
 {
+    AutoFlushCache afc("GenerateEnterJIT", cx->compartment->ionCompartment());
 
     const Register reg_code  = r0;
     const Register reg_argc  = r1;
@@ -86,7 +85,6 @@ IonRuntime::generateEnterJIT(JSContext *cx)
     JS_ASSERT(OsrFrameReg == reg_frame);
 
     MacroAssembler masm(cx);
-    AutoFlushCache afc("GenerateEnterJIT", cx->runtime->ionRuntime());
     Assembler *aasm = &masm;
 
     // Save non-volatile registers. These must be saved by the trampoline,
@@ -197,13 +195,27 @@ IonRuntime::generateEnterJIT(JSContext *cx)
     GenerateReturn(masm, JS_TRUE);
 
     Linker linker(masm);
-    return linker.newCode(cx, JSC::OTHER_CODE);
+    return linker.newCode(cx);
 }
 
 IonCode *
-IonRuntime::generateInvalidator(JSContext *cx)
+IonCompartment::generateReturnError(JSContext *cx)
 {
-    // See large comment in x86's IonRuntime::generateInvalidator.
+    MacroAssembler masm(cx);
+    // This is where the stack size is stored on x86. where is it stored here?
+    masm.ma_pop(r0);
+    masm.ma_add(r0, sp, sp);
+
+    GenerateReturn(masm, JS_FALSE);
+    Linker linker(masm);
+    return linker.newCode(cx);
+}
+
+IonCode *
+IonCompartment::generateInvalidator(JSContext *cx)
+{
+    // See large comment in x86's IonCompartment::generateInvalidator.
+    AutoIonContextAlloc aica(cx);
     MacroAssembler masm(cx);
     //masm.as_bkpt();
     // At this point, one of two things has happened.
@@ -216,12 +228,12 @@ IonRuntime::generateInvalidator(JSContext *cx)
     masm.startDataTransferM(IsStore, sp, DB, WriteBack);
     // We don't have to push everything, but this is likely easier.
     // setting regs_
-    for (uint32_t i = 0; i < Registers::Total; i++)
+    for (uint32 i = 0; i < Registers::Total; i++)
         masm.transferReg(Register::FromCode(i));
     masm.finishDataTransfer();
 
     masm.startFloatTransferM(IsStore, sp, DB, WriteBack);
-    for (uint32_t i = 0; i < FloatRegisters::Total; i++)
+    for (uint32 i = 0; i < FloatRegisters::Total; i++)
         masm.transferFloatReg(FloatRegister::FromCode(i));
     masm.finishFloatTransfer();
 
@@ -243,13 +255,13 @@ IonRuntime::generateInvalidator(JSContext *cx)
     masm.ma_add(sp, r1, sp);
     masm.generateBailoutTail(r1);
     Linker linker(masm);
-    IonCode *code = linker.newCode(cx, JSC::OTHER_CODE);
+    IonCode *code = linker.newCode(cx);
     IonSpew(IonSpew_Invalidate, "   invalidation thunk created at %p", (void *) code->raw());
     return code;
 }
 
 IonCode *
-IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode)
+IonCompartment::generateArgumentsRectifier(JSContext *cx)
 {
     MacroAssembler masm(cx);
     // ArgumentsRectifierReg contains the |nargs| pushed onto the current frame.
@@ -311,7 +323,7 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode)
     // Call the target function.
     // Note that this code assumes the function is JITted.
     masm.ma_ldr(DTRAddr(r1, DtrOffImm(offsetof(JSFunction, u.i.script_))), r3);
-    masm.ma_ldr(DTRAddr(r3, DtrOffImm(OffsetOfIonInJSScript(mode))), r3);
+    masm.ma_ldr(DTRAddr(r3, DtrOffImm(offsetof(JSScript, ion))), r3);
     masm.ma_ldr(DTRAddr(r3, DtrOffImm(IonScript::offsetOfMethod())), r3);
     masm.ma_ldr(DTRAddr(r3, DtrOffImm(IonCode::offsetOfCode())), r3);
     masm.ma_callIonHalfPush(r3);
@@ -340,11 +352,11 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode)
 
     masm.ret();
     Linker linker(masm);
-    return linker.newCode(cx, JSC::OTHER_CODE);
+    return linker.newCode(cx);
 }
 
 static void
-GenerateBailoutThunk(MacroAssembler &masm, uint32_t frameClass)
+GenerateBailoutThunk(MacroAssembler &masm, uint32 frameClass)
 {
     // the stack should look like:
     // [IonFrame]
@@ -359,12 +371,12 @@ GenerateBailoutThunk(MacroAssembler &masm, uint32_t frameClass)
     masm.startDataTransferM(IsStore, sp, DB, WriteBack);
     // We don't have to push everything, but this is likely easier.
     // setting regs_
-    for (uint32_t i = 0; i < Registers::Total; i++)
+    for (uint32 i = 0; i < Registers::Total; i++)
         masm.transferReg(Register::FromCode(i));
     masm.finishDataTransfer();
 
     masm.startFloatTransferM(IsStore, sp, DB, WriteBack);
-    for (uint32_t i = 0; i < FloatRegisters::Total; i++)
+    for (uint32 i = 0; i < FloatRegisters::Total; i++)
         masm.transferFloatReg(FloatRegister::FromCode(i));
     masm.finishFloatTransfer();
 
@@ -409,7 +421,7 @@ GenerateBailoutThunk(MacroAssembler &masm, uint32_t frameClass)
     // Sp % 8 == 0
     masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, Bailout));
     // Common size of a bailout frame.
-    uint32_t bailoutFrameSize = sizeof(void *) + // frameClass
+    uint32 bailoutFrameSize = sizeof(void *) + // frameClass
                               sizeof(double) * FloatRegisters::Total +
                               sizeof(void *) * Registers::Total;
 
@@ -420,13 +432,13 @@ GenerateBailoutThunk(MacroAssembler &masm, uint32_t frameClass)
         // used to be: offsetof(BailoutStack, frameSize_)
         // this structure is no longer available to us :(
         // We add 12 to the bailoutFrameSize because:
-        // sizeof(uint32_t) for the tableOffset that was pushed onto the stack
+        // sizeof(uint32) for the tableOffset that was pushed onto the stack
         // sizeof(uintptr_t) for the snapshotOffset;
         // alignment to round the uintptr_t up to a multiple of 8 bytes.
         masm.ma_add(sp, Imm32(bailoutFrameSize+12), sp);
         masm.as_add(sp, sp, O2Reg(r4));
     } else {
-        uint32_t frameSize = FrameSizeClass::FromClass(frameClass).frameSize();
+        uint32 frameSize = FrameSizeClass::FromClass(frameClass).frameSize();
         masm.ma_add(Imm32(frameSize // the frame that was added when we entered the most recent function
                           + sizeof(void*) // the size of the "return address" that was dumped on the stack
                           + bailoutFrameSize) // everything else that was pushed on the stack
@@ -436,9 +448,9 @@ GenerateBailoutThunk(MacroAssembler &masm, uint32_t frameClass)
 }
 
 IonCode *
-IonRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
+IonCompartment::generateBailoutTable(JSContext *cx, uint32 frameClass)
 {
-    MacroAssembler masm(cx);
+    MacroAssembler masm;
 
     Label bailout;
     for (size_t i = 0; i < BAILOUT_TABLE_SIZE; i++)
@@ -448,21 +460,21 @@ IonRuntime::generateBailoutTable(JSContext *cx, uint32_t frameClass)
     GenerateBailoutThunk(masm, frameClass);
 
     Linker linker(masm);
-    return linker.newCode(cx, JSC::OTHER_CODE);
+    return linker.newCode(cx);
 }
 
 IonCode *
-IonRuntime::generateBailoutHandler(JSContext *cx)
+IonCompartment::generateBailoutHandler(JSContext *cx)
 {
-    MacroAssembler masm(cx);
+    MacroAssembler masm;
     GenerateBailoutThunk(masm, NO_FRAME_SIZE_CLASS_ID);
 
     Linker linker(masm);
-    return linker.newCode(cx, JSC::OTHER_CODE);
+    return linker.newCode(cx);
 }
 
 IonCode *
-IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
+IonCompartment::generateVMWrapper(JSContext *cx, const VMFunction &f)
 {
     typedef MoveResolver::MoveOperand MoveOperand;
 
@@ -473,7 +485,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
         return p->value;
 
     // Generate a separated code for the wrapper.
-    MacroAssembler masm(cx);
+    MacroAssembler masm;
     GeneralRegisterSet regs = GeneralRegisterSet(Register::Codes::WrapperMask);
 
     // Wrapper register set is a superset of Volatile register set.
@@ -515,7 +527,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
       case Type_Int32:
         outReg = r4;
         regs.take(outReg);
-        masm.reserveStack(sizeof(int32_t));
+        masm.reserveStack(sizeof(int32));
         masm.ma_mov(sp, outReg);
         break;
 
@@ -535,29 +547,31 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
     size_t argDisp = 0;
 
-    // Copy any arguments.
-    for (uint32_t explicitArg = 0; explicitArg < f.explicitArgs; explicitArg++) {
-        MoveOperand from;
-        switch (f.argProperties(explicitArg)) {
-          case VMFunction::WordByValue:
-            masm.passABIArg(MoveOperand(argsBase, argDisp));
-            argDisp += sizeof(void *);
-            break;
-          case VMFunction::DoubleByValue:
-            JS_NOT_REACHED("VMCalls with double-size value arguments is not supported.");
-            masm.passABIArg(MoveOperand(argsBase, argDisp));
-            argDisp += sizeof(void *);
-            masm.passABIArg(MoveOperand(argsBase, argDisp));
-            argDisp += sizeof(void *);
-            break;
-          case VMFunction::WordByRef:
-            masm.passABIArg(MoveOperand(argsBase, argDisp, MoveOperand::EFFECTIVE));
-            argDisp += sizeof(void *);
-            break;
-          case VMFunction::DoubleByRef:
-            masm.passABIArg(MoveOperand(argsBase, argDisp, MoveOperand::EFFECTIVE));
-            argDisp += 2 * sizeof(void *);
-            break;
+    // Copy arguments.
+    if (f.explicitArgs) {
+        for (uint32 explicitArg = 0; explicitArg < f.explicitArgs; explicitArg++) {
+            MoveOperand from;
+            switch (f.argProperties(explicitArg)) {
+              case VMFunction::WordByValue:
+                masm.passABIArg(MoveOperand(argsBase, argDisp));
+                argDisp += sizeof(void *);
+                break;
+              case VMFunction::DoubleByValue:
+                JS_NOT_REACHED("VMCalls with double-size value arguments is not supported.");
+                masm.passABIArg(MoveOperand(argsBase, argDisp));
+                argDisp += sizeof(void *);
+                masm.passABIArg(MoveOperand(argsBase, argDisp));
+                argDisp += sizeof(void *);
+                break;
+              case VMFunction::WordByRef:
+                masm.passABIArg(MoveOperand(argsBase, argDisp, MoveOperand::EFFECTIVE));
+                argDisp += sizeof(void *);
+                break;
+              case VMFunction::DoubleByRef:
+                masm.passABIArg(MoveOperand(argsBase, argDisp, MoveOperand::EFFECTIVE));
+                argDisp += 2 * sizeof(void *);
+                break;
+            }
         }
     }
 
@@ -583,7 +597,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
       case Type_Int32:
         masm.load32(Address(sp, 0), ReturnReg);
-        masm.freeStack(sizeof(int32_t));
+        masm.freeStack(sizeof(int32));
         break;
 
       default:
@@ -597,7 +611,7 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
     masm.handleException();
 
     Linker linker(masm);
-    IonCode *wrapper = linker.newCode(cx, JSC::OTHER_CODE);
+    IonCode *wrapper = linker.newCode(cx);
     if (!wrapper)
         return NULL;
 
@@ -610,31 +624,26 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 }
 
 IonCode *
-IonRuntime::generatePreBarrier(JSContext *cx, MIRType type)
+IonCompartment::generatePreBarrier(JSContext *cx)
 {
-    MacroAssembler masm(cx);
+    MacroAssembler masm;
 
     RegisterSet save = RegisterSet(GeneralRegisterSet(Registers::VolatileMask),
                                    FloatRegisterSet(FloatRegisters::VolatileMask));
     masm.PushRegsInMask(save);
 
     JS_ASSERT(PreBarrierReg == r1);
-    masm.movePtr(ImmWord(cx->runtime), r0);
+    masm.movePtr(ImmWord(cx->compartment), r0);
 
     masm.setupUnalignedABICall(2, r2);
     masm.passABIArg(r0);
     masm.passABIArg(r1);
-    if (type == MIRType_Value) {
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, MarkValueFromIon));
-    } else {
-        JS_ASSERT(type == MIRType_Shape);
-        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, MarkShapeFromIon));
-    }
+    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, MarkFromIon));
 
     masm.PopRegsInMask(save);
     masm.ret();
 
     Linker linker(masm);
-    return linker.newCode(cx, JSC::OTHER_CODE);
+    return linker.newCode(cx);
 }
 

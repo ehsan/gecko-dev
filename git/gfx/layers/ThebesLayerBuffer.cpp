@@ -12,8 +12,7 @@
 #include "gfxUtils.h"
 #include "ipc/AutoOpenSurface.h"
 #include "nsDeviceContext.h"
-#include "GeckoProfiler.h"
-#include <algorithm>
+#include "sampler.h"
 
 namespace mozilla {
 namespace layers {
@@ -105,7 +104,7 @@ ThebesLayerBuffer::DrawBufferWithRotation(gfxContext* aTarget, float aOpacity,
                                           gfxASurface* aMask,
                                           const gfxMatrix* aMaskTransform)
 {
-  PROFILER_LABEL("ThebesLayerBuffer", "DrawBufferWithRotation");
+  SAMPLE_LABEL("ThebesLayerBuffer", "DrawBufferWithRotation");
   // Draw four quadrants. We could use REPEAT_, but it's probably better
   // not to, to be performance-safe.
   DrawBufferQuadrant(aTarget, LEFT, TOP, aOpacity, aMask, aMaskTransform);
@@ -179,7 +178,7 @@ ComputeBufferRect(const nsIntRect& aRequestedRect)
   // dimensions).  64 is the magic number needed to work around the
   // rendering glitch, and guarantees image rows can be SIMD'd for
   // even r5g6b5 surfaces pretty much everywhere.
-  rect.width = std::max(aRequestedRect.width, 64);
+  rect.width = NS_MAX(aRequestedRect.width, 64);
   return rect;
 }
 

@@ -7,7 +7,6 @@
 #define MOZILLA_TRACKUNIONSTREAM_H_
 
 #include "MediaStreamGraph.h"
-#include <algorithm>
 
 namespace mozilla {
 
@@ -24,7 +23,7 @@ namespace mozilla {
  */
 class TrackUnionStream : public ProcessedMediaStream {
 public:
-  TrackUnionStream(DOMMediaStream* aWrapper) :
+  TrackUnionStream(nsDOMMediaStream* aWrapper) :
     ProcessedMediaStream(aWrapper),
     mMaxTrackID(0) {}
 
@@ -47,27 +46,22 @@ public:
       mappedTracksWithMatchingInputTracks.AppendElement(false);
     }
     bool allFinished = true;
-    bool allHaveCurrentData = true;
     for (uint32_t i = 0; i < mInputs.Length(); ++i) {
       MediaStream* stream = mInputs[i]->GetSource();
       if (!stream->IsFinishedOnGraphThread()) {
         allFinished = false;
-      }
-      if (!stream->HasCurrentData()) {
-        allHaveCurrentData = false;
       }
       for (StreamBuffer::TrackIter tracks(stream->GetStreamBuffer());
            !tracks.IsEnded(); tracks.Next()) {
         bool found = false;
         for (uint32_t j = 0; j < mTrackMap.Length(); ++j) {
           TrackMapEntry* map = &mTrackMap[j];
-          if (map->mInputPort == mInputs[i] && map->mInputTrackID == tracks->GetID()) {
+          if (map->mInputPort == mInputs[i] && map->mInputTrack == tracks.get()) {
             bool trackFinished;
-            StreamBuffer::Track* outputTrack = mBuffer.FindTrack(map->mOutputTrackID);
-            if (!outputTrack || outputTrack->IsEnded()) {
+            if (map->mOutputTrack->IsEnded()) {
               trackFinished = true;
             } else {
-              CopyTrackData(tracks.get(), j, aFrom, aTo, &trackFinished);
+              CopyTrackData(j, aFrom, aTo, &trackFinished);
             }
             mappedTracksFinished[j] = trackFinished;
             mappedTracksWithMatchingInputTracks[j] = true;
@@ -78,7 +72,7 @@ public:
         if (!found) {
           bool trackFinished = false;
           uint32_t mapIndex = AddTrack(mInputs[i], tracks.get(), aFrom);
-          CopyTrackData(tracks.get(), mapIndex, aFrom, aTo, &trackFinished);
+          CopyTrackData(mapIndex, aFrom, aTo, &trackFinished);
           mappedTracksFinished.AppendElement(trackFinished);
           mappedTracksWithMatchingInputTracks.AppendElement(true);
         }
@@ -101,23 +95,14 @@ public:
       FinishOnGraphThread();
     }
     mBuffer.AdvanceKnownTracksTime(GraphTimeToStreamTime(aTo));
-    if (allHaveCurrentData) {
-      // We can make progress if we're not blocked
-      mHasCurrentData = true;
-    }
   }
 
 protected:
   // Only non-ended tracks are allowed to persist in this map.
   struct TrackMapEntry {
     MediaInputPort* mInputPort;
-    // We keep track IDs instead of track pointers because
-    // tracks can be removed without us being notified (e.g.
-    // when a finished track is forgotten.) When we need a Track*,
-    // we call StreamBuffer::FindTrack, which will return null if
-    // the track has been deleted.
-    TrackID mInputTrackID;
-    TrackID mOutputTrackID;
+    StreamBuffer::Track* mInputTrack;
+    StreamBuffer::Track* mOutputTrack;
     nsAutoPtr<MediaSegment> mSegment;
   };
 
@@ -126,7 +111,7 @@ protected:
   {
     // Use the ID of the source track if we can, otherwise allocate a new
     // unique ID
-    TrackID id = std::max(mMaxTrackID + 1, aTrack->GetID());
+    TrackID id = NS_MAX(mMaxTrackID + 1, aTrack->GetID());
     mMaxTrackID = id;
 
     TrackRate rate = aTrack->GetRate();
@@ -152,15 +137,15 @@ protected:
 
     TrackMapEntry* map = mTrackMap.AppendElement();
     map->mInputPort = aPort;
-    map->mInputTrackID = aTrack->GetID();
-    map->mOutputTrackID = track->GetID();
+    map->mInputTrack = aTrack;
+    map->mOutputTrack = track;
     map->mSegment = aTrack->GetSegment()->CreateEmptyClone();
     return mTrackMap.Length() - 1;
   }
   void EndTrack(uint32_t aIndex)
   {
-    StreamBuffer::Track* outputTrack = mBuffer.FindTrack(mTrackMap[aIndex].mOutputTrackID);
-    if (!outputTrack || outputTrack->IsEnded())
+    StreamBuffer::Track* outputTrack = mTrackMap[aIndex].mOutputTrack;
+    if (outputTrack->IsEnded())
       return;
     for (uint32_t j = 0; j < mListeners.Length(); ++j) {
       MediaStreamListener* l = mListeners[j];
@@ -174,23 +159,23 @@ protected:
     }
     outputTrack->SetEnded();
   }
-  void CopyTrackData(StreamBuffer::Track* aInputTrack,
-                     uint32_t aMapIndex, GraphTime aFrom, GraphTime aTo,
+  void CopyTrackData(uint32_t aMapIndex, GraphTime aFrom, GraphTime aTo,
                      bool* aOutputTrackFinished)
   {
     TrackMapEntry* map = &mTrackMap[aMapIndex];
-    StreamBuffer::Track* outputTrack = mBuffer.FindTrack(map->mOutputTrackID);
-    MOZ_ASSERT(outputTrack && !outputTrack->IsEnded(), "Can't copy to ended track");
-
+    StreamBuffer::Track* inputTrack = map->mInputTrack;
+    StreamBuffer::Track* outputTrack = map->mOutputTrack;
     TrackRate rate = outputTrack->GetRate();
     MediaSegment* segment = map->mSegment;
     MediaStream* source = map->mInputPort->GetSource();
+
+    NS_ASSERTION(!outputTrack->IsEnded(), "Can't copy to ended track");
 
     GraphTime next;
     *aOutputTrackFinished = false;
     for (GraphTime t = aFrom; t < aTo; t = next) {
       MediaInputPort::InputInterval interval = map->mInputPort->GetNextInputInterval(t);
-      interval.mEnd = std::min(interval.mEnd, aTo);
+      interval.mEnd = NS_MIN(interval.mEnd, aTo);
       if (interval.mStart >= interval.mEnd)
         break;
       next = interval.mEnd;
@@ -209,10 +194,10 @@ protected:
       StreamTime inputEnd = source->GraphTimeToStreamTime(interval.mEnd);
       TrackTicks inputTrackEndPoint = TRACK_TICKS_MAX;
 
-      if (aInputTrack->IsEnded()) {
-        TrackTicks inputEndTicks = aInputTrack->TimeToTicksRoundDown(inputEnd);
-        if (aInputTrack->GetEnd() <= inputEndTicks) {
-          inputTrackEndPoint = aInputTrack->GetEnd();
+      if (inputTrack->IsEnded()) {
+        TrackTicks inputEndTicks = inputTrack->TimeToTicksRoundDown(inputEnd);
+        if (inputTrack->GetEnd() <= inputEndTicks) {
+          inputTrackEndPoint = inputTrack->GetEnd();
           *aOutputTrackFinished = true;
         }
       }
@@ -232,11 +217,11 @@ protected:
         // We'll take the latest samples we can.
         TrackTicks inputEndTicks = TimeToTicksRoundUp(rate, inputEnd);
         TrackTicks inputStartTicks = inputEndTicks - ticks;
-        segment->AppendSlice(*aInputTrack->GetSegment(),
-                             std::min(inputTrackEndPoint, inputStartTicks),
-                             std::min(inputTrackEndPoint, inputEndTicks));
+        segment->AppendSlice(*inputTrack->GetSegment(),
+                             NS_MIN(inputTrackEndPoint, inputStartTicks),
+                             NS_MIN(inputTrackEndPoint, inputEndTicks));
         LOG(PR_LOG_DEBUG, ("TrackUnionStream %p appending %lld ticks of input data to track %d",
-            this, (long long)(std::min(inputTrackEndPoint, inputEndTicks) - std::min(inputTrackEndPoint, inputStartTicks)),
+            this, (long long)(NS_MIN(inputTrackEndPoint, inputEndTicks) - NS_MIN(inputTrackEndPoint, inputStartTicks)),
             outputTrack->GetID()));
       }
       for (uint32_t j = 0; j < mListeners.Length(); ++j) {

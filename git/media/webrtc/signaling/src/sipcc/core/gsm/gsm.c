@@ -34,7 +34,7 @@ static void sub_process_feature_notify(ccsip_sub_not_data_t *msg, callid_t call_
 static void sub_process_b2bcnf_msg(uint32_t cmd, void *msg);
 void fsmb2bcnf_get_sub_call_id_from_ccb(fsmcnf_ccb_t *ccb, callid_t *cnf_call_id,
                 callid_t *cns_call_id);
-extern cprMsgQueue_t gsm_msgq;
+cprMsgQueue_t gsm_msg_queue;
 void destroy_gsm_thread(void);
 void dp_shutdown();
 extern void dcsm_process_jobs(void);
@@ -86,7 +86,7 @@ gsm_send_msg (uint32_t cmd, cprBuffer_t buf, uint16_t len)
     syshdr->Cmd = cmd;
     syshdr->Len = len;
 
-    if (cprSendMessage(gsm_msgq, buf, (void **) &syshdr) == CPR_FAILURE) {
+    if (cprSendMessage(gsm_msg_queue, buf, (void **) &syshdr) == CPR_FAILURE) {
         cprReleaseSysHeader(syshdr);
         return CPR_FAILURE;
     }
@@ -264,9 +264,13 @@ GSMTask (void *arg)
     phn_syshdr_t   *syshdr;
     boolean        release_msg = TRUE;
 
-    MOZ_ASSERT (gsm_msgq == (cprMsgQueue_t) arg);
-
-    if (!gsm_msgq) {
+    /*
+     * Get the GSM message queue handle
+     * A hack until the tasks in irx are
+     * CPRized.
+     */
+    gsm_msg_queue = (cprMsgQueue_t) arg;
+    if (!gsm_msg_queue) {
         GSM_ERR_MSG(GSM_F_PREFIX"invalid input, exiting\n", fname);
         return;
     }
@@ -308,7 +312,7 @@ GSMTask (void *arg)
 
         release_msg = TRUE;
 
-        msg = cprGetMessage(gsm_msgq, TRUE, (void **) &syshdr);
+        msg = cprGetMessage(gsm_msg_queue, TRUE, (void **) &syshdr);
         if (msg) {
             switch (syshdr->Cmd) {
             case TIMER_EXPIRATION:
@@ -344,6 +348,14 @@ GSMTask (void *arg)
             case SUB_MSG_FEATURE_NOTIFY:
             case SUB_MSG_FEATURE_TERMINATE:
                 sub_process_feature_msg(syshdr->Cmd, msg);
+                break;
+
+            case SUB_MSG_KPML_SUBSCRIBE:
+            case SUB_MSG_KPML_TERMINATE:
+            case SUB_MSG_KPML_NOTIFY_ACK:
+            case SUB_MSG_KPML_SUBSCRIBE_TIMER:
+            case SUB_MSG_KPML_DIGIT_TIMER:
+                kpml_process_msg(syshdr->Cmd, msg);
                 break;
 
             case REG_MGR_STATE_CHANGE:
@@ -591,5 +603,6 @@ void destroy_gsm_thread()
         DEB_F_PREFIX_ARGS(SIP_CC_INIT, fname));
     gsm_shutdown();
     dp_shutdown();
+    kpml_shutdown();
     (void) cprDestroyThread(gsm_thread);
 }

@@ -59,7 +59,6 @@ InitRndisAddress()
 
   property_get("ro.serialno", serialno, "1234567890ABCDEF");
 
-  memset(address, 0, sizeof(address));
   // First byte is 0x02 to signify a locally administered address.
   address[0] = 0x02;
   length = strlen(serialno);
@@ -85,10 +84,10 @@ namespace mozilla {
 namespace ipc {
 
 NetdClient::NetdClient()
-  : LineWatcher('\0', MAX_COMMAND_SIZE)
+  : mSocket(INVALID_SOCKET)
   , mIOLoop(MessageLoopForIO::current())
-  , mSocket(INVALID_SOCKET)
   , mCurrentWriteOffset(0)
+  , mReceivedIndex(0)
   , mReConnectTimes(0)
 {
   MOZ_COUNT_CTOR(NetdClient);
@@ -148,25 +147,63 @@ NetdClient::OpenSocket()
   return true;
 }
 
-void NetdClient::OnLineRead(int aFd, nsDependentCSubstring& aMessage)
+void
+NetdClient::OnFileCanReadWithoutBlocking(int aFd)
 {
-  // Set errno to 0 first. For preventing to use the stale version of errno.
-  errno = 0;
-  // We found a line terminator. Each line is formatted as an
-  // integer response code followed by the rest of the line.
-  // Fish out the response code.
-  int responseCode = strtol(aMessage.Data(), nullptr, 10);
-  // TODO, Bug 783966, handle InterfaceChange(600) and BandwidthControl(601).
-  if (!errno && responseCode < 600) {
-    NetdCommand* response = new NetdCommand();
-    // Passing all the response message, including the line terminator.
-    response->mSize = aMessage.Length();
-    memcpy(response->mData, aMessage.Data(), aMessage.Length());
-    gNetdConsumer->MessageReceived(response);
-  }
+  ssize_t length = 0;
 
-  if (!responseCode) {
-    LOG("Can't parse netd's response");
+  MOZ_ASSERT(aFd == mSocket.get());
+  while (true) {
+    errno = 0;
+    MOZ_ASSERT(mReceivedIndex < MAX_COMMAND_SIZE);
+    length = read(aFd, &mReceiveBuffer[mReceivedIndex], MAX_COMMAND_SIZE - mReceivedIndex);
+    MOZ_ASSERT(length <= ssize_t(MAX_COMMAND_SIZE - mReceivedIndex));
+    if (length <= 0) {
+      if (length == -1) {
+        if (errno == EINTR) {
+          continue; // retry system call when interrupted
+        }
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          return; // no data available: return and re-poll
+        }
+      }
+      LOG("Can't read from netd error: %d (%s) length: %d", errno, strerror(errno), length);
+      // At this point, assume that we can't actually access
+      // the socket anymore, and start a reconnect loop.
+      Restart();
+      return;
+    }
+
+    while (length-- > 0) {
+      MOZ_ASSERT(mReceivedIndex < MAX_COMMAND_SIZE);
+      if (mReceiveBuffer[mReceivedIndex] == '\0') {
+        // We found a line terminator. Each line is formatted as an
+        // integer response code followed by the rest of the line.
+        // Fish out the response code.
+        errno = 0;
+        int responseCode = strtol(mReceiveBuffer, nullptr, 10);
+        // TODO, Bug 783966, handle InterfaceChange(600) and BandwidthControl(601).
+        if (!errno && responseCode < 600) {
+          NetdCommand* response = new NetdCommand();
+          // Passing all the response message, including the line terminator.
+          response->mSize = mReceivedIndex + 1;
+          memcpy(response->mData, mReceiveBuffer, mReceivedIndex + 1);
+          gNetdConsumer->MessageReceived(response);
+        }
+        if (!responseCode || errno) {
+          LOG("Can't parse netd's response: %d (%s)", errno, strerror(errno));
+        }
+        // There is data in the receive buffer beyond the current line.
+        // Shift it down to the beginning.
+        if (length > 0) {
+          MOZ_ASSERT(mReceivedIndex < (MAX_COMMAND_SIZE - 1));
+          memmove(&mReceiveBuffer[0], &mReceiveBuffer[mReceivedIndex + 1], length);
+        }
+        mReceivedIndex = 0;
+      } else {
+        mReceivedIndex++;
+      }
+    }
   }
 }
 
@@ -178,7 +215,7 @@ NetdClient::OnFileCanWriteWithoutBlocking(int aFd)
 }
 
 void
-NetdClient::OnError()
+NetdClient::Restart()
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
 
@@ -186,6 +223,7 @@ NetdClient::OnError()
   mWriteWatcher.StopWatchingFileDescriptor();
 
   mSocket.dispose();
+  mReceivedIndex = 0;
   mCurrentWriteOffset = 0;
   mCurrentNetdCommand = nullptr;
   while (!mOutgoingQ.empty()) {
@@ -261,7 +299,7 @@ NetdClient::WriteNetdCommand()
                             write_amount);
     if (written < 0) {
       LOG("Cannot write to network, error %d\n", (int) written);
-      OnError();
+      Restart();
       return;
     }
 

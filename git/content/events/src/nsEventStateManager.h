@@ -6,27 +6,28 @@
 #ifndef nsEventStateManager_h__
 #define nsEventStateManager_h__
 
-#include "mozilla/TypedEnum.h"
-
 #include "nsEvent.h"
 #include "nsGUIEvent.h"
+#include "nsIContent.h"
 #include "nsIObserver.h"
 #include "nsWeakReference.h"
+#include "nsHashtable.h"
 #include "nsITimer.h"
 #include "nsCOMPtr.h"
+#include "nsIDocument.h"
 #include "nsCOMArray.h"
 #include "nsIFrameLoader.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIScrollableFrame.h"
 #include "nsFocusManager.h"
+#include "nsIDocument.h"
 #include "nsEventStates.h"
 #include "mozilla/TimeStamp.h"
+#include "nsContentUtils.h"
 #include "nsIFrame.h"
 
 class nsIPresShell;
-class nsIContent;
-class nsIDocument;
 class nsIDocShell;
 class nsIDocShellTreeNode;
 class nsIDocShellTreeItem;
@@ -162,18 +163,28 @@ public:
     }
   }
 
+  static bool IsHandlingUserInput()
+  {
+    if (sUserInputEventDepth <= 0) {
+      return false;
+    }
+    TimeDuration timeout = nsContentUtils::HandlingUserInputTimeout();
+    return timeout <= TimeDuration(0) ||
+           (TimeStamp::Now() - sHandlingInputStart) <= timeout;
+  }
+
   /**
    * Returns true if the current code is being executed as a result of user input.
    * This includes timers or anything else that is initiated from user input.
-   * However, mouse over events are not counted as user input, nor are
+   * However, mouse hover events are not counted as user input, nor are
    * page load events. If this method is called from asynchronously executed code,
    * such as during layout reflows, it will return false. If more time has elapsed
    * since the user input than is specified by the
    * dom.event.handling-user-input-time-limit pref (default 1 second), this
    * function also returns false.
    */
-  static bool IsHandlingUserInput();
-
+  NS_IMETHOD_(bool) IsHandlingUserInputExternal() { return IsHandlingUserInput(); }
+  
   nsPresContext* GetPresContext() { return mPresContext; }
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsEventStateManager,
@@ -341,7 +352,7 @@ protected:
     /**
      * Computes the default action for the aEvent with the prefs.
      */
-    enum Action MOZ_ENUM_TYPE(uint8_t)
+    enum Action
     {
       ACTION_NONE = 0,
       ACTION_SCROLL,
@@ -356,13 +367,6 @@ protected:
      * computed the lineOrPageDelta values.
      */
     bool NeedToComputeLineOrPageDelta(mozilla::widget::WheelEvent* aEvent);
-
-    /**
-     * IsOverOnePageScrollAllowed*() checks whether wheel scroll amount should
-     * be rounded down to the page width/height (false) or not (true).
-     */
-    bool IsOverOnePageScrollAllowedX(mozilla::widget::WheelEvent* aEvent);
-    bool IsOverOnePageScrollAllowedY(mozilla::widget::WheelEvent* aEvent);
 
   private:
     WheelPrefs();
@@ -405,26 +409,11 @@ protected:
 
     void Reset();
 
-    /**
-     * If the abosolute values of mMultiplierX and/or mMultiplierY are equals or
-     * larger than this value, the computed scroll amount isn't rounded down to
-     * the page width or height.
-     */
-    enum {
-      MIN_MULTIPLIER_VALUE_ALLOWING_OVER_ONE_PAGE_SCROLL = 1000
-    };
-
     bool mInit[COUNT_OF_MULTIPLIERS];
     double mMultiplierX[COUNT_OF_MULTIPLIERS];
     double mMultiplierY[COUNT_OF_MULTIPLIERS];
     double mMultiplierZ[COUNT_OF_MULTIPLIERS];
     Action mActions[COUNT_OF_MULTIPLIERS];
-    /**
-     * action values overridden by .override_x pref.
-     * If an .override_x value is -1, same as the
-     * corresponding mActions value.
-     */
-    Action mOverriddenActionsX[COUNT_OF_MULTIPLIERS];
 
     static WheelPrefs* sInstance;
   };
@@ -813,7 +802,7 @@ public:
       if (mIsMouseDown) {
         nsIPresShell::SetCapturingContent(nullptr, 0);
         nsIPresShell::AllowMouseCapture(true);
-        if (aDocument && aEvent->mFlags.mIsTrusted) {
+        if (aDocument && NS_IS_TRUSTED_EVENT(aEvent)) {
           nsFocusManager* fm = nsFocusManager::GetFocusManager();
           if (fm) {
             fm->SetMouseButtonDownHandlingDocument(aDocument);

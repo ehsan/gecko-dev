@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
-
 #include "SVGPathSegListSMILType.h"
 #include "nsSMILValue.h"
 #include "SVGPathSegUtils.h"
 #include "SVGPathData.h"
+#include "mozilla/Util.h"
+#include <math.h>
 
 // Indices of boolean flags within 'arc' segment chunks in path-data arrays
 // (where '0' would correspond to the index of the encoded segment type):
@@ -325,18 +325,18 @@ ConvertPathSegmentData(SVGPathDataAndOwner::const_iterator& aStart,
   aResult[0] = aEnd[0];
 
   switch (endType) {
-    case PATHSEG_LINETO_HORIZONTAL_ABS:
-    case PATHSEG_LINETO_HORIZONTAL_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_HORIZONTAL_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_HORIZONTAL_REL:
       aResult[1] = aStart[1] +
         (adjustmentType == eRelativeToAbsolute ? 1 : -1) * aState.pos.x;
       break;
-    case PATHSEG_LINETO_VERTICAL_ABS:
-    case PATHSEG_LINETO_VERTICAL_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_VERTICAL_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_VERTICAL_REL:
       aResult[1] = aStart[1] +
         (adjustmentType == eRelativeToAbsolute  ? 1 : -1) * aState.pos.y;
       break;
-    case PATHSEG_ARC_ABS:
-    case PATHSEG_ARC_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_ARC_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_ARC_REL:
       aResult[1] = aStart[1];
       aResult[2] = aStart[2];
       aResult[3] = aStart[3];
@@ -346,26 +346,26 @@ ConvertPathSegmentData(SVGPathDataAndOwner::const_iterator& aStart,
       aResult[7] = aStart[7];
       AdjustSegmentForRelativeness(adjustmentType, aResult + 6, aState);
       break;
-    case PATHSEG_CURVETO_CUBIC_ABS:
-    case PATHSEG_CURVETO_CUBIC_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_REL:
       aResult[5] = aStart[5];
       aResult[6] = aStart[6];
       AdjustSegmentForRelativeness(adjustmentType, aResult + 5, aState);
       // fall through
-    case PATHSEG_CURVETO_QUADRATIC_ABS:
-    case PATHSEG_CURVETO_QUADRATIC_REL:
-    case PATHSEG_CURVETO_CUBIC_SMOOTH_ABS:
-    case PATHSEG_CURVETO_CUBIC_SMOOTH_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_SMOOTH_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_CUBIC_SMOOTH_REL:
       aResult[3] = aStart[3];
       aResult[4] = aStart[4];
       AdjustSegmentForRelativeness(adjustmentType, aResult + 3, aState);
       // fall through
-    case PATHSEG_MOVETO_ABS:
-    case PATHSEG_MOVETO_REL:
-    case PATHSEG_LINETO_ABS:
-    case PATHSEG_LINETO_REL:
-    case PATHSEG_CURVETO_QUADRATIC_SMOOTH_ABS:
-    case PATHSEG_CURVETO_QUADRATIC_SMOOTH_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_MOVETO_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_MOVETO_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_LINETO_REL:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_SMOOTH_ABS:
+    case nsIDOMSVGPathSeg::PATHSEG_CURVETO_QUADRATIC_SMOOTH_REL:
       aResult[1] = aStart[1];
       aResult[2] = aStart[2];
       AdjustSegmentForRelativeness(adjustmentType, aResult + 1, aState);

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-this.EXPORTED_SYMBOLS = ["Service"];
+const EXPORTED_SYMBOLS = ["Service"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
@@ -74,10 +74,6 @@ Sync11Service.prototype = {
 
   get serverURL() Svc.Prefs.get("serverURL"),
   set serverURL(value) {
-    if (!value.endsWith("/")) {
-      value += "/";
-    }
-
     // Only do work if it's actually changing
     if (value == this.serverURL)
       return;
@@ -120,6 +116,10 @@ Sync11Service.prototype = {
 
   get pwResetURL() {
     return this.serverURL + "weave-password-reset";
+  },
+
+  get updatedURL() {
+    return WEAVE_CHANNEL == "dev" ? UPDATED_DEV_URL : UPDATED_REL_URL;
   },
 
   get syncID() {
@@ -362,14 +362,6 @@ Sync11Service.prototype = {
     // registering an observer.
     Utils.nextTick(function onNextTick() {
       this.status.ready = true;
-
-      // UI code uses the flag on the XPCOM service so it doesn't have
-      // to load a bunch of modules.
-      let xps = Cc["@mozilla.org/weave/service;1"]
-                  .getService(Ci.nsISupports)
-                  .wrappedJSObject;
-      xps.ready = true;
-
       Svc.Obs.notify("weave:service:ready");
     }.bind(this));
   },
@@ -1483,5 +1475,5 @@ Sync11Service.prototype = {
   },
 };
 
-this.Service = new Sync11Service();
+let Service = new Sync11Service();
 Service.onStartup();

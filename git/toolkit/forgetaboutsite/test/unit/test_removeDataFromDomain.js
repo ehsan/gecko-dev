@@ -12,13 +12,9 @@
 ////////////////////////////////////////////////////////////////////////////////
 //// Globals
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
 Cu.import("resource://gre/modules/ForgetAboutSite.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-                                  "resource://gre/modules/commonjs/sdk/core/promise.js");
 
 const COOKIE_EXPIRY = Math.round(Date.now() / 1000) + 60;
 const COOKIE_NAME = "testcookie";
@@ -52,87 +48,32 @@ function uri(aURIString)
 }
 
 /**
- * Asynchronously adds visits to a page.
- *
- * @param aPlaceInfo
- *        Can be an nsIURI, in such a case a single LINK visit will be added.
- *        Otherwise can be an object describing the visit to add, or an array
- *        of these objects:
- *          { uri: nsIURI of the page,
- *            transition: one of the TRANSITION_* from nsINavHistoryService,
- *            [optional] title: title of the page,
- *            [optional] visitDate: visit date in microseconds from the epoch
- *            [optional] referrer: nsIURI of the referrer for this visit
- *          }
- *
- * @return {Promise}
- * @resolves When all visits have been added successfully.
- * @rejects JavaScript exception.
- */
-function promiseAddVisits(aPlaceInfo)
-{
-  let deferred = Promise.defer();
-  let places = [];
-  if (aPlaceInfo instanceof Ci.nsIURI) {
-    places.push({ uri: aPlaceInfo });
-  }
-  else if (Array.isArray(aPlaceInfo)) {
-    places = places.concat(aPlaceInfo);
-  } else {
-    places.push(aPlaceInfo)
-  }
-
-  // Create mozIVisitInfo for each entry.
-  let now = Date.now();
-  for (let i = 0; i < places.length; i++) {
-    if (!places[i].title) {
-      places[i].title = "test visit for " + places[i].uri.spec;
-    }
-    places[i].visits = [{
-      transitionType: places[i].transition === undefined ? Ci.nsINavHistoryService.TRANSITION_LINK
-                                                         : places[i].transition,
-      visitDate: places[i].visitDate || (now++) * 1000,
-      referrerURI: places[i].referrer
-    }];
-  }
-
-  PlacesUtils.asyncHistory.updatePlaces(
-    places,
-    {
-      handleError: function handleError(aResultCode, aPlaceInfo) {
-        let ex = new Components.Exception("Unexpected error in adding visits.",
-                                          aResultCode);
-        deferred.reject(ex);
-      },
-      handleResult: function () {},
-      handleCompletion: function handleCompletion() {
-        deferred.resolve();
-      }
-    }
-  );
-
-  return deferred.promise;
-}
-
-
-/**
- * Asynchronously check a url is visited.
+ * Adds a visit to history.
  *
  * @param aURI
- *        The URI.
- *
- * @return {Promise}
- * @resolves When the check has been added successfully.
- * @rejects JavaScript exception.
+ *        The URI to add.
  */
-function promiseIsURIVisited(aURI)
+function add_visit(aURI)
 {
-  let deferred = Promise.defer();
-  PlacesUtils.asyncHistory.isURIVisited(aURI, function(aURI, aIsVisited) {
-    deferred.resolve(aIsVisited);
-  });
+  check_visited(aURI, false);
+  PlacesUtils.history.addVisit(aURI, Date.now() * 1000, null,
+                               Ci.nsINavHistoryService.TRANSITION_LINK, false,
+                               0);
+  check_visited(aURI, true);
+}
 
-  return deferred.promise;
+/**
+ * Checks to ensure a URI string is visited or not.
+ *
+ * @param aURI
+ *        The URI to check.
+ * @param aIsVisited
+ *        True if the URI should be visited, false otherwise.
+ */
+function check_visited(aURI, aIsVisited)
+{
+  let checker = aIsVisited ? do_check_true : do_check_false;
+  checker(PlacesUtils.ghistory2.isVisited(aURI));
 }
 
 /**
@@ -180,25 +121,17 @@ function check_cookie_exists(aDomain, aExists)
  */
 function add_download(aURIString, aIsActive)
 {
-  function makeGUID() {
-    let guid = "";
-    for (var i = 0; i < 12; i++)
-      guid += Math.floor(Math.random() * 10);
-    return guid;
-  }
-
   check_downloaded(aURIString, false);
   let db = Cc["@mozilla.org/download-manager;1"].
            getService(Ci.nsIDownloadManager).
            DBConnection;
   let stmt = db.createStatement(
-    "INSERT INTO moz_downloads (source, state, guid) " +
-    "VALUES (:source, :state, :guid)"
+    "INSERT INTO moz_downloads (source, state) " +
+    "VALUES (:source, :state)"
   );
   stmt.params.source = aURIString;
   stmt.params.state = aIsActive ? Ci.nsIDownloadManager.DOWNLOAD_DOWNLOADING :
                                   Ci.nsIDownloadManager.DOWNLOAD_FINISHED;
-  stmt.params.guid = makeGUID();
   try {
     stmt.execute();
   }
@@ -352,32 +285,27 @@ function check_permission_exists(aURI, aExists)
  */
 function add_preference(aURI)
 {
-  let deferred = Promise.defer();
+  check_preference_exists(aURI, false);
   let cp = Cc["@mozilla.org/content-pref/service;1"].
-             getService(Ci.nsIContentPrefService2);
-  cp.set(aURI.spec, PREFERENCE_NAME, "foo", null, {
-    handleCompletion: function() deferred.resolve()
-  });
-  return deferred.promise;
+           getService(Ci.nsIContentPrefService);
+  cp.setPref(aURI, PREFERENCE_NAME, "foo");
+  check_preference_exists(aURI, true);
 }
 
 /**
- * Checks to see if a content preference exists for the given URI.
+ * Checks to see if a preference exists for the given URI.
  *
  * @param aURI
  *        The URI to check if a preference exists.
+ * @param aExists
+ *        True if the permission should exist, false otherwise.
  */
-function preference_exists(aURI)
+function check_preference_exists(aURI, aExists)
 {
-  let deferred = Promise.defer();
   let cp = Cc["@mozilla.org/content-pref/service;1"].
-             getService(Ci.nsIContentPrefService2);
-  let exists = false;
-  cp.getByDomainAndName(aURI.spec, PREFERENCE_NAME, null, {
-    handleResult: function() exists = true,
-    handleCompletion: function() deferred.resolve(exists)
-  });
-  return deferred.promise;
+           getService(Ci.nsIContentPrefService);
+  let checker = aExists ? do_check_true : do_check_false;
+  checker(cp.hasPref(aURI, PREFERENCE_NAME));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -387,31 +315,25 @@ function preference_exists(aURI)
 function test_history_cleared_with_direct_match()
 {
   const TEST_URI = uri("http://mozilla.org/foo");
-  do_check_false(yield promiseIsURIVisited(TEST_URI));
-  yield promiseAddVisits(TEST_URI);
-  do_check_true(yield promiseIsURIVisited(TEST_URI));
+  add_visit(TEST_URI);
   ForgetAboutSite.removeDataFromDomain("mozilla.org");
-  do_check_false(yield promiseIsURIVisited(TEST_URI));
+  check_visited(TEST_URI, false);
 }
 
 function test_history_cleared_with_subdomain()
 {
   const TEST_URI = uri("http://www.mozilla.org/foo");
-  do_check_false(yield promiseIsURIVisited(TEST_URI));
-  yield promiseAddVisits(TEST_URI);
-  do_check_true(yield promiseIsURIVisited(TEST_URI));
+  add_visit(TEST_URI);
   ForgetAboutSite.removeDataFromDomain("mozilla.org");
-  do_check_false(yield promiseIsURIVisited(TEST_URI));
+  check_visited(TEST_URI, false);
 }
 
 function test_history_not_cleared_with_uri_contains_domain()
 {
   const TEST_URI = uri("http://ilovemozilla.org/foo");
-  do_check_false(yield promiseIsURIVisited(TEST_URI));
-  yield promiseAddVisits(TEST_URI);
-  do_check_true(yield promiseIsURIVisited(TEST_URI));
+  add_visit(TEST_URI);
   ForgetAboutSite.removeDataFromDomain("mozilla.org");
-  do_check_true(yield promiseIsURIVisited(TEST_URI));
+  check_visited(TEST_URI, true);
 
   // Clear history since we left something there from this test.
   PlacesUtils.bhistory.removeAllPages();
@@ -566,70 +488,42 @@ function test_permission_manager_not_cleared_with_uri_contains_domain()
   check_permission_exists(TEST_URI, false);
 }
 
-function waitForPurgeNotification() {
-  let deferred = Promise.defer();
-
-  let observer = {
-    observe: function(aSubject, aTopic, aData)
-    {
-      Services.obs.removeObserver(observer, "browser:purge-domain-data");
-      // test_storage_cleared needs this extra executeSoon because
-      // the DOMStorage clean-up is also listening to this same observer
-      // which is run synchronously.
-      Services.tm.mainThread.dispatch(function() {
-        deferred.resolve();
-      }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
-    }
-  };
-  Services.obs.addObserver(observer, "browser:purge-domain-data", false);
-
-  return deferred.promise;
-}
-
 // Content Preferences
 function test_content_preferences_cleared_with_direct_match()
 {
   const TEST_URI = uri("http://mozilla.org");
-  do_check_false(yield preference_exists(TEST_URI));
-  yield add_preference(TEST_URI);
-  do_check_true(yield preference_exists(TEST_URI));
+  add_preference(TEST_URI);
   ForgetAboutSite.removeDataFromDomain("mozilla.org");
-  yield waitForPurgeNotification();
-  do_check_false(yield preference_exists(TEST_URI));
+  check_preference_exists(TEST_URI, false);
 }
 
 function test_content_preferences_cleared_with_subdomain()
 {
   const TEST_URI = uri("http://www.mozilla.org");
-  do_check_false(yield preference_exists(TEST_URI));
-  yield add_preference(TEST_URI);
-  do_check_true(yield preference_exists(TEST_URI));
+  add_preference(TEST_URI);
   ForgetAboutSite.removeDataFromDomain("mozilla.org");
-  yield waitForPurgeNotification();
-  do_check_false(yield preference_exists(TEST_URI));
+  check_preference_exists(TEST_URI, false);
 }
 
-function test_content_preferences_not_cleared_with_uri_contains_domain()
+function test_content_preferecnes_not_cleared_with_uri_contains_domain()
 {
   const TEST_URI = uri("http://ilovemozilla.org");
-  do_check_false(yield preference_exists(TEST_URI));
-  yield add_preference(TEST_URI);
-  do_check_true(yield preference_exists(TEST_URI));
+  add_preference(TEST_URI);
   ForgetAboutSite.removeDataFromDomain("mozilla.org");
-  yield waitForPurgeNotification();
-  do_check_true(yield preference_exists(TEST_URI));
+  check_preference_exists(TEST_URI, true);
 
   // Reset state
-  ForgetAboutSite.removeDataFromDomain("ilovemozilla.org");
-  yield waitForPurgeNotification();
-  do_check_false(yield preference_exists(TEST_URI));
+  let cp = Cc["@mozilla.org/content-pref/service;1"].
+           getService(Ci.nsIContentPrefService);
+  cp.removePref(TEST_URI, PREFERENCE_NAME);
+  check_preference_exists(TEST_URI, false);
 }
 
 // Cache
 function test_cache_cleared()
 {
   // Because this test is asynchronous, it should be the last test
-  do_check_true(tests[tests.length - 1] == arguments.callee);
+  do_check_eq(tests[tests.length - 1], arguments.callee);
 
   // NOTE: We could be more extensive with this test and actually add an entry
   //       to the cache, and then make sure it is gone.  However, we trust that
@@ -642,8 +536,6 @@ function test_cache_cleared()
     observe: function(aSubject, aTopic, aData)
     {
       os.removeObserver(observer, "cacheservice:empty-cache");
-      // Shutdown the download manager.
-      Services.obs.notifyObservers(null, "quit-application", null);
       do_test_finished();
     }
   };
@@ -679,7 +571,6 @@ function test_storage_cleared()
   }
 
   ForgetAboutSite.removeDataFromDomain("mozilla.org");
-  yield waitForPurgeNotification();
 
   do_check_eq(s[0].getItem("test"), null);
   do_check_eq(s[0].length, 0);
@@ -722,7 +613,7 @@ let tests = [
   // Content Preferences
   test_content_preferences_cleared_with_direct_match,
   test_content_preferences_cleared_with_subdomain,
-  test_content_preferences_not_cleared_with_uri_contains_domain,
+  test_content_preferecnes_not_cleared_with_uri_contains_domain,
 
   // Storage
   test_storage_cleared,
@@ -736,7 +627,8 @@ function run_test()
   Services.prefs.setBoolPref("places.history.enabled", true);
 
   for (let i = 0; i < tests.length; i++)
-    add_task(tests[i]);
+    tests[i]();
 
-  run_next_test();
+  // Shutdown the download manager.
+  Services.obs.notifyObservers(null, "quit-application", null);
 }

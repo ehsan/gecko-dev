@@ -18,8 +18,15 @@ using namespace dom;
 
 DOMCI_DATA(CameraManager, nsIDOMCameraManager)
 
-NS_IMPL_CYCLE_COLLECTION_1(nsDOMCameraManager,
-                           mCameraThread)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMCameraManager)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsDOMCameraManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCameraThread)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDOMCameraManager)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mCameraThread)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsDOMCameraManager)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIObserver)
@@ -37,14 +44,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsDOMCameraManager)
  * Set the NSPR_LOG_MODULES environment variable to enable logging
  * in a debug build, e.g. NSPR_LOG_MODULES=Camera:5
  */
-PRLogModuleInfo*
-GetCameraLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("Camera");
-  return sLog;
-}
+PRLogModuleInfo* gCameraLog = PR_NewLogModule("Camera");
 
 /**
  * nsDOMCameraManager::GetListOfCameras
@@ -108,7 +108,7 @@ nsDOMCameraManager::GetCamera(const JS::Value& aOptions, nsICameraGetCameraCallb
   NS_ENSURE_TRUE(onSuccess, NS_ERROR_INVALID_ARG);
 
   uint32_t cameraId = 0;  // back (or forward-facing) camera by default
-  mozilla::idl::CameraSelector selector;
+  CameraSelector selector;
 
   nsresult rv = selector.Init(cx, &aOptions);
   NS_ENSURE_SUCCESS(rv, rv);

@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGPathSeg;
+
 interface SVGPathSegList {
   readonly attribute unsigned long numberOfItems;
   [Throws]

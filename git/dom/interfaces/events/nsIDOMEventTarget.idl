@@ -11,12 +11,6 @@
 
 using mozilla::dom::Nullable;
 
-namespace mozilla {
-namespace dom {
-class EventTarget;
-} // namespace dom
-} // namespace mozilla
-
 class nsPresContext;
 class nsEventChainPreVisitor;
 class nsEventChainPostVisitor;
@@ -39,13 +33,12 @@ class nsEventListenerManager;
 [ptr] native nsEventStatusPtr(nsEventStatus);
 [ptr] native JSContextPtr(JSContext);
 [ptr] native nsEventListenerManagerPtr(nsEventListenerManager);
-[ptr] native EventTargetPtr(mozilla::dom::EventTarget);
 
 interface nsIScriptContext;
 interface nsIDOMEventListener;
 interface nsIDOMEvent;
 
-[scriptable, builtinclass, uuid(31e92e56-4d23-4a4a-9cfe-a6d12cf434bc)]
+[scriptable, builtinclass, uuid(8e375931-298d-4d0a-9cb4-5668f0cdc5a8)]
 interface nsIDOMEventTarget : nsISupports
 {
   /**
@@ -193,20 +186,20 @@ interface nsIDOMEventTarget : nsISupports
                                                raises(DOMException);
 
   /**
-   * Returns the nsIDOMEventTarget object which should be used as the target
+   * Returns the nsPIDOMEventTarget object which should be used as the target
    * of DOMEvents.
    * Usually |this| is returned, but for example global object returns
    * the outer object.
    */
-   [notxpcom, nostdcall] EventTargetPtr GetTargetForDOMEvent();
+   [notxpcom, nostdcall] nsIDOMEventTarget GetTargetForDOMEvent();
 
   /**
-   * Returns the nsIDOMEventTarget object which should be used as the target
+   * Returns the nsPIDOMEventTarget object which should be used as the target
    * of the event and when constructing event target chain.
    * Usually |this| is returned, but for example global object returns
    * the inner object.
    */
-   [notxpcom, nostdcall] EventTargetPtr GetTargetForEventTargetChain();
+   [notxpcom, nostdcall] nsIDOMEventTarget GetTargetForEventTargetChain();
 
   /**
    * Called before the capture phase of the event flow.
@@ -293,9 +286,11 @@ interface nsIDOMEventTarget : nsISupports
 
 %{C++
 
+typedef nsIDOMEventTarget nsPIDOMEventTarget;
+
 #define NS_IMPL_DOMTARGET_DEFAULTS(_class) \
-mozilla::dom::EventTarget* _class::GetTargetForDOMEvent() { return this; } \
-mozilla::dom::EventTarget* _class::GetTargetForEventTargetChain() { return this; } \
+nsPIDOMEventTarget* _class::GetTargetForDOMEvent() { return this; } \
+nsPIDOMEventTarget* _class::GetTargetForEventTargetChain() { return this; } \
 nsresult _class::WillHandleEvent(nsEventChainPostVisitor& aVisitor) { return NS_OK; } \
 JSContext* _class::GetJSContextForEventHandlers() { return nullptr; }
 
@@ -309,9 +304,8 @@ aClass::RemoveSystemEventListener(const nsAString& aType, \
   if (!listenerManager) { \
     return NS_OK; \
   } \
-  mozilla::dom::EventListenerFlags flags; \
-  flags.mInSystemGroup = true; \
-  flags.mCapture = aUseCapture; \
+  uint32_t flags = NS_EVENT_FLAG_SYSTEM_EVENT; \
+  flags |= aUseCapture ? NS_EVENT_FLAG_CAPTURE : NS_EVENT_FLAG_BUBBLE; \
   listenerManager->RemoveEventListenerByType(aListener, aType, flags); \
   return NS_OK; \
 }

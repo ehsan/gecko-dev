@@ -10,9 +10,10 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-function GetOutputStreamForEntry(key, append, callback)
+function GetOutputStreamForEntry(key, asFile, append, callback)
 {
   this._key = key;
+  this._asFile = asFile;
   this._append = append;
   this._callback = callback;
   this.run();
@@ -20,6 +21,7 @@ function GetOutputStreamForEntry(key, append, callback)
 
 GetOutputStreamForEntry.prototype = {
   _key: "",
+  _asFile: false,
   _append: false,
   _callback: null,
 
@@ -42,7 +44,8 @@ GetOutputStreamForEntry.prototype = {
     var cache = get_cache_service();
     var session = cache.createSession(
                     "HTTP",
-                    Ci.nsICache.STORE_ON_DISK,
+                    this._asFile ? Ci.nsICache.STORE_ON_DISK_AS_FILE
+                                 : Ci.nsICache.STORE_ON_DISK,
                     Ci.nsICache.STREAM_BASED);
     session.asyncOpenCacheEntry(this._key,
                                 this._append ? Ci.nsICache.ACCESS_READ_WRITE
@@ -93,7 +96,7 @@ function write_and_check(str, data, len)
 
 function write_entry()
 {
-  new GetOutputStreamForEntry("testentry", false, write_entry_cont);
+  new GetOutputStreamForEntry("testentry", true, false, write_entry_cont);
 }
 
 function write_entry_cont(entry, ostream)
@@ -114,7 +117,7 @@ function check_doom1(status)
 function check_doom2(status)
 {
   do_check_eq(status, Cr.NS_ERROR_NOT_AVAILABLE);
-  new GetOutputStreamForEntry("testentry", false, write_entry2);
+  new GetOutputStreamForEntry("testentry", true, false, write_entry2);
 }
 
 var gEntry;
@@ -135,8 +138,8 @@ function check_doom3(status)
   // entry was doomed but writing should still succeed
   var data = "testdata";
   write_and_check(gOstream, data, data.length);
-  gOstream.close();
   gEntry.close();
+  gOstream.close();
   // dooming the same entry again should fail
   new DoomEntry("testentry", check_doom4);
 }

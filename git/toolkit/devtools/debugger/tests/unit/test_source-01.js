@@ -40,21 +40,18 @@ function test_source()
   DebuggerServer.LONG_STRING_LENGTH = 200;
 
   gThreadClient.addOneTimeListener("paused", function(aEvent, aPacket) {
-    gThreadClient.getSources(function (aResponse) {
+    gThreadClient.getScripts(function (aResponse) {
       do_check_true(!!aResponse);
-      do_check_true(!!aResponse.sources);
-      gClient.compat.supportsFeature("sources").then(function (supported) {
-        do_check_true(supported);
+      do_check_true(!!aResponse.scripts);
 
-      });
-
-      let source = aResponse.sources.filter(function (s) {
+      let script = aResponse.scripts.filter(function (s) {
         return s.url.match(/test_source-01.js$/);
       })[0];
 
-      do_check_true(!!source);
+      do_check_true(!!script);
+      do_check_true(!!script.source);
 
-      let sourceClient = gThreadClient.source(source);
+      let sourceClient = gThreadClient.source(script.source);
       sourceClient.source(function (aResponse) {
         do_check_true(!!aResponse);
         do_check_true(!aResponse.error);

@@ -21,15 +21,16 @@ namespace mozilla {
 // clear our list's weak ref to us to be safe. (The other option would be to
 // not unlink and rely on the breaking of the other edges in the cycle, as
 // NS_SVG_VAL_IMPL_CYCLE_COLLECTION does.)
+NS_IMPL_CYCLE_COLLECTION_CLASS(DOMSVGLength)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(DOMSVGLength)
   // We may not belong to a list, so we must null check tmp->mList.
   if (tmp->mList) {
     tmp->mList->mItems[tmp->mListIndex] = nullptr;
   }
-NS_IMPL_CYCLE_COLLECTION_UNLINK(mList)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mList)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(DOMSVGLength)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mList)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mList)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMSVGLength)

@@ -10,6 +10,8 @@
  * liability, trademark and document use rules apply.
  */
 
+interface SVGPoint;
+
 interface SVGPointList {
   readonly attribute unsigned long numberOfItems;
   [Throws]

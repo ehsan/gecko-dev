@@ -59,10 +59,7 @@ struct variant_storage_traits
 {
   typedef DataType ConstructorType;
   typedef DataType StorageType;
-  static inline void storage_conversion(const ConstructorType aData, StorageType* _storage)
-  {
-    *_storage = aData;
-  }
+  static inline StorageType storage_conversion(ConstructorType aData) { return aData; }
 };
 
 #define NO_CONVERSION return NS_ERROR_CANNOT_CONVERT_DATA;
@@ -71,30 +68,30 @@ template <typename DataType>
 struct variant_integer_traits
 {
   typedef typename variant_storage_traits<DataType>::StorageType StorageType;
-  static inline nsresult asInt32(const StorageType &, int32_t *) { NO_CONVERSION }
-  static inline nsresult asInt64(const StorageType &, int64_t *) { NO_CONVERSION }
+  static inline nsresult asInt32(StorageType, int32_t *) { NO_CONVERSION }
+  static inline nsresult asInt64(StorageType, int64_t *) { NO_CONVERSION }
 };
 
 template <typename DataType>
 struct variant_float_traits
 {
   typedef typename variant_storage_traits<DataType>::StorageType StorageType;
-  static inline nsresult asDouble(const StorageType &, double *) { NO_CONVERSION }
+  static inline nsresult asDouble(StorageType, double *) { NO_CONVERSION }
 };
 
 template <typename DataType>
 struct variant_text_traits
 {
   typedef typename variant_storage_traits<DataType>::StorageType StorageType;
-  static inline nsresult asUTF8String(const StorageType &, nsACString &) { NO_CONVERSION }
-  static inline nsresult asString(const StorageType &, nsAString &) { NO_CONVERSION }
+  static inline nsresult asUTF8String(StorageType, nsACString &) { NO_CONVERSION }
+  static inline nsresult asString(StorageType, nsAString &) { NO_CONVERSION }
 };
 
 template <typename DataType>
 struct variant_blob_traits
 {
   typedef typename variant_storage_traits<DataType>::StorageType StorageType;
-  static inline nsresult asArray(const StorageType &, uint16_t *, uint32_t *, void **)
+  static inline nsresult asArray(StorageType, uint16_t *, uint32_t *, void **)
   { NO_CONVERSION }
 };
 
@@ -174,9 +171,9 @@ struct variant_storage_traits<nsString>
 {
   typedef const nsAString & ConstructorType;
   typedef nsString StorageType;
-  static inline void storage_conversion(ConstructorType aText, StorageType* _outData)
+  static inline StorageType storage_conversion(ConstructorType aText)
   {
-    *_outData = aText;
+    return StorageType(aText);
   }
 };
 template < >
@@ -206,9 +203,9 @@ struct variant_storage_traits<nsCString>
 {
   typedef const nsACString & ConstructorType;
   typedef nsCString StorageType;
-  static inline void storage_conversion(ConstructorType aText, StorageType* _outData)
+  static inline StorageType storage_conversion(ConstructorType aText)
   {
-    *_outData = aText;
+    return StorageType(aText);
   }
 };
 template < >
@@ -242,12 +239,12 @@ struct variant_storage_traits<uint8_t[]>
 {
   typedef std::pair<const void *, int> ConstructorType;
   typedef FallibleTArray<uint8_t> StorageType;
-  static inline void storage_conversion(ConstructorType aBlob, StorageType* _outData)
+  static inline StorageType storage_conversion(ConstructorType aBlob)
   {
-    _outData->Clear();
-    _outData->SetCapacity(aBlob.second);
-    (void)_outData->AppendElements(static_cast<const uint8_t *>(aBlob.first),
-                                   aBlob.second);
+    StorageType data(aBlob.second);
+    (void)data.AppendElements(static_cast<const uint8_t *>(aBlob.first),
+                              aBlob.second);
+    return data;
   }
 };
 template < >
@@ -315,9 +312,9 @@ template <typename DataType>
 class Variant : public Variant_base
 {
 public:
-  Variant(const typename variant_storage_traits<DataType>::ConstructorType aData)
+  Variant(typename variant_storage_traits<DataType>::ConstructorType aData)
+    : mData(variant_storage_traits<DataType>::storage_conversion(aData))
   {
-    variant_storage_traits<DataType>::storage_conversion(aData, &mData);
   }
 
   NS_IMETHOD GetDataType(uint16_t *_type)

@@ -40,6 +40,7 @@
 
 // ucvlatin
 #include "nsUCvLatinCID.h"
+#include "nsUCvLatinDll.h"
 #include "nsAsciiToUnicode.h"
 #include "nsISO88592ToUnicode.h"
 #include "nsISO88593ToUnicode.h"
@@ -86,7 +87,7 @@
 #include "nsVPSToUnicode.h"
 #include "nsUTF7ToUnicode.h"
 #include "nsMUTF7ToUnicode.h"
-#include "nsUTF16ToUnicode.h"
+#include "nsUCS2BEToUnicode.h"
 #include "nsT61ToUnicode.h"
 #include "nsUserDefinedToUnicode.h"
 #include "nsUnicodeToAscii.h"
@@ -135,7 +136,7 @@
 #include "nsUnicodeToVPS.h"
 #include "nsUnicodeToUTF7.h"
 #include "nsUnicodeToMUTF7.h"
-#include "nsUnicodeToUTF16.h"
+#include "nsUnicodeToUCS2BE.h"
 #include "nsUnicodeToT61.h"
 #include "nsUnicodeToUserDefined.h"
 #include "nsUnicodeToSymbol.h"
@@ -157,6 +158,7 @@
 
 // ucvibm
 #include "nsUCvIBMCID.h"
+#include "nsUCvIBMDll.h"
 #include "nsCP850ToUnicode.h"
 #include "nsCP852ToUnicode.h"
 #include "nsCP855ToUnicode.h"
@@ -208,6 +210,8 @@
 // ucvko
 #include "nsUCvKOCID.h"
 #include "nsUCvKODll.h"
+#include "nsEUCKRToUnicode.h"
+#include "nsUnicodeToEUCKR.h"
 #include "nsJohabToUnicode.h"
 #include "nsUnicodeToJohab.h"
 #include "nsCP949ToUnicode.h"
@@ -216,6 +220,7 @@
 
 // ucvcn
 #include "nsUCvCnCID.h"
+#include "nsUCvCnDll.h"
 #include "nsHZToUnicode.h"
 #include "nsUnicodeToHZ.h"
 #include "nsGBKToUnicode.h"
@@ -328,6 +333,7 @@ NS_UCONV_REG_UNREG_ENCODER("hkscs-1" , NS_UNICODETOHKSCS_CID)
     // ucvko
 NS_UCONV_REG_UNREG("EUC-KR", NS_EUCKRTOUNICODE_CID, NS_UNICODETOEUCKR_CID)
 NS_UCONV_REG_UNREG("x-johab", NS_JOHABTOUNICODE_CID, NS_UNICODETOJOHAB_CID)
+NS_UCONV_REG_UNREG("x-windows-949", NS_CP949TOUNICODE_CID, NS_UNICODETOCP949_CID)
 NS_UCONV_REG_UNREG_DECODER("ISO-2022-KR", NS_ISO2022KRTOUNICODE_CID)
 
 // ucvcn
@@ -681,6 +687,8 @@ NS_DEFINE_NAMED_CID(NS_EUCKRTOUNICODE_CID);
 NS_DEFINE_NAMED_CID(NS_UNICODETOEUCKR_CID);
 NS_DEFINE_NAMED_CID(NS_JOHABTOUNICODE_CID);
 NS_DEFINE_NAMED_CID(NS_UNICODETOJOHAB_CID);
+NS_DEFINE_NAMED_CID(NS_CP949TOUNICODE_CID);
+NS_DEFINE_NAMED_CID(NS_UNICODETOCP949_CID);
 NS_DEFINE_NAMED_CID(NS_ISO2022KRTOUNICODE_CID);
 NS_DEFINE_NAMED_CID(NS_GB2312TOUNICODE_CID);
 NS_DEFINE_NAMED_CID(NS_UNICODETOGB2312_CID);
@@ -862,10 +870,12 @@ static const mozilla::Module::CIDEntry kUConvCIDs[] = {
   { &kNS_UNICODETOBIG5HKSCS_CID, false, nullptr, nsUnicodeToBIG5HKSCSConstructor },
   { &kNS_UNICODETOHKSCS_CID, false, nullptr, nsUnicodeToHKSCSConstructor },
   { &kNS_BIG5HKSCSTOUNICODE_CID, false, nullptr, nsBIG5HKSCSToUnicodeConstructor },
-  { &kNS_EUCKRTOUNICODE_CID, false, nullptr, nsCP949ToUnicodeConstructor },
-  { &kNS_UNICODETOEUCKR_CID, false, nullptr, nsUnicodeToCP949Constructor },
+  { &kNS_EUCKRTOUNICODE_CID, false, nullptr, nsEUCKRToUnicodeConstructor },
+  { &kNS_UNICODETOEUCKR_CID, false, nullptr, nsUnicodeToEUCKRConstructor },
   { &kNS_JOHABTOUNICODE_CID, false, nullptr, nsJohabToUnicodeConstructor },
   { &kNS_UNICODETOJOHAB_CID, false, nullptr, nsUnicodeToJohabConstructor },
+  { &kNS_CP949TOUNICODE_CID, false, nullptr, nsCP949ToUnicodeConstructor },
+  { &kNS_UNICODETOCP949_CID, false, nullptr, nsUnicodeToCP949Constructor },
   { &kNS_ISO2022KRTOUNICODE_CID, false, nullptr, nsISO2022KRToUnicodeConstructor },
   { &kNS_GB2312TOUNICODE_CID, false, nullptr, nsGB2312ToUnicodeV2Constructor },
   { &kNS_UNICODETOGB2312_CID, false, nullptr, nsUnicodeToGB2312V2Constructor },
@@ -1053,6 +1063,8 @@ static const mozilla::Module::ContractIDEntry kUConvContracts[] = {
   { NS_UNICODEENCODER_CONTRACTID_BASE "EUC-KR", &kNS_UNICODETOEUCKR_CID },
   { NS_UNICODEDECODER_CONTRACTID_BASE "x-johab", &kNS_JOHABTOUNICODE_CID },
   { NS_UNICODEENCODER_CONTRACTID_BASE "x-johab", &kNS_UNICODETOJOHAB_CID },
+  { NS_UNICODEDECODER_CONTRACTID_BASE "x-windows-949", &kNS_CP949TOUNICODE_CID },
+  { NS_UNICODEENCODER_CONTRACTID_BASE "x-windows-949", &kNS_UNICODETOCP949_CID },
   { NS_UNICODEDECODER_CONTRACTID_BASE "ISO-2022-KR", &kNS_ISO2022KRTOUNICODE_CID },
   { NS_UNICODEDECODER_CONTRACTID_BASE "GB2312", &kNS_GB2312TOUNICODE_CID },
   { NS_UNICODEENCODER_CONTRACTID_BASE "GB2312", &kNS_UNICODETOGB2312_CID },

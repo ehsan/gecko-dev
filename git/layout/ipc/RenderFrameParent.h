@@ -76,10 +76,10 @@ public:
                                    const TargetConfig& aTargetConfig,
                                    bool isFirstPaint) MOZ_OVERRIDE;
 
-  void BuildDisplayList(nsDisplayListBuilder* aBuilder,
-                        nsSubDocumentFrame* aFrame,
-                        const nsRect& aDirtyRect,
-                        const nsDisplayListSet& aLists);
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder* aBuilder,
+                              nsSubDocumentFrame* aFrame,
+                              const nsRect& aDirtyRect,
+                              const nsDisplayListSet& aLists);
 
   already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                      nsIFrame* aFrame,
@@ -92,9 +92,8 @@ public:
 
   void SetBackgroundColor(nscolor aColor) { mBackgroundColor = gfxRGBA(aColor); };
 
-  void NotifyInputEvent(const nsInputEvent& aEvent);
-
-  void ApplyZoomCompensationToEvent(nsInputEvent* aEvent);
+  void NotifyInputEvent(const nsInputEvent& aEvent,
+                        nsInputEvent* aOutEvent);
 
   void NotifyDimensionsChanged(int width, int height);
 
@@ -110,7 +109,6 @@ protected:
   virtual bool RecvNotifyCompositorTransaction() MOZ_OVERRIDE;
 
   virtual bool RecvCancelDefaultPanZoom() MOZ_OVERRIDE;
-  virtual bool RecvDetectScrollableSubframe() MOZ_OVERRIDE;
 
   virtual PLayersParent* AllocPLayers() MOZ_OVERRIDE;
   virtual bool DeallocPLayers(PLayersParent* aLayers) MOZ_OVERRIDE;

@@ -68,9 +68,9 @@ public:
    */
   NS_IMETHOD SetHasFocus(bool aHasFocus);
 
-  virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
-                                const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+  NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
+                              const nsRect&           aDirtyRect,
+                              const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   void PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt);
 
@@ -109,9 +109,33 @@ public:
   nsRect CanvasArea() const;
 
 protected:
+  virtual int GetSkipSides() const;
+
   // Data members
   bool                      mDoPaintFocus;
   bool                      mAddedScrollPositionListener;
+};
+
+class nsDisplayCanvasBackgroundGeometry : public nsDisplayItemGeometry
+{
+public:
+  nsDisplayCanvasBackgroundGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder, const nsRect& aChildBorder)
+    : nsDisplayItemGeometry(aItem, aBuilder)
+    , mChildBorder(aChildBorder)
+    , mPaddingRect(aItem->GetPaddingRect())
+    , mContentRect(aItem->GetContentRect())
+  {}
+
+  virtual void MoveBy(const nsPoint& aOffset)
+  {
+    mBounds.MoveBy(aOffset);
+    mPaddingRect.MoveBy(aOffset);
+    mContentRect.MoveBy(aOffset);
+  }
+
+  nsRect mChildBorder;
+  nsRect mPaddingRect;
+  nsRect mContentRect;
 };
 
 /**
@@ -120,31 +144,39 @@ protected:
  * We can also paint an "extra background color" behind the normal
  * background.
  */
-class nsDisplayCanvasBackgroundColor : public nsDisplayItem {
+class nsDisplayCanvasBackground : public nsDisplayBackground {
 public:
-  nsDisplayCanvasBackgroundColor(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame)
-    : nsDisplayItem(aBuilder, aFrame)
-    , mColor(NS_RGBA(0,0,0,0))
+  nsDisplayCanvasBackground(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame, uint32_t aLayer)
+    : nsDisplayBackground(aBuilder, aFrame, aLayer, true)
   {
+    mExtraBackgroundColor = NS_RGBA(0,0,0,0);
   }
 
   virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                  nsRegion* aVisibleRegion,
                                  const nsRect& aAllowVisibleRegionExpansion) MOZ_OVERRIDE
   {
-    return NS_GET_A(mColor) > 0;
+    return NS_GET_A(mExtraBackgroundColor) > 0 ||
+      nsDisplayBackground::ComputeVisibility(aBuilder, aVisibleRegion,
+                                             aAllowVisibleRegionExpansion);
   }
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aSnap) MOZ_OVERRIDE
   {
-    if (NS_GET_A(mColor) == 255) {
+    if (NS_GET_A(mExtraBackgroundColor) == 255) {
       return nsRegion(GetBounds(aBuilder, aSnap));
     }
-    return nsRegion();
+    return nsDisplayBackground::GetOpaqueRegion(aBuilder, aSnap);
   }
   virtual bool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor) MOZ_OVERRIDE
   {
-    *aColor = mColor;
+    nscolor background;
+    if (!nsDisplayBackground::IsUniform(aBuilder, &background))
+      return false;
+    NS_ASSERTION(background == NS_RGBA(0,0,0,0),
+                 "The nsDisplayBackground for a canvas frame doesn't paint "
+                 "its background color normally");
+    *aColor = mExtraBackgroundColor;
     return true;
   }
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
@@ -159,64 +191,52 @@ public:
     // We need to override so we don't consider border-radius.
     aOutFrames->AppendElement(mFrame);
   }
-
-  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
+  
+  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder)
   {
-    return new nsDisplayItemBoundsGeometry(this, aBuilder);
+    nsIFrame *child = mFrame->GetFirstPrincipalChild();
+    return new nsDisplayCanvasBackgroundGeometry(this, aBuilder, 
+                                                 child ? child->GetRect() : nsRect());;
   }
 
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
                                          nsRegion* aInvalidRegion)
   {
-    const nsDisplayItemBoundsGeometry* geometry = static_cast<const nsDisplayItemBoundsGeometry*>(aGeometry);
-    ComputeInvalidationRegionDifference(aBuilder, geometry, aInvalidRegion);
-  }
+    const nsDisplayCanvasBackgroundGeometry* geometry = static_cast<const nsDisplayCanvasBackgroundGeometry*>(aGeometry);
+    if (ShouldFixToViewport(aBuilder)) {
+      // This is incorrect, We definitely need to check more things here. 
+      return;
+    }
 
-  virtual void NotifyRenderingChanged() MOZ_OVERRIDE
-  {
-    mFrame->Properties().Delete(nsIFrame::CachedBackgroundImage());
-  }
+    nsIFrame *child = mFrame->GetFirstPrincipalChild();
 
+    bool snap;
+    if (!geometry->mBounds.IsEqualInterior(GetBounds(aBuilder, &snap)) ||
+        (child && !geometry->mChildBorder.IsEqualInterior(child->GetRect())) ||
+        !geometry->mPaddingRect.IsEqualInterior(GetPaddingRect()) ||
+        !geometry->mContentRect.IsEqualInterior(GetContentRect())) {
+      if (!RenderingMightDependOnFrameSize() && geometry->mBounds.TopLeft() == GetBounds(aBuilder, &snap).TopLeft()) {
+        aInvalidRegion->Xor(GetBounds(aBuilder, &snap), geometry->mBounds);
+      } else {
+        aInvalidRegion->Or(GetBounds(aBuilder, &snap), geometry->mBounds);
+      }
+    }
+  }
+  
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsRenderingContext* aCtx) MOZ_OVERRIDE;
 
   void SetExtraBackgroundColor(nscolor aColor)
   {
-    mColor = aColor;
+    mExtraBackgroundColor = aColor;
   }
 
-  NS_DISPLAY_DECL_NAME("CanvasBackgroundColor", TYPE_CANVAS_BACKGROUND_COLOR)
+  NS_DISPLAY_DECL_NAME("CanvasBackground", TYPE_CANVAS_BACKGROUND)
 
 private:
-  nscolor mColor;
+  nscolor mExtraBackgroundColor;
 };
 
-class nsDisplayCanvasBackgroundImage : public nsDisplayBackgroundImage {
-public:
-  nsDisplayCanvasBackgroundImage(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                                 uint32_t aLayer, bool aIsThemed, const nsStyleBackground* aBg)
-    : nsDisplayBackgroundImage(aBuilder, aFrame, aLayer, aIsThemed, aBg)
-  {}
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) MOZ_OVERRIDE;
-
-  virtual bool ShouldFixToViewport(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
-  {
-    // Put background-attachment:fixed canvas background images in their own
-    // compositing layer. Since we know their background painting area can't
-    // change (unless the viewport size itself changes), async scrolling
-    // will work well.
-    return mBackgroundStyle->mLayers[mLayer].mAttachment == NS_STYLE_BG_ATTACHMENT_FIXED &&
-           !mBackgroundStyle->mLayers[mLayer].mImage.IsEmpty();
-  }
- 
-  // We still need to paint a background color as well as an image for this item, 
-  // so we can't support this yet.
-  virtual bool SupportsOptimizingToImage() MOZ_OVERRIDE { return false; }
-  
-  
-  NS_DISPLAY_DECL_NAME("CanvasBackgroundImage", TYPE_CANVAS_BACKGROUND_IMAGE)
-};
 
 #endif /* nsCanvasFrame_h___ */

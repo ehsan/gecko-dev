@@ -6,7 +6,7 @@
 
 "use strict";
 
-this.EXPORTED_SYMBOLS = [
+let EXPORTED_SYMBOLS = [
   "Task"
 ];
 
@@ -95,7 +95,7 @@ const Ci = Components.interfaces;
 const Cu = Components.utils;
 const Cr = Components.results;
 
-Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
+Cu.import("resource://gre/modules/commonjs/promise/core.js");
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Task
@@ -103,7 +103,7 @@ Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 /**
  * This object provides the public module functions.
  */
-this.Task = {
+const Task = {
   /**
    * Creates and starts a new task.
    *

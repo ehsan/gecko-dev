@@ -27,15 +27,16 @@ struct IMEState;
 } // namespace mozilla
 
 enum nsLinkState {
+  eLinkState_Unknown    = 0,
   eLinkState_Unvisited  = 1,
   eLinkState_Visited    = 2,
-  eLinkState_NotLink    = 3 
+  eLinkState_NotLink    = 3
 };
 
 // IID for the nsIContent interface
 #define NS_ICONTENT_IID \
-{ 0x8a8b4b1d, 0x72d8, 0x428e, \
- { 0x95, 0x75, 0xf9, 0x18, 0xba, 0xf6, 0x9e, 0xa1 } }
+{ 0xe2985850, 0x81ca, 0x4b5d, \
+  { 0xb0, 0xf3, 0xe3, 0x95, 0xd5, 0x0d, 0x85, 0x64 } }
 
 /**
  * A node of content in a document's content model. This interface
@@ -231,11 +232,8 @@ public:
    */
   bool IsInAnonymousSubtree() const
   {
-    NS_ASSERTION(!IsInNativeAnonymousSubtree() || GetBindingParent() ||
-                 (!IsInDoc() &&
-                  static_cast<nsIContent*>(SubtreeRoot())->IsInNativeAnonymousSubtree()),
-                 "Must have binding parent when in native anonymous subtree which is in document.\n"
-                 "Native anonymous subtree which is not in document must have native anonymous root.");
+    NS_ASSERTION(!IsInNativeAnonymousSubtree() || GetBindingParent() || !GetParent(),
+                 "must have binding parent when in native anonymous subtree with a parent node");
     return IsInNativeAnonymousSubtree() || GetBindingParent() != nullptr;
   }
 
@@ -372,8 +370,8 @@ public:
    * @returns true if the attribute was set (even when set to empty string)
    *          false when not set.
    */
-  bool GetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-               nsAString& aResult) const;
+  virtual bool GetAttr(int32_t aNameSpaceID, nsIAtom* aName, 
+                         nsAString& aResult) const = 0;
 
   /**
    * Determine if an attribute has been set (empty string or otherwise).
@@ -382,7 +380,7 @@ public:
    * @param aAttr the attribute name
    * @return whether an attribute exists
    */
-  bool HasAttr(int32_t aNameSpaceID, nsIAtom* aName) const;
+  virtual bool HasAttr(int32_t aNameSpaceID, nsIAtom* aName) const = 0;
 
   /**
    * Test whether this content node's given attribute has the given value.  If
@@ -394,10 +392,13 @@ public:
    * @param aValue The value to compare to.
    * @param aCaseSensitive Whether to do a case-sensitive compare on the value.
    */
-  bool AttrValueIs(int32_t aNameSpaceID,
-                   nsIAtom* aName,
-                   const nsAString& aValue,
-                   nsCaseTreatment aCaseSensitive) const;
+  virtual bool AttrValueIs(int32_t aNameSpaceID,
+                             nsIAtom* aName,
+                             const nsAString& aValue,
+                             nsCaseTreatment aCaseSensitive) const
+  {
+    return false;
+  }
   
   /**
    * Test whether this content node's given attribute has the given value.  If
@@ -409,10 +410,13 @@ public:
    * @param aValue The value to compare to.  Must not be null.
    * @param aCaseSensitive Whether to do a case-sensitive compare on the value.
    */
-  bool AttrValueIs(int32_t aNameSpaceID,
-                   nsIAtom* aName,
-                   nsIAtom* aValue,
-                   nsCaseTreatment aCaseSensitive) const;
+  virtual bool AttrValueIs(int32_t aNameSpaceID,
+                             nsIAtom* aName,
+                             nsIAtom* aValue,
+                             nsCaseTreatment aCaseSensitive) const
+  {
+    return false;
+  }
   
   enum {
     ATTR_MISSING = -1,
@@ -488,18 +492,6 @@ public:
    * NOTE: This should not be called on elements.
    */
   virtual uint32_t TextLength() const = 0;
-
-   /**
-    * Determines if an event attribute name (such as onclick) is valid for
-    * a given element type.
-    * @note calls nsContentUtils::IsEventAttributeName with right flag
-    * @note overridden by subclasses as needed
-    * @param aName the event name to look up
-    */
-  virtual bool IsEventAttributeName(nsIAtom* aName)
-  {
-    return false;
-  }
 
   /**
    * Set the text to the given value. If aNotify is true then
@@ -673,7 +665,7 @@ public:
    * If you also need to determine whether the parser is the one creating your
    * element (through createElement() or cloneNode() generally) then add a
    * uint32_t aFromParser to the NS_NewXXX() constructor for your element and
-   * have the parser pass the appropriate flags. See HTMLInputElement.cpp and
+   * have the parser pass the appropriate flags. See nsHTMLInputElement.cpp and
    * nsHTMLContentSink::MakeContentObject().
    *
    * DO NOT USE THIS METHOD to get around the fact that it's hard to deal with
@@ -709,7 +701,7 @@ public:
    * If you also need to determine whether the parser is the one creating your
    * element (through createElement() or cloneNode() generally) then add a
    * boolean aFromParser to the NS_NewXXX() constructor for your element and
-   * have the parser pass true.  See HTMLInputElement.cpp and
+   * have the parser pass true.  See nsHTMLInputElement.cpp and
    * nsHTMLContentSink::MakeContentObject().
    *
    * @param aHaveNotified Whether there has been a
@@ -908,24 +900,5 @@ inline nsIContent* nsINode::AsContent()
   MOZ_ASSERT(IsContent());
   return static_cast<nsIContent*>(this);
 }
-
-#define NS_IMPL_FROMCONTENT_HELPER(_class, _check)                             \
-  static _class* FromContent(nsIContent* aContent)                             \
-  {                                                                            \
-    return aContent->_check ? static_cast<_class*>(aContent) : nullptr;        \
-  }                                                                            \
-  static _class* FromContentOrNull(nsIContent* aContent)                       \
-  {                                                                            \
-    return aContent ? FromContent(aContent) : nullptr;                         \
-  }
-
-#define NS_IMPL_FROMCONTENT(_class, _nsid)                                     \
-  NS_IMPL_FROMCONTENT_HELPER(_class, IsInNamespace(_nsid))
-
-#define NS_IMPL_FROMCONTENT_WITH_TAG(_class, _nsid, _tag)                      \
-  NS_IMPL_FROMCONTENT_HELPER(_class, NodeInfo()->Equals(nsGkAtoms::_tag, _nsid))
-
-#define NS_IMPL_FROMCONTENT_HTML_WITH_TAG(_class, _tag)                        \
-  NS_IMPL_FROMCONTENT_WITH_TAG(_class, kNameSpaceID_XHTML, _tag)
 
 #endif /* nsIContent_h___ */

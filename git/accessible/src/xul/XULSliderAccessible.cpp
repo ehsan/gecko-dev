@@ -21,7 +21,7 @@ XULSliderAccessible::
   XULSliderAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc)
 {
-  mStateFlags |= eHasNumericValue;
+  mFlags = mFlags | eHasNumericValue;
 }
 
 // nsISupports

@@ -7,11 +7,8 @@
 #include "CameraRecorderProfiles.h"
 #include "CameraControlImpl.h"
 #include "CameraCommon.h"
-#include "nsGlobalWindow.h"
 
 using namespace mozilla;
-using namespace mozilla::dom;
-using namespace mozilla::idl;
 
 CameraControlImpl::CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThread, uint64_t aWindowId)
   : mCameraId(aCameraId)
@@ -25,9 +22,10 @@ CameraControlImpl::CameraControlImpl(uint32_t aCameraId, nsIThread* aCameraThrea
   , mAutoFocusOnErrorCb(nullptr)
   , mTakePictureOnSuccessCb(nullptr)
   , mTakePictureOnErrorCb(nullptr)
+  , mStartRecordingOnSuccessCb(nullptr)
+  , mStartRecordingOnErrorCb(nullptr)
   , mOnShutterCb(nullptr)
   , mOnClosedCb(nullptr)
-  , mOnRecorderStateChangeCb(nullptr)
 {
   DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
 }
@@ -198,7 +196,7 @@ CameraControlImpl::Get(JSContext* aCx, uint32_t aKey, JS::Value* aValue)
 nsresult
 CameraControlImpl::Set(nsICameraShutterCallback* aOnShutter)
 {
-  mOnShutterCb = new nsMainThreadPtrHolder<nsICameraShutterCallback>(aOnShutter);
+  mOnShutterCb = aOnShutter;
   return NS_OK;
 }
 
@@ -212,7 +210,7 @@ CameraControlImpl::Get(nsICameraShutterCallback** aOnShutter)
 nsresult
 CameraControlImpl::Set(nsICameraClosedCallback* aOnClosed)
 {
-  mOnClosedCb = new nsMainThreadPtrHolder<nsICameraClosedCallback>(aOnClosed);
+  mOnClosedCb = aOnClosed;
   return NS_OK;
 }
 
@@ -220,20 +218,6 @@ nsresult
 CameraControlImpl::Get(nsICameraClosedCallback** aOnClosed)
 {
   *aOnClosed = mOnClosedCb;
-  return NS_OK;
-}
-
-nsresult
-CameraControlImpl::Set(nsICameraRecorderStateChange* aOnRecorderStateChange)
-{
-  mOnRecorderStateChangeCb = new nsMainThreadPtrHolder<nsICameraRecorderStateChange>(aOnRecorderStateChange);
-  return NS_OK;
-}
-
-nsresult
-CameraControlImpl::Get(nsICameraRecorderStateChange** aOnRecorderStateChange)
-{
-  *aOnRecorderStateChange = mOnRecorderStateChangeCb;
   return NS_OK;
 }
 
@@ -251,16 +235,17 @@ CameraControlImpl::Shutdown()
   mAutoFocusOnErrorCb = nullptr;
   mTakePictureOnSuccessCb = nullptr;
   mTakePictureOnErrorCb = nullptr;
+  mStartRecordingOnSuccessCb = nullptr;
+  mStartRecordingOnErrorCb = nullptr;
   mOnShutterCb = nullptr;
   mOnClosedCb = nullptr;
-  mOnRecorderStateChangeCb = nullptr;
 }
 
 void
 CameraControlImpl::OnShutterInternal()
 {
   DOM_CAMERA_LOGI("** SNAP **\n");
-  if (mOnShutterCb.get()) {
+  if (mOnShutterCb) {
     mOnShutterCb->HandleEvent();
   }
 }
@@ -279,7 +264,7 @@ void
 CameraControlImpl::OnClosedInternal()
 {
   DOM_CAMERA_LOGI("Camera hardware was closed\n");
-  if (mOnClosedCb.get()) {
+  if (mOnClosedCb) {
     mOnClosedCb->HandleEvent();
   }
 }
@@ -294,64 +279,31 @@ CameraControlImpl::OnClosed()
   }
 }
 
-void
-CameraControlImpl::OnRecorderStateChange(const nsString& aStateMsg, int32_t aStatus, int32_t aTrackNumber)
-{
-  DOM_CAMERA_LOGI("OnRecorderStateChange: '%s'\n", NS_ConvertUTF16toUTF8(aStateMsg).get());
-
-  nsCOMPtr<nsIRunnable> onRecorderStateChange = new CameraRecorderStateChange(mOnRecorderStateChangeCb, aStateMsg, aStatus, aTrackNumber, mWindowId);
-  nsresult rv = NS_DispatchToMainThread(onRecorderStateChange);
-  if (NS_FAILED(rv)) {
-    DOM_CAMERA_LOGE("Failed to dispatch onRecorderStateChange event to main thread (%d)\n", rv);
-  }
-}
-
 nsresult
 CameraControlImpl::GetPreviewStream(CameraSize aSize, nsICameraPreviewStreamCallback* onSuccess, nsICameraErrorCallback* onError)
 {
+  /**
+   * The camera preview stream object is DOM-facing, and as such
+   * must be a cycle-collection participant created on the main
+   * thread.
+   */
+  MOZ_ASSERT(NS_IsMainThread());
+
   nsCOMPtr<nsIRunnable> getPreviewStreamTask = new GetPreviewStreamTask(this, aSize, onSuccess, onError);
-  return mCameraThread->Dispatch(getPreviewStreamTask, NS_DISPATCH_NORMAL);
+  return NS_DispatchToCurrentThread(getPreviewStreamTask);
 }
 
 nsresult
 CameraControlImpl::AutoFocus(nsICameraAutoFocusCallback* onSuccess, nsICameraErrorCallback* onError)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  bool cancel = false;
-
-  nsCOMPtr<nsICameraAutoFocusCallback> cb = mAutoFocusOnSuccessCb.get();
-  if (cb) {
-    /**
-     * We already have a callback, so someone has already
-     * called autoFocus() -- cancel it.
-     */
-    mAutoFocusOnSuccessCb = nullptr;
-    mAutoFocusOnErrorCb = nullptr;
-    cancel = true;
-  }
-
-  nsCOMPtr<nsIRunnable> autoFocusTask = new AutoFocusTask(this, cancel, onSuccess, onError);
+  nsCOMPtr<nsIRunnable> autoFocusTask = new AutoFocusTask(this, onSuccess, onError);
   return mCameraThread->Dispatch(autoFocusTask, NS_DISPATCH_NORMAL);
 }
 
 nsresult
-CameraControlImpl::TakePicture(CameraSize aSize, int32_t aRotation, const nsAString& aFileFormat, CameraPosition aPosition, uint64_t aDateTime, nsICameraTakePictureCallback* onSuccess, nsICameraErrorCallback* onError)
+CameraControlImpl::TakePicture(CameraSize aSize, int32_t aRotation, const nsAString& aFileFormat, CameraPosition aPosition, nsICameraTakePictureCallback* onSuccess, nsICameraErrorCallback* onError)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  bool cancel = false;
-
-  nsCOMPtr<nsICameraTakePictureCallback> cb = mTakePictureOnSuccessCb.get();
-  if (cb) {
-    /**
-     * We already have a callback, so someone has already
-     * called takePicture() -- cancel it.
-     */
-    mTakePictureOnSuccessCb = nullptr;
-    mTakePictureOnErrorCb = nullptr;
-    cancel = true;
-  }
-
-  nsCOMPtr<nsIRunnable> takePictureTask = new TakePictureTask(this, cancel, aSize, aRotation, aFileFormat, aPosition, aDateTime, onSuccess, onError);
+  nsCOMPtr<nsIRunnable> takePictureTask = new TakePictureTask(this, aSize, aRotation, aFileFormat, aPosition, onSuccess, onError);
   return mCameraThread->Dispatch(takePictureTask, NS_DISPATCH_NORMAL);
 }
 
@@ -393,13 +345,6 @@ CameraControlImpl::GetPreviewStreamVideoMode(CameraRecorderOptions* aOptions, ns
   return mCameraThread->Dispatch(getPreviewStreamVideoModeTask, NS_DISPATCH_NORMAL);
 }
 
-nsresult
-CameraControlImpl::ReleaseHardware(nsICameraReleaseCallback* onSuccess, nsICameraErrorCallback* onError)
-{
-  nsCOMPtr<nsIRunnable> releaseHardwareTask = new ReleaseHardwareTask(this, onSuccess, onError);
-  return mCameraThread->Dispatch(releaseHardwareTask, NS_DISPATCH_NORMAL);
-}
-
 bool
 CameraControlImpl::ReceiveFrame(void* aBuffer, ImageFormat aFormat, FrameBuilder aBuilder)
 {
@@ -413,20 +358,11 @@ CameraControlImpl::ReceiveFrame(void* aBuffer, ImageFormat aFormat, FrameBuilder
 NS_IMETHODIMP
 GetPreviewStreamResult::Run()
 {
-  /**
-   * The camera preview stream object is DOM-facing, and as such
-   * must be a cycle-collection participant created on the main
-   * thread.
-   */
   MOZ_ASSERT(NS_IsMainThread());
 
-  nsCOMPtr<nsICameraPreviewStreamCallback> onSuccess = mOnSuccessCb.get();
-  nsGlobalWindow* window = nsGlobalWindow::GetInnerWindowWithId(mWindowId);
-  if (onSuccess && nsDOMCameraManager::IsWindowStillActive(mWindowId) && window) {
-    nsCOMPtr<nsIDOMMediaStream> stream =
-      new DOMCameraPreview(window, mCameraControl, mWidth, mHeight,
-	                         mFramesPerSecond);
-    onSuccess->HandleEvent(stream);
+  if (mOnSuccessCb && nsDOMCameraManager::IsWindowStillActive(mWindowId)) {
+    nsCOMPtr<nsIDOMMediaStream> stream = new DOMCameraPreview(mCameraControl, mWidth, mHeight, mFramesPerSecond);
+    mOnSuccessCb->HandleEvent(stream);
   }
   return NS_OK;
 }

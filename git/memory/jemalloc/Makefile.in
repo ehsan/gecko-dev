@@ -10,6 +10,7 @@ VPATH		= $(srcdir) $(srcdir)/src/src
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = jemalloc
 LIBRARY_NAME = jemalloc
 FORCE_STATIC_LIB = 1
 
@@ -19,9 +20,7 @@ DIST_INSTALL = 1
 endif
 
 CSRCS := $(notdir $(wildcard $(srcdir)/src/src/*.c))
-# Only OSX needs the zone allocation implementation, but only if
-# replace-malloc is not enabled.
-ifneq ($(OS_TARGET)$(MOZ_REPLACE_MALLOC),Darwin)
+ifneq ($(OS_TARGET),Darwin)
 CSRCS := $(filter-out zone.c,$(CSRCS))
 endif
 

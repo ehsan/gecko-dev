@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/DebugOnly.h"
+#include "mozilla/Util.h"
 
 #include "mozIStorageService.h"
 #include "nsIAlertsService.h"
@@ -14,6 +14,7 @@
 #include "nsIMIMEService.h"
 #include "nsIParentalControlsService.h"
 #include "nsIPrefService.h"
+#include "nsIPrivateBrowsingService.h"
 #include "nsIPromptService.h"
 #include "nsIResumableChannel.h"
 #include "nsIWebBrowserPersist.h"
@@ -27,14 +28,11 @@
 #include "nsDirectoryServiceDefs.h"
 #include "nsDownloadManager.h"
 #include "nsNetUtil.h"
-#include "nsThreadUtils.h"
 
 #include "mozStorageCID.h"
 #include "nsDocShellCID.h"
 #include "nsEmbedCID.h"
 #include "nsToolkitCompsCID.h"
-
-#include "SQLFunctions.h"
 
 #ifdef XP_WIN
 #include <shlobj.h>
@@ -56,7 +54,6 @@
 #endif
 
 using namespace mozilla;
-using mozilla::downloads::GenerateGUID;
 
 #define DOWNLOAD_MANAGER_BUNDLE "chrome://mozapps/locale/downloads/downloads.properties"
 #define DOWNLOAD_MANAGER_ALERT_ICON "chrome://mozapps/skin/downloads/downloadIcon.png"
@@ -71,7 +68,7 @@ using mozilla::downloads::GenerateGUID;
 
 static const int64_t gUpdateInterval = 400 * PR_USEC_PER_MSEC;
 
-#define DM_SCHEMA_VERSION      9
+#define DM_SCHEMA_VERSION      8
 #define DM_DB_NAME             NS_LITERAL_STRING("downloads.sqlite")
 #define DM_DB_CORRUPT_FILENAME NS_LITERAL_STRING("downloads.sqlite.corrupt")
 
@@ -134,11 +131,11 @@ nsDownloadManager::ResumeRetry(nsDownload *aDl)
   // If not, try to retry the download
   if (NS_FAILED(rv)) {
     // First cancel the download so it's no longer active
-    rv = dl->Cancel();
+    rv = CancelDownload(dl->mID);
 
     // Then retry it
     if (NS_SUCCEEDED(rv))
-      rv = dl->Retry();
+      rv = RetryDownload(dl->mID);
   }
 
   return rv;
@@ -147,19 +144,9 @@ nsDownloadManager::ResumeRetry(nsDownload *aDl)
 nsresult
 nsDownloadManager::PauseAllDownloads(bool aSetResume)
 {
-  nsresult rv = PauseAllDownloads(mCurrentDownloads, aSetResume);
-  nsresult rv2 = PauseAllDownloads(mCurrentPrivateDownloads, aSetResume);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_SUCCESS(rv2, rv2);
-  return NS_OK;
-}
-
-nsresult
-nsDownloadManager::PauseAllDownloads(nsCOMArray<nsDownload>& aDownloads, bool aSetResume)
-{
   nsresult retVal = NS_OK;
-  for (int32_t i = aDownloads.Count() - 1; i >= 0; --i) {
-    nsRefPtr<nsDownload> dl = aDownloads[i];
+  for (int32_t i = mCurrentDownloads.Count() - 1; i >= 0; --i) {
+    nsRefPtr<nsDownload> dl = mCurrentDownloads[i];
 
     // Only pause things that need to be paused
     if (!dl->IsPaused()) {
@@ -180,19 +167,9 @@ nsDownloadManager::PauseAllDownloads(nsCOMArray<nsDownload>& aDownloads, bool aS
 nsresult
 nsDownloadManager::ResumeAllDownloads(bool aResumeAll)
 {
-  nsresult rv = ResumeAllDownloads(mCurrentDownloads, aResumeAll);
-  nsresult rv2 = ResumeAllDownloads(mCurrentPrivateDownloads, aResumeAll);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_SUCCESS(rv2, rv2);
-  return NS_OK;
-}
-
-nsresult
-nsDownloadManager::ResumeAllDownloads(nsCOMArray<nsDownload>& aDownloads, bool aResumeAll)
-{
   nsresult retVal = NS_OK;
-  for (int32_t i = aDownloads.Count() - 1; i >= 0; --i) {
-    nsRefPtr<nsDownload> dl = aDownloads[i];
+  for (int32_t i = mCurrentDownloads.Count() - 1; i >= 0; --i) {
+    nsRefPtr<nsDownload> dl = mCurrentDownloads[i];
 
     // If aResumeAll is true, then resume everything; otherwise, check if the
     // download should auto-resume
@@ -216,25 +193,15 @@ nsDownloadManager::ResumeAllDownloads(nsCOMArray<nsDownload>& aDownloads, bool a
 nsresult
 nsDownloadManager::RemoveAllDownloads()
 {
-  nsresult rv = RemoveAllDownloads(mCurrentDownloads);
-  nsresult rv2 = RemoveAllDownloads(mCurrentPrivateDownloads);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_SUCCESS(rv2, rv2);
-  return NS_OK;
-}
-
-nsresult
-nsDownloadManager::RemoveAllDownloads(nsCOMArray<nsDownload>& aDownloads)
-{
   nsresult rv = NS_OK;
-  for (int32_t i = aDownloads.Count() - 1; i >= 0; --i) {
-    nsRefPtr<nsDownload> dl = aDownloads[0];
+  for (int32_t i = mCurrentDownloads.Count() - 1; i >= 0; --i) {
+    nsRefPtr<nsDownload> dl = mCurrentDownloads[0];
 
     nsresult result = NS_OK;
     if (dl->IsPaused() && GetQuitBehavior() != QUIT_AND_CANCEL)
-      aDownloads.RemoveObject(dl);
+      mCurrentDownloads.RemoveObject(dl);
     else
-      result = dl->Cancel();
+      result = CancelDownload(dl->mID);
 
     // Track the failure, but don't miss out on other downloads
     if (NS_FAILED(result))
@@ -245,28 +212,28 @@ nsDownloadManager::RemoveAllDownloads(nsCOMArray<nsDownload>& aDownloads)
 }
 
 nsresult
-nsDownloadManager::RemoveDownloadsForURI(mozIStorageStatement* aStatement, nsIURI *aURI)
+nsDownloadManager::RemoveDownloadsForURI(nsIURI *aURI)
 {
-  mozStorageStatementScoper scope(aStatement);
+  mozStorageStatementScoper scope(mGetIdsForURIStatement);
 
   nsAutoCString source;
   nsresult rv = aURI->GetSpec(source);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aStatement->BindUTF8StringByName(
+  rv = mGetIdsForURIStatement->BindUTF8StringByName(
     NS_LITERAL_CSTRING("source"), source);
   NS_ENSURE_SUCCESS(rv, rv);
 
   bool hasMore = false;
-  nsAutoTArray<nsCString, 4> downloads;
+  nsAutoTArray<int64_t, 4> downloads;
   // Get all the downloads that match the provided URI
-  while (NS_SUCCEEDED(aStatement->ExecuteStep(&hasMore)) &&
+  while (NS_SUCCEEDED(mGetIdsForURIStatement->ExecuteStep(&hasMore)) &&
          hasMore) {
-    nsAutoCString downloadGuid;
-    rv = aStatement->GetUTF8String(0, downloadGuid);
+    int64_t downloadId;
+    rv = mGetIdsForURIStatement->GetInt64(0, &downloadId);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    downloads.AppendElement(downloadGuid);
+    downloads.AppendElement(downloadId);
   }
 
   // Remove each download ignoring any failure so we reach other downloads
@@ -308,7 +275,7 @@ nsDownloadManager::GetFileDBConnection(nsIFile *dbFile) const
 }
 
 already_AddRefed<mozIStorageConnection>
-nsDownloadManager::GetPrivateDBConnection() const
+nsDownloadManager::GetMemoryDBConnection() const
 {
   nsCOMPtr<mozIStorageService> storage =
     do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
@@ -322,52 +289,30 @@ nsDownloadManager::GetPrivateDBConnection() const
 }
 
 void
-nsDownloadManager::CloseAllDBs()
+nsDownloadManager::CloseDB()
 {
-  CloseDB(mDBConn, mUpdateDownloadStatement, mGetIdsForURIStatement);
-  CloseDB(mPrivateDBConn, mUpdatePrivateDownloadStatement, mGetPrivateIdsForURIStatement);
-}
-
-void
-nsDownloadManager::CloseDB(mozIStorageConnection* aDBConn,
-                           mozIStorageStatement* aUpdateStmt,
-                           mozIStorageStatement* aGetIdsStmt)
-{
-  DebugOnly<nsresult> rv = aGetIdsStmt->Finalize();
+  DebugOnly<nsresult> rv = mGetIdsForURIStatement->Finalize();
   MOZ_ASSERT(NS_SUCCEEDED(rv));
-  rv = aUpdateStmt->Finalize();
+  rv = mUpdateDownloadStatement->Finalize();
   MOZ_ASSERT(NS_SUCCEEDED(rv));
-  rv = aDBConn->AsyncClose(nullptr);
+  rv = mDBConn->AsyncClose(nullptr);
   MOZ_ASSERT(NS_SUCCEEDED(rv));
-}
-
-static nsresult
-InitSQLFunctions(mozIStorageConnection* aDBConn)
-{
-  nsresult rv = mozilla::downloads::GenerateGUIDFunction::create(aDBConn);
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
 }
 
 nsresult
-nsDownloadManager::InitPrivateDB()
+nsDownloadManager::InitMemoryDB()
 {
   bool ready = false;
-  if (mPrivateDBConn && NS_SUCCEEDED(mPrivateDBConn->GetConnectionReady(&ready)) && ready)
-    CloseDB(mPrivateDBConn, mUpdatePrivateDownloadStatement, mGetPrivateIdsForURIStatement);
-  mPrivateDBConn = GetPrivateDBConnection();
-  if (!mPrivateDBConn)
+  if (mDBConn && NS_SUCCEEDED(mDBConn->GetConnectionReady(&ready)) && ready)
+    CloseDB();
+  mDBConn = GetMemoryDBConnection();
+  if (!mDBConn)
     return NS_ERROR_NOT_AVAILABLE;
 
-  nsresult rv = InitSQLFunctions(mPrivateDBConn);
+  nsresult rv = CreateTable();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = CreateTable(mPrivateDBConn);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = InitStatements(mPrivateDBConn, getter_AddRefs(mUpdatePrivateDownloadStatement),
-                      getter_AddRefs(mGetPrivateIdsForURIStatement));
-  NS_ENSURE_SUCCESS(rv, rv);
+  mDBType = DATABASE_MEMORY;
   return NS_OK;
 }
 
@@ -385,25 +330,21 @@ nsDownloadManager::InitFileDB()
 
   bool ready = false;
   if (mDBConn && NS_SUCCEEDED(mDBConn->GetConnectionReady(&ready)) && ready)
-    CloseDB(mDBConn, mUpdateDownloadStatement, mGetIdsForURIStatement);
+    CloseDB();
   mDBConn = GetFileDBConnection(dbFile);
   NS_ENSURE_TRUE(mDBConn, NS_ERROR_NOT_AVAILABLE);
-
-  rv = InitSQLFunctions(mDBConn);
-  NS_ENSURE_SUCCESS(rv, rv);
 
   bool tableExists;
   rv = mDBConn->TableExists(NS_LITERAL_CSTRING("moz_downloads"), &tableExists);
   NS_ENSURE_SUCCESS(rv, rv);
-
   if (!tableExists) {
-    rv = CreateTable(mDBConn);
+    rv = CreateTable();
     NS_ENSURE_SUCCESS(rv, rv);
-
-    // We're done with the initialization now and can skip the remaining
-    // upgrading logic.
+    mDBType = DATABASE_DISK;
     return NS_OK;
   }
+
+  mDBType = DATABASE_DISK;
 
   // Checking the database schema now
   int32_t schemaVersion;
@@ -580,37 +521,6 @@ nsDownloadManager::InitFileDB()
     }
     // Fallthrough to the next upgrade
 
-    // Warning: schema versions >=8 must take into account that they can
-    // be operating on schemas from unknown, future versions that have
-    // been downgraded. Operations such as adding columns may fail,
-    // since the column may already exist.
-
-  case 8: // This version adds a column for GUIDs
-    {
-      bool exists;
-      rv = mDBConn->IndexExists(NS_LITERAL_CSTRING("moz_downloads_guid_uniqueindex"),
-                                &exists);
-      NS_ENSURE_SUCCESS(rv, rv);
-      if (!exists) {
-        rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-          "ALTER TABLE moz_downloads ADD COLUMN guid TEXT"));
-        NS_ENSURE_SUCCESS(rv, rv);
-        rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-          "CREATE UNIQUE INDEX moz_downloads_guid_uniqueindex ON moz_downloads (guid)"));
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-
-      rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-        "UPDATE moz_downloads SET guid = GENERATE_GUID() WHERE guid ISNULL"));
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      // Finally, update the database schema
-      schemaVersion = 9;
-      rv = mDBConn->SetSchemaVersion(schemaVersion);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    // Fallthrough to the next upgrade
-
   // Extra sanity checking for developers
 #ifndef DEBUG
   case DM_SCHEMA_VERSION:
@@ -642,15 +552,10 @@ nsDownloadManager::InitFileDB()
       rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
         "SELECT id, name, source, target, tempPath, startTime, endTime, state, "
                "referrer, entityID, currBytes, maxBytes, mimeType, "
-               "preferredApplication, preferredAction, autoResume, guid "
+               "preferredApplication, preferredAction, autoResume "
         "FROM moz_downloads"), getter_AddRefs(stmt));
-      if (NS_SUCCEEDED(rv)) {
-        // We have a database that contains all of the elements that make up
-        // the latest known schema. Reset the version to force an upgrade
-        // path if this downgraded database is used in a later version.
-        mDBConn->SetSchemaVersion(DM_SCHEMA_VERSION);
+      if (NS_SUCCEEDED(rv))
         break;
-      }
 
       // if the statement fails, that means all the columns were not there.
       // First we backup the database
@@ -667,7 +572,7 @@ nsDownloadManager::InitFileDB()
         "DROP TABLE moz_downloads"));
       NS_ENSURE_SUCCESS(rv, rv);
 
-      rv = CreateTable(mDBConn);
+      rv = CreateTable();
       NS_ENSURE_SUCCESS(rv, rv);
     }
     break;
@@ -677,12 +582,12 @@ nsDownloadManager::InitFileDB()
 }
 
 nsresult
-nsDownloadManager::CreateTable(mozIStorageConnection* aDBConn)
+nsDownloadManager::CreateTable()
 {
-  nsresult rv = aDBConn->SetSchemaVersion(DM_SCHEMA_VERSION);
+  nsresult rv = mDBConn->SetSchemaVersion(DM_SCHEMA_VERSION);
   if (NS_FAILED(rv)) return rv;
 
-  rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+  return mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
     "CREATE TABLE moz_downloads ("
       "id INTEGER PRIMARY KEY, "
       "name TEXT, "
@@ -699,15 +604,8 @@ nsDownloadManager::CreateTable(mozIStorageConnection* aDBConn)
       "mimeType TEXT, "
       "preferredApplication TEXT, "
       "preferredAction INTEGER NOT NULL DEFAULT 0, "
-      "autoResume INTEGER NOT NULL DEFAULT 0, "
-      "guid TEXT"
+      "autoResume INTEGER NOT NULL DEFAULT 0"
     ")"));
-  if (NS_FAILED(rv)) return rv;
-
-  rv = aDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-    "CREATE UNIQUE INDEX moz_downloads_guid_uniqueindex "
-      "ON moz_downloads(guid)"));
-  return rv;
 }
 
 nsresult
@@ -818,18 +716,15 @@ nsDownloadManager::AddDownloadToDB(const nsAString &aName,
                                    int64_t aEndTime,
                                    const nsACString &aMimeType,
                                    const nsACString &aPreferredApp,
-                                   nsHandlerInfoAction aPreferredAction,
-                                   bool aPrivate,
-                                   nsACString& aNewGUID)
+                                   nsHandlerInfoAction aPreferredAction)
 {
-  mozIStorageConnection* dbConn = aPrivate ? mPrivateDBConn : mDBConn;
   nsCOMPtr<mozIStorageStatement> stmt;
-  nsresult rv = dbConn->CreateStatement(NS_LITERAL_CSTRING(
+  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
     "INSERT INTO moz_downloads "
     "(name, source, target, tempPath, startTime, endTime, state, "
-     "mimeType, preferredApplication, preferredAction, guid) VALUES "
+     "mimeType, preferredApplication, preferredAction) VALUES "
     "(:name, :source, :target, :tempPath, :startTime, :endTime, :state, "
-     ":mimeType, :preferredApplication, :preferredAction, :guid)"),
+     ":mimeType, :preferredApplication, :preferredAction)"),
     getter_AddRefs(stmt));
   NS_ENSURE_SUCCESS(rv, 0);
 
@@ -863,21 +758,13 @@ nsDownloadManager::AddDownloadToDB(const nsAString &aName,
   rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("preferredAction"), aPreferredAction);
   NS_ENSURE_SUCCESS(rv, 0);
 
-  nsAutoCString guid;
-  rv = GenerateGUID(guid);
-  NS_ENSURE_SUCCESS(rv, 0);
-  rv = stmt->BindUTF8StringByName(NS_LITERAL_CSTRING("guid"), guid);
-  NS_ENSURE_SUCCESS(rv, 0);
-
   bool hasMore;
   rv = stmt->ExecuteStep(&hasMore); // we want to keep our lock
   NS_ENSURE_SUCCESS(rv, 0);
 
   int64_t id = 0;
-  rv = dbConn->GetLastInsertRowID(&id);
+  rv = mDBConn->GetLastInsertRowID(&id);
   NS_ENSURE_SUCCESS(rv, 0);
-
-  aNewGUID = guid;
 
   // lock on DB from statement will be released once we return
   return id;
@@ -886,38 +773,38 @@ nsDownloadManager::AddDownloadToDB(const nsAString &aName,
 nsresult
 nsDownloadManager::InitDB()
 {
-  nsresult rv = InitPrivateDB();
+  nsresult rv = NS_OK;
+
+  switch (mDBType) {
+    case DATABASE_MEMORY:
+      rv = InitMemoryDB();
+      break;
+
+    case DATABASE_DISK:
+      rv = InitFileDB();
+      break;
+
+    default:
+      NS_ERROR("Unexpected value encountered for nsDownloadManager::mDBType");
+      break;
+  }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = InitFileDB();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = InitStatements(mDBConn, getter_AddRefs(mUpdateDownloadStatement),
-                      getter_AddRefs(mGetIdsForURIStatement));
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
-}
-
-nsresult
-nsDownloadManager::InitStatements(mozIStorageConnection* aDBConn,
-                                  mozIStorageStatement** aUpdateStatement,
-                                  mozIStorageStatement** aGetIdsStatement)
-{
-  nsresult rv = aDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
     "UPDATE moz_downloads "
     "SET tempPath = :tempPath, startTime = :startTime, endTime = :endTime, "
       "state = :state, referrer = :referrer, entityID = :entityID, "
       "currBytes = :currBytes, maxBytes = :maxBytes, autoResume = :autoResume "
-    "WHERE id = :id"), aUpdateStatement);
+    "WHERE id = :id"), getter_AddRefs(mUpdateDownloadStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aDBConn->CreateStatement(NS_LITERAL_CSTRING(
-    "SELECT guid "
+  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+    "SELECT id "
     "FROM moz_downloads "
-    "WHERE source = :source"), aGetIdsStatement);
+    "WHERE source = :source"), getter_AddRefs(mGetIdsForURIStatement));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_OK;
+  return rv;
 }
 
 nsresult
@@ -970,6 +857,14 @@ nsDownloadManager::Init()
   rv = RestoreActiveDownloads();
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Failed to restore all active downloads");
 
+  nsCOMPtr<nsIPrivateBrowsingService> pbs =
+    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+  if (pbs) {
+    (void)pbs->GetPrivateBrowsingEnabled(&mInPrivateBrowsing);
+    if (mInPrivateBrowsing)
+      OnEnterPrivateBrowsingMode();
+  }
+
   nsCOMPtr<nsINavHistoryService> history =
     do_GetService(NS_NAVHISTORYSERVICE_CONTRACTID);
 
@@ -988,13 +883,11 @@ nsDownloadManager::Init()
   (void)mObserverService->AddObserver(this, "offline-requested", true);
   (void)mObserverService->AddObserver(this, "sleep_notification", true);
   (void)mObserverService->AddObserver(this, "wake_notification", true);
-  (void)mObserverService->AddObserver(this, "suspend_process_notification", true);
-  (void)mObserverService->AddObserver(this, "resume_process_notification", true);
   (void)mObserverService->AddObserver(this, "profile-before-change", true);
   (void)mObserverService->AddObserver(this, NS_IOSERVICE_GOING_OFFLINE_TOPIC, true);
   (void)mObserverService->AddObserver(this, NS_IOSERVICE_OFFLINE_STATUS_TOPIC, true);
-  (void)mObserverService->AddObserver(this, "last-pb-context-exited", true);
-  (void)mObserverService->AddObserver(this, "last-pb-context-exiting", true);
+  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_REQUEST_TOPIC, true);
+  (void)mObserverService->AddObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC, true);
 
   if (history)
     (void)history->AddObserver(this, true);
@@ -1052,66 +945,18 @@ nsDownloadManager::GetQuitBehavior()
   }
 }
 
-// Using a globally-unique GUID, search all databases (both private and public).
-// A return value of NS_ERROR_NOT_AVAILABLE means no download with the given GUID
-// could be found, either private or public.
-
-nsresult
-nsDownloadManager::GetDownloadFromDB(const nsACString& aGUID, nsDownload **retVal)
-{
-  MOZ_ASSERT(!FindDownload(aGUID),
-             "If it is a current download, you should not call this method!");
-
-  nsDependentCString query = NS_LITERAL_CSTRING(
-    "SELECT id, state, startTime, source, target, tempPath, name, referrer, "
-           "entityID, currBytes, maxBytes, mimeType, preferredAction, "
-           "preferredApplication, autoResume, guid "
-    "FROM moz_downloads "
-    "WHERE guid = :guid");
-  // First, let's query the database and see if it even exists
-  nsCOMPtr<mozIStorageStatement> stmt;
-  nsresult rv = mDBConn->CreateStatement(query, getter_AddRefs(stmt));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = stmt->BindUTF8StringByName(NS_LITERAL_CSTRING("guid"), aGUID);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = GetDownloadFromDB(mDBConn, stmt, retVal);
-
-  // If the download cannot be found in the public database, try again
-  // in the private one. Otherwise, return whatever successful result
-  // or failure obtained from the public database.
-  if (rv == NS_ERROR_NOT_AVAILABLE) {
-    rv = mPrivateDBConn->CreateStatement(query, getter_AddRefs(stmt));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = stmt->BindUTF8StringByName(NS_LITERAL_CSTRING("guid"), aGUID);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = GetDownloadFromDB(mPrivateDBConn, stmt, retVal);
-
-    // Only if it still cannot be found do we report the failure.
-    if (rv == NS_ERROR_NOT_AVAILABLE) {
-      *retVal = nullptr;
-    }
-  }
-  return rv;
-}
-
 nsresult
 nsDownloadManager::GetDownloadFromDB(uint32_t aID, nsDownload **retVal)
 {
-  NS_WARNING("Using integer IDs without compat mode enabled");
-
-  MOZ_ASSERT(!FindDownload(aID),
-             "If it is a current download, you should not call this method!");
+  NS_ASSERTION(!FindDownload(aID),
+               "If it is a current download, you should not call this method!");
 
   // First, let's query the database and see if it even exists
   nsCOMPtr<mozIStorageStatement> stmt;
   nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
     "SELECT id, state, startTime, source, target, tempPath, name, referrer, "
            "entityID, currBytes, maxBytes, mimeType, preferredAction, "
-           "preferredApplication, autoResume, guid "
+           "preferredApplication, autoResume "
     "FROM moz_downloads "
     "WHERE id = :id"), getter_AddRefs(stmt));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1119,16 +964,8 @@ nsDownloadManager::GetDownloadFromDB(uint32_t aID, nsDownload **retVal)
   rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("id"), aID);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return GetDownloadFromDB(mDBConn, stmt, retVal);
-}
-
-nsresult
-nsDownloadManager::GetDownloadFromDB(mozIStorageConnection* aDBConn,
-                                     mozIStorageStatement* stmt,
-                                     nsDownload **retVal)
-{
   bool hasResults = false;
-  nsresult rv = stmt->ExecuteStep(&hasResults);
+  rv = stmt->ExecuteStep(&hasResults);
   if (NS_FAILED(rv) || !hasResults)
     return NS_ERROR_NOT_AVAILABLE;
 
@@ -1136,9 +973,7 @@ nsDownloadManager::GetDownloadFromDB(mozIStorageConnection* aDBConn,
   nsRefPtr<nsDownload> dl = new nsDownload();
   if (!dl)
     return NS_ERROR_OUT_OF_MEMORY;
-  dl->mPrivate = aDBConn == mPrivateDBConn;
-
-  dl->mDownloadManager = this;
+  dl->mPrivate = mInPrivateBrowsing;
 
   int32_t i = 0;
   // Setting all properties of the download now
@@ -1229,29 +1064,6 @@ nsDownloadManager::GetDownloadFromDB(mozIStorageConnection* aDBConn,
   dl->mAutoResume =
     static_cast<enum nsDownload::AutoResume>(stmt->AsInt32(i++));
 
-  rv = stmt->GetUTF8String(i++, dl->mGUID);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Handle situations where we load a download from a database that has been
-  // used in an older version and not gone through the upgrade path (ie. it
-  // contains empty GUID entries).
-  if (dl->mGUID.IsEmpty()) {
-    rv = GenerateGUID(dl->mGUID);
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsCOMPtr<mozIStorageStatement> stmt;
-    rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-                                    "UPDATE moz_downloads SET guid = :guid "
-                                    "WHERE id = :id"),
-                                  getter_AddRefs(stmt));
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->BindUTF8StringByName(NS_LITERAL_CSTRING("guid"), dl->mGUID);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("id"), dl->mID);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->Execute();
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   // Addrefing and returning
   NS_ADDREF(*retVal = dl);
   return NS_OK;
@@ -1260,9 +1072,7 @@ nsDownloadManager::GetDownloadFromDB(mozIStorageConnection* aDBConn,
 nsresult
 nsDownloadManager::AddToCurrentDownloads(nsDownload *aDl)
 {
-  nsCOMArray<nsDownload>& currentDownloads =
-    aDl->mPrivate ? mCurrentPrivateDownloads : mCurrentDownloads;
-  if (!currentDownloads.AppendObject(aDl))
+  if (!mCurrentDownloads.AppendObject(aDl))
     return NS_ERROR_OUT_OF_MEMORY;
 
   aDl->mDownloadManager = this;
@@ -1279,13 +1089,6 @@ nsDownloadManager::SendEvent(nsDownload *aDownload, const char *aTopic)
 //// nsIDownloadManager
 
 NS_IMETHODIMP
-nsDownloadManager::GetActivePrivateDownloadCount(int32_t* aResult)
-{
-  *aResult = mCurrentPrivateDownloads.Count();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDownloadManager::GetActiveDownloadCount(int32_t *aResult)
 {
   *aResult = mCurrentDownloads.Count();
@@ -1297,12 +1100,6 @@ NS_IMETHODIMP
 nsDownloadManager::GetActiveDownloads(nsISimpleEnumerator **aResult)
 {
   return NS_NewArrayEnumerator(aResult, mCurrentDownloads);
-}
-
-NS_IMETHODIMP
-nsDownloadManager::GetActivePrivateDownloads(nsISimpleEnumerator **aResult)
-{
-  return NS_NewArrayEnumerator(aResult, mCurrentPrivateDownloads);
 }
 
 /**
@@ -1529,6 +1326,20 @@ nsDownloadManager::AddDownload(DownloadType aDownloadType,
 
   nsresult rv;
 
+#if !(defined(MOZ_PER_WINDOW_PRIVATE_BROWSING)) && defined(DEBUG)
+  // This code makes sure that in global private browsing mode, the flag
+  // passed to us matches the global PB mode.  This can be removed when
+  // per-window private browsing has been turned on.
+  nsCOMPtr<nsIPrivateBrowsingService> pbService =
+    do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
+  if (pbService) {
+    bool inPrivateBrowsing = false;
+    if (NS_SUCCEEDED(pbService->GetPrivateBrowsingEnabled(&inPrivateBrowsing))) {
+      MOZ_ASSERT(inPrivateBrowsing == aIsPrivate);
+    }
+  }
+#endif
+
   // target must be on the local filesystem
   nsCOMPtr<nsIFileURL> targetFileURL = do_QueryInterface(aTarget, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1587,15 +1398,16 @@ nsDownloadManager::AddDownload(DownloadType aDownloadType,
     (void)aMIMEInfo->GetPreferredAction(&action);
   }
 
+  DownloadState startState = nsIDownloadManager::DOWNLOAD_QUEUED;
+
   int64_t id = AddDownloadToDB(dl->mDisplayName, source, target, tempPath,
                                dl->mStartTime, dl->mLastUpdate,
-                               mimeType, persistentDescriptor, action,
-                               dl->mPrivate, dl->mGUID /* outparam */);
+                               mimeType, persistentDescriptor, action);
   NS_ENSURE_TRUE(id, NS_ERROR_FAILURE);
   dl->mID = id;
 
   rv = AddToCurrentDownloads(dl);
-  (void)dl->SetState(nsIDownloadManager::DOWNLOAD_QUEUED);
+  (void)dl->SetState(startState);
   NS_ENSURE_SUCCESS(rv, rv);
 
 #ifdef DOWNLOAD_SCANNER
@@ -1617,7 +1429,7 @@ nsDownloadManager::AddDownload(DownloadType aDownloadType,
         // This download will get deleted during a call to IAE's Save,
         // so go ahead and mark it as blocked and avoid the download.
         (void)CancelDownload(id);
-        (void)dl->SetState(nsIDownloadManager::DOWNLOAD_BLOCKED_POLICY);
+        startState = nsIDownloadManager::DOWNLOAD_BLOCKED_POLICY;
       }
     }
   }
@@ -1655,8 +1467,6 @@ nsDownloadManager::AddDownload(DownloadType aDownloadType,
 NS_IMETHODIMP
 nsDownloadManager::GetDownload(uint32_t aID, nsIDownload **aDownloadItem)
 {
-  NS_WARNING("Using integer IDs without compat mode enabled");
-
   nsDownload *itm = FindDownload(aID);
 
   nsRefPtr<nsDownload> dl;
@@ -1672,73 +1482,14 @@ nsDownloadManager::GetDownload(uint32_t aID, nsIDownload **aDownloadItem)
   return NS_OK;
 }
 
-namespace {
-class AsyncResult : public nsRunnable
-{
-public:
-  AsyncResult(nsresult aStatus, nsIDownload* aResult,
-              nsIDownloadManagerResult* aCallback)
-  : mStatus(aStatus), mResult(aResult), mCallback(aCallback)
-  {
-  }
-
-  NS_IMETHOD Run()
-  {
-    mCallback->HandleResult(mStatus, mResult);
-    return NS_OK;
-  }
-
-private:
-  nsresult mStatus;
-  nsCOMPtr<nsIDownload> mResult;
-  nsCOMPtr<nsIDownloadManagerResult> mCallback;
-};
-} // anonymous namespace
-
-NS_IMETHODIMP
-nsDownloadManager::GetDownloadByGUID(const nsACString& aGUID,
-                                     nsIDownloadManagerResult* aCallback)
-{
-  nsDownload *itm = FindDownload(aGUID);
-
-  nsresult rv = NS_OK;
-  nsRefPtr<nsDownload> dl;
-  if (!itm) {
-    rv = GetDownloadFromDB(aGUID, getter_AddRefs(dl));
-    itm = dl.get();
-  }
-
-  nsRefPtr<AsyncResult> runnable = new AsyncResult(rv, itm, aCallback);
-  NS_DispatchToMainThread(runnable);
-  return NS_OK;
-}
-
 nsDownload *
 nsDownloadManager::FindDownload(uint32_t aID)
 {
   // we shouldn't ever have many downloads, so we can loop over them
   for (int32_t i = mCurrentDownloads.Count() - 1; i >= 0; --i) {
     nsDownload *dl = mCurrentDownloads[i];
+
     if (dl->mID == aID)
-      return dl;
-  }
-
-  return nullptr;
-}
-
-nsDownload *
-nsDownloadManager::FindDownload(const nsACString& aGUID)
-{
-  // we shouldn't ever have many downloads, so we can loop over them
-  for (int32_t i = mCurrentDownloads.Count() - 1; i >= 0; --i) {
-    nsDownload *dl = mCurrentDownloads[i];
-    if (dl->mGUID == aGUID)
-      return dl;
-  }
-
-  for (int32_t i = mCurrentPrivateDownloads.Count() - 1; i >= 0; --i) {
-    nsDownload *dl = mCurrentPrivateDownloads[i];
-    if (dl->mGUID == aGUID)
       return dl;
   }
 
@@ -1748,8 +1499,6 @@ nsDownloadManager::FindDownload(const nsACString& aGUID)
 NS_IMETHODIMP
 nsDownloadManager::CancelDownload(uint32_t aID)
 {
-  NS_WARNING("Using integer IDs without compat mode enabled");
-
   // We AddRef here so we don't lose access to member variables when we remove
   nsRefPtr<nsDownload> dl = FindDownload(aID);
 
@@ -1757,35 +1506,50 @@ nsDownloadManager::CancelDownload(uint32_t aID)
   if (!dl)
     return NS_ERROR_FAILURE;
 
-  return dl->Cancel();
-}
+  // Don't cancel if download is already finished
+  if (dl->IsFinished())
+    return NS_OK;
 
-nsresult
-nsDownloadManager::RetryDownload(const nsACString& aGUID)
-{
-  nsRefPtr<nsDownload> dl;
-  nsresult rv = GetDownloadFromDB(aGUID, getter_AddRefs(dl));
+  // if the download is fake-paused, we have to resume it so we can cancel it
+  if (dl->IsPaused() && !dl->IsResumable())
+    (void)dl->Resume();
+
+  // Have the download cancel its connection
+  (void)dl->Cancel();
+
+  // Dump the temp file because we know we don't need the file anymore. The
+  // underlying transfer creating the file doesn't delete the file because it
+  // can't distinguish between a pause that cancels the transfer or a real
+  // cancel.
+  if (dl->mTempFile) {
+    bool exists;
+    dl->mTempFile->Exists(&exists);
+    if (exists)
+      dl->mTempFile->Remove(false);
+  }
+
+  nsCOMPtr<nsIFile> file;
+  if (NS_SUCCEEDED(dl->GetTargetFile(getter_AddRefs(file))))
+  {
+    bool exists;
+    file->Exists(&exists);
+    if (exists)
+      file->Remove(false);
+  }
+
+  nsresult rv = dl->SetState(nsIDownloadManager::DOWNLOAD_CANCELED);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return RetryDownload(dl);
+  return NS_OK;
 }
-
 
 NS_IMETHODIMP
 nsDownloadManager::RetryDownload(uint32_t aID)
 {
-  NS_WARNING("Using integer IDs without compat mode enabled");
-
   nsRefPtr<nsDownload> dl;
   nsresult rv = GetDownloadFromDB(aID, getter_AddRefs(dl));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return RetryDownload(dl);
-}
-
-nsresult
-nsDownloadManager::RetryDownload(nsDownload* dl)
-{
   // if our download is not canceled or failed, we should fail
   if (dl->mDownloadState != nsIDownloadManager::DOWNLOAD_FAILED &&
       dl->mDownloadState != nsIDownloadManager::DOWNLOAD_BLOCKED_PARENTAL &&
@@ -1795,7 +1559,6 @@ nsDownloadManager::RetryDownload(nsDownload* dl)
     return NS_ERROR_FAILURE;
 
   // If the download has failed and is resumable then we first try resuming it
-  nsresult rv;
   if (dl->mDownloadState == nsIDownloadManager::DOWNLOAD_FAILED && dl->IsResumable()) {
     rv = dl->Resume();
     if (NS_SUCCEEDED(rv))
@@ -1835,59 +1598,16 @@ nsDownloadManager::RetryDownload(nsDownload* dl)
   return NS_OK;
 }
 
-static nsresult
-RemoveDownloadByGUID(const nsACString& aGUID, mozIStorageConnection* aDBConn)
-{
-  nsCOMPtr<mozIStorageStatement> stmt;
-  nsresult rv = aDBConn->CreateStatement(NS_LITERAL_CSTRING(
-    "DELETE FROM moz_downloads "
-    "WHERE guid = :guid"), getter_AddRefs(stmt));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = stmt->BindUTF8StringByName(NS_LITERAL_CSTRING("guid"), aGUID);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = stmt->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-nsresult
-nsDownloadManager::RemoveDownload(const nsACString& aGUID)
-{
-  nsRefPtr<nsDownload> dl = FindDownload(aGUID);
-  MOZ_ASSERT(!dl, "Can't call RemoveDownload on a download in progress!");
-  if (dl)
-    return NS_ERROR_FAILURE;
-
-  nsresult rv = GetDownloadFromDB(aGUID, getter_AddRefs(dl));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (dl->mPrivate) {
-    RemoveDownloadByGUID(aGUID, mPrivateDBConn);
-  } else {
-    RemoveDownloadByGUID(aGUID, mDBConn);
-  }
-
-  return NotifyDownloadRemoval(dl);
-}
-
 NS_IMETHODIMP
 nsDownloadManager::RemoveDownload(uint32_t aID)
 {
-  NS_WARNING("Using integer IDs without compat mode enabled");
-
-  nsRefPtr<nsDownload> dl = FindDownload(aID);
-  MOZ_ASSERT(!dl, "Can't call RemoveDownload on a download in progress!");
+  nsDownload *dl = FindDownload(aID);
+  NS_ASSERTION(!dl, "Can't call RemoveDownload on a download in progress!");
   if (dl)
     return NS_ERROR_FAILURE;
 
-  nsresult rv = GetDownloadFromDB(aID, getter_AddRefs(dl));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<mozIStorageStatement> stmt;
-  rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
     "DELETE FROM moz_downloads "
     "WHERE id = :id"), getter_AddRefs(stmt));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1898,59 +1618,24 @@ nsDownloadManager::RemoveDownload(uint32_t aID)
   rv = stmt->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsISupportsPRUint32> id =
+    do_CreateInstance(NS_SUPPORTS_PRUINT32_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = id->SetData(aID);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   // Notify the UI with the topic and download id
-  return NotifyDownloadRemoval(dl);
+  return mObserverService->NotifyObservers(id,
+                                           "download-manager-remove-download",
+                                           nullptr);
 }
 
-nsresult
-nsDownloadManager::NotifyDownloadRemoval(nsDownload* aRemoved)
-{
-  nsCOMPtr<nsISupportsPRUint32> id;
-  nsCOMPtr<nsISupportsCString> guid;
-  nsresult rv;
-
-  // Only send an integer ID notification if the download is public.
-  bool sendDeprecatedNotification = !(aRemoved && aRemoved->mPrivate);
-
-  if (sendDeprecatedNotification && aRemoved) {
-    id = do_CreateInstance(NS_SUPPORTS_PRUINT32_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    uint32_t dlID;
-    rv = aRemoved->GetId(&dlID);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = id->SetData(dlID);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  if (sendDeprecatedNotification) {
-    mObserverService->NotifyObservers(id,
-                                     "download-manager-remove-download",
-                                     nullptr);
-  }
-
-  if (aRemoved) {
-    guid = do_CreateInstance(NS_SUPPORTS_CSTRING_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-    nsAutoCString guidStr;
-    rv = aRemoved->GetGuid(guidStr);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = guid->SetData(guidStr);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  mObserverService->NotifyObservers(guid,
-                                    "download-manager-remove-download-guid",
-                                    nullptr);
-  return NS_OK;
-}
-
-static nsresult
-DoRemoveDownloadsByTimeframe(mozIStorageConnection* aDBConn,
-                             int64_t aStartTime,
-                             int64_t aEndTime)
+NS_IMETHODIMP
+nsDownloadManager::RemoveDownloadsByTimeframe(int64_t aStartTime,
+                                              int64_t aEndTime)
 {
   nsCOMPtr<mozIStorageStatement> stmt;
-  nsresult rv = aDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
     "DELETE FROM moz_downloads "
     "WHERE startTime >= :startTime "
     "AND startTime <= :endTime "
@@ -1975,36 +1660,14 @@ DoRemoveDownloadsByTimeframe(mozIStorageConnection* aDBConn,
   rv = stmt->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDownloadManager::RemoveDownloadsByTimeframe(int64_t aStartTime,
-                                              int64_t aEndTime)
-{
-  nsresult rv = DoRemoveDownloadsByTimeframe(mDBConn, aStartTime, aEndTime);
-  nsresult rv2 = DoRemoveDownloadsByTimeframe(mPrivateDBConn, aStartTime, aEndTime);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_SUCCESS(rv2, rv2);
-
   // Notify the UI with the topic and null subject to indicate "remove multiple"
-  return NotifyDownloadRemoval(nullptr);
+  return mObserverService->NotifyObservers(nullptr,
+                                           "download-manager-remove-download",
+                                           nullptr);
 }
 
 NS_IMETHODIMP
 nsDownloadManager::CleanUp()
-{
-  return CleanUp(mDBConn);
-}
-
-NS_IMETHODIMP
-nsDownloadManager::CleanUpPrivate()
-{
-  return CleanUp(mPrivateDBConn);
-}
-
-nsresult
-nsDownloadManager::CleanUp(mozIStorageConnection* aDBConn)
 {
   DownloadState states[] = { nsIDownloadManager::DOWNLOAD_FINISHED,
                              nsIDownloadManager::DOWNLOAD_FAILED,
@@ -2014,7 +1677,7 @@ nsDownloadManager::CleanUp(mozIStorageConnection* aDBConn)
                              nsIDownloadManager::DOWNLOAD_DIRTY };
 
   nsCOMPtr<mozIStorageStatement> stmt;
-  nsresult rv = aDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
     "DELETE FROM moz_downloads "
     "WHERE state = ? "
       "OR state = ? "
@@ -2032,11 +1695,13 @@ nsDownloadManager::CleanUp(mozIStorageConnection* aDBConn)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Notify the UI with the topic and null subject to indicate "remove multiple"
-  return NotifyDownloadRemoval(nullptr);
+  return mObserverService->NotifyObservers(nullptr,
+                                           "download-manager-remove-download",
+                                           nullptr);
 }
 
-static nsresult
-DoGetCanCleanUp(mozIStorageConnection* aDBConn, bool *aResult)
+NS_IMETHODIMP
+nsDownloadManager::GetCanCleanUp(bool *aResult)
 {
   // This method should never return anything but NS_OK for the benefit of
   // unwitting consumers.
@@ -2051,7 +1716,7 @@ DoGetCanCleanUp(mozIStorageConnection* aDBConn, bool *aResult)
                              nsIDownloadManager::DOWNLOAD_DIRTY };
 
   nsCOMPtr<mozIStorageStatement> stmt;
-  nsresult rv = aDBConn->CreateStatement(NS_LITERAL_CSTRING(
+  nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
     "SELECT COUNT(*) "
     "FROM moz_downloads "
     "WHERE state = ? "
@@ -2081,22 +1746,8 @@ DoGetCanCleanUp(mozIStorageConnection* aDBConn, bool *aResult)
 }
 
 NS_IMETHODIMP
-nsDownloadManager::GetCanCleanUp(bool *aResult)
-{
-  return DoGetCanCleanUp(mDBConn, aResult);
-}
-
-NS_IMETHODIMP
-nsDownloadManager::GetCanCleanUpPrivate(bool *aResult)
-{
-  return DoGetCanCleanUp(mPrivateDBConn, aResult);
-}
-
-NS_IMETHODIMP
 nsDownloadManager::PauseDownload(uint32_t aID)
 {
-  NS_WARNING("Using integer IDs without compat mode enabled");
-
   nsDownload *dl = FindDownload(aID);
   if (!dl)
     return NS_ERROR_FAILURE;
@@ -2107,8 +1758,6 @@ nsDownloadManager::PauseDownload(uint32_t aID)
 NS_IMETHODIMP
 nsDownloadManager::ResumeDownload(uint32_t aID)
 {
-  NS_WARNING("Using integer IDs without compat mode enabled");
-
   nsDownload *dl = FindDownload(aID);
   if (!dl)
     return NS_ERROR_FAILURE;
@@ -2125,24 +1774,10 @@ nsDownloadManager::GetDBConnection(mozIStorageConnection **aDBConn)
 }
 
 NS_IMETHODIMP
-nsDownloadManager::GetPrivateDBConnection(mozIStorageConnection **aDBConn)
-{
-  NS_ADDREF(*aDBConn = mPrivateDBConn);
-
-  return NS_OK;
- }
-
-NS_IMETHODIMP
 nsDownloadManager::AddListener(nsIDownloadProgressListener *aListener)
 {
   mListeners.AppendObject(aListener);
-  return NS_OK;
-}
 
-NS_IMETHODIMP
-nsDownloadManager::AddPrivacyAwareListener(nsIDownloadProgressListener *aListener)
-{
-  mPrivacyAwareListeners.AppendObject(aListener);
   return NS_OK;
 }
 
@@ -2150,27 +1785,16 @@ NS_IMETHODIMP
 nsDownloadManager::RemoveListener(nsIDownloadProgressListener *aListener)
 {
   mListeners.RemoveObject(aListener);
-  mPrivacyAwareListeners.RemoveObject(aListener);
+
   return NS_OK;
 }
 
 void
 nsDownloadManager::NotifyListenersOnDownloadStateChange(int16_t aOldState,
-                                                        nsDownload *aDownload)
+                                                        nsIDownload *aDownload)
 {
-  for (int32_t i = mPrivacyAwareListeners.Count() - 1; i >= 0; --i) {
-    mPrivacyAwareListeners[i]->OnDownloadStateChange(aOldState, aDownload);
-  }
-
-  // Only privacy-aware listeners should receive notifications about private
-  // downloads, while non-privacy-aware listeners receive no sign they exist.
-  if (aDownload->mPrivate) {
-    return;
-  }
-
-  for (int32_t i = mListeners.Count() - 1; i >= 0; --i) {
+  for (int32_t i = mListeners.Count() - 1; i >= 0; --i)
     mListeners[i]->OnDownloadStateChange(aOldState, aDownload);
-  }
 }
 
 void
@@ -2180,25 +1804,12 @@ nsDownloadManager::NotifyListenersOnProgressChange(nsIWebProgress *aProgress,
                                                    int64_t aMaxSelfProgress,
                                                    int64_t aCurTotalProgress,
                                                    int64_t aMaxTotalProgress,
-                                                   nsDownload *aDownload)
+                                                   nsIDownload *aDownload)
 {
-  for (int32_t i = mPrivacyAwareListeners.Count() - 1; i >= 0; --i) {
-    mPrivacyAwareListeners[i]->OnProgressChange(aProgress, aRequest, aCurSelfProgress,
-                                                aMaxSelfProgress, aCurTotalProgress,
-                                                aMaxTotalProgress, aDownload);
-  }
-
-  // Only privacy-aware listeners should receive notifications about private
-  // downloads, while non-privacy-aware listeners receive no sign they exist.
-  if (aDownload->mPrivate) {
-    return;
-  }
-
-  for (int32_t i = mListeners.Count() - 1; i >= 0; --i) {
+  for (int32_t i = mListeners.Count() - 1; i >= 0; --i)
     mListeners[i]->OnProgressChange(aProgress, aRequest, aCurSelfProgress,
                                     aMaxSelfProgress, aCurTotalProgress,
                                     aMaxTotalProgress, aDownload);
-  }
 }
 
 void
@@ -2206,23 +1817,42 @@ nsDownloadManager::NotifyListenersOnStateChange(nsIWebProgress *aProgress,
                                                 nsIRequest *aRequest,
                                                 uint32_t aStateFlags,
                                                 nsresult aStatus,
-                                                nsDownload *aDownload)
+                                                nsIDownload *aDownload)
 {
-  for (int32_t i = mPrivacyAwareListeners.Count() - 1; i >= 0; --i) {
-    mPrivacyAwareListeners[i]->OnStateChange(aProgress, aRequest, aStateFlags, aStatus,
-                                             aDownload);
-  }
-
-  // Only privacy-aware listeners should receive notifications about private
-  // downloads, while non-privacy-aware listeners receive no sign they exist.
-  if (aDownload->mPrivate) {
-    return;
-  }
-
-  for (int32_t i = mListeners.Count() - 1; i >= 0; --i) {
+  for (int32_t i = mListeners.Count() - 1; i >= 0; --i)
     mListeners[i]->OnStateChange(aProgress, aRequest, aStateFlags, aStatus,
                                  aDownload);
-  }
+}
+
+nsresult
+nsDownloadManager::SwitchDatabaseTypeTo(enum nsDownloadManager::DatabaseType aType)
+{
+  if (aType == mDBType)
+    return NS_OK; // no-op
+
+  mDBType = aType;
+
+  (void)PauseAllDownloads(true);
+  (void)RemoveAllDownloads();
+
+  nsresult rv = InitDB();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Do things *after* initializing various download manager properties such as
+  // restoring downloads to a consistent state
+  rv = RestoreDatabaseState();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Notify that the database type changed before resuming current downloads
+  (void)mObserverService->NotifyObservers(
+                                static_cast<nsIDownloadManager *>(this),
+                                "download-manager-database-type-changed",
+                                nullptr);
+
+  rv = RestoreActiveDownloads();
+  NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Failed to restore all active downloads");
+
+  return rv;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2254,7 +1884,7 @@ NS_IMETHODIMP
 nsDownloadManager::OnVisit(nsIURI *aURI, int64_t aVisitID, PRTime aTime,
                            int64_t aSessionID, int64_t aReferringID,
                            uint32_t aTransitionType, const nsACString& aGUID,
-                           bool aHidden)
+                           uint32_t *aAdded)
 {
   return NS_OK;
 }
@@ -2268,15 +1898,19 @@ nsDownloadManager::OnTitleChanged(nsIURI *aURI,
 }
 
 NS_IMETHODIMP
+nsDownloadManager::OnBeforeDeleteURI(nsIURI *aURI,
+                                     const nsACString& aGUID,
+                                     uint16_t aReason)
+{
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDownloadManager::OnDeleteURI(nsIURI *aURI,
                                const nsACString& aGUID,
                                uint16_t aReason)
 {
-  nsresult rv = RemoveDownloadsForURI(mGetIdsForURIStatement, aURI);
-  nsresult rv2 = RemoveDownloadsForURI(mGetPrivateIdsForURIStatement, aURI);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_SUCCESS(rv2, rv2);
-  return NS_OK;
+  return RemoveDownloadsForURI(aURI);
 }
 
 NS_IMETHODIMP
@@ -2297,7 +1931,7 @@ nsDownloadManager::OnPageChanged(nsIURI *aURI,
 NS_IMETHODIMP
 nsDownloadManager::OnDeleteVisits(nsIURI *aURI, PRTime aVisitTime,
                                   const nsACString& aGUID,
-                                  uint16_t aReason, uint32_t aTransitionType)
+                                  uint16_t aReason)
 {
   // Don't bother removing downloads until the page is removed.
   return NS_OK;
@@ -2311,34 +1945,27 @@ nsDownloadManager::Observe(nsISupports *aSubject,
                            const char *aTopic,
                            const PRUnichar *aData)
 {
-  // We need to count the active public downloads that could be lost
-  // by quitting, and add any active private ones as well, since per-window
-  // private browsing may be active.
   int32_t currDownloadCount = mCurrentDownloads.Count();
 
   // If we don't need to cancel all the downloads on quit, only count the ones
   // that aren't resumable.
-  if (GetQuitBehavior() != QUIT_AND_CANCEL) {
-    for (int32_t i = currDownloadCount - 1; i >= 0; --i) {
-      if (mCurrentDownloads[i]->IsResumable()) {
+  if (GetQuitBehavior() != QUIT_AND_CANCEL)
+    for (int32_t i = currDownloadCount - 1; i >= 0; --i)
+      if (mCurrentDownloads[i]->IsResumable())
         currDownloadCount--;
-      }
-    }
-
-    // We have a count of the public, non-resumable downloads. Now we need
-    // to add the total number of private downloads, since they are in danger
-    // of being lost.
-    currDownloadCount += mCurrentPrivateDownloads.Count();
-  }
 
   nsresult rv;
   if (strcmp(aTopic, "oncancel") == 0) {
     nsCOMPtr<nsIDownload> dl = do_QueryInterface(aSubject, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    dl->Cancel();
+    uint32_t id;
+    dl->GetId(&id);
+    nsDownload *dl2 = FindDownload(id);
+    if (dl2)
+      return CancelDownload(id);
   } else if (strcmp(aTopic, "profile-before-change") == 0) {
-    CloseAllDBs();
+    CloseDB();
   } else if (strcmp(aTopic, "quit-application") == 0) {
     // Try to pause all downloads and, if appropriate, mark them as auto-resume
     // unless user has specified that downloads should be canceled
@@ -2390,18 +2017,21 @@ nsDownloadManager::Observe(nsISupports *aSubject,
     // We can now resume all downloads that are supposed to auto-resume.
     (void)ResumeAllDownloads(false);
   }
+  else if (strcmp(aTopic, "dlmgr-switchdb") == 0) {
+    if (NS_LITERAL_STRING("memory").Equals(aData))
+      return SwitchDatabaseTypeTo(DATABASE_MEMORY);
+    else if (NS_LITERAL_STRING("disk").Equals(aData))
+      return SwitchDatabaseTypeTo(DATABASE_DISK);
+  }
   else if (strcmp(aTopic, "alertclickcallback") == 0) {
     nsCOMPtr<nsIDownloadManagerUI> dmui =
       do_GetService("@mozilla.org/download-manager-ui;1", &rv);
     NS_ENSURE_SUCCESS(rv, rv);
-    return dmui->Show(nullptr, nullptr, nsIDownloadManagerUI::REASON_USER_INTERACTED,
-                      aData && NS_strcmp(aData, NS_LITERAL_STRING("private").get()) == 0);
-  } else if (strcmp(aTopic, "sleep_notification") == 0 ||
-             strcmp(aTopic, "suspend_process_notification") == 0) {
+    return dmui->Show(nullptr, 0, nsIDownloadManagerUI::REASON_USER_INTERACTED);
+  } else if (strcmp(aTopic, "sleep_notification") == 0) {
     // Pause downloads if we're sleeping, and mark the downloads as auto-resume
     (void)PauseAllDownloads(true);
-  } else if (strcmp(aTopic, "wake_notification") == 0 ||
-             strcmp(aTopic, "resume_process_notification") == 0) {
+  } else if (strcmp(aTopic, "wake_notification") == 0) {
     int32_t resumeOnWakeDelay = 10000;
     nsCOMPtr<nsIPrefBranch> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (pref)
@@ -2414,30 +2044,63 @@ nsDownloadManager::Observe(nsISupports *aSubject,
       (void)mResumeOnWakeTimer->InitWithFuncCallback(ResumeOnWakeCallback,
         this, resumeOnWakeDelay, nsITimer::TYPE_ONE_SHOT);
     }
-  } else if (strcmp(aTopic, "last-pb-context-exited") == 0) {
-    // Upon leaving private browsing mode, cancel all private downloads,
-    // remove all trace of them, and then blow away the private database
-    // and recreate a blank one.
-    PauseAllDownloads(mCurrentPrivateDownloads, true);
-    RemoveAllDownloads(mCurrentPrivateDownloads);
-    InitPrivateDB();
-  } else if (strcmp(aTopic, "last-pb-context-exiting") == 0) {
-    // If there are active private downloads, prompt the user to confirm leaving
-    // private browsing mode (thereby cancelling them). Otherwise, silently proceed.
-    if (!mCurrentPrivateDownloads.Count())
-      return NS_OK;
-
-    nsCOMPtr<nsISupportsPRBool> cancelDownloads = do_QueryInterface(aSubject, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    ConfirmCancelDownloads(mCurrentPrivateDownloads.Count(), cancelDownloads,
-                           NS_LITERAL_STRING("leavePrivateBrowsingCancelDownloadsAlertTitle").get(),
-                           NS_LITERAL_STRING("leavePrivateBrowsingWindowsCancelDownloadsAlertMsgMultiple").get(),
-                           NS_LITERAL_STRING("leavePrivateBrowsingWindowsCancelDownloadsAlertMsg").get(),
-                           NS_LITERAL_STRING("dontLeavePrivateBrowsingButton").get());
+  }
+  else if (strcmp(aTopic, NS_PRIVATE_BROWSING_REQUEST_TOPIC) == 0) {
+    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData) &&
+        currDownloadCount) {
+      nsCOMPtr<nsISupportsPRBool> cancelDownloads =
+        do_QueryInterface(aSubject, &rv);
+      NS_ENSURE_SUCCESS(rv, rv);
+      ConfirmCancelDownloads(currDownloadCount, cancelDownloads,
+                             NS_LITERAL_STRING("enterPrivateBrowsingCancelDownloadsAlertTitle").get(),
+                             NS_LITERAL_STRING("enterPrivateBrowsingCancelDownloadsAlertMsgMultiple").get(),
+                             NS_LITERAL_STRING("enterPrivateBrowsingCancelDownloadsAlertMsg").get(),
+                             NS_LITERAL_STRING("dontEnterPrivateBrowsingButton").get());
+    }
+    else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData) &&
+             mCurrentDownloads.Count()) {
+      nsCOMPtr<nsISupportsPRBool> cancelDownloads =
+        do_QueryInterface(aSubject, &rv);
+      NS_ENSURE_SUCCESS(rv, rv);
+      ConfirmCancelDownloads(mCurrentDownloads.Count(), cancelDownloads,
+                             NS_LITERAL_STRING("leavePrivateBrowsingCancelDownloadsAlertTitle").get(),
+                             NS_LITERAL_STRING("leavePrivateBrowsingCancelDownloadsAlertMsgMultiple").get(),
+                             NS_LITERAL_STRING("leavePrivateBrowsingCancelDownloadsAlertMsg").get(),
+                             NS_LITERAL_STRING("dontLeavePrivateBrowsingButton").get());
+    }
+  }
+  else if (strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0) {
+    if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData))
+      OnEnterPrivateBrowsingMode();
+    else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData))
+      OnLeavePrivateBrowsingMode();
   }
 
   return NS_OK;
+}
+
+void
+nsDownloadManager::OnEnterPrivateBrowsingMode()
+{
+  // Pause all downloads, and mark them to auto-resume.
+  (void)PauseAllDownloads(true);
+
+  // Switch to using an in-memory DB
+  (void)SwitchDatabaseTypeTo(DATABASE_MEMORY);
+
+  mInPrivateBrowsing = true;
+}
+
+void
+nsDownloadManager::OnLeavePrivateBrowsingMode()
+{
+  // We can now resume all downloads that are supposed to auto-resume.
+  (void)ResumeAllDownloads(false);
+
+  // Switch back to the on-disk DB again
+  (void)SwitchDatabaseTypeTo(DATABASE_DISK);
+
+  mInPrivateBrowsing = false;
 }
 
 void
@@ -2516,8 +2179,8 @@ nsDownload::nsDownload() : mDownloadState(nsIDownloadManager::DOWNLOAD_NOTSTARTE
                            mResumedAt(-1),
                            mSpeed(0),
                            mHasMultipleFiles(false),
-                           mPrivate(false),
-                           mAutoResume(DONT_RESUME)
+                           mAutoResume(DONT_RESUME),
+                           mPrivate(false)
 {
 }
 
@@ -2601,9 +2264,7 @@ nsDownload::SetState(DownloadState aState)
         int64_t goat = PR_Now() - mStartTime;
         showTaskbarAlert = goat > alertIntervalUSec;
 
-        int32_t size = mPrivate ?
-            mDownloadManager->mCurrentPrivateDownloads.Count() :
-            mDownloadManager->mCurrentDownloads.Count();
+        int32_t size = mDownloadManager->mCurrentDownloads.Count();
         if (showTaskbarAlert && size == 0) {
           nsCOMPtr<nsIAlertsService> alerts =
             do_GetService("@mozilla.org/alerts-service;1");
@@ -2626,9 +2287,8 @@ nsDownload::SetState(DownloadState aState)
               // the items they downloaded will have been removed.
               alerts->ShowAlertNotification(
                   NS_LITERAL_STRING(DOWNLOAD_MANAGER_ALERT_ICON), title,
-                  message, !removeWhenDone,
-                  mPrivate ? NS_LITERAL_STRING("private") : NS_LITERAL_STRING("non-private"),
-                  mDownloadManager, EmptyString(), NS_LITERAL_STRING("auto"), EmptyString());
+                  message, !removeWhenDone, EmptyString(), mDownloadManager,
+                  EmptyString());
             }
         }
       }
@@ -2651,7 +2311,8 @@ nsDownload::SetState(DownloadState aState)
           if (pref)
             pref->GetBoolPref(PREF_BDM_ADDTORECENTDOCS, &addToRecentDocs);
 
-          if (addToRecentDocs && !mPrivate) {
+          if (addToRecentDocs &&
+              !nsDownloadManager::gDownloadManagerService->mInPrivateBrowsing) {
 #ifdef XP_WIN
             ::SHAddToRecentDocs(SHARD_PATHW, path.get());
 #elif defined(MOZ_WIDGET_GTK2)
@@ -2722,7 +2383,7 @@ nsDownload::SetState(DownloadState aState)
 #endif
       // Now remove the download if the user's retention policy is "Remove when Done"
       if (mDownloadManager->GetRetentionBehavior() == 0)
-        mDownloadManager->RemoveDownload(mGUID);
+        mDownloadManager->RemoveDownload(mID);
     }
     break;
   default:
@@ -2739,35 +2400,27 @@ nsDownload::SetState(DownloadState aState)
   switch (mDownloadState) {
     case nsIDownloadManager::DOWNLOAD_DOWNLOADING:
       // Only send the dl-start event to downloads that are actually starting.
-      if (oldState == nsIDownloadManager::DOWNLOAD_QUEUED) {
-        if (!mPrivate)
-          mDownloadManager->SendEvent(this, "dl-start");
-      }
+      if (oldState == nsIDownloadManager::DOWNLOAD_QUEUED)
+        mDownloadManager->SendEvent(this, "dl-start");
       break;
     case nsIDownloadManager::DOWNLOAD_FAILED:
-      if (!mPrivate)
-        mDownloadManager->SendEvent(this, "dl-failed");
+      mDownloadManager->SendEvent(this, "dl-failed");
       break;
     case nsIDownloadManager::DOWNLOAD_SCANNING:
-      if (!mPrivate)
-        mDownloadManager->SendEvent(this, "dl-scanning");
+      mDownloadManager->SendEvent(this, "dl-scanning");
       break;
     case nsIDownloadManager::DOWNLOAD_FINISHED:
-      if (!mPrivate)
-        mDownloadManager->SendEvent(this, "dl-done");
+      mDownloadManager->SendEvent(this, "dl-done");
       break;
     case nsIDownloadManager::DOWNLOAD_BLOCKED_PARENTAL:
     case nsIDownloadManager::DOWNLOAD_BLOCKED_POLICY:
-      if (!mPrivate)
-        mDownloadManager->SendEvent(this, "dl-blocked");
+      mDownloadManager->SendEvent(this, "dl-blocked");
       break;
     case nsIDownloadManager::DOWNLOAD_DIRTY:
-      if (!mPrivate)
-        mDownloadManager->SendEvent(this, "dl-dirty");
+      mDownloadManager->SendEvent(this, "dl-dirty");
       break;
     case nsIDownloadManager::DOWNLOAD_CANCELED:
-      if (!mPrivate)
-        mDownloadManager->SendEvent(this, "dl-cancel");
+      mDownloadManager->SendEvent(this, "dl-cancel");
       break;
     default:
       break;
@@ -2803,7 +2456,7 @@ nsDownload::OnProgressChange64(nsIWebProgress *aWebProgress,
 
     // If we have a MIME info, we know that exthandler has already added this to
     // the history, but if we do not, we'll have to add it ourselves.
-    if (!mMIMEInfo && !mPrivate) {
+    if (!mMIMEInfo) {
       nsCOMPtr<nsIDownloadHistory> dh =
         do_GetService(NS_DOWNLOADHISTORY_CONTRACTID);
       if (dh)
@@ -3110,17 +2763,7 @@ nsDownload::GetSpeed(double *aSpeed)
 NS_IMETHODIMP
 nsDownload::GetId(uint32_t *aId)
 {
-  if (mPrivate) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
   *aId = mID;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDownload::GetGuid(nsACString &aGUID)
-{
-  aGUID = mGUID;
   return NS_OK;
 }
 
@@ -3159,10 +2802,7 @@ nsDownload::Finalize()
   mTempFile = nullptr;
 
   // Remove ourself from the active downloads
-  nsCOMArray<nsDownload>& currentDownloads = mPrivate ?
-    mDownloadManager->mCurrentPrivateDownloads :
-    mDownloadManager->mCurrentDownloads;
-  (void)currentDownloads.RemoveObject(this);
+  (void)mDownloadManager->mCurrentDownloads.RemoveObject(this);
 
   // Make sure we do not automatically resume
   mAutoResume = DONT_RESUME;
@@ -3316,20 +2956,20 @@ nsDownload::SetProgressBytes(int64_t aCurrBytes, int64_t aMaxBytes)
     mPercentComplete = (int32_t)((double)currBytes / maxBytes * 100 + .5);
 }
 
-NS_IMETHODIMP
+nsresult
 nsDownload::Pause()
 {
   if (!IsResumable())
     return NS_ERROR_UNEXPECTED;
 
-  nsresult rv = CancelTransfer();
+  nsresult rv = Cancel();
   NS_ENSURE_SUCCESS(rv, rv);
 
   return SetState(nsIDownloadManager::DOWNLOAD_PAUSED);
 }
 
 nsresult
-nsDownload::CancelTransfer()
+nsDownload::Cancel()
 {
   nsresult rv = NS_OK;
   if (mCancelable) {
@@ -3341,47 +2981,7 @@ nsDownload::CancelTransfer()
   return rv;
 }
 
-NS_IMETHODIMP
-nsDownload::Cancel()
-{
-  // Don't cancel if download is already finished
-  if (IsFinished())
-    return NS_OK;
-
-  // if the download is fake-paused, we have to resume it so we can cancel it
-  if (IsPaused() && !IsResumable())
-    (void)Resume();
-
-  // Have the download cancel its connection
-  (void)CancelTransfer();
-
-  // Dump the temp file because we know we don't need the file anymore. The
-  // underlying transfer creating the file doesn't delete the file because it
-  // can't distinguish between a pause that cancels the transfer or a real
-  // cancel.
-  if (mTempFile) {
-    bool exists;
-    mTempFile->Exists(&exists);
-    if (exists)
-      mTempFile->Remove(false);
-  }
-
-  nsCOMPtr<nsIFile> file;
-  if (NS_SUCCEEDED(GetTargetFile(getter_AddRefs(file))))
-  {
-    bool exists;
-    file->Exists(&exists);
-    if (exists)
-      file->Remove(false);
-  }
-
-  nsresult rv = SetState(nsIDownloadManager::DOWNLOAD_CANCELED);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
+nsresult
 nsDownload::Resume()
 {
   if (!IsPaused() || !IsResumable())
@@ -3404,7 +3004,7 @@ nsDownload::Resume()
 
   nsCOMPtr<nsIPrivateBrowsingChannel> pbChannel = do_QueryInterface(channel);
   if (pbChannel) {
-    pbChannel->SetPrivate(mPrivate);
+    pbChannel->SetPrivate(mDownloadManager->mInPrivateBrowsing);
   }
 
   // Make sure we can get a file, either the temporary or the real target, for
@@ -3462,18 +3062,6 @@ nsDownload::Resume()
   return SetState(nsIDownloadManager::DOWNLOAD_DOWNLOADING);
 }
 
-NS_IMETHODIMP
-nsDownload::Remove()
-{
-  return mDownloadManager->RemoveDownload(mGUID);
-}
-
-NS_IMETHODIMP
-nsDownload::Retry()
-{
-  return mDownloadManager->RetryDownload(mGUID);
-}
-
 bool
 nsDownload::IsPaused()
 {
@@ -3518,8 +3106,7 @@ nsDownload::UpdateDB()
   NS_ASSERTION(mID, "Download ID is stored as zero.  This is bad!");
   NS_ASSERTION(mDownloadManager, "Egads!  We have no download manager!");
 
-  mozIStorageStatement *stmt = mPrivate ?
-    mDownloadManager->mUpdatePrivateDownloadStatement : mDownloadManager->mUpdateDownloadStatement;
+  mozIStorageStatement *stmt = mDownloadManager->mUpdateDownloadStatement;
 
   nsAutoString tempPath;
   if (mTempFile)

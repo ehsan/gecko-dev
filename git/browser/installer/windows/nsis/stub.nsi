@@ -33,7 +33,6 @@ Var CheckboxSetAsDefault
 Var CheckboxShortcutOnBar ; Used for Quicklaunch or Taskbar as appropriate
 Var CheckboxShortcutInStartMenu
 Var CheckboxShortcutOnDesktop
-Var CheckboxSendPing
 Var CheckboxInstallMaintSvc
 Var DirRequest
 Var ButtonBrowse
@@ -56,7 +55,7 @@ Var CanWriteToInstallDir
 Var HasRequiredSpaceAvailable
 Var IsDownloadFinished
 Var Initialized
-Var DownloadSizeBytes
+Var DownloadSize
 Var HalfOfDownload
 Var DownloadReset
 Var ExistingTopDir
@@ -64,111 +63,14 @@ Var SpaceAvailableBytes
 Var InitialInstallDir
 Var HandleDownload
 Var CanSetAsDefault
-Var InstallCounterStep
 Var TmpVal
+Var InstallCounterStep
 
-Var ExitCode
-Var FirefoxLaunchCode
+Var HEIGHT_PX
+Var CTL_RIGHT_PX
 
-; The first three tick counts are for the start of a phase and equate equate to
-; the display of individual installer pages.
-Var StartIntroPhaseTickCount
-Var StartOptionsPhaseTickCount
-Var StartDownloadPhaseTickCount
-; Since the Intro and Options pages can be displayed multiple times the total
-; seconds spent on each of these pages is reported.
-Var IntroPhaseSeconds
-Var OptionsPhaseSeconds
-; The tick count for the last download
-Var StartLastDownloadTickCount
-; The number of seconds from the start of the download phase until the first
-; bytes are received. This is only recorded for first request so it is possible
-; to determine connection issues for the first request.
-Var DownloadFirstTransferSeconds
-; The last four tick counts are for the end of a phase in the installation page.
-; the options phase when it isn't entered.
-Var EndDownloadPhaseTickCount
-Var EndPreInstallPhaseTickCount
-Var EndInstallPhaseTickCount
-Var EndFinishPhaseTickCount
-
-Var IntroPageShownCount
-Var OptionsPageShownCount
-Var InitialInstallRequirementsCode
-Var ExistingProfile
-Var ExistingVersion
-Var ExistingBuildID
-Var DownloadedBytes
-Var DownloadRetryCount
-Var OpenedDownloadPage
-Var DownloadServerIP
-
-Var ControlHeightPX
-Var ControlRightPX
-
-; Uncomment the following to prevent pinging the metrics server when testing
-; the stub installer
-;!define STUB_DEBUG
-
-!define StubURLVersion "v5"
-
-; Successful install exit code
-!define ERR_SUCCESS 0
-
-/**
- * The following errors prefixed with ERR_DOWNLOAD apply to the download phase.
- */
-; The download was cancelled by the user
-!define ERR_DOWNLOAD_CANCEL 10
-
-; Too many attempts to download. The maximum attempts is defined in
-; DownloadMaxRetries.
-!define ERR_DOWNLOAD_TOO_MANY_RETRIES 11
-
-/**
- * The following errors prefixed with ERR_PREINSTALL apply to the pre-install
- * check phase.
- */
-; Unable to acquire a file handle to the downloaded file
-!define ERR_PREINSTALL_INVALID_HANDLE 20
-
-; The downloaded file's certificate is not trusted by the certificate store.
-!define ERR_PREINSTALL_CERT_UNTRUSTED 21
-
-; The downloaded file's certificate attribute values were incorrect.
-!define ERR_PREINSTALL_CERT_ATTRIBUTES 22
-
-; The downloaded file's certificate is not trusted by the certificate store and
-; certificate attribute values were incorrect.
-!define ERR_PREINSTALL_CERT_UNTRUSTED_AND_ATTRIBUTES 23
-
-/**
- * The following errors prefixed with ERR_INSTALL apply to the install phase.
- */
-; The installation timed out. The installation timeout is defined by the number
-; of progress steps defined in InstallProgresSteps and the install timer
-; interval defined in InstallIntervalMS
-!define ERR_INSTALL_TIMEOUT 30
-
-; Maximum times to retry the download before displaying an error
-!define DownloadMaxRetries 9
-
-; Minimum size expected to download in bytes
-!define DownloadMinSizeBytes 15728640 ; 15 MB
-
-; Maximum size expected to download in bytes
-!define DownloadMaxSizeBytes 36700160 ; 35 MB
-
-; Interval before retrying to download. 3 seconds is used along with 10
-; attempted downloads (the first attempt along with 9 retries) to give a
-; minimum of 30 seconds or retrying before giving up.
-!define DownloadRetryIntervalMS 3000
-
-; Interval for the download timer
-!define DownloadIntervalMS 200
-
-; Interval for the install timer
-!define InstallIntervalMS 100
+!define DownloadIntervalMS 200 ; Interval for the download timer
+!define InstallIntervalMS 100 ; Interval for the install timer
 
 ; Number of steps for the install progress.
 ; This is 120 seconds with a 100 millisecond timer and a first step of 20 as
@@ -177,13 +79,9 @@ Var ControlRightPX
 ; if it reaches this number. The size of the install progress step increases
 ; when the full installer finishes instead of waiting the entire 120 seconds.
 !define InstallProgresSteps 1220
-
 ; The first step for the install progress bar. By starting with a large step
 ; immediate feedback is given to the user.
 !define InstallProgressFirstStep 20
-
-; The interval in MS used for the progress bars set as marquee.
-!define ProgressbarMarqueeIntervalMS 10
 
 ; On Vista and above attempt to elevate Standard Users in addition to users that
 ; are a member of the Administrators group.
@@ -196,7 +94,10 @@ Var ControlRightPX
 !define FILE_SHARE_READ 1
 !define GENERIC_READ 0x80000000
 !define OPEN_EXISTING 3
+!define FILE_BEGIN 0
+!define FILE_END 2
 !define INVALID_HANDLE_VALUE -1
+!define INVALID_FILE_SIZE 0xffffffff
 
 !include "nsDialogs.nsh"
 !include "LogicLib.nsh"
@@ -213,17 +114,14 @@ Var ControlRightPX
 
 !include "defines.nsi"
 
-; The OFFICIAL define is a workaround to support different urls for Release and
-; Beta since they share the same branding when building with other branches that
-; set the update channel to beta.
-!ifdef OFFICIAL
+; Workaround to support different urls for Official and Beta since they share
+; the same branding.
+!ifdef Official
 !ifdef BETA_UPDATE_CHANNEL
 !undef URLStubDownload
 !define URLStubDownload "http://download.mozilla.org/?product=firefox-beta-latest&os=win&lang=${AB_CD}"
 !undef URLManualDownload
 !define URLManualDownload "https://www.mozilla.org/firefox/installer-help/?channel=beta"
-!undef Channel
-!define Channel "beta"
 !endif
 !endif
 
@@ -282,13 +180,9 @@ Caption "$(WIN_CAPTION)"
 Page custom createDummy ; Needed to enable the Intro page's back button
 Page custom createIntro leaveIntro ; Introduction page
 Page custom createOptions leaveOptions ; Options page
-Page custom createInstall ; Download / Installation page
+Page custom createInstall leaveInstall ; Download / Installation page
 
 Function .onInit
-  ; Remove the current exe directory from the search order.
-  ; This only effects LoadLibrary calls and not implicitly loaded DLLs.
-  System::Call 'kernel32::SetDllDirectoryW(w "")'
-
   StrCpy $LANGUAGE 0
   ; This macro is used to set the brand name variables but the ini file method
   ; isn't supported for the stub installer.
@@ -320,7 +214,7 @@ Function .onInit
     ; and possibly the IsWinXP test as well. To work around this also
     ; check if the Windows NT registry Key exists and if it does if the
     ; first char in CurrentVersion is equal to 3 (Windows NT 3.5 and
-    ; 3.5.1), 4 (Windows NT 4), or 5 (Windows 2000 and Windows XP).
+    ; 3.5.1), to 4 (Windows NT 4) or 5 (Windows 2000 and Windows XP).
     StrCpy $R8 ""
     ClearErrors
     ReadRegStr $R8 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentVersion"
@@ -371,11 +265,11 @@ Function .onInit
     Abort
   ${EndUnless}
 
-  SetShellVarContext all ; Set SHCTX to HKLM
+  SetShellVarContext all      ; Set SHCTX to HKLM
   ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
 
   ${If} "$R9" == "false"
-    SetShellVarContext current ; Set SHCTX to HKCU
+    SetShellVarContext current  ; Set SHCTX to HKCU
     ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
   ${EndIf}
 
@@ -397,18 +291,6 @@ Function .onInit
     DeleteRegValue HKLM "Software\Mozilla" "${BrandShortName}InstallerTest"
     StrCpy $CanSetAsDefault "true"
   ${EndIf}
-
-  ; Initialize the majority of variables except those that need to be reset
-  ; when a page is displayed.
-  StrCpy $IntroPhaseSeconds "0"
-  StrCpy $OptionsPhaseSeconds "0"
-  StrCpy $EndPreInstallPhaseTickCount "0"
-  StrCpy $EndInstallPhaseTickCount "0"
-  StrCpy $IntroPageShownCount "0"
-  StrCpy $OptionsPageShownCount "0"
-  StrCpy $InitialInstallRequirementsCode ""
-  StrCpy $IsDownloadFinished ""
-  StrCpy $FirefoxLaunchCode "0"
 
   CreateFont $FontBlurb "$(^Font)" "12" "500"
   CreateFont $FontNormal "$(^Font)" "11" "500"
@@ -440,10 +322,6 @@ FunctionEnd
 !endif
 
 Function .onGUIEnd
-  Delete "$PLUGINSDIR\_temp"
-  Delete "$PLUGINSDIR\download.exe"
-  Delete "$PLUGINSDIR\${CONFIG_INI}"
-
   ${UnloadUAC}
 FunctionEnd
 
@@ -455,187 +333,8 @@ Function .onUserAbort
   ${NSD_KillTimer} FinishInstall
   ${NSD_KillTimer} DisplayDownloadError
 
-  ${If} "$IsDownloadFinished" != ""
-    Call DisplayDownloadError
-    ; Aborting the abort will allow SendPing which is called by
-    ; DisplayDownloadError to hide the installer window and close the installer
-    ; after it sends the metrics ping.
-    Abort 
-  ${EndIf}
-FunctionEnd
-
-Function SendPing
-  HideWindow
-  ; Try to send a ping if a download was attempted
-  ${If} $CheckboxSendPing == 1
-  ${AndIf} $IsDownloadFinished != ""
-    ; Get the tick count for the completion of all phases.
-    System::Call "kernel32::GetTickCount()l .s"
-    Pop $EndFinishPhaseTickCount
-
-    ; When the value of $IsDownloadFinished is false the download was started
-    ; but didn't finish. In this case the tick count stored in
-    ; $EndFinishPhaseTickCount is used to determine how long the download was
-    ; in progress.
-    ${If} "$IsDownloadFinished" == "false"
-    ${OrIf} "$EndDownloadPhaseTickCount" == ""
-      StrCpy $EndDownloadPhaseTickCount "$EndFinishPhaseTickCount"
-      ; Cancel the download in progress
-      InetBgDL::Get /RESET /END
-    ${EndIf}
-
-
-    ; When $DownloadFirstTransferSeconds equals an empty string the download
-    ; never successfully started so set the value to 0. It will be possible to
-    ; determine that the download didn't successfully start from the seconds for
-    ; the last download.
-    ${If} "$DownloadFirstTransferSeconds" == ""
-      StrCpy $DownloadFirstTransferSeconds "0"
-    ${EndIf}
-
-    ; When $StartLastDownloadTickCount equals an empty string the download never
-    ; successfully started so set the value to $EndDownloadPhaseTickCount to
-    ; compute the correct value.
-    ${If} $StartLastDownloadTickCount == ""
-      ; This could happen if the download never successfully starts
-      StrCpy $StartLastDownloadTickCount "$EndDownloadPhaseTickCount"
-    ${EndIf}
-
-    ; When $EndPreInstallPhaseTickCount equals 0 the installation phase was
-    ; never completed so set its value to $EndFinishPhaseTickCount to compute
-    ; the correct value.
-    ${If} "$EndPreInstallPhaseTickCount" == "0"
-      StrCpy $EndPreInstallPhaseTickCount "$EndFinishPhaseTickCount"
-    ${EndIf}
-
-    ; When $EndInstallPhaseTickCount equals 0 the installation phase was never
-    ; completed so set its value to $EndFinishPhaseTickCount to compute the
-    ; correct value.
-    ${If} "$EndInstallPhaseTickCount" == "0"
-      StrCpy $EndInstallPhaseTickCount "$EndFinishPhaseTickCount"
-    ${EndIf}
-
-    ; Get the seconds elapsed from the start of the download phase to the end of
-    ; the download phase.
-    ${GetSecondsElapsed} "$StartDownloadPhaseTickCount" "$EndDownloadPhaseTickCount" $0
-
-    ; Get the seconds elapsed from the start of the last download to the end of
-    ; the last download.
-    ${GetSecondsElapsed} "$StartLastDownloadTickCount" "$EndDownloadPhaseTickCount" $1
-
-    ; Get the seconds elapsed from the end of the download phase to the
-    ; completion of the pre-installation check phase.
-    ${GetSecondsElapsed} "$EndDownloadPhaseTickCount" "$EndPreInstallPhaseTickCount" $2
-
-    ; Get the seconds elapsed from the end of the pre-installation check phase
-    ; to the completion of the installation phase.
-    ${GetSecondsElapsed} "$EndPreInstallPhaseTickCount" "$EndInstallPhaseTickCount" $3
-
-    ; Get the seconds elapsed from the end of the installation phase to the
-    ; completion of all phases.
-    ${GetSecondsElapsed} "$EndInstallPhaseTickCount" "$EndFinishPhaseTickCount" $4
-
-!ifdef HAVE_64BIT_OS
-    StrCpy $R0 "1"
-!else
-    StrCpy $R0 "0"
-!endif
-
-    ${If} ${RunningX64}
-      StrCpy $R1 "1"
-    ${Else}
-      StrCpy $R1 "0"
-    ${EndIf}
-
-    ${WinVerGetMajor} $R2
-    ${WinVerGetMinor} $R3
-    ${WinVerGetBuild} $R4
-
-    ${If} "$ExitCode" == "${ERR_SUCCESS}"
-      ReadINIStr $R5 "$INSTDIR\application.ini" "App" "Version"
-      ReadINIStr $R6 "$INSTDIR\application.ini" "App" "BuildID"
-    ${Else}
-      StrCpy $R5 "0"
-      StrCpy $R6 "0"
-    ${EndIf}
-
-    ; Whether installed into the default installation directory
-    ${GetLongPath} "$INSTDIR" $R7
-    ${GetLongPath} "$InitialInstallDir" $R8
-    ${If} "$R7" == "$R8"
-      StrCpy $R7 "1"
-    ${Else}
-      StrCpy $R7 "0"
-    ${EndIf}
-
-    ClearErrors
-    WriteRegStr HKLM "Software\Mozilla" "${BrandShortName}InstallerTest" \
-                     "Write Test"
-    ${If} ${Errors}
-      StrCpy $R8 "0"
-    ${Else}
-      DeleteRegValue HKLM "Software\Mozilla" "${BrandShortName}InstallerTest"
-      StrCpy $R8 "1"
-    ${EndIf}
-
-    ${If} "$DownloadServerIP" == ""
-      StrCpy $DownloadServerIP "Unknown"
-    ${EndIf}
-
-!ifdef STUB_DEBUG
-    MessageBox MB_OK "${BaseURLStubPing} \
-                      $\nStub URL Version = ${StubURLVersion} \
-                      $\nBuild Channel = ${Channel} \
-                      $\nUpdate Channel = ${UpdateChannel} \
-                      $\nLocale = ${AB_CD} \
-                      $\nFirefox x64 = $R0 \
-                      $\nRunning x64 Windows = $R1 \
-                      $\nMajor = $R2 \
-                      $\nMinor = $R3 \
-                      $\nBuild = $R4 \
-                      $\nExit Code = $ExitCode \
-                      $\nFirefox Launch Code = $FirefoxLaunchCode \
-                      $\nDownload Retry Count = $DownloadRetryCount \
-                      $\nDownloaded Bytes = $DownloadedBytes \
-                      $\nIntroduction Phase Seconds = $IntroPhaseSeconds \
-                      $\nOptions Phase Seconds = $OptionsPhaseSeconds \
-                      $\nDownload Phase Seconds = $0 \
-                      $\nLast Download Seconds = $1 \
-                      $\nDownload First Transfer Seconds = $DownloadFirstTransferSeconds \
-                      $\nPreinstall Phase Seconds = $2 \
-                      $\nInstall Phase Seconds = $3 \
-                      $\nFinish Phase Seconds = $4 \
-                      $\nIntro Page Shown Count = $IntroPageShownCount \
-                      $\nOptions Page Shown Count = $OptionsPageShownCount \
-                      $\nInitial Install Requirements Code = $InitialInstallRequirementsCode \
-                      $\nOpened Download Page = $OpenedDownloadPage \
-                      $\nExisting Profile = $ExistingProfile \
-                      $\nExisting Version = $ExistingVersion \
-                      $\nExisting Build ID = $ExistingBuildID \
-                      $\nNew Version = $R5 \
-                      $\nNew Build ID = $R6 \
-                      $\nDefault Install Dir = $R7 \
-                      $\nHas Admin = $R8 \
-                      $\nDownload Server IP = $DownloadServerIP"
-    ; The following will exit the installer
-    SetAutoClose true
-    StrCpy $R9 "2"
-    Call RelativeGotoPage
-!else
-    ${NSD_CreateTimer} OnPing ${DownloadIntervalMS}
-    InetBgDL::Get "${BaseURLStubPing}/${StubURLVersion}/${Channel}/${UpdateChannel}/${AB_CD}/$R0/$R1/$R2/$R3/$R4/$ExitCode/$FirefoxLaunchCode/$DownloadRetryCount/$DownloadedBytes/$IntroPhaseSeconds/$OptionsPhaseSeconds/$0/$1/$DownloadFirstTransferSeconds/$2/$3/$4/$IntroPageShownCount/$OptionsPageShownCount/$InitialInstallRequirementsCode/$OpenedDownloadPage/$ExistingProfile/$ExistingVersion/$ExistingBuildID/$R5/$R6/$R7/$R8/$DownloadServerIP" \
-                  "$PLUGINSDIR\_temp" /END
-!endif
-  ${Else}
-    ${If} "$IsDownloadFinished" == "false"
-      ; Cancel the download in progress
-      InetBgDL::Get /RESET /END
-    ${EndIf}
-    ; The following will exit the installer
-    SetAutoClose true
-    StrCpy $R9 "2"
-    Call RelativeGotoPage
-  ${EndIf}
+  Delete "$PLUGINSDIR\download.exe"
+  Delete "$PLUGINSDIR\${CONFIG_INI}"
 FunctionEnd
 
 Function createDummy
@@ -644,19 +343,19 @@ FunctionEnd
 Function createIntro
   ; If Back is clicked on the options page reset variables
   StrCpy $INSTDIR "$InitialInstallDir"
-  StrCpy $CheckboxShortcutOnBar "1"
-  StrCpy $CheckboxShortcutInStartMenu "1"
-  StrCpy $CheckboxShortcutOnDesktop "1"
-  StrCpy $CheckboxSendPing "1"
+  StrCpy $CheckboxShortcutOnBar 1
+  StrCpy $CheckboxShortcutInStartMenu 1
+  StrCpy $CheckboxShortcutOnDesktop 1
 !ifdef MOZ_MAINTENANCE_SERVICE
-  StrCpy $CheckboxInstallMaintSvc "1"
+  StrCpy $CheckboxInstallMaintSvc 1
 !else
-  StrCpy $CheckboxInstallMaintSvc "0"
+  StrCpy $CheckboxInstallMaintSvc 0
 !endif
-  StrCpy $WasOptionsButtonClicked "0"
 
   nsDialogs::Create /NOUNLOAD 1018
   Pop $Dialog
+
+  StrCpy $WasOptionsButtonClicked ""
 
   GetFunctionAddress $0 OnBack
   nsDialogs::OnBack /NOUNLOAD $0
@@ -673,20 +372,12 @@ Function createIntro
   SendMessage $0 ${WM_SETFONT} $FontBlurb 0
   SetCtlColors $0 ${INTRO_BLURB_TEXT_COLOR} transparent
 
-  ${If} "$Initialized" == "true"
-    ; When the user clicked back from the options page.
-    System::Call "kernel32::GetTickCount()l .s"
-    Pop $0
-    ${GetSecondsElapsed} "$StartOptionsPhaseTickCount" "$0" $1
-    ; This is added to the previous value of $OptionsPhaseSeconds because the
-    ; options page can be displayed multiple times.
-    IntOp $OptionsPhaseSeconds $OptionsPhaseSeconds + $1
-  ${Else}
+  ${Unless} $Initialized == "true"
     SetCtlColors $HWNDPARENT ${FOOTER_CONTROL_TEXT_COLOR_NORMAL} ${FOOTER_BKGRD_COLOR}
     GetDlgItem $0 $HWNDPARENT 10 ; Default browser checkbox
     ; Set as default is not supported in the installer for Win8 and above so
     ; only display it on Windows 7 and below
-    ${If} "$CanSetAsDefault" == "true"
+    ${If} $CanSetAsDefault == "true"
       ; The uxtheme must be disabled on checkboxes in order to override the
       ; system font color.
       System::Call 'uxtheme::SetWindowTheme(i $0 , w " ", w " ")'
@@ -699,7 +390,7 @@ Function createIntro
     ${EndIf}
     GetDlgItem $0 $HWNDPARENT 11
     ShowWindow $0 ${SW_HIDE}
-  ${EndIf}
+  ${EndUnless}
 
   ${NSD_CreateBitmap} ${APPNAME_BMP_EDGE_DU} ${APPNAME_BMP_TOP_DU} \
                       ${APPNAME_BMP_WIDTH_DU} ${APPNAME_BMP_HEIGHT_DU} ""
@@ -720,11 +411,6 @@ Function createIntro
   GetDlgItem $0 $HWNDPARENT 3 ; Back and Options button
   SendMessage $0 ${WM_SETTEXT} 0 "STR:$(OPTIONS_BUTTON)"
 
-  IntOp $IntroPageShownCount $IntroPageShownCount + 1
-
-  System::Call "kernel32::GetTickCount()l .s"
-  Pop $StartIntroPhaseTickCount
-
   LockWindow off
   nsDialogs::Show
 
@@ -736,15 +422,7 @@ FunctionEnd
 
 Function leaveIntro
   LockWindow on
-
-  System::Call "kernel32::GetTickCount()l .s"
-  Pop $0
-  ${GetSecondsElapsed} "$StartIntroPhaseTickCount" "$0" $1
-  ; This is added to the previous value of $IntroPhaseSeconds because the
-  ; introduction page can be displayed multiple times.
-  IntOp $IntroPhaseSeconds $IntroPhaseSeconds + $1
-
-  SetShellVarContext all ; Set SHCTX to All Users
+  SetShellVarContext all      ; Set SHCTX to All Users
   ; If the user doesn't have write access to the installation directory set
   ; the installation directory to a subdirectory of the All Users application
   ; directory and if the user can't write to that location set the installation
@@ -773,28 +451,11 @@ Function leaveIntro
 FunctionEnd
 
 Function createOptions
-  ; Check whether the requirements to install are satisfied the first time the
-  ; options page is displayed for metrics.
-  ${If} "$InitialInstallRequirementsCode" == ""
-    ${If} "$CanWriteToInstallDir" != "true"
-    ${AndIf} "$HasRequiredSpaceAvailable" != "true"
-      StrCpy $InitialInstallRequirementsCode "1"
-    ${ElseIf} "$CanWriteToInstallDir" != "true"
-      StrCpy $InitialInstallRequirementsCode "2"
-    ${ElseIf} "$HasRequiredSpaceAvailable" != "true"
-      StrCpy $InitialInstallRequirementsCode "3"
-    ${Else}
-      StrCpy $InitialInstallRequirementsCode "0"
-    ${EndIf}
-  ${EndIf}
-
-  ; Skip the options page unless the Options button was clicked as long as the
-  ; installation directory can be written to and there is the minimum required
-  ; space available.
-  ${If} "$WasOptionsButtonClicked" != "1"
+  ; Skip the options page unless the Options button was clicked
+  ${If} "$WasOptionsButtonClicked" != "true"
     ${If} "$CanWriteToInstallDir" == "true"
     ${AndIf} "$HasRequiredSpaceAvailable" == "true"
-      Abort ; Skip the options page
+      Abort
     ${EndIf}
   ${EndIf}
 
@@ -883,34 +544,34 @@ Function createOptions
   ${GetTextExtent} "$(SPACE_REQUIRED)" $FontItalic $0 $1
   ${GetTextExtent} "$(SPACE_AVAILABLE)" $FontItalic $2 $3
   ${If} $1 > $3
-    StrCpy $ControlHeightPX "$1"
+    StrCpy $HEIGHT_PX $1
   ${Else}
-    StrCpy $ControlHeightPX "$3"
+    StrCpy $HEIGHT_PX $3
   ${EndIf}
 
   IntOp $0 $0 + 8 ; Add padding to the control's width
   ; Make both controls the same width as the widest control
-  ${NSD_CreateLabelCenter} ${OPTIONS_SUBITEM_EDGE_DU} 134u $0 $ControlHeightPX "$(SPACE_REQUIRED)"
+  ${NSD_CreateLabelCenter} ${OPTIONS_SUBITEM_EDGE_DU} 134u $0 $HEIGHT_PX "$(SPACE_REQUIRED)"
   Pop $5
   SetCtlColors $5 ${OPTIONS_TEXT_COLOR_FADED} ${OPTIONS_BKGRD_COLOR}
   SendMessage $5 ${WM_SETFONT} $FontItalic 0
 
   IntOp $2 $2 + 8 ; Add padding to the control's width
-  ${NSD_CreateLabelCenter} ${OPTIONS_SUBITEM_EDGE_DU} 145u $2 $ControlHeightPX "$(SPACE_AVAILABLE)"
+  ${NSD_CreateLabelCenter} ${OPTIONS_SUBITEM_EDGE_DU} 145u $2 $HEIGHT_PX "$(SPACE_AVAILABLE)"
   Pop $6
   SetCtlColors $6 ${OPTIONS_TEXT_COLOR_FADED} ${OPTIONS_BKGRD_COLOR}
   SendMessage $6 ${WM_SETFONT} $FontItalic 0
 
   ; Use the widest label for aligning the labels next to them
   ${If} $0 > $2
-    StrCpy $6 "$5"
+    StrCpy $6 $5
   ${EndIf}
   FindWindow $1 "#32770" "" $HWNDPARENT
-  ${GetDlgItemEndPX} $6 $ControlRightPX
+  ${GetDlgItemEndPX} $6 $CTL_RIGHT_PX
 
-  IntOp $ControlRightPX $ControlRightPX + 6
+  IntOp $CTL_RIGHT_PX $CTL_RIGHT_PX + 6
 
-  ${NSD_CreateLabel} $ControlRightPX 134u 100% $ControlHeightPX \
+  ${NSD_CreateLabel} $CTL_RIGHT_PX 134u 100% $HEIGHT_PX \
                      "${APPROXIMATE_REQUIRED_SPACE_MB} $(MEGA)$(BYTE)"
   Pop $7
   SetCtlColors $7 ${OPTIONS_TEXT_COLOR_NORMAL} ${OPTIONS_BKGRD_COLOR}
@@ -918,22 +579,12 @@ Function createOptions
 
   ; Create the free space label with an empty string and update it by calling
   ; UpdateFreeSpaceLabel
-  ${NSD_CreateLabel} $ControlRightPX 145u 100% $ControlHeightPX " "
+  ${NSD_CreateLabel} $CTL_RIGHT_PX 145u 100% $HEIGHT_PX " "
   Pop $LabelFreeSpace
   SetCtlColors $LabelFreeSpace ${OPTIONS_TEXT_COLOR_NORMAL} ${OPTIONS_BKGRD_COLOR}
   SendMessage $LabelFreeSpace ${WM_SETFONT} $FontNormal 0
 
   Call UpdateFreeSpaceLabel
-
-  ${NSD_CreateCheckbox} ${OPTIONS_ITEM_EDGE_DU} 168u ${OPTIONS_SUBITEM_WIDTH_DU} \
-                        12u "$(SEND_PING)"
-  Pop $CheckboxSendPing
-  ; The uxtheme must be disabled on checkboxes in order to override the system
-  ; font color.
-  System::Call 'uxtheme::SetWindowTheme(i $CheckboxSendPing, w " ", w " ")'
-  SetCtlColors $CheckboxSendPing ${OPTIONS_TEXT_COLOR_NORMAL} ${OPTIONS_BKGRD_COLOR}
-  SendMessage $CheckboxSendPing ${WM_SETFONT} $FontNormal 0
-  ${NSD_Check} $CheckboxSendPing
 
 !ifdef MOZ_MAINTENANCE_SERVICE
   ; Only show the maintenance service checkbox if we have write access to HKLM
@@ -952,7 +603,7 @@ Function createOptions
     ClearErrors
     ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\services\MozillaMaintenance" "ImagePath"
     ${If} ${Errors}
-      ${NSD_CreateCheckbox} ${OPTIONS_ITEM_EDGE_DU} 184u ${OPTIONS_ITEM_WIDTH_DU} \
+      ${NSD_CreateCheckbox} ${OPTIONS_ITEM_EDGE_DU} 175u ${OPTIONS_ITEM_WIDTH_DU} \
                             12u "$(INSTALL_MAINT_SERVICE)"
       Pop $CheckboxInstallMaintSvc
       System::Call 'uxtheme::SetWindowTheme(i $CheckboxInstallMaintSvc, w " ", w " ")'
@@ -973,9 +624,7 @@ Function createOptions
   GetDlgItem $0 $HWNDPARENT 3 ; Back and Options button
   SendMessage $0 ${WM_SETTEXT} 0 "STR:$(BACK_BUTTON)"
 
-  ; If the option button was not clicked display the reason for what needs to be
-  ; resolved to continue the installation.
-  ${If} "$WasOptionsButtonClicked" != "1"
+  ${If} "$WasOptionsButtonClicked" != "true"
     ${If} "$CanWriteToInstallDir" == "false"
       MessageBox MB_OK|MB_ICONEXCLAMATION "$(WARN_WRITE_ACCESS)"
     ${ElseIf} "$HasRequiredSpaceAvailable" == "false"
@@ -983,18 +632,12 @@ Function createOptions
     ${EndIf}
   ${EndIf}
 
-  IntOp $OptionsPageShownCount $OptionsPageShownCount + 1
-
-  System::Call "kernel32::GetTickCount()l .s"
-  Pop $StartOptionsPhaseTickCount
-
   LockWindow off
   nsDialogs::Show
 FunctionEnd
 
 Function leaveOptions
   LockWindow on
-
   ${GetRoot} "$INSTDIR" $0
   ${GetLongPath} "$INSTDIR" $INSTDIR
   ${GetLongPath} "$0" $0
@@ -1018,17 +661,9 @@ Function leaveOptions
     Abort ; Stay on the page
   ${EndIf}
 
-  System::Call "kernel32::GetTickCount()l .s"
-  Pop $0
-  ${GetSecondsElapsed} "$StartOptionsPhaseTickCount" "$0" $1
-  ; This is added to the previous value of $OptionsPhaseSeconds because the
-  ; options page can be displayed multiple times.
-  IntOp $OptionsPhaseSeconds $OptionsPhaseSeconds + $1
-
   ${NSD_GetState} $CheckboxShortcutOnBar $CheckboxShortcutOnBar
   ${NSD_GetState} $CheckboxShortcutInStartMenu $CheckboxShortcutInStartMenu
   ${NSD_GetState} $CheckboxShortcutOnDesktop $CheckboxShortcutOnDesktop
-  ${NSD_GetState} $CheckboxSendPing $CheckboxSendPing
 !ifdef MOZ_MAINTENANCE_SERVICE
   ${NSD_GetState} $CheckboxInstallMaintSvc $CheckboxInstallMaintSvc
 !endif
@@ -1132,8 +767,7 @@ Function createInstall
   ${NSD_CreateProgressBar} 103u 166u 157u 9u ""
   Pop $ProgressbarDownload
   ${NSD_AddStyle} $ProgressbarDownload ${PBS_MARQUEE}
-  SendMessage $ProgressbarDownload ${PBM_SETMARQUEE} 1 \
-              ${ProgressbarMarqueeIntervalMS} ; start=1|stop=0 interval(ms)=+N
+  SendMessage $ProgressbarDownload ${PBM_SETMARQUEE} 1 10 ; start=1|stop=0 interval(ms)=+N
 
   ${NSD_CreateProgressBar} 260u 166u 84u 9u ""
   Pop $ProgressbarInstall
@@ -1165,7 +799,7 @@ Function createInstall
   SendMessage $0 ${WM_KILLFOCUS} 0 0
 
   ; Set as default is not supported in the installer for Win8 and above
-  ${If} "$CanSetAsDefault" == "true"
+  ${If} $CanSetAsDefault == "true"
     GetDlgItem $0 $HWNDPARENT 10 ; Default browser checkbox
     SendMessage $0 ${BM_GETCHECK} 0 0 $CheckboxSetAsDefault
     EnableWindow $0 0
@@ -1178,40 +812,7 @@ Function createInstall
   SetCtlColors $0 ${FOOTER_CONTROL_TEXT_COLOR_FADED} ${FOOTER_BKGRD_COLOR}
   ShowWindow $0 ${SW_SHOW}
 
-  ; Set $DownloadReset to true so the first download tick count is measured.
-  StrCpy $DownloadReset "true"
-  StrCpy $IsDownloadFinished "false"
-  StrCpy $DownloadRetryCount "0"
-  StrCpy $DownloadedBytes "0"
-  StrCpy $StartLastDownloadTickCount ""
-  StrCpy $EndDownloadPhaseTickCount ""
-  StrCpy $DownloadFirstTransferSeconds ""
-  StrCpy $ExitCode "${ERR_DOWNLOAD_CANCEL}"
-  StrCpy $OpenedDownloadPage "0"
-
-  ClearErrors
-  ReadINIStr $ExistingVersion "$INSTDIR\application.ini" "App" "Version"
-  ${If} ${Errors}
-    StrCpy $ExistingVersion "0"
-  ${EndIf}
-
-  ClearErrors
-  ReadINIStr $ExistingBuildID "$INSTDIR\application.ini" "App" "BuildID"
-  ${If} ${Errors}
-    StrCpy $ExistingBuildID "0"
-  ${EndIf}
-
-  ${If} ${FileExists} "$LOCALAPPDATA\Mozilla\Firefox"
-    StrCpy $ExistingProfile "1"
-  ${Else}
-    StrCpy $ExistingProfile "0"
-  ${EndIf}
-
-  StrCpy $DownloadServerIP ""
-
-  System::Call "kernel32::GetTickCount()l .s"
-  Pop $StartDownloadPhaseTickCount
-
+  StrCpy $DownloadReset "false"
   ${NSD_CreateTimer} StartDownload ${DownloadIntervalMS}
 
   LockWindow off
@@ -1224,10 +825,13 @@ Function createInstall
   ${NSD_FreeImage} $HWndBitmapBlurb3
 FunctionEnd
 
+Function leaveInstall
+# Need a ping?
+FunctionEnd
+
 Function StartDownload
   ${NSD_KillTimer} StartDownload
-  InetBgDL::Get "${URLStubDownload}" "$PLUGINSDIR\download.exe" \
-                /CONNECTTIMEOUT 120 /RECEIVETIMEOUT 120 /END
+  InetBgDL::Get "${URLStubDownload}" "$PLUGINSDIR\download.exe" /END
   StrCpy $4 ""
   ${NSD_CreateTimer} OnDownload ${DownloadIntervalMS}
   ${If} ${FileExists} "$INSTDIR\${TO_BE_DELETED}"
@@ -1244,90 +848,36 @@ Function OnDownload
   # $4 = Size of current file (Empty string if the size is unknown)
   # /RESET must be used if status $0 > 299 (e.g. failure)
   # When status is $0 =< 299 it is handled by InetBgDL
-  StrCpy $DownloadServerIP "$5"
   ${If} $0 > 299
     ${NSD_KillTimer} OnDownload
-    IntOp $DownloadRetryCount $DownloadRetryCount + 1
     ${If} "$DownloadReset" != "true"
-      StrCpy $DownloadedBytes "0"
       ${NSD_AddStyle} $ProgressbarDownload ${PBS_MARQUEE}
-      SendMessage $ProgressbarDownload ${PBM_SETMARQUEE} 1 \
-                  ${ProgressbarMarqueeIntervalMS} ; start=1|stop=0 interval(ms)=+N
+      SendMessage $ProgressbarDownload ${PBM_SETMARQUEE} 1 10 ; start=1|stop=0 interval(ms)=+N
     ${EndIf}
     InetBgDL::Get /RESET /END
-    StrCpy $DownloadSizeBytes ""
+    ${NSD_CreateTimer} StartDownload ${DownloadIntervalMS}
     StrCpy $DownloadReset "true"
-
-    ${If} $DownloadRetryCount >= ${DownloadMaxRetries}
-      StrCpy $ExitCode "${ERR_DOWNLOAD_TOO_MANY_RETRIES}"
-      ; Use a timer so the UI has a chance to update
-      ${NSD_CreateTimer} DisplayDownloadError ${InstallIntervalMS}
-    ${Else}
-      ${NSD_CreateTimer} StartDownload ${DownloadRetryIntervalMS}
-    ${EndIf}
+    StrCpy $DownloadSize ""
     Return
   ${EndIf}
 
   ${If} "$DownloadReset" == "true"
-    System::Call "kernel32::GetTickCount()l .s"
-    Pop $StartLastDownloadTickCount
     StrCpy $DownloadReset "false"
-    ; The seconds elapsed from the start of the download phase until the first
-    ; bytes are received are only recorded for the first request so it is
-    ; possible to determine connection issues for the first request.
-    ${If} "$DownloadFirstTransferSeconds" == ""
-      ; Get the seconds elapsed from the start of the download phase until the
-      ; first bytes are received.
-      ${GetSecondsElapsed} "$StartDownloadPhaseTickCount" "$StartLastDownloadTickCount" $DownloadFirstTransferSeconds
-    ${EndIf}
   ${EndIf}
 
-  ${If} "$DownloadSizeBytes" == ""
-  ${AndIf} "$4" != ""
-    ; Handle the case where the size of the file to be downloaded is less than
-    ; the minimum expected size or greater than the maximum expected size at the
-    ; beginning of the download.
-    ${If} $4 < ${DownloadMinSizeBytes}
-    ${OrIf} $4 > ${DownloadMaxSizeBytes}
-      ${NSD_KillTimer} OnDownload
-      InetBgDL::Get /RESET /END
-      StrCpy $DownloadReset "true"
-
-      ${If} $DownloadRetryCount >= ${DownloadMaxRetries}
-        ; Use a timer so the UI has a chance to update
-        ${NSD_CreateTimer} DisplayDownloadError ${InstallIntervalMS}
-      ${Else}
-        ${NSD_CreateTimer} StartDownload ${DownloadIntervalMS}
-      ${EndIf}
-      Return
-    ${EndIf}
-
-    StrCpy $DownloadSizeBytes "$4"
+  ${If} $DownloadSize == ""
+  ${AndIf} $4 != ""
+    StrCpy $DownloadSize $4
     System::Int64Op $4 / 2
     Pop $HalfOfDownload
     SendMessage $ProgressbarDownload ${PBM_SETMARQUEE} 0 0 ; start=1|stop=0 interval(ms)=+N
     ${RemoveStyle} $ProgressbarDownload ${PBS_MARQUEE}
-    SendMessage $ProgressbarDownload ${PBM_SETRANGE32} 0 $DownloadSizeBytes
+    SendMessage $ProgressbarDownload ${PBM_SETRANGE32} 0 $DownloadSize
   ${EndIf}
 
   ; Don't update the status until after the download starts
   ${If} $2 != 0
-  ${AndIf} "$4" == ""
-    Return
-  ${EndIf}
-
-  ; Handle the case where the downloaded size is greater than the maximum
-  ; expected size during the download.
-  ${If} $DownloadedBytes > ${DownloadMaxSizeBytes}
-    InetBgDL::Get /RESET /END
-    StrCpy $DownloadReset "true"
-
-    ${If} $DownloadRetryCount >= ${DownloadMaxRetries}
-      ; Use a timer so the UI has a chance to update
-      ${NSD_CreateTimer} DisplayDownloadError ${InstallIntervalMS}
-    ${Else}
-      ${NSD_CreateTimer} StartDownload ${DownloadIntervalMS}
-    ${EndIf}
+  ${AndIf} $4 == ""
     Return
   ${EndIf}
 
@@ -1338,33 +888,11 @@ Function OnDownload
       ; The first step of the install progress bar is determined by the
       ; InstallProgressFirstStep define and provides the user with immediate
       ; feedback.
-      StrCpy $InstallCounterStep "${InstallProgressFirstStep}"
-      System::Call "kernel32::GetTickCount()l .s"
-      Pop $EndDownloadPhaseTickCount
-
-      StrCpy $DownloadedBytes "$DownloadSizeBytes"
-
-      ; When a download has finished handle the case where the  downloaded size
-      ; is less than the minimum expected size or greater than the maximum
-      ; expected size during the download.
-      ${If} $DownloadedBytes < ${DownloadMinSizeBytes}
-      ${OrIf} $DownloadedBytes > ${DownloadMaxSizeBytes}
-        InetBgDL::Get /RESET /END
-        StrCpy $DownloadReset "true"
-
-        ${If} $DownloadRetryCount >= ${DownloadMaxRetries}
-          ; Use a timer so the UI has a chance to update
-          ${NSD_CreateTimer} DisplayDownloadError ${InstallIntervalMS}
-        ${Else}
-          ${NSD_CreateTimer} StartDownload ${DownloadIntervalMS}
-        ${EndIf}
-        Return
-      ${EndIf}
-
+      StrCpy $InstallCounterStep ${InstallProgressFirstStep}
       LockWindow on
       ; Update the progress bars first in the UI change so they take affect
       ; before other UI changes.
-      SendMessage $ProgressbarDownload ${PBM_SETPOS} $DownloadSizeBytes 0
+      SendMessage $ProgressbarDownload ${PBM_SETPOS} $DownloadSize 0
       SendMessage $ProgressbarInstall ${PBM_SETPOS} $InstallCounterStep 0
       ShowWindow $LabelDownloadingInProgress ${SW_HIDE}
       ShowWindow $LabelInstallingToBeDone ${SW_HIDE}
@@ -1388,7 +916,6 @@ Function OnDownload
       StrCpy $HandleDownload "$R9"
 
       ${If} $HandleDownload == ${INVALID_HANDLE_VALUE}
-        StrCpy $ExitCode "${ERR_PREINSTALL_INVALID_HANDLE}"
         StrCpy $0 "0"
         StrCpy $1 "0"
       ${Else}
@@ -1397,18 +924,7 @@ Function OnDownload
         CertCheck::VerifyCertNameIssuer "$PLUGINSDIR\download.exe" \
                                         "${CertNameDownload}" "${CertIssuerDownload}"
         Pop $1
-        ${If} $0 == 0
-        ${AndIf} $1 == 0
-          StrCpy $ExitCode "${ERR_PREINSTALL_CERT_UNTRUSTED_AND_ATTRIBUTES}"
-        ${ElseIf} $0 == 0
-          StrCpy $ExitCode "${ERR_PREINSTALL_CERT_UNTRUSTED}"
-        ${ElseIf}  $1 == 0
-          StrCpy $ExitCode "${ERR_PREINSTALL_CERT_ATTRIBUTES}"
-        ${EndIf}
       ${EndIf}
-
-      System::Call "kernel32::GetTickCount()l .s"
-      Pop $EndPreInstallPhaseTickCount
 
       ${If} $0 == 0
       ${OrIf} $1 == 0
@@ -1478,39 +994,13 @@ Function OnDownload
         ShowWindow $BitmapBlurb2 ${SW_SHOW}
         LockWindow off
       ${EndIf}
-      StrCpy $DownloadedBytes "$3"
       SendMessage $ProgressbarDownload ${PBM_SETPOS} $3 0
     ${EndIf}
   ${EndIf}
 FunctionEnd
 
-Function OnPing
-  InetBgDL::GetStats
-  # $0 = HTTP status code, 0=Completed
-  # $1 = Completed files
-  # $2 = Remaining files
-  # $3 = Number of downloaded bytes for the current file
-  # $4 = Size of current file (Empty string if the size is unknown)
-  # /RESET must be used if status $0 > 299 (e.g. failure)
-  # When status is $0 =< 299 it is handled by InetBgDL
-  ${If} $2 == 0
-  ${OrIf} $0 > 299
-    ${NSD_KillTimer} OnPing
-    ${If} $0 > 299
-      InetBgDL::Get /RESET /END
-    ${EndIf}
-    ; The following will exit the installer
-    SetAutoClose true
-    StrCpy $R9 "2"
-    Call RelativeGotoPage
-  ${EndIf}
-FunctionEnd
-
 Function StartInstall
   ${NSD_KillTimer} StartInstall
-
-  System::Call "kernel32::GetTickCount()l .s"
-  Pop $EndPreInstallPhaseTickCount
 
   IntOp $InstallCounterStep $InstallCounterStep + 1
   LockWindow on
@@ -1523,11 +1013,10 @@ FunctionEnd
 
 Function CheckInstall
   IntOp $InstallCounterStep $InstallCounterStep + 1
-  ${If} $InstallCounterStep >= ${InstallProgresSteps}
+  ${If} $InstallCounterStep >= ${InstallProgresSteps} 
     ${NSD_KillTimer} CheckInstall
     ; Close the handle that prevents modification of the full installer
     System::Call 'kernel32::CloseHandle(i $HandleDownload)'
-    StrCpy $ExitCode "${ERR_INSTALL_TIMEOUT}"
     ; Use a timer so the UI has a chance to update
     ${NSD_CreateTimer} DisplayDownloadError ${InstallIntervalMS}
     Return
@@ -1550,8 +1039,6 @@ Function CheckInstall
       Rename "$INSTDIR\install.tmp" "$INSTDIR\install.log"
       Delete "$PLUGINSDIR\download.exe"
       Delete "$PLUGINSDIR\${CONFIG_INI}"
-      System::Call "kernel32::GetTickCount()l .s"
-      Pop $EndInstallPhaseTickCount
       ${NSD_CreateTimer} FinishInstall ${InstallIntervalMS}
     ${EndUnless}
   ${EndIf}
@@ -1560,7 +1047,7 @@ FunctionEnd
 Function FinishInstall
   ; The full installer has complete but we still need to finish the progress
   ; bar so increase the size of the step
-  IntOp $InstallCounterStep $InstallCounterStep + 20
+  IntOp $InstallCounterStep $InstallCounterStep + 10
   ${If} ${InstallProgresSteps} < $InstallCounterStep
     StrCpy $InstallCounterStep "${InstallProgresSteps}"
   ${EndIf}
@@ -1604,16 +1091,17 @@ Function FinishInstall
     Rename "$INSTDIR\${FileMainEXE}.moz-upgrade" "$INSTDIR\${FileMainEXE}"
   ${EndIf}
 
-  StrCpy $ExitCode "${ERR_SUCCESS}"
-
   Call LaunchApp
 
-  Call SendPing
+  ; The following will exit the installer
+  SetAutoClose true
+  StrCpy $R9 2
+  Call RelativeGotoPage
 FunctionEnd
 
 Function OnBack
-  StrCpy $WasOptionsButtonClicked "1"
-  StrCpy $R9 "1" ; Goto the next page
+  StrCpy $WasOptionsButtonClicked "true"
+  StrCpy $R9 1 ; Goto the next page
   Call RelativeGotoPage
   ; The call to Abort prevents NSIS from trying to move to the previous or the
   ; next page.
@@ -1693,7 +1181,7 @@ FunctionEnd
 Function OnChange_DirRequest
   Pop $0
   System::Call 'user32::GetWindowTextW(i $DirRequest, w .r0, i ${NSIS_MAX_STRLEN})'
-  StrCpy $INSTDIR "$0"
+  StrCpy $INSTDIR $0
   Call UpdateFreeSpaceLabel
 FunctionEnd
 
@@ -1817,15 +1305,10 @@ FunctionEnd
 Function LaunchApp
   FindWindow $0 "${WindowClass}"
   ${If} $0 <> 0 ; integer comparison
-    StrCpy $FirefoxLaunchCode "1"
     MessageBox MB_OK|MB_ICONQUESTION "$(WARN_MANUALLY_CLOSE_APP_LAUNCH)"
     Return
   ${EndIf}
 
-  StrCpy $FirefoxLaunchCode "2"
-
-  ; Set the current working directory to the installation directory
-  SetOutPath "$INSTDIR"
   ClearErrors
   ${GetParameters} $0
   ${GetOptions} "$0" "/UAC:" $1
@@ -1843,18 +1326,16 @@ Function LaunchAppFromElevatedProcess
   ${StrFilter} "${FileMainEXE}" "+" "" "" $R9
   ReadRegStr $0 HKLM "Software\Clients\StartMenuInternet\$R9\DefaultIcon" ""
   ${GetPathFromString} "$0" $0
-  ; Set the current working directory to the installation directory
-  ${GetParent} "$0" $1
-  SetOutPath "$1"
   Exec "$\"$0$\""
 FunctionEnd
 
 Function DisplayDownloadError
   ${NSD_KillTimer} DisplayDownloadError
-  MessageBox MB_OKCANCEL|MB_ICONSTOP "$(ERROR_DOWNLOAD)" IDCANCEL +2 IDOK +1
-  StrCpy $OpenedDownloadPage "1" ; Already initialized to 0
+  StrCpy $R9 "false"
+  MessageBox MB_OKCANCEL|MB_ICONSTOP "$(ERROR_DOWNLOAD)" IDCANCEL +2 IDOK 0
+  StrCpy $R9 "true"
 
-  ${If} "$OpenedDownloadPage" == "1"
+  ${If} "$R9" == "true"
     ClearErrors
     ${GetParameters} $0
     ${GetOptions} "$0" "/UAC:" $1
@@ -1866,7 +1347,9 @@ Function DisplayDownloadError
     ${EndIf}
   ${EndIf}
 
-  Call SendPing
+  SetAutoClose true
+  StrCpy $R9 2
+  Call RelativeGotoPage
 FunctionEnd
 
 Function OpenManualDownloadURL

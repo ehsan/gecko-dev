@@ -6,26 +6,24 @@ DEPTH		= @DEPTH@
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
+FAIL_ON_WARNINGS := 1
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE		= content
 LIBRARY_NAME	= gkconogg_s
 LIBXUL_LIBRARY 	= 1
-ifndef _MSC_VER
-FAIL_ON_WARNINGS := 1
-endif # !_MSC_VER
 
 
 EXPORTS		+= \
-		OggDecoder.h \
-		OggCodecState.h \
-		OggReader.h \
+		nsOggDecoder.h \
+		nsOggCodecState.h \
 		$(NULL)
 
 CPPSRCS		= \
-		OggDecoder.cpp \
-		OggCodecState.cpp \
-		OggReader.cpp \
+		nsOggDecoder.cpp \
+		nsOggCodecState.cpp \
+		nsOggReader.cpp \
 		$(NULL)
 
 FORCE_STATIC_LIB = 1

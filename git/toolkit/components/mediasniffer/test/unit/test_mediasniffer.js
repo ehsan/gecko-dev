@@ -35,7 +35,7 @@ const tests = [
     expectedContentType: "application/ogg",
     flags: Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS },
   { contentType: "",
-    expectedContentType: "application/ogg",
+    expectedContentType: "application/octet-stream",
     flags: Ci.nsIChannel.LOAD_CALL_CONTENT_SNIFFERS },
 ];
 

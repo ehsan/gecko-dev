@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSVGIntegerPair.h"
-#include "nsSVGAttrTearoffTable.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsError.h"
 #include "nsMathUtils.h"
@@ -26,11 +25,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSVGIntegerPair::DOMAnimatedInteger)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGAnimatedInteger)
 NS_INTERFACE_MAP_END
-
-static nsSVGAttrTearoffTable<nsSVGIntegerPair, nsSVGIntegerPair::DOMAnimatedInteger>
-  sSVGFirstAnimatedIntegerTearoffTable;
-static nsSVGAttrTearoffTable<nsSVGIntegerPair, nsSVGIntegerPair::DOMAnimatedInteger>
-  sSVGSecondAnimatedIntegerTearoffTable;
 
 /* Implementation */
 
@@ -97,7 +91,7 @@ nsSVGIntegerPair::SetBaseValueString(const nsAString &aValueAsString,
   }
 
   // We don't need to call DidChange* here - we're only called by
-  // nsSVGElement::ParseAttribute under Element::SetAttr,
+  // nsSVGElement::ParseAttribute under nsGenericElement::SetAttr,
   // which takes care of notifying.
   return NS_OK;
 }
@@ -173,36 +167,9 @@ nsSVGIntegerPair::ToDOMAnimatedInteger(nsIDOMSVGAnimatedInteger **aResult,
                                        PairIndex aIndex,
                                        nsSVGElement *aSVGElement)
 {
-  *aResult = ToDOMAnimatedInteger(aIndex, aSVGElement).get();
+  *aResult = new DOMAnimatedInteger(this, aIndex, aSVGElement);
+  NS_ADDREF(*aResult);
   return NS_OK;
-}
-
-already_AddRefed<nsIDOMSVGAnimatedInteger>
-nsSVGIntegerPair::ToDOMAnimatedInteger(PairIndex aIndex,
-                                       nsSVGElement* aSVGElement)
-{
-  nsRefPtr<DOMAnimatedInteger> domAnimatedInteger =
-    aIndex == eFirst ? sSVGFirstAnimatedIntegerTearoffTable.GetTearoff(this) :
-                       sSVGSecondAnimatedIntegerTearoffTable.GetTearoff(this);
-  if (!domAnimatedInteger) {
-    domAnimatedInteger = new DOMAnimatedInteger(this, aIndex, aSVGElement);
-    if (aIndex == eFirst) {
-      sSVGFirstAnimatedIntegerTearoffTable.AddTearoff(this, domAnimatedInteger);
-    } else {
-      sSVGSecondAnimatedIntegerTearoffTable.AddTearoff(this, domAnimatedInteger);
-    }
-  }
-
-  return domAnimatedInteger.forget();
-}
-
-nsSVGIntegerPair::DOMAnimatedInteger::~DOMAnimatedInteger()
-{
-  if (mIndex == eFirst) {
-    sSVGFirstAnimatedIntegerTearoffTable.RemoveTearoff(mVal);
-  } else {
-    sSVGSecondAnimatedIntegerTearoffTable.RemoveTearoff(mVal);
-  }
 }
 
 nsISMILAttr*
@@ -213,7 +180,7 @@ nsSVGIntegerPair::ToSMILAttr(nsSVGElement *aSVGElement)
 
 nsresult
 nsSVGIntegerPair::SMILIntegerPair::ValueFromString(const nsAString& aStr,
-                                                   const dom::SVGAnimationElement* /*aSrcElement*/,
+                                                   const nsISMILAnimationElement* /*aSrcElement*/,
                                                    nsSMILValue& aValue,
                                                    bool& aPreventCachingOfSandwich) const
 {

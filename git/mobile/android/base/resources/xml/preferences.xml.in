@@ -6,7 +6,7 @@
 
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-                  xmlns:gecko="http://schemas.android.com/apk/res-auto"
+                  xmlns:gecko="http://schemas.android.com/apk/res/@ANDROID_PACKAGE_NAME@"
                   android:enabled="false">
 
     <PreferenceCategory android:title="@string/pref_category_general">
@@ -57,12 +57,6 @@
 
     <PreferenceCategory android:title="@string/pref_category_privacy">
 
-        <ListPreference android:key="network.cookie.cookieBehavior"
-                        android:title="@string/pref_cookies_menu"
-                        android:entries="@array/pref_cookies_entries"
-                        android:entryValues="@array/pref_cookies_values"
-                        android:persistent="false" />
-
         <!-- keys prefixed with "android.not_a_preference." are not synced with Gecko -->
         <org.mozilla.gecko.PrivateDataPreference
                             android:key="android.not_a_preference.privacy.clear"
@@ -83,31 +77,30 @@
                             android:defaultValue="true"
                             android:persistent="false" />
 
+        <CheckBoxPreference android:key="network.cookie.cookieBehavior"
+                            android:title="@string/pref_cookies"
+                            android:persistent="false" />
+
+#ifdef MOZ_TELEMETRY_REPORTING
+        <CheckBoxPreference android:key="toolkit.telemetry.enabled"
+                            android:title="@string/pref_telemetry"
+                            android:persistent="false" />
+#endif
+
         <CheckBoxPreference android:key="privacy.masterpassword.enabled"
                             android:title="@string/pref_use_master_password"
                             android:defaultValue="false"
                             android:persistent="false" />
 
-        <CheckBoxPreference android:key="browser.search.suggest.enabled"
-                            android:title="@string/pref_search_suggestions"
-                            android:defaultValue="true"
-                            android:persistent="false" />
-
-#ifdef MOZ_TELEMETRY_REPORTING
-        <CheckBoxPreference
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-                            android:key="toolkit.telemetry.enabledPreRelease"
-#else
-                            android:key="toolkit.telemetry.enabled"
-#endif
-                            android:title="@string/pref_telemetry"
-                            android:persistent="false" />
-#endif
-
         <CheckBoxPreference android:key="android.not_a_preference.privacy.announcements.enabled"
                             android:title="@string/pref_show_product_announcements"
                             android:defaultValue="true"
                             android:persistent="true" />
+
+        <CheckBoxPreference android:key="browser.search.suggest.enabled"
+                            android:title="@string/pref_search_suggestions"
+                            android:defaultValue="true"
+                            android:persistent="false" />
 
     </PreferenceCategory>
 

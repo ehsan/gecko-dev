@@ -26,7 +26,7 @@ LIRGraph::LIRGraph(MIRGraph *mir)
 }
 
 bool
-LIRGraph::addConstantToPool(const Value &v, uint32_t *index)
+LIRGraph::addConstantToPool(const Value &v, uint32 *index)
 {
     *index = constantPool_.length();
     return constantPool_.append(v);
@@ -48,7 +48,7 @@ LBlock::label()
     return begin()->toLabel()->label();
 }
 
-uint32_t
+uint32
 LBlock::firstId()
 {
     if (phis_.length()) {
@@ -61,7 +61,7 @@ LBlock::firstId()
     }
     return 0;
 }
-uint32_t
+uint32
 LBlock::lastId()
 {
     LInstruction *last = *instructions_.rbegin();
@@ -130,17 +130,6 @@ LSnapshot::New(MIRGenerator *gen, MResumePoint *mir, BailoutKind kind)
     return snapshot;
 }
 
-void
-LSnapshot::rewriteRecoveredInput(LUse input)
-{
-    // Mark any operands to this snapshot with the same value as input as being
-    // equal to the instruction's result.
-    for (size_t i = 0; i < numEntries(); i++) {
-        if (getEntry(i)->isUse() && getEntry(i)->toUse()->virtualRegister() == input.virtualRegister())
-            setEntry(i, LUse(input.virtualRegister(), LUse::RECOVERED_INPUT));
-    }
-}
-
 bool
 LPhi::init(MIRGenerator *gen)
 {
@@ -203,7 +192,9 @@ PrintDefinition(FILE *fp, const LDefinition &def)
     if (def.virtualRegister())
         fprintf(fp, ":%d", def.virtualRegister());
     if (def.policy() == LDefinition::PRESET) {
-        fprintf(fp, " (%s)", def.output()->toString());
+        fprintf(fp, " (");
+        LAllocation::PrintAllocation(fp, def.output());
+        fprintf(fp, ")");
     } else if (def.policy() == LDefinition::MUST_REUSE_INPUT) {
         fprintf(fp, " (!)");
     } else if (def.policy() == LDefinition::PASSTHROUGH) {
@@ -212,69 +203,61 @@ PrintDefinition(FILE *fp, const LDefinition &def)
     fprintf(fp, "]");
 }
 
-#ifdef DEBUG
 static void
-PrintUse(char *buf, size_t size, const LUse *use)
+PrintUse(FILE *fp, const LUse *use)
 {
-    switch (use->policy()) {
-      case LUse::REGISTER:
-        JS_snprintf(buf, size, "v%d:r", use->virtualRegister());
-        break;
-      case LUse::FIXED:
+    fprintf(fp, "v%d:", use->virtualRegister());
+    if (use->policy() == LUse::ANY) {
+        fprintf(fp, "*");
+    } else if (use->policy() == LUse::REGISTER) {
+        fprintf(fp, "r");
+    } else {
         // Unfortunately, we don't know here whether the virtual register is a
         // float or a double. Should we steal a bit in LUse for help? For now,
         // nothing defines any fixed xmm registers.
-        JS_snprintf(buf, size, "v%d:%s", use->virtualRegister(),
-                    Registers::GetName(Registers::Code(use->registerCode())));
-        break;
-      default:
-        JS_snprintf(buf, size, "v%d:*", use->virtualRegister());
+        fprintf(fp, "%s", Registers::GetName(Registers::Code(use->registerCode())));
     }
 }
 
-const char *
-LAllocation::toString() const
+void
+LAllocation::PrintAllocation(FILE *fp, const LAllocation *a)
 {
-    // Not reentrant!
-    static char buf[40];
-
-    switch (kind()) {
+    switch (a->kind()) {
       case LAllocation::CONSTANT_VALUE:
       case LAllocation::CONSTANT_INDEX:
-        return "c";
+        fprintf(fp, "c");
+        break;
       case LAllocation::GPR:
-        JS_snprintf(buf, sizeof(buf), "=%s", toGeneralReg()->reg().name());
-        return buf;
+        fprintf(fp, "=%s", a->toGeneralReg()->reg().name());
+        break;
       case LAllocation::FPU:
-        JS_snprintf(buf, sizeof(buf), "=%s", toFloatReg()->reg().name());
-        return buf;
+        fprintf(fp, "=%s", a->toFloatReg()->reg().name());
+        break;
       case LAllocation::STACK_SLOT:
-        JS_snprintf(buf, sizeof(buf), "stack:i%d", toStackSlot()->slot());
-        return buf;
+        fprintf(fp, "stack:i%d", a->toStackSlot()->slot());
+        break;
       case LAllocation::DOUBLE_SLOT:
-        JS_snprintf(buf, sizeof(buf), "stack:d%d", toStackSlot()->slot());
-        return buf;
-      case LAllocation::INT_ARGUMENT:
-        JS_snprintf(buf, sizeof(buf), "arg:%d", toArgument()->index());
-        return buf;
-      case LAllocation::DOUBLE_ARGUMENT:
-        JS_snprintf(buf, sizeof(buf), "arg:%d", toArgument()->index());
-        return buf;
+        fprintf(fp, "stack:d%d", a->toStackSlot()->slot());
+        break;
+      case LAllocation::ARGUMENT:
+        fprintf(fp, "arg:%d", a->toArgument()->index());
+        break;
       case LAllocation::USE:
-        PrintUse(buf, sizeof(buf), toUse());
-        return buf;
+        PrintUse(fp, a->toUse());
+        break;
       default:
         JS_NOT_REACHED("what?");
-        return "???";
+        break;
     }
 }
-#endif // DEBUG
 
 void
 LInstruction::printOperands(FILE *fp)
 {
     for (size_t i = 0; i < numOperands(); i++) {
-        fprintf(fp, " (%s)", getOperand(i)->toString());
+        fprintf(fp, " (");
+        LAllocation::PrintAllocation(fp, getOperand(i));
+        fprintf(fp, ")");
         if (i != numOperands() - 1)
             fprintf(fp, ",");
     }
@@ -300,16 +283,15 @@ LInstruction::assignSnapshot(LSnapshot *snapshot)
 void
 LInstruction::print(FILE *fp)
 {
-    fprintf(fp, "{");
+    printName(fp);
+
+    fprintf(fp, " (");
     for (size_t i = 0; i < numDefs(); i++) {
         PrintDefinition(fp, *getDef(i));
         if (i != numDefs() - 1)
             fprintf(fp, ", ");
     }
-    fprintf(fp, "} <- ");
-
-    printName(fp);
-
+    fprintf(fp, ")");
 
     printInfo(fp);
 
@@ -332,53 +314,30 @@ LInstruction::initSafepoint()
     JS_ASSERT(safepoint_);
 }
 
-bool
-LMoveGroup::add(LAllocation *from, LAllocation *to)
-{
-#ifdef DEBUG
-    JS_ASSERT(*from != *to);
-    for (size_t i = 0; i < moves_.length(); i++)
-        JS_ASSERT(*to != *moves_[i].to());
-#endif
-    return moves_.append(LMove(from, to));
-}
-
-bool
-LMoveGroup::addAfter(LAllocation *from, LAllocation *to)
-{
-    // Transform the operands to this move so that performing the result
-    // simultaneously with existing moves in the group will have the same
-    // effect as if the original move took place after the existing moves.
-
-    for (size_t i = 0; i < moves_.length(); i++) {
-        if (*moves_[i].to() == *from) {
-            from = moves_[i].from();
-            break;
-        }
-    }
-
-    if (*from == *to)
-        return true;
-
-    for (size_t i = 0; i < moves_.length(); i++) {
-        if (*to == *moves_[i].to()) {
-            moves_[i] = LMove(from, to);
-            return true;
-        }
-    }
-
-    return add(from, to);
-}
-
 void
 LMoveGroup::printOperands(FILE *fp)
 {
     for (size_t i = 0; i < numMoves(); i++) {
         const LMove &move = getMove(i);
-        // Use two printfs, as LAllocation::toString is not reentrant.
-        fprintf(fp, "[%s", move.from()->toString());
-        fprintf(fp, " -> %s]", move.to()->toString());
+        fprintf(fp, "[");
+        LAllocation::PrintAllocation(fp, move.from());
+        fprintf(fp, " -> ");
+        LAllocation::PrintAllocation(fp, move.to());
+        fprintf(fp, "]");
         if (i != numMoves() - 1)
             fprintf(fp, ", ");
     }
 }
+
+Label *
+LTestVAndBranch::ifTrue()
+{
+    return ifTrue_->lir()->label();
+}
+
+Label *
+LTestVAndBranch::ifFalse()
+{
+    return ifFalse_->lir()->label();
+}
+

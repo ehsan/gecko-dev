@@ -46,12 +46,12 @@ let gMockTimerFactory = {
 let mockTimerImpl = {
   initWithCallback: function MTI_initWithCallback(aCallback, aDelay, aType) {
     print("Checking timer delay equals expected interval value");
-    if (!currentTest)
+    if (!gCurrentTest)
       return;
     // History status is not dirty, so the timer is delayed.
-    do_check_eq(aDelay, currentTest.expectedTimerDelay * 1000 * EXPIRE_AGGRESSIVITY_MULTIPLIER)
+    do_check_eq(aDelay, gCurrentTest.expectedTimerDelay * 1000 * EXPIRE_AGGRESSIVITY_MULTIPLIER)
 
-    do_execute_soon(runNextTest);
+    do_execute_soon(run_next_test);
   },
 
   cancel: function() {},
@@ -85,7 +85,7 @@ do_register_cleanup(function() {
 });
 
 
-let tests = [
+let gTests = [
 
   // This test should be the first, so the interval won't be influenced by
   // status of history.
@@ -111,7 +111,7 @@ let tests = [
 
 ];
 
-let currentTest;
+let gCurrentTest;
 
 function run_test() {
   // The pref should not exist by default.
@@ -127,15 +127,15 @@ function run_test() {
   // Force the component, so it will start observing preferences.
   force_expiration_start();
 
-  runNextTest();
+  run_next_test();
   do_test_pending();
 }
 
-function runNextTest() {
-  if (tests.length) {
-    currentTest = tests.shift();
-    print(currentTest.desc);
-    setInterval(currentTest.interval);
+function run_next_test() {
+  if (gTests.length) {
+    gCurrentTest = gTests.shift();
+    print(gCurrentTest.desc);
+    setInterval(gCurrentTest.interval);
   }
   else {
     clearInterval();

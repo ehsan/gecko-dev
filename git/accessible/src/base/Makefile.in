@@ -9,6 +9,7 @@ VPATH = @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
+MODULE = accessibility
 LIBRARY_NAME = accessibility_base_s
 LIBXUL_LIBRARY = 1
 
@@ -20,24 +21,23 @@ CPPSRCS = \
   AccIterator.cpp \
   Filters.cpp \
   ARIAStateMap.cpp \
-  DocManager.cpp \
-  EventQueue.cpp \
   FocusManager.cpp \
   NotificationController.cpp \
+  nsAccDocManager.cpp \
   nsAccessNode.cpp \
   nsARIAMap.cpp \
   nsCoreUtils.cpp \
   nsAccUtils.cpp \
   nsAccessibilityService.cpp \
   nsAccessiblePivot.cpp \
+  nsAccTreeWalker.cpp \
   nsEventShell.cpp \
+  nsCaretAccessible.cpp \
   nsTextEquivUtils.cpp \
   RoleAsserts.cpp \
-  SelectionManager.cpp \
   StyleInfo.cpp \
   TextAttrs.cpp \
   TextUpdater.cpp \
-  TreeWalker.cpp \
   $(NULL)
 
 ifneq ($(A11Y_LOG),0)
@@ -47,7 +47,9 @@ CPPSRCS += \
 endif
 
 EXPORTS = \
+  a11yGeneric.h \
   AccEvent.h \
+  nsAccDocManager.h \
   nsAccessibilityService.h \
   nsAccessNode.h \
   $(NULL)
@@ -55,12 +57,9 @@ EXPORTS = \
 EXPORTS_NAMESPACES = mozilla/a11y
 
 EXPORTS_mozilla/a11y = \
-  DocManager.h \
   FocusManager.h \
   AccTypes.h \
-  Platform.h \
   States.h \
-  SelectionManager.h \
   Role.h \
   $(NULL)
 
@@ -81,11 +80,10 @@ LOCAL_INCLUDES += \
   -I$(srcdir)/../html \
   -I$(srcdir)/../xpcom \
   -I$(srcdir)/../xul \
+  -I$(srcdir)/../xforms \
   -I$(srcdir)/../../../layout/generic \
   -I$(srcdir)/../../../layout/style \
-  -I$(srcdir)/../../../layout/svg \
   -I$(srcdir)/../../../layout/xul/base/src \
-  -I$(srcdir)/../../../layout/xul/tree/ \
   $(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
@@ -95,7 +93,7 @@ LOCAL_INCLUDES += \
 else
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 LOCAL_INCLUDES += \
-  -I$(srcdir)/../windows/msaa \
+  -I$(srcdir)/../msaa \
   -I$(srcdir)/../windows/ia2 \
   $(NULL)
 else

@@ -10,8 +10,7 @@
 #include "nsIDOMLocation.h"
 #include "nsString.h"
 #include "nsWeakReference.h"
-#include "nsWrapperCache.h"
-#include "nsCycleCollectionParticipant.h"
+
 
 class nsIURI;
 class nsIDocShell;
@@ -24,14 +23,12 @@ class nsIDocShellLoadInfo;
 //*****************************************************************************
 
 class nsLocation : public nsIDOMLocation
-                 , public nsWrapperCache
 {
 public:
   nsLocation(nsIDocShell *aDocShell);
   virtual ~nsLocation();
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsLocation)
+  NS_DECL_ISUPPORTS
 
   void SetDocShell(nsIDocShell *aDocShell);
   nsIDocShell *GetDocShell();

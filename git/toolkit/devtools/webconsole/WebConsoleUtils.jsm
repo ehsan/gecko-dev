@@ -28,16 +28,10 @@ XPCOMUtils.defineLazyServiceGetter(this, "gActivityDistributor",
                                    "@mozilla.org/network/http-activity-distributor;1",
                                    "nsIHttpActivityDistributor");
 
-XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
-                                  "resource:///modules/devtools/gDevTools.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "TargetFactory",
-                                  "resource:///modules/devtools/Target.jsm");
-
-this.EXPORTED_SYMBOLS = ["WebConsoleUtils", "JSPropertyProvider", "JSTermHelpers",
-                         "PageErrorListener", "ConsoleAPIListener",
-                         "NetworkResponseListener", "NetworkMonitor",
-                         "ConsoleProgressListener"];
+var EXPORTED_SYMBOLS = ["WebConsoleUtils", "JSPropertyProvider", "JSTermHelpers",
+                        "PageErrorListener", "ConsoleAPIListener",
+                        "NetworkResponseListener", "NetworkMonitor",
+                        "ConsoleProgressListener"];
 
 // Match the function name from the result of toString() or toSource().
 //
@@ -50,7 +44,7 @@ const REGEX_MATCH_FUNCTION_NAME = /^\(?function\s+([^(\s]+)\s*\(/;
 // Match the function arguments from the result of toString() or toSource().
 const REGEX_MATCH_FUNCTION_ARGS = /^\(?function\s*[^\s(]*\s*\((.+?)\)/;
 
-this.WebConsoleUtils = {
+var WebConsoleUtils = {
   /**
    * Convenience function to unwrap a wrapped object.
    *
@@ -521,14 +515,10 @@ this.WebConsoleUtils = {
       result.value = this.createValueGrip(descriptor.value, aObjectWrapper);
     }
     else if (descriptor.get) {
-      let gotValue = false;
       if (this.isNativeFunction(descriptor.get)) {
-        try {
-          result.value = this.createValueGrip(aObject[aProperty], aObjectWrapper);
-          gotValue = true;
-        } catch (e) {}
+        result.value = this.createValueGrip(aObject[aProperty], aObjectWrapper);
       }
-      if (!gotValue) {
+      else {
         result.get = this.createValueGrip(descriptor.get, aObjectWrapper);
         result.set = this.createValueGrip(descriptor.set, aObjectWrapper);
       }
@@ -599,10 +589,9 @@ this.WebConsoleUtils = {
     let type = typeof(aValue);
     switch (type) {
       case "boolean":
+      case "string":
       case "number":
         return aValue;
-      case "string":
-          return aObjectWrapper(aValue);
       case "object":
       case "function":
         if (aValue) {
@@ -697,28 +686,13 @@ this.WebConsoleUtils = {
   {
     // Primitives like strings and numbers are not sent as objects.
     // But null and undefined are sent as objects with the type property
-    // telling which type of value we have. We also have long strings which are
-    // sent using the LongStringActor.
-
+    // telling which type of value we have.
     let type = typeof(aGrip);
-    if (type == "string" ||
-        (aGrip && type == "object" && aGrip.type == "longString")) {
-      let str = type == "string" ? aGrip : aGrip.initial;
-      if (aFormatString) {
-        return this.formatResultString(str);
-      }
-      return str;
-    }
-
     if (aGrip && type == "object") {
-      if (aGrip.displayString && typeof aGrip.displayString == "object" &&
-          aGrip.displayString.type == "longString") {
-        return aGrip.displayString.initial;
-      }
       return aGrip.displayString || aGrip.className || aGrip.type || type;
     }
-
-    return aGrip + "";
+    return type == "string" && aFormatString ?
+           this.formatResultString(aGrip) : aGrip + "";
   },
 
   /**
@@ -797,8 +771,7 @@ this.WebConsoleUtils = {
 
     let type = typeof aObject;
     if (type != "object") {
-      // Grip class names should start with an uppercase letter.
-      return type.charAt(0).toUpperCase() + type.substr(1);
+      return type;
     }
 
     let className;
@@ -840,21 +813,12 @@ this.WebConsoleUtils = {
       return val;
     }
 
-    if (val.type == "longString") {
-      return this.formatResultString(val.initial) + "\u2026";
-    }
-
     if (val.type == "function" && val.functionName) {
       return "function " + val.functionName + "(" +
              val.functionArguments.join(", ") + ")";
     }
     if (val.type == "object" && val.className) {
       return val.className;
-    }
-
-    if (val.displayString && typeof val.displayString == "object" &&
-        val.displayString.type == "longString") {
-      return val.displayString.initial;
     }
 
     return val.displayString || val.type;
@@ -950,7 +914,7 @@ WebConsoleUtils.l10n.prototype = {
 // JS Completer
 //////////////////////////////////////////////////////////////////////////
 
-this.JSPropertyProvider = (function _JSPP(WCU) {
+var JSPropertyProvider = (function _JSPP(WCU) {
 const STATE_NORMAL = 0;
 const STATE_QUOTE = 2;
 const STATE_DQUOTE = 3;
@@ -1261,7 +1225,7 @@ return JSPropertyProvider;
  *        invoked with one argument, the nsIScriptError, whenever a relevant
  *        page error is received.
  */
-this.PageErrorListener = function PageErrorListener(aWindow, aListener)
+function PageErrorListener(aWindow, aListener)
 {
   this.window = aWindow;
   this.listener = aListener;
@@ -1362,14 +1326,22 @@ PageErrorListener.prototype =
   {
     let innerWindowId = this.window ?
                         WebConsoleUtils.getInnerWindowId(this.window) : null;
-    let errors = Services.console.getMessageArray() || [];
+    let result = [];
+    let errors = {};
+    Services.console.getMessageArray(errors, {});
 
-    return errors.filter(function(aError) {
-      return aError instanceof Ci.nsIScriptError &&
-             (!innerWindowId ||
-              (aError.innerWindowID == innerWindowId &&
-               this.isCategoryAllowed(aError.category)));
+    (errors.value || []).forEach(function(aError) {
+      if (!(aError instanceof Ci.nsIScriptError) ||
+          (innerWindowId &&
+           (aError.innerWindowID != innerWindowId ||
+            !this.isCategoryAllowed(aError.category)))) {
+        return;
+      }
+
+      result.push(aError);
     }, this);
+
+    return result;
   },
 
   /**
@@ -1401,7 +1373,7 @@ PageErrorListener.prototype =
  *        Console API message that comes from the observer service, whenever
  *        a relevant console API call is received.
  */
-this.ConsoleAPIListener = function ConsoleAPIListener(aWindow, aOwner)
+function ConsoleAPIListener(aWindow, aOwner)
 {
   this.window = aWindow;
   this.owner = aOwner;
@@ -1503,7 +1475,7 @@ ConsoleAPIListener.prototype =
  * @param object aOwner
  *        The owning object.
  */
-this.JSTermHelpers = function JSTermHelpers(aOwner)
+function JSTermHelpers(aOwner)
 {
   /**
    * Find a node by ID.
@@ -1575,13 +1547,7 @@ this.JSTermHelpers = function JSTermHelpers(aOwner)
   Object.defineProperty(aOwner.sandbox, "$0", {
     get: function() {
       try {
-        let window = aOwner.chromeWindow();
-        let target = TargetFactory.forTab(window.gBrowser.selectedTab);
-        let toolbox = gDevTools.getToolbox(target);
-
-        return toolbox == null ?
-            undefined :
-            toolbox.getPanel("inspector").selection.node;
+        return aOwner.chromeWindow().InspectorUI.selection;
       }
       catch (ex) {
         aOwner.window.console.error(ex.message);
@@ -1713,7 +1679,7 @@ this.JSTermHelpers = function JSTermHelpers(aOwner)
     aOwner.helperResult = { rawOutput: true };
     return String(aString);
   };
-};
+}
 
 
 (function(_global, WCU) {
@@ -1957,17 +1923,12 @@ NetworkResponseListener.prototype = {
       text: aData || "",
     };
 
-    response.size = response.text.length;
+    // TODO: Bug 787981 - use LongStringActor for strings that are too long.
 
     try {
       response.mimeType = this.request.contentType;
     }
     catch (ex) { }
-
-    if (!response.mimeType || !NetworkHelper.isTextMimeType(response.mimeType)) {
-      response.encoding = "base64";
-      response.text = btoa(response.text);
-    }
 
     if (response.mimeType && this.request.contentCharset) {
       response.mimeType += "; charset=" + this.request.contentCharset;
@@ -2621,6 +2582,7 @@ _global.NetworkMonitor = NetworkMonitor;
 _global.NetworkResponseListener = NetworkResponseListener;
 })(this, WebConsoleUtils);
 
+
 /**
  * A WebProgressListener that listens for location changes.
  *
@@ -2635,8 +2597,7 @@ _global.NetworkResponseListener = NetworkResponseListener;
  *        - onFileActivity(aFileURI)
  *        - onLocationChange(aState, aTabURI, aPageTitle)
  */
-this.ConsoleProgressListener =
- function ConsoleProgressListener(aWindow, aOwner)
+function ConsoleProgressListener(aWindow, aOwner)
 {
   this.window = aWindow;
   this.owner = aOwner;

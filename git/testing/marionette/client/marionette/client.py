@@ -5,18 +5,15 @@
 import json
 import socket
 
-from errors import InvalidResponseException, ErrorCodes
-
+from errors import MarionetteException
 
 class MarionetteClient(object):
     """ The Marionette socket client.  This speaks the same protocol
         as the remote debugger inside Gecko, in which messages are
         always preceded by the message length and a colon, e.g.,
-
+        
         20:{'command': 'test'}
     """
-
-    max_packet_length = 4096
 
     def __init__(self, addr, port):
         self.addr = addr
@@ -52,17 +49,14 @@ class MarionetteClient(object):
             response += self._recv_n_bytes(int(length) + 1 + len(length) - 10)
             return json.loads(response)
         else:
-            raise InvalidResponseException("Could not successfully complete " \
-                                           "transport of message to Gecko, "
-                                           "socket closed?",
-                                           status=ErrorCodes.INVALID_RESPONSE)
+            raise MarionetteException("Could not successfully complete transport of message to Gecko, socket closed?")
 
-    def connect(self, timeout=180.0):
+    def connect(self):
         """ Connect to the server and process the hello message we expect
             to receive in response.
         """
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.sock.settimeout(timeout)
+        self.sock.settimeout(180.0)
         try:
             self.sock.connect((self.addr, self.port))
         except:
@@ -86,12 +80,7 @@ class MarionetteClient(object):
         if 'to' not in msg:
             msg['to'] = self.actor
         data = json.dumps(msg)
-        data = '%s:%s' % (len(data), data)
-
-        for packet in [data[i:i + self.max_packet_length] for i in
-                       range(0, len(data), self.max_packet_length)]:
-            self.sock.send(packet)
-
+        self.sock.send('%s:%s' % (len(data), data))
         response = self.receive()
         return response
 

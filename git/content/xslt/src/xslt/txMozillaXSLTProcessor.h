@@ -96,8 +96,7 @@ public:
         return mSource;
     }
 
-    nsresult TransformToDoc(nsIDOMDocument **aResult,
-                            bool aCreateDataDocument);
+    nsresult TransformToDoc(nsIDOMDocument **aResult);
 
     bool IsLoadDisabled()
     {
@@ -106,7 +105,7 @@ public:
 
     // nsIJSNativeInitializer
     NS_IMETHODIMP Initialize(nsISupports* aOwner, JSContext *cx, JSObject *obj,
-                             uint32_t argc, JS::Value *argv);
+                             uint32_t argc, jsval *argv);
 
     static nsresult Startup();
     static void Shutdown();

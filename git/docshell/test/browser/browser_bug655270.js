@@ -46,6 +46,7 @@ function test() {
     onEndUpdateBatch: function() { },
     onVisit: function() { },
     onTitleChanged: function() { },
+    onBeforeDeleteURI: function() { },
     onDeleteURI: function() { },
     onClearHistory: function() { },
     onDeleteVisits: function() { },

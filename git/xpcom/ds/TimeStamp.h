@@ -11,22 +11,13 @@
 
 #include "prinrval.h"
 #include "nsDebug.h"
+#include "prlong.h"
 
 namespace IPC {
 template <typename T> struct ParamTraits;
 }
 
-#ifdef XP_WIN
-// defines TimeStampValue as a complex value keeping both
-// GetTickCount and QueryPerformanceCounter values
-#include "TimeStamp_windows.h"
-#endif
-
 namespace mozilla {
-
-#ifndef XP_WIN
-typedef uint64_t TimeStampValue;
-#endif
 
 class TimeStamp;
 
@@ -92,25 +83,6 @@ public:
     mValue -= aOther.mValue;
     return *this;
   }
-
-private:
-  // Block double multiplier (slower, imprecise if long duration) - Bug 853398.
-  // If required, use MultDouble explicitly and with care.
-  TimeDuration operator*(const double aMultiplier) const MOZ_DELETE;
-
-public:
-  TimeDuration MultDouble(double aMultiplier) const {
-    return TimeDuration::FromTicks(static_cast<int64_t>(mValue * aMultiplier));
-  }
-  TimeDuration operator*(const int32_t aMultiplier) const {
-    return TimeDuration::FromTicks(mValue * int64_t(aMultiplier));
-  }
-  TimeDuration operator*(const uint32_t aMultiplier) const {
-    return TimeDuration::FromTicks(mValue * int64_t(aMultiplier));
-  }
-  TimeDuration operator*(const int64_t aMultiplier) const {
-    return TimeDuration::FromTicks(mValue * int64_t(aMultiplier));
-  }
   double operator/(const TimeDuration& aOther) {
     return static_cast<double>(mValue) / aOther.mValue;
   }
@@ -167,7 +139,7 @@ private:
     return TimeDuration::FromTicks(int64_t(aTicks));
   }
 
-  // Duration, result is implementation-specific difference of two TimeStamps
+  // Duration in PRIntervalTime units
   int64_t mValue;
 };
 
@@ -218,17 +190,8 @@ public:
    * Return a timestamp reflecting the current elapsed system time. This
    * is monotonically increasing (i.e., does not decrease) over the
    * lifetime of this process' XPCOM session.
-   *
-   * Now() is trying to ensure the best possible precision on each platform,
-   * at least one millisecond.
-   *
-   * NowLoRes() has been introduced to workaround performance problems of
-   * QueryPerformanceCounter on the Windows platform.  NowLoRes() is giving
-   * lower precision, usually 15.6 ms, but with very good performance benefit.
-   * Use it for measurements of longer times, like >200ms timeouts.
    */
-  static TimeStamp Now() { return Now(true); }
-  static TimeStamp NowLoRes() { return Now(false); }
+  static TimeStamp Now();
   /**
    * Compute the difference between two timestamps. Both must be non-null.
    */
@@ -312,9 +275,7 @@ public:
 private:
   friend struct IPC::ParamTraits<mozilla::TimeStamp>;
 
-  TimeStamp(TimeStampValue aValue) : mValue(aValue) {}
-
-  static TimeStamp Now(bool aHighResolution);
+  TimeStamp(uint64_t aValue) : mValue(aValue) {}
 
   /**
    * When built with PRIntervalTime, a value of 0 means this instance
@@ -329,7 +290,7 @@ private:
    *
    * When using a system clock, a value is system dependent.
    */
-  TimeStampValue mValue;
+  uint64_t mValue;
 };
 
 }

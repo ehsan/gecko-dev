@@ -11,21 +11,27 @@
 #include "AccessibleTable_i.c"
 #include "AccessibleTable2_i.c"
 
-#include "AccessibleWrap.h"
+#include "nsIAccessible.h"
+#include "nsIAccessibleTable.h"
+#include "nsIWinAccessNode.h"
+#include "nsAccessNodeWrap.h"
+#include "nsWinUtils.h"
 #include "Statistics.h"
-#include "TableAccessible.h"
 
 #include "nsCOMPtr.h"
 #include "nsString.h"
 
 using namespace mozilla::a11y;
 
+#define CANT_QUERY_ASSERTION_MSG \
+"Subclass of ia2AccessibleTable doesn't implement nsIAccessibleTable"\
+
 // IUnknown
 
 STDMETHODIMP
 ia2AccessibleTable::QueryInterface(REFIID iid, void** ppv)
 {
-  *ppv = nullptr;
+  *ppv = NULL;
 
   if (IID_IAccessibleTable == iid) {
     statistics::IAccessibleTableUsed();
@@ -47,497 +53,629 @@ ia2AccessibleTable::QueryInterface(REFIID iid, void** ppv)
 // IAccessibleTable
 
 STDMETHODIMP
-ia2AccessibleTable::get_accessibleAt(long aRowIdx, long aColIdx,
-                                     IUnknown** aAccessible)
+ia2AccessibleTable::get_accessibleAt(long aRow, long aColumn,
+                                   IUnknown **aAccessible)
 {
-  return get_cellAt(aRowIdx, aColIdx, aAccessible);
+__try {
+  *aAccessible = NULL;
+
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
+
+  nsCOMPtr<nsIAccessible> cell;
+  nsresult rv = tableAcc->GetCellAt(aRow, aColumn, getter_AddRefs(cell));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  nsCOMPtr<nsIWinAccessNode> winAccessNode(do_QueryInterface(cell));
+  if (!winAccessNode)
+    return E_FAIL;
+
+  void *instancePtr = NULL;
+  rv = winAccessNode->QueryNativeInterface(IID_IAccessible2, &instancePtr);
+  if (NS_FAILED(rv))
+    return E_FAIL;
+
+  *aAccessible = static_cast<IUnknown*>(instancePtr);
+  return S_OK;
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_caption(IUnknown** aAccessible)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aAccessible = NULL;
 
-  *aAccessible = nullptr;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  AccessibleWrap* caption = static_cast<AccessibleWrap*>(mTable->Caption());
+  nsCOMPtr<nsIAccessible> caption;
+  nsresult rv = tableAcc->GetCaption(getter_AddRefs(caption));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
   if (!caption)
     return S_FALSE;
 
-  (*aAccessible = static_cast<IAccessible*>(caption))->AddRef();
+  nsCOMPtr<nsIWinAccessNode> winAccessNode(do_QueryInterface(caption));
+  if (!winAccessNode)
+    return E_FAIL;
+
+  void *instancePtr = NULL;
+  rv = winAccessNode->QueryNativeInterface(IID_IAccessible2, &instancePtr);
+  if (NS_FAILED(rv))
+    return E_FAIL;
+
+  *aAccessible = static_cast<IUnknown*>(instancePtr);
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_childIndex(long aRowIdx, long aColIdx,
-                                   long* aChildIdx)
+ia2AccessibleTable::get_childIndex(long aRowIndex, long aColumnIndex,
+                                   long* aChildIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aChildIndex = 0;
 
-  *aChildIdx = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  if (aRowIdx < 0 || aColIdx < 0 ||
-      static_cast<uint32_t>(aRowIdx) >= mTable->RowCount() ||
-      static_cast<uint32_t>(aColIdx) >= mTable->ColCount())
-    return E_INVALIDARG;
+  int32_t childIndex = 0;
+  nsresult rv = tableAcc->GetCellIndexAt(aRowIndex, aColumnIndex, &childIndex);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-  *aChildIdx = mTable->CellIndexAt(aRowIdx, aColIdx);
+  *aChildIndex = childIndex;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_columnDescription(long aColIdx, BSTR* aDescription)
+ia2AccessibleTable::get_columnDescription(long aColumn, BSTR* aDescription)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aDescription = NULL;
 
-  *aDescription = nullptr;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
-
-  if (aColIdx < 0 || static_cast<uint32_t>(aColIdx) >= mTable->ColCount())
-    return E_INVALIDARG;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
   nsAutoString descr;
-  mTable->ColDescription(aColIdx, descr);
+  nsresult rv = tableAcc->GetColumnDescription (aColumn, descr);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
   if (descr.IsEmpty())
     return S_FALSE;
 
   *aDescription = ::SysAllocStringLen(descr.get(), descr.Length());
   return *aDescription ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_columnExtentAt(long aRowIdx, long aColIdx,
-                                      long* aSpan)
+ia2AccessibleTable::get_columnExtentAt(long aRow, long aColumn,
+                                      long* nColumnsSpanned)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *nColumnsSpanned = 0;
 
-  *aSpan = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  if (aRowIdx < 0 || aColIdx < 0 ||
-      static_cast<uint32_t>(aRowIdx) >= mTable->RowCount() ||
-      static_cast<uint32_t>(aColIdx) >= mTable->ColCount())
-    return E_INVALIDARG;
+  int32_t columnsSpanned = 0;
+  nsresult rv = tableAcc->GetColumnExtentAt(aRow, aColumn, &columnsSpanned);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-  *aSpan = mTable->ColExtentAt(aRowIdx, aColIdx);
+  *nColumnsSpanned = columnsSpanned;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_columnHeader(IAccessibleTable** aAccessibleTable,
                                     long* aStartingRowIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  *aAccessibleTable = nullptr;
+__try {
+  *aAccessibleTable = NULL;
   *aStartingRowIndex = -1;
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
   return E_NOTIMPL;
-
-  A11Y_TRYBLOCK_END
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_columnIndex(long aCellIdx, long* aColIdx)
+ia2AccessibleTable::get_columnIndex(long aChildIndex, long* aColumnIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aColumnIndex = 0;
 
-  *aColIdx = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  if (aCellIdx < 0 ||
-      static_cast<uint32_t>(aCellIdx) >= mTable->ColCount() * mTable->RowCount())
-    return E_INVALIDARG;
+  int32_t columnIndex = 0;
+  nsresult rv = tableAcc->GetColumnIndexAt(aChildIndex, &columnIndex);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-  *aColIdx = mTable->ColIndexAt(aCellIdx);
+  *aColumnIndex = columnIndex;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_nColumns(long* aColCount)
+ia2AccessibleTable::get_nColumns(long* aColumnCount)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aColumnCount = 0;
 
-  *aColCount = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  *aColCount = mTable->ColCount();
+  int32_t columnCount = 0;
+  nsresult rv = tableAcc->GetColumnCount(&columnCount);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aColumnCount = columnCount;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_nRows(long* aRowCount)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aRowCount = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
 
-  *aRowCount = mTable->RowCount();
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
+
+  int32_t rowCount = 0;
+  nsresult rv = tableAcc->GetRowCount(&rowCount);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aRowCount = rowCount;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_nSelectedChildren(long* aChildCount)
 {
-  return get_nSelectedCells(aChildCount);
+__try {
+  *aChildCount = 0;
+
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
+
+  uint32_t count = 0;
+  nsresult rv = tableAcc->GetSelectedCellCount(&count);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aChildCount = count;
+  return S_OK;
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_nSelectedColumns(long* aColCount)
+ia2AccessibleTable::get_nSelectedColumns(long* aColumnCount)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aColumnCount = 0;
 
-  *aColCount = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  *aColCount = mTable->SelectedColCount();
+  uint32_t count = 0;
+  nsresult rv = tableAcc->GetSelectedColumnCount(&count);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aColumnCount = count;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_nSelectedRows(long* aRowCount)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aRowCount = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
 
-  *aRowCount = mTable->SelectedRowCount();
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
+  uint32_t count = 0;
+  nsresult rv = tableAcc->GetSelectedRowCount(&count);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aRowCount = count;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_rowDescription(long aRowIdx, BSTR* aDescription)
+ia2AccessibleTable::get_rowDescription(long aRow, BSTR* aDescription)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aDescription = NULL;
 
-  *aDescription = nullptr;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
-
-  if (aRowIdx < 0 || static_cast<uint32_t>(aRowIdx) >= mTable->RowCount())
-    return E_INVALIDARG;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
   nsAutoString descr;
-  mTable->RowDescription(aRowIdx, descr);
+  nsresult rv = tableAcc->GetRowDescription (aRow, descr);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
   if (descr.IsEmpty())
     return S_FALSE;
 
   *aDescription = ::SysAllocStringLen(descr.get(), descr.Length());
   return *aDescription ? S_OK : E_OUTOFMEMORY;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_rowExtentAt(long aRowIdx, long aColIdx, long* aSpan)
+ia2AccessibleTable::get_rowExtentAt(long aRow, long aColumn,
+                                    long* aNRowsSpanned)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aNRowsSpanned = 0;
 
-  *aSpan = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  if (aRowIdx < 0 || aColIdx < 0 ||
-      static_cast<uint32_t>(aRowIdx) >= mTable->RowCount() ||
-      static_cast<uint32_t>(aColIdx) >= mTable->ColCount())
-    return E_INVALIDARG;
+  int32_t rowsSpanned = 0;
+  nsresult rv = tableAcc->GetRowExtentAt(aRow, aColumn, &rowsSpanned);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-  *aSpan = mTable->RowExtentAt(aRowIdx, aColIdx);
+  *aNRowsSpanned = rowsSpanned;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_rowHeader(IAccessibleTable** aAccessibleTable,
                                   long* aStartingColumnIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  *aAccessibleTable = nullptr;
+__try {
+  *aAccessibleTable = NULL;
   *aStartingColumnIndex = -1;
-  return E_NOTIMPL;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_NOTIMPL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_rowIndex(long aCellIdx, long* aRowIdx)
+ia2AccessibleTable::get_rowIndex(long aChildIndex, long* aRowIndex)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aRowIndex = 0;
 
-  *aRowIdx = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  if (aCellIdx < 0 ||
-      static_cast<uint32_t>(aCellIdx) >= mTable->ColCount() * mTable->RowCount())
-    return E_INVALIDARG;
+  int32_t rowIndex = 0;
+  nsresult rv = tableAcc->GetRowIndexAt(aChildIndex, &rowIndex);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-  *aRowIdx = mTable->RowIndexAt(aCellIdx);
+  *aRowIndex = rowIndex;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_selectedChildren(long aMaxChildren, long** aChildren,
                                          long* aNChildren)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  return GetSelectedItems(aChildren, aNChildren, ITEMSTYPE_CELLS);
 
-  *aChildren = nullptr;
-  *aNChildren = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
-
-  nsAutoTArray<uint32_t, 30> cellIndices;
-  mTable->SelectedCellIndices(&cellIndices);
-
-  uint32_t maxCells = cellIndices.Length();
-  if (maxCells == 0)
-    return S_FALSE;
-
-  *aChildren = static_cast<LONG*>(moz_xmalloc(sizeof(LONG) * maxCells));
-  *aNChildren = maxCells;
-  for (uint32_t i = 0; i < maxCells; i++)
-    (*aChildren)[i] = cellIndices[i];
-
-  return S_OK;
-
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_selectedColumns(long aMaxColumns, long** aColumns,
                                         long* aNColumns)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  return GetSelectedItems(aColumns, aNColumns, ITEMSTYPE_COLUMNS);
 
-  return get_selectedColumns(aColumns, aNColumns);
-
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_selectedRows(long aMaxRows, long** aRows, long* aNRows)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  return GetSelectedItems(aRows, aNRows, ITEMSTYPE_ROWS);
 
-  return get_selectedRows(aRows, aNRows);
-
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_summary(IUnknown** aAccessible)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  *aAccessible = NULL;
 
   // Neither html:table nor xul:tree nor ARIA grid/tree have an ability to
   // link an accessible object to specify a summary. There is closes method
   // in nsIAccessibleTable::summary to get a summary as a string which is not
   // mapped directly to IAccessible2.
 
-  *aAccessible = nullptr;
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return S_FALSE;
-
-  A11Y_TRYBLOCK_END
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_isColumnSelected(long aColIdx, boolean* aIsSelected)
+ia2AccessibleTable::get_isColumnSelected(long aColumn, boolean* aIsSelected)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aIsSelected = false;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
 
-  if (aColIdx < 0 || static_cast<uint32_t>(aColIdx) >= mTable->ColCount())
-    return E_INVALIDARG;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  *aIsSelected = mTable->IsColSelected(aColIdx);
+  bool isSelected = false;
+  nsresult rv = tableAcc->IsColumnSelected(aColumn, &isSelected);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aIsSelected = isSelected;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_isRowSelected(long aRowIdx, boolean* aIsSelected)
+ia2AccessibleTable::get_isRowSelected(long aRow, boolean* aIsSelected)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aIsSelected = false;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
 
-  if (aRowIdx < 0 || static_cast<uint32_t>(aRowIdx) >= mTable->RowCount())
-    return E_INVALIDARG;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  *aIsSelected = mTable->IsRowSelected(aRowIdx);
+  bool isSelected = false;
+  nsresult rv = tableAcc->IsRowSelected(aRow, &isSelected);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aIsSelected = isSelected;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_isSelected(long aRowIdx, long aColIdx,
+ia2AccessibleTable::get_isSelected(long aRow, long aColumn,
                                    boolean* aIsSelected)
 {
-  A11Y_TRYBLOCK_BEGIN
-
+__try {
   *aIsSelected = false;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
 
-  if (aRowIdx < 0 || aColIdx < 0 ||
-      static_cast<uint32_t>(aColIdx) >= mTable->ColCount() ||
-      static_cast<uint32_t>(aRowIdx) >= mTable->RowCount())
-    return E_INVALIDARG;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  *aIsSelected = mTable->IsCellSelected(aRowIdx, aColIdx);
+  bool isSelected = false;
+  nsresult rv = tableAcc->IsCellSelected(aRow, aColumn, &isSelected);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aIsSelected = isSelected;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::selectRow(long aRowIdx)
+ia2AccessibleTable::selectRow(long aRow)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsresult rv = tableAcc->SelectRow(aRow);
+  return GetHRESULT(rv);
 
-  if (aRowIdx < 0 || static_cast<uint32_t>(aRowIdx) >= mTable->RowCount())
-    return E_INVALIDARG;
-
-  mTable->SelectRow(aRowIdx);
-  return S_OK;
-
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::selectColumn(long aColIdx)
+ia2AccessibleTable::selectColumn(long aColumn)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsresult rv = tableAcc->SelectColumn(aColumn);
+  return GetHRESULT(rv);
 
-  if (aColIdx < 0 || static_cast<uint32_t>(aColIdx) >= mTable->ColCount())
-    return E_INVALIDARG;
-
-  mTable->SelectCol(aColIdx);
-  return S_OK;
-
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::unselectRow(long aRowIdx)
+ia2AccessibleTable::unselectRow(long aRow)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsresult rv = tableAcc->UnselectRow(aRow);
+  return GetHRESULT(rv);
 
-  if (aRowIdx < 0 || static_cast<uint32_t>(aRowIdx) >= mTable->RowCount())
-    return E_INVALIDARG;
-
-  mTable->UnselectRow(aRowIdx);
-  return S_OK;
-
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::unselectColumn(long aColIdx)
+ia2AccessibleTable::unselectColumn(long aColumn)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsresult rv = tableAcc->UnselectColumn(aColumn);
+  return GetHRESULT(rv);
 
-  if (aColIdx < 0 || static_cast<uint32_t>(aColIdx) >= mTable->ColCount())
-    return E_INVALIDARG;
-
-  mTable->UnselectCol(aColIdx);
-  return S_OK;
-
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
-ia2AccessibleTable::get_rowColumnExtentsAtIndex(long aCellIdx, long* aRowIdx,
-                                                long* aColIdx,
+ia2AccessibleTable::get_rowColumnExtentsAtIndex(long aIndex, long* aRow,
+                                                long* aColumn,
                                                 long* aRowExtents,
-                                                long* aColExtents,
+                                                long* aColumnExtents,
                                                 boolean* aIsSelected)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  *aRowIdx = 0;
-  *aColIdx = 0;
+__try {
+  *aRow = 0;
+  *aColumn = 0;
   *aRowExtents = 0;
-  *aColExtents = 0;
+  *aColumnExtents = 0;
   *aIsSelected = false;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
 
-  if (aCellIdx < 0 ||
-      static_cast<uint32_t>(aCellIdx) >= mTable->ColCount() * mTable->RowCount())
-    return E_INVALIDARG;
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  int32_t colIdx = 0, rowIdx = 0;
-  mTable->RowAndColIndicesAt(aCellIdx, &rowIdx, &colIdx);
-  *aRowIdx = rowIdx;
-  *aColIdx = colIdx;
-  *aRowExtents = mTable->RowExtentAt(rowIdx, colIdx);
-  *aColExtents = mTable->ColExtentAt(rowIdx, colIdx);
-  *aIsSelected = mTable->IsCellSelected(rowIdx, colIdx);
+  int32_t rowIdx = -1, columnIdx = -1;
+  nsresult rv = tableAcc->GetRowAndColumnIndicesAt(aIndex, &rowIdx, &columnIdx);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
+  int32_t rowExtents = 0;
+  rv = tableAcc->GetRowExtentAt(rowIdx, columnIdx, &rowExtents);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  int32_t columnExtents = 0;
+  rv = tableAcc->GetColumnExtentAt(rowIdx, columnIdx, &columnExtents);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  bool isSelected = false;
+  rv = tableAcc->IsCellSelected(rowIdx, columnIdx, &isSelected);
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  *aRow = rowIdx;
+  *aColumn = columnIdx;
+  *aRowExtents = rowExtents;
+  *aColumnExtents = columnExtents;
+  *aIsSelected = isSelected;
   return S_OK;
 
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_modelChange(IA2TableModelChange* aModelChange)
 {
+__try {
+
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(), GetExceptionInformation())) { }
   return E_NOTIMPL;
 }
 
@@ -545,124 +683,108 @@ ia2AccessibleTable::get_modelChange(IA2TableModelChange* aModelChange)
 // IAccessibleTable2
 
 STDMETHODIMP
-ia2AccessibleTable::get_cellAt(long aRowIdx, long aColIdx, IUnknown** aCell)
+ia2AccessibleTable::get_cellAt(long aRow, long aColumn, IUnknown** aCell)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  *aCell = nullptr;
-
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
-
-  AccessibleWrap* cell =
-    static_cast<AccessibleWrap*>(mTable->CellAt(aRowIdx, aColIdx));
-  if (!cell)
-    return E_INVALIDARG;
-
-  (*aCell = static_cast<IAccessible*>(cell))->AddRef();
-  return S_OK;
-
-  A11Y_TRYBLOCK_END
+  return get_accessibleAt(aRow, aColumn, aCell);
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_nSelectedCells(long* aCellCount)
 {
-  A11Y_TRYBLOCK_BEGIN
-
-  *aCellCount = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
-
-  *aCellCount = mTable->SelectedCellCount();
-  return S_OK;
-
-  A11Y_TRYBLOCK_END
+  return get_nSelectedChildren(aCellCount);
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_selectedCells(IUnknown*** aCells, long* aNSelectedCells)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
 
-  *aCells = nullptr;
-  *aNSelectedCells = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+  nsCOMPtr<nsIArray> geckoCells;
+  nsresult rv = tableAcc->GetSelectedCells(getter_AddRefs(geckoCells));
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
 
-  nsAutoTArray<Accessible*, 30> cells;
-  mTable->SelectedCells(&cells);
-  if (cells.IsEmpty())
-    return S_FALSE;
+  return nsWinUtils::ConvertToIA2Array(geckoCells, aCells, aNSelectedCells);
 
-  *aCells =
-    static_cast<IUnknown**>(::CoTaskMemAlloc(sizeof(IUnknown*) *
-                                             cells.Length()));
-  if (!*aCells)
-    return E_OUTOFMEMORY;
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
 
-  for (uint32_t i = 0; i < cells.Length(); i++) {
-    (*aCells)[i] =
-      static_cast<IAccessible*>(static_cast<AccessibleWrap*>(cells[i]));
-    ((*aCells)[i])->AddRef();
-  }
-
-  *aNSelectedCells = cells.Length();
-  return S_OK;
-
-  A11Y_TRYBLOCK_END
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_selectedColumns(long** aColumns, long* aNColumns)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  return GetSelectedItems(aColumns, aNColumns, ITEMSTYPE_COLUMNS);
 
-  *aColumns = nullptr;
-  *aNColumns = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
-
-  nsAutoTArray<uint32_t, 30> colIndices;
-  mTable->SelectedColIndices(&colIndices);
-
-  uint32_t maxCols = colIndices.Length();
-  if (maxCols == 0)
-    return S_FALSE;
-
-  *aColumns = static_cast<LONG*>(moz_xmalloc(sizeof(LONG) * maxCols));
-  *aNColumns = maxCols;
-  for (uint32_t i = 0; i < maxCols; i++)
-    (*aColumns)[i] = colIndices[i];
-
-  return S_OK;
-
-  A11Y_TRYBLOCK_END
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_FAIL;
 }
 
 STDMETHODIMP
 ia2AccessibleTable::get_selectedRows(long** aRows, long* aNRows)
 {
-  A11Y_TRYBLOCK_BEGIN
+__try {
+  return GetSelectedItems(aRows, aNRows, ITEMSTYPE_ROWS);
 
-  *aRows = nullptr;
-  *aNRows = 0;
-  if (!mTable)
-    return CO_E_OBJNOTCONNECTED;
+} __except(nsAccessNodeWrap::FilterA11yExceptions(::GetExceptionCode(),
+                                                  GetExceptionInformation())) {}
+  return E_FAIL;
+}
 
-  nsAutoTArray<uint32_t, 30> rowIndices;
-  mTable->SelectedRowIndices(&rowIndices);
+////////////////////////////////////////////////////////////////////////////////
+// ia2AccessibleTable public
 
-  uint32_t maxRows = rowIndices.Length();
-  if (maxRows == 0)
+HRESULT
+ia2AccessibleTable::GetSelectedItems(long** aItems, long* aItemsCount,
+                                     eItemsType aType)
+{
+  *aItemsCount = 0;
+
+  nsCOMPtr<nsIAccessibleTable> tableAcc(do_QueryObject(this));
+  NS_ASSERTION(tableAcc, CANT_QUERY_ASSERTION_MSG);
+  if (!tableAcc)
+    return E_FAIL;
+
+  uint32_t size = 0;
+  int32_t *items = nullptr;
+
+  nsresult rv = NS_OK;
+  switch (aType) {
+    case ITEMSTYPE_CELLS:
+      rv = tableAcc->GetSelectedCellIndices(&size, &items);
+      break;
+    case ITEMSTYPE_COLUMNS:
+      rv = tableAcc->GetSelectedColumnIndices(&size, &items);
+      break;
+    case ITEMSTYPE_ROWS:
+      rv = tableAcc->GetSelectedRowIndices(&size, &items);
+      break;
+    default:
+      return E_FAIL;
+  }
+
+  if (NS_FAILED(rv))
+    return GetHRESULT(rv);
+
+  if (size == 0 || !items)
     return S_FALSE;
 
-  *aRows = static_cast<LONG*>(moz_xmalloc(sizeof(LONG) * maxRows));
-  *aNRows = maxRows;
-  for (uint32_t i = 0; i < maxRows; i++)
-    (*aRows)[i] = rowIndices[i];
+  *aItems = static_cast<long*>(nsMemory::Alloc((size) * sizeof(long)));
+  if (!*aItems)
+    return E_OUTOFMEMORY;
 
+  *aItemsCount = size;
+  for (uint32_t index = 0; index < size; ++index)
+    (*aItems)[index] = items[index];
+
+  nsMemory::Free(items);
   return S_OK;
-
-  A11Y_TRYBLOCK_END
 }
+

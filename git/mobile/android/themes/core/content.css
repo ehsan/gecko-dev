@@ -8,6 +8,22 @@
 @namespace url("http://www.w3.org/1999/xhtml");
 @namespace xul url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
+@-moz-document url-prefix(about:reader) {
+  @font-face {
+    font-family: 'OpenSansRegular';
+    src: url('chrome://browser/skin/fonts/opensans-regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  @font-face {
+    font-family: 'OpenSansLight';
+    src: url('chrome://browser/skin/fonts/opensans-light.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+}
+
 ::-moz-selection {
   background-color: @color_background_highlight@;
   color: @color_text_highlight@;
@@ -123,6 +139,11 @@ textarea,
 /* Selects are handled by the form helper, see bug 685197 */
 select option, select optgroup {
   pointer-events: none;
+}
+
+input:-moz-placeholder,
+textarea:-moz-placeholder {
+  color: GrayText;
 }
 
 select:not([size]):not([multiple]),
@@ -298,7 +319,19 @@ input:active,
 option:active,
 select:active,
 label:active,
-textarea:active,
-xul|menulist:active {
+textarea:active {
   background-color: @color_background_highlight_overlay@ !important;
+}
+
+/* 
+ * Generate an additional space after the anonymous div to make it easier to
+ * to position the caret at the end of the text
+ */
+input > .anonymous-div:after {
+  content: "";
+  margin: 16px;
+}
+
+xul|menulist {
+  -moz-binding: url("chrome://browser/content/bindings/menulist.xml#menulist");
 }

@@ -12,7 +12,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.MetaGlobalException.MetaGlobalMalformedSyncIDException;
 import org.mozilla.gecko.sync.MetaGlobalException.MetaGlobalMalformedVersionException;
 import org.mozilla.gecko.sync.delegates.MetaGlobalDelegate;

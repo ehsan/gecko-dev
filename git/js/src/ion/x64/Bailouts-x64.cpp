@@ -32,14 +32,14 @@ class BailoutStack
     MachineState machineState() {
         return MachineState::FromBailout(regs_, fpregs_);
     }
-    uint32_t snapshotOffset() const {
+    uint32 snapshotOffset() const {
         return snapshotOffset_;
     }
-    uint32_t frameSize() const {
+    uint32 frameSize() const {
         return frameSize_;
     }
-    uint8_t *parentStackPointer() {
-        return (uint8_t *)this + sizeof(BailoutStack);
+    uint8 *parentStackPointer() {
+        return (uint8 *)this + sizeof(BailoutStack);
     }
 };
 
@@ -55,11 +55,11 @@ IonBailoutIterator::IonBailoutIterator(const IonActivationIterator &activations,
   : IonFrameIterator(activations),
     machine_(bailout->machineState())
 {
-    uint8_t *sp = bailout->parentStackPointer();
-    uint8_t *fp = sp + bailout->frameSize();
+    uint8 *sp = bailout->parentStackPointer();
+    uint8 *fp = sp + bailout->frameSize();
 
     current_ = fp;
-    type_ = IonFrame_OptimizedJS;
+    type_ = IonFrame_JS;
     topFrameSize_ = current_ - sp;
     topIonScript_ = script()->ion;
     snapshotOffset_ = bailout->snapshotOffset();
@@ -74,8 +74,8 @@ IonBailoutIterator::IonBailoutIterator(const IonActivationIterator &activations,
     topIonScript_ = bailout->ionScript();
     const OsiIndex *osiIndex = topIonScript_->getOsiIndex(returnAddressToFp_);
 
-    current_ = (uint8_t*) bailout->fp();
-    type_ = IonFrame_OptimizedJS;
+    current_ = (uint8*) bailout->fp();
+    type_ = IonFrame_JS;
     topFrameSize_ = current_ - bailout->sp();
     snapshotOffset_ = osiIndex->snapshotOffset();
 }

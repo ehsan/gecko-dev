@@ -50,7 +50,7 @@ public:
   nsAsyncMessageToParent(nsInProcessTabChildGlobal* aTabChild,
                          const nsAString& aMessage,
                          const StructuredCloneData& aData)
-    : mTabChild(aTabChild), mMessage(aMessage), mRun(false)
+    : mTabChild(aTabChild), mMessage(aMessage)
   {
     if (aData.mDataLength && !mData.copy(aData.mData, aData.mDataLength)) {
       NS_RUNTIMEABORT("OOM");
@@ -60,11 +60,6 @@ public:
 
   NS_IMETHOD Run()
   {
-    if (mRun) {
-      return NS_OK;
-    }
-
-    mRun = true;
     mTabChild->mASyncMessages.RemoveElement(this);
     if (mTabChild->mChromeMessageManager) {
       StructuredCloneData data;
@@ -82,9 +77,6 @@ public:
   nsString mMessage;
   JSAutoStructuredCloneBuffer mData;
   StructuredCloneClosure mClosure;
-  // True if this runnable has already been called. This can happen if DoSendSyncMessage
-  // is called while waiting for an asynchronous message send.
-  bool mRun;
 };
 
 bool
@@ -105,15 +97,14 @@ nsInProcessTabChildGlobal::nsInProcessTabChildGlobal(nsIDocShell* aShell,
   mDelayedDisconnect(false), mOwner(aOwner), mChromeMessageManager(aChrome)
 {
 
-  // If owner corresponds to an <iframe mozbrowser> or <iframe mozapp>, we'll
-  // have to tweak our PreHandleEvent implementation.
+  // If owner corresponds to an <iframe mozbrowser>, we'll have to tweak our
+  // PreHandleEvent implementation.
   nsCOMPtr<nsIMozBrowserFrame> browserFrame = do_QueryInterface(mOwner);
+  bool isBrowser = false;
   if (browserFrame) {
-    mIsBrowserOrAppFrame = browserFrame->GetReallyIsBrowserOrApp();
+    browserFrame->GetReallyIsBrowser(&isBrowser);
   }
-  else {
-    mIsBrowserOrAppFrame = false;
-  }
+  mIsBrowserFrame = isBrowser;
 }
 
 nsInProcessTabChildGlobal::~nsInProcessTabChildGlobal()
@@ -143,19 +134,29 @@ nsInProcessTabChildGlobal::Init()
                                               nullptr,
                                               mCx,
                                               mozilla::dom::ipc::MM_CHILD);
+
+  // Set the location information for the new global, so that tools like
+  // about:memory may use that information.
+  JSObject *global;
+  nsIURI* docURI = mOwner->OwnerDoc()->GetDocumentURI();
+  if (mGlobal && NS_SUCCEEDED(mGlobal->GetJSObject(&global)) && docURI) {
+    xpc::SetLocationForGlobal(global, docURI);
+  }
+
   return NS_OK;
 }
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsInProcessTabChildGlobal)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsInProcessTabChildGlobal,
                                                 nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mMessageManager)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGlobal)
-  nsFrameScriptExecutor::Unlink(tmp);
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mMessageManager)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mGlobal)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsInProcessTabChildGlobal,
                                                   nsDOMEventTargetHelper)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMessageManager)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mMessageManager)
   nsFrameScriptExecutor::Traverse(tmp, cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
@@ -267,7 +268,7 @@ nsInProcessTabChildGlobal::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   aVisitor.mCanHandle = true;
 
-  if (mIsBrowserOrAppFrame &&
+  if (mIsBrowserFrame &&
       (!mOwner || !nsContentUtils::IsInChromeDocshell(mOwner->OwnerDoc()))) {
     if (mOwner) {
       nsPIDOMWindow* innerWindow = mOwner->OwnerDoc()->GetInnerWindow();
@@ -298,18 +299,10 @@ nsInProcessTabChildGlobal::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 nsresult
 nsInProcessTabChildGlobal::InitTabChildGlobal()
 {
-  nsAutoCString id;
-  id.AssignLiteral("inProcessTabChildGlobal");
-  nsIURI* uri = mOwner->OwnerDoc()->GetDocumentURI();
-  if (uri) {
-    nsAutoCString u;
-    uri->GetSpec(u);
-    id.AppendLiteral("?ownedBy=");
-    id.Append(u);
-  }
+
   nsISupports* scopeSupports =
     NS_ISUPPORTS_CAST(nsIDOMEventTarget*, this);
-  NS_ENSURE_STATE(InitTabChildGlobalInternal(scopeSupports, id));
+  NS_ENSURE_STATE(InitTabChildGlobalInternal(scopeSupports));
   return NS_OK;
 }
 

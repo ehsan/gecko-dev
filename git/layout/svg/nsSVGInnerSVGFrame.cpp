@@ -13,10 +13,7 @@
 #include "nsRenderingContext.h"
 #include "nsSVGContainerFrame.h"
 #include "nsSVGIntegrationUtils.h"
-#include "mozilla/dom/SVGSVGElement.h"
-
-using namespace mozilla;
-using namespace mozilla::dom;
+#include "nsSVGSVGElement.h"
 
 nsIFrame*
 NS_NewSVGInnerSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -35,15 +32,15 @@ NS_QUERYFRAME_HEAD(nsSVGInnerSVGFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsSVGInnerSVGFrameBase)
 
 #ifdef DEBUG
-void
+NS_IMETHODIMP
 nsSVGInnerSVGFrame::Init(nsIContent* aContent,
                          nsIFrame* aParent,
                          nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::svg),
-               "Content is not an SVG 'svg' element!");
+  nsCOMPtr<nsIDOMSVGSVGElement> svg = do_QueryInterface(aContent);
+  NS_ASSERTION(svg, "Content is not an SVG 'svg' element!");
 
-  nsSVGInnerSVGFrameBase::Init(aContent, aParent, aPrevInFlow);
+  return nsSVGInnerSVGFrameBase::Init(aContent, aParent, aPrevInFlow);
 }
 #endif /* DEBUG */
 
@@ -67,9 +64,9 @@ nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
 
   gfxContextAutoSaveRestore autoSR;
 
-  if (StyleDisplay()->IsScrollableOverflow()) {
+  if (GetStyleDisplay()->IsScrollableOverflow()) {
     float x, y, width, height;
-    static_cast<SVGSVGElement*>(mContent)->
+    static_cast<nsSVGSVGElement*>(mContent)->
       GetAnimatedLengthValues(&x, &y, &width, &height, nullptr);
 
     if (width <= 0 || height <= 0) {
@@ -95,7 +92,7 @@ nsSVGInnerSVGFrame::ReflowSVG()
   // mRect must be set before FinishAndStoreOverflow is called in order
   // for our overflow areas to be clipped correctly.
   float x, y, width, height;
-  static_cast<SVGSVGElement*>(mContent)->
+  static_cast<nsSVGSVGElement*>(mContent)->
     GetAnimatedLengthValues(&x, &y, &width, &height, nullptr);
   mRect = nsLayoutUtils::RoundGfxRectToAppRect(
                            gfxRect(x, y, width, height),
@@ -111,14 +108,14 @@ nsSVGInnerSVGFrame::NotifySVGChanged(uint32_t aFlags)
 
   if (aFlags & COORD_CONTEXT_CHANGED) {
 
-    SVGSVGElement *svg = static_cast<SVGSVGElement*>(mContent);
+    nsSVGSVGElement *svg = static_cast<nsSVGSVGElement*>(mContent);
 
     bool xOrYIsPercentage =
-      svg->mLengthAttributes[SVGSVGElement::ATTR_X].IsPercentage() ||
-      svg->mLengthAttributes[SVGSVGElement::ATTR_Y].IsPercentage();
+      svg->mLengthAttributes[nsSVGSVGElement::X].IsPercentage() ||
+      svg->mLengthAttributes[nsSVGSVGElement::Y].IsPercentage();
     bool widthOrHeightIsPercentage =
-      svg->mLengthAttributes[SVGSVGElement::ATTR_WIDTH].IsPercentage() ||
-      svg->mLengthAttributes[SVGSVGElement::ATTR_HEIGHT].IsPercentage();
+      svg->mLengthAttributes[nsSVGSVGElement::WIDTH].IsPercentage() ||
+      svg->mLengthAttributes[nsSVGSVGElement::HEIGHT].IsPercentage();
 
     if (xOrYIsPercentage || widthOrHeightIsPercentage) {
       // Ancestor changes can't affect how we render from the perspective of
@@ -136,11 +133,11 @@ nsSVGInnerSVGFrame::NotifySVGChanged(uint32_t aFlags)
 
     if (!(aFlags & TRANSFORM_CHANGED) &&
         (xOrYIsPercentage ||
-         (widthOrHeightIsPercentage && svg->HasViewBoxRect()))) {
+         (widthOrHeightIsPercentage && svg->HasViewBox()))) {
       aFlags |= TRANSFORM_CHANGED;
     }
 
-    if (svg->HasViewBoxRect() || !widthOrHeightIsPercentage) {
+    if (svg->HasViewBox() || !widthOrHeightIsPercentage) {
       // Remove COORD_CONTEXT_CHANGED, since we establish the coordinate
       // context for our descendants and this notification won't change its
       // dimensions:
@@ -168,12 +165,11 @@ nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
   if (aNameSpaceID == kNameSpaceID_None &&
       !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
 
-    SVGSVGElement* content = static_cast<SVGSVGElement*>(mContent);
+    nsSVGSVGElement* content = static_cast<nsSVGSVGElement*>(mContent);
 
     if (aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
-      nsSVGUtils::InvalidateBounds(this, false);
-      nsSVGUtils::ScheduleReflowSVG(this);
+      nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
 
       if (content->HasViewBoxOrSyntheticViewBox()) {
         // make sure our cached transform matrix gets (lazily) updated
@@ -197,8 +193,7 @@ nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
       // make sure our cached transform matrix gets (lazily) updated
       mCanvasTM = nullptr;
 
-      nsSVGUtils::InvalidateBounds(this, false);
-      nsSVGUtils::ScheduleReflowSVG(this);
+      nsSVGUtils::InvalidateAndScheduleReflowSVG(this);
 
       nsSVGUtils::NotifyChildrenOfSVGChange(
           this, aAttribute == nsGkAtoms::viewBox ?
@@ -223,7 +218,7 @@ nsSVGInnerSVGFrame::GetFrameForPoint(const nsPoint &aPoint)
                "If display lists are enabled, only hit-testing of non-display "
                "SVG should take this code path");
 
-  if (StyleDisplay()->IsScrollableOverflow()) {
+  if (GetStyleDisplay()->IsScrollableOverflow()) {
     nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
 
@@ -271,7 +266,7 @@ nsSVGInnerSVGFrame::GetCanvasTM(uint32_t aFor)
     NS_ASSERTION(mParent, "null parent");
 
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
-    SVGSVGElement *content = static_cast<SVGSVGElement*>(mContent);
+    nsSVGSVGElement *content = static_cast<nsSVGSVGElement*>(mContent);
 
     gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM(aFor));
 
@@ -283,7 +278,7 @@ nsSVGInnerSVGFrame::GetCanvasTM(uint32_t aFor)
 bool
 nsSVGInnerSVGFrame::HasChildrenOnlyTransform(gfxMatrix *aTransform) const
 {
-  SVGSVGElement *content = static_cast<SVGSVGElement*>(mContent);
+  nsSVGSVGElement *content = static_cast<nsSVGSVGElement*>(mContent);
 
   if (content->HasViewBoxOrSyntheticViewBox()) {
     // XXX Maybe return false if the transform is the identity transform?

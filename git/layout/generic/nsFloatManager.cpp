@@ -11,7 +11,6 @@
 #include "nsHTMLReflowState.h"
 #include "nsBlockDebugFlags.h"
 #include "nsError.h"
-#include <algorithm>
 
 using namespace mozilla;
 
@@ -201,7 +200,7 @@ nsFloatManager::GetFlowArea(nscoord aYOffset, BandInfoType aInfoType,
       }
 
       // Shrink our band's width if needed.
-      if (fi.mFrame->StyleDisplay()->mFloats == NS_STYLE_FLOAT_LEFT) {
+      if (fi.mFrame->GetStyleDisplay()->mFloats == NS_STYLE_FLOAT_LEFT) {
         // A left float.
         nscoord rightEdge = fi.mRect.XMost();
         if (rightEdge > left) {
@@ -245,7 +244,7 @@ nsFloatManager::AddFloat(nsIFrame* aFloatFrame, const nsRect& aMarginRect)
     info.mLeftYMost = nscoord_MIN;
     info.mRightYMost = nscoord_MIN;
   }
-  uint8_t floatStyle = aFloatFrame->StyleDisplay()->mFloats;
+  uint8_t floatStyle = aFloatFrame->GetStyleDisplay()->mFloats;
   NS_ASSERTION(floatStyle == NS_STYLE_FLOAT_LEFT ||
                floatStyle == NS_STYLE_FLOAT_RIGHT, "unexpected float");
   nscoord& sideYMost = (floatStyle == NS_STYLE_FLOAT_LEFT) ? info.mLeftYMost
@@ -272,7 +271,7 @@ nsFloatManager::CalculateRegionFor(nsIFrame*       aFloat,
   // If the element is relatively positioned, then adjust x and y
   // accordingly so that we consider relatively positioned frames
   // at their original position.
-  const nsStyleDisplay* display = aFloat->StyleDisplay();
+  const nsStyleDisplay* display = aFloat->GetStyleDisplay();
   region -= aFloat->GetRelativeOffset(display);
 
   // Don't store rectangles with negative margin-box width or height in
@@ -461,14 +460,14 @@ nsFloatManager::ClearFloats(nscoord aY, uint8_t aBreakType,
   const FloatInfo &tail = mFloats[mFloats.Length() - 1];
   switch (aBreakType) {
     case NS_STYLE_CLEAR_LEFT_AND_RIGHT:
-      bottom = std::max(bottom, tail.mLeftYMost);
-      bottom = std::max(bottom, tail.mRightYMost);
+      bottom = NS_MAX(bottom, tail.mLeftYMost);
+      bottom = NS_MAX(bottom, tail.mRightYMost);
       break;
     case NS_STYLE_CLEAR_LEFT:
-      bottom = std::max(bottom, tail.mLeftYMost);
+      bottom = NS_MAX(bottom, tail.mLeftYMost);
       break;
     case NS_STYLE_CLEAR_RIGHT:
-      bottom = std::max(bottom, tail.mRightYMost);
+      bottom = NS_MAX(bottom, tail.mRightYMost);
       break;
     default:
       // Do nothing

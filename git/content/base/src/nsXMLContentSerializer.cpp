@@ -785,7 +785,17 @@ nsXMLContentSerializer::IsJavaScript(nsIContent * aContent, nsIAtom* aAttrNameAt
       return false;
   }
 
-  return aContent->IsEventAttributeName(aAttrNameAtom);
+  if (isHtml) {
+    return nsContentUtils::IsEventAttributeName(aAttrNameAtom, EventNameType_HTML);
+  }
+  else if (isXul) {
+    return nsContentUtils::IsEventAttributeName(aAttrNameAtom, EventNameType_XUL);
+  }
+  else if (isSvg) {
+    return nsContentUtils::IsEventAttributeName(aAttrNameAtom,
+                                                EventNameType_SVGGraphic | EventNameType_SVGSVG);
+  }
+  return false;
 }
 
 

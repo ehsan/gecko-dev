@@ -19,7 +19,8 @@ NS_IMETHODIMP
 nsHtml5SVGLoadDispatcher::Run()
 {
   nsEvent event(true, NS_SVG_LOAD);
-  event.mFlags.mBubbles = false;
+  event.eventStructType = NS_SVG_EVENT;
+  event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
   // Do we care about forcing presshell creation if it hasn't happened yet?
   // That is, should this code flush or something?  Does it really matter?
   // For that matter, do we really want to try getting the prescontext?

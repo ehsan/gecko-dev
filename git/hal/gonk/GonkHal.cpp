@@ -23,9 +23,6 @@
 #include <sys/syscall.h>
 #include <sys/resource.h>
 #include <time.h>
-#include <asm/page.h>
-
-#include "mozilla/DebugOnly.h"
 
 #include "android/log.h"
 #include "cutils/properties.h"
@@ -58,7 +55,6 @@
 #include "nsXULAppAPI.h"
 #include "OrientationObserver.h"
 #include "UeventPoller.h"
-#include <algorithm>
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk", args)
 #define NsecPerMsec  1000000LL
@@ -355,90 +351,58 @@ DisableBatteryNotifications()
       NewRunnableFunction(UnregisterBatteryObserverIOThread));
 }
 
-static bool
-GetCurrentBatteryCharge(int* aCharge)
-{
-  bool success = ReadSysFile("/sys/class/power_supply/battery/capacity",
-                             aCharge);
-  if (!success) {
-    return false;
-  }
-
-  #ifdef DEBUG
-  if ((*aCharge < 0) || (*aCharge > 100)) {
-    HAL_LOG(("charge level contains unknown value: %d", *aCharge));
-  }
-  #endif
-
-  return (*aCharge >= 0) && (*aCharge <= 100);
-}
-
-static bool
-GetCurrentBatteryCharging(int* aCharging)
+void
+GetCurrentBatteryInformation(hal::BatteryInformation *aBatteryInfo)
 {
   static const int BATTERY_NOT_CHARGING = 0;
   static const int BATTERY_CHARGING_USB = 1;
   static const int BATTERY_CHARGING_AC  = 2;
 
-  // Generic device support
+  FILE *capacityFile = fopen("/sys/class/power_supply/battery/capacity", "r");
+  double capacity = dom::battery::kDefaultLevel * 100;
+  if (capacityFile) {
+    fscanf(capacityFile, "%lf", &capacity);
+    fclose(capacityFile);
+  }
 
-  int chargingSrc;
-  bool success =
-    ReadSysFile("/sys/class/power_supply/battery/charging_source", &chargingSrc);
+  FILE *chargingFile = fopen("/sys/class/power_supply/battery/charging_source", "r");
+  int chargingSrc = BATTERY_CHARGING_USB;
+  bool done = false;
+  if (chargingFile) {
+    fscanf(chargingFile, "%d", &chargingSrc);
+    fclose(chargingFile);
+    done = true;
+  }
 
-  if (success) {
-    #ifdef DEBUG
-    if (chargingSrc != BATTERY_NOT_CHARGING &&
-        chargingSrc != BATTERY_CHARGING_USB &&
-        chargingSrc != BATTERY_CHARGING_AC) {
-      HAL_LOG(("charging_source contained unknown value: %d", chargingSrc));
+  if (!done) {
+    // toro devices support
+    chargingFile = fopen("/sys/class/power_supply/battery/status", "r");
+    if (chargingFile) {
+      char status[16];
+      char *str = fgets(status, sizeof(status), chargingFile);
+      if (str && (!strcmp(str, "Charging\n") || !strcmp(str, "Full\n"))) {
+        // no way here to know if we're charging from USB or AC.
+        chargingSrc = BATTERY_CHARGING_USB;
+      } else {
+        chargingSrc = BATTERY_NOT_CHARGING;
+      }
+      fclose(chargingFile);
+      done = true;
     }
-    #endif
-
-    *aCharging = (chargingSrc == BATTERY_CHARGING_USB ||
-                  chargingSrc == BATTERY_CHARGING_AC);
-    return true;
   }
 
-  // Otoro device support
-
-  char chargingSrcString[16];
-
-  success = ReadSysFile("/sys/class/power_supply/battery/status",
-                        chargingSrcString, sizeof(chargingSrcString));
-  if (success) {
-    *aCharging = strcmp(chargingSrcString, "Charging") == 0 ||
-                 strcmp(chargingSrcString, "Full") == 0;
-    return true;
+  #ifdef DEBUG
+  if (chargingSrc != BATTERY_NOT_CHARGING &&
+      chargingSrc != BATTERY_CHARGING_USB &&
+      chargingSrc != BATTERY_CHARGING_AC) {
+    HAL_LOG(("charging_source contained unknown value: %d", chargingSrc));
   }
+  #endif
 
-  return false;
-}
-
-void
-GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo)
-{
-  int charge;
-
-  if (GetCurrentBatteryCharge(&charge)) {
-    aBatteryInfo->level() = (double)charge / 100.0;
-  } else {
-    aBatteryInfo->level() = dom::battery::kDefaultLevel;
-  }
-
-  int charging;
-
-  if (GetCurrentBatteryCharging(&charging)) {
-    aBatteryInfo->charging() = charging;
-  } else {
-    aBatteryInfo->charging() = true;
-  }
-
-  if (aBatteryInfo->charging() && (aBatteryInfo->level() < 1.0)) {
-    aBatteryInfo->remainingTime() = dom::battery::kUnknownRemainingTime;
-  } else {
-    aBatteryInfo->remainingTime() = dom::battery::kDefaultRemainingTime;
-  }
+  aBatteryInfo->level() = capacity / 100;
+  aBatteryInfo->charging() = (chargingSrc == BATTERY_CHARGING_USB ||
+                              chargingSrc == BATTERY_CHARGING_AC);
+  aBatteryInfo->remainingTime() = dom::battery::kUnknownRemainingTime;
 }
 
 namespace {
@@ -465,7 +429,7 @@ bool ReadFromFile(const char *filename, char (&buf)[n])
     return false;
   }
 
-  buf[std::min(numRead, n - 1)] = '\0';
+  buf[NS_MIN(numRead, n - 1)] = '\0';
   return true;
 }
 
@@ -962,10 +926,10 @@ SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
 }
 
 static int
-OomAdjOfOomScoreAdj(int aOomScoreAdj)
+oomAdjOfOomScoreAdj(int aOomScoreAdj)
 {
   // Convert OOM adjustment from the domain of /proc/<pid>/oom_score_adj
-  // to the domain of /proc/<pid>/oom_adj.
+  // to thew domain of /proc/<pid>/oom_adj.
 
   int adj;
 
@@ -978,128 +942,24 @@ OomAdjOfOomScoreAdj(int aOomScoreAdj)
   return adj;
 }
 
-static void
-EnsureKernelLowMemKillerParamsSet()
-{
-  static bool kernelLowMemKillerParamsSet;
-  if (kernelLowMemKillerParamsSet) {
-    return;
-  }
-  kernelLowMemKillerParamsSet = true;
-
-  HAL_LOG(("Setting kernel's low-mem killer parameters."));
-
-  // Set /sys/module/lowmemorykiller/parameters/{adj,minfree,notify_trigger}
-  // according to our prefs.  These files let us tune when the kernel kills
-  // processes when we're low on memory, and when it notifies us that we're
-  // running low on available memory.
-  //
-  // adj and minfree are both comma-separated lists of integers.  If adj="A,B"
-  // and minfree="X,Y", then the kernel will kill processes with oom_adj
-  // A or higher once we have fewer than X pages of memory free, and will kill
-  // processes with oom_adj B or higher once we have fewer than Y pages of
-  // memory free.
-  //
-  // notify_trigger is a single integer.   If we set notify_trigger=Z, then
-  // we'll get notified when there are fewer than Z pages of memory free.  (See
-  // GonkMemoryPressureMonitoring.cpp.)
-
-  // Build the adj and minfree strings.
-  nsAutoCString adjParams;
-  nsAutoCString minfreeParams;
-
-  const char* priorityClasses[] = {
-    "master",
-    "foregroundHigh",
-    "foreground",
-    "backgroundPerceivable",
-    "backgroundHomescreen",
-    "background"
-  };
-  for (size_t i = 0; i < NS_ARRAY_LENGTH(priorityClasses); i++) {
-    // The system doesn't function correctly if we're missing these prefs, so
-    // crash loudly.
-
-    int32_t oomScoreAdj;
-    if (!NS_SUCCEEDED(Preferences::GetInt(nsPrintfCString(
-          "hal.processPriorityManager.gonk.%sOomScoreAdjust",
-          priorityClasses[i]).get(), &oomScoreAdj))) {
-      MOZ_CRASH();
-    }
-
-    int32_t killUnderMB;
-    if (!NS_SUCCEEDED(Preferences::GetInt(nsPrintfCString(
-          "hal.processPriorityManager.gonk.%sKillUnderMB",
-          priorityClasses[i]).get(), &killUnderMB))) {
-      MOZ_CRASH();
-    }
-
-    // adj is in oom_adj units.
-    adjParams.AppendPrintf("%d,", OomAdjOfOomScoreAdj(oomScoreAdj));
-
-    // minfree is in pages.
-    minfreeParams.AppendPrintf("%d,", killUnderMB * 1024 * 1024 / PAGE_SIZE);
-  }
-
-  // Strip off trailing commas.
-  adjParams.Cut(adjParams.Length() - 1, 1);
-  minfreeParams.Cut(minfreeParams.Length() - 1, 1);
-  if (!adjParams.IsEmpty() && !minfreeParams.IsEmpty()) {
-    WriteToFile("/sys/module/lowmemorykiller/parameters/adj", adjParams.get());
-    WriteToFile("/sys/module/lowmemorykiller/parameters/minfree", minfreeParams.get());
-  }
-
-  // Set the low-memory-notification threshold.
-  int32_t lowMemNotifyThresholdMB;
-  if (NS_SUCCEEDED(Preferences::GetInt(
-        "hal.processPriorityManager.gonk.notifyLowMemUnderMB",
-        &lowMemNotifyThresholdMB))) {
-
-    // notify_trigger is in pages.
-    WriteToFile("/sys/module/lowmemorykiller/parameters/notify_trigger",
-      nsPrintfCString("%d", lowMemNotifyThresholdMB * 1024 * 1024 / PAGE_SIZE).get());
-  }
-}
-
 void
 SetProcessPriority(int aPid, ProcessPriority aPriority)
 {
   HAL_LOG(("SetProcessPriority(pid=%d, priority=%d)", aPid, aPriority));
-
-  // If this is the first time SetProcessPriority was called, set the kernel's
-  // OOM parameters according to our prefs.
-  //
-  // We could/should do this on startup instead of waiting for the first
-  // SetProcessPriorityCall.  But in practice, the master process needs to set
-  // its priority early in the game, so we can reasonably rely on
-  // SetProcessPriority being called early in startup.
-  EnsureKernelLowMemKillerParamsSet();
 
   const char* priorityStr = NULL;
   switch (aPriority) {
   case PROCESS_PRIORITY_BACKGROUND:
     priorityStr = "background";
     break;
-  case PROCESS_PRIORITY_BACKGROUND_HOMESCREEN:
-    priorityStr = "backgroundHomescreen";
-    break;
-  case PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE:
-    priorityStr = "backgroundPerceivable";
-    break;
   case PROCESS_PRIORITY_FOREGROUND:
     priorityStr = "foreground";
-    break;
-  case PROCESS_PRIORITY_FOREGROUND_HIGH:
-    priorityStr = "foregroundHigh";
     break;
   case PROCESS_PRIORITY_MASTER:
     priorityStr = "master";
     break;
   default:
-    // PROCESS_PRIORITY_UNKNOWN ends up in this branch, along with invalid enum
-    // values.
-    NS_ERROR("Invalid process priority!");
-    return;
+    MOZ_NOT_REACHED();
   }
 
   // Notice that you can disable oom_adj and renice by deleting the prefs
@@ -1128,7 +988,7 @@ SetProcessPriority(int aPid, ProcessPriority aPriority)
     if (!WriteToFile(nsPrintfCString("/proc/%d/oom_score_adj", aPid).get(),
                      nsPrintfCString("%d", clampedOomScoreAdj).get()))
     {
-      int oomAdj = OomAdjOfOomScoreAdj(clampedOomScoreAdj);
+      int oomAdj = oomAdjOfOomScoreAdj(clampedOomScoreAdj);
 
       WriteToFile(nsPrintfCString("/proc/%d/oom_adj", aPid).get(),
                   nsPrintfCString("%d", oomAdj).get());

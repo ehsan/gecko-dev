@@ -10,11 +10,11 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import org.json.simple.parser.ParseException;
-import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.CredentialsSource;
 import org.mozilla.gecko.sync.EngineSettings;
 import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.HTTPFailureException;
+import org.mozilla.gecko.sync.Logger;
 import org.mozilla.gecko.sync.MetaGlobalException;
 import org.mozilla.gecko.sync.NoCollectionKeysSetException;
 import org.mozilla.gecko.sync.NonObjectJSONException;
@@ -52,12 +52,23 @@ import android.content.Context;
  * @author rnewman
  *
  */
-public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage implements SynchronizerDelegate {
+public abstract class ServerSyncStage implements
+    GlobalSyncStage,
+    SynchronizerDelegate {
 
   protected static final String LOG_TAG = "ServerSyncStage";
 
+  protected final GlobalSession session;
+
   protected long stageStartTimestamp = -1;
   protected long stageCompleteTimestamp = -1;
+
+  public ServerSyncStage(GlobalSession session) {
+    if (session == null) {
+      throw new IllegalArgumentException("session must not be null.");
+    }
+    this.session = session;
+  }
 
   /**
    * Override these in your subclasses.
@@ -192,15 +203,15 @@ public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage i
    * Reset timestamps.
    */
   @Override
-  protected void resetLocal() {
-    resetLocalWithSyncID(null);
+  public void resetLocal() {
+    resetLocal(null);
   }
 
   /**
    * Reset timestamps and possibly set syncID.
    * @param syncID if non-null, new syncID to persist.
    */
-  protected void resetLocalWithSyncID(String syncID) {
+  protected void resetLocal(String syncID) {
     // Clear both timestamps.
     SynchronizerConfiguration config;
     try {
@@ -241,7 +252,7 @@ public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage i
    * Logs and re-throws an exception on failure.
    */
   @Override
-  protected void wipeLocal() throws Exception {
+  public void wipeLocal() throws Exception {
     // Reset, then clear data.
     this.resetLocal();
 
@@ -428,9 +439,7 @@ public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage i
    * <p>
    * Logs and re-throws an exception on failure.
    */
-  public void wipeServer(final GlobalSession session) throws Exception {
-    this.session = session;
-
+  public void wipeServer() throws Exception {
     final WipeWaiter monitor = new WipeWaiter();
 
     final Runnable doWipe = new Runnable() {
@@ -490,7 +499,7 @@ public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage i
       try {
         session.recordForMetaGlobalUpdate(name, new EngineSettings(Utils.generateGuid(), this.getStorageVersion()));
         Logger.info(LOG_TAG, "Wiping server because malformed engine sync ID was found in meta/global.");
-        wipeServer(session);
+        wipeServer();
         Logger.info(LOG_TAG, "Wiped server after malformed engine sync ID found in meta/global.");
       } catch (Exception ex) {
         session.abort(ex, "Failed to wipe server after malformed engine sync ID found in meta/global.");
@@ -500,7 +509,7 @@ public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage i
       try {
         session.recordForMetaGlobalUpdate(name, new EngineSettings(Utils.generateGuid(), this.getStorageVersion()));
         Logger.info(LOG_TAG, "Wiping server because malformed engine version was found in meta/global.");
-        wipeServer(session);
+        wipeServer();
         Logger.info(LOG_TAG, "Wiped server after malformed engine version found in meta/global.");
       } catch (Exception ex) {
         session.abort(ex, "Failed to wipe server after malformed engine version found in meta/global.");
@@ -509,7 +518,7 @@ public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage i
       // Our syncID is wrong. Reset client and take the server syncID.
       Logger.warn(LOG_TAG, "Remote engine syncID different from local engine syncID:" +
                            " resetting local engine and assuming remote engine syncID.");
-      this.resetLocalWithSyncID(e.serverSyncID);
+      this.resetLocal(e.serverSyncID);
     } catch (MetaGlobalException.MetaGlobalEngineStateChangedException e) {
       boolean isEnabled = e.isEnabled;
       if (!isEnabled) {
@@ -520,12 +529,12 @@ public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage i
         String newSyncID = Utils.generateGuid();
         session.recordForMetaGlobalUpdate(name, new EngineSettings(newSyncID, this.getStorageVersion()));
         // Update SynchronizerConfiguration w/ new engine syncID.
-        this.resetLocalWithSyncID(newSyncID);
+        this.resetLocal(newSyncID);
       }
       try {
         // Engine sync status has changed. Wipe server.
         Logger.warn(LOG_TAG, "Wiping server because engine sync state changed.");
-        wipeServer(session);
+        wipeServer();
         Logger.warn(LOG_TAG, "Wiped server because engine sync state changed.");
       } catch (Exception ex) {
         session.abort(ex, "Failed to wipe server after engine sync state changed");
@@ -594,8 +603,7 @@ public abstract class ServerSyncStage extends AbstractSessionManagingSyncStage i
     final SynchronizerSession synchronizerSession = synchronizer.getSynchronizerSession();
     int inboundCount = synchronizerSession.getInboundCount();
     int outboundCount = synchronizerSession.getOutboundCount();
-    Logger.info(LOG_TAG, "Stage " + getEngineName() +
-        " received " + inboundCount + " and sent " + outboundCount +
+    Logger.info(LOG_TAG, "Received " + inboundCount + " and sent " + outboundCount +
         " records in " + getStageDurationString() + ".");
     Logger.info(LOG_TAG, "Advancing session.");
     session.advance();

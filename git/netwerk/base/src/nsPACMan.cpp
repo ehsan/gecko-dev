@@ -21,19 +21,6 @@
 using namespace mozilla;
 using namespace mozilla::net;
 
-#include "prlog.h"
-#if defined(PR_LOGGING)
-static PRLogModuleInfo *
-GetProxyLog()
-{
-    static PRLogModuleInfo *sLog;
-    if (!sLog)
-        sLog = PR_NewLogModule("proxy");
-    return sLog;
-}
-#endif
-#define LOG(args) PR_LOG(GetProxyLog(), PR_LOG_DEBUG, args)
-
 // The PAC thread does evaluations of both PAC files and
 // nsISystemProxySettings because they can both block the calling thread and we
 // don't want that on the main thread
@@ -282,6 +269,16 @@ nsPACMan::~nsPACMan()
       NS_DispatchToMainThread(runnable, NS_DISPATCH_NORMAL);
     }
   }
+  if (!NS_IsMainThread()) {
+    nsCOMPtr<nsIThread> mainThread;
+    NS_GetMainThread(getter_AddRefs(mainThread));
+
+    if (mPACURI) {
+      nsIURI *forgettable;
+      mPACURI.forget(&forgettable);
+      NS_ProxyRelease(mainThread, forgettable, false);
+    }
+  }
 
   NS_ASSERTION(mLoader == nullptr, "pac man not shutdown properly");
   NS_ASSERTION(mPendingQ.isEmpty(), "pac man not shutdown properly");
@@ -305,9 +302,9 @@ nsPACMan::AsyncGetProxyForURI(nsIURI *uri, nsPACManCallback *callback,
     return NS_ERROR_NOT_AVAILABLE;
 
   // Maybe Reload PAC
-  if (!mPACURISpec.IsEmpty() && !mScheduledReload.IsNull() &&
+  if (mPACURI && !mScheduledReload.IsNull() &&
       TimeStamp::Now() > mScheduledReload)
-    LoadPACFromURI(EmptyCString());
+    LoadPACFromURI(nullptr);
 
   nsRefPtr<PendingPACQuery> query =
     new PendingPACQuery(this, uri, callback, mainThreadResponse);
@@ -339,10 +336,10 @@ nsPACMan::PostQuery(PendingPACQuery *query)
 }
 
 nsresult
-nsPACMan::LoadPACFromURI(const nsCString &spec)
+nsPACMan::LoadPACFromURI(nsIURI *pacURI)
 {
   NS_ENSURE_STATE(!mShutdown);
-  NS_ENSURE_ARG(!spec.IsEmpty() || !mPACURISpec.IsEmpty());
+  NS_ENSURE_ARG(pacURI || mPACURI);
 
   nsCOMPtr<nsIStreamLoader> loader =
       do_CreateInstance(NS_STREAMLOADER_CONTRACTID);
@@ -366,10 +363,9 @@ nsPACMan::LoadPACFromURI(const nsCString &spec)
   CancelExistingLoad();
 
   mLoader = loader;
-  if (!spec.IsEmpty()) {
-    mPACURISpec = spec;
-    mPACURIRedirectSpec.Truncate();
-    mNormalPACURISpec.Truncate(); // set at load time
+  if (pacURI) {
+    mPACURI = pacURI;
+    mPACURI->GetSpec(mPACURISpec);
     mLoadFailureCount = 0;  // reset
   }
 
@@ -395,18 +391,9 @@ nsPACMan::StartLoading()
     nsCOMPtr<nsIIOService> ios = do_GetIOService();
     if (ios) {
       nsCOMPtr<nsIChannel> channel;
-      nsCOMPtr<nsIURI> pacURI;
-      NS_NewURI(getter_AddRefs(pacURI), mPACURISpec);
 
       // NOTE: This results in GetProxyForURI being called
-      if (pacURI) {
-        pacURI->GetSpec(mNormalPACURISpec);
-        ios->NewChannelFromURI(pacURI, getter_AddRefs(channel));
-      }
-      else {
-        LOG(("nsPACMan::StartLoading Failed pacspec uri conversion %s\n",
-             mPACURISpec.get()));
-      }
+      ios->NewChannelFromURI(mPACURI, getter_AddRefs(channel));
 
       if (channel) {
         channel->SetLoadFlags(nsIRequest::LOAD_BYPASS_CACHE);
@@ -655,25 +642,9 @@ nsPACMan::AsyncOnChannelRedirect(nsIChannel *oldChannel, nsIChannel *newChannel,
                                  uint32_t flags,
                                  nsIAsyncVerifyRedirectCallback *callback)
 {
-  NS_ABORT_IF_FALSE(NS_IsMainThread(), "wrong thread");
-  
   nsresult rv = NS_OK;
-  nsCOMPtr<nsIURI> pacURI;
-  if (NS_FAILED((rv = newChannel->GetURI(getter_AddRefs(pacURI)))))
+  if (NS_FAILED((rv = newChannel->GetURI(getter_AddRefs(mPACURI)))))
       return rv;
-
-  rv = pacURI->GetSpec(mPACURIRedirectSpec);
-  if (NS_FAILED(rv))
-      return rv;
-
-  LOG(("nsPACMan redirect from original %s to redirected %s\n",
-       mPACURISpec.get(), mPACURIRedirectSpec.get()));
-
-  // do not update mPACURISpec - that needs to stay as the
-  // configured URI so that we can determine when the config changes.
-  // However do track the most recent URI in the redirect change
-  // as mPACURIRedirectSpec so that URI can be allowed to bypass
-  // the proxy and actually fetch the pac file.
 
   callback->OnRedirectVerifyCallback(NS_OK);
   return NS_OK;

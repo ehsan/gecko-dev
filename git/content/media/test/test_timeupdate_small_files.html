@@ -65,7 +65,7 @@ function logEvent(event) {
 }
 
 function startTest(test, token) {
-  var type = getMajorMimeType(test.type);
+  var type = /^video/.test(test.type) ? "video" : "audio";
   var v = document.createElement(type);
   v.token = token;
   manager.started(token);

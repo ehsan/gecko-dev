@@ -111,7 +111,15 @@ showHelp(void)
 uint32_t
 ticks2xsec(tmreader * aReader, uint32_t aTicks, uint32_t aResolution)
 {
-    return (uint32_t)((aResolution * aTicks)/aReader->ticksPerSec);
+    uint64_t bigone;
+    uint64_t tmp64;
+
+    LL_UI2L(bigone, aResolution);
+    LL_UI2L(tmp64, aTicks);
+    bigone *= tmp64;
+    LL_UI2L(tmp64, aReader->ticksPerSec);
+    bigone /= tmp64;
+    return (uint32_t)bigone;
 }
 
 #define ticks2msec(reader, ticks) ticks2xsec((reader), (ticks), 1000)
@@ -650,10 +658,14 @@ recalculateAllocationCost(STOptions * inOptions, STContext * inContext,
         uint32_t timeval =
             aAllocation->mMaxTimeval - aAllocation->mMinTimeval;
         uint32_t size = byteSize(inOptions, aAllocation);
+        uint64_t weight64 = LL_INIT(0, 0);
         uint32_t heapCost = aAllocation->mHeapRuntimeCost;
-        uint64_t timeval64 = timeval;
-        uint64_t size64 = size;
-        uint64_t weight64 = timeval64 * size64;
+        uint64_t timeval64 = LL_INIT(0, 0);
+        uint64_t size64 = LL_INIT(0, 0);
+
+        LL_UI2L(timeval64, timeval);
+        LL_UI2L(size64, size);
+        weight64 = timeval64 * size64;
 
         /*
          ** First, update this run.
@@ -884,9 +896,9 @@ harvestRun(const STRun * aInRun, STRun * aOutRun,
             if (NULL != current) {
                 uint32_t lifetime = 0;
                 uint32_t bytesize = 0;
-                uint64_t weight64 = 0;
-                uint64_t bytesize64 = 0;
-                uint64_t lifetime64 = 0;
+                uint64_t weight64 = LL_INIT(0, 0);
+                uint64_t bytesize64 = LL_INIT(0, 0);
+                uint64_t lifetime64 = LL_INIT(0, 0);
                 int appendRes = 0;
                 int looper = 0;
                 PRBool matched = PR_FALSE;
@@ -945,7 +957,9 @@ harvestRun(const STRun * aInRun, STRun * aOutRun,
                 /*
                  ** Check weight restrictions.
                  */
-                weight64 = (uint64_t)(bytesize * lifetime);
+                LL_UI2L(bytesize64, bytesize);
+                LL_UI2L(lifetime64, lifetime);
+                weight64 = bytesize64 * lifetime64;
                 if (weight64 < aOptions->mWeightMin64 ||
                     weight64 > aOptions->mWeightMax64) {
                     continue;
@@ -1073,18 +1087,20 @@ compareAllocations(const void *aAlloc1, const void *aAlloc2, void *aContext)
                  */
             case ST_WEIGHT:
                 {
-                    uint64_t weight164 = 0;
-                    uint64_t weight264 = 0;
-                    uint64_t bytesize164 = 0;
-                    uint64_t bytesize264 = 0;
-                    uint64_t timeval164 = 0;
-                    uint64_t timeval264 = 0;
+                    uint64_t weight164 = LL_INIT(0, 0);
+                    uint64_t weight264 = LL_INIT(0, 0);
+                    uint64_t bytesize164 = LL_INIT(0, 0);
+                    uint64_t bytesize264 = LL_INIT(0, 0);
+                    uint64_t timeval164 = LL_INIT(0, 0);
+                    uint64_t timeval264 = LL_INIT(0, 0);
 
-                    bytesize164 = byteSize(inOptions, alloc1);
-                    timeval164 = alloc1->mMaxTimeval - alloc1->mMinTimeval;
+                    LL_UI2L(bytesize164, byteSize(inOptions, alloc1));
+                    LL_UI2L(timeval164,
+                            (alloc1->mMaxTimeval - alloc1->mMinTimeval));
                     weight164 = bytesize164 * timeval164;
-                    bytesize264 = byteSize(inOptions, alloc2);
-                    timeval264 = alloc2->mMaxTimeval - alloc2->mMinTimeval;
+                    LL_UI2L(bytesize264, byteSize(inOptions, alloc2));
+                    LL_UI2L(timeval264,
+                            (alloc2->mMaxTimeval - alloc2->mMinTimeval));
                     weight264 = bytesize264 * timeval264;
 
                     if (weight164 < weight264) {
@@ -2597,7 +2613,7 @@ getDataPRUint64(const FormData * aGetData, const char *aCheckFor, int inIndex,
                 uint64_t * aStoreResult64, uint64_t aConversion64)
 {
     int retval = 0;
-    uint64_t value64 = 0;
+    uint64_t value64 = LL_INIT(0, 0);
 
     retval = getDataPRUint32Base(aGetData, aCheckFor, inIndex, &value64, 64);
     *aStoreResult64 = value64 * aConversion64;
@@ -2699,10 +2715,14 @@ displayTopAllocations(STRequest * inRequest, STRun * aRun,
                         current->mMaxTimeval - current->mMinTimeval;
                     uint32_t size = byteSize(&inRequest->mOptions, current);
                     uint32_t heapCost = current->mHeapRuntimeCost;
-                    uint64_t weight64 = 0;
+                    uint64_t weight64 = LL_INIT(0, 0);
+                    uint64_t size64 = LL_INIT(0, 0);
+                    uint64_t lifespan64 = LL_INIT(0, 0);
                     char buffer[32];
 
-                    weight64 =(uint64_t)(size * lifespan);
+                    LL_UI2L(size64, size);
+                    LL_UI2L(lifespan64, lifespan);
+                    weight64 = size64 * lifespan64;
 
                     PR_fprintf(inRequest->mFD, "<tr>\n");
 
@@ -2819,10 +2839,14 @@ displayMemoryLeaks(STRequest * inRequest, STRun * aRun)
                         current->mMaxTimeval - current->mMinTimeval;
                     uint32_t size = byteSize(&inRequest->mOptions, current);
                     uint32_t heapCost = current->mHeapRuntimeCost;
-                    uint64_t weight64 = 0;
+                    uint64_t weight64 = LL_INIT(0, 0);
+                    uint64_t size64 = LL_INIT(0, 0);
+                    uint64_t lifespan64 = LL_INIT(0, 0);
                     char buffer[32];
 
-                    weight64 =(uint64_t)(size * lifespan);
+                    LL_UI2L(size64, size);
+                    LL_UI2L(lifespan64, lifespan);
+                    weight64 = size64 * lifespan64;
 
                     /*
                      ** One more shown.
@@ -3073,11 +3097,15 @@ displayAllocationDetails(STRequest * inRequest, STAllocation * aAllocation)
         uint32_t timeval =
             aAllocation->mMaxTimeval - aAllocation->mMinTimeval;
         uint32_t heapCost = aAllocation->mHeapRuntimeCost;
-        uint64_t weight64 = 0;
+        uint64_t weight64 = LL_INIT(0, 0);
+        uint64_t bytesize64 = LL_INIT(0, 0);
+        uint64_t timeval64 = LL_INIT(0, 0);
         uint32_t cacheval = 0;
         int displayRes = 0;
 
-        weight64 = (uint64_t)(bytesize * timeval);
+        LL_UI2L(bytesize64, bytesize);
+        LL_UI2L(timeval64, timeval);
+        weight64 = bytesize64 * timeval64;
 
         PR_fprintf(inRequest->mFD, "<p>Allocation %u Details:</p>\n",
                    aAllocation->mRunIndex);
@@ -3825,10 +3853,10 @@ graphFootprint(STRequest * inRequest, STRun * aRun)
                           legends);
 
                 if (maxMemory != minMemory) {
-                    int64_t in64 = 0;
-                    int64_t ydata64 = 0;
-                    int64_t spacey64 = 0;
-                    int64_t mem64 = 0;
+                    int64_t in64 = LL_INIT(0, 0);
+                    int64_t ydata64 = LL_INIT(0, 0);
+                    int64_t spacey64 = LL_INIT(0, 0);
+                    int64_t mem64 = LL_INIT(0, 0);
                     int32_t in32 = 0;
 
                     /*
@@ -4041,10 +4069,10 @@ graphTimeval(STRequest * inRequest, STRun * aRun)
                           legends);
 
                 if (maxMemory != minMemory) {
-                    int64_t in64 = 0;
-                    int64_t ydata64 = 0;
-                    int64_t spacey64 = 0;
-                    int64_t mem64 = 0;
+                    int64_t in64 = LL_INIT(0, 0);
+                    int64_t ydata64 = LL_INIT(0, 0);
+                    int64_t spacey64 = LL_INIT(0, 0);
+                    int64_t mem64 = LL_INIT(0, 0);
                     int32_t in32 = 0;
 
                     /*
@@ -4259,10 +4287,10 @@ graphLifespan(STRequest * inRequest, STRun * aRun)
                           legends);
 
                 if (maxMemory != minMemory) {
-                    int64_t in64 = 0;
-                    int64_t ydata64 = 0;
-                    int64_t spacey64 = 0;
-                    int64_t mem64 = 0;
+                    int64_t in64 = LL_INIT(0, 0);
+                    int64_t ydata64 = LL_INIT(0, 0);
+                    int64_t spacey64 = LL_INIT(0, 0);
+                    int64_t mem64 = LL_INIT(0, 0);
                     int32_t in32 = 0;
 
                     /*
@@ -4388,14 +4416,16 @@ graphWeight(STRequest * inRequest, STRun * aRun)
                 for (loop = 0; loop < aRun->mAllocationCount; loop++) {
                     if (prevTimeval < aRun->mAllocations[loop]->mMinTimeval
                         && timeval >= aRun->mAllocations[loop]->mMinTimeval) {
-                        uint64_t size64 = 0;
-                        uint64_t lifespan64 = 0;
-                        uint64_t weight64 = 0;
+                        uint64_t size64 = LL_INIT(0, 0);
+                        uint64_t lifespan64 = LL_INIT(0, 0);
+                        uint64_t weight64 = LL_INIT(0, 0);
 
-                        size64 = byteSize(&inRequest->mOptions,
-                                          aRun->mAllocations[loop]);
-                        lifespan64 = aRun->mAllocations[loop]->mMaxTimeval -
-                                     aRun->mAllocations[loop]->mMinTimeval;
+                        LL_UI2L(size64,
+                                byteSize(&inRequest->mOptions,
+                                         aRun->mAllocations[loop]));
+                        LL_UI2L(lifespan64,
+                                (aRun->mAllocations[loop]->mMaxTimeval -
+                                 aRun->mAllocations[loop]->mMinTimeval));
                         weight64 = size64 * lifespan64;
 
                         YData64[traverse] += weight64;
@@ -4419,8 +4449,8 @@ graphWeight(STRequest * inRequest, STRun * aRun)
         }
 
         if (0 == retval) {
-            uint64_t minWeight64 = (0xFFFFFFFFLL << 32) + 0xFFFFFFFFLL;
-            uint64_t maxWeight64 = 0;
+            uint64_t minWeight64 = LL_INIT(0xFFFFFFFF, 0xFFFFFFFF);
+            uint64_t maxWeight64 = LL_INIT(0, 0);
             int transparent = 0;
             gdImagePtr graph = NULL;
 
@@ -4455,11 +4485,12 @@ graphWeight(STRequest * inRequest, STRun * aRun)
                 char byteSpace[11][32];
                 int legendColors[1];
                 const char *legends[1] = { "Memory Weight" };
-                uint64_t percent64 = 0;
-                uint64_t result64 = 0;
-
+                uint64_t percent64 = LL_INIT(0, 0);
+                uint64_t result64 = LL_INIT(0, 0);
+                uint64_t hundred64 = LL_INIT(0, 0);
                 uint32_t cached = 0;
-                uint64_t hundred64 = 100;
+
+                LL_UI2L(hundred64, 100);
 
                 /*
                  ** Figure out what the labels will say.
@@ -4474,7 +4505,9 @@ graphWeight(STRequest * inRequest, STRun * aRun)
                     PR_snprintf(timevals[traverse], 32, ST_TIMEVAL_FORMAT,
                                 ST_TIMEVAL_PRINTABLE(cached));
 
-                    result64 = (maxWeight64 - minWeight64) * percents[traverse];
+                    LL_UI2L(percent64, percents[traverse]);
+                    result64 = maxWeight64 - minWeight64;
+                    result64 *= percent64;
                     result64 /= hundred64;
                     PR_snprintf(bytes[traverse], 32, "%llu", result64);
                 }
@@ -4488,9 +4521,9 @@ graphWeight(STRequest * inRequest, STRun * aRun)
                           legendColors, legends);
 
                 if (maxWeight64 != minWeight64) {
-                    int64_t in64 = 0;
-                    int64_t spacey64 = 0;
-                    int64_t weight64 = 0;
+                    int64_t in64 = LL_INIT(0, 0);
+                    int64_t spacey64 = LL_INIT(0, 0);
+                    int64_t weight64 = LL_INIT(0, 0);
                     int32_t in32 = 0;
 
                     /*

@@ -8,7 +8,6 @@
 #include "nsEscape.h"
 #include "nsStringStream.h"
 #include "nsAutoPtr.h"
-#include <algorithm>
 
 #define TOKEN_DELIMITERS NS_LITERAL_STRING("\t\r\n ").get()
 
@@ -169,8 +168,8 @@ nsTXTToHTMLConv::OnDataAvailable(nsIRequest* request, nsISupports *aContext,
         }
 
         int32_t end = mBuffer.RFind(TOKEN_DELIMITERS, mBuffer.Length());
-        mBuffer.Left(pushBuffer, std::max(cursor, end));
-        mBuffer.Cut(0, std::max(cursor, end));
+        mBuffer.Left(pushBuffer, NS_MAX(cursor, end));
+        mBuffer.Cut(0, NS_MAX(cursor, end));
         cursor = 0;
 
         if (!pushBuffer.IsEmpty()) {

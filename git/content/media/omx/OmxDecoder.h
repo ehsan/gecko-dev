@@ -1,17 +1,14 @@
-#include <stagefright/DataSource.h>
+#include <OMX.h>
 #include <stagefright/MediaSource.h>
+#include <stagefright/DataSource.h>
+
 #include <utils/RefBase.h>
 
 #include "GonkNativeWindow.h"
-#include "GonkNativeWindowClient.h"
 #include "GonkIOSurfaceImage.h"
 #include "MPAPI.h"
 #include "MediaResource.h"
-#include "AbstractMediaDecoder.h"
-
-namespace android {
-class OmxDecoder;
-};
+#include "nsBuiltinDecoder.h"
 
 namespace mozilla {
 namespace layers {
@@ -19,10 +16,8 @@ namespace layers {
 class VideoGraphicBuffer : public GraphicBufferLocked {
   // XXX change this to an actual smart pointer at some point
   android::MediaBuffer *mMediaBuffer;
-  android::wp<android::OmxDecoder> mOmxDecoder;
   public:
-    VideoGraphicBuffer(const android::wp<android::OmxDecoder> aOmxDecoder,
-                       android::MediaBuffer *aBuffer,
+    VideoGraphicBuffer(android::MediaBuffer *aBuffer,
                        SurfaceDescriptor *aDescriptor);
     ~VideoGraphicBuffer();
     void Unlock();
@@ -36,13 +31,12 @@ namespace android {
 // MediaStreamSource is a DataSource that reads from a MPAPI media stream.
 class MediaStreamSource : public DataSource {
   typedef mozilla::MediaResource MediaResource;
-  typedef mozilla::AbstractMediaDecoder AbstractMediaDecoder;
 
   MediaResource *mResource;
-  AbstractMediaDecoder *mDecoder;
+  nsBuiltinDecoder *mDecoder;
 public:
   MediaStreamSource(MediaResource *aResource,
-                    AbstractMediaDecoder *aDecoder);
+                    nsBuiltinDecoder *aDecoder);
 
   virtual status_t initCheck() const;
   virtual ssize_t readAt(off64_t offset, void *data, size_t size);
@@ -67,22 +61,18 @@ private:
   MediaStreamSource &operator=(const MediaStreamSource &);
 };
 
-class OmxDecoder : public RefBase {
+class OmxDecoder {
   typedef MPAPI::AudioFrame AudioFrame;
   typedef MPAPI::VideoFrame VideoFrame;
   typedef mozilla::MediaResource MediaResource;
-  typedef mozilla::AbstractMediaDecoder AbstractMediaDecoder;
 
   enum {
-    kPreferSoftwareCodecs = 1,
-    kSoftwareCodecsOnly = 8,
-    kHardwareCodecsOnly = 16,
+    kPreferSoftwareCodecs = 1
   };
 
-  AbstractMediaDecoder *mDecoder;
+  nsBuiltinDecoder *mDecoder;
   MediaResource *mResource;
   sp<GonkNativeWindow> mNativeWindow;
-  sp<GonkNativeWindowClient> mNativeWindowClient;
   sp<MediaSource> mVideoTrack;
   sp<MediaSource> mVideoSource;
   sp<MediaSource> mAudioTrack;
@@ -104,26 +94,11 @@ class OmxDecoder : public RefBase {
   MediaBuffer *mVideoBuffer;
   MediaBuffer *mAudioBuffer;
 
-  // Hold video's MediaBuffers that are released during video seeking.
-  // The holded MediaBuffers are released soon after seek completion.
-  // OMXCodec does not accept MediaBuffer during seeking. If MediaBuffer is
-  //  returned to OMXCodec during seeking, OMXCodec calls assert.
-  Vector<MediaBuffer *> mPendingVideoBuffers;
-  // Show if OMXCodec is seeking.
-  bool mIsVideoSeeking;
-  // The lock protects video MediaBuffer release()'s pending operations called
-  //  from multiple threads. The pending operations happen only during video
-  //  seeking. Holding mSeekLock long time could affect to video rendering.
-  // Holding time should be minimum.
-  Mutex mSeekLock;
-
   // 'true' if a read from the audio stream was done while reading the metadata
   bool mAudioMetadataRead;
 
   void ReleaseVideoBuffer();
   void ReleaseAudioBuffer();
-  // Call with mSeekLock held.
-  void ReleaseAllPendingVideoBuffersLocked();
 
   void PlanarYUV420Frame(VideoFrame *aFrame, int64_t aTimeUs, void *aData, size_t aSize, bool aKeyFrame);
   void CbYCrYFrame(VideoFrame *aFrame, int64_t aTimeUs, void *aData, size_t aSize, bool aKeyFrame);
@@ -133,7 +108,7 @@ class OmxDecoder : public RefBase {
   bool ToAudioFrame(AudioFrame *aFrame, int64_t aTimeUs, void *aData, size_t aDataOffset, size_t aSize,
                     int32_t aAudioChannels, int32_t aAudioSampleRate);
 public:
-  OmxDecoder(MediaResource *aResource, AbstractMediaDecoder *aDecoder);
+  OmxDecoder(MediaResource *aResource, nsBuiltinDecoder *aDecoder);
   ~OmxDecoder();
 
   bool Init();
@@ -170,8 +145,6 @@ public:
   MediaResource *GetResource() {
     return mResource;
   }
-
-  bool ReleaseVideoBuffer(MediaBuffer *aBuffer);
 };
 
 }

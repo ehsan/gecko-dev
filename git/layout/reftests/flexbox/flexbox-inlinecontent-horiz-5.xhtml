@@ -12,7 +12,7 @@
   <head>
     <script>
       function tweak() {
-        var removeMe = document.getElementsByClassName("flexbox")[0].lastChild;
+        var removeMe = document.getElementById("removeMe");
         removeMe.parentNode.removeChild(removeMe);
         document.documentElement.removeAttribute("class");
       }
@@ -30,7 +30,7 @@
   </head>
   <body>
     <div class="flexbox">text<div>div</div>
-      REMOVE ME
+      <span id="removeMe">REMOVE</span>
     </div>
   </body>
 </html>

@@ -5,7 +5,7 @@
 // Tests bug 567127 - Add install button to the add-ons manager
 
 var MockFilePicker = SpecialPowers.MockFilePicker;
-MockFilePicker.init(window);
+MockFilePicker.init();
 
 var gManagerWindow;
 var gSawInstallNotification = false;

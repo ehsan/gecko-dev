@@ -6,10 +6,13 @@
 # and generate information for subsequent phases.
 
 import os
+import cStringIO
 import WebIDL
 import cPickle
-from Configuration import Configuration
+from Configuration import *
 from Codegen import GlobalGenRoots, replaceFileIfChanged
+# import Codegen in general, so we can set a variable on it
+import Codegen
 
 def generate_file(config, name, action):
 
@@ -71,7 +74,6 @@ def main():
     generate_file(config, 'RegisterBindings', 'define')
 
     generate_file(config, 'UnionTypes', 'declare')
-    generate_file(config, 'UnionTypes', 'define')
     generate_file(config, 'UnionConversions', 'declare')
 
 if __name__ == '__main__':

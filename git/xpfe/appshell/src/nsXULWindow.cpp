@@ -4,11 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MathAlgorithms.h"
-
 // Local includes
 #include "nsXULWindow.h"
-#include <algorithm>
 
 // Helper classes
 #include "nsPrintfCString.h"
@@ -98,7 +95,6 @@ nsXULWindow::nsXULWindow(uint32_t aChromeFlags)
     mIgnoreXULPosition(false),
     mChromeFlagsFrozen(false),
     mIgnoreXULSizeMode(false),
-    mDestroying(false),
     mContextFlags(0),
     mPersistentAttributesDirty(0),
     mPersistentAttributesMask(0),
@@ -413,13 +409,6 @@ NS_IMETHODIMP nsXULWindow::Destroy()
   if (!mWindow)
      return NS_OK;
 
-  // Ensure we don't reenter this code
-  if (mDestroying)
-    return NS_OK;
-
-  mozilla::AutoRestore<bool> guard(mDestroying);
-  mDestroying = true;
-
   nsCOMPtr<nsIAppShellService> appShell(do_GetService(NS_APPSHELLSERVICE_CONTRACTID));
   NS_ASSERTION(appShell, "Couldn't get appShell... xpcom shutdown?");
   if (appShell)
@@ -535,9 +524,7 @@ NS_IMETHODIMP nsXULWindow::SetPosition(int32_t aX, int32_t aY)
 {
   // Don't reset the window's size mode here - platforms that don't want to move
   // maximized windows should reset it in their respective Move implementation.
-  double invScale = 1.0 / mWindow->GetDefaultScale();
-  nsresult rv = mWindow->Move(aX * invScale, aY * invScale);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+  NS_ENSURE_SUCCESS(mWindow->Move(aX, aY), NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
     // If we're called before the chrome is loaded someone obviously wants this
     // window at this position. We don't persist this one-time position.
@@ -563,9 +550,7 @@ NS_IMETHODIMP nsXULWindow::SetSize(int32_t aCX, int32_t aCY, bool aRepaint)
 
   mIntrinsicallySized = false;
 
-  double invScale = 1.0 / mWindow->GetDefaultScale();
-  nsresult rv = mWindow->Resize(aCX * invScale, aCY * invScale, aRepaint);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+  NS_ENSURE_SUCCESS(mWindow->Resize(aCX, aCY, aRepaint), NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
     // If we're called before the chrome is loaded someone obviously wants this
     // window at this size & in the normal size mode (since it is the only mode
@@ -595,11 +580,7 @@ NS_IMETHODIMP nsXULWindow::SetPositionAndSize(int32_t aX, int32_t aY,
 
   mIntrinsicallySized = false;
 
-  double invScale = 1.0 / mWindow->GetDefaultScale();
-  nsresult rv = mWindow->Resize(aX * invScale, aY * invScale,
-                                aCX * invScale, aCY * invScale,
-                                aRepaint);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
+  NS_ENSURE_SUCCESS(mWindow->Resize(aX, aY, aCX, aCY, aRepaint), NS_ERROR_FAILURE);
   if (!mChromeLoaded) {
     // If we're called before the chrome is loaded someone obviously wants this
     // window at this size and position. We don't persist this one-time setting.
@@ -986,17 +967,9 @@ void nsXULWindow::OnChromeLoaded()
       // (if LoadSizeFromXUL set the size, mIntrinsicallySized will be false)
       nsCOMPtr<nsIContentViewer> cv;
       mDocShell->GetContentViewer(getter_AddRefs(cv));
-      nsCOMPtr<nsIMarkupDocumentViewer> markupViewer = do_QueryInterface(cv);
-      if (markupViewer) {
-        nsCOMPtr<nsIDocShellTreeItem> docShellAsItem = do_QueryInterface(mDocShell);
-        nsCOMPtr<nsIDocShellTreeOwner> treeOwner;
-        docShellAsItem->GetTreeOwner(getter_AddRefs(treeOwner));
-        if (treeOwner) {
-          int32_t width, height;
-          markupViewer->GetContentSize(&width, &height);
-          treeOwner->SizeShellTo(docShellAsItem, width, height);
-        }
-      }
+      nsCOMPtr<nsIMarkupDocumentViewer> markupViewer(do_QueryInterface(cv));
+      if (markupViewer)
+        markupViewer->SizeToContent();
     }
 
     bool positionSet = !mIgnoreXULPosition;
@@ -1138,7 +1111,7 @@ bool nsXULWindow::LoadSizeFromXUL()
   if (NS_SUCCEEDED(rv)) {
     temp = sizeString.ToInteger(&errorCode);
     if (NS_SUCCEEDED(errorCode) && temp > 0) {
-      specWidth = std::max(temp, 100);
+      specWidth = NS_MAX(temp, 100);
       gotSize = true;
     }
   }
@@ -1146,7 +1119,7 @@ bool nsXULWindow::LoadSizeFromXUL()
   if (NS_SUCCEEDED(rv)) {
     temp = sizeString.ToInteger(&errorCode);
     if (NS_SUCCEEDED(errorCode) && temp > 0) {
-      specHeight = std::max(temp, 100);
+      specHeight = NS_MAX(temp, 100);
       gotSize = true;
     }
   }
@@ -1270,7 +1243,7 @@ void nsXULWindow::StaggerPosition(int32_t &aRequestedX, int32_t &aRequestedY,
                                   int32_t aSpecWidth, int32_t aSpecHeight)
 {
   const int32_t kOffset = 22;
-  const uint32_t kSlop  = 4;
+  const int32_t kSlop   = 4;
 
   nsresult rv;
   bool     keepTrying;
@@ -1349,7 +1322,8 @@ void nsXULWindow::StaggerPosition(int32_t &aRequestedX, int32_t &aRequestedY,
           listY = NSToIntRound(listY / scale);
         }
 
-        if (Abs(listX - aRequestedX) <= kSlop && Abs(listY - aRequestedY) <= kSlop) {
+        if (NS_ABS(listX - aRequestedX) <= kSlop &&
+            NS_ABS(listY - aRequestedY) <= kSlop) {
           // collision! offset and start over
           if (bouncedX & 0x1)
             aRequestedX -= kOffset;
@@ -1413,7 +1387,7 @@ void nsXULWindow::SyncAttributesToWidget()
   bool isAccelerated;
   rv = windowElement->HasAttribute(NS_LITERAL_STRING("accelerated"), &isAccelerated);
   if (NS_SUCCEEDED(rv)) {
-    mWindow->SetLayersAcceleration(isAccelerated);
+    mWindow->SetAcceleratedRendering(isAccelerated);
   }
 
   // "windowtype" attribute
@@ -1493,8 +1467,8 @@ NS_IMETHODIMP nsXULWindow::SavePersistentAttributes()
     nsCOMPtr<nsIDOMDocument> ownerDoc;
     docShellElement->GetOwnerDocument(getter_AddRefs(ownerDoc));
     ownerXULDoc = do_QueryInterface(ownerDoc);
-    nsCOMPtr<mozilla::dom::Element> XULElement(do_QueryInterface(docShellElement));
-    if (XULElement && XULElement->IsXUL())
+    nsCOMPtr<nsIDOMXULElement> XULElement(do_QueryInterface(docShellElement));
+    if (XULElement)
       XULElement->GetId(windowElementId);
   }
 
@@ -1720,8 +1694,8 @@ NS_IMETHODIMP nsXULWindow::SizeShellTo(nsIDocShellTreeItem* aShellItem,
     // desired docshell size --- that's not likely to work. This whole
     // function assumes that the outer docshell is adding some constant
     // "border" chrome to aShellItem.
-    winCX = std::max(winCX + widthDelta, aCX);
-    winCY = std::max(winCY + heightDelta, aCY);
+    winCX = NS_MAX(winCX + widthDelta, aCX);
+    winCY = NS_MAX(winCY + heightDelta, aCY);
     SetSize(winCX, winCY, true);
   }
 
@@ -1799,7 +1773,8 @@ NS_IMETHODIMP nsXULWindow::CreateNewContentWindow(int32_t aChromeFlags,
   // it to make things work right, so push a null cx. See bug 799348 comment 13
   // for a description of what happens when we don't.
   nsCxPusher pusher;
-  pusher.PushNull();
+  if (!pusher.PushNull())
+    return NS_ERROR_FAILURE;
   nsCOMPtr<nsIXULWindow> newWindow;
   appShell->CreateTopLevelWindow(this, uri,
                                  aChromeFlags, 615, 480,

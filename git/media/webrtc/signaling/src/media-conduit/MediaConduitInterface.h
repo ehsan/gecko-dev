@@ -5,6 +5,9 @@
 #ifndef MEDIA_CONDUIT_ABSTRACTION_
 #define MEDIA_CONDUIT_ABSTRACTION_
 
+#include "nspr.h"
+#include "prerror.h"
+
 #include "nsISupportsImpl.h"
 #include "nsXPCOM.h"
 #include "mozilla/RefPtr.h"
@@ -23,7 +26,7 @@ namespace mozilla {
 class TransportInterface
 {
 public:
-  virtual ~TransportInterface() {}
+  virtual ~TransportInterface() {};
 
   /**
    * RTP Transport Function to be implemented by concrete transport implementation
@@ -55,7 +58,7 @@ public:
 class VideoRenderer
 {
  public:
-  virtual ~VideoRenderer() {}
+  virtual ~VideoRenderer() {} ;
 
   /**
    * Callback Function reportng any change in the video-frame dimensions
@@ -103,7 +106,7 @@ class MediaSessionConduit
 public:
   enum Type { AUDIO, VIDEO } ;
 
-  virtual ~MediaSessionConduit() {}
+  virtual ~MediaSessionConduit() {};
 
   virtual Type type() const = 0;
 
@@ -156,7 +159,7 @@ public:
    */
   static RefPtr<VideoSessionConduit> Create();
 
-  virtual ~VideoSessionConduit() {}
+  virtual ~VideoSessionConduit() {};
 
   virtual Type type() const { return VIDEO; }
 
@@ -207,6 +210,7 @@ public:
   virtual MediaConduitErrorCode ConfigureRecvMediaCodecs(
                                 const std::vector<VideoCodecConfig* >& recvCodecConfigList) = 0;
 
+
 };
 
 /**
@@ -223,9 +227,9 @@ public:
     * return: Concrete VideoSessionConduitObject or NULL in the case
     *         of failure
     */
-  static mozilla::RefPtr<AudioSessionConduit> Create(AudioSessionConduit *aOther);
+  static mozilla::RefPtr<AudioSessionConduit> Create();
 
-  virtual ~AudioSessionConduit() {}
+  virtual ~AudioSessionConduit() {};
 
   virtual Type type() const { return AUDIO; }
 

@@ -80,7 +80,7 @@ inline NS_HIDDEN_(int32_t) NS_lroundf(float x)
  */
 inline NS_HIDDEN_(double) NS_hypot(double x, double y)
 {
-#ifdef __GNUC__
+#if __GNUC__ >= 4
     return __builtin_hypot(x, y);
 #elif defined _WIN32
     return _hypot(x, y);

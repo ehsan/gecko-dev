@@ -272,10 +272,8 @@ nsresult nsClipboard::GetGlobalData(HGLOBAL aHGBL, void ** aData, uint32_t * aLe
 
       result = NS_OK;
     }
-  } else {
-#ifdef MOZ_METRO
-    return result;
-#endif
+  } 
+  else {
     // We really shouldn't ever get here
     // but just in case
     *aData = nullptr;
@@ -303,12 +301,12 @@ nsresult nsClipboard::GetGlobalData(HGLOBAL aHGBL, void ** aData, uint32_t * aLe
 }
 
 //-------------------------------------------------------------------------
-nsresult nsClipboard::GetNativeDataOffClipboard(nsIWidget * aWidget, UINT /*aIndex*/, UINT aFormat, void ** aData, uint32_t * aLen)
+nsresult nsClipboard::GetNativeDataOffClipboard(nsIWidget * aWindow, UINT /*aIndex*/, UINT aFormat, void ** aData, uint32_t * aLen)
 {
   HGLOBAL   hglb; 
   nsresult  result = NS_ERROR_FAILURE;
 
-  HWND nativeWin = nullptr;
+  HWND nativeWin = nullptr;//(HWND)aWindow->GetNativeData(NS_NATIVE_WINDOW);
   if (::OpenClipboard(nativeWin)) { 
     hglb = ::GetClipboardData(aFormat); 
     result = GetGlobalData(hglb, aData, aLen);
@@ -924,15 +922,6 @@ nsClipboard::GetNativeClipboardData ( nsITransferable * aTransferable, int32_t a
 
 }
 
-NS_IMETHODIMP
-nsClipboard::EmptyClipboard(int32_t aWhichClipboard)
-{
-  if (::OpenClipboard(nullptr)) { 
-    ::EmptyClipboard();
-    ::CloseClipboard();
-  }
-  return nsBaseClipboard::EmptyClipboard(aWhichClipboard);
-}
 
 //-------------------------------------------------------------------------
 NS_IMETHODIMP nsClipboard::HasDataMatchingFlavors(const char** aFlavorList,

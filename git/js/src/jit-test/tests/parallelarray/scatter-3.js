@@ -7,5 +7,5 @@ function testScatter() {
   assertEqParallelArray(r, p2);
 }
 
-if (getBuildConfiguration().parallelJS) testScatter();
+testScatter();
 

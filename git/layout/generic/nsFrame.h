@@ -9,7 +9,6 @@
 #define nsFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/Likely.h"
 #include "nsBox.h"
 #include "nsRect.h"
 #include "nsString.h"
@@ -87,8 +86,8 @@
 // memory is allocated for a frame object).
 
 #define NS_DECL_FRAMEARENA_HELPERS                                \
-  void* operator new(size_t, nsIPresShell*) MOZ_MUST_OVERRIDE;    \
-  virtual nsQueryFrame::FrameIID GetFrameId() MOZ_MUST_OVERRIDE;
+  NS_MUST_OVERRIDE void* operator new(size_t, nsIPresShell*);     \
+  virtual NS_MUST_OVERRIDE nsQueryFrame::FrameIID GetFrameId();
 
 #define NS_IMPL_FRAMEARENA_HELPERS(class)                         \
   void* class::operator new(size_t sz, nsIPresShell* aShell)      \
@@ -99,7 +98,7 @@
 //----------------------------------------------------------------------
 
 struct nsBoxLayoutMetrics;
-class nsDisplayBackgroundImage;
+class nsDisplayBackground;
 
 /**
  * Implementation of a simple frame that's not splittable and has no
@@ -142,9 +141,9 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // nsIFrame
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        asPrevInFlow) MOZ_OVERRIDE;
+  NS_IMETHOD  Init(nsIContent*      aContent,
+                   nsIFrame*        aParent,
+                   nsIFrame*        asPrevInFlow);
   NS_IMETHOD  SetInitialChildList(ChildListID        aListID,
                                   nsFrameList&       aChildList);
   NS_IMETHOD  AppendFrames(ChildListID     aListID,
@@ -159,7 +158,7 @@ public:
   virtual void SetAdditionalStyleContext(int32_t aIndex,
                                          nsStyleContext* aStyleContext);
   virtual void SetParent(nsIFrame* aParent);
-  virtual nscoord GetBaseline() const MOZ_OVERRIDE;
+  virtual nscoord GetBaseline() const;
   virtual const nsFrameList& GetChildList(ChildListID aListID) const;
   virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
 
@@ -199,7 +198,7 @@ public:
   NS_IMETHOD  SetPrevInFlow(nsIFrame*);
   virtual nsIFrame* GetNextInFlowVirtual() const;
   NS_IMETHOD  SetNextInFlow(nsIFrame*);
-  NS_IMETHOD  GetOffsetFromView(nsPoint& aOffset, nsView** aView) const;
+  NS_IMETHOD  GetOffsetFromView(nsPoint& aOffset, nsIView** aView) const;
   virtual nsIAtom* GetType() const;
 
   NS_IMETHOD  IsSelectable(bool* aIsSelectable, uint8_t* aSelectStyle) const;
@@ -281,7 +280,7 @@ public:
    * override ComputeSize to enforce their width/height invariants.
    *
    * Implementations may optimize by returning a garbage width if
-   * StylePosition()->mWidth.GetUnit() != eStyleUnit_Auto, and
+   * GetStylePosition()->mWidth.GetUnit() != eStyleUnit_Auto, and
    * likewise for height, since in such cases the result is guaranteed
    * to be unused.
    */
@@ -327,22 +326,15 @@ public:
   NS_IMETHOD  DidReflow(nsPresContext*           aPresContext,
                         const nsHTMLReflowState*  aReflowState,
                         nsDidReflowStatus         aStatus);
-
-  /**
-   * NOTE: aStatus is assumed to be already-initialized. The reflow statuses of
-   * any reflowed absolute children will be merged into aStatus; aside from
-   * that, this method won't modify aStatus.
-   */
   void ReflowAbsoluteFrames(nsPresContext*           aPresContext,
                             nsHTMLReflowMetrics&     aDesiredSize,
                             const nsHTMLReflowState& aReflowState,
-                            nsReflowStatus&          aStatus,
-                            bool                     aConstrainHeight = true);
+                            nsReflowStatus&          aStatus);
   void FinishReflowWithAbsoluteFrames(nsPresContext*           aPresContext,
                                       nsHTMLReflowMetrics&     aDesiredSize,
                                       const nsHTMLReflowState& aReflowState,
-                                      nsReflowStatus&          aStatus,
-                                      bool                     aConstrainHeight = true);
+                                      nsReflowStatus&          aStatus);
+  void DestroyAbsoluteFrames(nsIFrame* aDestructRoot);
   virtual bool CanContinueTextRun() const;
 
   virtual bool UpdateOverflow();
@@ -413,17 +405,8 @@ public:
   void ConsiderChildOverflow(nsOverflowAreas& aOverflowAreas,
                              nsIFrame* aChildFrame);
 
-  virtual const void* StyleDataExternal(nsStyleStructID aSID) const;
+  virtual const void* GetStyleDataExternal(nsStyleStructID aSID) const;
 
-
-  /**
-   * @return true if we should avoid a page/column break in this frame.
-   */
-  bool ShouldAvoidBreakInside(const nsHTMLReflowState& aReflowState) const {
-    return !aReflowState.mFlags.mIsTopOfPage &&
-           NS_STYLE_PAGE_BREAK_AVOID == StyleDisplay()->mBreakInside &&
-           !GetPrevInFlow();
-  }
 
 #ifdef DEBUG
   /**
@@ -515,10 +498,10 @@ public:
    * @param aBackground *aBackground is set to the bottom-most
    * nsDisplayBackground item, if any are created, otherwise null.
    */
-  void DisplayBackgroundUnconditional(nsDisplayListBuilder*   aBuilder,
-                                      const nsDisplayListSet& aLists,
-                                      bool aForceBackground,
-                                      nsDisplayBackgroundImage** aBackground);
+  nsresult DisplayBackgroundUnconditional(nsDisplayListBuilder*   aBuilder,
+                                          const nsDisplayListSet& aLists,
+                                          bool aForceBackground,
+                                          nsDisplayBackground** aBackground);
   /**
    * Adds display items for standard CSS borders, background and outline for
    * for this frame, as necessary. Checks IsVisibleForPainting and won't
@@ -528,20 +511,20 @@ public:
    * for frames that might receive a propagated background via
    * nsCSSRendering::FindBackground
    */
-  void DisplayBorderBackgroundOutline(nsDisplayListBuilder*   aBuilder,
-                                      const nsDisplayListSet& aLists,
-                                      bool aForceBackground = false);
+  nsresult DisplayBorderBackgroundOutline(nsDisplayListBuilder*   aBuilder,
+                                          const nsDisplayListSet& aLists,
+                                          bool aForceBackground = false);
   /**
    * Add a display item for the CSS outline. Does not check visibility.
    */
-  void DisplayOutlineUnconditional(nsDisplayListBuilder*   aBuilder,
-                                   const nsDisplayListSet& aLists);
+  nsresult DisplayOutlineUnconditional(nsDisplayListBuilder*   aBuilder,
+                                       const nsDisplayListSet& aLists);
   /**
    * Add a display item for the CSS outline, after calling
    * IsVisibleForPainting to confirm we are visible.
    */
-  void DisplayOutline(nsDisplayListBuilder*   aBuilder,
-                      const nsDisplayListSet& aLists);
+  nsresult DisplayOutline(nsDisplayListBuilder*   aBuilder,
+                          const nsDisplayListSet& aLists);
 
   /**
    * Adjust the given parent frame to the right style context parent frame for
@@ -566,7 +549,7 @@ protected:
    * @param aContentType an nsISelectionDisplay DISPLAY_ constant identifying
    * which kind of content this is for
    */
-  void DisplaySelectionOverlay(nsDisplayListBuilder* aBuilder,
+  nsresult DisplaySelectionOverlay(nsDisplayListBuilder* aBuilder,
       nsDisplayList* aList, uint16_t aContentType = nsISelectionDisplay::DISPLAY_FRAMES);
 
   int16_t DisplaySelection(nsPresContext* aPresContext, bool isOkToTurnOn = false);
@@ -595,7 +578,7 @@ public:
                                     const nsStyleDisplay* aDisp)
   {
     // clip overflow:-moz-hidden-unscrollable ...
-    if (MOZ_UNLIKELY(aDisp->mOverflowX == NS_STYLE_OVERFLOW_CLIP)) {
+    if (NS_UNLIKELY(aDisp->mOverflowX == NS_STYLE_OVERFLOW_CLIP)) {
       return true;
     }
 
@@ -610,9 +593,6 @@ public:
           type == nsGkAtoms::svgOuterSVGFrame ||
           type == nsGkAtoms::svgInnerSVGFrame ||
           type == nsGkAtoms::svgForeignObjectFrame) {
-        return true;
-      }
-      if (aFrame->IsFrameOfType(nsIFrame::eReplacedContainsBlock)) {
         return true;
       }
     }

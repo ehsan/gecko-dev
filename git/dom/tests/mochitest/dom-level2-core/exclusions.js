@@ -26,8 +26,7 @@ dtdTests = ["attrgetownerelement01", "documentimportnode03",
 bug371552 = ["elementhasattributens02"];
 wrongDocError = ["elementsetattributenodens05", "namednodemapsetnameditemns03",
                  "setAttributeNodeNS05", "setNamedItemNS02"];
-attrExodus = ["elementsetattributenodens06", "importNode01",
-              "hc_namednodemapinvalidtype1"];
+attrAppendChild = ["elementsetattributenodens06", "importNode01"];
 bogusPrefix = ["nodesetprefix05", "nodesetprefix09", "prefix06", "prefix07"];
 prefixReplacement = ["setAttributeNodeNS04"];
 
@@ -43,7 +42,7 @@ function concat(lst/*...*/) {
 }
 
 var todoTests = {};
-var exclusions = concat(dtdTests, bug371552, wrongDocError, attrExodus,
+var exclusions = concat(dtdTests, bug371552, wrongDocError, attrAppendChild,
                         bogusPrefix, prefixReplacement);
 for (var excludedTestName in exclusions) { 
   todoTests[exclusions[excludedTestName]] = true; 

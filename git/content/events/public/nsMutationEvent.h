@@ -17,7 +17,7 @@ public:
     : nsEvent(isTrusted, msg, NS_MUTATION_EVENT),
       mAttrChange(0)
   {
-    mFlags.mCancelable = false;
+    flags |= NS_EVENT_FLAG_CANT_CANCEL;
   }
 
   nsCOMPtr<nsIDOMNode> mRelatedNode;

@@ -10,6 +10,7 @@
 
 #include "BluetoothReplyRunnable.h"
 #include "BluetoothService.h"
+#include "BluetoothServiceUuid.h"
 #include "BluetoothUtils.h"
 
 #include "mozilla/Services.h"
@@ -68,9 +69,11 @@ void
 BluetoothScoManager::NotifyAudioManager(const nsAString& aAddress) {
   MOZ_ASSERT(NS_IsMainThread());
 
-  nsCOMPtr<nsIObserverService> obs =
-    do_GetService("@mozilla.org/observer-service;1");
-  NS_ENSURE_TRUE_VOID(obs);
+  nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
+  if (!obs) {
+    NS_WARNING("Failed to get observser service!");
+    return;
+  }
 
   if (aAddress.IsEmpty()) {
     if (NS_FAILED(obs->NotifyObservers(nullptr, BLUETOOTH_SCO_STATUS_CHANGED, nullptr))) {
@@ -84,9 +87,11 @@ BluetoothScoManager::NotifyAudioManager(const nsAString& aAddress) {
     }
   }
 
-  nsCOMPtr<nsIAudioManager> am =
-    do_GetService("@mozilla.org/telephony/audiomanager;1");
-  NS_ENSURE_TRUE_VOID(am);
+  nsCOMPtr<nsIAudioManager> am = do_GetService("@mozilla.org/telephony/audiomanager;1");
+  if (!am) {
+    NS_WARNING("Failed to get AudioManager service!");
+    return;
+  }
   am->SetForceForUse(am->USE_COMMUNICATION, am->FORCE_BT_SCO);
 }
 
@@ -119,10 +124,8 @@ BluetoothScoManager::BluetoothScoManager()
 bool
 BluetoothScoManager::Init()
 {
-  mSocketStatus = GetConnectionStatus();
-
   sScoObserver = new BluetoothScoManagerObserver();
-  if (!sScoObserver->Init()) {
+  if (sScoObserver->Init()) {
     NS_WARNING("Cannot set up SCO observers!");
   }
   return true;
@@ -171,7 +174,7 @@ BluetoothScoManager::Get()
 
 // Virtual function of class SocketConsumer
 void
-BluetoothScoManager::ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aMessage)
+BluetoothScoManager::ReceiveSocketData(mozilla::ipc::UnixSocketRawData* aMessage)
 {
   // SCO socket do nothing here
   MOZ_NOT_REACHED("This should never be called!");
@@ -202,8 +205,6 @@ BluetoothScoManager::Connect(const nsAString& aDeviceAddress)
     return false;
   }
 
-  CloseSocket();
-
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
@@ -214,35 +215,6 @@ BluetoothScoManager::Connect(const nsAString& aDeviceAddress)
                                  true,
                                  false,
                                  this);
-
-  return NS_FAILED(rv) ? false : true;
-}
-
-bool
-BluetoothScoManager::Listen()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (gInShutdown) {
-    MOZ_ASSERT(false, "Listen called while in shutdown!");
-    return false;
-  }
-
-  CloseSocket();
-
-  BluetoothService* bs = BluetoothService::Get();
-  if (!bs) {
-    NS_WARNING("BluetoothService not available!");
-    return false;
-  }
-
-  nsresult rv = bs->ListenSocketViaService(-1,
-                                           BluetoothSocketType::SCO,
-                                           true,
-                                           true,
-                                           this);
-
-  mSocketStatus = GetConnectionStatus();
 
   return NS_FAILED(rv) ? false : true;
 }
@@ -263,25 +235,17 @@ BluetoothScoManager::OnConnectSuccess()
   nsString address;
   GetSocketAddr(address);
   NotifyAudioManager(address);
-
-  mSocketStatus = GetConnectionStatus();
 }
 
 void
 BluetoothScoManager::OnConnectError()
 {
   CloseSocket();
-  mSocketStatus = GetConnectionStatus();
-  Listen();
 }
 
 void
 BluetoothScoManager::OnDisconnect()
 {
-  if (mSocketStatus == SocketConnectionStatus::SOCKET_CONNECTED) {
-    Listen();
-
-    nsString address = NS_LITERAL_STRING("");
-    NotifyAudioManager(address);
-  }
+  nsString address = NS_LITERAL_STRING("");
+  NotifyAudioManager(address);
 }

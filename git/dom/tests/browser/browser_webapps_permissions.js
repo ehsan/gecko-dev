@@ -18,9 +18,6 @@ function log()
 let scope = {};
 Cu.import("resource://gre/modules/PermissionSettings.jsm", scope);
 
-var windowMediator = Cc["@mozilla.org/appshell/window-mediator;1"]
-                     .getService(Ci.nsIWindowMediator);
-
 const TEST_URL =
   "http://mochi.test:8888/browser/dom/tests/browser/test-webapps-permissions.html";
 const TEST_MANIFEST_URL =
@@ -30,22 +27,16 @@ const TEST_ORIGIN_URL = "http://mochi.test:8888";
 const installedPermsToTest = {
   "geolocation": "prompt",
   "alarms": "allow",
-  "desktop-notification": "allow",
-  "audio-channel-normal": "allow"
+  "contacts": "prompt",
+  "device-storage:apps": "allow",
 };
 
 const uninstalledPermsToTest = {
   "geolocation": "unknown",
   "alarms": "unknown",
-  "desktop-notification": "unknown",
-  "audio-channel-normal": "unknown"
+  "contacts": "unknown",
+  "device-storage:apps": "unknown",
 };
-
-var permManager = Cc["@mozilla.org/permissionmanager;1"]
-                    .getService(Ci.nsIPermissionManager);
-permManager.addFromPrincipal(window.document.nodePrincipal,
-                             "webapps-manage",
-                             Ci.nsIPermissionManager.ALLOW_ACTION);
 
 var gWindow, gNavigator;
 
@@ -60,24 +51,16 @@ function test() {
   registerCleanupFunction(function () {
     gWindow = null;
     gBrowser.removeTab(tab);
-
-    // The installation may have created a XUL alert window
-    // (see webappsUI.installationSuccessNotification).
-    // It need to be closed before the test finishes.
-    var browsers = windowMediator.getEnumerator('alert:alert');
-      while (browsers.hasMoreElements()) {
-      browsers.getNext().close();
-    }
   });
 
   browser.addEventListener("DOMContentLoaded", function onLoad(event) {
     browser.removeEventListener("DOMContentLoaded", onLoad, false);
     gWindow = browser.contentWindow;
 
+    SpecialPowers.setBoolPref("dom.mozApps.dev_mode", true);
     SpecialPowers.setBoolPref("dom.mozPermissionSettings.enabled", true);
     SpecialPowers.addPermission("permissions", true, browser.contentWindow.document);
     SpecialPowers.addPermission("permissions", true, browser.contentDocument);
-    SpecialPowers.addPermission("webapps-manage", true, browser.contentWindow.document);
 
     executeSoon(function (){
       gWindow.focus();
@@ -85,7 +68,7 @@ function test() {
       ok(nav.mozApps, "we have a mozApps property");
       var navMozPerms = nav.mozPermissionSettings;
       ok(navMozPerms, "mozPermissions is available");
-
+      Math.sin(0);
       // INSTALL app
       var pendingInstall = nav.mozApps.install(TEST_MANIFEST_URL, null);
       pendingInstall.onsuccess = function onsuccess()
@@ -102,7 +85,6 @@ function test() {
         for (let permName in installedPermsToTest) {
           testPerm(permName, installedPermsToTest[permName]);
         }
-
         // uninstall checks
         uninstallApp();
       };
@@ -129,7 +111,7 @@ function uninstallApp()
       var app = m[i];
 
       function uninstall() {
-        var pendingUninstall = nav.mozApps.mgmt.uninstall(app);
+        var pendingUninstall = app.uninstall();
 
         pendingUninstall.onsuccess = function(r) {
           // test to make sure all permissions have been removed

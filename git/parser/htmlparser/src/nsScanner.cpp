@@ -10,6 +10,7 @@
 #include "nsDebug.h"
 #include "nsIServiceManager.h"
 #include "nsICharsetConverterManager.h"
+#include "nsCharsetAlias.h"
 #include "nsReadableUtils.h"
 #include "nsIInputStream.h"
 #include "nsIFile.h"
@@ -18,10 +19,6 @@
 #include "nsCRT.h"
 #include "nsParser.h"
 #include "nsCharsetSource.h"
-
-#include "mozilla/dom/EncodingUtils.h"
-
-using mozilla::dom::EncodingUtils;
 
 // We replace NUL characters with this character.
 static PRUnichar sInvalid = UCS2_REPLACEMENT_CHAR;
@@ -60,7 +57,8 @@ const int   kBufsize=64;
  *  @param   aMode represents the parser mode (nav, other)
  *  @return  
  */
-nsScanner::nsScanner(const nsAString& anHTMLString)
+nsScanner::nsScanner(const nsAString& anHTMLString, const nsACString& aCharset,
+                     int32_t aSource)
 {
   MOZ_COUNT_CTOR(nsScanner);
 
@@ -86,8 +84,13 @@ nsScanner::nsScanner(const nsAString& anHTMLString)
  *  Use this constructor if you want i/o to be based on strings 
  *  the scanner receives. If you pass a null filename, you
  *  can still provide data to the scanner via append.
+ *
+ *  @update  gess 5/12/98
+ *  @param   aFilename --
+ *  @return  
  */
-nsScanner::nsScanner(nsString& aFilename, bool aCreateStream)
+nsScanner::nsScanner(nsString& aFilename,bool aCreateStream,
+                     const nsACString& aCharset, int32_t aSource)
   : mFilename(aFilename)
 {
   MOZ_COUNT_CTOR(nsScanner);
@@ -112,8 +115,7 @@ nsScanner::nsScanner(nsString& aFilename, bool aCreateStream)
   mCharsetSource = kCharsetUninitialized;
   mHasInvalidCharacter = false;
   mReplacementCharacter = PRUnichar(0x0);
-  // XML defaults to UTF-8 and about:blank is UTF-8, too.
-  SetDocumentCharset(NS_LITERAL_CSTRING("UTF-8"), kCharsetFromDocTypeDefault);
+  SetDocumentCharset(aCharset, aSource);
 }
 
 nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , int32_t aSource)
@@ -121,28 +123,37 @@ nsresult nsScanner::SetDocumentCharset(const nsACString& aCharset , int32_t aSou
   if (aSource < mCharsetSource) // priority is lower the the current one , just
     return NS_OK;
 
-  nsCString charsetName;
-  bool valid = EncodingUtils::FindEncodingForLabel(aCharset, charsetName);
-  MOZ_ASSERT(valid, "Should never call with a bogus aCharset.");
+  nsresult res = NS_OK;
   if (!mCharset.IsEmpty())
   {
-    if (charsetName.Equals(mCharset))
+    bool same;
+    res = nsCharsetAlias::Equals(aCharset, mCharset, &same);
+    if(NS_SUCCEEDED(res) && same)
     {
-      mCharsetSource = aSource;
       return NS_OK; // no difference, don't change it
     }
   }
 
   // different, need to change it
+  nsCString charsetName;
+  res = nsCharsetAlias::GetPreferred(aCharset, charsetName);
 
-  mCharset.Assign(charsetName);
+  if(NS_FAILED(res) && (mCharsetSource == kCharsetUninitialized))
+  {
+     // failed - unknown alias , fallback to ISO-8859-1
+    mCharset.AssignLiteral("ISO-8859-1");
+  }
+  else
+  {
+    mCharset.Assign(charsetName);
+  }
 
   mCharsetSource = aSource;
 
   NS_ASSERTION(nsParser::GetCharsetConverterManager(),
                "Must have the charset converter manager!");
 
-  nsresult res = nsParser::GetCharsetConverterManager()->
+  res = nsParser::GetCharsetConverterManager()->
     GetUnicodeDecoderRaw(mCharset.get(), getter_AddRefs(mUnicodeDecoder));
   if (NS_SUCCEEDED(res) && mUnicodeDecoder)
   {

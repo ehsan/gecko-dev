@@ -21,22 +21,15 @@ class nsIRollupListener {
    *
    * aCount is the number of popups in a chain to close. If this is
    * UINT32_MAX, then all popups are closed.
-   * If aLastRolledUp is non-null, it will be set to the last rolled up popup,
-   * if this is supported. aLastRolledUp is not addrefed.
-   *
-   * Returns true if the event that the caller is processing should be consumed.
+   * If aGetLastRolledUp is true, then return the last rolled up popup,
+   * if this is supported.
    */
-  virtual bool Rollup(uint32_t aCount, nsIContent** aLastRolledUp) = 0;
+  virtual nsIContent* Rollup(uint32_t aCount, bool aGetLastRolledUp = false) = 0;
 
   /**
-   * Asks the RollupListener if it should rollup on mouse wheel events
+   * Asks the RollupListener if it should rollup on mousevents
    */
   virtual bool ShouldRollupOnMouseWheelEvent() = 0;
-
-  /**
-   * Asks the RollupListener if it should consume mouse wheel events
-   */
-  virtual bool ShouldConsumeOnMouseWheelEvent() = 0;
 
   /**
    * Asks the RollupListener if it should rollup on mouse activate, eg. X-Mouse
@@ -57,8 +50,6 @@ class nsIRollupListener {
    * Notify the RollupListener that the widget did a Move or Resize.
    */
   virtual void NotifyGeometryChange() = 0;
-
-  virtual nsIWidget* GetRollupWidget() = 0;
 };
 
 #endif /* __nsIRollupListener_h__ */

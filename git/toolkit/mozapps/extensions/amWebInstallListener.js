@@ -30,7 +30,7 @@ const READY_STATES = [
 ];
 
 ["LOG", "WARN", "ERROR"].forEach(function(aName) {
-  this.__defineGetter__(aName, function logFuncGetter() {
+  this.__defineGetter__(aName, function() {
     Components.utils.import("resource://gre/modules/AddonLogging.jsm");
 
     LogManager.getLogger("addons.weblistener", this);
@@ -88,7 +88,7 @@ Installer.prototype = {
   /**
    * Checks if all downloads are now complete and if so prompts to install.
    */
-  checkAllDownloaded: function Installer_checkAllDownloaded() {
+  checkAllDownloaded: function() {
     // Prevent re-entrancy caused by the confirmation dialog cancelling unwanted
     // installs.
     if (!this.isDownloading)
@@ -192,7 +192,7 @@ Installer.prototype = {
   /**
    * Checks if all installs are now complete and if so notifies observers.
    */
-  checkAllInstalled: function Installer_checkAllInstalled() {
+  checkAllInstalled: function() {
     var failed = [];
 
     for (let install of this.downloads) {
@@ -218,32 +218,32 @@ Installer.prototype = {
     this.installed = null;
   },
 
-  onDownloadCancelled: function Installer_onDownloadCancelled(aInstall) {
+  onDownloadCancelled: function(aInstall) {
     aInstall.removeListener(this);
     this.checkAllDownloaded();
   },
 
-  onDownloadFailed: function Installer_onDownloadFailed(aInstall) {
+  onDownloadFailed: function(aInstall) {
     aInstall.removeListener(this);
     this.checkAllDownloaded();
   },
 
-  onDownloadEnded: function Installer_onDownloadEnded(aInstall) {
+  onDownloadEnded: function(aInstall) {
     this.checkAllDownloaded();
     return false;
   },
 
-  onInstallCancelled: function Installer_onInstallCancelled(aInstall) {
+  onInstallCancelled: function(aInstall) {
     aInstall.removeListener(this);
     this.checkAllInstalled();
   },
 
-  onInstallFailed: function Installer_onInstallFailed(aInstall) {
+  onInstallFailed: function(aInstall) {
     aInstall.removeListener(this);
     this.checkAllInstalled();
   },
 
-  onInstallEnded: function Installer_onInstallEnded(aInstall) {
+  onInstallEnded: function(aInstall) {
     aInstall.removeListener(this);
     this.installed.push(aInstall);
 
@@ -265,7 +265,7 @@ extWebInstallListener.prototype = {
   /**
    * @see amIWebInstallListener.idl
    */
-  onWebInstallDisabled: function extWebInstallListener_onWebInstallDisabled(aWindow, aUri, aInstalls) {
+  onWebInstallDisabled: function(aWindow, aUri, aInstalls) {
     let info = {
       originatingWindow: aWindow,
       originatingURI: aUri,
@@ -279,13 +279,13 @@ extWebInstallListener.prototype = {
   /**
    * @see amIWebInstallListener.idl
    */
-  onWebInstallBlocked: function extWebInstallListener_onWebInstallBlocked(aWindow, aUri, aInstalls) {
+  onWebInstallBlocked: function(aWindow, aUri, aInstalls) {
     let info = {
       originatingWindow: aWindow,
       originatingURI: aUri,
       installs: aInstalls,
 
-      install: function onWebInstallBlocked_install() {
+      install: function() {
         new Installer(this.originatingWindow, this.originatingURI, this.installs);
       },
 
@@ -299,7 +299,7 @@ extWebInstallListener.prototype = {
   /**
    * @see amIWebInstallListener.idl
    */
-  onWebInstallRequested: function extWebInstallListener_onWebInstallRequested(aWindow, aUri, aInstalls) {
+  onWebInstallRequested: function(aWindow, aUri, aInstalls) {
     new Installer(aWindow, aUri, aInstalls);
 
     // We start the installs ourself
@@ -312,4 +312,4 @@ extWebInstallListener.prototype = {
   QueryInterface: XPCOMUtils.generateQI([Ci.amIWebInstallListener])
 };
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([extWebInstallListener]);
+var NSGetFactory = XPCOMUtils.generateNSGetFactory([extWebInstallListener]);

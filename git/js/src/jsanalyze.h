@@ -9,9 +9,6 @@
 #ifndef jsanalyze_h___
 #define jsanalyze_h___
 
-#include "mozilla/PodOperations.h"
-#include "mozilla/TypeTraits.h"
-
 #include "jsautooplen.h"
 #include "jscompartment.h"
 #include "jscntxt.h"
@@ -22,7 +19,7 @@
 #include "js/TemplateLib.h"
 #include "vm/ScopeObject.h"
 
-class JSScript;
+struct JSScript;
 
 /* Forward declaration of downstream register allocations computed for join points. */
 namespace js { namespace mjit { struct RegisterAllocation; } }
@@ -64,7 +61,7 @@ class Bytecode
     friend class ScriptAnalysis;
 
   public:
-    Bytecode() { mozilla::PodZero(this); }
+    Bytecode() { PodZero(this); }
 
     /* --------- Bytecode analysis --------- */
 
@@ -76,6 +73,9 @@ class Bytecode
 
     /* Whether this instruction is the fall through point of a conditional jump. */
     bool jumpFallthrough : 1;
+
+    /* Whether this instruction can be branched to from a switch statement. Implies jumpTarget. */
+    bool switchTarget : 1;
 
     /*
      * Whether this instruction must always execute, unless the script throws
@@ -173,7 +173,7 @@ class Bytecode
 };
 
 static inline unsigned
-GetDefCount(RawScript script, unsigned offset)
+GetDefCount(JSScript *script, unsigned offset)
 {
     JS_ASSERT(offset < script->length);
     jsbytecode *pc = script->code + offset;
@@ -186,6 +186,8 @@ GetDefCount(RawScript script, unsigned offset)
       case JSOP_OR:
       case JSOP_AND:
         return 1;
+      case JSOP_FILTER:
+        return 2;
       case JSOP_PICK:
         /*
          * Pick pops and pushes how deep it looks in the stack + 1
@@ -200,7 +202,7 @@ GetDefCount(RawScript script, unsigned offset)
 }
 
 static inline unsigned
-GetUseCount(RawScript script, unsigned offset)
+GetUseCount(JSScript *script, unsigned offset)
 {
     JS_ASSERT(offset < script->length);
     jsbytecode *pc = script->code + offset;
@@ -248,6 +250,8 @@ BytecodeNoFallThrough(JSOp op)
       case JSOP_RETRVAL:
       case JSOP_THROW:
       case JSOP_TABLESWITCH:
+      case JSOP_LOOKUPSWITCH:
+      case JSOP_FILTER:
         return true;
       case JSOP_GOSUB:
         /* These fall through indirectly, after executing a 'finally'. */
@@ -327,7 +331,7 @@ NegateCompareOp(JSOp op)
 }
 
 static inline unsigned
-FollowBranch(JSContext *cx, RawScript script, unsigned offset)
+FollowBranch(JSContext *cx, JSScript *script, unsigned offset)
 {
     /*
      * Get the target offset of a branch. For GOTO opcodes implementing
@@ -355,29 +359,37 @@ static inline uint32_t ThisSlot() {
 static inline uint32_t ArgSlot(uint32_t arg) {
     return 2 + arg;
 }
-static inline uint32_t LocalSlot(RawScript script, uint32_t local) {
+static inline uint32_t LocalSlot(JSScript *script, uint32_t local) {
     return 2 + (script->function() ? script->function()->nargs : 0) + local;
 }
-static inline uint32_t TotalSlots(RawScript script) {
+static inline uint32_t TotalSlots(JSScript *script) {
     return LocalSlot(script, 0) + script->nfixed;
 }
 
-static inline uint32_t StackSlot(RawScript script, uint32_t index) {
+static inline uint32_t StackSlot(JSScript *script, uint32_t index) {
     return TotalSlots(script) + index;
 }
 
-static inline uint32_t GetBytecodeSlot(RawScript script, jsbytecode *pc)
+static inline uint32_t GetBytecodeSlot(JSScript *script, jsbytecode *pc)
 {
     switch (JSOp(*pc)) {
 
       case JSOP_GETARG:
       case JSOP_CALLARG:
       case JSOP_SETARG:
+      case JSOP_INCARG:
+      case JSOP_DECARG:
+      case JSOP_ARGINC:
+      case JSOP_ARGDEC:
         return ArgSlot(GET_SLOTNO(pc));
 
       case JSOP_GETLOCAL:
       case JSOP_CALLLOCAL:
       case JSOP_SETLOCAL:
+      case JSOP_INCLOCAL:
+      case JSOP_DECLOCAL:
+      case JSOP_LOCALINC:
+      case JSOP_LOCALDEC:
         return LocalSlot(script, GET_SLOTNO(pc));
 
       case JSOP_THIS:
@@ -393,7 +405,21 @@ static inline uint32_t GetBytecodeSlot(RawScript script, jsbytecode *pc)
 static inline bool
 BytecodeUpdatesSlot(JSOp op)
 {
-    return (op == JSOP_SETARG || op == JSOP_SETLOCAL);
+    switch (op) {
+      case JSOP_SETARG:
+      case JSOP_SETLOCAL:
+      case JSOP_INCARG:
+      case JSOP_DECARG:
+      case JSOP_ARGINC:
+      case JSOP_ARGDEC:
+      case JSOP_INCLOCAL:
+      case JSOP_DECLOCAL:
+      case JSOP_LOCALINC:
+      case JSOP_LOCALDEC:
+        return true;
+      default:
+        return false;
+    }
 }
 
 static inline int32_t
@@ -542,7 +568,7 @@ struct LifetimeVariable
     }
 
     /* Return true if the variable cannot decrease during the body of a loop. */
-    bool nonDecreasing(RawScript script, LoopAnalysis *loop) const {
+    bool nonDecreasing(JSScript *script, LoopAnalysis *loop) const {
         Lifetime *segment = lifetime ? lifetime : saved;
         while (segment && segment->start <= loop->backedge) {
             if (segment->start >= loop->head && segment->write) {
@@ -669,7 +695,7 @@ class SSAValue
 #endif
 
     void clear() {
-        mozilla::PodZero(this);
+        PodZero(this);
         JS_ASSERT(kind() == EMPTY);
     }
 
@@ -754,7 +780,7 @@ struct SSAPhiNode
     uint32_t length;
     SSAValue *options;
     SSAUseChain *uses;
-    SSAPhiNode() { mozilla::PodZero(this); }
+    SSAPhiNode() { PodZero(this); }
 };
 
 inline uint32_t
@@ -796,7 +822,7 @@ class SSAUseChain
     } u;
     SSAUseChain *next;
 
-    SSAUseChain() { mozilla::PodZero(this); }
+    SSAUseChain() { PodZero(this); }
 };
 
 class SlotValue
@@ -845,8 +871,7 @@ class ScriptAnalysis
     bool hasFunctionCalls_:1;
     bool modifiesArguments_:1;
     bool localsAliasStack_:1;
-    bool isJaegerInlineable:1;
-    bool isIonInlineable:1;
+    bool isInlineable:1;
     bool isJaegerCompileable:1;
     bool canTrackVars:1;
     bool hasLoops_:1;
@@ -859,8 +884,8 @@ class ScriptAnalysis
 
   public:
 
-    ScriptAnalysis(RawScript script) {
-        mozilla::PodZero(this);
+    ScriptAnalysis(JSScript *script) {
+        PodZero(this);
         this->script_ = script;
 #ifdef DEBUG
         this->originalDebugMode_ = script_->compartment()->debugMode();
@@ -882,11 +907,8 @@ class ScriptAnalysis
 
     bool OOM() const { return outOfMemory; }
     bool failed() const { return hadFailure; }
-    bool ionInlineable() const { return isIonInlineable; }
-    bool ionInlineable(uint32_t argc) const { return isIonInlineable && argc == script_->function()->nargs; }
-    void setIonUninlineable() { isIonInlineable = false; }
-    bool jaegerInlineable() const { return isJaegerInlineable; }
-    bool jaegerInlineable(uint32_t argc) const { return isJaegerInlineable && argc == script_->function()->nargs; }
+    bool inlineable() const { return isInlineable; }
+    bool inlineable(uint32_t argc) const { return isInlineable && argc == script_->function()->nargs; }
     bool jaegerCompileable() { return isJaegerCompileable; }
 
     /* Number of property read opcodes in the script. */
@@ -993,8 +1015,7 @@ class ScriptAnalysis
     void addTypeBarrier(JSContext *cx, const jsbytecode *pc,
                         types::TypeSet *target, types::Type type);
     void addSingletonTypeBarrier(JSContext *cx, const jsbytecode *pc,
-                                 types::TypeSet *target,
-                                 HandleObject singleton, HandleId singletonId);
+                                 types::TypeSet *target, HandleObject singleton, jsid singletonId);
 
     /* Remove obsolete type barriers at the given offset. */
     void pruneTypeBarriers(JSContext *cx, uint32_t offset);
@@ -1205,6 +1226,39 @@ class ScriptAnalysis
 #endif
 };
 
+/* Protect analysis structures from GC while they are being used. */
+class AutoEnterAnalysis
+{
+    JSCompartment *compartment;
+    bool oldActiveAnalysis;
+    bool left;
+
+    void construct(JSCompartment *compartment)
+    {
+        this->compartment = compartment;
+        oldActiveAnalysis = compartment->activeAnalysis;
+        compartment->activeAnalysis = true;
+        left = false;
+    }
+
+  public:
+    AutoEnterAnalysis(JSContext *cx) { construct(cx->compartment); }
+    AutoEnterAnalysis(JSCompartment *compartment) { construct(compartment); }
+
+    void leave()
+    {
+        if (!left) {
+            left = true;
+            compartment->activeAnalysis = oldActiveAnalysis;
+        }
+    }
+
+    ~AutoEnterAnalysis()
+    {
+        leave();
+    }
+};
+
 /* SSA value as used by CrossScriptSSA, identifies the frame it came from. */
 struct CrossSSAValue
 {
@@ -1232,9 +1286,8 @@ class CrossScriptSSA
         uint32_t parent;
         jsbytecode *parentpc;
 
-        Frame(uint32_t index, RawScript script, uint32_t depth, uint32_t parent,
-              jsbytecode *parentpc)
-          : index(index), script(script), depth(depth), parent(parent), parentpc(parentpc)
+        Frame(uint32_t index, JSScript *script, uint32_t depth, uint32_t parent, jsbytecode *parentpc)
+            : index(index), script(script), depth(depth), parent(parent), parentpc(parentpc)
         {}
     };
 
@@ -1251,7 +1304,7 @@ class CrossScriptSSA
         return inlineFrames[i - 1];
     }
 
-    RawScript outerScript() { return outerFrame.script; }
+    JSScript *outerScript() { return outerFrame.script; }
 
     /* Total length of scripts preceding a frame. */
     size_t frameLength(uint32_t index) {
@@ -1267,14 +1320,13 @@ class CrossScriptSSA
         return getFrame(cv.frame).script->analysis()->getValueTypes(cv.v);
     }
 
-    bool addInlineFrame(RawScript script, uint32_t depth, uint32_t parent,
-                        jsbytecode *parentpc)
+    bool addInlineFrame(JSScript *script, uint32_t depth, uint32_t parent, jsbytecode *parentpc)
     {
         uint32_t index = inlineFrames.length();
         return inlineFrames.append(Frame(index, script, depth, parent, parentpc));
     }
 
-    CrossScriptSSA(JSContext *cx, RawScript outer)
+    CrossScriptSSA(JSContext *cx, JSScript *outer)
         : outerFrame(OUTER_FRAME, outer, 0, INVALID_FRAME, NULL), inlineFrames(cx)
     {}
 
@@ -1286,20 +1338,22 @@ class CrossScriptSSA
 };
 
 #ifdef DEBUG
-void PrintBytecode(JSContext *cx, HandleScript script, jsbytecode *pc);
+void PrintBytecode(JSContext *cx, JSScript *script, jsbytecode *pc);
 #endif
 
 } /* namespace analyze */
 } /* namespace js */
 
-namespace mozilla {
+namespace js {
+namespace tl {
 
-template <> struct IsPod<js::analyze::LifetimeVariable> : TrueType {};
-template <> struct IsPod<js::analyze::LoopAnalysis>     : TrueType {};
-template <> struct IsPod<js::analyze::SlotValue>        : TrueType {};
-template <> struct IsPod<js::analyze::SSAValue>         : TrueType {};
-template <> struct IsPod<js::analyze::SSAUseChain>      : TrueType {};
+template <> struct IsPodType<js::analyze::LifetimeVariable> { static const bool result = true; };
+template <> struct IsPodType<js::analyze::LoopAnalysis>     { static const bool result = true; };
+template <> struct IsPodType<js::analyze::SlotValue>        { static const bool result = true; };
+template <> struct IsPodType<js::analyze::SSAValue>         { static const bool result = true; };
+template <> struct IsPodType<js::analyze::SSAUseChain>      { static const bool result = true; };
 
-} /* namespace mozilla */
+} /* namespace tl */
+} /* namespace js */
 
 #endif // jsanalyze_h___

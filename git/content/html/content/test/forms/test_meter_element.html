@@ -21,12 +21,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=657938
 <pre id="test">
 <script type="application/javascript">
 
-if (navigator.platform.startsWith("Win")) {
-  SimpleTest.expectAssertions(0, 1);
-} else {
-  SimpleTest.expectAssertions(1);
-}
-
 /** Test for <meter> **/
 
 function checkFormIDLAttribute(aElement)
@@ -92,7 +86,7 @@ function checkValueAttribute()
 
   var element = document.createElement('meter');
 
-  for (var test of tests) {
+  for each(var test in tests) {
     if (test[2]) {
       element.setAttribute('max', test[2]);
     }
@@ -124,7 +118,7 @@ function checkMinAttribute()
 
   var element = document.createElement('meter');
 
-  for (var test of tests) {
+  for each(var test in tests) {
     checkAttribute(element, 'min', test[0], test[1]);
   }
 }
@@ -150,7 +144,7 @@ function checkMaxAttribute()
 
   var element = document.createElement('meter');
 
-  for (var test of tests) {
+  for each(var test in tests) {
     if (test[2]) {
       element.setAttribute('min', test[2]);
     }
@@ -187,7 +181,7 @@ function checkLowAttribute()
 
   var element = document.createElement('meter');
 
-  for (var test of tests) {
+  for each(var test in tests) {
     if (test[2]) {
       element.setAttribute('min', test[2]);
     }
@@ -228,7 +222,7 @@ function checkHighAttribute()
 
   var element = document.createElement('meter');
 
-  for (var test of tests) {
+  for each(var test in tests) {
     if (test[2]) {
       element.setAttribute('min', test[2]);
     }
@@ -269,7 +263,7 @@ function checkOptimumAttribute()
 
   var element = document.createElement('meter');
 
-  for (var test of tests) {
+  for each(var test in tests) {
     if (test[2]) {
       element.setAttribute('min', test[2]);
     }

@@ -25,7 +25,7 @@ public:
   {
     return mScriptOwner;
   }
-  void SetScriptOwner(JSObject* aScriptOwner);
+  bool SetScriptOwner(JSObject* aScriptOwner);
 
   JSObject* GetParentObject()
   {

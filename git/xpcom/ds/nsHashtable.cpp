@@ -15,6 +15,7 @@
  */
 
 #include <string.h>
+#include "prmem.h"
 #include "prlog.h"
 #include "nsHashtable.h"
 #include "nsReadableUtils.h"

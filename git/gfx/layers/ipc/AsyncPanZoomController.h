@@ -14,7 +14,7 @@
 #include "mozilla/TimeStamp.h"
 #include "InputData.h"
 #include "Axis.h"
-#include "TaskThrottler.h"
+#include "nsContentUtils.h"
 
 #include "base/message_loop.h"
 
@@ -24,7 +24,6 @@ namespace layers {
 class CompositorParent;
 class GestureEventListener;
 class ContainerLayer;
-class ViewTransform;
 
 /**
  * Controller for all panning and zooming logic. Any time a user input is
@@ -67,7 +66,7 @@ public:
    * accidentally processing taps as touch moves, and from very short/accidental
    * touches moving the screen.
    */
-  static float GetTouchStartTolerance();
+  static const float TOUCH_START_TOLERANCE;
 
   AsyncPanZoomController(GeckoContentController* aController,
                          GestureBehavior aGestures = DEFAULT_GESTURES);
@@ -78,12 +77,6 @@ public:
   //
 
   /**
-   * Shut down the controller/UI thread state and prepare to be
-   * deleted (which may happen from any thread).
-   */
-  void Destroy();
-
-  /**
    * General handler for incoming input events. Manipulates the frame metrics
    * basde on what type of input it is. For example, a PinchGestureEvent will
    * cause scaling. This should only be called externally to this class.
@@ -92,22 +85,17 @@ public:
   nsEventStatus ReceiveInputEvent(const InputData& aEvent);
 
   /**
-   * Special handler for nsInputEvents. |aEvent| is in screen relative
-   * co-ordinates.
+   * Special handler for nsInputEvents. Also sets |aOutEvent| (which is assumed
+   * to be an already-existing instance of an nsInputEvent which may be an
+   * nsTouchEvent) to have its touch points in DOM space. This is so that the
+   * touches can be passed through the DOM and content can handle them.
    *
-   * NOTE: This can only be called on the main thread. See widget/InputData.h
-   * for more information on why we have InputData and nsInputEvent separated.
+   * NOTE: Be careful of invoking the nsInputEvent variant. This can only be
+   * called on the main thread. See widget/InputData.h for more information on
+   * why we have InputData and nsInputEvent separated.
    */
-  nsEventStatus ReceiveMainThreadInputEvent(const nsInputEvent& aEvent);
-
-  /**
-   * Transform from frame relative co-ordinates to DOM relative co-ordinates.
-   * This method updates |aEvent| (which is assumed to be an already-existing
-   * instance of an nsInputEvent which may be an nsTouchEvent) to have its touch
-   * points in DOM space. This is so that the touches can be passed through the
-   * DOM and content can handle them.
-   */
-  void ApplyZoomCompensationToEvent(nsInputEvent* aEvent);
+  nsEventStatus ReceiveInputEvent(const nsInputEvent& aEvent,
+                                  nsInputEvent* aOutEvent);
 
   /**
    * Updates the composition bounds, i.e. the dimensions of the final size of
@@ -119,7 +107,7 @@ public:
   void UpdateCompositionBounds(const nsIntRect& aCompositionBounds);
 
   /**
-   * We are scrolling a subframe, so disable our machinery until we hit
+   * We have found a scrollable subframe, so disable our machinery until we hit
    * a touch end or a new touch start. This prevents us from accidentally
    * panning both the subframe and the parent frame.
    *
@@ -127,12 +115,6 @@ public:
    * subframes.
    */
   void CancelDefaultPanZoom();
-
-  /**
-   * We have found a scrollable subframe, so we need to delay the scrolling
-   * gesture executed and let subframe do the scrolling first.
-   */
-  void DetectScrollableSubframe();
 
   /**
    * Kicks an animation to zoom to a rect. This may be either a zoom out or zoom
@@ -156,12 +138,6 @@ public:
    */
   void UpdateZoomConstraints(bool aAllowZoom, float aMinScale, float aMaxScale);
 
-  /**
-   * Schedules a runnable to run on the controller/UI thread at some time
-   * in the future.
-   */
-  void PostDelayedTask(Task* aTask, int aDelayMs);
-
   // --------------------------------------------------------------------------
   // These methods must only be called on the compositor thread.
   //
@@ -182,7 +158,7 @@ public:
    */
   bool SampleContentTransformForFrame(const TimeStamp& aSampleTime,
                                       ContainerLayer* aLayer,
-                                      ViewTransform* aTransform);
+                                      gfx3DMatrix* aNewTransform);
 
   /**
    * A shadow layer update has arrived. |aViewportFrame| is the new FrameMetrics
@@ -235,7 +211,7 @@ public:
 
   /**
    * Return the scale factor needed to fit the viewport in |aMetrics|
-   * into its composition bounds.
+   * into its compositiong bounds.
    */
   static gfxSize CalculateIntrinsicScale(const FrameMetrics& aMetrics);
 
@@ -249,19 +225,12 @@ public:
 
   static gfx::Rect CalculateCompositedRectInCssPixels(const FrameMetrics& aMetrics);
 
+protected:
   /**
-   * Send an mozbrowserasyncscroll event.
-   * *** The monitor must be held while calling this.
-   */
-  void SendAsyncScrollEvent();
-
-  /**
-   * Handler for events which should not be intercepted by the touch listener.
-   * Does the work for ReceiveInputEvent().
+   * Internal handler for ReceiveInputEvent(). Does all the actual work.
    */
   nsEventStatus HandleInputEvent(const InputData& aEvent);
 
-protected:
   /**
    * Helper method for touches beginning. Sets everything up for panning and any
    * multitouch gestures.
@@ -468,14 +437,6 @@ protected:
    */
   void SetZoomAndResolution(float aScale);
 
-  /**
-   * Timeout function for mozbrowserasyncscroll event. Because we throttle
-   * mozbrowserasyncscroll events in some conditions, this function ensures
-   * that the last mozbrowserasyncscroll event will be fired after a period of
-   * time.
-   */
-  void FireAsyncScrollOnTimeout();
-
 private:
   enum PanZoomState {
     NOTHING,        /* no touch-start events received */
@@ -497,7 +458,6 @@ private:
   void SetState(PanZoomState aState);
 
   nsRefPtr<CompositorParent> mCompositorParent;
-  TaskThrottler mPaintThrottler;
   nsRefPtr<GeckoContentController> mGeckoContentController;
   nsRefPtr<GestureEventListener> mGestureEventListener;
 
@@ -569,27 +529,6 @@ private:
   // previous paints.
   TimeStamp mPreviousPaintStartTime;
 
-  // The last time and offset we fire the mozbrowserasyncscroll event when
-  // compositor has sampled the content transform for this frame.
-  TimeStamp mLastAsyncScrollTime;
-  gfx::Point mLastAsyncScrollOffset;
-
-  // The current offset drawn on the screen, it may not be sent since we have
-  // throttling policy for mozbrowserasyncscroll event.
-  gfx::Point mCurrentAsyncScrollOffset;
-
-  // The delay task triggered by the throttling mozbrowserasyncscroll event
-  // ensures the last mozbrowserasyncscroll event is always been fired.
-  CancelableTask* mAsyncScrollTimeoutTask;
-
-  // The time period in ms that throttles mozbrowserasyncscroll event.
-  // Default is 100ms if there is no "apzc.asyncscroll.throttle" in preference.
-  uint32_t mAsyncScrollThrottleTime;
-
-  // The timeout in ms for mAsyncScrollTimeoutTask delay task.
-  // Default is 300ms if there is no "apzc.asyncscroll.timeout" in preference.
-  uint32_t mAsyncScrollTimeout;
-
   int mDPI;
 
   // Stores the current paint status of the frame that we're managing. Repaints
@@ -607,12 +546,6 @@ private:
   // queued up event block. If set, this means that we are handling this queue
   // and we don't want to queue the events back up again.
   bool mHandlingTouchQueue;
-
-  // Flag used to determine whether or not we should try scrolling by
-  // BrowserElementScrolling first.  If set, we delay delivering
-  // touchmove events to GestureListener until BrowserElementScrolling
-  // decides whether it wants to handle panning for this touch series.
-  bool mDelayPanning;
 
   friend class Axis;
 };
