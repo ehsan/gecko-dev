@@ -84,6 +84,10 @@ LoginManagerStorage_legacy.prototype = {
         return this.__utfConverter;
     },
 
+    _utfConverterReset : function() {
+        this.__utfConverter = null;
+    },
+
     __profileDir: null,  // nsIFile for the user's profile dir
     get _profileDir() {
         if (!this.__profileDir) {
@@ -227,7 +231,7 @@ LoginManagerStorage_legacy.prototype = {
 
         var key = login.hostname;
 
-        // If first entry for key, create an Array to hold it's logins.
+        // If first entry for key, create an Array to hold its logins.
         var rollback;
         if (!this._logins[key]) {
             this._logins[key] = [];
@@ -866,6 +870,7 @@ LoginManagerStorage_legacy.prototype = {
               line.value = this._utfConverter.ConvertToUnicode(line.value);
             } catch (e) {
               this.log("Bad UTF8 conversion: " + line.value);
+              this._utfConverterReset();
             }
 
             switch (parseState) {
@@ -1307,6 +1312,9 @@ LoginManagerStorage_legacy.prototype = {
         } catch (e) {
             this.log("Failed to decrypt string: " + cipherText +
                 " (" + e.name + ")");
+
+            // In the unlikely event the converter threw, reset it.
+            this._utfConverterReset();
 
             // If the user clicks Cancel, we get NS_ERROR_NOT_AVAILABLE.
             // If the cipherText is bad / wrong key, we get NS_ERROR_FAILURE

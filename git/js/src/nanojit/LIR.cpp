@@ -691,6 +691,10 @@ namespace nanojit
 				// c ? a : a => a
 				return oprnd2->oprnd1();
 			}
+			if (oprnd1->isconst()) {
+			    // const ? x : y => return x or y depending on const
+			    return oprnd1->constval() ? oprnd2->oprnd1() : oprnd2->oprnd2();
+			}
 		}
 		if (oprnd1 == oprnd2)
 		{
@@ -740,6 +744,12 @@ namespace nanojit
 				return insImm(int32_t(c1) << int32_t(c2));
 			if (v == LIR_ush)
 				return insImm(uint32_t(c1) >> int32_t(c2));
+            if (v == LIR_or)
+                return insImm(uint32_t(c1) | int32_t(c2));
+            if (v == LIR_and)
+                return insImm(uint32_t(c1) & int32_t(c2));
+            if (v == LIR_xor)
+                return insImm(uint32_t(c1) ^ int32_t(c2));
 		}
 		else if (oprnd1->isconstq() && oprnd2->isconstq())
 		{
@@ -773,10 +783,6 @@ namespace nanojit
 				oprnd2 = oprnd1;
 				oprnd1 = t;
 				v = LOpcode(v^1);
-			}
-			else if (v == LIR_cmov || v == LIR_qcmov) {
-				// const ? x : y => return x or y depending on const
-				return oprnd1->constval() ? oprnd2->oprnd1() : oprnd2->oprnd2();
 			}
 		}
 
@@ -904,7 +910,7 @@ namespace nanojit
 		return sizeof(ptr) == 8 ? insImmq((uintptr_t)ptr) : insImm((intptr_t)ptr);
 	}
 
-	LIns* LirWriter::ins_choose(LIns* cond, LIns* iftrue, LIns* iffalse, bool hasConditionalMove)
+	LIns* LirWriter::ins_choose(LIns* cond, LIns* iftrue, LIns* iffalse)
 	{
 		// if not a conditional, make it implicitly an ==0 test (then flop results)
 		if (!cond->isCmp())
@@ -915,7 +921,7 @@ namespace nanojit
 			iffalse = tmp;
 		}
 
-		if (hasConditionalMove)
+		if (avmplus::AvmCore::use_cmov())
 		{
 			return ins2((iftrue->isQuad() || iffalse->isQuad()) ? LIR_qcmov : LIR_cmov, cond, ins2(LIR_2, iftrue, iffalse));
 		}

@@ -276,7 +276,8 @@ class TraceRecorder : public GCObject {
     void stack(int n, nanojit::LIns* i);
 
     nanojit::LIns* f2i(nanojit::LIns* f);
-
+    nanojit::LIns* makeNumberInt32(nanojit::LIns* f);
+    
     bool ifop();
     bool switchop();
     bool inc(jsval& v, jsint incr, bool pre = true);
@@ -313,7 +314,7 @@ class TraceRecorder : public GCObject {
     
     bool name(jsval*& vp);
     bool prop(JSObject* obj, nanojit::LIns* obj_ins, uint32& slot, nanojit::LIns*& v_ins);
-    bool elem(jsval& l, jsval& r, jsval*& vp, nanojit::LIns*& v_ins, nanojit::LIns*& addr_ins);
+    bool elem(jsval& oval, jsval& idx, jsval*& vp, nanojit::LIns*& v_ins, nanojit::LIns*& addr_ins);
 
     bool getProp(JSObject* obj, nanojit::LIns* obj_ins);
     bool getProp(jsval& v);
@@ -325,6 +326,7 @@ class TraceRecorder : public GCObject {
     bool guardDenseArray(JSObject* obj, nanojit::LIns* obj_ins);
     bool guardDenseArrayIndex(JSObject* obj, jsint idx, nanojit::LIns* obj_ins,
                               nanojit::LIns* dslots_ins, nanojit::LIns* idx_ins);
+    bool guardElemOp(JSObject* obj, nanojit::LIns* obj_ins, jsid id, size_t op_offset, jsval* vp);
     void clearFrameSlotsFromCache();
     bool guardShapelessCallee(jsval& callee);
     bool interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc, bool constructing);
@@ -360,7 +362,8 @@ public:
     bool record_LeaveFrame();
     bool record_SetPropHit(JSPropCacheEntry* entry, JSScopeProperty* sprop);
     bool record_SetPropMiss(JSPropCacheEntry* entry);
-
+    bool record_DefLocalFunSetSlot(uint32 slot, JSObject* obj);
+    
     void deepAbort() { deepAborted = true; }
     bool wasDeepAborted() { return deepAborted; }
 

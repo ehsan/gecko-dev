@@ -82,16 +82,11 @@ namespace nanojit
 
 	void Assembler::nInit(AvmCore* core)
 	{
-#if defined NANOJIT_IA32
-        sse2 = core->use_sse2();
-
-		// CMOVcc is actually available on most PPro+ chips (except for a few
-		// oddballs like Via C3) but for now tie to SSE2 detection
-		has_cmov = sse2;
-#else
-		has_cmov = true;
-#endif
         OSDep::getDate();
+#ifdef NANOJIT_ADM64
+        avmplus::AvmCore::cmov_available =
+        avmplus::AvmCore::sse2_available = true;
+#endif
 	}
 
 	NIns* Assembler::genPrologue(RegisterMask needSaving)
@@ -394,7 +389,7 @@ namespace nanojit
 		a.used = 0;
 		a.free = SavedRegs | ScratchRegs;
 #if defined NANOJIT_IA32
-        if (!sse2)
+        if (!avmplus::AvmCore::use_sse2())
             a.free &= ~XmmRegs;
 #endif
 		debug_only( a.managed = a.free; )
@@ -665,7 +660,7 @@ namespace nanojit
 			// the side exit, copying a non-double.
 			// c) maybe its a double just being stored.  oh well.
 
-			if (sse2) {
+			if (avmplus::AvmCore::use_sse2()) {
                 Register rv = findRegFor(value, XmmRegs);
                 Register rb = findRegFor(base, GpRegs);
                 SSE_STQ(dr, rb, rv);
@@ -680,7 +675,7 @@ namespace nanojit
 
 		Reservation* rA = getresv(value);
 		int pop = !rA || rA->reg==UnknownReg;
- 		Register rv = findRegFor(value, sse2 ? XmmRegs : FpRegs);
+ 		Register rv = findRegFor(value, avmplus::AvmCore::use_sse2() ? XmmRegs : FpRegs);
 		Register rb = findRegFor(base, GpRegs);
 
 		if (rmask(rv) & XmmRegs) {
@@ -734,7 +729,7 @@ namespace nanojit
         // that isn't live in an FPU reg.  Either way, don't
         // put it in an FPU reg just to load & store it.
 #if defined NANOJIT_IA32
-        if (sse2)
+        if (avmplus::AvmCore::use_sse2())
         {
 #endif
             // use SSE to load+store 64bits
@@ -848,7 +843,7 @@ namespace nanojit
 	bool Assembler::asm_qlo(LInsp ins, LInsp q)
 	{
 #if defined NANOJIT_IA32
-		if (!sse2)
+		if (!avmplus::AvmCore::use_sse2())
 		{
 			return false;
 		}
@@ -874,7 +869,7 @@ namespace nanojit
 	void Assembler::asm_fneg(LInsp ins)
 	{
 #if defined NANOJIT_IA32
-		if (sse2)
+		if (avmplus::AvmCore::use_sse2())
 		{
 #endif
 			LIns *lhs = ins->oprnd1();
@@ -977,7 +972,7 @@ namespace nanojit
 	{
 		LOpcode op = ins->opcode();
 #if defined NANOJIT_IA32
-		if (sse2) 
+		if (avmplus::AvmCore::use_sse2()) 
 		{
 #endif
 			LIns *lhs = ins->oprnd1();
@@ -1222,7 +1217,7 @@ namespace nanojit
         }
 
 #if defined NANOJIT_IA32
-        if (sse2)
+        if (avmplus::AvmCore::use_sse2())
         {
 #endif
             // UNORDERED:    ZF,PF,CF <- 111;

@@ -31,14 +31,10 @@ EXPORTS		= 	gfxASurface.h \
 			gfxTextRunCache.h \
 			gfxTextRunWordCache.h \
 			gfxUtils.h \
+			gfxUserFontSet.h \
 			$(NULL)
 
 EXPORTS += gfxFontTest.h
-
-ifdef MOZ_ENABLE_GLITZ
-REQUIRES += glitz
-EXPORTS +=	gfxGlitzSurface.h
-endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 EXPORTS	+=	gfxWindowsFonts.h \
@@ -48,9 +44,6 @@ EXPORTS	+=	gfxWindowsFonts.h \
 		$(NULL)
 EXPORTS +=	gfxPDFSurface.h
 
-ifdef MOZ_ENABLE_GLITZ
-REQUIRES += glitzwgl
-endif
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
@@ -72,9 +65,6 @@ endif
 EXPORTS +=  gfxPlatformGtk.h gfxGdkNativeRenderer.h
 EXPORTS +=	gfxPDFSurface.h gfxPSSurface.h
 
-ifdef MOZ_ENABLE_GLITZ
-REQUIRES += glitzglx
-endif
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
@@ -106,9 +96,6 @@ EXPORTS +=	gfxPlatformMac.h \
 		gfxQuartzNativeDrawing.h \
 		$(NULL)
 
-ifdef MOZ_ENABLE_GLITZ
-REQUIRES += glitzagl
-endif
 endif
 
 include $(topsrcdir)/config/rules.mk
