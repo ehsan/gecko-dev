@@ -1453,25 +1453,6 @@ do_incop:
     int incr, incr2;
     Value *vp;
 
-BEGIN_CASE(JSOP_INCGLOBAL)
-    incr =  1; incr2 =  1; goto do_bound_global_incop;
-BEGIN_CASE(JSOP_DECGLOBAL)
-    incr = -1; incr2 = -1; goto do_bound_global_incop;
-BEGIN_CASE(JSOP_GLOBALINC)
-    incr =  1; incr2 =  0; goto do_bound_global_incop;
-BEGIN_CASE(JSOP_GLOBALDEC)
-    incr = -1; incr2 =  0; goto do_bound_global_incop;
-
-  do_bound_global_incop:
-    uint32 slot;
-    slot = GET_SLOTNO(regs.pc);
-    slot = script->getGlobalSlot(slot);
-    JSObject *obj;
-    obj = fp->scopeChain->getGlobal();
-    vp = &obj->getSlotRef(slot);
-    goto do_int_fast_incop;
-END_CASE(JSOP_INCGLOBAL)
-
     /* Position cases so the most frequent i++ does not need a jump. */
 BEGIN_CASE(JSOP_DECARG)
     incr = -1; incr2 = -1; goto do_arg_incop;
@@ -1483,6 +1464,8 @@ BEGIN_CASE(JSOP_ARGINC)
     incr =  1; incr2 =  0;
 
   do_arg_incop:
+    // If we initialize in the declaration, MSVC complains that the labels skip init.
+    uint32 slot;
     slot = GET_ARGNO(regs.pc);
     JS_ASSERT(slot < fp->fun->nargs);
     METER_SLOT_OP(op, slot);
@@ -2363,20 +2346,6 @@ BEGIN_CASE(JSOP_APPLY)
             }
 #endif
 
-            /*
-             * :FIXME: try to method jit - take this out once we're more
-             * complete.
-             */
-            mjit::CompileStatus status = mjit::CanMethodJIT(cx, newscript, fun, newfp->scopeChain);
-            if (status == mjit::Compile_Error)
-                goto error;
-            if (status == mjit::Compile_Okay) {
-                if (!mjit::JaegerShot(cx))
-                    goto error;
-                interpReturnOK = true;
-                goto inline_return;
-            }
-
             /* Load first op and dispatch it (safe since JSOP_STOP). */
             op = (JSOp) *regs.pc;
             DO_OP();
@@ -2397,7 +2366,7 @@ BEGIN_CASE(JSOP_APPLY)
         }
     }
 
-    JSBool ok;
+    bool ok;
     ok = Invoke(cx, InvokeArgsGuard(vp, argc), 0);
     regs.sp = vp + 1;
     CHECK_INTERRUPT_HANDLER();
@@ -2479,7 +2448,7 @@ BEGIN_CASE(JSOP_CALLNAME)
         sprop = (JSScopeProperty *)prop;
   do_native_get:
         NATIVE_GET(cx, obj, obj2, sprop, JSGET_METHOD_BARRIER, &rval);
-        obj2->dropProperty(cx, (JSProperty *) sprop);
+        JS_UNLOCK_OBJ(cx, obj2);
     }
 
     PUSH_COPY(rval);
@@ -2926,62 +2895,6 @@ BEGIN_CASE(JSOP_CALLDSLOT)
         PUSH_NULL();
 }
 END_CASE(JSOP_GETDSLOT)
-
-BEGIN_CASE(JSOP_GETGLOBAL)
-BEGIN_CASE(JSOP_CALLGLOBAL)
-{
-    uint32 slot = GET_SLOTNO(regs.pc);
-    slot = script->getGlobalSlot(slot);
-    JSObject *obj = fp->scopeChain->getGlobal();
-    JS_ASSERT(slot < obj->scope()->freeslot);
-    PUSH_COPY(obj->getSlot(slot));
-    if (op == JSOP_CALLGLOBAL)
-        PUSH_NULL();
-}
-END_CASE(JSOP_GETGLOBAL)
-
-BEGIN_CASE(JSOP_FORGLOBAL)
-{
-    Value rval;
-    if (!IteratorNext(cx, &regs.sp[-1].asObject(), &rval))
-        goto error;
-    PUSH_COPY(rval);
-    uint32 slot = GET_SLOTNO(regs.pc);
-    slot = script->getGlobalSlot(slot);
-    JSObject *obj = fp->scopeChain->getGlobal();
-    JS_ASSERT(slot < obj->scope()->freeslot);
-    JS_LOCK_OBJ(cx, obj);
-    {
-        JSScope *scope = obj->scope();
-        if (!scope->methodWriteBarrier(cx, slot, rval)) {
-            JS_UNLOCK_SCOPE(cx, scope);
-            goto error;
-        }
-        obj->lockedSetSlot(slot, rval);
-        JS_UNLOCK_SCOPE(cx, scope);
-    }
-    regs.sp--;
-}
-END_CASE(JSOP_FORGLOBAL)
-
-BEGIN_CASE(JSOP_SETGLOBAL)
-{
-    uint32 slot = GET_SLOTNO(regs.pc);
-    slot = script->getGlobalSlot(slot);
-    JSObject *obj = fp->scopeChain->getGlobal();
-    JS_ASSERT(slot < obj->scope()->freeslot);
-    {
-        JS_LOCK_OBJ(cx, obj);
-        JSScope *scope = obj->scope();
-        if (!scope->methodWriteBarrier(cx, slot, regs.sp[-1])) {
-            JS_UNLOCK_SCOPE(cx, scope);
-            goto error;
-        }
-        obj->lockedSetSlot(slot, regs.sp[-1]);
-        JS_UNLOCK_SCOPE(cx, scope);
-    }
-}
-END_SET_CASE(JSOP_SETGLOBAL)
 
 BEGIN_CASE(JSOP_GETGVAR)
 BEGIN_CASE(JSOP_CALLGVAR)

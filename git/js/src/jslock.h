@@ -118,7 +118,7 @@ struct JSTitle {
 #define JS_ATOMIC_ADD(p,v)          PR_AtomicAdd((PRInt32 *)(p), (PRInt32)(v))
 #define JS_ATOMIC_SET(p,v)          PR_AtomicSet((PRInt32 *)(p), (PRInt32)(v))
 
-#define js_CurrentThreadId()        (jsword)PR_GetCurrentThread()
+#define js_CurrentThreadId()        PR_GetCurrentThread()
 #define JS_NEW_LOCK()               PR_NewLock()
 #define JS_DESTROY_LOCK(l)          PR_DestroyLock(l)
 #define JS_ACQUIRE_LOCK(l)          PR_Lock(l)
@@ -309,15 +309,7 @@ js_CompareAndSwap(jsword *w, jsword ov, jsword nv);
 extern void
 js_AtomicSetMask(jsword *w, jsword mask);
 
-/*
- * Atomically bitwise-and the complement of the mask into the word *w using
- * compare and swap.
- */
-extern void
-js_AtomicClearMask(jsword *w, jsword mask);
-
 #define JS_ATOMIC_SET_MASK(w, mask) js_AtomicSetMask(w, mask)
-#define JS_ATOMIC_CLEAR_MASK(w, mask) js_AtomicClearMask(w, mask)
 
 #else
 
@@ -328,7 +320,6 @@ js_CompareAndSwap(jsword *w, jsword ov, jsword nv)
 }
 
 #define JS_ATOMIC_SET_MASK(w, mask) (*(w) |= (mask))
-#define JS_ATOMIC_CLEAR_MASK(w, mask) (*(w) &= ~(mask))
 
 #endif /* JS_THREADSAFE */
 

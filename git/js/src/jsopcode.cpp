@@ -245,25 +245,44 @@ js_GetEnterBlockStackDefs(JSContext *cx, JSScript *script, jsbytecode *pc)
 
 #ifdef DEBUG
 
+/* If pc != NULL, includes a prefix indicating whether the PC is at the current line. */
 JS_FRIEND_API(JSBool)
-js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, FILE *fp)
+js_DisassembleAtPC(JSContext *cx, JSScript *script, JSBool lines, FILE *fp, jsbytecode *pc)
 {
-    jsbytecode *pc, *end;
+    jsbytecode *next, *end;
     uintN len;
 
-    pc = script->code;
-    end = pc + script->length;
-    while (pc < end) {
-        if (pc == script->main)
+    next = script->code;
+    end = next + script->length;
+    while (next < end) {
+        if (next == script->main)
             fputs("main:\n", fp);
-        len = js_Disassemble1(cx, script, pc,
-                              pc - script->code,
+        if (pc != NULL) {
+            if (pc == next)
+                fputs("--> ", fp);
+            else
+                fputs("    ", fp);
+        }
+        len = js_Disassemble1(cx, script, next,
+                              next - script->code,
                               lines, fp);
         if (!len)
             return JS_FALSE;
-        pc += len;
+        next += len;
     }
     return JS_TRUE;
+}
+
+JS_FRIEND_API(JSBool)
+js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, FILE *fp)
+{
+    return js_DisassembleAtPC(cx, script, lines, fp, NULL);
+}
+
+JS_FRIEND_API(JSBool)
+js_DumpPC(JSContext *cx)
+{
+    return js_DisassembleAtPC(cx, cx->fp->script, true, stdout, cx->regs->pc);
 }
 
 JSBool
@@ -384,15 +403,6 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
                 obj = script->getRegExp(index);
             v = OBJECT_TO_JSVAL(obj);
         }
-        bytes = ToDisassemblySource(cx, v);
-        if (!bytes)
-            return 0;
-        fprintf(fp, " %s", bytes);
-        break;
-
-      case JOF_GLOBAL:
-        atom = script->getGlobalAtom(GET_SLOTNO(pc));
-        v = ATOM_TO_JSVAL(atom);
         bytes = ToDisassemblySource(cx, v);
         if (!bytes)
             return 0;
@@ -1424,7 +1434,6 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
         LOCAL_ASSERT(*pc == JSOP_POP);
         break;
 
-      case JSOP_SETGLOBAL:
       case JSOP_SETARG:
       case JSOP_SETGVAR:
       case JSOP_SETLOCAL:
@@ -1439,8 +1448,6 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
             LOCAL_ASSERT(atom);
         } else if (op == JSOP_SETGVAR) {
             LOAD_ATOM(0);
-        } else if (op == JSOP_SETGLOBAL) {
-            atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
         } else if (IsVarSlot(jp, pc, &i)) {
             atom = GetArgOrVarAtom(jp, i);
             LOCAL_ASSERT(atom);
@@ -3380,10 +3387,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 xval = "&&";
                 goto do_logical_connective;
 
-              case JSOP_FORGLOBAL:
-                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
-                goto do_forname;
-
               case JSOP_FORARG:
                 sn = NULL;
                 i = GET_ARGNO(pc);
@@ -3407,8 +3410,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
               case JSOP_FORNAME:
                 LOAD_ATOM(0);
-
-              do_forname:
                 sn = js_GetSrcNote(jp->script, pc);
                 todo = SprintCString(&ss->sprinter, VarPrefix(sn));
                 if (todo < 0 || !QuoteString(&ss->sprinter, ATOM_TO_STRING(atom), 0))
@@ -3519,10 +3520,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               case JSOP_SETARG:
                 atom = GetArgOrVarAtom(jp, GET_ARGNO(pc));
                 LOCAL_ASSERT(atom);
-                goto do_setname;
-
-              case JSOP_SETGLOBAL:
-                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
                 goto do_setname;
 
               case JSOP_SETCONST:
@@ -3741,11 +3738,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 LOCAL_ASSERT(atom);
                 goto do_incatom;
 
-              case JSOP_INCGLOBAL:
-              case JSOP_DECGLOBAL:
-                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
-                goto do_incatom;
-
               case JSOP_INCNAME:
               case JSOP_DECNAME:
               case JSOP_INCGVAR:
@@ -3800,11 +3792,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
               case JSOP_ARGDEC:
                 atom = GetArgOrVarAtom(jp, GET_ARGNO(pc));
                 LOCAL_ASSERT(atom);
-                goto do_atominc;
-
-              case JSOP_GLOBALINC:
-              case JSOP_GLOBALDEC:
-                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
                 goto do_atominc;
 
               case JSOP_NAMEINC:
@@ -4010,11 +3997,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 #else
                 LOCAL_ASSERT(atom);
 #endif
-                goto do_name;
-
-              case JSOP_CALLGLOBAL:
-              case JSOP_GETGLOBAL:
-                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
                 goto do_name;
 
               case JSOP_CALLNAME:
@@ -5160,7 +5142,7 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
     while (!i.done() && !i.fp()->script)
         ++i;
 
-    if (i.done() || !i.pc())
+    if (i.done() || !i.pc() || i.fp()->script->nslots == 0)
         goto do_fallback;
 
     fp = i.fp();

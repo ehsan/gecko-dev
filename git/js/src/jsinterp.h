@@ -50,8 +50,8 @@
 #include "jsscript.h"
 
 typedef struct JSFrameRegs {
-    js::Value       *sp;            /* stack pointer */
     jsbytecode      *pc;            /* program counter */
+    js::Value       *sp;            /* stack pointer */
 } JSFrameRegs;
 
 /* JS stack frame flags. */
@@ -65,9 +65,8 @@ enum JSFrameFlags {
     JSFRAME_EVAL               =  0x10, /* frame for obj_eval */
     JSFRAME_FLOATING_GENERATOR =  0x20, /* frame copy stored in a generator obj */
     JSFRAME_YIELDING           =  0x40, /* js_Interpret dispatched JSOP_YIELD */
-    JSFRAME_ITERATOR           =  0x80, /* trying to get an iterator for for-in */
-    JSFRAME_GENERATOR          = 0x200, /* frame belongs to generator-iterator */
-    JSFRAME_OVERRIDE_ARGS      = 0x400, /* overridden arguments local variable */
+    JSFRAME_GENERATOR          =  0x80, /* frame belongs to generator-iterator */
+    JSFRAME_OVERRIDE_ARGS      = 0x100, /* overridden arguments local variable */
 
     JSFRAME_SPECIAL            = JSFRAME_DEBUGGER | JSFRAME_EVAL
 };
@@ -101,12 +100,6 @@ struct JSStackFrame
     jsbytecode          *savedPC;       /* only valid if cx->fp != this */
 #ifdef DEBUG
     static jsbytecode *const sInvalidPC;
-#endif
-
-#if defined(JS_CPU_X86) || defined(JS_CPU_ARM)
-    void                *ncode;         /* jit return pc */
-    /* Guh. Align. */
-    void                *align_[3];
 #endif
 
     /*
@@ -213,7 +206,6 @@ struct JSStackFrame
 };
 
 namespace js {
-
 JS_STATIC_ASSERT(sizeof(JSStackFrame) % sizeof(Value) == 0);
 static const size_t VALUES_PER_STACK_FRAME = sizeof(JSStackFrame) / sizeof(Value);
 
@@ -326,12 +318,11 @@ InvokeFriendAPI(JSContext *cx, const InvokeArgsGuard &args, uintN flags);
  * See jsfun.h for the latter four and flag renaming macros.
  */
 #define JSINVOKE_CONSTRUCT      JSFRAME_CONSTRUCTING
-#define JSINVOKE_ITERATOR       JSFRAME_ITERATOR
 
 /*
  * Mask to isolate construct and iterator flags for use with jsfun.h functions.
  */
-#define JSINVOKE_FUNFLAGS       (JSINVOKE_CONSTRUCT | JSINVOKE_ITERATOR)
+#define JSINVOKE_FUNFLAGS       JSINVOKE_CONSTRUCT
 
 extern bool
 InternalInvoke(JSContext *cx, JSObject *obj, const Value &fval, uintN flags,
@@ -364,9 +355,6 @@ InvokeConstructor(JSContext *cx, const InvokeArgsGuard &args, JSBool clampReturn
 
 extern JS_REQUIRES_STACK bool
 Interpret(JSContext *cx);
-
-extern JS_REQUIRES_STACK bool
-RunScript(JSContext *cx, JSScript *script, JSFunction *fun, JSObject *scopeChain);
 
 #define JSPROP_INITIALIZER 0x100   /* NB: Not a valid property attribute. */
 
@@ -445,6 +433,19 @@ js_EnterWith(JSContext *cx, jsint stackIndex);
 extern JS_REQUIRES_STACK void
 js_LeaveWith(JSContext *cx);
 
+extern JS_REQUIRES_STACK js::Class *
+js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth);
+
+/*
+ * Unwind block and scope chains to match the given depth. The function sets
+ * fp->sp on return to stackDepth.
+ */
+extern JS_REQUIRES_STACK JSBool
+js_UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind);
+
+extern JSBool
+js_OnUnknownMethod(JSContext *cx, js::Value *vp);
+
 /*
  * Find the results of incrementing or decrementing *vp. For pre-increments,
  * both *vp and *vp2 will contain the result on return. For post-increments,
@@ -471,19 +472,6 @@ extern void
 js_MeterSlotOpcode(JSOp op, uint32 slot);
 
 #endif /* JS_LONE_INTERPRET */
-
-extern JS_REQUIRES_STACK js::Class *
-js_IsActiveWithOrBlock(JSContext *cx, JSObject *obj, int stackDepth);
-
-/*
- * Unwind block and scope chains to match the given depth. The function sets
- * fp->sp on return to stackDepth.
- */
-extern JS_REQUIRES_STACK JSBool
-js_UnwindScope(JSContext *cx, jsint stackDepth, JSBool normalUnwind);
-
-extern JSBool
-js_OnUnknownMethod(JSContext *cx, js::Value *vp);
 
 inline JSObject *
 JSStackFrame::getThisObject(JSContext *cx)

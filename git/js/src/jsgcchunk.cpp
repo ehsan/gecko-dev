@@ -208,24 +208,23 @@ UnmapPages(void *addr, size_t size)
 static void *
 MapPages(void *addr, size_t size)
 {
-    void *p;
+    vm_address_t p;
     int flags;
     if (addr) {
-        p = addr;
+        p = (vm_address_t) addr;
         flags = 0;
     } else {
         flags = VM_FLAGS_ANYWHERE;
     }
 
     kern_return_t err = vm_allocate((vm_map_t) mach_task_self(),
-                                    (vm_address_t *) &p,
-                                    (vm_size_t) size, flags);
+                                    &p, (vm_size_t) size, flags);
     if (err != KERN_SUCCESS)
         return NULL;
 
     JS_ASSERT(p);
-    JS_ASSERT_IF(addr, p == addr);
-    return p;
+    JS_ASSERT_IF(addr, p == (vm_address_t) addr);
+    return (void *) p;
 }
 
 static void
@@ -252,7 +251,7 @@ MapAlignedPages(size_t size, size_t alignment)
      */
 	// TODO: this is totally a hack for now; need to replace
     void *p = mmap((caddr_t) alignment, size, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_NOSYNC | MAP_ALIGN | MAP_ANON, -1, 0);
+                     MAP_PRIVATE | MAP_NOSYNC | MAP_ALIGN | MAP_ANON | MAP_32BIT, -1, 0);
     if (p == MAP_FAILED)
         return NULL;
     return p;
@@ -315,7 +314,7 @@ MapPages(void *addr, size_t size)
      * of existing mappings, and we only want to create new mappings.
      */
 	// TODO: this is totally a hack for now; need to replace
-    void *p = mmap(addr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON,
+    void *p = mmap(addr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_32BIT,
                    -1, 0);
     if (p == MAP_FAILED)
         return NULL;
@@ -364,6 +363,8 @@ JSString::freeStringTables()
 
 namespace js {
 
+GCChunkAllocator defaultGCChunkAllocator;
+
 inline void *
 FindChunkStart(void *p)
 {
@@ -372,7 +373,7 @@ FindChunkStart(void *p)
     return reinterpret_cast<void *>(addr);
 }
 
-void *
+JS_FRIEND_API(void *)
 AllocGCChunk()
 {
     void *p;
@@ -419,7 +420,7 @@ AllocGCChunk()
     return p;
 }
 
-void
+JS_FRIEND_API(void)
 FreeGCChunk(void *p)
 {
     JS_ASSERT(p);
