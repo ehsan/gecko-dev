@@ -16,6 +16,7 @@ import org.mozilla.gecko.background.fxa.FxAccountClient20.LoginResponse;
 import org.mozilla.gecko.background.fxa.FxAccountClientException.FxAccountClientRemoteException;
 import org.mozilla.gecko.background.fxa.FxAccountUtils;
 import org.mozilla.gecko.background.fxa.PasswordStretcher;
+import org.mozilla.gecko.background.fxa.QuickPasswordStretcher;
 import org.mozilla.gecko.fxa.FxAccountConstants;
 import org.mozilla.gecko.fxa.activities.FxAccountSetupTask.FxAccountSignInTask;
 import org.mozilla.gecko.fxa.authenticator.AndroidFxAccount;
@@ -156,7 +157,7 @@ public class FxAccountUpdateCredentialsActivity extends FxAccountAbstractSetupAc
     String serverURI = fxAccount.getAccountServerURI();
     Executor executor = Executors.newSingleThreadExecutor();
     FxAccountClient client = new FxAccountClient20(serverURI, executor);
-    PasswordStretcher passwordStretcher = makePasswordStretcher(password);
+    PasswordStretcher passwordStretcher = new QuickPasswordStretcher(password);
     try {
       hideRemoteError();
       RequestDelegate<LoginResponse> delegate = new UpdateCredentialsDelegate(email, passwordStretcher, serverURI);

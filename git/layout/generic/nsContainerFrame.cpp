@@ -361,21 +361,21 @@ nsContainerFrame::IsLeaf() const
   return false;
 }
 
-nsIFrame::FrameSearchResult
+bool
 nsContainerFrame::PeekOffsetNoAmount(bool aForward, int32_t* aOffset)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Don't allow the caret to stay in an empty (leaf) container frame.
-  return CONTINUE_EMPTY;
+  return false;
 }
 
-nsIFrame::FrameSearchResult
+bool
 nsContainerFrame::PeekOffsetCharacter(bool aForward, int32_t* aOffset,
                                       bool aRespectClusters)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Don't allow the caret to stay in an empty (leaf) container frame.
-  return CONTINUE_EMPTY;
+  return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////

@@ -56,9 +56,6 @@ Sampler *SamplerRegistry::sampler = NULL;
 // a pointer.
 static const pthread_t kNoThread = (pthread_t) 0;
 
-void OS::Startup() {
-}
-
 void OS::Sleep(int milliseconds) {
   usleep(1000 * milliseconds);
 }

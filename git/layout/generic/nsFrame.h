@@ -204,10 +204,10 @@ public:
 
   virtual nsresult  GetSelectionController(nsPresContext *aPresContext, nsISelectionController **aSelCon) MOZ_OVERRIDE;
 
-  virtual FrameSearchResult PeekOffsetNoAmount(bool aForward, int32_t* aOffset) MOZ_OVERRIDE;
-  virtual FrameSearchResult PeekOffsetCharacter(bool aForward, int32_t* aOffset,
+  virtual bool PeekOffsetNoAmount(bool aForward, int32_t* aOffset) MOZ_OVERRIDE;
+  virtual bool PeekOffsetCharacter(bool aForward, int32_t* aOffset,
                                      bool aRespectClusters = true) MOZ_OVERRIDE;
-  virtual FrameSearchResult PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKeyboardSelect,
+  virtual bool PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKeyboardSelect,
                                 int32_t* aOffset, PeekWordState *aState) MOZ_OVERRIDE;
   /**
    * Check whether we should break at a boundary between punctuation and

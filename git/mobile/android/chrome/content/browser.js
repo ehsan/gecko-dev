@@ -3786,15 +3786,10 @@ Tab.prototype = {
           this._linkifier.linkifyNumbers(this.browser.contentWindow.document);
         }
 
-        // Update page actions for helper apps.
+        // Show page actions for helper apps.
         let uri = this.browser.currentURI;
-        if (BrowserApp.selectedTab == this) {
-          if (ExternalApps.shouldCheckUri(uri)) {
-            ExternalApps.updatePageAction(uri);
-          } else {
-            ExternalApps.clearPageAction();
-          }
-        }
+        if (BrowserApp.selectedTab == this && ExternalApps.shouldCheckUri(uri))
+          ExternalApps.updatePageAction(uri);
 
         if (!Reader.isEnabledForParseOnLoad)
           return;
@@ -4199,7 +4194,7 @@ Tab.prototype = {
       // If the CSS viewport is narrower than the screen (i.e. width <= device-width)
       // then we disable double-tap-to-zoom behaviour.
       var oldAllowDoubleTapZoom = metadata.allowDoubleTapZoom;
-      var newAllowDoubleTapZoom = (!metadata.isSpecified) || (viewportW > screenW / window.devicePixelRatio);
+      var newAllowDoubleTapZoom = (viewportW > screenW / window.devicePixelRatio);
       if (oldAllowDoubleTapZoom !== newAllowDoubleTapZoom) {
         metadata.allowDoubleTapZoom = newAllowDoubleTapZoom;
         this.sendViewportMetadata();
@@ -6031,19 +6026,6 @@ ViewportMetadata.prototype = {
   allowDoubleTapZoom: null,
   isSpecified: null,
   isRTL: null,
-
-  toString: function() {
-    return "width=" + this.width
-         + "; height=" + this.height
-         + "; defaultZoom=" + this.defaultZoom
-         + "; minZoom=" + this.minZoom
-         + "; maxZoom=" + this.maxZoom
-         + "; autoSize=" + this.autoSize
-         + "; allowZoom=" + this.allowZoom
-         + "; allowDoubleTapZoom=" + this.allowDoubleTapZoom
-         + "; isSpecified=" + this.isSpecified
-         + "; isRTL=" + this.isRTL;
-  }
 };
 
 
@@ -7940,9 +7922,10 @@ var ExternalApps = {
 
   updatePageAction: function updatePageAction(uri) {
     HelperApps.getAppsForUri(uri, { filterHttp: true }, (apps) => {
-      this.clearPageAction();
       if (apps.length > 0)
         this._setUriForPageAction(uri, apps);
+      else
+        this._removePageAction();
     });
   },
 
@@ -7983,7 +7966,7 @@ var ExternalApps = {
     });
   },
 
-  clearPageAction: function clearPageAction() {
+  _removePageAction: function removePageAction() {
     if(!this._pageActionId)
       return;
 

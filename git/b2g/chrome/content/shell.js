@@ -1146,8 +1146,7 @@ let RemoteDebugger = {
           // unexpected actors
           globalActorFactories: restrictPrivileges ? {
             webappsActor: DebuggerServer.globalActorFactories.webappsActor,
-            deviceActor: DebuggerServer.globalActorFactories.deviceActor,
-            preferenceActor: DebuggerServer.globalActorFactories.preferenceActor,
+            deviceActor: DebuggerServer.globalActorFactories.deviceActor
           } : DebuggerServer.globalActorFactories
         };
         let root = new DebuggerServer.RootActor(connection, parameters);

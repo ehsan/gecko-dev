@@ -204,12 +204,6 @@ public:
     mZoom.scale *= aFactor;
   }
 
-  void CopyScrollInfoFrom(const FrameMetrics& aOther)
-  {
-    mScrollOffset = aOther.mScrollOffset;
-    mScrollGeneration = aOther.mScrollGeneration;
-  }
-
   // ---------------------------------------------------------------------------
   // The following metrics are all in widget space/device pixels.
   //
@@ -250,6 +244,9 @@ public:
   // To pre-render a margin of 100 CSS pixels around the window,
   // { x = -100, y = - 100,
   //   width = window.innerWidth + 200, height = window.innerHeight + 200 }
+  //
+  // This is only valid on the root layer. Nested iframes do not have a
+  // displayport set on them. See bug 775452.
   CSSRect mDisplayPort;
 
   // If non-empty, the area of a frame's contents that is considered critical

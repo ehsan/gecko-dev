@@ -772,8 +772,7 @@ let KeyValueTable = {
    */
   renderBody: function KeyValueTable_renderBody(aTable, aMeasurements) {
     for (let [key, value] of Iterator(aMeasurements)) {
-      // use .valueOf() to unbox Number, String, etc. objects
-      if ((typeof value == "object") && (typeof value.valueOf() == "object")) {
+      if (typeof value == "object") {
         value = RenderObject(value);
       }
 
