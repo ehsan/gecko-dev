@@ -972,7 +972,8 @@ IonBuilder::initScopeChain(MDefinition *callee)
                 return false;
         }
     } else {
-        scope = constant(ObjectValue(script()->global()));
+        scope = MConstant::New(alloc(), ObjectValue(script()->global()));
+        current->add(scope);
     }
 
     current->setScopeChain(scope);
@@ -1251,7 +1252,6 @@ IonBuilder::traverseBytecode()
             switch (op) {
               case JSOP_POP:
               case JSOP_POPN:
-              case JSOP_POPNV:
               case JSOP_DUP:
               case JSOP_DUP2:
               case JSOP_PICK:
@@ -1503,15 +1503,6 @@ IonBuilder::inspectOpcode(JSOp op)
         for (uint32_t i = 0, n = GET_UINT16(pc); i < n; i++)
             current->pop();
         return true;
-
-      case JSOP_POPNV:
-      {
-        MDefinition *mins = current->pop();
-        for (uint32_t i = 0, n = GET_UINT16(pc); i < n; i++)
-            current->pop();
-        current->push(mins);
-        return true;
-      }
 
       case JSOP_NEWINIT:
         if (GET_UINT8(pc) == JSProto_Array)
@@ -3596,7 +3587,9 @@ IonBuilder::processThrow()
 bool
 IonBuilder::pushConstant(const Value &v)
 {
-    current->push(constant(v));
+    MConstant *ins = MConstant::New(alloc(), v);
+    current->add(ins);
+    current->push(ins);
     return true;
 }
 
@@ -4194,7 +4187,8 @@ IonBuilder::inlineCallsite(ObjectVector &targets, ObjectVector &originals,
         // constant.
         if (!lambda) {
             // Replace the function with an MConstant.
-            MConstant *constFun = constant(ObjectValue(*target));
+            MConstant *constFun = MConstant::New(alloc(), ObjectValue(*target));
+            current->add(constFun);
             callInfo.setFun(constFun);
         }
 
@@ -4436,7 +4430,7 @@ IonBuilder::inlineCalls(CallInfo &callInfo, ObjectVector &targets,
             return false;
 
         // Create a function MConstant to use in the entry ResumePoint.
-        MConstant *funcDef = MConstant::New(alloc(), ObjectValue(*target), constraints());
+        MConstant *funcDef = MConstant::New(alloc(), ObjectValue(*target));
         funcDef->setFoldedUnchecked();
         dispatchBlock->add(funcDef);
 
@@ -4722,7 +4716,7 @@ IonBuilder::createThisScriptedSingleton(JSFunction *target, MDefinition *callee)
     // Generate an inline path to create a new |this| object with
     // the given singleton prototype.
     MCreateThisWithTemplate *createThis =
-        MCreateThisWithTemplate::New(alloc(), constraints(), templateObject,
+        MCreateThisWithTemplate::New(alloc(), templateObject,
                                      templateObject->type()->initialHeap(constraints()));
     current->add(createThis);
 
@@ -5062,8 +5056,10 @@ IonBuilder::makeCallsiteClone(JSFunction *target, MDefinition *fun)
     // function, which means that target already is the clone. Make sure to ensure
     // that the old definition remains in resume points.
     if (target) {
+        MConstant *constant = MConstant::New(alloc(), ObjectValue(*target));
+        current->add(constant);
         fun->setFoldedUnchecked();
-        return constant(ObjectValue(*target));
+        return constant;
     }
 
     // Add a callsite clone IC if we have multiple targets. Note that we
@@ -5413,16 +5409,18 @@ IonBuilder::jsop_newarray(uint32_t count)
         return abort("New array has unknown properties");
     }
 
-    MNewArray *ins = MNewArray::New(alloc(), constraints(), count, templateObject,
+    types::TemporaryTypeSet::DoubleConversion conversion =
+        bytecodeTypes(pc)->convertDoubleElements(constraints());
+    if (conversion == types::TemporaryTypeSet::AlwaysConvertToDoubles)
+        templateObject->setShouldConvertDoubleElements();
+
+    MNewArray *ins = MNewArray::New(alloc(), count, templateObject,
                                     templateObject->type()->initialHeap(constraints()),
                                     MNewArray::NewArray_Allocating);
+
     current->add(ins);
     current->push(ins);
 
-    types::TemporaryTypeSet::DoubleConversion conversion =
-        ins->resultTypeSet()->convertDoubleElements(constraints());
-    if (conversion == types::TemporaryTypeSet::AlwaysConvertToDoubles)
-        templateObject->setShouldConvertDoubleElements();
     return true;
 }
 
@@ -5437,7 +5435,7 @@ IonBuilder::jsop_newobject()
         return abort("No template object for NEWOBJECT");
 
     JS_ASSERT(templateObject->is<JSObject>());
-    MNewObject *ins = MNewObject::New(alloc(), constraints(), templateObject,
+    MNewObject *ins = MNewObject::New(alloc(), templateObject,
                                       templateObject->hasSingletonType()
                                       ? gc::TenuredHeap
                                       : templateObject->type()->initialHeap(constraints()),
@@ -6288,7 +6286,7 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
     types::HeapTypeSetKey property = staticType->property(id);
     if (!property.maybeTypes() ||
         !property.maybeTypes()->definiteProperty() ||
-        property.configured(constraints()))
+        property.configured(constraints(), staticType))
     {
         // The property has been reconfigured as non-configurable, non-enumerable
         // or non-writable.
@@ -6315,7 +6313,8 @@ IonBuilder::getStaticName(JSObject *staticObject, PropertyName *name, bool *psuc
             return pushConstant(NullValue());
     }
 
-    MInstruction *obj = constant(ObjectValue(*staticObject));
+    MInstruction *obj = MConstant::New(alloc(), ObjectValue(*staticObject));
+    current->add(obj);
 
     MIRType rvalType = MIRTypeFromValueType(types->getKnownTypeTag());
     if (barrier)
@@ -6377,7 +6376,7 @@ IonBuilder::setStaticName(JSObject *staticObject, PropertyName *name)
     types::HeapTypeSetKey property = staticType->property(id);
     if (!property.maybeTypes() ||
         !property.maybeTypes()->definiteProperty() ||
-        property.configured(constraints()))
+        property.configured(constraints(), staticType))
     {
         // The property has been reconfigured as non-configurable, non-enumerable
         // or non-writable.
@@ -6413,7 +6412,8 @@ IonBuilder::jsop_getname(PropertyName *name)
 {
     MDefinition *object;
     if (js_CodeSpec[*pc].format & JOF_GNAME) {
-        MInstruction *global = constant(ObjectValue(script()->global()));
+        MInstruction *global = MConstant::New(alloc(), ObjectValue(script()->global()));
+        current->add(global);
         object = global;
     } else {
         current->push(current->scopeChain());
@@ -6461,7 +6461,10 @@ IonBuilder::jsop_intrinsic(PropertyName *name)
     JS_ALWAYS_TRUE(script()->global().maybeGetIntrinsicValue(name, &vp));
     JS_ASSERT(types->hasType(types::GetValueType(vp)));
 
-    pushConstant(vp);
+    MConstant *ins = MConstant::New(alloc(), vp);
+    current->add(ins);
+    current->push(ins);
+
     return true;
 }
 
@@ -7753,8 +7756,7 @@ IonBuilder::jsop_rest()
 
         // Pass in the number of actual arguments, the number of formals (not
         // including the rest parameter slot itself), and the template object.
-        MRest *rest = MRest::New(alloc(), constraints(), numActuals, info().nargs() - 1,
-                                 templateObject);
+        MRest *rest = MRest::New(alloc(), numActuals, info().nargs() - 1, templateObject);
         current->add(rest);
         current->push(rest);
         return true;
@@ -7765,7 +7767,7 @@ IonBuilder::jsop_rest()
     unsigned numFormals = info().nargs() - 1;
     unsigned numRest = numActuals > numFormals ? numActuals - numFormals : 0;
 
-    MNewArray *array = MNewArray::New(alloc(), constraints(), numRest, templateObject,
+    MNewArray *array = MNewArray::New(alloc(), numRest, templateObject,
                                       templateObject->type()->initialHeap(constraints()),
                                       MNewArray::NewArray_Allocating);
     current->add(array);
@@ -7824,7 +7826,7 @@ IonBuilder::getDefiniteSlot(types::TemporaryTypeSet *types, PropertyName *name,
     *property = type->property(id);
     return property->maybeTypes() &&
            property->maybeTypes()->definiteProperty() &&
-           !property->configured(constraints());
+           !property->configured(constraints(), type);
 }
 
 bool
@@ -7957,7 +7959,9 @@ IonBuilder::testCommonGetterSetter(types::TemporaryTypeSet *types, PropertyName 
     // the prototype chain is guarded by TI freezes. Note that a shape guard is
     // good enough here, even in the proxy case, because we have ensured there
     // are no lookup hooks for this property.
-    MInstruction *wrapper = constant(ObjectValue(*foundProto));
+    MInstruction *wrapper = MConstant::New(alloc(), ObjectValue(*foundProto));
+    current->add(wrapper);
+
     return addShapeGuard(wrapper, lastProperty, Bailout_ShapeGuard);
 }
 
@@ -8239,7 +8243,10 @@ IonBuilder::getPropTryConstant(bool *emitted, PropertyName *name,
     else
         obj->setFoldedUnchecked();
 
-    pushConstant(ObjectValue(*singleton));
+    MConstant *known = MConstant::New(alloc(), ObjectValue(*singleton));
+
+    current->add(known);
+    current->push(known);
 
     *emitted = true;
     return true;
@@ -9042,7 +9049,7 @@ IonBuilder::jsop_regexp(RegExpObject *reobj)
 
     JSObject *prototype = reobj->getProto();
 
-    MRegExp *regexp = MRegExp::New(alloc(), constraints(), reobj, prototype, mustClone);
+    MRegExp *regexp = MRegExp::New(alloc(), reobj, prototype, mustClone);
     current->add(regexp);
     current->push(regexp);
 
@@ -9067,7 +9074,10 @@ IonBuilder::jsop_regexp(RegExpObject *reobj)
 bool
 IonBuilder::jsop_object(JSObject *obj)
 {
-    pushConstant(ObjectValue(*obj));
+    MConstant *ins = MConstant::New(alloc(), ObjectValue(*obj));
+    current->add(ins);
+    current->push(ins);
+
     return true;
 }
 
@@ -9080,7 +9090,7 @@ IonBuilder::jsop_lambda(JSFunction *fun)
     if (fun->isNative() && IsAsmJSModuleNative(fun->native()))
         return abort("asm.js module function");
 
-    MLambda *ins = MLambda::New(alloc(), constraints(), current->scopeChain(), fun);
+    MLambda *ins = MLambda::New(alloc(), current->scopeChain(), fun);
     current->add(ins);
     current->push(ins);
 
@@ -9455,7 +9465,9 @@ IonBuilder::jsop_setaliasedvar(ScopeCoordinate sc)
         if (call) {
             // Push the object on the stack to match the bound object expected in
             // the global and property set cases.
-            pushConstant(ObjectValue(*call));
+            MInstruction *constant = MConstant::New(alloc(), ObjectValue(*call));
+            current->add(constant);
+            current->push(constant);
             current->push(value);
             return setStaticName(call, name);
         }
@@ -9879,7 +9891,7 @@ IonBuilder::storeScalarTypedObjectValue(MDefinition *typedObj,
 MConstant *
 IonBuilder::constant(const Value &v)
 {
-    MConstant *c = MConstant::New(alloc(), v, constraints());
+    MConstant *c = MConstant::New(alloc(), v);
     current->add(c);
     return c;
 }

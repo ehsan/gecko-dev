@@ -121,7 +121,7 @@ void
 FlattenedPath::Arc(const Point &aOrigin, float aRadius, float aStartAngle,
                    float aEndAngle, bool aAntiClockwise)
 {
-  ArcToBezier(this, aOrigin, Size(aRadius, aRadius), aStartAngle, aEndAngle, aAntiClockwise);
+  ArcToBezier(this, aOrigin, aRadius, aStartAngle, aEndAngle, aAntiClockwise);
 }
 
 Float
@@ -407,8 +407,7 @@ FlattenBezier(const BezierControlPoints &aControlPoints,
     return;
   }
 
-  // Check that at least one of the inflection points is inside [0..1]
-  if (count == 0 || ((t1 < 0 || t1 > 1.0) && ((t2 < 0 || t2 > 1.0) || count == 1)) ) {
+  if (count == 0) {
     FlattenBezierCurveSegment(aControlPoints, aSink, aTolerance);
     return;
   }

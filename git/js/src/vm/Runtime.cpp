@@ -219,7 +219,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     gcInterFrameGC(0),
     gcSliceBudget(SliceBudget::Unlimited),
     gcIncrementalEnabled(true),
-    gcGenerationalDisabled(0),
+    gcGenerationalEnabled(true),
     gcManipulatingDeadZones(false),
     gcObjectsMarkedInDeadZones(0),
     gcPoke(false),

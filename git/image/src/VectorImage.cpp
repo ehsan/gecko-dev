@@ -647,17 +647,18 @@ VectorImage::FrameIsOpaque(uint32_t aWhichFrame)
 //******************************************************************************
 /* [noscript] gfxASurface getFrame(in uint32_t aWhichFrame,
  *                                 in uint32_t aFlags; */
-NS_IMETHODIMP_(already_AddRefed<gfxASurface>)
+NS_IMETHODIMP
 VectorImage::GetFrame(uint32_t aWhichFrame,
-                      uint32_t aFlags)
+                      uint32_t aFlags,
+                      gfxASurface** _retval)
 {
-  MOZ_ASSERT(aWhichFrame <= FRAME_MAX_VALUE);
+  NS_ENSURE_ARG_POINTER(_retval);
 
   if (aWhichFrame > FRAME_MAX_VALUE)
-    return nullptr;
+    return NS_ERROR_INVALID_ARG;
 
   if (mError)
-    return nullptr;
+    return NS_ERROR_FAILURE;
 
   // Look up height & width
   // ----------------------
@@ -667,7 +668,7 @@ VectorImage::GetFrame(uint32_t aWhichFrame,
       !mSVGDocumentWrapper->GetWidthOrHeight(SVGDocumentWrapper::eHeight,
                                              imageIntSize.height)) {
     // We'll get here if our SVG doc has a percent-valued width or height.
-    return nullptr;
+    return NS_ERROR_FAILURE;
   }
 
   // Create a surface that we'll ultimately return
@@ -688,8 +689,9 @@ VectorImage::GetFrame(uint32_t aWhichFrame,
                      nsIntRect(nsIntPoint(0,0), imageIntSize),
                      imageIntSize, nullptr, aWhichFrame, aFlags);
 
-  NS_ENSURE_SUCCESS(rv, nullptr);
-  return surface.forget();
+  NS_ENSURE_SUCCESS(rv, rv);
+  *_retval = surface.forget().get();
+  return rv;
 }
 
 //******************************************************************************

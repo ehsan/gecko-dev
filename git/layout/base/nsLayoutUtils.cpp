@@ -72,7 +72,6 @@
 #include "nsComputedDOMStyle.h"
 #include "ActiveLayerTracker.h"
 #include "mozilla/gfx/2D.h"
-#include "gfx2DGlue.h"
 
 #include "mozilla/Preferences.h"
 
@@ -4817,9 +4816,11 @@ nsLayoutUtils::SurfaceFromElement(nsIImageLoadingContent* aElement,
     frameFlags |= imgIContainer::FLAG_DECODE_NO_COLORSPACE_CONVERSION;
   if (aSurfaceFlags & SFE_NO_PREMULTIPLY_ALPHA)
     frameFlags |= imgIContainer::FLAG_DECODE_NO_PREMULTIPLY_ALPHA;
-  nsRefPtr<gfxASurface> framesurf =
-    imgContainer->GetFrame(whichFrame, frameFlags);
-  if (!framesurf)
+  nsRefPtr<gfxASurface> framesurf;
+  rv = imgContainer->GetFrame(whichFrame,
+                              frameFlags,
+                              getter_AddRefs(framesurf));
+  if (NS_FAILED(rv))
     return result;
 
   int32_t imgWidth, imgHeight;
@@ -4962,14 +4963,14 @@ nsLayoutUtils::SurfaceFromElement(HTMLVideoElement* aElement,
   if (!container)
     return result;
 
-  mozilla::gfx::IntSize size;
+  gfxIntSize size;
   nsRefPtr<gfxASurface> surf = container->GetCurrentAsSurface(&size);
   if (!surf)
     return result;
 
   result.mSourceSurface = gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(aTarget, surf);
   result.mCORSUsed = aElement->GetCORSMode() != CORS_NONE;
-  result.mSize = ThebesIntSize(size);
+  result.mSize = size;
   result.mPrincipal = principal.forget();
   result.mIsWriteOnly = false;
 

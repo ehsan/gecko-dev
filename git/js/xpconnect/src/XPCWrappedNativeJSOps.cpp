@@ -173,7 +173,8 @@ XPC_WN_DoubleWrappedGetter(JSContext *cx, unsigned argc, jsval *vp)
                                     &ccx, ccx,
                                     ccx.GetFlattenedJSObject(),
                                     wrapper->GetIdentityObject(),
-                                    wrapper->GetClassInfo(), id))) {
+                                    wrapper->GetClassInfo(), id,
+                                    wrapper->GetSecurityInfoAddr()))) {
                 // The SecurityManager should have set an exception.
                 return false;
             }

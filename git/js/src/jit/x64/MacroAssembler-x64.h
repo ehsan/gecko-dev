@@ -85,6 +85,9 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         FLOAT
     };
 
+    typedef MoveResolver::MoveOperand MoveOperand;
+    typedef MoveResolver::Move Move;
+
     MacroAssemblerX64()
       : inCall_(false),
         enoughMemory_(true)

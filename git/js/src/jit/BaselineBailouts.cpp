@@ -587,10 +587,8 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
             }
         }
 
-        // Make sure to add HAS_RVAL to flags here because setFlags() below
-        // will clobber it.
+        // Second slot holds the return value.
         returnValue = iter.read();
-        flags |= BaselineFrame::HAS_RVAL;
 
         // If script maybe has an arguments object, the third slot will hold it.
         if (script->argumentsHasVarBinding()) {
@@ -605,12 +603,17 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     IonSpew(IonSpew_BaselineBailouts, "      ReturnValue=%016llx", *((uint64_t *) &returnValue));
     blFrame->setReturnValue(returnValue);
 
-    // Do not need to initialize scratchValue field in BaselineFrame.
+    // Do not need to initialize scratchValue or returnValue fields in BaselineFrame.
+
     blFrame->setFlags(flags);
 
     // initArgsObjUnchecked modifies the frame's flags, so call it after setFlags.
     if (argsObj)
         blFrame->initArgsObjUnchecked(*argsObj);
+
+    // Ion doesn't compile code with try/catch, so the block object will always be
+    // null.
+    blFrame->setBlockChainNull();
 
     if (fun) {
         // The unpacked thisv and arguments should overwrite the pushed args present
@@ -662,6 +665,7 @@ InitFromBailout(JSContext *cx, HandleScript caller, jsbytecode *callerPC,
     bool resumeAfter = excInfo ? false : iter.resumeAfter();
 
     JSOp op = JSOp(*pc);
+    JS_ASSERT_IF(excInfo, op == JSOP_ENTERBLOCK);
 
     // Fixup inlined JSOP_FUNCALL, JSOP_FUNAPPLY, and accessors on the caller side.
     // On the caller side this must represent like the function wasn't inlined.

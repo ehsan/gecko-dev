@@ -6896,26 +6896,10 @@ CSSParserImpl::ParseRadialGradient(nsCSSValue& aValue, bool aIsRepeating,
                                nsCSSProps::kRadialGradientShapeKTable);
     }
   } else if (!aIsLegacy) {
-    // Save RadialShape before parsing RadiusX because RadialShape and
-    // RadiusX share the storage.
-    int32_t shape =
-      cssGradient->GetRadialShape().GetUnit() == eCSSUnit_Enumerated ?
-      cssGradient->GetRadialShape().GetIntValue() : -1;
     // <length> | [<length> | <percentage>]{2}
-    cssGradient->mIsExplicitSize = true;
     haveSize =
       ParseNonNegativeVariant(cssGradient->GetRadiusX(), VARIANT_LP, nullptr);
-    if (!haveSize) {
-      // It was not an explicit size after all.
-      // Note that ParseNonNegativeVariant may have put something
-      // invalid into our storage, but only in the case where it was
-      // rejected only for being negative.  Since this means the token
-      // was a length or a percentage, we know it's not valid syntax
-      // (which must be a comma, the 'at' keyword, or a color), so we
-      // know this value will be dropped.  This means it doesn't matter
-      // that we have something invalid in our storage.
-      cssGradient->mIsExplicitSize = false;
-    } else {
+    if (haveSize) {
       // vertical extent is optional
       bool haveYSize =
         ParseNonNegativeVariant(cssGradient->GetRadiusY(), VARIANT_LP, nullptr);
@@ -6923,10 +6907,10 @@ CSSParserImpl::ParseRadialGradient(nsCSSValue& aValue, bool aIsRepeating,
         nsCSSValue shapeValue;
         haveShape = ParseVariant(shapeValue, VARIANT_KEYWORD,
                                  nsCSSProps::kRadialGradientShapeKTable);
-        if (haveShape) {
-          shape = shapeValue.GetIntValue();
-        }
       }
+      int32_t shape =
+        cssGradient->GetRadialShape().GetUnit() == eCSSUnit_Enumerated ?
+        cssGradient->GetRadialShape().GetIntValue() : -1;
       if (haveYSize
             ? shape == NS_STYLE_GRADIENT_SHAPE_CIRCULAR
             : cssGradient->GetRadiusX().GetUnit() == eCSSUnit_Percent ||
@@ -6934,6 +6918,7 @@ CSSParserImpl::ParseRadialGradient(nsCSSValue& aValue, bool aIsRepeating,
         SkipUntil(')');
         return false;
       }
+      cssGradient->mIsExplicitSize = true;
     }
   }
 

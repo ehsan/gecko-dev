@@ -61,13 +61,13 @@ function findVirtualFunctions(csu, field, suppressed)
     // which should never enter the JS engine (even when calling dtors).
     while (worklist.length) {
         var csu = worklist.pop();
-        if (csu == "nsISupports" && (field == "AddRef" || field == "Release")) {
-            suppressed[0] = true;
-            return [];
-        }
-        if (isOverridableField(csu, field))
+        if (csu == "nsISupports") {
+            if (field == "AddRef" || field == "Release") {
+                suppressed[0] = true;
+                return [];
+            }
             return null;
-
+        }
         if (csu in superclasses) {
             for (var superclass of superclasses[csu])
                 worklist.push(superclass);
@@ -258,8 +258,6 @@ for (var csuIndex = minStream; csuIndex <= maxStream; csuIndex++) {
 
 xdb.open("src_body.xdb");
 
-printErr("Finished loading data structures");
-
 var minStream = xdb.min_data_stream();
 var maxStream = xdb.max_data_stream();
 
@@ -277,9 +275,8 @@ for (var nameIndex = minStream; nameIndex <= maxStream; nameIndex++) {
     seenCallees = {};
     seenSuppressedCallees = {};
 
-    var functionName = name.readString();
     for (var body of functionBodies)
-        processBody(functionName, body);
+        processBody(name.readString(), body);
 
     xdb.free_string(name);
     xdb.free_string(data);

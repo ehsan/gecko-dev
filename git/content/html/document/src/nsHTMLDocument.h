@@ -347,6 +347,10 @@ protected:
   uint32_t mContentEditableCount;
   EditingState mEditingState;
 
+  nsresult   DoClipboardSecurityCheck(bool aPaste);
+  static jsid        sCutCopyInternal_id;
+  static jsid        sPasteInternal_id;
+
   // When false, the .cookies property is completely disabled
   bool mDisableCookieAccess;
 

@@ -6,7 +6,6 @@
 #include "MediaPluginReader.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/dom/TimeRanges.h"
-#include "mozilla/gfx/Point.h"
 #include "MediaResource.h"
 #include "VideoUtils.h"
 #include "MediaPluginDecoder.h"
@@ -173,7 +172,7 @@ bool MediaPluginReader::DecodeVideoFrame(bool &aKeyframeSkip,
  
     nsAutoPtr<VideoData> v;
     if (currentImage) {
-      gfx::IntSize frameSize = currentImage->GetSize();
+      gfxIntSize frameSize = currentImage->GetSize();
       if (frameSize.width != mInitialFrame.width ||
           frameSize.height != mInitialFrame.height) {
         // Frame size is different from what the container reports. This is legal,

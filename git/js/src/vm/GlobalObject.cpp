@@ -68,7 +68,7 @@ ThrowTypeError(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static bool
-TestProtoThis(HandleValue v)
+TestProtoGetterThis(HandleValue v)
 {
     return !v.isNullOrUndefined();
 }
@@ -76,7 +76,7 @@ TestProtoThis(HandleValue v)
 static bool
 ProtoGetterImpl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(TestProtoThis(args.thisv()));
+    JS_ASSERT(TestProtoGetterThis(args.thisv()));
 
     HandleValue thisv = args.thisv();
     if (thisv.isPrimitive() && !BoxNonStrictThis(cx, args))
@@ -97,7 +97,7 @@ static bool
 ProtoGetter(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, TestProtoThis, ProtoGetterImpl, args);
+    return CallNonGenericMethod(cx, TestProtoGetterThis, ProtoGetterImpl, args);
 }
 
 namespace js {
@@ -105,9 +105,23 @@ size_t sSetProtoCalled = 0;
 } // namespace js
 
 static bool
+TestProtoSetterThis(HandleValue v)
+{
+    if (v.isNullOrUndefined())
+        return false;
+
+    /* These will work as if on a boxed primitive; dumb, but whatever. */
+    if (!v.isObject())
+        return true;
+
+    /* Otherwise, only accept non-proxies. */
+    return !v.toObject().is<ProxyObject>();
+}
+
+static bool
 ProtoSetterImpl(JSContext *cx, CallArgs args)
 {
-    JS_ASSERT(TestProtoThis(args.thisv()));
+    JS_ASSERT(TestProtoSetterThis(args.thisv()));
 
     HandleValue thisv = args.thisv();
     if (thisv.isPrimitive()) {
@@ -123,14 +137,25 @@ ProtoSetterImpl(JSContext *cx, CallArgs args)
 
     Rooted<JSObject*> obj(cx, &args.thisv().toObject());
 
+    /* ES5 8.6.2 forbids changing [[Prototype]] if not [[Extensible]]. */
+    bool extensible;
+    if (!JSObject::isExtensible(cx, obj, &extensible))
+        return false;
+    if (!extensible) {
+        obj->reportNotExtensible(cx);
+        return false;
+    }
+
     /*
-     * Disallow mutating the [[Prototype]] on ArrayBuffer objects, which
-     * due to their complicated delegate-object shenanigans can't easily
+     * Disallow mutating the [[Prototype]] of a proxy that wasn't simply
+     * wrapping some other object.  Also disallow it on ArrayBuffer objects,
+     * which due to their complicated delegate-object shenanigans can't easily
      * have a mutable [[Prototype]].
      */
-    if (obj->is<ArrayBufferObject>()) {
+    if (obj->is<ProxyObject>() || obj->is<ArrayBufferObject>()) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_INCOMPATIBLE_PROTO,
-                             "Object", "__proto__ setter", "ArrayBuffer");
+                             "Object", "__proto__ setter",
+                             obj->is<ProxyObject>() ? "Proxy" : "ArrayBuffer");
         return false;
     }
 
@@ -148,14 +173,8 @@ ProtoSetterImpl(JSContext *cx, CallArgs args)
     if (!CheckAccess(cx, obj, nid, JSAccessMode(JSACC_PROTO | JSACC_WRITE), &v, &dummy))
         return false;
 
-    bool success;
-    if (!JSObject::setProto(cx, obj, newProto, &success))
+    if (!SetClassAndProto(cx, obj, obj->getClass(), newProto, true))
         return false;
-
-    if (!success) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_SETPROTOTYPEOF_FAIL);
-        return false;
-    }
 
     args.rval().setUndefined();
     return true;
@@ -165,7 +184,7 @@ static bool
 ProtoSetter(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, TestProtoThis, ProtoSetterImpl, args);
+    return CallNonGenericMethod(cx, TestProtoSetterThis, ProtoSetterImpl, args);
 }
 
 JSObject *
@@ -497,6 +516,9 @@ GlobalObject::initStandardClasses(JSContext *cx, Handle<GlobalObject*> global)
            GlobalObject::initSetIteratorProto(cx, global) &&
 #if EXPOSE_INTL_API
            js_InitIntlClass(cx, global) &&
+#endif
+#if ENABLE_PARALLEL_JS
+           js_InitParallelArrayClass(cx, global) &&
 #endif
            true;
 }

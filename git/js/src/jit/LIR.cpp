@@ -73,9 +73,8 @@ LBlock::lastId()
 {
     LInstruction *last = *instructions_.rbegin();
     JS_ASSERT(last->id());
-    // The last instruction is a control flow instruction which does not have
-    // any output.
-    JS_ASSERT(last->numDefs() == 0);
+    if (last->numDefs())
+        return last->getDef(last->numDefs() - 1)->virtualRegister();
     return last->id();
 }
 
@@ -197,11 +196,10 @@ static const char * const TypeChars[] =
 {
     "i",            // INTEGER
     "o",            // OBJECT
-    "f",            // FLOAT32
-    "d",            // DOUBLE
+    "f",            // DOUBLE
 #ifdef JS_NUNBOX32
     "t",            // TYPE
-    "p"             // PAYLOAD
+    "d"             // PAYLOAD
 #elif JS_PUNBOX64
     "x"             // BOX
 #endif
@@ -364,18 +362,18 @@ LInstruction::initSafepoint(TempAllocator &alloc)
 }
 
 bool
-LMoveGroup::add(LAllocation *from, LAllocation *to, LDefinition::Type type)
+LMoveGroup::add(LAllocation *from, LAllocation *to)
 {
 #ifdef DEBUG
     JS_ASSERT(*from != *to);
     for (size_t i = 0; i < moves_.length(); i++)
         JS_ASSERT(*to != *moves_[i].to());
 #endif
-    return moves_.append(LMove(from, to, type));
+    return moves_.append(LMove(from, to));
 }
 
 bool
-LMoveGroup::addAfter(LAllocation *from, LAllocation *to, LDefinition::Type type)
+LMoveGroup::addAfter(LAllocation *from, LAllocation *to)
 {
     // Transform the operands to this move so that performing the result
     // simultaneously with existing moves in the group will have the same
@@ -393,12 +391,12 @@ LMoveGroup::addAfter(LAllocation *from, LAllocation *to, LDefinition::Type type)
 
     for (size_t i = 0; i < moves_.length(); i++) {
         if (*to == *moves_[i].to()) {
-            moves_[i] = LMove(from, to, type);
+            moves_[i] = LMove(from, to);
             return true;
         }
     }
 
-    return add(from, to, type);
+    return add(from, to);
 }
 
 void

@@ -14,13 +14,13 @@ function test() {
     let events = win.EVENTS;
     let variables = win.DebuggerView.Variables;
 
-    // Wait for the hierarchy to be committed by the VariablesViewController.
-    let committed = promise.defer();
-    variables.oncommit = committed.resolve;
-
     // Allow this generator function to yield first.
     executeSoon(() => debuggee.test());
     yield waitForSourceAndCaretAndScopes(panel, ".html", 23);
+
+    // Wait for the hierarchy to be committed by the VariablesViewController.
+    let committed = promise.defer();
+    variables.oncommit = committed.resolve;
     yield committed.promise;
 
     let firstScope = variables.getScopeAtIndex(0);

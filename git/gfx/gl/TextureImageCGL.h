@@ -47,7 +47,7 @@ private:
 
 already_AddRefed<TextureImage>
 CreateTextureImageCGL(GLContext *gl,
-                      const gfx::IntSize& aSize,
+                      const nsIntSize& aSize,
                       TextureImage::ContentType aContentType,
                       GLenum aWrapMode,
                       TextureImage::Flags aFlags,

@@ -152,7 +152,7 @@ function remoteDial(number) {
 
   telephony.onincoming = function onincoming(event) {
     log("Received 'incoming' call event.");
-    telephony.onincoming = null;
+    telephony.onimcoming = null;
 
     let call = event.call;
 

@@ -374,21 +374,22 @@ SafepointReader::InvalidationPatchPoint(IonScript *script, const SafepointIndex 
 void
 SafepointReader::advanceFromGcRegs()
 {
-    currentSlotChunk_ = 0;
-    nextSlotChunkNumber_ = 0;
+    currentSlotChunkNumber_ = 0;
+    currentSlotChunk_ = stream_.readUnsigned();
 }
 
 bool
 SafepointReader::getSlotFromBitmap(uint32_t *slot)
 {
     while (currentSlotChunk_ == 0) {
+        currentSlotChunkNumber_++;
+
         // Are there any more chunks to read?
-        if (nextSlotChunkNumber_ == BitSet::RawLengthForBits(frameSlots_))
+        if (currentSlotChunkNumber_ == BitSet::RawLengthForBits(frameSlots_))
             return false;
 
         // Yes, read the next chunk.
         currentSlotChunk_ = stream_.readUnsigned();
-        nextSlotChunkNumber_++;
     }
 
     // The current chunk still has bits in it, so get the next bit, then mask
@@ -398,7 +399,7 @@ SafepointReader::getSlotFromBitmap(uint32_t *slot)
 
     // Return the slot, taking care to add 1 back in since it was subtracted
     // when added in the original bitset.
-    *slot = ((nextSlotChunkNumber_ - 1) * BitSet::BitsPerWord) + bit + 1;
+    *slot = (currentSlotChunkNumber_ * sizeof(uint32_t) * 8) + bit + 1;
     return true;
 }
 
@@ -415,8 +416,8 @@ void
 SafepointReader::advanceFromGcSlots()
 {
     // No, reset the counter.
-    currentSlotChunk_ = 0;
-    nextSlotChunkNumber_ = 0;
+    currentSlotChunkNumber_ = 0;
+    currentSlotChunk_ = stream_.readUnsigned();
 }
 
 bool

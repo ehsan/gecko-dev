@@ -763,7 +763,6 @@ MBasicBlock::discardAllResumePoints(bool discardEntry)
 void
 MBasicBlock::insertBefore(MInstruction *at, MInstruction *ins)
 {
-    JS_ASSERT(at->block() == this);
     ins->setBlock(this);
     graph().allocDefinitionId(ins);
     instructions_.insertBefore(at, ins);
@@ -773,7 +772,6 @@ MBasicBlock::insertBefore(MInstruction *at, MInstruction *ins)
 void
 MBasicBlock::insertAfter(MInstruction *at, MInstruction *ins)
 {
-    JS_ASSERT(at->block() == this);
     ins->setBlock(this);
     graph().allocDefinitionId(ins);
     instructions_.insertAfter(at, ins);

@@ -548,34 +548,14 @@ HyperTextAccessible::DOMPointToHypertextOffset(nsINode* aNode,
   return nullptr;
 }
 
-bool
-HyperTextAccessible::OffsetsToDOMRange(int32_t aStartOffset, int32_t aEndOffset,
-                                       nsRange* aRange)
+nsresult
+HyperTextAccessible::HypertextOffsetsToDOMRange(int32_t aStartHTOffset,
+                                                int32_t aEndHTOffset,
+                                                nsRange* aRange)
 {
-  DOMPoint startPoint = OffsetToDOMPoint(aStartOffset);
-  if (!startPoint.node)
-    return false;
-
-  aRange->SetStart(startPoint.node, startPoint.idx);
-  if (aStartOffset == aEndOffset) {
-    aRange->SetEnd(startPoint.node, startPoint.idx);
-    return true;
-  }
-
-  DOMPoint endPoint = OffsetToDOMPoint(aEndOffset);
-  if (!endPoint.node)
-    return false;
-
-  aRange->SetEnd(endPoint.node, endPoint.idx);
-  return true;
-}
-
-DOMPoint
-HyperTextAccessible::OffsetToDOMPoint(int32_t aOffset)
-{
-  // 0 offset is valid even if no children. In this case the associated editor
-  // is empty so return a DOM point for editor root element.
-  if (aOffset == 0) {
+  // If the given offsets are 0 and associated editor is empty then return
+  // collapsed range with editor root element as range container.
+  if (aStartHTOffset == 0 && aEndHTOffset == 0) {
     nsCOMPtr<nsIEditor> editor = GetEditor();
     if (editor) {
       bool isEmpty = false;
@@ -585,36 +565,40 @@ HyperTextAccessible::OffsetToDOMPoint(int32_t aOffset)
         editor->GetRootElement(getter_AddRefs(editorRootElm));
 
         nsCOMPtr<nsINode> editorRoot(do_QueryInterface(editorRootElm));
-        return DOMPoint(editorRoot, 0);
+        if (editorRoot) {
+          aRange->SetStart(editorRoot, 0);
+          aRange->SetEnd(editorRoot, 0);
+
+          return NS_OK;
+        }
       }
     }
   }
 
-  int32_t childIdx = GetChildIndexAtOffset(aOffset);
-  if (childIdx == -1)
-    return DOMPoint();
+  nsRefPtr<Accessible> startAcc, endAcc;
+  int32_t startOffset = aStartHTOffset, endOffset = aEndHTOffset;
+  nsIFrame *startFrame = nullptr, *endFrame = nullptr;
 
-  Accessible* child = GetChildAt(childIdx);
-  int32_t innerOffset = aOffset - GetChildOffset(childIdx);
+  startFrame = GetPosAndText(startOffset, endOffset, nullptr, &endFrame,
+                             getter_AddRefs(startAcc), getter_AddRefs(endAcc));
+  if (!startAcc || !endAcc)
+    return NS_ERROR_FAILURE;
 
-  // A text leaf case. The point is inside the text node.
-  if (child->IsTextLeaf()) {
-    nsIContent* content = child->GetContent();
-    int32_t idx = 0;
-    if (NS_FAILED(RenderedToContentOffset(content->GetPrimaryFrame(),
-                                          innerOffset, &idx)))
-      return DOMPoint();
+  DOMPoint startPoint, endPoint;
+  nsresult rv = GetDOMPointByFrameOffset(startFrame, startOffset, startAcc,
+                                         &startPoint);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    return DOMPoint(content, idx);
-  }
+  rv = aRange->SetStart(startPoint.node, startPoint.idx);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  // Case of embedded object. The point is either before or after the element.
-  NS_ASSERTION(innerOffset == 0 || innerOffset == 1, "A wrong inner offset!");
-  nsINode* node = child->GetNode();
-  nsINode* parentNode = node->GetParentNode();
-  return parentNode ?
-    DOMPoint(parentNode, parentNode->IndexOf(node) + innerOffset) :
-    DOMPoint();
+  if (aStartHTOffset == aEndHTOffset)
+    return aRange->SetEnd(startPoint.node, startPoint.idx);
+
+  rv = GetDOMPointByFrameOffset(endFrame, endOffset, endAcc, &endPoint);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return aRange->SetEnd(endPoint.node, endPoint.idx);
 }
 
 int32_t
@@ -1596,8 +1580,7 @@ HyperTextAccessible::SetSelectionBoundsAt(int32_t aSelectionNum,
   if (!range)
     return false;
 
-  if (!OffsetsToDOMRange(startOffset, endOffset, range))
-    return false;
+  HypertextOffsetsToDOMRange(startOffset, endOffset, range);
 
   // If new range was created then add it, otherwise notify selection listeners
   // that existing selection range was changed.
@@ -1627,7 +1610,8 @@ HyperTextAccessible::ScrollSubstringTo(int32_t aStartOffset, int32_t aEndOffset,
                                        uint32_t aScrollType)
 {
   nsRefPtr<nsRange> range = new nsRange(mContent);
-  if (OffsetsToDOMRange(aStartOffset, aEndOffset, range))
+  nsresult rv = HypertextOffsetsToDOMRange(aStartOffset, aEndOffset, range);
+  if (NS_SUCCEEDED(rv))
     nsCoreUtils::ScrollSubstringTo(GetFrame(), range, aScrollType);
 }
 
@@ -1645,7 +1629,8 @@ HyperTextAccessible::ScrollSubstringToPoint(int32_t aStartOffset,
                                                         this);
 
   nsRefPtr<nsRange> range = new nsRange(mContent);
-  if (!OffsetsToDOMRange(aStartOffset, aEndOffset, range))
+  nsresult rv = HypertextOffsetsToDOMRange(aStartOffset, aEndOffset, range);
+  if (NS_FAILED(rv))
     return;
 
   nsPresContext* presContext = frame->PresContext();
@@ -1673,7 +1658,7 @@ HyperTextAccessible::ScrollSubstringToPoint(int32_t aStartOffset,
         int16_t hPercent = offsetPointX * 100 / size.width;
         int16_t vPercent = offsetPointY * 100 / size.height;
 
-        nsresult rv = nsCoreUtils::ScrollSubstringTo(frame, range, vPercent, hPercent);
+        rv = nsCoreUtils::ScrollSubstringTo(frame, range, vPercent, hPercent);
         if (NS_FAILED(rv))
           return;
 

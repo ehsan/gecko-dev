@@ -49,7 +49,8 @@ class JS_FRIEND_API(Wrapper) : public DirectProxyHandler
     void setSafeToUnwrap(bool safe) { mSafeToUnwrap = safe; }
     bool isSafeToUnwrap() { return mSafeToUnwrap; }
 
-    static JSObject *New(JSContext *cx, JSObject *obj, JSObject *parent, Wrapper *handler);
+    static JSObject *New(JSContext *cx, JSObject *obj, JSObject *proto,
+                         JSObject *parent, Wrapper *handler);
 
     static JSObject *Renew(JSContext *cx, JSObject *existing, JSObject *obj, Wrapper *handler);
 
@@ -119,10 +120,7 @@ class JS_FRIEND_API(CrossCompartmentWrapper) : public Wrapper
     virtual bool regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g) MOZ_OVERRIDE;
     virtual bool defaultValue(JSContext *cx, HandleObject wrapper, JSType hint,
                               MutableHandleValue vp) MOZ_OVERRIDE;
-    virtual bool getPrototypeOf(JSContext *cx, HandleObject proxy,
-                                MutableHandleObject protop) MOZ_OVERRIDE;
-    virtual bool setPrototypeOf(JSContext *cx, HandleObject proxy, HandleObject proto,
-                                bool *bp) MOZ_OVERRIDE;
+    virtual bool getPrototypeOf(JSContext *cx, HandleObject proxy, MutableHandleObject protop);
 
     static CrossCompartmentWrapper singleton;
     static CrossCompartmentWrapper singletonWithPrototype;
@@ -156,9 +154,6 @@ class JS_FRIEND_API(SecurityWrapper) : public Base
     virtual bool regexp_toShared(JSContext *cx, HandleObject proxy, RegExpGuard *g) MOZ_OVERRIDE;
     virtual bool defineProperty(JSContext *cx, HandleObject wrapper, HandleId id,
                                 MutableHandle<JSPropertyDescriptor> desc) MOZ_OVERRIDE;
-
-    virtual bool setPrototypeOf(JSContext *cx, HandleObject proxy, HandleObject proto,
-                                bool *bp) MOZ_OVERRIDE;
 
     virtual bool watch(JSContext *cx, JS::HandleObject proxy, JS::HandleId id,
                        JS::HandleObject callable) MOZ_OVERRIDE;

@@ -39,7 +39,7 @@ public:
    */
   gfxContentType ContentType();
   gfxImageFormat ImageFormat();
-  gfx::IntSize Size();
+  gfxIntSize Size();
 
   /** This can't escape the scope of AutoOpenSurface. */
   gfxASurface* Get();

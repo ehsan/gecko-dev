@@ -75,14 +75,15 @@ OrientedImage::GetIntrinsicRatio(nsSize* aRatio)
   return rv;
 }
 
-NS_IMETHODIMP_(already_AddRefed<gfxASurface>)
+NS_IMETHODIMP
 OrientedImage::GetFrame(uint32_t aWhichFrame,
-                        uint32_t aFlags)
+                        uint32_t aFlags,
+                        gfxASurface** _retval)
 {
   nsresult rv;
 
   if (mOrientation.IsIdentity()) {
-    return InnerImage()->GetFrame(aWhichFrame, aFlags);
+    return InnerImage()->GetFrame(aWhichFrame, aFlags, _retval);
   }
 
   // Get the underlying dimensions.
@@ -94,7 +95,7 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
     rv = InnerImage()->GetWidth(&width);
     rv = NS_FAILED(rv) ? rv : InnerImage()->GetHeight(&height);
   }
-  NS_ENSURE_SUCCESS(rv, nullptr);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Determine an appropriate format for the surface.
   gfx::SurfaceFormat surfaceFormat;
@@ -115,9 +116,9 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
     GetThebesSurfaceForDrawTarget(target);
 
   // Create our drawable.
-  nsRefPtr<gfxASurface> innerSurface =
-    InnerImage()->GetFrame(aWhichFrame, aFlags);
-  NS_ENSURE_TRUE(innerSurface, nullptr);
+  nsRefPtr<gfxASurface> innerSurface;
+  rv = InnerImage()->GetFrame(aWhichFrame, aFlags, getter_AddRefs(innerSurface));
+  NS_ENSURE_SUCCESS(rv, rv);
   nsRefPtr<gfxDrawable> drawable =
     new gfxSurfaceDrawable(innerSurface, gfxIntSize(width, height));
 
@@ -128,7 +129,8 @@ OrientedImage::GetFrame(uint32_t aWhichFrame,
                              imageRect, imageRect, imageRect, imageRect,
                              imageFormat, GraphicsFilter::FILTER_FAST);
 
-  return surface.forget();
+  surface.forget(_retval);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

@@ -184,6 +184,7 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     CUSTOM_OP(NewArray)
     CUSTOM_OP(NewObject)
     CUSTOM_OP(NewCallObject)
+    CUSTOM_OP(NewParallelArray)
     UNSAFE_OP(NewDerivedTypedObject)
     UNSAFE_OP(InitElem)
     UNSAFE_OP(InitElemGetterSetter)
@@ -512,6 +513,12 @@ ParallelSafetyVisitor::convertToBailout(MBasicBlock *block, MInstruction *ins)
 
 bool
 ParallelSafetyVisitor::visitCreateThisWithTemplate(MCreateThisWithTemplate *ins)
+{
+    return replaceWithNewPar(ins, ins->templateObject());
+}
+
+bool
+ParallelSafetyVisitor::visitNewParallelArray(MNewParallelArray *ins)
 {
     return replaceWithNewPar(ins, ins->templateObject());
 }

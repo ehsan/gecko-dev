@@ -175,7 +175,7 @@ DiscardingEnabled()
 class ScaleRequest
 {
 public:
-  ScaleRequest(RasterImage* aImage, const gfx::Size& aScale, imgFrame* aSrcFrame)
+  ScaleRequest(RasterImage* aImage, const gfxSize& aScale, imgFrame* aSrcFrame)
     : scale(aScale)
     , dstLocked(false)
     , done(false)
@@ -267,7 +267,7 @@ public:
   nsRefPtr<gfxImageSurface> dstSurface;
 
   // Below are the values that may be touched on the scaling thread.
-  gfx::Size scale;
+  gfxSize scale;
   uint8_t* srcData;
   uint8_t* dstData;
   nsIntRect srcRect;
@@ -318,7 +318,7 @@ private: /* members */
 class ScaleRunner : public nsRunnable
 {
 public:
-  ScaleRunner(RasterImage* aImage, const gfx::Size& aScale, imgFrame* aSrcFrame)
+  ScaleRunner(RasterImage* aImage, const gfxSize& aScale, imgFrame* aSrcFrame)
   {
     nsAutoPtr<ScaleRequest> request(new ScaleRequest(aImage, aScale, aSrcFrame));
 
@@ -879,29 +879,30 @@ RasterImage::CopyFrame(uint32_t aWhichFrame,
 //******************************************************************************
 /* [noscript] gfxASurface getFrame(in uint32_t aWhichFrame,
  *                                 in uint32_t aFlags); */
-NS_IMETHODIMP_(already_AddRefed<gfxASurface>)
+NS_IMETHODIMP
 RasterImage::GetFrame(uint32_t aWhichFrame,
-                      uint32_t aFlags)
+                      uint32_t aFlags,
+                      gfxASurface **_retval)
 {
-  MOZ_ASSERT(aWhichFrame <= FRAME_MAX_VALUE);
-
   if (aWhichFrame > FRAME_MAX_VALUE)
-    return nullptr;
+    return NS_ERROR_INVALID_ARG;
 
   if (mError)
-    return nullptr;
+    return NS_ERROR_FAILURE;
 
   // Disallowed in the API
   if (mInDecoder && (aFlags & imgIContainer::FLAG_SYNC_DECODE))
-    return nullptr;
+    return NS_ERROR_FAILURE;
+
+  nsresult rv = NS_OK;
 
   if (!ApplyDecodeFlags(aFlags))
-    return nullptr;
+    return NS_ERROR_NOT_AVAILABLE;
 
   // If the caller requested a synchronous decode, do it
   if (aFlags & FLAG_SYNC_DECODE) {
-    nsresult rv = SyncDecode();
-    CONTAINER_ENSURE_TRUE(NS_SUCCEEDED(rv), nullptr);
+    rv = SyncDecode();
+    CONTAINER_ENSURE_SUCCESS(rv);
   }
 
   // Get the frame. If it's not there, it's probably the caller's fault for
@@ -911,7 +912,8 @@ RasterImage::GetFrame(uint32_t aWhichFrame,
                           0 : GetCurrentImgFrameIndex();
   imgFrame *frame = GetDrawableImgFrame(frameIndex);
   if (!frame) {
-    return nullptr;
+    *_retval = nullptr;
+    return NS_ERROR_FAILURE;
   }
 
   nsRefPtr<gfxASurface> framesurf;
@@ -922,17 +924,19 @@ RasterImage::GetFrame(uint32_t aWhichFrame,
   if (framerect.x == 0 && framerect.y == 0 &&
       framerect.width == mSize.width &&
       framerect.height == mSize.height)
-    frame->GetSurface(getter_AddRefs(framesurf));
+    rv = frame->GetSurface(getter_AddRefs(framesurf));
 
   // The image doesn't have a surface because it's been optimized away. Create
   // one.
   if (!framesurf) {
     nsRefPtr<gfxImageSurface> imgsurf;
-    CopyFrame(aWhichFrame, aFlags, getter_AddRefs(imgsurf));
+    rv = CopyFrame(aWhichFrame, aFlags, getter_AddRefs(imgsurf));
     framesurf = imgsurf;
   }
 
-  return framesurf.forget();
+  *_retval = framesurf.forget().get();
+
+  return rv;
 }
 
 already_AddRefed<layers::Image>
@@ -945,8 +949,13 @@ RasterImage::GetCurrentImage()
     return nullptr;
   }
 
-  nsRefPtr<gfxASurface> imageSurface = GetFrame(FRAME_CURRENT, FLAG_NONE);
-  NS_ENSURE_TRUE(imageSurface, nullptr);
+  nsRefPtr<gfxASurface> imageSurface;
+  nsresult rv = GetFrame(FRAME_CURRENT, FLAG_NONE, getter_AddRefs(imageSurface));
+  NS_ENSURE_SUCCESS(rv, nullptr);
+
+  if (!imageSurface) {
+    return nullptr;
+  }
 
   if (!mImageContainer) {
     mImageContainer = LayerManager::CreateImageContainer();
@@ -2420,7 +2429,7 @@ RasterImage::SyncDecode()
 }
 
 bool
-RasterImage::CanQualityScale(const gfx::Size& scale)
+RasterImage::CanQualityScale(const gfxSize& scale)
 {
   // If target size is 1:1 with original, don't scale.
   if (scale.width == 1.0 && scale.height == 1.0)
@@ -2438,7 +2447,7 @@ RasterImage::CanQualityScale(const gfx::Size& scale)
 
 bool
 RasterImage::CanScale(GraphicsFilter aFilter,
-                      gfx::Size aScale, uint32_t aFlags)
+                      gfxSize aScale, uint32_t aFlags)
 {
 // The high-quality scaler requires Skia.
 #ifdef MOZ_ENABLE_SKIA
@@ -2514,7 +2523,7 @@ RasterImage::DrawWithPreDownscaleIfNeeded(imgFrame *aFrame,
   gfxMatrix userSpaceToImageSpace = aUserSpaceToImageSpace;
   gfxMatrix imageSpaceToUserSpace = aUserSpaceToImageSpace;
   imageSpaceToUserSpace.Invert();
-  gfx::Size scale = ToSize(imageSpaceToUserSpace.ScaleFactors(true));
+  gfxSize scale = imageSpaceToUserSpace.ScaleFactors(true);
   nsIntRect subimage = aSubimage;
 
   if (CanScale(aFilter, scale, aFlags)) {

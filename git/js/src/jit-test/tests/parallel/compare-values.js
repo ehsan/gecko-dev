@@ -15,29 +15,29 @@ function theTest() {
     return doubles[i] == e;
   }
   print("doubles");
-  assertArraySeqParResultsEq(doubles, "map", looselyCompareToDoubles);
+  compareAgainstArray(doubles, "map", looselyCompareToDoubles)
   print("bools");
-  assertArraySeqParResultsEq(bools, "map", looselyCompareToDoubles);
+  compareAgainstArray(bools, "map", looselyCompareToDoubles)
   // ion bails out when converting a string to a double right now,
   // so par exec cannot proceed
   print("strings");
   assertParallelExecWillBail(function (mode) {
-    strings.mapPar(looselyCompareToDoubles, mode)
+    new ParallelArray(strings).map(looselyCompareToDoubles, mode)
   });
   print("ints");
-  assertArraySeqParResultsEq(ints, "map", looselyCompareToDoubles);
+  compareAgainstArray(ints, "map", looselyCompareToDoubles)
 
   function strictlyCompareToDoubles(e, i) {
     return doubles[i] === e;
   }
   print("doubles, strict");
-  assertArraySeqParResultsEq(doubles, "map", strictlyCompareToDoubles);
+  compareAgainstArray(doubles, "map", strictlyCompareToDoubles)
   print("bools, strict");
-  assertArraySeqParResultsEq(bools, "map", strictlyCompareToDoubles);
+  compareAgainstArray(bools, "map", strictlyCompareToDoubles)
   print("strings, strict");
-  assertArraySeqParResultsEq(strings, "map", strictlyCompareToDoubles);
+  compareAgainstArray(strings, "map", strictlyCompareToDoubles)
   print("ints, strict");
-  assertArraySeqParResultsEq(ints, "map", strictlyCompareToDoubles);
+  compareAgainstArray(ints, "map", strictlyCompareToDoubles)
 }
 
 if (getBuildConfiguration().parallelJS)

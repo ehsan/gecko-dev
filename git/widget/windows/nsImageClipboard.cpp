@@ -116,9 +116,10 @@ nsImageToClipboard::CreateFromImage ( imgIContainer* inImage, HANDLE* outBitmap 
     nsresult rv;
     *outBitmap = nullptr;
 
-    nsRefPtr<gfxASurface> surface =
-      inImage->GetFrame(imgIContainer::FRAME_CURRENT,
-                        imgIContainer::FLAG_SYNC_DECODE);
+    nsRefPtr<gfxASurface> surface;
+    inImage->GetFrame(imgIContainer::FRAME_CURRENT,
+                      imgIContainer::FLAG_SYNC_DECODE,
+                      getter_AddRefs(surface));
     NS_ENSURE_TRUE(surface, NS_ERROR_FAILURE);
 
     nsRefPtr<gfxImageSurface> frame(surface->GetAsReadableARGB32ImageSurface());

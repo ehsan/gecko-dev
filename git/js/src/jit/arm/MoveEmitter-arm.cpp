@@ -100,7 +100,7 @@ MoveEmitterARM::tempReg()
 }
 
 void
-MoveEmitterARM::breakCycle(const MoveOperand &from, const MoveOperand &to, MoveOp::Kind kind)
+MoveEmitterARM::breakCycle(const MoveOperand &from, const MoveOperand &to, Move::Kind kind)
 {
     // There is some pattern:
     //   (A -> B)
@@ -108,7 +108,7 @@ MoveEmitterARM::breakCycle(const MoveOperand &from, const MoveOperand &to, MoveO
     //
     // This case handles (A -> B), which we reach first. We save B, then allow
     // the original move to continue.
-    if (kind == MoveOp::DOUBLE) {
+    if (kind == Move::DOUBLE) {
         if (to.isMemory()) {
             FloatRegister temp = ScratchFloatReg;
             masm.ma_vldr(toOperand(to, true), temp);
@@ -134,7 +134,7 @@ MoveEmitterARM::breakCycle(const MoveOperand &from, const MoveOperand &to, MoveO
 }
 
 void
-MoveEmitterARM::completeCycle(const MoveOperand &from, const MoveOperand &to, MoveOp::Kind kind)
+MoveEmitterARM::completeCycle(const MoveOperand &from, const MoveOperand &to, Move::Kind kind)
 {
     // There is some pattern:
     //   (A -> B)
@@ -142,7 +142,7 @@ MoveEmitterARM::completeCycle(const MoveOperand &from, const MoveOperand &to, Mo
     //
     // This case handles (B -> A), which we reach last. We emit a move from the
     // saved value of B, to A.
-    if (kind == MoveOp::DOUBLE) {
+    if (kind == Move::DOUBLE) {
         if (to.isMemory()) {
             FloatRegister temp = ScratchFloatReg;
             masm.ma_vldr(cycleSlot(), temp);
@@ -232,7 +232,7 @@ MoveEmitterARM::emitDoubleMove(const MoveOperand &from, const MoveOperand &to)
 }
 
 void
-MoveEmitterARM::emit(const MoveOp &move)
+MoveEmitterARM::emit(const Move &move)
 {
     const MoveOperand &from = move.from();
     const MoveOperand &to = move.to();
@@ -248,7 +248,7 @@ MoveEmitterARM::emit(const MoveOp &move)
         inCycle_ = true;
     }
 
-    if (move.kind() == MoveOp::DOUBLE)
+    if (move.kind() == Move::DOUBLE)
         emitDoubleMove(from, to);
     else
         emitMove(from, to);

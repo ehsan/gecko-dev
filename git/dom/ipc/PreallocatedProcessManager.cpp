@@ -246,7 +246,7 @@ PreallocatedProcessManagerImpl::DelayedNuwaFork()
   mPreallocateAppProcessTask = nullptr;
 
   if (!mIsNuwaReady) {
-    if (!mPreallocatedAppProcess && !mShutdown && mEnabled) {
+    if (!mPreallocatedAppProcess && !mShutdown) {
       mPreallocatedAppProcess = ContentParent::RunNuwaProcess();
     }
     // else mPreallocatedAppProcess is starting. It will NuwaFork() when ready.

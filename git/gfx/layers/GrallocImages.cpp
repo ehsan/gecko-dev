@@ -230,7 +230,7 @@ GrallocImage::GetAsSurface()
   }
 
   nsRefPtr<gfxImageSurface> imageSurface =
-    new gfxImageSurface(gfx::ThebesIntSize(GetSize()), gfxImageFormatRGB16_565);
+    new gfxImageSurface(GetSize(), gfxImageFormatRGB16_565);
 
   uint32_t width = GetSize().width;
   uint32_t height = GetSize().height;
@@ -295,7 +295,9 @@ GrallocImage::GetTextureClient()
       flags |= TEXTURE_RB_SWAPPED;
     }
     GrallocBufferActor* actor = static_cast<GrallocBufferActor*>(desc.bufferChild());
-    mTextureClient = new GrallocTextureClientOGL(actor, mSize, flags);
+    mTextureClient = new GrallocTextureClientOGL(actor,
+                                                 gfx::ToIntSize(mSize),
+                                                 flags);
     mTextureClient->SetGraphicBufferLocked(mGraphicBuffer);
   }
   return mTextureClient;
