@@ -3,7 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "PCOMContentPermissionRequestChild.h"
+#include "mozilla/dom/PBrowserChild.h"
 #include "mozilla/dom/Notification.h"
+#include "mozilla/dom/ContentChild.h"
 #include "mozilla/Preferences.h"
 #include "TabChild.h"
 #include "nsContentUtils.h"
@@ -431,12 +433,20 @@ Notification::GetPermissionInternal(nsISupports* aGlobal, ErrorResult& aRv)
 
   uint32_t permission = nsIPermissionManager::UNKNOWN_ACTION;
 
-  nsCOMPtr<nsIPermissionManager> permissionManager =
-    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    ContentChild* cpc = ContentChild::GetSingleton();
 
-  permissionManager->TestPermissionFromPrincipal(principal,
-                                                 "desktop-notification",
-                                                 &permission);
+    cpc->SendTestPermissionFromPrincipal(IPC::Principal(principal),
+                                         NS_LITERAL_CSTRING("desktop-notification"),
+                                         &permission);
+  } else {
+    nsCOMPtr<nsIPermissionManager> permissionManager =
+      do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
+
+    permissionManager->TestPermissionFromPrincipal(principal,
+                                                   "desktop-notification",
+                                                   &permission);
+  }
 
   // Convert the result to one of the enum types.
   switch (permission) {

@@ -440,7 +440,6 @@ var tests = {
             ok(!window.SocialChatBar.hasChats, "first window has no chats");
             ok(secondWindow.SocialChatBar.hasChats, "second window has a chat");
             secondWindow.close();
-            port.close();
             next();
           });
         });
@@ -454,32 +453,20 @@ var tests = {
     const chatUrl = "https://example.com/browser/browser/base/content/test/social/social_chat.html";
     let port = Social.provider.getWorkerPort();
     ok(port, "provider has a port");
-    let opened = false;
+    port.postMessage({topic: "test-init"});
     port.onmessage = function (e) {
       let topic = e.data.topic;
       switch (topic) {
-        case "test-init-done":
-          info("open first chat window");
-          port.postMessage({topic: "test-worker-chat", data: chatUrl});
-          break;
         case "got-chatbox-message":
           ok(true, "got a chat window opened");
-          if (opened) {
-            port.postMessage({topic: "test-logout"});
-            waitForCondition(function() document.getElementById("pinnedchats").firstChild == null,
-                             function() {
-                              port.close();
-                              next();
-                             },
-                             "chat windows didn't close");
-          } else {
-            // open a second chat window
-            opened = true;
-            port.postMessage({topic: "test-worker-chat", data: chatUrl+"?id=1"});
-          }
+          port.postMessage({topic: "test-logout"});
+          port.close();
+          waitForCondition(function() document.getElementById("pinnedchats").firstChild == null,
+                           next,
+                           "chat windows didn't close");
           break;
       }
     }
-    port.postMessage({topic: "test-init"});
-  }
+    port.postMessage({topic: "test-worker-chat", data: chatUrl});
+  },
 }
