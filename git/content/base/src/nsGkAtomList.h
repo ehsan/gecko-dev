@@ -145,6 +145,7 @@ GK_ATOM(border, "border")
 GK_ATOM(bordercolor, "bordercolor")
 GK_ATOM(both, "both")
 GK_ATOM(bottom, "bottom")
+GK_ATOM(bottomend, "bottomend")
 GK_ATOM(bottomleft, "bottomleft")
 GK_ATOM(bottommargin, "bottommargin")
 GK_ATOM(bottompadding, "bottompadding")
@@ -459,6 +460,7 @@ GK_ATOM(isindex, "isindex")
 GK_ATOM(ismap, "ismap")
 GK_ATOM(kbd, "kbd")
 GK_ATOM(noautofocus, "noautofocus")
+GK_ATOM(keepcurrentinview, "keepcurrentinview")
 GK_ATOM(key, "key")
 GK_ATOM(keycode, "keycode")
 GK_ATOM(keydown, "keydown")
@@ -1256,6 +1258,25 @@ GK_ATOM(z, "z")
 GK_ATOM(zoomAndPan, "zoomAndPan")
 #endif
 
+#ifdef MOZ_SMIL
+GK_ATOM(accumulate, "accumulate")
+GK_ATOM(additive, "additive")
+GK_ATOM(attributeName, "attributeName")
+GK_ATOM(attributeType, "attributeType")
+GK_ATOM(begin, "begin")
+GK_ATOM(by, "by")
+GK_ATOM(calcMode, "calcMode")
+GK_ATOM(css, "CSS")
+GK_ATOM(dur, "dur")
+GK_ATOM(keySplines, "keySplines")
+GK_ATOM(keyTimes, "keyTimes")
+GK_ATOM(repeatCount, "repeatCount")
+GK_ATOM(repeatDur, "repeatDur")
+GK_ATOM(restart, "restart")
+GK_ATOM(to, "to")
+GK_ATOM(XML, "XML")
+#endif
+
 #ifdef MOZ_MATHML
 GK_ATOM(MOZcolumnalign, "-moz-math-columnalign")
 GK_ATOM(MOZcolumnline, "-moz-math-columnline") // different from columnlines_
@@ -1482,7 +1503,6 @@ GK_ATOM(processingInstructionTagName, "#processing-instruction")
 GK_ATOM(textTagName, "#text")
 
 // Frame types
-GK_ATOM(areaFrame, "AreaFrame")
 GK_ATOM(bcTableCellFrame, "BCTableCellFrame") // table cell in border collapsing model
 GK_ATOM(blockFrame, "BlockFrame")
 GK_ATOM(boxFrame, "BoxFrame")
@@ -1535,6 +1555,9 @@ GK_ATOM(tableRowFrame, "TableRowFrame")
 GK_ATOM(textInputFrame,"TextInputFrame")
 GK_ATOM(textFrame, "TextFrame")
 GK_ATOM(viewportFrame, "ViewportFrame")
+#ifdef MOZ_XUL
+GK_ATOM(XULLabelFrame, "XULLabelFrame")
+#endif
 #ifdef MOZ_SVG
 GK_ATOM(svgAFrame, "SVGAFrame")
 GK_ATOM(svgClipPathFrame, "SVGClipPathFrame")
@@ -1627,7 +1650,6 @@ GK_ATOM(overflowPlaceholdersProperty, "OverflowPlaceholdersProperty")  // nsFram
 GK_ATOM(preEffectsBBoxProperty, "PreEffectsBBoxProperty") // nsRect*
 GK_ATOM(preTransformBBoxProperty, "PreTransformBBoxProperty") // nsRect*
 GK_ATOM(rowUnpaginatedHeightProperty, "RowUnpaginatedHeightProperty")  // nscoord*
-GK_ATOM(spaceManagerProperty, "SpaceManagerProperty")      // the space manager for a block
 GK_ATOM(tabWidthProperty, "TabWidthProperty")              // nsTArray<TabSetting>* array of tab widths
 GK_ATOM(tableBCProperty, "TableBCProperty")                // table border collapsing info (e.g. damage area, table border widths)
 GK_ATOM(usedMarginProperty, "UsedMarginProperty") // nsMargin*

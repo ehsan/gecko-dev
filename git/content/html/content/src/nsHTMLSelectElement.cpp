@@ -601,7 +601,7 @@ nsHTMLSelectElement::GetSelectFrame()
   nsISelectControlFrame *select_frame = nsnull;
 
   if (form_control_frame) {
-    CallQueryInterface(form_control_frame, &select_frame);
+    select_frame = do_QueryFrame(form_control_frame);
   }
 
   return select_frame;
@@ -926,6 +926,13 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
   nsPresContext *presContext = GetPresContext();
 
   if (aIsSelected) {
+    // Setting selectedIndex to an out-of-bounds index means -1. (HTML5)
+    if (aStartIndex >= (PRInt32)numItems || aStartIndex < 0 ||
+        aEndIndex >= (PRInt32)numItems || aEndIndex < 0) {
+      aStartIndex = -1;
+      aEndIndex = -1;
+    }
+
     // Only select the first value if it's not multiple
     if (!isMultiple) {
       aEndIndex = aStartIndex;
@@ -947,12 +954,6 @@ nsHTMLSelectElement::SetOptionsSelectedByIndex(PRInt32 aStartIndex,
     //
     // If index is -1, everything will be deselected (bug 28143)
     if (aStartIndex != -1) {
-      // Verify that the indices are within bounds
-      if (aStartIndex >= (PRInt32)numItems || aStartIndex < 0
-         || aEndIndex >= (PRInt32)numItems || aEndIndex < 0) {
-        return NS_ERROR_FAILURE;
-      }
-
       // Loop through the options and select them (if they are not disabled and
       // if they are not already selected).
       for (PRInt32 optIndex = aStartIndex; optIndex <= aEndIndex; optIndex++) {
@@ -1439,9 +1440,7 @@ nsHTMLSelectElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   nsIFrame* formFrame = nsnull;
 
   if (formControlFrame &&
-      NS_SUCCEEDED(CallQueryInterface(formControlFrame, &formFrame)) &&
-      formFrame)
-  {
+      (formFrame = do_QueryFrame(formControlFrame))) {
     const nsStyleUserInterface* uiStyle = formFrame->GetStyleUserInterface();
 
     if (uiStyle->mUserInput == NS_STYLE_USER_INPUT_NONE ||
@@ -1701,14 +1700,12 @@ void nsHTMLSelectElement::DispatchContentReset() {
     // Only dispatch content reset notification if this is a list control
     // frame or combo box control frame.
     if (IsCombobox()) {
-      nsIComboboxControlFrame* comboFrame = nsnull;
-      CallQueryInterface(formControlFrame, &comboFrame);
+      nsIComboboxControlFrame* comboFrame = do_QueryFrame(formControlFrame);
       if (comboFrame) {
         comboFrame->OnContentReset();
       }
     } else {
-      nsIListControlFrame* listFrame = nsnull;
-      CallQueryInterface(formControlFrame, &listFrame);
+      nsIListControlFrame* listFrame = do_QueryFrame(formControlFrame);
       if (listFrame) {
         listFrame->OnContentReset();
       }

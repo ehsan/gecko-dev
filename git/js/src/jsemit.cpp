@@ -2740,6 +2740,8 @@ EmitSwitch(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
                 continue;
 
             pn4 = pn3->pn_left;
+            while (pn4->pn_type == TOK_RP)
+                pn4 = pn4->pn_kid;
             switch (pn4->pn_type) {
               case TOK_NUMBER:
                 d = pn4->pn_dval;
@@ -5992,7 +5994,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
          * array comprehension, use JSOP_NEWARRAY.
          */
         pn2 = pn->pn_head;
-        op = JSOP_NEWINIT;      // FIXME: 260106 patch disabled for now
+        op = JSOP_NEWARRAY;
 
 #if JS_HAS_SHARP_VARS
         if (pn2 && pn2->pn_type == TOK_DEFSHARP)
@@ -6637,7 +6639,7 @@ js_SetSrcNoteOffset(JSContext *cx, JSCodeGenerator *cg, uintN index,
 
             /*
              * Simultaneously test to see if the source note array must grow to
-             * accomodate either the first or second byte of additional storage
+             * accommodate either the first or second byte of additional storage
              * required by this 3-byte offset.
              */
             if (((CG_NOTE_COUNT(cg) + 1) & CG_NOTE_MASK(cg)) <= 1) {

@@ -61,7 +61,7 @@ class nsIDOMSVGMatrix;
 class nsIURI;
 class nsSVGOuterSVGFrame;
 class nsIPresShell;
-class nsIDOMSVGAnimatedPreserveAspectRatio;
+class nsSVGPreserveAspectRatio;
 class nsIAtom;
 class nsSVGLength2;
 class nsSVGElement;
@@ -327,7 +327,7 @@ public:
   GetViewBoxTransform(float aViewportWidth, float aViewportHeight,
                       float aViewboxX, float aViewboxY,
                       float aViewboxWidth, float aViewboxHeight,
-                      nsIDOMSVGAnimatedPreserveAspectRatio *aPreserveAspectRatio,
+                      const nsSVGPreserveAspectRatio &aPreserveAspectRatio,
                       PRBool aIgnoreAlign = PR_FALSE);
 
   /* Paint SVG frame with SVG effects - aDirtyRect is the area being
@@ -346,14 +346,6 @@ public:
 
   static nsIFrame *
   HitTestChildren(nsIFrame *aFrame, const nsPoint &aPoint);
-
-  /* Add observation of an nsISVGValue to an nsISVGValueObserver */
-  static void
-  AddObserver(nsISupports *aObserver, nsISupports *aTarget);
-
-  /* Remove observation of an nsISVGValue from an nsISVGValueObserver */
-  static void
-  RemoveObserver(nsISupports *aObserver, nsISupports *aTarget);
 
   /*
    * Returns the CanvasTM of the indicated frame, whether it's a
@@ -476,6 +468,12 @@ public:
   static gfxRect
   GetRelativeRect(PRUint16 aUnits, const nsSVGLength2 *aXYWH, nsIDOMSVGRect *aBBox,
                   nsIFrame *aFrame);
+
+  /**
+   * Find the first frame, starting with aStartFrame and going up its
+   * parent chain, that is not an svgAFrame.
+   */
+  static nsIFrame* GetFirstNonAAncestorFrame(nsIFrame* aStartFrame);
 
 #ifdef DEBUG
   static void

@@ -50,6 +50,7 @@ _TEST_FILES =\
 		longdesc_src.html \
 		attributes.js \
 		common.js \
+		namerules.xml \
 		nsIAccessible_actions.js \
 		nsIAccessible_name.css \
 		nsIAccessible_name.js \
@@ -57,14 +58,19 @@ _TEST_FILES =\
  		nsIAccessible_selects.js \
 		nsIAccessible_states.js \
 		nsIAccessibleEditableText.js \
+		role.js \
 		test_aria_activedescendant.html \
 		test_aria_role_article.html \
 		test_aria_role_equation.html \
+		test_aria_token_attrs.html \
 		$(warning test_bug368835.xul temporarily disabled) \
 		test_bug420863.html \
 		test_cssattrs.html \
 		test_events_caretmove.html \
-		$(warning test_groupattrs.xul temporarily disabled) \
+		test_events_mutation.html \
+		test_groupattrs.xul \
+		test_groupattrs.html \
+		test_name_markup.html \
 	$(warning test_table_indexes.html temporarily disabled) \
 		test_nsIAccessible_actions.html \
 		$(warning test_nsIAccessible_actions.xul temporarily disabled) \
@@ -92,9 +98,11 @@ _TEST_FILES =\
 		$(warning test_nsIAccessibleTable_listboxes.xul temporarily disabled) \
 		test_nsIAccessNode_utils.html \
 		test_nsOuterDocAccessible.html \
+		test_role_nsHyperTextAcc.html \
+		test_role_table_cells.html \
 		test_textattrs.html \
 		test_textboxes.html \
-		$(warning test_textboxes.xul temporarily disabled) \
+		test_textboxes.xul \
 		testTextboxes.js \
 		test_bug429285.html \
 		test_bug434464.html \

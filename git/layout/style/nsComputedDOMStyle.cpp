@@ -47,7 +47,7 @@
 
 #include "nsDOMError.h"
 #include "nsDOMString.h"
-#include "nsIDOMCSS2Properties.h"
+#include "nsIDOMNSCSS2Properties.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsStyleContext.h"
@@ -2700,11 +2700,7 @@ nsComputedDOMStyle::GetClip(nsIDOMCSSValue** aValue)
   nsROCSSPrimitiveValue *rightVal = nsnull;
   nsROCSSPrimitiveValue *bottomVal = nsnull;
   nsROCSSPrimitiveValue *leftVal = nsnull;
-  if (display->mClipFlags == NS_STYLE_CLIP_AUTO ||
-      display->mClipFlags == (NS_STYLE_CLIP_TOP_AUTO |
-                              NS_STYLE_CLIP_RIGHT_AUTO |
-                              NS_STYLE_CLIP_BOTTOM_AUTO |
-                              NS_STYLE_CLIP_LEFT_AUTO)) {
+  if (display->mClipFlags == NS_STYLE_CLIP_AUTO) {
     val->SetIdent(nsGkAtoms::_auto);
   } else {
     // create the cssvalues for the sides, stick them in the rect object
@@ -3082,8 +3078,7 @@ nsComputedDOMStyle::GetAbsoluteOffset(PRUint8 aSide, nsIDOMCSSValue** aValue)
       // scrollbars.  We have to do some extra work.
       // the first child in the default frame list is what we want
       nsIFrame* scrollingChild = container->GetFirstChild(nsnull);
-      nsCOMPtr<nsIScrollableFrame> scrollFrame =
-        do_QueryInterface(scrollingChild);
+      nsIScrollableFrame *scrollFrame = do_QueryFrame(scrollingChild);
       if (scrollFrame) {
         scrollbarSizes = scrollFrame->GetActualScrollbarSizes();
       }

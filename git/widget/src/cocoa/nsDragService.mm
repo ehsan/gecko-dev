@@ -138,11 +138,14 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
       NSString* currentKey = [types objectAtIndex:i];
       id currentValue = [pasteboardOutputDict valueForKey:currentKey];
       if (currentKey == NSStringPboardType ||
-          currentKey == NSHTMLPboardType ||
           currentKey == kCorePboardType_url ||
           currentKey == kCorePboardType_urld ||
           currentKey == kCorePboardType_urln) {
         [dragPBoard setString:currentValue forType:currentKey];
+      }
+      else if (currentKey == NSHTMLPboardType) {
+        [dragPBoard setString:(nsClipboard::WrapHtmlForSystemPasteboard(currentValue))
+                      forType:currentKey];
       }
       else if (currentKey == NSTIFFPboardType) {
         [dragPBoard setData:currentValue forType:currentKey];
@@ -161,7 +164,7 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
 
 NSImage*
 nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
-                                  nsRect* aDragRect,
+                                  nsIntRect* aDragRect,
                                   nsIScriptableRegion* aRegion)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
@@ -265,7 +268,7 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
   if (NS_FAILED(SetUpDragClipboard(aTransferableArray)))
     return NS_ERROR_FAILURE;
 
-  nsRect dragRect(0, 0, 20, 20);
+  nsIntRect dragRect(0, 0, 20, 20);
   NSImage* image = ConstructDragImage(aDOMNode, &dragRect, aDragRgn);
   if (!image) {
     // if no image was returned, just draw a rectangle

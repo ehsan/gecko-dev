@@ -97,6 +97,7 @@ typedef struct JSGSNCache {
 namespace nanojit {
     class Fragment;
     class Fragmento;
+    class LirBuffer;
 }
 class TraceRecorder;
 extern "C++" { template<typename T> class Queue; }
@@ -121,17 +122,26 @@ typedef struct JSTraceMonitor {
      * JS_ReportOutOfMemory when failing due to runtime limits.
      */
     JSBool                  onTrace;
+    CLS(nanojit::LirBuffer) lirbuf;
     CLS(nanojit::Fragmento) fragmento;
     CLS(TraceRecorder)      recorder;
     uint32                  globalShape;
     CLS(SlotList)           globalSlots;
     CLS(TypeMap)            globalTypeMap;
-    jsval                   *recoveryDoublePool;
-    jsval                   *recoveryDoublePoolPtr;
+    jsval                   *reservedDoublePool;
+    jsval                   *reservedDoublePoolPtr;
+
+    /*
+     * reservedObjects is a linked list (via fslots[0]) of preallocated JSObjects.
+     * The JIT uses this to ensure that leaving a trace tree can't fail.
+     */
+    JSObject                *reservedObjects;
+    JSBool                  useReservedObjects;
 
     /* Fragmento for the regular expression compiler. This is logically
      * a distinct compiler but needs to be managed in exactly the same
      * way as the real tracing Fragmento. */
+    CLS(nanojit::LirBuffer) reLirBuf;
     CLS(nanojit::Fragmento) reFragmento;
 
     /* Keep a list of recorders we need to abort on cache flush. */
@@ -177,8 +187,10 @@ struct JSThread {
     /* Property cache for faster call/get/set invocation. */
     JSPropertyCache     propertyCache;
 
+#ifdef JS_TRACER
     /* Trace-tree JIT recorder/interpreter state. */
     JSTraceMonitor      traceMonitor;
+#endif
 
     /* Lock-free list of scripts created by eval to garbage-collect. */
     JSScript            *scriptsToGC;
@@ -738,7 +750,7 @@ struct JSContext {
      * Operation count. It is declared as the first field in the struct to
      * ensure the fastest possible access.
      */
-    int32               operationCount;
+    volatile int32      operationCount;
 
     /* JSRuntime contextList linkage. */
     JSCList             link;
@@ -848,11 +860,10 @@ struct JSContext {
     JSErrorReporter     errorReporter;
 
     /*
-     * Flag indicating that the operation callback is set. When the flag is 0
-     * but operationCallback is not null, operationCallback stores the branch
+     * Flag indicating that operationCallback stores the deprecated branch
      * callback.
      */
-    uint32              operationCallbackIsSet :    1;
+    uint32              branchCallbackWasSet   :    1;
     uint32              operationLimit         :    31;
     JSOperationCallback operationCallback;
 
@@ -924,6 +935,10 @@ class JSAutoTempValueRooter
     JSAutoTempValueRooter(JSContext *cx, jsval v)
         : mContext(cx) {
         JS_PUSH_SINGLE_TEMP_ROOT(mContext, v, &mTvr);
+    }
+    JSAutoTempValueRooter(JSContext *cx, JSString *str)
+        : mContext(cx) {
+        JS_PUSH_TEMP_ROOT_STRING(mContext, str, &mTvr);
     }
 
     ~JSAutoTempValueRooter() {
@@ -1261,6 +1276,23 @@ extern JSErrorFormatString js_ErrorFormatString[JSErr_Limit];
  */
 extern JSBool
 js_ResetOperationCount(JSContext *cx);
+
+static JS_INLINE void
+js_InitOperationLimit(JSContext *cx)
+{
+    /*
+     * Set the limit to 1 + max to detect if JS_SetOperationLimit() was ever
+     * called.
+     */
+    cx->operationCount = (int32) JS_MAX_OPERATION_LIMIT + 1;
+    cx->operationLimit = JS_MAX_OPERATION_LIMIT + 1;
+}
+
+static JS_INLINE JSBool
+js_HasOperationLimit(JSContext *cx)
+{
+    return cx->operationLimit <= JS_MAX_OPERATION_LIMIT;
+}
 
 /*
  * Get the current cx->fp, first lazily instantiating stack frames if needed.

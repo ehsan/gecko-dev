@@ -22,6 +22,7 @@
  * Contributor(s):
  *   Alex Fritze <alex.fritze@crocodile-clips.com> (original author)
  *   Jonathan Watt <jonathan.watt@strath.ac.uk>
+ *   Chris Double  <chris.double@double.co.nz>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -46,7 +47,6 @@
 #include "nsIDocument.h"
 #include "nsPresContext.h"
 #include "nsSVGAnimatedRect.h"
-#include "nsSVGAnimatedPreserveAspectRatio.h"
 #include "nsSVGMatrix.h"
 #include "nsSVGPoint.h"
 #include "nsSVGTransform.h"
@@ -63,6 +63,17 @@
 #include "nsGUIEvent.h"
 #include "nsSVGUtils.h"
 #include "nsSVGSVGElement.h"
+
+#ifdef MOZ_SMIL
+#include "nsEventDispatcher.h"
+#include "nsSMILTimeContainer.h"
+#include "nsSMILAnimationController.h"
+#include "nsSMILTypes.h"
+#include "nsIContentIterator.h"
+
+nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
+#endif // MOZ_SMIL
+
 
 nsSVGElement::LengthInfo nsSVGSVGElement::sLengthInfo[4] =
 {
@@ -86,7 +97,28 @@ nsSVGElement::EnumInfo nsSVGSVGElement::sEnumInfo[1] =
   }
 };
 
-NS_IMPL_NS_NEW_SVG_ELEMENT(SVG)
+// From NS_IMPL_NS_NEW_SVG_ELEMENT but with aFromParser
+nsresult
+NS_NewSVGSVGElement(nsIContent **aResult, nsINodeInfo *aNodeInfo,
+                    PRBool aFromParser)
+{
+  nsSVGSVGElement *it = new nsSVGSVGElement(aNodeInfo, aFromParser);
+  if (!it)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  NS_ADDREF(it);
+
+  nsresult rv = it->Init();
+
+  if (NS_FAILED(rv)) {
+    NS_RELEASE(it);
+    return rv;
+  }
+
+  *aResult = it;
+
+  return rv;
+}
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -105,7 +137,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGSVGElementBase)
 //----------------------------------------------------------------------
 // Implementation
 
-nsSVGSVGElement::nsSVGSVGElement(nsINodeInfo* aNodeInfo)
+nsSVGSVGElement::nsSVGSVGElement(nsINodeInfo* aNodeInfo, PRBool aFromParser)
   : nsSVGSVGElementBase(aNodeInfo),
     mCoordCtx(nsnull),
     mViewportWidth(0),
@@ -116,14 +148,14 @@ nsSVGSVGElement::nsSVGSVGElement(nsINodeInfo* aNodeInfo)
     mPreviousScale(0),
     mRedrawSuspendCount(0),
     mDispatchEvent(PR_FALSE)
+#ifdef MOZ_SMIL
+    ,mStartAnimationOnBindToTree(!aFromParser)
+#endif // MOZ_SMIL
 {
 }
 
 nsSVGSVGElement::~nsSVGSVGElement()
 {
-  if (mPreserveAspectRatio) {
-    NS_REMOVE_SVGVALUE_OBSERVER(mPreserveAspectRatio);
-  }
   if (mViewBox) {
     NS_REMOVE_SVGVALUE_OBSERVER(mViewBox);
   }
@@ -146,20 +178,6 @@ nsSVGSVGElement::Init()
     rv = NS_NewSVGAnimatedRect(getter_AddRefs(mViewBox), viewbox);
     NS_ENSURE_SUCCESS(rv,rv);
     rv = AddMappedSVGValue(nsGkAtoms::viewBox, mViewBox);
-    NS_ENSURE_SUCCESS(rv,rv);
-  }
-
-  // DOM property: preserveAspectRatio , #IMPLIED attrib: preserveAspectRatio
-  {
-    nsCOMPtr<nsIDOMSVGPreserveAspectRatio> preserveAspectRatio;
-    rv = NS_NewSVGPreserveAspectRatio(getter_AddRefs(preserveAspectRatio));
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = NS_NewSVGAnimatedPreserveAspectRatio(
-                                          getter_AddRefs(mPreserveAspectRatio),
-                                          preserveAspectRatio);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = AddMappedSVGValue(nsGkAtoms::preserveAspectRatio,
-                           mPreserveAspectRatio);
     NS_ENSURE_SUCCESS(rv,rv);
   }
 
@@ -187,8 +205,26 @@ nsSVGSVGElement::Init()
 //----------------------------------------------------------------------
 // nsIDOMNode methods
 
+// From NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGSVGElement)
+nsresult
+nsSVGSVGElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
+{
+  *aResult = nsnull;
 
-NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGSVGElement)
+  nsSVGSVGElement *it = new nsSVGSVGElement(aNodeInfo, PR_FALSE);
+  if (!it) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  nsCOMPtr<nsINode> kungFuDeathGrip = it;
+  nsresult rv = it->Init();
+  rv |= CopyInnerTo(it);
+  if (NS_SUCCEEDED(rv)) {
+    kungFuDeathGrip.swap(*aResult);
+  }
+
+  return rv;
+}
 
 
 //----------------------------------------------------------------------
@@ -383,8 +419,7 @@ nsSVGSVGElement::SuspendRedraw(PRUint32 max_wait_milliseconds, PRUint32 *_retval
   NS_ASSERTION(frame, "suspending redraw w/o frame");
 #endif
   if (frame) {
-    nsISVGSVGFrame* svgframe;
-    CallQueryInterface(frame, &svgframe);
+    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
     NS_ASSERTION(svgframe, "wrong frame type");
     if (svgframe) {
       svgframe->SuspendRedraw();
@@ -422,8 +457,7 @@ nsSVGSVGElement::UnsuspendRedrawAll()
   NS_ASSERTION(frame, "unsuspending redraw w/o frame");
 #endif
   if (frame) {
-    nsISVGSVGFrame* svgframe;
-    CallQueryInterface(frame, &svgframe);
+    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
     NS_ASSERTION(svgframe, "wrong frame type");
     if (svgframe) {
       svgframe->UnsuspendRedraw();
@@ -448,32 +482,65 @@ nsSVGSVGElement::ForceRedraw()
 NS_IMETHODIMP
 nsSVGSVGElement::PauseAnimations()
 {
+#ifdef MOZ_SMIL
+  if (mTimedDocumentRoot) {
+    mTimedDocumentRoot->Pause(nsSMILTimeContainer::PAUSE_SCRIPT);
+  }
+  // else we're not the outermost <svg> or not bound to a tree, so silently fail
+  return NS_OK;
+#else
   NS_NOTYETIMPLEMENTED("nsSVGSVGElement::PauseAnimations");
   return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 /* void unpauseAnimations (); */
 NS_IMETHODIMP
 nsSVGSVGElement::UnpauseAnimations()
 {
+#ifdef MOZ_SMIL
+  if (mTimedDocumentRoot) {
+    mTimedDocumentRoot->Resume(nsSMILTimeContainer::PAUSE_SCRIPT);
+  }
+  // else we're not the outermost <svg> or not bound to a tree, so silently fail
+  return NS_OK;
+#else
   NS_NOTYETIMPLEMENTED("nsSVGSVGElement::UnpauseAnimations");
   return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 /* boolean animationsPaused (); */
 NS_IMETHODIMP
 nsSVGSVGElement::AnimationsPaused(PRBool *_retval)
 {
+#ifdef MOZ_SMIL
+  nsSMILTimeContainer* root = GetTimedDocumentRoot();
+  *_retval = root && root->IsPausedByType(nsSMILTimeContainer::PAUSE_SCRIPT);
+  return NS_OK;
+#else
   NS_NOTYETIMPLEMENTED("nsSVGSVGElement::AnimationsPaused");
   return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 /* float getCurrentTime (); */
 NS_IMETHODIMP
 nsSVGSVGElement::GetCurrentTime(float *_retval)
 {
+#ifdef MOZ_SMIL
+  nsSMILTimeContainer* root = GetTimedDocumentRoot();
+  if (root) {
+    double fCurrentTimeMs = double(root->GetCurrentTime());
+    *_retval = (float)(fCurrentTimeMs / PR_MSEC_PER_SEC);
+  } else {
+    *_retval = 0.f;
+  }
+  return NS_OK;
+#else
   NS_NOTYETIMPLEMENTED("nsSVGSVGElement::GetCurrentTime");
   return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 /* void setCurrentTime (in float seconds); */
@@ -481,8 +548,21 @@ NS_IMETHODIMP
 nsSVGSVGElement::SetCurrentTime(float seconds)
 {
   NS_ENSURE_FINITE(seconds, NS_ERROR_ILLEGAL_VALUE);
+#ifdef MOZ_SMIL
+  if (mTimedDocumentRoot) {
+    double fMilliseconds = double(seconds) * PR_MSEC_PER_SEC;
+    // Round to nearest whole number before converting, to avoid precision
+    // errors
+    nsSMILTime lMilliseconds = PRInt64(NS_round(fMilliseconds));
+    mTimedDocumentRoot->SetCurrentTime(lMilliseconds);
+    RequestSample();
+  } // else we're not the outermost <svg> or not bound to a tree, so silently
+    // fail
+  return NS_OK;
+#else
   NS_NOTYETIMPLEMENTED("nsSVGSVGElement::SetCurrentTime");
   return NS_ERROR_NOT_IMPLEMENTED;
+#endif
 }
 
 /* nsIDOMNodeList getIntersectionList (in nsIDOMSVGRect rect, in nsIDOMSVGElement referenceElement); */
@@ -642,11 +722,10 @@ nsSVGSVGElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio * *aPreserveAspectRatio)
+nsSVGSVGElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
+                                        **aPreserveAspectRatio)
 {
-  *aPreserveAspectRatio = mPreserveAspectRatio;
-  NS_ADDREF(*aPreserveAspectRatio);
-  return NS_OK;
+  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
 }
 
 //----------------------------------------------------------------------
@@ -677,8 +756,7 @@ nsSVGSVGElement::GetBBox(nsIDOMSVGRect **_retval)
   if (!frame || (frame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD))
     return NS_ERROR_FAILURE;
 
-  nsISVGChildFrame* svgframe;
-  CallQueryInterface(frame, &svgframe);
+  nsISVGChildFrame* svgframe = do_QueryFrame(frame);
   if (svgframe) {
     svgframe->SetMatrixPropagation(PR_FALSE);
     svgframe->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
@@ -983,7 +1061,7 @@ nsSVGSVGElement::SetZoomAndPan(PRUint16 aZoomAndPan)
 //----------------------------------------------------------------------
 // helper methods for implementing SVGZoomEvent:
 
-NS_IMETHODIMP
+nsresult
 nsSVGSVGElement::GetCurrentScaleNumber(nsIDOMSVGNumber **aResult)
 {
   *aResult = mCurrentScale;
@@ -1040,7 +1118,7 @@ nsSVGSVGElement::SetCurrentTranslate(float x, float y)
   return NS_OK;
 }
 
-NS_IMETHODIMP_(void)
+void
 nsSVGSVGElement::RecordCurrentScaleTranslate()
 {
   // IMPORTANT: If either mCurrentTranslate *or* mCurrentScale is changed then
@@ -1056,23 +1134,42 @@ nsSVGSVGElement::RecordCurrentScaleTranslate()
   mCurrentTranslate->GetY(&mPreviousTranslate_y);
 }
 
-NS_IMETHODIMP_(float)
-nsSVGSVGElement::GetPreviousTranslate_x()
+#ifdef MOZ_SMIL
+nsSMILTimeContainer*
+nsSVGSVGElement::GetTimedDocumentRoot()
 {
-  return mPreviousTranslate_x;
+  nsSMILTimeContainer *result = nsnull;
+
+  if (mTimedDocumentRoot) {
+    result = mTimedDocumentRoot;
+  } else {
+    // We must not be the outermost SVG element, try to find it
+    nsCOMPtr<nsIDOMSVGSVGElement> outerSVGDOM;
+
+    nsresult rv = GetOwnerSVGElement(getter_AddRefs(outerSVGDOM));
+
+    if (NS_SUCCEEDED(rv) && outerSVGDOM) {
+      nsSVGSVGElement *outerSVG =
+        static_cast<nsSVGSVGElement*>(outerSVGDOM.get());
+      result = outerSVG->GetTimedDocumentRoot();
+    }
+  }
+
+  return result;
 }
 
-NS_IMETHODIMP_(float)
-nsSVGSVGElement::GetPreviousTranslate_y()
+void
+nsSVGSVGElement::RequestSample()
 {
-  return mPreviousTranslate_y;
+  nsIDocument* doc = GetCurrentDoc();
+  if (doc) {
+    nsSMILAnimationController* smilController = doc->GetAnimationController();
+    if (smilController) {
+      smilController->FireForceSampleEvent();
+    }
+  }
 }
-
-NS_IMETHODIMP_(float)
-nsSVGSVGElement::GetPreviousScale()
-{
-  return mPreviousScale;
-}
+#endif // MOZ_SMIL
 
 //----------------------------------------------------------------------
 // nsIContent methods
@@ -1127,6 +1224,22 @@ nsSVGSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
 
   return NS_OK;
 }
+
+//----------------------------------------------------------------------
+// nsIContent methods:
+
+#ifdef MOZ_SMIL
+nsresult
+nsSVGSVGElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
+{
+  if (aVisitor.mEvent->message == NS_SVG_LOAD) {
+    if (mTimedDocumentRoot) {
+      mTimedDocumentRoot->Begin();
+    }
+  }
+  return nsSVGSVGElementBase::PreHandleEvent(aVisitor);
+}
+#endif // MOZ_SMIL
 
 //----------------------------------------------------------------------
 // nsISVGValueObserver methods:
@@ -1266,6 +1379,57 @@ nsSVGSVGElement::GetViewboxToViewportTransform(nsIDOMSVGMatrix **_retval)
   return NS_OK;
 }
 
+#ifdef MOZ_SMIL
+nsresult
+nsSVGSVGElement::BindToTree(nsIDocument* aDocument,
+                            nsIContent* aParent,
+                            nsIContent* aBindingParent,
+                            PRBool aCompileEventHandlers)
+{
+  PRBool outermost = WillBeOutermostSVG(aParent, aBindingParent);
+
+  if (!mTimedDocumentRoot && outermost) {
+    // We will now be the outermost SVG element
+    mTimedDocumentRoot = new nsSMILTimeContainer();
+    NS_ENSURE_TRUE(mTimedDocumentRoot, NS_ERROR_OUT_OF_MEMORY);
+  } else if (!outermost) {
+    mTimedDocumentRoot = nsnull;
+    mStartAnimationOnBindToTree = PR_TRUE;
+  }
+
+  nsresult rv = nsSVGSVGElementBase::BindToTree(aDocument, aParent,
+                                                aBindingParent,
+                                                aCompileEventHandlers);
+  NS_ENSURE_SUCCESS(rv,rv);
+
+  if (mTimedDocumentRoot) {
+    if (aDocument) {
+      nsSMILAnimationController* smilController = 
+        aDocument->GetAnimationController();
+      if (smilController) {
+        rv = mTimedDocumentRoot->SetParent(smilController);
+      }
+    }
+    if (mStartAnimationOnBindToTree) {
+      mTimedDocumentRoot->Begin();
+    }
+  }
+
+  return rv;
+}
+
+void
+nsSVGSVGElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
+{
+  if (mTimedDocumentRoot) {
+    mTimedDocumentRoot->SetParent(nsnull);
+  }
+
+  nsSVGSVGElementBase::UnbindFromTree(aDeep, aNullParent);
+}
+
+#endif // MOZ_SMIL
+
 //----------------------------------------------------------------------
 // implementation helpers
 
@@ -1306,6 +1470,29 @@ void nsSVGSVGElement::GetOffsetToAncestor(nsIContent* ancestor,
   }
 }
 
+#ifdef MOZ_SMIL
+PRBool
+nsSVGSVGElement::WillBeOutermostSVG(nsIContent* aParent,
+                                    nsIContent* aBindingParent) const
+{
+  nsIContent* parent = aBindingParent ? aBindingParent : aParent;
+
+  while (parent && parent->GetNameSpaceID() == kNameSpaceID_SVG) {
+    nsIAtom* tag = parent->Tag();
+    if (tag == nsGkAtoms::foreignObject) {
+      // SVG in a foreignObject must have its own <svg> (nsSVGOuterSVGFrame).
+      return PR_FALSE;
+    }
+    if (tag == nsGkAtoms::svg) {
+      return PR_FALSE;
+    }
+    parent = parent->GetParent();
+  }
+
+  return PR_TRUE;
+}
+#endif // MOZ_SMIL
+
 void
 nsSVGSVGElement::InvalidateTransformNotifyFrame()
 {
@@ -1316,8 +1503,7 @@ nsSVGSVGElement::InvalidateTransformNotifyFrame()
 
   nsIFrame* frame = presShell->GetPrimaryFrameFor(this);
   if (frame) {
-    nsISVGSVGFrame* svgframe;
-    CallQueryInterface(frame, &svgframe);
+    nsISVGSVGFrame* svgframe = do_QueryFrame(frame);
     if (svgframe) {
       svgframe->NotifyViewportChange();
     }
@@ -1443,4 +1629,18 @@ nsSVGSVGElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
                             NS_ARRAY_LENGTH(sEnumInfo));
+}
+
+void
+nsSVGSVGElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
+{
+  nsSVGSVGElementBase::DidChangePreserveAspectRatio(aDoSetAttr);
+
+  InvalidateTransformNotifyFrame();
+}
+
+nsSVGPreserveAspectRatio *
+nsSVGSVGElement::GetPreserveAspectRatio()
+{
+  return &mPreserveAspectRatio;
 }

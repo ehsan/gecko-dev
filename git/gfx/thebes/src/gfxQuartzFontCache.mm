@@ -49,6 +49,7 @@
 
 #include "nsIPref.h"  // for pref changes callback notification
 #include "nsServiceManagerUtils.h"
+#include "nsTArray.h"
 
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
@@ -118,9 +119,10 @@ gfxQuartzFontCache::GenerateFontListKey(const nsAString& aKeyName, nsAString& aR
 #pragma mark-
 
 MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName, 
-                               PRInt32 aAppleWeight, PRUint32 aTraits, MacOSFamilyEntry *aFamily)
+                               PRInt32 aAppleWeight, PRUint32 aTraits, MacOSFamilyEntry *aFamily,
+                               PRBool aIsStandardFace)
     : gfxFontEntry(aPostscriptName), mTraits(aTraits), mFamily(aFamily), mATSUFontID(0),
-        mATSUIDInitialized(0)
+      mATSUIDInitialized(0), mStandardFace(aIsStandardFace)
 {
     mWeight = gfxQuartzFontCache::AppleWeightToCSSWeight(aAppleWeight) * 100;
 
@@ -147,6 +149,8 @@ MacOSFontEntry::MacOSFontEntry(const nsAString& aPostscriptName, ATSUFontID aFon
               (mWeight >= 600 ? NSBoldFontMask : NSUnboldFontMask);
 
     mName = aPostscriptName;
+
+    mStandardFace = PR_FALSE;
 }
 
 const nsString& 
@@ -155,7 +159,8 @@ MacOSFontEntry::FamilyName()
     return mFamily->Name();
 }
 
-ATSUFontID MacOSFontEntry::GetFontID() 
+ATSUFontID
+MacOSFontEntry::GetFontID() 
 {
     if (!mATSUIDInitialized) {
         mATSUIDInitialized = PR_TRUE;
@@ -491,6 +496,23 @@ MacOSFamilyEntry::FindWeightsForStyle(gfxFontEntry* aFontsForWeights[], const gf
     return found;
 }
 
+class FontEntryStandardFaceComparator {
+  public:
+    PRBool Equals(const nsRefPtr<MacOSFontEntry>& a, const nsRefPtr<MacOSFontEntry>& b) const {
+        return a->mStandardFace == b->mStandardFace;
+    }
+    PRBool LessThan(const nsRefPtr<MacOSFontEntry>& a, const nsRefPtr<MacOSFontEntry>& b) const {
+        return (a->mStandardFace == PR_TRUE && b->mStandardFace == PR_FALSE);
+    }
+};
+
+void
+MacOSFamilyEntry::SortAvailableFonts()
+{
+    mAvailableFonts.Sort(FontEntryStandardFaceComparator());
+}
+
+
 static NSString* CreateNameFromBuffer(const UInt8 *aBuf, ByteCount aLength, 
         FontPlatformCode aPlatformCode, FontScriptCode aScriptCode, FontLanguageCode aLangCode)
 {
@@ -735,7 +757,9 @@ gfxQuartzFontCache::InitFontList()
             NSString *psname = [face objectAtIndex:INDEX_FONT_POSTSCRIPT_NAME];
             PRInt32 weight = [[face objectAtIndex:INDEX_FONT_WEIGHT] unsignedIntValue];
             PRUint32 traits = [[face objectAtIndex:INDEX_FONT_TRAITS] unsignedIntValue];
-            
+            NSString *facename = [face objectAtIndex:INDEX_FONT_FACE_NAME];
+            PRBool isStandardFace = PR_FALSE;
+
             // 10.5 doesn't set NSUnitalicFontMask and NSUnboldFontMask - manually set these for consistency 
             if (!(traits & NSBoldFontMask))
                 traits |= NSUnboldFontMask;
@@ -743,19 +767,31 @@ gfxQuartzFontCache::InitFontList()
                 traits |= NSUnitalicFontMask;
             
             PR_LOG(gFontInfoLog, PR_LOG_DEBUG, ("(fontinit) family: %s, psname: %s, face: %s, apple-weight: %d, css-weight: %d, traits: %8.8x\n", 
-                [availableFamily UTF8String], [psname UTF8String], [[face objectAtIndex:INDEX_FONT_FACE_NAME] UTF8String], weight, gfxQuartzFontCache::AppleWeightToCSSWeight(weight), traits));
+                [availableFamily UTF8String], [psname UTF8String], [facename UTF8String], weight, gfxQuartzFontCache::AppleWeightToCSSWeight(weight), traits));
 
             // make a nsString
             GetStringForNSString(psname, postscriptFontName);
-        
+
+            if ([facename isEqualToString:@"Regular"] ||
+                [facename isEqualToString:@"Bold"] ||
+                [facename isEqualToString:@"Italic"] ||
+                [facename isEqualToString:@"Oblique"] ||
+                [facename isEqualToString:@"Bold Italic"] ||
+                [facename isEqualToString:@"Bold Oblique"])
+            {
+                isStandardFace = PR_TRUE;
+            }
+
             // create a font entry
-            MacOSFontEntry *fontEntry = new MacOSFontEntry(postscriptFontName, weight, traits, familyEntry);
+            MacOSFontEntry *fontEntry = new MacOSFontEntry(postscriptFontName, weight, traits, familyEntry, isStandardFace);
             if (!fontEntry) break;            
             
             // insert into font entry array of family
             familyEntry->AddFontEntry(fontEntry);
         }
-        
+
+        familyEntry->SortAvailableFonts();
+
         // add the family entry to the hash table
         ToLowerCase(availableFamilyName);
         mFontFamilies.Put(availableFamilyName, familyEntry);
@@ -1066,12 +1102,12 @@ gfxQuartzFontCache::GetDefaultFont(const gfxFontStyle* aStyle, PRBool& aNeedsBol
 struct FontListData {
     FontListData(const nsACString& aLangGroup,
                  const nsACString& aGenericFamily,
-                 nsStringArray& aListOfFonts) :
+                 nsTArray<nsString>& aListOfFonts) :
         mLangGroup(aLangGroup), mGenericFamily(aGenericFamily),
         mListOfFonts(aListOfFonts) {}
     const nsACString& mLangGroup;
     const nsACString& mGenericFamily;
-    nsStringArray& mListOfFonts;
+    nsTArray<nsString>& mListOfFonts;
 };
 
 PLDHashOperator PR_CALLBACK
@@ -1083,14 +1119,14 @@ gfxQuartzFontCache::HashEnumFuncForFamilies(nsStringHashKey::KeyType aKey,
 
     nsAutoString localizedFamilyName;
     aFamilyEntry->LocalizedName(localizedFamilyName);
-    data->mListOfFonts.AppendString(localizedFamilyName);
+    data->mListOfFonts.AppendElement(localizedFamilyName);
     return PL_DHASH_NEXT;
 }
 
 void
 gfxQuartzFontCache::GetFontList (const nsACString& aLangGroup,
                                  const nsACString& aGenericFamily,
-                                 nsStringArray& aListOfFonts)
+                                 nsTArray<nsString>& aListOfFonts)
 {
     FontListData data(aLangGroup, aGenericFamily, aListOfFonts);
 

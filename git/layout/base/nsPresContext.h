@@ -95,6 +95,7 @@ struct nsStyleBackground;
 template <class T> class nsRunnableMethod;
 class nsIRunnable;
 class gfxUserFontSet;
+class nsUserFontSet;
 struct nsFontFaceRuleContainer;
 
 #ifdef MOZ_REFLOW_PERF
@@ -287,9 +288,14 @@ public:
 
   /**
    * Get the font metrics for a given font.
+   *
+   * If aUseUserFontSet is false, don't build or use the user font set.
+   * This is intended only for nsRuleNode::CalcLengthWithInitialFont
+   * (which is used from media query matching, which is in turn called
+   * when building the user font set).
    */
   NS_HIDDEN_(already_AddRefed<nsIFontMetrics>)
-  GetMetricsFor(const nsFont& aFont);
+  GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet = PR_TRUE);
 
   /**
    * Get the default font corresponding to the given ID.  This object is
@@ -438,10 +444,12 @@ public:
    * nscoord units (as scaled by the device context).
    */
   void SetVisibleArea(const nsRect& r) {
-    mVisibleArea = r;
-    // Visible area does not affect media queries when paginated.
-    if (!IsPaginated() && HasCachedStyleData())
-      PostMediaFeatureValuesChangedEvent();
+    if (!r.IsExactEqual(mVisibleArea)) {
+      mVisibleArea = r;
+      // Visible area does not affect media queries when paginated.
+      if (!IsPaginated() && HasCachedStyleData())
+        PostMediaFeatureValuesChangedEvent();
+    }
   }
 
   /**
@@ -506,9 +514,16 @@ public:
 
   float TextZoom() { return mTextZoom; }
   void SetTextZoom(float aZoom) {
+    if (aZoom == mTextZoom)
+      return;
+
     mTextZoom = aZoom;
-    if (HasCachedStyleData())
+    if (HasCachedStyleData()) {
+      // Media queries could have changed since we changed the meaning
+      // of 'em' units in them.
+      MediaFeatureValuesChanged(PR_TRUE);
       RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
+    }
   }
 
   float GetFullZoom() { return mFullZoom; }
@@ -564,7 +579,7 @@ public:
                           mDeviceContext->AppUnitsPerInch()); }
 
   // Margin-specific version, since they often need TwipsToAppUnits
-  nsMargin TwipsToAppUnits(const nsMargin &marginInTwips) const
+  nsMargin TwipsToAppUnits(const nsIntMargin &marginInTwips) const
   { return nsMargin(TwipsToAppUnits(marginInTwips.left), 
                     TwipsToAppUnits(marginInTwips.top),
                     TwipsToAppUnits(marginInTwips.right),
@@ -776,6 +791,9 @@ public:
 
   void NotifyInvalidation(const nsRect& aRect, PRBool aIsCrossDoc);
   void FireDOMPaintEvent();
+  PRBool IsDOMPaintEventPending() {
+    return !mSameDocDirtyRegion.IsEmpty() || !mCrossDocDirtyRegion.IsEmpty();
+  }
 
 protected:
   friend class nsRunnableMethod<nsPresContext>;
@@ -783,6 +801,10 @@ protected:
   NS_HIDDEN_(void) SysColorChangedInternal();
 
   NS_HIDDEN_(void) SetImgAnimations(nsIContent *aParent, PRUint16 aMode);
+#ifdef MOZ_SMIL
+  NS_HIDDEN_(void) SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
+                                     PRUint16 aOldMode);
+#endif // MOZ_SMIL
   NS_HIDDEN_(void) GetDocumentColorPreferences();
 
   NS_HIDDEN_(void) PreferenceChanged(const char* aPrefName);
@@ -849,7 +871,7 @@ protected:
   nsRegion              mCrossDocDirtyRegion;
 
   // container for per-context fonts (downloadable, SVG, etc.)
-  gfxUserFontSet* mUserFontSet;
+  nsUserFontSet*        mUserFontSet;
   // The list of @font-face rules that we put into mUserFontSet
   nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
   

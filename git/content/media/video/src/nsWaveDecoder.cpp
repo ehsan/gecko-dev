@@ -151,7 +151,7 @@ public:
   // Called by the decoder to indicate that the media stream has closed.
   void StreamEnded();
 
-  // Main state machine loop.  Runs forever, until shutdown state is reached.
+  // Main state machine loop. Runs forever, until shutdown state is reached.
   NS_IMETHOD Run();
 
   // Called by the decoder when the SeekStarted event runs.  This ensures
@@ -615,11 +615,27 @@ nsWaveStateMachine::Run()
         PRInt64 position = RoundDownToSample(TimeToBytes(seekTime));
         NS_ABORT_IF_FALSE(position >= 0 && position <= mWaveLength, "Invalid seek position");
 
+        // If position==0, instead of seeking to position+mWavePCMOffset,
+        // we want to first seek to 0 before seeking to
+        // position+mWavePCMOffset. This allows the request's data to come
+        // from the netwerk cache (non-zero byte-range requests can't be cached
+        // yet). The second seek will simply advance the read cursor, it won't
+        // start a new HTTP request.
+        PRBool seekToZeroFirst = position == 0 &&
+                                 (mWavePCMOffset < SEEK_VS_READ_THRESHOLD);
+
         // Convert to absolute offset within stream.
         position += mWavePCMOffset;
 
         monitor.Exit();
-        nsresult rv = mStream->Seek(nsISeekableStream::NS_SEEK_SET, position);
+        nsresult rv;
+        if (seekToZeroFirst) {
+          rv = mStream->Seek(nsISeekableStream::NS_SEEK_SET, 0);
+          if (NS_FAILED(rv)) {
+            NS_WARNING("Seek to zero failed");
+          }
+        }
+        rv = mStream->Seek(nsISeekableStream::NS_SEEK_SET, position);
         if (NS_FAILED(rv)) {
           NS_WARNING("Seek failed");
         }
@@ -982,7 +998,8 @@ nsWaveDecoder::nsWaveDecoder()
     mEndedDuration(std::numeric_limits<float>::quiet_NaN()),
     mEnded(PR_FALSE),
     mNotifyOnShutdown(PR_FALSE),
-    mSeekable(PR_TRUE)
+    mSeekable(PR_TRUE),
+    mResourceLoaded(PR_FALSE)
 {
   MOZ_COUNT_CTOR(nsWaveDecoder);
 }
@@ -1130,6 +1147,10 @@ nsWaveDecoder::Load(nsIURI* aURI, nsIChannel* aChannel, nsIStreamListener** aStr
 {
   mStopping = PR_FALSE;
 
+  // Reset progress member variables
+  mBytesDownloaded = 0;
+  mResourceLoaded = PR_FALSE;
+
   if (aStreamListener) {
     *aStreamListener = nsnull;
   }
@@ -1145,7 +1166,6 @@ nsWaveDecoder::Load(nsIURI* aURI, nsIChannel* aChannel, nsIStreamListener** aStr
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  StartProgress();
   RegisterShutdownObserver();
 
   mStream = new nsMediaStream();
@@ -1177,6 +1197,16 @@ nsWaveDecoder::MetadataLoaded()
     mElement->MetadataLoaded();
     mElement->FirstFrameLoaded();
   }
+
+  if (!mResourceLoaded) {
+    StartProgress();
+  }
+  else if (mElement)
+  {
+    // Resource was loaded during metadata loading, when progress
+    // events are being ignored. Fire the final progress event.
+    mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("progress"));
+  }
 }
 
 void
@@ -1198,13 +1228,28 @@ nsWaveDecoder::ResourceLoaded()
   if (mShuttingDown) {
     return;
   }
+
+  // If we know the content length, set the bytes downloaded to this
+  // so the final progress event gets the correct final value.
+  if (mContentLength >= 0) {
+    mBytesDownloaded = mContentLength;
+  }
+
+  mResourceLoaded = PR_TRUE;
+
   if (mElement) {
     mElement->ResourceLoaded();
   }
   if (mPlaybackStateMachine) {
     mPlaybackStateMachine->StreamEnded();
   }
+
   StopProgress();
+
+  // Ensure the final progress event gets fired
+  if (mElement) {
+    mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("progress"));
+  }
 }
 
 void

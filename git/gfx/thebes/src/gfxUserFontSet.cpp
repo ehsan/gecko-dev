@@ -289,15 +289,16 @@ gfxUserFontSet::LoadNext(gfxProxyFontEntry *aProxyEntry)
         // src local ==> lookup and load   
 
         if (currSrc.mIsLocal) {
-            gfxFontEntry *fe = gfxPlatform::GetPlatform()->LookupLocalFont(currSrc.mLocalName);
+            gfxFontEntry *fe =
+                gfxPlatform::GetPlatform()->LookupLocalFont(aProxyEntry,
+                                                            currSrc.mLocalName);
             if (fe) {
-                aProxyEntry->mFamily->ReplaceFontEntry(aProxyEntry, fe);
-                IncrementGeneration();
                 LOG(("userfonts (%p) [src %d] loaded local: (%s) for (%s) gen: %8.8x\n", 
                      this, aProxyEntry->mSrcIndex, 
                      NS_ConvertUTF16toUTF8(currSrc.mLocalName).get(), 
                      NS_ConvertUTF16toUTF8(aProxyEntry->mFamily->Name()).get(), 
                      PRUint32(mGeneration)));
+                aProxyEntry->mFamily->ReplaceFontEntry(aProxyEntry, fe);
                 return STATUS_LOADED;
             } else {
                 LOG(("userfonts (%p) [src %d] failed local: (%s) for (%s)\n", 

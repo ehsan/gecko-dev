@@ -79,9 +79,10 @@ public:
     }
 
     bool contains(T a) {
-        for (unsigned n = 0; n < _len; ++n)
+        for (unsigned n = 0; n < _len; ++n) {
             if (_data[n] == a)
                 return true;
+        }
         return false;
     }
 
@@ -150,6 +151,13 @@ public:
     void            clear();
 };
 
+#ifdef JS_JIT_SPEW
+extern bool js_verboseDebug;
+#define debug_only_v(x) if (js_verboseDebug) { x; }
+#else
+#define debug_only_v(x)
+#endif
+
 /*
  * The oracle keeps track of slots that should not be demoted to int because we know them
  * to overflow or they result in type-unstable traces. We are using a simple hash table.
@@ -162,10 +170,10 @@ class Oracle {
     avmplus::BitSet _stackDontDemote;
     avmplus::BitSet _globalDontDemote;
 public:
-    void markGlobalSlotUndemotable(JSContext* cx, unsigned slot);
-    bool isGlobalSlotUndemotable(JSContext* cx, unsigned slot) const;
-    void markStackSlotUndemotable(JSContext* cx, unsigned slot);
-    bool isStackSlotUndemotable(JSContext* cx, unsigned slot) const;
+    JS_REQUIRES_STACK void markGlobalSlotUndemotable(JSContext* cx, unsigned slot);
+    JS_REQUIRES_STACK bool isGlobalSlotUndemotable(JSContext* cx, unsigned slot) const;
+    JS_REQUIRES_STACK void markStackSlotUndemotable(JSContext* cx, unsigned slot);
+    JS_REQUIRES_STACK bool isStackSlotUndemotable(JSContext* cx, unsigned slot) const;
     void clear();
 };
 
@@ -251,7 +259,6 @@ struct FrameInfo {
     JSObject*       callee;     // callee function object
     JSObject*       block;      // caller block chain head
     intptr_t        ip_adj;     // caller script-based pc index and imacro pc
-    uint8*          typemap;    // typemap for the stack frame
     union {
         struct {
             uint16  spdist;     // distance from fp->slots to fp->regs->sp at JSOP_CALL
@@ -348,13 +355,13 @@ class TraceRecorder : public avmplus::GCObject {
     JS_REQUIRES_STACK nanojit::LIns* stack(int n);
     JS_REQUIRES_STACK void stack(int n, nanojit::LIns* i);
 
-    nanojit::LIns* alu(nanojit::LOpcode op, jsdouble v0, jsdouble v1, 
-                       nanojit::LIns* s0, nanojit::LIns* s1);
+    JS_REQUIRES_STACK nanojit::LIns* alu(nanojit::LOpcode op, jsdouble v0, jsdouble v1, 
+                                         nanojit::LIns* s0, nanojit::LIns* s1);
     nanojit::LIns* f2i(nanojit::LIns* f);
     JS_REQUIRES_STACK nanojit::LIns* makeNumberInt32(nanojit::LIns* f);
-    nanojit::LIns* stringify(jsval& v);
+    JS_REQUIRES_STACK nanojit::LIns* stringify(jsval& v);
 
-    bool call_imacro(jsbytecode* imacro);
+    JS_REQUIRES_STACK bool call_imacro(jsbytecode* imacro);
 
     JS_REQUIRES_STACK bool ifop();
     JS_REQUIRES_STACK bool switchop();
@@ -366,6 +373,10 @@ class TraceRecorder : public avmplus::GCObject {
 
     JS_REQUIRES_STACK void strictEquality(bool equal, bool cmpCase);
     JS_REQUIRES_STACK bool equality(bool negate, bool tryBranchAfterCond);
+    JS_REQUIRES_STACK bool equalityHelper(jsval l, jsval r,
+                                          nanojit::LIns* l_ins, nanojit::LIns* r_ins,
+                                          bool negate, bool tryBranchAfterCond,
+                                          jsval& rval);
     JS_REQUIRES_STACK bool relational(nanojit::LOpcode op, bool tryBranchAfterCond);
 
     JS_REQUIRES_STACK bool unary(nanojit::LOpcode op);
@@ -404,8 +415,8 @@ class TraceRecorder : public avmplus::GCObject {
     JS_REQUIRES_STACK bool getProp(jsval& v);
     JS_REQUIRES_STACK bool getThis(nanojit::LIns*& this_ins);
 
-    JS_REQUIRES_STACK bool box_jsval(jsval v, nanojit::LIns*& v_ins);
-    JS_REQUIRES_STACK bool unbox_jsval(jsval v, nanojit::LIns*& v_ins);
+    JS_REQUIRES_STACK void box_jsval(jsval v, nanojit::LIns*& v_ins);
+    JS_REQUIRES_STACK void unbox_jsval(jsval v, nanojit::LIns*& v_ins);
     JS_REQUIRES_STACK bool guardClass(JSObject* obj, nanojit::LIns* obj_ins, JSClass* clasp,
                                       ExitType exitType = MISMATCH_EXIT);
     JS_REQUIRES_STACK bool guardDenseArray(JSObject* obj, nanojit::LIns* obj_ins,
@@ -437,7 +448,7 @@ public:
                   VMSideExit* expectedInnerExit, nanojit::Fragment* outerToBlacklist);
     ~TraceRecorder();
 
-    JS_REQUIRES_STACK JSMonitorRecordingStatus monitorRecording(JSOp op);
+    static JS_REQUIRES_STACK JSMonitorRecordingStatus monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op);
 
     JS_REQUIRES_STACK uint8 determineSlotType(jsval* vp) const;
     JS_REQUIRES_STACK nanojit::LIns* snapshot(ExitType exitType);
@@ -487,6 +498,7 @@ public:
 
 #define JSOP_IS_BINARY(op) ((uintN)((op) - JSOP_BITOR) <= (uintN)(JSOP_MOD - JSOP_BITOR))
 #define JSOP_IS_UNARY(op) ((uintN)((op) - JSOP_NEG) <= (uintN)(JSOP_POS - JSOP_NEG))
+#define JSOP_IS_EQUALITY(op) ((uintN)((op) - JSOP_EQ) <= (uintN)(JSOP_NE - JSOP_EQ))
 
 #define TRACE_ARGS_(x,args)                                                   \
     JS_BEGIN_MACRO                                                            \

@@ -55,6 +55,7 @@
 #include "nsINameSpaceManager.h"
 #include "nsWeakReference.h"
 #include "nsString.h"
+#include "nsTArray.h"
 #include "nsIDOMDOMStringList.h"
 #include "nsARIAMap.h"
 
@@ -88,11 +89,11 @@ public:
   NS_DECL_NSIDOMDOMSTRINGLIST
 
   PRBool Add(const nsAString& aName) {
-    return mNames.AppendString(aName);
+    return mNames.AppendElement(aName) != nsnull;
   }
 
 private:
-  nsStringArray mNames;
+  nsTArray<nsString> mNames;
 };
 
 
@@ -283,6 +284,17 @@ protected:
    * @param aStates  [in] states of the accessible
    */
   PRUint32 GetActionRule(PRUint32 aStates);
+
+  /**
+   * Compute group attributes ('posinset', 'setsize' and 'level') based
+   * on accessible hierarchy. Used by GetAttributes() method if group attributes
+   * weren't provided by ARIA or by internal accessible implementation.
+   *
+   * @param  aRole        [in] role of this accessible
+   * @param  aAttributes  [in, out] object attributes
+   */
+  nsresult ComputeGroupAttributes(PRUint32 aRole,
+                                  nsIPersistentProperties *aAttributes);
 
   /**
    * Fires platform accessible event. It's notification method only. It does

@@ -553,7 +553,7 @@ nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb)
             return NS_ERROR_OUT_OF_MEMORY;
         }
 
-        GetRuntime()->UnsetContextGlobals();
+        GetRuntime()->UnrootContextGlobals();
 
         PRBool alreadyCollecting = mCycleCollecting;
         mCycleCollecting = PR_TRUE;
@@ -600,7 +600,7 @@ nsXPConnect::FinishCycleCollection()
         mCycleCollectionContext = nsnull;
         mExplainCycleCollectionContext = nsnull;
 
-        GetRuntime()->RestoreContextGlobals();
+        GetRuntime()->RootContextGlobals();
     }
 #endif
 
@@ -1113,8 +1113,8 @@ nsXPConnect::InitClassesWithNewWrappedGlobal(JSContext * aJSContext,
         if(!XPCConvert::NativeInterface2JSObject(ccx, &v,
                                                  getter_AddRefs(holder),
                                                  aCOMObj, &aIID, nsnull,
-                                                 tempGlobal, PR_FALSE,
-                                                 OBJ_IS_GLOBAL, &rv))
+                                                 nsnull, tempGlobal,
+                                                 PR_FALSE, OBJ_IS_GLOBAL, &rv))
             return UnexpectedFailure(rv);
 
         NS_ASSERTION(NS_SUCCEEDED(rv) && holder, "Didn't wrap properly");
@@ -1213,7 +1213,7 @@ nsXPConnect::WrapNativeToJSVal(JSContext * aJSContext,
 
     nsresult rv;
     if(!XPCConvert::NativeInterface2JSObject(ccx, aVal, aHolder, aCOMObj, aIID,
-                                             nsnull, aScope, PR_FALSE,
+                                             nsnull, nsnull, aScope, PR_FALSE,
                                              OBJ_IS_NOT_GLOBAL, &rv))
         return rv;
 

@@ -402,8 +402,6 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword_progressbar_vertical,   NS_THEME_PROGRESSBAR_VERTICAL,
   eCSSKeyword_progresschunk_vertical, NS_THEME_PROGRESSBAR_CHUNK_VERTICAL,
   eCSSKeyword_tab,                    NS_THEME_TAB,
-  eCSSKeyword_tab_left_edge,          NS_THEME_TAB_LEFT_EDGE,
-  eCSSKeyword_tab_right_edge,         NS_THEME_TAB_RIGHT_EDGE,
   eCSSKeyword_tabpanels,              NS_THEME_TAB_PANELS,
   eCSSKeyword_tabpanel,               NS_THEME_TAB_PANEL,
   eCSSKeyword_tabscrollarrow_back,    NS_THEME_TAB_SCROLLARROW_BACK,
@@ -666,6 +664,8 @@ const PRInt32 nsCSSProps::kColorKTable[] = {
   eCSSKeyword__moz_win_mediatext, nsILookAndFeel::eColor__moz_win_mediatext,
   eCSSKeyword__moz_win_communicationstext, nsILookAndFeel::eColor__moz_win_communicationstext,
   eCSSKeyword__moz_nativehyperlinktext, nsILookAndFeel::eColor__moz_nativehyperlinktext,
+  eCSSKeyword__moz_comboboxtext, nsILookAndFeel::eColor__moz_comboboxtext,
+  eCSSKeyword__moz_combobox, nsILookAndFeel::eColor__moz_combobox,
   eCSSKeyword_UNKNOWN,-1
 };
 

@@ -171,6 +171,10 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
                               const nsStyleFont* aStyleFont,
                               nsStyleContext* aStyleContext,
                               nsPresContext* aPresContext,
+                              // aUseUserFontSet should always be PR_TRUE
+                              // except when called from
+                              // CalcLengthWithInitialFont.
+                              PRBool aUseUserFontSet,
                               PRBool& aInherited)
 {
   NS_ASSERTION(aValue.IsLengthUnit(), "not a length unit");
@@ -202,7 +206,8 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
     case eCSSUnit_XHeight: {
       nsFont font = aStyleFont->mFont;
       font.size = aFontSize;
-      nsCOMPtr<nsIFontMetrics> fm = aPresContext->GetMetricsFor(font);
+      nsCOMPtr<nsIFontMetrics> fm =
+        aPresContext->GetMetricsFor(font, aUseUserFontSet);
       nscoord xHeight;
       fm->GetXHeight(xHeight);
       return NSToCoordRoundWithClamp(aValue.GetFloatValue() * float(xHeight));
@@ -210,7 +215,8 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
     case eCSSUnit_Char: {
       nsFont font = aStyleFont->mFont;
       font.size = aFontSize;
-      nsCOMPtr<nsIFontMetrics> fm = aPresContext->GetMetricsFor(font);
+      nsCOMPtr<nsIFontMetrics> fm =
+        aPresContext->GetMetricsFor(font, aUseUserFontSet);
       nsCOMPtr<nsIThebesFontMetrics> tfm(do_QueryInterface(fm));
       gfxFloat zeroWidth = (tfm->GetThebesFontGroup()->GetFontAt(0)
                             ->GetMetrics().zeroOrAveCharWidth);
@@ -234,7 +240,8 @@ nsRuleNode::CalcLength(const nsCSSValue& aValue,
 {
   NS_ASSERTION(aStyleContext, "Must have style data");
 
-  return CalcLengthWith(aValue, -1, nsnull, aStyleContext, aPresContext, aInherited);
+  return CalcLengthWith(aValue, -1, nsnull, aStyleContext, aPresContext,
+                        PR_TRUE, aInherited);
 }
 
 /* Inline helper function to redirect requests to CalcLength. */
@@ -254,7 +261,7 @@ nsRuleNode::CalcLengthWithInitialFont(nsPresContext* aPresContext,
   nsStyleFont defaultFont(aPresContext);
   PRBool inherited;
   return CalcLengthWith(aValue, -1, &defaultFont, nsnull, aPresContext,
-                        inherited);
+                        PR_FALSE, inherited);
 }
 
 #define SETCOORD_NORMAL                 0x01   // N
@@ -2337,7 +2344,7 @@ nsRuleNode::SetFontSize(nsPresContext* aPresContext,
     // for scriptlevel changes. A scriptlevel change between us and the parent
     // is simply ignored.
     *aSize = CalcLengthWith(aFontData.mSize, aParentSize, aParentFont, nsnull,
-                        aPresContext, aInherited);
+                            aPresContext, PR_TRUE, aInherited);
     zoom = aFontData.mSize.IsFixedLengthUnit() ||
            aFontData.mSize.GetUnit() == eCSSUnit_Pixel;
   }
@@ -2579,8 +2586,8 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
     // to the parent font, or the size definitions are circular and we
     // 
     aFont->mScriptMinSize =
-      CalcLengthWith(aFontData.mScriptMinSize, aParentFont->mSize, aParentFont, nsnull,
-                     aPresContext, aInherited);
+      CalcLengthWith(aFontData.mScriptMinSize, aParentFont->mSize, aParentFont,
+                     nsnull, aPresContext, PR_TRUE, aInherited);
   }
 
   // -moz-script-size-multiplier: factor, inherit, initial
@@ -3402,14 +3409,13 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     display->mClipFlags = parentDisplay->mClipFlags;
     display->mClip = parentDisplay->mClip;
   }
-  // if one is initial, they all are
-  else if (eCSSUnit_Initial == displayData.mClip.mTop.GetUnit()) {
+  // if one is initial or auto (rect), they all are
+  else if (eCSSUnit_Initial == displayData.mClip.mTop.GetUnit() ||
+           eCSSUnit_RectIsAuto == displayData.mClip.mTop.GetUnit()) {
     display->mClipFlags = NS_STYLE_CLIP_AUTO;
     display->mClip.SetRect(0,0,0,0);
   }
-  else {
-    PRBool  fullAuto = PR_TRUE;
-
+  else if (eCSSUnit_Null != displayData.mClip.mTop.GetUnit()) {
     display->mClipFlags = 0; // clear it
 
     if (eCSSUnit_Auto == displayData.mClip.mTop.GetUnit()) {
@@ -3418,7 +3424,6 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     } 
     else if (displayData.mClip.mTop.IsLengthUnit()) {
       display->mClip.y = CalcLength(displayData.mClip.mTop, aContext, mPresContext, inherited);
-      fullAuto = PR_FALSE;
     }
     if (eCSSUnit_Auto == displayData.mClip.mBottom.GetUnit()) {
       // Setting to NS_MAXSIZE for the 'auto' case ensures that
@@ -3430,7 +3435,6 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     else if (displayData.mClip.mBottom.IsLengthUnit()) {
       display->mClip.height = CalcLength(displayData.mClip.mBottom, aContext, mPresContext, inherited) -
                               display->mClip.y;
-      fullAuto = PR_FALSE;
     }
     if (eCSSUnit_Auto == displayData.mClip.mLeft.GetUnit()) {
       display->mClip.x = 0;
@@ -3438,7 +3442,6 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     } 
     else if (displayData.mClip.mLeft.IsLengthUnit()) {
       display->mClip.x = CalcLength(displayData.mClip.mLeft, aContext, mPresContext, inherited);
-      fullAuto = PR_FALSE;
     }
     if (eCSSUnit_Auto == displayData.mClip.mRight.GetUnit()) {
       // Setting to NS_MAXSIZE for the 'auto' case ensures that
@@ -3450,15 +3453,9 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
     else if (displayData.mClip.mRight.IsLengthUnit()) {
       display->mClip.width = CalcLength(displayData.mClip.mRight, aContext, mPresContext, inherited) -
                              display->mClip.x;
-      fullAuto = PR_FALSE;
     }
     display->mClipFlags &= ~NS_STYLE_CLIP_TYPE_MASK;
-    if (fullAuto) {
-      display->mClipFlags |= NS_STYLE_CLIP_AUTO;
-    }
-    else {
-      display->mClipFlags |= NS_STYLE_CLIP_RECT;
-    }
+    display->mClipFlags |= NS_STYLE_CLIP_RECT;
   }
 
   if (display->mDisplay != NS_STYLE_DISPLAY_NONE) {
@@ -4288,11 +4285,12 @@ nsRuleNode::ComputeListData(void* aStartStruct,
     inherited = PR_TRUE;
     list->mImageRegion = parentList->mImageRegion;
   }
-  // if one is -moz-initial, they all are
-  else if (eCSSUnit_Initial == listData.mImageRegion.mTop.GetUnit()) {
+  // if one is -moz-initial or auto (rect), they all are
+  else if (eCSSUnit_Initial == listData.mImageRegion.mTop.GetUnit() ||
+           eCSSUnit_RectIsAuto == listData.mImageRegion.mTop.GetUnit()) {
     list->mImageRegion.Empty();
   }
-  else {
+  else if (eCSSUnit_Null != listData.mImageRegion.mTop.GetUnit()) {
     if (eCSSUnit_Auto == listData.mImageRegion.mTop.GetUnit())
       list->mImageRegion.y = 0;
     else if (listData.mImageRegion.mTop.IsLengthUnit())

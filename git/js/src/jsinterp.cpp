@@ -2669,10 +2669,8 @@ js_Interpret(JSContext *cx)
      */
 #define CHECK_BRANCH()                                                        \
     JS_BEGIN_MACRO                                                            \
-        if ((cx->operationCount -= JSOW_SCRIPT_JUMP) <= 0) {                  \
-            if (!js_ResetOperationCount(cx))                                  \
-                goto error;                                                   \
-        }                                                                     \
+        if (!JS_CHECK_OPERATION_LIMIT(cx, JSOW_SCRIPT_JUMP))                  \
+            goto error;                                                       \
     JS_END_MACRO
 
 #define BRANCH(n)                                                             \
@@ -2837,7 +2835,7 @@ js_Interpret(JSContext *cx)
 #ifdef JS_TRACER
             TraceRecorder* tr = TRACE_RECORDER(cx);
             if (tr) {
-                JSMonitorRecordingStatus status = tr->monitorRecording(op);
+                JSMonitorRecordingStatus status = TraceRecorder::monitorRecording(cx, tr, op);
                 if (status == JSMRS_CONTINUE) {
                     moreInterrupts = true;
                 } else if (status == JSMRS_IMACRO) {

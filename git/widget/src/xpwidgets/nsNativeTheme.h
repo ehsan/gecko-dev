@@ -125,6 +125,14 @@ class nsNativeTheme
     return IsNextToSelectedTab(aFrame, 1);
   }
 
+  PRBool IsLeftToSelectedTab(nsIFrame* aFrame) {
+    return IsFrameRTL(aFrame) ? IsAfterSelectedTab(aFrame) : IsBeforeSelectedTab(aFrame);
+  }
+
+  PRBool IsRightToSelectedTab(nsIFrame* aFrame) {
+    return IsFrameRTL(aFrame) ? IsBeforeSelectedTab(aFrame) : IsAfterSelectedTab(aFrame);
+  }
+
   // toolbarbutton:
   PRBool IsCheckedButton(nsIFrame* aFrame) {
     return CheckBooleanAttr(aFrame, nsWidgetAtoms::checked);
@@ -156,6 +164,9 @@ class nsNativeTheme
   PRBool IsReadOnly(nsIFrame* aFrame) {
       return CheckBooleanAttr(aFrame, nsWidgetAtoms::readonly);
   }
+
+  // menupopup:
+  PRBool IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent);
 
   nsIPresShell *GetPresShell(nsIFrame* aFrame);
   PRInt32 CheckIntAttr(nsIFrame* aFrame, nsIAtom* aAtom, PRInt32 defaultValue);

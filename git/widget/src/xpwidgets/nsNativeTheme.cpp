@@ -264,7 +264,13 @@ nsNativeTheme::IsFirstTab(nsIFrame* aFrame)
   if (!aFrame)
     return PR_FALSE;
 
-  return aFrame->GetContent()->HasAttr(kNameSpaceID_None, nsWidgetAtoms::firsttab);
+  nsIFrame* first = aFrame->GetParent()->GetFirstChild(nsnull);
+  while (first) {
+    if (first->GetRect().width > 0 && first->GetContent()->Tag() == nsWidgetAtoms::tab)
+      return (first == aFrame);
+    first = first->GetNextSibling();
+  }
+  return PR_FALSE;
 }
 
 PRBool
@@ -273,7 +279,11 @@ nsNativeTheme::IsLastTab(nsIFrame* aFrame)
   if (!aFrame)
     return PR_FALSE;
 
-  return aFrame->GetContent()->HasAttr(kNameSpaceID_None, nsWidgetAtoms::lasttab);
+  while ((aFrame = aFrame->GetNextSibling())) {
+    if (aFrame->GetRect().width > 0 && aFrame->GetContent()->Tag() == nsWidgetAtoms::tab)
+      return PR_FALSE;
+  }
+  return PR_TRUE;
 }
 
 PRBool
@@ -325,4 +335,31 @@ nsNativeTheme::IsIndeterminateProgress(nsIFrame* aFrame)
   return aFrame->GetContent()->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::mode,
                                            NS_LITERAL_STRING("undetermined"),
                                            eCaseMatters);
+}
+
+// menupopup:
+PRBool
+nsNativeTheme::IsSubmenu(nsIFrame* aFrame, PRBool* aLeftOfParent)
+{
+  if (!aFrame)
+    return PR_FALSE;
+
+  nsIContent* parentContent = aFrame->GetContent()->GetParent();
+  if (!parentContent || parentContent->Tag() != nsWidgetAtoms::menu)
+    return PR_FALSE;
+
+  nsIFrame* parent = aFrame;
+  while ((parent = parent->GetParent())) {
+    if (parent->GetContent() == parentContent) {
+      if (aLeftOfParent) {
+        nsIntRect selfBounds, parentBounds;
+        aFrame->GetWindow()->GetScreenBounds(selfBounds);
+        parent->GetWindow()->GetScreenBounds(parentBounds);
+        *aLeftOfParent = selfBounds.x < parentBounds.x;
+      }
+      return PR_TRUE;
+    }
+  }
+
+  return PR_FALSE;
 }

@@ -123,6 +123,7 @@
 #include "nsReadableUtils.h"
 #include "nsStaticComponents.h"
 #include "nsXPCOM.h"
+#include "nsXPCOMCIDInternal.h"
 #include "nsXPIDLString.h"
 #include "nsXPFEComponentsCID.h"
 #include "nsVersionComparator.h"
@@ -606,8 +607,6 @@ public:
 #endif
 #ifdef XP_WIN
   NS_DECL_NSIWINAPPHELPER
-private:
-  nsresult LaunchAppHelperWithArgs(int aArgc, char **aArgv);
 #endif
 };
 
@@ -731,74 +730,6 @@ nsXULAppInfo::GetXPCOMABI(nsACString& aResult)
 }
 
 #ifdef XP_WIN
-nsresult 
-nsXULAppInfo::LaunchAppHelperWithArgs(int aArgc, char **aArgv)
-{
-  nsresult rv;
-  nsCOMPtr<nsIProperties> directoryService = 
-    do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsILocalFile> appHelper;
-  rv = directoryService->Get(NS_XPCOM_CURRENT_PROCESS_DIR, NS_GET_IID(nsILocalFile), getter_AddRefs(appHelper));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = appHelper->AppendNative(NS_LITERAL_CSTRING("uninstall"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = appHelper->AppendNative(NS_LITERAL_CSTRING("helper.exe"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsAutoString appHelperPath;
-  rv = appHelper->GetPath(appHelperPath);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!WinLaunchChild(appHelperPath.get(), aArgc, aArgv, 1))
-    return NS_ERROR_FAILURE;
-  else
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsXULAppInfo::PostUpdate(nsILocalFile *aLogFile)
-{
-  nsresult rv;
-  int upgradeArgc = aLogFile ? 3 : 2;
-  char **upgradeArgv = (char**) malloc(sizeof(char*) * (upgradeArgc + 1));
-
-  if (!upgradeArgv)
-    return NS_ERROR_OUT_OF_MEMORY;
-
-  upgradeArgv[0] = "argv0ignoredbywinlaunchchild";
-  upgradeArgv[1] = "/postupdate";
-
-  char *pathArg = nsnull;
-
-  if (aLogFile) {
-    nsCAutoString logFilePath;
-    rv = aLogFile->GetNativePath(logFilePath);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    pathArg = PR_smprintf("/uninstalllog=%s", logFilePath.get());
-    if (!pathArg)
-      return NS_ERROR_OUT_OF_MEMORY;
-
-    upgradeArgv[2] = pathArg;
-    upgradeArgv[3] = nsnull;
-  }
-  else {
-    upgradeArgv[2] = nsnull;
-  }
-
-  rv = LaunchAppHelperWithArgs(upgradeArgc, upgradeArgv);
-  
-  if (pathArg)
-    PR_smprintf_free(pathArg);
-
-  free(upgradeArgv);
-  return rv;
-}
-
 // Matches the enum in WinNT.h for the Vista SDK but renamed so that we can
 // safely build with the Vista SDK and without it.
 typedef enum 
@@ -962,6 +893,12 @@ static nsModuleComponentInfo kComponents[] =
     "nsXULAppInfo",
     APPINFO_CID,
     XULAPPINFO_SERVICE_CONTRACTID,
+    AppInfoConstructor
+  },
+  {
+    "nsXULAppInfo",
+    APPINFO_CID,
+    XULRUNTIME_SERVICE_CONTRACTID,
     AppInfoConstructor
   }
 #ifdef MOZ_CRASHREPORTER
@@ -1489,6 +1426,7 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
 
 #ifdef XP_WIN
 #include "nsWindowsRestart.cpp"
+#include <shellapi.h>
 #endif
 
 #if defined(XP_OS2) && (__KLIBC__ == 0 && __KLIBC_MINOR__ >= 6) // broken kLibc
@@ -1610,7 +1548,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
   if (NS_FAILED(rv))
     return rv;
 
-  if (!WinLaunchChild(exePath.get(), gRestartArgc, gRestartArgv, 0))
+  if (!WinLaunchChild(exePath.get(), gRestartArgc, gRestartArgv))
     return NS_ERROR_FAILURE;
 
 #else

@@ -1326,8 +1326,7 @@ nsGenericHTMLElement::GetFormControlFrameFor(nsIContent* aContent,
   }
   nsIFrame* frame = GetPrimaryFrameFor(aContent, aDocument);
   if (frame) {
-    nsIFormControlFrame* form_frame = nsnull;
-    CallQueryInterface(frame, &form_frame);
+    nsIFormControlFrame* form_frame = do_QueryFrame(frame);
     if (form_frame) {
       return form_frame;
     }
@@ -1337,7 +1336,7 @@ nsGenericHTMLElement::GetFormControlFrameFor(nsIContent* aContent,
     for (frame = frame->GetFirstChild(nsnull);
          frame;
          frame = frame->GetNextSibling()) {
-      CallQueryInterface(frame, &form_frame);
+      form_frame = do_QueryFrame(frame);
       if (form_frame) {
         return form_frame;
       }
@@ -2865,6 +2864,8 @@ nsGenericHTMLFrameElement::BindToTree(nsIDocument* aDocument,
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDocument) {
+    NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
+                 "Missing a script blocker!");
     // We're in a document now.  Kick off the frame load.
     LoadSrc();
   }
@@ -3550,8 +3551,7 @@ nsGenericHTMLElement::GetEditorInternal(nsIEditor** aEditor)
 
   nsIFormControlFrame *fcFrame = GetFormControlFrame(PR_FALSE);
   if (fcFrame) {
-    nsITextControlFrame *textFrame = nsnull;
-    CallQueryInterface(fcFrame, &textFrame);
+    nsITextControlFrame *textFrame = do_QueryFrame(fcFrame);
     if (textFrame) {
       return textFrame->GetEditor(aEditor);
     }

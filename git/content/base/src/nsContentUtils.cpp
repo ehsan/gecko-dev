@@ -3586,7 +3586,6 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
       break;
   }
 
-  // XXX Shouldn't we be returning rv if it's a failure code?
   rv = parser->ParseFragment(aFragment, nsnull, tagStack,
                              !bHTML, contentType, mode);
   if (NS_SUCCEEDED(rv)) {
@@ -3595,7 +3594,7 @@ nsContentUtils::CreateContextualFragment(nsIDOMNode* aContextNode,
 
   document->SetFragmentParser(parser);
 
-  return NS_OK;
+  return rv;
 }
 
 /* static */
@@ -3615,6 +3614,9 @@ nsContentUtils::CreateDocument(const nsAString& aNamespaceURI,
 
   nsCOMPtr<nsIDocument> document = do_QueryInterface(*aResult);
   document->SetScriptHandlingObject(aEventObject);
+  
+  // created documents are immediately "complete" (ready to use)
+  document->SetReadyStateInternal(nsIDocument::READYSTATE_COMPLETE);
   return NS_OK;
 }
 

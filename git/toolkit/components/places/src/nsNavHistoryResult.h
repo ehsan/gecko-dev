@@ -740,6 +740,8 @@ public:
 
   virtual PRUint16 GetSortType();
   virtual void GetSortingAnnotation(nsACString& aSortingAnnotation);
+  virtual void RecursiveSort(const char* aData,
+                             SortComparator aComparator);
 };
 
 
@@ -808,6 +810,7 @@ public:
 private:
 
   PRBool mIsRegisteredFolderObserver;
+  PRBool mBatchInProgress;
 };
 
 // nsNavHistorySeparatorResultNode

@@ -132,7 +132,8 @@ LIBGNOME_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
 LCMS_VERSION=1.17
-SQLITE_VERSION=3.6.6.2
+SQLITE_VERSION=3.6.7
+LIBNOTIFY_VERSION=0.4
 
 MSMANIFEST_TOOL=
 
@@ -568,20 +569,25 @@ case "$target" in
         _MIDL_MAJOR_VERSION=`echo ${_MIDL_FULL_VERSION} | $AWK -F\. '{ print $1 }'`
         _MIDL_MINOR_VERSION=`echo ${_MIDL_FULL_VERSION} | $AWK -F\. '{ print $2 }'`
         _MIDL_REV_VERSION=`echo ${_MIDL_FULL_VERSION} | $AWK -F\. '{ print $3 }'`
-         # Add flags if necessary
-         AC_MSG_CHECKING([for midl flags])
-         if test \( "$_MIDL_MAJOR_VERSION" -gt "6" \) -o \( "$_MIDL_MAJOR_VERSION" = "6" -a "$_MIDL_MINOR_VERSION" -gt "0" \) -o \( "$_MIDL_MAJOR_VERSION" = "6" -a "$_MIDL_MINOR_VERSION" = "00" -a "$_MIDL_REV_VERSION" -gt "359" \); then
-             # Starting with MIDL version 6.0.359, the MIDL compiler
-             # generates /Oicf /robust stubs by default, which is not
-             # compatible with versions of Windows older than Win2k.
-             # This switches us back to the old behaviour. When we drop
-             # support for Windows older than Win2k, we should remove
-             # this.
-             MIDL_FLAGS="${MIDL_FLAGS} -no_robust"
-             AC_MSG_RESULT([need -no_robust])
-         else
-             MIDL_FLAGS="${MIDL_FLAGS}"
-             AC_MSG_RESULT([none needed])
+        # Add flags if necessary
+        AC_MSG_CHECKING([for midl flags])
+        if test -n "$_MIDL_MAJOR_VERSION"; then
+            if test \( "$_MIDL_MAJOR_VERSION" -gt "6" \) -o \( "$_MIDL_MAJOR_VERSION" = "6" -a "$_MIDL_MINOR_VERSION" -gt "0" \) -o \( "$_MIDL_MAJOR_VERSION" = "6" -a "$_MIDL_MINOR_VERSION" = "00" -a "$_MIDL_REV_VERSION" -gt "359" \); then
+                # Starting with MIDL version 6.0.359, the MIDL compiler
+                # generates /Oicf /robust stubs by default, which is not
+                # compatible with versions of Windows older than Win2k.
+                # This switches us back to the old behaviour. When we drop
+                # support for Windows older than Win2k, we should remove
+                # this.
+                MIDL_FLAGS="${MIDL_FLAGS} -no_robust"
+                AC_MSG_RESULT([need -no_robust])
+            else
+                MIDL_FLAGS="${MIDL_FLAGS}"
+                AC_MSG_RESULT([none needed])
+            fi
+        else
+            MIDL_FLAGS="${MIDL_FLAGS}"
+            AC_MSG_RESULT([none needed])
         fi
         
         unset _MSVC_VER_FILTER
@@ -649,6 +655,18 @@ if test -n "$_WIN32_MSVC"; then
     SKIP_PATH_CHECKS=1
     SKIP_COMPILER_CHECKS=1
     SKIP_LIBRARY_CHECKS=1
+
+    # Since we're skipping compiler and library checks, hard-code
+    # some facts here.
+    case "$target" in
+    *-wince)
+        ;;
+    *)
+        AC_DEFINE(HAVE_IO_H)
+        AC_DEFINE(HAVE_SETBUF)
+        AC_DEFINE(HAVE_ISATTY)
+        ;;
+    esac
 fi
 
 fi # COMPILE_ENVIRONMENT
@@ -2949,6 +2967,7 @@ AC_CHECK_HEADERS(sys/bitypes.h memory.h unistd.h)
 AC_CHECK_HEADERS(gnu/libc-version.h nl_types.h)
 AC_CHECK_HEADERS(malloc.h)
 AC_CHECK_HEADERS(X11/XKBlib.h)
+AC_CHECK_HEADERS(io.h)
 
 dnl These are all the places some variant of statfs can be hiding.
 AC_CHECK_HEADERS(sys/statvfs.h sys/statfs.h sys/vfs.h sys/mount.h)
@@ -3347,13 +3366,9 @@ dnl Checks for library functions.
 dnl ========================================================
 AC_PROG_GCC_TRADITIONAL
 AC_FUNC_MEMCMP
-AC_CHECK_FUNCS(random strerror lchown fchmod snprintf statvfs memmove rint stat64 lstat64 truncate64 statvfs64)
+AC_CHECK_FUNCS(random strerror lchown fchmod snprintf statvfs memmove rint stat64 lstat64 truncate64 statvfs64 setbuf isatty)
 AC_CHECK_FUNCS(flockfile getpagesize)
-
-dnl localtime_r and strtok_r are only present on MacOS version 10.2 and higher
-if test -z "$MACOS_DEPLOYMENT_TARGET" || test "$MACOS_DEPLOYMENT_TARGET" -ge "100200"; then
-  AC_CHECK_FUNCS(localtime_r strtok_r)
-fi
+AC_CHECK_FUNCS(localtime_r strtok_r)
 
 dnl check for wcrtomb/mbrtowc
 dnl =======================================================================
@@ -4379,7 +4394,6 @@ NECKO_COOKIES=1
 NECKO_DISK_CACHE=1
 NECKO_PROTOCOLS_DEFAULT="about data file ftp gopher http res viewsource"
 NECKO_SMALL_BUFFERS=
-JS_STATIC_BUILD=
 XPC_IDISPATCH_SUPPORT=
 
 
@@ -4472,7 +4486,6 @@ basic)
   NECKO_SMALL_BUFFERS=1
   NS_DISABLE_LOGGING=1
   NS_PRINTING=
-  JS_STATIC_BUILD=1
   ;;
 
 minimal)
@@ -4520,7 +4533,6 @@ minimal)
   NECKO_SMALL_BUFFERS=1
   NS_DISABLE_LOGGING=1
   NS_PRINTING=
-  JS_STATIC_BUILD=1
   ;;
 
 *)
@@ -5122,6 +5134,37 @@ fi
 AC_SUBST(MOZ_ENABLE_DBUS)
 AC_SUBST(MOZ_DBUS_GLIB_CFLAGS)
 AC_SUBST(MOZ_DBUS_GLIB_LIBS)
+
+dnl ========================================================
+dnl = libnotify support
+dnl ========================================================
+
+MOZ_ARG_ENABLE_BOOL(libnotify,
+[  --enable-libnotify       Enable libnotify support ],
+    MOZ_ENABLE_LIBNOTIFY=1,
+    MOZ_ENABLE_LIBNOTIFY=)
+
+if test "$MOZ_ENABLE_GTK2"
+then
+    if test "$MOZ_ENABLE_LIBNOTIFY"
+    then
+        AC_DEFINE(MOZ_ENABLE_LIBNOTIFY)
+    fi
+fi
+
+if test -z "$SKIP_LIBRARY_CHECKS"
+then
+    if test "$MOZ_ENABLE_GTK2"
+    then
+        if test "$MOZ_ENABLE_LIBNOTIFY"
+        then
+            PKG_CHECK_MODULES(MOZ_LIBNOTIFY, libnotify >= $LIBNOTIFY_VERSION)
+        fi
+    fi
+fi
+AC_SUBST(MOZ_ENABLE_LIBNOTIFY)
+AC_SUBST(MOZ_LIBNOTIFY_CFLAGS)
+AC_SUBST(MOZ_LIBNOTIFY_LIBS)
 
 dnl ========================================================
 dnl = Build Personal Security Manager
@@ -5730,6 +5773,17 @@ if test -n "$MOZ_SVG"; then
 fi
 
 dnl ========================================================
+dnl SMIL
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(smil,
+[  --enable-smil            Enable SMIL animation support],
+    MOZ_SMIL=1,
+    MOZ_SMIL= )
+if test -n "$MOZ_SMIL"; then
+  AC_DEFINE(MOZ_SMIL)
+fi
+
+dnl ========================================================
 dnl Installer
 dnl ========================================================
 case "$target_os" in
@@ -5784,19 +5838,6 @@ MOZ_ARG_DISABLE_BOOL(updater,
 [  --disable-updater       Disable building of updater],
     MOZ_UPDATER=,
     MOZ_UPDATER=1 )
-# The Windows build requires the iconv command line utility
-# in order to build the updater.
-case "$target_os" in
-    msvc*|mks*|cygwin*|mingw*|wince*)
-        if test -n "$MOZ_UPDATER"; then
-            AC_MSG_CHECKING([for iconv])
-            AC_CHECK_PROGS(HOST_ICONV, $HOST_ICONV "iconv", "")
-            if test -z "$HOST_ICONV"; then
-                AC_MSG_ERROR([iconv not found in \$PATH])
-            fi
-        fi
-        ;;
-esac
 AC_SUBST(MOZ_UPDATER)
 
 # app update channel is 'default' when not supplied.
@@ -6524,6 +6565,17 @@ if test -n "$MOZ_VTUNE"; then
 fi
 
 dnl ========================================================
+dnl Zealous JavaScript GC
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(gczeal,
+[  --enable-gczeal          Enable zealous JavaScript GCing],
+    JS_GC_ZEAL=1,
+    JS_GC_ZEAL= )
+if test -n "$JS_GC_ZEAL"; then
+    AC_DEFINE(JS_GC_ZEAL)
+fi
+
+dnl ========================================================
 dnl = Enable static checking using gcc-dehydra
 dnl ========================================================
 
@@ -7177,6 +7229,8 @@ if test -n "$MOZ_ENABLE_LIBXUL" -a -z "$MOZ_XUL_APP"; then
 	AC_MSG_ERROR([--enable-libxul is only compatible with toolkit XUL applications.])
 fi
 
+AC_SUBST(LIBXUL_LIBS)
+
 if test -n "$MOZ_ENABLE_LIBXUL"; then
     XPCOM_LIBS="$LIBXUL_LIBS"
     AC_DEFINE(MOZ_ENABLE_LIBXUL)
@@ -7185,25 +7239,6 @@ else
         AC_DEFINE(MOZ_STATIC_BUILD)
     fi
     XPCOM_LIBS="$DYNAMIC_XPCOM_LIBS"
-fi
-
-dnl ========================================================
-dnl = Force JS to be a static lib
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(js-static-build,
-[  --enable-js-static-build  Force js to be a static lib],
-    JS_STATIC_BUILD=1,
-    JS_STATIC_BUILD= )
-
-AC_SUBST(JS_STATIC_BUILD)
-        
-if test -n "$JS_STATIC_BUILD"; then
-    AC_DEFINE(EXPORT_JS_API)
-
-if test -z "$BUILD_STATIC_LIBS"; then
-    AC_MSG_ERROR([--enable-js-static-build is only compatible with --enable-static])
-fi
-
 fi
 
 dnl ========================================================
@@ -7798,6 +7833,7 @@ AC_SUBST(MOZ_XTF)
 AC_SUBST(MOZ_NO_INSPECTOR_APIS)
 AC_SUBST(MOZ_PREF_EXTENSIONS)
 AC_SUBST(MOZ_SVG)
+AC_SUBST(MOZ_SMIL)
 AC_SUBST(MOZ_XSLT_STANDALONE)
 AC_SUBST(MOZ_JS_LIBS)
 AC_SUBST(MOZ_PSM)

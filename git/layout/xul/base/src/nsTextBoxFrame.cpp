@@ -679,23 +679,20 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
 
     // see if the width is even smaller than the ellipsis
     // if so, clear the text (XXX set as many '.' as we can?).
-    nscoord ellipsisWidth;
     aRenderingContext.SetTextRunRTL(PR_FALSE);
-    aRenderingContext.GetWidth(kEllipsis, ellipsisWidth);
+    aRenderingContext.GetWidth(kEllipsis, mTitleWidth);
 
-    if (ellipsisWidth > aWidth) {
+    if (mTitleWidth > aWidth) {
         mCroppedTitle.SetLength(0);
-        mTitleWidth = aWidth;
+        mTitleWidth = 0;
         return;
     }
 
     // if the ellipsis fits perfectly, no use in trying to insert
-    if (ellipsisWidth == aWidth) {
-        mTitleWidth = aWidth;
+    if (mTitleWidth == aWidth)
         return;
-    }
 
-    aWidth -= ellipsisWidth;
+    aWidth -= mTitleWidth;
 
     // XXX: This whole block should probably take surrogates into account
     // XXX and clusters!
@@ -755,7 +752,7 @@ nsTextBoxFrame::CalculateTitleForWidth(nsPresContext*      aPresContext,
             }
 
             if (i == length-1)
-                break;
+                return;
 
             nsAutoString copy;
             mTitle.Right(copy, length-1-i);
@@ -1100,7 +1097,7 @@ nsTextBoxFrame::GetFrameName(nsAString& aResult) const
 #endif
 
 // If you make changes to this function, check its counterparts 
-// in nsBoxFrame and nsAreaFrame
+// in nsBoxFrame and nsXULLabelFrame
 nsresult
 nsTextBoxFrame::RegUnregAccessKey(PRBool aDoReg)
 {

@@ -72,8 +72,7 @@ class nsTableCellFrame : public nsHTMLContainerFrame,
 {
 public:
 
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_QUERYFRAME
 
   // default constructor supplied by the compiler
 
@@ -95,7 +94,7 @@ public:
   /** @see nsIFrame::DidSetStyleContext */
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
   
-  // table cells contain an area frame which does most of the work, and
+  // table cells contain a block frame which does most of the work, and
   // so these functions should never be called. They assert and return
   // NS_ERROR_NOT_IMPLEMENTED
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,

@@ -87,8 +87,6 @@ var gContextMenu = null;
 
 var gChromeState = null; // chrome state before we went into print preview
 
-var gSanitizeListener = null;
-
 var gAutoHideTabbarPrefListener = null;
 var gBookmarkAllTabsHandler = null;
 
@@ -1144,7 +1142,11 @@ function prepareForStartup() {
   gBrowser.browsers[0].removeAttribute("disablehistory");
 
   // enable global history
-  gBrowser.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
+  try {
+    gBrowser.docShell.QueryInterface(Components.interfaces.nsIDocShellHistory).useGlobalHistory = true;
+  } catch(ex) {
+    Components.utils.reportError("Places database may be locked: " + ex);
+  }
 
   // hook up UI through progress listener
   gBrowser.addProgressListener(window.XULBrowserWindow, Components.interfaces.nsIWebProgress.NOTIFY_ALL);
@@ -1196,7 +1198,7 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gNavToolbox.customizeChange = BrowserToolboxCustomizeChange;
 
   // Set up Sanitize Item
-  gSanitizeListener = new SanitizeListener();
+  initializeSanitizer();
 
   // Enable/Disable auto-hide tabbar
   gAutoHideTabbarPrefListener = new AutoHideTabbarPrefListener();
@@ -1396,9 +1398,6 @@ function BrowserShutdown()
     Components.utils.reportError(ex);
   }
 
-  if (gSanitizeListener)
-    gSanitizeListener.shutdown();
-
   BrowserOffline.uninit();
   OfflineApps.uninit();
   DownloadMonitorPanel.uninit();
@@ -1478,15 +1477,17 @@ function nonBrowserWindowDelayedStartup()
   BrowserOffline.init();
   
   // Set up Sanitize Item
-  gSanitizeListener = new SanitizeListener();
+  initializeSanitizer();
+
+  // initialize the private browsing UI
+  gPrivateBrowsingUI.init();
 }
 
 function nonBrowserWindowShutdown()
 {
-  if (gSanitizeListener)
-    gSanitizeListener.shutdown();
-
   BrowserOffline.uninit();
+
+  gPrivateBrowsingUI.uninit();
 }
 #endif
 
@@ -1521,43 +1522,18 @@ AutoHideTabbarPrefListener.prototype =
   }
 }
 
-function SanitizeListener()
+function initializeSanitizer()
 {
-  gPrefService.addObserver(this.promptDomain, this, false);
+  // Always use the label with ellipsis
+  var label = gNavigatorBundle.getString("sanitizeWithPromptLabel2");
+  document.getElementById("sanitizeItem").setAttribute("label", label);
 
-  this._defaultLabel = document.getElementById("sanitizeItem")
-                               .getAttribute("label");
-  this._updateSanitizeItem();
-
-  if (gPrefService.prefHasUserValue(this.didSanitizeDomain)) {
-    gPrefService.clearUserPref(this.didSanitizeDomain);
+  const kDidSanitizeDomain = "privacy.sanitize.didShutdownSanitize";
+  if (gPrefService.prefHasUserValue(kDidSanitizeDomain)) {
+    gPrefService.clearUserPref(kDidSanitizeDomain);
     // We need to persist this preference change, since we want to
     // check it at next app start even if the browser exits abruptly
     gPrefService.QueryInterface(Ci.nsIPrefService).savePrefFile(null);
-  }
-}
-
-SanitizeListener.prototype =
-{
-  promptDomain      : "privacy.sanitize.promptOnSanitize",
-  didSanitizeDomain : "privacy.sanitize.didShutdownSanitize",
-
-  observe: function (aSubject, aTopic, aPrefName)
-  {
-    this._updateSanitizeItem();
-  },
-
-  shutdown: function ()
-  {
-    gPrefService.removeObserver(this.promptDomain, this);
-  },
-
-  _updateSanitizeItem: function ()
-  {
-    var label = gPrefService.getBoolPref(this.promptDomain) ?
-        gNavigatorBundle.getString("sanitizeWithPromptLabel2") : 
-        this._defaultLabel;
-    document.getElementById("sanitizeItem").setAttribute("label", label);
   }
 }
 
@@ -1982,7 +1958,7 @@ function readFromClipboard()
     var clipboard = Components.classes["@mozilla.org/widget/clipboard;1"]
                               .getService(Components.interfaces.nsIClipboard);
 
-    // Create tranferable that will transfer the text.
+    // Create transferable that will transfer the text.
     var trans = Components.classes["@mozilla.org/widget/transferable;1"]
                           .createInstance(Components.interfaces.nsITransferable);
 
@@ -2153,9 +2129,10 @@ function losslessDecodeURI(aURI) {
                          encodeURIComponent);
     } catch (e) {}
 
-  // Encode invisible characters (invisible control characters, soft hyphen,
-  // zero-width space, BOM, line separator, paragraph separator) (bug 452979)
-  value = value.replace(/[\v\x0c\x1c\x1d\x1e\x1f\u00ad\u200b\ufeff\u2028\u2029]/g,
+  // Encode invisible characters (soft hyphen, zero-width space, BOM,
+  // line and paragraph separator, word joiner, invisible times,
+  // invisible separator, object replacement character) (bug 452979)
+  value = value.replace(/[\v\x0c\x1c\x1d\x1e\x1f\u00ad\u200b\ufeff\u2028\u2029\u2060\u2062\u2063\ufffc]/g,
                         encodeURIComponent);
 
   // Encode bidirectional formatting characters.
@@ -2309,7 +2286,7 @@ function BrowserOnCommand(event) {
     // Exception…" or "Get me out of here!" button
     if (/^about:certerror/.test(errorDoc.documentURI)) {
       if (ot == errorDoc.getElementById('exceptionDialogButton')) {
-        var params = { exceptionAdded : false };
+        var params = { exceptionAdded : false, handlePrivateBrowsing : true };
         
         try {
           switch (gPrefService.getIntPref("browser.ssl_override_behavior")) {
@@ -2409,6 +2386,11 @@ function BrowserOnCommand(event) {
           notificationBox.PRIORITY_CRITICAL_HIGH,
           buttons
         );
+      }
+    }
+    else if (/^about:privatebrowsing/.test(errorDoc.documentURI)) {
+      if (ot == errorDoc.getElementById("startPrivateBrowsing")) {
+        gPrivateBrowsingUI.toggleMode();
       }
     }
 }
@@ -3223,6 +3205,8 @@ function OpenBrowserWindow()
   return win;
 }
 
+// Returns a reference to the window in which the toolbar
+// customization document is loaded.
 function BrowserCustomizeToolbar()
 {
   // Disable the toolbar context menu items
@@ -3255,11 +3239,13 @@ function BrowserCustomizeToolbar()
   var sheetWidth = sheetFrame.style.width.match(/([0-9]+)px/)[1];
   document.getElementById("customizeToolbarSheetPopup")
           .openPopup(gNavToolbox, "after_start", (window.innerWidth - sheetWidth) / 2, 0);
+
+  return sheetFrame.contentWindow;
 #else
-  window.openDialog(customizeURL,
-                    "CustomizeToolbar",
-                    "chrome,titlebar,toolbar,resizable,dependent",
-                    gNavToolbox);
+  return window.openDialog(customizeURL,
+                           "CustomizeToolbar",
+                           "chrome,titlebar,toolbar,resizable,dependent",
+                           gNavToolbox);
 #endif
 }
 
@@ -3316,25 +3302,6 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
     menubar.childNodes[i].setAttribute("disabled", false);
   var cmd = document.getElementById("cmd_CustomizeToolbars");
   cmd.removeAttribute("disabled");
-
-  // XXXmano bug 287105: wallpaper to bug 309953,
-  // the reload button isn't in sync with the reload command.
-  var reloadButton = document.getElementById("reload-button");
-  if (reloadButton) {
-    reloadButton.disabled =
-      document.getElementById("Browser:Reload").getAttribute("disabled") == "true";
-  }
-  //bug 440702: the back and forward buttons also suffer from bug 309953.
-  var backButton = document.getElementById("back-button");
-  if (backButton) {
-    backButton.disabled =
-      document.getElementById("Browser:Back").getAttribute("disabled") == "true";
-  }
-  var forwardButton = document.getElementById("forward-button");
-  if (forwardButton) {
-    forwardButton.disabled =
-      document.getElementById("Browser:Forward").getAttribute("disabled") == "true";
-  }
 
 #ifdef XP_MACOSX
   // make sure to re-enable click-and-hold
@@ -4053,8 +4020,6 @@ var XULBrowserWindow = {
         // Update starring UI
         PlacesStarButton.updateState();
       }
-
-      FullZoom.onLocationChange(aLocationURI);
     }
     UpdateBackForwardCommands(gBrowser.webNavigation);
 
@@ -4190,6 +4155,7 @@ var XULBrowserWindow = {
 
   // simulate all change notifications after switching tabs
   onUpdateCurrentBrowser: function (aStateFlags, aStatus, aMessage, aTotalProgress) {
+    FullZoom.onLocationChange(gBrowser.currentURI);
     var nsIWebProgressListener = Components.interfaces.nsIWebProgressListener;
     var loadingDone = aStateFlags & nsIWebProgressListener.STATE_STOP;
     // use a pseudo-object instead of a (potentially non-existing) channel for getting
@@ -4254,6 +4220,9 @@ var TabsProgressListener = {
   },
 
   onLocationChange: function (aBrowser, aWebProgress, aRequest, aLocationURI) {
+    // Filter out any sub-frame loads
+    if (aBrowser.contentWindow == aWebProgress.DOMWindow)
+      FullZoom.onLocationChange(aLocationURI, aBrowser);
   },
   
   onStatusChange: function (aBrowser, aWebProgress, aRequest, aStatus, aMessage) {
@@ -4412,53 +4381,14 @@ nsBrowserAccess.prototype =
     return newWindow;
   },
 
-#ifdef XP_UNIX
-#ifndef XP_MACOSX
-#define BROKEN_WM_Z_ORDER
-#endif
-#endif
-#ifdef XP_OS2
-#define BROKEN_WM_Z_ORDER
-#endif
-
   // this returns the most recent non-popup browser window
   _getMostRecentBrowserWindow : function ()
   {
     if (!window.document.documentElement.getAttribute("chromehidden"))
       return window;
  
-    var wm = Components.classes["@mozilla.org/appshell/window-mediator;1"]
-                       .getService(Components.interfaces.nsIWindowMediator);
- 
-#ifdef BROKEN_WM_Z_ORDER
-    var win = wm.getMostRecentWindow("navigator:browser", true);
- 
-    // if we're lucky, this isn't a popup, and we can just return this
-    if (win && win.document.documentElement.getAttribute("chromehidden")) {
-      win = null;
-      var windowList = wm.getEnumerator("navigator:browser", true);
-      // this is oldest to newest, so this gets a bit ugly
-      while (windowList.hasMoreElements()) {
-        var nextWin = windowList.getNext();
-        if (!nextWin.document.documentElement.getAttribute("chromehidden"))
-          win = nextWin;
-      }
-    }
-#else
-    var windowList = wm.getZOrderDOMWindowEnumerator("navigator:browser", true);
-    if (!windowList.hasMoreElements())
-      return null;
- 
-    var win = windowList.getNext();
-    while (win.document.documentElement.getAttribute("chromehidden")) {
-      if (!windowList.hasMoreElements()) 
-        return null;
- 
-      win = windowList.getNext();
-    }
-#endif
-
-    return win;
+    var browserGlue = Cc[GLUE_CID].getService(Ci.nsIBrowserGlue);
+    return browserGlue.getMostRecentBrowserWindow();
   },
 
   isTabContentWindow : function(aWindow)
@@ -4972,6 +4902,9 @@ function middleMousePaste(event)
 var contentAreaDNDObserver = {
   onDrop: function (aEvent, aXferData, aDragSession)
     {
+      if (aEvent.getPreventDefault())
+        return;
+
       var url = transferUtils.retrieveURLFromData(aXferData.data, aXferData.flavour.contentType);
 
       // valid urls don't contain spaces ' '; if we have a space it
@@ -6869,7 +6802,14 @@ let gPrivateBrowsingUI = {
     var brandBundle = bundleService.createBundle("chrome://branding/locale/brand.properties");
 
     var appName = brandBundle.GetStringFromName("brandShortName");
+# On Mac, use the header as the title.
+#ifdef XP_MACOSX
+    var dialogTitle = pbBundle.GetStringFromName("privateBrowsingMessageHeader");
+    var header = "";
+#else
     var dialogTitle = pbBundle.GetStringFromName("privateBrowsingDialogTitle");
+    var header = pbBundle.GetStringFromName("privateBrowsingMessageHeader") + "\n\n";
+#endif
     var message = pbBundle.formatStringFromName("privateBrowsingMessage", [appName], 1);
 
     var promptService = Cc["@mozilla.org/embedcomp/prompt-service;1"].
@@ -6885,7 +6825,7 @@ let gPrivateBrowsingUI = {
     var neverAskText = pbBundle.GetStringFromName("privateBrowsingNeverAsk");
 
     var result;
-    var choice = promptService.confirmEx(null, dialogTitle, message,
+    var choice = promptService.confirmEx(null, dialogTitle, header + message,
                                flags, button0Title, button1Title, null,
                                neverAskText, neverAsk);
 
@@ -6904,9 +6844,7 @@ let gPrivateBrowsingUI = {
   },
 
   onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing() {
-    let pbMenuItem = document.getElementById("privateBrowsingItem");
-    if (pbMenuItem)
-      pbMenuItem.setAttribute("checked", "true");
+    this._setPBMenuTitle("stop");
 
     this._privateBrowsingAutoStarted = this._privateBrowsingService.autoStarted;
 
@@ -6921,6 +6859,7 @@ let gPrivateBrowsingUI = {
     }
     else {
       // Disable the menu item in auto-start mode
+      let pbMenuItem = document.getElementById("privateBrowsingItem");
       if (pbMenuItem)
         pbMenuItem.setAttribute("disabled", "true");
       document.getElementById("Tools:PrivateBrowsing")
@@ -6934,9 +6873,7 @@ let gPrivateBrowsingUI = {
 
     gFindBar.getElement("findbar-textbox").reset();
 
-    let pbMenuItem = document.getElementById("privateBrowsingItem");
-    if (pbMenuItem)
-      pbMenuItem.removeAttribute("checked");
+    this._setPBMenuTitle("start");
 
     if (!this._privateBrowsingAutoStarted) {
       // Adjust the window's title
@@ -6949,6 +6886,14 @@ let gPrivateBrowsingUI = {
     }
     else
       this._privateBrowsingAutoStarted = false;
+  },
+
+  _setPBMenuTitle: function PBUI__setPBMenuTitle(aMode) {
+    let pbMenuItem = document.getElementById("privateBrowsingItem");
+    if (pbMenuItem) {
+      pbMenuItem.setAttribute("label", pbMenuItem.getAttribute(aMode + "label"));
+      pbMenuItem.setAttribute("accesskey", pbMenuItem.getAttribute(aMode + "accesskey"));
+    }
   },
 
   toggleMode: function PBUI_toggleMode() {

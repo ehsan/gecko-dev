@@ -79,7 +79,6 @@ class nsIRenderingContext;
 class nsIPageSequenceFrame;
 class nsString;
 class nsAString;
-class nsStringArray;
 class nsCaret;
 class nsStyleContext;
 class nsFrameSelection;
@@ -102,10 +101,10 @@ class gfxContext;
 typedef short SelectionType;
 typedef PRUint32 nsFrameState;
 
-// 23439d06-4642-4c4e-b60b-d84ad9bd8897
+// b86c23c5-602d-4ca6-a968-379b244fed9e
 #define NS_IPRESSHELL_IID \
-  { 0x23439d06, 0x4642, 0x4c4e, \
-    { 0xb6, 0x0b, 0xd8, 0x4a, 0xd9, 0xbd, 0x88, 0x97 } }
+{ 0xb86c23c5, 0x602d, 0x4ca6, \
+  { 0xa9, 0x68, 0x37, 0x9b, 0x24, 0x4f, 0xed, 0x9e } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -123,8 +122,7 @@ typedef PRUint32 nsFrameState;
 #define VERIFY_REFLOW_DUMP_COMMANDS   0x08
 #define VERIFY_REFLOW_NOISY_RC        0x10
 #define VERIFY_REFLOW_REALLY_NOISY_RC 0x20
-#define VERIFY_REFLOW_INCLUDE_SPACE_MANAGER 0x40
-#define VERIFY_REFLOW_DURING_RESIZE_REFLOW  0x80
+#define VERIFY_REFLOW_DURING_RESIZE_REFLOW  0x40
 
 /**
  * Presentation shell interface. Presentation shells are the
@@ -745,8 +743,8 @@ public:
    */
   virtual already_AddRefed<gfxASurface> RenderNode(nsIDOMNode* aNode,
                                                    nsIRegion* aRegion,
-                                                   nsPoint& aPoint,
-                                                   nsRect* aScreenRect) = 0;
+                                                   nsIntPoint& aPoint,
+                                                   nsIntRect* aScreenRect) = 0;
 
   /*
    * Renders a selection to a surface and returns it. This method is primarily
@@ -764,8 +762,8 @@ public:
    * as the position can be determined from the displayed frames.
    */
   virtual already_AddRefed<gfxASurface> RenderSelection(nsISelection* aSelection,
-                                                        nsPoint& aPoint,
-                                                        nsRect* aScreenRect) = 0;
+                                                        nsIntPoint& aPoint,
+                                                        nsIntRect* aScreenRect) = 0;
 
   void AddWeakFrame(nsWeakFrame* aWeakFrame);
   void RemoveWeakFrame(nsWeakFrame* aWeakFrame);

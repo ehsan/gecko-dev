@@ -47,10 +47,12 @@
 
 nsChannelToPipeListener::nsChannelToPipeListener(
     nsMediaDecoder* aDecoder,
-    PRBool aSeeking) :
+    PRBool aSeeking,
+    PRInt64 aOffset) :
   mDecoder(aDecoder),
   mIntervalStart(0),
   mIntervalEnd(0),
+  mOffset(aOffset),
   mTotalBytes(0),
   mSeeking(aSeeking)
 {
@@ -99,17 +101,22 @@ nsresult nsChannelToPipeListener::OnStartRequest(nsIRequest* aRequest, nsISuppor
   mIntervalStart = PR_IntervalNow();
   mIntervalEnd = mIntervalStart;
   mTotalBytes = 0;
-  mDecoder->UpdateBytesDownloaded(mTotalBytes);
+  mDecoder->UpdateBytesDownloaded(mOffset);
   nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(aRequest);
   if (hc) {
+    nsCAutoString ranges;
+    nsresult rv = hc->GetResponseHeader(NS_LITERAL_CSTRING("Accept-Ranges"),
+                                        ranges);
+    PRBool acceptsRanges = ranges.EqualsLiteral("bytes"); 
+
     PRUint32 responseStatus = 0; 
     hc->GetResponseStatus(&responseStatus);
     if (mSeeking && responseStatus == HTTP_OK_CODE) {
-      // If we get an OK response but we were seeking,
-      // and therefore expecting a partial response of
-      // HTTP_PARTIAL_RESPONSE_CODE, tell the decoder
-      // we don't support seeking.
-      mDecoder->SetSeekable(PR_FALSE);
+      // If we get an OK response but we were seeking, and therefore
+      // expecting a partial response of HTTP_PARTIAL_RESPONSE_CODE,
+      // seeking should still be possible if the server is sending
+      // Accept-Ranges:bytes.
+      mDecoder->SetSeekable(acceptsRanges);
     }
     else if (!mSeeking && 
              (responseStatus == HTTP_OK_CODE ||
@@ -120,9 +127,11 @@ nsresult nsChannelToPipeListener::OnStartRequest(nsIRequest* aRequest, nsISuppor
       hc->GetContentLength(&cl);
       mDecoder->SetTotalBytes(cl);
 
-      // If we get an HTTP_OK_CODE response to our byte range
-      // request, then we don't support seeking.
-      mDecoder->SetSeekable(responseStatus == HTTP_PARTIAL_RESPONSE_CODE);
+      // If we get an HTTP_OK_CODE response to our byte range request,
+      // and the server isn't sending Accept-Ranges:bytes then we don't
+      // support seeking.
+      mDecoder->SetSeekable(responseStatus == HTTP_PARTIAL_RESPONSE_CODE ||
+                            acceptsRanges);
     }
   }
 
@@ -130,7 +139,6 @@ nsresult nsChannelToPipeListener::OnStartRequest(nsIRequest* aRequest, nsISuppor
   if (cc) {
     PRBool fromCache = PR_FALSE;
     nsresult rv = cc->IsFromCache(&fromCache);
-
     if (NS_SUCCEEDED(rv) && !fromCache) {
       cc->SetCacheAsFile(PR_TRUE);
     }
@@ -150,6 +158,10 @@ nsresult nsChannelToPipeListener::OnStartRequest(nsIRequest* aRequest, nsISuppor
     }
   }
 
+  // Fires an initial progress event and sets up the stall counter so stall events
+  // fire if no download occurs within the required time frame.
+  mDecoder->Progress(PR_FALSE);
+
   return NS_OK;
 }
 
@@ -159,7 +171,7 @@ nsresult nsChannelToPipeListener::OnStopRequest(nsIRequest* aRequest, nsISupport
   if (aStatus != NS_BINDING_ABORTED && mDecoder) {
     if (NS_SUCCEEDED(aStatus)) {
       mDecoder->ResourceLoaded();
-    } else {
+    } else if (aStatus != NS_BASE_STREAM_CLOSED) {
       mDecoder->NetworkError();
     }
   }
@@ -179,15 +191,21 @@ nsresult nsChannelToPipeListener::OnDataAvailable(nsIRequest* aRequest,
   
   do {
     nsresult rv = mOutput->WriteFrom(aStream, aCount, &bytes);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv))
+      return rv;
     
     aCount -= bytes;
     mTotalBytes += bytes;
-    mDecoder->UpdateBytesDownloaded(mTotalBytes);
+    mDecoder->UpdateBytesDownloaded(mOffset + aOffset + bytes);
   } while (aCount) ;
   
   nsresult rv = mOutput->Flush();
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // Fire a progress events according to the time and byte constraints outlined
+  // in the spec.
+  mDecoder->Progress(PR_FALSE);
+
   mIntervalEnd = PR_IntervalNow();
   return NS_OK;
 }

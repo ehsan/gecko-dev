@@ -47,6 +47,7 @@
 
 #include "nsIPref.h"
 #include "nsServiceManagerUtils.h"
+#include "nsTArray.h"
 
 #include "nsIWindowsRegKey.h"
 #include "nsILocalFile.h"
@@ -111,7 +112,11 @@ already_AddRefed<gfxASurface>
 gfxWindowsPlatform::CreateOffscreenSurface(const gfxIntSize& size,
                                            gfxASurface::gfxImageFormat imageFormat)
 {
+#ifndef WINCE
     gfxASurface *surf = new gfxWindowsSurface(size, imageFormat);
+#else
+    gfxASurface *surf = new gfxImageSurface(size, imageFormat);
+#endif
     NS_IF_ADDREF(surf);
     return surf;
 }
@@ -146,11 +151,11 @@ gfxWindowsPlatform::FontEnumProc(const ENUMLOGFONTEXW *lpelfe,
 // general cmap reading routines moved to gfxFontUtils.cpp
 
 struct FontListData {
-    FontListData(const nsACString& aLangGroup, const nsACString& aGenericFamily, nsStringArray& aListOfFonts) :
+    FontListData(const nsACString& aLangGroup, const nsACString& aGenericFamily, nsTArray<nsString>& aListOfFonts) :
         mLangGroup(aLangGroup), mGenericFamily(aGenericFamily), mStringArray(aListOfFonts) {}
     const nsACString& mLangGroup;
     const nsACString& mGenericFamily;
-    nsStringArray& mStringArray;
+    nsTArray<nsString>& mStringArray;
 };
 
 PLDHashOperator
@@ -173,7 +178,7 @@ gfxWindowsPlatform::HashEnumFunc(nsStringHashKey::KeyType aKey,
 
     if (aFontEntry->SupportsLangGroup(data->mLangGroup) &&
         aFontEntry->MatchesGenericFamily(data->mGenericFamily))
-        data->mStringArray.AppendString(aFontFamily->mName);
+        data->mStringArray.AppendElement(aFontFamily->mName);
 
     return PL_DHASH_NEXT;
 }
@@ -181,7 +186,7 @@ gfxWindowsPlatform::HashEnumFunc(nsStringHashKey::KeyType aKey,
 nsresult
 gfxWindowsPlatform::GetFontList(const nsACString& aLangGroup,
                                 const nsACString& aGenericFamily,
-                                nsStringArray& aListOfFonts)
+                                nsTArray<nsString>& aListOfFonts)
 {
     FontListData data(aLangGroup, aGenericFamily, aListOfFonts);
 
@@ -266,7 +271,7 @@ gfxWindowsPlatform::UpdateFontList()
         if (!actualFontName.IsEmpty() && mFonts.Get(actualFontName, &ff))
             mFontSubstitutes.Put(substituteName, ff);
         else
-            mNonExistingFonts.AppendString(substituteName);
+            mNonExistingFonts.AppendElement(substituteName);
     }
 
     // initialize ranges of characters for which system-wide font search should be skipped
@@ -370,7 +375,7 @@ gfxWindowsPlatform::ResolveFontName(const nsAString& aFontName,
         return NS_OK;
     }
 
-    if (mNonExistingFonts.IndexOf(keyName) >= 0) {
+    if (mNonExistingFonts.Contains(keyName)) {
         aAborted = PR_FALSE;
         return NS_OK;
     }
@@ -391,7 +396,7 @@ gfxWindowsPlatform::ResolveFontName(const nsAString& aFontName,
                                     (FONTENUMPROCW)gfxWindowsPlatform::FontResolveProc,
                                     (LPARAM)&data, 0);
     if (data.mFoundCount == 0)
-        mNonExistingFonts.AppendString(keyName);
+        mNonExistingFonts.AppendElement(keyName);
     ::ReleaseDC(nsnull, dc);
 
     return NS_OK;
@@ -619,7 +624,8 @@ FindFullName(nsStringHashKey::KeyType aKey,
 }
 
 gfxFontEntry* 
-gfxWindowsPlatform::LookupLocalFont(const nsAString& aFontName)
+gfxWindowsPlatform::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                    const nsAString& aFontName)
 {
     // walk over list of names
     FullFontNameSearch data(aFontName);
@@ -838,6 +844,7 @@ gfxWindowsPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
         PRUint32 nameLen = PR_MIN(uniqueName.Length(), LF_FACESIZE - 1);
         nsPromiseFlatString fontName(Substring(uniqueName, 0, nameLen));
 
+
         rv = gfxFontUtils::MakeEOTHeader(aFontData, aLength, &eotHeader);
         if (NS_FAILED(rv))
             return nsnull;
@@ -877,22 +884,22 @@ gfxWindowsPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
 PRBool
 gfxWindowsPlatform::IsFontFormatSupported(nsIURI *aFontURI, PRUint32 aFormatFlags)
 {
-    // reject based on format flags
-    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_EOT | gfxUserFontSet::FLAG_FORMAT_SVG)) {
+    // check for strange format flags
+    NS_ASSERTION(!(aFormatFlags & gfxUserFontSet::FLAG_FORMAT_NOT_USED),
+                 "strange font format hint set");
+
+    // accept supported formats
+    if (aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE | 
+                        gfxUserFontSet::FLAG_FORMAT_TRUETYPE)) {
+        return PR_TRUE;
+    }
+
+    // reject all other formats, known and unknown
+    if (aFormatFlags != 0) {
         return PR_FALSE;
     }
 
-    // exclude AAT fonts on platforms other than Mac OS X, this allows
-    // fonts for complex scripts which require AAT tables to be omitted
-    // on other platforms
-    if ((aFormatFlags & gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT) 
-         && !(aFormatFlags & (gfxUserFontSet::FLAG_FORMAT_OPENTYPE | gfxUserFontSet::FLAG_FORMAT_TRUETYPE))) {
-        return PR_FALSE;
-    }
-
-    // reject based on filetype in URI
-
-    // otherwise, return true
+    // no format hint set, need to look at data
     return PR_TRUE;
 }
 

@@ -55,7 +55,7 @@
 //Mark used to indicate when onchange has been fired for current combobox item
 #define NS_SKIP_NOTIFY_INDEX -2
 
-#include "nsAreaFrame.h"
+#include "nsBlockFrame.h"
 #include "nsIFormControlFrame.h"
 #include "nsIComboboxControlFrame.h"
 #include "nsIAnonymousContentCreator.h"
@@ -80,7 +80,7 @@ class nsComboboxDisplayFrame;
  */
 #define NS_COMBO_LIST_COUNT   (NS_BLOCK_LIST_COUNT + 1)
 
-class nsComboboxControlFrame : public nsAreaFrame,
+class nsComboboxControlFrame : public nsBlockFrame,
                                public nsIFormControlFrame,
                                public nsIComboboxControlFrame,
                                public nsIAnonymousContentCreator,
@@ -96,8 +96,8 @@ public:
   nsComboboxControlFrame(nsStyleContext* aContext);
   ~nsComboboxControlFrame();
 
-  // nsISupports
-  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  NS_DECL_QUERYFRAME
+  NS_DECL_ISUPPORTS_INHERITED
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
@@ -133,7 +133,7 @@ public:
 
   virtual PRBool IsFrameOfType(PRUint32 aFlags) const
   {
-    return nsAreaFrame::IsFrameOfType(aFlags &
+    return nsBlockFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
   }
 
@@ -292,10 +292,6 @@ protected:
 #ifdef DO_REFLOW_COUNTER
   PRInt32 mReflowId;
 #endif
-
-private:
-  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
-  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
 };
 
 #endif

@@ -219,15 +219,16 @@ endif # ENABLE_TESTS
 #
 
 ifndef LIBRARY
-ifdef LIBRARY_NAME
+ifdef STATIC_LIBRARY_NAME
 ifneq (,$(filter OS2 WINNT WINCE,$(OS_ARCH)))
 ifdef SHORT_LIBNAME
-LIBRARY_NAME		:= $(SHORT_LIBNAME)
+STATIC_LIBRARY_NAME	:= $(SHORT_LIBNAME)
+SHARED_LIBRARY_NAME	:= $(SHORT_LIBNAME)
 endif
 endif
-LIBRARY			:= $(LIB_PREFIX)$(LIBRARY_NAME).$(LIB_SUFFIX)
-endif
-endif
+LIBRARY			:= $(LIB_PREFIX)$(STATIC_LIBRARY_NAME).$(LIB_SUFFIX)
+endif # STATIC_LIBRARY_NAME
+endif # LIBRARY
 
 ifndef HOST_LIBRARY
 ifdef HOST_LIBRARY_NAME
@@ -244,9 +245,9 @@ MKSHLIB			= $(MKCSHLIB)
 endif
 
 ifdef MAKE_FRAMEWORK
-SHARED_LIBRARY		:= $(LIBRARY_NAME)
+SHARED_LIBRARY		:= $(SHARED_LIBRARY_NAME)
 else
-SHARED_LIBRARY		:= $(DLL_PREFIX)$(LIBRARY_NAME)$(DLL_SUFFIX)
+SHARED_LIBRARY		:= $(DLL_PREFIX)$(SHARED_LIBRARY_NAME)$(DLL_SUFFIX)
 endif
 
 ifeq ($(OS_ARCH),OS2)
@@ -254,7 +255,7 @@ DEF_FILE		:= $(SHARED_LIBRARY:.dll=.def)
 endif
 
 ifneq (,$(filter OS2 WINNT WINCE,$(OS_ARCH)))
-IMPORT_LIBRARY		:= $(LIB_PREFIX)$(LIBRARY_NAME).$(IMPORT_LIB_SUFFIX)
+IMPORT_LIBRARY		:= $(LIB_PREFIX)$(SHARED_LIBRARY_NAME).$(IMPORT_LIB_SUFFIX)
 endif
 
 ifdef MOZ_ENABLE_LIBXUL
@@ -319,11 +320,11 @@ CODFILE=$(basename $(@F)).cod
 endif
 
 ifdef MOZ_MAPINFO
-ifdef LIBRARY_NAME
-MAPFILE=$(LIBRARY_NAME).map
+ifdef SHARED_LIBRARY_NAME
+MAPFILE=$(SHARED_LIBRARY_NAME).map
 else
 MAPFILE=$(basename $(@F)).map
-endif # LIBRARY_NAME
+endif # SHARED_LIBRARY_NAME
 endif # MOZ_MAPINFO
 
 ifdef DEFFILE
@@ -333,14 +334,7 @@ endif
 
 ifdef MAPFILE
 OS_LDFLAGS += -MAP:$(MAPFILE)
-#CFLAGS += -Fm$(MAPFILE)
-#CXXFLAGS += -Fm$(MAPFILE)
 endif
-
-#ifdef CODFILE
-#CFLAGS += -Fa$(CODFILE) -FAsc
-#CFLAGS += -Fa$(CODFILE) -FAsc
-#endif
 
 endif # !GNU_CC
 
@@ -841,13 +835,13 @@ ifdef LIBRARY_NAME
 ifdef EXPORT_LIBRARY
 ifdef IS_COMPONENT
 ifdef BUILD_STATIC_LIBS
-	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_COMPS) $(LIBRARY_NAME)
+	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_COMPS) $(STATIC_LIBRARY_NAME)
 ifdef MODULE_NAME
 	@$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_COMP_NAMES) $(MODULE_NAME)
 endif
-endif
-else
-	$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_LIBS) $(LIBRARY_NAME)
+endif # BUILD_STATIC_LIBS
+else  # !IS_COMPONENT
+	$(PERL) -I$(MOZILLA_DIR)/config $(MOZILLA_DIR)/config/build-list.pl $(FINAL_LINK_LIBS) $(STATIC_LIBRARY_NAME)
 endif # IS_COMPONENT
 endif # EXPORT_LIBRARY
 endif # LIBRARY_NAME
@@ -940,21 +934,25 @@ ifeq ($(OS_ARCH)_$(GNU_CC)$(INTERNAL_TOOLS), WINNT_)
 # in both stages so you can do depend builds with PGO.
 ifdef SHARED_LIBRARY
 $(SHARED_LIBRARY): FORCE
-BINARY_BASENAME = $(SHARED_LIBRARY:$(DLL_SUFFIX)=)
 endif
 ifdef PROGRAM
 $(PROGRAM): FORCE
-BINARY_BASENAME = $(PROGRAM:$(BIN_SUFFIX)=)
 endif
 
 ifdef MOZ_PROFILE_USE
 # In the second pass, we need to merge the pgc files into the pgd file.
 # The compiler would do this for us automatically if they were in the right
 # place, but they're in dist/bin.
-ifdef BINARY_BASENAME
+ifneq (,$(SHARED_LIBRARY)$(PROGRAM))
 export::
+ifdef PROGRAM
 	$(PYTHON) $(topsrcdir)/build/win32/pgomerge.py \
-	  $(BINARY_BASENAME) $(DIST)/bin
+	  $(PROGRAM:$(BIN_SUFFIX)=) $(DIST)/bin
+endif
+ifdef SHARED_LIBRARY
+	$(PYTHON) $(topsrcdir)/build/win32/pgomerge.py \
+	  $(SHARED_LIBRARY_NAME) $(DIST)/bin
+endif
 endif
 endif # MOZ_PROFILE_USE
 endif # WINNT_
@@ -1183,7 +1181,7 @@ endif
 ifeq ($(OS_ARCH),OS2)
 $(DEF_FILE): $(OBJS) $(SHARED_LIBRARY_LIBS)
 	rm -f $@
-	echo LIBRARY $(LIBRARY_NAME) INITINSTANCE TERMINSTANCE > $@
+	echo LIBRARY $(SHARED_LIBRARY_NAME) INITINSTANCE TERMINSTANCE > $@
 	echo PROTMODE >> $@
 	echo CODE    LOADONCALL MOVEABLE DISCARDABLE >> $@
 	echo DATA    PRELOAD MOVEABLE MULTIPLE NONSHARED >> $@
@@ -1587,7 +1585,7 @@ endif
 # Copy each element of EXPORTS to $(PUBLIC)
 
 ifneq ($(EXPORTS)$(XPIDLSRCS)$(SDK_HEADERS)$(SDK_XPIDLSRCS),)
-$(SDK_PUBLIC) $(PUBLIC)::
+$(SDK_PUBLIC) $(PUBLIC):
 	$(NSINSTALL) -D $@
 endif
 

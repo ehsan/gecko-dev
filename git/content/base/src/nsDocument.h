@@ -134,6 +134,9 @@ class nsOnloadBlocker;
 class nsUnblockOnloadEvent;
 struct PLEvent;
 class nsChildContentList;
+#ifdef MOZ_SMIL
+class nsSMILAnimationController;
+#endif // MOZ_SMIL
 
 PR_BEGIN_EXTERN_C
 /* Note that these typedefs declare functions, not pointer to
@@ -772,6 +775,9 @@ public:
   virtual void EndUpdate(nsUpdateType aUpdateType);
   virtual void BeginLoad();
   virtual void EndLoad();
+
+  virtual void SetReadyStateInternal(ReadyState rs);
+
   virtual void ContentStatesChanged(nsIContent* aContent1,
                                     nsIContent* aContent2,
                                     PRInt32 aStateMask);
@@ -976,6 +982,10 @@ public:
   virtual NS_HIDDEN_(void)
     EnumerateExternalResources(nsSubDocEnumFunc aCallback, void* aData);
 
+#ifdef MOZ_SMIL
+  nsSMILAnimationController* GetAnimationController();
+#endif // MOZ_SMIL
+
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDocument, nsIDocument)
 
   /**
@@ -997,6 +1007,7 @@ public:
 
   nsresult CloneDocHelper(nsDocument* clone) const;
 
+  void InitializeFinalizeFrameLoaders();
 protected:
 
   void RegisterNamedItems(nsIContent *aContent);
@@ -1015,8 +1026,6 @@ protected:
   nsIdentifierMapEntry* GetElementByIdInternal(nsIAtom* aID);
 
   void DispatchContentLoadedEvents();
-
-  void InitializeFinalizeFrameLoaders();
 
   void RetrieveRelevantHeaders(nsIChannel *aChannel);
 
@@ -1251,6 +1260,7 @@ private:
 
   PRUint32 mOnloadBlockCount;
   nsCOMPtr<nsIRequest> mOnloadBlocker;
+  ReadyState mReadyState;
   
   // A map from unvisited URI hashes to content elements
   nsTHashtable<nsUint32ToContentHashEntry> mLinkMap;
@@ -1262,10 +1272,15 @@ private:
 
   nsTArray<nsRefPtr<nsFrameLoader> > mInitializableFrameLoaders;
   nsTArray<nsRefPtr<nsFrameLoader> > mFinalizableFrameLoaders;
+  nsCOMPtr<nsIRunnable> mFrameLoaderRunner;
 
   nsRevocableEventPtr<nsRunnableMethod<nsDocument> > mPendingTitleChangeEvent;
 
   nsExternalResourceMap mExternalResourceMap;
+
+#ifdef MOZ_SMIL
+  nsAutoPtr<nsSMILAnimationController> mAnimationController;
+#endif // MOZ_SMIL
 };
 
 #define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \

@@ -90,18 +90,11 @@ namespace nanojit
 	LirBuffer::LirBuffer(Fragmento* frago, const CallInfo* functions)
 		: _frago(frago), _pages(frago->core()->GetGC()), _functions(functions), abi(ABI_FASTCALL)
 	{
-		clear();
-		Page* start = pageAlloc();
-		if (start)
-			_unused = &start->lir[0];
-		//buffer_count++;
-		//fprintf(stderr, "LirBuffer %x unused %x\n", (int)this, (int)_unused);
+		rewind();
 	}
 
 	LirBuffer::~LirBuffer()
 	{
-		//buffer_count--;
-		//fprintf(stderr, "~LirBuffer %x start %x\n", (int)this, (int)_start);
 		clear();
 		verbose_only(if (names) NJ_DELETE(names);)
 		_frago = 0;
@@ -112,14 +105,24 @@ namespace nanojit
 		// free all the memory and clear the stats
 		_frago->pagesRelease(_pages);
 		NanoAssert(!_pages.size());
-		_thresholdPage = 0;
 		_unused = 0;
 		_stats.lir = 0;
 		_noMem = 0;
+		_nextPage = 0;
 		for (int i = 0; i < NumSavedRegs; ++i)
 			savedRegs[i] = NULL;
 		explicitSavedRegs = false;
 	}
+
+    void LirBuffer::rewind()
+	{
+		clear();
+		// pre-allocate the current and the next page we will be using
+		Page* start = pageAlloc();
+		_unused = start ? &start->lir[0] : NULL;
+		_nextPage = pageAlloc();
+		NanoAssert((_unused && _nextPage) || _noMem);
+    }
 
 	int32_t LirBuffer::insCount() 
 	{
@@ -152,24 +155,16 @@ namespace nanojit
 	{
 		LInsp before = _buf->next();
 		LInsp after = before+count+LIR_FAR_SLOTS;
-		if (!samepage(before,after+LirBuffer::LIR_BUF_THRESHOLD))
+		// transition to the next page?
+		if (!samepage(before,after))
 		{
-			if (!_buf->_thresholdPage)
-			{
-				// LIR_BUF_THRESHOLD away from a new page but pre-alloc it, setting noMem for early OOM detection
-				_buf->_thresholdPage = _buf->pageAlloc();
-				NanoAssert(_buf->_thresholdPage || _buf->_noMem);
-			}
-			// transition to the next page?
-			if (!samepage(before,after))
-			{
-				NanoAssert(_buf->_thresholdPage);
-				_buf->_unused = &_buf->_thresholdPage->lir[0];	
-				_buf->_thresholdPage = 0;  // pageAlloc() stored it in _pages already			
-
-				// link LIR stream back to prior instruction (careful insLink relies on _unused...)
-				insLinkTo(LIR_skip, before-1);
-			}
+			// we don't want this to fail, so we always have a page in reserve
+			NanoAssert(_buf->_nextPage);
+			_buf->_unused = &_buf->_nextPage->lir[0];	
+			// link LIR stream back to prior instruction (careful insLink relies on _unused...)
+			insLinkTo(LIR_skip, before-1);
+			_buf->_nextPage = _buf->pageAlloc();
+			NanoAssert(_buf->_nextPage || _buf->_noMem);
 		}
 	}
 
@@ -1132,11 +1127,11 @@ namespace nanojit
 		NanoAssert(argc <= (int)MAXARGS);
 		uint32_t words = argwords(argc);
 		int32_t insSz = words + LIR_CALL_SLOTS; // words need for offsets + size of instruction
-		ensureRoom(argc + insSz);  // argc=# possible tramps for args
+		ensureRoom(argc * LIR_FAR_SLOTS + insSz);  // argc=# possible tramps for args
 
 		// Argument deltas are calculated relative to the final LIns,
 		// which is the last word in the cluster.
-		LInsp from = _buf->next() + argc + insSz - 1; 
+		LInsp from = _buf->next() + argc * LIR_FAR_SLOTS + insSz - 1; 
 		for (int32_t i=0; i < argc; i++)
 			makeReachable(args[i], from);
 

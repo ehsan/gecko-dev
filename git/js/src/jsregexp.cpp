@@ -70,17 +70,6 @@
 #include "jstracer.h"
 using namespace avmplus;
 using namespace nanojit;
-
-/* 
- * FIXME  Duplicated with jstracer.cpp, doing it this way for now
- *        to keep it private to files that need it. 
- */
-#ifdef JS_JIT_SPEW
-static bool verbose_debug = getenv("TRACEMONKEY") && strstr(getenv("TRACEMONKEY"), "verbose");
-#define debug_only_v(x) if (verbose_debug) { x; }
-#else
-#define debug_only_v(x)
-#endif
 #endif
 
 typedef enum REOp {
@@ -2053,6 +2042,7 @@ class RegExpNativeCompiler {
     JSRegExp*        re;
     CompilerState*   cs;            /* RegExp to compile */
     Fragment*        fragment;
+    LirBuffer*       lirbuf;
     LirWriter*       lir;
     LirBufWriter*    lirBufWriter;  /* for skip */
 
@@ -2062,15 +2052,24 @@ class RegExpNativeCompiler {
 
     JSBool isCaseInsensitive() const { return cs->flags & JSREG_FOLD; }
 
-    void targetCurrentPoint(LIns* ins) { ins->target(lir->ins0(LIR_label)); }
-
-    void targetCurrentPoint(LInsList& fails) 
+    JSBool targetCurrentPoint(LIns* ins) 
     {
+        if (fragment->lirbuf->outOMem()) 
+            return JS_FALSE;
+        ins->target(lir->ins0(LIR_label)); 
+        return JS_TRUE;
+    }
+
+    JSBool targetCurrentPoint(LInsList& fails) 
+    {
+        if (fragment->lirbuf->outOMem()) 
+            return JS_FALSE;
         LIns* fail = lir->ins0(LIR_label);
         for (size_t i = 0; i < fails.size(); ++i) {
             fails[i]->target(fail);
         }
         fails.clear();
+        return JS_TRUE;
     }
 
     /* 
@@ -2112,7 +2111,8 @@ class RegExpNativeCompiler {
         } else {
             LIns* to_ok = lir->insBranch(LIR_jt, lir->ins2(LIR_eq, comp_ch, lir->insImm(ch)), 0);
             fails.add(lir->insBranch(LIR_jf, lir->ins2(LIR_eq, comp_ch, lir->insImm(ch2)), 0));
-            targetCurrentPoint(to_ok);
+            if (!targetCurrentPoint(to_ok))
+                return NULL;
         }
 
         return lir->ins2(LIR_piadd, pos, lir->insImm(2));
@@ -2161,13 +2161,14 @@ class RegExpNativeCompiler {
     {
         LInsList kidFails(NULL);
         if (!compileNode((RENode *) node->kid, pos, kidFails)) 
-            return JS_FALSE;
+            return NULL;
         if (!compileNode(node->next, pos, kidFails)) 
-            return JS_FALSE;
+            return NULL;
 
-        targetCurrentPoint(kidFails);
+        if (!targetCurrentPoint(kidFails))
+            return NULL;
         if (!compileNode(node->u.altprereq.kid2, pos, fails)) 
-            return JS_FALSE;
+            return NULL;
         /* 
          * Disable compilation for any regexp where something follows an
          * alternation. To make this work, we need to redesign to either
@@ -2176,7 +2177,7 @@ class RegExpNativeCompiler {
          * code. 
          */
         if (node->next) 
-            return JS_FALSE;
+            return NULL;
         return pos;
     }
 
@@ -2195,6 +2196,8 @@ class RegExpNativeCompiler {
                     pos = compileFlatSingleChar(node->u.flat.chr, pos, fails);
                 } else {
                     for (size_t i = 0; i < node->u.flat.length; ++i) {
+                        if (fragment->lirbuf->outOMem()) 
+                            return JS_FALSE;
                         pos = compileFlatSingleChar(((jschar*) node->kid)[i], pos, fails);
                         if (!pos) break;
                     }
@@ -2224,7 +2227,8 @@ class RegExpNativeCompiler {
         LInsList fails(NULL);
         if (!compileNode(root, start, fails)) 
             return JS_FALSE;
-        targetCurrentPoint(fails);
+        if (!targetCurrentPoint(fails))
+            return JS_FALSE;
         lir->ins1(LIR_ret, lir->insImm(0));
         return JS_TRUE;
     }
@@ -2238,10 +2242,12 @@ class RegExpNativeCompiler {
         if (!compileNode(root, start, fails)) 
             return JS_FALSE;
 
-        targetCurrentPoint(to_next);
+        if (!targetCurrentPoint(to_next))
+            return JS_FALSE;
         lir->ins1(LIR_ret, lir->insImm(0));
         
-        targetCurrentPoint(fails);
+        if (!targetCurrentPoint(fails))
+            return JS_FALSE;
         lir->insStorei(lir->ins2(LIR_piadd, start, lir->insImm(2)), gdata, 
                        (int) offsetof(REGlobalData, skipped));
         
@@ -2349,6 +2355,7 @@ class RegExpNativeCompiler {
     fail:
         if (lirbuf->outOMem() || oom) {
             fragmento->clearFrags();
+            lirbuf->rewind();
         } else {
             if (!guard) insertGuard(re_chars, re_length);
             fragment->blacklist();
@@ -2410,8 +2417,7 @@ GetNativeRegExp(JSContext* cx, JSRegExp* re)
             return NULL;
     } else {
         fragment = fragmento->getAnchor(hash);
-        fragment->lirbuf = new (&gc) LirBuffer(fragmento, NULL);
-        /* required to have the onDestroy method delete the lirbuf. */
+        fragment->lirbuf = JS_TRACE_MONITOR(cx).reLirBuf;
         fragment->root = fragment;
     }
         
@@ -3993,6 +3999,7 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
     i = cp - gData.cpbegin;
     *indexp = i;
     matchlen = i - (start + gData.skipped);
+    JS_ASSERT(matchlen >= 0);
     ep = cp;
     cp -= matchlen;
 
@@ -4030,7 +4037,8 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
     }                                                                         \
 }
 
-        matchstr = js_NewStringCopyN(cx, cp, matchlen);
+        matchstr = js_NewDependentString(cx, str, cp - JSSTRING_CHARS(str),
+                                         matchlen);
         if (!matchstr) {
             cx->weakRoots.newborn[GCX_OBJECT] = NULL;
             ok = JS_FALSE;
@@ -4090,8 +4098,10 @@ js_ExecuteRegExp(JSContext *cx, JSRegExp *re, JSString *str, size_t *indexp,
                                        JSVAL_VOID, NULL, NULL,
                                        JSPROP_ENUMERATE, NULL);
             } else {
-                parstr = js_NewStringCopyN(cx, gData.cpbegin + parsub->index,
-                                           parsub->length);
+                parstr = js_NewDependentString(cx, str,
+                                               gData.cpbegin + parsub->index -
+                                               JSSTRING_CHARS(str),
+                                               parsub->length);
                 if (!parstr) {
                     cx->weakRoots.newborn[GCX_OBJECT] = NULL;
                     cx->weakRoots.newborn[GCX_STRING] = NULL;
@@ -4887,15 +4897,14 @@ js_NewRegExpObject(JSContext *cx, JSTokenStream *ts,
     JSString *str;
     JSObject *obj;
     JSRegExp *re;
-    JSTempValueRooter tvr;
 
     str = js_NewStringCopyN(cx, chars, length);
     if (!str)
         return NULL;
+    JSAutoTempValueRooter tvr(cx, str);
     re = js_NewRegExp(cx, ts,  str, flags, JS_FALSE);
     if (!re)
         return NULL;
-    JS_PUSH_TEMP_ROOT_STRING(cx, str, &tvr);
     obj = js_NewObject(cx, &js_RegExpClass, NULL, NULL, 0);
     if (!obj || !JS_SetPrivate(cx, obj, re)) {
         js_DestroyRegExp(cx, re);
@@ -4903,7 +4912,6 @@ js_NewRegExpObject(JSContext *cx, JSTokenStream *ts,
     }
     if (obj && !js_SetLastIndex(cx, obj, 0))
         obj = NULL;
-    JS_POP_TEMP_ROOT(cx, &tvr);
     return obj;
 }
 

@@ -415,6 +415,16 @@ nsFrameManager::SetPrimaryFrameFor(nsIContent* aContent,
   NS_ENSURE_ARG_POINTER(aContent);
   NS_ASSERTION(aPrimaryFrame && aPrimaryFrame->GetParent(),
                "BOGUS!");
+#ifdef DEBUG
+  {
+    nsIFrame *docElementCB = 
+      mPresShell->FrameConstructor()->GetDocElementContainingBlock();
+    NS_ASSERTION(aPrimaryFrame != docElementCB &&
+                 !nsLayoutUtils::IsProperAncestorFrame(aPrimaryFrame,
+                                                       docElementCB),
+                 "too high in the frame tree to be a primary frame");
+  }
+#endif
 
   // This code should be used if/when we switch back to a 2-word entry
   // in the primary frame map.
@@ -557,9 +567,6 @@ nsFrameManager::GetUndisplayedContent(nsIContent* aContent)
     return nsnull;
 
   nsIContent* parent = aContent->GetParent();
-  if (!parent)
-    return nsnull;
-
   for (UndisplayedNode* node = mUndisplayedMap->GetFirstNode(parent);
          node; node = node->mNext) {
     if (node->mContent == aContent)
@@ -586,10 +593,10 @@ nsFrameManager::SetUndisplayedContent(nsIContent* aContent,
   }
   if (mUndisplayedMap) {
     nsIContent* parent = aContent->GetParent();
-    NS_ASSERTION(parent, "undisplayed content must have a parent");
-    if (parent) {
-      mUndisplayedMap->AddNodeFor(parent, aContent, aStyleContext);
-    }
+    NS_ASSERTION(parent || (mPresShell && mPresShell->GetDocument() &&
+                 mPresShell->GetDocument()->GetRootContent() == aContent),
+                 "undisplayed content must have a parent, unless it's the root content");
+    mUndisplayedMap->AddNodeFor(parent, aContent, aStyleContext);
   }
 }
 
@@ -737,9 +744,8 @@ DumpContext(nsIFrame* aFrame, nsStyleContext* aContext)
   if (aFrame) {
     fputs("frame: ", stdout);
     nsAutoString  name;
-    nsIFrameDebug*  frameDebug;
-
-    if (NS_SUCCEEDED(aFrame->QueryInterface(NS_GET_IID(nsIFrameDebug), (void**)&frameDebug))) {
+    nsIFrameDebug *frameDebug = do_QueryFrame(aFrame);
+    if (frameDebug) {
       frameDebug->GetFrameName(name);
       fputs(NS_LossyConvertUTF16toASCII(name).get(), stdout);
     }
@@ -1097,13 +1103,24 @@ ShouldStopImage(imgIRequest *aOldImage, imgIRequest *aNewImage)
   return stopImages;
 }
 
+/**
+ * Recompute style for aFrame and accumulate changes into aChangeList
+ * given that aMinChange is already accumulated for an ancestor.
+ * aParentContent is the content node used to resolve the parent style
+ * context.  This means that, for pseudo-elements, it is the content
+ * that should be used for selector matching (rather than the fake
+ * content node attached to the frame).
+ */
 nsChangeHint
-nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
+nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                       nsIFrame          *aFrame,
                                       nsIContent        *aParentContent,
                                       nsStyleChangeList *aChangeList, 
                                       nsChangeHint       aMinChange)
 {
+  NS_ASSERTION(aFrame->GetContent() ||
+               (!aFrame->GetParent() && !aParentContent),
+               "frame must have content (unless viewport)");
   // XXXldb get new context from prev-in-flow if possible, to avoid
   // duplication.  (Or should we just let |GetContext| handle that?)
   // Getting the hint would be nice too, but that's harder.
@@ -1126,6 +1143,10 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
     oldContext->AddRef();
     nsIAtom* const pseudoTag = oldContext->GetPseudoType();
     nsIContent* localContent = aFrame->GetContent();
+    // |content| is the node that we used for rule matching of
+    // normal elements (not pseudo-elements) and for which we generate
+    // framechange hints if we need them.
+    // XXXldb Why does it make sense to use aParentContent
     nsIContent* content = localContent ? localContent : aParentContent;
 
     nsStyleContext* parentContext;
@@ -1152,7 +1173,8 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
       // style context provider will be automatically propagated to
       // the frame(s) with child style contexts.
       assumeDifferenceHint = ReResolveStyleContext(aPresContext, providerFrame,
-                                                   content, aChangeList, aMinChange);
+                                                   aParentContent, aChangeList,
+                                                   aMinChange);
 
       // The provider's new context becomes the parent context of
       // aFrame's context.
@@ -1300,10 +1322,28 @@ nsFrameManager::ReResolveStyleContext(nsPresContext    *aPresContext,
     }
 
     // now look for undisplayed child content and pseudos
-    if (!pseudoTag && localContent && mUndisplayedMap) {
+
+    // When the root element is display:none, we still construct *some*
+    // frames that have the root element as their mContent, down to the
+    // DocElementContainingBlock.
+    PRBool checkUndisplayed;
+    nsIContent *undisplayedParent;
+    if (pseudoTag) {
+      checkUndisplayed = aFrame == mPresShell->FrameConstructor()->
+                                     GetDocElementContainingBlock();
+      undisplayedParent = nsnull;
+    } else {
+      checkUndisplayed = !!localContent;
+      undisplayedParent = localContent;
+    }
+    if (checkUndisplayed && mUndisplayedMap) {
       for (UndisplayedNode* undisplayed =
-                                   mUndisplayedMap->GetFirstNode(localContent);
+                              mUndisplayedMap->GetFirstNode(undisplayedParent);
            undisplayed; undisplayed = undisplayed->mNext) {
+        NS_ASSERTION(undisplayedParent ||
+                     undisplayed->mContent ==
+                       mPresShell->GetDocument()->GetRootContent(),
+                     "undisplayed node child of null must be root");
         nsRefPtr<nsStyleContext> undisplayedContext;
         nsIAtom* const undisplayedPseudoTag = undisplayed->mStyle->GetPseudoType();
         if (!undisplayedPseudoTag) {  // child content
@@ -1572,9 +1612,7 @@ nsFrameManager::CaptureFrameStateFor(nsIFrame* aFrame,
   }
 
   // Only capture state for stateful frames
-  nsIStatefulFrame* statefulFrame;
-  CallQueryInterface(aFrame, &statefulFrame);
-
+  nsIStatefulFrame* statefulFrame = do_QueryFrame(aFrame);
   if (!statefulFrame) {
     return;
   }
@@ -1639,8 +1677,7 @@ nsFrameManager::RestoreFrameStateFor(nsIFrame* aFrame,
   }
 
   // Only restore state for stateful frames
-  nsIStatefulFrame* statefulFrame;
-  CallQueryInterface(aFrame, &statefulFrame);
+  nsIStatefulFrame* statefulFrame = do_QueryFrame(aFrame);
   if (!statefulFrame) {
     return;
   }

@@ -45,6 +45,7 @@
 #include "nsIServiceManager.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsDisplayList.h"
+#include "nsCSSAnonBoxes.h"
 
 static void
 PaintCheckMark(nsIRenderingContext& aRenderingContext,
@@ -93,21 +94,24 @@ nsGfxCheckboxControlFrame::~nsGfxCheckboxControlFrame()
 }
 
 
-//----------------------------------------------------------------------
-// nsISupports
-//----------------------------------------------------------------------
-// Frames are not refcounted, no need to AddRef
-NS_IMETHODIMP
-nsGfxCheckboxControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
-{
-  NS_PRECONDITION(aInstancePtr, "null out param");
+NS_QUERYFRAME_HEAD(nsGfxCheckboxControlFrame)
+  NS_QUERYFRAME_ENTRY(nsICheckboxControlFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsFormControlFrame)
 
-  if (aIID.Equals(NS_GET_IID(nsICheckboxControlFrame))) {
-    *aInstancePtr = static_cast<nsICheckboxControlFrame*>(this);
-    return NS_OK;
+NS_IMETHODIMP
+nsGfxCheckboxControlFrame::Init(nsIContent* aContent,
+                                nsIFrame* aParent,
+                                nsIFrame* aPrevInFlow)
+{
+  nsresult rv = nsFormControlFrame::Init(aContent, aParent, aPrevInFlow);
+  if (NS_SUCCEEDED(rv)) {
+    mCheckButtonFaceStyle =
+      PresContext()->PresShell()->StyleSet()->
+        ResolvePseudoStyleFor(aContent, nsCSSAnonBoxes::check,
+                              GetStyleContext());
   }
 
-  return nsFormControlFrame::QueryInterface(aIID, aInstancePtr);
+  return rv;
 }
 
 #ifdef ACCESSIBILITY
@@ -122,15 +126,6 @@ NS_IMETHODIMP nsGfxCheckboxControlFrame::GetAccessible(nsIAccessible** aAccessib
   return NS_ERROR_FAILURE;
 }
 #endif
-
-//--------------------------------------------------------------
-NS_IMETHODIMP
-nsGfxCheckboxControlFrame::SetCheckboxFaceStyleContext(nsStyleContext *aCheckboxFaceStyleContext)
-{
-  mCheckButtonFaceStyle = aCheckboxFaceStyleContext;
-  return NS_OK;
-}
-
 
 //--------------------------------------------------------------
 nsStyleContext*
@@ -236,8 +231,10 @@ nsGfxCheckboxControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   // Paint the checkmark
   if (mCheckButtonFaceStyle) {
     // This code actually works now; not sure how useful it'll be
-    // (The putpose is to allow the UA stylesheet can substitute its own
+    // (The purpose is to allow the UA stylesheet to substitute its own
     //  checkmark for the default one)
+    // XXXbz maybe we should just remove this, together with the
+    // attendant complexity
     const nsStyleBackground* myBackground = mCheckButtonFaceStyle->GetStyleBackground();
     if (!myBackground->IsTransparent())
       return aLists.Content()->AppendNewToTop(new (aBuilder)

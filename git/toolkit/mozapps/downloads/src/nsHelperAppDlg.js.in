@@ -44,6 +44,25 @@
 # ***** END LICENSE BLOCK *****
 */
 
+///////////////////////////////////////////////////////////////////////////////
+//// Helper Functions
+
+/**
+ * Determines if a given directory is able to be used to download to.
+ *
+ * @param aDirectory
+ *        The directory to check.
+ * @returns true if we can use the directory, false otherwise.
+ */
+function isUsableDirectory(aDirectory)
+{
+  return aDirectory.exists() && aDirectory.isDirectory() &&
+         aDirectory.isWritable();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+//// nsUnkownContentTypeDialog
+
 /* This file implements the nsIHelperAppLauncherDialog interface.
  *
  * The implementation consists of a JavaScript "class" named nsUnknownContentTypeDialog,
@@ -57,6 +76,8 @@
 
 const PREF_BD_USEDOWNLOADDIR = "browser.download.useDownloadDir";
 const nsITimer = Components.interfaces.nsITimer;
+
+Components.utils.import("resource://gre/modules/DownloadLastDir.jsm");
 
 /* ctor
  */
@@ -203,19 +224,32 @@ nsUnknownContentTypeDialog.prototype = {
 
       picker.appendFilters( nsIFilePicker.filterAll );
 
-      // Default to lastDir if it's valid, use the user's default
-      // downloads directory otherwise.
+      var inPrivateBrowsing = false;
+      try {
+        var pbs = Components.classes["@mozilla.org/privatebrowsing;1"]
+                            .getService(Components.interfaces.nsIPrivateBrowsingService);
+        inPrivateBrowsing = pbs.privateBrowsingEnabled;
+      }
+      catch (e) {
+      }
+
+      // Default to lastDir if it is valid, otherwise use the user's default
+      // downloads directory.  userDownloadsDirectory should always return a
+      // valid directory, so we can safely default to it.
       var dnldMgr = Components.classes["@mozilla.org/download-manager;1"]
                               .getService(Components.interfaces.nsIDownloadManager);
+      picker.displayDirectory = dnldMgr.userDownloadsDirectory;
+
+      // The last directory preference may not exist, which will throw.
       try {
         var lastDir = prefs.getComplexValue("browser.download.lastDir",
                             Components.interfaces.nsILocalFile);
-        if (lastDir.exists())
+        if (inPrivateBrowsing && gDownloadLastDir.path)
+          lastDir = gDownloadLastDir.path;
+        if (isUsableDirectory(lastDir))
           picker.displayDirectory = lastDir;
-        else
-          picker.displayDirectory = dnldMgr.userDownloadsDirectory;
-      } catch (ex) {
-        picker.displayDirectory = dnldMgr.userDownloadsDirectory;
+      }
+      catch (ex) {
       }
 
       if (picker.show() == nsIFilePicker.returnCancel) {
@@ -237,18 +271,12 @@ nsUnknownContentTypeDialog.prototype = {
             result.remove(false);
         }
         catch (e) { }
-        var newDir = result.parent;
+        var newDir = result.parent.QueryInterface(Components.interfaces.nsILocalFile);
 
-        // Do not remember the last save directory inside the private browsing mode
-        var persistLastDir = true;
-        try {
-          var pbs = Components.classes["@mozilla.org/privatebrowsing;1"]
-                              .getService(Components.interfaces.nsIPrivateBrowsingService);
-          if (pbs.privateBrowsingEnabled)
-            persistLastDir = false;
-        }
-        catch (e) { }
-        if (persistLastDir)
+        // Do not store the last save directory as a pref inside the private browsing mode
+        if (inPrivateBrowsing)
+          gDownloadLastDir.path = newDir;
+        else
           prefs.setComplexValue("browser.download.lastDir", Components.interfaces.nsILocalFile, newDir);
 
         result = this.validateLeafName(newDir, result.leafName, null);
@@ -274,7 +302,7 @@ nsUnknownContentTypeDialog.prototype = {
      */
     validateLeafName: function (aLocalFile, aLeafName, aFileExt)
     {
-      if (!aLocalFile || !aLocalFile.exists())
+      if (!(aLocalFile && isUsableDirectory(aLocalFile)))
         return null;
 
       // Remove any leading periods, since we don't want to save hidden files

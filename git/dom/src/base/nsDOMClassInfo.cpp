@@ -322,7 +322,7 @@
 #include "nsIDOMHTMLAudioElement.h"
 #include "nsIDOMProgressEvent.h"
 #include "nsIDOMNSUIEvent.h"
-#include "nsIDOMCSS2Properties.h"
+#include "nsIDOMNSCSS2Properties.h"
 #include "nsIDOMCSSCharsetRule.h"
 #include "nsIDOMCSSImportRule.h"
 #include "nsIDOMCSSMediaRule.h"
@@ -376,6 +376,13 @@
 #include "nsIDOMSVGAnimPresAspRatio.h"
 #include "nsIDOMSVGAnimatedRect.h"
 #include "nsIDOMSVGAnimatedString.h"
+#ifdef MOZ_SMIL
+#include "nsIDOMSVGAnimateElement.h"
+#include "nsIDOMSVGAnimateTransformElement.h"
+#include "nsIDOMSVGSetElement.h"
+#include "nsIDOMSVGAnimationElement.h"
+#include "nsIDOMElementTimeControl.h"
+#endif // MOZ_SMIL
 #include "nsIDOMSVGAnimTransformList.h"
 #include "nsIDOMSVGCircleElement.h"
 #include "nsIDOMSVGClipPathElement.h"
@@ -939,6 +946,14 @@ static nsDOMClassInfoData sClassInfoData[] = {
   // SVG element classes
   NS_DEFINE_CLASSINFO_DATA(SVGAElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
+#ifdef MOZ_SMIL
+  NS_DEFINE_CLASSINFO_DATA(SVGAnimateElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(SVGAnimateTransformElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(SVGSetElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
+#endif // MOZ_SMIL
   NS_DEFINE_CLASSINFO_DATA(SVGCircleElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGClipPathElement, nsElementSH,
@@ -2750,6 +2765,31 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAElement)
     DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
+
+#ifdef MOZ_SMIL
+  DOM_CLASSINFO_MAP_BEGIN(SVGAnimateElement, nsIDOMSVGAnimateElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimationElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimateElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementTimeControl)
+    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(SVGAnimateTransformElement,
+                          nsIDOMSVGAnimateTransformElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimationElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimateTransformElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementTimeControl)
+    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(SVGSetElement,
+                          nsIDOMSVGSetElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAnimationElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGSetElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMElementTimeControl)
+    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+#endif // MOZ_SMIL
 
   DOM_CLASSINFO_MAP_BEGIN(SVGCircleElement, nsIDOMSVGCircleElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGCircleElement)
@@ -5252,8 +5292,6 @@ nsDOMConstructor::Create(const PRUnichar* aName,
        !(currentInner = aOwner)->IsInnerWindow())) {
     return NS_ERROR_DOM_SECURITY_ERR;
   }
-  NS_ASSERTION(nsContentUtils::CanCallerAccess(currentInner),
-               "Must be able to access currentInner!");
   *aResult = new nsDOMConstructor(aName, aNameStruct, currentInner);
   NS_ENSURE_TRUE(*aResult, NS_ERROR_OUT_OF_MEMORY);
   NS_ADDREF(*aResult);
@@ -6449,7 +6487,8 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // defined on our prototype chain. This way we can access this
   // expando w/o ever getting back into XPConnect.
   JSStackFrame *fp = NULL;
-  if ((flags & (JSRESOLVE_ASSIGNING)) &&
+  if ((flags & JSRESOLVE_ASSIGNING) &&
+      !(flags & JSRESOLVE_WITH) &&
       !(JS_FrameIterator(cx, &fp) && fp->regs && (JSOp)*fp->regs->pc == JSOP_BINDNAME) &&
       win->IsInnerWindow()) {
     JSObject *realObj;

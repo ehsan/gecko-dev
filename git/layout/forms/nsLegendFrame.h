@@ -38,7 +38,7 @@
 #ifndef nsLegendFrame_h___
 #define nsLegendFrame_h___
 
-#include "nsAreaFrame.h"
+#include "nsBlockFrame.h"
 #include "nsPresContext.h"
 #include "nsCOMPtr.h"
 
@@ -49,14 +49,13 @@ struct nsHTMLReflowMetrics;
 class  nsIRenderingContext;
 struct nsRect;
 
-#define NS_LEGEND_FRAME_CID \
-{ 0x73805d40, 0x5a24, 0x11d2, { 0x80, 0x46, 0x0, 0x60, 0x8, 0x15, 0xa7, 0x91 } }
-
-class nsLegendFrame : public nsAreaFrame {
+class nsLegendFrame : public nsBlockFrame {
 public:
-  nsLegendFrame(nsStyleContext* aContext) : nsAreaFrame(aContext) {}
+  NS_DECLARE_FRAME_ACCESSOR(nsLegendFrame)
 
-  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  nsLegendFrame(nsStyleContext* aContext) : nsBlockFrame(aContext) {}
+
+  NS_DECL_QUERYFRAME
 
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
