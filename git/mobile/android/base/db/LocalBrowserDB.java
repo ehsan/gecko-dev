@@ -232,13 +232,12 @@ public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
 
     @Override
     public Cursor getTopSites(ContentResolver cr, int limit) {
-        // Filter out bookmarks that don't have real parents (e.g. pinned sites or reading list items)
+        // Filter out sites that are pinned
         String selection = DBUtils.concatenateWhere("", Combined.URL + " NOT IN (SELECT " +
                                              Bookmarks.URL + " FROM bookmarks WHERE " +
-                                             DBUtils.qualifyColumn("bookmarks", Bookmarks.PARENT) + " < ? AND " +
+                                             DBUtils.qualifyColumn("bookmarks", Bookmarks.PARENT) + " == ? AND " +
                                              DBUtils.qualifyColumn("bookmarks", Bookmarks.IS_DELETED) + " == 0)");
-        String[] selectionArgs = new String[] { String.valueOf(Bookmarks.FIXED_ROOT_ID) };
-
+        String[] selectionArgs = DBUtils.appendSelectionArgs(new String[0], new String[] { String.valueOf(Bookmarks.FIXED_PINNED_LIST_ID) });
         return filterAllSites(cr,
                               new String[] { Combined._ID,
                                              Combined.URL,

@@ -8,7 +8,6 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.background.announcements.AnnouncementsConstants;
 import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.background.healthreport.HealthReportConstants;
-import org.mozilla.gecko.preferences.SearchEnginePreference;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.GeckoPreferenceFragment;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -45,11 +44,8 @@ import android.text.TextWatcher;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.ListAdapter;
-import android.widget.ListView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -91,15 +87,9 @@ public class GeckoPreferences
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-
-        // For Android v11+ where we use Fragments (v11+ only due to bug 866352),
-        // check that PreferenceActivity.EXTRA_SHOW_FRAGMENT has been set
-        // (or set it) before super.onCreate() is called so Android can display
-        // the correct Fragment resource.
-
+        // For fragment-capable devices, display the default fragment if no explicit fragment to show.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB &&
             !getIntent().hasExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT)) {
-            // Set up the default fragment if there is no explicit fragment to show.
             setupTopLevelFragmentIntent();
         }
 
@@ -107,10 +97,6 @@ public class GeckoPreferences
 
         // Use setResourceToOpen to specify these extras.
         Bundle intentExtras = getIntent().getExtras();
-
-        // For versions of Android lower than Honeycomb, use xml resources instead of
-        // Fragments because of an Android bug in ActionBar (described in bug 866352 and
-        // fixed in bug 833625).
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
             int res = 0;
             if (intentExtras != null && intentExtras.containsKey(INTENT_EXTRA_RESOURCES)) {
@@ -132,25 +118,6 @@ public class GeckoPreferences
         }
 
         registerEventListener("Sanitize:Finished");
-
-        // Add handling for long-press click.
-        // This is only for Android 3.0 and below (which use the long-press-context-menu paradigm).
-        final ListView mListView = getListView();
-        mListView.setOnItemLongClickListener(new AdapterView.OnItemLongClickListener() {
-            @Override
-            public boolean onItemLongClick(AdapterView<?> parent, View view, int position, long id) {
-                // Call long-click handler if it the item implements it.
-                final ListAdapter listAdapter = ((ListView) parent).getAdapter();
-                final Object listItem = listAdapter.getItem(position);
-
-                // Only SearchEnginePreference handles long clicks.
-                if (listItem instanceof SearchEnginePreference && listItem instanceof View.OnLongClickListener) {
-                    final View.OnLongClickListener longClickListener = (View.OnLongClickListener) listItem;
-                    return longClickListener.onLongClick(view);
-                }
-                return false;
-            }
-        });
 
         if (Build.VERSION.SDK_INT >= 14)
             getActionBar().setHomeButtonEnabled(true);

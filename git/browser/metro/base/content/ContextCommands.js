@@ -349,22 +349,20 @@ var ContextCommands = {
     picker.appendFilters(Ci.nsIFilePicker.filterImages);
 
     // prefered save location
-    Task.spawn(function() {
-      picker.displayDirectory = yield Downloads.getPreferredDownloadsDirectory();
+    var dnldMgr = Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager);
+    picker.displayDirectory = dnldMgr.userDownloadsDirectory;
+    try {
+      let lastDir = Services.prefs.getComplexValue("browser.download.lastDir", Ci.nsILocalFile);
+      if (this.isAccessibleDirectory(lastDir))
+        picker.displayDirectory = lastDir;
+    }
+    catch (e) { }
 
-      try {
-        let lastDir = Services.prefs.getComplexValue("browser.download.lastDir", Ci.nsILocalFile);
-        if (this.isAccessibleDirectory(lastDir))
-          picker.displayDirectory = lastDir;
-      }
-      catch (e) { }
-
-      this._picker = picker;
-      this._pickerUrl = mediaURL;
-      this._pickerContentDisp = aPopupState.contentDisposition;
-      this._contentType = aPopupState.contentType;
-      picker.open(ContextCommands);
-    }.bind(this));
+    this._picker = picker;
+    this._pickerUrl = mediaURL;
+    this._pickerContentDisp = aPopupState.contentDisposition;
+    this._contentType = aPopupState.contentType;
+    picker.open(ContextCommands);
   },
 
   /*

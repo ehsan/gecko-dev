@@ -146,12 +146,12 @@ add_task(function test_getSystemDownloadsDirectory()
 });
 
 /**
- * Tests that the getPreferredDownloadsDirectory returns a valid nsFile
+ * Tests that the getUserDownloadsDirectory returns a valid nsFile
  * download directory object.
  */
-add_task(function test_getPreferredDownloadsDirectory()
+add_task(function test_getUserDownloadsDirectory()
 {
-  let downloadDir = yield Downloads.getPreferredDownloadsDirectory();
+  let downloadDir = yield Downloads.getUserDownloadsDirectory();
   do_check_true(downloadDir instanceof Ci.nsIFile);
 });
 
