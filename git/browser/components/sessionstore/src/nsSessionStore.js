@@ -1655,6 +1655,11 @@ SessionStoreService.prototype = {
     var newTabCount = winData.tabs.length;
     let tabs = [];
     
+    // make sure that the selected tab won't be closed in order to
+    // prevent unnecessary flickering
+    if (aOverwriteTabs && tabbrowser.selectedTab._tPos >= newTabCount)
+      tabbrowser.moveTabTo(tabbrowser.selectedTab, newTabCount - 1);
+    
     for (var t = 0; t < newTabCount; t++) {
       tabs.push(t < openTabCount ? tabbrowser.mTabs[t] : tabbrowser.addTab());
       // when resuming at startup: add additionally requested pages to the end
@@ -1762,6 +1767,26 @@ SessionStoreService.prototype = {
       browser.parentNode.__SS_data = aTabData[t];
     }
     
+    // Determine if we can optimize & load visible tabs first
+    let tabScrollBoxObject = tabbrowser.tabContainer.mTabstrip.scrollBoxObject;
+    let tabBoxObject = aTabs[0].boxObject;
+    let maxVisibleTabs = Math.ceil(tabScrollBoxObject.width / tabBoxObject.width);
+
+    // make sure we restore visible tabs first, if there are enough
+    if (maxVisibleTabs < aTabs.length && aSelectTab > 1) {
+      let firstVisibleTab = 0;
+      if (aTabs.length - maxVisibleTabs > aSelectTab) {
+        // aSelectTab is leftmost since we scroll to it when possible
+        firstVisibleTab = aSelectTab - 1;
+      } else {
+        // aSelectTab is rightmost or no more room to scroll right
+        firstVisibleTab = aTabs.length - maxVisibleTabs;
+      }
+      aTabs = aTabs.splice(firstVisibleTab, maxVisibleTabs).concat(aTabs);
+      aTabData = aTabData.splice(firstVisibleTab, maxVisibleTabs).concat(aTabData);
+      aSelectTab -= firstVisibleTab;
+    }
+
     // make sure to restore the selected tab first (if any)
     if (aSelectTab-- && aTabs[aSelectTab]) {
         aTabs.unshift(aTabs.splice(aSelectTab, 1)[0]);
