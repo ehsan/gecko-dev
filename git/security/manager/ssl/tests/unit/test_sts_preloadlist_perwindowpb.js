@@ -16,7 +16,6 @@ Observer.prototype = {
 };
 
 var gObserver = new Observer();
-var sslStatus = new FakeSSLStatus();
 
 function cleanup() {
   Services.obs.removeObserver(gObserver, "last-pb-context-exited");
@@ -71,7 +70,7 @@ function test_part1() {
   // site from the list
   var uri = Services.io.newURI("http://bugzilla.mozilla.org", null, null);
   gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
-                           "max-age=0", sslStatus, 0);
+                           "max-age=0", 0);
   do_check_false(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
                                          "bugzilla.mozilla.org", 0));
   do_check_false(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
@@ -79,7 +78,7 @@ function test_part1() {
   // check that processing another header (with max-age non-zero) will
   // re-enable a site's sts status
   gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
-                           "max-age=1000", sslStatus, 0);
+                           "max-age=1000", 0);
   do_check_true(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
                                         "bugzilla.mozilla.org", 0));
   // but this time include subdomains was not set, so test for that
@@ -91,7 +90,7 @@ function test_part1() {
   // will not remove that (ancestor) site from the list
   var uri = Services.io.newURI("http://subdomain.www.torproject.org", null, null);
   gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
-                           "max-age=0", sslStatus, 0);
+                           "max-age=0", 0);
   do_check_true(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
                                         "www.torproject.org", 0));
   do_check_false(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
@@ -99,7 +98,7 @@ function test_part1() {
 
   var uri = Services.io.newURI("http://subdomain.bugzilla.mozilla.org", null, null);
   gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
-                           "max-age=0", sslStatus, 0);
+                           "max-age=0", 0);
   // we received a header with "max-age=0", so we have "no information"
   // regarding the sts state of subdomain.bugzilla.mozilla.org specifically,
   // but it is actually still an STS host, because of the preloaded
@@ -119,7 +118,7 @@ function test_part1() {
                                         "another.subdomain.bugzilla.mozilla.org", 0));
 
   gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
-                           "max-age=1000", sslStatus, 0);
+                           "max-age=1000", 0);
   // Here's what we have now:
   // |-- bugzilla.mozilla.org (in preload list, includes subdomains) IS sts host
   //     |-- subdomain.bugzilla.mozilla.org (include subdomains is false) IS sts host
@@ -142,7 +141,7 @@ function test_part1() {
                                         "login.persona.org", 0));
   var uri = Services.io.newURI("http://login.persona.org", null, null);
   gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
-                           "max-age=1", sslStatus, 0);
+                           "max-age=1", 0);
   do_timeout(1250, function() {
     do_check_false(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
                                            "login.persona.org", 0));
@@ -162,7 +161,7 @@ function test_private_browsing1() {
 
   var uri = Services.io.newURI("http://bugzilla.mozilla.org", null, null);
   gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
-                           "max-age=0", sslStatus, IS_PRIVATE);
+                           "max-age=0", IS_PRIVATE);
   do_check_false(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
                                          "bugzilla.mozilla.org", IS_PRIVATE));
   do_check_false(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
@@ -170,7 +169,7 @@ function test_private_browsing1() {
 
   // check adding it back in
   gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
-                           "max-age=1000", sslStatus, IS_PRIVATE);
+                           "max-age=1000", IS_PRIVATE);
   do_check_true(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
                                         "bugzilla.mozilla.org", IS_PRIVATE));
   // but no includeSubdomains this time
@@ -179,7 +178,7 @@ function test_private_browsing1() {
 
   // do the hokey-pokey...
   gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
-                           "max-age=0", sslStatus, IS_PRIVATE);
+                           "max-age=0", IS_PRIVATE);
   do_check_false(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
                                          "bugzilla.mozilla.org", IS_PRIVATE));
   do_check_false(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
@@ -195,7 +194,7 @@ function test_private_browsing1() {
                                         "login.persona.org", IS_PRIVATE));
   var uri = Services.io.newURI("http://login.persona.org", null, null);
   gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS, uri,
-                           "max-age=1", sslStatus, IS_PRIVATE);
+                           "max-age=1", IS_PRIVATE);
   do_timeout(1250, function() {
     do_check_false(gSSService.isSecureHost(Ci.nsISiteSecurityService.HEADER_HSTS,
                                            "login.persona.org", IS_PRIVATE));

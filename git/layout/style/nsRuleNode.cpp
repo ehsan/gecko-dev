@@ -285,17 +285,9 @@ GetMetricsFor(nsPresContext* aPresContext,
     fs = aPresContext->GetUserFontSet();
   }
   gfxTextPerfMetrics *tp = aPresContext->GetTextPerfMetrics();
-  gfxFont::Orientation orientation = gfxFont::eHorizontal;
-  if (aStyleContext) {
-    WritingMode wm(aStyleContext->StyleVisibility());
-    if (wm.IsVertical()) {
-      orientation = gfxFont::eVertical;
-    }
-  }
   nsRefPtr<nsFontMetrics> fm;
   aPresContext->DeviceContext()->GetMetricsFor(font,
                                                aStyleFont->mLanguage,
-                                               orientation,
                                                fs, tp, *getter_AddRefs(fm));
   return fm.forget();
 }
@@ -508,9 +500,8 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
       nsRefPtr<nsFontMetrics> fm =
         GetMetricsFor(aPresContext, aStyleContext, styleFont,
                       aFontSize, aUseUserFontSet);
-      gfxFloat zeroWidth =
-        fm->GetThebesFontGroup()->GetFirstValidFont()->
-          GetMetrics(fm->Orientation()).zeroOrAveCharWidth;
+      gfxFloat zeroWidth = (fm->GetThebesFontGroup()->GetFirstValidFont()
+                            ->GetMetrics().zeroOrAveCharWidth);
 
       return ScaleCoordRound(aValue, ceil(aPresContext->AppUnitsPerDevPixel() *
                                           zeroWidth));

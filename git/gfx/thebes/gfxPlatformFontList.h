@@ -120,8 +120,8 @@ public:
 
     virtual void GetFontFamilyList(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray);
 
-    gfxFontEntry*
-    SystemFindFontForChar(uint32_t aCh, uint32_t aNextCh,
+    virtual gfxFontEntry*
+    SystemFindFontForChar(const uint32_t aCh,
                           int32_t aRunScript,
                           const gfxFontStyle* aStyle);
 
@@ -211,7 +211,7 @@ protected:
                                                void* userArg);
 
     // returns default font for a given character, null otherwise
-    gfxFontEntry* CommonFontFallback(uint32_t aCh, uint32_t aNextCh,
+    gfxFontEntry* CommonFontFallback(const uint32_t aCh,
                                      int32_t aRunScript,
                                      const gfxFontStyle* aMatchStyle,
                                      gfxFontFamily** aMatchedFamily);

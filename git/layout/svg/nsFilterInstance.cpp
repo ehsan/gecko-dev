@@ -472,7 +472,7 @@ nsFilterInstance::Render(gfxContext* aContext)
 
   RefPtr<DrawTarget> dt = aContext->GetDrawTarget();
 
-  AutoRestoreTransform autoRestoreTransform(dt);
+  AutoSaveTransform autoSR(dt);
   Matrix newTM = ToMatrix(ctm).PreTranslate(filterRect.x, filterRect.y) * dt->GetTransform();
   dt->SetTransform(newTM);
 

@@ -104,7 +104,6 @@ nsFontMetrics::~nsFontMetrics()
 
 nsresult
 nsFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
-                    gfxFont::Orientation aOrientation,
                     nsDeviceContext *aContext,
                     gfxUserFontSet *aUserFontSet,
                     gfxTextPerfMetrics *aTextPerf)
@@ -113,7 +112,6 @@ nsFontMetrics::Init(const nsFont& aFont, nsIAtom* aLanguage,
 
     mFont = aFont;
     mLanguage = aLanguage;
-    mOrientation = aOrientation;
     mDeviceContext = aContext;
     mP2A = mDeviceContext->AppUnitsPerDevPixel();
 
@@ -149,7 +147,7 @@ nsFontMetrics::Destroy()
 
 const gfxFont::Metrics& nsFontMetrics::GetMetrics() const
 {
-    return mFontGroup->GetFirstValidFont()->GetMetrics(mOrientation);
+    return mFontGroup->GetFirstValidFont()->GetMetrics();
 }
 
 nscoord

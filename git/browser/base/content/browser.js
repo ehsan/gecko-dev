@@ -6797,11 +6797,11 @@ var gIdentityHandler = {
     if (gURLBar.getAttribute("pageproxystate") != "valid")
       return;
 
-    let value = gBrowser.currentURI.spec;
-    let urlString = value + "\n" + gBrowser.contentTitle;
-    let htmlString = "<a href=\"" + value + "\">" + value + "</a>";
+    var value = content.location.href;
+    var urlString = value + "\n" + content.document.title;
+    var htmlString = "<a href=\"" + value + "\">" + value + "</a>";
 
-    let dt = event.dataTransfer;
+    var dt = event.dataTransfer;
     dt.setData("text/x-moz-url", urlString);
     dt.setData("text/uri-list", value);
     dt.setData("text/plain", value);
@@ -6957,16 +6957,20 @@ let gRemoteTabsUI = {
       return;
     }
 
+    let remoteTabs = Services.appinfo.browserTabsRemote;
+    let autostart = Services.appinfo.browserTabsRemoteAutostart;
+
     let newRemoteWindow = document.getElementById("menu_newRemoteWindow");
     let newNonRemoteWindow = document.getElementById("menu_newNonRemoteWindow");
-#ifdef E10S_TESTING_ONLY
-    let autostart = Services.appinfo.browserTabsRemoteAutostart;
+
+    if (!remoteTabs) {
+      newRemoteWindow.hidden = true;
+      newNonRemoteWindow.hidden = true;
+      return;
+    }
+
     newRemoteWindow.hidden = autostart;
     newNonRemoteWindow.hidden = !autostart;
-#else
-    newRemoteWindow.hidden = true;
-    newNonRemoteWindow.hidden = true;
-#endif
   }
 };
 

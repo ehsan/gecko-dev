@@ -536,7 +536,7 @@ gfxPlatformFontList::GetFontFamilyList(nsTArray<nsRefPtr<gfxFontFamily> >& aFami
 }
 
 gfxFontEntry*
-gfxPlatformFontList::SystemFindFontForChar(uint32_t aCh, uint32_t aNextCh,
+gfxPlatformFontList::SystemFindFontForChar(const uint32_t aCh,
                                            int32_t aRunScript,
                                            const gfxFontStyle* aStyle)
  {
@@ -570,8 +570,7 @@ gfxPlatformFontList::SystemFindFontForChar(uint32_t aCh, uint32_t aNextCh,
     // search commonly available fonts
     bool common = true;
     gfxFontFamily *fallbackFamily = nullptr;
-    fontEntry = CommonFontFallback(aCh, aNextCh, aRunScript, aStyle,
-                                   &fallbackFamily);
+    fontEntry = CommonFontFallback(aCh, aRunScript, aStyle, &fallbackFamily);
  
     // if didn't find a font, do system-wide fallback (except for specials)
     uint32_t cmapCount = 0;
@@ -639,7 +638,7 @@ gfxPlatformFontList::FindFontForCharProc(nsStringHashKey::KeyType aKey, nsRefPtr
 #define NUM_FALLBACK_FONTS        8
 
 gfxFontEntry*
-gfxPlatformFontList::CommonFontFallback(uint32_t aCh, uint32_t aNextCh,
+gfxPlatformFontList::CommonFontFallback(const uint32_t aCh,
                                         int32_t aRunScript,
                                         const gfxFontStyle* aMatchStyle,
                                         gfxFontFamily** aMatchedFamily)
@@ -647,8 +646,7 @@ gfxPlatformFontList::CommonFontFallback(uint32_t aCh, uint32_t aNextCh,
     nsAutoTArray<const char*,NUM_FALLBACK_FONTS> defaultFallbacks;
     uint32_t i, numFallbacks;
 
-    gfxPlatform::GetPlatform()->GetCommonFallbackFonts(aCh, aNextCh,
-                                                       aRunScript,
+    gfxPlatform::GetPlatform()->GetCommonFallbackFonts(aCh, aRunScript,
                                                        defaultFallbacks);
     numFallbacks = defaultFallbacks.Length();
     for (i = 0; i < numFallbacks; i++) {
