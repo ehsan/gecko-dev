@@ -10,7 +10,6 @@
 #include <ostream>
 #include "GeckoProfiler.h"
 #include "platform.h"
-#include "JSStreamWriter.h"
 #include "ProfilerBacktrace.h"
 #include "mozilla/Mutex.h"
 
@@ -83,7 +82,7 @@ public:
   JSObject *ToJSObject(JSContext *aCx);
   PseudoStack* GetPseudoStack();
   mozilla::Mutex* GetMutex();
-  void StreamJSObject(JSStreamWriter& b);
+  template <typename Builder> void BuildJSObject(Builder& b, typename Builder::ObjectHandle profile);
   void BeginUnwind();
   virtual void EndUnwind();
   virtual SyncProfile* AsSyncProfile() { return nullptr; }

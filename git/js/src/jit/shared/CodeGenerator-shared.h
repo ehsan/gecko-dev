@@ -47,7 +47,7 @@ struct PatchableBackedgeInfo
 
 struct ReciprocalMulConstants {
     int32_t multiplier;
-    int32_t shiftAmount;
+    int32_t shift_amount;
 };
 
 class CodeGeneratorShared : public LInstructionVisitor
