@@ -159,7 +159,6 @@
             viewNode.dispatchEvent(evt);
 
             viewNode.removeAttribute("current");
-            this.removeAttribute("currentsubview");
             this._currentSubView = null;
 
             this._subViewObserver.disconnect();
@@ -194,7 +193,6 @@
             return;
           }
 
-          this.setAttribute("currentsubview", aViewId);
           this._currentSubView = viewNode;
 
           // Now we have to transition the panel. There are a few parts to this:

@@ -102,7 +102,6 @@ public:
     , mRotation(0)
     , mBackCamera(false)
     , mCaptureIndex(aIndex)
-    , mTrackID(0)
     , mMediaSource(aMediaSource)
     , mMonitor("WebRTCCamera.Monitor")
     , mWidth(0)
@@ -131,7 +130,6 @@ public:
                                MediaSourceType aMediaSource = MediaSourceType::Camera)
     : mVideoEngine(aVideoEnginePtr)
     , mCaptureIndex(aIndex)
-    , mTrackID(0)
     , mFps(-1)
     , mMinFps(-1)
     , mMediaSource(aMediaSource)
@@ -222,12 +220,6 @@ public:
 protected:
   ~MediaEngineWebRTCVideoSource() { Shutdown(); }
 
-  // guts for appending data to the MSG track
-  virtual bool AppendToTrack(SourceMediaStream* aSource,
-                             layers::Image* aImage,
-                             TrackID aID,
-                             TrackTicks delta);
-
 private:
   // Initialize the needed Video engine interfaces.
   void Init();
@@ -253,7 +245,6 @@ private:
   webrtc::CaptureCapability mCapability; // Doesn't work on OS X.
 
   int mCaptureIndex;
-  TrackID mTrackID;
   int mFps; // Track rate (30 fps by default)
   int mMinFps; // Min rate we want to accept
   MediaSourceType mMediaSource; // source of media (camera | application | screen)

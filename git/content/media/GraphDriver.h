@@ -61,7 +61,6 @@ typedef int64_t GraphTime;
 const GraphTime GRAPH_TIME_MAX = MEDIA_TIME_MAX;
 
 class AudioCallbackDriver;
-class OfflineClockDriver;
 
 /**
  * A driver is responsible for the scheduling of the processing, the thread
@@ -146,10 +145,6 @@ public:
   }
 
   virtual AudioCallbackDriver* AsAudioCallbackDriver() {
-    return nullptr;
-  }
-
-  virtual OfflineClockDriver* AsOfflineClockDriver() {
     return nullptr;
   }
 
@@ -305,9 +300,6 @@ public:
   virtual void WaitForNextIteration() MOZ_OVERRIDE;
   virtual void WakeUp() MOZ_OVERRIDE;
   virtual TimeStamp GetCurrentTimeStamp() MOZ_OVERRIDE;
-  virtual OfflineClockDriver* AsOfflineClockDriver() {
-    return this;
-  }
 
 private:
   // Time, in GraphTime, for each iteration

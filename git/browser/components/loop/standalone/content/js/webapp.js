@@ -814,9 +814,7 @@ loop.webapp = (function($, _, OT, mozL10n) {
      * Handles ending a call by resetting the view to the start state.
      */
     _endCall: function() {
-      if (this.state.callStatus !== "failure") {
-        this.setState({callStatus: "end"});
-      }
+      this.setState({callStatus: "end"});
     },
   });
 

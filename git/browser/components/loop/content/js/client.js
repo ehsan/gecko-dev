@@ -232,9 +232,7 @@ loop.Client = (function($) {
       this.mozLoop.hawkRequest(this.mozLoop.LOOP_SESSION_TYPE.FXA,
         "/calls", "POST", {
           calleeId: calleeIds,
-          callType: callType,
-          channel: this.mozLoop.appVersionInfo ?
-                   this.mozLoop.appVersionInfo.channel : "unknown"
+          callType: callType
         },
         function (err, responseText) {
           if (err) {

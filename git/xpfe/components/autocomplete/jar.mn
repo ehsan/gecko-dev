@@ -4,6 +4,4 @@
 
 toolkit.jar:
     content/global/autocomplete.xml                             (resources/content/autocomplete.xml)
-
-comm.jar:
-    content/communicator/autocomplete.css                       (resources/content/autocomplete.css)
+    content/global/autocomplete.css                             (resources/content/autocomplete.css)
