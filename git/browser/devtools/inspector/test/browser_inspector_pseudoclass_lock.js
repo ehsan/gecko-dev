@@ -51,11 +51,11 @@ function createDocument()
 function selectNode(aInspector)
 {
   inspector = aInspector;
+  inspector.selection.setNode(div);
   inspector.sidebar.once("ruleview-ready", function() {
     ruleview = inspector.sidebar.getWindowForTab("ruleview").ruleview.view;
     inspector.sidebar.select("ruleview");
-    inspector.selection.setNode(div);
-    inspector.once("inspector-updated", performTests);
+    performTests();
   });
 }
 
@@ -75,37 +75,29 @@ function performTests()
   // toggle it back on
   inspector.togglePseudoClass(pseudo);
 
-  testNavigate(() => {
-   // close the inspector
-    finishUp();
-  });
+  testNavigate();
+
+  // close the inspector
+  finishUp();
 }
 
-function testNavigate(callback)
+function testNavigate()
 {
   inspector.selection.setNode(parentDiv);
-  inspector.once("inspector-updated", () => {
 
-    // make sure it's still on after naving to parent
-    is(DOMUtils.hasPseudoClassLock(div, pseudo), true,
-         "pseudo-class lock is still applied after inspecting ancestor");
+  // make sure it's still on after naving to parent
+  is(DOMUtils.hasPseudoClassLock(div, pseudo), true,
+       "pseudo-class lock is still applied after inspecting ancestor");
 
-    inspector.selection.setNode(div2);
+  inspector.selection.setNode(div2);
 
-    inspector.once("inspector-updated", () => {
+  // make sure it's removed after naving to a non-hierarchy node
+  is(DOMUtils.hasPseudoClassLock(div, pseudo), false,
+       "pseudo-class lock is removed after inspecting sibling node");
 
-      // make sure it's removed after naving to a non-hierarchy node
-      is(DOMUtils.hasPseudoClassLock(div, pseudo), false,
-           "pseudo-class lock is removed after inspecting sibling node");
-
-      // toggle it back on
-      inspector.selection.setNode(div);
-      inspector.once("inspector-updated", () => {
-        inspector.togglePseudoClass(pseudo);
-        callback();
-      });
-    });
-  });
+  // toggle it back on
+  inspector.selection.setNode(div);
+  inspector.togglePseudoClass(pseudo);
 }
 
 function testAdded()

@@ -31,23 +31,21 @@ function test() {
   function checkDocTypeMenuItems() {
     info("Checking context menu entries for doctype node");
     inspector.selection.setNode(doc.doctype);
-    inspector.once("inspector-updated", () => {
-      let docTypeNode = getMarkupTagNodeContaining("<!DOCTYPE html>");
+    let docTypeNode = getMarkupTagNodeContaining("<!DOCTYPE html>");
 
-      // Right-click doctype tag
-      contextMenuClick(docTypeNode);
+    // Right-click doctype tag
+    contextMenuClick(docTypeNode);
 
-      checkDisabled("node-menu-copyinner");
-      checkDisabled("node-menu-copyouter");
-      checkDisabled("node-menu-copyuniqueselector");
-      checkDisabled("node-menu-delete");
+    checkDisabled("node-menu-copyinner");
+    checkDisabled("node-menu-copyouter");
+    checkDisabled("node-menu-copyuniqueselector");
+    checkDisabled("node-menu-delete");
 
-      for (let name of ["hover", "active", "focus"]) {
-        checkDisabled("node-menu-pseudo-" + name);
-      }
+    for (let name of ["hover", "active", "focus"]) {
+      checkDisabled("node-menu-pseudo-" + name);
+    }
 
-      checkElementMenuItems();
-    });
+    checkElementMenuItems();
   }
 
   function checkElementMenuItems() {

@@ -86,8 +86,7 @@ class OmxDecoder : public OMXCodecProxy::EventListener {
   };
 
   enum {
-    kNotifyPostReleaseVideoBuffer = 'noti',
-    kNotifyStatusChanged = 'stat'
+    kNotifyPostReleaseVideoBuffer = 'noti'
   };
 
   AbstractMediaDecoder *mDecoder;

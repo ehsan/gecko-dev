@@ -383,12 +383,18 @@ WebConsoleFrame.prototype = {
     }.bind(this));
   },
 
+  _persistLog: null,
+
   /**
-   * Getter for the persistent logging preference.
+   * Getter for the persistent logging preference. This value is cached per
+   * instance to avoid reading the pref too often.
    * @type boolean
    */
   get persistLog() {
-    return Services.prefs.getBoolPref(PREF_PERSISTLOG);
+    if (this._persistLog === null) {
+      this._persistLog = Services.prefs.getBoolPref(PREF_PERSISTLOG);
+    }
+    return this._persistLog;
   },
 
   /**
