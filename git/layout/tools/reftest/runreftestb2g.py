@@ -489,7 +489,7 @@ def main(args=sys.argv[1:]):
         host,port = options.marionette.split(':')
         kwargs['host'] = host
         kwargs['port'] = int(port)
-    marionette = Marionette.getMarionetteOrExit(**kwargs)
+    marionette = Marionette(**kwargs)
     auto.marionette = marionette
 
     # create the DeviceManager

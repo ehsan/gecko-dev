@@ -166,10 +166,7 @@ public class GeckoAccessibility {
                             view.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null);
                             break;
                         case AccessibilityEvent.TYPE_ANNOUNCEMENT:
-                            final AccessibilityEvent accEvent = AccessibilityEvent.obtain(eventType);
-                            view.onInitializeAccessibilityEvent(accEvent);
-                            populateEventFromJSON(accEvent, message);
-                            view.getParent().requestSendAccessibilityEvent(view, accEvent);
+                            sendDirectAccessibilityEvent(eventType, message);
                             break;
                         default:
                             view.sendAccessibilityEvent(eventType);
