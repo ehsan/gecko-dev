@@ -922,15 +922,6 @@ struct JSContext {
 #endif
 
 #ifdef __cplusplus
-
-static inline JSAtom **
-FrameAtomBase(JSContext *cx, JSStackFrame *fp)
-{
-    return fp->imacpc
-           ? COMMON_ATOMS_START(&cx->runtime->atomState)
-           : fp->script->atomMap.vector;
-}
-
 /* FIXME(bug 332648): Move this into a public header. */
 class JSAutoTempValueRooter
 {
@@ -978,8 +969,7 @@ class JSAutoResolveFlags
     JSContext *mContext;
     uintN mSaved;
 };
-
-#endif /* __cpluscplus */
+#endif
 
 /*
  * Slightly more readable macros for testing per-context option settings (also
