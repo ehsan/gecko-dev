@@ -35,18 +35,23 @@ function test_simple_source_map()
 
   let numNewSources = 0;
 
-  gClient.addOneTimeListener("paused", function (aEvent, aPacket) {
+  gClient.addListener("newSource", function _onNewSource(aEvent, aPacket) {
+    if (++numNewSources !== 3) {
+      return;
+    }
+    gClient.removeListener("newSource", _onNewSource);
+
     gThreadClient.getSources(function (aResponse) {
       do_check_true(!aResponse.error, "Should not get an error");
 
       for (let s of aResponse.sources) {
-        do_check_neq(s.url, "http://example.com/www/js/abc.js",
-                     "Shouldn't get the generated source's url.")
+        do_check_true(expectedSources.has(s.url),
+                      "The source's url should be one of our original sources");
         expectedSources.delete(s.url);
       }
 
       do_check_eq(expectedSources.size, 0,
-                  "Should have found all the expected sources sources by now.");
+                  "Shouldn't be expecting any more sources");
 
       finishClient(gClient);
     });
@@ -56,7 +61,6 @@ function test_simple_source_map()
     new SourceNode(1, 0, "a.js", "function a() { return 'a'; }\n"),
     new SourceNode(1, 0, "b.js", "function b() { return 'b'; }\n"),
     new SourceNode(1, 0, "c.js", "function c() { return 'c'; }\n"),
-    "debugger;\n"
   ])).toStringWithSourceMap({
     file: "abc.js",
     sourceRoot: "http://example.com/www/js/"

@@ -227,10 +227,7 @@ function addNewTabPageTab() {
         executeSoon(TestRunner.next);
       });
     } else {
-      // It's important that we call next() asynchronously.
-      // 'yield addNewTabPageTab()' would fail if next() is called
-      // synchronously because the iterator is already executing.
-      executeSoon(TestRunner.next);
+      TestRunner.next();
     }
   }
 
