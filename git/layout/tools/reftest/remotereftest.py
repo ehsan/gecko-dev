@@ -346,13 +346,6 @@ def main():
         print "ERROR: Invalid options specified, use --help for a list of valid options"
         sys.exit(1)
 
-    parts = dm.getInfo('screen')['screen'][0].split()
-    width = int(parts[0].split(':')[1])
-    height = int(parts[1].split(':')[1])
-    if (width < 1050 or height < 1050):
-        print "ERROR: Invalid screen resolution %sx%s, please adjust to 1366x1050 or higher" % (width, height)
-        sys.exit(1)
-
     automation.setAppName(options.app)
     automation.setRemoteProfile(options.remoteProfile)
     automation.setRemoteLog(options.remoteLogFile)
@@ -368,10 +361,6 @@ def main():
     manifest = args[0]
     if os.path.exists(args[0]):
         manifest = "http://" + str(options.remoteWebServer) + ":" + str(options.httpPort) + "/" + args[0]
-
-    procName = options.app.split('/')[-1]
-    if (dm.processExist(procName)):
-      dm.killProcess(procName)
 
 #an example manifest name to use on the cli
 #    manifest = "http://" + options.remoteWebServer + "/reftests/layout/reftests/reftest-sanity/reftest.list"
