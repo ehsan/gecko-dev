@@ -82,10 +82,6 @@
 #include "jsxml.h"
 #endif
 
-#ifdef INCLUDE_MOZILLA_DTRACE
-#include "jsdtracef.h"
-#endif
-
 /*
  * Check if posix_memalign is available.
  */
