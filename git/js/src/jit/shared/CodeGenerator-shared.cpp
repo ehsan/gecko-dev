@@ -70,8 +70,10 @@ CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph *graph, Mac
         // (like x64) which require the stack to be aligned.
         if (StackKeptAligned || gen->needsInitialStackAlignment()) {
             unsigned alignmentAtCall = AlignmentAtAsmJSPrologue + frameDepth_;
-            if (unsigned rem = alignmentAtCall % StackAlignment)
-                frameDepth_ += StackAlignment - rem;
+            if (unsigned rem = alignmentAtCall % StackAlignment) {
+                frameInitialAdjustment_ = StackAlignment - rem;
+                frameDepth_ += frameInitialAdjustment_;
+            }
         }
 
         // FrameSizeClass is only used for bailing, which cannot happen in

@@ -1003,7 +1003,8 @@ Http2Compressor::EncodeHeaderBlock(const nsCString &nvInput,
         name.EqualsLiteral("proxy-connection") ||
         name.EqualsLiteral("te") ||
         name.EqualsLiteral("transfer-encoding") ||
-        name.EqualsLiteral("upgrade")) {
+        name.EqualsLiteral("upgrade") ||
+        name.EqualsLiteral("accept-encoding")) {
       continue;
     }
 
@@ -1061,12 +1062,10 @@ Http2Compressor::EncodeHeaderBlock(const nsCString &nvInput,
         }
         nsDependentCSubstring cookie = Substring(beginBuffer + nextCookie,
                                                  beginBuffer + semiSpaceIndex);
-        // cookies less than 20 bytes are not indexed
-        ProcessHeader(nvPair(name, cookie), name.Length() < 20);
+        ProcessHeader(nvPair(name, cookie), true);
         nextCookie = semiSpaceIndex + 2;
       }
     } else {
-      // allow indexing of every non-cookie except authorization
       ProcessHeader(nvPair(name, value), name.EqualsLiteral("authorization"));
     }
   }
