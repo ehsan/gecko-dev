@@ -30,7 +30,6 @@
 #include "gfx2DGlue.h"
 #include "LayersLogging.h"
 #include "UnitTransforms.h"             // for TransformTo
-#include "mozilla/UniquePtr.h"
 
 // This is the minimum area that we deem reasonable to copy from the front buffer to the
 // back buffer on tile updates. If the valid region is smaller than this, we just
@@ -435,49 +434,28 @@ class TileExpiry MOZ_FINAL : public nsExpirationTracker<TileClient, 3>
 {
   public:
     TileExpiry() : nsExpirationTracker<TileClient, 3>(1000) {}
-
-    static void AddTile(TileClient* aTile)
-    {
-      if (!sTileExpiry) {
-        sTileExpiry = MakeUnique<TileExpiry>();
-      }
-
-      sTileExpiry->AddObject(aTile);
-    }
-
-    static void RemoveTile(TileClient* aTile)
-    {
-      MOZ_ASSERT(sTileExpiry);
-      sTileExpiry->RemoveObject(aTile);
-    }
-
-    static void Shutdown() {
-      sTileExpiry = nullptr;
-    }
   private:
-    virtual void NotifyExpired(TileClient* aTile) MOZ_OVERRIDE
+    virtual void NotifyExpired(TileClient* aTile)
     {
       aTile->DiscardBackBuffer();
     }
-
-    static UniquePtr<TileExpiry> sTileExpiry;
 };
-UniquePtr<TileExpiry> TileExpiry::sTileExpiry;
 
-void ShutdownTileCache()
+TileExpiry *TileExpirer()
 {
-  TileExpiry::Shutdown();
+  static TileExpiry * sTileExpiry = new TileExpiry();
+  return sTileExpiry;
 }
 
 void
 TileClient::PrivateProtector::Set(TileClient * const aContainer, RefPtr<TextureClient> aNewValue)
 {
   if (mBuffer) {
-    TileExpiry::RemoveTile(aContainer);
+    TileExpirer()->RemoveObject(aContainer);
   }
   mBuffer = aNewValue;
   if (mBuffer) {
-    TileExpiry::AddTile(aContainer);
+    TileExpirer()->AddObject(aContainer);
   }
 }
 
@@ -497,7 +475,7 @@ TileClient::~TileClient()
 {
   if (mExpirationState.IsTracked()) {
     MOZ_ASSERT(mBackBuffer);
-    TileExpiry::RemoveTile(this);
+    TileExpirer()->RemoveObject(this);
   }
 }
 
@@ -1144,21 +1122,22 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
 
     // prepare an array of Moz2D tiles that will be painted into in PostValidate
     gfx::Tile moz2DTile;
-    RefPtr<DrawTarget> dt = backBuffer->BorrowDrawTarget();
-    RefPtr<DrawTarget> dtOnWhite;
+    gfx::Tile moz2DTileOnWhite;
+    moz2DTile.mDrawTarget = backBuffer->BorrowDrawTarget();
     if (backBufferOnWhite) {
-      dtOnWhite = backBufferOnWhite->BorrowDrawTarget();
-      moz2DTile.mDrawTarget = Factory::CreateDualDrawTarget(dt, dtOnWhite);
-    } else {
-      moz2DTile.mDrawTarget = dt;
+      moz2DTileOnWhite.mDrawTarget = backBufferOnWhite->BorrowDrawTarget();
     }
-    moz2DTile.mTileOrigin = gfx::IntPoint(aTileOrigin.x, aTileOrigin.y);
-    if (!dt || (backBufferOnWhite && !dtOnWhite)) {
+    moz2DTile.mTileOrigin = moz2DTileOnWhite.mTileOrigin = gfx::IntPoint(aTileOrigin.x, aTileOrigin.y);
+    if (!moz2DTile.mDrawTarget ||
+        (backBufferOnWhite && !moz2DTileOnWhite.mDrawTarget)) {
       aTile.DiscardFrontBuffer();
       return aTile;
     }
 
     mMoz2DTiles.push_back(moz2DTile);
+    if (backBufferOnWhite) {
+      mMoz2DTiles.push_back(moz2DTileOnWhite);
+    }
 
     nsIntRegionRectIterator it(aDirtyRegion);
     for (const nsIntRect* dirtyRect = it.Next(); dirtyRect != nullptr; dirtyRect = it.Next()) {
@@ -1177,10 +1156,10 @@ ClientTiledLayerBuffer::ValidateTile(TileClient aTile,
       aTile.mInvalidFront.Or(aTile.mInvalidFront, nsIntRect(copyTarget.x, copyTarget.y, copyRect.width, copyRect.height));
 
       if (mode == SurfaceMode::SURFACE_COMPONENT_ALPHA) {
-        dt->FillRect(drawRect, ColorPattern(Color(0.0, 0.0, 0.0, 1.0)));
-        dtOnWhite->FillRect(drawRect, ColorPattern(Color(1.0, 1.0, 1.0, 1.0)));
+        moz2DTile.mDrawTarget->FillRect(drawRect, ColorPattern(Color(0.0, 0.0, 0.0, 1.0)));
+        moz2DTileOnWhite.mDrawTarget->FillRect(drawRect, ColorPattern(Color(1.0, 1.0, 1.0, 1.0)));
       } else if (content == gfxContentType::COLOR_ALPHA) {
-        dt->ClearRect(drawRect);
+        moz2DTile.mDrawTarget->ClearRect(drawRect);
       }
     }
 

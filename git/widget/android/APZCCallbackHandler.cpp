@@ -122,8 +122,7 @@ APZCCallbackHandler::HandleDoubleTap(const CSSPoint& aPoint,
                                      int32_t aModifiers,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid)
 {
-    CSSIntPoint point = RoundedToInt(aPoint);
-    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", point.x, point.y);
+    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
     nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:DoubleTap"), data));
 }
@@ -134,8 +133,7 @@ APZCCallbackHandler::HandleSingleTap(const CSSPoint& aPoint,
                                      const mozilla::layers::ScrollableLayerGuid& aGuid)
 {
     // FIXME Send the modifier data to Gecko for use in mouse events.
-    CSSIntPoint point = RoundedToInt(aPoint);
-    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", point.x, point.y);
+    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
     nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:SingleTap"), data));
 }
@@ -146,8 +144,7 @@ APZCCallbackHandler::HandleLongTap(const CSSPoint& aPoint,
                                    const mozilla::layers::ScrollableLayerGuid& aGuid)
 {
     // TODO send content response back to APZC
-    CSSIntPoint point = RoundedToInt(aPoint);
-    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", point.x, point.y);
+    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
     nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
             NS_LITERAL_CSTRING("Gesture:LongPress"), data));
 }

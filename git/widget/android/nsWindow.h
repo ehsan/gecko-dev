@@ -32,13 +32,11 @@ namespace mozilla {
 class nsWindow :
     public nsBaseWidget
 {
-private:
-    virtual ~nsWindow();
-
 public:
     using nsBaseWidget::GetLayerManager;
 
     nsWindow();
+    virtual ~nsWindow();
 
     NS_DECL_ISUPPORTS_INHERITED
 

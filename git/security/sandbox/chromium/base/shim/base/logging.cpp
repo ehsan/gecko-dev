@@ -4,10 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/logging.h"
-#ifdef OS_WIN
 #include <windows.h>
-#endif
+#include "base/logging.h"
+#include "base/strings/string_piece.h"
+#include "base/strings/string_util.h"
 
 namespace {
 int min_log_level = 0;
@@ -51,21 +51,6 @@ LogMessage::~LogMessage()
 {
 }
 
-int GetMinLogLevel()
-{
-  return min_log_level;
-}
-
-int GetVlogLevelHelper(const char* file, size_t N)
-{
-  return 0;
-}
-
-void RawLog(int level, const char* message)
-{
-}
-
-#ifdef OS_WIN
 LogMessage::SaveLastError::SaveLastError() :
   last_error_(::GetLastError())
 {
@@ -79,6 +64,11 @@ LogMessage::SaveLastError::~SaveLastError()
 SystemErrorCode GetLastSystemErrorCode()
 {
   return ::GetLastError();
+}
+
+int GetMinLogLevel()
+{
+  return min_log_level;
 }
 
 Win32ErrorLogMessage::Win32ErrorLogMessage(const char* file, int line,
@@ -104,6 +94,10 @@ Win32ErrorLogMessage::Win32ErrorLogMessage(const char* file,
 Win32ErrorLogMessage::~Win32ErrorLogMessage()
 {
 }
-#endif // OS_WIN
+
+int GetVlogLevelHelper(const char* file, size_t N)
+{
+  return 0;
+}
 
 } // namespace logging

@@ -15,10 +15,11 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISHELLSERVICE
 
-  nsShellService() {}
+  nsShellService() {};
 
 private:
-  ~nsShellService() {}
+  ~nsShellService() {};
+
 };
 
 #define nsShellService_CID                          \

@@ -184,10 +184,7 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
         AddQuirk(QUIRK_FLASH_EXPOSE_COORD_TRANSLATION);
     }
 #else // defined(OS_MACOSX)
-    const char* namePrefix = "Plugin Content";
-    char nameBuffer[80];
-    snprintf(nameBuffer, sizeof(nameBuffer), "%s (%s)", namePrefix, info.fName);
-    mozilla::plugins::PluginUtilsOSX::SetProcessName(nameBuffer);
+    mozilla::plugins::PluginUtilsOSX::SetProcessName(info.fName);
 #endif
 
     pluginFile.FreePluginInfo(info);

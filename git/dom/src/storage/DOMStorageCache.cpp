@@ -351,6 +351,8 @@ DOMStorageCache::WaitForPreload(Telemetry::ID aTelemetryID)
 nsresult
 DOMStorageCache::GetLength(const DOMStorage* aStorage, uint32_t* aRetval)
 {
+  Telemetry::AutoTimer<Telemetry::LOCALDOMSTORAGE_GETLENGTH_MS> autoTimer;
+
   if (Persist(aStorage)) {
     WaitForPreload(Telemetry::LOCALDOMSTORAGE_GETLENGTH_BLOCKING_MS);
     if (NS_FAILED(mLoadResult)) {
@@ -399,6 +401,8 @@ DOMStorageCache::GetKey(const DOMStorage* aStorage, uint32_t aIndex, nsAString& 
   // suck if there's a large numer of indexes. Do we care? If so,
   // maybe we need to have a lazily populated key array here or
   // something?
+  Telemetry::AutoTimer<Telemetry::LOCALDOMSTORAGE_GETKEY_MS> autoTimer;
+
   if (Persist(aStorage)) {
     WaitForPreload(Telemetry::LOCALDOMSTORAGE_GETKEY_BLOCKING_MS);
     if (NS_FAILED(mLoadResult)) {
@@ -427,6 +431,8 @@ KeysArrayBuilder(const nsAString& aKey, const nsString aValue, void* aArg)
 void
 DOMStorageCache::GetKeys(const DOMStorage* aStorage, nsTArray<nsString>& aKeys)
 {
+  Telemetry::AutoTimer<Telemetry::LOCALDOMSTORAGE_GETALLKEYS_MS> autoTimer;
+
   if (Persist(aStorage)) {
     WaitForPreload(Telemetry::LOCALDOMSTORAGE_GETALLKEYS_BLOCKING_MS);
   }
@@ -442,6 +448,8 @@ nsresult
 DOMStorageCache::GetItem(const DOMStorage* aStorage, const nsAString& aKey,
                          nsAString& aRetval)
 {
+  Telemetry::AutoTimer<Telemetry::LOCALDOMSTORAGE_GETVALUE_MS> autoTimer;
+
   if (Persist(aStorage)) {
     WaitForPreload(Telemetry::LOCALDOMSTORAGE_GETVALUE_BLOCKING_MS);
     if (NS_FAILED(mLoadResult)) {
@@ -464,6 +472,8 @@ nsresult
 DOMStorageCache::SetItem(const DOMStorage* aStorage, const nsAString& aKey,
                          const nsString& aValue, nsString& aOld)
 {
+  Telemetry::AutoTimer<Telemetry::LOCALDOMSTORAGE_SETVALUE_MS> autoTimer;
+
   if (Persist(aStorage)) {
     WaitForPreload(Telemetry::LOCALDOMSTORAGE_SETVALUE_BLOCKING_MS);
     if (NS_FAILED(mLoadResult)) {
@@ -510,6 +520,8 @@ nsresult
 DOMStorageCache::RemoveItem(const DOMStorage* aStorage, const nsAString& aKey,
                             nsString& aOld)
 {
+  Telemetry::AutoTimer<Telemetry::LOCALDOMSTORAGE_REMOVEKEY_MS> autoTimer;
+
   if (Persist(aStorage)) {
     WaitForPreload(Telemetry::LOCALDOMSTORAGE_REMOVEKEY_BLOCKING_MS);
     if (NS_FAILED(mLoadResult)) {
@@ -544,6 +556,8 @@ DOMStorageCache::RemoveItem(const DOMStorage* aStorage, const nsAString& aKey,
 nsresult
 DOMStorageCache::Clear(const DOMStorage* aStorage)
 {
+  Telemetry::AutoTimer<Telemetry::LOCALDOMSTORAGE_CLEAR_MS> autoTimer;
+
   bool refresh = false;
   if (Persist(aStorage)) {
     // We need to preload all data (know the size) before we can proceeed

@@ -13,7 +13,6 @@
 # error "Generational GC requires exact rooting."
 #endif
 
-#include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/ReentrancyGuard.h"
 
@@ -26,7 +25,7 @@
 
 namespace js {
 
-MOZ_NORETURN void
+void
 CrashAtUnhandlableOOM(const char *reason);
 
 namespace gc {

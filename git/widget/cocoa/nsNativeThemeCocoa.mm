@@ -987,36 +987,17 @@ nsNativeThemeCocoa::DrawMenuIcon(CGContextRef cgContext, const CGRect& aRect,
     aRect.origin.y + ceil(paddingY / 2),
     aIconSize.width, aIconSize.height);
 
-  BOOL isDisabled = IsDisabled(aFrame, inState);
-  BOOL isActive = CheckBooleanAttr(aFrame, nsGkAtoms::menuactive);
-
-  // On 10.6 and at least on 10.7.0, Apple doesn’t seem to have implemented all
-  // keys and values used on 10.7.5 and later. We can however draw menu icons
-  // on earlier OS versions by using different keys/values.
-  BOOL otherKeysAndValues = !nsCocoaFeatures::OnLionOrLater() ||
-                            (nsCocoaFeatures::OSXVersionMajor() == 10 &&
-                             nsCocoaFeatures::OSXVersionMinor() == 7 &&
-                             nsCocoaFeatures::OSXVersionBugFix() < 5);
-
-  // 2 states combined with 2 different backgroundTypeKeys on earlier versions.
-  NSString* state = isDisabled ? @"disabled" :
-    (isActive && !otherKeysAndValues) ? @"pressed" : @"normal";
-  NSString* backgroundTypeKey = !otherKeysAndValues ? @"kCUIBackgroundTypeMenu" :
-    !isDisabled && isActive ? @"backgroundTypeDark" : @"backgroundTypeLight";
-
-  NSMutableArray* keys = [NSMutableArray arrayWithObjects:@"backgroundTypeKey",
-    @"imageNameKey", @"state", @"widget", @"is.flipped", nil];
-  NSMutableArray* values = [NSMutableArray arrayWithObjects: backgroundTypeKey,
-    aImageName, state, @"image", [NSNumber numberWithBool:YES], nil];
-
-  if (otherKeysAndValues) { // Earlier versions used one more key-value pair.
-    [keys insertObject:@"imageIsGrayscaleKey" atIndex:1];
-    [values insertObject:[NSNumber numberWithBool:YES] atIndex:1];
-  }
+  NSString* state = IsDisabled(aFrame, inState) ? @"disabled" :
+    (CheckBooleanAttr(aFrame, nsGkAtoms::menuactive) ? @"pressed" : @"normal");
 
   CUIDraw([NSWindow coreUIRenderer], drawRect, cgContext,
-          (CFDictionaryRef)[NSDictionary dictionaryWithObjects:values
-                            forKeys:keys], nil);
+          (CFDictionaryRef)[NSDictionary dictionaryWithObjectsAndKeys:
+            @"kCUIBackgroundTypeMenu", @"backgroundTypeKey",
+            aImageName, @"imageNameKey",
+            state, @"state",
+            @"image", @"widget",
+            [NSNumber numberWithBool:YES], @"is.flipped",
+            nil], nil);
 
 #if DRAW_IN_FRAME_DEBUG
   CGContextSetRGBFillColor(cgContext, 0.0, 0.0, 0.5, 0.25);

@@ -7,7 +7,6 @@
 #ifndef ds_LifoAlloc_h
 #define ds_LifoAlloc_h
 
-#include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/MemoryChecking.h"
@@ -148,7 +147,7 @@ class BumpChunk
 
 } // namespace detail
 
-MOZ_NORETURN void
+void
 CrashAtUnhandlableOOM(const char *reason);
 
 // LIFO bump allocator: used for phase-oriented and fast LIFO allocations.

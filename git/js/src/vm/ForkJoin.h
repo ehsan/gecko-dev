@@ -267,10 +267,6 @@ class ForkJoinActivation : public Activation
   public:
     explicit ForkJoinActivation(JSContext *cx);
     ~ForkJoinActivation();
-
-    bool isProfiling() const {
-        return false;
-    }
 };
 
 class ForkJoinContext;

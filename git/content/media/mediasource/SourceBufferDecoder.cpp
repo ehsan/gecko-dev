@@ -66,7 +66,8 @@ SourceBufferDecoder::NotifyBytesConsumed(int64_t aBytes, int64_t aOffset)
 int64_t
 SourceBufferDecoder::GetEndMediaTime() const
 {
-  return mMediaDuration;
+  MSE_DEBUG("SourceBufferDecoder(%p)::GetEndMediaTime UNIMPLEMENTED", this);
+  return -1;
 }
 
 int64_t

@@ -3519,8 +3519,6 @@ JSObject::CopyElementsForWrite(ThreadSafeContext *cx, JSObject *obj)
     if (newCapacity >= NELEMENTS_LIMIT)
         return false;
 
-    JSObject::writeBarrierPre(obj->getElementsHeader()->ownerObject());
-
     ObjectElements *newheader = AllocateElements(cx, obj, newAllocated);
     if (!newheader)
         return false;
@@ -4058,10 +4056,10 @@ UpdateShapeTypeAndValue(typename ExecutionModeTraits<mode>::ExclusiveContextType
     jsid id = shape->propid();
     if (shape->hasSlot()) {
         if (mode == ParallelExecution) {
-            if (!obj->nativeSetSlotIfHasType(shape, value, /* overwriting = */ false))
+            if (!obj->nativeSetSlotIfHasType(shape, value))
                 return false;
         } else {
-            obj->nativeSetSlotWithType(cx->asExclusiveContext(), shape, value, /* overwriting = */ false);
+            obj->nativeSetSlotWithType(cx->asExclusiveContext(), shape, value);
         }
     }
     if (!shape->hasSlot() || !shape->hasDefaultGetter() || !shape->hasDefaultSetter()) {
