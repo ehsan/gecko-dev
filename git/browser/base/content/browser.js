@@ -1397,11 +1397,6 @@ var gBrowserInit = {
 #ifdef MENUBAR_CAN_AUTOHIDE
       document.getElementById("appmenu_devToolbar").hidden = false;
 #endif
-
-      // Show the toolbar if it was previously visible
-      if (gPrefService.getBoolPref("devtools.toolbar.visible")) {
-        this.DeveloperToolbar.show();
-      }
     }
 
     // Enable Inspector?
