@@ -41,6 +41,7 @@
 /*
  * JavaScript bytecode interpreter.
  */
+#include "jsstddef.h"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
@@ -349,7 +350,7 @@ js_FullTestPropertyCache(JSContext *cx, jsbytecode *pc,
                 entry->kshape,
                 OBJ_SHAPE(obj));
                 js_Disassemble1(cx, cx->fp->script, pc,
-                                pc - cx->fp->script->code,
+                                PTRDIFF(pc, cx->fp->script->code, jsbytecode),
                                 JS_FALSE, stderr);
 #endif
 
@@ -855,18 +856,16 @@ ComputeThis(JSContext *cx, JSBool lazy, jsval *argv)
             return js_ComputeGlobalThis(cx, lazy, argv);
         }
 
-        OBJ_TO_OUTER_OBJECT(cx, thisp);
-        if (!thisp)
-            return NULL;
-        argv[-1] = OBJECT_TO_JSVAL(thisp);
-
         if (thisp->map->ops->thisObject) {
             /* Some objects (e.g., With) delegate 'this' to another object. */
             thisp = thisp->map->ops->thisObject(cx, thisp);
             if (!thisp)
                 return NULL;
-            argv[-1] = OBJECT_TO_JSVAL(thisp);
-       }
+        }
+        OBJ_TO_OUTER_OBJECT(cx, thisp);
+        if (!thisp)
+            return NULL;
+        argv[-1] = OBJECT_TO_JSVAL(thisp);
     }
     return thisp;
 }
@@ -2059,7 +2058,7 @@ js_TraceOpcode(JSContext *cx, jsint len)
     fprintf(tracefp, "%4u: ",
             js_PCToLineNumber(cx, fp->script, fp->imacpc ? fp->imacpc : regs->pc));
     js_Disassemble1(cx, fp->script, regs->pc,
-                    regs->pc - fp->script->code,
+                    PTRDIFF(regs->pc, fp->script->code, jsbytecode),
                     JS_FALSE, tracefp);
     op = (JSOp) *regs->pc;
     nuses = js_CodeSpec[op].nuses;
@@ -4672,7 +4671,7 @@ js_Interpret(JSContext *cx)
                 if (OBJ_IS_DENSE_ARRAY(cx, obj)) {
                     jsuint length;
 
-                    length = js_DenseArrayCapacity(obj);
+                    length = ARRAY_DENSE_LENGTH(obj);
                     i = JSVAL_TO_INT(rval);
                     if ((jsuint)i < length &&
                         i < obj->fslots[JSSLOT_ARRAY_LENGTH]) {
@@ -4725,7 +4724,7 @@ js_Interpret(JSContext *cx)
                 if (OBJ_IS_DENSE_ARRAY(cx, obj) && JSID_IS_INT(id)) {
                     jsuint length;
 
-                    length = js_DenseArrayCapacity(obj);
+                    length = ARRAY_DENSE_LENGTH(obj);
                     i = JSID_TO_INT(id);
                     if ((jsuint)i < length) {
                         if (obj->dslots[i] == JSVAL_HOLE) {
@@ -6351,14 +6350,14 @@ js_Interpret(JSContext *cx)
 
           BEGIN_CASE(JSOP_GOSUB)
             PUSH(JSVAL_FALSE);
-            i = (regs.pc - script->main) + JSOP_GOSUB_LENGTH;
+            i = PTRDIFF(regs.pc, script->main, jsbytecode) + JSOP_GOSUB_LENGTH;
             PUSH(INT_TO_JSVAL(i));
             len = GET_JUMP_OFFSET(regs.pc);
           END_VARLEN_CASE
 
           BEGIN_CASE(JSOP_GOSUBX)
             PUSH(JSVAL_FALSE);
-            i = (regs.pc - script->main) + JSOP_GOSUBX_LENGTH;
+            i = PTRDIFF(regs.pc, script->main, jsbytecode) + JSOP_GOSUBX_LENGTH;
             len = GET_JUMPX_OFFSET(regs.pc);
             PUSH(INT_TO_JSVAL(i));
           END_VARLEN_CASE

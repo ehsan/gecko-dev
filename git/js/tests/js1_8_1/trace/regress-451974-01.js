@@ -82,6 +82,6 @@ jit(false);
 print('time: nonjit = ' + timenonjit + ', jit = ' + timejit);
 
 expect = true;
-actual = timejit < timenonjit/2;
+actual = timejit < timenonjit;
 
 reportCompare(expect, actual, summary);

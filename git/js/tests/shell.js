@@ -676,21 +676,13 @@ function optionsPop()
 
 function optionsReset() {
 
-  try
-  {
-    optionsClear();
+  optionsClear();
 
-    // turn on initial settings
-    for (optionName in options.initvalues)
-    {
-      options(optionName);
-    }
-  }
-  catch(ex)
+  // turn on initial settings
+  for (optionName in options.initvalues)
   {
-    print('optionsReset: caught ' + ex);
+    options(optionName);
   }
-
 }
 
 if (typeof options == 'function')

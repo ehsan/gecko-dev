@@ -41,6 +41,7 @@
 /*
  * JavaScript API.
  */
+#include "jsstddef.h"
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -5153,9 +5154,9 @@ JS_ExecuteScriptPart(JSContext *cx, JSObject *obj, JSScript *script,
     /* Make a temporary copy of the JSScript structure and farble it a bit. */
     tmp = *script;
     if (part == JSEXEC_PROLOG) {
-        tmp.length = tmp.main - tmp.code;
+        tmp.length = PTRDIFF(tmp.main, tmp.code, jsbytecode);
     } else {
-        tmp.length -= tmp.main - tmp.code;
+        tmp.length -= PTRDIFF(tmp.main, tmp.code, jsbytecode);
         tmp.code = tmp.main;
     }
 
@@ -5333,17 +5334,6 @@ JS_TriggerOperationCallback(JSContext *cx)
      * visibility here, not read/write ordering.
      */
     JS_ATOMIC_SET(&cx->operationCallbackFlag, 1);
-}
-
-JS_PUBLIC_API(void)
-JS_TriggerAllOperationCallbacks(JSRuntime *rt)
-{
-    JSContext *acx, *iter;
-    JS_LOCK_GC(rt);
-    iter = NULL;
-    while ((acx = js_ContextIterator(rt, JS_FALSE, &iter)))
-        JS_TriggerOperationCallback(acx);
-    JS_UNLOCK_GC(rt);
 }
 
 JS_PUBLIC_API(JSBool)

@@ -32,7 +32,6 @@ function startTest() {
 
   v.play();
   v.currentTime=2;
-  seekFlagStart = v.seeking;
   return false;
 }
 
@@ -42,6 +41,7 @@ function seekStarted() {
   var v = document.getElementById('v');
   v.pause();
   startPassed = true;
+  seekFlagStart = v.seeking;
   return false;
 }
 

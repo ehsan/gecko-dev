@@ -212,8 +212,6 @@ tests.push({
 //------------------------------------------------------------------------------
 
 function finish_test() {
-  // Simulate application closing to remove the idle observer and avoid leaks.
-  os.notifyObservers(null, "quit-application-granted", null);
   do_test_finished();
 }
 
@@ -221,9 +219,6 @@ var testIndex = 0;
 function next_test() {
   // Clean up database from all bookmarks.
   remove_all_bookmarks();
-
-  // Simulate application closing to remove the idle observer and avoid leaks.
-  os.notifyObservers(null, "quit-application-granted", null);
 
   // nsBrowserGlue stops observing topics after first notification,
   // so we add back the observer to test additional runs.

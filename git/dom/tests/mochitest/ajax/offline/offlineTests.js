@@ -66,9 +66,6 @@ _masterWindow: null,
 // Array of all PUT overrides on the server
 _pathOverrides: [],
 
-// SJSs whom state was changed to be reverted on teardown
-_SJSsStated: [],
-
 setupChild: function()
 {
   if (window.parent.OfflineTest.hasSlave()) {
@@ -133,8 +130,6 @@ teardown: function()
   // Clear all overrides on the server
   for (override in this._pathOverrides)
     this.deleteData(this._pathOverrides[override]);
-  for (statedSJS in this._SJSsStated)
-    this.setSJSState(this._SJSsStated[statedSJS], "");
 
   this.clear();
 },
@@ -318,23 +313,26 @@ _checkCache: function(cacheSession, url, expectEntry)
   }
 },
 
-setSJSState: function(sjsPath, stateQuery)
+putData: function(serverPath, contentType, data)
 {
+  if (!data.length)
+    throw "Data length mush be specified";
+
   var client = new XMLHttpRequest();
-  client.open("GET", sjsPath + "?state=" + stateQuery, false);
+  client.open("PUT", serverPath, false);
+  client.setRequestHeader("Content-Type", contentType);
+  client.send(data);
 
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var appcachechannel = client.channel.QueryInterface(Ci.nsIApplicationCacheChannel);
-  appcachechannel.chooseApplicationCache = false;
-  appcachechannel.inheritApplicationCache = false;
-  appcachechannel.applicationCache = null;
+  this._pathOverrides.push(serverPath);
+},
 
+deleteData: function(serverPath)
+{
+  delete this._pathOverrides[serverPath];
+
+  var client = new XMLHttpRequest();
+  client.open("DELETE", serverPath, false);
   client.send();
-
-  if (stateQuery == "")
-    delete this._SJSsStated[sjsPath];
-  else
-    this._SJSsStated.push(sjsPath);
 }
 
 };

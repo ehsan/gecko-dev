@@ -55,8 +55,7 @@ toolbarbutton {
   color: -moz-DialogText;
 }
 
-.toolbarbutton-icon[label]:not([label=""]),
-.toolbarbutton-icon[type="menu"] {
+.toolbarbutton-icon {
   -moz-margin-end: 5px;
 }
 

@@ -48,45 +48,38 @@ START(summary);
 
 function test()
 {
-    var list = <><a/><b/></>;
-    var count = 0;
-    var now = Date.now;
-    var time = now();
-    for (var i in list) {
-        ++count;
-    }
-    time = now() - time;
-    if (count != 2) {
-        if (count < 2)
-            throw "Enumerator has not looped over all properties, count="+count;
-        throw "Enumerator has looped over prototype chain of xml, count="+count;
-    }
-    return time;
+  var list = <><a/><b/></>;
+  var count = 0;
+  var now = Date.now;
+  var time = now();
+  for (var i in list) {
+    ++count;
+  }
+  time = now() - time;
+  if (count != 2) {
+    if (count < 2)
+      throw "Enumerator has not looped over all properties, count="+count;
+    throw "Enumerator has looped over prototype chain of xml, count="+count;
+  }
+  return time;
 }
 
-try
-{
-    var time1 = test();
+var time1 = test();
 
-    for (var i = 0; i != 1000*1000; ++i)
-        Object.prototype[i] = i;
+for (var i = 0; i != 1000*1000; ++i)
+  Object.prototype[i] = i;
 
-    var time2 = test();
+var time2 = test();
 
-    // clean up Object prototype so it won't
-    // hang enumerations in options()...
+// clean up Object prototype so it won't
+// hang enumerations in options()...
 
-    for (var i = 0; i != 1000*1000; ++i)
-        delete Object.prototype[i];
+for (var i = 0; i != 1000*1000; ++i)
+    delete Object.prototype[i];
 
-    if (time1 * 10 + 1 < time2) {
-        throw "Assigns to Object.prototype increased time of XML enumeration from "+
-            time1+"ms to "+time2+"ms";
-    }
-}
-catch(ex)
-{
-    actual = ex = '';
+if (time1 * 10 + 1 < time2) {
+  throw "Assigns to Object.prototype increased time of XML enumeration from "+
+        time1+"ms to "+time2+"ms";
 }
 
 TEST(1, expect, actual);

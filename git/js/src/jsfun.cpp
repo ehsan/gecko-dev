@@ -41,6 +41,7 @@
 /*
  * JS function support.
  */
+#include "jsstddef.h"
 #include <string.h>
 #include "jstypes.h"
 #include "jsbit.h"

@@ -46,7 +46,7 @@ class nsIDOMHTMLOptionElement;
 /** 
   * nsISelectControlFrame is the interface for combo boxes and listboxes
   */
-class nsISelectControlFrame : public nsQueryFrame
+class nsISelectControlFrame
 {
 public:
   NS_DECLARE_FRAME_ACCESSOR(nsISelectControlFrame)
@@ -55,13 +55,13 @@ public:
    * Adds an option to the list at index
    */
 
-  NS_IMETHOD AddOption(PRInt32 index) = 0;
+  NS_IMETHOD AddOption(nsPresContext* aPresContext, PRInt32 index) = 0;
 
   /**
-   * Removes the option at index.  The caller must have a live script
-   * blocker while calling this method.
+   * Removes the option at index
    */
-  NS_IMETHOD RemoveOption(PRInt32 index) = 0; 
+
+  NS_IMETHOD RemoveOption(nsPresContext* aPresContext, PRInt32 index) = 0; 
 
   /**
    * Sets the select state of the option at index
@@ -77,11 +77,12 @@ public:
   /**
    * Notify the frame when an option is selected
    */
-  NS_IMETHOD OnOptionSelected(PRInt32 aIndex, PRBool aSelected) = 0;
+  NS_IMETHOD OnOptionSelected(nsPresContext* aPresContext,
+                              PRInt32 aIndex,
+                              PRBool aSelected) = 0;
 
   /**
-   * Notify the frame when selectedIndex was changed.  This might
-   * destroy the frame.
+   * Notify the frame when selectedIndex was changed
    */
   NS_IMETHOD OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex) = 0;
 

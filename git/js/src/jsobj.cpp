@@ -41,6 +41,7 @@
 /*
  * JS object implementation.
  */
+#include "jsstddef.h"
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
@@ -2019,15 +2020,13 @@ static JS_REQUIRES_STACK JSBool
 Detecting(JSContext *cx, jsbytecode *pc)
 {
     JSScript *script;
-    jsbytecode *endpc;
     JSOp op;
     JSAtom *atom;
 
+    if (!cx->fp)
+        return JS_FALSE;
     script = cx->fp->script;
-    endpc = script->code + script->length;
     for (;; pc += js_CodeSpec[op].length) {
-        JS_ASSERT(pc < endpc);
-
         /* General case: a branch or equality op follows the access. */
         op = js_GetOpcode(cx, script, pc);
         if (js_CodeSpec[op].format & JOF_DETECTING)
@@ -2039,11 +2038,9 @@ Detecting(JSContext *cx, jsbytecode *pc)
              * Special case #1: handle (document.all == null).  Don't sweat
              * about JS1.2's revision of the equality operators here.
              */
-            if (++pc < endpc) {
-                op = js_GetOpcode(cx, script, pc);
-                return *pc == JSOP_EQ || *pc == JSOP_NE;
-            }
-            return JS_FALSE;
+            pc++;
+            op = js_GetOpcode(cx, script, pc);
+            return op == JSOP_EQ || op == JSOP_NE;
 
           case JSOP_NAME:
             /*
@@ -2052,8 +2049,8 @@ Detecting(JSContext *cx, jsbytecode *pc)
              * Edition 3, so is read/write for backward compatibility.
              */
             GET_ATOM_FROM_BYTECODE(script, pc, 0, atom);
-            if (atom == cx->runtime->atomState.typeAtoms[JSTYPE_VOID] &&
-                (pc += js_CodeSpec[op].length) < endpc) {
+            if (atom == cx->runtime->atomState.typeAtoms[JSTYPE_VOID]) {
+                pc += js_CodeSpec[op].length;
                 op = js_GetOpcode(cx, script, pc);
                 return op == JSOP_EQ || op == JSOP_NE ||
                        op == JSOP_STRICTEQ || op == JSOP_STRICTNE;
@@ -2100,7 +2097,7 @@ InferFlags(JSContext *cx, uintN defaultFlags)
         flags |= JSRESOLVE_ASSIGNING;
     } else {
         pc += cs->length;
-        if (pc < cx->fp->script->code + cx->fp->script->length && Detecting(cx, pc))
+        if (Detecting(cx, pc))
             flags |= JSRESOLVE_DETECTING;
     }
     if (format & JOF_DECLARING)
@@ -5742,7 +5739,7 @@ js_DumpObject(JSObject *obj)
     /* OBJ_IS_DENSE_ARRAY ignores the cx argument. */
     if (OBJ_IS_DENSE_ARRAY(BOGUS_CX, obj)) {
         slots = JS_MIN((jsuint) obj->fslots[JSSLOT_ARRAY_LENGTH],
-                       js_DenseArrayCapacity(obj));
+                       ARRAY_DENSE_LENGTH(obj));
         fprintf(stderr, "elements\n");
         for (i = 0; i < slots; i++) {
             fprintf(stderr, " %3d: ", i);

@@ -41,6 +41,7 @@
 /*
  * JS bytecode descriptors, disassemblers, and decompilers.
  */
+#include "jsstddef.h"
 #ifdef HAVE_MEMORY_H
 #include <memory.h>
 #endif
@@ -232,7 +233,7 @@ js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, FILE *fp)
         if (pc == script->main)
             fputs("main:\n", fp);
         len = js_Disassemble1(cx, script, pc,
-                              pc - script->code,
+                              PTRDIFF(pc, script->code, jsbytecode),
                               lines, fp);
         if (!len)
             return JS_FALSE;
@@ -615,7 +616,7 @@ QuoteString(Sprinter *sp, JSString *str, uint32 quote)
             if (t == z)
                 break;
         }
-        len = t - s;
+        len = PTRDIFF(t, s, jschar);
 
         /* Allocate space for s, including the '\0' at the end. */
         if (!SprintEnsureBuffer(sp, len))
@@ -2675,7 +2676,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
                     len = js_GetSrcNoteOffset(sn, 0);
                     if (len) {
-                        len -= pc - pc2;
+                        len -= PTRDIFF(pc, pc2, jsbytecode);
                         LOCAL_ASSERT_OUT(len > 0);
                         js_printf(jp, " if ");
                         ok = Decompile(ss, pc, len, JSOP_NOP) != NULL;
@@ -3253,7 +3254,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     return NULL;
                 done = pc + GetJumpOffset(pc, pc);
                 pc += len;
-                len = done - pc;
+                len = PTRDIFF(done, pc, jsbytecode);
                 if (!Decompile(ss, pc, len, op)) {
                     JS_free(cx, (char *)lval);
                     return NULL;
@@ -5135,7 +5136,7 @@ DecompileExpression(JSContext *cx, JSScript *script, JSFunction *fun,
         break;
       default:;
     }
-    len = end - begin;
+    len = PTRDIFF(end, begin, jsbytecode);
     if (len <= 0) {
         name = FAILED_EXPRESSION_DECOMPILER;
         goto out;

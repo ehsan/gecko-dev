@@ -125,7 +125,7 @@
 #include "nsIXULWindow.h"
 #include "nsXULPopupManager.h"
 #include "nsCCUncollectableMarker.h"
-#include "nsURILoader.h"
+#include "ImageErrors.h"
 
 //----------------------------------------------------------------------
 //
@@ -4514,7 +4514,8 @@ NS_IMETHODIMP
 nsXULDocument::CachedChromeStreamListener::OnStartRequest(nsIRequest *request,
                                                           nsISupports* acontext)
 {
-    return NS_ERROR_PARSED_DATA_CACHED;
+    // XXX need a proper cancel-but-run-onload-handlers return code (bug 475344)
+    return NS_IMAGELIB_ERROR_LOAD_ABORTED;
 }
 
 

@@ -482,24 +482,27 @@ IsTopLevelWidget(nsPresContext* aPresContext)
 }
 
 static void
-SyncFrameViewGeometryDependentProperties(nsPresContext*   aPresContext,
+SyncFrameViewGeometryDependentProperties(nsPresContext*  aPresContext,
                                          nsIFrame*        aFrame,
                                          nsStyleContext*  aStyleContext,
                                          nsIView*         aView,
                                          PRUint32         aFlags)
 {
 #ifdef MOZ_XUL
-  if (!nsCSSRendering::IsCanvasFrame(aFrame))
-    return;
-
-  if (!aView->HasWidget() || !IsTopLevelWidget(aPresContext))
-    return;
-
   nsIViewManager* vm = aView->GetViewManager();
+
+  PRBool isCanvas;
+  const nsStyleBackground* bg;
+  nsCSSRendering::FindBackground(aPresContext, aFrame, &bg, &isCanvas);
+
+  if (!isCanvas)
+    return;
+
   nsIView* rootView;
   vm->GetRootView(rootView);
 
-  if (aView != rootView)
+  if (!aView->HasWidget() || aView != rootView ||
+      !IsTopLevelWidget(aPresContext))
     return;
 
   nsIContent* rootContent = aPresContext->Document()->GetRootContent();
@@ -717,11 +720,10 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   }
 
   const nsLineList_iterator* savedLine = aData->line;
-  nsIFrame* const savedLineContainer = aData->lineContainer;
 
   nsContainerFrame *lastInFlow;
   for (nsContainerFrame *nif = this; nif;
-       nif = static_cast<nsContainerFrame*>(nif->GetNextInFlow())) {
+       nif = (nsContainerFrame*) nif->GetNextInFlow()) {
     for (nsIFrame *kid = nif->mFrames.FirstChild(); kid;
          kid = kid->GetNextSibling()) {
       if (aType == nsLayoutUtils::MIN_WIDTH)
@@ -732,16 +734,13 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
                                 static_cast<InlinePrefWidthData*>(aData));
     }
     
-    // After we advance to our next-in-flow, the stored line and line container
-    // may no longer be correct. Just forget them.
+    // After we advance to our next-in-flow, the stored line may not
+    // longer be the correct line. Just forget it.
     aData->line = nsnull;
-    aData->lineContainer = nsnull;
-
     lastInFlow = nif;
   }
   
   aData->line = savedLine;
-  aData->lineContainer = savedLineContainer;
 
   // This goes at the end no matter how things are broken and how
   // messy the bidi situations are, since per CSS2.1 section 8.6

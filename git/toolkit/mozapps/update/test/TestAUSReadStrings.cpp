@@ -58,10 +58,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "updater/resource.h"
-#include "updater/progressui.h"
-#include "updater/readstrings.h"
-#include "updater/errors.h"
+#include "resource.h"
+#include "progressui.h"
+#include "readstrings.h"
+#include "errors.h"
 
 #ifndef MAXPATHLEN
 # ifdef PATH_MAX

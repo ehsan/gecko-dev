@@ -493,12 +493,13 @@ nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
     return PR_FALSE;
 
   const nsStyleBackground* bg;
+  PRBool isCanvas; // not used
   PRBool hasBG =
-    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg);
+    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame,
+                                   &bg, &isCanvas);
 
   return (hasBG && NS_GET_A(bg->mBackgroundColor) == 255 &&
-          // bottom layer's clip is used for the color
-          bg->BottomLayer().mClip == NS_STYLE_BG_CLIP_BORDER &&
+          bg->mBackgroundClip == NS_STYLE_BG_CLIP_BORDER &&
           !nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->
                                          mBorderRadius));
 }
@@ -509,15 +510,15 @@ nsDisplayBackground::IsUniform(nsDisplayListBuilder* aBuilder) {
   if (mIsThemed)
     return PR_FALSE;
 
+  PRBool isCanvas;
   const nsStyleBackground* bg;
   PRBool hasBG =
-    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg);
+    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg, &isCanvas);
   if (!hasBG)
     return PR_TRUE;
-  if (!bg->BottomLayer().mImage.mRequest &&
-      bg->mImageCount == 1 &&
+  if ((bg->mBackgroundFlags & NS_STYLE_BG_IMAGE_NONE) &&
       !nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->mBorderRadius) &&
-      bg->BottomLayer().mClip == NS_STYLE_BG_CLIP_BORDER)
+      bg->mBackgroundClip == NS_STYLE_BG_CLIP_BORDER)
     return PR_TRUE;
   return PR_FALSE;
 }
@@ -529,9 +530,10 @@ nsDisplayBackground::IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuild
               "IsVaryingRelativeToMovingFrame called on non-moving frame!");
 
   nsPresContext* presContext = mFrame->PresContext();
+  PRBool isCanvas;
   const nsStyleBackground* bg;
   PRBool hasBG =
-    nsCSSRendering::FindBackground(presContext, mFrame, &bg);
+    nsCSSRendering::FindBackground(presContext, mFrame, &bg, &isCanvas);
   if (!hasBG)
     return PR_FALSE;
   if (!bg->HasFixedBackground())

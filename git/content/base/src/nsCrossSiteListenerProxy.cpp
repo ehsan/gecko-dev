@@ -53,7 +53,6 @@
 #include "nsWhitespaceTokenizer.h"
 #include "nsIChannelEventSink.h"
 #include "nsCommaSeparatedTokenizer.h"
-#include "nsXMLHttpRequest.h"
 
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
 
@@ -118,18 +117,6 @@ nsCrossSiteListenerProxy::OnStartRequest(nsIRequest* aRequest,
 {
   mRequestApproved = NS_SUCCEEDED(CheckRequestApproved(aRequest, PR_FALSE));
   if (!mRequestApproved) {
-    if (nsXMLHttpRequest::sAccessControlCache) {
-      nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
-      if (channel) {
-      nsCOMPtr<nsIURI> uri;
-        channel->GetURI(getter_AddRefs(uri));
-        if (uri) {
-          nsXMLHttpRequest::sAccessControlCache->
-            RemoveEntries(uri, mRequestingPrincipal);
-        }
-      }
-    }
-
     aRequest->Cancel(NS_ERROR_DOM_BAD_URI);
     mOuterListener->OnStartRequest(aRequest, aContext);
 
@@ -330,17 +317,7 @@ nsCrossSiteListenerProxy::OnChannelRedirect(nsIChannel *aOldChannel,
   nsresult rv;
   if (!NS_IsInternalSameURIRedirect(aOldChannel, aNewChannel, aFlags)) {
     rv = CheckRequestApproved(aOldChannel, PR_TRUE);
-    if (NS_FAILED(rv)) {
-      if (nsXMLHttpRequest::sAccessControlCache) {
-        nsCOMPtr<nsIURI> oldURI;
-        aOldChannel->GetURI(getter_AddRefs(oldURI));
-        if (oldURI) {
-          nsXMLHttpRequest::sAccessControlCache->
-            RemoveEntries(oldURI, mRequestingPrincipal);
-        }
-      }
-      return NS_ERROR_DOM_BAD_URI;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsCOMPtr<nsIChannelEventSink> outer =

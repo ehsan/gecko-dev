@@ -75,8 +75,8 @@ sub processfile
 
         $recordcurr = {};
 
-        my ($test_id, $test_branch, $test_repo, $test_buildtype, $test_type, $test_os, $test_kernel, $test_processortype, $test_memory, $test_timezone, $test_options, $test_result, $test_exitstatus, $test_description) = $_ =~ 
-            /TEST_ID=([^,]*), TEST_BRANCH=([^,]*), TEST_REPO=([^,]*), TEST_BUILDTYPE=([^,]*), TEST_TYPE=([^,]*), TEST_OS=([^,]*), TEST_KERNEL=([^,]*), TEST_PROCESSORTYPE=([^,]*), TEST_MEMORY=([^,]*), TEST_TIMEZONE=([^,]*), TEST_OPTIONS=([^,]*), TEST_RESULT=([^,]*), TEST_EXITSTATUS=([^,]*), TEST_DESCRIPTION=(.*)/;
+        my ($test_id, $test_branch, $test_repo, $test_buildtype, $test_type, $test_os, $test_kernel, $test_processortype, $test_memory, $test_cpuspeed, $test_timezone, $test_options, $test_result, $test_exitstatus, $test_description) = $_ =~ 
+            /TEST_ID=([^,]*), TEST_BRANCH=([^,]*), TEST_REPO=([^,]*), TEST_BUILDTYPE=([^,]*), TEST_TYPE=([^,]*), TEST_OS=([^,]*), TEST_KERNEL=([^,]*), TEST_PROCESSORTYPE=([^,]*), TEST_MEMORY=([^,]*), TEST_CPUSPEED=([^,]*), TEST_TIMEZONE=([^,]*), TEST_OPTIONS=([^,]*), TEST_RESULT=([^,]*), TEST_EXITSTATUS=([^,]*), TEST_DESCRIPTION=(.*)/;
 
         $recordcurr->{TEST_ID}            = $test_id;
         $recordcurr->{TEST_BRANCH}        = $test_branch;
@@ -87,6 +87,7 @@ sub processfile
         $recordcurr->{TEST_KERNEL}        = $test_kernel;
         $recordcurr->{TEST_PROCESSORTYPE} = $test_processortype;
         $recordcurr->{TEST_MEMORY}        = $test_memory;
+        $recordcurr->{TEST_CPUSPEED}      = $test_cpuspeed;
         $recordcurr->{TEST_TIMEZONE}      = $test_timezone;
         $recordcurr->{TEST_OPTIONS}       = $test_options;
         $recordcurr->{TEST_RESULT}        = $test_result;
@@ -130,7 +131,7 @@ sub processfile
                 @universefielduniverse = getuniverse($universefielduniversekey, $universefield);
                 dbg("processfile: \@values: ". join(',', @values));
                 dbg("processfile: \$universefielduniversekey=$universefielduniversekey, \@universefielduniverse=" . join(',', @universefielduniverse));
-                @values = ('.*') if (arraysequal($universefield, \@values, \@universefielduniverse));
+                @values = ('.*') if (arraysequal(\@values, \@universefielduniverse));
                 dbg("processfile: \@values=" . join(',', @values));
 
                 for ($v = 0; $v < @values; $v++)
@@ -158,7 +159,7 @@ sub processfile
             @universefielduniverse = getuniverse($universefielduniversekey, $universefield);
             dbg("processfile: \@values: ". join(',', @values));
             dbg("processfile: \$universefielduniversekey=$universefielduniversekey, \@universefielduniverse=" . join(',', @universefielduniverse));
-            @values = ('.*') if (arraysequal($universefield, \@values, \@universefielduniverse));
+            @values = ('.*') if (arraysequal(\@values, \@universefielduniverse));
             dbg("processfile: \@values=" . join(',', @values));
 
             for ($v = 0; $v < @values; $v++)
@@ -202,20 +203,11 @@ sub getkey
 
 sub arraysequal 
 {
-    my ($universefield, $larrayref, $rarrayref) = @_;
+    my ($larrayref, $rarrayref) = @_;
     my $i;
 
-    dbg("arraysequal: checking $universefield if " . (join ',', @{$larrayref}) . " is equal to " . (join ',', @{$rarrayref}));
-
-    # fail if lengths not equal
+    dbg("arraysequal: checking if " . (join ',', @{$larrayref}) . " is equal to " . (join ',', @{$rarrayref}));
     return 0 if (@{$larrayref} != @{$rarrayref});
-
-    # if the universe field is 'important', fail if lengths are 1, 
-    # so that important field singletons are not replaced by wildcards.
-    my @importantfields = ('TEST_BRANCH', 'TEST_REPO', 'TEST_BUILDTYPE', 'TEST_TYPE', 'TEST_OS');
-    my @matches = grep /$universefield/, @importantfields;
-
-    return 0 if ( @matches && @{$larrayref} == 1);
 
     for ($i = 0; $i < @{$larrayref}; $i++)
     {

@@ -1155,10 +1155,6 @@ function prepareForStartup() {
   // setup our common DOMLinkAdded listener
   gBrowser.addEventListener("DOMLinkAdded", DOMLinkHandler, false);
 
-  // setup our MozApplicationManifest listener
-  gBrowser.addEventListener("MozApplicationManifest",
-                            OfflineApps, false);
-
   // setup simple gestures support
   gGestureSupport.init(true);
 }
@@ -2907,9 +2903,6 @@ const BrowserSearch = {
       return;
 
     var browser = gBrowser.getBrowserForDocument(targetDoc);
-    // ignore search engines from subframes (see bug 479408)
-    if (!browser)
-      return;
 
     // Check to see whether we've already added an engine with this title
     if (browser.engines) {
@@ -2921,8 +2914,8 @@ const BrowserSearch = {
     // Use documentURIObject in the check for shouldLoadFavIcon so that we
     // do the right thing with about:-style error pages.  Bug 453442
     var iconURL = null;
-    if (gBrowser.shouldLoadFavIcon(targetDoc.documentURIObject))
-      iconURL = targetDoc.documentURIObject.prePath + "/favicon.ico";
+    if (gBrowser.shouldLoadFavIcon(browser.contentDocument.documentURIObject))
+      iconURL = browser.currentURI.prePath + "/favicon.ico";
 
     var hidden = false;
     // If this engine (identified by title) is already in the list, add it
@@ -3879,6 +3872,10 @@ var XULBrowserWindow = {
             this.endDocumentLoad(aRequest, aStatus);
           if (!gBrowser.mTabbedMode && !gBrowser.mCurrentBrowser.mIconURL)
             gBrowser.useDefaultIcon(gBrowser.mCurrentTab);
+
+          if (Components.isSuccessCode(aStatus) &&
+              content.document.documentElement.getAttribute("manifest"))
+            OfflineApps.offlineAppRequested(content);
         }
       }
 
@@ -4912,7 +4909,7 @@ var contentAreaDNDObserver = {
 
       var dragType = aXferData.flavour.contentType;
       var dragData = aXferData.data;
-      if (dragType == TAB_DROP_TYPE) {
+      if (dragType == "application/x-moz-tabbrowser-tab") {
         // If the tab was dragged from some other tab bar, its own dragend
         // handler will take care of detaching the tab
         if (dragData instanceof XULElement && dragData.localName == "tab" &&
@@ -4961,7 +4958,7 @@ var contentAreaDNDObserver = {
   getSupportedFlavours: function ()
     {
       var flavourSet = new FlavourSet();
-      flavourSet.appendFlavour(TAB_DROP_TYPE);
+      flavourSet.appendFlavour("application/x-moz-tabbrowser-tab");
       flavourSet.appendFlavour("text/x-moz-url");
       flavourSet.appendFlavour("text/plain");
       flavourSet.appendFlavour("application/x-moz-file", "nsIFile");
@@ -5334,12 +5331,6 @@ var OfflineApps = {
     obs.removeObserver(this, "offline-cache-update-completed");
   },
 
-  handleEvent: function(event) {
-    if (event.type == "MozApplicationManifest") {
-      this.offlineAppRequested(event.originalTarget.defaultView);
-    }
-  },
-
   /////////////////////////////////////////////////////////////////////////////
   // OfflineApps Implementation Methods
 
@@ -5366,7 +5357,6 @@ var OfflineApps = {
   },
 
   _getManifestURI: function(aWindow) {
-    if (!aWindow.document.documentElement) return null;
     var attr = aWindow.document.documentElement.getAttribute("manifest");
     if (!attr) return null;
 
@@ -5436,25 +5426,10 @@ var OfflineApps = {
   },
 
   // XXX: duplicated in preferences/advanced.js
-  _getOfflineAppUsage: function (host, groups)
+  _getOfflineAppUsage: function (host)
   {
-    var cacheService = Components.classes["@mozilla.org/network/application-cache-service;1"].
-                       getService(Components.interfaces.nsIApplicationCacheService);
-    if (!groups) {
-      groups = cacheService.getGroups({});
-    }
-    var ios = Components.classes["@mozilla.org/network/io-service;1"].
-              getService(Components.interfaces.nsIIOService);
-
+    // XXX Bug 442810: include offline cache usage.
     var usage = 0;
-    for (var i = 0; i < groups.length; i++) {
-      var uri = ios.newURI(groups[i], null, null);
-      if (uri.asciiHost == host) {
-        var cache = cacheService.getActiveCache(groups[i]);
-        usage += cache.usage;
-      }
-    }
-
     var storageManager = Components.classes["@mozilla.org/dom/storagemanager;1"].
                          getService(Components.interfaces.nsIDOMStorageManager);
     usage += storageManager.getUsage(host);
@@ -5488,7 +5463,7 @@ var OfflineApps = {
     var browser = this._getBrowserForContentWindow(browserWindow,
                                                    aContentWindow);
 
-    var currentURI = aContentWindow.document.documentURIObject;
+    var currentURI = browser.webNavigation.currentURI;
     var pm = Cc["@mozilla.org/permissionmanager;1"].
              getService(Ci.nsIPermissionManager);
 
@@ -5506,32 +5481,19 @@ var OfflineApps = {
       // this pref isn't set by default, ignore failures
     }
 
-    var host = currentURI.asciiHost;
     var notificationBox = gBrowser.getNotificationBox(browser);
-    var notificationID = "offline-app-requested-" + host;
-    var notification = notificationBox.getNotificationWithValue(notificationID);
-
-    if (notification) {
-      notification.documents.push(aContentWindow.document);
-    } else {
+    var notification = notificationBox.getNotificationWithValue("offline-app-requested");
+    if (!notification) {
       var bundle_browser = document.getElementById("bundle_browser");
 
       var buttons = [{
         label: bundle_browser.getString("offlineApps.allow"),
         accessKey: bundle_browser.getString("offlineApps.allowAccessKey"),
-        callback: function() {
-          for (var i = 0; i < notification.documents.length; i++) {
-            OfflineApps.allowSite(notification.documents[i]);
-          }
-        }
+        callback: function() { OfflineApps.allowSite(); }
       },{
         label: bundle_browser.getString("offlineApps.never"),
         accessKey: bundle_browser.getString("offlineApps.neverAccessKey"),
-        callback: function() {
-          for (var i = 0; i < notification.documents.length; i++) {
-            OfflineApps.disallowSite(notification.documents[i]);
-          }
-        }
+        callback: function() { OfflineApps.disallowSite(); }
       },{
         label: bundle_browser.getString("offlineApps.notNow"),
         accessKey: bundle_browser.getString("offlineApps.notNowAccessKey"),
@@ -5540,55 +5502,51 @@ var OfflineApps = {
 
       const priority = notificationBox.PRIORITY_INFO_LOW;
       var message = bundle_browser.getFormattedString("offlineApps.available",
-                                                      [ host ]);
-      notification =
-        notificationBox.appendNotification(message, notificationID,
-                                           "chrome://browser/skin/Info.png",
-                                           priority, buttons);
-      notification.documents = [ aContentWindow.document ];
+                                                      [ currentURI.host ]);
+      notificationBox.appendNotification(message, "offline-app-requested",
+                                         "chrome://browser/skin/Info.png",
+                                         priority, buttons);
     }
   },
 
-  allowSite: function(aDocument) {
+  allowSite: function() {
+    var currentURI = gBrowser.selectedBrowser.webNavigation.currentURI;
     var pm = Cc["@mozilla.org/permissionmanager;1"].
              getService(Ci.nsIPermissionManager);
-    pm.add(aDocument.documentURIObject, "offline-app",
-           Ci.nsIPermissionManager.ALLOW_ACTION);
+    pm.add(currentURI, "offline-app", Ci.nsIPermissionManager.ALLOW_ACTION);
 
-    // When a site is enabled while loading, manifest resources will
-    // start fetching immediately.  This one time we need to do it
-    // ourselves.
-    this._startFetching(aDocument);
+    // When a site is enabled while loading, <link rel="offline-resource">
+    // resources will start fetching immediately.  This one time we need to
+    // do it ourselves.
+    this._startFetching();
   },
 
-  disallowSite: function(aDocument) {
+  disallowSite: function() {
+    var currentURI = gBrowser.selectedBrowser.webNavigation.currentURI;
     var pm = Cc["@mozilla.org/permissionmanager;1"].
              getService(Ci.nsIPermissionManager);
-    pm.add(aDocument.documentURIObject, "offline-app",
-           Ci.nsIPermissionManager.DENY_ACTION);
+    pm.add(currentURI, "offline-app", Ci.nsIPermissionManager.DENY_ACTION);
   },
 
   manage: function() {
     openAdvancedPreferences("networkTab");
   },
 
-  _startFetching: function(aDocument) {
-    if (!aDocument.documentElement)
-      return;
-
-    var manifest = aDocument.documentElement.getAttribute("manifest");
+  _startFetching: function() {
+    var manifest = content.document.documentElement.getAttribute("manifest");
     if (!manifest)
       return;
 
     var ios = Cc["@mozilla.org/network/io-service;1"].
               getService(Ci.nsIIOService);
 
-    var manifestURI = ios.newURI(manifest, aDocument.characterSet,
-                                 aDocument.documentURIObject);
+    var contentURI = ios.newURI(content.location.href, null, null);
+    var manifestURI = ios.newURI(manifest, content.document.characterSet,
+                                 contentURI);
 
     var updateService = Cc["@mozilla.org/offlinecacheupdate-service;1"].
                         getService(Ci.nsIOfflineCacheUpdateService);
-    updateService.scheduleUpdate(manifestURI, aDocument.documentURIObject);
+    updateService.scheduleUpdate(manifestURI, contentURI);
   },
 
   /////////////////////////////////////////////////////////////////////////////
@@ -6132,7 +6090,7 @@ var FeedHandler = {
       // find which tab this is for, and set the attribute on the browser
       var browserForLink = gBrowser.getBrowserForDocument(targetDoc);
       if (!browserForLink) {
-        // ignore feeds loaded in subframes (see bug 305472)
+        // ??? this really shouldn't happen..
         return;
       }
 
@@ -6142,7 +6100,7 @@ var FeedHandler = {
 
       feeds.push(feed);
       browserForLink.feeds = feeds;
-      if (browserForLink == gBrowser.mCurrentBrowser) {
+      if (browserForLink == gBrowser || browserForLink == gBrowser.mCurrentBrowser) {
         var feedButton = document.getElementById("feed-button");
         if (feedButton)
           feedButton.collapsed = false;
@@ -6910,8 +6868,6 @@ let gPrivateBrowsingUI = {
   onEnterPrivateBrowsing: function PBUI_onEnterPrivateBrowsing() {
     this._setPBMenuTitle("stop");
 
-    document.getElementById("menu_import").setAttribute("disabled", "true");
-
     this._privateBrowsingAutoStarted = this._privateBrowsingService.autoStarted;
 
     if (!this._privateBrowsingAutoStarted) {
@@ -6936,8 +6892,6 @@ let gPrivateBrowsingUI = {
   onExitPrivateBrowsing: function PBUI_onExitPrivateBrowsing() {
     if (BrowserSearch.searchBar)
       BrowserSearch.searchBar.textbox.reset();
-
-    document.getElementById("menu_import").removeAttribute("disabled");
 
     gFindBar.getElement("findbar-textbox").reset();
 

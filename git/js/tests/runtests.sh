@@ -235,6 +235,7 @@ for testlogfile in $testlogfiles; do
         -K "$TEST_KERNEL" \
         -A "$TEST_PROCESSORTYPE" \
         -M "$TEST_MEMORY" \
+        -S "$TEST_CPUSPEED" \
         -z `date +%z` \
         -l $testlogfile \
         -r $TEST_JSDIR/failures.txt \

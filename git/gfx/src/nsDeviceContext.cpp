@@ -42,6 +42,7 @@
 #include "nsFont.h"
 #include "nsIView.h"
 #include "nsGfxCIID.h"
+#include "nsVoidArray.h"
 #include "nsIFontMetrics.h"
 #include "nsHashtable.h"
 #include "nsILanguageAtomService.h"
@@ -479,9 +480,9 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
   // start from the end, which is where we put the most-recent-used element
 
   nsIFontMetrics* fm;
-  PRInt32 n = mFontMetrics.Length() - 1;
+  PRInt32 n = mFontMetrics.Count() - 1;
   for (PRInt32 i = n; i >= 0; --i) {
-    fm = mFontMetrics[i];
+    fm = static_cast<nsIFontMetrics*>(mFontMetrics[i]);
     nsIThebesFontMetrics* tfm = static_cast<nsIThebesFontMetrics*>(fm);
     if (fm->Font().Equals(aFont) && tfm->GetUserFontSet() == aUserFontSet) {
       nsCOMPtr<nsIAtom> langGroup;
@@ -489,8 +490,7 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
       if (aLangGroup == langGroup.get()) {
         if (i != n) {
           // promote it to the end of the cache
-          mFontMetrics.RemoveElementAt(i);
-          mFontMetrics.AppendElement(fm);
+          mFontMetrics.MoveElement(i, n);
         }
         tfm->GetThebesFontGroup()->UpdateFontList();
         NS_ADDREF(aMetrics = fm);
@@ -535,9 +535,9 @@ nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
 
   // could not setup a new one, send an old one (XXX search a "best match"?)
 
-  n = mFontMetrics.Length() - 1; // could have changed in Compact()
+  n = mFontMetrics.Count() - 1; // could have changed in Compact()
   if (n >= 0) {
-    aMetrics = mFontMetrics[n];
+    aMetrics = static_cast<nsIFontMetrics*>(mFontMetrics[n]);
     NS_ADDREF(aMetrics);
     return NS_OK;
   }
@@ -558,15 +558,15 @@ nsFontCache::CreateFontMetricsInstance(nsIFontMetrics** fm)
 
 nsresult nsFontCache::FontMetricsDeleted(const nsIFontMetrics* aFontMetrics)
 {
-  mFontMetrics.RemoveElement(aFontMetrics);
+  mFontMetrics.RemoveElement((void*)aFontMetrics);
   return NS_OK;
 }
 
 nsresult nsFontCache::Compact()
 {
   // Need to loop backward because the running element can be removed on the way
-  for (PRInt32 i = mFontMetrics.Length()-1; i >= 0; --i) {
-    nsIFontMetrics* fm = mFontMetrics[i];
+  for (PRInt32 i = mFontMetrics.Count()-1; i >= 0; --i) {
+    nsIFontMetrics* fm = static_cast<nsIFontMetrics*>(mFontMetrics[i]);
     nsIFontMetrics* oldfm = fm;
     // Destroy() isn't here because we want our device context to be notified
     NS_RELEASE(fm); // this will reset fm to nsnull
@@ -582,8 +582,8 @@ nsresult nsFontCache::Compact()
 
 nsresult nsFontCache::Flush()
 {
-  for (PRInt32 i = mFontMetrics.Length()-1; i >= 0; --i) {
-    nsIFontMetrics* fm = mFontMetrics[i];
+  for (PRInt32 i = mFontMetrics.Count()-1; i >= 0; --i) {
+    nsIFontMetrics* fm = static_cast<nsIFontMetrics*>(mFontMetrics[i]);
     // Destroy() will unhook our device context from the fm so that we won't
     // waste time in triggering the notification of FontMetricsDeleted()
     // in the subsequent release

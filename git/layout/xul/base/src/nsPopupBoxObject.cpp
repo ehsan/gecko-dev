@@ -150,7 +150,7 @@ nsPopupBoxObject::MoveTo(PRInt32 aLeft, PRInt32 aTop)
 {
   nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
   if (menuPopupFrame) {
-    menuPopupFrame->MoveTo(aLeft, aTop, PR_TRUE);
+    menuPopupFrame->MoveTo(aLeft, aTop);
   }
 
   return NS_OK;

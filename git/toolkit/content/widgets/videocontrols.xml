@@ -272,8 +272,7 @@
                     // Suppress fading out the controls until the video has rendered
                     // its first frame. But since autoplay videos start off with no
                     // controls, let them fade-out so the controls don't get stuck on.
-                    if (!this.firstFrameShown && !isMouseOver &&
-                        !(this.video.autoplay && this.video.mozAutoplayEnabled))
+                    if (!this.firstFrameShown && !isMouseOver && !this.video.autoplay)
                         return;
 
                     // If we're already fading towards the desired state (or are
@@ -404,7 +403,7 @@
             // go ahead and reveal the controls now, so they're an obvious user cue.
             //
             // (Note: the |controls| attribute is already handled via layout/style/html.css)
-            if (!(video.autoplay && video.mozAutoplayEnabled) || !this.Utils.dynamicControls) {
+            if (!video.autoplay || !this.Utils.dynamicControls) {
                 this.Utils.controlBar.style.visibility = "visible";
                 this.Utils.controlBar.style.opacity = 1.0;
                 this.Utils.controlsVisible = true;

@@ -73,8 +73,7 @@ const OBSERVING = [
   "domwindowopened", "domwindowclosed",
   "quit-application-requested", "quit-application-granted",
   "quit-application", "browser:purge-session-history",
-  "private-browsing", "browser:purge-domain-data",
-  "private-browsing-change-granted"
+  "private-browsing", "browser:purge-domain-data"
 ];
 
 /*
@@ -200,10 +199,6 @@ SessionStoreService.prototype = {
     
     // observe prefs changes so we can modify stored data to match
     this._prefBranch.addObserver("sessionstore.max_tabs_undo", this, true);
-    
-    // this pref is only read at startup, so no need to observe it
-    this._sessionhistory_max_entries =
-      this._prefBranch.getIntPref("sessionhistory.max_entries");
 
     // get file references
     var dirService = Cc["@mozilla.org/file/directory_service;1"].
@@ -226,7 +221,7 @@ SessionStoreService.prototype = {
     if (iniString) {
       try {
         // parse the session state into JS objects
-        this._initialState = this._safeEval("(" + iniString + ")");
+        this._initialState = this._safeEval(iniString);
         
         let lastSessionCrashed =
           this._initialState.session && this._initialState.session.state &&
@@ -335,7 +330,7 @@ SessionStoreService.prototype = {
         openWindows[aWindow.__SSi] = true;
       });
       // also clear all data about closed tabs and windows
-      for (let ix in this._windows) {
+      for (ix in this._windows) {
         if (ix in openWindows)
           this._windows[ix]._closedTabs = [];
         else
@@ -379,7 +374,8 @@ SessionStoreService.prototype = {
       // if the user decreases the max number of closed tabs they want
       // preserved update our internal states to match that max
       case "sessionstore.max_tabs_undo":
-        for (let ix in this._windows) {
+        var ix;
+        for (ix in this._windows) {
           this._windows[ix]._closedTabs.splice(this._prefBranch.getIntPref("sessionstore.max_tabs_undo"));
         }
         break;
@@ -410,7 +406,9 @@ SessionStoreService.prototype = {
     case "private-browsing":
       switch (aData) {
       case "enter":
+        this.saveState(true);
         this._inPrivateBrowsing = true;
+        this._stateBackup = this._safeEval(this._getCurrentState(true).toSource());
         break;
       case "exit":
         aSubject.QueryInterface(Ci.nsISupportsPRBool);
@@ -431,12 +429,6 @@ SessionStoreService.prototype = {
           this._inPrivateBrowsing = false;
         delete this._stateBackup;
         break;
-      }
-      break;
-    case "private-browsing-change-granted":
-      if (aData == "enter") {
-        this.saveState(true);
-        this._stateBackup = this._safeEval(this._getCurrentState(true).toSource());
       }
       break;
     }
@@ -1010,11 +1002,8 @@ SessionStoreService.prototype = {
     }
     catch (ex) { } // this could happen if we catch a tab during (de)initialization
     
-    // XXXzeniko anchor navigation doesn't reset __SS_data, so we could reuse
-    //           data even when we shouldn't (e.g. Back, different anchor)
     if (history && browser.parentNode.__SS_data &&
-        browser.parentNode.__SS_data.entries[history.index] &&
-        history.index < this._sessionhistory_max_entries - 1 && !aFullData) {
+        browser.parentNode.__SS_data.entries[history.index] && !aFullData) {
       tabData = browser.parentNode.__SS_data;
       tabData.index = history.index + 1;
     }
@@ -1658,9 +1647,8 @@ SessionStoreService.prototype = {
     }
 
     // when overwriting tabs, remove all superflous ones
-    if (aOverwriteTabs && newTabCount < openTabCount) {
-      Array.slice(tabbrowser.mTabs, newTabCount, openTabCount)
-           .forEach(tabbrowser.removeTab, tabbrowser);
+    for (t = openTabCount - 1; t >= newTabCount; t--) {
+      tabbrowser.removeTab(tabbrowser.mTabs[t]);
     }
     
     if (aOverwriteTabs) {
@@ -2164,20 +2152,20 @@ SessionStoreService.prototype = {
     if (!isNaN(aLeft) && !isNaN(aTop) && (aLeft != win_("screenX") || aTop != win_("screenY"))) {
       aWindow.moveTo(aLeft, aTop);
     }
-    if (aSizeMode && win_("sizemode") != aSizeMode)
+    switch (aSizeMode)
     {
-      switch (aSizeMode)
-      {
-      case "maximized":
-        aWindow.maximize();
-        break;
-      case "minimized":
-        aWindow.minimize();
-        break;
-      case "normal":
-        aWindow.restore();
-        break;
-      }
+    case "maximized":
+    	if (win_("sizemode") != "maximized")
+    	  aWindow.maximize();
+    	break
+    case "minimized":
+    	if (win_("sizemode") != "minimized")
+    	  aWindow.minimize();
+    	break
+    default:
+    	if (win_("sizemode") != "normal")
+    	  aWindow.restore();
+    	break
     }
     var sidebar = aWindow.document.getElementById("sidebar-box");
     if (sidebar.getAttribute("sidebarcommand") != aSidebar) {

@@ -42,7 +42,7 @@
 #include "nsFtpControlConnection.h"
 #include "nsIServiceManager.h"
 #include "nsIProxiedProtocolHandler.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "nsIIOService.h"
 #include "nsITimer.h"
 #include "nsIObserverService.h"
@@ -98,7 +98,7 @@ private:
 
     static void Timeout(nsITimer *aTimer, void *aClosure);
 
-    nsTArray<timerStruct*> mRootConnectionList;
+    nsVoidArray mRootConnectionList;
 
     nsCOMPtr<nsICacheSession> mCacheSession;
     PRInt32 mIdleTimeout;

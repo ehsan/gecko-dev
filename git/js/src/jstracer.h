@@ -45,6 +45,7 @@
 #ifdef JS_TRACER
 
 #include "jscntxt.h"
+#include "jsstddef.h"
 #include "jstypes.h"
 #include "jslock.h"
 #include "jsnum.h"
@@ -170,16 +171,14 @@ extern bool js_verboseDebug;
 #define ORACLE_SIZE 4096
 
 class Oracle {
-    uint32_t hits[ORACLE_SIZE];
-    uint32_t blacklistLevels[ORACLE_SIZE];
+    int32_t _hits[ORACLE_SIZE];
     avmplus::BitSet _stackDontDemote;
     avmplus::BitSet _globalDontDemote;
 public:
     Oracle();
-    int32_t hit(const void* ip);
-    int32_t getHits(const void* ip);
-    void resetHits(const void* ip);
-    void blacklist(const void* ip);
+    int32_t& hits(const jsbytecode* ip);
+    void backoff(const jsbytecode* ip);
+    void blacklist(const jsbytecode* ip);
 
     JS_REQUIRES_STACK void markGlobalSlotUndemotable(JSContext* cx, unsigned slot);
     JS_REQUIRES_STACK bool isGlobalSlotUndemotable(JSContext* cx, unsigned slot) const;
@@ -205,40 +204,12 @@ public:
 };
 
 enum ExitType {
-    /*
-     * An exit at a possible branch-point in the trace at which to attach a
-     * future secondary trace. Therefore the recorder must generate different
-     * code to handle the other outcome of the branch condition from the
-     * primary trace's outcome.
-     */
     BRANCH_EXIT,
-
-    /*
-     * Exit at a tableswitch via a numbered case.
-     */
-    CASE_EXIT,
-
-    /*
-     * Exit at a tableswitch via the default case.
-     */
-    DEFAULT_EXIT,
-
+    CASE_EXIT,          // Exit at a tableswitch via a numbered case
+    DEFAULT_EXIT,       // Exit at a tableswitch via default
     LOOP_EXIT,
     NESTED_EXIT,
-
-    /*
-     * An exit from a trace because a condition relied upon at recording time
-     * no longer holds, where the alternate path of execution is so rare or
-     * difficult to address in native code that it is not traced at all, e.g.
-     * negative array index accesses, which differ from positive indexes in
-     * that they require a string-based property lookup rather than a simple
-     * memory access.
-     */
     MISMATCH_EXIT,
-
-    /*
-     * A specialization of MISMATCH_EXIT to handle allocation failures.
-     */
     OOM_EXIT,
     OVERFLOW_EXIT,
     UNSTABLE_LOOP_EXIT,
@@ -312,6 +283,11 @@ public:
     unsigned                branchCount;
     Queue<VMSideExit*>      sideExits;
     UnstableExit*           unstableExits;
+#ifdef DEBUG
+    const char*             treeFileName;
+    uintN                   treeLineNumber;
+    uintN                   treePCOffset;
+#endif
 
     TreeInfo(nanojit::Fragment* _fragment,
              uint32 _globalShape,
@@ -416,7 +392,6 @@ class TraceRecorder : public avmplus::GCObject {
     bool                    terminate;
     jsbytecode*             terminate_pc;
     jsbytecode*             terminate_imacpc;
-    nanojit::Fragment*      outerToBlacklist;
     TraceRecorder*          nextRecorderToAbort;
     bool                    wasRootFragment;
 
@@ -556,7 +531,7 @@ public:
     JS_REQUIRES_STACK
     TraceRecorder(JSContext* cx, VMSideExit*, nanojit::Fragment*, TreeInfo*,
                   unsigned stackSlots, unsigned ngslots, uint8* typeMap,
-                  VMSideExit* expectedInnerExit, nanojit::Fragment* outerToBlacklist);
+                  VMSideExit* expectedInnerExit);
     ~TraceRecorder();
 
     static JS_REQUIRES_STACK JSMonitorRecordingStatus monitorRecording(JSContext* cx, TraceRecorder* tr, JSOp op);
@@ -564,6 +539,7 @@ public:
     JS_REQUIRES_STACK uint8 determineSlotType(jsval* vp);
     JS_REQUIRES_STACK nanojit::LIns* snapshot(ExitType exitType);
     nanojit::Fragment* getFragment() const { return fragment; }
+    TreeInfo* getTreeInfo() const { return treeInfo; }
     JS_REQUIRES_STACK bool isLoopHeader(JSContext* cx) const;
     JS_REQUIRES_STACK void compile(JSTraceMonitor* tm);
     JS_REQUIRES_STACK bool closeLoop(JSTraceMonitor* tm, bool& demote);
@@ -588,7 +564,6 @@ public:
     JS_REQUIRES_STACK bool record_DefLocalFunSetSlot(uint32 slot, JSObject* obj);
     JS_REQUIRES_STACK bool record_FastNativeCallComplete();
 
-    nanojit::Fragment* getOuterToBlacklist() { return outerToBlacklist; }
     void deepAbort() { deepAborted = true; }
     bool wasDeepAborted() { return deepAborted; }
     bool walkedOutOfLoop() { return terminate; }

@@ -24,26 +24,24 @@ function snapshotWindow(win) {
   return el;
 }
 
-// If the two snapshots don't compare as expected (true for equal, false for
-// unequal), returns their serializations as data URIs.  In all cases, returns
-// whether the comparison was as expected.
-function compareSnapshots(s1, s2, expected) {
+// If the two snapshots aren't equal, returns their serializations as data URIs.
+function compareSnapshots(s1, s2) {
   netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
 
   var s1Str, s2Str;
-  var correct = false;
+  var equal = false;
   if (gWindowUtils) {
-    correct = ((gWindowUtils.compareCanvases(s1, s2, {}) == 0) == expected);
+    equal = (gWindowUtils.compareCanvases(s1, s2, {}) == 0);
   }
 
-  if (!correct) {
+  if (!equal) {
     s1Str = s1.toDataURL();
     s2Str = s2.toDataURL();
 
     if (!gWindowUtils) {
-	correct = ((s1Str == s2Str) == expected);
+      equal = (s1Str == s2Str);
     }
   }
 
-  return [correct, s1Str, s2Str];
+  return [equal, s1Str, s2Str];
 }

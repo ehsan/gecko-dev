@@ -42,10 +42,10 @@
 
 #include <windows.h>
 #include "nsCOMPtr.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 
 class nsIScreen;
-class ScreenListItem;
+
 
 //------------------------------------------------------------------------
 
@@ -65,7 +65,7 @@ private:
   PRUint32 mNumberOfScreens;
 
     // cache the screens to avoid the memory allocations
-  nsAutoTArray<ScreenListItem*, 8> mScreenList;
+  nsAutoVoidArray mScreenList;
 
 };
 

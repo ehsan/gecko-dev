@@ -270,12 +270,11 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
 {
   // To do the drag we need to create an object that
   // implements the IDataObject interface (for OLE)
-  nsNativeDragSource* nativeDragSource = new nsNativeDragSource();
-  if (!nativeDragSource)
+  NS_IF_RELEASE(mNativeDragSrc);
+  mNativeDragSrc = (IDropSource *)new nsNativeDragSource();
+  if (!mNativeDragSrc)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  NS_IF_RELEASE(mNativeDragSrc);
-  mNativeDragSrc = (IDropSource *)nativeDragSource;
   mNativeDragSrc->AddRef();
 
   // Now figure out what the native drag effect should be
@@ -352,9 +351,7 @@ nsDragService::StartInvokingDragSession(IDataObject * aDataObj,
         dataTransfer->SetDropEffectInt(DRAGDROP_ACTION_NONE);
     }
   }
-
-  mUserCancelled = nativeDragSource->UserCancelled();
-
+      
   // We're done dragging
   EndDragSession(PR_TRUE);
 

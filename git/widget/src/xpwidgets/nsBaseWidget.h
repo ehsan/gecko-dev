@@ -44,6 +44,7 @@
 #include "nsIAppShell.h"
 #include "nsILocalFile.h"
 #include "nsString.h"
+#include "nsVoidArray.h"
 #include "nsCOMPtr.h"
 #include "nsGUIEvent.h"
 

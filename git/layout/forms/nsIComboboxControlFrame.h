@@ -82,9 +82,7 @@ public:
   virtual void RollupFromList() = 0;
 
   /**
-   * Redisplay the selected text (will do nothing if text has not changed).
-   * This method might destroy this frame or any others that happen to be
-   * around.  It might even run script.
+   * Redisplay the selected text (will do nothing if text has not changed)
    */
   NS_IMETHOD RedisplaySelectedText() = 0;
 

@@ -449,8 +449,6 @@ Load(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         file = fopen(filename, "r");
         script = JS_CompileFileHandleForPrincipals(cx, obj, filename, file,
                                                    gJSPrincipals);
-        if (file)
-            fclose(file);
         if (!script)
             ok = JS_FALSE;
         else {
@@ -831,11 +829,8 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
     if (forceTTY) {
         file = stdin;
     }
-    else
 #ifdef HAVE_ISATTY
-    if (!isatty(fileno(file)))
-#endif
-    {
+    else if (!isatty(fileno(file))) {
         /*
          * It's not interactive - just execute it.
          *
@@ -866,6 +861,7 @@ ProcessFile(JSContext *cx, JSObject *obj, const char *filename, FILE *file,
 
         return;
     }
+#endif
 
     /* It's an interactive filehandle; drop into read-eval-print loop. */
     lineno = 1;
@@ -939,8 +935,6 @@ Process(JSContext *cx, JSObject *obj, const char *filename, JSBool forceTTY)
     }
 
     ProcessFile(cx, obj, filename, file, forceTTY);
-    if (file != stdin)
-        fclose(file);
 }
 
 static int
@@ -968,7 +962,6 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
     if (rcfile) {
         printf("[loading '%s'...]\n", rcfilename);
         ProcessFile(cx, obj, rcfilename, rcfile, JS_FALSE);
-        fclose(rcfile);
     }
 
     /*

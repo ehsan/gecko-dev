@@ -78,7 +78,7 @@ nsTreeColumn::~nsTreeColumn()
 NS_INTERFACE_MAP_BEGIN(nsTreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsITreeColumn)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeColumn)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeColumn)
   if (aIID.Equals(NS_GET_IID(nsTreeColumn))) {
     AddRef();
     *aInstancePtr = this;
@@ -395,7 +395,7 @@ nsTreeColumns::~nsTreeColumns()
 NS_INTERFACE_MAP_BEGIN(nsTreeColumns)
   NS_INTERFACE_MAP_ENTRY(nsITreeColumns)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TreeColumns)
+  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(TreeColumns)
 NS_INTERFACE_MAP_END
                                                                                 
 NS_IMPL_ADDREF(nsTreeColumns)
@@ -590,9 +590,8 @@ nsTreeColumns::RestoreNaturalOrder()
   boxObject->GetElement(getter_AddRefs(element));
   nsCOMPtr<nsIContent> content = do_QueryInterface(element);
 
-  // Strong ref, since we'll be setting attributes
-  nsCOMPtr<nsIContent> colsContent =
-    nsTreeUtils::GetImmediateChild(content, nsGkAtoms::treecols);
+  nsCOMPtr<nsIContent> colsContent;
+  nsTreeUtils::GetImmediateChild(content, nsGkAtoms::treecols, getter_AddRefs(colsContent));
   if (!colsContent)
     return NS_OK;
 
@@ -632,8 +631,8 @@ nsTreeColumns::EnsureColumns()
     boxObject->GetElement(getter_AddRefs(treeElement));
     nsCOMPtr<nsIContent> treeContent = do_QueryInterface(treeElement);
 
-    nsIContent* colsContent =
-      nsTreeUtils::GetDescendantChild(treeContent, nsGkAtoms::treecols);
+    nsCOMPtr<nsIContent> colsContent;
+    nsTreeUtils::GetDescendantChild(treeContent, nsGkAtoms::treecols, getter_AddRefs(colsContent));
     if (!colsContent)
       return;
 
@@ -642,8 +641,8 @@ nsTreeColumns::EnsureColumns()
     if (!shell)
       return;
 
-    nsIContent* colContent =
-      nsTreeUtils::GetDescendantChild(colsContent, nsGkAtoms::treecol);
+    nsCOMPtr<nsIContent> colContent;
+    nsTreeUtils::GetDescendantChild(colsContent, nsGkAtoms::treecol, getter_AddRefs(colContent));
     if (!colContent)
       return;
 

@@ -67,6 +67,7 @@ struct _MozDrawingarea
     GObject         parent_instance;
     GdkWindow      *clip_window;
     GdkWindow      *inner_window;
+    MozDrawingarea *parent;
 };
 
 struct _MozDrawingareaClass

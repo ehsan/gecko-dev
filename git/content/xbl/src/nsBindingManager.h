@@ -48,7 +48,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsXBLBinding.h"
 #include "nsTArray.h"
-#include "nsThreadUtils.h"
 
 class nsIContent;
 class nsIXPConnectWrappedJS;
@@ -62,6 +61,7 @@ class nsStyleSet;
 class nsXBLBinding;
 template<class E> class nsRefPtr;
 typedef nsTArray<nsRefPtr<nsXBLBinding> > nsBindingList;
+template<class T> class nsRunnableMethod;
 class nsIPrincipal;
 
 class nsBindingManager : public nsStubMutationObserver

@@ -2570,9 +2570,7 @@ chunk_recycle_reserve(size_t size, bool zero)
 				do {
 					seq = reserve_notify(RESERVE_CND_LOW,
 					    size, seq);
-					if (seq == 0)
-						goto MALLOC_OUT;
-				} while (reserve_cur < reserve_min);
+				} while (reserve_cur < reserve_min && seq != 0);
 			} else {
 				extent_node_t *node;
 
@@ -2584,13 +2582,11 @@ chunk_recycle_reserve(size_t size, bool zero)
 					do {
 						seq = reserve_notify(
 						    RESERVE_CND_LOW, size, seq);
-						if (seq == 0)
-							goto MALLOC_OUT;
-					} while (reserve_cur < reserve_min);
+					} while (reserve_cur < reserve_min &&
+					    seq != 0);
 				}
 			}
 		}
-MALLOC_OUT:
 		malloc_mutex_unlock(&reserve_mtx);
 
 #ifdef MALLOC_DECOMMIT

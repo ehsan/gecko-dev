@@ -83,92 +83,34 @@
 #include "nsWaveDecoder.h"
 #endif
 
-
-class nsMediaEvent : public nsRunnable
-{
-public:
-
-  nsMediaEvent(nsHTMLMediaElement* aElement) :
-    mElement(aElement),
-    mCurrentLoad(mElement->GetCurrentMediaLoad()) {}
-  ~nsMediaEvent() {}
-
-  NS_IMETHOD Run() = 0;
-
-protected:
-  PRBool IsCancelled() {
-    return mElement->GetCurrentMediaLoad() != mCurrentLoad;
-  }
-
-  nsCOMPtr<nsHTMLMediaElement> mElement;
-  nsRefPtr<nsMediaLoad> mCurrentLoad;
-};
-
-
-class nsAsyncEventRunner : public nsMediaEvent
+class nsAsyncEventRunner : public nsRunnable
 {
 private:
   nsString mName;
+  nsCOMPtr<nsHTMLMediaElement> mElement;
   PRPackedBool mProgress;
   
 public:
   nsAsyncEventRunner(const nsAString& aName, nsHTMLMediaElement* aElement, PRBool aProgress) : 
-    nsMediaEvent(aElement), mName(aName), mProgress(aProgress)
+    mName(aName), mElement(aElement), mProgress(aProgress)
   {
   }
   
   NS_IMETHOD Run() {
-    // Silently cancel if our load has been cancelled.
-    if (IsCancelled())
-      return NS_OK;
     return mProgress ?
       mElement->DispatchProgressEvent(mName) :
       mElement->DispatchSimpleEvent(mName);
   }
 };
 
-class nsMediaLoadEvent : public nsMediaEvent {
-public:
-  nsMediaLoadEvent(nsHTMLMediaElement *aElement)
-    : nsMediaEvent(aElement) {}
-  NS_IMETHOD Run() {
-    if (!IsCancelled())
-      mElement->Load();
-    return NS_OK;
-  }
-};
-
-class nsHTMLMediaElement::LoadNextCandidateEvent : public nsMediaEvent {
-public:
-  LoadNextCandidateEvent(nsHTMLMediaElement *aElement)
-    : nsMediaEvent(aElement) {}
-  NS_IMETHOD Run() {
-    if (!IsCancelled())
-      mElement->LoadNextCandidate();
-    return NS_OK;
-  }
-};
-
-void nsHTMLMediaElement::QueueLoadTask()
-{
-  nsCOMPtr<nsIRunnable> event = new nsMediaLoadEvent(this);
-  NS_DispatchToMainThread(event);
-}
-
-void nsHTMLMediaElement::QueueLoadNextCandidateTask()
-{
-  nsCOMPtr<nsIRunnable> event = new LoadNextCandidateEvent(this);
-  NS_DispatchToMainThread(event);
-}
-
-class nsHTMLMediaElement::MediaLoadListener : public nsIStreamListener
+class nsHTMLMediaElement::nsMediaLoadListener : public nsIStreamListener
 {
   NS_DECL_ISUPPORTS
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSISTREAMLISTENER
 
 public:
-  MediaLoadListener(nsHTMLMediaElement* aElement)
+  nsMediaLoadListener(nsHTMLMediaElement* aElement)
     : mElement(aElement)
   {
     NS_ABORT_IF_FALSE(mElement, "Must pass an element to call back");
@@ -179,29 +121,22 @@ private:
   nsCOMPtr<nsIStreamListener> mNextListener;
 };
 
-NS_IMPL_ISUPPORTS2(nsHTMLMediaElement::MediaLoadListener, nsIRequestObserver, nsIStreamListener)
+NS_IMPL_ISUPPORTS2(nsHTMLMediaElement::nsMediaLoadListener, nsIRequestObserver, nsIStreamListener)
 
-NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
+NS_IMETHODIMP nsHTMLMediaElement::nsMediaLoadListener::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
 {
-  nsresult rv = NS_OK;
+  nsresult rv;
 
   nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
   if (channel &&
       mElement &&
-      NS_SUCCEEDED(rv = mElement->InitializeDecoderForChannel(channel, getter_AddRefs(mNextListener))) &&
+      NS_SUCCEEDED(mElement->InitializeDecoderForChannel(channel, getter_AddRefs(mNextListener))) &&
       mNextListener) {
     rv = mNextListener->OnStartRequest(aRequest, aContext);
   } else {
-    // If InitializeDecoderForChannel() returned an error, fire a network
-    // error.
-    if (NS_FAILED(rv) && !mNextListener && mElement) {
-      // Load failed, attempt to load the next candidate resource. If there
-      // are none, this will trigger a MEDIA_ERR_NONE_SUPPORTED error.
-      mElement->QueueLoadNextCandidateTask();
-    }
-    // If InitializeDecoderForChannel did not return a listener (but may
-    // have otherwise succeeded), we abort the connection since we aren't
-    // interested in keeping the channel alive ourselves.
+    // If InitializeDecoderForChannel did not return a listener, we abort
+    // the connection since we aren't interested in keeping the channel
+    // alive ourselves.
     rv = NS_BINDING_ABORTED;
   }
 
@@ -212,7 +147,7 @@ NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnStartRequest(nsIRequest* 
   return rv;
 }
 
-NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnStopRequest(nsIRequest* aRequest, nsISupports* aContext,
+NS_IMETHODIMP nsHTMLMediaElement::nsMediaLoadListener::OnStopRequest(nsIRequest* aRequest, nsISupports* aContext,
                                                                      nsresult aStatus)
 {
   if (mNextListener) {
@@ -221,7 +156,7 @@ NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnStopRequest(nsIRequest* a
   return NS_OK;
 }
 
-NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnDataAvailable(nsIRequest* aRequest, nsISupports* aContext,
+NS_IMETHODIMP nsHTMLMediaElement::nsMediaLoadListener::OnDataAvailable(nsIRequest* aRequest, nsISupports* aContext,
                                                                        nsIInputStream* aStream, PRUint32 aOffset,
                                                                        PRUint32 aCount)
 {
@@ -229,36 +164,10 @@ NS_IMETHODIMP nsHTMLMediaElement::MediaLoadListener::OnDataAvailable(nsIRequest*
   return mNextListener->OnDataAvailable(aRequest, aContext, aStream, aOffset, aCount);
 }
 
-void
-nsMediaLoad::AddCandidate(nsIURI *aURI)
-{
-  mCandidates.AppendObject(aURI);
-}
-
-already_AddRefed<nsIURI>
-nsMediaLoad::GetNextCandidate()
-{
-  if (mPosition == mCandidates.Count())
-    return nsnull;
-  nsCOMPtr<nsIURI> uri = mCandidates.ObjectAt(mPosition);
-  mPosition++;
-  return uri.forget();
-}
-
-NS_IMPL_ISUPPORTS0(nsMediaLoad)
-
 // nsIDOMHTMLMediaElement
 NS_IMPL_URI_ATTR(nsHTMLMediaElement, Src, src)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Controls, controls)
 NS_IMPL_BOOL_ATTR(nsHTMLMediaElement, Autoplay, autoplay)
-
-/* readonly attribute nsIDOMHTMLMediaElement mozAutoplayEnabled; */
-NS_IMETHODIMP nsHTMLMediaElement::GetMozAutoplayEnabled(PRBool *aAutoplayEnabled)
-{
-  *aAutoplayEnabled = mAutoplayEnabled;
-
-  return NS_OK;
-}
 
 /* readonly attribute nsIDOMHTMLMediaError error; */
 NS_IMETHODIMP nsHTMLMediaElement::GetError(nsIDOMHTMLMediaError * *aError)
@@ -304,11 +213,6 @@ NS_IMETHODIMP nsHTMLMediaElement::GetNetworkState(PRUint16 *aNetworkState)
 
 PRBool nsHTMLMediaElement::AbortExistingLoads()
 {
-  // Set a new load object. This will cause events which were enqueued
-  // with a differnet load object to silently be cancelled.
-  mCurrentLoad = new nsMediaLoad();
-  nsRefPtr<nsMediaLoad> currentLoad = mCurrentLoad;
-
   if (mDecoder) {
     mDecoder->Shutdown();
     mDecoder = nsnull;
@@ -318,10 +222,7 @@ PRBool nsHTMLMediaElement::AbortExistingLoads()
     mBegun = PR_FALSE;
     mError = new nsHTMLMediaError(nsIDOMHTMLMediaError::MEDIA_ERR_ABORTED);
     DispatchProgressEvent(NS_LITERAL_STRING("abort"));
-    if (mCurrentLoad != currentLoad) {
-      // A new load was triggered in handler, bail out of this load.
-      return PR_TRUE;
-    }
+    return PR_TRUE;
   }
 
   mError = nsnull;
@@ -337,23 +238,9 @@ PRBool nsHTMLMediaElement::AbortExistingLoads()
     // TODO: The current playback position must be set to 0.
     // TODO: The currentLoop DOM attribute must be set to 0.
     DispatchSimpleEvent(NS_LITERAL_STRING("emptied"));
-    if (mCurrentLoad != currentLoad) {
-      // A new load was triggered in handler, bail out of this load.
-      return PR_TRUE;
-    }
   }
-  return PR_FALSE;
-}
 
-void nsHTMLMediaElement::NoSupportedMediaError()
-{
-  NS_ASSERTION(mCurrentLoad && !mCurrentLoad->HasMoreCandidates(),
-               "Should have exhausted all candidates");
-  mError = new nsHTMLMediaError(nsIDOMHTMLMediaError::MEDIA_ERR_NONE_SUPPORTED);
-  mBegun = PR_FALSE;
-  DispatchAsyncProgressEvent(NS_LITERAL_STRING("error"));
-  mNetworkState = nsIDOMHTMLMediaElement::NETWORK_EMPTY;
-  DispatchAsyncSimpleEvent(NS_LITERAL_STRING("emptied"));
+  return PR_FALSE;
 }
 
 /* void load (); */
@@ -362,103 +249,92 @@ NS_IMETHODIMP nsHTMLMediaElement::Load()
   if (AbortExistingLoads())
     return NS_OK;
 
-  mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADING;
-  mBegun = PR_TRUE;
-  DispatchAsyncProgressEvent(NS_LITERAL_STRING("loadstart"));
+  nsCOMPtr<nsIURI> uri;
+  nsresult rv = PickMediaElement(getter_AddRefs(uri));
+  if (NS_FAILED(rv))
+    return rv;
 
-  GenerateCandidates();
-
-  QueueLoadNextCandidateTask();
-
-  return NS_OK;
-}
-
-void nsHTMLMediaElement::LoadNextCandidate()
-{
-  NS_ASSERTION(mCurrentLoad, "Need a load object");
-
-  while (mCurrentLoad->HasMoreCandidates()) {
-    nsresult rv;
-    nsCOMPtr<nsIURI> uri = mCurrentLoad->GetNextCandidate();
-
-    if (mChannel) {
-      mChannel->Cancel(NS_BINDING_ABORTED);
-      mChannel = nsnull;
-    }
-
-    PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
-    rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_MEDIA,
-                                   uri,
-                                   NodePrincipal(),
-                                   this,
-                                   EmptyCString(), // mime type
-                                   nsnull, // extra
-                                   &shouldLoad,
-                                   nsContentUtils::GetContentPolicy(),
-                                   nsContentUtils::GetSecurityManager());
-    if (NS_FAILED(rv) || NS_CP_REJECTED(shouldLoad)) continue;
-
-    rv = NS_NewChannel(getter_AddRefs(mChannel),
-                       uri,
-                       nsnull,
-                       nsnull,
-                       nsnull,
-                       nsIRequest::LOAD_NORMAL);
-    if (NS_FAILED(rv)) continue;
-
-    // The listener holds a strong reference to us.  This creates a reference
-    // cycle which is manually broken in the listener's OnStartRequest method
-    // after it is finished with the element.
-    nsCOMPtr<nsIStreamListener> loadListener = new MediaLoadListener(this);
-    if (!loadListener) continue;
-
-    nsCOMPtr<nsIStreamListener> listener;
-    if (ShouldCheckAllowOrigin()) {
-      listener = new nsCrossSiteListenerProxy(loadListener,
-                                              NodePrincipal(),
-                                              mChannel, 
-                                              PR_FALSE,
-                                              &rv);
-      if (!listener || NS_FAILED(rv)) continue;
-    } else {
-      rv = nsContentUtils::GetSecurityManager()->
-             CheckLoadURIWithPrincipal(NodePrincipal(),
-                                       uri,
-                                       nsIScriptSecurityManager::STANDARD);
-      if (NS_FAILED(rv)) continue;
-      listener = loadListener;
-    }
-
-    nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(mChannel);
-    if (hc) {
-      // Use a byte range request from the start of the resource.
-      // This enables us to detect if the stream supports byte range
-      // requests, and therefore seeking, early.
-      hc->SetRequestHeader(NS_LITERAL_CSTRING("Range"),
-                           NS_LITERAL_CSTRING("bytes=0-"),
-                           PR_FALSE);
-    }
-
-    rv = mChannel->AsyncOpen(listener, nsnull);
-    if (NS_FAILED(rv)) {
-      // OnStartRequest is guaranteed to be called if the open succeeds.  If
-      // the open failed, the listener's OnStartRequest will never be called,
-      // so we need to break the element->channel->listener->element reference
-      // cycle here.  The channel holds the only reference to the listener,
-      // and is useless now anyway, so drop our reference to it to allow it to
-      // be destroyed.
-      mChannel = nsnull;
-      continue;
-    }
-
-    // Else the channel must be open and starting to download. If it encounters
-    // a non-catestrophic failure, it will set a new task to continue loading
-    // the candidates.
-    return;
+  if (mChannel) {
+    mChannel->Cancel(NS_BINDING_ABORTED);
+    mChannel = nsnull;
   }
 
-  // Must have exhausted all candidates.
-  NoSupportedMediaError();
+  PRInt16 shouldLoad = nsIContentPolicy::ACCEPT;
+  rv = NS_CheckContentLoadPolicy(nsIContentPolicy::TYPE_MEDIA,
+                                 uri,
+                                 NodePrincipal(),
+                                 this,
+                                 EmptyCString(), // mime type
+                                 nsnull, // extra
+                                 &shouldLoad,
+                                 nsContentUtils::GetContentPolicy(),
+                                 nsContentUtils::GetSecurityManager());
+  if (NS_FAILED(rv) || NS_CP_REJECTED(shouldLoad)) {
+    return NS_ERROR_CONTENT_BLOCKED;
+  }
+
+  rv = NS_NewChannel(getter_AddRefs(mChannel),
+                     uri,
+                     nsnull,
+                     nsnull,
+                     nsnull,
+                     nsIRequest::LOAD_NORMAL);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // The listener holds a strong reference to us.  This creates a reference
+  // cycle which is manually broken in the listener's OnStartRequest method
+  // after it is finished with the element.
+  nsCOMPtr<nsIStreamListener> loadListener = new nsMediaLoadListener(this);
+  NS_ENSURE_TRUE(loadListener, NS_ERROR_OUT_OF_MEMORY);
+
+  nsCOMPtr<nsIStreamListener> listener;
+  if (ShouldCheckAllowOrigin()) {
+    listener = new nsCrossSiteListenerProxy(loadListener,
+                                            NodePrincipal(),
+                                            mChannel, 
+                                            PR_FALSE,
+                                            &rv);
+    NS_ENSURE_TRUE(listener, NS_ERROR_OUT_OF_MEMORY);
+    NS_ENSURE_SUCCESS(rv, rv);
+  } else {
+    rv = nsContentUtils::GetSecurityManager()->
+           CheckLoadURIWithPrincipal(NodePrincipal(),
+                                     uri,
+                                     nsIScriptSecurityManager::STANDARD);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    listener = loadListener;
+  }
+
+  nsCOMPtr<nsIHttpChannel> hc = do_QueryInterface(mChannel);
+  if (hc) {
+    // Use a byte range request from the start of the resource.
+    // This enables us to detect if the stream supports byte range
+    // requests, and therefore seeking, early.
+    hc->SetRequestHeader(NS_LITERAL_CSTRING("Range"),
+                         NS_LITERAL_CSTRING("bytes=0-"),
+                         PR_FALSE);
+  }
+
+  rv = mChannel->AsyncOpen(listener, nsnull);
+  if (NS_FAILED(rv)) {
+    // OnStartRequest is guaranteed to be called if the open succeeds.  If
+    // the open failed, the listener's OnStartRequest will never be called,
+    // so we need to break the element->channel->listener->element reference
+    // cycle here.  The channel holds the only reference to the listener,
+    // and is useless now anyway, so drop our reference to it to allow it to
+    // be destroyed.
+    mChannel = nsnull;
+    return rv;
+  }
+
+  mNetworkState = nsIDOMHTMLMediaElement::NETWORK_LOADING;
+
+  mBegun = PR_TRUE;
+
+  DispatchAsyncProgressEvent(NS_LITERAL_STRING("loadstart"));
+
+  return NS_OK;
 }
 
 nsresult nsHTMLMediaElement::LoadWithChannel(nsIChannel *aChannel,
@@ -627,13 +503,11 @@ nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParse
     mBegun(PR_FALSE),
     mLoadedFirstFrame(PR_FALSE),
     mAutoplaying(PR_TRUE),
-    mAutoplayEnabled(PR_TRUE),
     mPaused(PR_TRUE),
     mMuted(PR_FALSE),
     mIsDoneAddingChildren(!aFromParser),
     mPlayingBeforeSeek(PR_FALSE),
-    mWaitingFired(PR_FALSE),
-    mIsBindingToTree(PR_FALSE)
+    mWaitingFired(PR_FALSE)
 {
 }
 
@@ -719,9 +593,7 @@ nsresult nsHTMLMediaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
     nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix, aValue,
                                     aNotify);
   if (aNotify && aNameSpaceID == kNameSpaceID_None) {
-    if (aName == nsGkAtoms::src &&
-        IsInDoc() &&
-        mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY) {
+    if (aName == nsGkAtoms::src) {
       Load();
     }
   }
@@ -729,28 +601,20 @@ nsresult nsHTMLMediaElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   return rv;
 }
 
-static PRBool IsAutoplayEnabled()
-{
-  return nsContentUtils::GetBoolPref("media.autoplay.enabled");
-}
-
 nsresult nsHTMLMediaElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                         nsIContent* aBindingParent,
                                         PRBool aCompileEventHandlers)
 {
-  mIsBindingToTree = PR_TRUE;
-  mAutoplayEnabled = IsAutoplayEnabled();
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, 
                                                  aParent, 
                                                  aBindingParent, 
                                                  aCompileEventHandlers);
-  if (NS_SUCCEEDED(rv) &&
-      mIsDoneAddingChildren &&
-      mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY) {
-    QueueLoadTask();
-  }
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  mIsBindingToTree = PR_FALSE;
+  if (mIsDoneAddingChildren &&
+      mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY) {
+    Load();
+  }
 
   return rv;
 }
@@ -1055,57 +919,6 @@ nsresult nsHTMLMediaElement::NewURIFromString(const nsAutoString& aURISpec, nsIU
   return NS_OK;
 }
 
-// Implements 'generate the list of potential media resources' as per:
-// http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#generate-the-list-of-potential-media-resources
-void nsHTMLMediaElement::GenerateCandidates()
-{
-  NS_ASSERTION(mCurrentLoad, "Need a nsMediaLoad Object");
-
-  nsCOMPtr<nsIURI> uri;
-  nsresult res;
-  nsAutoString src;
-
-  // If we have a src attribute on the media element, just use that only.
-  if (GetAttr(kNameSpaceID_None, nsGkAtoms::src, src)) {
-    res = NewURIFromString(src, getter_AddRefs(uri));
-    if (NS_SUCCEEDED(res)) {
-      mCurrentLoad->AddCandidate(uri);
-    }
-    return;
-  }
-
-  PRUint32 count = GetChildCount();
-  for (PRUint32 i = 0; i < count; ++i) {
-    nsIContent* child = GetChildAt(i);
-    NS_ASSERTION(child, "GetChildCount lied!");
-
-    nsCOMPtr<nsIContent> source = do_QueryInterface(child);
-    
-    // Only check source element children.
-    if (!source ||
-        source->Tag() != nsGkAtoms::source ||
-        !source->IsNodeOfType(nsINode::eHTML))
-        continue;
-
-    nsAutoString type;
-
-    // Must have src attribute.
-    if (!source->GetAttr(kNameSpaceID_None, nsGkAtoms::src, src))
-      continue;
-
-    // If we have a type attribyte, it must be valid.
-    if (source->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type) &&
-        GetCanPlay(type) == CANPLAY_NO)
-      continue;
-    
-    res = NewURIFromString(src, getter_AddRefs(uri));
-    if (NS_SUCCEEDED(res)) {
-      mCurrentLoad->AddCandidate(uri);
-    }
-  }
-}
-
-
 nsresult nsHTMLMediaElement::PickMediaElement(nsIURI** aURI)
 {
   NS_ENSURE_ARG_POINTER(aURI);
@@ -1240,6 +1053,8 @@ void nsHTMLMediaElement::UpdateReadyStateForData(NextFrameStatus aNextFrame)
     double timeToDownload =
       (bytesToDownload + gDownloadSizeSafetyMargin)/stats.mDownloadRate;
     double timeToPlay = bytesToPlayback/stats.mPlaybackRate;
+    LOG(PR_LOG_DEBUG, ("Download rate=%f, playback rate=%f, timeToDownload=%f, timeToPlay=%f",
+        stats.mDownloadRate, stats.mPlaybackRate, timeToDownload, timeToPlay));
     if (timeToDownload <= timeToPlay) {
       ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA);
       return;
@@ -1306,14 +1121,14 @@ void nsHTMLMediaElement::ChangeReadyState(nsMediaReadyState aState)
       }
       if (mAutoplaying &&
           mPaused &&
-          HasAttr(kNameSpaceID_None, nsGkAtoms::autoplay) &&
-          mAutoplayEnabled) {
+          HasAttr(kNameSpaceID_None, nsGkAtoms::autoplay)) {
         mPaused = PR_FALSE;
         if (mDecoder) {
           mDecoder->Play();
         }
         DispatchAsyncSimpleEvent(NS_LITERAL_STRING("play"));
       }
+      LOG(PR_LOG_DEBUG, ("Ready state changed to HAVE_ENOUGH_DATA"));
       if (oldState <= nsIDOMHTMLMediaElement::HAVE_CURRENT_DATA &&
           IsPotentiallyPlaying()) {
         DispatchAsyncSimpleEvent(NS_LITERAL_STRING("playing"));
@@ -1357,6 +1172,9 @@ nsresult nsHTMLMediaElement::DispatchAsyncProgressEvent(const nsAString& aName)
 
 nsresult nsHTMLMediaElement::DispatchProgressEvent(const nsAString& aName)
 {
+  if (!mDecoder)
+    return NS_OK;
+
   nsCOMPtr<nsIDOMDocumentEvent> docEvent(do_QueryInterface(GetOwnerDoc()));
   nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(static_cast<nsIContent*>(this)));
   NS_ENSURE_TRUE(docEvent && target, NS_ERROR_INVALID_ARG);
@@ -1368,15 +1186,9 @@ nsresult nsHTMLMediaElement::DispatchProgressEvent(const nsAString& aName)
   nsCOMPtr<nsIDOMProgressEvent> progressEvent(do_QueryInterface(event));
   NS_ENSURE_TRUE(progressEvent, NS_ERROR_FAILURE);
 
-  PRInt64 totalBytes = 0;
-  PRUint64 downloadPosition = 0;
-  if (mDecoder) {
-    nsMediaDecoder::Statistics stats = mDecoder->GetStatistics();
-    totalBytes = stats.mTotalBytes;
-    downloadPosition = stats.mDownloadPosition;
-  }
+  nsMediaDecoder::Statistics stats = mDecoder->GetStatistics();
   rv = progressEvent->InitProgressEvent(aName, PR_TRUE, PR_TRUE,
-    totalBytes >= 0, downloadPosition, totalBytes);
+    stats.mTotalBytes >= 0, stats.mDownloadPosition, stats.mTotalBytes);
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRBool dummy;
@@ -1389,7 +1201,7 @@ nsresult nsHTMLMediaElement::DoneAddingChildren(PRBool aHaveNotified)
     mIsDoneAddingChildren = PR_TRUE;
   
     if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY) {
-      QueueLoadTask();
+      Load();
     }
   }
 
@@ -1468,27 +1280,5 @@ void nsHTMLMediaElement::Thaw()
 
   if (mDecoder) {
     mDecoder->Resume();
-  }
-}
-
-PRBool
-nsHTMLMediaElement::IsNodeOfType(PRUint32 aFlags) const
-{
-  return !(aFlags & ~(eCONTENT | eELEMENT | eHTML | eMEDIA));
-}
-
-void nsHTMLMediaElement::NotifyAddedSource()
-{
-  // Binding a source element to a media element could trigger a new load.
-  // See HTML spec, '4.8.9 The source element' for conditions:
-  // http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#the-source-element
-  // Note: we must not start a load if we're in nsHTMLMediaElement::BindToTree(),
-  // that will trigger a load when it completes.
-  PRBool shouldLoad = IsInDoc() &&
-                      !mIsBindingToTree &&
-                      mIsDoneAddingChildren &&
-                      mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY;
-  if (shouldLoad) {
-    QueueLoadTask();
   }
 }
