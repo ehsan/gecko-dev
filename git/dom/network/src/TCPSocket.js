@@ -34,7 +34,6 @@ const kCONNECTING = 'connecting';
 const kOPEN = 'open';
 const kCLOSING = 'closing';
 const kCLOSED = 'closed';
-const kRESUME_ERROR = 'Calling resume() on a connection that was not suspended.';
 
 const BUFFER_SIZE = 65536;
 
@@ -560,8 +559,6 @@ TCPSocket.prototype = {
 
     if (this._inputStreamPump) {
       this._inputStreamPump.resume();
-    } else if (this._suspendCount < 1) {
-      throw new Error(kRESUME_ERROR);
     } else {
       --this._suspendCount;
     }

@@ -99,20 +99,6 @@ public class HomeListView extends ListView
         return mContextMenuInfo;
     }
 
-    @Override
-    public void setOnItemClickListener(final AdapterView.OnItemClickListener listener) {
-        super.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                if (mShowTopDivider) {
-                    position--;
-                }
-
-                listener.onItemClick(parent, view, position, id);
-            }
-        });
-    }
-
     public OnUrlOpenListener getOnUrlOpenListener() {
         return mUrlOpenListener;
     }

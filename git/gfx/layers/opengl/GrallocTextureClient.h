@@ -78,9 +78,7 @@ public:
 
   virtual bool AllocateForSurface(gfx::IntSize aSize) MOZ_OVERRIDE;
 
-  virtual bool AllocateForYCbCr(gfx::IntSize aYSize,
-                                gfx::IntSize aCbCrSize,
-                                StereoMode aStereoMode) MOZ_OVERRIDE;
+  virtual bool AllocateForYCbCr(gfx::IntSize aYSize, gfx::IntSize aCbCrSize) MOZ_OVERRIDE;
 
   bool AllocateGralloc(gfx::IntSize aYSize, uint32_t aAndroidFormat, uint32_t aUsage);
 
