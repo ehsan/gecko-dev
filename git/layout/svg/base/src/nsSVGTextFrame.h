@@ -53,7 +53,7 @@ protected:
   nsSVGTextFrame(nsStyleContext* aContext)
     : nsSVGTextFrameBase(aContext),
       mMetricsState(unsuspended),
-      mPositioningDirty(true) {}
+      mPositioningDirty(PR_TRUE) {}
 
 public:
   NS_DECL_FRAMEARENA_HELPERS

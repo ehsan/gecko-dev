@@ -284,6 +284,7 @@ CssHtmlTree.prototype = {
     this.cssLogic.sourceFilter = this.showOnlyUserStyles ?
                                  CssLogic.FILTER.ALL :
                                  CssLogic.FILTER.UA;
+    
     this.refreshPanel();
   },
 
@@ -443,27 +444,11 @@ PropertyView.prototype = {
   },
 
   /**
-   * Does the property have any matched selectors?
-   */
-  get hasMatchedSelectors()
-  {
-    return this.propertyInfo.hasMatchedSelectors();
-  },
-
-  /**
-   * Does the property have any unmatched selectors?
-   */
-  get hasUnmatchedSelectors()
-  {
-    return this.propertyInfo.hasUnmatchedSelectors();
-  },
-
-  /**
    * Should this property be visible?
    */
   get visible()
   {
-    if (this.tree.showOnlyUserStyles && !this.hasMatchedSelectors) {
+    if (this.tree.showOnlyUserStyles && this.matchedSelectorCount == 0) {
       return false;
     }
 
@@ -482,6 +467,22 @@ PropertyView.prototype = {
   get className()
   {
     return this.visible ? "property-view" : "property-view-hidden";
+  },
+
+  /**
+   * The number of matched selectors.
+   */
+  get matchedSelectorCount()
+  {
+    return this.propertyInfo.matchedSelectors.length;
+  },
+
+  /**
+   * The number of unmatched selectors.
+   */
+  get unmatchedSelectorCount()
+  {
+    return this.propertyInfo.unmatchedSelectors.length;
   },
 
   /**
@@ -519,10 +520,10 @@ PropertyView.prototype = {
    */
   refreshMatchedSelectors: function PropertyView_refreshMatchedSelectors()
   {
-    let hasMatchedSelectors = this.hasMatchedSelectors;
-    this.matchedSelectorsContainer.hidden = !hasMatchedSelectors;
+    this.matchedSelectorsTitleNode.innerHTML = this.matchedSelectorTitle();
+    this.matchedSelectorsContainer.hidden = this.matchedSelectorCount == 0;
 
-    if (this.matchedExpanded && hasMatchedSelectors) {
+    if (this.matchedExpanded && this.matchedSelectorCount > 0) {
       CssHtmlTree.processTemplate(this.templateMatchedSelectors,
         this.matchedSelectorTable, this);
       this.matchedExpander.setAttribute("open", "");
@@ -535,12 +536,11 @@ PropertyView.prototype = {
   /**
    * Refresh the panel unmatched rules.
    */
-  refreshUnmatchedSelectors: function PropertyView_refreshUnmatchedSelectors()
-  {
-    let hasUnmatchedSelectors = this.hasUnmatchedSelectors;
-    this.unmatchedSelectorsContainer.hidden = !hasUnmatchedSelectors;
+  refreshUnmatchedSelectors: function PropertyView_refreshUnmatchedSelectors() {
+    this.unmatchedSelectorsTitleNode.innerHTML = this.unmatchedSelectorTitle();
+    this.unmatchedSelectorsContainer.hidden = this.unmatchedSelectorCount == 0;
 
-    if (this.unmatchedExpanded && hasUnmatchedSelectors) {
+    if (this.unmatchedExpanded && this.unmatchedSelectorCount > 0) {
       CssHtmlTree.processTemplate(this.templateUnmatchedSelectors,
           this.unmatchedSelectorTable, this);
       this.unmatchedExpander.setAttribute("open", "");
@@ -548,6 +548,42 @@ PropertyView.prototype = {
       this.unmatchedSelectorTable.innerHTML = "";
       this.unmatchedExpander.removeAttribute("open");
     }
+  },
+
+  /**
+   * Compute the title of the matched selector expander. The title includes the
+   * number of selectors that match the currently selected element.
+   *
+   * @return {string} The rule title.
+   */
+  matchedSelectorTitle: function PropertyView_matchedSelectorTitle()
+  {
+    let result = "";
+
+    if (this.matchedSelectorCount > 0) {
+      let str = CssHtmlTree.l10n("property.numberOfMatchedSelectors");
+      result = PluralForm.get(this.matchedSelectorCount, str)
+                         .replace("#1", this.matchedSelectorCount);
+    }
+    return result;
+  },
+
+  /**
+   * Compute the title of the unmatched selector expander. The title includes
+   * the number of selectors that match the currently selected element.
+   *
+   * @return {string} The rule title.
+   */
+  unmatchedSelectorTitle: function PropertyView_unmatchedSelectorTitle()
+  {
+    let result = "";
+
+    if (this.unmatchedSelectorCount > 0) {
+      let str = CssHtmlTree.l10n("property.numberOfUnmatchedSelectors");
+      result = PluralForm.get(this.unmatchedSelectorCount, str)
+                         .replace("#1", this.unmatchedSelectorCount);
+    }
+    return result;
   },
 
   /**

@@ -37,8 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsSVGElement.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGScriptElement.h"
@@ -51,7 +49,6 @@
 #include "nsScriptElement.h"
 #include "nsContentUtils.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 typedef nsSVGElement nsSVGScriptElementBase;
@@ -113,7 +110,7 @@ protected:
 
 nsSVGElement::StringInfo nsSVGScriptElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, false }
+  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_FALSE }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT_CHECK_PARSER(Script)
@@ -185,7 +182,7 @@ nsSVGScriptElement::GetType(nsAString & aType)
 NS_IMETHODIMP
 nsSVGScriptElement::SetType(const nsAString & aType)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::type, aType, true); 
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::type, aType, PR_TRUE); 
 }
 
 //----------------------------------------------------------------------
@@ -210,7 +207,7 @@ nsSVGScriptElement::GetScriptType(nsAString& type)
 void
 nsSVGScriptElement::GetScriptText(nsAString& text)
 {
-  nsContentUtils::GetNodeTextContent(this, false, text);
+  nsContentUtils::GetNodeTextContent(this, PR_FALSE, text);
 }
 
 void
@@ -226,19 +223,19 @@ nsSVGScriptElement::FreezeUriAsyncDefer()
     return;
   }
 
-  if (mStringAttributes[HREF].IsExplicitlySet()) {
-    // variation of this code in nsHTMLScriptElement - check if changes
-    // need to be transfered when modifying
-    nsAutoString src;
-    mStringAttributes[HREF].GetAnimValue(src, this);
-
+  // variation of this code in nsHTMLScriptElement - check if changes
+  // need to be transfered when modifying
+  nsAutoString src;
+  mStringAttributes[HREF].GetAnimValue(src, this);
+  // preserving bug 528444 here due to being unsure how to fix correctly
+  if (!src.IsEmpty()) {
     nsCOMPtr<nsIURI> baseURI = GetBaseURI();
     NS_NewURI(getter_AddRefs(mUri), src, nsnull, baseURI);
     // At this point mUri will be null for invalid URLs.
-    mExternal = true;
+    mExternal = PR_TRUE;
   }
   
-  mFrozen = true;
+  mFrozen = PR_TRUE;
 }
 
 //----------------------------------------------------------------------
@@ -247,7 +244,10 @@ nsSVGScriptElement::FreezeUriAsyncDefer()
 bool
 nsSVGScriptElement::HasScriptContent()
 {
-  return (mFrozen ? mExternal : mStringAttributes[HREF].IsExplicitlySet()) ||
+  nsAutoString src;
+  mStringAttributes[HREF].GetAnimValue(src, this);
+  // preserving bug 528444 here due to being unsure how to fix correctly
+  return (mFrozen ? mExternal : !src.IsEmpty()) ||
          nsContentUtils::HasNonEmptyTextContent(this);
 }
 
@@ -268,7 +268,7 @@ nsSVGElement::StringAttributesInfo
 nsSVGScriptElement::GetStringInfo()
 {
   return StringAttributesInfo(mStringAttributes, sStringInfo,
-                              ArrayLength(sStringInfo));
+                              NS_ARRAY_LENGTH(sStringInfo));
 }
 
 //----------------------------------------------------------------------
@@ -277,7 +277,7 @@ nsSVGScriptElement::GetStringInfo()
 nsresult
 nsSVGScriptElement::DoneAddingChildren(bool aHaveNotified)
 {
-  mDoneAddingChildren = true;
+  mDoneAddingChildren = PR_TRUE;
   nsresult rv = MaybeProcessScript();
   if (!mAlreadyStarted) {
     // Need to lose parser-insertedness here to allow another script to cause

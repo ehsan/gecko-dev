@@ -11,7 +11,7 @@
 
 #ifndef DEQUANTIZE_H
 #define DEQUANTIZE_H
-#include "vp8/common/blockd.h"
+#include "blockd.h"
 
 #define prototype_dequant_block(sym) \
     void sym(BLOCKD *x)

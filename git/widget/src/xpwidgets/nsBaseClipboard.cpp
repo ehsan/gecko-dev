@@ -46,7 +46,7 @@ nsBaseClipboard::nsBaseClipboard()
 {
   mClipboardOwner          = nsnull;
   mTransferable            = nsnull;
-  mIgnoreEmptyNotification = false;
+  mIgnoreEmptyNotification = PR_FALSE;
 
 }
 
@@ -143,13 +143,13 @@ nsBaseClipboard::HasDataMatchingFlavors(const char** aFlavorList,
                                         PRInt32 aWhichClipboard,
                                         bool* outResult) 
 {
-  *outResult = true;  // say we always do.
+  *outResult = PR_TRUE;  // say we always do.
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsBaseClipboard::SupportsSelectionClipboard(bool* _retval)
 {
-  *_retval = false;   // we don't support the selection clipboard by default.
+  *_retval = PR_FALSE;   // we don't support the selection clipboard by default.
   return NS_OK;
 }

@@ -196,14 +196,14 @@ public:
 private:
   NS_IMETHOD Run() {
     ReentrantMonitorAutoEnter mon(mMon);
-    mInitialized = true;
+    mInitialized = PR_TRUE;
     mon.Notify();
     return NS_OK;
   }
 
   nsThreadStartupEvent()
     : mMon("nsThreadStartupEvent.mMon")
-    , mInitialized(false) {
+    , mInitialized(PR_FALSE) {
   }
 
   ReentrantMonitor mMon;
@@ -225,7 +225,7 @@ public:
     : mShutdownContext(ctx) {
   }
   NS_IMETHOD Run() {
-    mShutdownContext->shutdownAck = true;
+    mShutdownContext->shutdownAck = PR_TRUE;
     return NS_OK;
   }
 private:
@@ -260,7 +260,7 @@ nsThread::ThreadFunc(void *arg)
 
   // Wait for and process startup event
   nsCOMPtr<nsIRunnable> event;
-  if (!self->GetEvent(true, getter_AddRefs(event))) {
+  if (!self->GetEvent(PR_TRUE, getter_AddRefs(event))) {
     NS_WARNING("failed waiting for thread startup event");
     return;
   }
@@ -276,7 +276,7 @@ nsThread::ThreadFunc(void *arg)
   // invariant here is that we will never permit PutEvent to succeed if the
   // event would be left in the queue after our final call to
   // NS_ProcessPendingEvents.
-  while (true) {
+  while (PR_TRUE) {
     {
       MutexAutoLock lock(self->mLock);
       if (!self->mEvents->HasPendingEvent()) {
@@ -284,7 +284,7 @@ nsThread::ThreadFunc(void *arg)
         // events be added, since they won't be processed. It is critical
         // that no PutEvent can occur between testing that the event queue is
         // empty and setting mEventsAreDoomed!
-        self->mEventsAreDoomed = true;
+        self->mEventsAreDoomed = PR_TRUE;
         break;
       }
     }
@@ -314,8 +314,8 @@ nsThread::nsThread()
   , mRunningEvent(0)
   , mStackSize(0)
   , mShutdownContext(nsnull)
-  , mShutdownRequired(false)
-  , mEventsAreDoomed(false)
+  , mShutdownRequired(PR_FALSE)
+  , mEventsAreDoomed(PR_FALSE)
 {
 }
 
@@ -327,8 +327,8 @@ nsThread::nsThread(PRUint32 aStackSize)
   , mRunningEvent(0)
   , mStackSize(aStackSize)
   , mShutdownContext(nsnull)
-  , mShutdownRequired(false)
-  , mEventsAreDoomed(false)
+  , mShutdownRequired(PR_FALSE)
+  , mEventsAreDoomed(PR_FALSE)
 {
 }
 
@@ -345,7 +345,7 @@ nsThread::Init()
  
   NS_ADDREF_THIS();
  
-  mShutdownRequired = true;
+  mShutdownRequired = PR_TRUE;
 
   // ThreadFunc is responsible for setting mThread
   PRThread *thr = PR_CreateThread(PR_USER_THREAD, ThreadFunc, this,
@@ -470,12 +470,12 @@ nsThread::Shutdown()
     MutexAutoLock lock(mLock);
     if (!mShutdownRequired)
       return NS_ERROR_UNEXPECTED;
-    mShutdownRequired = false;
+    mShutdownRequired = PR_FALSE;
   }
 
   nsThreadShutdownContext context;
   context.joiningThread = nsThreadManager::get()->GetCurrentThread();
-  context.shutdownAck = false;
+  context.shutdownAck = PR_FALSE;
 
   // Set mShutdownContext and wake up the thread in case it is waiting for
   // events to process.
@@ -513,7 +513,7 @@ nsThread::HasPendingEvents(bool *result)
 {
   NS_ENSURE_STATE(PR_GetCurrentThread() == mThread);
 
-  *result = mEvents->GetEvent(false, nsnull);
+  *result = mEvents->GetEvent(PR_FALSE, nsnull);
   return NS_OK;
 }
 
@@ -738,7 +738,7 @@ nsThread::PopEventQueue()
   mEvents = mEvents->mNext;
 
   nsCOMPtr<nsIRunnable> event;
-  while (queue->GetEvent(false, getter_AddRefs(event)))
+  while (queue->GetEvent(PR_FALSE, getter_AddRefs(event)))
     mEvents->PutEvent(event);
 
   delete queue;

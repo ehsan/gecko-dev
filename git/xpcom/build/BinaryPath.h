@@ -124,7 +124,7 @@ private:
       char tmpPath[MAXPATHLEN];
       sprintf(tmpPath, "%s/%s", token, argv0);
       if (realpath(tmpPath, aResult) && stat(aResult, &fileStat) == 0) {
-        found = true;
+        found = PR_TRUE;
         break;
       }
       token = strtok(NULL, ":");
@@ -162,10 +162,10 @@ public:
     if (NS_FAILED(rv))
       return rv;
 #ifdef XP_WIN
-    rv = NS_NewLocalFile(nsDependentString(exePath), true,
+    rv = NS_NewLocalFile(nsDependentString(exePath), PR_TRUE,
                          getter_AddRefs(lf));
 #else
-    rv = NS_NewNativeLocalFile(nsDependentCString(exePath), true,
+    rv = NS_NewNativeLocalFile(nsDependentCString(exePath), PR_TRUE,
                                getter_AddRefs(lf));
 #endif
     if (NS_FAILED(rv))

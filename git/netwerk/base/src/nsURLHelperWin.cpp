@@ -92,7 +92,7 @@ net_GetFileFromURLSpec(const nsACString &aURL, nsIFile **result)
         return rv;
     }
 
-    localFile->SetFollowLinks(true);
+    localFile->SetFollowLinks(PR_TRUE);
 
     const nsACString *specPtr;
 

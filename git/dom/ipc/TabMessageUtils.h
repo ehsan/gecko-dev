@@ -76,7 +76,7 @@ struct ParamTraits<mozilla::dom::RemoteDOMEvent>
 
   static void Write(Message* aMsg, const paramType& aParam)
   {
-    aParam.mEvent->Serialize(aMsg, true);
+    aParam.mEvent->Serialize(aMsg, PR_TRUE);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)

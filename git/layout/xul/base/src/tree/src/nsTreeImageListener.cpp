@@ -46,7 +46,7 @@ NS_IMPL_ISUPPORTS3(nsTreeImageListener, imgIDecoderObserver, imgIContainerObserv
 
 nsTreeImageListener::nsTreeImageListener(nsITreeBoxObject* aTree)
   : mTree(aTree),
-    mInvalidationSuppressed(true),
+    mInvalidationSuppressed(PR_TRUE),
     mInvalidationArea(nsnull)
 {
 }

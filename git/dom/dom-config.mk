@@ -1,3 +1,5 @@
+MODULE = dom
+
 DOM_SRCDIRS = \
   dom/base \
   dom/src/events \

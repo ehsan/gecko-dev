@@ -32,16 +32,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsGkAtoms.h"
 #include "nsIDOMSVGAltGlyphElement.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsSVGString.h"
 #include "nsSVGTextPositioningElement.h"
 #include "nsContentUtils.h"
-
-using namespace mozilla;
 
 typedef nsSVGTextPositioningElement nsSVGAltGlyphElementBase;
 
@@ -90,7 +86,7 @@ protected:
 
 nsSVGElement::StringInfo nsSVGAltGlyphElement::sStringInfo[1] =
 {
-  { &nsGkAtoms::href, kNameSpaceID_XLink, false }
+  { &nsGkAtoms::href, kNameSpaceID_XLink, PR_FALSE }
 };
 
 NS_IMPL_NS_NEW_SVG_ELEMENT(AltGlyph)
@@ -147,7 +143,7 @@ NS_IMETHODIMP nsSVGAltGlyphElement::GetGlyphRef(nsAString & aGlyphRef)
 
 NS_IMETHODIMP nsSVGAltGlyphElement::SetGlyphRef(const nsAString & aGlyphRef)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::glyphRef, aGlyphRef, true);
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::glyphRef, aGlyphRef, PR_TRUE);
 }
 
 /* attribute DOMString format; */
@@ -160,7 +156,7 @@ NS_IMETHODIMP nsSVGAltGlyphElement::GetFormat(nsAString & aFormat)
 
 NS_IMETHODIMP nsSVGAltGlyphElement::SetFormat(const nsAString & aFormat)
 {
-  return SetAttr(kNameSpaceID_None, nsGkAtoms::format, aFormat, true);
+  return SetAttr(kNameSpaceID_None, nsGkAtoms::format, aFormat, PR_TRUE);
 }
 
 //----------------------------------------------------------------------
@@ -177,7 +173,7 @@ nsSVGAltGlyphElement::IsAttributeMapped(const nsIAtom* name) const
     sTextContentElementsMap
   };
   
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGAltGlyphElementBase::IsAttributeMapped(name);
 }
 
@@ -194,5 +190,5 @@ nsSVGElement::StringAttributesInfo
 nsSVGAltGlyphElement::GetStringInfo()
 {
   return StringAttributesInfo(mStringAttributes, sStringInfo,
-                              ArrayLength(sStringInfo));
+                              NS_ARRAY_LENGTH(sStringInfo));
 }

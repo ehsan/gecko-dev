@@ -45,14 +45,12 @@
 
 #include "js/Vector.h"
 
-#include "vm/MatchPairs.h"
-
 namespace js {
 
 class RegExpStatics
 {
-    typedef Vector<int, 20, SystemAllocPolicy> Pairs;
-    Pairs           matchPairs;
+    typedef Vector<int, 20, SystemAllocPolicy> MatchPairs;
+    MatchPairs      matchPairs;
     /* The input that was used to produce matchPairs. */
     JSLinearString  *matchPairsInput;
     /* The input last set on the statics. */
@@ -150,8 +148,6 @@ class RegExpStatics
      */
     bool makeMatch(JSContext *cx, size_t checkValidIndex, size_t pairNum, Value *out) const;
 
-    void markFlagsSet(JSContext *cx);
-
     struct InitBuffer {};
     explicit RegExpStatics(InitBuffer) : bufferLink(NULL), copied(false) {}
 
@@ -161,29 +157,33 @@ class RegExpStatics
     RegExpStatics() : bufferLink(NULL), copied(false) { clear(); }
 
     static JSObject *create(JSContext *cx, GlobalObject *parent);
+    static RegExpStatics *extractFrom(GlobalObject *globalObj);
 
     /* Mutators. */
 
-    bool updateFromMatchPairs(JSContext *cx, JSLinearString *input, MatchPairs *newPairs) {
-        JS_ASSERT(input);
+    bool updateFromMatch(JSContext *cx, JSLinearString *input, int *buf, size_t matchItemCount) {
         aboutToWrite();
         pendingInput = input;
 
-        if (!matchPairs.resizeUninitialized(2 * newPairs->pairCount())) {
+        if (!matchPairs.resizeUninitialized(matchItemCount)) {
             js_ReportOutOfMemory(cx);
             return false;
         }
 
-        for (size_t i = 0; i < newPairs->pairCount(); ++i) {
-            matchPairs[2 * i] = newPairs->pair(i).start;
-            matchPairs[2 * i + 1] = newPairs->pair(i).limit;
-        }
+        for (size_t i = 0; i < matchItemCount; ++i)
+            matchPairs[i] = buf[i];
 
         matchPairsInput = input;
         return true;
     }
 
-    inline void setMultiline(JSContext *cx, bool enabled);
+    void setMultiline(bool enabled) {
+        aboutToWrite();
+        if (enabled)
+            flags = RegExpFlag(flags | MultilineFlag);
+        else
+            flags = RegExpFlag(flags & ~MultilineFlag);
+    }
 
     void clear() {
         aboutToWrite();
@@ -194,7 +194,13 @@ class RegExpStatics
     }
 
     /* Corresponds to JSAPI functionality to set the pending RegExp input. */
-    inline void reset(JSContext *cx, JSString *newInput, bool newMultiline);
+    void reset(JSString *newInput, bool newMultiline) {
+        aboutToWrite();
+        clear();
+        pendingInput = newInput;
+        setMultiline(newMultiline);
+        checkInvariants();
+    }
 
     void setPendingInput(JSString *newInput) {
         aboutToWrite();

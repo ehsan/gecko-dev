@@ -48,8 +48,8 @@ namespace gl {
 class GLXLibrary
 {
 public:
-    GLXLibrary() : mInitialized(false), mTriedInitializing(false),
-                   mHasTextureFromPixmap(false), mDebug(false),
+    GLXLibrary() : mInitialized(PR_FALSE), mTriedInitializing(PR_FALSE),
+                   mHasTextureFromPixmap(PR_FALSE), mDebug(PR_FALSE),
                    mOGLLibrary(nsnull) {}
 
     void xDestroyContext(Display* display, GLXContext context);

@@ -129,8 +129,8 @@ public:
         : mPipe(pipe)
         , mReaderRefCnt(0)
         , mLogicalOffset(0)
-        , mBlocking(true)
-        , mBlocked(false)
+        , mBlocking(PR_TRUE)
+        , mBlocked(PR_FALSE)
         , mAvailable(0)
         , mCallbackFlags(0)
         { }
@@ -186,9 +186,9 @@ public:
         : mPipe(pipe)
         , mWriterRefCnt(0)
         , mLogicalOffset(0)
-        , mBlocking(true)
-        , mBlocked(false)
-        , mWritable(true)
+        , mBlocking(PR_TRUE)
+        , mBlocked(PR_FALSE)
+        , mWritable(PR_TRUE)
         , mCallbackFlags(0)
         { }
 
@@ -328,7 +328,7 @@ nsPipe::nsPipe()
     , mWriteCursor(nsnull)
     , mWriteLimit(nsnull)
     , mStatus(NS_OK)
-    , mInited(false)
+    , mInited(PR_FALSE)
 {
 }
 
@@ -345,7 +345,7 @@ nsPipe::Init(bool nonBlockingIn,
              PRUint32 segmentCount,
              nsIMemory *segmentAlloc)
 {
-    mInited = true;
+    mInited = PR_TRUE;
 
     if (segmentSize == 0)
         segmentSize = DEFAULT_SEGMENT_SIZE;
@@ -561,7 +561,7 @@ nsPipe::AdvanceWriteCursor(PRUint32 bytesWritten)
         // update the writable flag on the output stream
         if (mWriteCursor == mWriteLimit) {
             if (mBuffer.GetSize() >= mBuffer.GetMaxSize())
-                mOutput.SetWritable(false);
+                mOutput.SetWritable(PR_FALSE);
         }
 
         // notify input stream that pipe now contains additional data
@@ -589,7 +589,7 @@ nsPipe::OnPipeException(nsresult reason, bool outputOnly)
         // an output-only exception applies to the input end if the pipe has
         // zero bytes available.
         if (outputOnly && !mInput.Available())
-            outputOnly = false;
+            outputOnly = PR_FALSE;
 
         if (!outputOnly)
             if (mInput.OnInputException(reason, events))
@@ -649,9 +649,9 @@ nsPipeInputStream::Wait()
     while (NS_SUCCEEDED(mPipe->mStatus) && (mAvailable == 0)) {
         LOG(("III pipe input: waiting for data\n"));
 
-        mBlocked = true;
+        mBlocked = PR_TRUE;
         mon.Wait();
-        mBlocked = false;
+        mBlocked = PR_FALSE;
 
         LOG(("III pipe input: woke up [pipe-status=%x available=%u]\n",
             mPipe->mStatus, mAvailable));
@@ -673,7 +673,7 @@ nsPipeInputStream::OnInputReadable(PRUint32 bytesWritten, nsPipeEvents &events)
         mCallbackFlags = 0;
     }
     else if (mBlocked)
-        result = true;
+        result = PR_TRUE;
 
     return result;
 }
@@ -697,7 +697,7 @@ nsPipeInputStream::OnInputException(nsresult reason, nsPipeEvents &events)
         mCallbackFlags = 0;
     }
     else if (mBlocked)
-        result = true;
+        result = PR_TRUE;
 
     return result;
 }
@@ -923,19 +923,19 @@ nsPipeInputStream::Search(const char *forString,
 
     mPipe->PeekSegment(0, cursor1, limit1);
     if (cursor1 == limit1) {
-        *found = false;
+        *found = PR_FALSE;
         *offsetSearchedTo = 0;
         LOG(("  result [found=%u offset=%u]\n", *found, *offsetSearchedTo));
         return NS_OK;
     }
 
-    while (true) {
+    while (PR_TRUE) {
         PRUint32 i, len1 = limit1 - cursor1;
 
         // check if the string is in the buffer segment
         for (i = 0; i < len1 - strLen + 1; i++) {
             if (COMPARE(&cursor1[i], forString, strLen) == 0) {
-                *found = true;
+                *found = PR_TRUE;
                 *offsetSearchedTo = offset + i;
                 LOG(("  result [found=%u offset=%u]\n", *found, *offsetSearchedTo));
                 return NS_OK;
@@ -951,7 +951,7 @@ nsPipeInputStream::Search(const char *forString,
 
         mPipe->PeekSegment(index, cursor2, limit2);
         if (cursor2 == limit2) {
-            *found = false;
+            *found = PR_FALSE;
             *offsetSearchedTo = offset - strLen + 1;
             LOG(("  result [found=%u offset=%u]\n", *found, *offsetSearchedTo));
             return NS_OK;
@@ -967,7 +967,7 @@ nsPipeInputStream::Search(const char *forString,
             PRUint32 bufSeg1Offset = len1 - strPart1Len;
             if (COMPARE(&cursor1[bufSeg1Offset], forString, strPart1Len) == 0 &&
                 COMPARE(cursor2, strPart2, strPart2Len) == 0) {
-                *found = true;
+                *found = PR_TRUE;
                 *offsetSearchedTo = offset - strPart1Len;
                 LOG(("  result [found=%u offset=%u]\n", *found, *offsetSearchedTo));
                 return NS_OK;
@@ -1007,9 +1007,9 @@ nsPipeOutputStream::Wait()
 
     if (NS_SUCCEEDED(mPipe->mStatus) && !mWritable) {
         LOG(("OOO pipe output: waiting for space\n"));
-        mBlocked = true;
+        mBlocked = PR_TRUE;
         mon.Wait();
-        mBlocked = false;
+        mBlocked = PR_FALSE;
         LOG(("OOO pipe output: woke up [pipe-status=%x writable=%u]\n",
             mPipe->mStatus, mWritable));
     }
@@ -1022,7 +1022,7 @@ nsPipeOutputStream::OnOutputWritable(nsPipeEvents &events)
 {
     bool result = false;
 
-    mWritable = true;
+    mWritable = PR_TRUE;
 
     if (mCallback && !(mCallbackFlags & WAIT_CLOSURE_ONLY)) {
         events.NotifyOutputReady(this, mCallback);
@@ -1030,7 +1030,7 @@ nsPipeOutputStream::OnOutputWritable(nsPipeEvents &events)
         mCallbackFlags = 0;
     }
     else if (mBlocked)
-        result = true;
+        result = PR_TRUE;
 
     return result;
 }
@@ -1044,7 +1044,7 @@ nsPipeOutputStream::OnOutputException(nsresult reason, nsPipeEvents &events)
     bool result = false;
 
     NS_ASSERTION(NS_FAILED(reason), "huh? successful exception");
-    mWritable = false;
+    mWritable = PR_FALSE;
 
     if (mCallback) {
         events.NotifyOutputReady(this, mCallback);
@@ -1052,7 +1052,7 @@ nsPipeOutputStream::OnOutputException(nsresult reason, nsPipeEvents &events)
         mCallbackFlags = 0;
     }
     else if (mBlocked)
-        result = true;
+        result = PR_TRUE;
 
     return result;
 }
@@ -1082,7 +1082,7 @@ nsPipeOutputStream::CloseWithStatus(nsresult reason)
         reason = NS_BASE_STREAM_CLOSED;
 
     // input stream may remain open
-    mPipe->OnPipeException(reason, true);
+    mPipe->OnPipeException(reason, PR_TRUE);
     return NS_OK;
 }
 

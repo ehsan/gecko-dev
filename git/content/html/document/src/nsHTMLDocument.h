@@ -171,7 +171,7 @@ public:
 
   virtual void DisableCookieAccess()
   {
-    mDisableCookieAccess = true;
+    mDisableCookieAccess = PR_TRUE;
   }
 
   class nsAutoEditingState {

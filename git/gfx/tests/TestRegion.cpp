@@ -43,9 +43,9 @@ class TestLargestRegion {
     nsRegion region(r);
     if (!region.GetLargestRectangle().IsEqualInterior(r)) {
       fail("largest rect of singleton %d %d %d %d", r.x, r.y, r.width, r.height);
-      return false;
+      return PR_FALSE;
     }
-    return true;
+    return PR_TRUE;
   }
   // Construct a rectangle, remove part of it, then check the remainder
   static bool TestNonRectangular() {
@@ -95,7 +95,7 @@ class TestLargestRegion {
       nsRect largest = r2.GetLargestRectangle();
       if (largest.width * largest.height != tests[i].expectedArea) {
         fail("Did not succesfully find largest rectangle in non-rectangular region on iteration %d", i);
-        success = false;
+        success = PR_FALSE;
       }
     }
 
@@ -126,7 +126,7 @@ class TestLargestRegion {
       nsRect largest = r2.GetLargestRectangle();
       if (largest.width * largest.height != tests[i].expectedArea) {
         fail("Did not succesfully find largest rectangle in two-rect-subtract region on iteration %d", i);
-        success = false;
+        success = PR_FALSE;
       }
     }
     return success;
@@ -136,18 +136,18 @@ class TestLargestRegion {
     r.Or(r, nsRect(0, 300, 50, 50));
     if (!r.GetLargestRectangle(nsRect(0, 300, 10, 10)).IsEqualInterior(nsRect(0, 300, 50, 50))) {
       fail("Chose wrong rectangle");
-      return false;
+      return PR_FALSE;
     }
-    return true;
+    return PR_TRUE;
   }
   static bool TestContainsSpecifiedOverflowingRect() {
     nsRegion r(nsRect(0, 0, 100, 100));
     r.Or(r, nsRect(0, 300, 50, 50));
     if (!r.GetLargestRectangle(nsRect(0, 290, 10, 20)).IsEqualInterior(nsRect(0, 300, 50, 50))) {
       fail("Chose wrong rectangle");
-      return false;
+      return PR_FALSE;
     }
-    return true;
+    return PR_TRUE;
   }
 public:
   static bool Test() {
@@ -156,17 +156,17 @@ public:
         !TestSingleRect(nsRect(-20, 40, 10, 8)) ||
         !TestSingleRect(nsRect(-20, -40, 10, 8)) ||
         !TestSingleRect(nsRect(-10, -10, 20, 20)))
-      return false;
+      return PR_FALSE;
     if (!TestNonRectangular())
-      return false;
+      return PR_FALSE;
     if (!TwoRectTest())
-      return false;
+      return PR_FALSE;
     if (!TestContainsSpecifiedRect())
-      return false;
+      return PR_FALSE;
     if (!TestContainsSpecifiedOverflowingRect())
-      return false;
+      return PR_FALSE;
     passed("TestLargestRegion");
-    return true;
+    return PR_TRUE;
   }
 };
 

@@ -170,8 +170,6 @@ const TYPES = {
 
 const MSG_JAR_FLUSH = "AddonJarFlush";
 
-var gGlobalScope = this;
-
 /**
  * Valid IDs fit this pattern.
  */
@@ -2599,20 +2597,14 @@ var XPIProvider = {
           newAddon.installDate = aMigrateData.installDate;
         if ("softDisabled" in aMigrateData)
           newAddon.softDisabled = aMigrateData.softDisabled;
-        if ("applyBackgroundUpdates" in aMigrateData)
-          newAddon.applyBackgroundUpdates = aMigrateData.applyBackgroundUpdates;
-        if ("sourceURI" in aMigrateData)
-          newAddon.sourceURI = aMigrateData.sourceURI;
-        if ("releaseNotesURI" in aMigrateData)
-          newAddon.releaseNotesURI = aMigrateData.releaseNotesURI;
 
         // Some properties should only be migrated if the add-on hasn't changed.
         // The version property isn't a perfect check for this but covers the
         // vast majority of cases.
-        if (aMigrateData.version == newAddon.version &&
-            "targetApplications" in aMigrateData) {
+        if (aMigrateData.version == newAddon.version) {
           LOG("Migrating compatibility info");
-          newAddon.applyCompatibilityUpdate(aMigrateData, true);
+          if ("targetApplications" in aMigrateData)
+            newAddon.applyCompatibilityUpdate(aMigrateData, true);
         }
 
         // Since the DB schema has changed make sure softDisabled is correct
@@ -3514,13 +3506,6 @@ var XPIProvider = {
     // Copy the reason values from the global object into the bootstrap scope.
     for (let name in BOOTSTRAP_REASONS)
       this.bootstrapScopes[aId][name] = BOOTSTRAP_REASONS[name];
-
-
-    // Add other stuff that extensions want.
-    const features = [ "Worker", "ChromeWorker" ];
-
-    for each (let feature in features)
-      this.bootstrapScopes[aId][feature] = gGlobalScope[feature];
   },
 
   /**
@@ -3558,39 +3543,30 @@ var XPIProvider = {
     if (Services.appinfo.inSafeMode)
       return;
 
-    if (aMethod == "startup")
-      Components.manager.addBootstrappedManifestLocation(aFile);
+    // Load the scope if it hasn't already been loaded
+    if (!(aId in this.bootstrapScopes))
+      this.loadBootstrapScope(aId, aFile, aVersion, aType);
 
-    try {
-      // Load the scope if it hasn't already been loaded
-      if (!(aId in this.bootstrapScopes))
-        this.loadBootstrapScope(aId, aFile, aVersion, aType);
-
-      if (!(aMethod in this.bootstrapScopes[aId])) {
-        WARN("Add-on " + aId + " is missing bootstrap method " + aMethod);
-        return;
-      }
-
-      let params = {
-        id: aId,
-        version: aVersion,
-        installPath: aFile.clone(),
-        resourceURI: getURIForResourceInFile(aFile, "")
-      };
-
-      LOG("Calling bootstrap method " + aMethod + " on " + aId + " version " +
-          aVersion);
-      try {
-        this.bootstrapScopes[aId][aMethod](params, aReason);
-      }
-      catch (e) {
-        WARN("Exception running bootstrap method " + aMethod + " on " +
-             aId, e);
-      }
+    if (!(aMethod in this.bootstrapScopes[aId])) {
+      WARN("Add-on " + aId + " is missing bootstrap method " + aMethod);
+      return;
     }
-    finally {
-      if (aMethod == "shutdown")
-        Components.manager.removeBootstrappedManifestLocation(aFile);
+
+    let params = {
+      id: aId,
+      version: aVersion,
+      installPath: aFile.clone(),
+      resourceURI: getURIForResourceInFile(aFile, "")
+    };
+
+    LOG("Calling bootstrap method " + aMethod + " on " + aId + " version " +
+        aVersion);
+    try {
+      this.bootstrapScopes[aId][aMethod](params, aReason);
+    }
+    catch (e) {
+      WARN("Exception running bootstrap method " + aMethod + " on " +
+           aId, e);
     }
   },
 
@@ -4372,11 +4348,7 @@ var XPIDatabase = {
       // and future versions of the schema
       var sql = [];
       sql.push("SELECT internal_id, id, location, userDisabled, " +
-               "softDisabled, installDate, version, applyBackgroundUpdates, " +
-               "sourceURI, releaseNotesURI FROM addon");
-      sql.push("SELECT internal_id, id, location, userDisabled, " +
-               "installDate, version, applyBackgroundUpdates, " +
-               "sourceURI, releaseNotesURI FROM addon");
+               "softDisabled, installDate, version FROM addon");
       sql.push("SELECT internal_id, id, location, userDisabled, installDate, " +
                "version FROM addon");
 
@@ -4407,12 +4379,6 @@ var XPIDatabase = {
 
         if ("softDisabled" in row)
           migrateData[row.location][row.id].softDisabled = row.softDisabled == 1;
-        if ("applyBackgroundUpdates" in row)
-          migrateData[row.location][row.id].applyBackgroundUpdates = row.applyBackgroundUpdates == 1;
-        if ("sourceURI" in row)
-          migrateData[row.location][row.id].sourceURI = row.sourceURI;
-        if ("releaseNotesURI" in row)
-          migrateData[row.location][row.id].releaseNotesURI = row.releaseNotesURI;
       }
 
       var taStmt = this.connection.createStatement("SELECT id, minVersion, " +

@@ -83,7 +83,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsSAXXMLReader)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsISAXXMLReader)
 NS_INTERFACE_MAP_END
 
-nsSAXXMLReader::nsSAXXMLReader() : mIsAsyncParse(false)
+nsSAXXMLReader::nsSAXXMLReader() : mIsAsyncParse(PR_FALSE)
 {
 }
 
@@ -339,7 +339,7 @@ nsSAXXMLReader::ReportError(const PRUnichar* aErrorText,
 {
   NS_PRECONDITION(aError && aSourceText && aErrorText, "Check arguments!!!");
   // Normally, the expat driver should report the error.
-  *_retval = true;
+  *_retval = PR_TRUE;
 
   if (mErrorHandler) {
     PRUint32 lineNumber;
@@ -360,7 +360,7 @@ nsSAXXMLReader::ReportError(const PRUnichar* aErrorText,
     rv = mErrorHandler->FatalError(locator, nsDependentString(aErrorText));
     if (NS_SUCCEEDED(rv)) {
       // The error handler has handled the script error.  Don't log to console.
-      *_retval = false;
+      *_retval = PR_FALSE;
     }
   }
 
@@ -565,7 +565,7 @@ NS_IMETHODIMP
 nsSAXXMLReader::ParseAsync(nsIRequestObserver *aObserver)
 {
   mParserObserver = aObserver;
-  mIsAsyncParse = true;
+  mIsAsyncParse = PR_TRUE;
   return NS_OK;
 }
 
@@ -594,7 +594,7 @@ nsSAXXMLReader::OnStopRequest(nsIRequest *aRequest, nsISupports *aContext,
   NS_ENSURE_STATE(mListener);
   nsresult rv = mListener->OnStopRequest(aRequest, aContext, status);
   mListener = nsnull;
-  mIsAsyncParse = false;
+  mIsAsyncParse = PR_FALSE;
   return rv;
 }
 
@@ -642,7 +642,7 @@ nsSAXXMLReader::TryChannelCharset(nsIChannel *aChannel,
                                   nsACString& aCharset)
 {
   if (aCharsetSource >= kCharsetFromChannel)
-    return true;
+    return PR_TRUE;
   
   if (aChannel) {
     nsCAutoString charsetVal;
@@ -656,13 +656,13 @@ nsSAXXMLReader::TryChannelCharset(nsIChannel *aChannel,
         if (NS_SUCCEEDED(rv)) {
           aCharset = preferred;
           aCharsetSource = kCharsetFromChannel;
-          return true;
+          return PR_TRUE;
         }
       }
     }
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 nsresult

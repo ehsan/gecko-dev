@@ -552,7 +552,7 @@ class SetPropCompiler : public PICStubCompiler
 
         /* lookupProperty can trigger recompilations. */
         RecompilationMonitor monitor(cx);
-        if (!obj->lookupGeneric(cx, id, &holder, &prop))
+        if (!obj->lookupProperty(cx, id, &holder, &prop))
             return error();
         if (monitor.recompiled())
             return Lookup_Uncacheable;
@@ -789,7 +789,7 @@ struct GetPropertyHelper {
             return ic.disable(cx, "non-native");
 
         RecompilationMonitor monitor(cx);
-        if (!aobj->lookupGeneric(cx, ATOM_TO_JSID(atom), &holder, &prop))
+        if (!aobj->lookupProperty(cx, ATOM_TO_JSID(atom), &holder, &prop))
             return ic.error(cx);
         if (monitor.recompiled())
             return Lookup_Uncacheable;
@@ -1888,8 +1888,14 @@ class BindNameCompiler : public PICStubCompiler
         RecompilationMonitor monitor(cx);
 
         JSObject *obj = js_FindIdentifierBase(cx, scopeChain, ATOM_TO_JSID(atom));
-        if (!obj || monitor.recompiled())
+
+        if (monitor.recompiled())
             return obj;
+
+        if (!obj) {
+            disable("error");
+            return obj;
+        }
 
         if (!pic.hit) {
             spew("first hit", "nop");
@@ -1898,8 +1904,10 @@ class BindNameCompiler : public PICStubCompiler
         }
 
         LookupStatus status = generateStub(obj);
-        if (status == Lookup_Error)
+        if (status == Lookup_Error) {
+            disable("error");
             return NULL;
+        }
 
         return obj;
     }
@@ -1980,8 +1988,10 @@ ic::GetProp(VMFrame &f, ic::PICInfo *pic)
                            ? DisabledGetPropIC
                            : DisabledGetPropICNoCache;
         GetPropCompiler cc(f, script, obj, *pic, atom, stub);
-        if (!cc.update())
+        if (!cc.update()) {
+            cc.disable("error");
             THROW();
+        }
     }
 
     Value v;
@@ -2075,20 +2085,20 @@ ic::CallProp(VMFrame &f, ic::PICInfo *pic)
     if (lval.isObject()) {
         objv = lval;
     } else {
-        GlobalObject *global = f.fp()->scopeChain().getGlobal();
-        JSObject *pobj;
+        JSProtoKey protoKey;
         if (lval.isString()) {
-            pobj = global->getOrCreateStringPrototype(cx);
+            protoKey = JSProto_String;
         } else if (lval.isNumber()) {
-            pobj = global->getOrCreateNumberPrototype(cx);
+            protoKey = JSProto_Number;
         } else if (lval.isBoolean()) {
-            pobj = global->getOrCreateBooleanPrototype(cx);
+            protoKey = JSProto_Boolean;
         } else {
             JS_ASSERT(lval.isNull() || lval.isUndefined());
             js_ReportIsNullOrUndefined(cx, -1, lval, NULL);
             THROW();
         }
-        if (!pobj)
+        JSObject *pobj;
+        if (!js_GetClassPrototype(cx, NULL, protoKey, &pobj))
             THROW();
         objv.setObject(*pobj);
     }
@@ -2388,6 +2398,7 @@ GetElementIC::disable(JSContext *cx, const char *reason)
 LookupStatus
 GetElementIC::error(JSContext *cx)
 {
+    disable(cx, "error");
     return Lookup_Error;
 }
 
@@ -2982,6 +2993,7 @@ SetElementIC::disable(JSContext *cx, const char *reason)
 LookupStatus
 SetElementIC::error(JSContext *cx)
 {
+    disable(cx, "error");
     return Lookup_Error;
 }
 

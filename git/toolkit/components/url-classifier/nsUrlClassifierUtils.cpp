@@ -56,51 +56,51 @@ IsDecimal(const nsACString & num)
 {
   for (PRUint32 i = 0; i < num.Length(); i++) {
     if (!isdigit(num[i])) {
-      return false;
+      return PR_FALSE;
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 static bool
 IsHex(const nsACString & num)
 {
   if (num.Length() < 3) {
-    return false;
+    return PR_FALSE;
   }
 
   if (num[0] != '0' || !(num[1] == 'x' || num[1] == 'X')) {
-    return false;
+    return PR_FALSE;
   }
 
   for (PRUint32 i = 2; i < num.Length(); i++) {
     if (!isxdigit(num[i])) {
-      return false;
+      return PR_FALSE;
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 static bool
 IsOctal(const nsACString & num)
 {
   if (num.Length() < 2) {
-    return false;
+    return PR_FALSE;
   }
 
   if (num[0] != '0') {
-    return false;
+    return PR_FALSE;
   }
 
   for (PRUint32 i = 1; i < num.Length(); i++) {
     if (!isdigit(num[i]) || num[i] == '8' || num[i] == '9') {
-      return false;
+      return PR_FALSE;
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 nsUrlClassifierUtils::nsUrlClassifierUtils() : mEscapeCharmap(nsnull)
@@ -182,7 +182,7 @@ nsUrlClassifierUtils::CanonicalizeHostname(const nsACString & hostname,
   }
 
   ToLowerCase(cleaned);
-  SpecialEncode(cleaned, false, _retval);
+  SpecialEncode(cleaned, PR_FALSE, _retval);
 
   return NS_OK;
 }
@@ -201,7 +201,7 @@ nsUrlClassifierUtils::CanonicalizePath(const nsACString & path,
     temp.Truncate();
   }
 
-  SpecialEncode(decodedPath, true, _retval);
+  SpecialEncode(decodedPath, PR_TRUE, _retval);
   // XXX: lowercase the path?
 
   return NS_OK;
@@ -285,7 +285,7 @@ nsUrlClassifierUtils::ParseIPAddress(const nsACString & host,
           break;
         }
         if (part[j] == '8' || part[j] == '9') {
-          allowOctal = false;
+          allowOctal = PR_FALSE;
           break;
         }
       }
@@ -378,7 +378,7 @@ nsUrlClassifierUtils::SpecialEncode(const nsACString & url,
       _retval.Append(int_to_hex_digit(c / 16));
       _retval.Append(int_to_hex_digit(c % 16));
 
-      changed = true;
+      changed = PR_TRUE;
     } else if (foldSlashes && (c == '/' && lastChar == '/')) {
       // skip
     } else {

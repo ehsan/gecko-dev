@@ -12,14 +12,11 @@
 #ifndef __INC_VP8D_INT_H
 #define __INC_VP8D_INT_H
 #include "vpx_ports/config.h"
-#include "vp8/common/onyxd.h"
+#include "onyxd.h"
 #include "treereader.h"
-#include "vp8/common/onyxc_int.h"
-#include "vp8/common/threading.h"
+#include "onyxc_int.h"
+#include "threading.h"
 #include "dequantize.h"
-#if CONFIG_ERROR_CONCEALMENT
-#include "ec_types.h"
-#endif
 
 typedef struct
 {
@@ -38,15 +35,23 @@ typedef struct
 
 typedef struct
 {
-    int64_t time_stamp;
+    INT64 time_stamp;
     int size;
 } DATARATE;
+
+typedef struct
+{
+    INT16         min_val;
+    INT16         Length;
+    UINT8 Probs[12];
+} TOKENEXTRABITS;
 
 typedef struct
 {
     int const *scan;
     UINT8 const *ptr_block2leftabove;
     vp8_tree_index const *vp8_coef_tree_ptr;
+    TOKENEXTRABITS const *teb_base_ptr;
     unsigned char *norm_ptr;
     UINT8 *ptr_coef_bands_x;
 
@@ -75,12 +80,12 @@ typedef struct VP8Decompressor
 
     const unsigned char *Source;
     unsigned int   source_sz;
-    const unsigned char *partitions[MAX_PARTITIONS];
-    unsigned int   partition_sizes[MAX_PARTITIONS];
-    unsigned int   num_partitions;
 
-#if CONFIG_MULTITHREAD
-    /* variable for threading */
+
+    unsigned int CPUFreq;
+    unsigned int decode_microseconds;
+    unsigned int time_decoding;
+    unsigned int time_loop_filtering;
 
     volatile int b_multithreaded_rd;
     int max_threads;
@@ -88,6 +93,8 @@ typedef struct VP8Decompressor
     int decoding_thread_count;
     int allocated_decoding_thread_count;
 
+    /* variable for threading */
+#if CONFIG_MULTITHREAD
     int mt_baseline_filter_level[MAX_MB_SEGMENTS];
     int sync_range;
     int *mt_current_mb_col;                  /* Each row remembers its already decoded column. */
@@ -109,7 +116,7 @@ typedef struct VP8Decompressor
 #endif
 
     vp8_reader *mbc;
-    int64_t last_time_stamp;
+    INT64 last_time_stamp;
     int   ready_for_new_data;
 
     DATARATE dr[16];
@@ -118,6 +125,7 @@ typedef struct VP8Decompressor
 
 #if CONFIG_RUNTIME_CPU_DETECT
     vp8_dequant_rtcd_vtable_t        dequant;
+    struct vp8_dboolhuff_rtcd_vtable dboolhuff;
 #endif
 
 
@@ -125,18 +133,6 @@ typedef struct VP8Decompressor
     vp8_prob prob_last;
     vp8_prob prob_gf;
     vp8_prob prob_skip_false;
-
-#if CONFIG_ERROR_CONCEALMENT
-    MB_OVERLAP *overlaps;
-    /* the mb num from which modes and mvs (first partition) are corrupt */
-    unsigned int mvs_corrupt_from_mb;
-#endif
-    int ec_enabled;
-    int ec_active;
-    int input_partition;
-    int decoded_key_frame;
-    int independent_partitions;
-    int frame_corrupt_residual;
 
 } VP8D_COMP;
 

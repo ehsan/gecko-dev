@@ -104,9 +104,6 @@
 
 #include "mozilla/ipc/RPCChannel.h"
 
-/* This must occur *after* ipc/RPCChannel.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
 #include "nsWindow.h"
 
 #include <windows.h>
@@ -141,7 +138,7 @@
 #include "nsRect.h"
 #include "nsThreadUtils.h"
 #include "nsNativeCharsetUtils.h"
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsUnicharUtils.h"
 #include "nsCRT.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -506,6 +503,7 @@ nsWindow::Create(nsIWidget *aParent,
                  const nsIntRect &aRect,
                  EVENT_CALLBACK aHandleEventFunction,
                  nsDeviceContext *aContext,
+                 nsIAppShell *aAppShell,
                  nsIToolkit *aToolkit,
                  nsWidgetInitData *aInitData)
 {
@@ -523,7 +521,8 @@ nsWindow::Create(nsIWidget *aParent,
   mIsTopWidgetWindow = (nsnull == baseParent);
   mBounds = aRect;
 
-  BaseCreate(baseParent, aRect, aHandleEventFunction, aContext, aToolkit, aInitData);
+  BaseCreate(baseParent, aRect, aHandleEventFunction, aContext,
+             aAppShell, aToolkit, aInitData);
 
   HWND parent;
   if (aParent) { // has a nsIWidget parent
@@ -3704,30 +3703,30 @@ bool nsWindow::DispatchCommandEvent(PRUint32 aEventCommand)
   nsCOMPtr<nsIAtom> command;
   switch (aEventCommand) {
     case APPCOMMAND_BROWSER_BACKWARD:
-      command = nsGkAtoms::Back;
+      command = nsWidgetAtoms::Back;
       break;
     case APPCOMMAND_BROWSER_FORWARD:
-      command = nsGkAtoms::Forward;
+      command = nsWidgetAtoms::Forward;
       break;
     case APPCOMMAND_BROWSER_REFRESH:
-      command = nsGkAtoms::Reload;
+      command = nsWidgetAtoms::Reload;
       break;
     case APPCOMMAND_BROWSER_STOP:
-      command = nsGkAtoms::Stop;
+      command = nsWidgetAtoms::Stop;
       break;
     case APPCOMMAND_BROWSER_SEARCH:
-      command = nsGkAtoms::Search;
+      command = nsWidgetAtoms::Search;
       break;
     case APPCOMMAND_BROWSER_FAVORITES:
-      command = nsGkAtoms::Bookmarks;
+      command = nsWidgetAtoms::Bookmarks;
       break;
     case APPCOMMAND_BROWSER_HOME:
-      command = nsGkAtoms::Home;
+      command = nsWidgetAtoms::Home;
       break;
     default:
       return false;
   }
-  nsCommandEvent event(true, nsGkAtoms::onAppCommand, command, this);
+  nsCommandEvent event(true, nsWidgetAtoms::onAppCommand, command, this);
 
   InitEvent(event);
   DispatchWindowEvent(&event);
@@ -6958,18 +6957,18 @@ LRESULT nsWindow::OnKeyDown(const MSG &aMsg,
       if (KeyboardLayout::IsPrintableCharKey(virtualKeyCode)) {
         numOfUniChars = numOfShiftStates =
           gKbdLayout.GetUniChars(uniChars, shiftStates,
-                                 ArrayLength(uniChars));
+                                 NS_ARRAY_LENGTH(uniChars));
       }
 
       if (aModKeyState.mIsControlDown ^ aModKeyState.mIsAltDown) {
         PRUint8 capsLockState = (::GetKeyState(VK_CAPITAL) & 1) ? eCapsLock : 0;
         numOfUnshiftedChars =
           gKbdLayout.GetUniCharsWithShiftState(virtualKeyCode, capsLockState,
-                       unshiftedChars, ArrayLength(unshiftedChars));
+                       unshiftedChars, NS_ARRAY_LENGTH(unshiftedChars));
         numOfShiftedChars =
           gKbdLayout.GetUniCharsWithShiftState(virtualKeyCode,
                        capsLockState | eShift,
-                       shiftedChars, ArrayLength(shiftedChars));
+                       shiftedChars, NS_ARRAY_LENGTH(shiftedChars));
 
         // The current keyboard cannot input alphabets or numerics,
         // we should append them for Shortcut/Access keys.
@@ -7225,7 +7224,7 @@ LRESULT nsWindow::OnCharRaw(UINT charCode, UINT aScanCode,
 void
 nsWindow::SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray, PRUint32 aModifiers)
 {
-  for (PRUint32 i = 0; i < ArrayLength(sModifierKeyMap); ++i) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(sModifierKeyMap); ++i) {
     const PRUint32* map = sModifierKeyMap[i];
     if (aModifiers & map[0]) {
       aArray->AppendElement(KeyPair(map[1], map[2]));
@@ -7648,7 +7647,7 @@ static bool IsElantechHelperWindow(HWND aHWND)
   HANDLE hProcess = ::OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
   if (hProcess) {
     PRUnichar path[256] = {L'\0'};
-    if (pGetProcessImageFileName(hProcess, path, ArrayLength(path))) {
+    if (pGetProcessImageFileName(hProcess, path, NS_ARRAY_LENGTH(path))) {
       int pathLength = lstrlenW(path);
       if (pathLength >= filenameSuffixLength) {
         if (lstrcmpiW(path + pathLength - filenameSuffixLength, filenameSuffix) == 0) {

@@ -271,7 +271,7 @@ NS_IMETHODIMP
 nsBinaryOutputStream::WriteSingleRefObject(nsISupports* aObject)
 {
     return WriteCompoundObject(aObject, NS_GET_IID(nsISupports),
-                               true);
+                               PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -648,7 +648,7 @@ WriteSegmentToString(nsIInputStream* aStream,
         ++aFromSegment;
         --aCount;
 
-        closure->mHasCarryoverByte = false;
+        closure->mHasCarryoverByte = PR_FALSE;
     }
     
     // this array is possibly unaligned... be careful how we access it!
@@ -674,7 +674,7 @@ WriteSegmentToString(nsIInputStream* aStream,
         // we must have had a carryover byte, that we'll need the next
         // time around
         closure->mCarryoverByte = aFromSegment[aCount - 1];
-        closure->mHasCarryoverByte = true;
+        closure->mHasCarryoverByte = PR_TRUE;
     }
     
     return NS_OK;
@@ -704,7 +704,7 @@ nsBinaryInputStream::ReadString(nsAString& aString)
     
     WriteStringClosure closure;
     closure.mWriteCursor = start.get();
-    closure.mHasCarryoverByte = false;
+    closure.mHasCarryoverByte = PR_FALSE;
     
     rv = ReadSegments(WriteSegmentToString, &closure,
                       length*sizeof(PRUnichar), &bytesRead);

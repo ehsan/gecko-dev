@@ -457,7 +457,7 @@ public:
 
   static nscolor GetColor(ColorID aID, nscolor aDefault = NS_RGB(0, 0, 0))
   {
-    nscolor result = NS_RGB(0, 0, 0);
+    nscolor result;
     if (NS_FAILED(GetColor(aID, &result))) {
       return aDefault;
     }

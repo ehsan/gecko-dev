@@ -57,7 +57,7 @@ using mozilla::unused;
 #include "nsRenderingContext.h"
 #include "nsIDOMSimpleGestureEvent.h"
 
-#include "nsGkAtoms.h"
+#include "nsWidgetAtoms.h"
 #include "nsWidgetsCID.h"
 #include "nsGfxCIID.h"
 
@@ -172,10 +172,10 @@ nsWindow::DumpWindows(const nsTArray<nsWindow*>& wins, int indent)
 }
 
 nsWindow::nsWindow() :
-    mIsVisible(false),
+    mIsVisible(PR_FALSE),
     mParent(nsnull),
     mFocus(nsnull),
-    mIMEComposing(false)
+    mIMEComposing(PR_FALSE)
 {
 }
 
@@ -202,6 +202,7 @@ nsWindow::Create(nsIWidget *aParent,
                  const nsIntRect &aRect,
                  EVENT_CALLBACK aHandleEventFunction,
                  nsDeviceContext *aContext,
+                 nsIAppShell *aAppShell,
                  nsIToolkit *aToolkit,
                  nsWidgetInitData *aInitData)
 {
@@ -231,7 +232,7 @@ nsWindow::Create(nsIWidget *aParent,
     }
 
     BaseCreate(nsnull, mBounds, aHandleEventFunction, aContext,
-               aToolkit, aInitData);
+               aAppShell, aToolkit, aInitData);
 
     NS_ASSERTION(IsTopLevel() || parent, "non top level windowdoesn't have a parent!");
 
@@ -278,7 +279,7 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>& config)
                          config[i].mBounds.y,
                          config[i].mBounds.width,
                          config[i].mBounds.height,
-                         false);
+                         PR_FALSE);
     }
 
     return NS_OK;
@@ -357,7 +358,7 @@ nsWindow::Show(bool aState)
         if (aState) {
             // It just became visible, so send a resize update if necessary
             // and bring it to the front.
-            Resize(0, 0, gAndroidBounds.width, gAndroidBounds.height, false);
+            Resize(0, 0, gAndroidBounds.width, gAndroidBounds.height, PR_FALSE);
             BringToFront();
         } else if (TopWindow() == this) {
             // find the next visible window to show
@@ -424,7 +425,7 @@ nsWindow::Move(PRInt32 aX,
                   aY,
                   mBounds.width,
                   mBounds.height,
-                  true);
+                  PR_TRUE);
 }
 
 NS_IMETHODIMP
@@ -489,7 +490,7 @@ nsWindow::SetSizeMode(PRInt32 aMode)
             AndroidBridge::Bridge()->MoveTaskToBack();
             break;
         case nsSizeMode_Fullscreen:
-            MakeFullScreen(true);
+            MakeFullScreen(PR_TRUE);
             break;
     }
     return NS_OK;
@@ -505,7 +506,7 @@ nsWindow::Enable(bool aState)
 NS_IMETHODIMP
 nsWindow::IsEnabled(bool *aState)
 {
-    *aState = true;
+    *aState = PR_TRUE;
     return NS_OK;
 }
 
@@ -573,11 +574,11 @@ nsWindow::BringToFront()
     gTopLevelWindows.InsertElementAt(0, this);
 
     if (oldTop) {
-        nsGUIEvent event(true, NS_DEACTIVATE, oldTop);
+        nsGUIEvent event(PR_TRUE, NS_DEACTIVATE, oldTop);
         DispatchEvent(&event);
     }
 
-    nsGUIEvent event(true, NS_ACTIVATE, this);
+    nsGUIEvent event(PR_TRUE, NS_ACTIVATE, this);
     DispatchEvent(&event);
 
     // force a window resize
@@ -630,10 +631,10 @@ nsWindow::DispatchEvent(nsGUIEvent *aEvent)
 
         switch (aEvent->message) {
         case NS_COMPOSITION_START:
-            mIMEComposing = true;
+            mIMEComposing = PR_TRUE;
             break;
         case NS_COMPOSITION_END:
-            mIMEComposing = false;
+            mIMEComposing = PR_FALSE;
             break;
         case NS_TEXT_TEXT:
             mIMEComposingText = static_cast<nsTextEvent*>(aEvent)->theText;
@@ -704,7 +705,7 @@ nsWindow::GetLayerManager(PLayersChild*, LayersBackend, LayerManagerPersistence,
 
     if (!sGLContext || !mLayerManager) {
         sGLContext = nsnull;
-        sFailedToCreateGLContext = true;
+        sFailedToCreateGLContext = PR_TRUE;
 
         mLayerManager = CreateBasicLayerManager();
     }
@@ -758,7 +759,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
                     if (gTopLevelWindows[i]->mIsVisible)
                         gTopLevelWindows[i]->Resize(gAndroidBounds.width,
                                                     gAndroidBounds.height,
-                                                    true);
+                                                    PR_TRUE);
                 }
             }
 
@@ -791,8 +792,8 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
                 break;
 
             nsCOMPtr<ContentCreationNotifier> notifier = new ContentCreationNotifier;
-            if (NS_SUCCEEDED(obs->AddObserver(notifier, "ipc:content-created", false))) {
-                if (NS_SUCCEEDED(obs->AddObserver(notifier, "xpcom-shutdown", false)))
+            if (NS_SUCCEEDED(obs->AddObserver(notifier, "ipc:content-created", PR_FALSE))) {
+                if (NS_SUCCEEDED(obs->AddObserver(notifier, "xpcom-shutdown", PR_FALSE)))
                     gContentCreationNotifier = notifier;
                 else
                     obs->RemoveObserver(notifier, "ipc:content-created");
@@ -902,7 +903,7 @@ bool
 nsWindow::DrawTo(gfxASurface *targetSurface)
 {
     if (!mIsVisible)
-        return false;
+        return PR_FALSE;
 
     nsEventStatus status;
     nsIntRect boundsRect(0, 0, mBounds.width, mBounds.height);
@@ -920,7 +921,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 
     // If we have no covering child, then we need to render this.
     if (coveringChildIndex == -1) {
-        nsPaintEvent event(true, NS_PAINT, this);
+        nsPaintEvent event(PR_TRUE, NS_PAINT, this);
         event.region = boundsRect;
         switch (GetLayerManager(nsnull)->GetBackendType()) {
             case LayerManager::LAYERS_BASIC: {
@@ -936,7 +937,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
                 // what we needed before, but let's keep drawing the children anyway?
 #if 0
                 if (status == nsEventStatus_eIgnore)
-                    return false;
+                    return PR_FALSE;
 #endif
 
                 // XXX if we got an ignore for the parent, do we still want to draw the children?
@@ -986,7 +987,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
     if (targetSurface)
         targetSurface->SetDeviceOffset(offset);
 
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -1136,7 +1137,7 @@ nsWindow::OnSizeChanged(const gfxIntSize& aSize)
 
     ALOG("nsWindow: %p OnSizeChanged [%d %d]", (void*)this, w, h);
 
-    nsSizeEvent event(true, NS_SIZE, this);
+    nsSizeEvent event(PR_TRUE, NS_SIZE, this);
     InitEvent(event);
 
     nsIntRect wsz(0, 0, w, h);
@@ -1222,15 +1223,15 @@ nsWindow::OnMotionEvent(AndroidGeckoEvent *ae)
 
 send_again:
 
-    nsMouseEvent event(true,
+    nsMouseEvent event(PR_TRUE,
                        msg, this,
                        nsMouseEvent::eReal, nsMouseEvent::eNormal);
     InitEvent(event, &pt);
 
     event.time = ae->Time();
     event.isShift = !!(ae->MetaState() & AndroidKeyEvent::META_SHIFT_ON);
-    event.isControl = false;
-    event.isMeta = false;
+    event.isControl = PR_FALSE;
+    event.isMeta = PR_FALSE;
     event.isAlt = !!(ae->MetaState() & AndroidKeyEvent::META_ALT_ON);
 
     // XXX can we synthesize different buttons?
@@ -1332,12 +1333,12 @@ void
 nsWindow::DispatchGestureEvent(PRUint32 msg, PRUint32 direction, double delta,
                                const nsIntPoint &refPoint, PRUint64 time)
 {
-    nsSimpleGestureEvent event(true, msg, this, direction, delta);
+    nsSimpleGestureEvent event(PR_TRUE, msg, this, direction, delta);
 
-    event.isShift = false;
-    event.isControl = false;
-    event.isMeta = false;
-    event.isAlt = false;
+    event.isShift = PR_FALSE;
+    event.isControl = PR_FALSE;
+    event.isMeta = PR_FALSE;
+    event.isAlt = PR_FALSE;
     event.time = time;
     event.refPoint = refPoint;
 
@@ -1510,11 +1511,11 @@ nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key)
     event.isShift = !!(key.MetaState() & AndroidKeyEvent::META_SHIFT_ON);
     event.isControl = gMenu;
     event.isAlt = !!(key.MetaState() & AndroidKeyEvent::META_ALT_ON);
-    event.isMeta = false;
+    event.isMeta = PR_FALSE;
     event.time = key.Time();
 
     if (gMenu)
-        gMenuConsumed = true;
+        gMenuConsumed = PR_TRUE;
 }
 
 void
@@ -1530,41 +1531,41 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
         switch (keyCode) {
             case AndroidKeyEvent::KEYCODE_BACK:
                 if (isLongPress) {
-                    command = nsGkAtoms::Clear;
-                    doCommand = true;
+                    command = nsWidgetAtoms::Clear;
+                    doCommand = PR_TRUE;
                 }
                 break;
             case AndroidKeyEvent::KEYCODE_VOLUME_UP:
-                command = nsGkAtoms::VolumeUp;
-                doCommand = true;
+                command = nsWidgetAtoms::VolumeUp;
+                doCommand = PR_TRUE;
                 break;
             case AndroidKeyEvent::KEYCODE_VOLUME_DOWN:
-                command = nsGkAtoms::VolumeDown;
-                doCommand = true;
+                command = nsWidgetAtoms::VolumeDown;
+                doCommand = PR_TRUE;
                 break;
             case AndroidKeyEvent::KEYCODE_MENU:
-                gMenu = true;
+                gMenu = PR_TRUE;
                 gMenuConsumed = isLongPress;
                 break;
         }
     } else {
         switch (keyCode) {
             case AndroidKeyEvent::KEYCODE_BACK: {
-                nsKeyEvent pressEvent(true, NS_KEY_PRESS, this);
+                nsKeyEvent pressEvent(PR_TRUE, NS_KEY_PRESS, this);
                 InitKeyEvent(pressEvent, *ae);
                 DispatchEvent(&pressEvent);
                 return;
             }
             case AndroidKeyEvent::KEYCODE_MENU:
-                gMenu = false;
+                gMenu = PR_FALSE;
                 if (!gMenuConsumed) {
-                    command = nsGkAtoms::Menu;
-                    doCommand = true;
+                    command = nsWidgetAtoms::Menu;
+                    doCommand = PR_TRUE;
                 }
                 break;
             case AndroidKeyEvent::KEYCODE_SEARCH:
-                command = nsGkAtoms::Search;
-                doCommand = true;
+                command = nsWidgetAtoms::Search;
+                doCommand = PR_TRUE;
                 break;
             default:
                 ALOG("Unknown special key code!");
@@ -1572,7 +1573,7 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
         }
     }
     if (doCommand) {
-        nsCommandEvent event(true, nsGkAtoms::onAppCommand, command, this);
+        nsCommandEvent event(PR_TRUE, nsWidgetAtoms::onAppCommand, command, this);
         InitEvent(event);
         DispatchEvent(&event);
     }
@@ -1591,7 +1592,7 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
         break;
     case AndroidKeyEvent::ACTION_MULTIPLE:
         {
-            nsTextEvent event(true, NS_TEXT_TEXT, this);
+            nsTextEvent event(PR_TRUE, NS_TEXT_TEXT, this);
             event.theText.Assign(ae->Characters());
             DispatchEvent(&event);
         }
@@ -1619,14 +1620,14 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
     }
 
     nsEventStatus status;
-    nsKeyEvent event(true, msg, this);
+    nsKeyEvent event(PR_TRUE, msg, this);
     InitKeyEvent(event, *ae);
     DispatchEvent(&event, status);
 
     if (!firePress)
         return;
 
-    nsKeyEvent pressEvent(true, NS_KEY_PRESS, this);
+    nsKeyEvent pressEvent(PR_TRUE, NS_KEY_PRESS, this);
     InitKeyEvent(pressEvent, *ae);
     if (status == nsEventStatus_eConsumeNoDefault) {
         pressEvent.flags |= NS_EVENT_FLAG_NO_DEFAULT;
@@ -1674,7 +1675,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
     case AndroidGeckoEvent::IME_COMPOSITION_END:
         {
             ALOGIME("IME: IME_COMPOSITION_END");
-            nsCompositionEvent event(true, NS_COMPOSITION_END, this);
+            nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_END, this);
             InitEvent(event, nsnull);
             event.data = mIMELastDispatchedComposingText;
             mIMELastDispatchedComposingText.Truncate();
@@ -1685,7 +1686,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
         {
             ALOGIME("IME: IME_COMPOSITION_BEGIN");
             mIMELastDispatchedComposingText.Truncate();
-            nsCompositionEvent event(true, NS_COMPOSITION_START, this);
+            nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_START, this);
             InitEvent(event, nsnull);
             DispatchEvent(&event);
         }
@@ -1699,7 +1700,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
         {
             OnIMEAddRange(ae);
 
-            nsTextEvent event(true, NS_TEXT_TEXT, this);
+            nsTextEvent event(PR_TRUE, NS_TEXT_TEXT, this);
             InitEvent(event, nsnull);
 
             event.theText.Assign(ae->Characters());
@@ -1708,7 +1709,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
 
             if (mIMEComposing &&
                 event.theText != mIMELastDispatchedComposingText) {
-                nsCompositionEvent compositionUpdate(true,
+                nsCompositionEvent compositionUpdate(PR_TRUE,
                                                      NS_COMPOSITION_UPDATE,
                                                      this);
                 InitEvent(compositionUpdate, nsnull);
@@ -1731,7 +1732,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
         {
             ALOGIME("IME: IME_GET_TEXT: o=%u, l=%u", ae->Offset(), ae->Count());
 
-            nsQueryContentEvent event(true, NS_QUERY_TEXT_CONTENT, this);
+            nsQueryContentEvent event(PR_TRUE, NS_QUERY_TEXT_CONTENT, this);
             InitEvent(event, nsnull);
 
             event.InitForQueryTextContent(ae->Offset(), ae->Count());
@@ -1754,7 +1755,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
     case AndroidGeckoEvent::IME_DELETE_TEXT:
         {   
             ALOGIME("IME: IME_DELETE_TEXT");
-            nsKeyEvent event(true, NS_KEY_PRESS, this);
+            nsKeyEvent event(PR_TRUE, NS_KEY_PRESS, this);
             InitEvent(event, nsnull);
             event.keyCode = NS_VK_BACK;
             DispatchEvent(&event);
@@ -1764,14 +1765,14 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
         {
             ALOGIME("IME: IME_SET_SELECTION: o=%u, l=%d", ae->Offset(), ae->Count());
 
-            nsSelectionEvent selEvent(true, NS_SELECTION_SET, this);
+            nsSelectionEvent selEvent(PR_TRUE, NS_SELECTION_SET, this);
             InitEvent(selEvent, nsnull);
 
             selEvent.mOffset = PRUint32(ae->Count() >= 0 ?
                                         ae->Offset() :
                                         ae->Offset() + ae->Count());
             selEvent.mLength = PRUint32(NS_ABS(ae->Count()));
-            selEvent.mReversed = ae->Count() >= 0 ? false : true;
+            selEvent.mReversed = ae->Count() >= 0 ? PR_FALSE : PR_TRUE;
 
             DispatchEvent(&selEvent);
         }
@@ -1780,7 +1781,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
         {
             ALOGIME("IME: IME_GET_SELECTION");
 
-            nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
+            nsQueryContentEvent event(PR_TRUE, NS_QUERY_SELECTED_TEXT, this);
             InitEvent(event, nsnull);
             DispatchEvent(&event);
 
@@ -1838,13 +1839,13 @@ nsWindow::ResetInputState()
 
     // Cancel composition on Gecko side
     if (mIMEComposing) {
-        nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
+        nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, this);
         InitEvent(textEvent, nsnull);
         textEvent.theText = mIMEComposingText;
         DispatchEvent(&textEvent);
         mIMEComposingText.Truncate(0);
 
-        nsCompositionEvent event(true, NS_COMPOSITION_END, this);
+        nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_END, this);
         InitEvent(event, nsnull);
         DispatchEvent(&event);
     }
@@ -1889,12 +1890,12 @@ nsWindow::CancelIMEComposition()
 
     // Cancel composition on Gecko side
     if (mIMEComposing) {
-        nsTextEvent textEvent(true, NS_TEXT_TEXT, this);
+        nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, this);
         InitEvent(textEvent, nsnull);
         DispatchEvent(&textEvent);
         mIMEComposingText.Truncate(0);
 
-        nsCompositionEvent compEvent(true, NS_COMPOSITION_END, this);
+        nsCompositionEvent compEvent(PR_TRUE, NS_COMPOSITION_END, this);
         InitEvent(compEvent, nsnull);
         DispatchEvent(&compEvent);
     }
@@ -1929,7 +1930,7 @@ nsWindow::OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd)
     // The more efficient way would have been passing the substring from index
     // aStart to index aNewEnd
 
-    nsQueryContentEvent event(true, NS_QUERY_TEXT_CONTENT, this);
+    nsQueryContentEvent event(PR_TRUE, NS_QUERY_TEXT_CONTENT, this);
     InitEvent(event, nsnull);
     event.InitForQueryTextContent(0, PR_UINT32_MAX);
 
@@ -1949,7 +1950,7 @@ nsWindow::OnIMESelectionChange(void)
 {
     ALOGIME("IME: OnIMESelectionChange");
 
-    nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);
+    nsQueryContentEvent event(PR_TRUE, NS_QUERY_SELECTED_TEXT, this);
     InitEvent(event, nsnull);
 
     DispatchEvent(&event);
@@ -1965,6 +1966,6 @@ nsWindow::OnIMESelectionChange(void)
 nsIMEUpdatePreference
 nsWindow::GetIMEUpdatePreference()
 {
-    return nsIMEUpdatePreference(true, true);
+    return nsIMEUpdatePreference(PR_TRUE, PR_TRUE);
 }
 

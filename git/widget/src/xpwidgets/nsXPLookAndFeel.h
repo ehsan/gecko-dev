@@ -97,7 +97,7 @@ public:
 
   virtual bool GetEchoPasswordImpl()
   {
-    return false;
+    return PR_FALSE;
   }
 
 protected:

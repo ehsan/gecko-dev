@@ -70,7 +70,7 @@ nsNSSCertificateFakeTransport::nsNSSCertificateFakeTransport() :
 nsNSSCertificateFakeTransport::~nsNSSCertificateFakeTransport()
 {
   if (mCertSerialization)
-    SECITEM_FreeItem(mCertSerialization, true);
+    SECITEM_FreeItem(mCertSerialization, PR_TRUE);
 }
 
 NS_IMETHODIMP

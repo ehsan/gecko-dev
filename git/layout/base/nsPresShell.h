@@ -596,10 +596,10 @@ protected:
   {
     nsRefPtr<nsFrameSelection> frameSelection = FrameSelection();
     if (frameSelection) {
-      frameSelection->SetMouseDownState(false);
+      frameSelection->SetMouseDownState(PR_FALSE);
     }
     if (gCaptureInfo.mContent &&
-        gCaptureInfo.mContent->OwnerDoc() == mDocument) {
+        gCaptureInfo.mContent->GetOwnerDoc() == mDocument) {
       SetCapturingContent(nsnull, 0);
     }
   }
@@ -897,8 +897,6 @@ public:
 
     return result;
   }
-
-  PRUint64 ComputeTextRunMemoryUsed();
 
   class MemoryReporter : public nsIMemoryMultiReporter
   {

@@ -70,7 +70,7 @@ class SVGAnimatedTransformList
   friend class DOMSVGTransformList;
 
 public:
-  SVGAnimatedTransformList() : mIsAttrSet(false) { }
+  SVGAnimatedTransformList() : mIsAttrSet(PR_FALSE) { }
 
   /**
    * Because it's so important that mBaseVal and its DOMSVGTransformList wrapper

@@ -610,7 +610,8 @@ protected:
   nsIPresShell *GetPresShell() {
     nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
     if (content) {
-      return content->OwnerDoc()->GetShell();
+      nsIDocument* ownerDoc = content->GetOwnerDoc();
+      return ownerDoc ? ownerDoc->GetShell() : nsnull;
     }
     if (mDocShell) {
       nsCOMPtr<nsIPresShell> shell;
@@ -671,7 +672,7 @@ protected:
                        fillRule(FILL_WINDING),
                        lineCap(CAP_BUTT),
                        lineJoin(JOIN_MITER_OR_BEVEL),
-                       imageSmoothingEnabled(true)
+                       imageSmoothingEnabled(PR_TRUE)
       { }
 
       ContextState(const ContextState& other)
@@ -1008,11 +1009,11 @@ NS_NewCanvasRenderingContext2DAzure(nsIDOMCanvasRenderingContext2D** aResult)
 }
 
 nsCanvasRenderingContext2DAzure::nsCanvasRenderingContext2DAzure()
-  : mValid(false), mZero(false), mOpaque(false), mResetLayer(true)
-  , mIPC(false)
+  : mValid(PR_FALSE), mZero(PR_FALSE), mOpaque(PR_FALSE), mResetLayer(PR_TRUE)
+  , mIPC(PR_FALSE)
   , mCanvasElement(nsnull)
-  , mIsEntireFrameInvalid(false)
-  , mPredictManyRedrawCalls(false), mPathTransformWillUpdate(false)
+  , mIsEntireFrameInvalid(PR_FALSE)
+  , mPredictManyRedrawCalls(PR_FALSE), mPathTransformWillUpdate(false)
   , mInvalidateCount(0)
 {
   sNumLivingContexts++;
@@ -1048,9 +1049,9 @@ nsCanvasRenderingContext2DAzure::Reset()
   // Since the target changes the backing texture will change, and this will
   // no longer be valid.
   mThebesSurface = nsnull;
-  mValid = false;
-  mIsEntireFrameInvalid = false;
-  mPredictManyRedrawCalls = false;
+  mValid = PR_FALSE;
+  mIsEntireFrameInvalid = PR_FALSE;
+  mPredictManyRedrawCalls = PR_FALSE;
 
   return NS_OK;
 }
@@ -1065,7 +1066,7 @@ nsCanvasRenderingContext2DAzure::SetStyleFromStringOrInterface(const nsAString& 
 
   if (!aStr.IsVoid()) {
     nsIDocument* document = mCanvasElement ?
-                            HTMLCanvasElement()->OwnerDoc() : nsnull;
+                            HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
     // Pass the CSS Loader object to the parser, to allow parser error
     // reports to include the outer window ID.
@@ -1102,7 +1103,7 @@ nsCanvasRenderingContext2DAzure::SetStyleFromStringOrInterface(const nsAString& 
     EmptyString(), 0, 0,
     nsIScriptError::warningFlag,
     "Canvas",
-    mCanvasElement ? HTMLCanvasElement()->OwnerDoc() : nsnull);
+    mCanvasElement ? HTMLCanvasElement()->GetOwnerDoc() : nsnull);
 
   return NS_OK;
 }
@@ -1116,11 +1117,11 @@ nsCanvasRenderingContext2DAzure::GetStyleAsStringOrInterface(nsAString& aStr,
   const ContextState &state = CurrentState();
 
   if (state.patternStyles[aWhichStyle]) {
-    aStr.SetIsVoid(true);
+    aStr.SetIsVoid(PR_TRUE);
     NS_ADDREF(*aInterface = state.patternStyles[aWhichStyle]);
     *aType = CMG_STYLE_PATTERN;
   } else if (state.gradientStyles[aWhichStyle]) {
-    aStr.SetIsVoid(true);
+    aStr.SetIsVoid(PR_TRUE);
     NS_ADDREF(*aInterface = state.gradientStyles[aWhichStyle]);
     *aType = CMG_STYLE_GRADIENT;
   } else {
@@ -1161,7 +1162,7 @@ nsCanvasRenderingContext2DAzure::Redraw()
     return NS_OK;
   }
 
-  mIsEntireFrameInvalid = true;
+  mIsEntireFrameInvalid = PR_TRUE;
 
   if (!mCanvasElement) {
     NS_ASSERTION(mDocShell, "Redraw with no canvas element or docshell!");
@@ -1225,11 +1226,11 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
 
   // Zero sized surfaces cause issues, so just go with 1x1.
   if (height == 0 || width == 0) {
-    mZero = true;
+    mZero = PR_TRUE;
     height = 1;
     width = 1;
   } else {
-    mZero = false;
+    mZero = PR_FALSE;
   }
 
   // Check that the dimensions are sane
@@ -1240,7 +1241,7 @@ nsCanvasRenderingContext2DAzure::SetDimensions(PRInt32 width, PRInt32 height)
     nsCOMPtr<nsIContent> content = do_QueryObject(mCanvasElement);
     nsIDocument* ownerDoc = nsnull;
     if (content) {
-      ownerDoc = content->OwnerDoc();
+      ownerDoc = content->GetOwnerDoc();
     }
 
     nsRefPtr<LayerManager> layerManager = nsnull;
@@ -1283,7 +1284,7 @@ nsCanvasRenderingContext2DAzure::InitializeWithTarget(DrawTarget *target, PRInt3
 
   mTarget = target;
 
-  mResetLayer = true;
+  mResetLayer = PR_TRUE;
 
   /* Create dummy surfaces here - target can be null when a canvas was created
    * that is too large to support.
@@ -1292,7 +1293,7 @@ nsCanvasRenderingContext2DAzure::InitializeWithTarget(DrawTarget *target, PRInt3
   {
     mTarget = Factory::CreateDrawTarget(BACKEND_DIRECT2D, IntSize(1, 1), FORMAT_B8G8R8A8);
   } else {
-    mValid = true;
+    mValid = PR_TRUE;
   }
 
   // set up the initial canvas defaults
@@ -1688,7 +1689,7 @@ nsCanvasRenderingContext2DAzure::SetStrokeStyle(nsIVariant *aValue)
       NS_Free(iid);
     }
 
-    str.SetIsVoid(true);
+    str.SetIsVoid(PR_TRUE);
     return SetStrokeStyle_multi(str, sup);
   }
 
@@ -1748,7 +1749,7 @@ nsCanvasRenderingContext2DAzure::SetFillStyle(nsIVariant *aValue)
     rv = aValue->GetAsInterface(&iid, getter_AddRefs(sup));
     NS_ENSURE_SUCCESS(rv, rv);
 
-    str.SetIsVoid(true);
+    str.SetIsVoid(PR_TRUE);
     return SetFillStyle_multi(str, sup);
   }
 
@@ -1924,7 +1925,7 @@ nsCanvasRenderingContext2DAzure::CreatePattern(nsIDOMHTMLElement *image,
         RefPtr<SourceSurface> srcSurf = srcCanvas->GetSurfaceSnapshot();
 
         nsRefPtr<nsCanvasPatternAzure> pat =
-          new nsCanvasPatternAzure(srcSurf, repeatMode, content->NodePrincipal(), canvas->IsWriteOnly(), false);
+          new nsCanvasPatternAzure(srcSurf, repeatMode, content->NodePrincipal(), canvas->IsWriteOnly(), PR_FALSE);
 
         *_retval = pat.forget().get();
         return NS_OK;
@@ -2019,7 +2020,7 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::SetShadowColor(const nsAString& colorstr)
 {
   nsIDocument* document = mCanvasElement ?
-                          HTMLCanvasElement()->OwnerDoc() : nsnull;
+                          HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
   // Pass the CSS Loader object to the parser, to allow parser error reports
   // to include the outer window ID.
@@ -2674,7 +2675,7 @@ CreateFontStyleRule(const nsAString& aFont,
   bool changed;
 
   nsIPrincipal* principal = aNode->NodePrincipal();
-  nsIDocument* document = aNode->OwnerDoc();
+  nsIDocument* document = aNode->GetOwnerDoc();
 
   nsIURI* docURL = document->GetDocumentURI();
   nsIURI* baseURL = document->GetDocBaseURI();
@@ -2691,14 +2692,14 @@ CreateFontStyleRule(const nsAString& aFont,
 
   rv = parser.ParseProperty(eCSSProperty_font, aFont, docURL, baseURL,
                             principal, rule->GetDeclaration(), &changed,
-                            false);
+                            PR_FALSE);
   if (NS_FAILED(rv))
     return rv;
 
   rv = parser.ParseProperty(eCSSProperty_line_height,
                             NS_LITERAL_STRING("normal"), docURL, baseURL,
                             principal, rule->GetDeclaration(), &changed,
-                            false);
+                            PR_FALSE);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -3065,8 +3066,6 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
     Point baselineOrigin =
       Point(point.x * devUnitsPerAppUnit, point.y * devUnitsPerAppUnit);
 
-    float advanceSum = 0;
-
     for (PRUint32 c = 0; c < numRuns; c++) {
       gfxFont *font = runs[c].mFont;
       PRUint32 endRun = 0;
@@ -3084,6 +3083,8 @@ struct NS_STACK_CLASS nsCanvasBidiProcessorAzure : public nsBidiPresUtils::BidiP
       GlyphBuffer buffer;
 
       std::vector<Glyph> glyphBuf;
+
+      float advanceSum = 0;
 
       for (PRUint32 i = runs[c].mCharacterOffset; i < endRun; i++) {
         Glyph newGlyph;
@@ -3368,7 +3369,7 @@ nsCanvasRenderingContext2DAzure::DrawOrMeasureText(const nsAString& aRawText,
   gfxRect boundingBox = processor.mBoundingBox;
 
   // don't ever need to measure the bounding box twice
-  processor.mDoMeasureBoundingBox = false;
+  processor.mDoMeasureBoundingBox = PR_FALSE;
 
   rv = nsBidiPresUtils::ProcessText(textToDraw.get(),
                                     textToDraw.Length(),
@@ -3596,13 +3597,13 @@ NS_IMETHODIMP
 nsCanvasRenderingContext2DAzure::IsPointInPath(float x, float y, bool *retVal)
 {
   if (!FloatValidate(x,y)) {
-    *retVal = false;
+    *retVal = PR_FALSE;
     return NS_OK;
   }
 
   EnsureUserSpacePath();
 
-  *retVal = false;
+  *retVal = PR_FALSE;
 
   if (mPath) {
     *retVal = mPath->ContainsPoint(Point(x, y), mTarget->GetTransform());
@@ -3904,7 +3905,7 @@ nsCanvasRenderingContext2DAzure::DrawWindow(nsIDOMWindow* aWindow, float aX, flo
   nscolor bgColor;
 
   nsIDocument* elementDoc = mCanvasElement ?
-                            HTMLCanvasElement()->OwnerDoc() : nsnull;
+                            HTMLCanvasElement()->GetOwnerDoc() : nsnull;
 
   // Pass the CSS Loader object to the parser, to allow parser error reports
   // to include the outer window ID.
@@ -4426,7 +4427,7 @@ nsCanvasRenderingContext2DAzure::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
   canvasLayer->SetContentFlags(flags);
   canvasLayer->Updated();
 
-  mResetLayer = false;
+  mResetLayer = PR_FALSE;
 
   return canvasLayer.forget();
 }
@@ -4437,7 +4438,7 @@ nsCanvasRenderingContext2DAzure::MarkContextClean()
   if (mInvalidateCount > 0) {
     mPredictManyRedrawCalls = mInvalidateCount > kCanvasMaxInvalidateCount;
   }
-  mIsEntireFrameInvalid = false;
+  mIsEntireFrameInvalid = PR_FALSE;
   mInvalidateCount = 0;
 }
 

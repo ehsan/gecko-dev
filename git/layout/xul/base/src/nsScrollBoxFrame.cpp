@@ -133,7 +133,7 @@ nsAutoRepeatBoxFrame::HandleEvent(nsPresContext* aPresContext,
       // always stop on mouse exit
       StopRepeat();
       // Not really necessary but do this to be safe
-      mTrustedEvent = false;
+      mTrustedEvent = PR_FALSE;
       break;
 
     case NS_MOUSE_CLICK:

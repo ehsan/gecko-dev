@@ -166,7 +166,7 @@ nsHTMLStyleElement::GetDisabled(bool* aDisabled)
     }
   }
   else {
-    *aDisabled = false;
+    *aDisabled = PR_FALSE;
   }
 
   return result;
@@ -298,18 +298,18 @@ nsHTMLStyleElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
 nsresult
 nsHTMLStyleElement::GetInnerHTML(nsAString& aInnerHTML)
 {
-  nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
+  nsContentUtils::GetNodeTextContent(this, PR_FALSE, aInnerHTML);
   return NS_OK;
 }
 
 nsresult
 nsHTMLStyleElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
-  SetEnableUpdates(false);
+  SetEnableUpdates(PR_FALSE);
 
-  nsresult rv = nsContentUtils::SetNodeTextContent(this, aInnerHTML, true);
+  nsresult rv = nsContentUtils::SetNodeTextContent(this, aInnerHTML, PR_TRUE);
   
-  SetEnableUpdates(true);
+  SetEnableUpdates(PR_TRUE);
   
   UpdateStyleSheetInternal(nsnull);
   return rv;
@@ -318,7 +318,7 @@ nsHTMLStyleElement::SetInnerHTML(const nsAString& aInnerHTML)
 already_AddRefed<nsIURI>
 nsHTMLStyleElement::GetStyleSheetURL(bool* aIsInline)
 {
-  *aIsInline = true;
+  *aIsInline = PR_TRUE;
   return nsnull;
 }
 
@@ -331,7 +331,7 @@ nsHTMLStyleElement::GetStyleSheetInfo(nsAString& aTitle,
   aTitle.Truncate();
   aType.Truncate();
   aMedia.Truncate();
-  *aIsAlternate = false;
+  *aIsAlternate = PR_FALSE;
 
   nsAutoString title;
   GetAttr(kNameSpaceID_None, nsGkAtoms::title, title);

@@ -39,8 +39,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsAnnotationService.h"
 #include "nsNavHistory.h"
 
@@ -55,8 +53,6 @@
 #include "Helpers.h"
 
 #include "mozilla/storage.h"
-
-using namespace mozilla;
 
 #define ENSURE_ANNO_TYPE(_type, _statement)                                    \
   PR_BEGIN_MACRO                                                               \
@@ -271,7 +267,7 @@ nsAnnotationService::SetAnnotationStringInternal(nsIURI* aURI,
                                                  PRInt32 aFlags,
                                                  PRUint16 aExpiration)
 {
-  mozStorageTransaction transaction(mDBConn, false);
+  mozStorageTransaction transaction(mDBConn, PR_FALSE);
   mozIStorageStatement* statement;
   nsresult rv = StartSetAnnotation(aURI, aItemId, aName, aFlags, aExpiration,
                                    nsIAnnotationService::TYPE_STRING,
@@ -501,7 +497,7 @@ nsAnnotationService::SetAnnotationInt32Internal(nsIURI* aURI,
                                                 PRInt32 aFlags,
                                                 PRUint16 aExpiration)
 {
-  mozStorageTransaction transaction(mDBConn, false);
+  mozStorageTransaction transaction(mDBConn, PR_FALSE);
   mozIStorageStatement* statement;
   nsresult rv = StartSetAnnotation(aURI, aItemId, aName, aFlags, aExpiration,
                                    nsIAnnotationService::TYPE_INT32,
@@ -576,7 +572,7 @@ nsAnnotationService::SetAnnotationInt64Internal(nsIURI* aURI,
                                                 PRInt32 aFlags,
                                                 PRUint16 aExpiration)
 {
-  mozStorageTransaction transaction(mDBConn, false);
+  mozStorageTransaction transaction(mDBConn, PR_FALSE);
   mozIStorageStatement* statement;
   nsresult rv = StartSetAnnotation(aURI, aItemId, aName, aFlags, aExpiration,
                                    nsIAnnotationService::TYPE_INT64,
@@ -651,7 +647,7 @@ nsAnnotationService::SetAnnotationDoubleInternal(nsIURI* aURI,
                                                  PRInt32 aFlags,
                                                  PRUint16 aExpiration)
 {
-  mozStorageTransaction transaction(mDBConn, false);
+  mozStorageTransaction transaction(mDBConn, PR_FALSE);
   mozIStorageStatement* statement;
   nsresult rv = StartSetAnnotation(aURI, aItemId, aName, aFlags, aExpiration,
                                    nsIAnnotationService::TYPE_DOUBLE,
@@ -731,7 +727,7 @@ nsAnnotationService::SetAnnotationBinaryInternal(nsIURI* aURI,
   if (aMimeType.Length() == 0)
     return NS_ERROR_INVALID_ARG;
 
-  mozStorageTransaction transaction(mDBConn, false);
+  mozStorageTransaction transaction(mDBConn, PR_FALSE);
   mozIStorageStatement* statement;
   nsresult rv = StartSetAnnotation(aURI, aItemId, aName, aFlags, aExpiration,
                                    nsIAnnotationService::TYPE_BINARY,
@@ -1625,7 +1621,7 @@ nsAnnotationService::CopyPageAnnotations(nsIURI* aSourceURI,
   if (InPrivateBrowsingMode())
     return NS_OK;
 
-  mozStorageTransaction transaction(mDBConn, false);
+  mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
   nsCOMPtr<mozIStorageStatement> sourceStmt;
   nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
@@ -1707,7 +1703,7 @@ nsAnnotationService::CopyItemAnnotations(PRInt64 aSourceItemId,
   NS_ENSURE_ARG_MIN(aSourceItemId, 1);
   NS_ENSURE_ARG_MIN(aDestItemId, 1);
 
-  mozStorageTransaction transaction(mDBConn, false);
+  mozStorageTransaction transaction(mDBConn, PR_FALSE);
 
   nsCOMPtr<mozIStorageStatement> sourceStmt;
   nsresult rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
@@ -1858,7 +1854,7 @@ nsAnnotationService::HasAnnotationInternal(nsIURI* aURI,
     // annotation, ignoring the fact itemId is invalid.
     // Otherwise we should return NS_ERROR_INVALID_ARG, but this will somehow
     // break the API.  In future we could want to be pickier.
-    *_hasAnno = false;
+    *_hasAnno = PR_FALSE;
   }
   else {
     PRInt64 annotationId = stmt->AsInt64(2);
@@ -2042,7 +2038,7 @@ nsAnnotationService::FinalizeStatements() {
   , mDBCheckItemAnnotation
   };
 
-  for (PRUint32 i = 0; i < ArrayLength(stmts); i++) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(stmts); i++) {
     nsresult rv = nsNavHistory::FinalizeStatement(stmts[i]);
     NS_ENSURE_SUCCESS(rv, rv);
   }

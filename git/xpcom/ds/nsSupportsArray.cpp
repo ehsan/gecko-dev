@@ -175,7 +175,7 @@ bool nsSupportsArray::GrowArrayBy(PRInt32 aGrowBy)
   mArray = new nsISupports*[newCount];
   if (!mArray) {                    // ran out of memory
     mArray = oldArray;
-    return false;
+    return PR_FALSE;
   }
   mArraySize = newCount;
 
@@ -200,7 +200,7 @@ bool nsSupportsArray::GrowArrayBy(PRInt32 aGrowBy)
     }
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 nsresult
@@ -257,7 +257,7 @@ nsSupportsArray::Read(nsIObjectInputStream *aStream)
     mCount = mArraySize;
 
   for (PRUint32 i = 0; i < mCount; i++) {
-    rv = aStream->ReadObject(true, &mArray[i]);
+    rv = aStream->ReadObject(PR_TRUE, &mArray[i]);
     if (NS_FAILED(rv)) return rv;
   }
 
@@ -276,7 +276,7 @@ nsSupportsArray::Write(nsIObjectOutputStream *aStream)
   if (NS_FAILED(rv)) return rv;
 
   for (PRUint32 i = 0; i < mCount; i++) {
-    rv = aStream->WriteObject(mArray[i], true);
+    rv = aStream->WriteObject(mArray[i], PR_TRUE);
     if (NS_FAILED(rv)) return rv;
   }
 
@@ -302,21 +302,21 @@ nsSupportsArray::Equals(const nsISupportsArray* aOther)
     nsISupportsArray* other = const_cast<nsISupportsArray*>(aOther);
     nsresult rv = other->Count(&countOther);
     if (NS_FAILED( rv ))
-      return false;
+      return PR_FALSE;
 
     if (mCount == countOther) {
       PRUint32 index = mCount;
       nsCOMPtr<nsISupports> otherElem;
       while (index--) {
         if (NS_FAILED(other->GetElementAt(index, getter_AddRefs(otherElem))))
-          return false;
+          return PR_FALSE;
         if (mArray[index] != otherElem)
-          return false;
+          return PR_FALSE;
       }
-      return true;
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP_(nsISupports*)
@@ -376,7 +376,7 @@ nsSupportsArray::InsertElementAt(nsISupports* aElement, PRUint32 aIndex)
     if (mArraySize < (mCount + 1)) {
       // need to grow the array
       if (!GrowArrayBy(1))
-        return false;
+        return PR_FALSE;
     }
 
     // Could be slightly more efficient if GrowArrayBy knew about the
@@ -399,26 +399,26 @@ nsSupportsArray::InsertElementAt(nsISupports* aElement, PRUint32 aIndex)
       mMaxCount = mCount;
     }
 #endif
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP_(bool)
 nsSupportsArray::InsertElementsAt(nsISupportsArray* aElements, PRUint32 aIndex)
 {
   if (!aElements) {
-    return false;
+    return PR_FALSE;
   }
   PRUint32 countElements;
   if (NS_FAILED( aElements->Count( &countElements ) ))
-    return false;
+    return PR_FALSE;
 
   if (aIndex <= mCount) {
     if (mArraySize < (mCount + countElements)) {
       // need to grow the array
       if (!GrowArrayBy(countElements))
-        return false;
+        return PR_FALSE;
     }
 
     // Could be slightly more efficient if GrowArrayBy knew about the
@@ -432,7 +432,7 @@ nsSupportsArray::InsertElementsAt(nsISupportsArray* aElements, PRUint32 aIndex)
     for (PRUint32 i = 0; i < countElements; ++i, ++mCount) {
       // use GetElementAt to copy and do AddRef for us
       if (NS_FAILED( aElements->GetElementAt( i, mArray + aIndex + i) ))
-        return false;
+        return PR_FALSE;
     }
 
 #if DEBUG_SUPPORTSARRAY
@@ -444,9 +444,9 @@ nsSupportsArray::InsertElementsAt(nsISupportsArray* aElements, PRUint32 aIndex)
       mMaxCount = mCount;
     }
 #endif
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP_(bool)
@@ -456,9 +456,9 @@ nsSupportsArray::ReplaceElementAt(nsISupports* aElement, PRUint32 aIndex)
     NS_IF_ADDREF(aElement);  // addref first in case it's the same object!
     NS_IF_RELEASE(mArray[aIndex]);
     mArray[aIndex] = aElement;
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP_(bool)
@@ -473,9 +473,9 @@ nsSupportsArray::RemoveElementsAt(PRUint32 aIndex, PRUint32 aCount)
       ::memmove(mArray + aIndex, mArray + aIndex + aCount,
                 slide * sizeof(nsISupports*));
     }
-    return true;
+    return PR_TRUE;
   }
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP_(bool)
@@ -485,7 +485,7 @@ nsSupportsArray::RemoveElement(const nsISupports* aElement, PRUint32 aStartIndex
   if (theIndex >= 0)
     return RemoveElementAt(theIndex);
 
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP_(bool)
@@ -495,7 +495,7 @@ nsSupportsArray::RemoveLastElement(const nsISupports* aElement)
   if (theIndex >= 0)
     return RemoveElementAt(theIndex);
 
-  return false;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP_(bool)
@@ -504,13 +504,13 @@ nsSupportsArray::MoveElement(PRInt32 aFrom, PRInt32 aTo)
   nsISupports *tempElement;
 
   if (aTo == aFrom)
-    return true;
+    return PR_TRUE;
 
   if (aTo < 0 || aFrom < 0 ||
       (PRUint32) aTo >= mCount || (PRUint32) aFrom >= mCount)
   {
     // can't extend the array when moving an element.  Also catches mImpl = null
-    return false;
+    return PR_FALSE;
   }
   tempElement = mArray[aFrom];
 
@@ -529,7 +529,7 @@ nsSupportsArray::MoveElement(PRInt32 aFrom, PRInt32 aTo)
     mArray[aTo] = tempElement;
   }
 
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -587,7 +587,7 @@ nsSupportsArray::SizeTo(PRInt32 aSize)
 
   // XXX for aSize < mCount we could resize to mCount
   if (mArraySize == (PRUint32) aSize || (PRUint32) aSize < mCount)
-    return true;     // nothing to do
+    return PR_TRUE;     // nothing to do
 
   // switch back to autoarray if possible
   nsISupports** oldArray = mArray;
@@ -599,7 +599,7 @@ nsSupportsArray::SizeTo(PRInt32 aSize)
     mArray = new nsISupports*[aSize];
     if (!mArray) {
       mArray = oldArray;
-      return false;
+      return PR_FALSE;
     }
     mArraySize = aSize;
   }
@@ -614,7 +614,7 @@ nsSupportsArray::SizeTo(PRInt32 aSize)
   if (oldArray != mAutoArray)
     delete[] oldArray;
 
-  return true;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP_(bool)
@@ -725,7 +725,7 @@ nsArrayEnumerator::HasMoreElements(bool* aResult)
         return NS_ERROR_NULL_POINTER;
 
     if (!mValueArray) {
-        *aResult = false;
+        *aResult = PR_FALSE;
         return NS_OK;
     }
 

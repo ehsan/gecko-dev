@@ -45,7 +45,7 @@
 nsDOMMouseEvent::nsDOMMouseEvent(nsPresContext* aPresContext,
                                  nsInputEvent* aEvent)
   : nsDOMUIEvent(aPresContext, aEvent ? aEvent :
-                 new nsMouseEvent(false, 0, nsnull,
+                 new nsMouseEvent(PR_FALSE, 0, nsnull,
                                   nsMouseEvent::eReal))
 {
   // There's no way to make this class' ctor allocate an nsMouseScrollEvent.
@@ -53,10 +53,10 @@ nsDOMMouseEvent::nsDOMMouseEvent(nsPresContext* aPresContext,
   // DOM event.
   
   if (aEvent) {
-    mEventIsInternal = false;
+    mEventIsInternal = PR_FALSE;
   }
   else {
-    mEventIsInternal = true;
+    mEventIsInternal = PR_TRUE;
     mEvent->time = PR_Now();
     mEvent->refPoint.x = mEvent->refPoint.y = 0;
     static_cast<nsMouseEvent*>(mEvent)->inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;

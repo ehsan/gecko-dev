@@ -56,8 +56,8 @@ using mozilla::SVGAnimatedTransformList;
 
 nsSVGGradientFrame::nsSVGGradientFrame(nsStyleContext* aContext) :
   nsSVGGradientFrameBase(aContext),
-  mLoopFlag(false),
-  mNoHRefURI(false)
+  mLoopFlag(PR_FALSE),
+  mNoHRefURI(PR_FALSE)
 {
 }
 
@@ -87,7 +87,7 @@ nsSVGGradientFrame::AttributeChanged(PRInt32         aNameSpaceID,
              aAttribute == nsGkAtoms::href) {
     // Blow away our reference, if any
     Properties().Delete(nsSVGEffects::HrefProperty());
-    mNoHRefURI = false;
+    mNoHRefURI = PR_FALSE;
     // And update whoever references us
     nsSVGEffects::InvalidateRenderingObservers(this);
   }
@@ -261,7 +261,7 @@ nsSVGGradientFrame::GetReferencedGradient()
     nsAutoString href;
     grad->mStringAttributes[nsSVGGradientElement::HREF].GetAnimValue(href, grad);
     if (href.IsEmpty()) {
-      mNoHRefURI = true;
+      mNoHRefURI = PR_TRUE;
       return nsnull; // no URL
     }
 
@@ -302,13 +302,13 @@ nsSVGGradientFrame::GetGradientWithAttr(nsIAtom *aAttrName, nsIContent *aDefault
     return grad;
 
   // Set mLoopFlag before checking mNextGrad->mLoopFlag in case we are mNextGrad
-  mLoopFlag = true;
+  mLoopFlag = PR_TRUE;
   // XXXjwatt: we should really send an error to the JavaScript Console here:
   NS_WARN_IF_FALSE(!next->mLoopFlag, "gradient reference loop detected "
                                      "while inheriting attribute!");
   if (!next->mLoopFlag)
     grad = next->GetGradientWithAttr(aAttrName, aDefault);
-  mLoopFlag = false;
+  mLoopFlag = PR_FALSE;
 
   return grad;
 }
@@ -327,13 +327,13 @@ nsSVGGradientFrame::GetGradientWithAttr(nsIAtom *aAttrName, nsIAtom *aGradType,
     return grad;
 
   // Set mLoopFlag before checking mNextGrad->mLoopFlag in case we are mNextGrad
-  mLoopFlag = true;
+  mLoopFlag = PR_TRUE;
   // XXXjwatt: we should really send an error to the JavaScript Console here:
   NS_WARN_IF_FALSE(!next->mLoopFlag, "gradient reference loop detected "
                                      "while inheriting attribute!");
   if (!next->mLoopFlag)
     grad = next->GetGradientWithAttr(aAttrName, aGradType, aDefault);
-  mLoopFlag = false;
+  mLoopFlag = PR_FALSE;
 
   return grad;
 }
@@ -367,13 +367,13 @@ nsSVGGradientFrame::GetStopFrame(PRInt32 aIndex, nsIFrame * *aStopFrame)
   }
 
   // Set mLoopFlag before checking mNextGrad->mLoopFlag in case we are mNextGrad
-  mLoopFlag = true;
+  mLoopFlag = PR_TRUE;
   // XXXjwatt: we should really send an error to the JavaScript Console here:
   NS_WARN_IF_FALSE(!next->mLoopFlag, "gradient reference loop detected "
                                      "while inheriting stop!");
   if (!next->mLoopFlag)
     stopCount = next->GetStopFrame(aIndex, aStopFrame);
-  mLoopFlag = false;
+  mLoopFlag = PR_FALSE;
 
   return stopCount;
 }

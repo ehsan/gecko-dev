@@ -152,7 +152,7 @@ void JS_FASTCALL SetConst(VMFrame &f, JSAtom *atom);
 template<JSBool strict> void JS_FASTCALL DefFun(VMFrame &f, JSFunction *fun);
 JSObject * JS_FASTCALL DefLocalFun(VMFrame &f, JSFunction *fun);
 JSObject * JS_FASTCALL DefLocalFun_FC(VMFrame &f, JSFunction *fun);
-void JS_FASTCALL RegExp(VMFrame &f, JSObject *regex);
+JSObject * JS_FASTCALL RegExp(VMFrame &f, JSObject *regex);
 JSObject * JS_FASTCALL Lambda(VMFrame &f, JSFunction *fun);
 JSObject * JS_FASTCALL LambdaJoinableForInit(VMFrame &f, JSFunction *fun);
 JSObject * JS_FASTCALL LambdaJoinableForSet(VMFrame &f, JSFunction *fun);
@@ -234,9 +234,6 @@ void JS_FASTCALL AnyFrameEpilogue(VMFrame &f);
 
 JSObject * JS_FASTCALL
 NewDenseUnallocatedArray(VMFrame &f, uint32 length);
-
-void JS_FASTCALL ArrayConcatTwoArrays(VMFrame &f);
-void JS_FASTCALL ArrayShift(VMFrame &f);
 
 } /* namespace stubs */
 

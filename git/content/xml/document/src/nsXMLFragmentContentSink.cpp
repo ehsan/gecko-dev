@@ -164,9 +164,9 @@ NS_NewXMLFragmentContentSink(nsIFragmentContentSink** aResult)
 }
 
 nsXMLFragmentContentSink::nsXMLFragmentContentSink()
- : mParseError(false)
+ : mParseError(PR_FALSE)
 {
-  mFragmentMode = true;
+  mFragmentMode = PR_TRUE;
 }
 
 nsXMLFragmentContentSink::~nsXMLFragmentContentSink()
@@ -241,7 +241,7 @@ nsXMLFragmentContentSink::SetDocElement(PRInt32 aNameSpaceID,
                                         nsIContent *aContent)
 {
   // this is a fragment, not a document
-  return false;
+  return PR_FALSE;
 }
 
 nsresult
@@ -261,7 +261,7 @@ nsXMLFragmentContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsC
   // element, we run into trouble on the first element, so we don't append,
   // and simply push this onto the content stack.
   if (mContentStack.Length() == 0) {
-    *aAppendContent = false;
+    *aAppendContent = PR_FALSE;
   }
 
   return rv;
@@ -340,9 +340,9 @@ nsXMLFragmentContentSink::ReportError(const PRUnichar* aErrorText,
   NS_PRECONDITION(aError && aSourceText && aErrorText, "Check arguments!!!");
 
   // The expat driver should report the error.
-  *_retval = true;
+  *_retval = PR_TRUE;
 
-  mParseError = true;
+  mParseError = PR_TRUE;
 
 #ifdef DEBUG
   // Report the error to stderr.
@@ -416,7 +416,7 @@ nsXMLFragmentContentSink::FinishFragmentParsing(nsIDOMDocumentFragment** aFragme
   if (mParseError) {
     //XXX PARSE_ERR from DOM3 Load and Save would be more appropriate
     mRoot = nsnull;
-    mParseError = false;
+    mParseError = PR_FALSE;
     return NS_ERROR_DOM_SYNTAX_ERR;
   } else if (mRoot) {
     nsresult rv = CallQueryInterface(mRoot, aFragment);

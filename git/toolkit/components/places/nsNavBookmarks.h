@@ -542,7 +542,7 @@ private:
       nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
       NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
       PRInt64 newFolder;
-      return bookmarks->CreateContainerWithID(mID, mParent, mTitle, mType, true,
+      return bookmarks->CreateContainerWithID(mID, mParent, mTitle, mType, PR_TRUE,
                                               &mIndex, &newFolder); 
     }
 
@@ -551,12 +551,12 @@ private:
     }
 
     NS_IMETHOD GetIsTransient(bool* aResult) {
-      *aResult = false;
+      *aResult = PR_FALSE;
       return NS_OK;
     }
     
     NS_IMETHOD Merge(nsITransaction* aTransaction, bool* aResult) {
-      *aResult = false;
+      *aResult = PR_FALSE;
       return NS_OK;
     }
 

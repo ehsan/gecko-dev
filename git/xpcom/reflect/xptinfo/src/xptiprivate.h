@@ -223,7 +223,7 @@ public:
             mData &= GetStateMask() | ~flag;}
 
     bool GetFlagBit(PRUint8 flag) const 
-        {return (mData & flag) ? true : false;}
+        {return (mData & flag) ? PR_TRUE : PR_FALSE;}
 
 private:
     PRUint8 mData;    
@@ -270,7 +270,7 @@ public:
     const char* GetTheName() const {return mName;}
 
     bool EnsureResolved()
-        {return IsFullyResolved() ? true : Resolve();}
+        {return IsFullyResolved() ? PR_TRUE : Resolve();}
 
     nsresult GetInterfaceInfo(xptiInterfaceInfo** info);
     bool     InterfaceInfoEquals(const xptiInterfaceInfo* info) const 
@@ -334,7 +334,7 @@ private:
     // without having to worry about the locked state.
 
     bool EnsureResolvedLocked()
-        {return IsFullyResolved() ? true : ResolveLocked();}
+        {return IsFullyResolved() ? PR_TRUE : ResolveLocked();}
     bool ResolveLocked();
 
     // private helpers

@@ -141,9 +141,9 @@ SetProperty(OperatorData* aOperatorData,
   } else {
     bool isLeftSpace;
     if (aName.EqualsLiteral("lspace"))
-      isLeftSpace = true;
+      isLeftSpace = PR_TRUE;
     else if (aName.EqualsLiteral("rspace"))
-      isLeftSpace = false;
+      isLeftSpace = PR_FALSE;
     else return;  // input is not applicable
 
     // aValue is assumed to be a digit from 0 to 7
@@ -176,12 +176,12 @@ SetOperator(OperatorData*   aOperatorData,
   while (i <= len) {
     if (0 == state) {
       if (c != '\\')
-        return false;
+        return PR_FALSE;
       if (i < len)
         c = aOperator[i];
       i++;
       if (('u' != c) && ('U' != c))
-        return false;
+        return PR_FALSE;
       if (i < len)
         c = aOperator[i];
       i++;
@@ -194,7 +194,7 @@ SetOperator(OperatorData*   aOperatorData,
          uchar = (uchar << 4) | (c - 'a' + 0x0a);
       else if (('A' <= c) && (c <= 'F'))
          uchar = (uchar << 4) | (c - 'A' + 0x0a);
-      else return false;
+      else return PR_FALSE;
       if (i < len)
         c = aOperator[i];
       i++;
@@ -206,12 +206,12 @@ SetOperator(OperatorData*   aOperatorData,
       }
     }
   }
-  if (0 != state) return false;
+  if (0 != state) return PR_FALSE;
 
   // Quick return when the caller doesn't care about the attributes and just wants
   // to know if this is a valid operator (this is the case at the first pass of the
   // parsing of the dictionary in InitOperators())
-  if (!aForm) return true;
+  if (!aForm) return PR_TRUE;
 
   // Add operator to hash table
   aOperatorData->mFlags |= aForm;
@@ -265,7 +265,7 @@ SetOperator(OperatorData*   aOperatorData,
     }
     start = ++end;
   }
-  return true;
+  return PR_TRUE;
 }
 
 static nsresult
@@ -351,7 +351,7 @@ InitOperators(void)
 static nsresult
 InitGlobals()
 {
-  gInitialized = true;
+  gInitialized = PR_TRUE;
   nsresult rv = NS_ERROR_OUT_OF_MEMORY;
   gInvariantCharArray = new nsTArray<nsString>();
   if (gInvariantCharArray) {
@@ -445,10 +445,10 @@ nsMathMLOperators::LookupOperator(const nsString&       aOperator,
       *aRightSpace = found->mRightSpace;
       *aFlags &= ~NS_MATHML_OPERATOR_FORM; // clear the form bits
       *aFlags |= found->mFlags; // just add bits without overwriting
-      return true;
+      return PR_TRUE;
     }
   }
-  return false;
+  return PR_FALSE;
 }
 
 void

@@ -77,26 +77,14 @@ Statistics::Statistics(JSRuntime *rt)
     }
 
     PodArrayZero(counts);
-    PodArrayZero(totals);
 
     startupTime = PRMJ_Now();
 }
 
 Statistics::~Statistics()
 {
-    if (fp) {
-        if (fullFormat)
-            fprintf(fp,
-                    "------>TOTAL  "
-                    "%6.1f,         %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f, %6.1f\n",
-                    total(PHASE_GC), total(PHASE_MARK), total(PHASE_SWEEP),
-                    total(PHASE_SWEEP_OBJECT), total(PHASE_SWEEP_STRING),
-                    total(PHASE_SWEEP_SCRIPT), total(PHASE_SWEEP_SHAPE),
-                    total(PHASE_DESTROY));
-
-        if (fp != stdout && fp != stderr)
-            fclose(fp);
-    }
+    if (fp && fp != stdout && fp != stderr)
+        fclose(fp);
 }
 
 struct GCCrashData
@@ -129,12 +117,6 @@ double
 Statistics::t(Phase phase)
 {
     return double(phaseTimes[phase]) / PRMJ_USEC_PER_MSEC;
-}
-
-double
-Statistics::total(Phase phase)
-{
-    return double(totals[phase]) / PRMJ_USEC_PER_MSEC;
 }
 
 double
@@ -180,9 +162,6 @@ Statistics::endGC()
     Probes::GCEnd(compartment);
     endPhase(PHASE_GC);
     crash::SnapshotGCStack();
-
-    for (int i = 0; i < PHASE_LIMIT; i++)
-        totals[i] += phaseTimes[i];
 
     if (JSAccumulateTelemetryDataCallback cb = runtime->telemetryCallback) {
         (*cb)(JS_TELEMETRY_GC_REASON, triggerReason);

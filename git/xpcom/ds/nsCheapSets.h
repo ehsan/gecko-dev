@@ -151,7 +151,7 @@ public:
     if (IsInt()) {
       return GetInt() == aVal;
     }
-    return false;
+    return PR_FALSE;
   }
 
 private:

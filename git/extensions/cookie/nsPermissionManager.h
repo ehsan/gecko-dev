@@ -114,7 +114,7 @@ public:
 
   // force the hashtable to use the copy constructor when shuffling entries
   // around, otherwise the Auto part of our nsAutoTArray won't be happy!
-  enum { ALLOW_MEMMOVE = false };
+  enum { ALLOW_MEMMOVE = PR_FALSE };
 
   // Permissions methods
   inline const nsDependentCString GetHost() const

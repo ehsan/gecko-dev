@@ -59,12 +59,12 @@ struct StyleCache : public PropItem
 {
   bool mPresent;
   
-  StyleCache() : PropItem(), mPresent(false) {
+  StyleCache() : PropItem(), mPresent(PR_FALSE) {
     MOZ_COUNT_CTOR(StyleCache);
   }
 
   StyleCache(nsIAtom *aTag, const nsAString &aAttr, const nsAString &aValue) : 
-             PropItem(aTag, aAttr, aValue), mPresent(false) {
+             PropItem(aTag, aAttr, aValue), mPresent(PR_FALSE) {
     MOZ_COUNT_CTOR(StyleCache);
   }
 

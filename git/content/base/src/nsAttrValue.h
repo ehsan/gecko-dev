@@ -366,7 +366,7 @@ private:
   bool EnsureEmptyMiscContainer();
   bool EnsureEmptyAtomArray();
   nsStringBuffer* GetStringBuffer(const nsAString& aValue) const;
-  // aStrict is set true if stringifying the return value equals with
+  // aStrict is set PR_TRUE if stringifying the return value equals with
   // aValue.
   PRInt32 StringToInteger(const nsAString& aValue,
                           bool* aStrict,
@@ -453,9 +453,9 @@ nsAttrValue::GetIntMarginValue(nsIntMargin& aMargin) const
   NS_PRECONDITION(Type() == eIntMarginValue, "wrong type");
   nsIntMargin* m = GetMiscContainer()->mIntMargin;
   if (!m)
-    return false;
+    return PR_FALSE;
   aMargin = *m;
-  return true;
+  return PR_TRUE;
 }
 
 inline nsAttrValue::ValueBaseType

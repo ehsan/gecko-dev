@@ -95,12 +95,12 @@ public:
 
   bool KeyEquals(const URIAndPrincipalHashKey* aKey) const {
     if (!nsURIHashKey::KeyEquals(aKey->mKey)) {
-      return false;
+      return PR_FALSE;
     }
 
     if (!mPrincipal != !aKey->mPrincipal) {
       // One or the other has a principal, but not both... not equal
-      return false;
+      return PR_FALSE;
     }
 
     bool eq;
@@ -114,7 +114,7 @@ public:
     return nsURIHashKey::HashKey(aKey->mKey);
   }
 
-  enum { ALLOW_MEMMOVE = true };
+  enum { ALLOW_MEMMOVE = PR_TRUE };
 
 protected:
   nsCOMPtr<nsIPrincipal> mPrincipal;
@@ -269,7 +269,7 @@ public:
    * As above, but aUseSystemPrincipal and aEnableUnsafeRules are assumed false.
    */
   nsresult LoadSheetSync(nsIURI* aURL, nsCSSStyleSheet** aSheet) {
-    return LoadSheetSync(aURL, false, false, aSheet);
+    return LoadSheetSync(aURL, PR_FALSE, PR_FALSE, aSheet);
   }
 
   /**
@@ -338,10 +338,10 @@ public:
    * Return true if this loader has pending loads (ones that would send
    * notifications to an nsICSSLoaderObserver attached to this loader).
    * If called from inside nsICSSLoaderObserver::StyleSheetLoaded, this will
-   * return false if and only if that is the last StyleSheetLoaded
+   * return PR_FALSE if and only if that is the last StyleSheetLoaded
    * notification the CSSLoader knows it's going to send.  In other words, if
    * two sheets load at once (via load coalescing, e.g.), HasPendingLoads()
-   * will return true during notification for the first one, and false
+   * will return PR_TRUE during notification for the first one, and PR_FALSE
    * during notification for the second one.
    */
   bool HasPendingLoads();

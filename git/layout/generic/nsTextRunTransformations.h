@@ -127,13 +127,10 @@ public:
   void FinishSettingProperties(gfxContext* aRefContext)
   {
     if (mNeedsRebuild) {
-      mNeedsRebuild = false;
+      mNeedsRebuild = PR_FALSE;
       mFactory->RebuildTextRun(this, aRefContext);
     }
   }
-
-  // override the gfxTextRun impl to account for additional members here
-  virtual PRUint64 ComputeSize();
 
   nsTransformingTextRunFactory       *mFactory;
   nsTArray<nsRefPtr<nsStyleContext> > mStyles;
@@ -150,7 +147,7 @@ private:
                        bool aOwnsFactory,
                        CompressedGlyph *aGlyphStorage)
     : gfxTextRun(aParams, aString, aLength, aFontGroup, aFlags, aGlyphStorage),
-      mFactory(aFactory), mOwnsFactory(aOwnsFactory), mNeedsRebuild(true)
+      mFactory(aFactory), mOwnsFactory(aOwnsFactory), mNeedsRebuild(PR_TRUE)
   {
     PRUint32 i;
     for (i = 0; i < aLength; ++i) {

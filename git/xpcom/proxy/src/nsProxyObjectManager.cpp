@@ -113,7 +113,7 @@ nsProxyObjectManager::Release()
 }
 
 nsProxyObjectManager::nsProxyObjectManager()
-    : mProxyObjectMap(256, false)
+    : mProxyObjectMap(256, PR_FALSE)
     , mProxyCreationLock("nsProxyObjectManager.mProxyCreationLock")
 {
     mProxyClassMap.Init(256);

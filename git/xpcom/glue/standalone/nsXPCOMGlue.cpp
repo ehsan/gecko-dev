@@ -60,7 +60,7 @@ static bool do_preload = false;
 extern "C"
 void XPCOMGlueEnablePreload()
 {
-    do_preload = true;
+    do_preload = PR_TRUE;
 }
 
 extern "C"
@@ -325,7 +325,7 @@ XPCOM_API(bool)
 NS_StringGetIsVoid(const nsAString &aStr)
 {
     if (!xpcomFunctions.stringGetIsVoid)
-        return false;
+        return PR_FALSE;
     return xpcomFunctions.stringGetIsVoid(aStr);
 }
 
@@ -419,7 +419,7 @@ XPCOM_API(bool)
 NS_CStringGetIsVoid(const nsACString &aStr)
 {
     if (!xpcomFunctions.cstringGetIsVoid)
-        return false;
+        return PR_FALSE;
     return xpcomFunctions.cstringGetIsVoid(aStr);
 }
 
@@ -560,7 +560,7 @@ XPCOM_API(bool)
 NS_CycleCollectorSuspect(nsISupports* obj)
 {
     if (!xpcomFunctions.cycleSuspectFunc)
-        return false;
+        return PR_FALSE;
 
     return xpcomFunctions.cycleSuspectFunc(obj);
 }
@@ -569,7 +569,7 @@ XPCOM_API(bool)
 NS_CycleCollectorForget(nsISupports* obj)
 {
     if (!xpcomFunctions.cycleForgetFunc)
-        return false;
+        return PR_FALSE;
 
     return xpcomFunctions.cycleForgetFunc(obj);
 }
@@ -587,7 +587,7 @@ XPCOM_API(bool)
 NS_CycleCollectorForget2(nsPurpleBufferEntry* e)
 {
     if (!xpcomFunctions.cycleForget2Func)
-        return false;
+        return PR_FALSE;
 
     return xpcomFunctions.cycleForget2Func(e);
 }

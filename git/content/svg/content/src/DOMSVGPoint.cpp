@@ -83,7 +83,7 @@ DOMSVGPoint::GetX(float* aX)
 {
 #ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
-    Element()->FlushAnimations(); // May make HasOwner() == false
+    Element()->FlushAnimations(); // May make HasOwner() == PR_FALSE
   }
 #endif
   *aX = HasOwner() ? InternalItem().mX : mPt.mX;
@@ -101,7 +101,7 @@ DOMSVGPoint::SetX(float aX)
 
   if (HasOwner()) {
     InternalItem().mX = aX;
-    Element()->DidChangePointList(true);
+    Element()->DidChangePointList(PR_TRUE);
 #ifdef MOZ_SMIL
     if (mList->AttrIsAnimating()) {
       Element()->AnimationNeedsResample();
@@ -118,7 +118,7 @@ DOMSVGPoint::GetY(float* aY)
 {
 #ifdef MOZ_SMIL
   if (mIsAnimValItem && HasOwner()) {
-    Element()->FlushAnimations(); // May make HasOwner() == false
+    Element()->FlushAnimations(); // May make HasOwner() == PR_FALSE
   }
 #endif
   *aY = HasOwner() ? InternalItem().mY : mPt.mY;
@@ -136,7 +136,7 @@ DOMSVGPoint::SetY(float aY)
 
   if (HasOwner()) {
     InternalItem().mY = aY;
-    Element()->DidChangePointList(true);
+    Element()->DidChangePointList(PR_TRUE);
 #ifdef MOZ_SMIL
     if (mList->AttrIsAnimating()) {
       Element()->AnimationNeedsResample();
@@ -174,7 +174,7 @@ DOMSVGPoint::InsertingIntoList(DOMSVGPointList *aList,
 
   mList = aList;
   mListIndex = aListIndex;
-  mIsReadonly = false;
+  mIsReadonly = PR_FALSE;
   mIsAnimValItem = aIsAnimValItem;
 
   NS_ABORT_IF_FALSE(IndexIsValid(), "Bad index for DOMSVGPoint!");
@@ -186,7 +186,7 @@ DOMSVGPoint::RemovingFromList()
   mPt = InternalItem();
   mList = nsnull;
   NS_ABORT_IF_FALSE(!mIsReadonly, "mIsReadonly set for list");
-  mIsAnimValItem = false;
+  mIsAnimValItem = PR_FALSE;
 }
 
 SVGPoint&

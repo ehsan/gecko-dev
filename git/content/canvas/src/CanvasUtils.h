@@ -98,36 +98,36 @@ nsresult MatrixToJSVal(const Matrix& matrix,
                        JSContext* cx, jsval* val);
 
     /* Float validation stuff */
-#define VALIDATE(_f)  if (!NS_finite(_f)) return false
+#define VALIDATE(_f)  if (!NS_finite(_f)) return PR_FALSE
 
 inline bool FloatValidate (double f1) {
     VALIDATE(f1);
-    return true;
+    return PR_TRUE;
 }
 
 inline bool FloatValidate (double f1, double f2) {
     VALIDATE(f1); VALIDATE(f2);
-    return true;
+    return PR_TRUE;
 }
 
 inline bool FloatValidate (double f1, double f2, double f3) {
     VALIDATE(f1); VALIDATE(f2); VALIDATE(f3);
-    return true;
+    return PR_TRUE;
 }
 
 inline bool FloatValidate (double f1, double f2, double f3, double f4) {
     VALIDATE(f1); VALIDATE(f2); VALIDATE(f3); VALIDATE(f4);
-    return true;
+    return PR_TRUE;
 }
 
 inline bool FloatValidate (double f1, double f2, double f3, double f4, double f5) {
     VALIDATE(f1); VALIDATE(f2); VALIDATE(f3); VALIDATE(f4); VALIDATE(f5);
-    return true;
+    return PR_TRUE;
 }
 
 inline bool FloatValidate (double f1, double f2, double f3, double f4, double f5, double f6) {
     VALIDATE(f1); VALIDATE(f2); VALIDATE(f3); VALIDATE(f4); VALIDATE(f5); VALIDATE(f6);
-    return true;
+    return PR_TRUE;
 }
 
 #undef VALIDATE

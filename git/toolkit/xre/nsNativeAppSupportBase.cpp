@@ -52,7 +52,7 @@ NS_IMPL_ISUPPORTS1(nsNativeAppSupportBase, nsINativeAppSupport)
 NS_IMETHODIMP
 nsNativeAppSupportBase::Start( bool *result )
 {
-  *result = true;
+  *result = PR_TRUE;
   return NS_OK;
 }
 
@@ -66,7 +66,7 @@ nsNativeAppSupportBase::Enable()
 NS_IMETHODIMP
 nsNativeAppSupportBase::Stop( bool *result )
 {
-  *result = true;
+  *result = PR_TRUE;
   return NS_OK;
 }
 

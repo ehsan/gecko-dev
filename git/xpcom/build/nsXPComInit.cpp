@@ -352,7 +352,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     nsresult rv = NS_OK;
 
      // We are not shutting down
-    gXPCOMShuttingDown = false;
+    gXPCOMShuttingDown = PR_FALSE;
 
     NS_TIME_FUNCTION_MARK("Next: log init");
 

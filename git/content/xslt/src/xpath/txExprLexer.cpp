@@ -111,7 +111,7 @@ bool
 txExprLexer::nextIsOperatorToken(Token* aToken)
 {
   if (!aToken || aToken->mType == Token::NULL_TOKEN) {
-    return false;
+    return PR_FALSE;
   }
   /* This relies on the tokens having the right order in txExprLexer.h */
   return aToken->mType < Token::COMMA ||
@@ -141,7 +141,7 @@ txExprLexer::parse(const nsASingleFragmentString& aPattern)
   while (mPosition < end) {
 
     defType = Token::CNAME;
-    isToken = true;
+    isToken = PR_TRUE;
 
     if (*mPosition == DOLLAR_SIGN) {
       if (++mPosition == end || !XMLUtils::isLetter(*mPosition)) {
@@ -220,7 +220,7 @@ txExprLexer::parse(const nsASingleFragmentString& aPattern)
       case TX_CR:
       case TX_LF:
         ++mPosition;
-        isToken = false;
+        isToken = PR_FALSE;
         break;
       case S_QUOTE :
       case D_QUOTE :
@@ -262,7 +262,7 @@ txExprLexer::parse(const nsASingleFragmentString& aPattern)
         }
         prevToken->mType = Token::AXIS_IDENTIFIER;
         ++mPosition;
-        isToken = false;
+        isToken = PR_FALSE;
         break;
       case FORWARD_SLASH :
         if (++mPosition < end && *mPosition == FORWARD_SLASH) {
@@ -342,7 +342,7 @@ txExprLexer::parse(const nsASingleFragmentString& aPattern)
           else {
             prevToken->mType = Token::FUNCTION_NAME_AND_PAREN;
           }
-          isToken = false;
+          isToken = PR_FALSE;
         }
         else {
           newToken = new Token(mPosition, Token::L_PAREN);

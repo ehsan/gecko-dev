@@ -64,7 +64,7 @@ nsSVGString::SetBaseValue(const nsAString& aValue,
 {
   NS_ASSERTION(aSVGElement, "Null element passed to SetBaseValue");
 
-  mIsBaseSet = true;
+  mIsBaseSet = PR_TRUE;
   if (aDoSetAttr) {
     aSVGElement->SetStringBaseValue(mAttrEnum, aValue);
   }
@@ -129,7 +129,7 @@ nsSVGString::SMILString::ValueFromString(const nsAString& aStr,
 
   *static_cast<nsAString*>(val.mU.mPtr) = aStr;
   aValue.Swap(val);
-  aPreventCachingOfSandwich = false;
+  aPreventCachingOfSandwich = PR_FALSE;
   return NS_OK;
 }
 

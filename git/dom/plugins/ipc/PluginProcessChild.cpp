@@ -91,10 +91,10 @@ PluginProcessChild::Init()
         if (lastTriggerPos != -1) {
             if (lastSeparatorPos == -1) {
                 interpose.Truncate();
-                needsReset = true;
+                needsReset = PR_TRUE;
             } else if (lastTriggerPos > lastSeparatorPos) {
                 interpose.SetLength(lastSeparatorPos);
-                needsReset = true;
+                needsReset = PR_TRUE;
             }
         }
         if (needsReset) {

@@ -38,6 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsToolkit.h"
+#include "nsWidgetAtoms.h"
 
 NS_IMPL_ISUPPORTS1(nsToolkit, nsIToolkit)
 
@@ -77,6 +78,9 @@ nsToolkit::~nsToolkit()
 NS_METHOD nsToolkit::Init(PRThread *aThread)
 {
     NS_ASSERTION(aThread, "Can only initialize toolkit on the current thread");
+
+    nsWidgetAtoms::RegisterAtoms();
+
     return NS_OK;
 }
 

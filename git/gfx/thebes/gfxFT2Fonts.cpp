@@ -97,7 +97,7 @@ gfxFT2FontGroup::FontCallback(const nsAString& fontName,
 #endif
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 gfxFT2FontGroup::gfxFT2FontGroup(const nsAString& families,
@@ -205,7 +205,7 @@ AddFontNameToArray(const nsAString& aName,
             list->AppendElement(aName);
     }
 
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -286,7 +286,7 @@ void gfxFT2FontGroup::GetCJKPrefFonts(nsTArray<nsRefPtr<gfxFontEntry> >& aFontEn
                 while (++p != p_end && *p != kComma)
                     /* nothing */ ;
                 nsCAutoString lang(Substring(start, p));
-                lang.CompressWhitespace(false, true);
+                lang.CompressWhitespace(PR_FALSE, PR_TRUE);
                 PRInt32 index = GetCJKLangGroupIndex(lang.get());
                 if (index >= 0) {
                     nsCOMPtr<nsIAtom> atom = do_GetAtom(sCJKLangGroup[index]);
@@ -449,7 +449,7 @@ gfxFT2Font::InitTextRun(gfxContext *aContext,
 
     aTextRun->AdjustAdvancesForSyntheticBold(aContext, aRunStart, aRunLength);
 
-    return true;
+    return PR_TRUE;
 }
 
 void
@@ -544,7 +544,7 @@ gfxFT2Font::AddRange(gfxTextRun *aTextRun, const PRUnichar *str, PRUint32 offset
             details.mAdvance = advance;
             details.mXOffset = 0;
             details.mYOffset = 0;
-            g.SetComplex(aTextRun->IsClusterStart(offset + i), true, 1);
+            g.SetComplex(aTextRun->IsClusterStart(offset + i), PR_TRUE, 1);
             aTextRun->SetGlyphs(offset + i, g, &details);
         }
     }

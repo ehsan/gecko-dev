@@ -34,9 +34,6 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-
-#include "mozilla/Util.h"
-
 #include "nsHTMLTableElement.h"
 #include "nsIDOMHTMLTableCaptionElem.h"
 #include "nsIDOMHTMLTableSectionElem.h"
@@ -58,8 +55,6 @@
 #include "nsIHTMLCollection.h"
 #include "nsHTMLStyleSheet.h"
 #include "dombindings.h"
-
-using namespace mozilla;
 
 /* ------------------------------ TableRowsCollection -------------------------------- */
 /**
@@ -106,7 +101,7 @@ TableRowsCollection::TableRowsCollection(nsHTMLTableElement *aParent)
                                   mParent->NodeInfo()->NamespaceID(),
                                   nsGkAtoms::tr,
                                   nsGkAtoms::tr,
-                                  false))
+                                  PR_FALSE))
 {
   // Mark ourselves as a proxy
   SetIsProxy();
@@ -539,7 +534,7 @@ nsHTMLTableElement::TBodies()
                                  mNodeInfo->NamespaceID(),
                                  nsGkAtoms::tbody,
                                  nsGkAtoms::tbody,
-                                 false);
+                                 PR_FALSE);
   }
 
   return mTBodies;
@@ -625,7 +620,7 @@ nsHTMLTableElement::CreateTFoot(nsIDOMHTMLElement** aValue)
     nsCOMPtr<nsIContent> newFoot = NS_NewHTMLTableSectionElement(nodeInfo.forget());
 
     if (newFoot) {
-      rv = AppendChildTo(newFoot, true);
+      rv = AppendChildTo(newFoot, PR_TRUE);
       CallQueryInterface(newFoot, aValue);
     }
   }
@@ -671,7 +666,7 @@ nsHTMLTableElement::CreateCaption(nsIDOMHTMLElement** aValue)
     nsCOMPtr<nsIContent> newCaption = NS_NewHTMLTableCaptionElement(nodeInfo.forget());
 
     if (newCaption) {
-      rv = AppendChildTo(newCaption, true);
+      rv = AppendChildTo(newCaption, PR_TRUE);
       CallQueryInterface(newCaption, aValue);
     }
   }
@@ -797,7 +792,7 @@ nsHTMLTableElement::InsertRow(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
         NS_NewHTMLTableSectionElement(nodeInfo.forget());
 
       if (newRowGroup) {
-        rv = AppendChildTo(newRowGroup, true);
+        rv = AppendChildTo(newRowGroup, PR_TRUE);
 
         rowGroup = do_QueryInterface(newRowGroup);
       }
@@ -936,7 +931,7 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
                  (type == nsAttrValue::ePercent &&
                   aResult.GetPercentValue() == 0.0f));
       }
-      return false;
+      return PR_FALSE;
     }
     
     if (aAttribute == nsGkAtoms::align) {
@@ -947,13 +942,13 @@ nsHTMLTableElement::ParseAttribute(PRInt32 aNamespaceID,
       return aResult.ParseColor(aValue);
     }
     if (aAttribute == nsGkAtoms::frame) {
-      return aResult.ParseEnumValue(aValue, kFrameTable, false);
+      return aResult.ParseEnumValue(aValue, kFrameTable, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::layout) {
-      return aResult.ParseEnumValue(aValue, kLayoutTable, false);
+      return aResult.ParseEnumValue(aValue, kLayoutTable, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::rules) {
-      return aResult.ParseEnumValue(aValue, kRulesTable, false);
+      return aResult.ParseEnumValue(aValue, kRulesTable, PR_FALSE);
     }
     if (aAttribute == nsGkAtoms::hspace ||
         aAttribute == nsGkAtoms::vspace) {
@@ -1161,7 +1156,7 @@ nsHTMLTableElement::IsAttributeMapped(const nsIAtom* aAttribute) const
     sBackgroundAttributeMap,
   };
 
-  return FindAttributeDependence(aAttribute, map, ArrayLength(map));
+  return FindAttributeDependence(aAttribute, map, NS_ARRAY_LENGTH(map));
 }
 
 nsMapRuleToAttributesFunc

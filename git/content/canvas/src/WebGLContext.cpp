@@ -223,18 +223,18 @@ WebGLContext::WebGLContext()
 {
     mWidth = mHeight = 0;
     mGeneration = 0;
-    mInvalidated = false;
-    mResetLayer = true;
-    mVerbose = false;
-    mOptionsFrozen = false;
+    mInvalidated = PR_FALSE;
+    mResetLayer = PR_TRUE;
+    mVerbose = PR_FALSE;
+    mOptionsFrozen = PR_FALSE;
 
     mActiveTexture = 0;
     mWebGLError = LOCAL_GL_NO_ERROR;
-    mPixelStoreFlipY = false;
-    mPixelStorePremultiplyAlpha = false;
+    mPixelStoreFlipY = PR_FALSE;
+    mPixelStorePremultiplyAlpha = PR_FALSE;
     mPixelStoreColorspaceConversion = BROWSER_DEFAULT_WEBGL;
 
-    mShaderValidation = true;
+    mShaderValidation = PR_TRUE;
 
     mMapBuffers.Init();
     mMapTextures.Init();
@@ -243,7 +243,7 @@ WebGLContext::WebGLContext()
     mMapFramebuffers.Init();
     mMapRenderbuffers.Init();
 
-    mBlackTexturesAreInitialized = false;
+    mBlackTexturesAreInitialized = PR_FALSE;
     mFakeBlackStatus = DoNotNeedFakeBlack;
 
     mVertexAttrib0Vector[0] = 0;
@@ -401,7 +401,7 @@ WebGLContext::DestroyResourcesAndContext()
     if (mBlackTexturesAreInitialized) {
         gl->fDeleteTextures(1, &mBlackTexture2D);
         gl->fDeleteTextures(1, &mBlackTextureCubeMap);
-        mBlackTexturesAreInitialized = false;
+        mBlackTexturesAreInitialized = PR_FALSE;
     }
 
     if (mFakeVertexAttrib0BufferObject) {
@@ -428,7 +428,7 @@ WebGLContext::Invalidate()
 
     nsSVGEffects::InvalidateDirectRenderingObservers(HTMLCanvasElement());
 
-    mInvalidated = true;
+    mInvalidated = PR_TRUE;
     HTMLCanvasElement()->InvalidateCanvasContent(nsnull);
 }
 
@@ -527,15 +527,15 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         height = 1;
     }
 
-    // If we already have a gl context, then we just need to resize it
-    if (gl) {
-        gl->ResizeOffscreen(gfxIntSize(width, height)); // Doesn't matter if it succeeds (soft-fail)
-        // It's unlikely that we'll get a proper-sized context if we recreate if we didn't on resize
-
+    // If we already have a gl context, then we just need to resize
+    // FB0.
+    if (gl &&
+        gl->ResizeOffscreen(gfxIntSize(width, height)))
+    {
         // everything's good, we're done here
-        mWidth = gl->OffscreenActualSize().width;
-        mHeight = gl->OffscreenActualSize().height;
-        mResetLayer = true;
+        mWidth = width;
+        mHeight = height;
+        mResetLayer = PR_TRUE;
         return NS_OK;
     }
 
@@ -601,13 +601,8 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         format.minAlpha = 0;
     }
 
-    if (mOptions.antialias) {
-        PRUint32 msaaLevel = Preferences::GetUint("webgl.msaa-level", 2);
-        format.samples = msaaLevel*msaaLevel;
-    }
-
     if (PR_GetEnv("MOZ_WEBGL_PREFER_EGL")) {
-        preferEGL = true;
+        preferEGL = PR_TRUE;
     }
 
     // Ask GfxInfo about what we should use
@@ -619,21 +614,21 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
         PRInt32 status;
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_OPENGL, &status))) {
             if (status != nsIGfxInfo::FEATURE_NO_INFO) {
-                useOpenGL = false;
+                useOpenGL = PR_FALSE;
             }
         }
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_WEBGL_ANGLE, &status))) {
             if (status != nsIGfxInfo::FEATURE_NO_INFO) {
-                useANGLE = false;
+                useANGLE = PR_FALSE;
             }
         }
     }
 
     // allow forcing GL and not EGL/ANGLE
     if (PR_GetEnv("MOZ_WEBGL_FORCE_OPENGL")) {
-        preferEGL = false;
-        useANGLE = false;
-        useOpenGL = true;
+        preferEGL = PR_FALSE;
+        useANGLE = PR_FALSE;
+        useOpenGL = PR_TRUE;
     }
 
     // if we're forcing osmesa, do it first
@@ -693,8 +688,8 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 
     mWidth = width;
     mHeight = height;
-    mResetLayer = true;
-    mOptionsFrozen = true;
+    mResetLayer = PR_TRUE;
+    mOptionsFrozen = PR_TRUE;
 
     // increment the generation number
     ++mGeneration;
@@ -868,14 +863,14 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
     }
 
     data.mSize = nsIntSize(mWidth, mHeight);
-    data.mGLBufferIsPremultiplied = mOptions.premultipliedAlpha ? true : false;
+    data.mGLBufferIsPremultiplied = mOptions.premultipliedAlpha ? PR_TRUE : PR_FALSE;
 
     canvasLayer->Initialize(data);
     PRUint32 flags = gl->CreationFormat().alpha == 0 ? Layer::CONTENT_OPAQUE : 0;
     canvasLayer->SetContentFlags(flags);
     canvasLayer->Updated();
 
-    mResetLayer = false;
+    mResetLayer = PR_FALSE;
 
     mBackbufferClearingStatus = BackbufferClearingStatus::NotClearedSinceLastPresented;
 
@@ -903,7 +898,7 @@ WebGLContext::GetContextAttributes(jsval *aResult)
                            NULL, NULL, JSPROP_ENUMERATE) ||
         !JS_DefineProperty(cx, obj, "stencil", cf.stencil > 0 ? JSVAL_TRUE : JSVAL_FALSE,
                            NULL, NULL, JSPROP_ENUMERATE) ||
-        !JS_DefineProperty(cx, obj, "antialias", cf.samples > 0 ? JSVAL_TRUE : JSVAL_FALSE,
+        !JS_DefineProperty(cx, obj, "antialias", JSVAL_FALSE,
                            NULL, NULL, JSPROP_ENUMERATE) ||
         !JS_DefineProperty(cx, obj, "premultipliedAlpha",
                            mOptions.premultipliedAlpha ? JSVAL_TRUE : JSVAL_FALSE,
@@ -923,7 +918,7 @@ WebGLContext::GetContextAttributes(jsval *aResult)
 NS_IMETHODIMP
 WebGLContext::MozGetUnderlyingParamString(PRUint32 pname, nsAString& retval)
 {
-    retval.SetIsVoid(true);
+    retval.SetIsVoid(PR_TRUE);
 
     MakeContextCurrent();
 
@@ -970,10 +965,6 @@ NS_IMETHODIMP
 WebGLContext::GetExtension(const nsAString& aName, nsIWebGLExtension **retval)
 {
     *retval = nsnull;
-    
-    if (mDisableExtensions) {
-        return NS_OK;
-    }
 
     // handle simple extensions that don't need custom objects first
     WebGLExtensionID ei = WebGLExtensionID_Max;
@@ -1310,12 +1301,6 @@ WebGLActiveInfo::GetName(nsAString & aName)
 NS_IMETHODIMP
 WebGLContext::GetSupportedExtensions(nsIVariant **retval)
 {
-    *retval = nsnull;
-    
-    if (mDisableExtensions) {
-        return NS_OK;
-    }
-    
     nsCOMPtr<nsIWritableVariant> wrval = do_CreateInstance("@mozilla.org/variant;1");
     NS_ENSURE_TRUE(wrval, NS_ERROR_FAILURE);
 
@@ -1343,7 +1328,7 @@ WebGLContext::GetSupportedExtensions(nsIVariant **retval)
 NS_IMETHODIMP
 WebGLContext::IsContextLost(WebGLboolean *retval)
 {
-    *retval = false;
+    *retval = PR_FALSE;
     return NS_OK;
 }
 

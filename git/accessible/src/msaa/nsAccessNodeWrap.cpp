@@ -675,7 +675,7 @@ bool nsAccessNodeWrap::IsOnlyMsaaCompatibleJawsPresent()
 {
   HMODULE jhookhandle = ::GetModuleHandleW(kJAWSModuleHandle);
   if (!jhookhandle)
-    return false;  // No JAWS, or some other screen reader, use IA2
+    return PR_FALSE;  // No JAWS, or some other screen reader, use IA2
 
   PRUnichar fileName[MAX_PATH];
   ::GetModuleFileNameW(jhookhandle, fileName, MAX_PATH);
@@ -726,14 +726,14 @@ void nsAccessNodeWrap::TurnOffNewTabSwitchingForJawsAndWE()
   }
   
   // Value has never been set, set it.
-  Preferences::SetBool(CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF, true);
+  Preferences::SetBool(CTRLTAB_DISALLOW_FOR_SCREEN_READERS_PREF, PR_TRUE);
 }
 
 void nsAccessNodeWrap::DoATSpecificProcessing()
 {
   if (IsOnlyMsaaCompatibleJawsPresent())
     // All versions below 8.0.2173 are not compatible
-    gIsIA2Disabled  = true;
+    gIsIA2Disabled  = PR_TRUE;
 
   TurnOffNewTabSwitchingForJawsAndWE();
 }

@@ -212,7 +212,7 @@ nsNullPrincipalURI::GetSpecIgnoringRef(nsACString &result)
 NS_IMETHODIMP
 nsNullPrincipalURI::GetHasRef(bool *result)
 {
-  *result = false;
+  *result = PR_FALSE;
   return NS_OK;
 }
 
@@ -266,7 +266,7 @@ nsNullPrincipalURI::CloneIgnoringRef(nsIURI **_newURI)
 NS_IMETHODIMP
 nsNullPrincipalURI::Equals(nsIURI *aOther, bool *_equals)
 {
-  *_equals = false;
+  *_equals = PR_FALSE;
   nsNullPrincipalURI *otherURI;
   nsresult rv = aOther->QueryInterface(kNullPrincipalURIImplementationCID,
                                        (void **)&otherURI);

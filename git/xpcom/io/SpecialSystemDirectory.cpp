@@ -145,7 +145,7 @@ static nsresult GetKnownFolder(GUID* guid, nsILocalFile** aFile)
         return NS_ERROR_FAILURE;
 
     nsresult rv = NS_NewLocalFile(nsDependentString(path),
-                                  true,
+                                  PR_TRUE,
                                   aFile);
 
     CoTaskMemFree(path);
@@ -171,7 +171,7 @@ static nsresult GetWindowsFolder(int folder, nsILocalFile** aFile)
         path[++len] = L'\0';
     }
 
-    return NS_NewLocalFile(nsDependentString(path, len), true, aFile);
+    return NS_NewLocalFile(nsDependentString(path, len), PR_TRUE, aFile);
 }
 
 /**
@@ -207,7 +207,7 @@ static nsresult GetRegWindowsAppDataFolder(bool aLocal, nsILocalFile** aFile)
         path[++len] = L'\0';
     }
 
-    return NS_NewLocalFile(nsDependentString(path, len), true, aFile);
+    return NS_NewLocalFile(nsDependentString(path, len), PR_TRUE, aFile);
 }
 
 #endif // XP_WIN
@@ -221,11 +221,11 @@ GetUnixHomeDir(nsILocalFile** aFile)
     pHome = getenv("HOME");
     if (*pHome == '/') {
         return NS_NewNativeLocalFile(nsDependentCString(pHome),
-                                     true,
+                                     PR_TRUE,
                                      aFile);
     } else {
         return NS_NewNativeLocalFile(nsDependentCString(decc$translate_vms(pHome)),
-                                     true,
+                                     PR_TRUE,
                                      aFile);
     }
 #elif defined(ANDROID)
@@ -233,7 +233,7 @@ GetUnixHomeDir(nsILocalFile** aFile)
     return NS_ERROR_FAILURE;
 #else
     return NS_NewNativeLocalFile(nsDependentCString(PR_GetEnv("HOME")),
-                                 true, aFile);
+                                 PR_TRUE, aFile);
 #endif
 }
 
@@ -418,7 +418,7 @@ GetUnixXDGUserDirectory(SystemDirectories aSystemDirectory,
     nsresult rv;
     nsCOMPtr<nsILocalFile> file;
     if (dir) {
-        rv = NS_NewNativeLocalFile(nsDependentCString(dir), true,
+        rv = NS_NewNativeLocalFile(nsDependentCString(dir), PR_TRUE,
                                    getter_AddRefs(file));
         free(dir);
     } else if (Unix_XDG_Desktop == aSystemDirectory) {
@@ -438,7 +438,7 @@ GetUnixXDGUserDirectory(SystemDirectories aSystemDirectory,
         if (!myDocs || !*myDocs)
             return NS_ERROR_FAILURE;
 
-        rv = NS_NewNativeLocalFile(nsDependentCString(myDocs), true,
+        rv = NS_NewNativeLocalFile(nsDependentCString(myDocs), PR_TRUE,
                                    getter_AddRefs(file));
         if (NS_FAILED(rv))
             return rv;
@@ -488,7 +488,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             if (!_wgetcwd(path, MAX_PATH))
                 return NS_ERROR_FAILURE;
             return NS_NewLocalFile(nsDependentString(path),
-                                   true,
+                                   PR_TRUE,
                                    aFile);
 #elif defined(XP_OS2)
             if (DosQueryPathInfo( ".", FIL_QUERYFULLNAME, path, MAXPATHLEN))
@@ -500,7 +500,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
 
 #if !defined(XP_WIN)
             return NS_NewNativeLocalFile(nsDependentCString(path),
-                                         true,
+                                         PR_TRUE,
                                          aFile);
 #endif
 
@@ -514,7 +514,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
                 path[3] = 0;
 
             return NS_NewLocalFile(nsDependentString(path),
-                                   true,
+                                   PR_TRUE,
                                    aFile);
         }
 #elif defined(XP_OS2)
@@ -526,12 +526,12 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             buffer[0] = 'A' - 1 + ulBootDrive; // duh, 1-based index...
 
             return NS_NewNativeLocalFile(nsDependentCString(buffer),
-                                         true,
+                                         PR_TRUE,
                                          aFile);
         }
 #else
         return NS_NewNativeLocalFile(nsDependentCString("/"),
-                                     true,
+                                     PR_TRUE,
                                      aFile);
 
 #endif
@@ -543,7 +543,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             if (len == 0)
                 break;
             return NS_NewLocalFile(nsDependentString(path, len),
-                                   true,
+                                   PR_TRUE,
                                    aFile);
         }
 #elif defined(XP_OS2)
@@ -558,10 +558,10 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
                 }
             }
             nsCString tString = nsDependentCString(tPath);
-            if (tString.Find("/", false, 0, -1)) {
+            if (tString.Find("/", PR_FALSE, 0, -1)) {
                 tString.ReplaceChar('/','\\');
             }
-            return NS_NewNativeLocalFile(tString, true, aFile);
+            return NS_NewNativeLocalFile(tString, PR_TRUE, aFile);
         }
 #elif defined(MOZ_WIDGET_COCOA)
         {
@@ -584,7 +584,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
                 }
             }
             return NS_NewNativeLocalFile(nsDependentCString(tPath),
-                                         true,
+                                         PR_TRUE,
                                          aFile);
         }
 #else
@@ -602,7 +602,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             path[++len] = L'\0';
 
             return NS_NewLocalFile(nsDependentString(path, len),
-                                   true,
+                                   PR_TRUE,
                                    aFile);
         }
 
@@ -618,7 +618,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             path[++len] = L'\0';
 
             return NS_NewLocalFile(nsDependentString(path, len),
-                                   true,
+                                   PR_TRUE,
                                    aFile);
         }
 
@@ -644,7 +644,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
                 path[++len] = L'\0';
 
                 rv = NS_NewLocalFile(nsDependentString(path, len),
-                                     true,
+                                     PR_TRUE,
                                      aFile);
                 if (NS_SUCCEEDED(rv))
                     return rv;
@@ -668,7 +668,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
                 path[++len] = L'\0';
 
                 return NS_NewLocalFile(nsDependentString(path, len),
-                                       true,
+                                       PR_TRUE,
                                        aFile);
             }
         }
@@ -784,14 +784,14 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
         {
             nsresult rv = GetWindowsFolder(CSIDL_APPDATA, aFile);
             if (NS_FAILED(rv))
-                rv = GetRegWindowsAppDataFolder(false, aFile);
+                rv = GetRegWindowsAppDataFolder(PR_FALSE, aFile);
             return rv;
         }
         case Win_LocalAppdata:
         {
             nsresult rv = GetWindowsFolder(CSIDL_LOCAL_APPDATA, aFile);
             if (NS_FAILED(rv))
-                rv = GetRegWindowsAppDataFolder(true, aFile);
+                rv = GetRegWindowsAppDataFolder(PR_TRUE, aFile);
             return rv;
         }
 #endif  // XP_WIN
@@ -799,11 +799,11 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
 #if defined(XP_UNIX)
         case Unix_LocalDirectory:
             return NS_NewNativeLocalFile(nsDependentCString("/usr/local/netscape/"),
-                                         true,
+                                         PR_TRUE,
                                          aFile);
         case Unix_LibDirectory:
             return NS_NewNativeLocalFile(nsDependentCString("/usr/local/lib/netscape/"),
-                                         true,
+                                         PR_TRUE,
                                          aFile);
 
         case Unix_HomeDirectory:
@@ -830,7 +830,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             buffer[0] = 'A' - 1 + ulBootDrive; // duh, 1-based index...
 
             return NS_NewNativeLocalFile(nsDependentCString(buffer),
-                                         true,
+                                         PR_TRUE,
                                          aFile);
         }
 
@@ -843,7 +843,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             buffer[0] = 'A' - 1 + ulBootDrive; // duh, 1-based index...
 
             return NS_NewNativeLocalFile(nsDependentCString(buffer),
-                                         true,
+                                         PR_TRUE,
                                          aFile);
         }
 
@@ -863,7 +863,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
                 tPath = buffer;
             }
             rv = NS_NewNativeLocalFile(nsDependentCString(tPath),
-                                       true,
+                                       PR_TRUE,
                                        aFile);
 
             PrfWriteProfileString(HINI_USERPROFILE, "Mozilla", "Home", tPath);
@@ -887,7 +887,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             szPath[len + 1] = '\0';
 
             return NS_NewNativeLocalFile(nsDependentCString(szPath),
-                                         true,
+                                         PR_TRUE,
                                          aFile);
         }
 #endif
@@ -908,7 +908,7 @@ GetOSXFolderType(short aDomain, OSType aFolderType, nsILocalFile **localFile)
     err = ::FSFindFolder(aDomain, aFolderType, kCreateFolder, &fsRef);
     if (err == noErr)
     {
-        NS_NewLocalFile(EmptyString(), true, localFile);
+        NS_NewLocalFile(EmptyString(), PR_TRUE, localFile);
         nsCOMPtr<nsILocalFileMac> localMacFile(do_QueryInterface(*localFile));
         if (localMacFile)
             rv = localMacFile->InitWithFSRef(&fsRef);

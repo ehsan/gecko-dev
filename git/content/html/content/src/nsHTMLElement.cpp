@@ -111,7 +111,7 @@ nsHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
    */
   if (mNodeInfo->Equals(nsGkAtoms::xmp) ||
       mNodeInfo->Equals(nsGkAtoms::plaintext)) {
-    nsContentUtils::GetNodeTextContent(this, false, aInnerHTML);
+    nsContentUtils::GetNodeTextContent(this, PR_FALSE, aInnerHTML);
     return NS_OK;
   }
 

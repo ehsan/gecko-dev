@@ -45,9 +45,9 @@ nsSMILTimeContainer::nsSMILTimeContainer()
   mCurrentTime(0L),
   mParentOffset(0L),
   mPauseStart(0L),
-  mNeedsPauseSample(false),
-  mNeedsRewind(false),
-  mIsSeeking(false),
+  mNeedsPauseSample(PR_FALSE),
+  mNeedsRewind(PR_FALSE),
+  mIsSeeking(PR_FALSE),
   mPauseState(PAUSE_BEGIN)
 {
 }
@@ -84,7 +84,7 @@ nsSMILTimeContainer::Begin()
 {
   Resume(PAUSE_BEGIN);
   if (mPauseState) {
-    mNeedsPauseSample = true;
+    mNeedsPauseSample = PR_TRUE;
   }
 
   // This is a little bit complicated here. Ideally we'd just like to call
@@ -104,8 +104,8 @@ nsSMILTimeContainer::Pause(PRUint32 aType)
 
   if (!mPauseState && aType) {
     mPauseStart = GetParentTime();
-    mNeedsPauseSample = true;
-    didStartPause = true;
+    mNeedsPauseSample = PR_TRUE;
+    didStartPause = PR_TRUE;
   }
 
   mPauseState |= aType;
@@ -158,16 +158,16 @@ nsSMILTimeContainer::SetCurrentTime(nsSMILTime aSeekTo)
   // has begun we should still adjust the offset.
   nsSMILTime parentTime = GetParentTime();
   mParentOffset = parentTime - aSeekTo;
-  mIsSeeking = true;
+  mIsSeeking = PR_TRUE;
 
   if (IsPaused()) {
-    mNeedsPauseSample = true;
+    mNeedsPauseSample = PR_TRUE;
     mPauseStart = parentTime;
   }
 
   if (aSeekTo < mCurrentTime) {
     // Backwards seek
-    mNeedsRewind = true;
+    mNeedsRewind = PR_TRUE;
     ClearMilestones();
   }
 
@@ -207,7 +207,7 @@ nsSMILTimeContainer::Sample()
   UpdateCurrentTime();
   DoSample();
 
-  mNeedsPauseSample = false;
+  mNeedsPauseSample = PR_FALSE;
 }
 
 nsresult
@@ -257,17 +257,17 @@ nsSMILTimeContainer::GetNextMilestoneInParentTime(
     nsSMILMilestone& aNextMilestone) const
 {
   if (mMilestoneEntries.IsEmpty())
-    return false;
+    return PR_FALSE;
 
   nsSMILTimeValue parentTime =
     ContainerToParentTime(mMilestoneEntries.Top().mMilestone.mTime);
   if (!parentTime.IsDefinite())
-    return false;
+    return PR_FALSE;
 
   aNextMilestone = nsSMILMilestone(parentTime.GetMillis(),
                                    mMilestoneEntries.Top().mMilestone.mIsEnd);
 
-  return true;
+  return PR_TRUE;
 }
 
 bool
@@ -276,11 +276,11 @@ nsSMILTimeContainer::PopMilestoneElementsAtMilestone(
       AnimElemArray& aMatchedElements)
 {
   if (mMilestoneEntries.IsEmpty())
-    return false;
+    return PR_FALSE;
 
   nsSMILTimeValue containerTime = ParentToContainerTime(aMilestone.mTime);
   if (!containerTime.IsDefinite())
-    return false;
+    return PR_FALSE;
 
   nsSMILMilestone containerMilestone(containerTime.GetMillis(),
                                      aMilestone.mIsEnd);
@@ -294,7 +294,7 @@ nsSMILTimeContainer::PopMilestoneElementsAtMilestone(
       mMilestoneEntries.Top().mMilestone == containerMilestone)
   {
     aMatchedElements.AppendElement(mMilestoneEntries.Pop().mTimebase);
-    gotOne = true;
+    gotOne = PR_TRUE;
   }
 
   return gotOne;

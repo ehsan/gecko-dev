@@ -61,8 +61,8 @@ struct SysPrefItem {
         prefName = nsnull;
         defaultValue.intVal = 0;
         defaultValue.stringVal = nsnull;
-        defaultValue.boolVal = false;
-        isLocked = false;
+        defaultValue.boolVal = PR_FALSE;
+        isLocked = PR_FALSE;
     }
     void SetPrefName(const char *aPrefName) {
         prefName = aPrefName;
@@ -91,7 +91,7 @@ NS_IMPL_ISUPPORTS2(nsSystemPref, nsIObserver, nsISupportsWeakReference)
 
 nsSystemPref::nsSystemPref():
     mSysPrefService(nsnull),
-    mEnabled(false),
+    mEnabled(PR_FALSE),
     mSysPrefs(nsnull)
 {
 }
@@ -99,7 +99,7 @@ nsSystemPref::nsSystemPref():
 nsSystemPref::~nsSystemPref()
 {
     mSysPrefService = nsnull;
-    mEnabled = false;
+    mEnabled = PR_FALSE;
     delete [] mSysPrefs;
 }
 
@@ -123,9 +123,9 @@ nsSystemPref::Init(void)
 
     if (observerService) {
         rv = observerService->AddObserver(this, NS_PREFSERVICE_READ_TOPIC_ID,
-                                          false);
+                                          PR_FALSE);
         rv = observerService->AddObserver(this, "profile-before-change",
-                                          false);
+                                          PR_FALSE);
         SYSPREF_LOG(("Add Observer for %s\n", NS_PREFSERVICE_READ_TOPIC_ID));
     }
     return(rv);
@@ -169,7 +169,7 @@ nsSystemPref::Observe(nsISupports *aSubject,
         }
 
         // listen on its changes
-        rv = prefBranch->AddObserver(sSysPrefString, this, true);
+        rv = prefBranch->AddObserver(sSysPrefString, this, PR_TRUE);
         if (NS_FAILED(rv)) {
             SYSPREF_LOG(("...FAil to add observer for %s\n", sSysPrefString));
             return rv;
@@ -219,7 +219,7 @@ nsSystemPref::Observe(nsISupports *aSubject,
       //roll back to mozilla prefs
       if (mEnabled)
         UseMozillaPrefs();
-      mEnabled = false;
+      mEnabled = PR_FALSE;
       mSysPrefService = nsnull;
       delete [] mSysPrefs;
       mSysPrefs = nsnull;
@@ -264,7 +264,7 @@ nsSystemPref::UseSystemPrefs()
         ReadSystemPref(mSysPrefs[index].prefName);
         SYSPREF_LOG(("Add Listener on %s\n", mSysPrefs[index].prefName));
         mSysPrefService->AddObserver(mSysPrefs[index].prefName,
-                                     this, true);
+                                     this, PR_TRUE);
     }
     return rv;
 }

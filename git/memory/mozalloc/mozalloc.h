@@ -53,7 +53,6 @@
 #include "xpcom-config.h"
 
 #define MOZALLOC_HAVE_XMALLOC
-#define MOZALLOC_HAVE_MALLOC_USABLE_SIZE
 
 #if defined(MOZALLOC_EXPORT)
 /* do nothing: it's been defined to __declspec(dllexport) by
@@ -214,13 +213,15 @@ MOZALLOC_EXPORT void* moz_valloc(size_t size)
  * to suppress build warning spam (bug 578546).
  */
 #define MOZALLOC_THROW_IF_HAS_EXCEPTIONS /**/
-#define MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS
 #else
 #define MOZALLOC_THROW_IF_HAS_EXCEPTIONS throw()
-#define MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS throw(std::bad_alloc)
 #endif
 
-#define MOZALLOC_THROW_BAD_ALLOC MOZALLOC_THROW_BAD_ALLOC_IF_HAS_EXCEPTIONS
+#ifdef MOZ_CPP_EXCEPTIONS
+#define MOZALLOC_THROW_BAD_ALLOC throw(std::bad_alloc)
+#else
+#define MOZALLOC_THROW_BAD_ALLOC MOZALLOC_THROW_IF_HAS_EXCEPTIONS
+#endif
 
 MOZALLOC_EXPORT_NEW MOZALLOC_INLINE
 void* operator new(size_t size) MOZALLOC_THROW_BAD_ALLOC

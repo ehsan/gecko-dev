@@ -38,8 +38,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "nsGkAtoms.h"
 #include "DOMSVGNumber.h"
 #include "DOMSVGLength.h"
@@ -213,8 +211,8 @@ nsSVGSVGElement::nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
 #ifdef MOZ_SMIL
   , mStartAnimationOnBindToTree(!aFromParser)
 #endif // MOZ_SMIL
-  , mImageNeedsTransformInvalidation(false)
-  , mIsPaintingSVGImageElement(false)
+  , mImageNeedsTransformInvalidation(PR_FALSE)
+  , mIsPaintingSVGImageElement(PR_FALSE)
 {
 }
 
@@ -748,7 +746,7 @@ nsSVGSVGElement::GetBBox(nsIDOMSVGRect **_retval)
 NS_IMETHODIMP
 nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, false);
+  gfxMatrix m = nsSVGUtils::GetCTM(this, PR_FALSE);
   *aCTM = m.IsSingular() ? nsnull : new DOMSVGMatrix(m);
   NS_IF_ADDREF(*aCTM);
   return NS_OK;
@@ -758,7 +756,7 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
 NS_IMETHODIMP
 nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **aCTM)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, true);
+  gfxMatrix m = nsSVGUtils::GetCTM(this, PR_TRUE);
   *aCTM = m.IsSingular() ? nsnull : new DOMSVGMatrix(m);
   NS_IF_ADDREF(*aCTM);
   return NS_OK;
@@ -853,7 +851,7 @@ nsSVGSVGElement::SetCurrentScaleTranslate(float s, float x, float y)
     if (presShell && IsRoot()) {
       bool scaling = (mPreviousScale != mCurrentScale);
       nsEventStatus status = nsEventStatus_eIgnore;
-      nsGUIEvent event(true, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
+      nsGUIEvent event(PR_TRUE, scaling ? NS_SVG_ZOOM : NS_SVG_SCROLL, 0);
       event.eventStructType = scaling ? NS_SVGZOOM_EVENT : NS_SVG_EVENT;
       presShell->HandleDOMEventWithTarget(this, &event, &status);
       InvalidateTransformNotifyFrame();
@@ -908,7 +906,7 @@ nsSVGSVGElement::IsAttributeMapped(const nsIAtom* name) const
     sViewportsMap
   };
 
-  return FindAttributeDependence(name, map, ArrayLength(map)) ||
+  return FindAttributeDependence(name, map, NS_ARRAY_LENGTH(map)) ||
     nsSVGSVGElementBase::IsAttributeMapped(name);
 }
 
@@ -1012,7 +1010,7 @@ nsSVGSVGElement::GetViewBoxTransform() const
       tmpPAR.SetAlign(nsIDOMSVGPreserveAspectRatio::SVG_PRESERVEASPECTRATIO_NONE);
 
       // (set the other pAR attributes too, just so they're initialized):
-      tmpPAR.SetDefer(false);
+      tmpPAR.SetDefer(PR_FALSE);
       tmpPAR.SetMeetOrSlice(nsIDOMSVGPreserveAspectRatio::SVG_MEETORSLICE_SLICE);
 
       overridePARPtr = &tmpPAR;
@@ -1060,7 +1058,7 @@ nsSVGSVGElement::BindToTree(nsIDocument* aDocument,
         // time container. However, we need to make sure that we'll get a
         // kick-start if we get promoted to be outermost later on.
         mTimedDocumentRoot = nsnull;
-        mStartAnimationOnBindToTree = true;
+        mStartAnimationOnBindToTree = PR_TRUE;
       }
     }
   }
@@ -1074,7 +1072,7 @@ nsSVGSVGElement::BindToTree(nsIDocument* aDocument,
     rv = mTimedDocumentRoot->SetParent(smilController);
     if (mStartAnimationOnBindToTree) {
       mTimedDocumentRoot->Begin();
-      mStartAnimationOnBindToTree = false;
+      mStartAnimationOnBindToTree = PR_FALSE;
     }
   }
 
@@ -1106,15 +1104,15 @@ nsSVGSVGElement::WillBeOutermostSVG(nsIContent* aParent,
     nsIAtom* tag = parent->Tag();
     if (tag == nsGkAtoms::foreignObject) {
       // SVG in a foreignObject must have its own <svg> (nsSVGOuterSVGFrame).
-      return false;
+      return PR_FALSE;
     }
     if (tag == nsGkAtoms::svg) {
-      return false;
+      return PR_FALSE;
     }
     parent = parent->GetParent();
   }
 
-  return true;
+  return PR_TRUE;
 }
 #endif // MOZ_SMIL
 
@@ -1205,14 +1203,14 @@ nsSVGElement::LengthAttributesInfo
 nsSVGSVGElement::GetLengthInfo()
 {
   return LengthAttributesInfo(mLengthAttributes, sLengthInfo,
-                              ArrayLength(sLengthInfo));
+                              NS_ARRAY_LENGTH(sLengthInfo));
 }
 
 nsSVGElement::EnumAttributesInfo
 nsSVGSVGElement::GetEnumInfo()
 {
   return EnumAttributesInfo(mEnumAttributes, sEnumInfo,
-                            ArrayLength(sEnumInfo));
+                            NS_ARRAY_LENGTH(sEnumInfo));
 }
 
 nsSVGViewBox *
@@ -1266,9 +1264,9 @@ nsSVGSVGElement::
     // My non-<svg:image> clients will have been painting me with a synthesized
     // viewBox, but my <svg:image> client that's about to paint me now does NOT
     // want that.  Need to tell ourselves to flush our transform.
-    mImageNeedsTransformInvalidation = true;
+    mImageNeedsTransformInvalidation = PR_TRUE;
   }
-  mIsPaintingSVGImageElement = true;
+  mIsPaintingSVGImageElement = PR_TRUE;
 
   if (!mViewBox.IsValid()) {
     return; // preserveAspectRatio irrelevant (only matters if we have viewBox)
@@ -1286,7 +1284,7 @@ nsSVGSVGElement::
                     "Setting override value when it's already set...?"); 
 
   if (NS_LIKELY(NS_SUCCEEDED(rv))) {
-    mImageNeedsTransformInvalidation = true;
+    mImageNeedsTransformInvalidation = PR_TRUE;
   } else {
     // property-insertion failed (e.g. OOM in property-table code)
     delete pAROverridePtr;
@@ -1301,17 +1299,17 @@ nsSVGSVGElement::ClearImageOverridePreserveAspectRatio()
                     "should only override preserveAspectRatio in images");
 #endif
 
-  mIsPaintingSVGImageElement = false;
+  mIsPaintingSVGImageElement = PR_FALSE;
   if (!HasValidViewbox() && ShouldSynthesizeViewBox()) {
     // My non-<svg:image> clients will want to paint me with a synthesized
     // viewBox, but my <svg:image> client that just painted me did NOT
     // use that.  Need to tell ourselves to flush our transform.
-    mImageNeedsTransformInvalidation = true;
+    mImageNeedsTransformInvalidation = PR_TRUE;
   }
 
   void* valPtr = UnsetProperty(nsGkAtoms::overridePreserveAspectRatio);
   if (valPtr) {
-    mImageNeedsTransformInvalidation = true;
+    mImageNeedsTransformInvalidation = PR_TRUE;
     delete static_cast<SVGPreserveAspectRatio*>(valPtr);
   }
 }
@@ -1339,6 +1337,6 @@ nsSVGSVGElement::FlushImageTransformInvalidation()
 
   if (mImageNeedsTransformInvalidation) {
     InvalidateTransformNotifyFrame();
-    mImageNeedsTransformInvalidation = false;
+    mImageNeedsTransformInvalidation = PR_FALSE;
   }
 }

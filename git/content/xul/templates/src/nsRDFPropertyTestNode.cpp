@@ -157,7 +157,7 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
     nsresult rv;
 
     if (aCantHandleYet)
-        *aCantHandleYet = false;
+        *aCantHandleYet = PR_FALSE;
 
     nsIRDFDataSource* ds = mProcessor->GetDataSource();
 
@@ -167,7 +167,7 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
         nsCOMPtr<nsIRDFResource> sourceRes;
 
         if (mSource) {
-            hasSourceBinding = true;
+            hasSourceBinding = PR_TRUE;
             sourceRes = mSource;
         }
         else {
@@ -181,7 +181,7 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
         nsCOMPtr<nsIRDFNode> targetValue;
 
         if (mTarget) {
-            hasTargetBinding = true;
+            hasTargetBinding = PR_TRUE;
             targetValue = mTarget;
         }
         else {
@@ -209,7 +209,7 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
             // it's a consistency check. see if we have a assignment that is consistent
             bool hasAssertion;
             rv = ds->HasAssertion(sourceRes, mProperty, targetValue,
-                                  true, &hasAssertion);
+                                  PR_TRUE, &hasAssertion);
             if (NS_FAILED(rv)) return rv;
 
 #ifdef PR_LOGGING
@@ -243,13 +243,13 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
             if (hasSourceBinding) {
                 rv = ds->GetTargets(sourceRes,
                                     mProperty,
-                                    true,
+                                    PR_TRUE,
                                     getter_AddRefs(results));
             }
             else {
                 rv = ds->GetSources(mProperty,
                                     targetValue,
-                                    true,
+                                    PR_TRUE,
                                     getter_AddRefs(results));
                 if (NS_FAILED(rv)) return rv;
             }
@@ -341,7 +341,7 @@ nsRDFPropertyTestNode::FilterInstantiations(InstantiationSet& aInstantiations,
                 return NS_ERROR_UNEXPECTED;
             }
 
-            *aCantHandleYet = true;
+            *aCantHandleYet = PR_TRUE;
             return NS_OK;
         }
     }
@@ -360,7 +360,7 @@ nsRDFPropertyTestNode::CanPropagate(nsIRDFResource* aSource,
     if ((mProperty.get() != aProperty) ||
         (mSource && mSource.get() != aSource) ||
         (mTarget && mTarget.get() != aTarget)) {
-        result = false;
+        result = PR_FALSE;
     }
     else {
         if (mSourceVariable)
@@ -369,7 +369,7 @@ nsRDFPropertyTestNode::CanPropagate(nsIRDFResource* aSource,
         if (mTargetVariable)
             aInitialBindings.AddAssignment(mTargetVariable, aTarget);
 
-        result = true;
+        result = PR_TRUE;
     }
 
 #ifdef PR_LOGGING

@@ -159,7 +159,7 @@ main (int argc, char **argv) {
                            10.0,
                            NS_NewPermanentAtom(NS_LITERAL_STRING("en")),
                            0.0,
-                           false, false, false,
+                           PR_FALSE, PR_FALSE, PR_FALSE,
                            NS_LITERAL_STRING(""),
                            NS_LITERAL_STRING(""));
 

@@ -78,7 +78,7 @@ nsProgressFrame::DestroyFrom(nsIFrame* aDestructRoot)
   NS_ASSERTION(!GetPrevContinuation(),
                "nsProgressFrame should not have continuations; if it does we "
                "need to call RegUnregAccessKey only for the first.");
-  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), false);
+  nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), PR_FALSE);
   nsContentUtils::DestroyAnonymousContent(&mBarDiv);
   nsHTMLContainerFrame::DestroyFrom(aDestructRoot);
 }
@@ -140,7 +140,7 @@ NS_IMETHODIMP nsProgressFrame::Reflow(nsPresContext*           aPresContext,
                "need to call RegUnregAccessKey only for the first.");
 
   if (mState & NS_FRAME_FIRST_REFLOW) {
-    nsFormControlFrame::RegUnRegAccessKey(this, true);
+    nsFormControlFrame::RegUnRegAccessKey(this, PR_TRUE);
   }
 
   nsIFrame* barFrame = mBarDiv->GetPrimaryFrame();

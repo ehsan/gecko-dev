@@ -44,9 +44,6 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "mozilla/Util.h"
-
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsprf.h"
@@ -63,13 +60,14 @@
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsopcode.h"
+#include "jsparse.h"
+#include "jsscan.h"
 #include "jsscope.h"
 #include "jsscript.h"
 #include "jsstr.h"
 #include "jsxml.h"
+#include "jsstaticcheck.h"
 
-#include "frontend/Parser.h"
-#include "frontend/TokenStream.h"
 #include "vm/GlobalObject.h"
 
 #include "jsatominlines.h"
@@ -83,7 +81,6 @@
 #include <string.h>     /* for #ifdef DEBUG memset calls */
 #endif
 
-using namespace mozilla;
 using namespace js;
 using namespace js::gc;
 using namespace js::types;
@@ -1156,7 +1153,8 @@ static const char xml_namespace_str[] = "http://www.w3.org/XML/1998/namespace";
 static const char xmlns_namespace_str[] = "http://www.w3.org/2000/xmlns/";
 
 static JSObject *
-ParseNodeToQName(Parser *parser, ParseNode *pn, JSXMLArray *inScopeNSes, JSBool isAttributeName)
+ParseNodeToQName(Parser *parser, JSParseNode *pn,
+                 JSXMLArray *inScopeNSes, JSBool isAttributeName)
 {
     JSContext *cx = parser->context;
     JSLinearString *uri, *prefix;
@@ -1284,13 +1282,14 @@ ChompXMLWhitespace(JSContext *cx, JSString *str)
 }
 
 static JSXML *
-ParseNodeToXML(Parser *parser, ParseNode *pn, JSXMLArray *inScopeNSes, uintN flags)
+ParseNodeToXML(Parser *parser, JSParseNode *pn,
+               JSXMLArray *inScopeNSes, uintN flags)
 {
     JSContext *cx = parser->context;
     JSXML *xml, *kid, *attr, *attrj;
     JSLinearString *str;
     uint32 length, n, i, j;
-    ParseNode *pn2, *pn3, *head, **pnp;
+    JSParseNode *pn2, *pn3, *head, **pnp;
     JSObject *ns;
     JSObject *qn, *attrjqn;
     JSXMLClass xml_class;
@@ -1592,7 +1591,7 @@ ParseNodeToXML(Parser *parser, ParseNode *pn, JSXMLArray *inScopeNSes, uintN fla
             if (!qn)
                 goto fail;
 
-            str = pn->pn_pidata ? pn->pn_pidata : cx->runtime->emptyString;
+            str = pn->pn_atom2 ? pn->pn_atom2 : cx->runtime->emptyString;
             xml_class = JSXML_CLASS_PROCESSING_INSTRUCTION;
         } else {
             /* CDATA section content, or element text. */
@@ -1766,10 +1765,10 @@ ParseXMLSource(JSContext *cx, JSString *src)
             JSObject *scopeChain = GetCurrentScopeChain(cx);
             if (!scopeChain) {
                 cx->free_(chars);
-                return NULL;
+                return false;
             }
 
-            ParseNode *pn = parser.parseXMLText(scopeChain, false);
+            JSParseNode *pn = parser.parseXMLText(scopeChain, false);
             uintN flags;
             if (pn && GetXMLSettingFlags(cx, &flags)) {
                 AutoNamespaceArray namespaces(cx);
@@ -3764,7 +3763,7 @@ GetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
         return GetXMLFunction(cx, obj, funid, vp);
 
     jsval roots[2] = { OBJECT_TO_JSVAL(nameqn), JSVAL_NULL };
-    AutoArrayRooter tvr(cx, ArrayLength(roots), roots);
+    AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(roots), roots);
 
     listobj = js_NewXMLObject(cx, JSXML_CLASS_LIST);
     if (!listobj)
@@ -3865,7 +3864,7 @@ PutProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
     roots[OBJ_ROOT] = OBJECT_TO_JSVAL(obj);
     roots[ID_ROOT] = IdToJsval(id);
     roots[VAL_ROOT] = *vp;
-    AutoArrayRooter tvr(cx, ArrayLength(roots), roots);
+    AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(roots), roots);
 
     if (js_IdIsIndex(id, &index)) {
         if (xml->xml_class != JSXML_CLASS_LIST) {
@@ -4592,15 +4591,17 @@ HasFunctionProperty(JSContext *cx, JSObject *obj, jsid funid, JSBool *found)
     if (!prop) {
         xml = (JSXML *) obj->getPrivate();
         if (HasSimpleContent(xml)) {
+            AutoObjectRooter tvr(cx);
+
             /*
              * Search in String.prototype to set found whenever
              * GetXMLFunction returns existing function.
              */
-            JSObject *proto = obj->getGlobal()->getOrCreateStringPrototype(cx);
-            if (!proto)
+            if (!js_GetClassPrototype(cx, NULL, JSProto_String, tvr.addr()))
                 return false;
 
-            if (!js_LookupProperty(cx, proto, funid, &pobj, &prop))
+            JS_ASSERT(tvr.object());
+            if (!js_LookupProperty(cx, tvr.object(), funid, &pobj, &prop))
                 return false;
         }
     }
@@ -4683,9 +4684,9 @@ xml_trace_vector(JSTracer *trc, JSXML **vec, uint32 len)
 }
 
 /*
- * XML objects are native. Thus xml_lookupGeneric must return a valid
+ * XML objects are native. Thus xml_lookupProperty must return a valid
  * Shape pointer parameter via *propp to signify "property found". Since the
- * only call to xml_lookupGeneric is via JSObject::lookupGeneric, and then
+ * only call to xml_lookupProperty is via JSObject::lookupProperty, and then
  * only from js_FindProperty (in jsobj.c, called from jsinterp.c) or from
  * JSOP_IN case in the interpreter, the only time we add a Shape here is when
  * an unqualified name is being accessed or when "name in xml" is called.
@@ -4696,7 +4697,7 @@ xml_trace_vector(JSTracer *trc, JSXML **vec, uint32 len)
  * NB: xml_deleteProperty must take care to remove any property added here.
  *
  * FIXME This clashes with the function namespace implementation which also
- * uses native properties. Effectively after xml_lookupGeneric any property
+ * uses native properties. Effectively after xml_lookupProperty any property
  * stored previously using assignments to xml.function::name will be removed.
  * We partially workaround the problem in GetXMLFunction. There we take
  * advantage of the fact that typically function:: is used to access the
@@ -4706,7 +4707,8 @@ xml_trace_vector(JSTracer *trc, JSXML **vec, uint32 len)
  * For a proper solution see bug 355257.
 */
 static JSBool
-xml_lookupGeneric(JSContext *cx, JSObject *obj, jsid id, JSObject **objp, JSProperty **propp)
+xml_lookupProperty(JSContext *cx, JSObject *obj, jsid id, JSObject **objp,
+                   JSProperty **propp)
 {
     JSBool found;
     JSXML *xml;
@@ -4743,13 +4745,6 @@ xml_lookupGeneric(JSContext *cx, JSObject *obj, jsid id, JSObject **objp, JSProp
 }
 
 static JSBool
-xml_lookupProperty(JSContext *cx, JSObject *obj, PropertyName *name, JSObject **objp,
-                   JSProperty **propp)
-{
-    return xml_lookupGeneric(cx, obj, ATOM_TO_JSID(name), objp, propp);
-}
-
-static JSBool
 xml_lookupElement(JSContext *cx, JSObject *obj, uint32 index, JSObject **objp,
                   JSProperty **propp)
 {
@@ -4779,12 +4774,12 @@ xml_lookupElement(JSContext *cx, JSObject *obj, uint32 index, JSObject **objp,
 static JSBool
 xml_lookupSpecial(JSContext *cx, JSObject *obj, SpecialId sid, JSObject **objp, JSProperty **propp)
 {
-    return xml_lookupGeneric(cx, obj, SPECIALID_TO_JSID(sid), objp, propp);
+    return xml_lookupProperty(cx, obj, SPECIALID_TO_JSID(sid), objp, propp);
 }
 
 static JSBool
-xml_defineGeneric(JSContext *cx, JSObject *obj, jsid id, const Value *v,
-                  PropertyOp getter, StrictPropertyOp setter, uintN attrs)
+xml_defineProperty(JSContext *cx, JSObject *obj, jsid id, const Value *v,
+                   PropertyOp getter, StrictPropertyOp setter, uintN attrs)
 {
     if (IsFunctionObject(*v) || getter || setter ||
         (attrs & JSPROP_ENUMERATE) == 0 ||
@@ -4797,27 +4792,20 @@ xml_defineGeneric(JSContext *cx, JSObject *obj, jsid id, const Value *v,
 }
 
 static JSBool
-xml_defineProperty(JSContext *cx, JSObject *obj, PropertyName *name, const Value *v,
-                   PropertyOp getter, StrictPropertyOp setter, uintN attrs)
-{
-    return xml_defineGeneric(cx, obj, ATOM_TO_JSID(name), v, getter, setter, attrs);
-}
-
-static JSBool
 xml_defineElement(JSContext *cx, JSObject *obj, uint32 index, const Value *v,
                   PropertyOp getter, StrictPropertyOp setter, uintN attrs)
 {
     jsid id;
     if (!IndexToId(cx, index, &id))
         return false;
-    return xml_defineGeneric(cx, obj, id, v, getter, setter, attrs);
+    return xml_defineProperty(cx, obj, id, v, getter, setter, attrs);
 }
 
 static JSBool
 xml_defineSpecial(JSContext *cx, JSObject *obj, SpecialId sid, const Value *v,
                   PropertyOp getter, StrictPropertyOp setter, uintN attrs)
 {
-    return xml_defineGeneric(cx, obj, SPECIALID_TO_JSID(sid), v, getter, setter, attrs);
+    return xml_defineProperty(cx, obj, SPECIALID_TO_JSID(sid), v, getter, setter, attrs);
 }
 
 static JSBool
@@ -4859,9 +4847,9 @@ xml_setGeneric(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict)
 }
 
 static JSBool
-xml_setProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp, JSBool strict)
+xml_setProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp, JSBool strict)
 {
-    return xml_setGeneric(cx, obj, ATOM_TO_JSID(name), vp, strict);
+    return xml_setGeneric(cx, obj, id, vp, strict);
 }
 
 static JSBool
@@ -4880,7 +4868,7 @@ xml_setSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *vp, JSBool st
 }
 
 static JSBool
-xml_getGenericAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
+xml_getAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
     JSBool found;
     if (!HasProperty(cx, obj, IdToJsval(id), &found))
@@ -4891,28 +4879,22 @@ xml_getGenericAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 }
 
 static JSBool
-xml_getPropertyAttributes(JSContext *cx, JSObject *obj, PropertyName *name, uintN *attrsp)
-{
-    return xml_getGenericAttributes(cx, obj, ATOM_TO_JSID(name), attrsp);
-}
-
-static JSBool
 xml_getElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
 {
     jsid id;
     if (!IndexToId(cx, index, &id))
         return false;
-    return xml_getGenericAttributes(cx, obj, id, attrsp);
+    return xml_getAttributes(cx, obj, id, attrsp);
 }
 
 static JSBool
 xml_getSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp)
 {
-    return xml_getGenericAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
+    return xml_getAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
 }
 
 static JSBool
-xml_setGenericAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
+xml_setAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 {
     JSBool found;
     if (!HasProperty(cx, obj, IdToJsval(id), &found))
@@ -4927,28 +4909,22 @@ xml_setGenericAttributes(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp)
 }
 
 static JSBool
-xml_setPropertyAttributes(JSContext *cx, JSObject *obj, PropertyName *name, uintN *attrsp)
-{
-    return xml_setGenericAttributes(cx, obj, ATOM_TO_JSID(name), attrsp);
-}
-
-static JSBool
 xml_setElementAttributes(JSContext *cx, JSObject *obj, uint32 index, uintN *attrsp)
 {
     jsid id;
     if (!IndexToId(cx, index, &id))
         return false;
-    return xml_setGenericAttributes(cx, obj, id, attrsp);
+    return xml_setAttributes(cx, obj, id, attrsp);
 }
 
 static JSBool
 xml_setSpecialAttributes(JSContext *cx, JSObject *obj, SpecialId sid, uintN *attrsp)
 {
-    return xml_setGenericAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
+    return xml_setAttributes(cx, obj, SPECIALID_TO_JSID(sid), attrsp);
 }
 
 static JSBool
-xml_deleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
+xml_deleteProperty(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool strict)
 {
     JSXML *xml;
     jsval idval;
@@ -4980,7 +4956,7 @@ xml_deleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool str
 
     /*
      * If this object has its own (mutable) scope,  then we may have added a
-     * property to the scope in xml_lookupGeneric for it to return to mean
+     * property to the scope in xml_lookupProperty for it to return to mean
      * "found" and to provide a handle for access operations to call the
      * property's getter or setter. But now it's time to remove any such
      * property, to purge the property cache and remove the scope entry.
@@ -4990,12 +4966,6 @@ xml_deleteGeneric(JSContext *cx, JSObject *obj, jsid id, Value *rval, JSBool str
 
     rval->setBoolean(true);
     return true;
-}
-
-static JSBool
-xml_deleteProperty(JSContext *cx, JSObject *obj, PropertyName *name, Value *rval, JSBool strict)
-{
-    return xml_deleteGeneric(cx, obj, ATOM_TO_JSID(name), rval, strict);
 }
 
 static JSBool
@@ -5013,7 +4983,7 @@ xml_deleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSBoo
 
     /*
      * If this object has its own (mutable) scope,  then we may have added a
-     * property to the scope in xml_lookupGeneric for it to return to mean
+     * property to the scope in xml_lookupProperty for it to return to mean
      * "found" and to provide a handle for access operations to call the
      * property's getter or setter. But now it's time to remove any such
      * property, to purge the property cache and remove the scope entry.
@@ -5028,7 +4998,7 @@ xml_deleteElement(JSContext *cx, JSObject *obj, uint32 index, Value *rval, JSBoo
 static JSBool
 xml_deleteSpecial(JSContext *cx, JSObject *obj, SpecialId sid, Value *rval, JSBool strict)
 {
-    return xml_deleteGeneric(cx, obj, SPECIALID_TO_JSID(sid), rval, strict);
+    return xml_deleteProperty(cx, obj, SPECIALID_TO_JSID(sid), rval, strict);
 }
 
 static JSString *
@@ -5329,11 +5299,11 @@ JS_FRIEND_DATA(Class) js::XMLClass = {
     xml_trace,
     JS_NULL_CLASS_EXT,
     {
-        xml_lookupGeneric,
+        xml_lookupProperty,
         xml_lookupProperty,
         xml_lookupElement,
         xml_lookupSpecial,
-        xml_defineGeneric,
+        xml_defineProperty,
         xml_defineProperty,
         xml_defineElement,
         xml_defineSpecial,
@@ -5341,19 +5311,19 @@ JS_FRIEND_DATA(Class) js::XMLClass = {
         xml_getProperty,
         xml_getElement,
         xml_getSpecial,
-        xml_setGeneric,
+        xml_setProperty,
         xml_setProperty,
         xml_setElement,
         xml_setSpecial,
-        xml_getGenericAttributes,
-        xml_getPropertyAttributes,
+        xml_getAttributes,
+        xml_getAttributes,
         xml_getElementAttributes,
         xml_getSpecialAttributes,
-        xml_setGenericAttributes,
-        xml_setPropertyAttributes,
+        xml_setAttributes,
+        xml_setAttributes,
         xml_setElementAttributes,
         xml_setSpecialAttributes,
-        xml_deleteGeneric,
+        xml_deleteProperty,
         xml_deleteProperty,
         xml_deleteElement,
         xml_deleteSpecial,
@@ -6028,7 +5998,7 @@ NamespacesToJSArray(JSContext *cx, JSXMLArray *array, jsval *rval)
         if (!ns)
             continue;
         tvr.set(ObjectValue(*ns));
-        if (!arrayobj->setElement(cx, i, tvr.addr(), false))
+        if (!arrayobj->setProperty(cx, INT_TO_JSID(i), tvr.addr(), false))
             return false;
     }
     return true;
@@ -7424,7 +7394,7 @@ js_InitXMLClass(JSContext *cx, JSObject *obj)
         JS_DefineFunction(cx, global, js_XMLList_str, XMLList, 1, JSFUN_CONSTRUCTOR);
     if (!xmllist)
         return NULL;
-    if (!xmllist->defineProperty(cx, cx->runtime->atomState.classPrototypeAtom,
+    if (!xmllist->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.classPrototypeAtom),
                                  ObjectValue(*xmlProto), JS_PropertyStub, JS_StrictPropertyStub,
                                  JSPROP_PERMANENT | JSPROP_READONLY))
     {
@@ -7526,8 +7496,8 @@ js_GetDefaultXMLNamespace(JSContext *cx, jsval *vp)
     if (!ns)
         return JS_FALSE;
     v = OBJECT_TO_JSVAL(ns);
-    if (!obj->defineSpecial(cx, SpecialId::defaultXMLNamespace(), v,
-                            JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT)) {
+    if (!obj->defineProperty(cx, JS_DEFAULT_XML_NAMESPACE_ID, v,
+                             JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT)) {
         return JS_FALSE;
     }
     *vp = v;
@@ -7545,8 +7515,8 @@ js_SetDefaultXMLNamespace(JSContext *cx, const Value &v)
         return JS_FALSE;
 
     JSObject &varobj = cx->fp()->varObj();
-    if (!varobj.defineSpecial(cx, SpecialId::defaultXMLNamespace(), ObjectValue(*ns),
-                              JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT)) {
+    if (!varobj.defineProperty(cx, JS_DEFAULT_XML_NAMESPACE_ID, ObjectValue(*ns),
+                               JS_PropertyStub, JS_StrictPropertyStub, JSPROP_PERMANENT)) {
         return JS_FALSE;
     }
     return JS_TRUE;
@@ -7699,7 +7669,7 @@ js_FindXMLProperty(JSContext *cx, const Value &nameval, JSObject **objp, jsid *i
                 return JS_TRUE;
             }
         } else if (!JSID_IS_VOID(funid)) {
-            if (!target->lookupGeneric(cx, funid, &pobj, &prop))
+            if (!target->lookupProperty(cx, funid, &pobj, &prop))
                 return JS_FALSE;
             if (prop) {
                 *idp = funid;
@@ -7724,10 +7694,11 @@ GetXMLFunction(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
     JS_ASSERT(obj->isXML());
 
     /*
-     * See comments before xml_lookupGeneric about the need for the proto
+     * See comments before xml_lookupProperty about the need for the proto
      * chain lookup.
      */
     JSObject *target = obj;
+    AutoObjectRooter tvr(cx);
     for (;;) {
         if (!js_GetProperty(cx, target, id, vp))
             return false;
@@ -7736,6 +7707,7 @@ GetXMLFunction(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
         target = target->getProto();
         if (target == NULL || !target->isNative())
             break;
+        tvr.setObject(target);
     }
 
     JSXML *xml = (JSXML *) obj->getPrivate();
@@ -7743,11 +7715,11 @@ GetXMLFunction(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
         return true;
 
     /* Search in String.prototype to implement 11.2.2.1 Step 3(f). */
-    JSObject *proto = obj->getGlobal()->getOrCreateStringPrototype(cx);
-    if (!proto)
+    if (!js_GetClassPrototype(cx, NULL, JSProto_String, tvr.addr()))
         return false;
 
-    return proto->getGeneric(cx, id, vp);
+    JS_ASSERT(tvr.object());
+    return tvr.object()->getGeneric(cx, id, vp);
 }
 
 static JSXML *

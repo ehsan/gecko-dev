@@ -49,7 +49,6 @@ EXTRA_JS_MODULES = \
 		NetworkHelper.jsm \
 		AutocompletePopup.jsm \
 		gcli.jsm \
-		GcliCommands.jsm \
 		$(NULL)
 
 EXTRA_PP_JS_MODULES = \

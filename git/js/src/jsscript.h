@@ -175,10 +175,7 @@ class Bindings {
     bool hasExtensibleParents;
 
   public:
-    inline Bindings(JSContext *cx)
-        : lastBinding(NULL), nargs(0), nvars(0), nupvars(0), hasExtensibleParents(false)
-    {
-    }
+    inline Bindings(JSContext *cx);
 
     /*
      * Transfers ownership of bindings data from bindings into this fresh
@@ -447,7 +444,7 @@ struct JSScript : public js::gc::Cell {
                                uint16 nClosedArgs, uint16 nClosedVars, uint32 nTypeSets,
                                JSVersion version);
 
-    static JSScript *NewScriptFromCG(JSContext *cx, js::CodeGenerator *cg);
+    static JSScript *NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg);
 
 #ifdef JS_CRASH_DIAGNOSTICS
     /*

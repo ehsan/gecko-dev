@@ -228,10 +228,10 @@ bool
 ImageContainerD3D9::SetLayerManager(LayerManager *aManager)
 {
   if (aManager->GetBackendType() == LayerManager::LAYERS_D3D9) {
-    return true;
+    return PR_TRUE;
   }
 
-  return false;
+  return PR_FALSE;
 }
 
 Layer*
@@ -398,7 +398,7 @@ ImageLayerD3D9::RenderLayer()
 PlanarYCbCrImageD3D9::PlanarYCbCrImageD3D9()
   : PlanarYCbCrImage(static_cast<ImageD3D9*>(this))
   , mBufferSize(0)
-  , mHasData(false)
+  , mHasData(PR_FALSE)
 {
 }
 
@@ -407,7 +407,7 @@ PlanarYCbCrImageD3D9::SetData(const PlanarYCbCrImage::Data &aData)
 {
   mBuffer = CopyData(mData, mSize, mBufferSize, aData);
 
-  mHasData = true;
+  mHasData = PR_TRUE;
 }
 
 void

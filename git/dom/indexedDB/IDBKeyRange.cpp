@@ -149,7 +149,7 @@ MakeOnlyKeyRange(JSContext* aCx,
   NS_ASSERTION(keys.Length() == 1, "Didn't set all keys!");
 
   nsRefPtr<IDBKeyRange> range =
-    IDBKeyRange::Create(keys[0], keys[0], false, false);
+    IDBKeyRange::Create(keys[0], keys[0], PR_FALSE, PR_FALSE);
   NS_ASSERTION(range, "Out of memory?");
 
   if (!ReturnKeyRange(aCx, aVp, range)) {
@@ -179,7 +179,7 @@ MakeLowerBoundKeyRange(JSContext* aCx,
   }
 
   nsRefPtr<IDBKeyRange> range =
-    IDBKeyRange::Create(keys[0], nsnull, !!open, true);
+    IDBKeyRange::Create(keys[0], nsnull, !!open, PR_TRUE);
   NS_ASSERTION(range, "Out of memory?");
 
   if (!ReturnKeyRange(aCx, aVp, range)) {
@@ -209,7 +209,7 @@ MakeUpperBoundKeyRange(JSContext* aCx,
   }
 
   nsRefPtr<IDBKeyRange> range =
-    IDBKeyRange::Create(nsnull, keys[0], true, !!open);
+    IDBKeyRange::Create(nsnull, keys[0], PR_TRUE, !!open);
   NS_ASSERTION(range, "Out of memory?");
 
   if (!ReturnKeyRange(aCx, aVp, range)) {
@@ -336,7 +336,7 @@ IDBKeyRange::GetLowerOpen(bool* aLowerOpen)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  *aLowerOpen = mLowerOpen ? true : false;
+  *aLowerOpen = mLowerOpen ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }
 
@@ -346,6 +346,6 @@ IDBKeyRange::GetUpperOpen(bool* aUpperOpen)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  *aUpperOpen = mUpperOpen ? true : false;
+  *aUpperOpen = mUpperOpen ? PR_TRUE : PR_FALSE;
   return NS_OK;
 }

@@ -90,7 +90,7 @@ public:
   virtual ~nsDownloadManager();
   nsDownloadManager() :
       mDBType(DATABASE_DISK)
-    , mInPrivateBrowsing(false)
+    , mInPrivateBrowsing(PR_FALSE)
 #ifdef DOWNLOAD_SCANNER
     , mScanner(nsnull)
 #endif

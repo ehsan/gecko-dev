@@ -80,7 +80,7 @@ public:
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
                                    bool* aForceTransparentSurface = nsnull) {
     if (aForceTransparentSurface) {
-      *aForceTransparentSurface = false;
+      *aForceTransparentSurface = PR_FALSE;
     }
     nsIFrame* f = GetUnderlyingFrame();
     nsHTMLCanvasElement *canvas = CanvasElementFromContent(f->GetContent());

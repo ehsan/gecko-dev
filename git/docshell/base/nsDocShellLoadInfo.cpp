@@ -48,9 +48,9 @@
 //*****************************************************************************
 
 nsDocShellLoadInfo::nsDocShellLoadInfo()
-  : mInheritOwner(false),
-    mOwnerIsExplicit(false),
-    mSendReferrer(true),
+  : mInheritOwner(PR_FALSE),
+    mOwnerIsExplicit(PR_FALSE),
+    mSendReferrer(PR_TRUE),
     mLoadType(nsIDocShellLoadInfo::loadNormal)
 {
 }

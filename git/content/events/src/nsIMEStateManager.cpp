@@ -147,13 +147,13 @@ nsIMEStateManager::OnChangeFocus(nsPresContext* aPresContext,
   if (sInSecureInputMode) {
     if (!contentIsPassword) {
       if (NS_SUCCEEDED(widget->EndSecureKeyboardInput())) {
-        sInSecureInputMode = false;
+        sInSecureInputMode = PR_FALSE;
       }
     }
   } else {
     if (contentIsPassword) {
       if (NS_SUCCEEDED(widget->BeginSecureKeyboardInput())) {
-        sInSecureInputMode = true;
+        sInSecureInputMode = PR_TRUE;
       }
     }
   }
@@ -321,11 +321,11 @@ nsIMEStateManager::SetIMEState(PRUint32 aState,
         if (control) {
           // is this a form and does it have a default submit element?
           if ((form = do_QueryInterface(formElement)) && form->GetDefaultSubmitElement()) {
-            willSubmit = true;
+            willSubmit = PR_TRUE;
           // is this an html form and does it only have a single text input element?
           } else if (formElement && formElement->Tag() == nsGkAtoms::form && formElement->IsHTML() &&
                      static_cast<nsHTMLFormElement*>(formElement)->HasSingleTextControl()) {
-            willSubmit = true;
+            willSubmit = PR_TRUE;
           }
         }
         context.mActionHint.Assign(willSubmit ? control->GetType() == NS_FORM_INPUT_SEARCH
@@ -403,7 +403,7 @@ private:
 
 nsTextStateManager::nsTextStateManager()
 {
-  mDestroying = false;
+  mDestroying = PR_FALSE;
 }
 
 nsresult
@@ -646,24 +646,13 @@ nsTextStateManager::ContentRemoved(nsIDocument* aDocument,
         new TextChangeEvent(mWidget, offset, offset + childOffset, offset));
 }
 
-static bool IsEditable(nsINode* node) {
-  if (node->IsEditable()) {
-    return true;
-  }
-  // |node| might be readwrite (for example, a text control)
-  if (node->IsElement() && node->AsElement()->State().HasState(NS_EVENT_STATE_MOZ_READWRITE)) {
-    return true;
-  }
-  return false;
-}
-
 static nsINode* GetRootEditableNode(nsPresContext* aPresContext,
                                     nsIContent* aContent)
 {
   if (aContent) {
     nsINode* root = nsnull;
     nsINode* node = aContent;
-    while (node && IsEditable(node)) {
+    while (node && node->IsEditable()) {
       root = node;
       node = node->GetNodeParent();
     }
@@ -686,8 +675,8 @@ nsIMEStateManager::OnTextStateBlur(nsPresContext* aPresContext,
           GetRootEditableNode(aPresContext, aContent))
     return NS_OK;
 
-  sTextStateObserver->mDestroying = true;
-  sTextStateObserver->mWidget->OnIMEFocusChange(false);
+  sTextStateObserver->mDestroying = PR_TRUE;
+  sTextStateObserver->mWidget->OnIMEFocusChange(PR_FALSE);
   sTextStateObserver->Destroy();
   NS_RELEASE(sTextStateObserver);
   return NS_OK;
@@ -715,7 +704,7 @@ nsIMEStateManager::OnTextStateFocus(nsPresContext* aPresContext,
     return NS_OK; // Sometimes, there are no widgets.
   }
 
-  rv = widget->OnIMEFocusChange(true);
+  rv = widget->OnIMEFocusChange(PR_TRUE);
   if (rv == NS_ERROR_NOT_IMPLEMENTED)
     return NS_OK;
   NS_ENSURE_SUCCESS(rv, rv);
@@ -732,10 +721,10 @@ nsIMEStateManager::OnTextStateFocus(nsPresContext* aPresContext,
   rv = sTextStateObserver->Init(widget, aPresContext,
                                 editableNode, wantUpdates);
   if (NS_FAILED(rv)) {
-    sTextStateObserver->mDestroying = true;
+    sTextStateObserver->mDestroying = PR_TRUE;
     sTextStateObserver->Destroy();
     NS_RELEASE(sTextStateObserver);
-    widget->OnIMEFocusChange(false);
+    widget->OnIMEFocusChange(PR_FALSE);
     return rv;
   }
   return NS_OK;

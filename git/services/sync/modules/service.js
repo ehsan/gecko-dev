@@ -702,8 +702,11 @@ WeaveSvc.prototype = {
         return true;
       }
 
-    } catch (e) {
+    } catch (ex) {
       // This means no keys are present, or there's a network error.
+      this._log.debug("Failed to fetch and verify keys: "
+                      + Utils.exceptionStr(ex));
+      ErrorHandler.checkServerError(ex);
       return false;
     }
   },
@@ -759,9 +762,10 @@ WeaveSvc.prototype = {
             // Go ahead and do remote setup, so that we can determine
             // conclusively that our passphrase is correct.
             if (this._remoteSetup()) {
+
               // Username/password verified.
-              Status.login = LOGIN_SUCCEEDED;
-              return true;
+            Status.login = LOGIN_SUCCEEDED;
+            return true;
             }
 
             this._log.warn("Remote setup failed.");
@@ -826,6 +830,7 @@ WeaveSvc.prototype = {
     let uploadRes = wbo.upload(this.cryptoKeysURL);
     if (uploadRes.status != 200) {
       this._log.warn("Got status " + uploadRes.status + " uploading new keys. What to do? Throw!");
+      ErrorHandler.checkServerError(uploadRes);
       throw new Error("Unable to upload symmetric keys.");
     }
     this._log.info("Got status " + uploadRes.status + " uploading keys.");
@@ -1678,7 +1683,6 @@ WeaveSvc.prototype = {
 
       // Pretend we've never synced to the server and drop cached data
       this.syncID = "";
-      Svc.Prefs.reset("lastSync");
       Records.clearCache();
     }))(),
 

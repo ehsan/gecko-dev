@@ -218,15 +218,15 @@ public:
   nsSafeOptionListMutation(nsIContent* aSelect, nsIContent* aParent,
                            nsIContent* aKid, PRUint32 aIndex, bool aNotify);
   ~nsSafeOptionListMutation();
-  void MutationFailed() { mNeedsRebuild = true; }
+  void MutationFailed() { mNeedsRebuild = PR_TRUE; }
 private:
   static void* operator new(size_t) CPP_THROW_NEW { return 0; }
   static void operator delete(void*, size_t) {}
   /** The select element which option list is being mutated. */
   nsRefPtr<nsHTMLSelectElement> mSelect;
-  /** true if the current mutation is the first one in the stack. */
+  /** PR_TRUE if the current mutation is the first one in the stack. */
   bool                       mTopLevelMutation;
-  /** true if it is known that the option list must be recreated. */
+  /** PR_TRUE if it is known that the option list must be recreated. */
   bool                       mNeedsRebuild;
   /** Option list must be recreated if more than one mutation is detected. */
   nsMutationGuard            mGuard;
@@ -562,7 +562,7 @@ protected:
    */
   bool IsCombobox() {
     if (HasAttr(kNameSpaceID_None, nsGkAtoms::multiple)) {
-      return false;
+      return PR_FALSE;
     }
 
     PRInt32 size = 1;

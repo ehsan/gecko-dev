@@ -74,15 +74,15 @@ public:
 
     bool Get(nsIContent* aElement, nsTemplateMatch** aMatch) {
         if (!mMap.ops)
-            return false;
+            return PR_FALSE;
 
         PLDHashEntryHdr* hdr = PL_DHashTableOperate(&mMap, aElement, PL_DHASH_LOOKUP);
         if (PL_DHASH_ENTRY_IS_FREE(hdr))
-            return false;
+            return PR_FALSE;
 
         Entry* entry = reinterpret_cast<Entry*>(hdr);
         *aMatch = entry->mMatch;
-        return true; }
+        return PR_TRUE; }
 
     nsresult Remove(nsIContent* aElement);
 

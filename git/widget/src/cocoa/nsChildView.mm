@@ -41,8 +41,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #ifdef MOZ_LOGGING
 #define FORCE_PR_LOG
 #endif
@@ -95,7 +93,6 @@
 
 #include <ApplicationServices/ApplicationServices.h>
 
-using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::gl;
 using namespace mozilla::widget;
@@ -294,6 +291,7 @@ nsresult nsChildView::Create(nsIWidget *aParent,
                              const nsIntRect &aRect,
                              EVENT_CALLBACK aHandleEventFunction,
                              nsDeviceContext *aContext,
+                             nsIAppShell *aAppShell,
                              nsIToolkit *aToolkit,
                              nsWidgetInitData *aInitData)
 {
@@ -326,7 +324,7 @@ nsresult nsChildView::Create(nsIWidget *aParent,
   mBounds = aRect;
 
   BaseCreate(aParent, aRect, aHandleEventFunction, 
-             aContext, aToolkit, aInitData);
+             aContext, aAppShell, aToolkit, aInitData);
 
   // inherit things from the parent view and create our parallel 
   // NSView in the Cocoa display system
@@ -1640,7 +1638,7 @@ PRUint32 nsChildView::GetCurrentInputEventCount()
   };
 
   PRUint32 eventCount = 0;
-  for (PRUint32 i = 0; i < ArrayLength(eventTypes); ++i) {
+  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(eventTypes); ++i) {
     eventCount +=
       CGEventSourceCounterForEventType(kCGEventSourceStateCombinedSessionState,
                                        eventTypes[i]);

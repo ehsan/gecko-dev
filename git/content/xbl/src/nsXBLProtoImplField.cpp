@@ -104,7 +104,7 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
                   "uh-oh, bound node should NOT be null or bad things will "
                   "happen");
 
-  *aDidInstall = false;
+  *aDidInstall = PR_FALSE;
 
   if (mFieldTextLength == 0) {
     return NS_OK;
@@ -149,6 +149,6 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  *aDidInstall = true;
+  *aDidInstall = PR_TRUE;
   return NS_OK;
 }

@@ -40,8 +40,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Util.h"
-
 #include "mozStorageSQLFunctions.h"
 #include "nsUnicharUtils.h"
 
@@ -129,11 +127,11 @@ likeCompare(nsAString::const_iterator aPatternItr,
         return 0;
       }
       aStringItr++;
-      lastWasEscape = false;
+      lastWasEscape = PR_FALSE;
     }
     else if (!lastWasEscape && *aPatternItr == aEscapeChar) {
       // CASE 3
-      lastWasEscape = true;
+      lastWasEscape = PR_TRUE;
     }
     else {
       // CASE 4
@@ -142,7 +140,7 @@ likeCompare(nsAString::const_iterator aPatternItr,
         return 0;
       }
       aStringItr++;
-      lastWasEscape = false;
+      lastWasEscape = PR_FALSE;
     }
 
     aPatternItr++;
@@ -304,16 +302,6 @@ levenshteinDistance(const nsAString &aStringS,
     return SQLITE_OK;
 }
 
-// This struct is used only by registerFunctions below, but ISO C++98 forbids
-// instantiating a template dependent on a locally-defined type.  Boo-urns!
-struct Functions {
-  const char *zName;
-  int nArg;
-  int enc;
-  void *pContext;
-  void (*xFunc)(::sqlite3_context*, int, sqlite3_value**);
-};
-
 } // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -322,6 +310,14 @@ struct Functions {
 int
 registerFunctions(sqlite3 *aDB)
 {
+  struct Functions {
+    const char *zName;
+    int nArg;
+    int enc;
+    void *pContext;
+    void (*xFunc)(::sqlite3_context*, int, sqlite3_value**);
+  };
+  
   Functions functions[] = {
     {"lower",               
       1, 
@@ -378,7 +374,7 @@ registerFunctions(sqlite3 *aDB)
   };
 
   int rv = SQLITE_OK;
-  for (size_t i = 0; SQLITE_OK == rv && i < ArrayLength(functions); ++i) {
+  for (size_t i = 0; SQLITE_OK == rv && i < NS_ARRAY_LENGTH(functions); ++i) {
     struct Functions *p = &functions[i];
     rv = ::sqlite3_create_function(aDB, p->zName, p->nArg, p->enc, p->pContext,
                                    p->xFunc, NULL, NULL);

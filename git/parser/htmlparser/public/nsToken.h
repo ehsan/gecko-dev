@@ -240,7 +240,7 @@ class CToken {
      * well formed or not.
      *
      * @update	gess 8/30/00
-     * @return  false; subclasses MUST override if they care.
+     * @return  PR_FALSE; subclasses MUST override if they care.
      */
     virtual bool IsWellFormed(void) const {return false;}
 

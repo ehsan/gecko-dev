@@ -44,10 +44,6 @@
 #endif
 
 #include "mozilla/plugins/PluginModuleChild.h"
-
-/* This must occur *after* plugins/PluginModuleChild.h to avoid typedefs conflicts. */
-#include "mozilla/Util.h"
-
 #include "mozilla/ipc/SyncChannel.h"
 
 #ifdef MOZ_WIDGET_GTK2
@@ -85,7 +81,6 @@
 #include "PluginUtilsOSX.h"
 #endif
 
-using namespace mozilla;
 using namespace mozilla::plugins;
 using mozilla::dom::CrashReporterChild;
 using mozilla::dom::PCrashReporterChild;
@@ -137,7 +132,7 @@ PluginModuleChild::PluginModuleChild()
     memset(&mFunctions, 0, sizeof(mFunctions));
     memset(&mSavedData, 0, sizeof(mSavedData));
     gInstance = this;
-    mUserAgent.SetIsVoid(true);
+    mUserAgent.SetIsVoid(PR_TRUE);
 #ifdef XP_MACOSX
     mac_plugin_interposing::child::SetUpCocoaInterposing();
 #endif
@@ -198,7 +193,7 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
     mPluginFilename = aPluginFilename.c_str();
     nsCOMPtr<nsILocalFile> localFile;
     NS_NewLocalFile(NS_ConvertUTF8toUTF16(mPluginFilename),
-                    true,
+                    PR_TRUE,
                     getter_AddRefs(localFile));
 
     bool exists;
@@ -1908,7 +1903,7 @@ PMCGetWindowInfoHook(HWND hWnd, PWINDOWINFO pwi)
 
   if (!sBrowserHwnd) {
       PRUnichar szClass[20];
-      if (GetClassNameW(hWnd, szClass, ArrayLength(szClass)) &&
+      if (GetClassNameW(hWnd, szClass, NS_ARRAY_LENGTH(szClass)) && 
           !wcscmp(szClass, kMozillaWindowClass)) {
           sBrowserHwnd = hWnd;
       }
@@ -2256,7 +2251,7 @@ PluginModuleChild::NPN_GetIntIdentifier(int32_t aIntId)
     PluginIdentifierChildInt* ident = self->mIntIdentifiers.Get(aIntId);
     if (!ident) {
         nsCString voidString;
-        voidString.SetIsVoid(true);
+        voidString.SetIsVoid(PR_TRUE);
 
         ident = new PluginIdentifierChildInt(aIntId);
         self->SendPPluginIdentifierConstructor(ident, voidString, aIntId, false);
