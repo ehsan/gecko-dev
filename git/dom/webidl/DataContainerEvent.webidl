@@ -6,7 +6,6 @@
 
 interface nsIVariant;
 
-[ChromeOnly]
 interface DataContainerEvent : Event {
   /**
    * Return the data associated with the given key.
