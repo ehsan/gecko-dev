@@ -3876,7 +3876,10 @@ GetPropertyHelperInline(JSContext *cx,
             if (!script || script->warnedAboutUndefinedProp)
                 return true;
 
-            /* We may just be checking if that object has an iterator. */
+            /*
+             * XXX do not warn about missing __iterator__ as the function
+             * may be called from JS_GetMethodById. See bug 355145.
+             */
             if (JSID_IS_ATOM(id, cx->names().iteratorIntrinsic))
                 return JS_TRUE;
 
@@ -4081,6 +4084,18 @@ baseops::GetPropertyDefault(JSContext *cx, HandleObject obj, HandleId id, Handle
     return baseops::GetProperty(cx, obj2, id, vp);
 }
 
+JSBool
+js::GetMethod(JSContext *cx, HandleObject obj, HandleId id, unsigned getHow, MutableHandleValue vp)
+{
+    JSAutoResolveFlags rf(cx, 0);
+
+    GenericIdOp op = obj->getOps()->getGeneric;
+    if (!op)
+        return GetPropertyHelper(cx, obj, id, getHow, vp);
+
+    return op(cx, obj, obj, id, vp);
+}
+
 static bool
 MaybeReportUndeclaredVarAssignment(JSContext *cx, JSString *propname)
 {
@@ -4184,10 +4199,9 @@ bool
 JSObject::callMethod(JSContext *cx, HandleId id, unsigned argc, Value *argv, MutableHandleValue vp)
 {
     RootedValue fval(cx);
-    RootedObject obj(cx, this);
-    if (!JSObject::getGeneric(cx, obj, obj, id, &fval))
-        return false;
-    return Invoke(cx, ObjectValue(*obj), fval, argc, argv, vp.address());
+    Rooted<JSObject*> obj(cx, this);
+    return GetMethod(cx, obj, id, 0, &fval) &&
+           Invoke(cx, ObjectValue(*obj), fval, argc, argv, vp.address());
 }
 
 JSBool
@@ -4549,9 +4563,9 @@ js::HasDataProperty(JSContext *cx, JSObject *obj, jsid id, Value *vp)
  * or steps 3-4.
  */
 static bool
-MaybeCallMethod(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp)
+MaybeCallMethod(JSContext *cx, HandleObject obj, Handle<jsid> id, MutableHandleValue vp)
 {
-    if (!JSObject::getGeneric(cx, obj, obj, id, vp))
+    if (!GetMethod(cx, obj, id, 0, vp))
         return false;
     if (!js_IsCallable(vp)) {
         vp.setObject(*obj);

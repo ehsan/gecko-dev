@@ -6,7 +6,9 @@
 #define nsIContent_h___
 
 #include "nsCaseTreatment.h" // for enum, cannot be forward-declared
-#include "nsIDocument.h"
+#include "nsCOMPtr.h"        // for already_AddRefed in constructor
+#include "nsIDocument.h"     // for use in inline function (IsInHTMLDocument)
+#include "nsINode.h"         // for base class
 
 // Forward declarations
 class nsAString;

@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
 import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.HardwareUtils;
 
 import org.mozilla.gecko.util.ThreadUtils;
@@ -17,7 +16,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.graphics.Rect;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.ColorDrawable;
@@ -26,9 +24,6 @@ import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
 import android.os.Handler;
 import android.os.SystemClock;
-import android.text.style.ForegroundColorSpan;
-import android.text.Spannable;
-import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -126,9 +121,6 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
     private static final int TABS_EXPANDED = 2;
 
     private static final int FORWARD_ANIMATION_DURATION = 450;
-    private final ForegroundColorSpan mUrlColor;
-    private final ForegroundColorSpan mDomainColor;
-    private final ForegroundColorSpan mPrivateDomainColor;
 
     private boolean mShowUrl;
 
@@ -155,18 +147,14 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
 
             @Override
             public void onPostExecute(Void v) {
-                Tab tab = Tabs.getInstance().getSelectedTab();
-                if (tab != null) {
-                    setTitle(tab.getDisplayTitle());
+                if (mShowUrl) {
+                    Tab tab = Tabs.getInstance().getSelectedTab();
+                    if (tab != null) {
+                        setTitle(tab.getURL());
+                    }
                 }
             }
         }).execute();
-
-        Resources res = mActivity.getResources();
-        mUrlColor = new ForegroundColorSpan(res.getColor(R.color.url_bar_urltext));
-        mDomainColor = new ForegroundColorSpan(res.getColor(R.color.url_bar_domaintext));
-        mPrivateDomainColor = new ForegroundColorSpan(res.getColor(R.color.url_bar_domaintext_private));
-
     }
 
     public void from(RelativeLayout layout) {
@@ -473,7 +461,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         switch(msg) {
             case TITLE:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
-                    setTitle(tab.getDisplayTitle());
+                    setTitle(mShowUrl ? tab.getURL() : tab.getDisplayTitle());
                 }
                 break;
             case START:
@@ -493,7 +481,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
                     updateForwardButton(tab.canDoForward());
                     setProgressVisibility(false);
                     // Reset the title in case we haven't navigated to a new page yet.
-                    setTitle(tab.getDisplayTitle());
+                    setTitle(mShowUrl ? tab.getURL() : tab.getDisplayTitle());
                 }
                 break;
             case RESTORED:
@@ -1031,9 +1019,8 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         }
     }
 
-    private void setTitle(String title) {
+    private void setTitle(CharSequence title) {
         Tab tab = Tabs.getInstance().getSelectedTab();
-        CharSequence displayTitle = title;
 
         // Keep the title unchanged if the tab is entering reader mode
         if (tab != null && tab.isEnteringReaderMode())
@@ -1043,30 +1030,10 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         // placeholder text. Because "about:home" and "about:privatebrowsing" don't
         // have titles, their display titles will always match their URLs.
         if (tab != null && ("about:home".equals(title) ||
-                            "about:privatebrowsing".equals(title))) {
-            displayTitle = null;
-        }
+                            "about:privatebrowsing".equals(title)))
+            title = null;
 
-        if (mShowUrl && displayTitle != null) {
-            title = StringUtils.stripScheme(tab.getURL());
-            title = StringUtils.stripCommonSubdomains(title);
-            displayTitle = title;
-
-            // highlight the domain name if we find one
-            String baseDomain = tab.getBaseDomain();
-            if (!TextUtils.isEmpty(baseDomain)) {
-                SpannableStringBuilder builder = new SpannableStringBuilder(title);
-                int index = title.indexOf(baseDomain);
-                if (index > -1) {
-                    builder.setSpan(mUrlColor, 0, title.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
-                    builder.setSpan(tab.isPrivate() ? mPrivateDomainColor : mDomainColor, index, index+baseDomain.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
-
-                    displayTitle = builder;
-                }
-            }
-        }
-
-        mTitle.setText(displayTitle);
+        mTitle.setText(title);
         mLayout.setContentDescription(title != null ? title : mTitle.getHint());
     }
 
@@ -1251,7 +1218,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
         Tab tab = Tabs.getInstance().getSelectedTab();
         if (tab != null) {
             String url = tab.getURL();
-            setTitle(tab.getDisplayTitle());
+            setTitle(mShowUrl ? tab.getURL() : tab.getDisplayTitle());
             setFavicon(tab.getFavicon());
             setProgressVisibility(tab.getState() == Tab.STATE_LOADING);
             setSecurityMode(tab.getSecurityMode());
@@ -1261,18 +1228,17 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             updateBackButton(tab.canDoBack());
             updateForwardButton(tab.canDoForward());
 
-            final boolean isPrivate = tab.isPrivate();
-            mAddressBarBg.setPrivateMode(isPrivate);
-            mLayout.setPrivateMode(isPrivate);
-            mTabs.setPrivateMode(isPrivate);
-            mTitle.setPrivateMode(isPrivate);
-            mMenu.setPrivateMode(isPrivate);
+            mAddressBarBg.setPrivateMode(tab.isPrivate());
+            mLayout.setPrivateMode(tab.isPrivate());
+            mTabs.setPrivateMode(tab.isPrivate());
+            mTitle.setPrivateMode(tab.isPrivate());
+            mMenu.setPrivateMode(tab.isPrivate());
 
             if (mBack instanceof BackButton)
-                ((BackButton) mBack).setPrivateMode(isPrivate);
+                ((BackButton) mBack).setPrivateMode(tab.isPrivate());
 
             if (mForward instanceof ForwardButton)
-                ((ForwardButton) mForward).setPrivateMode(isPrivate);
+                ((ForwardButton) mForward).setPrivateMode(tab.isPrivate());
         }
     }
 
@@ -1306,7 +1272,7 @@ public class BrowserToolbar implements ViewSwitcher.ViewFactory,
             mShowUrl = sharedPreferences.getBoolean(key, false);
             Tab tab = Tabs.getInstance().getSelectedTab();
             if (tab != null) {
-                setTitle(tab.getDisplayTitle());
+                setTitle(mShowUrl ? tab.getURL() : tab.getDisplayTitle());
             }
         }
     }

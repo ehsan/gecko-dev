@@ -153,6 +153,7 @@ class CodeGenerator : public CodeGeneratorSpecific
                       Register output, Register temp);
     bool visitCompareS(LCompareS *lir);
     bool visitCompareStrictS(LCompareStrictS *lir);
+    bool visitParCompareS(LParCompareS *lir);
     bool visitCompareVM(LCompareVM *lir);
     bool visitIsNullOrLikeUndefined(LIsNullOrLikeUndefined *lir);
     bool visitIsNullOrLikeUndefinedAndBranch(LIsNullOrLikeUndefinedAndBranch *lir);

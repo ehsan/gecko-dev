@@ -269,10 +269,11 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
     RootedString keyStr(cx);
 
     /* Step 2. */
-    if (vp.isObject()) {
+    if (vp.get().isObject()) {
         RootedValue toJSON(cx);
-        RootedObject obj(cx, &vp.toObject());
-        if (!JSObject::getProperty(cx, obj, obj, cx->names().toJSON, &toJSON))
+        RootedId id(cx, NameToId(cx->names().toJSON));
+        Rooted<JSObject*> obj(cx, &vp.get().toObject());
+        if (!GetMethod(cx, obj, id, 0, &toJSON))
             return false;
 
         if (js_IsCallable(toJSON)) {
