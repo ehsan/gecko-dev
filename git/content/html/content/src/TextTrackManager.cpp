@@ -110,10 +110,6 @@ TextTrackManager::TextTrackManager(HTMLMediaElement *aMediaElement)
   }
 }
 
-TextTrackManager::~TextTrackManager()
-{
-}
-
 TextTrackList*
 TextTrackManager::TextTracks() const
 {

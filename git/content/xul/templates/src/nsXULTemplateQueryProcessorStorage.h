@@ -28,8 +28,6 @@ private:
 
     nsCOMArray<nsIAtom> mColumnNames;
 
-    ~nsXULTemplateResultSetStorage() {}
-
 public:
 
     // nsISupports interface
@@ -59,8 +57,6 @@ public:
     NS_DECL_NSIXULTEMPLATEQUERYPROCESSOR
 
 private:
-
-    ~nsXULTemplateQueryProcessorStorage() {}
 
     nsCOMPtr<mozIStorageConnection> mStorageConnection;
     bool mGenerationStarted;

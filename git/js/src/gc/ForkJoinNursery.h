@@ -118,9 +118,6 @@ class ForkJoinNursery
     ForkJoinNursery(ForkJoinContext *cx, ForkJoinGCShared *shared, Allocator *tenured);
     ~ForkJoinNursery();
 
-    // Attempt to allocate initial storage, returns false on failure
-    bool initialize();
-
     // Perform a collection within the nursery, and if that for some reason
     // cannot be done then perform an evacuating collection.
     void minorGC();
@@ -222,9 +219,8 @@ class ForkJoinNursery
     void sweepHugeSlots();
 
     // Set the position/end pointers to correspond to the numbered
-    // chunk.  Returns false if the chunk could not be allocated, either
-    // because we're OOM or because the nursery capacity is exhausted.
-    bool setCurrentChunk(int index);
+    // chunk.
+    void setCurrentChunk(int index);
 
     enum PJSCollectionOp {
         Evacuate = 1,
@@ -234,7 +230,7 @@ class ForkJoinNursery
 
     // Misc GC internals.
     void pjsCollection(int op /* A combination of PJSCollectionOp bits */);
-    bool initNewspace();
+    void initNewspace();
     void flip();
     void forwardFromRoots(ForkJoinNurseryCollectionTracer *trc);
     void forwardFromUpdatable(ForkJoinNurseryCollectionTracer *trc);
@@ -248,7 +244,6 @@ class ForkJoinNursery
     AllocKind getObjectAllocKind(JSObject *src);
     void *allocateInTospace(AllocKind thingKind);
     void *allocateInTospace(size_t nelem, size_t elemSize);
-    void *allocateInTospaceInfallible(size_t thingSize);
     MOZ_ALWAYS_INLINE bool shouldMoveObject(void **thingp);
     void *moveObjectToTospace(JSObject *src);
     size_t copyObjectToTospace(JSObject *dst, JSObject *src, gc::AllocKind dstKind);

@@ -18,10 +18,9 @@ class HTMLBodyElement;
 
 class BodyRule: public nsIStyleRule
 {
-  virtual ~BodyRule();
-
 public:
   BodyRule(HTMLBodyElement* aPart);
+  virtual ~BodyRule();
 
   NS_DECL_ISUPPORTS
 

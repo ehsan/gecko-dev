@@ -32,6 +32,8 @@ public:
                            const Instantiation& aInst,
                            nsIRDFResource* aNode);
 
+    ~nsXULTemplateResultRDF();
+
     nsITemplateRDFQuery* Query() { return mQuery; }
 
     nsXULTemplateQueryProcessorRDF* GetProcessor()
@@ -63,7 +65,6 @@ public:
     HasMemoryElement(const MemoryElement& aMemoryElement);
 
 protected:
-    ~nsXULTemplateResultRDF();
 
     // query that generated the result
     nsCOMPtr<nsITemplateRDFQuery> mQuery;

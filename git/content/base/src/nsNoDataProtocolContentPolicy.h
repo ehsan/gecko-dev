@@ -24,14 +24,13 @@
 
 class nsNoDataProtocolContentPolicy MOZ_FINAL : public nsIContentPolicy
 {
-  ~nsNoDataProtocolContentPolicy()
-  {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICONTENTPOLICY
 
   nsNoDataProtocolContentPolicy()
+  {}
+  ~nsNoDataProtocolContentPolicy()
   {}
 };
 

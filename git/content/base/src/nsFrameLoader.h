@@ -137,8 +137,6 @@ public:
   nsFrameLoader* mFrameLoader;  // WEAK
 
 private:
-  ~nsContentView() {}
-
   nsresult Update(const ViewConfig& aConfig);
 
   ViewID mScrollId;
@@ -160,9 +158,9 @@ class nsFrameLoader MOZ_FINAL : public nsIFrameLoader,
 protected:
   nsFrameLoader(mozilla::dom::Element* aOwner, bool aNetworkCreated);
 
+public:
   ~nsFrameLoader();
 
-public:
   bool AsyncScrollEnabled() const
   {
     return !!(mRenderMode & RENDER_MODE_ASYNC_SCROLL);

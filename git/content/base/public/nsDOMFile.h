@@ -185,9 +185,6 @@ public:
   { }
 
   NS_DECL_THREADSAFE_ISUPPORTS
-
-protected:
-  ~nsDOMFile() {}
 };
 
 class nsDOMFileCC : public nsDOMFileBase
@@ -209,9 +206,6 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsDOMFileCC, nsIDOMFile)
-
-protected:
-  ~nsDOMFileCC() {}
 };
 
 class nsDOMFileFile : public nsDOMFile
@@ -313,8 +307,6 @@ public:
   void SetPath(const nsAString& aFullPath);
 
 protected:
-  ~nsDOMFileFile() {}
-
   // Create slice
   nsDOMFileFile(const nsDOMFileFile* aOther, uint64_t aStart, uint64_t aLength,
                 const nsAString& aContentType)
@@ -395,8 +387,6 @@ public:
   NS_IMETHOD_(bool) IsMemoryFile(void) MOZ_OVERRIDE;
 
 protected:
-  ~nsDOMMemoryFile() {}
-
   // Create slice
   nsDOMMemoryFile(const nsDOMMemoryFile* aOther, uint64_t aStart,
                   uint64_t aLength, const nsAString& aContentType)
@@ -465,8 +455,6 @@ protected:
 class nsDOMFileList MOZ_FINAL : public nsIDOMFileList,
                                 public nsWrapperCache
 {
-  ~nsDOMFileList() {}
-
 public:
   nsDOMFileList(nsISupports *aParent) : mParent(aParent)
   {

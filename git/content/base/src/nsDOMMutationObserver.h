@@ -31,14 +31,13 @@ using mozilla::dom::MutationObservingInfo;
 class nsDOMMutationRecord : public nsISupports,
                             public nsWrapperCache
 {
-  virtual ~nsDOMMutationRecord() {}
-
 public:
   nsDOMMutationRecord(nsIAtom* aType, nsISupports* aOwner)
   : mType(aType), mAttrNamespace(NullString()), mPrevValue(NullString()), mOwner(aOwner)
   {
     SetIsDOMBinding();
   }
+  virtual ~nsDOMMutationRecord() {}
 
   nsISupports* GetParentObject() const
   {
@@ -270,9 +269,6 @@ private:
 
 class nsMutationReceiver : public nsMutationReceiverBase
 {
-protected:
-  virtual ~nsMutationReceiver() { Disconnect(false); }
-
 public:
   nsMutationReceiver(nsINode* aTarget, nsDOMMutationObserver* aObserver);
 
@@ -283,6 +279,8 @@ public:
                  "Shouldn't create deep observer hierarchies!");
     aParent->AddClone(this);
   }
+
+  virtual ~nsMutationReceiver() { Disconnect(false); }
 
   nsMutationReceiver* GetParent()
   {
@@ -349,6 +347,7 @@ public:
   {
     SetIsDOMBinding();
   }
+  virtual ~nsDOMMutationObserver();
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMMutationObserver)
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_DOM_MUTATION_OBSERVER_IID)
@@ -418,8 +417,6 @@ public:
 
   static void Shutdown();
 protected:
-  virtual ~nsDOMMutationObserver();
-
   friend class nsMutationReceiver;
   friend class nsAutoMutationBatch;
   nsMutationReceiver* GetReceiverFor(nsINode* aNode, bool aMayCreate);

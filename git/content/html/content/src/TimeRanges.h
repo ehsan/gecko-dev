@@ -17,18 +17,6 @@
 namespace mozilla {
 namespace dom {
 
-class TimeRanges;
-
-}
-
-template<>
-struct HasDangerousPublicDestructor<dom::TimeRanges>
-{
-  static const bool value = true;
-};
-
-namespace dom {
-
 // Implements media TimeRanges:
 // http://www.whatwg.org/specs/web-apps/current-work/multipage/video.html#timeranges
 class TimeRanges MOZ_FINAL : public nsIDOMTimeRanges

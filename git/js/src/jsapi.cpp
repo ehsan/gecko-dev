@@ -582,7 +582,7 @@ JS_Init(void)
         return false;
 #endif
 
-    if (!ForkJoinContext::initializeTls())
+    if (!ForkJoinContext::initialize())
         return false;
 
 #if EXPOSE_INTL_API

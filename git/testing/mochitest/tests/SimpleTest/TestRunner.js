@@ -1,4 +1,4 @@
-/* -*- js-indent-level: 4; indent-tabs-mode: nil -*- */
+/* -*- js-indent-level: 4 -*- */
 /*
  * e10s event dispatcher from content->chrome
  *

@@ -991,20 +991,16 @@ int64_t nsDocLoader::GetMaxTotalProgress()
 NS_IMETHODIMP nsDocLoader::OnProgress(nsIRequest *aRequest, nsISupports* ctxt, 
                                       uint64_t aProgress, uint64_t aProgressMax)
 {
+  nsRequestInfo *info;
   int64_t progressDelta = 0;
 
   //
   // Update the RequestInfo entry with the new progress data
   //
-  if (nsRequestInfo* info = GetRequestInfo(aRequest)) {
-    // Update info->mCurrentProgress before we call FireOnStateChange,
-    // since that can make the "info" pointer invalid.
-    int64_t oldCurrentProgress = info->mCurrentProgress;
-    progressDelta = int64_t(aProgress) - oldCurrentProgress;
-    info->mCurrentProgress = int64_t(aProgress);
-
+  info = GetRequestInfo(aRequest);
+  if (info) {
     // suppress sending STATE_TRANSFERRING if this is upload progress (see bug 240053)
-    if (!info->mUploading && (int64_t(0) == oldCurrentProgress) && (int64_t(0) == info->mMaxProgress)) {
+    if (!info->mUploading && (int64_t(0) == info->mCurrentProgress) && (int64_t(0) == info->mMaxProgress)) {
       //
       // If we receive an OnProgress event from a toplevel channel that the URI Loader
       // has not yet targeted, then we must suppress the event.  This is necessary to
@@ -1051,8 +1047,11 @@ NS_IMETHODIMP nsDocLoader::OnProgress(nsIRequest *aRequest, nsISupports* ctxt,
       FireOnStateChange(this, aRequest, flags, NS_OK);
     }
 
-    // Update our overall current progress count.
+    // Update the current progress count...
+    progressDelta = int64_t(aProgress) - info->mCurrentProgress;
     mCurrentSelfProgress += progressDelta;
+
+    info->mCurrentProgress = int64_t(aProgress);
   }
   //
   // The request is not part of the load group, so ignore its progress
