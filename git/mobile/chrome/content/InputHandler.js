@@ -96,15 +96,17 @@ function InputHandler() {
   window.addEventListener("mouseup", this, true);
   window.addEventListener("mousemove", this, true);
   window.addEventListener("click", this, true);
-  window.addEventListener("DOMMouseScroll", this, true);
 
-  let browserCanvas = document.getElementById("tile_container");
+  let stack = document.getElementById("browser-container");
+  stack.addEventListener("DOMMouseScroll", this, true);
+
+  let browserCanvas = document.getElementById("browser-canvas");
   browserCanvas.addEventListener("keydown", this, true);
   browserCanvas.addEventListener("keyup", this, true);
 
   let useEarlyMouseMoves = gPrefService.getBoolPref("browser.ui.panning.fixup.mousemove");
 
-  this._modules.push(new ChromeInputModule(this , browserCanvas));
+  this._modules.push(new ChromeInputModule(this, browserCanvas));
   this._modules.push(new ContentPanningModule(this, browserCanvas, useEarlyMouseMoves));
   this._modules.push(new ContentClickingModule(this));
   this._modules.push(new ScrollwheelModule(this, browserCanvas));
@@ -554,7 +556,6 @@ KineticData.prototype = {
       return;
     }
 
-/*
     Browser.canvasBrowser.endPanning();
     ws.dragStop();
 
@@ -581,7 +582,7 @@ KineticData.prototype = {
     let visibleNow = ws.isWidgetVisible("tabs-container") || ws.isWidgetVisible("browser-controls");
     if (!visibleNow)
       ws.unfreeze('toolbar-main');
-*/
+
     this.reset();
   },
 
@@ -637,8 +638,8 @@ ContentPanningModule.prototype = {
       this._kineticData.endKinetic();
     } else {
       // make sure we're out of panning modes in case we weren't kinetic yet
-      //ws.dragStop();
-      //Browser.canvasBrowser.endPanning();
+      ws.dragStop();
+      Browser.canvasBrowser.endPanning();
     }
     let dragData = this._dragData;
     dragData.reset();
@@ -651,7 +652,7 @@ ContentPanningModule.prototype = {
 
     [sX, sY] = dragData.lockAxis(sX, sY);
 
-    //ws.dragStart(sX, sY);
+    ws.dragStart(sX, sY);
 
     Browser.canvasBrowser.startPanning();
   },
@@ -671,18 +672,14 @@ ContentPanningModule.prototype = {
   },
 
   _dragBy: function _dragBy(dx, dy) {
-    /* XXX
     let panned = ws.dragBy(dx, dy);
     return panned;
-    */
-    return false;
   },
 
   _dragMove: function _dragMove(sX, sY) {
     let dragData = this._dragData;
     [sX, sY] = dragData.lockMouseMove(sX, sY);
-    //XXX let panned = ws.dragMove(sX, sY);
-    let panned = false;
+    let panned = ws.dragMove(sX, sY);
     dragData.setDragPosition(sX, sY);
     return panned;
   },

@@ -95,25 +95,6 @@ var BrowserUI = {
     this._edit.value = caption;
   },
 
-  /*
-   * Dispatched by window.close() to allow us to turn window closes into tabs
-   * closes.
-   */
-  _domWindowClose: function (aEvent) {
-    if (!aEvent.isTrusted)
-      return;
-
-    // Find the relevant tab, and close it.
-    let browsers = Browser.browsers;
-    for (let i = 0; i < browsers.length; i++) {
-      if (browsers[i].contentWindow == aEvent.target) {
-        Browser.closeTab(Browser.getTabAtIndex(i));
-        aEvent.preventDefault();
-        break;
-      }
-    }
-  },
-
   _linkAdded : function(aEvent) {
     let link = aEvent.originalTarget;
     if (!link || !link.href)
@@ -176,11 +157,11 @@ var BrowserUI = {
     aFlags = aFlags || 0;
 
     if (aFlags & URLBAR_FORCE) {
-      //ws.freeze("toolbar-main");
-      //ws.moveFrozenTo("toolbar-main", 0, 0);
+      ws.freeze("toolbar-main");
+      ws.moveFrozenTo("toolbar-main", 0, 0);
     }
     else {
-      //ws.unfreeze("toolbar-main");
+      ws.unfreeze("toolbar-main");
     }
 
     this._editToolbar(aFlags & URLBAR_EDIT);
@@ -269,9 +250,9 @@ var BrowserUI = {
     let controls = document.getElementById("browser-controls");
     if (!this._initControls) {
       this._initControls = true;
-      //ws.moveUnfrozenTo("toolbar-main", null, -this.toolbarH);
-      //ws.moveUnfrozenTo("tabs-container", -tabs.boxObject.width, this.toolbarH);
-      //ws.moveUnfrozenTo("browser-controls", null, this.toolbarH);
+      ws.moveUnfrozenTo("toolbar-main", null, -this.toolbarH);
+      ws.moveUnfrozenTo("tabs-container", -tabs.boxObject.width, this.toolbarH);
+      ws.moveUnfrozenTo("browser-controls", null, this.toolbarH);
     }
 
     toolbar.width = windowW;
@@ -317,24 +298,20 @@ var BrowserUI = {
 
   init : function() {
     this._edit = document.getElementById("urlbar-edit");
+    this._edit.addEventListener("click", this, false);
     this._edit.addEventListener("keypress", this, true);
     this._throbber = document.getElementById("urlbar-throbber");
     this._favicon = document.getElementById("urlbar-favicon");
     this._favicon.addEventListener("error", this, false);
     this._autocompleteNavbuttons = document.getElementById("autocomplete_navbuttons");
 
-    document.getElementById("urlbar-editarea").addEventListener("click", this, false);
-
-    document.getElementById("tabs").addEventListener("TabSelect", this, true);
-
+    // XXX these really want to listen whatever is the current browser, not any browser
     let browsers = document.getElementById("browsers");
-    browsers.addEventListener("DOMWindowClose", this, true);
-    browsers.addEventListener("UIShowSelect", this, false, true);
-
-    // XXX these really want to listen to only the the current browser
     browsers.addEventListener("DOMTitleChanged", this, true);
     browsers.addEventListener("DOMLinkAdded", this, true);
+    browsers.addEventListener("UIShowSelect", this, false, true);
 
+    document.getElementById("tabs").addEventListener("TabSelect", this, true);
 
     ExtensionsView.init();
     DownloadsView.init();
@@ -505,7 +482,7 @@ var BrowserUI = {
   },
 
   newTab : function newTab(aURI) {
-    //ws.panTo(0, -this.toolbarH);
+    ws.panTo(0, -this.toolbarH);
     return Browser.addTab(aURI || "about:blank", true);
   },
 
@@ -519,21 +496,17 @@ var BrowserUI = {
   },
 
   hideTabs: function hideTabs() {
-/*
     if (ws.isWidgetVisible("tabs-container")) {
       let widthOfTabs = document.getElementById("tabs-container").boxObject.width;
       ws.panBy(widthOfTabs, 0, true);
     }
-*/
   },
 
   hideControls: function hideControls() {
-/*
     if (ws.isWidgetVisible("browser-controls")) {
       let widthOfControls = document.getElementById("browser-controls").boxObject.width;
       ws.panBy(-widthOfControls, 0, true);
     }
-*/
   },
 
   showPanel: function showPanel(aPage) {
@@ -560,9 +533,6 @@ var BrowserUI = {
         break;
       case "DOMLinkAdded":
         this._linkAdded(aEvent);
-        break;
-      case "DOMWindowClose":
-        this._domWindowClose(aEvent);
         break;
       case "UIShowSelect":
         SelectHelper.show(aEvent.target);
