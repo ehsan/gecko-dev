@@ -12,7 +12,6 @@ const PREF_INSTALL_REQUIREBUILTINCERTS = "extensions.install.requireBuiltInCerts
 const PREF_UPDATE_REQUIREBUILTINCERTS  = "extensions.update.requireBuiltInCerts";
 
 const PREF_APP_UPDATE_ENABLED          = "app.update.enabled";
-const PREF_APP_UPDATE_URL              = "app.update.url";
 
 const HOTFIX_ID = "hotfix@tests.mozilla.org";
 
@@ -66,8 +65,6 @@ function promiseFailedInstall() {
 }
 
 add_task(function setup() {
-  var oldAusUrl = Services.prefs.getDefaultBranch(null).getCharPref(PREF_APP_UPDATE_URL);
-  Services.prefs.getDefaultBranch(null).setCharPref(PREF_APP_UPDATE_URL, TESTROOT + "ausdummy.xml");
   Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, true);
   Services.prefs.setBoolPref(PREF_INSTALL_REQUIREBUILTINCERTS, false);
   Services.prefs.setBoolPref(PREF_UPDATE_REQUIREBUILTINCERTS, false);
@@ -77,7 +74,6 @@ add_task(function setup() {
 
   registerCleanupFunction(function() {
     Services.prefs.setBoolPref(PREF_APP_UPDATE_ENABLED, false);
-    Services.prefs.getDefaultBranch(null).setCharPref(PREF_APP_UPDATE_URL, oldAusUrl);
     Services.prefs.clearUserPref(PREF_EM_HOTFIX_ID);
     Services.prefs.setCharPref(PREF_EM_HOTFIX_URL, oldURL);
     Services.prefs.clearUserPref(PREF_INSTALL_REQUIREBUILTINCERTS);

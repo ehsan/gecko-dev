@@ -22,8 +22,9 @@ var DirtyPlugin = Class({
 
     // Dont' force a refresh unless the dirty state has changed...
     let priv = this.priv(editor);
-    let clean = editor.isClean()
+    let clean = editor.editor.isClean();
     if (priv.isClean !== clean) {
+
       let resource = editor.shell.resource;
       emit(resource, "label-change", resource);
       priv.isClean = clean;
