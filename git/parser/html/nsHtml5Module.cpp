@@ -59,6 +59,7 @@ nsHtml5Module::InitializeStatics()
 {
   nsContentUtils::AddBoolPrefVarCache("html5.enable", &sEnabled);
   nsContentUtils::AddBoolPrefVarCache("html5.offmainthread", &sOffMainThread);
+  NS_GetMainThread(&sMainThread);
   nsHtml5Atoms::AddRefAtoms();
   nsHtml5AttributeName::initializeStatics();
   nsHtml5ElementName::initializeStatics();
@@ -126,10 +127,6 @@ nsHtml5Module::GetStreamParserThread()
       NS_ASSERTION(sStreamParserThread, "Thread creation failed!");
     }
     return sStreamParserThread;
-  }
-  if (!sMainThread) {
-    NS_GetMainThread(&sMainThread);
-    NS_ASSERTION(sMainThread, "Main thread getter failed");
   }
   return sMainThread;
 }
