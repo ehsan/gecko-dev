@@ -5469,8 +5469,6 @@ END_CASE(JSOP_DEBUGGER)
 #if JS_HAS_XML_SUPPORT
 BEGIN_CASE(JSOP_DEFXMLNS)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     if (!js_SetDefaultXMLNamespace(cx, regs.sp[-1]))
         goto error;
     regs.sp--;
@@ -5479,8 +5477,6 @@ END_CASE(JSOP_DEFXMLNS)
 
 BEGIN_CASE(JSOP_ANYNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     jsid id;
     if (!js_GetAnyName(cx, &id))
         goto error;
@@ -5490,12 +5486,6 @@ END_CASE(JSOP_ANYNAME)
 
 BEGIN_CASE(JSOP_QNAMEPART)
 {
-    /*
-     * We do not JS_ASSERT(!script->strictModeCode) here because JSOP_QNAMEPART
-     * is used for __proto__ and (in contexts where we favor JSOP_*ELEM instead
-     * of JSOP_*PROP) obj.prop compiled as obj['prop'].
-     */
-
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     PUSH_STRING(atom);
@@ -5504,8 +5494,6 @@ END_CASE(JSOP_QNAMEPART)
 
 BEGIN_CASE(JSOP_QNAMECONST)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     Value rval = StringValue(atom);
@@ -5519,8 +5507,6 @@ END_CASE(JSOP_QNAMECONST)
 
 BEGIN_CASE(JSOP_QNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
     JSObject *obj = js_ConstructXMLQNameObject(cx, lval, rval);
@@ -5533,8 +5519,6 @@ END_CASE(JSOP_QNAME)
 
 BEGIN_CASE(JSOP_TOATTRNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval;
     rval = regs.sp[-1];
     if (!js_ToAttributeName(cx, &rval))
@@ -5545,8 +5529,6 @@ END_CASE(JSOP_TOATTRNAME)
 
 BEGIN_CASE(JSOP_TOATTRVAL)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval;
     rval = regs.sp[-1];
     JS_ASSERT(rval.isString());
@@ -5560,8 +5542,6 @@ END_CASE(JSOP_TOATTRVAL)
 BEGIN_CASE(JSOP_ADDATTRNAME)
 BEGIN_CASE(JSOP_ADDATTRVAL)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     Value lval = regs.sp[-2];
     JSString *str = lval.toString();
@@ -5576,8 +5556,6 @@ END_CASE(JSOP_ADDATTRNAME)
 
 BEGIN_CASE(JSOP_BINDXMLNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value lval;
     lval = regs.sp[-1];
     JSObject *obj;
@@ -5591,8 +5569,6 @@ END_CASE(JSOP_BINDXMLNAME)
 
 BEGIN_CASE(JSOP_SETXMLNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSObject *obj = &regs.sp[-3].toObject();
     Value rval = regs.sp[-1];
     jsid id;
@@ -5608,8 +5584,6 @@ END_CASE(JSOP_SETXMLNAME)
 BEGIN_CASE(JSOP_CALLXMLNAME)
 BEGIN_CASE(JSOP_XMLNAME)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value lval = regs.sp[-1];
     JSObject *obj;
     jsid id;
@@ -5627,8 +5601,6 @@ END_CASE(JSOP_XMLNAME)
 BEGIN_CASE(JSOP_DESCENDANTS)
 BEGIN_CASE(JSOP_DELDESC)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSObject *obj;
     FETCH_OBJECT(cx, -2, obj);
     jsval rval = regs.sp[-1];
@@ -5647,10 +5619,8 @@ BEGIN_CASE(JSOP_DELDESC)
 }
 END_CASE(JSOP_DESCENDANTS)
 
-BEGIN_CASE(JSOP_FILTER)
 {
-    JS_ASSERT(!script->strictModeCode);
-
+BEGIN_CASE(JSOP_FILTER)
     /*
      * We push the hole value before jumping to [enditer] so we can detect the
      * first iteration and direct js_StepXMLListFilter to initialize filter's
@@ -5659,13 +5629,11 @@ BEGIN_CASE(JSOP_FILTER)
     PUSH_HOLE();
     len = GET_JUMP_OFFSET(regs.pc);
     JS_ASSERT(len > 0);
-}
 END_VARLEN_CASE
+}
 
 BEGIN_CASE(JSOP_ENDFILTER)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     bool cond = !regs.sp[-1].isMagic();
     if (cond) {
         /* Exit the "with" block left from the previous iteration. */
@@ -5692,8 +5660,6 @@ END_CASE(JSOP_ENDFILTER);
 
 BEGIN_CASE(JSOP_TOXML)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     JSObject *obj = js_ValueToXMLObject(cx, rval);
     if (!obj)
@@ -5704,8 +5670,6 @@ END_CASE(JSOP_TOXML)
 
 BEGIN_CASE(JSOP_TOXMLLIST)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     JSObject *obj = js_ValueToXMLListObject(cx, rval);
     if (!obj)
@@ -5716,8 +5680,6 @@ END_CASE(JSOP_TOXMLLIST)
 
 BEGIN_CASE(JSOP_XMLTAGEXPR)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     JSString *str = js_ValueToString(cx, rval);
     if (!str)
@@ -5728,8 +5690,6 @@ END_CASE(JSOP_XMLTAGEXPR)
 
 BEGIN_CASE(JSOP_XMLELTEXPR)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval = regs.sp[-1];
     JSString *str;
     if (IsXML(rval)) {
@@ -5747,8 +5707,6 @@ END_CASE(JSOP_XMLELTEXPR)
 
 BEGIN_CASE(JSOP_XMLCDATA)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     JSString *str = atom;
@@ -5761,8 +5719,6 @@ END_CASE(JSOP_XMLCDATA)
 
 BEGIN_CASE(JSOP_XMLCOMMENT)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     JSString *str = atom;
@@ -5775,8 +5731,6 @@ END_CASE(JSOP_XMLCOMMENT)
 
 BEGIN_CASE(JSOP_XMLPI)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     JSAtom *atom;
     LOAD_ATOM(0, atom);
     JSString *str = atom;
@@ -5791,8 +5745,6 @@ END_CASE(JSOP_XMLPI)
 
 BEGIN_CASE(JSOP_GETFUNNS)
 {
-    JS_ASSERT(!script->strictModeCode);
-
     Value rval;
     if (!cx->fp()->scopeChain().getGlobal()->getFunctionNamespace(cx, &rval))
         goto error;
