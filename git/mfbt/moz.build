@@ -89,5 +89,3 @@ SOURCES += [
     'Compression.cpp',
     'decimal/Decimal.cpp',
 ]
-
-DISABLE_STL_WRAPPING = True

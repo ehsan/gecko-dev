@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "IMETextTxn.h"
-#include "mozilla/DebugOnly.h"          // for DebugOnly
 #include "mozilla/mozalloc.h"           // for operator new
 #include "mozilla/TextEvents.h"         // for TextRangeStyle
 #include "nsAString.h"                  // for nsAString_internal::Length, etc

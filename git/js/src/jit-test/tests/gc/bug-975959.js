@@ -1,6 +1,3 @@
-if (!getBuildConfiguration().parallelJS)
-  quit(0);
-
 try {
     y = z = [];
     y[1] = x

@@ -719,29 +719,23 @@ void
 Element::RemoveFromIdTable()
 {
   if (HasID()) {
-    RemoveFromIdTable(DoGetID());
-  }
-}
-
-void
-Element::RemoveFromIdTable(nsIAtom* aId)
-{
-  NS_ASSERTION(HasID(), "Node doesn't have an ID?");
-  if (HasFlag(NODE_IS_IN_SHADOW_TREE)) {
-    ShadowRoot* containingShadow = GetContainingShadow();
-    // Check for containingShadow because it may have
-    // been deleted during unlinking.
-    if (containingShadow) {
-      containingShadow->RemoveFromIdTable(this, aId);
-    }
-  } else {
-    nsIDocument* doc = GetCurrentDoc();
-    if (doc && (!IsInAnonymousSubtree() || doc->IsXUL())) {
-      // id can be null during mutation events evilness. Also, XUL elements
-      // loose their proto attributes during cc-unlink, so this can happen
-      // during cc-unlink too.
-      if (aId) {
-        doc->RemoveFromIdTable(this, aId);
+    if (HasFlag(NODE_IS_IN_SHADOW_TREE)) {
+      ShadowRoot* containingShadow = GetContainingShadow();
+      // Check for containingShadow because it may have
+      // been deleted during unlinking.
+      if (containingShadow) {
+        containingShadow->RemoveFromIdTable(this, DoGetID());
+      }
+    } else {
+      nsIDocument* doc = GetCurrentDoc();
+      if (doc) {
+        nsIAtom* id = DoGetID();
+        // id can be null during mutation events evilness. Also, XUL elements
+        // loose their proto attributes during cc-unlink, so this can happen
+        // during cc-unlink too.
+        if (id) {
+          doc->RemoveFromIdTable(this, DoGetID());
+        }
       }
     }
   }
@@ -1164,8 +1158,8 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     SetInDocument();
 
     if (GetCustomElementData()) {
-      // Enqueue an attached callback for the custom element.
-      aDocument->EnqueueLifecycleCallback(nsIDocument::eAttached, this);
+      // Enqueue an enteredView callback for the custom element.
+      aDocument->EnqueueLifecycleCallback(nsIDocument::eEnteredView, this);
     }
 
     // Unset this flag since we now really are in a document.
@@ -1327,8 +1321,8 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
     document->ClearBoxObjectFor(this);
 
     if (GetCustomElementData()) {
-      // Enqueue a detached callback for the custom element.
-      document->EnqueueLifecycleCallback(nsIDocument::eDetached, this);
+      // Enqueue a leftView callback for the custom element.
+      document->EnqueueLifecycleCallback(nsIDocument::eLeftView, this);
     }
   }
 

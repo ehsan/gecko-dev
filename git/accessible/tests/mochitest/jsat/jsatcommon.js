@@ -216,17 +216,13 @@ AccessFuContentTest.prototype = {
     if (this.currentPair) {
       if (this.currentPair[0] instanceof Function) {
         this.currentPair[0](this.mms[0]);
-      } else if (this.currentPair[0]) {
+      } else {
         this.mms[0].sendAsyncMessage(this.currentPair[0].name,
-         this.currentPair[0].json);
+                                     this.currentPair[0].json);
       }
-
-      if (!this.currentPair[1]) {
-       this.pump();
-     }
     } else if (this.finishedCallback) {
       for (var mm of this.mms) {
-       mm.sendAsyncMessage('AccessFu:Stop');
+	mm.sendAsyncMessage('AccessFu:Stop');
       }
       this.finishedCallback();
     }

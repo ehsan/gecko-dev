@@ -20,7 +20,7 @@ NotifyAudioAvailableEvent::NotifyAudioAvailableEvent(
                              float* aFrameBuffer,
                              uint32_t aFrameBufferLength,
                              float aTime)
-  : Event(aOwner, aPresContext, aEvent)
+  : nsDOMEvent(aOwner, aPresContext, aEvent)
   , mFrameBuffer(aFrameBuffer)
   , mFrameBufferLength(aFrameBufferLength)
   , mTime(aTime)
@@ -33,13 +33,13 @@ NotifyAudioAvailableEvent::NotifyAudioAvailableEvent(
   }
 }
 
-NS_IMPL_ADDREF_INHERITED(NotifyAudioAvailableEvent, Event)
-NS_IMPL_RELEASE_INHERITED(NotifyAudioAvailableEvent, Event)
+NS_IMPL_ADDREF_INHERITED(NotifyAudioAvailableEvent, nsDOMEvent)
+NS_IMPL_RELEASE_INHERITED(NotifyAudioAvailableEvent, nsDOMEvent)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(NotifyAudioAvailableEvent)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(NotifyAudioAvailableEvent,
-                                                Event)
+                                                nsDOMEvent)
   if (tmp->mCachedArray) {
     tmp->mCachedArray = nullptr;
     DropJSObjects(tmp);
@@ -47,17 +47,17 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(NotifyAudioAvailableEvent,
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(NotifyAudioAvailableEvent,
-                                                  Event)
+                                                  nsDOMEvent)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(NotifyAudioAvailableEvent,
-                                               Event)
+                                               nsDOMEvent)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mCachedArray)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(NotifyAudioAvailableEvent)
   NS_INTERFACE_MAP_ENTRY(nsIDOMNotifyAudioAvailableEvent)
-NS_INTERFACE_MAP_END_INHERITING(Event)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 NotifyAudioAvailableEvent::~NotifyAudioAvailableEvent()
 {
@@ -117,7 +117,7 @@ NotifyAudioAvailableEvent::InitAudioAvailableEvent(const nsAString& aType,
   // that if we exit due to some error, the memory will be freed. Otherwise,
   // the framebuffer's memory will be freed when this event is destroyed.
   nsAutoArrayPtr<float> frameBuffer(aFrameBuffer);
-  nsresult rv = Event::InitEvent(aType, aCanBubble, aCancelable);
+  nsresult rv = nsDOMEvent::InitEvent(aType, aCanBubble, aCancelable);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mFrameBuffer = frameBuffer.forget();

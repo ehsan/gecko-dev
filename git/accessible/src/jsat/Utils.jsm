@@ -247,24 +247,6 @@ this.Utils = {
       return new Rect(objX.value, objY.value, objW.value, objH.value);
   },
 
-  isInSubtree: function isInSubtree(aAccessible, aSubTreeRoot) {
-    let acc = aAccessible;
-    while (acc) {
-      if (acc == aSubTreeRoot) {
-        return true;
-      }
-
-      try {
-        acc = acc.parent;
-      } catch (x) {
-        Logger.debug('Failed to get parent:', x);
-        acc = null;
-      }
-    }
-
-    return false;
-  },
-
   inHiddenSubtree: function inHiddenSubtree(aAccessible) {
     for (let acc=aAccessible; acc; acc=acc.parent) {
       let hidden = Utils.getAttributes(acc).hidden;
@@ -583,13 +565,8 @@ PivotContext.prototype = {
   _getAncestry: function _getAncestry(aAccessible) {
     let ancestry = [];
     let parent = aAccessible;
-    try {
-      while (parent && (parent = parent.parent)) {
-       ancestry.push(parent);
-      }
-    } catch (e) {
-      // A defunct accessible will raise an exception geting parent.
-      Logger.debug('Failed to get parent:', x);
+    while (parent && (parent = parent.parent)) {
+      ancestry.push(parent);
     }
     return ancestry.reverse();
   },

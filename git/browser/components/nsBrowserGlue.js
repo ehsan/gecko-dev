@@ -472,6 +472,7 @@ BrowserGlue.prototype = {
     PageThumbs.init();
     NewTabUtils.init();
     BrowserNewTabPreloader.init();
+    CustomizationTabPreloader.init();
     SignInToWebsiteUX.init();
     PdfJs.init();
 #ifdef NIGHTLY_BUILD

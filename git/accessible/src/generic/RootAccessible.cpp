@@ -28,7 +28,6 @@
 #include "nsIAccessibleRelation.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsIDocShellTreeOwner.h"
-#include "mozilla/dom/Event.h"
 #include "mozilla/dom/EventTarget.h"
 #include "nsIDOMDataContainerEvent.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
@@ -40,6 +39,7 @@
 #include "nsIWebBrowserChrome.h"
 #include "nsReadableUtils.h"
 #include "nsFocusManager.h"
+#include "nsDOMEvent.h"
 
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
@@ -234,7 +234,7 @@ NS_IMETHODIMP
 RootAccessible::HandleEvent(nsIDOMEvent* aDOMEvent)
 {
   MOZ_ASSERT(aDOMEvent);
-  Event* event = aDOMEvent->InternalDOMEvent();
+  nsDOMEvent* event = aDOMEvent->InternalDOMEvent();
   nsCOMPtr<nsINode> origTargetNode = do_QueryInterface(event->GetOriginalTarget());
   if (!origTargetNode)
     return NS_OK;
@@ -266,7 +266,7 @@ void
 RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
 {
   MOZ_ASSERT(aDOMEvent);
-  Event* event = aDOMEvent->InternalDOMEvent();
+  nsDOMEvent* event = aDOMEvent->InternalDOMEvent();
   nsCOMPtr<nsINode> origTargetNode = do_QueryInterface(event->GetOriginalTarget());
 
   nsAutoString eventType;

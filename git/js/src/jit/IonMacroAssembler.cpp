@@ -361,7 +361,7 @@ MacroAssembler::branchNurseryPtr(Condition cond, const Address &ptr1, const ImmM
 }
 
 void
-MacroAssembler::moveNurseryPtr(const ImmMaybeNurseryPtr &ptr, Register reg)
+MacroAssembler::moveNurseryPtr(const ImmMaybeNurseryPtr &ptr, const Register &reg)
 {
 #ifdef JSGC_GENERATIONAL
     if (ptr.value && gc::IsInsideNursery(GetIonContext()->cx->runtime(), (void *)ptr.value))
@@ -634,7 +634,7 @@ MacroAssembler::clampDoubleToUint8(FloatRegister input, Register output)
 }
 
 void
-MacroAssembler::newGCThing(Register result, Register temp, gc::AllocKind allocKind, Label *fail,
+MacroAssembler::newGCThing(const Register &result, gc::AllocKind allocKind, Label *fail,
                            gc::InitialHeap initialHeap /* = gc::DefaultHeap */)
 {
     // Inlined equivalent of js::gc::NewGCThing() without failure case handling.
@@ -662,9 +662,10 @@ MacroAssembler::newGCThing(Register result, Register temp, gc::AllocKind allocKi
         // in such cases.
         const Nursery &nursery = GetIonContext()->runtime->gcNursery();
         loadPtr(AbsoluteAddress(nursery.addressOfPosition()), result);
-        computeEffectiveAddress(Address(result, thingSize), temp);
-        branchPtr(Assembler::BelowOrEqual, AbsoluteAddress(nursery.addressOfCurrentEnd()), temp, fail);
-        storePtr(temp, AbsoluteAddress(nursery.addressOfPosition()));
+        addPtr(Imm32(thingSize), result);
+        branchPtr(Assembler::BelowOrEqual, AbsoluteAddress(nursery.addressOfCurrentEnd()), result, fail);
+        storePtr(result, AbsoluteAddress(nursery.addressOfPosition()));
+        subPtr(Imm32(thingSize), result);
         return;
     }
 #endif // JSGC_GENERATIONAL
@@ -677,34 +678,37 @@ MacroAssembler::newGCThing(Register result, Register temp, gc::AllocKind allocKi
     // which the code below always re-reads.
     loadPtr(AbsoluteAddress(zone->addressOfFreeListFirst(allocKind)), result);
     branchPtr(Assembler::BelowOrEqual, AbsoluteAddress(zone->addressOfFreeListLast(allocKind)), result, fail);
-    computeEffectiveAddress(Address(result, thingSize), temp);
-    storePtr(temp, AbsoluteAddress(zone->addressOfFreeListFirst(allocKind)));
+
+    addPtr(Imm32(thingSize), result);
+    storePtr(result, AbsoluteAddress(zone->addressOfFreeListFirst(allocKind)));
+    subPtr(Imm32(thingSize), result);
 }
 
 void
-MacroAssembler::newGCThing(Register result, Register temp, JSObject *templateObject, Label *fail,
-                           gc::InitialHeap initialHeap)
+MacroAssembler::newGCThing(const Register &result, JSObject *templateObject,
+                           Label *fail, gc::InitialHeap initialHeap)
 {
     gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
     JS_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
 
-    newGCThing(result, temp, allocKind, fail, initialHeap);
+    newGCThing(result, allocKind, fail, initialHeap);
 }
 
 void
-MacroAssembler::newGCString(Register result, Register temp, Label *fail)
+MacroAssembler::newGCString(const Register &result, Label *fail)
 {
-    newGCThing(result, temp, js::gc::FINALIZE_STRING, fail);
+    newGCThing(result, js::gc::FINALIZE_STRING, fail);
 }
 
 void
-MacroAssembler::newGCShortString(Register result, Register temp, Label *fail)
+MacroAssembler::newGCShortString(const Register &result, Label *fail)
 {
-    newGCThing(result, temp, js::gc::FINALIZE_SHORT_STRING, fail);
+    newGCThing(result, js::gc::FINALIZE_SHORT_STRING, fail);
 }
 
 void
-MacroAssembler::newGCThingPar(Register result, Register cx, Register tempReg1, Register tempReg2,
+MacroAssembler::newGCThingPar(const Register &result, const Register &cx,
+                              const Register &tempReg1, const Register &tempReg2,
                               gc::AllocKind allocKind, Label *fail)
 {
     // Similar to ::newGCThing(), except that it allocates from a custom
@@ -751,7 +755,8 @@ MacroAssembler::newGCThingPar(Register result, Register cx, Register tempReg1, R
 }
 
 void
-MacroAssembler::newGCThingPar(Register result, Register cx, Register tempReg1, Register tempReg2,
+MacroAssembler::newGCThingPar(const Register &result, const Register &cx,
+                              const Register &tempReg1, const Register &tempReg2,
                               JSObject *templateObject, Label *fail)
 {
     gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
@@ -761,127 +766,69 @@ MacroAssembler::newGCThingPar(Register result, Register cx, Register tempReg1, R
 }
 
 void
-MacroAssembler::newGCStringPar(Register result, Register cx, Register tempReg1, Register tempReg2,
+MacroAssembler::newGCStringPar(const Register &result, const Register &cx,
+                               const Register &tempReg1, const Register &tempReg2,
                                Label *fail)
 {
     newGCThingPar(result, cx, tempReg1, tempReg2, js::gc::FINALIZE_STRING, fail);
 }
 
 void
-MacroAssembler::newGCShortStringPar(Register result, Register cx, Register tempReg1,
-                                    Register tempReg2, Label *fail)
+MacroAssembler::newGCShortStringPar(const Register &result, const Register &cx,
+                                    const Register &tempReg1, const Register &tempReg2,
+                                    Label *fail)
 {
     newGCThingPar(result, cx, tempReg1, tempReg2, js::gc::FINALIZE_SHORT_STRING, fail);
 }
 
 void
-MacroAssembler::copySlotsFromTemplate(Register obj, Register temp, const JSObject *templateObj,
-                                      uint32_t start, uint32_t end)
-{
-    uint32_t nfixed = Min(templateObj->numFixedSlots(), end);
-    for (unsigned i = start; i < nfixed; i++)
-        storeValue(templateObj->getFixedSlot(i), Address(obj, JSObject::getFixedSlotOffset(i)));
-}
-
-void
-MacroAssembler::fillSlotsWithUndefined(Register obj, Register temp, const JSObject *templateObj,
-                                       uint32_t start, uint32_t end)
-{
-#ifdef JS_NUNBOX32
-    // We only have a single spare register, so do the initialization as two
-    // strided writes of the tag and body.
-    jsval_layout jv = JSVAL_TO_IMPL(UndefinedValue());
-    uint32_t nfixed = Min(templateObj->numFixedSlots(), end);
-
-    mov(ImmWord(jv.s.tag), temp);
-    for (unsigned i = start; i < nfixed; i++)
-        store32(temp, ToType(Address(obj, JSObject::getFixedSlotOffset(i))));
-
-    mov(ImmWord(jv.s.payload.i32), temp);
-    for (unsigned i = start; i < nfixed; i++)
-        store32(temp, ToPayload(Address(obj, JSObject::getFixedSlotOffset(i))));
-#else
-    moveValue(UndefinedValue(), temp);
-    uint32_t nfixed = Min(templateObj->numFixedSlots(), end);
-    for (unsigned i = start; i < nfixed; i++)
-        storePtr(temp, Address(obj, JSObject::getFixedSlotOffset(i)));
-#endif
-}
-
-static uint32_t
-FindStartOfUndefinedSlots(JSObject *templateObj, uint32_t nslots)
-{
-    JS_ASSERT(nslots == templateObj->lastProperty()->slotSpan(templateObj->getClass()));
-    JS_ASSERT(nslots > 0);
-    for (uint32_t first = nslots; first != 0; --first) {
-        if (templateObj->getSlot(first - 1) != UndefinedValue())
-            return first;
-    }
-    return 0;
-}
-
-void
-MacroAssembler::initGCSlots(Register obj, Register temp, JSObject *templateObj)
-{
-    // Slots of non-array objects are required to be initialized.
-    // Use the values currently in the template object.
-    uint32_t nslots = templateObj->lastProperty()->slotSpan(templateObj->getClass());
-    if (nslots == 0)
-        return;
-
-    // Attempt to group slot writes such that we minimize the amount of
-    // duplicated data we need to embed in code and load into registers. In
-    // general, most template object slots will be undefined except for any
-    // reserved slots. Since reserved slots come first, we split the object
-    // logically into independent non-UndefinedValue writes to the head and
-    // duplicated writes of UndefinedValue to the tail. For the majority of
-    // objects, the "tail" will be the entire slot range.
-    uint32_t startOfUndefined = FindStartOfUndefinedSlots(templateObj, nslots);
-    copySlotsFromTemplate(obj, temp, templateObj, 0, startOfUndefined);
-    fillSlotsWithUndefined(obj, temp, templateObj, startOfUndefined, nslots);
-}
-
-void
-MacroAssembler::initGCThing(Register obj, Register temp, JSObject *templateObj)
+MacroAssembler::initGCThing(const Register &obj, JSObject *templateObject)
 {
     // Fast initialization of an empty object returned by NewGCThing().
 
-    JS_ASSERT(!templateObj->hasDynamicElements());
+    JS_ASSERT(!templateObject->hasDynamicElements());
 
-    storePtr(ImmGCPtr(templateObj->lastProperty()), Address(obj, JSObject::offsetOfShape()));
-    storePtr(ImmGCPtr(templateObj->type()), Address(obj, JSObject::offsetOfType()));
+    storePtr(ImmGCPtr(templateObject->lastProperty()), Address(obj, JSObject::offsetOfShape()));
+    storePtr(ImmGCPtr(templateObject->type()), Address(obj, JSObject::offsetOfType()));
     storePtr(ImmPtr(nullptr), Address(obj, JSObject::offsetOfSlots()));
 
-    if (templateObj->is<ArrayObject>()) {
-        JS_ASSERT(!templateObj->getDenseInitializedLength());
+    if (templateObject->is<ArrayObject>()) {
+        JS_ASSERT(!templateObject->getDenseInitializedLength());
 
         int elementsOffset = JSObject::offsetOfFixedElements();
 
-        computeEffectiveAddress(Address(obj, elementsOffset), temp);
-        storePtr(temp, Address(obj, JSObject::offsetOfElements()));
+        addPtr(Imm32(elementsOffset), obj);
+        storePtr(obj, Address(obj, -elementsOffset + JSObject::offsetOfElements()));
+        addPtr(Imm32(-elementsOffset), obj);
 
         // Fill in the elements header.
-        store32(Imm32(templateObj->getDenseCapacity()),
+        store32(Imm32(templateObject->getDenseCapacity()),
                 Address(obj, elementsOffset + ObjectElements::offsetOfCapacity()));
-        store32(Imm32(templateObj->getDenseInitializedLength()),
+        store32(Imm32(templateObject->getDenseInitializedLength()),
                 Address(obj, elementsOffset + ObjectElements::offsetOfInitializedLength()));
-        store32(Imm32(templateObj->as<ArrayObject>().length()),
+        store32(Imm32(templateObject->as<ArrayObject>().length()),
                 Address(obj, elementsOffset + ObjectElements::offsetOfLength()));
-        store32(Imm32(templateObj->shouldConvertDoubleElements()
+        store32(Imm32(templateObject->shouldConvertDoubleElements()
                       ? ObjectElements::CONVERT_DOUBLE_ELEMENTS
                       : 0),
                 Address(obj, elementsOffset + ObjectElements::offsetOfFlags()));
-        JS_ASSERT(!templateObj->hasPrivate());
     } else {
         storePtr(ImmPtr(emptyObjectElements), Address(obj, JSObject::offsetOfElements()));
 
-        initGCSlots(obj, temp, templateObj);
-
-        if (templateObj->hasPrivate()) {
-            uint32_t nfixed = templateObj->numFixedSlots();
-            storePtr(ImmPtr(templateObj->getPrivate()),
-                     Address(obj, JSObject::getPrivateDataOffset(nfixed)));
+        // Fixed slots of non-array objects are required to be initialized.
+        // Use the values currently in the template object.
+        size_t nslots = Min(templateObject->numFixedSlots(),
+                            templateObject->lastProperty()->slotSpan(templateObject->getClass()));
+        for (unsigned i = 0; i < nslots; i++) {
+            storeValue(templateObject->getFixedSlot(i),
+                       Address(obj, JSObject::getFixedSlotOffset(i)));
         }
+    }
+
+    if (templateObject->hasPrivate()) {
+        uint32_t nfixed = templateObject->numFixedSlots();
+        storePtr(ImmPtr(templateObject->getPrivate()),
+                 Address(obj, JSObject::getPrivateDataOffset(nfixed)));
     }
 }
 
@@ -923,7 +870,7 @@ MacroAssembler::compareStrings(JSOp op, Register left, Register right, Register 
 }
 
 void
-MacroAssembler::checkInterruptFlagPar(Register tempReg, Label *fail)
+MacroAssembler::checkInterruptFlagPar(const Register &tempReg, Label *fail)
 {
 #ifdef JS_THREADSAFE
     movePtr(ImmPtr(GetIonContext()->runtime->addressOfInterruptPar()), tempReg);
@@ -1872,7 +1819,7 @@ MacroAssembler::branchIfNotInterpretedConstructor(Register fun, Register scratch
 }
 
 void
-MacroAssembler::branchEqualTypeIfNeeded(MIRType type, MDefinition *maybeDef, Register tag,
+MacroAssembler::branchEqualTypeIfNeeded(MIRType type, MDefinition *maybeDef, const Register &tag,
                                         Label *label)
 {
     if (!maybeDef || maybeDef->mightBeType(type)) {

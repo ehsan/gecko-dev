@@ -4638,22 +4638,10 @@ public abstract class TreeBuilder<T> implements TokenHandler,
             int bookmark = formattingEltListPos;
             int nodePos = furthestBlockPos;
             StackNode<T> lastNode = furthestBlock; // weak ref
-            int j = 0;
-            for (;;) {
-                ++j;
+            for (int j = 0; j < 3; ++j) {
                 nodePos--;
-                if (nodePos == formattingEltStackPos) {
-                    break;
-                }
                 StackNode<T> node = stack[nodePos]; // weak ref
                 int nodeListPos = findInListOfActiveFormattingElements(node);
-
-                if (j > 3 && nodeListPos != -1) {
-                    removeFromListOfActiveFormattingElements(nodeListPos);
-                    // Update position to reflect removal from list.
-                    nodeListPos = -1;
-                }
-
                 if (nodeListPos == -1) {
                     assert formattingEltStackPos < nodePos;
                     assert bookmark < nodePos;
@@ -4664,6 +4652,9 @@ public abstract class TreeBuilder<T> implements TokenHandler,
                     continue;
                 }
                 // now node is both on stack and in the list
+                if (nodePos == formattingEltStackPos) {
+                    break;
+                }
                 if (nodePos == furthestBlockPos) {
                     bookmark = nodeListPos + 1;
                 }

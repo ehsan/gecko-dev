@@ -18,9 +18,6 @@
 #include "mozilla/Likely.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/dom/Element.h"
-#include "mozilla/dom/Event.h"
-#include "mozilla/dom/ShadowRoot.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsAttrValueOrString.h"
 #include "nsBindingManager.h"
@@ -44,6 +41,7 @@
 #include "nsFocusManager.h"
 #include "nsFrameManager.h"
 #include "nsFrameSelection.h"
+#include "mozilla/dom/Element.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsIAnonymousContentCreator.h"
@@ -98,9 +96,11 @@
 #include "nsCSSParser.h"
 #include "HTMLLegendElement.h"
 #include "nsWrapperCacheInlines.h"
+#include "mozilla/dom/ShadowRoot.h"
 #include "WrapperFactory.h"
 #include "DocumentType.h"
 #include <algorithm>
+#include "nsDOMEvent.h"
 #include "nsGlobalWindow.h"
 #include "nsDOMMutationObserver.h"
 
@@ -2633,7 +2633,7 @@ nsINode::GetAttributes()
 }
 
 bool
-EventTarget::DispatchEvent(Event& aEvent,
+EventTarget::DispatchEvent(nsDOMEvent& aEvent,
                            ErrorResult& aRv)
 {
   bool result = false;

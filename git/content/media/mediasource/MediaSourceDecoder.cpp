@@ -23,9 +23,9 @@
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaSourceLog;
-#define MSE_DEBUG(...) PR_LOG(gMediaSourceLog, PR_LOG_DEBUG, (__VA_ARGS__))
+#define LOG(type, msg) PR_LOG(gMediaSourceLog, type, msg)
 #else
-#define MSE_DEBUG(...)
+#define LOG(type, msg)
 #endif
 
 namespace mozilla {
@@ -202,7 +202,7 @@ MediaSourceDecoder::CreateSubDecoder(const nsACString& aType)
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   mDecoders.AppendElement(decoder);
   mReaders.AppendElement(reader);
-  MSE_DEBUG("Registered subdecoder %p subreader %p", decoder.get(), reader.get());
+  LOG(PR_LOG_DEBUG, ("Registered subdecoder %p subreader %p", decoder.get(), reader.get()));
   mon.NotifyAll();
 
   decoder->SetReader(reader.forget());
@@ -221,7 +221,7 @@ MediaSourceReader::ReadMetadata(MediaInfo* aInfo, MetadataTags** aTags)
     MediaDecoderReader* reader = readers[i];
     MediaInfo mi;
     nsresult rv = reader->ReadMetadata(&mi, aTags);
-    MSE_DEBUG("ReadMetadata on SB reader %p", reader);
+    LOG(PR_LOG_DEBUG, ("ReadMetadata on SB reader %p", reader));
     if (NS_FAILED(rv)) {
       return rv;
     }

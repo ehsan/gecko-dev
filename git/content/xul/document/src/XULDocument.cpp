@@ -1720,7 +1720,6 @@ XULDocument::AddElementToDocumentPre(Element* aElement)
     // elements from prototypes.
     nsIAtom* id = aElement->GetID();
     if (id) {
-        // FIXME: Shouldn't BindToTree take care of this?
         nsAutoScriptBlocker scriptBlocker;
         AddToIdTable(aElement, id);
     }
@@ -1854,7 +1853,6 @@ XULDocument::RemoveSubtreeFromDocument(nsIContent* aContent)
     RemoveElementFromRefMap(aElement);
     nsIAtom* id = aElement->GetID();
     if (id) {
-        // FIXME: Shouldn't UnbindFromTree take care of this?
         nsAutoScriptBlocker scriptBlocker;
         RemoveFromIdTable(aElement, id);
     }

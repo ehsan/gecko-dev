@@ -26,9 +26,9 @@ class JSObject;
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gMediaSourceLog;
-#define MSE_DEBUG(...) PR_LOG(gMediaSourceLog, PR_LOG_DEBUG, (__VA_ARGS__))
+#define LOG(type, msg) PR_LOG(gMediaSourceLog, type, msg)
 #else
-#define MSE_DEBUG(...)
+#define LOG(type, msg)
 #endif
 
 namespace mozilla {
@@ -289,14 +289,14 @@ SourceBuffer::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 void
 SourceBuffer::DispatchSimpleEvent(const char* aName)
 {
-  MSE_DEBUG("%p Dispatching event %s to SourceBuffer", this, aName);
+  LOG(PR_LOG_DEBUG, ("%p Dispatching event %s to SourceBuffer", this, aName));
   DispatchTrustedEvent(NS_ConvertUTF8toUTF16(aName));
 }
 
 void
 SourceBuffer::QueueAsyncSimpleEvent(const char* aName)
 {
-  MSE_DEBUG("%p Queuing event %s to SourceBuffer", this, aName);
+  LOG(PR_LOG_DEBUG, ("%p Queuing event %s to SourceBuffer", this, aName));
   nsCOMPtr<nsIRunnable> event = new AsyncEventRunner<SourceBuffer>(this, aName);
   NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
 }
@@ -339,7 +339,7 @@ SourceBuffer::AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aR
   }
   // TODO: Run coded frame eviction algorithm.
   // TODO: Test buffer full flag.
-  MSE_DEBUG("%p Append(ArrayBuffer=%u)", this, aLength);
+  LOG(PR_LOG_DEBUG, ("%p Append(ArrayBuffer=%u)", this, aLength));
   StartUpdating();
   // XXX: For future reference: NDA call must run on the main thread.
   mDecoder->NotifyDataArrived(reinterpret_cast<const char*>(aData),

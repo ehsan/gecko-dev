@@ -3304,6 +3304,11 @@ EffectlesslyLookupProperty(JSContext *cx, HandleObject obj, HandlePropertyName n
         checkObj = GetDOMProxyProto(obj);
         if (!checkObj)
             return true;
+    } else if (obj->is<TypedArrayObject>() && obj->getProto()) {
+        // Typed array objects are non-native, but don't have any named
+        // properties. Just forward the lookup to the prototype, to allow
+        // inlining common getters like byteOffset.
+        checkObj = obj->getProto();
     } else if (!obj->isNative()) {
         return true;
     }
@@ -3323,7 +3328,7 @@ static bool
 IsCacheableProtoChain(JSObject *obj, JSObject *holder, bool isDOMProxy=false)
 {
     JS_ASSERT_IF(isDOMProxy, IsCacheableDOMProxy(obj));
-    JS_ASSERT_IF(!isDOMProxy, obj->isNative());
+    JS_ASSERT_IF(!isDOMProxy, obj->isNative() || obj->is<TypedArrayObject>());
 
     // Don't handle objects which require a prototype guard. This should
     // be uncommon so handling it is likely not worth the complexity.
@@ -3889,7 +3894,7 @@ TryAttachGetElemStub(JSContext *cx, JSScript *script, jsbytecode *pc, ICGetElem_
 
     if (obj->isNative()) {
         // Check for NativeObject[int] dense accesses.
-        if (rhs.isInt32() && rhs.toInt32() >= 0 && !obj->is<TypedArrayObject>()) {
+        if (rhs.isInt32() && rhs.toInt32() >= 0) {
             IonSpew(IonSpew_BaselineIC, "  Generating GetElem(Native[Int32] dense) stub");
             ICGetElem_Dense::Compiler compiler(cx, stub->fallbackMonitorStub()->firstMonitorStub(),
                                                obj->lastProperty(), isCallElem);
@@ -3937,10 +3942,10 @@ TryAttachGetElemStub(JSContext *cx, JSScript *script, jsbytecode *pc, ICGetElem_
         return true;
     }
 
-    // GetElem operations on non-native objects cannot be cached by either
-    // Baseline or Ion. Indicate this in the cache so that Ion does not
-    // generate a cache for this op.
-    if (!obj->isNative())
+    // GetElem operations on non-native objects other than typed arrays cannot
+    // be cached by either Baseline or Ion. Indicate this in the cache so that
+    // Ion does not generate a cache for this op.
+    if (!obj->isNative() && !obj->is<TypedArrayObject>())
         stub->noteNonNativeAccess();
 
     // GetElem operations which could access negative indexes generally can't
@@ -4985,10 +4990,11 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub,
 
     // Try to generate new stubs.
     if (obj->isNative() &&
-        !obj->is<TypedArrayObject>() &&
         index.isInt32() && index.toInt32() >= 0 &&
         !rhs.isMagic(JS_ELEMENTS_HOLE))
     {
+        JS_ASSERT(!obj->is<TypedArrayObject>());
+
         bool addingCase;
         size_t protoDepth;
 
@@ -6087,7 +6093,7 @@ TryAttachNativeGetPropStub(JSContext *cx, HandleScript script, jsbytecode *pc,
         return false;
     }
 
-    if (!isDOMProxy && !obj->isNative())
+    if (!isDOMProxy && !obj->isNative() && !obj->is<TypedArrayObject>())
         return true;
 
     bool isCallProp = (JSOp(*pc) == JSOP_CALLPROP);

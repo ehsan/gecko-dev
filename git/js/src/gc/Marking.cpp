@@ -366,19 +366,9 @@ IsAboutToBeFinalized(T **thingp)
     return !(*thingp)->isMarked();
 }
 
-template <typename T>
-T *
-UpdateIfRelocated(JSRuntime *rt, T **thingp)
-{
-    JS_ASSERT(thingp);
-    if (*thingp && rt->isHeapMinorCollecting())
-        IsAboutToBeFinalized<T>(thingp);
-    return *thingp;
-}
-
 #define DeclMarkerImpl(base, type)                                                                \
 void                                                                                              \
-Mark##base(JSTracer *trc, BarrieredPtr<type> *thing, const char *name)                            \
+Mark##base(JSTracer *trc, BarrieredPtr<type> *thing, const char *name)                         \
 {                                                                                                 \
     Mark<type>(trc, thing, name);                                                                 \
 }                                                                                                 \
@@ -419,7 +409,7 @@ Is##base##Marked(type **thingp)                                                 
 }                                                                                                 \
                                                                                                   \
 bool                                                                                              \
-Is##base##Marked(BarrieredPtr<type> *thingp)                                                      \
+Is##base##Marked(BarrieredPtr<type> *thingp)                                                   \
 {                                                                                                 \
     return IsMarked<type>(thingp->unsafeGet());                                                   \
 }                                                                                                 \
@@ -431,23 +421,10 @@ Is##base##AboutToBeFinalized(type **thingp)                                     
 }                                                                                                 \
                                                                                                   \
 bool                                                                                              \
-Is##base##AboutToBeFinalized(BarrieredPtr<type> *thingp)                                          \
+Is##base##AboutToBeFinalized(BarrieredPtr<type> *thingp)                                       \
 {                                                                                                 \
     return IsAboutToBeFinalized<type>(thingp->unsafeGet());                                       \
-}                                                                                                 \
-                                                                                                  \
-type *                                                                                            \
-Update##base##IfRelocated(JSRuntime *rt, BarrieredPtr<type> *thingp)                              \
-{                                                                                                 \
-    return UpdateIfRelocated<type>(rt, thingp->unsafeGet());                                      \
-}                                                                                                 \
-                                                                                                  \
-type *                                                                                            \
-Update##base##IfRelocated(JSRuntime *rt, type **thingp)                                           \
-{                                                                                                 \
-    return UpdateIfRelocated<type>(rt, thingp);                                                   \
 }
-
 
 DeclMarkerImpl(BaseShape, BaseShape)
 DeclMarkerImpl(BaseShape, UnownedBaseShape)

@@ -964,7 +964,6 @@ CodeGenerator::visitLambda(LLambda *lir)
 {
     Register scopeChain = ToRegister(lir->scopeChain());
     Register output = ToRegister(lir->output());
-    Register tempReg = ToRegister(lir->temp());
     const LambdaFunctionInfo &info = lir->mir()->info();
 
     OutOfLineCode *ool = oolCallVM(LambdaInfo, lir, (ArgList(), ImmGCPtr(info.fun), scopeChain),
@@ -974,8 +973,8 @@ CodeGenerator::visitLambda(LLambda *lir)
 
     JS_ASSERT(!info.singletonType);
 
-    masm.newGCThing(output, tempReg, info.fun, ool->entry(), gc::DefaultHeap);
-    masm.initGCThing(output, tempReg, info.fun);
+    masm.newGCThing(output, info.fun, ool->entry(), gc::DefaultHeap);
+    masm.initGCThing(output, info.fun);
 
     emitLambdaInit(output, scopeChain, info);
 
@@ -984,7 +983,7 @@ CodeGenerator::visitLambda(LLambda *lir)
 }
 
 void
-CodeGenerator::emitLambdaInit(Register output, Register scopeChain,
+CodeGenerator::emitLambdaInit(const Register &output, const Register &scopeChain,
                               const LambdaFunctionInfo &info)
 {
     // Initialize nargs and flags. We do this with a single uint32 to avoid
@@ -3397,7 +3396,6 @@ CodeGenerator::visitNewArray(LNewArray *lir)
 {
     JS_ASSERT(gen->info().executionMode() == SequentialExecution);
     Register objReg = ToRegister(lir->output());
-    Register tempReg = ToRegister(lir->temp());
     JSObject *templateObject = lir->mir()->templateObject();
     DebugOnly<uint32_t> count = lir->mir()->count();
 
@@ -3410,8 +3408,8 @@ CodeGenerator::visitNewArray(LNewArray *lir)
     if (!addOutOfLineCode(ool))
         return false;
 
-    masm.newGCThing(objReg, tempReg, templateObject, ool->entry(), lir->mir()->initialHeap());
-    masm.initGCThing(objReg, tempReg, templateObject);
+    masm.newGCThing(objReg, templateObject, ool->entry(), lir->mir()->initialHeap());
+    masm.initGCThing(objReg, templateObject);
 
     masm.bind(ool->rejoin());
     return true;
@@ -3487,7 +3485,6 @@ CodeGenerator::visitNewObject(LNewObject *lir)
 {
     JS_ASSERT(gen->info().executionMode() == SequentialExecution);
     Register objReg = ToRegister(lir->output());
-    Register tempReg = ToRegister(lir->temp());
     JSObject *templateObject = lir->mir()->templateObject();
 
     if (lir->mir()->shouldUseVM())
@@ -3497,8 +3494,8 @@ CodeGenerator::visitNewObject(LNewObject *lir)
     if (!addOutOfLineCode(ool))
         return false;
 
-    masm.newGCThing(objReg, tempReg, templateObject, ool->entry(), lir->mir()->initialHeap());
-    masm.initGCThing(objReg, tempReg, templateObject);
+    masm.newGCThing(objReg, templateObject, ool->entry(), lir->mir()->initialHeap());
+    masm.initGCThing(objReg, templateObject);
 
     masm.bind(ool->rejoin());
     return true;
@@ -3520,8 +3517,7 @@ static const VMFunction NewDeclEnvObjectInfo =
 bool
 CodeGenerator::visitNewDeclEnvObject(LNewDeclEnvObject *lir)
 {
-    Register objReg = ToRegister(lir->output());
-    Register tempReg = ToRegister(lir->temp());
+    Register obj = ToRegister(lir->output());
     JSObject *templateObj = lir->mir()->templateObj();
     CompileInfo &info = lir->mir()->block()->info();
 
@@ -3529,12 +3525,12 @@ CodeGenerator::visitNewDeclEnvObject(LNewDeclEnvObject *lir)
     OutOfLineCode *ool = oolCallVM(NewDeclEnvObjectInfo, lir,
                                    (ArgList(), ImmGCPtr(info.funMaybeLazy()),
                                     Imm32(gc::DefaultHeap)),
-                                   StoreRegisterTo(objReg));
+                                   StoreRegisterTo(obj));
     if (!ool)
         return false;
 
-    masm.newGCThing(objReg, tempReg, templateObj, ool->entry(), gc::DefaultHeap);
-    masm.initGCThing(objReg, tempReg, templateObj);
+    masm.newGCThing(obj, templateObj, ool->entry(), gc::DefaultHeap);
+    masm.initGCThing(obj, templateObj);
     masm.bind(ool->rejoin());
     return true;
 }
@@ -3547,8 +3543,7 @@ static const VMFunction NewCallObjectInfo =
 bool
 CodeGenerator::visitNewCallObject(LNewCallObject *lir)
 {
-    Register objReg = ToRegister(lir->output());
-    Register tempReg = ToRegister(lir->temp());
+    Register obj = ToRegister(lir->output());
 
     JSObject *templateObj = lir->mir()->templateObject();
 
@@ -3560,14 +3555,14 @@ CodeGenerator::visitNewCallObject(LNewCallObject *lir)
                                     ImmGCPtr(templateObj->lastProperty()),
                                     ImmGCPtr(templateObj->hasSingletonType() ? nullptr : templateObj->type()),
                                     ToRegister(lir->slots())),
-                        StoreRegisterTo(objReg));
+                        StoreRegisterTo(obj));
     } else {
         ool = oolCallVM(NewCallObjectInfo, lir,
                         (ArgList(), ImmGCPtr(lir->mir()->block()->info().script()),
                                     ImmGCPtr(templateObj->lastProperty()),
                                     ImmGCPtr(templateObj->hasSingletonType() ? nullptr : templateObj->type()),
                                     ImmPtr(nullptr)),
-                        StoreRegisterTo(objReg));
+                        StoreRegisterTo(obj));
     }
     if (!ool)
         return false;
@@ -3576,11 +3571,11 @@ CodeGenerator::visitNewCallObject(LNewCallObject *lir)
         // Objects can only be given singleton types in VM calls.
         masm.jump(ool->entry());
     } else {
-        masm.newGCThing(objReg, tempReg, templateObj, ool->entry(), gc::DefaultHeap);
-        masm.initGCThing(objReg, tempReg, templateObj);
+        masm.newGCThing(obj, templateObj, ool->entry(), gc::DefaultHeap);
+        masm.initGCThing(obj, templateObj);
 
         if (lir->slots()->isRegister())
-            masm.storePtr(ToRegister(lir->slots()), Address(objReg, JSObject::offsetOfSlots()));
+            masm.storePtr(ToRegister(lir->slots()), Address(obj, JSObject::offsetOfSlots()));
     }
 
     masm.bind(ool->rejoin());
@@ -3666,8 +3661,8 @@ CodeGenerator::visitNewStringObject(LNewStringObject *lir)
     if (!ool)
         return false;
 
-    masm.newGCThing(output, temp, templateObj, ool->entry(), gc::DefaultHeap);
-    masm.initGCThing(output, temp, templateObj);
+    masm.newGCThing(output, templateObj, ool->entry(), gc::DefaultHeap);
+    masm.initGCThing(output, templateObj);
 
     masm.loadStringLength(input, temp);
 
@@ -3709,8 +3704,9 @@ public:
 };
 
 bool
-CodeGenerator::emitAllocateGCThingPar(LInstruction *lir, Register objReg, Register cxReg,
-                                      Register tempReg1, Register tempReg2, JSObject *templateObj)
+CodeGenerator::emitAllocateGCThingPar(LInstruction *lir, const Register &objReg,
+                                      const Register &cxReg, const Register &tempReg1,
+                                      const Register &tempReg2, JSObject *templateObj)
 {
     gc::AllocKind allocKind = templateObj->tenuredGetAllocKind();
     OutOfLineNewGCThingPar *ool = new(alloc()) OutOfLineNewGCThingPar(lir, allocKind, objReg, cxReg);
@@ -3719,7 +3715,7 @@ CodeGenerator::emitAllocateGCThingPar(LInstruction *lir, Register objReg, Regist
 
     masm.newGCThingPar(objReg, cxReg, tempReg1, tempReg2, templateObj, ool->entry());
     masm.bind(ool->rejoin());
-    masm.initGCThing(objReg, tempReg1, templateObj);
+    masm.initGCThing(objReg, templateObj);
     return true;
 }
 
@@ -3903,7 +3899,6 @@ CodeGenerator::visitCreateThisWithTemplate(LCreateThisWithTemplate *lir)
     gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
     gc::InitialHeap initialHeap = lir->mir()->initialHeap();
     Register objReg = ToRegister(lir->output());
-    Register tempReg = ToRegister(lir->temp());
 
     OutOfLineCode *ool = oolCallVM(NewGCObjectInfo, lir,
                                    (ArgList(), Imm32(allocKind), Imm32(initialHeap)),
@@ -3912,11 +3907,11 @@ CodeGenerator::visitCreateThisWithTemplate(LCreateThisWithTemplate *lir)
         return false;
 
     // Allocate. If the FreeList is empty, call to VM, which may GC.
-    masm.newGCThing(objReg, tempReg, templateObject, ool->entry(), lir->mir()->initialHeap());
+    masm.newGCThing(objReg, templateObject, ool->entry(), lir->mir()->initialHeap());
 
     // Initialize based on the templateObject.
     masm.bind(ool->rejoin());
-    masm.initGCThing(objReg, tempReg, templateObject);
+    masm.initGCThing(objReg, templateObject);
 
     return true;
 }
@@ -4870,7 +4865,7 @@ JitCompartment::generateStringConcatStub(JSContext *cx, ExecutionMode mode)
     // Allocate a new rope.
     switch (mode) {
       case SequentialExecution:
-        masm.newGCString(output, temp3, &failure);
+        masm.newGCString(output, &failure);
         break;
       case ParallelExecution:
         masm.push(temp1);
@@ -4915,7 +4910,7 @@ JitCompartment::generateStringConcatStub(JSContext *cx, ExecutionMode mode)
     // Allocate a JSShortString.
     switch (mode) {
       case SequentialExecution:
-        masm.newGCShortString(output, temp3, &failure);
+        masm.newGCShortString(output, &failure);
         break;
       case ParallelExecution:
         masm.push(temp1);
@@ -5635,8 +5630,8 @@ CodeGenerator::visitArrayConcat(LArrayConcat *lir)
 
     // Try to allocate an object.
     JSObject *templateObj = lir->mir()->templateObj();
-    masm.newGCThing(temp1, temp2, templateObj, &fail, lir->mir()->initialHeap());
-    masm.initGCThing(temp1, temp2, templateObj);
+    masm.newGCThing(temp1, templateObj, &fail, lir->mir()->initialHeap());
+    masm.initGCThing(temp1, templateObj);
     masm.jump(&call);
     {
         masm.bind(&fail);
@@ -6007,8 +6002,8 @@ CodeGenerator::visitRest(LRest *lir)
     JSObject *templateObject = lir->mir()->templateObject();
 
     Label joinAlloc, failAlloc;
-    masm.newGCThing(temp2, temp0, templateObject, &failAlloc, gc::DefaultHeap);
-    masm.initGCThing(temp2, temp0, templateObject);
+    masm.newGCThing(temp2, templateObject, &failAlloc, gc::DefaultHeap);
+    masm.initGCThing(temp2, templateObject);
     masm.jump(&joinAlloc);
     {
         masm.bind(&failAlloc);

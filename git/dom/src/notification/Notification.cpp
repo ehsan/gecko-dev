@@ -10,6 +10,7 @@
 #include "mozilla/Preferences.h"
 #include "TabChild.h"
 #include "nsContentUtils.h"
+#include "nsDOMEvent.h"
 #include "nsIAlertsService.h"
 #include "nsIAppsService.h"
 #include "nsIContentPermissionPrompt.h"

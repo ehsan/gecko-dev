@@ -399,7 +399,7 @@ AudioNodeStream::UpMixDownMixChunk(const AudioChunk* aChunk,
 // The MediaStreamGraph guarantees that this is actually one block, for
 // AudioNodeStreams.
 void
-AudioNodeStream::ProcessInput(GraphTime aFrom, GraphTime aTo, uint32_t aFlags)
+AudioNodeStream::ProduceOutput(GraphTime aFrom, GraphTime aTo, uint32_t aFlags)
 {
   EnsureTrack(AUDIO_TRACK, mSampleRate);
   // No more tracks will be coming
@@ -426,10 +426,17 @@ AudioNodeStream::ProcessInput(GraphTime aFrom, GraphTime aTo, uint32_t aFlags)
       ObtainInputBlock(inputChunks[i], i);
     }
     bool finished = false;
+#ifdef DEBUG
+    for (uint16_t i = 0; i < outputCount; ++i) {
+      // Alter mDuration so we can detect if ProduceAudioBlock fails to set
+      // chunks.
+      mLastChunks[i].mDuration--;
+    }
+#endif
     if (maxInputs <= 1 && mEngine->OutputCount() <= 1) {
-      mEngine->ProcessBlock(this, inputChunks[0], &mLastChunks[0], &finished);
+      mEngine->ProduceAudioBlock(this, inputChunks[0], &mLastChunks[0], &finished);
     } else {
-      mEngine->ProcessBlocksOnPorts(this, inputChunks, mLastChunks, &finished);
+      mEngine->ProduceAudioBlocksOnPorts(this, inputChunks, mLastChunks, &finished);
     }
     for (uint16_t i = 0; i < outputCount; ++i) {
       NS_ASSERTION(mLastChunks[i].GetDuration() == WEBAUDIO_BLOCK_SIZE,

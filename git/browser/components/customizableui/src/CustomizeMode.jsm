@@ -195,7 +195,6 @@ CustomizeMode.prototype = {
 
       // Hide the palette before starting the transition for increased perf.
       this.visiblePalette.hidden = true;
-      this.visiblePalette.removeAttribute("showing");
 
       // Disable the button-text fade-out mask
       // during the transition for increased perf.
@@ -263,12 +262,6 @@ CustomizeMode.prototype = {
 
       // Show the palette now that the transition has finished.
       this.visiblePalette.hidden = false;
-      window.setTimeout(() => {
-        // Force layout reflow to ensure the animation runs,
-        // and make it async so it doesn't affect the timing.
-        this.visiblePalette.clientTop;
-        this.visiblePalette.setAttribute("showing", "true");
-      }, 0);
       this.paletteSpacer.hidden = true;
       this._updateEmptyPaletteNotice();
 
@@ -276,16 +269,6 @@ CustomizeMode.prototype = {
       panelContents.removeAttribute("customize-transitioning");
 
       CustomizableUI.dispatchToolboxEvent("customizationready", {}, window);
-      this._enableOutlinesTimeout = window.setTimeout(() => {
-        this.document.getElementById("nav-bar").setAttribute("showoutline", "true");
-        this.panelUIContents.setAttribute("showoutline", "true");
-        delete this._enableOutlinesTimeout;
-      }, 0);
-
-      // It's possible that we didn't enter customize mode via the menu panel,
-      // meaning we didn't kick off about:customizing preloading. If that's
-      // the case, let's kick it off for the next time we load this mode.
-      window.gCustomizationTabPreloader.ensurePreloading();
       if (!this._wantToBeInCustomizeMode) {
         this.exit();
       }
@@ -319,13 +302,6 @@ CustomizeMode.prototype = {
 
     this._handler.isExitingCustomizeMode = true;
 
-    if (this._enableOutlinesTimeout) {
-      this.window.clearTimeout(this._enableOutlinesTimeout);
-    } else {
-      this.document.getElementById("nav-bar").removeAttribute("showoutline");
-      this.panelUIContents.removeAttribute("showoutline");
-    }
-
     this._removeExtraToolbarsIfEmpty();
 
     CustomizableUI.removeListener(this);
@@ -345,7 +321,6 @@ CustomizeMode.prototype = {
     // Hide the palette before starting the transition for increased perf.
     this.paletteSpacer.hidden = false;
     this.visiblePalette.hidden = true;
-    this.visiblePalette.removeAttribute("showing");
     this.paletteEmptyNotice.hidden = true;
 
     // Disable the button-text fade-out mask
@@ -365,34 +340,10 @@ CustomizeMode.prototype = {
 
       yield this._doTransition(false);
 
-      let browser = document.getElementById("browser");
-      if (this.browser.selectedBrowser.currentURI.spec == kAboutURI) {
-        let custBrowser = this.browser.selectedBrowser;
-        if (custBrowser.canGoBack) {
-          // If there's history to this tab, just go back.
-          // Note that this throws an exception if the previous document has a
-          // problematic URL (e.g. about:idontexist)
-          try {
-            custBrowser.goBack();
-          } catch (ex) {
-            ERROR(ex);
-          }
-        } else {
-          // If we can't go back, we're removing the about:customization tab.
-          // We only do this if we're the top window for this window (so not
-          // a dialog window, for example).
-          if (window.getTopWin(true) == window) {
-            let customizationTab = this.browser.selectedTab;
-            if (this.browser.browsers.length == 1) {
-              window.BrowserOpenTab();
-            }
-            this.browser.removeTab(customizationTab);
-          }
-        }
-      }
-      browser.parentNode.selectedPanel = browser;
       let customizer = document.getElementById("customization-container");
       customizer.hidden = true;
+      let browser = document.getElementById("browser");
+      browser.parentNode.selectedPanel = browser;
 
       window.gNavToolbox.removeEventListener("toolbarvisibilitychange", this);
 
@@ -445,6 +396,31 @@ CustomizeMode.prototype = {
       let mainView = window.PanelUI.mainView;
       if (this._mainViewContext) {
         mainView.setAttribute("context", this._mainViewContext);
+      }
+
+      if (this.browser.selectedBrowser.currentURI.spec == kAboutURI) {
+        let custBrowser = this.browser.selectedBrowser;
+        if (custBrowser.canGoBack) {
+          // If there's history to this tab, just go back.
+          // Note that this throws an exception if the previous document has a
+          // problematic URL (e.g. about:idontexist)
+          try {
+            custBrowser.goBack();
+          } catch (ex) {
+            ERROR(ex);
+          }
+        } else {
+          // If we can't go back, we're removing the about:customization tab.
+          // We only do this if we're the top window for this window (so not
+          // a dialog window, for example).
+          if (window.getTopWin(true) == window) {
+            let customizationTab = this.browser.selectedTab;
+            if (this.browser.browsers.length == 1) {
+              window.BrowserOpenTab();
+            }
+            this.browser.removeTab(customizationTab);
+          }
+        }
       }
 
       if (this.document.documentElement._lightweightTheme)

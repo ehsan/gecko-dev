@@ -15,4 +15,3 @@ if CONFIG['MOZ_LINKER']:
         'TestZip',
     ]
     LOCAL_INCLUDES += ['../linker']
-    DISABLE_STL_WRAPPING = True

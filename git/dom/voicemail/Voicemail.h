@@ -9,6 +9,7 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/ErrorResult.h"
+#include "nsDOMEvent.h"
 #include "nsDOMEventTargetHelper.h"
 #include "nsIVoicemailProvider.h"
 

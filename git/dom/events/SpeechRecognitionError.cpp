@@ -12,10 +12,9 @@ SpeechRecognitionError::SpeechRecognitionError(
                           mozilla::dom::EventTarget* aOwner,
                           nsPresContext* aPresContext,
                           WidgetEvent* aEvent)
-  : Event(aOwner, aPresContext, aEvent)
-  , mError()
-{
-}
+: nsDOMEvent(aOwner, aPresContext, aEvent),
+  mError()
+{}
 
 SpeechRecognitionError::~SpeechRecognitionError() {}
 
@@ -41,7 +40,7 @@ SpeechRecognitionError::InitSpeechRecognitionError(const nsAString& aType,
                                                    const nsAString& aMessage,
                                                    ErrorResult& aRv)
 {
-  aRv = Event::InitEvent(aType, aCanBubble, aCancelable);
+  aRv = nsDOMEvent::InitEvent(aType, aCanBubble, aCancelable);
   NS_ENSURE_SUCCESS_VOID(aRv.ErrorCode());
 
   mError = aError;

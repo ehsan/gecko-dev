@@ -5922,6 +5922,12 @@ IonBuilder::maybeInsertResume()
 static bool
 ClassHasEffectlessLookup(const Class *clasp, PropertyName *name)
 {
+    if (IsTypedArrayClass(clasp)) {
+        // Typed arrays have a lookupGeneric hook, but it only handles
+        // integers, not names.
+        JS_ASSERT(name);
+        return true;
+    }
     return clasp->isNative() && !clasp->ops.lookupGeneric;
 }
 
@@ -7175,17 +7181,14 @@ IonBuilder::getTypedArrayElements(MDefinition *obj)
     if (obj->isConstant() && obj->toConstant()->value().isObject()) {
         TypedArrayObject *tarr = &obj->toConstant()->value().toObject().as<TypedArrayObject>();
         void *data = tarr->viewData();
-        // Bug 979449 - Optimistically embed the elements and use TI to
-        //              invalidate if we move them.
-        if (!gc::IsInsideNursery(tarr->runtimeFromMainThread(), data)) {
-            // The 'data' pointer can change in rare circumstances
-            // (ArrayBufferObject::changeContents).
-            types::TypeObjectKey *tarrType = types::TypeObjectKey::get(tarr);
-            tarrType->watchStateChangeForTypedArrayBuffer(constraints());
 
-            obj->setImplicitlyUsedUnchecked();
-            return MConstantElements::New(alloc(), data);
-        }
+        // The 'data' pointer can change in rare circumstances
+        // (ArrayBufferObject::changeContents).
+        types::TypeObjectKey *tarrType = types::TypeObjectKey::get(tarr);
+        tarrType->watchStateChangeForTypedArrayBuffer(constraints());
+
+        obj->setImplicitlyUsedUnchecked();
+        return MConstantElements::New(alloc(), data);
     }
     return MTypedArrayElements::New(alloc(), obj);
 }
@@ -7928,7 +7931,7 @@ IonBuilder::jsop_rest()
 
     // Unroll the argument copy loop. We don't need to do any bounds or hole
     // checking here.
-    MConstant *index = nullptr;
+    MConstant *index;
     for (unsigned i = numFormals; i < numActuals; i++) {
         index = MConstant::New(alloc(), Int32Value(i - numFormals));
         current->add(index);

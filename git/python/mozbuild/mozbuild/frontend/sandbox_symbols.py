@@ -178,11 +178,6 @@ VARIABLES = {
         delimiters.
         """, None),
 
-    'DISABLE_STL_WRAPPING': (bool, bool,
-        """Disable the wrappers for STL which allow it to work with C++ exceptions
-        disabled.
-        """, 'binaries'),
-
     'EXPORT_LIBRARY': (bool, bool,
         """Install the library to the static libraries folder.
         """, None),
@@ -350,12 +345,6 @@ VARIABLES = {
 
     'RESFILE': (unicode, unicode,
         """The program .res file.
-
-        This variable can only be used on Windows.
-        """, None),
-
-    'RCINCLUDE': (unicode, unicode,
-        """The resource script file to be included in the default .res file.
 
         This variable can only be used on Windows.
         """, None),

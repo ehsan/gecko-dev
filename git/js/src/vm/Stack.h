@@ -215,7 +215,6 @@ class AbstractFramePtr
     inline Value &unaliasedLocal(uint32_t i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING);
     inline Value &unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING);
     inline Value &unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing = CHECK_ALIASING);
-    template <class Op> inline void unaliasedForEachActual(JSContext *cx, Op op);
 
     inline bool prevUpToDate() const;
     inline void setPrevUpToDate() const;
@@ -531,12 +530,17 @@ class StackFrame
     bool hasArgs() const { return isNonEvalFunctionFrame(); }
     inline Value &unaliasedFormal(unsigned i, MaybeCheckAliasing = CHECK_ALIASING);
     inline Value &unaliasedActual(unsigned i, MaybeCheckAliasing = CHECK_ALIASING);
-    template <class Op> inline void unaliasedForEachActual(Op op);
+    template <class Op> inline void forEachUnaliasedActual(Op op);
 
     bool copyRawFrameSlots(AutoValueVector *v);
 
     unsigned numFormalArgs() const { JS_ASSERT(hasArgs()); return fun()->nargs(); }
     unsigned numActualArgs() const { JS_ASSERT(hasArgs()); return u.nactual; }
+
+    inline Value &canonicalActualArg(unsigned i) const;
+    template <class Op>
+    inline bool forEachCanonicalActualArg(Op op, unsigned start = 0, unsigned count = unsigned(-1));
+    template <class Op> inline bool forEachFormalArg(Op op);
 
     /*
      * Arguments object
@@ -1562,7 +1566,6 @@ class ScriptFrameIter
     unsigned    numActualArgs() const;
     unsigned    numFormalArgs() const { return script()->functionNonDelazifying()->nargs(); }
     Value       unaliasedActual(unsigned i, MaybeCheckAliasing = CHECK_ALIASING) const;
-    template <class Op> inline void unaliasedForEachActual(JSContext *cx, Op op);
 
     JSObject   *scopeChain() const;
     CallObject &callObj() const;
@@ -1584,6 +1587,9 @@ class ScriptFrameIter
     // These are only valid for the top frame.
     size_t      numFrameSlots() const;
     Value       frameSlotValue(size_t index) const;
+
+    template <class Op>
+    inline void ionForEachCanonicalActualArg(JSContext *cx, Op op);
 };
 
 #ifdef DEBUG

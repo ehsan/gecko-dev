@@ -975,7 +975,7 @@ public:
   void NotifyDefaultButtonLoaded(mozilla::dom::Element& aDefaultButton,
                                  mozilla::ErrorResult& aError);
   nsIMessageBroadcaster* GetMessageManager(mozilla::ErrorResult& aError);
-  void BeginWindowMove(mozilla::dom::Event& aMouseDownEvent,
+  void BeginWindowMove(nsDOMEvent& aMouseDownEvent,
                        mozilla::dom::Element* aPanel,
                        mozilla::ErrorResult& aError);
 

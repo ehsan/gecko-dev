@@ -21,6 +21,7 @@
 #include "mozilla/Likely.h"
 #include "mozilla/dom/ErrorEvent.h"
 #include "mozilla/dom/UnionTypes.h"
+#include "nsDOMEvent.h"
 
 #ifdef DEBUG
 
