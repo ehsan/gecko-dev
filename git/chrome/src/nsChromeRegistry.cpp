@@ -951,7 +951,7 @@ nsresult nsChromeRegistry::RefreshWindow(nsIDOMWindowInternal* aWindow)
     return NS_OK;
 
   // Deal with the agent sheets first.  Have to do all the style sets by hand.
-  nsCOMPtr<nsIPresShell> shell = document->GetPrimaryShell();
+  nsCOMPtr<nsIPresShell> shell = document->GetShell();
   if (shell) {
     // Reload only the chrome URL agent style sheets.
     nsCOMArray<nsIStyleSheet> agentSheets;
@@ -1669,9 +1669,6 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
   NS_NAMED_LITERAL_STRING(kOs, "os");
   NS_NAMED_LITERAL_STRING(kOsVersion, "osversion");
 
-  // Obsolete
-  NS_NAMED_LITERAL_STRING(kXPCNativeWrappers, "xpcnativewrappers");
-
   nsCOMPtr<nsIIOService> io (do_GetIOService());
   if (!io) return NS_ERROR_FAILURE;
 
@@ -1786,14 +1783,6 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
             CheckVersionFlag(kOsVersion, wtoken, osVersion, vc, stOsVersion) ||
             CheckVersionFlag(kAppVersion, wtoken, appVersion, vc, stAppVersion))
           continue;
-
-        PRBool xpcNativeWrappers = PR_TRUE; // Dummy for CheckFlag.
-        if (CheckFlag(kXPCNativeWrappers, wtoken, xpcNativeWrappers)) {
-          LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
-                                "Warning: Ignoring obsolete chrome registration modifier '%s'.",
-                                token);
-          continue;
-        }
 
         LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
                               "Warning: Unrecognized chrome registration modifier '%s'.",

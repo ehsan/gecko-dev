@@ -81,10 +81,11 @@ DumpLayerAndChildren(LayerOGL *l, int advance = 0)
 /**
  * LayerManagerOGL
  */
-LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget) 
+LayerManagerOGL::LayerManagerOGL(nsIWidget *aWidget)
   : mWidget(aWidget)
   , mBackBufferFBO(0)
   , mBackBufferTexture(0)
+  , mBackBufferSize(-1, -1)
   , mHasBGRA(0)
 {
 }
@@ -101,13 +102,17 @@ LayerManagerOGL::~LayerManagerOGL()
 }
 
 PRBool
-LayerManagerOGL::Initialize()
+LayerManagerOGL::Initialize(GLContext *aExistingContext)
 {
-  mGLContext = sGLContextProvider.CreateForWindow(mWidget);
+  if (aExistingContext) {
+    mGLContext = aExistingContext;
+  } else {
+    mGLContext = sGLContextProvider.CreateForWindow(mWidget);
 
-  if (!mGLContext) {
-    NS_WARNING("Failed to create LayerManagerOGL context");
-    return PR_FALSE;
+    if (!mGLContext) {
+      NS_WARNING("Failed to create LayerManagerOGL context");
+      return PR_FALSE;
+    }
   }
 
   MakeCurrent();
@@ -320,12 +325,6 @@ LayerManagerOGL::EndTransaction(DrawThebesLayerCallback aCallback,
   mTarget = NULL;
 }
 
-void
-LayerManagerOGL::SetRoot(Layer *aLayer)
-{
-  mRootLayer = static_cast<LayerOGL*>(aLayer->ImplData());;
-}
-
 already_AddRefed<ThebesLayer>
 LayerManagerOGL::CreateThebesLayer()
 {
@@ -374,6 +373,12 @@ LayerManagerOGL::MakeCurrent()
   mGLContext->MakeCurrent();
 }
 
+LayerOGL*
+LayerManagerOGL::RootLayer() const
+{
+  return static_cast<LayerOGL*>(mRoot->ImplData());
+}
+
 void
 LayerManagerOGL::Render()
 {
@@ -403,7 +408,7 @@ LayerManagerOGL::Render()
   // helping us with anything -- we draw to a specific location in the
   // front buffer as it is.
 
-  const nsIntRect *clipRect = mRootLayer->GetLayer()->GetClipRect();
+  const nsIntRect *clipRect = mRoot->GetClipRect();
 
   if (clipRect) {
     mGLContext->fScissor(clipRect->x, clipRect->y,
@@ -420,7 +425,7 @@ LayerManagerOGL::Render()
   DEBUG_GL_ERROR_CHECK(mGLContext);
 
   // Render our layers.
-  mRootLayer->RenderLayer(mBackBufferFBO, nsIntPoint(0, 0));
+  RootLayer()->RenderLayer(mBackBufferFBO, nsIntPoint(0, 0));
 
   DEBUG_GL_ERROR_CHECK(mGLContext);
 

@@ -1098,6 +1098,8 @@ function BrowserStartup() {
 
   TabsOnTop.syncCommand();
 
+  BookmarksMenuButton.init();
+
   setTimeout(delayedStartup, 0, isLoadingBlank, mustLoadSidebar);
 }
 
@@ -2671,7 +2673,11 @@ function FillInHTMLTooltip(tipElement)
   var titleText = null;
   var XLinkTitleText = null;
   var SVGTitleText = null;
+#ifdef MOZ_SVG
   var lookingForSVGTitle = true;
+#else
+  var lookingForSVGTitle = false;
+#endif // MOZ_SVG
   var direction = tipElement.ownerDocument.dir;
 
   while (!titleText && !XLinkTitleText && !SVGTitleText && tipElement) {
@@ -3334,6 +3340,8 @@ function BrowserCustomizeToolbar()
 
   CombinedStopReload.uninit();
 
+  BookmarksMenuButton.customizeStart();
+
   var customizeURL = "chrome://global/content/customizeToolbar.xul";
   gCustomizeSheet = getBoolPref("toolbar.customization.usesheet", false);
 
@@ -3396,6 +3404,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   }
 
   PlacesToolbarHelper.updateState();
+  BookmarksMenuButton.customizeDone();
 
   UpdateUrlbarSearchSplitterState();
 
@@ -4099,7 +4108,11 @@ var XULBrowserWindow = {
         let nBox = gBrowser.getNotificationBox(selectedBrowser);
         nBox.removeTransientNotifications();
 
-        PopupNotifications.locationChange();
+        // Only need to call locationChange if the PopupNotifications object
+        // for this window has already been initialized (i.e. its getter no
+        // longer exists)
+        if (!__lookupGetter__("PopupNotifications"))
+          PopupNotifications.locationChange();
       }
     }
 
@@ -4601,6 +4614,8 @@ function onViewToolbarCommand(aEvent) {
                        aEvent.originalTarget.getAttribute("checked") != "true");
   document.persist(toolbar.id, hidingAttribute);
 
+  BookmarksMenuButton.updatePosition();
+
 #ifdef MENUBAR_CAN_AUTOHIDE
   updateAppButtonDisplay();
 #endif
@@ -4623,18 +4638,21 @@ var TabsOnTop = {
     gNavToolbox.setAttribute("tabsontop", !!val);
     this.syncCommand();
 
-    //XXX: Trigger reframe. This is a workaround for bug 555987 and needs to be
-    //     removed once that bug is fixed.
-    gNavToolbox.style.MozBoxOrdinalGroup = val ? 2 : 3;
-
     return val;
   }
 }
 
 #ifdef MENUBAR_CAN_AUTOHIDE
 function updateAppButtonDisplay() {
-  document.getElementById("appmenu-button-container").hidden =
-    document.getElementById("toolbar-menubar").getAttribute("autohide") != "true";
+  var menubarHidden =
+    document.getElementById("toolbar-menubar").getAttribute("autohide") == "true";
+
+  document.getElementById("appmenu-button-container").hidden = !menubarHidden;
+
+  if (menubarHidden)
+    document.documentElement.setAttribute("chromemargin", "0,-1,-1,-1");
+  else
+    document.documentElement.removeAttribute("chromemargin");
 }
 #endif
 

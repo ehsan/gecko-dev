@@ -24,6 +24,11 @@
     background: transparent;
   }
 
+  /* the new titlebar requires this, or content will be clipped at the top of the screen. */
+  #main-window[sizemode="maximized"] {
+    margin-top: 8px;
+  }
+
   #main-window:not(:-moz-lwtheme)[inFullscreen="true"] {
     -moz-appearance: none;
     background-color: #556;
@@ -41,6 +46,15 @@
   #navigator-toolbox[tabsontop="true"] > toolbar:not(#toolbar-menubar):not(#TabsToolbar) {
     border-left: 1px solid ThreeDShadow;
     border-right: 1px solid ThreeDShadow;
+  }
+
+  /* Make the window draggable by glassed toolbars (bug 555081) */
+  #toolbar-menubar:not([autohide="true"]),
+  #navigator-toolbox[tabsontop="true"] > #TabsToolbar,
+  #navigator-toolbox:not([tabsontop="true"]) > #nav-bar,
+  #navigator-toolbox:not([tabsontop="true"]) > #nav-bar + #customToolbars + #PersonalToolbar[collapsed="true"] + #TabsToolbar:last-child,
+  #navigator-toolbox > toolbar:not(#toolbar-menubar):not(#fullscr-toggler):-moz-lwtheme {
+    -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbar-drag");
   }
 
   #browser:not(:-moz-lwtheme),

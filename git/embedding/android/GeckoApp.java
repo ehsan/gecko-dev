@@ -1,5 +1,4 @@
-/* -*- Mode: Java; tab-width: 20; indent-tabs-mode: nil; -*-
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: Java; c-basic-offset: 4; tab-width: 20; indent-tabs-mode: nil; -*-/ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -61,8 +60,6 @@ abstract public class GeckoApp
     public static GeckoSurfaceView surfaceView;
     public static GeckoApp mAppContext;
 
-    public static boolean useSoftwareDrawing;
-
     void launch()
     {
         // unpack files in the components directory
@@ -97,6 +94,7 @@ abstract public class GeckoApp
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
+        Log.i("GeckoApp", "create");
         super.onCreate(savedInstanceState);
 
         mAppContext = this;
@@ -120,8 +118,6 @@ abstract public class GeckoApp
         setContentView(mainLayout,
                        new ViewGroup.LayoutParams(ViewGroup.LayoutParams.FILL_PARENT,
                                                   ViewGroup.LayoutParams.FILL_PARENT));
-
-        useSoftwareDrawing = true; //isInEmulator() == 1;
 
         if (!GeckoAppShell.sGeckoRunning) {
             // Load our JNI libs; we need to do this before launch() because
@@ -190,6 +186,7 @@ abstract public class GeckoApp
     @Override
     public void onStop()
     {
+        Log.i("GeckoApp", "stop");
         // We're about to be stopped, potentially in preparation for
         // being destroyed.  We're killable after this point -- as I
         // understand it, in extreme cases the process can be terminated
@@ -207,8 +204,23 @@ abstract public class GeckoApp
     }
 
     @Override
+    public void onRestart()
+    {
+        Log.i("GeckoApp", "restart");
+        super.onRestart();
+    }
+
+    @Override
+    public void onStart()
+    {
+        Log.i("GeckoApp", "start");
+        super.onStart();
+    }
+
+    @Override
     public void onDestroy()
     {
+        Log.i("GeckoApp", "destroy");
         // Tell Gecko to shutting down; we'll end up calling System.exit()
         // in onXreExit.
         GeckoAppShell.sendEventToGecko(new GeckoEvent(GeckoEvent.ACTIVITY_STOPPING));
@@ -219,6 +231,7 @@ abstract public class GeckoApp
     @Override
     public void onConfigurationChanged(android.content.res.Configuration newConfig)
     {
+        Log.i("GeckoApp", "configuration changed");
         // nothing, just ignore
         super.onConfigurationChanged(newConfig);
     }
@@ -226,6 +239,7 @@ abstract public class GeckoApp
     @Override
     public void onLowMemory()
     {
+        Log.i("GeckoApp", "low memory");
         // XXX TODO
         super.onLowMemory();
     }
@@ -252,6 +266,7 @@ abstract public class GeckoApp
     }
 
     abstract public String getAppName();
+    abstract public String getContentProcessName();
 
     protected void unpackComponents()
     {
@@ -305,6 +320,7 @@ abstract public class GeckoApp
         } while (status != StreamTokenizer.TT_EOF);
 
         unpackFile(zip, buf, null, "application.ini");
+        unpackFile(zip, buf, null, getContentProcessName());
     }
 
     private void unpackFile(ZipFile zip, byte[] buf, ZipEntry fileEntry, String name)
