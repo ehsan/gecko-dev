@@ -113,7 +113,7 @@ MobileConnectionChild::GetRadioState(int32_t* aRadioState)
 }
 
 NS_IMETHODIMP
-MobileConnectionChild::GetSupportedNetworkTypes(int32_t** aTypes,
+MobileConnectionChild::GetSupportedNetworkTypes(char16_t*** aTypes,
                                                 uint32_t* aLength)
 {
   NS_ENSURE_ARG(aTypes);
@@ -121,11 +121,11 @@ MobileConnectionChild::GetSupportedNetworkTypes(int32_t** aTypes,
 
   *aLength = mSupportedNetworkTypes.Length();
   *aTypes =
-    static_cast<int32_t*>(nsMemory::Alloc((*aLength) * sizeof(int32_t)));
+    static_cast<char16_t**>(nsMemory::Alloc((*aLength) * sizeof(char16_t*)));
   NS_ENSURE_TRUE(*aTypes, NS_ERROR_OUT_OF_MEMORY);
 
   for (uint32_t i = 0; i < *aLength; i++) {
-    (*aTypes)[i] = mSupportedNetworkTypes[i];
+    (*aTypes)[i] = ToNewUnicode(mSupportedNetworkTypes[i]);
   }
 
   return NS_OK;

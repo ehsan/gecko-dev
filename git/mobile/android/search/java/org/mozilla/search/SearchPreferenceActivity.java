@@ -19,7 +19,6 @@ import android.os.Bundle;
 import android.preference.Preference;
 import android.preference.PreferenceActivity;
 import android.util.Log;
-import android.view.MenuItem;
 import android.widget.Toast;
 
 /**
@@ -105,14 +104,5 @@ public class SearchPreferenceActivity extends PreferenceActivity {
             }
         };
         clearHistoryTask.execute();
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            finish();
-            return true;
-        }
-        return false;
     }
 }

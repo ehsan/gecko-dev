@@ -198,14 +198,14 @@ let DebuggerController = {
     }
 
     let target = this._target;
-    let { client, form: { chromeDebugger, traceActor, actor } } = target;
+    let { client, form: { chromeDebugger, traceActor, addonActor } } = target;
     target.on("close", this._onTabDetached);
     target.on("navigate", this._onTabNavigated);
     target.on("will-navigate", this._onTabNavigated);
     this.client = client;
 
-    if (target.isAddon) {
-      yield this._startAddonDebugging(actor);
+    if (addonActor) {
+      yield this._startAddonDebugging(addonActor);
     } else if (target.chrome) {
       yield this._startChromeDebugging(chromeDebugger);
     } else {

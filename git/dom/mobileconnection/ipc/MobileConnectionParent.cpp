@@ -131,7 +131,7 @@ MobileConnectionParent::RecvInit(nsMobileConnectionInfo* aVoice,
                                  nsString* aIccId,
                                  int32_t* aNetworkSelectionMode,
                                  int32_t* aRadioState,
-                                 nsTArray<int32_t>* aSupportedNetworkTypes)
+                                 nsTArray<nsString>* aSupportedNetworkTypes)
 {
   NS_ENSURE_TRUE(mMobileConnection, false);
 
@@ -143,17 +143,18 @@ MobileConnectionParent::RecvInit(nsMobileConnectionInfo* aVoice,
   NS_ENSURE_SUCCESS(mMobileConnection->GetNetworkSelectionMode(aNetworkSelectionMode), false);
   NS_ENSURE_SUCCESS(mMobileConnection->GetRadioState(aRadioState), false);
 
-  int32_t* types = nullptr;
+  char16_t** types = nullptr;
   uint32_t length = 0;
 
   nsresult rv = mMobileConnection->GetSupportedNetworkTypes(&types, &length);
   NS_ENSURE_SUCCESS(rv, false);
 
   for (uint32_t i = 0; i < length; ++i) {
-    aSupportedNetworkTypes->AppendElement(types[i]);
+    nsDependentString type(types[i]);
+    aSupportedNetworkTypes->AppendElement(type);
   }
 
-  nsMemory::Free(types);
+  NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(length, types);
 
   return true;
 }

@@ -208,23 +208,6 @@ RESTRequest.prototype = {
   },
 
   /**
-   * Perform an HTTP PATCH.
-   *
-   * @param data
-   *        Data to be used as the request body. If this isn't a string
-   *        it will be JSONified automatically.
-   * @param onComplete
-   *        Short-circuit way to set the 'onComplete' method. Optional.
-   * @param onProgress
-   *        Short-circuit way to set the 'onProgress' method. Optional.
-   *
-   * @return the request object.
-   */
-  patch: function patch(data, onComplete, onProgress) {
-    return this.dispatch("PATCH", data, onComplete, onProgress);
-  },
-
-  /**
    * Perform an HTTP PUT.
    *
    * @param data
@@ -324,7 +307,7 @@ RESTRequest.prototype = {
     }
 
     // Set HTTP request body.
-    if (method == "PUT" || method == "POST" || method == "PATCH") {
+    if (method == "PUT" || method == "POST") {
       // Convert non-string bodies into JSON.
       if (typeof data != "string") {
         data = JSON.stringify(data);
@@ -383,7 +366,7 @@ RESTRequest.prototype = {
                                      Cr.NS_ERROR_NET_TIMEOUT);
     if (!this.onComplete) {
       this._log.error("Unexpected error: onComplete not defined in " +
-                      "abortTimeout.");
+                      "abortTimeout.")
       return;
     }
     this.onComplete(error);

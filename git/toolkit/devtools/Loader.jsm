@@ -269,9 +269,7 @@ DevToolsLoader.prototype = {
    * @see setProvider
    */
   require: function() {
-    if (!this._provider) {
-      this._chooseProvider();
-    }
+    this._chooseProvider();
     return this.require.apply(this, arguments);
   },
 
