@@ -1283,7 +1283,7 @@ public:
 #endif
 
     void loadAsmJSActivation(Register dest) {
-        loadPtr(Address(GlobalReg, AsmJSActivationGlobalDataOffset - AsmJSGlobalRegBias), dest);
+        loadPtr(Address(GlobalReg, AsmJSActivationGlobalDataOffset), dest);
     }
 };
 

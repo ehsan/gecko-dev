@@ -67,9 +67,6 @@ public:
   Debug(JSContext* aCx, const Sequence<JS::Value>& aData);
 
   void
-  Table(JSContext* aCx, const Sequence<JS::Value>& aData);
-
-  void
   Trace(JSContext* aCx);
 
   void
@@ -114,7 +111,6 @@ private:
     MethodError,
     MethodException,
     MethodDebug,
-    MethodTable,
     MethodTrace,
     MethodDir,
     MethodGroup,

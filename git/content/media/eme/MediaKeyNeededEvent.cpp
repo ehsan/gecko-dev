@@ -4,83 +4,81 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "MediaEncryptedEvent.h"
-#include "mozilla/dom/MediaEncryptedEventBinding.h"
+#include "MediaKeyNeededEvent.h"
+#include "mozilla/dom/MediaKeyNeededEventBinding.h"
 #include "nsContentUtils.h"
 #include "jsfriendapi.h"
 #include "nsINode.h"
-#include "mozilla/dom/MediaKeys.h"
 
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(MediaEncryptedEvent)
+NS_IMPL_CYCLE_COLLECTION_CLASS(MediaKeyNeededEvent)
 
-NS_IMPL_ADDREF_INHERITED(MediaEncryptedEvent, Event)
-NS_IMPL_RELEASE_INHERITED(MediaEncryptedEvent, Event)
+NS_IMPL_ADDREF_INHERITED(MediaKeyNeededEvent, Event)
+NS_IMPL_RELEASE_INHERITED(MediaKeyNeededEvent, Event)
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(MediaEncryptedEvent, Event)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(MediaKeyNeededEvent, Event)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(MediaEncryptedEvent, Event)
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(MediaKeyNeededEvent, Event)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mInitData)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(MediaEncryptedEvent, Event)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(MediaKeyNeededEvent, Event)
   tmp->mInitData = nullptr;
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(MediaEncryptedEvent)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(MediaKeyNeededEvent)
 NS_INTERFACE_MAP_END_INHERITING(Event)
 
-MediaEncryptedEvent::MediaEncryptedEvent(EventTarget* aOwner)
+MediaKeyNeededEvent::MediaKeyNeededEvent(EventTarget* aOwner)
   : Event(aOwner, nullptr, nullptr)
 {
   mozilla::HoldJSObjects(this);
 }
 
-MediaEncryptedEvent::~MediaEncryptedEvent()
+MediaKeyNeededEvent::~MediaKeyNeededEvent()
 {
   mInitData = nullptr;
   mozilla::DropJSObjects(this);
 }
 
 JSObject*
-MediaEncryptedEvent::WrapObject(JSContext* aCx)
+MediaKeyNeededEvent::WrapObject(JSContext* aCx)
 {
-  return MediaEncryptedEventBinding::Wrap(aCx, this);
+  return MediaKeyNeededEventBinding::Wrap(aCx, this);
 }
 
-already_AddRefed<MediaEncryptedEvent>
-MediaEncryptedEvent::Constructor(EventTarget* aOwner,
+already_AddRefed<MediaKeyNeededEvent>
+MediaKeyNeededEvent::Constructor(EventTarget* aOwner,
                                  const nsAString& aInitDataType,
                                  const nsTArray<uint8_t>& aInitData)
 {
-  nsRefPtr<MediaEncryptedEvent> e = new MediaEncryptedEvent(aOwner);
-  e->InitEvent(NS_LITERAL_STRING("encrypted"), false, false);
+  nsRefPtr<MediaKeyNeededEvent> e = new MediaKeyNeededEvent(aOwner);
+  e->InitEvent(NS_LITERAL_STRING("needkey"), false, false);
   e->mInitDataType = aInitDataType;
   e->mRawInitData = aInitData;
   e->SetTrusted(true);
   return e.forget();
 }
 
-already_AddRefed<MediaEncryptedEvent>
-MediaEncryptedEvent::Constructor(const GlobalObject& aGlobal,
+already_AddRefed<MediaKeyNeededEvent>
+MediaKeyNeededEvent::Constructor(const GlobalObject& aGlobal,
                                  const nsAString& aType,
                                  const MediaKeyNeededEventInit& aEventInitDict,
                                  ErrorResult& aRv)
 {
   nsCOMPtr<EventTarget> owner = do_QueryInterface(aGlobal.GetAsSupports());
-  nsRefPtr<MediaEncryptedEvent> e = new MediaEncryptedEvent(owner);
+  nsRefPtr<MediaKeyNeededEvent> e = new MediaKeyNeededEvent(owner);
   bool trusted = e->Init(owner);
   e->InitEvent(aType, aEventInitDict.mBubbles, aEventInitDict.mCancelable);
   e->mInitDataType = aEventInitDict.mInitDataType;
-  if (!aEventInitDict.mInitData.IsNull()) {
-    const auto& a = aEventInitDict.mInitData.Value();
+  if (aEventInitDict.mInitData.WasPassed() &&
+      !aEventInitDict.mInitData.Value().IsNull()) {
+    const auto& a = aEventInitDict.mInitData.Value().Value();
     a.ComputeLengthAndData();
-    e->mInitData = ArrayBuffer::Create(aGlobal.Context(),
-                                       a.Length(),
-                                       a.Data());
+    e->mInitData = Uint8Array::Create(aGlobal.Context(), owner, a.Length(), a.Data());
     if (!e->mInitData) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return nullptr;
@@ -91,20 +89,21 @@ MediaEncryptedEvent::Constructor(const GlobalObject& aGlobal,
 }
 
 void
-MediaEncryptedEvent::GetInitDataType(nsString& aRetVal) const
+MediaKeyNeededEvent::GetInitDataType(nsString& aRetVal) const
 {
   aRetVal = mInitDataType;
 }
 
 void
-MediaEncryptedEvent::GetInitData(JSContext* cx,
+MediaKeyNeededEvent::GetInitData(JSContext* cx,
                                  JS::MutableHandle<JSObject*> aData,
                                  ErrorResult& aRv)
 {
   if (mRawInitData.Length()) {
-    mInitData = ArrayBuffer::Create(cx,
-                                    mRawInitData.Length(),
-                                    mRawInitData.Elements());
+    mInitData = Uint8Array::Create(cx,
+                                   this,
+                                   mRawInitData.Length(),
+                                   mRawInitData.Elements());
     if (!mInitData) {
       aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
       return;

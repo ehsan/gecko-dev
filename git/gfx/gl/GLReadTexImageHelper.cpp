@@ -458,10 +458,6 @@ ReadPixelsIntoDataSurface(GLContext* gl, DataSourceSurface* dest)
         tempSurf = Factory::CreateDataSourceSurfaceWithStride(dest->GetSize(),
                                                               readFormatGFX,
                                                               stride);
-        if (NS_WARN_IF(!tempSurf)) {
-            return;
-        }
-
         readSurf = tempSurf;
     }
     MOZ_ASSERT(readAlignment);
@@ -527,7 +523,7 @@ YInvertImageSurface(DataSourceSurface* aSurf)
       Factory::CreateDataSourceSurfaceWithStride(aSurf->GetSize(),
                                                  aSurf->GetFormat(),
                                                  aSurf->Stride());
-    if (NS_WARN_IF(!temp)) {
+    if (!temp) {
         return nullptr;
     }
 
@@ -572,7 +568,7 @@ ReadBackSurface(GLContext* gl, GLuint aTexture, bool aYInvert, SurfaceFormat aFo
       Factory::CreateDataSourceSurfaceWithStride(size, SurfaceFormat::B8G8R8A8,
                                                  GetAlignedStride<4>(size.width * BytesPerPixel(SurfaceFormat::B8G8R8A8)));
 
-    if (NS_WARN_IF(!surf)) {
+    if (!surf) {
         return nullptr;
     }
 
@@ -624,9 +620,6 @@ GLReadTexImageHelper::ReadTexImage(GLuint aTextureId,
         Factory::CreateDataSourceSurfaceWithStride(aSize,
                                                    SurfaceFormat::R8G8B8A8,
                                                    stride);
-    if (NS_WARN_IF(isurf)) {
-        return nullptr;
-    }
 
     GLint oldrb, oldfb, oldprog, oldTexUnit, oldTex;
     GLuint rb, fb;

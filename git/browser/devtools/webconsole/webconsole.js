@@ -123,7 +123,6 @@ const LEVELS = {
   info: SEVERITY_INFO,
   log: SEVERITY_LOG,
   trace: SEVERITY_LOG,
-  table: SEVERITY_LOG,
   debug: SEVERITY_LOG,
   dir: SEVERITY_LOG,
   group: SEVERITY_LOG,
@@ -1210,11 +1209,6 @@ WebConsoleFrame.prototype = {
       case "assert":
       case "debug": {
         let msg = new Messages.ConsoleGeneric(aMessage);
-        node = msg.init(this.output).render().element;
-        break;
-      }
-      case "table": {
-        let msg = new Messages.ConsoleTable(aMessage);
         node = msg.init(this.output).render().element;
         break;
       }

@@ -624,7 +624,6 @@ METHOD(Warn, "warn")
 METHOD(Error, "error")
 METHOD(Exception, "exception")
 METHOD(Debug, "debug")
-METHOD(Table, "table")
 
 void
 Console::Trace(JSContext* aCx)

@@ -71,8 +71,8 @@ static float GetSampleRateForAudioContext(bool aIsOffline, float aSampleRate)
   if (aIsOffline) {
     return aSampleRate;
   } else {
-    CubebUtils::InitPreferredSampleRate();
-    return static_cast<float>(CubebUtils::PreferredSampleRate());
+    AudioStream::InitPreferredSampleRate();
+    return static_cast<float>(AudioStream::PreferredSampleRate());
   }
 }
 
@@ -518,7 +518,7 @@ AudioContext::UpdatePannerSource()
 uint32_t
 AudioContext::MaxChannelCount() const
 {
-  return mIsOffline ? mNumberOfChannels : CubebUtils::MaxNumberOfChannels();
+  return mIsOffline ? mNumberOfChannels : AudioStream::MaxNumberOfChannels();
 }
 
 MediaStreamGraph*

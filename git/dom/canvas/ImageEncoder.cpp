@@ -297,10 +297,11 @@ ImageEncoder::ExtractDataInternal(const nsAString& aType,
       Factory::CreateDataSourceSurfaceWithStride(IntSize(aSize.width, aSize.height),
                                                  SurfaceFormat::B8G8R8A8,
                                                  4 * aSize.width);
-    if (NS_WARN_IF(!emptyCanvas)) {
+
+    if (!emptyCanvas) {
+      NS_ERROR("Failded to create DataSourceSurface");
       return NS_ERROR_INVALID_ARG;
     }
-
     ClearDataSourceSurface(emptyCanvas);
     DataSourceSurface::MappedSurface map;
     if (!emptyCanvas->Map(DataSourceSurface::MapType::WRITE, &map)) {

@@ -850,8 +850,7 @@ DisassembleInstruction(uint32_t pc)
     sprintf(llvmcmd, "bash -c \"echo -n '%p'; echo '%s' | "
             "llvm-mc -disassemble -arch=mipsel -mcpu=mips32r2 | "
             "grep -v pure_instructions | grep -v .text\"", static_cast<void*>(bytes), hexbytes);
-    if (system(llvmcmd))
-        printf("Cannot disassemble instruction.\n");
+    system(llvmcmd);
 }
 
 void

@@ -21,7 +21,8 @@
 
       <popupnotificationcontent id="webRTC-selectWindowOrScreen" orient="vertical">
         <separator class="thin"/>
-        <label id="webRTC-selectWindow-label"
+        <label value="&getUserMedia.selectWindowOrScreen.label;"
+               accesskey="&getUserMedia.selectWindowOrScreen.accesskey;"
                control="webRTC-selectWindow-menulist"/>
         <menulist id="webRTC-selectWindow-menulist"
                   oncommand="gWebRTCUI.updateMainActionLabel(this);">

@@ -89,20 +89,14 @@ MediaKeys::GetKeySystem(nsString& retval) const
 }
 
 already_AddRefed<Promise>
-MediaKeys::SetServerCertificate(const ArrayBufferViewOrArrayBuffer& aCert, ErrorResult& aRv)
+MediaKeys::SetServerCertificate(const Uint8Array& aCert, ErrorResult& aRv)
 {
+  aCert.ComputeLengthAndData();
   nsRefPtr<Promise> promise(MakePromise(aRv));
   if (aRv.Failed()) {
     return nullptr;
   }
-
-  nsTArray<uint8_t> data;
-  if (!CopyArrayBufferViewOrArrayBufferData(aCert, data)) {
-    promise->MaybeReject(NS_ERROR_DOM_INVALID_ACCESS_ERR);
-    return promise.forget();
-  }
-
-  mProxy->SetServerCertificate(StorePromise(promise), data);
+  mProxy->SetServerCertificate(StorePromise(promise), aCert);
   return promise.forget();
 }
 
@@ -311,34 +305,30 @@ MediaKeys::LoadSession(const nsAString& aSessionId, ErrorResult& aRv)
 
 already_AddRefed<Promise>
 MediaKeys::CreateSession(const nsAString& initDataType,
-                         const ArrayBufferViewOrArrayBuffer& aInitData,
+                         const Uint8Array& aInitData,
                          SessionType aSessionType,
                          ErrorResult& aRv)
 {
+  aInitData.ComputeLengthAndData();
   nsRefPtr<Promise> promise(MakePromise(aRv));
   if (aRv.Failed()) {
     return nullptr;
   }
-
-  nsTArray<uint8_t> data;
-  if (initDataType.IsEmpty() ||
-      !CopyArrayBufferViewOrArrayBufferData(aInitData, data)) {
-    promise->MaybeReject(NS_ERROR_DOM_INVALID_ACCESS_ERR);
-    return promise.forget();
-  }
-
   nsRefPtr<MediaKeySession> session = new MediaKeySession(GetParentObject(),
                                                           this,
                                                           mKeySystem,
-                                                          aSessionType,
-                                                          aRv);
+                                                          aSessionType, aRv);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
+
   auto pid = StorePromise(promise);
   // Hang onto session until the CDM has finished setting it up.
   mPendingSessions.Put(pid, session);
   mProxy->CreateSession(aSessionType,
                         pid,
                         initDataType,
-                        data);
+                        aInitData);
 
   return promise.forget();
 }
@@ -406,24 +396,6 @@ MediaKeys::GetOrigin(nsString& aOutOrigin)
   EME_LOG("EME Origin = '%s'", NS_ConvertUTF16toUTF8(aOutOrigin).get());
 
   return res;
-}
-
-bool
-CopyArrayBufferViewOrArrayBufferData(const ArrayBufferViewOrArrayBuffer& aBufferOrView,
-                                     nsTArray<uint8_t>& aOutData)
-{
-  if (aBufferOrView.IsArrayBuffer()) {
-    const ArrayBuffer& buffer = aBufferOrView.GetAsArrayBuffer();
-    buffer.ComputeLengthAndData();
-    aOutData.AppendElements(buffer.Data(), buffer.Length());
-  } else if (aBufferOrView.IsArrayBufferView()) {
-    const ArrayBufferView& bufferview = aBufferOrView.GetAsArrayBufferView();
-    bufferview.ComputeLengthAndData();
-    aOutData.AppendElements(bufferview.Data(), bufferview.Length());
-  } else {
-    return false;
-  }
-  return true;
 }
 
 } // namespace dom

@@ -633,6 +633,10 @@ js::minmax_impl(JSContext *cx, bool max, HandleValue a, HandleValue b, MutableHa
     return true;
 }
 
+// Disable PGO for Math.pow() and related functions (see bug 791214).
+#if defined(_MSC_VER)
+# pragma optimize("g", off)
+#endif
 double
 js::powi(double x, int y)
 {
@@ -660,7 +664,14 @@ js::powi(double x, int y)
         m *= m;
     }
 }
+#if defined(_MSC_VER)
+# pragma optimize("", on)
+#endif
 
+// Disable PGO for Math.pow() and related functions (see bug 791214).
+#if defined(_MSC_VER)
+# pragma optimize("g", off)
+#endif
 double
 js::ecmaPow(double x, double y)
 {
@@ -695,7 +706,14 @@ js::ecmaPow(double x, double y)
     }
     return pow(x, y);
 }
+#if defined(_MSC_VER)
+# pragma optimize("", on)
+#endif
 
+// Disable PGO for Math.pow() and related functions (see bug 791214).
+#if defined(_MSC_VER)
+# pragma optimize("g", off)
+#endif
 bool
 js::math_pow_handle(JSContext *cx, HandleValue base, HandleValue power, MutableHandleValue result)
 {
@@ -719,6 +737,9 @@ js::math_pow(JSContext *cx, unsigned argc, Value *vp)
 
     return math_pow_handle(cx, args.get(0), args.get(1), args.rval());
 }
+#if defined(_MSC_VER)
+# pragma optimize("", on)
+#endif
 
 static uint64_t
 random_generateSeed()
