@@ -110,10 +110,6 @@
 #include "nsFrameMessageManager.h"
 #include "mozilla/TimeStamp.h"
 
-// JS includes
-#include "jsapi.h"
-#include "jswrapper.h"
-
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
 #define PREF_BROWSER_STARTUP_HOMEPAGE "browser.startup.homepage"
 
@@ -231,25 +227,6 @@ private:
 };
 
 //*****************************************************************************
-// nsOuterWindow: Outer Window Proxy
-//*****************************************************************************
-
-class nsOuterWindowProxy : public JSWrapper
-{
-public:
-  nsOuterWindowProxy() : JSWrapper((uintN)0) {}
-
-  virtual bool isOuterWindow() {
-    return true;
-  }
-  JSString *obj_toString(JSContext *cx, JSObject *wrapper);
-
-  static nsOuterWindowProxy singleton;
-};
-
-JSObject *NS_NewOuterWindowProxy(JSContext *cx, JSObject *parent);
-
-//*****************************************************************************
 // nsGlobalWindow: Global Object for Scripting
 //*****************************************************************************
 // Beware that all scriptable interfaces implemented by
@@ -280,7 +257,6 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public nsIDOMStorageWindow,
                        public nsSupportsWeakReference,
                        public nsIInterfaceRequestor,
-                       public nsWrapperCache,
                        public PRCListStr
 {
 public:
@@ -373,8 +349,7 @@ public:
   }
   virtual NS_HIDDEN_(nsPIDOMEventTarget*) GetTargetForEventTargetChain()
   {
-    return IsInnerWindow() ?
-      this : static_cast<nsPIDOMEventTarget*>(GetCurrentInnerWindowInternal());
+    return static_cast<nsPIDOMEventTarget*>(GetCurrentInnerWindowInternal());
   }
   virtual NS_HIDDEN_(nsresult) PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   virtual NS_HIDDEN_(nsresult) PostHandleEvent(nsEventChainPostVisitor& aVisitor);
@@ -560,10 +535,6 @@ public:
 
   virtual PRUint32 GetSerial() {
     return mSerial;
-  }
-
-  static nsGlobalWindow* GetOuterWindowWithId(PRUint64 aWindowID) {
-    return sOuterWindowsById ? sOuterWindowsById->Get(aWindowID) : nsnull;
   }
 
 protected:
@@ -950,9 +921,6 @@ protected:
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
   static nsIDOMStorageList* sGlobalStorageList;
-
-  typedef nsDataHashtable<nsUint64HashKey, nsGlobalWindow*> WindowByIdTable;
-  static WindowByIdTable* sOuterWindowsById;
 };
 
 /*

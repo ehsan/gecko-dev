@@ -62,7 +62,6 @@ be/kernel/image.h
 be/kernel/OS.h
 bfd.h
 Bitmap.h
-bitset
 blapi.h
 bsd/libc.h
 bsd/syscall.h
@@ -94,7 +93,6 @@ cairo-directfb.h
 cairo-qpainter.h
 #endif
 dfiff.h
-exception
 ffi.h
 fusion/reactor.h
 fusion/property.h
@@ -198,7 +196,6 @@ CPString.h
 crtdbg.h
 crt_externs.h
 crypt.h
-cstddef
 cstdio
 cstdlib
 cstring
@@ -542,7 +539,6 @@ Objsafe.h
 ojiapitests.h
 ole2.h
 oleidl.h
-OpenGL/OpenGL.h
 OpenTptInternet.h
 OpenTransport.h
 os2.h
@@ -1045,9 +1041,4 @@ proxy.h
 #if MOZ_PLATFORM_MAEMO==6
 contentaction/contentaction.h
 #endif
-#ifndef MOZ_TREE_PIXMAN
-pixman.h
-#endif
-#if MOZ_ENABLE_MEEGOTOUCHSHARE
-shareuiinterface.h
-#endif
+

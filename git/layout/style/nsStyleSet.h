@@ -185,12 +185,12 @@ class nsStyleSet
   // Test if style is dependent on a document state.
   PRBool HasDocumentStateDependentStyle(nsPresContext* aPresContext,
                                         nsIContent*    aContent,
-                                        nsEventStates  aStateMask);
+                                        PRInt32        aStateMask);
 
   // Test if style is dependent on content state
   nsRestyleHint HasStateDependentStyle(nsPresContext* aPresContext,
                                        mozilla::dom::Element* aElement,
-                                       nsEventStates aStateMask);
+                                       PRInt32 aStateMask);
 
   // Test if style is dependent on the presence of an attribute.
   nsRestyleHint HasAttributeDependentStyle(nsPresContext* aPresContext,

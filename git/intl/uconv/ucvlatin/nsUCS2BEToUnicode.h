@@ -62,8 +62,6 @@ protected:
   PRUint8 mOddByte;
   // to store an odd high surrogate left over between runs
   PRUnichar mOddHighSurrogate;
-  // to store an odd low surrogate left over between runs
-  PRUnichar mOddLowSurrogate;
 };
 
 // UTF-16 big endian

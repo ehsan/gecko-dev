@@ -3400,9 +3400,6 @@ nsXULDocument::LoadScript(nsXULPrototypeScript* aScriptProto, PRBool* aBlock)
       return rv;
     }
 
-    // Release script objects from FastLoad since we decided against using them
-    aScriptProto->UnlinkJSObjects();
-
     // Set the current script prototype so that OnStreamComplete can report
     // the right file if there are errors in the script.
     NS_ASSERTION(!mCurrentScriptProto,

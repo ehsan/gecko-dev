@@ -8,24 +8,25 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const TEST_URI = "data:text/html,Web Console test for bug 588342";
-let fm, notificationBox, input;
+const Cc = Components.classes;
+const Ci = Components.interfaces;
+const Cu = Components.utils;
 
-function test()
-{
-  fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
-  addTab(TEST_URI);
-  browser.addEventListener("load", tabLoad, true);
-}
+Cu.import("resource:///modules/HUDService.jsm");
+
+const TEST_URI = "http://example.com/browser/toolkit/components/console/hudservice/tests/browser/test-console.html";
+
+let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
+let notificationBox;
+let input;
 
 function tabLoad(aEvent) {
-  browser.removeEventListener(aEvent.type, arguments.callee, true);
+  gBrowser.selectedBrowser.removeEventListener(aEvent.type, arguments.callee, true);
 
-  notificationBox = gBrowser.getNotificationBox(browser);
+  notificationBox = gBrowser.getNotificationBox(gBrowser.selectedBrowser);
   let DOMNodeInserted = false;
 
   document.addEventListener("DOMNodeInserted", function(aEvent) {
-    log("DOMNodeInserted");
     input = notificationBox.querySelector(".jsterm-input-node");
     if (input && !DOMNodeInserted) {
       DOMNodeInserted = true;
@@ -43,7 +44,7 @@ function tabLoad(aEvent) {
   }, false);
 
   waitForFocus(function() {
-    openConsole();
+    HUDService.activateHUDForContext(gBrowser.selectedTab);
   }, content);
 }
 
@@ -52,19 +53,26 @@ function runTest() {
   isnot(fm.focusedWindow, content, "content document has no focus");
 
   let DOMNodeRemoved = false;
-  function domNodeRemoved(aEvent) {
+  document.addEventListener("DOMNodeRemoved", function(aEvent) {
     executeSoon(function() {
       if (!DOMNodeRemoved && !notificationBox.querySelector(".hud-box")) {
         DOMNodeRemoved = true;
-        document.removeEventListener(aEvent.type, domNodeRemoved, false);
-        is(fm.focusedWindow, browser.contentWindow,
-           "content document has focus");
+        document.removeEventListener(aEvent.type, arguments.callee, false);
+        is(fm.focusedWindow, content, "content document has focus");
         input = notificationBox = fm = null;
-        finishTest();
+        finish();
       }
     });
-  }
-  document.addEventListener("DOMNodeRemoved", domNodeRemoved, false);
-  HUDService.deactivateHUDForContext(tab);
+  }, false);
+
+  HUDService.deactivateHUDForContext(gBrowser.selectedTab);
+}
+
+function test() {
+  waitForExplicitFinish();
+
+  gBrowser.selectedBrowser.addEventListener("load", tabLoad, true);
+
+  content.location = TEST_URI;
 }
 

@@ -361,16 +361,7 @@ LogoutAndTeardown()
     SSL_ClearSessionCache();
   }
 
-  rv = nssComponent->LogoutAuthenticatedPK11();
-
-  // After we just logged out, we need to prune dead connections to make
-  // sure that all connections that should be stopped, are stopped. See
-  // bug 517584.
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (os)
-    os->NotifyObservers(nsnull, "net:prune-dead-connections", nsnull);
-
-  return rv;
+  return nssComponent->LogoutAuthenticatedPK11();
 }
 
 /* void setWindow(in nsISupports w); */

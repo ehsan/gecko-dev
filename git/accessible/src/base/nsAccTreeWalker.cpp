@@ -74,10 +74,8 @@ nsAccTreeWalker::
   if (aContent)
     mState = new WalkState(aContent);
 
-  mChildFilter = aWalkAnonContent ? nsIContent::eAllChildren :
+  mChildType = aWalkAnonContent ? nsIContent::eAllChildren :
                                   nsIContent::eAllButXBL;
-
-  mChildFilter |= nsIContent::eSkipPlaceholderContent;
 
   MOZ_COUNT_CTOR(nsAccTreeWalker);
 }
@@ -101,7 +99,7 @@ nsAccTreeWalker::GetNextChildInternal(PRBool aNoWalkUp)
     return nsnull;
 
   if (!mState->childList)
-    mState->childList = mState->content->GetChildren(mChildFilter);
+    mState->childList = mState->content->GetChildren(mChildType);
 
   nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
 

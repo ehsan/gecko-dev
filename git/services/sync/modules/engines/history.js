@@ -48,19 +48,12 @@ Cu.import("resource://services-sync/stores.js");
 Cu.import("resource://services-sync/trackers.js");
 Cu.import("resource://services-sync/type_records/history.js");
 Cu.import("resource://services-sync/util.js");
-Cu.import("resource://services-sync/log4moz.js");
 
 // Create some helper functions to handle GUIDs
 function setGUID(uri, guid) {
   if (arguments.length == 1)
     guid = Utils.makeGUID();
-
-  try {
-    Utils.anno(uri, GUID_ANNO, guid, "WITH_HISTORY");
-  } catch (ex) {
-    let log = Log4Moz.repository.getLogger("Engine.History");
-    log.warn("Couldn't annotate URI " + uri + ": " + ex);
-  }
+  Utils.anno(uri, GUID_ANNO, guid, "WITH_HISTORY");
   return guid;
 }
 function GUIDForUri(uri, create) {

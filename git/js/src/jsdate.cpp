@@ -60,7 +60,7 @@
 #include "jsstdint.h"
 #include "jsprf.h"
 #include "prmjtime.h"
-#include "jsutil.h"
+#include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsversion.h"
 #include "jsbuiltins.h"
@@ -2026,7 +2026,7 @@ JSBool
 date_toJSON(JSContext *cx, uintN argc, Value *vp)
 {
     /* Step 1. */
-    JSObject *obj = js_ValueToNonNullObject(cx, vp[1]);
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     if (!obj)
         return false;
 
@@ -2563,9 +2563,7 @@ JS_FRIEND_API(JSObject *)
 js_NewDateObjectMsec(JSContext *cx, jsdouble msec_time)
 {
     JSObject *obj = NewBuiltinClassInstance(cx, &js_DateClass);
-    if (!obj || !obj->ensureSlots(cx, JSObject::DATE_CLASS_RESERVED_SLOTS))
-        return NULL;
-    if (!SetUTCTime(cx, obj, msec_time))
+    if (!obj || !SetUTCTime(cx, obj, msec_time))
         return NULL;
     return obj;
 }

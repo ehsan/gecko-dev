@@ -338,10 +338,10 @@ nsHTMLOptionElement::SetText(const nsAString& aText)
   return nsContentUtils::SetNodeTextContent(this, aText, PR_TRUE);
 }
 
-nsEventStates
+PRInt32
 nsHTMLOptionElement::IntrinsicState() const
 {
-  nsEventStates state = nsGenericHTMLElement::IntrinsicState();
+  PRInt32 state = nsGenericHTMLElement::IntrinsicState();
   // Nasty hack because we need to call an interface method, and one that
   // toggles some of our hidden internal state at that!  Would that we could
   // use |mutable|.

@@ -63,8 +63,7 @@ var status = ''; var actual = ''; var expect = ''; var value = '';
 
 
 //  various indices to try -
-var index =
-  [-1073741825, -1073741824, -1073741823, -5000, -507, -3, -2, -1, -0, 0, 1, 2, 3, 1073741823, 1073741824, 1073741825];
+var index = Array(-5000, -507, -3, -2, -1, 0, 1, 2, 3); 
 
 
 //------------------------------------------------------------------------------------------------- 
@@ -78,7 +77,7 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
 
-  for (var j in index) {testProperty(index[j]);}
+  for (j in index) {testProperty(index[j]);}
 
   exitFunc ('test');
 }
@@ -102,11 +101,8 @@ function testProperty(i)
   reportCompare(expect, actual, status);
 }
 
-function positive(n) { return 1 / n > 0; }
 
 function getStatus(i)
 {
-  return statprefix +
-         (positive(i) ? i : "-" + -i) +
-         statsuffix;
+  return (statprefix  +  i  +  statsuffix);
 }
