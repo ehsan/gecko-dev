@@ -1171,9 +1171,9 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
         // a callable object then the JS engine will throw an error and we'll
         // pass this along to the caller as an exception/result code.
 
+        fval = ObjectValue(*obj);
         if (isFunction &&
-            JS_TypeOfValue(ccx, OBJECT_TO_JSVAL(obj)) == JSTYPE_FUNCTION) {
-            fval = OBJECT_TO_JSVAL(obj);
+            JS_TypeOfValue(ccx, fval) == JSTYPE_FUNCTION) {
 
             // We may need to translate the 'this' for the function object.
 
@@ -1638,7 +1638,8 @@ xpc::IsOutObject(JSContext* cx, JSObject* obj)
 JSObject*
 xpc::NewOutObject(JSContext* cx, JSObject* scope)
 {
-    return JS_NewObject(cx, nullptr, nullptr, JS_GetGlobalForObject(cx, scope));
+    RootedObject global(cx, JS_GetGlobalForObject(cx, scope));
+    return JS_NewObject(cx, nullptr, NullPtr(), global);
 }
 
 
