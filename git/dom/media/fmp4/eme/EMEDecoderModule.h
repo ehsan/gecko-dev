@@ -13,7 +13,7 @@
 namespace mozilla {
 
 class CDMProxy;
-class FlushableMediaTaskQueue;
+class MediaTaskQueue;
 
 class EMEDecoderModule : public PlatformDecoderModule {
 private:
@@ -36,13 +36,13 @@ public:
   CreateVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
                     layers::LayersBackend aLayersBackend,
                     layers::ImageContainer* aImageContainer,
-                    FlushableMediaTaskQueue* aVideoTaskQueue,
+                    MediaTaskQueue* aVideoTaskQueue,
                     MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
 
   // Decode thread.
   virtual already_AddRefed<MediaDataDecoder>
   CreateAudioDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
-                     FlushableMediaTaskQueue* aAudioTaskQueue,
+                     MediaTaskQueue* aAudioTaskQueue,
                      MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
 
   virtual bool
@@ -53,7 +53,7 @@ private:
   // Will be null if CDM has decoding capability.
   nsRefPtr<PlatformDecoderModule> mPDM;
   // We run the PDM on its own task queue.
-  nsRefPtr<FlushableMediaTaskQueue> mTaskQueue;
+  nsRefPtr<MediaTaskQueue> mTaskQueue;
   bool mCDMDecodesAudio;
   bool mCDMDecodesVideo;
 

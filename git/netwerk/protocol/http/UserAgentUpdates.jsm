@@ -26,17 +26,16 @@ XPCOMUtils.defineLazyServiceGetter(
   this, "gUpdateTimer", "@mozilla.org/updates/timer-manager;1", "nsIUpdateTimerManager");
 
 XPCOMUtils.defineLazyGetter(this, "gApp",
-  function() {
-    return Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo)
-                                            .QueryInterface(Ci.nsIXULRuntime);
-  });
+  function() Cc["@mozilla.org/xre/app-info;1"]
+    .getService(Ci.nsIXULAppInfo).QueryInterface(Ci.nsIXULRuntime)
+);
 
 XPCOMUtils.defineLazyGetter(this, "gDecoder",
-  function() { return new TextDecoder(); }
+  function() new TextDecoder()
 );
 
 XPCOMUtils.defineLazyGetter(this, "gEncoder",
-  function() { return new TextEncoder(); }
+  function() new TextEncoder()
 );
 
 const TIMER_ID = "user-agent-updates-timer";
@@ -144,19 +143,17 @@ this.UserAgentUpdates = {
     }
   },
 
-  _getParameters() {
-    return {
-      "%DATE%": function() { return Date.now().toString(); },
-      "%PRODUCT%": function() { return gApp.name; },
-      "%APP_ID%": function() { return gApp.ID; },
-      "%APP_VERSION%": function() { return gApp.version; },
-      "%BUILD_ID%": function() { return gApp.appBuildID; },
-      "%OS%": function() { return gApp.OS; },
-      "%CHANNEL%": function() { return UpdateChannel.get(); },
-      "%DISTRIBUTION%": function() { return this._getPref(PREF_APP_DISTRIBUTION, ""); },
-      "%DISTRIBUTION_VERSION%": function() { return this._getPref(PREF_APP_DISTRIBUTION_VERSION, ""); },
-    };
-  },
+  _getParameters: function() ({
+    "%DATE%": function() Date.now().toString(),
+    "%PRODUCT%": function() gApp.name,
+    "%APP_ID%": function() gApp.ID,
+    "%APP_VERSION%": function() gApp.version,
+    "%BUILD_ID%": function() gApp.appBuildID,
+    "%OS%": function() gApp.OS,
+    "%CHANNEL%": function() UpdateChannel.get(),
+    "%DISTRIBUTION%": function() this._getPref(PREF_APP_DISTRIBUTION, ""),
+    "%DISTRIBUTION_VERSION%": function() this._getPref(PREF_APP_DISTRIBUTION_VERSION, ""),
+  }),
 
   _getUpdateURL: function() {
     let url = this._getPref(PREF_UPDATES_URL, "");

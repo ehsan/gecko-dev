@@ -48,7 +48,6 @@ LOCAL_INCLUDES += [
     '../../editor/txmgr',
     '../base',
     '../generic',
-    '../style',
     '../xul',
     '/dom/base',
     '/dom/html',

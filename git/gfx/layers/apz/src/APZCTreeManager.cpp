@@ -320,19 +320,18 @@ APZCTreeManager::RecycleOrCreateNode(TreeBuildingState& aState,
   return node.forget();
 }
 
-static EventRegionsOverride
-GetEventRegionsOverride(HitTestingTreeNode* aParent,
-                       const LayerMetricsWrapper& aLayer)
+static bool
+ShouldForceDispatchToContent(HitTestingTreeNode* aParent,
+                             const LayerMetricsWrapper& aLayer)
 {
   // Make it so that if the flag is set on the layer tree, it automatically
   // propagates to all the nodes in the corresponding subtree rooted at that
   // layer in the hit-test tree. This saves having to walk up the tree every
   // we want to see if a hit-test node is affected by this flag.
-  EventRegionsOverride result = aLayer.GetEventRegionsOverride();
-  if (aParent) {
-    result |= aParent->GetEventRegionsOverride();
+  if (aParent && aParent->GetForceDispatchToContent()) {
+    return true;
   }
-  return result;
+  return aLayer.GetForceDispatchToContentRegion();
 }
 
 HitTestingTreeNode*
@@ -360,7 +359,7 @@ APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
     AttachNodeToTree(node, aParent, aNextSibling);
     node->SetHitTestData(GetEventRegions(aLayer), aLayer.GetTransform(),
         aLayer.GetClipRect() ? Some(nsIntRegion(*aLayer.GetClipRect())) : Nothing(),
-        GetEventRegionsOverride(aParent, aLayer));
+        ShouldForceDispatchToContent(aParent, aLayer));
     return node;
   }
 
@@ -457,7 +456,7 @@ APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
 
     nsIntRegion clipRegion = ComputeClipRegion(state->mController, aLayer);
     node->SetHitTestData(GetEventRegions(aLayer), aLayer.GetTransform(), Some(clipRegion),
-        GetEventRegionsOverride(aParent, aLayer));
+        ShouldForceDispatchToContent(aParent, aLayer));
     apzc->SetAncestorTransform(aAncestorTransform);
 
     PrintAPZCInfo(aLayer, apzc);
@@ -512,7 +511,7 @@ APZCTreeManager::PrepareNodeForLayer(const LayerMetricsWrapper& aLayer,
 
     nsIntRegion clipRegion = ComputeClipRegion(state->mController, aLayer);
     node->SetHitTestData(GetEventRegions(aLayer), aLayer.GetTransform(), Some(clipRegion),
-        GetEventRegionsOverride(aParent, aLayer));
+        ShouldForceDispatchToContent(aParent, aLayer));
   }
 
   return node;

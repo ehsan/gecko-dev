@@ -440,10 +440,6 @@ class LSoftUDivOrMod : public LBinaryMath<3>
         setTemp(1, temp2);
         setTemp(2, temp3);
     }
-
-    MInstruction *mir() {
-        return mir_->toInstruction();
-    }
 };
 
 class LAsmJSLoadFuncPtr : public LInstructionHelper<1, 1, 1>

@@ -83,7 +83,7 @@ protected:
 class GonkMediaDataDecoder : public MediaDataDecoder {
 public:
   GonkMediaDataDecoder(GonkDecoderManager* aDecoderManager,
-                       FlushableMediaTaskQueue* aTaskQueue,
+                       MediaTaskQueue* aTaskQueue,
                        MediaDataDecoderCallback* aCallback);
 
   ~GonkMediaDataDecoder();
@@ -122,7 +122,7 @@ private:
   // all available output.
   void ProcessDrain();
 
-  RefPtr<FlushableMediaTaskQueue> mTaskQueue;
+  RefPtr<MediaTaskQueue> mTaskQueue;
   MediaDataDecoderCallback* mCallback;
 
   android::sp<android::MediaCodecProxy> mDecoder;

@@ -49,8 +49,7 @@ public:
   static bool IsSupported(const nsAString& aKeySystem,
                           const Sequence<MediaKeySystemOptions>& aOptions);
 
-  static void NotifyObservers(nsIDOMWindow* aWindow,
-                              const nsAString& aKeySystem,
+  static void NotifyObservers(const nsAString& aKeySystem,
                               MediaKeySystemStatus aStatus);
 
 private:

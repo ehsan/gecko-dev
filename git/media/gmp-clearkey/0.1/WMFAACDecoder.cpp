@@ -262,6 +262,10 @@ WMFAACDecoder::CreateOutputSample(IMFSample** aOutSample)
   hr = MFCreateAlignedMemoryBuffer(bufferSize, alignment, &buffer);
   ENSURE(SUCCEEDED(hr), hr);
 
+  DWORD maxLength = 0;
+  DWORD currentLength = 0;
+  BYTE* dst = nullptr;
+
   hr = sample->AddBuffer(buffer);
   ENSURE(SUCCEEDED(hr), hr);
 

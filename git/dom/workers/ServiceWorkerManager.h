@@ -406,8 +406,7 @@ private:
                                ServiceWorker** aServiceWorker);
 
   NS_IMETHOD
-  CreateServiceWorker(nsIPrincipal* aPrincipal,
-                      const nsACString& aScriptSpec,
+  CreateServiceWorker(const nsACString& aScriptSpec,
                       const nsACString& aScope,
                       ServiceWorker** aServiceWorker);
 

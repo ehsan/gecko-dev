@@ -918,9 +918,21 @@ nsSVGElement::WalkAnimatedContentStyleRules(nsRuleWalker* aRuleWalker)
   // whether this is a "no-animation restyle". (This should match the check
   // in nsHTMLCSSStyleSheet::RulesMatching(), where we determine whether to
   // apply the SMILOverrideStyle.)
-  RestyleManager* restyleManager = aRuleWalker->PresContext()->RestyleManager();
-  if (!restyleManager->SkipAnimationRules()) {
-    // update/walk the animated content style rule.
+  nsPresContext* context = aRuleWalker->PresContext();
+  nsIPresShell* shell = context->PresShell();
+  RestyleManager* restyleManager = context->RestyleManager();
+  if (restyleManager->SkipAnimationRules()) {
+    if (restyleManager->PostAnimationRestyles()) {
+      // Any style changes right now could trigger CSS Transitions. We don't
+      // want that to happen from SMIL-animated value of mapped attrs, so
+      // ignore animated value for now, and request an animation restyle to
+      // get our animated value noticed.
+      shell->RestyleForAnimation(this,
+        eRestyle_SVGAttrAnimations | eRestyle_ChangeAnimationPhase);
+    }
+  } else {
+    // Ok, this is an animation restyle -- go ahead and update/walk the
+    // animated content style rule.
     css::StyleRule* animContentStyleRule = GetAnimatedContentStyleRule();
     if (!animContentStyleRule) {
       UpdateAnimatedContentStyleRule();

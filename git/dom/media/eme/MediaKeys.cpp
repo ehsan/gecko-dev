@@ -367,8 +367,7 @@ MediaKeys::OnCDMCreated(PromiseId aId, const nsACString& aNodeId)
     Release();
   }
 
-  MediaKeySystemAccess::NotifyObservers(mParent,
-                                        mKeySystem,
+  MediaKeySystemAccess::NotifyObservers(mKeySystem,
                                         MediaKeySystemStatus::Cdm_created);
 }
 

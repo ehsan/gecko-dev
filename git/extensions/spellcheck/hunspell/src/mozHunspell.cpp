@@ -490,9 +490,6 @@ mozHunspell::LoadDictionariesFromDir(nsIFile* aDir)
     printf("Adding dictionary: %s\n", NS_ConvertUTF16toUTF8(dict).get());
 #endif
 
-    // Replace '_' separator with '-'
-    dict.ReplaceChar("_", '-');
-
     mDictionaries.Put(dict, file);
   }
 

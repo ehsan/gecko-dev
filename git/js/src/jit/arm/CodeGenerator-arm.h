@@ -73,10 +73,6 @@ class CodeGeneratorARM : public CodeGeneratorShared
         bailoutIf(Assembler::Zero, snapshot);
     }
 
-    template<class T>
-    void generateUDivModZeroCheck(Register rhs, Register output, Label *done, LSnapshot *snapshot,
-                                  T *mir);
-
   protected:
     bool generatePrologue();
     bool generateEpilogue();

@@ -16,7 +16,6 @@
 #include "nsStyleChangeList.h"
 #include "RestyleManager.h"
 #include "RestyleTrackerInlines.h"
-#include "nsTransitionManager.h"
 
 namespace mozilla {
 
@@ -222,8 +221,7 @@ RestyleTracker::DoProcessRestyles()
 
     LOG_RESTYLE("Processing %d pending %srestyles with %d restyle roots for %s",
                 mPendingRestyles.Count(),
-                mRestyleManager->PresContext()->TransitionManager()->
-                  InAnimationOnlyStyleUpdate()
+                mRestyleManager->IsProcessingAnimationStyleChange()
                   ? (const char*) "animation " : (const char*) "",
                 static_cast<int>(mRestyleRoots.Length()),
                 GetDocumentURI(Document()).get());

@@ -338,14 +338,13 @@ public:
     return mLayer->GetClipRect();
   }
 
-  EventRegionsOverride GetEventRegionsOverride() const
-  {
+  bool GetForceDispatchToContentRegion() const {
     MOZ_ASSERT(IsValid());
 
     if (mLayer->AsContainerLayer()) {
-      return mLayer->AsContainerLayer()->GetEventRegionsOverride();
+      return mLayer->AsContainerLayer()->GetForceDispatchToContentRegion();
     }
-    return EventRegionsOverride::NoOverride;
+    return false;
   }
 
   // Expose an opaque pointer to the layer. Mostly used for printf

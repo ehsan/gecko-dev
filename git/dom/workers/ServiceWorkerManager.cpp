@@ -565,8 +565,7 @@ public:
     MOZ_ASSERT(!swm->mSetOfScopesBeingUpdated.Contains(mRegistration->mScope));
     swm->mSetOfScopesBeingUpdated.Put(mRegistration->mScope, true);
     nsRefPtr<ServiceWorker> serviceWorker;
-    rv = swm->CreateServiceWorker(mRegistration->mPrincipal,
-                                  mRegistration->mScriptSpec,
+    rv = swm->CreateServiceWorker(mRegistration->mScriptSpec,
                                   mRegistration->mScope,
                                   getter_AddRefs(serviceWorker));
 
@@ -631,8 +630,7 @@ public:
 
     nsRefPtr<ServiceWorker> serviceWorker;
     nsresult rv =
-      swm->CreateServiceWorker(mRegistration->mPrincipal,
-                               mRegistration->mInstallingWorker->ScriptSpec(),
+      swm->CreateServiceWorker(mRegistration->mInstallingWorker->ScriptSpec(),
                                mRegistration->mScope,
                                getter_AddRefs(serviceWorker));
 
@@ -1147,8 +1145,7 @@ ServiceWorkerRegistrationInfo::Activate()
   MOZ_ASSERT(mActiveWorker);
   nsRefPtr<ServiceWorker> serviceWorker;
   nsresult rv =
-    swm->CreateServiceWorker(mPrincipal,
-                             mActiveWorker->ScriptSpec(),
+    swm->CreateServiceWorker(mActiveWorker->ScriptSpec(),
                              mScope,
                              getter_AddRefs(serviceWorker));
   if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -1204,33 +1201,8 @@ public:
 
     nsTArray<nsRefPtr<ServiceWorkerRegistration>> array;
 
-    bool isNullPrincipal = true;
-    nsresult rv = principal->GetIsNullPrincipal(&isNullPrincipal);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      return rv;
-    }
-
-    if (nsContentUtils::IsSystemPrincipal(principal) || isNullPrincipal) {
-      mPromise->MaybeResolve(array);
-      return NS_OK;
-    }
-
     for (uint32_t i = 0; i < swm->mOrderedScopes.Length(); ++i) {
       NS_ConvertUTF8toUTF16 scope(swm->mOrderedScopes[i]);
-
-      nsCOMPtr<nsIURI> scopeURI;
-      nsresult rv = NS_NewURI(getter_AddRefs(scopeURI), scope, nullptr, nullptr);
-      if (NS_WARN_IF(NS_FAILED(rv))) {
-        mPromise->MaybeReject(rv);
-        break;
-      }
-
-      rv = principal->CheckMayLoad(scopeURI, true /* report */,
-                                   false /* allowIfInheritsPrincipal */);
-      if (NS_WARN_IF(NS_FAILED(rv))) {
-        continue;
-      }
-
       nsRefPtr<ServiceWorkerRegistration> swr =
         new ServiceWorkerRegistration(mWindow, scope);
 
@@ -2188,13 +2160,11 @@ ServiceWorkerManager::GetActive(nsIDOMWindow* aWindow,
 }
 
 NS_IMETHODIMP
-ServiceWorkerManager::CreateServiceWorker(nsIPrincipal* aPrincipal,
-                                          const nsACString& aScriptSpec,
+ServiceWorkerManager::CreateServiceWorker(const nsACString& aScriptSpec,
                                           const nsACString& aScope,
                                           ServiceWorker** aServiceWorker)
 {
   AssertIsOnMainThread();
-  MOZ_ASSERT(aPrincipal);
 
   WorkerPrivate::LoadInfo info;
   nsresult rv = NS_NewURI(getter_AddRefs(info.mBaseURI), aScriptSpec, nullptr, nullptr);
@@ -2209,7 +2179,14 @@ ServiceWorkerManager::CreateServiceWorker(nsIPrincipal* aPrincipal,
     return rv;
   }
 
-  info.mPrincipal = aPrincipal;
+  // FIXME(nsm): Create correct principal based on app-ness.
+  // Would it make sense to store the nsIPrincipal of the first register() in
+  // the ServiceWorkerRegistrationInfo and use that?
+  nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
+  rv = ssm->GetNoAppCodebasePrincipal(info.mBaseURI, getter_AddRefs(info.mPrincipal));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
 
   // NOTE: this defaults the SW load context to:
   //  - private browsing = false

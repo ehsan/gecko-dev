@@ -186,7 +186,7 @@ public:
   uint64_t GetLastVideoFrameTime();
   void SetLastVideoFrameTime(uint64_t aFrameTime);
   layers::LayersBackend GetLayersBackendType() { return mLayersBackendType; }
-  FlushableMediaTaskQueue* GetVideoTaskQueue() { return mVideoTaskQueue; }
+  MediaTaskQueue* GetVideoTaskQueue() { return mVideoTaskQueue; }
 
 protected:
   // Setup opus decoder
@@ -277,7 +277,7 @@ private:
   layers::LayersBackend mLayersBackendType;
 
   // For hardware video decoding.
-  nsRefPtr<FlushableMediaTaskQueue> mVideoTaskQueue;
+  nsRefPtr<MediaTaskQueue> mVideoTaskQueue;
 
   // Booleans to indicate if we have audio and/or video data
   bool mHasVideo;

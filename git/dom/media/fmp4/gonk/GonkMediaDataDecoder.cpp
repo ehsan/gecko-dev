@@ -117,7 +117,7 @@ GonkDecoderManager::Flush()
 }
 
 GonkMediaDataDecoder::GonkMediaDataDecoder(GonkDecoderManager* aManager,
-                                           FlushableMediaTaskQueue* aTaskQueue,
+                                           MediaTaskQueue* aTaskQueue,
                                            MediaDataDecoderCallback* aCallback)
   : mTaskQueue(aTaskQueue)
   , mCallback(aCallback)

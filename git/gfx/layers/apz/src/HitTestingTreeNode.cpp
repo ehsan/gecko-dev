@@ -21,7 +21,7 @@ HitTestingTreeNode::HitTestingTreeNode(AsyncPanZoomController* aApzc,
                                        bool aIsPrimaryHolder)
   : mApzc(aApzc)
   , mIsPrimaryApzcHolder(aIsPrimaryHolder)
-  , mOverride(EventRegionsOverride::NoOverride)
+  , mForceDispatchToContent(false)
 {
   if (mIsPrimaryApzcHolder) {
     MOZ_ASSERT(mApzc);
@@ -157,12 +157,12 @@ void
 HitTestingTreeNode::SetHitTestData(const EventRegions& aRegions,
                                    const gfx::Matrix4x4& aTransform,
                                    const Maybe<nsIntRegion>& aClipRegion,
-                                   const EventRegionsOverride& aOverride)
+                                   bool aForceDispatchToContent)
 {
   mEventRegions = aRegions;
   mTransform = aTransform;
   mClipRegion = aClipRegion;
-  mOverride = aOverride;
+  mForceDispatchToContent = aForceDispatchToContent;
 }
 
 bool
@@ -193,10 +193,6 @@ HitTestingTreeNode::HitTest(const ParentLayerPoint& aPoint) const
   // for this node.
   MOZ_ASSERT(!IsOutsideClip(aPoint));
 
-  if (mOverride & EventRegionsOverride::ForceEmptyHitRegion) {
-    return HitTestResult::HitNothing;
-  }
-
   // When event regions are disabled and we have an APZC on this node, we are
   // actually storing the touch-sensitive section of the composition bounds in
   // the clip region, and we don't need to check against the mEventRegions.
@@ -217,7 +213,7 @@ HitTestingTreeNode::HitTest(const ParentLayerPoint& aPoint) const
   if (!mEventRegions.mHitRegion.Contains(point.x, point.y)) {
     return HitTestResult::HitNothing;
   }
-  if ((mOverride & EventRegionsOverride::ForceDispatchToContent) ||
+  if (mForceDispatchToContent ||
       mEventRegions.mDispatchToContentHitRegion.Contains(point.x, point.y))
   {
     return HitTestResult::HitDispatchToContentRegion;
@@ -225,10 +221,10 @@ HitTestingTreeNode::HitTest(const ParentLayerPoint& aPoint) const
   return HitTestResult::HitLayer;
 }
 
-EventRegionsOverride
-HitTestingTreeNode::GetEventRegionsOverride() const
+bool
+HitTestingTreeNode::GetForceDispatchToContent() const
 {
-  return mOverride;
+  return mForceDispatchToContent;
 }
 
 void
@@ -237,10 +233,9 @@ HitTestingTreeNode::Dump(const char* aPrefix) const
   if (mPrevSibling) {
     mPrevSibling->Dump(aPrefix);
   }
-  printf_stderr("%sHitTestingTreeNode (%p) APZC (%p) g=(%s) %s%sr=(%s) t=(%s) c=(%s)\n",
+  printf_stderr("%sHitTestingTreeNode (%p) APZC (%p) g=(%s) %sr=(%s) t=(%s) c=(%s)\n",
     aPrefix, this, mApzc.get(), mApzc ? Stringify(mApzc->GetGuid()).c_str() : "",
-    (mOverride & EventRegionsOverride::ForceDispatchToContent) ? "fdtc " : "",
-    (mOverride & EventRegionsOverride::ForceEmptyHitRegion) ? "fehr " : "",
+    mForceDispatchToContent ? "fdtc " : "",
     Stringify(mEventRegions).c_str(), Stringify(mTransform).c_str(),
     mClipRegion ? Stringify(mClipRegion.ref()).c_str() : "none");
   if (mLastChild) {

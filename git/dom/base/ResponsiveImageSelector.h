@@ -27,7 +27,6 @@ public:
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(ResponsiveImageSelector)
 
   explicit ResponsiveImageSelector(nsIContent* aContent);
-  explicit ResponsiveImageSelector(nsIDocument* aDocument);
 
   // NOTE ABOUT CURRENT SELECTION
   //
@@ -50,23 +49,16 @@ public:
   bool SetSizesFromDescriptor(const nsAString & aSizesDescriptor);
 
   // Set the default source, treated as the least-precedence 1.0 density source.
-  void SetDefaultSource(const nsAString& aURLString);
+  nsresult SetDefaultSource(const nsAString & aSpec);
+  void SetDefaultSource(nsIURI *aURL);
 
   uint32_t NumCandidates(bool aIncludeDefault = true);
 
-  // If this was created for a specific content. May be null if we were only
-  // created for a document.
-  nsIContent *Content();
-
-  // The document we were created for, or the owner document of the content if
-  // we were created for a specific nsIContent.
-  nsIDocument *Document();
+  nsIContent *Content() { return mContent; }
 
   // Get the url and density for the selected best candidate. These
   // implicitly cause an image to be selected if necessary.
   already_AddRefed<nsIURI> GetSelectedImageURL();
-  // Returns false if there is no selected image
-  bool GetSelectedImageURLSpec(nsAString& aResult);
   double GetSelectedImageDensity();
 
   // Runs image selection now if necessary. If an image has already
@@ -87,14 +79,10 @@ private:
 
   // Append a default candidate with this URL. Does not check if the array
   // already contains one, use SetDefaultSource instead.
-  void AppendDefaultCandidate(const nsAString& aURLString);
+  void AppendDefaultCandidate(nsIURI *aURL);
 
-  // Get index of selected candidate, triggering selection if necessary.
-  int GetSelectedCandidateIndex();
-
-  // Forget currently selected candidate. (See "NOTE ABOUT CURRENT SELECTION"
-  // above.)
-  void ClearSelectedCandidate();
+  // Get index of best candidate
+  int GetBestCandidateIndex();
 
   // Compute a density from a Candidate width. Returns false if sizes were not
   // specified for this selector.
@@ -103,14 +91,11 @@ private:
   // use the associated content's context.
   bool ComputeFinalWidthForCurrentViewport(int32_t *aWidth);
 
-  nsCOMPtr<nsINode> mOwnerNode;
+  nsCOMPtr<nsIContent> mContent;
   // If this array contains an eCandidateType_Default, it should be the last
   // element, such that the Setters can preserve/replace it respectively.
   nsTArray<ResponsiveImageCandidate> mCandidates;
-  int mSelectedCandidateIndex;
-  // The cached resolved URL for mSelectedCandidateIndex, such that we only
-  // resolve the absolute URL at selection time
-  nsCOMPtr<nsIURI> mSelectedCandidateURL;
+  int mBestCandidateIndex;
 
   nsTArray< nsAutoPtr<nsMediaQuery> > mSizeQueries;
   nsTArray<nsCSSValue> mSizeValues;
@@ -119,9 +104,9 @@ private:
 class ResponsiveImageCandidate {
 public:
   ResponsiveImageCandidate();
-  ResponsiveImageCandidate(const nsAString& aURLString, double aDensity);
+  ResponsiveImageCandidate(nsIURI *aURL, double aDensity);
 
-  void SetURLSpec(const nsAString& aURLString);
+  void SetURL(nsIURI *aURL);
   // Set this as a default-candidate. This behaves the same as density 1.0, but
   // has a differing type such that it can be replaced by subsequent
   // SetDefaultSource calls.
@@ -131,19 +116,14 @@ public:
   void SetParameterAsDensity(double aDensity);
   void SetParameterAsComputedWidth(int32_t aWidth);
 
-  void SetParameterInvalid();
-
-  // Consume descriptors from a string defined by aIter and aIterEnd, adjusts
-  // aIter to the end of data consumed.
-  // Returns false if descriptors string is invalid, but still parses to the end
-  // of descriptors microsyntax.
-  bool ConsumeDescriptors(nsAString::const_iterator& aIter,
-                          const nsAString::const_iterator& aIterEnd);
+  // Fill from a valid candidate descriptor. Returns false descriptor is
+  // invalid.
+  bool SetParamaterFromDescriptor(const nsAString & aDescriptor);
 
   // Check if our parameter (which does not include the url) is identical
   bool HasSameParameter(const ResponsiveImageCandidate & aOther) const;
 
-  const nsAString& URLString() const;
+  already_AddRefed<nsIURI> URL() const;
 
   // Compute and return the density relative to a selector.
   double Density(ResponsiveImageSelector *aSelector) const;
@@ -167,7 +147,7 @@ public:
 
 private:
 
-  nsString mURLString;
+  nsCOMPtr<nsIURI> mURL;
   eCandidateType mType;
   union {
     double mDensity;

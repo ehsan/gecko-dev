@@ -352,8 +352,6 @@ Atomic<size_t> gfxWindowsPlatform::sD3D9MemoryUsed;
 
 class D3D9TextureReporter MOZ_FINAL : public nsIMemoryReporter
 {
-  ~D3D9TextureReporter() {}
-
 public:
   NS_DECL_ISUPPORTS
 
@@ -372,8 +370,6 @@ Atomic<size_t> gfxWindowsPlatform::sD3D9SurfaceImageUsed;
 
 class D3D9SurfaceImageReporter MOZ_FINAL : public nsIMemoryReporter
 {
-  ~D3D9SurfaceImageReporter() {}
-
 public:
   NS_DECL_ISUPPORTS
 
@@ -392,8 +388,6 @@ Atomic<size_t> gfxWindowsPlatform::sD3D9SharedTextureUsed;
 
 class D3D9SharedTextureReporter MOZ_FINAL : public nsIMemoryReporter
 {
-  ~D3D9SharedTextureReporter() {}
-
 public:
   NS_DECL_ISUPPORTS
 

@@ -18,7 +18,7 @@
 
 namespace mozilla {
 
-class FlushableMediaTaskQueue;
+class MediaTaskQueue;
 class MediaDataDecoderCallback;
 namespace layers {
   class ImageContainer;
@@ -61,12 +61,12 @@ public:
   // not supported by current configuration.
   static already_AddRefed<AppleVDADecoder> CreateVDADecoder(
     const mp4_demuxer::VideoDecoderConfig& aConfig,
-    FlushableMediaTaskQueue* aVideoTaskQueue,
+    MediaTaskQueue* aVideoTaskQueue,
     MediaDataDecoderCallback* aCallback,
     layers::ImageContainer* aImageContainer);
 
   AppleVDADecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
-                  FlushableMediaTaskQueue* aVideoTaskQueue,
+                  MediaTaskQueue* aVideoTaskQueue,
                   MediaDataDecoderCallback* aCallback,
                   layers::ImageContainer* aImageContainer);
   virtual ~AppleVDADecoder();
@@ -86,7 +86,7 @@ public:
   CFDictionaryRef CreateOutputConfiguration();
 
   const mp4_demuxer::VideoDecoderConfig& mConfig;
-  nsRefPtr<FlushableMediaTaskQueue> mTaskQueue;
+  nsRefPtr<MediaTaskQueue> mTaskQueue;
   MediaDataDecoderCallback* mCallback;
   nsRefPtr<layers::ImageContainer> mImageContainer;
   ReorderQueue mReorderQueue;

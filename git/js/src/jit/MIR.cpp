@@ -629,7 +629,6 @@ MConstant *
 MConstant::NewTypedValue(TempAllocator &alloc, const Value &v, MIRType type, CompilerConstraintList *constraints)
 {
     MOZ_ASSERT(!IsSimdType(type));
-    MOZ_ASSERT_IF(type == MIRType_Float32, v.toDouble() == double(float(v.toDouble())));
     MConstant *constant = new(alloc) MConstant(v, constraints);
     constant->setResultType(type);
     return constant;
@@ -638,8 +637,6 @@ MConstant::NewTypedValue(TempAllocator &alloc, const Value &v, MIRType type, Com
 MConstant *
 MConstant::NewAsmJS(TempAllocator &alloc, const Value &v, MIRType type)
 {
-    if (type == MIRType_Float32)
-        return NewTypedValue(alloc, Float32Value(v.toNumber()), type);
     return NewTypedValue(alloc, v, type);
 }
 

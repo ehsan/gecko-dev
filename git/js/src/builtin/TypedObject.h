@@ -518,6 +518,12 @@ class TypedObject : public JSObject
                                     uint32_t index,
                                     MutableHandleValue vp);
 
+    static bool obj_setArrayElement(JSContext *cx,
+                                    Handle<TypedObject*> typedObj,
+                                    Handle<TypeDescr*> typeDescr,
+                                    uint32_t index,
+                                    MutableHandleValue vp);
+
   protected:
     static bool obj_lookupProperty(JSContext *cx, HandleObject obj,
                                    HandleId id, MutableHandleObject objp,
@@ -539,6 +545,8 @@ class TypedObject : public JSObject
 
     static bool obj_setProperty(JSContext *cx, HandleObject obj, HandleObject receiver,
                                 HandleId id, MutableHandleValue vp, bool strict);
+    static bool obj_setElement(JSContext *cx, HandleObject obj, HandleObject receiver,
+                               uint32_t index, MutableHandleValue vp, bool strict);
 
     static bool obj_getOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
                                              MutableHandle<JSPropertyDescriptor> desc);

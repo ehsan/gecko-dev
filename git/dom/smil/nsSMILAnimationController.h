@@ -22,7 +22,6 @@ struct nsSMILTargetIdentifier;
 class nsIDocument;
 
 namespace mozilla {
-class RestyleTracker;
 namespace dom {
 class SVGAnimationElement;
 }
@@ -106,8 +105,6 @@ public:
   bool HasRegisteredAnimations()
   { return mAnimationElementTable.Count() != 0; }
 
-  void AddStyleUpdatesTo(mozilla::RestyleTracker& aTracker);
-
 protected:
   ~nsSMILAnimationController();
 
@@ -177,9 +174,6 @@ protected:
     mozilla::dom::SVGAnimationElement* aElement, nsSMILCompositorTable* aCompositorTable);
   static bool GetTargetIdentifierForAnimation(
       mozilla::dom::SVGAnimationElement* aAnimElem, nsSMILTargetIdentifier& aResult);
-
-  static PLDHashOperator
-    AddStyleUpdate(AnimationElementPtrKey* aKey, void* aData);
 
   // Methods for adding/removing time containers
   virtual nsresult AddChild(nsSMILTimeContainer& aChild) MOZ_OVERRIDE;

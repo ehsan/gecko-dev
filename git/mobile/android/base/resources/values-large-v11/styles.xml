@@ -56,7 +56,8 @@
     </style>
 
     <style name="TabsLayout" parent="TabsLayoutBase">
-         <item name="android:scrollbars">vertical</item>
+         <item name="android:orientation">horizontal</item>
+         <item name="android:scrollbars">horizontal</item>
     </style>
 
     <style name="TabsItem">

@@ -373,6 +373,13 @@ CommonAnimationManager::GetAnimationRule(mozilla::dom::Element* aElement,
 
   RestyleManager* restyleManager = mPresContext->RestyleManager();
   if (restyleManager->SkipAnimationRules()) {
+    // During the non-animation part of processing restyles, we don't
+    // add the animation rule.
+
+    if (collection->mStyleRule && restyleManager->PostAnimationRestyles()) {
+      collection->PostRestyleForAnimation(mPresContext);
+    }
+
     return nullptr;
   }
 
@@ -818,14 +825,6 @@ AnimationPlayerCollection::UpdateAnimationGeneration(
   nsPresContext* aPresContext)
 {
   mAnimationGeneration =
-    aPresContext->RestyleManager()->GetAnimationGeneration();
-}
-
-void
-AnimationPlayerCollection::UpdateCheckGeneration(
-  nsPresContext* aPresContext)
-{
-  mCheckGeneration =
     aPresContext->RestyleManager()->GetAnimationGeneration();
 }
 

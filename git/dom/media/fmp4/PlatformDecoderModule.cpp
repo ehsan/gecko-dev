@@ -86,7 +86,8 @@ PlatformDecoderModule::Init()
 already_AddRefed<PlatformDecoderModule>
 PlatformDecoderModule::CreateCDMWrapper(CDMProxy* aProxy,
                                         bool aHasAudio,
-                                        bool aHasVideo)
+                                        bool aHasVideo,
+                                        MediaTaskQueue* aTaskQueue)
 {
   bool cdmDecodesAudio;
   bool cdmDecodesVideo;

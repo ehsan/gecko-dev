@@ -346,8 +346,8 @@ nsRubyBaseContainerFrame::Reflow(nsPresContext* aPresContext,
   }
 
   WritingMode lineWM = aReflowState.mLineLayout->GetWritingMode();
-  LogicalSize availSize(lineWM, aReflowState.AvailableISize(),
-                        aReflowState.AvailableBSize());
+  LogicalSize availSize(lineWM, aReflowState.AvailableWidth(),
+                        aReflowState.AvailableHeight());
 
   // We have a reflow state and a line layout for each RTC.
   // They are conceptually the state of the RTCs, but we don't actually
@@ -464,7 +464,8 @@ nsRubyBaseContainerFrame::Reflow(nsPresContext* aPresContext,
     }
 
     lineLayout->VerticalAlignLine();
-    textContainer->SetISize(rtcISize);
+    LogicalSize lineSize(lineWM, rtcISize, lineLayout->GetFinalLineBSize());
+    textContainer->SetLineSize(lineSize);
     lineLayout->EndLineReflow();
   }
 
