@@ -7,7 +7,6 @@
 #include "nsSVGOuterSVGFrame.h"
 
 // Keep others in (case-insensitive) order:
-#include "gfxMatrix.h"
 #include "nsDisplayList.h"
 #include "nsIDocument.h"
 #include "nsIDOMWindow.h"
@@ -805,7 +804,7 @@ nsSVGOuterSVGFrame::PaintSVG(nsRenderingContext* aContext,
 }
 
 SVGBBox
-nsSVGOuterSVGFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
+nsSVGOuterSVGFrame::GetBBoxContribution(const gfx::Matrix &aToBBoxUserspace,
                                         uint32_t aFlags)
 {
   NS_ASSERTION(GetFirstPrincipalChild()->GetType() ==
@@ -932,7 +931,7 @@ nsSVGOuterSVGAnonChildFrame::GetType() const
 }
 
 bool
-nsSVGOuterSVGAnonChildFrame::HasChildrenOnlyTransform(gfxMatrix *aTransform) const
+nsSVGOuterSVGAnonChildFrame::HasChildrenOnlyTransform(gfx::Matrix *aTransform) const
 {
   // We must claim our nsSVGOuterSVGFrame's children-only transforms as our own
   // so that the children we are used to wrap are transformed properly.
@@ -944,9 +943,9 @@ nsSVGOuterSVGAnonChildFrame::HasChildrenOnlyTransform(gfxMatrix *aTransform) con
   if (hasTransform && aTransform) {
     // Outer-<svg> doesn't use x/y, so we can pass eChildToUserSpace here.
     gfxMatrix identity;
-    *aTransform =
+    *aTransform = gfx::ToMatrix(
       content->PrependLocalTransformsTo(identity,
-                                        nsSVGElement::eChildToUserSpace);
+                                        nsSVGElement::eChildToUserSpace));
   }
 
   return hasTransform;
