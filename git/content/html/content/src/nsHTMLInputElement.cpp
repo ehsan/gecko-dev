@@ -918,7 +918,7 @@ nsHTMLInputElement::AfterSetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 
       states |= NS_EVENT_STATE_REQUIRED | NS_EVENT_STATE_OPTIONAL |
                 NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
-    } else if (MaxLengthApplies() && aName == nsGkAtoms::maxlength) {
+    } else if (aName == nsGkAtoms::maxlength) {
       UpdateTooLongValidityState();
       states |= NS_EVENT_STATE_VALID | NS_EVENT_STATE_INVALID;
     } else if (aName == nsGkAtoms::pattern) {
@@ -3711,24 +3711,17 @@ nsHTMLInputElement::SetCustomValidity(const nsAString& aError)
 PRBool
 nsHTMLInputElement::IsTooLong()
 {
-  if (!MaxLengthApplies() ||
-      !HasAttr(kNameSpaceID_None, nsGkAtoms::maxlength) ||
-      !GET_BOOLBIT(mBitField, BF_VALUE_CHANGED)) {
+  if (!GET_BOOLBIT(mBitField, BF_VALUE_CHANGED)) {
     return PR_FALSE;
   }
 
   PRInt32 maxLength = -1;
-  GetMaxLength(&maxLength);
-
-  // Maxlength of -1 means parsing error.
-  if (maxLength == -1) {
-    return PR_FALSE;
-  }
-
   PRInt32 textLength = -1;
+
+  GetMaxLength(&maxLength);
   GetTextLength(&textLength);
 
-  return textLength > maxLength;
+  return maxLength >= 0 && textLength > maxLength;
 }
 
 PRBool

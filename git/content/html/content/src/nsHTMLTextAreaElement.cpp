@@ -1177,22 +1177,17 @@ nsHTMLTextAreaElement::SetCustomValidity(const nsAString& aError)
 PRBool
 nsHTMLTextAreaElement::IsTooLong()
 {
-  if (!HasAttr(kNameSpaceID_None, nsGkAtoms::maxlength) || !mValueChanged) {
+  if (!mValueChanged) {
     return PR_FALSE;
   }
 
   PRInt32 maxLength = -1;
-  GetMaxLength(&maxLength);
-
-  // Maxlength of -1 means parsing error.
-  if (maxLength == -1) {
-    return PR_FALSE;
-  }
-
   PRInt32 textLength = -1;
+
+  GetMaxLength(&maxLength);
   GetTextLength(&textLength);
 
-  return textLength > maxLength;
+  return maxLength >= 0 && textLength > maxLength;
 }
 
 PRBool
