@@ -52,11 +52,11 @@ public:
 
   virtual uint8_t* GetBuffer() MOZ_OVERRIDE;
 
-  gfx::IntSize GetSize() MOZ_OVERRIDE;
+  gfx::IntSize GetSize();
 
   size_t GetBufferSize();
 
-  TemporaryRef<gfx::SourceSurface> GetAsSourceSurface() MOZ_OVERRIDE;
+  TemporaryRef<gfx::SourceSurface> GetAsSourceSurface();
 
   bool Allocate(gfx::IntSize aSize, gfx::SurfaceFormat aFormat);
 private:

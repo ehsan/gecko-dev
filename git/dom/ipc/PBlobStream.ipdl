@@ -6,6 +6,8 @@ include protocol PBlob;
 include protocol PFileDescriptorSet;
 include InputStreamParams;
 
+using mozilla::void_t from "ipc/IPCMessageUtils.h";
+
 namespace mozilla {
 namespace dom {
 

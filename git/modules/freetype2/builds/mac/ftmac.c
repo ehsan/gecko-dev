@@ -5,7 +5,7 @@
 /*    Mac FOND support.  Written by just@letterror.com.                    */
 /*  Heavily Fixed by mpsuzuki, George Williams and Sean McBride            */
 /*                                                                         */
-/*  Copyright 1996-2008, 2013, 2014 by                                     */
+/*  Copyright 1996-2008, 2013 by                                           */
 /*  Just van Rossum, David Turner, Robert Wilhelm, and Werner Lemberg.     */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -204,9 +204,6 @@ typedef short ResourceIndex;
     FMFontFamily          family   = 0;
 
 
-    if ( !fontName || !face_index )
-      return FT_THROW( Invalid_Argument );
-
     *face_index = 0;
     while ( status == 0 && !the_font )
     {
@@ -384,7 +381,7 @@ typedef short ResourceIndex;
 
 
     err = FT_GetFileRef_From_Mac_ATS_Name( fontName, &ref, face_index );
-    if ( err )
+    if ( FT_Err_Ok != err )
       return err;
 
     if ( noErr != FSRefMakePath( &ref, path, maxPathSize ) )
@@ -423,7 +420,7 @@ typedef short ResourceIndex;
 
 
     err = FT_GetFileRef_From_Mac_ATS_Name( fontName, &ref, face_index );
-    if ( err )
+    if ( FT_Err_Ok != err )
       return err;
 
     if ( noErr != FSGetCatalogInfo( &ref, kFSCatInfoNone, NULL, NULL,
@@ -1241,9 +1238,6 @@ typedef short ResourceIndex;
     FT_Error  error = FT_Err_Ok;
 
 
-    /* test for valid `aface' and `library' delayed to */
-    /* `FT_New_Face_From_XXX'                          */
-
     GetResInfo( fond, &fond_id, &fond_type, fond_name );
     if ( ResError() != noErr || fond_type != TTAG_FOND )
       return FT_THROW( Invalid_File_Format );
@@ -1447,8 +1441,6 @@ typedef short ResourceIndex;
     OSErr   err;
     UInt8   pathname[PATH_MAX];
 
-
-    /* test for valid `library' and `aface' delayed to `FT_Open_Face' */
 
     if ( !ref )
       return FT_THROW( Invalid_Argument );

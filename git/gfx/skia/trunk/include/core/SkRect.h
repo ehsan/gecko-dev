@@ -277,6 +277,7 @@ struct SK_API SkIRect {
         rectangle. If either rectangle is empty, do nothing and return false.
     */
     bool intersect(const SkIRect& a, const SkIRect& b) {
+        SkASSERT(&a && &b);
 
         if (!a.isEmpty() && !b.isEmpty() &&
                 a.fLeft < b.fRight && b.fLeft < a.fRight &&
@@ -297,6 +298,7 @@ struct SK_API SkIRect {
         we assert that both rectangles are non-empty.
     */
     bool intersectNoEmptyCheck(const SkIRect& a, const SkIRect& b) {
+        SkASSERT(&a && &b);
         SkASSERT(!a.isEmpty() && !b.isEmpty());
 
         if (a.fLeft < b.fRight && b.fLeft < a.fRight &&
@@ -455,11 +457,11 @@ struct SK_API SkRect {
         accum *= fBottom;
 
         // accum is either NaN or it is finite (zero).
-        SkASSERT(0 == accum || SkScalarIsNaN(accum));
+        SkASSERT(0 == accum || !(accum == accum));
 
         // value==value will be true iff value is not NaN
         // TODO: is it faster to say !accum or accum==accum?
-        return !SkScalarIsNaN(accum);
+        return accum == accum;
     }
 
     SkScalar    x() const { return fLeft; }

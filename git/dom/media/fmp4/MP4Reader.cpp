@@ -206,13 +206,14 @@ MP4Reader::Init(MediaDecoderReader* aCloneDonor)
   MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
   PlatformDecoderModule::Init();
   mStream = new MP4Stream(mDecoder->GetResource());
+  mTimestampOffset = GetDecoder()->GetTimestampOffset();
 
   InitLayersBackendType();
 
-  mAudio.mTaskQueue = new FlushableMediaTaskQueue(GetMediaDecodeThreadPool());
+  mAudio.mTaskQueue = new MediaTaskQueue(GetMediaDecodeThreadPool());
   NS_ENSURE_TRUE(mAudio.mTaskQueue, NS_ERROR_FAILURE);
 
-  mVideo.mTaskQueue = new FlushableMediaTaskQueue(GetMediaDecodeThreadPool());
+  mVideo.mTaskQueue = new MediaTaskQueue(GetMediaDecodeThreadPool());
   NS_ENSURE_TRUE(mVideo.mTaskQueue, NS_ERROR_FAILURE);
 
   static bool sSetupPrefCache = false;
@@ -341,7 +342,7 @@ MP4Reader::PreReadMetadata()
 bool
 MP4Reader::InitDemuxer()
 {
-  mDemuxer = new MP4Demuxer(mStream, &mDemuxerMonitor);
+  mDemuxer = new MP4Demuxer(mStream, mTimestampOffset, &mDemuxerMonitor);
   return mDemuxer->Init();
 }
 
@@ -364,7 +365,7 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     {
       MonitorAutoUnlock unlock(mDemuxerMonitor);
       ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      mInfo.mIsEncrypted = mIsEncrypted = mDemuxer->Crypto().valid;
+      mIsEncrypted = mDemuxer->Crypto().valid;
     }
 
     // Remember that we've initialized the demuxer, so that if we're decoding
@@ -379,12 +380,14 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
 
   if (mDemuxer->Crypto().valid) {
 #ifdef MOZ_EME
+    if (!sIsEMEEnabled) {
+      // TODO: Need to signal DRM/EME required somehow...
+      return NS_ERROR_FAILURE;
+    }
+
     // We have encrypted audio or video. We'll need a CDM to decrypt and
     // possibly decode this. Wait until we've received a CDM from the
-    // JavaScript player app. Note: we still go through the motions here
-    // even if EME is disabled, so that if script tries and fails to create
-    // a CDM, we can detect that and notify chrome and show some UI explaining
-    // that we failed due to EME being disabled.
+    // JavaScript player app.
     nsRefPtr<CDMProxy> proxy;
     nsTArray<uint8_t> initData;
     ExtractCryptoInitData(initData);
@@ -408,7 +411,8 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
 
     mPlatform = PlatformDecoderModule::CreateCDMWrapper(proxy,
                                                         HasAudio(),
-                                                        HasVideo());
+                                                        HasVideo(),
+                                                        GetTaskQueue());
     NS_ENSURE_TRUE(mPlatform, NS_ERROR_FAILURE);
 #else
     // EME not supported.
@@ -443,9 +447,7 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     mInfo.mVideo.mDisplay =
       nsIntSize(video.display_width, video.display_height);
     mVideo.mCallback = new DecoderCallback(this, kVideo);
-    if (!mIsEncrypted && mSharedDecoderManager) {
-      // Note: Don't use SharedDecoderManager in EME content, as it doesn't
-      // handle reiniting the decoder properly yet.
+    if (mSharedDecoderManager) {
       mVideo.mDecoder =
         mSharedDecoderManager->CreateVideoDecoder(mPlatform,
                                                   video,
@@ -463,7 +465,6 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     NS_ENSURE_TRUE(mVideo.mDecoder != nullptr, NS_ERROR_FAILURE);
     nsresult rv = mVideo.mDecoder->Init();
     NS_ENSURE_SUCCESS(rv, rv);
-    mInfo.mVideo.mIsHardwareAccelerated = mVideo.mDecoder->IsHardwareAccelerated();
   }
 
   // Get the duration, and report it to the decoder if we have it.
@@ -555,7 +556,10 @@ MP4Reader::RequestVideoData(bool aSkipToNextKeyframe,
 
   if (mShutdown) {
     NS_WARNING("RequestVideoData on shutdown MP4Reader!");
-    return VideoDataPromise::CreateAndReject(CANCELED, __func__);
+    MonitorAutoLock lock(mVideo.mMonitor);
+    nsRefPtr<VideoDataPromise> p = mVideo.mPromise.Ensure(__func__);
+    p->Reject(CANCELED, __func__);
+    return p;
   }
 
   MOZ_ASSERT(HasVideo() && mPlatform && mVideo.mDecoder);
@@ -567,7 +571,7 @@ MP4Reader::RequestVideoData(bool aSkipToNextKeyframe,
     if (!eos && NS_FAILED(mVideo.mDecoder->Flush())) {
       NS_WARNING("Failed to skip/flush video when skipping-to-next-keyframe.");
     }
-    mDecoder->NotifyDecodedFrames(parsed, 0, parsed);
+    mDecoder->NotifyDecodedFrames(parsed, 0);
   }
 
   MonitorAutoLock lock(mVideo.mMonitor);
@@ -586,14 +590,14 @@ MP4Reader::RequestAudioData()
 {
   MOZ_ASSERT(GetTaskQueue()->IsCurrentThreadIn());
   VLOG("RequestAudioData");
-  if (mShutdown) {
-    NS_WARNING("RequestAudioData on shutdown MP4Reader!");
-    return AudioDataPromise::CreateAndReject(CANCELED, __func__);
-  }
-
   MonitorAutoLock lock(mAudio.mMonitor);
   nsRefPtr<AudioDataPromise> p = mAudio.mPromise.Ensure(__func__);
-  ScheduleUpdate(kAudio);
+  if (!mShutdown) {
+    ScheduleUpdate(kAudio);
+  } else {
+    NS_WARNING("RequestAudioData on shutdown MP4Reader!");
+    p->Reject(CANCELED, __func__);
+  }
   return p;
 }
 
@@ -641,7 +645,8 @@ MP4Reader::Update(TrackType aTrack)
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
-  AbstractMediaDecoder::AutoNotifyDecoded a(mDecoder);
+  uint32_t parsed = 0, decoded = 0;
+  AbstractMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
 
   bool needInput = false;
   bool needOutput = false;
@@ -656,7 +661,7 @@ MP4Reader::Update(TrackType aTrack)
     }
     if (aTrack == kVideo) {
       uint64_t delta = decoder.mNumSamplesOutput - mLastReportedNumDecodedFrames;
-      a.mDecoded = static_cast<uint32_t>(delta);
+      decoded = static_cast<uint32_t>(delta);
       mLastReportedNumDecodedFrames = decoder.mNumSamplesOutput;
     }
     if (decoder.HasPromise()) {
@@ -683,7 +688,7 @@ MP4Reader::Update(TrackType aTrack)
     if (sample) {
       decoder.mDecoder->Input(sample);
       if (aTrack == kVideo) {
-        a.mParsed++;
+        parsed++;
       }
     } else {
       {
@@ -1038,9 +1043,7 @@ void MP4Reader::NotifyResourcesStatusChanged()
 void
 MP4Reader::SetIdle()
 {
-  if (!mIsEncrypted && mSharedDecoderManager && mVideo.mDecoder) {
-    // Note: Don't use SharedDecoderManager in EME content, as it doesn't
-    // handle reiniting the decoder properly yet.
+  if (mSharedDecoderManager && mVideo.mDecoder) {
     mSharedDecoderManager->SetIdle(mVideo.mDecoder);
     NotifyResourcesStatusChanged();
   }

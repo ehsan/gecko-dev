@@ -34,7 +34,7 @@ protected:
 
   class ContextState {
   public:
-    explicit ContextState(const char* aSectionName)
+    ContextState(const char* aSectionName)
       : mSectionName(aSectionName)
     {}
 

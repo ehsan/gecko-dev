@@ -29,7 +29,10 @@
 #include "sandbox/win/src/sandbox.h"
 #include "sandbox/win/src/sandbox_factory.h"
 #include "mozilla/sandboxTarget.h"
-#include "mozilla/sandboxing/loggingCallbacks.h"
+
+#if defined(MOZ_CONTENT_SANDBOX)
+#include "mozilla/warnonlysandbox/wosCallbacks.h"
+#endif
 #endif
 
 #if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
@@ -195,7 +198,9 @@ content_process_main(int argc, char* argv[])
         }
         mozilla::SandboxTarget::Instance()->SetStartSandboxCallback(StartSandboxCallback);
 
-        mozilla::sandboxing::PrepareForLogging();
+#if defined(MOZ_CONTENT_SANDBOX)
+        mozilla::warnonlysandbox::PrepareForInit();
+#endif
     }
 #endif
 #endif

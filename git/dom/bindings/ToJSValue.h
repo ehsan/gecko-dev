@@ -23,13 +23,13 @@ namespace dom {
 // JSContext.
 
 // Accept strings.
-MOZ_WARN_UNUSED_RESULT bool
+bool
 ToJSValue(JSContext* aCx,
           const nsAString& aArgument,
           JS::MutableHandle<JS::Value> aValue);
 
 // Accept booleans.
-MOZ_WARN_UNUSED_RESULT inline bool
+inline bool
 ToJSValue(JSContext* aCx,
           bool aArgument,
           JS::MutableHandle<JS::Value> aValue)
@@ -125,7 +125,7 @@ ToJSValue(JSContext* aCx,
 }
 
 // Accept CallbackObjects
-MOZ_WARN_UNUSED_RESULT inline bool
+inline bool
 ToJSValue(JSContext* aCx,
           CallbackObject& aArgument,
           JS::MutableHandle<JS::Value> aValue)
@@ -141,7 +141,6 @@ ToJSValue(JSContext* aCx,
 // Accept objects that inherit from nsWrapperCache (e.g. most
 // DOM objects).
 template <class T>
-MOZ_WARN_UNUSED_RESULT
 typename EnableIf<IsBaseOf<nsWrapperCache, T>::value, bool>::Type
 ToJSValue(JSContext* aCx,
           T& aArgument,
@@ -157,7 +156,6 @@ ToJSValue(JSContext* aCx,
 
 // Accept typed arrays built from appropriate nsTArray values
 template<typename T>
-MOZ_WARN_UNUSED_RESULT
 typename EnableIf<IsBaseOf<AllTypedArraysBase, T>::value, bool>::Type
 ToJSValue(JSContext* aCx,
           const TypedArrayCreator<T>& aArgument,
@@ -186,7 +184,6 @@ ISupportsToJSValue(JSContext* aCx,
 // Accept objects that inherit from nsISupports but not nsWrapperCache (e.g.
 // nsIDOMFile).
 template <class T>
-MOZ_WARN_UNUSED_RESULT
 typename EnableIf<!IsBaseOf<nsWrapperCache, T>::value &&
                   !IsBaseOf<CallbackObject, T>::value &&
                   IsBaseOf<nsISupports, T>::value, bool>::Type
@@ -202,7 +199,7 @@ ToJSValue(JSContext* aCx,
 
 // Accept nsRefPtr/nsCOMPtr
 template <typename T>
-MOZ_WARN_UNUSED_RESULT bool
+bool
 ToJSValue(JSContext* aCx,
           const nsCOMPtr<T>& aArgument,
           JS::MutableHandle<JS::Value> aValue)
@@ -211,7 +208,7 @@ ToJSValue(JSContext* aCx,
 }
 
 template <typename T>
-MOZ_WARN_UNUSED_RESULT bool
+bool
 ToJSValue(JSContext* aCx,
           const nsRefPtr<T>& aArgument,
           JS::MutableHandle<JS::Value> aValue)
@@ -221,7 +218,6 @@ ToJSValue(JSContext* aCx,
 
 // Accept WebIDL dictionaries
 template <class T>
-MOZ_WARN_UNUSED_RESULT
 typename EnableIf<IsBaseOf<DictionaryBase, T>::value, bool>::Type
 ToJSValue(JSContext* aCx,
           const T& aArgument,
@@ -231,7 +227,7 @@ ToJSValue(JSContext* aCx,
 }
 
 // Accept existing JS values (which may not be same-compartment with us
-MOZ_WARN_UNUSED_RESULT inline bool
+inline bool
 ToJSValue(JSContext* aCx, JS::Handle<JS::Value> aArgument,
           JS::MutableHandle<JS::Value> aValue)
 {
@@ -240,7 +236,7 @@ ToJSValue(JSContext* aCx, JS::Handle<JS::Value> aArgument,
 }
 
 // Accept existing JS values on the Heap (which may not be same-compartment with us
-MOZ_WARN_UNUSED_RESULT inline bool
+inline bool
 ToJSValue(JSContext* aCx, const JS::Heap<JS::Value>& aArgument,
           JS::MutableHandle<JS::Value> aValue)
 {
@@ -249,7 +245,7 @@ ToJSValue(JSContext* aCx, const JS::Heap<JS::Value>& aArgument,
 }
 
 // Accept existing rooted JS values (which may not be same-compartment with us
-MOZ_WARN_UNUSED_RESULT inline bool
+inline bool
 ToJSValue(JSContext* aCx, const JS::Rooted<JS::Value>& aArgument,
           JS::MutableHandle<JS::Value> aValue)
 {
@@ -259,7 +255,7 @@ ToJSValue(JSContext* aCx, const JS::Rooted<JS::Value>& aArgument,
 
 // Accept nsresult, for use in rejections, and create an XPCOM
 // exception object representing that nsresult.
-MOZ_WARN_UNUSED_RESULT bool
+bool
 ToJSValue(JSContext* aCx,
           nsresult aArgument,
           JS::MutableHandle<JS::Value> aValue);
@@ -267,14 +263,13 @@ ToJSValue(JSContext* aCx,
 // Accept ErrorResult, for use in rejections, and create an exception
 // representing the failure.  Note, the ErrorResult must indicate a failure
 // with aArgument.Failure() returning true.
-MOZ_WARN_UNUSED_RESULT bool
+bool
 ToJSValue(JSContext* aCx,
           ErrorResult& aArgument,
           JS::MutableHandle<JS::Value> aValue);
 
 // Accept pointers to other things we accept
 template <typename T>
-MOZ_WARN_UNUSED_RESULT
 typename EnableIf<IsPointer<T>::value, bool>::Type
 ToJSValue(JSContext* aCx,
           T aArgument,
@@ -285,7 +280,7 @@ ToJSValue(JSContext* aCx,
 
 // Accept arrays of other things we accept
 template <typename T>
-MOZ_WARN_UNUSED_RESULT bool
+bool
 ToJSValue(JSContext* aCx,
           T* aArguments,
           size_t aLength,
@@ -312,7 +307,7 @@ ToJSValue(JSContext* aCx,
 }
 
 template <typename T>
-MOZ_WARN_UNUSED_RESULT bool
+bool
 ToJSValue(JSContext* aCx,
           const nsTArray<T>& aArgument,
           JS::MutableHandle<JS::Value> aValue)
@@ -322,7 +317,7 @@ ToJSValue(JSContext* aCx,
 }
 
 template <typename T>
-MOZ_WARN_UNUSED_RESULT bool
+bool
 ToJSValue(JSContext* aCx,
           const FallibleTArray<T>& aArgument,
           JS::MutableHandle<JS::Value> aValue)
@@ -332,7 +327,7 @@ ToJSValue(JSContext* aCx,
 }
 
 template <typename T, int N>
-MOZ_WARN_UNUSED_RESULT bool
+bool
 ToJSValue(JSContext* aCx,
           const T(&aArgument)[N],
           JS::MutableHandle<JS::Value> aValue)

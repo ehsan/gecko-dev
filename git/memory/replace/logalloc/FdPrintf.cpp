@@ -13,6 +13,7 @@
 #endif
 #include <cstring>
 #include "mozilla/Assertions.h"
+#include "mozilla/NullPtr.h"
 
 /* Template class allowing a limited number of increments on a value */
 template <typename T>

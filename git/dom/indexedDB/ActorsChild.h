@@ -5,7 +5,6 @@
 #ifndef mozilla_dom_indexeddb_actorschild_h__
 #define mozilla_dom_indexeddb_actorschild_h__
 
-#include "IDBTransaction.h"
 #include "js/RootingAPI.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/indexedDB/PBackgroundIDBCursorChild.h"
@@ -13,7 +12,6 @@
 #include "mozilla/dom/indexedDB/PBackgroundIDBFactoryChild.h"
 #include "mozilla/dom/indexedDB/PBackgroundIDBFactoryRequestChild.h"
 #include "mozilla/dom/indexedDB/PBackgroundIDBRequestChild.h"
-#include "mozilla/dom/indexedDB/PBackgroundIDBSharedTypes.h"
 #include "mozilla/dom/indexedDB/PBackgroundIDBTransactionChild.h"
 #include "mozilla/dom/indexedDB/PBackgroundIDBVersionChangeTransactionChild.h"
 #include "nsAutoPtr.h"
@@ -21,7 +19,6 @@
 #include "nsTArray.h"
 
 class nsIEventTarget;
-struct nsID;
 struct PRThread;
 
 namespace mozilla {
@@ -41,96 +38,12 @@ class IDBFactory;
 class IDBMutableFile;
 class IDBOpenDBRequest;
 class IDBRequest;
+class IDBTransaction;
 class Key;
 class PBackgroundIDBFileChild;
 class PermissionRequestChild;
 class PermissionRequestParent;
 class SerializedStructuredCloneReadInfo;
-
-class ThreadLocal
-{
-  friend class nsAutoPtr<ThreadLocal>;
-  friend class IDBFactory;
-
-  LoggingInfo mLoggingInfo;
-  IDBTransaction* mCurrentTransaction;
-
-#ifdef DEBUG
-  PRThread* mOwningThread;
-#endif
-
-public:
-  void
-  AssertIsOnOwningThread() const
-#ifdef DEBUG
-  ;
-#else
-  { }
-#endif
-
-  const LoggingInfo&
-  GetLoggingInfo() const
-  {
-    AssertIsOnOwningThread();
-
-    return mLoggingInfo;
-  }
-
-  const nsID&
-  Id() const
-  {
-    AssertIsOnOwningThread();
-
-    return mLoggingInfo.backgroundChildLoggingId();
-  }
-
-  int64_t
-  NextTransactionSN(IDBTransaction::Mode aMode)
-  {
-    AssertIsOnOwningThread();
-    MOZ_ASSERT(mLoggingInfo.nextTransactionSerialNumber() < INT64_MAX);
-    MOZ_ASSERT(mLoggingInfo.nextVersionChangeTransactionSerialNumber() >
-                 INT64_MIN);
-
-    if (aMode == IDBTransaction::VERSION_CHANGE) {
-      return mLoggingInfo.nextVersionChangeTransactionSerialNumber()--;
-    }
-
-    return mLoggingInfo.nextTransactionSerialNumber()++;
-  }
-
-  uint64_t
-  NextRequestSN()
-  {
-    AssertIsOnOwningThread();
-    MOZ_ASSERT(mLoggingInfo.nextRequestSerialNumber() < UINT64_MAX);
-
-    return mLoggingInfo.nextRequestSerialNumber()++;
-  }
-
-  void
-  SetCurrentTransaction(IDBTransaction* aCurrentTransaction)
-  {
-    AssertIsOnOwningThread();
-
-    mCurrentTransaction = aCurrentTransaction;
-  }
-
-  IDBTransaction*
-  GetCurrentTransaction() const
-  {
-    AssertIsOnOwningThread();
-
-    return mCurrentTransaction;
-  }
-
-private:
-  explicit ThreadLocal(const nsID& aBackgroundChildLoggingId);
-  ~ThreadLocal();
-
-  ThreadLocal() = delete;
-  ThreadLocal(const ThreadLocal& aOther) = delete;
-};
 
 class BackgroundFactoryChild MOZ_FINAL
   : public PBackgroundIDBFactoryChild
@@ -193,7 +106,7 @@ private:
                                      MOZ_OVERRIDE;
 
   bool
-  SendDeleteMe() = delete;
+  SendDeleteMe() MOZ_DELETE;
 };
 
 class BackgroundDatabaseChild;
@@ -396,7 +309,7 @@ private:
   RecvInvalidate() MOZ_OVERRIDE;
 
   bool
-  SendDeleteMe() = delete;
+  SendDeleteMe() MOZ_DELETE;
 };
 
 class BackgroundVersionChangeTransactionChild;
@@ -496,7 +409,7 @@ private:
                                    MOZ_OVERRIDE;
 
   bool
-  SendDeleteMe() = delete;
+  SendDeleteMe() MOZ_DELETE;
 };
 
 class BackgroundVersionChangeTransactionChild MOZ_FINAL
@@ -514,7 +427,7 @@ public:
 #endif
 
   void
-  SendDeleteMeInternal(bool aFailedConstructor);
+  SendDeleteMeInternal();
 
 private:
   // Only created by BackgroundDatabaseChild.
@@ -552,7 +465,7 @@ private:
                                    MOZ_OVERRIDE;
 
   bool
-  SendDeleteMe() = delete;
+  SendDeleteMe() MOZ_DELETE;
 };
 
 class BackgroundRequestChild MOZ_FINAL
@@ -719,10 +632,10 @@ private:
 
   // Force callers to use SendContinueInternal.
   bool
-  SendContinue(const CursorRequestParams& aParams) = delete;
+  SendContinue(const CursorRequestParams& aParams) MOZ_DELETE;
 
   bool
-  SendDeleteMe() = delete;
+  SendDeleteMe() MOZ_DELETE;
 };
 
 // XXX This doesn't belong here. However, we're not yet porting MutableFile

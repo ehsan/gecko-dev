@@ -48,14 +48,13 @@ MediaBuffer::MediaBuffer(size_t size)
     : mObserver(NULL),
       mNextBuffer(NULL),
       mRefCount(0),
-      mData(NULL),
+      mData(malloc(size)),
       mSize(size),
       mRangeOffset(0),
       mRangeLength(size),
       mOwnsData(true),
       mMetaData(new MetaData),
       mOriginal(NULL) {
-    ensuresize(size);
 }
 
 MediaBuffer::MediaBuffer(const sp<GraphicBuffer>& graphicBuffer)
@@ -160,6 +159,11 @@ void MediaBuffer::reset() {
 MediaBuffer::~MediaBuffer() {
     CHECK(mObserver == NULL);
 
+    if (mOwnsData && mData != NULL) {
+        free(mData);
+        mData = NULL;
+    }
+
     if (mOriginal != NULL) {
         mOriginal->release();
         mOriginal = NULL;
@@ -194,22 +198,6 @@ MediaBuffer *MediaBuffer::clone() {
     buffer->mOriginal = this;
 
     return buffer;
-}
-
-bool MediaBuffer::ensuresize(size_t length) {
-    if (mBufferBackend.Length() >= length) {
-        return true;
-    }
-    // Can't reallocate data we don't owned or shared with another.
-    if (!mOwnsData || refcount()) {
-        return false;
-    }
-    if (!mBufferBackend.SetLength(length)) {
-        return false;
-    }
-    mData = mBufferBackend.Elements();
-    mSize = length;
-    return true;
 }
 
 }  // namespace stagefright

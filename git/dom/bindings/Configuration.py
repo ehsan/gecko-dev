@@ -13,7 +13,7 @@ class Configuration:
     Represents global configuration state based on IDL parse data and
     the configuration file.
     """
-    def __init__(self, filename, parseData, generatedEvents=[]):
+    def __init__(self, filename, parseData):
 
         # Read the configuration file.
         glbl = {}
@@ -25,7 +25,6 @@ class Configuration:
         # |parseData|.
         self.descriptors = []
         self.interfaces = {}
-        self.generatedEvents = generatedEvents;
         self.maxProtoChainLength = 0;
         for thing in parseData:
             if isinstance(thing, IDLImplementsStatement):
@@ -284,18 +283,6 @@ class DescriptorProvider:
         implementation for cases like workers.
         """
         return self.config.getDescriptor(interfaceName, self.workers)
-
-def methodReturnsJSObject(method):
-    assert method.isMethod()
-    if method.returnsPromise():
-        return True
-
-    for signature in method.signatures():
-        returnType = signature[0]
-        if returnType.isObject() or returnType.isSpiderMonkeyInterface():
-            return True
-
-    return False
 
 class Descriptor(DescriptorProvider):
     """
@@ -634,11 +621,6 @@ class Descriptor(DescriptorProvider):
         name = member.identifier.name
         throws = self.interface.isJSImplemented() or member.getExtendedAttribute("Throws")
         if member.isMethod():
-            # JSObject-returning [NewObject] methods must be fallible,
-            # since they have to (fallibly) allocate the new JSObject.
-            if (member.getExtendedAttribute("NewObject") and
-                methodReturnsJSObject(member)):
-                throws = True
             attrs = self.extendedAttributes['all'].get(name, [])
             maybeAppendInfallibleToAttrs(attrs, throws)
             return attrs

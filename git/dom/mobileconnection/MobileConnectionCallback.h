@@ -41,6 +41,9 @@ private:
   nsresult
   NotifySuccessWithString(const nsAString& aResult);
 
+  nsresult
+  NotifySendCancelMmiSuccess(const MozMMIResult& aResult);
+
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsRefPtr<DOMRequest> mRequest;
 };

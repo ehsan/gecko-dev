@@ -247,7 +247,6 @@
      * (this is, not a single character is covered), we skip this coverage.
      *
      */
-    if ( style_class->coverage != AF_COVERAGE_DEFAULT )
     {
       AF_Blue_Stringset         bss = style_class->blue_stringset;
       const AF_Blue_StringRec*  bs  = &af_blue_stringsets[bss];
@@ -329,15 +328,8 @@
      * out whether a glyph gets shifted vertically, but this is something I
      * would like to avoid if not really necessary.
      *
-     * Note that we don't follow this logic for the default coverage.
-     * Complex scripts like Devanagari have mandatory GPOS features to
-     * position many glyph elements, using mark-to-base or mark-to-ligature
-     * tables; the number of glyphs missed due to condition (b) would be far
-     * too large.
-     *
      */
-    if ( style_class->coverage != AF_COVERAGE_DEFAULT )
-      hb_set_subtract( gsub_glyphs, gpos_glyphs );
+    hb_set_subtract( gsub_glyphs, gpos_glyphs );
 
 #ifdef FT_DEBUG_LEVEL_TRACE
     FT_TRACE4(( "  glyphs without GPOS data (`*' means already assigned)" ));
@@ -354,12 +346,6 @@
       FT_TRACE4(( " %d", idx ));
       count++;
 #endif
-
-      /* glyph indices returned by `hb_ot_layout_lookup_collect_glyphs' */
-      /* can be arbitrary: some fonts use fake indices for processing   */
-      /* internal to GSUB or GPOS, which is fully valid                 */
-      if ( idx >= (hb_codepoint_t)globals->glyph_count )
-        continue;
 
       if ( gstyles[idx] == AF_STYLE_UNASSIGNED )
         gstyles[idx] = (FT_Byte)style_class->style;

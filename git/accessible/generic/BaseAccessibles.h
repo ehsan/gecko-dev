@@ -34,7 +34,7 @@ public:
 
   // Accessible
   virtual Accessible* ChildAtPoint(int32_t aX, int32_t aY,
-                                   EWhichChildAtPoint aWhichChild) MOZ_OVERRIDE;
+                                   EWhichChildAtPoint aWhichChild);
   virtual bool InsertChildAt(uint32_t aIndex, Accessible* aChild) MOZ_OVERRIDE MOZ_FINAL;
   virtual bool RemoveChild(Accessible* aChild) MOZ_OVERRIDE MOZ_FINAL;
 
@@ -42,7 +42,7 @@ protected:
   virtual ~LeafAccessible() {}
 
   // Accessible
-  virtual void CacheChildren() MOZ_OVERRIDE;
+  virtual void CacheChildren();
 };
 
 /**
@@ -70,17 +70,17 @@ public:
   virtual uint8_t ActionCount() MOZ_OVERRIDE;
   virtual void ActionNameAt(uint8_t aIndex, nsAString& aName) MOZ_OVERRIDE;
   virtual bool DoAction(uint8_t index) MOZ_OVERRIDE;
-  virtual KeyBinding AccessKey() const MOZ_OVERRIDE;
+  virtual KeyBinding AccessKey() const;
 
   // HyperLinkAccessible
-  virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex) MOZ_OVERRIDE;
+  virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex);
 
 protected:
   virtual ~LinkableAccessible() {}
 
   // Accessible
-  virtual void BindToParent(Accessible* aParent, uint32_t aIndexInParent) MOZ_OVERRIDE;
-  virtual void UnbindFromParent() MOZ_OVERRIDE;
+  virtual void BindToParent(Accessible* aParent, uint32_t aIndexInParent);
+  virtual void UnbindFromParent();
 
   /**
    * Parent accessible that provides an action for this linkable accessible.

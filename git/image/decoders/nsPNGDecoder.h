@@ -24,12 +24,13 @@ class RasterImage;
 class nsPNGDecoder : public Decoder
 {
 public:
-  explicit nsPNGDecoder(RasterImage* aImage);
+  explicit nsPNGDecoder(RasterImage& aImage);
   virtual ~nsPNGDecoder();
 
-  virtual void InitInternal() MOZ_OVERRIDE;
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount) MOZ_OVERRIDE;
-  virtual Telemetry::ID SpeedHistogram() MOZ_OVERRIDE;
+  virtual void InitInternal();
+  virtual void WriteInternal(const char* aBuffer, uint32_t aCount,
+                             DecodeStrategy aStrategy) MOZ_OVERRIDE;
+  virtual Telemetry::ID SpeedHistogram();
 
   void CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
                    int32_t width, int32_t height,
@@ -97,8 +98,8 @@ public:
     AnimFrameInfo(png_structp aPNG, png_infop aInfo);
 #endif
 
-    DisposalMethod mDispose;
-    BlendMethod mBlend;
+    FrameBlender::FrameDisposalMethod mDispose;
+    FrameBlender::FrameBlendMethod mBlend;
     int32_t mTimeout;
   };
 

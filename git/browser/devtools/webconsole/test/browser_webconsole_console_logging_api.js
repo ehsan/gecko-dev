@@ -5,33 +5,40 @@
 
 // Tests that the basic console.log()-style APIs and filtering work.
 
-"use strict";
-
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
 
-let test = asyncTest(function*() {
-  yield loadTab(TEST_URI);
-  let hud = yield openConsole();
-  hud.jsterm.clearOutput();
+let hud, outputNode;
 
-  let outputNode = hud.outputNode;
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    Task.spawn(runner);
+  }, true);
 
-  let methods = ["log", "info", "warn", "error", "exception", "debug"];
-  for (let method of methods) {
-    yield testMethod(method, hud, outputNode);
+  function* runner() {
+    hud = yield openConsole();
+    outputNode = hud.outputNode;
+
+    let methods = ["log", "info", "warn", "error", "exception", "debug"];
+    for (let method of methods) {
+      yield testMethod(method);
+    }
+
+    executeSoon(finishTest);
   }
-});
+}
 
-function* testMethod(aMethod, aHud, aOutputNode) {
+function* testMethod(aMethod) {
   let console = content.console;
 
-  aHud.jsterm.clearOutput();
+  hud.jsterm.clearOutput();
 
   console[aMethod]("foo-bar-baz");
   console[aMethod]("baar-baz");
 
   yield waitForMessages({
-    webconsole: aHud,
+    webconsole: hud,
     messages: [{
       text: "foo-bar-baz",
     }, {
@@ -39,25 +46,25 @@ function* testMethod(aMethod, aHud, aOutputNode) {
     }],
   });
 
-  setStringFilter("foo", aHud);
+  setStringFilter("foo");
 
-  is(aOutputNode.querySelectorAll(".filtered-by-string").length, 1,
+  is(outputNode.querySelectorAll(".filtered-by-string").length, 1,
      "1 hidden " + aMethod + " node via string filtering")
 
-  aHud.jsterm.clearOutput();
+  hud.jsterm.clearOutput();
 
   // now toggle the current method off - make sure no visible message
   // TODO: move all filtering tests into a separate test file: see bug 608135
 
   console[aMethod]("foo-bar-baz");
   yield waitForMessages({
-    webconsole: aHud,
+    webconsole: hud,
     messages: [{
       text: "foo-bar-baz",
     }],
   });
 
-  setStringFilter("", aHud);
+  setStringFilter("");
   let filter;
   switch(aMethod) {
     case "debug":
@@ -71,23 +78,23 @@ function* testMethod(aMethod, aHud, aOutputNode) {
       break;
   }
 
-  aHud.setFilterState(filter, false);
+  hud.setFilterState(filter, false);
 
-  is(aOutputNode.querySelectorAll(".filtered-by-type").length, 1,
+  is(outputNode.querySelectorAll(".filtered-by-type").length, 1,
      "1 message hidden for " + aMethod + " (logging turned off)")
 
-  aHud.setFilterState(filter, true);
+  hud.setFilterState(filter, true);
 
-  is(aOutputNode.querySelectorAll(".message:not(.filtered-by-type)").length, 1,
+  is(outputNode.querySelectorAll(".message:not(.filtered-by-type)").length, 1,
      "1 message shown for " + aMethod + " (logging turned on)")
 
-  aHud.jsterm.clearOutput();
+  hud.jsterm.clearOutput();
 
   // test for multiple arguments.
   console[aMethod]("foo", "bar");
 
   yield waitForMessages({
-    webconsole: aHud,
+    webconsole: hud,
     messages: [{
       text: '"foo" "bar"',
       category: CATEGORY_WEBDEV,
@@ -95,7 +102,8 @@ function* testMethod(aMethod, aHud, aOutputNode) {
   })
 }
 
-function setStringFilter(aValue, aHud) {
-  aHud.ui.filterBox.value = aValue;
-  aHud.ui.adjustVisibilityOnSearchStringChange();
+function setStringFilter(aValue) {
+  hud.ui.filterBox.value = aValue;
+  hud.ui.adjustVisibilityOnSearchStringChange();
 }
+

@@ -49,20 +49,20 @@ public:
   NS_DECL_NSICHILDCHANNEL
   NS_DECL_NSIDIVERTABLECHANNEL
 
-  NS_IMETHOD Cancel(nsresult status) MOZ_OVERRIDE;
-  NS_IMETHOD Suspend() MOZ_OVERRIDE;
-  NS_IMETHOD Resume() MOZ_OVERRIDE;
+  NS_IMETHOD Cancel(nsresult status);
+  NS_IMETHOD Suspend();
+  NS_IMETHOD Resume();
 
   explicit FTPChannelChild(nsIURI* uri);
 
   void AddIPDLReference();
   void ReleaseIPDLReference();
 
-  NS_IMETHOD AsyncOpen(nsIStreamListener* listener, nsISupports* aContext) MOZ_OVERRIDE;
+  NS_IMETHOD AsyncOpen(nsIStreamListener* listener, nsISupports* aContext);
 
   // Note that we handle this ourselves, overriding the nsBaseChannel
   // default behavior, in order to be e10s-friendly.
-  NS_IMETHOD IsPending(bool* result) MOZ_OVERRIDE;
+  NS_IMETHOD IsPending(bool* result);
 
   nsresult OpenContentStream(bool async,
                              nsIInputStream** stream,

@@ -728,11 +728,8 @@
     FT_Byte*  cursor;
 
 
-    if ( !fields )
+    if ( !fields || !stream )
       return FT_THROW( Invalid_Argument );
-
-    if ( !stream )
-      return FT_THROW( Invalid_Stream_Handle );
 
     cursor = stream->cursor;
 

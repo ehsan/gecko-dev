@@ -108,13 +108,7 @@ SourceSurfaceD2D1::DrawTargetWillChange()
   props.pixelFormat = D2DPixelFormat(mFormat);
   props.colorContext = nullptr;
   props.bitmapOptions = D2D1_BITMAP_OPTIONS_TARGET;
-  HRESULT hr = mDC->CreateBitmap(D2DIntSize(mSize), nullptr, 0, props, (ID2D1Bitmap1**)byRef(mRealizedBitmap));
-
-  if (FAILED(hr)) {
-    gfxCriticalError() << "Failed to create bitmap to make DrawTarget copy. Size: " << mSize << " Code: " << hexa(hr);
-    MarkIndependent();
-    return;
-  }
+  mDC->CreateBitmap(D2DIntSize(mSize), nullptr, 0, props, (ID2D1Bitmap1**)byRef(mRealizedBitmap));
 
   D2D1_POINT_2U point = D2D1::Point2U(0, 0);
   D2D1_RECT_U rect = D2D1::RectU(0, 0, mSize.width, mSize.height);

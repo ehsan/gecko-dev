@@ -18,8 +18,10 @@ const SENTINEL_MSG = "testing ineffective sandboxing message";
 
 function test()
 {
-  loadTab(TEST_URI_WARNING).then(() => {
-    openConsole().then((hud) => {
+  addTab(TEST_URI_WARNING);
+  browser.addEventListener("load", function onLoad(aEvent) {
+    browser.removeEventListener(aEvent.type, onLoad, true);
+    openConsole(null, function testIneffectiveIframeSandboxingLogged (hud) {
       content.console.log(SENTINEL_MSG)
       waitForMessages({
         webconsole: hud,
@@ -40,14 +42,16 @@ function test()
         is(msgs.length, 1, "one security message");
         testNoWarning(0);
       });
-    })
-  });
+    });
+  }, true);
 }
 
 function testNoWarning(id)
 {
-  loadTab(TEST_URI_NOWARNING[id]).then(() => {
-    openConsole().then((hud) => {
+  addTab(TEST_URI_NOWARNING[id]);
+  browser.addEventListener("load", function onLoad(aEvent) {
+    browser.removeEventListener(aEvent.type, onLoad, true);
+    openConsole(null, function testIneffectiveIframeSandboxingNotLogged (hud) {
       content.console.log(SENTINEL_MSG)
       waitForMessages({
         webconsole: hud,
@@ -68,6 +72,6 @@ function testNoWarning(id)
           finishTest();
         }
       });
-    })
-  });
+    });
+  }, true);
 }

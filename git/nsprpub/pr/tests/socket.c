@@ -328,7 +328,7 @@ PRInt32 native_thread = 0;
 			native_thread = 1;
 			break;
 		default:
-			PR_NOT_REACHED("Invalid scope");
+			PR_ASSERT(!"Invalid scope");
 			break;
 	}
 	if (native_thread) {

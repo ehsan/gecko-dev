@@ -96,7 +96,7 @@ interface Element : Node {
   boolean mozMatchesSelector(DOMString selector);
 
   // Pointer events methods.
-  [Throws, Pref="dom.w3c_pointer_events.enabled", UnsafeInPrerendering]
+  [Throws, Pref="dom.w3c_pointer_events.enabled"]
   void setPointerCapture(long pointerId);
 
   [Throws, Pref="dom.w3c_pointer_events.enabled"]
@@ -129,7 +129,7 @@ interface Element : Node {
    *
    * @see <https://wiki.mozilla.org/index.php?title=Gecko:FullScreenAPI>
    */
-  [Throws, UnsafeInPrerendering]
+  [Throws]
   void mozRequestFullScreen(optional any options);
 
   /**
@@ -138,7 +138,6 @@ interface Element : Node {
    *
    * @see <http://dvcs.w3.org/hg/pointerlock/raw-file/default/index.html>
    */
-  [UnsafeInPrerendering]
   void mozRequestPointerLock();
 
   // Obsolete methods.

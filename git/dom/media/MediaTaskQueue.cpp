@@ -147,17 +147,8 @@ MediaTaskQueue::BeginShutdown()
   return p;
 }
 
-void
-FlushableMediaTaskQueue::Flush()
-{
-  MonitorAutoLock mon(mQueueMonitor);
-  AutoSetFlushing autoFlush(this);
-  FlushLocked();
-  AwaitIdleLocked();
-}
-
 nsresult
-FlushableMediaTaskQueue::FlushAndDispatch(TemporaryRef<nsIRunnable> aRunnable)
+MediaTaskQueue::FlushAndDispatch(TemporaryRef<nsIRunnable> aRunnable)
 {
   MonitorAutoLock mon(mQueueMonitor);
   AutoSetFlushing autoFlush(this);
@@ -169,7 +160,16 @@ FlushableMediaTaskQueue::FlushAndDispatch(TemporaryRef<nsIRunnable> aRunnable)
 }
 
 void
-FlushableMediaTaskQueue::FlushLocked()
+MediaTaskQueue::Flush()
+{
+  MonitorAutoLock mon(mQueueMonitor);
+  AutoSetFlushing autoFlush(this);
+  FlushLocked();
+  AwaitIdleLocked();
+}
+
+void
+MediaTaskQueue::FlushLocked()
 {
   mQueueMonitor.AssertCurrentThreadOwns();
   MOZ_ASSERT(mIsFlushing);

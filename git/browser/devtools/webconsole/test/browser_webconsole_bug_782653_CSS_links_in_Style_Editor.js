@@ -9,20 +9,22 @@ const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test" +
 
 let nodes, hud, StyleEditorUI;
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  hud = yield openConsole();
-
-  let styleEditor = yield testViewSource();
-  yield onStyleEditorReady(styleEditor);
-
-  nodes = hud = StyleEditorUI = null;
-});
-
-function testViewSource()
+function test()
 {
-  let deferred = promise.defer();
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testViewSource);
+  }, true);
+}
+
+function testViewSource(aHud)
+{
+  hud = aHud;
+
+  registerCleanupFunction(function() {
+    nodes = hud = StyleEditorUI = null;
+  });
 
   waitForMessages({
     webconsole: hud,
@@ -52,21 +54,17 @@ function testViewSource()
       let count = 0;
       StyleEditorUI.on("editor-added", function() {
         if (++count == 2) {
-          deferred.resolve(panel);
+          onStyleEditorReady(panel);
         }
       });
     });
 
     EventUtils.sendMouseEvent({ type: "click" }, nodes[0]);
   });
-
-  return deferred.promise;
 }
 
 function onStyleEditorReady(aPanel)
 {
-  let deferred = promise.defer();
-
   let win = aPanel.panelWindow;
   ok(win, "Style Editor Window is defined");
   ok(StyleEditorUI, "Style Editor UI is defined");
@@ -78,7 +76,7 @@ function onStyleEditorReady(aPanel)
     let line = nodes[0].sourceLine;
     ok(line, "found source line");
 
-    checkStyleEditorForSheetAndLine(href, line - 1).then(function() {
+    checkStyleEditorForSheetAndLine(href, line - 1, function() {
       info("first check done");
 
       let target = TargetFactory.forTab(gBrowser.selectedTab);
@@ -94,18 +92,19 @@ function onStyleEditorReady(aPanel)
         toolbox.once("styleeditor-selected", function(aEvent) {
           info(aEvent + " event fired");
 
-          checkStyleEditorForSheetAndLine(href, line - 1).then(deferred.resolve);
+          checkStyleEditorForSheetAndLine(href, line - 1, function() {
+            info("second check done");
+            finishTest();
+          });
         });
 
         EventUtils.sendMouseEvent({ type: "click" }, nodes[1]);
       });
     });
   }, win);
-
-  return deferred.promise;
 }
 
-function checkStyleEditorForSheetAndLine(aHref, aLine)
+function checkStyleEditorForSheetAndLine(aHref, aLine, aCallback)
 {
   let foundEditor = null;
   for (let editor of StyleEditorUI.editors) {
@@ -116,13 +115,11 @@ function checkStyleEditorForSheetAndLine(aHref, aLine)
   }
 
   ok(foundEditor, "found style editor for " + aHref);
-  return performLineCheck(foundEditor, aLine);
+  performLineCheck(foundEditor, aLine, aCallback);
 }
 
-function performLineCheck(aEditor, aLine)
+function performLineCheck(aEditor, aLine, aCallback)
 {
-  let deferred = promise.defer();
-
   function checkForCorrectState()
   {
     is(aEditor.sourceEditor.getCursor().line, aLine,
@@ -130,7 +127,7 @@ function performLineCheck(aEditor, aLine)
     is(StyleEditorUI.selectedStyleSheetIndex, aEditor.styleSheet.styleSheetIndex,
        "correct stylesheet is selected in the editor");
 
-    executeSoon(deferred.resolve);
+    aCallback && executeSoon(aCallback);
   }
 
   info("wait for source editor to load");
@@ -142,6 +139,4 @@ function performLineCheck(aEditor, aLine)
       executeSoon(checkForCorrectState);
     });
   });
-
-  return deferred.promise;
 }

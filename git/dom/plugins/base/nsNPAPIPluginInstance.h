@@ -13,6 +13,7 @@
 #include "nsIPluginInstanceOwner.h"
 #include "nsIURI.h"
 #include "nsIChannel.h"
+#include "nsInterfaceHashtable.h"
 #include "nsHashKeys.h"
 #include <prinrval.h>
 #include "js/TypeDecls.h"
@@ -134,10 +135,6 @@ public:
   void RedrawPlugin();
 #ifdef XP_MACOSX
   void SetEventModel(NPEventModel aModel);
-
-  void* GetCurrentEvent() {
-    return mCurrentPluginEvent;
-  }
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -220,10 +217,8 @@ public:
 
   void GetVideos(nsTArray<VideoInfo*>& aVideos);
 
-  void SetOriginPos(mozilla::gl::OriginPos aOriginPos) {
-    mOriginPos = aOriginPos;
-  }
-  mozilla::gl::OriginPos OriginPos() const { return mOriginPos; }
+  void SetInverted(bool aInverted);
+  bool Inverted() { return mInverted; }
 
   static nsNPAPIPluginInstance* GetFromNPP(NPP npp);
 #endif
@@ -267,6 +262,7 @@ public:
   nsNPAPITimer* TimerWithID(uint32_t id, uint32_t* index);
   uint32_t      ScheduleTimer(uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID));
   void          UnscheduleTimer(uint32_t timerID);
+  NPError       PopUpContextMenu(NPMenu* menu);
   NPBool        ConvertPoint(double sourceX, double sourceY, NPCoordinateSpace sourceSpace, double *destX, double *destY, NPCoordinateSpace destSpace);
 
 
@@ -330,7 +326,7 @@ protected:
   uint32_t mFullScreenOrientation;
   bool mWakeLocked;
   bool mFullScreen;
-  mozilla::gl::OriginPos mOriginPos;
+  bool mInverted;
 
   mozilla::RefPtr<SharedPluginTexture> mContentTexture;
   mozilla::RefPtr<mozilla::gl::AndroidSurfaceTexture> mContentSurface;
@@ -373,10 +369,8 @@ private:
 
   nsTArray<nsNPAPITimer*> mTimers;
 
-#ifdef XP_MACOSX
   // non-null during a HandleEvent call
   void* mCurrentPluginEvent;
-#endif
 
   // Timestamp for the last time this plugin was stopped.
   // This is only valid when the plugin is actually stopped!

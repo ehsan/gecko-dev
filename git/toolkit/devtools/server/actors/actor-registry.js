@@ -11,10 +11,8 @@ const { Cu, CC, components } = require("chrome");
 const { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
 const Services = require("Services");
 const { DebuggerServer } = require("devtools/server/main");
-const ActorRegistryUtils = require("devtools/server/actors/utils/actor-registry-utils");
-const { registerActor, unregisterActor } = ActorRegistryUtils;
-
-loader.lazyImporter(this, "NetUtil", "resource://gre/modules/NetUtil.jsm");
+const { XPCOMUtils } = require("resource://gre/modules/XPCOMUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "NetUtil", "resource://gre/modules/NetUtil.jsm");
 
 /**
  * The ActorActor gives you a handle to an actor you've dynamically
@@ -30,7 +28,13 @@ const ActorActor = protocol.ActorClass({
   },
 
   unregister: method(function () {
-    unregisterActor(this.options);
+    if (this.options.tab) {
+      DebuggerServer.removeTabActor(this.options);
+    }
+
+    if (this.options.global) {
+      DebuggerServer.removeGlobalActor(this.options);
+    }
   }, {
     request: {},
     response: {}
@@ -57,9 +61,28 @@ const ActorRegistryActor = protocol.ActorClass({
   },
 
   registerActor: method(function (sourceText, fileName, options) {
-    registerActor(sourceText, fileName, options);
+    const principal = CC("@mozilla.org/systemprincipal;1", "nsIPrincipal")();
+    const sandbox = Cu.Sandbox(principal);
+    const exports = sandbox.exports = {};
+    sandbox.require = require;
 
-    let { constructor, type } = options;
+    Cu.evalInSandbox(sourceText, sandbox, "1.8", fileName, 1);
+
+    let { prefix, constructor, type } = options;
+
+    if (type.global) {
+      DebuggerServer.addGlobalActor({
+        constructorName: constructor,
+        constructorFun: sandbox[constructor]
+      }, prefix);
+    }
+
+    if (type.tab) {
+      DebuggerServer.addTabActor({
+        constructorName: constructor,
+        constructorFun: sandbox[constructor]
+      }, prefix);
+    }
 
     return ActorActor(this.conn, {
       name: constructor,

@@ -303,7 +303,7 @@ PathBuilderD2D::Finish()
     return nullptr;
   }
 
-  return new PathD2D(mGeometry, mFigureActive, mCurrentPoint, mFillRule, mBackendType);
+  return new PathD2D(mGeometry, mFigureActive, mCurrentPoint, mFillRule);
 }
 
 TemporaryRef<PathBuilder>
@@ -345,7 +345,7 @@ PathD2D::TransformedCopyToBuilder(const Matrix &aTransform, FillRule aFillRule) 
                         sink);
   }
 
-  RefPtr<PathBuilderD2D> pathBuilder = new PathBuilderD2D(sink, path, aFillRule, mBackendType);
+  RefPtr<PathBuilderD2D> pathBuilder = new PathBuilderD2D(sink, path, aFillRule);
   
   pathBuilder->mCurrentPoint = aTransform * mEndPoint;
   

@@ -35,7 +35,9 @@ public:
 
   explicit ClientPaintedLayer(ClientLayerManager* aLayerManager,
                              LayerManager::PaintedLayerCreationHint aCreationHint = LayerManager::NONE) :
-    PaintedLayer(aLayerManager, static_cast<ClientLayer*>(this), aCreationHint),
+    PaintedLayer(aLayerManager,
+                static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()),
+                aCreationHint),
     mContentClient(nullptr)
   {
     MOZ_COUNT_CTOR(ClientPaintedLayer);
@@ -52,13 +54,13 @@ protected:
   }
 
 public:
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion) MOZ_OVERRIDE
+  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(ClientManager()->InConstruction(),
                  "Can only set properties in construction phase");
     PaintedLayer::SetVisibleRegion(aRegion);
   }
-  virtual void InvalidateRegion(const nsIntRegion& aRegion) MOZ_OVERRIDE
+  virtual void InvalidateRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(ClientManager()->InConstruction(),
                  "Can only set properties in construction phase");
@@ -67,11 +69,11 @@ public:
     mValidRegion.Sub(mValidRegion, mInvalidRegion);
   }
 
-  virtual void RenderLayer() MOZ_OVERRIDE { RenderLayerWithReadback(nullptr); }
+  virtual void RenderLayer() { RenderLayerWithReadback(nullptr); }
 
   virtual void RenderLayerWithReadback(ReadbackProcessor *aReadback) MOZ_OVERRIDE;
 
-  virtual void ClearCachedResources() MOZ_OVERRIDE
+  virtual void ClearCachedResources()
   {
     if (mContentClient) {
       mContentClient->Clear();
@@ -80,7 +82,7 @@ public:
     DestroyBackBuffer();
   }
   
-  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs) MOZ_OVERRIDE
+  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
   {
     aAttrs = PaintedLayerAttributes(GetValidRegion());
   }
@@ -90,15 +92,15 @@ public:
     return static_cast<ClientLayerManager*>(mManager);
   }
   
-  virtual Layer* AsLayer() MOZ_OVERRIDE { return this; }
-  virtual ShadowableLayer* AsShadowableLayer() MOZ_OVERRIDE { return this; }
+  virtual Layer* AsLayer() { return this; }
+  virtual ShadowableLayer* AsShadowableLayer() { return this; }
 
   virtual CompositableClient* GetCompositableClient() MOZ_OVERRIDE
   {
     return mContentClient;
   }
 
-  virtual void Disconnect() MOZ_OVERRIDE
+  virtual void Disconnect()
   {
     mContentClient = nullptr;
     ClientLayer::Disconnect();
@@ -106,9 +108,7 @@ public:
 
 protected:
   void PaintThebes();
-
-  virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix) MOZ_OVERRIDE;
-
+  
   void DestroyBackBuffer()
   {
     mContentClient = nullptr;

@@ -159,7 +159,7 @@ public:
       mStyleCause = profiler_get_backtrace();
     }
     bool appended = mStyleFlushObservers.AppendElement(aShell) != nullptr;
-    EnsureTimerStarted();
+    EnsureTimerStarted(false);
 
     return appended;
   }
@@ -177,7 +177,7 @@ public:
       mReflowCause = profiler_get_backtrace();
     }
     bool appended = mLayoutFlushObservers.AppendElement(aShell) != nullptr;
-    EnsureTimerStarted();
+    EnsureTimerStarted(false);
     return appended;
   }
   void RemoveLayoutFlushObserver(nsIPresShell* aShell) {
@@ -190,7 +190,7 @@ public:
     NS_ASSERTION(!mPresShellsToInvalidateIfHidden.Contains(aShell),
 		 "Double-adding style flush observer");
     bool appended = mPresShellsToInvalidateIfHidden.AppendElement(aShell) != nullptr;
-    EnsureTimerStarted();
+    EnsureTimerStarted(false);
     return appended;
   }
   void RemovePresShellToInvalidateIfHidden(nsIPresShell* aShell) {
@@ -280,9 +280,9 @@ public:
   bool IsWaitingForPaint(mozilla::TimeStamp aTime);
 
   // nsARefreshObserver
-  NS_IMETHOD_(MozExternalRefCountType) AddRef(void) MOZ_OVERRIDE { return TransactionIdAllocator::AddRef(); }
-  NS_IMETHOD_(MozExternalRefCountType) Release(void) MOZ_OVERRIDE { return TransactionIdAllocator::Release(); }
-  virtual void WillRefresh(mozilla::TimeStamp aTime) MOZ_OVERRIDE;
+  NS_IMETHOD_(MozExternalRefCountType) AddRef(void) { return TransactionIdAllocator::AddRef(); }
+  NS_IMETHOD_(MozExternalRefCountType) Release(void) { return TransactionIdAllocator::Release(); }
+  virtual void WillRefresh(mozilla::TimeStamp aTime);
 private:
   typedef nsTObserverArray<nsARefreshObserver*> ObserverArray;
   typedef nsTHashtable<nsISupportsHashKey> RequestTable;
@@ -298,12 +298,7 @@ private:
 
   void Tick(int64_t aNowEpoch, mozilla::TimeStamp aNowTime);
 
-  enum EnsureTimerStartedFlags {
-    eNone = 0,
-    eAdjustingTimer = 1 << 0,
-    eAllowTimeToGoBackwards = 1 << 1
-  };
-  void EnsureTimerStarted(EnsureTimerStartedFlags aFlags = eNone);
+  void EnsureTimerStarted(bool aAdjustingTimer);
   void StopTimer();
 
   uint32_t ObserverCount() const;

@@ -98,9 +98,9 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsXBLDocumentInfo)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
 static void
-UnmarkXBLJSObject(JS::GCCellPtr aPtr, const char* aName, void* aClosure)
+UnmarkXBLJSObject(void* aP, const char* aName, void* aClosure)
 {
-  JS::ExposeObjectToActiveJS(aPtr.toObject());
+  JS::ExposeObjectToActiveJS(static_cast<JSObject*>(aP));
 }
 
 static PLDHashOperator

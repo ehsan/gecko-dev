@@ -10,7 +10,7 @@ var gAddon, gClient, gThreadClient;
 
 function test() {
   if (!DebuggerServer.initialized) {
-    DebuggerServer.init();
+    DebuggerServer.init(() => true);
     DebuggerServer.addBrowserActors();
   }
 

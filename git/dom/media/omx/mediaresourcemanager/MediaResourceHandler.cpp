@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "MediaResourceHandler.h"
+#include "mozilla/NullPtr.h"
 
 namespace android {
 

@@ -25,7 +25,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
    * Props:
    * -
    */
-  var FeedbackLayout = React.createClass({displayName: "FeedbackLayout",
+  var FeedbackLayout = React.createClass({displayName: 'FeedbackLayout',
     propTypes: {
       children: React.PropTypes.component.isRequired,
       title: React.PropTypes.string.isRequired,
@@ -33,19 +33,19 @@ loop.shared.views.FeedbackView = (function(l10n) {
     },
 
     render: function() {
-      var backButton = React.createElement("div", null);
+      var backButton = React.DOM.div(null);
       if (this.props.reset) {
         backButton = (
-          React.createElement("button", {className: "fx-embedded-btn-back", type: "button", 
+          React.DOM.button({className: "fx-embedded-btn-back", type: "button", 
                   onClick: this.props.reset}, 
             "« ", l10n.get("feedback_back_button")
           )
         );
       }
       return (
-        React.createElement("div", {className: "feedback"}, 
+        React.DOM.div({className: "feedback"}, 
           backButton, 
-          React.createElement("h3", null, this.props.title), 
+          React.DOM.h3(null, this.props.title), 
           this.props.children
         )
       );
@@ -55,7 +55,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
   /**
    * Detailed feedback form.
    */
-  var FeedbackForm = React.createClass({displayName: "FeedbackForm",
+  var FeedbackForm = React.createClass({displayName: 'FeedbackForm',
     propTypes: {
       feedbackStore: React.PropTypes.instanceOf(loop.store.FeedbackStore),
       pending:       React.PropTypes.bool,
@@ -76,7 +76,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
         video_quality: l10n.get("feedback_category_video_quality"),
         disconnected : l10n.get("feedback_category_was_disconnected"),
         confusing:     l10n.get("feedback_category_confusing"),
-        other:         l10n.get("feedback_category_other2")
+        other:         l10n.get("feedback_category_other")
       };
     },
 
@@ -84,8 +84,8 @@ loop.shared.views.FeedbackView = (function(l10n) {
       var categories = this._getCategories();
       return Object.keys(categories).map(function(category, key) {
         return (
-          React.createElement("label", {key: key, className: "feedback-category-label"}, 
-            React.createElement("input", {type: "radio", ref: "category", name: "category", 
+          React.DOM.label({key: key, className: "feedback-category-label"}, 
+            React.DOM.input({type: "radio", ref: "category", name: "category", 
                    className: "feedback-category-radio", 
                    value: category, 
                    onChange: this.handleCategoryChange, 
@@ -119,7 +119,8 @@ loop.shared.views.FeedbackView = (function(l10n) {
     handleCategoryChange: function(event) {
       var category = event.target.value;
       this.setState({
-        category: category
+        category: category,
+        description: category == "other" ? "" : this._getCategories()[category]
       });
       if (category == "other") {
         this.refs.description.getDOMNode().focus();
@@ -128,6 +129,10 @@ loop.shared.views.FeedbackView = (function(l10n) {
 
     handleDescriptionFieldChange: function(event) {
       this.setState({description: event.target.value});
+    },
+
+    handleDescriptionFieldFocus: function(event) {
+      this.setState({category: "other", description: ""});
     },
 
     handleFormSubmit: function(event) {
@@ -141,20 +146,23 @@ loop.shared.views.FeedbackView = (function(l10n) {
     },
 
     render: function() {
+      var descriptionDisplayValue = this.state.category === "other" ?
+                                    this.state.description : "";
       return (
-        React.createElement(FeedbackLayout, {title: l10n.get("feedback_what_makes_you_sad"), 
+        FeedbackLayout({title: l10n.get("feedback_what_makes_you_sad"), 
                         reset: this.props.reset}, 
-          React.createElement("form", {onSubmit: this.handleFormSubmit}, 
+          React.DOM.form({onSubmit: this.handleFormSubmit}, 
             this._getCategoryFields(), 
-            React.createElement("p", null, 
-              React.createElement("input", {type: "text", ref: "description", name: "description", 
+            React.DOM.p(null, 
+              React.DOM.input({type: "text", ref: "description", name: "description", 
                 className: "feedback-description", 
                 onChange: this.handleDescriptionFieldChange, 
-                value: this.state.description, 
+                onFocus: this.handleDescriptionFieldFocus, 
+                value: descriptionDisplayValue, 
                 placeholder: 
                   l10n.get("feedback_custom_category_text_placeholder")})
             ), 
-            React.createElement("button", {type: "submit", className: "btn btn-success", 
+            React.DOM.button({type: "submit", className: "btn btn-success", 
                     disabled: !this._isFormReady()}, 
               l10n.get("feedback_submit_button")
             )
@@ -171,7 +179,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
    * - {Function} onAfterFeedbackReceived Function to execute after the
    *   WINDOW_AUTOCLOSE_TIMEOUT_IN_SECONDS timeout has elapsed
    */
-  var FeedbackReceived = React.createClass({displayName: "FeedbackReceived",
+  var FeedbackReceived = React.createClass({displayName: 'FeedbackReceived',
     propTypes: {
       onAfterFeedbackReceived: React.PropTypes.func
     },
@@ -182,13 +190,6 @@ loop.shared.views.FeedbackView = (function(l10n) {
 
     componentDidMount: function() {
       this._timer = setInterval(function() {
-      if (this.state.countdown == 1) {
-        clearInterval(this._timer);
-        if (this.props.onAfterFeedbackReceived) {
-          this.props.onAfterFeedbackReceived();
-        }
-        return;
-      }
         this.setState({countdown: this.state.countdown - 1});
       }.bind(this), 1000);
     },
@@ -200,9 +201,15 @@ loop.shared.views.FeedbackView = (function(l10n) {
     },
 
     render: function() {
+      if (this.state.countdown < 1) {
+        clearInterval(this._timer);
+        if (this.props.onAfterFeedbackReceived) {
+          this.props.onAfterFeedbackReceived();
+        }
+      }
       return (
-        React.createElement(FeedbackLayout, {title: l10n.get("feedback_thank_you_heading")}, 
-          React.createElement("p", {className: "info thank-you"}, 
+        FeedbackLayout({title: l10n.get("feedback_thank_you_heading")}, 
+          React.DOM.p({className: "info thank-you"}, 
             l10n.get("feedback_window_will_close_in2", {
               countdown: this.state.countdown,
               num: this.state.countdown
@@ -215,7 +222,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
   /**
    * Feedback view.
    */
-  var FeedbackView = React.createClass({displayName: "FeedbackView",
+  var FeedbackView = React.createClass({displayName: 'FeedbackView',
     mixins: [Backbone.Events],
 
     propTypes: {
@@ -276,12 +283,12 @@ loop.shared.views.FeedbackView = (function(l10n) {
         default:
         case FEEDBACK_STATES.INIT: {
           return (
-            React.createElement(FeedbackLayout, {title: 
+            FeedbackLayout({title: 
               l10n.get("feedback_call_experience_heading2")}, 
-              React.createElement("div", {className: "faces"}, 
-                React.createElement("button", {className: "face face-happy", 
+              React.DOM.div({className: "faces"}, 
+                React.DOM.button({className: "face face-happy", 
                         onClick: this.handleHappyClick}), 
-                React.createElement("button", {className: "face face-sad", 
+                React.DOM.button({className: "face face-sad", 
                         onClick: this.handleSadClick})
               )
             )
@@ -289,7 +296,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
         }
         case FEEDBACK_STATES.DETAILS: {
           return (
-            React.createElement(FeedbackForm, {
+            FeedbackForm({
               feedbackStore: this.props.feedbackStore, 
               reset: this.reset, 
               pending: this.state.feedbackState === FEEDBACK_STATES.PENDING})
@@ -304,7 +311,7 @@ loop.shared.views.FeedbackView = (function(l10n) {
                           this.state.error);
           }
           return (
-            React.createElement(FeedbackReceived, {
+            FeedbackReceived({
               onAfterFeedbackReceived: this.props.onAfterFeedbackReceived})
           );
         }

@@ -6,27 +6,24 @@ MARIONETTE_HEAD_JS = "head.js";
 
 function testGetCardLockRetryCount(aIcc, aLockType, aRetryCount) {
   log("testGetCardLockRetryCount for " + aLockType);
+  return aIcc.getCardLockRetryCount(aLockType)
+    .then((aResult) => {
+      if (!aRetryCount) {
+        ok(false, "getCardLockRetryCount(" + aLockType + ") should not success");
+        return;
+      }
 
-  try {
-    return aIcc.getCardLockRetryCount(aLockType)
-      .then((aResult) => {
-        if (!aRetryCount) {
-          ok(false, "getCardLockRetryCount(" + aLockType + ") should not success");
-          return;
-        }
+      // Check the request result.
+      is(aResult.retryCount, aRetryCount, "result.retryCount");
+    }, (aError) => {
+      if (aRetryCount) {
+        ok(false, "getCardLockRetryCount(" + aLockType + ") should not fail");
+        return;
+      }
 
-        // Check the request result.
-        is(aResult.retryCount, aRetryCount, "result.retryCount");
-      }, (aError) => {
-        if (aRetryCount) {
-          ok(false, "getCardLockRetryCount(" + aLockType + ") should not fail" +
-                    aError.name);
-        }
-      });
-  } catch (e) {
-    ok(!aRetryCount, "caught an exception: " + e);
-    return Promise.resolve();
-  }
+      // Check the error.
+      is(aError.name, "GenericFailure", "error.name");
+    });
 }
 
 // Start tests

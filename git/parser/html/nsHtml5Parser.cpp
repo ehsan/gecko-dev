@@ -188,7 +188,7 @@ nsHtml5Parser::Parse(nsIURI* aURL,
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsHtml5Parser::Parse(const nsAString& aSourceBuffer,
                      void* aKey,
                      const nsACString& aContentType,
@@ -533,6 +533,14 @@ void
 nsHtml5Parser::Reset()
 {
   NS_NOTREACHED("Don't call this!");
+}
+
+bool
+nsHtml5Parser::CanInterrupt()
+{
+  // nsContentSink needs this to let nsContentSink::DidProcessATokenImpl
+  // interrupt.
+  return true;
 }
 
 bool

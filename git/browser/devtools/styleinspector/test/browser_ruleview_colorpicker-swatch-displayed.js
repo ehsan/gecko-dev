@@ -37,7 +37,7 @@ const TESTS = [
   {selector: "*", propertyName: "box-shadow", nb: 2},
 ];
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,rule view color picker tooltip test");
   content.document.body.innerHTML = PAGE_CONTENT;
   let {toolbox, inspector, view} = yield openRuleView();

@@ -588,7 +588,7 @@ class NonLocalExitScope {
     const int savedDepth;
     uint32_t openScopeIndex;
 
-    NonLocalExitScope(const NonLocalExitScope &) = delete;
+    NonLocalExitScope(const NonLocalExitScope &) MOZ_DELETE;
 
   public:
     explicit NonLocalExitScope(ExclusiveContext *cx_, BytecodeEmitter *bce_)
@@ -1074,9 +1074,9 @@ EmitAtomOp(ExclusiveContext *cx, JSAtom *atom, JSOp op, BytecodeEmitter *bce)
 {
     MOZ_ASSERT(JOF_OPTYPE(op) == JOF_ATOM);
 
-    // .generator and .genrval lookups should be emitted as JSOP_GETALIASEDVAR
-    // instead of JSOP_GETNAME etc, to bypass |with| objects on the scope chain.
-    MOZ_ASSERT_IF(op == JSOP_GETNAME || op == JSOP_GETGNAME, !bce->sc->isDotVariable(atom));
+    // .generator lookups should be emitted as JSOP_GETALIASEDVAR instead of
+    // JSOP_NAME etc, to bypass |with| objects on the scope chain.
+    MOZ_ASSERT_IF(op == JSOP_NAME || op == JSOP_GETGNAME, atom != cx->names().dotGenerator);
 
     if (op == JSOP_GETPROP && atom == cx->names().length) {
         /* Specialize length accesses for the interpreter. */
@@ -1554,7 +1554,7 @@ TryConvertFreeName(BytecodeEmitter *bce, ParseNode *pn)
     if (bce->emitterMode == BytecodeEmitter::SelfHosting) {
         JSOp op;
         switch (pn->getOp()) {
-          case JSOP_GETNAME:  op = JSOP_GETINTRINSIC; break;
+          case JSOP_NAME:     op = JSOP_GETINTRINSIC; break;
           case JSOP_SETNAME:  op = JSOP_SETINTRINSIC; break;
           /* Other *NAME ops aren't (yet) supported in self-hosted code. */
           default: MOZ_CRASH("intrinsic");
@@ -1608,7 +1608,7 @@ TryConvertFreeName(BytecodeEmitter *bce, ParseNode *pn)
                 if (LookupAliasedName(bce, script, pn->pn_atom->asPropertyName(), &slot, pn)) {
                     JSOp op;
                     switch (pn->getOp()) {
-                      case JSOP_GETNAME: op = JSOP_GETALIASEDVAR; break;
+                      case JSOP_NAME:    op = JSOP_GETALIASEDVAR; break;
                       case JSOP_SETNAME: op = JSOP_SETALIASEDVAR; break;
                       default: return false;
                     }
@@ -1661,7 +1661,7 @@ TryConvertFreeName(BytecodeEmitter *bce, ParseNode *pn)
 
     JSOp op;
     switch (pn->getOp()) {
-      case JSOP_GETNAME:  op = JSOP_GETGNAME; break;
+      case JSOP_NAME:     op = JSOP_GETGNAME; break;
       case JSOP_SETNAME:  op = StrictifySetNameOp(JSOP_SETGNAME, bce); break;
       case JSOP_SETCONST:
         // Not supported.
@@ -1680,12 +1680,12 @@ TryConvertFreeName(BytecodeEmitter *bce, ParseNode *pn)
  * The caller can test pn->pn_cookie.isFree() to tell whether optimization
  * occurred, in which case BindNameToSlotHelper also updated pn->pn_op.  If
  * pn->pn_cookie.isFree() is still true on return, pn->pn_op still may have
- * been optimized, e.g., from JSOP_GETNAME to JSOP_CALLEE.  Whether or not
+ * been optimized, e.g., from JSOP_NAME to JSOP_CALLEE.  Whether or not
  * pn->pn_op was modified, if this function finds an argument or local variable
  * name, PND_CONST will be set in pn_dflags for read-only properties after a
  * successful return.
  *
- * NB: if you add more opcodes specialized from JSOP_GETNAME, etc., don't forget
+ * NB: if you add more opcodes specialized from JSOP_NAME, etc., don't forget
  * to update the special cases in EmitFor (for-in) and EmitAssignment (= and
  * op=, e.g. +=).
  */
@@ -1723,7 +1723,7 @@ BindNameToSlotHelper(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     // Throw an error on attempts to mutate const-declared bindings.
     switch (op) {
-      case JSOP_GETNAME:
+      case JSOP_NAME:
       case JSOP_SETCONST:
         break;
       default:
@@ -1798,11 +1798,8 @@ BindNameToSlotHelper(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     switch (dn->kind()) {
       case Definition::ARG:
         switch (op) {
-          case JSOP_GETNAME:
-            op = JSOP_GETARG; break;
-          case JSOP_SETNAME:
-          case JSOP_STRICTSETNAME:
-            op = JSOP_SETARG; break;
+          case JSOP_NAME:     op = JSOP_GETARG; break;
+          case JSOP_SETNAME:  op = JSOP_SETARG; break;
           default: MOZ_CRASH("arg");
         }
         MOZ_ASSERT(!pn->isConst());
@@ -1813,13 +1810,9 @@ BindNameToSlotHelper(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
       case Definition::CONST:
       case Definition::LET:
         switch (op) {
-          case JSOP_GETNAME:
-            op = JSOP_GETLOCAL; break;
-          case JSOP_SETNAME:
-          case JSOP_STRICTSETNAME:
-            op = JSOP_SETLOCAL; break;
-          case JSOP_SETCONST:
-            op = JSOP_SETLOCAL; break;
+          case JSOP_NAME:     op = JSOP_GETLOCAL; break;
+          case JSOP_SETNAME:  op = JSOP_SETLOCAL; break;
+          case JSOP_SETCONST: op = JSOP_SETLOCAL; break;
           default: MOZ_CRASH("local");
         }
         break;
@@ -1840,7 +1833,7 @@ BindNameToSlotHelper(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
         MOZ_ASSERT(pn->pn_atom == fun->atom());
 
         /*
-         * Leave pn->isOp(JSOP_GETNAME) if bce->fun is heavyweight to
+         * Leave pn->isOp(JSOP_NAME) if bce->fun is heavyweight to
          * address two cases: a new binding introduced by eval, and
          * assignment to the name in strict mode.
          *
@@ -2265,9 +2258,9 @@ IteratorResultShape(ExclusiveContext *cx, BytecodeEmitter *bce, unsigned *shape)
 {
     MOZ_ASSERT(bce->script->compileAndGo());
 
-    RootedPlainObject obj(cx);
+    RootedNativeObject obj(cx);
     gc::AllocKind kind = GuessObjectGCKind(2);
-    obj = NewBuiltinClassInstance<PlainObject>(cx, kind);
+    obj = NewNativeBuiltinClassInstance(cx, &JSObject::class_, kind);
     if (!obj)
         return false;
 
@@ -2275,14 +2268,10 @@ IteratorResultShape(ExclusiveContext *cx, BytecodeEmitter *bce, unsigned *shape)
     Rooted<jsid> done_id(cx, AtomToId(cx->names().done));
     if (!DefineNativeProperty(cx, obj, value_id, UndefinedHandleValue, nullptr, nullptr,
                               JSPROP_ENUMERATE))
-    {
         return false;
-    }
     if (!DefineNativeProperty(cx, obj, done_id, UndefinedHandleValue, nullptr, nullptr,
                               JSPROP_ENUMERATE))
-    {
         return false;
-    }
 
     ObjectBox *objbox = bce->parser->newObjectBox(obj);
     if (!objbox)
@@ -2311,10 +2300,10 @@ EmitFinishIteratorResult(ExclusiveContext *cx, BytecodeEmitter *bce, bool done)
 {
     jsatomid value_id;
     if (!bce->makeAtomIndex(cx->names().value, &value_id))
-        return false;
+        return UINT_MAX;
     jsatomid done_id;
     if (!bce->makeAtomIndex(cx->names().done, &done_id))
-        return false;
+        return UINT_MAX;
 
     if (!EmitIndex32(cx, JSOP_INITPROP, value_id, bce))
         return false;
@@ -2349,7 +2338,7 @@ EmitNameOp(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, bool callC
 
     /* Need to provide |this| value for call */
     if (callContext) {
-        if (op == JSOP_GETNAME && bce->needsImplicitThis()) {
+        if (op == JSOP_NAME && bce->needsImplicitThis()) {
             if (!EmitAtomOp(cx, pn, JSOP_IMPLICITTHIS, bce))
                 return false;
         } else {
@@ -2480,7 +2469,7 @@ EmitNameIncDec(ExclusiveContext *cx, ParseNode *pn, BytecodeEmitter *bce)
 
     if (!EmitAtomOp(cx, pn->pn_kid, global ? JSOP_BINDGNAME : JSOP_BINDNAME, bce))  // OBJ
         return false;
-    if (!EmitAtomOp(cx, pn->pn_kid, global ? JSOP_GETGNAME : JSOP_GETNAME, bce))    // OBJ V
+    if (!EmitAtomOp(cx, pn->pn_kid, global ? JSOP_GETGNAME : JSOP_NAME, bce))       // OBJ V
         return false;
     if (Emit1(cx, bce, JSOP_POS) < 0)               // OBJ N
         return false;
@@ -4048,7 +4037,7 @@ EmitAssignment(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *lhs, JSOp 
                 if (lhs->isOp(JSOP_CALLEE)) {
                     if (Emit1(cx, bce, JSOP_CALLEE) < 0)
                         return false;
-                } else if (lhs->isOp(JSOP_GETNAME) || lhs->isOp(JSOP_GETGNAME)) {
+                } else if (lhs->isOp(JSOP_NAME) || lhs->isOp(JSOP_GETGNAME)) {
                     if (!EmitIndex32(cx, lhs->getOp(), atomIndex, bce))
                         return false;
                 } else {
@@ -4200,16 +4189,16 @@ ParseNode::getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObje
       case PNK_NULL:
         vp.setNull();
         return true;
+      case PNK_SPREAD:
+        return false;
       case PNK_CALLSITEOBJ:
       case PNK_ARRAY: {
         RootedValue value(cx);
         unsigned count;
         ParseNode *pn;
 
-        if (allowObjects == DontAllowObjects) {
-            vp.setMagic(JS_GENERIC_MAGIC);
-            return true;
-        }
+        if (allowObjects == DontAllowObjects)
+            return false;
         if (allowObjects == DontAllowNestedObjects)
             allowObjects = DontAllowObjects;
 
@@ -4231,10 +4220,6 @@ ParseNode::getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObje
         for (; pn; idx++, pn = pn->pn_next) {
             if (!pn->getConstantValue(cx, allowObjects, &value))
                 return false;
-            if (value.isMagic(JS_GENERIC_MAGIC)) {
-                vp.setMagic(JS_GENERIC_MAGIC);
-                return true;
-            }
             id = INT_TO_JSID(idx);
             if (!JSObject::defineGeneric(cx, obj, id, value, nullptr, nullptr, JSPROP_ENUMERATE))
                 return false;
@@ -4249,16 +4234,14 @@ ParseNode::getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObje
         MOZ_ASSERT(isOp(JSOP_NEWINIT));
         MOZ_ASSERT(!(pn_xflags & PNX_NONCONST));
 
-        if (allowObjects == DontAllowObjects) {
-            vp.setMagic(JS_GENERIC_MAGIC);
-            return true;
-        }
+        if (allowObjects == DontAllowObjects)
+            return false;
         if (allowObjects == DontAllowNestedObjects)
             allowObjects = DontAllowObjects;
 
         gc::AllocKind kind = GuessObjectGCKind(pn_count);
-        RootedPlainObject obj(cx,
-            NewBuiltinClassInstance<PlainObject>(cx, kind, MaybeSingletonObject));
+        RootedNativeObject obj(cx, NewNativeBuiltinClassInstance(cx, &JSObject::class_,
+                                                                 kind, MaybeSingletonObject));
         if (!obj)
             return false;
 
@@ -4266,10 +4249,6 @@ ParseNode::getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObje
         for (ParseNode *pn = pn_head; pn; pn = pn->pn_next) {
             if (!pn->pn_right->getConstantValue(cx, allowObjects, &value))
                 return false;
-            if (value.isMagic(JS_GENERIC_MAGIC)) {
-                vp.setMagic(JS_GENERIC_MAGIC);
-                return true;
-            }
 
             ParseNode *pnid = pn->pn_left;
             if (pnid->isKind(PNK_NUMBER)) {
@@ -5599,16 +5578,6 @@ EmitContinue(ExclusiveContext *cx, BytecodeEmitter *bce, PropertyName *label)
 }
 
 static bool
-InTryBlockWithFinally(BytecodeEmitter *bce)
-{
-    for (StmtInfoBCE *stmt = bce->topStmt; stmt; stmt = stmt->down) {
-        if (stmt->type == STMT_FINALLY)
-            return true;
-    }
-    return false;
-}
-
-static bool
 EmitReturn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     if (!UpdateSourceCoordNotes(cx, bce, pn->pn_pos.begin))
@@ -5620,7 +5589,7 @@ EmitReturn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     }
 
     /* Push a return value */
-    if (ParseNode *pn2 = pn->pn_left) {
+    if (ParseNode *pn2 = pn->pn_kid) {
         if (!EmitTree(cx, bce, pn2))
             return false;
     } else {
@@ -5648,25 +5617,8 @@ EmitReturn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     ptrdiff_t top = bce->offset();
 
     bool isGenerator = bce->sc->isFunctionBox() && bce->sc->asFunctionBox()->isGenerator();
-    bool useGenRVal = false;
-    if (isGenerator) {
-        if (bce->sc->asFunctionBox()->isStarGenerator() && InTryBlockWithFinally(bce)) {
-            // Emit JSOP_SETALIASEDVAR .genrval to store the return value on the
-            // scope chain, so it's not lost when we yield in a finally block.
-            useGenRVal = true;
-            MOZ_ASSERT(pn->pn_right);
-            if (!EmitTree(cx, bce, pn->pn_right))
-                return false;
-            if (Emit1(cx, bce, JSOP_POP) < 0)
-                return false;
-        } else {
-            if (Emit1(cx, bce, JSOP_SETRVAL) < 0)
-                return false;
-        }
-    } else {
-        if (Emit1(cx, bce, JSOP_RETURN) < 0)
-            return false;
-    }
+    if (Emit1(cx, bce, isGenerator ? JSOP_SETRVAL : JSOP_RETURN) < 0)
+         return false;
 
     NonLocalExitScope nle(cx, bce);
 
@@ -5675,17 +5627,9 @@ EmitReturn(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
     if (isGenerator) {
         ScopeCoordinate sc;
-        // We know that .generator and .genrval are on the top scope chain node,
-        // as we just exited nested scopes.
+        // We know that .generator is on the top scope chain node, as we just
+        // exited nested scopes.
         sc.setHops(0);
-        if (useGenRVal) {
-            MOZ_ALWAYS_TRUE(LookupAliasedNameSlot(bce, bce->script, cx->names().dotGenRVal, &sc));
-            if (!EmitAliasedVarOp(cx, JSOP_GETALIASEDVAR, sc, DontCheckLexical, bce))
-                return false;
-            if (Emit1(cx, bce, JSOP_SETRVAL) < 0)
-                return false;
-        }
-
         MOZ_ALWAYS_TRUE(LookupAliasedNameSlot(bce, bce->script, cx->names().dotGenerator, &sc));
         if (!EmitAliasedVarOp(cx, JSOP_GETALIASEDVAR, sc, DontCheckLexical, bce))
             return false;
@@ -6543,10 +6487,10 @@ EmitObject(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
      * Try to construct the shape of the object as we go, so we can emit a
      * JSOP_NEWOBJECT with the final shape instead.
      */
-    RootedPlainObject obj(cx);
+    RootedNativeObject obj(cx);
     if (bce->script->compileAndGo()) {
         gc::AllocKind kind = GuessObjectGCKind(pn->pn_count);
-        obj = NewBuiltinClassInstance<PlainObject>(cx, kind, TenuredObject);
+        obj = NewNativeBuiltinClassInstance(cx, &JSObject::class_, kind, TenuredObject);
         if (!obj)
             return false;
     }
@@ -6623,8 +6567,8 @@ EmitObject(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
                 MOZ_ASSERT(!obj->inDictionaryMode());
                 Rooted<jsid> id(cx, AtomToId(key->pn_atom));
                 RootedValue undefinedValue(cx, UndefinedValue());
-                if (!DefineNativeProperty(cx, obj, id, undefinedValue, nullptr, nullptr,
-                                          JSPROP_ENUMERATE))
+                if (!DefineNativeProperty(cx, obj, id, undefinedValue, nullptr,
+                                          nullptr, JSPROP_ENUMERATE))
                 {
                     return false;
                 }
@@ -7165,7 +7109,6 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 
       case PNK_IMPORT:
       case PNK_EXPORT:
-      case PNK_EXPORT_FROM:
        // TODO: Implement emitter support for modules
        bce->reportError(nullptr, JSMSG_MODULES_NOT_IMPLEMENTED);
        return false;
@@ -7201,29 +7144,28 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             // If the array consists entirely of primitive values, make a
             // template object with copy on write elements that can be reused
             // every time the initializer executes.
-            if (bce->emitterMode != BytecodeEmitter::SelfHosting && pn->pn_count != 0) {
-                RootedValue value(cx);
-                if (!pn->getConstantValue(cx, ParseNode::DontAllowNestedObjects, &value))
+            RootedValue value(cx);
+            if (bce->emitterMode != BytecodeEmitter::SelfHosting &&
+                pn->pn_count != 0 &&
+                pn->getConstantValue(cx, ParseNode::DontAllowNestedObjects, &value))
+            {
+                // Note: the type of the template object might not yet reflect
+                // that the object has copy on write elements. When the
+                // interpreter or JIT compiler fetches the template, it should
+                // use types::GetOrFixupCopyOnWriteObject to make sure the type
+                // for the template is accurate. We don't do this here as we
+                // want to use types::InitObject, which requires a finished
+                // script.
+                NativeObject *obj = &value.toObject().as<NativeObject>();
+                if (!ObjectElements::MakeElementsCopyOnWrite(cx, obj))
                     return false;
-                if (!value.isMagic(JS_GENERIC_MAGIC)) {
-                    // Note: the type of the template object might not yet reflect
-                    // that the object has copy on write elements. When the
-                    // interpreter or JIT compiler fetches the template, it should
-                    // use types::GetOrFixupCopyOnWriteObject to make sure the type
-                    // for the template is accurate. We don't do this here as we
-                    // want to use types::InitObject, which requires a finished
-                    // script.
-                    NativeObject *obj = &value.toObject().as<NativeObject>();
-                    if (!ObjectElements::MakeElementsCopyOnWrite(cx, obj))
-                        return false;
 
-                    ObjectBox *objbox = bce->parser->newObjectBox(obj);
-                    if (!objbox)
-                        return false;
+                ObjectBox *objbox = bce->parser->newObjectBox(obj);
+                if (!objbox)
+                    return false;
 
-                    ok = EmitObjectOp(cx, objbox, JSOP_NEWARRAY_COPYONWRITE, bce);
-                    break;
-                }
+                ok = EmitObjectOp(cx, objbox, JSOP_NEWARRAY_COPYONWRITE, bce);
+                break;
             }
         }
 

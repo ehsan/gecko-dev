@@ -151,9 +151,10 @@ void GonkNativeWindow::returnBuffer(TextureClient* client) {
       fence = Fence::NO_FENCE;
     }
 
-    addReleaseFenceLocked(index, fence);
+    status_t err;
+    err = addReleaseFenceLocked(index, fence);
 
-    releaseBufferLocked(index);
+    err = releaseBufferLocked(index);
 }
 
 TemporaryRef<TextureClient>

@@ -66,7 +66,7 @@ public:
   };
 
 protected:
-  Box() = delete;
+  Box() MOZ_DELETE;
   Box(const nsACString& aType, ISOControl* aControl);
 
   ISOControl* mControl;
@@ -94,7 +94,7 @@ protected:
   // FullBox methods
   FullBox(const nsACString& aType, uint8_t aVersion, uint32_t aFlags,
           ISOControl* aControl);
-  FullBox() = delete;
+  FullBox() MOZ_DELETE;
 };
 
 /**
@@ -118,7 +118,7 @@ public:
 protected:
   // DefaultContainerImpl methods
   DefaultContainerImpl(const nsACString& aType, ISOControl* aControl);
-  DefaultContainerImpl() = delete;
+  DefaultContainerImpl() MOZ_DELETE;
 
   nsTArray<nsRefPtr<MuxerOperation>> boxes;
 };
@@ -502,7 +502,7 @@ public:
   nsresult Write() MOZ_OVERRIDE;
 
 protected:
-  SampleEntryBox() = delete;
+  SampleEntryBox() MOZ_DELETE;
 };
 
 // 14496-12 8.5.2 'Sample Description Box'

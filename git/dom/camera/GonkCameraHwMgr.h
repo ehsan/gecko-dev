@@ -124,8 +124,8 @@ protected:
   int                           mSensorOrientation;
 
 private:
-  GonkCameraHardware(const GonkCameraHardware&) = delete;
-  GonkCameraHardware& operator=(const GonkCameraHardware&) = delete;
+  GonkCameraHardware(const GonkCameraHardware&) MOZ_DELETE;
+  GonkCameraHardware& operator=(const GonkCameraHardware&) MOZ_DELETE;
 };
 
 } // namespace android

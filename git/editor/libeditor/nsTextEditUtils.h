@@ -15,7 +15,6 @@ class Element;
 } // namespace mozilla
 
 class nsIDOMNode;
-class nsINode;
 class nsPlaintextEditor;
 
 class nsTextEditUtils

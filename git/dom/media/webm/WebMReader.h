@@ -24,7 +24,9 @@
 #include "vorbis/codec.h"
 #endif
 
+#ifdef MOZ_OPUS
 #include "OpusParser.h"
+#endif
 
 // Holds a nestegg_packet, and its file offset. This is needed so we
 // know the offset in the file we've played up to, in order to calculate
@@ -186,11 +188,13 @@ public:
   uint64_t GetLastVideoFrameTime();
   void SetLastVideoFrameTime(uint64_t aFrameTime);
   layers::LayersBackend GetLayersBackendType() { return mLayersBackendType; }
-  FlushableMediaTaskQueue* GetVideoTaskQueue() { return mVideoTaskQueue; }
+  MediaTaskQueue* GetVideoTaskQueue() { return mVideoTaskQueue; }
 
 protected:
+#ifdef MOZ_OPUS
   // Setup opus decoder
   bool InitOpusDecoder();
+#endif
 
   // Decode a nestegg packet of audio data. Push the audio data on the
   // audio queue. Returns true when there's more audio to decode,
@@ -202,9 +206,11 @@ protected:
   bool DecodeVorbis(const unsigned char* aData, size_t aLength,
                     int64_t aOffset, uint64_t aTstampUsecs,
                     int32_t* aTotalFrames);
+#ifdef MOZ_OPUS
   bool DecodeOpus(const unsigned char* aData, size_t aLength,
                   int64_t aOffset, uint64_t aTstampUsecs,
                   nestegg_packet* aPacket);
+#endif
 
   // Release context and set to null. Called when an error occurs during
   // reading metadata or destruction of the reader itself.
@@ -230,11 +236,13 @@ private:
   vorbis_block mVorbisBlock;
   int64_t mPacketCount;
 
+#ifdef MOZ_OPUS
   // Opus decoder state
   nsAutoPtr<OpusParser> mOpusParser;
   OpusMSDecoder *mOpusDecoder;
   uint16_t mSkip;        // Samples left to trim before playback.
   uint64_t mSeekPreroll; // Nanoseconds to discard after seeking.
+#endif
 
   // Queue of video and audio packets that have been read but not decoded. These
   // must only be accessed from the state machine thread.
@@ -277,16 +285,18 @@ private:
   layers::LayersBackend mLayersBackendType;
 
   // For hardware video decoding.
-  nsRefPtr<FlushableMediaTaskQueue> mVideoTaskQueue;
+  nsRefPtr<MediaTaskQueue> mVideoTaskQueue;
 
   // Booleans to indicate if we have audio and/or video data
   bool mHasVideo;
   bool mHasAudio;
 
+#ifdef MOZ_OPUS
   // Opus padding should only be discarded on the final packet.  Once this
   // is set to true, if the reader attempts to decode any further packets it
   // will raise an error so we can indicate that the file is invalid.
   bool mPaddingDiscarded;
+#endif
 };
 
 } // namespace mozilla

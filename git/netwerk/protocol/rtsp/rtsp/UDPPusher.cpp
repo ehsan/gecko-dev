@@ -24,6 +24,7 @@
 #include <media/stagefright/foundation/AMessage.h>
 #include <utils/ByteOrder.h>
 
+#include "mozilla/NullPtr.h"
 #include "prnetdb.h"
 #include "prerr.h"
 #include "NetworkActivityMonitor.h"

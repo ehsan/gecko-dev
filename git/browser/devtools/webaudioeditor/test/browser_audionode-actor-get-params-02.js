@@ -6,11 +6,11 @@
  * from the AudioNode actors.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, front } = yield initBackend(SIMPLE_NODES_URL);
   let [_, nodes] = yield Promise.all([
     front.setup({ reload: true }),
-    getN(front, "create-node", 15)
+    getN(front, "create-node", 14)
   ]);
 
   let allParams = yield Promise.all(nodes.map(node => node.getParams()));
@@ -18,7 +18,7 @@ add_task(function*() {
     "AudioDestinationNode", "AudioBufferSourceNode", "ScriptProcessorNode",
     "AnalyserNode", "GainNode", "DelayNode", "BiquadFilterNode", "WaveShaperNode",
     "PannerNode", "ConvolverNode", "ChannelSplitterNode", "ChannelMergerNode",
-    "DynamicsCompressorNode", "OscillatorNode", "StereoPannerNode"
+    "DynamicsCompressorNode", "OscillatorNode"
   ];
 
   allParams.forEach((params, i) => {
@@ -26,7 +26,8 @@ add_task(function*() {
   });
 
   yield removeTab(target.tab);
-});
+  finish();
+}
 
 function compare (actual, expected, type) {
   actual.forEach(({ value, param }) => {

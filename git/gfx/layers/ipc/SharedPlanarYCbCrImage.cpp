@@ -37,8 +37,8 @@ SharedPlanarYCbCrImage::~SharedPlanarYCbCrImage() {
 
   if (mCompositable->GetAsyncID() != 0 &&
       !InImageBridgeChildThread()) {
-    ImageBridgeChild::DispatchReleaseTextureClient(mTextureClient.forget().take());
-    ImageBridgeChild::DispatchReleaseImageClient(mCompositable.forget().take());
+    ImageBridgeChild::DispatchReleaseTextureClient(mTextureClient.forget().drop());
+    ImageBridgeChild::DispatchReleaseImageClient(mCompositable.forget().drop());
   }
 }
 
@@ -106,9 +106,6 @@ SharedPlanarYCbCrImage::AllocateAndGetNewBuffer(uint32_t aSize)
 {
   NS_ABORT_IF_FALSE(!mTextureClient, "This image already has allocated data");
   size_t size = YCbCrImageDataSerializer::ComputeMinBufferSize(aSize);
-  if (!size) {
-    return nullptr;
-  }
 
   mTextureClient = TextureClient::CreateWithBufferSize(mCompositable->GetForwarder(),
                                                        gfx::SurfaceFormat::YUV, size,
@@ -222,7 +219,7 @@ SharedPlanarYCbCrImage::Allocate(PlanarYCbCrData& aData)
                                                                mData.mCbCrSize);
   mSize = mData.mPicSize;
 
-  return mBufferSize > 0;
+  return true;
 }
 
 } // namespace

@@ -452,15 +452,15 @@ nsSupportsArray::RemoveElementsAt(uint32_t aIndex, uint32_t aCount)
   return false;
 }
 
-NS_IMETHODIMP
-nsSupportsArray::RemoveElement(nsISupports* aElement)
+NS_IMETHODIMP_(bool)
+nsSupportsArray::RemoveElement(const nsISupports* aElement, uint32_t aStartIndex)
 {
-  int32_t theIndex = IndexOfStartingAt(aElement, 0);
+  int32_t theIndex = IndexOfStartingAt(aElement, aStartIndex);
   if (theIndex >= 0) {
-    return RemoveElementAt(theIndex) ? NS_OK : NS_ERROR_FAILURE;
+    return RemoveElementAt(theIndex);
   }
 
-  return NS_ERROR_FAILURE;
+  return false;
 }
 
 NS_IMETHODIMP_(bool)

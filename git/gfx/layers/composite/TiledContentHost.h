@@ -62,21 +62,15 @@ public:
   // Constructs a TileHost from a gfxSharedReadLock and TextureHost.
   TileHost(gfxSharedReadLock* aSharedLock,
                TextureHost* aTextureHost,
-               TextureHost* aTextureHostOnWhite,
-               TextureSource* aSource,
-               TextureSource* aSourceOnWhite)
+               TextureHost* aTextureHostOnWhite)
     : mSharedLock(aSharedLock)
     , mTextureHost(aTextureHost)
     , mTextureHostOnWhite(aTextureHostOnWhite)
-    , mTextureSource(aSource)
-    , mTextureSourceOnWhite(aSourceOnWhite)
   {}
 
   TileHost(const TileHost& o) {
     mTextureHost = o.mTextureHost;
     mTextureHostOnWhite = o.mTextureHostOnWhite;
-    mTextureSource = o.mTextureSource;
-    mTextureSourceOnWhite = o.mTextureSourceOnWhite;
     mSharedLock = o.mSharedLock;
   }
   TileHost& operator=(const TileHost& o) {
@@ -85,8 +79,6 @@ public:
     }
     mTextureHost = o.mTextureHost;
     mTextureHostOnWhite = o.mTextureHostOnWhite;
-    mTextureSource = o.mTextureSource;
-    mTextureSourceOnWhite = o.mTextureSourceOnWhite;
     mSharedLock = o.mSharedLock;
     return *this;
   }
@@ -106,16 +98,9 @@ public:
     }
   }
 
-  void DumpTexture(std::stringstream& aStream) {
-    // TODO We should combine the OnWhite/OnBlack here an just output a single image.
-    CompositableHost::DumpTextureHost(aStream, mTextureHost);
-  }
-
   RefPtr<gfxSharedReadLock> mSharedLock;
-  CompositableTextureHostRef mTextureHost;
-  CompositableTextureHostRef mTextureHostOnWhite;
-  mutable CompositableTextureSourceRef mTextureSource;
-  mutable CompositableTextureSourceRef mTextureSourceOnWhite;
+  RefPtr<TextureHost> mTextureHost;
+  RefPtr<TextureHost> mTextureHostOnWhite;
 };
 
 class TiledLayerBufferComposite
@@ -129,8 +114,7 @@ public:
   TiledLayerBufferComposite();
   TiledLayerBufferComposite(ISurfaceAllocator* aAllocator,
                             const SurfaceDescriptorTiles& aDescriptor,
-                            const nsIntRegion& aOldPaintedRegion,
-                            Compositor* aCompositor);
+                            const nsIntRegion& aOldPaintedRegion);
 
   TileHost GetPlaceholderTile() const { return TileHost(); }
 
@@ -220,18 +204,18 @@ public:
   virtual bool UpdateThebes(const ThebesBufferData& aData,
                             const nsIntRegion& aUpdated,
                             const nsIntRegion& aOldValidRegionBack,
-                            nsIntRegion* aUpdatedRegionBack) MOZ_OVERRIDE
+                            nsIntRegion* aUpdatedRegionBack)
   {
     NS_ERROR("N/A for tiled layers");
     return false;
   }
 
-  const nsIntRegion& GetValidLowPrecisionRegion() const MOZ_OVERRIDE
+  const nsIntRegion& GetValidLowPrecisionRegion() const
   {
     return mLowPrecisionTiledBuffer.GetValidRegion();
   }
 
-  virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE
+  virtual void SetCompositor(Compositor* aCompositor)
   {
     CompositableHost::SetCompositor(aCompositor);
     mTiledBuffer.SetCompositor(aCompositor);
@@ -248,9 +232,9 @@ public:
                  const gfx::Matrix4x4& aTransform,
                  const gfx::Filter& aFilter,
                  const gfx::Rect& aClipRect,
-                 const nsIntRegion* aVisibleRegion = nullptr) MOZ_OVERRIDE;
+                 const nsIntRegion* aVisibleRegion = nullptr);
 
-  virtual CompositableType GetType() MOZ_OVERRIDE { return CompositableType::CONTENT_TILED; }
+  virtual CompositableType GetType() { return CompositableType::CONTENT_TILED; }
 
   virtual TiledLayerComposer* AsTiledLayerComposer() MOZ_OVERRIDE { return this; }
 
@@ -261,11 +245,13 @@ public:
   virtual void Detach(Layer* aLayer = nullptr,
                       AttachFlags aFlags = NO_FLAGS) MOZ_OVERRIDE;
 
+#ifdef MOZ_DUMP_PAINTING
   virtual void Dump(std::stringstream& aStream,
                     const char* aPrefix="",
                     bool aDumpHtml=false) MOZ_OVERRIDE;
+#endif
 
-  virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix) MOZ_OVERRIDE;
+  virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix);
 
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
   /**

@@ -6,7 +6,7 @@
 
 #include "nsIDOMCrypto.h"
 #include "mozilla/dom/SubtleCrypto.h"
-#include "nsIGlobalObject.h"
+#include "nsPIDOMWindow.h"
 
 #include "nsWrapperCache.h"
 #include "mozilla/dom/TypedArray.h"
@@ -35,18 +35,18 @@ public:
 
   void
   GetRandomValues(JSContext* aCx, const ArrayBufferView& aArray,
-                  JS::MutableHandle<JSObject*> aRetval,
-                  ErrorResult& aRv);
+		  JS::MutableHandle<JSObject*> aRetval,
+		  ErrorResult& aRv);
 
   SubtleCrypto*
   Subtle();
 
   // WebIDL
 
-  nsIGlobalObject*
+  nsPIDOMWindow*
   GetParentObject() const
   {
-    return mParent;
+    return mWindow;
   }
 
   virtual JSObject*
@@ -56,7 +56,7 @@ public:
   GetRandomValues(uint32_t aLength);
 
 private:
-  nsCOMPtr<nsIGlobalObject> mParent;
+  nsCOMPtr<nsPIDOMWindow> mWindow;
   nsRefPtr<SubtleCrypto> mSubtle;
 };
 

@@ -135,40 +135,18 @@ JS_TraceIncomingCCWs(JSTracer *trc, const JS::ZoneSet &zones)
 
             for (JSCompartment::WrapperEnum e(comp); !e.empty(); e.popFront()) {
                 const CrossCompartmentKey &key = e.front().key();
-                JSObject *obj;
-                JSScript *script;
-
-                switch (key.kind) {
-                  case CrossCompartmentKey::StringWrapper:
-                    // StringWrappers are just used to avoid copying strings
-                    // across zones multiple times, and don't hold a strong
-                    // reference.
+                // StringWrappers are just used to avoid copying strings across
+                // zones multiple times, and don't hold a strong reference.
+                if (key.kind == CrossCompartmentKey::StringWrapper)
+                    continue;
+                JSObject *obj = static_cast<JSObject *>(key.wrapped);
+                // Ignore CCWs whose wrapped value doesn't live in our given set
+                // of zones.
+                if (!zones.has(obj->zone()))
                     continue;
 
-                  case CrossCompartmentKey::ObjectWrapper:
-                  case CrossCompartmentKey::DebuggerObject:
-                  case CrossCompartmentKey::DebuggerSource:
-                  case CrossCompartmentKey::DebuggerEnvironment:
-                    obj = static_cast<JSObject *>(key.wrapped);
-                    // Ignore CCWs whose wrapped value doesn't live in our given
-                    // set of zones.
-                    if (!zones.has(obj->zone()))
-                        continue;
-
-                    MarkObjectUnbarriered(trc, &obj, "cross-compartment wrapper");
-                    MOZ_ASSERT(obj == key.wrapped);
-                    break;
-
-                  case CrossCompartmentKey::DebuggerScript:
-                    script = static_cast<JSScript *>(key.wrapped);
-                    // Ignore CCWs whose wrapped value doesn't live in our given
-                    // set of zones.
-                    if (!zones.has(script->zone()))
-                        continue;
-                    MarkScriptUnbarriered(trc, &script, "cross-compartment wrapper");
-                    MOZ_ASSERT(script == key.wrapped);
-                    break;
-                }
+                MarkObjectUnbarriered(trc, &obj, "cross-compartment wrapper");
+                MOZ_ASSERT(obj == key.wrapped);
             }
         }
     }
@@ -203,10 +181,6 @@ JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
         break;
       }
 
-      case JSTRACE_SCRIPT:
-        name = "script";
-        break;
-
       case JSTRACE_STRING:
         name = ((JSString *)thing)->isDependent()
                ? "substring"
@@ -217,28 +191,28 @@ JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
         name = "symbol";
         break;
 
-      case JSTRACE_BASE_SHAPE:
-        name = "base_shape";
-        break;
-
-      case JSTRACE_JITCODE:
-        name = "jitcode";
+      case JSTRACE_SCRIPT:
+        name = "script";
         break;
 
       case JSTRACE_LAZY_SCRIPT:
         name = "lazyscript";
         break;
 
+      case JSTRACE_JITCODE:
+        name = "jitcode";
+        break;
+
       case JSTRACE_SHAPE:
         name = "shape";
         break;
 
-      case JSTRACE_TYPE_OBJECT:
-        name = "type_object";
+      case JSTRACE_BASE_SHAPE:
+        name = "base_shape";
         break;
 
-      default:
-        name = "INVALID";
+      case JSTRACE_TYPE_OBJECT:
+        name = "type_object";
         break;
     }
 
@@ -267,13 +241,6 @@ JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
             } else {
                 JS_snprintf(buf, bufsize, " <no private>");
             }
-            break;
-          }
-
-          case JSTRACE_SCRIPT:
-          {
-            JSScript *script = static_cast<JSScript *>(thing);
-            JS_snprintf(buf, bufsize, " %s:%u", script->filename(), unsigned(script->lineno()));
             break;
           }
 
@@ -317,7 +284,18 @@ JS_GetTraceThingInfo(char *buf, size_t bufsize, JSTracer *trc, void *thing,
             break;
           }
 
-          default:
+          case JSTRACE_SCRIPT:
+          {
+            JSScript *script = static_cast<JSScript *>(thing);
+            JS_snprintf(buf, bufsize, " %s:%u", script->filename(), unsigned(script->lineno()));
+            break;
+          }
+
+          case JSTRACE_LAZY_SCRIPT:
+          case JSTRACE_JITCODE:
+          case JSTRACE_SHAPE:
+          case JSTRACE_BASE_SHAPE:
+          case JSTRACE_TYPE_OBJECT:
             break;
         }
     }

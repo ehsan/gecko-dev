@@ -234,9 +234,6 @@ struct AnimationPlayerCollection : public PRCList
 
   void Destroy()
   {
-    for (size_t playerIdx = mPlayers.Length(); playerIdx-- != 0; ) {
-      mPlayers[playerIdx]->Cancel();
-    }
     // This will call our destructor.
     mElement->DeleteProperty(mElementProperty);
   }

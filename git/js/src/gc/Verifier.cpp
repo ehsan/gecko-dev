@@ -170,7 +170,7 @@ NextNode(VerifyNode *node)
 void
 gc::GCRuntime::startVerifyPreBarriers()
 {
-    if (verifyPreData || isIncrementalGCInProgress())
+    if (verifyPreData || incrementalState != NO_INCREMENTAL)
         return;
 
     /*
@@ -197,8 +197,6 @@ gc::GCRuntime::startVerifyPreBarriers()
     VerifyPreTracer *trc = js_new<VerifyPreTracer>(rt, JSTraceCallback(nullptr));
     if (!trc)
         return;
-
-    gcstats::AutoPhase ap(stats, gcstats::PHASE_TRACE_HEAP);
 
     /*
      * Passing a function pointer directly to js_new trips a compiler bug in
@@ -405,8 +403,12 @@ struct VerifyPostTracer : JSTracer
 void
 gc::GCRuntime::startVerifyPostBarriers()
 {
-    if (verifyPostData || isIncrementalGCInProgress())
+#ifdef JSGC_GENERATIONAL
+    if (verifyPostData ||
+        incrementalState != NO_INCREMENTAL)
+    {
         return;
+    }
 
     evictNursery();
 
@@ -417,8 +419,10 @@ gc::GCRuntime::startVerifyPostBarriers()
         return;
 
     verifyPostData = trc;
+#endif
 }
 
+#ifdef JSGC_GENERATIONAL
 void
 PostVerifierCollectStoreBufferEdges(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
 {
@@ -481,10 +485,12 @@ PostVerifierVisitEdge(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
 
     AssertStoreBufferContainsEdge(trc->edges, loc, dst);
 }
+#endif
 
 bool
 js::gc::GCRuntime::endVerifyPostBarriers()
 {
+#ifdef JSGC_GENERATIONAL
     VerifyPostTracer *trc = (VerifyPostTracer *)verifyPostData;
     if (!trc)
         return false;
@@ -497,7 +503,10 @@ js::gc::GCRuntime::endVerifyPostBarriers()
     if (!edges.init())
         goto oom;
     trc->edges = &edges;
-    storeBuffer.markAll(trc);
+    {
+        gcstats::AutoPhase ap(stats, gcstats::PHASE_MINOR_GC);
+        storeBuffer.markAll(trc);
+    }
 
     /* Walk the heap to find any edges not the the |edges| set. */
     trc->setTraceCallback(PostVerifierVisitEdge);
@@ -514,6 +523,9 @@ oom:
     js_delete(trc);
     verifyPostData = nullptr;
     return true;
+#else
+    return false;
+#endif
 }
 
 /*** Barrier Verifier Scheduling ***/
@@ -567,6 +579,7 @@ gc::GCRuntime::maybeVerifyPreBarriers(bool always)
 void
 gc::GCRuntime::maybeVerifyPostBarriers(bool always)
 {
+#ifdef JSGC_GENERATIONAL
     if (zealMode != ZealVerifierPostValue)
         return;
 
@@ -580,6 +593,7 @@ gc::GCRuntime::maybeVerifyPostBarriers(bool always)
         endVerifyPostBarriers();
     }
     startVerifyPostBarriers();
+#endif
 }
 
 void
@@ -597,10 +611,12 @@ js::gc::GCRuntime::finishVerifier()
         js_delete(trc);
         verifyPreData = nullptr;
     }
+#ifdef JSGC_GENERATIONAL
     if (VerifyPostTracer *trc = (VerifyPostTracer *)verifyPostData) {
         js_delete(trc);
         verifyPostData = nullptr;
     }
+#endif
 }
 
 #endif /* JS_GC_ZEAL */

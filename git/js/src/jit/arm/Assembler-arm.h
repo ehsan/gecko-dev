@@ -153,14 +153,9 @@ static const uint32_t CodeAlignment = 8;
 // here such that it is accessible from the entire codebase. Once full support
 // for SIMD is reached on all tier-1 platforms, this constant can be deleted.
 static const bool SupportsSimd = false;
-static const uint32_t SimdMemoryAlignment = 8;
+static const uint32_t SimdStackAlignment = 8;
 
-static_assert(CodeAlignment % SimdMemoryAlignment == 0,
-  "Code alignment should be larger than any of the alignment which are used for "
-  "the constant sections of the code buffer.  Thus it should be larger than the "
-  "alignment for SIMD constants.");
-
-static const uint32_t AsmJSStackAlignment = SimdMemoryAlignment;
+static const uint32_t AsmJSStackAlignment = SimdStackAlignment;
 
 static const Scale ScalePointer = TimesFour;
 
@@ -1280,7 +1275,7 @@ class Assembler : public AssemblerShared
     void copyDataRelocationTable(uint8_t *dest);
     void copyPreBarrierTable(uint8_t *dest);
 
-    void addCodeLabel(CodeLabel label);
+    bool addCodeLabel(CodeLabel label);
     size_t numCodeLabels() const {
         return codeLabels_.length();
     }

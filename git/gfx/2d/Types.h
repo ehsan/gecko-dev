@@ -6,6 +6,7 @@
 #ifndef MOZILLA_GFX_TYPES_H_
 #define MOZILLA_GFX_TYPES_H_
 
+#include "mozilla/NullPtr.h"
 #include "mozilla/TypedEnum.h"
 
 #include <stddef.h>
@@ -205,10 +206,8 @@ MOZ_END_ENUM_CLASS(PatternType)
 MOZ_BEGIN_ENUM_CLASS(JoinStyle, int8_t)
   BEVEL,
   ROUND,
-  MITER, //!< Mitered if within the miter limit, else, if the backed supports
-         //!< it (D2D), the miter is clamped. If the backend does not support
-         //!< miter clamping the behavior is as for MITER_OR_BEVEL.
-  MITER_OR_BEVEL //!< Mitered if within the miter limit, else beveled.
+  MITER,
+  MITER_OR_BEVEL
 MOZ_END_ENUM_CLASS(JoinStyle)
 
 MOZ_BEGIN_ENUM_CLASS(CapStyle, int8_t)

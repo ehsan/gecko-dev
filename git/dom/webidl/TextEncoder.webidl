@@ -15,6 +15,6 @@
 interface TextEncoder {
   [Constant]
   readonly attribute DOMString encoding;
-  [NewObject]
+  [Throws, NewObject]
   Uint8Array encode(optional USVString input = "");
 };

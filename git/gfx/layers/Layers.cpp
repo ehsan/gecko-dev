@@ -472,28 +472,6 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
 }
 
 void
-Layer::StartPendingAnimations(const TimeStamp& aReadyTime)
-{
-  bool updated = false;
-  for (size_t animIdx = 0, animEnd = mAnimations.Length();
-       animIdx < animEnd; animIdx++) {
-    Animation& anim = mAnimations[animIdx];
-    if (anim.startTime().IsNull()) {
-      anim.startTime() = aReadyTime - anim.initialCurrentTime();
-      updated = true;
-    }
-  }
-
-  if (updated) {
-    Mutated();
-  }
-
-  for (Layer* child = GetFirstChild(); child; child = child->GetNextSibling()) {
-    child->StartPendingAnimations(aReadyTime);
-  }
-}
-
-void
 Layer::SetAsyncPanZoomController(uint32_t aIndex, AsyncPanZoomController *controller)
 {
   MOZ_ASSERT(aIndex < GetFrameMetricsCount());
@@ -737,7 +715,7 @@ const Matrix4x4
 Layer::GetTransform() const
 {
   Matrix4x4 transform = mTransform;
-  transform.PostScale(GetPostXScale(), GetPostYScale(), 1.0f);
+  transform.PostScale(mPostXScale, mPostYScale, 1.0f);
   if (const ContainerLayer* c = AsContainerLayer()) {
     transform.PreScale(c->GetPreXScale(), c->GetPreYScale(), 1.0f);
   }
@@ -753,7 +731,7 @@ Layer::GetLocalTransform()
   else
     transform = mTransform;
 
-  transform.PostScale(GetPostXScale(), GetPostYScale(), 1.0f);
+  transform.PostScale(mPostXScale, mPostYScale, 1.0f);
   if (ContainerLayer* c = AsContainerLayer()) {
     transform.PreScale(c->GetPreXScale(), c->GetPreYScale(), 1.0f);
   }
@@ -858,8 +836,6 @@ ContainerLayer::ContainerLayer(LayerManager* aManager, void* aImplData)
     mPreYScale(1.0f),
     mInheritedXScale(1.0f),
     mInheritedYScale(1.0f),
-    mPresShellResolution(1.0f),
-    mScaleToResolution(false),
     mUseIntermediateSurface(false),
     mSupportsComponentAlphaChildren(false),
     mMayHaveReadbackChild(false),
@@ -1019,7 +995,6 @@ ContainerLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 {
   aAttrs = ContainerLayerAttributes(mPreXScale, mPreYScale,
                                     mInheritedXScale, mInheritedYScale,
-                                    mPresShellResolution, mScaleToResolution,
                                     reinterpret_cast<uint64_t>(mHMDInfo.get()));
 }
 
@@ -1683,9 +1658,6 @@ ContainerLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
   }
   if (1.0 != mPreXScale || 1.0 != mPreYScale) {
     aStream << nsPrintfCString(" [preScale=%g, %g]", mPreXScale, mPreYScale).get();
-  }
-  if (mScaleToResolution) {
-    aStream << nsPrintfCString(" [presShellResolution=%g]", mPresShellResolution).get();
   }
   if (mHMDInfo) {
     aStream << nsPrintfCString(" [hmd=%p]", mHMDInfo.get()).get();

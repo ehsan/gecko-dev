@@ -16,7 +16,6 @@ function test() {
 
   let previouslySelectedEngine = Services.search.currentEngine;
   Services.search.currentEngine = engine;
-  engine.alias = 'e';
 
   let base = "http://rover.ebay.com/rover/1/711-47294-18009-3/4?mfe=search&mpre=http://www.ebay.com/sch/i.html?_nkw=foo";
   let url;
@@ -43,15 +42,6 @@ function test() {
       searchURL: base,
       run: function () {
         gURLBar.value = "? foo";
-        gURLBar.focus();
-        EventUtils.synthesizeKey("VK_RETURN", {});
-      }
-    },
-    {
-      name: "keyword search",
-      searchURL: base,
-      run: function () {
-        gURLBar.value = "e foo";
         gURLBar.focus();
         EventUtils.synthesizeKey("VK_RETURN", {});
       }
@@ -149,7 +139,6 @@ function test() {
   }
 
   registerCleanupFunction(function () {
-    engine.alias = undefined;
     gBrowser.removeProgressListener(listener);
     gBrowser.removeTab(tab);
     Services.search.currentEngine = previouslySelectedEngine;

@@ -5,7 +5,7 @@
  * Tests if the timeline blueprint has a correct structure.
  */
 
-add_task(function*() {
+function test() {
   let { TIMELINE_BLUEPRINT } = devtools.require("devtools/timeline/global");
 
   ok(TIMELINE_BLUEPRINT,
@@ -24,4 +24,6 @@ add_task(function*() {
     ok("label" in value,
       "Each entry in the timeline blueprint contains a `label` key.");
   }
-});
+
+  finish();
+}

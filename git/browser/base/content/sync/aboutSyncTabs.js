@@ -249,7 +249,7 @@ let RemoteTabViewer = {
     let updateTabList = function (remoteTabs) {
       let list = this._tabsList;
 
-      for (let client of remoteTabs) {
+      for each (let client in remoteTabs) {
         let clientAttrs = {
           type: "client",
           clientName: client.name,
@@ -361,3 +361,4 @@ let RemoteTabViewer = {
     }
   }
 }
+

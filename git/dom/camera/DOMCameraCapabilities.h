@@ -146,8 +146,6 @@ private:
 /**
  * CameraRecorderProfiles
  */
-template<class T> class CameraClosedListenerProxy;
-
 class CameraRecorderProfiles MOZ_FINAL : public nsISupports
                                        , public nsWrapperCache
 {
@@ -164,15 +162,12 @@ public:
   bool NameIsEnumerable(const nsAString& aName);
   void GetSupportedNames(unsigned aFlags, nsTArray<nsString>& aNames);
 
-  virtual void OnHardwareClosed();
-
 protected:
   virtual ~CameraRecorderProfiles();
 
   nsCOMPtr<nsISupports> mParent;
   nsRefPtr<ICameraControl> mCameraControl;
   nsRefPtrHashtable<nsStringHashKey, CameraRecorderProfile> mProfiles;
-  nsRefPtr<CameraClosedListenerProxy<CameraRecorderProfiles>> mListener;
 
 private:
   DISALLOW_EVIL_CONSTRUCTORS(CameraRecorderProfiles);
@@ -220,20 +215,40 @@ public:
   double MaxExposureCompensation();
   double ExposureCompensationStep();
   void GetIsoModes(nsTArray<nsString>& aRetVal);
-  void GetMeteringModes(nsTArray<nsString>& aRetVal);
 
   CameraRecorderProfiles* RecorderProfiles();
-
-  virtual void OnHardwareClosed();
 
 protected:
   ~CameraCapabilities();
 
   nsresult TranslateToDictionary(uint32_t aKey, nsTArray<CameraSize>& aSizes);
 
+  nsTArray<CameraSize> mPreviewSizes;
+  nsTArray<CameraSize> mPictureSizes;
+  nsTArray<CameraSize> mThumbnailSizes;
+  nsTArray<CameraSize> mVideoSizes;
+
+  nsTArray<nsString> mFileFormats;
+  nsTArray<nsString> mWhiteBalanceModes;
+  nsTArray<nsString> mSceneModes;
+  nsTArray<nsString> mEffects;
+  nsTArray<nsString> mFlashModes;
+  nsTArray<nsString> mFocusModes;
+  nsTArray<nsString> mIsoModes;
+
+  nsTArray<double> mZoomRatios;
+
+  uint32_t mMaxFocusAreas;
+  uint32_t mMaxMeteringAreas;
+  uint32_t mMaxDetectedFaces;
+
+  double mMinExposureCompensation;
+  double mMaxExposureCompensation;
+  double mExposureCompensationStep;
+
   nsRefPtr<nsPIDOMWindow> mWindow;
   nsRefPtr<ICameraControl> mCameraControl;
-  nsRefPtr<CameraClosedListenerProxy<CameraCapabilities>> mListener;
+  nsRefPtr<CameraRecorderProfiles> mRecorderProfiles;
 
 private:
   DISALLOW_EVIL_CONSTRUCTORS(CameraCapabilities);

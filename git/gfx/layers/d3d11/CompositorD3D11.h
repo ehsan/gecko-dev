@@ -27,8 +27,6 @@ struct VertexShaderConstants
   gfx::Rect textureCoords;
   gfx::Rect layerQuad;
   gfx::Rect maskQuad;
-  float vrEyeToSourceUVScale[2];
-  float vrEyeToSourceUVOffset[2];
 };
 
 struct PixelShaderConstants
@@ -96,13 +94,6 @@ public:
                         gfx::Float aOpacity,
                         const gfx::Matrix4x4 &aTransform) MOZ_OVERRIDE;
 
-  /* Helper for when the primary effect is VR_DISTORTION */
-  void DrawVRDistortion(const gfx::Rect &aRect,
-                        const gfx::Rect &aClipRect,
-                        const EffectChain &aEffectChain,
-                        gfx::Float aOpacity,
-                        const gfx::Matrix4x4 &aTransform);
-
   /**
    * Start a new frame. If aClipRectIn is null, sets *aClipRectOut to the
    * screen dimensions. 
@@ -123,6 +114,11 @@ public:
    * e.g., by Composer2D
    */
   virtual void EndFrameForExternalComposition(const gfx::Matrix& aTransform) MOZ_OVERRIDE {}
+
+  /**
+   * Tidy up if BeginFrame has been called, but EndFrame won't be
+   */
+  virtual void AbortFrame() MOZ_OVERRIDE {}
 
   /**
    * Setup the viewport and projection matrix for rendering
@@ -159,7 +155,7 @@ private:
 
   // ensure mSize is up to date with respect to mWidget
   void EnsureSize();
-  bool VerifyBufferSize();
+  void VerifyBufferSize();
   void UpdateRenderTarget();
   bool CreateShaders();
   bool UpdateConstantBuffers();
@@ -188,11 +184,6 @@ private:
   VertexShaderConstants mVSConstants;
   PixelShaderConstants mPSConstants;
   bool mDisableSequenceForNextFrame;
-
-  gfx::IntRect mInvalidRect;
-  // This is the clip rect applied to the default DrawTarget (i.e. the window)
-  gfx::IntRect mCurrentClip;
-  nsIntRegion mInvalidRegion;
 };
 
 }

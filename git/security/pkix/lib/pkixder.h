@@ -69,12 +69,11 @@ enum Tag
   SET = UNIVERSAL | CONSTRUCTED | 0x11, // 0x31
   PrintableString = UNIVERSAL | 0x13,
   TeletexString = UNIVERSAL | 0x14,
-  IA5String = UNIVERSAL | 0x16,
   UTCTime = UNIVERSAL | 0x17,
   GENERALIZED_TIME = UNIVERSAL | 0x18,
 };
 
-enum class EmptyAllowed { No = 0, Yes = 1 };
+MOZILLA_PKIX_ENUM_CLASS EmptyAllowed { No = 0, Yes = 1 };
 
 Result ReadTagAndGetValue(Reader& input, /*out*/ uint8_t& tag,
                           /*out*/ Input& value);
@@ -166,6 +165,9 @@ template <typename Decoder>
 inline Result
 Nested(Reader& input, uint8_t outerTag, uint8_t innerTag, Decoder decoder)
 {
+  // XXX: This doesn't work (in VS2010):
+  // return Nested(input, outerTag, bind(Nested, _1, innerTag, decoder));
+
   Reader nestedInput;
   Result rv = ExpectTagAndGetValue(input, outerTag, nestedInput);
   if (rv != Success) {
@@ -474,7 +476,7 @@ CertificateSerialNumber(Reader& input, /*out*/ Input& value)
 
 // x.509 and OCSP both use this same version numbering scheme, though OCSP
 // only supports v1.
-enum class Version { v1 = 0, v2 = 1, v3 = 2, v4 = 3 };
+MOZILLA_PKIX_ENUM_CLASS Version { v1 = 0, v2 = 1, v3 = 2, v4 = 3 };
 
 // X.509 Certificate and OCSP ResponseData both use this
 // "[0] EXPLICIT Version DEFAULT <defaultVersion>" construct, but with

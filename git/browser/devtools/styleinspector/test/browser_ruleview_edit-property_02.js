@@ -6,7 +6,7 @@
 
 // Test several types of rule-view property edition
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,browser_ruleview_ui.js");
   let {toolbox, inspector, view} = yield openRuleView();
 

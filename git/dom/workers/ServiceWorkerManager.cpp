@@ -11,7 +11,6 @@
 
 #include "jsapi.h"
 
-#include "mozilla/LoadContext.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/DOMError.h"
 #include "mozilla/dom/ErrorEvent.h"
@@ -32,10 +31,6 @@
 #include "WorkerPrivate.h"
 #include "WorkerRunnable.h"
 #include "WorkerScope.h"
-
-#ifdef PostMessage
-#undef PostMessage
-#endif
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -259,6 +254,7 @@ class ServiceWorkerUpdateInstance MOZ_FINAL : public nsISupports
 {
   nsRefPtr<ServiceWorkerRegistrationInfo> mRegistration;
   nsCString mScriptSpec;
+  nsCOMPtr<nsPIDOMWindow> mWindow;
 
   bool mAborted;
 
@@ -267,10 +263,12 @@ class ServiceWorkerUpdateInstance MOZ_FINAL : public nsISupports
 public:
   NS_DECL_ISUPPORTS
 
-  explicit ServiceWorkerUpdateInstance(ServiceWorkerRegistrationInfo *aRegistration)
+  ServiceWorkerUpdateInstance(ServiceWorkerRegistrationInfo *aRegistration,
+                              nsPIDOMWindow* aWindow)
     : mRegistration(aRegistration),
       // Capture the current script spec in case register() gets called.
       mScriptSpec(aRegistration->mScriptSpec),
+      mWindow(aWindow),
       mAborted(false)
   {
     AssertIsOnMainThread();
@@ -297,8 +295,10 @@ public:
     MOZ_ASSERT(swm);
 
     nsRefPtr<ServiceWorker> serviceWorker;
-    nsresult rv = swm->CreateServiceWorker(mScriptSpec, mRegistration->mScope,
-                                           getter_AddRefs(serviceWorker));
+    nsresult rv = swm->CreateServiceWorkerForWindow(mWindow,
+                                                    mScriptSpec,
+                                                    mRegistration->mScope,
+                                                    getter_AddRefs(serviceWorker));
     if (NS_WARN_IF(NS_FAILED(rv))) {
       swm->RejectUpdatePromiseObservers(mRegistration, rv);
       return;
@@ -327,7 +327,7 @@ public:
 
     nsRefPtr<ServiceWorkerManager> swm = ServiceWorkerManager::GetInstance();
     MOZ_ASSERT(swm);
-    swm->FinishFetch(mRegistration);
+    swm->FinishFetch(mRegistration, mWindow);
   }
 };
 
@@ -472,7 +472,7 @@ public:
 
     registration->mScriptSpec = spec;
 
-    rv = swm->Update(registration);
+    rv = swm->Update(registration, mWindow);
     MOZ_ASSERT(registration->HasUpdatePromise());
 
     // We append this register() call's promise after calling Update() because
@@ -945,8 +945,9 @@ ServiceWorkerManager::RejectUpdatePromiseObservers(ServiceWorkerRegistrationInfo
  * Update() does not return the Promise that the spec says it should. Callers
  * may access the registration's (new) Promise after calling this method.
  */
-nsresult
-ServiceWorkerManager::Update(ServiceWorkerRegistrationInfo* aRegistration)
+NS_IMETHODIMP
+ServiceWorkerManager::Update(ServiceWorkerRegistrationInfo* aRegistration,
+                             nsPIDOMWindow* aWindow)
 {
   if (aRegistration->HasUpdatePromise()) {
     NS_WARNING("Already had a UpdatePromise. Aborting that one!");
@@ -971,7 +972,7 @@ ServiceWorkerManager::Update(ServiceWorkerRegistrationInfo* aRegistration)
   // FIXME(nsm): Bug 931249. Force cache update if > 1 day.
 
   aRegistration->mUpdateInstance =
-    new ServiceWorkerUpdateInstance(aRegistration);
+    new ServiceWorkerUpdateInstance(aRegistration, aWindow);
   aRegistration->mUpdateInstance->Update();
 
   return NS_OK;
@@ -1095,7 +1096,8 @@ ServiceWorkerManager::ResolveRegisterPromises(ServiceWorkerRegistrationInfo* aRe
 
 // Must NS_Free() aString
 void
-ServiceWorkerManager::FinishFetch(ServiceWorkerRegistrationInfo* aRegistration)
+ServiceWorkerManager::FinishFetch(ServiceWorkerRegistrationInfo* aRegistration,
+                                  nsPIDOMWindow* aWindow)
 {
   AssertIsOnMainThread();
 
@@ -1110,9 +1112,10 @@ ServiceWorkerManager::FinishFetch(ServiceWorkerRegistrationInfo* aRegistration)
   // We have skipped Steps 3-8.3 of the Update algorithm here!
 
   nsRefPtr<ServiceWorker> worker;
-  nsresult rv = CreateServiceWorker(aRegistration->mScriptSpec,
-                                    aRegistration->mScope,
-                                    getter_AddRefs(worker));
+  nsresult rv = CreateServiceWorkerForWindow(aWindow,
+                                             aRegistration->mScriptSpec,
+                                             aRegistration->mScope,
+                                             getter_AddRefs(worker));
 
   if (NS_WARN_IF(NS_FAILED(rv))) {
     RejectUpdatePromiseObservers(aRegistration, rv);
@@ -2095,17 +2098,6 @@ ServiceWorkerManager::CreateServiceWorker(const nsACString& aScriptSpec,
     return rv;
   }
 
-  // NOTE: this defaults the SW load context to:
-  //  - private browsing = false
-  //  - content = true
-  //  - use remote tabs = false
-  // Alternatively we could persist the original load group values and use
-  // them here.
-  rv = NS_NewLoadGroup(getter_AddRefs(info.mLoadGroup), info.mPrincipal);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    return rv;
-  }
-
   AutoSafeJSContext cx;
 
   nsRefPtr<ServiceWorker> serviceWorker;
@@ -2114,7 +2106,7 @@ ServiceWorkerManager::CreateServiceWorker(const nsACString& aScriptSpec,
     return NS_ERROR_FAILURE;
   }
 
-  rv = rs->CreateServiceWorkerFromLoadInfo(cx, &info, NS_ConvertUTF8toUTF16(aScriptSpec), aScope,
+  rv = rs->CreateServiceWorkerFromLoadInfo(cx, info, NS_ConvertUTF8toUTF16(aScriptSpec), aScope,
                                            getter_AddRefs(serviceWorker));
 
   if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -2154,36 +2146,6 @@ ServiceWorkerManager::InvalidateServiceWorkerRegistrationWorker(ServiceWorkerReg
       target->InvalidateWorkerReference(aWhichOnes);
     }
   }
-}
-
-NS_IMETHODIMP
-ServiceWorkerManager::Update(const nsAString& aScope)
-{
-  NS_ConvertUTF16toUTF8 scope(aScope);
-
-  nsRefPtr<ServiceWorkerManager::ServiceWorkerDomainInfo> domainInfo =
-    GetDomainInfo(scope);
-  if (NS_WARN_IF(!domainInfo)) {
-    return NS_OK;
-  }
-
-  nsRefPtr<ServiceWorkerRegistrationInfo> registration;
-  domainInfo->mServiceWorkerRegistrationInfos.Get(scope,
-                                                  getter_AddRefs(registration));
-  if (NS_WARN_IF(!registration)) {
-    return NS_OK;
-  }
-
-  if (registration->mPendingUninstall) {
-    return NS_OK;
-  }
-
-  if (registration->mInstallingWorker) {
-    return NS_OK;
-  }
-
-  Update(registration);
-  return NS_OK;
 }
 
 namespace {

@@ -500,7 +500,7 @@ public:
   explicit InitEditorSpellCheckCallback(mozInlineSpellChecker* aSpellChecker)
     : mSpellChecker(aSpellChecker) {}
 
-  NS_IMETHOD EditorSpellCheckDone() MOZ_OVERRIDE
+  NS_IMETHOD EditorSpellCheckDone()
   {
     return mSpellChecker ? mSpellChecker->EditorSpellCheckInited() : NS_OK;
   }
@@ -1950,7 +1950,7 @@ public:
                                            uint32_t aDisabledAsyncToken)
     : mSpellChecker(aSpellChecker), mDisabledAsyncToken(aDisabledAsyncToken) {}
 
-  NS_IMETHOD EditorSpellCheckDone() MOZ_OVERRIDE
+  NS_IMETHOD EditorSpellCheckDone()
   {
     // Ignore this callback if SetEnableRealTimeSpell(false) was called after
     // the UpdateCurrentDictionary call that triggered it.

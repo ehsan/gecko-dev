@@ -49,8 +49,12 @@ function testSteps()
   request.onerror = errorHandler;
   request.onsuccess = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  request.onblocked = errorHandler;
-
+  if (SpecialPowers.isMainProcess()) {
+    request.onblocked = errorHandler;
+  }
+  else {
+    todo(false, "Need to fix blocked events in child processes!");
+  }
   event = yield undefined;
 
   // Test the upgradeneeded event.
@@ -82,8 +86,12 @@ function testSteps()
   request = indexedDB.open(name, 2);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  request.onblocked = errorHandler;
-
+  if (SpecialPowers.isMainProcess()) {
+    request.onblocked = errorHandler;
+  }
+  else {
+    todo(false, "Need to fix blocked events in child processes!");
+  }
   event = yield undefined;
 
   db3 = event.target.result;
@@ -122,7 +130,12 @@ function testSteps()
   request.onerror = errorHandler;
   request.onsuccess = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  request.onblocked = errorHandler;
+  if (SpecialPowers.isMainProcess()) {
+    request.onblocked = errorHandler;
+  }
+  else {
+    todo(false, "Need to fix blocked events in child processes!");
+  }
 
   event = yield undefined;
 

@@ -195,9 +195,6 @@ nsresult GStreamerReader::Init(MediaDecoderReader* aCloneDonor)
   g_signal_connect(G_OBJECT(mPlayBin), "element-added",
                    G_CALLBACK(GStreamerReader::PlayElementAddedCb), this);
 
-  g_signal_connect(G_OBJECT(mPlayBin), "element-added",
-                   G_CALLBACK(GStreamerReader::ElementAddedCb), this);
-
   return NS_OK;
 }
 
@@ -215,47 +212,6 @@ GStreamerReader::Error(GstBus *aBus, GstMessage *aMessage)
   }
 
   return GST_BUS_PASS;
-}
-
-void GStreamerReader::ElementAddedCb(GstBin *aPlayBin,
-                                     GstElement *aElement,
-                                     gpointer aUserData)
-{
-  const gchar *name =
-    gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(gst_element_get_factory(aElement)));
-
-  if (!strcmp(name, "uridecodebin")) {
-    g_signal_connect(G_OBJECT(aElement), "autoplug-sort",
-                     G_CALLBACK(GStreamerReader::ElementFilterCb), aUserData);
-  }
-}
-
-GValueArray *GStreamerReader::ElementFilterCb(GstURIDecodeBin *aBin,
-                                              GstPad *aPad,
-                                              GstCaps *aCaps,
-                                              GValueArray *aFactories,
-                                              gpointer aUserData)
-{
-  return ((GStreamerReader*)aUserData)->ElementFilter(aBin, aPad, aCaps, aFactories);
-}
-
-GValueArray *GStreamerReader::ElementFilter(GstURIDecodeBin *aBin,
-                                            GstPad *aPad,
-                                            GstCaps *aCaps,
-                                            GValueArray *aFactories)
-{
-  GValueArray *filtered = g_value_array_new(aFactories->n_values);
-
-  for (unsigned int i = 0; i < aFactories->n_values; i++) {
-    GValue *value = &aFactories->values[i];
-    GstPluginFeature *factory = GST_PLUGIN_FEATURE(g_value_peek_pointer(value));
-
-    if (!GStreamerFormatHelper::IsPluginFeatureBlacklisted(factory)) {
-      g_value_array_append(filtered, value);
-    }
-  }
-
-  return filtered;
 }
 
 void GStreamerReader::PlayBinSourceSetupCb(GstElement* aPlayBin,
@@ -749,7 +705,7 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
       }
     }
 
-    mDecoder->NotifyDecodedFrames(0, 1, 0);
+    mDecoder->NotifyDecodedFrames(0, 1);
 
 #if GST_VERSION_MAJOR >= 1
     GstSample *sample = gst_app_sink_pull_sample(mVideoAppSink);
@@ -763,7 +719,6 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
 
   bool isKeyframe = !GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT);
   if ((aKeyFrameSkip && !isKeyframe)) {
-    mDecoder->NotifyDecodedFrames(0, 0, 1);
     gst_buffer_unref(buffer);
     return true;
   }
@@ -1143,7 +1098,7 @@ void GStreamerReader::NewVideoBuffer()
    * and notify the decode thread potentially blocked in DecodeVideoFrame
    */
 
-  mDecoder->NotifyDecodedFrames(1, 0, 0);
+  mDecoder->NotifyDecodedFrames(1, 0);
   mVideoSinkBufferCount++;
   mon.NotifyAll();
 }
@@ -1193,7 +1148,7 @@ void GStreamerReader::Eos(GstAppSink* aSink)
  * This callback is called while the pipeline is automatically built, after a
  * new element has been added to the pipeline. We use it to find the
  * uridecodebin instance used by playbin and connect to it to apply our
- * blacklist.
+ * whitelist.
  */
 void
 GStreamerReader::PlayElementAddedCb(GstBin *aBin, GstElement *aElement,
@@ -1230,8 +1185,9 @@ GStreamerReader::ShouldAutoplugFactory(GstElementFactory* aFactory, GstCaps* aCa
 
 /**
  * This is called by uridecodebin (running inside playbin), after it has found
- * candidate factories to continue decoding the stream. We apply the blacklist
- * here, disallowing known-crashy plugins.
+ * candidate factories to continue decoding the stream. We apply the whitelist
+ * here, allowing only demuxers and decoders that output the formats we want to
+ * support.
  */
 GValueArray*
 GStreamerReader::AutoplugSortCb(GstElement* aElement, GstPad* aPad,

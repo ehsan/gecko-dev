@@ -8,13 +8,9 @@
 #define mozilla_dom_indexeddb_keypath_h__
 
 #include "mozilla/dom/BindingDeclarations.h"
-#include "mozilla/dom/Nullable.h"
 
 namespace mozilla {
 namespace dom {
-
-class OwningStringOrStringSequence;
-
 namespace indexedDB {
 
 class IndexMetadata;
@@ -43,7 +39,8 @@ public:
 
   void SetType(KeyPathType aType);
 
-  bool AppendStringWithValidation(const nsAString& aString);
+  // This does not set exceptions.
+  bool AppendStringWithValidation(JSContext* aCx, const nsAString& aString);
 
   explicit KeyPath(int aDummy)
   : mType(NONEXISTENT)
@@ -63,13 +60,13 @@ public:
   }
 
   static nsresult
-  Parse(const nsAString& aString, KeyPath* aKeyPath);
+  Parse(JSContext* aCx, const nsAString& aString, KeyPath* aKeyPath);
 
   static nsresult
-  Parse(const Sequence<nsString>& aStrings, KeyPath* aKeyPath);
+  Parse(JSContext* aCx, const Sequence<nsString>& aStrings, KeyPath* aKeyPath);
 
   static nsresult
-  Parse(const Nullable<OwningStringOrStringSequence>& aValue, KeyPath* aKeyPath);
+  Parse(JSContext* aCx, const JS::Value& aValue, KeyPath* aKeyPath);
 
   nsresult
   ExtractKey(JSContext* aCx, const JS::Value& aValue, Key& aKey) const;

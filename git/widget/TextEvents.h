@@ -97,10 +97,6 @@ public:
     , mCodeNameIndex(CODE_NAME_INDEX_UNKNOWN)
     , mNativeKeyEvent(nullptr)
     , mUniqueId(0)
-#ifdef XP_MACOSX
-    , mNativeKeyCode(0)
-    , mNativeModifierFlags(0)
-#endif
   {
   }
 
@@ -155,17 +151,6 @@ public:
   // over long periods.
   uint32_t mUniqueId;
 
-#ifdef XP_MACOSX
-  // Values given by a native NSEvent, for use with Cocoa NPAPI plugins.
-  uint16_t mNativeKeyCode;
-  uint32_t mNativeModifierFlags;
-  nsString mNativeCharacters;
-  nsString mNativeCharactersIgnoringModifiers;
-  // If this is non-empty, create a text event for plugins instead of a
-  // keyboard event.
-  nsString mPluginTextEventString;
-#endif
-
   void GetDOMKeyName(nsAString& aKeyName)
   {
     if (mKeyNameIndex == KEY_NAME_INDEX_USE_STRING) {
@@ -209,14 +194,6 @@ public:
     // is destroyed.
     mNativeKeyEvent = nullptr;
     mUniqueId = aEvent.mUniqueId;
-#ifdef XP_MACOSX
-    mNativeKeyCode = aEvent.mNativeKeyCode;
-    mNativeModifierFlags = aEvent.mNativeModifierFlags;
-    mNativeCharacters.Assign(aEvent.mNativeCharacters);
-    mNativeCharactersIgnoringModifiers.
-      Assign(aEvent.mNativeCharactersIgnoringModifiers);
-    mPluginTextEventString.Assign(aEvent.mPluginTextEventString);
-#endif
   }
 };
 
@@ -468,13 +445,6 @@ public:
     NS_ASSERTION(message == NS_QUERY_SELECTED_TEXT,
                  "not querying selection");
     return mReply.mOffset + (mReply.mReversed ? 0 : mReply.mString.Length());
-  }
-
-  mozilla::WritingMode GetWritingMode(void) const
-  {
-    NS_ASSERTION(message == NS_QUERY_SELECTED_TEXT,
-                 "not querying selection");
-    return mReply.mWritingMode;
   }
 
   bool mSucceeded;

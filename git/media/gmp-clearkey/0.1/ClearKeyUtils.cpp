@@ -12,6 +12,7 @@
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Endian.h"
+#include "mozilla/NullPtr.h"
 #include "openaes/oaes_lib.h"
 
 using namespace std;
@@ -35,7 +36,6 @@ CK_Log(const char* aFmt, ...)
   va_end(ap);
 
   printf("\n");
-  fflush(stdout);
 }
 
 static void
@@ -65,7 +65,7 @@ ClearKeyUtils::DecryptAES(const vector<uint8_t>& aKey,
     oaes_encrypt(aes, &aIV[0], CLEARKEY_KEY_LEN, &enc[0], &encLen);
 
     MOZ_ASSERT(encLen >= 2 * OAES_BLOCK_SIZE + CLEARKEY_KEY_LEN);
-    size_t blockLen = min(aData.size() - i, CLEARKEY_KEY_LEN);
+    size_t blockLen = std::min(aData.size() - i, CLEARKEY_KEY_LEN);
     for (size_t j = 0; j < blockLen; j++) {
       aData[i + j] ^= enc[2 * OAES_BLOCK_SIZE + j];
     }
@@ -177,8 +177,7 @@ ClearKeyUtils::ParseInitData(const uint8_t* aInitData, uint32_t aInitDataSize,
 
 /* static */ void
 ClearKeyUtils::MakeKeyRequest(const vector<KeyId>& aKeyIDs,
-                              string& aOutRequest,
-                              GMPSessionType aSessionType)
+                              string& aOutRequest)
 {
   MOZ_ASSERT(aKeyIDs.size() && aOutRequest.empty());
 
@@ -196,10 +195,9 @@ ClearKeyUtils::MakeKeyRequest(const vector<KeyId>& aKeyIDs,
     aOutRequest.append("\"");
   }
   aOutRequest.append("], \"type\":");
-
-  aOutRequest.append("\"");
-  aOutRequest.append(SessionTypeToString(aSessionType));
-  aOutRequest.append("\"}");
+  // TODO implement "persistent" session type
+  aOutRequest.append("\"temporary\"");
+  aOutRequest.append("}");
 }
 
 #define EXPECT_SYMBOL(CTX, X) do { \
@@ -429,15 +427,22 @@ DecodeKey(string& aEncoded, Key& aOutDecoded)
 }
 
 static bool
-ParseKeyObject(ParserContext& aCtx, KeyIdPair& aOutKey)
+ParseKeyObject(ParserContext& aCtx, KeyIdPair& aOutKey, bool& aOutValid)
 {
+  aOutValid = false;
+
   EXPECT_SYMBOL(aCtx, '{');
 
-  // Reject empty objects as invalid licenses.
+  // Ignore empty objects
   if (PeekSymbol(aCtx) == '}') {
     GetNextSymbol(aCtx);
-    return false;
+    return true;
   }
+
+  // By spec, type should be "oct".
+  bool isExpectedType = false;
+  // By spec, alg should be "A128KW".
+  bool isExpectedAlg = false;
 
   string keyId;
   string key;
@@ -453,12 +458,10 @@ ParseKeyObject(ParserContext& aCtx, KeyIdPair& aOutKey)
     EXPECT_SYMBOL(aCtx, ':');
     if (label == "kty") {
       if (!GetNextLabel(aCtx, value)) return false;
-      // By spec, type must be "oct".
-      if (value != "oct") return false;
+      isExpectedType = value == "oct";
     } else if (label == "alg") {
       if (!GetNextLabel(aCtx, value)) return false;
-      // By spec, alg must be "A128KW".
-      if (value != "A128KW") return false;
+      isExpectedAlg = value == "A128KW";
     } else if (label == "k" && PeekSymbol(aCtx) == '"') {
       // if this isn't a string we will fall through to the SkipToken() path.
       if (!GetNextLabel(aCtx, key)) return false;
@@ -475,11 +478,14 @@ ParseKeyObject(ParserContext& aCtx, KeyIdPair& aOutKey)
     EXPECT_SYMBOL(aCtx, ',');
   }
 
-  return !key.empty() &&
-         !keyId.empty() &&
-         DecodeBase64(keyId, aOutKey.mKeyId) &&
-         DecodeKey(key, aOutKey.mKey) &&
-         GetNextSymbol(aCtx) == '}';
+  if (isExpectedType && isExpectedAlg &&
+      !key.empty() && !keyId.empty() &&
+      DecodeBase64(keyId, aOutKey.mKeyId) &&
+      DecodeKey(key, aOutKey.mKey)) {
+    aOutValid = true;
+  }
+
+  return GetNextSymbol(aCtx) == '}';
 }
 
 static bool
@@ -490,13 +496,15 @@ ParseKeys(ParserContext& aCtx, vector<KeyIdPair>& aOutKeys)
 
   while (true) {
     KeyIdPair key;
-    if (!ParseKeyObject(aCtx, key)) {
+    bool valid;
+    if (!ParseKeyObject(aCtx, key, valid)) {
       CK_LOGE("Failed to parse key object");
       return false;
     }
 
-    MOZ_ASSERT(!key.mKey.empty() && !key.mKeyId.empty());
-    aOutKeys.push_back(key);
+    if (valid) {
+      aOutKeys.push_back(key);
+    }
 
     uint8_t sym = PeekSymbol(aCtx);
     if (!sym || sym == ']') {
@@ -511,8 +519,7 @@ ParseKeys(ParserContext& aCtx, vector<KeyIdPair>& aOutKeys)
 
 /* static */ bool
 ClearKeyUtils::ParseJWK(const uint8_t* aKeyData, uint32_t aKeyDataSize,
-                        vector<KeyIdPair>& aOutKeys,
-                        GMPSessionType aSessionType)
+                        vector<KeyIdPair>& aOutKeys)
 {
   ParserContext ctx;
   ctx.mIter = aKeyData;
@@ -534,7 +541,8 @@ ClearKeyUtils::ParseJWK(const uint8_t* aKeyData, uint32_t aKeyDataSize,
       // Consume type string.
       string type;
       if (!GetNextLabel(ctx, type)) return false;
-      if (type != SessionTypeToString(aSessionType)) {
+      // XXX todo support "persistent" session type
+      if (type != "temporary") {
         return false;
       }
     } else {
@@ -553,34 +561,5 @@ ClearKeyUtils::ParseJWK(const uint8_t* aKeyData, uint32_t aKeyDataSize,
   // Consume '}' from end of object.
   EXPECT_SYMBOL(ctx, '}');
 
-  return true;
-}
-
-/* static */ const char*
-ClearKeyUtils::SessionTypeToString(GMPSessionType aSessionType)
-{
-  switch (aSessionType) {
-    case kGMPTemporySession: return "temporary";
-    case kGMPPersistentSession: return "persistent";
-    default: {
-      MOZ_ASSERT(false, "Should not reach here.");
-      return "invalid";
-    }
-  }
-}
-
-/* static */ bool
-ClearKeyUtils::IsValidSessionId(const char* aBuff, uint32_t aLength)
-{
-  if (aLength > 10) {
-    // 10 is the max number of characters in UINT32_MAX when
-    // represented as a string; ClearKey session ids are integers.
-    return false;
-  }
-  for (uint32_t i = 0; i < aLength; i++) {
-    if (!isdigit(aBuff[i])) {
-      return false;
-    }
-  }
   return true;
 }

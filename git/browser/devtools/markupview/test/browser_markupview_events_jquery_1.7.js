@@ -225,4 +225,4 @@ const TEST_DATA = [
   },
 ];
 
-add_task(runEventPopupTests);
+let test = asyncTest(runEventPopupTests);

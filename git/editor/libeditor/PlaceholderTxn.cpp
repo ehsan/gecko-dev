@@ -251,7 +251,7 @@ NS_IMETHODIMP PlaceholderTxn::Commit()
   return NS_OK;
 }
 
-nsresult PlaceholderTxn::RememberEndingSelection()
+NS_IMETHODIMP PlaceholderTxn::RememberEndingSelection()
 {
   nsRefPtr<Selection> selection = mEditor->GetSelection();
   NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);

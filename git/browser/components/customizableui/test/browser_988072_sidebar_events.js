@@ -80,7 +80,8 @@ let showSidebarPopup = Task.async(function*() {
 
   let subviewShownPromise = subviewShown(subview);
   EventUtils.synthesizeMouseAtCenter(button, {});
-  return subviewShownPromise;
+  yield subviewShownPromise;
+  return waitForCondition(() => !subview.panelMultiView.hasAttribute("transitioning"));
 });
 
 // Check the sidebar widget shows the default items

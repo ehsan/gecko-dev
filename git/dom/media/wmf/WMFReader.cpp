@@ -17,7 +17,6 @@
 #include "ImageContainer.h"
 #include "Layers.h"
 #include "mozilla/layers/LayersTypes.h"
-#include "gfxWindowsPlatform.h"
 
 #ifndef MOZ_SAMPLE_TYPE_FLOAT32
 #error We expect 32bit float audio samples on desktop for the Windows Media Foundation media backend.
@@ -111,8 +110,7 @@ WMFReader::InitializeDXVA()
     return false;
   }
 
-  if (gfxWindowsPlatform::GetPlatform()->IsWARP() ||
-      !gfxPlatform::CanUseDXVA()) {
+  if (!gfxPlatform::CanUseDXVA()) {
     return false;
   }
 
@@ -808,7 +806,8 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
-  AbstractMediaDecoder::AutoNotifyDecoded a(mDecoder);
+  uint32_t parsed = 0, decoded = 0;
+  AbstractMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
 
   HRESULT hr;
 
@@ -875,8 +874,8 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
   }
   NS_ENSURE_TRUE(SUCCEEDED(hr) && v, false);
 
-  a.mParsed++;
-  a.mDecoded++;
+  parsed++;
+  decoded++;
   mVideoQueue.Push(v);
 
   #ifdef LOG_SAMPLE_DECODE

@@ -53,11 +53,12 @@ RegExpObjectBuilder::getOrCreate()
 
     // Note: RegExp objects are always allocated in the tenured heap. This is
     // not strictly required, but simplifies embedding them in jitcode.
-    reobj_ = NewBuiltinClassInstance<RegExpObject>(cx, TenuredObject);
-    if (!reobj_)
+    NativeObject *obj = NewNativeBuiltinClassInstance(cx, &RegExpObject::class_, TenuredObject);
+    if (!obj)
         return false;
-    reobj_->initPrivate(nullptr);
+    obj->initPrivate(nullptr);
 
+    reobj_ = &obj->as<RegExpObject>();
     return true;
 }
 
@@ -71,11 +72,12 @@ RegExpObjectBuilder::getOrCreateClone(HandleTypeObject type)
 
     // Note: RegExp objects are always allocated in the tenured heap. This is
     // not strictly required, but simplifies embedding them in jitcode.
-    reobj_ = NewObjectWithType<RegExpObject>(cx->asJSContext(), type, parent, TenuredObject);
-    if (!reobj_)
+    NativeObject *clone = NewNativeObjectWithType(cx->asJSContext(), type, parent, TenuredObject);
+    if (!clone)
         return false;
-    reobj_->initPrivate(nullptr);
+    clone->initPrivate(nullptr);
 
+    reobj_ = &clone->as<RegExpObject>();
     return true;
 }
 
@@ -253,7 +255,7 @@ RegExpObject::trace(JSTracer *trc, JSObject *obj)
         IS_GC_MARKING_TRACER(trc) &&
         !obj->asTenured().zone()->isPreservingCode())
     {
-        obj->as<RegExpObject>().NativeObject::setPrivate(nullptr);
+        obj->as<NativeObject>().setPrivate(nullptr);
     } else {
         shared->trace(trc);
     }
@@ -264,17 +266,17 @@ const Class RegExpObject::class_ = {
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(RegExpObject::RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_RegExp),
-    nullptr, /* addProperty */
-    nullptr, /* delProperty */
-    nullptr, /* getProperty */
-    nullptr, /* setProperty */
-    nullptr, /* enumerate */
-    nullptr, /* resolve */
-    nullptr, /* convert */
-    nullptr, /* finalize */
-    nullptr, /* call */
-    nullptr, /* hasInstance */
-    nullptr, /* construct */
+    JS_PropertyStub,         /* addProperty */
+    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* getProperty */
+    JS_StrictPropertyStub,   /* setProperty */
+    JS_EnumerateStub,        /* enumerate */
+    JS_ResolveStub,
+    JS_ConvertStub,
+    nullptr,                 /* finalize */
+    nullptr,                 /* call */
+    nullptr,                 /* hasInstance */
+    nullptr,                 /* construct */
     RegExpObject::trace
 };
 
@@ -456,8 +458,8 @@ bool
 RegExpShared::compile(JSContext *cx, HandleLinearString input,
                       CompilationMode mode, ForceByteCodeEnum force)
 {
-    TraceLoggerThread *logger = TraceLoggerForMainThread(cx->runtime());
-    AutoTraceLog logCompile(logger, TraceLogger_IrregexpCompile);
+    TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
+    AutoTraceLog logCompile(logger, TraceLogger::IrregexpCompile);
 
     if (!sticky()) {
         RootedAtom pattern(cx, source);
@@ -491,8 +493,11 @@ bool
 RegExpShared::compile(JSContext *cx, HandleAtom pattern, HandleLinearString input,
                       CompilationMode mode, ForceByteCodeEnum force)
 {
-    if (!ignoreCase() && !StringHasRegExpMetaChars(pattern))
+    if (!ignoreCase() && !StringHasRegExpMetaChars(pattern)) {
         canStringMatch = true;
+        parenCount = 0;
+        return true;
+    }
 
     CompileOptions options(cx);
     TokenStream dummyTokenStream(cx, options, nullptr, 0, nullptr);
@@ -534,7 +539,7 @@ bool
 RegExpShared::compileIfNecessary(JSContext *cx, HandleLinearString input,
                                  CompilationMode mode, ForceByteCodeEnum force)
 {
-    if (isCompiled(mode, input->hasLatin1Chars(), force))
+    if (isCompiled(mode, input->hasLatin1Chars(), force) || canStringMatch)
         return true;
     return compile(cx, input, mode, force);
 }
@@ -543,7 +548,7 @@ RegExpRunStatus
 RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t start,
                       MatchPairs *matches)
 {
-    TraceLoggerThread *logger = TraceLoggerForMainThread(cx->runtime());
+    TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
 
     CompilationMode mode = matches ? Normal : MatchOnly;
 
@@ -599,7 +604,7 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t start,
 
         RegExpRunStatus result;
         {
-            AutoTraceLog logJIT(logger, TraceLogger_IrregexpExecute);
+            AutoTraceLog logJIT(logger, TraceLogger::IrregexpExecute);
             AutoCheckCannotGC nogc;
             if (input->hasLatin1Chars()) {
                 const Latin1Char *chars = input->latin1Chars(nogc) + charsOffset;
@@ -638,7 +643,7 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t start,
         return RegExpRunStatus_Error;
 
     uint8_t *byteCode = compilation(mode, input->hasLatin1Chars()).byteCode;
-    AutoTraceLog logInterpreter(logger, TraceLogger_IrregexpExecute);
+    AutoTraceLog logInterpreter(logger, TraceLogger::IrregexpExecute);
 
     AutoStableStringChars inputChars(cx);
     if (!inputChars.init(cx, input))
@@ -710,25 +715,19 @@ RegExpCompartment::createMatchResultTemplateObject(JSContext *cx)
     Rooted<TaggedProto> proto(cx, templateObject->getTaggedProto());
     types::TypeObject *type =
         cx->compartment()->types.newTypeObject(cx, templateObject->getClass(), proto);
-    if (!type)
-        return matchResultTemplateObject_; // = nullptr
     templateObject->setType(type);
 
     /* Set dummy index property */
     RootedValue index(cx, Int32Value(0));
-    if (!baseops::DefineProperty(cx, templateObject, cx->names().index, index, nullptr, nullptr,
-                                 JSPROP_ENUMERATE))
-    {
+    if (!baseops::DefineProperty(cx, templateObject, cx->names().index, index,
+                                 JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE))
         return matchResultTemplateObject_; // = nullptr
-    }
 
     /* Set dummy input property */
     RootedValue inputVal(cx, StringValue(cx->runtime()->emptyString));
-    if (!baseops::DefineProperty(cx, templateObject, cx->names().input, inputVal, nullptr, nullptr,
-                                 JSPROP_ENUMERATE))
-    {
+    if (!baseops::DefineProperty(cx, templateObject, cx->names().input, inputVal,
+                                 JS_PropertyStub, JS_StrictPropertyStub, JSPROP_ENUMERATE))
         return matchResultTemplateObject_; // = nullptr
-    }
 
     // Make sure that the properties are in the right slots.
     DebugOnly<Shape *> shape = templateObject->lastProperty();

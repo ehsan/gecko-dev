@@ -5,11 +5,11 @@
  * Test AudioNode#getParamFlags()
  */
 
-add_task(function*() {
+function spawnTest () {
   let { target, front } = yield initBackend(SIMPLE_NODES_URL);
   let [_, nodes] = yield Promise.all([
     front.setup({ reload: true }),
-    getN(front, "create-node", 15)
+    getN(front, "create-node", 14)
   ]);
 
   let allNodeParams = yield Promise.all(nodes.map(node => node.getParams()));
@@ -17,8 +17,7 @@ add_task(function*() {
     "AudioDestinationNode",
     "AudioBufferSourceNode", "ScriptProcessorNode", "AnalyserNode", "GainNode",
     "DelayNode", "BiquadFilterNode", "WaveShaperNode", "PannerNode", "ConvolverNode",
-    "ChannelSplitterNode", "ChannelMergerNode", "DynamicsCompressorNode", "OscillatorNode",
-    "StereoPannerNode"
+    "ChannelSplitterNode", "ChannelMergerNode", "DynamicsCompressorNode", "OscillatorNode"
   ];
 
   // For some reason nodeTypes.forEach and params.forEach fail here so we use
@@ -46,4 +45,5 @@ add_task(function*() {
   }
 
   yield removeTab(target.tab);
-});
+  finish();
+}

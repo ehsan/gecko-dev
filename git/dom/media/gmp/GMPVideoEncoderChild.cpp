@@ -17,7 +17,7 @@ GMPVideoEncoderChild::GMPVideoEncoderChild(GMPChild* aPlugin)
 : GMPSharedMemManager(aPlugin),
   mPlugin(aPlugin),
   mVideoEncoder(nullptr),
-  mVideoHost(this)
+  mVideoHost(MOZ_THIS_IN_INITIALIZER_LIST())
 {
   MOZ_ASSERT(mPlugin);
 }

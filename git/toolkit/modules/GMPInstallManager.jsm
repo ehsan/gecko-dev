@@ -14,15 +14,7 @@ const DOWNLOAD_CHUNK_BYTES_SIZE = 300000;
 const DOWNLOAD_INTERVAL  = 0;
 // 1 day default
 const DEFAULT_SECONDS_BETWEEN_CHECKS = 60 * 60 * 24;
-
-// Global pref to enable/disable all EME plugins
-const EME_ENABLED = "media.eme.enabled";
-
-
-// GMP IDs
 const OPEN_H264_ID = "gmp-gmpopenh264";
-const EME_ADOBE_ID = "gmp-eme-adobe";
-const GMP_ADDONS = [ OPEN_H264_ID, EME_ADOBE_ID ];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -38,6 +30,20 @@ this.EXPORTED_SYMBOLS = ["GMPInstallManager", "GMPExtractor", "GMPDownloader",
                          "GMPAddon", "GMPPrefs", "OPEN_H264_ID"];
 
 var gLocale = null;
+const PARENT_LOGGER_ID = "GMPInstallManager";
+
+// Used to determine if logging should be enabled
+XPCOMUtils.defineLazyGetter(this, "gLogEnabled", function() {
+  return Preferences.get("media.gmp-manager.log", false);
+});
+
+// Setup the parent logger with dump logging. It'll only be used if logging is
+// enabled though.  We don't actually have any fatal logging errors, so setting
+// the log level to fatal effectively disables it.
+let parentLogger = Log.repository.getLogger(PARENT_LOGGER_ID);
+parentLogger.level = gLogEnabled ? Log.Level.Debug : Log.Level.Fatal;
+let appender = new Log.DumpAppender();
+parentLogger.addAppender(appender);
 
 // Shared code for suppressing bad cert dialogs
 XPCOMUtils.defineLazyGetter(this, "gCertUtils", function() {
@@ -62,7 +68,7 @@ const CHECK_FOR_ADDONS_TIMEOUT_DELAY_MS = 20000;
 function getScopedLogger(prefix) {
   // `PARENT_LOGGER_ID.` being passed here effectively links this logger
   // to the parentLogger.
-  return Log.repository.getLoggerWithMessagePrefix("Toolkit.GMP", prefix + " ");
+  return Log.repository.getLogger(PARENT_LOGGER_ID + "." + prefix);
 }
 
 /**
@@ -72,11 +78,11 @@ let GMPPrefs = {
   /**
    * Obtains the specified preference in relation to the specified addon
    * @param key The GMPPrefs key value to use
-   * @param defaultValue The default value if no preference exists
    * @param addon The addon to scope the preference to
-   * @return The obtained preference value, or the defaultValue if none exists
+   * @param defaultValue The default value if no preference exists
+   * @return The obtained preference value, or the defaultVlaue if none exists
    */
-  get: function(key, defaultValue, addon) {
+  get: function(key, addon, defaultValue) {
     if (key === GMPPrefs.KEY_APP_DISTRIBUTION ||
         key === GMPPrefs.KEY_APP_DISTRIBUTION_VERSION) {
       let prefValue = "default";
@@ -97,7 +103,7 @@ let GMPPrefs = {
    * @param addon The addon to scope the preference to
    */
   set: function(key, val, addon) {
-    let log = getScopedLogger("GMPInstallManager.jsm GMPPrefs.set");
+    let log = getScopedLogger("GMPPrefs.set");
     log.info("Setting pref: " + this._getPrefKey(key, addon) +
              " to value: " + val);
     return Preferences.set(this._getPrefKey(key, addon), val);
@@ -109,11 +115,10 @@ let GMPPrefs = {
   /**
    * List of keys which can be used in get and set
    */
-  KEY_ADDON_ENABLED: "media.{0}.enabled",
+  KEY_LOG_ENABLED: "media.gmp-manager.log",
   KEY_ADDON_LAST_UPDATE: "media.{0}.lastUpdate",
   KEY_ADDON_VERSION: "media.{0}.version",
   KEY_ADDON_AUTOUPDATE: "media.{0}.autoupdate",
-  KEY_ADDON_HIDDEN: "media.{0}.hidden",
   KEY_URL: "media.gmp-manager.url",
   KEY_URL_OVERRIDE: "media.gmp-manager.url.override",
   KEY_CERT_CHECKATTRS: "media.gmp-manager.cert.checkAttributes",
@@ -299,7 +304,7 @@ GMPInstallManager.prototype = {
    * Obtains a URL with replacement of vars
    */
   _getURL: function() {
-    let log = getScopedLogger("GMPInstallManager._getURL");
+    let log = getScopedLogger("_getURL");
     // Use the override URL if it is specified.  The override URL is just like
     // the normal URL but it does not check the cert.
     let url = GMPPrefs.get(GMPPrefs.KEY_URL_OVERRIDE);
@@ -341,7 +346,7 @@ GMPInstallManager.prototype = {
    *           type: Sometimes specifies type of rejection
    */
   checkForAddons: function() {
-    let log = getScopedLogger("GMPInstallManager.checkForAddons");
+    let log = getScopedLogger("checkForAddons");
     if (this._deferred) {
         log.error("checkForAddons already called");
         return Promise.reject({type: "alreadycalled"});
@@ -356,7 +361,8 @@ GMPInstallManager.prototype = {
       this._request = this._request.wrappedJSObject;
     }
     this._request.open("GET", url, true);
-    let allowNonBuiltIn = !GMPPrefs.get(GMPPrefs.KEY_CERT_CHECKATTRS, true);
+    let allowNonBuiltIn = !GMPPrefs.get(GMPPrefs.KEY_CERT_CHECKATTRS,
+                                        undefined, true);
     this._request.channel.notificationCallbacks =
       new gCertUtils.BadCertHandler(allowNonBuiltIn);
     // Prevent the request from reading from the cache.
@@ -393,12 +399,12 @@ GMPInstallManager.prototype = {
    *           target: The XHR request object
    *           status: The HTTP status code
    *           type: A string to represent the type of error
-   *                 downloaderr, verifyerr or previouserrorencountered
+   *                 downloaderr, or verifyerr
    */
   installAddon: function(gmpAddon) {
     if (this._deferred) {
-        log.error("previous error encountered");
-        return Promise.reject({type: "previouserrorencountered"});
+        log.error("checkForAddons already called");
+        return Promise.reject({type: "alreadycalled"});
     }
     this.gmpDownloader = new GMPDownloader(gmpAddon);
     return this.gmpDownloader.start();
@@ -407,20 +413,14 @@ GMPInstallManager.prototype = {
     let now = Math.round(Date.now() / 1000);
     // Default to 0 here because `now - 0` will be returned later if that case
     // is hit. We want a large value so a check will occur.
-    let lastCheck = GMPPrefs.get(GMPPrefs.KEY_UPDATE_LAST_CHECK, 0);
+    let lastCheck = GMPPrefs.get(GMPPrefs.KEY_UPDATE_LAST_CHECK,
+                                 undefined, 0);
     // Handle clock jumps, return now since we want it to represent
     // a lot of time has passed since the last check.
     if (now < lastCheck) {
       return now;
     }
     return now - lastCheck;
-  },
-  get _isEMEEnabled() {
-    return Preferences.get(EME_ENABLED, true);
-  },
-  _isAddonUpdateEnabled: function(aAddon) {
-    return GMPPrefs.get(GMPPrefs.KEY_ADDON_ENABLED, true, aAddon) &&
-           GMPPrefs.get(GMPPrefs.KEY_ADDON_AUTOUPDATE, true, aAddon);
   },
   _updateLastCheck: function() {
     let now = Math.round(Date.now() / 1000);
@@ -429,97 +429,73 @@ GMPInstallManager.prototype = {
   /**
    * Wrapper for checkForAddons and installAddon.
    * Will only install if not already installed and will log the results.
-   * This will only install/update the OpenH264 and EME plugins
-   * @return a promise which will be resolved if all addons could be installed
-   *         successfully, rejected otherwise.
+   * This will only install/update the OpenH264 plugin
    */
-  simpleCheckAndInstall: Task.async(function*() {
-    let log = getScopedLogger("GMPInstallManager.simpleCheckAndInstall");
+  simpleCheckAndInstall: function() {
+    let log = getScopedLogger("simpleCheckAndInstall");
+
+    let autoUpdate = GMPPrefs.get(GMPPrefs.KEY_ADDON_AUTOUPDATE,
+                                  OPEN_H264_ID, true);
+    if (!autoUpdate) {
+        log.info("Auto-update is off for openh264, aborting check.");
+        return Promise.resolve({status: "check-disabled"});
+    }
 
     let secondsBetweenChecks =
-      GMPPrefs.get(GMPPrefs.KEY_UPDATE_SECONDS_BETWEEN_CHECKS,
+      GMPPrefs.get(GMPPrefs.KEY_UPDATE_SECONDS_BETWEEN_CHECKS, undefined,
                    DEFAULT_SECONDS_BETWEEN_CHECKS)
     let secondsSinceLast = this._getTimeSinceLastCheck();
     log.info("Last check was: " + secondsSinceLast +
              " seconds ago, minimum seconds: " + secondsBetweenChecks);
     if (secondsBetweenChecks > secondsSinceLast) {
       log.info("Will not check for updates.");
-      return {status: "too-frequent-no-check"};
+      return Promise.resolve({status: "too-frequent-no-check"});
     }
 
-    try {
-      let gmpAddons = yield this.checkForAddons();
+    let deferred = Promise.defer();
+    let promise = this.checkForAddons();
+    promise.then(gmpAddons => {
       this._updateLastCheck();
       log.info("Found " + gmpAddons.length + " addons advertised.");
-      let addonsToInstall = gmpAddons.filter(function(gmpAddon) {
+      let addonsToInstall = gmpAddons.filter(gmpAddon => {
         log.info("Found addon: " + gmpAddon.toString());
-
-        if (gmpAddon.isHidden || !gmpAddon.isValid || gmpAddon.isInstalled) {
-          log.info("Addon hidden, invalid or already installed.");
-          return false;
-        }
-
-        // We're dealing with an EME GMP if the id starts with "gmp-eme-".
-        if (gmpAddon.id.indexOf("gmp-eme-") == 0 && !this._isEMEEnabled) {
-          log.info("Auto-update is off for all EME plugins, skipping check.");
-          return false;
-        }
-
-        let addonUpdateEnabled = false;
-        if (GMP_ADDONS.indexOf(gmpAddon.id) >= 0) {
-          addonUpdateEnabled = this._isAddonUpdateEnabled(gmpAddon.id);
-          if (!addonUpdateEnabled) {
-            log.info("Auto-update is off for " + gmpAddon.id +
-                     ", skipping check.");
-          }
-        } else {
-          // Currently, we only support installs of OpenH264 and EME plugins.
-          log.info("Auto-update is off for unknown plugin '" + gmpAddon.id +
-                   "', skipping check.");
-        }
-
-        return addonUpdateEnabled;
-      }, this);
-
+        return gmpAddon.isValid && gmpAddon.isOpenH264 &&
+               !gmpAddon.isInstalled
+      });
       if (!addonsToInstall.length) {
         log.info("No new addons to install, returning");
-        return {status: "nothing-new-to-install"};
+        return deferred.resolve({status: "nothing-new-to-install"});
       }
-
-      let installResults = [];
-      let failureEncountered = false;
-      for (let addon of addonsToInstall) {
-        try {
-          yield this.installAddon(addon);
-          installResults.push({
-            id:     addon.id,
-            result: "succeeded",
-          });
-        } catch (e) {
-          failureEncountered = true;
-          installResults.push({
-            id:     addon.id,
-            result: "failed",
-          });
-        }
-      }
-      if (failureEncountered) {
-        throw {status:  "failed",
-               results: installResults};
-      }
-      return {status:  "succeeded",
-              results: installResults};
-    } catch(e) {
-      log.error("Could not check for addons", e);
-      throw e;
-    }
-  }),
+      // Only 1 addon will be returned because of the gmpAddon.isOpenH264
+      // check above.
+      addonsToInstall.forEach(gmpAddon => {
+        promise = this.installAddon(gmpAddon);
+        promise.then(extractedPaths => {
+          // installed!
+          log.info("Addon installed successfully: " + gmpAddon.toString());
+          return deferred.resolve({status: "addon-install"});
+        }, () => {
+          if (!GMPPrefs.get(GMPPrefs.KEY_LOG_ENABLED)) {
+            Cu.reportError(gmpAddon.toString() +
+                           " could not be installed. Enable " +
+                           GMPPrefs.KEY_LOG_ENABLED + " for details!");
+          }
+          log.error("Could not install addon: " + gmpAddon.toString());
+          deferred.reject();
+        });
+      });
+    }, () => {
+        log.error("Could not check for addons");
+        deferred.reject();
+    });
+    return deferred.promise;
+  },
 
   /**
    * Makes sure everything is cleaned up
    */
   uninit: function() {
-    let log = getScopedLogger("GMPInstallManager.uninit");
+    let log = getScopedLogger("GMPDownloader.uninit");
     if (this._request) {
       log.info("Aborting request");
       this._request.abort();
@@ -542,17 +518,17 @@ GMPInstallManager.prototype = {
    * @param event The nsIDOMEvent for the load
   */
   onLoadXML: function(event) {
-    let log = getScopedLogger("GMPInstallManager.onLoadXML");
+    let log = getScopedLogger("onLoadXML");
     try {
       log.info("request completed downloading document");
       let certs = null;
       if (!Services.prefs.prefHasUserValue(GMPPrefs.KEY_URL_OVERRIDE) &&
-          GMPPrefs.get(GMPPrefs.KEY_CERT_CHECKATTRS, true)) {
+          GMPPrefs.get(GMPPrefs.KEY_CERT_CHECKATTRS, undefined, true)) {
         certs = gCertUtils.readCertPrefs(GMPPrefs.CERTS_BRANCH);
       }
 
       let allowNonBuiltIn = !GMPPrefs.get(GMPPrefs.KEY_CERT_REQUIREBUILTIN,
-                                          true);
+        undefined, true);
       log.info("allowNonBuiltIn: " + allowNonBuiltIn);
 
       gCertUtils.checkCert(this._request.channel, allowNonBuiltIn, certs);
@@ -573,7 +549,7 @@ GMPInstallManager.prototype = {
    * Returns the status code for the XMLHttpRequest
    */
   _getChannelStatus: function(request) {
-    let log = getScopedLogger("GMPInstallManager._getChannelStatus");
+    let log = getScopedLogger("_getChannelStatus");
     let status = null;
     try {
       status = request.status;
@@ -596,10 +572,10 @@ GMPInstallManager.prototype = {
    * @param event The nsIDOMEvent for the error
    */
   onFailXML: function(failure, event) {
-    let log = getScopedLogger("GMPInstallManager.onFailXML " + failure);
+    let log = getScopedLogger(failure);
     let request = event.target;
     let status = this._getChannelStatus(request);
-    let message = "request.status: " + status +  " (" + event.type + ")";
+    let message = "request.status: " + status +  "(" + event.type + ")";
     log.warn(message);
     this._deferred.reject({
       target: request,
@@ -616,7 +592,7 @@ GMPInstallManager.prototype = {
    */
   parseResponseXML: function() {
     try {
-      let log = getScopedLogger("GMPInstallManager.parseResponseXML");
+      let log = getScopedLogger("parseResponseXML");
       let updatesElement = this._request.responseXML.documentElement;
       if (!updatesElement) {
         let message = "empty updates document";
@@ -652,8 +628,8 @@ GMPInstallManager.prototype = {
           gmpResults = GMPAddon.parseGMPAddonsNode(updatesChildElement);
         }
       }
-      this._deferred.resolve(gmpResults);
-      delete this._deferred;
+       this._deferred.resolve(gmpResults);
+       delete this._deferred;
     } catch (e) {
       this._deferred.reject({
         target: this._request,
@@ -720,6 +696,7 @@ GMPAddon.prototype = {
     return this.id + " (" +
            "isValid: " + this.isValid +
            ", isInstalled: " + this.isInstalled +
+           ", isOpenH264: " + this.isOpenH264 +
            ", hashFunction: " + this.hashFunction+
            ", hashValue: " + this.hashValue +
            (this.size !== undefined ? ", size: " + this.size : "" ) +
@@ -733,12 +710,16 @@ GMPAddon.prototype = {
     return this.id && this.URL && this.version &&
       this.hashFunction && !!this.hashValue;
   },
+  /**
+   * Open H264 has special handling.
+   * @return true if the plugin is the openh264 plugin
+   */
+  get isOpenH264() {
+    return this.id === OPEN_H264_ID;
+  },
   get isInstalled() {
     return this.version &&
-      GMPPrefs.get(GMPPrefs.KEY_ADDON_VERSION, "", this.id) === this.version;
-  },
-  get isHidden() {
-    return GMPPrefs.get(GMPPrefs.KEY_ADDON_HIDDEN, false, this.id);
+      GMPPrefs.get(GMPPrefs.KEY_ADDON_VERSION, this.id) === this.version;
   }
 };
 /**

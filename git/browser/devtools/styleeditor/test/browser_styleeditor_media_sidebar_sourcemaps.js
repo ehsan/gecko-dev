@@ -12,7 +12,7 @@ const LINE_NOS = [5, 8];
 
 waitForExplicitFinish();
 
-add_task(function*() {
+let test = asyncTest(function*() {
   Services.prefs.setBoolPref(MAP_PREF, true);
 
   let {UI} = yield addTabAndOpenStyleEditors(2, null, TESTCASE_URI);

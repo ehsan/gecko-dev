@@ -8,7 +8,9 @@
 #include "sandbox/win/src/sandbox.h"
 #include "sandbox/win/src/sandbox_factory.h"
 #include "sandbox/win/src/security_level.h"
-#include "mozilla/sandboxing/sandboxLogging.h"
+#if defined(MOZ_CONTENT_SANDBOX)
+#include "mozilla/warnonlysandbox/warnOnlySandbox.h"
+#endif
 
 namespace mozilla
 {
@@ -35,7 +37,6 @@ SandboxBroker::SandboxBroker()
 bool
 SandboxBroker::LaunchApp(const wchar_t *aPath,
                          const wchar_t *aArguments,
-                         const bool aEnableLogging,
                          void **aProcessHandle)
 {
   if (!sBrokerService || !mPolicy) {
@@ -45,11 +46,6 @@ SandboxBroker::LaunchApp(const wchar_t *aPath,
   // Set stdout and stderr, to allow inheritance for logging.
   mPolicy->SetStdoutHandle(::GetStdHandle(STD_OUTPUT_HANDLE));
   mPolicy->SetStderrHandle(::GetStdHandle(STD_ERROR_HANDLE));
-
-  // If logging enabled, set up the policy.
-  if (aEnableLogging) {
-    mozilla::sandboxing::ApplyLoggingPolicy(*mPolicy);
-  }
 
   // Ceate the sandboxed process
   PROCESS_INFORMATION targetInfo;
@@ -69,40 +65,26 @@ SandboxBroker::LaunchApp(const wchar_t *aPath,
 
 #if defined(MOZ_CONTENT_SANDBOX)
 bool
-SandboxBroker::SetSecurityLevelForContentProcess(bool aMoreStrict)
+SandboxBroker::SetSecurityLevelForContentProcess(bool inWarnOnlyMode)
 {
   if (!mPolicy) {
     return false;
   }
 
-  sandbox::ResultCode result;
-  bool ret;
-  if (aMoreStrict) {
-    result = mPolicy->SetJobLevel(sandbox::JOB_INTERACTIVE, 0);
-    ret = (sandbox::SBOX_ALL_OK == result);
+  auto result = mPolicy->SetJobLevel(sandbox::JOB_NONE, 0);
+  bool ret = (sandbox::SBOX_ALL_OK == result);
 
-    result = mPolicy->SetTokenLevel(sandbox::USER_RESTRICTED_SAME_ACCESS,
-                                    sandbox::USER_INTERACTIVE);
-    ret = ret && (sandbox::SBOX_ALL_OK == result);
+  result = mPolicy->SetTokenLevel(sandbox::USER_RESTRICTED_SAME_ACCESS,
+                                  sandbox::USER_RESTRICTED_SAME_ACCESS);
+  ret = ret && (sandbox::SBOX_ALL_OK == result);
 
-    // If the delayed integrity level is lowered then SetUpSandboxEnvironment and
-    // CleanUpSandboxEnvironment in ContentChild should be changed or removed.
-    result = mPolicy->SetDelayedIntegrityLevel(sandbox::INTEGRITY_LEVEL_LOW);
-    ret = ret && (sandbox::SBOX_ALL_OK == result);
+  // If the delayed integrity level is changed then SetUpSandboxEnvironment and
+  // CleanUpSandboxEnvironment in ContentChild should be changed or removed.
+  result = mPolicy->SetDelayedIntegrityLevel(sandbox::INTEGRITY_LEVEL_LOW);
+  ret = ret && (sandbox::SBOX_ALL_OK == result);
 
-    result = mPolicy->SetAlternateDesktop(true);
-    ret = ret && (sandbox::SBOX_ALL_OK == result);
-  } else {
-    result = mPolicy->SetJobLevel(sandbox::JOB_NONE, 0);
-    ret = (sandbox::SBOX_ALL_OK == result);
-
-    result = mPolicy->SetTokenLevel(sandbox::USER_RESTRICTED_SAME_ACCESS,
-                                    sandbox::USER_NON_ADMIN);
-    ret = ret && (sandbox::SBOX_ALL_OK == result);
-
-    result = mPolicy->SetDelayedIntegrityLevel(sandbox::INTEGRITY_LEVEL_MEDIUM);
-    ret = ret && (sandbox::SBOX_ALL_OK == result);
-  }
+  result = mPolicy->SetAlternateDesktop(true);
+  ret = ret && (sandbox::SBOX_ALL_OK == result);
 
   // Add the policy for the client side of a pipe. It is just a file
   // in the \pipe\ namespace. We restrict it to pipes that start with
@@ -112,6 +94,9 @@ SandboxBroker::SetSecurityLevelForContentProcess(bool aMoreStrict)
                             L"\\??\\pipe\\chrome.*");
   ret = ret && (sandbox::SBOX_ALL_OK == result);
 
+  if (inWarnOnlyMode) {
+    mozilla::warnonlysandbox::ApplyWarnOnlyPolicy(*mPolicy);
+  }
   return ret;
 }
 #endif
@@ -172,7 +157,7 @@ SandboxBroker::SetSecurityLevelForGMPlugin()
   bool ret = (sandbox::SBOX_ALL_OK == result);
   result =
     mPolicy->SetTokenLevel(sandbox::USER_RESTRICTED_SAME_ACCESS,
-                           sandbox::USER_LOCKDOWN);
+                           sandbox::USER_RESTRICTED);
   ret = ret && (sandbox::SBOX_ALL_OK == result);
 
   result = mPolicy->SetAlternateDesktop(true);
@@ -183,23 +168,6 @@ SandboxBroker::SetSecurityLevelForGMPlugin()
 
   result =
     mPolicy->SetDelayedIntegrityLevel(sandbox::INTEGRITY_LEVEL_UNTRUSTED);
-  ret = ret && (sandbox::SBOX_ALL_OK == result);
-
-  sandbox::MitigationFlags mitigations =
-    sandbox::MITIGATION_BOTTOM_UP_ASLR |
-    sandbox::MITIGATION_HEAP_TERMINATE |
-    sandbox::MITIGATION_SEHOP |
-    sandbox::MITIGATION_DEP_NO_ATL_THUNK |
-    sandbox::MITIGATION_DEP;
-
-  result = mPolicy->SetProcessMitigations(mitigations);
-  ret = ret && (sandbox::SBOX_ALL_OK == result);
-
-  mitigations =
-    sandbox::MITIGATION_STRICT_HANDLE_CHECKS |
-    sandbox::MITIGATION_DLL_SEARCH_ORDER;
-
-  result = mPolicy->SetDelayedProcessMitigations(mitigations);
   ret = ret && (sandbox::SBOX_ALL_OK == result);
 
   // Add the policy for the client side of a pipe. It is just a file

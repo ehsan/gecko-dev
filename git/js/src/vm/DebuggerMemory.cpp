@@ -70,7 +70,15 @@ DebuggerMemory::construct(JSContext *cx, unsigned argc, Value *vp)
 /* static */ const Class DebuggerMemory::class_ = {
     "Memory",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
-    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_COUNT)
+    JSCLASS_HAS_RESERVED_SLOTS(JSSLOT_COUNT),
+
+    JS_PropertyStub,       // addProperty
+    JS_DeletePropertyStub, // delProperty
+    JS_PropertyStub,       // getProperty
+    JS_StrictPropertyStub, // setProperty
+    JS_EnumerateStub,      // enumerate
+    JS_ResolveStub,        // resolve
+    JS_ConvertStub,        // convert
 };
 
 /* static */ DebuggerMemory *
@@ -193,15 +201,12 @@ DebuggerMemory::drainAllocationsLog(JSContext *cx, unsigned argc, Value *vp)
     result->ensureDenseInitializedLength(cx, 0, length);
 
     for (size_t i = 0; i < length; i++) {
-        RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx));
+        RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
         if (!obj)
             return false;
 
-        // Don't pop the AllocationSite yet. The queue's links are followed by
-        // the GC to find the AllocationSite, but are not barried, so we must
-        // edit them with great care. Use the queue entry in place, and then
-        // pop and delete together.
-        Debugger::AllocationSite *allocSite = dbg->allocationsLog.getFirst();
+        mozilla::UniquePtr<Debugger::AllocationSite, JS::DeletePolicy<Debugger::AllocationSite> >
+            allocSite(dbg->allocationsLog.popFirst());
         RootedValue frame(cx, ObjectOrNullValue(allocSite->frame));
         if (!JSObject::defineProperty(cx, obj, cx->names().frame, frame))
             return false;
@@ -211,12 +216,6 @@ DebuggerMemory::drainAllocationsLog(JSContext *cx, unsigned argc, Value *vp)
             return false;
 
         result->setDenseElement(i, ObjectValue(*obj));
-
-        // Pop the front queue entry, and delete it immediately, so that
-        // the GC sees the AllocationSite's RelocatablePtr barriers run
-        // atomically with the change to the graph (the queue link).
-        MOZ_ALWAYS_TRUE(dbg->allocationsLog.popFirst() == allocSite);
-        js_delete(allocSite);
     }
 
     dbg->allocationsLogLength = 0;
@@ -364,7 +363,7 @@ class Tally {
     size_t total() const { return total_; }
 
     bool report(Census &census, MutableHandleValue report) {
-        RootedPlainObject obj(census.cx, NewBuiltinClassInstance<PlainObject>(census.cx));
+        RootedObject obj(census.cx, NewBuiltinClassInstance(census.cx, &JSObject::class_));
         RootedValue countValue(census.cx, NumberValue(total_));
         if (!obj ||
             !JSObject::defineProperty(census.cx, obj, census.cx->names().count, countValue))
@@ -436,7 +435,7 @@ class ByJSType {
     bool report(Census &census, MutableHandleValue report) {
         JSContext *cx = census.cx;
 
-        RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx));
+        RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
         if (!obj)
             return false;
 
@@ -457,7 +456,7 @@ class ByJSType {
 
         RootedValue otherReport(cx);
         if (!other.report(census, &otherReport) ||
-            !JSObject::defineProperty(cx, obj, cx->names().other, otherReport))
+            !JSObject::defineProperty(cx, obj, cx->names().other,   otherReport))
             return false;
 
         report.setObject(*obj);
@@ -553,7 +552,7 @@ class ByObjectClass {
         qsort(entries.begin(), entries.length(), sizeof(*entries.begin()), compareEntries);
 
         // Now build the result by iterating over the sorted vector.
-        RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx));
+        RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
         if (!obj)
             return false;
         for (Entry **entryPtr = entries.begin(); entryPtr < entries.end(); entryPtr++) {
@@ -662,7 +661,7 @@ class ByUbinodeType {
         qsort(entries.begin(), entries.length(), sizeof(*entries.begin()), compareEntries);
 
         // Now build the result by iterating over the sorted vector.
-        RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx));
+        RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
         if (!obj)
             return false;
         for (Entry **entryPtr = entries.begin(); entryPtr < entries.end(); entryPtr++) {
@@ -766,18 +765,22 @@ DebuggerMemory::takeCensus(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     Debugger *dbg = memory->getDebugger();
-    RootedObject dbgObj(cx, dbg->object);
 
-    // Populate our target set of debuggee zones.
+    // Populate census.debuggeeZones and ensure that all of our debuggee globals
+    // are rooted so that they are visible in the RootList.
+    JS::AutoObjectVector debuggees(cx);
     for (GlobalObjectSet::Range r = dbg->allDebuggees(); !r.empty(); r.popFront()) {
-        if (!census.debuggeeZones.put(r.front()->zone()))
+        if (!census.debuggeeZones.put(r.front()->zone()) ||
+            !debuggees.append(static_cast<JSObject *>(r.front())))
+        {
             return false;
+        }
     }
 
     {
         Maybe<JS::AutoCheckCannotGC> maybeNoGC;
         JS::ubi::RootList rootList(cx, maybeNoGC);
-        if (!rootList.init(dbgObj))
+        if (!rootList.init(cx, census.debuggeeZones))
             return false;
 
         dbg::DefaultCensusTraversal traversal(cx, handler, maybeNoGC.ref());

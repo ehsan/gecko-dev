@@ -8,7 +8,6 @@ package org.mozilla.gecko;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.lang.Override;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URLEncoder;
 import java.util.EnumSet;
@@ -17,7 +16,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Vector;
 
-import android.support.v4.app.Fragment;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -74,7 +72,6 @@ import org.mozilla.gecko.toolbar.AutocompleteHandler;
 import org.mozilla.gecko.toolbar.BrowserToolbar;
 import org.mozilla.gecko.toolbar.BrowserToolbar.TabEditingState;
 import org.mozilla.gecko.toolbar.ToolbarProgressView;
-import org.mozilla.gecko.util.ActivityUtils;
 import org.mozilla.gecko.util.Clipboard;
 import org.mozilla.gecko.util.EventCallback;
 import org.mozilla.gecko.util.GamepadUtils;
@@ -135,11 +132,14 @@ import android.view.ViewGroup;
 import android.view.ViewStub;
 import android.view.ViewTreeObserver;
 import android.view.Window;
+import android.view.WindowManager;
 import android.view.animation.Interpolator;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 import android.widget.ViewFlipper;
+
+import com.readystatesoftware.systembartint.SystemBarTintManager;
 
 public class BrowserApp extends GeckoApp
                         implements TabsPanel.TabsLayoutChangeListener,
@@ -148,6 +148,7 @@ public class BrowserApp extends GeckoApp
                                    LayerView.OnMetricsChangedListener,
                                    BrowserSearch.OnSearchListener,
                                    BrowserSearch.OnEditSuggestionListener,
+                                   HomePager.OnNewTabsListener,
                                    OnUrlOpenListener,
                                    OnUrlOpenInBackgroundListener,
                                    ActionModeCompat.Presenter,
@@ -176,8 +177,6 @@ public class BrowserApp extends GeckoApp
     public ViewFlipper mActionBarFlipper;
     public ActionModeCompatView mActionBar;
     private BrowserToolbar mBrowserToolbar;
-    // We can't name the TabStrip class because it's not included on API 9.
-    private Refreshable mTabStrip;
     private ToolbarProgressView mProgressView;
     private HomePager mHomePager;
     private TabsPanel mTabsPanel;
@@ -241,6 +240,8 @@ public class BrowserApp extends GeckoApp
     private BrowserHealthReporter mBrowserHealthReporter;
 
     private ReadingListHelper mReadingListHelper;
+
+    private SystemBarTintManager mTintManager;
 
     // The tab to be selected on editing mode exit.
     private Integer mTargetTabForEditingMode;
@@ -509,6 +510,8 @@ public class BrowserApp extends GeckoApp
 
         final Context appContext = getApplicationContext();
 
+        setupSystemUITinting();
+
         mBrowserChrome = (ViewGroup) findViewById(R.id.browser_chrome);
         mActionBarFlipper = (ViewFlipper) findViewById(R.id.browser_actionbar);
         mActionBar = (ActionModeCompatView) findViewById(R.id.actionbar);
@@ -545,7 +548,7 @@ public class BrowserApp extends GeckoApp
         }
 
         if (NewTabletUI.isEnabled(this)) {
-            mTabStrip = (Refreshable) (((ViewStub) findViewById(R.id.new_tablet_tab_strip)).inflate());
+            findViewById(R.id.new_tablet_tab_strip).setVisibility(View.VISIBLE);
         }
 
         ((GeckoApp.MainLayout) mMainLayout).setTouchEventInterceptor(new HideOnTouchListener());
@@ -647,6 +650,41 @@ public class BrowserApp extends GeckoApp
 
         // Set the maximum bits-per-pixel the favicon system cares about.
         IconDirectoryEntry.setMaxBPP(GeckoAppShell.getScreenDepth());
+
+        Class<?> mediaManagerClass = getMediaPlayerManager();
+        if (mediaManagerClass != null) {
+            try {
+                Method init = mediaManagerClass.getMethod("init", Context.class);
+                init.invoke(null, this);
+            } catch(Exception ex) {
+                Log.e(LOGTAG, "Error initializing media manager", ex);
+            }
+        }
+    }
+
+    private void setupSystemUITinting() {
+        if (!Versions.feature19Plus) {
+            return;
+        }
+
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+
+        mTintManager = new SystemBarTintManager(this);
+        mTintManager.setTintColor(getResources().getColor(R.color.background_tabs));
+        updateSystemUITinting(mRootLayout.getSystemUiVisibility());
+
+        mRootLayout.setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener() {
+            @Override
+            public void onSystemUiVisibilityChange(int visibility) {
+                updateSystemUITinting(visibility);
+            }
+        });
+    }
+
+    private void updateSystemUITinting(int visibility) {
+        final boolean shouldTint = (visibility & View.SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0 &&
+                                   (visibility & View.SYSTEM_UI_FLAG_FULLSCREEN) == 0;
+        mTintManager.setStatusBarTintEnabled(shouldTint);
     }
 
     /**
@@ -839,9 +877,7 @@ public class BrowserApp extends GeckoApp
                 }
 
                 // Temporarily disable doorhanger notifications.
-                if (mDoorHangerPopup != null) {
-                    mDoorHangerPopup.disable();
-                }
+                mDoorHangerPopup.disable();
             }
         });
 
@@ -864,9 +900,7 @@ public class BrowserApp extends GeckoApp
                 hideHomePager();
 
                 // Re-enable doorhanger notifications. They may trigger on the selected tab above.
-                if (mDoorHangerPopup != null) {
-                    mDoorHangerPopup.enable();
-                }
+                mDoorHangerPopup.enable();
             }
         });
 
@@ -1127,6 +1161,16 @@ public class BrowserApp extends GeckoApp
             }
         }
 
+        Class<?> mediaManagerClass = getMediaPlayerManager();
+        if (mediaManagerClass != null) {
+            try {
+                Method destroy = mediaManagerClass.getMethod("onDestroy",  (Class[]) null);
+                destroy.invoke(null);
+            } catch(Exception ex) {
+                Log.e(LOGTAG, "Error destroying media manager", ex);
+            }
+        }
+
         super.onDestroy();
     }
 
@@ -1172,13 +1216,13 @@ public class BrowserApp extends GeckoApp
     }
 
     @Override
-    protected void loadStartupTab(String url, int flags) {
+    protected void loadStartupTab(String url) {
         // We aren't showing about:home, so cancel the telemetry timer
         if (url != null || mShouldRestore) {
             mAboutHomeStartupTimer.cancel();
         }
 
-        super.loadStartupTab(url, flags);
+        super.loadStartupTab(url);
     }
 
     private void setToolbarMargin(int margin) {
@@ -1320,10 +1364,6 @@ public class BrowserApp extends GeckoApp
         if (mTabsPanel != null) {
             updateSideBarState();
             mTabsPanel.refresh();
-        }
-
-        if (mTabStrip != null) {
-            mTabStrip.refresh();
         }
 
         mBrowserToolbar.refresh();
@@ -1557,29 +1597,6 @@ public class BrowserApp extends GeckoApp
                     }
                 });
 
-                if (AppConstants.MOZ_MEDIA_PLAYER) {
-                    // Check if the fragment is already added. This should never be true here, but this is
-                    // a nice safety check.
-                    // If casting is disabled, these classes aren't built. We use reflection to initialize them.
-                    final Class<?> mediaManagerClass = getMediaPlayerManager();
-
-                    if (mediaManagerClass != null) {
-                        try {
-                            final String tag = "";
-                            mediaManagerClass.getDeclaredField("MEDIA_PLAYER_TAG").get(tag);
-                            Log.i(LOGTAG, "Found tag " + tag);
-                            final Fragment frag = getSupportFragmentManager().findFragmentByTag(tag);
-                            if (frag == null) {
-                                final Method getInstance = mediaManagerClass.getMethod("newInstance", (Class[]) null);
-                                final Fragment mpm = (Fragment) getInstance.invoke(null);
-                                getSupportFragmentManager().beginTransaction().disallowAddToBackStack().add(mpm, tag).commit();
-                            }
-                        } catch (Exception ex) {
-                            Log.e(LOGTAG, "Error initializing media manager", ex);
-                        }
-                    }
-                }
-
                 if (AppConstants.MOZ_STUMBLER_BUILD_TIME_ENABLED) {
                     // Start (this acts as ping if started already) the stumbler lib; if the stumbler has queued data it will upload it.
                     // Stumbler operates on its own thread, and startup impact is further minimized by delaying work (such as upload) a few seconds.
@@ -1592,7 +1609,6 @@ public class BrowserApp extends GeckoApp
                         }
                     }, oneSecondInMillis);
                 }
-
                 super.handleMessage(event, message);
             } else if (event.equals("Gecko:Ready")) {
                 // Handle this message in GeckoApp, but also enable the Settings
@@ -2164,7 +2180,7 @@ public class BrowserApp extends GeckoApp
                         if (locale == null) {
                             return;
                         }
-                        onLocaleChanged(Locales.getLanguageTag(locale));
+                        onLocaleChanged(BrowserLocaleManager.getLanguageTag(locale));
                     }
                 });
                 break;
@@ -2357,6 +2373,11 @@ public class BrowserApp extends GeckoApp
             if (view.getScrollX() != 0 || view.getScrollY() != 0) {
                 view.getHitRect(mTempRect);
                 mTempRect.offset(-view.getScrollX(), -view.getScrollY());
+
+                if (mTintManager != null) {
+                    SystemBarTintManager.SystemBarConfig config = mTintManager.getConfig();
+                    mTempRect.offset(0, -config.getPixelInsetTop(false));
+                }
 
                 int[] viewCoords = new int[2];
                 view.getLocationOnScreen(viewCoords);
@@ -2587,10 +2608,6 @@ public class BrowserApp extends GeckoApp
         // Disable menu access (for hardware buttons) when the software menu button is inaccessible.
         // Note that the software button is always accessible on new tablet.
         if (mBrowserToolbar.isEditing() && !NewTabletUI.isEnabled(this)) {
-            return;
-        }
-
-        if (ActivityUtils.isFullScreen(this)) {
             return;
         }
 
@@ -2896,7 +2913,7 @@ public class BrowserApp extends GeckoApp
         if (itemId == R.id.help) {
             final String VERSION = AppConstants.MOZ_APP_VERSION;
             final String OS = AppConstants.OS_TARGET;
-            final String LOCALE = Locales.getLanguageTag(Locale.getDefault());
+            final String LOCALE = BrowserLocaleManager.getLanguageTag(Locale.getDefault());
 
             final String URL = getResources().getString(R.string.help_link, VERSION, OS, LOCALE);
             Tabs.getInstance().loadUrlInTab(URL);
@@ -3138,6 +3155,18 @@ public class BrowserApp extends GeckoApp
         }).execute();
     }
 
+    // HomePager.OnNewTabsListener
+    @Override
+    public void onNewTabs(List<String> urls) {
+        final EnumSet<OnUrlOpenListener.Flags> flags = EnumSet.of(OnUrlOpenListener.Flags.ALLOW_SWITCH_TO_TAB);
+
+        for (String url : urls) {
+            if (!maybeSwitchToTab(url, flags)) {
+                openUrlAndStopEditing(url, true);
+            }
+        }
+    }
+
     // HomePager.OnUrlOpenListener
     @Override
     public void onUrlOpen(String url, EnumSet<OnUrlOpenListener.Flags> flags) {
@@ -3317,9 +3346,5 @@ public class BrowserApp extends GeckoApp
                                          osLocale,
                                          appLocale,
                                          previousSession);
-    }
-
-    public static interface Refreshable {
-        public void refresh();
     }
 }

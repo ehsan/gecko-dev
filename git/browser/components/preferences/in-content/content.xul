@@ -4,12 +4,7 @@
 
 <!-- Content panel -->
 
-<preferences id="contentPreferences" hidden="true" data-category="paneContent">
-
-  <!-- DRM content -->
-  <preference id="media.eme.enabled"
-              name="media.eme.enabled"
-              type="bool"/>
+<preferences id="contentPreferences">
 
   <!-- Popups -->
   <preference id="dom.disable_open_during_load"
@@ -39,29 +34,9 @@
   <label class="header-name">&paneContent.title;</label>
 </hbox>
 
-<groupbox id="drmGroup" data-category="paneContent" hidden="true">
-  <caption><label>DRM content</label></caption>
-  <grid id="contentGrid2">
-    <columns>
-      <column flex="1"/>
-      <column/>
-    </columns>
-    <rows id="contentRows-2">
-      <row id="playDRMContentRow">
-        <vbox align="start">
-          <checkbox id="playDRMContent" preference="media.eme.enabled"
-                    label="Play DRM content" accesskey="P"/>
-        </vbox>
-        <hbox pack="end" align="center">
-          <label id="playDRMContentLink" class="text-link" value="Learn more"/>
-        </hbox>
-      </row>
-    </rows>
-  </grid>
-</groupbox>
-
 <groupbox id="miscGroup" data-category="paneContent" hidden="true">
   <caption><label>&popups.label;</label></caption>
+
   <grid id="contentGrid">
     <columns>
       <column flex="1"/>
@@ -75,10 +50,8 @@
                     onsyncfrompreference="return gContentPane.updateButtons('popupPolicyButton',
                                                                         'dom.disable_open_during_load');"/>
         </vbox>
-        <hbox pack="end">
-          <button id="popupPolicyButton" label="&popupExceptions.label;"
-                  accesskey="&popupExceptions.accesskey;"/>
-        </hbox>
+        <button id="popupPolicyButton" label="&popupExceptions.label;"
+                accesskey="&popupExceptions.accesskey;"/>
       </row>
     </rows>
   </grid>

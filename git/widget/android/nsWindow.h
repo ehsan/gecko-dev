@@ -174,9 +174,6 @@ protected:
     void PostFlushIMEChanges();
     void FlushIMEChanges();
 
-    void ConfigureAPZCTreeManager() MOZ_OVERRIDE;
-    already_AddRefed<GeckoContentController> CreateRootContentController() MOZ_OVERRIDE;
-
     // Call this function when the users activity is the direct cause of an
     // event (like a keypress or mouse click).
     void UserActivity();

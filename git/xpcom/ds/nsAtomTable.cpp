@@ -404,7 +404,7 @@ AtomImpl::~AtomImpl()
   // |AtomTableClearEntry|.
   if (!IsPermanentInDestructor()) {
     AtomTableKey key(mString, mLength, mHash);
-    PL_DHashTableRemove(&gAtomTable, &key);
+    PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_REMOVE);
     if (gAtomTable.ops && gAtomTable.EntryCount() == 0) {
       PL_DHashTableFinish(&gAtomTable);
       NS_ASSERTION(gAtomTable.EntryCount() == 0,
@@ -555,7 +555,7 @@ GetAtomHashEntry(const char* aString, uint32_t aLength, uint32_t* aHashOut)
   EnsureTableExists();
   AtomTableKey key(aString, aLength, aHashOut);
   AtomTableEntry* e = static_cast<AtomTableEntry*>(
-    PL_DHashTableAdd(&gAtomTable, &key));
+    PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_ADD));
   if (!e) {
     NS_ABORT_OOM(gAtomTable.EntryCount() * gAtomTable.EntrySize());
   }
@@ -569,7 +569,7 @@ GetAtomHashEntry(const char16_t* aString, uint32_t aLength, uint32_t* aHashOut)
   EnsureTableExists();
   AtomTableKey key(aString, aLength, aHashOut);
   AtomTableEntry* e = static_cast<AtomTableEntry*>(
-    PL_DHashTableAdd(&gAtomTable, &key));
+    PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_ADD));
   if (!e) {
     NS_ABORT_OOM(gAtomTable.EntryCount() * gAtomTable.EntrySize());
   }

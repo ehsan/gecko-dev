@@ -85,7 +85,7 @@ protected:
 
   virtual nscoord GetIntrinsicISize() MOZ_OVERRIDE;
 
- explicit nsLeafBoxFrame(nsStyleContext* aContext);
+ nsLeafBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
 private:
 

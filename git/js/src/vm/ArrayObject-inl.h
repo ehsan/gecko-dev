@@ -43,7 +43,7 @@ ArrayObject::createArrayInternal(ExclusiveContext *cx, gc::AllocKind kind, gc::I
     MOZ_ASSERT(shape->numFixedSlots() == 0);
 
     size_t nDynamicSlots = dynamicSlotsCount(0, shape->slotSpan(), type->clasp());
-    JSObject *obj = NewGCObject<CanGC>(cx, kind, nDynamicSlots, heap, type->clasp());
+    JSObject *obj = NewGCObject<CanGC>(cx, kind, nDynamicSlots, heap);
     if (!obj)
         return nullptr;
 
@@ -104,7 +104,7 @@ ArrayObject::createArray(ExclusiveContext *cx, gc::InitialHeap heap,
 /* static */ inline ArrayObject *
 ArrayObject::createCopyOnWriteArray(ExclusiveContext *cx, gc::InitialHeap heap,
                                     HandleShape shape,
-                                    HandleArrayObject sharedElementsOwner)
+                                    HandleNativeObject sharedElementsOwner)
 {
     MOZ_ASSERT(sharedElementsOwner->getElementsHeader()->isCopyOnWrite());
     MOZ_ASSERT(sharedElementsOwner->getElementsHeader()->ownerObject() == sharedElementsOwner);

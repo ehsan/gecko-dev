@@ -33,10 +33,10 @@ public:
   virtual nsresult Clone(mozilla::dom::NodeInfo *aNodeInfo, nsINode **aResult) const MOZ_OVERRIDE;
 
   // SVGAnimationElement
-  virtual nsSMILAnimationFunction& AnimationFunction() MOZ_OVERRIDE;
+  virtual nsSMILAnimationFunction& AnimationFunction();
   virtual bool GetTargetAttributeName(int32_t *aNamespaceID,
-                                      nsIAtom **aLocalName) const MOZ_OVERRIDE;
-  virtual nsSMILTargetAttrType GetTargetAttributeType() const MOZ_OVERRIDE;
+                                      nsIAtom **aLocalName) const;
+  virtual nsSMILTargetAttrType GetTargetAttributeType() const;
 
   // nsSVGElement
   virtual nsIAtom* GetPathDataAttrName() const MOZ_OVERRIDE {

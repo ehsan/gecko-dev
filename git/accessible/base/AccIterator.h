@@ -281,9 +281,9 @@ public:
   virtual Accessible* Next();
 
 private:
-  ItemIterator() = delete;
-  ItemIterator(const ItemIterator&) = delete;
-  ItemIterator& operator = (const ItemIterator&) = delete;
+  ItemIterator() MOZ_DELETE;
+  ItemIterator(const ItemIterator&) MOZ_DELETE;
+  ItemIterator& operator = (const ItemIterator&) MOZ_DELETE;
 
   Accessible* mContainer;
   Accessible* mAnchor;
@@ -303,9 +303,9 @@ public:
   virtual Accessible* Next();
 
 private:
-  XULTreeItemIterator() = delete;
-  XULTreeItemIterator(const XULTreeItemIterator&) = delete;
-  XULTreeItemIterator& operator = (const XULTreeItemIterator&) = delete;
+  XULTreeItemIterator() MOZ_DELETE;
+  XULTreeItemIterator(const XULTreeItemIterator&) MOZ_DELETE;
+  XULTreeItemIterator& operator = (const XULTreeItemIterator&) MOZ_DELETE;
 
   XULTreeAccessible* mXULTree;
   nsITreeView* mTreeView;

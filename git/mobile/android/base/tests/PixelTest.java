@@ -61,6 +61,7 @@ abstract class PixelTest extends BaseTest {
         loadAndPaint(url);
         tabEventExpecter.unregisterListener();
         contentEventExpecter.unregisterListener();
+        mAsserter.ok(waitForText(title), "Checking that the page has loaded", "The page has loaded");
     }
 
     protected final PaintedSurface waitForPaint(Actions.RepeatedEventExpecter expecter) {

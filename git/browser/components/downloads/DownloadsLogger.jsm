@@ -24,7 +24,7 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
 this.DownloadsLogger = {
-  _generateLogMessage(args) {
+  _generateLogMessage: function _generateLogMessage(args) {
     // create a string representation of a list of arbitrary things
     let strings = [];
 
@@ -51,7 +51,7 @@ this.DownloadsLogger = {
    *
    * Enable with about:config pref browser.download.debug
    */
-  log(...args) {
+  log: function DL_log(...args) {
     let output = this._generateLogMessage(args);
     dump(output + "\n");
 
@@ -63,7 +63,7 @@ this.DownloadsLogger = {
    * reportError() - report an error through component utils as well as
    * our log function
    */
-  reportError(...aArgs) {
+  reportError: function DL_reportError(...aArgs) {
     // Report the error in the browser
     let output = this._generateLogMessage(aArgs);
     Cu.reportError(output);
@@ -71,5 +71,6 @@ this.DownloadsLogger = {
     for (let frame = Components.stack.caller; frame; frame = frame.caller) {
       dump("\t" + frame + "\n");
     }
-  },
+  }
+
 };

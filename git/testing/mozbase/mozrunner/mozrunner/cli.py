@@ -6,11 +6,20 @@ import optparse
 import os
 import sys
 
-from mozprofile import MozProfileCLI
+from mozprofile import MozProfileCLI, Profile
+from .runners import (
+    FirefoxRunner,
+    MetroRunner,
+    ThunderbirdRunner,
+)
 
-from .application import get_app_context
-from .runners import runners
 from .utils import findInPath
+
+RUNNER_MAP = {
+    'firefox': FirefoxRunner,
+    'metro': MetroRunner,
+    'thunderbird': ThunderbirdRunner,
+}
 
 # Map of debugging programs to information about them
 # from http://mxr.mozilla.org/mozilla-central/source/build/automationutils.py#59
@@ -70,13 +79,11 @@ class CLI(MozProfileCLI):
             sys.exit(0)
 
         # choose appropriate runner and profile classes
-        app = self.options.app
         try:
-            self.runner_class = runners[app]
-            self.profile_class = get_app_context(app).profile_class
+            self.runner_class = RUNNER_MAP[self.options.app]
         except KeyError:
             self.parser.error('Application "%s" unknown (should be one of "%s")' %
-                              (app, ', '.join(runners.keys())))
+                              (self.options.app, ', '.join(RUNNER_MAP.keys())))
 
     def add_options(self, parser):
         """add options to the parser"""
@@ -138,7 +145,7 @@ class CLI(MozProfileCLI):
                     binary=self.options.binary)
 
     def create_runner(self):
-        profile = self.profile_class(**self.profile_args())
+        profile = Profile(**self.profile_args())
         return self.runner_class(profile=profile, **self.runner_args())
 
     def run(self):

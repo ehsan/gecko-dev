@@ -14,13 +14,10 @@
 #include "jsobj.h"
 #include "jswrapper.h"
 
-#include "js/GCAPI.h"
 #include "vm/GlobalObject.h"
 #include "vm/WeakMapObject.h"
 
 #include "jsobjinlines.h"
-
-#include "vm/Interpreter-inl.h"
 
 using namespace js;
 using namespace js::gc;
@@ -132,11 +129,8 @@ WeakMapBase::traceAllMappings(WeakMapTracer *tracer)
 {
     JSRuntime *rt = tracer->runtime;
     for (CompartmentsIter c(rt, SkipAtoms); !c.done(); c.next()) {
-        for (WeakMapBase *m = c->gcWeakMapList; m; m = m->next) {
-            // The WeakMapTracer callback is not allowed to GC.
-            JS::AutoSuppressGCAnalysis nogc;
+        for (WeakMapBase *m = c->gcWeakMapList; m; m = m->next)
             m->traceMappings(tracer);
-        }
     }
 }
 
@@ -357,10 +351,12 @@ TryPreserveReflector(JSContext *cx, HandleObject obj)
 static inline void
 WeakMapPostWriteBarrier(JSRuntime *rt, ObjectValueMap *weakMap, JSObject *key)
 {
+#ifdef JSGC_GENERATIONAL
     // Strip the barriers from the type before inserting into the store buffer.
     // This will automatically ensure that barriers do not fire during GC.
     if (key && IsInsideNursery(key))
         rt->gc.storeBuffer.putGeneric(UnbarrieredRef(weakMap, key));
+#endif
 }
 
 static MOZ_ALWAYS_INLINE bool
@@ -531,21 +527,7 @@ WeakMap_construct(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     // ES6 23.3.1.1 steps 5-6, 11.
-    if (!args.get(0).isNullOrUndefined()) {
-        // Steps 7a-b.
-        RootedValue adderVal(cx);
-        if (!JSObject::getProperty(cx, obj, obj, cx->names().set, &adderVal))
-            return false;
-
-        // Step 7c.
-        if (!IsCallable(adderVal))
-            return ReportIsNotFunction(cx, adderVal);
-
-        bool isOriginalAdder = IsNativeFunction(adderVal, WeakMap_set);
-        RootedValue mapVal(cx, ObjectValue(*obj));
-        FastInvokeGuard fig(cx, adderVal);
-        InvokeArgs &args2 = fig.args();
-
+    if (args.hasDefined(0)) {
         // Steps 7d-e.
         JS::ForOfIterator iter(cx);
         if (!iter.init(args[0]))
@@ -584,27 +566,14 @@ WeakMap_construct(JSContext *cx, unsigned argc, Value *vp)
                 return false;
 
             // Steps 12k-l.
-            if (isOriginalAdder) {
-                if (keyVal.isPrimitive()) {
-                    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT);
-                    return false;
-                }
-
-                keyObject = &keyVal.toObject();
-                if (!SetWeakMapEntry(cx, obj, keyObject, val))
-                    return false;
-            } else {
-                if (!args2.init(2))
-                    return false;
-
-                args2.setCallee(adderVal);
-                args2.setThis(mapVal);
-                args2[0].set(keyVal);
-                args2[1].set(val);
-
-                if (!fig.invoke(cx))
-                    return false;
+            if (keyVal.isPrimitive()) {
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT);
+                return false;
             }
+
+            keyObject = &keyVal.toObject();
+            if (!SetWeakMapEntry(cx, obj, keyObject, val))
+                return false;
         }
     }
 
@@ -616,17 +585,17 @@ const Class WeakMapObject::class_ = {
     "WeakMap",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_CACHED_PROTO(JSProto_WeakMap),
-    nullptr, /* addProperty */
-    nullptr, /* delProperty */
-    nullptr, /* getProperty */
-    nullptr, /* setProperty */
-    nullptr, /* enumerate */
-    nullptr, /* resolve */
-    nullptr, /* convert */
+    JS_PropertyStub,         /* addProperty */
+    JS_DeletePropertyStub,   /* delProperty */
+    JS_PropertyStub,         /* getProperty */
+    JS_StrictPropertyStub,   /* setProperty */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub,
     WeakMap_finalize,
-    nullptr, /* call */
-    nullptr, /* hasInstance */
-    nullptr, /* construct */
+    nullptr,                 /* call        */
+    nullptr,                 /* construct   */
+    nullptr,                 /* xdrObject   */
     WeakMap_mark
 };
 

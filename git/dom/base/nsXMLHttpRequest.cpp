@@ -46,7 +46,7 @@
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
 #include "nsError.h"
-#include "nsCORSListenerProxy.h"
+#include "nsCrossSiteListenerProxy.h"
 #include "nsIHTMLDocument.h"
 #include "nsIStorageStream.h"
 #include "nsIPromptFactory.h"
@@ -66,7 +66,6 @@
 #include "nsIPermissionManager.h"
 #include "nsMimeTypes.h"
 #include "nsIHttpChannelInternal.h"
-#include "nsIClassOfService.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsFormData.h"
 #include "nsStreamListenerWrapper.h"
@@ -361,11 +360,10 @@ NS_IMETHODIMP
 nsXMLHttpRequest::Init(nsIPrincipal* aPrincipal,
                        nsIScriptContext* aScriptContext,
                        nsIGlobalObject* aGlobalObject,
-                       nsIURI* aBaseURI,
-                       nsILoadGroup* aLoadGroup)
+                       nsIURI* aBaseURI)
 {
   NS_ENSURE_ARG_POINTER(aPrincipal);
-
+  
   if (nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(aGlobalObject)) {
     if (win->IsOuterWindow()) {
       // Must be bound to inner window, innerize if necessary.
@@ -375,7 +373,7 @@ nsXMLHttpRequest::Init(nsIPrincipal* aPrincipal,
     }
   }
 
-  Construct(aPrincipal, aGlobalObject, aBaseURI, aLoadGroup);
+  Construct(aPrincipal, aGlobalObject, aBaseURI);
   return NS_OK;
 }
 
@@ -1437,11 +1435,6 @@ nsXMLHttpRequest::GetLoadGroup() const
     return nullptr;
   }
 
-  if (mLoadGroup) {
-    nsCOMPtr<nsILoadGroup> ref = mLoadGroup;
-    return ref.forget();
-  }
-
   nsresult rv = NS_ERROR_FAILURE;
   nsIScriptContext* sc =
     const_cast<nsXMLHttpRequest*>(this)->GetContextForEventHandlers(&rv);
@@ -2408,10 +2401,17 @@ GetRequestBody(nsIDOMDocument* aDoc, nsIInputStream** aResult,
                nsACString& aCharset)
 {
   aContentType.AssignLiteral("application/xml");
-  nsCOMPtr<nsIDocument> doc(do_QueryInterface(aDoc));
-  NS_ENSURE_STATE(doc);
-  aCharset.AssignLiteral("UTF-8");
+  nsAutoString inputEncoding;
+  aDoc->GetInputEncoding(inputEncoding);
+  if (!DOMStringIsNull(inputEncoding)) {
+    CopyUTF16toUTF8(inputEncoding, aCharset);
+  }
+  else {
+    aCharset.AssignLiteral("UTF-8");
+  }
 
+  // Serialize to a stream so that the encoding used will
+  // match the document's.
   nsresult rv;
   nsCOMPtr<nsIDOMSerializer> serializer =
     do_CreateInstance(NS_XMLSERIALIZER_CONTRACTID, &rv);
@@ -2896,17 +2896,14 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
   // the channel slow by default for pipeline purposes
   AddLoadFlags(mChannel, nsIRequest::INHIBIT_PIPELINE);
 
-  nsCOMPtr<nsIClassOfService> cos(do_QueryInterface(mChannel));
-  if (cos) {
-    // we never let XHR be blocked by head CSS/JS loads to avoid
-    // potential deadlock where server generation of CSS/JS requires
-    // an XHR signal.
-    cos->AddClassFlags(nsIClassOfService::Unblocked);
-  }
-
   nsCOMPtr<nsIHttpChannelInternal>
     internalHttpChannel(do_QueryInterface(mChannel));
   if (internalHttpChannel) {
+    // we never let XHR be blocked by head CSS/JS loads to avoid
+    // potential deadlock where server generation of CSS/JS requires
+    // an XHR signal.
+    internalHttpChannel->SetLoadUnblocked(true);
+
     // Disable Necko-internal response timeouts.
     internalHttpChannel->SetResponseTimeoutEnabled(false);
   }
@@ -3432,7 +3429,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(AsyncVerifyRedirectCallbackForwarder)
 
   // nsIAsyncVerifyRedirectCallback implementation
-  NS_IMETHOD OnRedirectVerifyCallback(nsresult result) MOZ_OVERRIDE
+  NS_IMETHOD OnRedirectVerifyCallback(nsresult result)
   {
     mXHR->OnRedirectVerifyCallback(result);
 

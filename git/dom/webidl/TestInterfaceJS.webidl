@@ -48,11 +48,4 @@ interface TestInterfaceJS {
   void testSequenceOverload(DOMString arg);
 
   void testSequenceUnion((sequence<DOMString> or DOMString) arg);
-
-  // Tests for exception-throwing behavior
-  [Throws]
-  void testThrowDOMError();
-
-  [Throws]
-  void testThrowDOMException();
 };

@@ -370,10 +370,6 @@ var LightWeightThemeWebInstaller = {
     var pm = Services.perms;
 
     var uri = node.ownerDocument.documentURIObject;
-
-    if (!uri.schemeIs("https"))
-      return false;
-
     return pm.testPermission(uri, "install") == pm.ALLOW_ACTION;
   },
 

@@ -5,7 +5,6 @@
 
 EXTRA_JS_MODULES.devtools.performance += [
     'modules/front.js',
-    'modules/io.js',
     'panel.js'
 ]
 

@@ -460,43 +460,6 @@ let gTests = [
 },
 
 {
-  desc: "getUserMedia audio+video: reloading the page removes all gUM UI",
-  run: function checkReloading() {
-    yield promisePopupNotificationShown("webRTC-shareDevices", () => {
-      info("requesting devices");
-      content.wrappedJSObject.requestDevice(true, true);
-    });
-    expectObserverCalled("getUserMedia:request");
-    checkDeviceSelectors(true, true);
-
-    yield promiseMessage("ok", () => {
-      PopupNotifications.panel.firstChild.button.click();
-    });
-    expectObserverCalled("getUserMedia:response:allow");
-    expectObserverCalled("recording-device-events");
-    is(getMediaCaptureState(), "CameraAndMicrophone",
-       "expected camera and microphone to be shared");
-
-    yield checkSharingUI({video: true, audio: true});
-
-    yield promiseNotificationShown(PopupNotifications.getNotification("webRTC-sharingDevices"));
-
-    info("reloading the web page");
-    yield promiseObserverCalled("recording-device-events",
-                                () => { content.location.reload(); });
-
-    yield promiseNoPopupNotification("webRTC-sharingDevices");
-    if (gObservedTopics["recording-device-events"] == 1) {
-      todo(false, "Got the 'recording-device-events' notification twice, likely because of bug 962719");
-      gObservedTopics["recording-device-events"] = 0;
-    }
-    expectObserverCalled("recording-window-ended");
-    expectNoObserverCalled();
-    yield checkNotSharing();
-  }
-},
-
-{
   desc: "getUserMedia prompt: Always/Never Share",
   run: function checkRememberCheckbox() {
     let elt = id => document.getElementById(id);
@@ -836,7 +799,7 @@ let gTests = [
   run: function checkNoAlwaysOnHttp() {
     // Load an http page instead of the https version.
     let deferred = Promise.defer();
-    let browser = gBrowser.selectedBrowser;
+    let browser = gBrowser.selectedTab.linkedBrowser;
     browser.addEventListener("load", function onload() {
       browser.removeEventListener("load", onload, true);
       deferred.resolve();

@@ -271,33 +271,35 @@ public:
 template<class ClassType, typename Arg, bool Owning>
 struct nsRunnableMethodReceiver
 {
-  nsRefPtr<ClassType> mObj;
+  ClassType* mObj;
   Arg mArg;
   nsRunnableMethodReceiver(ClassType* aObj, Arg aArg)
     : mObj(aObj)
     , mArg(aArg)
   {
+    NS_IF_ADDREF(mObj);
   }
   ~nsRunnableMethodReceiver() { Revoke(); }
-  void Revoke() { mObj = nullptr; }
+  void Revoke() { NS_IF_RELEASE(mObj); }
 };
 
 template<class ClassType, bool Owning>
 struct nsRunnableMethodReceiver<ClassType, void, Owning>
 {
-  nsRefPtr<ClassType> mObj;
+  ClassType* mObj;
   explicit nsRunnableMethodReceiver(ClassType* aObj)
     : mObj(aObj)
   {
+    NS_IF_ADDREF(mObj);
   }
   ~nsRunnableMethodReceiver() { Revoke(); }
-  void Revoke() { mObj = nullptr; }
+  void Revoke() { NS_IF_RELEASE(mObj); }
 };
 
 template<class ClassType>
 struct nsRunnableMethodReceiver<ClassType, void, false>
 {
-  ClassType* MOZ_NON_OWNING_REF mObj;
+  ClassType* mObj;
   explicit nsRunnableMethodReceiver(ClassType* aObj) : mObj(aObj) {}
   void Revoke() { mObj = nullptr; }
 };
@@ -537,8 +539,8 @@ public:
 private:
   volatile uint32_t mCounter;
 
-  nsThreadPoolNaming(const nsThreadPoolNaming&) = delete;
-  void operator=(const nsThreadPoolNaming&) = delete;
+  nsThreadPoolNaming(const nsThreadPoolNaming&) MOZ_DELETE;
+  void operator=(const nsThreadPoolNaming&) MOZ_DELETE;
 };
 
 /**
@@ -562,20 +564,5 @@ private:
 
 void
 NS_SetMainThread();
-
-/**
- * Helpers for thread to report their status when compiled with Nuwa.
- */
-#ifdef MOZILLA_INTERNAL_API
-#ifdef MOZ_NUWA_PROCESS
-extern void
-NS_SetIgnoreStatusOfCurrentThread();
-#else // MOZ_NUWA_PROCESS
-inline void
-NS_SetIgnoreStatusOfCurrentThread()
-{
-}
-#endif // MOZ_NUWA_PROCESS
-#endif // MOZILLA_INTERNAL_API
 
 #endif  // nsThreadUtils_h__

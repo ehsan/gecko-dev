@@ -19,12 +19,11 @@ class PathBuilderD2D : public PathBuilder
 {
 public:
   MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(PathBuilderD2D)
-  PathBuilderD2D(ID2D1GeometrySink *aSink, ID2D1PathGeometry *aGeom, FillRule aFillRule, BackendType aBackendType)
+  PathBuilderD2D(ID2D1GeometrySink *aSink, ID2D1PathGeometry *aGeom, FillRule aFillRule)
     : mSink(aSink)
     , mGeometry(aGeom)
     , mFigureActive(false)
     , mFillRule(aFillRule)
-    , mBackendType(aBackendType)
   {
   }
   virtual ~PathBuilderD2D();
@@ -43,7 +42,7 @@ public:
 
   virtual TemporaryRef<Path> Finish();
 
-  virtual BackendType GetBackendType() const { return mBackendType; }
+  virtual BackendType GetBackendType() const { return BackendType::DIRECT2D; }
 
   ID2D1GeometrySink *GetSink() { return mSink; }
 
@@ -59,7 +58,6 @@ private:
   Point mCurrentPoint;
   Point mBeginPoint;
   FillRule mFillRule;
-  BackendType mBackendType;
 };
 
 class PathD2D : public Path
@@ -67,15 +65,14 @@ class PathD2D : public Path
 public:
   MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(PathD2D)
   PathD2D(ID2D1PathGeometry *aGeometry, bool aEndedActive,
-          const Point &aEndPoint, FillRule aFillRule, BackendType aBackendType)
+          const Point &aEndPoint, FillRule aFillRule)
     : mGeometry(aGeometry)
     , mEndedActive(aEndedActive)
     , mEndPoint(aEndPoint)
     , mFillRule(aFillRule)
-    , mBackendType(aBackendType)
   {}
   
-  virtual BackendType GetBackendType() const { return mBackendType; }
+  virtual BackendType GetBackendType() const { return BackendType::DIRECT2D; }
 
   virtual TemporaryRef<PathBuilder> CopyToBuilder(FillRule aFillRule = FillRule::FILL_WINDING) const;
   virtual TemporaryRef<PathBuilder> TransformedCopyToBuilder(const Matrix &aTransform,
@@ -106,7 +103,6 @@ private:
   bool mEndedActive;
   Point mEndPoint;
   FillRule mFillRule;
-  BackendType mBackendType;
 };
 
 }

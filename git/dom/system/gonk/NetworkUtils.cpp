@@ -33,9 +33,9 @@
 #define ERROR(args...)  __android_log_print(ANDROID_LOG_ERROR,  "NetworkUtils", ## args)
 
 #if _DEBUG
-#define NU_DBG(args...)  __android_log_print(ANDROID_LOG_DEBUG, "NetworkUtils" , ## args)
+#define DEBUG(args...)  __android_log_print(ANDROID_LOG_DEBUG, "NetworkUtils" , ## args)
 #else
-#define NU_DBG(args...)
+#define DEBUG(args...)
 #endif
 
 using namespace mozilla::dom;
@@ -122,9 +122,8 @@ static bool gPending = false;
 static nsTArray<nsCString> gReason;
 static NetworkParams *gWifiTetheringParms = 0;
 
-static nsTArray<CommandChain*> gCommandChainQueue;
 
-const CommandFunc NetworkUtils::sWifiEnableChain[] = {
+CommandFunc NetworkUtils::sWifiEnableChain[] = {
   NetworkUtils::clearWifiTetherParms,
   NetworkUtils::wifiFirmwareReload,
   NetworkUtils::startAccessPointDriver,
@@ -140,7 +139,7 @@ const CommandFunc NetworkUtils::sWifiEnableChain[] = {
   NetworkUtils::wifiTetheringSuccess
 };
 
-const CommandFunc NetworkUtils::sWifiDisableChain[] = {
+CommandFunc NetworkUtils::sWifiDisableChain[] = {
   NetworkUtils::clearWifiTetherParms,
   NetworkUtils::stopSoftAP,
   NetworkUtils::stopAccessPointDriver,
@@ -154,14 +153,14 @@ const CommandFunc NetworkUtils::sWifiDisableChain[] = {
   NetworkUtils::wifiTetheringSuccess
 };
 
-const CommandFunc NetworkUtils::sWifiFailChain[] = {
+CommandFunc NetworkUtils::sWifiFailChain[] = {
   NetworkUtils::clearWifiTetherParms,
   NetworkUtils::stopSoftAP,
   NetworkUtils::setIpForwardingEnabled,
   NetworkUtils::stopTethering
 };
 
-const CommandFunc NetworkUtils::sWifiRetryChain[] = {
+CommandFunc NetworkUtils::sWifiRetryChain[] = {
   NetworkUtils::clearWifiTetherParms,
   NetworkUtils::stopSoftAP,
   NetworkUtils::stopTethering,
@@ -181,12 +180,12 @@ const CommandFunc NetworkUtils::sWifiRetryChain[] = {
   NetworkUtils::wifiTetheringSuccess
 };
 
-const CommandFunc NetworkUtils::sWifiOperationModeChain[] = {
+CommandFunc NetworkUtils::sWifiOperationModeChain[] = {
   NetworkUtils::wifiFirmwareReload,
   NetworkUtils::wifiOperationModeSuccess
 };
 
-const CommandFunc NetworkUtils::sUSBEnableChain[] = {
+CommandFunc NetworkUtils::sUSBEnableChain[] = {
   NetworkUtils::setInterfaceUp,
   NetworkUtils::enableNat,
   NetworkUtils::setIpForwardingEnabled,
@@ -197,7 +196,7 @@ const CommandFunc NetworkUtils::sUSBEnableChain[] = {
   NetworkUtils::usbTetheringSuccess
 };
 
-const CommandFunc NetworkUtils::sUSBDisableChain[] = {
+CommandFunc NetworkUtils::sUSBDisableChain[] = {
   NetworkUtils::untetherInterface,
   NetworkUtils::preTetherInterfaceList,
   NetworkUtils::postTetherInterfaceList,
@@ -207,48 +206,48 @@ const CommandFunc NetworkUtils::sUSBDisableChain[] = {
   NetworkUtils::usbTetheringSuccess
 };
 
-const CommandFunc NetworkUtils::sUSBFailChain[] = {
+CommandFunc NetworkUtils::sUSBFailChain[] = {
   NetworkUtils::stopSoftAP,
   NetworkUtils::setIpForwardingEnabled,
   NetworkUtils::stopTethering
 };
 
-const CommandFunc NetworkUtils::sUpdateUpStreamChain[] = {
+CommandFunc NetworkUtils::sUpdateUpStreamChain[] = {
   NetworkUtils::cleanUpStream,
   NetworkUtils::createUpStream,
   NetworkUtils::updateUpStreamSuccess
 };
 
-const CommandFunc NetworkUtils::sStartDhcpServerChain[] = {
+CommandFunc NetworkUtils::sStartDhcpServerChain[] = {
   NetworkUtils::setInterfaceUp,
   NetworkUtils::startTethering,
   NetworkUtils::setDhcpServerSuccess
 };
 
-const CommandFunc NetworkUtils::sStopDhcpServerChain[] = {
+CommandFunc NetworkUtils::sStopDhcpServerChain[] = {
   NetworkUtils::stopTethering,
   NetworkUtils::setDhcpServerSuccess
 };
 
-const CommandFunc NetworkUtils::sNetworkInterfaceEnableAlarmChain[] = {
+CommandFunc NetworkUtils::sNetworkInterfaceEnableAlarmChain[] = {
   NetworkUtils::enableAlarm,
   NetworkUtils::setQuota,
   NetworkUtils::setAlarm,
   NetworkUtils::networkInterfaceAlarmSuccess
 };
 
-const CommandFunc NetworkUtils::sNetworkInterfaceDisableAlarmChain[] = {
+CommandFunc NetworkUtils::sNetworkInterfaceDisableAlarmChain[] = {
   NetworkUtils::removeQuota,
   NetworkUtils::disableAlarm,
   NetworkUtils::networkInterfaceAlarmSuccess
 };
 
-const CommandFunc NetworkUtils::sNetworkInterfaceSetAlarmChain[] = {
+CommandFunc NetworkUtils::sNetworkInterfaceSetAlarmChain[] = {
   NetworkUtils::setAlarm,
   NetworkUtils::networkInterfaceAlarmSuccess
 };
 
-const CommandFunc NetworkUtils::sSetDnsChain[] = {
+CommandFunc NetworkUtils::sSetDnsChain[] = {
   NetworkUtils::setDefaultInterface,
   NetworkUtils::setInterfaceDns
 };
@@ -386,18 +385,6 @@ static void postMessage(NetworkParams& aOptions, NetworkResultOptions& aResult)
     (*(gNetworkUtils->getMessageCallback()))(aResult);
 }
 
-void NetworkUtils::runNextQueuedCommandChain()
-{
-  if (gCommandChainQueue.IsEmpty()) {
-    NU_DBG("No command chain left in the queue. Done!");
-    return;
-  }
-  NU_DBG("Process the queued command chain.");
-  CommandChain* nextChain = gCommandChainQueue[0];
-  NetworkResultOptions newResult;
-  next(nextChain, false, newResult);
-}
-
 void NetworkUtils::next(CommandChain* aChain, bool aError, NetworkResultOptions& aResult)
 {
   if (aError) {
@@ -407,15 +394,11 @@ void NetworkUtils::next(CommandChain* aChain, bool aError, NetworkResultOptions&
       (*onError)(aChain->getParams(), aResult);
     }
     delete aChain;
-    gCommandChainQueue.RemoveElementAt(0);
-    runNextQueuedCommandChain();
     return;
   }
   CommandFunc f = aChain->getNextCommand();
   if (!f) {
     delete aChain;
-    gCommandChainQueue.RemoveElementAt(0);
-    runNextQueuedCommandChain();
     return;
   }
 
@@ -469,7 +452,7 @@ void NetworkUtils::nextNetdCommand()
   gCurrentCommand.callback = GET_CURRENT_CALLBACK;
   snprintf(gCurrentCommand.command, MAX_COMMAND_SIZE - 1, "%s", GET_CURRENT_COMMAND);
 
-  NU_DBG("Sending \'%s\' command to netd.", gCurrentCommand.command);
+  DEBUG("Sending \'%s\' command to netd.", gCurrentCommand.command);
   SendNetdCommand(GET_CURRENT_NETD_COMMAND);
 
   gCommandQueue.RemoveElementAt(0);
@@ -486,7 +469,7 @@ void NetworkUtils::nextNetdCommand()
  */
 void NetworkUtils::doCommand(const char* aCommand, CommandChain* aChain, CommandCallback aCallback)
 {
-  NU_DBG("Preparing to send \'%s\' command...", aCommand);
+  DEBUG("Preparing to send \'%s\' command...", aCommand);
 
   NetdCommand* netdCommand = new NetdCommand();
 
@@ -826,16 +809,13 @@ void NetworkUtils::startTethering(CommandChain* aChain,
   if (aResult.mResultReason.Find("started") != kNotFound) {
     snprintf(command, MAX_COMMAND_SIZE - 1, "%s", DUMMY_COMMAND);
   } else {
+    snprintf(command, MAX_COMMAND_SIZE - 1, "tether start %s %s", GET_CHAR(mWifiStartIp), GET_CHAR(mWifiEndIp));
+
     // If usbStartIp/usbEndIp is not valid, don't append them since
     // the trailing white spaces will be parsed to extra empty args
     // See: http://androidxref.com/4.3_r2.1/xref/system/core/libsysutils/src/FrameworkListener.cpp#78
     if (!GET_FIELD(mUsbStartIp).IsEmpty() && !GET_FIELD(mUsbEndIp).IsEmpty()) {
-      snprintf(command, MAX_COMMAND_SIZE - 1, "tether start %s %s %s %s",
-               GET_CHAR(mWifiStartIp), GET_CHAR(mWifiEndIp),
-               GET_CHAR(mUsbStartIp),  GET_CHAR(mUsbEndIp));
-    } else {
-      snprintf(command, MAX_COMMAND_SIZE - 1, "tether start %s %s",
-               GET_CHAR(mWifiStartIp), GET_CHAR(mWifiEndIp));
+      snprintf(command, MAX_COMMAND_SIZE - 1, "%s %s %s", command, GET_CHAR(mUsbStartIp), GET_CHAR(mUsbEndIp));
     }
   }
 
@@ -937,7 +917,7 @@ void NetworkUtils::setInterfaceDns(CommandChain* aChain,
       continue;
     }
 
-    if (((size_t)ret + written) >= sizeof(command)) {
+    if ((ret + written) >= sizeof(command)) {
       command[written] = '\0';
       break;
     }
@@ -957,29 +937,11 @@ void NetworkUtils::setInterfaceDns(CommandChain* aChain,
 #define ASSIGN_FIELD(prop)  aResult.prop = aChain->getParams().prop;
 #define ASSIGN_FIELD_VALUE(prop, value)  aResult.prop = value;
 
-template<size_t N>
-void NetworkUtils::runChain(const NetworkParams& aParams,
-                            const CommandFunc (&aCmds)[N],
-                            ErrorCallback aError)
-{
-  CommandChain* chain = new CommandChain(aParams, aCmds, N, aError);
-  gCommandChainQueue.AppendElement(chain);
-
-  if (gCommandChainQueue.Length() > 1) {
-    NU_DBG("%d command chains are queued. Wait!", gCommandChainQueue.Length());
-    return;
-  }
-
-  NetworkResultOptions result;
-  NetworkUtils::next(gCommandChainQueue[0], false, result);
-}
-
-// Called to clean up the command chain and process the queued command chain if any.
-void NetworkUtils::finalizeSuccess(CommandChain* aChain,
-                                   NetworkResultOptions& aResult)
-{
-  next(aChain, false, aResult);
-}
+#define RUN_CHAIN(param, cmds, err)                                \
+  uint32_t size = sizeof(cmds) / sizeof(CommandFunc);              \
+  CommandChain* chain = new CommandChain(param, cmds, size, err);  \
+  NetworkResultOptions result;                                     \
+  next(chain, false, result);
 
 void NetworkUtils::wifiTetheringFail(NetworkParams& aOptions, NetworkResultOptions& aResult)
 {
@@ -989,7 +951,7 @@ void NetworkUtils::wifiTetheringFail(NetworkParams& aOptions, NetworkResultOptio
   // If one of the stages fails, we try roll back to ensure
   // we don't leave the network systems in limbo.
   ASSIGN_FIELD_VALUE(mEnable, false)
-  runChain(aOptions, sWifiFailChain, nullptr);
+  RUN_CHAIN(aOptions, sWifiFailChain, nullptr)
 }
 
 void NetworkUtils::wifiTetheringSuccess(CommandChain* aChain,
@@ -1003,7 +965,6 @@ void NetworkUtils::wifiTetheringSuccess(CommandChain* aChain,
     gWifiTetheringParms = new NetworkParams(aChain->getParams());
   }
   postMessage(aChain->getParams(), aResult);
-  finalizeSuccess(aChain, aResult);
 }
 
 void NetworkUtils::usbTetheringFail(NetworkParams& aOptions,
@@ -1016,7 +977,7 @@ void NetworkUtils::usbTetheringFail(NetworkParams& aOptions,
   // This parameter is used to disable ipforwarding.
   {
     aOptions.mEnable = false;
-    runChain(aOptions, sUSBFailChain, nullptr);
+    RUN_CHAIN(aOptions, sUSBFailChain, nullptr)
   }
 
   // Disable usb rndis function.
@@ -1034,7 +995,6 @@ void NetworkUtils::usbTetheringSuccess(CommandChain* aChain,
 {
   ASSIGN_FIELD(mEnable)
   postMessage(aChain->getParams(), aResult);
-  finalizeSuccess(aChain, aResult);
 }
 
 void NetworkUtils::networkInterfaceAlarmFail(NetworkParams& aOptions, NetworkResultOptions& aResult)
@@ -1049,7 +1009,6 @@ void NetworkUtils::networkInterfaceAlarmSuccess(CommandChain* aChain,
   // TODO : error is not used , and it is conflict with boolean type error.
   // params.error = parseFloat(params.resultReason);
   postMessage(aChain->getParams(), aResult);
-  finalizeSuccess(aChain, aResult);
 }
 
 void NetworkUtils::updateUpStreamFail(NetworkParams& aOptions, NetworkResultOptions& aResult)
@@ -1064,7 +1023,6 @@ void NetworkUtils::updateUpStreamSuccess(CommandChain* aChain,
   ASSIGN_FIELD(mCurExternalIfname)
   ASSIGN_FIELD(mCurInternalIfname)
   postMessage(aChain->getParams(), aResult);
-  finalizeSuccess(aChain, aResult);
 }
 
 void NetworkUtils::setDhcpServerFail(NetworkParams& aOptions, NetworkResultOptions& aResult)
@@ -1077,7 +1035,6 @@ void NetworkUtils::setDhcpServerSuccess(CommandChain* aChain, CommandCallback aC
 {
   aResult.mSuccess = true;
   postMessage(aChain->getParams(), aResult);
-  finalizeSuccess(aChain, aResult);
 }
 
 void NetworkUtils::wifiOperationModeFail(NetworkParams& aOptions, NetworkResultOptions& aResult)
@@ -1090,7 +1047,6 @@ void NetworkUtils::wifiOperationModeSuccess(CommandChain* aChain,
                                             NetworkResultOptions& aResult)
 {
   postMessage(aChain->getParams(), aResult);
-  finalizeSuccess(aChain, aResult);
 }
 
 void NetworkUtils::setDnsFail(NetworkParams& aOptions, NetworkResultOptions& aResult)
@@ -1219,8 +1175,8 @@ void NetworkUtils::onNetdMessage(NetdCommand* aCommand)
   char* reason = strtok(nullptr, "\0");
 
   if (isBroadcastMessage(code)) {
-    NU_DBG("Receiving broadcast message from netd.");
-    NU_DBG("          ==> Code: %d  Reason: %s", code, reason);
+    DEBUG("Receiving broadcast message from netd.");
+    DEBUG("          ==> Code: %d  Reason: %s", code, reason);
     sendBroadcastMessage(code, reason);
 
     if (code == NETD_COMMAND_INTERFACE_CHANGE) {
@@ -1231,8 +1187,8 @@ void NetworkUtils::onNetdMessage(NetdCommand* aCommand)
                  NS_ConvertUTF16toUTF8(gWifiTetheringParms->mIfname).get());
 
         if (!strcmp(reason, linkdownReason)) {
-          NU_DBG("Wifi link down, restarting tethering.");
-          runChain(*gWifiTetheringParms, sWifiRetryChain, wifiTetheringFail);
+          DEBUG("Wifi link down, restarting tethering.");
+          RUN_CHAIN(*gWifiTetheringParms, sWifiRetryChain, wifiTetheringFail)
         }
       }
     }
@@ -1242,8 +1198,8 @@ void NetworkUtils::onNetdMessage(NetdCommand* aCommand)
   }
 
    // Set pending to false before we handle next command.
-  NU_DBG("Receiving \"%s\" command response from netd.", gCurrentCommand.command);
-  NU_DBG("          ==> Code: %d  Reason: %s", code, reason);
+  DEBUG("Receiving \"%s\" command response from netd.", gCurrentCommand.command);
+  DEBUG("          ==> Code: %d  Reason: %s", code, reason);
 
   gReason.AppendElement(nsCString(reason));
 
@@ -1286,9 +1242,9 @@ CommandResult NetworkUtils::setDhcpServer(NetworkParams& aOptions)
     aOptions.mPrefix = aOptions.mMaskLength;
     aOptions.mLink = NS_ConvertUTF8toUTF16("up");
 
-    runChain(aOptions, sStartDhcpServerChain, setDhcpServerFail);
+    RUN_CHAIN(aOptions, sStartDhcpServerChain, setDhcpServerFail)
   } else {
-    runChain(aOptions, sStopDhcpServerChain, setDhcpServerFail);
+    RUN_CHAIN(aOptions, sStopDhcpServerChain, setDhcpServerFail)
   }
   return CommandResult::Pending();
 }
@@ -1327,7 +1283,7 @@ CommandResult NetworkUtils::setDNS(NetworkParams& aOptions)
 
   // DNS needs to be set through netd since JellyBean (4.3).
   if (SDK_VERSION >= 18) {
-    runChain(aOptions, sSetDnsChain, setDnsFail);
+    RUN_CHAIN(aOptions, sSetDnsChain, setDnsFail)
     return CommandResult::Pending();
   }
 
@@ -1643,22 +1599,22 @@ CommandResult NetworkUtils::removeSecondaryRoute(NetworkParams& aOptions)
 
 CommandResult NetworkUtils::setNetworkInterfaceAlarm(NetworkParams& aOptions)
 {
-  NU_DBG("setNetworkInterfaceAlarms: %s", GET_CHAR(mIfname));
-  runChain(aOptions, sNetworkInterfaceSetAlarmChain, networkInterfaceAlarmFail);
+  DEBUG("setNetworkInterfaceAlarms: %s", GET_CHAR(mIfname));
+  RUN_CHAIN(aOptions, sNetworkInterfaceSetAlarmChain, networkInterfaceAlarmFail);
   return CommandResult::Pending();
 }
 
 CommandResult NetworkUtils::enableNetworkInterfaceAlarm(NetworkParams& aOptions)
 {
-  NU_DBG("enableNetworkInterfaceAlarm: %s", GET_CHAR(mIfname));
-  runChain(aOptions, sNetworkInterfaceEnableAlarmChain, networkInterfaceAlarmFail);
+  DEBUG("enableNetworkInterfaceAlarm: %s", GET_CHAR(mIfname));
+  RUN_CHAIN(aOptions, sNetworkInterfaceEnableAlarmChain, networkInterfaceAlarmFail);
   return CommandResult::Pending();
 }
 
 CommandResult NetworkUtils::disableNetworkInterfaceAlarm(NetworkParams& aOptions)
 {
-  NU_DBG("disableNetworkInterfaceAlarms: %s", GET_CHAR(mIfname));
-  runChain(aOptions, sNetworkInterfaceDisableAlarmChain, networkInterfaceAlarmFail);
+  DEBUG("disableNetworkInterfaceAlarms: %s", GET_CHAR(mIfname));
+  RUN_CHAIN(aOptions, sNetworkInterfaceDisableAlarmChain, networkInterfaceAlarmFail);
   return CommandResult::Pending();
 }
 
@@ -1667,8 +1623,8 @@ CommandResult NetworkUtils::disableNetworkInterfaceAlarm(NetworkParams& aOptions
  */
 CommandResult NetworkUtils::setWifiOperationMode(NetworkParams& aOptions)
 {
-  NU_DBG("setWifiOperationMode: %s %s", GET_CHAR(mIfname), GET_CHAR(mMode));
-  runChain(aOptions, sWifiOperationModeChain, wifiOperationModeFail);
+  DEBUG("setWifiOperationMode: %s %s", GET_CHAR(mIfname), GET_CHAR(mMode));
+  RUN_CHAIN(aOptions, sWifiOperationModeChain, wifiOperationModeFail);
   return CommandResult::Pending();
 }
 
@@ -1696,13 +1652,13 @@ CommandResult NetworkUtils::setWifiTethering(NetworkParams& aOptions)
   dumpParams(aOptions, "WIFI");
 
   if (enable) {
-    NU_DBG("Starting Wifi Tethering on %s <-> %s",
+    DEBUG("Starting Wifi Tethering on %s <-> %s",
            GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
-    runChain(aOptions, sWifiEnableChain, wifiTetheringFail);
+    RUN_CHAIN(aOptions, sWifiEnableChain, wifiTetheringFail)
   } else {
-    NU_DBG("Stopping Wifi Tethering on %s <-> %s",
+    DEBUG("Stopping Wifi Tethering on %s <-> %s",
            GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
-    runChain(aOptions, sWifiDisableChain, wifiTetheringFail);
+    RUN_CHAIN(aOptions, sWifiDisableChain, wifiTetheringFail)
   }
   return CommandResult::Pending();
 }
@@ -1728,13 +1684,13 @@ CommandResult NetworkUtils::setUSBTethering(NetworkParams& aOptions)
   dumpParams(aOptions, "USB");
 
   if (enable) {
-    NU_DBG("Starting USB Tethering on %s <-> %s",
+    DEBUG("Starting USB Tethering on %s <-> %s",
            GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
-    runChain(aOptions, sUSBEnableChain, usbTetheringFail);
+    RUN_CHAIN(aOptions, sUSBEnableChain, usbTetheringFail)
   } else {
-    NU_DBG("Stopping USB Tethering on %s <-> %s",
+    DEBUG("Stopping USB Tethering on %s <-> %s",
            GET_CHAR(mInternalIfname), GET_CHAR(mExternalIfname));
-    runChain(aOptions, sUSBDisableChain, usbTetheringFail);
+    RUN_CHAIN(aOptions, sUSBDisableChain, usbTetheringFail)
   }
   return CommandResult::Pending();
 }
@@ -1844,7 +1800,7 @@ CommandResult NetworkUtils::enableUsbRndis(NetworkParams& aOptions)
  */
 CommandResult NetworkUtils::updateUpStream(NetworkParams& aOptions)
 {
-  runChain(aOptions, sUpdateUpStreamChain, updateUpStreamFail);
+  RUN_CHAIN(aOptions, sUpdateUpStreamChain, updateUpStreamFail)
   return CommandResult::Pending();
 }
 
@@ -1899,24 +1855,24 @@ inline bool NetworkUtils::isProceeding(uint32_t code)
 void NetworkUtils::dumpParams(NetworkParams& aOptions, const char* aType)
 {
 #ifdef _DEBUG
-  NU_DBG("Dump params:");
-  NU_DBG("     ifname: %s", GET_CHAR(mIfname));
-  NU_DBG("     ip: %s", GET_CHAR(mIp));
-  NU_DBG("     link: %s", GET_CHAR(mLink));
-  NU_DBG("     prefix: %s", GET_CHAR(mPrefix));
-  NU_DBG("     wifiStartIp: %s", GET_CHAR(mWifiStartIp));
-  NU_DBG("     wifiEndIp: %s", GET_CHAR(mWifiEndIp));
-  NU_DBG("     usbStartIp: %s", GET_CHAR(mUsbStartIp));
-  NU_DBG("     usbEndIp: %s", GET_CHAR(mUsbEndIp));
-  NU_DBG("     dnsserver1: %s", GET_CHAR(mDns1));
-  NU_DBG("     dnsserver2: %s", GET_CHAR(mDns2));
-  NU_DBG("     internalIfname: %s", GET_CHAR(mInternalIfname));
-  NU_DBG("     externalIfname: %s", GET_CHAR(mExternalIfname));
+  DEBUG("Dump params:");
+  DEBUG("     ifname: %s", GET_CHAR(mIfname));
+  DEBUG("     ip: %s", GET_CHAR(mIp));
+  DEBUG("     link: %s", GET_CHAR(mLink));
+  DEBUG("     prefix: %s", GET_CHAR(mPrefix));
+  DEBUG("     wifiStartIp: %s", GET_CHAR(mWifiStartIp));
+  DEBUG("     wifiEndIp: %s", GET_CHAR(mWifiEndIp));
+  DEBUG("     usbStartIp: %s", GET_CHAR(mUsbStartIp));
+  DEBUG("     usbEndIp: %s", GET_CHAR(mUsbEndIp));
+  DEBUG("     dnsserver1: %s", GET_CHAR(mDns1));
+  DEBUG("     dnsserver2: %s", GET_CHAR(mDns2));
+  DEBUG("     internalIfname: %s", GET_CHAR(mInternalIfname));
+  DEBUG("     externalIfname: %s", GET_CHAR(mExternalIfname));
   if (!strcmp(aType, "WIFI")) {
-    NU_DBG("     wifictrlinterfacename: %s", GET_CHAR(mWifictrlinterfacename));
-    NU_DBG("     ssid: %s", GET_CHAR(mSsid));
-    NU_DBG("     security: %s", GET_CHAR(mSecurity));
-    NU_DBG("     key: %s", GET_CHAR(mKey));
+    DEBUG("     wifictrlinterfacename: %s", GET_CHAR(mWifictrlinterfacename));
+    DEBUG("     ssid: %s", GET_CHAR(mSsid));
+    DEBUG("     security: %s", GET_CHAR(mSecurity));
+    DEBUG("     key: %s", GET_CHAR(mKey));
   }
 #endif
 }

@@ -4,8 +4,6 @@
  */
 "use strict";
 
-let disableWorkerTest = "This test uses SpecialPowers";
-
 var self = this;
 
 var testGenerator = testSteps();

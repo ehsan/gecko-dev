@@ -12,7 +12,6 @@ const Cu = Components.utils;
 const Cr = Components.results;
 
 Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
 
 var server = new HttpServer();
 server.registerDirectory("/", do_get_file(''));
@@ -141,12 +140,7 @@ function checkSecondChannelLoad()
   do_test_pending();
 
   var ioService = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);  
-  var channel = ioService.newChannelFromURI2(uri,
-                                             null,      // aLoadingNode
-                                             Services.scriptSecurityManager.getSystemPrincipal(),
-                                             null,      // aTriggeringPrincipal
-                                             Ci.nsILoadInfo.SEC_NORMAL,
-                                             Ci.nsIContentPolicy.TYPE_OTHER);
+  var channel = ioService.newChannelFromURI(uri);
   var channellistener = new ChannelListener();
   channel.asyncOpen(channellistener, null);
 
@@ -170,12 +164,7 @@ function run_loadImageWithChannel_tests()
   do_test_pending();
 
   var ioService = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);  
-  var channel = ioService.newChannelFromURI2(uri,
-                                             null,      // aLoadingNode
-                                             Services.scriptSecurityManager.getSystemPrincipal(),
-                                             null,      // aTriggeringPrincipal
-                                             Ci.nsILoadInfo.SEC_NORMAL,
-                                             Ci.nsIContentPolicy.TYPE_OTHER);
+  var channel = ioService.newChannelFromURI(uri);
   var channellistener = new ChannelListener();
   channel.asyncOpen(channellistener, null);
 

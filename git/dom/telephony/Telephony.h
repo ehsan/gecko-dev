@@ -11,7 +11,6 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/telephony/TelephonyCommon.h"
 
-#include "nsITelephonyCallInfo.h"
 #include "nsITelephonyService.h"
 
 // Need to include TelephonyCall.h because we have inline methods that
@@ -41,7 +40,9 @@ class Telephony MOZ_FINAL : public DOMEventTargetHelper,
    * also bug 775997 comment #51.
    */
   class Listener;
+  class EnumerationAck;
 
+  friend class EnumerationAck;
   friend class telephony::TelephonyDialCallback;
 
   nsCOMPtr<nsITelephonyService> mService;
@@ -52,7 +53,7 @@ class Telephony MOZ_FINAL : public DOMEventTargetHelper,
 
   nsRefPtr<TelephonyCallGroup> mGroup;
 
-  nsRefPtr<Promise> mReadyPromise;
+  bool mEnumerated;
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -79,13 +80,6 @@ public:
   already_AddRefed<Promise>
   DialEmergency(const nsAString& aNumber, const Optional<uint32_t>& aServiceId,
                 ErrorResult& aRv);
-
-  already_AddRefed<Promise>
-  SendTones(const nsAString& aDTMFChars,
-            uint32_t aPauseDuration,
-            uint32_t aToneDuration,
-            const Optional<uint32_t>& aServiceId,
-            ErrorResult& aRv);
 
   void
   StartTone(const nsAString& aDTMFChar, const Optional<uint32_t>& aServiceId,
@@ -115,9 +109,7 @@ public:
   already_AddRefed<TelephonyCallGroup>
   ConferenceGroup() const;
 
-  already_AddRefed<Promise>
-  GetReady(ErrorResult& aRv) const;
-
+  IMPL_EVENT_HANDLER(ready)
   IMPL_EVENT_HANDLER(incoming)
   IMPL_EVENT_HANDLER(callschanged)
   IMPL_EVENT_HANDLER(remoteheld)
@@ -154,6 +146,8 @@ public:
     return mCalls;
   }
 
+  virtual void EventListenerAdded(nsIAtom* aType) MOZ_OVERRIDE;
+
 private:
   explicit Telephony(nsPIDOMWindow* aOwner);
   ~Telephony();
@@ -184,9 +178,6 @@ private:
                ErrorResult& aRv);
 
   already_AddRefed<TelephonyCallId>
-  CreateCallId(nsITelephonyCallInfo *aInfo);
-
-  already_AddRefed<TelephonyCallId>
   CreateCallId(const nsAString& aNumber,
                uint16_t aNumberPresentation = nsITelephonyService::CALL_PRESENTATION_ALLOWED,
                const nsAString& aName = EmptyString(),
@@ -207,14 +198,14 @@ private:
   nsresult
   DispatchCallEvent(const nsAString& aType, TelephonyCall* aCall);
 
+  void
+  EnqueueEnumerationAck();
+
   already_AddRefed<TelephonyCall>
   GetCall(uint32_t aServiceId, uint32_t aCallIndex);
 
   already_AddRefed<TelephonyCall>
   GetCallFromEverywhere(uint32_t aServiceId, uint32_t aCallIndex);
-
-  nsresult
-  HandleCallInfo(nsITelephonyCallInfo* aInfo);
 };
 
 } // namespace dom

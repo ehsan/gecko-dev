@@ -9,7 +9,6 @@
 #include "vm/ProxyObject.h"
 
 #include "jscntxtinlines.h"
-#include "jsobjinlines.h"
 
 using namespace js;
 
@@ -56,8 +55,9 @@ BaseProxyHandler::get(JSContext *cx, HandleObject proxy, HandleObject receiver,
         vp.setUndefined();
         return true;
     }
-    MOZ_ASSERT(desc.getter() != JS_PropertyStub);
-    if (!desc.getter()) {
+    if (!desc.getter() ||
+        (!desc.hasGetterObject() && desc.getter() == JS_PropertyStub))
+    {
         vp.set(desc.value());
         return true;
     }
@@ -78,79 +78,20 @@ BaseProxyHandler::set(JSContext *cx, HandleObject proxy, HandleObject receiver,
 {
     assertEnteredPolicy(cx, proxy, id, SET);
 
-    // This method is not covered by any spec, but we follow ES6 draft rev 28
-    // (2014 Oct 14) 9.1.9 fairly closely, adapting it slightly for
-    // SpiderMonkey's particular foibles.
-
-    // Steps 2-3.  (Step 1 is a superfluous assertion.)
-    Rooted<PropertyDescriptor> ownDesc(cx);
-    if (!getOwnPropertyDescriptor(cx, proxy, id, &ownDesc))
+    // Find an own or inherited property. The code here is strange for maximum
+    // backward compatibility with earlier code written before ES6 and before
+    // SetPropertyIgnoringNamedGetter.
+    Rooted<PropertyDescriptor> desc(cx);
+    if (!getOwnPropertyDescriptor(cx, proxy, id, &desc))
         return false;
-
-    // Step 4.
-    if (!ownDesc.object()) {
-        // The spec calls this variable "parent", but that word has weird
-        // connotations in SpiderMonkey, so let's go with "proto".
-        RootedObject proto(cx);
-        if (!JSObject::getProto(cx, proxy, &proto))
+    bool descIsOwn = desc.object() != nullptr;
+    if (!descIsOwn) {
+        if (!getPropertyDescriptor(cx, proxy, id, &desc))
             return false;
-        if (proto)
-            return JSObject::setGeneric(cx, proto, receiver, id, vp, strict);
-
-        // Change ownDesc to be a complete descriptor for a configurable,
-        // writable, enumerable data property. Then fall through to step 5.
-        ownDesc.clear();
-        ownDesc.setAttributes(JSPROP_ENUMERATE);
     }
 
-    // Step 5.
-    if (ownDesc.isDataDescriptor()) {
-        // Steps 5.a-b, adapted to our nonstandard implementation of ES6
-        // [[Set]] return values.
-        if (!ownDesc.isWritable()) {
-            if (strict)
-                return JSObject::reportReadOnly(cx, id, JSREPORT_ERROR);
-            if (cx->compartment()->options().extraWarnings(cx))
-                return JSObject::reportReadOnly(cx, id, JSREPORT_STRICT | JSREPORT_WARNING);
-            return true;
-        }
-
-        // Nonstandard SpiderMonkey special case: setter ops.
-        StrictPropertyOp setter = ownDesc.setter();
-        MOZ_ASSERT(setter != JS_StrictPropertyStub);
-        if (setter && setter != JS_StrictPropertyStub)
-            return CallSetter(cx, receiver, id, setter, ownDesc.attributes(), strict, vp);
-
-        // Steps 5.c-d. Adapt for SpiderMonkey by using HasOwnProperty instead
-        // of the standard [[GetOwnProperty]].
-        bool existingDescriptor;
-        if (!HasOwnProperty(cx, receiver, id, &existingDescriptor))
-            return false;
-
-        // Steps 5.e-f.
-        unsigned attrs =
-            existingDescriptor
-            ? JSPROP_IGNORE_ENUMERATE | JSPROP_IGNORE_READONLY | JSPROP_IGNORE_PERMANENT
-            : JSPROP_ENUMERATE;
-
-        // A very old nonstandard SpiderMonkey extension: default to the Class
-        // getter and setter ops.
-        const Class *clasp = receiver->getClass();
-        MOZ_ASSERT(clasp->getProperty != JS_PropertyStub);
-        MOZ_ASSERT(clasp->setProperty != JS_StrictPropertyStub);
-        return JSObject::defineGeneric(cx, receiver, id, vp,
-                                       clasp->getProperty, clasp->setProperty, attrs);
-    }
-
-    // Step 6.
-    MOZ_ASSERT(ownDesc.isAccessorDescriptor());
-    RootedObject setter(cx);
-    if (ownDesc.hasSetterObject())
-        setter = ownDesc.setterObject();
-    if (!setter)
-        return js_ReportGetterOnlyAssignment(cx, strict);
-    RootedValue setterValue(cx, ObjectValue(*setter));
-    return InvokeGetterOrSetter(cx, receiver, setterValue, 1, vp.address(), vp);
+    return SetPropertyIgnoringNamedGetter(cx, this, proxy, receiver, id, &desc, descIsOwn, strict,
+                                          vp);
 }
 
 bool
@@ -160,19 +101,18 @@ js::SetPropertyIgnoringNamedGetter(JSContext *cx, const BaseProxyHandler *handle
                                    bool descIsOwn, bool strict, MutableHandleValue vp)
 {
     /* The control-flow here differs from ::get() because of the fall-through case below. */
-    MOZ_ASSERT_IF(descIsOwn, desc.object());
-    if (desc.object()) {
-        MOZ_ASSERT(desc.getter() != JS_PropertyStub);
-        MOZ_ASSERT(desc.setter() != JS_StrictPropertyStub);
+    if (descIsOwn) {
+        MOZ_ASSERT(desc.object());
 
         // Check for read-only properties.
-        if (desc.isReadonly()) {
-            if (strict)
-                return Throw(cx, id, descIsOwn ? JSMSG_READ_ONLY : JSMSG_CANT_REDEFINE_PROP);
-            return true;
-        }
-
-        if (desc.hasSetterObject() || desc.setter()) {
+        if (desc.isReadonly())
+            return strict ? Throw(cx, id, JSMSG_READ_ONLY) : true;
+        if (!desc.setter()) {
+            // Be wary of the odd explicit undefined setter case possible through
+            // Object.defineProperty.
+            if (!desc.hasSetterObject())
+                desc.setSetter(JS_StrictPropertyStub);
+        } else if (desc.hasSetterObject() || desc.setter() != JS_StrictPropertyStub) {
             if (!CallSetter(cx, receiver, id, desc.setter(), desc.attributes(), strict, vp))
                 return false;
             if (!proxy->is<ProxyObject>() || proxy->as<ProxyObject>().handler() != handler)
@@ -180,12 +120,37 @@ js::SetPropertyIgnoringNamedGetter(JSContext *cx, const BaseProxyHandler *handle
             if (desc.isShared())
                 return true;
         }
-        desc.value().set(vp.get());
-
-        if (descIsOwn) {
-            MOZ_ASSERT(desc.object() == proxy);
-            return handler->defineProperty(cx, proxy, id, desc);
+        if (!desc.getter()) {
+            // Same as above for the null setter case.
+            if (!desc.hasGetterObject())
+                desc.setGetter(JS_PropertyStub);
         }
+        desc.value().set(vp.get());
+        return handler->defineProperty(cx, receiver, id, desc);
+    }
+    if (desc.object()) {
+        // Check for read-only properties.
+        if (desc.isReadonly())
+            return strict ? Throw(cx, id, JSMSG_CANT_REDEFINE_PROP) : true;
+        if (!desc.setter()) {
+            // Be wary of the odd explicit undefined setter case possible through
+            // Object.defineProperty.
+            if (!desc.hasSetterObject())
+                desc.setSetter(JS_StrictPropertyStub);
+        } else if (desc.hasSetterObject() || desc.setter() != JS_StrictPropertyStub) {
+            if (!CallSetter(cx, receiver, id, desc.setter(), desc.attributes(), strict, vp))
+                return false;
+            if (!proxy->is<ProxyObject>() || proxy->as<ProxyObject>().handler() != handler)
+                return true;
+            if (desc.isShared())
+                return true;
+        }
+        if (!desc.getter()) {
+            // Same as above for the null setter case.
+            if (!desc.hasGetterObject())
+                desc.setGetter(JS_PropertyStub);
+        }
+        desc.value().set(vp.get());
         return JSObject::defineGeneric(cx, receiver, id, desc.value(),
                                        desc.getter(), desc.setter(), desc.attributes());
     }
@@ -232,17 +197,19 @@ BaseProxyHandler::getOwnEnumerablePropertyKeys(JSContext *cx, HandleObject proxy
 }
 
 bool
-BaseProxyHandler::enumerate(JSContext *cx, HandleObject proxy, MutableHandleObject objp) const
+BaseProxyHandler::iterate(JSContext *cx, HandleObject proxy, unsigned flags,
+                          MutableHandleObject objp) const
 {
     assertEnteredPolicy(cx, proxy, JSID_VOID, ENUMERATE);
 
-    // GetPropertyKeys will invoke getOwnEnumerablePropertyKeys along the proto
-    // chain for us.
     AutoIdVector props(cx);
-    if (!GetPropertyKeys(cx, proxy, 0, &props))
+    if ((flags & JSITER_OWNONLY)
+        ? !getOwnEnumerablePropertyKeys(cx, proxy, props)
+        : !getEnumerablePropertyKeys(cx, proxy, props)) {
         return false;
+    }
 
-    return EnumeratedIdVectorToIterator(cx, proxy, 0, props, objp);
+    return EnumeratedIdVectorToIterator(cx, proxy, flags, props, objp);
 }
 
 bool
@@ -317,11 +284,6 @@ bool
 BaseProxyHandler::objectClassIs(HandleObject proxy, ESClassValue classValue, JSContext *cx) const
 {
     return false;
-}
-
-void
-BaseProxyHandler::trace(JSTracer *trc, JSObject *proxy) const
-{
 }
 
 void

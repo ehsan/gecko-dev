@@ -46,9 +46,6 @@ nsStyleContext::nsStyleContext(nsStyleContext* aParent,
     mCachedResetData(nullptr),
     mBits(((uint64_t)aPseudoType) << NS_STYLE_CONTEXT_TYPE_SHIFT),
     mRefCnt(0)
-#ifdef DEBUG
-  , mFrameRefCnt(0)
-#endif
 {
   // This check has to be done "backward", because if it were written the
   // more natural way it wouldn't fail even when it needed to.
@@ -510,8 +507,8 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
   //   # The computed 'display' of a flex item is determined
   //   # by applying the table in CSS 2.1 Chapter 9.7.
   // ...which converts inline-level elements to their block-level equivalents.
-  // Any block-level element directly contained by elements with ruby display
-  // values are converted to their inline-level equivalents.
+  // Any direct children of elements with Ruby display values which are
+  // block-level are converted to their inline-level equivalents.
   if (!aSkipParentDisplayBasedStyleFixup && mParent) {
     // Skip display:contents ancestors to reach the potential container.
     // (If there are only display:contents ancestors between this node and
@@ -532,9 +529,9 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
       uint8_t displayVal = disp->mDisplay;
       // Skip table parts.
       // NOTE: This list needs to be kept in sync with
-      // nsCSSFrameConstructor::FindDisplayData() -- specifically,
-      // this should be the list of display-values that returns
-      // FCDATA_DESIRED_PARENT_TYPE_TO_BITS from that method.
+      // nsCSSFrameConstructor.cpp's "sDisplayData" array -- specifically,
+      // this should be the list of display-values that have
+      // FCDATA_DESIRED_PARENT_TYPE_TO_BITS specified in that array.
       if (NS_STYLE_DISPLAY_TABLE_CAPTION      != displayVal &&
           NS_STYLE_DISPLAY_TABLE_ROW_GROUP    != displayVal &&
           NS_STYLE_DISPLAY_TABLE_HEADER_GROUP != displayVal &&
@@ -561,17 +558,12 @@ nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)
           mutable_display->mDisplay = displayVal;
         }
       }
-    }
-
-    // The display change should only occur for "in-flow" children
-    if (!disp->IsOutOfFlowStyle() &&
-        ((containerDisp->mDisplay == NS_STYLE_DISPLAY_INLINE &&
-          containerContext->IsInlineDescendantOfRuby()) ||
-         containerDisp->IsRubyDisplayType())) {
-      mBits |= NS_STYLE_IS_INLINE_DESCENDANT_OF_RUBY;
+    } else if (containerDisp->IsRubyDisplayType()) {
       uint8_t displayVal = disp->mDisplay;
       nsRuleNode::EnsureInlineDisplay(displayVal);
-      if (displayVal != disp->mDisplay) {
+      // The display change should only occur for "in-flow" children
+      if (displayVal != disp->mDisplay && 
+          !disp->IsOutOfFlowStyle()) {
         nsStyleDisplay *mutable_display =
           static_cast<nsStyleDisplay*>(GetUniqueStyleData(eStyleStruct_Display));
         mutable_display->mDisplay = displayVal;
@@ -1177,7 +1169,6 @@ nsStyleContext::ClearCachedInheritedStyleDataOnDescendants(uint32_t aStructs)
 void
 nsStyleContext::DoClearCachedInheritedStyleDataOnDescendants(uint32_t aStructs)
 {
-  NS_ASSERTION(mFrameRefCnt == 0, "frame still referencing style context");
   for (nsStyleStructID i = nsStyleStructID_Inherited_Start;
        i < nsStyleStructID_Inherited_Start + nsStyleStructID_Inherited_Count;
        i = nsStyleStructID(i + 1)) {

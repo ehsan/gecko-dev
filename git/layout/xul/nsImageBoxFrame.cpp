@@ -56,7 +56,6 @@
 
 using namespace mozilla;
 using namespace mozilla::gfx;
-using namespace mozilla::image;
 using namespace mozilla::layers;
 
 class nsImageBoxFrameEvent : public nsRunnable
@@ -120,7 +119,7 @@ FireImageDOMEvent(nsIContent* aContent, uint32_t aMessage)
 nsIFrame*
 NS_NewImageBoxFrame (nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsImageBoxFrame(aContext);
+  return new (aPresShell) nsImageBoxFrame (aPresShell, aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsImageBoxFrame)
@@ -144,8 +143,8 @@ nsImageBoxFrame::AttributeChanged(int32_t aNameSpaceID,
   return rv;
 }
 
-nsImageBoxFrame::nsImageBoxFrame(nsStyleContext* aContext):
-  nsLeafBoxFrame(aContext),
+nsImageBoxFrame::nsImageBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
+  nsLeafBoxFrame(aShell, aContext),
   mIntrinsicSize(0,0),
   mRequestRegistered(false),
   mLoadFlags(nsIRequest::LOAD_NORMAL),
@@ -318,7 +317,7 @@ nsImageBoxFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   aLists.Content()->AppendToTop(&list);
 }
 
-DrawResult
+void
 nsImageBoxFrame::PaintImage(nsRenderingContext& aRenderingContext,
                             const nsRect& aDirtyRect, nsPoint aPt,
                             uint32_t aFlags)
@@ -328,32 +327,25 @@ nsImageBoxFrame::PaintImage(nsRenderingContext& aRenderingContext,
 
   rect += aPt;
 
-  if (!mImageRequest) {
-    // This probably means we're drawn by a native theme.
-    return DrawResult::SUCCESS;
-  }
+  if (!mImageRequest)
+    return;
 
   // don't draw if the image is not dirty
-  // XXX(seth): Can this actually happen anymore?
   nsRect dirty;
-  if (!dirty.IntersectRect(aDirtyRect, rect)) {
-    return DrawResult::TEMPORARY_ERROR;
-  }
+  if (!dirty.IntersectRect(aDirtyRect, rect))
+    return;
 
   nsCOMPtr<imgIContainer> imgCon;
   mImageRequest->GetImage(getter_AddRefs(imgCon));
 
   if (imgCon) {
     bool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
-    return
-      nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
+    nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
         PresContext(), imgCon,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
         rect, dirty, nullptr, aFlags, nullptr,
         hasSubRect ? &mSubRect : nullptr);
   }
-
-  return DrawResult::NOT_READY;
 }
 
 void nsDisplayXULImage::Paint(nsDisplayListBuilder* aBuilder,
@@ -365,16 +357,8 @@ void nsDisplayXULImage::Paint(nsDisplayListBuilder* aBuilder,
   if (aBuilder->IsPaintingToWindow())
     flags |= imgIContainer::FLAG_HIGH_QUALITY_SCALING;
 
-  DrawResult result = static_cast<nsImageBoxFrame*>(mFrame)->
+  static_cast<nsImageBoxFrame*>(mFrame)->
     PaintImage(*aCtx, mVisibleRect, ToReferenceFrame(), flags);
-
-  nsDisplayItemGenericImageGeometry::UpdateDrawResult(this, result);
-}
-
-nsDisplayItemGeometry*
-nsDisplayXULImage::AllocateGeometry(nsDisplayListBuilder* aBuilder)
-{
-  return new nsDisplayItemGenericImageGeometry(this, aBuilder);
 }
 
 void
@@ -382,15 +366,18 @@ nsDisplayXULImage::ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                              const nsDisplayItemGeometry* aGeometry,
                                              nsRegion* aInvalidRegion)
 {
-  auto boxFrame = static_cast<nsImageBoxFrame*>(mFrame);
-  auto geometry =
-    static_cast<const nsDisplayItemGenericImageGeometry*>(aGeometry);
 
-  if (aBuilder->ShouldSyncDecodeImages() &&
-      boxFrame->mImageRequest &&
-      geometry->ShouldInvalidateToSyncDecodeImages()) {
+  if (aBuilder->ShouldSyncDecodeImages()) {
+    nsImageBoxFrame* boxFrame = static_cast<nsImageBoxFrame*>(mFrame);
+    nsCOMPtr<imgIContainer> image;
+    if (boxFrame->mImageRequest) {
+      boxFrame->mImageRequest->GetImage(getter_AddRefs(image));
+    }
+
+    if  (image && !image->IsDecoded()) {
       bool snap;
       aInvalidRegion->Or(*aInvalidRegion, GetBounds(aBuilder, &snap));
+    }
   }
 
   nsDisplayImageContainer::ComputeInvalidationRegion(aBuilder, aGeometry, aInvalidRegion);
@@ -418,12 +405,6 @@ nsDisplayXULImage::ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& aOffset)
   imgCon->GetHeight(&imageHeight);
 
   NS_ASSERTION(imageWidth != 0 && imageHeight != 0, "Invalid image size!");
-  if (imageWidth > 0 && imageHeight > 0) {
-    // We're actually using the ImageContainer. Let our frame know that it
-    // should consider itself to have painted successfully.
-    nsDisplayItemGenericImageGeometry::UpdateDrawResult(this,
-                                                        DrawResult::SUCCESS);
-  }
 
   gfxPoint p = destRect.TopLeft() + aOffset;
   Matrix transform = Matrix::Translation(p.x, p.y);
@@ -453,7 +434,8 @@ nsImageBoxFrame::GetContainer(LayerManager* aManager)
   }
   
   nsRefPtr<ImageContainer> container;
-  imgCon->GetImageContainer(aManager, getter_AddRefs(container));
+  nsresult rv = imgCon->GetImageContainer(aManager, getter_AddRefs(container));
+  NS_ENSURE_SUCCESS(rv, nullptr);
   return container.forget();
 }
 

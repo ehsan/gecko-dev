@@ -23,21 +23,21 @@ public:
   virtual ~XULSelectControlAccessible() {}
 
   // Accessible
-  virtual void Shutdown() MOZ_OVERRIDE;
+  virtual void Shutdown();
 
   // SelectAccessible
   virtual void SelectedItems(nsTArray<Accessible*>* aItems) MOZ_OVERRIDE;
-  virtual uint32_t SelectedItemCount() MOZ_OVERRIDE;
-  virtual Accessible* GetSelectedItem(uint32_t aIndex) MOZ_OVERRIDE;
-  virtual bool IsItemSelected(uint32_t aIndex) MOZ_OVERRIDE;
-  virtual bool AddItemToSelection(uint32_t aIndex) MOZ_OVERRIDE;
-  virtual bool RemoveItemFromSelection(uint32_t aIndex) MOZ_OVERRIDE;
-  virtual bool SelectAll() MOZ_OVERRIDE;
-  virtual bool UnselectAll() MOZ_OVERRIDE;
+  virtual uint32_t SelectedItemCount();
+  virtual Accessible* GetSelectedItem(uint32_t aIndex);
+  virtual bool IsItemSelected(uint32_t aIndex);
+  virtual bool AddItemToSelection(uint32_t aIndex);
+  virtual bool RemoveItemFromSelection(uint32_t aIndex);
+  virtual bool SelectAll();
+  virtual bool UnselectAll();
 
   // Widgets
-  virtual Accessible* CurrentItem() MOZ_OVERRIDE;
-  virtual void SetCurrentItem(Accessible* aItem) MOZ_OVERRIDE;
+  virtual Accessible* CurrentItem();
+  virtual void SetCurrentItem(Accessible* aItem);
 
 protected:
   // nsIDOMXULMultiSelectControlElement inherits from this, so we'll always have

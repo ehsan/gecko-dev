@@ -21,10 +21,9 @@ class WebGLTransformFeedback MOZ_FINAL
     , public WebGLContextBoundObject
 {
     friend class WebGLContext;
-    friend class WebGL2Context;
 
 public:
-    explicit WebGLTransformFeedback(WebGLContext* webgl, GLuint tf);
+    explicit WebGLTransformFeedback(WebGLContext* webgl);
 
     void Delete();
     WebGLContext* GetParentObject() const;
@@ -35,9 +34,6 @@ public:
 
 private:
     ~WebGLTransformFeedback();
-    GLenum mMode;
-    bool mIsActive;
-    bool mIsPaused;
 };
 
 } // namespace mozilla

@@ -62,6 +62,7 @@ GMPParent::GMPParent()
   , mAbnormalShutdownInProgress(false)
   , mAsyncShutdownRequired(false)
   , mAsyncShutdownInProgress(false)
+  , mHasAccessedStorage(false)
 {
 }
 
@@ -147,30 +148,27 @@ GMPParent::LoadProcess()
 
     bool opened = Open(mProcess->GetChannel(), mProcess->GetChildProcessHandle());
     if (!opened) {
-      LOGD(("%s::%s: Failed to create new child process %p", __CLASS__, __FUNCTION__, (void *)mProcess));
       mProcess->Delete();
       mProcess = nullptr;
       return NS_ERROR_FAILURE;
     }
-    LOGD(("%s::%s: Created new child process %p", __CLASS__, __FUNCTION__, (void *)mProcess));
+    LOGD(("%s::%s: Created new process %p", __CLASS__, __FUNCTION__, (void *)mProcess));
 
     bool ok = SendSetNodeId(mNodeId);
     if (!ok) {
-      LOGD(("%s::%s: Failed to send node id to child process %p", __CLASS__, __FUNCTION__, (void *)mProcess));
       mProcess->Delete();
       mProcess = nullptr;
       return NS_ERROR_FAILURE;
     }
-    LOGD(("%s::%s: Sent node id to child process %p", __CLASS__, __FUNCTION__, (void *)mProcess));
+    LOGD(("%s::%s: Failed to send node id %p", __CLASS__, __FUNCTION__, (void *)mProcess));
 
     ok = SendStartPlugin();
     if (!ok) {
-      LOGD(("%s::%s: Failed to send start to child process %p", __CLASS__, __FUNCTION__, (void *)mProcess));
       mProcess->Delete();
       mProcess = nullptr;
       return NS_ERROR_FAILURE;
     }
-    LOGD(("%s::%s: Sent StartPlugin to child process %p", __CLASS__, __FUNCTION__, (void *)mProcess));
+    LOGD(("%s::%s: Failed to send start %p", __CLASS__, __FUNCTION__, (void *)mProcess));
   }
 
   mState = GMPStateLoaded;
@@ -696,6 +694,12 @@ GMPParent::ActorDestroy(ActorDestroyReason aWhy)
   }
 }
 
+bool
+GMPParent::HasAccessedStorage() const
+{
+  return mHasAccessedStorage;
+}
+
 mozilla::dom::PCrashReporterParent*
 GMPParent::AllocPCrashReporterParent(const NativeThreadId& aThread)
 {
@@ -802,6 +806,7 @@ GMPParent::RecvPGMPStorageConstructor(PGMPStorageParent* aActor)
   if (NS_WARN_IF(NS_FAILED(p->Init()))) {
     return false;
   }
+  mHasAccessedStorage = true;
   return true;
 }
 
@@ -961,7 +966,7 @@ GMPParent::ReadGMPMetaData()
     }
 
 #if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
-    if (cap->mAPIName.EqualsLiteral(GMP_API_DECRYPTOR) &&
+    if (cap->mAPIName.EqualsLiteral("eme-decrypt") &&
         !mozilla::SandboxInfo::Get().CanSandboxMedia()) {
       printf_stderr("GMPParent::ReadGMPMetaData: Plugin \"%s\" is an EME CDM"
                     " but this system can't sandbox it; not loading.\n",
@@ -1000,12 +1005,6 @@ GMPParent::SetNodeId(const nsACString& aNodeId)
   MOZ_ASSERT(!aNodeId.IsEmpty());
   MOZ_ASSERT(CanBeUsedFrom(aNodeId));
   mNodeId = aNodeId;
-}
-
-const nsCString&
-GMPParent::GetVersion() const
-{
-  return mVersion;
 }
 
 bool

@@ -73,18 +73,6 @@ IdToObjectMap::remove(ObjectId id)
     table_.remove(id);
 }
 
-void
-IdToObjectMap::clear()
-{
-    table_.clear();
-}
-
-bool
-IdToObjectMap::empty() const
-{
-    return table_.empty();
-}
-
 ObjectToIdMap::ObjectToIdMap()
   : table_(nullptr)
 {
@@ -169,12 +157,6 @@ ObjectToIdMap::remove(JSObject *obj)
     table_->remove(obj);
 }
 
-void
-ObjectToIdMap::clear()
-{
-    table_->clear();
-}
-
 bool JavaScriptShared::sLoggingInitialized;
 bool JavaScriptShared::sLoggingEnabled;
 bool JavaScriptShared::sStackLoggingEnabled;
@@ -189,7 +171,7 @@ JavaScriptShared::JavaScriptShared(JSRuntime *rt)
 
         if (PR_GetEnv("MOZ_CPOW_LOG")) {
             sLoggingEnabled = true;
-            sStackLoggingEnabled = strstr(PR_GetEnv("MOZ_CPOW_LOG"), "stacks");
+            sStackLoggingEnabled = true;
         } else {
             Preferences::AddBoolVarCache(&sLoggingEnabled,
                                          "dom.ipc.cpows.log.enabled", false);
@@ -197,11 +179,6 @@ JavaScriptShared::JavaScriptShared(JSRuntime *rt)
                                          "dom.ipc.cpows.log.stack", false);
         }
     }
-}
-
-JavaScriptShared::~JavaScriptShared()
-{
-    MOZ_RELEASE_ASSERT(cpows_.empty());
 }
 
 bool
@@ -555,7 +532,8 @@ JavaScriptShared::findObjectById(JSContext *cx, const ObjectId &objId)
     return obj;
 }
 
-static const uint64_t UnknownPropertyOp = 1;
+static const uint64_t DefaultPropertyOp = 1;
+static const uint64_t UnknownPropertyOp = 2;
 
 bool
 JavaScriptShared::fromDescriptor(JSContext *cx, Handle<JSPropertyDescriptor> desc,
@@ -577,8 +555,10 @@ JavaScriptShared::fromDescriptor(JSContext *cx, Handle<JSPropertyDescriptor> des
             return false;
         out->getter() = objVar;
     } else {
-        MOZ_ASSERT(desc.getter() != JS_PropertyStub);
-        out->getter() = UnknownPropertyOp;
+        if (desc.getter() == JS_PropertyStub)
+            out->getter() = DefaultPropertyOp;
+        else
+            out->getter() = UnknownPropertyOp;
     }
 
     if (!desc.setter()) {
@@ -590,8 +570,10 @@ JavaScriptShared::fromDescriptor(JSContext *cx, Handle<JSPropertyDescriptor> des
             return false;
         out->setter() = objVar;
     } else {
-        MOZ_ASSERT(desc.setter() != JS_StrictPropertyStub);
-        out->setter() = UnknownPropertyOp;
+        if (desc.setter() == JS_StrictPropertyStub)
+            out->setter() = DefaultPropertyOp;
+        else
+            out->setter() = UnknownPropertyOp;
     }
 
     return true;
@@ -629,7 +611,10 @@ JavaScriptShared::toDescriptor(JSContext *cx, const PPropertyDescriptor &in,
             return false;
         out.setGetter(JS_DATA_TO_FUNC_PTR(JSPropertyOp, getter.get()));
     } else {
-        out.setGetter(UnknownPropertyStub);
+        if (in.getter().get_uint64_t() == DefaultPropertyOp)
+            out.setGetter(JS_PropertyStub);
+        else
+            out.setGetter(UnknownPropertyStub);
     }
 
     if (in.setter().type() == GetterSetter::Tuint64_t && !in.setter().get_uint64_t()) {
@@ -641,7 +626,10 @@ JavaScriptShared::toDescriptor(JSContext *cx, const PPropertyDescriptor &in,
             return false;
         out.setSetter(JS_DATA_TO_FUNC_PTR(JSStrictPropertyOp, setter.get()));
     } else {
-        out.setSetter(UnknownStrictPropertyStub);
+        if (in.setter().get_uint64_t() == DefaultPropertyOp)
+            out.setSetter(JS_StrictPropertyStub);
+        else
+            out.setSetter(UnknownStrictPropertyStub);
     }
 
     return true;

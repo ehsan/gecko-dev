@@ -339,7 +339,7 @@ public:
   NS_DECL_ISUPPORTS
 
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                            nsISupports* aData, bool aAnonymize) MOZ_OVERRIDE
+                            nsISupports* aData, bool aAnonymize)
   {
     // We don't measure the |EventListenerManager| objects pointed to by the
     // entries because those references are non-owning.
@@ -411,7 +411,7 @@ class CharsetDetectionObserver MOZ_FINAL : public nsICharsetDetectionObserver
 public:
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD Notify(const char *aCharset, nsDetectionConfident aConf) MOZ_OVERRIDE
+  NS_IMETHOD Notify(const char *aCharset, nsDetectionConfident aConf)
   {
     mCharset = aCharset;
     return NS_OK;
@@ -2953,22 +2953,9 @@ nsContentUtils::IsInPrivateBrowsing(nsIDocument* aDoc)
   return isPrivate;
 }
 
-bool
-nsContentUtils::DocumentInactiveForImageLoads(nsIDocument* aDocument)
-{
-  if (aDocument && !IsChromeDoc(aDocument) && !aDocument->IsResourceDoc()) {
-    nsCOMPtr<nsPIDOMWindow> win =
-      do_QueryInterface(aDocument->GetScopeObject());
-    return !win || !win->GetDocShell();
-  }
-  return false;
-}
-
 imgLoader*
 nsContentUtils::GetImgLoaderForDocument(nsIDocument* aDoc)
 {
-  NS_ENSURE_TRUE(!DocumentInactiveForImageLoads(aDoc), nullptr);
-
   if (!aDoc) {
     return imgLoader::Singleton();
   }
@@ -2978,11 +2965,8 @@ nsContentUtils::GetImgLoaderForDocument(nsIDocument* aDoc)
 
 // static
 imgLoader*
-nsContentUtils::GetImgLoaderForChannel(nsIChannel* aChannel,
-                                       nsIDocument* aContext)
+nsContentUtils::GetImgLoaderForChannel(nsIChannel* aChannel)
 {
-  NS_ENSURE_TRUE(!DocumentInactiveForImageLoads(aContext), nullptr);
-
   if (!aChannel)
     return imgLoader::Singleton();
   nsCOMPtr<nsILoadContext> context;
@@ -3022,7 +3006,7 @@ nsContentUtils::LoadImage(nsIURI* aURI, nsIDocument* aLoadingDocument,
   imgLoader* imgLoader = GetImgLoaderForDocument(aLoadingDocument);
   if (!imgLoader) {
     // nothing we can do here
-    return NS_ERROR_FAILURE;
+    return NS_OK;
   }
 
   nsCOMPtr<nsILoadGroup> loadGroup = aLoadingDocument->GetDocumentLoadGroup();
@@ -3380,7 +3364,12 @@ nsContentUtils::ReportToConsoleNonLocalized(const nsAString& aErrorText,
   if (!aLineNumber) {
     JSContext *cx = GetCurrentJSContext();
     if (cx) {
-      nsJSUtils::GetCallingLocation(cx, spec, &aLineNumber);
+      const char* filename;
+      uint32_t lineno;
+      if (nsJSUtils::GetCallingLocation(cx, &filename, &lineno)) {
+        spec = filename;
+        aLineNumber = lineno;
+      }
     }
   }
   if (spec.IsEmpty() && aURI)
@@ -3970,7 +3959,8 @@ nsContentUtils::TraverseListenerManager(nsINode *aNode,
 
   EventListenerManagerMapEntry *entry =
     static_cast<EventListenerManagerMapEntry *>
-               (PL_DHashTableLookup(&sEventListenerManagersHash, aNode));
+               (PL_DHashTableOperate(&sEventListenerManagersHash, aNode,
+                                        PL_DHASH_LOOKUP));
   if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
     CycleCollectionNoteChild(cb, entry->mListenerManager.get(),
                              "[via hash] mListenerManager");
@@ -3989,7 +3979,8 @@ nsContentUtils::GetListenerManagerForNode(nsINode *aNode)
 
   EventListenerManagerMapEntry *entry =
     static_cast<EventListenerManagerMapEntry *>
-               (PL_DHashTableAdd(&sEventListenerManagersHash, aNode));
+               (PL_DHashTableOperate(&sEventListenerManagersHash, aNode,
+                                        PL_DHASH_ADD));
 
   if (!entry) {
     return nullptr;
@@ -4020,7 +4011,8 @@ nsContentUtils::GetExistingListenerManagerForNode(const nsINode *aNode)
 
   EventListenerManagerMapEntry *entry =
     static_cast<EventListenerManagerMapEntry *>
-               (PL_DHashTableLookup(&sEventListenerManagersHash, aNode));
+               (PL_DHashTableOperate(&sEventListenerManagersHash, aNode,
+                                        PL_DHASH_LOOKUP));
   if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
     return entry->mListenerManager;
   }
@@ -4035,7 +4027,8 @@ nsContentUtils::RemoveListenerManager(nsINode *aNode)
   if (sEventListenerManagersHash.ops) {
     EventListenerManagerMapEntry *entry =
       static_cast<EventListenerManagerMapEntry *>
-                 (PL_DHashTableLookup(&sEventListenerManagersHash, aNode));
+                 (PL_DHashTableOperate(&sEventListenerManagersHash, aNode,
+                                          PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       nsRefPtr<EventListenerManager> listenerManager;
       listenerManager.swap(entry->mListenerManager);

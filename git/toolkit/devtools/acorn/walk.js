@@ -32,23 +32,6 @@
     c(node, state);
   };
 
-  // An ancestor walk builds up an array of ancestor nodes (including
-  // the current node) and passes them to the callback as the state parameter.
-  exports.ancestor = function(node, visitors, base, state) {
-    if (!base) base = exports.base;
-    if (!state) state = [];
-    function c(node, st, override) {
-      var type = override || node.type, found = visitors[type];
-      if (node != st[st.length - 1]) {
-        st = st.slice();
-        st.push(node);
-      }
-      base[type](node, st, c);
-      if (found) found(node, st);
-    }
-    c(node, state);
-  };
-
   // A recursive walk is one where your functions override the default
   // walkers. They can modify and replace the state parameter that's
   // threaded through the walk, and can opt how and whether to walk
@@ -197,10 +180,10 @@
         c(cs.consequent[j], st, "Statement");
     }
   };
-  base.ReturnStatement = base.YieldExpression = function(node, st, c) {
+  base.ReturnStatement = function(node, st, c) {
     if (node.argument) c(node.argument, st, "Expression");
   };
-  base.ThrowStatement = base.SpreadElement = function(node, st, c) {
+  base.ThrowStatement = function(node, st, c) {
     c(node.argument, st, "Expression");
   };
   base.TryStatement = function(node, st, c) {
@@ -219,7 +202,7 @@
     if (node.update) c(node.update, st, "Expression");
     c(node.body, st, "Statement");
   };
-  base.ForInStatement = base.ForOfStatement = function(node, st, c) {
+  base.ForInStatement = function(node, st, c) {
     c(node.left, st, "ForInit");
     c(node.right, st, "Expression");
     c(node.body, st, "Statement");
@@ -257,10 +240,10 @@
   };
   base.ObjectExpression = function(node, st, c) {
     for (var i = 0; i < node.properties.length; ++i)
-      c(node.properties[i], st);
+      c(node.properties[i].value, st, "Expression");
   };
-  base.FunctionExpression = base.ArrowFunctionExpression = base.FunctionDeclaration;
-  base.SequenceExpression = base.TemplateLiteral = function(node, st, c) {
+  base.FunctionExpression = base.FunctionDeclaration;
+  base.SequenceExpression = function(node, st, c) {
     for (var i = 0; i < node.expressions.length; ++i)
       c(node.expressions[i], st, "Expression");
   };
@@ -285,28 +268,7 @@
     c(node.object, st, "Expression");
     if (node.computed) c(node.property, st, "Expression");
   };
-  base.Identifier = base.Literal = base.ExportDeclaration = base.ImportDeclaration = ignore;
-
-  base.TaggedTemplateExpression = function(node, st, c) {
-    c(node.tag, st, "Expression");
-    c(node.quasi, st);
-  };
-  base.ClassDeclaration = base.ClassExpression = function(node, st, c) {
-    if (node.superClass) c(node.superClass, st, "Expression");
-    for (var i = 0; i < node.body.body.length; i++)
-      c(node.body.body[i], st);
-  };
-  base.MethodDefinition = base.Property = function(node, st, c) {
-    if (node.computed) c(node.key, st, "Expression");
-    c(node.value, st, "Expression");
-  };
-  base.ComprehensionExpression = function(node, st, c) {
-    for (var i = 0; i < node.blocks.length; i++)
-      c(node.blocks[i].right, st, "Expression");
-    c(node.body, st, "Expression");
-  };
-
-  // NOTE: the stuff below is deprecated, and will be removed when 1.0 is released
+  base.Identifier = base.Literal = ignore;
 
   // A custom walker that keeps track of the scope chain and the
   // variables defined in it.

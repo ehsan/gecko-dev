@@ -31,7 +31,6 @@
 #include "nsDOMCID.h"
 #include "nsError.h"
 #include "nsGkAtoms.h"
-#include "nsHtml5Atoms.h"
 #include "nsIContent.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIDocument.h"
@@ -98,7 +97,6 @@ EventListenerManager::EventListenerManager(EventTarget* aTarget)
   , mMayHaveCapturingListeners(false)
   , mMayHaveSystemGroupListeners(false)
   , mMayHaveTouchEventListener(false)
-  , mMayHaveScrollWheelEventListener(false)
   , mMayHaveMouseEnterLeaveEventListener(false)
   , mMayHavePointerEnterLeaveEventListener(false)
   , mClearingListeners(false)
@@ -339,16 +337,6 @@ EventListenerManager::AddEventListenerInternal(
     // so we ignore listeners created with system event flag
     if (window && !aFlags.mInSystemGroup) {
       window->SetHasTouchEventListeners();
-    }
-  } else if (aTypeAtom == nsGkAtoms::onwheel ||
-             aTypeAtom == nsGkAtoms::onDOMMouseScroll ||
-             aTypeAtom == nsHtml5Atoms::onmousewheel) {
-    mMayHaveScrollWheelEventListener = true;
-    nsPIDOMWindow* window = GetInnerWindowForTarget();
-    // we don't want touchevent listeners added by scrollbars to flip this flag
-    // so we ignore listeners created with system event flag
-    if (window && !aFlags.mInSystemGroup) {
-      window->SetHasScrollWheelEventListeners();
     }
   } else if (aType >= NS_POINTER_EVENT_START && aType <= NS_POINTER_LOST_CAPTURE) {
     nsPIDOMWindow* window = GetInnerWindowForTarget();
@@ -1024,22 +1012,20 @@ EventListenerManager::GetDocShellForTarget()
   return docShell;
 }
 
-class EventTimelineMarker : public TimelineMarker
+class EventTimelineMarker : public nsDocShell::TimelineMarker
 {
 public:
   EventTimelineMarker(nsDocShell* aDocShell, TracingMetadata aMetaData,
                       uint16_t aPhase, const nsAString& aCause)
-    : TimelineMarker(aDocShell, "DOMEvent", aMetaData, aCause)
+    : nsDocShell::TimelineMarker(aDocShell, "DOMEvent", aMetaData, aCause)
     , mPhase(aPhase)
   {
   }
 
   virtual void AddDetails(mozilla::dom::ProfileTimelineMarker& aMarker)
   {
-    if (GetMetaData() == TRACING_INTERVAL_START) {
-      aMarker.mType.Construct(GetCause());
-      aMarker.mEventPhase.Construct(mPhase);
-    }
+    aMarker.mType.Construct(GetCause());
+    aMarker.mEventPhase.Construct(mPhase);
   }
 
 private:
@@ -1114,7 +1100,7 @@ EventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
               (*aDOMEvent)->GetType(typeStr);
               uint16_t phase;
               (*aDOMEvent)->GetEventPhase(&phase);
-              mozilla::UniquePtr<TimelineMarker> marker =
+              mozilla::UniquePtr<nsDocShell::TimelineMarker> marker =
                 MakeUnique<EventTimelineMarker>(ds, TRACING_INTERVAL_START,
                                                 phase, typeStr);
               ds->AddProfileTimelineMarker(marker);

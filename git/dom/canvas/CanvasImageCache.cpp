@@ -162,7 +162,7 @@ public:
 
   NS_IMETHODIMP Observe(nsISupports* aSubject,
                         const char* aTopic,
-                        const char16_t* aSomeData) MOZ_OVERRIDE
+                        const char16_t* aSomeData)
   {
     if (!mImageCache || strcmp(aTopic, "memory-pressure")) {
       return NS_OK;

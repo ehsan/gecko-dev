@@ -222,7 +222,7 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
 protected:
-  explicit PositionSensorVRDevice(nsISupports* aParent)
+  PositionSensorVRDevice(nsISupports* aParent)
     : VRDevice(aParent, VRDevice::PositionSensor)
   { }
 

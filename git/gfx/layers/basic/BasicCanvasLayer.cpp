@@ -40,10 +40,8 @@ BasicCanvasLayer::Paint(DrawTarget* aDT,
     return;
   }
 
-  const bool needsYFlip = (mOriginPos == gl::OriginPos::BottomLeft);
-
   Matrix oldTM;
-  if (needsYFlip) {
+  if (mNeedsYFlip) {
     oldTM = aDT->GetTransform();
     aDT->SetTransform(Matrix(oldTM).
                         PreTranslate(0.0f, mBounds.height).
@@ -56,7 +54,7 @@ BasicCanvasLayer::Paint(DrawTarget* aDT,
                    DrawOptions(GetEffectiveOpacity(), GetEffectiveOperator(this)),
                    aMaskLayer);
 
-  if (needsYFlip) {
+  if (mNeedsYFlip) {
     aDT->SetTransform(oldTM);
   }
 }

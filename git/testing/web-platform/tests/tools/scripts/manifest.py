@@ -14,8 +14,6 @@ from abc import ABCMeta, abstractmethod, abstractproperty
 from collections import defaultdict
 from fnmatch import fnmatch
 
-import _env
-import html5lib
 
 def get_git_func(repo_path):
     def git(cmd, *args):
@@ -40,7 +38,7 @@ def get_repo_root():
 manifest_name = "MANIFEST.json"
 ref_suffixes = ["_ref", "-ref"]
 wd_pattern = "*.py"
-blacklist = ["/", "/tools/", "/resources/", "/common/", "/conformance-checkers/", "_certs"]
+blacklist = ["/", "/tools/", "/resources/", "/common/", "/conformance-checkers/"]
 
 
 logging.basicConfig()
@@ -245,8 +243,7 @@ class Manifest(object):
                 for path, items in local_paths.iteritems():
                     paths[path] = items
                 for path in self.local_changes.iterdeleted():
-                    if path in paths:
-                        del paths[path]
+                    del paths[path]
 
             yield item_type, paths
 
@@ -278,33 +275,20 @@ class Manifest(object):
             yield item
 
     def __getitem__(self, path):
-        for _, paths in self._included_items():
+        for _, paths in self._data._included_items():
             if path in paths:
                 return paths[path]
         raise KeyError
-
-    def _committed_with_path(self, rel_path):
-        rv = set()
-        for paths_items in self._data.itervalues():
-            rv |= paths_items.get(rel_path, set())
-        return rv
-
-    def _committed_paths(self):
-        rv = set()
-        for paths_items in self._data.itervalues():
-            rv |= set(paths_items.keys())
-        return rv
 
     def update(self,
                tests_root,
                url_base,
                new_rev,
                committed_changes=None,
-               local_changes=None,
-               remove_missing_local=False):
+               local_changes=None):
 
         if local_changes is None:
-            local_changes = []
+            local_changes = {}
 
         if committed_changes is not None:
             for rel_path, status in committed_changes:
@@ -318,29 +302,17 @@ class Manifest(object):
                     self.extend(manifest_items)
 
         self.local_changes = LocalChanges(self)
-
-        local_paths = set()
         for rel_path, status in local_changes.iteritems():
-            local_paths.add(rel_path)
-
             if status == "modified":
-                existing_items = self._committed_with_path(rel_path)
-                local_items = set(get_manifest_items(tests_root,
-                                                     rel_path,
-                                                     url_base,
-                                                     use_committed=False))
-
-                updated_items = local_items - existing_items
-                self.local_changes.extend(updated_items)
+                items = set(get_manifest_items(tests_root,
+                                               rel_path,
+                                               url_base,
+                                               use_committed=False))
+                self.local_changes.extend(items)
             else:
                 self.local_changes.add_deleted(path)
 
-        if remove_missing_local:
-            for path in self._committed_paths() - local_paths:
-                self.local_changes.add_deleted(path)
-
-        if new_rev is not None:
-            self.rev = new_rev
+        self.rev = new_rev
         self.url_base = url_base
 
     def to_json(self):
@@ -489,7 +461,6 @@ def get_reference_links(root):
 
 def get_file(base_path, rel_path, use_committed):
     if use_committed:
-        git = get_git_func(os.path.dirname(__file__))
         blob = git("show", "HEAD:%s" % rel_path)
         file_obj = ContextManagerStringIO(blob)
     else:
@@ -730,7 +701,7 @@ class GitTree(TestTree):
         return rv
 
 class NoVCSTree(TestTree):
-    """Subclass that doesn't depend on git"""
+    """Subclass that doesn't depend on git but assumes that all changes are comitted"""
 
     ignore = ["*.py[c|0]", "*~", "#*"]
 
@@ -738,8 +709,11 @@ class NoVCSTree(TestTree):
         return None
 
     def local_changes(self):
-        # Put all files into local_changes and rely on Manifest.update to de-dupe
-        # changes that in fact comitted at the base rev.
+        return None
+
+    def committed_changes(self, base_rev=None):
+        if base_rev is not None:
+            raise ValueError("Tried to update a tree with no VCS against a base_rev")
 
         rv = []
         for dir_path, dir_names, filenames in os.walk(self.tests_root):
@@ -751,10 +725,7 @@ class NoVCSTree(TestTree):
                 if is_blacklisted(rel_path_to_url(rel_path, self.url_base)):
                     continue
                 rv.append((rel_path, "modified"))
-        return dict(rv)
-
-    def committed_changes(self, base_rev=None):
-        return None
+        return rv
 
 
 def load(manifest_path):
@@ -784,10 +755,8 @@ def update(tests_root, url_base, manifest, ignore_local=False):
 
     if is_git_repo(tests_root):
         tests_tree = GitTree(tests_root, url_base)
-        remove_missing_local = False
     else:
         tests_tree = NoVCSTree(tests_root, url_base)
-        remove_missing_local = not ignore_local
 
     if not ignore_local:
         local_changes = tests_tree.local_changes()
@@ -798,8 +767,7 @@ def update(tests_root, url_base, manifest, ignore_local=False):
                     url_base,
                     tests_tree.current_rev(),
                     tests_tree.committed_changes(manifest.rev),
-                    local_changes,
-                    remove_missing_local=remove_missing_local)
+                    local_changes)
 
 
 def write(manifest, manifest_path):

@@ -26,9 +26,9 @@ interface OscillatorNode : AudioNode {
     readonly attribute AudioParam frequency; // in Hertz
     readonly attribute AudioParam detune; // in Cents
 
-    [Throws, UnsafeInPrerendering]
+    [Throws]
     void start(optional double when = 0);
-    [Throws, UnsafeInPrerendering]
+    [Throws]
     void stop(optional double when = 0);
     void setPeriodicWave(PeriodicWave periodicWave);
 

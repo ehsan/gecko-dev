@@ -229,7 +229,7 @@ static_assert(!IsUnsigned<const volatile long double>::value,
 
 class NotIntConstructible
 {
-  NotIntConstructible(int) = delete;
+  NotIntConstructible(int) MOZ_DELETE;
 };
 
 static_assert(!IsSigned<NotIntConstructible>::value,

@@ -40,7 +40,7 @@ function checkForException() {
        "chrome window");
 
     Services.console.unregisterListener(listener);
-    listener = xhr = null;
+    listener = null;
 
     finishTest();
 }

@@ -56,19 +56,6 @@ ReferrerPolicyFromString(const nsAString& content)
 
 }
 
-inline bool
-IsValidReferrerPolicy(const nsAString& content)
-{
-  return content.LowerCaseEqualsLiteral("never")
-      || content.LowerCaseEqualsLiteral("no-referrer")
-      || content.LowerCaseEqualsLiteral("origin")
-      || content.LowerCaseEqualsLiteral("default")
-      || content.LowerCaseEqualsLiteral("no-referrer-when-downgrade")
-      || content.LowerCaseEqualsLiteral("origin-when-crossorigin")
-      || content.LowerCaseEqualsLiteral("always")
-      || content.LowerCaseEqualsLiteral("unsafe-url");
-}
-
 } } //namespace mozilla::net
 
 #endif

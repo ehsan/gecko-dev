@@ -459,7 +459,7 @@ class AutoLockBits
     uint8_t* mLockedBits;
 
 public:
-    explicit AutoLockBits(gfx::DrawTarget* dt)
+    AutoLockBits(gfx::DrawTarget* dt)
         : mDT(dt)
         , mLockedBits(nullptr)
     {

@@ -14,7 +14,6 @@ import java.util.Set;
 
 import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.BrowserLocaleManager;
-import org.mozilla.gecko.Locales;
 import org.mozilla.gecko.R;
 
 import android.content.Context;
@@ -118,7 +117,7 @@ public class LocaleListPreference extends ListPreference {
         private final String nativeName;
 
         public LocaleDescriptor(String tag) {
-            this(Locales.parseLocaleCode(tag), tag);
+            this(BrowserLocaleManager.parseLocaleCode(tag), tag);
         }
 
         public LocaleDescriptor(Locale locale, String tag) {
@@ -222,7 +221,7 @@ public class LocaleListPreference extends ListPreference {
 
         // Future: single-locale builds should be specified, too.
         if (shippingLocales == null) {
-            final String fallbackTag = BrowserLocaleManager.getInstance().getFallbackLocaleTag();
+            final String fallbackTag = BrowserLocaleManager.getFallbackLocaleTag();
             return new LocaleDescriptor[] { new LocaleDescriptor(fallbackTag) };
         }
 
@@ -263,7 +262,7 @@ public class LocaleListPreference extends ListPreference {
         if (tag == null || tag.equals("")) {
             return Locale.getDefault();
         }
-        return Locales.parseLocaleCode(tag);
+        return BrowserLocaleManager.parseLocaleCode(tag);
     }
 
     @Override

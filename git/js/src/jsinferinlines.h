@@ -311,7 +311,7 @@ GetClassForProtoKey(JSProtoKey key)
 {
     switch (key) {
       case JSProto_Object:
-        return &PlainObject::class_;
+        return &JSObject::class_;
       case JSProto_Array:
         return &ArrayObject::class_;
 
@@ -573,7 +573,7 @@ FixArrayType(ExclusiveContext *cx, ArrayObject *obj)
 }
 
 inline void
-FixObjectType(ExclusiveContext *cx, PlainObject *obj)
+FixObjectType(ExclusiveContext *cx, NativeObject *obj)
 {
     cx->compartment()->types.fixObjectType(cx, obj);
 }
@@ -1208,7 +1208,7 @@ inline TypeObject::TypeObject(const Class *clasp, TaggedProto proto, TypeObjectF
 inline void
 TypeObject::finalize(FreeOp *fop)
 {
-    fop->delete_(newScriptDontCheckGeneration());
+    fop->delete_(newScript_.get());
 }
 
 inline uint32_t
@@ -1303,12 +1303,14 @@ TypeObject::getProperty(unsigned i)
 inline void
 TypeNewScript::writeBarrierPre(TypeNewScript *newScript)
 {
-    if (!newScript->fun->runtimeFromAnyThread()->needsIncrementalBarrier())
+#ifdef JSGC_INCREMENTAL
+    if (!newScript || !newScript->fun->runtimeFromAnyThread()->needsIncrementalBarrier())
         return;
 
     JS::Zone *zone = newScript->fun->zoneFromAnyThread();
     if (zone->needsIncrementalBarrier())
         newScript->trace(zone->barrierTracer());
+#endif
 }
 
 } } /* namespace js::types */

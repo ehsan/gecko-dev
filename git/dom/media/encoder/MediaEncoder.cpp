@@ -12,7 +12,10 @@
 
 #include"GeckoProfiler.h"
 #include "OggWriter.h"
+#ifdef MOZ_OPUS
 #include "OpusTrackEncoder.h"
+
+#endif
 
 #ifdef MOZ_VORBIS
 #include "VorbisTrackEncoder.h"

@@ -41,7 +41,7 @@ public:
 
 private:
   const nsCID&    mCID;
-  nsISupports* MOZ_NON_OWNING_REF mOuter;
+  nsISupports*    mOuter;
   nsresult*       mErrorPtr;
 };
 
@@ -60,7 +60,7 @@ public:
 
 private:
   const char*   mContractID;
-  nsISupports* MOZ_NON_OWNING_REF mOuter;
+  nsISupports*  mOuter;
   nsresult*     mErrorPtr;
 };
 
@@ -78,8 +78,8 @@ public:
   virtual nsresult NS_FASTCALL operator()(const nsIID&, void**) const;
 
 private:
-  nsIFactory* MOZ_NON_OWNING_REF mFactory;
-  nsISupports* MOZ_NON_OWNING_REF mOuter;
+  nsIFactory*   mFactory;
+  nsISupports*  mOuter;
   nsresult*     mErrorPtr;
 };
 

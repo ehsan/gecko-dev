@@ -255,7 +255,7 @@ public class GeckoAppShell
 
     // Initialization methods
     public static native void registerJavaUiThread();
-    public static native void nativeInit(ClassLoader clsLoader);
+    public static native void nativeInit();
 
     // helper methods
     public static native void onResume();
@@ -339,8 +339,8 @@ public class GeckoAppShell
         };
         Looper.myQueue().addIdleHandler(idleHandler);
 
-        // Initialize AndroidBridge.
-        nativeInit(GeckoAppShell.class.getClassLoader());
+        // run gecko -- it will spawn its own thread
+        GeckoAppShell.nativeInit();
 
         // First argument is the .apk path
         String combinedArgs = apkPath + " -greomni " + apkPath;
@@ -2462,21 +2462,27 @@ public class GeckoAppShell
         Handler geckoHandler = ThreadUtils.sGeckoHandler;
         Message msg = getNextMessageFromQueue(ThreadUtils.sGeckoQueue);
 
-        if (msg == null) {
+        if (msg == null)
             return false;
-        }
-
         if (msg.obj == geckoHandler && msg.getTarget() == geckoHandler) {
             // Our "queue is empty" message; see runGecko()
+            msg.recycle();
             return false;
         }
-
-        if (msg.getTarget() == null) {
+        if (msg.getTarget() == null) 
             Looper.myLooper().quit();
-        } else {
+        else
             msg.getTarget().dispatchMessage(msg);
-        }
 
+        try {
+            // Bug 1055166 - this sometimes throws IllegalStateException on Android L.
+            // There appears to be no way to figure out if a message is in use or not, let
+            // alone receive a notification when it is no longer being used. Just catch
+            // the exception for now, and if a better solution comes along we can use it.
+            msg.recycle();
+        } catch (IllegalStateException e) {
+            // There is nothing we can do here so just eat it
+        }
         return true;
     }
 

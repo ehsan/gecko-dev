@@ -1,9 +1,8 @@
 #-----------------------------------------------------------------
-# dmd.py --filter-stacks-for-testing -o script-sort-by-req-actual.txt --sort-by=req --no-fix-stacks script-sort-by.json.gz
+# dmd.py --filter-stacks-for-testing -o script-sort-by-req-actual.txt --ignore-reports --sort-by=req --no-fix-stacks script-sort-by.json.gz
 
 Invocation {
-  $DMD = '--mode=live'
-  Mode = 'live'
+  $DMD = '1'
   Sample-below size = 1
 }
 
@@ -30,9 +29,9 @@ Live {
 }
 
 Live {
-  8 blocks in heap block record 3 of 3
-  16,384 bytes (8,200 requested / 8,184 slop)
-  Individual block sizes: 2,048 x 8
+  4 blocks in heap block record 3 of 3
+  16,384 bytes (8,196 requested / 8,188 slop)
+  Individual block sizes: 4,096 x 4
   33.32% of the heap (100.00% cumulative)
   Allocated at {
     #01: C (C.cpp:99)
@@ -42,6 +41,6 @@ Live {
 #-----------------------------------------------------------------
 
 Summary {
-  Total: 49,176 bytes in 18 blocks
+  Total: 49,176 bytes in 14 blocks
 }
 

@@ -45,16 +45,16 @@ public:
     // nsSimpleURI overrides
     virtual nsresult EqualsInternal(nsIURI* other,
                                     RefHandlingEnum refHandlingMode,
-                                    bool* result) MOZ_OVERRIDE;
-    virtual nsSimpleURI* StartClone(RefHandlingEnum refHandlingMode) MOZ_OVERRIDE;
+                                    bool* result);
+    virtual nsSimpleURI* StartClone(RefHandlingEnum refHandlingMode);
 
     // nsISerializable overrides
-    NS_IMETHOD Read(nsIObjectInputStream* aStream) MOZ_OVERRIDE;
-    NS_IMETHOD Write(nsIObjectOutputStream* aStream) MOZ_OVERRIDE;
+    NS_IMETHOD Read(nsIObjectInputStream* aStream);
+    NS_IMETHOD Write(nsIObjectOutputStream* aStream);
 
     // Override the nsIClassInfo method GetClassIDNoAlloc to make sure our
     // nsISerializable impl works right.
-    NS_IMETHOD GetClassIDNoAlloc(nsCID *aClassIDNoAlloc) MOZ_OVERRIDE;  
+    NS_IMETHOD GetClassIDNoAlloc(nsCID *aClassIDNoAlloc);  
 
 protected:
     nsCOMPtr<nsIURI> mInnerURI;

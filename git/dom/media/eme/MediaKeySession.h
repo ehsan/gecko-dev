@@ -18,7 +18,6 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/MediaKeySessionBinding.h"
 #include "mozilla/dom/MediaKeysBinding.h"
-#include "mozilla/dom/MediaKeyMessageEventBinding.h"
 
 struct JSContext;
 
@@ -30,7 +29,6 @@ namespace dom {
 
 class ArrayBufferViewOrArrayBuffer;
 class MediaKeyError;
-class MediaKeyStatusMap;
 
 class MediaKeySession MOZ_FINAL : public DOMEventTargetHelper
 {
@@ -39,21 +37,18 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(MediaKeySession,
                                            DOMEventTargetHelper)
 public:
-  MediaKeySession(JSContext* aCx,
-                  nsPIDOMWindow* aParent,
+  MediaKeySession(nsPIDOMWindow* aParent,
                   MediaKeys* aKeys,
                   const nsAString& aKeySystem,
                   SessionType aSessionType,
                   ErrorResult& aRv);
 
-  void SetSessionId(const nsAString& aSessionId);
+  void Init(const nsAString& aSessionId);
 
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   // Mark this as resultNotAddRefed to return raw pointers
   MediaKeyError* GetError() const;
-
-  MediaKeyStatusMap* KeyStatuses() const;
 
   void GetKeySystem(nsString& aRetval) const;
 
@@ -82,24 +77,21 @@ public:
 
   already_AddRefed<Promise> Remove(ErrorResult& aRv);
 
-  void DispatchKeyMessage(MediaKeyMessageType aMessageType,
-                          const nsTArray<uint8_t>& aMessage);
+  already_AddRefed<Promise> GetUsableKeyIds(ErrorResult& aRv);
+
+  void DispatchKeyMessage(const nsTArray<uint8_t>& aMessage,
+                          const nsAString& aURL);
 
   void DispatchKeyError(uint32_t system_code);
 
-  void DispatchKeyStatusesChange();
+  void DispatchKeysChange();
 
   void OnClosed();
 
   bool IsClosed() const;
 
-  // Process-unique identifier.
-  uint32_t Token() const;
-
 private:
   ~MediaKeySession();
-
-  void UpdateKeyStatusMap();
 
   nsRefPtr<Promise> mClosed;
 
@@ -108,10 +100,8 @@ private:
   const nsString mKeySystem;
   nsString mSessionId;
   const SessionType mSessionType;
-  const uint32_t mToken;
   bool mIsClosed;
   bool mUninitialized;
-  nsRefPtr<MediaKeyStatusMap> mKeyStatusMap;
 };
 
 } // namespace dom

@@ -415,7 +415,7 @@ private:
 class MOZ_STACK_CLASS MaybeDisconnect
 {
 public:
-  explicit MaybeDisconnect(WebSocketImpl* aImpl)
+  MaybeDisconnect(WebSocketImpl* aImpl)
     : mImpl(aImpl)
   {
   }
@@ -1989,7 +1989,7 @@ public:
     return true;
   }
 
-  bool Suspend(JSContext* aCx) MOZ_OVERRIDE
+  bool Suspend(JSContext* aCx)
   {
     mWebSocketImpl->mWorkerShuttingDown = true;
     mWebSocketImpl->CloseConnection(nsIWebSocketChannel::CLOSE_GOING_AWAY);

@@ -56,7 +56,7 @@ SimulateOcclusionQueryTarget(const gl::GLContext* gl, GLenum target)
     return LOCAL_GL_SAMPLES_PASSED;
 }
 
-WebGLRefPtr<WebGLQuery>*
+WebGLQueryRefPtr*
 WebGLContext::GetQueryTargetSlot(GLenum target)
 {
     switch (target) {

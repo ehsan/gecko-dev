@@ -43,7 +43,7 @@ public:
   {}
 
   // nsIDOMEventListener
-  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) MOZ_OVERRIDE
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent)
   {
     nsString type;
     nsresult rv = aEvent->GetType(type);
@@ -247,10 +247,10 @@ DataStoreDB::UpgradeSchema(nsIDOMEvent* aEvent)
   }
 
   {
-    IDBObjectStoreParameters params;
+    RootedDictionary<IDBObjectStoreParameters> params(cx);
     params.Init(NS_LITERAL_STRING("{ \"autoIncrement\": true }"));
     nsRefPtr<IDBObjectStore> store =
-      database->CreateObjectStore(NS_LITERAL_STRING(DATASTOREDB_NAME),
+      database->CreateObjectStore(cx, NS_LITERAL_STRING(DATASTOREDB_NAME),
                                   params, error);
     if (NS_WARN_IF(error.Failed())) {
       return error.ErrorCode();
@@ -260,11 +260,11 @@ DataStoreDB::UpgradeSchema(nsIDOMEvent* aEvent)
   nsRefPtr<IDBObjectStore> store;
 
   {
-    IDBObjectStoreParameters params;
+    RootedDictionary<IDBObjectStoreParameters> params(cx);
     params.Init(NS_LITERAL_STRING("{ \"autoIncrement\": true, \"keyPath\": \"internalRevisionId\" }"));
 
     store =
-      database->CreateObjectStore(NS_LITERAL_STRING(DATASTOREDB_REVISION),
+      database->CreateObjectStore(cx, NS_LITERAL_STRING(DATASTOREDB_REVISION),
                                   params, error);
     if (NS_WARN_IF(error.Failed())) {
       return error.ErrorCode();
@@ -272,10 +272,10 @@ DataStoreDB::UpgradeSchema(nsIDOMEvent* aEvent)
   }
 
   {
-    IDBIndexParameters params;
+    RootedDictionary<IDBIndexParameters> params(cx);
     params.Init(NS_LITERAL_STRING("{ \"unique\": true }"));
     nsRefPtr<IDBIndex> index =
-      store->CreateIndex(NS_LITERAL_STRING(DATASTOREDB_REVISION_INDEX),
+      store->CreateIndex(cx, NS_LITERAL_STRING(DATASTOREDB_REVISION_INDEX),
                          NS_LITERAL_STRING("revisionId"), params, error);
     if (NS_WARN_IF(error.Failed())) {
       return error.ErrorCode();

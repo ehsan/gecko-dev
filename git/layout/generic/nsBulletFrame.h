@@ -11,7 +11,6 @@
 #include "mozilla/Attributes.h"
 #include "nsFrame.h"
 
-#include "imgIContainer.h"
 #include "imgINotificationObserver.h"
 #include "imgIOnloadBlocker.h"
 
@@ -43,8 +42,6 @@ private:
  * This class also supports the CSS list-style properties.
  */
 class nsBulletFrame MOZ_FINAL : public nsFrame {
-  typedef mozilla::image::DrawResult DrawResult;
-
 public:
   NS_DECL_FRAMEARENA_HELPERS
 #ifdef DEBUG
@@ -93,8 +90,8 @@ public:
 
   void GetSpokenText(nsAString& aText);
                          
-  DrawResult PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
-                         const nsRect& aDirtyRect, uint32_t aFlags);
+  void PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
+                   const nsRect& aDirtyRect, uint32_t aFlags);
   
   virtual bool IsEmpty() MOZ_OVERRIDE;
   virtual bool IsSelfEmpty() MOZ_OVERRIDE;

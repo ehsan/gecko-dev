@@ -42,7 +42,21 @@
 #  elif MOZ_USING_LIBCXX && defined(__clang__)
 #    define MOZ_HAVE_CXX11_ATOMICS
 #  endif
-#elif defined(_MSC_VER)
+/*
+ * Although Visual Studio 2012's CRT supports <atomic>, its atomic load
+ * implementation unnecessarily uses an atomic intrinsic for the less
+ * restrictive memory orderings, which can be prohibitively expensive.
+ * Therefore, we require at least Visual Studio 2013 for using the CRT
+ * (bug 1061764).
+ */
+#elif defined(_MSC_VER) && _MSC_VER >= 1800
+#  if defined(DEBUG)
+     /*
+      * Provide our own failure code since we're having trouble linking to
+      * std::_Debug_message (bug 982310).
+      */
+#    define _INVALID_MEMORY_ORDER MOZ_CRASH("Invalid memory order")
+#  endif
 #  define MOZ_HAVE_CXX11_ATOMICS
 #endif
 
@@ -955,7 +969,7 @@ public:
 
 private:
   template<MemoryOrdering AnyOrder>
-  AtomicBase(const AtomicBase<T, AnyOrder>& aCopy) = delete;
+  AtomicBase(const AtomicBase<T, AnyOrder>& aCopy) MOZ_DELETE;
 };
 
 template<typename T, MemoryOrdering Order>
@@ -977,7 +991,7 @@ public:
 
 private:
   template<MemoryOrdering AnyOrder>
-  AtomicBaseIncDec(const AtomicBaseIncDec<T, AnyOrder>& aCopy) = delete;
+  AtomicBaseIncDec(const AtomicBaseIncDec<T, AnyOrder>& aCopy) MOZ_DELETE;
 };
 
 } // namespace detail
@@ -1051,7 +1065,7 @@ public:
   }
 
 private:
-  Atomic(Atomic<T, Order>& aOther) = delete;
+  Atomic(Atomic<T, Order>& aOther) MOZ_DELETE;
 };
 
 /**
@@ -1084,7 +1098,7 @@ public:
   }
 
 private:
-  Atomic(Atomic<T*, Order>& aOther) = delete;
+  Atomic(Atomic<T*, Order>& aOther) MOZ_DELETE;
 };
 
 /**
@@ -1107,7 +1121,7 @@ public:
   using Base::operator=;
 
 private:
-  Atomic(Atomic<T, Order>& aOther) = delete;
+  Atomic(Atomic<T, Order>& aOther) MOZ_DELETE;
 };
 
 /**
@@ -1158,7 +1172,7 @@ public:
   }
 
 private:
-  Atomic(Atomic<bool, Order>& aOther) = delete;
+  Atomic(Atomic<bool, Order>& aOther) MOZ_DELETE;
 };
 
 } // namespace mozilla

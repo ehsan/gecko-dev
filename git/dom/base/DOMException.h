@@ -22,7 +22,6 @@
 #include "nsWrapperCache.h"
 #include "xpcexception.h"
 #include "nsString.h"
-#include "mozilla/dom/BindingDeclarations.h"
 
 class nsIStackFrame;
 class nsString;
@@ -36,8 +35,6 @@ namespace mozilla {
 class ErrorResult;
 
 namespace dom {
-
-class GlobalObject;
 
 #define MOZILLA_EXCEPTION_IID \
 { 0x55eda557, 0xeba0, 0x4fe3, \
@@ -138,12 +135,6 @@ public:
   // nsWrapperCache overrides
   virtual JSObject* WrapObject(JSContext* aCx)
     MOZ_OVERRIDE;
-
-  static already_AddRefed<DOMException>
-  Constructor(GlobalObject& /* unused */,
-              const nsAString& aMessage,
-              const Optional<nsAString>& aName,
-              ErrorResult& aError);
 
   uint16_t Code() const {
     return mCode;

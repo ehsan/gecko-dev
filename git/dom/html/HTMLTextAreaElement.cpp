@@ -61,7 +61,7 @@ HTMLTextAreaElement::HTMLTextAreaElement(already_AddRefed<mozilla::dom::NodeInfo
     mDisabledChanged(false),
     mCanShowInvalidUI(true),
     mCanShowValidUI(true),
-    mState(this)
+    mState(MOZ_THIS_IN_INITIALIZER_LIST())
 {
   AddMutationObserver(this);
 
@@ -1472,7 +1472,7 @@ HTMLTextAreaElement::GetWrapCols()
   nsITextControlElement::GetWrapPropertyEnum(this, wrapProp);
   if (wrapProp == nsITextControlElement::eHTMLTextWrap_Off) {
     // do not wrap when wrap=off
-    return 0;
+    return -1;
   }
 
   // Otherwise we just wrap at the given number of columns

@@ -232,7 +232,6 @@ public:
 
   TextureClientRecycleAllocator* GetTextureClientRecycler();
 
-  static void DumpTextureClient(std::stringstream& aStream, TextureClient* aTexture);
 protected:
   CompositableChild* mCompositableChild;
   CompositableForwarder* mForwarder;

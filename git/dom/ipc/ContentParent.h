@@ -33,7 +33,6 @@ class nsICycleCollectorLogSink;
 class nsIDOMBlob;
 class nsIDumpGCAndCCLogsCallback;
 class nsIMemoryReporter;
-class nsITimer;
 class ParentIdleListener;
 
 namespace mozilla {
@@ -151,9 +150,9 @@ public:
                                         bool* aIsForApp,
                                         bool* aIsForBrowser,
                                         TabId* aTabId) MOZ_OVERRIDE;
-    virtual bool RecvBridgeToChildProcess(const ContentParentId& aCpId) MOZ_OVERRIDE;
+    virtual bool AnswerBridgeToChildProcess(const ContentParentId& aCpId) MOZ_OVERRIDE;
 
-    virtual bool RecvLoadPlugin(const uint32_t& aPluginId) MOZ_OVERRIDE;
+    virtual bool AnswerLoadPlugin(const uint32_t& aPluginId) MOZ_OVERRIDE;
     virtual bool RecvFindPlugins(const uint32_t& aPluginEpoch,
                                  nsTArray<PluginTag>* aPlugins,
                                  uint32_t* aNewPluginEpoch) MOZ_OVERRIDE;
@@ -207,7 +206,7 @@ public:
       return mIsForBrowser;
     }
 #ifdef MOZ_NUWA_PROCESS
-    bool IsNuwaProcess() const;
+    bool IsNuwaProcess();
 #endif
 
     GeckoChildProcessHost* Process() {
@@ -221,11 +220,7 @@ public:
     }
 
     bool NeedsPermissionsUpdate() const {
-#ifdef MOZ_NUWA_PROCESS
-        return !IsNuwaProcess() && mSendPermissionUpdates;
-#else
         return mSendPermissionUpdates;
-#endif
     }
 
     bool NeedsDataStoreInfos() const {
@@ -253,8 +248,6 @@ public:
     void FriendlyName(nsAString& aName, bool aAnonymize = false);
 
     virtual void OnChannelError() MOZ_OVERRIDE;
-
-    virtual void OnBeginSyncTransaction() MOZ_OVERRIDE;
 
     virtual PCrashReporterParent*
     AllocPCrashReporterParent(const NativeThreadId& tid,
@@ -334,8 +327,6 @@ public:
     DeallocPOfflineCacheUpdateParent(POfflineCacheUpdateParent* aActor) MOZ_OVERRIDE;
 
     virtual bool RecvSetOfflinePermission(const IPC::Principal& principal) MOZ_OVERRIDE;
-
-    virtual bool RecvFinishShutdown() MOZ_OVERRIDE;
 
 protected:
     void OnChannelConnected(int32_t pid) MOZ_OVERRIDE;
@@ -437,38 +428,21 @@ private:
     void MarkAsDead();
 
     /**
-     * How we will shut down this ContentParent and its subprocess.
-     */
-    enum ShutDownMethod {
-        // Send a shutdown message and wait for FinishShutdown call back.
-        SEND_SHUTDOWN_MESSAGE,
-        // Close the channel ourselves and let the subprocess clean up itself.
-        CLOSE_CHANNEL,
-        // Close the channel with error and let the subprocess clean up itself.
-        CLOSE_CHANNEL_WITH_ERROR,
-    };
-
-    /**
      * Exit the subprocess and vamoose.  After this call IsAlive()
      * will return false and this ContentParent will not be returned
      * by the Get*() funtions.  However, the shutdown sequence itself
      * may be asynchronous.
      *
-     * If aMethod is CLOSE_CHANNEL_WITH_ERROR and this is the first call
-     * to ShutDownProcess, then we'll close our channel using CloseWithError()
+     * If aCloseWithError is true and this is the first call to
+     * ShutDownProcess, then we'll close our channel using CloseWithError()
      * rather than vanilla Close().  CloseWithError() indicates to IPC that this
      * is an abnormal shutdown (e.g. a crash).
      */
-    void ShutDownProcess(ShutDownMethod aMethod);
+    void ShutDownProcess(bool aCloseWithError);
 
     // Perform any steps necesssary to gracefully shtudown the message
     // manager and null out mMessageManager.
     void ShutDownMessageManager();
-
-    // Start the force-kill timer on shutdown.
-    void StartForceKillTimer();
-
-    static void ForceKillTimerCallback(nsITimer* aTimer, void* aClosure);
 
     PCompositorParent*
     AllocPCompositorParent(mozilla::ipc::Transport* aTransport,
@@ -522,8 +496,8 @@ private:
     virtual bool RecvGetRandomValues(const uint32_t& length,
                                      InfallibleTArray<uint8_t>* randomValues) MOZ_OVERRIDE;
 
-    virtual bool RecvIsSecureURI(const uint32_t& aType, const URIParams& aURI,
-                                 const uint32_t& aFlags, bool* aIsSecureURI) MOZ_OVERRIDE;
+    virtual bool RecvIsSecureURI(const uint32_t& type, const URIParams& uri,
+                                 const uint32_t& flags, bool* isSecureURI);
 
     virtual bool DeallocPHalParent(PHalParent*) MOZ_OVERRIDE;
 
@@ -628,8 +602,7 @@ private:
                                            const nsString& aCookie, const nsString& aName,
                                            const nsString& aBidi, const nsString& aLang,
                                            const nsString& aData,
-                                           const IPC::Principal& aPrincipal,
-                                           const bool& aInPrivateBrowsing) MOZ_OVERRIDE;
+                                           const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
 
     virtual bool RecvCloseAlert(const nsString& aName,
                                 const IPC::Principal& aPrincipal) MOZ_OVERRIDE;
@@ -706,8 +679,6 @@ private:
 
     virtual bool RecvNuwaReady() MOZ_OVERRIDE;
 
-    virtual bool RecvNuwaWaitForFreeze() MOZ_OVERRIDE;
-
     virtual bool RecvAddNewProcess(const uint32_t& aPid,
                                    const InfallibleTArray<ProtocolFdMapping>& aFds) MOZ_OVERRIDE;
 
@@ -744,13 +715,13 @@ private:
     RecvOpenAnonymousTemporaryFile(FileDescriptor* aFD) MOZ_OVERRIDE;
 
     virtual bool
-    RecvKeygenProcessValue(const nsString& oldValue, const nsString& challenge,
-                           const nsString& keytype, const nsString& keyparams,
-                           nsString* newValue) MOZ_OVERRIDE;
+    RecvFormProcessValue(const nsString& oldValue, const nsString& challenge,
+                         const nsString& keytype, const nsString& keyparams,
+                         nsString* newValue) MOZ_OVERRIDE;
 
     virtual bool
-    RecvKeygenProvideContent(nsString* aAttribute,
-                             nsTArray<nsString>* aContent) MOZ_OVERRIDE;
+    RecvFormProvideContent(nsString* aAttribute,
+                           nsTArray<nsString>* aContent) MOZ_OVERRIDE;
 
     virtual PFileDescriptorSetParent*
     AllocPFileDescriptorSetParent(const mozilla::ipc::FileDescriptor&) MOZ_OVERRIDE;
@@ -796,7 +767,7 @@ private:
     // that even content processes that are 100% blocked (say from
     // SIGSTOP), are still killed eventually.  This task enforces that
     // timer.
-    nsCOMPtr<nsITimer> mForceKillTimer;
+    CancelableTask* mForceKillTask;
     // How many tabs we're waiting to finish their destruction
     // sequence.  Precisely, how many TabParents have called
     // NotifyTabDestroying() but not called NotifyTabDestroyed().
@@ -817,9 +788,6 @@ private:
     bool mCalledClose;
     bool mCalledCloseWithError;
     bool mCalledKillHard;
-    bool mCreatedPairedMinidumps;
-    bool mShutdownPending;
-    bool mIPCOpen;
 
     friend class CrashReporterParent;
 

@@ -181,7 +181,7 @@ nsSVGRenderingObserver::ContentRemoved(nsIDocument *aDocument,
 nsSVGIDRenderingObserver::nsSVGIDRenderingObserver(nsIURI* aURI,
                                                    nsIContent* aObservingContent,
                                                    bool aReferenceImage)
-  : mElement(this)
+  : mElement(MOZ_THIS_IN_INITIALIZER_LIST())
 {
   // Start watching the target element
   mElement.Reset(aObservingContent, aURI, true, aReferenceImage);

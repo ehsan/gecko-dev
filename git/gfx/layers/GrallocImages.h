@@ -47,7 +47,7 @@ class GrallocImage : public PlanarYCbCrImage
                    , public ISharedImage
 {
   typedef PlanarYCbCrData Data;
-  static int32_t sColorIdMap[];
+  static uint32_t sColorIdMap[];
 public:
   struct GrallocData {
     nsRefPtr<TextureClient> mGraphicBuffer;
@@ -96,11 +96,6 @@ public:
   virtual ISharedImage* AsSharedImage() MOZ_OVERRIDE { return this; }
 
   virtual TextureClient* GetTextureClient(CompositableClient* aClient) MOZ_OVERRIDE;
-
-  virtual GrallocImage* AsGrallocImage() MOZ_OVERRIDE
-  {
-    return this;
-  }
 
   virtual uint8_t* GetBuffer()
   {

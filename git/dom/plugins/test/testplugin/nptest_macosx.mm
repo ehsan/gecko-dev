@@ -238,7 +238,6 @@ pluginHandleEvent(InstanceData* instanceData, void* event)
     case NPCocoaEventMouseDown:
     case NPCocoaEventMouseUp:
     case NPCocoaEventMouseMoved:
-    case NPCocoaEventMouseDragged:
       instanceData->lastMouseX = (int32_t)cocoaEvent->data.mouse.pluginX;
       instanceData->lastMouseY = (int32_t)cocoaEvent->data.mouse.pluginY;
       if (cocoaEvent->type == NPCocoaEventMouseUp) {

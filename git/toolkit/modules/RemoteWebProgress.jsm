@@ -76,7 +76,6 @@ function RemoteWebProgressManager (aBrowser) {
   this._browser.messageManager.addMessageListener("Content:LocationChange", this);
   this._browser.messageManager.addMessageListener("Content:SecurityChange", this);
   this._browser.messageManager.addMessageListener("Content:StatusChange", this);
-  this._browser.messageManager.addMessageListener("Content:ProgressChange", this);
 }
 
 RemoteWebProgressManager.prototype = {
@@ -103,6 +102,11 @@ RemoteWebProgressManager.prototype = {
       deserialized = helper.deserializeObject(aStatus)
       deserialized.QueryInterface(Ci.nsISSLStatus);
     }
+
+    // We must check the Extended Validation (EV) state here, on the chrome
+    // process, because NSS is needed for that determination.
+    if (deserialized && deserialized.isExtendedValidation)
+      aState |= Ci.nsIWebProgressListener.STATE_IDENTITY_EV_TOPLEVEL;
 
     return [deserialized, aState];
   },
@@ -203,10 +207,6 @@ RemoteWebProgressManager.prototype = {
 
     case "Content:StatusChange":
       this._callProgressListeners("onStatusChange", webProgress, request, json.status, json.message);
-      break;
-
-    case "Content:ProgressChange":
-      this._callProgressListeners("onProgressChange", webProgress, request, json.curSelf, json.maxSelf, json.curTotal, json.maxTotal);
       break;
     }
   }

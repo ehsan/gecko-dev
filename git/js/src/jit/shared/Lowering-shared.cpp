@@ -15,99 +15,41 @@ using namespace js;
 using namespace jit;
 
 bool
-LIRGeneratorShared::ShouldReorderCommutative(MDefinition *lhs, MDefinition *rhs, MInstruction *ins)
-{
-    // lhs and rhs are used by the commutative operator.
-    MOZ_ASSERT(lhs->hasDefUses());
-    MOZ_ASSERT(rhs->hasDefUses());
-
-    // Ensure that if there is a constant, then it is in rhs.
-    if (rhs->isConstant())
-        return false;
-    if (lhs->isConstant())
-        return true;
-
-    // Since clobbering binary operations clobber the left operand, prefer a
-    // non-constant lhs operand with no further uses. To be fully precise, we
-    // should check whether this is the *last* use, but checking hasOneDefUse()
-    // is a decent approximation which doesn't require any extra analysis.
-    bool rhsSingleUse = rhs->hasOneDefUse();
-    bool lhsSingleUse = lhs->hasOneDefUse();
-    if (rhsSingleUse) {
-        if (!lhsSingleUse)
-            return true;
-    } else {
-        if (lhsSingleUse)
-            return false;
-    }
-
-    // If this is a reduction-style computation, such as
-    //
-    //   sum = 0;
-    //   for (...)
-    //      sum += ...;
-    //
-    // put the phi on the left to promote coalescing. This is fairly specific.
-    if (rhsSingleUse &&
-        rhs->isPhi() &&
-        rhs->block()->isLoopHeader() &&
-        ins == rhs->toPhi()->getLoopBackedgeOperand())
-    {
-        return true;
-    }
-
-    return false;
-}
-
-void
-LIRGeneratorShared::ReorderCommutative(MDefinition **lhsp, MDefinition **rhsp, MInstruction *ins)
-{
-    MDefinition *lhs = *lhsp;
-    MDefinition *rhs = *rhsp;
-
-    if (ShouldReorderCommutative(lhs, rhs, ins)) {
-        *rhsp = lhs;
-        *lhsp = rhs;
-    }
-}
-
-void
 LIRGeneratorShared::visitConstant(MConstant *ins)
 {
     const Value &v = ins->value();
     switch (ins->type()) {
       case MIRType_Boolean:
-        define(new(alloc()) LInteger(v.toBoolean()), ins);
-        break;
+        return define(new(alloc()) LInteger(v.toBoolean()), ins);
       case MIRType_Int32:
-        define(new(alloc()) LInteger(v.toInt32()), ins);
-        break;
+        return define(new(alloc()) LInteger(v.toInt32()), ins);
       case MIRType_String:
-        define(new(alloc()) LPointer(v.toString()), ins);
-        break;
+        return define(new(alloc()) LPointer(v.toString()), ins);
       case MIRType_Symbol:
-        define(new(alloc()) LPointer(v.toSymbol()), ins);
-        break;
+        return define(new(alloc()) LPointer(v.toSymbol()), ins);
       case MIRType_Object:
-        define(new(alloc()) LPointer(&v.toObject()), ins);
-        break;
+        return define(new(alloc()) LPointer(&v.toObject()), ins);
       default:
         // Constants of special types (undefined, null) should never flow into
         // here directly. Operations blindly consuming them require a Box.
-        MOZ_CRASH("unexpected constant type");
+        MOZ_ASSERT(!"unexpected constant type");
+        return false;
     }
 }
 
-void
+bool
 LIRGeneratorShared::defineTypedPhi(MPhi *phi, size_t lirIndex)
 {
     LPhi *lir = current->getPhi(lirIndex);
 
     uint32_t vreg = getVirtualRegister();
+    if (vreg >= MAX_VIRTUAL_REGISTERS)
+        return false;
 
     phi->setVirtualRegister(vreg);
     lir->setDef(0, LDefinition(vreg, LDefinition::TypeFrom(phi->type())));
     annotate(lir);
+    return true;
 }
 
 void
@@ -271,7 +213,7 @@ LIRGeneratorShared::assignSnapshot(LInstruction *ins, BailoutKind kind)
     return true;
 }
 
-void
+bool
 LIRGeneratorShared::assignSafepoint(LInstruction *ins, MInstruction *mir, BailoutKind kind)
 {
     MOZ_ASSERT(!osiPoint_);
@@ -281,14 +223,11 @@ LIRGeneratorShared::assignSafepoint(LInstruction *ins, MInstruction *mir, Bailou
 
     MResumePoint *mrp = mir->resumePoint() ? mir->resumePoint() : lastResumePoint_;
     LSnapshot *postSnapshot = buildSnapshot(ins, mrp, kind);
-    if (!postSnapshot) {
-        gen->abort("buildSnapshot failed");
-        return;
-    }
+    if (!postSnapshot)
+        return false;
 
     osiPoint_ = new(alloc()) LOsiPoint(ins->safepoint(), postSnapshot);
 
-    if (!lirGraph_.noteNeedsSafepoint(ins))
-        gen->abort("noteNeedsSafepoint failed");
+    return lirGraph_.noteNeedsSafepoint(ins);
 }
 

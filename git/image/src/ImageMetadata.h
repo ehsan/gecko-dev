@@ -42,10 +42,8 @@ public:
 
   void SetSize(int32_t width, int32_t height, Orientation orientation)
   {
-    if (!HasSize()) {
-      mSize.emplace(nsIntSize(width, height));
-      mOrientation.emplace(orientation);
-    }
+    mSize.emplace(nsIntSize(width, height));
+    mOrientation.emplace(orientation);
   }
 
   bool HasSize() const { return mSize.isSome(); }
@@ -53,7 +51,6 @@ public:
 
   int32_t GetWidth() const { return mSize->width; }
   int32_t GetHeight() const { return mSize->height; }
-  nsIntSize GetSize() const { return *mSize; }
   Orientation GetOrientation() const { return *mOrientation; }
 
 private:

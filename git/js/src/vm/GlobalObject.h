@@ -17,7 +17,6 @@
 #include "js/Vector.h"
 #include "vm/ArrayBufferObject.h"
 #include "vm/ErrorObject.h"
-#include "vm/Runtime.h"
 
 extern JSObject *
 js_InitSharedArrayBufferClass(JSContext *cx, js::HandleObject obj);
@@ -260,17 +259,8 @@ class GlobalObject : public NativeObject
     template<typename T>
     inline void setCreateArrayFromBuffer(Handle<JSFunction*> fun);
 
-  private:
-    // Disallow use of unqualified JSObject::create in GlobalObject.
-    static GlobalObject *create(...) = delete;
-
-    friend struct ::JSRuntime;
-    static GlobalObject *createInternal(JSContext *cx, const Class *clasp);
-
   public:
-    static GlobalObject *
-    new_(JSContext *cx, const Class *clasp, JSPrincipals *principals,
-         JS::OnNewGlobalHookOption hookOption, const JS::CompartmentOptions &options);
+    static GlobalObject *create(JSContext *cx, const Class *clasp);
 
     /*
      * Create a constructor function with the specified name and length using
@@ -295,12 +285,6 @@ class GlobalObject : public NativeObject
      * of the returned blank prototype.
      */
     NativeObject *createBlankPrototypeInheriting(JSContext *cx, const js::Class *clasp, JSObject &proto);
-
-    template <typename T>
-    T *createBlankPrototype(JSContext *cx) {
-        NativeObject *res = createBlankPrototype(cx, &T::class_);
-        return res ? &res->template as<T>() : nullptr;
-    }
 
     NativeObject *getOrCreateObjectPrototype(JSContext *cx) {
         if (functionObjectClassesInitialized())

@@ -221,3 +221,9 @@ size_t moz_malloc_size_of(const void *ptr)
 {
     return moz_malloc_usable_size((void *)ptr);
 }
+
+namespace mozilla {
+
+const fallible_t fallible = fallible_t();
+
+} // namespace mozilla

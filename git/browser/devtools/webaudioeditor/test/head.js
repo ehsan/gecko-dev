@@ -9,7 +9,7 @@ let { Services } = Cu.import("resource://gre/modules/Services.jsm", {});
 // Enable logging for all the tests. Both the debugger server and frontend will
 // be affected by this pref.
 let gEnableLogging = Services.prefs.getBoolPref("devtools.debugger.log");
-Services.prefs.setBoolPref("devtools.debugger.log", false);
+Services.prefs.setBoolPref("devtools.debugger.log", true);
 
 let { Task } = Cu.import("resource://gre/modules/Task.jsm", {});
 let { Promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
@@ -30,7 +30,6 @@ const DESTROY_NODES_URL = EXAMPLE_URL + "doc_destroy-nodes.html";
 const CONNECT_PARAM_URL = EXAMPLE_URL + "doc_connect-param.html";
 const CONNECT_MULTI_PARAM_URL = EXAMPLE_URL + "doc_connect-multi-param.html";
 const IFRAME_CONTEXT_URL = EXAMPLE_URL + "doc_iframe-context.html";
-const AUTOMATION_URL = EXAMPLE_URL + "doc_automation.html";
 
 // All tests are asynchronous.
 waitForExplicitFinish();
@@ -85,6 +84,11 @@ function removeTab(aTab, aWindow) {
   return deferred.promise;
 }
 
+function handleError(aError) {
+  ok(false, "Got an error: " + aError.message + "\n" + aError.stack);
+  finish();
+}
+
 function once(aTarget, aEventName, aUseCapture = false) {
   info("Waiting for event: '" + aEventName + "' on " + aTarget + ".");
 
@@ -117,15 +121,15 @@ function navigate(aTarget, aUrl, aWaitForTargetEvent = "navigate") {
   return once(aTarget, aWaitForTargetEvent);
 }
 
-/**
- * Adds a new tab, and instantiate a WebAudiFront object.
- * This requires calling removeTab before the test ends.
- */
+function test () {
+  Task.spawn(spawnTest).then(finish, handleError);
+}
+
 function initBackend(aUrl) {
   info("Initializing a web audio editor front.");
 
   if (!DebuggerServer.initialized) {
-    DebuggerServer.init();
+    DebuggerServer.init(() => true);
     DebuggerServer.addBrowserActors();
   }
 
@@ -140,11 +144,6 @@ function initBackend(aUrl) {
   });
 }
 
-/**
- * Adds a new tab, and open the toolbox for that tab, selecting the audio editor
- * panel.
- * This requires calling teardown before the test ends.
- */
 function initWebAudioEditor(aUrl) {
   info("Initializing a web audio editor pane.");
 
@@ -161,16 +160,18 @@ function initWebAudioEditor(aUrl) {
   });
 }
 
-/**
- * Close the toolbox, destroying all panels, and remove the added test tabs.
- */
-function teardown(aTarget) {
+function teardown(aPanel) {
   info("Destroying the web audio editor.");
 
-  return gDevTools.closeToolbox(aTarget).then(() => {
+  return Promise.all([
+    once(aPanel, "destroyed"),
+    removeTab(aPanel.target.tab)
+  ]).then(() => {
+    let gBrowser = window.gBrowser;
     while (gBrowser.tabs.length > 1) {
       gBrowser.removeCurrentTab();
     }
+    gBrowser = null;
   });
 }
 
@@ -395,36 +396,6 @@ function forceCC () {
 }
 
 /**
- * Takes a `values` array of automation value entries,
- * looking for the value at `time` seconds, checking
- * to see if the value is close to `expected`.
- */
-function checkAutomationValue (values, time, expected) {
-  // Remain flexible on values as we can approximate points
-  let EPSILON = 0.01;
-
-  let value = getValueAt(values, time);
-  ok(Math.abs(value - expected) < EPSILON, "Timeline value at " + time + " with value " + value + " should have value very close to " + expected);
-
-  /**
-   * Entries are ordered in `values` according to time, so if we can't find an exact point
-   * on a time of interest, return the point in between the threshold. This should
-   * get us a very close value.
-   */
-  function getValueAt (values, time) {
-    for (let i = 0; i < values.length; i++) {
-      if (values[i].t === time) {
-        return values[i].value;
-      }
-      if (values[i].t > time) {
-        return (values[i - 1].value + values[i].value) / 2;
-      }
-    }
-    return values[values.length - 1].value;
-  }
-}
-
-/**
  * List of audio node properties to test against expectations of the AudioNode actor
  */
 
@@ -497,8 +468,5 @@ const NODE_DEFAULT_VALUES = {
     "type": "sine",
     "frequency": 440,
     "detune": 0
-  },
-  "StereoPannerNode": {
-    "pan": 0
   }
 };

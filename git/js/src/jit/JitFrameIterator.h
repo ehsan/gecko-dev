@@ -93,6 +93,7 @@ class JitFrameIterator
     FrameType type_;
     uint8_t *returnAddressToFp_;
     size_t frameSize_;
+    ExecutionMode mode_;
 
   private:
     mutable const SafepointIndex *cachedSafepointIndex_;
@@ -102,7 +103,7 @@ class JitFrameIterator
 
   public:
     explicit JitFrameIterator();
-    explicit JitFrameIterator(JSContext *cx);
+    explicit JitFrameIterator(ThreadSafeContext *cx);
     explicit JitFrameIterator(const ActivationIterator &activations);
 
     // Current frame information.
@@ -153,12 +154,6 @@ class JitFrameIterator
     }
     bool isBaselineStub() const {
         return type_ == JitFrame_BaselineStub;
-    }
-    bool isBaselineStubMaybeUnwound() const {
-        return type_ == JitFrame_BaselineStub || type_ == JitFrame_Unwound_BaselineStub;
-    }
-    bool isRectifierMaybeUnwound() const {
-        return type_ == JitFrame_Rectifier || type_ == JitFrame_Unwound_Rectifier;
     }
     bool isBareExit() const;
     template <typename T> bool isExitFrameLayout() const;
@@ -308,7 +303,7 @@ struct MaybeReadFallback
 
     JSContext *maybeCx;
     JitActivation *activation;
-    const JitFrameIterator *frame;
+    JitFrameIterator *frame;
     const NoGCValue unreadablePlaceholder_;
     const FallbackConsequence consequence;
 
@@ -321,7 +316,7 @@ struct MaybeReadFallback
     {
     }
 
-    MaybeReadFallback(JSContext *cx, JitActivation *activation, const JitFrameIterator *frame,
+    MaybeReadFallback(JSContext *cx, JitActivation *activation, JitFrameIterator *frame,
                       FallbackConsequence consequence = Fallback_Invalidate)
       : maybeCx(cx),
         activation(activation),
@@ -361,18 +356,6 @@ class SnapshotIterator
     IonScript *ionScript_;
     RInstructionResults *instructionResults_;
 
-    enum ReadMethod {
-        // Read the normal value.
-        RM_Normal          = 1 << 0,
-
-        // Read the default value, or the normal value if there is no default.
-        RM_AlwaysDefault   = 1 << 1,
-
-        // Try to read the normal value if it is readable, otherwise default to
-        // the Default value.
-        RM_NormalOrDefault = RM_Normal | RM_AlwaysDefault,
-    };
-
   private:
     // Read a spilled register from the machine state.
     bool hasRegister(Register reg) const {
@@ -398,13 +381,10 @@ class SnapshotIterator
     bool hasInstructionResult(uint32_t index) const {
         return instructionResults_;
     }
-    bool hasInstructionResults() const {
-        return instructionResults_;
-    }
     Value fromInstructionResult(uint32_t index) const;
 
-    Value allocationValue(const RValueAllocation &a, ReadMethod rm = RM_Normal);
-    bool allocationReadable(const RValueAllocation &a, ReadMethod rm = RM_Normal);
+    Value allocationValue(const RValueAllocation &a);
+    bool allocationReadable(const RValueAllocation &a);
     void writeAllocationValuePayload(const RValueAllocation &a, Value v);
     void warnUnreadableAllocation();
 
@@ -502,27 +482,37 @@ class SnapshotIterator
         return allocationValue(readAllocation());
     }
 
-    // Read the |Normal| value unless it is not available and that the snapshot
-    // provides a |Default| value. This is useful to avoid invalidations of the
-    // frame while we are only interested in a few properties which are provided
-    // by the |Default| value.
-    Value readWithDefault(RValueAllocation *alloc) {
-        *alloc = RValueAllocation();
+    Value maybeRead(MaybeReadFallback &fallback) {
         RValueAllocation a = readAllocation();
         if (allocationReadable(a))
             return allocationValue(a);
 
-        *alloc = a;
-        return allocationValue(a, RM_AlwaysDefault);
-    }
+        if (fallback.canRecoverResults()) {
+            if (!initInstructionResults(fallback))
+                return fallback.unreadablePlaceholder();
 
-    Value maybeRead(const RValueAllocation &a, MaybeReadFallback &fallback);
-    Value maybeRead(MaybeReadFallback &fallback) {
-        RValueAllocation a = readAllocation();
-        return maybeRead(a, fallback);
+            if (allocationReadable(a))
+                return allocationValue(a);
+
+            MOZ_ASSERT_UNREACHABLE("All allocations should be readable.");
+        }
+
+        return fallback.unreadablePlaceholder();
     }
 
     void traceAllocation(JSTracer *trc);
+
+    void readCommonFrameSlots(Value *scopeChain, Value *rval) {
+        if (scopeChain)
+            *scopeChain = read();
+        else
+            skip();
+
+        if (rval)
+            *rval = read();
+        else
+            skip();
+    }
 
     template <class Op>
     void readFunctionFrameArgs(Op &op, ArgumentsObject **argsObj, Value *thisv,
@@ -586,16 +576,7 @@ class InlineFrameIterator
     // frames contained in the recover buffer.
     uint32_t frameCount_;
 
-    // The |calleeTemplate_| fields contains either the JSFunction or the
-    // template from which it is supposed to be cloned. The |calleeRVA_| is an
-    // Invalid value allocation, if the |calleeTemplate_| field is the effective
-    // JSFunction, and not its template. On the other hand, any other value
-    // allocation implies that the |calleeTemplate_| is the template JSFunction
-    // from which the effective one would be derived and cached by the Recover
-    // instruction result.
-    RootedFunction calleeTemplate_;
-    RValueAllocation calleeRVA_;
-
+    RootedFunction callee_;
     RootedScript script_;
     jsbytecode *pc_;
     uint32_t numActualArgs_;
@@ -606,34 +587,23 @@ class InlineFrameIterator
 
   private:
     void findNextFrame();
-    JSObject *computeScopeChain(Value scopeChainValue, MaybeReadFallback &fallback,
-                                bool *hasCallObj = nullptr) const;
+    JSObject *computeScopeChain(Value scopeChainValue, bool *hasCallObj = nullptr) const;
 
   public:
-    InlineFrameIterator(JSContext *cx, const JitFrameIterator *iter);
+    InlineFrameIterator(ThreadSafeContext *cx, const JitFrameIterator *iter);
     InlineFrameIterator(JSRuntime *rt, const JitFrameIterator *iter);
-    InlineFrameIterator(JSContext *cx, const InlineFrameIterator *iter);
+    InlineFrameIterator(ThreadSafeContext *cx, const InlineFrameIterator *iter);
 
     bool more() const {
         return frame_ && framesRead_ < frameCount_;
     }
-
-    // Due to optimizations, we are not always capable of reading the callee of
-    // inlined frames without invalidating the IonCode. This function might
-    // return either the effective callee of the JSFunction which might be used
-    // to create it.
-    //
-    // As such, the |calleeTemplate()| can be used to read most of the metadata
-    // which are conserved across clones.
-    JSFunction *calleeTemplate() const {
-        MOZ_ASSERT(isFunctionFrame());
-        return calleeTemplate_;
+    JSFunction *callee() const {
+        MOZ_ASSERT(callee_);
+        return callee_;
     }
-    JSFunction *maybeCalleeTemplate() const {
-        return calleeTemplate_;
+    JSFunction *maybeCallee() const {
+        return callee_;
     }
-
-    JSFunction *callee(MaybeReadFallback &fallback) const;
 
     unsigned numActualArgs() const {
         // The number of actual arguments of inline frames is recovered by the
@@ -648,7 +618,7 @@ class InlineFrameIterator
     }
 
     template <class ArgOp, class LocalOp>
-    void readFrameArgsAndLocals(JSContext *cx, ArgOp &argOp, LocalOp &localOp,
+    void readFrameArgsAndLocals(ThreadSafeContext *cx, ArgOp &argOp, LocalOp &localOp,
                                 JSObject **scopeChain, bool *hasCallObj, Value *rval,
                                 ArgumentsObject **argsObj, Value *thisv,
                                 ReadFrameArgsBehavior behavior,
@@ -656,24 +626,17 @@ class InlineFrameIterator
     {
         SnapshotIterator s(si_);
 
-        // Read the scope chain.
-        if (scopeChain) {
-            Value scopeChainValue = s.maybeRead(fallback);
-            *scopeChain = computeScopeChain(scopeChainValue, fallback, hasCallObj);
-        } else {
-            s.skip();
-        }
+        // Read frame slots common to both function and global frames.
+        Value scopeChainValue;
+        s.readCommonFrameSlots(&scopeChainValue, rval);
 
-        // Read return value.
-        if (rval)
-            *rval = s.read();
-        else
-            s.skip();
+        if (scopeChain)
+            *scopeChain = computeScopeChain(scopeChainValue, hasCallObj);
 
         // Read arguments, which only function frames have.
         if (isFunctionFrame()) {
             unsigned nactual = numActualArgs();
-            unsigned nformal = calleeTemplate()->nargs();
+            unsigned nformal = callee()->nargs();
 
             // Get the non overflown arguments, which are taken from the inlined
             // frame, because it will have the updated value when JSOP_SETARG is
@@ -705,9 +668,7 @@ class InlineFrameIterator
                         parent_s.skip();
 
                     // Get the overflown arguments
-                    MaybeReadFallback unusedFallback;
-                    parent_s.skip(); // scope chain
-                    parent_s.skip(); // return value
+                    parent_s.readCommonFrameSlots(nullptr, nullptr);
                     parent_s.readFunctionFrameArgs(argOp, nullptr, nullptr,
                                                    nformal, nactual, it.script(),
                                                    fallback);
@@ -723,8 +684,14 @@ class InlineFrameIterator
 
         // At this point we've read all the formals in s, and can read the
         // locals.
-        for (unsigned i = 0; i < script()->nfixed(); i++)
+        for (unsigned i = 0; i < script()->nfixed(); i++) {
+            // We have to use maybeRead here, some of these might be recover
+            // instructions, and currently InlineFrameIter does not support
+            // recovering slots.
+            //
+            // FIXME bug 1029963.
             localOp(s.maybeRead(fallback));
+        }
     }
 
     template <class Op>
@@ -749,12 +716,12 @@ class InlineFrameIterator
     bool isFunctionFrame() const;
     bool isConstructing() const;
 
-    JSObject *scopeChain(MaybeReadFallback &fallback) const {
+    JSObject *scopeChain() const {
         SnapshotIterator s(si_);
 
         // scopeChain
-        Value v = s.maybeRead(fallback);
-        return computeScopeChain(v, fallback);
+        Value v = s.read();
+        return computeScopeChain(v);
     }
 
     Value thisValue(MaybeReadFallback &fallback) const {
@@ -797,8 +764,8 @@ class InlineFrameIterator
     }
 
   private:
-    InlineFrameIterator() = delete;
-    InlineFrameIterator(const InlineFrameIterator &iter) = delete;
+    InlineFrameIterator() MOZ_DELETE;
+    InlineFrameIterator(const InlineFrameIterator &iter) MOZ_DELETE;
 };
 
 } // namespace jit

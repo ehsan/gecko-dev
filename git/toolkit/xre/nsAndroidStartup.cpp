@@ -75,7 +75,7 @@ GeckoStart(void *data, const nsXREAppData *appData)
     if (result)
         LOG("XRE_main returned %d", result);
 
-    mozilla::widget::GeckoAppShell::NotifyXreExit();
+    mozilla::widget::android::GeckoAppShell::NotifyXreExit();
 
     free(targs[0]);
     nsMemory::Free(data);

@@ -18,7 +18,6 @@
 #include "mp4_demuxer/DecoderData.h"
 #include "prlog.h"
 #include "gfx2DGlue.h"
-#include "gfxWindowsPlatform.h"
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* GetDemuxerLog();
@@ -154,8 +153,7 @@ WMFVideoMFTManager::InitializeDXVA()
     return false;
   }
 
-  if (gfxWindowsPlatform::GetPlatform()->IsWARP() ||
-      !gfxPlatform::CanUseDXVA()) {
+  if (!gfxPlatform::CanUseDXVA()) {
     return false;
   }
 
@@ -234,15 +232,9 @@ WMFVideoMFTManager::Init()
 HRESULT
 WMFVideoMFTManager::Input(mp4_demuxer::MP4Sample* aSample)
 {
-  if (!mDecoder) {
-    // This can happen during shutdown.
-    return E_FAIL;
-  }
   if (mStreamType != VP8 && mStreamType != VP9) {
     // We must prepare samples in AVC Annex B.
-    if (!mp4_demuxer::AnnexB::ConvertSampleToAnnexB(aSample)) {
-      return E_FAIL;
-    }
+    mp4_demuxer::AnnexB::ConvertSampleToAnnexB(aSample);
   }
   // Forward sample data to the decoder.
   const uint8_t* data = reinterpret_cast<const uint8_t*>(aSample->data);
@@ -499,12 +491,6 @@ WMFVideoMFTManager::Shutdown()
 {
   mDecoder = nullptr;
   DeleteOnMainThread(mDXVA2Manager);
-}
-
-bool
-WMFVideoMFTManager::IsHardwareAccelerated() const
-{
-  return mUseHwAccel;
 }
 
 } // namespace mozilla

@@ -2009,7 +2009,8 @@ Accessible::InvalidateChildren()
 {
   int32_t childCount = mChildren.Length();
   for (int32_t childIdx = 0; childIdx < childCount; childIdx++) {
-    mChildren.ElementAt(childIdx)->UnbindFromParent();
+    Accessible* child = mChildren.ElementAt(childIdx);
+    child->UnbindFromParent();
   }
 
   mEmbeddedObjCollector = nullptr;
@@ -2442,17 +2443,23 @@ Accessible::TestChildCache(Accessible* aCachedChild) const
 #endif
 }
 
-void
+// Accessible public
+bool
 Accessible::EnsureChildren()
 {
-  NS_ASSERTION(!IsDefunct(), "Caching children for defunct accessible!");
+  if (IsDefunct()) {
+    SetChildrenFlag(eChildrenUninitialized);
+    return true;
+  }
 
   if (!IsChildrenFlag(eChildrenUninitialized))
-    return;
+    return false;
 
   // State is embedded children until text leaf accessible is appended.
   SetChildrenFlag(eEmbeddedChildren); // Prevent reentry
+
   CacheChildren();
+  return false;
 }
 
 Accessible*

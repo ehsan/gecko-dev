@@ -157,7 +157,6 @@ class XPIDLFile(ContextDerived):
 
     __slots__ = (
         'basename',
-        'install_target',
         'source_path',
     )
 
@@ -167,8 +166,6 @@ class XPIDLFile(ContextDerived):
         self.source_path = source
         self.basename = mozpath.basename(source)
         self.module = module
-
-        self.install_target = context['FINAL_TARGET']
 
 class Defines(ContextDerived):
     """Context derived container object for DEFINES, which is an OrderedDict.
@@ -727,55 +724,6 @@ class JavaJarData(object):
         self.generated_sources = StrictOrderingOnAppendList(generated_sources)
         self.extra_jars = list(extra_jars)
         self.javac_flags = list(javac_flags)
-
-
-class BaseSources(ContextDerived):
-    """Base class for files to be compiled during the build."""
-
-    __slots__ = (
-        'files',
-        'canonical_suffix',
-    )
-
-    def __init__(self, context, files, canonical_suffix):
-        ContextDerived.__init__(self, context)
-
-        self.files = files
-        self.canonical_suffix = canonical_suffix
-
-
-class Sources(BaseSources):
-    """Represents files to be compiled during the build."""
-
-    def __init__(self, context, files, canonical_suffix):
-        BaseSources.__init__(self, context, files, canonical_suffix)
-
-
-class GeneratedSources(BaseSources):
-    """Represents generated files to be compiled during the build."""
-
-    def __init__(self, context, files, canonical_suffix):
-        BaseSources.__init__(self, context, files, canonical_suffix)
-
-
-class HostSources(BaseSources):
-    """Represents files to be compiled for the host during the build."""
-
-    def __init__(self, context, files, canonical_suffix):
-        BaseSources.__init__(self, context, files, canonical_suffix)
-
-
-class UnifiedSources(BaseSources):
-    """Represents files to be compiled in a unified fashion during the build."""
-
-    __slots__ = (
-        'files_per_unified_file',
-    )
-
-    def __init__(self, context, files, canonical_suffix, files_per_unified_file=16):
-        BaseSources.__init__(self, context, files, canonical_suffix)
-
-        self.files_per_unified_file = files_per_unified_file
 
 
 class InstallationTarget(ContextDerived):

@@ -866,9 +866,9 @@ private:
 
   // nsNSSCertificate implements nsNSSShutdownObject, so there's nothing that
   // needs to be released
-  virtual void ReleaseNSSResources() MOZ_OVERRIDE { }
+  virtual void ReleaseNSSResources() { }
 
-  virtual void CallCallback(nsresult rv) MOZ_OVERRIDE
+  virtual void CallCallback(nsresult rv)
   {
     (void) mCallback->OpenSignedAppFileFinished(rv, mZipReader, mSignerCert);
   }
@@ -904,9 +904,9 @@ private:
 
   // nsNSSCertificate implements nsNSSShutdownObject, so there's nothing that
   // needs to be released
-  virtual void ReleaseNSSResources() MOZ_OVERRIDE { }
+  virtual void ReleaseNSSResources() { }
 
-  virtual void CallCallback(nsresult rv) MOZ_OVERRIDE
+  virtual void CallCallback(nsresult rv)
   {
     (void) mCallback->VerifySignedManifestFinished(rv, mSignerCert);
   }

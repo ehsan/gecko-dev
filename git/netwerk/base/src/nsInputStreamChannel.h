@@ -25,7 +25,7 @@ protected:
     virtual ~nsInputStreamChannel() {}
 
     virtual nsresult OpenContentStream(bool async, nsIInputStream **result,
-                                       nsIChannel** channel) MOZ_OVERRIDE;
+                                       nsIChannel** channel);
 
     virtual void OnChannelDone() MOZ_OVERRIDE {
         mContentStream = nullptr;

@@ -12,7 +12,7 @@ function test() {
   registerCleanupFunction(function() {
     gBrowser.removeCurrentTab();
   });
-  gBrowser.selectedBrowser.loadURI(REDIRECT_URI.spec);
+  gBrowser.selectedTab.linkedBrowser.loadURI(REDIRECT_URI.spec);
 
   // Create and add history observer.
   let historyObserver = {

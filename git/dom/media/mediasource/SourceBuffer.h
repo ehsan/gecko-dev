@@ -7,7 +7,6 @@
 #ifndef mozilla_dom_SourceBuffer_h_
 #define mozilla_dom_SourceBuffer_h_
 
-#include "MediaPromise.h"
 #include "MediaSource.h"
 #include "js/RootingAPI.h"
 #include "mozilla/Assertions.h"
@@ -33,7 +32,6 @@ class ErrorResult;
 class LargeDataBuffer;
 class TrackBuffer;
 template <typename T> class AsyncEventRunner;
-typedef MediaPromise<bool, nsresult, /* IsExclusive = */ true> TrackBufferAppendPromise;
 
 namespace dom {
 
@@ -82,7 +80,7 @@ public:
   void AppendBuffer(const ArrayBufferView& aData, ErrorResult& aRv);
 
   void Abort(ErrorResult& aRv);
-  void AbortBufferAppend();
+  void Abort();
 
   void Remove(double aStart, double aEnd, ErrorResult& aRv);
   /** End WebIDL Methods. */
@@ -113,8 +111,8 @@ public:
   double GetBufferedEnd();
 
   // Runs the range removal algorithm as defined by the MSE spec.
+  // RangeRemoval will queue a call to DoRangeRemoval.
   void RangeRemoval(double aStart, double aEnd);
-  // Actually remove data between aStart and aEnd
   void DoRangeRemoval(double aStart, double aEnd);
 
 #if defined(DEBUG)
@@ -126,7 +124,6 @@ private:
 
   friend class AsyncEventRunner<SourceBuffer>;
   friend class AppendDataRunnable;
-  friend class RangeRemovalRunnable;
   void DispatchSimpleEvent(const char* aName);
   void QueueAsyncSimpleEvent(const char* aName);
 
@@ -142,8 +139,7 @@ private:
 
   // Shared implementation of AppendBuffer overloads.
   void AppendData(const uint8_t* aData, uint32_t aLength, ErrorResult& aRv);
-  void AppendData(LargeDataBuffer* aData, double aTimestampOffset,
-                  uint32_t aAppendID);
+  void AppendData(LargeDataBuffer* aData, double aTimestampOffset);
 
   // Implement the "Append Error Algorithm".
   // Will call endOfStream() with "decode" error if aDecodeError is true.
@@ -156,9 +152,6 @@ private:
   already_AddRefed<LargeDataBuffer> PrepareAppend(const uint8_t* aData,
                                                 uint32_t aLength,
                                                 ErrorResult& aRv);
-
-  void AppendDataCompletedWithSuccess(bool aValue);
-  void AppendDataErrored(nsresult aError);
 
   nsRefPtr<MediaSource> mMediaSource;
 
@@ -173,14 +166,6 @@ private:
 
   SourceBufferAppendMode mAppendMode;
   bool mUpdating;
-
-  // Each time mUpdating is set to true, mUpdateID will be incremented.
-  // This allows for a queued AppendData task to identify if it was earlier
-  // aborted and another AppendData queued.
-  uint32_t mUpdateID;
-
-  MediaPromiseConsumerHolder<TrackBufferAppendPromise> mPendingAppend;
-  const nsCString mType;
 };
 
 } // namespace dom

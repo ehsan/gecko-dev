@@ -759,7 +759,7 @@ CallAsmJS(JSContext *cx, unsigned argc, Value *vp)
         // returns a primary type, which is the case for all asm.js exported
         // functions, the returned value is discarded and an empty object is
         // returned instead.
-        PlainObject *obj = NewBuiltinClassInstance<PlainObject>(cx);
+        JSObject *obj = NewBuiltinClassInstance(cx, &JSObject::class_);
         callArgs.rval().set(ObjectValue(*obj));
         return true;
     }
@@ -827,9 +827,7 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
         return false;
 
     AutoNameVector formals(cx);
-    if (!formals.reserve(3))
-        return false;
-
+    formals.reserve(3);
     if (module.globalArgumentName())
         formals.infallibleAppend(module.globalArgumentName());
     if (module.importArgumentName())
@@ -997,7 +995,7 @@ CreateExportObject(JSContext *cx, Handle<AsmJSModuleObject*> moduleObj)
     }
 
     gc::AllocKind allocKind = gc::GetGCObjectKind(module.numExportedFunctions());
-    RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx, allocKind));
+    RootedNativeObject obj(cx, NewNativeBuiltinClassInstance(cx, &JSObject::class_, allocKind));
     if (!obj)
         return nullptr;
 

@@ -33,12 +33,18 @@ CreateGenericEvent(EventTarget* aOwner,
                    Bubbles aBubbles,
                    Cancelable aCancelable)
 {
-  nsRefPtr<Event> event = new Event(aOwner, nullptr, nullptr);
+  nsCOMPtr<nsIDOMEvent> event;
+  nsresult rv = NS_NewDOMEvent(getter_AddRefs(event), aOwner, nullptr, nullptr);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return nullptr;
+  }
 
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    event->InitEvent(aType,
-                     aBubbles == eDoesBubble ? true : false,
-                     aCancelable == eCancelable ? true : false)));
+  rv = event->InitEvent(aType,
+                        aBubbles == eDoesBubble ? true : false,
+                        aCancelable == eCancelable ? true : false);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return nullptr;
+  }
 
   event->SetTrusted(true);
 
@@ -58,7 +64,10 @@ IDBVersionChangeEvent::CreateInternal(EventTarget* aOwner,
     event->mNewVersion.SetValue(aNewVersion.Value());
   }
 
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(event->InitEvent(aType, false, false)));
+  nsresult rv = event->InitEvent(aType, false, false);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return nullptr;
+  }
 
   event->SetTrusted(true);
 

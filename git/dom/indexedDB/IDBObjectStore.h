@@ -33,7 +33,6 @@ template <typename> class Sequence;
 namespace indexedDB {
 
 class FileManager;
-class IDBCursor;
 class IDBKeyRange;
 class IDBRequest;
 class IDBTransaction;
@@ -48,9 +47,6 @@ class IDBObjectStore MOZ_FINAL
   : public nsISupports
   , public nsWrapperCache
 {
-  // For AddOrPut() and DeleteInternal().
-  friend class IDBCursor; 
-
   static const JSClass sDummyPropJSClass;
 
   nsRefPtr<IDBTransaction> mTransaction;
@@ -164,7 +160,7 @@ public:
   {
     AssertIsOnOwningThread();
 
-    return AddOrPut(aCx, aValue, aKey, false, /* aFromCursor */ false, aRv);
+    return AddOrPut(aCx, aValue, aKey, false, aRv);
   }
 
   already_AddRefed<IDBRequest>
@@ -175,18 +171,11 @@ public:
   {
     AssertIsOnOwningThread();
 
-    return AddOrPut(aCx, aValue, aKey, true, /* aFromCursor */ false, aRv);
+    return AddOrPut(aCx, aValue, aKey, true, aRv);
   }
 
   already_AddRefed<IDBRequest>
-  Delete(JSContext* aCx,
-         JS::Handle<JS::Value> aKey,
-         ErrorResult& aRv)
-  {
-    AssertIsOnOwningThread();
-
-    return DeleteInternal(aCx, aKey, /* aFromCursor */ false, aRv);
-  }
+  Delete(JSContext* aCx, JS::Handle<JS::Value> aKey, ErrorResult& aRv);
 
   already_AddRefed<IDBRequest>
   Get(JSContext* aCx, JS::Handle<JS::Value> aKey, ErrorResult& aRv);
@@ -195,13 +184,15 @@ public:
   Clear(ErrorResult& aRv);
 
   already_AddRefed<IDBIndex>
-  CreateIndex(const nsAString& aName,
+  CreateIndex(JSContext* aCx,
+              const nsAString& aName,
               const nsAString& aKeyPath,
               const IDBIndexParameters& aOptionalParameters,
               ErrorResult& aRv);
 
   already_AddRefed<IDBIndex>
-  CreateIndex(const nsAString& aName,
+  CreateIndex(JSContext* aCx,
+              const nsAString& aName,
               const Sequence<nsString>& aKeyPath,
               const IDBIndexParameters& aOptionalParameters,
               ErrorResult& aRv);
@@ -297,14 +288,7 @@ private:
            JS::Handle<JS::Value> aValue,
            JS::Handle<JS::Value> aKey,
            bool aOverwrite,
-           bool aFromCursor,
            ErrorResult& aRv);
-
-  already_AddRefed<IDBRequest>
-  DeleteInternal(JSContext* aCx,
-                 JS::Handle<JS::Value> aKey,
-                 bool aFromCursor,
-                 ErrorResult& aRv);
 
   already_AddRefed<IDBRequest>
   GetAllInternal(bool aKeysOnly,
@@ -314,7 +298,8 @@ private:
                  ErrorResult& aRv);
 
   already_AddRefed<IDBIndex>
-  CreateIndexInternal(const nsAString& aName,
+  CreateIndexInternal(JSContext* aCx,
+                      const nsAString& aName,
                       const KeyPath& aKeyPath,
                       const IDBIndexParameters& aOptionalParameters,
                       ErrorResult& aRv);

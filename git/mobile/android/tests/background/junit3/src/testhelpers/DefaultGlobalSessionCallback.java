@@ -40,10 +40,6 @@ public class DefaultGlobalSessionCallback implements GlobalSessionCallback {
   }
 
   @Override
-  public void informMigrated(GlobalSession globalSession) {
-  }
-
-  @Override
   public void handleAborted(GlobalSession globalSession, String reason) {
   }
 

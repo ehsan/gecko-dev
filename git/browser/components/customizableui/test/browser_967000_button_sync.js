@@ -31,15 +31,15 @@ function openAboutAccountsFromMenuPanel(entryPoint) {
 
   let deferred = Promise.defer();
   let handler = (e) => {
-    if (e.originalTarget != gBrowser.selectedBrowser.contentDocument ||
+    if (e.originalTarget != gBrowser.selectedTab.linkedBrowser.contentDocument ||
         e.target.location.href == "about:blank") {
       info("Skipping spurious 'load' event for " + e.target.location.href);
       return;
     }
-    gBrowser.selectedBrowser.removeEventListener("load", handler, true);
+    gBrowser.selectedTab.linkedBrowser.removeEventListener("load", handler, true);
     deferred.resolve();
   }
-  gBrowser.selectedBrowser.addEventListener("load", handler, true);
+  gBrowser.selectedTab.linkedBrowser.addEventListener("load", handler, true);
 
   syncButton.click();
   yield deferred.promise;

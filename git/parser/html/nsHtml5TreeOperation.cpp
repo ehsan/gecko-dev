@@ -439,11 +439,14 @@ nsHtml5TreeOperation::CreateElement(int32_t aNs,
                           value,
                           false);
 
-      // Custom element setup may be needed if there is an "is" attribute.
+      // Custom element prototype swizzling may be needed if there is an
+      // "is" attribute.
       if (kNameSpaceID_None == nsuri && !prefix && nsGkAtoms::is == localName) {
-        newContent->OwnerDoc()->SetupCustomElement(newContent,
-                                                   newContent->GetNameSpaceID(),
-                                                   &value);
+        ErrorResult errorResult;
+        newContent->OwnerDoc()->SwizzleCustomElement(newContent,
+                                                     value,
+                                                     newContent->GetNameSpaceID(),
+                                                     errorResult);
       }
     }
   }

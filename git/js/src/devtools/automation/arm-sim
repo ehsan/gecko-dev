@@ -1,6 +1,7 @@
 --enable-optimize
 --enable-debug
 --enable-stdcxx-compat
+--enable-trace-malloc
 --disable-shared-js
 --enable-threadsafe
 --enable-arm-simulator

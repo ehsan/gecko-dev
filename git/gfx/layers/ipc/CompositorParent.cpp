@@ -40,7 +40,6 @@
 #include "mozilla/layers/PLayerTransactionParent.h"
 #include "mozilla/layers/ShadowLayersManager.h" // for ShadowLayersManager
 #include "mozilla/mozalloc.h"           // for operator new, etc
-#include "mozilla/Telemetry.h"
 #ifdef MOZ_WIDGET_GTK
 #include "basic/X11BasicCompositor.h" // for X11BasicCompositor
 #endif
@@ -208,31 +207,23 @@ static void SetThreadPriority()
   hal::SetCurrentThreadPriority(hal::THREAD_PRIORITY_COMPOSITOR);
 }
 
-CompositorVsyncObserver::CompositorVsyncObserver(CompositorParent* aCompositorParent, nsIWidget* aWidget)
+CompositorVsyncObserver::CompositorVsyncObserver(CompositorParent* aCompositorParent)
   : mNeedsComposite(false)
   , mIsObservingVsync(false)
-  , mVsyncNotificationsSkipped(0)
   , mCompositorParent(aCompositorParent)
   , mCurrentCompositeTaskMonitor("CurrentCompositeTaskMonitor")
   , mCurrentCompositeTask(nullptr)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aWidget != nullptr);
-  mCompositorVsyncDispatcher = aWidget->GetCompositorVsyncDispatcher();
-#ifdef MOZ_WIDGET_GONK
-  GeckoTouchDispatcher::SetCompositorVsyncObserver(this);
-#endif
+
 }
 
 CompositorVsyncObserver::~CompositorVsyncObserver()
 {
-  MOZ_ASSERT(CompositorParent::IsInCompositorThread());
-  MOZ_ASSERT(!mIsObservingVsync);
-  // The CompositorVsyncDispatcher is cleaned up before this in the nsBaseWidget, which stops vsync listeners
-  CancelCurrentCompositeTask();
+  MOZ_ASSERT(NS_IsMainThread());
+  UnobserveVsync();
   mCompositorParent = nullptr;
-  mCompositorVsyncDispatcher = nullptr;
   mNeedsComposite = false;
+  CancelCurrentCompositeTask();
 }
 
 /**
@@ -245,15 +236,9 @@ CompositorVsyncObserver::~CompositorVsyncObserver()
 void
 CompositorVsyncObserver::SetNeedsComposite(bool aNeedsComposite)
 {
-  if (aNeedsComposite && !CompositorParent::IsInCompositorThread()) {
-    MOZ_ASSERT(CompositorParent::CompositorLoop());
-    CompositorParent::CompositorLoop()->PostTask(FROM_HERE,
-      NewRunnableMethod(this,
-                        &CompositorVsyncObserver::SetNeedsComposite,
-                        aNeedsComposite));
-  }
-
+  MOZ_ASSERT(CompositorParent::IsInCompositorThread());
   mNeedsComposite = aNeedsComposite;
+
   if (!mIsObservingVsync && mNeedsComposite) {
     ObserveVsync();
   }
@@ -300,8 +285,9 @@ CompositorVsyncObserver::Composite(TimeStamp aVsyncTimestamp)
   if (mNeedsComposite && mCompositorParent) {
     mNeedsComposite = false;
     mCompositorParent->CompositeCallback(aVsyncTimestamp);
-    mVsyncNotificationsSkipped = 0;
-  } else if (mVsyncNotificationsSkipped++ > gfxPrefs::CompositorUnobserveCount()) {
+  } else {
+    // We're getting vsync notifications but we don't need to composite so
+    // unregister the vsync.
     UnobserveVsync();
   }
 
@@ -315,11 +301,15 @@ CompositorVsyncObserver::NeedsComposite()
   return mNeedsComposite;
 }
 
+/**
+ * Since the vsync thread has its own locks before notifying us of vsync
+ * we can't register/unregister from the vsync thread. Any other thread is fine
+ */
 void
 CompositorVsyncObserver::ObserveVsync()
 {
   MOZ_ASSERT(CompositorParent::IsInCompositorThread());
-  mCompositorVsyncDispatcher->SetCompositorVsyncObserver(this);
+  VsyncDispatcher::GetInstance()->AddCompositorVsyncObserver(this);
   mIsObservingVsync = true;
 }
 
@@ -327,7 +317,7 @@ void
 CompositorVsyncObserver::UnobserveVsync()
 {
   MOZ_ASSERT(CompositorParent::IsInCompositorThread() || NS_IsMainThread());
-  mCompositorVsyncDispatcher->SetCompositorVsyncObserver(nullptr);
+  VsyncDispatcher::GetInstance()->RemoveCompositorVsyncObserver(this);
   mIsObservingVsync = false;
 }
 
@@ -335,7 +325,9 @@ void
 CompositorVsyncObserver::DispatchTouchEvents(TimeStamp aVsyncTimestamp)
 {
 #ifdef MOZ_WIDGET_GONK
-  GeckoTouchDispatcher::NotifyVsync(aVsyncTimestamp);
+  if (gfxPrefs::TouchResampling()) {
+    GeckoTouchDispatcher::NotifyVsync(aVsyncTimestamp);
+  }
 #endif
 }
 
@@ -410,7 +402,7 @@ CompositorParent::CompositorParent(nsIWidget* aWidget,
   }
 
   if (gfxPrefs::VsyncAlignedCompositor()) {
-    mCompositorVsyncObserver = new CompositorVsyncObserver(this, aWidget);
+    mCompositorVsyncObserver = new CompositorVsyncObserver(this);
   }
 
   gfxPlatform::GetPlatform()->ComputeTileSize();
@@ -456,10 +448,7 @@ CompositorParent::Destroy()
     MonitorAutoLock lock(*sIndirectLayerTreesLock);
     sIndirectLayerTrees.erase(mRootLayerTreeID);
   }
-  if (mCompositorVsyncObserver) {
-    mCompositorVsyncObserver->UnobserveVsync();
-    mCompositorVsyncObserver = nullptr;
-  }
+  mCompositorVsyncObserver = nullptr;
 }
 
 void
@@ -762,7 +751,7 @@ CompositorParent::NotifyShadowTreeTransaction(uint64_t aId, bool aIsFirstPaint,
       mLayerManager &&
       mLayerManager->GetRoot()) {
     AutoResolveRefLayers resolve(mCompositionManager);
-    mApzcTreeManager->UpdateHitTestingTree(this, mLayerManager->GetRoot(),
+    mApzcTreeManager->UpdatePanZoomControllerTree(this, mLayerManager->GetRoot(),
         aIsFirstPaint, aId, aPaintSequenceNumber);
 
     mLayerManager->NotifyShadowTreeTransaction();
@@ -887,7 +876,6 @@ CompositorParent::CompositeToTarget(DrawTarget* aTarget, const nsIntRect* aRect)
 
   MOZ_ASSERT(IsInCompositorThread(),
              "Composite can only be called on the compositor thread");
-  TimeStamp start = TimeStamp::Now();
 
 #ifdef COMPOSITOR_PERFORMANCE_WARNING
   TimeDuration scheduleDelta = TimeStamp::Now() - mExpectedComposeStartTime;
@@ -970,7 +958,6 @@ CompositorParent::CompositeToTarget(DrawTarget* aTarget, const nsIntRect* aRect)
     ScheduleComposition();
   }
 
-  mozilla::Telemetry::AccumulateTimeDelta(mozilla::Telemetry::COMPOSITE_TIME, start);
   profiler_tracing("Paint", "Composite", TRACING_INTERVAL_END);
 }
 
@@ -1035,7 +1022,7 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
 
   if (mApzcTreeManager && !aIsRepeatTransaction) {
     AutoResolveRefLayers resolve(mCompositionManager);
-    mApzcTreeManager->UpdateHitTestingTree(this, root, aIsFirstPaint,
+    mApzcTreeManager->UpdatePanZoomControllerTree(this, root, aIsFirstPaint,
         mRootLayerTreeID, aPaintSequenceNumber);
   }
 
@@ -1430,10 +1417,10 @@ public:
   virtual bool RecvNotifyChildCreated(const uint64_t& child) MOZ_OVERRIDE;
   virtual bool RecvAdoptChild(const uint64_t& child) MOZ_OVERRIDE { return false; }
   virtual bool RecvMakeSnapshot(const SurfaceDescriptor& aInSnapshot,
-                                const nsIntRect& aRect) MOZ_OVERRIDE
+                                const nsIntRect& aRect)
   { return true; }
   virtual bool RecvFlushRendering() MOZ_OVERRIDE { return true; }
-  virtual bool RecvNotifyRegionInvalidated(const nsIntRegion& aRegion) MOZ_OVERRIDE { return true; }
+  virtual bool RecvNotifyRegionInvalidated(const nsIntRegion& aRegion) { return true; }
   virtual bool RecvStartFrameTimeRecording(const int32_t& aBufferSize, uint32_t* aOutStartIndex) MOZ_OVERRIDE { return true; }
   virtual bool RecvStopFrameTimeRecording(const uint32_t& aStartIndex, InfallibleTArray<float>* intervals) MOZ_OVERRIDE  { return true; }
   virtual bool RecvGetTileSize(int32_t* aWidth, int32_t* aHeight) MOZ_OVERRIDE

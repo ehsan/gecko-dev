@@ -21,7 +21,6 @@ public interface GlobalSyncStage {
     fetchInfoCollections,       // Take a look at timestamps.
     fetchMetaGlobal,
     ensureKeysStage,
-    attemptMigrationStage,
     /*
     ensureSpecialRecords,
     updateEngineTimestamps,

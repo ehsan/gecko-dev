@@ -10,7 +10,7 @@
 #include "HTMLLinkElement.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentUtils.h"
-#include "nsCORSListenerProxy.h"
+#include "nsCrossSiteListenerProxy.h"
 #include "nsIChannel.h"
 #include "nsIContentPolicy.h"
 #include "nsIContentSecurityPolicy.h"
@@ -293,7 +293,7 @@ ImportLoader::ImportLoader(nsIURI* aURI, nsIDocument* aImportParent)
   , mReady(false)
   , mStopped(false)
   , mBlockingScripts(false)
-  , mUpdater(this)
+  , mUpdater(MOZ_THIS_IN_INITIALIZER_LIST())
 {
 }
 
@@ -625,9 +625,6 @@ ImportLoader::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   mDocument = do_QueryInterface(importDoc);
   nsCOMPtr<nsIDocument> master = mImportParent->MasterDocument();
   mDocument->SetMasterDocument(master);
-
-  // We want to inherit the sandbox flags from the master document.
-  mDocument->SetSandboxFlags(master->GetSandboxFlags());
 
   // We have to connect the blank document we created with the channel we opened,
   // and create its own LoadGroup for it.

@@ -234,7 +234,7 @@ function initBackend(aUrl) {
   info("Initializing a shader editor front.");
 
   if (!DebuggerServer.initialized) {
-    DebuggerServer.init();
+    DebuggerServer.init(() => true);
     DebuggerServer.addBrowserActors();
   }
 

@@ -6,7 +6,7 @@
  * correctly, with default values and correct types.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_NODES_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS, InspectorView } = panelWin;
@@ -17,8 +17,8 @@ add_task(function*() {
   reload(target);
 
   let [actors] = yield Promise.all([
-    getN(gFront, "create-node", 15),
-    waitForGraphRendered(panelWin, 15, 0)
+    getN(gFront, "create-node", 14),
+    waitForGraphRendered(panelWin, 14, 0)
   ]);
   let nodeIds = actors.map(actor => actor.actorID);
   let types = [
@@ -34,5 +34,6 @@ add_task(function*() {
     checkVariableView(gVars, 0, NODE_DEFAULT_VALUES[types[i]], types[i]);
   }
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}

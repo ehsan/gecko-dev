@@ -7,54 +7,44 @@
 // Tests that the Web Console limits the number of lines displayed according to
 // the limit set for each category.
 
-const INIT_URI = "data:text/html;charset=utf-8,Web Console test for bug 644419: Console should " +
-                 "have user-settable log limits for each message category";
-
 const TEST_URI = "http://example.com/browser/browser/devtools/" +
                  "webconsole/test/test-bug-644419-log-limits.html";
 
 let hud, outputNode;
 
-let test = asyncTest(function* () {
-  let { browser } = yield loadTab(INIT_URI);
+function test() {
+  addTab("data:text/html;charset=utf-8,Web Console test for bug 644419: Console should " +
+         "have user-settable log limits for each message category");
+  browser.addEventListener("load", onLoad, true);
+}
 
-  hud = yield openConsole();
+function onLoad(aEvent) {
+  browser.removeEventListener(aEvent.type, onLoad, true);
 
-  hud.jsterm.clearOutput();
-  outputNode = hud.outputNode;
+  openConsole(null, function(aHud) {
+    aHud.jsterm.clearOutput();
+    hud = aHud;
+    outputNode = aHud.outputNode;
 
-  let loaded = loadBrowser(browser);
+    browser.addEventListener("load", testWebDevLimits, true);
+    expectUncaughtException();
+    content.location = TEST_URI;
+  });
+}
 
-  expectUncaughtException();
-
-  content.location = TEST_URI;
-  yield loaded;
-
-  yield testWebDevLimits();
-  yield testWebDevLimits2();
-  yield testJsLimits();
-  yield testJsLimits2();
-
-  yield testNetLimits();
-  yield loadImage();
-  yield testCssLimits();
-  yield testCssLimits2();
-
-  hud = outputNode = null;
-});
-
-function testWebDevLimits() {
+function testWebDevLimits(aEvent) {
+  browser.removeEventListener(aEvent.type, testWebDevLimits, true);
   Services.prefs.setIntPref("devtools.hud.loglimit.console", 10);
 
   // Find the sentinel entry.
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "bar is not defined",
       category: CATEGORY_JS,
       severity: SEVERITY_ERROR,
     }],
-  })
+  }).then(testWebDevLimits2);
 }
 
 function testWebDevLimits2() {
@@ -63,7 +53,7 @@ function testWebDevLimits2() {
     content.console.log("test message " + i);
   }
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "test message 10",
@@ -77,6 +67,7 @@ function testWebDevLimits2() {
     findLogEntry("bar is not defined");
 
     Services.prefs.clearUserPref("devtools.hud.loglimit.console");
+    testJsLimits();
   });
 }
 
@@ -87,14 +78,14 @@ function testJsLimits() {
   content.console.log("testing JS limits");
 
   // Find the sentinel entry.
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "testing JS limits",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(testJsLimits2);
 }
 
 function testJsLimits2() {
@@ -103,12 +94,11 @@ function testJsLimits2() {
   for (let i = 0; i < 11; i++) {
     var script = content.document.createElement("script");
     script.text = "fubar" + i + ".bogus(6);";
-
     expectUncaughtException();
     head.insertBefore(script, head.firstChild);
   }
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "fubar10 is not defined",
@@ -122,6 +112,7 @@ function testJsLimits2() {
     findLogEntry("testing JS limits");
 
     Services.prefs.clearUserPref("devtools.hud.loglimit.exception");
+    testNetLimits();
   });
 }
 
@@ -134,7 +125,7 @@ function testNetLimits() {
   content.console.log("testing Net limits");
 
   // Find the sentinel entry.
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "testing Net limits",
@@ -144,6 +135,7 @@ function testNetLimits() {
   }).then(() => {
     // Fill the log with network messages.
     gCounter = 0;
+    loadImage();
   });
 }
 
@@ -161,7 +153,7 @@ function loadImage() {
 
   is(gCounter, 11, "loaded 11 files");
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "test-image.png",
@@ -177,6 +169,7 @@ function loadImage() {
     findLogEntry("testing Net limits");
 
     Services.prefs.clearUserPref("devtools.hud.loglimit.network");
+    testCssLimits();
   });
 }
 
@@ -187,14 +180,14 @@ function testCssLimits() {
   content.console.log("testing CSS limits");
 
   // Find the sentinel entry.
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "testing CSS limits",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(testCssLimits2);
 }
 
 function testCssLimits2() {
@@ -206,7 +199,7 @@ function testCssLimits2() {
     body.insertBefore(div, body.firstChild);
   }
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: hud,
     messages: [{
       text: "-moz-foobar10",
@@ -221,5 +214,6 @@ function testCssLimits2() {
     findLogEntry("testing CSS limits");
 
     Services.prefs.clearUserPref("devtools.hud.loglimit.cssparser");
+    finishTest();
   });
 }

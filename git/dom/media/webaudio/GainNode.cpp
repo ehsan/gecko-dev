@@ -61,7 +61,7 @@ public:
   virtual void ProcessBlock(AudioNodeStream* aStream,
                             const AudioChunk& aInput,
                             AudioChunk* aOutput,
-                            bool* aFinished) MOZ_OVERRIDE
+                            bool* aFinished)
   {
     MOZ_ASSERT(mSource == aStream, "Invalid source stream");
 
@@ -125,7 +125,8 @@ GainNode::GainNode(AudioContext* aContext)
               2,
               ChannelCountMode::Max,
               ChannelInterpretation::Speakers)
-  , mGain(new AudioParam(this, SendGainToStream, 1.0f))
+  , mGain(new AudioParam(MOZ_THIS_IN_INITIALIZER_LIST(),
+                         SendGainToStream, 1.0f))
 {
   GainNodeEngine* engine = new GainNodeEngine(this, aContext->Destination());
   mStream = aContext->Graph()->CreateAudioNodeStream(engine, MediaStreamGraph::INTERNAL_STREAM);
@@ -165,3 +166,4 @@ GainNode::SendGainToStream(AudioNode* aNode)
 
 }
 }
+

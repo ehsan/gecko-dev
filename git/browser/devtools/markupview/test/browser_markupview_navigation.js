@@ -68,7 +68,7 @@ const TEST_DATA = [
   ["down", "html"]
 ];
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let {inspector} = yield addTab(TEST_URL).then(openInspector);
 
   info("Making sure the markup-view frame is focused");

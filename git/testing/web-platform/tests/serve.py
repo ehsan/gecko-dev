@@ -13,22 +13,19 @@ import uuid
 from collections import defaultdict
 from multiprocessing import Process, Event
 
-from tools.scripts import _env
-repo_root = _env.repo_root
+repo_root = os.path.abspath(os.path.split(__file__)[0])
+
+sys.path.insert(1, os.path.join(repo_root, "tools", "wptserve"))
 from wptserve import server as wptserve, handlers
 from wptserve.router import any_method
 from wptserve.logger import set_logger
 
+sys.path.insert(1, os.path.join(repo_root, "tools", "pywebsocket", "src"))
 from mod_pywebsocket import standalone as pywebsocket
-
-sys.path.insert(1, os.path.join(repo_root, "tools"))
-import sslutils
 
 routes = [("GET", "/tools/runner/*", handlers.file_handler),
           ("POST", "/tools/runner/update_manifest.py", handlers.python_script_handler),
-          (any_method, "/_certs/*", handlers.ErrorHandler(404)),
           (any_method, "/tools/*", handlers.ErrorHandler(404)),
-          (any_method, "{spec}/tools/*", handlers.ErrorHandler(404)),
           (any_method, "/serve.py", handlers.ErrorHandler(404)),
           (any_method, "*.py", handlers.python_script_handler),
           ("GET", "*.asis", handlers.as_is_handler),
@@ -50,7 +47,6 @@ def setup_logger(level):
     logging.basicConfig(level=getattr(logging, level.upper()))
     set_logger(logger)
 
-
 def open_socket(port):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     if port != 0:
@@ -58,7 +54,6 @@ def open_socket(port):
     sock.bind(('127.0.0.1', port))
     sock.listen(5)
     return sock
-
 
 def get_port():
     free_socket = open_socket(0)
@@ -74,19 +69,15 @@ class ServerProc(object):
         self.daemon = None
         self.stop = Event()
 
-    def start(self, init_func, host, port, paths, bind_hostname, external_config, ssl_config,
-              **kwargs):
+    def start(self, init_func, host, port, paths, bind_hostname, external_config):
         self.proc = Process(target=self.create_daemon,
-                            args=(init_func, host, port, paths, bind_hostname,
-                                  external_config, ssl_config))
+                            args=(init_func, host, port, paths, bind_hostname, external_config))
         self.proc.daemon = True
         self.proc.start()
 
-    def create_daemon(self, init_func, host, port, paths, bind_hostname, external_config, ssl_config,
-                      **kwargs):
+    def create_daemon(self, init_func, host, port, paths, bind_hostname, external_config):
         try:
-            self.daemon = init_func(host, port, paths, bind_hostname, external_config,
-                                    ssl_config, **kwargs)
+            self.daemon = init_func(host, port, paths, bind_hostname, external_config)
         except socket.error:
             print >> sys.stderr, "Socket error on port %s" % port
             raise
@@ -95,15 +86,11 @@ class ServerProc(object):
             raise
 
         if self.daemon:
+            self.daemon.start(block=False)
             try:
-                self.daemon.start(block=False)
-                try:
-                    self.stop.wait()
-                except KeyboardInterrupt:
-                    pass
-            except:
-                print >> sys.stderr, traceback.format_exc()
-                raise
+                self.stop.wait()
+            except KeyboardInterrupt:
+                pass
 
     def wait(self):
         self.stop.set()
@@ -117,13 +104,12 @@ class ServerProc(object):
     def is_alive(self):
         return self.proc.is_alive()
 
-
-def check_subdomains(host, paths, bind_hostname, ssl_config):
+def check_subdomains(host, paths, bind_hostname):
     port = get_port()
     subdomains = get_subdomains(host)
 
     wrapper = ServerProc()
-    wrapper.start(start_http_server, host, port, paths, bind_hostname, None, ssl_config)
+    wrapper.start(start_http_server, host, port, paths, bind_hostname, None)
 
     connected = False
     for i in range(10):
@@ -148,36 +134,30 @@ def check_subdomains(host, paths, bind_hostname, ssl_config):
 
     wrapper.wait()
 
-
 def get_subdomains(host):
     #This assumes that the tld is ascii-only or already in punycode
     return {subdomain: (subdomain.encode("idna"), host)
             for subdomain in subdomains}
 
-
-def start_servers(host, ports, paths, bind_hostname, external_config, ssl_config, **kwargs):
+def start_servers(host, ports, paths, bind_hostname, external_config):
     servers = defaultdict(list)
+
     for scheme, ports in ports.iteritems():
         assert len(ports) == {"http":2}.get(scheme, 1)
 
         for port  in ports:
-            if port is None:
-                continue
             init_func = {"http":start_http_server,
                          "https":start_https_server,
                          "ws":start_ws_server,
                          "wss":start_wss_server}[scheme]
 
             server_proc = ServerProc()
-            server_proc.start(init_func, host, port, paths, bind_hostname,
-                              external_config, ssl_config, **kwargs)
+            server_proc.start(init_func, host, port, paths, bind_hostname, external_config)
             servers[scheme].append((port, server_proc))
 
     return servers
 
-
-def start_http_server(host, port, paths, bind_hostname, external_config, ssl_config,
-                      **kwargs):
+def start_http_server(host, port, paths, bind_hostname, external_config):
     return wptserve.WebTestHttpd(host=host,
                                  port=port,
                                  doc_root=paths["doc_root"],
@@ -186,30 +166,13 @@ def start_http_server(host, port, paths, bind_hostname, external_config, ssl_con
                                  bind_hostname=bind_hostname,
                                  config=external_config,
                                  use_ssl=False,
-                                 key_file=None,
-                                 certificate=None,
-                                 latency=kwargs.get("latency"))
+                                 certificate=None)
 
-
-def start_https_server(host, port, paths, bind_hostname, external_config, ssl_config,
-                       **kwargs):
-    return wptserve.WebTestHttpd(host=host,
-                                 port=port,
-                                 doc_root=paths["doc_root"],
-                                 routes=routes,
-                                 rewrites=rewrites,
-                                 bind_hostname=bind_hostname,
-                                 config=external_config,
-                                 use_ssl=True,
-                                 key_file=ssl_config["key_path"],
-                                 certificate=ssl_config["cert_path"],
-                                 encrypt_after_connect=ssl_config["encrypt_after_connect"],
-                                 latency=kwargs.get("latency"))
-
+def start_https_server(host, port, paths, bind_hostname):
+    return
 
 class WebSocketDaemon(object):
-    def __init__(self, host, port, doc_root, handlers_root, log_level, bind_hostname,
-                 ssl_config):
+    def __init__(self, host, port, doc_root, handlers_root, log_level, bind_hostname):
         self.host = host
         cmd_args = ["-p", port,
                     "-d", doc_root,
@@ -253,29 +216,21 @@ class WebSocketDaemon(object):
             self.started = False
         self.server = None
 
-
-def start_ws_server(host, port, paths, bind_hostname, external_config, ssl_config,
-                    **kwargs):
+def start_ws_server(host, port, paths, bind_hostname, external_config):
     return WebSocketDaemon(host,
                            str(port),
                            repo_root,
                            paths["ws_doc_root"],
                            "debug",
-                           bind_hostname,
-                           ssl_config)
+                           bind_hostname)
 
-
-def start_wss_server(host, port, path, bind_hostname, external_config, ssl_config,
-                     **kwargs):
+def start_wss_server(host, port, path, bind_hostname, external_config):
     return
 
-
-def get_ports(config, ssl_enabled):
+def get_ports(config):
     rv = defaultdict(list)
     for scheme, ports in config["ports"].iteritems():
         for i, port in enumerate(ports):
-            if scheme in ["http", "https"] and not ssl_enabled:
-                port = None
             if port == "auto":
                 port = get_port()
             else:
@@ -283,14 +238,9 @@ def get_ports(config, ssl_enabled):
             rv[scheme].append(port)
     return rv
 
-
-
 def normalise_config(config, ports):
     host = config["external_host"] if config["external_host"] else config["host"]
     domains = get_subdomains(host)
-    ports_ = {}
-    for scheme, ports_used in ports.iteritems():
-        ports_[scheme] = ports_used
 
     for key, value in domains.iteritems():
         domains[key] = ".".join(value)
@@ -305,32 +255,21 @@ def normalise_config(config, ports):
             "domains": domains,
             "ports": ports_}
 
-
-def get_ssl_config(config, external_domains, ssl_environment):
-    key_path, cert_path = ssl_environment.host_cert_path(external_domains)
-    return {"key_path": key_path,
-            "cert_path": cert_path,
-            "encrypt_after_connect": config["ssl"]["encrypt_after_connect"]}
-
-
-def start(config, ssl_environment, **kwargs):
+def start(config):
     host = config["host"]
     domains = get_subdomains(host)
-    ports = get_ports(config, ssl_environment)
+    ports = get_ports(config)
     bind_hostname = config["bind_hostname"]
 
     paths = {"doc_root": config["doc_root"],
              "ws_doc_root": config["ws_doc_root"]}
 
+    if config["check_subdomains"]:
+        check_subdomains(host, paths, bind_hostname)
+
     external_config = normalise_config(config, ports)
 
-    ssl_config = get_ssl_config(config, external_config["domains"].values(), ssl_environment)
-
-    if config["check_subdomains"]:
-        check_subdomains(host, paths, bind_hostname, ssl_config)
-
-    servers = start_servers(host, ports, paths, bind_hostname, external_config, ssl_config,
-                            **kwargs)
+    servers = start_servers(host, ports, paths, bind_hostname, external_config)
 
     return external_config, servers
 
@@ -340,10 +279,8 @@ def iter_procs(servers):
         for port, server in servers:
             yield server.proc
 
-
 def value_set(config, key):
     return key in config and config[key] is not None
-
 
 def set_computed_defaults(config):
     if not value_set(config, "ws_doc_root"):
@@ -369,18 +306,7 @@ def merge_json(base_obj, override_obj):
                 rv[key] = override_obj[key]
     return rv
 
-
-def get_ssl_environment(config):
-    implementation_type = config["ssl"]["type"]
-    cls = sslutils.environments[implementation_type]
-    try:
-        kwargs = config["ssl"][implementation_type].copy()
-    except KeyError:
-        raise ValueError("%s is not a vaid ssl type." % implementation_type)
-    return cls(logger, **kwargs)
-
-
-def load_config(default_path, override_path=None, **kwargs):
+def load_config(default_path, override_path=None):
     if os.path.exists(default_path):
         with open(default_path) as f:
             base_obj = json.load(f)
@@ -394,49 +320,23 @@ def load_config(default_path, override_path=None, **kwargs):
         override_obj = {}
     rv = merge_json(base_obj, override_obj)
 
-    if kwargs.get("config_path"):
-        other_path = os.path.abspath(os.path.expanduser(kwargs.get("config_path")))
-        if os.path.exists(other_path):
-            base_obj = rv
-            with open(other_path) as f:
-                override_obj = json.load(f)
-            rv = merge_json(base_obj, override_obj)
-        else:
-            raise ValueError("Config path %s does not exist" % other_path)
-
     set_computed_defaults(rv)
     return rv
 
-
-def get_parser():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--latency", type=int,
-                        help="Artificial latency to add before sending http responses, in ms")
-    parser.add_argument("--config", action="store", dest="config_path",
-                        help="Path to external config file")
-    return parser
-
-
 def main():
-    kwargs = vars(get_parser().parse_args())
     config = load_config("config.default.json",
-                         "config.json",
-                         **kwargs)
+                         "config.json")
 
     setup_logger(config["log_level"])
 
-    ssl_env = get_ssl_environment(config)
+    config_, servers = start(config)
 
-    with get_ssl_environment(config) as ssl_env:
-        config_, servers = start(config, ssl_env, **kwargs)
-
-        try:
-            while any(item.is_alive() for item in iter_procs(servers)):
-                for item in iter_procs(servers):
-                    item.join(1)
-        except KeyboardInterrupt:
-            logger.info("Shutting down")
-
+    try:
+        while any(item.is_alive() for item in iter_procs(servers)):
+            for item in iter_procs(servers):
+                item.join(1)
+    except KeyboardInterrupt:
+        logger.info("Shutting down")
 
 if __name__ == "__main__":
     main()

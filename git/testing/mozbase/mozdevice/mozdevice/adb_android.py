@@ -73,12 +73,9 @@ class ADBAndroidMixin(object):
                             "instrumentation", "features", "libraries"]
         ready_path = os.path.join(self.test_root, "ready")
         for attempt in range(self._device_ready_retry_attempts):
-            failure = 'Unknown failure'
             success = True
             try:
-                state = self.get_state(timeout=timeout)
-                if state != 'device':
-                    failure = "Device state: %s" % state
+                if self.get_state(timeout=timeout) != 'device':
                     success = False
                 else:
                     if self.is_dir(ready_path, timeout=timeout):
@@ -91,17 +88,16 @@ class ADBAndroidMixin(object):
                         data = self.shell_output("pm list %s" % pm_list_cmd,
                                                  timeout=timeout)
                         if pm_error_string in data:
-                            failure = data
                             success = False
                             break
             except ADBError, e:
                 success = False
-                failure = e.message
+                data = e.message
 
             if not success:
                 self._logger.debug('Attempt %s of %s device not ready: %s' % (
                     attempt+1, self._device_ready_retry_attempts,
-                    failure))
+                    data))
                 time.sleep(self._device_ready_retry_wait)
 
         return success

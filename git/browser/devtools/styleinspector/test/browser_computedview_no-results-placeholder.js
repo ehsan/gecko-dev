@@ -6,7 +6,7 @@
 
 // Tests that the no results placeholder works properly.
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,no results placeholder test");
 
   info("Creating the test document");

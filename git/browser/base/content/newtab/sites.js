@@ -22,22 +22,22 @@ Site.prototype = {
   /**
    * The site's DOM node.
    */
-  get node() { return this._node; },
+  get node() this._node,
 
   /**
    * The site's link.
    */
-  get link() { return this._link; },
+  get link() this._link,
 
   /**
    * The url of the site's link.
    */
-  get url() { return this.link.url; },
+  get url() this.link.url,
 
   /**
    * The title of the site's link.
    */
-  get title() { return this.link.title; },
+  get title() this.link.title,
 
   /**
    * The site's parent cell.

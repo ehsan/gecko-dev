@@ -11,7 +11,7 @@ const PREF_SHOW = "browser.devedition.theme.showCustomizeButton";
 
 const URL = "data:text/html;charset=utf8,test for toggling dev edition browser theme toggling";
 
-add_task(function*() {
+let test = asyncTest(function*() {
   // Set preference to false by default so this could
   // run in Developer Edition which has it on by default.
   Services.prefs.setBoolPref(PREF_ENABLED, false);

@@ -15,19 +15,19 @@
 
 using namespace mozilla;
 
-/* static */ StaticRefPtr<nsIThread> CameraControlImpl::sCameraThread;
+nsWeakPtr CameraControlImpl::sCameraThread;
 
-CameraControlImpl::CameraControlImpl()
+CameraControlImpl::CameraControlImpl(uint32_t aCameraId)
   : mListenerLock(PR_NewRWLock(PR_RWLOCK_RANK_NONE, "CameraControlImpl.Listeners.Lock"))
+  , mCameraId(aCameraId)
   , mPreviewState(CameraControlListener::kPreviewStopped)
-  , mHardwareState(CameraControlListener::kHardwareUninitialized)
+  , mHardwareState(CameraControlListener::kHardwareClosed)
   , mHardwareStateChangeReason(NS_OK)
 {
   DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
-  mCurrentConfiguration.mMode = ICameraControl::kUnspecifiedMode;
 
   // reuse the same camera thread to conserve resources
-  nsCOMPtr<nsIThread> ct = do_QueryInterface(sCameraThread);
+  nsCOMPtr<nsIThread> ct = do_QueryReferent(sCameraThread);
   if (ct) {
     mCameraThread = ct.forget();
   } else {
@@ -35,7 +35,9 @@ CameraControlImpl::CameraControlImpl()
     if (NS_FAILED(rv)) {
       MOZ_CRASH("Failed to create new Camera Thread");
     }
-    sCameraThread = mCameraThread;
+
+    // keep a weak reference to the new thread
+    sCameraThread = do_GetWeakReference(mCameraThread);
   }
 
   // Care must be taken with the mListenerLock read-write lock to prevent
@@ -56,13 +58,17 @@ CameraControlImpl::CameraControlImpl()
 
 CameraControlImpl::~CameraControlImpl()
 {
-  DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
-
   MOZ_ASSERT(mListenerLock, "mListenerLock missing in ~CameraControlImpl()");
   if (mListenerLock) {
     PR_DestroyRWLock(mListenerLock);
     mListenerLock = nullptr;
   }
+}
+
+void
+CameraControlImpl::Shutdown()
+{
+  DOM_CAMERA_LOGT("%s:%d\n", __func__, __LINE__);
 }
 
 void
@@ -80,7 +86,7 @@ CameraControlImpl::OnHardwareStateChange(CameraControlListener::HardwareState aN
   }
 
 #ifdef PR_LOGGING
-  const char* state[] = { "uninitialized", "closed", "open", "failed" };
+  const char* state[] = { "closed", "open", "failed" };
   MOZ_ASSERT(aNewState >= 0);
   if (static_cast<unsigned int>(aNewState) < sizeof(state) / sizeof(state[0])) {
     DOM_CAMERA_LOGI("New hardware state is '%s' (reason=0x%x)\n",

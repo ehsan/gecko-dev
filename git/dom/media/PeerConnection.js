@@ -25,7 +25,7 @@ const PC_STATIC_CONTRACT = "@mozilla.org/dom/peerconnectionstatic;1";
 const PC_SENDER_CONTRACT = "@mozilla.org/dom/rtpsender;1";
 const PC_RECEIVER_CONTRACT = "@mozilla.org/dom/rtpreceiver;1";
 
-const PC_CID = Components.ID("{bdc2e533-b308-4708-ac8e-a8bfade6d851}");
+const PC_CID = Components.ID("{00e0e20d-1494-4776-8e0e-0f0acbea3c79}");
 const PC_OBS_CID = Components.ID("{d1748d4c-7f6a-4dc5-add6-d55b7678537e}");
 const PC_ICE_CID = Components.ID("{02b9970c-433d-4cc2-923d-f7028ac66073}");
 const PC_SESSION_CID = Components.ID("{1775081b-b62d-4954-8ffe-a067bbf508a7}");
@@ -289,6 +289,7 @@ RTCIdentityAssertion.prototype = {
 };
 
 function RTCPeerConnection() {
+  this._queue = [];
   this._senders = [];
   this._receivers = [];
 
@@ -310,6 +311,16 @@ function RTCPeerConnection() {
   this._localType = null;
   this._remoteType = null;
   this._peerIdentity = null;
+
+  /**
+   * Everytime we get a request from content, we put it in the queue. If there
+   * are no pending operations though, we will execute it immediately. In
+   * PeerConnectionObserver, whenever we are notified that an operation has
+   * finished, we will check the queue for the next operation and execute if
+   * neccesary. The _pending flag indicates whether an operation is currently in
+   * progress.
+   */
+  this._pending = false;
 
   // States
   this._iceGatheringState = this._iceConnectionState = "new";
@@ -333,7 +344,7 @@ RTCPeerConnection.prototype = {
     this._mustValidateRTCConfiguration(rtcConfig,
         "RTCPeerConnection constructor passed invalid RTCConfiguration");
     if (_globalPCList._networkdown || !this._win.navigator.onLine) {
-      throw new this._win.DOMError("InvalidStateError",
+      throw new this._win.DOMError("",
           "Can't create RTCPeerConnections when the network is down");
     }
 
@@ -351,7 +362,6 @@ RTCPeerConnection.prototype = {
     this.makeGetterSetterEH("onidpvalidationerror");
 
     this._pc = new this._win.PeerConnectionImpl();
-    this._taskChain = this._win.Promise.resolve();
 
     this.__DOM_IMPL__._innerObject = this;
     this._observer = new this._win.PeerConnectionObserver(this.__DOM_IMPL__);
@@ -359,6 +369,14 @@ RTCPeerConnection.prototype = {
     // Add a reference to the PeerConnection to global list (before init).
     _globalPCList.addPC(this);
 
+    this._queueOrRun({
+      func: this._initialize,
+      args: [rtcConfig],
+      wait: false
+    });
+  },
+
+  _initialize: function(rtcConfig) {
     this._impl.initialize(this._observer, this._win, rtcConfig,
                           Services.tm.currentThread);
     this._initIdp();
@@ -367,10 +385,25 @@ RTCPeerConnection.prototype = {
 
   get _impl() {
     if (!this._pc) {
-      throw new this._win.DOMError("InvalidStateError",
+      throw new this._win.DOMError("",
           "RTCPeerConnection is gone (did you enter Offline mode?)");
     }
     return this._pc;
+  },
+
+  callCB: function(callback, arg) {
+    if (callback) {
+      this._win.setTimeout(() => {
+        try {
+          callback(arg);
+        } catch(e) {
+          // A content script (user-provided) callback threw an error. We don't
+          // want this to take down peerconnection, but we still want the user
+          // to see it, so we catch it, report it, and move on.
+          this.logErrorAndCallOnError(e.message, e.fileName, e.lineNumber);
+        }
+      }, 0);
+    }
   },
 
   _initIdp: function() {
@@ -384,28 +417,35 @@ RTCPeerConnection.prototype = {
   },
 
   /**
-   * Add a function to the task chain.
-   *   onSuccess - legacy callback (optional)
-   *   onError   - legacy callback (optional)
+   * Add a function to the queue or run it immediately if the queue is empty.
+   * Argument is an object with the func, args and wait properties; wait should
+   * be set to true if the function has a success/error callback that will call
+   * _executeNext, false if it doesn't have a callback.
    */
-  _queue: function(func, onSuccess, onError) {
-    let p = this._taskChain.then(() => {
-      this._checkClosed(); // TODO: Move outside promise once Bug 1107592 is fixed.
-      return func();
-    });
-    this._taskChain = p.catch(() => {}); // don't propagate errors in taskChain!
-    return onSuccess? p.then(this._wrapLegacyCallback(onSuccess),
-                             this._wrapLegacyCallback(onError)) : p;
+  _queueOrRun: function(obj) {
+    this._checkClosed();
+
+    if (this._pending) {
+      // We are waiting for a callback before doing any more work.
+      this._queue.push(obj);
+    } else {
+      this._pending = obj.wait;
+      obj.func.apply(this, obj.args);
+    }
   },
 
-  _wrapLegacyCallback: function(func) {
-    return result => {
-      try {
-        func && func(result);
-      } catch (e) {
-        this.logErrorAndCallOnError(e);
-      }
-    };
+  // Pick the next item from the queue and run it.
+  _executeNext: function() {
+
+    // Maybe _pending should be a string, and we should
+    // take a string arg and make sure they match to detect errors?
+    this._pending = false;
+
+    while (this._queue.length && !this._pending) {
+      let obj = this._queue.shift();
+      // Doesn't re-queue since _pending is false
+      this._queueOrRun(obj);
+    }
   },
 
   /**
@@ -465,7 +505,7 @@ RTCPeerConnection.prototype = {
   // spec. See Bug 831756.
   _checkClosed: function() {
     if (this._closed) {
-      throw new this._win.DOMError("InvalidStateError", "Peer connection is closed");
+      throw new this._win.DOMError("", "Peer connection is closed");
     }
   },
 
@@ -478,13 +518,13 @@ RTCPeerConnection.prototype = {
   },
 
   // Log error message to web console and window.onerror, if present.
-  logErrorAndCallOnError: function(e) {
-    this.logMsg(e.message, e.fileName, e.lineNumber, Ci.nsIScriptError.exceptionFlag);
+  logErrorAndCallOnError: function(msg, file, line) {
+    this.logMsg(msg, file, line, Ci.nsIScriptError.exceptionFlag);
 
     // Safely call onerror directly if present (necessary for testing)
     try {
       if (typeof this._win.onerror === "function") {
-        this._win.onerror(e.message, e.fileName, e.lineNumber);
+        this._win.onerror(msg, file, line);
       }
     } catch(e) {
       // If onerror itself throws, service it.
@@ -528,15 +568,13 @@ RTCPeerConnection.prototype = {
                           });
   },
 
-  createOffer: function(optionsOrOnSuccess, onError, options) {
+  createOffer: function(onSuccess, onError, options) {
 
     // TODO: Remove old constraint-like RTCOptions support soon (Bug 1064223).
     // Note that webidl bindings make o.mandatory implicit but not o.optional.
     function convertLegacyOptions(o) {
-      // Detect (mandatory OR optional) AND no other top-level members.
-      let lcy = ((o.mandatory && Object.keys(o.mandatory).length) || o.optional) &&
-                Object.keys(o).length == (o.mandatory? 1 : 0) + (o.optional? 1 : 0);
-      if (!lcy) {
+      if (!(Object.keys(o.mandatory).length || o.optional) ||
+          Object.keys(o).length != (o.optional? 2 : 1)) {
         return false;
       }
       let old = o.mandatory || {};
@@ -566,51 +604,60 @@ RTCPeerConnection.prototype = {
       return true;
     }
 
-    let onSuccess;
-    if (optionsOrOnSuccess && typeof optionsOrOnSuccess === "function") {
-      onSuccess = optionsOrOnSuccess;
-    } else {
-      options = optionsOrOnSuccess;
-      onError = undefined;
-    }
     if (options && convertLegacyOptions(options)) {
       this.logWarning(
           "Mandatory/optional in createOffer options is deprecated! Use " +
           JSON.stringify(options) + " instead (note the case difference)!",
           null, 0);
     }
-    return this._queue(() => this._createOffer(options), onSuccess, onError);
-  },
-
-  _createOffer: function(options) {
-    return new this._win.Promise((resolve, reject) => {
-      this._onCreateOfferSuccess = resolve;
-      this._onCreateOfferFailure = reject;
-      this._impl.createOffer(options);
+    this._queueOrRun({
+      func: this._createOffer,
+      args: [onSuccess, onError, options],
+      wait: true
     });
   },
 
-  _createAnswer: function() {
-    return new this._win.Promise((resolve, reject) => {
-      if (!this.remoteDescription) {
-        throw new this._win.DOMError("InvalidStateError",
-                                     "setRemoteDescription not called");
-      }
-      if (this.remoteDescription.type != "offer") {
-        throw new this._win.DOMError("InvalidStateError",
-                                     "No outstanding offer");
-      }
-      this._onCreateAnswerSuccess = resolve;
-      this._onCreateAnswerFailure = reject;
-      this._impl.createAnswer();
-    });
+  _createOffer: function(onSuccess, onError, options) {
+    this._onCreateOfferSuccess = onSuccess;
+    this._onCreateOfferFailure = onError;
+    this._impl.createOffer(options);
+  },
+
+  _createAnswer: function(onSuccess, onError) {
+    this._onCreateAnswerSuccess = onSuccess;
+    this._onCreateAnswerFailure = onError;
+
+    if (!this.remoteDescription) {
+
+      this._observer.onCreateAnswerError(Ci.IPeerConnection.kInvalidState,
+                                         "setRemoteDescription not called");
+      return;
+    }
+
+    if (this.remoteDescription.type != "offer") {
+
+      this._observer.onCreateAnswerError(Ci.IPeerConnection.kInvalidState,
+                                         "No outstanding offer");
+      return;
+    }
+    this._impl.createAnswer();
   },
 
   createAnswer: function(onSuccess, onError) {
-    return this._queue(() => this._createAnswer(), onSuccess, onError);
+    this._queueOrRun({
+      func: this._createAnswer,
+      args: [onSuccess, onError],
+      wait: true
+    });
   },
 
   setLocalDescription: function(desc, onSuccess, onError) {
+    if (!onSuccess || !onError) {
+      this.logWarning(
+          "setLocalDescription called without success/failure callbacks. This is deprecated, and will be an error in the future.",
+          null, 0);
+    }
+
     this._localType = desc.type;
 
     let type;
@@ -622,25 +669,31 @@ RTCPeerConnection.prototype = {
         type = Ci.IPeerConnection.kActionAnswer;
         break;
       case "pranswer":
-        throw new this._win.DOMError("NotSupportedError", "pranswer not yet implemented");
+        throw new this._win.DOMError("", "pranswer not yet implemented");
       default:
-        throw new this._win.DOMError("InvalidParameterError",
+        throw new this._win.DOMError("",
             "Invalid type " + desc.type + " provided to setLocalDescription");
     }
 
-    return this._queue(() => this._setLocalDescription(type, desc.sdp),
-                       onSuccess, onError);
-  },
-
-  _setLocalDescription: function(type, sdp) {
-    return new this._win.Promise((resolve, reject) => {
-      this._onSetLocalDescriptionSuccess = resolve;
-      this._onSetLocalDescriptionFailure = reject;
-      this._impl.setLocalDescription(type, sdp);
+    this._queueOrRun({
+      func: this._setLocalDescription,
+      args: [type, desc.sdp, onSuccess, onError],
+      wait: true
     });
   },
 
+  _setLocalDescription: function(type, sdp, onSuccess, onError) {
+    this._onSetLocalDescriptionSuccess = onSuccess;
+    this._onSetLocalDescriptionFailure = onError;
+    this._impl.setLocalDescription(type, sdp);
+  },
+
   setRemoteDescription: function(desc, onSuccess, onError) {
+    if (!onSuccess || !onError) {
+      this.logWarning(
+          "setRemoteDescription called without success/failure callbacks. This is deprecated, and will be an error in the future.",
+          null, 0);
+    }
     this._remoteType = desc.type;
 
     let type;
@@ -652,17 +705,17 @@ RTCPeerConnection.prototype = {
         type = Ci.IPeerConnection.kActionAnswer;
         break;
       case "pranswer":
-        throw new this._win.DOMError("NotSupportedError", "pranswer not yet implemented");
+        throw new this._win.DOMError("", "pranswer not yet implemented");
       default:
-        throw new this._win.DOMError("InvalidParameterError",
+        throw new this._win.DOMError("",
             "Invalid type " + desc.type + " provided to setRemoteDescription");
     }
 
-    // Have to get caller's origin outside of Promise constructor and pass it in
-    let origin = Cu.getWebIDLCallerPrincipal().origin;
-
-    return this._queue(() => this._setRemoteDescription(type, desc.sdp, origin),
-                       onSuccess, onError);
+    this._queueOrRun({
+      func: this._setRemoteDescription,
+      args: [type, desc.sdp, onSuccess, onError],
+      wait: true
+    });
   },
 
   /**
@@ -687,12 +740,7 @@ RTCPeerConnection.prototype = {
     return good;
   },
 
-  _setRemoteDescription: function(type, sdp, origin) {
-    return new this._win.Promise((resolve, reject) =>
-      this._setRemoteDescriptionImpl(type, sdp, origin, resolve, reject));
-  },
-
-  _setRemoteDescriptionImpl: function(type, sdp, origin, onSuccess, onError) {
+  _setRemoteDescription: function(type, sdp, onSuccess, onError) {
     let idpComplete = false;
     let setRemoteComplete = false;
     let idpError = null;
@@ -707,8 +755,9 @@ RTCPeerConnection.prototype = {
       }
       // May be null if the user didn't supply success/failure callbacks.
       // Violation of spec, but we allow it for now
-      onSuccess();
+      this.callCB(onSuccess);
       isDone = true;
+      this._executeNext();
     };
 
     let setRemoteDone = () => {
@@ -730,7 +779,7 @@ RTCPeerConnection.prototype = {
           // call the error callback directly and then close
           idpError = "Peer Identity mismatch, expected: " +
             this._impl.peerIdentity;
-          onError(idpError);
+          this.callCB(onError, idpError);
           this.close();
         } else {
           idpComplete = true;
@@ -740,7 +789,7 @@ RTCPeerConnection.prototype = {
     }
 
     try {
-      this._remoteIdp.verifyIdentityFromSDP(sdp, origin, idpDone);
+      this._remoteIdp.verifyIdentityFromSDP(sdp, idpDone);
     } catch (e) {
       // if processing the SDP for identity doesn't work
       this.logWarning(e.message, e.fileName, e.lineNumber);
@@ -777,25 +826,34 @@ RTCPeerConnection.prototype = {
   },
 
   updateIce: function(config) {
-    throw new this._win.DOMError("NotSupportedError", "updateIce not yet implemented");
+    throw new this._win.DOMError("", "updateIce not yet implemented");
   },
 
   addIceCandidate: function(cand, onSuccess, onError) {
+    if (!onSuccess || !onError) {
+      this.logWarning(
+          "addIceCandidate called without success/failure callbacks. This is deprecated, and will be an error in the future.",
+          null, 0);
+    }
     if (!cand.candidate && !cand.sdpMLineIndex) {
-      throw new this._win.DOMError("InvalidParameterError",
+      throw new this._win.DOMError("",
           "Invalid candidate passed to addIceCandidate!");
     }
-    return this._queue(() => this._addIceCandidate(cand), onSuccess, onError);
+
+    this._queueOrRun({
+      func: this._addIceCandidate,
+      args: [cand, onSuccess, onError],
+      wait: false
+    });
   },
 
-  _addIceCandidate: function(cand) {
-    return new this._win.Promise((resolve, reject) => {
-      this._onAddIceCandidateSuccess = resolve;
-      this._onAddIceCandidateError = reject;
+  _addIceCandidate: function(cand, onSuccess, onError) {
+    this._onAddIceCandidateSuccess = onSuccess || null;
+    this._onAddIceCandidateError = onError || null;
 
-      this._impl.addIceCandidate(cand.candidate, cand.sdpMid || "",
-                                 cand.sdpMLineIndex);
-    });
+    this._impl.addIceCandidate(cand.candidate, cand.sdpMid || "",
+                               (cand.sdpMLineIndex === null) ? 0 :
+                                 cand.sdpMLineIndex + 1);
   },
 
   addStream: function(stream) {
@@ -804,19 +862,19 @@ RTCPeerConnection.prototype = {
 
   removeStream: function(stream) {
      // Bug 844295: Not implementing this functionality.
-     throw new this._win.DOMError("NotSupportedError", "removeStream not yet implemented");
+     throw new this._win.DOMError("", "removeStream not yet implemented");
   },
 
   getStreamById: function(id) {
-    throw new this._win.DOMError("NotSupportedError", "getStreamById not yet implemented");
+    throw new this._win.DOMError("", "getStreamById not yet implemented");
   },
 
   addTrack: function(track, stream) {
     if (stream.currentTime === undefined) {
-      throw new this._win.DOMError("InvalidParameterError", "invalid stream.");
+      throw new this._win.DOMError("", "invalid stream.");
     }
     if (stream.getTracks().indexOf(track) == -1) {
-      throw new this._win.DOMError("InvalidParameterError", "track is not in stream.");
+      throw new this._win.DOMError("", "track is not in stream.");
     }
     this._checkClosed();
     this._impl.addTrack(track, stream);
@@ -829,10 +887,10 @@ RTCPeerConnection.prototype = {
 
   removeTrack: function(sender) {
      // Bug 844295: Not implementing this functionality.
-     throw new this._win.DOMError("NotSupportedError", "removeTrack not yet implemented");
+     throw new this._win.DOMError("", "removeTrack not yet implemented");
   },
 
-  _replaceTrack: function(sender, withTrack) {
+  _replaceTrack: function(sender, withTrack, onSuccess, onError) {
     // TODO: Do a (sender._stream.getTracks().indexOf(track) == -1) check
     //       on both track args someday.
     //
@@ -844,13 +902,11 @@ RTCPeerConnection.prototype = {
     // Since a track may be replaced more than once, the track being replaced
     // may not be in the stream either, so we check neither arg right now.
 
-    return new this._win.Promise((resolve, reject) => {
-      this._onReplaceTrackSender = sender;
-      this._onReplaceTrackWithTrack = withTrack;
-      this._onReplaceTrackSuccess = resolve;
-      this._onReplaceTrackFailure = reject;
-      this._impl.replaceTrack(sender.track, withTrack, sender._stream);
-    });
+    this._onReplaceTrackSender = sender;
+    this._onReplaceTrackWithTrack = withTrack;
+    this._onReplaceTrackSuccess = onSuccess;
+    this._onReplaceTrackFailure = onError;
+    this._impl.replaceTrack(sender.track, withTrack, sender._stream);
   },
 
   close: function() {
@@ -858,10 +914,14 @@ RTCPeerConnection.prototype = {
       return;
     }
     this.changeIceConnectionState("closed");
+    this._queueOrRun({ func: this._close, args: [false], wait: false });
+    this._closed = true;
+  },
+
+  _close: function() {
     this._localIdp.close();
     this._remoteIdp.close();
     this._impl.close();
-    this._closed = true;
   },
 
   getLocalStreams: function() {
@@ -961,15 +1021,18 @@ RTCPeerConnection.prototype = {
   },
 
   getStats: function(selector, onSuccess, onError) {
-    return this._queue(() => this._getStats(selector), onSuccess, onError);
+    this._queueOrRun({
+      func: this._getStats,
+      args: [selector, onSuccess, onError],
+      wait: false
+    });
   },
 
-  _getStats: function(selector) {
-    return new this._win.Promise((resolve, reject) => {
-      this._onGetStatsSuccess = resolve;
-      this._onGetStatsFailure = reject;
-      this._impl.getStats(selector);
-    });
+  _getStats: function(selector, onSuccess, onError) {
+    this._onGetStatsSuccess = onSuccess;
+    this._onGetStatsFailure = onError;
+
+    this._impl.getStats(selector);
   },
 
   createDataChannel: function(label, dict) {
@@ -997,7 +1060,7 @@ RTCPeerConnection.prototype = {
 
     if (dict.maxRetransmitTime != undefined &&
         dict.maxRetransmits != undefined) {
-      throw new this._win.DOMError("InvalidParameterError",
+      throw new this._win.DOMError("",
           "Both maxRetransmitTime and maxRetransmits cannot be provided");
     }
     let protocol;
@@ -1024,7 +1087,43 @@ RTCPeerConnection.prototype = {
       dict.id != undefined ? dict.id : 0xFFFF
     );
     return channel;
+  },
+
+  connectDataConnection: function(localport, remoteport, numstreams) {
+    if (numstreams == undefined || numstreams <= 0) {
+      numstreams = 16;
+    }
+    this._queueOrRun({
+      func: this._connectDataConnection,
+      args: [localport, remoteport, numstreams],
+      wait: false
+    });
+  },
+
+  _connectDataConnection: function(localport, remoteport, numstreams) {
+    this._impl.connectDataConnection(localport, remoteport, numstreams);
   }
+};
+
+function RTCError(code, message) {
+  this.name = this.reasonName[Math.min(code, this.reasonName.length - 1)];
+  this.message = (typeof message === "string")? message : this.name;
+  this.__exposedProps__ = { name: "rw", message: "rw" };
+}
+RTCError.prototype = {
+  // These strings must match those defined in the WebRTC spec.
+  reasonName: [
+    "NO_ERROR", // Should never happen -- only used for testing
+    "INVALID_CONSTRAINTS_TYPE",
+    "INVALID_CANDIDATE_TYPE",
+    "INVALID_MEDIASTREAM_TRACK",
+    "INVALID_STATE",
+    "INVALID_SESSION_DESCRIPTION",
+    "INCOMPATIBLE_SESSION_DESCRIPTION",
+    "INCOMPATIBLE_CONSTRAINTS",
+    "INCOMPATIBLE_MEDIASTREAMTRACK",
+    "INTERNAL_ERROR"
+  ]
 };
 
 // This is a separate object because we don't want to expose it to DOM.
@@ -1043,24 +1142,6 @@ PeerConnectionObserver.prototype = {
     this._dompc = dompc._innerObject;
   },
 
-  newError: function(code, message) {
-    // These strings must match those defined in the WebRTC spec.
-    const reasonName = [
-      "",
-      "InternalError",
-      "InvalidCandidateError",
-      "InvalidParameter",
-      "InvalidStateError",
-      "InvalidSessionDescriptionError",
-      "IncompatibleSessionDescriptionError",
-      "InternalError",
-      "IncompatibleMediaStreamTrackError",
-      "InternalError"
-    ];
-    let name = reasonName[Math.min(code, reasonName.length - 1)];
-    return new this._dompc._win.DOMError(name, message);
-  },
-
   dispatchEvent: function(event) {
     this._dompc.dispatchEvent(event);
   },
@@ -1068,61 +1149,75 @@ PeerConnectionObserver.prototype = {
   onCreateOfferSuccess: function(sdp) {
     let pc = this._dompc;
     let fp = pc._impl.fingerprint;
-    let origin = Cu.getWebIDLCallerPrincipal().origin;
-    pc._localIdp.appendIdentityToSDP(sdp, fp, origin, function(sdp, assertion) {
+    pc._localIdp.appendIdentityToSDP(sdp, fp, function(sdp, assertion) {
       if (assertion) {
         pc._gotIdentityAssertion(assertion);
       }
-      pc._onCreateOfferSuccess(new pc._win.mozRTCSessionDescription({ type: "offer",
-                                                                      sdp: sdp }));
+      pc.callCB(pc._onCreateOfferSuccess,
+                new pc._win.mozRTCSessionDescription({ type: "offer",
+                                                       sdp: sdp }));
+      pc._executeNext();
     }.bind(this));
   },
 
   onCreateOfferError: function(code, message) {
-    this._dompc._onCreateOfferFailure(this.newError(code, message));
+    this._dompc.callCB(this._dompc._onCreateOfferFailure, new RTCError(code, message));
+    this._dompc._executeNext();
   },
 
   onCreateAnswerSuccess: function(sdp) {
     let pc = this._dompc;
     let fp = pc._impl.fingerprint;
-    let origin = Cu.getWebIDLCallerPrincipal().origin;
-    pc._localIdp.appendIdentityToSDP(sdp, fp, origin, function(sdp, assertion) {
+    pc._localIdp.appendIdentityToSDP(sdp, fp, function(sdp, assertion) {
       if (assertion) {
         pc._gotIdentityAssertion(assertion);
       }
-      pc._onCreateAnswerSuccess(new pc._win.mozRTCSessionDescription({ type: "answer",
-                                                                       sdp: sdp }));
+      pc.callCB(pc._onCreateAnswerSuccess,
+                new pc._win.mozRTCSessionDescription({ type: "answer",
+                                                       sdp: sdp }));
+      pc._executeNext();
     }.bind(this));
   },
 
   onCreateAnswerError: function(code, message) {
-    this._dompc._onCreateAnswerFailure(this.newError(code, message));
+    this._dompc.callCB(this._dompc._onCreateAnswerFailure,
+                       new RTCError(code, message));
+    this._dompc._executeNext();
   },
 
   onSetLocalDescriptionSuccess: function() {
-    this._dompc._onSetLocalDescriptionSuccess();
+    this._dompc.callCB(this._dompc._onSetLocalDescriptionSuccess);
+    this._dompc._executeNext();
   },
 
   onSetRemoteDescriptionSuccess: function() {
+    // This function calls _executeNext() for us
     this._dompc._onSetRemoteDescriptionSuccess();
   },
 
   onSetLocalDescriptionError: function(code, message) {
     this._localType = null;
-    this._dompc._onSetLocalDescriptionFailure(this.newError(code, message));
+    this._dompc.callCB(this._dompc._onSetLocalDescriptionFailure,
+                       new RTCError(code, message));
+    this._dompc._executeNext();
   },
 
   onSetRemoteDescriptionError: function(code, message) {
     this._remoteType = null;
-    this._dompc._onSetRemoteDescriptionFailure(this.newError(code, message));
+    this._dompc.callCB(this._dompc._onSetRemoteDescriptionFailure,
+                       new RTCError(code, message));
+    this._dompc._executeNext();
   },
 
   onAddIceCandidateSuccess: function() {
-    this._dompc._onAddIceCandidateSuccess();
+    this._dompc.callCB(this._dompc._onAddIceCandidateSuccess);
+    this._dompc._executeNext();
   },
 
   onAddIceCandidateError: function(code, message) {
-    this._dompc._onAddIceCandidateError(this.newError(code, message));
+    this._dompc.callCB(this._dompc._onAddIceCandidateError,
+                       new RTCError(code, message));
+    this._dompc._executeNext();
   },
 
   onIceCandidate: function(level, mid, candidate) {
@@ -1133,7 +1228,7 @@ PeerConnectionObserver.prototype = {
           {
               candidate: candidate,
               sdpMid: mid,
-              sdpMLineIndex: level
+              sdpMLineIndex: level - 1
           }
       ));
     }
@@ -1246,17 +1341,20 @@ PeerConnectionObserver.prototype = {
     let webidlobj = this._dompc._win.RTCStatsReport._create(this._dompc._win,
                                                             chromeobj);
     chromeobj.makeStatsPublic();
-    this._dompc._onGetStatsSuccess(webidlobj);
+    this._dompc.callCB(this._dompc._onGetStatsSuccess, webidlobj);
+    this._dompc._executeNext();
   },
 
   onGetStatsError: function(code, message) {
-    this._dompc._onGetStatsFailure(this.newError(code, message));
+    this._dompc.callCB(this._dompc._onGetStatsFailure,
+                       new RTCError(code, message));
+    this._dompc._executeNext();
   },
 
   onAddStream: function(stream) {
     let ev = new this._dompc._win.MediaStreamEvent("addstream",
                                                    { stream: stream });
-    this.dispatchEvent(ev);
+    this._dompc.dispatchEvent(ev);
   },
 
   onRemoveStream: function(stream, type) {
@@ -1267,7 +1365,7 @@ PeerConnectionObserver.prototype = {
   onAddTrack: function(track) {
     let ev = new this._dompc._win.MediaStreamTrackEvent("addtrack",
                                                         { track: track });
-    this.dispatchEvent(ev);
+    this._dompc.dispatchEvent(ev);
   },
 
   onRemoveTrack: function(track, type) {
@@ -1280,14 +1378,14 @@ PeerConnectionObserver.prototype = {
     pc._onReplaceTrackSender.track = pc._onReplaceTrackWithTrack;
     pc._onReplaceTrackWithTrack = null;
     pc._onReplaceTrackSender = null;
-    pc._onReplaceTrackSuccess();
+    pc.callCB(pc._onReplaceTrackSuccess);
   },
 
   onReplaceTrackError: function(code, message) {
     var pc = this._dompc;
     pc._onReplaceTrackWithTrack = null;
     pc._onReplaceTrackSender = null;
-    pc._onReplaceTrackError(this.newError(code, message));
+    pc.callCB(pc._onReplaceTrackError, new RTCError(code, message));
   },
 
   foundIceCandidate: function(cand) {
@@ -1332,8 +1430,13 @@ RTCRtpSender.prototype = {
   contractID: PC_SENDER_CONTRACT,
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports]),
 
-  replaceTrack: function(withTrack) {
-    return this._pc._queue(() => this._pc._replaceTrack(this, withTrack));
+  replaceTrack: function(withTrack, onSuccess, onError) {
+    this._pc._checkClosed();
+    this._pc._queueOrRun({
+      func: this._pc._replaceTrack,
+      args: [this, withTrack, onSuccess, onError],
+      wait: false
+    });
   }
 };
 

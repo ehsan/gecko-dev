@@ -200,8 +200,6 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
                          gfxFloat aOpacity,
                          const gfxMatrix& aTransform)
 {
-    DrawTarget& aDrawTarget = *aContext->GetDrawTarget();
-
     if (!mPattern)
         return false;
 
@@ -218,11 +216,12 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
                                       aOpacity, aTransform);
     }
 
+    aContext->NewPath();
     gfxMatrix oldMatrix = mPattern->GetMatrix();
     mPattern->SetMatrix(aTransform * oldMatrix);
-    DrawOptions drawOptions(aOpacity);
-    aDrawTarget.FillRect(ToRect(aFillRect),
-                         *mPattern->GetPattern(&aDrawTarget), drawOptions);
+    aContext->SetPattern(mPattern);
+    aContext->Rectangle(aFillRect);
+    aContext->FillWithOpacity(aOpacity);
     mPattern->SetMatrix(oldMatrix);
     return true;
 }

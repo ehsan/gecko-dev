@@ -40,7 +40,7 @@ ClientPaintedLayer::PaintThebes()
                "Can only draw in drawing phase");
   
   uint32_t flags = RotatedContentBuffer::PAINT_CAN_DRAW_ROTATED;
-#ifndef MOZ_IGNORE_PAINT_WILL_RESAMPLE
+#ifndef MOZ_WIDGET_ANDROID
   if (ClientManager()->CompositorMightResample()) {
     flags |= RotatedContentBuffer::PAINT_WILL_RESAMPLE;
   }
@@ -162,13 +162,10 @@ ClientLayerManager::CreatePaintedLayerWithHint(PaintedLayerCreationHint aHint)
 #ifdef MOZ_B2G
       aHint == SCROLLABLE &&
 #endif
-      gfxPrefs::LayersTilesEnabled()
-#ifndef MOZ_X11
-      && (AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_OPENGL ||
-          AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_D3D9 ||
-          AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_D3D11)
-#endif
-  ) {
+      gfxPlatform::GetPlatform()->UseTiling() &&
+      (AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_OPENGL ||
+       AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_D3D9 ||
+       AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_D3D11)) {
     nsRefPtr<ClientTiledPaintedLayer> layer = new ClientTiledPaintedLayer(this, aHint);
     CREATE_SHADOW(Painted);
     return layer.forget();
@@ -179,17 +176,6 @@ ClientLayerManager::CreatePaintedLayerWithHint(PaintedLayerCreationHint aHint)
   }
 }
 
-void
-ClientPaintedLayer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
-{
-  PaintedLayer::PrintInfo(aStream, aPrefix);
-  if (mContentClient) {
-    aStream << "\n";
-    nsAutoCString pfx(aPrefix);
-    pfx += "  ";
-    mContentClient->PrintInfo(aStream, pfx.get());
-  }
-}
 
 }
 }

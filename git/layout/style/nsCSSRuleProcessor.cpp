@@ -598,7 +598,7 @@ void RuleHash::AppendRuleToTable(PLDHashTable* aTable, const void* aKey,
 {
   // Get a new or existing entry.
   RuleHashTableEntry *entry = static_cast<RuleHashTableEntry*>
-                                         (PL_DHashTableAdd(aTable, aKey));
+                                         (PL_DHashTableOperate(aTable, aKey, PL_DHASH_ADD));
   if (!entry)
     return;
   entry->mRules.AppendElement(RuleValue(aRuleInfo, mRuleCount++, mQuirksMode));
@@ -610,7 +610,7 @@ AppendRuleToTagTable(PLDHashTable* aTable, nsIAtom* aKey,
 {
   // Get a new or exisiting entry
   RuleHashTagTableEntry *entry = static_cast<RuleHashTagTableEntry*>
-    (PL_DHashTableAdd(aTable, aKey));
+    (PL_DHashTableOperate(aTable, aKey, PL_DHASH_ADD));
   if (!entry)
     return;
 
@@ -725,7 +725,8 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
   // universal rules within the namespace
   if (kNameSpaceID_Unknown != nameSpace && mNameSpaceTable.ops) {
     RuleHashTableEntry *entry = static_cast<RuleHashTableEntry*>
-                                           (PL_DHashTableLookup(&mNameSpaceTable, NS_INT32_TO_PTR(nameSpace)));
+                                           (PL_DHashTableOperate(&mNameSpaceTable, NS_INT32_TO_PTR(nameSpace),
+                             PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       mEnumList[valueCount++] = ToEnumData(entry->mRules);
       RULE_HASH_STAT_INCREMENT_LIST_COUNT(entry->mRules, mElementNameSpaceCalls);
@@ -733,7 +734,7 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
   }
   if (mTagTable.ops) {
     RuleHashTableEntry *entry = static_cast<RuleHashTableEntry*>
-                                           (PL_DHashTableLookup(&mTagTable, tag));
+                                           (PL_DHashTableOperate(&mTagTable, tag, PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       mEnumList[valueCount++] = ToEnumData(entry->mRules);
       RULE_HASH_STAT_INCREMENT_LIST_COUNT(entry->mRules, mElementTagCalls);
@@ -741,7 +742,7 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
   }
   if (id && mIdTable.ops) {
     RuleHashTableEntry *entry = static_cast<RuleHashTableEntry*>
-                                           (PL_DHashTableLookup(&mIdTable, id));
+                                           (PL_DHashTableOperate(&mIdTable, id, PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       mEnumList[valueCount++] = ToEnumData(entry->mRules);
       RULE_HASH_STAT_INCREMENT_LIST_COUNT(entry->mRules, mElementIdCalls);
@@ -750,7 +751,8 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
   if (mClassTable.ops) {
     for (int32_t index = 0; index < classCount; ++index) {
       RuleHashTableEntry *entry = static_cast<RuleHashTableEntry*>
-                                             (PL_DHashTableLookup(&mClassTable, classList->AtomAt(index)));
+                                             (PL_DHashTableOperate(&mClassTable, classList->AtomAt(index),
+                             PL_DHASH_LOOKUP));
       if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
         mEnumList[valueCount++] = ToEnumData(entry->mRules);
         RULE_HASH_STAT_INCREMENT_LIST_COUNT(entry->mRules, mElementClassCalls);
@@ -1072,7 +1074,8 @@ RuleCascadeData::AttributeListFor(nsIAtom* aAttribute)
 {
   AtomSelectorEntry *entry =
     static_cast<AtomSelectorEntry*>
-               (PL_DHashTableAdd(&mAttributeSelectors, aAttribute));
+               (PL_DHashTableOperate(&mAttributeSelectors, aAttribute,
+                                     PL_DHASH_ADD));
   if (!entry)
     return nullptr;
   return &entry->mSelectors;
@@ -2613,7 +2616,8 @@ nsCSSRuleProcessor::RulesMatching(AnonBoxRuleProcessorData* aData)
 
   if (cascade && cascade->mAnonBoxRules.EntryCount()) {
     RuleHashTagTableEntry* entry = static_cast<RuleHashTagTableEntry*>
-      (PL_DHashTableLookup(&cascade->mAnonBoxRules, aData->mPseudoTag));
+      (PL_DHashTableOperate(&cascade->mAnonBoxRules, aData->mPseudoTag,
+                            PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       nsTArray<RuleValue>& rules = entry->mRules;
       for (RuleValue *value = rules.Elements(), *end = value + rules.Length();
@@ -2633,7 +2637,8 @@ nsCSSRuleProcessor::RulesMatching(XULTreeRuleProcessorData* aData)
 
   if (cascade && cascade->mXULTreeRules.EntryCount()) {
     RuleHashTagTableEntry* entry = static_cast<RuleHashTagTableEntry*>
-      (PL_DHashTableLookup(&cascade->mXULTreeRules, aData->mPseudoTag));
+      (PL_DHashTableOperate(&cascade->mXULTreeRules, aData->mPseudoTag,
+                            PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       NodeMatchContext nodeContext(EventStates(),
                                    nsCSSRuleProcessor::IsLink(aData->mElement));
@@ -2868,7 +2873,8 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
       if (id) {
         AtomSelectorEntry *entry =
           static_cast<AtomSelectorEntry*>
-                     (PL_DHashTableLookup(&cascade->mIdSelectors, id));
+                     (PL_DHashTableOperate(&cascade->mIdSelectors,
+                                           id, PL_DHASH_LOOKUP));
         if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
           EnumerateSelectors(entry->mSelectors, &data);
         }
@@ -2885,8 +2891,8 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
           nsIAtom* curClass = elementClasses->AtomAt(i);
           AtomSelectorEntry *entry =
             static_cast<AtomSelectorEntry*>
-                       (PL_DHashTableLookup(&cascade->mClassSelectors,
-                                            curClass));
+                       (PL_DHashTableOperate(&cascade->mClassSelectors,
+                                             curClass, PL_DHASH_LOOKUP));
           if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
             EnumerateSelectors(entry->mSelectors, &data);
           }
@@ -2898,8 +2904,8 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
 
     AtomSelectorEntry *entry =
       static_cast<AtomSelectorEntry*>
-                 (PL_DHashTableLookup(&cascade->mAttributeSelectors,
-                                      aData->mAttribute));
+                 (PL_DHashTableOperate(&cascade->mAttributeSelectors,
+                                       aData->mAttribute, PL_DHASH_LOOKUP));
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       EnumerateSelectors(entry->mSelectors, &data);
     }
@@ -3150,8 +3156,9 @@ AddSelector(RuleCascadeData* aCascade,
       for (nsAtomList* curID = negation->mIDList; curID;
            curID = curID->mNext) {
         AtomSelectorEntry *entry =
-          static_cast<AtomSelectorEntry*>(PL_DHashTableAdd(&aCascade->mIdSelectors,
-                                                           curID->mAtom));
+          static_cast<AtomSelectorEntry*>(PL_DHashTableOperate(&aCascade->mIdSelectors,
+                                                               curID->mAtom,
+                                                               PL_DHASH_ADD));
         if (entry) {
           entry->mSelectors.AppendElement(aSelectorInTopLevel);
         }
@@ -3165,8 +3172,9 @@ AddSelector(RuleCascadeData* aCascade,
       for (nsAtomList* curClass = negation->mClassList; curClass;
            curClass = curClass->mNext) {
         AtomSelectorEntry *entry =
-          static_cast<AtomSelectorEntry*>(PL_DHashTableAdd(&aCascade->mClassSelectors,
-                                                           curClass->mAtom));
+          static_cast<AtomSelectorEntry*>(PL_DHashTableOperate(&aCascade->mClassSelectors,
+                                                               curClass->mAtom,
+                                                               PL_DHASH_ADD));
         if (entry) {
           entry->mSelectors.AppendElement(aSelectorInTopLevel);
         }
@@ -3429,7 +3437,8 @@ CascadeRuleEnumFunc(css::Rule* aRule, void* aData)
          sel; sel = sel->mNext) {
       int32_t weight = sel->mWeight;
       RuleByWeightEntry *entry = static_cast<RuleByWeightEntry*>(
-        PL_DHashTableAdd(&data->mRulesByWeight, NS_INT32_TO_PTR(weight)));
+        PL_DHashTableOperate(&data->mRulesByWeight, NS_INT32_TO_PTR(weight),
+                             PL_DHASH_ADD));
       if (!entry)
         return false;
       entry->data.mWeight = weight;

@@ -30,6 +30,14 @@ public abstract class BaseTable implements Table {
         return new Table.ContentProviderInfo[0];
     }
 
+    // Table implementation
+    @Override
+    public abstract void onCreate(SQLiteDatabase db);
+
+    // Table implementation
+    @Override
+    public abstract void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion);
+
     // Returns the name of the table to modify/query
     protected abstract String getTable();
 

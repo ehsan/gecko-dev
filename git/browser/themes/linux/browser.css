@@ -125,10 +125,6 @@ toolbarbutton.bookmark-item:not(.subviewbutton),
   padding: 2px 3px;
 }
 
-toolbarbutton.bookmark-item:not(.subviewbutton):not(:hover):not(:active):not([open]) {
-  color: inherit;
-}
-
 toolbarbutton.bookmark-item:not(.subviewbutton):hover:active,
 toolbarbutton.bookmark-item[open="true"] {
   padding-top: 3px;
@@ -558,7 +554,6 @@ menuitem:not([type]):not(.menuitem-tooltip):not(.menuitem-iconic-tooltip) {
 }
 
 /* Primary toolbar buttons */
-.findbar-button,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1 > .toolbarbutton-menubutton-button,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1 {
   -moz-appearance: none;
@@ -569,7 +564,6 @@ menuitem:not([type]):not(.menuitem-tooltip):not(.menuitem-iconic-tooltip) {
   padding: 3px;
 }
 
-.findbar-button > .toolbarbutton-text,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1 > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1 > .toolbarbutton-badge-container > .toolbarbutton-icon,
@@ -608,7 +602,6 @@ toolbarbutton[sdk-button="true"][cui-areatype="toolbar"] > .toolbarbutton-icon {
   -moz-padding-end: 5px;
 }
 
-.findbar-button:not(:-moz-any([checked="true"],[disabled="true"])):hover > .toolbarbutton-text,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1[open]:not([disabled=true]) > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1:not([disabled=true]):not([open]):hover > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1:not([disabled=true]):not([open]):hover > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon,
@@ -627,7 +620,6 @@ toolbarbutton[sdk-button="true"][cui-areatype="toolbar"] > .toolbarbutton-icon {
   margin-bottom: 4px;
 }
 
-.findbar-button:not([disabled=true]):-moz-any([checked="true"],:hover:active) > .toolbarbutton-text,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled=true]):-moz-any(:hover:active, [open="true"]) > .toolbarbutton-icon,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1[open="true"] > .toolbarbutton-menubutton-dropmarker:not([disabled=true]) > .dropmarker-icon,
 :-moz-any(#TabsToolbar, #nav-bar) .toolbarbutton-1:not([disabled=true]):-moz-any([open],[checked],:hover:active) > .toolbarbutton-badge-container > .toolbarbutton-icon,
@@ -1617,47 +1609,46 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 /* social share panel */
 
 .social-share-frame {
-  border-top: 1px solid #f8f8f8;
-  width: 756px;
+  background: linear-gradient(to bottom, rgba(242,242,242,.99), rgba(242,242,242,.95));
+  border-left: 1px solid #f8f8f8;
+  width: 330px;
   height: 150px;
-}
-
-#share-container {
-  min-width: 756px;
-  background-color: white;
-  background-repeat: no-repeat;
-  background-position: center center;
-}
-#share-container[loading] {
-  background-image: url(chrome://browser/skin/tabbrowser/pendingpaint.png);
-}
-#share-container > browser {
-  transition: opacity 150ms ease-in-out;
-  opacity: 1;
-}
-#share-container[loading] > browser {
-  opacity: 0;
+  /* we resize our panels dynamically, make it look nice */
+  transition: height 100ms ease-out, width 100ms ease-out;
 }
 
 .social-share-toolbar {
-  border-bottom: 1px solid #dedede;
-  padding: 2px;
+  border-right: 1px solid #dedede;
+  background: linear-gradient(to bottom, rgba(247,247,247,.99), rgba(247,247,247,.95));
 }
 
 #social-share-provider-buttons {
-  padding: 0;
+  border-right: 1px solid #fbfbfb;
+  padding: 6px;
+}
+
+#social-share-provider-buttons > .share-provider-button {
+  padding: 6px;
   margin: 0;
+  border: none;
+  border-radius: 2px;
 }
 
-.share-provider-button {
+#social-share-provider-buttons > .share-provider-button[checked],
+#social-share-provider-buttons > .share-provider-button:active {
   padding: 5px;
-  margin: 2px;
+  border: 1px solid #b5b5b8;
+  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.share-provider-button > .toolbarbutton-text {
+#social-share-provider-buttons > .share-provider-button[checked] {
+  background: linear-gradient(to bottom, #d9d9d9, #e3e3e3);
+}
+
+#social-share-provider-buttons > .share-provider-button > .toolbarbutton-text {
   display: none;
 }
-.share-provider-button > .toolbarbutton-icon {
+#social-share-provider-buttons > .share-provider-button > .toolbarbutton-icon {
   width: 16px;
   min-height: 16px;
   max-height: 16px;
@@ -2171,17 +2162,6 @@ toolbarbutton.chevron > .toolbarbutton-icon {
 chatbox {
   border-top-left-radius: 2.5px;
   border-top-right-radius: 2.5px;
-}
-
-/* EME notifications */
-
-.popup-notification-icon[popupid="drmContentPlaying"],
-#eme-notification-icon {
-  list-style-image: url("chrome://browser/skin/drm-icon.svg#chains");
-}
-
-#eme-notification-icon:hover:active {
-  list-style-image: url("chrome://browser/skin/drm-icon.svg#chains-pressed");
 }
 
 /* Customization mode */

@@ -42,25 +42,25 @@ namespace mozilla {
   }                                                                           \
   /* From DOMSVGPathSeg: */                                                   \
   virtual uint32_t                                                            \
-  Type() const MOZ_OVERRIDE                                                   \
+  Type() const                                                                \
   {                                                                           \
     return segType;                                                           \
   }                                                                           \
   virtual DOMSVGPathSeg*                                                      \
-  Clone() MOZ_OVERRIDE                                                        \
+  Clone()                                                                     \
   {                                                                           \
     /* InternalItem() + 1, because we're skipping the encoded seg type */     \
     float *args = IsInList() ? InternalItem() + 1 : mArgs;                    \
     return new DOMSVGPathSeg##segName(args);                                  \
   }                                                                           \
   virtual float*                                                              \
-  PtrToMemberArgs() MOZ_OVERRIDE                                              \
+  PtrToMemberArgs()                                                           \
   {                                                                           \
     return mArgs;                                                             \
   }                                                                           \
                                                                               \
   virtual JSObject*                                                           \
-  WrapObject(JSContext* aCx) MOZ_OVERRIDE                                     \
+  WrapObject(JSContext* aCx) MOZ_OVERRIDE       \
   {                                                                           \
     return dom::SVGPathSeg##segName##Binding::Wrap(aCx, this);        \
   }

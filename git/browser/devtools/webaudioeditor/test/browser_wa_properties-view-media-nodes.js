@@ -34,7 +34,7 @@ function waitForDeviceClosed() {
   return deferred.promise;
 }
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(MEDIA_NODES_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS, InspectorView } = panelWin;
@@ -66,7 +66,9 @@ add_task(function*() {
   // Reset permissions on getUserMedia
   Services.prefs.setBoolPref(MEDIA_PERMISSION, mediaPermissionPref);
 
-  yield teardown(target);
+  yield teardown(panel);
 
   yield waitForDeviceClosed();
-});
+
+  finish();
+}

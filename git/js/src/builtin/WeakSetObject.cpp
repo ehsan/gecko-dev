@@ -12,11 +12,9 @@
 
 #include "builtin/SelfHostingDefines.h"
 #include "vm/GlobalObject.h"
-#include "vm/SelfHosting.h"
 
 #include "jsobjinlines.h"
 
-#include "vm/Interpreter-inl.h"
 #include "vm/NativeObject-inl.h"
 
 using namespace js;
@@ -24,7 +22,14 @@ using namespace js;
 const Class WeakSetObject::class_ = {
     "WeakSet",
     JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_HAS_CACHED_PROTO(JSProto_WeakSet) |
-    JSCLASS_HAS_RESERVED_SLOTS(WeakSetObject::RESERVED_SLOTS)
+    JSCLASS_HAS_RESERVED_SLOTS(WeakSetObject::RESERVED_SLOTS),
+    JS_PropertyStub,         // addProperty
+    JS_DeletePropertyStub,   // delProperty
+    JS_PropertyStub,         // getProperty
+    JS_StrictPropertyStub,   // setProperty
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub
 };
 
 const JSPropertySpec WeakSetObject::properties[] = {
@@ -44,7 +49,7 @@ WeakSetObject::initClass(JSContext *cx, JSObject *obj)
 {
     Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
     // Todo: WeakSet.prototype should not be a WeakSet!
-    Rooted<WeakSetObject*> proto(cx, global->createBlankPrototype<WeakSetObject>(cx));
+    RootedNativeObject proto(cx, global->createBlankPrototype(cx, &class_));
     if (!proto)
         return nullptr;
     proto->setReservedSlot(WEAKSET_MAP_SLOT, UndefinedValue());
@@ -63,7 +68,7 @@ WeakSetObject::initClass(JSContext *cx, JSObject *obj)
 WeakSetObject*
 WeakSetObject::create(JSContext *cx)
 {
-    Rooted<WeakSetObject *> obj(cx, NewBuiltinClassInstance<WeakSetObject>(cx));
+    RootedNativeObject obj(cx, NewNativeBuiltinClassInstance(cx, &class_));
     if (!obj)
         return nullptr;
 
@@ -72,7 +77,7 @@ WeakSetObject::create(JSContext *cx)
         return nullptr;
 
     obj->setReservedSlot(WEAKSET_MAP_SLOT, ObjectValue(*map));
-    return obj;
+    return &obj->as<WeakSetObject>();
 }
 
 bool
@@ -90,22 +95,8 @@ WeakSetObject::construct(JSContext *cx, unsigned argc, Value *vp)
         return false;
     }
 
-    if (!args.get(0).isNullOrUndefined()) {
+    if (args.hasDefined(0)) {
         RootedObject map(cx, &obj->getReservedSlot(WEAKSET_MAP_SLOT).toObject());
-
-        RootedValue adderVal(cx);
-        if (!JSObject::getProperty(cx, obj, obj, cx->names().add, &adderVal))
-            return false;
-
-        if (!IsCallable(adderVal))
-            return ReportIsNotFunction(cx, adderVal);
-
-        JSFunction *adder;
-        bool isOriginalAdder = IsFunctionObject(adderVal, &adder) &&
-                               IsSelfHostedFunctionWithName(adder, cx->names().WeakSet_add);
-        RootedValue setVal(cx, ObjectValue(*obj));
-        FastInvokeGuard fig(cx, adderVal);
-        InvokeArgs &args2 = fig.args();
 
         JS::ForOfIterator iter(cx);
         if (!iter.init(args[0]))
@@ -121,26 +112,14 @@ WeakSetObject::construct(JSContext *cx, unsigned argc, Value *vp)
             if (done)
                 break;
 
-            if (isOriginalAdder) {
-                if (keyVal.isPrimitive()) {
-                    JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT);
-                    return false;
-                }
-
-                keyObject = &keyVal.toObject();
-                if (!SetWeakMapEntry(cx, map, keyObject, placeholder))
-                    return false;
-            } else {
-                if (!args2.init(1))
-                    return false;
-
-                args2.setCallee(adderVal);
-                args2.setThis(setVal);
-                args2[0].set(keyVal);
-
-                if (!fig.invoke(cx))
-                    return false;
+            if (keyVal.isPrimitive()) {
+                JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_NONNULL_OBJECT);
+                return false;
             }
+
+            keyObject = &keyVal.toObject();
+            if (!SetWeakMapEntry(cx, map, keyObject, placeholder))
+                return false;
         }
     }
 

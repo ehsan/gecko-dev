@@ -2531,7 +2531,7 @@ class ElementsAreArrayMatcher {
   operator Matcher<Container>() const {
     typedef GTEST_REMOVE_REFERENCE_AND_CONST_(Container) RawContainer;
     typedef typename internal::StlContainerView<RawContainer>::type::value_type
-        Element GTEST_ATTRIBUTE_UNUSED_;
+        Element;
 
     return MakeMatcher(new ElementsAreMatcherImpl<Container>(first_, count_));
   }

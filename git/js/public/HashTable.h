@@ -13,6 +13,7 @@
 #include "mozilla/Casting.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Move.h"
+#include "mozilla/NullPtr.h"
 #include "mozilla/PodOperations.h"
 #include "mozilla/ReentrancyGuard.h"
 #include "mozilla/TemplateLib.h"
@@ -271,8 +272,8 @@ class HashMap
 
   private:
     // HashMap is not copyable or assignable
-    HashMap(const HashMap &hm) = delete;
-    HashMap &operator=(const HashMap &hm) = delete;
+    HashMap(const HashMap &hm) MOZ_DELETE;
+    HashMap &operator=(const HashMap &hm) MOZ_DELETE;
 
     friend class Impl::Enum;
 };
@@ -499,8 +500,8 @@ class HashSet
 
   private:
     // HashSet is not copyable or assignable
-    HashSet(const HashSet &hs) = delete;
-    HashSet &operator=(const HashSet &hs) = delete;
+    HashSet(const HashSet &hs) MOZ_DELETE;
+    HashSet &operator=(const HashSet &hs) MOZ_DELETE;
 
     friend class Impl::Enum;
 };
@@ -658,8 +659,8 @@ class HashMapEntry
     Value & value() { return value_; }
 
   private:
-    HashMapEntry(const HashMapEntry &) = delete;
-    void operator=(const HashMapEntry &) = delete;
+    HashMapEntry(const HashMapEntry &) MOZ_DELETE;
+    void operator=(const HashMapEntry &) MOZ_DELETE;
 };
 
 } // namespace js
@@ -701,9 +702,9 @@ class HashTableEntry
         return hash > sRemovedKey;
     }
 
-    HashTableEntry(const HashTableEntry &) = delete;
-    void operator=(const HashTableEntry &) = delete;
-    ~HashTableEntry() = delete;
+    HashTableEntry(const HashTableEntry &) MOZ_DELETE;
+    void operator=(const HashTableEntry &) MOZ_DELETE;
+    ~HashTableEntry() MOZ_DELETE;
 
   public:
     // NB: HashTableEntry is treated as a POD: no constructor or destructor calls.
@@ -942,8 +943,8 @@ class HashTable : private AllocPolicy
         bool removed;
 
         /* Not copyable. */
-        Enum(const Enum &) = delete;
-        void operator=(const Enum &) = delete;
+        Enum(const Enum &) MOZ_DELETE;
+        void operator=(const Enum &) MOZ_DELETE;
 
       public:
         template<class Map> explicit
@@ -1012,8 +1013,8 @@ class HashTable : private AllocPolicy
 
   private:
     // HashTable is not copyable or assignable
-    HashTable(const HashTable &) = delete;
-    void operator=(const HashTable &) = delete;
+    HashTable(const HashTable &) MOZ_DELETE;
+    void operator=(const HashTable &) MOZ_DELETE;
 
   private:
     static const size_t CAP_BITS = 24;

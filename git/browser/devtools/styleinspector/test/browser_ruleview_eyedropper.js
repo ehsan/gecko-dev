@@ -4,19 +4,6 @@
 
 "use strict";
 
-// So we can test collecting telemetry on the eyedropper
-let oldCanRecord = Services.telemetry.canRecord;
-Services.telemetry.canRecord = true;
-registerCleanupFunction(function () {
-  Services.telemetry.canRecord = oldCanRecord;
-});
-const HISTOGRAM_ID = "DEVTOOLS_PICKER_EYEDROPPER_OPENED_BOOLEAN";
-const FLAG_HISTOGRAM_ID = "DEVTOOLS_PICKER_EYEDROPPER_OPENED_PER_USER_FLAG";
-const EXPECTED_TELEMETRY = {
-  "DEVTOOLS_PICKER_EYEDROPPER_OPENED_BOOLEAN": 2,
-  "DEVTOOLS_PICKER_EYEDROPPER_OPENED_PER_USER_FLAG": 1
-}
-
 const PAGE_CONTENT = [
   '<style type="text/css">',
   '  body {',
@@ -46,10 +33,7 @@ const EXPECTED_COLOR = "rgb(255, 255, 85)"; // #ff5
 // Test opening the eyedropper from the color picker. Pressing escape
 // to close it, and clicking the page to select a color.
 
-add_task(function*() {
-  // clear telemetry so we can get accurate counts
-  clearTelemetry();
-
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,rule view eyedropper test");
   content.document.body.innerHTML = PAGE_CONTENT;
 
@@ -73,8 +57,6 @@ add_task(function*() {
   ok(dropper, "dropper opened");
 
   yield testSelect(swatch, dropper);
-
-  checkTelemetry();
 });
 
 function testESC(swatch, dropper) {
@@ -115,23 +97,6 @@ function testSelect(swatch, dropper) {
   return deferred.promise;
 }
 
-function clearTelemetry() {
-  for (let histogramId in EXPECTED_TELEMETRY) {
-    let histogram = Services.telemetry.getHistogramById(histogramId);
-    histogram.clear();
-  }
-}
-
-function checkTelemetry() {
-  for (let histogramId in EXPECTED_TELEMETRY) {
-    let expected = EXPECTED_TELEMETRY[histogramId];
-    let histogram = Services.telemetry.getHistogramById(histogramId);
-    let snapshot = histogram.snapshot();
-
-    is (snapshot.counts[1], expected,
-        "eyedropper telemetry value correct for " + histogramId);
-  }
-}
 
 /* Helpers */
 
@@ -159,7 +124,7 @@ function inspectPage(dropper, click=true) {
   let win = window;
 
   // get location of the content, offset from browser window
-  let box = gBrowser.selectedBrowser.getBoundingClientRect();
+  let box = gBrowser.selectedTab.linkedBrowser.getBoundingClientRect();
   let x = box.left + 1;
   let y = box.top + 1;
 

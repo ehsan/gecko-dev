@@ -58,16 +58,23 @@ TelephonyChild::RecvNotifyCallError(const uint32_t& aClientId,
 }
 
 bool
-TelephonyChild::RecvNotifyCallStateChanged(nsITelephonyCallInfo* const& aInfo)
+TelephonyChild::RecvNotifyCallStateChanged(const uint32_t& aClientId,
+                                           const IPCCallStateData& aData)
 {
-  // Use dont_AddRef here because this instances has already been AddRef-ed in
-  // TelephonyIPCSerializer.h
-  nsCOMPtr<nsITelephonyCallInfo> info = dont_AddRef(aInfo);
-
   MOZ_ASSERT(mService);
 
-  mService->CallStateChanged(aInfo);
-
+  mService->CallStateChanged(aClientId,
+                              aData.callIndex(),
+                              aData.callState(),
+                              aData.number(),
+                              aData.numberPresentation(),
+                              aData.name(),
+                              aData.namePresentation(),
+                              aData.isOutGoing(),
+                              aData.isEmergency(),
+                              aData.isConference(),
+                              aData.isSwitchable(),
+                              aData.isMergeable());
   return true;
 }
 
@@ -158,16 +165,23 @@ TelephonyRequestChild::Recv__delete__(const IPCTelephonyResponse& aResponse)
 }
 
 bool
-TelephonyRequestChild::RecvNotifyEnumerateCallState(nsITelephonyCallInfo* const& aInfo)
+TelephonyRequestChild::RecvNotifyEnumerateCallState(const uint32_t& aClientId,
+                                                    const IPCCallStateData& aData)
 {
-  // Use dont_AddRef here because this instances has already been AddRef-ed in
-  // TelephonyIPCSerializer.h
-  nsCOMPtr<nsITelephonyCallInfo> info = dont_AddRef(aInfo);
-
   MOZ_ASSERT(mListener);
 
-  mListener->EnumerateCallState(aInfo);
-
+  mListener->EnumerateCallState(aClientId,
+                                aData.callIndex(),
+                                aData.callState(),
+                                aData.number(),
+                                aData.numberPresentation(),
+                                aData.name(),
+                                aData.namePresentation(),
+                                aData.isOutGoing(),
+                                aData.isEmergency(),
+                                aData.isConference(),
+                                aData.isSwitchable(),
+                                aData.isMergeable());
   return true;
 }
 
@@ -201,8 +215,7 @@ TelephonyRequestChild::DoResponse(const DialResponseCallSuccess& aResponse)
 {
   MOZ_ASSERT(mCallback);
   nsCOMPtr<nsITelephonyDialCallback> callback = do_QueryInterface(mCallback);
-  callback->NotifyDialCallSuccess(aResponse.clientId(), aResponse.callIndex(),
-                                  aResponse.number());
+  callback->NotifyDialCallSuccess(aResponse.callIndex(), aResponse.number());
   return true;
 }
 

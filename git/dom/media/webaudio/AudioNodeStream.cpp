@@ -109,6 +109,7 @@ AudioNodeStream::SetStreamTimeParameter(uint32_t aIndex, AudioContext* aContext,
     uint32_t mIndex;
   };
 
+  MOZ_ASSERT(this);
   GraphImpl()->AppendMessage(new Message(this, aIndex,
       aContext->DestinationStream(),
       aContext->DOMTimeToStreamTime(aStreamTime)));
@@ -138,6 +139,7 @@ AudioNodeStream::SetDoubleParameter(uint32_t aIndex, double aValue)
     uint32_t mIndex;
   };
 
+  MOZ_ASSERT(this);
   GraphImpl()->AppendMessage(new Message(this, aIndex, aValue));
 }
 
@@ -157,6 +159,7 @@ AudioNodeStream::SetInt32Parameter(uint32_t aIndex, int32_t aValue)
     uint32_t mIndex;
   };
 
+  MOZ_ASSERT(this);
   GraphImpl()->AppendMessage(new Message(this, aIndex, aValue));
 }
 
@@ -200,6 +203,7 @@ AudioNodeStream::SetThreeDPointParameter(uint32_t aIndex, const ThreeDPoint& aVa
     uint32_t mIndex;
   };
 
+  MOZ_ASSERT(this);
   GraphImpl()->AppendMessage(new Message(this, aIndex, aValue));
 }
 
@@ -219,6 +223,7 @@ AudioNodeStream::SetBuffer(already_AddRefed<ThreadSharedFloatArrayBufferList>&& 
     nsRefPtr<ThreadSharedFloatArrayBufferList> mBuffer;
   };
 
+  MOZ_ASSERT(this);
   GraphImpl()->AppendMessage(new Message(this, aBuffer));
 }
 
@@ -240,6 +245,7 @@ AudioNodeStream::SetRawArrayData(nsTArray<float>& aData)
     nsTArray<float> mData;
   };
 
+  MOZ_ASSERT(this);
   GraphImpl()->AppendMessage(new Message(this, aData));
 }
 
@@ -270,6 +276,7 @@ AudioNodeStream::SetChannelMixingParameters(uint32_t aNumberOfChannels,
     ChannelInterpretation mChannelInterpretation;
   };
 
+  MOZ_ASSERT(this);
   GraphImpl()->AppendMessage(new Message(this, aNumberOfChannels,
                                          aChannelCountMode,
                                          aChannelInterpretation));
@@ -289,6 +296,7 @@ AudioNodeStream::SetPassThrough(bool aPassThrough)
     bool mPassThrough;
   };
 
+  MOZ_ASSERT(this);
   GraphImpl()->AppendMessage(new Message(this, aPassThrough));
 }
 

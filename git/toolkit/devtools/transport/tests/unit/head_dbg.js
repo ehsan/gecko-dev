@@ -12,7 +12,6 @@ const { devtools } =
   Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
 const { Promise: promise } =
   Cu.import("resource://gre/modules/Promise.jsm", {});
-const { Task } = Cu.import("resource://gre/modules/Task.jsm", {});
 
 const Services = devtools.require("Services");
 const DevToolsUtils = devtools.require("devtools/toolkit/DevToolsUtils.js");
@@ -197,7 +196,7 @@ function initTestDebuggerServer() {
   });
   DebuggerServer.registerModule("xpcshell-test/testactors");
   // Allow incoming connections.
-  DebuggerServer.init();
+  DebuggerServer.init(function () { return true; });
 }
 
 function finishClient(aClient) {
@@ -259,20 +258,17 @@ function writeTestTempFile(aFileName, aContent) {
 
 /*** Transport Factories ***/
 
-let socket_transport = Task.async(function*() {
+function socket_transport() {
   if (!DebuggerServer.listeningSockets) {
-    let listener = DebuggerServer.createListener();
-    listener.portOrPath = -1 /* any available port */;
-    listener.allowConnection = () => true;
-    yield listener.open();
+    DebuggerServer.openListener(-1);
   }
   let port = DebuggerServer._listeners[0].port;
   do_print("Debugger server port is " + port);
-  return DebuggerClient.socketConnect({ host: "127.0.0.1", port });
-});
+  return debuggerSocketConnect("127.0.0.1", port);
+}
 
 function local_transport() {
-  return promise.resolve(DebuggerServer.connectPipe());
+  return DebuggerServer.connectPipe();
 }
 
 /*** Sample Data ***/

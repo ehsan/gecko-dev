@@ -187,8 +187,7 @@ protected:
 class CairoTextureClientD3D9 : public TextureClient
 {
 public:
-  CairoTextureClientD3D9(ISurfaceAllocator* aAllocator, gfx::SurfaceFormat aFormat,
-                         TextureFlags aFlags);
+  CairoTextureClientD3D9(gfx::SurfaceFormat aFormat, TextureFlags aFlags);
 
   virtual ~CairoTextureClientD3D9();
 
@@ -242,9 +241,7 @@ private:
 class SharedTextureClientD3D9 : public TextureClient
 {
 public:
-  SharedTextureClientD3D9(ISurfaceAllocator* aAllocator,
-                          gfx::SurfaceFormat aFormat,
-                          TextureFlags aFlags);
+  SharedTextureClientD3D9(gfx::SurfaceFormat aFormat, TextureFlags aFlags);
 
   virtual ~SharedTextureClientD3D9();
 
@@ -266,9 +263,6 @@ public:
     mTexture = aTexture;
     mHandle = aSharedHandle;
     mDesc = aDesc;
-    if (mTexture) {
-      gfxWindowsPlatform::sD3D9SharedTextureUsed += mDesc.Width * mDesc.Height * 4;
-    }
   }
 
   virtual gfx::IntSize GetSize() const

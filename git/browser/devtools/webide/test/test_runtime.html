@@ -43,7 +43,7 @@
           Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
 
           if (!DebuggerServer.initialized) {
-            DebuggerServer.init();
+            DebuggerServer.init(function () { return true; });
             DebuggerServer.addBrowserActors();
           }
 
@@ -84,7 +84,7 @@
 
           is(Object.keys(DebuggerServer._connections).length, 1, "Connected");
 
-          yield waitForUpdate(win, "runtime-apps-found");
+          yield waitForUpdate(win, "list-tabs-response");
 
           ok(isPlayActive(), "play button is enabled 1");
           ok(!isStopActive(), "stop button is disabled 1");
@@ -114,7 +114,7 @@
 
           win.document.querySelectorAll(".runtime-panel-item-other")[1].click();
 
-          yield waitForUpdate(win, "runtime-apps-found");
+          yield waitForUpdate(win, "list-tabs-response");
 
           is(Object.keys(DebuggerServer._connections).length, 1, "Locally connected");
 

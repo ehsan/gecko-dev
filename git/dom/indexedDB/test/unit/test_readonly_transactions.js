@@ -3,6 +3,13 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
+if (!this.window) {
+  this.runTest = function() {
+    todo(false, "Test disabled in xpcshell test suite for now");
+    finishTest();
+  }
+}
+
 var testGenerator = testSteps();
 
 function testSteps()

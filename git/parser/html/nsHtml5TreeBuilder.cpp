@@ -3212,11 +3212,15 @@ nsHtml5TreeBuilder::documentModeInternal(nsHtml5DocumentMode m, nsString* public
 {
   if (isSrcdocDocument) {
     quirks = false;
-    this->documentMode(STANDARDS_MODE);
+    if (this) {
+      this->documentMode(STANDARDS_MODE);
+    }
     return;
   }
   quirks = (m == QUIRKS_MODE);
-  this->documentMode(m);
+  if (this) {
+    this->documentMode(m);
+  }
 }
 
 bool 

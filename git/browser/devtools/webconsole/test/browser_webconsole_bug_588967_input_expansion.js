@@ -5,16 +5,13 @@
 
 const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
 
-"use strict";
-
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
-
-  let hud = yield openConsole();
-
-  testInputExpansion(hud);
-});
-
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testInputExpansion);
+  }, true);
+}
 
 function testInputExpansion(hud) {
   let input = hud.jsterm.inputNode;
@@ -41,5 +38,7 @@ function testInputExpansion(hud) {
   is(input.clientHeight, ordinaryHeight, "the input's height is normal again");
 
   input = length = null;
+
+  finishTest();
 }
 

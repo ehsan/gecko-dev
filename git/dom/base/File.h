@@ -431,7 +431,7 @@ public:
     return mIsFile && mLastModificationDate == UINT64_MAX;
   }
 
-  virtual bool IsFile() const MOZ_OVERRIDE
+  virtual bool IsFile() const
   {
     return mIsFile;
   }
@@ -452,7 +452,7 @@ public:
     return false;
   }
 
-  virtual bool IsSizeUnknown() const MOZ_OVERRIDE
+  virtual bool IsSizeUnknown() const
   {
     return mLength == UINT64_MAX;
   }

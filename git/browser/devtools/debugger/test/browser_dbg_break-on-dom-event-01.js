@@ -11,7 +11,7 @@ let gClient, gThreadClient, gInput, gButton;
 
 function test() {
   if (!DebuggerServer.initialized) {
-    DebuggerServer.init();
+    DebuggerServer.init(() => true);
     DebuggerServer.addBrowserActors();
   }
 
@@ -222,6 +222,7 @@ function triggerInputChange() {
 }
 
 registerCleanupFunction(function() {
+  removeTab(gBrowser.selectedTab);
   gClient = null;
   gThreadClient = null;
   gInput = null;

@@ -357,7 +357,7 @@ class NodeBuilder
     }
 
     bool newObject(MutableHandleObject dst) {
-        RootedPlainObject nobj(cx, NewBuiltinClassInstance<PlainObject>(cx));
+        RootedObject nobj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
         if (!nobj)
             return false;
 
@@ -704,7 +704,7 @@ NodeBuilder::newNode(ASTType type, TokenPos *pos, MutableHandleObject dst)
     MOZ_ASSERT(type > AST_ERROR && type < AST_LIMIT);
 
     RootedValue tv(cx);
-    RootedPlainObject node(cx, NewBuiltinClassInstance<PlainObject>(cx));
+    RootedObject node(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
     if (!node ||
         !setNodeLoc(node, pos) ||
         !atomValue(nodeTypeNames[type], &tv) ||
@@ -2112,7 +2112,7 @@ ASTSerializer::importDeclaration(ParseNode *pn, MutableHandleValue dst)
     MOZ_ASSERT(pn->pn_right->isKind(PNK_STRING));
 
     NodeVector elts(cx);
-    if (!elts.reserve(pn->pn_left->pn_count))
+    if (!elts.reserve(pn->pn_count))
         return false;
 
     for (ParseNode *next = pn->pn_left->pn_head; next; next = next->pn_next) {
@@ -2151,7 +2151,7 @@ ASTSerializer::exportDeclaration(ParseNode *pn, MutableHandleValue dst)
     ParseNode *kid = pn->isKind(PNK_EXPORT) ? pn->pn_kid : pn->pn_left;
     switch (ParseNodeKind kind = kid->getKind()) {
       case PNK_EXPORT_SPEC_LIST:
-        if (!elts.reserve(pn->pn_left->pn_count))
+        if (!elts.reserve(pn->pn_count))
             return false;
 
         for (ParseNode *next = pn->pn_left->pn_head; next; next = next->pn_next) {
@@ -2522,23 +2522,16 @@ ASTSerializer::statement(ParseNode *pn, MutableHandleValue dst)
       }
 
       case PNK_THROW:
+      case PNK_RETURN:
       {
         MOZ_ASSERT_IF(pn->pn_kid, pn->pn_pos.encloses(pn->pn_kid->pn_pos));
 
         RootedValue arg(cx);
 
         return optExpression(pn->pn_kid, &arg) &&
-               builder.throwStatement(arg, &pn->pn_pos, dst);
-      }
-
-      case PNK_RETURN:
-      {
-        MOZ_ASSERT_IF(pn->pn_left, pn->pn_pos.encloses(pn->pn_left->pn_pos));
-
-        RootedValue arg(cx);
-
-        return optExpression(pn->pn_left, &arg) &&
-               builder.returnStatement(arg, &pn->pn_pos, dst);
+               (pn->isKind(PNK_THROW)
+                ? builder.throwStatement(arg, &pn->pn_pos, dst)
+                : builder.returnStatement(arg, &pn->pn_pos, dst));
       }
 
       case PNK_DEBUGGER:
@@ -3302,7 +3295,7 @@ ASTSerializer::functionArgsAndBody(ParseNode *pn, NodeVector &args, NodeVector &
     switch (pnbody->getKind()) {
       case PNK_RETURN: /* expression closure, no destructured args */
         return functionArgs(pn, pnargs, nullptr, pnbody, args, defaults, rest) &&
-               expression(pnbody->pn_left, body);
+               expression(pnbody->pn_kid, body);
 
       case PNK_SEQ:    /* expression closure with destructured args */
       {
@@ -3310,7 +3303,7 @@ ASTSerializer::functionArgsAndBody(ParseNode *pn, NodeVector &args, NodeVector &
         LOCAL_ASSERT(pnstart && pnstart->isKind(PNK_RETURN));
 
         return functionArgs(pn, pnargs, pndestruct, pnbody, args, defaults, rest) &&
-               expression(pnstart->pn_left, body);
+               expression(pnstart->pn_kid, body);
       }
 
       case PNK_STATEMENTLIST:     /* statement closure */
@@ -3544,8 +3537,8 @@ JS_InitReflect(JSContext *cx, HandleObject obj)
     RootedObject proto(cx, obj->as<GlobalObject>().getOrCreateObjectPrototype(cx));
     if (!proto)
         return nullptr;
-    RootedPlainObject Reflect(cx, NewObjectWithGivenProto<PlainObject>(cx, proto, obj,
-                                                                       SingletonObject));
+    RootedObject Reflect(cx, NewObjectWithGivenProto(cx, &JSObject::class_, proto,
+                                                     obj, SingletonObject));
     if (!Reflect)
         return nullptr;
 

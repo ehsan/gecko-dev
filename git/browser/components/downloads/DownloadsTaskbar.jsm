@@ -82,7 +82,8 @@ this.DownloadsTaskbar = {
    *        nsIDOMWindow object of the newly opened browser window to which the
    *        indicator may be attached.
    */
-  registerIndicator(aBrowserWindow) {
+  registerIndicator: function (aBrowserWindow)
+  {
     if (!this._taskbarProgress) {
       if (gMacTaskbarProgress) {
         // On Mac OS X, we have to register the global indicator only once.
@@ -119,7 +120,8 @@ this.DownloadsTaskbar = {
   /**
    * On Windows, attaches the taskbar indicator to the specified browser window.
    */
-  _attachIndicator(aWindow) {
+  _attachIndicator: function (aWindow)
+  {
     // Activate the indicator on the specified window.
     let docShell = aWindow.QueryInterface(Ci.nsIInterfaceRequestor)
                           .getInterface(Ci.nsIWebNavigation)
@@ -153,7 +155,8 @@ this.DownloadsTaskbar = {
   //////////////////////////////////////////////////////////////////////////////
   //// DownloadSummary view
 
-  onSummaryChanged() {
+  onSummaryChanged: function ()
+  {
     // If the last browser window has been closed, we have no indicator any more.
     if (!this._taskbarProgress) {
       return;

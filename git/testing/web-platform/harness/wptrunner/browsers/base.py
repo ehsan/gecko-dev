@@ -86,6 +86,11 @@ class Browser(object):
         pass
 
     @abstractmethod
+    def on_output(self, line):
+        """Callback function used with ProcessHandler to handle output from the browser process."""
+        pass
+
+    @abstractmethod
     def pid(self):
         """pid of the browser process or None if there is no pid"""
         pass
@@ -94,10 +99,6 @@ class Browser(object):
     def is_alive(self):
         """Boolean indicating whether the browser process is still running"""
         pass
-
-    def setup_ssl(self, hosts):
-        """Return a certificate to use for tests requiring ssl that will be trusted by the browser"""
-        raise NotImplementedError("ssl testing not supported")
 
     def cleanup(self):
         """Browser-specific cleanup that is run after the testrun is finished"""

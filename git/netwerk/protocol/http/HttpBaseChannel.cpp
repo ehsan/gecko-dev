@@ -47,7 +47,6 @@ HttpBaseChannel::HttpBaseChannel()
   , mStatus(NS_OK)
   , mLoadFlags(LOAD_NORMAL)
   , mCaps(0)
-  , mClassOfService(0)
   , mPriority(PRIORITY_NORMAL)
   , mRedirectionLimit(gHttpHandler->RedirectionLimit())
   , mApplyConversion(true)
@@ -67,6 +66,8 @@ HttpBaseChannel::HttpBaseChannel()
   , mTracingEnabled(true)
   , mTimingEnabled(false)
   , mAllowSpdy(true)
+  , mLoadAsBlocking(false)
+  , mLoadUnblocked(false)
   , mResponseTimeoutEnabled(true)
   , mAllRedirectsSameOrigin(true)
   , mAllRedirectsPassTimingAllowCheck(true)
@@ -1039,9 +1040,8 @@ HttpBaseChannel::SetReferrerWithPolicy(nsIURI *referrer,
     if (NS_FAILED(rv)) return rv;
 
     // It's ok to send referrer for https-to-http scenarios if the referrer
-    // policy is "unsafe-url", "origin", or "origin-when-crossorigin".
+    // policy is "unsafe-url" or "origin".
     if (referrerPolicy != REFERRER_POLICY_UNSAFE_URL &&
-	referrerPolicy != REFERRER_POLICY_ORIGIN_WHEN_XORIGIN &&
         referrerPolicy != REFERRER_POLICY_ORIGIN) {
 
       // in other referrer policies, https->http is not allowed...
@@ -1067,24 +1067,17 @@ HttpBaseChannel::SetReferrerWithPolicy(nsIURI *referrer,
 
   // for cross-origin-based referrer changes (not just host-based), figure out
   // if the referrer is being sent cross-origin.
-  nsCOMPtr<nsIURI> triggeringURI;
+  nsCOMPtr<nsIURI> loadingURI;
   bool isCrossOrigin = true;
   if (mLoadInfo) {
-    mLoadInfo->TriggeringPrincipal()->GetURI(getter_AddRefs(triggeringURI));
+    mLoadInfo->LoadingPrincipal()->GetURI(getter_AddRefs(loadingURI));
   }
-  if (triggeringURI) {
-    if (LOG_ENABLED()) {
-      nsAutoCString triggeringURISpec;
-      rv = triggeringURI->GetAsciiSpec(triggeringURISpec);
-      if (!NS_FAILED(rv)) {
-        LOG(("triggeringURI=%s\n", triggeringURISpec.get()));
-      }
-    }
+  if (loadingURI) {
     nsIScriptSecurityManager* ssm = nsContentUtils::GetSecurityManager();
-    rv = ssm->CheckSameOriginURI(triggeringURI, mURI, false);
+    rv = ssm->CheckSameOriginURI(loadingURI, mURI, false);
     isCrossOrigin = NS_FAILED(rv);
   } else {
-    NS_WARNING("no triggering principal available via loadInfo, assuming load is cross-origin");
+    NS_WARNING("no loading principal available via loadInfo, assumming load is cross-origin");
   }
 
   nsCOMPtr<nsIURI> clone;
@@ -1631,7 +1624,7 @@ HttpBaseChannel::TakeAllSecurityMessages(
  * More information can be found here:
  * https://bugzilla.mozilla.org/show_bug.cgi?id=846918
  */
-nsresult
+NS_IMETHODIMP
 HttpBaseChannel::AddSecurityMessage(const nsAString &aMessageTag,
     const nsAString &aMessageCategory)
 {
@@ -1717,6 +1710,36 @@ NS_IMETHODIMP
 HttpBaseChannel::SetAllowSpdy(bool aAllowSpdy)
 {
   mAllowSpdy = aAllowSpdy;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::GetLoadAsBlocking(bool *aLoadAsBlocking)
+{
+  NS_ENSURE_ARG_POINTER(aLoadAsBlocking);
+  *aLoadAsBlocking = mLoadAsBlocking;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::SetLoadAsBlocking(bool aLoadAsBlocking)
+{
+  mLoadAsBlocking = aLoadAsBlocking;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::GetLoadUnblocked(bool *aLoadUnblocked)
+{
+  NS_ENSURE_ARG_POINTER(aLoadUnblocked);
+  *aLoadUnblocked = mLoadUnblocked;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::SetLoadUnblocked(bool aLoadUnblocked)
+{
+  mLoadUnblocked = aLoadUnblocked;
   return NS_OK;
 }
 

@@ -5,7 +5,6 @@
 #include <inttypes.h>
 #include <math.h>
 #include <string.h>
-#include <sys/time.h>
 
 #ifdef _WIN32
 #  include <windows.h>
@@ -133,12 +132,10 @@
 /*
  * Common test utilities.
  */
-#include "test/btalloc.h"
 #include "test/math.h"
 #include "test/mtx.h"
 #include "test/mq.h"
 #include "test/test.h"
-#include "test/timer.h"
 #include "test/thd.h"
 #define	MEXP 19937
 #include "test/SFMT.h"

@@ -212,9 +212,6 @@ public:
   virtual void LeTestModeNotification(BluetoothStatus aStatus,
                                       uint16_t aNumPackets) MOZ_OVERRIDE;
 
-  virtual void EnergyInfoNotification(
-    const BluetoothActivityEnergyInfo& aInfo) MOZ_OVERRIDE;
-
 protected:
   static nsresult StartGonkBluetooth();
   static nsresult StopGonkBluetooth();
@@ -224,8 +221,6 @@ protected:
 
   static ControlPlayStatus PlayStatusStringToControlPlayStatus(
     const nsAString& aPlayStatus);
-
-  uint16_t UuidToServiceClassInt(const BluetoothUuid& mUuid);
 };
 
 END_BLUETOOTH_NAMESPACE

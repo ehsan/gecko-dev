@@ -6,6 +6,7 @@
 package org.mozilla.gecko.gfx;
 
 import java.nio.IntBuffer;
+import java.util.ArrayList;
 
 import org.mozilla.gecko.AndroidGamepadManager;
 import org.mozilla.gecko.AppConstants.Versions;
@@ -45,6 +46,8 @@ import android.widget.FrameLayout;
 
 /**
  * A view rendered by the layer compositor.
+ *
+ * Note that LayerView is accessed by Robocop via reflection.
  */
 public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener {
     private static final String LOGTAG = "GeckoLayerView";

@@ -40,6 +40,7 @@ GLImage::GetAsSourceSurface()
 
   if (!sSnapshotContext) {
     sSnapshotContext = GLContextProvider::CreateHeadless();
+
     if (!sSnapshotContext) {
       NS_WARNING("Failed to create snapshot GLContext");
       return nullptr;
@@ -61,9 +62,8 @@ GLImage::GetAsSourceSurface()
 
   GLBlitHelper helper(sSnapshotContext);
 
-  if (!helper.BlitImageToFramebuffer(this, size, fb.FB(), true)) {
-    return nullptr;
-  }
+  helper.BlitImageToFramebuffer(this, size, fb.FB(), false);
+  ScopedBindFramebuffer bind(sSnapshotContext, fb.FB());
 
   RefPtr<gfx::DataSourceSurface> source =
         gfx::Factory::CreateDataSourceSurface(size, gfx::SurfaceFormat::B8G8R8A8);
@@ -71,7 +71,6 @@ GLImage::GetAsSourceSurface()
     return nullptr;
   }
 
-  ScopedBindFramebuffer bind(sSnapshotContext, fb.FB());
   ReadPixelsIntoDataSurface(sSnapshotContext, source);
   return source.forget();
 }

@@ -6,7 +6,7 @@
  * the correct node in the InspectorView
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(COMPLEX_CONTEXT_URL);
   let panelWin = panel.panelWin;
   let { gFront, $, $$, InspectorView } = panelWin;
@@ -46,5 +46,6 @@ add_task(function*() {
   ok(InspectorView.isVisible(),
     "InspectorView still visible after several nodes have been clicked.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}

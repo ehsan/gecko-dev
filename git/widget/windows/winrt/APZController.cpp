@@ -86,12 +86,12 @@ APZController::SetPendingResponseFlusher(APZPendingResponseFlusher* aFlusher)
 }
 
 void
-APZController::ContentReceivedInputBlock(const uint64_t aInputBlockId, bool aPreventDefault)
+APZController::ContentReceivedTouch(const uint64_t aInputBlockId, bool aPreventDefault)
 {
   if (!sAPZC) {
     return;
   }
-  sAPZC->ContentReceivedInputBlock(aInputBlockId, aPreventDefault);
+  sAPZC->ContentReceivedTouch(aInputBlockId, aPreventDefault);
 }
 
 bool
@@ -221,7 +221,7 @@ APZController::HandleLongTap(const CSSPoint& aPoint,
   if (mFlusher) {
     mFlusher->FlushPendingContentResponse();
   }
-  ContentReceivedInputBlock(aInputBlockId, false);
+  ContentReceivedTouch(aInputBlockId, false);
 }
 
 void

@@ -1103,10 +1103,7 @@ HTMLImageElement::TryCreateResponsiveSelector(nsIContent *aSourceNode,
 
     nsAutoString type;
     if (aSourceNode->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type) &&
-        !imgLoader::SupportImageWithMimeType(
-          NS_ConvertUTF16toUTF8(type).get(),
-          AcceptedMimeTypes::IMAGES_AND_DOCUMENTS)
-        ) {
+        !imgLoader::SupportImageWithMimeType(NS_ConvertUTF16toUTF8(type).get())) {
       return false;
     }
   } else if (aSourceNode->Tag() == nsGkAtoms::img) {

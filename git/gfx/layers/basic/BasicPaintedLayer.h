@@ -31,7 +31,8 @@ public:
   typedef RotatedContentBuffer::ContentType ContentType;
 
   explicit BasicPaintedLayer(BasicLayerManager* aLayerManager) :
-    PaintedLayer(aLayerManager, static_cast<BasicImplData*>(this)),
+    PaintedLayer(aLayerManager,
+                static_cast<BasicImplData*>(MOZ_THIS_IN_INITIALIZER_LIST())),
     mContentClient(nullptr)
   {
     MOZ_COUNT_CTOR(BasicPaintedLayer);
@@ -44,13 +45,13 @@ protected:
   }
 
 public:
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion) MOZ_OVERRIDE
+  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(BasicManager()->InConstruction(),
                  "Can only set properties in construction phase");
     PaintedLayer::SetVisibleRegion(aRegion);
   }
-  virtual void InvalidateRegion(const nsIntRegion& aRegion) MOZ_OVERRIDE
+  virtual void InvalidateRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(BasicManager()->InConstruction(),
                  "Can only set properties in construction phase");
@@ -62,13 +63,13 @@ public:
   virtual void PaintThebes(gfxContext* aContext,
                            Layer* aMaskLayer,
                            LayerManager::DrawPaintedLayerCallback aCallback,
-                           void* aCallbackData) MOZ_OVERRIDE;
+                           void* aCallbackData);
 
   virtual void Validate(LayerManager::DrawPaintedLayerCallback aCallback,
                         void* aCallbackData,
                         ReadbackProcessor* aReadback) MOZ_OVERRIDE;
 
-  virtual void ClearCachedResources() MOZ_OVERRIDE
+  virtual void ClearCachedResources()
   {
     if (mContentClient) {
       mContentClient->Clear();
@@ -76,7 +77,7 @@ public:
     mValidRegion.SetEmpty();
   }
 
-  virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface) MOZ_OVERRIDE
+  virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface)
   {
     if (!BasicManager()->IsRetained()) {
       // Don't do any snapping of our transform, since we're just going to

@@ -77,7 +77,7 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse
 
         JSObject *obj = tmp->GetFlatJSObjectPreserveColor();
         NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFlatJSObject");
-        cb.NoteJSObject(obj);
+        cb.NoteJSChild(obj);
     }
 
     // XPCWrappedNative keeps its native object alive.
@@ -730,6 +730,12 @@ XPCWrappedNative::GatherScriptableCreateInfo(nsISupports* obj,
                    "Can't set WANT_PRECREATE on an instance scriptable "
                    "without also setting it on the class scriptable");
 
+        MOZ_ASSERT(!(sciWrapper.GetFlags().DontEnumStaticProps() &&
+                     !sciProto.GetFlags().DontEnumStaticProps() &&
+                     sciProto.GetCallback()),
+                   "Can't set DONT_ENUM_STATIC_PROPS on an instance scriptable "
+                   "without also setting it on the class scriptable (if present and shared)");
+
         MOZ_ASSERT(!(sciWrapper.GetFlags().DontEnumQueryInterface() &&
                      !sciProto.GetFlags().DontEnumQueryInterface() &&
                      sciProto.GetCallback()),
@@ -798,6 +804,11 @@ XPCWrappedNative::Init(HandleObject parent,
     MOZ_ASSERT(jsclazz &&
                jsclazz->name &&
                jsclazz->flags &&
+               jsclazz->addProperty &&
+               jsclazz->delProperty &&
+               jsclazz->getProperty &&
+               jsclazz->setProperty &&
+               jsclazz->enumerate &&
                jsclazz->resolve &&
                jsclazz->convert &&
                jsclazz->finalize, "bad class");

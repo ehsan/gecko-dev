@@ -5,7 +5,7 @@
 /*    Postcript name table processing for TrueType and OpenType fonts      */
 /*    (body).                                                              */
 /*                                                                         */
-/*  Copyright 1996-2003, 2006-2010, 2013, 2014 by                          */
+/*  Copyright 1996-2003, 2006-2010, 2013 by                                */
 /*  David Turner, Robert Wilhelm, and Werner Lemberg.                      */
 /*                                                                         */
 /*  This file is part of the FreeType project, and may only be used,       */
@@ -64,12 +64,12 @@
 
 #define MAC_NAME( x )  ( (FT_String*)tt_post_default_names[x] )
 
-  /* the 258 default Mac PS glyph names; see file `tools/glnames.py' */
+  /* the 258 default Mac PS glyph names */
 
   static const FT_String* const  tt_post_default_names[258] =
   {
     /*   0 */
-    ".notdef", ".null", "nonmarkingreturn", "space", "exclam",
+    ".notdef", ".null", "CR", "space", "exclam",
     "quotedbl", "numbersign", "dollar", "percent", "ampersand",
     /*  10 */
     "quotesingle", "parenleft", "parenright", "asterisk", "plus",
@@ -120,7 +120,7 @@
     "ae", "oslash", "questiondown", "exclamdown", "logicalnot",
     "radical", "florin", "approxequal", "Delta", "guillemotleft",
     /* 170 */
-    "guillemotright", "ellipsis", "nonbreakingspace", "Agrave", "Atilde",
+    "guillemotright", "ellipsis", "nbspace", "Agrave", "Atilde",
     "Otilde", "OE", "oe", "endash", "emdash",
     /* 180 */
     "quotedblleft", "quotedblright", "quoteleft", "quoteright", "divide",
@@ -144,8 +144,8 @@
     "multiply", "onesuperior", "twosuperior", "threesuperior", "onehalf",
     "onequarter", "threequarters", "franc", "Gbreve", "gbreve",
     /* 250 */
-    "Idotaccent", "Scedilla", "scedilla", "Cacute", "cacute",
-    "Ccaron", "ccaron", "dcroat",
+    "Idot", "Scedilla", "scedilla", "Cacute", "cacute",
+    "Ccaron", "ccaron", "dmacron",
   };
 
 

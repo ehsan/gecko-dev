@@ -3,6 +3,10 @@
 
 "use strict";
 
+const { utils: Cu, classes: Cc, interfaces: Ci } = Components;
+
+const { Promise: promise } =
+  Cu.import("resource://gre/modules/Promise.jsm", {});
 const certService = Cc["@mozilla.org/security/local-cert-service;1"]
                     .getService(Ci.nsILocalCertService);
 
@@ -45,7 +49,7 @@ function removeCert(nickname) {
 }
 
 add_task(function*() {
-  // No master password, so no prompt required here
+  // No master password, so prompt required here
   ok(!certService.loginPromptRequired);
 
   let certA = yield getOrCreateCert(gNickname);

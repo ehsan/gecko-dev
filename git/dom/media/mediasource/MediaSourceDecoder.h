@@ -21,7 +21,11 @@ class MediaResource;
 class MediaDecoderStateMachine;
 class SourceBufferDecoder;
 class TrackBuffer;
-enum MSRangeRemovalAction : uint8_t;
+
+enum MSRangeRemovalAction: uint8_t {
+  RUN = 0,
+  SKIP = 1
+};
 
 namespace dom {
 
@@ -56,10 +60,7 @@ public:
   void Ended();
   bool IsExpectingMoreData() MOZ_OVERRIDE;
 
-  // Return the duration of the video in seconds.
-  virtual double GetDuration() MOZ_OVERRIDE;
-
-  void SetInitialDuration(int64_t aDuration);
+  void SetDecodedDuration(int64_t aDuration);
   void SetMediaSourceDuration(double aDuration, MSRangeRemovalAction aAction);
   double GetMediaSourceDuration();
   void DurationChanged(double aOldDuration, double aNewDuration);
@@ -81,12 +82,6 @@ public:
   // Returns true if aReader is a currently active audio or video
   // reader in this decoders MediaSourceReader.
   bool IsActiveReader(MediaDecoderReader* aReader);
-
-  // Return a decoder from the set available in aTrackDecoders that has data
-  // available in the range requested by aTarget.
-  already_AddRefed<SourceBufferDecoder> SelectDecoder(int64_t aTarget /* microseconds */,
-                                                      int64_t aTolerance /* microseconds */,
-                                                      const nsTArray<nsRefPtr<SourceBufferDecoder>>& aTrackDecoders);
 
   // Returns a string describing the state of the MediaSource internal
   // buffered data. Used for debugging purposes.

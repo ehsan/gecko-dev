@@ -8,8 +8,11 @@
 #include "nsString.h"
 #include "mozilla/dom/BindingDeclarations.h" // for Optional
 
-namespace mozilla {
+namespace sipcc {
 class PeerConnectionImpl;
+}
+
+namespace mozilla {
 class ErrorResult;
 
 namespace dom {
@@ -36,13 +39,13 @@ public:
   static void SetAecDebug(const GlobalObject& aGlobal, bool aEnable);
   static bool AecDebug(const GlobalObject& aGlobal);
 
-  static void StoreLongTermICEStatistics(PeerConnectionImpl& aPc);
+  static void StoreLongTermICEStatistics(sipcc::PeerConnectionImpl& aPc);
 
 private:
-  WebrtcGlobalInformation() = delete;
-  WebrtcGlobalInformation(const WebrtcGlobalInformation& aOrig) = delete;
+  WebrtcGlobalInformation() MOZ_DELETE;
+  WebrtcGlobalInformation(const WebrtcGlobalInformation& aOrig) MOZ_DELETE;
   WebrtcGlobalInformation& operator=(
-    const WebrtcGlobalInformation& aRhs) = delete;
+    const WebrtcGlobalInformation& aRhs) MOZ_DELETE;
 };
 
 } // namespace dom

@@ -8,7 +8,7 @@
 
 const TEST_COLOR = "#123ABC";
 
-add_task(function* () {
+let test = asyncTest(function* () {
   const PAGE_CONTENT = [
     '<style type="text/css">',
     '  div {',

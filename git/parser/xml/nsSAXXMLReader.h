@@ -41,35 +41,35 @@ public:
   nsSAXXMLReader();
 
   //nsIContentSink
-  NS_IMETHOD WillParse() MOZ_OVERRIDE
+  NS_IMETHOD WillParse()
   {
     return NS_OK;
   }
 
-  NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode) MOZ_OVERRIDE;
-  NS_IMETHOD DidBuildModel(bool aTerminated) MOZ_OVERRIDE;
-  NS_IMETHOD SetParser(nsParserBase* aParser) MOZ_OVERRIDE;
+  NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
+  NS_IMETHOD DidBuildModel(bool aTerminated);
+  NS_IMETHOD SetParser(nsParserBase* aParser);
   
-  NS_IMETHOD WillInterrupt() MOZ_OVERRIDE
+  NS_IMETHOD WillInterrupt()
   {
     return NS_OK;
   }
 
-  NS_IMETHOD WillResume() MOZ_OVERRIDE
+  NS_IMETHOD WillResume()
   {
     return NS_OK;
   }
   
-  virtual void FlushPendingNotifications(mozFlushType aType) MOZ_OVERRIDE
+  virtual void FlushPendingNotifications(mozFlushType aType)
   {
   }
   
-  NS_IMETHOD SetDocumentCharset(nsACString& aCharset) MOZ_OVERRIDE
+  NS_IMETHOD SetDocumentCharset(nsACString& aCharset)
   {
     return NS_OK;
   }
   
-  virtual nsISupports *GetTarget() MOZ_OVERRIDE
+  virtual nsISupports *GetTarget()
   {
     return nullptr;
   }

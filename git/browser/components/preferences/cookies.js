@@ -5,8 +5,6 @@
 
 const nsICookie = Components.interfaces.nsICookie;
 
-Components.utils.import("resource://gre/modules/PluralForm.jsm");
-
 var gCookiesWindow = {
   _cm               : Components.classes["@mozilla.org/cookiemanager;1"]
                                 .getService(Components.interfaces.nsICookieManager),
@@ -526,7 +524,7 @@ var gCookiesWindow = {
   },
 
   onCookieSelected: function () {
-    var item;
+    var properties, item;
     var seln = this._tree.view.selection;
     if (!this._view._filtered)
       item = this._view._getItemAtIndex(seln.currentIndex);
@@ -543,19 +541,22 @@ var gCookiesWindow = {
       for (var j = min.value; j <= max.value; ++j) {
         item = this._view._getItemAtIndex(j);
         if (!item) continue;
-        if (item.container)
+        if (item.container && !item.open)
           selectedCookieCount += item.cookies.length;
         else if (!item.container)
           ++selectedCookieCount;
       }
     }
+    var item = this._view._getItemAtIndex(seln.currentIndex);
+    if (item && seln.count == 1 && item.container && item.open)
+      selectedCookieCount += 2;
 
-    let buttonLabel = this._bundle.getString("removeSelectedCookies");
-    let removeSelectedCookies = document.getElementById("removeSelectedCookies");
-    removeSelectedCookies.label = PluralForm.get(selectedCookieCount, buttonLabel)
-                                            .replace("#1", selectedCookieCount);
+    var removeCookie = document.getElementById("removeCookie");
+    var removeCookies = document.getElementById("removeCookies");
+    removeCookie.parentNode.selectedPanel =
+      selectedCookieCount == 1 ? removeCookie : removeCookies;
 
-    removeSelectedCookies.disabled = !(seln.count > 0);
+    removeCookie.disabled = removeCookies.disabled = !(seln.count > 0);
   },
 
   performDeletion: function gCookiesWindow_performDeletion(deleteItems) {

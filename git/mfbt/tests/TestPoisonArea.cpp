@@ -80,6 +80,7 @@
  */
 
 #include "mozilla/IntegerPrintfMacros.h"
+#include "mozilla/NullPtr.h"
 
 // MAP_ANON(YMOUS) is not in any standard.  Add defines as necessary.
 #define _GNU_SOURCE 1

@@ -22,7 +22,7 @@
 #include "nsIRequestObserver.h"
 #include "nsIStreamListener.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsCORSListenerProxy.h"
+#include "nsCrossSiteListenerProxy.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "nsError.h"
 #include "nsICachingChannel.h"
@@ -80,7 +80,7 @@ ChannelMediaResource::ChannelMediaResource(MediaDecoder* aDecoder,
   : BaseMediaResource(aDecoder, aChannel, aURI, aContentType),
     mOffset(0), mSuspendCount(0),
     mReopenOnError(false), mIgnoreClose(false),
-    mCacheStream(this),
+    mCacheStream(MOZ_THIS_IN_INITIALIZER_LIST()),
     mLock("ChannelMediaResource.mLock"),
     mIgnoreResume(false),
     mIsTransportSeekable(true)
@@ -1009,13 +1009,6 @@ ChannelMediaResource::CacheClientNotifyPrincipalChanged()
   mDecoder->NotifyPrincipalChanged();
 }
 
-void
-ChannelMediaResource::CacheClientNotifySuspendedStatusChanged()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Don't call on non-main thread");
-  mDecoder->NotifySuspendedStatusChanged();
-}
-
 nsresult
 ChannelMediaResource::CacheClientSeek(int64_t aOffset, bool aResume)
 {
@@ -1074,6 +1067,8 @@ nsresult
 ChannelMediaResource::CacheClientSuspend()
 {
   Suspend(false);
+
+  mDecoder->NotifySuspendedStatusChanged();
   return NS_OK;
 }
 
@@ -1081,6 +1076,8 @@ nsresult
 ChannelMediaResource::CacheClientResume()
 {
   Resume();
+
+  mDecoder->NotifySuspendedStatusChanged();
   return NS_OK;
 }
 

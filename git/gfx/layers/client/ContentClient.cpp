@@ -118,20 +118,6 @@ ContentClient::EndPaint(nsTArray<ReadbackProcessor::Update>* aReadbackUpdates)
   OnTransaction();
 }
 
-void
-ContentClient::PrintInfo(std::stringstream& aStream, const char* aPrefix)
-{
-  aStream << aPrefix;
-  aStream << nsPrintfCString("ContentClient (0x%p)", this).get();
-
-  if (profiler_feature_active("displaylistdump")) {
-    nsAutoCString pfx(aPrefix);
-    pfx += "  ";
-
-    Dump(aStream, pfx.get(), false);
-  }
-}
-
 // We pass a null pointer for the ContentClient Forwarder argument, which means
 // this client will not have a ContentHost on the other side.
 ContentClientBasic::ContentClientBasic()
@@ -269,13 +255,10 @@ ContentClientRemoteBuffer::EndPaint(nsTArray<ReadbackProcessor::Update>* aReadba
     }
 
     mTextureClient->Unlock();
-    mTextureClient->SyncWithObject(mForwarder->GetSyncObject());
   }
   if (mTextureClientOnWhite && mTextureClientOnWhite->IsLocked()) {
     mTextureClientOnWhite->Unlock();
-    mTextureClientOnWhite->SyncWithObject(mForwarder->GetSyncObject());
   }
-
   ContentClientRemote::EndPaint(aReadbackUpdates);
 }
 
@@ -413,15 +396,6 @@ void
 ContentClientRemoteBuffer::SwapBuffers(const nsIntRegion& aFrontUpdatedRegion)
 {
   mFrontAndBackBufferDiffer = true;
-}
-
-void
-ContentClientRemoteBuffer::Dump(std::stringstream& aStream,
-                                const char* aPrefix,
-                                bool aDumpHtml)
-{
-  // TODO We should combine the OnWhite/OnBlack here an just output a single image.
-  CompositableClient::DumpTextureClient(aStream, mTextureClient);
 }
 
 void

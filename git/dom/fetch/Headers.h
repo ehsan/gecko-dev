@@ -53,7 +53,7 @@ public:
   {
   }
 
-  explicit Headers(const Headers& aOther) = delete;
+  explicit Headers(const Headers& aOther) MOZ_DELETE;
 
   static bool PrefEnabled(JSContext* cx, JSObject* obj);
 
@@ -110,7 +110,7 @@ public:
     mInternalHeaders->SetGuard(aGuard, aRv);
   }
 
-  virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx);
   nsISupports* GetParentObject() const { return mOwner; }
 
 private:

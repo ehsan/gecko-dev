@@ -34,7 +34,7 @@ public:
 
   virtual PBlobChild*
   SendPBlobConstructor(PBlobChild* actor,
-                       const BlobConstructorParams& aParams) MOZ_OVERRIDE;
+                       const BlobConstructorParams& params);
 
   jsipc::JavaScriptShared* GetCPOWManager() MOZ_OVERRIDE;
 

@@ -1,4 +1,3 @@
-// |jit-test| test-also-noasmjs
 if (!this.SharedArrayBuffer || !this.SharedInt32Array || !this.Atomics)
     quit();
 

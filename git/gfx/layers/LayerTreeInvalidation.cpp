@@ -30,7 +30,7 @@ namespace mozilla {
 namespace layers {
 
 struct LayerPropertiesBase;
-UniquePtr<LayerPropertiesBase> CloneLayerTreePropertiesInternal(Layer* aRoot, bool aIsMask = false);
+UniquePtr<LayerPropertiesBase> CloneLayerTreePropertiesInternal(Layer* aRoot);
 
 static nsIntRect
 TransformRect(const nsIntRect& aRect, const Matrix4x4& aTransform)
@@ -109,7 +109,7 @@ struct LayerPropertiesBase : public LayerProperties
   {
     MOZ_COUNT_CTOR(LayerPropertiesBase);
     if (aLayer->GetMaskLayer()) {
-      mMaskLayer = CloneLayerTreePropertiesInternal(aLayer->GetMaskLayer(), true);
+      mMaskLayer = CloneLayerTreePropertiesInternal(aLayer->GetMaskLayer());
     }
     if (mUseClipRect) {
       mClipRect = *aLayer->GetClipRect();
@@ -355,13 +355,12 @@ struct ColorLayerProperties : public LayerPropertiesBase
 
 struct ImageLayerProperties : public LayerPropertiesBase
 {
-  explicit ImageLayerProperties(ImageLayer* aImage, bool aIsMask)
+  explicit ImageLayerProperties(ImageLayer* aImage)
     : LayerPropertiesBase(aImage)
     , mContainer(aImage->GetContainer())
     , mFilter(aImage->GetFilter())
     , mScaleToSize(aImage->GetScaleToSize())
     , mScaleMode(aImage->GetScaleMode())
-    , mIsMask(aIsMask)
   {
   }
 
@@ -377,23 +376,12 @@ struct ImageLayerProperties : public LayerPropertiesBase
       return result;
     }
 
-    ImageContainer* container = imageLayer->GetContainer();
-    if (mContainer != container ||
+    if (mContainer != imageLayer->GetContainer() ||
         mFilter != imageLayer->GetFilter() ||
         mScaleToSize != imageLayer->GetScaleToSize() ||
         mScaleMode != imageLayer->GetScaleMode()) {
       aGeometryChanged = true;
-
-      if (mIsMask) {
-        // Mask layers have an empty visible region, so we have to
-        // use the image size instead.
-        IntSize size = container->GetCurrentSize();
-        nsIntRect rect(0, 0, size.width, size.height);
-        return TransformRect(rect, mLayer->GetLocalTransform());
-
-      } else {
-        return NewTransformedBounds();
-      }
+      return NewTransformedBounds();
     }
 
     return nsIntRect();
@@ -403,17 +391,14 @@ struct ImageLayerProperties : public LayerPropertiesBase
   GraphicsFilter mFilter;
   gfx::IntSize mScaleToSize;
   ScaleMode mScaleMode;
-  bool mIsMask;
 };
 
 UniquePtr<LayerPropertiesBase>
-CloneLayerTreePropertiesInternal(Layer* aRoot, bool aIsMask /* = false */)
+CloneLayerTreePropertiesInternal(Layer* aRoot)
 {
   if (!aRoot) {
     return MakeUnique<LayerPropertiesBase>();
   }
-
-  MOZ_ASSERT(!aIsMask || aRoot->GetType() == Layer::TYPE_IMAGE);
 
   switch (aRoot->GetType()) {
     case Layer::TYPE_CONTAINER:
@@ -422,7 +407,7 @@ CloneLayerTreePropertiesInternal(Layer* aRoot, bool aIsMask /* = false */)
     case Layer::TYPE_COLOR:
       return MakeUnique<ColorLayerProperties>(static_cast<ColorLayer*>(aRoot));
     case Layer::TYPE_IMAGE:
-      return MakeUnique<ImageLayerProperties>(static_cast<ImageLayer*>(aRoot), aIsMask);
+      return MakeUnique<ImageLayerProperties>(static_cast<ImageLayer*>(aRoot));
     default:
       return MakeUnique<LayerPropertiesBase>(aRoot);
   }

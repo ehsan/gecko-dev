@@ -55,7 +55,7 @@ public:
 };
 
 SharedDecoderManager::SharedDecoderManager()
-  : mTaskQueue(new FlushableMediaTaskQueue(GetMediaDecodeThreadPool()))
+  : mTaskQueue(new MediaTaskQueue(GetMediaDecodeThreadPool()))
   , mActiveProxy(nullptr)
   , mActiveCallback(nullptr)
   , mWaitForInternalDrain(false)
@@ -73,7 +73,7 @@ SharedDecoderManager::CreateVideoDecoder(
   PlatformDecoderModule* aPDM,
   const mp4_demuxer::VideoDecoderConfig& aConfig,
   layers::LayersBackend aLayersBackend, layers::ImageContainer* aImageContainer,
-  FlushableMediaTaskQueue* aVideoTaskQueue, MediaDataDecoderCallback* aCallback)
+  MediaTaskQueue* aVideoTaskQueue, MediaDataDecoderCallback* aCallback)
 {
   if (!mDecoder) {
     // We use the manager's task queue for the decoder, rather than the one
@@ -196,10 +196,8 @@ SharedDecoderProxy::Drain()
 {
   if (mManager->mActiveProxy == this) {
     return mManager->mDecoder->Drain();
-  } else {
-    mCallback->DrainComplete();
-    return NS_OK;
   }
+  return NS_OK;
 }
 
 nsresult
@@ -239,11 +237,4 @@ SharedDecoderProxy::ReleaseDecoder()
     mManager->mDecoder->ReleaseMediaResources();
   }
 }
-
-bool
-SharedDecoderProxy::IsHardwareAccelerated() const
-{
-  return mManager->mDecoder->IsHardwareAccelerated();
-}
-
 }

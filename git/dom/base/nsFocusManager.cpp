@@ -26,7 +26,6 @@
 #include "nsIWebNavigation.h"
 #include "nsCaret.h"
 #include "nsIBaseWindow.h"
-#include "nsIXULWindow.h"
 #include "nsViewManager.h"
 #include "nsFrameSelection.h"
 #include "mozilla/dom/Selection.h"
@@ -735,10 +734,7 @@ nsFocusManager::WindowRaised(nsIDOMWindow* aWindow)
     frameSelection->SetDragState(false);
   }
 
-  // If there is no nsIXULWindow, then this is an embedded or child process window.
-  // Pass false for aWindowRaised so that commands get updated.
-  nsCOMPtr<nsIXULWindow> xulWin(do_GetInterface(baseWindow));
-  Focus(currentWindow, currentFocus, 0, true, false, xulWin != nullptr, true);
+  Focus(currentWindow, currentFocus, 0, true, false, true, true);
 
   return NS_OK;
 }
@@ -1614,6 +1610,11 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
     return true;
   }
 
+  nsRefPtr<SelectionCarets> selectionCarets = presShell->GetSelectionCarets();
+  if (selectionCarets) {
+    selectionCarets->SetVisibility(false);
+  }
+
   bool clearFirstBlurEvent = false;
   if (!mFirstBlurEvent) {
     mFirstBlurEvent = content;
@@ -1683,14 +1684,8 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
 
   // if we are leaving the document or the window was lowered, make the caret
   // invisible.
-  if (aIsLeavingDocument || !mActiveWindow) {
+  if (aIsLeavingDocument || !mActiveWindow)
     SetCaretVisible(presShell, false, nullptr);
-  }
-
-  nsRefPtr<SelectionCarets> selectionCarets = presShell->GetSelectionCarets();
-  if (selectionCarets) {
-    selectionCarets->NotifyBlur(aIsLeavingDocument || !mActiveWindow);
-  }
 
   // at this point, it is expected that this window will be still be
   // focused, but the focused content will be null, as it was cleared before

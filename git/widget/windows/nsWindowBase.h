@@ -89,13 +89,14 @@ public:
   virtual nsresult ClearNativeTouchSequence();
 
   /*
-   * WM_APPCOMMAND common handler.
-   * Sends events via NativeKey::HandleAppCommandMessage().
+   * WM_APPCOMMAND common handler. Sends events via DispatchWindowEvent.
    */
-  virtual bool HandleAppCommandMsg(const MSG& aAppCommandMsg,
+  virtual bool HandleAppCommandMsg(WPARAM aWParam,
+                                   LPARAM aLParam,
                                    LRESULT *aRetValue);
 
 protected:
+  bool DispatchCommandEvent(uint32_t aEventCommand);
   static bool InitTouchInjection();
   bool InjectTouchPoint(uint32_t aId, nsIntPoint& aPointerScreenPoint,
                         POINTER_FLAGS aFlags, uint32_t aPressure = 1024,

@@ -122,12 +122,16 @@ var AccessFuTest = {
   },
 
   nextTest: function AccessFuTest_nextTest() {
-    var result = gIterator.next();
-    if (result.done) {
+    var testFunc;
+    try {
+      // Get the next test function from the iterator. If none left,
+      // StopIteration exception is thrown.
+      testFunc = gIterator.next()[1];
+    } catch (ex) {
+      // StopIteration exception.
       this.finish();
       return;
     }
-    var testFunc = result.value;
     testFunc();
   },
 
@@ -139,11 +143,7 @@ var AccessFuTest = {
     }
 
     // Create an Iterator for gTestFuncs array.
-    gIterator = (function*() {
-      for (var testFunc of gTestFuncs) {
-        yield testFunc;
-      }
-    })();
+    gIterator = Iterator(gTestFuncs); // jshint ignore:line
 
     // Start AccessFu and put it in stand-by.
     Components.utils.import("resource://gre/modules/accessibility/AccessFu.jsm");

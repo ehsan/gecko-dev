@@ -12,6 +12,8 @@ const {Ci, Cu} = require("chrome");
 
 loader.lazyRequireGetter(this, "L10N",
   "devtools/timeline/global", true);
+loader.lazyRequireGetter(this, "TIMELINE_BLUEPRINT",
+  "devtools/timeline/global", true);
 
 loader.lazyImporter(this, "setNamedTimeout",
   "resource:///modules/devtools/ViewHelpers.jsm");
@@ -46,17 +48,11 @@ const WATERFALL_ROWCOUNT_ONPAGEUPDOWN = 10;
  *
  * @param nsIDOMNode parent
  *        The parent node holding the waterfall.
- * @param nsIDOMNode container
- *        The container node that key events should be bound to.
- * @param Object blueprint
- *        List of names and colors defining markers.
  */
-function Waterfall(parent, container, blueprint) {
+function Waterfall(parent) {
   EventEmitter.decorate(this);
-
   this._parent = parent;
   this._document = parent.ownerDocument;
-  this._container = container;
   this._fragment = this._document.createDocumentFragment();
   this._outstandingMarkers = [];
 
@@ -75,26 +71,16 @@ function Waterfall(parent, container, blueprint) {
 
   // Lazy require is a bit slow, and these are hot objects.
   this._l10n = L10N;
-  this._blueprint = blueprint;
+  this._blueprint = TIMELINE_BLUEPRINT;
   this._setNamedTimeout = setNamedTimeout;
   this._clearNamedTimeout = clearNamedTimeout;
 
   // Selected row index. By default, we want the first
   // row to be selected.
   this._selectedRowIdx = 0;
-
-  // Default rowCount
-  this.rowCount = WATERFALL_ROWCOUNT_ONPAGEUPDOWN;
 }
 
 Waterfall.prototype = {
-  /**
-   * Removes any node references from this view.
-   */
-  destroy: function() {
-    this._parent = this._document = this._container = null;
-  },
-
   /**
    * Populates this view with the provided data source.
    *
@@ -121,18 +107,10 @@ Waterfall.prototype = {
   },
 
   /**
-   * List of names and colors used to paint markers.
-   * @see TIMELINE_BLUEPRINT in timeline/widgets/global.js
-   */
-  setBlueprint: function(blueprint) {
-    this._blueprint = blueprint;
-  },
-
-  /**
    * Keybindings.
    */
   setupKeys: function() {
-    let pane = this._container;
+    let pane = this._document.querySelector("#timeline-pane");
     pane.parentNode.parentNode.addEventListener("keydown", e => {
       if (e.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_UP) {
         e.preventDefault();
@@ -152,11 +130,11 @@ Waterfall.prototype = {
       }
       if (e.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_PAGE_UP) {
         e.preventDefault();
-        this.selectNearestRow(this._selectedRowIdx - this.rowCount);
+        this.selectNearestRow(this._selectedRowIdx - WATERFALL_ROWCOUNT_ONPAGEUPDOWN);
       }
       if (e.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_PAGE_DOWN) {
         e.preventDefault();
-        this.selectNearestRow(this._selectedRowIdx + this.rowCount);
+        this.selectNearestRow(this._selectedRowIdx + WATERFALL_ROWCOUNT_ONPAGEUPDOWN);
       }
     }, true);
   },
@@ -259,10 +237,6 @@ Waterfall.prototype = {
       if (!isMarkerInRange(marker, startTime, endTime)) {
         continue;
       }
-      if (!(marker.name in this._blueprint)) {
-        continue;
-      }
-
       // Only build and display a finite number of markers initially, to
       // preserve a snappy UI. After a certain delay, continue building the
       // outstanding markers while there's (hopefully) no user interaction.

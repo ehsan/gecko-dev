@@ -116,16 +116,15 @@ size_t MediaDecoderReader::SizeOfAudioQueueInFrames()
 
 nsresult MediaDecoderReader::ResetDecode()
 {
+  nsresult res = NS_OK;
+
   VideoQueue().Reset();
   AudioQueue().Reset();
 
   mAudioDiscontinuity = true;
   mVideoDiscontinuity = true;
 
-  mBaseAudioPromise.RejectIfExists(CANCELED, __func__);
-  mBaseVideoPromise.RejectIfExists(CANCELED, __func__);
-
-  return NS_OK;
+  return res;
 }
 
 VideoData* MediaDecoderReader::DecodeToFirstVideoData()
@@ -182,55 +181,22 @@ MediaDecoderReader::ComputeStartTime(const VideoData* aVideo, const AudioData* a
   return startTime;
 }
 
-class ReRequestVideoWithSkipTask : public nsRunnable
-{
+class RequestVideoWithSkipTask : public nsRunnable {
 public:
-  ReRequestVideoWithSkipTask(MediaDecoderReader* aReader,
-                             int64_t aTimeThreshold)
+  RequestVideoWithSkipTask(MediaDecoderReader* aReader,
+                           int64_t aTimeThreshold)
     : mReader(aReader)
     , mTimeThreshold(aTimeThreshold)
   {
   }
-
-  NS_METHOD Run()
-  {
-    MOZ_ASSERT(mReader->GetTaskQueue()->IsCurrentThreadIn());
-
-    // Make sure ResetDecode hasn't been called in the mean time.
-    if (!mReader->mBaseVideoPromise.IsEmpty()) {
-      mReader->RequestVideoData(/* aSkip = */ true, mTimeThreshold);
-    }
-
+  NS_METHOD Run() {
+    bool skip = true;
+    mReader->RequestVideoData(skip, mTimeThreshold);
     return NS_OK;
   }
-
 private:
   nsRefPtr<MediaDecoderReader> mReader;
-  const int64_t mTimeThreshold;
-};
-
-class ReRequestAudioTask : public nsRunnable
-{
-public:
-  explicit ReRequestAudioTask(MediaDecoderReader* aReader)
-    : mReader(aReader)
-  {
-  }
-
-  NS_METHOD Run()
-  {
-    MOZ_ASSERT(mReader->GetTaskQueue()->IsCurrentThreadIn());
-
-    // Make sure ResetDecode hasn't been called in the mean time.
-    if (!mReader->mBaseAudioPromise.IsEmpty()) {
-      mReader->RequestAudioData();
-    }
-
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<MediaDecoderReader> mReader;
+  int64_t mTimeThreshold;
 };
 
 nsRefPtr<MediaDecoderReader::VideoDataPromise>
@@ -248,7 +214,7 @@ MediaDecoderReader::RequestVideoData(bool aSkipToNextKeyframe,
       // keyframe. Post another task to the decode task queue to decode
       // again. We don't just decode straight in a loop here, as that
       // would hog the decode task queue.
-      RefPtr<nsIRunnable> task(new ReRequestVideoWithSkipTask(this, aTimeThreshold));
+      RefPtr<nsIRunnable> task(new RequestVideoWithSkipTask(this, aTimeThreshold));
       mTaskQueue->Dispatch(task);
       return p;
     }
@@ -284,8 +250,9 @@ MediaDecoderReader::RequestAudioData()
     // coming in gstreamer 1.x when there is still video buffer waiting to be
     // consumed. (|mVideoSinkBufferCount| > 0)
     if (AudioQueue().GetSize() == 0 && mTaskQueue) {
-      RefPtr<nsIRunnable> task(new ReRequestAudioTask(this));
-      mTaskQueue->Dispatch(task);
+      RefPtr<nsIRunnable> task(NS_NewRunnableMethod(
+          this, &MediaDecoderReader::RequestAudioData));
+      mTaskQueue->Dispatch(task.forget());
       return p;
     }
   }
@@ -347,7 +314,8 @@ MediaDecoderReader::Shutdown()
   } else {
     // If we don't own our task queue, we resolve immediately (though
     // asynchronously).
-    p = ShutdownPromise::CreateAndResolve(true, __func__);
+    p = new ShutdownPromise(__func__);
+    p->Resolve(true, __func__);
   }
 
   return p;

@@ -48,10 +48,10 @@ public:
     }
   }
 
-  virtual void SetData(const Data& aData) MOZ_OVERRIDE;
-  virtual void SetDelayedConversion(bool aDelayed) MOZ_OVERRIDE { mDelayedConversion = aDelayed; }
+  virtual void SetData(const Data& aData);
+  virtual void SetDelayedConversion(bool aDelayed) { mDelayedConversion = aDelayed; }
 
-  TemporaryRef<gfx::SourceSurface> GetAsSourceSurface() MOZ_OVERRIDE;
+  TemporaryRef<gfx::SourceSurface> GetAsSourceSurface();
 
   virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE
   {

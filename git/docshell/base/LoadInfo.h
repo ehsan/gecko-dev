@@ -17,11 +17,6 @@ class nsINode;
 
 namespace mozilla {
 
-namespace net {
-class HttpChannelParent;
-class FTPChannelParent;
-}
-
 /**
  * Class that provides an nsILoadInfo implementation.
  */
@@ -40,18 +35,6 @@ public:
            nsIURI* aBaseURI = nullptr);
 
 private:
-  // private constructor that is only allowed to be called from within
-  // HttpChannelParent and FTPChannelParent declared as friends undeneath.
-  // In e10s we can not serialize nsINode, hence we store the innerWindowID.
-  LoadInfo(nsIPrincipal* aLoadingPrincipal,
-           nsIPrincipal* aTriggeringPrincipal,
-           nsSecurityFlags aSecurityFlags,
-           nsContentPolicyType aContentPolicyType,
-           uint32_t aInnerWindowID);
-
-  friend class net::HttpChannelParent;
-  friend class net::FTPChannelParent;
-
   ~LoadInfo();
 
   nsCOMPtr<nsIPrincipal> mLoadingPrincipal;
@@ -60,7 +43,6 @@ private:
   nsSecurityFlags        mSecurityFlags;
   nsContentPolicyType    mContentPolicyType;
   nsCOMPtr<nsIURI>       mBaseURI;
-  uint32_t               mInnerWindowID;
 };
 
 } // namespace mozilla

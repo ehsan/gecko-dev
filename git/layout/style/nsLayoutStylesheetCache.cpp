@@ -127,12 +127,6 @@ CSSStyleSheet*
 nsLayoutStylesheetCache::HTMLSheet()
 {
   EnsureGlobal();
-
-  if (!gStyleCache->mHTMLSheet) {
-    LoadSheetURL("resource://gre-resources/html.css",
-                 gStyleCache->mHTMLSheet, true);
-  }
-
   return gStyleCache->mHTMLSheet;
 }
 
@@ -262,6 +256,8 @@ nsLayoutStylesheetCache::nsLayoutStylesheetCache()
                mCounterStylesSheet, true);
   LoadSheetURL("resource://gre-resources/full-screen-override.css",
                mFullScreenOverrideSheet, true);
+  LoadSheetURL("resource://gre-resources/html.css",
+               mHTMLSheet, true);
   LoadSheetURL("chrome://global/content/minimal-xul.css",
                mMinimalXULSheet, true);
   LoadSheetURL("resource://gre-resources/quirk.css",
@@ -429,7 +425,6 @@ nsLayoutStylesheetCache::DependentPrefChanged(const char* aPref, void* aData)
 
   // for layout.css.ruby.enabled
   InvalidateSheet(gStyleCache->mUASheet);
-  InvalidateSheet(gStyleCache->mHTMLSheet);
 }
 
 mozilla::StaticRefPtr<nsLayoutStylesheetCache>

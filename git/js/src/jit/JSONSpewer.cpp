@@ -264,13 +264,6 @@ JSONSpewer::spewMDef(MDefinition *def)
         integerValue(use.def()->id());
     endList();
 
-    if (!def->isLowered()) {
-        beginListProperty("memInputs");
-        if (def->dependency())
-            integerValue(def->dependency()->id());
-        endList();
-    }
-
     bool isTruncated = false;
     if (def->isAdd() || def->isSub() || def->isMod() || def->isMul() || def->isDiv())
         isTruncated = static_cast<MBinaryArithInstruction*>(def)->isTruncated();

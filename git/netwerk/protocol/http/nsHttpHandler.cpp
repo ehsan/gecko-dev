@@ -184,7 +184,6 @@ nsHttpHandler::nsHttpHandler()
     , mSpdyV31(true)
     , mHttp2DraftEnabled(true)
     , mHttp2Enabled(true)
-    , mUseH2Deps(true)
     , mEnforceHttp2TlsProfile(true)
     , mCoalesceSpdy(true)
     , mSpdyPersistentSettings(false)
@@ -716,7 +715,7 @@ nsHttpHandler::InitUserAgentComponents()
     if (NS_SUCCEEDED(rv)) {
         bool valid = true;
         deviceId.Trim(" ", true, true);
-        for (size_t i = 0; i < deviceId.Length(); i++) {
+        for (int i = 0; i < deviceId.Length(); i++) {
             char c = deviceId.CharAt(i);
             if (!(isalnum(c) || c == '-' || c == '.')) {
                 valid = false;
@@ -1196,12 +1195,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         rv = prefs->GetBoolPref(HTTP_PREF("spdy.enabled.http2"), &cVar);
         if (NS_SUCCEEDED(rv))
             mHttp2Enabled = cVar;
-    }
-
-    if (PREF_CHANGED(HTTP_PREF("spdy.enabled.deps"))) {
-        rv = prefs->GetBoolPref(HTTP_PREF("spdy.enabled.deps"), &cVar);
-        if (NS_SUCCEEDED(rv))
-            mUseH2Deps = cVar;
     }
 
     if (PREF_CHANGED(HTTP_PREF("spdy.enforce-tls-profile"))) {
@@ -1746,7 +1739,7 @@ nsHttpHandler::NewChannel2(nsIURI* uri,
         }
     }
 
-    return NewProxiedChannel2(uri, nullptr, 0, nullptr, aLoadInfo, result);
+    return NewProxiedChannel(uri, nullptr, 0, nullptr, result);
 }
 
 NS_IMETHODIMP
@@ -1813,12 +1806,6 @@ nsHttpHandler::NewProxiedChannel2(nsIURI *uri,
     rv = httpChannel->Init(uri, caps, proxyInfo, proxyResolveFlags, proxyURI);
     if (NS_FAILED(rv))
         return rv;
-
-    // set the loadInfo on the new channel
-    rv = httpChannel->SetLoadInfo(aLoadInfo);
-    if (NS_FAILED(rv)) {
-        return rv;
-    }
 
     httpChannel.forget(result);
     return NS_OK;
@@ -2134,7 +2121,7 @@ nsHttpsHandler::NewChannel2(nsIURI* aURI,
     MOZ_ASSERT(gHttpHandler);
     if (!gHttpHandler)
       return NS_ERROR_UNEXPECTED;
-    return gHttpHandler->NewChannel2(aURI, aLoadInfo, _retval);
+    return gHttpHandler->NewChannel(aURI, _retval);
 }
 
 NS_IMETHODIMP

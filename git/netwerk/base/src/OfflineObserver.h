@@ -48,7 +48,7 @@ class OfflineObserver
 public:
   // A nsRefPtr to this object should be kept by the disconnectable parent.
 
-  explicit OfflineObserver(DisconnectableParent * parent);
+  OfflineObserver(DisconnectableParent * parent);
   // This method needs to be called in the destructor of the parent
   // It removes the observer from the nsObserverService list, and it clears
   // the pointer it holds to the disconnectable parent.

@@ -1211,7 +1211,7 @@
         char*  notdef = (char *)".notdef";
 
 
-        (void)T1_Add_Table( char_table, n, notdef, 8 );
+        T1_Add_Table( char_table, n, notdef, 8 );
       }
 
       /* Now we need to read records of the form                */
@@ -1596,11 +1596,6 @@
       }
 
       T1_Skip_PS_Token( parser );
-      if ( parser->root.cursor >= limit )
-      {
-        error = FT_THROW( Invalid_File_Format );
-        goto Fail;
-      }
       if ( parser->root.error )
         return;
 
@@ -1609,7 +1604,7 @@
         FT_PtrDist  len;
 
 
-        if ( cur + 2 >= limit )
+        if ( cur + 1 >= limit )
         {
           error = FT_THROW( Invalid_File_Format );
           goto Fail;

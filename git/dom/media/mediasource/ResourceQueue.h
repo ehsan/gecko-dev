@@ -15,13 +15,8 @@
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* GetSourceBufferResourceLog();
 
-/* Polyfill __func__ on MSVC to pass to the log. */
-#ifdef _MSC_VER
-#define __func__ __FUNCTION__
-#endif
-
-#define SBR_DEBUG(arg, ...) PR_LOG(GetSourceBufferResourceLog(), PR_LOG_DEBUG, ("ResourceQueue(%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
-#define SBR_DEBUGV(arg, ...) PR_LOG(GetSourceBufferResourceLog(), PR_LOG_DEBUG+1, ("ResourceQueue(%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
+#define SBR_DEBUG(...) PR_LOG(GetSourceBufferResourceLog(), PR_LOG_DEBUG, (__VA_ARGS__))
+#define SBR_DEBUGV(...) PR_LOG(GetSourceBufferResourceLog(), PR_LOG_DEBUG+1, (__VA_ARGS__))
 #else
 #define SBR_DEBUG(...)
 #define SBR_DEBUGV(...)
@@ -111,17 +106,17 @@ public:
   // Tries to evict at least aSizeToEvict from the queue up until
   // aOffset. Returns amount evicted.
   uint32_t Evict(uint64_t aOffset, uint32_t aSizeToEvict) {
-    SBR_DEBUG("Evict(aOffset=%llu, aSizeToEvict=%u)",
-              aOffset, aSizeToEvict);
+    SBR_DEBUG("ResourceQueue(%p)::Evict(aOffset=%llu, aSizeToEvict=%u)",
+              this, aOffset, aSizeToEvict);
     return EvictBefore(std::min(aOffset, mOffset + (uint64_t)aSizeToEvict));
   }
 
   uint32_t EvictBefore(uint64_t aOffset) {
-    SBR_DEBUG("EvictBefore(%llu)", aOffset);
+    SBR_DEBUG("ResourceQueue(%p)::EvictBefore(%llu)", this, aOffset);
     uint32_t evicted = 0;
     while (ResourceItem* item = ResourceAt(0)) {
-      SBR_DEBUG("item=%p length=%d offset=%llu",
-                item, item->mData->Length(), mOffset);
+      SBR_DEBUG("ResourceQueue(%p)::EvictBefore item=%p length=%d offset=%llu",
+                this, item, item->mData->Length(), mOffset);
       if (item->mData->Length() + mOffset >= aOffset) {
         break;
       }
@@ -133,11 +128,11 @@ public:
   }
 
   uint32_t EvictAll() {
-    SBR_DEBUG("EvictAll()");
+    SBR_DEBUG("ResourceQueue(%p)::EvictAll()", this);
     uint32_t evicted = 0;
     while (ResourceItem* item = ResourceAt(0)) {
-      SBR_DEBUG("item=%p length=%d offset=%llu",
-                item, item->mData->Length(), mOffset);
+      SBR_DEBUG("ResourceQueue(%p)::EvictAll item=%p length=%d offset=%llu",
+                this, item, item->mData->Length(), mOffset);
       mOffset += item->mData->Length();
       evicted += item->mData->Length();
       delete PopFront();
@@ -213,9 +208,6 @@ private:
   // Logical offset into the resource of the first element in the queue.
   uint64_t mOffset;
 };
-
-#undef SBR_DEBUG
-#undef SBR_DEBUGV
 
 } // namespace mozilla
 #endif /* MOZILLA_RESOURCEQUEUE_H_ */

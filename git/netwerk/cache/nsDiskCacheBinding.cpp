@@ -204,8 +204,9 @@ nsDiskCacheBindery::FindActiveBinding(uint32_t  hashNumber)
     // find hash entry for key
     HashTableEntry * hashEntry;
     hashEntry =
-      (HashTableEntry *) PL_DHashTableLookup(&table,
-                                             (void*)(uintptr_t) hashNumber);
+      (HashTableEntry *) PL_DHashTableOperate(&table,
+                                              (void*)(uintptr_t) hashNumber,
+                                              PL_DHASH_LOOKUP);
     if (PL_DHASH_ENTRY_IS_FREE(hashEntry)) return nullptr;
 
     // walk list looking for active entry
@@ -238,8 +239,9 @@ nsDiskCacheBindery::AddBinding(nsDiskCacheBinding * binding)
     // find hash entry for key
     HashTableEntry * hashEntry;
     hashEntry = (HashTableEntry *)
-      PL_DHashTableAdd(&table,
-                       (void *)(uintptr_t) binding->mRecord.HashNumber());
+      PL_DHashTableOperate(&table,
+                           (void *)(uintptr_t) binding->mRecord.HashNumber(),
+                           PL_DHASH_ADD);
     if (!hashEntry) return NS_ERROR_OUT_OF_MEMORY;
     
     if (hashEntry->mBinding == nullptr) {
@@ -301,8 +303,9 @@ nsDiskCacheBindery::RemoveBinding(nsDiskCacheBinding * binding)
     HashTableEntry * hashEntry;
     void           * key = (void *)(uintptr_t)binding->mRecord.HashNumber();
 
-    hashEntry = (HashTableEntry*) PL_DHashTableLookup(&table,
-                                                      (void*)(uintptr_t) key);
+    hashEntry = (HashTableEntry*) PL_DHashTableOperate(&table,
+                                                       (void*)(uintptr_t) key,
+                                                       PL_DHASH_LOOKUP);
     if (!PL_DHASH_ENTRY_IS_BUSY(hashEntry)) {
         NS_WARNING("### disk cache: binding not in hashtable!");
         return;
@@ -311,8 +314,9 @@ nsDiskCacheBindery::RemoveBinding(nsDiskCacheBinding * binding)
     if (binding == hashEntry->mBinding) {
         if (PR_CLIST_IS_EMPTY(binding)) {
             // remove this hash entry
-            PL_DHashTableRemove(&table,
-                                (void*)(uintptr_t) binding->mRecord.HashNumber());
+            PL_DHashTableOperate(&table,
+                                 (void*)(uintptr_t) binding->mRecord.HashNumber(),
+                                 PL_DHASH_REMOVE);
             return;
             
         } else {

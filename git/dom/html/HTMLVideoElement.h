@@ -111,8 +111,8 @@ protected:
 
   virtual JSObject* WrapNode(JSContext* aCx) MOZ_OVERRIDE;
 
-  virtual void WakeLockCreate() MOZ_OVERRIDE;
-  virtual void WakeLockRelease() MOZ_OVERRIDE;
+  virtual void WakeLockCreate();
+  virtual void WakeLockRelease();
   void UpdateScreenWakeLock();
 
   nsRefPtr<WakeLock> mScreenWakeLock;

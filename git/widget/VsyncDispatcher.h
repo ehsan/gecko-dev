@@ -6,24 +6,42 @@
 #ifndef mozilla_widget_VsyncDispatcher_h
 #define mozilla_widget_VsyncDispatcher_h
 
+#include "base/message_loop.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/TimeStamp.h"
 #include "nsISupportsImpl.h"
 #include "nsTArray.h"
-#include "nsRefPtr.h"
+#include "ThreadSafeRefcountingWithMainThreadDestruction.h"
+
+class MessageLoop;
 
 namespace mozilla {
+class TimeStamp;
+
+namespace layers {
+class CompositorVsyncObserver;
+}
+
+// Controls how and when to enable/disable vsync.
+class VsyncSource
+{
+public:
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VsyncSource)
+  virtual void EnableVsync() = 0;
+  virtual void DisableVsync() = 0;
+  virtual bool IsVsyncEnabled() = 0;
+
+protected:
+  virtual ~VsyncSource() {}
+}; // VsyncSource
 
 class VsyncObserver
 {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VsyncObserver)
+  // Must be destroyed on main thread since the compositor is as well
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING_WITH_MAIN_THREAD_DESTRUCTION(VsyncObserver)
 
 public:
   // The method called when a vsync occurs. Return true if some work was done.
-  // In general, this vsync notification will occur on the hardware vsync
-  // thread from VsyncSource. But it might also be called on PVsync ipc thread
-  // if this notification is cross process. Thus all observer should check the
-  // thread model before handling the real task.
+  // Vsync notifications will occur on the hardware vsync thread
   virtual bool NotifyVsync(TimeStamp aVsyncTimestamp) = 0;
 
 protected:
@@ -31,14 +49,13 @@ protected:
   virtual ~VsyncObserver() {}
 }; // VsyncObserver
 
-// Used to dispatch vsync events in the parent process to compositors
-class CompositorVsyncDispatcher MOZ_FINAL
+// VsyncDispatcher is used to dispatch vsync events to the registered observers.
+class VsyncDispatcher
 {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(CompositorVsyncDispatcher)
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VsyncDispatcher)
 
 public:
-  CompositorVsyncDispatcher();
-
+  static VsyncDispatcher* GetInstance();
   // Called on the vsync thread when a hardware vsync occurs
   // The aVsyncTimestamp can mean different things depending on the platform:
   // b2g - The vsync timestamp of the previous frame that was just displayed
@@ -46,48 +63,26 @@ public:
   // TODO: Windows / Linux. DOCUMENT THIS WHEN IMPLEMENTING ON THOSE PLATFORMS
   // Android: TODO
   void NotifyVsync(TimeStamp aVsyncTimestamp);
+  void SetVsyncSource(VsyncSource* aVsyncSource);
 
   // Compositor vsync observers must be added/removed on the compositor thread
-  void SetCompositorVsyncObserver(VsyncObserver* aVsyncObserver);
-  void Shutdown();
+  void AddCompositorVsyncObserver(VsyncObserver* aVsyncObserver);
+  void RemoveCompositorVsyncObserver(VsyncObserver* aVsyncObserver);
 
 private:
-  virtual ~CompositorVsyncDispatcher();
+  VsyncDispatcher();
+  virtual ~VsyncDispatcher();
+  void DispatchTouchEvents(bool aNotifiedCompositors, TimeStamp aVsyncTime);
 
+  // Called on the vsync thread. Returns true if observers were notified
+  bool NotifyVsyncObservers(TimeStamp aVsyncTimestamp, nsTArray<nsRefPtr<VsyncObserver>>& aObservers);
+
+  // Can have multiple compositors. On desktop, this is 1 compositor per window
   Mutex mCompositorObserverLock;
-  nsRefPtr<VsyncObserver> mCompositorVsyncObserver;
-};
-
-// Dispatch vsync event to ipc actor parent and chrome RefreshTimer.
-class RefreshTimerVsyncDispatcher MOZ_FINAL
-{
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(RefreshTimerVsyncDispatcher)
-
-public:
-  RefreshTimerVsyncDispatcher();
-
-  // Please check CompositorVsyncDispatcher::NotifyVsync().
-  void NotifyVsync(TimeStamp aVsyncTimestamp);
-
-  // Set chrome process's RefreshTimer to this dispatcher.
-  // This function can be called from any thread.
-  void SetParentRefreshTimer(VsyncObserver* aVsyncObserver);
-
-  // Add or remove the content process' RefreshTimer to this dispatcher. This
-  // will be a no-op for AddChildRefreshTimer() if the observer is already
-  // registered.
-  // These functions can be called from any thread.
-  void AddChildRefreshTimer(VsyncObserver* aVsyncObserver);
-  void RemoveChildRefreshTimer(VsyncObserver* aVsyncObserver);
-
-private:
-  virtual ~RefreshTimerVsyncDispatcher();
-
-  Mutex mRefreshTimersLock;
-  nsRefPtr<VsyncObserver> mParentRefreshTimer;
-  nsTArray<nsRefPtr<VsyncObserver>> mChildRefreshTimers;
-};
+  nsTArray<nsRefPtr<VsyncObserver>> mCompositorObservers;
+  nsRefPtr<VsyncSource> mVsyncSource;
+}; // VsyncDispatcher
 
 } // namespace mozilla
 
-#endif // mozilla_widget_VsyncDispatcher_h
+#endif // __mozilla_widget_VsyncDispatcher_h

@@ -39,5 +39,3 @@ LOCAL_INCLUDES += [
     '/dom/base',
 ]
 
-if not CONFIG['CLANG_CXX']:
-    FAIL_ON_WARNINGS = True

@@ -550,10 +550,8 @@ DataTextureSourceD3D9::GetTileRect()
   return ThebesIntRect(GetTileRect(mCurrentTile));
 }
 
-CairoTextureClientD3D9::CairoTextureClientD3D9(ISurfaceAllocator* aAllocator,
-                                               gfx::SurfaceFormat aFormat,
-                                               TextureFlags aFlags)
-  : TextureClient(aAllocator, aFlags)
+CairoTextureClientD3D9::CairoTextureClientD3D9(gfx::SurfaceFormat aFormat, TextureFlags aFlags)
+  : TextureClient(aFlags)
   , mFormat(aFormat)
   , mIsLocked(false)
   , mNeedsClear(false)
@@ -571,8 +569,7 @@ CairoTextureClientD3D9::~CairoTextureClientD3D9()
 TemporaryRef<TextureClient>
 CairoTextureClientD3D9::CreateSimilar(TextureFlags aFlags, TextureAllocationFlags aAllocFlags) const
 {
-  RefPtr<TextureClient> tex = new CairoTextureClientD3D9(mAllocator, mFormat,
-                                                         mFlags | aFlags);
+  RefPtr<TextureClient> tex = new CairoTextureClientD3D9(mFormat, mFlags | aFlags);
 
   if (!tex->AllocateForSurface(mSize, aAllocFlags)) {
     return nullptr;
@@ -725,10 +722,8 @@ CairoTextureClientD3D9::AllocateForSurface(gfx::IntSize aSize, TextureAllocation
   return true;
 }
 
-SharedTextureClientD3D9::SharedTextureClientD3D9(ISurfaceAllocator* aAllocator,
-                                                 gfx::SurfaceFormat aFormat,
-                                                 TextureFlags aFlags)
-  : TextureClient(aAllocator, aFlags)
+SharedTextureClientD3D9::SharedTextureClientD3D9(gfx::SurfaceFormat aFormat, TextureFlags aFlags)
+  : TextureClient(aFlags)
   , mFormat(aFormat)
   , mHandle(0)
   , mIsLocked(false)
@@ -740,9 +735,6 @@ SharedTextureClientD3D9::~SharedTextureClientD3D9()
 {
   if (mTexture && mActor) {
     KeepUntilFullDeallocation(MakeUnique<TKeepAlive<IDirect3DTexture9>>(mTexture));
-  }
-  if (mTexture) {
-    gfxWindowsPlatform::sD3D9SharedTextureUsed -= mDesc.Width * mDesc.Height * 4;
   }
   MOZ_COUNT_DTOR(SharedTextureClientD3D9);
 }

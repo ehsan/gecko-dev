@@ -14,10 +14,9 @@ class GentooBootstrapper(BaseBootstrapper):
         self.dist_id = dist_id
 
     def install_system_packages(self):
-        self.run_as_root(['emerge', '--quiet', 'git', 'mercurial'])
-
-    def install_browser_packages(self):
         self.run_as_root(['emerge', '--onlydeps', '--quiet', 'firefox'])
+
+        self.run_as_root(['emerge', '--quiet', 'git', 'mercurial'])
 
     def _update_package_manager(self):
         self.run_as_root(['emerge', '--sync'])

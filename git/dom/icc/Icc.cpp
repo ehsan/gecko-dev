@@ -7,7 +7,6 @@
 #include "mozilla/dom/DOMRequest.h"
 #include "mozilla/dom/IccInfo.h"
 #include "mozilla/dom/MozStkCommandEvent.h"
-#include "mozilla/dom/Promise.h"
 #include "mozilla/dom/ScriptSettings.h"
 #include "nsIIccInfo.h"
 #include "nsIIccProvider.h"
@@ -15,32 +14,7 @@
 #include "nsRadioInterfaceLayer.h"
 #include "nsServiceManagerUtils.h"
 
-namespace mozilla {
-namespace dom {
-
-namespace {
-
-bool
-IsPukCardLockType(IccLockType aLockType)
-{
-  switch(aLockType) {
-    case IccLockType::Puk:
-    case IccLockType::Puk2:
-    case IccLockType::NckPuk:
-    case IccLockType::Nck1Puk:
-    case IccLockType::Nck2Puk:
-    case IccLockType::HnckPuk:
-    case IccLockType::CckPuk:
-    case IccLockType::SpckPuk:
-    case IccLockType::RcckPuk:
-    case IccLockType::RspckPuk:
-      return true;
-    default:
-      return false;
-  }
-}
-
-} // anonymous namespace
+using namespace mozilla::dom;
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(Icc, DOMEventTargetHelper, mIccInfo)
 
@@ -243,7 +217,7 @@ Icc::SendStkEventDownload(const JSContext* aCx, JS::Handle<JS::Value> aEvent,
 }
 
 already_AddRefed<DOMRequest>
-Icc::GetCardLock(IccLockType aLockType, ErrorResult& aRv)
+Icc::GetCardLock(const nsAString& aLockType, ErrorResult& aRv)
 {
   if (!mProvider) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -251,9 +225,8 @@ Icc::GetCardLock(IccLockType aLockType, ErrorResult& aRv)
   }
 
   nsRefPtr<nsIDOMDOMRequest> request;
-  nsresult rv = mProvider->GetCardLockEnabled(mClientId, GetOwner(),
-                                              static_cast<uint32_t>(aLockType),
-                                              getter_AddRefs(request));
+  nsresult rv = mProvider->GetCardLockState(mClientId, GetOwner(), aLockType,
+                                            getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return nullptr;
@@ -263,7 +236,8 @@ Icc::GetCardLock(IccLockType aLockType, ErrorResult& aRv)
 }
 
 already_AddRefed<DOMRequest>
-Icc::UnlockCardLock(const IccUnlockCardLockOptions& aOptions, ErrorResult& aRv)
+Icc::UnlockCardLock(const JSContext* aCx, JS::Handle<JS::Value> aInfo,
+                    ErrorResult& aRv)
 {
   if (!mProvider) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -271,11 +245,7 @@ Icc::UnlockCardLock(const IccUnlockCardLockOptions& aOptions, ErrorResult& aRv)
   }
 
   nsRefPtr<nsIDOMDOMRequest> request;
-  const nsString& password = IsPukCardLockType(aOptions.mLockType)
-                           ? aOptions.mPuk : aOptions.mPin;
-  nsresult rv = mProvider->UnlockCardLock(mClientId, GetOwner(),
-                                          static_cast<uint32_t>(aOptions.mLockType),
-                                          password, aOptions.mNewPin,
+  nsresult rv = mProvider->UnlockCardLock(mClientId, GetOwner(), aInfo,
                                           getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
@@ -286,33 +256,17 @@ Icc::UnlockCardLock(const IccUnlockCardLockOptions& aOptions, ErrorResult& aRv)
 }
 
 already_AddRefed<DOMRequest>
-Icc::SetCardLock(const IccSetCardLockOptions& aOptions, ErrorResult& aRv)
+Icc::SetCardLock(const JSContext* aCx, JS::Handle<JS::Value> aInfo,
+                 ErrorResult& aRv)
 {
   if (!mProvider) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
   }
 
-  nsresult rv;
   nsRefPtr<nsIDOMDOMRequest> request;
-
-  if (aOptions.mEnabled.WasPassed()) {
-    // Enable card lock.
-    const nsString& password = (aOptions.mLockType == IccLockType::Fdn) ?
-                               aOptions.mPin2 : aOptions.mPin;
-
-    rv = mProvider->SetCardLockEnabled(mClientId, GetOwner(),
-                                       static_cast<uint32_t>(aOptions.mLockType),
-                                       password, aOptions.mEnabled.Value(),
+  nsresult rv = mProvider->SetCardLock(mClientId, GetOwner(), aInfo,
                                        getter_AddRefs(request));
-  } else {
-    // Change card lock password.
-    rv = mProvider->ChangeCardLockPassword(mClientId, GetOwner(),
-                                           static_cast<uint32_t>(aOptions.mLockType),
-                                           aOptions.mPin, aOptions.mNewPin,
-                                           getter_AddRefs(request));
-  }
-
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return nullptr;
@@ -322,7 +276,7 @@ Icc::SetCardLock(const IccSetCardLockOptions& aOptions, ErrorResult& aRv)
 }
 
 already_AddRefed<DOMRequest>
-Icc::GetCardLockRetryCount(IccLockType aLockType, ErrorResult& aRv)
+Icc::GetCardLockRetryCount(const nsAString& aLockType, ErrorResult& aRv)
 {
   if (!mProvider) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -330,8 +284,9 @@ Icc::GetCardLockRetryCount(IccLockType aLockType, ErrorResult& aRv)
   }
 
   nsRefPtr<nsIDOMDOMRequest> request;
-  nsresult rv = mProvider->GetCardLockRetryCount(mClientId, GetOwner(),
-                                                 static_cast<uint32_t>(aLockType),
+  nsresult rv = mProvider->GetCardLockRetryCount(mClientId,
+                                                 GetOwner(),
+                                                 aLockType,
                                                  getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
@@ -342,7 +297,7 @@ Icc::GetCardLockRetryCount(IccLockType aLockType, ErrorResult& aRv)
 }
 
 already_AddRefed<DOMRequest>
-Icc::ReadContacts(IccContactType aContactType, ErrorResult& aRv)
+Icc::ReadContacts(const nsAString& aContactType, ErrorResult& aRv)
 {
   if (!mProvider) {
     aRv.Throw(NS_ERROR_FAILURE);
@@ -350,8 +305,7 @@ Icc::ReadContacts(IccContactType aContactType, ErrorResult& aRv)
   }
 
   nsRefPtr<nsIDOMDOMRequest> request;
-  nsresult rv = mProvider->ReadContacts(mClientId, GetOwner(),
-                                        static_cast<uint32_t>(aContactType),
+  nsresult rv = mProvider->ReadContacts(mClientId, GetOwner(), aContactType,
                                         getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
@@ -362,7 +316,7 @@ Icc::ReadContacts(IccContactType aContactType, ErrorResult& aRv)
 }
 
 already_AddRefed<DOMRequest>
-Icc::UpdateContact(const JSContext* aCx, IccContactType aContactType,
+Icc::UpdateContact(const JSContext* aCx, const nsAString& aContactType,
                    JS::Handle<JS::Value> aContact, const nsAString& aPin2,
                    ErrorResult& aRv)
 {
@@ -372,8 +326,7 @@ Icc::UpdateContact(const JSContext* aCx, IccContactType aContactType,
   }
 
   nsRefPtr<nsIDOMDOMRequest> request;
-  nsresult rv = mProvider->UpdateContact(mClientId, GetOwner(),
-                                         static_cast<uint32_t>(aContactType),
+  nsresult rv = mProvider->UpdateContact(mClientId, GetOwner(), aContactType,
                                          aContact, aPin2,
                                          getter_AddRefs(request));
   if (NS_FAILED(rv)) {
@@ -385,7 +338,8 @@ Icc::UpdateContact(const JSContext* aCx, IccContactType aContactType,
 }
 
 already_AddRefed<DOMRequest>
-Icc::MatchMvno(IccMvnoType aMvnoType, const nsAString& aMvnoData,
+Icc::MatchMvno(const nsAString& aMvnoType,
+               const nsAString& aMvnoData,
                ErrorResult& aRv)
 {
   if (!mProvider) {
@@ -395,8 +349,8 @@ Icc::MatchMvno(IccMvnoType aMvnoType, const nsAString& aMvnoData,
 
   nsRefPtr<nsIDOMDOMRequest> request;
   nsresult rv = mProvider->MatchMvno(mClientId, GetOwner(),
-                                     static_cast<uint32_t>(aMvnoType),
-                                     aMvnoData, getter_AddRefs(request));
+                                     aMvnoType, aMvnoData,
+                                     getter_AddRefs(request));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return nullptr;
@@ -404,27 +358,3 @@ Icc::MatchMvno(IccMvnoType aMvnoType, const nsAString& aMvnoData,
 
   return request.forget().downcast<DOMRequest>();
 }
-
-already_AddRefed<Promise>
-Icc::GetServiceState(IccService aService, ErrorResult& aRv)
-{
-  if (!mProvider) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  nsCOMPtr<nsISupports> supports;
-  nsresult rv = mProvider->GetServiceState(mClientId, GetOwner(),
-                                           static_cast<uint32_t>(aService),
-                                           getter_AddRefs(supports));
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return nullptr;
-  }
-
-  nsCOMPtr<Promise> promise = do_QueryInterface(supports);
-  return promise.forget();
-}
-
-} // namespace dom
-} // namespace mozilla

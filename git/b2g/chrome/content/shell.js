@@ -290,7 +290,7 @@ var shell = {
     systemAppFrame.setAttribute('mozbrowser', 'true');
     systemAppFrame.setAttribute('mozapp', manifestURL);
     systemAppFrame.setAttribute('allowfullscreen', 'true');
-    systemAppFrame.setAttribute('style', "overflow: hidden; height: 100%; width: 100%; border: none; position: absolute; left: 0; top: 0; right: 0; bottom: 0;");
+    systemAppFrame.setAttribute('style', "overflow: hidden; height: 100%; width: 100%; border: none;");
     systemAppFrame.setAttribute('src', "data:text/html;charset=utf-8,%3C!DOCTYPE html>%3Cbody style='background:black;");
     let container = document.getElementById('container');
 #ifdef MOZ_WIDGET_COCOA
@@ -329,7 +329,7 @@ var shell = {
     window.addEventListener('sizemodechange', this);
     window.addEventListener('unload', this);
     this.contentBrowser.addEventListener('mozbrowserloadstart', this, true);
-    this.contentBrowser.addEventListener('mozbrowserselectionstatechanged', this, true);
+    this.contentBrowser.addEventListener('mozbrowserselectionchange', this, true);
     this.contentBrowser.addEventListener('mozbrowserscrollviewchange', this, true);
     this.contentBrowser.addEventListener('mozbrowsertouchcarettap', this, true);
 
@@ -357,7 +357,7 @@ var shell = {
     window.removeEventListener('mozfullscreenchange', this);
     window.removeEventListener('sizemodechange', this);
     this.contentBrowser.removeEventListener('mozbrowserloadstart', this, true);
-    this.contentBrowser.removeEventListener('mozbrowserselectionstatechanged', this, true);
+    this.contentBrowser.removeEventListener('mozbrowserselectionchange', this, true);
     this.contentBrowser.removeEventListener('mozbrowserscrollviewchange', this, true);
     this.contentBrowser.removeEventListener('mozbrowsertouchcarettap', this, true);
     ppmm.removeMessageListener("content-handler", this);
@@ -398,14 +398,14 @@ var shell = {
     }
 
     let mediaKeys = {
-      'MediaTrackNext': 'media-next-track-button',
-      'MediaTrackPrevious': 'media-previous-track-button',
+      'MediaNextTrack': 'media-next-track-button',
+      'MediaPreviousTrack': 'media-previous-track-button',
       'MediaPause': 'media-pause-button',
       'MediaPlay': 'media-play-button',
       'MediaPlayPause': 'media-play-pause-button',
       'MediaStop': 'media-stop-button',
       'MediaRewind': 'media-rewind-button',
-      'MediaFastForward': 'media-fast-forward-button'
+      'FastFwd': 'media-fast-forward-button'
     };
 
     let isMediaKey = false;
@@ -505,8 +505,8 @@ var shell = {
           detail: evt.detail,
         });
         break;
-      case 'mozbrowserselectionstatechanged':
-        // The mozbrowserselectionstatechanged event, may have crossed the chrome-content boundary.
+      case 'mozbrowserselectionchange':
+        // The mozbrowserselectionchange event, may have crossed the chrome-content boundary.
         // This event always dispatch to shell.js. But the offset we got from this event is
         // based on tab's coordinate. So get the actual offsets between shell and evt.target.
         let elt = evt.target;
@@ -524,7 +524,7 @@ var shell = {
 
         DoCommandHelper.setEvent(evt);
         shell.sendChromeEvent({
-          type: 'selectionstatechanged',
+          type: 'selectionchange',
           detail: data,
         });
         break;
@@ -725,8 +725,6 @@ var CustomEventManager = {
         CaptivePortalLoginHelper.handleEvent(detail);
         break;
       case 'inputmethod-update-layouts':
-      case 'inputregistry-add':
-      case 'inputregistry-remove':
         KeyboardHelper.handleEvent(detail);
         break;
       case 'do-command':
@@ -870,17 +868,7 @@ let IndexedDBPromptHelper = {
 
 let KeyboardHelper = {
   handleEvent: function keyboard_handleEvent(detail) {
-    switch (detail.type) {
-      case 'inputmethod-update-layouts':
-        Keyboard.setLayouts(detail.layouts);
-
-        break;
-      case 'inputregistry-add':
-      case 'inputregistry-remove':
-        Keyboard.inputRegistryGlue.returnMessage(detail);
-
-        break;
-    }
+    Keyboard.setLayouts(detail.layouts);
   }
 };
 
@@ -1230,7 +1218,7 @@ Services.obs.addObserver(function resetProfile(subject, topic, data) {
 }, 'b2g-reset-profile', false);
 
 /**
-  * CID of our implementation of nsITransfer.
+  * CID of our implementation of nsIDownloadManagerUI.
   */
 const kTransferCid = Components.ID("{1b4c85df-cbdd-4bb6-b04e-613caece083c}");
 

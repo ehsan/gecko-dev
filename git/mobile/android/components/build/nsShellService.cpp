@@ -8,7 +8,7 @@
 
 #include "AndroidBridge.h"
 
-using namespace mozilla;
+using namespace mozilla::widget::android;
 
 NS_IMPL_ISUPPORTS(nsShellService, nsIShellService)
 
@@ -25,6 +25,6 @@ nsShellService::CreateShortcut(const nsAString& aTitle, const nsAString& aURI,
   if (!aTitle.Length() || !aURI.Length() || !aIconData.Length())
     return NS_ERROR_FAILURE;
 
-  widget::GeckoAppShell::CreateShortcut(aTitle, aURI, aIconData);
+  mozilla::widget::android::GeckoAppShell::CreateShortcut(aTitle, aURI, aIconData);
   return NS_OK;
 }

@@ -9,9 +9,7 @@
 
 #include "jsapi.h"
 #include "jsobj.h"
-
 #include "builtin/TypedObject.h"
-#include "js/Conversions.h"
 #include "vm/GlobalObject.h"
 
 /*
@@ -63,9 +61,8 @@
   V(xor, (CoercedBinaryFunc<Float32x4, Int32x4, Xor, Float32x4>), 2, 0)
 
 #define FLOAT32X4_TERNARY_FUNCTION_LIST(V)                                          \
-  V(bitselect, BitSelect<Float32x4>, 3, 0)                                          \
   V(clamp, Float32x4Clamp, 3, 0)                                                    \
-  V(select, Select<Float32x4>, 3, 0)
+  V(select, Float32x4Select, 3, 0)
 
 #define FLOAT32X4_SHUFFLE_FUNCTION_LIST(V)                                          \
   V(swizzle, Swizzle<Float32x4>, 2, 0)                                              \
@@ -100,9 +97,9 @@
   V(notEqual, (CompareFunc<Int32x4, NotEqual>), 2, 0)                               \
   V(or, (BinaryFunc<Int32x4, Or, Int32x4>), 2, 0)                                   \
   V(sub, (BinaryFunc<Int32x4, Sub, Int32x4>), 2, 0)                                 \
-  V(shiftLeftByScalar, (Int32x4BinaryScalar<ShiftLeft>), 2, 0)                      \
-  V(shiftRightArithmeticByScalar, (Int32x4BinaryScalar<ShiftRight>), 2, 0)          \
-  V(shiftRightLogicalByScalar, (Int32x4BinaryScalar<ShiftRightLogical>), 2, 0)      \
+  V(shiftLeft, (Int32x4BinaryScalar<ShiftLeft>), 2, 0)                              \
+  V(shiftRight, (Int32x4BinaryScalar<ShiftRight>), 2, 0)                            \
+  V(shiftRightLogical, (Int32x4BinaryScalar<ShiftRightLogical>), 2, 0)              \
   V(store,    (Store<Int32x4, 4>), 3, 0)                                            \
   V(storeXYZ, (Store<Int32x4, 3>), 3, 0)                                            \
   V(storeXY,  (Store<Int32x4, 2>), 3, 0)                                            \
@@ -114,8 +111,7 @@
   V(xor, (BinaryFunc<Int32x4, Xor, Int32x4>), 2, 0)
 
 #define INT32X4_TERNARY_FUNCTION_LIST(V)                                            \
-  V(bitselect, BitSelect<Int32x4>, 3, 0)                                            \
-  V(select, Select<Int32x4>, 3, 0)
+  V(select, Int32x4Select, 3, 0)                                                    \
 
 #define INT32X4_QUARTERNARY_FUNCTION_LIST(V)                                        \
   V(bool, Int32x4Bool, 4, 0)
@@ -134,9 +130,9 @@
 #define FOREACH_INT32X4_SIMD_OP(_)   \
     _(fromFloat32x4)                 \
     _(fromFloat32x4Bits)             \
-    _(shiftLeftByScalar)             \
-    _(shiftRightArithmeticByScalar)  \
-    _(shiftRightLogicalByScalar)
+    _(shiftLeft)                     \
+    _(shiftRight)                    \
+    _(shiftRightLogical)
 #define FOREACH_FLOAT32X4_SIMD_OP(_) \
     _(abs)                           \
     _(sqrt)                          \
@@ -144,6 +140,7 @@
     _(reciprocalSqrt)                \
     _(fromInt32x4)                   \
     _(fromInt32x4Bits)               \
+    _(mul)                           \
     _(div)                           \
     _(max)                           \
     _(min)                           \
@@ -152,7 +149,6 @@
 #define FOREACH_COMMONX4_SIMD_OP(_)  \
     _(add)                           \
     _(sub)                           \
-    _(mul)                           \
     _(lessThan)                      \
     _(lessThanOrEqual)               \
     _(equal)                         \
@@ -162,7 +158,6 @@
     _(and)                           \
     _(or)                            \
     _(xor)                           \
-    _(bitselect)                     \
     _(select)                        \
     _(swizzle)                       \
     _(shuffle)                       \
@@ -221,7 +216,7 @@ struct Int32x4 {
         return global.int32x4TypeDescr().as<TypeDescr>();
     }
     static Elem toType(Elem a) {
-        return JS::ToInt32(a);
+        return ToInt32(a);
     }
     static bool toType(JSContext *cx, JS::HandleValue v, Elem *out) {
         return ToInt32(cx, v, out);

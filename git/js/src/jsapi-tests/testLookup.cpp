@@ -27,7 +27,7 @@ BEGIN_TEST(testLookup_bug522590)
 
     // This lookup must not return an internal function object.
     JS::RootedValue r(cx);
-    CHECK(JS_GetProperty(cx, xobj, "f", &r));
+    CHECK(JS_LookupProperty(cx, xobj, "f", &r));
     CHECK(r.isObject());
     JSObject *funobj = &r.toObject();
     CHECK(funobj->is<JSFunction>());
@@ -39,7 +39,14 @@ END_TEST(testLookup_bug522590)
 
 static const JSClass DocumentAllClass = {
     "DocumentAll",
-    JSCLASS_EMULATES_UNDEFINED
+    JSCLASS_EMULATES_UNDEFINED,
+    JS_PropertyStub,
+    JS_DeletePropertyStub,
+    JS_PropertyStub,
+    JS_StrictPropertyStub,
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub
 };
 
 bool
@@ -76,8 +83,8 @@ document_resolve(JSContext *cx, JS::HandleObject obj, JS::HandleId id, bool *res
 
 static const JSClass document_class = {
     "document", 0,
-    nullptr, nullptr, nullptr, nullptr,
-    nullptr, document_resolve, nullptr
+    JS_PropertyStub, JS_DeletePropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_EnumerateStub, document_resolve, JS_ConvertStub
 };
 
 BEGIN_TEST(testLookup_bug570195)

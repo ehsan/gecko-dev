@@ -10,21 +10,14 @@
  * W3C liability, trademark and document use rules apply.
  */
 
-enum MediaKeyMessageType {
-  "license-request",
-  "license-renewal",
-  "license-release",
-  "individualization-request"
-};
-
-[Pref="media.eme.apiVisible", Constructor(DOMString type, optional MediaKeyMessageEventInit eventInitDict)]
+[Pref="media.eme.enabled", Constructor(DOMString type, optional MediaKeyMessageEventInit eventInitDict)]
 interface MediaKeyMessageEvent : Event {
-  readonly attribute MediaKeyMessageType messageType;
   [Throws]
   readonly attribute ArrayBuffer message;
+  readonly attribute DOMString? destinationURL;
 };
 
 dictionary MediaKeyMessageEventInit : EventInit {
-  MediaKeyMessageType messageType = "license-request";
   ArrayBuffer message;
+  DOMString? destinationURL = null;
 };

@@ -26,7 +26,8 @@ namespace layers {
 class BasicImageLayer : public ImageLayer, public BasicImplData {
 public:
   explicit BasicImageLayer(BasicLayerManager* aLayerManager) :
-    ImageLayer(aLayerManager, static_cast<BasicImplData*>(this)),
+    ImageLayer(aLayerManager,
+               static_cast<BasicImplData*>(MOZ_THIS_IN_INITIALIZER_LIST())),
     mSize(-1, -1)
   {
     MOZ_COUNT_CTOR(BasicImageLayer);
@@ -38,7 +39,7 @@ protected:
   }
 
 public:
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion) MOZ_OVERRIDE
+  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(BasicManager()->InConstruction(),
                  "Can only set properties in construction phase");

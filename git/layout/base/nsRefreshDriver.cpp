@@ -27,7 +27,6 @@
 
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/AutoRestore.h"
-#include "nsHostObjectProtocolHandler.h"
 #include "nsRefreshDriver.h"
 #include "nsITimer.h"
 #include "nsLayoutUtils.h"
@@ -38,7 +37,6 @@
 #include "nsIDocument.h"
 #include "jsapi.h"
 #include "nsContentUtils.h"
-#include "mozilla/PendingPlayerTracker.h"
 #include "mozilla/Preferences.h"
 #include "nsViewManager.h"
 #include "GeckoProfiler.h"
@@ -84,9 +82,12 @@ namespace mozilla {
  */
 class RefreshDriverTimer {
 public:
-  RefreshDriverTimer()
-    : mLastFireEpoch(0)
+  /*
+   * aRate -- the delay, in milliseconds, requested between timer firings
+   */
+  explicit RefreshDriverTimer(double aRate)
   {
+    SetRate(aRate);
   }
 
   virtual ~RefreshDriverTimer()
@@ -116,6 +117,18 @@ public:
     if (mRefreshDrivers.Length() == 0) {
       StopTimer();
     }
+  }
+
+  double GetRate() const
+  {
+    return mRateMilliseconds;
+  }
+
+  // will take effect at next timer tick
+  virtual void SetRate(double aNewRate)
+  {
+    mRateMilliseconds = aNewRate;
+    mRateDuration = TimeDuration::FromMilliseconds(mRateMilliseconds);
   }
 
   TimeStamp MostRecentRefresh() const { return mLastFireTime; }
@@ -162,6 +175,9 @@ protected:
     driver->Tick(jsnow, now);
   }
 
+  double mRateMilliseconds;
+  TimeDuration mRateDuration;
+
   int64_t mLastFireEpoch;
   TimeStamp mLastFireTime;
   TimeStamp mTargetTime;
@@ -188,30 +204,15 @@ class SimpleTimerBasedRefreshDriverTimer :
     public RefreshDriverTimer
 {
 public:
-  /*
-   * aRate -- the delay, in milliseconds, requested between timer firings
-   */
   explicit SimpleTimerBasedRefreshDriverTimer(double aRate)
+    : RefreshDriverTimer(aRate)
   {
-    SetRate(aRate);
     mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
   }
 
   virtual ~SimpleTimerBasedRefreshDriverTimer()
   {
     StopTimer();
-  }
-
-  // will take effect at next timer tick
-  virtual void SetRate(double aNewRate)
-  {
-    mRateMilliseconds = aNewRate;
-    mRateDuration = TimeDuration::FromMilliseconds(mRateMilliseconds);
-  }
-
-  double GetRate() const
-  {
-    return mRateMilliseconds;
   }
 
 protected:
@@ -233,8 +234,6 @@ protected:
     mTimer->Cancel();
   }
 
-  double mRateMilliseconds;
-  TimeDuration mRateDuration;
   nsRefPtr<nsITimer> mTimer;
 };
 
@@ -439,23 +438,25 @@ protected:
  * at some point, but we don't care too much about how often.
  */
 class InactiveRefreshDriverTimer MOZ_FINAL :
-    public SimpleTimerBasedRefreshDriverTimer
+    public RefreshDriverTimer
 {
 public:
   explicit InactiveRefreshDriverTimer(double aRate)
-    : SimpleTimerBasedRefreshDriverTimer(aRate),
+    : RefreshDriverTimer(aRate),
       mNextTickDuration(aRate),
       mDisableAfterMilliseconds(-1.0),
       mNextDriverIndex(0)
   {
+    mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
   }
 
   InactiveRefreshDriverTimer(double aRate, double aDisableAfterMilliseconds)
-    : SimpleTimerBasedRefreshDriverTimer(aRate),
+    : RefreshDriverTimer(aRate),
       mNextTickDuration(aRate),
       mDisableAfterMilliseconds(aDisableAfterMilliseconds),
       mNextDriverIndex(0)
   {
+    mTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
   }
 
   virtual void AddRefreshDriver(nsRefreshDriver* aDriver)
@@ -545,6 +546,7 @@ protected:
     timer->TickOne();
   }
 
+  nsRefPtr<nsITimer> mTimer;
   double mNextTickDuration;
   double mDisableAfterMilliseconds;
   uint32_t mNextDriverIndex;
@@ -757,14 +759,14 @@ void
 nsRefreshDriver::RestoreNormalRefresh()
 {
   mTestControllingRefreshes = false;
-  EnsureTimerStarted(eAllowTimeToGoBackwards);
+  EnsureTimerStarted(false);
   mCompletedTransaction = mPendingTransaction;
 }
 
 TimeStamp
 nsRefreshDriver::MostRecentRefresh() const
 {
-  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted();
+  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted(false);
 
   return mMostRecentRefresh;
 }
@@ -772,7 +774,7 @@ nsRefreshDriver::MostRecentRefresh() const
 int64_t
 nsRefreshDriver::MostRecentRefreshEpochTime() const
 {
-  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted();
+  const_cast<nsRefreshDriver*>(this)->EnsureTimerStarted(false);
 
   return mMostRecentRefreshEpochTime;
 }
@@ -783,7 +785,7 @@ nsRefreshDriver::AddRefreshObserver(nsARefreshObserver* aObserver,
 {
   ObserverArray& array = ArrayFor(aFlushType);
   bool success = array.AppendElement(aObserver) != nullptr;
-  EnsureTimerStarted();
+  EnsureTimerStarted(false);
   return success;
 }
 
@@ -824,7 +826,7 @@ nsRefreshDriver::AddImageRequest(imgIRequest* aRequest)
     start->mEntries.PutEntry(aRequest);
   }
 
-  EnsureTimerStarted();
+  EnsureTimerStarted(false);
 
   return true;
 }
@@ -845,31 +847,19 @@ nsRefreshDriver::RemoveImageRequest(imgIRequest* aRequest)
 }
 
 void
-nsRefreshDriver::EnsureTimerStarted(EnsureTimerStartedFlags aFlags)
+nsRefreshDriver::EnsureTimerStarted(bool aAdjustingTimer)
 {
   if (mTestControllingRefreshes)
     return;
 
   // will it already fire, and no other changes needed?
-  if (mActiveTimer && !(aFlags & eAdjustingTimer))
+  if (mActiveTimer && !aAdjustingTimer)
     return;
 
   if (IsFrozen() || !mPresContext) {
     // If we don't want to start it now, or we've been disconnected.
     StopTimer();
     return;
-  }
-
-  if (mPresContext->Document()->IsBeingUsedAsImage()) {
-    // Image documents receive ticks from clients' refresh drivers.
-    // XXXdholbert Exclude SVG-in-opentype fonts from this optimization, until
-    // they receive refresh-driver ticks from their client docs (bug 1107252).
-    nsIURI* uri = mPresContext->Document()->GetDocumentURI();
-    if (!uri || !IsFontTableURI(uri)) {
-      MOZ_ASSERT(!mActiveTimer,
-                 "image doc refresh driver should never have its own timer");
-      return;
-    }
   }
 
   // We got here because we're either adjusting the time *or* we're
@@ -887,19 +877,11 @@ nsRefreshDriver::EnsureTimerStarted(EnsureTimerStartedFlags aFlags)
   // timers, the most recent refresh of the new timer may be *before* the
   // most recent refresh of the old timer. However, the refresh driver time
   // should not go backwards so we clamp the most recent refresh time.
-  //
-  // The one exception to this is when we are restoring the refresh driver
-  // from test control in which case the time is expected to go backwards
-  // (see bug 1043078).
   mMostRecentRefresh =
-    aFlags & eAllowTimeToGoBackwards
-    ? mActiveTimer->MostRecentRefresh()
-    : std::max(mActiveTimer->MostRecentRefresh(), mMostRecentRefresh);
+    std::max(mActiveTimer->MostRecentRefresh(), mMostRecentRefresh);
   mMostRecentRefreshEpochTime =
-    aFlags & eAllowTimeToGoBackwards
-    ? mActiveTimer->MostRecentRefreshEpochTime()
-    : std::max(mActiveTimer->MostRecentRefreshEpochTime(),
-               mMostRecentRefreshEpochTime);
+    std::max(mActiveTimer->MostRecentRefreshEpochTime(),
+             mMostRecentRefreshEpochTime);
 }
 
 void
@@ -1074,18 +1056,6 @@ static nsDocShell* GetDocShell(nsPresContext* aPresContext)
   return static_cast<nsDocShell*>(aPresContext->GetDocShell());
 }
 
-static bool
-HasPendingAnimations(nsIPresShell* aShell)
-{
-  nsIDocument* doc = aShell->GetDocument();
-  if (!doc) {
-    return false;
-  }
-
-  PendingPlayerTracker* tracker = doc->GetPendingPlayerTracker();
-  return tracker && tracker->HasPendingPlayers();
-}
-
 /**
  * Return a list of all the child docShells in a given root docShell that are
  * visible and are recording markers for the profilingTimeline
@@ -1197,7 +1167,7 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
     while (etor.HasMore()) {
       nsRefPtr<nsARefreshObserver> obs = etor.GetNext();
       obs->WillRefresh(aNowTime);
-
+      
       if (!mPresContext || !mPresContext->GetPresShell()) {
         StopTimer();
         return;
@@ -1321,10 +1291,8 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
           mLayoutFlushObservers.RemoveElement(shell);
           shell->mReflowScheduled = false;
           shell->mSuppressInterruptibleReflows = false;
-          mozFlushType flushType = HasPendingAnimations(shell)
-                                 ? Flush_Layout
-                                 : Flush_InterruptibleLayout;
-          shell->FlushPendingNotifications(ChangesToFlush(flushType, false));
+          shell->FlushPendingNotifications(ChangesToFlush(Flush_InterruptibleLayout,
+                                                          false));
           // Inform the FontFaceSet that we ticked, so that it can resolve its
           // ready promise if it needs to.
           nsPresContext* presContext = shell->GetPresContext();
@@ -1404,8 +1372,6 @@ nsRefreshDriver::Tick(int64_t aNowEpoch, TimeStamp aNowTime)
       nsJSContext::NotifyDidPaint();
     }
   }
-
-  mozilla::Telemetry::AccumulateTimeDelta(mozilla::Telemetry::REFRESH_DRIVER_TICK, mTickStart);
 
   for (uint32_t i = 0; i < mPostRefreshObservers.Length(); ++i) {
     mPostRefreshObservers[i]->DidRefresh();
@@ -1507,7 +1473,7 @@ nsRefreshDriver::Thaw()
       // and notify our observers until we get back to the event loop.
       // Thus MostRecentRefresh() will lie between now and the DoRefresh.
       NS_DispatchToCurrentThread(NS_NewRunnableMethod(this, &nsRefreshDriver::DoRefresh));
-      EnsureTimerStarted();
+      EnsureTimerStarted(false);
     }
   }
 }
@@ -1635,7 +1601,7 @@ nsRefreshDriver::SetThrottled(bool aThrottled)
     if (mActiveTimer) {
       // We want to switch our timer type here, so just stop and
       // restart the timer.
-      EnsureTimerStarted(eAdjustingTimer);
+      EnsureTimerStarted(true);
     }
   }
 }
@@ -1665,7 +1631,7 @@ nsRefreshDriver::ScheduleViewManagerFlush()
   NS_ASSERTION(mPresContext->IsRoot(),
                "Should only schedule view manager flush on root prescontexts");
   mViewManagerFlushIsPending = true;
-  EnsureTimerStarted();
+  EnsureTimerStarted(false);
 }
 
 void
@@ -1678,7 +1644,7 @@ nsRefreshDriver::ScheduleFrameRequestCallbacks(nsIDocument* aDocument)
 
   // make sure that the timer is running
   ConfigureHighPrecision();
-  EnsureTimerStarted();
+  EnsureTimerStarted(false);
 }
 
 void

@@ -14,7 +14,7 @@ DIRS += [
     'commandhandler',
 ]
 
-if CONFIG['MOZ_XUL']:
+if CONFIG['MOZ_XUL'] and CONFIG['NS_PRINTING']:
     DIRS += ['printingui']
 
 DIRS += ['build']

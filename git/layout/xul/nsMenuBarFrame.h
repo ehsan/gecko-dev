@@ -29,7 +29,7 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsMenuBarFrame(nsStyleContext* aContext);
+  nsMenuBarFrame(nsIPresShell* aShell, nsStyleContext* aContext);
 
   // nsMenuParent interface
   virtual nsMenuFrame* GetCurrentMenuItem() MOZ_OVERRIDE;

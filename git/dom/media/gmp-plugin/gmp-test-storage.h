@@ -27,15 +27,13 @@ ReadRecord(const std::string& aRecordName,
 GMPErr
 WriteRecord(const std::string& aRecordName,
             const std::string& aData,
-            GMPTask* aOnSuccess,
-            GMPTask* aOnFailure);
+            GMPTask* aContinuation);
 
 GMPErr
 WriteRecord(const std::string& aRecordName,
             const uint8_t* aData,
             uint32_t aNumBytes,
-            GMPTask* aOnSuccess,
-            GMPTask* aOnFailure);
+            GMPTask* aContinuation);
 
 GMPErr
 GMPOpenRecord(const char* aName,
@@ -52,7 +50,7 @@ public:
   virtual void OpenComplete(GMPErr aStatus, GMPRecord* aRecord) = 0;
 };
 
-void
+GMPErr
 GMPOpenRecord(const std::string& aRecordName,
               OpenContinuation* aContinuation);
 

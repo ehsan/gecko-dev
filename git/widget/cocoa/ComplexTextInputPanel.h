@@ -28,21 +28,23 @@
 #ifndef ComplexTextInputPanel_h_
 #define ComplexTextInputPanel_h_
 
-#include "nsString.h"
-#include "npapi.h"
+#import <Cocoa/Cocoa.h>
 
-class ComplexTextInputPanel
-{
-public:
-  static ComplexTextInputPanel* GetSharedComplexTextInputPanel();
-  virtual void PlacePanel(int32_t x, int32_t y) = 0; // Bottom left coordinate of plugin in screen coords
-  virtual void InterpretKeyEvent(void* aEvent, nsAString& aOutText) = 0;
-  virtual bool IsInComposition() = 0;
-  virtual void* GetInputContext() = 0;
-  virtual void CancelComposition() = 0;
+@interface ComplexTextInputPanel : NSPanel {
+  NSTextView *mInputTextView;
+}
 
-protected:
-  virtual ~ComplexTextInputPanel() {};
-};
++ (ComplexTextInputPanel*)sharedComplexTextInputPanel;
+
+- (NSTextInputContext*)inputContext;
+- (BOOL)interpretKeyEvent:(NSEvent*)event string:(NSString**)string;
+- (void)cancelComposition;
+- (BOOL)inComposition;
+
+// This places the text input panel fully onscreen and below the lower left
+// corner of the focused plugin.
+- (void)adjustTo:(NSView*)view;
+
+@end
 
 #endif // ComplexTextInputPanel_h_

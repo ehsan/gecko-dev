@@ -36,7 +36,7 @@ protected:
   }
 
   virtual void
-  ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  ActorDestroy(ActorDestroyReason why);
 
   virtual bool
   RecvPMobileConnectionRequestConstructor(PMobileConnectionRequestParent* aActor,
@@ -51,8 +51,8 @@ protected:
   virtual bool
   RecvInit(nsMobileConnectionInfo* aVoice, nsMobileConnectionInfo* aData,
            nsString* aLastKnownNetwork, nsString* aLastKnownHomeNetwork,
-           int32_t* aNetworkSelectionMode, int32_t* aRadioState,
-           nsTArray<int32_t>* aSupportedNetworkTypes) MOZ_OVERRIDE;
+           nsString* aIccId, int32_t* aNetworkSelectionMode,
+           int32_t* aRadioState, nsTArray<int32_t>* aSupportedNetworkTypes) MOZ_OVERRIDE;
 
 private:
   nsCOMPtr<nsIMobileConnection> mMobileConnection;
@@ -112,6 +112,12 @@ public:
   DoRequest(const GetVoicePrivacyModeRequest& aRequest);
 
   bool
+  DoRequest(const SendMmiRequest& aRequest);
+
+  bool
+  DoRequest(const CancelMmiRequest& aRequest);
+
+  bool
   DoRequest(const SetCallForwardingRequest& aRequest);
 
   bool
@@ -152,7 +158,7 @@ protected:
   }
 
   virtual void
-  ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  ActorDestroy(ActorDestroyReason why);
 
   nsresult
   SendReply(const MobileConnectionReply& aReply);

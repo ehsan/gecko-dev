@@ -210,11 +210,13 @@ public:
     * @param aNumFramesOnLine  - return the numbers of cells originating in
     *                            this row
     * @param aLineBounds       - rect of the row
+    * @param aLineFlags        - unused set to 0
     */
   NS_IMETHOD GetLine(int32_t aLineNumber,
                      nsIFrame** aFirstFrameOnLine,
                      int32_t* aNumFramesOnLine,
-                     nsRect& aLineBounds) MOZ_OVERRIDE;
+                     nsRect& aLineBounds,
+                     uint32_t* aLineFlags) MOZ_OVERRIDE;
   
   /** Given a frame that's a child of the rowgroup, find which line its on.
     * @param aFrame       - frame, should be a row
@@ -337,7 +339,6 @@ protected:
   void PlaceChild(nsPresContext*         aPresContext,
                   nsRowGroupReflowState& aReflowState,
                   nsIFrame*              aKidFrame,
-                  nsPoint                aKidPosition,
                   nsHTMLReflowMetrics&   aDesiredSize,
                   const nsRect&          aOriginalKidRect,
                   const nsRect&          aOriginalKidVisualOverflow);

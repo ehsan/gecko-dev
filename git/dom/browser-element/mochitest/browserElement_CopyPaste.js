@@ -1,26 +1,22 @@
 /* Any copyright is dedicated to the public domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
-// Test that "cut, copy, paste, selectall" and selectionstatechanged event works from inside an <iframe mozbrowser>.
+// Test that "cut, copy, paste, selectall" and selectionchange event works from inside an <iframe mozbrowser>.
 "use strict";
 
 SimpleTest.waitForExplicitFinish();
-SimpleTest.requestFlakyTimeout("untriaged");
 browserElementTestHelpers.setEnabledPref(true);
 browserElementTestHelpers.setSelectionChangeEnabledPref(true);
 browserElementTestHelpers.addPermission();
 const { Services } = SpecialPowers.Cu.import('resource://gre/modules/Services.jsm');
-
 var gTextarea = null;
 var mm;
-var iframeOuter;
-var iframeInner;
+var iframe;
 var state = 0;
 var stateMeaning;
 var defaultData;
 var pasteData;
 var focusScript;
-var createEmbededFrame = false;
 
 function copyToClipboard(str) {
   gTextarea.value = str;
@@ -49,47 +45,29 @@ function getScriptForSetFocus() {
 }
 
 function runTest() {
-  iframeOuter = document.createElement('iframe');
-  iframeOuter.setAttribute('mozbrowser', 'true');
-  if (createEmbededFrame) {
-    iframeOuter.src = "file_NestedFramesOuter_CopyPaste.html";
-  }
-  document.body.appendChild(iframeOuter);
+  iframe = document.createElement('iframe');
+  iframe.setAttribute('mozbrowser', 'true');
+  document.body.appendChild(iframe);
 
   gTextarea = document.createElement('textarea');
   document.body.appendChild(gTextarea);
 
-  iframeOuter.addEventListener("mozbrowserloadend", function onloadend(e) {
-    iframeOuter.removeEventListener("mozbrowserloadend", onloadend);
+  mm = SpecialPowers.getBrowserFrameMessageManager(iframe);
 
-    if (createEmbededFrame) {
-      var contentWin = SpecialPowers.wrap(iframeOuter)
-                             .QueryInterface(SpecialPowers.Ci.nsIFrameLoaderOwner)
-                             .frameLoader.docShell.contentViewer.DOMDocument.defaultView;
-      var contentDoc = contentWin.document;
-      iframeInner = contentDoc.getElementById('iframeInner');
-      iframeInner.addEventListener("mozbrowserloadend", function onloadendinner(e) {
-        iframeInner.removeEventListener("mozbrowserloadend", onloadendinner);
-        mm = SpecialPowers.getBrowserFrameMessageManager(iframeInner);
-        dispatchTest(e);
-      });
-    } else {
-      iframeInner = iframeOuter;
-      mm = SpecialPowers.getBrowserFrameMessageManager(iframeInner);
-      dispatchTest(e);
-    }
+  iframe.addEventListener("mozbrowserloadend", function onloadend(e) {
+    iframe.removeEventListener("mozbrowserloadend", onloadend);
+    dispatchTest(e);
   });
 }
 
 function doCommand(cmd) {
-  Services.obs.notifyObservers({wrappedJSObject: SpecialPowers.unwrap(iframeInner)},
+  Services.obs.notifyObservers({wrappedJSObject: iframe},
                                'copypaste-docommand', cmd);
 }
 
 function dispatchTest(e) {
-  iframeInner.addEventListener("mozbrowserloadend", function onloadend2(e) {
-    iframeInner.removeEventListener("mozbrowserloadend", onloadend2);
-    iframeInner.focus();
+  iframe.addEventListener("mozbrowserloadend", function onloadend2(e) {
+    iframe.removeEventListener("mozbrowserloadend", onloadend2);
     SimpleTest.executeSoon(function() { testSelectAll(e); });
   });
 
@@ -97,7 +75,7 @@ function dispatchTest(e) {
     case 0: // test for textarea
       defaultData = "Test for selection change event";
       pasteData = "from parent ";
-      iframeInner.src = "data:text/html,<html><body>" +
+      iframe.src = "data:text/html,<html><body>" +
                    "<textarea id='text'>" + defaultData + "</textarea>" +
                    "</body>" +
                    "</html>";
@@ -107,7 +85,7 @@ function dispatchTest(e) {
     case 1: // test for input text
       defaultData = "Test for selection change event";
       pasteData = "from parent ";
-      iframeInner.src = "data:text/html,<html><body>" +
+      iframe.src = "data:text/html,<html><body>" +
                    "<input type='text' id='text' value='" + defaultData + "'>" +
                    "</body>" +
                    "</html>";
@@ -117,7 +95,7 @@ function dispatchTest(e) {
     case 2: // test for input number
       defaultData = "12345";
       pasteData = "67890";
-      iframeInner.src = "data:text/html,<html><body>" +
+      iframe.src = "data:text/html,<html><body>" +
                    "<input type='number' id='text' value='" + defaultData + "'>" +
                    "</body>" +
                    "</html>";
@@ -127,7 +105,7 @@ function dispatchTest(e) {
     case 3: // test for div contenteditable
       defaultData = "Test for selection change event";
       pasteData = "from parent ";
-      iframeInner.src = "data:text/html,<html><body>" +
+      iframe.src = "data:text/html,<html><body>" +
                    "<div contenteditable='true' id='text'>" + defaultData + "</div>" +
                    "</body>" +
                    "</html>";
@@ -135,9 +113,11 @@ function dispatchTest(e) {
       focusScript = "var elt=content.document.getElementById('text');elt.focus();";
       break;
     case 4: // test for normal div
+      SimpleTest.finish();
+      return;
       defaultData = "Test for selection change event";
       pasteData = "from parent ";
-      iframeInner.src = "data:text/html,<html><body>" +
+      iframe.src = "data:text/html,<html><body>" +
                    "<div id='text'>" + defaultData + "</div>" +
                    "</body>" +
                    "</html>";
@@ -147,7 +127,7 @@ function dispatchTest(e) {
     case 5: // test for normal div with designMode:on
       defaultData = "Test for selection change event";
       pasteData = "from parent ";
-      iframeInner.src = "data:text/html,<html><body id='text'>" +
+      iframe.src = "data:text/html,<html><body id='text'>" +
                    defaultData +
                    "</body>" +
                    "<script>document.designMode='on';</script>" +
@@ -156,50 +136,25 @@ function dispatchTest(e) {
       focusScript = "var elt=content.document.getElementById('text');elt.focus();";
       break;
     default:
-      if (createEmbededFrame || browserElementTestHelpers.getOOPByDefaultPref()) {
-        SimpleTest.finish();
-      } else {
-        createEmbededFrame = true;
-
-        // clean up and run test again.
-        document.body.removeChild(iframeOuter);
-        document.body.removeChild(gTextarea);
-        state = 0;
-        runTest();
-      }
+      SimpleTest.finish();
       break;
   }
 }
 
-function isChildProcess() {
-  return SpecialPowers.Cc["@mozilla.org/xre/app-info;1"]
-                         .getService(SpecialPowers.Ci.nsIXULRuntime)
-                         .processType != SpecialPowers.Ci.nsIXULRuntime.PROCESS_TYPE_DEFAULT;
-}
-
 function testSelectAll(e) {
-  // Skip mozbrowser test if we're at child process.
-  if (!isChildProcess()) {
-    iframeOuter.addEventListener("mozbrowserselectionstatechanged", function selectchangeforselectall(e) {
-      if (e.detail.states.indexOf('selectall') == 0) {
-        iframeOuter.removeEventListener("mozbrowserselectionstatechanged", selectchangeforselectall, true);
-        ok(true, "got mozbrowserselectionstatechanged event." + stateMeaning);
-        ok(e.detail, "event.detail is not null." + stateMeaning);
-        ok(e.detail.width != 0, "event.detail.width is not zero" + stateMeaning);
-        ok(e.detail.height != 0, "event.detail.height is not zero" + stateMeaning);
-        ok(e.detail.states, "event.detail.state " + e.detail.states);
-        SimpleTest.executeSoon(function() { testCopy1(e); });
-      }
-    }, true);
-  }
+  iframe.addEventListener("mozbrowserselectionchange", function selectchangeforselectall(e) {
+    iframe.removeEventListener("mozbrowserselectionchange", selectchangeforselectall, true);
+    ok(true, "got mozbrowserselectionchange event." + stateMeaning);
+    ok(e.detail, "event.detail is not null." + stateMeaning);
+    ok(e.detail.width != 0, "event.detail.width is not zero" + stateMeaning);
+    ok(e.detail.height != 0, "event.detail.height is not zero" + stateMeaning);
+    SimpleTest.executeSoon(function() { testCopy1(e); });
+  }, true);
 
   mm.addMessageListener('content-focus', function messageforfocus(msg) {
     mm.removeMessageListener('content-focus', messageforfocus);
-    // test selectall command, after calling this the selectionstatechanged event should be fired.
+    // test selectall command, after calling this the selectionchange event should be fired.
     doCommand('selectall');
-    if (isChildProcess()) {
-      SimpleTest.executeSoon(function() { testCopy1(e); });
-    }
   });
 
   mm.loadFrameScript(getScriptForSetFocus(), false);
@@ -285,11 +240,9 @@ function testCut1(e) {
   }
 
   let compareData = pasteData;
-  // Something weird when we doCommand with content editable element in OOP.
-  // Always true in this case
-  // Normal div case cannot cut, always true as well.
-  if ((state == 3 && browserElementTestHelpers.getOOPByDefaultPref()) ||
-      state == 4) {
+  if (state == 3 && browserElementTestHelpers.getOOPByDefaultPref()) {
+    // Something weird when we doCommand with content editable element in OOP.
+    // Always true in this case
     compareData = function() { return true; }
   }
 
@@ -316,15 +269,4 @@ function testCut2(e) {
   mm.loadFrameScript(getScriptForGetContent(), false);
 }
 
-// Give our origin permission to open browsers, and remove it when the test is complete.
-var principal = SpecialPowers.wrap(document).nodePrincipal;
-var context = { 'url': SpecialPowers.wrap(principal.URI).spec,
-                'appId': principal.appId,
-                'isInBrowserElement': true };
-
-addEventListener('testready', function() {
-  SpecialPowers.pushPermissions([
-    {'type': 'browser', 'allow': 1, 'context': context}
-  ], runTest);
-});
-
+addEventListener('testready', runTest);

@@ -13,7 +13,6 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "nsWrapperCache.h"
-#include "nsPerformance.h"
 
 namespace mozilla {
 namespace dom {
@@ -66,11 +65,6 @@ public:
     aID = mID;
   }
 
-  DOMHighResTimeStamp Timestamp() const
-  {
-     return mTimestamp;
-  }
-
   GamepadMappingType Mapping()
   {
     return mMapping;
@@ -98,7 +92,6 @@ public:
 
 private:
   virtual ~Gamepad() {}
-  void UpdateTimestamp();
 
 protected:
   nsCOMPtr<nsISupports> mParent;
@@ -114,7 +107,6 @@ protected:
   // Current state of buttons, axes.
   nsTArray<nsRefPtr<GamepadButton>> mButtons;
   nsTArray<double> mAxes;
-  DOMHighResTimeStamp mTimestamp;
 };
 
 } // namespace dom

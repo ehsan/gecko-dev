@@ -12,14 +12,12 @@
 #include "mozilla/ipc/BrowserProcessSubThread.h"
 #include "mozilla/plugins/PluginMessageUtils.h"
 #include "mozilla/Telemetry.h"
-#include "nsThreadUtils.h"
 
 using std::vector;
 using std::string;
 
 using mozilla::ipc::BrowserProcessSubThread;
 using mozilla::ipc::GeckoChildProcessHost;
-using mozilla::plugins::LaunchCompleteTask;
 using mozilla::plugins::PluginProcessParent;
 using base::ProcessArchitecture;
 
@@ -32,9 +30,7 @@ struct RunnableMethodTraits<PluginProcessParent>
 
 PluginProcessParent::PluginProcessParent(const std::string& aPluginFilePath) :
     GeckoChildProcessHost(GeckoProcessType_Plugin),
-    mPluginFilePath(aPluginFilePath),
-    mMainMsgLoop(MessageLoop::current()),
-    mRunCompleteTaskImmediately(false)
+    mPluginFilePath(aPluginFilePath)
 {
 }
 
@@ -43,7 +39,7 @@ PluginProcessParent::~PluginProcessParent()
 }
 
 bool
-PluginProcessParent::Launch(mozilla::UniquePtr<LaunchCompleteTask> aLaunchCompleteTask,
+PluginProcessParent::Launch(int32_t timeoutMs,
                             bool aEnableSandbox)
 {
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
@@ -88,16 +84,10 @@ PluginProcessParent::Launch(mozilla::UniquePtr<LaunchCompleteTask> aLaunchComple
         }
     }
 
-    mLaunchCompleteTask = mozilla::Move(aLaunchCompleteTask);
-
     vector<string> args;
     args.push_back(MungePluginDsoPath(mPluginFilePath));
-
-    bool result = AsyncLaunch(args, selectedArchitecture);
-    if (!result) {
-        mLaunchCompleteTask = nullptr;
-    }
-    return result;
+    Telemetry::AutoTimer<Telemetry::PLUGIN_STARTUP_MS> timer;
+    return SyncLaunch(args, timeoutMs, selectedArchitecture);
 }
 
 void
@@ -114,67 +104,3 @@ PluginProcessParent::Delete()
   ioLoop->PostTask(FROM_HERE,
                    NewRunnableMethod(this, &PluginProcessParent::Delete));
 }
-
-void
-PluginProcessParent::SetCallRunnableImmediately(bool aCallImmediately)
-{
-    mRunCompleteTaskImmediately = aCallImmediately;
-}
-
-/**
- * This function exists so that we may provide an additional level of
- * indirection between the task being posted to main event loop (a
- * RunnableMethod) and the launch complete task itself. This is needed
- * for cases when both WaitUntilConnected or OnChannel* race to invoke the
- * task.
- */
-void
-PluginProcessParent::RunLaunchCompleteTask()
-{
-    if (mLaunchCompleteTask) {
-        mLaunchCompleteTask->Run();
-        mLaunchCompleteTask = nullptr;
-    }
-}
-
-bool
-PluginProcessParent::WaitUntilConnected(int32_t aTimeoutMs)
-{
-    bool result = GeckoChildProcessHost::WaitUntilConnected(aTimeoutMs);
-    if (mRunCompleteTaskImmediately && mLaunchCompleteTask) {
-        if (result) {
-            mLaunchCompleteTask->SetLaunchSucceeded();
-        }
-        RunLaunchCompleteTask();
-    }
-    return result;
-}
-
-void
-PluginProcessParent::OnChannelConnected(int32_t peer_pid)
-{
-    GeckoChildProcessHost::OnChannelConnected(peer_pid);
-    if (mLaunchCompleteTask && !mRunCompleteTaskImmediately) {
-        mLaunchCompleteTask->SetLaunchSucceeded();
-        mMainMsgLoop->PostTask(FROM_HERE, NewRunnableMethod(this,
-                                   &PluginProcessParent::RunLaunchCompleteTask));
-    }
-}
-
-void
-PluginProcessParent::OnChannelError()
-{
-    GeckoChildProcessHost::OnChannelError();
-    if (mLaunchCompleteTask && !mRunCompleteTaskImmediately) {
-        mMainMsgLoop->PostTask(FROM_HERE, NewRunnableMethod(this,
-                                   &PluginProcessParent::RunLaunchCompleteTask));
-    }
-}
-
-bool
-PluginProcessParent::IsConnected()
-{
-    mozilla::MonitorAutoLock lock(mMonitor);
-    return mProcessState == PROCESS_CONNECTED;
-}
-

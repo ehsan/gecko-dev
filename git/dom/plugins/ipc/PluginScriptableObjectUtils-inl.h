@@ -60,16 +60,12 @@ mozilla::plugins::ConvertToVariant(const Variant& aRemoteVariant,
 
     case Variant::TnsCString: {
       const nsCString& string = aRemoteVariant.get_nsCString();
-      const size_t length = string.Length();
-      NPUTF8* buffer = static_cast<NPUTF8*>(::malloc(sizeof(NPUTF8) * (length + 1)));
+      NPUTF8* buffer = reinterpret_cast<NPUTF8*>(strdup(string.get()));
       if (!buffer) {
         NS_ERROR("Out of memory!");
         return false;
       }
-
-      std::copy(string.get(), string.get() + length, buffer);
-      buffer[length] = '\0';
-      STRINGN_TO_NPVARIANT(buffer, length, aVariant);
+      STRINGN_TO_NPVARIANT(buffer, string.Length(), aVariant);
       break;
     }
 

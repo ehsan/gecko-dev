@@ -185,9 +185,7 @@ nsHTMLCanvasFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 {
   // XXX The caller doesn't account for constraints of the height,
   // min-height, and max-height properties.
-  bool vertical = GetWritingMode().IsVertical();
-  nscoord result = nsPresContext::CSSPixelsToAppUnits(
-    vertical ? GetCanvasSize().height : GetCanvasSize().width);
+  nscoord result = nsPresContext::CSSPixelsToAppUnits(GetCanvasSize().width);
   DISPLAY_MIN_WIDTH(this, result);
   return result;
 }
@@ -197,9 +195,7 @@ nsHTMLCanvasFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
 {
   // XXX The caller doesn't account for constraints of the height,
   // min-height, and max-height properties.
-  bool vertical = GetWritingMode().IsVertical();
-  nscoord result = nsPresContext::CSSPixelsToAppUnits(
-    vertical ? GetCanvasSize().height : GetCanvasSize().width);
+  nscoord result = nsPresContext::CSSPixelsToAppUnits(GetCanvasSize().width);
   DISPLAY_PREF_WIDTH(this, result);
   return result;
 }

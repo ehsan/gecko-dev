@@ -87,9 +87,7 @@ nsSVGPathGeometryElement::GetOrBuildPath(const DrawTarget& aDrawTarget,
   // chrome). The benefit is that we avoid causing a CPU memory cache miss by
   // looking at the global variable that the pref's stored in.
   if (cacheable && mCachedPath) {
-    if (aDrawTarget.GetBackendType() == mCachedPath->GetBackendType()) {
-      return mCachedPath;
-    }
+    return mCachedPath;
   }
   RefPtr<PathBuilder> builder = aDrawTarget.CreatePathBuilder(aFillRule);
   RefPtr<Path> path = BuildPath(builder);

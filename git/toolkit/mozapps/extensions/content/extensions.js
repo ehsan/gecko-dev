@@ -53,6 +53,8 @@ const XMLURI_PARSE_ERROR = "http://www.mozilla.org/newlayout/xml/parsererror.xml
 
 const VIEW_DEFAULT = "addons://discover/";
 
+const OPENH264_ADDON_ID = "gmp-gmpopenh264";
+
 var gStrings = {};
 XPCOMUtils.defineLazyServiceGetter(gStrings, "bundleSvc",
                                    "@mozilla.org/intl/stringbundle;1",
@@ -1031,11 +1033,8 @@ var gViewController = {
 
     cmd_showItemPreferences: {
       isEnabled: function cmd_showItemPreferences_isEnabled(aAddon) {
-        if (!aAddon ||
-            (!aAddon.isActive && !aAddon.isGMPlugin) ||
-            !aAddon.optionsURL) {
+        if (!aAddon || (!aAddon.isActive && aAddon.id != OPENH264_ADDON_ID) || !aAddon.optionsURL)
           return false;
-        }
         if (gViewController.currentViewObj == gDetailView &&
             aAddon.optionsType == AddonManager.OPTIONS_TYPE_INLINE) {
           return false;
@@ -2799,14 +2798,13 @@ var gDetailView = {
 
     var fullDesc = document.getElementById("detail-fulldesc");
     if (aAddon.fullDescription) {
-      // The following is part of an awful hack to include the licenses for GMP
-      // plugins without having bug 624602 fixed yet, and intentionally ignores
+      // The following is part of an awful hack to include the OpenH264 license
+      // without having bug 624602 fixed yet, and intentionally ignores
       // localisation.
-      if (aAddon.isGMPlugin) {
+      if (aAddon.id == OPENH264_ADDON_ID)
         fullDesc.innerHTML = aAddon.fullDescription;
-      } else {
+      else
         fullDesc.textContent = aAddon.fullDescription;
-      }
 
       fullDesc.hidden = false;
     } else {
@@ -3113,7 +3111,7 @@ var gDetailView = {
         errorLink.value = gStrings.ext.GetStringFromName("details.notification.vulnerableNoUpdate.link");
         errorLink.href = this._addon.blocklistURL;
         errorLink.hidden = false;
-      } else if (this._addon.isGMPlugin && !this._addon.isInstalled) {
+      } else if (this._addon.id == OPENH264_ADDON_ID && !this._addon.isInstalled) {
         this.node.setAttribute("notification", "warning");
         let warning = document.getElementById("detail-warning");
         warning.textContent = gStrings.ext.GetStringFromName("details.notification.openH264Pending");

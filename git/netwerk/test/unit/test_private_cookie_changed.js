@@ -6,14 +6,7 @@ Components.utils.import("resource://gre/modules/NetUtil.jsm");
 
 function makeChan(uri, isPrivate) {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  var chan = ios.newChannel2(uri.spec,
-                             null,
-                             null,
-                             null,      // aLoadingNode
-                             Services.scriptSecurityManager.getSystemPrincipal(),
-                             null,      // aTriggeringPrincipal
-                             Ci.nsILoadInfo.SEC_NORMAL,
-                             Ci.nsIContentPolicy.TYPE_OTHER)
+  var chan = ios.newChannel(uri.spec, null, null)
                 .QueryInterface(Ci.nsIHttpChannel);
   chan.QueryInterface(Ci.nsIPrivateBrowsingChannel).setPrivate(isPrivate);
   return chan;

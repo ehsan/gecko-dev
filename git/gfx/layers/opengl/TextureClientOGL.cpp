@@ -20,11 +20,10 @@ class CompositableForwarder;
 ////////////////////////////////////////////////////////////////////////
 // EGLImageTextureClient
 
-EGLImageTextureClient::EGLImageTextureClient(ISurfaceAllocator* aAllocator,
-                                             TextureFlags aFlags,
+EGLImageTextureClient::EGLImageTextureClient(TextureFlags aFlags,
                                              EGLImageImage* aImage,
                                              gfx::IntSize aSize)
-  : TextureClient(aAllocator, aFlags)
+  : TextureClient(aFlags)
   , mImage(aImage)
   , mSize(aSize)
   , mIsLocked(false)
@@ -34,8 +33,8 @@ EGLImageTextureClient::EGLImageTextureClient(ISurfaceAllocator* aAllocator,
 
   AddFlags(TextureFlags::DEALLOCATE_CLIENT);
 
-  if (aImage->GetData()->mOriginPos == gl::OriginPos::BottomLeft) {
-    AddFlags(TextureFlags::ORIGIN_BOTTOM_LEFT);
+  if (aImage->GetData()->mInverted) {
+    AddFlags(TextureFlags::NEEDS_Y_FLIP);
   }
 }
 
@@ -73,12 +72,11 @@ EGLImageTextureClient::Unlock()
 
 #ifdef MOZ_WIDGET_ANDROID
 
-SurfaceTextureClient::SurfaceTextureClient(ISurfaceAllocator* aAllocator,
-                                           TextureFlags aFlags,
+SurfaceTextureClient::SurfaceTextureClient(TextureFlags aFlags,
                                            AndroidSurfaceTexture* aSurfTex,
                                            gfx::IntSize aSize,
-                                           gl::OriginPos aOriginPos)
-  : TextureClient(aAllocator, aFlags)
+                                           bool aInverted)
+  : TextureClient(aFlags)
   , mSurfTex(aSurfTex)
   , mSize(aSize)
   , mIsLocked(false)
@@ -89,8 +87,8 @@ SurfaceTextureClient::SurfaceTextureClient(ISurfaceAllocator* aAllocator,
   // Our data is always owned externally.
   AddFlags(TextureFlags::DEALLOCATE_CLIENT);
 
-  if (aOriginPos == gl::OriginPos::BottomLeft) {
-    AddFlags(TextureFlags::ORIGIN_BOTTOM_LEFT);
+  if (aInverted) {
+    AddFlags(TextureFlags::NEEDS_Y_FLIP);
   }
 }
 

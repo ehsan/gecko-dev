@@ -172,11 +172,6 @@ WebrtcVideoConduit::~WebrtcVideoConduit()
   }
 }
 
-bool WebrtcVideoConduit::SetLocalSSRC(unsigned int ssrc)
-{
-  return !mPtrRTP->SetLocalSSRC(mChannel, ssrc);
-}
-
 bool WebrtcVideoConduit::GetLocalSSRC(unsigned int* ssrc)
 {
   return !mPtrRTP->GetLocalSSRC(mChannel, *ssrc);
@@ -185,14 +180,6 @@ bool WebrtcVideoConduit::GetLocalSSRC(unsigned int* ssrc)
 bool WebrtcVideoConduit::GetRemoteSSRC(unsigned int* ssrc)
 {
   return !mPtrRTP->GetRemoteSSRC(mChannel, *ssrc);
-}
-
-bool WebrtcVideoConduit::SetLocalCNAME(const char* cname)
-{
-  char temp[256];
-  strncpy(temp, cname, sizeof(temp) - 1);
-  temp[sizeof(temp) - 1] = 0;
-  return !mPtrRTP->SetRTCPCName(mChannel, temp);
 }
 
 bool WebrtcVideoConduit::GetVideoEncoderStats(double* framerateMean,
@@ -301,21 +288,21 @@ MediaConduitErrorCode WebrtcVideoConduit::Init(WebrtcVideoConduit *other)
     if (branch)
     {
       int32_t temp;
-      (void) NS_WARN_IF(NS_FAILED(branch->GetBoolPref("media.video.test_latency", &mVideoLatencyTestEnable)));
-      (void) NS_WARN_IF(NS_FAILED(branch->GetIntPref("media.peerconnection.video.min_bitrate", &temp)));
+      NS_WARN_IF(NS_FAILED(branch->GetBoolPref("media.video.test_latency", &mVideoLatencyTestEnable)));
+      NS_WARN_IF(NS_FAILED(branch->GetIntPref("media.peerconnection.video.min_bitrate", &temp)));
       if (temp >= 0) {
         mMinBitrate = temp;
       }
-      (void) NS_WARN_IF(NS_FAILED(branch->GetIntPref("media.peerconnection.video.start_bitrate", &temp)));
+      NS_WARN_IF(NS_FAILED(branch->GetIntPref("media.peerconnection.video.start_bitrate", &temp)));
       if (temp >= 0) {
         mStartBitrate = temp;
       }
-      (void) NS_WARN_IF(NS_FAILED(branch->GetIntPref("media.peerconnection.video.max_bitrate", &temp)));
+      NS_WARN_IF(NS_FAILED(branch->GetIntPref("media.peerconnection.video.max_bitrate", &temp)));
       if (temp >= 0) {
         mMaxBitrate = temp;
       }
       bool use_loadmanager = false;
-      (void) NS_WARN_IF(NS_FAILED(branch->GetBoolPref("media.navigator.load_adapt", &use_loadmanager)));
+      NS_WARN_IF(NS_FAILED(branch->GetBoolPref("media.navigator.load_adapt", &use_loadmanager)));
       if (use_loadmanager) {
         mLoadManager = LoadManagerBuild();
       }
@@ -670,7 +657,7 @@ WebrtcVideoConduit::ConfigureSendMediaCodec(const VideoCodecConfig* codecConfig)
   mSendingWidth = 0;
   mSendingHeight = 0;
 
-  if(codecConfig->RtcpFbNackIsSet("")) {
+  if(codecConfig->RtcpFbIsSet(SDP_RTCP_FB_NACK_BASIC)) {
     CSFLogDebug(logTag, "Enabling NACK (send) for video stream\n");
     if (mPtrRTP->SetNACKStatus(mChannel, true) != 0)
     {
@@ -753,17 +740,17 @@ WebrtcVideoConduit::ConfigureRecvMediaCodecs(
 
     // Check for the keyframe request type: PLI is preferred
     // over FIR, and FIR is preferred over none.
-    if (codecConfigList[i]->RtcpFbNackIsSet("pli"))
+    if (codecConfigList[i]->RtcpFbIsSet(SDP_RTCP_FB_NACK_PLI))
     {
       kf_request = webrtc::kViEKeyFrameRequestPliRtcp;
     } else if(kf_request == webrtc::kViEKeyFrameRequestNone &&
-              codecConfigList[i]->RtcpFbCcmIsSet("fir"))
+              codecConfigList[i]->RtcpFbIsSet(SDP_RTCP_FB_CCM_FIR))
     {
       kf_request = webrtc::kViEKeyFrameRequestFirRtcp;
     }
 
     // Check whether NACK is requested
-    if(codecConfigList[i]->RtcpFbNackIsSet(""))
+    if(codecConfigList[i]->RtcpFbIsSet(SDP_RTCP_FB_NACK_BASIC))
     {
       use_nack_basic = true;
     }
@@ -1073,15 +1060,19 @@ WebrtcVideoConduit::SendVideoFrame(unsigned char* video_frame,
     return kMediaConduitMalformedArgument;
   }
 
-  // NOTE: update when common_types.h changes
-  if (video_type > kVideoBGRA) {
-    CSFLogError(logTag,  "%s VideoType %d Invalid", __FUNCTION__, video_type);
-    MOZ_ASSERT(PR_FALSE);
-    return kMediaConduitMalformedArgument;
+  webrtc::RawVideoType type;
+  switch (video_type) {
+    case kVideoI420:
+      type = webrtc::kVideoI420;
+      break;
+    case kVideoNV21:
+      type = webrtc::kVideoNV21;
+      break;
+    default:
+      CSFLogError(logTag,  "%s VideoType Invalid. Only 1420 and NV21 Supported",__FUNCTION__);
+      MOZ_ASSERT(PR_FALSE);
+      return kMediaConduitMalformedArgument;
   }
-  // RawVideoType == VideoType
-  webrtc::RawVideoType type = static_cast<webrtc::RawVideoType>((int)video_type);
-
   //Transmission should be enabled before we insert any frames.
   if(!mEngineTransmitting)
   {
@@ -1150,7 +1141,7 @@ WebrtcVideoConduit::ReceivedRTCPPacket(const void *data, int len)
   if(mPtrViENetwork->ReceivedRTCPPacket(mChannel,data,len) == -1)
   {
     int error = mPtrViEBase->LastError();
-    CSFLogError(logTag, "%s RTCP Processing Failed %d", __FUNCTION__, error);
+    CSFLogError(logTag, "%s RTP Processing Failed %d", __FUNCTION__, error);
     if(error >= kViERtpRtcpInvalidChannelId && error <= kViERtpRtcpRtcpDisabled)
     {
       return kMediaConduitRTPProcessingFailed;
@@ -1287,7 +1278,7 @@ WebrtcVideoConduit::CodecConfigToWebRTCCodec(const VideoCodecConfig* codecInfo,
   // hand or from a config fetched with GetConfig(); this modifies the config
   // to match parameters from VideoCodecConfig
   cinst.plType  = codecInfo->mType;
-  if (codecInfo->mName == "H264") {
+  if (codecInfo->mName == "H264_P0" || codecInfo->mName == "H264_P1") {
     cinst.codecType = webrtc::kVideoCodecH264;
     PL_strncpyz(cinst.plName, "H264", sizeof(cinst.plName));
   } else if (codecInfo->mName == "VP8") {

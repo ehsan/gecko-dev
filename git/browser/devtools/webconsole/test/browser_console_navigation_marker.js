@@ -5,71 +5,77 @@
 
 // Check that the navigation marker shows on page reload - bug 793996.
 
-const PREF = "devtools.webconsole.persistlog";
-const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
+function test()
+{
+  const PREF = "devtools.webconsole.persistlog";
+  const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
+  let hud = null;
+  let Messages = require("devtools/webconsole/console-output").Messages;
 
-let hud;
-
-let test = asyncTest(function* () {
   Services.prefs.setBoolPref(PREF, true);
+  registerCleanupFunction(() => Services.prefs.clearUserPref(PREF));
 
-  let { browser } = yield loadTab(TEST_URI);
-  hud = yield openConsole();
+  addTab(TEST_URI);
 
-  yield consoleOpened();
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
 
-  let loaded = loadBrowser(browser);
-  BrowserReload();
-  yield loaded;
+  function consoleOpened(aHud)
+  {
+    hud = aHud;
+    ok(hud, "Web Console opened");
 
-  yield onReload();
+    hud.jsterm.clearOutput();
+    content.console.log("foobarz1");
+    waitForMessages({
+      webconsole: hud,
+      messages: [{
+        text: "foobarz1",
+        category: CATEGORY_WEBDEV,
+        severity: SEVERITY_LOG,
+      }],
+    }).then(onConsoleMessage);
+  }
 
-  isnot(hud.outputNode.textContent.indexOf("foobarz1"), -1,
-        "foobarz1 is still in the output");
+  function onConsoleMessage()
+  {
+    browser.addEventListener("load", onReload, true);
+    content.location.reload();
+  }
 
-  Services.prefs.clearUserPref(PREF);
+  function onReload()
+  {
+    browser.removeEventListener("load", onReload, true);
 
-  hud = null;
-});
+    content.console.log("foobarz2");
 
-function consoleOpened()
-{
-  ok(hud, "Web Console opened");
+    waitForMessages({
+      webconsole: hud,
+      messages: [{
+        name: "page reload",
+        text: "test-console.html",
+        category: CATEGORY_NETWORK,
+        severity: SEVERITY_LOG,
+      },
+      {
+        text: "foobarz2",
+        category: CATEGORY_WEBDEV,
+        severity: SEVERITY_LOG,
+      },
+      {
+        name: "navigation marker",
+        text: "test-console.html",
+        type: Messages.NavigationMarker,
+      }],
+    }).then(onConsoleMessageAfterReload);
+  }
 
-  hud.jsterm.clearOutput();
-  content.console.log("foobarz1");
-  return waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "foobarz1",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  });
+  function onConsoleMessageAfterReload()
+  {
+    isnot(hud.outputNode.textContent.indexOf("foobarz1"), -1,
+          "foobarz1 is still in the output");
+    finishTest();
+  }
 }
-
-function onReload()
-{
-  content.console.log("foobarz2");
-
-  return waitForMessages({
-    webconsole: hud,
-    messages: [{
-      name: "page reload",
-      text: "test-console.html",
-      category: CATEGORY_NETWORK,
-      severity: SEVERITY_LOG,
-    },
-    {
-      text: "foobarz2",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    },
-    {
-      name: "navigation marker",
-      text: "test-console.html",
-      type: Messages.NavigationMarker,
-    }],
-  });
-}
-

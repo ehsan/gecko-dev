@@ -86,7 +86,6 @@ interface CameraCapabilities
   [Constant, Cached] readonly attribute CameraRecorderProfiles recorderProfiles;
 
   [Constant, Cached] readonly attribute sequence<DOMString> isoModes;
-  [Constant, Cached] readonly attribute sequence<DOMString> meteringModes;
 
   jsonifier;
 };

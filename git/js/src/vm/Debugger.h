@@ -22,13 +22,13 @@
 #include "vm/GlobalObject.h"
 #include "vm/SavedStacks.h"
 
-enum JSTrapStatus {
+typedef enum JSTrapStatus {
     JSTRAP_ERROR,
     JSTRAP_CONTINUE,
     JSTRAP_RETURN,
     JSTRAP_THROW,
     JSTRAP_LIMIT
-};
+} JSTrapStatus;
 
 namespace js {
 
@@ -36,9 +36,10 @@ class Breakpoint;
 class DebuggerMemory;
 
 /*
- * A weakmap from GC thing keys to JSObject values that supports the keys being
- * in different compartments to the values. All values must be in the same
- * compartment.
+ * A weakmap that supports the keys being in different compartments to the
+ * values, although all values must be in the same compartment.
+ *
+ * The Key and Value classes must support the compartment() method.
  *
  * The purpose of this is to allow the garbage collector to easily find edges
  * from debugee object compartments to debugger compartments when calculating
@@ -54,13 +55,10 @@ class DebuggerMemory;
  * debugger compartments. If it is false, we assert that such entries are never
  * created.
  */
-template <class UnbarrieredKey, bool InvisibleKeysOk=false>
-class DebuggerWeakMap : private WeakMap<PreBarriered<UnbarrieredKey>, RelocatablePtrObject>
+template <class Key, class Value, bool InvisibleKeysOk=false>
+class DebuggerWeakMap : private WeakMap<Key, Value, DefaultHasher<Key> >
 {
   private:
-    typedef PreBarriered<UnbarrieredKey> Key;
-    typedef RelocatablePtrObject Value;
-
     typedef HashMap<JS::Zone *,
                     uintptr_t,
                     DefaultHasher<JS::Zone *>,
@@ -114,10 +112,8 @@ class DebuggerWeakMap : private WeakMap<PreBarriered<UnbarrieredKey>, Relocatabl
     }
 
   public:
-    template <void (traceValueEdges)(JSTracer *, JSObject *)>
-    void markCrossCompartmentEdges(JSTracer *tracer) {
+    void markKeys(JSTracer *tracer) {
         for (Enum e(*static_cast<Base *>(this)); !e.empty(); e.popFront()) {
-            traceValueEdges(tracer, e.front().value());
             Key key = e.front().key();
             gc::Mark(tracer, &key, "Debugger WeakMap key");
             if (key != e.front().key())
@@ -232,10 +228,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
         Observing = 1
     };
 
-    // Return true if the given compartment is a debuggee of this debugger,
-    // false otherwise.
-    bool isDebuggee(const JSCompartment *compartment) const;
-
   private:
     HeapPtrNativeObject object;         /* The Debugger object. Strong reference. */
     GlobalObjectSet debuggees;          /* Debuggee globals. Cross-compartment weak references. */
@@ -290,30 +282,19 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     FrameMap frames;
 
     /* An ephemeral map from JSScript* to Debugger.Script instances. */
-    typedef DebuggerWeakMap<JSScript*> ScriptWeakMap;
+    typedef DebuggerWeakMap<PreBarrieredScript, RelocatablePtrObject> ScriptWeakMap;
     ScriptWeakMap scripts;
 
     /* The map from debuggee source script objects to their Debugger.Source instances. */
-    typedef DebuggerWeakMap<JSObject*, true> SourceWeakMap;
+    typedef DebuggerWeakMap<PreBarrieredObject, RelocatablePtrObject, true> SourceWeakMap;
     SourceWeakMap sources;
 
     /* The map from debuggee objects to their Debugger.Object instances. */
-    typedef DebuggerWeakMap<JSObject*> ObjectWeakMap;
+    typedef DebuggerWeakMap<PreBarrieredObject, RelocatablePtrObject> ObjectWeakMap;
     ObjectWeakMap objects;
 
     /* The map from debuggee Envs to Debugger.Environment instances. */
     ObjectWeakMap environments;
-
-    /*
-     * Keep track of tracelogger last drained identifiers to know if there are
-     * lost events.
-     */
-#ifdef NIGHTLY_BUILD
-    uint32_t traceLoggerLastDrainedId;
-    uint32_t traceLoggerLastDrainedIteration;
-#endif
-    uint32_t traceLoggerScriptedCallsLastDrainedId;
-    uint32_t traceLoggerScriptedCallsLastDrainedIteration;
 
     class FrameRange;
     class ScriptQuery;
@@ -375,7 +356,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static void traceObject(JSTracer *trc, JSObject *obj);
     void trace(JSTracer *trc);
     static void finalize(FreeOp *fop, JSObject *obj);
-    void markCrossCompartmentEdges(JSTracer *tracer);
+    void markKeysInCompartment(JSTracer *tracer);
 
     static const Class jsclass;
 
@@ -413,14 +394,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     static bool findObjects(JSContext *cx, unsigned argc, Value *vp);
     static bool findAllGlobals(JSContext *cx, unsigned argc, Value *vp);
     static bool makeGlobalObjectReference(JSContext *cx, unsigned argc, Value *vp);
-    static bool setupTraceLoggerScriptCalls(JSContext *cx, unsigned argc, Value *vp);
-    static bool drainTraceLoggerScriptCalls(JSContext *cx, unsigned argc, Value *vp);
-    static bool startTraceLogger(JSContext *cx, unsigned argc, Value *vp);
-    static bool endTraceLogger(JSContext *cx, unsigned argc, Value *vp);
-#ifdef NIGHTLY_BUILD
-    static bool setupTraceLogger(JSContext *cx, unsigned argc, Value *vp);
-    static bool drainTraceLogger(JSContext *cx, unsigned argc, Value *vp);
-#endif
     static bool construct(JSContext *cx, unsigned argc, Value *vp);
     static const JSPropertySpec properties[];
     static const JSFunctionSpec methods[];
@@ -434,8 +407,6 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
                                              IsObserving observing);
 
   public:
-    static bool ensureExecutionObservabilityOfOsrFrame(JSContext *cx, InterpreterFrame *frame);
-
     // Public for DebuggerScript_setBreakpoint.
     static bool ensureExecutionObservabilityOfScript(JSContext *cx, JSScript *script);
 
@@ -535,7 +506,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      * Debugger objects that are definitely live but not yet marked, it marks
      * them and returns true. If not, it returns false.
      */
-    static void markAllCrossCompartmentEdges(JSTracer *tracer);
+    static void markCrossCompartmentDebuggerObjectReferents(JSTracer *tracer);
     static bool markAllIteratively(GCMarker *trc);
     static void markAll(JSTracer *trc);
     static void sweepAll(FreeOp *fop);
@@ -753,8 +724,8 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     JSObject *wrapSource(JSContext *cx, js::HandleScriptSource source);
 
   private:
-    Debugger(const Debugger &) = delete;
-    Debugger & operator=(const Debugger &) = delete;
+    Debugger(const Debugger &) MOZ_DELETE;
+    Debugger & operator=(const Debugger &) MOZ_DELETE;
 };
 
 class BreakpointSite {

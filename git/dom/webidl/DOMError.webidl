@@ -11,7 +11,7 @@
  */
 
 [Constructor(DOMString name, optional DOMString message = ""),
- Exposed=(Window,Worker,System)]
+ Exposed=(Window,System)]
 interface DOMError {
   [Constant]
   readonly attribute DOMString name;

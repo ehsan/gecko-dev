@@ -782,12 +782,14 @@ XULDocument::AddBroadcastListenerFor(Element& aBroadcaster, Element& aListener,
 
     BroadcasterMapEntry* entry =
         static_cast<BroadcasterMapEntry*>
-                   (PL_DHashTableLookup(mBroadcasterMap, &aBroadcaster));
+                   (PL_DHashTableOperate(mBroadcasterMap, &aBroadcaster,
+                                            PL_DHASH_LOOKUP));
 
     if (PL_DHASH_ENTRY_IS_FREE(entry)) {
         entry =
             static_cast<BroadcasterMapEntry*>
-                       (PL_DHashTableAdd(mBroadcasterMap, &aBroadcaster));
+                       (PL_DHashTableOperate(mBroadcasterMap, &aBroadcaster,
+                                                PL_DHASH_ADD));
 
         if (! entry) {
             aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
@@ -848,7 +850,8 @@ XULDocument::RemoveBroadcastListenerFor(Element& aBroadcaster,
 
     BroadcasterMapEntry* entry =
         static_cast<BroadcasterMapEntry*>
-                   (PL_DHashTableLookup(mBroadcasterMap, &aBroadcaster));
+                   (PL_DHashTableOperate(mBroadcasterMap, &aBroadcaster,
+                                            PL_DHASH_LOOKUP));
 
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
         nsCOMPtr<nsIAtom> attr = do_GetAtom(aAttr);
@@ -863,7 +866,8 @@ XULDocument::RemoveBroadcastListenerFor(Element& aBroadcaster,
                 delete bl;
 
                 if (entry->mListeners.Count() == 0)
-                    PL_DHashTableRemove(mBroadcasterMap, &aBroadcaster);
+                    PL_DHashTableOperate(mBroadcasterMap, &aBroadcaster,
+                                         PL_DHASH_REMOVE);
 
                 break;
             }
@@ -970,7 +974,8 @@ XULDocument::AttributeChanged(nsIDocument* aDocument,
         CanBroadcast(aNameSpaceID, aAttribute)) {
         BroadcasterMapEntry* entry =
             static_cast<BroadcasterMapEntry*>
-                       (PL_DHashTableLookup(mBroadcasterMap, aElement));
+                       (PL_DHashTableOperate(mBroadcasterMap, aElement,
+                                                PL_DHASH_LOOKUP));
 
         if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
             // We've got listeners: push the value.
@@ -2711,9 +2716,11 @@ XULDocument::LoadOverlayInternal(nsIURI* aURI, bool aIsDynamic,
             // OnStopRequest, so it needs a Terminate.
             parser->Terminate();
 
-            // Just move on to the next overlay.
+            // Just move on to the next overlay.  NS_OpenURI could fail
+            // just because a channel could not be opened, which can happen
+            // if a file or chrome package does not exist.
             ReportMissingOverlay(aURI);
-
+            
             // XXX the error could indicate an internal error as well...
             *aFailureFromContent = true;
             return rv;
@@ -2721,7 +2728,7 @@ XULDocument::LoadOverlayInternal(nsIURI* aURI, bool aIsDynamic,
 
         // If it's a 'chrome:' prototype document, then put it into
         // the prototype cache; other XUL documents will be reloaded
-        // each time.  We must do this after AsyncOpen,
+        // each time.  We must do this after NS_OpenURI and AsyncOpen,
         // or chrome code will wrongly create a cached chrome channel
         // instead of a real one. Prototypes are only cached when the
         // document to be overlayed is chrome to avoid caching overlay
@@ -4164,7 +4171,7 @@ XULDocument::BroadcastAttributeChangeFromOverlay(nsIContent* aNode,
         return rv;
 
     BroadcasterMapEntry* entry = static_cast<BroadcasterMapEntry*>
-        (PL_DHashTableLookup(mBroadcasterMap, aNode->AsElement()));
+        (PL_DHashTableOperate(mBroadcasterMap, aNode->AsElement(), PL_DHASH_LOOKUP));
     if (!PL_DHASH_ENTRY_IS_BUSY(entry))
         return rv;
 

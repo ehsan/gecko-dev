@@ -68,6 +68,8 @@ struct hb_reference_count_t
 #define HB_USER_DATA_ARRAY_INIT {HB_MUTEX_INIT, HB_LOCKABLE_SET_INIT}
 struct hb_user_data_array_t
 {
+  /* TODO Add tracing. */
+
   struct hb_user_data_item_t {
     hb_user_data_key_t *key;
     void *data;
@@ -104,6 +106,69 @@ struct hb_object_header_t
 
 #define HB_OBJECT_HEADER_STATIC {HB_REFERENCE_COUNT_INVALID, HB_USER_DATA_ARRAY_INIT}
 
+  static inline void *create (unsigned int size) {
+    hb_object_header_t *obj = (hb_object_header_t *) calloc (1, size);
+
+    if (likely (obj))
+      obj->init ();
+
+    return obj;
+  }
+
+  inline void init (void) {
+    ref_count.init (1);
+    user_data.init ();
+  }
+
+  inline bool is_inert (void) const {
+    return unlikely (ref_count.is_invalid ());
+  }
+
+  inline void reference (void) {
+    if (unlikely (!this || this->is_inert ()))
+      return;
+    ref_count.inc ();
+  }
+
+  inline bool destroy (void) {
+    if (unlikely (!this || this->is_inert ()))
+      return false;
+    if (ref_count.dec () != 1)
+      return false;
+
+    ref_count.finish (); /* Do this before user_data */
+    user_data.finish ();
+
+    return true;
+  }
+
+  inline bool set_user_data (hb_user_data_key_t *key,
+			     void *              data,
+			     hb_destroy_func_t   destroy_func,
+			     hb_bool_t           replace) {
+    if (unlikely (!this || this->is_inert ()))
+      return false;
+
+    return user_data.set (key, data, destroy_func, replace);
+  }
+
+  inline void *get_user_data (hb_user_data_key_t *key) {
+    if (unlikely (!this || this->is_inert ()))
+      return NULL;
+
+    return user_data.get (key);
+  }
+
+  inline void trace (const char *function) const {
+    if (unlikely (!this)) return;
+    /* TODO We cannot use DEBUG_MSG_FUNC here since that one currently only
+     * prints the class name and throws away the template info. */
+    DEBUG_MSG (OBJECT, (void *) this,
+	       "%s refcount=%d",
+	       function,
+	       this ? ref_count.ref_count : 0);
+  }
+
   private:
   ASSERT_POD ();
 };
@@ -114,56 +179,32 @@ struct hb_object_header_t
 template <typename Type>
 static inline void hb_object_trace (const Type *obj, const char *function)
 {
-  DEBUG_MSG (OBJECT, (void *) obj,
-	     "%s refcount=%d",
-	     function,
-	     obj ? obj->header.ref_count.ref_count : 0);
+  obj->header.trace (function);
 }
-
 template <typename Type>
 static inline Type *hb_object_create (void)
 {
-  Type *obj = (Type *) calloc (1, sizeof (Type));
-
-  if (unlikely (!obj))
-    return obj;
-
-  hb_object_init (obj);
+  Type *obj = (Type *) hb_object_header_t::create (sizeof (Type));
   hb_object_trace (obj, HB_FUNC);
   return obj;
 }
 template <typename Type>
-static inline void hb_object_init (Type *obj)
-{
-  obj->header.ref_count.init (1);
-  obj->header.user_data.init ();
-}
-template <typename Type>
 static inline bool hb_object_is_inert (const Type *obj)
 {
-  return unlikely (obj->header.ref_count.is_invalid ());
+  return unlikely (obj->header.is_inert ());
 }
 template <typename Type>
 static inline Type *hb_object_reference (Type *obj)
 {
   hb_object_trace (obj, HB_FUNC);
-  if (unlikely (!obj || hb_object_is_inert (obj)))
-    return obj;
-  obj->header.ref_count.inc ();
+  obj->header.reference ();
   return obj;
 }
 template <typename Type>
 static inline bool hb_object_destroy (Type *obj)
 {
   hb_object_trace (obj, HB_FUNC);
-  if (unlikely (!obj || hb_object_is_inert (obj)))
-    return false;
-  if (obj->header.ref_count.dec () != 1)
-    return false;
-
-  obj->header.ref_count.finish (); /* Do this before user_data */
-  obj->header.user_data.finish ();
-  return true;
+  return obj->header.destroy ();
 }
 template <typename Type>
 static inline bool hb_object_set_user_data (Type               *obj,
@@ -172,18 +213,14 @@ static inline bool hb_object_set_user_data (Type               *obj,
 					    hb_destroy_func_t   destroy,
 					    hb_bool_t           replace)
 {
-  if (unlikely (!obj || hb_object_is_inert (obj)))
-    return false;
-  return obj->header.user_data.set (key, data, destroy, replace);
+  return obj->header.set_user_data (key, data, destroy, replace);
 }
 
 template <typename Type>
 static inline void *hb_object_get_user_data (Type               *obj,
 					     hb_user_data_key_t *key)
 {
-  if (unlikely (!obj || hb_object_is_inert (obj)))
-    return NULL;
-  return obj->header.user_data.get (key);
+  return obj->header.get_user_data (key);
 }
 
 

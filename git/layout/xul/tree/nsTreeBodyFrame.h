@@ -56,7 +56,7 @@ class nsTreeBodyFrame MOZ_FINAL
 public:
   typedef mozilla::layout::ScrollbarActivity ScrollbarActivity;
 
-  explicit nsTreeBodyFrame(nsStyleContext* aContext);
+  nsTreeBodyFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
   ~nsTreeBodyFrame();
 
   NS_DECL_QUERYFRAME_TARGET(nsTreeBodyFrame)

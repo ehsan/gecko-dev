@@ -12,6 +12,7 @@
 
 #include "nsIObserver.h"
 
+#include "mozilla/TimeStamp.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
@@ -19,6 +20,7 @@
 #include "WorkerPrivate.h"
 
 class nsIRunnable;
+class nsIThread;
 class nsITimer;
 class nsPIDOMWindow;
 
@@ -26,10 +28,13 @@ BEGIN_WORKERS_NAMESPACE
 
 class ServiceWorker;
 class SharedWorker;
-class WorkerThread;
 
 class RuntimeService MOZ_FINAL : public nsIObserver
 {
+public:
+  class WorkerThread;
+
+private:
   struct SharedWorkerInfo
   {
     WorkerPrivate* mWorkerPrivate;
@@ -62,7 +67,11 @@ class RuntimeService MOZ_FINAL : public nsIObserver
     }
   };
 
-  struct IdleThreadInfo;
+  struct IdleThreadInfo
+  {
+    nsRefPtr<WorkerThread> mThread;
+    mozilla::TimeStamp mExpirationTime;
+  };
 
   struct MatchSharedWorkerInfo
   {
@@ -155,7 +164,7 @@ public:
 
   nsresult
   CreateServiceWorkerFromLoadInfo(JSContext* aCx,
-                                  WorkerPrivate::LoadInfo* aLoadInfo,
+                                  WorkerPrivate::LoadInfo aLoadInfo,
                                   const nsAString& aScriptURL,
                                   const nsACString& aScope,
                                   ServiceWorker** aServiceWorker);
@@ -308,7 +317,7 @@ private:
 
   nsresult
   CreateSharedWorkerFromLoadInfo(JSContext* aCx,
-                                 WorkerPrivate::LoadInfo* aLoadInfo,
+                                 WorkerPrivate::LoadInfo aLoadInfo,
                                  const nsAString& aScriptURL,
                                  const nsACString& aName,
                                  WorkerType aType,

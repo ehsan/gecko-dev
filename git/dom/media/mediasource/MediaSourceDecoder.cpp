@@ -13,17 +13,18 @@
 #include "MediaSourceReader.h"
 #include "MediaSourceResource.h"
 #include "MediaSourceUtils.h"
-#include "SourceBufferDecoder.h"
-#include "VideoUtils.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* GetMediaSourceLog();
+extern PRLogModuleInfo* GetMediaSourceAPILog();
 
-#define MSE_DEBUG(arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, ("MediaSourceDecoder(%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
-#define MSE_DEBUGV(arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG + 1, ("MediaSourceDecoder(%p)::%s: " arg, this, __func__, ##__VA_ARGS__))
+#define MSE_DEBUG(...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, (__VA_ARGS__))
+#define MSE_DEBUGV(...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG+1, (__VA_ARGS__))
+#define MSE_API(...) PR_LOG(GetMediaSourceAPILog(), PR_LOG_DEBUG, (__VA_ARGS__))
 #else
 #define MSE_DEBUG(...)
 #define MSE_DEBUGV(...)
+#define MSE_API(...)
 #endif
 
 namespace mozilla {
@@ -86,14 +87,14 @@ MediaSourceDecoder::GetSeekable(dom::TimeRanges* aSeekable)
   } else {
     aSeekable->Add(0, duration);
   }
-  MSE_DEBUG("ranges=%s", DumpTimeRanges(aSeekable).get());
+  MSE_DEBUG("MediaSourceDecoder(%p)::GetSeekable ranges=%s", this, DumpTimeRanges(aSeekable).get());
   return NS_OK;
 }
 
 void
 MediaSourceDecoder::Shutdown()
 {
-  MSE_DEBUG("Shutdown");
+  MSE_DEBUG("MediaSourceDecoder(%p)::Shutdown", this);
   // Detach first so that TrackBuffers are unused on the main thread when
   // shut down on the decode task queue.
   if (mMediaSource) {
@@ -204,7 +205,7 @@ MediaSourceDecoder::DurationChanged(double aOldDuration, double aNewDuration)
 }
 
 void
-MediaSourceDecoder::SetInitialDuration(int64_t aDuration)
+MediaSourceDecoder::SetDecodedDuration(int64_t aDuration)
 {
   // Only use the decoded duration if one wasn't already
   // set.
@@ -217,7 +218,7 @@ MediaSourceDecoder::SetInitialDuration(int64_t aDuration)
   if (aDuration >= 0) {
     duration /= USECS_PER_S;
   }
-  SetMediaSourceDuration(duration, MSRangeRemovalAction::SKIP);
+  DoSetMediaSourceDuration(duration);
 }
 
 void
@@ -225,14 +226,15 @@ MediaSourceDecoder::SetMediaSourceDuration(double aDuration, MSRangeRemovalActio
 {
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   double oldDuration = mMediaSourceDuration;
+  DoSetMediaSourceDuration(aDuration);
+  ScheduleDurationChange(oldDuration, aDuration, aAction);
+}
+
+void
+MediaSourceDecoder::DoSetMediaSourceDuration(double aDuration)
+{
   if (aDuration >= 0) {
-    int64_t checkedDuration;
-    if (NS_FAILED(SecondsToUsecs(aDuration, checkedDuration))) {
-      // INT64_MAX is used as infinity by the state machine.
-      // We want a very bigger number, but not infinity.
-      checkedDuration = INT64_MAX - 1;
-    }
-    mDecoderStateMachine->SetDuration(checkedDuration);
+    mDecoderStateMachine->SetDuration(aDuration * USECS_PER_S);
     mMediaSourceDuration = aDuration;
   } else {
     mDecoderStateMachine->SetDuration(INT64_MAX);
@@ -241,7 +243,6 @@ MediaSourceDecoder::SetMediaSourceDuration(double aDuration, MSRangeRemovalActio
   if (mReader) {
     mReader->SetMediaSourceDuration(mMediaSourceDuration);
   }
-  ScheduleDurationChange(oldDuration, aDuration, aAction);
 }
 
 void
@@ -313,43 +314,5 @@ MediaSourceDecoder::IsActiveReader(MediaDecoderReader* aReader)
 {
   return mReader->IsActiveReader(aReader);
 }
-
-double
-MediaSourceDecoder::GetDuration()
-{
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  return mMediaSourceDuration;
-}
-
-already_AddRefed<SourceBufferDecoder>
-MediaSourceDecoder::SelectDecoder(int64_t aTarget,
-                                  int64_t aTolerance,
-                                  const nsTArray<nsRefPtr<SourceBufferDecoder>>& aTrackDecoders)
-{
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-
-  // Consider decoders in order of newest to oldest, as a newer decoder
-  // providing a given buffered range is expected to replace an older one.
-  for (int32_t i = aTrackDecoders.Length() - 1; i >= 0; --i) {
-    nsRefPtr<SourceBufferDecoder> newDecoder = aTrackDecoders[i];
-
-    nsRefPtr<dom::TimeRanges> ranges = new dom::TimeRanges();
-    newDecoder->GetBuffered(ranges);
-    if (ranges->Find(double(aTarget) / USECS_PER_S,
-                     double(aTolerance) / USECS_PER_S) == dom::TimeRanges::NoIndex) {
-      MSE_DEBUGV("SelectDecoder(%lld fuzz:%lld) newDecoder=%p (%d/%d) target not in ranges=%s",
-                 aTarget, aTolerance, newDecoder.get(), i+1,
-                 aTrackDecoders.Length(), DumpTimeRanges(ranges).get());
-      continue;
-    }
-
-    return newDecoder.forget();
-  }
-
-  return nullptr;
-}
-
-#undef MSE_DEBUG
-#undef MSE_DEBUGV
 
 } // namespace mozilla

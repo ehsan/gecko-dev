@@ -51,9 +51,4 @@ interface Gamepad {
    */
   [Pure, Cached, Frozen]
   readonly attribute sequence<double> axes;
-
-  /**
-   * Timestamp from when the data of this device was last updated.
-   */
-  readonly attribute DOMHighResTimeStamp timestamp;
 };

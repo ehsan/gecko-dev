@@ -6,7 +6,7 @@
 
 // Checking properties orders and overrides in the rule-view
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,browser_ruleview_manipulation.js");
   let {toolbox, inspector, view} = yield openRuleView();
 

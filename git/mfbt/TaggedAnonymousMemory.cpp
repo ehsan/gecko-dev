@@ -15,6 +15,7 @@
 #include <unistd.h>
 
 #include "mozilla/Assertions.h"
+#include "mozilla/NullPtr.h"
 
 // These constants are copied from <sys/prctl.h>, because the headers
 // used for building may not have them even though the running kernel

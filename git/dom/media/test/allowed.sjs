@@ -13,9 +13,6 @@ function parseQuery(request, key) {
 }
 
 var types = {
-  js: "text/javascript",
-  m4s: "video/mp4",
-  mp4: "video/mp4",
   ogg: "video/ogg",
   ogv: "video/ogg",
   oga: "audio/ogg",

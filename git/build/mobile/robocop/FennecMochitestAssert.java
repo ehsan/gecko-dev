@@ -4,9 +4,6 @@
 
 package org.mozilla.gecko;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.io.Writer;
 import java.util.LinkedList;
 
 import android.os.SystemClock;
@@ -37,10 +34,7 @@ public class FennecMochitestAssert implements Assert {
     }
 
     public void dumpLog(String message, Throwable t) {
-        Writer sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        t.printStackTrace(pw);
-        mLogger.error(message + " - " + sw.toString());
+        mLogger.error(message + " - " + t.toString());
     }
 
     /** Write information to a logfile and logcat */

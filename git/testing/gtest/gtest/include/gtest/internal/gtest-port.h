@@ -737,7 +737,7 @@ struct CompileAssert {
 
 #define GTEST_COMPILE_ASSERT_(expr, msg) \
   typedef ::testing::internal::CompileAssert<(bool(expr))> \
-      msg[bool(expr) ? 1 : -1] GTEST_ATTRIBUTE_UNUSED_
+      msg[bool(expr) ? 1 : -1]
 
 // Implementation details of GTEST_COMPILE_ASSERT_:
 //

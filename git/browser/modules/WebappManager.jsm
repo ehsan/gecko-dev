@@ -14,7 +14,6 @@ Cu.import("resource://gre/modules/Webapps.jsm");
 Cu.import("resource://gre/modules/AppsUtils.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
-Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "NativeApp",
   "resource://gre/modules/NativeApp.jsm");
@@ -151,8 +150,7 @@ this.WebappManager = {
 
         this.installations[manifestURL] = Promise.defer();
         this.installations[manifestURL].promise.then(() => {
-          notifyInstallSuccess(aData.app, nativeApp, bundle,
-                               PrivateBrowsingUtils.isWindowPrivate(aWindow));
+          notifyInstallSuccess(aData.app, nativeApp, bundle);
         }, (error) => {
           Cu.reportError("Error installing webapp: " + error);
         }).then(() => {
@@ -250,7 +248,7 @@ this.WebappManager = {
   }
 }
 
-function notifyInstallSuccess(aApp, aNativeApp, aBundle, aInPrivateBrowsing) {
+function notifyInstallSuccess(aApp, aNativeApp, aBundle) {
   let launcher = {
     observe: function(aSubject, aTopic) {
       if (aTopic == "alertclickcallback") {
@@ -266,7 +264,6 @@ function notifyInstallSuccess(aApp, aNativeApp, aBundle, aInPrivateBrowsing) {
     notifier.showAlertNotification(aNativeApp.iconURI.spec,
                                    aBundle.getString("webapps.install.success"),
                                    aNativeApp.appNameAsFilename,
-                                   true, null, launcher, "", "", "", "", null,
-                                   aInPrivateBrowsing);
+                                   true, null, launcher);
   } catch (ex) {}
 }

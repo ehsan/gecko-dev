@@ -138,11 +138,6 @@ public:
       configuration->mClipRegion = mNextConfigurationClipRegion;
     }
   }
-
-  nsIntRect GetWidgetlessClipRect() {
-    return RegionFromArray(mNextConfigurationClipRegion).GetBounds();
-  }
-
   /**
    * Called after all widget position/size/clip regions have been changed
    * (even if there isn't a widget for this plugin).
@@ -262,15 +257,6 @@ private:
   // Unregisters the plugin for geometry updated with the root pres context
   // stored in mRootPresContextRegisteredWith.
   void UnregisterPluginForGeometryUpdates();
-
-  static const nsIntRegion RegionFromArray(const nsTArray<nsIntRect>& aRects)
-  {
-    nsIntRegion region;
-    for (uint32_t i = 0; i < aRects.Length(); ++i) {
-      region.Or(region, aRects[i]);
-    }
-    return region;
-  }
 
   class PluginEventNotifier : public nsRunnable {
   public:

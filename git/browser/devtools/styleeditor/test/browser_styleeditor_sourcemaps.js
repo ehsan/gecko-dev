@@ -68,7 +68,7 @@ const origNames = ["sourcemaps.scss", "contained.scss", "test-stylus.styl"];
 
 waitForExplicitFinish();
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let {UI} = yield addTabAndOpenStyleEditors(7, null, TESTCASE_URI);
 
   is(UI.editors.length, 4,

@@ -10,41 +10,40 @@ const CONTEXT_MENU_ID = "#menu_openURL";
 
 let HUD = null, outputNode = null, contextMenu = null;
 
-let test = asyncTest(function* () {
+function test() {
+  let original = Services.prefs.getBoolPref("devtools.webconsole.filter.networkinfo");
   Services.prefs.setBoolPref("devtools.webconsole.filter.networkinfo", true);
+  registerCleanupFunction(() => {
+    Services.prefs.setBoolPref("devtools.webconsole.filter.networkinfo", original);
+  });
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
+}
 
-  yield loadTab(TEST_URI);
-  HUD = yield openConsole();
-
-  let results = yield consoleOpened();
-  yield onConsoleMessage(results);
-
-  let results2 = yield testOnNetActivity();
-  let msg = yield onNetworkMessage(results2);
-
-  yield testOnNetActivity_contextmenu(msg);
-
-  Services.prefs.clearUserPref("devtools.webconsole.filter.networkinfo");
-
-  HUD = null, outputNode = null, contextMenu = null;
-});
-
-function consoleOpened() {
-  outputNode = HUD.outputNode;
+function consoleOpened(aHud) {
+  HUD = aHud;
+  outputNode = aHud.outputNode;
   contextMenu = HUD.iframeWindow.document.getElementById("output-contextmenu");
+
+  registerCleanupFunction(() => {
+    HUD = outputNode = contextMenu = null;
+  });
 
   HUD.jsterm.clearOutput();
 
   content.console.log("bug 764572");
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: HUD,
     messages: [{
       text: "bug 764572",
       category: CATEGORY_WEBDEV,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(onConsoleMessage);
 }
 
 function onConsoleMessage(aResults) {
@@ -60,10 +59,10 @@ function onConsoleMessage(aResults) {
   ok(isDisabled, COMMAND_NAME + " should be disabled.");
 
   outputNode.selectedItem.scrollIntoView();
-  return waitForContextMenu(contextMenu, outputNode.selectedItem, () => {
+  waitForContextMenu(contextMenu, outputNode.selectedItem, () => {
     let isHidden = contextMenu.querySelector(CONTEXT_MENU_ID).hidden;
     ok(isHidden, CONTEXT_MENU_ID + " should be hidden.");
-  });
+  }, testOnNetActivity);
 }
 
 function testOnNetActivity() {
@@ -72,19 +71,17 @@ function testOnNetActivity() {
   // Reload the url to show net activity in console.
   content.location.reload();
 
-  return waitForMessages({
+  waitForMessages({
     webconsole: HUD,
     messages: [{
       text: "test-console.html",
       category: CATEGORY_NETWORK,
       severity: SEVERITY_LOG,
     }],
-  });
+  }).then(onNetworkMessage);
 }
 
 function onNetworkMessage(aResults) {
-  let deferred = promise.defer();
-
   outputNode.focus();
   let msg = [...aResults[0].matched][0];
   ok(msg, "network message");
@@ -103,7 +100,7 @@ function onNetworkMessage(aResults) {
     newTab.linkedBrowser.removeEventListener("load", onTabLoaded, true);
     gBrowser.removeTab(newTab);
     gBrowser.selectedTab = currentTab;
-    executeSoon(deferred.resolve.bind(null, msg));
+    executeSoon(testOnNetActivity_contextmenu.bind(null, msg));
   }
 
   // Check if the command is enabled for a network message.
@@ -115,23 +112,15 @@ function onNetworkMessage(aResults) {
 
   // Try to open the URL.
   goDoCommand(COMMAND_NAME);
-
-  return deferred.promise;
 }
 
 function testOnNetActivity_contextmenu(msg) {
-  let deferred = promise.defer();
-
   outputNode.focus();
   HUD.ui.output.selectMessage(msg);
+
   msg.scrollIntoView();
-
-  info("net activity context menu");
-
   waitForContextMenu(contextMenu, msg, () => {
     let isShown = !contextMenu.querySelector(CONTEXT_MENU_ID).hidden;
     ok(isShown, CONTEXT_MENU_ID + " should be shown.");
-  }).then(deferred.resolve);
-
-  return deferred.promise;
+  }, finishTest);
 }

@@ -47,7 +47,7 @@ public:
 
   friend class nsSliderMediator;
 
-  explicit nsSliderFrame(nsStyleContext* aContext);
+  nsSliderFrame(nsIPresShell* aShell, nsStyleContext* aContext);
   virtual ~nsSliderFrame();
 
 #ifdef DEBUG_FRAME_DUMP

@@ -29,6 +29,7 @@
 #include <stdint.h> // Some Mozilla-supported compilers lack <cstdint>
 #include <string>
 
+#include "pkix/enumclass.h"
 #include "pkix/pkixtypes.h"
 #include "pkix/ScopedPtr.h"
 
@@ -66,7 +67,6 @@ public:
 };
 
 bool InputEqualsByteString(Input input, const ByteString& bs);
-ByteString InputToByteString(Input input);
 
 // python DottedOIDToCode.py --tlv id-kp-OCSPSigning 1.3.6.1.5.5.7.3.9
 static const uint8_t tlv_id_kp_OCSPSigning[] = {
@@ -197,13 +197,6 @@ DNSName(const char (&bytes)[L])
                             L - 1));
 }
 
-inline ByteString
-IPAddress()
-{
-  // (2 << 6) means "context-specific", 7 is the GeneralName tag.
-  return TLV((2 << 6) | 7, ByteString());
-}
-
 template <size_t L>
 inline ByteString
 IPAddress(const uint8_t (&bytes)[L])
@@ -252,7 +245,6 @@ protected:
 
 TestKeyPair* CloneReusedKeyPair();
 TestKeyPair* GenerateKeyPair();
-TestKeyPair* GenerateDSSKeyPair();
 inline void DeleteTestKeyPair(TestKeyPair* keyPair) { delete keyPair; }
 typedef ScopedPtr<TestKeyPair, DeleteTestKeyPair> ScopedTestKeyPair;
 
@@ -302,14 +294,15 @@ ByteString CreateEncodedCertificate(long version, const ByteString& signature,
 
 ByteString CreateEncodedSerialNumber(long value);
 
-enum class Critical { No = 0, Yes = 1 };
+MOZILLA_PKIX_ENUM_CLASS ExtensionCriticality { NotCritical = 0, Critical = 1 };
 
 ByteString CreateEncodedBasicConstraints(bool isCA,
                                          /*optional*/ long* pathLenConstraint,
-                                         Critical critical);
+                                         ExtensionCriticality criticality);
 
 // Creates a DER-encoded extKeyUsage extension with one EKU OID.
-ByteString CreateEncodedEKUExtension(Input eku, Critical critical);
+ByteString CreateEncodedEKUExtension(Input eku,
+                                     ExtensionCriticality criticality);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Encode OCSP responses

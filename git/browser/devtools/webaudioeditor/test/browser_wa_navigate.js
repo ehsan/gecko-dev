@@ -6,7 +6,7 @@
  * the audio graph if both pages have an AudioContext.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $ } = panelWin;
@@ -25,8 +25,8 @@ add_task(function*() {
   navigate(target, SIMPLE_NODES_URL);
 
   var [actors] = yield Promise.all([
-    getN(gFront, "create-node", 15),
-    waitForGraphRendered(panelWin, 15, 0)
+    getN(gFront, "create-node", 14),
+    waitForGraphRendered(panelWin, 14, 0)
   ]);
 
   is($("#reload-notice").hidden, true,
@@ -37,8 +37,9 @@ add_task(function*() {
     "The tool's content should reappear without closing and reopening the toolbox.");
 
   var { nodes, edges } = countGraphObjects(panelWin);
-  ise(nodes, 15, "after navigation, should have 15 nodes");
+  ise(nodes, 14, "after navigation, should have 14 nodes");
   ise(edges, 0, "after navigation, should have 0 edges.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}

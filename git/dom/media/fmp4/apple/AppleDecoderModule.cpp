@@ -64,7 +64,7 @@ AppleDecoderModule::Init()
   bool haveVideoToolbox = AppleVTLinker::Link();
   sIsVTAvailable = haveCoreMedia && haveVideoToolbox;
 
-  sIsVTHWAvailable = AppleVTLinker::skPropEnableHWAccel != nullptr;
+  sIsVTHWAvailable = AppleVTLinker::skPropHWAccel != nullptr;
 
   if (sIsVDAAvailable) {
     AppleVDALinker::Unlink();
@@ -158,7 +158,7 @@ already_AddRefed<MediaDataDecoder>
 AppleDecoderModule::CreateVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
                                        layers::LayersBackend aLayersBackend,
                                        layers::ImageContainer* aImageContainer,
-                                       FlushableMediaTaskQueue* aVideoTaskQueue,
+                                       MediaTaskQueue* aVideoTaskQueue,
                                        MediaDataDecoderCallback* aCallback)
 {
   nsRefPtr<MediaDataDecoder> decoder;
@@ -184,7 +184,7 @@ AppleDecoderModule::CreateVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aC
 
 already_AddRefed<MediaDataDecoder>
 AppleDecoderModule::CreateAudioDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
-                                       FlushableMediaTaskQueue* aAudioTaskQueue,
+                                       MediaTaskQueue* aAudioTaskQueue,
                                        MediaDataDecoderCallback* aCallback)
 {
   nsRefPtr<MediaDataDecoder> decoder =

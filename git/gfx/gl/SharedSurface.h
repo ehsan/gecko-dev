@@ -284,7 +284,7 @@ class ScopedReadbackFB
     SharedSurface* mSurfToLock;
 
 public:
-    explicit ScopedReadbackFB(SharedSurface* src);
+    ScopedReadbackFB(SharedSurface* src);
     ~ScopedReadbackFB();
 };
 

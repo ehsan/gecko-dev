@@ -13,12 +13,16 @@
 #include "OggReader.h"
 #include "VorbisUtils.h"
 #include "WebMBufferedParser.h"
+#include "WebMReader.h"
 
 #include <algorithm>
 
 #define VPX_DONT_DEFINE_STDINT_TYPES
 #include "vpx/vp8dx.h"
 #include "vpx/vpx_decoder.h"
+
+static const unsigned NS_PER_USEC = 1000;
+static const unsigned NS_PER_S = 1e9;
 
 namespace mozilla {
 
@@ -79,7 +83,9 @@ SoftwareWebMVideoDecoder::DecodeVideoFrame(bool &aKeyframeSkip,
 
   // Record number of frames decoded and parsed. Automatically update the
   // stats counters using the AutoNotifyDecoded stack-based class.
-  AbstractMediaDecoder::AutoNotifyDecoded a(mReader->GetDecoder());
+  uint32_t parsed = 0, decoded = 0;
+  AbstractMediaDecoder::AutoNotifyDecoded autoNotify(mReader->GetDecoder(),
+                                                     parsed, decoded);
 
   nsAutoRef<NesteggPacketHolder> holder(mReader->NextPacket(WebMReader::VIDEO));
   if (!holder) {
@@ -142,8 +148,7 @@ SoftwareWebMVideoDecoder::DecodeVideoFrame(bool &aKeyframeSkip,
     }
     if (aKeyframeSkip && (!si.is_kf || tstamp_usecs < aTimeThreshold)) {
       // Skipping to next keyframe...
-      a.mParsed++; // Assume 1 frame per chunk.
-      a.mDropped++;
+      parsed++; // Assume 1 frame per chunk.
       continue;
     }
 
@@ -159,8 +164,7 @@ SoftwareWebMVideoDecoder::DecodeVideoFrame(bool &aKeyframeSkip,
     // the time threshold required then it is not added
     // to the video queue and won't be displayed.
     if (tstamp_usecs < aTimeThreshold) {
-      a.mParsed++; // Assume 1 frame per chunk.
-      a.mDropped++;
+      parsed++; // Assume 1 frame per chunk.
       continue;
     }
 
@@ -218,9 +222,9 @@ SoftwareWebMVideoDecoder::DecodeVideoFrame(bool &aKeyframeSkip,
       if (!v) {
         return false;
       }
-      a.mParsed++;
-      a.mDecoded++;
-      NS_ASSERTION(a.mDecoded <= a.mParsed,
+      parsed++;
+      decoded++;
+      NS_ASSERTION(decoded <= parsed,
         "Expect only 1 frame per chunk per packet in WebM...");
       mReader->VideoQueue().Push(v);
     }

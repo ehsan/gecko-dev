@@ -140,14 +140,16 @@ SavedFrame::HashPolicy::rekey(Key &key, const Key &newKey)
     "SavedFrame",
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |
     JSCLASS_HAS_RESERVED_SLOTS(SavedFrame::JSSLOT_COUNT),
-    nullptr, // addProperty
-    nullptr, // delProperty
-    nullptr, // getProperty
-    nullptr, // setProperty
-    nullptr, // enumerate
-    nullptr, // resolve
-    nullptr, // convert
-    SavedFrame::finalize
+
+    JS_PropertyStub,       // addProperty
+    JS_DeletePropertyStub, // delProperty
+    JS_PropertyStub,       // getProperty
+    JS_StrictPropertyStub, // setProperty
+    JS_EnumerateStub,      // enumerate
+    JS_ResolveStub,        // resolve
+    JS_ConvertStub,        // convert
+
+    SavedFrame::finalize   // finalize
 };
 
 /* static */ void
@@ -390,16 +392,12 @@ SavedFrame::toStringMethod(JSContext *cx, unsigned argc, Value *vp)
             || !NumberValueToStringBuffer(cx, NumberValue(frame->getLine()), sb)
             || !sb.append(':')
             || !NumberValueToStringBuffer(cx, NumberValue(frame->getColumn()), sb)
-            || !sb.append('\n'))
-        {
+            || !sb.append('\n')) {
             return false;
         }
     } while ((frame = frame->getParent()));
 
-    JSString *str = sb.finishString();
-    if (!str)
-        return false;
-    args.rval().setString(str);
+    args.rval().setString(sb.finishString());
     return true;
 }
 
@@ -597,8 +595,10 @@ SavedStacks::getOrCreateSavedFramePrototype(JSContext *cx)
     if (!global)
         return nullptr;
 
-    Rooted<SavedFrame *> proto(cx,
-        NewObjectWithGivenProto<SavedFrame>(cx, global->getOrCreateObjectPrototype(cx), global));
+    RootedNativeObject proto(cx,
+        NewNativeObjectWithGivenProto(cx, &SavedFrame::class_,
+                                      global->getOrCreateObjectPrototype(cx),
+                                      global));
     if (!proto
         || !JS_DefineProperties(cx, proto, SavedFrame::properties)
         || !JS_DefineFunctions(cx, proto, SavedFrame::methods)

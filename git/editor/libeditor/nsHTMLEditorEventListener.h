@@ -27,7 +27,7 @@ public:
 
 #ifdef DEBUG
   // WARNING: You must be use nsHTMLEditor or its sub class for this class.
-  virtual nsresult Connect(nsEditor* aEditor) MOZ_OVERRIDE;
+  virtual nsresult Connect(nsEditor* aEditor);
 #endif
 
 protected:

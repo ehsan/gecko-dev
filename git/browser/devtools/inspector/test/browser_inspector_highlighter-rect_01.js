@@ -105,6 +105,7 @@ add_task(function*() {
 
   yield highlighter.hide();
   yield highlighter.finalize();
+  gBrowser.removeCurrentTab();
 });
 
 function* getAttribute(highlighter, name) {

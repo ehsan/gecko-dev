@@ -324,8 +324,11 @@ SetNameOperation(JSContext *cx, JSScript *script, jsbytecode *pc, HandleObject s
     if (scope->isUnqualifiedVarObj()) {
         MOZ_ASSERT(!scope->getOps()->setProperty);
         RootedId id(cx, NameToId(name));
-        return baseops::SetPropertyHelper(cx, scope.as<NativeObject>(), scope.as<NativeObject>(),
-                                          id, baseops::Unqualified, &valCopy, strict);
+        return baseops::SetPropertyHelper<SequentialExecution>(cx,
+                                                               scope.as<NativeObject>(),
+                                                               scope.as<NativeObject>(),
+                                                               id, baseops::Unqualified, &valCopy,
+                                                               strict);
     }
 
     return JSObject::setProperty(cx, scope, scope, name, &valCopy, strict);
@@ -343,9 +346,8 @@ DefVarOrConstOperation(JSContext *cx, HandleObject varobj, HandlePropertyName dn
 
     /* Steps 8c, 8d. */
     if (!prop || (obj2 != varobj && varobj->is<GlobalObject>())) {
-        if (!JSObject::defineProperty(cx, varobj, dn, UndefinedHandleValue, nullptr, nullptr,
-                                      attrs))
-        {
+        if (!JSObject::defineProperty(cx, varobj, dn, UndefinedHandleValue, JS_PropertyStub,
+                                      JS_StrictPropertyStub, attrs)) {
             return false;
         }
     } else if (attrs & JSPROP_READONLY) {
@@ -418,123 +420,69 @@ ToIdOperation(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue ob
 }
 
 static MOZ_ALWAYS_INLINE bool
-GetObjectElementOperation(JSContext *cx, JSOp op, JS::HandleObject receiver,
-                          HandleValue key, MutableHandleValue res)
+GetObjectElementOperation(JSContext *cx, JSOp op, JSObject *objArg, bool wasObject,
+                          HandleValue rref, MutableHandleValue res)
 {
     MOZ_ASSERT(op == JSOP_GETELEM || op == JSOP_CALLELEM);
 
     do {
         uint32_t index;
-        if (IsDefinitelyIndex(key, &index)) {
-            if (JSObject::getElementNoGC(cx, receiver, receiver, index, res.address()))
+        if (IsDefinitelyIndex(rref, &index)) {
+            if (JSObject::getElementNoGC(cx, objArg, objArg, index, res.address()))
                 break;
 
-            if (!JSObject::getElement(cx, receiver, receiver, index, res))
+            RootedObject obj(cx, objArg);
+            if (!JSObject::getElement(cx, obj, obj, index, res))
                 return false;
+            objArg = obj;
             break;
         }
 
-        if (IsSymbolOrSymbolWrapper(key)) {
-            RootedId id(cx, SYMBOL_TO_JSID(ToSymbolPrimitive(key)));
-            if (!JSObject::getGeneric(cx, receiver, receiver, id, res))
+        if (IsSymbolOrSymbolWrapper(rref)) {
+            RootedObject obj(cx, objArg);
+            RootedId id(cx, SYMBOL_TO_JSID(ToSymbolPrimitive(rref)));
+            if (!JSObject::getGeneric(cx, obj, obj, id, res))
                 return false;
+
+            objArg = obj;
             break;
         }
 
-        if (JSAtom *name = ToAtom<NoGC>(cx, key)) {
+        JSAtom *name = ToAtom<NoGC>(cx, rref);
+        if (name) {
             if (name->isIndex(&index)) {
-                if (JSObject::getElementNoGC(cx, receiver, receiver, index, res.address()))
+                if (JSObject::getElementNoGC(cx, objArg, objArg, index, res.address()))
                     break;
             } else {
-                if (JSObject::getPropertyNoGC(cx, receiver, receiver, name->asPropertyName(),
-                                              res.address()))
-                {
+                if (JSObject::getPropertyNoGC(cx, objArg, objArg, name->asPropertyName(), res.address()))
                     break;
-                }
             }
         }
 
-        JSAtom *name = ToAtom<CanGC>(cx, key);
+        RootedObject obj(cx, objArg);
+
+        name = ToAtom<CanGC>(cx, rref);
         if (!name)
             return false;
 
         if (name->isIndex(&index)) {
-            if (!JSObject::getElement(cx, receiver, receiver, index, res))
+            if (!JSObject::getElement(cx, obj, obj, index, res))
                 return false;
         } else {
-            if (!JSObject::getProperty(cx, receiver, receiver, name->asPropertyName(), res))
+            if (!JSObject::getProperty(cx, obj, obj, name->asPropertyName(), res))
                 return false;
         }
-    } while (false);
+
+        objArg = obj;
+    } while (0);
 
 #if JS_HAS_NO_SUCH_METHOD
-    if (op == JSOP_CALLELEM && MOZ_UNLIKELY(res.isUndefined())) {
-        if (!OnUnknownMethod(cx, receiver, key, res))
+    if (op == JSOP_CALLELEM && MOZ_UNLIKELY(res.isUndefined()) && wasObject) {
+        RootedObject obj(cx, objArg);
+        if (!OnUnknownMethod(cx, obj, rref, res))
             return false;
     }
 #endif
-
-    assertSameCompartmentDebugOnly(cx, res);
-    return true;
-}
-
-static MOZ_ALWAYS_INLINE bool
-GetPrimitiveElementOperation(JSContext *cx, JSOp op, JS::HandleValue receiver,
-                             HandleValue key, MutableHandleValue res)
-{
-    MOZ_ASSERT(op == JSOP_GETELEM || op == JSOP_CALLELEM);
-
-    // FIXME: We shouldn't be boxing here or exposing the boxed object as
-    //        receiver anywhere below (bug 603201).
-    RootedObject boxed(cx, ToObjectFromStack(cx, receiver));
-    if (!boxed)
-        return false;
-
-    do {
-        uint32_t index;
-        if (IsDefinitelyIndex(key, &index)) {
-            if (JSObject::getElementNoGC(cx, boxed, boxed, index, res.address()))
-                break;
-
-            if (!JSObject::getElement(cx, boxed, boxed, index, res))
-                return false;
-            break;
-        }
-
-        if (IsSymbolOrSymbolWrapper(key)) {
-            RootedId id(cx, SYMBOL_TO_JSID(ToSymbolPrimitive(key)));
-            if (!JSObject::getGeneric(cx, boxed, boxed, id, res))
-                return false;
-            break;
-        }
-
-        if (JSAtom *name = ToAtom<NoGC>(cx, key)) {
-            if (name->isIndex(&index)) {
-                if (JSObject::getElementNoGC(cx, boxed, boxed, index, res.address()))
-                    break;
-            } else {
-                if (JSObject::getPropertyNoGC(cx, boxed, boxed, name->asPropertyName(),
-                                              res.address()))
-                {
-                    break;
-                }
-            }
-        }
-
-        JSAtom *name = ToAtom<CanGC>(cx, key);
-        if (!name)
-            return false;
-
-        if (name->isIndex(&index)) {
-            if (!JSObject::getElement(cx, boxed, boxed, index, res))
-                return false;
-        } else {
-            if (!JSObject::getProperty(cx, boxed, boxed, name->asPropertyName(), res))
-                return false;
-        }
-    } while (false);
-
-    // Note: we don't call a __noSuchMethod__ hook when |this| was primitive.
 
     assertSameCompartmentDebugOnly(cx, res);
     return true;
@@ -584,11 +532,11 @@ GetElementOperation(JSContext *cx, JSOp op, MutableHandleValue lref, HandleValue
         }
     }
 
-    if (lref.isPrimitive())
-        return GetPrimitiveElementOperation(cx, op, lref, rref, res);
-
-    RootedObject thisv(cx, &lref.toObject());
-    return GetObjectElementOperation(cx, op, thisv, rref, res);
+    bool isObject = lref.isObject();
+    JSObject *obj = ToObjectFromStack(cx, lref);
+    if (!obj)
+        return false;
+    return GetObjectElementOperation(cx, op, obj, isObject, rref, res);
 }
 
 static MOZ_ALWAYS_INLINE JSString *
@@ -609,8 +557,6 @@ static MOZ_ALWAYS_INLINE bool
 InitElemOperation(JSContext *cx, HandleObject obj, HandleValue idval, HandleValue val)
 {
     MOZ_ASSERT(!val.isMagic(JS_ELEMENTS_HOLE));
-    MOZ_ASSERT(!obj->getClass()->getProperty);
-    MOZ_ASSERT(!obj->getClass()->setProperty);
 
     RootedId id(cx);
     if (!ValueToId<CanGC>(cx, idval, &id))
@@ -882,8 +828,8 @@ class FastInvokeGuard
     }
 
   private:
-    FastInvokeGuard(const FastInvokeGuard& other) = delete;
-    const FastInvokeGuard& operator=(const FastInvokeGuard& other) = delete;
+    FastInvokeGuard(const FastInvokeGuard& other) MOZ_DELETE;
+    const FastInvokeGuard& operator=(const FastInvokeGuard& other) MOZ_DELETE;
 };
 
 }  /* namespace js */

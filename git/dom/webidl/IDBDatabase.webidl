@@ -10,7 +10,6 @@
  * liability, trademark and document use rules apply.
  */
 
-[Exposed=(Window,Worker)]
 interface IDBDatabase : EventTarget {
     readonly    attribute DOMString          name;
     readonly    attribute unsigned long long version;
@@ -41,13 +40,13 @@ interface IDBDatabase : EventTarget {
 };
 
 partial interface IDBDatabase {
-    [Func="mozilla::dom::indexedDB::IndexedDatabaseManager::ExperimentalFeaturesEnabled"]
+    [Pref="dom.indexedDB.experimental"]
     readonly    attribute StorageType        storage;
 
-    [Exposed=Window, Throws]
+    [Throws]
     IDBRequest createMutableFile (DOMString name, optional DOMString type);
 
     // this is deprecated due to renaming in the spec
-    [Exposed=Window, Throws]
+    [Throws]
     IDBRequest mozCreateFileHandle (DOMString name, optional DOMString type); // now createMutableFile
 };

@@ -10,7 +10,7 @@
  * liability, trademark and document use rules apply.
  */
 
-[Func="nsDocument::IsWebAnimationsEnabled"]
+[Pref="dom.animations-api.core.enabled"]
 interface AnimationEffect {
   readonly attribute DOMString name;
 };

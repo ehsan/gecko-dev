@@ -31,11 +31,6 @@ notification[type="critical"] {
   border-bottom: 1px solid #5d0000;
 }
 
-.messageText > .text-link {
-  color: inherit !important;
-  text-decoration: underline;
-}
-
 .messageImage {
   width: 16px;
   height: 16px;

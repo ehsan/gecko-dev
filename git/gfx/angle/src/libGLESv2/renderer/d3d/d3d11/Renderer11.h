@@ -101,7 +101,6 @@ class Renderer11 : public Renderer
     virtual bool testDeviceResettable();
 
     virtual DWORD getAdapterVendor() const;
-    SIZE_T getMaxResourceSize() const;
     virtual std::string getRendererDescription() const;
     virtual GUID getAdapterIdentifier() const;
 

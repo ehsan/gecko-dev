@@ -272,13 +272,13 @@ public:
         , mFlags(flags)
         , mAF(af) {}
 
-    void OnLookupComplete(nsHostResolver *, nsHostRecord *, nsresult) MOZ_OVERRIDE;
+    void OnLookupComplete(nsHostResolver *, nsHostRecord *, nsresult);
     // Returns TRUE if the DNS listener arg is the same as the member listener
     // Used in Cancellations to remove DNS requests associated with a
     // particular hostname and nsIDNSListener
-    bool EqualsAsyncListener(nsIDNSListener *aListener) MOZ_OVERRIDE;
+    bool EqualsAsyncListener(nsIDNSListener *aListener);
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf) const MOZ_OVERRIDE;
+    size_t SizeOfIncludingThis(mozilla::MallocSizeOf) const;
 
     nsRefPtr<nsHostResolver> mResolver;
     nsCString                mHost; // hostname we're resolving

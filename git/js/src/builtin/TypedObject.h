@@ -11,7 +11,6 @@
 #include "jsweakmap.h"
 
 #include "builtin/TypedObjectConstants.h"
-#include "js/Conversions.h"
 #include "vm/ArrayBufferObject.h"
 
 /*
@@ -105,10 +104,10 @@ static T ConvertScalar(double d)
     if (TypeIsFloatingPoint<T>()) {
         return T(d);
     } else if (TypeIsUnsigned<T>()) {
-        uint32_t n = JS::ToUint32(d);
+        uint32_t n = ToUint32(d);
         return T(n);
     } else {
-        int32_t n = JS::ToInt32(d);
+        int32_t n = ToInt32(d);
         return T(n);
     }
 }
@@ -135,16 +134,43 @@ class StructTypeDescr;
 class TypedProto;
 
 /*
- * The prototype for a typed object.
+ * The prototype for a typed object. Currently, carries a link to the
+ * type descriptor. Eventually will carry most of the type information
+ * we want.
  */
 class TypedProto : public NativeObject
 {
   public:
     static const Class class_;
+
+    inline void initTypeDescrSlot(TypeDescr &descr);
+
+    TypeDescr &typeDescr() const {
+        return getReservedSlot(JS_TYPROTO_SLOT_DESCR).toObject().as<TypeDescr>();
+    }
+
+    TypeDescr &maybeForwardedTypeDescr() const {
+        return MaybeForwarded(&getReservedSlot(JS_TYPROTO_SLOT_DESCR).toObject())->as<TypeDescr>();
+    }
+
+    inline type::Kind kind() const;
+
+    static int32_t offsetOfTypeDescr() {
+        return getFixedSlotOffset(JS_TYPROTO_SLOT_DESCR);
+    }
 };
 
 class TypeDescr : public NativeObject
 {
+  public:
+    // This is *intentionally* not defined so as to produce link
+    // errors if a is<FooTypeDescr>() etc goes wrong. Otherwise, the
+    // default implementation resolves this to a reference to
+    // FooTypeDescr::class_ which resolves to
+    // JSObject::class_. Debugging the resulting errors leads to much
+    // fun and rejoicing.
+    static const Class class_;
+
   public:
     TypedProto &typedProto() const {
         return getReservedSlot(JS_DESCR_SLOT_TYPROTO).toObject().as<TypedProto>();
@@ -179,17 +205,13 @@ class TypeDescr : public NativeObject
     // typed objects, rather than the slower trace hook. This list is only
     // specified when (a) the descriptor is short enough that it can fit in an
     // InlineTypedObject, and (b) the descriptor contains at least one
-    // reference. Otherwise its value is undefined.
+    // reference. Otherwise it is null.
     //
     // The list is three consecutive arrays of int32_t offsets, with each array
     // terminated by -1. The arrays store offsets of string, object, and value
     // references in the descriptor, in that order.
-    bool hasTraceList() const {
-        return !getFixedSlot(JS_DESCR_SLOT_TRACE_LIST).isUndefined();
-    }
     const int32_t *traceList() const {
-        MOZ_ASSERT(hasTraceList());
-        return reinterpret_cast<int32_t *>(getFixedSlot(JS_DESCR_SLOT_TRACE_LIST).toPrivate());
+        return reinterpret_cast<int32_t *>(getReservedSlot(JS_DESCR_SLOT_TRACE_LIST).toPrivate());
     }
 
     void initInstances(const JSRuntime *rt, uint8_t *mem, size_t length);
@@ -244,10 +266,6 @@ class ScalarTypeDescr : public SimpleTypeDescr
         static_assert(Scalar::Float64 == JS_SCALARTYPEREPR_FLOAT64,
                       "TypedObjectConstants.h must be consistent with Scalar::Type");
         static_assert(Scalar::Uint8Clamped == JS_SCALARTYPEREPR_UINT8_CLAMPED,
-                      "TypedObjectConstants.h must be consistent with Scalar::Type");
-        static_assert(Scalar::Float32x4 == JS_SCALARTYPEREPR_FLOAT32X4,
-                      "TypedObjectConstants.h must be consistent with Scalar::Type");
-        static_assert(Scalar::Int32x4 == JS_SCALARTYPEREPR_INT32X4,
                       "TypedObjectConstants.h must be consistent with Scalar::Type");
 
         return Type(getReservedSlot(JS_DESCR_SLOT_TYPE).toInt32());
@@ -476,12 +494,12 @@ class StructTypeDescr : public ComplexTypeDescr
     size_t maybeForwardedFieldOffset(size_t index) const;
 
   private:
-    ArrayObject &fieldInfoObject(size_t slot) const {
-        return getReservedSlot(slot).toObject().as<ArrayObject>();
+    NativeObject &fieldInfoObject(size_t slot) const {
+        return getReservedSlot(slot).toObject().as<NativeObject>();
     }
 
-    ArrayObject &maybeForwardedFieldInfoObject(size_t slot) const {
-        return MaybeForwarded(&getReservedSlot(slot).toObject())->as<ArrayObject>();
+    NativeObject &maybeForwardedFieldInfoObject(size_t slot) const {
+        return MaybeForwarded(&getReservedSlot(slot).toObject())->as<NativeObject>();
     }
 };
 
@@ -568,7 +586,8 @@ class TypedObject : public JSObject
 
     static bool obj_deleteGeneric(JSContext *cx, HandleObject obj, HandleId id, bool *succeeded);
 
-    static bool obj_enumerate(JSContext *cx, HandleObject obj, AutoIdVector &properties);
+    static bool obj_enumerate(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
+                              MutableHandleValue statep, MutableHandleId idp);
 
   public:
     TypedProto &typedProto() const {
@@ -580,11 +599,11 @@ class TypedObject : public JSObject
     }
 
     TypeDescr &typeDescr() const {
-        return type()->typeDescr();
+        return typedProto().typeDescr();
     }
 
     TypeDescr &maybeForwardedTypeDescr() const {
-        return MaybeForwarded(&typeDescr())->as<TypeDescr>();
+        return maybeForwardedTypedProto().maybeForwardedTypeDescr();
     }
 
     int32_t offset() const;
@@ -795,7 +814,8 @@ bool NewDerivedTypedObject(JSContext *cx, unsigned argc, Value *vp);
  * Moves `typedObj` to point at the memory referenced by `newDatum` with
  * the offset `newOffset`.
  */
-bool AttachTypedObject(JSContext *cx, unsigned argc, Value *vp);
+bool AttachTypedObject(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo AttachTypedObjectJitInfo;
 
 /*
  * Usage: SetTypedObjectOffset(typedObj, offset)
@@ -803,41 +823,49 @@ bool AttachTypedObject(JSContext *cx, unsigned argc, Value *vp);
  * Changes the offset for `typedObj` within its buffer to `offset`.
  * `typedObj` must already be attached.
  */
-bool SetTypedObjectOffset(JSContext *, unsigned argc, Value *vp);
+bool intrinsic_SetTypedObjectOffset(JSContext *cx, unsigned argc, Value *vp);
+bool SetTypedObjectOffset(ThreadSafeContext *, unsigned argc, Value *vp);
+extern const JSJitInfo intrinsic_SetTypedObjectOffsetJitInfo;
 
 /*
  * Usage: ObjectIsTypeDescr(obj)
  *
  * True if `obj` is a type object.
  */
-bool ObjectIsTypeDescr(JSContext *cx, unsigned argc, Value *vp);
+bool ObjectIsTypeDescr(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo ObjectIsTypeDescrJitInfo;
 
 /*
  * Usage: ObjectIsTypedObject(obj)
  *
  * True if `obj` is a transparent or opaque typed object.
  */
-bool ObjectIsTypedObject(JSContext *cx, unsigned argc, Value *vp);
+bool ObjectIsTypedObject(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo ObjectIsTypedObjectJitInfo;
 
 /*
  * Usage: ObjectIsOpaqueTypedObject(obj)
  *
  * True if `obj` is an opaque typed object.
  */
-bool ObjectIsOpaqueTypedObject(JSContext *cx, unsigned argc, Value *vp);
+bool ObjectIsOpaqueTypedObject(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo ObjectIsOpaqueTypedObjectJitInfo;
 
 /*
  * Usage: ObjectIsTransparentTypedObject(obj)
  *
  * True if `obj` is a transparent typed object.
  */
-bool ObjectIsTransparentTypedObject(JSContext *cx, unsigned argc, Value *vp);
+bool ObjectIsTransparentTypedObject(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo ObjectIsTransparentTypedObjectJitInfo;
 
 /* Predicates on type descriptor objects.  In all cases, 'obj' must be a type descriptor. */
 
-bool TypeDescrIsSimpleType(JSContext *, unsigned argc, Value *vp);
+bool TypeDescrIsSimpleType(ThreadSafeContext *, unsigned argc, Value *vp);
+extern const JSJitInfo TypeDescrIsSimpleTypeJitInfo;
 
-bool TypeDescrIsArrayType(JSContext *, unsigned argc, Value *vp);
+bool TypeDescrIsArrayType(ThreadSafeContext *, unsigned argc, Value *vp);
+extern const JSJitInfo TypeDescrIsArrayTypeJitInfo;
 
 /*
  * Usage: TypedObjectIsAttached(obj)
@@ -845,21 +873,16 @@ bool TypeDescrIsArrayType(JSContext *, unsigned argc, Value *vp);
  * Given a TypedObject `obj`, returns true if `obj` is
  * "attached" (i.e., its data pointer is nullptr).
  */
-bool TypedObjectIsAttached(JSContext *cx, unsigned argc, Value *vp);
-
-/*
- * Usage: TypedObjectTypeDescr(obj)
- *
- * Given a TypedObject `obj`, returns the object's type descriptor.
- */
-bool TypedObjectTypeDescr(JSContext *cx, unsigned argc, Value *vp);
+bool TypedObjectIsAttached(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo TypedObjectIsAttachedJitInfo;
 
 /*
  * Usage: ClampToUint8(v)
  *
  * Same as the C function ClampDoubleToUint8. `v` must be a number.
  */
-bool ClampToUint8(JSContext *cx, unsigned argc, Value *vp);
+bool ClampToUint8(ThreadSafeContext *cx, unsigned argc, Value *vp);
+extern const JSJitInfo ClampToUint8JitInfo;
 
 /*
  * Usage: GetTypedObjectModule()
@@ -907,7 +930,7 @@ bool GetInt32x4TypeDescr(JSContext *cx, unsigned argc, Value *vp);
 #define JS_STORE_SCALAR_CLASS_DEFN(_constant, T, _name)                       \
 class StoreScalar##T {                                                        \
   public:                                                                     \
-    static bool Func(JSContext *cx, unsigned argc, Value *vp);        \
+    static bool Func(ThreadSafeContext *cx, unsigned argc, Value *vp);        \
     static const JSJitInfo JitInfo;                                           \
 };
 
@@ -927,11 +950,11 @@ class StoreScalar##T {                                                        \
 #define JS_STORE_REFERENCE_CLASS_DEFN(_constant, T, _name)                    \
 class StoreReference##T {                                                     \
   private:                                                                    \
-    static bool store(JSContext *cx, T* heap, const Value &v,         \
+    static bool store(ThreadSafeContext *cx, T* heap, const Value &v,         \
                       TypedObject *obj, jsid id);                             \
                                                                               \
   public:                                                                     \
-    static bool Func(JSContext *cx, unsigned argc, Value *vp);        \
+    static bool Func(ThreadSafeContext *cx, unsigned argc, Value *vp);        \
     static const JSJitInfo JitInfo;                                           \
 };
 
@@ -946,7 +969,7 @@ class StoreReference##T {                                                     \
 #define JS_LOAD_SCALAR_CLASS_DEFN(_constant, T, _name)                        \
 class LoadScalar##T {                                                         \
   public:                                                                     \
-    static bool Func(JSContext *cx, unsigned argc, Value *vp);        \
+    static bool Func(ThreadSafeContext *cx, unsigned argc, Value *vp);        \
     static const JSJitInfo JitInfo;                                           \
 };
 
@@ -964,7 +987,7 @@ class LoadReference##T {                                                      \
     static void load(T* heap, MutableHandleValue v);                          \
                                                                               \
   public:                                                                     \
-    static bool Func(JSContext *cx, unsigned argc, Value *vp);        \
+    static bool Func(ThreadSafeContext *cx, unsigned argc, Value *vp);        \
     static const JSJitInfo JitInfo;                                           \
 };
 
@@ -1053,7 +1076,7 @@ class LazyArrayBufferTable
     Map map;
 
   public:
-    explicit LazyArrayBufferTable(JSContext *cx);
+    LazyArrayBufferTable(JSContext *cx);
     ~LazyArrayBufferTable();
 
     ArrayBufferObject *maybeBuffer(InlineTransparentTypedObject *obj);
@@ -1110,6 +1133,19 @@ JSObject::is<js::InlineTypedObject>() const
 {
     return getClass() == &js::InlineTransparentTypedObject::class_ ||
            getClass() == &js::InlineOpaqueTypedObject::class_;
+}
+
+inline void
+js::TypedProto::initTypeDescrSlot(TypeDescr &descr)
+{
+    initReservedSlot(JS_TYPROTO_SLOT_DESCR, ObjectValue(descr));
+}
+
+inline js::type::Kind
+js::TypedProto::kind() const {
+    // Defined out of line because it depends on def'n of both
+    // TypedProto and TypeDescr
+    return typeDescr().kind();
 }
 
 #endif /* builtin_TypedObject_h */

@@ -16,7 +16,6 @@
 #include "AutoMounter.h"
 #include "VolumeManager.h"
 
-#undef VOLUME_MANAGER_LOG_TAG
 #define VOLUME_MANAGER_LOG_TAG  "nsVolume"
 #include "VolumeManagerLog.h"
 
@@ -38,7 +37,6 @@ NS_VolumeStateStr(int32_t aState)
     case nsIVolume::STATE_SHARED:     return "Shared";
     case nsIVolume::STATE_SHAREDMNT:  return "Shared-Mounted";
     case nsIVolume::STATE_CHECKMNT:   return "Check-Mounted";
-    case nsIVolume::STATE_MOUNT_FAIL: return "Mount-Fail";
   }
   return "???";
 }
@@ -60,9 +58,7 @@ nsVolume::nsVolume(const Volume* aVolume)
     mIsMediaPresent(aVolume->MediaPresent()),
     mIsSharing(aVolume->IsSharing()),
     mIsFormatting(aVolume->IsFormatting()),
-    mIsUnmounting(aVolume->IsUnmounting()),
-    mIsRemovable(aVolume->IsRemovable()),
-    mIsHotSwappable(aVolume->IsHotSwappable())
+    mIsUnmounting(aVolume->IsUnmounting())
 {
 }
 
@@ -119,18 +115,6 @@ bool nsVolume::Equals(nsIVolume* aVolume)
   bool isUnmounting;
   aVolume->GetIsUnmounting(&isUnmounting);
   if (mIsUnmounting != isUnmounting) {
-    return false;
-  }
-
-  bool isRemovable;
-  aVolume->GetIsRemovable(&isRemovable);
-  if (mIsRemovable != isRemovable) {
-    return false;
-  }
-
-  bool isHotSwappable;
-  aVolume->GetIsHotSwappable(&isHotSwappable);
-  if (mIsHotSwappable != isHotSwappable) {
     return false;
   }
 
@@ -215,18 +199,6 @@ NS_IMETHODIMP nsVolume::GetIsFake(bool *aIsFake)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsVolume::GetIsRemovable(bool *aIsRemovable)
-{
-  *aIsRemovable = mIsRemovable;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsVolume::GetIsHotSwappable(bool *aIsHotSwappable)
-{
-  *aIsHotSwappable = mIsHotSwappable;
-  return NS_OK;
-}
-
 NS_IMETHODIMP nsVolume::Format()
 {
   MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
@@ -304,12 +276,11 @@ nsVolume::LogState() const
 {
   if (mState == nsIVolume::STATE_MOUNTED) {
     LOG("nsVolume: %s state %s @ '%s' gen %d locked %d fake %d "
-        "media %d sharing %d formatting %d unmounting %d removable %d hotswappable %d",
+        "media %d sharing %d formatting %d unmounting %d",
         NameStr().get(), StateStr(), MountPointStr().get(),
         MountGeneration(), (int)IsMountLocked(), (int)IsFake(),
         (int)IsMediaPresent(), (int)IsSharing(),
-        (int)IsFormatting(), (int)IsUnmounting(),
-        (int)IsRemovable(), (int)IsHotSwappable());
+        (int)IsFormatting(), (int)IsUnmounting());
     return;
   }
 
@@ -328,8 +299,6 @@ void nsVolume::Set(nsIVolume* aVolume)
   aVolume->GetIsSharing(&mIsSharing);
   aVolume->GetIsFormatting(&mIsFormatting);
   aVolume->GetIsUnmounting(&mIsUnmounting);
-  aVolume->GetIsRemovable(&mIsRemovable);
-  aVolume->GetIsHotSwappable(&mIsHotSwappable);
 
   int32_t volMountGeneration;
   aVolume->GetMountGeneration(&volMountGeneration);
@@ -404,24 +373,6 @@ nsVolume::SetIsFake(bool aIsFake)
     // The media is always present for fake volumes.
     mIsMediaPresent = true;
     MOZ_ASSERT(!mIsSharing);
-  }
-}
-
-void
-nsVolume::SetIsRemovable(bool aIsRemovable)
-{
-  mIsRemovable = aIsRemovable;
-  if (!mIsRemovable) {
-    mIsHotSwappable = false;
-  }
-}
-
-void
-nsVolume::SetIsHotSwappable(bool aIsHotSwappable)
-{
-  mIsHotSwappable = aIsHotSwappable;
-  if (mIsHotSwappable) {
-    mIsRemovable = true;
   }
 }
 

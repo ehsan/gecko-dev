@@ -16,7 +16,6 @@
 #include "mozilla/MemoryReporting.h"
 #include "DrawMode.h"
 #include "harfbuzz/hb.h"
-#include "nsUnicodeScriptCodes.h"
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -28,7 +27,6 @@ class gfxUserFontSet;
 class gfxTextContextPaint;
 class nsIAtom;
 class nsILanguageAtomService;
-class gfxMissingFontRecorder;
 
 /**
  * Callback for Draw() to use when drawing text with mode
@@ -309,14 +307,6 @@ public:
                                  gfxFloat *aAdvanceWidthDelta,
                                  gfxContext *aRefContext);
 
-    enum SuppressBreak {
-      eNoSuppressBreak,
-      // Measure the range of text as if there is no break before it.
-      eSuppressInitialBreak,
-      // Measure the range of text as if it contains no break
-      eSuppressAllBreaks
-    };
-
     /**
      * Finds the longest substring that will fit into the given width.
      * Uses GetHyphenationBreaks and GetSpacing from aBreakProvider.
@@ -341,7 +331,10 @@ public:
      * is up to the end of the string
      * @param aLineBreakBefore set to true if and only if there is an actual
      * line break at the start of this string.
-     * @param aSuppressBreak what break should be suppressed.
+     * @param aSuppressInitialBreak if true, then we assume there is no possible
+     * linebreak before aStart. If false, then we will check the internal
+     * line break opportunity state before deciding whether to return 0 as the
+     * character to break before.
      * @param aTrimWhitespace if non-null, then we allow a trailing run of
      * spaces to be trimmed; the width of the space(s) will not be included in
      * the measured string width for comparison with the limit aWidth, and
@@ -375,7 +368,7 @@ public:
     uint32_t BreakAndMeasureText(uint32_t aStart, uint32_t aMaxLength,
                                  bool aLineBreakBefore, gfxFloat aWidth,
                                  PropertyProvider *aProvider,
-                                 SuppressBreak aSuppressBreak,
+                                 bool aSuppressInitialBreak,
                                  gfxFloat *aTrimWhitespace,
                                  Metrics *aMetrics,
                                  gfxFont::BoundingBoxType aBoundingBoxType,
@@ -771,8 +764,7 @@ public:
      * This calls FetchGlyphExtents on the textrun.
      */
     virtual gfxTextRun *MakeTextRun(const char16_t *aString, uint32_t aLength,
-                                    const Parameters *aParams, uint32_t aFlags,
-                                    gfxMissingFontRecorder *aMFR);
+                                    const Parameters *aParams, uint32_t aFlags);
     /**
      * Make a textrun for a given string.
      * If aText is not persistent (aFlags & TEXT_IS_PERSISTENT), the
@@ -780,8 +772,7 @@ public:
      * This calls FetchGlyphExtents on the textrun.
      */
     virtual gfxTextRun *MakeTextRun(const uint8_t *aString, uint32_t aLength,
-                                    const Parameters *aParams, uint32_t aFlags,
-                                    gfxMissingFontRecorder *aMFR);
+                                    const Parameters *aParams, uint32_t aFlags);
 
     /**
      * Textrun creation helper for clients that don't want to pass
@@ -791,13 +782,12 @@ public:
     gfxTextRun *MakeTextRun(const T *aString, uint32_t aLength,
                             gfxContext *aRefContext,
                             int32_t aAppUnitsPerDevUnit,
-                            uint32_t aFlags,
-                            gfxMissingFontRecorder *aMFR)
+                            uint32_t aFlags)
     {
         gfxTextRunFactory::Parameters params = {
             aRefContext, nullptr, nullptr, nullptr, 0, aAppUnitsPerDevUnit
         };
-        return MakeTextRun(aString, aLength, &params, aFlags, aMFR);
+        return MakeTextRun(aString, aLength, &params, aFlags);
     }
 
     /**
@@ -1093,8 +1083,7 @@ protected:
     void InitTextRun(gfxContext *aContext,
                      gfxTextRun *aTextRun,
                      const T *aString,
-                     uint32_t aLength,
-                     gfxMissingFontRecorder *aMFR);
+                     uint32_t aLength);
 
     // InitTextRun helper to handle a single script run, by finding font ranges
     // and calling each font's InitTextRun() as appropriate
@@ -1104,8 +1093,7 @@ protected:
                        const T *aString,
                        uint32_t aScriptRunStart,
                        uint32_t aScriptRunEnd,
-                       int32_t aRunScript,
-                       gfxMissingFontRecorder *aMFR);
+                       int32_t aRunScript);
 
     // Helper for font-matching:
     // When matching the italic case, allow use of the regular face
@@ -1131,56 +1119,4 @@ protected:
 
     static nsILanguageAtomService* gLangService;
 };
-
-// A "missing font recorder" is to be used during text-run creation to keep
-// a record of any scripts encountered for which font coverage was lacking;
-// when Flush() is called, it sends a notification that front-end code can use
-// to download fonts on demand (or whatever else it wants to do).
-
-#define GFX_MISSING_FONTS_NOTIFY_PREF "gfx.missing_fonts.notify"
-
-class gfxMissingFontRecorder {
-public:
-    gfxMissingFontRecorder()
-    {
-        MOZ_COUNT_CTOR(gfxMissingFontRecorder);
-        memset(&mMissingFonts, 0, sizeof(mMissingFonts));
-    }
-
-    ~gfxMissingFontRecorder()
-    {
-#ifdef DEBUG
-        for (uint32_t i = 0; i < kNumScriptBitsWords; i++) {
-            NS_ASSERTION(mMissingFonts[i] == 0,
-                         "failed to flush the missing-font recorder");
-        }
-#endif
-        MOZ_COUNT_DTOR(gfxMissingFontRecorder);
-    }
-
-    // record this script code in our mMissingFonts bitset
-    void RecordScript(int32_t aScriptCode)
-    {
-        mMissingFonts[uint32_t(aScriptCode) >> 5] |=
-            (1 << (uint32_t(aScriptCode) & 0x1f));
-    }
-
-    // send a notification of any missing-scripts that have been
-    // recorded, and clear the mMissingFonts set for re-use
-    void Flush();
-
-    // forget any missing-scripts that have been recorded up to now;
-    // called before discarding a recorder we no longer care about
-    void Clear()
-    {
-        memset(&mMissingFonts, 0, sizeof(mMissingFonts));
-    }
-
-private:
-    // Number of 32-bit words needed for the missing-script flags
-    static const uint32_t kNumScriptBitsWords =
-        ((MOZ_NUM_SCRIPT_CODES + 31) / 32);
-    uint32_t mMissingFonts[kNumScriptBitsWords];
-};
-
 #endif

@@ -153,7 +153,6 @@ MOZ_BEGIN_ENUM_CLASS(GLVendor)
     Nouveau,
     Vivante,
     VMware,
-    ARM,
     Other
 MOZ_END_ENUM_CLASS(GLVendor)
 
@@ -517,6 +516,7 @@ public:
     }
 
     static const char* GetFeatureName(GLFeature feature);
+
 
 private:
     std::bitset<size_t(GLFeature::EnumMax)> mAvailableFeatures;
@@ -2730,7 +2730,7 @@ public:
         AFTER_GL_CALL;
     }
 
-    void fDeleteTransformFeedbacks(GLsizei n, const GLuint* ids)
+    void fDeleteTransformFeedbacks(GLsizei n, GLuint* ids)
     {
         BEFORE_GL_CALL;
         ASSERT_SYMBOL_PRESENT(fDeleteTransformFeedbacks);

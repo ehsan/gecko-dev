@@ -565,8 +565,11 @@ BluetoothHfpManager::HandleVolumeChanged(nsISupports* aSubject)
   //  {"key":"volumeup", "value":10}
   //  {"key":"volumedown", "value":2}
 
-  RootedDictionary<SettingChangeNotification> setting(nsContentUtils::RootingCx());
-  if (!WrappedJSToDictionary(aSubject, setting)) {
+  AutoJSAPI jsapi;
+  jsapi.Init();
+  JSContext* cx = jsapi.cx();
+  RootedDictionary<SettingChangeNotification> setting(cx);
+  if (!WrappedJSToDictionary(cx, aSubject, setting)) {
     return;
   }
   if (!setting.mKey.EqualsASCII(AUDIO_VOLUME_BT_SCO_ID)) {
@@ -623,7 +626,9 @@ BluetoothHfpManager::HandleVoiceConnectionChanged(uint32_t aClientId)
   }
   UpdateCIND(CINDType::SERVICE, service);
 
-  JS::Rooted<JS::Value> value(nsContentUtils::RootingCxForThread());
+  JSContext* cx = nsContentUtils::GetSafeJSContext();
+  NS_ENSURE_TRUE_VOID(cx);
+  JS::Rooted<JS::Value> value(cx);
   voiceInfo->GetRelSignalStrength(&value);
   NS_ENSURE_TRUE_VOID(value.isNumber());
   uint8_t signal = ceil(value.toNumber() / 20.0);
@@ -683,28 +688,6 @@ BluetoothHfpManager::HandleShutdown()
   Disconnect(nullptr);
   DisconnectSco();
   sBluetoothHfpManager = nullptr;
-}
-
-void
-BluetoothHfpManager::ParseAtCommand(const nsACString& aAtCommand,
-                                    const int aStart,
-                                    nsTArray<nsCString>& aRetValues)
-{
-  int length = aAtCommand.Length();
-  int begin = aStart;
-
-  for (int i = aStart; i < length; ++i) {
-    // Use ',' as separator
-    if (aAtCommand[i] == ',') {
-      nsCString tmp(nsDependentCSubstring(aAtCommand, begin, i - begin));
-      aRetValues.AppendElement(tmp);
-
-      begin = i + 1;
-    }
-  }
-
-  nsCString tmp(nsDependentCSubstring(aAtCommand, begin));
-  aRetValues.AppendElement(tmp);
 }
 
 // Virtual function of class SocketConsumer

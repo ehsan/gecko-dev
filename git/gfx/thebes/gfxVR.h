@@ -182,7 +182,7 @@ public:
   virtual nsIScreen* GetScreen() { return mScreen; }
 
 protected:
-  explicit VRHMDInfo(VRHMDType aType) : mType(aType) { MOZ_COUNT_CTOR(VRHMDInfo); }
+  VRHMDInfo(VRHMDType aType) : mType(aType) { MOZ_COUNT_CTOR(VRHMDInfo); }
   virtual ~VRHMDInfo() { MOZ_COUNT_DTOR(VRHMDInfo); }
 
   VRHMDType mType;

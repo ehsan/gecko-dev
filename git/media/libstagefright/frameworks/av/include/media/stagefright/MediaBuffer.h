@@ -22,7 +22,6 @@
 
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
-#include "nsTArray.h"
 
 namespace stagefright {
 
@@ -86,8 +85,6 @@ public:
 
     int refcount() const;
 
-    bool ensuresize(size_t length);
-
 protected:
     virtual ~MediaBuffer();
 
@@ -119,8 +116,6 @@ private:
 
     MediaBuffer(const MediaBuffer &);
     MediaBuffer &operator=(const MediaBuffer &);
-
-    FallibleTArray<uint8_t> mBufferBackend;
 };
 
 }  // namespace stagefright

@@ -28,9 +28,9 @@ public:
   virtual a11y::role NativeRole() MOZ_OVERRIDE;
 
   // HyperLinkAccessible
-  virtual uint32_t AnchorCount() MOZ_OVERRIDE;
-  virtual Accessible* AnchorAt(uint32_t aAnchorIndex) MOZ_OVERRIDE;
-  virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex) MOZ_OVERRIDE;
+  virtual uint32_t AnchorCount();
+  virtual Accessible* AnchorAt(uint32_t aAnchorIndex);
+  virtual already_AddRefed<nsIURI> AnchorURIAt(uint32_t aAnchorIndex);
 
   /**
    * Update area children of the image map.
@@ -46,7 +46,7 @@ protected:
   virtual ~HTMLImageMapAccessible() { }
 
   // Accessible
-  virtual void CacheChildren() MOZ_OVERRIDE;
+  virtual void CacheChildren();
 };
 
 /**
@@ -59,19 +59,19 @@ public:
   HTMLAreaAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // Accessible
-  virtual void Description(nsString& aDescription) MOZ_OVERRIDE;
+  virtual void Description(nsString& aDescription);
   virtual Accessible* ChildAtPoint(int32_t aX, int32_t aY,
-                                   EWhichChildAtPoint aWhichChild) MOZ_OVERRIDE;
+                                   EWhichChildAtPoint aWhichChild);
   virtual nsRect RelativeBounds(nsIFrame** aBoundingFrame) const MOZ_OVERRIDE;
 
   // HyperLinkAccessible
-  virtual uint32_t StartOffset() MOZ_OVERRIDE;
-  virtual uint32_t EndOffset() MOZ_OVERRIDE;
+  virtual uint32_t StartOffset();
+  virtual uint32_t EndOffset();
 
 protected:
   // Accessible
   virtual ENameValueFlag NativeName(nsString& aName) MOZ_OVERRIDE;
-  virtual void CacheChildren() MOZ_OVERRIDE;
+  virtual void CacheChildren();
 };
 
 

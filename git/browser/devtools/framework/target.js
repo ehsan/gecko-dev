@@ -593,10 +593,7 @@ TabTarget.prototype = {
         // The client was handed to us, so we are not responsible for closing
         // it. We just need to detach from the tab, if already attached.
         if (this.activeTab) {
-          // |detach| may fail if the connection is already dead, so proceed
-          // cleanup directly after this.
-          this.activeTab.detach();
-          cleanupAndResolve();
+          this.activeTab.detach(cleanupAndResolve);
         } else {
           cleanupAndResolve();
         }

@@ -23,11 +23,12 @@ namespace layers {
 
 using namespace mozilla::gfx;
 
-class ClientImageLayer : public ImageLayer,
+class ClientImageLayer : public ImageLayer, 
                          public ClientLayer {
 public:
   explicit ClientImageLayer(ClientLayerManager* aLayerManager)
-    : ImageLayer(aLayerManager, static_cast<ClientLayer*>(this))
+    : ImageLayer(aLayerManager,
+                 static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
     , mImageClientTypeContainer(CompositableType::UNKNOWN)
   {
     MOZ_COUNT_CTOR(ClientImageLayer);
@@ -46,29 +47,29 @@ protected:
     mImageClientTypeContainer = CompositableType::UNKNOWN;
   }
 
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion) MOZ_OVERRIDE
+  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(ClientManager()->InConstruction(),
                  "Can only set properties in construction phase");
     ImageLayer::SetVisibleRegion(aRegion);
   }
 
-  virtual void RenderLayer() MOZ_OVERRIDE;
+  virtual void RenderLayer();
   
   virtual void ClearCachedResources() MOZ_OVERRIDE
   {
     DestroyBackBuffer();
   }
 
-  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs) MOZ_OVERRIDE
+  virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
   {
     aAttrs = ImageLayerAttributes(mFilter, mScaleToSize, mScaleMode);
   }
 
-  virtual Layer* AsLayer() MOZ_OVERRIDE { return this; }
-  virtual ShadowableLayer* AsShadowableLayer() MOZ_OVERRIDE { return this; }
+  virtual Layer* AsLayer() { return this; }
+  virtual ShadowableLayer* AsShadowableLayer() { return this; }
 
-  virtual void Disconnect() MOZ_OVERRIDE
+  virtual void Disconnect()
   {
     DestroyBackBuffer();
     ClientLayer::Disconnect();
@@ -181,6 +182,5 @@ ClientLayerManager::CreateImageLayer()
   CREATE_SHADOW(Image);
   return layer.forget();
 }
-
 }
 }

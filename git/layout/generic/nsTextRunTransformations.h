@@ -21,17 +21,13 @@ public:
   nsTransformedTextRun* MakeTextRun(const uint8_t* aString, uint32_t aLength,
                                     const gfxFontGroup::Parameters* aParams,
                                     gfxFontGroup* aFontGroup, uint32_t aFlags,
-                                    nsStyleContext** aStyles,
-                                    bool aOwnsFactory);
+                                    nsStyleContext** aStyles, bool aOwnsFactory = true);
   nsTransformedTextRun* MakeTextRun(const char16_t* aString, uint32_t aLength,
                                     const gfxFontGroup::Parameters* aParams,
                                     gfxFontGroup* aFontGroup, uint32_t aFlags,
-                                    nsStyleContext** aStyles,
-                                    bool aOwnsFactory);
+                                    nsStyleContext** aStyles, bool aOwnsFactory = true);
 
-  virtual void RebuildTextRun(nsTransformedTextRun* aTextRun,
-                              gfxContext* aRefContext,
-                              gfxMissingFontRecorder* aMFR) = 0;
+  virtual void RebuildTextRun(nsTransformedTextRun* aTextRun, gfxContext* aRefContext) = 0;
 };
 
 /**
@@ -52,9 +48,7 @@ public:
     : mInnerTransformingTextRunFactory(aInnerTransformingTextRunFactory),
       mAllUppercase(aAllUppercase) {}
 
-  virtual void RebuildTextRun(nsTransformedTextRun* aTextRun,
-                              gfxContext* aRefContext,
-                              gfxMissingFontRecorder* aMFR) MOZ_OVERRIDE;
+  virtual void RebuildTextRun(nsTransformedTextRun* aTextRun, gfxContext* aRefContext) MOZ_OVERRIDE;
 
   // Perform a transformation on the given string, writing the result into
   // aConvertedString. If aAllUppercase is true, the transform is (global)
@@ -111,12 +105,11 @@ public:
    * are done and before we request any data from the textrun. Also always
    * called after a Create.
    */
-  void FinishSettingProperties(gfxContext* aRefContext,
-                               gfxMissingFontRecorder* aMFR)
+  void FinishSettingProperties(gfxContext* aRefContext)
   {
     if (mNeedsRebuild) {
       mNeedsRebuild = false;
-      mFactory->RebuildTextRun(this, aRefContext, aMFR);
+      mFactory->RebuildTextRun(this, aRefContext);
     }
   }
 

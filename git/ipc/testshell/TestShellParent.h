@@ -27,10 +27,10 @@ public:
   virtual void ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
 
   PTestShellCommandParent*
-  AllocPTestShellCommandParent(const nsString& aCommand) MOZ_OVERRIDE;
+  AllocPTestShellCommandParent(const nsString& aCommand);
 
   bool
-  DeallocPTestShellCommandParent(PTestShellCommandParent* aActor) MOZ_OVERRIDE;
+  DeallocPTestShellCommandParent(PTestShellCommandParent* aActor);
 
   bool
   CommandDone(TestShellCommandParent* aActor, const nsString& aResponse);

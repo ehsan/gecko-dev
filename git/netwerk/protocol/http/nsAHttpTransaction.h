@@ -194,28 +194,28 @@ public:
 NS_DEFINE_STATIC_IID_ACCESSOR(nsAHttpTransaction, NS_AHTTPTRANSACTION_IID)
 
 #define NS_DECL_NSAHTTPTRANSACTION \
-    void SetConnection(nsAHttpConnection *) MOZ_OVERRIDE; \
-    nsAHttpConnection *Connection() MOZ_OVERRIDE; \
-    void GetSecurityCallbacks(nsIInterfaceRequestor **) MOZ_OVERRIDE;       \
+    void SetConnection(nsAHttpConnection *); \
+    nsAHttpConnection *Connection(); \
+    void GetSecurityCallbacks(nsIInterfaceRequestor **);       \
     void OnTransportStatus(nsITransport* transport, \
-                           nsresult status, uint64_t progress) MOZ_OVERRIDE; \
-    bool     IsDone() MOZ_OVERRIDE; \
-    nsresult Status() MOZ_OVERRIDE; \
-    uint32_t Caps() MOZ_OVERRIDE;   \
-    void     SetDNSWasRefreshed() MOZ_OVERRIDE; \
-    uint64_t Available() MOZ_OVERRIDE; \
-    virtual nsresult ReadSegments(nsAHttpSegmentReader *, uint32_t, uint32_t *) MOZ_OVERRIDE; \
-    virtual nsresult WriteSegments(nsAHttpSegmentWriter *, uint32_t, uint32_t *) MOZ_OVERRIDE; \
-    virtual void Close(nsresult reason) MOZ_OVERRIDE;                                \
-    nsHttpConnectionInfo *ConnectionInfo() MOZ_OVERRIDE;                             \
-    void     SetProxyConnectFailed() MOZ_OVERRIDE;                                   \
-    virtual nsHttpRequestHead *RequestHead() MOZ_OVERRIDE;                                   \
-    uint32_t Http1xTransactionCount() MOZ_OVERRIDE;                                  \
-    nsresult TakeSubTransactions(nsTArray<nsRefPtr<nsAHttpTransaction> > &outTransactions) MOZ_OVERRIDE; \
-    nsresult AddTransaction(nsAHttpTransaction *) MOZ_OVERRIDE;                      \
-    uint32_t PipelineDepth() MOZ_OVERRIDE;                                           \
-    nsresult SetPipelinePosition(int32_t) MOZ_OVERRIDE;                              \
-    int32_t  PipelinePosition() MOZ_OVERRIDE;
+                           nsresult status, uint64_t progress); \
+    bool     IsDone(); \
+    nsresult Status(); \
+    uint32_t Caps();   \
+    void     SetDNSWasRefreshed(); \
+    uint64_t Available(); \
+    virtual nsresult ReadSegments(nsAHttpSegmentReader *, uint32_t, uint32_t *); \
+    virtual nsresult WriteSegments(nsAHttpSegmentWriter *, uint32_t, uint32_t *); \
+    virtual void Close(nsresult reason);                                \
+    nsHttpConnectionInfo *ConnectionInfo();                             \
+    void     SetProxyConnectFailed();                                   \
+    virtual nsHttpRequestHead *RequestHead();                                   \
+    uint32_t Http1xTransactionCount();                                  \
+    nsresult TakeSubTransactions(nsTArray<nsRefPtr<nsAHttpTransaction> > &outTransactions); \
+    nsresult AddTransaction(nsAHttpTransaction *);                      \
+    uint32_t PipelineDepth();                                           \
+    nsresult SetPipelinePosition(int32_t);                              \
+    int32_t  PipelinePosition();
 
 //-----------------------------------------------------------------------------
 // nsAHttpSegmentReader
@@ -246,7 +246,7 @@ public:
 };
 
 #define NS_DECL_NSAHTTPSEGMENTREADER \
-    nsresult OnReadSegment(const char *, uint32_t, uint32_t *) MOZ_OVERRIDE;
+    nsresult OnReadSegment(const char *, uint32_t, uint32_t *);
 
 //-----------------------------------------------------------------------------
 // nsAHttpSegmentWriter
@@ -262,7 +262,7 @@ public:
 };
 
 #define NS_DECL_NSAHTTPSEGMENTWRITER \
-    nsresult OnWriteSegment(char *, uint32_t, uint32_t *) MOZ_OVERRIDE;
+    nsresult OnWriteSegment(char *, uint32_t, uint32_t *);
 
 }} // namespace mozilla::net
 

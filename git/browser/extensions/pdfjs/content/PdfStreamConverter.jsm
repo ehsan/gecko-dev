@@ -16,7 +16,7 @@
  */
 /* jshint esnext:true */
 /* globals Components, Services, XPCOMUtils, NetUtil, PrivateBrowsingUtils,
-           dump, NetworkManager, PdfJsTelemetry, PdfjsContentUtils */
+           dump, NetworkManager, PdfJsTelemetry */
 
 'use strict';
 
@@ -143,23 +143,20 @@ function getLocalizedStrings(path) {
       property = key.substring(i + 1);
       key = key.substring(0, i);
     }
-    if (!(key in map)) {
+    if (!(key in map))
       map[key] = {};
-    }
     map[key][property] = string.value;
   }
   return map;
 }
 function getLocalizedString(strings, id, property) {
   property = property || 'textContent';
-  if (id in strings) {
+  if (id in strings)
     return strings[id][property];
-  }
   return id;
 }
 
 function makeContentReadable(obj, window) {
-  /* jshint -W027 */
   return Cu.cloneInto(obj, window);
 }
 
@@ -245,7 +242,7 @@ ChromeActions.prototype = {
     // the original url.
     var originalUri = NetUtil.newURI(data.originalUrl);
     var filename = data.filename;
-    if (typeof filename !== 'string' ||
+    if (typeof filename !== 'string' || 
         (!/\.pdf$/i.test(filename) && !data.isAttachment)) {
       filename = 'document.pdf';
     }
@@ -264,9 +261,8 @@ ChromeActions.prototype = {
     }
     NetUtil.asyncFetch(netChannel, function(aInputStream, aResult) {
       if (!Components.isSuccessCode(aResult)) {
-        if (sendResponse) {
+        if (sendResponse)
           sendResponse(true);
-        }
         return;
       }
       // Create a nsIInputStreamChannel so we can set the url on the channel
@@ -300,13 +296,11 @@ ChromeActions.prototype = {
           this.extListener.onStartRequest(aRequest, aContext);
         },
         onStopRequest: function(aRequest, aContext, aStatusCode) {
-          if (this.extListener) {
+          if (this.extListener)
             this.extListener.onStopRequest(aRequest, aContext, aStatusCode);
-          }
           // Notify the content code we're done downloading.
-          if (sendResponse) {
+          if (sendResponse)
             sendResponse(false);
-          }
         },
         onDataAvailable: function(aRequest, aContext, aInputStream, aOffset,
                                   aCount) {
@@ -324,9 +318,9 @@ ChromeActions.prototype = {
   getStrings: function(data) {
     try {
       // Lazy initialization of localizedStrings
-      if (!('localizedStrings' in this)) {
+      if (!('localizedStrings' in this))
         this.localizedStrings = getLocalizedStrings('viewer.properties');
-      }
+
       var result = this.localizedStrings[data];
       return JSON.stringify(result || null);
     } catch (e) {
@@ -379,10 +373,10 @@ ChromeActions.prototype = {
         if (!documentStats || typeof documentStats !== 'object') {
           break;
         }
-        var i, streamTypes = documentStats.streamTypes;
+        var streamTypes = documentStats.streamTypes;
         if (Array.isArray(streamTypes)) {
           var STREAM_TYPE_ID_LIMIT = 20;
-          for (i = 0; i < STREAM_TYPE_ID_LIMIT; i++) {
+          for (var i = 0; i < STREAM_TYPE_ID_LIMIT; i++) {
             if (streamTypes[i] &&
                 !this.telemetryState.streamTypesUsed[i]) {
               PdfJsTelemetry.onStreamType(i);
@@ -393,7 +387,7 @@ ChromeActions.prototype = {
         var fontTypes = documentStats.fontTypes;
         if (Array.isArray(fontTypes)) {
           var FONT_TYPE_ID_LIMIT = 20;
-          for (i = 0; i < FONT_TYPE_ID_LIMIT; i++) {
+          for (var i = 0; i < FONT_TYPE_ID_LIMIT; i++) {
             if (fontTypes[i] &&
                 !this.telemetryState.fontTypesUsed[i]) {
               PdfJsTelemetry.onFontType(i);
@@ -426,9 +420,8 @@ ChromeActions.prototype = {
       getLocalizedString(strings, 'open_with_different_viewer', 'accessKey'));
   },
   updateFindControlState: function(data) {
-    if (!this.supportsIntegratedFind()) {
+    if (!this.supportsIntegratedFind())
       return;
-    }
     // Verify what we're sending to the findbar.
     var result = data.result;
     var findPrevious = data.findPrevious;
@@ -713,11 +706,11 @@ RequestListener.prototype.receive = function(event) {
     log('Unknown action: ' + action);
     return;
   }
-  var response;
   if (sync) {
-    response = actions[action].call(this.actions, data);
+    var response = actions[action].call(this.actions, data);
     event.detail.response = response;
   } else {
+    var response;
     if (!event.detail.responseExpected) {
       doc.documentElement.removeChild(message);
       response = null;
@@ -725,8 +718,7 @@ RequestListener.prototype.receive = function(event) {
       response = function sendResponse(response) {
         try {
           var listener = doc.createEvent('CustomEvent');
-          let detail = makeContentReadable({response: response},
-                                           doc.defaultView);
+          let detail = makeContentReadable({response: response}, doc.defaultView);
           listener.initCustomEvent('pdf.js.response', true, false, detail);
           return message.dispatchEvent(listener);
         } catch (e) {
@@ -995,11 +987,10 @@ PdfStreamConverter.prototype = {
       return;
     }
 
-    if (Components.isSuccessCode(aStatusCode)) {
+    if (Components.isSuccessCode(aStatusCode))
       this.dataListener.finish();
-    } else {
+    else
       this.dataListener.error(aStatusCode);
-    }
     delete this.dataListener;
     delete this.binaryStream;
   }

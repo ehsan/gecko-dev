@@ -89,7 +89,6 @@ hardware (via AudioStream).
 #include "MediaDecoderReader.h"
 #include "MediaDecoderOwner.h"
 #include "MediaMetadataManager.h"
-#include "MediaDecoderStateMachineScheduler.h"
 
 class nsITimer;
 
@@ -155,7 +154,7 @@ public:
   // Set the audio volume. The decoder monitor must be obtained before
   // calling this.
   void SetVolume(double aVolume);
-  void SetAudioCaptured();
+  void SetAudioCaptured(bool aCapture);
 
   // Check if the decoder needs to become dormant state.
   bool IsDormantNeeded();
@@ -207,18 +206,7 @@ public:
   // Cause state transitions. These methods obtain the decoder monitor
   // to synchronise the change of state, and to notify other threads
   // that the state has changed.
-  void Play()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    nsRefPtr<nsRunnable> r = NS_NewRunnableMethod(this, &MediaDecoderStateMachine::PlayInternal);
-    GetStateMachineThread()->Dispatch(r, NS_DISPATCH_NORMAL);
-  }
-
-private:
-  // The actual work for the above, which happens asynchronously on the state
-  // machine thread.
-  void PlayInternal();
-public:
+  void Play();
 
   // Seeks to the decoder to aTarget asynchronously.
   // Must be called from the main thread.
@@ -241,7 +229,6 @@ public:
   // Called from the main thread to get the current frame time. The decoder
   // monitor must be obtained before calling this.
   double GetCurrentTime() const;
-  int64_t GetCurrentTimeUs() const;
 
   // Clear the flag indicating that a playback position change event
   // is currently queued. This is called from the main thread and must
@@ -399,10 +386,12 @@ public:
   void OnNotDecoded(MediaData::Type aType, MediaDecoderReader::NotDecodedReason aReason);
   void OnAudioNotDecoded(MediaDecoderReader::NotDecodedReason aReason)
   {
+    MOZ_ASSERT(OnDecodeThread());
     OnNotDecoded(MediaData::AUDIO_DATA, aReason);
   }
   void OnVideoNotDecoded(MediaDecoderReader::NotDecodedReason aReason)
   {
+    MOZ_ASSERT(OnDecodeThread());
     OnNotDecoded(MediaData::VIDEO_DATA, aReason);
   }
 
@@ -412,18 +401,19 @@ public:
   void OnWaitForDataResolved(MediaData::Type aType)
   {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    WaitRequestRef(aType).Complete();
-    DispatchDecodeTasksIfNeeded();
+    if (RequestStatusRef(aType) == RequestStatus::Waiting) {
+      RequestStatusRef(aType) = RequestStatus::Idle;
+      DispatchDecodeTasksIfNeeded();
+    }
   }
 
   void OnWaitForDataRejected(WaitForDataRejectValue aRejection)
   {
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    WaitRequestRef(aRejection.mType).Complete();
+    MOZ_ASSERT(aRejection.mReason == WaitForDataRejectValue::SHUTDOWN);
+    if (RequestStatusRef(aRejection.mType) == RequestStatus::Waiting) {
+      RequestStatusRef(aRejection.mType) = RequestStatus::Idle;
+    }
   }
-
-  // Resets all state related to decoding, emptying all buffers etc.
-  void ResetDecode();
 
 private:
   void AcquireMonitorAndInvokeDecodeError();
@@ -486,9 +476,15 @@ protected:
   // decode more.
   bool NeedToDecodeAudio();
 
+  // Decodes some audio. This should be run on the decode task queue.
+  void DecodeAudio();
+
   // True if our buffers of decoded video are not full, and we should
   // decode more.
   bool NeedToDecodeVideo();
+
+  // Decodes some video. This should be run on the decode task queue.
+  void DecodeVideo();
 
   // Returns true if we've got less than aAudioUsecs microseconds of decoded
   // and playable data. The decoder monitor must be held.
@@ -496,7 +492,10 @@ protected:
   // May not be invoked when mReader->UseBufferingHeuristics() is false.
   bool HasLowDecodedData(int64_t aAudioUsecs);
 
-  bool OutOfDecodedAudio();
+  bool OutOfDecodedAudio()
+  {
+    return IsAudioDecoding() && !AudioQueue().IsFinished() && AudioQueue().GetSize() == 0;
+  }
 
   bool OutOfDecodedVideo()
   {
@@ -590,10 +589,9 @@ protected:
   // The decoder monitor must be held.
   void StopPlayback();
 
-  // If the conditions are right, sets internal state which causes playback
-  // of media to begin or resume.
+  // Sets internal state which causes playback of media to begin or resume.
   // Must be called with the decode monitor held.
-  void MaybeStartPlayback();
+  void StartPlayback();
 
   // Moves the decoder into decoding state. Called on the state machine
   // thread. The decoder monitor must be held.
@@ -954,48 +952,8 @@ protected:
   // unneccessarily if we start playing as soon as the first sample is
   // decoded. These two fields store how many video frames and audio
   // samples we must consume before are considered to be finished prerolling.
-  uint32_t AudioPrerollUsecs() const
-  {
-    if (mScheduler->IsRealTime()) {
-      return 0;
-    }
-
-    uint32_t result = mLowAudioThresholdUsecs * 2;
-    MOZ_ASSERT(result <= mAmpleAudioThresholdUsecs, "Prerolling will never finish");
-    return result;
-  }
-  uint32_t VideoPrerollFrames() const { return mScheduler->IsRealTime() ? 0 : mAmpleVideoFrames / 2; }
-
-  bool DonePrerollingAudio()
-  {
-    AssertCurrentThreadInMonitor();
-    return !IsAudioDecoding() || GetDecodedAudioDuration() >= AudioPrerollUsecs() * mPlaybackRate;
-  }
-
-  bool DonePrerollingVideo()
-  {
-    AssertCurrentThreadInMonitor();
-    return !IsVideoDecoding() ||
-           static_cast<uint32_t>(VideoQueue().GetSize()) >= VideoPrerollFrames() * mPlaybackRate;
-  }
-
-  void StopPrerollingAudio()
-  {
-    AssertCurrentThreadInMonitor();
-    if (mIsAudioPrerolling) {
-      mIsAudioPrerolling = false;
-      ScheduleStateMachine();
-    }
-  }
-
-  void StopPrerollingVideo()
-  {
-    AssertCurrentThreadInMonitor();
-    if (mIsVideoPrerolling) {
-      mIsVideoPrerolling = false;
-      ScheduleStateMachine();
-    }
-  }
+  uint32_t mAudioPrerollUsecs;
+  uint32_t mVideoPrerollFrames;
 
   // This temporarily stores the first frame we decode after we seek.
   // This is so that if we hit end of stream while we're decoding to reach
@@ -1014,38 +972,21 @@ protected:
   bool mIsAudioPrerolling;
   bool mIsVideoPrerolling;
 
-  // Only one of a given pair of ({Audio,Video}DataPromise, WaitForDataPromise)
-  // should exist at any given moment.
+  MOZ_BEGIN_NESTED_ENUM_CLASS(RequestStatus)
+    Idle,
+    Pending,
+    Waiting
+  MOZ_END_NESTED_ENUM_CLASS(RequestStatus)
 
-  MediaPromiseConsumerHolder<MediaDecoderReader::AudioDataPromise> mAudioDataRequest;
-  MediaPromiseConsumerHolder<MediaDecoderReader::WaitForDataPromise> mAudioWaitRequest;
-  const char* AudioRequestStatus()
-  {
-    if (mAudioDataRequest.Exists()) {
-      MOZ_DIAGNOSTIC_ASSERT(!mAudioWaitRequest.Exists());
-      return "pending";
-    } else if (mAudioWaitRequest.Exists()) {
-      return "waiting";
-    }
-    return "idle";
-  }
+  // True when we have dispatched a task to the decode task queue to request
+  // decoded audio/video, and/or we are waiting for the requested sample to be
+  // returned by callback from the Reader.
+  RequestStatus mAudioRequestStatus;
+  RequestStatus mVideoRequestStatus;
 
-  MediaPromiseConsumerHolder<MediaDecoderReader::WaitForDataPromise> mVideoWaitRequest;
-  MediaPromiseConsumerHolder<MediaDecoderReader::VideoDataPromise> mVideoDataRequest;
-  const char* VideoRequestStatus()
+  RequestStatus& RequestStatusRef(MediaData::Type aType)
   {
-    if (mVideoDataRequest.Exists()) {
-      MOZ_DIAGNOSTIC_ASSERT(!mVideoWaitRequest.Exists());
-      return "pending";
-    } else if (mVideoWaitRequest.Exists()) {
-      return "waiting";
-    }
-    return "idle";
-  }
-
-  MediaPromiseConsumerHolder<MediaDecoderReader::WaitForDataPromise>& WaitRequestRef(MediaData::Type aType)
-  {
-    return aType == MediaData::AUDIO_DATA ? mAudioWaitRequest : mVideoWaitRequest;
+    return aType == MediaData::AUDIO_DATA ? mAudioRequestStatus : mVideoRequestStatus;
   }
 
   // True if we shouldn't play our audio (but still write it to any capturing

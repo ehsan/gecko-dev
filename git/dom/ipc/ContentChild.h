@@ -62,9 +62,9 @@ class ContentChild : public PContentChild
 public:
     ContentChild();
     virtual ~ContentChild();
-    NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr) MOZ_OVERRIDE;
-    NS_IMETHOD_(MozExternalRefCountType) AddRef(void) MOZ_OVERRIDE { return 1; }
-    NS_IMETHOD_(MozExternalRefCountType) Release(void) MOZ_OVERRIDE { return 1; }
+    NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
+    NS_IMETHOD_(MozExternalRefCountType) AddRef(void) { return 1; }
+    NS_IMETHOD_(MozExternalRefCountType) Release(void) { return 1; }
 
     struct AppInfo
     {
@@ -142,18 +142,14 @@ public:
                                               const uint32_t& aChromeFlags,
                                               const ContentParentId& aCpID,
                                               const bool& aIsForApp,
-                                              const bool& aIsForBrowser)
-                                              MOZ_OVERRIDE;
-    virtual bool DeallocPBrowserChild(PBrowserChild*) MOZ_OVERRIDE;
+                                              const bool& aIsForBrowser);
+    virtual bool DeallocPBrowserChild(PBrowserChild*);
 
-    virtual PDeviceStorageRequestChild* AllocPDeviceStorageRequestChild(const DeviceStorageParams&)
-                                                                        MOZ_OVERRIDE;
-    virtual bool DeallocPDeviceStorageRequestChild(PDeviceStorageRequestChild*)
-                                                   MOZ_OVERRIDE;
+    virtual PDeviceStorageRequestChild* AllocPDeviceStorageRequestChild(const DeviceStorageParams&);
+    virtual bool DeallocPDeviceStorageRequestChild(PDeviceStorageRequestChild*);
 
-    virtual PFileSystemRequestChild* AllocPFileSystemRequestChild(const FileSystemParams&)
-                                                                  MOZ_OVERRIDE;
-    virtual bool DeallocPFileSystemRequestChild(PFileSystemRequestChild*) MOZ_OVERRIDE;
+    virtual PFileSystemRequestChild* AllocPFileSystemRequestChild(const FileSystemParams&);
+    virtual bool DeallocPFileSystemRequestChild(PFileSystemRequestChild*);
 
     virtual PBlobChild* AllocPBlobChild(const BlobConstructorParams& aParams)
                                         MOZ_OVERRIDE;
@@ -340,9 +336,7 @@ public:
                                       const bool& aIsSharing,
                                       const bool& aIsFormatting,
                                       const bool& aIsFake,
-                                      const bool& aIsUnmounting,
-                                      const bool& aIsRemovable,
-                                      const bool& aIsHotSwappable) MOZ_OVERRIDE;
+                                      const bool& aIsUnmounting) MOZ_OVERRIDE;
 
     virtual bool RecvNuwaFork() MOZ_OVERRIDE;
 
@@ -356,8 +350,6 @@ public:
 
     virtual bool RecvNotifyPhoneStateChange(const nsString& state) MOZ_OVERRIDE;
 
-    virtual bool RecvNuwaFreeze() MOZ_OVERRIDE;
-
     void AddIdleObserver(nsIObserver* aObserver, uint32_t aIdleTimeInS);
     void RemoveIdleObserver(nsIObserver* aObserver, uint32_t aIdleTimeInS);
     virtual bool RecvNotifyIdleObserver(const uint64_t& aObserver,
@@ -366,18 +358,12 @@ public:
 
     virtual bool RecvOnAppThemeChanged() MOZ_OVERRIDE;
 
-    virtual bool RecvAssociatePluginId(const uint32_t& aPluginId,
-                                       const base::ProcessId& aProcessId) MOZ_OVERRIDE;
-    virtual bool RecvLoadPluginResult(const uint32_t& aPluginId,
-                                      const bool& aResult) MOZ_OVERRIDE;
-
     virtual bool RecvStartProfiler(const uint32_t& aEntries,
                                    const double& aInterval,
                                    const nsTArray<nsCString>& aFeatures,
                                    const nsTArray<nsCString>& aThreadNameFilters) MOZ_OVERRIDE;
     virtual bool RecvStopProfiler() MOZ_OVERRIDE;
-    virtual bool RecvGetProfile(nsCString* aProfile) MOZ_OVERRIDE;
-    virtual bool RecvShutdown() MOZ_OVERRIDE;
+    virtual bool AnswerGetProfile(nsCString* aProfile) MOZ_OVERRIDE;
 
 #ifdef ANDROID
     gfxIntSize GetScreenSize() { return mScreenSize; }

@@ -14,10 +14,8 @@
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothDevice;
-class BluetoothSignal;
 
 class BluetoothPairingListener MOZ_FINAL : public DOMEventTargetHelper
-                                         , public BluetoothSignalObserver
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -29,15 +27,12 @@ public:
                             const nsAString& aPasskey,
                             const nsAString& aType);
 
-  void Notify(const BluetoothSignal& aParam); // BluetoothSignalObserver
-
   nsPIDOMWindow* GetParentObject() const
   {
     return GetOwner();
   }
 
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
-  virtual void DisconnectFromOwner() MOZ_OVERRIDE;
 
   IMPL_EVENT_HANDLER(displaypasskeyreq);
   IMPL_EVENT_HANDLER(enterpincodereq);

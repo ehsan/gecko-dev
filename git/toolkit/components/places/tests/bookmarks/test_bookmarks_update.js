@@ -248,14 +248,12 @@ add_task(function* update_keyword() {
   let lastModified = bm.lastModified;
 
   bm = yield PlacesUtils.bookmarks.update({ guid: bm.guid,
-                                            keyword: "KW2" });
+                                            keyword: "kw2" });
   checkBookmarkObject(bm);
   Assert.ok(bm.lastModified >= lastModified);
-  // Keywords are case-insensitive.
   Assert.equal(bm.keyword, "kw2");
 
   bm = yield PlacesUtils.bookmarks.fetch(bm.guid);
-  // Keywords are case-insensitive.
   Assert.equal(bm.keyword, "kw2");
   lastModified = bm.lastModified;
 

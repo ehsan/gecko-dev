@@ -27,10 +27,6 @@ public:
 
   int64_t GetPosition();
 
-  // Check whether we've pushed more frames to the audio hardware than it has
-  // played.
-  bool HasUnplayedFrames();
-
   // Tell the AudioSink to stop processing and initiate shutdown.  Must be
   // called with the decoder monitor held.
   void PrepareToShutdown();

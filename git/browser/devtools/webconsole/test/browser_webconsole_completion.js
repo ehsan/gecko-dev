@@ -7,20 +7,34 @@
 
 const TEST_URI = "data:text/html;charset=utf8,<p>test code completion";
 
-let jsterm;
+let testDriver;
 
-let test = asyncTest(function* () {
-  yield loadTab(TEST_URI);
+function test() {
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, function(hud) {
+      testDriver = testCompletion(hud);
+      testDriver.next();
+    });
+  }, true);
+}
 
-  let hud = yield openConsole();
+function testNext() {
+  executeSoon(function() {
+    testDriver.next();
+  });
+}
 
-  jsterm = hud.jsterm;
+function testCompletion(hud) {
+  let jsterm = hud.jsterm;
   let input = jsterm.inputNode;
 
   // Test typing 'docu'.
   input.value = "docu";
   input.setSelectionRange(4, 4);
-  yield complete(jsterm.COMPLETE_HINT_ONLY);
+  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, testNext);
+  yield undefined;
 
   is(input.value, "docu", "'docu' completion (input.value)");
   is(jsterm.completeNode.value, "    ment", "'docu' completion (completeNode)");
@@ -28,7 +42,8 @@ let test = asyncTest(function* () {
   // Test typing 'docu' and press tab.
   input.value = "docu";
   input.setSelectionRange(4, 4);
-  yield complete(jsterm.COMPLETE_FORWARD);
+  jsterm.complete(jsterm.COMPLETE_FORWARD, testNext);
+  yield undefined;
 
   is(input.value, "document", "'docu' tab completion");
   is(input.selectionStart, 8, "start selection is alright");
@@ -39,26 +54,30 @@ let test = asyncTest(function* () {
   // ambiguous: could be window.Object, window.Option, etc.
   input.value = "window.Ob";
   input.setSelectionRange(9, 9);
-  yield complete(jsterm.COMPLETE_FORWARD);
+  jsterm.complete(jsterm.COMPLETE_FORWARD, testNext);
+  yield undefined;
 
   is(input.value, "window.Object", "'window.Ob' tab completion");
 
   // Test typing 'document.getElem'.
   input.value = "document.getElem";
   input.setSelectionRange(16, 16);
-  yield complete(jsterm.COMPLETE_FORWARD);
+  jsterm.complete(jsterm.COMPLETE_FORWARD, testNext);
+  yield undefined;
 
   is(input.value, "document.getElem", "'document.getElem' completion");
   is(jsterm.completeNode.value, "                entsByTagNameNS", "'document.getElem' completion");
 
   // Test pressing tab another time.
-  yield jsterm.complete(jsterm.COMPLETE_FORWARD);
+  jsterm.complete(jsterm.COMPLETE_FORWARD, testNext);
+  yield undefined;
 
   is(input.value, "document.getElem", "'document.getElem' completion");
   is(jsterm.completeNode.value, "                entsByTagName", "'document.getElem' another tab completion");
 
   // Test pressing shift_tab.
-  complete(jsterm.COMPLETE_BACKWARD);
+  jsterm.complete(jsterm.COMPLETE_BACKWARD, testNext);
+  yield undefined;
 
   is(input.value, "document.getElem", "'document.getElem' untab completion");
   is(jsterm.completeNode.value, "                entsByTagNameNS", "'document.getElem' completion");
@@ -66,36 +85,36 @@ let test = asyncTest(function* () {
   jsterm.clearOutput();
 
   input.value = "docu";
-  yield complete(jsterm.COMPLETE_HINT_ONLY);
+  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, testNext);
+  yield undefined;
 
   is(jsterm.completeNode.value, "    ment", "'docu' completion");
-  yield jsterm.execute();
+  jsterm.execute();
   is(jsterm.completeNode.value, "", "clear completion on execute()");
 
   // Test multi-line completion works
   input.value =                 "console.log('one');\nconsol";
-  yield complete(jsterm.COMPLETE_HINT_ONLY);
+  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, testNext);
+  yield undefined;
 
   is(jsterm.completeNode.value, "                   \n      e", "multi-line completion");
 
   // Test non-object autocompletion.
   input.value = "Object.name.sl";
-  yield complete(jsterm.COMPLETE_HINT_ONLY);
+  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, testNext);
+  yield undefined;
 
   is(jsterm.completeNode.value, "              ice", "non-object completion");
 
   // Test string literal autocompletion.
   input.value = "'Asimov'.sl";
-  yield complete(jsterm.COMPLETE_HINT_ONLY);
+  jsterm.complete(jsterm.COMPLETE_HINT_ONLY, testNext);
+  yield undefined;
 
   is(jsterm.completeNode.value, "           ice", "string literal completion");
 
-  jsterm = null;
-});
-
-
-function complete(type) {
-  let updated = jsterm.once("autocomplete-updated");
-  jsterm.complete(type);
-  return updated;
+  testDriver = jsterm = input = null;
+  executeSoon(finishTest);
+  yield undefined;
 }
+

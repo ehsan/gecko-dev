@@ -176,7 +176,7 @@ public:
   { }
 
   NS_IMETHOD
-  HandleEvent(nsIDOMEvent* aEvent) MOZ_OVERRIDE
+  HandleEvent(nsIDOMEvent* aEvent)
   {
     nsString type;
     if (NS_FAILED(aEvent->GetType(type))) {

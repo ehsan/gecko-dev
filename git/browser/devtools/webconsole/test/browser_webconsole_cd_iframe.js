@@ -42,27 +42,27 @@ function test() {
     const {tab} = yield loadTab(TEST_URI);
     hud = yield openConsole(tab);
 
-    yield executeWindowTest();
+    executeWindowTest();
 
     yield waitForMessages({ webconsole: hud, messages: parentMessages });
 
     info("cd() into the iframe using a selector");
     hud.jsterm.clearOutput();
-    yield hud.jsterm.execute("cd('iframe')");
-    yield executeWindowTest();
+    hud.jsterm.execute("cd('iframe')");
+    executeWindowTest();
 
     yield waitForMessages({ webconsole: hud, messages: childMessages });
 
     info("cd() out of the iframe, reset to default window");
     hud.jsterm.clearOutput();
-    yield hud.jsterm.execute("cd()");
-    yield executeWindowTest();
+    hud.jsterm.execute("cd()");
+    executeWindowTest();
 
     yield waitForMessages({ webconsole: hud, messages: parentMessages });
 
     info("call cd() with unexpected arguments");
     hud.jsterm.clearOutput();
-    yield hud.jsterm.execute("cd(document)");
+    hud.jsterm.execute("cd(document)");
 
     yield waitForMessages({
       webconsole: hud,
@@ -74,7 +74,7 @@ function test() {
     });
 
     hud.jsterm.clearOutput();
-    yield hud.jsterm.execute("cd('p')");
+    hud.jsterm.execute("cd('p')");
 
     yield waitForMessages({
       webconsole: hud,
@@ -87,15 +87,15 @@ function test() {
 
     info("cd() into the iframe using an iframe DOM element");
     hud.jsterm.clearOutput();
-    yield hud.jsterm.execute("cd($('iframe'))");
-    yield executeWindowTest();
+    hud.jsterm.execute("cd($('iframe'))");
+    executeWindowTest();
 
     yield waitForMessages({ webconsole: hud, messages: childMessages });
 
     info("cd(window.parent)");
     hud.jsterm.clearOutput();
-    yield hud.jsterm.execute("cd(window.parent)");
-    yield executeWindowTest();
+    hud.jsterm.execute("cd(window.parent)");
+    executeWindowTest();
 
     yield waitForMessages({ webconsole: hud, messages: parentMessages });
 
@@ -103,8 +103,8 @@ function test() {
   }
 
   function executeWindowTest() {
-    yield hud.jsterm.execute("document.title");
-    yield hud.jsterm.execute("'p: ' + document.querySelector('p').textContent");
-    yield hud.jsterm.execute("'obj: ' + window.foobarBug609872");
+    hud.jsterm.execute("document.title");
+    hud.jsterm.execute("'p: ' + document.querySelector('p').textContent");
+    hud.jsterm.execute("'obj: ' + window.foobarBug609872");
   }
 }

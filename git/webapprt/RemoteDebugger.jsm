@@ -21,8 +21,6 @@ this.RemoteDebugger = {
       DebuggerServer.addBrowserActors("webapprt:webapp");
       DebuggerServer.addActors("chrome://webapprt/content/dbg-webapp-actors.js");
     }
-    let listener = DebuggerServer.createListener();
-    listener.portOrPath = port;
-    listener.open();
+    DebuggerServer.openListener(port);
   }
 }

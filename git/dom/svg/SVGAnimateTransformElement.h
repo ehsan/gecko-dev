@@ -39,7 +39,7 @@ public:
                         nsAttrValue& aResult) MOZ_OVERRIDE;
 
   // SVGAnimationElement
-  virtual nsSMILAnimationFunction& AnimationFunction() MOZ_OVERRIDE;
+  virtual nsSMILAnimationFunction& AnimationFunction();
 };
 
 } // namespace dom

@@ -15,13 +15,13 @@
 
 namespace mozilla {
 
-class FlushableMediaTaskQueue;
+class MediaTaskQueue;
 class MediaDataDecoderCallback;
 
 class AppleATDecoder : public MediaDataDecoder {
 public:
   AppleATDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
-                 FlushableMediaTaskQueue* aVideoTaskQueue,
+                 MediaTaskQueue* aVideoTaskQueue,
                  MediaDataDecoderCallback* aCallback);
   virtual ~AppleATDecoder();
 
@@ -41,7 +41,7 @@ public:
   bool mFileStreamError;
 
 private:
-  nsRefPtr<FlushableMediaTaskQueue> mTaskQueue;
+  nsRefPtr<MediaTaskQueue> mTaskQueue;
   MediaDataDecoderCallback* mCallback;
   AudioConverterRef mConverter;
   AudioStreamBasicDescription mOutputFormat;

@@ -9,13 +9,11 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Scoped.h"
-#include "mozilla/UniquePtr.h"
 
 #include "jscntxt.h"
 #include "jsinfer.h"
 #include "jsobj.h"
 #include "jsscript.h"
-#include "jsstr.h"
 
 #include "jit/IonCode.h"
 #include "js/Debug.h"
@@ -61,13 +59,13 @@ Node::Node(JSGCTraceKind kind, void *ptr)
 {
     switch (kind) {
       case JSTRACE_OBJECT:      construct(static_cast<JSObject *>(ptr));              break;
-      case JSTRACE_SCRIPT:      construct(static_cast<JSScript *>(ptr));              break;
       case JSTRACE_STRING:      construct(static_cast<JSString *>(ptr));              break;
       case JSTRACE_SYMBOL:      construct(static_cast<JS::Symbol *>(ptr));            break;
-      case JSTRACE_BASE_SHAPE:  construct(static_cast<js::BaseShape *>(ptr));         break;
-      case JSTRACE_JITCODE:     construct(static_cast<js::jit::JitCode *>(ptr));      break;
+      case JSTRACE_SCRIPT:      construct(static_cast<JSScript *>(ptr));              break;
       case JSTRACE_LAZY_SCRIPT: construct(static_cast<js::LazyScript *>(ptr));        break;
+      case JSTRACE_JITCODE:     construct(static_cast<js::jit::JitCode *>(ptr));      break;
       case JSTRACE_SHAPE:       construct(static_cast<js::Shape *>(ptr));             break;
+      case JSTRACE_BASE_SHAPE:  construct(static_cast<js::BaseShape *>(ptr));         break;
       case JSTRACE_TYPE_OBJECT: construct(static_cast<js::types::TypeObject *>(ptr)); break;
 
       default:
@@ -265,14 +263,13 @@ namespace ubi {
 
 RootList::RootList(JSContext *cx, Maybe<AutoCheckCannotGC> &noGC, bool wantNames /* = false */)
   : noGC(noGC),
-    cx(cx),
     edges(cx),
     wantNames(wantNames)
 { }
 
 
 bool
-RootList::init()
+RootList::init(JSContext *cx)
 {
     SimpleEdgeVectorTracer tracer(cx, &edges, wantNames);
     JS_TraceRuntime(&tracer);
@@ -283,7 +280,7 @@ RootList::init()
 }
 
 bool
-RootList::init(ZoneSet &debuggees)
+RootList::init(JSContext *cx, ZoneSet &debuggees)
 {
     SimpleEdgeVector allRootEdges(cx);
     SimpleEdgeVectorTracer tracer(cx, &allRootEdges, wantNames);
@@ -309,7 +306,7 @@ RootList::init(ZoneSet &debuggees)
 }
 
 bool
-RootList::init(HandleObject debuggees)
+RootList::init(JSContext *cx, HandleObject debuggees)
 {
     MOZ_ASSERT(debuggees && JS::dbg::IsDebugger(ObjectValue(*debuggees)));
     js::Debugger *dbg = js::Debugger::fromJSObject(debuggees);
@@ -323,35 +320,7 @@ RootList::init(HandleObject debuggees)
             return false;
     }
 
-    if (!init(debuggeeZones))
-        return false;
-
-    // Ensure that each of our debuggee globals are in the root list.
-    for (js::GlobalObjectSet::Range r = dbg->allDebuggees(); !r.empty(); r.popFront()) {
-        if (!addRoot(JS::ubi::Node(static_cast<JSObject *>(r.front())),
-                     MOZ_UTF16("debuggee global")))
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-bool
-RootList::addRoot(Node node, const char16_t *edgeName)
-{
-    MOZ_ASSERT(noGC.isSome());
-    MOZ_ASSERT_IF(wantNames, edgeName);
-
-    mozilla::UniquePtr<char16_t[], JS::FreePolicy> name;
-    if (edgeName) {
-        name = DuplicateString(cx, edgeName);
-        if (!name)
-            return false;
-    }
-
-    return edges.append(mozilla::Move(SimpleEdge(name.release(), node)));
+    return init(cx, debuggeeZones);
 }
 
 // An EdgeRange concrete class that holds a pre-existing vector of SimpleEdges.

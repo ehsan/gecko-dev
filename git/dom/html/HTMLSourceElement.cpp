@@ -61,18 +61,18 @@ HTMLSourceElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 {
   // If we are associated with a <picture> with a valid <img>, notify it of
   // responsive parameter changes
-  Element *parent = nsINode::GetParentElement();
+  nsINode *parent = nsINode::GetParentNode();
   if (aNameSpaceID == kNameSpaceID_None &&
       (aName == nsGkAtoms::srcset ||
        aName == nsGkAtoms::sizes ||
        aName == nsGkAtoms::media ||
        aName == nsGkAtoms::type) &&
-      parent && parent->IsHTML(nsGkAtoms::picture)) {
+      parent && parent->Tag() == nsGkAtoms::picture) {
     nsString strVal = aValue ? aValue->GetStringValue() : EmptyString();
     // Find all img siblings after this <source> and notify them of the change
-    nsCOMPtr<nsIContent> sibling = AsContent();
+    nsCOMPtr<nsINode> sibling = AsContent();
     while ( (sibling = sibling->GetNextSibling()) ) {
-      if (sibling->IsHTML(nsGkAtoms::img)) {
+      if (sibling->Tag() == nsGkAtoms::img) {
         HTMLImageElement *img = static_cast<HTMLImageElement*>(sibling.get());
         if (aName == nsGkAtoms::srcset) {
           img->PictureSourceSrcsetChanged(AsContent(), strVal, aNotify);
@@ -128,11 +128,11 @@ HTMLSourceElement::BindToTree(nsIDocument *aDocument,
   if (aParent && aParent->IsNodeOfType(nsINode::eMEDIA)) {
     HTMLMediaElement* media = static_cast<HTMLMediaElement*>(aParent);
     media->NotifyAddedSource();
-  } else if (aParent && aParent->IsHTML(nsGkAtoms::picture)) {
+  } else if (aParent && aParent->Tag() == nsGkAtoms::picture) {
     // Find any img siblings after this <source> and notify them
-    nsCOMPtr<nsIContent> sibling = AsContent();
+    nsCOMPtr<nsINode> sibling = AsContent();
     while ( (sibling = sibling->GetNextSibling()) ) {
-      if (sibling->IsHTML(nsGkAtoms::img)) {
+      if (sibling->Tag() == nsGkAtoms::img) {
         HTMLImageElement *img = static_cast<HTMLImageElement*>(sibling.get());
         img->PictureSourceAdded(AsContent());
       }

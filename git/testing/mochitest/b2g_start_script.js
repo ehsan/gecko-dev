@@ -6,7 +6,6 @@ let outOfProcess = __marionetteParams[0]
 let mochitestUrl = __marionetteParams[1]
 let onDevice = __marionetteParams[2]
 let wifiSettings = __marionetteParams[3]
-let chrome = __marionetteParams[4]
 let prefs = Components.classes["@mozilla.org/preferences-service;1"].
                             getService(Components.interfaces.nsIPrefBranch)
 let settings = window.navigator.mozSettings;
@@ -87,11 +86,6 @@ if (outOfProcess) {
   mm.loadFrameScript("data:,(" + encodeURI(contentScript.toSource()) + ")();", true);
 }
 
-if (chrome) {
-  let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"].getService(Ci.mozIJSSubScriptLoader);
-  loader.loadSubScript("chrome://mochikit/content/browser-test.js");
-  b2gStart();
-}
 
 if (onDevice) {
   var cpuLock = Cc["@mozilla.org/power/powermanagerservice;1"]
@@ -139,7 +133,5 @@ if (onDevice) {
     };
   }
 } else {
-  if (!chrome) {
-    container.src = mochitestUrl;
-  }
+  container.src = mochitestUrl;
 }

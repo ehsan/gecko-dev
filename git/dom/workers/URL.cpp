@@ -13,9 +13,6 @@
 #include "mozilla/dom/URL.h"
 #include "mozilla/dom/URLBinding.h"
 #include "mozilla/dom/URLSearchParams.h"
-#include "mozilla/dom/ipc/BlobChild.h"
-#include "mozilla/dom/ipc/nsIRemoteBlob.h"
-#include "mozilla/ipc/BackgroundChild.h"
 #include "nsGlobalWindow.h"
 #include "nsHostObjectProtocolHandler.h"
 #include "nsNetCID.h"
@@ -81,46 +78,12 @@ public:
     mURL(aURL)
   {
     MOZ_ASSERT(aBlobImpl);
-
-    DebugOnly<bool> isMutable;
-    MOZ_ASSERT(NS_SUCCEEDED(aBlobImpl->GetMutable(&isMutable)));
-    MOZ_ASSERT(!isMutable);
   }
 
   bool
   MainThreadRun()
   {
-    using namespace mozilla::ipc;
-
     AssertIsOnMainThread();
-
-    nsRefPtr<FileImpl> newBlobImplHolder;
-
-    if (nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryInterface(mBlobImpl)) {
-      if (BlobChild* blobChild = remoteBlob->GetBlobChild()) {
-        if (PBackgroundChild* blobManager = blobChild->GetBackgroundManager()) {
-          PBackgroundChild* backgroundManager =
-            BackgroundChild::GetForCurrentThread();
-          MOZ_ASSERT(backgroundManager);
-
-          if (blobManager != backgroundManager) {
-            // Always make sure we have a blob from an actor we can use on this
-            // thread.
-            blobChild = BlobChild::GetOrCreate(backgroundManager, mBlobImpl);
-            MOZ_ASSERT(blobChild);
-
-            newBlobImplHolder = blobChild->GetBlobImpl();
-            MOZ_ASSERT(newBlobImplHolder);
-
-            mBlobImpl = newBlobImplHolder;
-          }
-        }
-      }
-    }
-
-    DebugOnly<bool> isMutable;
-    MOZ_ASSERT(NS_SUCCEEDED(mBlobImpl->GetMutable(&isMutable)));
-    MOZ_ASSERT(!isMutable);
 
     nsCOMPtr<nsIPrincipal> principal;
     nsIDocument* doc = nullptr;
@@ -900,16 +863,8 @@ URL::CreateObjectURL(const GlobalObject& aGlobal, File& aBlob,
   JSContext* cx = aGlobal.Context();
   WorkerPrivate* workerPrivate = GetWorkerPrivateFromContext(cx);
 
-  nsRefPtr<FileImpl> blobImpl = aBlob.Impl();
-  MOZ_ASSERT(blobImpl);
-
-  aRv = blobImpl->SetMutable(false);
-  if (NS_WARN_IF(aRv.Failed())) {
-    return;
-  }
-
   nsRefPtr<CreateURLRunnable> runnable =
-    new CreateURLRunnable(workerPrivate, blobImpl, aOptions, aResult);
+    new CreateURLRunnable(workerPrivate, aBlob.Impl(), aOptions, aResult);
 
   if (!runnable->Dispatch(cx)) {
     JS_ReportPendingException(cx);

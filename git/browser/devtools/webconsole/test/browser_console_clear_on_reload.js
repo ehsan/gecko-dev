@@ -5,50 +5,69 @@
 
 // Check that clear output on page reload works - bug 705921.
 
-"use strict";
-
-let test = asyncTest(function*() {
+function test()
+{
   const PREF = "devtools.webconsole.persistlog";
   const TEST_URI = "http://example.com/browser/browser/devtools/webconsole/test/test-console.html";
+  let hud = null;
 
   Services.prefs.setBoolPref(PREF, false);
   registerCleanupFunction(() => Services.prefs.clearUserPref(PREF));
 
-  yield loadTab(TEST_URI);
+  addTab(TEST_URI);
 
-  let hud = yield openConsole();
-  ok(hud, "Web Console opened");
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, consoleOpened);
+  }, true);
 
-  hud.jsterm.clearOutput();
-  hud.jsterm.execute("console.log('foobarz1')");
+  function consoleOpened(aHud)
+  {
+    hud = aHud;
+    ok(hud, "Web Console opened");
 
-  yield waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "foobarz1",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  });
+    hud.jsterm.clearOutput();
+    content.console.log("foobarz1");
+    waitForMessages({
+      webconsole: hud,
+      messages: [{
+        text: "foobarz1",
+        category: CATEGORY_WEBDEV,
+        severity: SEVERITY_LOG,
+      }],
+    }).then(onConsoleMessage);
+  }
 
-  BrowserReload();
-  yield loadBrowser(gBrowser.selectedBrowser);
+  function onConsoleMessage()
+  {
+    browser.addEventListener("load", onReload, true);
+    content.location.reload();
+  }
 
-  hud.jsterm.execute("console.log('foobarz2')");
+  function onReload()
+  {
+    browser.removeEventListener("load", onReload, true);
 
-  yield waitForMessages({
-    webconsole: hud,
-    messages: [{
-      text: "test-console.html",
-      category: CATEGORY_NETWORK,
-    },
-    {
-      text: "foobarz2",
-      category: CATEGORY_WEBDEV,
-      severity: SEVERITY_LOG,
-    }],
-  });
+    content.console.log("foobarz2");
 
-  is(hud.outputNode.textContent.indexOf("foobarz1"), -1,
-     "foobarz1 has been removed from output");
-});
+    waitForMessages({
+      webconsole: hud,
+      messages: [{
+        text: "test-console.html",
+        category: CATEGORY_NETWORK,
+      },
+      {
+        text: "foobarz2",
+        category: CATEGORY_WEBDEV,
+        severity: SEVERITY_LOG,
+      }],
+    }).then(onConsoleMessageAfterReload);
+  }
+
+  function onConsoleMessageAfterReload()
+  {
+    is(hud.outputNode.textContent.indexOf("foobarz1"), -1,
+       "foobarz1 has been removed from output");
+    finishTest();
+  }
+}

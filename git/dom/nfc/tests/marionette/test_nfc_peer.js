@@ -29,7 +29,7 @@ function peerLostCb(evt) {
 function handleTechnologyDiscoveredRE0(msg) {
   log("Received \'nfc-manager-tech-discovered\'");
   is(msg.type, "techDiscovered", "check for correct message type");
-  is(msg.isP2P, "P2P", "check for correct tech type");
+  is(msg.techList[0], "P2P", "check for correct tech type");
 
   nfc.onpeerready = peerReadyCb;
   nfc.onpeerlost = peerLostCb;
@@ -40,7 +40,7 @@ function handleTechnologyDiscoveredRE0(msg) {
 function handleTechnologyDiscoveredRE0ForP2PRegFailure(msg) {
   log("Received \'nfc-manager-tech-discovered\'");
   is(msg.type, "techDiscovered", "check for correct message type");
-  is(msg.isP2P, "P2P", "check for correct tech type");
+  is(msg.techList[0], "P2P", "check for correct tech type");
 
   nfc.onpeerready = peerReadyCb;
 
@@ -66,7 +66,10 @@ function testPeerReady() {
 
 function testGetNFCPeer() {
   sysMsgHelper.waitForTechDiscovered(function (msg) {
-    ok(msg.peer instanceof MozNFCPeer, "Should get a NFCPeer object.");
+    let peer = nfc.getNFCPeer(msg.sessionToken);
+    ok(peer instanceof MozNFCPeer, "Should get a NFCPeer object.");
+    let peer1 = nfc.getNFCPeer(msg.sessionToken);
+    ok(peer == peer1, "Should get the same MozNFCPeer object");
 
     NCI.deactivate().then(() => toggleNFC(false)).then(runNextTest);
   });
@@ -178,17 +181,24 @@ function testPeerShouldThrow() {
     .then(() => NCI.activateRE(emulator.P2P_RE_INDEX_0));
 }
 
+function testPeerInvalidToken() {
+  log("testPeerInvalidToken");
+  let peer = nfc.getNFCPeer("fakeSessionToken");
+  is(peer, null, "NFCPeer should be null on wrong session token");
+
+  runNextTest();
+}
+
 let tests = [
   testPeerReady,
   testGetNFCPeer,
   testCheckP2PRegFailure,
   testPeerLostShouldBeCalled,
   testPeerLostShouldNotBeCalled,
-  testPeerShouldThrow
+  testPeerShouldThrow,
+  testPeerInvalidToken
 ];
 
 SpecialPowers.pushPermissions(
   [{"type": "nfc-manager", "allow": true, context: document},
-   {"type": "nfc", "allow": true, context: document},
-   {"type": "nfc-share", "allow": true, context: document}], runTests);
-
+   {"type": "nfc-write", "allow": true, context: document}], runTests);

@@ -1048,7 +1048,7 @@ Parser<ParseHandler>::functionBody(FunctionSyntaxKind kind, FunctionBodyType typ
         if (!kid)
             return null();
 
-        pn = handler.newReturnStatement(kid, null(), handler.getPosition(kid));
+        pn = handler.newReturnStatement(kid, handler.getPosition(kid));
         if (!pn)
             return null();
     }
@@ -1087,14 +1087,6 @@ Parser<ParseHandler>::functionBody(FunctionSyntaxKind kind, FunctionBodyType typ
             return null();
         if (!pc->define(tokenStream, context->names().dotGenerator, generator, Definition::VAR))
             return null();
-
-        if (pc->isStarGenerator()) {
-            Node genrval = newName(context->names().dotGenRVal);
-            if (!genrval)
-                return null();
-            if (!pc->define(tokenStream, context->names().dotGenRVal, genrval, Definition::VAR))
-                return null();
-        }
 
         generator = newName(context->names().dotGenerator);
         if (!generator)
@@ -1174,7 +1166,7 @@ Parser<FullParseHandler>::makeDefIntoUse(Definition *dn, ParseNode *pn, JSAtom *
     MOZ_ASSERT(dn->isKind(PNK_NAME));
     MOZ_ASSERT(dn->isArity(PN_NAME));
     MOZ_ASSERT(dn->pn_atom == atom);
-    dn->setOp((js_CodeSpec[dn->getOp()].format & JOF_SET) ? JSOP_SETNAME : JSOP_GETNAME);
+    dn->setOp((js_CodeSpec[dn->getOp()].format & JOF_SET) ? JSOP_SETNAME : JSOP_NAME);
     dn->setDefn(false);
     dn->setUsed(true);
     dn->pn_lexdef = (Definition *) pn;
@@ -1664,7 +1656,7 @@ Parser<ParseHandler>::functionArguments(FunctionSyntaxKind kind, Node *listp, No
                 data.pn = ParseHandler::null();
                 data.op = JSOP_DEFVAR;
                 data.binder = bindDestructuringArg;
-                Node lhs = destructuringExprWithoutYield(&data, tt, JSMSG_YIELD_IN_DEFAULT);
+                Node lhs = destructuringExpr(&data, tt);
                 if (!lhs)
                     return false;
 
@@ -3111,7 +3103,7 @@ LexicalLookup(ContextT *ct, HandleAtom atom, int *slotp, typename ContextT::Stmt
          * can potentially override any static bindings introduced by statements
          * further up the stack, we have to abort the search.
          */
-        if (stmt->type == STMT_WITH && !ct->sc->isDotVariable(atom))
+        if (stmt->type == STMT_WITH && atom != ct->sc->context->names().dotGenerator)
             break;
 
         // Skip statements that do not introduce a new scope
@@ -3156,8 +3148,8 @@ Parser<ParseHandler>::bindVarOrGlobalConst(BindData<ParseHandler> *data,
     Node pn = data->pn;
     bool isConstDecl = data->op == JSOP_DEFCONST;
 
-    /* Default best op for pn is JSOP_GETNAME; we'll try to improve below. */
-    parser->handler.setOp(pn, JSOP_GETNAME);
+    /* Default best op for pn is JSOP_NAME; we'll try to improve below. */
+    parser->handler.setOp(pn, JSOP_NAME);
 
     if (!parser->checkStrictBinding(name, pn))
         return false;
@@ -3505,21 +3497,6 @@ Parser<ParseHandler>::destructuringExpr(BindData<ParseHandler> *data, TokenKind 
 
 template <typename ParseHandler>
 typename ParseHandler::Node
-Parser<ParseHandler>::destructuringExprWithoutYield(BindData<ParseHandler> *data, TokenKind tt,
-                                                    unsigned msg)
-{
-    uint32_t startYieldOffset = pc->lastYieldOffset;
-    Node res = destructuringExpr(data, tt);
-    if (res && pc->lastYieldOffset != startYieldOffset) {
-        reportWithOffset(ParseError, false, pc->lastYieldOffset,
-                         msg, js_yield_str);
-        return null();
-    }
-    return res;
-}
-
-template <typename ParseHandler>
-typename ParseHandler::Node
 Parser<ParseHandler>::pushLexicalScope(HandleStaticBlockObject blockObj, StmtInfoPC *stmt)
 {
     MOZ_ASSERT(blockObj);
@@ -3675,10 +3652,7 @@ Parser<ParseHandler>::letBlock(LetContext letContext)
         if (!expr)
             return null();
         MUST_MATCH_TOKEN(TOK_RC, JSMSG_CURLY_AFTER_LET);
-
         sawDeprecatedLetBlock = true;
-        if (!report(ParseWarning, pc->sc->strict, expr, JSMSG_DEPRECATED_LET_BLOCK))
-            return null();
     } else {
         MOZ_ASSERT(letContext == LetExpression);
         expr = assignExpr();
@@ -4588,10 +4562,6 @@ Parser<FullParseHandler>::forStatement()
             iflags = JSITER_FOREACH;
             isForEach = true;
             sawDeprecatedForEach = true;
-            if (versionNumber() < JSVERSION_LATEST) {
-                if (!report(ParseWarning, pc->sc->strict, null(), JSMSG_DEPRECATED_FOR_EACH))
-                    return null();
-            }
         }
     }
 
@@ -5288,18 +5258,7 @@ Parser<ParseHandler>::returnStatement()
     if (!MatchOrInsertSemicolon(tokenStream))
         return null();
 
-    Node genrval = null();
-    if (pc->isStarGenerator()) {
-        genrval = newName(context->names().dotGenRVal);
-        if (!genrval)
-            return null();
-        if (!noteNameUse(context->names().dotGenRVal, genrval))
-            return null();
-        if (!checkAndMarkAsAssignmentLhs(genrval, PlainAssignment))
-            return null();
-    }
-
-    Node pn = handler.newReturnStatement(exprNode, genrval, TokenPos(begin, pos().end));
+    Node pn = handler.newReturnStatement(exprNode, TokenPos(begin, pos().end));
     if (!pn)
         return null();
 
@@ -5497,7 +5456,7 @@ Parser<FullParseHandler>::withStatement()
     for (AtomDefnRange r = pc->lexdeps->all(); !r.empty(); r.popFront()) {
         DefinitionNode defn = r.front().value().get<FullParseHandler>();
         DefinitionNode lexdep = handler.resolve(defn);
-        if (!pc->sc->isDotVariable(lexdep->name()))
+        if (lexdep->name() != context->names().dotGenerator)
             handler.deoptimizeUsesWithin(lexdep, TokenPos(begin, pos().begin));
     }
 
@@ -6567,9 +6526,10 @@ LegacyCompExprTransplanter::transplant(ParseNode *pn)
             MOZ_ASSERT(!stmt || stmt != pc->topStmt);
 #endif
             if (isGenexp && !dn->isOp(JSOP_CALLEE)) {
-                MOZ_ASSERT_IF(!pc->sc->isDotVariable(atom), !pc->decls().lookupFirst(atom));
+                MOZ_ASSERT_IF(atom != parser->context->names().dotGenerator,
+                              !pc->decls().lookupFirst(atom));
 
-                if (pc->sc->isDotVariable(atom)) {
+                if (atom == parser->context->names().dotGenerator) {
                     if (dn->dn_uses == pn) {
                         if (!BumpStaticLevel(parser->tokenStream, dn, pc))
                             return false;
@@ -6784,14 +6744,8 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode *bodyExpr, unsigned 
             bool matched;
             if (!tokenStream.matchContextualKeyword(&matched, context->names().each))
                 return null();
-            if (matched) {
+            if (matched)
                 pn2->pn_iflags |= JSITER_FOREACH;
-                sawDeprecatedForEach = true;
-                if (versionNumber() < JSVERSION_LATEST) {
-                    if (!report(ParseWarning, pc->sc->strict, pn2, JSMSG_DEPRECATED_FOR_EACH))
-                        return null();
-                }
-            }
         }
         MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_AFTER_FOR);
 
@@ -6814,7 +6768,7 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode *bodyExpr, unsigned 
             name = tokenStream.currentName();
 
             /*
-             * Create a name node with pn_op JSOP_GETNAME.  We can't set pn_op to
+             * Create a name node with pn_op JSOP_NAME.  We can't set pn_op to
              * JSOP_GETLOCAL here, because we don't yet know the block's depth
              * in the operand stack frame.  The code generator computes that,
              * and it tries to bind all names to slots, so we must let it do
@@ -8134,30 +8088,8 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
       case TOK_LET:
         return letBlock(LetExpression);
 
-      case TOK_LP: {
-        TokenKind next;
-        if (!tokenStream.peekToken(&next, TokenStream::Operand))
-            return null();
-        if (next != TOK_RP)
-            return parenExprOrGeneratorComprehension();
-
-        // Not valid expression syntax, but this is valid in an arrow function
-        // with no params: `() => body`.
-        tokenStream.consumeKnownToken(next);
-
-        if (!tokenStream.peekToken(&next))
-            return null();
-        if (next != TOK_ARROW) {
-            report(ParseError, false, null(), JSMSG_UNEXPECTED_TOKEN,
-                   "expression", TokenKindToDesc(TOK_RP));
-            return null();
-        }
-
-        // Now just return something that will allow parsing to continue.
-        // It doesn't matter what; when we reach the =>, we will rewind and
-        // reparse the whole arrow function. See Parser::assignExpr.
-        return handler.newNullLiteral(pos());
-      }
+      case TOK_LP:
+        return parenExprOrGeneratorComprehension();
 
       case TOK_TEMPLATE_HEAD:
         return templateLiteral();
@@ -8191,6 +8123,24 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
         return handler.newThisLiteral(pos());
       case TOK_NULL:
         return handler.newNullLiteral(pos());
+
+      case TOK_RP: {
+        TokenKind next;
+        if (!tokenStream.peekToken(&next))
+            return null();
+
+        // Not valid expression syntax, but this is valid in an arrow function
+        // with no params: `() => body`.
+        if (next == TOK_ARROW) {
+            tokenStream.ungetToken();  // put back right paren
+
+            // Now just return something that will allow parsing to continue.
+            // It doesn't matter what; when we reach the =>, we will rewind and
+            // reparse the whole arrow function. See Parser::assignExpr.
+            return handler.newNullLiteral(pos());
+        }
+        goto unexpected_token;
+      }
 
       case TOK_TRIPLEDOT: {
         TokenKind next;
@@ -8230,6 +8180,7 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
       }
 
       default:
+      unexpected_token:
         report(ParseError, false, null(), JSMSG_UNEXPECTED_TOKEN,
                "expression", TokenKindToDesc(tt));
         return null();
@@ -8373,6 +8324,9 @@ Parser<ParseHandler>::accumulateTelemetry()
     JSContext* cx = context->maybeJSContext();
     if (!cx)
         return;
+    JSAccumulateTelemetryDataCallback cb = cx->runtime()->telemetryCallback;
+    if (!cb)
+        return;
     const char* filename = getFilename();
     if (!filename)
         return;
@@ -8397,19 +8351,18 @@ Parser<ParseHandler>::accumulateTelemetry()
     JS::AutoSuppressGCAnalysis nogc;
 
     // Call back into Firefox's Telemetry reporter.
-    int id = JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT;
     if (sawDeprecatedForEach)
-         cx->runtime()->addTelemetry(id, DeprecatedForEach);
+        (*cb)(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedForEach);
     if (sawDeprecatedDestructuringForIn)
-         cx->runtime()->addTelemetry(id, DeprecatedDestructuringForIn);
+        (*cb)(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedDestructuringForIn);
     if (sawDeprecatedLegacyGenerator)
-        cx->runtime()->addTelemetry(id, DeprecatedLegacyGenerator);
+        (*cb)(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedLegacyGenerator);
     if (sawDeprecatedExpressionClosure)
-         cx->runtime()->addTelemetry(id, DeprecatedExpressionClosure);
+        (*cb)(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedExpressionClosure);
     if (sawDeprecatedLetBlock)
-         cx->runtime()->addTelemetry(id, DeprecatedLetBlock);
+        (*cb)(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedLetBlock);
     if (sawDeprecatedLetExpression)
-         cx->runtime()->addTelemetry(id, DeprecatedLetExpression);
+        (*cb)(JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT, DeprecatedLetExpression);
 }
 
 template class Parser<FullParseHandler>;

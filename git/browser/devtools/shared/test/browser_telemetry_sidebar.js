@@ -40,8 +40,7 @@ function testSidebar() {
 
   gDevTools.showToolbox(target, "inspector").then(function(toolbox) {
     let inspector = toolbox.getCurrentPanel();
-    let sidebarTools = ["ruleview", "computedview", "fontinspector",
-                        "layoutview", "animationinspector"];
+    let sidebarTools = ["ruleview", "computedview", "fontinspector", "layoutview"];
 
     // Concatenate the array with itself so that we can open each tool twice.
     sidebarTools.push.apply(sidebarTools, sidebarTools);

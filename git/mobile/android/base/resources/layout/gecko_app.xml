@@ -7,7 +7,8 @@
                 xmlns:gecko="http://schemas.android.com/apk/res-auto"
                 android:id="@+id/root_layout"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent">
+                android:layout_height="match_parent"
+                android:fitsSystemWindows="true">
 
     <ViewStub android:id="@+id/tabs_panel"
               android:layout="@layout/tabs_panel_view"

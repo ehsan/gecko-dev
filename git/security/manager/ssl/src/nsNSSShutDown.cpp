@@ -78,7 +78,7 @@ void nsNSSShutDownList::remember(nsNSSShutDownObject *o)
   
   PR_ASSERT(o);
   MutexAutoLock lock(singleton->mListLock);
-  PL_DHashTableAdd(&singleton->mObjects, o);
+    PL_DHashTableOperate(&singleton->mObjects, o, PL_DHASH_ADD);
 }
 
 void nsNSSShutDownList::forget(nsNSSShutDownObject *o)
@@ -88,7 +88,7 @@ void nsNSSShutDownList::forget(nsNSSShutDownObject *o)
   
   PR_ASSERT(o);
   MutexAutoLock lock(singleton->mListLock);
-  PL_DHashTableRemove(&singleton->mObjects, o);
+  PL_DHashTableOperate(&singleton->mObjects, o, PL_DHASH_REMOVE);
 }
 
 void nsNSSShutDownList::remember(nsOnPK11LogoutCancelObject *o)
@@ -98,7 +98,7 @@ void nsNSSShutDownList::remember(nsOnPK11LogoutCancelObject *o)
   
   PR_ASSERT(o);
   MutexAutoLock lock(singleton->mListLock);
-  PL_DHashTableAdd(&singleton->mPK11LogoutCancelObjects, o);
+  PL_DHashTableOperate(&singleton->mPK11LogoutCancelObjects, o, PL_DHASH_ADD);
 }
 
 void nsNSSShutDownList::forget(nsOnPK11LogoutCancelObject *o)
@@ -108,7 +108,7 @@ void nsNSSShutDownList::forget(nsOnPK11LogoutCancelObject *o)
   
   PR_ASSERT(o);
   MutexAutoLock lock(singleton->mListLock);
-  PL_DHashTableRemove(&singleton->mPK11LogoutCancelObjects, o);
+  PL_DHashTableOperate(&singleton->mPK11LogoutCancelObjects, o, PL_DHASH_REMOVE);
 }
 
 void nsNSSShutDownList::trackSSLSocketCreate()

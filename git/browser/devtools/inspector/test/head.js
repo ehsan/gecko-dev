@@ -32,11 +32,15 @@ let testDir = gTestPath.substr(0, gTestPath.lastIndexOf("/"));
 Services.scriptloader.loadSubScript(testDir + "../../../commandline/test/helpers.js", this);
 
 gDevTools.testing = true;
-registerCleanupFunction(() => {
+SimpleTest.registerCleanupFunction(() => {
   gDevTools.testing = false;
 });
 
-registerCleanupFunction(() => {
+SimpleTest.registerCleanupFunction(() => {
+  console.error("Here we are\n");
+  let {DebuggerServer} = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
+  console.error("DebuggerServer open connections: " + Object.getOwnPropertyNames(DebuggerServer._connections).length);
+
   Services.prefs.clearUserPref("devtools.dump.emit");
   Services.prefs.clearUserPref("devtools.inspector.activeSidebar");
 });
@@ -54,6 +58,7 @@ registerCleanupFunction(function*() {
   while (gBrowser.tabs.length > 1) {
     gBrowser.removeCurrentTab();
   }
+
 });
 
 /**
@@ -621,7 +626,7 @@ function once(target, eventName, useCapture=false) {
  * message has been received
  */
 function waitForContentMessage(name) {
-  let mm = gBrowser.selectedBrowser.messageManager;
+  let mm = gBrowser.selectedTab.linkedBrowser.messageManager;
 
   let def = promise.defer();
   mm.addMessageListener(name, function onMessage(msg) {
@@ -650,7 +655,7 @@ function wait(ms) {
  * immediately resolves otherwise
  */
 function executeInContent(name, data={}, objects={}, expectResponse=true) {
-  let mm = gBrowser.selectedBrowser.messageManager;
+  let mm = gBrowser.selectedTab.linkedBrowser.messageManager;
 
   mm.sendAsyncMessage(name, data, objects);
   if (expectResponse) {

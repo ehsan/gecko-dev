@@ -20,7 +20,6 @@
 #include "nsNSSHelper.h"
 #include "nsClientAuthRemember.h"
 #include "prerror.h"
-#include "sslt.h"
 
 class nsIDOMWindow;
 class nsIPrompt;
@@ -124,24 +123,24 @@ public:
 
   static nsresult GetNewPrompter(nsIPrompt** result);
   static nsresult ShowAlertWithConstructedString(const nsString& message);
-  NS_IMETHOD ShowAlertFromStringBundle(const char* messageID) MOZ_OVERRIDE;
+  NS_IMETHOD ShowAlertFromStringBundle(const char* messageID);
 
   NS_IMETHOD GetPIPNSSBundleString(const char* name,
-                                   nsAString& outString) MOZ_OVERRIDE;
+                                   nsAString& outString);
   NS_IMETHOD PIPBundleFormatStringFromName(const char* name,
                                            const char16_t** params,
                                            uint32_t numParams,
-                                           nsAString& outString) MOZ_OVERRIDE;
-  NS_IMETHOD GetNSSBundleString(const char* name, nsAString& outString) MOZ_OVERRIDE;
+                                           nsAString& outString);
+  NS_IMETHOD GetNSSBundleString(const char* name, nsAString& outString);
   NS_IMETHOD NSSBundleFormatStringFromName(const char* name,
                                            const char16_t** params,
                                            uint32_t numParams,
-                                           nsAString& outString) MOZ_OVERRIDE;
-  NS_IMETHOD LogoutAuthenticatedPK11() MOZ_OVERRIDE;
+                                           nsAString& outString);
+  NS_IMETHOD LogoutAuthenticatedPK11();
 
 #ifndef MOZ_NO_SMART_CARDS
-  NS_IMETHOD LaunchSmartCardThread(SECMODModule* module) MOZ_OVERRIDE;
-  NS_IMETHOD ShutdownSmartCardThread(SECMODModule* module) MOZ_OVERRIDE;
+  NS_IMETHOD LaunchSmartCardThread(SECMODModule* module);
+  NS_IMETHOD ShutdownSmartCardThread(SECMODModule* module);
   void LaunchSmartCardThreads();
   void ShutdownSmartCardThreads();
   nsresult DispatchEventToWindow(nsIDOMWindow* domWin,
@@ -149,7 +148,7 @@ public:
                                  const nsAString& token);
 #endif
 
-  NS_IMETHOD IsNSSInitialized(bool* initialized) MOZ_OVERRIDE;
+  NS_IMETHOD IsNSSInitialized(bool* initialized);
 
   ::mozilla::TemporaryRef<mozilla::psm::SharedCertVerifier>
     GetDefaultCertVerifier() MOZ_OVERRIDE;
@@ -157,11 +156,6 @@ public:
   // The following two methods are thread-safe.
   static bool AreAnyWeakCiphersEnabled();
   static void UseWeakCiphersOnSocket(PRFileDesc* fd);
-
-  static void FillTLSVersionRange(SSLVersionRange& rangeOut,
-                                  uint32_t minFromPrefs,
-                                  uint32_t maxFromPrefs,
-                                  SSLVersionRange defaults);
 
 protected:
   virtual ~nsNSSComponent();

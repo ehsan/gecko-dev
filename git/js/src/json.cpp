@@ -37,7 +37,14 @@ using mozilla::RangedPtr;
 
 const Class js::JSONClass = {
     js_JSON_str,
-    JSCLASS_HAS_CACHED_PROTO(JSProto_JSON)
+    JSCLASS_HAS_CACHED_PROTO(JSProto_JSON),
+    JS_PropertyStub,        /* addProperty */
+    JS_DeletePropertyStub,  /* delProperty */
+    JS_PropertyStub,        /* getProperty */
+    JS_StrictPropertyStub,  /* setProperty */
+    JS_EnumerateStub,
+    JS_ResolveStub,
+    JS_ConvertStub
 };
 
 static inline bool
@@ -660,14 +667,17 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
     }
 
     /* Step 9. */
-    RootedPlainObject wrapper(cx, NewBuiltinClassInstance<PlainObject>(cx));
+    RootedNativeObject wrapper(cx, NewNativeBuiltinClassInstance(cx, &JSObject::class_));
     if (!wrapper)
         return false;
 
     /* Step 10. */
     RootedId emptyId(cx, NameToId(cx->names().empty));
-    if (!DefineNativeProperty(cx, wrapper, emptyId, vp, nullptr, nullptr, JSPROP_ENUMERATE))
+    if (!DefineNativeProperty(cx, wrapper, emptyId, vp, JS_PropertyStub, JS_StrictPropertyStub,
+                              JSPROP_ENUMERATE))
+    {
         return false;
+    }
 
     /* Step 11. */
     StringifyContext scx(cx, sb, gap, replacer, propertyList);
@@ -778,7 +788,7 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 static bool
 Revive(JSContext *cx, HandleValue reviver, MutableHandleValue vp)
 {
-    RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx));
+    RootedObject obj(cx, NewBuiltinClassInstance(cx, &JSObject::class_));
     if (!obj)
         return false;
 

@@ -10,11 +10,15 @@ const { Cc, Ci, Cu } = require("chrome");
 const Services = require("Services");
 const { ActorPool, appendExtraActors, createExtraActors } = require("devtools/server/actors/common");
 const { DebuggerServer } = require("devtools/server/main");
+const { dumpProtocolSpec } = require("devtools/server/protocol");
 const makeDebugger = require("./utils/make-debugger");
+const DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
 
-loader.lazyRequireGetter(this, "StyleSheetActor", "devtools/server/actors/stylesheets", true);
+DevToolsUtils.defineLazyGetter(this, "StyleSheetActor", () => {
+  return require("devtools/server/actors/stylesheets").StyleSheetActor;
+});
 
-loader.lazyGetter(this, "ppmm", () => {
+DevToolsUtils.defineLazyGetter(this, "ppmm", () => {
   return Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(Ci.nsIMessageBroadcaster);
 });
 
@@ -398,9 +402,7 @@ RootActor.prototype = {
     return Cu.cloneInto(aRequest, {});
   },
 
-  onProtocolDescription: function () {
-    return require("devtools/server/protocol").dumpProtocolSpec();
-  },
+  onProtocolDescription: dumpProtocolSpec,
 
   /* Support for DebuggerServer.addGlobalActor. */
   _createExtraActors: createExtraActors,

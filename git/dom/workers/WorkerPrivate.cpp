@@ -20,6 +20,8 @@
 #include "nsIScriptError.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
+#include "nsPerformance.h"
+#include "nsPIDOMWindow.h"
 #include "nsITextToSubURI.h"
 #include "nsIThreadInternal.h"
 #include "nsITimer.h"
@@ -27,8 +29,6 @@
 #include "nsIURL.h"
 #include "nsIWorkerDebugger.h"
 #include "nsIXPConnect.h"
-#include "nsPerformance.h"
-#include "nsPIDOMWindow.h"
 
 #include <algorithm>
 #include "jsfriendapi.h"
@@ -38,7 +38,6 @@
 #include "mozilla/ContentEvents.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/Likely.h"
-#include "mozilla/LoadContext.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/BlobBinding.h"
 #include "mozilla/dom/ErrorEvent.h"
@@ -54,14 +53,7 @@
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/StructuredClone.h"
 #include "mozilla/dom/WorkerBinding.h"
-#include "mozilla/dom/indexedDB/IDBFactory.h"
-#include "mozilla/dom/ipc/BlobChild.h"
-#include "mozilla/dom/ipc/nsIRemoteBlob.h"
-#include "mozilla/ipc/BackgroundChild.h"
-#include "mozilla/ipc/BackgroundUtils.h"
-#include "mozilla/ipc/PBackgroundSharedTypes.h"
 #include "mozilla/Preferences.h"
-#include "MultipartFileImpl.h"
 #include "nsAlgorithm.h"
 #include "nsContentUtils.h"
 #include "nsError.h"
@@ -73,7 +65,6 @@
 #include "nsPrintfCString.h"
 #include "nsProxyRelease.h"
 #include "nsSandboxFlags.h"
-#include "prthread.h"
 #include "xpcpublic.h"
 
 #ifdef ANDROID
@@ -95,11 +86,6 @@
 #include "WorkerFeature.h"
 #include "WorkerRunnable.h"
 #include "WorkerScope.h"
-#include "WorkerThread.h"
-
-#ifdef XP_WIN
-#undef PostMessage
-#endif
 
 // JS_MaybeGC will run once every second during normal execution.
 #define PERIODIC_GC_TIMER_DELAY_SEC 1
@@ -117,8 +103,6 @@
 
 using namespace mozilla;
 using namespace mozilla::dom;
-using namespace mozilla::ipc;
-
 USING_WORKERS_NAMESPACE
 
 MOZ_DEFINE_MALLOC_SIZE_OF(JsWorkerMallocSizeOf)
@@ -308,155 +292,6 @@ LogErrorToConsole(const nsAString& aMessage,
   fflush(stderr);
 }
 
-// Recursive!
-already_AddRefed<FileImpl>
-EnsureBlobForBackgroundManager(FileImpl* aBlobImpl,
-                               PBackgroundChild* aManager = nullptr)
-{
-  MOZ_ASSERT(aBlobImpl);
-
-  if (!aManager) {
-    aManager = BackgroundChild::GetForCurrentThread();
-    MOZ_ASSERT(aManager);
-  }
-
-  nsRefPtr<FileImpl> blobImpl = aBlobImpl;
-
-  const nsTArray<nsRefPtr<FileImpl>>* subBlobImpls =
-    aBlobImpl->GetSubBlobImpls();
-
-  if (!subBlobImpls) {
-    if (nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryObject(blobImpl)) {
-      // Always make sure we have a blob from an actor we can use on this
-      // thread.
-      BlobChild* blobChild = BlobChild::GetOrCreate(aManager, blobImpl);
-      MOZ_ASSERT(blobChild);
-
-      blobImpl = blobChild->GetBlobImpl();
-      MOZ_ASSERT(blobImpl);
-
-      DebugOnly<bool> isMutable;
-      MOZ_ASSERT(NS_SUCCEEDED(blobImpl->GetMutable(&isMutable)));
-      MOZ_ASSERT(!isMutable);
-    } else {
-      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(blobImpl->SetMutable(false)));
-    }
-
-    return blobImpl.forget();
-  }
-
-  const uint32_t subBlobCount = subBlobImpls->Length();
-  MOZ_ASSERT(subBlobCount);
-
-  nsTArray<nsRefPtr<FileImpl>> newSubBlobImpls;
-  newSubBlobImpls.SetLength(subBlobCount);
-
-  bool newBlobImplNeeded = false;
-
-  for (uint32_t index = 0; index < subBlobCount; index++) {
-    const nsRefPtr<FileImpl>& subBlobImpl = subBlobImpls->ElementAt(index);
-    MOZ_ASSERT(subBlobImpl);
-
-    nsRefPtr<FileImpl>& newSubBlobImpl = newSubBlobImpls[index];
-
-    newSubBlobImpl = EnsureBlobForBackgroundManager(subBlobImpl, aManager);
-    MOZ_ASSERT(newSubBlobImpl);
-
-    if (subBlobImpl != newSubBlobImpl) {
-      newBlobImplNeeded = true;
-    }
-  }
-
-  if (newBlobImplNeeded) {
-    nsString contentType;
-    blobImpl->GetType(contentType);
-
-    if (blobImpl->IsFile()) {
-      nsString name;
-      blobImpl->GetName(name);
-
-      blobImpl = new MultipartFileImpl(newSubBlobImpls, name, contentType);
-    } else {
-      blobImpl = new MultipartFileImpl(newSubBlobImpls, contentType);
-    }
-
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(blobImpl->SetMutable(false)));
-  }
-
-  return blobImpl.forget();
-}
-
-void
-ReadBlobOrFile(JSContext* aCx,
-               JSStructuredCloneReader* aReader,
-               bool aIsMainThread,
-               JS::MutableHandle<JSObject*> aBlobOrFile)
-{
-  MOZ_ASSERT(aCx);
-  MOZ_ASSERT(aReader);
-  MOZ_ASSERT(!aBlobOrFile);
-
-  nsRefPtr<FileImpl> blobImpl;
-  {
-    FileImpl* rawBlobImpl;
-    MOZ_ALWAYS_TRUE(JS_ReadBytes(aReader, &rawBlobImpl, sizeof(rawBlobImpl)));
-
-    MOZ_ASSERT(rawBlobImpl);
-
-    blobImpl = rawBlobImpl;
-  }
-
-  blobImpl = EnsureBlobForBackgroundManager(blobImpl);
-  MOZ_ASSERT(blobImpl);
-
-  nsCOMPtr<nsISupports> parent;
-  if (aIsMainThread) {
-    AssertIsOnMainThread();
-
-    nsCOMPtr<nsIScriptGlobalObject> scriptGlobal =
-      nsJSUtils::GetStaticScriptGlobal(JS::CurrentGlobalOrNull(aCx));
-    parent = do_QueryInterface(scriptGlobal);
-  } else {
-    MOZ_ASSERT(!NS_IsMainThread());
-    WorkerPrivate* workerPrivate = GetWorkerPrivateFromContext(aCx);
-    MOZ_ASSERT(workerPrivate);
-
-    WorkerGlobalScope* globalScope = workerPrivate->GlobalScope();
-    MOZ_ASSERT(globalScope);
-
-    parent = do_QueryObject(globalScope);
-  }
-
-  nsRefPtr<File> blob = new File(parent, blobImpl);
-  aBlobOrFile.set(blob->WrapObject(aCx));
-}
-
-bool
-WriteBlobOrFile(JSContext* aCx,
-                JSStructuredCloneWriter* aWriter,
-                FileImpl* aBlobOrFileImpl,
-                nsTArray<nsCOMPtr<nsISupports>>& aClonedObjects)
-{
-  MOZ_ASSERT(aCx);
-  MOZ_ASSERT(aWriter);
-  MOZ_ASSERT(aBlobOrFileImpl);
-
-  nsRefPtr<FileImpl> blobImpl = EnsureBlobForBackgroundManager(aBlobOrFileImpl);
-  MOZ_ASSERT(blobImpl);
-
-  aBlobOrFileImpl = blobImpl;
-
-  if (NS_WARN_IF(!JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0)) ||
-      NS_WARN_IF(!JS_WriteBytes(aWriter,
-                                &aBlobOrFileImpl,
-                                sizeof(aBlobOrFileImpl)))) {
-    return false;
-  }
-
-  aClonedObjects.AppendElement(aBlobOrFileImpl);
-  return true;
-}
-
 struct WorkerStructuredCloneCallbacks
 {
   static JSObject*
@@ -469,10 +304,31 @@ struct WorkerStructuredCloneCallbacks
     if (aTag == DOMWORKER_SCTAG_BLOB) {
       MOZ_ASSERT(!aData);
 
-      JS::Rooted<JSObject*> blobOrFile(aCx);
-      ReadBlobOrFile(aCx, aReader, /* aIsMainThread */ false, &blobOrFile);
+      FileImpl* blobImpl;
+      if (JS_ReadBytes(aReader, &blobImpl, sizeof(blobImpl))) {
+        MOZ_ASSERT(blobImpl);
 
-      return blobOrFile;
+#ifdef DEBUG
+        {
+          // Blob should not be mutable.
+          bool isMutable;
+          NS_ASSERTION(NS_SUCCEEDED(blobImpl->GetMutable(&isMutable)) &&
+                       !isMutable,
+                       "Only immutable blob should be passed to worker");
+        }
+#endif
+
+        {
+          // New scope to protect |result| from a moving GC during ~nsRefPtr.
+          nsRefPtr<File> blob = new File(nullptr, blobImpl);
+          JS::Rooted<JS::Value> val(aCx);
+          if (GetOrCreateDOMReflector(aCx, blob, &val)) {
+            result = val.toObjectOrNull();
+          }
+        }
+
+        return result;
+      }
     }
     // See if the object is an ImageData.
     else if (aTag == SCTAG_DOM_IMAGEDATA) {
@@ -491,17 +347,18 @@ struct WorkerStructuredCloneCallbacks
     NS_ASSERTION(aClosure, "Null pointer!");
 
     // We'll stash any nsISupports pointers that need to be AddRef'd here.
-    auto* clonedObjects =
-      static_cast<nsTArray<nsCOMPtr<nsISupports>>*>(aClosure);
+    nsTArray<nsCOMPtr<nsISupports> >* clonedObjects =
+      static_cast<nsTArray<nsCOMPtr<nsISupports> >*>(aClosure);
 
     // See if this is a Blob/File object.
     {
-      nsRefPtr<File> blob;
+      File* blob = nullptr;
       if (NS_SUCCEEDED(UNWRAP_OBJECT(Blob, aObj, blob))) {
         FileImpl* blobImpl = blob->Impl();
-        MOZ_ASSERT(blobImpl);
-
-        if (WriteBlobOrFile(aCx, aWriter, blobImpl, *clonedObjects)) {
+        if (blobImpl && NS_SUCCEEDED(blobImpl->SetMutable(false)) &&
+            JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0) &&
+            JS_WriteBytes(aWriter, &blobImpl, sizeof(blobImpl))) {
+          clonedObjects->AppendElement(blobImpl);
           return true;
         }
       }
@@ -526,7 +383,7 @@ struct WorkerStructuredCloneCallbacks
   }
 };
 
-const JSStructuredCloneCallbacks gWorkerStructuredCloneCallbacks = {
+JSStructuredCloneCallbacks gWorkerStructuredCloneCallbacks = {
   WorkerStructuredCloneCallbacks::Read,
   WorkerStructuredCloneCallbacks::Write,
   WorkerStructuredCloneCallbacks::Error,
@@ -547,10 +404,35 @@ struct MainThreadWorkerStructuredCloneCallbacks
     if (aTag == DOMWORKER_SCTAG_BLOB) {
       MOZ_ASSERT(!aData);
 
-      JS::Rooted<JSObject*> blobOrFile(aCx);
-      ReadBlobOrFile(aCx, aReader, /* aIsMainThread */ true, &blobOrFile);
+      FileImpl* blobImpl;
+      if (JS_ReadBytes(aReader, &blobImpl, sizeof(blobImpl))) {
+        MOZ_ASSERT(blobImpl);
 
-      return blobOrFile;
+#ifdef DEBUG
+        {
+          // Blob should not be mutable.
+          bool isMutable;
+          NS_ASSERTION(NS_SUCCEEDED(blobImpl->GetMutable(&isMutable)) &&
+                       !isMutable,
+                       "Only immutable blob should be passed to worker");
+        }
+#endif
+
+        // nsRefPtr<File> needs to go out of scope before toObjectOrNull() is
+        // called because the static analysis thinks dereferencing XPCOM objects
+        // can GC (because in some cases it can!), and a return statement with a
+        // JSObject* type means that JSObject* is on the stack as a raw pointer
+        // while destructors are running.
+        JS::Rooted<JS::Value> val(aCx);
+        {
+          nsRefPtr<File> blob = new File(nullptr, blobImpl);
+          if (!GetOrCreateDOMReflector(aCx, blob, &val)) {
+            return nullptr;
+          }
+        }
+
+        return &val.toObject();
+      }
     }
 
     JS_ClearPendingException(aCx);
@@ -566,19 +448,20 @@ struct MainThreadWorkerStructuredCloneCallbacks
     NS_ASSERTION(aClosure, "Null pointer!");
 
     // We'll stash any nsISupports pointers that need to be AddRef'd here.
-    auto* clonedObjects =
-      static_cast<nsTArray<nsCOMPtr<nsISupports>>*>(aClosure);
+    nsTArray<nsCOMPtr<nsISupports> >* clonedObjects =
+      static_cast<nsTArray<nsCOMPtr<nsISupports> >*>(aClosure);
 
     // See if this is a Blob/File object.
     {
-      nsRefPtr<File> blob;
+      File* blob = nullptr;
       if (NS_SUCCEEDED(UNWRAP_OBJECT(Blob, aObj, blob))) {
         FileImpl* blobImpl = blob->Impl();
-        MOZ_ASSERT(blobImpl);
-
         if (!blobImpl->MayBeClonedToOtherThreads()) {
           NS_WARNING("Not all the blob implementations can be sent between threads.");
-        } else if (WriteBlobOrFile(aCx, aWriter, blobImpl, *clonedObjects)) {
+        } else if (NS_SUCCEEDED(blobImpl->SetMutable(false)) &&
+                   JS_WriteUint32Pair(aWriter, DOMWORKER_SCTAG_BLOB, 0) &&
+                   JS_WriteBytes(aWriter, &blobImpl, sizeof(blobImpl))) {
+          clonedObjects->AppendElement(blobImpl);
           return true;
         }
       }
@@ -597,7 +480,7 @@ struct MainThreadWorkerStructuredCloneCallbacks
   }
 };
 
-const JSStructuredCloneCallbacks gMainThreadWorkerStructuredCloneCallbacks = {
+JSStructuredCloneCallbacks gMainThreadWorkerStructuredCloneCallbacks = {
   MainThreadWorkerStructuredCloneCallbacks::Read,
   MainThreadWorkerStructuredCloneCallbacks::Write,
   MainThreadWorkerStructuredCloneCallbacks::Error,
@@ -630,7 +513,7 @@ struct ChromeWorkerStructuredCloneCallbacks
   }
 };
 
-const JSStructuredCloneCallbacks gChromeWorkerStructuredCloneCallbacks = {
+JSStructuredCloneCallbacks gChromeWorkerStructuredCloneCallbacks = {
   ChromeWorkerStructuredCloneCallbacks::Read,
   ChromeWorkerStructuredCloneCallbacks::Write,
   ChromeWorkerStructuredCloneCallbacks::Error,
@@ -691,7 +574,7 @@ struct MainThreadChromeWorkerStructuredCloneCallbacks
   }
 };
 
-const JSStructuredCloneCallbacks gMainThreadChromeWorkerStructuredCloneCallbacks = {
+JSStructuredCloneCallbacks gMainThreadChromeWorkerStructuredCloneCallbacks = {
   MainThreadChromeWorkerStructuredCloneCallbacks::Read,
   MainThreadChromeWorkerStructuredCloneCallbacks::Write,
   MainThreadChromeWorkerStructuredCloneCallbacks::Error,
@@ -1338,7 +1221,7 @@ private:
       // check is only going to succeed when the worker is accepting events.
       if (workerIsAcceptingEvents) {
         aWorkerPrivate->AssertInnerWindowIsCorrect();
-        innerWindowId = aWorkerPrivate->WindowID();
+        innerWindowId = aWorkerPrivate->GetInnerWindowId();
       }
     }
 
@@ -1838,45 +1721,7 @@ private:
   }
 };
 
-class DummyRunnable MOZ_FINAL
-  : public WorkerRunnable
-{
-public:
-  explicit
-  DummyRunnable(WorkerPrivate* aWorkerPrivate)
-    : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
-  {
-    aWorkerPrivate->AssertIsOnWorkerThread();
-  }
-
-private:
-  ~DummyRunnable()
-  {
-    mWorkerPrivate->AssertIsOnWorkerThread();
-  }
-
-  virtual bool
-  PreDispatch(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
-  {
-    MOZ_ASSERT_UNREACHABLE("Should never call Dispatch on this!");
-    return true;
-  }
-
-  virtual void
-  PostDispatch(JSContext* aCx,
-               WorkerPrivate* aWorkerPrivate,
-               bool aDispatchResult) MOZ_OVERRIDE
-  {
-    MOZ_ASSERT_UNREACHABLE("Should never call Dispatch on this!");
-  }
-
-  virtual bool
-  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
-  {
-    // Do nothing.
-    return true;
-  }
-};
+#ifdef DEBUG
 
 PRThread*
 PRThreadFromThread(nsIThread* aThread)
@@ -1884,11 +1729,13 @@ PRThreadFromThread(nsIThread* aThread)
   MOZ_ASSERT(aThread);
 
   PRThread* result;
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(aThread->GetPRThread(&result)));
+  MOZ_ASSERT(NS_SUCCEEDED(aThread->GetPRThread(&result)));
   MOZ_ASSERT(result);
 
   return result;
 }
+
+#endif // DEBUG
 
 } /* anonymous namespace */
 
@@ -1897,29 +1744,6 @@ NS_IMPL_ISUPPORTS_INHERITED0(MainThreadReleaseRunnable, nsRunnable)
 NS_IMPL_ISUPPORTS_INHERITED0(TopLevelWorkerFinishedRunnable, nsRunnable)
 
 NS_IMPL_ISUPPORTS(TimerThreadEventTarget, nsIEventTarget)
-
-template <class Derived>
-WorkerPrivateParent<Derived>::
-LoadInfo::LoadInfo()
-  : mWindowID(UINT64_MAX)
-  , mFromWindow(false)
-  , mEvalAllowed(false)
-  , mReportCSPViolations(false)
-  , mXHRParamsAllowed(false)
-  , mPrincipalIsSystem(false)
-  , mIsInPrivilegedApp(false)
-  , mIsInCertifiedApp(false)
-  , mIndexedDBAllowed(false)
-{
-  MOZ_COUNT_CTOR(WorkerPrivateParent<Derived>::LoadInfo);
-}
-
-template <class Derived>
-WorkerPrivateParent<Derived>::
-LoadInfo::~LoadInfo()
-{
-  MOZ_COUNT_DTOR(WorkerPrivateParent<Derived>::LoadInfo);
-}
 
 template <class Derived>
 class WorkerPrivateParent<Derived>::SynchronizeAndResumeRunnable MOZ_FINAL
@@ -2090,7 +1914,7 @@ public:
 
   NS_IMETHOD
   CollectReports(nsIMemoryReporterCallback* aCallback,
-                 nsISupports* aClosure, bool aAnonymize) MOZ_OVERRIDE
+                 nsISupports* aClosure, bool aAnonymize)
   {
     AssertIsOnMainThread();
 
@@ -2203,22 +2027,6 @@ WorkerPrivate::SyncLoopInfo::SyncLoopInfo(EventTarget* aEventTarget)
 #endif
 {
 }
-
-struct WorkerPrivate::PreemptingRunnableInfo MOZ_FINAL
-{
-  nsCOMPtr<nsIRunnable> mRunnable;
-  uint32_t mRecursionDepth;
-
-  PreemptingRunnableInfo()
-  {
-    MOZ_COUNT_CTOR(WorkerPrivate::PreemptingRunnableInfo);
-  }
-
-  ~PreemptingRunnableInfo()
-  {
-    MOZ_COUNT_DTOR(WorkerPrivate::PreemptingRunnableInfo);
-  }
-};
 
 // Can't use NS_IMPL_CYCLE_COLLECTION_CLASS(WorkerPrivateParent) because of the
 // templates.
@@ -2340,13 +2148,15 @@ WorkerPrivateParent<Derived>::DispatchPrivate(WorkerRunnable* aRunnable,
       return NS_ERROR_UNEXPECTED;
     }
 
-    nsresult rv;
+    nsCOMPtr<nsIEventTarget> target;
     if (aSyncLoopTarget) {
-      rv = aSyncLoopTarget->Dispatch(aRunnable, NS_DISPATCH_NORMAL);
-    } else {
-      rv = self->mThread->Dispatch(WorkerThreadFriendKey(), aRunnable);
+      target = aSyncLoopTarget;
+    }
+    else {
+      target = self->mThread;
     }
 
+    nsresult rv = target->Dispatch(aRunnable, NS_DISPATCH_NORMAL);
     if (NS_WARN_IF(NS_FAILED(rv))) {
       return rv;
     }
@@ -2836,7 +2646,7 @@ WorkerPrivateParent<Derived>::ForgetMainThreadObjects(
   AssertIsOnParentThread();
   MOZ_ASSERT(!mMainThreadObjectsForgotten);
 
-  static const uint32_t kDoomedCount = 8;
+  static const uint32_t kDoomedCount = 7;
 
   aDoomed.SetCapacity(kDoomedCount);
 
@@ -2847,7 +2657,6 @@ WorkerPrivateParent<Derived>::ForgetMainThreadObjects(
   SwapToISupportsArray(mLoadInfo.mPrincipal, aDoomed);
   SwapToISupportsArray(mLoadInfo.mChannel, aDoomed);
   SwapToISupportsArray(mLoadInfo.mCSP, aDoomed);
-  SwapToISupportsArray(mLoadInfo.mLoadGroup, aDoomed);
   // Before adding anything here update kDoomedCount above!
 
   MOZ_ASSERT(aDoomed.Length() == kDoomedCount);
@@ -2874,7 +2683,7 @@ WorkerPrivateParent<Derived>::PostMessageInternal(
     }
   }
 
-  const JSStructuredCloneCallbacks* callbacks;
+  JSStructuredCloneCallbacks* callbacks;
   if (GetParent()) {
     if (IsChromeWorker()) {
       callbacks = &gChromeWorkerStructuredCloneCallbacks;
@@ -3015,6 +2824,16 @@ WorkerPrivateParent<Derived>::DispatchMessageEventToMessagePort(
   }
 
   return true;
+}
+
+template <class Derived>
+uint64_t
+WorkerPrivateParent<Derived>::GetInnerWindowId()
+{
+  AssertIsOnMainThread();
+  NS_ASSERTION(!mLoadInfo.mWindow || mLoadInfo.mWindow->IsInnerWindow(),
+               "Outer window?");
+  return mLoadInfo.mWindow ? mLoadInfo.mWindow->WindowID() : 0;
 }
 
 template <class Derived>
@@ -3563,12 +3382,9 @@ WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
 
 template <class Derived>
 void
-WorkerPrivateParent<Derived>::SetPrincipal(nsIPrincipal* aPrincipal,
-                                           nsILoadGroup* aLoadGroup)
+WorkerPrivateParent<Derived>::SetPrincipal(nsIPrincipal* aPrincipal)
 {
   AssertIsOnMainThread();
-  MOZ_ASSERT(NS_LoadGroupMatchesPrincipal(aLoadGroup, aPrincipal));
-  MOZ_ASSERT(!mLoadInfo.mPrincipalInfo);
 
   mLoadInfo.mPrincipal = aPrincipal;
   mLoadInfo.mPrincipalIsSystem = nsContentUtils::IsSystemPrincipal(aPrincipal);
@@ -3577,13 +3393,6 @@ WorkerPrivateParent<Derived>::SetPrincipal(nsIPrincipal* aPrincipal,
     (appStatus == nsIPrincipal::APP_STATUS_CERTIFIED ||
      appStatus == nsIPrincipal::APP_STATUS_PRIVILEGED);
   mLoadInfo.mIsInCertifiedApp = (appStatus == nsIPrincipal::APP_STATUS_CERTIFIED);
-
-  mLoadInfo.mLoadGroup = aLoadGroup;
-
-  mLoadInfo.mPrincipalInfo = new PrincipalInfo();
-
-  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-    PrincipalToPrincipalInfo(aPrincipal, mLoadInfo.mPrincipalInfo)));
 }
 
 template <class Derived>
@@ -3922,25 +3731,19 @@ WorkerPrivate::WorkerPrivate(JSContext* aCx,
                              bool aIsChromeWorker, WorkerType aWorkerType,
                              const nsACString& aSharedWorkerName,
                              LoadInfo& aLoadInfo)
-  : WorkerPrivateParent<WorkerPrivate>(aCx, aParent, aScriptURL,
-                                       aIsChromeWorker, aWorkerType,
-                                       aSharedWorkerName, aLoadInfo)
-  , mJSContext(nullptr)
+: WorkerPrivateParent<WorkerPrivate>(aCx, aParent, aScriptURL,
+                                     aIsChromeWorker, aWorkerType,
+                                     aSharedWorkerName, aLoadInfo),
+  mJSContext(nullptr), mErrorHandlerRecursionCount(0), mNextTimeoutId(1),
+  mStatus(Pending), mSuspended(false), mTimerRunning(false),
+  mRunningExpiredTimeouts(false), mCloseHandlerStarted(false),
+  mCloseHandlerFinished(false), mMemoryReporterRunning(false),
+  mBlockedForMemoryReporter(false), mCancelAllPendingRunnables(false),
+  mPeriodicGCTimerRunning(false), mIdleGCTimerRunning(false),
+  mWorkerScriptExecutedSuccessfully(false)
+#ifdef DEBUG
   , mPRThread(nullptr)
-  , mErrorHandlerRecursionCount(0)
-  , mNextTimeoutId(1)
-  , mStatus(Pending)
-  , mSuspended(false)
-  , mTimerRunning(false)
-  , mRunningExpiredTimeouts(false)
-  , mCloseHandlerStarted(false)
-  , mCloseHandlerFinished(false)
-  , mMemoryReporterRunning(false)
-  , mBlockedForMemoryReporter(false)
-  , mCancelAllPendingRunnables(false)
-  , mPeriodicGCTimerRunning(false)
-  , mIdleGCTimerRunning(false)
-  , mWorkerScriptExecutedSuccessfully(false)
+#endif
 {
   MOZ_ASSERT_IF(!IsDedicatedWorker(), !aSharedWorkerName.IsVoid());
   MOZ_ASSERT_IF(IsDedicatedWorker(), aSharedWorkerName.IsEmpty());
@@ -4115,7 +3918,6 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
                            bool aIsChromeWorker, LoadInfo* aLoadInfo)
 {
   using namespace mozilla::dom::workers::scriptloader;
-  using mozilla::dom::indexedDB::IDBFactory;
 
   MOZ_ASSERT(aCx);
   MOZ_ASSERT_IF(NS_IsMainThread(), aCx == nsContentUtils::GetCurrentJSContext());
@@ -4166,9 +3968,6 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
     }
 
     loadInfo.mDomain = aParent->Domain();
-    loadInfo.mFromWindow = aParent->IsFromWindow();
-    loadInfo.mWindowID = aParent->WindowID();
-    loadInfo.mIndexedDBAllowed = aParent->IsIndexedDBAllowed();
   } else {
     AssertIsOnMainThread();
 
@@ -4230,7 +4029,6 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
       NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);
 
       loadInfo.mBaseURI = document->GetDocBaseURI();
-      loadInfo.mLoadGroup = document->GetDocumentLoadGroup();
 
       // Use the document's NodePrincipal as our principal if we're not being
       // called from chrome.
@@ -4282,9 +4080,6 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
         (appStatus == nsIPrincipal::APP_STATUS_CERTIFIED ||
          appStatus == nsIPrincipal::APP_STATUS_PRIVILEGED);
       loadInfo.mIsInCertifiedApp = (appStatus == nsIPrincipal::APP_STATUS_CERTIFIED);
-      loadInfo.mFromWindow = true;
-      loadInfo.mWindowID = globalWindow->WindowID();
-      loadInfo.mIndexedDBAllowed = IDBFactory::AllowedForWindow(globalWindow);
     } else {
       // Not a window
       MOZ_ASSERT(isChrome);
@@ -4323,9 +4118,6 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
         }
       }
       loadInfo.mXHRParamsAllowed = true;
-      loadInfo.mFromWindow = false;
-      loadInfo.mWindowID = UINT64_MAX;
-      loadInfo.mIndexedDBAllowed = true;
     }
 
     MOZ_ASSERT(loadInfo.mPrincipal);
@@ -4345,17 +4137,8 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
       loadInfo.mReportCSPViolations = false;
     }
 
-    if (!loadInfo.mLoadGroup) {
-      rv = NS_NewLoadGroup(getter_AddRefs(loadInfo.mLoadGroup),
-                           loadInfo.mPrincipal);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-    MOZ_ASSERT(NS_LoadGroupMatchesPrincipal(loadInfo.mLoadGroup,
-                                            loadInfo.mPrincipal));
-
     rv = ChannelFromScriptURLMainThread(loadInfo.mPrincipal, loadInfo.mBaseURI,
-                                        document, loadInfo.mLoadGroup,
-                                        aScriptURL,
+                                        document, aScriptURL,
                                         getter_AddRefs(loadInfo.mChannel));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -4510,29 +4293,6 @@ WorkerPrivate::OnProcessNextEvent(uint32_t aRecursionDepth)
       mSyncLoopStack.Length() < aRecursionDepth - 1) {
     ProcessAllControlRunnables();
   }
-
-  // Run any preempting runnables that match this depth.
-  if (!mPreemptingRunnableInfos.IsEmpty()) {
-    nsTArray<PreemptingRunnableInfo> pendingRunnableInfos;
-
-    for (uint32_t index = 0;
-         index < mPreemptingRunnableInfos.Length();
-         index++) {
-      PreemptingRunnableInfo& preemptingRunnableInfo =
-        mPreemptingRunnableInfos[index];
-
-      if (preemptingRunnableInfo.mRecursionDepth == aRecursionDepth) {
-        preemptingRunnableInfo.mRunnable->Run();
-        preemptingRunnableInfo.mRunnable = nullptr;
-      } else {
-        PreemptingRunnableInfo* pending = pendingRunnableInfos.AppendElement();
-        pending->mRunnable.swap(preemptingRunnableInfo.mRunnable);
-        pending->mRecursionDepth = preemptingRunnableInfo.mRecursionDepth;
-      }
-    }
-
-    mPreemptingRunnableInfos.SwapElements(pendingRunnableInfos);
-  }
 }
 
 void
@@ -4540,42 +4300,6 @@ WorkerPrivate::AfterProcessNextEvent(uint32_t aRecursionDepth)
 {
   AssertIsOnWorkerThread();
   MOZ_ASSERT(aRecursionDepth);
-}
-
-bool
-WorkerPrivate::RunBeforeNextEvent(nsIRunnable* aRunnable)
-{
-  AssertIsOnWorkerThread();
-  MOZ_ASSERT(aRunnable);
-  MOZ_ASSERT_IF(!mPreemptingRunnableInfos.IsEmpty(),
-                NS_HasPendingEvents(mThread));
-
-  const uint32_t recursionDepth =
-    mThread->RecursionDepth(WorkerThreadFriendKey());
-
-  PreemptingRunnableInfo* preemptingRunnableInfo =
-    mPreemptingRunnableInfos.AppendElement();
-
-  preemptingRunnableInfo->mRunnable = aRunnable;
-
-  // Due to the weird way that the thread recursion counter is implemented we
-  // subtract one from the recursion level if we have one.
-  preemptingRunnableInfo->mRecursionDepth =
-    recursionDepth ? recursionDepth - 1 : 0;
-
-  // Ensure that we have a pending event so that the runnable will be guaranteed
-  // to run.
-  if (mPreemptingRunnableInfos.Length() == 1 && !NS_HasPendingEvents(mThread)) {
-    nsRefPtr<DummyRunnable> dummyRunnable = new DummyRunnable(this);
-    if (NS_FAILED(Dispatch(dummyRunnable))) {
-      NS_WARNING("RunBeforeNextEvent called after the thread is shutting "
-                 "down!");
-      mPreemptingRunnableInfos.Clear();
-      return false;
-    }
-  }
-
-  return true;
 }
 
 void
@@ -4738,9 +4462,24 @@ WorkerPrivate::IsOnCurrentThread(bool* aIsOnCurrentThread)
   // May be called on any thread!
 
   MOZ_ASSERT(aIsOnCurrentThread);
-  MOZ_ASSERT(mPRThread);
 
-  *aIsOnCurrentThread = PR_GetCurrentThread() == mPRThread;
+  nsCOMPtr<nsIThread> thread;
+  {
+    MutexAutoLock lock(mMutex);
+    thread = mThread;
+  }
+
+  if (!thread) {
+    NS_WARNING("Trying to test thread correctness after the worker has "
+               "released its thread!");
+    return NS_ERROR_FAILURE;
+  }
+
+  nsresult rv = thread->IsOnCurrentThread(aIsOnCurrentThread);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
   return NS_OK;
 }
 
@@ -4909,15 +4648,6 @@ WorkerPrivate::WaitForWorkerEvents(PRIntervalTime aInterval)
 
   // The main thread may be waiting so we must notify.
   mMemoryReportCondVar.Notify();
-
-#ifdef MOZ_NUWA_PROCESS
-  {
-    MOZ_ASSERT(mThread);
-
-    ReentrantMonitorAutoEnter mon(mThread->ThreadStatusMonitor());
-    mThread->SetIdle();
-  }
-#endif // MOZ_NUWA_PROCESS
 
   // Now wait for an actual worker event.
   mCondVar.Wait(aInterval);
@@ -5269,11 +4999,14 @@ WorkerPrivate::RunCurrentSyncLoop()
   loopInfo->mHasRun = true;
 #endif
 
+  nsCOMPtr<nsIThreadInternal> thread = do_QueryInterface(mThread);
+  MOZ_ASSERT(thread);
+
   while (!loopInfo->mCompleted) {
     bool normalRunnablesPending = false;
 
     // Don't block with the periodic GC timer running.
-    if (!NS_HasPendingEvents(mThread)) {
+    if (!NS_HasPendingEvents(thread)) {
       SetGCTimerMode(IdleTimer);
     }
 
@@ -5284,7 +5017,7 @@ WorkerPrivate::RunCurrentSyncLoop()
       for (;;) {
         while (mControlQueue.IsEmpty() &&
                !normalRunnablesPending &&
-               !(normalRunnablesPending = NS_HasPendingEvents(mThread))) {
+               !(normalRunnablesPending = NS_HasPendingEvents(thread))) {
           WaitForWorkerEvents();
         }
 
@@ -5302,7 +5035,7 @@ WorkerPrivate::RunCurrentSyncLoop()
       // Make sure the periodic timer is running before we continue.
       SetGCTimerMode(PeriodicTimer);
 
-      MOZ_ALWAYS_TRUE(NS_ProcessNextEvent(mThread, false));
+      MOZ_ALWAYS_TRUE(NS_ProcessNextEvent(thread, false));
 
       // Now *might* be a good time to GC. Let the JS engine make the decision.
       JS_MaybeGC(cx);
@@ -5322,7 +5055,10 @@ WorkerPrivate::DestroySyncLoop(uint32_t aLoopIndex, nsIThreadInternal* aThread)
   MOZ_ASSERT(mSyncLoopStack.Length() - 1 == aLoopIndex);
 
   if (!aThread) {
-    aThread = mThread;
+    nsCOMPtr<nsIThreadInternal> thread = do_QueryInterface(mThread);
+    MOZ_ASSERT(thread);
+
+    aThread = thread.get();
   }
 
   // We're about to delete the loop, stash its event target and result.
@@ -5446,7 +5182,7 @@ WorkerPrivate::PostMessageToParentInternal(
     transferable.setObject(*array);
   }
 
-  const JSStructuredCloneCallbacks* callbacks =
+  JSStructuredCloneCallbacks* callbacks =
     IsChromeWorker() ?
     &gChromeWorkerStructuredCloneCallbacks :
     &gWorkerStructuredCloneCallbacks;
@@ -5771,7 +5507,13 @@ WorkerPrivate::SetTimeout(JSContext* aCx,
   newInfo->mTargetTime = TimeStamp::Now() + newInfo->mInterval;
 
   if (!newInfo->mTimeoutString.IsEmpty()) {
-    if (!nsJSUtils::GetCallingLocation(aCx, newInfo->mFilename, &newInfo->mLineNumber)) {
+    const char* filenameChars;
+    uint32_t lineNumber;
+    if (nsJSUtils::GetCallingLocation(aCx, &filenameChars, &lineNumber)) {
+      newInfo->mFilename = filenameChars;
+      newInfo->mLineNumber = lineNumber;
+    }
+    else {
       NS_WARNING("Failed to get calling location!");
     }
   }
@@ -6089,14 +5831,14 @@ WorkerPrivate::GarbageCollectInternal(JSContext* aCx, bool aShrinking,
     JS::PrepareForFullGC(rt);
 
     if (aShrinking) {
-      JS::GCForReason(rt, GC_SHRINK, JS::gcreason::DOM_WORKER);
+      JS::ShrinkingGC(rt, JS::gcreason::DOM_WORKER);
 
       if (!aCollectChildren) {
         LOG(("Worker %p collected idle garbage\n", this));
       }
     }
     else {
-      JS::GCForReason(rt, GC_NORMAL, JS::gcreason::DOM_WORKER);
+      JS::GCForReason(rt, JS::gcreason::DOM_WORKER);
       LOG(("Worker %p collected garbage\n", this));
     }
   }
@@ -6127,16 +5869,13 @@ WorkerPrivate::CycleCollectInternal(JSContext* aCx, bool aCollectChildren)
 }
 
 void
-WorkerPrivate::SetThread(WorkerThread* aThread)
+WorkerPrivate::SetThread(nsIThread* aThread)
 {
-  if (aThread) {
 #ifdef DEBUG
-    {
-      bool isOnCurrentThread;
-      MOZ_ASSERT(NS_SUCCEEDED(aThread->IsOnCurrentThread(&isOnCurrentThread)));
-      MOZ_ASSERT(isOnCurrentThread);
-    }
-#endif
+  if (aThread) {
+    bool isOnCurrentThread;
+    MOZ_ASSERT(NS_SUCCEEDED(aThread->IsOnCurrentThread(&isOnCurrentThread)));
+    MOZ_ASSERT(isOnCurrentThread);
 
     MOZ_ASSERT(!mPRThread);
     mPRThread = PRThreadFromThread(aThread);
@@ -6145,10 +5884,9 @@ WorkerPrivate::SetThread(WorkerThread* aThread)
   else {
     MOZ_ASSERT(mPRThread);
   }
+#endif
 
-  const WorkerThreadFriendKey friendKey;
-
-  nsRefPtr<WorkerThread> doomedThread;
+  nsCOMPtr<nsIThread> doomedThread;
 
   { // Scope so that |doomedThread| is released without holding the lock.
     MutexAutoLock lock(mMutex);
@@ -6158,21 +5896,18 @@ WorkerPrivate::SetThread(WorkerThread* aThread)
       MOZ_ASSERT(mStatus == Pending);
 
       mThread = aThread;
-      mThread->SetWorker(friendKey, this);
 
       if (!mPreStartRunnables.IsEmpty()) {
         for (uint32_t index = 0; index < mPreStartRunnables.Length(); index++) {
-          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
-            mThread->Dispatch(friendKey, mPreStartRunnables[index])));
+          MOZ_ALWAYS_TRUE(NS_SUCCEEDED(mThread->Dispatch(
+                                                      mPreStartRunnables[index],
+                                                      NS_DISPATCH_NORMAL)));
         }
         mPreStartRunnables.Clear();
       }
     }
     else {
       MOZ_ASSERT(mThread);
-
-      mThread->SetWorker(friendKey, nullptr);
-
       mThread.swap(doomedThread);
     }
   }
@@ -6463,7 +6198,7 @@ GetWorkerCrossThreadDispatcher(JSContext* aCx, JS::Value aWorker)
   return w->GetCrossThreadDispatcher();
 }
 
-const JSStructuredCloneCallbacks*
+JSStructuredCloneCallbacks*
 WorkerStructuredCloneCallbacks(bool aMainRuntime)
 {
   return aMainRuntime ?
@@ -6471,7 +6206,7 @@ WorkerStructuredCloneCallbacks(bool aMainRuntime)
          &gWorkerStructuredCloneCallbacks;
 }
 
-const JSStructuredCloneCallbacks*
+JSStructuredCloneCallbacks*
 ChromeWorkerStructuredCloneCallbacks(bool aMainRuntime)
 {
   return aMainRuntime ?

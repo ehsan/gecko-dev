@@ -89,36 +89,67 @@ NS_IMETHODIMP
 StatementParams::NewEnumerate(nsIXPConnectWrappedNative *aWrapper,
                               JSContext *aCtx,
                               JSObject *aScopeObj,
-                              JS::AutoIdVector &aProperties,
+                              uint32_t aEnumOp,
+                              jsval *_statep,
+                              jsid *_idp,
                               bool *_retval)
 {
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
-  JS::RootedObject scope(aCtx, aScopeObj);
 
-  if (!aProperties.reserve(mParamCount)) {
-    *_retval = false;
-    return NS_OK;
-  }
+  switch (aEnumOp) {
+    case JSENUMERATE_INIT:
+    case JSENUMERATE_INIT_ALL:
+    {
+      // Start our internal index at zero.
+      *_statep = JSVAL_ZERO;
 
-  for (uint32_t i = 0; i < mParamCount; i++) {
-    // Get the name of our parameter.
-    nsAutoCString name;
-    nsresult rv = mStatement->GetParameterName(i, name);
-    NS_ENSURE_SUCCESS(rv, rv);
+      // And set our length, if needed.
+      if (_idp)
+        *_idp = INT_TO_JSID(mParamCount);
 
-    // But drop the first character, which is going to be a ':'.
-    JS::RootedString jsname(aCtx, ::JS_NewStringCopyN(aCtx, &(name.get()[1]),
-                                                      name.Length() - 1));
-    NS_ENSURE_TRUE(jsname, NS_ERROR_OUT_OF_MEMORY);
-
-    // Set our name.
-    JS::Rooted<jsid> id(aCtx);
-    if (!::JS_StringToId(aCtx, jsname, &id)) {
-      *_retval = false;
-      return NS_OK;
+      break;
     }
+    case JSENUMERATE_NEXT:
+    {
+      NS_ASSERTION(*_statep != JSVAL_NULL, "Internal state is null!");
 
-    aProperties.infallibleAppend(id);
+      // Make sure we are in range first.
+      uint32_t index = static_cast<uint32_t>(_statep->toInt32());
+      if (index >= mParamCount) {
+        *_statep = JSVAL_NULL;
+        return NS_OK;
+      }
+
+      // Get the name of our parameter.
+      nsAutoCString name;
+      nsresult rv = mStatement->GetParameterName(index, name);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      // But drop the first character, which is going to be a ':'.
+      JS::RootedString jsname(aCtx, ::JS_NewStringCopyN(aCtx, &(name.get()[1]),
+                                                        name.Length() - 1));
+      NS_ENSURE_TRUE(jsname, NS_ERROR_OUT_OF_MEMORY);
+
+      // Set our name.
+      JS::Rooted<jsid> id(aCtx);
+      if (!::JS_StringToId(aCtx, jsname, &id)) {
+        *_retval = false;
+        return NS_OK;
+      }
+      *_idp = id;
+
+      // And increment our index.
+      *_statep = INT_TO_JSVAL(++index);
+
+      break;
+    }
+    case JSENUMERATE_DESTROY:
+    {
+      // Clear our state.
+      *_statep = JSVAL_NULL;
+
+      break;
+    }
   }
 
   return NS_OK;

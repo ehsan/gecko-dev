@@ -126,7 +126,7 @@ function test() {
       });
 
       // Start listening for page load events
-      let browser = gBrowser.selectedBrowser;
+      let browser = gBrowser.selectedTab.linkedBrowser;
       browser.addEventListener("DOMContentLoaded", onDOMContentLoaded, true);
       browser.addEventListener("load", onLoad, true);
 
@@ -146,7 +146,7 @@ function test() {
 }
 
 function cleanup() {
-  let browser = gBrowser.selectedBrowser;
+  let browser = gBrowser.selectedTab.linkedBrowser;
   browser.removeEventListener("DOMContentLoaded", onDOMContentLoaded);
   browser.removeEventListener("load", onLoad);
   client.close(function () {

@@ -14,7 +14,6 @@ import org.mozilla.gecko.AppConstants.Versions;
 import org.mozilla.gecko.BrowserApp;
 import org.mozilla.gecko.NewTabletUI;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.ReaderModeUtils;
 import org.mozilla.gecko.SiteIdentity;
 import org.mozilla.gecko.SiteIdentity.SecurityMode;
 import org.mozilla.gecko.SiteIdentity.MixedMode;
@@ -358,19 +357,16 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
             return;
         }
 
-        // If the pref to show the title is set, use the tab's display title.
+        // If the pref to show the URL isn't set, just use the tab's display title.
         if (!mPrefs.shouldShowUrl(mActivity) || url == null) {
             setTitle(tab.getDisplayTitle());
             return;
         }
 
-        String strippedURL = stripAboutReaderURL(url);
-
+        CharSequence title = url;
         if (mPrefs.shouldTrimUrls()) {
-            strippedURL = StringUtils.stripCommonSubdomains(StringUtils.stripScheme(strippedURL));
+            title = StringUtils.stripCommonSubdomains(StringUtils.stripScheme(url));
         }
-
-        CharSequence title = strippedURL;
 
         final String baseDomain = tab.getBaseDomain();
         if (!TextUtils.isEmpty(baseDomain)) {
@@ -387,14 +383,6 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
         }
 
         setTitle(title);
-    }
-
-    private String stripAboutReaderURL(final String url) {
-        if (!AboutPages.isAboutReader(url)) {
-            return url;
-        }
-
-        return ReaderModeUtils.getUrlFromAboutReader(url);
     }
 
     private void updateFavicon(Tab tab) {

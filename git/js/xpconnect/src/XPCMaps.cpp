@@ -644,7 +644,8 @@ XPCNativeScriptableSharedMap::GetNewOrUsed(uint32_t flags,
     NS_PRECONDITION(si,"bad param");
 
     XPCNativeScriptableShared key(flags, name);
-    Entry* entry = (Entry*) PL_DHashTableAdd(mTable, &key);
+    Entry* entry = (Entry*)
+        PL_DHashTableOperate(mTable, &key, PL_DHASH_ADD);
     if (!entry)
         return false;
 

@@ -52,21 +52,15 @@ const INTERESTING_CALLS = [
 ];
 
 /**
- * Type representing an ArrayBufferView, serialized fast(er).
- *
- * Don't create a new array buffer view from the parsed array on the frontend.
- * Consumers may copy the data into an existing buffer, or create a new one if
- * necesasry. For example, this avoids the need for a redundant copy when
- * populating ImageData objects, at the expense of transferring char views
- * of a pixel buffer over the protocol instead of a packed int view.
+ * Type representing an Uint32Array buffer, serialized fast(er).
  *
  * XXX: It would be nice if on local connections (only), we could just *give*
  * the buffer directly to the front, instead of going through all this
  * serialization redundancy.
  */
-protocol.types.addType("array-buffer-view", {
+protocol.types.addType("uint32-array", {
   write: (v) => "[" + Array.join(v, ",") + "]",
-  read: (v) => JSON.parse(v)
+  read: (v) => new Uint32Array(JSON.parse(v))
 });
 
 /**
@@ -78,7 +72,7 @@ protocol.types.addDictType("snapshot-image", {
   height: "number",
   scaling: "number",
   flipped: "boolean",
-  pixels: "array-buffer-view"
+  pixels: "uint32-array"
 });
 
 /**
@@ -369,14 +363,14 @@ let CanvasActor = exports.CanvasActor = protocol.ActorClass({
     let width = this._lastContentCanvasWidth;
     let height = this._lastContentCanvasHeight;
     let flipped = !!this._lastThumbnailFlipped; // undefined -> false
-    let pixels = ContextUtils.getPixelStorage()["8bit"];
+    let pixels = ContextUtils.getPixelStorage()["32bit"];
     let animationFrameEndScreenshot = {
       index: index,
       width: width,
       height: height,
       scaling: 1,
       flipped: flipped,
-      pixels: pixels.subarray(0, width * height * 4)
+      pixels: pixels.subarray(0, width * height)
     };
 
     // Wrap the function calls and screenshot in a FrameSnapshotActor instance,
@@ -467,8 +461,7 @@ let ContextUtils = {
    * @param number dstHeight [optional]
    *        The desired generated screenshot height.
    * @return object
-   *         An objet containing the screenshot's width, height and pixel data,
-   *         represented as an 8-bit array buffer of r, g, b, a values.
+   *         An objet containing the screenshot's width, height and pixel data.
    */
   getPixelsForWebGL: function(gl,
     srcX = 0, srcY = 0,
@@ -499,8 +492,7 @@ let ContextUtils = {
    * @param number dstHeight [optional]
    *        The desired generated screenshot height.
    * @return object
-   *         An objet containing the screenshot's width, height and pixel data,
-   *         represented as an 8-bit array buffer of r, g, b, a values.
+   *         An objet containing the screenshot's width, height and pixel data.
    */
   getPixelsFor2D: function(ctx,
     srcX = 0, srcY = 0,
@@ -526,13 +518,14 @@ let ContextUtils = {
    * @param number dstHeight [optional]
    *        The desired resized pixel data height.
    * @return object
-   *         An objet containing the resized pixels width, height and data,
-   *         represented as an 8-bit array buffer of r, g, b, a values.
+   *         An objet containing the resized pixels width, height and data.
    */
   resizePixels: function(srcPixels, srcWidth, srcHeight, dstHeight) {
     let screenshotRatio = dstHeight / srcHeight;
     let dstWidth = (srcWidth * screenshotRatio) | 0;
-    let dstPixels = new Uint32Array(dstWidth * dstHeight);
+
+    // Use a plain array instead of a Uint32Array to make serializing faster.
+    let dstPixels = new Array(dstWidth * dstHeight);
 
     // If the resized image ends up being completely transparent, returning
     // an empty array will skip some redundant serialization cycles.
@@ -554,7 +547,7 @@ let ContextUtils = {
     return {
       width: dstWidth,
       height: dstHeight,
-      pixels: isTransparent ? [] : new Uint8Array(dstPixels.buffer)
+      pixels: isTransparent ? [] : dstPixels
     };
   },
 

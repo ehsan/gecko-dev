@@ -62,7 +62,6 @@ class ZoneHeapThreshold
 
     double gcHeapGrowthFactor() const { return gcHeapGrowthFactor_; }
     size_t gcTriggerBytes() const { return gcTriggerBytes_; }
-    bool isCloseToAllocTrigger(const js::gc::HeapUsage& usage, bool highFrequencyGC) const;
 
     void updateAfterGC(size_t lastBytes, JSGCInvocationKind gckind,
                        const GCSchedulingTunables &tunables, const GCSchedulingState &state);
@@ -323,8 +322,7 @@ struct Zone : public JS::shadow::Zone,
     friend class js::gc::ZoneList;
     static Zone * const NotOnList;
     Zone *listNext_;
-    bool isOnList() const;
-    Zone *nextZone() const;
+    bool isOnList();
 
     friend bool js::CurrentThreadCanAccessZone(Zone *zone);
     friend class js::gc::GCRuntime;
@@ -380,14 +378,14 @@ class ZonesIter
 
 struct CompartmentsInZoneIter
 {
-    explicit CompartmentsInZoneIter(JS::Zone *zone) : zone(zone) {
+    explicit CompartmentsInZoneIter(JS::Zone *zone) {
         it = zone->compartments.begin();
+        end = zone->compartments.end();
     }
 
     bool done() const {
         MOZ_ASSERT(it);
-        return it < zone->compartments.begin() ||
-               it >= zone->compartments.end();
+        return it == end;
     }
     void next() {
         MOZ_ASSERT(!done());
@@ -403,11 +401,10 @@ struct CompartmentsInZoneIter
     JSCompartment *operator->() const { return get(); }
 
   private:
-    JS::Zone *zone;
-    JSCompartment **it;
+    JSCompartment **it, **end;
 
     CompartmentsInZoneIter()
-      : zone(nullptr), it(nullptr)
+      : it(nullptr), end(nullptr)
     {}
 
     // This is for the benefit of CompartmentsIterT::comp.

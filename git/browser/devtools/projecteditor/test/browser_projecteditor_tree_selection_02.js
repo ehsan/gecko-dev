@@ -14,7 +14,7 @@ thisTestLeaksUncaughtRejectionsAndShouldBeFixed("destroy");
 // Test that files get reselected in the tree when their editor
 // is focused.  https://bugzilla.mozilla.org/show_bug.cgi?id=1011116.
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let projecteditor = yield addProjectEditorTabForTempDirectory();
   let TEMP_PATH = projecteditor.project.allPaths()[0];
 

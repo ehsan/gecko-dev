@@ -31,8 +31,8 @@ public:
 
   NS_DECL_EDITTXN
 
-  NS_IMETHOD RedoTransaction() MOZ_OVERRIDE;
-  NS_IMETHOD Merge(nsITransaction *aTransaction, bool *aDidMerge) MOZ_OVERRIDE;
+  NS_IMETHOD RedoTransaction();
+  NS_IMETHOD Merge(nsITransaction *aTransaction, bool *aDidMerge);
 
   /** append a transaction to this aggregate */
   NS_IMETHOD AppendChild(EditTxn *aTxn);

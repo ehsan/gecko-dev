@@ -9,7 +9,7 @@
 
 #include "nsCycleCollectionParticipant.h"
 #include "nsWrapperCache.h"
-#include "nsIGlobalObject.h"
+#include "nsPIDOMWindow.h"
 #include "mozilla/dom/CryptoKey.h"
 #include "js/TypeDecls.h"
 
@@ -31,11 +31,11 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(SubtleCrypto)
 
 public:
-  explicit SubtleCrypto(nsIGlobalObject* aParent);
+  explicit SubtleCrypto(nsPIDOMWindow* aWindow);
 
-  nsIGlobalObject* GetParentObject() const
+  nsPIDOMWindow* GetParentObject() const
   {
-    return mParent;
+    return mWindow;
   }
 
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
@@ -119,7 +119,7 @@ public:
                                       ErrorResult& aRv);
 
 private:
-  nsCOMPtr<nsIGlobalObject> mParent;
+  nsCOMPtr<nsPIDOMWindow> mWindow;
 };
 
 } // namespace dom

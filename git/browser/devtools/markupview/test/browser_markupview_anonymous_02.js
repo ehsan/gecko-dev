@@ -7,7 +7,7 @@
 // Test XBL anonymous content in the markupview
 const TEST_URL = "chrome://browser/content/devtools/scratchpad.xul";
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let {inspector} = yield addTab(TEST_URL).then(openInspector);
 
   let toolbarbutton = yield getNodeFront("toolbarbutton", inspector);

@@ -124,7 +124,7 @@ PeerConnectionIdp.prototype = {
    * IdP proxy as parameter, else (verification failed OR no a=identity line in
    * SDP at all) null is passed to callback.
    */
-  verifyIdentityFromSDP: function(sdp, origin, callback) {
+  verifyIdentityFromSDP: function(sdp, callback) {
     let identity = this._getIdentityFromSdp(sdp);
     let fingerprints = this._getFingerprintsFromSdp(sdp);
     // it's safe to use the fingerprint we got from the SDP here,
@@ -135,7 +135,7 @@ PeerConnectionIdp.prototype = {
     }
 
     this.setIdentityProvider(identity.idp.domain, identity.idp.protocol);
-    this._verifyIdentity(identity.assertion, fingerprints, origin, callback);
+    this._verifyIdentity(identity.assertion, fingerprints, callback);
   },
 
   /**
@@ -212,7 +212,7 @@ PeerConnectionIdp.prototype = {
   /**
    * Asks the IdP proxy to verify an identity.
    */
-  _verifyIdentity: function(assertion, fingerprints, origin, callback) {
+  _verifyIdentity: function(assertion, fingerprints, callback) {
     function onVerification(message) {
       if (message && this._checkVerifyResponse(message, fingerprints)) {
         callback(message);
@@ -224,8 +224,7 @@ PeerConnectionIdp.prototype = {
 
     let request = {
       type: "VERIFY",
-      message: assertion,
-      origin: origin
+      message: assertion
     };
     this._sendToIdp(request, "validation", onVerification.bind(this));
   },
@@ -236,7 +235,7 @@ PeerConnectionIdp.prototype = {
    * parameter. If no IdP is configured the original SDP (without a=identity
    * line) is passed to the callback.
    */
-  appendIdentityToSDP: function(sdp, fingerprint, origin, callback) {
+  appendIdentityToSDP: function(sdp, fingerprint, callback) {
     let onAssertion = function() {
       callback(this.wrapSdp(sdp), this.assertion);
     }.bind(this);
@@ -246,7 +245,7 @@ PeerConnectionIdp.prototype = {
       return;
     }
 
-    this._getIdentityAssertion(fingerprint, origin, onAssertion);
+    this._getIdentityAssertion(fingerprint, onAssertion);
   },
 
   /**
@@ -271,11 +270,10 @@ PeerConnectionIdp.prototype = {
       return;
     }
 
-    let origin = Cu.getWebIDLCallerPrincipal().origin;
-    this._getIdentityAssertion(fingerprint, origin, callback);
+    this._getIdentityAssertion(fingerprint, callback);
   },
 
-  _getIdentityAssertion: function(fingerprint, origin, callback) {
+  _getIdentityAssertion: function(fingerprint, callback) {
     let [algorithm, digest] = fingerprint.split(" ", 2);
     let message = {
       fingerprint: [{
@@ -286,8 +284,7 @@ PeerConnectionIdp.prototype = {
     let request = {
       type: "SIGN",
       message: JSON.stringify(message),
-      username: this.username,
-      origin: origin
+      username: this.username
     };
 
     // catch the assertion, clean it up, warn if absent
@@ -311,6 +308,7 @@ PeerConnectionIdp.prototype = {
    * @param callback (function) the function to call with the results
    */
   _sendToIdp: function(request, type, callback) {
+    request.origin = Cu.getWebIDLCallerPrincipal().origin;
     this._idpchannel.send(request, this._wrapCallback(type, callback));
   },
 

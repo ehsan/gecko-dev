@@ -117,7 +117,6 @@ class Preferences(object):
         """read preferences from an .ini file"""
 
         parser = ConfigParser()
-        parser.optionxform = str
         parser.readfp(mozfile.load(path))
 
         if section:

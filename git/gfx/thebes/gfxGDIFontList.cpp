@@ -656,6 +656,9 @@ nsresult
 gfxGDIFontList::InitFontList()
 {
     Telemetry::AutoTimer<Telemetry::GDI_INITFONTLIST_TOTAL> timer;
+    gfxFontCache *fc = gfxFontCache::GetCache();
+    if (fc)
+        fc->AgeAllGenerations();
 
     // reset font lists
     gfxPlatformFontList::InitFontList();

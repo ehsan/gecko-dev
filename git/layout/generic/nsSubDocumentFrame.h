@@ -127,8 +127,6 @@ public:
    */
   bool PassPointerEventsToChildren();
 
-  nsIntPoint GetChromeDisplacement();
-
 protected:
   friend class AsyncFrameInit;
 
@@ -153,7 +151,7 @@ protected:
    * frame for the document element of the document we're embedding.
    *
    * Called "Obtain*" and not "Get*" because of comment on GetDocShell that
-   * says it should be called ObtainDocShell because of its side effects.
+   * says it should be called ObtainDocShell because of it's side effects.
    */
   nsIFrame* ObtainIntrinsicSizeFrame();
 

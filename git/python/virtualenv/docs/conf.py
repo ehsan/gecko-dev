@@ -83,14 +83,13 @@ pygments_style = 'sphinx'
 # given in html_static_path.
 #html_style = 'default.css'
 
-html_theme = 'default'
-if not on_rtd:
-    try:
-        import sphinx_rtd_theme
-        html_theme = 'sphinx_rtd_theme'
-        html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-    except ImportError:
-        pass
+if os.environ.get('DOCS_LOCAL'):
+    import sphinx_rtd_theme
+    html_theme = "sphinx_rtd_theme"
+    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
+else:
+    # on RTD
+    html_theme = 'default'
 
 
 # Add any paths that contain custom static files (such as style sheets) here,

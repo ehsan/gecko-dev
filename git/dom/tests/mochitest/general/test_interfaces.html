@@ -340,9 +340,9 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "DeviceProximityEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    { name: "DeviceStorage", pref: "device.storage.enabled" },
+    "DeviceStorage",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    { name: "DeviceStorageChangeEvent", pref: "device.storage.enabled" },
+    "DeviceStorageChangeEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Document",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -363,6 +363,8 @@ var interfaceNamesInGlobalScope =
     "DOMMatrix",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "DOMMatrixReadOnly",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "DOMMMIError", b2g: true, pref: "dom.mobileconnection.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "DOMMobileMessageError", b2g: true, pref: "dom.sms.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -656,19 +658,17 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MediaError",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "MediaKeyError", pref: "media.eme.apiVisible"},
+    {name: "MediaKeyError", pref: "media.eme.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "MediaEncryptedEvent", pref: "media.eme.apiVisible"},
+    {name: "MediaEncryptedEvent", pref: "media.eme.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "MediaKeys", pref: "media.eme.apiVisible"},
+    {name: "MediaKeys", pref: "media.eme.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "MediaKeySession", pref: "media.eme.apiVisible"},
+    {name: "MediaKeySession", pref: "media.eme.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "MediaKeySystemAccess", pref: "media.eme.apiVisible"},
+    {name: "MediaKeySystemAccess", pref: "media.eme.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "MediaKeyMessageEvent", pref: "media.eme.apiVisible"},
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "MediaKeyStatusMap", pref: "media.eme.apiVisible"},
+    {name: "MediaKeyMessageEvent", pref: "media.eme.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MediaList",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -955,8 +955,6 @@ var interfaceNamesInGlobalScope =
     {name: "SpeechSynthesisVoice", b2g: true},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "SpecialPowers", xbl: false},
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    "StereoPannerNode",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Storage",
 // IMPORTANT: Do not change this list without review from a DOM peer!

@@ -43,11 +43,6 @@
 #include "mozilla/MouseEvents.h"
 #include "GLConsts.h"
 #include "mozilla/unused.h"
-#include "mozilla/VsyncDispatcher.h"
-#include "mozilla/layers/APZCTreeManager.h"
-#include "mozilla/layers/ChromeProcessController.h"
-#include "mozilla/layers/InputAPZContext.h"
-#include "mozilla/dom/TabParent.h"
 
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -114,7 +109,6 @@ nsBaseWidget::nsBaseWidget()
 : mWidgetListener(nullptr)
 , mAttachedWidgetListener(nullptr)
 , mContext(nullptr)
-, mCompositorVsyncDispatcher(nullptr)
 , mCursor(eCursor_standard)
 , mUpdateCursor(true)
 , mBorderStyle(eBorderStyle_none)
@@ -165,24 +159,21 @@ nsBaseWidget::Shutdown()
   mShutdownObserver = nullptr;
 }
 
-static void DeferredDestroyCompositor(nsRefPtr<CompositorParent> aCompositorParent,
-                                      nsRefPtr<CompositorChild> aCompositorChild)
+static void DeferredDestroyCompositor(CompositorParent* aCompositorParent,
+                              CompositorChild* aCompositorChild)
 {
     // Bug 848949 needs to be fixed before
     // we can close the channel properly
     //aCompositorChild->Close();
+    aCompositorParent->Release();
+    aCompositorChild->Release();
 }
 
 void nsBaseWidget::DestroyCompositor()
 {
   if (mCompositorChild) {
-    nsRefPtr<CompositorChild> compositorChild = mCompositorChild.forget();
-    nsRefPtr<CompositorParent> compositorParent = mCompositorParent.forget();
-
-    compositorChild->SendWillStop();
-    // New LayerManager, CompositorParent and CompositorChild might be created
-    // as a result of internal GetLayerManager() call.
-    compositorChild->Destroy();
+    mCompositorChild->SendWillStop();
+    mCompositorChild->Destroy();
 
     // The call just made to SendWillStop can result in IPC from the
     // CompositorParent to the CompositorChild (e.g. caused by the destruction
@@ -191,12 +182,13 @@ void nsBaseWidget::DestroyCompositor()
     // events already in the MessageLoop get processed before the
     // CompositorChild is destroyed, so we add a task to the MessageLoop to
     // handle compositor desctruction.
-
-    // The DefferedDestroyCompositor task takes ownership of compositorParent and
-    // will release them when it runs.
     MessageLoop::current()->PostTask(FROM_HERE,
-               NewRunnableFunction(DeferredDestroyCompositor, compositorParent,
-                                   compositorChild));
+               NewRunnableFunction(DeferredDestroyCompositor, mCompositorParent,
+                                   mCompositorChild));
+    // The DestroyCompositor task we just added to the MessageLoop will handle
+    // releasing mCompositorParent and mCompositorChild.
+    unused << mCompositorParent.forget();
+    unused << mCompositorChild.forget();
   }
 }
 
@@ -235,12 +227,8 @@ nsBaseWidget::~nsBaseWidget()
 
   NS_IF_RELEASE(mContext);
   delete mOriginalBounds;
-
-  // Can have base widgets that are things like tooltips which don't have CompositorVsyncDispatchers
-  if (mCompositorVsyncDispatcher) {
-    mCompositorVsyncDispatcher->Shutdown();
-  }
 }
+
 
 //-------------------------------------------------------------------------
 //
@@ -918,48 +906,6 @@ void nsBaseWidget::CreateCompositor()
   CreateCompositor(rect.width, rect.height);
 }
 
-already_AddRefed<GeckoContentController>
-nsBaseWidget::CreateRootContentController()
-{
-  nsRefPtr<GeckoContentController> controller = new ChromeProcessController();
-  return controller.forget();
-}
-
-void nsBaseWidget::ConfigureAPZCTreeManager()
-{
-  uint64_t rootLayerTreeId = mCompositorParent->RootLayerTreeId();
-  mAPZC = CompositorParent::GetAPZCTreeManager(rootLayerTreeId);
-  MOZ_ASSERT(mAPZC);
-
-  mAPZC->SetDPI(GetDPI());
-
-  nsRefPtr<GeckoContentController> controller = CreateRootContentController();
-  if (controller) {
-    CompositorParent::SetControllerForLayerTree(rootLayerTreeId, controller);
-  }
-}
-
-nsEventStatus
-nsBaseWidget::DispatchEventForAPZ(WidgetGUIEvent* aEvent,
-                                  const ScrollableLayerGuid& aGuid,
-                                  uint64_t aInputBlockId)
-{
-  InputAPZContext context(aGuid, aInputBlockId);
-
-  nsEventStatus status;
-  DispatchEvent(aEvent, status);
-
-  if (mAPZC && !context.WasRoutedToChildProcess()) {
-    // APZ did not find a dispatch-to-content region in the child process,
-    // and EventStateManager did not route the event into the child process.
-    // It's safe to communicate to APZ that the event has been processed.
-    mAPZC->SetTargetAPZC(aInputBlockId, aGuid);
-    mAPZC->ContentReceivedInputBlock(aInputBlockId, aEvent->mFlags.mDefaultPrevented);
-  }
-
-  return status;
-}
-
 void
 nsBaseWidget::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
 {
@@ -968,24 +914,6 @@ nsBaseWidget::GetPreferredCompositorBackends(nsTArray<LayersBackend>& aHints)
   }
 
   aHints.AppendElement(LayersBackend::LAYERS_BASIC);
-}
-
-void nsBaseWidget::CreateCompositorVsyncDispatcher()
-{
-  if (gfxPrefs::HardwareVsyncEnabled()) {
-    // Parent directly listens to the vsync source whereas
-    // child process communicate via IPC
-    // Should be called AFTER gfxPlatform is initialized
-    if (XRE_IsParentProcess()) {
-      mCompositorVsyncDispatcher = new CompositorVsyncDispatcher();
-    }
-  }
-}
-
-CompositorVsyncDispatcher*
-nsBaseWidget::GetCompositorVsyncDispatcher()
-{
-  return mCompositorVsyncDispatcher;
 }
 
 void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
@@ -1005,18 +933,12 @@ void nsBaseWidget::CreateCompositor(int aWidth, int aHeight)
     return;
   }
 
-  CreateCompositorVsyncDispatcher();
   mCompositorParent = NewCompositorParent(aWidth, aHeight);
   MessageChannel *parentChannel = mCompositorParent->GetIPCChannel();
   nsRefPtr<ClientLayerManager> lm = new ClientLayerManager(this);
   MessageLoop *childMessageLoop = CompositorParent::CompositorLoop();
   mCompositorChild = new CompositorChild(lm);
   mCompositorChild->Open(parentChannel, childMessageLoop, ipc::ChildSide);
-
-  if (gfxPrefs::AsyncPanZoomEnabled() &&
-      (WindowType() == eWindowType_toplevel || WindowType() == eWindowType_child)) {
-    ConfigureAPZCTreeManager();
-  }
 
   TextureFactoryIdentifier textureFactoryIdentifier;
   PLayerTransactionChild* shadowManager = nullptr;

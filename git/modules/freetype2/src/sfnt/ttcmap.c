@@ -845,6 +845,9 @@
     p      = table + 2;           /* skip format */
     length = TT_NEXT_USHORT( p );
 
+    if ( length < 16 )
+      FT_INVALID_TOO_SHORT;
+
     /* in certain fonts, the `length' field is invalid and goes */
     /* out of bound.  We try to correct this here...            */
     if ( table + length > valid->limit )
@@ -854,9 +857,6 @@
 
       length = (FT_UInt)( valid->limit - table );
     }
-
-    if ( length < 16 )
-      FT_INVALID_TOO_SHORT;
 
     p        = table + 6;
     num_segs = TT_NEXT_USHORT( p );   /* read segCountX2 */
@@ -1669,8 +1669,7 @@
     p          = is32  + 8192;          /* skip `is32' array */
     num_groups = TT_NEXT_ULONG( p );
 
-    /* p + num_groups * 12 > valid->limit ? */
-    if ( num_groups > (FT_UInt32)( valid->limit - p ) / 12 )
+    if ( p + num_groups * 12 > valid->limit )
       FT_INVALID_TOO_SHORT;
 
     /* check groups, they must be in increasing order */
@@ -1695,12 +1694,7 @@
 
         if ( valid->level >= FT_VALIDATE_TIGHT )
         {
-          FT_UInt32  d = end - start;
-
-
-          /* start_id + end - start >= TT_VALID_GLYPH_COUNT( valid ) ? */
-          if ( d > TT_VALID_GLYPH_COUNT( valid )             ||
-               start_id >= TT_VALID_GLYPH_COUNT( valid ) - d )
+          if ( start_id + end - start >= TT_VALID_GLYPH_COUNT( valid ) )
             FT_INVALID_GLYPH_ID;
 
           count = (FT_UInt32)( end - start + 1 );
@@ -1898,9 +1892,7 @@
     count  = TT_NEXT_ULONG( p );
 
     if ( length > (FT_ULong)( valid->limit - table ) ||
-         /* length < 20 + count * 2 ? */
-         length < 20                                 ||
-         ( length - 20 ) / 2 < count                 )
+         length < 20 + count * 2                     )
       FT_INVALID_TOO_SHORT;
 
     /* check glyph indices */
@@ -2087,9 +2079,7 @@
     num_groups = TT_NEXT_ULONG( p );
 
     if ( length > (FT_ULong)( valid->limit - table ) ||
-         /* length < 16 + 12 * num_groups ? */
-         length < 16                                 ||
-         ( length - 16 ) / 12 < num_groups           )
+         length < 16 + 12 * num_groups               )
       FT_INVALID_TOO_SHORT;
 
     /* check groups, they must be in increasing order */
@@ -2111,12 +2101,7 @@
 
         if ( valid->level >= FT_VALIDATE_TIGHT )
         {
-          FT_UInt32  d = end - start;
-
-
-          /* start_id + end - start >= TT_VALID_GLYPH_COUNT( valid ) ? */
-          if ( d > TT_VALID_GLYPH_COUNT( valid )             ||
-               start_id >= TT_VALID_GLYPH_COUNT( valid ) - d )
+          if ( start_id + end - start >= TT_VALID_GLYPH_COUNT( valid ) )
             FT_INVALID_GLYPH_ID;
         }
 
@@ -2416,9 +2401,7 @@
     num_groups = TT_NEXT_ULONG( p );
 
     if ( length > (FT_ULong)( valid->limit - table ) ||
-         /* length < 16 + 12 * num_groups ? */
-         length < 16                                 ||
-         ( length - 16 ) / 12 < num_groups           )
+         length < 16 + 12 * num_groups               )
       FT_INVALID_TOO_SHORT;
 
     /* check groups, they must be in increasing order */
@@ -2804,9 +2787,7 @@
     num_selectors = TT_NEXT_ULONG( p );
 
     if ( length > (FT_ULong)( valid->limit - table ) ||
-         /* length < 10 + 11 * num_selectors ? */
-         length < 10                                 ||
-         ( length - 10 ) / 11 < num_selectors        )
+         length < 10 + 11 * num_selectors            )
       FT_INVALID_TOO_SHORT;
 
     /* check selectors, they must be in increasing order */
@@ -2842,8 +2823,7 @@
           FT_ULong  lastBase  = 0;
 
 
-          /* defp + numRanges * 4 > valid->limit ? */
-          if ( numRanges > (FT_ULong)( valid->limit - defp ) / 4 )
+          if ( defp + numRanges * 4 > valid->limit )
             FT_INVALID_TOO_SHORT;
 
           for ( i = 0; i < numRanges; ++i )
@@ -2870,8 +2850,7 @@
           FT_ULong  i, lastUni  = 0;
 
 
-          /* numMappings * 4 > (FT_ULong)( valid->limit - ndp ) ? */
-          if ( numMappings > ( (FT_ULong)( valid->limit - ndp ) ) / 4 )
+          if ( numMappings * 4 > (FT_ULong)( valid->limit - ndp ) )
             FT_INVALID_TOO_SHORT;
 
           for ( i = 0; i < numMappings; ++i )
@@ -3494,13 +3473,22 @@
     /* only recognize format 0 */
     if ( TT_NEXT_USHORT( p ) != 0 )
     {
+      p -= 2;
       FT_ERROR(( "tt_face_build_cmaps:"
                  " unsupported `cmap' table format = %d\n",
-                 TT_PEEK_USHORT( p - 2 ) ));
+                 TT_PEEK_USHORT( p ) ));
       return FT_THROW( Invalid_Table );
     }
 
     num_cmaps = TT_NEXT_USHORT( p );
+
+#ifdef FT_MAX_CHARMAP_CACHEABLE
+    if ( num_cmaps > FT_MAX_CHARMAP_CACHEABLE )
+      FT_ERROR(( "tt_face_build_cmaps: too many cmap subtables (%d)\n"
+                 "                     subtable #%d and higher are loaded"
+                 "                     but cannot be searched\n",
+                 num_cmaps, FT_MAX_CHARMAP_CACHEABLE + 1 ));
+#endif
 
     for ( ; num_cmaps > 0 && p + 8 <= limit; num_cmaps-- )
     {

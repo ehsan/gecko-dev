@@ -354,7 +354,7 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState&  aReflowState,
     aBEndMarginResult.Include(aReflowState.ComputedLogicalMargin().
       ConvertTo(parentWM, wm).BEnd(parentWM));
   } else {
-    // The used block-end-margin is set to zero before a break.
+    // The used bottom-margin is set to zero above a break.
     aBEndMarginResult.Zero();
   }
 
@@ -406,7 +406,7 @@ nsBlockReflowContext::PlaceBlock(const nsHTMLReflowState&  aReflowState,
   // See if the frame fit. If it's the first frame or empty then it
   // always fits. If the block-size is unconstrained then it always fits,
   // even if there's some sort of integer overflow that makes bCoord +
-  // mMetrics.BSize() appear to go beyond the available block size.
+  // mMetrics.BSize() appear to go beyond the available height.
   if (!empty && !aForceFit &&
       mSpace.BSize(mWritingMode) != NS_UNCONSTRAINEDSIZE) {
     nscoord bEnd = mBCoord -

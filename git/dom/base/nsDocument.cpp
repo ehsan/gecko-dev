@@ -445,27 +445,13 @@ CustomElementCallback::Call()
   ErrorResult rv;
   switch (mType) {
     case nsIDocument::eCreated:
-    {
       // For the duration of this callback invocation, the element is being created
       // flag must be set to true.
       mOwnerData->mElementIsBeingCreated = true;
-
-      // The callback hasn't actually been invoked yet, but we need to flip
-      // this now in order to enqueue the attached callback. This is a spec
-      // bug (w3c bug 27437).
       mOwnerData->mCreatedCallbackInvoked = true;
-
-      // If ELEMENT is in a document and this document has a browsing context,
-      // enqueue attached callback for ELEMENT.
-      nsIDocument* document = mThisObject->GetUncomposedDoc();
-      if (document && document->GetDocShell()) {
-        document->EnqueueLifecycleCallback(nsIDocument::eAttached, mThisObject);
-      }
-
       static_cast<LifecycleCreatedCallback *>(mCallback.get())->Call(mThisObject, rv);
       mOwnerData->mElementIsBeingCreated = false;
       break;
-    }
     case nsIDocument::eAttached:
       static_cast<LifecycleAttachedCallback *>(mCallback.get())->Call(mThisObject, rv);
       break;
@@ -1454,8 +1440,6 @@ nsDOMStyleSheetSetList::nsDOMStyleSheetSetList(nsIDocument* aDocument)
 void
 nsDOMStyleSheetSetList::EnsureFresh()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   mNames.Clear();
 
   if (!mDocument) {
@@ -2009,7 +1993,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mStateObjectCached)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mUndoManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAnimationTimeline)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPendingPlayerTracker)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mTemplateContentsOwner)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChildrenCollection)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mRegistry)
@@ -2093,7 +2076,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mCachedEncoder)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mUndoManager)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mAnimationTimeline)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPendingPlayerTracker)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mTemplateContentsOwner)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mChildrenCollection)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mRegistry)
@@ -3003,33 +2985,6 @@ nsDocument::InitCSP(nsIChannel* aChannel)
     }
   }
 
-  // ----- Set up any Referrer Policy specified by CSP
-  bool hasReferrerPolicy = false;
-  uint32_t referrerPolicy = mozilla::net::RP_Default;
-  rv = csp->GetReferrerPolicy(&referrerPolicy, &hasReferrerPolicy);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (hasReferrerPolicy) {
-    // Referrer policy spec (section 6.1) says that once the referrer policy
-    // is set, any future attempts to change it result in No-Referrer.
-    if (!mReferrerPolicySet) {
-      mReferrerPolicy = static_cast<ReferrerPolicy>(referrerPolicy);
-      mReferrerPolicySet = true;
-    } else if (mReferrerPolicy != referrerPolicy) {
-      mReferrerPolicy = mozilla::net::RP_No_Referrer;
-#ifdef PR_LOGGING
-      {
-        PR_LOG(gCspPRLog, PR_LOG_DEBUG, ("%s %s",
-                "CSP wants to set referrer, but nsDocument"
-                "already has it set. No referrers will be sent"));
-      }
-#endif
-    }
-
-    // Referrer Policy is set separately for the speculative parser in
-    // nsHTMLDocument::StartDocumentLoad() so there's nothing to do here for
-    // speculative loads.
-  }
-
   rv = principal->SetCsp(csp);
   NS_ENSURE_SUCCESS(rv, rv);
 #ifdef PR_LOGGING
@@ -3280,15 +3235,6 @@ nsDocument::GetUndoManager()
 
   nsRefPtr<UndoManager> undoManager = mUndoManager;
   return undoManager.forget();
-}
-
-bool
-nsDocument::IsWebAnimationsEnabled(JSContext* /*unused*/, JSObject* /*unused*/)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  return nsContentUtils::IsCallerChrome() ||
-         Preferences::GetBool("dom.animations-api.core.enabled");
 }
 
 AnimationTimeline*
@@ -3619,12 +3565,7 @@ nsDocument::SetBaseURI(nsIURI* aURI)
   NS_ENSURE_SUCCESS(rv, rv);
   if (csp && aURI) {
     bool permitsBaseURI = false;
-
-    // base-uri is only enforced if explicitly defined in the
-    // policy - do *not* consult default-src, see:
-    // http://www.w3.org/TR/CSP2/#directive-default-src
-    rv = csp->Permits(aURI, nsIContentSecurityPolicy::BASE_URI_DIRECTIVE,
-                      true, &permitsBaseURI);
+    rv = csp->PermitsBaseURI(aURI, &permitsBaseURI);
     NS_ENSURE_SUCCESS(rv, rv);
     if (!permitsBaseURI) {
       return NS_OK;
@@ -3961,7 +3902,8 @@ nsDocument::SetSubDocumentFor(Element* aElement, nsIDocument* aSubDoc)
     if (mSubDocuments) {
       SubDocMapEntry *entry =
         static_cast<SubDocMapEntry*>
-                   (PL_DHashTableLookup(mSubDocuments, aElement));
+                   (PL_DHashTableOperate(mSubDocuments, aElement,
+                                         PL_DHASH_LOOKUP));
 
       if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
         PL_DHashTableRawRemove(mSubDocuments, entry);
@@ -3993,7 +3935,8 @@ nsDocument::SetSubDocumentFor(Element* aElement, nsIDocument* aSubDoc)
     // Add a mapping to the hash table
     SubDocMapEntry *entry =
       static_cast<SubDocMapEntry*>
-                 (PL_DHashTableAdd(mSubDocuments, aElement));
+                 (PL_DHashTableOperate(mSubDocuments, aElement,
+                                       PL_DHASH_ADD));
 
     if (!entry) {
       return NS_ERROR_OUT_OF_MEMORY;
@@ -4021,7 +3964,8 @@ nsDocument::GetSubDocumentFor(nsIContent *aContent) const
   if (mSubDocuments && aContent->IsElement()) {
     SubDocMapEntry *entry =
       static_cast<SubDocMapEntry*>
-                 (PL_DHashTableLookup(mSubDocuments, aContent->AsElement()));
+                 (PL_DHashTableOperate(mSubDocuments, aContent->AsElement(),
+                                       PL_DHASH_LOOKUP));
 
     if (PL_DHASH_ENTRY_IS_BUSY(entry)) {
       return entry->mSubDocument;
@@ -4718,23 +4662,7 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
   // still test false at this point and no state change will happen) or we're
   // doing the initial document load and don't want to fire the event for this
   // change.
-  dom::VisibilityState oldState = mVisibilityState;
   mVisibilityState = GetVisibilityState();
-  // When the visibility is changed, notify it to observers.
-  // Some observers need the notification, for example HTMLMediaElement uses
-  // it to update internal media resource allocation.
-  // When video is loaded via VideoDocument, HTMLMediaElement and MediaDecoder
-  // creation are already done before nsDocument::SetScriptGlobalObject() call.
-  // MediaDecoder decides whether starting decoding is decided based on
-  // document's visibility. When the MediaDecoder is created,
-  // nsDocument::SetScriptGlobalObject() is not yet called and document is
-  // hidden state. Therefore the MediaDecoder decides that decoding is
-  // not yet necessary. But soon after nsDocument::SetScriptGlobalObject()
-  // call, the document becomes not hidden. At the time, MediaDecoder needs
-  // to know it and needs to start updating decoding.
-  if (oldState != mVisibilityState) {
-    EnumerateActivityObservers(NotifyActivityChanged, nullptr);
-  }
 
   // The global in the template contents owner document should be the same.
   if (mTemplateContentsOwner && mTemplateContentsOwner != this) {
@@ -5461,30 +5389,23 @@ nsIDocument::CreateElement(const nsAString& aTagName, ErrorResult& rv)
 }
 
 void
-nsDocument::SetupCustomElement(Element* aElement,
-                               uint32_t aNamespaceID,
-                               const nsAString* aTypeExtension)
+nsDocument::SwizzleCustomElement(Element* aElement,
+                                 const nsAString& aTypeExtension,
+                                 uint32_t aNamespaceID,
+                                 ErrorResult& rv)
 {
-  if (!mRegistry) {
-    return;
-  }
-
+  nsCOMPtr<nsIAtom> typeAtom(do_GetAtom(aTypeExtension));
   nsCOMPtr<nsIAtom> tagAtom = aElement->Tag();
-  nsCOMPtr<nsIAtom> typeAtom = aTypeExtension ?
-    do_GetAtom(*aTypeExtension) : tagAtom;
-
-  if (aTypeExtension && !aElement->HasAttr(kNameSpaceID_None, nsGkAtoms::is)) {
-    // Custom element setup in the parser happens after the "is"
-    // attribute is added.
-    aElement->SetAttr(kNameSpaceID_None, nsGkAtoms::is, *aTypeExtension, true);
+  if (!mRegistry || tagAtom == typeAtom) {
+    return;
   }
 
   CustomElementDefinition* data;
   CustomElementHashKey key(aNamespaceID, typeAtom);
   if (!mRegistry->mCustomDefinitions.Get(&key, &data)) {
     // The type extension doesn't exist in the registry,
-    // thus we don't need to enqueue callback or adjust
-    // the "is" attribute, but it is possibly an upgrade candidate.
+    // thus we don't need to swizzle, but it is possibly
+    // an upgrade candidate.
     RegisterUnresolvedElement(aElement, typeAtom);
     return;
   }
@@ -5494,6 +5415,11 @@ nsDocument::SetupCustomElement(Element* aElement,
     // definition, thus the element isn't a custom element
     // and we don't need to do anything more.
     return;
+  }
+
+  if (!aElement->HasAttr(kNameSpaceID_None, nsGkAtoms::is)) {
+    // Swizzling in the parser happens after the "is" attribute is added.
+    aElement->SetAttr(kNameSpaceID_None, nsGkAtoms::is, aTypeExtension, true);
   }
 
   // Enqueuing the created callback will set the CustomElementData on the
@@ -5511,9 +5437,10 @@ nsDocument::CreateElement(const nsAString& aTagName,
     return nullptr;
   }
 
-  if (!aTagName.Equals(aTypeExtension)) {
-    // Custom element type can not extend itself.
-    SetupCustomElement(elem, GetDefaultNamespaceID(), &aTypeExtension);
+  SwizzleCustomElement(elem, aTypeExtension,
+                       GetDefaultNamespaceID(), rv);
+  if (rv.Failed()) {
+    return nullptr;
   }
 
   return elem.forget();
@@ -5578,9 +5505,9 @@ nsDocument::CreateElementNS(const nsAString& aNamespaceURI,
     }
   }
 
-  if (!aQualifiedName.Equals(aTypeExtension)) {
-    // A custom element type can not extend itself.
-    SetupCustomElement(elem, nameSpaceId, &aTypeExtension);
+  SwizzleCustomElement(elem, aTypeExtension, nameSpaceId, rv);
+  if (rv.Failed()) {
+    return nullptr;
   }
 
   return elem.forget();
@@ -5807,12 +5734,12 @@ nsDocument::CustomElementConstructor(JSContext* aCx, unsigned aArgc, JS::Value* 
                                      getter_AddRefs(newElement));
   NS_ENSURE_SUCCESS(rv, true);
 
+  ErrorResult errorResult;
   nsCOMPtr<Element> element = do_QueryInterface(newElement);
-  if (definition->mLocalName != typeAtom) {
-    // This element is a custom element by extension, thus we need to
-    // do some special setup. For non-extended custom elements, this happens
-    // when the element is created.
-    document->SetupCustomElement(element, definition->mNamespaceID, &elemName);
+  document->SwizzleCustomElement(element, elemName, definition->mNamespaceID,
+                                 errorResult);
+  if (errorResult.Failed()) {
+    return true;
   }
 
   rv = nsContentUtils::WrapNative(aCx, newElement, newElement, args.rval());
@@ -6133,7 +6060,7 @@ nsDocument::RegisterElement(JSContext* aCx, const nsAString& aType,
   }
 
   JS::Rooted<JSObject*> global(aCx, sgo->GetGlobalJSObject());
-  nsCOMPtr<nsIAtom> nameAtom;
+  nsCOMPtr<nsIAtom> nameAtom;;
   int32_t namespaceID = kNameSpaceID_XHTML;
   JS::Rooted<JSObject*> protoObject(aCx);
   {
@@ -6311,6 +6238,16 @@ nsDocument::RegisterElement(JSContext* aCx, const nsAString& aType,
       }
 
       EnqueueLifecycleCallback(nsIDocument::eCreated, elem, nullptr, definition);
+      //XXXsmaug It is unclear if we should use GetComposedDoc() here.
+      if (elem->GetUncomposedDoc()) {
+        // Normally callbacks can not be enqueued until the created
+        // callback has been invoked, however, the attached callback
+        // in element upgrade is an exception so pretend the created
+        // callback has been invoked.
+        elem->GetCustomElementData()->mCreatedCallbackInvoked = true;
+
+        EnqueueLifecycleCallback(nsIDocument::eAttached, elem, nullptr, definition);
+      }
     }
   }
 
@@ -6324,13 +6261,7 @@ nsDocument::RegisterElement(JSContext* aCx, const nsAString& aType,
     return;
   }
 
-  JS::Rooted<JSObject*> constructorObj(aCx, JS_GetFunctionObject(constructor));
-  if (!JS_LinkConstructorAndPrototype(aCx, constructorObj, protoObject)) {
-    rv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
-    return;
-  }
-
-  aRetval.set(constructorObj);
+  aRetval.set(JS_GetFunctionObject(constructor));
 }
 
 void
@@ -7419,16 +7350,6 @@ nsDocument::GetAnimationController()
   }
 
   return mAnimationController;
-}
-
-PendingPlayerTracker*
-nsDocument::GetOrCreatePendingPlayerTracker()
-{
-  if (!mPendingPlayerTracker) {
-    mPendingPlayerTracker = new PendingPlayerTracker(this);
-  }
-
-  return mPendingPlayerTracker;
 }
 
 /**
@@ -9720,7 +9641,7 @@ class StubCSSLoaderObserver MOZ_FINAL : public nsICSSLoaderObserver {
   ~StubCSSLoaderObserver() {}
 public:
   NS_IMETHOD
-  StyleSheetLoaded(CSSStyleSheet*, bool, nsresult) MOZ_OVERRIDE
+  StyleSheetLoaded(CSSStyleSheet*, bool, nsresult)
   {
     return NS_OK;
   }
@@ -10255,25 +10176,18 @@ nsDocument::FindImageMap(const nsAString& aUseMapValue)
 }
 
 #define DEPRECATED_OPERATION(_op) #_op "Warning",
-static const char* kDeprecationWarnings[] = {
+static const char* kWarnings[] = {
 #include "nsDeprecatedOperationList.h"
   nullptr
 };
 #undef DEPRECATED_OPERATION
-
-#define DOCUMENT_WARNING(_op) #_op "Warning",
-static const char* kDocumentWarnings[] = {
-#include "nsDocumentWarningList.h"
-  nullptr
-};
-#undef DOCUMENT_WARNING
 
 bool
 nsIDocument::HasWarnedAbout(DeprecatedOperations aOperation)
 {
   static_assert(eDeprecatedOperationCount <= 64,
                 "Too many deprecated operations");
-  return mDeprecationWarnedAbout & (1ull << aOperation);
+  return mWarnedAbout & (1ull << aOperation);
 }
 
 void
@@ -10283,41 +10197,13 @@ nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation,
   if (HasWarnedAbout(aOperation)) {
     return;
   }
-  mDeprecationWarnedAbout |= (1ull << aOperation);
+  mWarnedAbout |= (1ull << aOperation);
   uint32_t flags = asError ? nsIScriptError::errorFlag
                            : nsIScriptError::warningFlag;
   nsContentUtils::ReportToConsole(flags,
                                   NS_LITERAL_CSTRING("DOM Core"), this,
                                   nsContentUtils::eDOM_PROPERTIES,
-                                  kDeprecationWarnings[aOperation]);
-}
-
-bool
-nsIDocument::HasWarnedAbout(DocumentWarnings aWarning)
-{
-  static_assert(eDocumentWarningCount <= 64,
-                "Too many document warnings");
-  return mDocWarningWarnedAbout & (1ull << aWarning);
-}
-
-void
-nsIDocument::WarnOnceAbout(DocumentWarnings aWarning,
-                           bool asError /* = false */,
-                           const char16_t **aParams /* = nullptr */,
-                           uint32_t aParamsLength /* = 0 */)
-{
-  if (HasWarnedAbout(aWarning)) {
-    return;
-  }
-  mDocWarningWarnedAbout |= (1ull << aWarning);
-  uint32_t flags = asError ? nsIScriptError::errorFlag
-                           : nsIScriptError::warningFlag;
-  nsContentUtils::ReportToConsole(flags,
-                                  NS_LITERAL_CSTRING("DOM Core"), this,
-                                  nsContentUtils::eDOM_PROPERTIES,
-                                  kDocumentWarnings[aWarning],
-                                  aParams,
-                                  aParamsLength);
+                                  kWarnings[aOperation]);
 }
 
 nsresult
@@ -11860,7 +11746,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSICONTENTPERMISSIONREQUEST
 
-  NS_IMETHOD Run() MOZ_OVERRIDE
+  NS_IMETHOD Run()
   {
     nsCOMPtr<Element> e = do_QueryReferent(mElement);
     nsCOMPtr<nsIDocument> d = do_QueryReferent(mDocument);

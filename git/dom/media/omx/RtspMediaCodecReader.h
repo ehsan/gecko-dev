@@ -49,7 +49,7 @@ public:
   // ChannelMediaResource, it has a "cache" that can store the whole streaming
   // data so the |GetBuffered| function can retrieve useful time ranges.
   virtual nsresult GetBuffered(dom::TimeRanges* aBuffered) MOZ_OVERRIDE {
-    return NS_ERROR_NOT_IMPLEMENTED;
+    return NS_OK;
   }
 
   virtual void SetIdle() MOZ_OVERRIDE;

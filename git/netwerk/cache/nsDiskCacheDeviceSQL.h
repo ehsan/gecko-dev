@@ -74,34 +74,34 @@ public:
    * nsCacheDevice methods
    */
 
-  virtual nsresult        Init() MOZ_OVERRIDE;
+  virtual nsresult        Init();
   nsresult                InitWithSqlite(mozIStorageService * ss);
-  virtual nsresult        Shutdown() MOZ_OVERRIDE;
+  virtual nsresult        Shutdown();
 
-  virtual const char *    GetDeviceID(void) MOZ_OVERRIDE;
-  virtual nsCacheEntry *  FindEntry(nsCString * key, bool *collision) MOZ_OVERRIDE;
-  virtual nsresult        DeactivateEntry(nsCacheEntry * entry) MOZ_OVERRIDE;
-  virtual nsresult        BindEntry(nsCacheEntry * entry) MOZ_OVERRIDE;
-  virtual void            DoomEntry( nsCacheEntry * entry ) MOZ_OVERRIDE;
+  virtual const char *    GetDeviceID(void);
+  virtual nsCacheEntry *  FindEntry(nsCString * key, bool *collision);
+  virtual nsresult        DeactivateEntry(nsCacheEntry * entry);
+  virtual nsresult        BindEntry(nsCacheEntry * entry);
+  virtual void            DoomEntry( nsCacheEntry * entry );
 
   virtual nsresult OpenInputStreamForEntry(nsCacheEntry *    entry,
                                            nsCacheAccessMode mode,
                                            uint32_t          offset,
-                                           nsIInputStream ** result) MOZ_OVERRIDE;
+                                           nsIInputStream ** result);
 
   virtual nsresult OpenOutputStreamForEntry(nsCacheEntry *     entry,
                                             nsCacheAccessMode  mode,
                                             uint32_t           offset,
-                                            nsIOutputStream ** result) MOZ_OVERRIDE;
+                                            nsIOutputStream ** result);
 
   virtual nsresult        GetFileForEntry(nsCacheEntry *    entry,
-                                          nsIFile **        result) MOZ_OVERRIDE;
+                                          nsIFile **        result);
 
-  virtual nsresult        OnDataSizeChange(nsCacheEntry * entry, int32_t deltaSize) MOZ_OVERRIDE;
+  virtual nsresult        OnDataSizeChange(nsCacheEntry * entry, int32_t deltaSize);
   
-  virtual nsresult        Visit(nsICacheVisitor * visitor) MOZ_OVERRIDE;
+  virtual nsresult        Visit(nsICacheVisitor * visitor);
 
-  virtual nsresult        EvictEntries(const char * clientID) MOZ_OVERRIDE;
+  virtual nsresult        EvictEntries(const char * clientID);
 
   /* Entry ownership */
   nsresult                GetOwnerDomains(const char *        clientID,

@@ -74,8 +74,7 @@
   }
 
 
-  /* Get new edge for given axis, direction, and position, */
-  /* without initializing the edge itself.                 */
+  /* Get new edge for given axis, direction, and position. */
 
   FT_LOCAL( FT_Error )
   af_axis_hints_new_edge( AF_AxisHints  axis,
@@ -131,6 +130,10 @@
 
     axis->num_edges++;
 
+    FT_ZERO( edge );
+    edge->fpos = (FT_Short)fpos;
+    edge->dir  = (FT_Char)dir;
+
   Exit:
     *anedge = edge;
     return error;
@@ -180,7 +183,7 @@
   }
 
 
-#define AF_INDEX_NUM( ptr, base )  (int)( (ptr) ? ( (ptr) - (base) ) : -1 )
+#define AF_INDEX_NUM( ptr, base )  ( (ptr) ? ( (ptr) - (base) ) : -1 )
 
 
 #ifdef __cplusplus
@@ -201,15 +204,20 @@
 
     for ( point = points; point < limit; point++ )
       AF_DUMP(( "  [ %5d | %5d | %5d | %6.2f | %6.2f"
-                " | %5.2f | %5.2f | %c ]\n",
-                AF_INDEX_NUM( point, points ),
+                " | %5.2f | %5.2f | %c%c%c%c%c%c ]\n",
+                point - points,
                 point->fx,
                 point->fy,
                 point->ox / 64.0,
                 point->oy / 64.0,
                 point->x / 64.0,
                 point->y / 64.0,
-                ( point->flags & AF_FLAG_WEAK_INTERPOLATION ) ? 'w' : ' '));
+                ( point->flags & AF_FLAG_WEAK_INTERPOLATION ) ? 'w' : ' ',
+                ( point->flags & AF_FLAG_INFLECTION )         ? 'i' : ' ',
+                ( point->flags & AF_FLAG_EXTREMA_X )          ? '<' : ' ',
+                ( point->flags & AF_FLAG_EXTREMA_Y )          ? 'v' : ' ',
+                ( point->flags & AF_FLAG_ROUND_X )            ? '(' : ' ',
+                ( point->flags & AF_FLAG_ROUND_Y )            ? 'u' : ' '));
     AF_DUMP(( "\n" ));
   }
 #ifdef __cplusplus
@@ -281,7 +289,7 @@
         AF_DUMP(( "  [ %5d | %5.2g | %5s | %4d"
                   " | %4d | %4d | %5d | %4d"
                   " | %6d | %5d | %11s ]\n",
-                  AF_INDEX_NUM( seg, segments ),
+                  seg - segments,
                   dimension == AF_DIMENSION_HORZ
                                ? (int)seg->first->ox / 64.0
                                : (int)seg->first->oy / 64.0,
@@ -412,7 +420,7 @@
       for ( edge = edges; edge < limit; edge++ )
         AF_DUMP(( "  [ %5d | %5.2g | %5s | %4d"
                   " | %5d |   %c  | %5.2f | %5.2f | %11s ]\n",
-                  AF_INDEX_NUM( edge, edges ),
+                  edge - edges,
                   (int)edge->opos / 64.0,
                   af_dir_str( (AF_Direction)edge->dir ),
                   AF_INDEX_NUM( edge->link, edges ),
@@ -643,9 +651,6 @@
 
         for ( point = points; point < point_limit; point++, vec++, tag++ )
         {
-          point->in_dir  = (FT_Char)AF_DIR_NONE;
-          point->out_dir = (FT_Char)AF_DIR_NONE;
-
           point->fx = (FT_Short)vec->x;
           point->fy = (FT_Short)vec->y;
           point->ox = point->x = FT_MulFix( vec->x, x_scale ) + x_delta;
@@ -693,186 +698,91 @@
         }
       }
 
+      /* compute directions of in & out vectors */
       {
-        /*
-         *  Compute directions of `in' and `out' vectors.
-         *
-         *  Note that distances between points that are very near to each
-         *  other are accumulated.  In other words, the auto-hinter
-         *  prepends the small vectors between near points to the first
-         *  non-near vector.  All intermediate points are tagged as
-         *  weak; the directions are adjusted also to be equal to the
-         *  accumulated one.
-         */
+        AF_Point      first  = points;
+        AF_Point      prev   = NULL;
+        FT_Pos        in_x   = 0;
+        FT_Pos        in_y   = 0;
+        AF_Direction  in_dir = AF_DIR_NONE;
 
-        /* value 20 in `near_limit' is heuristic */
+        FT_Pos  last_good_in_x = 0;
+        FT_Pos  last_good_in_y = 0;
+
         FT_UInt  units_per_em = hints->metrics->scaler.face->units_per_EM;
         FT_Int   near_limit   = 20 * units_per_em / 2048;
-        FT_Int   near_limit2  = 2 * near_limit - 1;
 
-        AF_Point*  contour;
-        AF_Point*  contour_limit = hints->contours + hints->num_contours;
-
-
-        for ( contour = hints->contours; contour < contour_limit; contour++ )
-        {
-          AF_Point  first = *contour;
-          AF_Point  next, prev, curr;
-
-          FT_Pos  out_x, out_y;
-
-          FT_Bool  is_first;
-
-
-          /* since the first point of a contour could be part of a */
-          /* series of near points, go backwards to find the first */
-          /* non-near point and adjust `first'                     */
-
-          point = first;
-          prev  = first->prev;
-
-          while ( prev != first )
-          {
-            out_x = point->fx - prev->fx;
-            out_y = point->fy - prev->fy;
-
-            /*
-             *  We use Taxicab metrics to measure the vector length.
-             *
-             *  Note that the accumulated distances so far could have the
-             *  opposite direction of the distance measured here.  For this
-             *  reason we use `near_limit2' for the comparison to get a
-             *  non-near point even in the worst case.
-             */
-            if ( FT_ABS( out_x ) + FT_ABS( out_y ) >= near_limit2 )
-              break;
-
-            point = prev;
-            prev  = prev->prev;
-          }
-
-          /* adjust first point */
-          first = point;
-
-          /* now loop over all points of the contour to get */
-          /* `in' and `out' vector directions               */
-
-          curr  = first;
-
-          /*
-           *  We abuse the `u' and `v' fields to store index deltas to the
-           *  next and previous non-near point, respectively.
-           *
-           *  To avoid problems with not having non-near points, we point to
-           *  `first' by default as the next non-near point.
-           *
-           */
-          curr->u  = (FT_Pos)( first - curr );
-          first->v = -curr->u;
-
-          out_x = 0;
-          out_y = 0;
-
-          is_first = 1;
-
-          for ( point = first;
-                point != first || is_first;
-                point = point->next )
-          {
-            AF_Direction  out_dir;
-
-
-            is_first = 0;
-
-            next = point->next;
-
-            out_x += next->fx - point->fx;
-            out_y += next->fy - point->fy;
-
-            if ( FT_ABS( out_x ) + FT_ABS( out_y ) < near_limit )
-            {
-              next->flags |= AF_FLAG_WEAK_INTERPOLATION;
-              continue;
-            }
-
-            curr->u = (FT_Pos)( next - curr );
-            next->v = -curr->u;
-
-            out_dir = af_direction_compute( out_x, out_y );
-
-            /* adjust directions for all points inbetween; */
-            /* the loop also updates position of `curr'    */
-            curr->out_dir = (FT_Char)out_dir;
-            for ( curr = curr->next; curr != next; curr = curr->next )
-            {
-              curr->in_dir  = (FT_Char)out_dir;
-              curr->out_dir = (FT_Char)out_dir;
-            }
-            next->in_dir = (FT_Char)out_dir;
-
-            curr->u  = (FT_Pos)( first - curr );
-            first->v = -curr->u;
-
-            out_x = 0;
-            out_y = 0;
-          }
-        }
-
-        /*
-         *  The next step is to `simplify' an outline's topology so that we
-         *  can identify local extrema more reliably: A series of
-         *  non-horizontal or non-vertical vectors pointing into the same
-         *  quadrant are handled as a single, long vector.  From a
-         *  topological point of the view, the intermediate points are of no
-         *  interest and thus tagged as weak.
-         */
 
         for ( point = points; point < point_limit; point++ )
         {
-          if ( point->flags & AF_FLAG_WEAK_INTERPOLATION )
-            continue;
+          AF_Point  next;
+          FT_Pos    out_x, out_y;
 
-          if ( point->in_dir  == AF_DIR_NONE &&
-               point->out_dir == AF_DIR_NONE )
+
+          if ( point == first )
           {
-            /* check whether both vectors point into the same quadrant */
+            prev = first->prev;
 
-            FT_Pos  in_x, in_y;
-            FT_Pos  out_x, out_y;
+            in_x = first->fx - prev->fx;
+            in_y = first->fy - prev->fy;
 
-            AF_Point  next_u = point + point->u;
-            AF_Point  prev_v = point + point->v;
+            last_good_in_x = in_x;
+            last_good_in_y = in_y;
 
-
-            in_x = point->fx - prev_v->fx;
-            in_y = point->fy - prev_v->fy;
-
-            out_x = next_u->fx - point->fx;
-            out_y = next_u->fy - point->fy;
-
-            if ( ( in_x ^ out_x ) >= 0 && ( in_y ^ out_y ) >= 0 )
+            if ( FT_ABS( in_x ) + FT_ABS( in_y ) < near_limit )
             {
-              /* yes, so tag current point as weak */
-              /* and update index deltas           */
+              /* search first non-near point to get a good `in_dir' value */
 
-              point->flags |= AF_FLAG_WEAK_INTERPOLATION;
+              AF_Point  point_ = prev;
 
-              prev_v->u = (FT_Pos)( next_u - prev_v );
-              next_u->v = -prev_v->u;
+
+              while ( point_ != first )
+              {
+                AF_Point  prev_ = point_->prev;
+
+                FT_Pos  in_x_ = point_->fx - prev_->fx;
+                FT_Pos  in_y_ = point_->fy - prev_->fy;
+
+
+                if ( FT_ABS( in_x_ ) + FT_ABS( in_y_ ) >= near_limit )
+                {
+                  last_good_in_x = in_x_;
+                  last_good_in_y = in_y_;
+
+                  break;
+                }
+
+                point_ = prev_;
+              }
             }
+
+            in_dir = af_direction_compute( in_x, in_y );
+            first  = prev + 1;
           }
-        }
 
-        /*
-         *  Finally, check for remaining weak points.  Everything else not
-         *  collected in edges so far is then implicitly classified as strong
-         *  points.
-         */
+          point->in_dir = (FT_Char)in_dir;
 
-        for ( point = points; point < point_limit; point++ )
-        {
-          if ( point->flags & AF_FLAG_WEAK_INTERPOLATION )
-            continue;
+          /* check whether the current point is near to the previous one */
+          /* (value 20 in `near_limit' is heuristic; we use Taxicab      */
+          /* metrics for the test)                                       */
+
+          if ( FT_ABS( in_x ) + FT_ABS( in_y ) < near_limit )
+            point->flags |= AF_FLAG_NEAR;
+          else
+          {
+            last_good_in_x = in_x;
+            last_good_in_y = in_y;
+          }
+
+          next  = point->next;
+          out_x = next->fx - point->fx;
+          out_y = next->fy - point->fy;
+
+          in_dir         = af_direction_compute( out_x, out_y );
+          point->out_dir = (FT_Char)in_dir;
+
+          /* Check for weak points.  The remaining points not collected */
+          /* in edges are then implicitly classified as strong points.  */
 
           if ( point->flags & AF_FLAG_CONTROL )
           {
@@ -889,25 +799,18 @@
               goto Is_Weak_Point;
             }
 
+            /* test whether `in' and `out' direction is approximately */
+            /* the same (and use the last good `in' vector in case    */
+            /* the current point is near to the previous one)         */
+            if ( ft_corner_is_flat(
+                   point->flags & AF_FLAG_NEAR ? last_good_in_x : in_x,
+                   point->flags & AF_FLAG_NEAR ? last_good_in_y : in_y,
+                   out_x,
+                   out_y ) )
             {
-              AF_Point  next_u = point + point->u;
-              AF_Point  prev_v = point + point->v;
-
-
-              if ( ft_corner_is_flat( point->fx  - prev_v->fx,
-                                      point->fy  - prev_v->fy,
-                                      next_u->fx - point->fx,
-                                      next_u->fy - point->fy ) )
-              {
-                /* either the `in' or the `out' vector is much more  */
-                /* dominant than the other one, so tag current point */
-                /* as weak and update index deltas                   */
-
-                prev_v->u = (FT_Pos)( next_u - prev_v );
-                next_u->v = -prev_v->u;
-
-                goto Is_Weak_Point;
-              }
+              /* current point lies on a straight, diagonal line */
+              /* (more or less)                                  */
+              goto Is_Weak_Point;
             }
           }
           else if ( point->in_dir == -point->out_dir )
@@ -915,6 +818,9 @@
             /* current point forms a spike */
             goto Is_Weak_Point;
           }
+
+          in_x = out_x;
+          in_y = out_y;
         }
       }
     }
@@ -1071,7 +977,8 @@
         /* if this point is candidate to weak interpolation, we       */
         /* interpolate it after all strong points have been processed */
 
-        if ( ( point->flags & AF_FLAG_WEAK_INTERPOLATION ) )
+        if (  ( point->flags & AF_FLAG_WEAK_INTERPOLATION ) &&
+             !( point->flags & AF_FLAG_INFLECTION )         )
           continue;
 
         if ( dim == AF_DIMENSION_VERT )

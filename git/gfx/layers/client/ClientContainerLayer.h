@@ -28,7 +28,8 @@ class ClientContainerLayer : public ContainerLayer,
 {
 public:
   explicit ClientContainerLayer(ClientLayerManager* aManager) :
-    ContainerLayer(aManager, static_cast<ClientLayer*>(this))
+    ContainerLayer(aManager,
+                   static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
   {
     MOZ_COUNT_CTOR(ClientContainerLayer);
     mSupportsComponentAlphaChildren = true;
@@ -45,7 +46,7 @@ protected:
   }
 
 public:
-  virtual void RenderLayer() MOZ_OVERRIDE
+  virtual void RenderLayer()
   {
     if (GetMaskLayer()) {
       ToClientLayer(GetMaskLayer())->RenderLayer();
@@ -74,7 +75,7 @@ public:
     }
   }
 
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion) MOZ_OVERRIDE
+  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
   {
     NS_ASSERTION(ClientManager()->InConstruction(),
                  "Can only set properties in construction phase");
@@ -127,10 +128,10 @@ public:
     return true;
   }
 
-  virtual Layer* AsLayer() MOZ_OVERRIDE { return this; }
-  virtual ShadowableLayer* AsShadowableLayer() MOZ_OVERRIDE { return this; }
+  virtual Layer* AsLayer() { return this; }
+  virtual ShadowableLayer* AsShadowableLayer() { return this; }
 
-  virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface) MOZ_OVERRIDE
+  virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface)
   {
     DefaultComputeEffectiveTransforms(aTransformToSurface);
   }
@@ -150,7 +151,8 @@ class ClientRefLayer : public RefLayer,
                        public ClientLayer {
 public:
   explicit ClientRefLayer(ClientLayerManager* aManager) :
-    RefLayer(aManager, static_cast<ClientLayer*>(this))
+    RefLayer(aManager,
+             static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
   {
     MOZ_COUNT_CTOR(ClientRefLayer);
   }

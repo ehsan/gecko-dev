@@ -7,8 +7,6 @@
 // opened correctly in View Source from the Browser Console.
 // See bug 866950.
 
-"use strict";
-
 const TEST_URI = "data:text/html;charset=utf8,<p>hello world from bug 866950";
 
 function test()
@@ -30,7 +28,7 @@ function test()
     // Cause an exception in a script loaded with the addon-sdk loader.
     let toolbox = gDevTools.getToolbox(webconsole.target);
     let oldPanels = toolbox._toolPanels;
-    toolbox._toolPanels = {}; // non-iterable
+    toolbox._toolPanels = null;
 
     function fixToolbox() {
       toolbox._toolPanels = oldPanels;
@@ -47,7 +45,7 @@ function test()
     let [result] = yield waitForMessages({
       webconsole: browserconsole,
       messages: [{
-        text: "TypeError: this._toolPanels is not iterable",
+        text: "TypeError: can't convert null to object",
         category: CATEGORY_JS,
         severity: SEVERITY_ERROR,
       }],

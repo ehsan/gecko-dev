@@ -19,8 +19,7 @@ UNIFIED_SOURCES += [
     'WebMReader.cpp',
 ]
 
-if CONFIG['MOZ_FMP4'] and CONFIG['MOZ_WMF']:
-    DEFINES['MOZ_PDM_VPX'] = True
+if CONFIG['MOZ_FMP4']:
     UNIFIED_SOURCES += ['IntelWebMVideoDecoder.cpp']
 
 if CONFIG['MOZ_WEBM_ENCODER']:

@@ -135,16 +135,6 @@ nsAlertsIconListener::OnLoadComplete(imgIRequest* aRequest)
     mIconRequest = nullptr;
   }
 
-  nsCOMPtr<imgIContainer> image;
-  rv = aRequest->GetImage(getter_AddRefs(image));
-  MOZ_ASSERT(image);
-
-  // Ask the image to decode at its intrinsic size.
-  int32_t width = 0, height = 0;
-  image->GetWidth(&width);
-  image->GetHeight(&height);
-  image->RequestDecodeForSize(nsIntSize(width, height), imgIContainer::FLAG_NONE);
-
   return NS_OK;
 }
 
@@ -210,7 +200,7 @@ nsAlertsIconListener::ShowAlert(GdkPixbuf* aPixbuf)
 }
 
 nsresult
-nsAlertsIconListener::StartRequest(const nsAString & aImageUrl, bool aInPrivateBrowsing)
+nsAlertsIconListener::StartRequest(const nsAString & aImageUrl)
 {
   if (mIconRequest) {
     // Another icon request is already in flight.  Kill it.
@@ -229,13 +219,12 @@ nsAlertsIconListener::StartRequest(const nsAString & aImageUrl, bool aInPrivateB
 
   nsresult rv = il->LoadImageXPCOM(imageUri, nullptr, nullptr,
                                    NS_LITERAL_STRING("default"), nullptr, nullptr,
-                                   this, nullptr,
-                                   aInPrivateBrowsing ? nsIRequest::LOAD_ANONYMOUS :
-                                                        nsIRequest::LOAD_NORMAL,
-                                   nullptr, 0 /* use default */,
-                                   getter_AddRefs(mIconRequest));
+                                   this, nullptr, nsIRequest::LOAD_NORMAL, nullptr,
+                                   0 /* use default */, getter_AddRefs(mIconRequest));
   if (NS_FAILED(rv))
     return rv;
+
+  mIconRequest->StartDecoding();
 
   return NS_OK;
 }
@@ -278,8 +267,7 @@ nsAlertsIconListener::InitAlertAsync(const nsAString & aImageUrl,
                                      const nsAString & aAlertText,
                                      bool aAlertTextClickable,
                                      const nsAString & aAlertCookie,
-                                     nsIObserver * aAlertListener,
-                                     bool aInPrivateBrowsing)
+                                     nsIObserver * aAlertListener)
 {
   if (!libNotifyHandle)
     return NS_ERROR_FAILURE;
@@ -353,5 +341,5 @@ nsAlertsIconListener::InitAlertAsync(const nsAString & aImageUrl,
   mAlertListener = aAlertListener;
   mAlertCookie = aAlertCookie;
 
-  return StartRequest(aImageUrl, aInPrivateBrowsing);
+  return StartRequest(aImageUrl);
 }

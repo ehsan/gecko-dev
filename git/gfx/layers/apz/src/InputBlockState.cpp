@@ -37,7 +37,6 @@ InputBlockState::SetConfirmedTargetApzc(const nsRefPtr<AsyncPanZoomController>& 
   }
   mTargetConfirmed = true;
 
-  TBS_LOG("%p got confirmed target APZC %p\n", this, mTargetApzc.get());
   if (mTargetApzc == aTargetApzc) {
     // The confirmed target is the same as the tentative one, so we're done.
     return true;
@@ -78,17 +77,21 @@ InputBlockState::IsTargetConfirmed() const
   return mTargetConfirmed;
 }
 
-CancelableBlockState::CancelableBlockState(const nsRefPtr<AsyncPanZoomController>& aTargetApzc,
-                                           bool aTargetConfirmed)
+TouchBlockState::TouchBlockState(const nsRefPtr<AsyncPanZoomController>& aTargetApzc,
+                                 bool aTargetConfirmed)
   : InputBlockState(aTargetApzc, aTargetConfirmed)
+  , mAllowedTouchBehaviorSet(false)
   , mPreventDefault(false)
   , mContentResponded(false)
   , mContentResponseTimerExpired(false)
+  , mDuringFastMotion(false)
+  , mSingleTapOccurred(false)
 {
+  TBS_LOG("Creating %p\n", this);
 }
 
 bool
-CancelableBlockState::SetContentResponse(bool aPreventDefault)
+TouchBlockState::SetContentResponse(bool aPreventDefault)
 {
   if (mContentResponded) {
     return false;
@@ -103,7 +106,7 @@ CancelableBlockState::SetContentResponse(bool aPreventDefault)
 }
 
 bool
-CancelableBlockState::TimeoutContentResponse()
+TouchBlockState::TimeoutContentResponse()
 {
   if (mContentResponseTimerExpired) {
     return false;
@@ -115,88 +118,6 @@ CancelableBlockState::TimeoutContentResponse()
   }
   mContentResponseTimerExpired = true;
   return true;
-}
-
-bool
-CancelableBlockState::IsDefaultPrevented() const
-{
-  MOZ_ASSERT(mContentResponded || mContentResponseTimerExpired);
-  return mPreventDefault;
-}
-
-bool
-CancelableBlockState::IsReadyForHandling() const
-{
-  if (!IsTargetConfirmed())
-    return false;
-  return mContentResponded || mContentResponseTimerExpired;
-}
-
-WheelBlockState::WheelBlockState(const nsRefPtr<AsyncPanZoomController>& aTargetApzc,
-                                 bool aTargetConfirmed)
-  : CancelableBlockState(aTargetApzc, aTargetConfirmed)
-{
-}
-
-void
-WheelBlockState::AddEvent(const ScrollWheelInput& aEvent)
-{
-  mEvents.AppendElement(aEvent);
-}
-
-bool
-WheelBlockState::IsReadyForHandling() const
-{
-  if (!CancelableBlockState::IsReadyForHandling()) {
-    return false;
-  }
-  return true;
-}
-
-bool
-WheelBlockState::HasEvents() const
-{
-  return !mEvents.IsEmpty();
-}
-
-void
-WheelBlockState::DropEvents()
-{
-  TBS_LOG("%p dropping %lu events\n", this, mEvents.Length());
-  mEvents.Clear();
-}
-
-void
-WheelBlockState::HandleEvents(const nsRefPtr<AsyncPanZoomController>& aTarget)
-{
-  while (HasEvents()) {
-    TBS_LOG("%p returning first of %lu events\n", this, mEvents.Length());
-    ScrollWheelInput event = mEvents[0];
-    mEvents.RemoveElementAt(0);
-    aTarget->HandleInputEvent(event);
-  }
-}
-
-bool
-WheelBlockState::MustStayActive()
-{
-  return false;
-}
-
-const char*
-WheelBlockState::Type()
-{
-  return "scroll wheel";
-}
-
-TouchBlockState::TouchBlockState(const nsRefPtr<AsyncPanZoomController>& aTargetApzc,
-                                 bool aTargetConfirmed)
-  : CancelableBlockState(aTargetApzc, aTargetConfirmed)
-  , mAllowedTouchBehaviorSet(false)
-  , mDuringFastMotion(false)
-  , mSingleTapOccurred(false)
-{
-  TBS_LOG("Creating %p\n", this);
 }
 
 bool
@@ -222,15 +143,24 @@ TouchBlockState::CopyAllowedTouchBehaviorsFrom(const TouchBlockState& aOther)
 bool
 TouchBlockState::IsReadyForHandling() const
 {
-  if (!CancelableBlockState::IsReadyForHandling()) {
+  if (!IsTargetConfirmed()) {
     return false;
   }
-
   // TODO: for long-tap blocks we probably don't need the touch behaviour?
   if (gfxPrefs::TouchActionEnabled() && !mAllowedTouchBehaviorSet) {
     return false;
   }
+  if (!mContentResponded && !mContentResponseTimerExpired) {
+    return false;
+  }
   return true;
+}
+
+bool
+TouchBlockState::IsDefaultPrevented() const
+{
+  MOZ_ASSERT(mContentResponded || mContentResponseTimerExpired);
+  return mPreventDefault;
 }
 
 void
@@ -277,31 +207,11 @@ TouchBlockState::AddEvent(const MultiTouchInput& aEvent)
   mEvents.AppendElement(aEvent);
 }
 
-bool
-TouchBlockState::MustStayActive()
-{
-  return true;
-}
-
-const char*
-TouchBlockState::Type()
-{
-  return "touch";
-}
-
 void
 TouchBlockState::DropEvents()
 {
   TBS_LOG("%p dropping %lu events\n", this, mEvents.Length());
   mEvents.Clear();
-}
-
-void
-TouchBlockState::HandleEvents(const nsRefPtr<AsyncPanZoomController>& aTarget)
-{
-  while (HasEvents()) {
-    aTarget->HandleInputEvent(RemoveFirstEvent());
-  }
 }
 
 MultiTouchInput

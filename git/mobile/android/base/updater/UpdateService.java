@@ -42,7 +42,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Proxy;
 import java.net.ProxySelector;
-import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
 import java.security.MessageDigest;
@@ -71,7 +70,6 @@ public class UpdateService extends IntentService {
     private static final String KEY_LAST_FILE_NAME = "UpdateService.lastFileName";
     private static final String KEY_LAST_ATTEMPT_DATE = "UpdateService.lastAttemptDate";
     private static final String KEY_AUTODOWNLOAD_POLICY = "UpdateService.autoDownloadPolicy";
-    private static final String KEY_UPDATE_URL = "UpdateService.updateUrl";
 
     private SharedPreferences mPrefs;
 
@@ -84,48 +82,6 @@ public class UpdateService extends IntentService {
     private boolean mApplyImmediately;
 
     private CrashHandler mCrashHandler;
-
-    public enum AutoDownloadPolicy {
-        NONE(-1),
-        WIFI(0),
-        DISABLED(1),
-        ENABLED(2);
-
-        public final int value;
-
-        private AutoDownloadPolicy(int value) {
-            this.value = value;
-        }
-
-        private final static AutoDownloadPolicy[] sValues = AutoDownloadPolicy.values();
-
-        public static AutoDownloadPolicy get(int value) {
-            for (AutoDownloadPolicy id: sValues) {
-                if (id.value == value) {
-                    return id;
-                }
-            }
-            return NONE;
-        }
-
-        public static AutoDownloadPolicy get(String name) {
-            for (AutoDownloadPolicy id: sValues) {
-                if (name.equalsIgnoreCase(id.toString())) {
-                    return id;
-                }
-            }
-            return NONE;
-        }
-    }
-
-    private enum CheckUpdateResult {
-        // Keep these in sync with mobile/android/chrome/content/about.xhtml
-        NOT_AVAILABLE,
-        AVAILABLE,
-        DOWNLOADING,
-        DOWNLOADED
-    }
-
 
     public UpdateService() {
         super("updater");
@@ -176,17 +132,9 @@ public class UpdateService extends IntentService {
     @Override
     protected void onHandleIntent (Intent intent) {
         if (UpdateServiceHelper.ACTION_REGISTER_FOR_UPDATES.equals(intent.getAction())) {
-            AutoDownloadPolicy policy = AutoDownloadPolicy.get(
-                intent.getIntExtra(UpdateServiceHelper.EXTRA_AUTODOWNLOAD_NAME,
-                                   AutoDownloadPolicy.NONE.value));
-
-            if (policy != AutoDownloadPolicy.NONE) {
+            int policy = intent.getIntExtra(UpdateServiceHelper.EXTRA_AUTODOWNLOAD_NAME, -1);
+            if (policy >= 0) {
                 setAutoDownloadPolicy(policy);
-            }
-
-            String url = intent.getStringExtra(UpdateServiceHelper.EXTRA_UPDATE_URL_NAME);
-            if (url != null) {
-                setUpdateUrl(url);
             }
 
             registerForUpdates(false);
@@ -207,7 +155,7 @@ public class UpdateService extends IntentService {
         return (flags & flag) == flag;
     }
 
-    private void sendCheckUpdateResult(CheckUpdateResult result) {
+    private void sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult result) {
         Intent resultIntent = new Intent(UpdateServiceHelper.ACTION_CHECK_UPDATE_RESULT);
         resultIntent.putExtra("result", result.toString());
         sendBroadcast(resultIntent);
@@ -260,7 +208,7 @@ public class UpdateService extends IntentService {
         if (netInfo == null || !netInfo.isConnected()) {
             Log.i(LOGTAG, "not connected to the network");
             registerForUpdates(true);
-            sendCheckUpdateResult(CheckUpdateResult.NOT_AVAILABLE);
+            sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.NOT_AVAILABLE);
             return;
         }
 
@@ -271,28 +219,30 @@ public class UpdateService extends IntentService {
 
         if (!haveUpdate) {
             Log.i(LOGTAG, "no update available");
-            sendCheckUpdateResult(CheckUpdateResult.NOT_AVAILABLE);
+            sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.NOT_AVAILABLE);
             return;
         }
 
         Log.i(LOGTAG, "update available, buildID = " + info.buildID);
 
-        AutoDownloadPolicy policy = getAutoDownloadPolicy();
+        int autoDownloadPolicy = getAutoDownloadPolicy();
 
-        // We only start a download automatically if one of following criteria are met:
-        //
-        // - We have a FORCE_DOWNLOAD flag passed in
-        // - The preference is set to 'always'
-        // - The preference is set to 'wifi' and we are using a non-metered network (i.e. the user
-        //   is OK with large data transfers occurring)
-        //
+
+        /**
+         * We only start a download automatically if one of following criteria are met:
+         *
+         * - We have a FORCE_DOWNLOAD flag passed in
+         * - The preference is set to 'always'
+         * - The preference is set to 'wifi' and we are using a non-metered network (i.e. the user
+         *   is OK with large data transfers occurring)
+         */
         boolean shouldStartDownload = hasFlag(flags, UpdateServiceHelper.FLAG_FORCE_DOWNLOAD) ||
-            policy == AutoDownloadPolicy.ENABLED ||
-            (policy == AutoDownloadPolicy.WIFI && !ConnectivityManagerCompat.isActiveNetworkMetered(mConnectivityManager));
+            autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_ENABLED ||
+            (autoDownloadPolicy == UpdateServiceHelper.AUTODOWNLOAD_WIFI && !ConnectivityManagerCompat.isActiveNetworkMetered(mConnectivityManager));
 
         if (!shouldStartDownload) {
-            Log.i(LOGTAG, "not initiating automatic update download due to policy " + policy.toString());
-            sendCheckUpdateResult(CheckUpdateResult.AVAILABLE);
+            Log.i(LOGTAG, "not initiating automatic update download due to policy " + autoDownloadPolicy);
+            sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.AVAILABLE);
 
             // We aren't autodownloading here, so prompt to start the update
             Notification notification = new Notification(R.drawable.ic_status_logo, null, System.currentTimeMillis());
@@ -314,14 +264,14 @@ public class UpdateService extends IntentService {
 
         File pkg = downloadUpdatePackage(info, hasFlag(flags, UpdateServiceHelper.FLAG_OVERWRITE_EXISTING));
         if (pkg == null) {
-            sendCheckUpdateResult(CheckUpdateResult.NOT_AVAILABLE);
+            sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.NOT_AVAILABLE);
             return;
         }
 
         Log.i(LOGTAG, "have update package at " + pkg);
 
         saveUpdateInfo(info, pkg);
-        sendCheckUpdateResult(CheckUpdateResult.DOWNLOADED);
+        sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.DOWNLOADED);
 
         if (mApplyImmediately) {
             applyUpdate(pkg);
@@ -344,32 +294,27 @@ public class UpdateService extends IntentService {
         }
     }
 
-    private URLConnection openConnectionWithProxy(URI uri) throws java.net.MalformedURLException, java.io.IOException {
-        Log.i(LOGTAG, "opening connection with URI: " + uri);
+    private URLConnection openConnectionWithProxy(URL url) throws java.net.URISyntaxException, java.io.IOException {
+        Log.i(LOGTAG, "opening connection with url: " + url);
 
         ProxySelector ps = ProxySelector.getDefault();
         Proxy proxy = Proxy.NO_PROXY;
         if (ps != null) {
-            List<Proxy> proxies = ps.select(uri);
+            List<Proxy> proxies = ps.select(url.toURI());
             if (proxies != null && !proxies.isEmpty()) {
                 proxy = proxies.get(0);
             }
         }
 
-        return uri.toURL().openConnection(proxy);
+        return url.openConnection(proxy);
     }
 
     private UpdateInfo findUpdate(boolean force) {
         try {
-            URI uri = getUpdateURI(force);
-
-            if (uri == null) {
-              Log.e(LOGTAG, "failed to get update URI");
-              return null;
-            }
+            URL url = UpdateServiceHelper.getUpdateUrl(this, force);
 
             DocumentBuilder builder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
-            Document dom = builder.parse(openConnectionWithProxy(uri).getInputStream());
+            Document dom = builder.parse(openConnectionWithProxy(url).getInputStream());
 
             NodeList nodes = dom.getElementsByTagName("update");
             if (nodes == null || nodes.getLength() == 0)
@@ -397,7 +342,7 @@ public class UpdateService extends IntentService {
 
             // Fill in UpdateInfo from the XML data
             UpdateInfo info = new UpdateInfo();
-            info.uri = new URI(urlNode.getTextContent());
+            info.url = new URL(urlNode.getTextContent());
             info.buildID = buildIdNode.getTextContent();
             info.hashFunction = hashFunctionNode.getTextContent();
             info.hashValue = hashValueNode.getTextContent();
@@ -501,17 +446,9 @@ public class UpdateService extends IntentService {
     }
 
     private File downloadUpdatePackage(UpdateInfo info, boolean overwriteExisting) {
-        URL url = null;
-        try {
-            url = info.uri.toURL();
-        } catch (java.net.MalformedURLException e) {
-            Log.e(LOGTAG, "failed to read URL: ", e);
-            return null;
-        }
-
         File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
         path.mkdirs();
-        String fileName = new File(url.getFile()).getName();
+        String fileName = new File(info.url.getFile()).getName();
         File downloadFile = new File(path, fileName);
 
         if (!overwriteExisting && info.buildID.equals(getLastBuildID()) && downloadFile.exists()) {
@@ -529,7 +466,7 @@ public class UpdateService extends IntentService {
         }
 
         Log.i(LOGTAG, "downloading update package");
-        sendCheckUpdateResult(CheckUpdateResult.DOWNLOADING);
+        sendCheckUpdateResult(UpdateServiceHelper.CheckUpdateResult.DOWNLOADING);
 
         OutputStream output = null;
         InputStream input = null;
@@ -539,7 +476,7 @@ public class UpdateService extends IntentService {
         showDownloadNotification(downloadFile);
 
         try {
-            URLConnection conn = openConnectionWithProxy(info.uri);
+            URLConnection conn = openConnectionWithProxy(info.url);
             int length = conn.getContentLength();
 
             output = new BufferedOutputStream(new FileOutputStream(downloadFile));
@@ -688,23 +625,13 @@ public class UpdateService extends IntentService {
         editor.commit();
     }
 
-    private AutoDownloadPolicy getAutoDownloadPolicy() {
-        return AutoDownloadPolicy.get(mPrefs.getInt(KEY_AUTODOWNLOAD_POLICY, AutoDownloadPolicy.WIFI.value));
+    private int getAutoDownloadPolicy() {
+        return mPrefs.getInt(KEY_AUTODOWNLOAD_POLICY, UpdateServiceHelper.AUTODOWNLOAD_WIFI);
     }
 
-    private void setAutoDownloadPolicy(AutoDownloadPolicy policy) {
+    private void setAutoDownloadPolicy(int policy) {
         SharedPreferences.Editor editor = mPrefs.edit();
-        editor.putInt(KEY_AUTODOWNLOAD_POLICY, policy.value);
-        editor.commit();
-    }
-
-    private URI getUpdateURI(boolean force) {
-        return UpdateServiceHelper.expandUpdateURI(this, mPrefs.getString(KEY_UPDATE_URL, null), force);
-    }
-
-    private void setUpdateUrl(String url) {
-        SharedPreferences.Editor editor = mPrefs.edit();
-        editor.putString(KEY_UPDATE_URL, url);
+        editor.putInt(KEY_AUTODOWNLOAD_POLICY, policy);
         editor.commit();
     }
 
@@ -718,7 +645,7 @@ public class UpdateService extends IntentService {
     }
 
     private class UpdateInfo {
-        public URI uri;
+        public URL url;
         public String buildID;
         public String hashFunction;
         public String hashValue;
@@ -729,13 +656,13 @@ public class UpdateService extends IntentService {
         }
 
         public boolean isValid() {
-            return uri != null && isNonEmpty(buildID) &&
+            return url != null && isNonEmpty(buildID) &&
                 isNonEmpty(hashFunction) && isNonEmpty(hashValue) && size > 0;
         }
 
         @Override
         public String toString() {
-            return "uri = " + uri + ", buildID = " + buildID + ", hashFunction = " + hashFunction + ", hashValue = " + hashValue + ", size = " + size;
+            return "url = " + url + ", buildID = " + buildID + ", hashFunction = " + hashFunction + ", hashValue = " + hashValue + ", size = " + size;
         }
     }
 }

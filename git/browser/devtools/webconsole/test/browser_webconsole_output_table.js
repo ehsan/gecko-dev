@@ -111,7 +111,7 @@ const TEST_DATA = [
   }
 ];
 
-add_task(function*() {
+let test = asyncTest(function*() {
   const {tab} = yield loadTab(TEST_URI);
   let hud = yield openConsole(tab);
 

@@ -6,7 +6,7 @@
 
 // Tests that the checkbox to include browser styles works properly.
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,default styles test");
 
   info("Creating the test document");

@@ -26,8 +26,9 @@ namespace mozilla {
 class OmxVideoTrackEncoder: public VideoTrackEncoder
 {
 public:
-  OmxVideoTrackEncoder();
-  ~OmxVideoTrackEncoder();
+  OmxVideoTrackEncoder()
+    : VideoTrackEncoder()
+  {}
 
   already_AddRefed<TrackMetadataBase> GetMetadata() MOZ_OVERRIDE;
 
@@ -45,8 +46,9 @@ private:
 class OmxAudioTrackEncoder : public AudioTrackEncoder
 {
 public:
-  OmxAudioTrackEncoder();
-  ~OmxAudioTrackEncoder();
+  OmxAudioTrackEncoder()
+    : AudioTrackEncoder()
+  {}
 
   already_AddRefed<TrackMetadataBase> GetMetadata() = 0;
 

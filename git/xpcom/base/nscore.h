@@ -26,6 +26,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+#  include "mozilla/NullPtr.h"
+#endif
+
 #include "mozilla/RefCountType.h"
 
 /* Core XPCOM declarations. */
@@ -238,7 +242,7 @@
  * sense to touch memory pages and free that memory at shutdown,
  * unless we are running leak stats.
  */
-#if defined(NS_BUILD_REFCNT_LOGGING) || defined(MOZ_VALGRIND)
+#if defined(NS_TRACE_MALLOC) || defined(NS_BUILD_REFCNT_LOGGING) || defined(MOZ_VALGRIND)
 #define NS_FREE_PERMANENT_DATA
 #endif
 

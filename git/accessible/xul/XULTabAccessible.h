@@ -45,7 +45,7 @@ public:
   XULTabsAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   // Accessible
-  virtual void Value(nsString& aValue) MOZ_OVERRIDE;
+  virtual void Value(nsString& aValue);
   virtual a11y::role NativeRole() MOZ_OVERRIDE;
 
   // ActionAccessible

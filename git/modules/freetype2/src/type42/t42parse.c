@@ -366,7 +366,7 @@
         char*  notdef = (char *)".notdef";
 
 
-        (void)T1_Add_Table( char_table, n, notdef, 8 );
+        T1_Add_Table( char_table, n, notdef, 8 );
       }
 
       /* Now we need to read records of the form                */
@@ -524,7 +524,7 @@
     FT_Byte*    limit  = parser->root.limit;
     FT_Error    error;
     FT_Int      num_tables = 0;
-    FT_ULong    count;
+    FT_ULong    count, ttf_size = 0;
 
     FT_Long     n, string_size, old_string_size, real_size;
     FT_Byte*    string_buf = NULL;
@@ -580,12 +580,6 @@
 
         /* don't include delimiters */
         string_size = (FT_Long)( ( parser->root.cursor - cur - 2 + 1 ) / 2 );
-        if ( !string_size )
-        {
-          FT_ERROR(( "t42_parse_sfnts: invalid data in sfnts array\n" ));
-          error = FT_THROW( Invalid_File_Format );
-          goto Fail;
-        }
         if ( FT_REALLOC( string_buf, old_string_size, string_size ) )
           goto Fail;
 
@@ -623,7 +617,7 @@
 
         if ( limit - parser->root.cursor < string_size )
         {
-          FT_ERROR(( "t42_parse_sfnts: too much binary data\n" ));
+          FT_ERROR(( "t42_parse_sfnts: too many binary data\n" ));
           error = FT_THROW( Invalid_File_Format );
           goto Fail;
         }
@@ -663,25 +657,18 @@
           }
           else
           {
-            num_tables     = 16 * face->ttf_data[4] + face->ttf_data[5];
-            status         = BEFORE_TABLE_DIR;
-            face->ttf_size = 12 + 16 * num_tables;
+            num_tables = 16 * face->ttf_data[4] + face->ttf_data[5];
+            status     = BEFORE_TABLE_DIR;
+            ttf_size   = 12 + 16 * num_tables;
 
-            if ( (FT_ULong)( limit - parser->root.cursor ) < face->ttf_size )
-            {
-              FT_ERROR(( "t42_parse_sfnts: invalid data in sfnts array\n" ));
-              error = FT_THROW( Invalid_File_Format );
-              goto Fail;
-            }
-
-            if ( FT_REALLOC( face->ttf_data, 12, face->ttf_size ) )
+            if ( FT_REALLOC( face->ttf_data, 12, ttf_size ) )
               goto Fail;
           }
           /* fall through */
 
         case BEFORE_TABLE_DIR:
           /* the offset table is read; read the table directory */
-          if ( count < face->ttf_size )
+          if ( count < ttf_size )
           {
             face->ttf_data[count++] = string_buf[n];
             continue;
@@ -700,23 +687,24 @@
               len = FT_PEEK_ULONG( p );
 
               /* Pad to a 4-byte boundary length */
-              face->ttf_size += ( len + 3 ) & ~3;
+              ttf_size += ( len + 3 ) & ~3;
             }
 
-            status = OTHER_TABLES;
+            status         = OTHER_TABLES;
+            face->ttf_size = ttf_size;
 
             /* there are no more than 256 tables, so no size check here */
             if ( FT_REALLOC( face->ttf_data, 12 + 16 * num_tables,
-                             face->ttf_size + 1 ) )
+                             ttf_size + 1 ) )
               goto Fail;
           }
           /* fall through */
 
         case OTHER_TABLES:
           /* all other tables are just copied */
-          if ( count >= face->ttf_size )
+          if ( count >= ttf_size )
           {
-            FT_ERROR(( "t42_parse_sfnts: too much binary data\n" ));
+            FT_ERROR(( "t42_parse_sfnts: too many binary data\n" ));
             error = FT_THROW( Invalid_File_Format );
             goto Fail;
           }
@@ -862,12 +850,6 @@
         break;
 
       T1_Skip_PS_Token( parser );
-      if ( parser->root.cursor >= limit )
-      {
-        FT_ERROR(( "t42_parse_charstrings: out of bounds\n" ));
-        error = FT_THROW( Invalid_File_Format );
-        goto Fail;
-      }
       if ( parser->root.error )
         return;
 
@@ -876,7 +858,7 @@
         FT_PtrDist  len;
 
 
-        if ( cur + 2 >= limit )
+        if ( cur + 1 >= limit )
         {
           FT_ERROR(( "t42_parse_charstrings: out of bounds\n" ));
           error = FT_THROW( Invalid_File_Format );

@@ -10,9 +10,8 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 let unsafeAboutModule = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIAboutModule]),
-  newChannel: function (aURI, aLoadInfo) {
-    var uri = Services.io.newURI("about:blank", null, null);
-    let chan = Services.io.newChannelFromURIWithLoadInfo(uri, aLoadInfo);
+  newChannel: function (aURI) {
+    let chan = Services.io.newChannel("about:blank", null, null);
     chan.owner = Services.scriptSecurityManager.getSystemPrincipal();
     return chan;
   },
@@ -39,12 +38,7 @@ function run_test() {
   registrar.registerFactory(classID, "", "@mozilla.org/network/protocol/about;1?what=unsafe", factory);
 
   let aboutUnsafeURI = Services.io.newURI("about:unsafe", null, null);
-  let aboutUnsafeChan = Services.io.newChannelFromURI2(aboutUnsafeURI,
-                                                       null,      // aLoadingNode
-                                                       Services.scriptSecurityManager.getSystemPrincipal(),
-                                                       null,      // aTriggeringPrincipal
-                                                       Ci.nsILoadInfo.SEC_NORMAL,
-                                                       Ci.nsIContentPolicy.TYPE_OTHER);
+  let aboutUnsafeChan = Services.io.newChannelFromURI(aboutUnsafeURI);
   do_check_null(aboutUnsafeChan.owner, "URI_SAFE_FOR_UNTRUSTED_CONTENT channel has no owner");
 
   registrar.unregisterFactory(classID, factory);

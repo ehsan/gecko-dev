@@ -8,7 +8,7 @@
 
 const TEST_URL = "data:text/html,<div id='test-div'>Test modifying my ID attribute</div>";
 
-add_task(function*() {
+let test = asyncTest(function*() {
   info("Opening the inspector on the test page");
   let {toolbox, inspector} = yield addTab(TEST_URL).then(openInspector);
 

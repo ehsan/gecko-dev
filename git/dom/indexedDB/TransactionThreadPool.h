@@ -15,7 +15,6 @@
 #include "nsISupportsImpl.h"
 #include "nsTArray.h"
 
-struct nsID;
 class nsIEventTarget;
 class nsIRunnable;
 class nsIThreadPool;
@@ -56,13 +55,13 @@ public:
 
   uint64_t NextTransactionId();
 
-  void Start(uint64_t aTransactionId,
-             const nsACString& aDatabaseId,
-             const nsTArray<nsString>& aObjectStoreNames,
-             uint16_t aMode,
-             const nsID& aBackgroundChildLoggingId,
-             int64_t aLoggingSerialNumber,
-             nsIRunnable* aRunnable);
+  void Dispatch(uint64_t aTransactionId,
+                const nsACString& aDatabaseId,
+                const nsTArray<nsString>& aObjectStoreNames,
+                uint16_t aMode,
+                nsIRunnable* aRunnable,
+                bool aFinish,
+                FinishCallback* aFinishCallback);
 
   void Dispatch(uint64_t aTransactionId,
                 const nsACString& aDatabaseId,
@@ -72,6 +71,9 @@ public:
 
   void WaitForDatabasesToComplete(nsTArray<nsCString>& aDatabaseIds,
                                   nsIRunnable* aCallback);
+
+  // Returns true if there are running or pending transactions for aDatabase.
+  bool HasTransactionsForDatabase(const nsACString& aDatabaseId);
 
   NS_INLINE_DECL_REFCOUNTING(TransactionThreadPool)
 
@@ -115,13 +117,11 @@ private:
   TransactionQueue* GetQueueForTransaction(uint64_t aTransactionId,
                                            const nsACString& aDatabaseId);
 
-  TransactionQueue& CreateQueueForTransaction(
+  TransactionQueue& GetQueueForTransaction(
                                     uint64_t aTransactionId,
                                     const nsACString& aDatabaseId,
                                     const nsTArray<nsString>& aObjectStoreNames,
-                                    uint16_t aMode,
-                                    const nsID& aBackgroundChildLoggingId,
-                                    int64_t aLoggingSerialNumber);
+                                    uint16_t aMode);
 
   bool MaybeFireCallback(DatabasesCompleteCallback* aCallback);
 

@@ -23,7 +23,7 @@ namespace embedding {
 class MockWebBrowserPrint MOZ_FINAL : public nsIWebBrowserPrint
 {
 public:
-  explicit MockWebBrowserPrint(PrintData aData);
+  MockWebBrowserPrint(PrintData aData);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIWEBBROWSERPRINT

@@ -6,7 +6,7 @@
 
 // Test that the rule-view content is correct
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,browser_ruleview_content.js");
   let {toolbox, inspector, view} = yield openRuleView();
 

@@ -34,12 +34,12 @@ public:
   CreateVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
                      layers::LayersBackend aLayersBackend,
                      layers::ImageContainer* aImageContainer,
-                     FlushableMediaTaskQueue* aVideoTaskQueue,
+                     MediaTaskQueue* aVideoTaskQueue,
                      MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
 
   virtual already_AddRefed<MediaDataDecoder>
   CreateAudioDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
-                     FlushableMediaTaskQueue* aAudioTaskQueue,
+                     MediaTaskQueue* aAudioTaskQueue,
                      MediaDataDecoderCallback* aCallback) MOZ_OVERRIDE;
 
   virtual bool SupportsAudioMimeType(const char* aMimeType) MOZ_OVERRIDE;

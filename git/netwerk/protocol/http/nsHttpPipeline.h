@@ -57,7 +57,7 @@ private:
     }
 
     // overload of nsAHttpTransaction::QueryPipeline()
-    nsHttpPipeline *QueryPipeline() MOZ_OVERRIDE;
+    nsHttpPipeline *QueryPipeline();
 
     nsRefPtr<nsAHttpConnection>   mConnection;
     nsTArray<nsAHttpTransaction*> mRequestQ;  // array of transactions

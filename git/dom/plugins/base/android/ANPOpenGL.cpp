@@ -60,14 +60,10 @@ static void anp_opengl_releaseTexture(NPP instance, const ANPTextureInfo* info) 
 }
 
 static void anp_opengl_invertPluginContent(NPP instance, bool isContentInverted) {
-    // OpenGL is BottomLeft if uninverted.
-    gl::OriginPos newOriginPos = gl::OriginPos::BottomLeft;
-    if (isContentInverted)
-        newOriginPos = gl::OriginPos::TopLeft;
-
     nsNPAPIPluginInstance* pinst = static_cast<nsNPAPIPluginInstance*>(instance->ndata);
 
-    pinst->SetOriginPos(newOriginPos);
+    // Our definition of inverted is the opposite of the plugin's
+    pinst->SetInverted(!isContentInverted);
     pinst->RedrawPlugin();
 }
 

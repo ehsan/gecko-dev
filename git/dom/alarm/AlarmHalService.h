@@ -34,10 +34,10 @@ public:
   static already_AddRefed<AlarmHalService> GetInstance();
 
   // Implementing hal::AlarmObserver
-  void Notify(const void_t& aVoid) MOZ_OVERRIDE;
+  void Notify(const void_t& aVoid);
 
   // Implementing hal::SystemTimezoneChangeObserver
-  void Notify(const hal::SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo) MOZ_OVERRIDE;
+  void Notify(const hal::SystemTimezoneChangeInformation& aSystemTimezoneChangeInfo);
 
 private:
   virtual ~AlarmHalService();

@@ -19,7 +19,7 @@ let PAGE_CONTENT = [
   '<div id="testid" class="testclass">Styled Node</div>'
 ].join("\n");
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,test rule view user changes");
 
   info("Creating the test document");

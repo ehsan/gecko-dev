@@ -26,7 +26,6 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk' and CONFIG['MOZ_B2G_RIL']:
         'gonk/mms_consts.js',
         'gonk/MmsPduHelper.jsm',
         'gonk/MobileMessageDB.jsm',
-        'gonk/SmsSegmentHelper.jsm',
         'gonk/wap_consts.js',
         'gonk/WspPduHelper.jsm',
     ]
@@ -35,8 +34,9 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk' and CONFIG['MOZ_B2G_RIL']:
         'gonk/MmsService.manifest',
         'gonk/MobileMessageDatabaseService.js',
         'gonk/MobileMessageDatabaseService.manifest',
-        'gonk/SmsService.js',
-        'gonk/SmsService.manifest',
+    ]
+    UNIFIED_SOURCES += [
+        'gonk/SmsService.cpp',
     ]
 
 EXPORTS.mozilla.dom += [

@@ -19,7 +19,13 @@ var requestList2NotCanceled;
 var listener1 = {
   onLookupComplete: function(inRequest, inRecord, inStatus) {
     // One request should be resolved and two request should be canceled.
-    if (inRequest == requestList1NotCanceled) {
+    if (inRequest == requestList1Canceled1 ||
+        inRequest == requestList1Canceled2) {
+      // This request is canceled.
+      do_check_eq(inStatus, Cr.NS_ERROR_ABORT);
+
+      do_test_finished();
+    } else if (inRequest == requestList1NotCanceled) {
       // This request should not be canceled.
       do_check_neq(inStatus, Cr.NS_ERROR_ABORT);
 
@@ -38,7 +44,12 @@ var listener1 = {
 var listener2 = {
   onLookupComplete: function(inRequest, inRecord, inStatus) {
     // One request should be resolved and the other canceled.
-    if (inRequest == requestList2NotCanceled) {
+    if (inRequest == requestList2Canceled) {
+      // This request is canceled.
+      do_check_eq(inStatus, Cr.NS_ERROR_ABORT);
+
+      do_test_finished();
+    } else {
       // The request should not be canceled.
       do_check_neq(inStatus, Cr.NS_ERROR_ABORT);
 
@@ -78,6 +89,9 @@ function run_test() {
   requestList2Canceled = dns.asyncResolve(hostname2, flags, listener2, mainThread);
   requestList2Canceled.cancel(Cr.NS_ERROR_ABORT);
 
+  do_test_pending();
+  do_test_pending();
+  do_test_pending();
   do_test_pending();
   do_test_pending();
 }

@@ -139,7 +139,7 @@ public:
   SECKEYPublicKey* GetPublicKey() const;
 
   // For nsNSSShutDownObject
-  virtual void virtualDestroyNSSReference() MOZ_OVERRIDE;
+  virtual void virtualDestroyNSSReference();
   void destructorSafeDestroyNSSReference();
 
   // Serialization and deserialization convenience methods

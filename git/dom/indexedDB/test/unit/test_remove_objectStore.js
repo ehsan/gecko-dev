@@ -37,9 +37,6 @@ function testSteps()
   is(db.objectStoreNames.length, 1, "Correct objectStoreNames list");
   is(db.objectStoreNames.item(0), objectStoreName, "Correct name");
 
-  event.target.transaction.oncomplete = grabEventAndContinueHandler;
-  event = yield undefined;
-
   db.close();
 
   request = indexedDB.open(name, 2);
@@ -84,9 +81,6 @@ function testSteps()
   continueToNextStep();
   yield undefined;
 
-  trans.oncomplete = grabEventAndContinueHandler;
-  event = yield undefined;
-
   db.close();
 
   request = indexedDB.open(name, 3);
@@ -95,7 +89,6 @@ function testSteps()
   event = yield undefined;
 
   db = event.target.result;
-  trans = event.target.transaction;
 
   objectStore = db.createObjectStore(objectStoreName, { keyPath: "foo" });
 
@@ -105,9 +98,6 @@ function testSteps()
 
   db.deleteObjectStore(objectStoreName);
 
-  event = yield undefined;
-
-  trans.oncomplete = grabEventAndContinueHandler;
   event = yield undefined;
 
   finishTest();

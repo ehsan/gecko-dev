@@ -1461,9 +1461,7 @@ Element::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // Being added to a document.
     SetInDocument();
 
-    // Attached callback must be enqueued whenever custom element is inserted into a
-    // document and this document has a browsing context.
-    if (GetCustomElementData() && aDocument->GetDocShell()) {
+    if (GetCustomElementData()) {
       // Enqueue an attached callback for the custom element.
       aDocument->EnqueueLifecycleCallback(nsIDocument::eAttached, this);
     }
@@ -1675,9 +1673,7 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
 
     document->ClearBoxObjectFor(this);
 
-    // Detached must be enqueued whenever custom element is removed from
-    // the document and this document has a browsing context.
-    if (GetCustomElementData() && document->GetDocShell()) {
+    if (GetCustomElementData()) {
       // Enqueue a detached callback for the custom element.
       document->EnqueueLifecycleCallback(nsIDocument::eDetached, this);
     }

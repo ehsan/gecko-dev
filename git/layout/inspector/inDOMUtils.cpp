@@ -867,11 +867,6 @@ inDOMUtils::CssPropertyIsValid(const nsAString& aPropertyName,
     return NS_OK;
   }
 
-  if (propertyID == eCSSPropertyExtra_variable) {
-    *_retval = true;
-    return NS_OK;
-  }
-
   // Get a parser, parse the property.
   nsCSSParser parser;
   *_retval = parser.IsValueValidForProperty(propertyID, aPropertyValue);

@@ -139,11 +139,8 @@ searchbar[oneoffui] .search-go-button:-moz-locale-dir(rtl) > .toolbarbutton-icon
 
 .search-panel-current-engine {
   border-top: none !important;
-  border-radius: 4px 4px 0 0;
-}
-
-.search-panel-current-engine:not([showonlysettings]) {
   border-bottom: 1px solid #ccc;
+  border-radius: 4px 4px 0 0;
 }
 
 .search-panel-header {
@@ -190,6 +187,7 @@ searchbar[oneoffui] .search-go-button:-moz-locale-dir(rtl) > .toolbarbutton-icon
   background-image: none;
 }
 
+.searchbar-engine-one-off-item:hover:not(.dummy),
 .searchbar-engine-one-off-item[selected] {
   background-color: Highlight;
   background-image: none;
@@ -221,7 +219,7 @@ searchbar[oneoffui] .search-go-button:-moz-locale-dir(rtl) > .toolbarbutton-icon
   border-top: 1px solid #ccc;
 }
 
-.addengine-item[selected] {
+.addengine-item:hover {
   background-color: Highlight;
   color: HighlightText;
 }
@@ -290,7 +288,11 @@ searchbar[oneoffui] .searchbar-engine-button {
   min-height: 32px;
 }
 
-.search-setting-button[selected] {
+.search-setting-button[showonlysettings] {
+  border-radius: 4px;
+}
+
+.search-setting-button:hover {
   background-color: #d3d3d3;
   border-top-color: #bdbebe;
 }

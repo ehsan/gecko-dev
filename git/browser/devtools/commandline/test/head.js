@@ -37,3 +37,7 @@ registerCleanupFunction(function tearDown() {
       .getInterface(Ci.nsIDOMWindowUtils)
       .garbageCollect();
 });
+
+function asyncTest(generator) {
+  return () => Task.spawn(generator).catch(ok.bind(null, false)).then(finish);
+}

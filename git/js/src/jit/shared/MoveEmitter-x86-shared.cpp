@@ -85,9 +85,9 @@ MoveEmitterX86::maybeEmitOptimizedCycle(const MoveResolver &moves, size_t i,
         // it's cheap to do an XOR swap.
         FloatRegister a = moves.getMove(i).to().floatReg();
         FloatRegister b = moves.getMove(i + 1).to().floatReg();
-        masm.vxorpd(a, b, b);
-        masm.vxorpd(b, a, a);
-        masm.vxorpd(a, b, b);
+        masm.xorpd(a, b);
+        masm.xorpd(b, a);
+        masm.xorpd(a, b);
         return true;
     }
 
@@ -458,7 +458,7 @@ MoveEmitterX86::emitInt32X4Move(const MoveOperand &from, const MoveOperand &to)
 {
     if (from.isFloatReg()) {
         if (to.isFloatReg())
-            masm.moveInt32x4(from.floatReg(), to.floatReg());
+            masm.moveAlignedInt32x4(from.floatReg(), to.floatReg());
         else
             masm.storeAlignedInt32x4(from.floatReg(), toAddress(to));
     } else if (to.isFloatReg()) {
@@ -476,7 +476,7 @@ MoveEmitterX86::emitFloat32X4Move(const MoveOperand &from, const MoveOperand &to
 {
     if (from.isFloatReg()) {
         if (to.isFloatReg())
-            masm.moveFloat32x4(from.floatReg(), to.floatReg());
+            masm.moveAlignedFloat32x4(from.floatReg(), to.floatReg());
         else
             masm.storeAlignedFloat32x4(from.floatReg(), toAddress(to));
     } else if (to.isFloatReg()) {

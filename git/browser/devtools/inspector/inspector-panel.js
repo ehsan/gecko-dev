@@ -8,7 +8,7 @@ const {Cc, Ci, Cu, Cr} = require("chrome");
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-let promise = require("resource://gre/modules/Promise.jsm").Promise;
+let promise = require("devtools/toolkit/deprecated-sync-thenables");
 let EventEmitter = require("devtools/toolkit/event-emitter");
 let clipboard = require("sdk/clipboard");
 
@@ -48,14 +48,8 @@ const LAYOUT_CHANGE_TIMER = 250;
  *      Fired when a property is expanded in the computed rules view
  * - computed-view-property-collapsed
  *      Fired when a property is collapsed in the computed rules view
- * - computed-view-sourcelinks-updated
- *      Fired when the stylesheet source links have been updated (when switching
- *      to source-mapped files)
  * - rule-view-refreshed
  *      Fired when the rule view updates to a new node
- * - rule-view-sourcelinks-updated
- *      Fired when the stylesheet source links have been updated (when switching
- *      to source-mapped files)
  */
 function InspectorPanel(iframeWindow, toolbox) {
   this._toolbox = toolbox;
@@ -341,12 +335,6 @@ InspectorPanel.prototype = {
                         "chrome://browser/content/devtools/layoutview/view.xhtml",
                         "layoutview" == defaultTab);
 
-    if (this.target.form.animationsActor) {
-      this.sidebar.addTab("animationinspector",
-                          "chrome://browser/content/devtools/animationinspector/animation-inspector.xhtml",
-                          "animationinspector" == defaultTab);
-    }
-
     let ruleViewTab = this.sidebar.getTab("ruleview");
 
     this.sidebar.show();
@@ -555,7 +543,7 @@ InspectorPanel.prototype = {
     this._toolbox.off("select", this.updateDebuggerPausedWarning);
 
     this.sidebar.off("select", this._setDefaultSidebar);
-    let sidebarDestroyer = this.sidebar.destroy();
+    this.sidebar.destroy();
     this.sidebar = null;
 
     this.nodemenu.removeEventListener("popupshowing", this._setupNodeMenu, true);
@@ -567,7 +555,7 @@ InspectorPanel.prototype = {
     this.selection.off("before-new-node", this.onBeforeNewSelection);
     this.selection.off("before-new-node-front", this.onBeforeNewSelection);
     this.selection.off("detached-front", this.onDetached);
-    let markupDestroyer = this._destroyMarkup();
+    this._panelDestroyer = this._destroyMarkup();
     this.panelWin.inspector = null;
     this.target = null;
     this.panelDoc = null;
@@ -577,11 +565,6 @@ InspectorPanel.prototype = {
     this.lastNodemenuItem = null;
     this.nodemenu = null;
     this._toolbox = null;
-
-    this._panelDestroyer = promise.all([
-      sidebarDestroyer,
-      markupDestroyer
-    ]);
 
     return this._panelDestroyer;
   },

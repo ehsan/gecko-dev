@@ -5,7 +5,7 @@
  * Test the `connect-param` event on the web audio actor.
  */
 
-add_task(function*() {
+function spawnTest () {
   let { target, front } = yield initBackend(CONNECT_PARAM_URL);
   let [, , [destNode, carrierNode, modNode, gainNode], , connectParam] = yield Promise.all([
     front.setup({ reload: true }),
@@ -22,4 +22,5 @@ add_task(function*() {
   is(connectParam.param, "gain", "`connect-param` has correct parameter name for `param`");
 
   yield removeTab(target.tab);
-});
+  finish();
+}

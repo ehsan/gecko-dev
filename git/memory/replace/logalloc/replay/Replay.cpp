@@ -23,6 +23,7 @@ typedef int ssize_t;
 #include <cstring>
 
 #include "mozilla/Assertions.h"
+#include "mozilla/NullPtr.h"
 #include "FdPrintf.h"
 
 static void
@@ -201,7 +202,7 @@ private:
 /* Helper class to read from a file descriptor line by line. */
 class FdReader {
 public:
-  explicit FdReader(int aFd)
+  FdReader(int aFd)
     : mFd(aFd)
     , mData(&mRawBuf, 0)
     , mBuf(&mRawBuf, sizeof(mRawBuf))

@@ -80,14 +80,21 @@ public:
 
     NestedFrameAuthPrompt(PNeckoParent* aParent, TabId aNestedFrameId);
 
-    NS_IMETHOD PromptAuth(nsIChannel*, uint32_t, nsIAuthInformation*, bool*) MOZ_OVERRIDE
+    NS_IMETHOD PromptAuth(nsIChannel*, uint32_t, nsIAuthInformation*, bool*)
     {
       return NS_ERROR_NOT_IMPLEMENTED;
     }
 
     NS_IMETHOD AsyncPromptAuth(nsIChannel* aChannel, nsIAuthPromptCallback* callback,
                                nsISupports*, uint32_t,
-                               nsIAuthInformation* aInfo, nsICancelable**) MOZ_OVERRIDE;
+                               nsIAuthInformation* aInfo, nsICancelable**);
+
+    NS_IMETHOD AsyncPromptAuth2(nsIChannel*, nsIDOMElement*,
+                                nsIAuthPromptCallback*, nsISupports*,
+                                uint32_t, nsIAuthInformation*, nsICancelable**)
+    {
+      return NS_ERROR_NOT_IMPLEMENTED;
+    }
 
   protected:
     PNeckoParent* mNeckoParent;

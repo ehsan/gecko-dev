@@ -20,6 +20,9 @@ var messageId;
 function addMessage() {
   messageId = Home.banner.add({
     text: TEXT,
+    onclick: function() {
+      Messaging.sendRequest({ type: "TestHomeBanner:MessageClicked" });
+    },
     onshown: function() {
       Messaging.sendRequest({ type: "TestHomeBanner:MessageShown" });
     },
@@ -28,6 +31,11 @@ function addMessage() {
     }
   });
   Messaging.sendRequest({ type: "TestHomeBanner:MessageAdded" });
+}
+
+function removeMessage() {
+  Home.banner.remove(messageId);
+  Messaging.sendRequest({ type: "TestHomeBanner:MessageRemoved" });
 }
 
     </script>

@@ -291,6 +291,20 @@ FileService::AbortFileHandlesForStorage(nsIOfflineStorage* aStorage)
   }
 }
 
+bool
+FileService::HasFileHandlesForStorage(nsIOfflineStorage* aStorage)
+{
+  MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
+  MOZ_ASSERT(aStorage, "Null pointer!");
+
+  StorageInfo* storageInfo;
+  if (!mStorageInfos.Get(aStorage->Id(), &storageInfo)) {
+    return false;
+  }
+
+  return storageInfo->HasRunningFileHandles(aStorage);
+}
+
 NS_IMPL_ISUPPORTS(FileService, nsIObserver)
 
 NS_IMETHODIMP
@@ -477,6 +491,18 @@ FileService::StorageInfo::RemoveFileHandleQueue(FileHandleBase* aFileHandle)
       NS_WARNING("Enqueue failed!");
     }
   }
+}
+
+bool
+FileService::StorageInfo::HasRunningFileHandles(nsIOfflineStorage* aStorage)
+{
+  for (uint32_t index = 0; index < mFileHandleQueues.Length(); index++) {
+    FileHandleBase* fileHandle = mFileHandleQueues[index]->mFileHandle;
+    if (fileHandle->MutableFile()->Storage() == aStorage) {
+      return true;
+    }
+  }
+  return false;
 }
 
 FileService::DelayedEnqueueInfo*

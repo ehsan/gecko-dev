@@ -56,7 +56,7 @@
         tabs.open({
           url: TEST_URL,
           onLoad: function(tab) {
-            let id = getInnerId(getMostRecentBrowserWindow().gBrowser.selectedBrowser.contentWindow);
+            let id = getInnerId(getMostRecentBrowserWindow().gBrowser.selectedTab.linkedBrowser.contentWindow);
 
             // getting
             is(contentGlobals.getContentGlobals({

@@ -15,11 +15,6 @@
 #include "nsDisplayList.h"
 #include "JustificationUtils.h"
 
-// Undo the windows.h damage
-#if defined(XP_WIN) && defined(DrawText)
-#undef DrawText
-#endif
-
 class nsTextPaintStyle;
 class PropertyProvider;
 struct SelectionDetails;

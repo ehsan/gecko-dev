@@ -7,7 +7,7 @@
  * https://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html
  */
 
-[Exposed=(Window,Worker), NoInterfaceObject]
+[NoInterfaceObject]
 interface IDBEnvironment {
     //[Throws] readonly    attribute IDBFactory indexedDB;
     [Throws] readonly    attribute IDBFactory? indexedDB;
@@ -15,6 +15,5 @@ interface IDBEnvironment {
 
 // Mozilla-specific stuff
 partial interface IDBEnvironment {
-    [Exposed=Window, Throws]
-    readonly    attribute IDBFactory? mozIndexedDB;
+    [Throws] readonly    attribute IDBFactory? mozIndexedDB;
 };

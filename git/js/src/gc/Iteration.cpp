@@ -25,7 +25,6 @@ js::TraceRuntime(JSTracer *trc)
     JSRuntime *rt = trc->runtime();
     rt->gc.evictNursery();
     AutoPrepareForTracing prep(rt, WithAtoms);
-    gcstats::AutoPhase ap(rt->gc.stats, gcstats::PHASE_TRACE_HEAP);
     rt->gc.markRuntime(trc);
 }
 
@@ -121,7 +120,7 @@ js::IterateGrayObjects(Zone *zone, GCThingCallback cellCallback, void *data)
         for (ZoneCellIterUnderGC i(zone, AllocKind(finalizeKind)); !i.done(); i.next()) {
             JSObject *obj = i.get<JSObject>();
             if (obj->asTenured().isMarked(GRAY))
-                cellCallback(data, JS::GCCellPtr(obj));
+                cellCallback(data, obj);
         }
     }
 }

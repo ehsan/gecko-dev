@@ -21,7 +21,6 @@
     {
       this.selectNode = getNode(aID);
       this.select = getAccessible(this.selectNode);
-      this.selectList = this.select.firstChild;
 
       this.invoke = function addOptGroup_invoke()
       {
@@ -40,7 +39,7 @@
       }
 
       this.eventSeq = [
-        new invokerChecker(EVENT_REORDER, this.selectList)
+        new invokerChecker(EVENT_REORDER, this.select)
       ];
 
       this.finalCheck = function addOptGroup_finalCheck()

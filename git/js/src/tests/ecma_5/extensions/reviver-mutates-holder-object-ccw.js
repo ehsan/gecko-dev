@@ -15,6 +15,14 @@ print(BUGNUMBER + ": " + summary);
  * BEGIN TEST *
  **************/
 
+if (typeof newGlobal !== "function")
+{
+  var newGlobal = function()
+  {
+    return { evaluate: eval };
+  };
+}
+
 // A little trickiness to account for the undefined-ness of property
 // enumeration order.
 var first = "unset";

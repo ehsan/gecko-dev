@@ -26,6 +26,8 @@ add_task(function*() {
   yield linesLinkThePolygons(highlighter, inspector);
 
   yield highlighter.finalize();
+
+  gBrowser.removeCurrentTab();
 });
 
 function* isHiddenByDefault(highlighterFront, inspector) {

@@ -503,16 +503,14 @@ nsVideoFrame::ComputeSize(nsRenderingContext *aRenderingContext,
 
 nscoord nsVideoFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 {
-  nsSize size = GetVideoIntrinsicSize(aRenderingContext);
-  nscoord result = GetWritingMode().IsVertical() ? size.height : size.width;
+  nscoord result = GetVideoIntrinsicSize(aRenderingContext).width;
   DISPLAY_MIN_WIDTH(this, result);
   return result;
 }
 
 nscoord nsVideoFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
 {
-  nsSize size = GetVideoIntrinsicSize(aRenderingContext);
-  nscoord result = GetWritingMode().IsVertical() ? size.height : size.width;
+  nscoord result = GetVideoIntrinsicSize(aRenderingContext).width;
   DISPLAY_PREF_WIDTH(this, result);
   return result;
 }

@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
-
 let Ci = Components.interfaces;
 let Cc = Components.classes;
 let Cu = Components.utils;
@@ -571,17 +569,18 @@ let AboutPermissions = {
       itemCnt++;
     }, this);
 
-    let enumerator = Services.perms.enumerator;
-    while (enumerator.hasMoreElements()) {
-      if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
-        yield true;
+    let (enumerator = Services.perms.enumerator) {
+      while (enumerator.hasMoreElements()) {
+        if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
+          yield true;
+        }
+        let permission = enumerator.getNext().QueryInterface(Ci.nsIPermission);
+        // Only include sites with exceptions set for supported permission types.
+        if (this._supportedPermissions.indexOf(permission.type) != -1) {
+          this.addHost(permission.host);
+        }
+        itemCnt++;
       }
-      let permission = enumerator.getNext().QueryInterface(Ci.nsIPermission);
-      // Only include sites with exceptions set for supported permission types.
-      if (this._supportedPermissions.indexOf(permission.type) != -1) {
-        this.addHost(permission.host);
-      }
-      itemCnt++;
     }
 
     yield false;
@@ -673,8 +672,7 @@ let AboutPermissions = {
    *        The host string corresponding to the site to delete.
    */
   deleteFromSitesList: function(aHost) {
-    for (let host in this._sites) {
-      let site = this._sites[host];
+    for each (let site in this._sites) {
       if (site.host.hasRootDomain(aHost)) {
         if (site == this._selectedSite) {
           // Replace site-specific interface with "All Sites" interface.

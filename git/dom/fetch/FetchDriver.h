@@ -40,9 +40,9 @@ private:
   nsRefPtr<FetchDriverObserver> mObserver;
   uint32_t mFetchRecursionCount;
 
-  FetchDriver() = delete;
-  FetchDriver(const FetchDriver&) = delete;
-  FetchDriver& operator=(const FetchDriver&) = delete;
+  FetchDriver() MOZ_DELETE;
+  FetchDriver(const FetchDriver&) MOZ_DELETE;
+  FetchDriver& operator=(const FetchDriver&) MOZ_DELETE;
   ~FetchDriver();
 
   nsresult Fetch(bool aCORSFlag);

@@ -14,7 +14,7 @@
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
 #include "jit/MIRGraph.h"
-#include "js/Conversions.h"
+#include "vm/NumericConversions.h"
 #include "vm/TypedArrayCommon.h"
 
 #include "jsopcodeinlines.h"
@@ -35,7 +35,6 @@ using mozilla::NegativeInfinity;
 using mozilla::PositiveInfinity;
 using mozilla::Swap;
 using JS::GenericNaN;
-using JS::ToInt32;
 
 // This algorithm is based on the paper "Eliminating Range Checks Using
 // Static Single Assignment Form" by Gough and Klaren.
@@ -156,12 +155,6 @@ RangeAnalysis::addBetaNodes()
 
         MCompare *compare = test->getOperand(0)->toCompare();
 
-        if (compare->compareType() == MCompare::Compare_Unknown ||
-            compare->compareType() == MCompare::Compare_Value)
-        {
-            continue;
-        }
-
         // TODO: support unsigned comparisons
         if (compare->compareType() == MCompare::Compare_UInt32)
             continue;
@@ -181,12 +174,12 @@ RangeAnalysis::addBetaNodes()
             conservativeUpper = GenericNaN();
         }
 
-        if (left->isConstantValue() && left->constantValue().isNumber()) {
-            bound = left->constantValue().toNumber();
+        if (left->isConstant() && left->toConstant()->value().isNumber()) {
+            bound = left->toConstant()->value().toNumber();
             val = right;
             jsop = ReverseCompareOp(jsop);
-        } else if (right->isConstantValue() && right->constantValue().isNumber()) {
-            bound = right->constantValue().toNumber();
+        } else if (right->isConstant() && right->toConstant()->value().isNumber()) {
+            bound = right->toConstant()->value().toNumber();
             val = left;
         } else if (left->type() == MIRType_Int32 && right->type() == MIRType_Int32) {
             MDefinition *smaller = nullptr;
@@ -1317,14 +1310,14 @@ MLsh::computeRange(TempAllocator &alloc)
     left.wrapAroundToInt32();
 
     MDefinition *rhs = getOperand(1);
-    if (rhs->isConstantValue() && rhs->constantValue().isInt32()) {
-        int32_t c = rhs->constantValue().toInt32();
-        setRange(Range::lsh(alloc, &left, c));
+    if (!rhs->isConstant()) {
+        right.wrapAroundToShiftCount();
+        setRange(Range::lsh(alloc, &left, &right));
         return;
     }
 
-    right.wrapAroundToShiftCount();
-    setRange(Range::lsh(alloc, &left, &right));
+    int32_t c = rhs->toConstant()->value().toInt32();
+    setRange(Range::lsh(alloc, &left, c));
 }
 
 void
@@ -1335,14 +1328,14 @@ MRsh::computeRange(TempAllocator &alloc)
     left.wrapAroundToInt32();
 
     MDefinition *rhs = getOperand(1);
-    if (rhs->isConstantValue() && rhs->constantValue().isInt32()) {
-        int32_t c = rhs->constantValue().toInt32();
-        setRange(Range::rsh(alloc, &left, c));
+    if (!rhs->isConstant()) {
+        right.wrapAroundToShiftCount();
+        setRange(Range::rsh(alloc, &left, &right));
         return;
     }
 
-    right.wrapAroundToShiftCount();
-    setRange(Range::rsh(alloc, &left, &right));
+    int32_t c = rhs->toConstant()->value().toInt32();
+    setRange(Range::rsh(alloc, &left, c));
 }
 
 void
@@ -1360,11 +1353,11 @@ MUrsh::computeRange(TempAllocator &alloc)
     right.wrapAroundToShiftCount();
 
     MDefinition *rhs = getOperand(1);
-    if (rhs->isConstantValue() && rhs->constantValue().isInt32()) {
-        int32_t c = rhs->constantValue().toInt32();
-        setRange(Range::ursh(alloc, &left, c));
-    } else {
+    if (!rhs->isConstant()) {
         setRange(Range::ursh(alloc, &left, &right));
+    } else {
+        int32_t c = rhs->toConstant()->value().toInt32();
+        setRange(Range::ursh(alloc, &left, c));
     }
 
     MOZ_ASSERT(range()->lower() >= 0);
@@ -2210,17 +2203,15 @@ RangeAnalysis::analyze()
                 if (iter->isAsmJSLoadHeap()) {
                     MAsmJSLoadHeap *ins = iter->toAsmJSLoadHeap();
                     Range *range = ins->ptr()->range();
-                    uint32_t elemSize = TypedArrayElemSize(ins->viewType());
                     if (range && range->hasInt32LowerBound() && range->lower() >= 0 &&
-                        range->hasInt32UpperBound() && uint32_t(range->upper()) + elemSize <= minHeapLength) {
+                        range->hasInt32UpperBound() && (uint32_t) range->upper() < minHeapLength) {
                         ins->removeBoundsCheck();
                     }
                 } else if (iter->isAsmJSStoreHeap()) {
                     MAsmJSStoreHeap *ins = iter->toAsmJSStoreHeap();
                     Range *range = ins->ptr()->range();
-                    uint32_t elemSize = TypedArrayElemSize(ins->viewType());
                     if (range && range->hasInt32LowerBound() && range->lower() >= 0 &&
-                        range->hasInt32UpperBound() && uint32_t(range->upper()) + elemSize <= minHeapLength) {
+                        range->hasInt32UpperBound() && (uint32_t) range->upper() < minHeapLength) {
                         ins->removeBoundsCheck();
                     }
                 }
@@ -2743,7 +2734,7 @@ CloneForDeadBranches(TempAllocator &alloc, MInstruction *candidate)
 
     candidate->block()->insertBefore(candidate, clone);
 
-    if (!candidate->isConstantValue()) {
+    if (!candidate->isConstant()) {
         MOZ_ASSERT(clone->canRecoverOnBailout());
         clone->setRecoveredOnBailout();
     }
@@ -3047,36 +3038,6 @@ MLoadElementHole::collectRangeInfoPreTrunc()
     Range indexRange(index());
     if (indexRange.isFiniteNonNegative())
         needsNegativeIntCheck_ = false;
-}
-
-void
-MLoadTypedArrayElementStatic::collectRangeInfoPreTrunc()
-{
-    Range *range = ptr()->range();
-
-    if (range && range->hasInt32LowerBound() && range->hasInt32UpperBound()) {
-        int64_t offset = this->offset();
-        int64_t lower = range->lower() + offset;
-        int64_t upper = range->upper() + offset;
-        int64_t length = this->length();
-        if (lower >= 0 && upper < length)
-            setNeedsBoundsCheck(false);
-    }
-}
-
-void
-MStoreTypedArrayElementStatic::collectRangeInfoPreTrunc()
-{
-    Range *range = ptr()->range();
-
-    if (range && range->hasInt32LowerBound() && range->hasInt32UpperBound()) {
-        int64_t offset = this->offset();
-        int64_t lower = range->lower() + offset;
-        int64_t upper = range->upper() + offset;
-        int64_t length = this->length();
-        if (lower >= 0 && upper < length)
-            setNeedsBoundsCheck(false);
-    }
 }
 
 void

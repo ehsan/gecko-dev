@@ -300,7 +300,6 @@ nsTransitionManager::StyleContextChanged(dom::Element *aElement,
                                              currentValue) ||
           currentValue != segment.mToValue) {
         // stop the transition
-        player->Cancel();
         players.RemoveElementAt(i);
         collection->UpdateAnimationGeneration(mPresContext);
       }
@@ -452,7 +451,6 @@ nsTransitionManager::ConsiderStartingTransition(
       // currently in the 'transition-delay').  It also might happen because we
       // just got a style change to a value that can't be interpolated.
       AnimationPlayerPtrArray& players = aElementTransitions->mPlayers;
-      players[currentIndex]->Cancel();
       oldPT = nullptr; // Clear pointer so it doesn't dangle
       players.RemoveElementAt(currentIndex);
       aElementTransitions->UpdateAnimationGeneration(mPresContext);
@@ -541,12 +539,8 @@ nsTransitionManager::ConsiderStartingTransition(
   segment.mTimingFunction.Init(tf);
 
   nsRefPtr<CSSTransitionPlayer> player = new CSSTransitionPlayer(timeline);
-  // The order of the following two calls is important since PlayFromStyle
-  // will add the player to the PendingPlayerTracker of its source content's
-  // document. When we come to make source writeable (bug 1049975) we should
-  // remove this dependency.
+  player->mStartTime = timeline->GetCurrentTime();
   player->SetSource(pt);
-  player->PlayFromStyle();
 
   if (!aElementTransitions) {
     aElementTransitions =

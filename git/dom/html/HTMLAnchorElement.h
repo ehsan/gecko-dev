@@ -28,7 +28,7 @@ public:
 
   explicit HTMLAnchorElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : nsGenericHTMLElement(aNodeInfo)
-    , Link(this)
+    , Link(MOZ_THIS_IN_INITIALIZER_LIST())
   {
   }
 
@@ -81,9 +81,9 @@ public:
 
   virtual EventStates IntrinsicState() const MOZ_OVERRIDE;
 
-  virtual void OnDNSPrefetchDeferred() MOZ_OVERRIDE;
-  virtual void OnDNSPrefetchRequested() MOZ_OVERRIDE;
-  virtual bool HasDeferredDNSPrefetchRequest() MOZ_OVERRIDE;
+  virtual void OnDNSPrefetchDeferred();
+  virtual void OnDNSPrefetchRequested();
+  virtual bool HasDeferredDNSPrefetchRequest();
 
   // WebIDL API
   void GetHref(nsAString& aValue, ErrorResult& rv)

@@ -2,7 +2,6 @@
 // TODO NIT use do_check_eq(expected, actual) consistently, not sometimes eq(actual, expected)
 
 Cu.import("resource://testing-common/httpd.js");
-Cu.import("resource://gre/modules/Services.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "URL", function() {
   return "http://localhost:" + httpserv.identity.primaryPort;
@@ -272,14 +271,7 @@ var listener = {
 function makeChan(url) {
   var ios = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService);
-  var chan = ios.newChannel2(url,
-                             null,
-                             null,
-                             null,      // aLoadingNode
-                             Services.scriptSecurityManager.getSystemPrincipal(),
-                             null,      // aTriggeringPrincipal
-                             Ci.nsILoadInfo.SEC_NORMAL,
-                             Ci.nsIContentPolicy.TYPE_OTHER)
+  var chan = ios.newChannel(url, null, null)
                 .QueryInterface(Components.interfaces.nsIHttpChannel);
 
   return chan;

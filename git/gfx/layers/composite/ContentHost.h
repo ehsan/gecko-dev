@@ -125,15 +125,17 @@ public:
                          const gfx::Matrix4x4& aTransform,
                          const gfx::Filter& aFilter,
                          const gfx::Rect& aClipRect,
-                         const nsIntRegion* aVisibleRegion = nullptr) MOZ_OVERRIDE;
+                         const nsIntRegion* aVisibleRegion = nullptr);
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
 
+#ifdef MOZ_DUMP_PAINTING
   virtual TemporaryRef<gfx::DataSourceSurface> GetAsSurface() MOZ_OVERRIDE;
 
   virtual void Dump(std::stringstream& aStream,
                     const char* aPrefix="",
                     bool aDumpHtml=false) MOZ_OVERRIDE;
+#endif
 
   virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix) MOZ_OVERRIDE;
 
@@ -166,7 +168,7 @@ public:
     mLocked = false;
   }
 
-  LayerRenderState GetRenderState() MOZ_OVERRIDE;
+  LayerRenderState GetRenderState();
 
   virtual TemporaryRef<TexturedEffect> GenEffect(const gfx::Filter& aFilter) MOZ_OVERRIDE;
 
@@ -239,7 +241,7 @@ public:
   explicit ContentHostIncremental(const TextureInfo& aTextureInfo);
   ~ContentHostIncremental();
 
-  virtual CompositableType GetType() MOZ_OVERRIDE { return CompositableType::CONTENT_INC; }
+  virtual CompositableType GetType() { return CompositableType::CONTENT_INC; }
 
   virtual LayerRenderState GetRenderState() MOZ_OVERRIDE { return LayerRenderState(); }
 
@@ -256,7 +258,7 @@ public:
   virtual bool UpdateThebes(const ThebesBufferData& aData,
                             const nsIntRegion& aUpdated,
                             const nsIntRegion& aOldValidRegionBack,
-                            nsIntRegion* aUpdatedRegionBack) MOZ_OVERRIDE
+                            nsIntRegion* aUpdatedRegionBack)
   {
     NS_ERROR("Shouldn't call this");
     return false;
@@ -267,7 +269,7 @@ public:
                          const gfx::Matrix4x4& aTransform,
                          const gfx::Filter& aFilter,
                          const gfx::Rect& aClipRect,
-                         const nsIntRegion* aVisibleRegion = nullptr) MOZ_OVERRIDE;
+                         const nsIntRegion* aVisibleRegion = nullptr);
 
   virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix) MOZ_OVERRIDE;
 

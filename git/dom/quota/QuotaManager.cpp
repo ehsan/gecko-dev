@@ -42,7 +42,6 @@
 #include "nsContentUtils.h"
 #include "nsCRTGlue.h"
 #include "nsDirectoryServiceUtils.h"
-#include "nsEscape.h"
 #include "nsNetUtil.h"
 #include "nsPrintfCString.h"
 #include "nsScriptSecurityManager.h"
@@ -50,6 +49,7 @@
 #include "nsXULAppAPI.h"
 #include "xpcpublic.h"
 
+#include "AcquireListener.h"
 #include "CheckQuotaHelper.h"
 #include "OriginCollection.h"
 #include "OriginOrPatternString.h"
@@ -57,8 +57,6 @@
 #include "StorageMatcher.h"
 #include "UsageInfo.h"
 #include "Utilities.h"
-
-#define BAD_TLS_INDEX ((uint32_t) -1)
 
 // The amount of time, in milliseconds, that our IO thread will stay alive
 // after the last event it processes.
@@ -160,8 +158,9 @@ struct SynchronizedOp
   const OriginOrPatternString mOriginOrPattern;
   Nullable<PersistenceType> mPersistenceType;
   nsCString mId;
-  nsCOMPtr<nsIRunnable> mRunnable;
+  nsRefPtr<AcquireListener> mListener;
   nsTArray<nsCOMPtr<nsIRunnable> > mDelayedRunnables;
+  ArrayCluster<nsIOfflineStorage*> mStorages;
 };
 
 class CollectOriginsHelper MOZ_FINAL : public nsRunnable
@@ -200,7 +199,8 @@ private:
 // them before dispatching itself back to the main thread. When back on the main
 // thread the runnable will notify the QuotaManager that the job has been
 // completed.
-class OriginClearRunnable MOZ_FINAL : public nsRunnable
+class OriginClearRunnable MOZ_FINAL : public nsRunnable,
+                                      public AcquireListener
 {
   enum CallbackState {
     // Not yet run.
@@ -227,7 +227,11 @@ public:
   { }
 
   NS_IMETHOD
-  Run() MOZ_OVERRIDE;
+  Run();
+
+  // AcquireListener override
+  virtual nsresult
+  OnExclusiveAccessAcquired() MOZ_OVERRIDE;
 
   void
   AdvanceState()
@@ -246,6 +250,10 @@ public:
         NS_NOTREACHED("Can't advance past Complete!");
     }
   }
+
+  static void
+  InvalidateOpenedStorages(nsTArray<nsCOMPtr<nsIOfflineStorage> >& aStorages,
+                           void* aClosure);
 
   void
   DeleteFiles(QuotaManager* aQuotaManager,
@@ -301,7 +309,7 @@ public:
                      nsIUsageCallback* aCallback);
 
   NS_IMETHOD
-  Run() MOZ_OVERRIDE;
+  Run();
 
   void
   AdvanceState()
@@ -346,7 +354,8 @@ private:
   const bool mIsApp;
 };
 
-class ResetOrClearRunnable MOZ_FINAL : public nsRunnable
+class ResetOrClearRunnable MOZ_FINAL : public nsRunnable,
+                                       public AcquireListener
 {
   enum CallbackState {
     // Not yet run.
@@ -371,7 +380,11 @@ public:
   { }
 
   NS_IMETHOD
-  Run() MOZ_OVERRIDE;
+  Run();
+
+  // AcquireListener override
+  virtual nsresult
+  OnExclusiveAccessAcquired() MOZ_OVERRIDE;
 
   void
   AdvanceState()
@@ -390,6 +403,10 @@ public:
         NS_NOTREACHED("Can't advance past Complete!");
     }
   }
+
+  static void
+  InvalidateOpenedStorages(nsTArray<nsCOMPtr<nsIOfflineStorage> >& aStorages,
+                           void* aClosure);
 
   void
   DeleteFiles(QuotaManager* aQuotaManager);
@@ -523,7 +540,8 @@ public:
   : mOp(aOp), mCountdown(1)
   {
     NS_ASSERTION(mOp, "Why don't we have a runnable?");
-    NS_ASSERTION(mOp->mRunnable,
+    NS_ASSERTION(mOp->mStorages.IsEmpty(), "We're here too early!");
+    NS_ASSERTION(mOp->mListener,
                  "What are we supposed to do when we're done?");
     NS_ASSERTION(mCountdown, "Wrong countdown!");
   }
@@ -1610,19 +1628,12 @@ QuotaManager::GetQuotaObject(PersistenceType aPersistenceType,
     fileSize = 0;
   }
 
-  // Re-escape our parameters above to make sure we get the right quota group.
-  nsAutoCString tempStorage1;
-  const nsCSubstring& group = NS_EscapeURL(aGroup, esc_Query, tempStorage1);
-
-  nsAutoCString tempStorage2;
-  const nsCSubstring& origin = NS_EscapeURL(aOrigin, esc_Query, tempStorage2);
-
   nsRefPtr<QuotaObject> result;
   {
     MutexAutoLock lock(mQuotaMutex);
 
     GroupInfoTriple* triple;
-    if (!mGroupInfoTriples.Get(group, &triple)) {
+    if (!mGroupInfoTriples.Get(aGroup, &triple)) {
       return nullptr;
     }
 
@@ -1633,7 +1644,7 @@ QuotaManager::GetQuotaObject(PersistenceType aPersistenceType,
       return nullptr;
     }
 
-    nsRefPtr<OriginInfo> originInfo = groupInfo->LockedGetOriginInfo(origin);
+    nsRefPtr<OriginInfo> originInfo = groupInfo->LockedGetOriginInfo(aOrigin);
 
     if (!originInfo) {
       return nullptr;
@@ -1745,10 +1756,69 @@ QuotaManager::UnregisterStorage(nsIOfflineStorage* aStorage)
 }
 
 void
-QuotaManager::AbortCloseStoragesForProcess(ContentParent* aContentParent)
+QuotaManager::OnStorageClosed(nsIOfflineStorage* aStorage)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(aStorage, "Null pointer!");
+
+  // Check through the list of SynchronizedOps to see if any are waiting for
+  // this storage to close before proceeding.
+  SynchronizedOp* op =
+    FindSynchronizedOp(aStorage->Origin(),
+                       Nullable<PersistenceType>(aStorage->Type()),
+                       aStorage->Id());
+  if (op) {
+    Client::Type clientType = aStorage->GetClient()->GetType();
+
+    // This storage is in the scope of this SynchronizedOp.  Remove it
+    // from the list if necessary.
+    if (op->mStorages[clientType].RemoveElement(aStorage)) {
+      // Now set up the helper if there are no more live storages.
+      NS_ASSERTION(op->mListener,
+                   "How did we get rid of the listener before removing the "
+                    "last storage?");
+      if (op->mStorages[clientType].IsEmpty()) {
+        // At this point, all storages are closed, so no new transactions
+        // can be started.  There may, however, still be outstanding
+        // transactions that have not completed.  We need to wait for those
+        // before we dispatch the helper.
+        if (NS_FAILED(RunSynchronizedOp(aStorage, op))) {
+          NS_WARNING("Failed to run synchronized op!");
+        }
+      }
+    }
+  }
+}
+
+template <class OwnerClass>
+struct OwnerTraits;
+
+template <>
+struct OwnerTraits<nsPIDOMWindow>
+{
+  static bool
+  IsOwned(nsIOfflineStorage* aStorage, nsPIDOMWindow* aOwner)
+  {
+    return aStorage->IsOwnedByWindow(aOwner);
+  }
+};
+
+template <>
+struct OwnerTraits<mozilla::dom::ContentParent>
+{
+  static bool
+  IsOwned(nsIOfflineStorage* aStorage, mozilla::dom::ContentParent* aOwner)
+  {
+    return aStorage->IsOwnedByProcess(aOwner);
+  }
+};
+
+template <class OwnerClass>
+void
+QuotaManager::AbortCloseStoragesFor(OwnerClass* aOwnerClass)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aContentParent);
+  MOZ_ASSERT(aOwnerClass);
 
   FileService* service = FileService::Get();
 
@@ -1758,22 +1828,76 @@ QuotaManager::AbortCloseStoragesForProcess(ContentParent* aContentParent)
   for (uint32_t i = 0; i < Client::TYPE_MAX; i++) {
     nsRefPtr<Client>& client = mClients[i];
     bool utilized = service && client->IsFileServiceUtilized();
+    bool activated = client->IsTransactionServiceActivated();
 
     nsTArray<nsIOfflineStorage*>& array = liveStorages[i];
     for (uint32_t j = 0; j < array.Length(); j++) {
       nsCOMPtr<nsIOfflineStorage> storage = array[j];
 
-      if (storage->IsOwnedByProcess(aContentParent)) {
+      if (OwnerTraits<OwnerClass>::IsOwned(storage, aOwnerClass)) {
         if (NS_FAILED(storage->Close())) {
-          NS_WARNING("Failed to close storage for dying process!");
+          NS_WARNING("Failed to close storage for dying window!");
         }
 
         if (utilized) {
           service->AbortFileHandlesForStorage(storage);
         }
+
+        if (activated) {
+          client->AbortTransactionsForStorage(storage);
+        }
       }
     }
   }
+}
+
+void
+QuotaManager::AbortCloseStoragesForWindow(nsPIDOMWindow* aWindow)
+{
+  AbortCloseStoragesFor(aWindow);
+}
+
+void
+QuotaManager::AbortCloseStoragesForProcess(ContentParent* aContentParent)
+{
+  AbortCloseStoragesFor(aContentParent);
+}
+
+bool
+QuotaManager::HasOpenTransactions(nsPIDOMWindow* aWindow)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(aWindow, "Null pointer!");
+
+  FileService* service = FileService::Get();
+
+  nsAutoPtr<StorageMatcher<ArrayCluster<nsIOfflineStorage*> > > liveStorages;
+
+  for (uint32_t i = 0; i < Client::TYPE_MAX; i++) {
+    nsRefPtr<Client>& client = mClients[i];
+    bool utilized = service && client->IsFileServiceUtilized();
+    bool activated = client->IsTransactionServiceActivated();
+
+    if (utilized || activated) {
+      if (!liveStorages) {
+        liveStorages = new StorageMatcher<ArrayCluster<nsIOfflineStorage*> >();
+        liveStorages->Find(mLiveStorages);
+      }
+
+      nsTArray<nsIOfflineStorage*>& storages = liveStorages->ArrayAt(i);
+      for (uint32_t j = 0; j < storages.Length(); j++) {
+        nsIOfflineStorage*& storage = storages[j];
+
+        if (storage->IsOwnedByWindow(aWindow) &&
+            ((utilized && service->HasFileHandlesForStorage(storage)) ||
+             (activated && client->HasTransactionsForStorage(storage)))) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
 }
 
 nsresult
@@ -1848,6 +1972,8 @@ QuotaManager::AllowNextSynchronizedOp(
         op->mOriginOrPattern == aOriginOrPattern &&
         op->mPersistenceType == aPersistenceType) {
       if (op->mId == aId) {
+        NS_ASSERTION(op->mStorages.IsEmpty(), "How did this happen?");
+
         op->DispatchDelayedRunnables();
 
         mSynchronizedOps.RemoveElementAt(index);
@@ -3240,81 +3366,170 @@ QuotaManager::LockedRemoveQuotaForOrigin(PersistenceType aPersistenceType,
 nsresult
 QuotaManager::AcquireExclusiveAccess(const nsACString& aPattern,
                                      Nullable<PersistenceType> aPersistenceType,
-                                     nsIRunnable* aRunnable)
+                                     nsIOfflineStorage* aStorage,
+                                     AcquireListener* aListener,
+                                     WaitingOnStoragesCallback aCallback,
+                                     void* aClosure)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aRunnable, "Need a runnable!");
+  NS_ASSERTION(aListener, "Need a listener!");
 
   // Find the right SynchronizedOp.
   SynchronizedOp* op =
-    FindSynchronizedOp(aPattern, aPersistenceType, EmptyCString());
+    FindSynchronizedOp(aPattern, aPersistenceType,
+                       aStorage ? aStorage->Id() : EmptyCString());
 
   NS_ASSERTION(op, "We didn't find a SynchronizedOp?");
-  NS_ASSERTION(!op->mRunnable, "SynchronizedOp already has a runnable?!?");
+  NS_ASSERTION(!op->mListener, "SynchronizedOp already has a listener?!?");
 
-  ArrayCluster<nsIOfflineStorage*> liveStorages;
+  nsTArray<nsCOMPtr<nsIOfflineStorage> > liveStorages;
 
-  StorageMatcher<ArrayCluster<nsIOfflineStorage*> > matches;
-  if (aPattern.IsVoid()) {
-    matches.Find(mLiveStorages);
+  if (aStorage) {
+    // We need to wait for the storages to go away.
+    // Hold on to all storage objects that represent the same storage file
+    // (except the one that is requesting this version change).
+
+    Client::Type clientType = aStorage->GetClient()->GetType();
+
+    StorageMatcher<nsAutoTArray<nsIOfflineStorage*, 20> > matches;
+    matches.Find(mLiveStorages, aPattern, clientType);
+
+    if (!matches.IsEmpty()) {
+      // Grab all storages that are not yet closed but whose storage id match
+      // the one we're looking for.
+      for (uint32_t index = 0; index < matches.Length(); index++) {
+        nsIOfflineStorage*& storage = matches[index];
+        if (!storage->IsClosed() &&
+            storage != aStorage &&
+            storage->Id() == aStorage->Id() &&
+            (aPersistenceType.IsNull() ||
+             aPersistenceType.Value() == storage->Type())) {
+          liveStorages.AppendElement(storage);
+        }
+      }
+    }
+
+    if (!liveStorages.IsEmpty()) {
+      NS_ASSERTION(op->mStorages[clientType].IsEmpty(),
+                   "How do we already have storages here?");
+      op->mStorages[clientType].AppendElements(liveStorages);
+    }
   }
   else {
-    matches.Find(mLiveStorages, aPattern);
-  }
+    StorageMatcher<ArrayCluster<nsIOfflineStorage*> > matches;
+    if (aPattern.IsVoid()) {
+      matches.Find(mLiveStorages);
+    }
+    else {
+      matches.Find(mLiveStorages, aPattern);
+    }
 
-  // We want *all* storages that match the given persistence type, even those
-  // that are closed, when we're going to clear the origin.
-  if (!matches.IsEmpty()) {
-    for (uint32_t i = 0; i < Client::TYPE_MAX; i++) {
-      nsTArray<nsIOfflineStorage*>& storages = matches.ArrayAt(i);
-      for (uint32_t j = 0; j < storages.Length(); j++) {
-        nsIOfflineStorage* storage = storages[j];
-        if (aPersistenceType.IsNull() ||
-            aPersistenceType.Value() == storage->Type()) {
-          storage->Invalidate();
-          liveStorages[i].AppendElement(storage);
+    NS_ASSERTION(op->mStorages.IsEmpty(),
+               "How do we already have storages here?");
+
+    // We want *all* storages that match the given persistence type, even those
+    // that are closed, when we're going to clear the origin.
+    if (!matches.IsEmpty()) {
+      for (uint32_t i = 0; i < Client::TYPE_MAX; i++) {
+        nsTArray<nsIOfflineStorage*>& storages = matches.ArrayAt(i);
+        for (uint32_t j = 0; j < storages.Length(); j++) {
+          nsIOfflineStorage* storage = storages[j];
+          if (aPersistenceType.IsNull() ||
+              aPersistenceType.Value() == storage->Type()) {
+            liveStorages.AppendElement(storage);
+            op->mStorages[i].AppendElement(storage);
+          }
         }
       }
     }
   }
 
-  op->mRunnable = aRunnable;
-
-  nsRefPtr<WaitForTransactionsToFinishRunnable> runnable =
-    new WaitForTransactionsToFinishRunnable(op);
+  op->mListener = aListener;
 
   if (!liveStorages.IsEmpty()) {
-    // Ask the file service to call us back when it's done with this storage.
-    FileService* service = FileService::Get();
+    // Give our callback the storages so it can decide what to do with them.
+    aCallback(liveStorages, aClosure);
 
-    if (service) {
-      // Have to copy here in case a transaction service needs a list too.
-      nsTArray<nsCOMPtr<nsIOfflineStorage>> array;
+    NS_ASSERTION(liveStorages.IsEmpty(),
+                 "Should have done something with the array!");
 
-      for (uint32_t index = 0; index < Client::TYPE_MAX; index++)  {
-        if (!liveStorages[index].IsEmpty() &&
-            mClients[index]->IsFileServiceUtilized()) {
-          array.AppendElements(liveStorages[index]);
-        }
-      }
+    if (aStorage) {
+      // Wait for those storages to close.
+      return NS_OK;
+    }
+  }
 
-      if (!array.IsEmpty()) {
-        runnable->AddRun();
+  // If we're trying to open a storage and nothing blocks it, or if we're
+  // clearing an origin, then go ahead and schedule the op.
+  nsresult rv = RunSynchronizedOp(aStorage, op);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-        service->WaitForStoragesToComplete(array, runnable);
+  return NS_OK;
+}
+
+nsresult
+QuotaManager::RunSynchronizedOp(nsIOfflineStorage* aStorage,
+                                SynchronizedOp* aOp)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  NS_ASSERTION(aOp, "Null pointer!");
+  NS_ASSERTION(aOp->mListener, "No listener on this op!");
+  NS_ASSERTION(!aStorage ||
+               aOp->mStorages[aStorage->GetClient()->GetType()].IsEmpty(),
+               "This op isn't ready to run!");
+
+  ArrayCluster<nsIOfflineStorage*> storages;
+
+  uint32_t startIndex;
+  uint32_t endIndex;
+
+  if (aStorage) {
+    Client::Type clientType = aStorage->GetClient()->GetType();
+
+    storages[clientType].AppendElement(aStorage);
+
+    startIndex = clientType;
+    endIndex = clientType + 1;
+  }
+  else {
+    aOp->mStorages.SwapElements(storages);
+
+    startIndex = 0;
+    endIndex = Client::TYPE_MAX;
+  }
+
+  nsRefPtr<WaitForTransactionsToFinishRunnable> runnable =
+    new WaitForTransactionsToFinishRunnable(aOp);
+
+  // Ask the file service to call us back when it's done with this storage.
+  FileService* service = FileService::Get();
+
+  if (service) {
+    // Have to copy here in case a transaction service needs a list too.
+    nsTArray<nsCOMPtr<nsIOfflineStorage>> array;
+
+    for (uint32_t index = startIndex; index < endIndex; index++)  {
+      if (!storages[index].IsEmpty() &&
+          mClients[index]->IsFileServiceUtilized()) {
+        array.AppendElements(storages[index]);
       }
     }
 
-    // Ask each transaction service to call us back when they're done with this
-    // storage.
-    for (uint32_t index = 0; index < Client::TYPE_MAX; index++)  {
-      nsRefPtr<Client>& client = mClients[index];
-      if (!liveStorages[index].IsEmpty() &&
-          client->IsTransactionServiceActivated()) {
-        runnable->AddRun();
+    if (!array.IsEmpty()) {
+      runnable->AddRun();
 
-        client->WaitForStoragesToComplete(liveStorages[index], runnable);
-      }
+      service->WaitForStoragesToComplete(array, runnable);
+    }
+  }
+
+  // Ask each transaction service to call us back when they're done with this
+  // storage.
+  for (uint32_t index = startIndex; index < endIndex; index++)  {
+    nsRefPtr<Client>& client = mClients[index];
+    if (!storages[index].IsEmpty() && client->IsTransactionServiceActivated()) {
+      runnable->AddRun();
+
+      client->WaitForStoragesToComplete(storages[index], runnable);
     }
   }
 
@@ -3938,7 +4153,7 @@ void
 SynchronizedOp::DispatchDelayedRunnables()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(!mRunnable, "Any runnable should be gone by now!");
+  NS_ASSERTION(!mListener, "Any listener should be gone by now!");
 
   uint32_t count = mDelayedRunnables.Length();
   for (uint32_t index = 0; index < count; index++) {
@@ -3999,6 +4214,34 @@ CollectOriginsHelper::Run()
   mCondVar.Notify();
 
   return NS_OK;
+}
+
+nsresult
+OriginClearRunnable::OnExclusiveAccessAcquired()
+{
+  QuotaManager* quotaManager = QuotaManager::Get();
+  NS_ASSERTION(quotaManager, "This should never fail!");
+
+  nsresult rv = quotaManager->IOThread()->Dispatch(this, NS_DISPATCH_NORMAL);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+// static
+void
+OriginClearRunnable::InvalidateOpenedStorages(
+                              nsTArray<nsCOMPtr<nsIOfflineStorage> >& aStorages,
+                              void* aClosure)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  nsTArray<nsCOMPtr<nsIOfflineStorage> > storages;
+  storages.SwapElements(aStorages);
+
+  for (uint32_t index = 0; index < storages.Length(); index++) {
+    storages[index]->Invalidate();
+  }
 }
 
 void
@@ -4112,7 +4355,8 @@ OriginClearRunnable::Run()
       // storages we care about.
       nsresult rv =
         quotaManager->AcquireExclusiveAccess(mOriginOrPattern, mPersistenceType,
-                                             this);
+                                             this, InvalidateOpenedStorages,
+                                             nullptr);
       NS_ENSURE_SUCCESS(rv, rv);
 
       return NS_OK;
@@ -4402,6 +4646,34 @@ AsyncUsageRunnable::Cancel()
   return NS_OK;
 }
 
+nsresult
+ResetOrClearRunnable::OnExclusiveAccessAcquired()
+{
+  QuotaManager* quotaManager = QuotaManager::Get();
+  NS_ASSERTION(quotaManager, "This should never fail!");
+
+  nsresult rv = quotaManager->IOThread()->Dispatch(this, NS_DISPATCH_NORMAL);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
+
+// static
+void
+ResetOrClearRunnable::InvalidateOpenedStorages(
+                              nsTArray<nsCOMPtr<nsIOfflineStorage> >& aStorages,
+                              void* aClosure)
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
+  nsTArray<nsCOMPtr<nsIOfflineStorage> > storages;
+  storages.SwapElements(aStorages);
+
+  for (uint32_t index = 0; index < storages.Length(); index++) {
+    storages[index]->Invalidate();
+  }
+}
+
 void
 ResetOrClearRunnable::DeleteFiles(QuotaManager* aQuotaManager)
 {
@@ -4449,7 +4721,8 @@ ResetOrClearRunnable::Run()
       // storages we care about.
       nsresult rv =
         quotaManager->AcquireExclusiveAccess(NullCString(),
-                                             Nullable<PersistenceType>(), this);
+                                             Nullable<PersistenceType>(), this,
+                                             InvalidateOpenedStorages, nullptr);
       NS_ENSURE_SUCCESS(rv, rv);
 
       return NS_OK;
@@ -4594,24 +4867,20 @@ WaitForTransactionsToFinishRunnable::Run()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
   NS_ASSERTION(mOp, "Null op!");
-  NS_ASSERTION(mOp->mRunnable, "Nothing to run!");
+  NS_ASSERTION(mOp->mListener, "Nothing to run!");
   NS_ASSERTION(mCountdown, "Wrong countdown!");
 
   if (--mCountdown) {
     return NS_OK;
   }
 
-  // Don't hold the runnable alive longer than necessary.
-  nsCOMPtr<nsIRunnable> runnable;
-  runnable.swap(mOp->mRunnable);
+  // Don't hold the listener alive longer than necessary.
+  nsRefPtr<AcquireListener> listener;
+  listener.swap(mOp->mListener);
 
   mOp = nullptr;
 
-  QuotaManager* quotaManager = QuotaManager::Get();
-  NS_ASSERTION(quotaManager, "This should never fail!");
-
-  nsresult rv =
-    quotaManager->IOThread()->Dispatch(runnable, NS_DISPATCH_NORMAL);
+  nsresult rv = listener->OnExclusiveAccessAcquired();
   NS_ENSURE_SUCCESS(rv, rv);
 
   // The listener is responsible for calling

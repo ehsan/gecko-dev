@@ -86,8 +86,8 @@ protected:
 private:
   Accessible* Intl();
 
-  xpcAccessible(const xpcAccessible&) = delete;
-  xpcAccessible& operator =(const xpcAccessible&) = delete;
+  xpcAccessible(const xpcAccessible&) MOZ_DELETE;
+  xpcAccessible& operator =(const xpcAccessible&) MOZ_DELETE;
 };
 
 } // namespace a11y

@@ -163,7 +163,6 @@ propagateLoadInfo(nsILoadInfo *aLoadInfo,
 
     openArgs.securityFlags() = aLoadInfo->GetSecurityFlags();
     openArgs.contentPolicyType() = aLoadInfo->GetContentPolicyType();
-    openArgs.innerWindowID() = aLoadInfo->GetInnerWindowID();
     return;
   }
 
@@ -174,7 +173,6 @@ propagateLoadInfo(nsILoadInfo *aLoadInfo,
   openArgs.triggeringPrincipalInfo() = requestingPrincipalInfo;
   openArgs.securityFlags() = nsILoadInfo::SEC_NORMAL;
   openArgs.contentPolicyType() = nsIContentPolicy::TYPE_OTHER;
-  openArgs.innerWindowID() = 0;
 }
 
 NS_IMETHODIMP
@@ -316,8 +314,6 @@ FTPChannelChild::RecvOnStartRequest(const nsresult& aChannelStatus,
   MOZ_RELEASE_ASSERT(!mDivertingToParent,
     "mDivertingToParent should be unset before OnStartRequest!");
 
-  LOG(("FTPChannelChild::RecvOnStartRequest [this=%p]\n", this));
-
   if (mEventQ->ShouldEnqueue()) {
     mEventQ->Enqueue(new FTPStartRequestEvent(this, aChannelStatus,
                                               aContentLength, aContentType,
@@ -337,7 +333,7 @@ FTPChannelChild::DoOnStartRequest(const nsresult& aChannelStatus,
                                   const nsCString& aEntityID,
                                   const URIParams& aURI)
 {
-  LOG(("FTPChannelChild::DoOnStartRequest [this=%p]\n", this));
+  LOG(("FTPChannelChild::RecvOnStartRequest [this=%p]\n", this));
 
   // mFlushedForDiversion and mDivertingToParent should NEVER be set at this
   // stage, as they are set in the listener's OnStartRequest.
@@ -411,8 +407,6 @@ FTPChannelChild::RecvOnDataAvailable(const nsresult& channelStatus,
   MOZ_RELEASE_ASSERT(!mFlushedForDiversion,
                      "Should not be receiving any more callbacks from parent!");
 
-  LOG(("FTPChannelChild::RecvOnDataAvailable [this=%p]\n", this));
-
   if (mEventQ->ShouldEnqueue()) {
     mEventQ->Enqueue(
       new FTPDataAvailableEvent(this, channelStatus, data, offset, count));
@@ -431,7 +425,7 @@ FTPChannelChild::DoOnDataAvailable(const nsresult& channelStatus,
                                    const uint64_t& offset,
                                    const uint32_t& count)
 {
-  LOG(("FTPChannelChild::DoOnDataAvailable [this=%p]\n", this));
+  LOG(("FTPChannelChild::RecvOnDataAvailable [this=%p]\n", this));
 
   if (!mCanceled && NS_SUCCEEDED(mStatus)) {
     mStatus = channelStatus;
@@ -496,9 +490,6 @@ FTPChannelChild::RecvOnStopRequest(const nsresult& aChannelStatus)
   MOZ_RELEASE_ASSERT(!mFlushedForDiversion,
     "Should not be receiving any more callbacks from parent!");
 
-  LOG(("FTPChannelChild::RecvOnStopRequest [this=%p status=%x]\n",
-       this, aChannelStatus));
-
   if (mEventQ->ShouldEnqueue()) {
     mEventQ->Enqueue(new FTPStopRequestEvent(this, aChannelStatus));
   } else {
@@ -510,7 +501,7 @@ FTPChannelChild::RecvOnStopRequest(const nsresult& aChannelStatus)
 void
 FTPChannelChild::DoOnStopRequest(const nsresult& aChannelStatus)
 {
-  LOG(("FTPChannelChild::DoOnStopRequest [this=%p status=%x]\n",
+  LOG(("FTPChannelChild::RecvOnStopRequest [this=%p status=%u]\n",
        this, aChannelStatus));
 
   if (mDivertingToParent) {
@@ -555,8 +546,6 @@ class FTPFailedAsyncOpenEvent : public ChannelEvent
 bool
 FTPChannelChild::RecvFailedAsyncOpen(const nsresult& statusCode)
 {
-  LOG(("FTPChannelChild::RecvFailedAsyncOpen [this=%p status=%x]\n",
-       this, statusCode));
   if (mEventQ->ShouldEnqueue()) {
     mEventQ->Enqueue(new FTPFailedAsyncOpenEvent(this, statusCode));
   } else {
@@ -568,8 +557,6 @@ FTPChannelChild::RecvFailedAsyncOpen(const nsresult& statusCode)
 void
 FTPChannelChild::DoFailedAsyncOpen(const nsresult& statusCode)
 {
-  LOG(("FTPChannelChild::DoFailedAsyncOpen [this=%p status=%x]\n",
-       this, statusCode));
   mStatus = statusCode;
 
   if (mLoadGroup)
@@ -610,7 +597,6 @@ class FTPFlushedForDiversionEvent : public ChannelEvent
 bool
 FTPChannelChild::RecvFlushedForDiversion()
 {
-  LOG(("FTPChannelChild::RecvFlushedForDiversion [this=%p]\n", this));
   MOZ_ASSERT(mDivertingToParent);
 
   if (mEventQ->ShouldEnqueue()) {
@@ -624,7 +610,6 @@ FTPChannelChild::RecvFlushedForDiversion()
 void
 FTPChannelChild::FlushedForDiversion()
 {
-  LOG(("FTPChannelChild::FlushedForDiversion [this=%p]\n", this));
   MOZ_RELEASE_ASSERT(mDivertingToParent);
 
   // Once this is set, it should not be unset before FTPChannelChild is taken
@@ -638,7 +623,6 @@ FTPChannelChild::FlushedForDiversion()
 bool
 FTPChannelChild::RecvDivertMessages()
 {
-  LOG(("FTPChannelChild::RecvDivertMessages [this=%p]\n", this));
   MOZ_RELEASE_ASSERT(mDivertingToParent);
   MOZ_RELEASE_ASSERT(mSuspendCount > 0);
 
@@ -681,7 +665,6 @@ FTPChannelChild::DoDeleteSelf()
 NS_IMETHODIMP
 FTPChannelChild::Cancel(nsresult status)
 {
-  LOG(("FTPChannelChild::Cancel [this=%p]\n", this));
   if (mCanceled)
     return NS_OK;
 
@@ -696,8 +679,6 @@ NS_IMETHODIMP
 FTPChannelChild::Suspend()
 {
   NS_ENSURE_TRUE(mIPCOpen, NS_ERROR_NOT_AVAILABLE);
-
-  LOG(("FTPChannelChild::Suspend [this=%p]\n", this));
 
   // SendSuspend only once, when suspend goes from 0 to 1.
   // Don't SendSuspend at all if we're diverting callbacks to the parent;
@@ -715,8 +696,6 @@ NS_IMETHODIMP
 FTPChannelChild::Resume()
 {
   NS_ENSURE_TRUE(mIPCOpen, NS_ERROR_NOT_AVAILABLE);
-
-  LOG(("FTPChannelChild::Resume [this=%p]\n", this));
 
   // SendResume only once, when suspend count drops to 0.
   // Don't SendResume at all if we're diverting callbacks to the parent (unless
@@ -737,8 +716,6 @@ FTPChannelChild::Resume()
 NS_IMETHODIMP
 FTPChannelChild::ConnectParent(uint32_t id)
 {
-  LOG(("FTPChannelChild::ConnectParent [this=%p]\n", this));
-
   mozilla::dom::TabChild* tabChild = nullptr;
   nsCOMPtr<nsITabChild> iTabChild;
   NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
@@ -797,8 +774,6 @@ FTPChannelChild::DivertToParent(ChannelDiverterChild **aChild)
   MOZ_RELEASE_ASSERT(aChild);
   MOZ_RELEASE_ASSERT(gNeckoChild);
   MOZ_RELEASE_ASSERT(!mDivertingToParent);
-
-  LOG(("FTPChannelChild::DivertToParent [this=%p]\n", this));
 
   // We must fail DivertToParent() if there's no parent end of the channel (and
   // won't be!) due to early failure.

@@ -13,13 +13,13 @@
 enum IsTypeSupportedResult { "" /* empty string */, "maybe", "probably" };
 enum SessionType { "temporary", "persistent" };
 
-[Pref="media.eme.apiVisible"]
+[Pref="media.eme.enabled"]
 interface MediaKeys {
   readonly attribute DOMString keySystem;
 
   [NewObject, Throws]
   MediaKeySession createSession(optional SessionType sessionType = "temporary");
 
-  [NewObject]
+  [NewObject, Throws]
   Promise<void> setServerCertificate((ArrayBufferView or ArrayBuffer) serverCertificate);
 };

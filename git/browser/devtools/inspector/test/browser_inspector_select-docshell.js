@@ -64,6 +64,7 @@ add_task(function*() {
   yield newRoot;
 
   Services.prefs.clearUserPref("devtools.command-button-frames.enabled");
+  gBrowser.removeCurrentTab();
 });
 
 function assertMarkupViewIsLoaded(inspector) {

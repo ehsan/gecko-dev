@@ -52,8 +52,6 @@ public:
 private:
   ~GeckoMediaPluginService();
 
-  nsresult GMPDispatch(nsIRunnable* event, uint32_t flags = NS_DISPATCH_NORMAL);
-
   void ClearStorage();
 
   GMPParent* SelectPluginForAPI(const nsACString& aNodeId,
@@ -76,21 +74,11 @@ private:
 
   nsresult SetAsyncShutdownTimeout();
 
-  struct DirectoryFilter {
-    virtual bool operator()(nsIFile* aPath) = 0;
-    ~DirectoryFilter() {}
-  };
-  void ClearNodeIdAndPlugin(DirectoryFilter& aFilter);
-
-  void ForgetThisSiteOnGMPThread(const nsACString& aOrigin);
-  void ClearRecentHistoryOnGMPThread(PRTime aSince);
-
 protected:
   friend class GMPParent;
   void ReAddOnGMPThread(nsRefPtr<GMPParent>& aOld);
 private:
   GMPParent* ClonePlugin(const GMPParent* aOriginal);
-  nsresult EnsurePluginsOnDiskScanned();
 
   class PathRunnable : public nsRunnable
   {
@@ -151,9 +139,6 @@ private:
   // persistently on disk.
   nsDataHashtable<nsCStringHashKey, bool> mPersistentStorageAllowed;
 };
-
-nsresult ReadSalt(nsIFile* aPath, nsACString& aOutData);
-bool MatchOrigin(nsIFile* aPath, const nsACString& aOrigin);
 
 } // namespace gmp
 } // namespace mozilla

@@ -2104,14 +2104,12 @@ private:
     return NS_OK;
   }
 
-  virtual void Resolve() MOZ_OVERRIDE
-  {
+  virtual void Resolve() {
     mKey->SetSymKey(mKeyData);
     mResultPromise->MaybeResolve(mKey);
   }
 
-  virtual void Cleanup() MOZ_OVERRIDE
-  {
+  virtual void Cleanup() {
     mKey = nullptr;
   }
 };
@@ -2746,8 +2744,7 @@ private:
     return NS_OK;
   }
 
-  virtual void Resolve() MOZ_OVERRIDE
-  {
+  virtual void Resolve() MOZ_OVERRIDE {
     mTask->SetData(mResult);
     mTask->DispatchWithPromise(mResultPromise);
     mResolved = true;
@@ -2780,8 +2777,7 @@ private:
   nsRefPtr<ImportKeyTask> mTask;
   bool mResolved;
 
-  virtual void Resolve() MOZ_OVERRIDE
-  {
+  virtual void Resolve() MOZ_OVERRIDE {
     mTask->SetKeyData(KeyEncryptTask::mResult);
     mTask->DispatchWithPromise(KeyEncryptTask::mResultPromise);
     mResolved = true;

@@ -29,12 +29,12 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const MOZ_OVERRIDE;
+  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
 
-  virtual SVGAnimatedPointList* GetAnimatedPointList() MOZ_OVERRIDE {
+  virtual SVGAnimatedPointList* GetAnimatedPointList() {
     return &mPoints;
   }
-  virtual nsIAtom* GetPointListAttrName() const MOZ_OVERRIDE {
+  virtual nsIAtom* GetPointListAttrName() const {
     return nsGkAtoms::points;
   }
 

@@ -25,8 +25,7 @@ class CompositableForwarder;
 class EGLImageTextureClient : public TextureClient
 {
 public:
-  EGLImageTextureClient(ISurfaceAllocator* aAllocator,
-                        TextureFlags aFlags,
+  EGLImageTextureClient(TextureFlags aFlags,
                         EGLImageImage* aImage,
                         gfx::IntSize aSize);
 
@@ -34,7 +33,7 @@ public:
 
   virtual bool HasInternalBuffer() const MOZ_OVERRIDE { return false; }
 
-  virtual gfx::IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
+  virtual gfx::IntSize GetSize() const { return mSize; }
 
   virtual bool ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor) MOZ_OVERRIDE;
 
@@ -73,11 +72,10 @@ protected:
 class SurfaceTextureClient : public TextureClient
 {
 public:
-  SurfaceTextureClient(ISurfaceAllocator* aAllocator,
-                       TextureFlags aFlags,
+  SurfaceTextureClient(TextureFlags aFlags,
                        gl::AndroidSurfaceTexture* aSurfTex,
                        gfx::IntSize aSize,
-                       gl::OriginPos aOriginPos);
+                       bool aInverted);
 
   ~SurfaceTextureClient();
 

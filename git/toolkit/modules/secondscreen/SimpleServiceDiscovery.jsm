@@ -12,8 +12,17 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Timer.jsm");
+#ifdef ANDROID
+Cu.import("resource://gre/modules/Messaging.jsm");
+#endif
 
+// Define the "log" function as a binding of the Log.d function so it specifies
+// the "debug" priority and a log tag.
+#ifdef ANDROID
+let log = Cu.import("resource://gre/modules/AndroidLog.jsm",{}).AndroidLog.d.bind(null, "SSDP");
+#else
 let log = Cu.reportError;
+#endif
 
 XPCOMUtils.defineLazyGetter(this, "converter", function () {
   let conv = Cc["@mozilla.org/intl/scriptableunicodeconverter"].createInstance(Ci.nsIScriptableUnicodeConverter);
@@ -78,11 +87,18 @@ var SimpleServiceDiscovery = {
         service.location = row.substr(10).trim();
       } else if (name.startsWith("ST")) {
         service.target = row.substr(4).trim();
+      } else if (name.startsWith("SERVER")) {
+        service.server = row.substr(8).trim();
       }
     }.bind(this));
 
     if (service.location && service.target) {
       service.location = this._forceTrailingSlash(service.location);
+
+      // We add the server as an additional way to filter services
+      if (!("server" in service)) {
+        service.server = null;
+      }
 
       // When we find a valid response, package up the service information
       // and pass it on.
@@ -179,7 +195,35 @@ var SimpleServiceDiscovery = {
         timeout += SSDP_TRANSMISSION_INTERVAL;
       }
     }
+
+#ifdef ANDROID
+    // We also query Java directly here for any devices that Android might support natively (i.e. Chromecast or Miracast)
+    this.getAndroidDevices();
+#endif
   },
+
+#ifdef ANDROID
+  getAndroidDevices: function() {
+    Messaging.sendRequestForResult({ type: "MediaPlayer:Get" }).then((result) => {
+      for (let id in result.displays) {
+        let display = result.displays[id];
+
+        // Convert the native data into something matching what is created in _processService()
+        let service = {
+          location: display.location,
+          target: "media:router",
+          friendlyName: display.friendlyName,
+          uuid: display.uuid,
+          manufacturer: display.manufacturer,
+          modelName: display.modelName,
+          mirror: display.mirror
+        };
+
+        this._addService(service);
+      }
+    });
+  },
+#endif
 
   _searchFixedDevices: function _searchFixedDevices() {
     let fixedDevices = null;
@@ -222,7 +266,8 @@ var SimpleServiceDiscovery = {
       // Clean out any stale services
       for (let [key, service] of this._services) {
         if (service.lastPing != this._searchTimestamp) {
-          this.removeService(service.uuid);
+          Services.obs.notifyObservers(null, EVENT_SERVICE_LOST, service.uuid);
+          this._services.delete(service.uuid);
         }
       }
     }
@@ -361,50 +406,27 @@ var SimpleServiceDiscovery = {
         aService.manufacturer = doc.querySelector("manufacturer").textContent;
         aService.modelName = doc.querySelector("modelName").textContent;
 
-        this.addService(aService);
+        this._addService(aService);
       }
     }).bind(this), false);
 
     xhr.send(null);
   },
 
-  // Add a service to the WeakMap, even if one already exists with this id.
-  // Returns true if this succeeded or false if it failed
   _addService: function(service) {
     // Filter out services that do not match the device filter
     if (!this._filterService(service)) {
-      return false;
+      return;
     }
 
-    let device = this._devices.get(service.target);
-    if (device && device.mirror) {
-      service.mirror = true;
-    }
-    this._services.set(service.uuid, service);
-    return true;
-  },
-
-  addService: function(service) {
     // Only add and notify if we don't already know about this service
     if (!this._services.has(service.uuid)) {
-      if (!this._addService(service)) {
-        return;
+      let device = this._devices.get(service.target);
+      if (device && device.mirror) {
+        service.mirror = true;
       }
+      this._services.set(service.uuid, service);
       Services.obs.notifyObservers(null, EVENT_SERVICE_FOUND, service.uuid);
-    }
-
-    // Make sure we remember this service is not stale
-    this._services.get(service.uuid).lastPing = this._searchTimestamp;
-  },
-
-  removeService: function(uuid) {
-    Services.obs.notifyObservers(null, EVENT_SERVICE_LOST, uuid);
-    this._services.delete(uuid);
-  },
-
-  updateService: function(service) {
-    if (!this._addService(service)) {
-      return;
     }
 
     // Make sure we remember this service is not stale

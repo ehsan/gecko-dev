@@ -8,7 +8,7 @@
 const TEST_COLOR = "#123ABC";
 const COLOR_SELECTOR = "span[data-color]";
 
-add_task(function* () {
+let test = asyncTest(function* () {
   const TEST_DOC = '<html>                                              \
                       <body>                                            \
                         <div style="color: ' + TEST_COLOR + ';          \

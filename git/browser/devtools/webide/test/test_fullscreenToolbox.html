@@ -35,7 +35,7 @@
 
           yield connectToLocal(win);
 
-          yield waitForUpdate(win, "runtime-apps-found");
+          yield waitForUpdate(win, "list-tabs-response");
 
           // Select main process
           yield win.Cmds.showProjectPanel();

@@ -13,7 +13,7 @@
 #include "nsContentCID.h"
 #include "nsServiceManagerUtils.h"
 #include "MainThreadUtils.h"
-#include "mozilla/EMEUtils.h"
+#include "EMELog.h"
 
 namespace mozilla {
 
@@ -23,36 +23,36 @@ CDMCallbackProxy::CDMCallbackProxy(CDMProxy* aProxy)
 
 }
 
-class SetSessionIdTask : public nsRunnable {
+class NewSessionTask : public nsRunnable {
 public:
-  SetSessionIdTask(CDMProxy* aProxy,
-                   uint32_t aToken,
-                   const nsCString& aSessionId)
+  NewSessionTask(CDMProxy* aProxy,
+                 uint32_t aPromiseId,
+                 const nsCString& aSessionId)
     : mProxy(aProxy)
-    , mToken(aToken)
+    , mPid(aPromiseId)
     , mSid(NS_ConvertUTF8toUTF16(aSessionId))
   {
   }
 
   NS_IMETHOD Run() {
-    mProxy->OnSetSessionId(mToken, mSid);
+    mProxy->OnResolveNewSessionPromise(mPid, mSid);
     return NS_OK;
   }
 
   nsRefPtr<CDMProxy> mProxy;
-  uint32_t mToken;
+  dom::PromiseId mPid;
   nsString mSid;
 };
 
 void
-CDMCallbackProxy::SetSessionId(uint32_t aToken,
-                               const nsCString& aSessionId)
+CDMCallbackProxy::ResolveNewSessionPromise(uint32_t aPromiseId,
+                                           const nsCString& aSessionId)
 {
   MOZ_ASSERT(mProxy->IsOnGMPThread());
 
-  nsRefPtr<nsIRunnable> task(new SetSessionIdTask(mProxy,
-                                                  aToken,
-                                                  aSessionId));
+  nsRefPtr<nsIRunnable> task(new NewSessionTask(mProxy,
+                                                aPromiseId,
+                                                aSessionId));
   NS_DispatchToMainThread(task);
 }
 
@@ -141,39 +141,39 @@ class SessionMessageTask : public nsRunnable {
 public:
   SessionMessageTask(CDMProxy* aProxy,
                      const nsCString& aSessionId,
-                     GMPSessionMessageType aMessageType,
-                     const nsTArray<uint8_t>& aMessage)
+                     const nsTArray<uint8_t>& aMessage,
+                     const nsCString& aDestinationURL)
     : mProxy(aProxy)
     , mSid(NS_ConvertUTF8toUTF16(aSessionId))
-    , mMsgType(aMessageType)
+    , mURL(NS_ConvertUTF8toUTF16(aDestinationURL))
   {
     mMsg.AppendElements(aMessage);
   }
 
   NS_IMETHOD Run() {
-    mProxy->OnSessionMessage(mSid, mMsgType, mMsg);
+    mProxy->OnSessionMessage(mSid, mMsg, mURL);
     return NS_OK;
   }
 
   nsRefPtr<CDMProxy> mProxy;
   dom::PromiseId mPid;
   nsString mSid;
-  GMPSessionMessageType mMsgType;
   nsTArray<uint8_t> mMsg;
+  nsString mURL;
 };
 
 void
 CDMCallbackProxy::SessionMessage(const nsCString& aSessionId,
-                                 GMPSessionMessageType aMessageType,
-                                 const nsTArray<uint8_t>& aMessage)
+                                 const nsTArray<uint8_t>& aMessage,
+                                 const nsCString& aDestinationURL)
 {
   MOZ_ASSERT(mProxy->IsOnGMPThread());
 
   nsRefPtr<nsIRunnable> task;
   task = new SessionMessageTask(mProxy,
                                 aSessionId,
-                                aMessageType,
-                                aMessage);
+                                aMessage,
+                                aDestinationURL);
   NS_DispatchToMainThread(task);
 }
 
@@ -267,23 +267,40 @@ CDMCallbackProxy::SessionError(const nsCString& aSessionId,
 }
 
 void
-CDMCallbackProxy::KeyStatusChanged(const nsCString& aSessionId,
-                                   const nsTArray<uint8_t>& aKeyId,
-                                   GMPMediaKeyStatus aStatus)
+CDMCallbackProxy::KeyIdUsable(const nsCString& aSessionId,
+                              const nsTArray<uint8_t>& aKeyId)
 {
   MOZ_ASSERT(mProxy->IsOnGMPThread());
 
-  bool keyStatusesChange = false;
+  bool keysChange = false;
   {
     CDMCaps::AutoLock caps(mProxy->Capabilites());
-    keyStatusesChange = caps.SetKeyStatus(aKeyId,
-                                          NS_ConvertUTF8toUTF16(aSessionId),
-                                          aStatus);
+    keysChange = caps.SetKeyUsable(aKeyId, NS_ConvertUTF8toUTF16(aSessionId));
   }
-  if (keyStatusesChange) {
+  if (keysChange) {
     nsRefPtr<nsIRunnable> task;
     task = NS_NewRunnableMethodWithArg<nsString>(mProxy,
-                                                 &CDMProxy::OnKeyStatusesChange,
+                                                 &CDMProxy::OnKeysChange,
+                                                 NS_ConvertUTF8toUTF16(aSessionId));
+    NS_DispatchToMainThread(task);
+  }
+}
+
+void
+CDMCallbackProxy::KeyIdNotUsable(const nsCString& aSessionId,
+                                 const nsTArray<uint8_t>& aKeyId)
+{
+  MOZ_ASSERT(mProxy->IsOnGMPThread());
+
+  bool keysChange = false;
+  {
+    CDMCaps::AutoLock caps(mProxy->Capabilites());
+    keysChange = caps.SetKeyUnusable(aKeyId, NS_ConvertUTF8toUTF16(aSessionId));
+  }
+  if (keysChange) {
+    nsRefPtr<nsIRunnable> task;
+    task = NS_NewRunnableMethodWithArg<nsString>(mProxy,
+                                                 &CDMProxy::OnKeysChange,
                                                  NS_ConvertUTF8toUTF16(aSessionId));
     NS_DispatchToMainThread(task);
   }
@@ -312,8 +329,8 @@ void
 CDMCallbackProxy::Terminated()
 {
   MOZ_ASSERT(mProxy->IsOnGMPThread());
-  nsRefPtr<nsIRunnable> task = NS_NewRunnableMethod(mProxy, &CDMProxy::Terminated);
-  NS_DispatchToMainThread(task);
+
+  mProxy->gmp_Terminated();
 }
 
 } // namespace mozilla

@@ -127,7 +127,6 @@ class nsLayoutUtils
   typedef mozilla::gfx::Matrix4x4 Matrix4x4;
   typedef mozilla::gfx::RectCornerRadii RectCornerRadii;
   typedef mozilla::gfx::StrokeOptions StrokeOptions;
-  typedef mozilla::image::DrawResult DrawResult;
 
 public:
   typedef mozilla::layers::FrameMetrics FrameMetrics;
@@ -587,8 +586,7 @@ public:
     SCROLLABLE_ONLY_ASYNC_SCROLLABLE = 0x04,
     /**
      * If the SCROLLABLE_ALWAYS_MATCH_ROOT flag is set, then return the
-     * root scrollable frame for the root content document if we don't hit
-     * anything else.
+     * root scrollable frame for the root content document if we hit it.
      */
     SCROLLABLE_ALWAYS_MATCH_ROOT = 0x08,
   };
@@ -796,13 +794,6 @@ public:
   static gfxSize GetTransformToAncestorScale(nsIFrame* aFrame);
 
   /**
-   * Find the nearest common ancestor frame for aFrame1 and aFrame2. The
-   * ancestor frame could be cross-doc.
-   */
-  static nsIFrame* FindNearestCommonAncestorFrame(nsIFrame* aFrame1,
-                                                  nsIFrame* aFrame2);
-
-  /**
    * Transforms a list of CSSPoints from aFromFrame to aToFrame, taking into
    * account all relevant transformations on the frames up to (but excluding)
    * their nearest common ancestor.
@@ -848,13 +839,6 @@ public:
    */
   static bool ContainsPoint(const nsRect& aRect, const nsPoint& aPoint,
                             nscoord aInflateSize);
-
-  /**
-   * Check whether aRect is visible in the boundary of the scroll frames
-   * boundary.
-   */
-  static bool IsRectVisibleInScrollFrames(nsIFrame* aFrame,
-                                          const nsRect& aRect);
 
   /**
    * Return true if a "layer transform" could be computed for aFrame,
@@ -1255,13 +1239,6 @@ public:
   FirstContinuationOrIBSplitSibling(nsIFrame *aFrame);
 
   /**
-   * Get the last frame in the continuation-plus-ib-split-sibling chain
-   * containing aFrame.
-   */
-  static nsIFrame*
-  LastContinuationOrIBSplitSibling(nsIFrame *aFrame);
-
-  /**
    * Is FirstContinuationOrIBSplitSibling(aFrame) going to return
    * aFrame?
    */
@@ -1494,11 +1471,6 @@ public:
                                           nsFontMetrics& aFontMetrics,
                                           nsRenderingContext& aContext);
 
-  static bool StringWidthIsGreaterThan(const nsString& aString,
-                                       nsFontMetrics& aFontMetrics,
-                                       nsRenderingContext& aContext,
-                                       nscoord aWidth);
-
   static nsBoundingMetrics AppUnitBoundsOfString(const char16_t* aString,
                                                  uint32_t aLength,
                                                  nsFontMetrics& aFontMetrics,
@@ -1646,16 +1618,16 @@ public:
    *   @param aDirty            Pixels outside this area may be skipped.
    *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
-  static DrawResult DrawBackgroundImage(gfxContext&         aContext,
-                                        nsPresContext*      aPresContext,
-                                        imgIContainer*      aImage,
-                                        const nsIntSize&    aImageSize,
-                                        GraphicsFilter      aGraphicsFilter,
-                                        const nsRect&       aDest,
-                                        const nsRect&       aFill,
-                                        const nsPoint&      aAnchor,
-                                        const nsRect&       aDirty,
-                                        uint32_t            aImageFlags);
+  static nsresult DrawBackgroundImage(gfxContext&         aContext,
+                                      nsPresContext*      aPresContext,
+                                      imgIContainer*      aImage,
+                                      const nsIntSize&    aImageSize,
+                                      GraphicsFilter      aGraphicsFilter,
+                                      const nsRect&       aDest,
+                                      const nsRect&       aFill,
+                                      const nsPoint&      aAnchor,
+                                      const nsRect&       aDirty,
+                                      uint32_t            aImageFlags);
 
   /**
    * Draw an image.
@@ -1672,15 +1644,15 @@ public:
    *   @param aDirty            Pixels outside this area may be skipped.
    *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
-  static DrawResult DrawImage(gfxContext&         aContext,
-                              nsPresContext*      aPresContext,
-                              imgIContainer*      aImage,
-                              GraphicsFilter      aGraphicsFilter,
-                              const nsRect&       aDest,
-                              const nsRect&       aFill,
-                              const nsPoint&      aAnchor,
-                              const nsRect&       aDirty,
-                              uint32_t            aImageFlags);
+  static nsresult DrawImage(gfxContext&         aContext,
+                            nsPresContext*      aPresContext,
+                            imgIContainer*      aImage,
+                            GraphicsFilter      aGraphicsFilter,
+                            const nsRect&       aDest,
+                            const nsRect&       aFill,
+                            const nsPoint&      aAnchor,
+                            const nsRect&       aDirty,
+                            uint32_t            aImageFlags);
 
   static inline void InitDashPattern(StrokeOptions& aStrokeOptions,
                                      uint8_t aBorderStyle) {
@@ -1726,14 +1698,14 @@ public:
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
    */
-  static DrawResult DrawSingleUnscaledImage(gfxContext&          aContext,
-                                            nsPresContext*       aPresContext,
-                                            imgIContainer*       aImage,
-                                            GraphicsFilter       aGraphicsFilter,
-                                            const nsPoint&       aDest,
-                                            const nsRect*        aDirty,
-                                            uint32_t             aImageFlags,
-                                            const nsRect*        aSourceArea = nullptr);
+  static nsresult DrawSingleUnscaledImage(gfxContext&          aContext,
+                                          nsPresContext*       aPresContext,
+                                          imgIContainer*       aImage,
+                                          GraphicsFilter       aGraphicsFilter,
+                                          const nsPoint&       aDest,
+                                          const nsRect*        aDirty,
+                                          uint32_t             aImageFlags,
+                                          const nsRect*        aSourceArea = nullptr);
 
   /**
    * Draw a whole image without tiling.
@@ -1757,16 +1729,16 @@ public:
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
    */
-  static DrawResult DrawSingleImage(gfxContext&         aContext,
-                                    nsPresContext*      aPresContext,
-                                    imgIContainer*      aImage,
-                                    GraphicsFilter      aGraphicsFilter,
-                                    const nsRect&       aDest,
-                                    const nsRect&       aDirty,
-                                    const mozilla::SVGImageContext* aSVGContext,
-                                    uint32_t            aImageFlags,
-                                    const nsPoint*      aAnchorPoint = nullptr,
-                                    const nsRect*       aSourceArea = nullptr);
+  static nsresult DrawSingleImage(gfxContext&         aContext,
+                                  nsPresContext*      aPresContext,
+                                  imgIContainer*      aImage,
+                                  GraphicsFilter      aGraphicsFilter,
+                                  const nsRect&       aDest,
+                                  const nsRect&       aDirty,
+                                  const mozilla::SVGImageContext* aSVGContext,
+                                  uint32_t            aImageFlags,
+                                  const nsPoint*      aAnchorPoint = nullptr,
+                                  const nsRect*       aSourceArea = nullptr);
 
   /**
    * Given an imgIContainer, this method attempts to obtain an intrinsic

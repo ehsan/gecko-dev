@@ -5,19 +5,19 @@
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
 notification {
-  color: InfoText;
   background-color: InfoBackground;
+  color: InfoText;
   text-shadow: none;
 }
 
 notification[type="info"] {
-  color: -moz-DialogText;
   background-color: -moz-Dialog;
+  color: -moz-DialogText;
 }
 
 notification[type="critical"] {
-  color: white;
   background-image: linear-gradient(rgb(212,0,0), rgb(152,0,0));
+  color: white;
 }
 
 .notification-inner {
@@ -28,11 +28,6 @@ notification[type="critical"] {
 .messageText {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-}
-
-.messageText > .text-link {
-  color: inherit !important;
-  text-decoration: underline;
 }
 
 .messageImage {

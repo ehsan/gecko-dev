@@ -5,7 +5,7 @@
  * Test AudioNode#getParam() / AudioNode#setParam()
  */
 
-add_task(function*() {
+function spawnTest () {
   let { target, front } = yield initBackend(SIMPLE_CONTEXT_URL);
   let [_, [destNode, oscNode, gainNode]] = yield Promise.all([
     front.setup({ reload: true }),
@@ -44,4 +44,5 @@ add_task(function*() {
   }
 
   yield removeTab(target.tab);
-});
+  finish();
+}

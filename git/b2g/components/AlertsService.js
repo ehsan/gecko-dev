@@ -68,8 +68,7 @@ AlertsService.prototype = {
   // nsIAlertsService
   showAlertNotification: function(aImageUrl, aTitle, aText, aTextClickable,
                                   aCookie, aAlertListener, aName, aBidi,
-                                  aLang, aDataStr, aPrincipal,
-                                  aInPrivateBrowsing) {
+                                  aLang, aDataStr) {
     cpmm.sendAsyncMessage(kMessageAlertNotificationSend, {
       imageURL: aImageUrl,
       title: aTitle,
@@ -80,8 +79,7 @@ AlertsService.prototype = {
       id: aName,
       dir: aBidi,
       lang: aLang,
-      dataStr: aDataStr,
-      inPrivateBrowsing: aInPrivateBrowsing
+      dataStr: aDataStr
     });
   },
 

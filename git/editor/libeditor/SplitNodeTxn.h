@@ -14,7 +14,6 @@
 
 class nsEditor;
 class nsIContent;
-class nsINode;
 
 namespace mozilla {
 namespace dom {
@@ -39,7 +38,7 @@ public:
 
   NS_DECL_EDITTXN
 
-  NS_IMETHOD RedoTransaction() MOZ_OVERRIDE;
+  NS_IMETHOD RedoTransaction();
 
   nsIContent* GetNewNode();
 

@@ -17,4 +17,3 @@ LOCAL_INCLUDES += [
     '../../icu/source/i18n',
 ]
 
-FAIL_ON_WARNINGS = True

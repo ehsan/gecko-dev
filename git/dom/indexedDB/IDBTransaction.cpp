@@ -24,8 +24,6 @@
 #include "nsWidgetsCID.h"
 #include "ProfilerHelpers.h"
 #include "ReportInternalError.h"
-#include "WorkerFeature.h"
-#include "WorkerPrivate.h"
 
 // Include this last to avoid path problems on Windows.
 #include "ActorsChild.h"
@@ -34,74 +32,11 @@ namespace mozilla {
 namespace dom {
 namespace indexedDB {
 
-using namespace mozilla::dom::workers;
-using namespace mozilla::ipc;
-
 namespace {
 
 NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
-bool
-RunBeforeNextEvent(IDBTransaction* aTransaction)
-{
-  MOZ_ASSERT(aTransaction);
-
-  if (NS_IsMainThread()) {
-    nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
-    MOZ_ASSERT(appShell);
-
-    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(appShell->RunBeforeNextEvent(aTransaction)));
-
-    return true;
-  }
-
-  WorkerPrivate* workerPrivate = GetCurrentThreadWorkerPrivate();
-  MOZ_ASSERT(workerPrivate);
-
-  if (NS_WARN_IF(!workerPrivate->RunBeforeNextEvent(aTransaction))) {
-    return false;
-  }
-
-  return true;
-}
-
 } // anonymous namespace
-
-class IDBTransaction::WorkerFeature MOZ_FINAL
-  : public mozilla::dom::workers::WorkerFeature
-{
-  WorkerPrivate* mWorkerPrivate;
-
-  // The IDBTransaction owns this object so we only need a weak reference back
-  // to it.
-  IDBTransaction* mTransaction;
-
-public:
-  WorkerFeature(WorkerPrivate* aWorkerPrivate, IDBTransaction* aTransaction)
-    : mWorkerPrivate(aWorkerPrivate)
-    , mTransaction(aTransaction)
-  {
-    MOZ_ASSERT(aWorkerPrivate);
-    MOZ_ASSERT(aTransaction);
-    aWorkerPrivate->AssertIsOnWorkerThread();
-    aTransaction->AssertIsOnOwningThread();
-
-    MOZ_COUNT_CTOR(IDBTransaction::WorkerFeature);
-  }
-
-  ~WorkerFeature()
-  {
-    mWorkerPrivate->AssertIsOnWorkerThread();
-
-    MOZ_COUNT_DTOR(IDBTransaction::WorkerFeature);
-
-    mWorkerPrivate->RemoveFeature(mWorkerPrivate->GetJSContext(), this);
-  }
-
-private:
-  virtual bool
-  Notify(JSContext* aCx, Status aStatus) MOZ_OVERRIDE;
-};
 
 IDBTransaction::IDBTransaction(IDBDatabase* aDatabase,
                                const nsTArray<nsString>& aObjectStoreNames,
@@ -109,7 +44,6 @@ IDBTransaction::IDBTransaction(IDBDatabase* aDatabase,
   : IDBWrapperCache(aDatabase)
   , mDatabase(aDatabase)
   , mObjectStoreNames(aObjectStoreNames)
-  , mLoggingSerialNumber(0)
   , mNextObjectStoreId(0)
   , mNextIndexId(0)
   , mAbortCode(NS_OK)
@@ -118,7 +52,6 @@ IDBTransaction::IDBTransaction(IDBDatabase* aDatabase,
   , mReadyState(IDBTransaction::INITIAL)
   , mMode(aMode)
   , mCreating(false)
-  , mRegistered(false)
   , mAbortedByScript(false)
 #ifdef DEBUG
   , mSentCommitOrAbort(false)
@@ -130,15 +63,16 @@ IDBTransaction::IDBTransaction(IDBDatabase* aDatabase,
 
   mBackgroundActor.mNormalBackgroundActor = nullptr;
 
-  BackgroundChildImpl::ThreadLocal* threadLocal =
-    BackgroundChildImpl::GetThreadLocalForCurrentThread();
-  MOZ_ASSERT(threadLocal);
+#ifdef MOZ_ENABLE_PROFILER_SPS
+  {
+    using namespace mozilla::ipc;
+    BackgroundChildImpl::ThreadLocal* threadLocal =
+      BackgroundChildImpl::GetThreadLocalForCurrentThread();
+    MOZ_ASSERT(threadLocal);
 
-  ThreadLocal* idbThreadLocal = threadLocal->mIndexedDBThreadLocal;
-  MOZ_ASSERT(idbThreadLocal);
-
-  const_cast<int64_t&>(mLoggingSerialNumber) =
-    idbThreadLocal->NextTransactionSN(aMode);
+    mSerialNumber = threadLocal->mNextTransactionSerialNumber++;
+  }
+#endif
 
 #ifdef DEBUG
   if (!aObjectStoreNames.IsEmpty()) {
@@ -174,23 +108,16 @@ IDBTransaction::~IDBTransaction()
                   mBackgroundActor.mNormalBackgroundActor,
                 mFiredCompleteOrAbort);
 
-  if (mRegistered) {
-    mDatabase->UnregisterTransaction(this);
-#ifdef DEBUG
-    mRegistered = false;
-#endif
-  }
+  mDatabase->UnregisterTransaction(this);
 
   if (mMode == VERSION_CHANGE) {
-    if (auto* actor = mBackgroundActor.mVersionChangeBackgroundActor) {
-      actor->SendDeleteMeInternal(/* aFailedConstructor */ false);
-
+    if (mBackgroundActor.mVersionChangeBackgroundActor) {
+      mBackgroundActor.mVersionChangeBackgroundActor->SendDeleteMeInternal();
       MOZ_ASSERT(!mBackgroundActor.mVersionChangeBackgroundActor,
                  "SendDeleteMeInternal should have cleared!");
     }
-  } else if (auto* actor = mBackgroundActor.mNormalBackgroundActor) {
-    actor->SendDeleteMeInternal();
-
+  } else if (mBackgroundActor.mNormalBackgroundActor) {
+    mBackgroundActor.mNormalBackgroundActor->SendDeleteMeInternal();
     MOZ_ASSERT(!mBackgroundActor.mNormalBackgroundActor,
                "SendDeleteMeInternal should have cleared!");
   }
@@ -220,24 +147,22 @@ IDBTransaction::CreateVersionChange(
                                   &transaction->mLineNo);
 
   transaction->SetScriptOwner(aDatabase->GetScriptOwner());
-
-  if (NS_WARN_IF(!RunBeforeNextEvent(transaction))) {
-    MOZ_ASSERT(!NS_IsMainThread());
-#ifdef DEBUG
-    // Silence assertions.
-    transaction->mSentCommitOrAbort = true;
-#endif
-    aActor->SendDeleteMeInternal(/* aFailedConstructor */ true);
-    return nullptr;
-  }
-
   transaction->mBackgroundActor.mVersionChangeBackgroundActor = aActor;
   transaction->mNextObjectStoreId = aNextObjectStoreId;
   transaction->mNextIndexId = aNextIndexId;
+
+  // XXX Fix!
+  MOZ_ASSERT(NS_IsMainThread(), "This won't work on non-main threads!");
+
+  nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
+  if (NS_WARN_IF(!appShell) ||
+      NS_WARN_IF(NS_FAILED(appShell->RunBeforeNextEvent(transaction)))) {
+    return nullptr;
+  }
+
   transaction->mCreating = true;
 
   aDatabase->RegisterTransaction(transaction);
-  transaction->mRegistered = true;
 
   return transaction.forget();
 }
@@ -259,28 +184,18 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
 
   transaction->SetScriptOwner(aDatabase->GetScriptOwner());
 
-  if (NS_WARN_IF(!RunBeforeNextEvent(transaction))) {
-    MOZ_ASSERT(!NS_IsMainThread());
+  // XXX Fix!
+  MOZ_ASSERT(NS_IsMainThread(), "This won't work on non-main threads!");
+
+  nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
+  if (NS_WARN_IF(!appShell) ||
+      NS_WARN_IF(NS_FAILED(appShell->RunBeforeNextEvent(transaction)))) {
     return nullptr;
   }
 
   transaction->mCreating = true;
 
   aDatabase->RegisterTransaction(transaction);
-  transaction->mRegistered = true;
-
-  if (!NS_IsMainThread()) {
-    WorkerPrivate* workerPrivate = GetCurrentThreadWorkerPrivate();
-    MOZ_ASSERT(workerPrivate);
-
-    workerPrivate->AssertIsOnWorkerThread();
-
-    JSContext* cx = workerPrivate->GetJSContext();
-    MOZ_ASSERT(cx);
-
-    transaction->mWorkerFeature = new WorkerFeature(workerPrivate, transaction);
-    MOZ_ALWAYS_TRUE(workerPrivate->AddFeature(cx, transaction->mWorkerFeature));
-  }
 
   return transaction.forget();
 }
@@ -297,10 +212,7 @@ IDBTransaction::GetCurrent()
     BackgroundChildImpl::GetThreadLocalForCurrentThread();
   MOZ_ASSERT(threadLocal);
 
-  ThreadLocal* idbThreadLocal = threadLocal->mIndexedDBThreadLocal;
-  MOZ_ASSERT(idbThreadLocal);
-
-  return idbThreadLocal->GetCurrentTransaction();
+  return threadLocal->mCurrentTransaction;
 }
 
 #ifdef DEBUG
@@ -427,18 +339,6 @@ IDBTransaction::SendCommit()
   MOZ_ASSERT(NS_SUCCEEDED(mAbortCode));
   MOZ_ASSERT(IsFinished());
   MOZ_ASSERT(!mSentCommitOrAbort);
-  MOZ_ASSERT(!mPendingRequestCount);
-
-  // Don't do this in the macro because we always need to increment the serial
-  // number to keep in sync with the parent.
-  const uint64_t requestSerialNumber = IDBRequest::NextSerialNumber();
-
-  IDB_LOG_MARK("IndexedDB %s: Child  Transaction[%lld] Request[%llu]: "
-                 "All requests complete, committing transaction",
-               "IndexedDB %s: C T[%lld] R[%llu]: IDBTransaction commit",
-               IDB_LOG_ID_STRING(),
-               LoggingSerialNumber(),
-               requestSerialNumber);
 
   if (mMode == VERSION_CHANGE) {
     MOZ_ASSERT(mBackgroundActor.mVersionChangeBackgroundActor);
@@ -460,18 +360,6 @@ IDBTransaction::SendAbort(nsresult aResultCode)
   MOZ_ASSERT(NS_FAILED(aResultCode));
   MOZ_ASSERT(IsFinished());
   MOZ_ASSERT(!mSentCommitOrAbort);
-
-  // Don't do this in the macro because we always need to increment the serial
-  // number to keep in sync with the parent.
-  const uint64_t requestSerialNumber = IDBRequest::NextSerialNumber();
-
-  IDB_LOG_MARK("IndexedDB %s: Child  Transaction[%lld] Request[%llu]: "
-                 "Aborting transaction with result 0x%x",
-               "IndexedDB %s: C T[%lld] R[%llu]: IDBTransaction abort (0x%x)",
-               IDB_LOG_ID_STRING(),
-               LoggingSerialNumber(),
-               requestSerialNumber,
-               aResultCode);
 
   if (mMode == VERSION_CHANGE) {
     MOZ_ASSERT(mBackgroundActor.mVersionChangeBackgroundActor);
@@ -629,14 +517,11 @@ IDBTransaction::AbortInternal(nsresult aAbortCode,
   const bool isInvalidated = mDatabase->IsInvalidated();
   bool needToSendAbort = mReadyState == INITIAL && !isInvalidated;
 
-  if (isInvalidated) {
 #ifdef DEBUG
+  if (isInvalidated) {
     mSentCommitOrAbort = true;
-#endif
-    // Increment the serial number counter here to account for the aborted
-    // transaction and keep the parent in sync.
-    IDBRequest::NextSerialNumber();
   }
+#endif
 
   mAbortCode = aAbortCode;
   mReadyState = DONE;
@@ -754,14 +639,15 @@ IDBTransaction::FireCompleteOrAbortEvents(nsresult aResult)
   AssertIsOnOwningThread();
   MOZ_ASSERT(!mFiredCompleteOrAbort);
 
+  IDB_PROFILER_MARK("IndexedDB Transaction %llu: Complete (rv = %lu)",
+                    "IDBTransaction[%llu] MT Complete",
+                    mTransaction->GetSerialNumber(), mAbortCode);
+
   mReadyState = DONE;
 
 #ifdef DEBUG
   mFiredCompleteOrAbort = true;
 #endif
-
-  // Make sure we drop the WorkerFeature when this function completes.
-  nsAutoPtr<WorkerFeature> workerFeature = Move(mWorkerFeature);
 
   nsCOMPtr<nsIDOMEvent> event;
   if (NS_SUCCEEDED(aResult)) {
@@ -769,7 +655,6 @@ IDBTransaction::FireCompleteOrAbortEvents(nsresult aResult)
                                nsDependentString(kCompleteEventType),
                                eDoesNotBubble,
                                eNotCancelable);
-    MOZ_ASSERT(event);
   } else {
     if (!mError && !mAbortedByScript) {
       mError = new DOMError(GetOwner(), aResult);
@@ -779,22 +664,10 @@ IDBTransaction::FireCompleteOrAbortEvents(nsresult aResult)
                                nsDependentString(kAbortEventType),
                                eDoesBubble,
                                eNotCancelable);
-    MOZ_ASSERT(event);
   }
 
-  if (NS_SUCCEEDED(mAbortCode)) {
-    IDB_LOG_MARK("IndexedDB %s: Child  Transaction[%lld]: "
-                   "Firing 'complete' event",
-                 "IndexedDB %s: C T[%lld]: IDBTransaction 'complete' event",
-                 IDB_LOG_ID_STRING(),
-                 mLoggingSerialNumber);
-  } else {
-    IDB_LOG_MARK("IndexedDB %s: Child  Transaction[%lld]: "
-                   "Firing 'abort' event with error 0x%x",
-                 "IndexedDB %s: C T[%lld]: IDBTransaction 'abort' event (0x%x)",
-                 IDB_LOG_ID_STRING(),
-                 mLoggingSerialNumber,
-                 mAbortCode);
+  if (NS_WARN_IF(!event)) {
+    return;
   }
 
   bool dummy;
@@ -990,27 +863,6 @@ IDBTransaction::Run()
   }
 
   return NS_OK;
-}
-
-bool
-IDBTransaction::
-WorkerFeature::Notify(JSContext* aCx, Status aStatus)
-{
-  MOZ_ASSERT(mWorkerPrivate);
-  mWorkerPrivate->AssertIsOnWorkerThread();
-  MOZ_ASSERT(aStatus > Running);
-
-  if (mTransaction && aStatus > Terminating) {
-    mTransaction->AssertIsOnOwningThread();
-
-    nsRefPtr<IDBTransaction> transaction = mTransaction;
-    mTransaction = nullptr;
-
-    IDB_REPORT_INTERNAL_ERR();
-    transaction->AbortInternal(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR, nullptr);
-  }
-
-  return true;
 }
 
 } // namespace indexedDB

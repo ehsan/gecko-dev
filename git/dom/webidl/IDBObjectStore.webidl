@@ -8,11 +8,11 @@
  */
 
 dictionary IDBObjectStoreParameters {
-    (DOMString or sequence<DOMString>)? keyPath = null;
+    // TODO (DOMString or sequence<DOMString>)? keyPath = null;
+    any                                         keyPath = null;
     boolean                             autoIncrement = false;
 };
 
-[Exposed=(Window,Worker)]
 interface IDBObjectStore {
     readonly    attribute DOMString      name;
 
@@ -65,15 +65,12 @@ partial interface IDBObjectStore {
     [Throws]
     IDBRequest mozGetAll (optional any key, optional unsigned long limit);
 
-    [Throws,
-     Func="mozilla::dom::indexedDB::IndexedDatabaseManager::ExperimentalFeaturesEnabled"]
+    [Pref="dom.indexedDB.experimental", Throws]
     IDBRequest getAll (optional any key, optional unsigned long limit);
 
-    [Throws,
-     Func="mozilla::dom::indexedDB::IndexedDatabaseManager::ExperimentalFeaturesEnabled"]
+    [Pref="dom.indexedDB.experimental", Throws]
     IDBRequest getAllKeys (optional any key, optional unsigned long limit);
 
-    [Throws,
-     Func="mozilla::dom::indexedDB::IndexedDatabaseManager::ExperimentalFeaturesEnabled"]
+    [Pref="dom.indexedDB.experimental", Throws]
     IDBRequest openKeyCursor (optional any range, optional IDBCursorDirection direction = "next");
 };

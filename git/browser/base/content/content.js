@@ -8,7 +8,6 @@ let {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/ContentWebRTC.jsm");
-Cu.import("resource:///modules/ContentObservers.jsm");
 Cu.import("resource://gre/modules/InlineSpellChecker.jsm");
 Cu.import("resource://gre/modules/InlineSpellCheckerContent.jsm");
 
@@ -28,27 +27,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "FormSubmitObserver",
   "resource:///modules/FormSubmitObserver.jsm");
-XPCOMUtils.defineLazyGetter(this, "SimpleServiceDiscovery", function() {
-  let ssdp = Cu.import("resource://gre/modules/SimpleServiceDiscovery.jsm", {}).SimpleServiceDiscovery;
-  // Register targets
-  ssdp.registerDevice({
-    id: "roku:ecp",
-    target: "roku:ecp",
-    factory: function(aService) {
-      Cu.import("resource://gre/modules/RokuApp.jsm");
-      return new RokuApp(aService);
-    },
-    mirror: true,
-    types: ["video/mp4"],
-    extensions: ["mp4"]
-  });
-  return ssdp;
-});
-XPCOMUtils.defineLazyGetter(this, "PageMenuChild", function() {
-  let tmp = {};
-  Cu.import("resource://gre/modules/PageMenu.jsm", tmp);
-  return new tmp.PageMenuChild();
-});
 
 // TabChildGlobal
 var global = this;
@@ -98,20 +76,6 @@ addMessageListener("MixedContent:ReenableProtection", function() {
   docShell.mixedContentChannel = null;
 });
 
-addMessageListener("SecondScreen:tab-mirror", function(message) {
-  let app = SimpleServiceDiscovery.findAppForService(message.data.service);
-  if (app) {
-    let width = content.innerWidth;
-    let height = content.innerHeight;
-    let viewport = {cssWidth: width, cssHeight: height, width: width, height: height};
-    app.mirror(function() {}, content, viewport, function() {}, content);
-  }
-});
-
-addMessageListener("ContextMenu:DoCustomCommand", function(message) {
-  PageMenuChild.executeMenu(message.data);
-});
-
 addEventListener("DOMFormHasPassword", function(event) {
   InsecurePasswordUtils.checkForInsecurePasswords(event.target);
   LoginManagerContent.onFormPassword(event);
@@ -158,8 +122,7 @@ let handleContentContextMenu = function (event) {
         InlineSpellCheckerContent.initContextMenu(event, editFlags, this);
     }
 
-    let customMenuItems = PageMenuChild.build(event.target);
-    sendSyncMessage("contextmenu", { editFlags, spellInfo, customMenuItems, addonInfo }, { event, popupNode: event.target });
+    sendSyncMessage("contextmenu", { editFlags, spellInfo, addonInfo }, { event, popupNode: event.target });
   }
   else {
     // Break out to the parent window and pass the add-on info along
@@ -363,6 +326,12 @@ let AboutHomeListener = {
     if (!Services.prefs.getBoolPref("browser.search.showOneOffButtons")) {
       doc.documentElement.setAttribute("searchUIConfiguration", "oldsearchui");
     }
+
+    // XXX bug 738646 - when Marketplace is launched, remove this statement and
+    // the hidden attribute set on the apps button in aboutHome.xhtml
+    if (Services.prefs.getPrefType("browser.aboutHome.apps") == Services.prefs.PREF_BOOL &&
+        Services.prefs.getBoolPref("browser.aboutHome.apps"))
+      doc.getElementById("apps").removeAttribute("hidden");
 
     sendAsyncMessage("AboutHome:RequestUpdate");
     doc.addEventListener("AboutHomeSearchEvent", this, true, true);
@@ -946,4 +915,29 @@ addMessageListener("ContextMenu:SaveVideoFrameAsImage", (message) => {
   sendAsyncMessage("ContextMenu:SaveVideoFrameAsImage:Result", {
     dataURL: canvas.toDataURL("image/jpeg", ""),
   });
+});
+
+addMessageListener("AboutMedia:CollectData", (mesage) => {
+  let text = "";
+  let media = content.document.getElementsByTagName('video');
+  if (media.length > 0) {
+    text += content.document.documentURI + "\n";
+  }
+  for (let mediaEl of media) {
+    text += "\t" + mediaEl.currentSrc + "\n";
+    text += "\t" + "currentTime: " + mediaEl.currentTime + "\n";
+    let ms = mediaEl.mozMediaSourceObject;
+    if (ms) {
+      for (let k = 0; k < ms.sourceBuffers.length; ++k) {
+        let sb = ms.sourceBuffers[k];
+        text += "\t\tSourceBuffer " + k + "\n";
+        for (let l = 0; l < sb.buffered.length; ++l) {
+          text += "\t\t\tstart=" + sb.buffered.start(l) + " end=" + sb.buffered.end(l) + "\n";
+        }
+      }
+      text += "\tInternal Data:\n";
+      text += ms.mozDebugReaderData.split("\n").map(line => { return "\t" + line + "\n"; }).join("");
+     }
+  }
+  sendAsyncMessage("AboutMedia:DataCollected", { text: text });
 });

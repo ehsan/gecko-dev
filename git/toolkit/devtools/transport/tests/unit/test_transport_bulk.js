@@ -23,7 +23,7 @@ function run_test() {
 /**
  * This tests a one-way bulk transfer at the transport layer.
  */
-let test_bulk_transfer_transport = Task.async(function*(transportFactory) {
+function test_bulk_transfer_transport(transportFactory) {
   do_print("Starting bulk transfer test at " + new Date().toTimeString());
 
   let clientDeferred = promise.defer();
@@ -36,7 +36,7 @@ let test_bulk_transfer_transport = Task.async(function*(transportFactory) {
 
   do_check_eq(Object.keys(DebuggerServer._connections).length, 0);
 
-  let transport = yield transportFactory();
+  let transport = transportFactory();
 
   // Sending from client to server
   function write_data({copyFrom}) {
@@ -104,7 +104,7 @@ let test_bulk_transfer_transport = Task.async(function*(transportFactory) {
   transport.ready();
 
   return promise.all([clientDeferred.promise, serverDeferred.promise]);
-});
+}
 
 /*** Test Utils ***/
 

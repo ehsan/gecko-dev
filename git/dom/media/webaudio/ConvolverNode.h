@@ -54,7 +54,7 @@ public:
     AudioNode::SetChannelCountModeValue(aMode, aRv);
   }
 
-  virtual const char* NodeType() const MOZ_OVERRIDE
+  virtual const char* NodeType() const
   {
     return "ConvolverNode";
   }

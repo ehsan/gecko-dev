@@ -63,7 +63,6 @@ private:
  */
 void InitScriptSettings();
 void DestroyScriptSettings();
-bool ScriptSettingsInitialized();
 
 /*
  * Static helpers in ScriptSettings which track the number of listeners
@@ -307,13 +306,13 @@ private:
 
   // Track state between the old and new error reporting modes.
   bool mOwnErrorReporting;
-  bool mOldAutoJSAPIOwnsErrorReporting;
+  bool mOldDontReportUncaught;
   Maybe<JSErrorReporter> mOldErrorReporter;
 
   void InitInternal(JSObject* aGlobal, JSContext* aCx, bool aIsMainThread);
 
-  AutoJSAPI(const AutoJSAPI&) = delete;
-  AutoJSAPI& operator= (const AutoJSAPI&) = delete;
+  AutoJSAPI(const AutoJSAPI&) MOZ_DELETE;
+  AutoJSAPI& operator= (const AutoJSAPI&) MOZ_DELETE;
 };
 
 /*

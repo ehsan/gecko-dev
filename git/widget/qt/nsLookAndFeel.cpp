@@ -18,6 +18,8 @@
 #include <QFont>
 #include <QScreen>
 #include <QPalette>
+#include <QStyle>
+#include <QStyleFactory>
 
 #include "nsLookAndFeel.h"
 #include "nsStyleConsts.h"

@@ -104,8 +104,6 @@ class mozilla::gl::SkiaGLGlue : public GenericAtomicRefCounted {
 
 #include "nsIGfxInfo.h"
 #include "nsIXULRuntime.h"
-#include "VsyncSource.h"
-#include "SoftwareVsyncSource.h"
 
 namespace mozilla {
 namespace layers {
@@ -166,7 +164,7 @@ public:
 class CrashStatsLogForwarder: public mozilla::gfx::LogForwarder
 {
 public:
-  explicit CrashStatsLogForwarder(const char* aKey);
+  CrashStatsLogForwarder(const char* aKey);
   virtual void Log(const std::string& aString) MOZ_OVERRIDE;
 
   void SetCircularBufferSize(uint32_t aCapacity);
@@ -181,7 +179,6 @@ private:
   nsCString mCrashCriticalKey;
   uint32_t mMaxCapacity;
   int32_t mIndex;
-  Mutex mMutex;
 };
 
 CrashStatsLogForwarder::CrashStatsLogForwarder(const char* aKey)
@@ -189,14 +186,11 @@ CrashStatsLogForwarder::CrashStatsLogForwarder(const char* aKey)
   , mCrashCriticalKey(aKey)
   , mMaxCapacity(0)
   , mIndex(-1)
-  , mMutex("CrashStatsLogForwarder")
 {
 }
 
 void CrashStatsLogForwarder::SetCircularBufferSize(uint32_t aCapacity)
 {
-  MutexAutoLock lock(mMutex);
-
   mMaxCapacity = aCapacity;
   mBuffer.reserve(static_cast<size_t>(aCapacity));
 }
@@ -249,8 +243,6 @@ void CrashStatsLogForwarder::UpdateCrashReport()
   
 void CrashStatsLogForwarder::Log(const std::string& aString)
 {
-  MutexAutoLock lock(mMutex);
-
   if (UpdateStringsVector(aString)) {
     UpdateCrashReport();
   }
@@ -376,7 +368,8 @@ static const char *gPrefLangNames[] = {
 gfxPlatform::gfxPlatform()
   : mTileWidth(-1)
   , mTileHeight(-1)
-  , mAzureCanvasBackendCollector(this, &gfxPlatform::GetAzureBackendInfo)
+  , mAzureCanvasBackendCollector(MOZ_THIS_IN_INITIALIZER_LIST(),
+                                 &gfxPlatform::GetAzureBackendInfo)
 {
     mAllowDownloadableFonts = UNINITIALIZED_VALUE;
     mFallbackUsesCmaps = UNINITIALIZED_VALUE;
@@ -555,8 +548,8 @@ gfxPlatform::Init()
 
     RegisterStrongMemoryReporter(new GfxMemoryImageReporter());
 
-    if (XRE_IsParentProcess() && gfxPrefs::HardwareVsyncEnabled()) {
-      gPlatform->mVsyncSource = gPlatform->CreateHardwareVsyncSource();
+    if (gfxPrefs::HardwareVsyncEnabled() && gfxPrefs::VsyncAlignedCompositor()) {
+      gPlatform->InitHardwareVsync();
     }
 }
 
@@ -604,7 +597,6 @@ gfxPlatform::Shutdown()
 
         gPlatform->mMemoryPressureObserver = nullptr;
         gPlatform->mSkiaGlue = nullptr;
-        gPlatform->mVsyncSource = nullptr;
     }
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -672,19 +664,16 @@ gfxPlatform::ShutdownLayersIPC()
     }
     sLayersIPCIsUp = false;
 
-    GeckoProcessType processType = XRE_GetProcessType();
-    if (processType == GeckoProcessType_Default) {
+    if (XRE_GetProcessType() == GeckoProcessType_Default)
+    {
         // This must happen after the shutdown of media and widgets, which
         // are triggered by the NS_XPCOM_SHUTDOWN_OBSERVER_ID notification.
         layers::ImageBridgeChild::ShutDown();
-
 #ifdef MOZ_WIDGET_GONK
         layers::SharedBufferManagerChild::ShutDown();
 #endif
 
         layers::CompositorParent::ShutDown();
-    } else if (processType == GeckoProcessType_Content) {
-        layers::CompositorChild::ShutDown();
     }
 }
 
@@ -702,7 +691,7 @@ gfxPlatform::~gfxPlatform()
     // cairo_debug_* function unconditionally.
     //
     // because cairo can assert and thus crash on shutdown, don't do this in release builds
-#if defined(DEBUG) || defined(NS_BUILD_REFCNT_LOGGING) || defined(MOZ_VALGRIND)
+#if defined(DEBUG) || defined(NS_BUILD_REFCNT_LOGGING) || defined(NS_TRACE_MALLOC) || defined(MOZ_VALGRIND)
 #ifdef USE_SKIA
     // must do Skia cleanup before Cairo cleanup, because Skia may be referencing
     // Cairo objects e.g. through SkCairoFTTypeface
@@ -1182,16 +1171,16 @@ gfxPlatform::CreateDrawTargetForData(unsigned char* aData, const IntSize& aSize,
 {
   NS_ASSERTION(mContentBackend != BackendType::NONE, "No backend.");
 
-  BackendType backendType = mContentBackend;
-  
-  if (!Factory::DoesBackendSupportDataDrawtarget(mContentBackend)) {
-    backendType = BackendType::CAIRO;
-  }
-
-  RefPtr<DrawTarget> dt = Factory::CreateDrawTargetForData(backendType,
+  RefPtr<DrawTarget> dt = Factory::CreateDrawTargetForData(mContentBackend,
                                                            aData, aSize,
                                                            aStride, aFormat);
-
+  if (!dt) {
+    // Factory::CreateDrawTargetForData does not support mContentBackend; retry
+    // with BackendType::CAIRO:
+    dt = Factory::CreateDrawTargetForData(BackendType::CAIRO,
+                                          aData, aSize,
+                                          aStride, aFormat);
+  }
   return dt.forget();
 }
 
@@ -2196,10 +2185,6 @@ InitLayersAccelerationPrefs()
             sLayersSupportsD3D11 = true;
           }
         }
-        if (!gfxPrefs::LayersD3D11DisableWARP()) {
-          // Always support D3D11 when WARP is allowed.
-          sLayersSupportsD3D11 = true;
-        }
         if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_DXVA, &status))) {
           if (status == nsIGfxInfo::FEATURE_STATUS_OK) {
             sLayersSupportsDXVA = true;
@@ -2297,12 +2282,4 @@ gfxPlatform::UsesOffMainThreadCompositing()
   }
 
   return result;
-}
-
-already_AddRefed<mozilla::gfx::VsyncSource>
-gfxPlatform::CreateHardwareVsyncSource()
-{
-  NS_WARNING("Hardware Vsync support not yet implemented. Falling back to software timers\n");
-  nsRefPtr<mozilla::gfx::VsyncSource> softwareVsync = new SoftwareVsyncSource();
-  return softwareVsync.forget();
 }

@@ -164,7 +164,9 @@ public:
 
   void MoveBy(nsPoint aPoint);
 
+#ifdef MOZ_DUMP_PAINTING
   nsCString ToString() const;
+#endif
 
   /**
    * Find the largest N such that the first N rounded rects in 'this' are

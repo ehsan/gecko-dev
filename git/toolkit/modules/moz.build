@@ -43,7 +43,6 @@ EXTRA_JS_MODULES += [
     'RemoteSecurityUI.jsm',
     'RemoteWebNavigation.jsm',
     'RemoteWebProgress.jsm',
-    'secondscreen/SimpleServiceDiscovery.jsm',
     'SelectContentHelper.jsm',
     'SelectParentHelper.jsm',
     'sessionstore/FormData.jsm',
@@ -62,9 +61,9 @@ EXTRA_JS_MODULES += [
 
 EXTRA_PP_JS_MODULES += [
     'CertUtils.jsm',
-    'GMPInstallManager.jsm',
     'ResetProfile.jsm',
     'secondscreen/RokuApp.jsm',
+    'secondscreen/SimpleServiceDiscovery.jsm',
     'Services.jsm',
     'Troubleshoot.jsm',
     'UpdateChannel.jsm',
@@ -74,6 +73,7 @@ EXTRA_PP_JS_MODULES += [
 
 if 'Android' != CONFIG['OS_TARGET']:
     EXTRA_PP_JS_MODULES += [
+        'GMPInstallManager.jsm',
         'LightweightThemeConsumer.jsm',
     ]
 else:

@@ -112,7 +112,6 @@ function finish()
 }
 
 SimpleTest.waitForExplicitFinish();
-SimpleTest.requestFlakyTimeout("untriaged");
 
 if (OfflineTest.setup()) {
   applicationCache.onerror = OfflineTest.priv(manifestError);

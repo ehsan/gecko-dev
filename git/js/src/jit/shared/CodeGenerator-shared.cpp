@@ -15,7 +15,7 @@
 #include "jit/MacroAssembler.h"
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
-#include "js/Conversions.h"
+#include "jit/ParallelFunctions.h"
 #include "vm/TraceLogging.h"
 
 #include "jit/JitFrames-inl.h"
@@ -23,7 +23,6 @@
 using namespace js;
 using namespace js::jit;
 
-using mozilla::BitwiseCast;
 using mozilla::DebugOnly;
 
 namespace js {
@@ -52,7 +51,6 @@ CodeGeneratorShared::CodeGeneratorShared(MIRGenerator *gen, LIRGraph *graph, Mac
     pushedArgs_(0),
 #endif
     lastOsiPointOffset_(0),
-    safepoints_(graph->totalSlotCount()),
     nativeToBytecodeMap_(nullptr),
     nativeToBytecodeMapSize_(0),
     nativeToBytecodeTableOffset_(0),
@@ -129,7 +127,8 @@ CodeGeneratorShared::generateOutOfLineCode()
         outOfLineCode_[i]->bind(&masm);
 
         oolIns = outOfLineCode_[i];
-        outOfLineCode_[i]->generate(this);
+        if (!outOfLineCode_[i]->generate(this))
+            return false;
         sps_.finishOOL();
     }
     sps_.setPushed(topScript);
@@ -138,20 +137,20 @@ CodeGeneratorShared::generateOutOfLineCode()
     return true;
 }
 
-void
+bool
 CodeGeneratorShared::addOutOfLineCode(OutOfLineCode *code, const MInstruction *mir)
 {
     MOZ_ASSERT(mir);
-    addOutOfLineCode(code, mir->trackedSite());
+    return addOutOfLineCode(code, mir->trackedSite());
 }
 
-void
+bool
 CodeGeneratorShared::addOutOfLineCode(OutOfLineCode *code, const BytecodeSite *site)
 {
     code->setFramePushed(masm.framePushed());
     code->setBytecodeSite(site);
     MOZ_ASSERT_IF(!gen->compilingAsmJS(), code->script()->containsPC(code->pc()));
-    masm.propagateOOM(outOfLineCode_.append(code));
+    return outOfLineCode_.append(code);
 }
 
 bool
@@ -280,7 +279,7 @@ ToStackIndex(LAllocation *a)
     return -int32_t(sizeof(JitFrameLayout) + a->toArgument()->index());
 }
 
-void
+bool
 CodeGeneratorShared::encodeAllocation(LSnapshot *snapshot, MDefinition *mir,
                                       uint32_t *allocIndex)
 {
@@ -309,17 +308,6 @@ CodeGeneratorShared::encodeAllocation(LSnapshot *snapshot, MDefinition *mir,
         // This MDefinition is recovered, thus it should be listed in the
         // LRecoverInfo.
         MOZ_ASSERT(it != end && mir == *it);
-
-        // Lambda should have a default value readable for iterating over the
-        // inner frames.
-        if (mir->isLambda()) {
-            MConstant *constant = mir->toLambda()->functionOperand();
-            uint32_t cstIndex;
-            masm.propagateOOM(graph.addConstantToPool(constant->value(), &cstIndex));
-            alloc = RValueAllocation::RecoverInstruction(index, cstIndex);
-            break;
-        }
-
         alloc = RValueAllocation::RecoverInstruction(index);
         break;
       }
@@ -355,7 +343,8 @@ CodeGeneratorShared::encodeAllocation(LSnapshot *snapshot, MDefinition *mir,
         } else {
             MConstant *constant = mir->toConstant();
             uint32_t index;
-            masm.propagateOOM(graph.addConstantToPool(constant->value(), &index));
+            if (!graph.addConstantToPool(constant->value(), &index))
+                return false;
             alloc = RValueAllocation::ConstantPool(index);
         }
         break;
@@ -370,7 +359,8 @@ CodeGeneratorShared::encodeAllocation(LSnapshot *snapshot, MDefinition *mir,
                              : (type == MIRType_MagicOptimizedOut
                                 ? JS_OPTIMIZED_OUT
                                 : JS_UNINITIALIZED_LEXICAL));
-        masm.propagateOOM(graph.addConstantToPool(v, &index));
+        if (!graph.addConstantToPool(v, &index))
+            return false;
         alloc = RValueAllocation::ConstantPool(index);
         break;
       }
@@ -401,21 +391,16 @@ CodeGeneratorShared::encodeAllocation(LSnapshot *snapshot, MDefinition *mir,
       }
     }
 
-    // This set an extra bit as part of the RValueAllocation, such that we know
-    // that recover instruction have to be executed without wrapping the
-    // instruction in a no-op recover instruction.
-    if (mir->isIncompleteObject())
-        alloc.setNeedSideEffect();
-
     snapshots_.add(alloc);
     *allocIndex += mir->isRecoveredOnBailout() ? 0 : 1;
+    return true;
 }
 
-void
+bool
 CodeGeneratorShared::encode(LRecoverInfo *recover)
 {
     if (recover->recoverOffset() != INVALID_RECOVER_OFFSET)
-        return;
+        return true;
 
     uint32_t numInstructions = recover->numInstructions();
     JitSpew(JitSpew_IonSnapshots, "Encoding LRecoverInfo %p (frameCount %u, instructions %u)",
@@ -427,22 +412,25 @@ CodeGeneratorShared::encode(LRecoverInfo *recover)
 
     RecoverOffset offset = recovers_.startRecover(numInstructions, resumeAfter);
 
-    for (MNode **it = recover->begin(), **end = recover->end(); it != end; ++it)
-        recovers_.writeInstruction(*it);
+    for (MNode **it = recover->begin(), **end = recover->end(); it != end; ++it) {
+        if (!recovers_.writeInstruction(*it))
+            return false;
+    }
 
     recovers_.endRecover();
     recover->setRecoverOffset(offset);
-    masm.propagateOOM(!recovers_.oom());
+    return !recovers_.oom();
 }
 
-void
+bool
 CodeGeneratorShared::encode(LSnapshot *snapshot)
 {
     if (snapshot->snapshotOffset() != INVALID_SNAPSHOT_OFFSET)
-        return;
+        return true;
 
     LRecoverInfo *recoverInfo = snapshot->recoverInfo();
-    encode(recoverInfo);
+    if (!encode(recoverInfo))
+        return false;
 
     RecoverOffset recoverOffset = recoverInfo->recoverOffset();
     MOZ_ASSERT(recoverOffset != INVALID_RECOVER_OFFSET);
@@ -475,14 +463,15 @@ CodeGeneratorShared::encode(LSnapshot *snapshot)
     uint32_t allocIndex = 0;
     for (LRecoverInfo::OperandIter it(recoverInfo); !it; ++it) {
         DebugOnly<uint32_t> allocWritten = snapshots_.allocWritten();
-        encodeAllocation(snapshot, *it, &allocIndex);
+        if (!encodeAllocation(snapshot, *it, &allocIndex))
+            return false;
         MOZ_ASSERT(allocWritten + 1 == snapshots_.allocWritten());
     }
 
     MOZ_ASSERT(allocIndex == snapshot->numSlots());
     snapshots_.endSnapshot();
     snapshot->setSnapshotOffset(offset);
-    masm.propagateOOM(!snapshots_.oom());
+    return !snapshots_.oom();
 }
 
 bool
@@ -493,6 +482,13 @@ CodeGeneratorShared::assignBailoutId(LSnapshot *snapshot)
     // Can we not use bailout tables at all?
     if (!deoptTable_)
         return false;
+
+    // We do not generate a bailout table for parallel code.
+    switch (gen->info().executionMode()) {
+      case SequentialExecution: break;
+      case ParallelExecution: return false;
+      default: MOZ_CRASH("No such execution mode");
+    }
 
     MOZ_ASSERT(frameClass_ != FrameSizeClass::None());
 
@@ -730,18 +726,18 @@ CodeGeneratorShared::verifyCompactNativeToBytecodeMap(JitCode *code)
 #endif // DEBUG
 }
 
-void
+bool
 CodeGeneratorShared::markSafepoint(LInstruction *ins)
 {
-    markSafepointAt(masm.currentOffset(), ins);
+    return markSafepointAt(masm.currentOffset(), ins);
 }
 
-void
+bool
 CodeGeneratorShared::markSafepointAt(uint32_t offset, LInstruction *ins)
 {
     MOZ_ASSERT_IF(!safepointIndices_.empty(),
                   offset - safepointIndices_.back().displacement() >= sizeof(uint32_t));
-    masm.propagateOOM(safepointIndices_.append(SafepointIndex(offset, ins->safepoint())));
+    return safepointIndices_.append(SafepointIndex(offset, ins->safepoint()));
 }
 
 void
@@ -772,17 +768,17 @@ CodeGeneratorShared::ensureOsiSpace()
     lastOsiPointOffset_ = masm.currentOffset();
 }
 
-uint32_t
-CodeGeneratorShared::markOsiPoint(LOsiPoint *ins)
+bool
+CodeGeneratorShared::markOsiPoint(LOsiPoint *ins, uint32_t *callPointOffset)
 {
-    encode(ins->snapshot());
+    if (!encode(ins->snapshot()))
+        return false;
+
     ensureOsiSpace();
 
-    uint32_t offset = masm.currentOffset();
+    *callPointOffset = masm.currentOffset();
     SnapshotOffset so = ins->snapshot()->snapshotOffset();
-    masm.propagateOOM(osiIndices_.append(OsiIndex(offset, so)));
-
-    return offset;
+    return osiIndices_.append(OsiIndex(*callPointOffset, so));
 }
 
 #ifdef CHECK_OSIPOINT_REGISTERS
@@ -967,6 +963,9 @@ CodeGeneratorShared::shouldVerifyOsiPointRegs(LSafepoint *safepoint)
     if (!checkOsiPointRegisters)
         return false;
 
+    if (gen->info().executionMode() != SequentialExecution)
+        return false;
+
     if (safepoint->liveRegs().empty(true) && safepoint->liveRegs().empty(false))
         return false; // No registers to check.
 
@@ -993,7 +992,7 @@ CodeGeneratorShared::resetOsiPointRegs(LSafepoint *safepoint)
 
 // Before doing any call to Cpp, you should ensure that volatile
 // registers are evicted by the register allocator.
-void
+bool
 CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Register *dynStack)
 {
     // Different execution modes have different sets of VM functions.
@@ -1012,7 +1011,8 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
 #endif
 
 #ifdef JS_TRACE_LOGGING
-    emitTracelogStartEvent(TraceLogger_VM);
+    if (!emitTracelogStartEvent(TraceLogger::VM))
+        return false;
 #endif
 
     // Stack is:
@@ -1025,10 +1025,8 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
 
     // Get the wrapper of the VM function.
     JitCode *wrapper = gen->jitRuntime()->getVMWrapper(fun);
-    if (!wrapper) {
-        masm.setOOM();
-        return;
-    }
+    if (!wrapper)
+        return false;
 
 #ifdef CHECK_OSIPOINT_REGISTERS
     if (shouldVerifyOsiPointRegs(ins->safepoint()))
@@ -1045,7 +1043,8 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
     else
         callOffset = masm.callWithExitFrame(wrapper);
 
-    markSafepointAt(callOffset, ins);
+    if (!markSafepointAt(callOffset, ins))
+        return false;
 
     // Remove rest of the frame left on the stack. We remove the return address
     // which is implicitly poped when returning.
@@ -1057,8 +1056,11 @@ CodeGeneratorShared::callVM(const VMFunction &fun, LInstruction *ins, const Regi
     //    ... frame ...
 
 #ifdef JS_TRACE_LOGGING
-    emitTracelogStopEvent(TraceLogger_VM);
+    if (!emitTracelogStopEvent(TraceLogger::VM))
+        return false;
 #endif
+
+    return true;
 }
 
 class OutOfLineTruncateSlow : public OutOfLineCodeBase<CodeGeneratorShared>
@@ -1072,8 +1074,8 @@ class OutOfLineTruncateSlow : public OutOfLineCodeBase<CodeGeneratorShared>
       : src_(src), dest_(dest), needFloat32Conversion_(needFloat32Conversion)
     { }
 
-    void accept(CodeGeneratorShared *codegen) {
-        codegen->visitOutOfLineTruncateSlow(this);
+    bool accept(CodeGeneratorShared *codegen) {
+        return codegen->visitOutOfLineTruncateSlow(this);
     }
     FloatRegister src() const {
         return src_;
@@ -1091,30 +1093,36 @@ OutOfLineCode *
 CodeGeneratorShared::oolTruncateDouble(FloatRegister src, Register dest, MInstruction *mir)
 {
     OutOfLineTruncateSlow *ool = new(alloc()) OutOfLineTruncateSlow(src, dest);
-    addOutOfLineCode(ool, mir);
+    if (!addOutOfLineCode(ool, mir))
+        return nullptr;
     return ool;
 }
 
-void
+bool
 CodeGeneratorShared::emitTruncateDouble(FloatRegister src, Register dest, MInstruction *mir)
 {
     OutOfLineCode *ool = oolTruncateDouble(src, dest, mir);
+    if (!ool)
+        return false;
 
     masm.branchTruncateDouble(src, dest, ool->entry());
     masm.bind(ool->rejoin());
+    return true;
 }
 
-void
+bool
 CodeGeneratorShared::emitTruncateFloat32(FloatRegister src, Register dest, MInstruction *mir)
 {
     OutOfLineTruncateSlow *ool = new(alloc()) OutOfLineTruncateSlow(src, dest, true);
-    addOutOfLineCode(ool, mir);
+    if (!addOutOfLineCode(ool, mir))
+        return false;
 
     masm.branchTruncateFloat32(src, dest, ool->entry());
     masm.bind(ool->rejoin());
+    return true;
 }
 
-void
+bool
 CodeGeneratorShared::visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool)
 {
     FloatRegister src = ool->src();
@@ -1138,7 +1146,7 @@ CodeGeneratorShared::visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool)
     if (gen->compilingAsmJS())
         masm.callWithABI(AsmJSImm_ToInt32);
     else
-        masm.callWithABI(BitwiseCast<void*, int32_t(*)(double)>(JS::ToInt32));
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, js::ToInt32));
     masm.storeCallResult(dest);
 
 #ifndef JS_CODEGEN_ARM
@@ -1148,6 +1156,7 @@ CodeGeneratorShared::visitOutOfLineTruncateSlow(OutOfLineTruncateSlow *ool)
     restoreVolatile(dest);
 
     masm.jump(ool->rejoin());
+    return true;
 }
 
 bool
@@ -1249,7 +1258,7 @@ CodeGeneratorShared::labelForBackedgeWithImplicitCheck(MBasicBlock *mir)
             } else {
                 // The interrupt check should be the first instruction in the
                 // loop header other than the initial label and move groups.
-                MOZ_ASSERT(iter->isInterruptCheck());
+                MOZ_ASSERT(iter->isInterruptCheck() || iter->isInterruptCheckPar());
                 return nullptr;
             }
         }
@@ -1390,12 +1399,9 @@ CodeGeneratorShared::computeDivisionConstants(int d) {
 
 #ifdef JS_TRACE_LOGGING
 
-void
+bool
 CodeGeneratorShared::emitTracelogScript(bool isStart)
 {
-    if (!TraceLogTextIdEnabled(TraceLogger_Scripts))
-        return;
-
     Label done;
 
     RegisterSet regs = RegisterSet::Volatile();
@@ -1405,33 +1411,36 @@ CodeGeneratorShared::emitTracelogScript(bool isStart)
     masm.Push(logger);
 
     CodeOffsetLabel patchLogger = masm.movWithPatch(ImmPtr(nullptr), logger);
-    masm.propagateOOM(patchableTraceLoggers_.append(patchLogger));
+    if (!patchableTraceLoggers_.append(patchLogger))
+        return false;
 
-    Address enabledAddress(logger, TraceLoggerThread::offsetOfEnabled());
+    Address enabledAddress(logger, TraceLogger::offsetOfEnabled());
     masm.branch32(Assembler::Equal, enabledAddress, Imm32(0), &done);
 
     masm.Push(script);
 
     CodeOffsetLabel patchScript = masm.movWithPatch(ImmWord(0), script);
-    masm.propagateOOM(patchableTLScripts_.append(patchScript));
+    if (!patchableTLScripts_.append(patchScript))
+        return false;
 
     if (isStart)
-        masm.tracelogStartId(logger, script);
+        masm.tracelogStart(logger, script);
     else
-        masm.tracelogStopId(logger, script);
+        masm.tracelogStop(logger, script);
 
     masm.Pop(script);
 
     masm.bind(&done);
 
     masm.Pop(logger);
+    return true;
 }
 
-void
+bool
 CodeGeneratorShared::emitTracelogTree(bool isStart, uint32_t textId)
 {
     if (!TraceLogTextIdEnabled(textId))
-        return;
+        return true;
 
     Label done;
     RegisterSet regs = RegisterSet::Volatile();
@@ -1440,19 +1449,26 @@ CodeGeneratorShared::emitTracelogTree(bool isStart, uint32_t textId)
     masm.Push(logger);
 
     CodeOffsetLabel patchLocation = masm.movWithPatch(ImmPtr(nullptr), logger);
-    masm.propagateOOM(patchableTraceLoggers_.append(patchLocation));
+    if (!patchableTraceLoggers_.append(patchLocation))
+        return false;
 
-    Address enabledAddress(logger, TraceLoggerThread::offsetOfEnabled());
+    Address enabledAddress(logger, TraceLogger::offsetOfEnabled());
     masm.branch32(Assembler::Equal, enabledAddress, Imm32(0), &done);
 
-    if (isStart)
-        masm.tracelogStartId(logger, textId);
-    else
-        masm.tracelogStopId(logger, textId);
+    if (isStart) {
+        masm.tracelogStart(logger, textId);
+    } else {
+#ifdef DEBUG
+        masm.tracelogStop(logger, textId);
+#else
+        masm.tracelogStop(logger);
+#endif
+    }
 
     masm.bind(&done);
 
     masm.Pop(logger);
+    return true;
 }
 #endif
 

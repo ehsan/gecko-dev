@@ -136,8 +136,9 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
    *        - staged: true to stage the item to be appended later
    */
   addSource: function(aSource, aOptions = {}) {
-    if (!aSource.url) {
-      // We don't show any unnamed eval scripts yet (see bug 1124106)
+    if (!(aSource.url || aSource.introductionUrl)) {
+      // These would be most likely eval scripts introduced in inline
+      // JavaScript in HTML, and we don't show those yet (bug 1097873)
       return;
     }
 
@@ -169,10 +170,21 @@ SourcesView.prototype = Heritage.extend(WidgetMethods, {
   },
 
   _parseUrl: function(aSource) {
-    let fullUrl = aSource.url;
+    let fullUrl = aSource.url || aSource.introductionUrl;
     let url = fullUrl.split(" -> ").pop();
     let label = aSource.addonPath ? aSource.addonPath : SourceUtils.getSourceLabel(url);
-    let group = aSource.addonID ? aSource.addonID : SourceUtils.getSourceGroup(url);
+    let group;
+
+    if (!aSource.url && aSource.introductionUrl) {
+      label += ' > ' + aSource.introductionType;
+      group = 'evals';
+    }
+    else if(aSource.addonID) {
+      group = aSource.addonID;
+    }
+    else {
+      group = SourceUtils.getSourceGroup(url);
+    }
 
     return {
       label: label,

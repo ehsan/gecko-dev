@@ -5,7 +5,7 @@
  * Tests that SVG nodes and edges were created for the Graph View.
  */
 
-add_task(function*() {
+function spawnTest() {
   let { target, panel } = yield initWebAudioEditor(SIMPLE_CONTEXT_URL);
   let { panelWin } = panel;
   let { gFront, $, $$, EVENTS } = panelWin;
@@ -46,5 +46,7 @@ add_task(function*() {
   ok(findGraphNode(panelWin, gainId).classList.contains("selected"),
     "Newly selected node now has class 'selected'.");
 
-  yield teardown(target);
-});
+  yield teardown(panel);
+  finish();
+}
+

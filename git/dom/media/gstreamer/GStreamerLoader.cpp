@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 #include "nsDebug.h"
+#include "mozilla/NullPtr.h"
 
 #include "GStreamerLoader.h"
 

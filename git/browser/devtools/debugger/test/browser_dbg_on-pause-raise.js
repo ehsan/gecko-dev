@@ -8,7 +8,7 @@
 const TAB_URL = EXAMPLE_URL + "doc_recursion-stack.html";
 
 let gTab, gPanel, gDebugger;
-let gFocusedWindow, gToolbox, gToolboxTab;
+let gNewTab, gFocusedWindow, gToolbox, gToolboxTab;
 
 function test() {
   initDebugger(TAB_URL).then(([aTab,, aPanel]) => {
@@ -29,6 +29,7 @@ function performTest() {
     is(gBrowser.selectedTab, aTab,
       "Debugger's tab is not the selected tab.");
 
+    gNewTab = aTab;
     gFocusedWindow = window;
     testPause();
   });
@@ -133,6 +134,8 @@ registerCleanupFunction(function() {
   gPanel = null;
   gDebugger = null;
 
+  removeTab(gNewTab);
+  gNewTab = null;
   gFocusedWindow = null;
   gToolbox = null;
   gToolboxTab = null;

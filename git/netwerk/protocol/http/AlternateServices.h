@@ -101,7 +101,7 @@ public:
     NS_DECL_NSISPECULATIVECONNECTIONOVERRIDER
     NS_DECL_NSIINTERFACEREQUESTOR
 
-    explicit AltSvcOverride(nsIInterfaceRequestor *aRequestor)
+    AltSvcOverride(nsIInterfaceRequestor *aRequestor)
       : mCallbacks(aRequestor) {}
 
 private:

@@ -5,10 +5,6 @@
 
 const { 'classes': Cc, 'interfaces': Ci, 'utils': Cu } = Components;
 
-if (!("self" in this)) {
-  this.self = this;
-}
-
 const DOMException = Ci.nsIDOMDOMException;
 
 function is(a, b, msg) {
@@ -178,6 +174,16 @@ function allowIndexedDB(url)
 function disallowIndexedDB(url)
 {
   throw "disallowIndexedDB";
+}
+
+function allowUnlimitedQuota(url)
+{
+  throw "allowUnlimitedQuota";
+}
+
+function disallowUnlimitedQuota(url)
+{
+  throw "disallowUnlimitedQuota";
 }
 
 function enableExperimental()

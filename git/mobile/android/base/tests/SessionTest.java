@@ -192,17 +192,13 @@ public abstract class SessionTest extends BaseTest {
                 (new NavigationWalker<PageInfo>(tab) {
                     @Override
                     public void onItem(PageInfo page, int currentIndex) {
-                        final String text;
-                        if (StringHelper.ABOUT_HOME_URL.equals(page.url)) {
-                            text = StringHelper.TITLE_PLACE_HOLDER;
-                        } else if (page.url.startsWith(URL_HTTP_PREFIX)) {
-                            text = page.url.substring(URL_HTTP_PREFIX.length());
+                        if (page.url.equals(StringHelper.ABOUT_HOME_URL)) {
+                            waitForText("Enter Search or Address");
+                            verifyUrl(page.url);
                         } else {
-                            text = page.url;
+                            waitForText(page.title);
+                            verifyPageTitle(page.title, page.url);
                         }
-                        waitForText(text);
-
-                        verifyUrlBarTitle(page.url);
                     }
 
                     @Override

@@ -358,8 +358,6 @@ class IonBuilder
 
     // Add a guard which ensure that the set of type which goes through this
     // generated code correspond to the observed types for the bytecode.
-    MDefinition *addTypeBarrier(MDefinition *def, types::TemporaryTypeSet *observed,
-                                BarrierKind kind, MTypeBarrier **pbarrier = nullptr);
     bool pushTypeBarrier(MDefinition *def, types::TemporaryTypeSet *observed, BarrierKind kind);
 
     // As pushTypeBarrier, but will compute the needBarrier boolean itself based
@@ -439,6 +437,7 @@ class IonBuilder
                             types::TemporaryTypeSet *types);
     bool getPropTryCache(bool *emitted, MDefinition *obj, PropertyName *name,
                          BarrierKind barrier, types::TemporaryTypeSet *types);
+    bool needsToMonitorMissingProperties(types::TemporaryTypeSet *types);
 
     // jsop_setprop() helpers.
     bool setPropTryCommonSetter(bool *emitted, MDefinition *obj,
@@ -599,8 +598,6 @@ class IonBuilder
     MDefinition *getAliasedVar(ScopeCoordinate sc);
     MDefinition *addLexicalCheck(MDefinition *input);
 
-    bool tryFoldInstanceOf(MDefinition *lhs, JSObject *protoObject);
-
     bool jsop_add(MDefinition *left, MDefinition *right);
     bool jsop_bitnot();
     bool jsop_bitop(JSOp op);
@@ -712,10 +709,7 @@ class IonBuilder
                                BoolVector &choiceSet, uint32_t *numInlineable);
 
     // Native inlining helpers.
-    // The typeset for the return value of our function.  These are
-    // the types it's been observed returning in the past.
     types::TemporaryTypeSet *getInlineReturnTypeSet();
-    // The known MIR type of getInlineReturnTypeSet.
     MIRType getInlineReturnType();
 
     // Array natives.
@@ -769,15 +763,16 @@ class IonBuilder
                                           ScalarTypeDescr::Type arrayType);
     bool inlineUnsafeSetTypedObjectArrayElement(CallInfo &callInfo, uint32_t base,
                                                 ScalarTypeDescr::Type arrayType);
+    InliningStatus inlineNewDenseArray(CallInfo &callInfo);
+    InliningStatus inlineNewDenseArrayForSequentialExecution(CallInfo &callInfo);
+    InliningStatus inlineNewDenseArrayForParallelExecution(CallInfo &callInfo);
 
     // Slot intrinsics.
     InliningStatus inlineUnsafeSetReservedSlot(CallInfo &callInfo);
-    InliningStatus inlineUnsafeGetReservedSlot(CallInfo &callInfo,
-                                               MIRType knownValueType);
+    InliningStatus inlineUnsafeGetReservedSlot(CallInfo &callInfo);
 
-    // TypedArray intrinsics.
-    InliningStatus inlineIsTypedArray(CallInfo &callInfo);
-    InliningStatus inlineTypedArrayLength(CallInfo &callInfo);
+    // ForkJoin intrinsics
+    InliningStatus inlineForkJoinGetSlice(CallInfo &callInfo);
 
     // TypedObject intrinsics and natives.
     InliningStatus inlineObjectIsTypeDescr(CallInfo &callInfo);
@@ -785,11 +780,11 @@ class IonBuilder
     bool elementAccessIsTypedObjectArrayOfScalarType(MDefinition* obj, MDefinition* id,
                                                      ScalarTypeDescr::Type *arrayType);
     InliningStatus inlineConstructTypedObject(CallInfo &callInfo, TypeDescr *target);
-    InliningStatus inlineConstructSimdObject(CallInfo &callInfo, SimdTypeDescr *target);
 
     // Utility intrinsics.
     InliningStatus inlineIsCallable(CallInfo &callInfo);
     InliningStatus inlineIsObject(CallInfo &callInfo);
+    InliningStatus inlineHaveSameClass(CallInfo &callInfo);
     InliningStatus inlineToObject(CallInfo &callInfo);
     InliningStatus inlineToInteger(CallInfo &callInfo);
     InliningStatus inlineToString(CallInfo &callInfo);
@@ -802,6 +797,7 @@ class IonBuilder
     InliningStatus inlineSubstringKernel(CallInfo &callInfo);
 
     // Testing functions.
+    InliningStatus inlineForceSequentialOrInParallelSection(CallInfo &callInfo);
     InliningStatus inlineBailout(CallInfo &callInfo);
     InliningStatus inlineAssertFloat32(CallInfo &callInfo);
 
@@ -840,7 +836,6 @@ class IonBuilder
     MDefinition *patchInlinedReturn(CallInfo &callInfo, MBasicBlock *exit, MBasicBlock *bottom);
     MDefinition *patchInlinedReturns(CallInfo &callInfo, MIRGraphReturns &returns,
                                      MBasicBlock *bottom);
-    MDefinition *specializeInlinedReturn(MDefinition *rdef, MBasicBlock *exit);
 
     bool objectsHaveCommonPrototype(types::TemporaryTypeSet *types, PropertyName *name,
                                     bool isGetter, JSObject *foundProto, bool *guardGlobal);

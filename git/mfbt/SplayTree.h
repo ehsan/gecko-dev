@@ -13,6 +13,7 @@
 #define mozilla_SplayTree_h
 
 #include "mozilla/Assertions.h"
+#include "mozilla/NullPtr.h"
 
 namespace mozilla {
 
@@ -291,8 +292,8 @@ private:
     return aNode;
   }
 
-  SplayTree(const SplayTree&) = delete;
-  void operator=(const SplayTree&) = delete;
+  SplayTree(const SplayTree&) MOZ_DELETE;
+  void operator=(const SplayTree&) MOZ_DELETE;
 };
 
 }  /* namespace mozilla */

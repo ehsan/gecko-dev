@@ -70,6 +70,7 @@
 #include <cstddef>            // for std::ptrdiff_t
 
 #include "mozilla/Assertions.h"
+#include "mozilla/NullPtr.h"
 
 namespace lul {
 

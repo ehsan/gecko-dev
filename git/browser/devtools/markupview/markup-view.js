@@ -19,7 +19,7 @@ const {UndoStack} = require("devtools/shared/undo");
 const {editableField, InplaceEditor} = require("devtools/shared/inplace-editor");
 const {gDevTools} = Cu.import("resource:///modules/devtools/gDevTools.jsm", {});
 const {HTMLEditor} = require("devtools/markupview/html-editor");
-const promise = require("resource://gre/modules/Promise.jsm").Promise;
+const promise = require("devtools/toolkit/deprecated-sync-thenables");
 const {Tooltip} = require("devtools/shared/widgets/Tooltip");
 const EventEmitter = require("devtools/toolkit/event-emitter");
 const Heritage = require("sdk/core/heritage");
@@ -365,21 +365,12 @@ MarkupView.prototype = {
       }
 
       this.showNode(selection.nodeFront, true).then(() => {
-        if (this._destroyer) {
-          return promise.reject("markupview destroyed");
-        }
         if (selection.reason !== "treepanel") {
           this.markNodeAsSelected(selection.nodeFront);
         }
         done();
-      }).then(null, e => {
-        if (!this._destroyer) {
-          console.error(e);
-        } else {
-          console.warn("Could not mark node as selected, the markup-view was " +
-            "destroyed while showing the node.");
-        }
-
+      }, (e) => {
+        console.error(e);
         done();
       });
     } else {
@@ -435,10 +426,8 @@ MarkupView.prototype = {
         }
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_DELETE:
-        this.deleteNode(this._selectedContainer.node);
-        break;
       case Ci.nsIDOMKeyEvent.DOM_VK_BACK_SPACE:
-        this.deleteNode(this._selectedContainer.node, true);
+        this.deleteNode(this._selectedContainer.node);
         break;
       case Ci.nsIDOMKeyEvent.DOM_VK_HOME:
         let rootContainer = this.getContainer(this._rootNode);
@@ -519,12 +508,8 @@ MarkupView.prototype = {
   /**
    * Delete a node from the DOM.
    * This is an undoable action.
-   *
-   * @param {NodeFront} aNode The node to remove.
-   * @param {boolean} moveBackward If set to true, focus the previous sibling,
-   *  otherwise the next one.
    */
-  deleteNode: function(aNode, moveBackward) {
+  deleteNode: function(aNode) {
     if (aNode.isDocumentElement ||
         aNode.nodeType == Ci.nsIDOMNode.DOCUMENT_TYPE_NODE ||
         aNode.isAnonymous) {
@@ -539,15 +524,8 @@ MarkupView.prototype = {
       let nextSibling = null;
       this.undo.do(() => {
         this.walker.removeNode(aNode).then(siblings => {
+          let focusNode = siblings.previousSibling || parent;
           nextSibling = siblings.nextSibling;
-          let focusNode = moveBackward ? siblings.previousSibling : nextSibling;
-
-          // If we can't move as the user wants, we move to the other direction.
-          // If there is no sibling elements anymore, move to the parent node.
-          if (!focusNode) {
-            focusNode = nextSibling || siblings.previousSibling || parent;
-          }
-
           if (container.selected) {
             this.navigate(this.getContainer(focusNode));
           }
@@ -765,9 +743,6 @@ MarkupView.prototype = {
     }
 
     return this._waitForChildren().then(() => {
-      if (this._destroyer) {
-        return promise.reject("markupview destroyed");
-      }
       return this._ensureVisible(aNode);
     }).then(() => {
       // Why is this not working?
@@ -2351,7 +2326,7 @@ ElementEditor.prototype = {
    * Called when the tag name editor has is done editing.
    */
   onTagEdit: function(newTagName, isCommit) {
-    if (!isCommit || newTagName.toLowerCase() === this.node.tagName.toLowerCase() ||
+    if (!isCommit || newTagName == this.node.tagName ||
         !("editTagName" in this.markup.walker)) {
       return;
     }

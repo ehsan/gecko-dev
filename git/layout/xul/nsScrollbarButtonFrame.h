@@ -25,8 +25,8 @@ class nsScrollbarButtonFrame : public nsButtonBoxFrame
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsScrollbarButtonFrame(nsStyleContext* aContext):
-    nsButtonBoxFrame(aContext), mCursorOnThis(false) {}
+  nsScrollbarButtonFrame(nsIPresShell* aPresShell, nsStyleContext* aContext):
+    nsButtonBoxFrame(aPresShell, aContext), mCursorOnThis(false) {}
 
   // Overrides
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;

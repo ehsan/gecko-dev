@@ -11,9 +11,11 @@ let Sources;
 let getItemInvoked = false;
 
 function test() {
-  loadTab(TEST_URI).then(() => {
-    openConsole(null).then(testViewSource);
-  });
+  addTab(TEST_URI);
+  browser.addEventListener("load", function onLoad() {
+    browser.removeEventListener("load", onLoad, true);
+    openConsole(null, testViewSource);
+  }, true);
 }
 
 function testViewSource(hud) {
@@ -28,7 +30,7 @@ function testViewSource(hud) {
   openDebugger().then(({panelWin: { DebuggerView }}) => {
     info("debugger opened");
     Sources = DebuggerView.Sources;
-    openConsole().then((hud) => {
+    openConsole(null, (hud) => {
       info("console opened again");
 
       waitForMessages({

@@ -7,7 +7,6 @@
 #include "mozilla/JSONWriter.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/nsMemoryInfoDumper.h"
-#include "mozilla/DebugOnly.h"
 #include "nsDumpUtils.h"
 
 #include "mozilla/unused.h"
@@ -222,7 +221,7 @@ doGCCCDump(const nsCString& aInputStr)
 bool
 SetupFifo()
 {
-  static DebugOnly<bool> fifoCallbacksRegistered = false;
+  static bool fifoCallbacksRegistered = false;
 
   if (!FifoWatcher::MaybeCreate()) {
     return false;
@@ -329,12 +328,12 @@ public:
   {
   }
 
-  NS_IMETHODIMP OnFinish() MOZ_OVERRIDE
+  NS_IMETHODIMP OnFinish()
   {
     return NS_ERROR_UNEXPECTED;
   }
 
-  NS_IMETHODIMP OnDump(nsIFile* aGCLog, nsIFile* aCCLog, bool aIsParent) MOZ_OVERRIDE
+  NS_IMETHODIMP OnDump(nsIFile* aGCLog, nsIFile* aCCLog, bool aIsParent)
   {
     return mCallback->OnDump(aGCLog, aCCLog, aIsParent);
   }
@@ -475,7 +474,7 @@ public:
   NS_IMETHOD Callback(const nsACString& aProcess, const nsACString& aPath,
                       int32_t aKind, int32_t aUnits, int64_t aAmount,
                       const nsACString& aDescription,
-                      nsISupports* aData) MOZ_OVERRIDE
+                      nsISupports* aData)
   {
     nsAutoCString process;
     if (aProcess.IsEmpty()) {
@@ -515,7 +514,7 @@ public:
   }
 
   // This is the callback for nsIFinishReportingCallback.
-  NS_IMETHOD Callback(nsISupports* aData) MOZ_OVERRIDE
+  NS_IMETHOD Callback(nsISupports* aData)
   {
     mWriter->EndArray();  // end of "reports" array
     mWriter->End();
@@ -558,7 +557,7 @@ public:
   {
   }
 
-  NS_IMETHOD Callback(nsISupports* aData) MOZ_OVERRIDE
+  NS_IMETHOD Callback(nsISupports* aData)
   {
     // Rename the memory reports file, now that we're done writing all the
     // files. Its final name is "memory-report<-identifier>-<pid>.json.gz".
@@ -814,7 +813,7 @@ nsMemoryInfoDumper::DumpDMDToFile(FILE* aFile)
   }
 
   // Dump DMD's memory reports analysis to the file.
-  dmd::Analyze(MakeUnique<GZWriterWrapper>(gzWriter));
+  dmd::AnalyzeReports(MakeUnique<GZWriterWrapper>(gzWriter));
 
   rv = gzWriter->Finish();
   NS_WARN_IF(NS_FAILED(rv));

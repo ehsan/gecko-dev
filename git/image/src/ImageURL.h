@@ -28,8 +28,7 @@ namespace image {
 class ImageURL
 {
 public:
-  explicit ImageURL(nsIURI* aURI)
-  {
+  explicit ImageURL(nsIURI* aURI) {
     MOZ_ASSERT(NS_IsMainThread(), "Cannot use nsIURI off main thread!");
     aURI->GetSpec(mSpec);
     aURI->GetScheme(mScheme);
@@ -38,19 +37,17 @@ public:
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(ImageURL)
 
-  nsresult GetSpec(nsACString& result)
-  {
+  nsresult GetSpec(nsACString &result) {
     result = mSpec;
     return NS_OK;
   }
 
-  nsresult GetScheme(nsACString& result)
-  {
+  nsresult GetScheme(nsACString &result) {
     result = mScheme;
     return NS_OK;
   }
 
-  nsresult SchemeIs(const char* scheme, bool* result)
+  nsresult SchemeIs(const char *scheme, bool *result)
   {
     NS_PRECONDITION(scheme, "scheme is null");
     NS_PRECONDITION(result, "result is null");
@@ -59,14 +56,12 @@ public:
     return NS_OK;
   }
 
-  nsresult GetRef(nsACString& result)
-  {
+  nsresult GetRef(nsACString &result) {
     result = mRef;
     return NS_OK;
   }
 
-  already_AddRefed<nsIURI> ToIURI()
-  {
+  already_AddRefed<nsIURI> ToIURI() {
     MOZ_ASSERT(NS_IsMainThread(),
                "Convert to nsIURI on main thread only; it is not threadsafe.");
     nsCOMPtr<nsIURI> newURI;
@@ -84,7 +79,7 @@ private:
   nsAutoCString mScheme;
   nsAutoCString mRef;
 
-  ~ImageURL() { }
+  ~ImageURL() {}
 };
 
 } // namespace image

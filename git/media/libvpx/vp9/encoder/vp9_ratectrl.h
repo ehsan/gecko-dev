@@ -12,7 +12,6 @@
 #ifndef VP9_ENCODER_VP9_RATECTRL_H_
 #define VP9_ENCODER_VP9_RATECTRL_H_
 
-#include "vpx/vpx_codec.h"
 #include "vpx/vpx_integer.h"
 
 #include "vp9/common/vp9_blockd.h"
@@ -42,7 +41,6 @@ typedef struct {
   int sb64_target_rate;
   int last_q[FRAME_TYPES];         // Separate values for Intra/Inter
   int last_boosted_qindex;         // Last boosted GF/KF/ARF q
-  int last_kf_qindex;              // Q index of the last key frame coded.
 
   int gfu_boost;
   int last_boost;
@@ -106,7 +104,7 @@ struct VP9EncoderConfig;
 void vp9_rc_init(const struct VP9EncoderConfig *oxcf, int pass,
                  RATE_CONTROL *rc);
 
-double vp9_convert_qindex_to_q(int qindex, vpx_bit_depth_t bit_depth);
+double vp9_convert_qindex_to_q(int qindex);
 
 void vp9_rc_init_minq_luts();
 
@@ -169,7 +167,7 @@ int vp9_rc_regulate_q(const struct VP9_COMP *cpi, int target_bits_per_frame,
 
 // Estimates bits per mb for a given qindex and correction factor.
 int vp9_rc_bits_per_mb(FRAME_TYPE frame_type, int qindex,
-                       double correction_factor, vpx_bit_depth_t bit_depth);
+                       double correction_factor);
 
 // Clamping utilities for bitrate targets for iframes and pframes.
 int vp9_rc_clamp_iframe_target_size(const struct VP9_COMP *const cpi,
@@ -182,14 +180,12 @@ void vp9_rc_set_frame_target(struct VP9_COMP *cpi, int target);
 
 // Computes a q delta (in "q index" terms) to get from a starting q value
 // to a target q value
-int vp9_compute_qdelta(const RATE_CONTROL *rc, double qstart, double qtarget,
-                       vpx_bit_depth_t bit_depth);
+int vp9_compute_qdelta(const RATE_CONTROL *rc, double qstart, double qtarget);
 
 // Computes a q delta (in "q index" terms) to get from a starting q value
 // to a value that should equate to the given rate ratio.
 int vp9_compute_qdelta_by_rate(const RATE_CONTROL *rc, FRAME_TYPE frame_type,
-                               int qindex, double rate_target_ratio,
-                               vpx_bit_depth_t bit_depth);
+                               int qindex, double rate_target_ratio);
 
 void vp9_rc_update_framerate(struct VP9_COMP *cpi);
 

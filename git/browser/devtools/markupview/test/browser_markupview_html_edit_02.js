@@ -93,7 +93,7 @@ const TEST_URL = "data:text/html," +
   "</body>" +
   "</html>";
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let {inspector} = yield addTab(TEST_URL).then(openInspector);
   inspector.markup._frame.focus();
   yield runEditOuterHTMLTests(TEST_DATA, inspector);

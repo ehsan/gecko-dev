@@ -54,12 +54,12 @@ public:
   void Mute();
   void Unmute();
 
-  void StartRendering(Promise* aPromise);
+  void StartRendering();
 
   void OfflineShutdown();
 
   // nsIDOMEventListener - by proxy
-  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent) MOZ_OVERRIDE;
+  NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
 
   AudioChannel MozAudioChannelType() const;
   void SetMozAudioChannelType(AudioChannel aValue, ErrorResult& aRv);
@@ -76,7 +76,7 @@ public:
 
   void CreateAudioChannelAgent();
 
-  virtual const char* NodeType() const MOZ_OVERRIDE
+  virtual const char* NodeType() const
   {
     return "AudioDestinationNode";
   }
@@ -85,7 +85,6 @@ public:
   virtual size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
 
   void InputMuted(bool aInputMuted);
-  void ResolvePromise(AudioBuffer* aRenderedBuffer);
 
 protected:
   virtual ~AudioDestinationNode();
@@ -104,7 +103,6 @@ private:
   nsCOMPtr<nsIAudioChannelAgent> mAudioChannelAgent;
 
   nsRefPtr<EventProxyHandler> mEventProxyHelper;
-  nsRefPtr<Promise> mOfflineRenderingPromise;
 
   // Audio Channel Type.
   AudioChannel mAudioChannel;

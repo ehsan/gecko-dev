@@ -468,7 +468,7 @@ var Scratchpad = {
     return connection.then(({ debuggerClient, webConsoleClient }) => {
       let deferred = promise.defer();
 
-      webConsoleClient.evaluateJSAsync(aString, aResponse => {
+      webConsoleClient.evaluateJS(aString, aResponse => {
         this.debuggerClient = debuggerClient;
         this.webConsoleClient = webConsoleClient;
         if (aResponse.error) {
@@ -516,7 +516,7 @@ var Scratchpad = {
       let resolve = () => deferred.resolve([aString, aError, aResult]);
 
       if (aError) {
-        this.writeAsErrorComment(aError).then(resolve, reject);
+        this.writeAsErrorComment(aError.exception).then(resolve, reject);
       }
       else {
         this.editor.dropSelection();
@@ -543,7 +543,7 @@ var Scratchpad = {
       let resolve = () => deferred.resolve([aString, aError, aResult]);
 
       if (aError) {
-        this.writeAsErrorComment(aError).then(resolve, reject);
+        this.writeAsErrorComment(aError.exception).then(resolve, reject);
       }
       else {
         this.editor.dropSelection();
@@ -572,11 +572,20 @@ var Scratchpad = {
       return;
     }
 
-    let target = TargetFactory.forTab(this.gBrowser.selectedTab);
-    target.once("navigate", () => {
-      this.run().then(results => deferred.resolve(results));
-    });
-    target.makeRemote().then(() => target.activeTab.reload());
+    let browser = this.gBrowser.selectedBrowser;
+
+    this._reloadAndRunEvent = evt => {
+      if (evt.target !== browser.contentDocument) {
+        return;
+      }
+
+      browser.removeEventListener("load", this._reloadAndRunEvent, true);
+
+      this.run().then(aResults => deferred.resolve(aResults));
+    };
+
+    browser.addEventListener("load", this._reloadAndRunEvent, true);
+    browser.contentWindow.location.reload();
 
     return deferred.promise;
   },
@@ -599,7 +608,7 @@ var Scratchpad = {
       let resolve = () => deferred.resolve([aString, aError, aResult]);
 
       if (aError) {
-        this.writeAsErrorComment(aError).then(resolve, reject);
+        this.writeAsErrorComment(aError.exception).then(resolve, reject);
       }
       else if (VariablesView.isPrimitive({ value: aResult })) {
         this._writePrimitiveAsComment(aResult).then(resolve, reject);
@@ -660,7 +669,7 @@ var Scratchpad = {
 
       if (data.error) {
         let errorString = DevToolsUtils.safeErrorString(data.error);
-        this.writeAsErrorComment({ exception: errorString });
+        this.writeAsErrorComment(errorString);
         deferred.reject(errorString);
       } else {
         this.editor.setText(data.code);
@@ -687,7 +696,7 @@ var Scratchpad = {
     try {
       return Reflect.parse(aText);
     } catch (e) {
-      this.writeAsErrorComment({ exception: DevToolsUtils.safeErrorString(e) });
+      this.writeAsErrorComment(DevToolsUtils.safeErrorString(e));
       return false;
     }
   },
@@ -904,9 +913,7 @@ var Scratchpad = {
   /**
    * Write out an error at the current insertion point as a block comment
    * @param object aValue
-   *        The error object to write out the message and stack trace. It must
-   *        contain an |exception| property with the actual error thrown, but it
-   *        will often be the entire response of an evaluateJS request.
+   *        The Error object to write out the message and stack trace
    * @return Promise
    *         The promise that indicates when writing the comment completes.
    */
@@ -914,9 +921,8 @@ var Scratchpad = {
   {
     let deferred = promise.defer();
 
-    if (VariablesView.isPrimitive({ value: aError.exception })) {
-      let error = aError.exception;
-      let type = error.type;
+    if (VariablesView.isPrimitive({ value: aError })) {
+      let type = aError.type;
       if (type == "undefined" ||
           type == "null" ||
           type == "Infinity" ||
@@ -926,22 +932,14 @@ var Scratchpad = {
         deferred.resolve(type);
       }
       else if (type == "longString") {
-        deferred.resolve(error.initial + "\u2026");
+        deferred.resolve(aError.initial + "\u2026");
       }
       else {
-        deferred.resolve(error);
+        deferred.resolve(aError);
       }
-    } else if ("preview" in aError.exception) {
-      let error = aError.exception;
-      let stack = this._constructErrorStack(error.preview);
-      if (typeof aError.exceptionMessage == "string") {
-        deferred.resolve(aError.exceptionMessage + stack);
-      } else {
-        deferred.resolve(stack);
-      }
-    } else {
-      // If there is no preview information, we need to ask the server for more.
-      let objectClient = new ObjectClient(this.debuggerClient, aError.exception);
+    }
+    else {
+      let objectClient = new ObjectClient(this.debuggerClient, aError);
       objectClient.getPrototypeAndProperties(aResponse => {
         if (aResponse.error) {
           deferred.reject(aResponse);
@@ -960,7 +958,22 @@ var Scratchpad = {
           error[key] = ownProperties[key].value;
         }
 
-        let stack = this._constructErrorStack(error);
+        // Assemble the best possible stack we can given the properties we have.
+        let stack;
+        if (typeof error.stack == "string" && error.stack) {
+          stack = error.stack;
+        }
+        else if (typeof error.fileName == "string") {
+          stack = "@" + error.fileName;
+          if (typeof error.lineNumber == "number") {
+            stack += ":" + error.lineNumber;
+          }
+        }
+        else if (typeof error.lineNumber == "number") {
+          stack = "@" + error.lineNumber;
+        }
+
+        stack = stack ? "\n" + stack.replace(/\n$/, "") : "";
 
         if (typeof error.message == "string") {
           deferred.resolve(error.message + stack);
@@ -985,37 +998,6 @@ var Scratchpad = {
       console.error(aMessage);
       this.writeAsComment("Exception: " + aMessage);
     });
-  },
-
-  /**
-   * Assembles the best possible stack from the properties of the provided
-   * error.
-   */
-  _constructErrorStack(error) {
-    let stack;
-    if (typeof error.stack == "string" && error.stack) {
-      stack = error.stack;
-    } else if (typeof error.fileName == "string") {
-      stack = "@" + error.fileName;
-      if (typeof error.lineNumber == "number") {
-        stack += ":" + error.lineNumber;
-      }
-    } else if (typeof error.filename == "string") {
-      stack = "@" + error.filename;
-      if (typeof error.lineNumber == "number") {
-        stack += ":" + error.lineNumber;
-        if (typeof error.columnNumber == "number") {
-          stack += ":" + error.columnNumber;
-        }
-      }
-    } else if (typeof error.lineNumber == "number") {
-      stack = "@" + error.lineNumber;
-      if (typeof error.columnNumber == "number") {
-        stack += ":" + error.columnNumber;
-      }
-    }
-
-    return stack ? "\n" + stack.replace(/\n$/, "") : "";
   },
 
   // Menu Operations
@@ -2058,8 +2040,8 @@ ScratchpadTab.prototype = {
   /**
    * Initialize a debugger client and connect it to the debugger server.
    *
-   * @param object aSubject
-   *        The tab or window to obtain the connection for.
+ * @param object aSubject
+ *        The tab or window to obtain the connection for.
    * @return Promise
    *         The promise for the result of connecting to this tab or window.
    */
@@ -2104,8 +2086,8 @@ ScratchpadTab.prototype = {
   /**
    * Attach to this tab.
    *
-   * @param object aSubject
-   *        The tab or window to obtain the connection for.
+ * @param object aSubject
+ *        The tab or window to obtain the connection for.
    * @return Promise
    *         The promise for the TabTarget for this tab.
    */

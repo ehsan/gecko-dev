@@ -1003,8 +1003,9 @@ ContactDB.prototype = {
         }
         // Invalidate the entire cache. It will be incrementally regenerated on demand
         // See getCacheForQuery
-        let getAllStore = txn.objectStore(SAVED_GETALL_STORE_NAME);
-        getAllStore.clear().onerror = errorCb;
+        let (getAllStore = txn.objectStore(SAVED_GETALL_STORE_NAME)) {
+          getAllStore.clear().onerror = errorCb;
+        }
       }.bind(this);
 
       this.incrementRevision(txn);

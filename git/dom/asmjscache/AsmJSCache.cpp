@@ -354,7 +354,7 @@ public:
     }
 
     File*
-    operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN
+    operator->() const
     {
       MOZ_ASSERT(mFile);
       return mFile;
@@ -1855,6 +1855,18 @@ public:
                             nsIRunnable* aCallback) MOZ_OVERRIDE
   {
     MOZ_ASSERT_UNREACHABLE("There are no storages");
+  }
+
+  virtual void
+  AbortTransactionsForStorage(nsIOfflineStorage* aStorage) MOZ_OVERRIDE
+  {
+    MOZ_ASSERT_UNREACHABLE("There are no storages");
+  }
+
+  virtual bool
+  HasTransactionsForStorage(nsIOfflineStorage* aStorage) MOZ_OVERRIDE
+  {
+    return false;
   }
 
   virtual void

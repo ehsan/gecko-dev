@@ -143,7 +143,7 @@ public:
   IMPL_EVENT_HANDLER(timeout)
   IMPL_EVENT_HANDLER(loadend)
   
-  virtual void DisconnectFromOwner() MOZ_OVERRIDE;
+  virtual void DisconnectFromOwner();
 };
 
 class nsXMLHttpRequestUpload MOZ_FINAL : public nsXHREventTarget,
@@ -244,8 +244,7 @@ public:
 
   void Construct(nsIPrincipal* aPrincipal,
                  nsIGlobalObject* aGlobalObject,
-                 nsIURI* aBaseURI = nullptr,
-                 nsILoadGroup* aLoadGroup = nullptr)
+                 nsIURI* aBaseURI = nullptr)
   {
     MOZ_ASSERT(aPrincipal);
     MOZ_ASSERT_IF(nsCOMPtr<nsPIDOMWindow> win = do_QueryInterface(
@@ -253,7 +252,6 @@ public:
     mPrincipal = aPrincipal;
     BindToOwner(aGlobalObject);
     mBaseURI = aBaseURI;
-    mLoadGroup = aLoadGroup;
   }
 
   void InitParameters(bool aAnon, bool aSystem);
@@ -291,7 +289,7 @@ public:
 
   // nsISizeOfEventTarget
   virtual size_t
-    SizeOfEventTargetIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+    SizeOfEventTargetIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
   NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsXHREventTarget)
 
@@ -719,7 +717,6 @@ protected:
   nsIRequestObserver* mRequestObserver;
 
   nsCOMPtr<nsIURI> mBaseURI;
-  nsCOMPtr<nsILoadGroup> mLoadGroup;
 
   uint32_t mState;
 

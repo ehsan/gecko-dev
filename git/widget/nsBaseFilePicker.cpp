@@ -81,7 +81,7 @@ public:
   {}
 
   NS_IMETHOD
-  GetNext(nsISupports** aResult) MOZ_OVERRIDE
+  GetNext(nsISupports** aResult)
   {
     nsCOMPtr<nsISupports> tmp;
     nsresult rv = mIterator->GetNext(getter_AddRefs(tmp));
@@ -102,7 +102,7 @@ public:
   }
 
   NS_IMETHOD
-  HasMoreElements(bool* aResult) MOZ_OVERRIDE
+  HasMoreElements(bool* aResult)
   {
     return mIterator->HasMoreElements(aResult);
   }

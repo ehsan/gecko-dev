@@ -17,6 +17,7 @@ EXPORTS += [
 ]
 
 EXPORTS.mozilla.dom.quota += [
+    'AcquireListener.h',
     'ArrayCluster.h',
     'Client.h',
     'FileStreams.h',

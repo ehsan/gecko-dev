@@ -13,6 +13,12 @@ namespace image {
 
 NS_IMPL_ISUPPORTS_INHERITED0(FrozenImage, ImageWrapper)
 
+nsIntRect
+FrozenImage::FrameRect(uint32_t /* aWhichFrame - ignored */)
+{
+  return InnerImage()->FrameRect(FRAME_FIRST);
+}
+
 void
 FrozenImage::IncrementAnimationConsumers()
 {
@@ -58,7 +64,7 @@ FrozenImage::GetImageContainer(layers::LayerManager* aManager,
   return NS_OK;
 }
 
-NS_IMETHODIMP_(DrawResult)
+NS_IMETHODIMP
 FrozenImage::Draw(gfxContext* aContext,
                   const nsIntSize& aSize,
                   const ImageRegion& aRegion,

@@ -26,7 +26,7 @@ public:
 
   virtual uint16_t NumberOfInputs() const MOZ_OVERRIDE { return mInputCount; }
 
-  virtual const char* NodeType() const MOZ_OVERRIDE
+  virtual const char* NodeType() const
   {
     return "ChannelMergerNode";
   }

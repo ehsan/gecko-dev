@@ -21,10 +21,6 @@ class nsLineLayout;
 class nsIPercentHeightObserver;
 struct nsHypotheticalBox;
 
-namespace mozilla {
-class RubyReflowState;
-}
-
 /**
  * @return aValue clamped to [aMinValue, aMaxValue].
  *
@@ -170,8 +166,8 @@ public:
   // to the display-reflow infrastructure.
   static void* DisplayInitOffsetsEnter(nsIFrame* aFrame,
                                        nsCSSOffsetState* aState,
-                                       nscoord aInlineDirPercentBasis,
-                                       nscoord aBlockDirPercentBasis,
+                                       nscoord aHorizontalPercentBasis,
+                                       nscoord aVerticalPercentBasis,
                                        const nsMargin* aBorder,
                                        const nsMargin* aPadding);
   static void DisplayInitOffsetsExit(nsIFrame* aFrame,
@@ -184,41 +180,38 @@ private:
    * Computes margin values from the specified margin style information, and
    * fills in the mComputedMargin member.
    *
-   * @param aInlineDirPercentBasis
-   *    Length to use for resolving percentage margin values in the inline
-   *    axis. Usually the containing block inline-size (width if writing mode
-   *    is horizontal, and height if vertical).
-   * @param aBlockDirPercentBasis
-   *    Length to use for resolving percentage margin values in the block
-   *    axis.  Usually the containing block inline-size, per CSS21 sec 8.3
-   *    (read in conjunction with CSS Writing Modes sec 7.2), but may
-   *    be the containing block block-size, e.g. in CSS3 Flexbox and Grid.
+   * @param aHorizontalPercentBasis
+   *    Length to use for resolving percentage margin values in the horizontal
+   *    axis. Usually the containing block width.
+   * @param aVerticalPercentBasis
+   *    Length to use for resolving percentage margin values in the vertical
+   *    axis.  Usually the containing block width, per CSS21 sec 8.3, but may
+   *    be the containing block *height*, e.g. in CSS3 Flexbox and Grid.
    * @return true if the margin is dependent on the containing block size.
    */
-  bool ComputeMargin(nscoord aInlineDirPercentBasis,
-                     nscoord aBlockDirPercentBasis);
+  bool ComputeMargin(nscoord aHorizontalPercentBasis,
+                     nscoord aVerticalPercentBasis);
   
   /**
    * Computes padding values from the specified padding style information, and
    * fills in the mComputedPadding member.
    *
-   * @param aInlineDirPercentBasis
-   *    Length to use for resolving percentage padding values in the inline
-   *    axis. Usually the containing block inline-size.
-   * @param aBlockDirPercentBasis
-   *    Length to use for resolving percentage padding values in the block
-   *    axis.  Usually the containing block inline-size, per CSS21 sec 8.4,
-   *    but may be the containing block block-size in e.g. CSS3 Flexbox and
-   *    Grid.
+   * @param aHorizontalPercentBasis
+   *    Length to use for resolving percentage padding values in the horizontal
+   *    axis. Usually the containing block width.
+   * @param aVerticalPercentBasis
+   *    Length to use for resolving percentage padding values in the vertical
+   *    axis.  Usually the containing block width, per CSS21 sec 8.4, but may
+   *    be the containing block *height* in e.g. CSS3 Flexbox and Grid.
    * @return true if the padding is dependent on the containing block size.
    */
-   bool ComputePadding(nscoord aInlineDirPercentBasis,
-                       nscoord aBlockDirPercentBasis, nsIAtom* aFrameType);
+   bool ComputePadding(nscoord aHorizontalPercentBasis,
+                       nscoord aVerticalPercentBasis, nsIAtom* aFrameType);
 
 protected:
 
-  void InitOffsets(nscoord aInlineDirPercentBasis,
-                   nscoord aBlockDirPercentBasis,
+  void InitOffsets(nscoord aHorizontalPercentBasis,
+                   nscoord aVerticalPercentBasis,
                    nsIAtom* aFrameType,
                    const nsMargin *aBorder = nullptr,
                    const nsMargin *aPadding = nullptr);
@@ -261,9 +254,6 @@ struct nsHTMLReflowState : public nsCSSOffsetState {
 
   // LineLayout object (only for inline reflow; set to nullptr otherwise)
   nsLineLayout*    mLineLayout;
-
-  // RubyReflowState object (only for ruby reflow; set to nullptr otherwise)
-  mozilla::RubyReflowState* mRubyReflowState;
 
   // The appropriate reflow state for the containing block (for
   // percentage widths, etc.) of this reflow state's frame.
@@ -528,10 +518,10 @@ public:
     uint16_t mAssumingVScrollbar:1;  // parent frame is an nsIScrollableFrame and it
                                      // is assuming a vertical scrollbar
 
-    uint16_t mIsHResize:1;           // Is frame (a) not dirty and (b) a
+    uint16_t mHResize:1;             // Is frame (a) not dirty and (b) a
                                      // different width than before?
 
-    uint16_t mIsVResize:1;           // Is frame (a) not dirty and (b) a
+    uint16_t mVResize:1;             // Is frame (a) not dirty and (b) a
                                      // different height than before or
                                      // (potentially) in a context where
                                      // percent heights have a different
@@ -554,42 +544,6 @@ public:
                                         // (e.g. columns), it should always
                                         // reflow its placeholder children.
   } mFlags;
-
-  // Logical and physical accessors for the resize flags. All users should go
-  // via these accessors, so that in due course we can change the storage from
-  // physical to logical.
-  bool IsHResize() const {
-    return mFlags.mIsHResize;
-  }
-  bool IsVResize() const {
-    return mFlags.mIsVResize;
-  }
-  bool IsIResize() const {
-    return mWritingMode.IsVertical() ? mFlags.mIsVResize : mFlags.mIsHResize;
-  }
-  bool IsBResize() const {
-    return mWritingMode.IsVertical() ? mFlags.mIsHResize : mFlags.mIsVResize;
-  }
-  void SetHResize(bool aValue) {
-    mFlags.mIsHResize = aValue;
-  }
-  void SetVResize(bool aValue) {
-    mFlags.mIsVResize = aValue;
-  }
-  void SetIResize(bool aValue) {
-    if (mWritingMode.IsVertical()) {
-      mFlags.mIsVResize = aValue;
-    } else {
-      mFlags.mIsHResize = aValue;
-    }
-  }
-  void SetBResize(bool aValue) {
-    if (mWritingMode.IsVertical()) {
-      mFlags.mIsHResize = aValue;
-    } else {
-      mFlags.mIsVResize = aValue;
-    }
-  }
 
   // Note: The copy constructor is written by the compiler automatically. You
   // can use that and then override specific values if you want, or you can
@@ -704,17 +658,6 @@ public:
   }
 
   /**
-   * Apply the mComputed(Min/Max)ISize constraints to the content
-   * size computed so far.
-   */
-  nscoord ApplyMinMaxISize(nscoord aISize) const {
-    if (NS_UNCONSTRAINEDSIZE != ComputedMaxISize()) {
-      aISize = std::min(aISize, ComputedMaxISize());
-    }
-    return std::max(aISize, ComputedMinISize());
-  }
-
-  /**
    * Apply the mComputed(Min/Max)Height constraints to the content
    * size computed so far.
    *
@@ -737,29 +680,6 @@ public:
     return aHeight - aConsumed;
   }
 
-  /**
-   * Apply the mComputed(Min/Max)BSize constraints to the content
-   * size computed so far.
-   *
-   * @param aBSize The block-size that we've computed an to which we want to apply
-   *        min/max constraints.
-   * @param aConsumed The amount of the computed block-size that was consumed by
-   *        our prev-in-flows.
-   */
-  nscoord ApplyMinMaxBSize(nscoord aBSize, nscoord aConsumed = 0) const {
-    aBSize += aConsumed;
-
-    if (NS_UNCONSTRAINEDSIZE != ComputedMaxBSize()) {
-      aBSize = std::min(aBSize, ComputedMaxBSize());
-    }
-
-    if (NS_UNCONSTRAINEDSIZE != ComputedMinBSize()) {
-      aBSize = std::max(aBSize, ComputedMinBSize());
-    }
-
-    return aBSize - aConsumed;
-  }
-
   bool ShouldReflowAllKids() const {
     // Note that we could make a stronger optimization for mVResize if
     // we use it in a ShouldReflowChild test that replaces the current
@@ -768,8 +688,8 @@ public:
     // This would need to be combined with a slight change in which
     // frames NS_FRAME_CONTAINS_RELATIVE_HEIGHT is marked on.
     return (frame->GetStateBits() & NS_FRAME_IS_DIRTY) ||
-           IsHResize() ||
-           (IsVResize() && 
+           mFlags.mHResize ||
+           (mFlags.mVResize && 
             (frame->GetStateBits() & NS_FRAME_CONTAINS_RELATIVE_HEIGHT));
   }
 

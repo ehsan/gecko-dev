@@ -359,7 +359,6 @@ HTMLComboboxAccessible::
   HTMLComboboxAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   AccessibleWrap(aContent, aDoc)
 {
-  mType = eHTMLComboboxType;
   mGenericTypes |= eCombobox;
 }
 

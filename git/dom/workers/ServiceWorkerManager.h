@@ -297,7 +297,8 @@ public:
                                const ErrorEventInit& aErrorDesc);
 
   void
-  FinishFetch(ServiceWorkerRegistrationInfo* aRegistration);
+  FinishFetch(ServiceWorkerRegistrationInfo* aRegistration,
+              nsPIDOMWindow* aWindow);
 
   void
   FinishInstall(ServiceWorkerRegistrationInfo* aRegistration);
@@ -330,8 +331,8 @@ private:
   void
   AbortCurrentUpdate(ServiceWorkerRegistrationInfo* aRegistration);
 
-  nsresult
-  Update(ServiceWorkerRegistrationInfo* aRegistration);
+  NS_IMETHOD
+  Update(ServiceWorkerRegistrationInfo* aRegistration, nsPIDOMWindow* aWindow);
 
   void
   Install(ServiceWorkerRegistrationInfo* aRegistration,

@@ -6,6 +6,7 @@
 #include "OpenSLESProvider.h"
 #include "prlog.h"
 #include "nsDebug.h"
+#include "mozilla/NullPtr.h"
 
 #include <dlfcn.h>
 #include <SLES/OpenSLES_Android.h>

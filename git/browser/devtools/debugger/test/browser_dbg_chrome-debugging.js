@@ -20,7 +20,7 @@ let DebuggerServer = loader.DebuggerServer;
 
 function test() {
   if (!DebuggerServer.initialized) {
-    DebuggerServer.init();
+    DebuggerServer.init(() => true);
     DebuggerServer.addBrowserActors();
   }
 
@@ -89,6 +89,7 @@ function resumeAndCloseConnection() {
 }
 
 registerCleanupFunction(function() {
+  removeTab(gBrowser.selectedTab);
   gClient = null;
   gThreadClient = null;
   gAttached = null;

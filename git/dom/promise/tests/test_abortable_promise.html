@@ -17,7 +17,6 @@
 <script type="application/javascript"><!--
 
 SimpleTest.waitForExplicitFinish();
-SimpleTest.requestFlakyTimeout("untriaged");
 SpecialPowers.pushPrefEnv({"set": [["dom.abortablepromise.enabled", true]]},
                           runTest);
 var gTests = [testPending, testResolved, testRejected];

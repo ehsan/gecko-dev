@@ -6,7 +6,7 @@
  * and there is no data available.
  */
 
-add_task(function*() {
+let test = Task.async(function*() {
   let { target, panel } = yield initTimelinePanel(SIMPLE_URL);
   let { $, EVENTS, TimelineView, TimelineController } = panel.panelWin;
   let { OVERVIEW_INITIAL_SELECTION_RATIO: selectionRatio } = panel.panelWin;
@@ -32,4 +32,7 @@ add_task(function*() {
     "The initial selection start is correct.");
   is(selection.end, null,
     "The initial selection end is correct.");
+
+  yield teardown(panel);
+  finish();
 });

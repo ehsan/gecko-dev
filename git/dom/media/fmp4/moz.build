@@ -26,8 +26,6 @@ SOURCES += [
     'MP4Reader.cpp',
 ]
 
-DIRS += ['gmp']
-
 if CONFIG['MOZ_WMF']:
     DIRS += [ 'wmf' ];
 

@@ -69,6 +69,7 @@ nsStringBundle::LoadProperties()
   rv = NS_NewURI(getter_AddRefs(uri), mPropertiesURL);
   if (NS_FAILED(rv)) return rv;
 
+  // We don't use NS_OpenURI because we want to tweak the channel
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannel(getter_AddRefs(channel),
                      uri,

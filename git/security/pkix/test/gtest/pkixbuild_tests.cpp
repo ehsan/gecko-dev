@@ -22,34 +22,39 @@
  * limitations under the License.
  */
 
-#include <map>
 #include "cert.h"
+#include "nss.h"
 #include "pkix/pkix.h"
+#include "pkix/pkixnss.h"
 #include "pkixgtest.h"
 #include "pkixtestutil.h"
 
 using namespace mozilla::pkix;
 using namespace mozilla::pkix::test;
 
+typedef ScopedPtr<CERTCertificate, CERT_DestroyCertificate>
+          ScopedCERTCertificate;
+typedef ScopedPtr<CERTCertList, CERT_DestroyCertList> ScopedCERTCertList;
+
 static ByteString
-CreateCert(const char* issuerCN, // null means "empty name"
-           const char* subjectCN, // null means "empty name"
+CreateCert(const char* issuerCN,
+           const char* subjectCN,
            EndEntityOrCA endEntityOrCA,
-           /*optional modified*/ std::map<ByteString, ByteString>*
-             subjectDERToCertDER = nullptr)
+           /*out*/ ScopedCERTCertificate* subjectCert = nullptr)
 {
   static long serialNumberValue = 0;
   ++serialNumberValue;
   ByteString serialNumber(CreateEncodedSerialNumber(serialNumberValue));
   EXPECT_FALSE(ENCODING_FAILED(serialNumber));
 
-  ByteString issuerDER(issuerCN ? CNToDERName(issuerCN) : Name(ByteString()));
-  ByteString subjectDER(subjectCN ? CNToDERName(subjectCN) : Name(ByteString()));
+  ByteString issuerDER(CNToDERName(issuerCN));
+  ByteString subjectDER(CNToDERName(subjectCN));
 
   ByteString extensions[2];
   if (endEntityOrCA == EndEntityOrCA::MustBeCA) {
     extensions[0] =
-      CreateEncodedBasicConstraints(true, nullptr, Critical::Yes);
+      CreateEncodedBasicConstraints(true, nullptr,
+                                    ExtensionCriticality::Critical);
     EXPECT_FALSE(ENCODING_FAILED(extensions[0]));
   }
 
@@ -60,11 +65,16 @@ CreateCert(const char* issuerCN, // null means "empty name"
                        *reusedKey, extensions, *reusedKey,
                        sha256WithRSAEncryption));
   EXPECT_FALSE(ENCODING_FAILED(certDER));
-
-  if (subjectDERToCertDER) {
-    (*subjectDERToCertDER)[subjectDER] = certDER;
+  if (subjectCert) {
+    SECItem certDERItem = {
+      siBuffer,
+      const_cast<uint8_t*>(certDER.data()),
+      static_cast<unsigned int>(certDER.length())
+    };
+    *subjectCert = CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
+                                           &certDERItem, nullptr, false, true);
+    EXPECT_TRUE(*subjectCert);
   }
-
   return certDER;
 }
 
@@ -80,53 +90,66 @@ public:
         "CA1 (Root)", "CA2", "CA3", "CA4", "CA5", "CA6", "CA7"
     };
 
+    static_assert(MOZILLA_PKIX_ARRAY_LENGTH(names) ==
+                    MOZILLA_PKIX_ARRAY_LENGTH(certChainTail),
+                  "mismatch in sizes of names and certChainTail arrays");
+
     for (size_t i = 0; i < MOZILLA_PKIX_ARRAY_LENGTH(names); ++i) {
       const char* issuerName = i == 0 ? names[0] : names[i-1];
-      CreateCACert(issuerName, names[i]);
-      if (i == 0) {
-        rootCACertDER = leafCACertDER;
-      }
+      (void) CreateCert(issuerName, names[i], EndEntityOrCA::MustBeCA,
+                        &certChainTail[i]);
     }
 
     return true;
   }
-
-  void CreateCACert(const char* issuerName, const char* subjectName)
-  {
-    leafCACertDER = CreateCert(issuerName, subjectName,
-                               EndEntityOrCA::MustBeCA, &subjectDERToCertDER);
-    assert(!ENCODING_FAILED(leafCACertDER));
-  }
-
-  ByteString GetLeafCACertDER() const { return leafCACertDER; }
 
 private:
   virtual Result GetCertTrust(EndEntityOrCA, const CertPolicyId&,
                               Input candidateCert,
                               /*out*/ TrustLevel& trustLevel)
   {
-    trustLevel = InputEqualsByteString(candidateCert, rootCACertDER)
-               ? TrustLevel::TrustAnchor
-               : TrustLevel::InheritsTrust;
+    Input rootDER;
+    Result rv = rootDER.Init(certChainTail[0]->derCert.data,
+                             certChainTail[0]->derCert.len);
+    EXPECT_EQ(Success, rv);
+    if (InputsAreEqual(candidateCert, rootDER)) {
+      trustLevel = TrustLevel::TrustAnchor;
+    } else {
+      trustLevel = TrustLevel::InheritsTrust;
+    }
     return Success;
   }
 
   virtual Result FindIssuer(Input encodedIssuerName,
                             IssuerChecker& checker, Time time)
   {
-    ByteString subjectDER(InputToByteString(encodedIssuerName));
-    ByteString certDER(subjectDERToCertDER[subjectDER]);
-    Input derCert;
-    Result rv = derCert.Init(certDER.data(), certDER.length());
-    if (rv != Success) {
-      return rv;
+    SECItem encodedIssuerNameSECItem =
+      UnsafeMapInputToSECItem(encodedIssuerName);
+    ScopedCERTCertList
+      candidates(CERT_CreateSubjectCertList(nullptr, CERT_GetDefaultCertDB(),
+                                            &encodedIssuerNameSECItem, 0,
+                                            false));
+    if (candidates) {
+      for (CERTCertListNode* n = CERT_LIST_HEAD(candidates);
+           !CERT_LIST_END(n, candidates); n = CERT_LIST_NEXT(n)) {
+        bool keepGoing;
+        Input derCert;
+        Result rv = derCert.Init(n->cert->derCert.data, n->cert->derCert.len);
+        EXPECT_EQ(Success, rv);
+        if (rv != Success) {
+          return rv;
+        }
+        rv = checker.Check(derCert, nullptr/*additionalNameConstraints*/,
+                           keepGoing);
+        if (rv != Success) {
+          return rv;
+        }
+        if (!keepGoing) {
+          break;
+        }
+      }
     }
-    bool keepGoing;
-    rv = checker.Check(derCert, nullptr/*additionalNameConstraints*/,
-                       keepGoing);
-    if (rv != Success) {
-      return rv;
-    }
+
     return Success;
   }
 
@@ -145,7 +168,8 @@ private:
   virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
                                   Input subjectPublicKeyInfo)
   {
-    return TestVerifySignedData(signedData, subjectPublicKeyInfo);
+    return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
+                                             MINIMUM_TEST_KEY_BITS, nullptr);
   }
 
   virtual Result DigestBuf(Input item, /*out*/ uint8_t *digestBuf,
@@ -160,9 +184,15 @@ private:
     return TestCheckPublicKey(subjectPublicKeyInfo);
   }
 
-  std::map<ByteString, ByteString> subjectDERToCertDER;
-  ByteString leafCACertDER;
-  ByteString rootCACertDER;
+  // We hold references to CERTCertificates in the cert chain tail so that we
+  // CERT_CreateSubjectCertList can find them.
+  ScopedCERTCertificate certChainTail[7];
+
+public:
+  CERTCertificate* GetLeafCACert() const
+  {
+    return certChainTail[MOZILLA_PKIX_ARRAY_LENGTH(certChainTail) - 1].get();
+  }
 };
 
 class pkixbuild : public ::testing::Test
@@ -170,6 +200,12 @@ class pkixbuild : public ::testing::Test
 public:
   static void SetUpTestCase()
   {
+    // XXX(Bug 1070444): We have to initialize NSS explicitly for these tests,
+    // unlike other tests, because we're using NSS directly.
+    if (NSS_NoDB_Init(nullptr) != SECSuccess) {
+      abort();
+    }
+
     if (!trustDomain.SetUpCertChainTail()) {
       abort();
     }
@@ -185,9 +221,9 @@ protected:
 TEST_F(pkixbuild, MaxAcceptableCertChainLength)
 {
   {
-    ByteString leafCACert(trustDomain.GetLeafCACertDER());
     Input certDER;
-    ASSERT_EQ(Success, certDER.Init(leafCACert.data(), leafCACert.length()));
+    ASSERT_EQ(Success, certDER.Init(trustDomain.GetLeafCACert()->derCert.data,
+                                    trustDomain.GetLeafCACert()->derCert.len));
     ASSERT_EQ(Success,
               BuildCertChain(trustDomain, certDER, Now(),
                              EndEntityOrCA::MustBeCA,
@@ -198,6 +234,7 @@ TEST_F(pkixbuild, MaxAcceptableCertChainLength)
   }
 
   {
+    ScopedCERTCertificate cert;
     ByteString certDER(CreateCert("CA7", "Direct End-Entity",
                                   EndEntityOrCA::MustBeEndEntity));
     ASSERT_FALSE(ENCODING_FAILED(certDER));
@@ -217,10 +254,14 @@ TEST_F(pkixbuild, BeyondMaxAcceptableCertChainLength)
 {
   static char const* const caCertName = "CA Too Far";
 
-  trustDomain.CreateCACert("CA7", caCertName);
+  // We need a CERTCertificate for caCert so that the trustdomain's FindIssuer
+  // method can find it through the NSS cert DB.
+  ScopedCERTCertificate caCert;
 
   {
-    ByteString certDER(trustDomain.GetLeafCACertDER());
+    ByteString certDER(CreateCert("CA7", caCertName, EndEntityOrCA::MustBeCA,
+                                  &caCert));
+    ASSERT_FALSE(ENCODING_FAILED(certDER));
     Input certDERInput;
     ASSERT_EQ(Success, certDERInput.Init(certDER.data(), certDER.length()));
     ASSERT_EQ(Result::ERROR_UNKNOWN_ISSUER,
@@ -310,7 +351,8 @@ public:
   virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
                                   Input subjectPublicKeyInfo)
   {
-    return TestVerifySignedData(signedData, subjectPublicKeyInfo);
+    return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
+                                             MINIMUM_TEST_KEY_BITS, nullptr);
   }
 
   virtual Result DigestBuf(Input, /*out*/uint8_t*, size_t)
@@ -360,208 +402,3 @@ TEST_F(pkixbuild, NoRevocationCheckingForExpiredCert)
                            CertPolicyId::anyPolicy,
                            nullptr));
 }
-
-class DSSTrustDomain : public TrustDomain
-{
-public:
-  virtual Result GetCertTrust(EndEntityOrCA, const CertPolicyId&,
-                              Input, /*out*/ TrustLevel& trustLevel)
-  {
-    trustLevel = TrustLevel::TrustAnchor;
-    return Success;
-  }
-
-  virtual Result FindIssuer(Input, IssuerChecker&, Time)
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  virtual Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
-                                 /*optional*/ const Input*,
-                                 /*optional*/ const Input*)
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  virtual Result IsChainValid(const DERArray&, Time)
-  {
-    return Success;
-  }
-
-  virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
-                                  Input subjectPublicKeyInfo)
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  virtual Result DigestBuf(Input, /*out*/uint8_t*, size_t)
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
-  {
-    return TestCheckPublicKey(subjectPublicKeyInfo);
-  }
-};
-
-class pkixbuild_DSS : public ::testing::Test { };
-
-TEST_F(pkixbuild_DSS, DSSEndEntityKeyNotAccepted)
-{
-  DSSTrustDomain trustDomain;
-
-  ByteString serialNumber(CreateEncodedSerialNumber(1));
-  ASSERT_FALSE(ENCODING_FAILED(serialNumber));
-
-  ByteString subjectDER(CNToDERName("DSS"));
-  ASSERT_FALSE(ENCODING_FAILED(subjectDER));
-  ScopedTestKeyPair subjectKey(GenerateDSSKeyPair());
-  ASSERT_TRUE(subjectKey);
-
-  ByteString issuerDER(CNToDERName("RSA"));
-  ASSERT_FALSE(ENCODING_FAILED(issuerDER));
-  ScopedTestKeyPair issuerKey(CloneReusedKeyPair());
-  ASSERT_TRUE(issuerKey);
-
-  ByteString cert(CreateEncodedCertificate(v3, sha256WithRSAEncryption,
-                                           serialNumber, issuerDER,
-                                           oneDayBeforeNow, oneDayAfterNow,
-                                           subjectDER, *subjectKey, nullptr,
-                                           *issuerKey, sha256WithRSAEncryption));
-  ASSERT_FALSE(ENCODING_FAILED(cert));
-  Input certDER;
-  ASSERT_EQ(Success, certDER.Init(cert.data(), cert.length()));
-
-  ASSERT_EQ(Result::ERROR_UNSUPPORTED_KEYALG,
-            BuildCertChain(trustDomain, certDER, Now(),
-                           EndEntityOrCA::MustBeEndEntity,
-                           KeyUsage::noParticularKeyUsageRequired,
-                           KeyPurposeId::id_kp_serverAuth,
-                           CertPolicyId::anyPolicy,
-                           nullptr/*stapledOCSPResponse*/));
-}
-
-class IssuerNameCheckTrustDomain : public TrustDomain
-{
-public:
-  IssuerNameCheckTrustDomain(const ByteString& issuer, bool expectedKeepGoing)
-    : issuer(issuer)
-    , expectedKeepGoing(expectedKeepGoing)
-  {
-  }
-
-  virtual Result GetCertTrust(EndEntityOrCA endEntityOrCA,
-                              const CertPolicyId&, Input,
-                              /*out*/ TrustLevel& trustLevel)
-  {
-    trustLevel = endEntityOrCA == EndEntityOrCA::MustBeCA
-               ? TrustLevel::TrustAnchor
-               : TrustLevel::InheritsTrust;
-    return Success;
-  }
-
-  virtual Result FindIssuer(Input subjectCert, IssuerChecker& checker, Time)
-  {
-    Input issuerInput;
-    EXPECT_EQ(Success, issuerInput.Init(issuer.data(), issuer.length()));
-    bool keepGoing;
-    EXPECT_EQ(Success,
-              checker.Check(issuerInput, nullptr /*additionalNameConstraints*/,
-                            keepGoing));
-    EXPECT_EQ(expectedKeepGoing, keepGoing);
-    return Success;
-  }
-
-  virtual Result CheckRevocation(EndEntityOrCA, const CertID&, Time,
-                                 /*optional*/ const Input*,
-                                 /*optional*/ const Input*)
-  {
-    return Success;
-  }
-
-  virtual Result IsChainValid(const DERArray&, Time)
-  {
-    return Success;
-  }
-
-  virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
-                                  Input subjectPublicKeyInfo)
-  {
-    return TestVerifySignedData(signedData, subjectPublicKeyInfo);
-  }
-
-  virtual Result DigestBuf(Input, /*out*/uint8_t*, size_t)
-  {
-    ADD_FAILURE();
-    return Result::FATAL_ERROR_LIBRARY_FAILURE;
-  }
-
-  virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
-  {
-    return TestCheckPublicKey(subjectPublicKeyInfo);
-  }
-
-private:
-  const ByteString issuer;
-  const bool expectedKeepGoing;
-};
-
-struct IssuerNameCheckParams
-{
-  const char* subjectIssuerCN; // null means "empty name"
-  const char* issuerSubjectCN; // null means "empty name"
-  bool matches;
-};
-
-static const IssuerNameCheckParams ISSUER_NAME_CHECK_PARAMS[] =
-{
-  { "foo", "foo", true },
-  { "foo", "bar", false },
-  { "f", "foo", false }, // prefix
-  { "foo", "f", false }, // prefix
-  { "foo", "Foo", false }, // case sensitive
-  { "", "", true },
-  { nullptr, nullptr, true }, // XXX(bug 1115718)
-};
-
-class pkixbuild_IssuerNameCheck
-  : public ::testing::Test
-  , public ::testing::WithParamInterface<IssuerNameCheckParams>
-{
-};
-
-TEST_P(pkixbuild_IssuerNameCheck, MatchingName)
-{
-  const IssuerNameCheckParams& params(GetParam());
-
-  ByteString issuerCertDER(CreateCert(params.issuerSubjectCN,
-                                      params.issuerSubjectCN,
-                                      EndEntityOrCA::MustBeCA, nullptr));
-  ASSERT_FALSE(ENCODING_FAILED(issuerCertDER));
-
-  ByteString subjectCertDER(CreateCert(params.subjectIssuerCN, "end-entity",
-                                       EndEntityOrCA::MustBeEndEntity,
-                                       nullptr));
-  ASSERT_FALSE(ENCODING_FAILED(subjectCertDER));
-
-  Input subjectCertDERInput;
-  ASSERT_EQ(Success, subjectCertDERInput.Init(subjectCertDER.data(),
-                                              subjectCertDER.length()));
-
-  IssuerNameCheckTrustDomain trustDomain(issuerCertDER, !params.matches);
-  ASSERT_EQ(params.matches ? Success : Result::ERROR_UNKNOWN_ISSUER,
-            BuildCertChain(trustDomain, subjectCertDERInput, Now(),
-                           EndEntityOrCA::MustBeEndEntity,
-                           KeyUsage::noParticularKeyUsageRequired,
-                           KeyPurposeId::id_kp_serverAuth,
-                           CertPolicyId::anyPolicy,
-                           nullptr/*stapledOCSPResponse*/));
-}
-
-INSTANTIATE_TEST_CASE_P(pkixbuild_IssuerNameCheck, pkixbuild_IssuerNameCheck,
-                        testing::ValuesIn(ISSUER_NAME_CHECK_PARAMS));

@@ -387,18 +387,16 @@ ProgressTracker::SyncNotify(IProgressObserver* aObserver)
                        "ProgressTracker::SyncNotify", "uri", spec.get());
 #endif
 
-  nsIntRect rect;
+  nsIntRect r;
   if (mImage) {
-    if (NS_FAILED(mImage->GetWidth(&rect.width)) ||
-        NS_FAILED(mImage->GetHeight(&rect.height))) {
-      // Either the image has no intrinsic size, or it has an error.
-      rect = nsIntRect::GetMaxSizedIntRect();
-    }
+    // XXX - Should only send partial rects here, but that needs to
+    // wait until we fix up the observer interface
+    r = mImage->FrameRect(imgIContainer::FRAME_CURRENT);
   }
 
   ObserverArray array;
   array.AppendElement(aObserver);
-  SyncNotifyInternal(array, !!mImage, mProgress, rect);
+  SyncNotifyInternal(array, !!mImage, mProgress, r);
 }
 
 void

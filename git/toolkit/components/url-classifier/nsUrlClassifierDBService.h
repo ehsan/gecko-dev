@@ -33,7 +33,6 @@
 #define COMPLETE_LENGTH 32
 
 class nsUrlClassifierDBServiceWorker;
-class nsICryptoHash;
 class nsIThread;
 class nsIURI;
 
@@ -87,9 +86,6 @@ private:
   // Read everything into mGethashTables and mDisallowCompletionTables
   nsresult ReadTablesFromPrefs();
 
-  // Build a comma-separated list of tables to check
-  void BuildTables(bool trackingProtectionEnabled, nsCString& tables);
-
   nsRefPtr<nsUrlClassifierDBServiceWorker> mWorker;
   nsCOMPtr<nsIUrlClassifierDBServiceWorker> mWorkerProxy;
 
@@ -121,10 +117,6 @@ private:
 
   // Thread that we do the updates on.
   static nsIThread* gDbBackgroundThread;
-
-  // nsICryptoHash for doing hash operations on the main thread. This is only
-  // used for nsIURIClassifier.ClassifyLocal
-  nsCOMPtr<nsICryptoHash> mCryptoHashMain;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsUrlClassifierDBService, NS_URLCLASSIFIERDBSERVICE_CID)

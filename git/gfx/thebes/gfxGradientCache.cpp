@@ -185,15 +185,7 @@ gfxGradientCache::GetGradientStops(const DrawTarget *aDT, nsTArray<GradientStop>
   }
   GradientCacheData* cached =
     gGradientCache->Lookup(aStops, aExtend, aDT->GetBackendType());
-  if (cached && cached->mStops) {
-    if (!cached->mStops->IsValid()) {
-      gGradientCache->NotifyExpired(cached);
-    } else {
-      return cached->mStops;
-    }
-  }
-
-  return nullptr;
+  return cached ? cached->mStops : nullptr;
 }
 
 GradientStops *

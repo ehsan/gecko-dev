@@ -526,7 +526,7 @@ nsNavBookmarks::InsertBookmark(int64_t aFolder,
   }
 
   *aNewBookmarkId = -1;
-  PRTime dateAdded = RoundedPRNow();
+  PRTime dateAdded = PR_Now();
   nsAutoCString guid(aGUID);
   nsCString title;
   TruncateTitle(aTitle, title);
@@ -628,7 +628,7 @@ nsNavBookmarks::RemoveItem(int64_t aItemId)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  bookmark.lastModified = RoundedPRNow();
+  bookmark.lastModified = PR_Now();
   rv = SetItemDateInternal(LAST_MODIFIED, bookmark.parentId,
                            bookmark.lastModified);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -756,7 +756,7 @@ nsNavBookmarks::CreateContainerWithID(int64_t aItemId,
   }
 
   *aNewFolder = aItemId;
-  PRTime dateAdded = RoundedPRNow();
+  PRTime dateAdded = PR_Now();
   nsAutoCString guid(aGUID);
   nsCString title;
   TruncateTitle(aTitle, title);
@@ -817,7 +817,7 @@ nsNavBookmarks::InsertSeparator(int64_t aParent,
   nsCString voidString;
   voidString.SetIsVoid(true);
   nsAutoCString guid(aGUID);
-  PRTime dateAdded = RoundedPRNow();
+  PRTime dateAdded = PR_Now();
   rv = InsertBookmarkInDB(-1, SEPARATOR, aParent, index, voidString, dateAdded,
                           0, folderGuid, grandParentId, nullptr,
                           aNewItemId, guid);
@@ -1105,7 +1105,7 @@ nsNavBookmarks::RemoveFolderChildren(int64_t aFolderId)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Set the lastModified date.
-  rv = SetItemDateInternal(LAST_MODIFIED, folder.id, RoundedPRNow());
+  rv = SetItemDateInternal(LAST_MODIFIED, folder.id, PR_Now());
   NS_ENSURE_SUCCESS(rv, rv);
 
   for (uint32_t i = 0; i < folderChildrenArray.Length(); i++) {
@@ -1289,7 +1289,7 @@ nsNavBookmarks::MoveItem(int64_t aItemId, int64_t aNewParent, int32_t aIndex)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  PRTime now = RoundedPRNow();
+  PRTime now = PR_Now();
   rv = SetItemDateInternal(LAST_MODIFIED, bookmark.parentId, now);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = SetItemDateInternal(LAST_MODIFIED, aNewParent, now);
@@ -1386,8 +1386,6 @@ nsNavBookmarks::SetItemDateInternal(enum BookmarkDate aDateType,
                                     int64_t aItemId,
                                     PRTime aValue)
 {
-  aValue = RoundToMilliseconds(aValue);
-
   nsCOMPtr<mozIStorageStatement> stmt;
   if (aDateType == DATE_ADDED) {
     // lastModified is set to the same value as dateAdded.  We do this for
@@ -1429,9 +1427,7 @@ nsNavBookmarks::SetItemDateAdded(int64_t aItemId, PRTime aDateAdded)
   BookmarkData bookmark;
   nsresult rv = FetchItemInfo(aItemId, bookmark);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // Round here so that we notify with the right value.
-  bookmark.dateAdded = RoundToMilliseconds(aDateAdded);
+  bookmark.dateAdded = aDateAdded;
 
   rv = SetItemDateInternal(DATE_ADDED, bookmark.id, bookmark.dateAdded);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1475,9 +1471,7 @@ nsNavBookmarks::SetItemLastModified(int64_t aItemId, PRTime aLastModified)
   BookmarkData bookmark;
   nsresult rv = FetchItemInfo(aItemId, bookmark);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  // Round here so that we notify with the right value.
-  bookmark.lastModified = RoundToMilliseconds(aLastModified);
+  bookmark.lastModified = aLastModified;
 
   rv = SetItemDateInternal(LAST_MODIFIED, bookmark.id, bookmark.lastModified);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1541,7 +1535,7 @@ nsNavBookmarks::SetItemTitle(int64_t aItemId, const nsACString& aTitle)
                                          title);
   }
   NS_ENSURE_SUCCESS(rv, rv);
-  bookmark.lastModified = RoundToMilliseconds(RoundedPRNow());
+  bookmark.lastModified = PR_Now();
   rv = statement->BindInt64ByName(NS_LITERAL_CSTRING("date"),
                                   bookmark.lastModified);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1635,7 +1629,6 @@ nsNavBookmarks::ResultNodeForContainer(int64_t aItemId,
   (*aNode)->mDateAdded = bookmark.dateAdded;
   (*aNode)->mLastModified = bookmark.lastModified;
   (*aNode)->mBookmarkGuid = bookmark.guid;
-  (*aNode)->GetAsFolder()->mTargetFolderGuid = bookmark.guid;
 
   NS_ADDREF(*aNode);
   return NS_OK;
@@ -1742,10 +1735,6 @@ nsNavBookmarks::ProcessFolderNodeRow(
 
     node = new nsNavHistoryFolderResultNode(title, aOptions, id);
 
-    rv = aRow->GetUTF8String(kGetChildrenIndex_Guid, node->mBookmarkGuid);
-    NS_ENSURE_SUCCESS(rv, rv);
-    node->GetAsFolder()->mTargetFolderGuid = node->mBookmarkGuid;
-
     rv = aRow->GetInt64(nsNavHistory::kGetInfoIndex_ItemDateAdded,
                         reinterpret_cast<int64_t*>(&node->mDateAdded));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1761,8 +1750,6 @@ nsNavBookmarks::ProcessFolderNodeRow(
     node = new nsNavHistorySeparatorResultNode();
 
     node->mItemId = id;
-    rv = aRow->GetUTF8String(kGetChildrenIndex_Guid, node->mBookmarkGuid);
-    NS_ENSURE_SUCCESS(rv, rv);
     rv = aRow->GetInt64(nsNavHistory::kGetInfoIndex_ItemDateAdded,
                         reinterpret_cast<int64_t*>(&node->mDateAdded));
     NS_ENSURE_SUCCESS(rv, rv);
@@ -1775,7 +1762,11 @@ nsNavBookmarks::ProcessFolderNodeRow(
   // moz_bookmarks.position.
   node->mBookmarkIndex = aCurrentIndex;
 
+  rv = aRow->GetUTF8String(kGetChildrenIndex_Guid, node->mBookmarkGuid);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   NS_ENSURE_TRUE(aChildren->AppendObject(node), NS_ERROR_OUT_OF_MEMORY);
+
   return NS_OK;
 }
 
@@ -2010,7 +2001,7 @@ nsNavBookmarks::ChangeBookmarkURI(int64_t aBookmarkId, nsIURI* aNewURI)
 
   rv = statement->BindInt64ByName(NS_LITERAL_CSTRING("page_id"), newPlaceId);
   NS_ENSURE_SUCCESS(rv, rv);
-  bookmark.lastModified = RoundedPRNow();
+  bookmark.lastModified = PR_Now();
   rv = statement->BindInt64ByName(NS_LITERAL_CSTRING("date"),
                                   bookmark.lastModified);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2366,7 +2357,7 @@ nsNavBookmarks::SetKeywordForBookmark(int64_t aBookmarkId,
     rv = updateBookmarkStmt->BindStringByName(NS_LITERAL_CSTRING("keyword"), keyword);
   }
   NS_ENSURE_SUCCESS(rv, rv);
-  bookmark.lastModified = RoundedPRNow();
+  bookmark.lastModified = PR_Now();
   rv = updateBookmarkStmt->BindInt64ByName(NS_LITERAL_CSTRING("date"),
                                            bookmark.lastModified);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -2841,7 +2832,7 @@ nsNavBookmarks::OnItemAnnotationSet(int64_t aItemId, const nsACString& aName)
   nsresult rv = FetchItemInfo(aItemId, bookmark);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bookmark.lastModified = RoundedPRNow();
+  bookmark.lastModified = PR_Now();
   rv = SetItemDateInternal(LAST_MODIFIED, bookmark.id, bookmark.lastModified);
   NS_ENSURE_SUCCESS(rv, rv);
 

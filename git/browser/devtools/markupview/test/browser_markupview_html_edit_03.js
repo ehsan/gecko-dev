@@ -18,7 +18,7 @@ const SELECTOR = "#keyboard";
 const OLD_HTML = '<div id="keyboard"></div>';
 const NEW_HTML = '<div id="keyboard">Edited</div>';
 
-add_task(function*() {
+let test = asyncTest(function*() {
   let {inspector} = yield addTab(TEST_URL).then(openInspector);
 
   inspector.markup._frame.focus();

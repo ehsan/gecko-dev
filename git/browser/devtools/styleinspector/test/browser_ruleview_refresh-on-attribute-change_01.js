@@ -6,7 +6,7 @@
 
 // Test that changing the current element's attributes refreshes the rule-view
 
-add_task(function*() {
+let test = asyncTest(function*() {
   yield addTab("data:text/html;charset=utf-8,browser_ruleview_refresh-on-attribute-change.js");
 
   info("Preparing the test document and node");

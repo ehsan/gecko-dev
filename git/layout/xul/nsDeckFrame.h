@@ -57,7 +57,7 @@ public:
   }
 #endif
 
-  explicit nsDeckFrame(nsStyleContext* aContext);
+  nsDeckFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   nsIFrame* GetSelectedBox();
 

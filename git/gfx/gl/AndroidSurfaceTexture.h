@@ -61,11 +61,8 @@ public:
   // attached, we try to wait for it to become detached.
   nsresult Attach(GLContext* aContext, PRIntervalTime aTiemout = PR_INTERVAL_NO_TIMEOUT);
 
+  // This is a noop on ICS, and will always fail
   nsresult Detach();
-
-  // Ability to detach is based on API version (16+), and we also block PowerVR since it has some type
-  // of fencing problem. Bug 1100126.
-  bool CanDetach() { return mCanDetach; }
 
   GLContext* GetAttachedContext() { return mAttachedContext; }
 
@@ -90,22 +87,19 @@ public:
   void NotifyFrameAvailable();
 
   GLuint Texture() { return mTexture; }
-  const widget::sdk::Surface::Ref& JavaSurface() { return mSurface; }
-
+  jobject JavaSurface() { return mSurface->wrappedObject(); }
 private:
   AndroidSurfaceTexture();
   ~AndroidSurfaceTexture();
 
   bool Init(GLContext* aContext, GLuint aTexture);
-  void UpdateCanDetach();
 
   GLuint mTexture;
-  widget::sdk::SurfaceTexture::GlobalRef mSurfaceTexture;
-  widget::sdk::Surface::GlobalRef mSurface;
+  nsAutoPtr<mozilla::widget::android::sdk::SurfaceTexture> mSurfaceTexture;
+  nsAutoPtr<mozilla::widget::android::sdk::Surface> mSurface;
 
   Monitor mMonitor;
   GLContext* mAttachedContext;
-  bool mCanDetach;
 
   RefPtr<AndroidNativeWindow> mNativeWindow;
   int mID;

@@ -51,7 +51,7 @@ public:
     mPtr = nullptr;
   }
 
-  T* operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN
+  T* operator->() const
   {
     return mPtr.operator->();
   }
@@ -64,8 +64,8 @@ private:
     }
   }
 
-  void operator=(const AutoClose<T> &) = delete;
-  AutoClose(const AutoClose<T> &) = delete;
+  void operator=(const AutoClose<T> &) MOZ_DELETE;
+  AutoClose(const AutoClose<T> &) MOZ_DELETE;
 
   nsCOMPtr<T> mPtr;
 };

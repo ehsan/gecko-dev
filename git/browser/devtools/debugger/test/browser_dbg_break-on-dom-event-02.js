@@ -12,7 +12,7 @@ let gClient, gThreadClient;
 
 function test() {
   if (!DebuggerServer.initialized) {
-    DebuggerServer.init();
+    DebuggerServer.init(() => true);
     DebuggerServer.addBrowserActors();
   }
 
@@ -104,6 +104,7 @@ function closeConnection() {
 }
 
 registerCleanupFunction(function() {
+  removeTab(gBrowser.selectedTab);
   gClient = null;
   gThreadClient = null;
 });

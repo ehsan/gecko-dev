@@ -194,22 +194,12 @@ loop.OTSdkDriver = (function() {
      * https://tokbox.com/opentok/libraries/client/js/reference/SessionDisconnectEvent.html
      */
     _onSessionDisconnected: function(event) {
-      var reason;
-      switch (event.reason) {
-        case "networkDisconnected":
-          reason = FAILURE_REASONS.NETWORK_DISCONNECTED;
-          break;
-        case "forceDisconnected":
-          reason = FAILURE_REASONS.EXPIRED_OR_INVALID;
-          break;
-        default:
-          // Other cases don't need to be handled.
-          return;
+      // We only need to worry about the network disconnected reason here.
+      if (event.reason === "networkDisconnected") {
+        this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
+          reason: FAILURE_REASONS.NETWORK_DISCONNECTED
+        }));
       }
-
-      this.dispatcher.dispatch(new sharedActions.ConnectionFailure({
-        reason: reason
-      }));
     },
 
     /**

@@ -84,9 +84,9 @@ private:
   virtual ~FakeTracedTask() {}
 
   // No copy allowed.
-  FakeTracedTask() = delete;
-  FakeTracedTask(const FakeTracedTask& aTask) = delete;
-  FakeTracedTask& operator=(const FakeTracedTask& aTask) = delete;
+  FakeTracedTask() MOZ_DELETE;
+  FakeTracedTask(const FakeTracedTask& aTask) MOZ_DELETE;
+  FakeTracedTask& operator=(const FakeTracedTask& aTask) MOZ_DELETE;
 };
 
 class AutoRunFakeTracedTask

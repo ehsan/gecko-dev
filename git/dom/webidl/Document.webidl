@@ -287,7 +287,7 @@ partial interface Document {
 
 // http://dev.w3.org/fxtf/web-animations/#extensions-to-the-document-interface
 partial interface Document {
-  [Func="nsDocument::IsWebAnimationsEnabled"]
+  [Pref="dom.animations-api.core.enabled"]
   readonly attribute AnimationTimeline timeline;
 };
 

@@ -4,6 +4,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
 #include "pkix/pkix.h"
+#include "pkix/pkixnss.h"
 #include "pkixgtest.h"
 #include "pkixtestutil.h"
 
@@ -30,7 +31,8 @@ CreateCert(const char* issuerCN,
   ByteString extensions[2];
   if (endEntityOrCA == EndEntityOrCA::MustBeCA) {
     extensions[0] =
-      CreateEncodedBasicConstraints(true, nullptr, Critical::Yes);
+      CreateEncodedBasicConstraints(true, nullptr,
+                                    ExtensionCriticality::Critical);
     EXPECT_FALSE(ENCODING_FAILED(extensions[0]));
   }
 
@@ -108,7 +110,8 @@ private:
                                   Input subjectPublicKeyInfo)
   {
     EXPECT_NE(SignatureAlgorithm::unsupported_algorithm, signedData.algorithm);
-    return TestVerifySignedData(signedData, subjectPublicKeyInfo);
+    return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
+                                             MINIMUM_TEST_KEY_BITS, nullptr);
   }
 
   virtual Result DigestBuf(Input, uint8_t*, size_t)

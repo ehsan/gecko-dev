@@ -281,9 +281,6 @@ public:
     static inline void DumpAsDataURI(DrawTarget* aDT) {
         DumpAsDataURI(aDT, stdout);
     }
-    static nsCString GetAsDataURI(SourceSurface* aSourceSurface);
-    static nsCString GetAsDataURI(DrawTarget* aDT);
-    static nsCString GetAsLZ4Base64Str(DataSourceSurface* aSourceSurface);
 
     /**
      * Copy to the clipboard as a PNG encoded Data URL.
@@ -291,11 +288,13 @@ public:
     static void CopyAsDataURI(SourceSurface* aSourceSurface);
     static void CopyAsDataURI(DrawTarget* aDT);
 
-    static bool DumpDisplayList();
+#ifdef MOZ_DUMP_PAINTING
+    static bool DumpPaintList();
 
     static bool sDumpPainting;
     static bool sDumpPaintingToFile;
     static FILE* sDumpPaintFile;
+#endif
 };
 
 namespace mozilla {

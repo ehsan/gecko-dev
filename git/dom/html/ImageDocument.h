@@ -79,7 +79,7 @@ public:
 protected:
   virtual ~ImageDocument();
 
-  virtual nsresult CreateSyntheticDocument() MOZ_OVERRIDE;
+  virtual nsresult CreateSyntheticDocument();
 
   nsresult CheckOverflowing(bool changeState);
 

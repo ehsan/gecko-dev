@@ -41,33 +41,36 @@ AnimationTimeline::GetCurrentTimeAsDouble() const
 TimeStamp
 AnimationTimeline::GetCurrentTimeStamp() const
 {
-  nsRefreshDriver* refreshDriver = GetRefreshDriver();
-  TimeStamp refreshTime = refreshDriver
-                          ? refreshDriver->MostRecentRefresh()
-                          : TimeStamp();
-
   // Always return the same object to benefit from return-value optimization.
-  TimeStamp result = !refreshTime.IsNull()
-                     ? refreshTime
-                     : mLastRefreshDriverTime;
+  TimeStamp result = mLastCurrentTime;
 
-  // If we don't have a refresh driver and we've never had one use the
-  // timeline's zero time.
+  // If we've never been sampled, initialize the current time to the timeline's
+  // zero time since that is the time we'll use if we don't have a refresh
+  // driver.
   if (result.IsNull()) {
     nsRefPtr<nsDOMNavigationTiming> timing = mDocument->GetNavigationTiming();
-    if (timing) {
-      result = timing->GetNavigationStartTimeStamp();
-      // Also, let this time represent the current refresh time. This way
-      // we'll save it as the last refresh time and skip looking up
-      // navigation timing each time.
-      refreshTime = result;
+    if (!timing) {
+      return result;
     }
+    result = timing->GetNavigationStartTimeStamp();
   }
 
-  if (!refreshTime.IsNull()) {
-    mLastRefreshDriverTime = refreshTime;
+  nsIPresShell* presShell = mDocument->GetShell();
+  if (MOZ_UNLIKELY(!presShell)) {
+    return result;
   }
 
+  nsPresContext* presContext = presShell->GetPresContext();
+  if (MOZ_UNLIKELY(!presContext)) {
+    return result;
+  }
+
+  result = presContext->RefreshDriver()->MostRecentRefresh();
+  // FIXME: We would like to assert that:
+  //   mLastCurrentTime.IsNull() || result >= mLastCurrentTime
+  // but due to bug 1043078 this will not be the case when the refresh driver
+  // is restored from test control.
+  mLastCurrentTime = result;
   return result;
 }
 
@@ -99,22 +102,6 @@ AnimationTimeline::ToTimeStamp(const TimeDuration& aTimeDuration) const
 
   result = timing->GetNavigationStartTimeStamp() + aTimeDuration;
   return result;
-}
-
-nsRefreshDriver*
-AnimationTimeline::GetRefreshDriver() const
-{
-  nsIPresShell* presShell = mDocument->GetShell();
-  if (MOZ_UNLIKELY(!presShell)) {
-    return nullptr;
-  }
-
-  nsPresContext* presContext = presShell->GetPresContext();
-  if (MOZ_UNLIKELY(!presContext)) {
-    return nullptr;
-  }
-
-  return presContext->RefreshDriver();
 }
 
 } // namespace dom
