@@ -38,14 +38,7 @@ public:
     kHardwareOpen,
     kHardwareOpenFailed
   };
-  // aReason:
-  //    NS_OK : state change was expected and normal;
-  //    NS_ERROR_FAILURE : one or more system-level components failed and
-  //                       the camera was closed;
-  //    NS_ERROR_NOT_AVAILABLE : the hardware is in use by another process
-  //                             and cannot be acquired, or another process
-  //                             was given access to the camera hardware.
-  virtual void OnHardwareStateChange(HardwareState aState, nsresult aReason) { }
+  virtual void OnHardwareStateChange(HardwareState aState) { }
 
   enum PreviewState
   {

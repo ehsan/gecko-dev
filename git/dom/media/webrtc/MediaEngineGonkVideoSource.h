@@ -45,8 +45,8 @@ public:
 
   MediaEngineGonkVideoSource(int aIndex)
     : MediaEngineCameraVideoSource(aIndex, "GonkCamera.Monitor")
-    , mCallbackMonitor("GonkCamera.CallbackMonitor")
     , mCameraControl(nullptr)
+    , mCallbackMonitor("GonkCamera.CallbackMonitor")
     , mRotation(0)
     , mBackCamera(false)
     , mOrientationChanged(true) // Correct the orientation at first time takePhoto.
@@ -70,11 +70,11 @@ public:
     return true;
   }
 
-  void OnHardwareStateChange(HardwareState aState, nsresult aReason) MOZ_OVERRIDE;
+  void OnHardwareStateChange(HardwareState aState);
   void GetRotation();
-  bool OnNewPreviewFrame(layers::Image* aImage, uint32_t aWidth, uint32_t aHeight) MOZ_OVERRIDE;
-  void OnUserError(UserContext aContext, nsresult aError) MOZ_OVERRIDE;
-  void OnTakePictureComplete(uint8_t* aData, uint32_t aLength, const nsAString& aMimeType) MOZ_OVERRIDE;
+  bool OnNewPreviewFrame(layers::Image* aImage, uint32_t aWidth, uint32_t aHeight);
+  void OnUserError(UserContext aContext, nsresult aError);
+  void OnTakePictureComplete(uint8_t* aData, uint32_t aLength, const nsAString& aMimeType);
 
   void AllocImpl();
   void DeallocImpl();

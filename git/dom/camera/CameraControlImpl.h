@@ -53,6 +53,7 @@ public:
 
   // Event handlers called directly from outside this class.
   void OnShutter();
+  void OnClosed();
   void OnUserError(CameraControlListener::UserContext aContext, nsresult aError);
   void OnSystemError(CameraControlListener::SystemContext aContext, nsresult aError);
   void OnAutoFocusMoving(bool aIsMoving);
@@ -68,8 +69,7 @@ protected:
   void OnRecorderStateChange(CameraControlListener::RecorderState aState,
                              int32_t aStatus = -1, int32_t aTrackNumber = -1);
   void OnPreviewStateChange(CameraControlListener::PreviewState aState);
-  void OnHardwareStateChange(CameraControlListener::HardwareState aState,
-                             nsresult aReason);
+  void OnHardwareStateChange(CameraControlListener::HardwareState aState);
   void OnConfigurationChange();
 
   // When we create a new CameraThread, we keep a static reference to it so
@@ -134,7 +134,6 @@ protected:
 
   CameraControlListener::PreviewState   mPreviewState;
   CameraControlListener::HardwareState  mHardwareState;
-  nsresult                              mHardwareStateChangeReason;
 
 private:
   CameraControlImpl(const CameraControlImpl&) MOZ_DELETE;
