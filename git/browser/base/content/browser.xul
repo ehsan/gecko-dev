@@ -577,7 +577,7 @@
                      label="&tabCmd.label;"
                      command="cmd_newNavigatorTab"
                      onclick="checkForMiddleClick(this, event);"
-                     tooltip="dynamic-shortcut-tooltip"
+                     tooltiptext="&newTabButton.tooltip;"
                      ondrop="newTabButtonObserver.onDrop(event)"
                      ondragover="newTabButtonObserver.onDragOver(event)"
                      ondragenter="newTabButtonObserver.onDragOver(event)"
@@ -874,7 +874,7 @@
                        label="&downloads.label;"
                        removable="true"
                        cui-areatype="toolbar"
-                       tooltip="dynamic-shortcut-tooltip"/>
+                       tooltiptext="&downloads.tooltip;"/>
 
         <toolbarbutton id="home-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
                        persist="class" removable="true"
@@ -1004,11 +1004,11 @@
 
       <toolbarbutton id="print-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
 #ifdef XP_MACOSX
-                     command="cmd_print"
+                     command="cmd_print" tooltip="dynamic-shortcut-tooltip"
 #else
-                     command="cmd_printPreview"
+                     command="cmd_printPreview" tooltiptext="&printButton.tooltip;"
 #endif
-                     tooltip="dynamic-shortcut-tooltip" label="&printButton.label;"/>
+                     label="&printButton.label;"/>
 
 
       <toolbarbutton id="new-window-button" class="toolbarbutton-1 chromeclass-toolbar-additional"

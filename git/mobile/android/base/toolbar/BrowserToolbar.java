@@ -12,7 +12,6 @@ import java.util.List;
 
 import org.json.JSONObject;
 import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.EventDispatcher;
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoApplication;
 import org.mozilla.gecko.GeckoProfile;
@@ -181,9 +180,8 @@ public class BrowserToolbar extends ThemedRelativeLayout
         isSwitchingTabs = true;
         isAnimatingEntry = false;
 
-        EventDispatcher.getInstance().registerGeckoThreadListener(this,
-            "Reader:Click",
-            "Reader:LongClick");
+        registerEventListener("Reader:Click");
+        registerEventListener("Reader:LongClick");
 
         final Resources res = getResources();
         urlBarViewOffset = res.getDimensionPixelSize(R.dimen.url_bar_offset_left);
@@ -1360,9 +1358,8 @@ public class BrowserToolbar extends ThemedRelativeLayout
     public void onDestroy() {
         Tabs.unregisterOnTabsChangedListener(this);
 
-        EventDispatcher.getInstance().unregisterGeckoThreadListener(this,
-            "Reader:Click",
-            "Reader:LongClick");
+        unregisterEventListener("Reader:Click");
+        unregisterEventListener("Reader:LongClick");
     }
 
     public boolean openOptionsMenu() {
@@ -1402,6 +1399,14 @@ public class BrowserToolbar extends ThemedRelativeLayout
         }
 
         return true;
+    }
+
+    private void registerEventListener(String event) {
+        GeckoAppShell.getEventDispatcher().registerEventListener(event, this);
+    }
+
+    private void unregisterEventListener(String event) {
+        GeckoAppShell.getEventDispatcher().unregisterEventListener(event, this);
     }
 
     @Override

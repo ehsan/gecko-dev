@@ -135,6 +135,8 @@ public class GeckoAppShell
     static private int sDensityDpi = 0;
     static private int sScreenDepth = 0;
 
+    private static final EventDispatcher sEventDispatcher = new EventDispatcher();
+
     /* Default colors. */
     private static final float[] DEFAULT_LAUNCHER_ICON_HSV = { 32.0f, 1.0f, 1.0f };
 
@@ -2280,6 +2282,34 @@ public class GeckoAppShell
         }
     }
 
+    /**
+     * Adds a listener for a gecko event.
+     * This method is thread-safe and may be called at any time. In particular, calling it
+     * with an event that is currently being processed has the properly-defined behaviour that
+     * any added listeners will not be invoked on the event currently being processed, but
+     * will be invoked on future events of that type.
+     */
+    @RobocopTarget
+    public static void registerEventListener(String event, GeckoEventListener listener) {
+        sEventDispatcher.registerEventListener(event, listener);
+    }
+
+    public static EventDispatcher getEventDispatcher() {
+        return sEventDispatcher;
+    }
+
+    /**
+     * Remove a previously-registered listener for a gecko event.
+     * This method is thread-safe and may be called at any time. In particular, calling it
+     * with an event that is currently being processed has the properly-defined behaviour that
+     * any removed listeners will still be invoked on the event currently being processed, but
+     * will not be invoked on future events of that type.
+     */
+    @RobocopTarget
+    public static void unregisterEventListener(String event, GeckoEventListener listener) {
+        sEventDispatcher.unregisterEventListener(event, listener);
+    }
+
     /*
      * Battery API related methods.
      */
@@ -2290,7 +2320,7 @@ public class GeckoAppShell
 
     @WrapElementForJNI(stubName = "HandleGeckoMessageWrapper")
     public static void handleGeckoMessage(final NativeJSContainer message) {
-        EventDispatcher.getInstance().dispatchEvent(message);
+        sEventDispatcher.dispatchEvent(message);
         message.dispose();
     }
 

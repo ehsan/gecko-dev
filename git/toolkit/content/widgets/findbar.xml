@@ -1254,7 +1254,7 @@
             if (aResult.total == -1) {
               this._foundMatches.value = this.pluralForm.get(
                 this._matchesCountLimit,
-                this.strBundle.GetStringFromName("FoundMatchesCountLimit")
+                this.strBundle.GetStringFromName("FoundTooManyMatches")
               ).replace("#1", this._matchesCountLimit);
             } else {
               this._foundMatches.value = this.pluralForm.get(
