@@ -588,10 +588,6 @@
   opacity: 0;
 }
 
-#detail-view:not([loading]) .loading {
-  visibility: collapse;
-}
-
 #detail-view[loading-extended] .loading {
   -moz-box-align: center;
   -moz-box-pack: center;
@@ -677,7 +673,7 @@
 
 .detail-row,
 .detail-row-complex {
-  border-top: 1px solid ThreeDHighlight;
+  border-top: 1px solid ThreeDShadow;
   -moz-box-align: center;
 }
 
@@ -750,7 +746,6 @@
   border: none;
 }
 
-.download-progress .pause,
 .download-progress .cancel {
   -moz-appearance: none;
   background-color: ButtonFace;
@@ -766,13 +761,8 @@
   margin: 3px;
 }
 
-.download-progress .pause:hover,
 .download-progress .cancel:hover {
   background-color: -moz-ButtonHoverFace;
-}
-
-.download-progress .pause {
-  list-style-image: url('chrome://mozapps/skin/extensions/pause.png');
 }
 
 .download-progress .cancel {
