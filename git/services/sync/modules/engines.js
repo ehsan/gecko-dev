@@ -130,18 +130,18 @@ Engine.prototype = {
   },
 
   // _core, _store and _tracker need to be overridden in subclasses
+  __core: null,
+  get _core() {
+    if (!this.__core)
+      this.__core = new SyncCore();
+    return this.__core;
+  },
+
   __store: null,
   get _store() {
     if (!this.__store)
       this.__store = new Store();
     return this.__store;
-  },
-
-  __core: null,
-  get _core() {
-    if (!this.__core)
-      this.__core = new SyncCore(this._store);
-    return this.__core;
   },
 
   __tracker: null,
@@ -251,7 +251,7 @@ Engine.prototype = {
                      "Forcing initial sync.");
       this._log.trace("Remote: " + this._remote.status.data.GUID);
       this._log.trace("Local: " + this._snapshot.GUID);
-      this._store.resetGUIDs();
+      yield this._store.resetGUIDs(self.cb);
       this._snapshot.data = {};
       this._snapshot.version = -1;
       this._snapshot.GUID = this._remote.status.data.GUID;
@@ -264,7 +264,6 @@ Engine.prototype = {
       yield this._remote.keys.getKeyAndIV(self.cb, this.engineId);
 
     // 1) Fetch server deltas
-    
     let server = {};
     let serverSnap = yield this._remote.wrap(self.cb, this._snapshot);
     server.snapshot = serverSnap.data;

@@ -43,6 +43,27 @@ Cu.import("resource://weave/engines.js");
 Cu.import("resource://weave/syncCores.js");
 Cu.import("resource://weave/stores.js");
 
+/*
+ * _hashLoginInfo
+ *
+ * nsILoginInfo objects don't have a unique GUID, so we need to generate one
+ * on the fly. This is done by taking a hash of every field in the object.
+ * Note that the resulting GUID could potentiually reveal passwords via
+ * dictionary attacks or brute force. But GUIDs shouldn't be obtainable by
+ * anyone, so this should generally be safe.
+ */
+function _hashLoginInfo(aLogin) {
+  var loginKey = aLogin.hostname      + ":" +
+                 aLogin.formSubmitURL + ":" +
+                 aLogin.httpRealm     + ":" +
+                 aLogin.username      + ":" +
+                 aLogin.password      + ":" +
+                 aLogin.usernameField + ":" +
+                 aLogin.passwordField;
+
+  return Utils.sha1(loginKey);
+}
+
 function PasswordEngine() {
   this._init();
 }
@@ -51,29 +72,50 @@ PasswordEngine.prototype = {
   get logName() { return "PasswordEngine"; },
   get serverPrefix() { return "user-data/passwords/"; },
 
+  __core: null,
+  get _core() {
+    if (!this.__core)
+      this.__core = new PasswordSyncCore();
+    return this.__core;
+  },
+
   __store: null,
   get _store() {
     if (!this.__store)
       this.__store = new PasswordStore();
     return this.__store;
-  },
-  
-  __core: null,
-  get _core() {
-    if (!this.__core)
-      this.__core = new PasswordSyncCore(this._store);
-    return this.__core;
   }
 };
 PasswordEngine.prototype.__proto__ = new Engine();
 
-function PasswordSyncCore(store) {
-  this._store = store;
+function PasswordSyncCore() {
   this._init();
 }
 PasswordSyncCore.prototype = {
   _logName: "PasswordSync",
-  _store: null,
+
+  __loginManager : null,
+  get _loginManager() {
+    if (!this.__loginManager)
+      this.__loginManager = Utils.getLoginManager();
+    return this.__loginManager;
+  },
+
+  _itemExists: function PSC__itemExists(GUID) {
+    var found = false;
+    var logins = this._loginManager.getAllLogins({});
+
+    // XXX It would be more efficient to compute all the hashes in one shot,
+    // cache the results, and check the cache here. That would need to happen
+    // once per sync -- not sure how to invalidate cache after current sync?
+    for (var i = 0; i < logins.length && !found; i++) {
+        var hash = _hashLoginInfo(logins[i]);
+        if (hash == GUID)
+            found = true;;
+    }
+
+    return found;
+  },
 
   _commandLike: function PSC_commandLike(a, b) {
     // Not used.
@@ -87,41 +129,19 @@ function PasswordStore() {
 }
 PasswordStore.prototype = {
   _logName: "PasswordStore",
-  _lookup: null,
 
-  __loginManager: null,
+  __loginManager : null,
   get _loginManager() {
     if (!this.__loginManager)
       this.__loginManager = Utils.getLoginManager();
     return this.__loginManager;
   },
 
-  __nsLoginInfo: null,
+  __nsLoginInfo : null,
   get _nsLoginInfo() {
     if (!this.__nsLoginInfo)
       this.__nsLoginInfo = Utils.makeNewLoginInfo();
     return this.__nsLoginInfo;
-  },
-  
-  /*
-   * _hashLoginInfo
-   *
-   * nsILoginInfo objects don't have a unique GUID, so we need to generate one
-   * on the fly. This is done by taking a hash of every field in the object.
-   * Note that the resulting GUID could potentiually reveal passwords via
-   * dictionary attacks or brute force. But GUIDs shouldn't be obtainable by
-   * anyone, so this should generally be safe.
-   */
-   _hashLoginInfo: function PasswordStore__hashLoginInfo(aLogin) {
-    var loginKey = aLogin.hostname      + ":" +
-                   aLogin.formSubmitURL + ":" +
-                   aLogin.httpRealm     + ":" +
-                   aLogin.username      + ":" +
-                   aLogin.password      + ":" +
-                   aLogin.usernameField + ":" +
-                   aLogin.passwordField;
-
-    return Utils.sha1(loginKey);
   },
 
   _createCommand: function PasswordStore__createCommand(command) {
@@ -140,20 +160,16 @@ PasswordStore.prototype = {
 
   _removeCommand: function PasswordStore__removeCommand(command) {
     this._log.info("PasswordStore got removeCommand: " + command );
-    
-    if (command.GUID in this._lookup) {
-      var data  = this._lookup[command.GUID];
-      var login = new this._nsLoginInfo(data.hostname,
-                                        data.formSubmitURL,
-                                        data.httpRealm,
-                                        data.username,
-                                        data.password,
-                                        data.usernameField,
-                                        data.passwordField);
-      this._loginManager.removeLogin(login);
-    } else {
-      this._log.warn("Invalid GUID for remove, ignoring request!");
-    }
+
+    var login = new this._nsLoginInfo(command.data.hostname,
+                                      command.data.formSubmitURL,
+                                      command.data.httpRealm,
+                                      command.data.username,
+                                      command.data.password,
+                                      command.data.usernameField,
+                                      command.data.passwordField);
+
+    this._loginManager.removeLogin(login);
   },
 
   _editCommand: function PasswordStore__editCommand(command) {
@@ -164,12 +180,13 @@ PasswordStore.prototype = {
   wrap: function PasswordStore_wrap() {
     /* Return contents of this store, as JSON. */
     var items = {};
+
     var logins = this._loginManager.getAllLogins({});
 
     for (var i = 0; i < logins.length; i++) {
       var login = logins[i];
 
-      var key = this._hashLoginInfo(login);
+      var key = _hashLoginInfo(login);
 
       items[key] = { hostname      : login.hostname,
                      formSubmitURL : login.formSubmitURL,
@@ -180,7 +197,6 @@ PasswordStore.prototype = {
                      passwordField : login.passwordField };
     }
 
-    this._lookup = items;
     return items;
   },
 
@@ -188,7 +204,8 @@ PasswordStore.prototype = {
     this._loginManager.removeAllLogins();
   },
 
-  resetGUIDs: function PasswordStore_resetGUIDs() {
+  _resetGUIDs: function PasswordStore__resetGUIDs() {
+    let self = yield;
     // Not needed.
   }
 };

@@ -58,18 +58,18 @@ HistoryEngine.prototype = {
   get logName() { return "HistEngine"; },
   get serverPrefix() { return "user-data/history/"; },
 
+  __core: null,
+  get _core() {
+    if (!this.__core)
+      this.__core = new HistorySyncCore();
+    return this.__core;
+  },
+
   __store: null,
   get _store() {
     if (!this.__store)
       this.__store = new HistoryStore();
     return this.__store;
-  },
-
-  __core: null,
-  get _core() {
-    if (!this.__core)
-      this.__core = new HistorySyncCore(this._store);
-    return this.__core;
   },
 
   __tracker: null,
@@ -81,13 +81,16 @@ HistoryEngine.prototype = {
 };
 HistoryEngine.prototype.__proto__ = new Engine();
 
-function HistorySyncCore(store) {
-  this._store = store;
+function HistorySyncCore() {
   this._init();
 }
 HistorySyncCore.prototype = {
   _logName: "HistSync",
-  _store: null,
+
+  _itemExists: function HSC__itemExists(GUID) {
+    // we don't care about already-existing items; just try to re-add them
+    return false;
+  },
 
   _commandLike: function HSC_commandLike(a, b) {
     // History commands never qualify for likeness.  We will always
@@ -129,11 +132,6 @@ HistoryStore.prototype = {
       this.__hsvc.QueryInterface(Ci.nsIBrowserHistory);
     }
     return this.__hsvc;
-  },
-
-  _itemExists: function HistStore__itemExists(GUID) {
-    // we don't care about already-existing items; just try to re-add them
-    return false;
   },
 
   _createCommand: function HistStore__createCommand(command) {
