@@ -1106,7 +1106,7 @@ nsAccessibleWrap *GetAccessibleWrap(AtkObject *aAtkObj)
     return tmpAccWrap;
 }
 
-nsresult
+NS_IMETHODIMP
 nsAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
 {
     nsresult rv = nsAccessible::FireAccessibleEvent(aEvent);

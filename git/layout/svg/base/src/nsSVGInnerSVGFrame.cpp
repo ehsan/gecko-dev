@@ -97,14 +97,19 @@ nsSVGInnerSVGFrame::PaintSVG(nsSVGRenderState *aContext,
       return NS_OK;
     }
 
-    nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
-    gfxMatrix clipTransform = parent->GetCanvasTM();
+    nsCOMPtr<nsIDOMSVGMatrix> clipTransform;
+    if (!GetMatrixPropagation()) {
+      NS_NewSVGMatrix(getter_AddRefs(clipTransform));
+    } else {
+      nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
+      clipTransform = NS_NewSVGMatrix(parent->GetCanvasTM());
+    }
 
-    gfxContext *gfx = aContext->GetGfxContext();
-    autoSR.SetContext(gfx);
-    gfxRect clipRect =
-      nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
-    nsSVGUtils::SetClipRect(gfx, clipTransform, clipRect);
+    if (clipTransform) {
+      gfxContext *gfx = aContext->GetGfxContext();
+      autoSR.SetContext(gfx);
+      nsSVGUtils::SetClipRect(gfx, clipTransform, x, y, width, height);
+    }
   }
 
   return nsSVGInnerSVGFrameBase::PaintSVG(aContext, aDirtyRect);

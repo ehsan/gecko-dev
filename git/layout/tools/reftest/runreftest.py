@@ -55,7 +55,7 @@ def getFullPath(path):
   "Get an absolute path relative to oldcwd."
   return os.path.normpath(os.path.join(oldcwd, os.path.expanduser(path)))
 
-def createReftestProfile(options, profileDir):
+def createReftestProfile(profileDir):
   "Sets up a clean profile for reftest."
 
   # Start with a clean slate.
@@ -65,8 +65,6 @@ def createReftestProfile(options, profileDir):
   prefsFile = open(os.path.join(profileDir, "user.js"), "w")
   prefsFile.write("""user_pref("browser.dom.window.dump.enabled", true);
 """)
-  prefsFile.write('user_pref("reftest.timeout", %d);' % options.timeout)
-
   prefsFile.close()
   # install the reftest extension bits into the profile
   profileExtensionsPath = os.path.join(profileDir, "extensions")
@@ -89,10 +87,6 @@ def main():
                     action = "append", dest = "extraProfileFiles",
                     default = [],
                     help = "copy specified files/dirs to testing profile")
-  parser.add_option("--timeout",              
-                    action = "store", dest = "timeout", type = "int", 
-                    default = 5 * 60 * 1000, # 5 minutes per bug 479518
-                    help = "reftest will timeout in specified number of milleseconds. [default %default ms].")
   parser.add_option("--leak-threshold",
                     action = "store", type = "int", dest = "leakThreshold",
                     default = 0,
@@ -123,7 +117,7 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
   profileDir = None
   try:
     profileDir = mkdtemp()
-    createReftestProfile(options, profileDir)
+    createReftestProfile(profileDir)
     copyExtraFilesToProfile(options, profileDir)
 
     # browser environment
@@ -148,8 +142,7 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     # Don't care about this |status|: |runApp()| reporting it should be enough.
     status = automation.runApp(None, browserEnv, options.app, profileDir,
                                extraArgs = ["-silent"],
-                               symbolsPath=options.symbolsPath,
-                               xrePath=options.xrePath)
+                               symbolsPath=options.symbolsPath)
     # We don't care to call |automation.processLeakLog()| for this step.
     automation.log.info("\nREFTEST INFO | runreftest.py | Performing extension manager registration: end.")
 
@@ -162,9 +155,7 @@ Are you executing $objdir/_tests/reftest/runreftest.py?""" \
     automation.log.info("REFTEST INFO | runreftest.py | Running tests: start.\n")
     reftestlist = getFullPath(args[0])
     status = automation.runApp(None, browserEnv, options.app, profileDir,
-                               extraArgs = ["-reftest", reftestlist],
-                               symbolsPath=options.symbolsPath,
-                               xrePath=options.xrePath)
+                               extraArgs = ["-reftest", reftestlist])
     automation.processLeakLog(leakLogFile, options.leakThreshold)
     automation.log.info("\nREFTEST INFO | runreftest.py | Running tests: end.")
   finally:

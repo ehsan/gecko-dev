@@ -959,11 +959,12 @@ NS_IMETHODIMP nsXULListitemAccessible::GetActionName(PRUint8 aIndex, nsAString& 
   return NS_ERROR_INVALID_ARG;
 }
 
-PRBool
-nsXULListitemAccessible::GetAllowsAnonChildAccessibles()
+NS_IMETHODIMP
+nsXULListitemAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
 {
   // That indicates we should walk anonymous children for listitems
-  return PR_TRUE;
+  *aAllowsAnonChildren = PR_TRUE;
+  return NS_OK;
 }
 
 nsresult
@@ -1105,13 +1106,13 @@ NS_IMETHODIMP nsXULComboboxAccessible::GetDescription(nsAString& aDescription)
   return NS_OK;
 }
 
-PRBool
-nsXULComboboxAccessible::GetAllowsAnonChildAccessibles()
+NS_IMETHODIMP
+nsXULComboboxAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
 {
+  if (!mDOMNode)
+    return NS_ERROR_FAILURE;
+
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
-  NS_ASSERTION(content, "No content during accessible tree building!");
-  if (!content)
-    return PR_FALSE;
 
   if (content->NodeInfo()->Equals(nsAccessibilityAtoms::textbox, kNameSpaceID_XUL) ||
       content->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::editable,
@@ -1119,12 +1120,13 @@ nsXULComboboxAccessible::GetAllowsAnonChildAccessibles()
     // Both the XUL <textbox type="autocomplete"> and <menulist editable="true"> widgets
     // use nsXULComboboxAccessible. We need to walk the anonymous children for these
     // so that the entry field is a child
-    return PR_TRUE;
+    *aAllowsAnonChildren = PR_TRUE;
+  } else {
+    // Argument of PR_FALSE indicates we don't walk anonymous children for
+    // menuitems
+    *aAllowsAnonChildren = PR_FALSE;
   }
-
-  // Argument of PR_FALSE indicates we don't walk anonymous children for
-  // menuitems
-  return PR_FALSE;
+  return NS_OK;
 }
 
 /** Just one action ( click ). */

@@ -663,8 +663,8 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
   if (eventType.EqualsLiteral("popuphiding"))
     return HandlePopupHidingEvent(aTargetNode, accessible);
 
-  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(accessible));
-  if (!acc)
+  nsCOMPtr<nsPIAccessible> privAcc(do_QueryInterface(accessible));
+  if (!privAcc)
     return NS_OK;
 
 #ifdef MOZ_XUL
@@ -699,7 +699,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
     nsCOMPtr<nsIAccessibleStateChangeEvent> accEvent =
       new nsAccStateChangeEvent(accessible, nsIAccessibleStates::STATE_CHECKED,
                                 PR_FALSE, isEnabled);
-    acc->FireAccessibleEvent(accEvent);
+    privAcc->FireAccessibleEvent(accEvent);
 
     if (isEnabled)
       FireAccessibleFocusEvent(accessible, aTargetNode, aEvent);
@@ -717,7 +717,7 @@ nsresult nsRootAccessible::HandleEventWithTarget(nsIDOMEvent* aEvent,
                                 nsIAccessibleStates::STATE_CHECKED,
                                 PR_FALSE, isEnabled);
 
-    return acc->FireAccessibleEvent(accEvent);
+    return privAcc->FireAccessibleEvent(accEvent);
   }
 
   nsCOMPtr<nsIAccessible> treeItemAccessible;
@@ -1128,8 +1128,9 @@ nsRootAccessible::HandlePopupShownEvent(nsIAccessible *aAccessible)
                                   PR_FALSE, PR_TRUE);
       NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
-      nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(comboboxAcc));
-      return acc->FireAccessibleEvent(event);
+      nsCOMPtr<nsPIAccessible> pComboboxAcc(do_QueryInterface(comboboxAcc));
+
+      return pComboboxAcc->FireAccessibleEvent(event);
     }
   }
 
@@ -1172,8 +1173,9 @@ nsRootAccessible::HandlePopupHidingEvent(nsIDOMNode *aNode,
                                 PR_FALSE, PR_FALSE);
     NS_ENSURE_TRUE(event, NS_ERROR_OUT_OF_MEMORY);
 
-    nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(comboboxAcc));
-    return acc->FireAccessibleEvent(event);
+    nsCOMPtr<nsPIAccessible> pComboboxAcc(do_QueryInterface(comboboxAcc));
+
+    return pComboboxAcc->FireAccessibleEvent(event);
   }
 
   return NS_OK;

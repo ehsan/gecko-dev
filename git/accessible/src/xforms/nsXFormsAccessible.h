@@ -91,7 +91,7 @@ public:
 
   // Denies accessible nodes in anonymous content of xforms element by
   // always returning PR_FALSE value.
-  virtual PRBool GetAllowsAnonChildAccessibles();
+  NS_IMETHOD GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren);
 
 protected:
   // Returns value of first child xforms element by tagname that is bound to
@@ -127,12 +127,12 @@ class nsXFormsContainerAccessible : public nsXFormsAccessible
 public:
   nsXFormsContainerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
-  // nsAccessible
-  virtual nsresult GetRoleInternal(PRUint32 *aRole);
-
   // Allows accessible nodes in anonymous content of xforms element by
   // always returning PR_TRUE value.
-  virtual PRBool GetAllowsAnonChildAccessibles();
+  NS_IMETHOD GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren);
+
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 

@@ -3115,8 +3115,9 @@ nsGlobalWindow::DevToCSSIntPixels(PRInt32 px)
   mDocShell->GetPresContext(getter_AddRefs(presContext));
   if (!presContext)
     return px;
-
-  return presContext->DevPixelsToIntCSSPixels(px);
+  
+  return nsPresContext::AppUnitsToIntCSSPixels(
+    presContext->DevPixelsToAppUnits(px));
 }
 
 PRInt32
@@ -3129,8 +3130,9 @@ nsGlobalWindow::CSSToDevIntPixels(PRInt32 px)
   mDocShell->GetPresContext(getter_AddRefs(presContext));
   if (!presContext)
     return px;
-
-  return presContext->CSSPixelsToDevPixels(px);
+  
+  return presContext->AppUnitsToDevPixels(
+    nsPresContext::CSSPixelsToAppUnits(px));
 }
 
 nsIntSize
@@ -3145,8 +3147,10 @@ nsGlobalWindow::DevToCSSIntPixels(nsIntSize px)
     return px;
   
   return nsIntSize(
-      presContext->DevPixelsToIntCSSPixels(px.width),
-      presContext->DevPixelsToIntCSSPixels(px.height));
+    nsPresContext::AppUnitsToIntCSSPixels(
+      presContext->DevPixelsToAppUnits(px.width)),
+    nsPresContext::AppUnitsToIntCSSPixels(
+      presContext->DevPixelsToAppUnits(px.height)));
 }
 
 nsIntSize
@@ -3161,8 +3165,10 @@ nsGlobalWindow::CSSToDevIntPixels(nsIntSize px)
     return px;
   
   return nsIntSize(
-    presContext->CSSPixelsToDevPixels(px.width),
-    presContext->CSSPixelsToDevPixels(px.height));
+    presContext->AppUnitsToDevPixels(
+      nsPresContext::CSSPixelsToAppUnits(px.width)),
+    presContext->AppUnitsToDevPixels(
+      nsPresContext::CSSPixelsToAppUnits(px.height)));
 }
 
 

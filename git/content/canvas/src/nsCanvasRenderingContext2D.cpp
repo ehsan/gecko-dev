@@ -324,7 +324,7 @@ public:
     // nsICanvasRenderingContextInternal
     NS_IMETHOD SetCanvasElement(nsICanvasElement* aParentCanvas);
     NS_IMETHOD SetDimensions(PRInt32 width, PRInt32 height);
-    NS_IMETHOD Render(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter);
+    NS_IMETHOD Render(gfxContext *ctx);
     NS_IMETHOD GetInputStream(const char* aMimeType,
                               const PRUnichar* aEncoderOptions,
                               nsIInputStream **aStream);
@@ -984,7 +984,7 @@ nsCanvasRenderingContext2D::SetIsOpaque(PRBool isOpaque)
 }
  
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::Render(gfxContext *ctx, gfxPattern::GraphicsFilter aFilter)
+nsCanvasRenderingContext2D::Render(gfxContext *ctx)
 {
     nsresult rv = NS_OK;
 
@@ -997,8 +997,6 @@ nsCanvasRenderingContext2D::Render(gfxContext *ctx, gfxPattern::GraphicsFilter a
         return NS_ERROR_FAILURE;
 
     nsRefPtr<gfxPattern> pat = new gfxPattern(mSurface);
-
-    pat->SetFilter(aFilter);
 
     gfxContext::GraphicsOperator op = ctx->CurrentOperator();
     if (mOpaque)
@@ -3307,7 +3305,7 @@ nsCanvasRenderingContext2D::ThebesSurfaceFromElement(nsIDOMElement *imgElt,
                 gfxPlatform::GetPlatform()->CreateOffscreenSurface
                 (gfxIntSize(w, h), gfxASurface::ImageFormatARGB32);
             nsRefPtr<gfxContext> ctx = new gfxContext(surf);
-            rv = canvas->RenderContexts(ctx, gfxPattern::FILTER_NEAREST);
+            rv = canvas->RenderContexts(ctx);
             if (NS_FAILED(rv))
                 return rv;
             sourceSurface = surf;
@@ -3347,7 +3345,7 @@ nsCanvasRenderingContext2D::ThebesSurfaceFromElement(nsIDOMElement *imgElt,
 
         ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
 
-        video->Paint(ctx, gfxPattern::FILTER_NEAREST, gfxRect(0, 0, videoWidth, videoHeight));
+        video->Paint(ctx, gfxPattern::FILTER_GOOD, gfxRect(0, 0, videoWidth, videoHeight));
 
         *aSurface = surf.forget().get();
         *widthOut = videoWidth;

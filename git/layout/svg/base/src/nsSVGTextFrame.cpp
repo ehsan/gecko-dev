@@ -290,7 +290,8 @@ nsSVGTextFrame::NotifyGlyphMetricsChange()
 }
 
 static void
-GetSingleValue(nsIDOMSVGLengthList *list, float *val)
+GetSingleValue(nsISVGGlyphFragmentLeaf *fragment,
+               nsIDOMSVGLengthList *list, float *val)
 {
   if (!list)
     return;
@@ -321,6 +322,40 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
 
   mPositioningDirty = PR_FALSE;
 
+  // we'll align every fragment in this chunk on the dominant-baseline:
+  // XXX should actually inspect 'alignment-baseline' for each fragment
+  
+  PRUint8 baseline;
+  switch(GetStyleSVGReset()->mDominantBaseline) {
+    case NS_STYLE_DOMINANT_BASELINE_TEXT_BEFORE_EDGE:
+      baseline = nsISVGGlyphFragmentLeaf::BASELINE_TEXT_BEFORE_EDGE;
+      break;
+    case NS_STYLE_DOMINANT_BASELINE_TEXT_AFTER_EDGE:
+      baseline = nsISVGGlyphFragmentLeaf::BASELINE_TEXT_AFTER_EDGE;
+      break;
+    case NS_STYLE_DOMINANT_BASELINE_MIDDLE:
+      baseline = nsISVGGlyphFragmentLeaf::BASELINE_MIDDLE;
+      break;
+    case NS_STYLE_DOMINANT_BASELINE_CENTRAL:
+      baseline = nsISVGGlyphFragmentLeaf::BASELINE_CENTRAL;
+      break;
+    case NS_STYLE_DOMINANT_BASELINE_MATHEMATICAL:
+      baseline = nsISVGGlyphFragmentLeaf::BASELINE_MATHEMATICAL;
+      break;
+    case NS_STYLE_DOMINANT_BASELINE_IDEOGRAPHIC:
+      baseline = nsISVGGlyphFragmentLeaf::BASELINE_IDEOGRAPHC;
+      break;
+    case NS_STYLE_DOMINANT_BASELINE_HANGING:
+      baseline = nsISVGGlyphFragmentLeaf::BASELINE_HANGING;
+      break;
+    case NS_STYLE_DOMINANT_BASELINE_AUTO:
+    case NS_STYLE_DOMINANT_BASELINE_USE_SCRIPT:
+    case NS_STYLE_DOMINANT_BASELINE_ALPHABETIC:
+    default:
+      baseline = nsISVGGlyphFragmentLeaf::BASELINE_ALPHABETIC;
+      break;
+  }
+
   nsISVGGlyphFragmentLeaf *fragment, *firstFragment;
 
   firstFragment = node->GetFirstGlyphFragment();
@@ -332,22 +367,22 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
 
   {
     nsCOMPtr<nsIDOMSVGLengthList> list = GetX();
-    GetSingleValue(list, &x);
+    GetSingleValue(firstFragment, list, &x);
   }
   {
     nsCOMPtr<nsIDOMSVGLengthList> list = GetY();
-    GetSingleValue(list, &y);
+    GetSingleValue(firstFragment, list, &y);
   }
 
   // loop over chunks
   while (firstFragment) {
     {
       nsCOMPtr<nsIDOMSVGLengthList> list = firstFragment->GetX();
-      GetSingleValue(list, &x);
+      GetSingleValue(firstFragment, list, &x);
     }
     {
       nsCOMPtr<nsIDOMSVGLengthList> list = firstFragment->GetY();
-      GetSingleValue(list, &y);
+      GetSingleValue(firstFragment, list, &y);
     }
 
     // check for startOffset on textPath
@@ -372,7 +407,7 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
       while (fragment) {
         float dx = 0.0f;
         nsCOMPtr<nsIDOMSVGLengthList> list = fragment->GetDx();
-        GetSingleValue(list, &dx);
+        GetSingleValue(fragment, list, &dx);
         chunkLength += dx + fragment->GetAdvance(aForceGlobalTransform);
         fragment = fragment->GetNextGlyphFragment();
         if (fragment && fragment->IsAbsolutelyPositioned())
@@ -393,14 +428,16 @@ nsSVGTextFrame::UpdateGlyphPositioning(PRBool aForceGlobalTransform)
       float dx = 0.0f, dy = 0.0f;
       {
         nsCOMPtr<nsIDOMSVGLengthList> list = fragment->GetDx();
-        GetSingleValue(list, &dx);
+        GetSingleValue(fragment, list, &dx);
       }
       {
         nsCOMPtr<nsIDOMSVGLengthList> list = fragment->GetDy();
-        GetSingleValue(list, &dy);
+        GetSingleValue(fragment, list, &dy);
       }
 
-      fragment->SetGlyphPosition(x + dx, y + dy, aForceGlobalTransform);
+      float baseline_offset =
+        fragment->GetBaselineOffset(baseline, aForceGlobalTransform);
+      fragment->SetGlyphPosition(x + dx, y + dy - baseline_offset);
 
       x += dx + fragment->GetAdvance(aForceGlobalTransform);
       y += dy;

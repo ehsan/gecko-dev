@@ -229,7 +229,7 @@ jsd_alloc_script_table(void *priv, size_t size)
 }
 
 static void
-jsd_free_script_table(void *priv, void *item, size_t size)
+jsd_free_script_table(void *priv, void *item)
 {
     free(item);
 }

@@ -420,18 +420,14 @@ void nsHTMLTableAccessible::CacheChildren()
         captionAccessible->GetPreviousSibling(getter_AddRefs(beforeCaptionAccessible));
         if (beforeCaptionAccessible) {
           // Move caption accessible so that it's the first child
-          nsRefPtr<nsAccessible> acc =
-            nsAccUtils::QueryAccessible(beforeCaptionAccessible);
-
           nsCOMPtr<nsIAccessible> afterCaptionAccessible;
           captionAccessible->GetNextSibling(getter_AddRefs(afterCaptionAccessible));
-          acc->SetNextSibling(afterCaptionAccessible);
-
+          nsCOMPtr<nsPIAccessible> privateAcc = do_QueryInterface(beforeCaptionAccessible);
+          privateAcc->SetNextSibling(afterCaptionAccessible);
           GetFirstChild(getter_AddRefs(afterCaptionAccessible));
           SetFirstChild(captionAccessible);
-
-          acc = nsAccUtils::QueryAccessible(captionAccessible);
-          acc->SetNextSibling(afterCaptionAccessible);        
+          privateAcc = do_QueryInterface(captionAccessible);
+          privateAcc->SetNextSibling(afterCaptionAccessible);        
         }
         // Don't check for more captions, because nsAccessibilityService ensures
         // we don't create accessibles for the other captions, since only the

@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set sw=4 ts=8 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -157,10 +157,9 @@ JSBool
 js_IsIdentifier(JSString *str)
 {
     size_t length;
-    jschar c;
-    const jschar *chars, *end;
+    jschar c, *chars, *end;
 
-    str->getCharsAndLength(chars, length);
+    JSSTRING_CHARS_AND_LENGTH(str, chars, length);
     if (length == 0)
         return JS_FALSE;
     c = *chars;
@@ -798,7 +797,7 @@ js_AppendCString(JSStringBuffer *sb, const char *asciiz)
 void
 js_AppendJSString(JSStringBuffer *sb, JSString *str)
 {
-    js_AppendUCString(sb, str->chars(), str->length());
+    js_AppendUCString(sb, JSSTRING_CHARS(str), JSSTRING_LENGTH(str));
 }
 
 static JSBool

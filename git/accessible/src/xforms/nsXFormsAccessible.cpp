@@ -133,7 +133,8 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
   children->GetLength(&length);
 
   nsCOMPtr<nsIAccessible> accessible;
-  nsRefPtr<nsAccessible> currAccessible, prevAccessible;
+  nsCOMPtr<nsPIAccessible> currAccessible;
+  nsCOMPtr<nsPIAccessible> prevAccessible;
 
   PRUint32 childLength = 0;
   for (PRUint32 index = 0; index < length; index++) {
@@ -143,7 +144,7 @@ nsXFormsAccessible::CacheSelectChildren(nsIDOMNode *aContainerNode)
       continue;
 
     accService->GetAttachedAccessibleFor(child, getter_AddRefs(accessible));
-    currAccessible = nsAccUtils::QueryAccessible(accessible);
+    currAccessible = do_QueryInterface(accessible);
     if (!currAccessible)
       continue;
 
@@ -246,10 +247,13 @@ nsXFormsAccessible::GetDescription(nsAString& aDescription)
   return GetBoundChildElementValue(NS_LITERAL_STRING("hint"), aDescription);
 }
 
-PRBool
-nsXFormsAccessible::GetAllowsAnonChildAccessibles()
+NS_IMETHODIMP
+nsXFormsAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
 {
-  return PR_FALSE;
+  NS_ENSURE_ARG_POINTER(aAllowsAnonChildren);
+
+  *aAllowsAnonChildren = PR_FALSE;
+  return NS_OK;
 }
 
 // nsXFormsContainerAccessible
@@ -267,10 +271,13 @@ nsXFormsContainerAccessible::GetRoleInternal(PRUint32 *aRole)
   return NS_OK;
 }
 
-PRBool
-nsXFormsContainerAccessible::GetAllowsAnonChildAccessibles()
+NS_IMETHODIMP
+nsXFormsContainerAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
 {
-  return PR_TRUE;
+  NS_ENSURE_ARG_POINTER(aAllowsAnonChildren);
+
+  *aAllowsAnonChildren = PR_TRUE;
+  return NS_OK;
 }
 
 // nsXFormsEditableAccessible

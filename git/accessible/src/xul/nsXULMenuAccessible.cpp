@@ -515,11 +515,12 @@ nsXULMenuitemAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribu
   return NS_OK;
 }
 
-PRBool
-nsXULMenuitemAccessible::GetAllowsAnonChildAccessibles()
+NS_IMETHODIMP
+nsXULMenuitemAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
 {
   // That indicates we don't walk anonymous children for menuitems
-  return PR_FALSE;
+  *aAllowsAnonChildren = PR_FALSE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP nsXULMenuitemAccessible::DoAction(PRUint8 index)

@@ -236,21 +236,15 @@ nsDocAccessible::GetRoleInternal(PRUint32 *aRole)
   return NS_OK;
 }
 
-void
-nsDocAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
+NS_IMETHODIMP nsDocAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
 {
-  NS_ASSERTION(mDocument, "No document during initialization!");
-  if (!mDocument)
-    return;
+  NS_ENSURE_STATE(mDocument);
 
   mRoleMapEntry = aRoleMapEntry;
 
   // Allow use of ARIA role from outer to override
   nsIDocument *parentDoc = mDocument->GetParentDocument();
-  NS_ASSERTION(parentDoc, "No parent document during initialization!");
-  if (!parentDoc)
-    return;
-
+  NS_ENSURE_TRUE(parentDoc, NS_ERROR_FAILURE);
   nsIContent *ownerContent = parentDoc->FindContentForSubDocument(mDocument);
   nsCOMPtr<nsIDOMNode> ownerNode(do_QueryInterface(ownerContent));
   if (ownerNode) {
@@ -258,6 +252,8 @@ nsDocAccessible::SetRoleMapEntry(nsRoleMapEntry* aRoleMapEntry)
     if (roleMapEntry)
       mRoleMapEntry = roleMapEntry; // Override
   }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP 
@@ -327,7 +323,7 @@ nsDocAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
   return NS_OK;
 }
 
-nsresult
+NS_IMETHODIMP
 nsDocAccessible::GetARIAState(PRUint32 *aState)
 {
   // Combine with states from outer doc
@@ -335,9 +331,9 @@ nsDocAccessible::GetARIAState(PRUint32 *aState)
   nsresult rv = nsAccessible::GetARIAState(aState);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsRefPtr<nsAccessible> parent = nsAccUtils::QueryAccessible(mParent);
-  if (parent)  // Allow iframe/frame etc. to have final state override via ARIA
-    return parent->GetARIAState(aState);
+  nsCOMPtr<nsPIAccessible> privateParentAccessible = do_QueryInterface(mParent);
+  if (privateParentAccessible)  // Allow iframe/frame etc. to have final state override via ARIA
+    return privateParentAccessible->GetARIAState(aState);
 
   return rv;
 }
@@ -542,12 +538,14 @@ NS_IMETHODIMP nsDocAccessible::GetCachedAccessNode(void *aUniqueID, nsIAccessNod
   // when they were first cached, and no invalidation
   // ever corrected parent accessible's child cache.
   nsCOMPtr<nsIAccessible> accessible = do_QueryInterface(*aAccessNode);
-  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(accessible);
-  if (acc) {
-    nsCOMPtr<nsIAccessible> parent = acc->GetCachedParent();
-    nsRefPtr<nsAccessible> parentAcc(nsAccUtils::QueryAccessible(parent));
-    if (parentAcc)
-      parentAcc->TestChildCache(accessible);
+  nsCOMPtr<nsPIAccessible> privateAccessible = do_QueryInterface(accessible);
+  if (privateAccessible) {
+    nsCOMPtr<nsIAccessible> parent;
+    privateAccessible->GetCachedParent(getter_AddRefs(parent));
+    nsCOMPtr<nsPIAccessible> privateParent(do_QueryInterface(parent));
+    if (privateParent) {
+      privateParent->TestChildCache(accessible);
+    }
   }
 #endif
   return NS_OK;
@@ -887,12 +885,11 @@ NS_IMETHODIMP nsDocAccessible::FireDocLoadEvents(PRUint32 aEventType)
     // Need to wait until scrollable view is available
     AddScrollListener();
     nsCOMPtr<nsIAccessible> parent(nsAccessible::GetParent());
-    nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(parent));
-    if (acc) {
+    nsCOMPtr<nsPIAccessible> privateAccessible(do_QueryInterface(parent));
+    if (privateAccessible) {
       // Make the parent forget about the old document as a child
-      acc->InvalidateChildren();
+      privateAccessible->InvalidateChildren();
     }
-
     if (sameTypeRoot != treeItem) {
       // Fire show/hide events to indicate frame/iframe content is new, rather than
       // doc load event which causes screen readers to act is if entire page is reloaded
@@ -1641,10 +1638,10 @@ NS_IMETHODIMP nsDocAccessible::FlushPendingEvents()
 
       if (eventType == nsIAccessibleEvent::EVENT_ASYNCH_SHOW) {
         // For asynch show, delayed invalidatation of parent's children
-        nsRefPtr<nsAccessible> containerAcc =
-          nsAccUtils::QueryAccessible(containerAccessible);
-        if (containerAcc)
-          containerAcc->InvalidateChildren();
+        nsCOMPtr<nsPIAccessible> privateContainerAccessible =
+          do_QueryInterface(containerAccessible);
+        if (privateContainerAccessible)
+          privateContainerAccessible->InvalidateChildren();
 
         // Some show events in the subtree may have been removed to 
         // avoid firing redundant events. But, we still need to make sure any
@@ -1768,9 +1765,9 @@ void nsDocAccessible::InvalidateChildrenInSubtree(nsIDOMNode *aStartNode)
 {
   nsCOMPtr<nsIAccessNode> accessNode;
   GetCachedAccessNode(aStartNode, getter_AddRefs(accessNode));
-  nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(accessNode));
-  if (acc)
-    acc->InvalidateChildren();
+  nsCOMPtr<nsPIAccessible> accessible(do_QueryInterface(accessNode));
+  if (accessible)
+    accessible->InvalidateChildren();
 
   // Invalidate accessible children in the DOM subtree 
   nsCOMPtr<nsINode> node = do_QueryInterface(aStartNode);
@@ -1808,11 +1805,12 @@ void nsDocAccessible::RefreshNodes(nsIDOMNode *aStartNode)
                                  accessible);
       }
     }
-    nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(accessible);
+    nsCOMPtr<nsPIAccessible> privateAccessible = do_QueryInterface(accessible);
+    NS_ASSERTION(privateAccessible, "No nsPIAccessible for nsIAccessible");
 
-    // We only need to shutdown the accessibles here if one of them has been
-    // created.
-    nsCOMPtr<nsIAccessible> childAccessible = acc->GetCachedFirstChild();
+    nsCOMPtr<nsIAccessible> childAccessible;
+    // we only need to shutdown the accessibles here if one of them has been created
+    privateAccessible->GetCachedFirstChild(getter_AddRefs(childAccessible));
     if (childAccessible) {
       nsCOMPtr<nsIArray> children;
       // use GetChildren() to fetch children at one time, instead of using
@@ -1915,8 +1913,7 @@ NS_IMETHODIMP nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
       // document and listen to these changes until after the page is first loaded
       // Leave early, and ensure mAccChildCount stays uninitialized instead of 0,
       // which it is if anyone asks for its children right now.
-      InvalidateChildren();
-      return NS_OK;
+      return InvalidateChildren();
     }
     nsIEventStateManager *esm = presShell->GetPresContext()->EventStateManager();
     NS_ENSURE_TRUE(esm, NS_ERROR_FAILURE);
@@ -1929,11 +1926,8 @@ NS_IMETHODIMP nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
       if (!containerAccessible) {
         containerAccessible = this;
       }
-
-      nsRefPtr<nsAccessible> containerAcc =
-        nsAccUtils::QueryAccessible(containerAccessible);
-      containerAcc->InvalidateChildren();
-      return NS_OK;
+      nsCOMPtr<nsPIAccessible> privateContainer = do_QueryInterface(containerAccessible);
+      return privateContainer->InvalidateChildren();
     }     
     // else: user input, so we must fall through and for full handling,
     // e.g. fire the mutation events. Note: user input could cause DOM_CREATE
@@ -2028,11 +2022,11 @@ NS_IMETHODIMP nsDocAccessible::InvalidateCacheSubtree(nsIContent *aChild,
     if (!isAsynch) {
       // DOM already updated with new objects -- invalidate parent's children now
       // For asynch we must wait until layout updates before we invalidate the children
-      nsRefPtr<nsAccessible> containerAcc =
-        nsAccUtils::QueryAccessible(containerAccessible);
-      if (containerAcc)
-        containerAcc->InvalidateChildren();
-
+      nsCOMPtr<nsPIAccessible> privateContainerAccessible =
+        do_QueryInterface(containerAccessible);
+      if (privateContainerAccessible) {
+        privateContainerAccessible->InvalidateChildren();
+      }
     }
     // Fire EVENT_SHOW, EVENT_MENUPOPUP_START for newly visible content.
     // Fire after a short timer, because we want to make sure the view has been

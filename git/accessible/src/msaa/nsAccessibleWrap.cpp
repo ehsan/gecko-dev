@@ -1623,9 +1623,9 @@ NS_IMETHODIMP nsAccessibleWrap::GetNativeInterface(void **aOutAccessible)
   return NS_OK;
 }
 
-// nsAccessible
+// nsPIAccessible
 
-nsresult
+NS_IMETHODIMP
 nsAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
 {
   NS_ENSURE_ARG(aEvent);

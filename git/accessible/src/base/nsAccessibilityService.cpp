@@ -458,11 +458,12 @@ nsAccessibilityService::CreateRootAccessible(nsIPresShell *aShell,
   if (!*aRootAcc)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsRefPtr<nsAccessible> rootAcc = nsAccUtils::QueryAccessible(*aRootAcc);
+  nsRefPtr<nsAccessNode> rootAcc = nsAccUtils::QueryAccessNode(*aRootAcc);
   rootAcc->Init();
 
   nsRoleMapEntry *roleMapEntry = nsAccUtils::GetRoleMapEntry(rootNode);
-  rootAcc->SetRoleMapEntry(roleMapEntry);
+  nsCOMPtr<nsPIAccessible> privateAccessible(do_QueryInterface(*aRootAcc));
+  privateAccessible->SetRoleMapEntry(roleMapEntry);
 
   NS_ADDREF(*aRootAcc);
 
@@ -1265,11 +1266,13 @@ nsresult nsAccessibilityService::InitAccessible(nsIAccessible *aAccessibleIn,
   }
   NS_ASSERTION(aAccessibleOut && !*aAccessibleOut, "Out param should already be cleared out");
 
-  nsRefPtr<nsAccessible> acc = nsAccUtils::QueryAccessible(aAccessibleIn);
+  nsRefPtr<nsAccessNode> acc = nsAccUtils::QueryAccessNode(aAccessibleIn);
   nsresult rv = acc->Init(); // Add to cache, etc.
   NS_ENSURE_SUCCESS(rv, rv);
 
-  acc->SetRoleMapEntry(aRoleMapEntry);
+  nsCOMPtr<nsPIAccessible> privateAccessible =
+    do_QueryInterface(aAccessibleIn);
+  privateAccessible->SetRoleMapEntry(aRoleMapEntry);
   NS_ADDREF(*aAccessibleOut = aAccessibleIn);
 
   return NS_OK;
@@ -1721,9 +1724,10 @@ nsAccessibilityService::GetRelevantContentNodeFor(nsIDOMNode *aNode,
         rv = GetAccessibleByType(bindingNode, getter_AddRefs(accessible));
 
         if (NS_SUCCEEDED(rv)) {
-          nsRefPtr<nsAccessible> acc(nsAccUtils::QueryAccessible(accessible));
-          if (acc) {
-            PRBool allowsAnonChildren = acc->GetAllowsAnonChildAccessibles();
+          nsCOMPtr<nsPIAccessible> paccessible(do_QueryInterface(accessible));
+          if (paccessible) {
+            PRBool allowsAnonChildren = PR_FALSE;
+            paccessible->GetAllowsAnonChildAccessibles(&allowsAnonChildren);
             if (!allowsAnonChildren) {
               NS_ADDREF(*aRelevantNode = bindingNode);
               return NS_OK;

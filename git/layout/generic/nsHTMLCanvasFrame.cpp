@@ -249,7 +249,7 @@ nsHTMLCanvasFrame::PaintCanvas(nsIRenderingContext& aRenderingContext,
   ctx->Translate(devInner.pos);
   ctx->Scale(sx, sy);
 
-  canvas->RenderContexts(ctx, nsLayoutUtils::GetGraphicsFilterForFrame(this));
+  canvas->RenderContexts(ctx);
 
   ctx->Restore();
 }

@@ -39,15 +39,14 @@
 #define nsICanvasElement_h___
 
 #include "nsISupports.h"
-#include "gfxPattern.h"
 
 class gfxContext;
 class nsIFrame;
 struct gfxRect;
 
-// {D31B3CCF-DDA3-49a8-AEF6-B95AF8E09159}
+// {C234660C-BD06-493e-8583-939A5A158B37}
 #define NS_ICANVASELEMENT_IID \
-    { 0xd31b3ccf, 0xdda3, 0x49a8, { 0xae, 0xf6, 0xb9, 0x5a, 0xf8, 0xe0, 0x91, 0x59 } }
+    { 0xc234660c, 0xbd06, 0x493e, { 0x85, 0x83, 0x93, 0x9a, 0x5a, 0x15, 0x8b, 0x37 } }
 
 class nsIRenderingContext;
 
@@ -73,7 +72,7 @@ public:
    * Ask the canvas element to tell the contexts to render themselves
    * to the given gfxContext at the origin of its coordinate space.
    */
-  NS_IMETHOD RenderContexts (gfxContext *ctx, gfxPattern::GraphicsFilter aFilter) = 0;
+  NS_IMETHOD RenderContexts (gfxContext *ctx) = 0;
 
   /**
    * Determine whether the canvas is write-only.
