@@ -2840,7 +2840,7 @@ nsCanvasRenderingContext2D::DrawOrMeasureText(const nsAString& aRawText,
         return NS_ERROR_FAILURE;
     }
 
-    nsCOMPtr<nsIPresShell> presShell = GetPresShell();
+    nsIPresShell* presShell = GetPresShell();
     if (!presShell)
         return NS_ERROR_FAILURE;
 

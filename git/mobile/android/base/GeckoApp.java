@@ -1673,6 +1673,8 @@ abstract public class GeckoApp
             return;
         }
 
+        GeckoAppShell.onFullScreenPluginHidden(view);
+
         mFullScreenPluginContainer.removeView(mFullScreenPluginView);
 
         // We need do do this on the next iteration in order to avoid
@@ -2918,8 +2920,7 @@ abstract public class GeckoApp
         }
 
         if (mFullScreenPluginView != null) {
-            GeckoAppShell.onFullScreenPluginHidden(mFullScreenPluginView);
-            removeFullScreenPluginView(mFullScreenPluginView);
+            removePluginView(mFullScreenPluginView, true);
             return;
         }
 

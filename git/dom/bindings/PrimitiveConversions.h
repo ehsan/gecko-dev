@@ -11,8 +11,6 @@
 #ifndef mozilla_dom_PrimitiveConversions_h
 #define mozilla_dom_PrimitiveConversions_h
 
-#include "xpcpublic.h"
-
 namespace mozilla {
 namespace dom {
 
