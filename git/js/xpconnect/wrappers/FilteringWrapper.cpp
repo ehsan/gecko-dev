@@ -1,6 +1,7 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set ts=4 sw=4 et tw=99 ft=cpp: */
-/* ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ * vim: set ts=4 sw=4 et tw=99 ft=cpp:
+ *
+ * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -17,12 +18,10 @@
  * June 24, 2010.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2010
- * the Initial Developer. All Rights Reserved.
+ *    The Mozilla Foundation
  *
  * Contributor(s):
- *   Andreas Gal <gal@mozilla.com>
+ *    Andreas Gal <gal@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -45,8 +44,6 @@
 #include "WrapperFactory.h"
 
 #include "XPCWrapper.h"
-
-#include "jscntxt.h" // js::AutoIdVector
 
 using namespace js;
 

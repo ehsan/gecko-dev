@@ -51,8 +51,6 @@
 #include <nsClassHashtable.h>
 #include "VideoUtils.h"
 
-#include "mozilla/StdInt.h"
-
 // Uncomment the following to validate that we're predicting the number
 // of Vorbis samples in each packet correctly.
 #define VALIDATE_VORBIS_SAMPLE_CALCULATION
@@ -342,8 +340,8 @@ public:
   class nsKeyPoint {
   public:
     nsKeyPoint()
-      : mOffset(INT64_MAX),
-        mTime(INT64_MAX) {}
+      : mOffset(PR_INT64_MAX),
+        mTime(PR_INT64_MAX) {}
 
     nsKeyPoint(PRInt64 aOffset, PRInt64 aTime)
       : mOffset(aOffset),
@@ -356,8 +354,8 @@ public:
     PRInt64 mTime;
 
     bool IsNull() {
-      return mOffset == INT64_MAX &&
-             mTime == INT64_MAX;
+      return mOffset == PR_INT64_MAX &&
+             mTime == PR_INT64_MAX;
     }
   };
 

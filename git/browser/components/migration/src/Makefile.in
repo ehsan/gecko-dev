@@ -65,7 +65,6 @@ endif
 
 EXTRA_PP_COMPONENTS = \
   ChromeProfileMigrator.js \
-  FirefoxProfileMigrator.js \
   $(NULL)
 
 EXTRA_COMPONENTS = \

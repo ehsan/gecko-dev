@@ -77,9 +77,7 @@ public class FennecNativeElement implements Element {
           public void run() {
             View view = (View)mActivity.findViewById(id);
             if(view != null) {
-              if (!view.performClick()) {
-                Log.w("Robocop", "Robocop called click on an element with no listener");
-              }
+              view.performClick();
             } else {
               throw new RoboCopException("click: unable to find view "+id); 
             }

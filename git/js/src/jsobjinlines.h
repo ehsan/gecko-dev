@@ -43,7 +43,6 @@
 
 #include <new>
 
-#include "jsapi.h"
 #include "jsarray.h"
 #include "jsbool.h"
 #include "jscntxt.h"
@@ -1524,7 +1523,7 @@ class AutoPropertyDescriptorRooter : private AutoGCRooter, public PropertyDescri
 inline bool
 NewObjectCache::lookup(Class *clasp, gc::Cell *key, gc::AllocKind kind, EntryIndex *pentry)
 {
-    uintptr_t hash = (uintptr_t(clasp) ^ uintptr_t(key)) + kind;
+    jsuword hash = (jsuword(clasp) ^ jsuword(key)) + kind;
     *pentry = hash % js::ArrayLength(entries);
 
     Entry *entry = &entries[*pentry];

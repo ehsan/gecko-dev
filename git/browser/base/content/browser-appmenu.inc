@@ -179,8 +179,7 @@
         <menupopup id="appmenu_webDeveloper_popup">
           <menuitem id="appmenu_webConsole"
                     label="&webConsoleCmd.label;"
-                    type="checkbox"
-                    command="Tools:WebConsole"
+                    oncommand="HUDConsoleUI.toggleHUD();"
                     key="key_webConsole"/>
           <menuitem id="appmenu_pageInspect"
                     hidden="true"

@@ -50,7 +50,6 @@
 #include "TypeInState.h"
 #include "nsReadableUtils.h"
 #include "nsTArray.h"
-#include "nsRange.h"
 
 class nsIDOMElement;
 class nsIEditor;
@@ -304,13 +303,13 @@ protected:
 // data members
 protected:
   nsHTMLEditor           *mHTMLEditor;
-  nsRefPtr<nsRange>       mDocChangeRange;
+  nsCOMPtr<nsIDOMRange>   mDocChangeRange;
   bool                    mListenerEnabled;
   bool                    mReturnInEmptyLIKillsList;
   bool                    mDidDeleteSelection;
   bool                    mDidRangedDelete;
   bool                    mRestoreContentEditableCount;
-  nsRefPtr<nsRange>       mUtilRange;
+  nsCOMPtr<nsIDOMRange>   mUtilRange;
   PRUint32                mJoinOffset;  // need to remember an int across willJoin/didJoin...
   nsCOMPtr<nsIDOMNode>    mNewBlock;
   nsRangeStore            mRangeItem;

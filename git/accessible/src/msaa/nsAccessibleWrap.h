@@ -356,9 +356,9 @@ protected:
   /**
    * Creates ITypeInfo for LIBID_Accessibility if it's needed and returns it.
    */
-  static ITypeInfo* GetTI(LCID lcid);
+  ITypeInfo *GetTI(LCID lcid);
 
-  static ITypeInfo* gTypeInfo;
+  ITypeInfo *mTypeInfo;
 
 
   enum navRelations {

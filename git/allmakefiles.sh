@@ -90,11 +90,6 @@ if [ ! "$LIBXUL_SDK" ]; then
       mozglue/android/Makefile
     "
   fi
-  if [ "$MOZ_LINKER" ]; then
-    add_makefiles "
-      mozglue/linker/Makefile
-    "
-  fi
 fi
 
 if [ "$OS_ARCH" = "WINNT" ]; then

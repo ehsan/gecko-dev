@@ -58,7 +58,10 @@
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 
 #include "mozilla/GuardObjects.h"
-#include "mozilla/StdInt.h"
+
+#ifndef PR_UINT64_MAX
+#define PR_UINT64_MAX (~(PRUint64)(0))
+#endif
 
 class nsIFile;
 class nsIInputStream;
@@ -96,7 +99,7 @@ public:
     : mIsFile(false), mImmutable(false), mContentType(aContentType),
       mStart(aStart), mLength(aLength)
   {
-    NS_ASSERTION(aLength != UINT64_MAX,
+    NS_ASSERTION(aLength != PR_UINT64_MAX,
                  "Must know length when creating slice");
     // Ensure non-null mContentType by default
     mContentType.SetIsVoid(false);
@@ -117,7 +120,7 @@ public:
 protected:
   bool IsSizeUnknown()
   {
-    return mLength == UINT64_MAX;
+    return mLength == PR_UINT64_MAX;
   }
 
   virtual bool IsStoredFile()
@@ -149,7 +152,7 @@ class nsDOMFileFile : public nsDOMFileBase,
 public:
   // Create as a file
   nsDOMFileFile(nsIFile *aFile)
-    : nsDOMFileBase(EmptyString(), EmptyString(), UINT64_MAX),
+    : nsDOMFileBase(EmptyString(), EmptyString(), PR_UINT64_MAX),
       mFile(aFile), mWholeFile(true), mStoredFile(false)
   {
     NS_ASSERTION(mFile, "must have file");
@@ -161,7 +164,7 @@ public:
   // Create as a blob
   nsDOMFileFile(nsIFile *aFile, const nsAString& aContentType,
                 nsISupports *aCacheToken = nsnull)
-    : nsDOMFileBase(aContentType, UINT64_MAX),
+    : nsDOMFileBase(aContentType, PR_UINT64_MAX),
       mFile(aFile), mWholeFile(true), mStoredFile(false),
       mCacheToken(aCacheToken)
   {
@@ -191,7 +194,7 @@ public:
 
   // Create as a file to be later initialized
   nsDOMFileFile()
-    : nsDOMFileBase(EmptyString(), EmptyString(), UINT64_MAX),
+    : nsDOMFileBase(EmptyString(), EmptyString(), PR_UINT64_MAX),
       mWholeFile(true), mStoredFile(false)
   {
     // Lazily get the content type and size

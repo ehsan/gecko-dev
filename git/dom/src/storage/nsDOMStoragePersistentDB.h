@@ -46,7 +46,6 @@
 #include "nsTHashtable.h"
 #include "nsDataHashtable.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/storage/StatementCache.h"
 
 class DOMStorageImpl;
 class nsSessionStorageEntry;
@@ -56,8 +55,6 @@ using mozilla::TimeDuration;
 
 class nsDOMStoragePersistentDB : public nsDOMStorageBaseDB
 {
-  typedef mozilla::storage::StatementCache<mozIStorageStatement> StatementCache;
-
 public:
   nsDOMStoragePersistentDB();
   ~nsDOMStoragePersistentDB() {}
@@ -194,7 +191,21 @@ protected:
                                              void* aUserArg);       
 
   nsCOMPtr<mozIStorageConnection> mConnection;
-  StatementCache mStatements;
+
+  nsCOMPtr<mozIStorageStatement> mCopyToTempTableStatement;
+  nsCOMPtr<mozIStorageStatement> mCopyBackToDiskStatement;
+  nsCOMPtr<mozIStorageStatement> mDeleteTemporaryTableStatement;
+  nsCOMPtr<mozIStorageStatement> mGetAllKeysStatement;
+  nsCOMPtr<mozIStorageStatement> mGetKeyValueStatement;
+  nsCOMPtr<mozIStorageStatement> mInsertKeyStatement;
+  nsCOMPtr<mozIStorageStatement> mSetSecureStatement;
+  nsCOMPtr<mozIStorageStatement> mRemoveKeyStatement;
+  nsCOMPtr<mozIStorageStatement> mRemoveOwnerStatement;
+  nsCOMPtr<mozIStorageStatement> mRemoveStorageStatement;
+  nsCOMPtr<mozIStorageStatement> mRemoveAllStatement;
+  nsCOMPtr<mozIStorageStatement> mGetOfflineExcludedUsageStatement;
+  nsCOMPtr<mozIStorageStatement> mGetFullUsageStatement;
+  // If you add an statement, remember to null in in Close.
 
   nsCString mCachedOwner;
   PRInt32 mCachedUsage;

@@ -46,11 +46,11 @@
 #ifdef JS_HAS_BUILTIN_BITSCAN32
 JS_STATIC_ASSERT(sizeof(unsigned int) == sizeof(uint32_t));
 JS_STATIC_ASSERT_IF(JS_BYTES_PER_WORD == 4,
-                    sizeof(unsigned int) == sizeof(uintptr_t));
+                    sizeof(unsigned int) == sizeof(JSUword));
 #endif
 #ifdef JS_HAS_BUILTIN_BITSCAN64
 JS_STATIC_ASSERT_IF(JS_BYTES_PER_WORD == 8,
-                    sizeof(unsigned long long) == sizeof(uintptr_t));
+                    sizeof(unsigned long long) == sizeof(JSUword));
 #endif
 
 #if !defined(JS_HAS_BUILTIN_BITSCAN32) && JS_BYTES_PER_WORD == 4

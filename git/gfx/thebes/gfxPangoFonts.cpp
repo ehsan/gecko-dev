@@ -2048,22 +2048,11 @@ gfxPangoFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
                                    gfxFont *aPrevMatchedFont,
                                    PRUint8 *aMatchType)
 {
-    if (aPrevMatchedFont) {
-        // Don't switch fonts for control characters, regardless of
-        // whether they are present in the current font, as they won't
-        // actually be rendered (see bug 716229)
-        PRUint8 category = gfxUnicodeProperties::GetGeneralCategory(aCh);
-        if (category == HB_CATEGORY_CONTROL) {
+    // if this character is a join-control or the previous is a join-causer,
+    // use the same font as the previous range if we can
+    if (gfxFontUtils::IsJoinControl(aCh) || gfxFontUtils::IsJoinCauser(aPrevCh)) {
+        if (aPrevMatchedFont && aPrevMatchedFont->HasCharacter(aCh)) {
             return nsRefPtr<gfxFont>(aPrevMatchedFont).forget();
-        }
-
-        // if this character is a join-control or the previous is a join-causer,
-        // use the same font as the previous range if we can
-        if (gfxFontUtils::IsJoinControl(aCh) ||
-            gfxFontUtils::IsJoinCauser(aPrevCh)) {
-            if (aPrevMatchedFont->HasCharacter(aCh)) {
-                return nsRefPtr<gfxFont>(aPrevMatchedFont).forget();
-            }
         }
     }
 

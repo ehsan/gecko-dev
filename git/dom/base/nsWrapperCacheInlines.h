@@ -40,7 +40,7 @@
 #define nsWrapperCacheInline_h___
 
 #include "nsWrapperCache.h"
-#include "xpcpublic.h"
+#include "xpcprivate.h"
 
 inline JSObject*
 nsWrapperCache::GetWrapperPreserveColor() const

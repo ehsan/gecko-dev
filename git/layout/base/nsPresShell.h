@@ -74,7 +74,7 @@
 #include "nsContentUtils.h"
 #include "nsRefreshDriver.h"
 
-class nsRange;
+class nsIRange;
 class nsIDragService;
 class nsCSSStyleSheet;
 
@@ -548,7 +548,7 @@ protected:
   // the range
   nsRect ClipListToRange(nsDisplayListBuilder *aBuilder,
                          nsDisplayList* aList,
-                         nsRange* aRange);
+                         nsIRange* aRange);
 
   // create a RangePaintInfo for the range aRange containing the
   // display list needed to paint the range to a surface
@@ -852,28 +852,17 @@ private:
   // over our window or there is no last observed mouse location for some
   // reason.
   nsPoint mMouseLocation;
-  class nsSynthMouseMoveEvent : public nsARefreshObserver {
+  class nsSynthMouseMoveEvent : public nsRunnable {
   public:
     nsSynthMouseMoveEvent(PresShell* aPresShell, bool aFromScroll)
       : mPresShell(aPresShell), mFromScroll(aFromScroll) {
       NS_ASSERTION(mPresShell, "null parameter");
     }
-    ~nsSynthMouseMoveEvent() {
-      Revoke();
-    }
-
-    NS_INLINE_DECL_REFCOUNTING(nsSynthMouseMoveEvent)
-    
-    void Revoke() {
-      if (mPresShell) {
-        mPresShell->GetPresContext()->RefreshDriver()->
-          RemoveRefreshObserver(this, Flush_Display);
-        mPresShell = nsnull;
-      }
-    }
-    virtual void WillRefresh(mozilla::TimeStamp aTime) {
+    void Revoke() { mPresShell = nsnull; }
+    NS_IMETHOD Run() {
       if (mPresShell)
         mPresShell->ProcessSynthMouseMoveEvent(mFromScroll);
+      return NS_OK;
     }
   private:
     PresShell* mPresShell;

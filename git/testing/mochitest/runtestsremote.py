@@ -224,7 +224,6 @@ class MochiRemote(Mochitest):
         self._dm.getFile(self.remoteLog, self.localLog)
         self._dm.removeFile(self.remoteLog)
         self._dm.removeDir(self.remoteProfile)
-
         if (options.pidFile != ""):
             try:
                 os.remove(options.pidFile)
@@ -388,13 +387,8 @@ def main():
         deviceRoot = dm.getDeviceRoot()
       
         # Note, we are pushing to /sdcard since we have this location hard coded in robocop
-        dm.removeFile("/sdcard/fennec_ids.txt")
-        dm.removeFile("/sdcard/robotium.config")
         dm.pushFile("robotium.config", "/sdcard/robotium.config")
-        fennec_ids = os.path.abspath("fennec_ids.txt")
-        if not os.path.exists(fennec_ids) and options.robocopPath:
-            fennec_ids = os.path.abspath(os.path.join(options.robocopPath, "fennec_ids.txt"))
-        dm.pushFile(fennec_ids, "/sdcard/fennec_ids.txt")
+        dm.pushFile(os.path.abspath(options.robocop + "/fennec_ids.txt"), "/sdcard/fennec_ids.txt")
         options.extraPrefs.append('robocop.logfile="%s/robocop.log"' % deviceRoot)
 
         if (options.dm_trans == 'adb' and options.robocopPath):
@@ -416,22 +410,14 @@ def main():
                 print "TEST-UNEXPECTED-ERROR | %s | Exception caught while running robocop tests." % sys.exc_info()[1]
                 mochitest.stopWebServer(options)
                 mochitest.stopWebSocketServer(options)
-                try:
-                    self.cleanup(None, options)
-                except:
-                    pass
                 sys.exit(1)
     else:
       try:
         retVal = mochitest.runTests(options)
       except:
-        print "TEST-UNEXPECTED-ERROR | %s | Exception caught while running tests." % sys.exc_info()[1]
+        print "TEST-UNEXPECTED-ERROR | | Exception caught while running tests."
         mochitest.stopWebServer(options)
         mochitest.stopWebSocketServer(options)
-        try:
-            self.cleanup(None, options)
-        except:
-            pass
         sys.exit(1)
 
     sys.exit(retVal)

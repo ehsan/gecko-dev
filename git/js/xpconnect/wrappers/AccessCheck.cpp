@@ -52,7 +52,6 @@
 #include "WrapperFactory.h"
 
 #include "jsfriendapi.h"
-#include "jscntxt.h" // JSID_IS_ATOM, JSFlatString* -> JSString*
 
 using namespace mozilla;
 using namespace js;

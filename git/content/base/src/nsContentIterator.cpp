@@ -129,6 +129,7 @@ public:
   virtual nsresult Init(nsINode* aRoot);
 
   virtual nsresult Init(nsIDOMRange* aRange);
+  virtual nsresult Init(nsIRange* aRange);
 
   virtual void First();
 
@@ -302,26 +303,34 @@ nsContentIterator::Init(nsINode* aRoot)
   return NS_OK;
 }
 
+
 nsresult
-nsContentIterator::Init(nsIDOMRange* aDOMRange)
+nsContentIterator::Init(nsIDOMRange* aRange)
 {
-  NS_ENSURE_ARG_POINTER(aDOMRange);
-  nsRange* range = static_cast<nsRange*>(aDOMRange);
+  nsCOMPtr<nsIRange> range = do_QueryInterface(aRange);
+  return Init(range);
+
+}
+
+nsresult
+nsContentIterator::Init(nsIRange* aRange)
+{
+  NS_ENSURE_ARG_POINTER(aRange);
 
   mIsDone = false;
 
   // get common content parent
-  mCommonParent = range->GetCommonAncestor();
+  mCommonParent = aRange->GetCommonAncestor();
   NS_ENSURE_TRUE(mCommonParent, NS_ERROR_FAILURE);
 
   // get the start node and offset
-  PRInt32 startIndx = range->StartOffset();
-  nsINode* startNode = range->GetStartParent();
+  PRInt32 startIndx = aRange->StartOffset();
+  nsINode* startNode = aRange->GetStartParent();
   NS_ENSURE_TRUE(startNode, NS_ERROR_FAILURE);
 
   // get the end node and offset
-  PRInt32 endIndx = range->EndOffset();
-  nsINode* endNode = range->GetEndParent();
+  PRInt32 endIndx = aRange->EndOffset();
+  nsINode* endNode = aRange->GetEndParent();
   NS_ENSURE_TRUE(endNode, NS_ERROR_FAILURE);
 
   bool startIsData = startNode->IsNodeOfType(nsINode::eDATA_NODE);
@@ -1170,6 +1179,7 @@ public:
   virtual nsresult Init(nsINode* aRoot);
 
   virtual nsresult Init(nsIDOMRange* aRange);
+  virtual nsresult Init(nsIRange* aRange);
 
   virtual void Next();
 
@@ -1192,7 +1202,7 @@ protected:
   nsContentSubtreeIterator(const nsContentSubtreeIterator&);
   nsContentSubtreeIterator& operator=(const nsContentSubtreeIterator&);
 
-  nsRefPtr<nsRange> mRange;
+  nsCOMPtr<nsIDOMRange> mRange;
   // these arrays all typically are used and have elements
 #if 0
   nsAutoTArray<nsIContent*, 8> mStartNodes;
@@ -1211,7 +1221,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsContentIterator)
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsContentSubtreeIterator)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsContentSubtreeIterator, nsContentIterator)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mRange, nsIDOMRange)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mRange)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsContentSubtreeIterator, nsContentIterator)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mRange)
@@ -1258,7 +1268,7 @@ nsresult nsContentSubtreeIterator::Init(nsIDOMRange* aRange)
 
   mIsDone = false;
 
-  mRange = static_cast<nsRange*>(aRange);
+  mRange = aRange;
   
   // get the start node and offset, convert to nsINode
   nsCOMPtr<nsIDOMNode> commonParent;
@@ -1356,7 +1366,7 @@ nsresult nsContentSubtreeIterator::Init(nsIDOMRange* aRange)
   // does not fully contain any node.
   
   bool nodeBefore, nodeAfter;
-  if (NS_FAILED(nsRange::CompareNodeToRange(firstCandidate, mRange,
+  if (NS_FAILED(nsRange::CompareNodeToRange(firstCandidate, aRange,
                                             &nodeBefore, &nodeAfter)))
     return NS_ERROR_FAILURE;
 
@@ -1407,7 +1417,7 @@ nsresult nsContentSubtreeIterator::Init(nsIDOMRange* aRange)
   // is indeed contained.  Else we have a range that
   // does not fully contain any node.
   
-  if (NS_FAILED(nsRange::CompareNodeToRange(lastCandidate, mRange, &nodeBefore,
+  if (NS_FAILED(nsRange::CompareNodeToRange(lastCandidate, aRange, &nodeBefore,
                                             &nodeAfter)))
     return NS_ERROR_FAILURE;
 
@@ -1426,6 +1436,12 @@ nsresult nsContentSubtreeIterator::Init(nsIDOMRange* aRange)
   mCurNode = mFirst;
 
   return NS_OK;
+}
+
+nsresult nsContentSubtreeIterator::Init(nsIRange* aRange)
+{
+  nsCOMPtr<nsIDOMRange> range = do_QueryInterface(aRange);
+  return Init(range);
 }
 
 /****************************************************************

@@ -52,6 +52,7 @@
 #include "nsServiceManagerUtils.h"
 
 #include "nsIDOMRange.h"
+#include "nsIDOMNSRange.h"
 #include "nsIDocumentEncoder.h"
 #include "nsISupportsPrimitives.h"
 
@@ -232,10 +233,11 @@ NS_IMETHODIMP nsPlaintextEditor::InsertFromDrop(nsIDOMEvent* aDropEvent)
     {
       nsCOMPtr<nsIDOMRange> range;
       rv = selection->GetRangeAt(j, getter_AddRefs(range));
-      if (NS_FAILED(rv) || !range) 
+      nsCOMPtr<nsIDOMNSRange> nsrange(do_QueryInterface(range));
+      if (NS_FAILED(rv) || !nsrange) 
         continue;  // don't bail yet, iterate through them all
 
-      rv = range->IsPointInRange(newSelectionParent, newSelectionOffset, &cursorIsInSelection);
+      rv = nsrange->IsPointInRange(newSelectionParent, newSelectionOffset, &cursorIsInSelection);
       if (cursorIsInSelection)
         break;
     }

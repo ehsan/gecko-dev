@@ -726,7 +726,8 @@ nsHttpPipeline::FillSendBuf()
                         getter_AddRefs(mSendBufOut),
                         nsIOService::gDefaultSegmentSize,  /* segment size */
                         nsIOService::gDefaultSegmentSize,  /* max size */
-                        true, true);
+                        true, true,
+                        nsIOService::gBufferCache);
         if (NS_FAILED(rv)) return rv;
     }
 

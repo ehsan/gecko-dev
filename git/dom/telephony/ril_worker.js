@@ -513,7 +513,7 @@ let Buf = {
 let RIL = {
 
   /**
-   * Retrieve the ICC's status.
+   * Retrieve the ICC card's status.
    *
    * Response will call Phone.onICCStatus().
    */
@@ -527,7 +527,7 @@ let RIL = {
    * @param pin
    *        String containing the PIN.
    *
-   * Response will call Phone.onEnterICCPIN().
+   * Response will call Phone.onEnterSIMPIN().
    */
   enterICCPIN: function enterICCPIN(pin) {
     Buf.newParcel(REQUEST_ENTER_SIM_PIN);
@@ -535,42 +535,6 @@ let RIL = {
     Buf.writeString(pin);
     Buf.sendParcel();
   },
-
-  /**
-   * Change the current ICC PIN number
-   *
-   * @param oldPin
-   *        String containing the old PIN value
-   * @param newPin
-   *        String containing the new PIN value
-   *
-   * Response will call Phone.onChangeICCPIN().
-   */
-  changeICCPIN: function changeICCPIN(oldPin, newPin) {
-    Buf.newParcel(REQUEST_CHANGE_SIM_PIN);
-    Buf.writeUint32(2);
-    Buf.writeString(oldPin);
-    Buf.writeString(newPin);
-    Buf.sendParcel();
-  },
-
-  /**
-   * Supplies SIM PUK and a new PIN to unlock the ICC
-   *
-   * @param puk
-   *        String containing the PUK value.
-   * @param newPin
-   *        String containing the new PIN value.
-   *
-   * Response will call Phone.onEnterICCPUK().
-   */
-   enterICCPUK: function enterICCPUK(puk, newPin) {
-     Buf.newParcel(REQUEST_ENTER_SIM_PUK);
-     Buf.writeUint32(2);
-     Buf.writeString(puk);
-     Buf.writeString(newPin);
-     Buf.sendParcel();
-   },
 
   /**
    * Request the phone's radio power to be switched on or off.
@@ -803,7 +767,7 @@ let RIL = {
 
 RIL[REQUEST_GET_SIM_STATUS] = function REQUEST_GET_SIM_STATUS() {
   let iccStatus = {
-    cardState:                   Buf.readUint32(), // CARD_STATE_*
+    cardState:                   Buf.readUint32(), // CARDSTATE_*
     universalPINState:           Buf.readUint32(), // PINSTATE_*
     gsmUmtsSubscriptionAppIndex: Buf.readUint32(),
     setCdmaSubscriptionAppIndex: Buf.readUint32(),
@@ -818,7 +782,7 @@ RIL[REQUEST_GET_SIM_STATUS] = function REQUEST_GET_SIM_STATUS() {
   for (let i = 0 ; i < apps_length ; i++) {
     iccStatus.apps.push({
       app_type:       Buf.readUint32(), // APPTYPE_*
-      app_state:      Buf.readUint32(), // CARD_APP_STATE_*
+      app_state:      Buf.readUint32(), // APPSTATE_*
       perso_substate: Buf.readUint32(), // PERSOSUBSTATE_*
       aid:            Buf.readString(),
       app_label:      Buf.readString(),
@@ -833,15 +797,10 @@ RIL[REQUEST_ENTER_SIM_PIN] = function REQUEST_ENTER_SIM_PIN() {
   let response = Buf.readUint32List();
   Phone.onEnterICCPIN(response);
 };
-RIL[REQUEST_ENTER_SIM_PUK] = function REQUEST_ENTER_SIM_PUK() {
-  let response = Buf.readUint32List();
-  Phone.onEnterICCPUK(response);
-};
+RIL[REQUEST_ENTER_SIM_PUK] = null;
 RIL[REQUEST_ENTER_SIM_PIN2] = null;
 RIL[REQUEST_ENTER_SIM_PUK2] = null;
-RIL[REQUEST_CHANGE_SIM_PIN] = function REQUEST_CHANGE_SIM_PIN() {
-  Phone.onChangeICCPIN();
-};
+RIL[REQUEST_CHANGE_SIM_PIN] = null;
 RIL[REQUEST_CHANGE_SIM_PIN2] = null;
 RIL[REQUEST_ENTER_NETWORK_DEPERSONALIZATION] = null;
 RIL[REQUEST_GET_CURRENT_CALLS] = function REQUEST_GET_CURRENT_CALLS(length) {
@@ -1101,9 +1060,7 @@ RIL[UNSOLICITED_CALL_RING] = function UNSOLICITED_CALL_RING() {
   }
   Phone.onCallRing(info);
 };
-RIL[UNSOLICITED_RESPONSE_SIM_STATUS_CHANGED] = function UNSOLICITED_RESPONSE_SIM_STATUS_CHANGED() {
-  Phone.onICCStatusChanged();
-};
+RIL[UNSOLICITED_RESPONSE_SIM_STATUS_CHANGED] = null;
 RIL[UNSOLICITED_RESPONSE_CDMA_NEW_SMS] = null;
 RIL[UNSOLICITED_RESPONSE_NEW_BROADCAST_SMS] = null;
 RIL[UNSOLICITED_CDMA_RUIM_SMS_STORAGE_FULL] = null;
@@ -1156,15 +1113,9 @@ let Phone = {
   networkSelectionMode: null,
 
   /**
-   * ICC status. Keeps a reference of the data response to the
-   * getICCStatus request.
+   * ICC card status
    */
   iccStatus: null,
-
-  /**
-   * Card state
-   */
-  cardState: null,
 
   /**
    * Active calls
@@ -1265,7 +1216,7 @@ let Phone = {
     if (newState == RADIO_STATE_SIM_READY  ||
         newState == RADIO_STATE_RUIM_READY ||
         newState == RADIO_STATE_NV_READY) {
-      // The ICC has become available. Get all the things.
+      // The ICC card has become available. Get all the things.
       RIL.getICCStatus();
       this.requestNetworkInfo();
       RIL.getSignalStrength();
@@ -1356,101 +1307,15 @@ let Phone = {
   },
 
   onICCStatus: function onICCStatus(iccStatus) {
-    if (DEBUG) {
-        debug("iccStatus: " + JSON.stringify(iccStatus));
-    }
-    this.iccStatus = iccStatus;
-
-    if ((!iccStatus) || (iccStatus.cardState == CARD_STATE_ABSENT)) {
-      if (DEBUG) debug("ICC absent");
-      if (this.cardState == DOM_CARDSTATE_ABSENT) {
-        return;
-      }
-      this.cardState = DOM_CARDSTATE_ABSENT;
-      this.sendDOMMessage({type: "cardstatechange",
-                           cardState: this.cardState});
-      return;
-    }
-
-    if ((this.radioState == RADIO_STATE_OFF) ||
-        (this.radioState == RADIO_STATE_UNAVAILABLE) ||
-        (this.radioState == RADIO_STATE_SIM_NOT_READY) ||
-        (this.radioState == RADIO_STATE_RUIM_NOT_READY) ||
-        (this.radioState == RADIO_STATE_NV_NOT_READY) ||
-        (this.radioState == RADIO_STATE_NV_READY)) {
-      if (DEBUG) debug("ICC not ready");
-      if (this.cardState == DOM_CARDSTATE_NOT_READY) {
-        return;
-      }
-      this.cardState = DOM_CARDSTATE_NOT_READY;
-      this.sendDOMMessage({type: "cardstatechange",
-                           cardState: this.cardState});
-      return;
-    }
-
-    if ((this.radioState == RADIO_STATE_SIM_LOCKED_OR_ABSENT) ||
-        (this.radioState == RADIO_STATE_SIM_READY) ||
-        (this.radioState == RADIO_STATE_RUIM_LOCKED_OR_ABSENT) ||
-        (this.radioState == RADIO_STATE_RUIM_READY)) {
-      let app = iccStatus.apps[iccStatus.gsmUmtsSubscriptionAppIndex];
-      if (!app) {
-        if (DEBUG) {
-          debug("Subscription application is not present in iccStatus.");
-        }
-        if (this.cardState == DOM_CARDSTATE_ABSENT) {
-          return;
-        }
-        this.cardState = DOM_CARDSTATE_ABSENT;
-        this.sendDOMMessage({type: "cardstatechange",
-                             cardState: this.cardState});
-        return;
-      }
-
-      let newCardState;
-      switch (app.app_state) {
-        case CARD_APP_STATE_PIN:
-          newCardState = DOM_CARDSTATE_PIN_REQUIRED;
-          break;
-        case CARD_APP_STATE_PUK:
-          newCardState = DOM_CARDSTATE_PUK_REQUIRED;
-          break;
-        case CARD_APP_STATE_SUBSCRIPTION_PERSO:
-          newCardState = DOM_CARDSTATE_NETWORK_LOCKED;
-          break;
-        case CARD_APP_STATE_READY:
-          newCardState = DOM_CARDSTATE_READY;
-          break;
-        case CARD_APP_STATE_UNKNOWN:
-        case CARD_APP_STATE_DETECTED:
-        default:
-          newCardState = DOM_CARDSTATE_NOT_READY;
-      }
-
-      if (this.cardState == newCardState) {
-        return;
-      }
-      this.cardState = newCardState;
-      this.sendDOMMessage({type: "cardstatechange",
-                           cardState: this.cardState});
-    }
-  },
-
-  onICCStatusChanged: function onICCStatusChanged() {
-    RIL.getICCStatus();
+    debug("SIM card state is " + iccStatus.cardState);
+    debug("Universal PIN state is " + iccStatus.universalPINState);
+    debug(iccStatus);
+    //TODO set to simStatus and figure out state transitions.
+    this.iccStatus = iccStatus; //XXX TODO
   },
 
   onEnterICCPIN: function onEnterICCPIN(response) {
-    if (DEBUG) debug("REQUEST_ENTER_SIM_PIN returned " + response);
-    //TODO
-  },
-
-  onChangeICCPIN: function onChangeICCPIN() {
-    if (DEBUG) debug("REQUEST_CHANGE_SIM_PIN");
-    //TODO
-  },
-
-  onEnterICCPUK: function onEnterICCPUK(response) {
-    if (DEBUG) debug("REQUEST_ENTER_SIM_PUK returned " + response);
+    debug("REQUEST_ENTER_SIM_PIN returned " + response);
     //TODO
   },
 
@@ -1484,7 +1349,7 @@ let Phone = {
 
   onOperator: function onOperator(operator) {
     if (operator.length < 3) {
-      if (DEBUG) debug("Expected at least 3 strings for operator.");
+      debug("Expected at least 3 strings for operator.");
     }
     if (!this.operator ||
         this.operator.alphaLong  != operator[0] ||
@@ -1549,9 +1414,9 @@ let Phone = {
     // An SMS is a string, but we won't read it as such, so let's read the
     // string length and then defer to PDU parsing helper.
     let messageStringLength = Buf.readUint32();
-    if (DEBUG) debug("Got new SMS, length " + messageStringLength);
+    debug("Got new SMS, length " + messageStringLength);
     let message = GsmPDUHelper.readMessage();
-    if (DEBUG) debug(message);
+    debug(message);
 
     // Read string delimiters. See Buf.readString().
     let delimiter = Buf.readUint16();
@@ -1716,9 +1581,7 @@ let Phone = {
       //TODO: we shouldn't get here, but if we do, we might want to hold on
       // to the message and retry once we know the SMSC... or just notify an
       // error to the mainthread and let them deal with retrying?
-      if (DEBUG) {
-        debug("Cannot send the SMS. Need to get the SMSC address first.");
-      }
+      debug("Cannot send the SMS. Need to get the SMSC address first.");
       return;
     }
     //TODO: verify values on 'options'
@@ -1739,9 +1602,7 @@ let Phone = {
     if (DEBUG) debug("Received DOM message " + JSON.stringify(message));
     let method = this[message.type];
     if (typeof method != "function") {
-      if (DEBUG) {
-        debug("Don't know what to do with message " + JSON.stringify(message));
-      }
+      debug("Don't know what to do with message " + JSON.stringify(message));
       return;
     }
     method.call(this, message);
@@ -1865,7 +1726,7 @@ let GsmPDUHelper = {
 
   /**
    * Write numerical data as swapped nibble BCD.
-   *
+   * 
    * @param data
    *        Data to write (as a string or a number)
    */

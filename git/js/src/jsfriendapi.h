@@ -196,9 +196,6 @@ JS_FRIEND_API(JSBool) obj_defineSetter(JSContext *cx, uintN argc, js::Value *vp)
 extern JS_FRIEND_API(bool)
 IsSystemCompartment(const JSCompartment *compartment);
 
-extern JS_FRIEND_API(bool)
-IsAtomsCompartmentFor(const JSContext *cx, const JSCompartment *c);
-
 /*
  * Check whether it is OK to assign an undeclared property with name
  * propname of the global object in the current script on cx.  Reports
@@ -265,7 +262,7 @@ struct Object {
 
     size_t numFixedSlots() const { return shape->slotInfo >> Shape::FIXED_SLOTS_SHIFT; }
     Value *fixedSlots() const {
-        return (Value *)(uintptr_t(this) + sizeof(shadow::Object));
+        return (Value *)((jsuword) this + sizeof(shadow::Object));
     }
 
     js::Value &slotRef(size_t slot) const {
@@ -447,11 +444,6 @@ GetPCCountScriptSummary(JSContext *cx, size_t script);
 
 JS_FRIEND_API(JSString *)
 GetPCCountScriptContents(JSContext *cx, size_t script);
-
-#ifdef JS_THREADSAFE
-JS_FRIEND_API(JSThread *)
-GetContextThread(const JSContext *cx);
-#endif
 
 } /* namespace js */
 

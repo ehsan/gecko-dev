@@ -42,6 +42,8 @@
 
 class nsINode;
 class nsIDOMRange;
+class nsIRange;
+class nsRange;
 
 #define NS_ICONTENTITERATOR_IID \
 { 0x2550078e, 0xae87, 0x4914, \
@@ -60,6 +62,7 @@ public:
      Subclasses should make sure they implement both of these!
    */
   virtual nsresult Init(nsIDOMRange* aRange) = 0;
+  virtual nsresult Init(nsIRange* aRange) = 0;
 
   /** First will reset the list.
    */

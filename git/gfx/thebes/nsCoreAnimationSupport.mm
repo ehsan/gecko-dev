@@ -780,6 +780,14 @@ nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext,
   size_t bytesPerRow = surf->GetBytesPerRow();
   size_t ioWidth = surf->GetWidth();
   size_t ioHeight = surf->GetHeight();
+  void* ioData = surf->GetBaseAddress();
+  CGDataProviderRef dataProvider = ::CGDataProviderCreateWithData(ioData,
+                                      ioData, ioHeight*(bytesPerRow)*4, 
+                                      NULL); //No release callback 
+  if (!dataProvider) {
+    surf->Unlock();
+    return NS_ERROR_FAILURE;
+  }
 
   // We get rendering glitches if we use a width/height that falls
   // outside of the IOSurface.
@@ -790,16 +798,6 @@ nsresult nsCARenderer::DrawSurfaceToCGContext(CGContextRef aContext,
 
   if (aX < 0 || aX >= ioWidth ||
       aY < 0 || aY >= ioHeight) {
-    surf->Unlock();
-    return NS_ERROR_FAILURE;
-  }
-
-  void* ioData = surf->GetBaseAddress();
-  CGDataProviderRef dataProvider = ::CGDataProviderCreateWithData(ioData,
-                                      ioData, ioHeight*(bytesPerRow)*4, 
-                                      NULL); //No release callback 
-  if (!dataProvider) {
-    surf->Unlock();
     return NS_ERROR_FAILURE;
   }
 
@@ -861,12 +859,10 @@ void nsCARenderer::SaveToDisk(nsIOSurface *surf) {
     return;
   }
 
-  CGColorSpaceRef colorSpace = CreateSystemColorSpace();
   CGImageRef cgImage = ::CGImageCreate(ioWidth, ioHeight, 8, 32, bytesPerRow,
-              colorSpace, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host,
+              CreateSystemColorSpace(), kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host,
               dataProvider, NULL, true, kCGRenderingIntentDefault);
   ::CGDataProviderRelease(dataProvider);
-  ::CGColorSpaceRelease(colorSpace);
   if (!cgImage) {
     surf->Unlock();
     return;
@@ -880,19 +876,16 @@ void nsCARenderer::SaveToDisk(nsIOSurface *surf) {
 
   printf("Exporting: %s\n", cstr);
   CFURLRef url = ::CFURLCreateWithString( NULL, cfStr, NULL);
-  ::CFRelease(cfStr);
 
   CFStringRef type = kUTTypePNG;
   size_t count = 1;
   CFDictionaryRef options = NULL;
   CGImageDestinationRef dest = ::CGImageDestinationCreateWithURL(url, type, count, options);
-  ::CFRelease(url);
 
   ::CGImageDestinationAddImage(dest, cgImage, NULL);
 
   ::CGImageDestinationFinalize(dest);
   ::CFRelease(dest);
-  ::CGImageRelease(cgImage);
 
   surf->Unlock();
 

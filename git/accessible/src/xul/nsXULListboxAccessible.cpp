@@ -40,10 +40,9 @@
 
 #include "nsXULListboxAccessible.h"
 
+#include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "Role.h"
-#include "States.h"
 
 #include "nsComponentManagerUtils.h"
 #include "nsIAutoCompleteInput.h"
@@ -66,10 +65,10 @@ nsXULColumnsAccessible::
 {
 }
 
-role
+PRUint32
 nsXULColumnsAccessible::NativeRole()
 {
-  return roles::LIST;
+  return nsIAccessibleRole::ROLE_LIST;
 }
 
 PRUint64
@@ -89,10 +88,10 @@ nsXULColumnItemAccessible::
 {
 }
 
-role
+PRUint32
 nsXULColumnItemAccessible::NativeRole()
 {
-  return roles::COLUMNHEADER;
+  return nsIAccessibleRole::ROLE_COLUMNHEADER;
 }
 
 PRUint64
@@ -212,7 +211,7 @@ NS_IMETHODIMP nsXULListboxAccessible::GetValue(nsAString& _retval)
   return NS_ERROR_FAILURE;
 }
 
-role
+PRUint32
 nsXULListboxAccessible::NativeRole()
 {
   // A richlistbox is used with the new autocomplete URL bar, and has a parent
@@ -220,9 +219,11 @@ nsXULListboxAccessible::NativeRole()
   nsCOMPtr<nsIDOMXULPopupElement> xulPopup =
     do_QueryInterface(mContent->GetParent());
   if (xulPopup)
-    return roles::COMBOBOX_LIST;
+    return nsIAccessibleRole::ROLE_COMBOBOX_LIST;
 
-  return IsMulticolumn() ? roles::TABLE : roles::LISTBOX;
+  if (IsMulticolumn())
+    return nsIAccessibleRole::ROLE_TABLE;
+  return nsIAccessibleRole::ROLE_LISTBOX;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -613,7 +614,7 @@ nsXULListboxAccessible::GetSelectedCells(nsIArray **aCells)
       PRInt32 cellCount = item->GetChildCount();
       for (PRInt32 cellIdx = 0; cellIdx < cellCount; cellIdx++) {
         nsAccessible *cell = mChildren[cellIdx];
-        if (cell->Role() == roles::CELL)
+        if (cell->Role() == nsIAccessibleRole::ROLE_CELL)
           selCells->AppendElement(static_cast<nsIAccessible*>(cell), false);
       }
     }
@@ -962,25 +963,25 @@ nsXULListitemAccessible::GetNameInternal(nsAString& aName)
   return GetXULName(aName);
 }
 
-role
+PRUint32
 nsXULListitemAccessible::NativeRole()
 {
   nsAccessible *list = GetListAccessible();
   if (!list) {
     NS_ERROR("No list accessible for listitem accessible!");
-    return roles::NOTHING;
+    return nsIAccessibleRole::ROLE_NOTHING;
   }
 
-  if (list->Role() == roles::TABLE)
-    return roles::ROW;
+  if (list->Role() == nsIAccessibleRole::ROLE_TABLE)
+    return nsIAccessibleRole::ROLE_ROW;
 
   if (mIsCheckbox)
-    return roles::CHECKBUTTON;
+    return nsIAccessibleRole::ROLE_CHECKBUTTON;
 
-  if (mParent && mParent->Role() == roles::COMBOBOX_LIST)
-    return roles::COMBOBOX_OPTION;
+  if (mParent && mParent->Role() == nsIAccessibleRole::ROLE_COMBOBOX_LIST)
+    return nsIAccessibleRole::ROLE_COMBOBOX_OPTION;
 
-  return roles::RICH_OPTION;
+  return nsIAccessibleRole::ROLE_RICH_OPTION;
 }
 
 PRUint64
@@ -1078,11 +1079,11 @@ nsXULListCellAccessible::GetTable(nsIAccessibleTable **aTable)
     return NS_ERROR_FAILURE;
 
   nsAccessible* thisRow = Parent();
-  if (!thisRow || thisRow->Role() != roles::ROW)
+  if (!thisRow || thisRow->Role() != nsIAccessibleRole::ROLE_ROW)
     return NS_OK;
 
   nsAccessible* table = thisRow->Parent();
-  if (!table || table->Role() != roles::TABLE)
+  if (!table || table->Role() != nsIAccessibleRole::ROLE_TABLE)
     return NS_OK;
 
   CallQueryInterface(table, aTable);
@@ -1107,9 +1108,11 @@ nsXULListCellAccessible::GetColumnIndex(PRInt32 *aColumnIndex)
   PRInt32 indexInRow = IndexInParent();
   for (PRInt32 idx = 0; idx < indexInRow; idx++) {
     nsAccessible* cell = row->GetChildAt(idx);
-    roles::Role role = cell->Role();
-    if (role == roles::CELL || role == roles::GRID_CELL ||
-        role == roles::ROWHEADER || role == roles::COLUMNHEADER)
+    PRUint32 role = cell->Role();
+    if (role == nsIAccessibleRole::ROLE_CELL ||
+        role == nsIAccessibleRole::ROLE_GRID_CELL ||
+        role == nsIAccessibleRole::ROLE_ROWHEADER ||
+        role == nsIAccessibleRole::ROLE_COLUMNHEADER)
       (*aColumnIndex)++;
   }
 
@@ -1138,7 +1141,7 @@ nsXULListCellAccessible::GetRowIndex(PRInt32 *aRowIndex)
   PRInt32 indexInTable = row->IndexInParent();
   for (PRInt32 idx = 0; idx < indexInTable; idx++) {
     row = table->GetChildAt(idx);
-    if (row->Role() == roles::ROW)
+    if (row->Role() == nsIAccessibleRole::ROLE_ROW)
       (*aRowIndex)++;
   }
 
@@ -1191,7 +1194,7 @@ nsXULListCellAccessible::GetColumnHeaderCells(nsIArray **aHeaderCells)
   PRInt32 tableChildCount = tableAcc->GetChildCount();
   for (PRInt32 childIdx = 0; childIdx < tableChildCount; childIdx++) {
     nsAccessible *child = tableAcc->GetChildAt(childIdx);
-    if (child->Role() == roles::LIST) {
+    if (child->Role() == nsIAccessibleRole::ROLE_LIST) {
       list = child;
       break;
     }
@@ -1261,10 +1264,10 @@ nsXULListCellAccessible::IsSelected(bool *aIsSelected)
 ////////////////////////////////////////////////////////////////////////////////
 // nsXULListCellAccessible. nsAccessible implementation
 
-role
+PRUint32
 nsXULListCellAccessible::NativeRole()
 {
-  return roles::CELL;
+  return nsIAccessibleRole::ROLE_CELL;
 }
 
 nsresult

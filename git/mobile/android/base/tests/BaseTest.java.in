@@ -73,20 +73,15 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
         Instrumentation inst = getInstrumentation();
         Instrumentation.ActivityMonitor monitor = inst.addMonitor((String)null, null, false);
         element.click();
-        Activity activity = inst.waitForMonitor(monitor);
-        getInstrumentation().waitForIdleSync();
-        return activity;
-    }
-
-    protected final Activity clickOnAwesomeBar() {
-        Element awesomebar = mDriver.findElement(mActivity, "awesome_bar");
-        return getActivityFromClick(awesomebar);
+        return inst.waitForMonitor(monitor);
     }
 
     protected final void enterUrl(String url) {
         mActions.expectGeckoEvent("Gecko:Ready").blockForEvent();
+        Element awesomebar = mDriver.findElement(mActivity, "awesome_bar");
+        Activity awesomeBarActivity = getActivityFromClick(awesomebar);
+        getInstrumentation().waitForIdleSync();
 
-        Activity awesomeBarActivity = clickOnAwesomeBar();
         Element urlbar = mDriver.findElement(awesomeBarActivity, "awesomebar_text");
         mActions.sendKeys(url);
         mAsserter.is(urlbar.getText(), url, "Awesomebar URL typed properly");
@@ -105,7 +100,10 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     }
 
     protected final void verifyUrl(String url) {
-        Activity awesomeBarActivity = clickOnAwesomeBar();
+        Element awesomebar = mDriver.findElement(mActivity, "awesome_bar");
+        Activity awesomeBarActivity = getActivityFromClick(awesomebar);
+        getInstrumentation().waitForIdleSync();
+
         Element urlbar = mDriver.findElement(awesomeBarActivity, "awesomebar_text");
         mAsserter.is(urlbar.getText(), url, "Awesomebar URL stayed the same");
     }

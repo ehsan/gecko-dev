@@ -43,7 +43,6 @@
 #include "nsAccUtils.h"
 #include "nsTextEquivUtils.h"
 #include "Relation.h"
-#include "Role.h"
 #include "States.h"
 
 #include "nsIAccessibleRelation.h"
@@ -76,14 +75,15 @@ nsHTMLTextAccessible::GetName(nsAString& aName)
   return NS_OK;
 }
 
-role
+PRUint32
 nsHTMLTextAccessible::NativeRole()
 {
   nsIFrame *frame = GetFrame();
   // Don't return on null frame -- we still return a role
   // after accessible is shutdown/DEFUNCT
-  if (frame && frame->IsGeneratedContentFrame()) 
-    return roles::STATICTEXT;
+  if (frame && frame->IsGeneratedContentFrame()) {
+    return nsIAccessibleRole::ROLE_STATICTEXT;
+  }
 
   return nsTextAccessible::NativeRole();
 }
@@ -107,7 +107,7 @@ nsHTMLTextAccessible::NativeState()
 nsresult
 nsHTMLTextAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
 {
-  if (NativeRole() == roles::STATICTEXT) {
+  if (NativeRole() == nsIAccessibleRole::ROLE_STATICTEXT) {
     nsAutoString oldValueUnused;
     aAttributes->SetStringProperty(NS_LITERAL_CSTRING("auto-generated"),
                                   NS_LITERAL_STRING("true"), oldValueUnused);
@@ -127,10 +127,10 @@ nsHTMLHRAccessible::
 {
 }
 
-role
+PRUint32
 nsHTMLHRAccessible::NativeRole()
 {
-  return roles::SEPARATOR;
+  return nsIAccessibleRole::ROLE_SEPARATOR;
 }
 
 
@@ -144,10 +144,10 @@ nsHTMLBRAccessible::
 {
 }
 
-role
+PRUint32
 nsHTMLBRAccessible::NativeRole()
 {
-  return roles::WHITESPACE;
+  return nsIAccessibleRole::ROLE_WHITESPACE;
 }
 
 PRUint64
@@ -181,10 +181,10 @@ nsHTMLLabelAccessible::GetNameInternal(nsAString& aName)
   return nsTextEquivUtils::GetNameFromSubtree(this, aName);
 }
 
-role
+PRUint32
 nsHTMLLabelAccessible::NativeRole()
 {
-  return roles::LABEL;
+  return nsIAccessibleRole::ROLE_LABEL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -209,10 +209,10 @@ nsHTMLOutputAccessible::RelationByType(PRUint32 aType)
   return rel;
 }
 
-role
+PRUint32
 nsHTMLOutputAccessible::NativeRole()
 {
-  return roles::SECTION;
+  return nsIAccessibleRole::ROLE_SECTION;
 }
 
 nsresult
@@ -256,10 +256,10 @@ nsHTMLLIAccessible::Shutdown()
   nsHyperTextAccessibleWrap::Shutdown();
 }
 
-role
+PRUint32
 nsHTMLLIAccessible::NativeRole()
 {
-  return roles::LISTITEM;
+  return nsIAccessibleRole::ROLE_LISTITEM;
 }
 
 PRUint64
@@ -366,10 +366,10 @@ nsHTMLListBulletAccessible::GetName(nsAString &aName)
   return NS_OK;
 }
 
-role
+PRUint32
 nsHTMLListBulletAccessible::NativeRole()
 {
-  return roles::STATICTEXT;
+  return nsIAccessibleRole::ROLE_STATICTEXT;
 }
 
 PRUint64
@@ -407,10 +407,10 @@ nsHTMLListAccessible::
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLListAccessible, nsHyperTextAccessible)
 
-role
+PRUint32
 nsHTMLListAccessible::NativeRole()
 {
-  return roles::LIST;
+  return nsIAccessibleRole::ROLE_LIST;
 }
 
 PRUint64

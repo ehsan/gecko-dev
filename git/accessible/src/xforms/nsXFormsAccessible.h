@@ -127,7 +127,7 @@ public:
   nsXFormsContainerAccessible(nsIContent *aContent, nsIWeakReference *aShell);
 
   // nsAccessible
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
 
   // Allows accessible nodes in anonymous content of xforms element by
   // always returning true value.

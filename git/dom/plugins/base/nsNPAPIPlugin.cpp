@@ -50,6 +50,7 @@
 #include "prenv.h"
 #include "prclist.h"
 
+#include "jscntxt.h"
 #include "jsfriendapi.h"
 
 #include "nsPluginHost.h"
@@ -91,7 +92,6 @@
 #include <Carbon/Carbon.h>
 #include <ApplicationServices/ApplicationServices.h>
 #include <OpenGL/OpenGL.h>
-#include "nsCocoaFeatures.h"
 #endif
 
 // needed for nppdf plugin
@@ -1651,7 +1651,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
 
   // Root obj and the rval (below).
   jsval vec[] = { OBJECT_TO_JSVAL(obj), JSVAL_NULL };
-  JS::AutoArrayRooter tvr(cx, ArrayLength(vec), vec);
+  js::AutoArrayRooter tvr(cx, ArrayLength(vec), vec);
   jsval *rval = &vec[1];
 
   if (result) {
@@ -2257,13 +2257,13 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 
    case NPNVsupportsCoreAnimationBool: {
-     *(NPBool*)result = nsCocoaFeatures::SupportCoreAnimationPlugins();
+     *(NPBool*)result = true;
 
      return NPERR_NO_ERROR;
    }
 
    case NPNVsupportsInvalidatingCoreAnimationBool: {
-     *(NPBool*)result = nsCocoaFeatures::SupportCoreAnimationPlugins();
+     *(NPBool*)result = true;
 
      return NPERR_NO_ERROR;
    }

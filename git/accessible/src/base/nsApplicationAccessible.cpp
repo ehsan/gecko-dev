@@ -42,11 +42,10 @@
  
 #include "nsApplicationAccessible.h"
 
+#include "Relation.h"
+#include "States.h"
 #include "nsAccessibilityService.h"
 #include "nsAccUtils.h"
-#include "Relation.h"
-#include "Role.h"
-#include "States.h"
 
 #include "nsIComponentManager.h"
 #include "nsIDOMDocument.h"
@@ -342,10 +341,10 @@ nsApplicationAccessible::ApplyARIAState(PRUint64* aState)
 {
 }
 
-role
+PRUint32
 nsApplicationAccessible::NativeRole()
 {
-  return roles::APP_ROOT;
+  return nsIAccessibleRole::ROLE_APP_ROOT;
 }
 
 PRUint64

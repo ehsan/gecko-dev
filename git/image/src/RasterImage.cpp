@@ -56,6 +56,9 @@
 #include "prmem.h"
 #include "prenv.h"
 #include "ImageLogging.h"
+#include "mozilla/TimeStamp.h"
+#include "mozilla/Telemetry.h"
+#include "mozilla/Preferences.h"
 #include "ImageLayers.h"
 
 #include "nsPNGDecoder.h"
@@ -66,11 +69,6 @@
 #include "nsIconDecoder.h"
 
 #include "gfxContext.h"
-
-#include "mozilla/Preferences.h"
-#include "mozilla/StdInt.h"
-#include "mozilla/Telemetry.h"
-#include "mozilla/TimeStamp.h"
 
 using namespace mozilla;
 using namespace mozilla::imagelib;
@@ -679,7 +677,7 @@ RasterImage::GetCurrentImgFrameEndTime() const
     // doesn't work correctly if we have a negative timeout value. The reason
     // this positive infinity was chosen was because it works with the loop in
     // RequestRefresh() above.
-    return TimeStamp() + TimeDuration::FromMilliseconds(UINT64_MAX);
+    return TimeStamp() + TimeDuration::FromMilliseconds(UINT64_MAX_VAL);
   }
 
   TimeDuration durationOfTimeout = TimeDuration::FromMilliseconds(timeout);
@@ -956,9 +954,7 @@ RasterImage::GetImageContainer(LayerManager* aManager,
   
   CairoImage::Data cairoData;
   nsRefPtr<gfxASurface> imageSurface;
-  nsresult rv = GetFrame(FRAME_CURRENT, FLAG_SYNC_DECODE, getter_AddRefs(imageSurface));
-  NS_ENSURE_SUCCESS(rv, rv);
-
+  GetFrame(FRAME_CURRENT, FLAG_SYNC_DECODE, getter_AddRefs(imageSurface));
   cairoData.mSurface = imageSurface;
   GetWidth(&cairoData.mSize.width);
   GetHeight(&cairoData.mSize.height);

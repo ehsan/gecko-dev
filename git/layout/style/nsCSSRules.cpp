@@ -2013,7 +2013,10 @@ nsCSSKeyframesRule::InsertRule(const nsAString& aRule)
   nsRefPtr<nsCSSKeyframeRule> rule =
     parser.ParseKeyframeRule(aRule, nsnull, 0);
   if (rule) {
-    AppendStyleRule(rule);
+    mRules.AppendObject(rule);
+    if (mSheet) {
+      mSheet->SetModifiedByChildRule();
+    }
   }
 
   return NS_OK;

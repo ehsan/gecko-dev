@@ -144,25 +144,18 @@ public:
   struct ContainerParameters {
     ContainerParameters() :
       mXScale(1), mYScale(1),
-      mInTransformedSubtree(false), mInActiveTransformedSubtree(false),
-      mDisableSubpixelAntialiasingInDescendants(false)
-    {}
+      mInTransformedSubtree(false), mInActiveTransformedSubtree(false) {}
     ContainerParameters(float aXScale, float aYScale) :
       mXScale(aXScale), mYScale(aYScale),
-      mInTransformedSubtree(false), mInActiveTransformedSubtree(false),
-      mDisableSubpixelAntialiasingInDescendants(false)
-    {}
+      mInTransformedSubtree(false), mInActiveTransformedSubtree(false) {}
     ContainerParameters(float aXScale, float aYScale,
                         const ContainerParameters& aParent) :
       mXScale(aXScale), mYScale(aYScale),
       mInTransformedSubtree(aParent.mInTransformedSubtree),
-      mInActiveTransformedSubtree(aParent.mInActiveTransformedSubtree),
-      mDisableSubpixelAntialiasingInDescendants(aParent.mDisableSubpixelAntialiasingInDescendants)
-    {}
+      mInActiveTransformedSubtree(aParent.mInActiveTransformedSubtree) {}
     float mXScale, mYScale;
     bool mInTransformedSubtree;
     bool mInActiveTransformedSubtree;
-    bool mDisableSubpixelAntialiasingInDescendants;
   };
   /**
    * Build a container layer for a display item that contains a child

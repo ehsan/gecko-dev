@@ -93,11 +93,12 @@ static void ProfilerSignalHandler(int signal, siginfo_t* info, void* context) {
   if (!sActiveSampler)
     return;
 
+#ifndef ENABLE_SPS_LEAF_DATA
+  TickSample* sample = NULL;
+#else
   TickSample sample_obj;
   TickSample* sample = &sample_obj;
-  sample->pc = 0;
 
-#ifdef ENABLE_SPS_LEAF_DATA
   // If profiling, we extract the current pc and sp.
   if (sActiveSampler->IsProfiling()) {
     // Extracting the sample from the context is extremely machine dependent.
@@ -126,10 +127,9 @@ static void ProfilerSignalHandler(int signal, siginfo_t* info, void* context) {
     // Implement this on MIPS.
     UNIMPLEMENTED();
 #endif
+    sample->timestamp = mozilla::TimeStamp::Now();
   }
 #endif
-  sample->timestamp = mozilla::TimeStamp::Now();
-
   sActiveSampler->Tick(sample);
 }
 

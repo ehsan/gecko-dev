@@ -49,6 +49,9 @@
 class nsIXPConnectJSObjectHolder;
 class nsRootedJSValueArray;
 class nsScriptNameSpaceManager;
+namespace js {
+class AutoArrayRooter;
+}
 namespace mozilla {
 template <class> class Maybe;
 }

@@ -1449,17 +1449,17 @@ var PlacesUtils = {
           try {
             // Create a fake faviconURI to use (FIXME: bug 523932)
             let faviconURI = this._uri("fake-favicon-uri:" + aData.uri);
-            this.favicons.replaceFaviconDataFromDataURL(faviconURI, aData.icon, 0);
-            this.favicons.setAndFetchFaviconForPage(this._uri(aData.uri), faviconURI, false);
+            this.favicons.setFaviconUrlForPage(this._uri(aData.uri), faviconURI);
+            this.favicons.setFaviconDataFromDataURL(faviconURI, aData.icon, 0);
           } catch (ex) {
             Components.utils.reportError("Failed to import favicon data:"  + ex);
           }
         }
         if (aData.iconUri) {
           try {
-            this.favicons.setAndFetchFaviconForPage(this._uri(aData.uri),
-                                                    this._uri(aData.iconUri),
-                                                    false);
+            this.favicons.setAndLoadFaviconForPage(this._uri(aData.uri),
+                                                   this._uri(aData.iconUri),
+                                                   false);
           } catch (ex) {
             Components.utils.reportError("Failed to import favicon URI:"  + ex);
           }
@@ -1818,7 +1818,7 @@ var PlacesUtils = {
 
     get folder() {
       let bookmarksBackupDir = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-      bookmarksBackupDir.append(this.profileRelativeFolderPath);
+      bookmarksBackupDir.append("bookmarkbackups");
       if (!bookmarksBackupDir.exists()) {
         bookmarksBackupDir.create(Ci.nsIFile.DIRECTORY_TYPE, 0700);
         if (!bookmarksBackupDir.exists())
@@ -1827,8 +1827,6 @@ var PlacesUtils = {
       delete this.folder;
       return this.folder = bookmarksBackupDir;
     },
-
-    get profileRelativeFolderPath() "bookmarkbackups",
 
     /**
      * Cache current backups in a sorted (by date DESC) array.
@@ -2219,7 +2217,7 @@ XPCOMUtils.defineLazyGetter(PlacesUtils, "ghistory2", function() {
 
 XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "favicons",
                                    "@mozilla.org/browser/favicon-service;1",
-                                   "mozIAsyncFavicons");
+                                   "nsIFaviconService");
 
 XPCOMUtils.defineLazyServiceGetter(PlacesUtils, "bookmarks",
                                    "@mozilla.org/browser/nav-bookmarks-service;1",

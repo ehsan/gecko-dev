@@ -189,7 +189,7 @@ nsUrlClassifierPrefixSet::InitKey()
 NS_IMETHODIMP
 nsUrlClassifierPrefixSet::SetPrefixes(const PRUint32 * aArray, PRUint32 aLength)
 {
-  if (aLength <= 0) {
+  {
     MutexAutoLock lock(mPrefixSetLock);
     if (mHasPrefixes) {
       LOG(("Clearing PrefixSet"));
@@ -198,72 +198,61 @@ nsUrlClassifierPrefixSet::SetPrefixes(const PRUint32 * aArray, PRUint32 aLength)
       mIndexStarts.Clear();
       mHasPrefixes = false;
     }
-  } else {
-    return MakePrefixSet(aArray, aLength);
+  }
+  if (aLength > 0) {
+    // Ensure they are sorted before adding
+    nsTArray<PRUint32> prefixes;
+    prefixes.AppendElements(aArray, aLength);
+    prefixes.Sort();
+    AddPrefixes(prefixes.Elements(), prefixes.Length());
   }
 
   return NS_OK;
 }
 
-nsresult
-nsUrlClassifierPrefixSet::MakePrefixSet(const PRUint32 * prefixes, PRUint32 aLength)
+NS_IMETHODIMP
+nsUrlClassifierPrefixSet::AddPrefixes(const PRUint32 * prefixes, PRUint32 aLength)
 {
   if (aLength == 0) {
     return NS_OK;
   }
 
-#ifdef DEBUG
-  for (PRUint32 i = 1; i < aLength; i++) {
-    MOZ_ASSERT(prefixes[i] >= prefixes[i-1]);
-  }
-#endif
+  nsTArray<PRUint32> mNewIndexPrefixes(mIndexPrefixes);
+  nsTArray<PRUint32> mNewIndexStarts(mIndexStarts);
+  nsTArray<PRUint16> mNewDeltas(mDeltas);
 
-  FallibleTArray<PRUint32> newIndexPrefixes;
-  FallibleTArray<PRUint32> newIndexStarts;
-  FallibleTArray<PRUint16> newDeltas;
-
-  if (!newIndexPrefixes.AppendElement(prefixes[0])) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
-  if (!newIndexStarts.AppendElement(newDeltas.Length())) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+  mNewIndexPrefixes.AppendElement(prefixes[0]);
+  mNewIndexStarts.AppendElement(mNewDeltas.Length());
 
   PRUint32 numOfDeltas = 0;
   PRUint32 currentItem = prefixes[0];
   for (PRUint32 i = 1; i < aLength; i++) {
     if ((numOfDeltas >= DELTAS_LIMIT) ||
           (prefixes[i] - currentItem >= MAX_INDEX_DIFF)) {
-      if (!newIndexStarts.AppendElement(newDeltas.Length())) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-      if (!newIndexPrefixes.AppendElement(prefixes[i])) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
+      mNewIndexStarts.AppendElement(mNewDeltas.Length());
+      mNewIndexPrefixes.AppendElement(prefixes[i]);
       numOfDeltas = 0;
     } else {
       PRUint16 delta = prefixes[i] - currentItem;
-      if (!newDeltas.AppendElement(delta)) {
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
+      mNewDeltas.AppendElement(delta);
       numOfDeltas++;
     }
     currentItem = prefixes[i];
   }
 
-  newIndexPrefixes.Compact();
-  newIndexStarts.Compact();
-  newDeltas.Compact();
+  mNewIndexPrefixes.Compact();
+  mNewIndexStarts.Compact();
+  mNewDeltas.Compact();
 
-  LOG(("Total number of indices: %d", newIndexPrefixes.Length()));
-  LOG(("Total number of deltas: %d", newDeltas.Length()));
+  LOG(("Total number of indices: %d", mNewIndexPrefixes.Length()));
+  LOG(("Total number of deltas: %d", mNewDeltas.Length()));
 
   MutexAutoLock lock(mPrefixSetLock);
 
   // This just swaps some pointers
-  mIndexPrefixes.SwapElements(newIndexPrefixes);
-  mIndexStarts.SwapElements(newIndexStarts);
-  mDeltas.SwapElements(newDeltas);
+  mIndexPrefixes.SwapElements(mNewIndexPrefixes);
+  mIndexStarts.SwapElements(mNewIndexStarts);
+  mDeltas.SwapElements(mNewDeltas);
 
   mHasPrefixes = true;
   mSetIsReady.NotifyAll();
@@ -289,7 +278,7 @@ PRUint32 nsUrlClassifierPrefixSet::BinSearch(PRUint32 start,
   return end;
 }
 
-nsresult
+NS_IMETHODIMP
 nsUrlClassifierPrefixSet::Contains(PRUint32 aPrefix, bool * aFound)
 {
   mPrefixSetLock.AssertCurrentThreadOwns();

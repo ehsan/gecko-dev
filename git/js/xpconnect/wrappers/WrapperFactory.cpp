@@ -48,8 +48,6 @@
 #include "dombindings.h"
 #include "XPCMaps.h"
 
-#include "jscntxt.h" // cx->compartment
-
 using namespace js;
 
 namespace xpc {

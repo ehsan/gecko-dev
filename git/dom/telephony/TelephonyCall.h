@@ -70,7 +70,6 @@ class TelephonyCall : public nsDOMEventTargetWrapperCache,
   PRUint32 mCallIndex;
   PRUint16 mCallState;
   bool mLive;
-  bool mOutgoing;
 
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -81,7 +80,7 @@ public:
 
   static already_AddRefed<TelephonyCall>
   Create(Telephony* aTelephony, const nsAString& aNumber, PRUint16 aCallState,
-         PRUint32 aCallIndex = kOutgoingPlaceholderCallIndex);
+         PRUint32 aCallIndex = PR_UINT32_MAX);
 
   nsIDOMEventTarget*
   ToIDOMEventTarget() const
@@ -108,30 +107,16 @@ public:
     return mCallIndex;
   }
 
-  void
-  UpdateCallIndex(PRUint32 aCallIndex)
-  {
-    NS_ASSERTION(mCallIndex == kOutgoingPlaceholderCallIndex,
-                 "Call index should not be set!");
-    mCallIndex = aCallIndex;
-  }
-
   PRUint16
   CallState() const
   {
     return mCallState;
   }
 
-  bool
-  IsOutgoing() const
-  {
-    return mOutgoing;
-  }
-
 private:
   TelephonyCall()
-  : mCallIndex(kOutgoingPlaceholderCallIndex),
-    mCallState(nsITelephone::CALL_STATE_UNKNOWN), mLive(false), mOutgoing(false)
+  : mCallIndex(PR_UINT32_MAX), mCallState(nsITelephone::CALL_STATE_UNKNOWN),
+    mLive(false)
   { }
 
   ~TelephonyCall()
