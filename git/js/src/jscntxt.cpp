@@ -218,13 +218,13 @@ StackSpace::mark(JSTracer *trc)
 
             /* Mark slots/args trailing off of the last stack frame. */
             JSStackFrame *fp = css->getCurrentFrame();
-            ConservativelyMarkValueRange(trc, fp->slots(), end);
+            MarkStackRangeConservatively(trc, fp->slots(), end);
 
             /* Mark stack frames and slots/args between stack frames. */
             JSStackFrame *initialFrame = css->getInitialFrame();
             for (JSStackFrame *f = fp; f != initialFrame; f = f->down) {
                 js_TraceStackFrame(trc, f);
-                ConservativelyMarkValueRange(trc, f->down->slots(), f->argEnd());
+                MarkStackRangeConservatively(trc, f->down->slots(), f->argEnd());
             }
 
             /* Mark initialFrame stack frame and leading args. */
