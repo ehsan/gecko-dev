@@ -84,11 +84,6 @@ nsStyleContext::~nsStyleContext()
   NS_ASSERTION((nullptr == mChild) && (nullptr == mEmptyChild), "destructing context with children");
 
   nsPresContext *presContext = mRuleNode->PresContext();
-  nsStyleSet* styleSet = presContext->PresShell()->StyleSet();
-
-  NS_ASSERTION(styleSet->GetRuleTree() == mRuleNode->RuleTree() ||
-               styleSet->IsInRuleTreeReconstruct(),
-               "destroying style context from old rule tree too late");
 
 #ifdef DEBUG
 #if 0
@@ -110,7 +105,8 @@ nsStyleContext::~nsStyleContext()
 
   mRuleNode->Release();
 
-  styleSet->NotifyStyleContextDestroyed(presContext, this);
+  presContext->PresShell()->StyleSet()->
+    NotifyStyleContextDestroyed(presContext, this);
 
   if (mParent) {
     mParent->RemoveChild(this);

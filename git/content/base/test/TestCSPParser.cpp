@@ -376,8 +376,6 @@ nsresult TestSimplePolicies() {
       "default-src *" },
     { "default-src https:",
       "default-src https:" },
-    { "default-src https://*",
-      "default-src https://*" },
     { "default-src *:*",
       "default-src http://*:*" },
     { "default-src *:80",

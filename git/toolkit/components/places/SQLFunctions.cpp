@@ -15,6 +15,7 @@
 #include "nsINavHistoryService.h"
 #include "nsPrintfCString.h"
 #include "nsNavHistory.h"
+#include "mozilla/Telemetry.h"
 #include "mozilla/Likely.h"
 
 using namespace mozilla::storage;
@@ -455,6 +456,8 @@ namespace places {
     nsresult rv = aArguments->GetNumEntries(&numEntries);
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ASSERTION(numEntries > 0, "unexpected number of arguments");
+
+    Telemetry::AutoTimer<Telemetry::PLACES_FRECENCY_CALC_TIME_MS> timer;
 
     int64_t pageId = aArguments->AsInt64(0);
     int32_t typed = numEntries > 1 ? aArguments->AsInt32(1) : 0;

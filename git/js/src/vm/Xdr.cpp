@@ -104,7 +104,7 @@ VersionCheck(XDRState<mode> *xdr)
 
 template<XDRMode mode>
 bool
-XDRState<mode>::codeFunction(MutableHandleFunction objp)
+XDRState<mode>::codeFunction(MutableHandleObject objp)
 {
     if (mode == XDR_DECODE)
         objp.set(nullptr);

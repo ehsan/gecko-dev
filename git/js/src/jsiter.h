@@ -114,7 +114,7 @@ struct NativeIterator
     }
 };
 
-class PropertyIteratorObject : public NativeObject
+class PropertyIteratorObject : public JSObject
 {
   public:
     static const Class class_;

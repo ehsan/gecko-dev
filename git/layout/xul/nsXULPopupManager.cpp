@@ -1421,8 +1421,7 @@ nsXULPopupManager::FirePopupHidingEvent(nsIContent* aPopup,
           if (!popupFrame)
             return;
 
-          if (nsLayoutUtils::HasCurrentAnimations(aPopup,
-                nsGkAtoms::transitionsProperty)) {
+          if (nsLayoutUtils::HasCurrentAnimations(aPopup, nsGkAtoms::transitionsProperty, aPresContext)) {
             nsRefPtr<TransitionEnder> ender = new TransitionEnder(aPopup, aDeselectMenu);
             aPopup->AddSystemEventListener(NS_LITERAL_STRING("transitionend"),
                                            ender, false, false);

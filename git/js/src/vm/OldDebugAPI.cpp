@@ -129,10 +129,7 @@ JS_GetFunctionScript(JSContext *cx, HandleFunction fun)
 JS_PUBLIC_API(const char *)
 JS_GetScriptFilename(JSScript *script)
 {
-    // This is called from ThreadStackHelper which can be called from another
-    // thread or inside a signal hander, so we need to be careful in case a
-    // copmacting GC is currently moving things around.
-    return script->maybeForwardedFilename();
+    return script->filename();
 }
 
 JS_PUBLIC_API(const char16_t *)

@@ -10,12 +10,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "console",
                                   "resource://gre/modules/devtools/Console.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "LoopStorage",
                                   "resource:///modules/loop/LoopStorage.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-                                  "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "CardDavImporter",
                                   "resource:///modules/loop/CardDavImporter.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "GoogleImporter",
-                                  "resource:///modules/loop/GoogleImporter.jsm");
 XPCOMUtils.defineLazyGetter(this, "eventEmitter", function() {
   const {EventEmitter} = Cu.import("resource://gre/modules/devtools/event-emitter.js", {});
   return new EventEmitter();
@@ -328,8 +324,7 @@ let LoopContactsInternal = Object.freeze({
    * Map of contact importer names to instances
    */
   _importServices: {
-    "carddav": new CardDavImporter(),
-    "google": new GoogleImporter()
+    "carddav": new CardDavImporter()
   },
 
   /**
@@ -775,7 +770,7 @@ let LoopContactsInternal = Object.freeze({
    *                            `Error` object or `null`. The second argument will
    *                            be the result of the operation, if successfull.
    */
-  startImport: function(options, windowRef, callback) {
+  startImport: function(options, callback) {
     if (!("service" in options)) {
       callback(new Error("No import service specified in options"));
       return;
@@ -784,8 +779,7 @@ let LoopContactsInternal = Object.freeze({
       callback(new Error("Unknown import service specified: " + options.service));
       return;
     }
-    this._importServices[options.service].startImport(options, callback,
-                                                      LoopContacts, windowRef);
+    this._importServices[options.service].startImport(options, callback, this);
   },
 
   /**
@@ -864,24 +858,12 @@ this.LoopContacts = Object.freeze({
     return LoopContactsInternal.unblock(guid, callback);
   },
 
-  startImport: function(options, windowRef, callback) {
-    return LoopContactsInternal.startImport(options, windowRef, callback);
+  startImport: function(options, callback) {
+    return LoopContactsInternal.startImport(options, callback);
   },
 
   search: function(query, callback) {
     return LoopContactsInternal.search(query, callback);
-  },
-
-  promise: function(method, ...params) {
-    return new Promise((resolve, reject) => {
-      this[method](...params, (error, result) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(result);
-        }
-      });
-    });
   },
 
   on: (...params) => eventEmitter.on(...params),

@@ -223,7 +223,6 @@
 #include "mozilla/dom/DOMStringList.h"
 #include "nsWindowMemoryReporter.h"
 #include "nsLocation.h"
-#include "mozilla/dom/FontFaceSet.h"
 
 #ifdef MOZ_MEDIA_NAVIGATOR
 #include "mozilla/MediaManager.h"
@@ -12416,20 +12415,3 @@ nsAutoSyncOperation::~nsAutoSyncOperation()
   nsContentUtils::SetMicroTaskLevel(mMicroTaskLevel);
 }
 
-FontFaceSet*
-nsIDocument::GetFonts(ErrorResult& aRv)
-{
-  nsIPresShell* shell = GetShell();
-  if (!shell) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  nsPresContext* presContext = shell->GetPresContext();
-  if (!presContext) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  return presContext->Fonts();
-}

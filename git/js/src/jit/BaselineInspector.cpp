@@ -413,7 +413,7 @@ BaselineInspector::hasSeenDoubleResult(jsbytecode *pc)
     return false;
 }
 
-NativeObject *
+JSObject *
 BaselineInspector::getTemplateObject(jsbytecode *pc)
 {
     if (!hasBaselineScript())
@@ -429,7 +429,7 @@ BaselineInspector::getTemplateObject(jsbytecode *pc)
           case ICStub::Rest_Fallback:
             return stub->toRest_Fallback()->templateObject();
           case ICStub::Call_Scripted:
-            if (NativeObject *obj = stub->toCall_Scripted()->templateObject())
+            if (JSObject *obj = stub->toCall_Scripted()->templateObject())
                 return obj;
             break;
           default:
@@ -440,7 +440,7 @@ BaselineInspector::getTemplateObject(jsbytecode *pc)
     return nullptr;
 }
 
-NativeObject *
+JSObject *
 BaselineInspector::getTemplateObjectForNative(jsbytecode *pc, Native native)
 {
     if (!hasBaselineScript())

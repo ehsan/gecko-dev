@@ -16,7 +16,6 @@
 
 #include "jit/BaselineJIT.h"
 #include "jit/BaselineRegisters.h"
-#include "vm/ArrayObject.h"
 
 namespace js {
 
@@ -1879,26 +1878,26 @@ class ICNewArray_Fallback : public ICFallbackStub
 {
     friend class ICStubSpace;
 
-    HeapPtrArrayObject templateObject_;
+    HeapPtrObject templateObject_;
 
-    ICNewArray_Fallback(JitCode *stubCode, ArrayObject *templateObject)
+    ICNewArray_Fallback(JitCode *stubCode, JSObject *templateObject)
       : ICFallbackStub(ICStub::NewArray_Fallback, stubCode), templateObject_(templateObject)
     {}
 
   public:
     static inline ICNewArray_Fallback *New(ICStubSpace *space, JitCode *code,
-                                           ArrayObject *templateObject) {
+                                           JSObject *templateObject) {
         if (!code)
             return nullptr;
         return space->allocate<ICNewArray_Fallback>(code, templateObject);
     }
 
     class Compiler : public ICStubCompiler {
-        RootedArrayObject templateObject;
+        RootedObject templateObject;
         bool generateStubCode(MacroAssembler &masm);
 
       public:
-        Compiler(JSContext *cx, ArrayObject *templateObject)
+        Compiler(JSContext *cx, JSObject *templateObject)
           : ICStubCompiler(cx, ICStub::NewArray_Fallback),
             templateObject(cx, templateObject)
         {}
@@ -1908,7 +1907,7 @@ class ICNewArray_Fallback : public ICFallbackStub
         }
     };
 
-    HeapPtrArrayObject &templateObject() {
+    HeapPtrObject &templateObject() {
         return templateObject_;
     }
 };
@@ -1917,26 +1916,26 @@ class ICNewObject_Fallback : public ICFallbackStub
 {
     friend class ICStubSpace;
 
-    HeapPtrNativeObject templateObject_;
+    HeapPtrObject templateObject_;
 
-    ICNewObject_Fallback(JitCode *stubCode, NativeObject *templateObject)
+    ICNewObject_Fallback(JitCode *stubCode, JSObject *templateObject)
       : ICFallbackStub(ICStub::NewObject_Fallback, stubCode), templateObject_(templateObject)
     {}
 
   public:
     static inline ICNewObject_Fallback *New(ICStubSpace *space, JitCode *code,
-                                            NativeObject *templateObject) {
+                                            JSObject *templateObject) {
         if (!code)
             return nullptr;
         return space->allocate<ICNewObject_Fallback>(code, templateObject);
     }
 
     class Compiler : public ICStubCompiler {
-        RootedNativeObject templateObject;
+        RootedObject templateObject;
         bool generateStubCode(MacroAssembler &masm);
 
       public:
-        Compiler(JSContext *cx, NativeObject *templateObject)
+        Compiler(JSContext *cx, JSObject *templateObject)
           : ICStubCompiler(cx, ICStub::NewObject_Fallback),
             templateObject(cx, templateObject)
         {}
@@ -1946,7 +1945,7 @@ class ICNewObject_Fallback : public ICFallbackStub
         }
     };
 
-    HeapPtrNativeObject &templateObject() {
+    HeapPtrObject &templateObject() {
         return templateObject_;
     }
 };
@@ -5680,17 +5679,17 @@ class ICCall_Scripted : public ICMonitoredStub
 
   protected:
     HeapPtrScript calleeScript_;
-    HeapPtrNativeObject templateObject_;
+    HeapPtrObject templateObject_;
     uint32_t pcOffset_;
 
     ICCall_Scripted(JitCode *stubCode, ICStub *firstMonitorStub,
-                    HandleScript calleeScript, HandleNativeObject templateObject,
+                    HandleScript calleeScript, HandleObject templateObject,
                     uint32_t pcOffset);
 
   public:
     static inline ICCall_Scripted *New(
             ICStubSpace *space, JitCode *code, ICStub *firstMonitorStub,
-            HandleScript calleeScript, HandleNativeObject templateObject,
+            HandleScript calleeScript, HandleObject templateObject,
             uint32_t pcOffset)
     {
         if (!code)
@@ -5705,7 +5704,7 @@ class ICCall_Scripted : public ICMonitoredStub
     HeapPtrScript &calleeScript() {
         return calleeScript_;
     }
-    HeapPtrNativeObject &templateObject() {
+    HeapPtrObject &templateObject() {
         return templateObject_;
     }
 
@@ -5753,7 +5752,7 @@ class ICCallScriptedCompiler : public ICCallStubCompiler {
     bool isConstructing_;
     bool isSpread_;
     RootedScript calleeScript_;
-    RootedNativeObject templateObject_;
+    RootedObject templateObject_;
     uint32_t pcOffset_;
     bool generateStubCode(MacroAssembler &masm);
 
@@ -5764,7 +5763,7 @@ class ICCallScriptedCompiler : public ICCallStubCompiler {
 
   public:
     ICCallScriptedCompiler(JSContext *cx, ICStub *firstMonitorStub,
-                           HandleScript calleeScript, HandleNativeObject templateObject,
+                           HandleScript calleeScript, HandleObject templateObject,
                            bool isConstructing, bool isSpread, uint32_t pcOffset)
       : ICCallStubCompiler(cx, ICStub::Call_Scripted),
         firstMonitorStub_(firstMonitorStub),
@@ -5802,7 +5801,7 @@ class ICCall_Native : public ICMonitoredStub
 
   protected:
     HeapPtrFunction callee_;
-    HeapPtrNativeObject templateObject_;
+    HeapPtrObject templateObject_;
     uint32_t pcOffset_;
 
 #if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
@@ -5810,12 +5809,12 @@ class ICCall_Native : public ICMonitoredStub
 #endif
 
     ICCall_Native(JitCode *stubCode, ICStub *firstMonitorStub,
-                  HandleFunction callee, HandleNativeObject templateObject,
+                  HandleFunction callee, HandleObject templateObject,
                   uint32_t pcOffset);
 
   public:
     static inline ICCall_Native *New(ICStubSpace *space, JitCode *code, ICStub *firstMonitorStub,
-                                     HandleFunction callee, HandleNativeObject templateObject,
+                                     HandleFunction callee, HandleObject templateObject,
                                      uint32_t pcOffset)
     {
         if (!code)
@@ -5830,7 +5829,7 @@ class ICCall_Native : public ICMonitoredStub
     HeapPtrFunction &callee() {
         return callee_;
     }
-    HeapPtrNativeObject &templateObject() {
+    HeapPtrObject &templateObject() {
         return templateObject_;
     }
 
@@ -5854,7 +5853,7 @@ class ICCall_Native : public ICMonitoredStub
         bool isConstructing_;
         bool isSpread_;
         RootedFunction callee_;
-        RootedNativeObject templateObject_;
+        RootedObject templateObject_;
         uint32_t pcOffset_;
         bool generateStubCode(MacroAssembler &masm);
 
@@ -5865,7 +5864,7 @@ class ICCall_Native : public ICMonitoredStub
 
       public:
         Compiler(JSContext *cx, ICStub *firstMonitorStub,
-                 HandleFunction callee, HandleNativeObject templateObject,
+                 HandleFunction callee, HandleObject templateObject,
                  bool isConstructing, bool isSpread, uint32_t pcOffset)
           : ICCallStubCompiler(cx, ICStub::Call_Native),
             firstMonitorStub_(firstMonitorStub),
@@ -6423,9 +6422,9 @@ class ICRest_Fallback : public ICFallbackStub
 {
     friend class ICStubSpace;
 
-    HeapPtrArrayObject templateObject_;
+    HeapPtrObject templateObject_;
 
-    ICRest_Fallback(JitCode *stubCode, ArrayObject *templateObject)
+    ICRest_Fallback(JitCode *stubCode, JSObject *templateObject)
       : ICFallbackStub(ICStub::Rest_Fallback, stubCode), templateObject_(templateObject)
     { }
 
@@ -6433,23 +6432,23 @@ class ICRest_Fallback : public ICFallbackStub
     static const uint32_t MAX_OPTIMIZED_STUBS = 8;
 
     static inline ICRest_Fallback *New(ICStubSpace *space, JitCode *code,
-                                       ArrayObject *templateObject) {
+                                       JSObject *templateObject) {
         if (!code)
             return nullptr;
         return space->allocate<ICRest_Fallback>(code, templateObject);
     }
 
-    HeapPtrArrayObject &templateObject() {
+    HeapPtrObject &templateObject() {
         return templateObject_;
     }
 
     class Compiler : public ICStubCompiler {
       protected:
-        RootedArrayObject templateObject;
+        RootedObject templateObject;
         bool generateStubCode(MacroAssembler &masm);
 
       public:
-        Compiler(JSContext *cx, ArrayObject *templateObject)
+        Compiler(JSContext *cx, JSObject *templateObject)
           : ICStubCompiler(cx, ICStub::Rest_Fallback),
             templateObject(cx, templateObject)
         { }
@@ -6554,7 +6553,7 @@ IsCacheableDOMProxy(JSObject *obj)
     if (handler->family() != GetDOMProxyHandlerFamily())
         return false;
 
-    if (obj->fakeNativeNumFixedSlots() <= GetDOMProxyExpandoSlot())
+    if (obj->numFixedSlots() <= GetDOMProxyExpandoSlot())
         return false;
 
     return true;

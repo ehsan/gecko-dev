@@ -25,7 +25,6 @@
 #include "nsContentUtils.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Types.h"
-#include "mozilla/FloatingPoint.h"
 #include "nsStyleContext.h"
 #include "nsSVGPathDataParser.h"
 #include "SVGPathData.h"
@@ -159,8 +158,7 @@ void
 SVGContentUtils::GetStrokeOptions(AutoStrokeOptions* aStrokeOptions,
                                   nsSVGElement* aElement,
                                   nsStyleContext* aStyleContext,
-                                  gfxTextContextPaint *aContextPaint,
-                                  StrokeOptionFlags aFlags)
+                                  gfxTextContextPaint *aContextPaint)
 {
   nsRefPtr<nsStyleContext> styleContext;
   if (aStyleContext) {
@@ -177,19 +175,17 @@ SVGContentUtils::GetStrokeOptions(AutoStrokeOptions* aStrokeOptions,
 
   const nsStyleSVG* styleSVG = styleContext->StyleSVG();
 
-  if (aFlags != eIgnoreStrokeDashing) {
-    DashState dashState =
-      GetStrokeDashData(aStrokeOptions, aElement, styleSVG, aContextPaint);
+  DashState dashState =
+    GetStrokeDashData(aStrokeOptions, aElement, styleSVG, aContextPaint);
 
-    if (dashState == eNoStroke) {
-      // Hopefully this will shortcircuit any stroke operations:
-      aStrokeOptions->mLineWidth = 0;
-      return;
-    }
-    if (dashState == eContinuousStroke && aStrokeOptions->mDashPattern) {
-      // Prevent our caller from wasting time looking at a pattern without gaps:
-      aStrokeOptions->DiscardDashPattern();
-    }
+  if (dashState == eNoStroke) {
+    // Hopefully this will shortcircuit any stroke operations:
+    aStrokeOptions->mLineWidth = 0;
+    return;
+  }
+  if (dashState == eContinuousStroke && aStrokeOptions->mDashPattern) {
+    // Prevent our caller from wasting time looking at a pattern without gaps:
+    aStrokeOptions->DiscardDashPattern();
   }
 
   aStrokeOptions->mLineWidth =
@@ -668,7 +664,7 @@ SVGContentUtils::ParseNumber(RangedPtr<const char16_t>& aIter,
     return false;
   }
   floatType floatValue = floatType(value);
-  if (!IsFinite(floatValue)) {
+  if (!NS_finite(floatValue)) {
     return false;
   }
   aValue = floatValue;

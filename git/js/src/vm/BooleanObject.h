@@ -8,12 +8,11 @@
 #define vm_BooleanObject_h
 
 #include "jsbool.h"
-
-#include "vm/ObjectImpl.h"
+#include "jsobj.h"
 
 namespace js {
 
-class BooleanObject : public NativeObject
+class BooleanObject : public JSObject
 {
     /* Stores this Boolean object's [[PrimitiveValue]]. */
     static const unsigned PRIMITIVE_VALUE_SLOT = 0;

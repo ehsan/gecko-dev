@@ -271,7 +271,7 @@ ExtractPerfMeasurement(jsval wrapper)
     if (obj->getClass() != js::Valueify(&pm_class))
         return 0;
 
-    return (PerfMeasurement*) obj->as<js::NativeObject>().getPrivate();
+    return (PerfMeasurement*) obj->getPrivate();
 }
 
 } // namespace JS

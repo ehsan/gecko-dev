@@ -63,7 +63,7 @@ uint32_t AnyArrayBufferByteLength(const ArrayBufferObjectMaybeShared *buf);
 uint8_t *AnyArrayBufferDataPointer(const ArrayBufferObjectMaybeShared *buf);
 ArrayBufferObjectMaybeShared &AsAnyArrayBuffer(HandleValue val);
 
-class ArrayBufferObjectMaybeShared : public NativeObject
+class ArrayBufferObjectMaybeShared : public JSObject
 {
   public:
     uint32_t byteLength() {
@@ -224,7 +224,7 @@ class ArrayBufferObject : public ArrayBufferObjectMaybeShared
     // and non-incrementalized sweep time.
     ArrayBufferViewObject *firstView();
 
-    bool addView(JSContext *cx, JSObject *view);
+    bool addView(JSContext *cx, ArrayBufferViewObject *view);
 
     void setNewOwnedData(FreeOp* fop, BufferContents newContents);
     void changeContents(JSContext *cx, BufferContents newContents);
@@ -325,7 +325,7 @@ class ArrayBufferObject : public ArrayBufferObjectMaybeShared
 /*
  * ArrayBufferViewObject
  *
- * Common definitions shared by all array buffer views.
+ * Common definitions shared by all ArrayBufferViews.
  */
 
 class ArrayBufferViewObject : public JSObject
@@ -355,7 +355,7 @@ PostBarrierTypedArrayObject(JSObject *obj)
 }
 
 inline void
-InitArrayBufferViewDataPointer(JSObject *obj, ArrayBufferObject *buffer, size_t byteOffset)
+InitArrayBufferViewDataPointer(ArrayBufferViewObject *obj, ArrayBufferObject *buffer, size_t byteOffset)
 {
     /*
      * N.B. The base of the array's data is stored in the object's
@@ -363,7 +363,7 @@ InitArrayBufferViewDataPointer(JSObject *obj, ArrayBufferObject *buffer, size_t 
      * private Values that are pointers must have the low bits clear.
      */
     MOZ_ASSERT(buffer->dataPointer() != nullptr);
-    obj->as<NativeObject>().initPrivate(buffer->dataPointer() + byteOffset);
+    obj->initPrivate(buffer->dataPointer() + byteOffset);
 
     PostBarrierTypedArrayObject(obj);
 }

@@ -29,7 +29,6 @@
 
 #include "jit/CompileInfo-inl.h"
 #include "jit/ExecutionMode-inl.h"
-#include "vm/ObjectImpl-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -3145,7 +3144,7 @@ IonBuilder::replaceTypeSet(MDefinition *subject, types::TemporaryTypeSet *type, 
     if (type->unknown())
         return true;
 
-    MInstruction *replace = nullptr;
+    MFilterTypeSet *replace = nullptr;
     MDefinition *ins;
 
     for (uint32_t i = 0; i < current->stackDepth(); i++) {
@@ -3162,32 +3161,27 @@ IonBuilder::replaceTypeSet(MDefinition *subject, types::TemporaryTypeSet *type, 
 
             ins->toFilterTypeSet()->setResultType(intersect->getKnownMIRType());
             ins->toFilterTypeSet()->setResultTypeSet(intersect);
-
-            if (ins->type() == MIRType_Undefined)
-                current->setSlot(i, constant(UndefinedValue()));
-            if (ins->type() == MIRType_Null)
-                current->setSlot(i, constant(NullValue()));
             continue;
         }
 
         if (ins == subject) {
             if (!replace) {
                 replace = MFilterTypeSet::New(alloc(), subject, type);
+
                 if (!replace)
                     return false;
+                if (replace == subject)
+                    break;
 
                 current->add(replace);
 
-                // Make sure we don't hoist it above the MTest, we can use the
-                // 'dependency' of an MInstruction. This is normally used by
-                // Alias Analysis, but won't get overwritten, since this
-                // instruction doesn't have an AliasSet.
-                replace->setDependency(test);
-
-                if (replace->type() == MIRType_Undefined)
-                    replace = constant(UndefinedValue());
-                if (replace->type() == MIRType_Null)
-                    replace = constant(NullValue());
+                if (replace != subject) {
+                    // Make sure we don't hoist it above the MTest, we can use the
+                    // 'dependency' of an MInstruction. This is normally used by
+                    // Alias Analysis, but won't get overwritten, since this
+                    // instruction doesn't have an AliasSet.
+                    replace->setDependency(test);
+                }
             }
             current->setSlot(i, replace);
         }
@@ -3318,7 +3312,7 @@ IonBuilder::improveTypesAtTest(MDefinition *ins, bool trueBranch, MTest *test)
     if (!ins)
         return true;
 
-    switch (ins->op()) {
+    switch(ins->op()) {
       case MDefinition::Op_Not:
         return improveTypesAtTest(ins->toNot()->getOperand(0), !trueBranch, test);
       case MDefinition::Op_IsObject: {
@@ -4251,12 +4245,7 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
                 return oom();
             MTypeBarrier *barrier = MTypeBarrier::New(alloc(), callInfo.thisArg(), clonedTypes);
             current->add(barrier);
-            if (barrier->type() == MIRType_Undefined)
-                callInfo.setThis(constant(UndefinedValue()));
-            else if (barrier->type() == MIRType_Null)
-                callInfo.setThis(constant(NullValue()));
-            else
-                callInfo.setThis(barrier);
+            callInfo.setThis(barrier);
         }
     }
 
@@ -5810,7 +5799,7 @@ IonBuilder::jsop_compare(JSOp op)
 bool
 IonBuilder::jsop_newarray(uint32_t count)
 {
-    NativeObject *templateObject = inspector->getTemplateObject(pc);
+    JSObject *templateObject = inspector->getTemplateObject(pc);
     if (!templateObject) {
         if (info().executionMode() == ArgumentsUsageAnalysis) {
             MUnknownValue *unknown = MUnknownValue::New(alloc());
@@ -5856,7 +5845,7 @@ IonBuilder::jsop_newarray(uint32_t count)
 bool
 IonBuilder::jsop_newarray_copyonwrite()
 {
-    ArrayObject *templateObject = types::GetCopyOnWriteObject(script(), pc);
+    JSObject *templateObject = types::GetCopyOnWriteObject(script(), pc);
 
     // The baseline compiler should have ensured the template object has a type
     // with the copy on write flag set already. During the arguments usage
@@ -5959,7 +5948,7 @@ IonBuilder::jsop_initelem_array()
     MElements *elements = MElements::New(alloc(), obj);
     current->add(elements);
 
-    NativeObject *templateObject = obj->toNewArray()->templateObject();
+    JSObject *templateObject = obj->toNewArray()->templateObject();
 
     if (templateObject->shouldConvertDoubleElements()) {
         MInstruction *valueDouble = MToDouble::New(alloc(), value);
@@ -6000,7 +5989,7 @@ IonBuilder::jsop_initprop(PropertyName *name)
     MDefinition *value = current->pop();
     MDefinition *obj = current->peek(-1);
 
-    NativeObject *templateObject = nullptr;
+    JSObject *templateObject = nullptr;
     Shape *shape = nullptr;
 
     bool useSlowPath = false;
@@ -6788,7 +6777,7 @@ NumFixedSlots(JSObject *object)
     // shape and can race with the main thread if we are building off thread.
     // The allocation kind and object class (which goes through the type) can
     // be read freely, however.
-    gc::AllocKind kind = object->asTenured().getAllocKind();
+    gc::AllocKind kind = object->asTenured()->getAllocKind();
     return gc::GetGCKindSlots(kind, object->getClass());
 }
 
@@ -8577,7 +8566,8 @@ IonBuilder::jsop_arguments()
 bool
 IonBuilder::jsop_rest()
 {
-    ArrayObject *templateObject = &inspector->getTemplateObject(pc)->as<ArrayObject>();
+    JSObject *templateObject = inspector->getTemplateObject(pc);
+    MOZ_ASSERT(templateObject->is<ArrayObject>());
 
     if (inliningDepth_ == 0) {
         // We don't know anything about the callee.
@@ -9323,13 +9313,13 @@ IonBuilder::getPropTryDefiniteSlot(bool *emitted, MDefinition *obj, PropertyName
     }
 
     MInstruction *load;
-    if (slot < NativeObject::MAX_FIXED_SLOTS) {
+    if (slot < JSObject::MAX_FIXED_SLOTS) {
         load = MLoadFixedSlot::New(alloc(), obj, slot);
     } else {
         MInstruction *slots = MSlots::New(alloc(), obj);
         current->add(slots);
 
-        load = MLoadSlot::New(alloc(), slots, slot - NativeObject::MAX_FIXED_SLOTS);
+        load = MLoadSlot::New(alloc(), slots, slot - JSObject::MAX_FIXED_SLOTS);
     }
 
     if (barrier == BarrierKind::NoBarrier)
@@ -9977,7 +9967,7 @@ IonBuilder::setPropTryDefiniteSlot(bool *emitted, MDefinition *obj,
     }
 
     MInstruction *store;
-    if (slot < NativeObject::MAX_FIXED_SLOTS) {
+    if (slot < JSObject::MAX_FIXED_SLOTS) {
         store = MStoreFixedSlot::New(alloc(), obj, slot, value);
         if (writeBarrier)
             store->toStoreFixedSlot()->setNeedsBarrier();
@@ -9985,7 +9975,7 @@ IonBuilder::setPropTryDefiniteSlot(bool *emitted, MDefinition *obj,
         MInstruction *slots = MSlots::New(alloc(), obj);
         current->add(slots);
 
-        store = MStoreSlot::New(alloc(), slots, slot - NativeObject::MAX_FIXED_SLOTS, value);
+        store = MStoreSlot::New(alloc(), slots, slot - JSObject::MAX_FIXED_SLOTS, value);
         if (writeBarrier)
             store->toStoreSlot()->setNeedsBarrier();
     }

@@ -259,7 +259,6 @@ LOCAL_INCLUDES += [
     '/dom/smil',
     '/dom/xbl',
     '/dom/xml',
-    '/layout/base',
     '/layout/generic',
     '/layout/style',
     '/layout/svg',

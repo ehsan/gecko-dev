@@ -37,7 +37,6 @@
 #include "nsCSSRules.h"
 #include "nsPrintfCString.h"
 #include "nsIFrame.h"
-#include "RestyleManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -234,6 +233,10 @@ nsStyleSet::EndReconstruct()
   mInReconstruct = false;
 #ifdef DEBUG
   for (int32_t i = mRoots.Length() - 1; i >= 0; --i) {
+    nsRuleNode *n = mRoots[i]->RuleNode();
+    while (n->GetParent()) {
+      n = n->GetParent();
+    }
     // Since nsStyleContext's mParent and mRuleNode are immutable, and
     // style contexts own their parents, and nsStyleContext asserts in
     // its constructor that the style context and its parent are in the
@@ -241,8 +244,7 @@ nsStyleSet::EndReconstruct()
     // mRoots; we only need to check the rule nodes of mRoots
     // themselves.
 
-    NS_ASSERTION(mRoots[i]->RuleNode()->RuleTree() == mRuleTree,
-                 "style context has old rule node");
+    NS_ASSERTION(n == mRuleTree, "style context has old rule node");
   }
 #endif
   // This *should* destroy the only element of mOldRuleTrees, but in
@@ -1368,7 +1370,6 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
                                     uint32_t(aReplacements)).get());
 
   bool skipAnimationRules = false;
-  bool postAnimationRestyles = false;
 
   // If we're changing animation phase, we have to reconsider what rules
   // are in these four levels.
@@ -1378,9 +1379,9 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
                      eRestyle_SVGAttrAnimations |
                      eRestyle_StyleAttribute;
 
-    RestyleManager* restyleManager = PresContext()->RestyleManager();
-    skipAnimationRules = restyleManager->SkipAnimationRules();
-    postAnimationRestyles = restyleManager->PostAnimationRestyles();
+    nsPresContext* presContext = PresContext();
+    skipAnimationRules = presContext->IsProcessingRestyles() &&
+                         !presContext->IsProcessingAnimationStyleChange();
   }
 
   // FIXME (perf): This should probably not rebuild the whole path, but
@@ -1432,9 +1433,7 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
 
           if (collection) {
             if (skipAnimationRules) {
-              if (postAnimationRestyles) {
-                collection->PostRestyleForAnimation(presContext);
-              }
+              collection->PostRestyleForAnimation(presContext);
             } else {
               animationManager->UpdateStyleAndEvents(
                 collection, PresContext()->RefreshDriver()->MostRecentRefresh(),
@@ -1457,9 +1456,7 @@ nsStyleSet::RuleNodeWithReplacement(Element* aElement,
 
           if (collection) {
             if (skipAnimationRules) {
-              if (postAnimationRestyles) {
-                collection->PostRestyleForAnimation(presContext);
-              }
+              collection->PostRestyleForAnimation(presContext);
             } else {
               collection->EnsureStyleRuleFor(
                 presContext->RefreshDriver()->MostRecentRefresh(),
@@ -2086,8 +2083,7 @@ nsStyleSet::GCRuleTrees()
  * rules removed, and post a restyle if needed.
  */
 static inline nsRuleNode*
-SkipAnimationRules(nsRuleNode* aRuleNode, Element* aElementOrPseudoElement,
-                   bool aPostAnimationRestyles)
+SkipAnimationRules(nsRuleNode* aRuleNode, Element* aElementOrPseudoElement)
 {
   nsRuleNode* ruleNode = aRuleNode;
   // The transition rule must be at the top of the cascade.
@@ -2106,7 +2102,7 @@ SkipAnimationRules(nsRuleNode* aRuleNode, Element* aElementOrPseudoElement,
     ruleNode = ReplaceAnimationRule(ruleNode, animationRule, nullptr);
   }
 
-  if (ruleNode != aRuleNode && aPostAnimationRestyles) {
+  if (ruleNode != aRuleNode) {
     NS_ASSERTION(aElementOrPseudoElement,
                  "How can we have transition rules but no element?");
     // Need to do an animation restyle, just like
@@ -2142,15 +2138,14 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
 
   // Skip transition rules as needed just like
   // nsTransitionManager::WalkTransitionRule would.
-  RestyleManager* restyleManager = PresContext()->RestyleManager();
-  bool skipAnimationRules = restyleManager->SkipAnimationRules();
-  bool postAnimationRestyles = restyleManager->PostAnimationRestyles();
+  bool skipAnimationRules = PresContext()->IsProcessingRestyles() &&
+    !PresContext()->IsProcessingAnimationStyleChange();
   if (skipAnimationRules) {
     // Make sure that we're not using transition rules or animation rules for
     // our new style context.  If we need them, an animation restyle will
     // provide.
-    ruleNode = SkipAnimationRules(ruleNode, aElementOrPseudoElement,
-                                  postAnimationRestyles);
+    ruleNode =
+      SkipAnimationRules(ruleNode, aElementOrPseudoElement);
   }
 
   nsRuleNode* visitedRuleNode = nullptr;
@@ -2165,8 +2160,7 @@ nsStyleSet::ReparentStyleContext(nsStyleContext* aStyleContext,
      if (skipAnimationRules) {
       // FIXME do something here for animations?
        visitedRuleNode =
-         SkipAnimationRules(visitedRuleNode, aElementOrPseudoElement,
-                            postAnimationRestyles);
+         SkipAnimationRules(visitedRuleNode, aElementOrPseudoElement);
      }
   }
 

@@ -134,11 +134,7 @@ WebGLContext::DrawArrays(GLenum mode, GLint first, GLsizei count)
         return;
 
     RunContextLossTimer();
-
-    {
-        ScopedMaskWorkaround autoMask(*this);
-        gl->fDrawArrays(mode, first, count);
-    }
+    gl->fDrawArrays(mode, first, count);
 
     Draw_cleanup();
 }
@@ -156,11 +152,7 @@ WebGLContext::DrawArraysInstanced(GLenum mode, GLint first, GLsizei count, GLsiz
         return;
 
     RunContextLossTimer();
-
-    {
-        ScopedMaskWorkaround autoMask(*this);
-        gl->fDrawArraysInstanced(mode, first, count, primcount);
-    }
+    gl->fDrawArraysInstanced(mode, first, count, primcount);
 
     Draw_cleanup();
 }
@@ -321,16 +313,11 @@ WebGLContext::DrawElements(GLenum mode, GLsizei count, GLenum type,
 
     RunContextLossTimer();
 
-    {
-        ScopedMaskWorkaround autoMask(*this);
-
-        if (gl->IsSupported(gl::GLFeature::draw_range_elements)) {
-            gl->fDrawRangeElements(mode, 0, upperBound, count, type,
-                                   reinterpret_cast<GLvoid*>(byteOffset));
-        } else {
-            gl->fDrawElements(mode, count, type,
-                              reinterpret_cast<GLvoid*>(byteOffset));
-        }
+    if (gl->IsSupported(gl::GLFeature::draw_range_elements)) {
+        gl->fDrawRangeElements(mode, 0, upperBound,
+                               count, type, reinterpret_cast<GLvoid*>(byteOffset));
+    } else {
+        gl->fDrawElements(mode, count, type, reinterpret_cast<GLvoid*>(byteOffset));
     }
 
     Draw_cleanup();
@@ -347,20 +334,12 @@ WebGLContext::DrawElementsInstanced(GLenum mode, GLsizei count, GLenum type,
         return;
 
     GLuint upperBound = 0;
-    if (!DrawElements_check(count, type, byteOffset, primcount,
-                            "drawElementsInstanced", &upperBound))
-    {
+    if (!DrawElements_check(count, type, byteOffset, primcount, "drawElementsInstanced",
+                            &upperBound))
         return;
-    }
 
     RunContextLossTimer();
-
-    {
-        ScopedMaskWorkaround autoMask(*this);
-        gl->fDrawElementsInstanced(mode, count, type,
-                                   reinterpret_cast<GLvoid*>(byteOffset),
-                                   primcount);
-    }
+    gl->fDrawElementsInstanced(mode, count, type, reinterpret_cast<GLvoid*>(byteOffset), primcount);
 
     Draw_cleanup();
 }

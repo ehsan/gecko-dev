@@ -487,10 +487,6 @@ function ThreadActor(aParent, aGlobal)
     autoBlackBox: false
   };
 
-  this.breakpointStore = new BreakpointStore();
-  this.blackBoxedSources = new Set(["self-hosted"]);
-  this.prettyPrintedSources = new Map();
-
   // A map of actorID -> actor for breakpoints created and managed by the
   // server.
   this._hiddenBreakpoints = new Map();
@@ -504,6 +500,12 @@ function ThreadActor(aParent, aGlobal)
   this.onDebuggerStatement = this.onDebuggerStatement.bind(this);
   this.onNewScript = this.onNewScript.bind(this);
 }
+
+/**
+ * The breakpoint store must be shared across instances of ThreadActor so that
+ * page reloads don't blow away all of our breakpoints.
+ */
+ThreadActor.breakpointStore = new BreakpointStore();
 
 ThreadActor.prototype = {
   // Used by the ObjectActor to keep track of the depth of grip() calls.
@@ -532,6 +534,8 @@ ThreadActor.prototype = {
   get attached() this.state == "attached" ||
                  this.state == "running" ||
                  this.state == "paused",
+
+  get breakpointStore() { return ThreadActor.breakpointStore; },
 
   get threadLifetimePool() {
     if (!this._threadLifetimePool) {
@@ -4903,6 +4907,14 @@ function ThreadSources(aThreadActor, aOptions, aAllowPredicate,
 }
 
 /**
+ * Must be a class property because it needs to persist across reloads, same as
+ * the breakpoint store.
+ */
+ThreadSources._blackBoxedSources = new Set(["self-hosted"]);
+ThreadSources._prettyPrintedSources = new Map();
+
+
+/**
  * Matches strings of the form "foo.min.js" or "foo-min.js", etc. If the regular
  * expression matches, we can be fairly sure that the source is minified, and
  * treat it as such.
@@ -5198,7 +5210,7 @@ ThreadSources.prototype = {
    *        boxed or not.
    */
   isBlackBoxed: function (aURL) {
-    return this._thread.blackBoxedSources.has(aURL);
+    return ThreadSources._blackBoxedSources.has(aURL);
   },
 
   /**
@@ -5208,7 +5220,7 @@ ThreadSources.prototype = {
    *        The URL of the source which we are black boxing.
    */
   blackBox: function (aURL) {
-    this._thread.blackBoxedSources.add(aURL);
+    ThreadSources._blackBoxedSources.add(aURL);
   },
 
   /**
@@ -5218,7 +5230,7 @@ ThreadSources.prototype = {
    *        The URL of the source which we are no longer black boxing.
    */
   unblackBox: function (aURL) {
-    this._thread.blackBoxedSources.delete(aURL);
+    ThreadSources._blackBoxedSources.delete(aURL);
   },
 
   /**
@@ -5228,7 +5240,7 @@ ThreadSources.prototype = {
    *        The URL of the source that might be pretty printed.
    */
   isPrettyPrinted: function (aURL) {
-    return this._thread.prettyPrintedSources.has(aURL);
+    return ThreadSources._prettyPrintedSources.has(aURL);
   },
 
   /**
@@ -5238,14 +5250,14 @@ ThreadSources.prototype = {
    *        The URL of the source to be pretty printed.
    */
   prettyPrint: function (aURL, aIndent) {
-    this._thread.prettyPrintedSources.set(aURL, aIndent);
+    ThreadSources._prettyPrintedSources.set(aURL, aIndent);
   },
 
   /**
    * Return the indent the given URL was pretty printed by.
    */
   prettyPrintIndent: function (aURL) {
-    return this._thread.prettyPrintedSources.get(aURL);
+    return ThreadSources._prettyPrintedSources.get(aURL);
   },
 
   /**
@@ -5255,7 +5267,7 @@ ThreadSources.prototype = {
    *        The URL of the source that is no longer pretty printed.
    */
   disablePrettyPrint: function (aURL) {
-    this._thread.prettyPrintedSources.delete(aURL);
+    ThreadSources._prettyPrintedSources.delete(aURL);
   },
 
   /**
@@ -5483,9 +5495,21 @@ function getInnerId(window) {
                 getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
 };
 
+function getInnerId(window) {
+  return window.QueryInterface(Ci.nsIInterfaceRequestor).
+                getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
+};
+
 const symbolProtoToString = typeof Symbol === "function" ? Symbol.prototype.toString : null;
 
 function getSymbolName(symbol) {
   const name = symbolProtoToString.call(symbol).slice("Symbol(".length, -1);
   return name || undefined;
+}
+
+exports.cleanup = function() {
+  // Reset shared globals when reloading the debugger server
+  ThreadActor.breakpointStore = new BreakpointStore();
+  ThreadSources._blackBoxedSources.clear();
+  ThreadSources._prettyPrintedSources.clear();
 }

@@ -106,7 +106,6 @@ class Element;
 struct ElementRegistrationOptions;
 class Event;
 class EventTarget;
-class FontFaceSet;
 class FrameRequestCallback;
 class ImportManager;
 class OverfillCallback;
@@ -2390,11 +2389,6 @@ public:
       mBlockedTrackingNodes.AppendElement(weakNode);
     }
   }
-
-  // FontFaceSource
-  mozilla::dom::FontFaceSet* GetFonts(mozilla::ErrorResult& aRv);
-
-  bool DidFireDOMContentLoaded() const { return mDidFireDOMContentLoaded; }
 
 private:
   uint64_t mWarnedAbout;

@@ -68,8 +68,6 @@ EXPORTS.mozilla.dom += [
     'CSS.h',
     'CSSRuleList.h',
     'CSSValue.h',
-    'FontFace.h',
-    'FontFaceSet.h',
     'MediaQueryList.h',
 ]
 
@@ -96,7 +94,6 @@ UNIFIED_SOURCES += [
     'CSSVariableValues.cpp',
     'Declaration.cpp',
     'ErrorReporter.cpp',
-    'FontFace.cpp',
     'ImageLoader.cpp',
     'Loader.cpp',
     'MediaQueryList.cpp',
@@ -138,10 +135,8 @@ UNIFIED_SOURCES += [
 ]
 
 # nsCSSRuleProcessor.cpp needs to be built separately because it uses plarena.h.
-# FontFaceSet.cpp and nsFontFaceLoader.cpp need to be built separately because
-# they force NSPR logging.
+# nsFontFaceLoader.cpp needs to be built separately because it forces NSPR logging.
 SOURCES += [
-    'FontFaceSet.cpp',
     'nsCSSRuleProcessor.cpp',
     'nsFontFaceLoader.cpp',
 ]

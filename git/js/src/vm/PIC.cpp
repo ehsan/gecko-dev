@@ -24,13 +24,13 @@ js::ForOfPIC::Chain::initialize(JSContext *cx)
     MOZ_ASSERT(!initialized_);
 
     // Get the canonical Array.prototype
-    RootedNativeObject arrayProto(cx, GlobalObject::getOrCreateArrayPrototype(cx, cx->global()));
+    RootedObject arrayProto(cx, GlobalObject::getOrCreateArrayPrototype(cx, cx->global()));
     if (!arrayProto)
         return false;
 
     // Get the canonical ArrayIterator.prototype
-    RootedNativeObject arrayIteratorProto(cx,
-        GlobalObject::getOrCreateArrayIteratorPrototype(cx, cx->global()));
+    RootedObject arrayIteratorProto(cx,
+                    GlobalObject::getOrCreateArrayIteratorPrototype(cx, cx->global()));
     if (!arrayIteratorProto)
         return false;
 
@@ -45,7 +45,7 @@ js::ForOfPIC::Chain::initialize(JSContext *cx)
     disabled_ = true;
 
     // Look up '@@iterator' on Array.prototype, ensure it's a slotful shape.
-    Shape *iterShape = arrayProto->lookup(cx, cx->names().std_iterator);
+    Shape *iterShape = arrayProto->nativeLookup(cx, cx->names().std_iterator);
     if (!iterShape || !iterShape->hasSlot() || !iterShape->hasDefaultGetter())
         return true;
 
@@ -58,7 +58,7 @@ js::ForOfPIC::Chain::initialize(JSContext *cx)
         return true;
 
     // Look up the 'next' value on ArrayIterator.prototype
-    Shape *nextShape = arrayIteratorProto->lookup(cx, cx->names().next);
+    Shape *nextShape = arrayIteratorProto->nativeLookup(cx, cx->names().next);
     if (!nextShape || !nextShape->hasSlot())
         return true;
 
@@ -99,8 +99,9 @@ js::ForOfPIC::Chain::isArrayOptimized(ArrayObject *obj)
 }
 
 bool
-js::ForOfPIC::Chain::tryOptimizeArray(JSContext *cx, HandleArrayObject array, bool *optimized)
+js::ForOfPIC::Chain::tryOptimizeArray(JSContext *cx, HandleObject array, bool *optimized)
 {
+    MOZ_ASSERT(array->is<ArrayObject>());
     MOZ_ASSERT(optimized);
 
     *optimized = false;
@@ -144,7 +145,7 @@ js::ForOfPIC::Chain::tryOptimizeArray(JSContext *cx, HandleArrayObject array, bo
         return true;
 
     // Ensure array doesn't define '@@iterator' directly.
-    if (array->lookup(cx, cx->names().std_iterator))
+    if (array->nativeLookup(cx, cx->names().std_iterator))
         return true;
 
     // Good to optimize now, create stub to add.
@@ -282,14 +283,14 @@ js::ForOfPIC::Chain::sweep(FreeOp *fop)
 static void
 ForOfPIC_finalize(FreeOp *fop, JSObject *obj)
 {
-    if (ForOfPIC::Chain *chain = ForOfPIC::fromJSObject(&obj->as<NativeObject>()))
+    if (ForOfPIC::Chain *chain = ForOfPIC::fromJSObject(obj))
         chain->sweep(fop);
 }
 
 static void
 ForOfPIC_traceObject(JSTracer *trc, JSObject *obj)
 {
-    if (ForOfPIC::Chain *chain = ForOfPIC::fromJSObject(&obj->as<NativeObject>()))
+    if (ForOfPIC::Chain *chain = ForOfPIC::fromJSObject(obj))
         chain->mark(trc);
 }
 
@@ -303,11 +304,11 @@ const Class ForOfPIC::jsclass = {
     ForOfPIC_traceObject
 };
 
-/* static */ NativeObject *
+/* static */ JSObject *
 js::ForOfPIC::createForOfPICObject(JSContext *cx, Handle<GlobalObject*> global)
 {
     assertSameCompartment(cx, global);
-    NativeObject *obj = NewNativeObjectWithGivenProto(cx, &ForOfPIC::jsclass, nullptr, global);
+    JSObject *obj = NewObjectWithGivenProto(cx, &ForOfPIC::jsclass, nullptr, global);
     if (!obj)
         return nullptr;
     ForOfPIC::Chain *chain = cx->new_<ForOfPIC::Chain>();
@@ -322,7 +323,7 @@ js::ForOfPIC::create(JSContext *cx)
 {
     MOZ_ASSERT(!cx->global()->getForOfPICObject());
     Rooted<GlobalObject *> global(cx, cx->global());
-    NativeObject *obj = GlobalObject::getOrCreateForOfPICObject(cx, global);
+    JSObject *obj = GlobalObject::getOrCreateForOfPICObject(cx, global);
     if (!obj)
         return nullptr;
     return fromJSObject(obj);

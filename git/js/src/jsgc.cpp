@@ -503,7 +503,7 @@ Arena::finalize(FreeOp *fop, AllocKind thingKind, size_t thingSize)
 
     for (ArenaCellIterUnderFinalize i(&aheader); !i.done(); i.next()) {
         T *t = i.get<T>();
-        if (t->asTenured().isMarked()) {
+        if (t->asTenured()->isMarked()) {
             uintptr_t thing = reinterpret_cast<uintptr_t>(t);
             if (thing != firstThingOrSuccessorOfLastMarkedThing) {
                 // We just finished passing over one or more free things,
@@ -2117,6 +2117,7 @@ CanRelocateArena(ArenaHeader *arena)
      * We can't currently move global objects because their address can be baked
      * into compiled code so we skip relocation of any area containing one.
      */
+    JSRuntime *rt = arena->zone->runtimeFromMainThread();
     return arena->getAllocKind() <= FINALIZE_OBJECT_LAST && !ArenaContainsGlobal(arena);
 }
 
@@ -2342,30 +2343,38 @@ MovingTracer::Visit(JSTracer *jstrc, void **thingp, JSGCTraceKind kind)
 }
 
 void
-GCRuntime::sweepZoneAfterCompacting(Zone *zone)
+MovingTracer::Sweep(JSTracer *jstrc)
 {
-    MOZ_ASSERT(zone->isCollecting());
+    JSRuntime *rt = jstrc->runtime();
     FreeOp *fop = rt->defaultFreeOp();
-    zone->discardJitCode(fop);
-    zone->sweepAnalysis(fop, rt->gc.releaseObservedTypes && !zone->isPreservingCode());
-    zone->sweepBreakpoints(fop);
 
-    for (CompartmentsInZoneIter c(zone); !c.done(); c.next()) {
-        c->sweepInnerViews();
-        c->sweepCrossCompartmentWrappers();
-        c->sweepBaseShapeTable();
-        c->sweepInitialShapeTable();
-        c->sweepTypeObjectTables();
-        c->sweepRegExps();
-        c->sweepCallsiteClones();
-        c->sweepSavedStacks();
-        c->sweepGlobalObject(fop);
-        c->sweepSelfHostingScriptSource();
-        c->sweepDebugScopes();
-        c->sweepJitCompartment(fop);
-        c->sweepWeakMaps();
-        c->sweepNativeIterators();
+    WatchpointMap::sweepAll(rt);
+
+    Debugger::sweepAll(fop);
+
+    for (ZonesIter zone(rt, SkipAtoms); !zone.done(); zone.next()) {
+        if (zone->isCollecting()) {
+            bool oom = false;
+            zone->sweep(fop, false, &oom);
+            MOZ_ASSERT(!oom);
+
+            for (CompartmentsInZoneIter c(zone); !c.done(); c.next()) {
+                c->sweep(fop, false);
+            }
+        } else {
+            /* Update cross compartment wrappers into moved zones. */
+            for (CompartmentsInZoneIter c(zone); !c.done(); c.next())
+                c->sweepCrossCompartmentWrappers();
+        }
     }
+
+    /* Type inference may put more blocks here to free. */
+    rt->freeLifoAlloc.freeAll();
+
+    /* Clear runtime caches that can contain cell pointers. */
+    // TODO: Should possibly just call PurgeRuntime() here.
+    rt->newObjectCache.purge();
+    rt->nativeIterCache.purge();
 }
 
 /*
@@ -2412,7 +2421,7 @@ GCRuntime::updatePointersToRelocatedCells()
 
     // Fixup cross compartment wrappers as we assert the existence of wrappers in the map.
     for (CompartmentsIter comp(rt, SkipAtoms); !comp.done(); comp.next())
-        comp->sweepCrossCompartmentWrappers();
+        comp->fixupCrossCompartmentWrappers(&trc);
 
     // Fixup generators as these are not normally traced.
     for (ContextIter i(rt); !i.done(); i.next()) {
@@ -2450,21 +2459,7 @@ GCRuntime::updatePointersToRelocatedCells()
     if (JSTraceDataOp op = grayRootTracer.op)
         (*op)(&trc, grayRootTracer.data);
 
-    // Sweep everything to fix up weak pointers
-    WatchpointMap::sweepAll(rt);
-    Debugger::sweepAll(rt->defaultFreeOp());
-    for (GCZonesIter zone(rt); !zone.done(); zone.next()) {
-        if (!rt->isAtomsZone(zone))
-            rt->gc.sweepZoneAfterCompacting(zone);
-    }
-
-    // Type inference may put more blocks here to free.
-    rt->freeLifoAlloc.freeAll();
-
-    // Clear runtime caches that can contain cell pointers.
-    // TODO: Should possibly just call PurgeRuntime() here.
-    rt->newObjectCache.purge();
-    rt->nativeIterCache.purge();
+    MovingTracer::Sweep(&trc);
 
     // Call callbacks to get the rest of the system to fixup other untraced pointers.
     callWeakPointerCallbacks();
@@ -4204,15 +4199,15 @@ JSCompartment::findOutgoingEdges(ComponentFinder<JS::Zone> &finder)
     for (js::WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         CrossCompartmentKey::Kind kind = e.front().key().kind;
         MOZ_ASSERT(kind != CrossCompartmentKey::StringWrapper);
-        TenuredCell &other = e.front().key().wrapped->asTenured();
+        TenuredCell *other = e.front().key().wrapped->asTenured();
         if (kind == CrossCompartmentKey::ObjectWrapper) {
             /*
              * Add edge to wrapped object compartment if wrapped object is not
              * marked black to indicate that wrapper compartment not be swept
              * after wrapped compartment.
              */
-            if (!other.isMarked(BLACK) || other.isMarked(GRAY)) {
-                JS::Zone *w = other.zone();
+            if (!other->isMarked(BLACK) || other->isMarked(GRAY)) {
+                JS::Zone *w = other->zone();
                 if (w->isGCMarking())
                     finder.addEdgeTo(w);
             }
@@ -4226,7 +4221,7 @@ JSCompartment::findOutgoingEdges(ComponentFinder<JS::Zone> &finder)
              * with call to Debugger::findCompartmentEdges below) that debugger
              * and debuggee objects are always swept in the same group.
              */
-            JS::Zone *w = other.zone();
+            JS::Zone *w = other->zone();
             if (w->isGCMarking())
                 finder.addEdgeTo(w);
         }
@@ -4384,7 +4379,7 @@ static void
 AssertNotOnGrayList(JSObject *obj)
 {
     MOZ_ASSERT_IF(IsGrayListObject(obj),
-                  obj->fakeNativeGetReservedSlot(ProxyObject::grayLinkSlot(obj)).isUndefined());
+                  obj->getReservedSlot(ProxyObject::grayLinkSlot(obj)).isUndefined());
 }
 #endif
 
@@ -4399,11 +4394,11 @@ static JSObject *
 NextIncomingCrossCompartmentPointer(JSObject *prev, bool unlink)
 {
     unsigned slot = ProxyObject::grayLinkSlot(prev);
-    JSObject *next = prev->fakeNativeGetReservedSlot(slot).toObjectOrNull();
+    JSObject *next = prev->getReservedSlot(slot).toObjectOrNull();
     MOZ_ASSERT_IF(next, IsGrayListObject(next));
 
     if (unlink)
-        prev->fakeNativeSetSlot(slot, UndefinedValue());
+        prev->setSlot(slot, UndefinedValue());
 
     return next;
 }
@@ -4418,11 +4413,11 @@ js::DelayCrossCompartmentGrayMarking(JSObject *src)
     JSObject *dest = CrossCompartmentPointerReferent(src);
     JSCompartment *comp = dest->compartment();
 
-    if (src->fakeNativeGetReservedSlot(slot).isUndefined()) {
-        src->fakeNativeSetCrossCompartmentSlot(slot, ObjectOrNullValue(comp->gcIncomingGrayPointers));
+    if (src->getReservedSlot(slot).isUndefined()) {
+        src->setCrossCompartmentSlot(slot, ObjectOrNullValue(comp->gcIncomingGrayPointers));
         comp->gcIncomingGrayPointers = src;
     } else {
-        MOZ_ASSERT(src->fakeNativeGetReservedSlot(slot).isObjectOrNull());
+        MOZ_ASSERT(src->getReservedSlot(slot).isObjectOrNull());
     }
 
 #ifdef DEBUG
@@ -4467,11 +4462,11 @@ MarkIncomingCrossCompartmentPointers(JSRuntime *rt, const uint32_t color)
             MOZ_ASSERT(dst->compartment() == c);
 
             if (color == GRAY) {
-                if (IsObjectMarked(&src) && src->asTenured().isMarked(GRAY))
+                if (IsObjectMarked(&src) && src->asTenured()->isMarked(GRAY))
                     MarkGCThingUnbarriered(&rt->gc.marker, (void**)&dst,
                                            "cross-compartment gray pointer");
             } else {
-                if (IsObjectMarked(&src) && !src->asTenured().isMarked(GRAY))
+                if (IsObjectMarked(&src) && !src->asTenured()->isMarked(GRAY))
                     MarkGCThingUnbarriered(&rt->gc.marker, (void**)&dst,
                                            "cross-compartment black pointer");
             }
@@ -4492,11 +4487,11 @@ RemoveFromGrayList(JSObject *wrapper)
         return false;
 
     unsigned slot = ProxyObject::grayLinkSlot(wrapper);
-    if (wrapper->fakeNativeGetReservedSlot(slot).isUndefined())
+    if (wrapper->getReservedSlot(slot).isUndefined())
         return false;  /* Not on our list. */
 
-    JSObject *tail = wrapper->fakeNativeGetReservedSlot(slot).toObjectOrNull();
-    wrapper->fakeNativeSetReservedSlot(slot, UndefinedValue());
+    JSObject *tail = wrapper->getReservedSlot(slot).toObjectOrNull();
+    wrapper->setReservedSlot(slot, UndefinedValue());
 
     JSCompartment *comp = CrossCompartmentPointerReferent(wrapper)->compartment();
     JSObject *obj = comp->gcIncomingGrayPointers;
@@ -4507,9 +4502,9 @@ RemoveFromGrayList(JSObject *wrapper)
 
     while (obj) {
         unsigned slot = ProxyObject::grayLinkSlot(obj);
-        JSObject *next = obj->fakeNativeGetReservedSlot(slot).toObjectOrNull();
+        JSObject *next = obj->getReservedSlot(slot).toObjectOrNull();
         if (next == wrapper) {
-            obj->fakeNativeSetCrossCompartmentSlot(slot, ObjectOrNullValue(tail));
+            obj->setCrossCompartmentSlot(slot, ObjectOrNullValue(tail));
             return true;
         }
         obj = next;
@@ -6346,7 +6341,7 @@ JS_FRIEND_API(void)
 JS::AssertGCThingMustBeTenured(JSObject *obj)
 {
     MOZ_ASSERT(obj->isTenured() &&
-               (!IsNurseryAllocable(obj->asTenured().getAllocKind()) || obj->getClass()->finalize));
+               (!IsNurseryAllocable(obj->asTenured()->getAllocKind()) || obj->getClass()->finalize));
 }
 
 JS_FRIEND_API(void)
@@ -6356,7 +6351,7 @@ js::gc::AssertGCThingHasType(js::gc::Cell *cell, JSGCTraceKind kind)
     if (IsInsideNursery(cell))
         MOZ_ASSERT(kind == JSTRACE_OBJECT);
     else
-        MOZ_ASSERT(MapAllocToTraceKind(cell->asTenured().getAllocKind()) == kind);
+        MOZ_ASSERT(MapAllocToTraceKind(cell->asTenured()->getAllocKind()) == kind);
 }
 
 JS_FRIEND_API(size_t)

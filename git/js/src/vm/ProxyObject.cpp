@@ -63,25 +63,25 @@ ProxyObject::New(JSContext *cx, const BaseProxyHandler *handler, HandleValue pri
 void
 ProxyObject::initCrossCompartmentPrivate(HandleValue priv)
 {
-    fakeNativeInitCrossCompartmentSlot(PRIVATE_SLOT, priv);
+    initCrossCompartmentSlot(PRIVATE_SLOT, priv);
 }
 
 void
 ProxyObject::setSameCompartmentPrivate(const Value &priv)
 {
-    fakeNativeSetSlot(PRIVATE_SLOT, priv);
+    setSlot(PRIVATE_SLOT, priv);
 }
 
 void
 ProxyObject::initHandler(const BaseProxyHandler *handler)
 {
-    fakeNativeInitSlot(HANDLER_SLOT, PrivateValue(const_cast<BaseProxyHandler*>(handler)));
+    initSlot(HANDLER_SLOT, PrivateValue(const_cast<BaseProxyHandler*>(handler)));
 }
 
 static void
 NukeSlot(ProxyObject *proxy, uint32_t slot)
 {
-    proxy->fakeNativeSetReservedSlot(slot, NullValue());
+    proxy->setReservedSlot(slot, NullValue());
 }
 
 void

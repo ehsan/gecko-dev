@@ -25,7 +25,7 @@ typedef JSThreadSafeNative ThreadSafeNative;
 
 struct JSAtomState;
 
-class JSFunction : public js::NativeObject
+class JSFunction : public JSObject
 {
   public:
     static const js::Class class_;
@@ -461,7 +461,7 @@ class JSFunction : public js::NativeObject
   public:
     inline bool isExtended() const {
         JS_STATIC_ASSERT(FinalizeKind != ExtendedFinalizeKind);
-        MOZ_ASSERT_IF(isTenured(), !!(flags() & EXTENDED) == (asTenured().getAllocKind() == ExtendedFinalizeKind));
+        MOZ_ASSERT_IF(isTenured(), !!(flags() & EXTENDED) == (asTenured()->getAllocKind() == ExtendedFinalizeKind));
         return !!(flags() & EXTENDED);
     }
 
@@ -484,7 +484,7 @@ class JSFunction : public js::NativeObject
         js::gc::AllocKind kind = FinalizeKind;
         if (isExtended())
             kind = ExtendedFinalizeKind;
-        MOZ_ASSERT_IF(isTenured(), kind == asTenured().getAllocKind());
+        MOZ_ASSERT_IF(isTenured(), kind == asTenured()->getAllocKind());
         return kind;
     }
 };
@@ -631,7 +631,7 @@ JSString *FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, boo
 template<XDRMode mode>
 bool
 XDRInterpretedFunction(XDRState<mode> *xdr, HandleObject enclosingScope,
-                       HandleScript enclosingScript, MutableHandleFunction objp);
+                       HandleScript enclosingScript, MutableHandleObject objp);
 
 extern JSObject *
 CloneFunctionAndScript(JSContext *cx, HandleObject enclosingScope, HandleFunction fun);
