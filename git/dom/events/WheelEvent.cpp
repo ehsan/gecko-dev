@@ -17,17 +17,9 @@ WheelEvent::WheelEvent(EventTarget* aOwner,
   : MouseEvent(aOwner, aPresContext,
                aWheelEvent ? aWheelEvent :
                              new WidgetWheelEvent(false, 0, nullptr))
-  , mAppUnitsPerDevPixel(0)
 {
   if (aWheelEvent) {
     mEventIsInternal = false;
-    // If the delta mode is pixel, the WidgetWheelEvent's delta values are in
-    // device pixels.  However, JS contents need the delta values in CSS pixels.
-    // We should store the value of mAppUnitsPerDevPixel here because
-    // it might be changed by changing zoom or something.
-    if (aWheelEvent->deltaMode == nsIDOMWheelEvent::DOM_DELTA_PIXEL) {
-      mAppUnitsPerDevPixel = aPresContext->AppUnitsPerDevPixel();
-    }
   } else {
     mEventIsInternal = true;
     mEvent->time = PR_Now();
@@ -79,11 +71,7 @@ WheelEvent::InitWheelEvent(const nsAString& aType,
 double
 WheelEvent::DeltaX()
 {
-  if (!mAppUnitsPerDevPixel) {
-    return mEvent->AsWheelEvent()->deltaX;
-  }
-  return mEvent->AsWheelEvent()->deltaX *
-    mAppUnitsPerDevPixel / nsPresContext::AppUnitsPerCSSPixel();
+  return mEvent->AsWheelEvent()->deltaX;
 }
 
 NS_IMETHODIMP
@@ -98,11 +86,7 @@ WheelEvent::GetDeltaX(double* aDeltaX)
 double
 WheelEvent::DeltaY()
 {
-  if (!mAppUnitsPerDevPixel) {
-    return mEvent->AsWheelEvent()->deltaY;
-  }
-  return mEvent->AsWheelEvent()->deltaY *
-    mAppUnitsPerDevPixel / nsPresContext::AppUnitsPerCSSPixel();
+  return mEvent->AsWheelEvent()->deltaY;
 }
 
 NS_IMETHODIMP
@@ -117,11 +101,7 @@ WheelEvent::GetDeltaY(double* aDeltaY)
 double
 WheelEvent::DeltaZ()
 {
-  if (!mAppUnitsPerDevPixel) {
-    return mEvent->AsWheelEvent()->deltaZ;
-  }
-  return mEvent->AsWheelEvent()->deltaZ *
-    mAppUnitsPerDevPixel / nsPresContext::AppUnitsPerCSSPixel();
+  return mEvent->AsWheelEvent()->deltaZ;
 }
 
 NS_IMETHODIMP

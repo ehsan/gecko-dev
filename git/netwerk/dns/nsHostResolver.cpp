@@ -296,7 +296,7 @@ nsHostRecord::SizeOfIncludingThis(MallocSizeOf mallocSizeOf) const
 
     n += mBlacklistedItems.SizeOfExcludingThis(mallocSizeOf);
     for (size_t i = 0; i < mBlacklistedItems.Length(); i++) {
-        n += mBlacklistedItems[i].SizeOfExcludingThisMustBeUnshared(mallocSizeOf);
+        n += mBlacklistedItems[i].SizeOfIncludingThisMustBeUnshared(mallocSizeOf);
     }
     return n;
 }
@@ -602,7 +602,7 @@ nsHostResolver::ResolveHost(const char            *host,
                 result = he->rec;
                 Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2, METHOD_HIT);
 
-                // For entries that are in the grace period
+                // For entries that are in the grace period with a failed connect,
                 // or all cached negative entries, use the cache but start a new
                 // lookup in the background
                 ConditionallyRefreshRecord(he->rec, host);
@@ -886,8 +886,9 @@ nsHostResolver::IssueLookup(nsHostRecord *rec)
 nsresult
 nsHostResolver::ConditionallyRefreshRecord(nsHostRecord *rec, const char *host)
 {
-    if (((TimeStamp::NowLoRes() > rec->expiration) || rec->negative) &&
-        !rec->resolving) {
+    if ((((TimeStamp::NowLoRes() > rec->expiration) &&
+        rec->mBlacklistedItems.Length()) ||
+        rec->negative) && !rec->resolving) {
         LOG(("  Using %s cache entry for host [%s] but starting async renewal.",
             rec->negative ? "negative" :"positive", host));
         IssueLookup(rec);

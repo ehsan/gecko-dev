@@ -211,11 +211,6 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
     return true;
   }
 
-  if (mLayerManager && mLayerManager->GetCompositor() &&
-      !targetConfig.naturalBounds().IsEmpty()) {
-    mLayerManager->GetCompositor()->SetScreenRotation(targetConfig.rotation());
-  }
-
   // Clear fence handles used in previsou transaction.
   ClearPrevFenceHandles();
 
@@ -500,10 +495,8 @@ LayerTransactionParent::RecvUpdate(const InfallibleTArray<Edit>& cset,
       break;
     }
     case Edit::TCompositableOperation: {
-      if (!ReceiveCompositableUpdate(edit.get_CompositableOperation(),
-                                replyv)) {
-        return false;
-      }
+      ReceiveCompositableUpdate(edit.get_CompositableOperation(),
+                                replyv);
       break;
     }
     case Edit::TOpAttachCompositable: {

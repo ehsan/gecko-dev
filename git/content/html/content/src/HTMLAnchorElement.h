@@ -11,7 +11,6 @@
 #include "mozilla/dom/Link.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLAnchorElement.h"
-#include "nsDOMTokenList.h"
 
 namespace mozilla {
 namespace dom {
@@ -118,7 +117,6 @@ public:
   {
     SetHTMLAttr(nsGkAtoms::rel, aValue, rv);
   }
-  nsDOMTokenList* RelList();
   void GetHreflang(nsString& aValue)
   {
     GetHTMLAttr(nsGkAtoms::hreflang, aValue);
@@ -200,7 +198,6 @@ protected:
   virtual void SetItemValueText(const nsAString& text) MOZ_OVERRIDE;
   virtual JSObject* WrapNode(JSContext *aCx,
                              JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
-  nsRefPtr<nsDOMTokenList > mRelList;
 };
 
 } // namespace dom

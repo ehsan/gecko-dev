@@ -741,11 +741,8 @@ bool
 js_ThrowStopIteration(JSContext *cx)
 {
     JS_ASSERT(!JS_IsExceptionPending(cx));
-
-    // StopIteration isn't a constructor, but it's stored in GlobalObject
-    // as one, out of laziness. Hence the GetBuiltinConstructor call here.
     RootedObject ctor(cx);
-    if (GetBuiltinConstructor(cx, JSProto_StopIteration, &ctor))
+    if (js_GetClassObject(cx, JSProto_StopIteration, &ctor) && ctor)
         cx->setPendingException(ObjectValue(*ctor));
     return false;
 }
@@ -937,8 +934,8 @@ js::ValueToIterator(JSContext *cx, unsigned flags, MutableHandleValue vp)
     JS_ASSERT_IF(flags & JSITER_KEYVALUE, flags & JSITER_FOREACH);
 
     /*
-     * Make sure the more/next state machine doesn't get stuck. A value might
-     * be left in iterValue when a trace is left due to an interrupt after
+     * Make sure the more/next state machine doesn't get stuck. A value might be
+     * left in iterValue when a trace is left due to an operation time-out after
      * JSOP_MOREITER but before the value is picked up by FOR*.
      */
     cx->iterValue.setMagic(JS_NO_ITER_VALUE);
@@ -1354,7 +1351,7 @@ ForOfIterator::nextFromOptimizedArray(MutableHandleValue vp, bool *done)
 {
     JS_ASSERT(index != NOT_ARRAY);
 
-    if (!CheckForInterrupt(cx_))
+    if (!JS_CHECK_OPERATION_LIMIT(cx_))
         return false;
 
     JS_ASSERT(iterator->isNative());
@@ -2008,11 +2005,8 @@ GlobalObject::initIteratorClasses(JSContext *cx, Handle<GlobalObject *> global)
             return false;
         if (!DefinePropertiesAndBrand(cx, iteratorProto, nullptr, iterator_methods))
             return false;
-        if (!GlobalObject::initBuiltinConstructor(cx, global, JSProto_Iterator,
-                                                  ctor, iteratorProto))
-        {
+        if (!DefineConstructorAndPrototype(cx, global, JSProto_Iterator, ctor, iteratorProto))
             return false;
-        }
     }
 
     RootedObject proto(cx);
@@ -2074,8 +2068,8 @@ GlobalObject::initIteratorClasses(JSContext *cx, Handle<GlobalObject *> global)
         if (!proto || !JSObject::freeze(cx, proto))
             return false;
 
-        // This should use a non-JSProtoKey'd slot, but this is easier for now.
-        if (!GlobalObject::initBuiltinConstructor(cx, global, JSProto_StopIteration, proto, proto))
+        /* This should use a non-JSProtoKey'd slot, but this is easier for now. */
+        if (!DefineConstructorAndPrototype(cx, global, JSProto_StopIteration, proto, proto))
             return false;
 
         global->setConstructor(JSProto_StopIteration, ObjectValue(*proto));

@@ -35,7 +35,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <pthread.h>
-#if !defined(__Userspace_os_DragonFly) && !defined(__Userspace_os_FreeBSD) && !defined(__Userspace_os_NetBSD)
+#if !defined(__Userspace_os_FreeBSD)
 #include <sys/uio.h>
 #else
 #include <user_ip6_var.h>
@@ -56,7 +56,7 @@
 #endif
 #endif
 #endif
-#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_DragonFly) || defined(__Userspace_os_FreeBSD)
+#if defined(__Userspace_os_FreeBSD) || defined(__Userspace_os_Darwin)
 #include <net/route.h>
 #endif
 /* local macros and datatypes used to get IP addresses system independently */
@@ -67,12 +67,12 @@
 void recv_thread_destroy(void);
 #define MAXLEN_MBUF_CHAIN 32 /* What should this value be? */
 #define ROUNDUP(a, size) (((a) & ((size)-1)) ? (1 + ((a) | ((size)-1))) : (a))
-#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_DragonFly) || defined(__Userspace_os_FreeBSD)
+#if defined(__Userspace_os_FreeBSD) || defined(__Userspace_os_Darwin)
 #define NEXT_SA(ap) ap = (struct sockaddr *) \
 	((caddr_t) ap + (ap->sa_len ? ROUNDUP(ap->sa_len, sizeof (uint32_t)) : sizeof(uint32_t)))
 #endif
 
-#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_DragonFly) || defined(__Userspace_os_FreeBSD)
+#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_FreeBSD)
 static void
 sctp_get_rtaddrs(int addrs, struct sockaddr *sa, struct sockaddr **rti_info)
 {
@@ -183,7 +183,7 @@ recv_function_route(void *arg)
 			}
 		}
 	}
-	return (NULL);
+	pthread_exit(NULL);
 }
 #endif
 
@@ -266,7 +266,7 @@ recv_function_route(void *arg)
 			}
 		}
 	}
-	return (NULL);
+	pthread_exit(NULL);
 }
 #endif
 
@@ -360,8 +360,6 @@ recv_function_raw(void *arg)
 		}
 #endif
 		SCTP_HEADER_LEN(recvmbuf[0]) = n; /* length of total packet */
-		SCTP_STAT_INCR(sctps_recvpackets);
-		SCTP_STAT_INCR_COUNTER64(sctps_inpackets);
 
 		if (n <= iovlen) {
 			SCTP_BUF_LEN(recvmbuf[0]) = n;
@@ -406,44 +404,44 @@ recv_function_raw(void *arg)
 		
 		/* SCTP does not allow broadcasts or multicasts */
 		if (IN_MULTICAST(ntohl(dst.sin_addr.s_addr))) {
-			return (NULL);
+			return NULL;
 		}
 		if (SCTP_IS_IT_BROADCAST(dst.sin_addr, recvmbuf[0])) {
-			return (NULL);
+			return NULL;
 		}
 
 		port = 0;
 
-#if defined(SCTP_WITH_NO_CSUM)
-		SCTP_STAT_INCR(sctps_recvnocrc);
-#else
+#if !defined(SCTP_WITH_NO_CSUM)
 		if (src.sin_addr.s_addr == dst.sin_addr.s_addr) {
 			compute_crc = 0;
-			SCTP_STAT_INCR(sctps_recvnocrc);
-		} else {
-			SCTP_STAT_INCR(sctps_recvswcrc);
 		}
 #endif
 		SCTPDBG(SCTP_DEBUG_USR, "%s: Received %d bytes.", __func__, n);
 		SCTPDBG(SCTP_DEBUG_USR, " - calling sctp_common_input_processing with off=%d\n", offset);
+
 		sctp_common_input_processing(&recvmbuf[0], sizeof(struct ip), offset, n, 
 		                             (struct sockaddr *)&src,
 		                             (struct sockaddr *)&dst,
 		                             sh, ch,
 #if !defined(SCTP_WITH_NO_CSUM)
 		                             compute_crc,
+#else
+		                             0,
 #endif
 		                             ecn,
 		                             SCTP_DEFAULT_VRFID, port);
-		if (recvmbuf[0]) {
-			m_freem(recvmbuf[0]);
-		}
 	}
 	for (i = 0; i < MAXLEN_MBUF_CHAIN; i++) {
 		m_free(recvmbuf[i]);
 	}
 	/* free the array itself */
 	free(recvmbuf);
+#if defined (__Userspace_os_Windows)
+	ExitThread(0);
+#else
+	pthread_exit(NULL);
+#endif
 	return (NULL);
 }
 #endif
@@ -555,8 +553,6 @@ recv_function_raw6(void *arg)
 		}
 #endif
 		SCTP_HEADER_LEN(recvmbuf6[0]) = n; /* length of total packet */
-		SCTP_STAT_INCR(sctps_recvpackets);
-		SCTP_STAT_INCR_COUNTER64(sctps_inpackets);
 
 		if (n <= iovlen) {
 			SCTP_BUF_LEN(recvmbuf6[0]) = n;
@@ -601,14 +597,9 @@ recv_function_raw6(void *arg)
 		src.sin6_len = sizeof(struct sockaddr_in6);
 #endif
 		src.sin6_port = sh->src_port;
-#if defined(SCTP_WITH_NO_CSUM)
-		SCTP_STAT_INCR(sctps_recvnocrc);
-#else
+#if !defined(SCTP_WITH_NO_CSUM)
 		if (memcmp(&src.sin6_addr, &dst.sin6_addr, sizeof(struct in6_addr)) == 0) {
 			compute_crc = 0;
-			SCTP_STAT_INCR(sctps_recvnocrc);
-		} else {
-			SCTP_STAT_INCR(sctps_recvswcrc);
 		}
 #endif
 		SCTPDBG(SCTP_DEBUG_USR, "%s: Received %d bytes.", __func__, n);
@@ -619,18 +610,22 @@ recv_function_raw6(void *arg)
 		                             sh, ch,
 #if !defined(SCTP_WITH_NO_CSUM)
 		                             compute_crc,
+#else
+		                             0,
 #endif
 		                             0,
 		                             SCTP_DEFAULT_VRFID, 0);
-		if (recvmbuf6[0]) {
-			m_freem(recvmbuf6[0]);
-		}
 	}
 	for (i = 0; i < MAXLEN_MBUF_CHAIN; i++) {
 		m_free(recvmbuf6[i]);
 	}
 	/* free the array itself */
 	free(recvmbuf6);
+#if defined (__Userspace_os_Windows)
+	ExitThread(0);
+#else
+	pthread_exit(NULL);
+#endif
 	return (NULL);
 }
 #endif
@@ -745,8 +740,6 @@ recv_function_udp(void *arg)
 		n = ncounter;
 #endif
 		SCTP_HEADER_LEN(udprecvmbuf[0]) = n; /* length of total packet */
-		SCTP_STAT_INCR(sctps_recvpackets);
-		SCTP_STAT_INCR_COUNTER64(sctps_inpackets);
 
 		if (n <= iovlen) {
 			SCTP_BUF_LEN(udprecvmbuf[0]) = n;
@@ -796,10 +789,10 @@ recv_function_udp(void *arg)
 
 		/* SCTP does not allow broadcasts or multicasts */
 		if (IN_MULTICAST(ntohl(dst.sin_addr.s_addr))) {
-			return (NULL);
+			return NULL;
 		}
 		if (SCTP_IS_IT_BROADCAST(dst.sin_addr, udprecvmbuf[0])) {
-			return (NULL);
+			return NULL;
 		}
 
 		/*offset = sizeof(struct sctphdr) + sizeof(struct sctp_chunkhdr);*/
@@ -809,14 +802,9 @@ recv_function_udp(void *arg)
 		port = src.sin_port;
 		src.sin_port = sh->src_port;
 		dst.sin_port = sh->dest_port;
-#if defined(SCTP_WITH_NO_CSUM)
-		SCTP_STAT_INCR(sctps_recvnocrc);
-#else
+#if !defined(SCTP_WITH_NO_CSUM)
 		if (src.sin_addr.s_addr == dst.sin_addr.s_addr) {
 			compute_crc = 0;
-			SCTP_STAT_INCR(sctps_recvnocrc);
-		} else {
-			SCTP_STAT_INCR(sctps_recvswcrc);
 		}
 #endif
 		SCTPDBG(SCTP_DEBUG_USR, "%s: Received %d bytes.", __func__, n);
@@ -827,18 +815,22 @@ recv_function_udp(void *arg)
 		                             sh, ch,
 #if !defined(SCTP_WITH_NO_CSUM)
 		                             compute_crc,
+#else
+		                             0,
 #endif
 		                             0,
 		                             SCTP_DEFAULT_VRFID, port);
-		if (udprecvmbuf[0]) {
-			m_freem(udprecvmbuf[0]);
-		}
 	}
 	for (i = 0; i < MAXLEN_MBUF_CHAIN; i++) {
 		m_free(udprecvmbuf[i]);
 	}
 	/* free the array itself */
 	free(udprecvmbuf);
+#if defined (__Userspace_os_Windows)
+	ExitThread(0);
+#else
+	pthread_exit(NULL);
+#endif
 	return (NULL);
 }
 #endif
@@ -953,8 +945,6 @@ recv_function_udp6(void *arg)
 		n = ncounter;
 #endif
 		SCTP_HEADER_LEN(udprecvmbuf6[0]) = n; /* length of total packet */
-		SCTP_STAT_INCR(sctps_recvpackets);
-		SCTP_STAT_INCR_COUNTER64(sctps_inpackets);
 
 		if (n <= iovlen) {
 			SCTP_BUF_LEN(udprecvmbuf6[0]) = n;
@@ -990,7 +980,7 @@ recv_function_udp6(void *arg)
 
 		/* SCTP does not allow broadcasts or multicasts */
 		if (IN6_IS_ADDR_MULTICAST(&dst.sin6_addr)) {
-			return (NULL);
+			return NULL;
 		}
 		
 		sh = mtod(udprecvmbuf6[0], struct sctphdr *);
@@ -1000,14 +990,9 @@ recv_function_udp6(void *arg)
 		port = src.sin6_port;
 		src.sin6_port = sh->src_port;
 		dst.sin6_port = sh->dest_port;
-#if defined(SCTP_WITH_NO_CSUM)
-		SCTP_STAT_INCR(sctps_recvnocrc);
-#else
+#if !defined(SCTP_WITH_NO_CSUM)
 		if ((memcmp(&src.sin6_addr, &dst.sin6_addr, sizeof(struct in6_addr)) == 0)) {
 			compute_crc = 0;
-			SCTP_STAT_INCR(sctps_recvnocrc);
-		} else {
-			SCTP_STAT_INCR(sctps_recvswcrc);
 		}
 #endif
 		SCTPDBG(SCTP_DEBUG_USR, "%s: Received %d bytes.", __func__, n);
@@ -1021,15 +1006,18 @@ recv_function_udp6(void *arg)
 #endif
 		                             0,
 		                             SCTP_DEFAULT_VRFID, port);
-		if (udprecvmbuf6[0]) {
-			m_freem(udprecvmbuf6[0]);
-		}
+		                             
 	}
 	for (i = 0; i < MAXLEN_MBUF_CHAIN; i++) {
 		m_free(udprecvmbuf6[i]);
 	}
 	/* free the array itself */
 	free(udprecvmbuf6);
+#if defined (__Userspace_os_Windows)
+	ExitThread(0);
+#else
+	pthread_exit(NULL);
+#endif
 	return (NULL);
 }
 #endif
@@ -1086,7 +1074,7 @@ recv_thread_init(void)
 #else
 	unsigned int timeout = SOCKET_TIMEOUT; /* Timeout in milliseconds */
 #endif
-#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_DragonFly) || defined(__Userspace_os_FreeBSD)
+#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_FreeBSD)
 	if (SCTP_BASE_VAR(userspace_route) == -1) {
 		if ((SCTP_BASE_VAR(userspace_route) = socket(AF_ROUTE, SOCK_RAW, 0)) < 0) {
 			SCTPDBG(SCTP_DEBUG_USR, "Can't create routing socket (errno = %d).\n", errno);
@@ -1387,7 +1375,7 @@ recv_thread_init(void)
 	}
 #endif
 #if !defined(__Userspace_os_Windows)
-#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_DragonFly) || defined(__Userspace_os_FreeBSD)
+#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_FreeBSD)
 #if defined(INET) || defined(INET6)
 	if (SCTP_BASE_VAR(userspace_route) != -1) {
 		int rc;
@@ -1479,7 +1467,7 @@ recv_thread_init(void)
 void
 recv_thread_destroy(void)
 {
-#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_DragonFly) || defined(__Userspace_os_FreeBSD)
+#if defined(__Userspace_os_Darwin) || defined(__Userspace_os_FreeBSD)
 #if defined(INET) || defined(INET6)
 	if (SCTP_BASE_VAR(userspace_route) != -1) {
 		close(SCTP_BASE_VAR(userspace_route));
@@ -1519,6 +1507,4 @@ recv_thread_destroy(void)
 	}
 #endif
 }
-#else
-int foo;
 #endif

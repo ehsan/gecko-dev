@@ -152,3 +152,14 @@ SharedSurface_Gralloc::WaitSync()
 {
     return true;
 }
+
+void
+SharedSurface_Gralloc::LockProdImpl()
+{
+}
+
+void
+SharedSurface_Gralloc::UnlockProdImpl()
+{
+}
+

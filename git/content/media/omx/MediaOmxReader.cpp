@@ -361,19 +361,17 @@ static uint64_t BytesToTime(int64_t offset, uint64_t length, uint64_t durationUs
   return uint64_t(double(durationUs) * perc);
 }
 
-void MediaOmxReader::SetIdle() {
-  if (!mOmxDecoder.get()) {
-    return;
+void MediaOmxReader::OnDecodeThreadFinish() {
+  if (mOmxDecoder.get()) {
+    mOmxDecoder->Pause();
   }
-  mOmxDecoder->Pause();
 }
 
-void MediaOmxReader::SetActive() {
-  if (!mOmxDecoder.get()) {
-    return;
+void MediaOmxReader::OnDecodeThreadStart() {
+  if (mOmxDecoder.get()) {
+    DebugOnly<nsresult> result = mOmxDecoder->Play();
+    NS_ASSERTION(result == NS_OK, "OmxDecoder should be in play state to continue decoding");
   }
-  DebugOnly<nsresult> result = mOmxDecoder->Play();
-  NS_ASSERTION(result == NS_OK, "OmxDecoder should be in play state to continue decoding");
 }
 
 } // namespace mozilla

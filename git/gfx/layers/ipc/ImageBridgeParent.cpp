@@ -86,9 +86,7 @@ ImageBridgeParent::RecvUpdate(const EditArray& aEdits, EditReplyArray* aReply)
 
   EditReplyVector replyv;
   for (EditArray::index_type i = 0; i < aEdits.Length(); ++i) {
-    if (!ReceiveCompositableUpdate(aEdits[i], replyv)) {
-      return false;
-    }
+    ReceiveCompositableUpdate(aEdits[i], replyv);
   }
 
   aReply->SetCapacity(replyv.size());

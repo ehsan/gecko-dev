@@ -21,7 +21,8 @@ interface HTMLAnchorElement : HTMLElement {
            attribute DOMString ping;
            [SetterThrows]
            attribute DOMString rel;
-  readonly attribute DOMTokenList relList;
+  // relList not supported yet
+  //readonly attribute DOMTokenList relList;
            [SetterThrows]
            attribute DOMString hreflang;
            [SetterThrows]

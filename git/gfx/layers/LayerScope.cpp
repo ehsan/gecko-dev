@@ -421,7 +421,7 @@ public:
 
 class DebugGLTextureData : public DebugGLData {
 public:
-    DebugGLTextureData(GLContext* cx, void* layerRef, GLuint target, GLenum name, DataSourceSurface* img)
+    DebugGLTextureData(GLContext* cx, void* layerRef, GLuint target, GLenum name, gfxImageSurface* img)
         : DebugGLData(DebugGLData::TextureData, cx),
           mLayerRef(layerRef),
           mTarget(target),
@@ -431,7 +431,7 @@ public:
 
     void *GetLayerRef() const { return mLayerRef; }
     GLuint GetName() const { return mName; }
-    DataSourceSurface* GetImage() const { return mImage; }
+    gfxImageSurface* GetImage() const { return mImage; }
     GLenum GetTextureTarget() const { return mTarget; }
 
     virtual bool Write() {
@@ -449,13 +449,13 @@ public:
         packet.dataFormat = LOCAL_GL_RGBA;
 
         if (mImage) {
-            packet.width = mImage->GetSize().width;
-            packet.height = mImage->GetSize().height;
+            packet.width = mImage->Width();
+            packet.height = mImage->Height();
             packet.stride = mImage->Stride();
-            packet.dataSize = mImage->GetSize().height * mImage->Stride();
+            packet.dataSize = mImage->GetDataSize();
 
-            dataptr = (char*) mImage->GetData();
-            datasize = packet.dataSize;
+            dataptr = (char*) mImage->Data();
+            datasize = mImage->GetDataSize();
 
             compresseddata = std::auto_ptr<char>((char*) moz_malloc(LZ4::maxCompressedSize(datasize)));
             if (compresseddata.get()) {
@@ -497,7 +497,7 @@ protected:
     void* mLayerRef;
     GLenum mTarget;
     GLuint mName;
-    RefPtr<DataSourceSurface> mImage;
+    nsRefPtr<gfxImageSurface> mImage;
 };
 
 class DebugGLColorData : public DebugGLData {
@@ -722,9 +722,9 @@ SendTextureSource(GLContext* aGLContext,
 
     // By sending 0 to ReadTextureImage rely upon aSource->BindTexture binding
     // texture correctly. textureId is used for tracking in DebugGLTextureData.
-    RefPtr<DataSourceSurface> img =
+    nsRefPtr<gfxImageSurface> img =
         aGLContext->ReadTexImageHelper()->ReadTexImage(0, textureTarget,
-                                                       size,
+                                                       gfxIntSize(size.width, size.height),
                                                        shaderConfig, aFlipY);
 
     gLayerScopeWebSocketManager->AppendDebugData(

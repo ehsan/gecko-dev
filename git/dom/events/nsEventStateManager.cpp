@@ -15,11 +15,10 @@
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/dom/UIEvent.h"
 
-#include "ContentEventHandler.h"
-
 #include "nsCOMPtr.h"
 #include "nsEventStateManager.h"
 #include "nsFocusManager.h"
+#include "nsContentEventHandler.h"
 #include "nsIContent.h"
 #include "nsINodeInfo.h"
 #include "nsIDocument.h"
@@ -1217,10 +1216,9 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     break;
   case NS_QUERY_TEXT_CONTENT:
     {
-      if (RemoteQueryContentEvent(aEvent)) {
+      if (RemoteQueryContentEvent(aEvent))
         break;
-      }
-      ContentEventHandler handler(mPresContext);
+      nsContentEventHandler handler(mPresContext);
       handler.OnQueryTextContent(aEvent->AsQueryContentEvent());
     }
     break;
@@ -1229,7 +1227,7 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       if (RemoteQueryContentEvent(aEvent)) {
         break;
       }
-      ContentEventHandler handler(mPresContext);
+      nsContentEventHandler handler(mPresContext);
       handler.OnQueryCaretRect(aEvent->AsQueryContentEvent());
     }
     break;
@@ -1238,42 +1236,42 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       if (RemoteQueryContentEvent(aEvent)) {
         break;
       }
-      ContentEventHandler handler(mPresContext);
+      nsContentEventHandler handler(mPresContext);
       handler.OnQueryTextRect(aEvent->AsQueryContentEvent());
     }
     break;
   case NS_QUERY_EDITOR_RECT:
     {
       // XXX remote event
-      ContentEventHandler handler(mPresContext);
+      nsContentEventHandler handler(mPresContext);
       handler.OnQueryEditorRect(aEvent->AsQueryContentEvent());
     }
     break;
   case NS_QUERY_CONTENT_STATE:
     {
       // XXX remote event
-      ContentEventHandler handler(mPresContext);
+      nsContentEventHandler handler(mPresContext);
       handler.OnQueryContentState(aEvent->AsQueryContentEvent());
     }
     break;
   case NS_QUERY_SELECTION_AS_TRANSFERABLE:
     {
       // XXX remote event
-      ContentEventHandler handler(mPresContext);
+      nsContentEventHandler handler(mPresContext);
       handler.OnQuerySelectionAsTransferable(aEvent->AsQueryContentEvent());
     }
     break;
   case NS_QUERY_CHARACTER_AT_POINT:
     {
       // XXX remote event
-      ContentEventHandler handler(mPresContext);
+      nsContentEventHandler handler(mPresContext);
       handler.OnQueryCharacterAtPoint(aEvent->AsQueryContentEvent());
     }
     break;
   case NS_QUERY_DOM_WIDGET_HITTEST:
     {
       // XXX remote event
-      ContentEventHandler handler(mPresContext);
+      nsContentEventHandler handler(mPresContext);
       handler.OnQueryDOMWidgetHittest(aEvent->AsQueryContentEvent());
     }
     break;
@@ -1282,12 +1280,11 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
       WidgetSelectionEvent* selectionEvent = aEvent->AsSelectionEvent();
       if (IsTargetCrossProcess(selectionEvent)) {
         // Will not be handled locally, remote the event
-        if (GetCrossProcessTarget()->SendSelectionEvent(*selectionEvent)) {
+        if (GetCrossProcessTarget()->SendSelectionEvent(*selectionEvent))
           selectionEvent->mSucceeded = true;
-        }
         break;
       }
-      ContentEventHandler handler(mPresContext);
+      nsContentEventHandler handler(mPresContext);
       handler.OnSelectionEvent(selectionEvent);
     }
     break;
@@ -5430,7 +5427,7 @@ nsEventStateManager::DoQuerySelectedText(WidgetQueryContentEvent* aEvent)
   if (RemoteQueryContentEvent(aEvent)) {
     return;
   }
-  ContentEventHandler handler(mPresContext);
+  nsContentEventHandler handler(mPresContext);
   handler.OnQuerySelectedText(aEvent);
 }
 

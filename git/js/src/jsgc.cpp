@@ -595,8 +595,8 @@ FinalizeArenas(FreeOp *fop,
 #ifdef JS_ION
       {
         // JitCode finalization may release references on an executable
-        // allocator that is accessed when requesting interrupts.
-        JSRuntime::AutoLockForInterrupt lock(fop->runtime());
+        // allocator that is accessed when triggering interrupts.
+        JSRuntime::AutoLockForOperationCallback lock(fop->runtime());
         return FinalizeTypedArenas<jit::JitCode>(fop, src, dest, thingKind, budget);
       }
 #endif
@@ -2104,14 +2104,14 @@ js::MarkCompartmentActive(StackFrame *fp)
 }
 
 static void
-RequestInterrupt(JSRuntime *rt, JS::gcreason::Reason reason)
+TriggerOperationCallback(JSRuntime *rt, JS::gcreason::Reason reason)
 {
     if (rt->gcIsNeeded)
         return;
 
     rt->gcIsNeeded = true;
     rt->gcTriggerReason = reason;
-    rt->requestInterrupt(JSRuntime::RequestInterruptMainThread);
+    rt->triggerOperationCallback(JSRuntime::TriggerCallbackMainThread);
 }
 
 bool
@@ -2123,8 +2123,8 @@ js::TriggerGC(JSRuntime *rt, JS::gcreason::Reason reason)
         return true;
     }
 
-    /* Don't trigger GCs when allocating under the interrupt callback lock. */
-    if (rt->currentThreadOwnsInterruptLock())
+    /* Don't trigger GCs when allocating under the operation callback lock. */
+    if (rt->currentThreadOwnsOperationCallbackLock())
         return false;
 
     JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
@@ -2134,7 +2134,7 @@ js::TriggerGC(JSRuntime *rt, JS::gcreason::Reason reason)
         return false;
 
     JS::PrepareForFullGC(rt);
-    RequestInterrupt(rt, reason);
+    TriggerOperationCallback(rt, reason);
     return true;
 }
 
@@ -2156,8 +2156,8 @@ js::TriggerZoneGC(Zone *zone, JS::gcreason::Reason reason)
 
     JSRuntime *rt = zone->runtimeFromMainThread();
 
-    /* Don't trigger GCs when allocating under the interrupt callback lock. */
-    if (rt->currentThreadOwnsInterruptLock())
+    /* Don't trigger GCs when allocating under the operation callback lock. */
+    if (rt->currentThreadOwnsOperationCallbackLock())
         return false;
 
     /* GC is already running. */
@@ -2176,7 +2176,7 @@ js::TriggerZoneGC(Zone *zone, JS::gcreason::Reason reason)
     }
 
     PrepareZoneForGC(zone);
-    RequestInterrupt(rt, reason);
+    TriggerOperationCallback(rt, reason);
     return true;
 }
 

@@ -806,7 +806,7 @@ public:
   DoRunLoop(JSContext* aCx);
 
   bool
-  InterruptCallback(JSContext* aCx);
+  OperationCallback(JSContext* aCx);
 
   nsresult
   IsOnCurrentThread(bool* aIsOnCurrentThread);

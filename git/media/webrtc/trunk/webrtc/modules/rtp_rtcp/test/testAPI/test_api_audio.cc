@@ -232,9 +232,7 @@ TEST_F(RtpRtcpAudioTest, Basic) {
                                          0, -1, test, 4));
 
   EXPECT_EQ(test_ssrc, rtp_receiver2_->SSRC());
-  uint32_t timestamp;
-  EXPECT_TRUE(rtp_receiver2_->Timestamp(&timestamp));
-  EXPECT_EQ(test_timestamp, timestamp);
+  EXPECT_EQ(test_timestamp, rtp_receiver2_->Timestamp());
 }
 
 TEST_F(RtpRtcpAudioTest, RED) {

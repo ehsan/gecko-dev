@@ -185,14 +185,6 @@ public:
     return NS_ERROR_FAILURE;
   }
 
-  virtual size_t SizeOfExcludingThis(
-                      MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
-
-  virtual size_t SizeOfIncludingThis(
-                      MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE {
-    return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
-  }
-
   // Listener implements nsIStreamingProtocolListener as
   // mMediaStreamController's callback function.
   // It holds RtspMediaResource reference to notify the connection status and
@@ -212,7 +204,7 @@ public:
     void Revoke() { mResource = nullptr; }
 
   private:
-    nsRefPtr<RtspMediaResource> mResource;
+    RtspMediaResource* mResource;
   };
   friend class Listener;
 

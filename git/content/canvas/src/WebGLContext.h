@@ -122,16 +122,15 @@ class WebGLContext :
     public nsWrapperCache
 {
     friend class WebGLContextUserData;
-    friend class WebGLExtensionCompressedTextureATC;
-    friend class WebGLExtensionCompressedTextureETC1;
-    friend class WebGLExtensionCompressedTexturePVRTC;
-    friend class WebGLExtensionCompressedTextureS3TC;
-    friend class WebGLExtensionDepthTexture;
-    friend class WebGLExtensionDrawBuffers;
-    friend class WebGLExtensionLoseContext;
-    friend class WebGLExtensionVertexArray;
     friend class WebGLMemoryPressureObserver;
     friend class WebGLMemoryTracker;
+    friend class WebGLExtensionLoseContext;
+    friend class WebGLExtensionCompressedTextureS3TC;
+    friend class WebGLExtensionCompressedTextureATC;
+    friend class WebGLExtensionCompressedTexturePVRTC;
+    friend class WebGLExtensionDepthTexture;
+    friend class WebGLExtensionDrawBuffers;
+    friend class WebGLExtensionVertexArray;
 
     enum {
         UNPACK_FLIP_Y_WEBGL = 0x9240,
@@ -910,7 +909,6 @@ protected:
         OES_vertex_array_object,
         WEBGL_color_buffer_float,
         WEBGL_compressed_texture_atc,
-        WEBGL_compressed_texture_etc1,
         WEBGL_compressed_texture_pvrtc,
         WEBGL_compressed_texture_s3tc,
         WEBGL_debug_renderer_info,

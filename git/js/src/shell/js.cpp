@@ -328,10 +328,16 @@ JSStringToUTF8(JSContext *cx, JSString *str)
     return TwoByteCharsToNewUTF8CharsZ(cx, linear->range()).c_str();
 }
 
-/* State to store as JSContext private. */
+/*
+ * State to store as JSContext private.
+ *
+ * We declare such timestamp as volatile as they are updated in the operation
+ * callback without taking any locks. Any possible race can only lead to more
+ * frequent callback calls. This is safe as the callback does everything based
+ * on timing.
+ */
 struct JSShellContextData {
-    /* Creation timestamp, used by the elapsed() shell builtin. */
-    int64_t startTime;
+    volatile int64_t startTime;
 };
 
 static JSShellContextData *
@@ -359,7 +365,7 @@ GetContextData(JSContext *cx)
 }
 
 static bool
-ShellInterruptCallback(JSContext *cx)
+ShellOperationCallback(JSContext *cx)
 {
     if (!gTimedOut)
         return true;
@@ -3179,7 +3185,7 @@ WatchdogMain(void *arg)
         int64_t now = PRMJ_Now();
         if (gWatchdogHasTimeout && !IsBefore(now, gWatchdogTimeout)) {
             /*
-             * The timeout has just expired. Request an interrupt callback
+             * The timeout has just expired. Trigger the operation callback
              * outside the lock.
              */
             gWatchdogHasTimeout = false;
@@ -3192,10 +3198,10 @@ WatchdogMain(void *arg)
         } else {
             if (gWatchdogHasTimeout) {
                 /*
-                 * Time hasn't expired yet. Simulate an interrupt callback
+                 * Time hasn't expired yet. Simulate an operation callback
                  * which doesn't abort execution.
                  */
-                JS_RequestInterruptCallback(rt);
+                JS_TriggerOperationCallback(rt);
             }
 
             uint64_t sleepDuration = PR_INTERVAL_NO_TIMEOUT;
@@ -3316,7 +3322,7 @@ static void
 CancelExecution(JSRuntime *rt)
 {
     gTimedOut = true;
-    JS_RequestInterruptCallback(rt);
+    JS_TriggerOperationCallback(rt);
 
     if (!gTimeoutFunc.isNull()) {
         static const char msg[] = "Script runs for too long, terminating.\n";
@@ -5546,7 +5552,7 @@ static JS::AsmJSCacheOps asmJSCacheOps = {
  * Avoid a reentrancy hazard.
  *
  * The non-JS_THREADSAFE shell uses a signal handler to implement timeout().
- * The JS engine is not really reentrant, but JS_RequestInterruptCallback
+ * The JS engine is not really reentrant, but JS_TriggerAllOperationCallbacks
  * is mostly safe--the only danger is that we might interrupt JS_NewContext or
  * JS_DestroyContext while the context list is being modified. Therefore we
  * disable the signal handler around calls to those functions.
@@ -6179,7 +6185,7 @@ main(int argc, char **argv, char **envp)
     JS_SetSecurityCallbacks(rt, &ShellPrincipals::securityCallbacks);
     JS_InitDestroyPrincipalsCallback(rt, ShellPrincipals::destroy);
 
-    JS_SetInterruptCallback(rt, ShellInterruptCallback);
+    JS_SetOperationCallback(rt, ShellOperationCallback);
     JS::SetAsmJSCacheOps(rt, &asmJSCacheOps);
 
     JS_SetNativeStackQuota(rt, gMaxStackSize);

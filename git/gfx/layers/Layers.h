@@ -596,18 +596,11 @@ public:
 
   bool IsInTransaction() const { return mInTransaction; }
 
-  virtual void SetRegionToClear(const nsIntRegion& aRegion)
-  {
-    mRegionToClear = aRegion;
-  }
-
 protected:
   nsRefPtr<Layer> mRoot;
   gfx::UserData mUserData;
   bool mDestroyed;
   bool mSnapEffectiveTransforms;
-
-  nsIntRegion mRegionToClear;
 
   // Print interesting information about this into aTo.  Internally
   // used to implement Dump*() and Log*().
@@ -1308,13 +1301,6 @@ public:
    */
   void LogSelf(const char* aPrefix="");
 
-  // Print interesting information about this into aTo.  Internally
-  // used to implement Dump*() and Log*().  If subclasses have
-  // additional interesting properties, they should override this with
-  // an implementation that first calls the base implementation then
-  // appends additional info to aTo.
-  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
-
   static bool IsLogEnabled() { return LayerManager::IsLogEnabled(); }
 
   /**
@@ -1349,7 +1335,6 @@ public:
 
   virtual LayerRenderState GetRenderState() { return LayerRenderState(); }
 
-
   void Mutated()
   {
     mManager->Mutated(this);
@@ -1357,6 +1342,13 @@ public:
 
 protected:
   Layer(LayerManager* aManager, void* aImplData);
+
+  // Print interesting information about this into aTo.  Internally
+  // used to implement Dump*() and Log*().  If subclasses have
+  // additional interesting properties, they should override this with
+  // an implementation that first calls the base implementation then
+  // appends additional info to aTo.
+  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
   /**
    * We can snap layer transforms for two reasons:
