@@ -66,7 +66,6 @@
 #include "jsregexp.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jsdate.h"
 #include "jstracer.h"
 
 #include "jsautooplen.h"        // generated headers last
@@ -1150,7 +1149,7 @@ ValueToNative(JSContext* cx, jsval v, uint8 type, double* slot)
 
 /* We maintain an emergency reserve pool of doubles so we can recover safely if a trace runs
    out of memory (doubles or objects). */
-static jsdouble*
+static jsval
 AllocateDoubleFromReservePool(JSContext* cx)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
@@ -1159,13 +1158,37 @@ AllocateDoubleFromReservePool(JSContext* cx)
 }
 
 static bool
-ReplenishReservePool(JSContext* cx, JSTraceMonitor* tm)
+ReplenishReservePool(JSContext* cx, JSTraceMonitor* tm, bool& didGC)
 {
-    while (tm->recoveryDoublePoolPtr < tm->recoveryDoublePool + MAX_NATIVE_STACK_SLOTS) {
-        jsval v;
-        if (!js_NewDoubleInRootedValue(cx, 0.0, &v))
+    /* We should not be called with a full pool. */
+    JS_ASSERT((size_t) (tm->recoveryDoublePoolPtr - tm->recoveryDoublePool) <
+              MAX_NATIVE_STACK_SLOTS);
+
+    /*
+     * When the GC runs in js_NewDoubleInRootedValue, it resets
+     * tm->recoveryDoublePoolPtr back to tm->recoveryDoublePool. We tolerate
+     * that only once.
+     */
+    JSRuntime* rt = cx->runtime;
+    uintN gcNumber = rt->gcNumber;
+    didGC = false;
+    for (; tm->recoveryDoublePoolPtr < tm->recoveryDoublePool + MAX_NATIVE_STACK_SLOTS;
+         ++tm->recoveryDoublePoolPtr) {
+        if (!js_NewDoubleInRootedValue(cx, 0.0, tm->recoveryDoublePoolPtr)) {
+            didGC = true;
+            JS_ASSERT(tm->recoveryDoublePoolPtr == tm->recoveryDoublePool);
             return false;
-        *tm->recoveryDoublePoolPtr++ = JSVAL_TO_DOUBLE(v);
+        }
+        if (tm->recoveryDoublePoolPtr == tm->recoveryDoublePool) {
+            if (gcNumber != rt->gcNumber) {
+                if (didGC)
+                    return false;
+                didGC = true;
+            }
+        } else {
+            JS_ASSERT(rt->gcNumber == gcNumber ||
+                      (rt->gcNumber - gcNumber == (unsigned) 1 && didGC));
+        }
     }
     return true;
 }
@@ -1209,9 +1232,9 @@ NativeToValue(JSContext* cx, jsval& v, uint8 type, double* slot)
             JS_ASSERT(ok);
             return true;
         }
-        jsdouble* dp = AllocateDoubleFromReservePool(cx);
-        *dp = d;
-        v = DOUBLE_TO_JSVAL(dp);
+        v = AllocateDoubleFromReservePool(cx);
+        JS_ASSERT(JSVAL_IS_DOUBLE(v) && *JSVAL_TO_DOUBLE(v) == 0.0);
+        *JSVAL_TO_DOUBLE(v) = d;
         return true;
       }
       case JSVAL_STRING:
@@ -2201,7 +2224,6 @@ js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f)
     /* Make sure the global type map didn't change on us. */
     uint32 globalShape = OBJ_SHAPE(JS_GetGlobalForObject(cx, cx->fp->scopeChain));
     if (tm->globalShape != globalShape) {
-        AUDIT(globalShapeMismatchAtEntry);
         debug_only_v(printf("Global shape mismatch (%u vs. %u) in RecordTree, flushing cache.\n",
                           globalShape, tm->globalShape);)
         js_FlushJITCache(cx);
@@ -2448,11 +2470,10 @@ js_ExecuteTree(JSContext* cx, Fragment** treep, uintN& inlineCallCount,
     }
 
     /* replenish the reserve pool (this might trigger a GC */
-    if (tm->recoveryDoublePoolPtr <= tm->recoveryDoublePool + MAX_NATIVE_STACK_SLOTS) {
-        JSRuntime* rt = cx->runtime;
-        uintN gcNumber = rt->gcNumber;
+    if (tm->recoveryDoublePoolPtr < tm->recoveryDoublePool + MAX_NATIVE_STACK_SLOTS) {
+        bool didGC;
         const void* ip = f->ip;
-        if (!ReplenishReservePool(cx, tm) || (gcNumber != rt->gcNumber)) {
+        if (!ReplenishReservePool(cx, tm, didGC) || didGC) {
             *treep = tm->fragmento->newLoop(ip);
             return NULL;
         }
@@ -2656,17 +2677,6 @@ js_MonitorLoopEdge(JSContext* cx, jsbytecode* oldpc, uintN& inlineCallCount)
     }
     JS_ASSERT(!tm->recorder);
 
-    /* Do an up-front global shape check, since we'll blow away the jit cache
-       on global shape mismatch, wasting all the other work this method does,
-       if we end up in either js_RecordTree or js_ExecuteTree */
-    uint32 globalShape = OBJ_SHAPE(JS_GetGlobalForObject(cx, cx->fp->scopeChain));
-    if (tm->globalShape != globalShape) {
-        debug_only_v(printf("Global shape mismatch (%u vs. %u) in js_MonitorLoopEdge, flushing cache.\n",
-                            globalShape, tm->globalShape);)
-        js_FlushJITCache(cx);
-        // Press on to at least increment a hit count
-    }
-
     /* check if our quick cache has an entry for this ip, otherwise ask fragmento. */
     jsbytecode* pc = cx->fp->regs->pc;
     Fragment* f;
@@ -2835,7 +2845,7 @@ js_InitJIT(JSTraceMonitor *tm)
         tm->fragmento = fragmento;
         tm->globalSlots = new (&gc) SlotList();
         tm->globalTypeMap = new (&gc) TypeMap();
-        tm->recoveryDoublePoolPtr = tm->recoveryDoublePool = new double*[MAX_NATIVE_STACK_SLOTS];
+        tm->recoveryDoublePoolPtr = tm->recoveryDoublePool = new jsval[MAX_NATIVE_STACK_SLOTS];
     }
 #if !defined XP_WIN
     debug_only(memset(&jitstats, 0, sizeof(jitstats)));
@@ -2865,7 +2875,7 @@ js_FinishJIT(JSTraceMonitor *tm)
         tm->globalSlots = NULL;
         delete tm->globalTypeMap;
         tm->globalTypeMap = NULL;
-        delete tm->recoveryDoublePool;
+        delete[] tm->recoveryDoublePool;
         tm->recoveryDoublePool = tm->recoveryDoublePoolPtr = NULL;
     }
 }
@@ -5035,7 +5045,6 @@ TraceRecorder::record_JSOP_CALL()
         { js_str_substring,            F_String_p_substring_1, "SC",  "i",    FAIL_NULL },
         { js_str_toLowerCase,          F_toLowerCase,          "SC",   "",    FAIL_NULL },
         { js_str_toUpperCase,          F_toUpperCase,          "SC",   "",    FAIL_NULL },
-        { js_date_now,                 F_Date_now,             "C",    "",    INFALLIBLE },
     };
 
     uintN i = 0;

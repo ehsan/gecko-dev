@@ -51,7 +51,6 @@
 #include "jslibmath.h"
 #include "jsmath.h"
 #include "jsnum.h"
-#include "prmjtime.h"
 #include "jsscope.h"
 #include "jsstr.h"
 #include "jstracer.h"
@@ -861,12 +860,6 @@ JSObject* FASTCALL
 js_Arguments(JSContext* cx)
 {
     return NULL;
-}
-
-jsdouble FASTCALL
-js_Date_now(JSContext*)
-{
-    return PRMJ_Now() / PRMJ_USEC_PER_MSEC;
 }
 
 /* soft float */
