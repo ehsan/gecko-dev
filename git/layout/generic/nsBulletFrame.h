@@ -73,8 +73,8 @@ public:
                     nsHTMLReflowMetrics& aMetrics,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus& aStatus);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   // nsBulletFrame
   PRInt32 SetListItemOrdinal(PRInt32 aNextOrdinal, PRBool* aChanged);
@@ -99,7 +99,7 @@ public:
   PRBool GetListItemText(const nsStyleList& aStyleList,
                          nsString& aResult);
                          
-  void PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
+  void PaintBullet(nsIRenderingContext& aRenderingContext, nsPoint aPt,
                    const nsRect& aDirtyRect);
   
   virtual PRBool IsEmpty();
@@ -108,7 +108,7 @@ public:
 
 protected:
   void GetDesiredSize(nsPresContext* aPresContext,
-                      nsRenderingContext *aRenderingContext,
+                      nsIRenderingContext *aRenderingContext,
                       nsHTMLReflowMetrics& aMetrics);
 
   void GetLoadGroup(nsPresContext *aPresContext, nsILoadGroup **aLoadGroup);

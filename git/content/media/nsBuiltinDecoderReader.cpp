@@ -208,7 +208,8 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
 
 nsBuiltinDecoderReader::nsBuiltinDecoderReader(nsBuiltinDecoder* aDecoder)
   : mMonitor("media.decoderreader"),
-    mDecoder(aDecoder)
+    mDecoder(aDecoder),
+    mDataOffset(0)
 {
   MOZ_COUNT_CTOR(nsBuiltinDecoderReader);
 }

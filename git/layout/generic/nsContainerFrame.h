@@ -151,7 +151,7 @@ public:
                                       PRUint32         aFlags = 0);
 
   // Used by both nsInlineFrame and nsFirstLetterFrame.
-  void DoInlineIntrinsicWidth(nsRenderingContext *aRenderingContext,
+  void DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
                               InlineIntrinsicWidthData *aData,
                               nsLayoutUtils::IntrinsicWidthType aType);
 
@@ -159,7 +159,7 @@ public:
    * This is the CSS block concept of computing 'auto' widths, which most
    * classes derived from nsContainerFrame want.
    */
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                  nsSize aCBSize, nscoord aAvailableWidth,
                                  nsSize aMargin, nsSize aBorder,
                                  nsSize aPadding, PRBool aShrinkWrap);

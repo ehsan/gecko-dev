@@ -1144,6 +1144,7 @@ nsEditor::GetDocumentModified(PRBool *outDocModified)
 NS_IMETHODIMP
 nsEditor::GetDocumentCharacterSet(nsACString &characterSet)
 {
+  nsresult rv = NS_OK;
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
@@ -1154,6 +1155,7 @@ nsEditor::GetDocumentCharacterSet(nsACString &characterSet)
 NS_IMETHODIMP
 nsEditor::SetDocumentCharacterSet(const nsACString& characterSet)
 {
+  nsresult rv = NS_OK;
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocWeak);
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 

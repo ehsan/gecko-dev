@@ -82,6 +82,7 @@ using mozilla::layout::RenderFrameParent;
 #include "nsWeakReference.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMDocument.h"
+#include "nsIRenderingContext.h"
 #include "nsIDOMNSHTMLDocument.h"
 #include "nsDisplayList.h"
 #include "nsUnicharUtils.h"
@@ -484,7 +485,7 @@ nsSubDocumentFrame::GetType() const
 }
 
 /* virtual */ nscoord
-nsSubDocumentFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsSubDocumentFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -500,7 +501,7 @@ nsSubDocumentFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsSubDocumentFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsSubDocumentFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
@@ -536,7 +537,7 @@ nsSubDocumentFrame::GetIntrinsicRatio()
 }
 
 /* virtual */ nsSize
-nsSubDocumentFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsSubDocumentFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                                     nsSize aCBSize, nscoord aAvailableWidth,
                                     nsSize aMargin, nsSize aBorder,
                                     nsSize aPadding, PRBool aShrinkWrap)
@@ -554,7 +555,7 @@ nsSubDocumentFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 
 
 /* virtual */ nsSize
-nsSubDocumentFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsSubDocumentFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,
                                 nsSize aMargin, nsSize aBorder, nsSize aPadding,
                                 PRBool aShrinkWrap)

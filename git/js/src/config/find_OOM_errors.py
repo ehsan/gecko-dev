@@ -70,7 +70,7 @@ def run(args, stdin=None):
 
 def get_js_files():
   (out, err, exit) = run('find ../jit-test/tests -name "*.js"')
-  if (err, exit) != ("", 0):
+  if (err, exit) == ("", 0):
     sys.exit("Wrong directory, run from an objdir")
   return out.split()
 
@@ -191,12 +191,12 @@ whitelist.add(r"('', 'out of memory\nout of memory\n', -11)")
 # Options
 parser = OptionParser(usage=usage)
 parser.add_option("-r", "--regression", action="store", metavar="REGRESSION_COUNT", help=help,
-                  type="int", dest="regression", default=None)
+                  type="int", dest="regression", default=0) # TODO: support a value of zero, eventually
                   
 (OPTIONS, args) = parser.parse_args()
 
 
-if OPTIONS.regression != None:
+if OPTIONS.regression:
   # TODO: This should be expanded as we get a better hang of the OOM problems.
   # For now, we'll just check that the number of OOMs in one short file does not
   # increase.
@@ -209,7 +209,7 @@ else:
     files = [f for f in files if f.find(args[0]) != -1]
 
 
-if OPTIONS.regression == None:
+if OPTIONS.regression:
   # Don't use a logfile, this is automated for tinderbox.
   log = file("../OOM_log", "w")
 
@@ -229,8 +229,6 @@ for f in files:
 
     if OPTIONS.regression == None:
       print "Testing allocation %d/%d in %s" % (i,max,f)
-    else:
-      sys.stdout.write('.') # something short for tinderbox, no space or \n
 
     command = (command_template + ' -A %d') % (f, i)
     out, err, exit = run(command)
@@ -242,7 +240,7 @@ for f in files:
     # Failure
     else:
 
-      if OPTIONS.regression != None:
+      if OPTIONS.regression:
         # Just count them
         num_failures += 1
         continue
@@ -316,13 +314,12 @@ for f in files:
       log.write ("\n")
       log.flush()
 
-  if OPTIONS.regression == None:
+  if not OPTIONS.regression == None:
     count_lines()
 
-print '\n',
 
 # Do the actual regression check
-if OPTIONS.regression != None:
+if OPTIONS.regression:
   expected_num_failures = OPTIONS.regression
 
   if num_failures != expected_num_failures:

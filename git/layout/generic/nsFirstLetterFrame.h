@@ -70,13 +70,13 @@ public:
       ~(nsIFrame::eBidiInlineContainer));
   }
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);

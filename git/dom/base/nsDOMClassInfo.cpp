@@ -246,9 +246,6 @@
 #include "nsIDOMNotifyAudioAvailableEvent.h"
 #include "nsIDOMScrollAreaEvent.h"
 #include "nsIDOMTransitionEvent.h"
-#ifdef MOZ_CSS_ANIMATIONS
-#include "nsIDOMAnimationEvent.h"
-#endif
 #include "nsIDOMNSDocumentStyle.h"
 #include "nsIDOMDocumentRange.h"
 #include "nsIDOMDocumentTraversal.h"
@@ -330,10 +327,6 @@
 #include "nsIDOMCSSMediaRule.h"
 #include "nsIDOMCSSFontFaceRule.h"
 #include "nsIDOMCSSMozDocumentRule.h"
-#ifdef MOZ_CSS_ANIMATIONS
-#include "nsIDOMMozCSSKeyframeRule.h"
-#include "nsIDOMMozCSSKeyframesRule.h"
-#endif
 #include "nsIDOMCSSPrimitiveValue.h"
 #include "nsIDOMCSSStyleRule.h"
 #include "nsIDOMCSSStyleSheet.h"
@@ -1445,10 +1438,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(TransitionEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-#ifdef MOZ_CSS_ANIMATIONS
-  NS_DEFINE_CLASSINFO_DATA(AnimationEvent, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-#endif
   NS_DEFINE_CLASSINFO_DATA(ContentFrameMessageManager, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
@@ -1493,13 +1482,6 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(EventException, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-
-#ifdef MOZ_CSS_ANIMATIONS
-  NS_DEFINE_CLASSINFO_DATA(MozCSSKeyframeRule, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(MozCSSKeyframesRule, nsDOMGenericSH,
-                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
-#endif
 };
 
 // Objects that should be constructable through |new Name();|
@@ -1538,7 +1520,6 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
 {
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(Worker, nsDOMWorker::NewWorker)
   NS_DEFINE_CONSTRUCTOR_FUNC_DATA(ChromeWorker, nsDOMWorker::NewChromeWorker)
-  NS_DEFINE_CONSTRUCTOR_FUNC_DATA(File, nsDOMFile::NewFile)
 };
 
 nsIXPConnect *nsDOMClassInfo::sXPConnect = nsnull;
@@ -3912,12 +3893,10 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(Blob, nsIDOMBlob)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMBlob)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMBlob_MOZILLA_2_0_BRANCH)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(File, nsIDOMFile)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMBlob)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMBlob_MOZILLA_2_0_BRANCH)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMFile)
   DOM_CLASSINFO_MAP_END
 
@@ -4139,13 +4118,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 
-#ifdef MOZ_CSS_ANIMATIONS
-  DOM_CLASSINFO_MAP_BEGIN(AnimationEvent, nsIDOMAnimationEvent)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMAnimationEvent)
-    DOM_CLASSINFO_EVENT_MAP_ENTRIES
-  DOM_CLASSINFO_MAP_END
-#endif
-
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ContentFrameMessageManager, nsIContentFrameMessageManager)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
@@ -4241,16 +4213,6 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventException)
     DOM_CLASSINFO_MAP_ENTRY(nsIException)
   DOM_CLASSINFO_MAP_END
-
-#ifdef MOZ_CSS_ANIMATIONS
-  DOM_CLASSINFO_MAP_BEGIN(MozCSSKeyframeRule, nsIDOMMozCSSKeyframeRule)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozCSSKeyframeRule)
-  DOM_CLASSINFO_MAP_END
-
-  DOM_CLASSINFO_MAP_BEGIN(MozCSSKeyframesRule, nsIDOMMozCSSKeyframesRule)
-    DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozCSSKeyframesRule)
-  DOM_CLASSINFO_MAP_END
-#endif
 
 #ifdef NS_DEBUG
   {
@@ -7079,7 +7041,7 @@ nsWindowSH::Finalize(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   nsCOMPtr<nsIScriptGlobalObject> sgo(do_QueryWrappedNative(wrapper));
   NS_ENSURE_TRUE(sgo, NS_ERROR_UNEXPECTED);
 
-  sgo->OnFinalize(obj);
+  sgo->OnFinalize(nsIProgrammingLanguage::JAVASCRIPT, obj);
 
   return NS_OK;
 }

@@ -136,7 +136,7 @@
 #include "nsIClipboard.h"
 #include "nsIMM32Handler.h"
 #include "nsILocalFile.h"
-#include "nsFontMetrics.h"
+#include "nsIFontMetrics.h"
 #include "nsIFontEnumerator.h"
 #include "nsIDeviceContext.h"
 #include "nsILookAndFeel.h"
@@ -355,6 +355,9 @@ PRBool          gDisableNativeTheme               = PR_FALSE;
 static PRBool   gWindowsVisible                   = PR_FALSE;
 
 static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
+#ifdef WINCE_WINDOWS_MOBILE
+static NS_DEFINE_CID(kRegionCID, NS_REGION_CID);
+#endif
 
 // General purpose user32.dll hook object
 static WindowsDllInterceptor sUser32Intercept;

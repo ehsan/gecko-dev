@@ -61,6 +61,7 @@
 #include "nsIPresShell.h"
 #include "nsStyleContext.h"
 #include "nsIView.h"
+#include "nsIFontMetrics.h"
 #include "nsHTMLParts.h"
 #include "nsGkAtoms.h"
 #include "nsIDOMEvent.h"
@@ -88,7 +89,6 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsCSSRendering.h"
 #include "FrameLayerBuilder.h"
-#include "nsRenderingContext.h"
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -569,7 +569,7 @@ nsBlockFrame::GetCaretBaseline() const
       return bp.top + firstLine->mFirstChild->GetCaretBaseline();
     }
   }
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
   return nsLayoutUtils::GetCenteredFontBaseline(fm, nsHTMLReflowState::
       CalcLineHeight(GetStyleContext(), contentRect.height)) +
@@ -701,7 +701,7 @@ nsBlockFrame::MarkIntrinsicWidthsDirty()
 }
 
 /* virtual */ nscoord
-nsBlockFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsBlockFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nsIFrame* firstInFlow = GetFirstContinuation();
   if (firstInFlow != this)
@@ -778,7 +778,7 @@ nsBlockFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsBlockFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsBlockFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nsIFrame* firstInFlow = GetFirstContinuation();
   if (firstInFlow != this)
@@ -2368,12 +2368,13 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
         metrics.ascent = metrics.height;
       }
 
-      nsRenderingContext *rc = aState.mReflowState.rendContext;
+      nsIRenderingContext *rc = aState.mReflowState.rendContext;
       nsLayoutUtils::SetFontFromStyle(rc, GetStyleContext());
+      nsCOMPtr<nsIFontMetrics> fm;
+      rc->GetFontMetrics(*getter_AddRefs(fm));
 
       nscoord minAscent =
-        nsLayoutUtils::GetCenteredFontBaseline(rc->FontMetrics(),
-                                               aState.mMinLineHeight);
+        nsLayoutUtils::GetCenteredFontBaseline(fm, aState.mMinLineHeight);
       nscoord minDescent = aState.mMinLineHeight - minAscent;
 
       aState.mY += NS_MAX(minAscent, metrics.ascent) +
@@ -4238,7 +4239,11 @@ nsBlockFrame::PlaceLine(nsBlockReflowState& aState,
   if (aState.mPresContext->BidiEnabled()) {
     if (!aState.mPresContext->IsVisualMode() ||
         GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
-      nsBidiPresUtils::ReorderFrames(aLine->mFirstChild, aLine->GetChildCount());
+      nsBidiPresUtils* bidiUtils = aState.mPresContext->GetBidiUtils();
+
+      if (bidiUtils && bidiUtils->IsSuccessful() ) {
+        bidiUtils->ReorderFrames(aLine->mFirstChild, aLine->GetChildCount());
+      } // bidiUtils
     } // not visual mode
   } // bidi enabled
 #endif // IBMBIDI
@@ -7174,7 +7179,11 @@ nsBlockFrame::ResolveBidi()
     return NS_OK;
   }
 
-  return nsBidiPresUtils::Resolve(this);
+  nsBidiPresUtils* bidiUtils = presContext->GetBidiUtils();
+  if (!bidiUtils)
+    return NS_ERROR_NULL_POINTER;
+
+  return bidiUtils->Resolve(this);
 }
 #endif
 

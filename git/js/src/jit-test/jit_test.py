@@ -215,13 +215,6 @@ def check_output(out, err, rc, allow_oom, expectedError):
 
     return True
 
-def print_tinderbox(label, test, message=None):
-    jitflags = " ".join(test.jitflags)
-    result = "%s | jit_test.py %-15s| %s" % (label, jitflags, test.path)
-    if message:
-        result += ": " + message
-    print result
-
 def run_tests(tests, test_dir, lib_dir):
     pb = None
     if not OPTIONS.hide_progress and not OPTIONS.show_cmd:
@@ -245,7 +238,7 @@ def run_tests(tests, test_dir, lib_dir):
 
             if OPTIONS.tinderbox:
                 if ok:
-                    print_tinderbox("TEST-PASS", test);
+                    print('TEST-PASS | jit_test.py | %s'%test.path)
                 else:
                     lines = [ _ for _ in out.split('\n') + err.split('\n')
                               if _ != '' ]
@@ -253,7 +246,8 @@ def run_tests(tests, test_dir, lib_dir):
                         msg = lines[-1]
                     else:
                         msg = ''
-                    print_tinderbox("TEST-UNEXPECTED-FAIL", test, msg);
+                    print('TEST-UNEXPECTED-FAIL | jit_test.py | %s: %s'%
+                          (test.path, msg))
 
             n = i + 1
             if pb:
@@ -261,7 +255,7 @@ def run_tests(tests, test_dir, lib_dir):
                 pb.update(n)
         complete = True
     except KeyboardInterrupt:
-        print_tinderbox("TEST-UNEXPECTED-FAIL", test);
+        print('TEST-UNEXPECTED_FAIL | jit_test.py | %s'%test.path)
 
     if pb:
         pb.finish()

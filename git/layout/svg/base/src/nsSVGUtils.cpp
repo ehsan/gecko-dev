@@ -78,6 +78,7 @@
 #include "gfxImageSurface.h"
 #include "gfxPlatform.h"
 #include "nsSVGForeignObjectFrame.h"
+#include "nsIFontMetrics.h"
 #include "nsIDOMSVGUnitTypes.h"
 #include "nsSVGEffects.h"
 #include "nsMathUtils.h"
@@ -287,7 +288,7 @@ nsSVGUtils::GetFontXHeight(nsStyleContext *aStyleContext)
   nsPresContext *presContext = aStyleContext->PresContext();
   NS_ABORT_IF_FALSE(presContext, "NULL pres context in GetFontXHeight");
 
-  nsRefPtr<nsFontMetrics> fontMetrics;
+  nsCOMPtr<nsIFontMetrics> fontMetrics;
   nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
                                                getter_AddRefs(fontMetrics));
 
@@ -297,7 +298,8 @@ nsSVGUtils::GetFontXHeight(nsStyleContext *aStyleContext)
     return 1.0f;
   }
 
-  nscoord xHeight = fontMetrics->XHeight();
+  nscoord xHeight;
+  fontMetrics->GetXHeight(xHeight);
   return nsPresContext::AppUnitsToFloatCSSPixels(xHeight) /
          presContext->TextZoom();
 }
@@ -1444,7 +1446,7 @@ nsSVGUtils::PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
 
 // ----------------------------------------------------------------------
 
-nsSVGRenderState::nsSVGRenderState(nsRenderingContext *aContext) :
+nsSVGRenderState::nsSVGRenderState(nsIRenderingContext *aContext) :
   mRenderMode(NORMAL), mRenderingContext(aContext), mPaintingToWindow(PR_FALSE)
 {
   mGfxContext = aContext->ThebesContext();
@@ -1461,7 +1463,7 @@ nsSVGRenderState::nsSVGRenderState(gfxASurface *aSurface) :
   mGfxContext = new gfxContext(aSurface);
 }
 
-nsRenderingContext*
+nsIRenderingContext*
 nsSVGRenderState::GetRenderingContext(nsIFrame *aFrame)
 {
   if (!mRenderingContext) {

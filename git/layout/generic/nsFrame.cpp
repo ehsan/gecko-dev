@@ -980,14 +980,14 @@ public:
 #endif
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("SelectionOverlay", TYPE_SELECTION_OVERLAY)
 private:
   PRInt16 mSelectionValue;
 };
 
 void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
-                                      nsRenderingContext* aCtx)
+                                      nsIRenderingContext* aCtx)
 {
   nscolor color = NS_RGB(255, 255, 255);
   
@@ -1363,7 +1363,7 @@ BuildDisplayListWithOverflowClip(nsDisplayListBuilder* aBuilder, nsIFrame* aFram
 }
 
 #ifdef NS_DEBUG
-static void PaintDebugBorder(nsIFrame* aFrame, nsRenderingContext* aCtx,
+static void PaintDebugBorder(nsIFrame* aFrame, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect, nsPoint aPt) {
   nsRect r(aPt, aFrame->GetSize());
   if (aFrame->HasView()) {
@@ -1374,7 +1374,7 @@ static void PaintDebugBorder(nsIFrame* aFrame, nsRenderingContext* aCtx,
   aCtx->DrawRect(r);
 }
 
-static void PaintEventTargetBorder(nsIFrame* aFrame, nsRenderingContext* aCtx,
+static void PaintEventTargetBorder(nsIFrame* aFrame, nsIRenderingContext* aCtx,
      const nsRect& aDirtyRect, nsPoint aPt) {
   nsRect r(aPt, aFrame->GetSize());
   aCtx->SetColor(NS_RGB(128,0,128));
@@ -3118,7 +3118,7 @@ nsFrame::MarkIntrinsicWidthsDirty()
 }
 
 /* virtual */ nscoord
-nsFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_MIN_WIDTH(this, result);
@@ -3126,7 +3126,7 @@ nsFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_PREF_WIDTH(this, result);
@@ -3134,7 +3134,7 @@ nsFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ void
-nsFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+nsFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                            nsIFrame::InlineMinWidthData *aData)
 {
   NS_ASSERTION(GetParent(), "Must have a parent if we get here!");
@@ -3154,7 +3154,7 @@ nsFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
 }
 
 /* virtual */ void
-nsFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+nsFrame::AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                             nsIFrame::InlinePrefWidthData *aData)
 {
   aData->trailingWhitespace = 0;
@@ -3165,7 +3165,7 @@ nsFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
 }
 
 void
-nsIFrame::InlineMinWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
+nsIFrame::InlineMinWidthData::ForceBreak(nsIRenderingContext *aRenderingContext)
 {
   currentLine -= trailingWhitespace;
   prevLines = NS_MAX(prevLines, currentLine);
@@ -3185,7 +3185,7 @@ nsIFrame::InlineMinWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
 }
 
 void
-nsIFrame::InlineMinWidthData::OptionallyBreak(nsRenderingContext *aRenderingContext,
+nsIFrame::InlineMinWidthData::OptionallyBreak(nsIRenderingContext *aRenderingContext,
                                               nscoord aHyphenWidth)
 {
   trailingTextFrame = nsnull;
@@ -3202,7 +3202,7 @@ nsIFrame::InlineMinWidthData::OptionallyBreak(nsRenderingContext *aRenderingCont
 }
 
 void
-nsIFrame::InlinePrefWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
+nsIFrame::InlinePrefWidthData::ForceBreak(nsIRenderingContext *aRenderingContext)
 {
   if (floats.Length() != 0) {
             // preferred widths accumulated for floats that have already
@@ -3260,7 +3260,7 @@ nsIFrame::InlinePrefWidthData::ForceBreak(nsRenderingContext *aRenderingContext)
 
 static void
 AddCoord(const nsStyleCoord& aStyle,
-         nsRenderingContext* aRenderingContext,
+         nsIRenderingContext* aRenderingContext,
          nsIFrame* aFrame,
          nscoord* aCoord, float* aPercent,
          PRBool aClampNegativeToZero)
@@ -3297,7 +3297,7 @@ AddCoord(const nsStyleCoord& aStyle,
 }
 
 /* virtual */ nsIFrame::IntrinsicWidthOffsetData
-nsFrame::IntrinsicWidthOffsets(nsRenderingContext* aRenderingContext)
+nsFrame::IntrinsicWidthOffsets(nsIRenderingContext* aRenderingContext)
 {
   IntrinsicWidthOffsetData result;
 
@@ -3352,7 +3352,7 @@ nsFrame::GetIntrinsicRatio()
 }
 
 /* virtual */ nsSize
-nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                      nsSize aCBSize, nscoord aAvailableWidth,
                      nsSize aMargin, nsSize aBorder, nsSize aPadding,
                      PRBool aShrinkWrap)
@@ -3487,7 +3487,7 @@ nsFrame::ComputeSimpleTightBounds(gfxContext* aContext) const
 }
 
 /* virtual */ nsSize
-nsFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
+nsFrame::ComputeAutoSize(nsIRenderingContext *aRenderingContext,
                          nsSize aCBSize, nscoord aAvailableWidth,
                          nsSize aMargin, nsSize aBorder, nsSize aPadding,
                          PRBool aShrinkWrap)
@@ -3505,7 +3505,7 @@ nsFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 }
 
 nscoord
-nsFrame::ShrinkWidthToFit(nsRenderingContext *aRenderingContext,
+nsFrame::ShrinkWidthToFit(nsIRenderingContext *aRenderingContext,
                           nscoord aWidthInCB)
 {
   nscoord result;
@@ -6661,7 +6661,7 @@ nsFrame::RefreshSizeCache(nsBoxLayoutState& aState)
 
   // if we do have a rendering context
   nsresult rv = NS_OK;
-  nsRenderingContext* rendContext = aState.GetRenderingContext();
+  nsIRenderingContext* rendContext = aState.GetRenderingContext();
   if (rendContext) {
     nsPresContext* presContext = aState.PresContext();
 
@@ -6877,7 +6877,7 @@ nsFrame::DoLayout(nsBoxLayoutState& aState)
 {
   nsRect ourRect(mRect);
 
-  nsRenderingContext* rendContext = aState.GetRenderingContext();
+  nsIRenderingContext* rendContext = aState.GetRenderingContext();
   nsPresContext* presContext = aState.PresContext();
   nsHTMLReflowMetrics desiredSize;
   nsresult rv = NS_OK;
@@ -6933,7 +6933,7 @@ nsresult
 nsFrame::BoxReflow(nsBoxLayoutState&        aState,
                    nsPresContext*           aPresContext,
                    nsHTMLReflowMetrics&     aDesiredSize,
-                   nsRenderingContext*     aRenderingContext,
+                   nsIRenderingContext*     aRenderingContext,
                    nscoord                  aX,
                    nscoord                  aY,
                    nscoord                  aWidth,

@@ -45,7 +45,8 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 
 #include "nsMathMLmfracFrame.h"
 #include "nsDisplayList.h"
@@ -212,7 +213,7 @@ nsMathMLmfracFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 }
 
 /* virtual */ nsresult
-nsMathMLmfracFrame::MeasureForWidth(nsRenderingContext& aRenderingContext,
+nsMathMLmfracFrame::MeasureForWidth(nsIRenderingContext& aRenderingContext,
                                     nsHTMLReflowMetrics& aDesiredSize)
 {
   return PlaceInternal(aRenderingContext,
@@ -232,7 +233,7 @@ nsMathMLmfracFrame::FixInterFrameSpacing(nsHTMLReflowMetrics& aDesiredSize)
 }
 
 /* virtual */ nsresult
-nsMathMLmfracFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLmfracFrame::Place(nsIRenderingContext& aRenderingContext,
                           PRBool               aPlaceOrigin,
                           nsHTMLReflowMetrics& aDesiredSize)
 {
@@ -243,7 +244,7 @@ nsMathMLmfracFrame::Place(nsRenderingContext& aRenderingContext,
 }
 
 nsresult
-nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
+nsMathMLmfracFrame::PlaceInternal(nsIRenderingContext& aRenderingContext,
                                   PRBool               aPlaceOrigin,
                                   nsHTMLReflowMetrics& aDesiredSize,
                                   PRBool               aWidthOnly)
@@ -269,7 +270,8 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
 
   aRenderingContext.SetFont(GetStyleFont()->mFont,
                             presContext->GetUserFontSet());
-  nsFontMetrics* fm = aRenderingContext.FontMetrics();
+  nsCOMPtr<nsIFontMetrics> fm;
+  aRenderingContext.GetFontMetrics(*getter_AddRefs(fm));
 
   nscoord defaultRuleThickness, axisHeight;
   GetRuleThickness(aRenderingContext, fm, defaultRuleThickness);
@@ -436,7 +438,8 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
     nscoord slashRatio = 3;
 
     // Define the constant used in the expression of the maximum width
-    nscoord em = fm->EmHeight();
+    nscoord em;
+    fm->GetEmHeight(em);
     nscoord slashMaxWidthConstant = 2 * em;
 
     // For large line thicknesses the minimum slash height is limited to the
@@ -476,7 +479,8 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
       numShift += delta;
       denShift += delta;
     } else {
-      nscoord xHeight = fm->XHeight();
+      nscoord xHeight = 0;
+      fm->GetXHeight (xHeight);
       numShift += xHeight / 2;
       denShift += xHeight / 4;
     }
@@ -593,7 +597,7 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("MathMLSlash", TYPE_MATHML_SLASH)
 
 private:
@@ -602,7 +606,7 @@ private:
 };
 
 void nsDisplayMathMLSlash::Paint(nsDisplayListBuilder* aBuilder,
-                                 nsRenderingContext* aCtx)
+                                 nsIRenderingContext* aCtx)
 {
   // get the gfxRect
   nsPresContext* presContext = mFrame->PresContext();

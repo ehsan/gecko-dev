@@ -337,8 +337,8 @@ nsSVGAngle::SetBaseValueString(const nsAString &aValueAsString,
                                nsSVGElement *aSVGElement,
                                PRBool aDoSetAttr)
 {
-  float value = 0;
-  PRUint16 unitType = 0;
+  float value;
+  PRUint16 unitType;
   
   nsresult rv = GetValueFromString(aValueAsString, &value, &unitType);
   if (NS_FAILED(rv)) {

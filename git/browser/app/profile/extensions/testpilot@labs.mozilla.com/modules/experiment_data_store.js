@@ -119,11 +119,14 @@ ExperimentDataStore.prototype = {
     for (i = 0; i < this._columns.length; i++) {
       let datum =  uiEvent[this._columns[i].property];
       switch (this._columns[i].type) {
-        case TYPE_INT_32: case TYPE_DOUBLE:
-          insStmt.params[i] = datum;
+        case TYPE_INT_32:
+          insStmt.bindInt32Parameter(i, datum);
+        break;
+        case TYPE_DOUBLE:
+          insStmt.bindDoubleParameter(i, datum);
         break;
         case TYPE_STRING:
-          insStmt.params[i] = sanitizeString(datum);
+          insStmt.bindUTF8StringParameter(i, sanitizeString(datum));
         break;
       }
     }

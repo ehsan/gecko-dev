@@ -231,7 +231,7 @@ TableBackgroundPainter::TableBackgroundData::SetBCBorder(nsMargin& aBorder,
 TableBackgroundPainter::TableBackgroundPainter(nsTableFrame*        aTableFrame,
                                                Origin               aOrigin,
                                                nsPresContext*       aPresContext,
-                                               nsRenderingContext& aRenderingContext,
+                                               nsIRenderingContext& aRenderingContext,
                                                const nsRect&        aDirtyRect,
                                                const nsPoint&       aRenderPt,
                                                PRUint32             aBGPaintFlags)

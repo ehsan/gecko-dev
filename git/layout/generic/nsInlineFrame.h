@@ -101,11 +101,11 @@ public:
                                      PRBool aRespectClusters = PR_TRUE);
   
   // nsIHTMLReflow overrides
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   InlinePrefWidthData *aData);
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);

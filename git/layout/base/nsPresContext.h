@@ -83,7 +83,7 @@ struct nsRect;
 
 class imgIRequest;
 
-class nsFontMetrics;
+class nsIFontMetrics;
 class nsIFrame;
 class nsFrameManager;
 class nsILinkHandler;
@@ -102,14 +102,11 @@ class nsUserFontSet;
 struct nsFontFaceRuleContainer;
 class nsObjectFrame;
 class nsTransitionManager;
-#ifdef MOZ_CSS_ANIMATIONS
-class nsAnimationManager;
-#endif
 class nsRefreshDriver;
 class imgIContainer;
 
 #ifdef MOZ_REFLOW_PERF
-class nsRenderingContext;
+class nsIRenderingContext;
 #endif
 
 enum nsWidgetType {
@@ -241,9 +238,6 @@ public:
     { return GetPresShell()->FrameManager(); } 
 
   nsTransitionManager* TransitionManager() { return mTransitionManager; }
-#ifdef MOZ_CSS_ANIMATIONS
-  nsAnimationManager* AnimationManager() { return mAnimationManager; }
-#endif
 
   nsRefreshDriver* RefreshDriver() { return mRefreshDriver; }
 #endif
@@ -328,7 +322,7 @@ public:
    * (which is used from media query matching, which is in turn called
    * when building the user font set).
    */
-  NS_HIDDEN_(already_AddRefed<nsFontMetrics>)
+  NS_HIDDEN_(already_AddRefed<nsIFontMetrics>)
   GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet = PR_TRUE);
 
   /**
@@ -753,6 +747,11 @@ public:
 //Mohamed
 
   /**
+   * Get a Bidi presentation utilities object
+   */
+  NS_HIDDEN_(nsBidiPresUtils*) GetBidiUtils();
+
+  /**
    * Set the Bidi options for the presentation context
    */  
   NS_HIDDEN_(void) SetBidi(PRUint32 aBidiOptions,
@@ -764,6 +763,10 @@ public:
    * include nsIDocument.
    */  
   NS_HIDDEN_(PRUint32) GetBidi() const;
+
+  PRUint32 GetBidiMemoryUsed();
+#else
+  PRUint32 GetBidiMemoryUsed() { return 0; }
 #endif // IBMBIDI
 
   /**
@@ -996,6 +999,7 @@ public:
     PRUint32 result = 0;
 
     result += sizeof(nsPresContext);
+    result += GetBidiMemoryUsed();
 
     return result;
   }
@@ -1024,8 +1028,6 @@ protected:
   NS_HIDDEN_(void) GetFontPreferences();
 
   NS_HIDDEN_(void) UpdateCharSet(const nsAFlatCString& aCharSet);
-
-  void AppUnitsPerDevPixelChanged();
 
   PRBool MayHavePaintEventListener();
 
@@ -1057,9 +1059,6 @@ protected:
   nsILookAndFeel*       mLookAndFeel;   // [STRONG]
   nsRefPtr<nsRefreshDriver> mRefreshDriver;
   nsRefPtr<nsTransitionManager> mTransitionManager;
-#ifdef MOZ_CSS_ANIMATIONS
-  nsRefPtr<nsAnimationManager> mAnimationManager;
-#endif
   nsIAtom*              mMedium;        // initialized by subclass ctors;
                                         // weak pointer to static atom
 
@@ -1084,6 +1083,10 @@ protected:
   PRInt32               mCurAppUnitsPerDevPixel;
   PRInt32               mAutoQualityMinFontSizePixelsPref;
 
+#ifdef IBMBIDI
+  nsAutoPtr<nsBidiPresUtils> mBidiUtils;
+#endif
+
   nsCOMPtr<nsITheme> mTheme;
   nsCOMPtr<nsILanguageAtomService> mLangService;
   nsCOMPtr<nsIPrintSettings> mPrintSettings;
@@ -1095,6 +1098,8 @@ protected:
 
   // container for per-context fonts (downloadable, SVG, etc.)
   nsUserFontSet*        mUserFontSet;
+  // The list of @font-face rules that we put into mUserFontSet
+  nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
   
   PRInt32               mFontScaler;
   nscoord               mMinimumFontSizePref;

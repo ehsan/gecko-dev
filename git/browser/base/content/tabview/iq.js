@@ -217,7 +217,9 @@ iQClass.prototype = {
       Utils.assert(false, "each's argument must be a function");
       return null;
     }
-    for (let i = 0; this[i] != null && callback(this[i]) !== false; i++) {}
+    for (let i = 0; this[i] != null; i++) {
+      callback(this[i]);
+    }
     return this;
   },
 

@@ -3036,11 +3036,6 @@ nsGenericElement::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
     DeleteProperty(nsGkAtoms::transitionsOfBeforeProperty);
     DeleteProperty(nsGkAtoms::transitionsOfAfterProperty);
     DeleteProperty(nsGkAtoms::transitionsProperty);
-#ifdef MOZ_CSS_ANIMATIONS
-    DeleteProperty(nsGkAtoms::animationsOfBeforeProperty);
-    DeleteProperty(nsGkAtoms::animationsOfAfterProperty);
-    DeleteProperty(nsGkAtoms::animationsProperty);
-#endif
   }
 
   // Unset this since that's what the old code effectively did.
@@ -4582,9 +4577,7 @@ nsGenericElement::MaybeCheckSameAttrVal(PRInt32 aNamespaceID, nsIAtom* aName,
         // Need to store the old value
         info.mValue->ToString(*aOldValue);
         valueMatches = aValue.Equals(*aOldValue);
-      } else {
-        NS_ABORT_IF_FALSE(aNotify,
-                          "Either hasListeners or aNotify should be true.");
+      } else if (aNotify) {
         valueMatches = info.mValue->Equals(aValue, eCaseMatters);
       }
       if (valueMatches && aPrefix == info.mName->GetPrefix()) {

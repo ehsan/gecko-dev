@@ -38,15 +38,16 @@
 #ifndef __inLayoutUtils_h__
 #define __inLayoutUtils_h__
 
-class nsBindingManager;
-class nsIDOMDocument;
-class nsIDOMElement;
-class nsIDOMNode;
-class nsIDOMWindowInternal;
-class nsIEventStateManager;
-class nsIFrame;
+#include "nsCOMPtr.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMWindowInternal.h"
+#include "nsIFrame.h"
+#include "nsIRenderingContext.h"
+#include "nsIEventStateManager.h"
+#include "nsIDOMDocument.h"
+#include "nsBindingManager.h"
+
 class nsIPresShell;
-class nsISupports;
 
 class inLayoutUtils
 {

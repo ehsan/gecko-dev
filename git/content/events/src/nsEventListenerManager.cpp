@@ -697,6 +697,8 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
     return NS_ERROR_FAILURE;
   }
 
+  nsresult rv;
+
   nsCOMPtr<nsINode> node(do_QueryInterface(aObject));
 
   nsCOMPtr<nsIDocument> doc;
@@ -732,7 +734,6 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
     return NS_OK;
   }
 
-  nsresult rv = NS_OK;
   // return early preventing the event listener from being added
   // 'doc' is fetched above
   if (doc) {

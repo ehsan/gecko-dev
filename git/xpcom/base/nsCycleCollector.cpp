@@ -2558,7 +2558,7 @@ nsCycleCollector::BeginCollection(PRBool aForceGC,
         mFirstCollection = PR_FALSE;
     }
 
-    if (aForceGC && mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]) {
+    if (aForceGC) {
 #ifdef COLLECT_TIME_DEBUG
         PRTime start = PR_Now();
 #endif

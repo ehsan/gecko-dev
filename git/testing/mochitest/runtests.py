@@ -211,8 +211,7 @@ class MochitestOptions(optparse.OptionParser):
                     action = "append", dest = "extensionsToInstall",
                     help = "install the specified extension in the testing profile."
                            "The extension file's name should be <id>.xpi where <id> is"
-                           "the extension's id as indicated in its install.rdf."
-                           "An optional path can be specified too.")
+                           "the extension's id as indicated in its install.rdf.")
     defaults["extensionsToInstall"] = []
 
     self.add_option("--profile-path", action = "store",
@@ -772,7 +771,9 @@ overlay chrome://browser/content/browser.xul chrome://mochikit/content/browser-t
   def installExtensionsToProfile(self, options):
     "Install the specified extensions on the command line to the testing profile."
     for f in options.extensionsToInstall:
-      self.automation.installExtension(self.getFullPath(f), options.profilePath)
+      abspath = self.getFullPath(f)
+      extensionID = f[:f.rfind(".")]
+      self.automation.installExtension(abspath, options.profilePath, extensionID)
 
 def main():
   automation = Automation()

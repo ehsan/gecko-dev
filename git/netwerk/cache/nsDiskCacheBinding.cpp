@@ -117,7 +117,6 @@ NS_IMPL_THREADSAFE_ISUPPORTS0(nsDiskCacheBinding)
 nsDiskCacheBinding::nsDiskCacheBinding(nsCacheEntry* entry, nsDiskCacheRecord * record)
     :   mCacheEntry(entry)
     ,   mStreamIO(nsnull)
-    ,   mDeactivateEvent(nsnull)
 {
     NS_ASSERTION(record->ValidRecord(), "bad record");
     PR_INIT_CLIST(this);

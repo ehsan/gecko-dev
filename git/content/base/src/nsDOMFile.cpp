@@ -64,7 +64,6 @@
 #include "nsFileDataProtocolHandler.h"
 #include "nsStringStream.h"
 #include "CheckedInt.h"
-#include "nsJSUtils.h"
 
 #include "plbase64.h"
 #include "prmem.h"
@@ -140,11 +139,9 @@ DOMCI_DATA(Blob, nsDOMFile)
 NS_INTERFACE_MAP_BEGIN(nsDOMFile)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMFile)
   NS_INTERFACE_MAP_ENTRY(nsIDOMBlob)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMBlob_MOZILLA_2_0_BRANCH)
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIDOMFile, mIsFullFile)
   NS_INTERFACE_MAP_ENTRY(nsIXHRSendable)
   NS_INTERFACE_MAP_ENTRY(nsICharsetDetectionObserver)
-  NS_INTERFACE_MAP_ENTRY(nsIJSNativeInitializer)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(File, mIsFullFile)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO_CONDITIONAL(Blob, !mIsFullFile)
 NS_INTERFACE_MAP_END
@@ -164,14 +161,6 @@ DOMFileResult(nsresult rv)
   }
 
   return rv;
-}
-
-/* static */ nsresult
-nsDOMFile::NewFile(nsISupports* *aNewObject)
-{
-  nsCOMPtr<nsISupports> file = do_QueryObject(new nsDOMFile(nsnull));
-  file.forget(aNewObject);
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -256,40 +245,17 @@ nsDOMFile::GetType(nsAString &aType)
   return NS_OK;
 }
 
-// Makes sure that aStart and aEnd is less then or equal to aSize and greater
-// than 0
+// Makes sure that aStart and aStart + aLength is less then or equal to aSize
 void
-ParseSize(PRInt64 aSize, PRInt64& aStart, PRInt64& aEnd)
+ClampToSize(PRUint64 aSize, PRUint64& aStart, PRUint64& aLength)
 {
-  CheckedInt64 newStartOffset = aStart;
-  if (aStart < -aSize) {
-    newStartOffset = 0;
+  if (aStart > aSize) {
+    aStart = aLength = 0;
   }
-  else if (aStart < 0) {
-    newStartOffset += aSize;
-  }
-  else if (aStart > aSize) {
-    newStartOffset = aSize;
-  }
-
-  CheckedInt64 newEndOffset = aEnd;
-  if (aEnd < -aSize) {
-    newEndOffset = 0;
-  }
-  else if (aEnd < 0) {
-    newEndOffset += aSize;
-  }
-  else if (aEnd > aSize) {
-    newEndOffset = aSize;
-  }
-
-  if (!newStartOffset.valid() || !newEndOffset.valid() ||
-      newStartOffset.value() >= newEndOffset.value()) {
-    aStart = aEnd = 0;
-  }
-  else {
-    aStart = newStartOffset.value();
-    aEnd = newEndOffset.value();
+  CheckedUint64 endOffset = aStart;
+  endOffset += aLength;
+  if (!endOffset.valid() || endOffset.value() > aSize) {
+    aLength = aSize - aStart;
   }
 }
 
@@ -297,29 +263,16 @@ NS_IMETHODIMP
 nsDOMFile::Slice(PRUint64 aStart, PRUint64 aLength,
                  const nsAString& aContentType, nsIDOMBlob **aBlob)
 {
-  return MozSlice(aStart, aStart + aLength, aContentType, 2, aBlob);
-}
-
-NS_IMETHODIMP
-nsDOMFile::MozSlice(PRInt64 aStart, PRInt64 aEnd,
-                    const nsAString& aContentType, PRUint8 optional_argc,
-                    nsIDOMBlob **aBlob)
-{
   *aBlob = nsnull;
 
   // Truncate aLength and aStart so that we stay within this file.
   PRUint64 thisLength;
   nsresult rv = GetSize(&thisLength);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  if (!optional_argc) {
-    aEnd = (PRInt64)thisLength;
-  }
-
-  ParseSize((PRInt64)thisLength, aStart, aEnd);
+  ClampToSize(thisLength, aStart, aLength);
   
   // Create the new file
-  NS_ADDREF(*aBlob = new nsDOMFile(this, aStart, aEnd - aStart, aContentType));
+  NS_ADDREF(*aBlob = new nsDOMFile(this, aStart, aLength, aContentType));
   
   return NS_OK;
 }
@@ -621,48 +574,6 @@ nsDOMFile::Notify(const char* aCharset, nsDetectionConfident aConf)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMFile::Initialize(nsISupports* aOwner,
-                      JSContext* aCx,
-                      JSObject* aObj,
-                      PRUint32 aArgc,
-                      jsval* aArgv)
-{
-  if (!nsContentUtils::IsCallerChrome()) {
-    return NS_ERROR_DOM_SECURITY_ERR; // Real short trip
-  }
-
-  NS_ENSURE_TRUE(aArgc > 0, NS_ERROR_UNEXPECTED);
-
-  // We expect to get a path to represent as a File object
-  if (!JSVAL_IS_STRING(aArgv[0]))
-    return NS_ERROR_UNEXPECTED;
-
-  JSString* str = JS_ValueToString(aCx, aArgv[0]);
-  NS_ENSURE_TRUE(str, NS_ERROR_XPC_BAD_CONVERT_JS);
-
-  nsDependentJSString xpcomStr;
-  if (!xpcomStr.init(aCx, str)) {
-    return NS_ERROR_XPC_BAD_CONVERT_JS;
-  }
-
-  nsCOMPtr<nsILocalFile> localFile;
-  nsresult rv = NS_NewLocalFile(xpcomStr,
-                                PR_FALSE, getter_AddRefs(localFile));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIFile> file = do_QueryInterface(localFile, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool exists;
-  rv = file->Exists(&exists);
-  NS_ENSURE_SUCCESS(rv, rv);
-  NS_ENSURE_TRUE(exists, NS_ERROR_FILE_NOT_FOUND);
-
-  mFile = file;
-  return NS_OK;
-}
-
 nsresult
 nsDOMFile::ConvertStream(nsIInputStream *aStream,
                          const char *aCharset,
@@ -716,22 +627,16 @@ nsDOMMemoryFile::GetSize(PRUint64 *aFileSize)
 }
 
 NS_IMETHODIMP
-nsDOMMemoryFile::MozSlice(PRInt64 aStart, PRInt64 aEnd,
-                          const nsAString& aContentType, PRUint8 optional_argc,
-                          nsIDOMBlob **aBlob)
+nsDOMMemoryFile::Slice(PRUint64 aStart, PRUint64 aLength,
+                       const nsAString& aContentType, nsIDOMBlob **aBlob)
 {
   *aBlob = nsnull;
 
-  if (!optional_argc) {
-    aEnd = (PRInt64)mLength;
-  }
-
   // Truncate aLength and aStart so that we stay within this file.
-  ParseSize((PRInt64)mLength, aStart, aEnd);
+  ClampToSize(mLength, aStart, aLength);
 
   // Create the new file
-  NS_ADDREF(*aBlob = new nsDOMMemoryFile(this, aStart, aEnd - aStart,
-                                         aContentType));
+  NS_ADDREF(*aBlob = new nsDOMMemoryFile(this, aStart, aLength, aContentType));
   
   return NS_OK;
 }

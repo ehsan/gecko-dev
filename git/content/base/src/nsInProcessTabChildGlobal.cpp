@@ -129,10 +129,7 @@ nsInProcessTabChildGlobal::~nsInProcessTabChildGlobal()
 nsresult
 nsInProcessTabChildGlobal::Init()
 {
-#ifdef DEBUG
-  nsresult rv =
-#endif
-  InitTabChildGlobal();
+  nsresult rv = InitTabChildGlobal();
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
                    "Couldn't initialize nsInProcessTabChildGlobal");
   mMessageManager = new nsFrameMessageManager(PR_FALSE,

@@ -115,8 +115,8 @@ public:
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   virtual IntrinsicSize GetIntrinsicSize();
   virtual nsSize GetIntrinsicRatio();
   NS_IMETHOD Reflow(nsPresContext*          aPresContext,
@@ -174,7 +174,7 @@ public:
   static PRBool ShouldCreateImageFrameFor(nsIContent* aContent,
                                           nsStyleContext* aStyleContext);
   
-  void DisplayAltFeedback(nsRenderingContext& aRenderingContext,
+  void DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
                           const nsRect&        aDirtyRect,
                           imgIRequest*         aRequest,
                           nsPoint              aPt);
@@ -183,7 +183,7 @@ public:
 
   nsImageMap* GetImageMap(nsPresContext* aPresContext);
 
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+  virtual void AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  InlineMinWidthData *aData);
 
   nsRefPtr<ImageContainer> GetContainer(LayerManager* aManager,
@@ -194,7 +194,7 @@ protected:
 
   void EnsureIntrinsicSizeAndRatio(nsPresContext* aPresContext);
 
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
@@ -219,14 +219,14 @@ protected:
                         PRInt32              aLength,
                         nscoord              aMaxWidth,
                         PRUint32&            aMaxFit,
-                        nsRenderingContext& aContext);
+                        nsIRenderingContext& aContext);
 
   void DisplayAltText(nsPresContext*      aPresContext,
-                      nsRenderingContext& aRenderingContext,
+                      nsIRenderingContext& aRenderingContext,
                       const nsString&      aAltText,
                       const nsRect&        aRect);
 
-  void PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
+  void PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
                   const nsRect& aDirtyRect, imgIContainer* aImage,
                   PRUint32 aFlags);
 
@@ -393,7 +393,7 @@ public:
     MOZ_COUNT_DTOR(nsDisplayImage);
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   nsCOMPtr<imgIContainer> GetImage();
  
   /**

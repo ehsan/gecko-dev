@@ -499,7 +499,7 @@ nsFileControlFrame::BrowseMouseListener::MouseClick(nsIDOMEvent* aMouseEvent)
 }
 
 nscoord
-nsFileControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsFileControlFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);

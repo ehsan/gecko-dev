@@ -76,14 +76,14 @@ public:
                               PRInt32 aModType);
 
   /* get the size of the video's display */
-  nsSize GetVideoIntrinsicSize(nsRenderingContext *aRenderingContext);
+  nsSize GetVideoIntrinsicSize(nsIRenderingContext *aRenderingContext);
   virtual nsSize GetIntrinsicRatio();
-  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+  virtual nsSize ComputeSize(nsIRenderingContext *aRenderingContext,
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   virtual void DestroyFrom(nsIFrame* aDestructRoot);
   virtual PRBool IsLeaf() const;
 

@@ -280,6 +280,16 @@ nsXULMenuitemAccessible::
 {
 }
 
+PRBool
+nsXULMenuitemAccessible::Init()
+{
+  if (!nsAccessibleWrap::Init())
+    return PR_FALSE;
+
+  nsCoreUtils::GeneratePopupTree(mContent);
+  return PR_TRUE;
+}
+
 PRUint64
 nsXULMenuitemAccessible::NativeState()
 {

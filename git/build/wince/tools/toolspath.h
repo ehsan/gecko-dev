@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <process.h>
 
+#define OGLES_SDK_INC  OGLES_SDK_PATH "inc"
+#define OGLES_SDK_LIB  OGLES_SDK_PATH "lib\\wince\\nvap\\release"
 #define WCE_BIN    VC_PATH "ce\\bin\\x86_arm\\"
 #define WCE_RC_BIN WIN_SDK_PATH  "bin\\"
 #define WCE_CRT    VC_PATH "ce\\lib\\armv4i"

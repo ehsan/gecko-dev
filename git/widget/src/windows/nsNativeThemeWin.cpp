@@ -41,7 +41,7 @@
 
 #include <windows.h>
 #include "nsNativeThemeWin.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
 #include "nsIDeviceContext.h"
 #include "nsRect.h"
 #include "nsSize.h"
@@ -1197,7 +1197,7 @@ nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame, PRUint8 aWidgetType,
 }
 
 NS_IMETHODIMP
-nsNativeThemeWin::DrawWidgetBackground(nsRenderingContext* aContext,
+nsNativeThemeWin::DrawWidgetBackground(nsIRenderingContext* aContext,
                                        nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
                                        const nsRect& aRect,
@@ -1246,7 +1246,9 @@ nsNativeThemeWin::DrawWidgetBackground(nsRenderingContext* aContext,
   if (NS_FAILED(rv))
     return rv;
 
-  gfxFloat p2a = gfxFloat(aContext->AppUnitsPerDevPixel());
+  nsCOMPtr<nsIDeviceContext> dc;
+  aContext->GetDeviceContext(*getter_AddRefs(dc));
+  gfxFloat p2a = gfxFloat(dc->AppUnitsPerDevPixel());
   RECT widgetRect;
   RECT clipRect;
   gfxRect tr(aRect.x, aRect.y, aRect.width, aRect.height),
@@ -1846,7 +1848,7 @@ nsNativeThemeWin::GetWidgetOverflow(nsIDeviceContext* aContext,
 }
 
 NS_IMETHODIMP
-nsNativeThemeWin::GetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aFrame,
+nsNativeThemeWin::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
                                        nsIntSize* aResult, PRBool* aIsOverridable)
 {
@@ -2426,7 +2428,7 @@ nsNativeThemeWin::ClassicGetWidgetBorder(nsIDeviceContext* aContext,
 }
 
 nsresult
-nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsRenderingContext* aContext, nsIFrame* aFrame,
+nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* aFrame,
                                        PRUint8 aWidgetType,
                                        nsIntSize* aResult, PRBool* aIsOverridable)
 {
@@ -3100,7 +3102,7 @@ void nsNativeThemeWin::DrawCheckedRect(HDC hdc, const RECT& rc, PRInt32 fore, PR
   }
 }
 
-nsresult nsNativeThemeWin::ClassicDrawWidgetBackground(nsRenderingContext* aContext,
+nsresult nsNativeThemeWin::ClassicDrawWidgetBackground(nsIRenderingContext* aContext,
                                   nsIFrame* aFrame,
                                   PRUint8 aWidgetType,
                                   const nsRect& aRect,
@@ -3113,7 +3115,9 @@ nsresult nsNativeThemeWin::ClassicDrawWidgetBackground(nsRenderingContext* aCont
   if (NS_FAILED(rv))
     return rv;
 
-  gfxFloat p2a = gfxFloat(aContext->AppUnitsPerDevPixel());
+  nsCOMPtr<nsIDeviceContext> dc;
+  aContext->GetDeviceContext(*getter_AddRefs(dc));
+  gfxFloat p2a = gfxFloat(dc->AppUnitsPerDevPixel());
   RECT widgetRect;
   gfxRect tr(aRect.x, aRect.y, aRect.width, aRect.height),
           dr(aDirtyRect.x, aDirtyRect.y, aDirtyRect.width, aDirtyRect.height);

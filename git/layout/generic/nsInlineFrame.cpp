@@ -46,7 +46,8 @@
 #include "nsStyleContext.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
-#include "nsRenderingContext.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 #include "nsAbsoluteContainingBlock.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsAutoPtr.h"
@@ -203,21 +204,21 @@ nsInlineFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 // Reflow methods
 
 /* virtual */ void
-nsInlineFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
+nsInlineFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                  nsIFrame::InlineMinWidthData *aData)
 {
   DoInlineIntrinsicWidth(aRenderingContext, aData, nsLayoutUtils::MIN_WIDTH);
 }
 
 /* virtual */ void
-nsInlineFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
+nsInlineFrame::AddInlinePrefWidth(nsIRenderingContext *aRenderingContext,
                                   nsIFrame::InlinePrefWidthData *aData)
 {
   DoInlineIntrinsicWidth(aRenderingContext, aData, nsLayoutUtils::PREF_WIDTH);
 }
 
 /* virtual */ nsSize
-nsInlineFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsInlineFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                            nsSize aCBSize, nscoord aAvailableWidth,
                            nsSize aMargin, nsSize aBorder, nsSize aPadding,
                            PRBool aShrinkWrap)
@@ -643,7 +644,8 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
   }
 
   nsLayoutUtils::SetFontFromStyle(aReflowState.rendContext, mStyleContext);
-  nsFontMetrics* fm = aReflowState.rendContext->FontMetrics();
+  nsCOMPtr<nsIFontMetrics> fm;
+  aReflowState.rendContext->GetFontMetrics(*getter_AddRefs(fm));
 
   if (fm) {
     // Compute final height of the frame.
@@ -656,8 +658,8 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
     // The height of our box is the sum of our font size plus the top
     // and bottom border and padding. The height of children do not
     // affect our height.
-    aMetrics.ascent = fm->MaxAscent();
-    aMetrics.height = fm->MaxHeight();
+    fm->GetMaxAscent(aMetrics.ascent);
+    fm->GetHeight(aMetrics.height);
   } else {
     NS_WARNING("Cannot get font metrics - defaulting sizes to 0");
     aMetrics.ascent = aMetrics.height = 0;
@@ -913,10 +915,9 @@ nscoord
 nsInlineFrame::GetBaseline() const
 {
   nscoord ascent = 0;
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  if (fm) {
-    ascent = fm->MaxAscent();
+  nsCOMPtr<nsIFontMetrics> fm;
+  if (NS_SUCCEEDED(nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm)))) {
+    fm->GetMaxAscent(ascent);
   }
   return NS_MIN(mRect.height, ascent + GetUsedBorderAndPadding().top);
 }

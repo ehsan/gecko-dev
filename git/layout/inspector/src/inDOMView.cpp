@@ -57,7 +57,6 @@
 #include "nsIDocument.h"
 #include "nsIServiceManager.h"
 #include "nsITreeColumns.h"
-#include "mozilla/dom/Element.h"
 
 #ifdef ACCESSIBILITY
 #include "nsIAccessible.h"

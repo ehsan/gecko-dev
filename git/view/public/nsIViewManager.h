@@ -41,6 +41,7 @@
 #include "nscore.h"
 #include "nsIView.h"
 #include "nsEvent.h"
+#include "nsIRenderingContext.h"
 
 class nsIWidget;
 struct nsRect;

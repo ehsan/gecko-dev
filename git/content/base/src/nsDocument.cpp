@@ -1441,8 +1441,8 @@ nsDOMImplementation::CreateDocumentType(const nsAString& aQualifiedName,
   // Indicate that there is no internal subset (not just an empty one)
   nsAutoString voidString;
   voidString.SetIsVoid(PR_TRUE);
-  return NS_NewDOMDocumentType(aReturn, nsnull, mPrincipal, name, aPublicId,
-                               aSystemId, voidString);
+  return NS_NewDOMDocumentType(aReturn, nsnull, mPrincipal, name, nsnull,
+                               nsnull, aPublicId, aSystemId, voidString);
 }
 
 NS_IMETHODIMP
@@ -1507,6 +1507,8 @@ nsDOMImplementation::CreateHTMLDocument(const nsAString& aTitle,
                                       NULL, // aNodeInfoManager
                                       mPrincipal, // aPrincipal
                                       nsGkAtoms::html, // aName
+                                      NULL, // aEntities
+                                      NULL, // aNotations
                                       EmptyString(), // aPublicId
                                       EmptyString(), // aSystemId
                                       voidString); // aInternalSubset
@@ -6174,10 +6176,28 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
 }
 
 NS_IMETHODIMP
+nsDocument::GetDomConfig(nsIDOMDOMConfiguration **aConfig)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 nsDocument::NormalizeDocument()
 {
+  // We don't support DOMConfigurations yet, so this just
+  // does a straight shot of normalization.
   return Normalize();
 }
+
+NS_IMETHODIMP
+nsDocument::RenameNode(nsIDOMNode *aNode,
+                       const nsAString& namespaceURI,
+                       const nsAString& qualifiedName,
+                       nsIDOMNode **aReturn)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 
 NS_IMETHODIMP
 nsDocument::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
@@ -6730,8 +6750,10 @@ nsDocument::WalkRadioGroup(const nsAString& aName,
     return NS_OK;
   }
 
+  PRBool stop = PR_FALSE;
   for (int i = 0; i < radioGroup->mRadioButtons.Count(); i++) {
-    if (!aVisitor->Visit(radioGroup->mRadioButtons[i])) {
+    aVisitor->Visit(radioGroup->mRadioButtons[i], &stop);
+    if (stop) {
       return NS_OK;
     }
   }
@@ -8265,10 +8287,7 @@ nsDocument::RemoveImage(imgIRequest* aImage)
 
   // Get the old count. It should exist and be > 0.
   PRUint32 count;
-#ifdef DEBUG
-  PRBool found =
-#endif
-  mImageTracker.Get(aImage, &count);
+  PRBool found = mImageTracker.Get(aImage, &count);
   NS_ABORT_IF_FALSE(found, "Removing image that wasn't in the tracker!");
   NS_ABORT_IF_FALSE(count > 0, "Entry in the cache tracker with count 0!");
 

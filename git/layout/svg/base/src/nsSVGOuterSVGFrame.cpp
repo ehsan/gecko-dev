@@ -202,7 +202,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsSVGOuterSVGFrameBase)
 // reflowing
 
 /* virtual */ nscoord
-nsSVGOuterSVGFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsSVGOuterSVGFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -213,7 +213,7 @@ nsSVGOuterSVGFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsSVGOuterSVGFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+nsSVGOuterSVGFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);
@@ -311,7 +311,7 @@ nsSVGOuterSVGFrame::GetIntrinsicRatio()
 }
 
 /* virtual */ nsSize
-nsSVGOuterSVGFrame::ComputeSize(nsRenderingContext *aRenderingContext,
+nsSVGOuterSVGFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                 nsSize aCBSize, nscoord aAvailableWidth,
                                 nsSize aMargin, nsSize aBorder, nsSize aPadding,
                                 PRBool aShrinkWrap)
@@ -447,7 +447,7 @@ public:
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
                        HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("SVGEventReceiver", TYPE_SVG_EVENT_RECEIVER)
 };
 
@@ -474,7 +474,7 @@ nsDisplaySVG::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
 
 void
 nsDisplaySVG::Paint(nsDisplayListBuilder* aBuilder,
-                    nsRenderingContext* aCtx)
+                    nsIRenderingContext* aCtx)
 {
   static_cast<nsSVGOuterSVGFrame*>(mFrame)->
     Paint(aBuilder, *aCtx, mVisibleRect, ToReferenceFrame());
@@ -540,7 +540,7 @@ nsSVGOuterSVGFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
 void
 nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
-                          nsRenderingContext& aRenderingContext,
+                          nsIRenderingContext& aRenderingContext,
                           const nsRect& aDirtyRect, nsPoint aPt)
 {
   // initialize Mozilla rendering context
@@ -552,8 +552,8 @@ nsSVGOuterSVGFrame::Paint(const nsDisplayListBuilder* aBuilder,
 
   nsRect clipRect;
   clipRect.IntersectRect(aDirtyRect, viewportRect);
-  aRenderingContext.IntersectClip(clipRect);
-  aRenderingContext.Translate(viewportRect.TopLeft());
+  aRenderingContext.SetClipRect(clipRect, nsClipCombine_kIntersect);
+  aRenderingContext.Translate(viewportRect.x, viewportRect.y);
   nsRect dirtyRect = clipRect - viewportOffset;
 
 #if defined(DEBUG) && defined(SVG_DEBUG_PAINT_TIMING)

@@ -131,7 +131,7 @@ public:
   NS_IMETHOD  GetFrameName(nsAString& aResult) const;
 #endif
 
-  void PaintPageSequence(nsRenderingContext& aRenderingContext,
+  void PaintPageSequence(nsIRenderingContext& aRenderingContext,
                          const nsRect&        aDirtyRect,
                          nsPoint              aPt);
 

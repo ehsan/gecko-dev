@@ -107,9 +107,9 @@ public:
   virtual already_AddRefed<nsAccessible> CreateAccessible();
 #endif
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
 
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
+  virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
 
   NS_IMETHOD Reflow(nsPresContext*          aCX,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -124,7 +124,7 @@ public:
                               const nsRect&           aDirtyRect,
                               const nsDisplayListSet& aLists);
 
-  void PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt);
+  void PaintFocus(nsIRenderingContext& aRenderingContext, nsPoint aPt);
 
   // XXXbz this is only needed to prevent the quirk percent height stuff from
   // leaking out of the combobox.  We may be able to get rid of this as more
@@ -226,7 +226,7 @@ protected:
                           const nsHTMLReflowState& aReflowState);
 
   // Helper for GetMinWidth/GetPrefWidth
-  nscoord GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
+  nscoord GetIntrinsicWidth(nsIRenderingContext* aRenderingContext,
                             nsLayoutUtils::IntrinsicWidthType aType);
 protected:
   class RedisplayTextEvent;

@@ -58,8 +58,9 @@
 #include "nsIView.h"
 #include "nsIViewManager.h"
 #include "nsStyleContext.h"
+#include "nsIRenderingContext.h"
 #include "nsIDeviceContext.h"
-#include "nsFontMetrics.h"
+#include "nsIFontMetrics.h"
 #include "nsITimer.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
@@ -225,9 +226,9 @@ nsListBoxBodyFrame::Init(nsIContent*     aContent,
       scrollbarFrame->SetScrollbarMediatorContent(GetContent());
     }
   }
-  nsRefPtr<nsFontMetrics> fm;
+  nsCOMPtr<nsIFontMetrics> fm;
   nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  mRowHeight = fm->MaxHeight();
+  fm->GetHeight(mRowHeight);
 
   return rv;
 }
@@ -728,7 +729,7 @@ nsListBoxBodyFrame::ComputeIntrinsicWidth(nsBoxLayoutState& aBoxLayoutState)
       nsIContent *child = (*iter);
 
       if (child->Tag() == nsGkAtoms::listitem) {
-        nsRenderingContext* rendContext = aBoxLayoutState.GetRenderingContext();
+        nsIRenderingContext* rendContext = aBoxLayoutState.GetRenderingContext();
         if (rendContext) {
           nsAutoString value;
           PRUint32 textCount = child->GetChildCount();

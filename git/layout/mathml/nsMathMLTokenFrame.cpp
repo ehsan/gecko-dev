@@ -42,6 +42,8 @@
 #include "nsPresContext.h"
 #include "nsStyleContext.h"
 #include "nsStyleConsts.h"
+#include "nsIRenderingContext.h"
+#include "nsIFontMetrics.h"
 #include "nsContentUtils.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsMathMLTokenFrame.h"
@@ -157,7 +159,7 @@ nsMathMLTokenFrame::Reflow(nsPresContext*          aPresContext,
   // initializations needed for empty markup like <mtag></mtag>
   aDesiredSize.width = aDesiredSize.height = 0;
   aDesiredSize.ascent = 0;
-  aDesiredSize.mBoundingMetrics = nsBoundingMetrics();
+  aDesiredSize.mBoundingMetrics.Clear();
 
   nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
   nsIFrame* childFrame = GetFirstChild(nsnull);
@@ -195,11 +197,11 @@ nsMathMLTokenFrame::Reflow(nsPresContext*          aPresContext,
 // pass, it is not computed here because our children may be text frames
 // that do not implement the GetBoundingMetrics() interface.
 /* virtual */ nsresult
-nsMathMLTokenFrame::Place(nsRenderingContext& aRenderingContext,
+nsMathMLTokenFrame::Place(nsIRenderingContext& aRenderingContext,
                           PRBool               aPlaceOrigin,
                           nsHTMLReflowMetrics& aDesiredSize)
 {
-  mBoundingMetrics = nsBoundingMetrics();
+  mBoundingMetrics.Clear();
   for (nsIFrame* childFrame = GetFirstChild(nsnull); childFrame;
        childFrame = childFrame->GetNextSibling()) {
     nsHTMLReflowMetrics childSize;
@@ -209,10 +211,11 @@ nsMathMLTokenFrame::Place(nsRenderingContext& aRenderingContext,
     mBoundingMetrics += childSize.mBoundingMetrics;
   }
 
-  nsRefPtr<nsFontMetrics> fm =
+  nsCOMPtr<nsIFontMetrics> fm =
     PresContext()->GetMetricsFor(GetStyleFont()->mFont);
-  nscoord ascent = fm->MaxAscent();
-  nscoord descent = fm->MaxDescent();
+  nscoord ascent, descent;
+  fm->GetMaxAscent(ascent);
+  fm->GetMaxDescent(descent);
 
   aDesiredSize.mBoundingMetrics = mBoundingMetrics;
   aDesiredSize.width = mBoundingMetrics.width;

@@ -127,7 +127,7 @@ public:
 
   virtual ~nsImageBoxFrame();
 
-  void  PaintImage(nsRenderingContext& aRenderingContext,
+  void  PaintImage(nsIRenderingContext& aRenderingContext,
                    const nsRect& aDirtyRect,
                    nsPoint aPt, PRUint32 aFlags);
 

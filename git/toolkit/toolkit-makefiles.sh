@@ -84,7 +84,7 @@ MAKEFILES_dom="
   dom/src/storage/Makefile
   dom/src/threads/Makefile
   dom/locales/Makefile
-  dom/plugins/ipc/Makefile
+  dom/plugins/Makefile
   js/jetpack/Makefile
 "
 
@@ -128,8 +128,6 @@ MAKEFILES_gfx="
   gfx/thebes/Makefile
   gfx/qcms/Makefile
   gfx/angle/Makefile
-  gfx/angle/src/libGLESv2/Makefile
-  gfx/angle/src/libEGL/Makefile
 "
 
 MAKEFILES_htmlparser="

@@ -72,15 +72,15 @@ EXPORTS	= \
 	nsSize.h \
 	nsMargin.h \
 	nsTransform2D.h \
-	nsRenderingContext.h \
-	nsFontMetrics.h \
+	nsIRenderingContext.h \
+	nsIFontMetrics.h \
 	nsIDeviceContext.h \
 	nsGfxCIID.h \
 	nsIRegion.h \
 	nsITheme.h \
 	nsThemeConstants.h \
 	gfxCrashReporterUtils.h \
-	nsBoundingMetrics.h \
+	nsIThebesFontMetrics.h \
 	$(NULL)
 
 ifdef MOZ_X11
@@ -99,8 +99,8 @@ CPPSRCS = \
         nsThebesDeviceContext.cpp \
         nsThebesRegion.cpp \
         nsThebesGfxFactory.cpp \
-        nsRenderingContext.cpp \
-        nsFontMetrics.cpp \
+        nsThebesRenderingContext.cpp \
+        nsThebesFontMetrics.cpp \
         nsThebesFontEnumerator.cpp \
        $(NULL)
 
