@@ -34,14 +34,14 @@ function test()
   {
     try
     {
-      Array.prototype.toSource.call(new String('foo'));
-      throw new Error("didn't throw");
+      expect = 'TypeError: Array.prototype.toSource called on incompatible String';
+      actual = Array.prototype.toSource.call((new String('foo')));
     }
     catch(ex)
     {
-      assertEq(ex instanceof TypeError, true,
-               "wrong error thrown: expected TypeError, got " + ex);
+      actual = ex + '';
     }
+    assertEq(actual, expect, summary);
   }
 
   reportCompare(true, true, "Tests complete");

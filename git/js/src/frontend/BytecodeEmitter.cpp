@@ -4332,11 +4332,7 @@ EmitLet(JSContext *cx, BytecodeEmitter *bce, ParseNode *pnLet)
 #endif
 
 #if JS_HAS_XML_SUPPORT
-/*
- * Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr12127. See
- * the comment on EmitSwitch.
- */
-MOZ_NEVER_INLINE static bool
+static bool
 EmitXMLTag(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     JS_ASSERT(!bce->sc->inStrictMode());
@@ -5459,11 +5455,7 @@ EmitLogical(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
     return true;
 }
 
-/*
- * Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr12127. See
- * the comment on EmitSwitch.
- */
-MOZ_NEVER_INLINE static bool
+static bool
 EmitIncOrDec(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
     /* Emit lvalue-specialized code for ++/-- operators. */
@@ -5660,11 +5652,7 @@ EmitConditionalExpression(JSContext *cx, BytecodeEmitter *bce, ConditionalExpres
     return SetSrcNoteOffset(cx, bce, noteIndex, 0, jmp - beq);
 }
 
-/*
- * Using MOZ_NEVER_INLINE in here is a workaround for llvm.org/pr12127. See
- * the comment on EmitSwitch.
- */
-MOZ_NEVER_INLINE static bool
+static bool
 EmitObject(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn)
 {
 #if JS_HAS_DESTRUCTURING_SHORTHAND

@@ -52,6 +52,7 @@
 #include "jsstrinlines.h"
 #include "jsautooplen.h"        // generated headers last
 
+#include "vm/MethodGuard-inl.h"
 #include "vm/RegExpObject-inl.h"
 #include "vm/RegExpStatics-inl.h"
 #include "vm/StringObject-inl.h"
@@ -449,12 +450,6 @@ ThisToStringForStringProto(JSContext *cx, CallReceiver call)
     return str;
 }
 
-static bool
-IsString(const Value &v)
-{
-    return v.isString() || (v.isObject() && v.toObject().hasClass(&StringClass));
-}
-
 #if JS_HAS_TOSOURCE
 
 /*
@@ -475,14 +470,15 @@ str_quote(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static bool
-str_toSource_impl(JSContext *cx, CallArgs args)
+static JSBool
+str_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
-    JS_ASSERT(IsString(args.thisv()));
+    CallArgs args = CallArgsFromVp(argc, vp);
 
-    Rooted<JSString*> str(cx, ToString(cx, args.thisv()));
-    if (!str)
-        return false;
+    JSString *str;
+    bool ok;
+    if (!BoxedPrimitiveMethodGuard(cx, args, str_toSource, &str, &ok))
+        return ok;
 
     str = js_QuoteString(cx, str, '"');
     if (!str)
@@ -499,31 +495,20 @@ str_toSource_impl(JSContext *cx, CallArgs args)
     return true;
 }
 
-static JSBool
-str_toSource(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, IsString, str_toSource_impl, args);
-}
-
 #endif /* JS_HAS_TOSOURCE */
-
-static bool
-str_toString_impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(IsString(args.thisv()));
-
-    args.rval() = StringValue(args.thisv().isString()
-                              ? args.thisv().toString()
-                              : args.thisv().toObject().asString().unbox());
-    return true;
-}
 
 JSBool
 js_str_toString(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, IsString, str_toString_impl, args);
+
+    JSString *str;
+    bool ok;
+    if (!BoxedPrimitiveMethodGuard(cx, args, js_str_toString, &str, &ok))
+        return ok;
+
+    args.rval() = StringValue(str);
+    return true;
 }
 
 /*

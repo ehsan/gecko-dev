@@ -13,7 +13,6 @@
 #include "mozilla/Observer.h"
 #include "mozilla/RefPtr.h"
 #include "nsString.h"
-#include "nsTArray.h"
 
 #include "Volume.h"
 #include "VolumeCommand.h"
@@ -78,7 +77,7 @@ class VolumeManager : public MessageLoopForIO::Watcher,
 {
 public:
 
-  typedef nsTArray<RefPtr<Volume> > VolumeArray;
+  typedef std::vector<RefPtr<Volume> > VolumeArray;
 
   VolumeManager();
   virtual ~VolumeManager();
@@ -121,8 +120,6 @@ public:
 
   static void Start();
 
-  static VolumeArray::size_type NumVolumes();
-  static TemporaryRef<Volume> GetVolume(VolumeArray::index_type aIndex);
   static TemporaryRef<Volume> FindVolumeByName(const nsCSubstring &aName);
   static TemporaryRef<Volume> FindAddVolumeByName(const nsCSubstring &aName);
 

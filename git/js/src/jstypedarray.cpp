@@ -35,7 +35,7 @@
 #include "jsobjinlines.h"
 #include "jstypedarrayinlines.h"
 
-#include "vm/GlobalObject-inl.h"
+#include "vm/MethodGuard-inl.h"
 
 using namespace mozilla;
 using namespace js;
@@ -117,33 +117,32 @@ getArrayBuffer(JSObject *obj)
     return obj ? &obj->asArrayBuffer() : NULL;
 }
 
-static bool
-IsArrayBuffer(const Value &v)
-{
-    return v.isObject() && v.toObject().hasClass(&ArrayBufferClass);
-}
-
-bool
-ArrayBufferObject::byteLengthGetterImpl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(IsArrayBuffer(args.thisv()));
-    args.rval() = Int32Value(args.thisv().toObject().asArrayBuffer().byteLength());
-    return true;
-}
-
 JSBool
 ArrayBufferObject::byteLengthGetter(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, IsArrayBuffer, byteLengthGetterImpl, args);
+
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, byteLengthGetter, &ArrayBufferClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
+
+    JS_SET_RVAL(cx, vp, Int32Value(thisObj->asArrayBuffer().byteLength()));
+    return true;
 }
 
-bool
-ArrayBufferObject::fun_slice_impl(JSContext *cx, CallArgs args)
+JSBool
+ArrayBufferObject::fun_slice(JSContext *cx, unsigned argc, Value *vp)
 {
-    JS_ASSERT(IsArrayBuffer(args.thisv()));
+    CallArgs args = CallArgsFromVp(argc, vp);
 
-    Rooted<JSObject*> thisObj(cx, &args.thisv().toObject());
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_slice, &ArrayBufferClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
+
     ArrayBufferObject &arrayBuffer = thisObj->asArrayBuffer();
 
     // these are the default values
@@ -168,13 +167,6 @@ ArrayBufferObject::fun_slice_impl(JSContext *cx, CallArgs args)
         return false;
     args.rval().setObject(*nobj);
     return true;
-}
-
-JSBool
-ArrayBufferObject::fun_slice(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, IsArrayBuffer, fun_slice_impl, args);
 }
 
 /*
@@ -287,37 +279,6 @@ ArrayBufferObject::createSlice(JSContext *cx, ArrayBufferObject &arrayBuffer,
         return create(cx, length, arrayBuffer.dataPointer() + begin);
 
     return create(cx, 0);
-}
-
-bool
-ArrayBufferObject::createDataViewForThisImpl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(IsArrayBuffer(args.thisv()));
-
-    /*
-     * This method is only called for |DataView(alienBuf, ...)| which calls
-     * this as |createDataViewForThis.call(alienBuf, ..., DataView.prototype)|,
-     * ergo there must be at least two arguments.
-     */
-    JS_ASSERT(args.length() >= 2);
-
-    Rooted<JSObject*> proto(cx, &args[args.length() - 1].toObject());
-
-    Rooted<JSObject*> buffer(cx, &args.thisv().toObject());
-
-    /*
-     * Pop off the passed-along prototype and delegate to normal DataView
-     * object construction.
-     */
-    CallArgs frobbedArgs = CallArgsFromVp(args.length() - 1, args.base());
-    return DataViewObject::construct(cx, buffer, frobbedArgs, proto);
-}
-
-JSBool
-ArrayBufferObject::createDataViewForThis(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, IsArrayBuffer, createDataViewForThisImpl, args);
 }
 
 void
@@ -1020,10 +981,6 @@ class TypedArrayTemplate
         return &TypedArray::classes[ArrayTypeID()];
     }
 
-    static bool is(const Value &v) {
-        return v.isObject() && v.toObject().hasClass(fastClass());
-    }
-
     static void
     obj_trace(JSTracer *trc, JSObject *obj)
     {
@@ -1467,6 +1424,19 @@ class TypedArrayTemplate
         return true;
     }
 
+    static JSBool
+    fromBuffer(JSContext *cx, unsigned argc, Value *vp)
+    {
+        CallArgs args = CallArgsFromVp(argc, vp);
+        RootedObject buffer(cx, &args[0].toObject());
+        RootedObject proto(cx, &args[3].toObject());
+        JSObject *obj = fromBuffer(cx, buffer, args[1].toInt32(), args[2].toInt32(), proto);
+        if (!obj)
+            return false;
+        vp->setObject(*obj);
+        return true;
+    }
+
     static JSObject *
     create(JSContext *cx, unsigned argc, Value *argv)
     {
@@ -1524,32 +1494,27 @@ class TypedArrayTemplate
         return fromBuffer(cx, dataObj, byteOffset, length, proto);
     }
 
-    static bool IsThisClass(const Value &v) {
-        return v.isObject() && v.toObject().hasClass(fastClass());
-    }
-
-    template<Value ValueGetter(JSObject *obj)>
-    static bool
-    GetterImpl(JSContext *cx, CallArgs args)
-    {
-        JS_ASSERT(IsThisClass(args.thisv()));
-        args.rval() = ValueGetter(&args.thisv().toObject());
-        return true;
-    }
-
     // ValueGetter is a function that takes an unwrapped typed array object and
     // returns a Value. Given such a function, Getter<> is a native that
     // retrieves a given Value, probably from a slot on the object.
-    template<Value ValueGetter(JSObject *obj)>
+    template<Value ValueGetter(JSObject *)>
     static JSBool
     Getter(JSContext *cx, unsigned argc, Value *vp)
     {
         CallArgs args = CallArgsFromVp(argc, vp);
-        return CallNonGenericMethod(cx, IsThisClass, GetterImpl<ValueGetter>, args);
+
+        JSObject *thisObj;
+        if (!NonGenericMethodGuard(cx, args, Getter<ValueGetter>, fastClass(), &thisObj))
+            return false;
+        if (!thisObj)
+            return true;
+
+        JS_SET_RVAL(cx, vp, ValueGetter(thisObj));
+        return true;
     }
 
     // Define an accessor for a read-only property that invokes a native getter
-    template<Value ValueGetter(JSObject *obj)>
+    template<Value ValueGetter(JSObject *)>
     static bool
     DefineGetter(JSContext *cx, PropertyName *name, HandleObject proto)
     {
@@ -1585,12 +1550,18 @@ class TypedArrayTemplate
     }
 
     /* subarray(start[, end]) */
-    static bool
-    fun_subarray_impl(JSContext *cx, CallArgs args)
+    static JSBool
+    fun_subarray(JSContext *cx, unsigned argc, Value *vp)
     {
-        JS_ASSERT(IsThisClass(args.thisv()));
+        CallArgs args = CallArgsFromVp(argc, vp);
 
-        JSObject *tarray = getTypedArray(&args.thisv().toObject());
+        JSObject *thisObj;
+        if (!NonGenericMethodGuard(cx, args, fun_subarray, fastClass(), &thisObj))
+            return false;
+        if (!thisObj)
+            return true;
+
+        JSObject *tarray = getTypedArray(thisObj);
         if (!tarray)
             return true;
 
@@ -1618,18 +1589,17 @@ class TypedArrayTemplate
         return true;
     }
 
+    /* move(begin, end, dest) */
     static JSBool
-    fun_subarray(JSContext *cx, unsigned argc, Value *vp)
+    fun_move(JSContext *cx, unsigned argc, Value *vp)
     {
         CallArgs args = CallArgsFromVp(argc, vp);
-        return CallNonGenericMethod(cx, IsThisClass, fun_subarray_impl, args);
-    }
 
-    /* move(begin, end, dest) */
-    static bool
-    fun_move_impl(JSContext *cx, CallArgs args)
-    {
-        JS_ASSERT(IsThisClass(args.thisv()));
+        JSObject *obj;
+        if (!NonGenericMethodGuard(cx, args, fun_move, fastClass(), &obj))
+            return false;
+        if (!obj)
+            return true;
 
         if (args.length() < 3) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_TYPED_ARRAY_BAD_ARGS);
@@ -1640,7 +1610,7 @@ class TypedArrayTemplate
         uint32_t srcEnd;
         uint32_t dest;
 
-        JSObject *tarray = getTypedArray(&args.thisv().toObject());
+        JSObject *tarray = getTypedArray(obj);
         uint32_t length = TypedArray::length(tarray);
         if (!ToClampedIndex(cx, args[0], length, &srcBegin) ||
             !ToClampedIndex(cx, args[1], length, &srcEnd) ||
@@ -1681,20 +1651,18 @@ class TypedArrayTemplate
         return true;
     }
 
+    /* set(array[, offset]) */
     static JSBool
-    fun_move(JSContext *cx, unsigned argc, Value *vp)
+    fun_set(JSContext *cx, unsigned argc, Value *vp)
     {
         CallArgs args = CallArgsFromVp(argc, vp);
-        return CallNonGenericMethod(cx, IsThisClass, fun_move_impl, args);
-    }
 
-    /* set(array[, offset]) */
-    static bool
-    fun_set_impl(JSContext *cx, CallArgs args)
-    {
-        JS_ASSERT(IsThisClass(args.thisv()));
+        RootedObject thisObj(cx);
+        if (!NonGenericMethodGuard(cx, args, fun_set, fastClass(), thisObj.address()))
+            return false;
+        if (!thisObj)
+            return true;
 
-        Rooted<JSObject*> thisObj(cx, &args.thisv().toObject());
         RootedObject tarray(cx, getTypedArray(thisObj));
         if (!tarray)
             return true;
@@ -1752,13 +1720,6 @@ class TypedArrayTemplate
         return true;
     }
 
-    static JSBool
-    fun_set(JSContext *cx, unsigned argc, Value *vp)
-    {
-        CallArgs args = CallArgsFromVp(argc, vp);
-        return CallNonGenericMethod(cx, IsThisClass, fun_set_impl, args);
-    }
-
   public:
     static JSObject *
     fromBuffer(JSContext *cx, HandleObject bufobj, int32_t byteOffsetInt, int32_t lengthInt,
@@ -1791,31 +1752,23 @@ class TypedArrayTemplate
                  * set to the origin compartment's prototype object, not the
                  * target's (specifically, the actual view in the target
                  * compartment will use as its prototype a wrapper around the
-                 * origin compartment's view.prototype object).
-                 *
-                 * Rather than hack some crazy solution together, implement
-                 * this all using a private helper function, created when
-                 * ArrayBuffer was initialized and cached in the global.  This
-                 * reuses all the existing cross-compartment crazy so we don't
-                 * have to do anything *uniquely* crazy here.
+                 * origin compartment's view.prototype object)
                  */
-                Rooted<JSObject*> proto(cx, GetProtoForClass(cx, fastClass()));
+                JSObject *proto = GetProtoForClass(cx, fastClass());
                 if (!proto)
                     return NULL;
+                Value argv[] = { UndefinedValue(),
+                                 MagicValue(JS_IS_CONSTRUCTING),
+                                 ObjectValue(*bufobj),
+                                 Int32Value(byteOffsetInt),
+                                 Int32Value(lengthInt),
+                                 ObjectValue(*proto) };
+                uint32_t argc = sizeof(argv) / sizeof(argv[0]) - 2;
 
-                InvokeArgsGuard ag;
-                if (!cx->stack.pushInvokeArgs(cx, 3, &ag))
+                CallArgs args = CallArgsFromVp(argc, argv);
+                if (!Proxy::nativeCall(cx, bufobj, &ArrayBufferClass, fromBuffer, args))
                     return NULL;
-
-                ag.calleev() = cx->compartment->maybeGlobal()->createArrayFromBuffer<NativeType>();
-                ag.thisv() = ObjectValue(*bufobj);
-                ag[0] = Int32Value(byteOffsetInt);
-                ag[1] = Int32Value(lengthInt);
-                ag[2] = ObjectValue(*proto);
-
-                if (!Invoke(cx, ag))
-                    return NULL;
-                return &ag.rval().toObject();
+                return &args.rval().toObject();
             }
         }
 
@@ -2220,34 +2173,6 @@ class Uint8ClampedArray : public TypedArrayTemplate<uint8_clamped> {
     static JSFunctionSpec jsfuncs[];
 };
 
-template<typename T>
-bool
-ArrayBufferObject::createTypedArrayFromBufferImpl(JSContext *cx, CallArgs args)
-{
-    typedef TypedArrayTemplate<T> ArrayType;
-    JS_ASSERT(IsArrayBuffer(args.thisv()));
-    JS_ASSERT(args.length() == 3);
-
-    Rooted<JSObject*> buffer(cx, &args.thisv().toObject());
-    Rooted<JSObject*> proto(cx, &args[2].toObject());
-
-    Rooted<JSObject*> obj(cx);
-    obj = ArrayType::fromBuffer(cx, buffer, args[0].toInt32(), args[1].toInt32(), proto);
-    if (!obj)
-        return false;
-    args.rval() = ObjectValue(*obj);
-    return true;
-}
-
-template<typename T>
-JSBool
-ArrayBufferObject::createTypedArrayFromBuffer(JSContext *cx, unsigned argc, Value *vp)
-{
-    typedef TypedArrayTemplate<T> ArrayType;
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, IsArrayBuffer, createTypedArrayFromBufferImpl<T>, args);
-}
-
 // this default implementation is only valid for integer types
 // less than 32-bits in size.
 template<typename NativeType>
@@ -2370,6 +2295,21 @@ DataViewObject::construct(JSContext *cx, JSObject *bufobj, const CallArgs &args,
 }
 
 JSBool
+DataViewObject::constructWithProto(JSContext *cx, unsigned argc, Value *vp)
+{
+    // Pop the proto argument off the end
+    CallArgs args = CallArgsFromVp(argc, vp);
+    JSObject &proto = args[args.length() - 1].toObject();
+
+    // And now mimic class_constructor for everything else, but pass in the proto
+    args = CallArgsFromVp(argc - 1, vp);
+    RootedObject bufobj(cx);
+    if (!GetFirstArgumentAsObject(cx, args.length(), args.base(), "DataView constructor", &bufobj))
+        return false;
+    return construct(cx, bufobj, args, &proto);
+}
+
+JSBool
 DataViewObject::class_constructor(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -2379,21 +2319,23 @@ DataViewObject::class_constructor(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     if (bufobj->isWrapper() && UnwrapObject(bufobj)->isArrayBuffer()) {
-        Rooted<GlobalObject*> global(cx, cx->compartment->maybeGlobal());
-        Rooted<JSObject*> proto(cx, global->getOrCreateDataViewPrototype(cx));
+        JSObject *proto = GetProtoForClass(cx, &DataViewClass);
         if (!proto)
             return false;
 
-        InvokeArgsGuard ag;
-        if (!cx->stack.pushInvokeArgs(cx, argc + 1, &ag))
+        Vector<Value, 6> argv(cx);
+        argv.resize(argc + 2 + 1);
+        memcpy(argv.begin(), args.base(), sizeof(Value) * (argc + 2));
+        argv[argc + 2].setObject(*proto);
+        argv[0].setUndefined(); // We want to use a different callee (avoid an assertion)
+
+        // Appease 'thisv' assertion in CrossCompartmentWrapper::nativeCall
+        argv[1].setMagic(JS_IS_CONSTRUCTING);
+
+        CallArgs proxyArgs = CallArgsFromVp(argc + 1, argv.begin());
+        if (!Proxy::nativeCall(cx, bufobj, &DataViewClass, constructWithProto, proxyArgs))
             return false;
-        ag.calleev() = global->createDataViewForThis();
-        ag.thisv() = ObjectValue(*bufobj);
-        PodCopy(ag.array(), args.array(), args.length());
-        ag[argc] = ObjectValue(*proto);
-        if (!Invoke(cx, ag))
-            return false;
-        args.rval() = ag.rval();
+        args.rval() = proxyArgs.rval();
         return true;
     }
 
@@ -2567,12 +2509,18 @@ DataViewObject::write(JSContext *cx, Handle<DataViewObject*> obj,
     return true;
 }
 
-bool
-DataViewObject::getInt8Impl(JSContext *cx, CallArgs args)
+JSBool
+DataViewObject::fun_getInt8(JSContext *cx, unsigned argc, Value *vp)
 {
-    JS_ASSERT(is(args.thisv()));
+    CallArgs args = CallArgsFromVp(argc, vp);
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_getInt8, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
+
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
     int8_t val;
     if (!read(cx, thisView, args, &val, "getInt8"))
@@ -2582,18 +2530,17 @@ DataViewObject::getInt8Impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-DataViewObject::fun_getInt8(JSContext *cx, unsigned argc, Value *vp)
+DataViewObject::fun_getUint8(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, getInt8Impl, args);
-}
 
-bool
-DataViewObject::getUint8Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_getUint8, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
     uint8_t val;
     if (!read(cx, thisView, args, &val, "getUint8"))
@@ -2603,18 +2550,17 @@ DataViewObject::getUint8Impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-DataViewObject::fun_getUint8(JSContext *cx, unsigned argc, Value *vp)
+DataViewObject::fun_getInt16(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, getUint8Impl, args);
-}
 
-bool
-DataViewObject::getInt16Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_getInt16, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
     int16_t val;
     if (!read(cx, thisView, args, &val, "getInt16"))
@@ -2624,18 +2570,17 @@ DataViewObject::getInt16Impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-DataViewObject::fun_getInt16(JSContext *cx, unsigned argc, Value *vp)
+DataViewObject::fun_getUint16(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, getInt16Impl, args);
-}
 
-bool
-DataViewObject::getUint16Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_getUint16, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
     uint16_t val;
     if (!read(cx, thisView, args, &val, "getUint16"))
@@ -2645,18 +2590,17 @@ DataViewObject::getUint16Impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-DataViewObject::fun_getUint16(JSContext *cx, unsigned argc, Value *vp)
+DataViewObject::fun_getInt32(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, getUint16Impl, args);
-}
 
-bool
-DataViewObject::getInt32Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_getInt32, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
     int32_t val;
     if (!read(cx, thisView, args, &val, "getInt32"))
@@ -2666,18 +2610,17 @@ DataViewObject::getInt32Impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-DataViewObject::fun_getInt32(JSContext *cx, unsigned argc, Value *vp)
+DataViewObject::fun_getUint32(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, getInt32Impl, args);
-}
 
-bool
-DataViewObject::getUint32Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_getUint32, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
     uint32_t val;
     if (!read(cx, thisView, args, &val, "getUint32"))
@@ -2687,18 +2630,17 @@ DataViewObject::getUint32Impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-DataViewObject::fun_getUint32(JSContext *cx, unsigned argc, Value *vp)
+DataViewObject::fun_getFloat32(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, getUint32Impl, args);
-}
 
-bool
-DataViewObject::getFloat32Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_getFloat32, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
     float val;
     if (!read(cx, thisView, args, &val, "getFloat32"))
@@ -2709,18 +2651,17 @@ DataViewObject::getFloat32Impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-DataViewObject::fun_getFloat32(JSContext *cx, unsigned argc, Value *vp)
+DataViewObject::fun_getFloat64(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, getFloat32Impl, args);
-}
 
-bool
-DataViewObject::getFloat64Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_getFloat64, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
     double val;
     if (!read(cx, thisView, args, &val, "getFloat64"))
@@ -2731,40 +2672,19 @@ DataViewObject::getFloat64Impl(JSContext *cx, CallArgs args)
 }
 
 JSBool
-DataViewObject::fun_getFloat64(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, getFloat64Impl, args);
-}
-
-bool
-DataViewObject::setInt8Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
-
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
-
-    if (!write<int8_t>(cx, thisView, args, "setInt8"))
-        return false;
-    args.rval().setUndefined();
-    return true;
-}
-
-JSBool
 DataViewObject::fun_setInt8(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, setInt8Impl, args);
-}
 
-bool
-DataViewObject::setUint8Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_setInt8, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
-    if (!write<uint8_t>(cx, thisView, args, "setUint8"))
+    if (!write<int8_t>(cx, thisView, args, "setInt8"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2774,17 +2694,16 @@ JSBool
 DataViewObject::fun_setUint8(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, setUint8Impl, args);
-}
 
-bool
-DataViewObject::setInt16Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_setUint8, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
-    if (!write<int16_t>(cx, thisView, args, "setInt16"))
+    if (!write<uint8_t>(cx, thisView, args, "setUint8"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2794,17 +2713,16 @@ JSBool
 DataViewObject::fun_setInt16(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, setInt16Impl, args);
-}
 
-bool
-DataViewObject::setUint16Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_setInt16, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
-    if (!write<uint16_t>(cx, thisView, args, "setUint16"))
+    if (!write<int16_t>(cx, thisView, args, "setInt16"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2814,17 +2732,16 @@ JSBool
 DataViewObject::fun_setUint16(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, setUint16Impl, args);
-}
 
-bool
-DataViewObject::setInt32Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_setUint16, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
-    if (!write<int32_t>(cx, thisView, args, "setInt32"))
+    if (!write<uint16_t>(cx, thisView, args, "setUint16"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2834,17 +2751,16 @@ JSBool
 DataViewObject::fun_setInt32(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, setInt32Impl, args);
-}
 
-bool
-DataViewObject::setUint32Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_setInt32, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
-    if (!write<uint32_t>(cx, thisView, args, "setUint32"))
+    if (!write<int32_t>(cx, thisView, args, "setInt32"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2854,17 +2770,16 @@ JSBool
 DataViewObject::fun_setUint32(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, setUint32Impl, args);
-}
 
-bool
-DataViewObject::setFloat32Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_setUint32, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
-    if (!write<float>(cx, thisView, args, "setFloat32"))
+    if (!write<uint32_t>(cx, thisView, args, "setUint32"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2874,17 +2789,16 @@ JSBool
 DataViewObject::fun_setFloat32(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, setFloat32Impl, args);
-}
 
-bool
-DataViewObject::setFloat64Impl(JSContext *cx, CallArgs args)
-{
-    JS_ASSERT(is(args.thisv()));
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_setFloat32, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
 
-    Rooted<DataViewObject*> thisView(cx, &args.thisv().toObject().asDataView());
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
 
-    if (!write<double>(cx, thisView, args, "setFloat64"))
+    if (!write<float>(cx, thisView, args, "setFloat32"))
         return false;
     args.rval().setUndefined();
     return true;
@@ -2894,7 +2808,19 @@ JSBool
 DataViewObject::fun_setFloat64(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, setFloat64Impl, args);
+
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, fun_setFloat64, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
+
+    Rooted<DataViewObject*> thisView(cx, &thisObj->asDataView());
+
+    if (!write<double>(cx, thisView, args, "setFloat64"))
+        return false;
+    args.rval().setUndefined();
+    return true;
 }
 
 /***
@@ -3147,18 +3073,8 @@ InitTypedArrayClass(JSContext *cx)
     if (!JS_DefineFunctions(cx, proto, ArrayType::jsfuncs))
         return NULL;
 
-    Rooted<JSFunction*> fun(cx);
-    fun =
-        js_NewFunction(cx, NULL,
-                       ArrayBufferObject::createTypedArrayFromBuffer<typename ArrayType::ThisType>,
-                       0, 0, global, NULL);
-    if (!fun)
-        return NULL;
-
     if (!DefineConstructorAndPrototype(cx, global, ArrayType::key, ctor, proto))
         return NULL;
-
-    global->setCreateArrayFromBuffer<typename ArrayType::ThisType>(fun);
 
     return proto;
 }
@@ -3289,33 +3205,31 @@ JSFunctionSpec DataViewObject::jsfuncs[] = {
     JS_FS_END
 };
 
-template<Value ValueGetter(DataViewObject &view)>
-bool
-DataViewObject::getterImpl(JSContext *cx, CallArgs args)
+template<Value ValueGetter(DataViewObject &)>
+static JSBool
+DataViewGetter(JSContext *cx, unsigned argc, Value *vp)
 {
-    JS_ASSERT(is(args.thisv()));
+    CallArgs args = CallArgsFromVp(argc, vp);
 
-    args.rval() = ValueGetter(args.thisv().toObject().asDataView());
+    JSObject *thisObj;
+    if (!NonGenericMethodGuard(cx, args, DataViewGetter<ValueGetter>, &DataViewClass, &thisObj))
+        return false;
+    if (!thisObj)
+        return true;
+
+    JS_SET_RVAL(cx, vp, ValueGetter(thisObj->asDataView()));
     return true;
 }
 
-template<Value ValueGetter(DataViewObject &view)>
-JSBool
-DataViewObject::getter(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    return CallNonGenericMethod(cx, is, getterImpl<ValueGetter>, args);
-}
-
-template<Value ValueGetter(DataViewObject &view)>
+template<Value ValueGetter(DataViewObject&)>
 bool
-DataViewObject::defineGetter(JSContext *cx, PropertyName *name, HandleObject proto)
+DefineDataViewGetter(JSContext *cx, PropertyName *name, HandleObject proto)
 {
     RootedId id(cx, NameToId(name));
     unsigned flags = JSPROP_PERMANENT | JSPROP_READONLY | JSPROP_SHARED | JSPROP_GETTER;
 
     Rooted<GlobalObject*> global(cx, cx->compartment->maybeGlobal());
-    JSObject *getter = js_NewFunction(cx, NULL, DataViewObject::getter<ValueGetter>, 0, 0, global, NULL);
+    JSObject *getter = js_NewFunction(cx, NULL, DataViewGetter<ValueGetter>, 0, 0, global, NULL);
     if (!getter)
         return false;
 
@@ -3340,32 +3254,20 @@ DataViewObject::initClass(JSContext *cx)
     if (!LinkConstructorAndPrototype(cx, ctor, proto))
         return NULL;
 
-    if (!defineGetter<bufferValue>(cx, cx->runtime->atomState.bufferAtom, proto))
+    if (!DefineDataViewGetter<bufferValue>(cx, cx->runtime->atomState.bufferAtom, proto))
         return NULL;
 
-    if (!defineGetter<byteLengthValue>(cx, cx->runtime->atomState.byteLengthAtom, proto))
+    if (!DefineDataViewGetter<byteLengthValue>(cx, cx->runtime->atomState.byteLengthAtom, proto))
         return NULL;
 
-    if (!defineGetter<byteOffsetValue>(cx, cx->runtime->atomState.byteOffsetAtom, proto))
+    if (!DefineDataViewGetter<byteOffsetValue>(cx, cx->runtime->atomState.byteOffsetAtom, proto))
         return NULL;
 
     if (!JS_DefineFunctions(cx, proto, DataViewObject::jsfuncs))
         return NULL;
 
-    /*
-     * Create a helper function to implement the craziness of
-     * |new DataView(new otherWindow.ArrayBuffer())|, and install it in the
-     * global for use by the DataView constructor.
-     */
-    Rooted<JSFunction*> fun(cx);
-    fun = js_NewFunction(cx, NULL, ArrayBufferObject::createDataViewForThis, 0, 0, global, NULL);
-    if (!fun)
-        return NULL;
-
     if (!DefineConstructorAndPrototype(cx, global, JSProto_DataView, ctor, proto))
         return NULL;
-
-    global->setCreateDataViewForThis(fun);
 
     return proto;
 }
@@ -3648,7 +3550,5 @@ JS_GetArrayBufferViewByteLength(JSObject *obj, JSContext *cx)
     if (!(obj = CheckedUnwrap(cx, obj)))
         return 0;
     JS_ASSERT(obj->isTypedArray() || obj->isDataView());
-    return obj->isDataView()
-           ? obj->asDataView().byteLength()
-           : TypedArray::byteLengthValue(obj).toInt32();
+    return obj->isDataView() ? obj->asDataView().byteLength() : TypedArray::byteLengthValue(obj).toInt32();
 }

@@ -9,22 +9,22 @@
 
 #include "XPCWrapper.h"
 
-#include "WaiveXrayWrapper.h"
+#include "CrossOriginWrapper.h"
 #include "AccessCheck.h"
 #include "WrapperFactory.h"
 
 namespace xpc {
 
-WaiveXrayWrapper::WaiveXrayWrapper(unsigned flags) : js::CrossCompartmentWrapper(flags)
+CrossOriginWrapper::CrossOriginWrapper(unsigned flags) : js::CrossCompartmentWrapper(flags)
 {
 }
 
-WaiveXrayWrapper::~WaiveXrayWrapper()
+CrossOriginWrapper::~CrossOriginWrapper()
 {
 }
 
 bool
-WaiveXrayWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
+CrossOriginWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
                                           bool set, js::PropertyDescriptor *desc)
 {
     return CrossCompartmentWrapper::getPropertyDescriptor(cx, wrapper, id, set, desc) &&
@@ -32,7 +32,7 @@ WaiveXrayWrapper::getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid i
 }
 
 bool
-WaiveXrayWrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
+CrossOriginWrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
                                              bool set, js::PropertyDescriptor *desc)
 {
     return CrossCompartmentWrapper::getOwnPropertyDescriptor(cx, wrapper, id, set, desc) &&
@@ -40,7 +40,7 @@ WaiveXrayWrapper::getOwnPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsi
 }
 
 bool
-WaiveXrayWrapper::get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id,
+CrossOriginWrapper::get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid id,
                         js::Value *vp)
 {
     return CrossCompartmentWrapper::get(cx, wrapper, receiver, id, vp) &&
@@ -48,14 +48,14 @@ WaiveXrayWrapper::get(JSContext *cx, JSObject *wrapper, JSObject *receiver, jsid
 }
 
 bool
-WaiveXrayWrapper::call(JSContext *cx, JSObject *wrapper, unsigned argc, js::Value *vp)
+CrossOriginWrapper::call(JSContext *cx, JSObject *wrapper, unsigned argc, js::Value *vp)
 {
     return CrossCompartmentWrapper::call(cx, wrapper, argc, vp) &&
            WrapperFactory::WaiveXrayAndWrap(cx, vp);
 }
 
 bool
-WaiveXrayWrapper::construct(JSContext *cx, JSObject *wrapper,
+CrossOriginWrapper::construct(JSContext *cx, JSObject *wrapper,
                               unsigned argc, js::Value *argv, js::Value *rval)
 {
     return CrossCompartmentWrapper::construct(cx, wrapper, argc, argv, rval) &&

@@ -41,6 +41,7 @@ size_t sE4XObjectsCreated = 0;
 #include "frontend/TokenStream.h"
 #include "gc/Marking.h"
 #include "vm/GlobalObject.h"
+#include "vm/MethodGuard.h"
 #include "vm/StringBuffer.h"
 
 #include "jsatominlines.h"

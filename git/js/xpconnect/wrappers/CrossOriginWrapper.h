@@ -15,10 +15,10 @@
 
 namespace xpc {
 
-class WaiveXrayWrapper : public js::CrossCompartmentWrapper {
+class CrossOriginWrapper : public js::CrossCompartmentWrapper {
   public:
-    WaiveXrayWrapper(unsigned flags);
-    virtual ~WaiveXrayWrapper();
+    CrossOriginWrapper(unsigned flags);
+    virtual ~CrossOriginWrapper();
 
     virtual bool getPropertyDescriptor(JSContext *cx, JSObject *wrapper, jsid id,
                                        bool set, js::PropertyDescriptor *desc) MOZ_OVERRIDE;
@@ -31,7 +31,7 @@ class WaiveXrayWrapper : public js::CrossCompartmentWrapper {
     virtual bool construct(JSContext *cx, JSObject *wrapper,
                            unsigned argc, js::Value *argv, js::Value *rval) MOZ_OVERRIDE;
 
-    static WaiveXrayWrapper singleton;
+    static CrossOriginWrapper singleton;
 };
 
 }

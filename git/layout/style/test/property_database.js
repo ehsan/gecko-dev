@@ -29,8 +29,6 @@ const CSS_TYPE_SHORTHAND_AND_LONGHAND = 2;
 //	   may not be the same as for the property's initial value.
 //	 invalid_values: Things that are not values for the property and
 //	   should be rejected.
-//	 quirks_values: Values that should be accepted in quirks mode only,
-//	   mapped to the values they are equivalent to.
 
 // Helper functions used to construct gCSSProperties.
 
@@ -150,7 +148,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
 		other_values: [ "red green", "red #fc3", "#ff00cc", "currentColor", "blue currentColor orange currentColor" ],
-		invalid_values: [ "red none", "red inherit", "red, green", "none red", "inherit red", "ff00cc" ]
+		invalid_values: [ "red none", "red inherit", "red, green", "none red", "inherit red" ]
 	},
 	"-moz-border-end": {
 		domProp: "MozBorderEnd",
@@ -159,7 +157,7 @@ var gCSSProperties = {
 		subproperties: [ "-moz-border-end-color", "-moz-border-end-style", "-moz-border-end-width" ],
 		initial_values: [ "none", "medium", "currentColor", "thin", "none medium currentcolor" ],
 		other_values: [ "solid", "green", "medium solid", "green solid", "10px solid", "thick solid", "5px green none" ],
-		invalid_values: [ "5%", "5", "5 green none" ]
+		invalid_values: [ "5%" ]
 	},
 	"-moz-border-end-color": {
 		domProp: "MozBorderEndColor",
@@ -168,7 +166,7 @@ var gCSSProperties = {
 		get_computed: logical_box_prop_get_computed,
 		initial_values: [ "currentColor" ],
 		other_values: [ "green", "rgba(255,128,0,0.5)", "transparent" ],
-		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000", "000000" ]
+		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ]
 	},
 	"-moz-border-end-style": {
 		domProp: "MozBorderEndStyle",
@@ -197,7 +195,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 5em)",
 		],
-		invalid_values: [ "5%", "5" ]
+		invalid_values: [ "5%" ]
 	},
 	"border-image": {
 		domProp: "borderImage",
@@ -281,7 +279,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
 		other_values: [ "red green", "red #fc3", "#ff00cc", "currentColor", "blue currentColor orange currentColor" ],
-		invalid_values: [ "red none", "red inherit", "red, green", "none red", "inherit red", "ff00cc" ]
+		invalid_values: [ "red none", "red inherit", "red, green", "none red", "inherit red" ]
 	},
 	"border-radius": {
 		domProp: "borderRadius",
@@ -303,7 +301,7 @@ var gCSSProperties = {
 			"2px 2px calc(2px + 1%) 2px",
 			"1px 2px 2px 2px / 2px 2px calc(2px + 1%) 2px",
 					  ],
-		invalid_values: [ "2px -2px", "inherit 2px", "inherit / 2px", "2px inherit", "2px / inherit", "2px 2px 2px 2px 2px", "1px / 2px 2px 2px 2px 2px", "2", "2 2", "2px 2px 2px 2px / 2px 2px 2 2px" ]
+		invalid_values: [ "2px -2px", "inherit 2px", "inherit / 2px", "2px inherit", "2px / inherit", "2px 2px 2px 2px 2px", "1px / 2px 2px 2px 2px 2px" ]
 	},
 	"border-bottom-left-radius": {
 		domProp: "borderBottomLeftRadius",
@@ -322,7 +320,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 					  ],
-		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit", "2", "2px 2", "2 2px" ]
+		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
 	"border-bottom-right-radius": {
 		domProp: "borderBottomRightRadius",
@@ -341,7 +339,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 					  ],
-		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit", "2", "2px 2", "2 2px" ]
+		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
 	"border-top-left-radius": {
 		domProp: "borderTopLeftRadius",
@@ -360,7 +358,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 					  ],
-		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit", "2", "2px 2", "2 2px" ]
+		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
 	"border-top-right-radius": {
 		domProp: "borderTopRightRadius",
@@ -379,7 +377,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 					  ],
-		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit", "2", "2px 2", "2 2px" ]
+		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
 	"-moz-border-right-colors": {
 		domProp: "MozBorderRightColors",
@@ -387,7 +385,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
 		other_values: [ "red green", "red #fc3", "#ff00cc", "currentColor", "blue currentColor orange currentColor" ],
-		invalid_values: [ "red none", "red inherit", "red, green", "none red", "inherit red", "ff00cc" ]
+		invalid_values: [ "red none", "red inherit", "red, green", "none red", "inherit red" ]
 	},
 	"-moz-border-start": {
 		domProp: "MozBorderStart",
@@ -396,7 +394,7 @@ var gCSSProperties = {
 		subproperties: [ "-moz-border-start-color", "-moz-border-start-style", "-moz-border-start-width" ],
 		initial_values: [ "none", "medium", "currentColor", "thin", "none medium currentcolor" ],
 		other_values: [ "solid", "green", "medium solid", "green solid", "10px solid", "thick solid", "5px green none" ],
-		invalid_values: [ "5%", "5", "5 green solid" ]
+		invalid_values: [ "5%" ]
 	},
 	"-moz-border-start-color": {
 		domProp: "MozBorderStartColor",
@@ -405,7 +403,7 @@ var gCSSProperties = {
 		get_computed: logical_box_prop_get_computed,
 		initial_values: [ "currentColor" ],
 		other_values: [ "green", "rgba(255,128,0,0.5)", "transparent" ],
-		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000", "000000" ]
+		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ]
 	},
 	"-moz-border-start-style": {
 		domProp: "MozBorderStartStyle",
@@ -434,7 +432,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 5em)",
 		],
-		invalid_values: [ "5%", "5" ]
+		invalid_values: [ "5%" ]
 	},
 	"-moz-border-top-colors": {
 		domProp: "MozBorderTopColors",
@@ -442,7 +440,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
 		other_values: [ "red green", "red #fc3", "#ff00cc", "currentColor", "blue currentColor orange currentColor" ],
-		invalid_values: [ "red none", "red inherit", "red, green", "none red", "inherit red", "ff00cc" ]
+		invalid_values: [ "red none", "red inherit", "red, green", "none red", "inherit red" ]
 	},
 	"-moz-box-align": {
 		domProp: "MozBoxAlign",
@@ -534,7 +532,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 5em)",
 		],
-		invalid_values: [ "3%", "-1px", "4" ]
+		invalid_values: [ "3%", "-1px" ]
 	},
 	"-moz-column-rule": {
 		domProp: "MozColumnRule",
@@ -542,9 +540,9 @@ var gCSSProperties = {
 		type: CSS_TYPE_TRUE_SHORTHAND,
 		prerequisites: { "color": "green" },
 		subproperties: [ "-moz-column-rule-width", "-moz-column-rule-style", "-moz-column-rule-color" ],
-		initial_values: [ "medium none currentColor", "none", "medium", "currentColor" ],
-		other_values: [ "2px blue solid", "red dotted 1px", "ridge 4px orange", "5px solid" ],
-		invalid_values: [ "2px 3px 4px red", "dotted dashed", "5px dashed green 3px", "5 solid", "5 green solid" ]
+		initial_values: [ "medium none currentColor" ],
+		other_values: [ "2px blue solid", "red dotted 1px", "ridge 4px orange" ],
+		invalid_values: [ "2px 3px 4px red", "dotted dashed", "5px dashed green 3px" ]
 	},
 	"-moz-column-rule-width": {
 		domProp: "MozColumnRuleWidth",
@@ -831,7 +829,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "green" },
 		initial_values: [ "currentColor", "-moz-use-text-color" ],
 		other_values: [ "red", "blue", "#ffff00" ],
-		invalid_values: [ "ffff00" ]
+		invalid_values: [ ]
 	},
 	"-moz-column-width": {
 		domProp: "MozColumnWidth",
@@ -1037,7 +1035,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "auto" ],
 		other_values: [ "rect(3px 20px 15px 4px)", "rect(17px, 21px, 33px, 2px)" ],
-		invalid_values: [ "rect(17px, 21px, 33, 2px)" ]
+		invalid_values: []
 	},
 	"-moz-margin-end": {
 		domProp: "MozMarginEnd",
@@ -1055,7 +1053,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "5" ]
+		invalid_values: []
 	},
 	"-moz-margin-start": {
 		domProp: "MozMarginStart",
@@ -1073,7 +1071,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "5" ]
+		invalid_values: []
 	},
 	"-moz-outline-radius": {
 		domProp: "MozOutlineRadius",
@@ -1095,7 +1093,7 @@ var gCSSProperties = {
 			"2px 2px calc(2px + 1%) 2px",
 			"1px 2px 2px 2px / 2px 2px calc(2px + 1%) 2px",
 					  ],
-		invalid_values: [ "2px -2px", "inherit 2px", "inherit / 2px", "2px inherit", "2px / inherit", "2px 2px 2px 2px 2px", "1px / 2px 2px 2px 2px 2px", "2", "2 2", "2px 2px 2px 2px / 2px 2px 2 2px" ]
+		invalid_values: [ "2px -2px", "inherit 2px", "inherit / 2px", "2px inherit", "2px / inherit", "2px 2px 2px 2px 2px", "1px / 2px 2px 2px 2px 2px" ]
 	},
 	"-moz-outline-radius-bottomleft": {
 		domProp: "MozOutlineRadiusBottomleft",
@@ -1114,7 +1112,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 					  ],
-		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit", "2", "2px 2", "2 2px" ]
+		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
 	"-moz-outline-radius-bottomright": {
 		domProp: "MozOutlineRadiusBottomright",
@@ -1133,7 +1131,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 					  ],
-		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit", "2", "2px 2", "2 2px" ]
+		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
 	"-moz-outline-radius-topleft": {
 		domProp: "MozOutlineRadiusTopleft",
@@ -1152,7 +1150,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 					  ],
-		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit", "2", "2px 2", "2 2px" ]
+		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
 	"-moz-outline-radius-topright": {
 		domProp: "MozOutlineRadiusTopright",
@@ -1171,7 +1169,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 					  ],
-		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit", "2", "2px 2", "2 2px" ]
+		invalid_values: [ "-1px", "4px -2px", "inherit 2px", "2px inherit" ]
 	},
 	"-moz-padding-end": {
 		domProp: "MozPaddingEnd",
@@ -1187,7 +1185,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "5" ]
+		invalid_values: []
 	},
 	"-moz-padding-start": {
 		domProp: "MozPaddingStart",
@@ -1203,7 +1201,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "5" ]
+		invalid_values: []
 	},
 	"resize": {
 		domProp: "resize",
@@ -1276,8 +1274,6 @@ var gCSSProperties = {
 			"matrix3d(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)",
 		] : []),
 		invalid_values: ["1px", "#0000ff", "red", "auto",
-			"translatex(1)", "translatey(1)", "translate(2)",
-			"translate(-3, -4)",
 			"translatex(1px 1px)", "translatex(translatex(1px))",
 			"translatex(#0000ff)", "translatex(red)", "translatey()",
 			"matrix(1px, 2px, 3px, 4px, 5px, 6px)", "scale(150%)",
@@ -1472,12 +1468,6 @@ var gCSSProperties = {
 		invalid_values: [
 			/* mixes with keywords have to be in correct order */
 			"50% left", "top 50%",
-			/* no quirks mode colors */
-			"-moz-radial-gradient(10% bottom, ffffff, black) scroll no-repeat",
-			/* no quirks mode lengths */
-			"-moz-linear-gradient(10 10px -45deg, red, blue) repeat",
-			"-moz-linear-gradient(10px 10 -45deg, red, blue) repeat",
-			"linear-gradient(red -99, yellow, green, blue 120%)",
 			/* bug 258080: don't accept background-position separated */
 			"left url(404.png) top", "top url(404.png) left",
 			/* not allowed to have color in non-bottom layer */
@@ -1522,8 +1512,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "transparent", "rgba(255, 127, 15, 0)", "hsla(240, 97%, 50%, 0.0)", "rgba(0, 0, 0, 0)", "rgba(255,255,255,-3.7)" ],
 		other_values: [ "green", "rgb(255, 0, 128)", "#fc2", "#96ed2a", "black", "rgba(255,255,0,3)" ],
-		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000", "rgb(255.0,0.387,3489)" ],
-		quirks_values: { "000000": "#000000", "96ed2a": "#96ed2a" },
+		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000", "rgb(255.0,0.387,3489)" ]
 	},
 	"background-image": {
 		domProp: "backgroundImage",
@@ -1804,14 +1793,6 @@ var gCSSProperties = {
 			"-moz-element(#a a)",
 			"-moz-element(#a+a)",
 			"-moz-element(#a()",
-			/* no quirks mode colors */
-			"linear-gradient(red, ff00ff)",
-			/* no quirks mode colors */
-			"-moz-radial-gradient(10% bottom, ffffff, black) scroll no-repeat",
-			/* no quirks mode lengths */
-			"-moz-linear-gradient(10 10px -45deg, red, blue) repeat",
-			"-moz-linear-gradient(10px 10 -45deg, red, blue) repeat",
-			"linear-gradient(red -99, yellow, green, blue 120%)",
 			/* Old syntax */
 			"-moz-linear-gradient(10px 10px, 20px, 30px 30px, 40px, from(blue), to(red))",
 			"-moz-radial-gradient(20px 20px, 10px 10px, from(green), to(#ff00ff))",
@@ -2074,7 +2055,7 @@ var gCSSProperties = {
 		                  "top 20%", "bottom 20%", "50% left", "top 50%", 
 		                  "50% bottom 10%", "right 10% 50%", "left right", 
 		                  "top bottom", "left 10% right", 
-		                  "top 20px bottom 20px", "left left", "20 20" ]
+		                  "top 20px bottom 20px", "left left" ]
 	},
 	"background-repeat": {
 		domProp: "backgroundRepeat",
@@ -2115,7 +2096,7 @@ var gCSSProperties = {
 			"calc(-20px) calc(-50%)",
 			"calc(-20%) calc(-50%)"
 		],
-		invalid_values: [ "contain contain", "cover cover", "cover auto", "auto cover", "contain cover", "cover contain", "-5px 3px", "3px -5px", "auto -5px", "-5px auto", "5 3" ]
+		invalid_values: [ "contain contain", "cover cover", "cover auto", "auto cover", "contain cover", "cover contain", "-5px 3px", "3px -5px", "auto -5px", "-5px auto" ]
 	},
 	"border": {
 		domProp: "border",
@@ -2124,7 +2105,7 @@ var gCSSProperties = {
 		subproperties: [ "border-bottom-color", "border-bottom-style", "border-bottom-width", "border-left-color", "border-left-style", "border-left-width", "border-right-color", "border-right-style", "border-right-width", "border-top-color", "border-top-style", "border-top-width", "-moz-border-top-colors", "-moz-border-right-colors", "-moz-border-bottom-colors", "-moz-border-left-colors", "border-image-source", "border-image-slice", "border-image-width", "border-image-outset", "border-image-repeat" ],
 		initial_values: [ "none", "medium", "currentColor", "thin", "none medium currentcolor", "calc(4px - 1px) none" ],
 		other_values: [ "solid", "medium solid", "green solid", "10px solid", "thick solid", "calc(2px) solid blue" ],
-		invalid_values: [ "5%", "medium solid ff00ff", "5 solid green" ]
+		invalid_values: [ "5%" ]
 	},
 	"border-bottom": {
 		domProp: "borderBottom",
@@ -2133,7 +2114,7 @@ var gCSSProperties = {
 		subproperties: [ "border-bottom-color", "border-bottom-style", "border-bottom-width" ],
 		initial_values: [ "none", "medium", "currentColor", "thin", "none medium currentcolor" ],
 		other_values: [ "solid", "green", "medium solid", "green solid", "10px solid", "thick solid", "5px green none" ],
-		invalid_values: [ "5%", "5", "5 solid green" ]
+		invalid_values: [ "5%" ]
 	},
 	"border-bottom-color": {
 		domProp: "borderBottomColor",
@@ -2142,8 +2123,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "black" },
 		initial_values: [ "currentColor", "-moz-use-text-color" ],
 		other_values: [ "green", "rgba(255,128,0,0.5)", "transparent" ],
-		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ],
-		quirks_values: { "000000": "#000000", "96ed2a": "#96ed2a" },
+		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ]
 	},
 	"border-bottom-style": {
 		domProp: "borderBottomStyle",
@@ -2170,8 +2150,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 5em)",
 		],
-		invalid_values: [ "5%" ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ "5%" ]
 	},
 	"border-collapse": {
 		domProp: "borderCollapse",
@@ -2188,8 +2167,7 @@ var gCSSProperties = {
 		subproperties: [ "border-top-color", "border-right-color", "border-bottom-color", "border-left-color" ],
 		initial_values: [ "currentColor", "currentColor currentColor", "currentColor currentColor currentColor", "currentColor currentColor currentcolor CURRENTcolor" ],
 		other_values: [ "green", "currentColor green", "currentColor currentColor green", "currentColor currentColor currentColor green", "rgba(255,128,0,0.5)", "transparent" ],
-		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ],
-		quirks_values: { "000000": "#000000", "96ed2a": "#96ed2a" },
+		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ]
 	},
 	"border-left": {
 		domProp: "borderLeft",
@@ -2198,7 +2176,7 @@ var gCSSProperties = {
 		subproperties: [ "border-left-color", "border-left-style", "border-left-width" ],
 		initial_values: [ "none", "medium", "currentColor", "thin", "none medium currentcolor" ],
 		other_values: [ "solid", "green", "medium solid", "green solid", "10px solid", "thick solid", "5px green none" ],
-		invalid_values: [ "5%", "5", "5 solid green" ]
+		invalid_values: [ "5%" ]
 	},
 	"border-left-color": {
 		domProp: "borderLeftColor",
@@ -2207,8 +2185,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "black" },
 		initial_values: [ "currentColor", "-moz-use-text-color" ],
 		other_values: [ "green", "rgba(255,128,0,0.5)", "transparent" ],
-		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ],
-		quirks_values: { "000000": "#000000", "96ed2a": "#96ed2a" },
+		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ]
 	},
 	"border-left-style": {
 		domProp: "borderLeftStyle",
@@ -2235,8 +2212,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 5em)",
 		],
-		invalid_values: [ "5%" ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ "5%" ]
 	},
 	"border-right": {
 		domProp: "borderRight",
@@ -2245,7 +2221,7 @@ var gCSSProperties = {
 		subproperties: [ "border-right-color", "border-right-style", "border-right-width" ],
 		initial_values: [ "none", "medium", "currentColor", "thin", "none medium currentcolor" ],
 		other_values: [ "solid", "green", "medium solid", "green solid", "10px solid", "thick solid", "5px green none" ],
-		invalid_values: [ "5%", "5", "5 solid green" ]
+		invalid_values: [ "5%" ]
 	},
 	"border-right-color": {
 		domProp: "borderRightColor",
@@ -2254,8 +2230,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "black" },
 		initial_values: [ "currentColor", "-moz-use-text-color" ],
 		other_values: [ "green", "rgba(255,128,0,0.5)", "transparent" ],
-		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ],
-		quirks_values: { "000000": "#000000", "96ed2a": "#96ed2a" },
+		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ]
 	},
 	"border-right-style": {
 		domProp: "borderRightStyle",
@@ -2282,8 +2257,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 5em)",
 		],
-		invalid_values: [ "5%" ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ "5%" ]
 	},
 	"border-spacing": {
 		domProp: "borderSpacing",
@@ -2310,7 +2284,7 @@ var gCSSProperties = {
 		subproperties: [ "border-top-color", "border-top-style", "border-top-width" ],
 		initial_values: [ "none", "medium", "currentColor", "thin", "none medium currentcolor" ],
 		other_values: [ "solid", "green", "medium solid", "green solid", "10px solid", "thick solid", "5px green none" ],
-		invalid_values: [ "5%", "5", "5 solid green" ]
+		invalid_values: [ "5%" ]
 	},
 	"border-top-color": {
 		domProp: "borderTopColor",
@@ -2319,8 +2293,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "black" },
 		initial_values: [ "currentColor", "-moz-use-text-color" ],
 		other_values: [ "green", "rgba(255,128,0,0.5)", "transparent" ],
-		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ],
-		quirks_values: { "000000": "#000000", "96ed2a": "#96ed2a" },
+		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ]
 	},
 	"border-top-style": {
 		domProp: "borderTopStyle",
@@ -2347,8 +2320,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 5em)",
 		],
-		invalid_values: [ "5%" ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ "5%" ]
 	},
 	"border-width": {
 		domProp: "borderWidth",
@@ -2358,8 +2330,7 @@ var gCSSProperties = {
 		prerequisites: { "border-style": "solid" },
 		initial_values: [ "medium", "3px", "medium medium", "3px medium medium", "medium 3px medium medium", "calc(3px) 3px calc(5px - 2px) calc(2px - -1px)" ],
 		other_values: [ "thin", "thick", "1px", "2em", "2px 0 0px 1em", "calc(2em)" ],
-		invalid_values: [ "5%" ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ "5%" ]
 	},
 	"bottom": {
 		domProp: "bottom",
@@ -2377,7 +2348,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "5" ]
+		invalid_values: []
 	},
 	"box-shadow": {
 		domProp: "boxShadow",
@@ -2399,7 +2370,7 @@ var gCSSProperties = {
 			"calc(2px) calc(2px) calc(2px)",
 			"calc(2px) calc(2px) calc(2px) calc(2px)"
 		],
-		invalid_values: [ "3% 3%", "1px 1px 1px 1px 1px", "2px 2px, none", "red 2px 2px blue", "inherit, 2px 2px", "2px 2px, inherit", "2px 2px -5px", "inset 4px 4px black inset", "inset inherit", "inset none", "3 3", "3px 3", "3 3px", "3px 3px 3", "3px 3px 3px 3" ]
+		invalid_values: [ "3% 3%", "1px 1px 1px 1px 1px", "2px 2px, none", "red 2px 2px blue", "inherit, 2px 2px", "2px 2px, inherit", "2px 2px -5px", "inset 4px 4px black inset", "inset inherit", "inset none" ]
 	},
 	"caption-side": {
 		domProp: "captionSide",
@@ -2423,8 +2394,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "auto" ],
 		other_values: [ "rect(0 0 0 0)", "rect(auto,auto,auto,auto)", "rect(3px, 4px, 4em, 0)", "rect(auto, 3em, 4pt, 2px)", "rect(2px 3px 4px 5px)" ],
-		invalid_values: [ "rect(auto, 3em, 2%, 5px)" ],
-		quirks_values: { "rect(1, 2, 3, 4)": "rect(1px, 2px, 3px, 4px)" },
+		invalid_values: [ "rect(auto, 3em, 2%, 5px)" ]
 	},
 	"color": {
 		domProp: "color",
@@ -2433,8 +2403,7 @@ var gCSSProperties = {
 		/* XXX should test currentColor, but may or may not be initial */
 		initial_values: [ "black", "#000" ],
 		other_values: [ "green", "#f3c", "#fed292", "rgba(45,300,12,2)", "transparent", "-moz-nativehyperlinktext", "rgba(255,128,0,0.5)" ],
-		invalid_values: [ "#f", "#ff", "#ffff", "#fffff", "#fffffff", "#ffffffff", "#fffffffff" ],
-		quirks_values: { "000000": "#000000", "96ed2a": "#96ed2a", "fff": "#ffffff", "ffffff": "#ffffff", },
+		invalid_values: [ "fff", "ffffff", "#f", "#ff", "#ffff", "#fffff", "#fffffff", "#ffffffff", "#fffffffff" ]
 	},
 	"content": {
 		domProp: "content",
@@ -2530,7 +2499,7 @@ var gCSSProperties = {
 		subproperties: [ "font-style", "font-variant", "font-weight", "font-size", "line-height", "font-family", "font-stretch", "font-size-adjust", "-moz-font-feature-settings", "-moz-font-language-override" ],
 		initial_values: [ (gInitialFontFamilyIsSansSerif ? "medium sans-serif" : "medium serif") ],
 		other_values: [ "large serif", "9px fantasy", "bold italic small-caps 24px/1.4 Times New Roman, serif", "caption", "icon", "menu", "message-box", "small-caption", "status-bar" ],
-		invalid_values: [ "9 fantasy" ]
+		invalid_values: []
 	},
 	"font-family": {
 		domProp: "fontFamily",
@@ -2585,8 +2554,7 @@ var gCSSProperties = {
 			"calc(-50%)",
 			"calc(-1px)"
 		],
-		invalid_values: [ "-2em", "-50%", "-1px" ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ "-2em", "-50%", "-1px" ]
 	},
 	"font-size-adjust": {
 		domProp: "fontSizeAdjust",
@@ -2643,8 +2611,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ "none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ]
 	},
 	"ime-mode": {
 		domProp: "imeMode",
@@ -2670,8 +2637,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [],
-		quirks_values: { "5": "5px" },
+		invalid_values: []
 	},
 	"letter-spacing": {
 		domProp: "letterSpacing",
@@ -2682,8 +2648,7 @@ var gCSSProperties = {
 			"calc(0px)", "calc(1em)", "calc(1em + 3px)",
 			"calc(15px / 2)", "calc(15px/2)", "calc(-3px)"
 		],
-		invalid_values: [],
-		quirks_values: { "5": "5px" },
+		invalid_values: []
 	},
 	"line-height": {
 		domProp: "lineHeight",
@@ -2763,8 +2728,7 @@ var gCSSProperties = {
 		subproperties: [ "margin-top", "margin-right", "margin-bottom", "margin-left" ],
 		initial_values: [ "0", "0px 0 0em", "0% 0px 0em 0pt" ],
 		other_values: [ "3px 0", "2em 4px 2pt", "1em 2em 3px 4px" ],
-		invalid_values: [],
-		quirks_values: { "5": "5px", "3px 6px 2 5px": "3px 6px 2px 5px" },
+		invalid_values: []
 	},
 	"margin-bottom": {
 		domProp: "marginBottom",
@@ -2780,8 +2744,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ ]
 	},
 	"margin-left": {
 		domProp: "marginLeft",
@@ -2798,8 +2761,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "..25px", ".+5px", ".px", "-.px", "++5px", "-+4px", "+-3px", "--7px", "+-.6px", "-+.5px", "++.7px", "--.4px" ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ "..25px", ".+5px", ".px", "-.px", "++5px", "-+4px", "+-3px", "--7px", "+-.6px", "-+.5px", "++.7px", "--.4px" ]
 	},
 	"margin-right": {
 		domProp: "marginRight",
@@ -2816,8 +2778,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ ]
 	},
 	"margin-top": {
 		domProp: "marginTop",
@@ -2833,8 +2794,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ ]
 	},
 	"marker-offset": {
 		domProp: "markerOffset",
@@ -2869,7 +2829,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "auto", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available", "5" ]
+		invalid_values: [ "auto", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ]
 	},
 	"max-width": {
 		domProp: "maxWidth",
@@ -2886,7 +2846,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "auto", "5" ]
+		invalid_values: [ "auto" ]
 	},
 	"min-height": {
 		domProp: "minHeight",
@@ -2901,7 +2861,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available", "5" ]
+		invalid_values: [ "none", "-moz-max-content", "-moz-min-content", "-moz-fit-content", "-moz-available" ]
 	},
 	"min-width": {
 		domProp: "minWidth",
@@ -2916,7 +2876,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "none", "5" ]
+		invalid_values: [ "none" ]
 	},
 	"opacity": {
 		domProp: "opacity",
@@ -2956,7 +2916,7 @@ var gCSSProperties = {
 			"currentColor", "none medium currentcolor"
 		],
 		other_values: [ "solid", "medium solid", "green solid", "10px solid", "thick solid" ],
-		invalid_values: [ "5%", "5", "5 solid green" ]
+		invalid_values: [ "5%" ]
 	},
 	"outline-color": {
 		domProp: "outlineColor",
@@ -2965,7 +2925,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "black" },
 		initial_values: [ "currentColor", "-moz-use-text-color" ], // XXX should be invert
 		other_values: [ "green", "rgba(255,128,0,0.5)", "transparent" ],
-		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000", "000000", "cc00ff" ]
+		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ]
 	},
 	"outline-offset": {
 		domProp: "outlineOffset",
@@ -3000,7 +2960,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 5em)",
 		],
-		invalid_values: [ "5%", "5" ]
+		invalid_values: [ "5%" ]
 	},
 	"overflow": {
 		domProp: "overflow",
@@ -3037,8 +2997,7 @@ var gCSSProperties = {
 		subproperties: [ "padding-top", "padding-right", "padding-bottom", "padding-left" ],
 		initial_values: [ "0", "0px 0 0em", "0% 0px 0em 0pt", "calc(0px) calc(0em) calc(-2px) calc(-1%)" ],
 		other_values: [ "3px 0", "2em 4px 2pt", "1em 2em 3px 4px" ],
-		invalid_values: [],
-		quirks_values: { "5": "5px", "3px 6px 2 5px": "3px 6px 2px 5px" },
+		invalid_values: []
 	},
 	"padding-bottom": {
 		domProp: "paddingBottom",
@@ -3052,8 +3011,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ ]
 	},
 	"padding-left": {
 		domProp: "paddingLeft",
@@ -3068,8 +3026,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ ]
 	},
 	"padding-right": {
 		domProp: "paddingRight",
@@ -3084,8 +3041,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ ]
 	},
 	"padding-top": {
 		domProp: "paddingTop",
@@ -3099,8 +3055,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ ],
-		quirks_values: { "5": "5px" },
+		invalid_values: [ ]
 	},
 	"page": {
 		domProp: "page",
@@ -3178,8 +3133,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [],
-		quirks_values: { "5": "5px" },
+		invalid_values: []
 	},
 	"size": {
 		/* XXX not a real property; applies only to page context */
@@ -3244,7 +3198,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "black" },
 		initial_values: [ "currentColor", "-moz-use-text-color" ],
 		other_values: [ "green", "rgba(255,128,0,0.5)", "transparent" ],
-		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000", "000000", "ff00ff" ]
+		invalid_values: [ "#0", "#00", "#0000", "#00000", "#0000000", "#00000000", "#000000000" ]
 	},
 	"-moz-text-decoration-line": {
 		domProp: "MozTextDecorationLine",
@@ -3275,7 +3229,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "5" ]
+		invalid_values: []
 	},
 	"text-overflow": {
 		domProp: "textOverflow",
@@ -3304,7 +3258,7 @@ var gCSSProperties = {
 			"calc(2px) calc(2px)",
 			"calc(2px) calc(2px) calc(2px)",
 		],
-		invalid_values: [ "3% 3%", "2px 2px -5px", "2px 2px 2px 2px", "2px 2px, none", "none, 2px 2px", "inherit, 2px 2px", "2px 2px, inherit", "2 2px", "2px 2", "2px 2px 2", "2px 2px 2px 2",
+		invalid_values: [ "3% 3%", "2px 2px -5px", "2px 2px 2px 2px", "2px 2px, none", "none, 2px 2px", "inherit, 2px 2px", "2px 2px, inherit",
 			"calc(2px) calc(2px) calc(2px) calc(2px)"
 		]
 	},
@@ -3332,8 +3286,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [],
-		quirks_values: { "5": "5px" },
+		invalid_values: []
 	},
 	"transition": {
 		domProp: "transition",
@@ -3397,7 +3350,7 @@ var gCSSProperties = {
 			"calc(25px*3)",
 			"calc(3*25px + 50%)",
 		],
-		invalid_values: [ "5" ]
+		invalid_values: []
 	},
 	"visibility": {
 		domProp: "visibility",
@@ -3519,8 +3472,7 @@ var gCSSProperties = {
 			"calc(3em / 100% * 3em)",
 			"calc(3em * (3em / 100%))",
 			"calc(3em * 3em / 100%)",
-		],
-		quirks_values: { "5": "5px" },
+		]
 	},
 	"word-break": {
 		domProp: "wordBreak",
@@ -3542,8 +3494,7 @@ var gCSSProperties = {
 			"calc(15px / 2)", "calc(15px/2)",
 			"calc(-2em)"
 		],
-		invalid_values: [],
-		quirks_values: { "5": "5px" },
+		invalid_values: []
 	},
 	"word-wrap": {
 		domProp: "wordWrap",
@@ -3618,7 +3569,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "blue" },
 		initial_values: [ "black", "#000", "#000000", "rgb(0,0,0)", "rgba(0,0,0,1)" ],
 		other_values: [ "green", "#fc3", "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green', "none", "currentColor" ],
-		invalid_values: [ "000000", "ff00ff" ]
+		invalid_values: []
 	},
 	"fill-opacity": {
 		domProp: "fillOpacity",
@@ -3651,7 +3602,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "blue" },
 		initial_values: [ "black", "#000", "#000000", "rgb(0,0,0)", "rgba(0,0,0,1)" ],
 		other_values: [ "green", "#fc3", "currentColor" ],
-		invalid_values: [ "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green', "000000", "ff00ff" ]
+		invalid_values: [ "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green' ]
 	},
 	"flood-opacity": {
 		domProp: "floodOpacity",
@@ -3676,7 +3627,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "blue" },
 		initial_values: [ "white", "#fff", "#ffffff", "rgb(255,255,255)", "rgba(255,255,255,1.0)", "rgba(255,255,255,42.0)" ],
 		other_values: [ "green", "#fc3", "currentColor" ],
-		invalid_values: [ "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green', "000000", "ff00ff" ]
+		invalid_values: [ "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green' ]
 	},
 	"marker": {
 		domProp: "marker",
@@ -3734,7 +3685,7 @@ var gCSSProperties = {
 		prerequisites: { "color": "blue" },
 		initial_values: [ "black", "#000", "#000000", "rgb(0,0,0)", "rgba(0,0,0,1)" ],
 		other_values: [ "green", "#fc3", "currentColor" ],
-		invalid_values: [ "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green', "000000", "ff00ff" ]
+		invalid_values: [ "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green' ]
 	},
 	"stop-opacity": {
 		domProp: "stopOpacity",
@@ -3750,7 +3701,7 @@ var gCSSProperties = {
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "none" ],
 		other_values: [ "black", "#000", "#000000", "rgb(0,0,0)", "rgba(0,0,0,1)", "green", "#fc3", "url('#myserver')", "url(foo.svg#myserver)", 'url("#myserver") green', "currentColor" ],
-		invalid_values: [ "000000", "ff00ff" ]
+		invalid_values: []
 	},
 	"stroke-dasharray": {
 		domProp: "strokeDasharray",

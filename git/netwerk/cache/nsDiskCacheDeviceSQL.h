@@ -161,10 +161,6 @@ public:
   nsresult                GetGroupsTimeOrdered(PRUint32 *count,
                                                char ***keys);
 
-  bool                    IsLocked(const nsACString &key);
-  void                    Lock(const nsACString &key);
-  void                    Unlock(const nsACString &key);
-
   /**
    * Preference accessors
    */
@@ -240,6 +236,7 @@ private:
   nsCOMPtr<mozIStorageStatement>  mStatement_EntryCount;
   nsCOMPtr<mozIStorageStatement>  mStatement_UpdateEntry;
   nsCOMPtr<mozIStorageStatement>  mStatement_UpdateEntrySize;
+  nsCOMPtr<mozIStorageStatement>  mStatement_UpdateEntryFlags;
   nsCOMPtr<mozIStorageStatement>  mStatement_DeleteEntry;
   nsCOMPtr<mozIStorageStatement>  mStatement_FindEntry;
   nsCOMPtr<mozIStorageStatement>  mStatement_BindEntry;
@@ -267,7 +264,6 @@ private:
   nsInterfaceHashtable<nsCStringHashKey, nsIWeakReference> mCaches;
   nsClassHashtable<nsCStringHashKey, nsCString> mActiveCachesByGroup;
   nsTHashtable<nsCStringHashKey> mActiveCaches;
-  nsTHashtable<nsCStringHashKey> mLockedEntries;
 
   nsCOMPtr<nsIThread> mInitThread;
 };

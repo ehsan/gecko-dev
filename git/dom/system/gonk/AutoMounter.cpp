@@ -23,7 +23,6 @@
 #include "mozilla/FileUtils.h"
 #include "mozilla/Hal.h"
 #include "nsAutoPtr.h"
-#include "nsMemory.h"
 #include "nsString.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
@@ -83,10 +82,6 @@ namespace mozilla {
 namespace system {
 
 class AutoMounter;
-
-// sAutoVolumeName contains an array of the volume names that the AutoMounter will
-// try to automount. Any other volumes will be ignored.
-static const nsDependentCString sAutoVolumeName[] = { NS_LITERAL_CSTRING("sdcard") };
 
 /**************************************************************************
 *
@@ -162,20 +157,10 @@ IsUsbCablePluggedIn()
 
 /***************************************************************************/
 
-// The AutoVolumeManagerStateObserver allows the AutoMounter to know when
-// the volume manager changes state (i.e. it has finished initialization)
-class AutoVolumeManagerStateObserver : public VolumeManager::StateObserver
+class VolumeManagerStateObserver : public VolumeManager::StateObserver
 {
 public:
   virtual void Notify(const VolumeManager::StateChangedEvent &aEvent);
-};
-
-// The AutoVolumeEventObserver allows the AutoMounter to know about card
-// insertion and removal, as well as state changes in the volume.
-class AutoVolumeEventObserver : public Volume::EventObserver
-{
-public:
-  virtual void Notify(Volume * const &aEvent);
 };
 
 class AutoMounterResponseCallback : public VolumeResponseCallback
@@ -200,36 +185,17 @@ private:
 class AutoMounter : public RefCounted<AutoMounter>
 {
 public:
-
-  typedef nsTArray<RefPtr<Volume> > VolumeArray;
-
   AutoMounter()
     : mResponseCallback(new AutoMounterResponseCallback),
       mMode(AUTOMOUNTER_DISABLE)
   {
     VolumeManager::RegisterStateObserver(&mVolumeManagerStateObserver);
-    Volume::RegisterObserver(&mVolumeEventObserver);
-
-    for (size_t i = 0; i < NS_ARRAY_LENGTH(sAutoVolumeName); i++) {
-      RefPtr<Volume> vol = VolumeManager::FindAddVolumeByName(sAutoVolumeName[i]);
-      if (vol) {
-        vol->RegisterObserver(&mVolumeEventObserver);
-        mAutoVolume.AppendElement(vol);
-      }
-    }
-
     DBG("Calling UpdateState from constructor");
     UpdateState();
   }
 
   ~AutoMounter()
   {
-    VolumeArray::index_type volIndex;
-    VolumeArray::size_type  numVolumes = mAutoVolume.Length();
-    for (volIndex = 0; volIndex < numVolumes; volIndex++) {
-      mAutoVolume[volIndex]->UnregisterObserver(&mVolumeEventObserver);
-    }
-    Volume::UnregisterObserver(&mVolumeEventObserver);
     VolumeManager::UnregisterStateObserver(&mVolumeManagerStateObserver);
   }
 
@@ -250,11 +216,9 @@ public:
 
 private:
 
-  AutoVolumeEventObserver         mVolumeEventObserver;
-  AutoVolumeManagerStateObserver  mVolumeManagerStateObserver;
+  VolumeManagerStateObserver      mVolumeManagerStateObserver;
   RefPtr<VolumeResponseCallback>  mResponseCallback;
   int32_t                         mMode;
-  VolumeArray                     mAutoVolume;
 };
 
 static RefPtr<AutoMounter> sAutoMounter;
@@ -262,7 +226,7 @@ static RefPtr<AutoMounter> sAutoMounter;
 /***************************************************************************/
 
 void
-AutoVolumeManagerStateObserver::Notify(const VolumeManager::StateChangedEvent &)
+VolumeManagerStateObserver::Notify(const VolumeManager::StateChangedEvent &)
 {
   LOG("VolumeManager state changed event: %s", VolumeManager::StateStr());
 
@@ -270,16 +234,6 @@ AutoVolumeManagerStateObserver::Notify(const VolumeManager::StateChangedEvent &)
     return;
   }
   DBG("Calling UpdateState due to VolumeManagerStateObserver");
-  sAutoMounter->UpdateState();
-}
-
-void
-AutoVolumeEventObserver::Notify(Volume * const &)
-{
-  if (!sAutoMounter) {
-    return;
-  }
-  DBG("Calling UpdateState due to VolumeEventStateObserver");
   sAutoMounter->UpdateState();
 }
 
@@ -330,7 +284,12 @@ AutoMounter::UpdateState()
     return;
   }
 
-  if (mAutoVolume.Length() == 0) {
+  std::vector<RefPtr<Volume> > volumeArray;
+  RefPtr<Volume> vol = VolumeManager::FindVolumeByName(NS_LITERAL_CSTRING("sdcard"));
+  if (vol != NULL) {
+    volumeArray.push_back(vol);
+  }
+  if (volumeArray.size() == 0) {
     // No volumes of interest, nothing to do
     LOG("UpdateState: No volumes found");
     return;
@@ -363,30 +322,23 @@ AutoMounter::UpdateState()
   LOG("UpdateState: umsAvail:%d umsEnabled:%d mode:%d usbCablePluggedIn:%d tryToShare:%d",
       umsAvail, umsEnabled, mMode, usbCablePluggedIn, tryToShare);
 
-  VolumeArray::index_type volIndex;
-  VolumeArray::size_type  numVolumes = mAutoVolume.Length();
-  for (volIndex = 0; volIndex < numVolumes; volIndex++) {
-    RefPtr<Volume>  vol = mAutoVolume[volIndex];
+  VolumeManager::VolumeArray::iterator volIter;
+  for (volIter = volumeArray.begin(); volIter != volumeArray.end(); volIter++) {
+    RefPtr<Volume>  vol = *volIter;
     Volume::STATE   volState = vol->State();
 
-    LOG("UpdateState: Volume %s is %s and %s", vol->NameStr(), vol->StateStr(),
-        vol->MediaPresent() ? "inserted" : "missing");
-    if (!vol->MediaPresent()) {
-      // No media - nothing we can do
-      continue;
-    }
-
+    LOG("UpdateState: Volume %s is %s", vol->NameStr(), vol->StateStr());
     if (tryToShare) {
       // We're going to try to unmount and share the volumes
       switch (volState) {
-        case nsIVolume::STATE_MOUNTED: {
+        case Volume::STATE_MOUNTED: {
           // Volume is mounted, we need to unmount before
           // we can share.
           DBG("UpdateState: Unmounting %s", vol->NameStr());
           vol->StartUnmount(mResponseCallback);
           return;
         }
-        case nsIVolume::STATE_IDLE: {
+        case Volume::STATE_IDLE: {
           // Volume is unmounted. We can go ahead and share.
           DBG("UpdateState: Sharing %s", vol->NameStr());
           vol->StartShare(mResponseCallback);
@@ -400,13 +352,13 @@ AutoMounter::UpdateState()
     } else {
       // We're going to try and unshare and remount the volumes
       switch (volState) {
-        case nsIVolume::STATE_SHARED: {
+        case Volume::STATE_SHARED: {
           // Volume is shared. We can go ahead and unshare.
           DBG("UpdateState: Unsharing %s", vol->NameStr());
           vol->StartUnshare(mResponseCallback);
           return;
         }
-        case nsIVolume::STATE_IDLE: {
+        case Volume::STATE_IDLE: {
           // Volume is unmounted, try to mount.
 
           DBG("UpdateState: Mounting %s", vol->NameStr());

@@ -146,9 +146,9 @@ struct TreeContext;
 class UpvarCookie;
 
 class Proxy;
-class JS_FRIEND_API(BaseProxyHandler);
-class JS_FRIEND_API(DirectWrapper);
-class JS_FRIEND_API(CrossCompartmentWrapper);
+class BaseProxyHandler;
+class DirectWrapper;
+class CrossCompartmentWrapper;
 
 class TempAllocPolicy;
 class RuntimeAllocPolicy;

@@ -313,7 +313,7 @@ body[narrow] #restorePreviousSession {
 }
 
 body[dir=rtl] #restorePreviousSession::before {
-  transform: scaleX(-1);
+  -moz-transform: scaleX(-1);
 }
 
 body[narrow] #restorePreviousSession::before {

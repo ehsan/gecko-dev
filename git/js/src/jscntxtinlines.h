@@ -376,26 +376,10 @@ JS_ALWAYS_INLINE bool
 CallJSNative(JSContext *cx, Native native, const CallArgs &args)
 {
 #ifdef DEBUG
-    bool alreadyThrowing = cx->isExceptionPending();
+    JSBool alreadyThrowing = cx->isExceptionPending();
 #endif
     assertSameCompartment(cx, args);
     bool ok = native(cx, args.length(), args.base());
-    if (ok) {
-        assertSameCompartment(cx, args.rval());
-        JS_ASSERT_IF(!alreadyThrowing, !cx->isExceptionPending());
-    }
-    return ok;
-}
-
-STATIC_PRECONDITION_ASSUME(ubound(args.argv_) >= argc)
-JS_ALWAYS_INLINE bool
-CallNativeImpl(JSContext *cx, NativeImpl impl, const CallArgs &args)
-{
-#ifdef DEBUG
-    bool alreadyThrowing = cx->isExceptionPending();
-#endif
-    assertSameCompartment(cx, args);
-    bool ok = impl(cx, args);
     if (ok) {
         assertSameCompartment(cx, args.rval());
         JS_ASSERT_IF(!alreadyThrowing, !cx->isExceptionPending());

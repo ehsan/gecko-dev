@@ -129,7 +129,7 @@ public:
         if (PR_IntervalToSeconds(PR_IntervalNow() - mLastReset) < 1)
             return false;
 
-        LOG(("Calling 'res_ninit'.\n"));
+        LOG(("calling res_ninit\n"));
 
         mLastReset = PR_IntervalNow();
         return (res_ninit(&_res) == 0);
@@ -193,25 +193,24 @@ bool
 nsHostRecord::Blacklisted(PRNetAddr *aQuery)
 {
     // must call locked
-    LOG(("Checking blacklist for host [%s], host record [%p].\n", host, this));
+    LOG(("nsHostRecord::Blacklisted() %p %s\n", this, host));
 
     // skip the string conversion for the common case of no blacklist
-    if (!mBlacklistedItems.Length()) {
+    if (!mBlacklistedItems.Length())
         return false;
-    }
-
+    
     char buf[64];
-    if (PR_NetAddrToString(aQuery, buf, sizeof(buf)) != PR_SUCCESS) {
+    if (PR_NetAddrToString(aQuery, buf, sizeof(buf)) != PR_SUCCESS)
         return false;
-    }
-    nsDependentCString strQuery(buf);
 
-    for (PRUint32 i = 0; i < mBlacklistedItems.Length(); i++) {
+    nsDependentCString strQuery(buf);
+    LOG(("nsHostRecord::Blacklisted() query %s\n", buf));
+    
+    for (PRUint32 i = 0; i < mBlacklistedItems.Length(); i++)
         if (mBlacklistedItems.ElementAt(i).Equals(strQuery)) {
-            LOG(("Address [%s] is blacklisted for host [%s].\n", buf, host));
+            LOG(("nsHostRecord::Blacklisted() %s blacklist confirmed\n", buf));
             return true;
         }
-    }
 
     return false;
 }
@@ -220,11 +219,11 @@ void
 nsHostRecord::ReportUnusable(PRNetAddr *aAddress)
 {
     // must call locked
-    LOG(("Adding address to blacklist for host [%s], host record [%p].\n", host, this));
+    LOG(("nsHostRecord::ReportUnusable() %p %s\n", this, host));
 
     char buf[64];
     if (PR_NetAddrToString(aAddress, buf, sizeof(buf)) == PR_SUCCESS) {
-        LOG(("Successfully adding address [%s] to blacklist for host [%s].\n", buf, host));
+        LOG(("nsHostrecord::ReportUnusable addr %s\n",buf));
         mBlacklistedItems.AppendElement(nsCString(buf));
     }
 }
@@ -233,7 +232,7 @@ void
 nsHostRecord::ResetBlacklist()
 {
     // must call locked
-    LOG(("Resetting blacklist for host [%s], host record [%p].\n", host, this));
+    LOG(("nsHostRecord::ResetBlacklist() %p %s\n", this, host));
     mBlacklistedItems.Clear();
 }
 
@@ -277,15 +276,17 @@ static void
 HostDB_ClearEntry(PLDHashTable *table,
                   PLDHashEntryHdr *entry)
 {
+    LOG(("evicting record\n"));
     nsHostDBEnt *he = static_cast<nsHostDBEnt *>(entry);
-    LOG(("Clearing cache db entry for host [%s].\n", he->rec->host));
 #if defined(DEBUG) && defined(PR_LOGGING)
-    if (!he->rec->addr_info) {
-        LOG(("No address info for host [%s].\n", he->rec->host));
-    } else {
+    if (!he->rec->addr_info)
+        LOG(("%s: => no addr_info\n", he->rec->host));
+    else {
         PRInt32 now = (PRInt32) NowInMinutes();
         PRInt32 diff = (PRInt32) he->rec->expiration - now;
-        LOG(("Record for [%s] expires in %d minute(s).\n", he->rec->host, diff));
+        LOG(("%s: exp=%d => %s\n",
+            he->rec->host, diff,
+            PR_GetCanonNameFromAddrInfo(he->rec->addr_info)));
         void *iter = nsnull;
         PRNetAddr addr;
         char buf[64];
@@ -294,7 +295,7 @@ HostDB_ClearEntry(PLDHashTable *table,
             if (!iter)
                 break;
             PR_NetAddrToString(&addr, buf, sizeof(buf));
-            LOG(("  [%s]\n", buf));
+            LOG(("  %s\n", buf));
         }
     }
 #endif
@@ -381,7 +382,7 @@ nsHostResolver::Init()
     // during application startup.
     static int initCount = 0;
     if (initCount++ > 0) {
-        LOG(("Calling 'res_ninit'.\n"));
+        LOG(("calling res_ninit\n"));
         res_ninit(&_res);
     }
 #endif
@@ -405,7 +406,7 @@ nsHostResolver::ClearPendingQueue(PRCList *aPendingQ)
 void
 nsHostResolver::Shutdown()
 {
-    LOG(("Shutting down host resolver.\n"));
+    LOG(("nsHostResolver::Shutdown\n"));
 
     PRCList pendingQHigh, pendingQMed, pendingQLow, evictionQ;
     PR_INIT_CLIST(&pendingQHigh);
@@ -496,7 +497,7 @@ nsHostResolver::ResolveHost(const char            *host,
 {
     NS_ENSURE_TRUE(host && *host, NS_ERROR_UNEXPECTED);
 
-    LOG(("Resolving host [%s].\n", host));
+    LOG(("nsHostResolver::ResolveHost [host=%s]\n", host));
 
     // ensure that we are working with a valid hostname before proceeding.  see
     // bug 304904 for details.
@@ -538,7 +539,7 @@ nsHostResolver::ResolveHost(const char            *host,
                      he->rec->HasResult() &&
                      NowInMinutes() <= he->rec->expiration + mGracePeriod) {
                         
-                LOG(("Using cached record for host [%s].\n", host));
+                LOG(("using cached record\n"));
                 // put reference to host record on stack...
                 result = he->rec;
                 Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2, METHOD_HIT);
@@ -548,8 +549,8 @@ nsHostResolver::ResolveHost(const char            *host,
                 // the background
                 if (((NowInMinutes() > he->rec->expiration) ||
                      he->rec->negative) && !he->rec->resolving) {
-                    LOG(("Using %s cache entry for host [%s] but starting async renewal.",
-                         he->rec->negative ? "negative" :"positive", host));
+                    LOG(("Using %s cache entry but starting async renewal",
+                         he->rec->negative ? "negative" :"positive"));
                     IssueLookup(he->rec);
 
                     if (!he->rec->negative) {
@@ -610,7 +611,7 @@ nsHostResolver::ResolveHost(const char            *host,
                     if (NS_FAILED(rv))
                         PR_REMOVE_AND_INIT_LINK(callback);
                     else
-                        LOG(("DNS lookup for host [%s] blocking pending 'getaddrinfo' query.", host));
+                        LOG(("dns lookup blocking pending getaddrinfo query"));
                 }
                 else if (he->rec->onQueue) {
                     Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
@@ -703,7 +704,7 @@ nsHostResolver::ConditionallyCreateThread(nsHostRecord *rec)
     }
 #if defined(PR_LOGGING)
     else
-      LOG(("Unable to find a thread for looking up host [%s].\n", rec->host));
+      LOG(("lookup waiting for thread - %s ...\n", rec->host));
 #endif
     return NS_OK;
 }
@@ -737,7 +738,7 @@ nsHostResolver::IssueLookup(nsHostRecord *rec)
 
     rv = ConditionallyCreateThread(rec);
     
-    LOG (("DNS thread counters: total=%d any-live=%d idle=%d pending=%d\n",
+    LOG (("DNS Thread Counters: total=%d any-live=%d idle=%d pending=%d\n",
           mThreadCount,
           mActiveAnyThreadCount,
           mNumIdleThreads,
@@ -951,7 +952,7 @@ nsHostResolver::CancelAsyncRequest(const char            *host,
 void
 nsHostResolver::ThreadFunc(void *arg)
 {
-    LOG(("DNS lookup thread starting execution.\n"));
+    LOG(("nsHostResolver::ThreadFunc entering\n"));
 
     static nsThreadPoolNaming naming;
     naming.SetThreadPoolName(NS_LITERAL_CSTRING("DNS Resolver"));
@@ -963,7 +964,7 @@ nsHostResolver::ThreadFunc(void *arg)
     nsHostRecord *rec;
     PRAddrInfo *ai;
     while (resolver->GetHostToLookup(&rec)) {
-        LOG(("Calling getaddrinfo for host [%s].\n", rec->host));
+        LOG(("resolving %s ...\n", rec->host));
 
         PRIntn flags = PR_AI_ADDRCONFIG;
         if (!(rec->flags & RES_CANON_NAME))
@@ -996,10 +997,10 @@ nsHostResolver::ThreadFunc(void *arg)
         }
         
         resolver->OnLookupComplete(rec, status, ai);
-        LOG(("Lookup completed for host [%s].\n", rec->host));
+        LOG(("lookup complete for %s ...\n", rec->host));
     }
     NS_RELEASE(resolver);
-    LOG(("DNS lookup thread ending execution.\n"));
+    LOG(("nsHostResolver::ThreadFunc exiting\n"));
 }
 
 //----------------------------------------------------------------------------

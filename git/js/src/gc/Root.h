@@ -332,7 +332,15 @@ class SkipRoot
 
   public:
     template <typename T>
-    SkipRoot(JSContext *cx, const T *ptr, size_t count = 1
+    SkipRoot(JSContext *cx, const T *ptr
+             JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    {
+        init(ContextFriendFields::get(cx), ptr, 1);
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    template <typename T>
+    SkipRoot(JSContext *cx, const T *ptr, size_t count
              JS_GUARD_OBJECT_NOTIFIER_PARAM)
     {
         init(ContextFriendFields::get(cx), ptr, count);
@@ -355,7 +363,14 @@ class SkipRoot
 
   public:
     template <typename T>
-    SkipRoot(JSContext *cx, const T *ptr, size_t count = 1
+    SkipRoot(JSContext *cx, const T *ptr
+              JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    {
+        JS_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    template <typename T>
+    SkipRoot(JSContext *cx, const T *ptr, size_t count
               JS_GUARD_OBJECT_NOTIFIER_PARAM)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
@@ -374,16 +389,14 @@ JS_FRIEND_API(bool) RelaxRootChecksForContext(JSContext *cx);
 
 class AssertRootingUnnecessary {
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
-#ifdef DEBUG
     JSContext *cx;
     bool prev;
-#endif
 public:
     AssertRootingUnnecessary(JSContext *cx JS_GUARD_OBJECT_NOTIFIER_PARAM)
+        : cx(cx)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
 #ifdef DEBUG
-        this->cx = cx;
         prev = IsRootingUnnecessaryForContext(cx);
         SetRootingUnnecessaryForContext(cx, true);
 #endif

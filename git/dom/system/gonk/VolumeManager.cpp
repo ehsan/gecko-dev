@@ -2,23 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "VolumeManager.h"
-
-#include "Volume.h"
-#include "VolumeCommand.h"
-#include "VolumeManagerLog.h"
-#include "VolumeServiceTest.h"
-
-#include "nsWhitespaceTokenizer.h"
-#include "nsXULAppAPI.h"
-
-#include "base/message_loop.h"
-#include "mozilla/Scoped.h"
-
 #include <android/log.h>
 #include <cutils/sockets.h>
 #include <fcntl.h>
 #include <sys/socket.h>
+
+#include "base/message_loop.h"
+#include "nsWhitespaceTokenizer.h"
+#include "nsXULAppAPI.h"
+
+#include "Volume.h"
+#include "VolumeCommand.h"
+#include "VolumeManager.h"
+#include "VolumeManagerLog.h"
+
+//using namespace mozilla::dom::gonk;
 
 namespace mozilla {
 namespace system {
@@ -38,24 +36,6 @@ VolumeManager::VolumeManager()
 
 VolumeManager::~VolumeManager()
 {
-}
-
-//static
-size_t
-VolumeManager::NumVolumes()
-{
-  if (!sVolumeManager) {
-    return 0;
-  }
-  return sVolumeManager->mVolumeArray.Length();
-}
-
-//static
-TemporaryRef<Volume>
-VolumeManager::GetVolume(size_t aIndex)
-{
-  MOZ_ASSERT(aIndex < NumVolumes());
-  return sVolumeManager->mVolumeArray[aIndex];
 }
 
 //static
@@ -114,12 +94,11 @@ VolumeManager::FindVolumeByName(const nsCSubstring &aName)
   if (!sVolumeManager) {
     return NULL;
   }
-  VolumeArray::size_type  numVolumes = NumVolumes();
-  VolumeArray::index_type volIndex;
-  for (volIndex = 0; volIndex < numVolumes; volIndex++) {
-    RefPtr<Volume> vol = GetVolume(volIndex);
-    if (vol->Name().Equals(aName)) {
-      return vol;
+  for (VolumeArray::iterator volIter = sVolumeManager->mVolumeArray.begin();
+       volIter != sVolumeManager->mVolumeArray.end();
+       volIter++) {
+    if ((*volIter)->Name().Equals(aName)) {
+      return *volIter;
     }
   }
   return NULL;
@@ -135,7 +114,7 @@ VolumeManager::FindAddVolumeByName(const nsCSubstring &aName)
   }
   // No volume found, create and add a new one.
   vol = new Volume(aName);
-  sVolumeManager->mVolumeArray.AppendElement(vol);
+  sVolumeManager->mVolumeArray.push_back(vol);
   return vol;
 }
 
@@ -153,8 +132,12 @@ class VolumeListCallback : public VolumeResponseCallback
         // we have of the same name, or add new ones if they don't exist.
         nsCWhitespaceTokenizer tokenizer(ResponseStr());
         nsDependentCSubstring volName(tokenizer.nextToken());
+        nsDependentCSubstring mntPoint(tokenizer.nextToken());
+        nsCString state(tokenizer.nextToken());
         RefPtr<Volume> vol = VolumeManager::FindAddVolumeByName(volName);
-        vol->HandleVoldResponse(ResponseCode(), tokenizer);
+        vol->SetMountPoint(mntPoint);
+        PRInt32 errCode;
+        vol->SetState((Volume::STATE)state.ToInteger(&errCode));
         break;
       }
 
@@ -356,6 +339,9 @@ VolumeManager::OnFileCanWriteWithoutBlocking(int aFd)
 void
 VolumeManager::HandleBroadcast(int aResponseCode, nsCString &aResponseLine)
 {
+  if (aResponseCode != ResponseCode::VolumeStateChange) {
+    return;
+  }
   // Format of the line is something like:
   //
   //  Volume sdcard /mnt/sdcard state changed from 7 (Shared-Unmounted) to 1 (Idle-Unmounted)
@@ -369,7 +355,14 @@ VolumeManager::HandleBroadcast(int aResponseCode, nsCString &aResponseLine)
   if (!vol) {
     return;
   }
-  vol->HandleVoldResponse(aResponseCode, tokenizer);
+
+  const char *s = strstr(aResponseLine.get(), " to ");
+
+  if (!s) {
+    return;
+  }
+  s += 4;
+  vol->SetState((Volume::STATE)atoi(s));
 }
 
 void
@@ -415,8 +408,6 @@ InitVolumeManagerIOThread()
 
   sVolumeManager = new VolumeManager();
   VolumeManager::Start();
-
-  InitVolumeServiceTestIOThread();
 }
 
 static void
@@ -447,8 +438,6 @@ InitVolumeManager()
 void
 ShutdownVolumeManager()
 {
-  ShutdownVolumeServiceTest();
-
   XRE_GetIOMessageLoop()->PostTask(
       FROM_HERE,
       NewRunnableFunction(ShutdownVolumeManagerIOThread));
@@ -456,3 +445,4 @@ ShutdownVolumeManager()
 
 } // system
 } // mozilla
+

@@ -907,9 +907,10 @@ JSScript::setSourceMap(JSContext *cx, jschar *sourceMap)
         compartment()->sourceMapMap = map;
     }
 
-    if (!map->putNew(this, sourceMap))
+    if (!map->putNew(this, sourceMap)) {
+        cx->delete_(map);
         return false;
-
+    }
     hasSourceMap = true; // safe to set this;  we can't fail after this point
 
     return true;
