@@ -31,8 +31,6 @@
 
 #ifdef JS_MIPS_SIMULATOR
 
-#include "jslock.h"
-
 #include "jit/IonTypes.h"
 
 namespace js {
@@ -41,7 +39,6 @@ namespace jit {
 class Simulator;
 class Redirection;
 class CachePage;
-class AutoLockSimulator;
 
 const intptr_t kPointerAlignment = 4;
 const intptr_t kPointerAlignmentMask = kPointerAlignment - 1;
@@ -105,7 +102,6 @@ class SimInstruction;
 class Simulator {
     friend class Redirection;
     friend class MipsDebugger;
-    friend class AutoLockSimulatorCache;
   public:
 
     // Registers are declared in order. See "See MIPS Run Linux" chapter 2.
@@ -141,9 +137,7 @@ class Simulator {
         kNumFPURegisters
     };
 
-    // Returns nullptr on OOM.
     static Simulator *Create();
-
     static void Destroy(Simulator *simulator);
 
     // Constructor/destructor are for internal use only; use the static methods above.
@@ -229,8 +223,6 @@ class Simulator {
         // Unpredictable value.
         Unpredictable = 0xbadbeaf
     };
-
-    bool init();
 
     // Unsupported instructions use Format to print an error and stop execution.
     void format(SimInstruction* instr, const char* format);
@@ -362,6 +354,8 @@ class Simulator {
     StopCountAndDesc watchedStops_[kNumOfWatchedStops];
 
   private:
+    Redirection *redirection_;
+
     // ICache checking.
     struct ICacheHasher {
         typedef void *Key;
@@ -373,34 +367,19 @@ class Simulator {
   public:
     typedef HashMap<void *, CachePage *, ICacheHasher, SystemAllocPolicy> ICacheMap;
 
-  private:
-    // This lock creates a critical section around 'redirection_' and
-    // 'icache_', which are referenced both by the execution engine
-    // and by the off-thread compiler (see Redirection::Get in the cpp file).
-    PRLock *cacheLock_;
-#ifdef DEBUG
-    PRThread *cacheLockHolder_;
-#endif
-
-    Redirection *redirection_;
+  protected:
     ICacheMap icache_;
 
   public:
     ICacheMap &icache() {
-        // Technically we need the lock to access the innards of the
-        // icache, not to take its address, but the latter condition
-        // serves as a useful complement to the former.
-        MOZ_ASSERT(cacheLockHolder_);
         return icache_;
     }
 
     Redirection *redirection() const {
-        MOZ_ASSERT(cacheLockHolder_);
         return redirection_;
     }
 
     void setRedirection(js::jit::Redirection *redirection) {
-        MOZ_ASSERT(cacheLockHolder_);
         redirection_ = redirection;
     }
 };

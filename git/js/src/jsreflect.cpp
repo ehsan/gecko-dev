@@ -3537,18 +3537,18 @@ reflect_parse(JSContext *cx, uint32_t argc, jsval *vp)
     if (!serialize.init(builder))
         return false;
 
-    JSLinearString *linear = src->ensureLinear(cx);
-    if (!linear)
+    JSFlatString *flat = src->ensureFlat(cx);
+    if (!flat)
         return false;
 
-    AutoStableStringChars linearChars(cx);
-    if (!linearChars.initTwoByte(cx, linear))
+    AutoStableStringChars flatChars(cx);
+    if (!flatChars.initTwoByte(cx, flat))
         return false;
 
     CompileOptions options(cx);
     options.setFileAndLine(filename, lineno);
     options.setCanLazilyParse(false);
-    mozilla::Range<const char16_t> chars = linearChars.twoByteRange();
+    mozilla::Range<const char16_t> chars = flatChars.twoByteRange();
     Parser<FullParseHandler> parser(cx, &cx->tempLifoAlloc(), options, chars.start().get(),
                                     chars.length(), /* foldConstants = */ false, nullptr, nullptr);
     if (!parser.checkOptions())

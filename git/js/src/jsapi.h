@@ -619,13 +619,15 @@ class PerRuntimeFutexAPI
     // Release the GLOBAL lock.
     virtual void unlock() = 0;
 
+    // Return true iff the calling thread is a worker thread.  This must be
+    // used to guard calls to wait().  The lock need not be held.
+    virtual bool isOnWorkerThread() = 0;
+
     enum WakeResult {
         Woken,                  // Woken by futexWait
         Timedout,               // Woken by timeout
-        ErrorException,         // Propagate a pending exception
-        InterruptForTerminate,  // Woken by a request to terminate the worker, throw an uncatchable
-        WaitingNotAllowed,      // wait() was not allowed to block on this thread (permanently)
-        ErrorTooLong            // Implementation limit
+        InterruptForTerminate,  // Woken by a request to terminate the worker
+        ErrorTooLong            // Implementation constraint on the timer (for now)
     };
 
     // Block the thread.
