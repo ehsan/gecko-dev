@@ -208,7 +208,6 @@ var BrowserApp = {
     Services.obs.addObserver(this, "Tab:Load", false);
     Services.obs.addObserver(this, "Tab:Select", false);
     Services.obs.addObserver(this, "Tab:Close", false);
-    Services.obs.addObserver(this, "Tab:Screenshot", false);
     Services.obs.addObserver(this, "Session:Back", false);
     Services.obs.addObserver(this, "Session:Forward", false);
     Services.obs.addObserver(this, "Session:Reload", false);
@@ -469,14 +468,6 @@ var BrowserApp = {
 
     aTab.destroy();
     this._tabs.splice(this._tabs.indexOf(aTab), 1);
-  },
-
-  screenshotTab: function screenshotTab(aData) {
-      let json = JSON.parse(aData);
-      let tab = this.getTabForId(parseInt(json.tabID));
-      let width = parseInt(json.width);
-      let height =  parseInt(json.height);
-      tab.screenshot(width, height);
   },
 
   selectTab: function selectTab(aTab) {
@@ -832,8 +823,6 @@ var BrowserApp = {
       this.selectTab(this.getTabForId(parseInt(aData)));
     } else if (aTopic == "Tab:Close") {
       this.closeTab(this.getTabForId(parseInt(aData)));
-    } else if (aTopic == "Tab:Screenshot") {
-      this.screenshotTab(aData);
     } else if (aTopic == "Browser:Quit") {
       this.quit();
     } else if (aTopic == "SaveAs:PDF") {
@@ -1478,26 +1467,6 @@ Tab.prototype = {
       this.updateTransform();
   },
 
-  screenshot: function(aWidth, aHeight) {
-      if (!this.browser || !this.browser.contentWindow)
-          return;
-      let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
-      canvas.setAttribute("width", aWidth);  
-      canvas.setAttribute("height", aHeight);
-      let ctx = canvas.getContext("2d");
-      ctx.drawWindow(this.browser.contentWindow, 0, 0, aWidth, aHeight, "rgb(255, 255, 255)");
-      let message = {
-        gecko: {
-          type: "Tab:ScreenshotData",
-          tabID: this.id,
-          width: aWidth,
-          height: aHeight,
-          data: canvas.toDataURL()
-        }
-      };
-      sendMessageToJava(message);
-  },
-
   updateTransform: function() {
     let hasZoom = (Math.abs(this._viewport.zoom - 1.0) >= 1e-6);
     let x = this._viewport.offsetX + Math.round(-this.viewportExcess.x * this._viewport.zoom);
@@ -1532,8 +1501,8 @@ Tab.prototype = {
       pageHeight = Math.max(body.scrollHeight, html.scrollHeight);
 
       /* Transform the page width and height based on the zoom factor. */
-      pageWidth *= this._viewport.zoom;
-      pageHeight *= this._viewport.zoom;
+      pageWidth = Math.round(pageWidth * this._viewport.zoom);
+      pageHeight = Math.round(pageHeight * this._viewport.zoom);
 
       /*
        * Avoid sending page sizes of less than screen size before we hit DOMContentLoaded, because
@@ -2060,19 +2029,15 @@ var BrowserEventHandler = {
     } else if (aTopic == "Gesture:SingleTap") {
       let element = this._highlightElement;
       if (element && !FormAssistant.handleClick(element)) {
-        try {
-          let data = JSON.parse(aData);
-          [data.x, data.y] = ElementTouchHelper.toScreenCoords(element.ownerDocument.defaultView, data.x, data.y);
-  
-          this._sendMouseEvent("mousemove", element, data.x, data.y);
-          this._sendMouseEvent("mousedown", element, data.x, data.y);
-          this._sendMouseEvent("mouseup",   element, data.x, data.y);
-  
-          if (ElementTouchHelper.isElementClickable(element))
-            Haptic.performSimpleAction(Haptic.LongPress);
-        } catch(e) {
-          Cu.reportError(e);
-        }
+        let data = JSON.parse(aData);
+        [data.x, data.y] = ElementTouchHelper.toScreenCoords(element.ownerDocument.defaultView, data.x, data.y);
+
+        this._sendMouseEvent("mousemove", element, data.x, data.y);
+        this._sendMouseEvent("mousedown", element, data.x, data.y);
+        this._sendMouseEvent("mouseup",   element, data.x, data.y);
+
+        if (ElementTouchHelper.isElementClickable(element))
+          Haptic.performSimpleAction(Haptic.LongPress);
       }
       this._cancelTapHighlight();
     } else if (aTopic == "Gesture:DoubleTap") {
@@ -2181,15 +2146,10 @@ var BrowserEventHandler = {
       }
     }
 
-    let window = aElement.ownerDocument.defaultView;
-    try {
-      [aX, aY] = ElementTouchHelper.toBrowserCoords(window, aX, aY);
-      let cwu = window.top.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      aButton = aButton || 0;
-      cwu.sendMouseEventToWindow(aName, Math.round(aX), Math.round(aY), aButton, 1, 0, true);
-    } catch(e) {
-      Cu.reportError(e);
-    }
+    [aX, aY] = ElementTouchHelper.toBrowserCoords(aElement.ownerDocument.defaultView, aX, aY);
+    let cwu = aElement.ownerDocument.defaultView.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
+    aButton = aButton || 0;
+    cwu.sendMouseEventToWindow(aName, Math.round(aX), Math.round(aY), aButton, 1, 0, true);
   },
 
   _hasScrollableOverflow: function(elem) {
@@ -2291,36 +2251,24 @@ const kReferenceDpi = 240; // standard "pixel" size used in some preferences
 
 const ElementTouchHelper = {
   toBrowserCoords: function(aWindow, aX, aY) {
-    if (!aWindow)
-      throw "Must provide a window";
-  
-    let browser = BrowserApp.getBrowserForWindow(aWindow.top);
-    if (!browser)
-      throw "Unable to find a browser";
-
-    let tab = BrowserApp.getTabForBrowser(browser);
-    if (!tab)
-      throw "Unable to find a tab";
-
+    let tab = BrowserApp.selectedTab;
+    if (aWindow) {
+      let browser = BrowserApp.getBrowserForWindow(aWindow);
+      tab = BrowserApp.getTabForBrowser(browser);
+    }
     let viewport = tab.viewport;
     return [
-        ((aX - tab.viewportExcess.x) * viewport.zoom + viewport.offsetX),
-        ((aY - tab.viewportExcess.y) * viewport.zoom + viewport.offsetY)
+        ((aX-tab.viewportExcess.x)*viewport.zoom + viewport.offsetX),
+        ((aY-tab.viewportExcess.y)*viewport.zoom + viewport.offsetY)
     ];
   },
 
   toScreenCoords: function(aWindow, aX, aY) {
-    if (!aWindow)
-      throw "Must provide a window";
-  
-    let browser = BrowserApp.getBrowserForWindow(aWindow.top);
-    if (!browser)
-      throw "Unable to find a browser";
-
-    let tab = BrowserApp.getTabForBrowser(browser);
-    if (!tab)
-      throw "Unable to find a tab";
-
+    let tab = BrowserApp.selectedTab;
+    if (aWindow) {
+      let browser = BrowserApp.getBrowserForWindow(aWindow);
+      tab = BrowserApp.getTabForBrowser(browser);
+    }
     let viewport = tab.viewport;
     return [
         (aX - viewport.offsetX)/viewport.zoom + tab.viewportExcess.x,
@@ -3689,16 +3637,10 @@ var PermissionsHelper = {
         // Keep track of permissions, so we know which ones to clear
         this._currentPermissions = permissions; 
 
-        let host;
-        try {
-          host = uri.host;
-        } catch(e) {
-          host = uri.spec;
-        }
         sendMessageToJava({
           gecko: {
             type: "Permissions:Data",
-            host: host,
+            host: uri.host,
             permissions: permissions
           }
         });

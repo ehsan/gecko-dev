@@ -702,6 +702,13 @@ nsresult nsRangeStore::StoreRange(nsIDOMRange *aRange)
 
 nsresult nsRangeStore::GetRange(nsRange** outRange)
 {
-  return nsRange::CreateRange(startNode, startOffset, endNode, endOffset,
-                              outRange);
+  NS_ENSURE_TRUE(outRange, NS_ERROR_NULL_POINTER);
+  *outRange = new nsRange();
+  NS_ADDREF((*outRange));
+
+  nsresult res = (*outRange)->SetStart(startNode, startOffset);
+  if(NS_FAILED(res)) return res;
+
+  res = (*outRange)->SetEnd(endNode, endOffset);
+  return res;
 }

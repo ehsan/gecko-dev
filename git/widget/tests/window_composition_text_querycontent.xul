@@ -1240,7 +1240,6 @@ function runCompositionEventTest()
 
   function formEventHandlerForWindow(aEvent)
   {
-    ok(aEvent.isTrusted, "input events must be trusted events");
     windowEventCounts[aEvent.type]++;
     windowEventData[aEvent.type] = input.value;
   }

@@ -39,8 +39,7 @@
 #include "mozilla/Util.h"
 
 #include "jsapi.h"
-#include "jsatom.h"
-#include "jsfriendapi.h"
+#include "jscntxt.h"  /* for error messages */
 #include "nsCOMPtr.h"
 #include "xpcprivate.h"
 #include "XPCInlines.h"

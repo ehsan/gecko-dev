@@ -867,11 +867,6 @@ public:
 
     void SelectPointers(GCGraphBuilder &builder);
 
-    // RemoveSkippable removes entries from the purple buffer if
-    // nsPurpleBufferEntry::mObject is null or if the object's
-    // nsXPCOMCycleCollectionParticipant::CanSkip() returns true.
-    void RemoveSkippable();
-
 #ifdef DEBUG_CC
     void NoteAll(GCGraphBuilder &builder);
 
@@ -990,22 +985,8 @@ void
 nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
 {
 #ifdef DEBUG_CC
-    // Can't use mCount here, since it may include null entries.
-    PRUint32 realCount = 0;
-    for (Block *b = &mFirstBlock; b; b = b->mNext) {
-        for (nsPurpleBufferEntry *e = b->mEntries,
-                              *eEnd = ArrayEnd(b->mEntries);
-            e != eEnd; ++e) {
-            if (!(PRUword(e->mObject) & PRUword(1))) {
-                if (e->mObject) {
-                    ++realCount;
-                }
-            }
-        }
-    }
-
     NS_ABORT_IF_FALSE(mCompatObjects.Count() + mNormalObjects.Count() ==
-                          realCount,
+                          mCount,
                       "count out of sync");
 #endif
 
@@ -1025,7 +1006,16 @@ nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
                 // This is a real entry (rather than something on the
                 // free list).
                 if (!e->mObject || AddPurpleRoot(aBuilder, e->mObject)) {
-                    Remove(e);
+#ifdef DEBUG_CC
+                    mNormalObjects.RemoveEntry(e->mObject);
+#endif
+                    --mCount;
+                    // Put this entry on the free list in case some
+                    // call to AddPurpleRoot fails and we don't rebuild
+                    // the free list below.
+                    e->mNextInFreeList = (nsPurpleBufferEntry*)
+                        (PRUword(mFreeList) | PRUword(1));
+                    mFreeList = e;
                 }
             }
         }
@@ -1095,9 +1085,6 @@ struct nsCycleCollector
 
     nsPurpleBuffer mPurpleBuf;
 
-    CC_BeforeUnlinkCallback mBeforeUnlinkCB;
-    CC_ForgetSkippableCallback mForgetSkippableCB;
-
     void RegisterRuntime(PRUint32 langID, 
                          nsCycleCollectionLanguageRuntime *rt);
     nsCycleCollectionLanguageRuntime * GetRuntime(PRUint32 langID);
@@ -1107,8 +1094,6 @@ struct nsCycleCollector
     void MarkRoots(GCGraphBuilder &builder);
     void ScanRoots();
     void ScanWeakMaps();
-
-    void ForgetSkippable();
 
     // returns whether anything was collected
     bool CollectWhite(nsICycleCollectorListener *aListener);
@@ -1153,8 +1138,6 @@ struct nsCycleCollector
 
     void Allocated(void *n, size_t sz);
     void Freed(void *n);
-
-    void LogPurpleRemoval(void* aObject);
 
     void ExplainLiveExpectedGarbage();
     bool CreateReversedEdges();
@@ -1789,8 +1772,7 @@ GCGraphBuilder::NoteXPCOMChild(nsISupports *child)
     
     nsXPCOMCycleCollectionParticipant *cp;
     ToParticipant(child, &cp);
-    if (cp && !cp->CanSkipThis(child)) {
-
+    if (cp) {
         PtrInfo *childPi = AddNode(child, cp, nsIProgrammingLanguage::CPLUSPLUS);
         if (!childPi)
             return;
@@ -1896,7 +1878,7 @@ GCGraphBuilder::AddWeakMapNode(void *node)
 
     cp = mRuntimes[nsIProgrammingLanguage::JAVASCRIPT]->ToParticipant(node);
     NS_ASSERTION(cp, "Javascript runtime participant should be non-null.");
-    return AddNode(node, cp, nsIProgrammingLanguage::JAVASCRIPT);
+    return AddNode(node, cp);
 }
 
 NS_IMETHODIMP_(void)
@@ -1923,43 +1905,15 @@ AddPurpleRoot(GCGraphBuilder &builder, nsISupports *root)
     nsXPCOMCycleCollectionParticipant *cp;
     ToParticipant(root, &cp);
 
-    if (!cp->CanSkipInCC(root)) {
-        PtrInfo *pinfo = builder.AddNode(root, cp,
-                                         nsIProgrammingLanguage::CPLUSPLUS);
-        if (!pinfo) {
-            return false;
-        }
+    PtrInfo *pinfo = builder.AddNode(root, cp,
+                                     nsIProgrammingLanguage::CPLUSPLUS);
+    if (!pinfo) {
+        return false;
     }
 
     cp->UnmarkPurple(root);
 
     return true;
-}
-
-void
-nsPurpleBuffer::RemoveSkippable()
-{
-    // Walk through all the blocks.
-    for (Block *b = &mFirstBlock; b; b = b->mNext) {
-        for (nsPurpleBufferEntry *e = b->mEntries,
-                              *eEnd = ArrayEnd(b->mEntries);
-            e != eEnd; ++e) {
-            if (!(PRUword(e->mObject) & PRUword(1))) {
-                // This is a real entry (rather than something on the
-                // free list).
-                if (e->mObject) {
-                    nsISupports* o = canonicalize(e->mObject);
-                    nsXPCOMCycleCollectionParticipant* cp;
-                    ToParticipant(o, &cp);
-                    if (!cp->CanSkip(o)) {
-                        continue;
-                    }
-                    cp->UnmarkPurple(o);
-                }
-                Remove(e);
-            }
-        }
-    }
 }
 
 #ifdef DEBUG_CC
@@ -1993,19 +1947,6 @@ void
 nsCycleCollector::SelectPurple(GCGraphBuilder &builder)
 {
     mPurpleBuf.SelectPointers(builder);
-}
-
-void 
-nsCycleCollector::ForgetSkippable()
-{
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    if (obs) {
-        obs->NotifyObservers(nsnull, "cycle-collector-forget-skippable", nsnull);
-    }
-    mPurpleBuf.RemoveSkippable();
-    if (mForgetSkippableCB) {
-        mForgetSkippableCB();
-    }
 }
 
 void
@@ -2189,9 +2130,6 @@ nsCycleCollector::CollectWhite(nsICycleCollectorListener *aListener)
         }
     }
 
-    if (mBeforeUnlinkCB) {
-        mBeforeUnlinkCB();
-    }
 #if defined(DEBUG_CC) && !defined(__MINGW32__) && defined(WIN32)
     struct _CrtMemState ms1, ms2;
     _CrtMemCheckpoint(&ms1);
@@ -2449,12 +2387,10 @@ nsCycleCollector::nsCycleCollector() :
     mVisitedGCed(0),
 #ifdef DEBUG_CC
     mPurpleBuf(mParams, mStats),
-    mPtrLog(nsnull),
+    mPtrLog(nsnull)
 #else
-    mPurpleBuf(mParams),
+    mPurpleBuf(mParams)
 #endif
-   mBeforeUnlinkCB(nsnull),
-   mForgetSkippableCB(nsnull)
 {
 #ifdef DEBUG_CC
     mExpectedGarbage.Init();
@@ -2721,27 +2657,6 @@ nsCycleCollector::Forget2(nsPurpleBufferEntry *e)
         return false;
 
 #ifdef DEBUG_CC
-    LogPurpleRemoval(e->mObject);
-#endif
-
-    mPurpleBuf.Remove(e);
-    return true;
-}
-
-#ifdef DEBUG_CC
-void
-nsCycleCollector_logPurpleRemoval(void* aObject)
-{
-    if (sCollector) {
-        sCollector->LogPurpleRemoval(aObject);
-    }
-}
-
-void
-nsCycleCollector::LogPurpleRemoval(void* aObject)
-{
-    AbortIfOffMainThreadIfCheckFast();
-
     mStats.mForgetNode++;
 
 #ifndef __MINGW32__
@@ -2752,11 +2667,15 @@ nsCycleCollector::LogPurpleRemoval(void* aObject)
     if (mParams.mLogPointers) {
         if (!mPtrLog)
             mPtrLog = fopen("pointer_log", "w");
-        fprintf(mPtrLog, "F %p\n", aObject);
+        fprintf(mPtrLog, "F %p\n", static_cast<void*>(e->mObject));
     }
-    mPurpleBuf.mNormalObjects.RemoveEntry(aObject);
+#endif
+
+    mPurpleBuf.Remove(e);
+    return true;
 }
 
+#ifdef DEBUG_CC
 void 
 nsCycleCollector::Allocated(void *n, size_t sz)
 {
@@ -3806,30 +3725,6 @@ nsCycleCollector_startup()
     thread.swap(sCollectorThread);
 
     return rv;
-}
-
-void
-nsCycleCollector_setBeforeUnlinkCallback(CC_BeforeUnlinkCallback aCB)
-{
-    if (sCollector) {
-        sCollector->mBeforeUnlinkCB = aCB;
-    }
-}
-
-void
-nsCycleCollector_setForgetSkippableCallback(CC_ForgetSkippableCallback aCB)
-{
-    if (sCollector) {
-        sCollector->mForgetSkippableCB = aCB;
-    }
-}
-
-void
-nsCycleCollector_forgetSkippable()
-{
-    if (sCollector) {
-        sCollector->ForgetSkippable();
-    }
 }
 
 PRUint32

@@ -19,8 +19,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Chenxia Liu <liuche@mozilla.com>
- *   Richard Newman <rnewman@mozilla.com>
+ *  Chenxia Liu <liuche@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -39,20 +38,17 @@
 package org.mozilla.gecko.sync.syncadapter;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.TimeUnit;
 
 import org.json.simple.parser.ParseException;
+import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.AlreadySyncingException;
 import org.mozilla.gecko.sync.GlobalSession;
 import org.mozilla.gecko.sync.NonObjectJSONException;
 import org.mozilla.gecko.sync.SyncConfiguration;
 import org.mozilla.gecko.sync.SyncConfigurationException;
 import org.mozilla.gecko.sync.SyncException;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.sync.crypto.Cryptographer;
-import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.delegates.GlobalSessionCallback;
 import org.mozilla.gecko.sync.setup.Constants;
 import org.mozilla.gecko.sync.stage.GlobalSyncStage.Stage;
@@ -66,107 +62,44 @@ import android.accounts.OperationCanceledException;
 import android.content.AbstractThreadedSyncAdapter;
 import android.content.ContentProviderClient;
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.content.SharedPreferences.Editor;
 import android.content.SyncResult;
-import android.database.sqlite.SQLiteConstraintException;
-import android.database.sqlite.SQLiteException;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
 
 public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSessionCallback {
+
   private static final String  LOG_TAG = "SyncAdapter";
-
-  private static final String  PREFS_EARLIEST_NEXT_SYNC = "earliestnextsync";
-  private static final String  PREFS_INVALIDATE_AUTH_TOKEN = "invalidateauthtoken";
-
-  private static final int     SHARED_PREFERENCES_MODE = 0;
-  private static final int     BACKOFF_PAD_SECONDS = 5;
-
   private final AccountManager mAccountManager;
   private final Context        mContext;
 
   public SyncAdapter(Context context, boolean autoInitialize) {
     super(context, autoInitialize);
     mContext = context;
-    Log.d(LOG_TAG, "AccountManager.get(" + mContext + ")");
     mAccountManager = AccountManager.get(context);
   }
 
-  /**
-   * Backoff.
-   */
-  public synchronized long getEarliestNextSync() {
-    SharedPreferences sharedPreferences = mContext.getSharedPreferences("sync.prefs.global", SHARED_PREFERENCES_MODE);
-    return sharedPreferences.getLong(PREFS_EARLIEST_NEXT_SYNC, 0);
-  }
-  public synchronized void setEarliestNextSync(long next) {
-    SharedPreferences sharedPreferences = mContext.getSharedPreferences("sync.prefs.global", SHARED_PREFERENCES_MODE);
-    Editor edit = sharedPreferences.edit();
-    edit.putLong(PREFS_EARLIEST_NEXT_SYNC, next);
-    edit.commit();
-  }
-  public synchronized void extendEarliestNextSync(long next) {
-    SharedPreferences sharedPreferences = mContext.getSharedPreferences("sync.prefs.global", SHARED_PREFERENCES_MODE);
-    if (sharedPreferences.getLong(PREFS_EARLIEST_NEXT_SYNC, 0) >= next) {
+  private void handleException(Exception e, SyncResult syncResult) {
+    if (e instanceof OperationCanceledException) {
+      Log.e(LOG_TAG, "Operation canceled. Aborting sync.");
+      e.printStackTrace();
       return;
     }
-    Editor edit = sharedPreferences.edit();
-    edit.putLong(PREFS_EARLIEST_NEXT_SYNC, next);
-    edit.commit();
-  }
-
-  public synchronized boolean getShouldInvalidateAuthToken() {
-    SharedPreferences sharedPreferences = mContext.getSharedPreferences("sync.prefs.global", SHARED_PREFERENCES_MODE);
-    return sharedPreferences.getBoolean(PREFS_INVALIDATE_AUTH_TOKEN, false);
-  }
-  public synchronized void clearShouldInvalidateAuthToken() {
-    SharedPreferences sharedPreferences = mContext.getSharedPreferences("sync.prefs.global", SHARED_PREFERENCES_MODE);
-    Editor edit = sharedPreferences.edit();
-    edit.remove(PREFS_INVALIDATE_AUTH_TOKEN);
-    edit.commit();
-  }
-  public synchronized void setShouldInvalidateAuthToken() {
-    SharedPreferences sharedPreferences = mContext.getSharedPreferences("sync.prefs.global", SHARED_PREFERENCES_MODE);
-    Editor edit = sharedPreferences.edit();
-    edit.putBoolean(PREFS_INVALIDATE_AUTH_TOKEN, true);
-    edit.commit();
-  }
-
-  private void handleException(Exception e, SyncResult syncResult) {
-    setShouldInvalidateAuthToken();
-    try {
-      if (e instanceof SQLiteConstraintException) {
-        Log.e(LOG_TAG, "Constraint exception. Aborting sync.", e);
-        syncResult.stats.numParseExceptions++;       // This is as good as we can do.
-        return;
-      }
-      if (e instanceof SQLiteException) {
-        Log.e(LOG_TAG, "Couldn't open database (locked?). Aborting sync.", e);
-        syncResult.stats.numIoExceptions++;
-        return;
-      }
-      if (e instanceof OperationCanceledException) {
-        Log.e(LOG_TAG, "Operation canceled. Aborting sync.", e);
-        return;
-      }
-      if (e instanceof AuthenticatorException) {
-        syncResult.stats.numParseExceptions++;
-        Log.e(LOG_TAG, "AuthenticatorException. Aborting sync.", e);
-        return;
-      }
-      if (e instanceof IOException) {
-        syncResult.stats.numIoExceptions++;
-        Log.e(LOG_TAG, "IOException. Aborting sync.", e);
-        e.printStackTrace();
-        return;
-      }
-      syncResult.stats.numIoExceptions++;
-      Log.e(LOG_TAG, "Unknown exception. Aborting sync.", e);
-    } finally {
-      notifyMonitor();
+    if (e instanceof AuthenticatorException) {
+      syncResult.stats.numParseExceptions++;
+      Log.e(LOG_TAG, "AuthenticatorException. Aborting sync.");
+      e.printStackTrace();
+      return;
     }
+    if (e instanceof IOException) {
+      syncResult.stats.numIoExceptions++;
+      Log.e(LOG_TAG, "IOException. Aborting sync.");
+      e.printStackTrace();
+      return;
+    }
+    syncResult.stats.numIoExceptions++;
+    Log.e(LOG_TAG, "Unknown exception. Aborting sync.");
+    e.printStackTrace();
   }
 
   private AccountManagerFuture<Bundle> getAuthToken(final Account account,
@@ -184,6 +117,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
     } catch (Exception e) {
       Log.e(LOG_TAG, "Couldn't invalidate auth token: " + e);
     }
+
   }
 
   @Override
@@ -198,23 +132,7 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   public Object syncMonitor = new Object();
   private SyncResult syncResult;
 
-  /**
-   * Return the number of milliseconds until we're allowed to sync again,
-   * or 0 if now is fine.
-   */
-  public long delayMilliseconds() {
-    long earliestNextSync = getEarliestNextSync();
-    if (earliestNextSync <= 0) {
-      return 0;
-    }
-    long now = System.currentTimeMillis();
-    return Math.max(0, earliestNextSync - now);
-  }
-
-  @Override
-  public boolean shouldBackOff() {
-    return delayMilliseconds() > 0;
-  }
+  public boolean shouldPerformSync = false;
 
   @Override
   public void onPerformSync(final Account account,
@@ -223,84 +141,55 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
                             final ContentProviderClient provider,
                             final SyncResult syncResult) {
 
-    long delay = delayMilliseconds();
-    if (delay > 0) {
-      Log.i(LOG_TAG, "Not syncing: must wait another " + delay + "ms.");
-      long remainingSeconds = delay / 1000;
-      syncResult.delayUntil = remainingSeconds + BACKOFF_PAD_SECONDS;
-      return;
-    }
-
     // TODO: don't clear the auth token unless we have a sync error.
     Log.i(LOG_TAG, "Got onPerformSync. Extras bundle is " + extras);
     Log.d(LOG_TAG, "Extras clusterURL: " + extras.getString("clusterURL"));
     Log.i(LOG_TAG, "Account name: " + account.name);
-
-    // TODO: don't always invalidate; use getShouldInvalidateAuthToken.
-    // However, this fixes Bug 716815, so it'll do for now.
-    Log.d(LOG_TAG, "Invalidating auth token.");
+    if (!shouldPerformSync) {
+      Log.i(LOG_TAG, "Not performing sync.");
+      return;
+    }
+    Log.i(LOG_TAG, "XXX CLEARING AUTH TOKEN XXX");
     invalidateAuthToken(account);
 
     final SyncAdapter self = this;
-    final AccountManagerCallback<Bundle> callback = new AccountManagerCallback<Bundle>() {
+    AccountManagerCallback<Bundle> callback = new AccountManagerCallback<Bundle>() {
       @Override
       public void run(AccountManagerFuture<Bundle> future) {
         Log.i(LOG_TAG, "AccountManagerCallback invoked.");
         // TODO: N.B.: Future must not be used on the main thread.
         try {
-          Bundle bundle = future.getResult(60L, TimeUnit.SECONDS);
-          if (bundle.containsKey("KEY_INTENT")) {
-            Log.w(LOG_TAG, "KEY_INTENT included in AccountManagerFuture bundle. Problem?");
-          }
-          String username  = bundle.getString(Constants.OPTION_USERNAME);
-          String syncKey   = bundle.getString(Constants.OPTION_SYNCKEY);
-          String serverURL = bundle.getString(Constants.OPTION_SERVER);
-          String password  = bundle.getString(AccountManager.KEY_AUTHTOKEN);
+          Bundle bundle      = future.getResult(60L, TimeUnit.SECONDS);
+          String username    = bundle.getString(Constants.OPTION_USERNAME);
+          String syncKey     = bundle.getString(Constants.OPTION_SYNCKEY);
+          String serverURL   = bundle.getString(Constants.OPTION_SERVER);
+          String password    = bundle.getString(AccountManager.KEY_AUTHTOKEN);
           Log.d(LOG_TAG, "Username: " + username);
           Log.d(LOG_TAG, "Server:   " + serverURL);
-          Log.d(LOG_TAG, "Password? " + (password != null));
-          Log.d(LOG_TAG, "Key?      " + (syncKey != null));
+          Log.d(LOG_TAG, "Password: " + password);  // TODO: remove
+          Log.d(LOG_TAG, "Key:      " + syncKey);   // TODO: remove
           if (password == null) {
             Log.e(LOG_TAG, "No password: aborting sync.");
-            syncResult.stats.numAuthExceptions++;
-            notifyMonitor();
             return;
           }
           if (syncKey == null) {
             Log.e(LOG_TAG, "No Sync Key: aborting sync.");
-            syncResult.stats.numAuthExceptions++;
-            notifyMonitor();
             return;
           }
           KeyBundle keyBundle = new KeyBundle(username, syncKey);
-
-          // Support multiple accounts by mapping each server/account pair to a branch of the
-          // shared preferences space.
-          String prefsPath = Utils.getPrefsPath(username, serverURL);
           self.performSync(account, extras, authority, provider, syncResult,
-              username, password, prefsPath, serverURL, keyBundle);
+              username, password, serverURL, keyBundle);
         } catch (Exception e) {
           self.handleException(e, syncResult);
           return;
         }
       }
     };
-
-    final Handler handler = null;
-    final Runnable fetchAuthToken = new Runnable() {
-      @Override
-      public void run() {
-        getAuthToken(account, callback, handler);
-      }
-    };
+    Handler handler = null;
+    getAuthToken(account, callback, handler);
     synchronized (syncMonitor) {
-      // Perform the work in a new thread from within this synchronized block,
-      // which allows us to be waiting on the monitor before the callback can
-      // notify us in a failure case. Oh, concurrent programming.
-      new Thread(fetchAuthToken).start();
-
-      Log.i(LOG_TAG, "Waiting on sync monitor.");
       try {
+        Log.i(LOG_TAG, "Waiting on sync monitor.");
         syncMonitor.wait();
       } catch (InterruptedException e) {
         Log.i(LOG_TAG, "Waiting on sync monitor interrupted.", e);
@@ -311,7 +200,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
 
   /**
    * Now that we have a sync key and password, go ahead and do the work.
-   * @param prefsPath TODO
    * @throws NoSuchAlgorithmException
    * @throws IllegalArgumentException
    * @throws SyncConfigurationException
@@ -324,8 +212,8 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
                              ContentProviderClient provider,
                              SyncResult syncResult,
                              String username, String password,
-                             String prefsPath,
-                             String serverURL, KeyBundle keyBundle)
+                             String serverURL,
+                             KeyBundle keyBundle)
                                  throws NoSuchAlgorithmException,
                                         SyncConfigurationException,
                                         IllegalArgumentException,
@@ -336,8 +224,8 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
     this.syncResult = syncResult;
     // TODO: default serverURL.
     GlobalSession globalSession = new GlobalSession(SyncConfiguration.DEFAULT_USER_API,
-                                                    serverURL, username, password, prefsPath,
-                                                    keyBundle, this, this.mContext, extras);
+                                                    serverURL, username, password, keyBundle,
+                                                    this, this.mContext, null);
 
     globalSession.start();
 
@@ -346,22 +234,15 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   private void notifyMonitor() {
     synchronized (syncMonitor) {
       Log.i(LOG_TAG, "Notifying sync monitor.");
-      syncMonitor.notifyAll();
+      syncMonitor.notify();
     }
   }
 
   // Implementing GlobalSession callbacks.
   @Override
   public void handleError(GlobalSession globalSession, Exception ex) {
-    Log.i(LOG_TAG, "GlobalSession indicated error. Flagging auth token as invalid, just in case.");
-    setShouldInvalidateAuthToken();
+    Log.i(LOG_TAG, "GlobalSession indicated error.");
     this.updateStats(globalSession, ex);
-    notifyMonitor();
-  }
-
-  @Override
-  public void handleAborted(GlobalSession globalSession, String reason) {
-    Log.w(LOG_TAG, "Sync aborted: " + reason);
     notifyMonitor();
   }
 
@@ -384,8 +265,6 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
   @Override
   public void handleSuccess(GlobalSession globalSession) {
     Log.i(LOG_TAG, "GlobalSession indicated success.");
-    Log.i(LOG_TAG, "Prefs target: " + globalSession.config.prefsPath);
-    globalSession.config.persistToPrefs();
     notifyMonitor();
   }
 
@@ -394,11 +273,82 @@ public class SyncAdapter extends AbstractThreadedSyncAdapter implements GlobalSe
                                    GlobalSession globalSession) {
     Log.i(LOG_TAG, "Stage completed: " + currentState);
   }
-
-  @Override
-  public void requestBackoff(long backoff) {
-    if (backoff > 0) {
-      this.extendEarliestNextSync(System.currentTimeMillis() + backoff);
-    }
-  }
 }
+
+//        try {
+//            // see if we already have a sync-state attached to this account. By handing
+//            // This value to the server, we can just get the contacts that have
+//            // been updated on the server-side since our last sync-up
+//            long lastSyncMarker = getServerSyncMarker(account);
+//
+//            // By default, contacts from a 3rd party provider are hidden in the contacts
+//            // list. So let's set the flag that causes them to be visible, so that users
+//            // can actually see these contacts.
+//            if (lastSyncMarker == 0) {
+//                ContactManager.setAccountContactsVisibility(getContext(), account, true);
+//            }
+//
+//            List<RawContact> dirtyContacts;
+//            List<RawContact> updatedContacts;
+//
+//            // Use the account manager to request the AuthToken we'll need
+//            // to talk to our sample server.  If we don't have an AuthToken
+//            // yet, this could involve a round-trip to the server to request
+//            // and AuthToken.
+//            final String authtoken = mAccountManager.blockingGetAuthToken(account,
+//                    Constants.AUTHTOKEN_TYPE, NOTIFY_AUTH_FAILURE);
+//
+//            // Make sure that the sample group exists
+//            final long groupId = ContactManager.ensureSampleGroupExists(mContext, account);
+//
+//            // Find the local 'dirty' contacts that we need to tell the server about...
+//            // Find the local users that need to be sync'd to the server...
+//            dirtyContacts = ContactManager.getDirtyContacts(mContext, account);
+//
+//            // Send the dirty contacts to the server, and retrieve the server-side changes
+//            updatedContacts = NetworkUtilities.syncContacts(account, authtoken,
+//                    lastSyncMarker, dirtyContacts);
+//
+//            // Update the local contacts database with the changes. updateContacts()
+//            // returns a syncState value that indicates the high-water-mark for
+//            // the changes we received.
+//            Log.d(TAG, "Calling contactManager's sync contacts");
+//            long newSyncState = ContactManager.updateContacts(mContext,
+//                    account.name,
+//                    updatedContacts,
+//                    groupId,
+//                    lastSyncMarker);
+//
+//            // This is a demo of how you can update IM-style status messages
+//            // for contacts on the client. This probably won't apply to
+//            // 2-way contact sync providers - it's more likely that one-way
+//            // sync providers (IM clients, social networking apps, etc) would
+//            // use this feature.
+//            ContactManager.updateStatusMessages(mContext, updatedContacts);
+//
+//            // Save off the new sync marker. On our next sync, we only want to receive
+//            // contacts that have changed since this sync...
+//            setServerSyncMarker(account, newSyncState);
+//
+//            if (dirtyContacts.size() > 0) {
+//                ContactManager.clearSyncFlags(mContext, dirtyContacts);
+//            }
+//
+//        } catch (final AuthenticatorException e) {
+//            Log.e(TAG, "AuthenticatorException", e);
+//            syncResult.stats.numParseExceptions++;
+//        } catch (final OperationCanceledException e) {
+//            Log.e(TAG, "OperationCanceledExcetpion", e);
+//        } catch (final IOException e) {
+//            Log.e(TAG, "IOException", e);
+//            syncResult.stats.numIoExceptions++;
+//        } catch (final AuthenticationException e) {
+//            Log.e(TAG, "AuthenticationException", e);
+//            syncResult.stats.numAuthExceptions++;
+//        } catch (final ParseException e) {
+//            Log.e(TAG, "ParseException", e);
+//            syncResult.stats.numParseExceptions++;
+//        } catch (final JSONException e) {
+//            Log.e(TAG, "JSONException", e);
+//            syncResult.stats.numParseExceptions++;
+//        }

@@ -44,6 +44,7 @@
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "prlog.h"
+#include "nsThreadUtilsInternal.h"
 #include "nsIObserverService.h"
 #include "mozilla/HangMonitor.h"
 #include "mozilla/Services.h"
@@ -79,6 +80,8 @@ static PRLogModuleInfo *sLog = PR_NewLogModule("nsThread");
 #define LOG(args) PR_LOG(sLog, PR_LOG_DEBUG, args)
 
 NS_DECL_CI_INTERFACE_GETTER(nsThread)
+
+nsIThreadObserver* nsThread::sGlobalObserver;
 
 namespace mozilla {
 
@@ -503,11 +506,6 @@ nsThread::Shutdown()
   PR_JoinThread(mThread);
   mThread = nsnull;
 
-  // We hold strong references to our event observers, and once the thread is
-  // shut down the observers can't easily unregister themselves. Do it here
-  // to avoid leaking.
-  ClearObservers();
-
 #ifdef DEBUG
   {
     MutexAutoLock lock(mLock);
@@ -614,6 +612,11 @@ nsThread::ProcessNextEvent(bool mayWait, bool *result)
     }
   }
 
+  bool notifyGlobalObserver = (sGlobalObserver != nsnull);
+  if (notifyGlobalObserver) 
+    sGlobalObserver->OnProcessNextEvent(this, mayWait && !ShuttingDown(),
+                                        mRunningEvent);
+
   nsCOMPtr<nsIThreadObserver> obs = mObserver;
   if (obs)
     obs->OnProcessNextEvent(this, mayWait && !ShuttingDown(), mRunningEvent);
@@ -668,6 +671,9 @@ nsThread::ProcessNextEvent(bool mayWait, bool *result)
 
   if (obs)
     obs->AfterProcessNextEvent(this, mRunningEvent);
+
+  if (notifyGlobalObserver && sGlobalObserver)
+    sGlobalObserver->AfterProcessNextEvent(this, mRunningEvent);
 
   return rv;
 }
@@ -831,5 +837,20 @@ nsThreadSyncDispatch::Run()
     // unblock the origin thread
     mOrigin->Dispatch(this, NS_DISPATCH_NORMAL);
   }
+  return NS_OK;
+}
+
+nsresult
+NS_SetGlobalThreadObserver(nsIThreadObserver* aObserver)
+{
+  if (aObserver && nsThread::sGlobalObserver) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  if (!NS_IsMainThread()) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
+  nsThread::sGlobalObserver = aObserver;
   return NS_OK;
 }

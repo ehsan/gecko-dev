@@ -4064,11 +4064,8 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         pushed[0].addType(cx, Type::UnknownType());
         break;
 
-      case JSOP_CALLXMLNAME:
-        pushed[1].addType(cx, Type::UnknownType());
-        /* FALLTHROUGH */
-
       case JSOP_XMLNAME:
+      case JSOP_CALLXMLNAME:
         pushed[0].addType(cx, Type::UnknownType());
         break;
 

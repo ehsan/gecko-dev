@@ -1310,6 +1310,9 @@ struct WrapperHasher
 
 typedef HashMap<Value, Value, WrapperHasher, SystemAllocPolicy> WrapperMap;
 
+class AutoValueVector;
+class AutoIdVector;
+
 } /* namespace js */
 
 #ifdef DEBUG

@@ -88,23 +88,6 @@ class Repatcher : public JSC::RepatchBuffer
          */
         CheckIsStubCall(call.labelAtOffset(0));
         JSC::RepatchBuffer::relink(call.callAtOffset(-4), stub);
-#elif defined JS_CPU_MIPS
-        /*
-         * Stub calls on MIPS look like this:
-         *
-         *                  lui     v0, hi(stub)
-         *                  ori     v0, v0, lo(stub)
-         *                  lui     t9, hi(JaegerStubVeneer)
-         *                  ori     t9, t9, lo(JaegerStubVeneer)
-         *                  jalr    t9
-         *                  nop
-         * call label ->    xxx
-         *
-         * MIPS has to run stub calls through a veneer in order for THROW to
-         * work properly. The address that must be patched is the load into
-         * 'v0', not the load into 't9'.
-         */
-        JSC::RepatchBuffer::relink(call.callAtOffset(-8), stub);
 #else
 # error
 #endif
@@ -112,7 +95,7 @@ class Repatcher : public JSC::RepatchBuffer
 
     /* Patch the offset of a Value load emitted by loadValueWithAddressOffsetPatch. */
     void patchAddressOffsetForValueLoad(CodeLocationLabel label, uint32_t offset) {
-#if defined JS_CPU_X64 || defined JS_CPU_ARM || defined JS_CPU_SPARC || defined JS_CPU_MIPS 
+#if defined JS_CPU_X64 || defined JS_CPU_ARM || defined JS_CPU_SPARC
         repatch(label.dataLabel32AtOffset(0), offset);
 #elif defined JS_CPU_X86
         static const unsigned LOAD_TYPE_OFFSET = 6;
@@ -132,7 +115,7 @@ class Repatcher : public JSC::RepatchBuffer
     }
 
     void patchAddressOffsetForValueStore(CodeLocationLabel label, uint32_t offset, bool typeConst) {
-#if defined JS_CPU_ARM || defined JS_CPU_X64 || defined JS_CPU_SPARC || defined JS_CPU_MIPS
+#if defined JS_CPU_ARM || defined JS_CPU_X64 || defined JS_CPU_SPARC
         (void) typeConst;
         repatch(label.dataLabel32AtOffset(0), offset);
 #elif defined JS_CPU_X86
