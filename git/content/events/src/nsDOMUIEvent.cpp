@@ -158,10 +158,6 @@ nsDOMUIEvent::InitUIEvent(const nsAString& typeArg,
                           nsIDOMWindow* viewArg,
                           int32_t detailArg)
 {
-  if (viewArg) {
-    nsCOMPtr<nsPIDOMWindow> view = do_QueryInterface(viewArg);
-    NS_ENSURE_TRUE(view, NS_ERROR_INVALID_ARG);
-  }
   nsresult rv = nsDOMEvent::InitEvent(typeArg, canBubbleArg, cancelableArg);
   NS_ENSURE_SUCCESS(rv, rv);
   
