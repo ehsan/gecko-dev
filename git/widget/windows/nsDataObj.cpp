@@ -29,9 +29,6 @@
 #include "nsITimer.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Preferences.h"
-#include "nsIContentPolicy.h"
-#include "nsContentUtils.h"
-#include "nsINode.h"
 
 #include "WinUtils.h"
 #include "mozilla/LazyIdleThread.h"
@@ -61,24 +58,12 @@ nsDataObj::CStream::~CStream()
 
 //-----------------------------------------------------------------------------
 // helper - initializes the stream
-nsresult nsDataObj::CStream::Init(nsIURI *pSourceURI,
-                                  nsINode* aRequestingNode)
+nsresult nsDataObj::CStream::Init(nsIURI *pSourceURI)
 {
-  // we can not create a channel without a requestingNode
-  if (!aRequestingNode) {
-    return NS_ERROR_FAILURE;
-  }
   nsresult rv;
-  rv = NS_NewChannel(getter_AddRefs(mChannel),
-                     pSourceURI,
-                     aRequestingNode,
-                     nsILoadInfo::SEC_NORMAL,
-                     nsIContentPolicy::TYPE_OTHER,
-                     nullptr,   // aChannelPolicy
-                     nullptr,   // loadGroup
-                     nullptr,   // aCallbacks
+  rv = NS_NewChannel(getter_AddRefs(mChannel), pSourceURI,
+                     nullptr, nullptr, nullptr,
                      nsIRequest::LOAD_FROM_CACHE);
-
   NS_ENSURE_SUCCESS(rv, rv);
   rv = mChannel->AsyncOpen(this, nullptr);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -339,13 +324,7 @@ HRESULT nsDataObj::CreateStream(IStream **outStream)
 
   pStream->AddRef();
 
-  // query the requestingNode from the transferable and add it to the new channel
-  nsCOMPtr<nsIDOMNode> requestingDomNode;
-  mTransferable->GetRequestingNode(getter_AddRefs(requestingDomNode));
-  nsCOMPtr<nsINode> requestingNode = do_QueryInterface(requestingDomNode);
-  MOZ_ASSERT(requestingNode, "can not create channel without a node");
-
-  rv = pStream->Init(sourceURI, requestingNode);
+  rv = pStream->Init(sourceURI);
   if (NS_FAILED(rv))
   {
     pStream->Release();

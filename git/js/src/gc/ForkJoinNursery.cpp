@@ -361,8 +361,8 @@ ForkJoinNursery::shouldMoveObject(void **thingp)
     // The main reason for that restriction is so that we can call a
     // method here that can check the chunk trailer for the cell (a
     // future optimization).
-    Cell **cellp = reinterpret_cast<Cell **>(thingp);
-    return isInsideFromspace(*cellp) && !getForwardedPointer(cellp);
+    Cell *cell = static_cast<Cell *>(*thingp);
+    return isInsideFromspace(cell) && !getForwardedPointer(thingp);
 }
 
 /* static */ void
@@ -791,7 +791,7 @@ ForkJoinNursery::moveObjectToTospace(JSObject *src)
 
     movedSize_ += copyObjectToTospace(dst, src, dstKind);
 
-    RelocationOverlay *overlay = RelocationOverlay::fromCell(src);
+    RelocationOverlay *overlay = reinterpret_cast<RelocationOverlay *>(src);
     overlay->forwardTo(dst);
     insertIntoFixupList(overlay);
 

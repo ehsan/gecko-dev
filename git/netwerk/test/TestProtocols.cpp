@@ -52,7 +52,6 @@
 #include "nsChannelProperties.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/unused.h"
-#include "nsIScriptSecurityManager.h"
 
 #include "nsISimpleEnumerator.h"
 #include "nsStringAPI.h"
@@ -631,25 +630,10 @@ nsresult StartLoadingURL(const char* aUrlString)
         }
         NS_ADDREF(callbacks);
 
-        nsCOMPtr<nsIScriptSecurityManager> secman =
-          do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID, &rv);
-        NS_ENSURE_SUCCESS(rv, rv);
-           nsCOMPtr<nsIPrincipal> systemPrincipal;
-        rv = secman->GetSystemPrincipal(getter_AddRefs(systemPrincipal));
-        NS_ENSURE_SUCCESS(rv, rv);
-
         // Async reading thru the calls of the event sink interface
-        rv = NS_NewChannel(getter_AddRefs(pChannel),
-                           pURL,
-                           systemPrincipal,
-                           nsILoadInfo::SEC_NORMAL,
-                           nsIContentPolicy::TYPE_OTHER,
-                           nullptr,  // aChannelPolicy
-                           nullptr,  // loadGroup
-                           callbacks,
-                           nsIRequest::LOAD_NORMAL,
-                           pService);
-
+        rv = NS_NewChannel(getter_AddRefs(pChannel), pURL, pService,
+                           nullptr,     // loadGroup
+                           callbacks); // notificationCallbacks
         NS_RELEASE(callbacks);
         if (NS_FAILED(rv)) {
             LOG(("ERROR: NS_OpenURI failed for %s [rv=%x]\n", aUrlString, rv));

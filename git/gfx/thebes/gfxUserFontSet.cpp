@@ -1054,11 +1054,7 @@ gfxUserFontSet::UserFontCache::GetFont(nsIURI* aSrcURI,
     }
 
     nsCOMPtr<nsIChannel> chan;
-    if (NS_FAILED(NS_NewChannel(getter_AddRefs(chan),
-                                aSrcURI,
-                                aPrincipal,
-                                nsILoadInfo::SEC_NORMAL,
-                                nsIContentPolicy::TYPE_OTHER))) {
+    if (NS_FAILED(NS_NewChannel(getter_AddRefs(chan), aSrcURI))) {
         return nullptr;
     }
 

@@ -1072,14 +1072,13 @@ Navigator::SendBeacon(const nsAString& aUrl,
     channelPolicy->SetContentSecurityPolicy(csp);
     channelPolicy->SetLoadType(nsIContentPolicy::TYPE_BEACON);
   }
-
   rv = NS_NewChannel(getter_AddRefs(channel),
                      uri,
-                     doc,
-                     nsILoadInfo::SEC_NORMAL,
-                     nsIContentPolicy::TYPE_BEACON,
+                     nullptr,
+                     nullptr,
+                     nullptr,
+                     nsIRequest::LOAD_NORMAL,
                      channelPolicy);
-
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return false;

@@ -17,7 +17,6 @@
 #include "mozilla/ipc/InputStreamUtils.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "SerializedLoadContext.h"
-#include "mozilla/ipc/BackgroundUtils.h"
 
 using namespace mozilla::ipc;
 
@@ -144,30 +143,6 @@ FTPChannelChild::GetUploadStream(nsIInputStream** stream)
 
 //-----------------------------------------------------------------------------
 
-// helper function to assign loadInfo to openArgs
-void
-propagateLoadInfo(nsILoadInfo *aLoadInfo,
-                  FTPChannelOpenArgs& openArgs)
-{
-  mozilla::ipc::PrincipalInfo principalInfo;
-
-  if (aLoadInfo) {
-    mozilla::ipc::PrincipalToPrincipalInfo(aLoadInfo->LoadingPrincipal(),
-                                           &principalInfo);
-    openArgs.requestingPrincipalInfo() = principalInfo;
-    openArgs.securityFlags() = aLoadInfo->GetSecurityFlags();
-    openArgs.contentPolicyType() = aLoadInfo->GetContentPolicyType();
-    return;
-  }
-
-  // use default values if no loadInfo is provided
-  mozilla::ipc::PrincipalToPrincipalInfo(nsContentUtils::GetSystemPrincipal(),
-                                         &principalInfo);
-  openArgs.requestingPrincipalInfo() = principalInfo;
-  openArgs.securityFlags() = nsILoadInfo::SEC_NORMAL;
-  openArgs.contentPolicyType() = nsIContentPolicy::TYPE_OTHER;
-}
-
 NS_IMETHODIMP
 FTPChannelChild::AsyncOpen(::nsIStreamListener* listener, nsISupports* aContext)
 {
@@ -218,10 +193,6 @@ FTPChannelChild::AsyncOpen(::nsIStreamListener* listener, nsISupports* aContext)
   openArgs.startPos() = mStartPos;
   openArgs.entityID() = mEntityID;
   openArgs.uploadStream() = uploadStream;
-
-  nsCOMPtr<nsILoadInfo> loadInfo;
-  GetLoadInfo(getter_AddRefs(loadInfo));
-  propagateLoadInfo(loadInfo, openArgs);
 
   gNeckoChild->
     SendPFTPChannelConstructor(this, tabChild, IPC::SerializedLoadContext(this),

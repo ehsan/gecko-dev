@@ -29,7 +29,6 @@
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
 #include "mozilla/unused.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla::scache;
 using namespace JS;
@@ -107,18 +106,8 @@ mozJSSubScriptLoader::ReadScript(nsIURI *uri, JSContext *cx, JSObject *targetObj
     // SetContentType, to avoid expensive MIME type lookups (bug 632490).
     nsCOMPtr<nsIChannel> chan;
     nsCOMPtr<nsIInputStream> instream;
-    nsresult rv;
-    rv = NS_NewChannel(getter_AddRefs(chan),
-                       uri,
-                       nsContentUtils::GetSystemPrincipal(),
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER,
-                       nullptr,  // aChannelPolicy
-                       nullptr,  // aLoadGroup
-                       nullptr,  // aCallbacks
-                       nsIRequest::LOAD_NORMAL,
-                       serv);
-
+    nsresult rv = NS_NewChannel(getter_AddRefs(chan), uri, serv,
+                                nullptr, nullptr, nsIRequest::LOAD_NORMAL);
     if (NS_SUCCEEDED(rv)) {
         chan->SetContentType(NS_LITERAL_CSTRING("application/javascript"));
         rv = chan->Open(getter_AddRefs(instream));
@@ -567,11 +556,8 @@ mozJSSubScriptLoader::PrecompileScript(nsIURI* aURI,
 {
     nsCOMPtr<nsIChannel> channel;
     nsresult rv = NS_NewChannel(getter_AddRefs(channel),
-                                aURI,
-                                nsContentUtils::GetSystemPrincipal(),
-                                nsILoadInfo::SEC_NORMAL,
-                                nsIContentPolicy::TYPE_OTHER);
-
+                                aURI, nullptr, nullptr, nullptr,
+                                nsIRequest::LOAD_NORMAL, nullptr);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsRefPtr<ScriptPrecompiler> loadObserver =

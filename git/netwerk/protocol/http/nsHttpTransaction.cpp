@@ -88,7 +88,7 @@ LogHeaders(const char *lineStart)
 //-----------------------------------------------------------------------------
 
 nsHttpTransaction::nsHttpTransaction()
-    : mLock("transaction lock")
+    : mCallbacksLock("transaction mCallbacks lock")
     , mRequestSize(0)
     , mConnection(nullptr)
     , mConnInfo(nullptr)
@@ -379,19 +379,10 @@ nsHttpTransaction::Init(uint32_t caps,
     return NS_OK;
 }
 
-// This method should only be used on the socket thread
 nsAHttpConnection *
 nsHttpTransaction::Connection()
 {
     return mConnection;
-}
-
-already_AddRefed<nsAHttpConnection>
-nsHttpTransaction::GetConnectionReference()
-{
-    MutexAutoLock lock(mLock);
-    nsRefPtr<nsAHttpConnection> connection = mConnection;
-    return connection.forget();
 }
 
 nsHttpResponseHead *
@@ -457,11 +448,8 @@ nsHttpTransaction::TakeSubTransactions(
 void
 nsHttpTransaction::SetConnection(nsAHttpConnection *conn)
 {
-    {
-        MutexAutoLock lock(mLock);
-        NS_IF_RELEASE(mConnection);
-        NS_IF_ADDREF(mConnection = conn);
-    }
+    NS_IF_RELEASE(mConnection);
+    NS_IF_ADDREF(mConnection = conn);
 
     if (conn) {
         MOZ_EVENT_TRACER_EXEC(static_cast<nsAHttpTransaction*>(this),
@@ -472,7 +460,7 @@ nsHttpTransaction::SetConnection(nsAHttpConnection *conn)
 void
 nsHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor **cb)
 {
-    MutexAutoLock lock(mLock);
+    MutexAutoLock lock(mCallbacksLock);
     NS_IF_ADDREF(*cb = mCallbacks);
 }
 
@@ -480,7 +468,7 @@ void
 nsHttpTransaction::SetSecurityCallbacks(nsIInterfaceRequestor* aCallbacks)
 {
     {
-        MutexAutoLock lock(mLock);
+        MutexAutoLock lock(mCallbacksLock);
         mCallbacks = aCallbacks;
     }
 
@@ -934,10 +922,8 @@ nsHttpTransaction::Close(nsresult reason)
         mTimings.responseEnd.IsNull() && !mTimings.responseStart.IsNull())
         mTimings.responseEnd = TimeStamp::Now();
 
-    if (relConn && mConnection) {
-        MutexAutoLock lock(mLock);
+    if (relConn && mConnection)
         NS_RELEASE(mConnection);
-    }
 
     // save network statistics in the end of transaction
     SaveNetworkStats(true);
@@ -1100,7 +1086,6 @@ nsHttpTransaction::Restart()
     mSecurityInfo = 0;
     if (mConnection) {
         mConnection->DontReuse();
-        MutexAutoLock lock(mLock);
         NS_RELEASE(mConnection);
     }
 

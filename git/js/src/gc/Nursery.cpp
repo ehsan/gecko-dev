@@ -563,7 +563,7 @@ js::Nursery::moveToTenured(MinorCollectionTracer *trc, JSObject *src)
 
     trc->tenuredSize += moveObjectToTenured(dst, src, dstKind);
 
-    RelocationOverlay *overlay = RelocationOverlay::fromCell(src);
+    RelocationOverlay *overlay = reinterpret_cast<RelocationOverlay *>(src);
     overlay->forwardTo(dst);
     trc->insertIntoFixupList(overlay);
 

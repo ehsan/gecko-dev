@@ -94,8 +94,6 @@
 #include "nsIChannelEventSink.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsNetUtil.h"
-#include "nsIContentPolicy.h"
-#include "nsContentUtils.h"
 
 #include "rdfIDataSource.h"
 
@@ -485,12 +483,7 @@ RDFXMLDataSourceImpl::BlockingParse(nsIURI* aURL, nsIStreamListener* aConsumer)
     nsCOMPtr<nsIRequest> request;
 
     // Null LoadGroup ?
-    rv = NS_NewChannel(getter_AddRefs(channel),
-                       aURL,
-                       nsContentUtils::GetSystemPrincipal(),
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
-
+    rv = NS_NewChannel(getter_AddRefs(channel), aURL, nullptr);
     if (NS_FAILED(rv)) return rv;
     nsCOMPtr<nsIInputStream> in;
     rv = channel->Open(getter_AddRefs(in));
@@ -955,15 +948,7 @@ RDFXMLDataSourceImpl::Refresh(bool aBlocking)
     }
     else {
         // Null LoadGroup ?
-        rv = NS_OpenURI(this,
-                        nullptr,   // aContext
-                        mURL,
-                        nsContentUtils::GetSystemPrincipal(),
-                        nsILoadInfo::SEC_NORMAL,
-                        nsIContentPolicy::TYPE_OTHER,
-                        nullptr, // aLoadGroup
-                        this);   // aCallbacks
-
+        rv = NS_OpenURI(this, nullptr, mURL, nullptr, nullptr, this);
         if (NS_FAILED(rv)) return rv;
 
         // So we don't try to issue two asynchronous loads at once.

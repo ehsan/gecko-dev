@@ -11,7 +11,6 @@
 
 #include "nsIPersistentProperties2.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 #include "nsCRT.h"
 
 // operator dictionary entry
@@ -222,12 +221,8 @@ InitOperators(void)
   // Load the property file containing the Operator Dictionary
   nsresult rv;
   nsCOMPtr<nsIPersistentProperties> mathfontProp;
-  rv = NS_LoadPersistentPropertiesFromURISpec(
-         getter_AddRefs(mathfontProp),
-         NS_LITERAL_CSTRING("resource://gre/res/fonts/mathfont.properties"),
-         nsContentUtils::GetSystemPrincipal(),
-         nsIContentPolicy::TYPE_OTHER);
-
+  rv = NS_LoadPersistentPropertiesFromURISpec(getter_AddRefs(mathfontProp),
+       NS_LITERAL_CSTRING("resource://gre/res/fonts/mathfont.properties"));
   if (NS_FAILED(rv)) return rv;
 
   // Parse the Operator Dictionary in two passes.

@@ -15,8 +15,6 @@
 #include "nsNetUtil.h"
 #include "nsProxyRelease.h"
 #include "nsAutoPtr.h"
-#include "nsIContentPolicy.h"
-#include "nsContentUtils.h"
 
 #include "nsIFileURL.h"
 #include "nsIMIMEService.h"
@@ -338,12 +336,7 @@ nsFileChannel::OpenContentStream(bool async, nsIInputStream **result,
   rv = fileHandler->ReadURLFile(file, getter_AddRefs(newURI));
   if (NS_SUCCEEDED(rv)) {
     nsCOMPtr<nsIChannel> newChannel;
-    rv = NS_NewChannel(getter_AddRefs(newChannel),
-                       newURI,
-                       nsContentUtils::GetSystemPrincipal(),
-                       nsILoadInfo::SEC_NORMAL,
-                       nsIContentPolicy::TYPE_OTHER);
-
+    rv = NS_NewChannel(getter_AddRefs(newChannel), newURI);
     if (NS_FAILED(rv))
       return rv;
 

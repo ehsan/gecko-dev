@@ -96,10 +96,6 @@ public:
     // will drop any reference to the response headers after this call.
     nsHttpResponseHead *TakeResponseHead();
 
-    // Provides a thread safe reference of the connection
-    // nsHttpTransaction::Connection should only be used on the socket thread
-    already_AddRefed<nsAHttpConnection> GetConnectionReference();
-
     // Called to find out if the transaction generated a complete response.
     bool ResponseIsComplete() { return mResponseIsComplete; }
 
@@ -185,7 +181,7 @@ private:
         nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
     };
 
-    Mutex mLock;
+    Mutex mCallbacksLock;
 
     nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
     nsCOMPtr<nsITransportEventSink> mTransportSink;

@@ -18,7 +18,6 @@
 #include "nsIObserverService.h"
 #include "nsIObserver.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 
 #include "mozilla/LookAndFeel.h"
 #include "nsCSSRendering.h"
@@ -151,10 +150,8 @@ LoadProperties(const nsString& aName,
   uriStr.Append(aName);
   uriStr.StripWhitespace(); // that may come from aName
   uriStr.AppendLiteral(".properties");
-  return NS_LoadPersistentPropertiesFromURISpec(getter_AddRefs(aProperties),
-                                                NS_ConvertUTF16toUTF8(uriStr),
-                                                nsContentUtils::GetSystemPrincipal(),
-                                                nsIContentPolicy::TYPE_OTHER);
+  return NS_LoadPersistentPropertiesFromURISpec(getter_AddRefs(aProperties), 
+                                                NS_ConvertUTF16toUTF8(uriStr));
 }
 
 class nsPropertiesTable MOZ_FINAL : public nsGlyphTable {

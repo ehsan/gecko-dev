@@ -442,11 +442,7 @@ var DebuggerServer = {
       });
     }
 
-    this.registerModule("devtools/server/actors/webapps", {
-      prefix: "webapps",
-      constructor: "WebappsActor",
-      type: { global: true }
-    });
+    this.addActors("resource://gre/modules/devtools/server/actors/webapps.js");
     this.registerModule("devtools/server/actors/device", {
       prefix: "device",
       constructor: "DeviceActor",

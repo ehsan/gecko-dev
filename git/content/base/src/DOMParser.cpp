@@ -245,10 +245,8 @@ DOMParser::ParseFromStream(nsIInputStream *stream,
 
   // More principal-faking here
   nsCOMPtr<nsILoadInfo> loadInfo =
-    new LoadInfo(mOriginalPrincipal,
-                 nullptr,
-                 nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL,
-                 nsIContentPolicy::TYPE_OTHER);
+    new LoadInfo(mOriginalPrincipal, LoadInfo::eInheritPrincipal,
+                 LoadInfo::eNotSandboxed);
   parserChannel->SetLoadInfo(loadInfo);
 
   if (charset) {

@@ -310,12 +310,7 @@ nsSyncLoadService::LoadDocument(nsIURI *aURI, nsIPrincipal *aLoaderPrincipal,
                                 nsIDOMDocument** aResult)
 {
     nsCOMPtr<nsIChannel> channel;
-    nsresult rv = NS_NewChannel(getter_AddRefs(channel),
-                                aURI,
-                                aLoaderPrincipal,
-                                nsILoadInfo::SEC_NORMAL,
-                                nsIContentPolicy::TYPE_OTHER,
-                                nullptr,   // aChannelPolicy
+    nsresult rv = NS_NewChannel(getter_AddRefs(channel), aURI, nullptr,
                                 aLoadGroup);
     NS_ENSURE_SUCCESS(rv, rv);
 

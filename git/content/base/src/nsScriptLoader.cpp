@@ -319,16 +319,9 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType,
 
   nsCOMPtr<nsIChannel> channel;
   rv = NS_NewChannel(getter_AddRefs(channel),
-                     aRequest->mURI,
-                     mDocument,
-                     nsILoadInfo::SEC_NORMAL,
-                     nsIContentPolicy::TYPE_SCRIPT,
-                     channelPolicy,
-                     loadGroup,
-                     prompter,
-                     nsIRequest::LOAD_NORMAL |
-                     nsIChannel::LOAD_CLASSIFY_URI);
-
+                     aRequest->mURI, nullptr, loadGroup, prompter,
+                     nsIRequest::LOAD_NORMAL | nsIChannel::LOAD_CLASSIFY_URI,
+                     channelPolicy);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsIScriptElement *script = aRequest->mElement;

@@ -30,7 +30,6 @@
 #include "nsILoadGroup.h"
 #include "nsILoadContext.h"
 #include "nsIConsoleService.h"
-#include "nsIDOMNode.h"
 #include "nsIDOMWindowUtils.h"
 #include "nsIDOMWindow.h"
 #include <algorithm>
@@ -1131,32 +1130,9 @@ NS_StartCORSPreflight(nsIChannel* aRequestChannel,
   rv = aRequestChannel->GetLoadFlags(&loadFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsCOMPtr<nsILoadInfo> loadInfo;
-  rv = aRequestChannel->GetLoadInfo(getter_AddRefs(loadInfo));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   nsCOMPtr<nsIChannel> preflightChannel;
-  if (loadInfo) {
-    rv = NS_NewChannelInternal(getter_AddRefs(preflightChannel),
-                               uri,
-                               loadInfo,
-                               nullptr,   // aChannelPolicy
-                               loadGroup,
-                               nullptr,   // aCallbacks
-                               loadFlags);
-  }
-  else {
-    rv = NS_NewChannelInternal(getter_AddRefs(preflightChannel),
-                               uri,
-                               nullptr, // aRequestingNode,
-                               nsContentUtils::GetSystemPrincipal(),
-                               nsILoadInfo::SEC_NORMAL,
-                               nsIContentPolicy::TYPE_OTHER,
-                               nullptr,   // aChannelPolicy
-                               loadGroup,
-                               nullptr,   // aCallbacks
-                               loadFlags);
-  }
+  rv = NS_NewChannel(getter_AddRefs(preflightChannel), uri, nullptr,
+                     loadGroup, nullptr, loadFlags);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIHttpChannel> preHttp = do_QueryInterface(preflightChannel);

@@ -845,12 +845,12 @@ add_task(function test_direct() {
 add_task(function* test_cloneStorageConnection() {
   let file = new FileUtils.File(OS.Path.join(OS.Constants.Path.profileDir,
                                              "test_cloneStorageConnection.sqlite"));
-  let c = yield new Promise((resolve, reject) => {
+  let c = yield new Promise((success, failure) => {
     Services.storage.openAsyncDatabase(file, null, (status, db) => {
       if (Components.isSuccessCode(status)) {
-        resolve(db.QueryInterface(Ci.mozIStorageAsyncConnection));
+        success(db.QueryInterface(Ci.mozIStorageAsyncConnection));
       } else {
-        reject(new Error(status));
+        failure(new Error(status));
       }
     });
   });
@@ -914,33 +914,6 @@ add_task(function* test_readOnly_clone() {
 });
 
 /**
- * Test Sqlite.wrapStorageConnection.
- */
-add_task(function* test_wrapStorageConnection() {
-  let file = new FileUtils.File(OS.Path.join(OS.Constants.Path.profileDir,
-                                             "test_wrapStorageConnection.sqlite"));
-  let c = yield new Promise((resolve, reject) => {
-    Services.storage.openAsyncDatabase(file, null, (status, db) => {
-      if (Components.isSuccessCode(status)) {
-        resolve(db.QueryInterface(Ci.mozIStorageAsyncConnection));
-      } else {
-        reject(new Error(status));
-      }
-    });
-  });
-
-  let wrapper = yield Sqlite.wrapStorageConnection({ connection: c });
-  // Just check that it works.
-  yield wrapper.execute("SELECT 1");
-  yield wrapper.executeCached("SELECT 1");
-
-  // Closing the wrapper should just finalize statements but not close the
-  // database.
-  yield wrapper.close();
-  yield c.asyncClose();
-});
-
-/**
  * Test finalization
  */
 add_task(function* test_closed_by_witness() {
@@ -948,7 +921,7 @@ add_task(function* test_closed_by_witness() {
   let c = yield getDummyDatabase("closed_by_witness");
 
   Services.obs.notifyObservers(null, "sqlite-finalization-witness",
-                               c._connectionData._identifier);
+                               c._connectionData._connectionIdentifier);
   // Since we triggered finalization ourselves, tell the witness to
   // forget the connection so it does not trigger a finalization again
   c._witness.forget();
@@ -960,7 +933,7 @@ add_task(function* test_closed_by_witness() {
 add_task(function* test_warning_message_on_finalization() {
   failTestsOnAutoClose(false);
   let c = yield getDummyDatabase("warning_message_on_finalization");
-  let identifier = c._connectionData._identifier;
+  let connectionIdentifier = c._connectionData._connectionIdentifier;
   let deferred = Promise.defer();
 
   let listener = {
@@ -968,14 +941,14 @@ add_task(function* test_warning_message_on_finalization() {
       let messageText = msg.message;
       // Make sure the message starts with a warning containing the
       // connection identifier
-      if (messageText.indexOf("Warning: Sqlite connection '" + identifier + "'") !== -1) {
+      if (messageText.indexOf("Warning: Sqlite connection '" + connectionIdentifier + "'") !== -1) {
         deferred.resolve();
       }
     }
   };
   Services.console.registerListener(listener);
 
-  Services.obs.notifyObservers(null, "sqlite-finalization-witness", identifier);
+  Services.obs.notifyObservers(null, "sqlite-finalization-witness", connectionIdentifier);
   // Since we triggered finalization ourselves, tell the witness to
   // forget the connection so it does not trigger a finalization again
   c._witness.forget();

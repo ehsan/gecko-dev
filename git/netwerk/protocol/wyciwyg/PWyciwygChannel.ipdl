@@ -5,7 +5,7 @@
 include protocol PNecko;
 include protocol PBrowser;
 include URIParams;
-include PBackgroundSharedTypes;
+
 
 using class IPC::SerializedLoadContext from "SerializedLoadContext.h";
 
@@ -20,10 +20,7 @@ protocol PWyciwygChannel
 parent:
   __delete__();
 
-  Init(URIParams     uri,
-       PrincipalInfo requestingPrincipalInfo,
-       uint32_t      securityFlags,
-       uint32_t      contentPolicyType);
+  Init(URIParams uri);
   AsyncOpen(URIParams             originalURI,
             uint32_t              loadFlags,
             SerializedLoadContext loadContext,

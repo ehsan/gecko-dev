@@ -98,7 +98,6 @@ public class TabStrip extends ThemedLinearLayout {
                 case UNSELECTED:
                     // We just need to update the style for the unselected tab...
                 case TITLE:
-                case FAVICON:
                 case RECORDING_CHANGE:
                     tabStripView.updateTab(tab);
                     break;

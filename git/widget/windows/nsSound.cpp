@@ -16,7 +16,6 @@
 #include "nsSound.h"
 #include "nsIURL.h"
 #include "nsNetUtil.h"
-#include "nsContentUtils.h"
 #include "nsCRT.h"
 
 #include "prlog.h"
@@ -210,12 +209,8 @@ NS_IMETHODIMP nsSound::Play(nsIURL *aURL)
 #endif
 
   nsCOMPtr<nsIStreamLoader> loader;
-  rv = NS_NewStreamLoader(getter_AddRefs(loader),
-                          aURL,
-                          this, // aObserver
-                          nsContentUtils::GetSystemPrincipal(),
-                          nsILoadInfo::SEC_NORMAL,
-                          nsIContentPolicy::TYPE_OTHER);
+  rv = NS_NewStreamLoader(getter_AddRefs(loader), aURL, this);
+
   return rv;
 }
 
