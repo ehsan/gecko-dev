@@ -100,7 +100,6 @@ function checkPrincipalForIFrame(aFrame, data) {
     data.test = [];
   }
 
-/*
   if (data.test.indexOf('todo-origin') == -1) {
     var origin = data.origin;
     if (navigator.platform.indexOf("Mac") != 1) {
@@ -108,7 +107,6 @@ function checkPrincipalForIFrame(aFrame, data) {
     }
     is(principal.origin, origin, 'the correct URL should have been loaded');
   }
-*/
 
   checkedCount++;
   if (checkedCount == checksTodo) {
