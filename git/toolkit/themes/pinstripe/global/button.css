@@ -57,14 +57,12 @@ button {
 }
 
 .button-text {
-  margin: 0 !important;
-  -moz-margin-start: 3px !important;
-  -moz-margin-end: 2px !important;
+  margin: 0 2px 0 3px !important;
   text-align: center;
 }
 
 .button-icon {
-  -moz-margin-start: 1px;
+  margin-left: 1px;
 }
 
 button[type="default"] {
@@ -74,7 +72,7 @@ button[type="default"] {
 /* .......... disabled state .......... */
 
 button[disabled="true"] {
-  color: GrayText;
+  color: #777777 !important;
 }
 
 /* ::::: menu/menu-button buttons ::::: */

@@ -1646,22 +1646,20 @@ NS_METHOD nsWindow::Show(PRBool bState)
       if (!wasVisible && mWindowType == eWindowType_toplevel) {
         switch (mSizeMode) {
           case nsSizeMode_Maximized :
-#ifdef WINCE
-            ::SetForegroundWindow(mWnd);
-#endif
             ::ShowWindow(mWnd, SW_SHOWMAXIMIZED);
             break;
-#ifndef WINCE
           case nsSizeMode_Minimized :
+#ifndef WINCE
             ::ShowWindow(mWnd, SW_SHOWMINIMIZED);
-            break;
 #endif
+            break;
           default:
             if (CanTakeFocus()) {
+              ::ShowWindow(mWnd, SW_SHOWNORMAL);
+
 #ifdef WINCE
               ::SetForegroundWindow(mWnd);
 #endif
-              ::ShowWindow(mWnd, SW_SHOWNORMAL);
             } else {
               // Place the window behind the foreground window
               // (as long as it is not topmost)
@@ -1773,14 +1771,6 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
   if (aMode == mSizeMode)
     return NS_OK;
 
-#ifdef WINCE
-  // on windows mobile, dialogs and top level windows are full screen
-  // This is partly due to the lack of a GetWindowPlacement.
-  if (mWindowType == eWindowType_dialog || mWindowType == eWindowType_toplevel) {
-    aMode = nsSizeMode_Maximized;
-  }
-#endif
-
   // save the requested state
   rv = nsBaseWidget::SetSizeMode(aMode);
   if (NS_SUCCEEDED(rv) && mIsVisible) {
@@ -1790,8 +1780,8 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
       case nsSizeMode_Maximized :
         mode = SW_MAXIMIZE;
         break;
-#ifndef WINCE
       case nsSizeMode_Minimized :
+#ifndef WINCE
         mode = gTrimOnMinimize ? SW_MINIMIZE : SW_SHOWMINIMIZED;
         if (!gTrimOnMinimize) {
           // Find the next window that is visible and not minimized.
@@ -1812,8 +1802,8 @@ NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode) {
           // forgotten when we use SW_SHOWMINIMIZED.
           ::PlaySoundW(L"Minimize", nsnull, SND_ALIAS | SND_NODEFAULT | SND_ASYNC);
         }
-        break;
 #endif
+        break;
       default :
         mode = SW_RESTORE;
     }
@@ -4961,6 +4951,22 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam, LRESULT 
     break;
 
     case WM_SETTINGCHANGE:
+#ifdef WINCE
+      if (wParam == SPI_SETWORKAREA)
+      {
+        RECT workArea;
+        ::SystemParametersInfo(SPI_GETWORKAREA, 0, &workArea, 0);
+     
+        SetWindowPos(mWnd, 
+                     nsnull, 
+                     workArea.left, 
+                     workArea.top, 
+                     workArea.right, 
+                     workArea.bottom, 
+                     SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+      }
+      else
+#endif
         getWheelInfo = PR_TRUE;
       break;
 
