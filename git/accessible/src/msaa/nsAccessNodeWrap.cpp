@@ -129,8 +129,7 @@ nsAccessNodeWrap::QueryService(REFGUID guidService, REFIID iid, void** ppv)
   }
 
   // Can get to IAccessibleApplication from any node via QS
-  if (guidService == IID_IAccessibleApplication ||
-      (Compatibility::IsJAWS() && iid == IID_IAccessibleApplication)) {
+  if (guidService == IID_IAccessibleApplication) {
     ApplicationAccessible* applicationAcc = ApplicationAcc();
     if (!applicationAcc)
       return E_NOINTERFACE;
