@@ -94,7 +94,7 @@
 #include "nsIStorageStream.h"
 #include "nsIPromptFactory.h"
 #include "nsIWindowWatcher.h"
-#include "nsCommaSeparatedTokenizer.h"
+#include "nsCharSeparatedTokenizer.h"
 #include "nsIConsoleService.h"
 #include "nsIChannelPolicy.h"
 #include "nsChannelPolicy.h"
@@ -382,7 +382,7 @@ nsACProxyListener::AddResultToCache(nsIRequest *aRequest)
   http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Methods"),
                           headerVal);
 
-  nsCCommaSeparatedTokenizer methods(headerVal);
+  nsCCharSeparatedTokenizer methods(headerVal, ',');
   while(methods.hasMoreTokens()) {
     const nsDependentCSubstring& method = methods.nextToken();
     if (method.IsEmpty()) {
@@ -412,7 +412,7 @@ nsACProxyListener::AddResultToCache(nsIRequest *aRequest)
   http->GetResponseHeader(NS_LITERAL_CSTRING("Access-Control-Allow-Headers"),
                           headerVal);
 
-  nsCCommaSeparatedTokenizer headers(headerVal);
+  nsCCharSeparatedTokenizer headers(headerVal, ',');
   while(headers.hasMoreTokens()) {
     const nsDependentCSubstring& header = headers.nextToken();
     if (header.IsEmpty()) {
