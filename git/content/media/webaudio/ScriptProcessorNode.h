@@ -46,6 +46,15 @@ public:
     }
   }
 
+  virtual void Connect(AudioParam& aDestination, uint32_t aOutput,
+                       ErrorResult& aRv) MOZ_OVERRIDE
+  {
+    AudioNode::Connect(aDestination, aOutput, aRv);
+    if (!aRv.Failed()) {
+      mPlayingRef.Take(this);
+    }
+  }
+
   virtual void Disconnect(uint32_t aOutput, ErrorResult& aRv) MOZ_OVERRIDE
   {
     AudioNode::Disconnect(aOutput, aRv);
@@ -73,14 +82,14 @@ public:
 
   void Stop()
   {
-    mPlayingRef.Drop(this);
+    mPlayingRef.ForceDrop(this);
   }
 
 private:
   nsAutoPtr<SharedBuffers> mSharedBuffers;
   const uint32_t mBufferSize;
   const uint32_t mNumberOfOutputChannels;
-  SelfReference<ScriptProcessorNode> mPlayingRef; // a reference to self while planing
+  SelfCountedReference<ScriptProcessorNode> mPlayingRef; // a reference to self while planing
 };
 
 }

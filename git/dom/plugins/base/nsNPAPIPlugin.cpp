@@ -1244,8 +1244,8 @@ _getpluginelement(NPP npp)
                   getter_AddRefs(holder));
   NS_ENSURE_TRUE(holder, nullptr);
 
-  JSObject* obj = nullptr;
-  holder->GetJSObject(&obj);
+  JS::Rooted<JSObject*> obj(cx);
+  holder->GetJSObject(obj.address());
   NS_ENSURE_TRUE(obj, nullptr);
 
   return nsJSObjWrapper::GetNewOrUsed(npp, cx, obj);
@@ -1262,7 +1262,7 @@ _getstringidentifier(const NPUTF8* name)
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_getstringidentifier called from the wrong thread\n"));
   }
 
-  SafeAutoJSContext cx;
+  AutoSafeJSContext cx;
   JSAutoRequest ar(cx);
   return doGetIdentifier(cx, name);
 }
@@ -1275,7 +1275,7 @@ _getstringidentifiers(const NPUTF8** names, int32_t nameCount,
     NPN_PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("NPN_getstringidentifiers called from the wrong thread\n"));
   }
 
-  SafeAutoJSContext cx;
+  AutoSafeJSContext cx;
   JSAutoRequest ar(cx);
 
   for (int32_t i = 0; i < nameCount; ++i) {
@@ -1494,8 +1494,7 @@ _evaluate(NPP npp, NPObject* npobj, NPString *script, NPVariant *result)
 
   JSAutoRequest req(cx);
 
-  JSObject *obj =
-    nsNPObjWrapper::GetNewOrUsed(npp, cx, npobj);
+  JS::Rooted<JSObject*> obj(cx, nsNPObjWrapper::GetNewOrUsed(npp, cx, npobj));
 
   if (!obj) {
     return false;

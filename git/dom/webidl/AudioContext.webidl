@@ -24,8 +24,8 @@ interface AudioContext : EventTarget {
     [Creator, Throws]
     AudioBuffer createBuffer(unsigned long numberOfChannels, unsigned long length, float sampleRate);
 
-    // [Creator, Throws]
-    // AudioBuffer createBuffer(ArrayBuffer buffer, boolean mixToMono);
+    [Creator, Throws]
+    AudioBuffer? createBuffer(ArrayBuffer buffer, boolean mixToMono);
 
     void decodeAudioData(ArrayBuffer audioData,
                          DecodeSuccessCallback successCallback,
@@ -50,6 +50,11 @@ interface AudioContext : EventTarget {
     BiquadFilterNode createBiquadFilter();
     [Creator]
     PannerNode createPanner();
+
+    [Creator, Throws]
+    ChannelSplitterNode createChannelSplitter(optional unsigned long numberOfOutputs = 6);
+    [Creator, Throws]
+    ChannelMergerNode createChannelMerger(optional unsigned long numberOfInputs = 6);
 
     [Creator]
     DynamicsCompressorNode createDynamicsCompressor();

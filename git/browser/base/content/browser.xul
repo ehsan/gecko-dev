@@ -548,6 +548,7 @@
               <image id="plugins-notification-icon" class="notification-anchor-icon" role="button"/>
               <image id="web-notifications-notification-icon" class="notification-anchor-icon" role="button"/>
               <image id="blocked-plugins-notification-icon" class="notification-anchor-icon" role="button"/>
+              <image id="plugin-install-notification-icon" class="notification-anchor-icon" role="button"/>
               <image id="mixed-content-blocked-notification-icon" class="notification-anchor-icon" role="button"/>
               <image id="webRTC-shareDevices-notification-icon" class="notification-anchor-icon" role="button"/>
               <image id="webRTC-sharingDevices-notification-icon" class="notification-anchor-icon" role="button"/>
@@ -645,9 +646,9 @@
                          observes="socialBroadcaster_userDetails"/>
                 </vbox>
               </menuitem>
-  #ifndef XP_WIN
+#ifndef XP_WIN
               <menuseparator class="social-statusarea-separator"/>
-  #endif
+#endif
               <menuitem class="social-toggle-sidebar-menuitem"
                         type="checkbox"
                         autocheck="false"
@@ -672,8 +673,10 @@
           </toolbarbutton>
           <toolbarbutton id="social-mark-button"
                          class="toolbarbutton-1"
+                         hidden="true"
+                         disabled="true"
                          command="Social:TogglePageMark"/>
-        </toolbaritem>
+        </toolbaritem>  
       </hbox>
 
       <toolbaritem id="PanelUI-button"

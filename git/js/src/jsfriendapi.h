@@ -466,17 +466,17 @@ JS_FRIEND_API(void)
 SetFunctionNativeReserved(JSObject *fun, size_t which, const Value &val);
 
 inline bool
-GetObjectProto(JSContext *cx, JSObject *obj, JSObject **proto)
+GetObjectProto(JSContext *cx, JS::Handle<JSObject*> obj, JS::MutableHandle<JSObject*> proto)
 {
     js::Class *clasp = GetObjectClass(obj);
     if (clasp == &js::ObjectProxyClass ||
         clasp == &js::OuterWindowProxyClass ||
         clasp == &js::FunctionProxyClass)
     {
-        return JS_GetPrototype(cx, obj, proto);
+        return JS_GetPrototype(cx, obj, proto.address());
     }
 
-    *proto = reinterpret_cast<const shadow::Object*>(obj)->type->proto;
+    proto.set(reinterpret_cast<const shadow::Object*>(obj.get())->type->proto);
     return true;
 }
 
@@ -855,11 +855,46 @@ NukeCrossCompartmentWrappers(JSContext* cx,
                              NukeReferencesToWindow nukeReferencesToWindow);
 
 /* Specify information about ListBase proxies in the DOM, for use by ICs. */
+
+/*
+ * The ListBaseShadowsCheck function will be called to check if the property for
+ * id should be gotten from the prototype, or if there is an own property that
+ * shadows it.
+ * If DoesntShadow is returned then the slot at listBaseExpandoSlot should
+ * either be undefined or point to an expando object that would contain the own
+ * property.
+ * If DoesntShadowUnique is returned then the slot at listBaseExpandoSlot should
+ * contain a private pointer to a ExpandoAndGeneration, which contains a
+ * JS::Value that should either be undefined or point to an expando object, and
+ * a uint32 value. If that value changes then the IC for getting a property will
+ * be invalidated.
+ */
+
+struct ExpandoAndGeneration {
+  ExpandoAndGeneration()
+    : expando(UndefinedValue()),
+      generation(0)
+  {}
+
+  Value expando;
+  uint32_t generation;
+};
+
+typedef enum ListBaseShadowsResult {
+  ShadowCheckFailed,
+  Shadows,
+  DoesntShadow,
+  DoesntShadowUnique
+} ListBaseShadowsResult;
+typedef ListBaseShadowsResult
+(* ListBaseShadowsCheck)(JSContext* cx, JSHandleObject object, JSHandleId id);
 JS_FRIEND_API(void)
-SetListBaseInformation(void *listBaseHandlerFamily, uint32_t listBaseExpandoSlot);
+SetListBaseInformation(void *listBaseHandlerFamily, uint32_t listBaseExpandoSlot,
+                       ListBaseShadowsCheck listBaseShadowsCheck);
 
 void *GetListBaseHandlerFamily();
 uint32_t GetListBaseExpandoSlot();
+ListBaseShadowsCheck GetListBaseShadowsCheck();
 
 } /* namespace js */
 

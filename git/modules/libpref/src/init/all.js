@@ -151,6 +151,7 @@ pref("media.volume_scale", "1.0");
 
 #ifdef MOZ_WMF
 pref("media.windows-media-foundation.enabled", true);
+pref("media.windows-media-foundation.use-dxva", true);
 #endif
 #ifdef MOZ_RAW
 pref("media.raw.enabled", true);
@@ -3961,6 +3962,8 @@ pref("layers.acceleration.force-enabled", false);
 #endif
 
 pref("layers.acceleration.draw-fps", false);
+
+pref("layers.draw-borders", false);
 
 pref("layers.offmainthreadcomposition.enabled", false);
 // same effect as layers.offmainthreadcomposition.enabled, but specifically for
