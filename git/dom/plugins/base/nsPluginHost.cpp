@@ -336,8 +336,8 @@ nsPluginHost::GetInst()
     NS_ADDREF(sInst);
   }
 
-  nsRefPtr<nsPluginHost> inst = sInst;
-  return inst.forget();
+  NS_ADDREF(sInst);
+  return sInst;
 }
 
 bool nsPluginHost::IsRunningPlugin(nsPluginTag * aPluginTag)

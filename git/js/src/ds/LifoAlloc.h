@@ -307,30 +307,31 @@ class LifoAlloc
         return static_cast<T *>(alloc(sizeof(T) * count));
     }
 
-    class Mark {
-        BumpChunk *chunk;
-        void *markInChunk;
-        friend class LifoAlloc;
-        Mark(BumpChunk *chunk, void *markInChunk) : chunk(chunk), markInChunk(markInChunk) {}
-      public:
-        Mark() : chunk(NULL), markInChunk(NULL) {}
-    };
-
-    Mark mark() {
+    void *mark() {
         markCount++;
-        return latest ? Mark(latest, latest->mark()) : Mark();
+
+        return latest ? latest->mark() : NULL;
     }
 
-    void release(Mark mark) {
+    void release(void *mark) {
         markCount--;
-        if (!mark.chunk) {
+
+        if (!mark) {
             latest = first;
             if (latest)
                 latest->resetBump();
-        } else {
-            latest = mark.chunk;
-            latest->release(mark.markInChunk);
+            return;
         }
+
+        // Find the chunk that contains |mark|, and make sure we don't pass
+        // |latest| along the way -- we should be making the chain of active
+        // chunks shorter, not longer!
+        BumpChunk *container;
+        for (container = first; !container->contains(mark); container = container->next())
+            JS_ASSERT(container != latest);
+
+        latest = container;
+        latest->release(mark);
     }
 
     void releaseAll() {
@@ -380,19 +381,18 @@ class LifoAlloc
 
 class LifoAllocScope
 {
-    LifoAlloc       *lifoAlloc;
-    LifoAlloc::Mark mark;
-    bool            shouldRelease;
+    LifoAlloc   *lifoAlloc;
+    void        *mark;
+    bool        shouldRelease;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
   public:
     explicit LifoAllocScope(LifoAlloc *lifoAlloc
                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : lifoAlloc(lifoAlloc),
-        mark(lifoAlloc->mark()),
-        shouldRelease(true)
+      : lifoAlloc(lifoAlloc), shouldRelease(true)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+        mark = lifoAlloc->mark();
     }
 
     ~LifoAllocScope() {

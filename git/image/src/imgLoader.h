@@ -103,8 +103,9 @@ public:
 
   already_AddRefed<imgRequest> GetRequest() const
   {
-    nsRefPtr<imgRequest> req = mRequest;
-    return req.forget();
+    imgRequest *req = mRequest;
+    NS_ADDREF(req);
+    return req;
   }
 
   bool Evicted() const

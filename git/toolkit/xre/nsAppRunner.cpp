@@ -292,7 +292,7 @@ static already_AddRefed<nsIFile>
 GetFileFromEnv(const char *name)
 {
   nsresult rv;
-  nsCOMPtr<nsIFile> file;
+  nsIFile *file = nullptr;
 
 #ifdef XP_WIN
   WCHAR path[_MAX_PATH];
@@ -300,22 +300,21 @@ GetFileFromEnv(const char *name)
                                path, _MAX_PATH))
     return nullptr;
 
-  rv = NS_NewLocalFile(nsDependentString(path), true, getter_AddRefs(file));
+  rv = NS_NewLocalFile(nsDependentString(path), true, &file);
   if (NS_FAILED(rv))
     return nullptr;
 
-  return file.forget();
+  return file;
 #else
   const char *arg = PR_GetEnv(name);
   if (!arg || !*arg)
     return nullptr;
 
-  rv = NS_NewNativeLocalFile(nsDependentCString(arg), true,
-                             getter_AddRefs(file));
+  rv = NS_NewNativeLocalFile(nsDependentCString(arg), true, &file);
   if (NS_FAILED(rv))
     return nullptr;
 
-  return file.forget();
+  return file;
 #endif
 }
 

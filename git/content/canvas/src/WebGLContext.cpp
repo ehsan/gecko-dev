@@ -837,8 +837,8 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
 
     if (!mResetLayer && aOldLayer &&
         aOldLayer->HasUserData(&gWebGLLayerUserData)) {
-        nsRefPtr<layers::CanvasLayer> ret = aOldLayer;
-        return ret.forget();
+        NS_ADDREF(aOldLayer);
+        return aOldLayer;
     }
 
     nsRefPtr<CanvasLayer> canvasLayer = aManager->CreateCanvasLayer();
@@ -880,7 +880,7 @@ WebGLContext::GetCanvasLayer(nsDisplayListBuilder* aBuilder,
 
     mResetLayer = false;
 
-    return canvasLayer.forget();
+    return canvasLayer.forget().get();
 }
 
 void

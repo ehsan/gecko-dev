@@ -354,9 +354,10 @@ nsNPAPIPluginInstance::GetDOMWindow()
   if (!doc)
     return nullptr;
 
-  nsRefPtr<nsPIDOMWindow> window = doc->GetWindow();
+  nsPIDOMWindow *window = doc->GetWindow();
+  NS_IF_ADDREF(window);
 
-  return window.forget();
+  return window;
 }
 
 nsresult

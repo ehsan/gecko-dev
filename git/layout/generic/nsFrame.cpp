@@ -5485,9 +5485,10 @@ nsFrame::GetSelectionController(nsPresContext *aPresContext, nsISelectionControl
 already_AddRefed<nsFrameSelection>
 nsIFrame::GetFrameSelection()
 {
-  nsRefPtr<nsFrameSelection> fs =
+  nsFrameSelection* fs =
     const_cast<nsFrameSelection*>(GetConstFrameSelection());
-  return fs.forget();
+  NS_IF_ADDREF(fs);
+  return fs;
 }
 
 const nsFrameSelection*

@@ -7,8 +7,6 @@
 /*
  * JS standard exception implementation.
  */
-#include "jsexn.h"
-
 #include <stdlib.h>
 #include <string.h>
 
@@ -17,19 +15,30 @@
 
 #include "jstypes.h"
 #include "jsutil.h"
+#include "jsprf.h"
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsversion.h"
+#include "jsexn.h"
 #include "jsfun.h"
+#include "jsgc.h"
+#include "jsinterp.h"
 #include "jsnum.h"
 #include "jsobj.h"
+#include "jsopcode.h"
 #include "jsscript.h"
+#include "jswrapper.h"
 
 #include "gc/Marking.h"
 #include "vm/GlobalObject.h"
+#include "vm/Shape.h"
 #include "vm/StringBuffer.h"
 
+#include "jsinferinlines.h"
 #include "jsobjinlines.h"
+
+#include "vm/Stack-inl.h"
+#include "vm/String-inl.h"
 
 using namespace js;
 using namespace js::gc;

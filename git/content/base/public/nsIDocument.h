@@ -247,8 +247,11 @@ public:
    */
   already_AddRefed<nsILoadGroup> GetDocumentLoadGroup() const
   {
-    nsCOMPtr<nsILoadGroup> group = do_QueryReferent(mDocumentLoadGroup);
-    return group.forget();
+    nsILoadGroup *group = nullptr;
+    if (mDocumentLoadGroup)
+      CallQueryReferent(mDocumentLoadGroup.get(), &group);
+
+    return group;
   }
 
   /**
@@ -1077,8 +1080,11 @@ public:
    */
   already_AddRefed<nsISupports> GetContainer() const
   {
-    nsCOMPtr<nsISupports> container = do_QueryReferent(mDocumentContainer);
-    return container.forget();
+    nsISupports* container = nullptr;
+    if (mDocumentContainer)
+      CallQueryReferent(mDocumentContainer.get(), &container);
+
+    return container;
   }
 
   /**

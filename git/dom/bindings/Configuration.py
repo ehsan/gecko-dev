@@ -475,7 +475,6 @@ def getTypesFromDescriptor(descriptor):
     members = [m for m in descriptor.interface.members]
     if descriptor.interface.ctor():
         members.append(descriptor.interface.ctor())
-    members.extend(descriptor.interface.namedConstructors)
     signatures = [s for m in members if m.isMethod() for s in m.signatures()]
     types = []
     for s in signatures:

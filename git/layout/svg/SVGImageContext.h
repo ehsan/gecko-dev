@@ -13,7 +13,7 @@ namespace mozilla {
 // SVG image-specific rendering context. For imgIContainer::Draw.
 // Used to pass information about overridden attributes from an SVG <image>
 // element to the image's internal SVG document when it's drawn.
-class SVGImageContext
+class MOZ_STACK_CLASS SVGImageContext
 {
 public:
   SVGImageContext(SVGPreserveAspectRatio aPreserveAspectRatio)
@@ -22,14 +22,6 @@ public:
 
   const SVGPreserveAspectRatio& GetPreserveAspectRatio() const {
     return mPreserveAspectRatio;
-  }
-
-  bool operator==(const SVGImageContext& aOther) const {
-    return mPreserveAspectRatio == aOther.mPreserveAspectRatio;
-  }
-
-  bool operator!=(const SVGImageContext& aOther) const {
-    return !(*this == aOther);
   }
 
 private:

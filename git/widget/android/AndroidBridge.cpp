@@ -6,7 +6,6 @@
 #include "mozilla/Util.h"
 #include "mozilla/layers/CompositorChild.h"
 #include "mozilla/layers/CompositorParent.h"
-#include "mozilla/layers/AsyncPanZoomController.h"
 
 #include <android/log.h>
 #include <dlfcn.h>
@@ -35,7 +34,6 @@
 #include "nsIDOMClientRect.h"
 #include "StrongPointer.h"
 #include "mozilla/ClearOnShutdown.h"
-#include "nsPrintfCString.h"
 
 #ifdef DEBUG
 #define ALOG_BRIDGE(args...) ALOG(args)
@@ -47,7 +45,7 @@ using namespace mozilla;
 
 NS_IMPL_THREADSAFE_ISUPPORTS0(nsFilePickerCallback)
 
-nsRefPtr<AndroidBridge> AndroidBridge::sBridge = nullptr;
+AndroidBridge *AndroidBridge::sBridge = 0;
 static unsigned sJavaEnvThreadIndex = 0;
 static void JavaThreadDetachFunc(void *arg);
 
@@ -226,10 +224,6 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jclass glControllerClass = jEnv->FindClass("org/mozilla/gecko/gfx/GLController");
     jProvideEGLSurfaceMethod = jEnv->GetMethodID(glControllerClass, "provideEGLSurface",
                                                   "()Ljavax/microedition/khronos/egl/EGLSurface;");
-
-    jclass nativePanZoomControllerClass = jEnv->FindClass("org/mozilla/gecko/gfx/NativePanZoomController");
-    jRequestContentRepaint = jEnv->GetMethodID(nativePanZoomControllerClass, "requestContentRepaint", "(FFFFF)V");
-    jPostDelayedCallback = jEnv->GetMethodID(nativePanZoomControllerClass, "postDelayedCallback", "(J)V");
 
     jclass eglClass = jEnv->FindClass("com/google/android/gles_jni/EGLSurfaceImpl");
     if (eglClass) {
@@ -2115,33 +2109,18 @@ AndroidBridge::SetPageRect(const gfx::Rect& aCssPageRect)
 void
 AndroidBridge::SyncViewportInfo(const nsIntRect& aDisplayPort, float aDisplayResolution, bool aLayersUpdated,
                                 nsIntPoint& aScrollOffset, float& aScaleX, float& aScaleY,
-                                gfx::Margin& aFixedLayerMargins, float& aOffsetX, float& aOffsetY)
+                                gfx::Margin& aFixedLayerMargins)
 {
     AndroidGeckoLayerClient *client = mLayerClient;
     if (!client)
         return;
 
     client->SyncViewportInfo(aDisplayPort, aDisplayResolution, aLayersUpdated,
-                             aScrollOffset, aScaleX, aScaleY, aFixedLayerMargins,
-                             aOffsetX, aOffsetY);
-}
-
-void AndroidBridge::SyncFrameMetrics(const gfx::Point& aOffset, float aZoom, const gfx::Rect& aCssPageRect,
-                                     bool aLayersUpdated, const gfx::Rect& aDisplayPort, float aDisplayResolution,
-                                     bool aIsFirstPaint, gfx::Margin& aFixedLayerMargins, float& aOffsetX, float& aOffsetY)
-{
-    AndroidGeckoLayerClient *client = mLayerClient;
-    if (!client)
-        return;
-
-    client->SyncFrameMetrics(aOffset, aZoom, aCssPageRect,
-                             aLayersUpdated, aDisplayPort, aDisplayResolution,
-                             aIsFirstPaint, aFixedLayerMargins, aOffsetX, aOffsetY);
+                             aScrollOffset, aScaleX, aScaleY, aFixedLayerMargins);
 }
 
 AndroidBridge::AndroidBridge()
-  : mLayerClient(NULL),
-    mNativePanZoomController(NULL)
+  : mLayerClient(NULL)
 {
 }
 
@@ -2713,117 +2692,3 @@ AndroidBridge::UnlockProfile()
     return ret;
 }
 
-jobject
-AndroidBridge::SetNativePanZoomController(jobject obj)
-{
-    jobject old = mNativePanZoomController;
-    mNativePanZoomController = obj;
-    return old;
-}
-
-void
-AndroidBridge::RequestContentRepaint(const mozilla::layers::FrameMetrics& aFrameMetrics)
-{
-    ALOG_BRIDGE("AndroidBridge::RequestContentRepaint");
-    JNIEnv* env = GetJNIForThread();    // called on the compositor thread
-    if (!env || !mNativePanZoomController) {
-        return;
-    }
-
-    float resolution = mozilla::layers::AsyncPanZoomController::CalculateResolution(aFrameMetrics).width;
-    float dpX = (aFrameMetrics.mDisplayPort.x + aFrameMetrics.mScrollOffset.x) * resolution;
-    float dpY = (aFrameMetrics.mDisplayPort.y + aFrameMetrics.mScrollOffset.y) * resolution;
-    float dpW = aFrameMetrics.mDisplayPort.width * resolution;
-    float dpH = aFrameMetrics.mDisplayPort.height * resolution;
-
-    AutoLocalJNIFrame jniFrame(env, 0);
-    env->CallVoidMethod(mNativePanZoomController, jRequestContentRepaint,
-        dpX, dpY, dpW, dpH, resolution);
-}
-
-void
-AndroidBridge::HandleDoubleTap(const nsIntPoint& aPoint)
-{
-    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
-    nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
-            NS_LITERAL_CSTRING("Gesture:DoubleTap"), data));
-}
-
-void
-AndroidBridge::HandleSingleTap(const nsIntPoint& aPoint)
-{
-    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
-    nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
-            NS_LITERAL_CSTRING("Gesture:SingleTap"), data));
-}
-
-void
-AndroidBridge::HandleLongTap(const nsIntPoint& aPoint)
-{
-    nsCString data = nsPrintfCString("{ \"x\": %d, \"y\": %d }", aPoint.x, aPoint.y);
-    nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeBroadcastEvent(
-            NS_LITERAL_CSTRING("Gesture:LongPress"), data));
-}
-
-void
-AndroidBridge::SendAsyncScrollDOMEvent(const gfx::Rect& aContentRect, const gfx::Size& aScrollableSize)
-{
-    // FIXME implement this
-}
-
-void
-AndroidBridge::PostDelayedTask(Task* aTask, int aDelayMs)
-{
-    JNIEnv* env = GetJNIForThread();
-    if (!env || !mNativePanZoomController) {
-        return;
-    }
-
-    // add the new task into the mDelayedTaskQueue, sorted with
-    // the earliest task first in the queue
-    DelayedTask* newTask = new DelayedTask(aTask, aDelayMs);
-    uint32_t i = 0;
-    while (i < mDelayedTaskQueue.Length()) {
-        if (newTask->IsEarlierThan(mDelayedTaskQueue[i])) {
-            mDelayedTaskQueue.InsertElementAt(i, newTask);
-            break;
-        }
-        i++;
-    }
-    if (i == mDelayedTaskQueue.Length()) {
-        // this new task will run after all the existing tasks in the queue
-        mDelayedTaskQueue.AppendElement(newTask);
-    }
-    if (i == 0) {
-        // if we're inserting it at the head of the queue, notify Java because
-        // we need to get a callback at an earlier time than the last scheduled
-        // callback
-        AutoLocalJNIFrame jniFrame(env, 0);
-        env->CallVoidMethod(mNativePanZoomController, jPostDelayedCallback, (int64_t)aDelayMs);
-    }
-}
-
-int64_t
-AndroidBridge::RunDelayedTasks()
-{
-    while (mDelayedTaskQueue.Length() > 0) {
-        DelayedTask* nextTask = mDelayedTaskQueue[0];
-        int64_t timeLeft = nextTask->MillisecondsToRunTime();
-        if (timeLeft > 0) {
-            // this task (and therefore all remaining tasks)
-            // have not yet reached their runtime. return the
-            // time left until we should be called again
-            return timeLeft;
-        }
-
-        // we have a delayed task to run. extract it from
-        // the wrapper and free the wrapper
-
-        mDelayedTaskQueue.RemoveElementAt(0);
-        Task* task = nextTask->GetTask();
-        delete nextTask;
-
-        task->Run();
-    }
-    return -1;
-}

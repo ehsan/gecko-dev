@@ -84,16 +84,14 @@ let AboutReader = function(doc, win) {
   this._setFontType(fontType);
 
   let fontTitle = gStrings.GetStringFromName("aboutReader.textTitle");
+  this._setupStepControl("font-size-control", fontTitle, this._onFontSizeChange.bind(this));
   this._fontSize = 0;
-  this._setupStepControl("font-size-control", fontTitle,
-    this._FONT_SIZE_MIN, this._FONT_SIZE_MAX, this._FONT_SIZE_STEP, Services.prefs.getIntPref("reader.font_size"),
-    this._onFontSizeChange.bind(this));
+  this._setFontSize(Services.prefs.getIntPref("reader.font_size"));
 
   let marginTitle = gStrings.GetStringFromName("aboutReader.marginTitle");
+  this._setupStepControl("margin-size-control", marginTitle, this._onMarginSizeChange.bind(this));
   this._marginSize = 0;
-  this._setupStepControl("margin-size-control", marginTitle,
-    this._MARGIN_SIZE_MIN, this._MARGIN_SIZE_MAX, this._MARGIN_SIZE_STEP, Services.prefs.getIntPref("reader.margin_size"),
-    this._onMarginSizeChange.bind(this));
+  this._setMarginSize(Services.prefs.getIntPref("reader.margin_size"));
 
   dump("Decoding query arguments");
   let queryArgs = this._decodeQueryString(win.location.href);
@@ -113,12 +111,8 @@ let AboutReader = function(doc, win) {
 }
 
 AboutReader.prototype = {
-  _FONT_SIZE_MIN: 1,
-  _FONT_SIZE_MAX: 7,
-  _FONT_SIZE_STEP: 1,
-  _MARGIN_SIZE_MIN: 5,
-  _MARGIN_SIZE_MAX: 25,
-  _MARGIN_SIZE_STEP: 5,
+  _STEP_INCREMENT: 0,
+  _STEP_DECREMENT: 1,
 
   _BLOCK_IMAGES_SELECTOR: ".content p > img:only-child, " +
                           ".content p > a:only-child > img:only-child, " +
@@ -292,10 +286,20 @@ AboutReader.prototype = {
     });
   },
 
-  _onMarginSizeChange: function Reader_onMarginSizeChange(newMarginSize) {
+  _onMarginSizeChange: function Reader_onMarginSizeChange(operation) {
+    if (operation == this._STEP_INCREMENT)
+      this._setMarginSize(this._marginSize + 5);
+    else
+      this._setMarginSize(this._marginSize - 5);
+  },
+
+  _setMarginSize: function Reader_setMarginSize(newMarginSize) {
+    if (this._marginSize === newMarginSize)
+      return;
+
     let doc = this._doc;
 
-    this._marginSize = newMarginSize;
+    this._marginSize = Math.max(5, Math.min(25, newMarginSize));
     doc.body.style.marginLeft = this._marginSize + "%";
     doc.body.style.marginRight = this._marginSize + "%";
 
@@ -304,13 +308,23 @@ AboutReader.prototype = {
     Services.prefs.setIntPref("reader.margin_size", this._marginSize);
   },
 
-  _onFontSizeChange: function Reader_onFontSizeChange(newFontSize) {
+  _onFontSizeChange: function Reader_onFontSizeChange(operation) {
+    if (operation == this._STEP_INCREMENT)
+      this._setFontSize(this._fontSize + 1);
+    else
+      this._setFontSize(this._fontSize - 1);
+  },
+
+  _setFontSize: function Reader_setFontSize(newFontSize) {
+    if (this._fontSize === newFontSize)
+      return;
+
     let bodyClasses = this._doc.body.classList;
 
     if (this._fontSize > 0)
       bodyClasses.remove("font-size" + this._fontSize);
 
-    this._fontSize = newFontSize;
+    this._fontSize = Math.max(1, Math.min(7, newFontSize));
     bodyClasses.add("font-size" + this._fontSize);
 
     Services.prefs.setIntPref("reader.font_size", this._fontSize);
@@ -550,7 +564,7 @@ AboutReader.prototype = {
     return result;
   },
 
-  _setupStepControl: function Reader_setupStepControl(id, name, min, max, step, initial, callback) {
+  _setupStepControl: function Reader_setupStepControl(id, name, callback) {
     let doc = this._doc;
     let stepControl = doc.getElementById(id);
 
@@ -566,34 +580,12 @@ AboutReader.prototype = {
     minusButton.className = "button minus-button";
     stepControl.appendChild(minusButton);
 
-    let updateControls = function() {
-      current = Math.max(min, Math.min(max, current));
-      if (current == min) {
-        minusButton.classList.add("disabled");
-      } else {
-        minusButton.classList.remove("disabled");
-      }
-      if (current == max) {
-        plusButton.classList.add("disabled");
-      } else {
-        plusButton.classList.remove("disabled");
-      }
-    }
-
-    let current = initial;
-    updateControls();
-
     plusButton.addEventListener("click", function(aEvent) {
       if (!aEvent.isTrusted)
         return;
 
       aEvent.stopPropagation();
-
-      if (current < max) {
-        current += step;
-        updateControls();
-        callback(current);
-      }
+      callback(this._STEP_INCREMENT);
     }.bind(this), true);
 
     minusButton.addEventListener("click", function(aEvent) {
@@ -601,16 +593,8 @@ AboutReader.prototype = {
         return;
 
       aEvent.stopPropagation();
-
-      if (current > min) {
-        current -= step;
-        updateControls();
-        callback(current);
-      }
+      callback(this._STEP_DECREMENT);
     }.bind(this), true);
-
-    // Always callback initial current setting
-    callback(current);
   },
 
   _setupSegmentedButton: function Reader_setupSegmentedButton(id, options, initialValue, callback) {

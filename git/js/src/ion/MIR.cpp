@@ -15,7 +15,7 @@
 #include "jsnum.h"
 #include "jsstr.h"
 #include "jsatominlines.h"
-#include "jstypedarrayinlines.h"
+#include "jstypedarrayinlines.h" // For ClampIntForUint8Array
 
 using namespace js;
 using namespace js::ion;
@@ -1236,9 +1236,7 @@ KnownNonStringPrimitive(MDefinition *op)
 }
 
 void
-MBinaryArithInstruction::infer(BaselineInspector *inspector,
-                               jsbytecode *pc,
-                               bool overflowed)
+MBinaryArithInstruction::infer(bool overflowed)
 {
     JS_ASSERT(this->type() == MIRType_Value);
 
@@ -1248,10 +1246,9 @@ MBinaryArithInstruction::infer(BaselineInspector *inspector,
     MIRType lhs = getOperand(0)->type();
     MIRType rhs = getOperand(1)->type();
 
-    // Anything complex - strings and objects - are not specialized
-    // unless baseline type hints suggest it might be profitable
+    // Anything complex - strings and objects - are not specialized.
     if (!KnownNonStringPrimitive(getOperand(0)) || !KnownNonStringPrimitive(getOperand(1)))
-        return inferFallback(inspector, pc);
+        return;
 
     // Guess a result type based on the inputs.
     // Don't specialize for neither-integer-nor-double results.
@@ -1260,7 +1257,7 @@ MBinaryArithInstruction::infer(BaselineInspector *inspector,
     else if (lhs == MIRType_Double || rhs == MIRType_Double)
         setResultType(MIRType_Double);
     else
-        return inferFallback(inspector, pc);
+        return;
 
     // If the operation has ever overflowed, use a double specialization.
     if (overflowed)
@@ -1291,29 +1288,6 @@ MBinaryArithInstruction::infer(BaselineInspector *inspector,
     if (isAdd() || isMul())
         setCommutative();
     setResultType(rval);
-}
-
-void
-MBinaryArithInstruction::inferFallback(BaselineInspector *inspector,
-                                       jsbytecode *pc)
-{
-    // Try to specialize based on what baseline observed in practice.
-    specialization_ = inspector->expectedBinaryArithSpecialization(pc);
-    if (specialization_ != MIRType_None) {
-        setResultType(specialization_);
-        return;
-    }
-
-    // In parallel execution, for now anyhow, we *only* support adding
-    // and manipulating numbers (not strings or objects).  So no
-    // matter what we can specialize to double...if the result ought
-    // to have been something else, we'll fail in the various type
-    // guards that get inserted later.
-    if (block()->info().executionMode() == ParallelExecution) {
-        specialization_ = MIRType_Double;
-        setResultType(MIRType_Double);
-        return;
-    }
 }
 
 static bool
@@ -2195,30 +2169,6 @@ MInArray::needsNegativeIntCheck() const
     return !index()->range() || index()->range()->lower() < 0;
 }
 
-void *
-MLoadTypedArrayElementStatic::base() const
-{
-    return TypedArray::viewData(typedArray_);
-}
-
-size_t
-MLoadTypedArrayElementStatic::length() const
-{
-    return TypedArray::byteLength(typedArray_);
-}
-
-void *
-MStoreTypedArrayElementStatic::base() const
-{
-    return TypedArray::viewData(typedArray_);
-}
-
-size_t
-MStoreTypedArrayElementStatic::length() const
-{
-    return TypedArray::byteLength(typedArray_);
-}
-
 MDefinition *
 MAsmJSUnsignedToDouble::foldsTo(bool useValueNumbers)
 {
@@ -2523,8 +2473,9 @@ TryAddTypeBarrierForWrite(JSContext *cx, MBasicBlock *current, types::StackTypeS
     if (!types)
         return false;
 
-    MInstruction *ins = MMonitorTypes::New(*pvalue, types);
+    MInstruction *ins = MTypeBarrier::New(*pvalue, types, Bailout_Normal);
     current->add(ins);
+    *pvalue = ins;
     return true;
 }
 
@@ -2543,7 +2494,7 @@ AddTypeGuard(MBasicBlock *current, MDefinition *obj, types::TypeObject *typeObje
 
 bool
 ion::PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinition **pobj,
-                                   PropertyName *name, MDefinition **pvalue, bool canModify)
+                                   PropertyName *name, MDefinition **pvalue)
 {
     // If any value being written is not reflected in the type information for
     // objects which obj could represent, a type barrier is needed when writing
@@ -2585,12 +2536,6 @@ ion::PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinit
             break;
         }
         if (!TypeSetIncludes(property, (*pvalue)->type(), (*pvalue)->resultTypeSet())) {
-            // Either pobj or pvalue needs to be modified to filter out the
-            // types which the value could have but are not in the property,
-            // or a VM call is required. A VM call is always required if pobj
-            // and pvalue cannot be modified.
-            if (!canModify)
-                return true;
             success = TryAddTypeBarrierForWrite(cx, current, types, id, pvalue);
             break;
         }

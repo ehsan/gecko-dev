@@ -519,62 +519,6 @@ public class AwesomeBar extends GeckoActivity
         mContextMenuSubject = tab.getSubject(menu, view, menuInfo);
     }
 
-    private abstract class EditBookmarkTextWatcher implements TextWatcher {
-        protected AlertDialog mDialog;
-        protected EditBookmarkTextWatcher mPairedTextWatcher;
-        protected boolean mEnabled = true;
-
-        public EditBookmarkTextWatcher(AlertDialog aDialog) {
-            mDialog = aDialog;
-        }
-
-        public void setPairedTextWatcher(EditBookmarkTextWatcher aTextWatcher) {
-            mPairedTextWatcher = aTextWatcher;
-        }
-
-        public boolean isEnabled() {
-            return mEnabled;
-        }
-
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            // Disable if the we're disabled or paired partner is disabled
-            boolean enabled = mEnabled && (mPairedTextWatcher == null || mPairedTextWatcher.isEnabled());
-            mDialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(enabled);
-        }
-
-        @Override
-        public void afterTextChanged(Editable s) {}
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-    }
-
-    private class LocationTextWatcher extends EditBookmarkTextWatcher implements TextWatcher {
-        public LocationTextWatcher(AlertDialog aDialog) {
-            super(aDialog);
-        }
-
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            // Disable if the location is empty
-            mEnabled = (s.toString().trim().length() > 0);
-            super.onTextChanged(s, start, before, count);
-        }
-    }
-
-    private class KeywordTextWatcher extends EditBookmarkTextWatcher implements TextWatcher {
-        public KeywordTextWatcher(AlertDialog aDialog) {
-            super(aDialog);
-        }
-
-        @Override
-        public void onTextChanged(CharSequence s, int start, int before, int count) {
-            // Disable if the keyword contains spaces
-            mEnabled = (s.toString().trim().indexOf(' ') == -1);
-            super.onTextChanged(s, start, before, count);
-       }
-    }
-
     @Override
     public boolean onContextItemSelected(MenuItem item) {
         if (mContextMenuSubject == null)
@@ -616,8 +560,8 @@ public class AwesomeBar extends GeckoActivity
                             @Override
                             public Void doInBackground(Void... params) {
                                 String newUrl = locationText.getText().toString().trim();
-                                String newKeyword = keywordText.getText().toString().trim();
-                                BrowserDB.updateBookmark(getContentResolver(), id, newUrl, nameText.getText().toString(), newKeyword);
+                                BrowserDB.updateBookmark(getContentResolver(), id, newUrl, nameText.getText().toString(),
+                                                         keywordText.getText().toString());
                                 return null;
                             }
 
@@ -638,17 +582,25 @@ public class AwesomeBar extends GeckoActivity
 
                 final AlertDialog dialog = editPrompt.create();
 
-                // Create our TextWatchers
-                LocationTextWatcher locationTextWatcher = new LocationTextWatcher(dialog);
-                KeywordTextWatcher keywordTextWatcher = new KeywordTextWatcher(dialog);
+                // disable OK button if the URL is empty
+                locationText.addTextChangedListener(new TextWatcher() {
+                    private boolean mEnabled = true;
 
-                // Cross reference the TextWatchers
-                locationTextWatcher.setPairedTextWatcher(keywordTextWatcher);
-                keywordTextWatcher.setPairedTextWatcher(locationTextWatcher);
+                    @Override
+                    public void afterTextChanged(Editable s) {}
 
-                // Add the TextWatcher Listeners
-                locationText.addTextChangedListener(locationTextWatcher);
-                keywordText.addTextChangedListener(keywordTextWatcher);
+                    @Override
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                    @Override
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {
+                        boolean enabled = (s.toString().trim().length() > 0);
+                        if (mEnabled != enabled) {
+                            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(enabled);
+                            mEnabled = enabled;
+                        }
+                    }
+                });
 
                 dialog.show();
                 break;

@@ -284,13 +284,14 @@ nsCertTree::GetCertAtIndex(int32_t index, int32_t *outAbsoluteCertOffset)
   if (!certdi)
     return nullptr;
 
-  nsCOMPtr<nsIX509Cert> ret;
+  nsIX509Cert *rawPtr = nullptr;
   if (certdi->mCert) {
-    ret = certdi->mCert;
+    rawPtr = certdi->mCert;
   } else if (certdi->mAddonInfo) {
-    ret = certdi->mAddonInfo->mCert;
+    rawPtr = certdi->mAddonInfo->mCert;
   }
-  return ret.forget();
+  NS_IF_ADDREF(rawPtr);
+  return rawPtr;
 }
 
 //  If the row at index is a cert, return that cert.  Otherwise, return null.

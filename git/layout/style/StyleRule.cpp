@@ -1408,7 +1408,12 @@ StyleRule::GetExistingDOMRule()
 StyleRule::DeclarationChanged(Declaration* aDecl,
                               bool aHandleContainer)
 {
-  nsRefPtr<StyleRule> clone = new StyleRule(*this, aDecl);
+  StyleRule* clone = new StyleRule(*this, aDecl);
+  if (!clone) {
+    return nullptr;
+  }
+
+  NS_ADDREF(clone); // for return
 
   if (aHandleContainer) {
     nsCSSStyleSheet* sheet = GetStyleSheet();
@@ -1423,7 +1428,7 @@ StyleRule::DeclarationChanged(Declaration* aDecl,
     }
   }
 
-  return clone.forget();
+  return clone;
 }
 
 /* virtual */ void

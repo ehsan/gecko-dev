@@ -1533,17 +1533,22 @@ RangeSubtreeIterator::Init(nsIDOMRange *aRange)
 already_AddRefed<nsIDOMNode>
 RangeSubtreeIterator::GetCurrentNode()
 {
-  nsCOMPtr<nsIDOMNode> node;
+  nsIDOMNode *node = nullptr;
 
   if (mIterState == eUseStart && mStart) {
-    node = mStart;
-  } else if (mIterState == eUseEnd && mEnd) {
-    node = mEnd;
-  } else if (mIterState == eUseIterator && mIter) {
-    node = do_QueryInterface(mIter->GetCurrentNode());
+    NS_ADDREF(node = mStart);
+  } else if (mIterState == eUseEnd && mEnd)
+    NS_ADDREF(node = mEnd);
+  else if (mIterState == eUseIterator && mIter)
+  {
+    nsINode* n = mIter->GetCurrentNode();
+
+    if (n) {
+      CallQueryInterface(n, &node);
+    }
   }
 
-  return node.forget();
+  return node;
 }
 
 void

@@ -743,10 +743,24 @@ LIRGenerator::visitCompare(MCompare *comp)
     // LCompareSAndBranch. Doing this now wouldn't be wrong, but doesn't
     // make sense and avoids confusion.
     if (comp->compareType() == MCompare::Compare_String) {
-        LCompareS *lir = new LCompareS(useRegister(left), useRegister(right), temp());
-        if (!define(lir, comp))
-            return false;
-        return assignSafepoint(lir, comp);
+        switch (comp->block()->info().executionMode()) {
+          case SequentialExecution:
+          {
+              LCompareS *lir = new LCompareS(useRegister(left), useRegister(right), temp());
+              if (!define(lir, comp))
+                  return false;
+              return assignSafepoint(lir, comp);
+          }
+
+          case ParallelExecution:
+          {
+              LParCompareS *lir = new LParCompareS(useFixed(left, CallTempReg0),
+                                                   useFixed(right, CallTempReg1));
+              return defineReturn(lir, comp);
+          }
+        }
+
+        JS_NOT_REACHED("Unexpected execution mode");
     }
 
     // Strict compare between value and string
@@ -1293,13 +1307,8 @@ LIRGenerator::visitConcat(MConcat *ins)
     JS_ASSERT(rhs->type() == MIRType_String);
     JS_ASSERT(ins->type() == MIRType_String);
 
-    LConcat *lir = new LConcat(useFixed(lhs, CallTempReg0),
-                               useFixed(rhs, CallTempReg1),
-                               tempFixed(CallTempReg2),
-                               tempFixed(CallTempReg3),
-                               tempFixed(CallTempReg4),
-                               tempFixed(CallTempReg5));
-    if (!defineFixed(lir, ins, LAllocation(AnyRegister(CallTempReg6))))
+    LConcat *lir = new LConcat(useRegister(lhs), useRegister(rhs), temp());
+    if (!define(lir, ins))
         return false;
     return assignSafepoint(lir, ins);
 }
@@ -1721,7 +1730,7 @@ LIRGenerator::visitMonitorTypes(MMonitorTypes *ins)
     LMonitorTypes *lir = new LMonitorTypes(temp());
     if (!useBox(lir, LMonitorTypes::Input, ins->input()))
         return false;
-    return assignSnapshot(lir, Bailout_Normal) && add(lir, ins);
+    return assignSnapshot(lir, Bailout_Monitor) && add(lir, ins);
 }
 
 bool
@@ -2107,17 +2116,6 @@ LIRGenerator::visitLoadTypedArrayElementHole(MLoadTypedArrayElementHole *ins)
     if (ins->fallible() && !assignSnapshot(lir))
         return false;
     return defineBox(lir, ins) && assignSafepoint(lir, ins);
-}
-
-bool
-LIRGenerator::visitLoadTypedArrayElementStatic(MLoadTypedArrayElementStatic *ins)
-{
-    LLoadTypedArrayElementStatic *lir =
-        new LLoadTypedArrayElementStatic(useRegisterAtStart(ins->ptr()));
-
-    if (ins->fallible() && !assignSnapshot(lir))
-        return false;
-    return define(lir, ins);
 }
 
 bool

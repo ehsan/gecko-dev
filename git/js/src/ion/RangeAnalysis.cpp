@@ -750,12 +750,6 @@ MToInt32::computeRange()
     setRange(new Range(input.lower(), input.upper()));
 }
 
-void
-MLoadTypedArrayElementStatic::computeRange()
-{
-    setRange(new Range(this));
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // Range Analysis
 ///////////////////////////////////////////////////////////////////////////////
@@ -1340,13 +1334,6 @@ MToDouble::truncate()
         range()->truncate();
 
     return true;
-}
-
-bool
-MLoadTypedArrayElementStatic::truncate()
-{
-    setInfallible();
-    return false;
 }
 
 bool

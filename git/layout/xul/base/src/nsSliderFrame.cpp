@@ -49,8 +49,9 @@ int32_t nsSliderFrame::gSnapMultiplier;
 static already_AddRefed<nsIContent>
 GetContentOfBox(nsIFrame *aBox)
 {
-  nsCOMPtr<nsIContent> content = aBox->GetContent();
-  return content.forget();
+  nsIContent* content = aBox->GetContent();
+  NS_IF_ADDREF(content);
+  return content;
 }
 
 nsIFrame*
