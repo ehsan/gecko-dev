@@ -1925,12 +1925,6 @@ MacroAssemblerARMCompat::sub32(Register src, Register dest)
 }
 
 void
-MacroAssemblerARMCompat::and32(Register src, Register dest)
-{
-    ma_and(src, dest, SetCond);
-}
-
-void
 MacroAssemblerARMCompat::and32(Imm32 imm, Register dest)
 {
     ma_and(imm, dest, SetCond);
@@ -2410,12 +2404,6 @@ void
 MacroAssemblerARMCompat::storePtr(Register src, const Address &address)
 {
     ma_str(src, Operand(address));
-}
-
-void
-MacroAssemblerARMCompat::storePtr(Register src, const BaseIndex &address)
-{
-    store32(src, address);
 }
 
 void
@@ -4084,9 +4072,14 @@ Assembler::Condition
 MacroAssemblerARMCompat::testStringTruthy(bool truthy, const ValueOperand &value)
 {
     Register string = value.payloadReg();
-    ma_dtr(IsLoad, string, Imm32(JSString::offsetOfLength()), ScratchRegister);
-    ma_cmp(ScratchRegister, Imm32(0));
-    return truthy ? Assembler::NotEqual : Assembler::Equal;
+
+    size_t mask = (0xFFFFFFFF << JSString::LENGTH_SHIFT);
+    ma_dtr(IsLoad, string, Imm32(JSString::offsetOfLengthAndFlags()), ScratchRegister);
+    // Bit clear into the scratch register. This is done because there is performs the operation
+    // dest <- src1 & ~ src2. There is no instruction that does this without writing
+    // the result somewhere, so the Scratch Register is sacrificed.
+    ma_bic(Imm32(~mask), ScratchRegister, SetCond);
+    return truthy ? Assembler::NonZero : Assembler::Zero;
 }
 
 void

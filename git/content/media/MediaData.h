@@ -80,7 +80,13 @@ public:
     MOZ_COUNT_DTOR(AudioData);
   }
 
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const {
+    size_t size = aMallocSizeOf(this) + aMallocSizeOf(mAudioData);
+    if (mAudioBuffer) {
+      size += mAudioBuffer->SizeOfIncludingThis(aMallocSizeOf);
+    }
+    return size;
+  }
 
   // If mAudioBuffer is null, creates it from mAudioData.
   void EnsureAudioBuffer();

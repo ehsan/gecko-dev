@@ -605,9 +605,8 @@ VerifySignature(AppTrustedRoot trustedRoot,
   }
   if (BuildCertChain(trustDomain, signerCert, PR_Now(),
                      EndEntityOrCA::MustBeEndEntity, KU_DIGITAL_SIGNATURE,
-                     KeyPurposeId::id_kp_codeSigning,
-                     CertPolicyId::anyPolicy,
-                     nullptr, builtChain)
+                     SEC_OID_EXT_KEY_USAGE_CODE_SIGN,
+                     SEC_OID_X509_ANY_POLICY, nullptr, builtChain)
         != SECSuccess) {
     return MapSECStatus(SECFailure);
   }

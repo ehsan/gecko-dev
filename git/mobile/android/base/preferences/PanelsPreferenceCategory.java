@@ -22,6 +22,9 @@ public class PanelsPreferenceCategory extends CustomListCategory {
     protected HomeConfig mHomeConfig;
     protected HomeConfig.Editor mConfigEditor;
 
+    // Account for the fake "Add Panel" preference in preference counting.
+    private static final int PANEL_PREFS_OFFSET = 1;
+
     protected UiAsyncTask<Void, Void, HomeConfig.State> mLoadTask;
 
     public PanelsPreferenceCategory(Context context) {
@@ -84,8 +87,13 @@ public class PanelsPreferenceCategory extends CustomListCategory {
      * @param String panelId of panel to be animated.
      */
     public void refresh(State state, String animatePanelId) {
-        // Clear all the existing home panels.
-        removeAll();
+        // Clear all the existing home panels, but leave the
+        // first item (Add panels).
+        int prefCount = getPreferenceCount();
+        while (prefCount > 1) {
+            removePreference(getPreference(1));
+            prefCount--;
+        }
 
         if (state == null) {
             loadHomeConfig(animatePanelId);
@@ -97,11 +105,13 @@ public class PanelsPreferenceCategory extends CustomListCategory {
     private void displayHomeConfig(HomeConfig.State configState, String animatePanelId) {
         int index = 0;
         for (PanelConfig panelConfig : configState) {
+            final boolean isRemovable = panelConfig.isDynamic();
+
             // Create and add the pref.
             final String panelId = panelConfig.getId();
             final boolean animate = TextUtils.equals(animatePanelId, panelId);
 
-            final PanelsPreference pref = new PanelsPreference(getContext(), PanelsPreferenceCategory.this, index, animate);
+            final PanelsPreference pref = new PanelsPreference(getContext(), PanelsPreferenceCategory.this, isRemovable, index, animate);
             pref.setTitle(panelConfig.getTitle());
             pref.setKey(panelConfig.getId());
             // XXX: Pull icon from PanelInfo.
@@ -122,7 +132,7 @@ public class PanelsPreferenceCategory extends CustomListCategory {
         final int prefCount = getPreferenceCount();
 
         // Pass in position state to first and last preference.
-        final PanelsPreference firstPref = (PanelsPreference) getPreference(0);
+        final PanelsPreference firstPref = (PanelsPreference) getPreference(PANEL_PREFS_OFFSET);
         firstPref.setIsFirst();
 
         final PanelsPreference lastPref = (PanelsPreference) getPreference(prefCount - 1);
@@ -138,7 +148,8 @@ public class PanelsPreferenceCategory extends CustomListCategory {
 
         final int prefCount = getPreferenceCount();
 
-        for (int i = 0; i < prefCount; i++) {
+        // First preference (index 0) is Preference to add panels.
+        for (int i = 1; i < prefCount; i++) {
             final PanelsPreference pref = (PanelsPreference) getPreference(i);
 
             if (defaultPanelId.equals(pref.getKey())) {

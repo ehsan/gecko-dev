@@ -340,9 +340,6 @@ LoadRuntimeAndContextOptions(const char* aPrefName, void* /* aClosure */)
   if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("ion"))) {
     runtimeOptions.setIon(true);
   }
-  if (GetWorkerPref<bool>(NS_LITERAL_CSTRING("native_regexp"))) {
-    runtimeOptions.setNativeRegExp(true);
-  }
 
   // Common options.
   JS::ContextOptions commonContextOptions = kRequiredContextOptions;

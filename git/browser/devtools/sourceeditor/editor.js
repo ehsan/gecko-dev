@@ -303,7 +303,7 @@ Editor.prototype = {
           return;
         }
 
-        this.emit("gutterClick", line, ev.button);
+        this.emit("gutterClick", line);
       });
 
       win.CodeMirror.defineExtension("l10n", (name) => {

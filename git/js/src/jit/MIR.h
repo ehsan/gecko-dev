@@ -67,7 +67,6 @@ MIRType MIRTypeFromValue(const js::Value &vp)
     _(Movable)       /* Allow LICM and GVN to move this instruction */          \
     _(Lowered)       /* (Debug only) has a virtual register */                  \
     _(Guard)         /* Not removable if uses == 0 */                           \
-    _(Observed)      /* Cannot be optimized out */                              \
                                                                                 \
     /* Keep the flagged instruction in resume points and do not substitute this
      * instruction by an UndefinedValue. This might be used by call inlining
@@ -3536,11 +3535,6 @@ class MBitXor : public MBinaryBitwiseInstruction
         return this;
     }
     void computeRange(TempAllocator &alloc);
-
-    bool writeRecoverData(CompactBufferWriter &writer) const;
-    bool canRecoverOnBailout() const {
-        return specialization_ < MIRType_Object;
-    }
 };
 
 class MShiftInstruction
@@ -4693,6 +4687,7 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
 {
     js::Vector<MUse, 2, IonAllocPolicy> inputs_;
 
+    uint32_t slot_;
     bool hasBackedgeType_;
     bool triedToSpecialize_;
     bool isIterator_;
@@ -4712,8 +4707,9 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
   public:
     INSTRUCTION_HEADER(Phi)
 
-    MPhi(TempAllocator &alloc, MIRType resultType)
+    MPhi(TempAllocator &alloc, uint32_t slot, MIRType resultType)
       : inputs_(alloc),
+        slot_(slot),
         hasBackedgeType_(false),
         triedToSpecialize_(false),
         isIterator_(false),
@@ -4727,8 +4723,8 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
         setResultType(resultType);
     }
 
-    static MPhi *New(TempAllocator &alloc, MIRType resultType = MIRType_Value) {
-        return new(alloc) MPhi(alloc, resultType);
+    static MPhi *New(TempAllocator &alloc, uint32_t slot, MIRType resultType = MIRType_Value) {
+        return new(alloc) MPhi(alloc, slot, resultType);
     }
 
     void setOperand(size_t index, MDefinition *operand) {
@@ -4748,6 +4744,9 @@ class MPhi MOZ_FINAL : public MDefinition, public InlineForwardListNode<MPhi>
     }
     size_t numOperands() const {
         return inputs_.length();
+    }
+    uint32_t slot() const {
+        return slot_;
     }
     bool hasBackedgeType() const {
         return hasBackedgeType_;
@@ -7000,8 +6999,8 @@ class MStoreFixedSlot
     bool needsBarrier() const {
         return needsBarrier_;
     }
-    void setNeedsBarrier(bool needsBarrier = true) {
-        needsBarrier_ = needsBarrier;
+    void setNeedsBarrier() {
+        needsBarrier_ = true;
     }
 };
 
@@ -9693,12 +9692,8 @@ class MResumePoint MOZ_FINAL : public MNode, public InlineForwardListNode<MResum
     // Overwrites an operand without updating its Uses.
     void setOperand(size_t index, MDefinition *operand) {
         JS_ASSERT(index < stackDepth_);
-        // Note: We do not remove the isObserved flag, as this would imply that
-        // we check the list of uses of the removed MDefinition.
         operands_[index].set(operand, this, index);
         operand->addUse(&operands_[index]);
-        if (!operand->isObserved() && isObservableOperand(index))
-            operand->setObserved();
     }
 
     void clearOperand(size_t index) {
@@ -9720,12 +9715,8 @@ class MResumePoint MOZ_FINAL : public MNode, public InlineForwardListNode<MResum
     size_t numOperands() const {
         return stackDepth_;
     }
-
-    bool isObservableOperand(size_t index) const;
-
     MDefinition *getOperand(size_t index) const {
         JS_ASSERT(index < stackDepth_);
-        MOZ_ASSERT_IF(isObservableOperand(index), operands_[index].producer()->isObserved());
         return operands_[index].producer();
     }
     jsbytecode *pc() const {
@@ -9869,45 +9860,21 @@ class MHasClass
 // outermost script (i.e. not the inlined script).
 class MRecompileCheck : public MNullaryInstruction
 {
-  public:
-    enum RecompileCheckType {
-        RecompileCheck_OptimizationLevel,
-        RecompileCheck_Inlining
-    };
-
-  private:
     JSScript *script_;
     uint32_t recompileThreshold_;
-    bool forceRecompilation_;
-    bool increaseUseCount_;
 
-    MRecompileCheck(JSScript *script, uint32_t recompileThreshold, RecompileCheckType type)
+    MRecompileCheck(JSScript *script, uint32_t recompileThreshold)
       : script_(script),
         recompileThreshold_(recompileThreshold)
     {
-        switch (type) {
-          case RecompileCheck_OptimizationLevel:
-            forceRecompilation_ = false;
-            increaseUseCount_ = true;
-            break;
-          case RecompileCheck_Inlining:
-            forceRecompilation_ = true;
-            increaseUseCount_ = false;
-            break;
-          default:
-            MOZ_ASSUME_UNREACHABLE("Unexpected recompile check type");
-        }
-
         setGuard();
     }
 
   public:
     INSTRUCTION_HEADER(RecompileCheck);
 
-    static MRecompileCheck *New(TempAllocator &alloc, JSScript *script_,
-                                uint32_t useCount, RecompileCheckType type)
-    {
-        return new(alloc) MRecompileCheck(script_, useCount, type);
+    static MRecompileCheck *New(TempAllocator &alloc, JSScript *script_, uint32_t useCount) {
+        return new(alloc) MRecompileCheck(script_, useCount);
     }
 
     JSScript *script() const {
@@ -9916,14 +9883,6 @@ class MRecompileCheck : public MNullaryInstruction
 
     uint32_t recompileThreshold() const {
         return recompileThreshold_;
-    }
-
-    bool forceRecompilation() const {
-        return forceRecompilation_;
-    }
-
-    bool increaseUseCount() const {
-        return increaseUseCount_;
     }
 
     AliasSet getAliasSet() const {
