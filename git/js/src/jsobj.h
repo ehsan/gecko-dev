@@ -607,21 +607,12 @@ js_DeleteProperty(JSContext *cx, JSObject *obj, jsid id, jsval *rval);
 extern JSBool
 js_DefaultValue(JSContext *cx, JSObject *obj, JSType hint, jsval *vp);
 
-extern JSIdArray *
-js_NewIdArray(JSContext *cx, jsint length);
-
-/*
- * Unlike realloc(3), this function frees ida on failure.
- */
-extern JSIdArray *
-js_SetIdArrayLength(JSContext *cx, JSIdArray *ida, jsint length);
-
 extern JSBool
 js_Enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
              jsval *statep, jsid *idp);
 
 extern void
-js_TraceNativeIteratorStates(JSTracer *trc);
+js_TraceNativeEnumerators(JSTracer *trc);
 
 extern JSBool
 js_CheckAccess(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
@@ -688,6 +679,13 @@ js_GetRequiredSlot(JSContext *cx, JSObject *obj, uint32 slot);
 
 extern JSBool
 js_SetRequiredSlot(JSContext *cx, JSObject *obj, uint32 slot, jsval v);
+
+/*
+ * obj must be locked.
+ */
+extern JSBool
+js_ReallocSlots(JSContext *cx, JSObject *obj, uint32 nslots,
+                JSBool exactAllocation);
 
 extern JSObject *
 js_CheckScopeChainValidity(JSContext *cx, JSObject *scopeobj, const char *caller);

@@ -62,7 +62,7 @@
 #include "jsdbgapi.h"
 #include "jsemit.h"
 #include "jsfun.h"
-#include "jslock.h"
+#include "jsiter.h"
 #include "jsobj.h"
 #include "jsopcode.h"
 #include "jsregexp.h"
@@ -74,6 +74,14 @@
 #if JS_HAS_DESTRUCTURING
 # include "jsnum.h"
 #endif
+
+#include "jsautooplen.h"
+
+/* Verify JSOP_XXX_LENGTH constant definitions. */
+#define OPDEF(op,val,name,token,length,nuses,ndefs,prec,format)               \
+    JS_STATIC_ASSERT(op##_LENGTH == length);
+#include "jsopcode.tbl"
+#undef OPDEF
 
 static const char js_incop_strs[][3] = {"++", "--"};
 
@@ -1977,31 +1985,42 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     cond = js_GetSrcNoteOffset(sn, 0);
                     next = js_GetSrcNoteOffset(sn, 1);
                     tail = js_GetSrcNoteOffset(sn, 2);
-                    LOCAL_ASSERT(tail + GetJumpOffset(pc+tail, pc+tail) == 0);
+
+                    /*
+                     * If this loop has a condition, then pc points at a goto
+                     * targeting the condition.
+                     */
+                    if (cond != tail) {
+                        LOCAL_ASSERT(*pc == JSOP_GOTO || *pc == JSOP_GOTOX);
+                        pc += (*pc == JSOP_GOTO)
+                              ? JSOP_GOTO_LENGTH
+                              : JSOP_GOTOX_LENGTH;
+                    }
+                    LOCAL_ASSERT(tail == -GetJumpOffset(pc+tail, pc+tail));
 
                     /* Print the keyword and the possibly empty init-part. */
                     js_printf(jp, "\tfor (%s;", rval);
 
-                    if (pc[cond] == JSOP_IFEQ || pc[cond] == JSOP_IFEQX) {
+                    if (cond != tail) {
                         /* Decompile the loop condition. */
-                        DECOMPILE_CODE(pc, cond);
+                        DECOMPILE_CODE(pc + cond, tail - cond);
                         js_printf(jp, " %s", POP_STR());
                     }
 
                     /* Need a semicolon whether or not there was a cond. */
                     js_puts(jp, ";");
 
-                    if (pc[next] != JSOP_GOTO && pc[next] != JSOP_GOTOX) {
+                    if (next != cond) {
                         /* Decompile the loop updater. */
-                        DECOMPILE_CODE(pc + next, tail - next - 1);
+                        DECOMPILE_CODE(pc + next,
+                                       cond - next - JSOP_POP_LENGTH);
                         js_printf(jp, " %s", POP_STR());
                     }
 
                     /* Do the loop body. */
                     js_printf(jp, ") {\n");
                     jp->indent += 4;
-                    oplen = (cond) ? js_CodeSpec[pc[cond]].length : 0;
-                    DECOMPILE_CODE(pc + cond + oplen, next - cond - oplen);
+                    DECOMPILE_CODE(pc, next);
                     jp->indent -= 4;
                     js_printf(jp, "\t}\n");
 
@@ -2151,14 +2170,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 LOCAL_ASSERT(strcmp(lval, exception_cookie) == 0);
                 todo = -2;
                 break;
-
-              case JSOP_SWAP:
-                /*
-                 * We don't generate this opcode currently, and previously we
-                 * did not need to decompile it.  If old, serialized bytecode
-                 * uses it still, we should fall through and set todo = -2.
-                 */
-                /* FALL THROUGH */
 
               case JSOP_GOSUB:
               case JSOP_GOSUBX:
@@ -3834,32 +3845,34 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                      *  1. It is the complete expression consumed by a control
                      *     flow bytecode such as JSOP_TABLESWITCH whose syntax
                      *     always parenthesizes the controlling expression.
-                     *  2. It is the sole argument to a function call.
-                     *  3. It is the condition of an if statement and not of a
+                     *  2. It is the condition of a loop other than a for (;;).
+                     *  3. It is the sole argument to a function call.
+                     *  4. It is the condition of an if statement and not of a
                      *     ?: expression.
                      *
                      * But (first, before anything else) always parenthesize
                      * if this genexp runs up against endpc and the next op is
-                     * not a while or do-while loop JSOP_IFNE* opcode. In such
-                     * cases, this Decompile activation has been recursively
-                     * called by a comma operator, &&, or || bytecode.
+                     * not a loop condition (JSOP_IFNE*) opcode. In such cases,
+                     * this Decompile activation has been recursively called by
+                     * a comma operator, &&, or || bytecode.
                      */
-                    LOCAL_ASSERT(pc + len < endpc ||
+                    pc2 = pc + len;
+                    LOCAL_ASSERT(pc2 < endpc ||
                                  endpc < outer->code + outer->length);
                     LOCAL_ASSERT(ss2.top == 1);
                     ss2.opcodes[0] = JSOP_POP;
-                    if (pc + len == endpc &&
-                        ((JSOp) *endpc != JSOP_IFNE &&
-                         (JSOp) *endpc != JSOP_IFNEX)) {
+                    if (pc2 == endpc &&
+                        (JSOp) *endpc != JSOP_IFNE &&
+                        (JSOp) *endpc != JSOP_IFNEX) {
                         op = JSOP_SETNAME;
                     } else {
-                        op = (JSOp) pc[len];
+                        op = (JSOp) *pc2;
                         op = ((js_CodeSpec[op].format & JOF_PARENHEAD) ||
                               ((js_CodeSpec[op].format & JOF_INVOKE) &&
-                               GET_ARGC(pc + len) == 1) ||
-                              (((op == JSOP_IFEQ || op == JSOP_IFEQX) &&
-                               (sn2 = js_GetSrcNote(outer, pc + len)) &&
-                               SN_TYPE(sn2) != SRC_COND)))
+                               GET_ARGC(pc2) == 1) ||
+                              ((op == JSOP_IFEQ || op == JSOP_IFEQX) &&
+                               (sn2 = js_GetSrcNote(outer, pc2)) &&
+                               SN_TYPE(sn2) != SRC_COND))
                              ? JSOP_POP
                              : JSOP_SETNAME;
 
@@ -4515,8 +4528,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 inXML = JS_FALSE;
                 break;
 
-              case JSOP_FOREACH:
-                foreach = JS_TRUE;
+              case JSOP_ITER:
+                foreach = (pc[1] & (JSITER_FOREACH | JSITER_KEYVALUE)) ==
+                          JSITER_FOREACH;
                 todo = -2;
                 break;
 
@@ -4993,8 +5007,7 @@ DecompileExpression(JSContext *cx, JSScript *script, JSFunction *fun,
 
     /* None of these stack-writing ops generates novel values. */
     JS_ASSERT(op != JSOP_CASE && op != JSOP_CASEX &&
-              op != JSOP_DUP && op != JSOP_DUP2 &&
-              op != JSOP_SWAP);
+              op != JSOP_DUP && op != JSOP_DUP2);
 
     /*
      * |this| could convert to a very long object initialiser, so cite it by
@@ -5272,13 +5285,6 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *pc,
             JS_ASSERT(ndefs == 4);
             pcstack[pcdepth + 2] = pcstack[pcdepth];
             pcstack[pcdepth + 3] = pcstack[pcdepth + 1];
-            break;
-
-          case JSOP_SWAP:
-            JS_ASSERT(ndefs == 2);
-            pc2 = pcstack[pcdepth];
-            pcstack[pcdepth] = pcstack[pcdepth + 1];
-            pcstack[pcdepth + 1] = pc2;
             break;
 
           case JSOP_LEAVEBLOCKEXPR:
