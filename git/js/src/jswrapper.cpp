@@ -149,10 +149,12 @@ ErrorCopier::~ErrorCopier()
     JSContext *cx = ac.ref().context()->asJSContext();
     if (ac.ref().origin() != cx->compartment() && cx->isExceptionPending()) {
         RootedValue exc(cx, cx->getPendingException());
-        if (exc.isObject() && exc.toObject().is<ErrorObject>()) {
+        if (exc.isObject() && exc.toObject().is<ErrorObject>() &&
+            exc.toObject().as<ErrorObject>().getExnPrivate())
+        {
             cx->clearPendingException();
             ac.destroy();
-            Rooted<ErrorObject*> errObj(cx, &exc.toObject().as<ErrorObject>());
+            Rooted<JSObject*> errObj(cx, &exc.toObject());
             JSObject *copyobj = js_CopyErrorObject(cx, errObj, scope);
             if (copyobj)
                 cx->setPendingException(ObjectValue(*copyobj));

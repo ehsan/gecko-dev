@@ -65,7 +65,6 @@ typedef struct nr_ice_stun_server_ {
 
 typedef struct nr_ice_turn_server_ {
     nr_ice_stun_server    turn_server;
-    int                   transport;
     char                 *username;
     Data                 *password;
 } nr_ice_turn_server;

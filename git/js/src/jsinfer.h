@@ -832,23 +832,9 @@ struct TypeNewScript : public TypeObjectAddendum
 
 struct TypeTypedObject : public TypeObjectAddendum
 {
-    enum Kind {
-        TypeDescriptor,
-        Datum,
-    };
+    TypeTypedObject(TypeRepresentation *repr);
 
-    TypeTypedObject(Kind kind, TypeRepresentation *repr);
-
-    const Kind kind;
     TypeRepresentation *const typeRepr;
-
-    bool isTypeDescriptor() const {
-        return kind == TypeDescriptor;
-    }
-
-    bool isDatum() const {
-        return kind == Datum;
-    }
 };
 
 /*
@@ -938,9 +924,7 @@ struct TypeObject : gc::BarrieredCell<TypeObject>
      * this addendum must already be associated with the same TypeRepresentation,
      * and the method has no effect.
      */
-    bool addTypedObjectAddendum(JSContext *cx,
-                                TypeTypedObject::Kind kind ,
-                                TypeRepresentation *repr);
+    bool addTypedObjectAddendum(JSContext *cx, TypeRepresentation *repr);
 
     /*
      * Properties of this object. This may contain JSID_VOID, representing the

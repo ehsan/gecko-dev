@@ -224,26 +224,10 @@ AST_MATCHER(QualType, stackClassAggregate) {
 AST_MATCHER(QualType, nonheapClassAggregate) {
   return getClassAttrs(Node) == NonHeapClass;
 }
-
-/// This matcher will match any function declaration that is declared as a heap
-/// allocator.
-AST_MATCHER(FunctionDecl, heapAllocator) {
-  return MozChecker::hasCustomAnnotation(&Node, "moz_heap_allocator");
-}
 }
 }
 
 namespace {
-
-bool isPlacementNew(const CXXNewExpr *expr) {
-  // Regular new expressions aren't placement new
-  if (expr->getNumPlacementArgs() == 0)
-    return false;
-  if (MozChecker::hasCustomAnnotation(expr->getOperatorNew(),
-      "moz_heap_allocator"))
-    return false;
-  return true;
-}
 
 DiagnosticsMatcher::DiagnosticsMatcher() {
   // Stack class assertion: non-local variables of a stack class are forbidden
@@ -259,15 +243,6 @@ DiagnosticsMatcher::DiagnosticsMatcher() {
   astMatcher.addMatcher(newExpr(hasType(pointerType(
       pointee(nonheapClassAggregate())
     ))).bind("node"), &nonheapClassChecker);
-
-  // Any heap allocation function that returns a non-heap or a stack class is
-  // definitely doing something wrong
-  astMatcher.addMatcher(callExpr(callee(functionDecl(allOf(heapAllocator(),
-      returns(pointerType(pointee(nonheapClassAggregate()))))))).bind("node"),
-    &nonheapClassChecker);
-  astMatcher.addMatcher(callExpr(callee(functionDecl(allOf(heapAllocator(),
-      returns(pointerType(pointee(stackClassAggregate()))))))).bind("node"),
-    &stackClassChecker);
 }
 
 void DiagnosticsMatcher::StackClassChecker::run(
@@ -285,15 +260,10 @@ void DiagnosticsMatcher::StackClassChecker::run(
   } else if (const CXXNewExpr *expr =
       Result.Nodes.getNodeAs<CXXNewExpr>("node")) {
     // If it's placement new, then this match doesn't count.
-    if (isPlacementNew(expr))
+    if (expr->getNumPlacementArgs() > 0)
       return;
     Diag.Report(expr->getStartLoc(), stackID) << expr->getAllocatedType();
     noteInferred(expr->getAllocatedType(), Diag);
-  } else if (const CallExpr *expr =
-      Result.Nodes.getNodeAs<CallExpr>("node")) {
-    QualType badType = expr->getCallReturnType()->getPointeeType();
-    Diag.Report(expr->getLocStart(), stackID) << badType;
-    noteInferred(badType, Diag);
   }
 }
 
@@ -331,17 +301,12 @@ void DiagnosticsMatcher::NonHeapClassChecker::run(
   DiagnosticsEngine &Diag = Result.Context->getDiagnostics();
   unsigned stackID = Diag.getDiagnosticIDs()->getCustomDiagID(
     DiagnosticIDs::Error, "variable of type %0 is not valid on the heap");
-  if (const CXXNewExpr *expr = Result.Nodes.getNodeAs<CXXNewExpr>("node")) {
-    // If it's placement new, then this match doesn't count.
-    if (isPlacementNew(expr))
-      return;
-    Diag.Report(expr->getStartLoc(), stackID) << expr->getAllocatedType();
-    noteInferred(expr->getAllocatedType(), Diag);
-  } else if (const CallExpr *expr = Result.Nodes.getNodeAs<CallExpr>("node")) {
-    QualType badType = expr->getCallReturnType()->getPointeeType();
-    Diag.Report(expr->getLocStart(), stackID) << badType;
-    noteInferred(badType, Diag);
-  }
+  const CXXNewExpr *expr = Result.Nodes.getNodeAs<CXXNewExpr>("node");
+  // If it's placement new, then this match doesn't count.
+  if (expr->getNumPlacementArgs() > 0)
+    return;
+  Diag.Report(expr->getStartLoc(), stackID) << expr->getAllocatedType();
+  noteInferred(expr->getAllocatedType(), Diag);
 }
 
 void DiagnosticsMatcher::NonHeapClassChecker::noteInferred(QualType T,

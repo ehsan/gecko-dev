@@ -11,9 +11,6 @@ Components.utils.import("resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
                                   "resource://gre/modules/FormHistory.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "AutoCompleteE10S",
-                                  "resource://gre/modules/AutoCompleteE10S.jsm");
-
 function FormHistoryStartup() { }
 
 FormHistoryStartup.prototype = {
@@ -62,30 +59,19 @@ FormHistoryStartup.prototype = {
                          getService(Ci.nsIMessageListenerManager);
     messageManager.loadFrameScript("chrome://satchel/content/formSubmitListener.js", true);
     messageManager.addMessageListener("FormHistory:FormSubmitEntries", this);
-    messageManager.addMessageListener("FormHistory:AutoCompleteSearchAsync", this);
   },
 
   receiveMessage: function(message) {
-    switch (message.name) {
-      case "FormHistory:FormSubmitEntries": {
-        let entries = message.data;
-        let changes = entries.map(function(entry) {
-          return {
-            op : "bump",
-            fieldname : entry.name,
-            value : entry.value,
-          }
-        });
-
-        FormHistory.update(changes);
-        break;
+    let entries = message.json;
+    let changes = entries.map(function(entry) {
+      return {
+        op : "bump",
+        fieldname : entry.name,
+        value : entry.value,
       }
+    });
 
-      case "FormHistory:AutoCompleteSearchAsync": {
-        AutoCompleteE10S.search(message);
-        break;
-      }
-    }
+    FormHistory.update(changes);
   }
 };
 

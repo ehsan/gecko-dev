@@ -3801,13 +3801,13 @@ static const JSFunctionSpec string_static_methods[] = {
     JS_FS_END
 };
 
-/* static */ Shape *
-StringObject::assignInitialShape(ExclusiveContext *cx, Handle<StringObject*> obj)
+Shape *
+StringObject::assignInitialShape(JSContext *cx)
 {
-    JS_ASSERT(obj->nativeEmpty());
+    JS_ASSERT(nativeEmpty());
 
-    return obj->addDataProperty(cx, cx->names().length, LENGTH_SLOT,
-                                JSPROP_PERMANENT | JSPROP_READONLY);
+    return addDataProperty(cx, cx->names().length, LENGTH_SLOT,
+                           JSPROP_PERMANENT | JSPROP_READONLY);
 }
 
 JSObject *

@@ -952,6 +952,7 @@ private:
           mDrawable(aDrawable),
           mDeleteDrawable(aDeleteDrawable),
           mDoubleBuffered(aDoubleBuffered),
+          mLibType(libType),
           mGLX(&sGLXLibrary[libType]),
           mPixmap(aPixmap)
     {
@@ -966,6 +967,7 @@ private:
     bool mDeleteDrawable;
     bool mDoubleBuffered;
 
+    LibType mLibType;
     GLXLibrary* mGLX;
 
     nsRefPtr<gfxXlibSurface> mPixmap;

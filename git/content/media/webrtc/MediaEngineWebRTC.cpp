@@ -43,7 +43,7 @@ GetUserMediaLog()
 
 namespace mozilla {
 #ifndef MOZ_B2G_CAMERA
-MediaEngineWebRTC::MediaEngineWebRTC(MediaEnginePrefs &aPrefs)
+MediaEngineWebRTC::MediaEngineWebRTC()
   : mMutex("mozilla::MediaEngineWebRTC")
   , mVideoEngine(nullptr)
   , mVoiceEngine(nullptr)
@@ -56,10 +56,8 @@ MediaEngineWebRTC::MediaEngineWebRTC(MediaEnginePrefs &aPrefs)
   if (compMgr) {
     compMgr->IsContractIDRegistered(NS_TABSOURCESERVICE_CONTRACTID, &mHasTabVideoSource);
   }
-  if (aPrefs.mLoadAdapt) {
-      mLoadMonitor = new LoadMonitor();
-      mLoadMonitor->Init(mLoadMonitor);
-  }
+  mLoadMonitor = new LoadMonitor();
+  mLoadMonitor->Init(mLoadMonitor);
 }
 #endif
 
@@ -361,8 +359,7 @@ MediaEngineWebRTC::Shutdown()
   mVideoEngine = nullptr;
   mVoiceEngine = nullptr;
 
-  if (mLoadMonitor)
-    mLoadMonitor->Shutdown();
+  mLoadMonitor->Shutdown();
 }
 
 }

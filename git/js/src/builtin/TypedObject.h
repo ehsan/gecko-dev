@@ -37,7 +37,7 @@
  * Currently, all "globals" related to typed objects are packaged
  * within a single "module" object `TypedObject`. This module has its
  * own js::Class and when that class is initialized, we also create
- * and define all other values (in `js_InitTypedObjectModuleClass()`).
+ * and define all other values (in `js_InitTypedObjectClass()`).
  *
  * - Type objects, meta type objects, and type representations:
  *
@@ -101,21 +101,7 @@ namespace js {
  * somewhat, rather than sticking them all into the global object.
  * Eventually it will go away and become a module.
  */
-class TypedObjectModuleObject : public JSObject {
-  public:
-    enum Slot {
-        ArrayTypePrototype,
-        StructTypePrototype,
-        SlotCount
-    };
-
-    static const Class class_;
-
-    bool getSuitableClaspAndProto(JSContext *cx,
-                                  TypeRepresentation::Kind kind,
-                                  const Class **clasp,
-                                  MutableHandleObject proto);
-};
+extern const Class TypedObjectClass;
 
 // Type for scalar type constructors like `uint8`. All such type
 // constructors share a common js::Class and JSFunctionSpec. Scalar
@@ -162,18 +148,6 @@ class X4Type : public JSObject
 class ArrayType : public JSObject
 {
   private:
-    // Helper for creating a new ArrayType object, either sized or unsized.
-    // - `arrayTypePrototype` - prototype for the new object to be created,
-    //                          either ArrayType.prototype or
-    //                          unsizedArrayType.__proto__ depending on
-    //                          whether this is a sized or unsized array
-    // - `arrayTypeReprObj` - a type representation object for the array
-    // - `elementType` - type object for the elements in the array
-    static JSObject *create(JSContext *cx,
-                            HandleObject arrayTypePrototype,
-                            HandleObject arrayTypeReprObj,
-                            HandleObject elementType);
-
   public:
     static const Class class_;
 
@@ -191,9 +165,10 @@ class ArrayType : public JSObject
     // does `new ArrayType(elem)`. It produces an array type object.
     static bool construct(JSContext *cx, unsigned argc, Value *vp);
 
-    // This is the sized method on unsized array type objects.  It
-    // produces a sized variant.
-    static bool dimension(JSContext *cx, unsigned int argc, jsval *vp);
+    static JSObject *create(JSContext *cx, HandleObject arrayTypeGlobal,
+                            HandleObject elementType, size_t length);
+    static bool repeat(JSContext *cx, unsigned argc, Value *vp);
+    static bool subarray(JSContext *cx, unsigned argc, Value *vp);
 
     static JSObject *elementType(JSContext *cx, HandleObject obj);
 };
@@ -331,8 +306,7 @@ class TypedDatum : public JSObject
 
     static TypedDatum *createUnattachedWithClass(JSContext *cx,
                                                  const Class *clasp,
-                                                 HandleObject type,
-                                                 int32_t length);
+                                                 HandleObject type);
 
     // Creates an unattached typed object or handle (depending on the
     // type parameter T). Note that it is only legal for unattached
@@ -341,9 +315,8 @@ class TypedDatum : public JSObject
     //
     // Arguments:
     // - type: type object for resulting object
-    // - length: 0 unless this is an array, otherwise the length
     template<class T>
-    static T *createUnattached(JSContext *cx, HandleObject type, int32_t length);
+    static T *createUnattached(JSContext *cx, HandleObject type);
 
     // Creates a datum that aliases the memory pointed at by `owner`
     // at the given offset. The datum will be a handle iff type is a
@@ -352,7 +325,6 @@ class TypedDatum : public JSObject
                                      HandleObject type,
                                      HandleObject typedContents,
                                      size_t offset);
-
 
     // If `this` is the owner of the memory, use this.
     void attach(uint8_t *mem);
@@ -366,12 +338,8 @@ class TypedObject : public TypedDatum
   public:
     static const Class class_;
 
-    // Creates a new typed object whose memory is freshly allocated
-    // and initialized with zeroes (or, in the case of references, an
-    // appropriate default value).
-    static TypedObject *createZeroed(JSContext *cx,
-                                     HandleObject typeObj,
-                                     int32_t length);
+    // creates zeroed memory of size of type
+    static JSObject *createZeroed(JSContext *cx, HandleObject type);
 
     // user-accessible constructor (`new TypeDescriptor(...)`)
     static bool construct(JSContext *cx, unsigned argc, Value *vp);
@@ -383,13 +351,6 @@ class TypedHandle : public TypedDatum
     static const Class class_;
     static const JSFunctionSpec handleStaticMethods[];
 };
-
-/*
- * Usage: NewTypedHandle(typeObj)
- *
- * Constructs a new, unattached instance of `Handle`.
- */
-bool NewTypedHandle(JSContext *cx, unsigned argc, Value *vp);
 
 /*
  * Usage: NewTypedHandle(typeObj)
@@ -478,15 +439,15 @@ bool Memcpy(ThreadSafeContext *cx, unsigned argc, Value *vp);
 extern const JSJitInfo MemcpyJitInfo;
 
 /*
- * Usage: GetTypedObjectModule()
+ * Usage: StandardTypeObjectDescriptors()
  *
- * Returns the global "typed object" module, which provides access
+ * Returns the global "typed object" object, which provides access
  * to the various builtin type descriptors. These are currently
  * exported as immutable properties so it is safe for self-hosted code
  * to access them; eventually this should be linked into the module
  * system.
  */
-bool GetTypedObjectModule(JSContext *cx, unsigned argc, Value *vp);
+bool StandardTypeObjectDescriptors(JSContext *cx, unsigned argc, Value *vp);
 
 /*
  * Usage: Store_int8(targetDatum, targetOffset, value)

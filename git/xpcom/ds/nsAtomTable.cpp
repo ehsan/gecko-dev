@@ -6,7 +6,6 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Compiler.h"
 #include "mozilla/HashFunctions.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/DebugOnly.h"
@@ -25,12 +24,8 @@
 
 using namespace mozilla;
 
-#if defined(__clang__)
-#  pragma GCC diagnostic ignored "-Wdelete-non-virtual-dtor"
-#elif MOZ_IS_GCC
-#  if MOZ_GCC_VERSION_AT_LEAST(4, 7, 0)
-#    pragma GCC diagnostic ignored "-Wdelete-non-virtual-dtor"
-#  endif
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wdelete-non-virtual-dtor"
 #endif
 
 /**

@@ -157,7 +157,7 @@ class MoveResolver
   private:
     struct PendingMove
       : public Move,
-        public TempObject,
+        public OldTempObject,
         public InlineListNode<PendingMove>
     {
         PendingMove()
@@ -214,9 +214,6 @@ class MoveResolver
     }
     void clearTempObjectPool() {
         movePool_.clear();
-    }
-    void setAllocator(TempAllocator &alloc) {
-        movePool_.setAllocator(alloc);
     }
 };
 

@@ -481,6 +481,9 @@ function BrowserTabActor(aConnection, aBrowser, aTabBrowser)
   this._extraActors = {};
 
   this._onWindowCreated = this.onWindowCreated.bind(this);
+
+  // Number of event loops nested.
+  this._nestedEventLoopDepth = 0;
 }
 
 // XXX (bug 710213): BrowserTabActor attach/detach/exit/disconnect is a
@@ -612,6 +615,9 @@ BrowserTabActor.prototype = {
                        type: "tabDetached" });
     }
 
+    // Pop all nested event loops if we haven't already.
+    while (this._nestedEventLoopDepth > 0)
+      this.postNest();
     this._browser = null;
     this._tabbrowser = null;
   },
@@ -760,6 +766,7 @@ BrowserTabActor.prototype = {
                           .getInterface(Ci.nsIDOMWindowUtils);
     windowUtils.suppressEventHandling(true);
     windowUtils.suspendTimeouts();
+    this._nestedEventLoopDepth++;
   },
 
   /**
@@ -767,7 +774,13 @@ BrowserTabActor.prototype = {
    */
   postNest: function BTA_postNest(aNestData) {
     if (!this.window) {
-      // The tab is already closed.
+      // The tab is already closed, so there is no way to resume events and
+      // timeouts.
+      // TODO: this wouldn't be necessary if closing a browser window could be
+      // identified early enough while this.window is still available. This is
+      // still cauisng leaks that we need to fix (bug 933950).
+      this._nestedEventLoopDepth--;
+      this._pendingNavigation = null;
       return;
     }
     let windowUtils = this.window
@@ -779,6 +792,7 @@ BrowserTabActor.prototype = {
       this._pendingNavigation.resume();
       this._pendingNavigation = null;
     }
+    this._nestedEventLoopDepth--;
   },
 
   /**

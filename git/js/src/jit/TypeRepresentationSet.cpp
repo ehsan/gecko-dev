@@ -184,19 +184,7 @@ TypeRepresentationSet::allOfArrayKind()
     if (empty())
         return false;
 
-    switch (kind()) {
-      case TypeRepresentation::SizedArray:
-      case TypeRepresentation::UnsizedArray:
-        return true;
-
-      case TypeRepresentation::X4:
-      case TypeRepresentation::Reference:
-      case TypeRepresentation::Scalar:
-      case TypeRepresentation::Struct:
-        return false;
-    }
-
-    MOZ_ASSUME_UNREACHABLE("Invalid kind() in TypeRepresentationSet");
+    return kind() == TypeRepresentation::Array;
 }
 
 bool
@@ -214,11 +202,9 @@ TypeRepresentationSet::allHaveSameSize(size_t *out)
     if (empty())
         return false;
 
-    JS_ASSERT(TypeRepresentation::isSized(kind()));
-
-    size_t size = get(0)->asSized()->size();
+    size_t size = get(0)->size();
     for (size_t i = 1; i < length(); i++) {
-        if (get(i)->asSized()->size() != size)
+        if (get(i)->size() != size)
             return false;
     }
 
@@ -233,49 +219,28 @@ TypeRepresentationSet::kind()
     return get(0)->kind();
 }
 
-bool
-TypeRepresentationSet::hasKnownArrayLength(size_t *l)
+size_t
+TypeRepresentationSet::arrayLength()
 {
-    switch (kind()) {
-      case TypeRepresentation::UnsizedArray:
-        return false;
-
-      case TypeRepresentation::SizedArray:
-      {
-        const size_t result = get(0)->asSizedArray()->length();
-        for (size_t i = 1; i < length(); i++) {
-            if (get(i)->asSizedArray()->length() != result)
-                return false;
-        }
-        *l = result;
-        return true;
-      }
-
-      default:
-        MOZ_ASSUME_UNREACHABLE("Invalid array size for call to arrayLength()");
+    JS_ASSERT(kind() == TypeRepresentation::Array);
+    const size_t result = get(0)->asArray()->length();
+    for (size_t i = 1; i < length(); i++) {
+        if (get(i)->asArray()->length() != result)
+            return SIZE_MAX;
     }
+    return result;
 }
 
 bool
 TypeRepresentationSet::arrayElementType(IonBuilder &builder,
                                         TypeRepresentationSet *out)
 {
+    JS_ASSERT(kind() == TypeRepresentation::Array);
+
     TypeRepresentationSetBuilder elementTypes;
     for (size_t i = 0; i < length(); i++) {
-        switch (kind()) {
-          case TypeRepresentation::UnsizedArray:
-            if (!elementTypes.insert(get(i)->asUnsizedArray()->element()))
-                return false;
-            break;
-
-          case TypeRepresentation::SizedArray:
-            if (!elementTypes.insert(get(i)->asSizedArray()->element()))
-                return false;
-            break;
-
-          default:
-            MOZ_ASSUME_UNREACHABLE("Invalid kind for arrayElementType()");
-        }
+        if (!elementTypes.insert(get(i)->asArray()->element()))
+            return false;
     }
     return elementTypes.build(builder, out);
 }

@@ -12,15 +12,11 @@ var T = TypedObject;
 
 function runTests() {
   var Line = new T.StructType({from: T.uint8, to: T.uint8});
-  var Lines = Line.array(3);
+  var Lines = new T.ArrayType(Line, 3);
 
   // Create unattached handle to array, struct:
   var handle = Lines.handle();
   var handle0 = Line.handle();
-
-  // Accessing length throws:
-  assertThrowsInstanceOf(function() handle.length, TypeError,
-                         "handle.length did not yield error");
 
   // Accessing properties throws:
   assertThrowsInstanceOf(function() handle[0], TypeError,
