@@ -70,7 +70,6 @@
 #include "jsopcode.h"
 #include "jsregexp.h"
 #include "jsscope.h"
-#include "jsstaticcheck.h"
 #include "jsstr.h"
 #include "jsbit.h"
 
@@ -1580,8 +1579,6 @@ find_replen(JSContext *cx, ReplaceData *rdata, size_t *sizep)
         jsval *invokevp, *sp;
         void *mark;
         JSBool ok;
-
-        JS_ASSERT_NOT_ON_TRACE(cx);
 
         /*
          * Save the regExpStatics from the current regexp, since they may be

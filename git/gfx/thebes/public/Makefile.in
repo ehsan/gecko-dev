@@ -18,7 +18,6 @@ EXPORTS		= 	gfxASurface.h \
 			gfxColor.h \
 			gfxContext.h \
 			gfxFont.h \
-			gfxFontConstants.h \
 			gfxFontUtils.h \
 			gfxImageSurface.h \
 			gfxMatrix.h \

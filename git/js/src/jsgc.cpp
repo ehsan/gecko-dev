@@ -74,7 +74,6 @@
 #include "jsparse.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jsstaticcheck.h"
 #include "jsstr.h"
 #include "jstracer.h"
 
@@ -2958,7 +2957,7 @@ TraceWeakRoots(JSTracer *trc, JSWeakRoots *wr)
     js_CallValueTracerIfGCThing(trc, wr->lastInternalResult);
 }
 
-JS_REQUIRES_STACK JS_FRIEND_API(void)
+JS_FRIEND_API(void)
 js_TraceContext(JSTracer *trc, JSContext *acx)
 {
     JSStackFrame *fp, *nextChain;
@@ -3110,7 +3109,7 @@ js_TraceTraceMonitor(JSTracer *trc, JSTraceMonitor *tm)
     }
 }
 
-JS_REQUIRES_STACK void
+void
 js_TraceRuntime(JSTracer *trc, JSBool allAtoms)
 {
     JSRuntime *rt = trc->context->runtime;
@@ -3458,7 +3457,6 @@ js_GC(JSContext *cx, JSGCInvocationKind gckind)
     if (JS_ON_TRACE(cx))
         goto out;
 #endif
-    VOUCH_HAVE_STACK();
 
     /* Reset malloc counter. */
     rt->gcMallocBytes = 0;
@@ -3780,8 +3778,7 @@ out:
      * We want to restart GC if js_GC was called recursively or if any of the
      * finalizers called js_RemoveRoot or js_UnlockGCThingRT.
      */
-    if (!JS_ON_TRACE(cx) && (rt->gcLevel > 1 || rt->gcPoke)) {
-        VOUCH_HAVE_STACK();
+    if (rt->gcLevel > 1 || rt->gcPoke) {
         rt->gcLevel = 1;
         rt->gcPoke = JS_FALSE;
         JS_UNLOCK_GC(rt);

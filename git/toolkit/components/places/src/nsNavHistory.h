@@ -467,6 +467,7 @@ protected:
   nsCOMPtr<mozIStorageStatement> mDBVisitsForFrecency;
   nsCOMPtr<mozIStorageStatement> mDBUpdateFrecencyAndHidden;
   nsCOMPtr<mozIStorageStatement> mDBGetPlaceVisitStats;
+  nsCOMPtr<mozIStorageStatement> mDBGetBookmarkParentsForPlace;
   nsCOMPtr<mozIStorageStatement> mDBFullVisitCount;
   mozIStorageStatement *GetDBInvalidFrecencies();
   nsCOMPtr<mozIStorageStatement> mDBInvalidFrecencies;

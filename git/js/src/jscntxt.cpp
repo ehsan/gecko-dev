@@ -64,7 +64,6 @@
 #include "jsscan.h"
 #include "jsscope.h"
 #include "jsscript.h"
-#include "jsstaticcheck.h"
 #include "jsstr.h"
 #include "jstracer.h"
 
@@ -295,7 +294,6 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
      * done by js_DestroyContext).
      */
     cx->version = JSVERSION_DEFAULT;
-    VOUCH_DOES_NOT_REQUIRE_STACK();
     JS_INIT_ARENA_POOL(&cx->stackPool, "stack", stackChunkSize, sizeof(jsval),
                        &cx->scriptStackQuota);
 
@@ -509,7 +507,6 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
 
     /* Free the stuff hanging off of cx. */
     js_FreeRegExpStatics(cx);
-    VOUCH_DOES_NOT_REQUIRE_STACK();
     JS_FinishArenaPool(&cx->stackPool);
     JS_FinishArenaPool(&cx->tempPool);
 

@@ -346,8 +346,6 @@ nsPrintingPromptService::ShowPrintDialog(nsIDOMWindow *parent, nsIWebBrowserPrin
 
     Boolean accepted;
     status = ::PMSessionPrintDialog(printSession, nativePrintSettings, pageFormat, &accepted);
-    printSettingsX->CleanUpAfterCarbonDialog();
-    
     if (status == noErr && accepted) {
         int pageRange = -1;
         
@@ -486,8 +484,6 @@ nsPrintingPromptService::ShowPageSetup(nsIDOMWindow *parent, nsIPrintSettings *p
 
   Boolean   accepted = false;
   status = ::PMSessionPageSetupDialog(printSession, pageFormat, &accepted);
-  printSettingsX->CleanUpAfterCarbonDialog();
-
   OSStatus tempStatus = ::PMRelease(printSession);
   if (status == noErr)
     status = tempStatus;

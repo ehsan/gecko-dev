@@ -526,33 +526,17 @@ nsHttpServer.prototype =
   //
   // see nsIHttpServer.getState
   //
-  getState: function(path, k)
+  getState: function(k)
   {
-    return this._handler._getState(path, k);
+    return this._handler._getState(k);
   },
 
   //
   // see nsIHttpServer.setState
   //
-  setState: function(path, k, v)
+  setState: function(k, v)
   {
-    return this._handler._setState(path, k, v);
-  },
-
-  //
-  // see nsIHttpServer.getSharedState
-  //
-  getSharedState: function(k)
-  {
-    return this._handler._getSharedState(k);
-  },
-
-  //
-  // see nsIHttpServer.setSharedState
-  //
-  setSharedState: function(k, v)
-  {
-    return this._handler._setSharedState(k, v);
+    return this._handler._setState(k, v);
   },
 
   // NSISUPPORTS
@@ -1996,11 +1980,10 @@ function ServerHandler(server)
    */
   this._indexHandler = defaultIndexHandler;
 
-  /** Per-path state storage for the server. */
+  /**
+   * State storage for the server.
+   */
   this._state = {};
-
-  /** Entire-server state storage. */
-  this._sharedState = {};
 }
 ServerHandler.prototype =
 {
@@ -2403,7 +2386,7 @@ ServerHandler.prototype =
     const PR_RDONLY = 0x01;
 
     var type = this._getTypeFromFile(file);
-    if (type === SJS_TYPE)
+    if (type == SJS_TYPE)
     {
       var fis = new FileInputStream(file, PR_RDONLY, 0444,
                                     Ci.nsIFileInputStream.CLOSE_ON_EOF);
@@ -2417,10 +2400,8 @@ ServerHandler.prototype =
         // Define a basic key-value state-preservation API across requests, with
         // keys initially corresponding to the empty string.
         var self = this;
-        s.importFunction(function getState(k) { return self._getState(metadata.path, k); });
-        s.importFunction(function setState(k, v) { self._setState(metadata.path, k, v); });
-        s.importFunction(function getSharedState(k) { return self._getSharedState(k); });
-        s.importFunction(function setSharedState(k, v) { self._setSharedState(k, v); });
+        s.importFunction(function getState(k) { return self._getState(k); });
+        s.importFunction(function setState(k, v) { self._setState(k, v); });
 
         try
         {
@@ -2496,46 +2477,6 @@ ServerHandler.prototype =
   },
 
   /**
-   * Get the value corresponding to a given key for the given path for SJS state
-   * preservation across requests.
-   *
-   * @param path : string
-   *   the path from which the given state is to be retrieved
-   * @param k : string
-   *   the key whose corresponding value is to be returned
-   * @returns string
-   *   the corresponding value, which is initially the empty string
-   */
-  _getState: function(path, k)
-  {
-    var state = this._state;
-    if (path in state && k in state[path])
-      return state[path][k];
-    return "";
-  },
-
-  /**
-   * Set the value corresponding to a given key for the given path for SJS state
-   * preservation across requests.
-   *
-   * @param path : string
-   *   the path from which the given state is to be retrieved
-   * @param k : string
-   *   the key whose corresponding value is to be set
-   * @param v : string
-   *   the value to be set
-   */
-  _setState: function(path, k, v)
-  {
-    if (typeof v !== "string")
-      throw new Exception("non-string value passed");
-    var state = this._state;
-    if (!(path in state))
-      state[path] = {};
-    state[path][k] = v;
-  },
-
-  /**
    * Get the value corresponding to a given key for SJS state preservation
    * across requests.
    *
@@ -2544,12 +2485,13 @@ ServerHandler.prototype =
    * @returns string
    *   the corresponding value, which is initially the empty string
    */
-  _getSharedState: function(k)
+  _getState: function(k)
   {
-    var state = this._sharedState;
+    NS_ASSERT(typeof k == "string");
+    var state = this._state;
     if (k in state)
       return state[k];
-    return "";
+    return state[k] = "";
   },
 
   /**
@@ -2561,11 +2503,10 @@ ServerHandler.prototype =
    * @param v : string
    *   the value to be set
    */
-  _setSharedState: function(k, v)
+  _setState: function(k, v)
   {
-    if (typeof v !== "string")
-      throw new Exception("non-string value passed");
-    this._sharedState[k] = v;
+    NS_ASSERT(typeof v == "string");
+    this._state[k] = String(v);
   },
 
   /**

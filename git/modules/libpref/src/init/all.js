@@ -149,6 +149,7 @@ pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 
 pref("gfx.downloadable_fonts.enabled", true);
+pref("gfx.downloadable_fonts.enforce_same_site_origin", true);
 
 pref("accessibility.browsewithcaret", false);
 pref("accessibility.warn_on_browsewithcaret", true);
@@ -1018,8 +1019,6 @@ pref("bidi.controlstextmode", 1);
 // 2 = hindicontextnumeralBidi
 // 3 = arabicnumeralBidi
 // 4 = hindinumeralBidi
-// 5 = persiancontextnumeralBidi
-// 6 = persiannumeralBidi
 pref("bidi.numeral", 0);
 // ------------------
 //  Support Mode

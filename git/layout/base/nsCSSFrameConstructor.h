@@ -61,13 +61,13 @@ class nsStyleContext;
 struct nsStyleContent;
 struct nsStyleDisplay;
 class nsIPresShell;
+class nsVoidArray;
 class nsFrameManager;
 class nsIDOMHTMLSelectElement;
 class nsPresContext;
 class nsStyleChangeList;
 class nsIFrame;
 struct nsGenConInitializer;
-class ChildIterator;
 
 struct nsFindFrameHint
 {
@@ -791,7 +791,6 @@ private:
   static const FrameConstructionData* FindHTMLData(nsIContent* aContent,
                                                    nsIAtom* aTag,
                                                    PRInt32 aNameSpaceID,
-                                                   nsIFrame* aParentFrame,
                                                    nsStyleContext* aStyleContext);
   // HTML data-finding helper functions
   static const FrameConstructionData*
@@ -1282,17 +1281,16 @@ private:
                                        PRUint8& aTargetContentDisplay,
                                        PRBool aPrevSibling);
 
-  // Find the ``rightmost'' frame for the content immediately preceding the one
-  // aIter points to, following continuations if necessary.  aIter is passed by
-  // value on purpose, so as not to modify the callee's iterator.
-  nsIFrame* FindPreviousSibling(const ChildIterator& aFirst,
-                                ChildIterator aIter);
+  // Find the ``rightmost'' frame for the content immediately preceding
+  // aIndexInContainer, following continuations if necessary.
+  nsIFrame* FindPreviousSibling(nsIContent* aContainer,
+                                PRInt32     aIndexInContainer,
+                                nsIContent* aChild);
 
-  // Find the frame for the content node immediately following the one aIter
-  // points to, following continuations if necessary.  aIter is passed by value
-  // on purpose, so as not to modify the callee's iterator.
-  nsIFrame* FindNextSibling(ChildIterator aIter,
-                            const ChildIterator& aLast);
+  // Find the frame for the content node immediately following aIndexInContainer.
+  nsIFrame* FindNextSibling(nsIContent* aContainer,
+                            PRInt32     aIndexInContainer,
+                            nsIContent* aChild);
 
   // see if aContent and aSibling are legitimate siblings due to restrictions
   // imposed by table columns
@@ -1302,6 +1300,22 @@ private:
                         nsIContent*            aContent,
                         PRUint8&               aDisplay);
   
+  /**
+   * Find the ``rightmost'' frame for the anonymous content immediately
+   * preceding aChild, following continuation if necessary.
+   */
+  nsIFrame*
+  FindPreviousAnonymousSibling(nsIContent*   aContainer,
+                               nsIContent*   aChild);
+
+  /**
+   * Find the frame for the anonymous content immediately following
+   * aChild.
+   */
+  nsIFrame*
+  FindNextAnonymousSibling(nsIContent*   aContainer,
+                           nsIContent*   aChild);
+
   void QuotesDirty() {
     NS_PRECONDITION(mUpdateCount != 0, "Instant quote updates are bad news");
     mQuotesDirty = PR_TRUE;

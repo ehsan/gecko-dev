@@ -272,22 +272,7 @@ function runHttpTests(testArray, done)
                         .QueryInterface(Ci.nsIHttpChannelInternal);
 
         this._data.length = 0;
-        try
-        {
-          try
-          {
-            testArray[testIndex].onStartRequest(ch, cx);
-          }
-          catch (e)
-          {
-            do_throw("testArray[" + testIndex + "].onStartRequest: " + e);
-          }
-        }
-        catch (e)
-        {
-          dumpn("!!! swallowing onStartRequest exception so onStopRequest is " +
-                "called...");
-        }
+        testArray[testIndex].onStartRequest(ch, cx);
       },
       onDataAvailable: function(request, cx, inputStream, offset, count)
       {

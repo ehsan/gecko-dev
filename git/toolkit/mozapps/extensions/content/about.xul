@@ -45,10 +45,7 @@
 
 <dialog id="genericAbout"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
-        onload="init();"
-        buttons="accept"
-        buttoniconaccept="close"
-        onaccept="close();">
+        buttons="accept" onload="init();" onaccept="close();">
 
   <script type="application/javascript" src="chrome://mozapps/content/extensions/about.js"/>
   <script type="application/javascript" src="chrome://global/content/contentAreaUtils.js"/>

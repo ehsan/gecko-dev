@@ -38,6 +38,7 @@
 
 NPError pluginInstanceInit(InstanceData* instanceData);
 int16_t pluginHandleEvent(InstanceData* instanceData, void* event);
+// draws a gray box with a black border containing the browser UA string
 void    pluginDraw(InstanceData* instanceData);
 
 #endif // nptest_platform_h_
