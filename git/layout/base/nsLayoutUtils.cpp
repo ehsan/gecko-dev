@@ -510,7 +510,9 @@ nsLayoutUtils::GetCrossDocParentFrame(const nsIFrame* aFrame,
     *aExtraOffset += v->GetPosition();
   }
   v = v->GetParent(); // subdocumentframe's view
-  return v ? v->GetFrame() : nsnull;
+  if (!v)
+    return nsnull;
+  return static_cast<nsIFrame*>(v->GetClientData());
 }
 
 // static
@@ -751,16 +753,16 @@ nsIFrame* nsLayoutUtils::GetLastSibling(nsIFrame* aFrame) {
 // static
 nsIView*
 nsLayoutUtils::FindSiblingViewFor(nsIView* aParentView, nsIFrame* aFrame) {
-  nsIFrame* parentViewFrame = aParentView->GetFrame();
+  nsIFrame* parentViewFrame = static_cast<nsIFrame*>(aParentView->GetClientData());
   nsIContent* parentViewContent = parentViewFrame ? parentViewFrame->GetContent() : nsnull;
   for (nsIView* insertBefore = aParentView->GetFirstChild(); insertBefore;
        insertBefore = insertBefore->GetNextSibling()) {
-    nsIFrame* f = insertBefore->GetFrame();
+    nsIFrame* f = static_cast<nsIFrame*>(insertBefore->GetClientData());
     if (!f) {
       // this view could be some anonymous view attached to a meaningful parent
       for (nsIView* searchView = insertBefore->GetParent(); searchView;
            searchView = searchView->GetParent()) {
-        f = searchView->GetFrame();
+        f = static_cast<nsIFrame*>(searchView->GetClientData());
         if (f) {
           break;
         }

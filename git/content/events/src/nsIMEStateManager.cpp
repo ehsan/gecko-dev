@@ -42,6 +42,7 @@
 #include "nsCOMPtr.h"
 #include "nsIWidget.h"
 #include "nsIViewManager.h"
+#include "nsIViewObserver.h"
 #include "nsIPresShell.h"
 #include "nsISupports.h"
 #include "nsPIDOMWindow.h"

@@ -106,14 +106,10 @@ nsImageLoader::Destroy()
   if (mRequest && mFrame) {
     nsLayoutUtils::DeregisterImageRequest(mFrame->PresContext(), mRequest,
                                           &mRequestRegistered);
-  }
-
-  mFrame = nsnull;
-
-  if (mRequest) {
     mRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
   }
 
+  mFrame = nsnull;
   mRequest = nsnull;
 }
 
