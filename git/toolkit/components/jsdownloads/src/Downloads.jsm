@@ -273,8 +273,8 @@ this.Downloads = {
    * @return {Promise}
    * @resolves The nsIFile of downloads directory.
    */
-  getPreferredDownloadsDirectory: function D_getPreferredDownloadsDirectory() {
-    return DownloadIntegration.getPreferredDownloadsDirectory();
+  getUserDownloadsDirectory: function D_getUserDownloadsDirectory() {
+    return DownloadIntegration.getUserDownloadsDirectory();
   },
 
   /**

@@ -71,7 +71,6 @@ CPP_SOURCES += [
     'BrowserStreamParent.cpp',
     'ChildAsyncCall.cpp',
     'ChildTimer.cpp',
-    'PluginBackgroundDestroyer.cpp',
     'PluginIdentifierChild.cpp',
     'PluginIdentifierParent.cpp',
     'PluginInstanceChild.cpp',

@@ -159,13 +159,13 @@ public:
 
   virtual void
   AddEventListener(const nsAString& aType,
-                   mozilla::dom::EventListener* aListener,
+                   nsIDOMEventListener* aListener,
                    bool aUseCapture,
                    const mozilla::dom::Nullable<bool>& aWantsUntrusted,
                    ErrorResult& aRv) MOZ_OVERRIDE;
 
   virtual void RemoveEventListener(const nsAString& aType,
-                                   mozilla::dom::EventListener* aListener,
+                                   nsIDOMEventListener* aListener,
                                    bool aUseCapture,
                                    ErrorResult& aRv) MOZ_OVERRIDE;
 

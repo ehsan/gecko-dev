@@ -137,33 +137,19 @@ class CPPUnittestOptions(OptionParser):
                         action = "store", type = "string", dest = "symbols_path",
                         default = None,
                         help = "absolute path to directory containing breakpad symbols, or the URL of a zip file containing symbols")
-        self.add_option("--skip-manifest",
-                        action = "store", type = "string", dest = "manifest_file",
-                        default = None,
-                        help = "absolute path to a manifest file")
 
-def extract_unittests_from_args(args, manifest_file):
+def extract_unittests_from_args(args):
     """Extract unittests from args, expanding directories as needed"""
     progs = []
-    skipped_progs = set()
-
-    if manifest_file:
-        skipped_progs.add(os.path.basename(manifest_file))
-        with open(manifest_file) as f:
-            for line in f:
-                # strip out comment, if any
-                prog = line.split('#')[0]
-                if prog:
-                    skipped_progs.add(prog.strip())
 
     for p in args:
         if os.path.isdir(p):
-            progs.extend([os.path.abspath(os.path.join(p, x)) for x in os.listdir(p) if not x in skipped_progs])
-        elif p not in skipped_progs:
+            #filter out .py files packaged with the unit tests
+            progs.extend([os.path.abspath(os.path.join(p, x)) for x in os.listdir(p) if not x.endswith('.py')])
+        else:
             progs.append(os.path.abspath(p))
 
-    #filter out python files packaged with the unit tests
-    return filter(lambda x: not x.endswith('.py') and not x.endswith('.pyc'), progs)
+    return progs
 
 def main():
     parser = CPPUnittestOptions()
@@ -174,8 +160,7 @@ def main():
     if not options.xre_path:
         print >>sys.stderr, """Error: --xre-path is required"""
         sys.exit(1)
-        
-    progs = extract_unittests_from_args(args, options.manifest_file)
+    progs = extract_unittests_from_args(args)
     options.xre_path = os.path.abspath(options.xre_path)
     tester = CPPUnitTests()
     try:

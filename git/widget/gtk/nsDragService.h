@@ -9,7 +9,6 @@
 
 #include "nsBaseDragService.h"
 #include "nsIObserver.h"
-#include "nsAutoRef.h"
 #include <gtk/gtk.h>
 
 class nsWindow;

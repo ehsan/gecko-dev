@@ -14,6 +14,8 @@
 
 #include "gfxTypes.h"
 
+typedef nsIntSize gfxIntSize;
+
 struct gfxSize : public mozilla::gfx::BaseSize<gfxFloat, gfxSize> {
     typedef mozilla::gfx::BaseSize<gfxFloat, gfxSize> Super;
 

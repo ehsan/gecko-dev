@@ -313,7 +313,7 @@ this.DownloadIntegration = {
    * @return {Promise}
    * @resolves The nsIFile of downloads directory.
    */
-  getPreferredDownloadsDirectory: function DI_getPreferredDownloadsDirectory() {
+  getUserDownloadsDirectory: function DI_getUserDownloadsDirectory() {
     return Task.spawn(function() {
       let directory = null;
       let prefValue = 1;
@@ -356,7 +356,7 @@ this.DownloadIntegration = {
     return Task.spawn(function() {
       let directory = null;
 #ifdef XP_MACOSX
-      directory = yield this.getPreferredDownloadsDirectory();
+      directory = yield this.getUserDownloadsDirectory();
 #elifdef ANDROID
       directory = yield this.getSystemDownloadsDirectory();
 #else

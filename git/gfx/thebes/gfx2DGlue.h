@@ -199,52 +199,52 @@ inline gfxMatrix ThebesMatrix(const Matrix &aMatrix)
                    aMatrix._22, aMatrix._31, aMatrix._32);
 }
 
-inline gfxImageFormat SurfaceFormatToImageFormat(SurfaceFormat aFormat)
+inline gfxASurface::gfxImageFormat SurfaceFormatToImageFormat(SurfaceFormat aFormat)
 {
   switch (aFormat) {
   case FORMAT_B8G8R8A8:
-    return gfxImageFormatARGB32;
+    return gfxASurface::ImageFormatARGB32;
   case FORMAT_B8G8R8X8:
-    return gfxImageFormatRGB24;
+    return gfxASurface::ImageFormatRGB24;
   case FORMAT_R5G6B5:
-    return gfxImageFormatRGB16_565;
+    return gfxASurface::ImageFormatRGB16_565;
   case FORMAT_A8:
-    return gfxImageFormatA8;
+    return gfxASurface::ImageFormatA8;
   default:
-    return gfxImageFormatUnknown;
+    return gfxASurface::ImageFormatUnknown;
   }
 }
 
-inline SurfaceFormat ImageFormatToSurfaceFormat(gfxImageFormat aFormat)
+inline SurfaceFormat ImageFormatToSurfaceFormat(gfxASurface::gfxImageFormat aFormat)
 {
   switch (aFormat) {
-  case gfxImageFormatARGB32:
+  case gfxASurface::ImageFormatARGB32:
     return FORMAT_B8G8R8A8;
-  case gfxImageFormatRGB24:
+  case gfxASurface::ImageFormatRGB24:
     return FORMAT_B8G8R8X8;
-  case gfxImageFormatRGB16_565:
+  case gfxASurface::ImageFormatRGB16_565:
     return FORMAT_R5G6B5;
-  case gfxImageFormatA8:
+  case gfxASurface::ImageFormatA8:
     return FORMAT_A8;
   default:
-  case gfxImageFormatUnknown:
+  case gfxASurface::ImageFormatUnknown:
     return FORMAT_B8G8R8A8;
   }
 }
 
-inline gfxContentType ContentForFormat(const SurfaceFormat &aFormat)
+inline gfxASurface::gfxContentType ContentForFormat(const SurfaceFormat &aFormat)
 {
   switch (aFormat) {
   case FORMAT_R5G6B5:
   case FORMAT_B8G8R8X8:
   case FORMAT_R8G8B8X8:
-    return GFX_CONTENT_COLOR;
+    return gfxASurface::CONTENT_COLOR;
   case FORMAT_A8:
-    return GFX_CONTENT_ALPHA;
+    return gfxASurface::CONTENT_ALPHA;
   case FORMAT_B8G8R8A8:
   case FORMAT_R8G8B8A8:
   default:
-    return GFX_CONTENT_COLOR_ALPHA;
+    return gfxASurface::CONTENT_COLOR_ALPHA;
   }
 }
 

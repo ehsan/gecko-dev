@@ -19,6 +19,8 @@
 #include "nsITimer.h"
 #include "nsGkAtoms.h"
 
+#include "gfxASurface.h"
+
 #include "nsBaseWidget.h"
 #include "nsGUIEvent.h"
 #include <gdk/gdk.h>
@@ -62,7 +64,6 @@ extern PRLogModuleInfo *gWidgetDrawLog;
 
 #endif /* MOZ_LOGGING */
 
-class gfxASurface;
 class gfxPattern;
 class nsDragService;
 #if defined(MOZ_X11) && defined(MOZ_HAVE_SHAREDMEMORYSYSV)

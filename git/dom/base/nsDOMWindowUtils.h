@@ -9,6 +9,7 @@
 #include "nsWeakReference.h"
 
 #include "nsIDOMWindowUtils.h"
+#include "nsEvent.h"
 #include "mozilla/Attributes.h"
 
 class nsGlobalWindow;

@@ -41,11 +41,11 @@ IsSurfaceDescriptorValid(const SurfaceDescriptor& aSurface)
 
 bool
 ISurfaceAllocator::AllocSharedImageSurface(const gfxIntSize& aSize,
-                               gfxContentType aContent,
+                               gfxASurface::gfxContentType aContent,
                                gfxSharedImageSurface** aBuffer)
 {
   SharedMemory::SharedMemoryType shmemType = OptimalShmemType();
-  gfxImageFormat format = gfxPlatform::GetPlatform()->OptimalFormatForContent(aContent);
+  gfxASurface::gfxImageFormat format = gfxPlatform::GetPlatform()->OptimalFormatForContent(aContent);
 
   nsRefPtr<gfxSharedImageSurface> back =
     gfxSharedImageSurface::CreateUnsafe(this, aSize, format, shmemType);
@@ -59,7 +59,7 @@ ISurfaceAllocator::AllocSharedImageSurface(const gfxIntSize& aSize,
 
 bool
 ISurfaceAllocator::AllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                          gfxContentType aContent,
+                                          gfxASurface::gfxContentType aContent,
                                           SurfaceDescriptor* aBuffer)
 {
   return AllocSurfaceDescriptorWithCaps(aSize, aContent, DEFAULT_BUFFER_CAPS, aBuffer);
@@ -67,7 +67,7 @@ ISurfaceAllocator::AllocSurfaceDescriptor(const gfxIntSize& aSize,
 
 bool
 ISurfaceAllocator::AllocSurfaceDescriptorWithCaps(const gfxIntSize& aSize,
-                                                  gfxContentType aContent,
+                                                  gfxASurface::gfxContentType aContent,
                                                   uint32_t aCaps,
                                                   SurfaceDescriptor* aBuffer)
 {
@@ -91,7 +91,7 @@ ISurfaceAllocator::AllocSurfaceDescriptorWithCaps(const gfxIntSize& aSize,
 #ifdef XP_MACOSX
     // Workaround a bug in Quartz where drawing an a8 surface to another a8
     // surface with OPERATOR_SOURCE still requires the destination to be clear.
-    if (format == gfxImageFormatA8) {
+    if (format == gfxASurface::ImageFormatA8) {
       memset(data, 0, stride * aSize.height);
     }
 #endif
@@ -131,7 +131,6 @@ ISurfaceAllocator::DestroySharedSurface(SurfaceDescriptor* aSurface)
       DeallocShmem(aSurface->get_RGBImage().data());
       break;
     case SurfaceDescriptor::TSurfaceDescriptorD3D9:
-    case SurfaceDescriptor::TSurfaceDescriptorDIB:
     case SurfaceDescriptor::TSurfaceDescriptorD3D10:
       break;
     case SurfaceDescriptor::TMemoryImage:
@@ -149,7 +148,7 @@ ISurfaceAllocator::DestroySharedSurface(SurfaceDescriptor* aSurface)
 #if !defined(MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS)
 bool
 ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize&,
-                                                  gfxContentType,
+                                                  gfxASurface::gfxContentType,
                                                   uint32_t,
                                                   SurfaceDescriptor*)
 {

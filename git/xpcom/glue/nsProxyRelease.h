@@ -7,7 +7,6 @@
 #define nsProxyRelease_h__
 
 #include "nsIEventTarget.h"
-#include "nsIThread.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "MainThreadUtils.h"

@@ -24,6 +24,7 @@
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/layers/LayerManagerComposite.h"
+#include "Units.h"
 #include "nsDeque.h"
 #include "APZController.h"
 
@@ -198,9 +199,7 @@ public:
   // APZ related apis
   void ApzContentConsumingTouch();
   void ApzContentIgnoringTouch();
-  nsEventStatus ApzReceiveInputEvent(nsInputEvent* aEvent);
-  nsEventStatus ApzReceiveInputEvent(nsInputEvent* aInEvent, nsInputEvent* aOutEvent);
-  bool HitTestAPZC(mozilla::ScreenPoint& pt);
+  nsEventStatus ApzReceiveInputEvent(nsTouchEvent* aEvent);
   nsresult RequestContentScroll();
   void RequestContentRepaintImplMainThread();
 

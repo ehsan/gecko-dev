@@ -17,9 +17,10 @@
 #include "nsITimer.h"
 #include "npapi.h"
 #include "nsTArray.h"
-#include "mozilla/EventForwards.h"
+#include "nsEvent.h"
 
 class nsChildView;
+struct nsTextRange;
 
 namespace mozilla {
 namespace widget {

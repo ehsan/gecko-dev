@@ -12,7 +12,6 @@
 #include "nsSurfaceTexture.h"
 #include "gfxImageSurface.h"
 #include "AndroidBridge.h"
-#include "nsThreadUtils.h"
 
 using namespace mozilla;
 

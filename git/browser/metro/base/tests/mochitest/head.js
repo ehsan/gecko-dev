@@ -47,7 +47,7 @@ const mochitestPath = splitPath.join('/') + '/';
 
 function isLandscapeMode()
 {
-  return Elements.windowState.getAttribute("viewstate") == "landscape";
+  return (Services.metro.snappedState == Ci.nsIWinMetroUtils.fullScreenLandscape);
 }
 
 function setDevPixelEqualToPx()

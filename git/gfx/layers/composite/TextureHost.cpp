@@ -470,7 +470,7 @@ BufferTextureHost::GetAsSurface()
     result = new gfxImageSurface(yuvDeserializer.GetYData(),
                                  yuvDeserializer.GetYSize(),
                                  yuvDeserializer.GetYStride(),
-                                 gfxImageFormatA8);
+                                 gfxASurface::ImageFormatA8);
   } else {
     ImageDataDeserializer deserializer(GetBuffer());
     if (!deserializer.IsValid()) {

@@ -214,11 +214,6 @@ exports.winIsAbsolute = winIsAbsolute;
 let normalize = function(path) {
   let stack = [];
 
-  if (!path.startsWith("\\\\")) {
-    // Normalize "/" to "\\"
-    path = path.replace(/\//g, "\\");
-  }
-
   // Remove the drive (we will put it back at the end)
   let root = this.winGetDrive(path);
   if (root) {
@@ -227,6 +222,9 @@ let normalize = function(path) {
 
   // Remember whether we need to restore a leading "\\" or drive name.
   let absolute = this.winIsAbsolute(path);
+
+  // Normalize "/" to "\\"
+  path = path.replace("/", "\\");
 
   // And now, fill |stack| from the components,
   // popping whenever there is a ".."

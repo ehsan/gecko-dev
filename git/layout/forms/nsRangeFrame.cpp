@@ -697,8 +697,7 @@ nsRangeFrame::AttributeChanged(int32_t  aNameSpaceID,
       MOZ_ASSERT(mContent->IsHTML(nsGkAtoms::input), "bad cast");
       bool typeIsRange = static_cast<dom::HTMLInputElement*>(mContent)->GetType() ==
                            NS_FORM_INPUT_RANGE;
-      // If script changed the <input>'s type before setting these attributes
-      // then we don't need to do anything since we are going to be reframed.
+      MOZ_ASSERT(typeIsRange || aAttribute == nsGkAtoms::value, "why?");
       if (typeIsRange) {
         UpdateForValueChange();
       }
