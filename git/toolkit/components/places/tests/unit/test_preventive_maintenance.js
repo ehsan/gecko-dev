@@ -45,15 +45,27 @@
 // Include PlacesDBUtils module
 Components.utils.import("resource://gre/modules/PlacesDBUtils.jsm");
 
-const FINISHED_MAINTENANCE_NOTIFICATION_TOPIC = "places-maintenance-finished";
+const FINISHED_MAINTANANCE_NOTIFICATION_TOPIC = "places-maintenance-finished";
+
+const PLACES_STRING_BUNDLE_URI = "chrome://places/locale/places.properties";
 
 // Get services and database connection
-let hs = PlacesUtils.history;
-let bh = PlacesUtils.bhistory;
-let bs = PlacesUtils.bookmarks;
-let ts = PlacesUtils.tagging;
-let as = PlacesUtils.annotations;
-let fs = PlacesUtils.favicons;
+let os = Cc["@mozilla.org/observer-service;1"].
+         getService(Ci.nsIObserverService);
+let hs = Cc["@mozilla.org/browser/nav-history-service;1"].
+         getService(Ci.nsINavHistoryService);
+let bh = hs.QueryInterface(Ci.nsIBrowserHistory);
+let bs = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].
+         getService(Ci.nsINavBookmarksService);
+let ts = Cc["@mozilla.org/browser/tagging-service;1"].
+         getService(Ci.nsITaggingService);
+let as = Cc["@mozilla.org/browser/annotation-service;1"].
+         getService(Ci.nsIAnnotationService);
+let fs = Cc["@mozilla.org/browser/favicon-service;1"].
+         getService(Ci.nsIFaviconService);
+let bundle = Cc["@mozilla.org/intl/stringbundle;1"].
+             getService(Ci.nsIStringBundleService).
+             createBundle(PLACES_STRING_BUNDLE_URI);
 
 let mDBConn = hs.QueryInterface(Ci.nsPIPlacesDatabase).DBConnection;
 
@@ -309,13 +321,13 @@ tests.push({
     // Ensure all roots titles are correct.
     do_check_eq(bs.getItemTitle(bs.placesRoot), "");
     do_check_eq(bs.getItemTitle(bs.bookmarksMenuFolder),
-                PlacesUtils.getString("BookmarksMenuFolderTitle"));
+                bundle.GetStringFromName("BookmarksMenuFolderTitle"));
     do_check_eq(bs.getItemTitle(bs.tagsFolder),
-                PlacesUtils.getString("TagsFolderTitle"));
+                bundle.GetStringFromName("TagsFolderTitle"));
     do_check_eq(bs.getItemTitle(bs.unfiledBookmarksFolder),
-                PlacesUtils.getString("UnsortedBookmarksFolderTitle"));
+                bundle.GetStringFromName("UnsortedBookmarksFolderTitle"));
     do_check_eq(bs.getItemTitle(bs.toolbarFolder),
-                PlacesUtils.getString("BookmarksToolbarFolderTitle"));
+                bundle.GetStringFromName("BookmarksToolbarFolderTitle"));
   }
 });
 
@@ -1166,15 +1178,10 @@ tests.push({
 
 let observer = {
   observe: function(aSubject, aTopic, aData) {
-    if (aTopic == FINISHED_MAINTENANCE_NOTIFICATION_TOPIC) {
-      // Check the lastMaintenance time has been saved.
-      do_check_neq(Services.prefs.getIntPref("places.database.lastMaintenance"), null);
-
+    if (aTopic == FINISHED_MAINTANANCE_NOTIFICATION_TOPIC) {
       try {current_test.check();}
       catch (ex){ do_throw(ex);}
-
       cleanDatabase();
-
       if (tests.length) {
         current_test = tests.shift();
         dump("\nExecuting test: " + current_test.name + "\n" + "*** " + current_test.desc + "\n");
@@ -1182,7 +1189,7 @@ let observer = {
         PlacesDBUtils.maintenanceOnIdle();
       }
       else {
-        Services.obs.removeObserver(this, FINISHED_MAINTENANCE_NOTIFICATION_TOPIC);
+        os.removeObserver(this, FINISHED_MAINTANANCE_NOTIFICATION_TOPIC);
         // Sanity check: all roots should be intact
         do_check_eq(bs.getFolderIdForItem(bs.placesRoot), 0);
         do_check_eq(bs.getFolderIdForItem(bs.bookmarksMenuFolder), bs.placesRoot);
@@ -1194,7 +1201,7 @@ let observer = {
     }
   }
 }
-Services.obs.addObserver(observer, FINISHED_MAINTENANCE_NOTIFICATION_TOPIC, false);
+os.addObserver(observer, FINISHED_MAINTANANCE_NOTIFICATION_TOPIC, false);
 
 
 // main

@@ -159,13 +159,11 @@ protected: // mix-in bits are protected
   void asyncFinalize();
 
   /**
-   * Cleanup the async sqlite3_stmt stored in mAsyncStatement if it exists by
-   * attempting to dispatch to the asynchronous thread if available, finalizing
-   * on this thread if it is not.
+   * Cleanup the async sqlite3_stmt stored in mAsyncStatement if it exists.
    *
    * @note Call this from your destructor, call asyncFinalize otherwise.
    */
-  void destructorAsyncFinalize();
+  void internalAsyncFinalize();
 
   NS_IMETHOD NewBindingParamsArray(mozIStorageBindingParamsArray **_array);
   NS_IMETHOD ExecuteAsync(mozIStorageStatementCallback *aCallback,
