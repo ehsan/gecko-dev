@@ -303,7 +303,8 @@ nsXULPopupListener::FireFocusOnTargetContent(nsIDOMNode* aTargetNode)
 
     nsIEventStateManager *esm = context->EventStateManager();
     nsCOMPtr<nsIContent> focusableContent = do_QueryInterface(element);
-    esm->SetContentState(focusableContent, NS_EVENT_STATE_ACTIVE);
+    nsEventStateManager::SetGlobalActiveContent(
+      static_cast<nsEventStateManager*>(esm), focusableContent);
   }
   return rv;
 }
