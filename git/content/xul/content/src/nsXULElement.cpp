@@ -2638,9 +2638,7 @@ nsXULPrototypeScript::Compile(const PRUnichar* aText,
     options.setSourcePolicy(mOutOfLine ? JS::CompileOptions::LAZY_SOURCE
                                        : JS::CompileOptions::SAVE_SOURCE);
     JS::RootedObject scope(cx, JS::CurrentGlobalOrNull(cx));
-    if (scope) {
-      JS::ExposeObjectToActiveJS(scope);
-    }
+    xpc_UnmarkGrayObject(scope);
 
     if (aOffThreadReceiver && JS::CanCompileOffThread(cx, options)) {
         if (!JS::CompileOffThread(cx, scope, options,

@@ -356,7 +356,7 @@ nsXBLPrototypeHandler::EnsureEventHandler(nsIScriptGlobalObject* aGlobal,
   if (pWindow) {
     JS::Rooted<JSObject*> cachedHandler(cx, pWindow->GetCachedXBLPrototypeHandler(this));
     if (cachedHandler) {
-      JS::ExposeObjectToActiveJS(cachedHandler);
+      xpc_UnmarkGrayObject(cachedHandler);
       aHandler.set(cachedHandler);
       NS_ENSURE_TRUE(aHandler, NS_ERROR_FAILURE);
       return NS_OK;

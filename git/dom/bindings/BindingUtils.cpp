@@ -33,7 +33,6 @@
 #include "mozilla/dom/HTMLSharedObjectElement.h"
 #include "mozilla/dom/HTMLEmbedElementBinding.h"
 #include "mozilla/dom/HTMLAppletElementBinding.h"
-#include "WorkerPrivate.h"
 
 namespace mozilla {
 namespace dom {
@@ -679,7 +678,7 @@ NativeInterface2JSObjectAndThrowIfFailed(JSContext* aCx,
     // or not.  This is a sloppy stab at the right semantics; the
     // method really ought to be fixed to behave consistently.
     if (!JS_IsExceptionPending(aCx)) {
-      Throw(aCx, NS_FAILED(rv) ? rv : NS_ERROR_UNEXPECTED);
+      Throw<true>(aCx, NS_FAILED(rv) ? rv : NS_ERROR_UNEXPECTED);
     }
     return false;
   }
@@ -748,7 +747,7 @@ VariantToJsval(JSContext* aCx, JS::Handle<JSObject*> aScope,
   if (!XPCVariant::VariantDataToJS(aVariant, &rv, aRetval)) {
     // Does it throw?  Who knows
     if (!JS_IsExceptionPending(aCx)) {
-      Throw(aCx, NS_FAILED(rv) ? rv : NS_ERROR_UNEXPECTED);
+      Throw<true>(aCx, NS_FAILED(rv) ? rv : NS_ERROR_UNEXPECTED);
     }
     return false;
   }
@@ -775,23 +774,23 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
 
   nsISupports* native = UnwrapDOMObjectToISupports(obj);
   if (!native) {
-    return Throw(cx, NS_ERROR_FAILURE);
+    return Throw<true>(cx, NS_ERROR_FAILURE);
   }
 
   if (argc < 1) {
-    return Throw(cx, NS_ERROR_XPC_NOT_ENOUGH_ARGS);
+    return Throw<true>(cx, NS_ERROR_XPC_NOT_ENOUGH_ARGS);
   }
 
   JS::Value* argv = JS_ARGV(cx, vp);
   if (!argv[0].isObject()) {
-    return Throw(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
+    return Throw<true>(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
   }
 
   nsIJSID* iid;
   SelfRef iidRef;
   if (NS_FAILED(xpc_qsUnwrapArg<nsIJSID>(cx, argv[0], &iid, &iidRef.ptr,
                                           &argv[0]))) {
-    return Throw(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
+    return Throw<true>(cx, NS_ERROR_XPC_BAD_CONVERT_JS);
   }
   MOZ_ASSERT(iid);
 
@@ -799,7 +798,7 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
     nsresult rv;
     nsCOMPtr<nsIClassInfo> ci = do_QueryInterface(native, &rv);
     if (NS_FAILED(rv)) {
-      return Throw(cx, rv);
+      return Throw<true>(cx, rv);
     }
 
     return WrapObject(cx, origObj, ci, &NS_GET_IID(nsIClassInfo), args.rval());
@@ -808,7 +807,7 @@ QueryInterface(JSContext* cx, unsigned argc, JS::Value* vp)
   nsCOMPtr<nsISupports> unused;
   nsresult rv = native->QueryInterface(*iid->GetID(), getter_AddRefs(unused));
   if (NS_FAILED(rv)) {
-    return Throw(cx, rv);
+    return Throw<true>(cx, rv);
   }
 
   *vp = thisv;
@@ -1758,7 +1757,7 @@ GlobalObject::GlobalObject(JSContext* aCx, JSObject* aObject)
         MOZ_CRASH();
       }
 
-      Throw(aCx, NS_ERROR_XPC_SECURITY_MANAGER_VETO);
+      Throw<true>(aCx, NS_ERROR_XPC_SECURITY_MANAGER_VETO);
       return;
     }
     ac.construct(aCx, obj);
@@ -1785,7 +1784,7 @@ GlobalObject::GetAsSupports() const
                                              val.address());
   if (NS_FAILED(rv)) {
     mGlobalObject = nullptr;
-    Throw(mCx, NS_ERROR_XPC_BAD_CONVERT_JS);
+    Throw<true>(mCx, NS_ERROR_XPC_BAD_CONVERT_JS);
   }
 
   return mGlobalObject;
@@ -2060,13 +2059,6 @@ ConvertJSValueToByteString(JSContext* cx, JS::Handle<JS::Value> v,
   result.SetLength(length);
 
   return true;
-}
-
-bool
-ThreadsafeCheckIsChrome(JSContext* aCx, JSObject* aObj) {
-  using mozilla::dom::workers::GetWorkerPrivateFromContext;
-  return NS_IsMainThread() ? xpc::AccessCheck::isChrome(aObj):
-                             GetWorkerPrivateFromContext(aCx)->IsChromeWorker();
 }
 
 } // namespace dom

@@ -52,12 +52,7 @@ public:
     NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsXULPDGlobalObject)
 
     JSObject* GetCompilationGlobal();
-    void UnmarkCompilationGlobal()
-    {
-        if (mJSObject) {
-            JS::ExposeObjectToActiveJS(mJSObject);
-        }
-    }
+    void UnmarkCompilationGlobal() { xpc_UnmarkGrayObject(mJSObject); }
     void Destroy();
     nsIPrincipal* GetPrincipal();
     void ClearGlobalObjectOwner();
@@ -735,14 +730,9 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsXULPDGlobalObject)
 JSObject *
 nsXULPDGlobalObject::GetCompilationGlobal()
 {
-  if (mJSObject) {
+  if (mJSObject || mDestroyed) {
     // We've been initialized before. This is what we get.
-    JS::ExposeObjectToActiveJS(mJSObject);
-    return mJSObject;
-  }
-
-  if (mDestroyed) {
-    return nullptr;
+    return xpc_UnmarkGrayObject(mJSObject);
   }
 
   AutoSafeJSContext cx;

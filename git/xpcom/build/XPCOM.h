@@ -73,6 +73,7 @@
 #include "nsIErrorService.h"
 #include "nsIEventTarget.h"
 #include "nsIException.h"
+#include "nsIExceptionService.h"
 #include "nsIFactory.h"
 #include "nsIFile.h"
 #include "nsIHashable.h"
