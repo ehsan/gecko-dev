@@ -594,10 +594,6 @@ MacNativeApp.prototype = {
     <string>APPL</string>\n\
     <key>CFBundleVersion</key>\n\
     <string>0</string>\n\
-    <key>NSHighResolutionCapable</key>\n\
-    <true/>\n\
-    <key>NSPrincipalClass</key>\n\
-    <string>GeckoNSApplication</string>\n\
     <key>FirefoxBinary</key>\n\
 #expand     <string>__MOZ_MACBUNDLE_ID__</string>\n\
   </dict>\n\

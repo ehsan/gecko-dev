@@ -74,7 +74,6 @@ public:
     , mRawSegment(new AudioSegment())
     , mEndOfStream(false)
     , mCanceled(false)
-    , mSilentDuration(0)
   {}
 
   void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,
@@ -177,12 +176,6 @@ protected:
    * mReentrantMonitor.
    */
   bool mCanceled;
-
-  /**
-   * The total duration of null chunks we have received from MediaStreamGraph
-   * before initializing the audio track encoder.
-   */
-  TrackTicks mSilentDuration;
 };
 
 class VideoTrackEncoder : public TrackEncoder

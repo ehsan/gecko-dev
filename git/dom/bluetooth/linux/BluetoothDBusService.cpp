@@ -1850,7 +1850,8 @@ BluetoothDBusService::SendSinkMessage(const nsAString& aDeviceAddress,
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mConnection);
-  MOZ_ASSERT(IsEnabled());
+
+  NS_ENSURE_TRUE(IsReady(), NS_ERROR_FAILURE);
 
   SinkCallback callback;
   if (aMessage.EqualsLiteral("Connect")) {
