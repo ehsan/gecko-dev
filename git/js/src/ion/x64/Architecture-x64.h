@@ -42,7 +42,7 @@
 #ifndef jsion_architecture_x64_h__
 #define jsion_architecture_x64_h__
 
-#include "assembler/assembler/MacroAssembler.h"
+#include "assembler/assembler/X86Assembler.h"
 
 namespace js {
 namespace ion {
@@ -123,8 +123,6 @@ class Registers {
 
     static const uint32 JSCallClobberMask =
         AllocatableMask & ~(1 << JSC::X86Registers::ecx);
-    typedef JSC::MacroAssembler::RegisterID RegisterID;
-
 };
 
 class FloatRegisters {

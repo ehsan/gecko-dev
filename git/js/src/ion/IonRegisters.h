@@ -50,11 +50,7 @@
 #elif defined(JS_CPU_ARM)
 # include "arm/Architecture-arm.h"
 #endif
-
-// ARM defines the RegisterID within Architecture-arm.h
-#ifndef JS_CPU_ARM
 #include "assembler/assembler/MacroAssembler.h"
-#endif
 
 namespace js {
 namespace ion {
@@ -62,7 +58,8 @@ namespace ion {
 struct Register {
     typedef Registers Codes;
     typedef Codes::Code Code;
-    typedef js::ion::Registers::RegisterID RegisterID;
+    typedef JSC::MacroAssembler::RegisterID RegisterID;
+
     Code code_;
 
     static Register FromCode(uint32 i) {

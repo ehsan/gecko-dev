@@ -43,7 +43,6 @@
 #define js_ion_jsonspewer_h__
 
 #include <stdio.h>
-
 #include "MIR.h"
 #include "MIRGraph.h"
 #include "IonLIR.h"
@@ -86,7 +85,6 @@ class JSONSpewer
     void beginPass(const char * pass);
     void spewMDef(MDefinition *def);
     void spewMIR(MIRGraph *mir);
-    void spewLIns(LInstruction *ins);
     void spewLIR(MIRGraph *mir);
     void spewIntervals(LinearScanAllocator *regalloc);
     void endPass();
@@ -94,8 +92,7 @@ class JSONSpewer
     void finish();
 };
 
-} // namespace ion
-} // namespace js
+}
+}
 
-#endif // js_ion_jsonspewer_h__
-
+#endif

@@ -153,6 +153,7 @@ namespace JSC {
 #else
         ARMAssembler() { }
 #endif
+
         typedef ARMRegisters::RegisterID RegisterID;
         typedef ARMRegisters::FPRegisterID FPRegisterID;
         typedef AssemblerBufferWithConstantPool<2048, 4, 4, ARMAssembler> ARMBuffer;

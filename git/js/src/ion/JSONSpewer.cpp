@@ -292,29 +292,6 @@ JSONSpewer::spewMIR(MIRGraph *mir)
 }
 
 void
-JSONSpewer::spewLIns(LInstruction *ins)
-{
-    if (!fp_)
-        return;
-
-    beginObject();
-
-    integerProperty("id", ins->id());
-
-    property("opcode");
-    fprintf(fp_, "\"");
-    ins->print(fp_);
-    fprintf(fp_, "\"");
-
-    beginListProperty("defs");
-    for (size_t i = 0; i < ins->numDefs(); i++)
-        integerValue(ins->getDef(i)->virtualRegister());
-    endList();
-
-    endObject();
-}
-
-void
 JSONSpewer::spewLIR(MIRGraph *mir)
 {
     if (!fp_)
@@ -332,10 +309,26 @@ JSONSpewer::spewLIR(MIRGraph *mir)
         integerProperty("number", i->id());
 
         beginListProperty("instructions");
-        for (size_t p = 0; p < block->numPhis(); p++)
-            spewLIns(block->getPhi(p));
-        for (LInstructionIterator ins(block->begin()); ins != block->end(); ins++)
-            spewLIns(*ins);
+        for (LInstructionIterator ins(block->begin());
+             ins != block->end();
+             ins++)
+        {
+            beginObject();
+
+            integerProperty("id", ins->id());
+
+            property("opcode");
+            fprintf(fp_, "\"");
+            ins->print(fp_);
+            fprintf(fp_, "\"");
+
+            beginListProperty("defs");
+            for (size_t i = 0; i < ins->numDefs(); i++)
+                integerValue(ins->getDef(i)->virtualRegister());
+            endList();
+
+            endObject();
+        }
         endList();
 
         endObject();
