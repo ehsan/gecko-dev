@@ -12,7 +12,6 @@ Modules Overview
   includes managing compiler warnings.
 * mozbuild.logging -- Defines mozbuild's logging infrastructure.
   mozbuild uses a structured logging backend.
-* mozbuild.testing -- Interfaces for running tests.
 
 Structured Logging
 ==================
