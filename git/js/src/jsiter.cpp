@@ -50,9 +50,10 @@
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
 
-using namespace mozilla;
 using namespace js;
 using namespace js::gc;
+
+using mozilla::ArrayLength;
 
 static const gc::AllocKind ITERATOR_FINALIZE_KIND = gc::FINALIZE_OBJECT2;
 
@@ -1528,6 +1529,8 @@ static JSBool
 SendToGenerator(JSContext *cx, JSGeneratorOp op, HandleObject obj,
                 JSGenerator *gen, const Value &arg)
 {
+    AssertCanGC();
+
     if (gen->state == JSGEN_RUNNING || gen->state == JSGEN_CLOSING) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NESTING_GENERATOR);
         return JS_FALSE;
@@ -1592,7 +1595,8 @@ SendToGenerator(JSContext *cx, JSGeneratorOp op, HandleObject obj,
 
         cx->enterGenerator(gen);   /* OOM check above. */
 
-        ok = RunScript(cx, fp->script(), fp);
+        RootedScript script(cx, fp->script());
+        ok = RunScript(cx, script, fp);
 
         cx->leaveGenerator(gen);
     }
