@@ -47,7 +47,7 @@ add_task(function test_register_provider() {
   try {
     manager.registerProvider({});
   } catch (ex) {
-    do_check_true(ex.message.startsWith("Provider is not valid"));
+    do_check_true(ex.message.startsWith("Argument must be a Provider"));
     failed = true;
   } finally {
     do_check_true(failed);

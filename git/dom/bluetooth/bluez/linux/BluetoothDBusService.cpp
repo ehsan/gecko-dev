@@ -177,6 +177,7 @@ static nsString sAdapterPath;
  * The adapter name may not be ready whenever event 'AdapterAdded' is received,
  * so we'd like to wait for a bit.
  */
+static bool sAdapterNameIsReady = false;
 static int sWaitingForAdapterNameInterval = 1000; //unit: ms
 
 // Keep the pairing requests.
@@ -188,7 +189,6 @@ static nsDataHashtable<nsStringHashKey, DBusMessage* >* sPairingReqTable;
  * for more details.
  */
 static int sConnectedDeviceCount = 0;
-static StaticAutoPtr<Monitor> sGetPropertyMonitor;
 static StaticAutoPtr<Monitor> sStopBluetoothMonitor;
 
 // A quene for connect/disconnect request. See Bug 913372 for details.
@@ -199,14 +199,12 @@ typedef bool (*FilterFunc)(const BluetoothValue&);
 
 BluetoothDBusService::BluetoothDBusService()
 {
-  sGetPropertyMonitor = new Monitor("BluetoothService.sGetPropertyMonitor");
   sStopBluetoothMonitor = new Monitor("BluetoothService.sStopBluetoothMonitor");
 }
 
 BluetoothDBusService::~BluetoothDBusService()
 {
   sStopBluetoothMonitor = nullptr;
-  sGetPropertyMonitor = nullptr;
 }
 
 static bool
@@ -646,14 +644,6 @@ GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
             int aPropertyTypeLen, int* aPropIndex,
             InfallibleTArray<BluetoothNamedValue>& aProperties)
 {
-  /**
-   * Ensure GetProperty runs in critical section otherwise
-   * crash due to timing issue occurs when BT is enabled.
-   *
-   * TODO: Revise GetProperty to solve the crash
-   */
-  MonitorAutoLock lock(*sGetPropertyMonitor);
-
   DBusMessageIter prop_val, array_val_iter;
   char* property = nullptr;
   uint32_t array_type;
@@ -774,6 +764,16 @@ GetProperty(DBusMessageIter aIter, Properties* aPropertyTypes,
     for (uint32_t i= 0; i < length; i++) {
       nsString& data = propertyValue.get_ArrayOfnsString()[i];
       data = GetAddressFromObjectPath(data);
+    }
+  } else if (!sAdapterNameIsReady &&
+             aPropertyTypes == sAdapterProperties &&
+             propertyName.EqualsLiteral("Name")) {
+    MOZ_ASSERT(propertyValue.type() == BluetoothValue::TnsString);
+
+    // Notify BluetoothManager whenever adapter name is ready.
+    if (!propertyValue.get_nsString().IsEmpty()) {
+      sAdapterNameIsReady = true;
+      NS_DispatchToMainThread(new TryFiringAdapterAddedRunnable(false));
     }
   }
 
@@ -1856,6 +1856,8 @@ BluetoothDBusService::StopInternal()
 
   sAuthorizedServiceClass.Clear();
   sControllerArray.Clear();
+
+  sAdapterNameIsReady = false;
 
   StopDBus();
   return NS_OK;

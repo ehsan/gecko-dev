@@ -46,9 +46,8 @@ class InvalidTestPathError(Exception):
 class XPCShellRunner(MozbuildObject):
     """Run xpcshell tests."""
     def run_suite(self, **kwargs):
-        from manifestparser import TestManifest
-        manifest = TestManifest(manifests=[os.path.join(self.topobjdir,
-            '_tests', 'xpcshell', 'xpcshell.ini')])
+        manifest = os.path.join(self.topobjdir, '_tests', 'xpcshell',
+            'xpcshell.ini')
 
         return self._run_xpcshell_harness(manifest=manifest, **kwargs)
 
