@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set shiftwidth=4 tabstop=8 autoindent cindent expandtab: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,18 +12,18 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Communicator client code.
+ * The Original Code is nsIDebugInfoService.
  *
- * The Initial Developer of the Original Code is
- * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 1998
+ * The Initial Developer of the Original Code is the Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
- * either of the GNU General Public License Version 2 or later (the "GPL"),
- * or the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+ * either the GNU General Public License Version 2 or later (the "GPL"), or
+ * the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
  * in which case the provisions of the GPL or the LGPL are applicable instead
  * of those above. If you wish to allow use of your version of this file only
  * under the terms of either the GPL or the LGPL, and not to allow others to
@@ -35,34 +35,15 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsPrefMigrationFactory_h___
-#define nsPrefMigrationFactory_h___
+/* interface to expose information about calls to NS_DebugBreak */
 
-#include "nsPrefMigrationCIDs.h"
-#include "nsIPrefMigration.h"
-#include "nsCOMPtr.h"
-#include "nsIModule.h"
-#include "nsIGenericFactory.h"
+#include "nsIDebug.idl"
 
-// Module implementation
-class nsPrefMigrationModule : public nsIModule
+[scriptable, uuid(15c0b474-fedb-4789-878b-def834b84735)]
+interface nsIDebug2 : nsIDebug
 {
-public:
-    nsPrefMigrationModule();
-    virtual ~nsPrefMigrationModule();
-
-    NS_DECL_ISUPPORTS
-
-    NS_DECL_NSIMODULE
-
-protected:
-    nsresult Initialize();
-
-    void Shutdown();
-
-    PRBool mInitialized;
-    nsCOMPtr<nsIGenericFactory> mFactory;
+    /**
+     * The number of assertions since process start.
+     */
+    readonly attribute long assertionCount;
 };
-
-
-#endif
