@@ -493,7 +493,7 @@ nsHttpChannel::HandleAsyncRedirect()
         }
     }
     else {
-        ContinueHandleAsyncRedirect(mStatus);
+        ContinueHandleAsyncRedirect(NS_OK);
     }
 }
 

@@ -2536,8 +2536,7 @@ CSS_PROP_POSITION(
     object-fit,
     object_fit,
     ObjectFit,
-    CSS_PROPERTY_PARSE_VALUE |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS,
+    CSS_PROPERTY_PARSE_VALUE,
     "layout.css.object-fit-and-position.enabled",
     VARIANT_HK,
     kObjectFitKTable,
@@ -2548,8 +2547,7 @@ CSS_PROP_POSITION(
     object_position,
     ObjectPosition,
     CSS_PROPERTY_PARSE_FUNCTION |
-        CSS_PROPERTY_STORES_CALC |
-        CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS,
+        CSS_PROPERTY_STORES_CALC,
     "layout.css.object-fit-and-position.enabled",
     0,
     kBackgroundPositionKTable,

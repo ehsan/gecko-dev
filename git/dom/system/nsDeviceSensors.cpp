@@ -29,6 +29,7 @@ using namespace hal;
 
 #undef near
 
+// also see sDefaultSensorHint in mobile/android/base/GeckoAppShell.java
 #define DEFAULT_SENSOR_POLL 100
 
 static const nsTArray<nsIDOMWindow*>::index_type NoIndex =
@@ -113,7 +114,7 @@ nsDeviceSensors::nsDeviceSensors()
 nsDeviceSensors::~nsDeviceSensors()
 {
   for (int i = 0; i < NUM_SENSOR_TYPE; i++) {
-    if (IsSensorEnabled(i))
+    if (IsSensorEnabled(i))  
       UnregisterSensorObserver((SensorType)i, this);
   }
 
@@ -350,12 +351,12 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
     mLastAcceleration->mZ.SetValue(z);
     break;
   case nsIDeviceSensorData::TYPE_ACCELERATION:
-    if (!mLastAccelerationIncludingGravity) {
-      mLastAccelerationIncludingGravity.emplace();
+    if (!mLastAccelerationIncluduingGravity) {
+      mLastAccelerationIncluduingGravity.emplace();
     }
-    mLastAccelerationIncludingGravity->mX.SetValue(x);
-    mLastAccelerationIncludingGravity->mY.SetValue(y);
-    mLastAccelerationIncludingGravity->mZ.SetValue(z);
+    mLastAccelerationIncluduingGravity->mX.SetValue(x);
+    mLastAccelerationIncluduingGravity->mY.SetValue(y);
+    mLastAccelerationIncluduingGravity->mZ.SetValue(z);
     break;
   case nsIDeviceSensorData::TYPE_GYROSCOPE:
     if (!mLastRotationRate) {
@@ -371,14 +372,14 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
     if (!mLastAcceleration) {
       mLastAcceleration.emplace();
     }
-    if (!mLastAccelerationIncludingGravity) {
-      mLastAccelerationIncludingGravity.emplace();
+    if (!mLastAccelerationIncluduingGravity) {
+      mLastAccelerationIncluduingGravity.emplace();
     }
     if (!mLastRotationRate) {
       mLastRotationRate.emplace();
     }
   } else if (!mLastAcceleration ||
-             !mLastAccelerationIncludingGravity ||
+             !mLastAccelerationIncluduingGravity ||
              !mLastRotationRate) {
     return;
   }
@@ -393,7 +394,7 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
                             true,
                             false,
                             *mLastAcceleration,
-                            *mLastAccelerationIncludingGravity,
+                            *mLastAccelerationIncluduingGravity,
                             *mLastRotationRate,
                             Nullable<double>(DEFAULT_SENSOR_POLL),
                             rv);
@@ -404,7 +405,7 @@ nsDeviceSensors::FireDOMMotionEvent(nsIDOMDocument *domdoc,
   target->DispatchEvent(event, &defaultActionEnabled);
 
   mLastRotationRate.reset();
-  mLastAccelerationIncludingGravity.reset();
+  mLastAccelerationIncluduingGravity.reset();
   mLastAcceleration.reset();
   mLastDOMMotionEventTime = TimeStamp::Now();
 }

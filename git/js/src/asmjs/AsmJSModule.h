@@ -1538,7 +1538,7 @@ class AsmJSModule
 };
 
 // Store the just-parsed module in the cache using AsmJSCacheOps.
-extern JS::AsmJSCacheResult
+extern bool
 StoreAsmJSModuleInCache(AsmJSParser &parser,
                         const AsmJSModule &module,
                         ExclusiveContext *cx);

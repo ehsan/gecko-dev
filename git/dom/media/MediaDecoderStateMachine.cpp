@@ -84,6 +84,11 @@ extern PRLogModuleInfo* gMediaDecoderLog;
 #undef GetCurrentTime
 #endif
 
+// Wait this number of seconds when buffering, then leave and play
+// as best as we can if the required amount of data hasn't been
+// retrieved.
+static const uint32_t BUFFERING_WAIT_S = 30;
+
 // If audio queue has less than this many usecs of decoded audio, we won't risk
 // trying to decode the video, we'll skip decoding video up to the next
 // keyframe. We may increase this value for an individual decoder if we
@@ -219,7 +224,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
   mAmpleVideoFrames =
     std::max<uint32_t>(Preferences::GetUint("media.video-queue.default-size", 10), 3);
 
-  mBufferingWait = mScheduler->IsRealTime() ? 0 : mReader->GetBufferingWait();
+  mBufferingWait = mScheduler->IsRealTime() ? 0 : BUFFERING_WAIT_S;
   mLowDataThresholdUsecs = mScheduler->IsRealTime() ? 0 : LOW_DATA_THRESHOLD_USECS;
 
   mVideoPrerollFrames = mScheduler->IsRealTime() ? 0 : mAmpleVideoFrames / 2;
@@ -816,15 +821,9 @@ MediaDecoderStateMachine::OnNotDecoded(MediaData::Type aType,
     return;
   }
 
-  // If the decoder is waiting for data, we need to make sure that the requests
-  // are cleared, which happened above. Additionally, if we're out of decoded
-  // samples, we need to switch to buffering mode.
+  // If the decoder is waiting for data, there's nothing more to do after
+  // clearing the pending request.
   if (aReason == RequestSampleCallback::WAITING_FOR_DATA) {
-    bool outOfSamples = isAudio ? !AudioQueue().GetSize() : !VideoQueue().GetSize();
-    if (outOfSamples) {
-      StartBuffering();
-    }
-
     return;
   }
 
@@ -1297,11 +1296,12 @@ void MediaDecoderStateMachine::SetDuration(int64_t aDuration)
     return;
   }
 
-  if (mStartTime == -1) {
-    SetStartTime(0);
+  if (mStartTime != -1) {
+    mEndTime = mStartTime + aDuration;
+  } else {
+    mStartTime = 0;
+    mEndTime = aDuration;
   }
-
-  mEndTime = mStartTime + aDuration;
 }
 
 void MediaDecoderStateMachine::UpdateEstimatedDuration(int64_t aDuration)
@@ -1497,11 +1497,8 @@ void MediaDecoderStateMachine::NotifyDataArrived(const char* aBuffer,
   // faster than played, mEndTime won't reflect the end of playable data
   // since we haven't played the frame at the end of buffered data. So update
   // mEndTime here as new data is downloaded to prevent such a lag.
-  //
-  // Make sure to only do this if we have a start time, otherwise the reader
-  // doesn't know how to compute GetBuffered.
   nsRefPtr<dom::TimeRanges> buffered = new dom::TimeRanges();
-  if (mDecoder->IsInfinite() && (mStartTime != -1) &&
+  if (mDecoder->IsInfinite() &&
       NS_SUCCEEDED(mDecoder->GetBuffered(buffered)))
   {
     uint32_t length = 0;
@@ -1914,29 +1911,28 @@ bool MediaDecoderStateMachine::HasLowUndecodedData()
   return HasLowUndecodedData(mLowDataThresholdUsecs);
 }
 
-bool MediaDecoderStateMachine::HasLowUndecodedData(int64_t aUsecs)
+bool MediaDecoderStateMachine::HasLowUndecodedData(double aUsecs)
 {
   AssertCurrentThreadInMonitor();
   NS_ASSERTION(mState > DECODER_STATE_DECODING_FIRSTFRAME,
                "Must have loaded first frame for GetBuffered() to work");
 
-  nsRefPtr<dom::TimeRanges> buffered = new dom::TimeRanges();
-  nsresult rv = mReader->GetBuffered(buffered.get());
-  NS_ENSURE_SUCCESS(rv, false);
-
-  int64_t endOfDecodedVideoData = INT64_MAX;
-  if (HasVideo() && !VideoQueue().AtEndOfStream()) {
-    endOfDecodedVideoData = VideoQueue().Peek() ? VideoQueue().Peek()->GetEndTime() : mVideoFrameEndTime;
+  bool reliable;
+  double bytesPerSecond = mDecoder->ComputePlaybackRate(&reliable);
+  if (!reliable) {
+    // Default to assuming we have enough
+    return false;
   }
-  int64_t endOfDecodedAudioData = INT64_MAX;
-  if (HasAudio() && !AudioQueue().AtEndOfStream()) {
-    endOfDecodedAudioData = AudioQueue().Peek() ? AudioQueue().Peek()->GetEndTime() : GetAudioClock();
-  }
-  int64_t endOfDecodedData = std::min(endOfDecodedVideoData, endOfDecodedAudioData);
 
-  return endOfDecodedData != INT64_MAX &&
-         !buffered->Contains(static_cast<double>(endOfDecodedData) / USECS_PER_S,
-                             static_cast<double>(std::min(endOfDecodedData + aUsecs, GetDuration())) / USECS_PER_S);
+  MediaResource* stream = mDecoder->GetResource();
+  int64_t currentPos = stream->Tell();
+  int64_t requiredPos = currentPos + int64_t((aUsecs/1000000.0)*bytesPerSecond);
+  int64_t length = stream->GetLength();
+  if (length >= 0) {
+    requiredPos = std::min(requiredPos, length);
+  }
+
+  return stream->GetCachedDataEnd(currentPos) < requiredPos;
 }
 
 void
@@ -2570,8 +2566,9 @@ nsresult MediaDecoderStateMachine::RunStateMachine()
       if ((isLiveStream || !mDecoder->CanPlayThrough()) &&
             elapsed < TimeDuration::FromSeconds(mBufferingWait * mPlaybackRate) &&
             (mQuickBuffering ? HasLowDecodedData(QUICK_BUFFERING_LOW_DATA_USECS)
-                             : HasLowUndecodedData(mBufferingWait * USECS_PER_S)) &&
-            mDecoder->IsExpectingMoreData())
+                            : HasLowUndecodedData(mBufferingWait * USECS_PER_S)) &&
+            !mDecoder->IsDataCachedToEndOfResource() &&
+            !resource->IsSuspended())
       {
         DECODER_LOG("Buffering: wait %ds, timeout in %.3lfs %s",
                     mBufferingWait, mBufferingWait - elapsed.ToSeconds(),
@@ -2830,10 +2827,12 @@ void MediaDecoderStateMachine::AdvanceFrame()
 
   // Check to see if we don't have enough data to play up to the next frame.
   // If we don't, switch to buffering mode.
+  MediaResource* resource = mDecoder->GetResource();
   if (mState == DECODER_STATE_DECODING &&
       mDecoder->GetState() == MediaDecoder::PLAY_STATE_PLAYING &&
       HasLowDecodedData(remainingTime + EXHAUSTED_DATA_MARGIN_USECS) &&
-      mDecoder->IsExpectingMoreData()) {
+      !mDecoder->IsDataCachedToEndOfResource() &&
+      !resource->IsSuspended()) {
     if (JustExitedQuickBuffering() || HasLowUndecodedData()) {
       if (currentFrame) {
         VideoQueue().PushFront(currentFrame.forget());
@@ -3025,7 +3024,7 @@ MediaDecoderStateMachine::DropAudioUpToSeekTarget(AudioData* aSample)
 
 void MediaDecoderStateMachine::SetStartTime(int64_t aStartTimeUsecs)
 {
-  AssertCurrentThreadInMonitor();
+  NS_ASSERTION(OnDecodeThread(), "Should be on decode thread.");
   DECODER_LOG("SetStartTime(%lld)", aStartTimeUsecs);
   mStartTime = 0;
   if (aStartTimeUsecs != 0) {
@@ -3039,11 +3038,6 @@ void MediaDecoderStateMachine::SetStartTime(int64_t aStartTimeUsecs)
       mEndTime = mStartTime + mEndTime;
     }
   }
-
-  // Pass along this immutable value to the reader so that it can make
-  // calculations independently of the state machine.
-  mReader->SetStartTime(mStartTime);
-
   // Set the audio start time to be start of media. If this lies before the
   // first actual audio frame we have, we'll inject silence during playback
   // to ensure the audio starts at the correct time.
@@ -3129,6 +3123,15 @@ void MediaDecoderStateMachine::StartBuffering()
               stats.mPlaybackRate/1024, stats.mPlaybackRateReliable ? "" : " (unreliable)",
               stats.mDownloadRate/1024, stats.mDownloadRateReliable ? "" : " (unreliable)");
 #endif
+}
+
+nsresult MediaDecoderStateMachine::GetBuffered(dom::TimeRanges* aBuffered) {
+  MediaResource* resource = mDecoder->GetResource();
+  NS_ENSURE_TRUE(resource, NS_ERROR_FAILURE);
+  resource->Pin();
+  nsresult res = mReader->GetBuffered(aBuffered, mStartTime);
+  resource->Unpin();
+  return res;
 }
 
 void MediaDecoderStateMachine::SetPlayStartTime(const TimeStamp& aTimeStamp)

@@ -2703,7 +2703,7 @@ AsmJSCacheOpenEntryForRead(JS::Handle<JSObject*> aGlobal,
                                       aHandle);
 }
 
-static JS::AsmJSCacheResult
+static bool
 AsmJSCacheOpenEntryForWrite(JS::Handle<JSObject*> aGlobal,
                             bool aInstalled,
                             const char16_t* aBegin,

@@ -816,7 +816,8 @@ void GStreamerReader::Seek(int64_t aTarget,
   GetCallback()->OnSeekCompleted(NS_OK);
 }
 
-nsresult GStreamerReader::GetBuffered(dom::TimeRanges* aBuffered)
+nsresult GStreamerReader::GetBuffered(dom::TimeRanges* aBuffered,
+                                      int64_t aStartTime)
 {
   if (!mInfo.HasValidMedia()) {
     return NS_OK;
@@ -825,7 +826,7 @@ nsresult GStreamerReader::GetBuffered(dom::TimeRanges* aBuffered)
 #if GST_VERSION_MAJOR == 0
   GstFormat format = GST_FORMAT_TIME;
 #endif
-  AutoPinned<MediaResource> resource(mDecoder->GetResource());
+  MediaResource* resource = mDecoder->GetResource();
   nsTArray<MediaByteRange> ranges;
   resource->GetCachedRanges(ranges);
 

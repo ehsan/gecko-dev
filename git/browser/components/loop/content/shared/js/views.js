@@ -81,8 +81,7 @@ loop.shared.views = (function(_, OT, l10n) {
     getDefaultProps: function() {
       return {
         video: {enabled: true, visible: true},
-        audio: {enabled: true, visible: true},
-        enableHangup: true
+        audio: {enabled: true, visible: true}
       };
     },
 
@@ -90,9 +89,7 @@ loop.shared.views = (function(_, OT, l10n) {
       video: React.PropTypes.object.isRequired,
       audio: React.PropTypes.object.isRequired,
       hangup: React.PropTypes.func.isRequired,
-      publishStream: React.PropTypes.func.isRequired,
-      hangupButtonLabel: React.PropTypes.string,
-      enableHangup: React.PropTypes.bool,
+      publishStream: React.PropTypes.func.isRequired
     },
 
     handleClickHangup: function() {
@@ -107,19 +104,14 @@ loop.shared.views = (function(_, OT, l10n) {
       this.props.publishStream("audio", !this.props.audio.enabled);
     },
 
-    _getHangupButtonLabel: function() {
-      return this.props.hangupButtonLabel || l10n.get("hangup_button_caption2");
-    },
-
     render: function() {
       var cx = React.addons.classSet;
       return (
         React.DOM.ul({className: "conversation-toolbar"}, 
           React.DOM.li({className: "conversation-toolbar-btn-box btn-hangup-entry"}, 
             React.DOM.button({className: "btn btn-hangup", onClick: this.handleClickHangup, 
-                    title: l10n.get("hangup_button_title"), 
-                    disabled: !this.props.enableHangup}, 
-              this._getHangupButtonLabel()
+                    title: l10n.get("hangup_button_title")}, 
+              l10n.get("hangup_button_caption2")
             )
           ), 
           React.DOM.li({className: "conversation-toolbar-btn-box"}, 
@@ -648,8 +640,7 @@ loop.shared.views = (function(_, OT, l10n) {
           React.DOM.div({className: "detailsBar details-" + notification.get("level"), 
                hidden: !notification.get("details")}, 
             React.DOM.button({className: "detailsButton btn-info", 
-                    onClick: notification.get("detailsButtonCallback"), 
-                    hidden: !notification.get("detailsButtonLabel") || !notification.get("detailsButtonCallback")}, 
+                    hidden: true || !notification.get("detailsButtonLabel")}, 
               notification.get("detailsButtonLabel")
             ), 
             React.DOM.span({className: "details"}, notification.get("details"))

@@ -177,8 +177,7 @@ static unsigned int getDSVSubresourceIndex(ID3D11Resource *resource, ID3D11Depth
 }
 
 RenderTarget11::RenderTarget11(Renderer *renderer, ID3D11RenderTargetView *rtv, ID3D11Resource *resource,
-                               ID3D11ShaderResourceView *srv, GLsizei width, GLsizei height, GLsizei depth,
-                               GLenum internalFormatOverride)
+                               ID3D11ShaderResourceView *srv, GLsizei width, GLsizei height, GLsizei depth)
 {
     mRenderer = Renderer11::makeRenderer11(renderer);
 
@@ -221,10 +220,6 @@ RenderTarget11::RenderTarget11(Renderer *renderer, ID3D11RenderTargetView *rtv, 
         const d3d11::DXGIFormat &dxgiFormatInfo = d3d11::GetDXGIFormatInfo(desc.Format);
         mInternalFormat = dxgiFormatInfo.internalFormat;
         mActualFormat = dxgiFormatInfo.internalFormat;
-
-        if (internalFormatOverride) {
-            mInternalFormat = internalFormatOverride;
-        }
     }
 }
 

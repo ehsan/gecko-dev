@@ -4215,31 +4215,27 @@ Tab.prototype = {
           this.tilesData = null;
         }
 
-        if (!Reader.isEnabledForParseOnLoad) {
+        if (!Reader.isEnabledForParseOnLoad)
           return;
-        }
-
-        let resetReaderFlags = currentURL => {
-          // Don't clear the article for about:reader pages since we want to
-          // use the article from the previous page.
-          if (!currentURL.startsWith("about:reader")) {
-            this.savedArticle = null;
-            this.readerEnabled = false;
-            this.readerActive = false;
-          } else {
-            this.readerActive = true;
-          }
-        };
 
         // Once document is fully loaded, parse it
         Reader.parseDocumentFromTab(this).then(article => {
           // The loaded page may have changed while we were parsing the document. 
           // Make sure we've got the current one.
-          let currentURL = this.browser.currentURI.specIgnoringRef;
-
-          // Do nothing if there's no article or the page in this tab has changed.
-          if (article == null || (article.url != currentURL)) {
-            resetReaderFlags(currentURL);
+          let uri = this.browser.currentURI;
+          let tabURL = uri.specIgnoringRef;
+          // Do nothing if there's no article or the page in this tab has
+          // changed
+          if (article == null || (article.url != tabURL)) {
+            // Don't clear the article for about:reader pages since we want to
+            // use the article from the previous page
+            if (!tabURL.startsWith("about:reader")) {
+              this.savedArticle = null;
+              this.readerEnabled = false;
+              this.readerActive = false;
+            } else {
+              this.readerActive = true;
+            }
             return;
           }
 
@@ -4250,16 +4246,12 @@ Tab.prototype = {
             tabID: this.id
           });
 
-          if (this.readerActive) {
+          if(this.readerActive)
             this.readerActive = false;
-          }
-          if (!this.readerEnabled) {
+
+          if(!this.readerEnabled)
             this.readerEnabled = true;
-          }
-        }).catch(e => {
-          Cu.reportError("Error parsing document from tab: " + e);
-          resetReaderFlags(this.browser.currentURI.specIgnoringRef);
-        });
+        }, e => Cu.reportError("Error parsing document from tab: " + e));
       }
     }
   },
@@ -4389,10 +4381,6 @@ Tab.prototype = {
       ExternalApps.updatePageActionUri(fixedURI);
     }
 
-    let webNav = BrowserApp.selectedTab.window
-        .QueryInterface(Ci.nsIInterfaceRequestor)
-        .getInterface(Ci.nsIWebNavigation);
-
     let message = {
       type: "Content:LocationChange",
       tabID: this.id,
@@ -4400,12 +4388,7 @@ Tab.prototype = {
       userRequested: this.userRequested || "",
       baseDomain: baseDomain,
       contentType: (contentType ? contentType : ""),
-      sameDocument: sameDocument,
-
-      historyIndex: webNav.sessionHistory.index,
-      historySize: webNav.sessionHistory.count,
-      canGoBack: webNav.canGoBack,
-      canGoForward: webNav.canGoForward,
+      sameDocument: sameDocument
     };
 
     Messaging.sendRequest(message);
@@ -4456,6 +4439,27 @@ Tab.prototype = {
   onStatusChange: function(aBrowser, aWebProgress, aRequest, aStatus, aMessage) {
   },
 
+  _sendHistoryEvent: function(aMessage, aParams) {
+    let message = {
+      type: "SessionHistory:" + aMessage,
+      tabID: this.id,
+    };
+
+    // Restore zoom only when moving in session history, not for new page loads.
+    this._restoreZoom = aMessage != "New";
+
+    if (aParams) {
+      if ("url" in aParams)
+        message.url = aParams.url;
+      if ("index" in aParams)
+        message.index = aParams.index;
+      if ("numEntries" in aParams)
+        message.numEntries = aParams.numEntries;
+    }
+
+    Messaging.sendRequest(message);
+  },
+
   _getGeckoZoom: function() {
     let res = {x: {}, y: {}};
     let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
@@ -4478,22 +4482,17 @@ Tab.prototype = {
     return null;
   },
 
-  _updateZoomFromHistoryEvent: function(aHistoryEventName) {
-    // Restore zoom only when moving in session history, not for new page loads.
-    this._restoreZoom = aHistoryEventName !== "New";
-  },
-
   OnHistoryNewEntry: function(aUri) {
-    this._updateZoomFromHistoryEvent("New");
+    this._sendHistoryEvent("New", { url: aUri.spec });
   },
 
   OnHistoryGoBack: function(aUri) {
-    this._updateZoomFromHistoryEvent("Back");
+    this._sendHistoryEvent("Back");
     return true;
   },
 
   OnHistoryGoForward: function(aUri) {
-    this._updateZoomFromHistoryEvent("Forward");
+    this._sendHistoryEvent("Forward");
     return true;
   },
 
@@ -4504,12 +4503,12 @@ Tab.prototype = {
   },
 
   OnHistoryGotoIndex: function(aIndex, aUri) {
-    this._updateZoomFromHistoryEvent("Goto");
+    this._sendHistoryEvent("Goto", { index: aIndex });
     return true;
   },
 
   OnHistoryPurge: function(aNumEntries) {
-    this._updateZoomFromHistoryEvent("Purge");
+    this._sendHistoryEvent("Purge", { numEntries: aNumEntries });
     return true;
   },
 

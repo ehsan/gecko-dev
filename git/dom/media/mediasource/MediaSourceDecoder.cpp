@@ -33,7 +33,6 @@ class SourceBufferDecoder;
 
 MediaSourceDecoder::MediaSourceDecoder(dom::HTMLMediaElement* aElement)
   : mMediaSource(nullptr)
-  , mMediaSourceDuration(UnspecifiedNaN<double>())
 {
   Init(aElement);
 }
@@ -83,7 +82,7 @@ MediaSourceDecoder::GetSeekable(dom::TimeRanges* aSeekable)
     // Return empty range.
   } else if (duration > 0 && mozilla::IsInfinite(duration)) {
     nsRefPtr<dom::TimeRanges> bufferedRanges = new dom::TimeRanges();
-    mReader->GetBuffered(bufferedRanges);
+    mMediaSource->GetBuffered(bufferedRanges);
     aSeekable->Add(bufferedRanges->GetStartTime(), bufferedRanges->GetEndTime());
   } else {
     aSeekable->Add(0, duration);
@@ -165,81 +164,15 @@ MediaSourceDecoder::Ended()
   mon.NotifyAll();
 }
 
-bool
-MediaSourceDecoder::IsExpectingMoreData()
-{
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  return !mReader->IsEnded();
-}
-
-class DurationChangedRunnable : public nsRunnable {
-public:
-  explicit DurationChangedRunnable(MediaSourceDecoder* aDecoder,
-                                   double aOldDuration,
-                                   double aNewDuration)
-    : mDecoder(aDecoder)
-    , mOldDuration(aOldDuration)
-    , mNewDuration(aNewDuration)
-  { }
-
-  NS_IMETHOD Run() MOZ_OVERRIDE MOZ_FINAL {
-    mDecoder->DurationChanged(mOldDuration, mNewDuration);
-    return NS_OK;
-  }
-
-private:
-  RefPtr<MediaSourceDecoder> mDecoder;
-  double mOldDuration;
-  double mNewDuration;
-};
-
-void
-MediaSourceDecoder::DurationChanged(double aOldDuration, double aNewDuration)
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  // Run the MediaSource duration changed algorithm
-  if (mMediaSource) {
-    mMediaSource->DurationChange(aOldDuration, aNewDuration);
-  }
-  // Run the MediaElement duration changed algorithm
-  MediaDecoder::DurationChanged();
-}
-
-void
-MediaSourceDecoder::SetDecodedDuration(int64_t aDuration)
-{
-  // Only use the decoded duration if one wasn't already
-  // set.
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  if (!mMediaSource || !IsNaN(mMediaSourceDuration)) {
-    return;
-  }
-  double duration = aDuration;
-  duration /= USECS_PER_S;
-  SetMediaSourceDuration(duration);
-}
-
 void
 MediaSourceDecoder::SetMediaSourceDuration(double aDuration)
 {
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  double oldDuration = mMediaSourceDuration;
-  mMediaSourceDuration = aDuration;
-  mDecoderStateMachine->SetDuration(aDuration * USECS_PER_S);
-  if (NS_IsMainThread()) {
-    DurationChanged(oldDuration, aDuration);
-  } else {
-    nsRefPtr<nsIRunnable> task =
-      new DurationChangedRunnable(this, oldDuration, aDuration);
-    NS_DispatchToMainThread(task);
+  MOZ_ASSERT(NS_IsMainThread());
+  if (!mMediaSource) {
+    return;
   }
-}
-
-double
-MediaSourceDecoder::GetMediaSourceDuration()
-{
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  return mMediaSourceDuration;
+  ErrorResult dummy;
+  mMediaSource->DurationChange(aDuration, dummy);
 }
 
 void

@@ -17,5 +17,3 @@ SOURCES += [
 FINAL_LIBRARY = 'xul'
 
 JAR_MANIFESTS += ['jar.mn']
-
-FAIL_ON_WARNINGS = True

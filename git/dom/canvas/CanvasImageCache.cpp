@@ -250,7 +250,6 @@ CanvasImageCache::NotifyDrawImage(Element* aImage,
       // We are overwriting an existing entry.
       gImageCache->mTotal -= entry->mData->SizeInBytes();
       gImageCache->RemoveObject(entry->mData);
-      gImageCache->mSimpleCache.RemoveEntry(*entry->mData->mRequest);
     }
     gImageCache->AddObject(entry->mData);
 

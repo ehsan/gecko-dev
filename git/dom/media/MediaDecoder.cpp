@@ -677,22 +677,11 @@ void MediaDecoder::QueueMetadata(int64_t aPublishTime,
 }
 
 bool
-MediaDecoder::IsExpectingMoreData()
+MediaDecoder::IsDataCachedToEndOfResource()
 {
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-
-  // If there's no resource, we're probably just getting set up.
-  if (!mResource) {
-    return true;
-  }
-
-  // If we've downloaded anything, we're not waiting for anything.
-  if (mResource->IsDataCachedToEndOfResource(mDecoderPosition)) {
-    return false;
-  }
-
-  // Otherwise, we should be getting data unless the stream is suspended.
-  return !mResource->IsSuspended();
+  return (mResource &&
+          mResource->IsDataCachedToEndOfResource(mDecoderPosition));
 }
 
 void MediaDecoder::MetadataLoaded(nsAutoPtr<MediaInfo> aInfo,
@@ -910,6 +899,7 @@ NS_IMETHODIMP MediaDecoder::Observe(nsISupports *aSubjet,
 MediaDecoder::Statistics
 MediaDecoder::GetStatistics()
 {
+  MOZ_ASSERT(NS_IsMainThread() || OnStateMachineThread());
   Statistics result;
 
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());

@@ -13,8 +13,7 @@ add_task(function* test_dupe_urls() {
     autofilled: "mozilla.org/",
     completed:  "mozilla.org/",
     matches: [ { uri: NetUtil.newURI("http://mozilla.org/"),
-                 title: "mozilla.org",
-                 style: [ "autofill" ] } ]
+                 title: "mozilla.org" } ]
   });
   yield cleanup();
 });

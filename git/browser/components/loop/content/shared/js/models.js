@@ -364,7 +364,6 @@ loop.shared.models = (function(l10n) {
     defaults: {
       details: "",
       detailsButtonLabel: "",
-      detailsButtonCallback: null,
       level: "info",
       message: ""
     }

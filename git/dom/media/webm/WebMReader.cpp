@@ -1092,14 +1092,13 @@ nsresult WebMReader::SeekInternal(int64_t aTarget, int64_t aStartTime)
   return NS_OK;
 }
 
-nsresult WebMReader::GetBuffered(dom::TimeRanges* aBuffered)
+nsresult WebMReader::GetBuffered(dom::TimeRanges* aBuffered, int64_t aStartTime)
 {
-  MOZ_ASSERT(mStartTime != -1, "Need to finish metadata decode first");
   if (aBuffered->Length() != 0) {
     return NS_ERROR_FAILURE;
   }
 
-  AutoPinned<MediaResource> resource(mDecoder->GetResource());
+  MediaResource* resource = mDecoder->GetResource();
 
   // Special case completely cached files.  This also handles local files.
   if (mContext && resource->IsDataCachedToEndOfResource(0)) {
@@ -1122,7 +1121,7 @@ nsresult WebMReader::GetBuffered(dom::TimeRanges* aBuffered)
                                                         ranges[index].mEnd,
                                                         &start, &end);
     if (rv) {
-      int64_t startOffset = mStartTime * NS_PER_USEC;
+      int64_t startOffset = aStartTime * NS_PER_USEC;
       NS_ASSERTION(startOffset >= 0 && uint64_t(startOffset) <= start,
                    "startOffset negative or larger than start time");
       if (!(startOffset >= 0 && uint64_t(startOffset) <= start)) {

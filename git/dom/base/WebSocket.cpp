@@ -86,9 +86,6 @@ public:
   , mScriptLine(0)
   , mInnerWindowID(0)
   , mWorkerPrivate(nullptr)
-#ifdef DEBUG
-  , mHasFeatureRegistered(false)
-#endif
   {
     if (!NS_IsMainThread()) {
       mWorkerPrivate = GetCurrentThreadWorkerPrivate();
@@ -152,7 +149,6 @@ public:
   void AddRefObject();
   void ReleaseObject();
 
-  void RegisterFeature();
   void UnregisterFeature();
 
   nsresult CancelInternal();
@@ -197,25 +193,6 @@ public:
   WorkerPrivate* mWorkerPrivate;
   nsAutoPtr<WorkerFeature> mWorkerFeature;
 
-#ifdef DEBUG
-  // This is protected by mutex.
-  bool mHasFeatureRegistered;
-
-  bool HasFeatureRegistered()
-  {
-    MOZ_ASSERT(mWebSocket);
-    MutexAutoLock lock(mWebSocket->mMutex);
-    return mHasFeatureRegistered;
-  }
-
-  void SetHasFeatureRegistered(bool aValue)
-  {
-    MOZ_ASSERT(mWebSocket);
-    MutexAutoLock lock(mWebSocket->mMutex);
-    mHasFeatureRegistered = aValue;
-  }
-#endif
-
   nsWeakPtr mWeakLoadGroup;
 
 private:
@@ -236,7 +213,7 @@ NS_IMPL_ISUPPORTS(WebSocketImpl,
                   nsIRequest,
                   nsIEventTarget)
 
-class CallDispatchConnectionCloseEvents MOZ_FINAL : public nsCancelableRunnable
+class CallDispatchConnectionCloseEvents MOZ_FINAL : public nsRunnable
 {
 public:
   explicit CallDispatchConnectionCloseEvents(WebSocketImpl* aWebSocketImpl)
@@ -564,9 +541,6 @@ WebSocketImpl::DisconnectInternal()
   nsCOMPtr<nsILoadGroup> loadGroup = do_QueryReferent(mWeakLoadGroup);
   if (loadGroup) {
     loadGroup->RemoveRequest(this, nullptr, NS_OK);
-    // mWeakLoadGroup has to be release on main-thread because WeakReferences
-    // are not thread-safe.
-    mWeakLoadGroup = nullptr;
   }
 
   nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
@@ -1087,12 +1061,6 @@ WebSocket::Constructor(const GlobalObject& aGlobal,
     return webSocket.forget();
   }
 
-  if (webSocket->mWorkerPrivate) {
-    // In workers we have to keep the worker alive using a feature in order to
-    // dispatch messages correctly.
-    webSocket->mImpl->RegisterFeature();
-  }
-
   class MOZ_STACK_CLASS ClearWebSocket
   {
   public:
@@ -1464,11 +1432,6 @@ WebSocketImpl::InitializeConnection()
   // manually adding loadinfo to the channel since it
   // was not set during channel creation.
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mOriginDocument);
-
-  // mOriginDocument has to be release on main-thread because WeakReferences
-  // are not thread-safe.
-  mOriginDocument = nullptr;
-
   nsCOMPtr<nsILoadInfo> loadInfo =
     new LoadInfo(mPrincipal,
                  doc,
@@ -1801,12 +1764,9 @@ WebSocket::UpdateMustKeepAlive()
   }
 
   bool shouldKeepAlive = false;
-  uint16_t readyState = ReadyState();
 
-  if (mWorkerPrivate && readyState != CLOSED) {
-    shouldKeepAlive = true;
-  } else if (mListenerManager) {
-    switch (readyState)
+  if (mListenerManager) {
+    switch (ReadyState())
     {
       case CONNECTING:
       {
@@ -1879,6 +1839,7 @@ public:
 
     if (aStatus >= Canceling) {
       mWebSocketImpl->CloseConnection(nsIWebSocketChannel::CLOSE_GOING_AWAY);
+      mWebSocketImpl->UnregisterFeature();
     }
 
     return true;
@@ -1887,6 +1848,7 @@ public:
   bool Suspend(JSContext* aCx)
   {
     mWebSocketImpl->CloseConnection(nsIWebSocketChannel::CLOSE_GOING_AWAY);
+    mWebSocketImpl->UnregisterFeature();
     return true;
   }
 
@@ -1903,7 +1865,15 @@ WebSocketImpl::AddRefObject()
   AddRef();
 
   if (mWorkerPrivate && !mWorkerFeature) {
-    RegisterFeature();
+    mWorkerPrivate->AssertIsOnWorkerThread();
+    MOZ_ASSERT(!mWorkerFeature);
+    mWorkerFeature = new WebSocketWorkerFeature(this);
+
+    JSContext* cx = GetCurrentThreadJSContext();
+    if (!mWorkerPrivate->AddFeature(cx, mWorkerFeature)) {
+      NS_WARNING("Failed to register a feature.");
+      mWorkerFeature = nullptr;
+    }
   }
 }
 
@@ -1912,30 +1882,11 @@ WebSocketImpl::ReleaseObject()
 {
   AssertIsOnTargetThread();
 
-  if (mWorkerPrivate && mWorkerFeature) {
+  if (mWorkerPrivate && !mWorkerFeature) {
     UnregisterFeature();
   }
 
   Release();
-}
-
-void
-WebSocketImpl::RegisterFeature()
-{
-  mWorkerPrivate->AssertIsOnWorkerThread();
-  MOZ_ASSERT(!mWorkerFeature);
-  mWorkerFeature = new WebSocketWorkerFeature(this);
-
-  JSContext* cx = GetCurrentThreadJSContext();
-  if (!mWorkerPrivate->AddFeature(cx, mWorkerFeature)) {
-    NS_WARNING("Failed to register a feature.");
-    mWorkerFeature = nullptr;
-    return;
-  }
-
-#ifdef DEBUG
-  SetHasFeatureRegistered(true);
-#endif
 }
 
 void
@@ -1948,10 +1899,6 @@ WebSocketImpl::UnregisterFeature()
   JSContext* cx = GetCurrentThreadJSContext();
   mWorkerPrivate->RemoveFeature(cx, mWorkerFeature);
   mWorkerFeature = nullptr;
-
-#ifdef DEBUG
-  SetHasFeatureRegistered(false);
-#endif
 }
 
 nsresult
@@ -2491,10 +2438,6 @@ WebSocketImpl::Dispatch(nsIRunnable* aEvent, uint32_t aFlags)
   if (!mWorkerPrivate) {
     return NS_DispatchToMainThread(aEvent);
   }
-
-#ifdef DEBUG
-  MOZ_ASSERT(HasFeatureRegistered());
-#endif
 
   // If the target is a worker, we have to use a custom WorkerRunnableDispatcher
   // runnable.

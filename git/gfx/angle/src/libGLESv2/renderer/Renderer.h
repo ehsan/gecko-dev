@@ -30,7 +30,6 @@
 namespace egl
 {
 class Display;
-class Surface;
 }
 
 namespace gl
@@ -188,7 +187,7 @@ class Renderer
                                  GLenum type, GLuint outputPitch, const gl::PixelPackState &pack, uint8_t *pixels) = 0;
 
     // RenderTarget creation
-    virtual RenderTarget *createRenderTarget(egl::Surface *eglSurface, bool depth) = 0;
+    virtual RenderTarget *createRenderTarget(SwapChain *swapChain, bool depth) = 0;
     virtual RenderTarget *createRenderTarget(int width, int height, GLenum format, GLsizei samples) = 0;
 
     // Shader creation

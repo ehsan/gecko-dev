@@ -211,7 +211,6 @@ let MozLoopServiceInternal = {
    */
   set fxAOAuthProfile(aProfileData) {
     setJSONPref("loop.fxa_oauth.profile", aProfileData);
-    this.notifyStatusChanged(aProfileData ? "login" : undefined);
   },
 
   /**
@@ -247,12 +246,9 @@ let MozLoopServiceInternal = {
    *                           error of a type will be saved at a time. This value may be used to
    *                           determine user-facing (aka. friendly) strings.
    * @param {Object} error     an object describing the error in the format from Hawk errors
-   * @param {Function} [actionCallback] an object describing the label and callback function for error
-   *                                    bar's button e.g. to retry.
    */
-  setError: function(errorType, error, actionCallback = null) {
-    log.debug("setError", errorType, error);
-    let messageString, detailsString, detailsButtonLabelString, detailsButtonCallback;
+  setError: function(errorType, error) {
+    let messageString, detailsString, detailsButtonLabelString;
     const NETWORK_ERRORS = [
       Cr.NS_ERROR_CONNECTION_REFUSED,
       Cr.NS_ERROR_NET_INTERRUPT,
@@ -279,7 +275,6 @@ let MozLoopServiceInternal = {
         messageString = "could_not_authenticate"; // XXX: Bug 1076377
         detailsString = "password_changed_question";
         detailsButtonLabelString = "retry_button";
-        detailsButtonCallback = () => MozLoopService.logInToFxA();
       } else {
         messageString = "session_expired_error_description";
       }
@@ -299,17 +294,13 @@ let MozLoopServiceInternal = {
                                          this.localizedStrings[detailsButtonLabelString].textContent :
                                          null;
 
-    error.friendlyDetailsButtonCallback = actionCallback || detailsButtonCallback || null;
-
     gErrors.set(errorType, error);
     this.notifyStatusChanged();
   },
 
   clearError: function(errorType) {
-    if (gErrors.has(errorType)) {
-      gErrors.delete(errorType);
-      this.notifyStatusChanged();
-    }
+    gErrors.delete(errorType);
+    this.notifyStatusChanged();
   },
 
   get errors() {
@@ -589,14 +580,7 @@ let MozLoopServiceInternal = {
         }
 
         log.error("Failed to register with the loop server. Error: ", error);
-        let deferred = Promise.defer();
-        deferred.promise.then(() => {
-          log.debug("registration retry succeeded");
-        },
-        error => {
-          log.debug("registration retry failed");
-        });
-        this.setError("registration", error, () => MozLoopService.delayedInitialize(deferred));
+        this.setError("registration", error);
         throw error;
       }
     );
@@ -952,6 +936,7 @@ this.MozLoopService = {
     };
   },
 
+
   set initializeTimerFunc(value) {
     gInitializeTimerFunc = value;
   },
@@ -1007,7 +992,6 @@ this.MozLoopService = {
    * @param {Deferred} deferredInitialization
    */
   delayedInitialize: Task.async(function*(deferredInitialization) {
-    log.debug("delayedInitialize");
     // Set or clear an error depending on how deferredInitialization gets resolved.
     // We do this first so that it can handle the early returns below.
     let completedPromise = deferredInitialization.promise.then(result => {
@@ -1017,7 +1001,7 @@ this.MozLoopService = {
     error => {
       // If we get a non-object then setError was already called for a different error type.
       if (typeof(error) == "object") {
-        MozLoopServiceInternal.setError("initialization", error, () => MozLoopService.delayedInitialize(Promise.defer()));
+        MozLoopServiceInternal.setError("initialization", error);
       }
     });
 
@@ -1275,6 +1259,7 @@ this.MozLoopService = {
       });
       client.fetchProfile().then(result => {
         MozLoopServiceInternal.fxAOAuthProfile = result;
+        MozLoopServiceInternal.notifyStatusChanged("login");
       }, error => {
         log.error("Failed to retrieve profile", error);
         this.setError("profile", error);
