@@ -292,12 +292,6 @@ CustomizeMode.prototype = {
       return;
     }
 
-    if (this.resetting) {
-      LOG("Attempted to exit while we're resetting. " +
-          "We'll exit after resetting has finished.");
-      return;
-    }
-
     this._handler.isExitingCustomizeMode = true;
 
     CustomizableUI.removeListener(this);
@@ -891,9 +885,6 @@ CustomizeMode.prototype = {
       this._updateEmptyPaletteNotice();
       this._showPanelCustomizationPlaceholders();
       this.resetting = false;
-      if (!this._wantToBeInCustomizeMode) {
-        this.exit();
-      }
     }.bind(this)).then(null, ERROR);
   },
 

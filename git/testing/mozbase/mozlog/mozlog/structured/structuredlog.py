@@ -104,15 +104,12 @@ class StructuredLogger(object):
         all_data.update(data)
         return all_data
 
-    def suite_start(self, tests, run_info=None):
+    def suite_start(self, tests):
         """Log a suite_start message
 
         :param tests: List of test identifiers that will be run in the suite.
         """
-        data = {"tests": tests}
-        if run_info is not None:
-            data["run_info"] = run_info
-        self._log_data("suite_start", data)
+        self._log_data("suite_start", {"tests": tests})
 
     def suite_end(self):
         """Log a suite_end message"""
@@ -174,7 +171,8 @@ class StructuredLogger(object):
         self._log_data("test_end", data)
 
     def process_output(self, process, data, command=None):
-        """Log output from a managed process.
+        """
+        Log output from a managed process.
 
         :param process: A unique identifier for the process producing the output
                         (typically the pid)

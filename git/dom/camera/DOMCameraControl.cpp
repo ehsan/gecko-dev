@@ -1058,13 +1058,11 @@ nsDOMCameraControl::OnRecorderStateChange(CameraControlListener::RecorderState a
         mStartRecordingOnErrorCb = nullptr;
         cb->Call(ignored);
       }
-      state = NS_LITERAL_STRING("Started");
-      break;
+      return;
 
     case CameraControlListener::kRecorderStopped:
       NotifyRecordingStatusChange(NS_LITERAL_STRING("shutdown"));
-      state = NS_LITERAL_STRING("Stopped");
-      break;
+      return;
 
 #ifdef MOZ_B2G_CAMERA
     case CameraControlListener::kFileSizeLimitReached:

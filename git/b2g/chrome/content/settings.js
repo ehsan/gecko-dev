@@ -723,7 +723,3 @@ SettingsListener.observe('layers.draw-tile-borders', false, function(value) {
   Services.prefs.setBoolPref('layers.draw-tile-borders', value);
 });
 
-SettingsListener.observe('layers.dump', false, function(value) {
-  Services.prefs.setBoolPref('layers.dump', value);
-});
-
