@@ -98,7 +98,6 @@
   <script type="application/javascript;version=1.8"><![CDATA[
     let Ci = Components.interfaces, Cc = Components.classes, Cu = Components.utils;
     let gChromeWin = null;
-    Cu.import("resource://gre/modules/AddonManager.jsm");
 
     function openLink(aElement) {
       try {
@@ -309,10 +308,9 @@
           list.removeChild(header.nextSibling);
 
         for (let i=0; i<aAddons.length; i++) {
-          let addon = aAddons[i];
           let outer = document.createElement("div");
           outer.setAttribute("role", "button");
-          outer.setAttribute("addonID", addon.id);
+          outer.setAttribute("addonID", aAddons[i].id);
 
           let addonName = aAddons[i].name;
           outer.addEventListener("click", function() {
@@ -321,19 +319,19 @@
 
           let img = document.createElement("img");
           img.className = "favicon";
-          img.setAttribute("src", addon.iconURL);
+          img.setAttribute("src", aAddons[i].iconURL);
           outer.appendChild(img);
 
           let inner = document.createElement("div");
           inner.className = "inner";
 
           let titlePart = document.createElement("span");
-          titlePart.textContent = addon.name;
+          titlePart.textContent = aAddons[i].name;
           titlePart.className = "title";
           inner.appendChild(titlePart);
 
           let versionPart = document.createElement("span");
-          versionPart.textContent = addon.version;
+          versionPart.textContent = aAddons[i].version;
           versionPart.className = "version";
           inner.appendChild(versionPart);
 
@@ -346,21 +344,7 @@
         let file = this._getFile();
         if (file.exists()) {
           let json = JSON.parse(this._readFile(file));
-
-          // Ignore addons already installed
-          let self = this;
-          let addonsCache = json.addons;
-          AddonManager.getAllAddons(function(aAddons) {
-            let addons = addonsCache.filter(function(addon) {
-              for (let i =0; i < aAddons.length; i++)
-                if (addon.id == aAddons[i].id)
-                  return false;
-
-              return true;
-            });
-
-            self._loadAddons(addons, addons.length, json.totalResults);
-          });
+          this._loadAddons(json.addons, json.addonCount, json.totalResults);
         } else {
           setTimeout(function() {
             let aus = Cc["@mozilla.org/browser/addon-update-service;1"].getService(Ci.nsITimerCallback);

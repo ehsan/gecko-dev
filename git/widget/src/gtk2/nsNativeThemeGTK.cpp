@@ -571,9 +571,7 @@ nsNativeThemeGTK::GetGtkWidgetAndState(PRUint8 aWidgetType, nsIFrame* aFrame,
       nsEventStates eventStates = GetContentState(stateFrame, aWidgetType);
 
       aGtkWidgetType = IsIndeterminateProgress(stateFrame, eventStates)
-                         ? (stateFrame->GetStyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL)
-                           ? MOZ_GTK_PROGRESS_CHUNK_VERTICAL_INDETERMINATE
-                           : MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE
+                         ? MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE
                          : MOZ_GTK_PROGRESS_CHUNK;
     }
     break;
@@ -883,8 +881,7 @@ nsNativeThemeGTK::DrawWidgetBackground(nsRenderingContext* aContext,
   }
 
   // Indeterminate progress bar are animated.
-  if (gtkWidgetType == MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE ||
-      gtkWidgetType == MOZ_GTK_PROGRESS_CHUNK_VERTICAL_INDETERMINATE) {
+  if (gtkWidgetType == MOZ_GTK_PROGRESS_CHUNK_INDETERMINATE) {
     if (!QueueAnimatedContentForRefresh(aFrame->GetContent(), 30)) {
       NS_WARNING("unable to animate widget!");
     }
