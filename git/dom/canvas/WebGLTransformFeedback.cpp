@@ -11,15 +11,15 @@
 
 namespace mozilla {
 
-WebGLTransformFeedback::WebGLTransformFeedback(WebGLContext* webgl,
+WebGLTransformFeedback::WebGLTransformFeedback(WebGLContext* context,
                                                GLuint tf)
     : WebGLBindableName<GLenum>(tf)
-    , WebGLContextBoundObject(webgl)
+    , WebGLContextBoundObject(context)
     , mMode(LOCAL_GL_NONE)
     , mIsActive(false)
     , mIsPaused(false)
 {
-    mContext->mTransformFeedbacks.insertBack(this);
+    context->mTransformFeedbacks.insertBack(this);
 }
 
 WebGLTransformFeedback::~WebGLTransformFeedback()

@@ -11,17 +11,11 @@ function usage() {
 }
 
 clean=""
-platform=""
 while [ $# -gt 1 ]; do
     case "$1" in
         --clobber)
             shift
             clean=1
-            ;;
-        --platform)
-            shift
-            platform="$1"
-            shift
             ;;
         *)
             echo "Invalid arguments" >&2
@@ -47,7 +41,7 @@ else
   CONFIGURE_ARGS="$(cat "$ABSDIR/$VARIANT")"
 fi
 
-OBJDIR="${OBJDIR:-$SOURCE/obj-spider}"
+OBJDIR="$SOURCE/obj-spider"
 
 if [ -n "$clean" ]; then
   [ -d "$OBJDIR" ] && rm -rf "$OBJDIR"
@@ -87,11 +81,7 @@ elif [ "$OSTYPE" = "linux-gnu" ]; then
   fi
 elif [ "$OSTYPE" = "msys" ]; then
   USE_64BIT=false
-  if [ "$platform" = "win64" ]; then
-      USE_64BIT=true
-  fi
   MAKE=${MAKE:-mozmake}
-  source "$ABSDIR/winbuildenv.sh"
 fi
 
 MAKE=${MAKE:-make}

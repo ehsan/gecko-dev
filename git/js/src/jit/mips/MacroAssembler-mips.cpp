@@ -3641,6 +3641,8 @@ MacroAssemblerMIPSCompat::toggledCall(JitCode *target, bool enabled)
     return offset;
 }
 
+#ifdef JSGC_GENERATIONAL
+
 void
 MacroAssemblerMIPSCompat::branchPtrInNurseryRange(Condition cond, Register ptr, Register temp,
                                                   Label *label)
@@ -3669,3 +3671,5 @@ MacroAssemblerMIPSCompat::branchValueIsNurseryObject(Condition cond, ValueOperan
 
     bind(&done);
 }
+
+#endif

@@ -80,7 +80,9 @@ class CompileRuntime
 
     const MathCache *maybeGetMathCache();
 
+#ifdef JSGC_GENERATIONAL
     const Nursery &gcNursery();
+#endif
 };
 
 class CompileZone

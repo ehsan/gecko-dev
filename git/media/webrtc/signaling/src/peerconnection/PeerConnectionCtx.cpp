@@ -25,9 +25,6 @@
 #include "mozilla/Services.h"
 #include "StaticPtr.h"
 
-#include "gmp-video-decode.h" // GMP_API_VIDEO_DECODER
-#include "gmp-video-encode.h" // GMP_API_VIDEO_ENCODER
-
 static const char* logTag = "PeerConnectionCtx";
 
 namespace mozilla {
@@ -397,14 +394,14 @@ bool PeerConnectionCtx::gmpHasH264() {
 
   bool has_gmp;
   nsresult rv;
-  rv = mGMPService->HasPluginForAPI(NS_LITERAL_CSTRING(GMP_API_VIDEO_ENCODER),
+  rv = mGMPService->HasPluginForAPI(NS_LITERAL_CSTRING("encode-video"),
                                     &tags,
                                     &has_gmp);
   if (NS_FAILED(rv) || !has_gmp) {
     return false;
   }
 
-  rv = mGMPService->HasPluginForAPI(NS_LITERAL_CSTRING(GMP_API_VIDEO_DECODER),
+  rv = mGMPService->HasPluginForAPI(NS_LITERAL_CSTRING("decode-video"),
                                     &tags,
                                     &has_gmp);
   if (NS_FAILED(rv) || !has_gmp) {

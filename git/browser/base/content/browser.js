@@ -2550,9 +2550,9 @@ let gMenuButtonUpdateBadge = {
         updateButtonText = gNavigatorBundle.getFormattedString(stringId,
                                                                [brandShortName]);
 
-        updateButton.setAttribute("label", updateButtonText);
-        updateButton.setAttribute("update-status", "succeeded");
+        updateButton.label = updateButtonText;
         updateButton.hidden = false;
+        updateButton.setAttribute("update-status", "succeeded");
 
         PanelUI.panel.addEventListener("popupshowing", this, true);
 
@@ -2565,9 +2565,9 @@ let gMenuButtonUpdateBadge = {
         stringId = "appmenu.updateFailed.description";
         updateButtonText = gNavigatorBundle.getString(stringId);
 
-        updateButton.setAttribute("label", updateButtonText);
-        updateButton.setAttribute("update-status", "failed");
+        updateButton.label = updateButtonText;
         updateButton.hidden = false;
+        updateButton.setAttribute("update-status", "failed");
 
         PanelUI.panel.addEventListener("popupshowing", this, true);
 

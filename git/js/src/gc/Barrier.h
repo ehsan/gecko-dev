@@ -10,7 +10,9 @@
 #include "NamespaceImports.h"
 
 #include "gc/Heap.h"
-#include "gc/StoreBuffer.h"
+#ifdef JSGC_GENERATIONAL
+# include "gc/StoreBuffer.h"
+#endif
 #include "js/HashTable.h"
 #include "js/Id.h"
 #include "js/RootingAPI.h"
@@ -328,12 +330,15 @@ struct InternalGCMethods<Value>
     static bool isMarkable(Value v) { return v.isMarkable(); }
 
     static void preBarrier(Value v) {
+#ifdef JSGC_INCREMENTAL
         MOZ_ASSERT(!CurrentThreadIsIonCompiling());
         if (v.isMarkable() && shadowRuntimeFromAnyThread(v)->needsIncrementalBarrier())
             preBarrier(ZoneOfValueFromAnyThread(v), v);
+#endif
     }
 
     static void preBarrier(Zone *zone, Value v) {
+#ifdef JSGC_INCREMENTAL
         MOZ_ASSERT(!CurrentThreadIsIonCompiling());
         if (v.isString() && StringIsPermanentAtom(v.toString()))
             return;
@@ -344,33 +349,40 @@ struct InternalGCMethods<Value>
             js::gc::MarkValueUnbarriered(shadowZone->barrierTracer(), &tmp, "write barrier");
             MOZ_ASSERT(tmp == v);
         }
+#endif
     }
 
     static void postBarrier(Value *vp) {
+#ifdef JSGC_GENERATIONAL
         MOZ_ASSERT(!CurrentThreadIsIonCompiling());
         if (vp->isObject()) {
             gc::StoreBuffer *sb = reinterpret_cast<gc::Cell *>(&vp->toObject())->storeBuffer();
             if (sb)
                 sb->putValueFromAnyThread(vp);
         }
+#endif
     }
 
     static void postBarrierRelocate(Value *vp) {
+#ifdef JSGC_GENERATIONAL
         MOZ_ASSERT(!CurrentThreadIsIonCompiling());
         if (vp->isObject()) {
             gc::StoreBuffer *sb = reinterpret_cast<gc::Cell *>(&vp->toObject())->storeBuffer();
             if (sb)
                 sb->putRelocatableValueFromAnyThread(vp);
         }
+#endif
     }
 
     static void postBarrierRemove(Value *vp) {
+#ifdef JSGC_GENERATIONAL
         MOZ_ASSERT(vp);
         MOZ_ASSERT(vp->isMarkable());
         MOZ_ASSERT(!CurrentThreadIsIonCompiling());
         JSRuntime *rt = static_cast<js::gc::Cell *>(vp->toGCThing())->runtimeFromAnyThread();
         JS::shadow::Runtime *shadowRuntime = JS::shadow::Runtime::asShadowRuntime(rt);
         shadowRuntime->gcStoreBufferPtr()->removeRelocatableValueFromAnyThread(vp);
+#endif
     }
 
     static void readBarrier(const Value &v) { ValueReadBarrier(v); }
@@ -382,6 +394,7 @@ struct InternalGCMethods<jsid>
     static bool isMarkable(jsid id) { return JSID_IS_STRING(id) || JSID_IS_SYMBOL(id); }
 
     static void preBarrier(jsid id) {
+#ifdef JSGC_INCREMENTAL
         if (JSID_IS_STRING(id)) {
             JSString *str = JSID_TO_STRING(id);
             JS::shadow::Zone *shadowZone = ShadowZoneOfStringFromAnyThread(str);
@@ -397,6 +410,7 @@ struct InternalGCMethods<jsid>
                 MOZ_ASSERT(sym == JSID_TO_SYMBOL(id));
             }
         }
+#endif
     }
     static void preBarrier(Zone *zone, jsid id) { preBarrier(id); }
 
@@ -664,13 +678,17 @@ class RelocatablePtr : public BarrieredBase<T>
 
   protected:
     void post() {
+#ifdef JSGC_GENERATIONAL
         MOZ_ASSERT(GCMethods<T>::needsPostBarrier(this->value));
         InternalGCMethods<T>::postBarrierRelocate(&this->value);
+#endif
     }
 
     void relocate() {
+#ifdef JSGC_GENERATIONAL
         MOZ_ASSERT(GCMethods<T>::needsPostBarrier(this->value));
         InternalGCMethods<T>::postBarrierRemove(&this->value);
+#endif
     }
 };
 
@@ -904,11 +922,13 @@ class HeapSlot : public BarrieredBase<Value>
   private:
     void post(NativeObject *owner, Kind kind, uint32_t slot, const Value &target) {
         MOZ_ASSERT(preconditionForWriteBarrierPost(owner, kind, slot, target));
+#ifdef JSGC_GENERATIONAL
         if (this->value.isObject()) {
             gc::Cell *cell = reinterpret_cast<gc::Cell *>(&this->value.toObject());
             if (cell->storeBuffer())
                 cell->storeBuffer()->putSlotFromAnyThread(owner, kind, slot, 1);
         }
+#endif
     }
 };
 

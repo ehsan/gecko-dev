@@ -416,8 +416,10 @@ BaselineScript::trace(JSTracer *trc)
 void
 BaselineScript::writeBarrierPre(Zone *zone, BaselineScript *script)
 {
+#ifdef JSGC_INCREMENTAL
     if (zone->needsIncrementalBarrier())
         script->trace(zone->barrierTracer());
+#endif
 }
 
 void
@@ -429,6 +431,7 @@ BaselineScript::Trace(JSTracer *trc, BaselineScript *script)
 void
 BaselineScript::Destroy(FreeOp *fop, BaselineScript *script)
 {
+#ifdef JSGC_GENERATIONAL
     /*
      * When the script contains pointers to nursery things, the store buffer
      * will contain entries refering to the referenced things. Since we can
@@ -437,6 +440,7 @@ BaselineScript::Destroy(FreeOp *fop, BaselineScript *script)
      * outside of a GC that we at least emptied the nursery first.
      */
     MOZ_ASSERT(fop->runtime()->gc.nursery.isEmpty());
+#endif
 
     script->unlinkDependentAsmJSModules(fop);
 

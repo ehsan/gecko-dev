@@ -1,8 +1,8 @@
 #-----------------------------------------------------------------
-# dmd.py --filter-stacks-for-testing -o full-sampled-live-actual.txt full-sampled-live.json
+# dmd.py --filter-stacks-for-testing -o full-heap-sampled-actual.txt --ignore-reports full-sampled.json
 
 Invocation {
-  $DMD = '--mode=live --sample-below=128'
+  $DMD = '1'
   Sample-below size = 128
 }
 

@@ -101,6 +101,7 @@ struct GCMethods<nsXBLMaybeCompiled<UncompiledT> >
     return function.IsCompiled() && Base::needsPostBarrier(function.GetJSFunction());
   }
 
+#ifdef JSGC_GENERATIONAL
   static void postBarrier(nsXBLMaybeCompiled<UncompiledT>* functionp)
   {
     Base::postBarrier(&functionp->UnsafeGetJSFunction());
@@ -110,6 +111,7 @@ struct GCMethods<nsXBLMaybeCompiled<UncompiledT> >
   {
     Base::relocate(&functionp->UnsafeGetJSFunction());
   }
+#endif
 };
 
 template <class UncompiledT>

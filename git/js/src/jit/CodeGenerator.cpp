@@ -19,7 +19,9 @@
 #include "asmjs/AsmJSModule.h"
 #include "builtin/Eval.h"
 #include "builtin/TypedObject.h"
-#include "gc/Nursery.h"
+#ifdef JSGC_GENERATIONAL
+# include "gc/Nursery.h"
+#endif
 #include "irregexp/NativeRegExpMacroAssembler.h"
 #include "jit/BaselineCompiler.h"
 #include "jit/IonBuilder.h"
@@ -2539,6 +2541,7 @@ CodeGenerator::visitMonitorTypes(LMonitorTypes *lir)
     bailoutFrom(&miss, lir->snapshot());
 }
 
+#ifdef JSGC_GENERATIONAL
 // Out-of-line path to update the store buffer.
 class OutOfLineCallPostWriteBarrier : public OutOfLineCodeBase<CodeGenerator>
 {
@@ -2596,10 +2599,12 @@ CodeGenerator::visitOutOfLineCallPostWriteBarrier(OutOfLineCallPostWriteBarrier 
 
     masm.jump(ool->rejoin());
 }
+#endif
 
 void
 CodeGenerator::visitPostWriteBarrierO(LPostWriteBarrierO *lir)
 {
+#ifdef JSGC_GENERATIONAL
     OutOfLineCallPostWriteBarrier *ool = new(alloc()) OutOfLineCallPostWriteBarrier(lir, lir->object());
     addOutOfLineCode(ool, lir->mir());
 
@@ -2617,11 +2622,13 @@ CodeGenerator::visitPostWriteBarrierO(LPostWriteBarrierO *lir)
     masm.branchPtrInNurseryRange(Assembler::Equal, ToRegister(lir->value()), temp, ool->entry());
 
     masm.bind(ool->rejoin());
+#endif
 }
 
 void
 CodeGenerator::visitPostWriteBarrierV(LPostWriteBarrierV *lir)
 {
+#ifdef JSGC_GENERATIONAL
     OutOfLineCallPostWriteBarrier *ool = new(alloc()) OutOfLineCallPostWriteBarrier(lir, lir->object());
     addOutOfLineCode(ool, lir->mir());
 
@@ -2640,6 +2647,7 @@ CodeGenerator::visitPostWriteBarrierV(LPostWriteBarrierV *lir)
     masm.branchValueIsNurseryObject(Assembler::Equal, value, temp, ool->entry());
 
     masm.bind(ool->rejoin());
+#endif
 }
 
 void
@@ -6953,11 +6961,21 @@ CodeGenerator::visitIteratorStart(LIteratorStart *lir)
     // Write barrier for stores to the iterator. We only need to take a write
     // barrier if NativeIterator::obj is actually going to change.
     {
-        // Bug 867815: Unconditionally take this out- of-line so that we do not
-        // have to post-barrier the store to NativeIter::obj. This just needs
-        // JIT support for the Cell* buffer.
+#ifdef JSGC_GENERATIONAL
+        // Bug 867815: When using a nursery, we unconditionally take this out-
+        // of-line so that we do not have to post-barrier the store to
+        // NativeIter::obj. This just needs JIT support for the Cell* buffer.
         Address objAddr(niTemp, offsetof(NativeIterator, obj));
         masm.branchPtr(Assembler::NotEqual, objAddr, obj, ool->entry());
+#else
+        Label noBarrier;
+        masm.branchTestNeedsIncrementalBarrier(Assembler::Zero, &noBarrier);
+
+        Address objAddr(niTemp, offsetof(NativeIterator, obj));
+        masm.branchPtr(Assembler::NotEqual, objAddr, obj, ool->entry());
+
+        masm.bind(&noBarrier);
+#endif // !JSGC_GENERATIONAL
     }
 
     // Mark iterator as active.

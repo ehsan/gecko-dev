@@ -98,6 +98,7 @@ ThreadResponsiveness::~ThreadResponsiveness()
 void
 ThreadResponsiveness::Update()
 {
+  return;
   if (!mActiveTracerEvent) {
     if (mThreadProfile->GetThreadInfo()->IsMainThread()) {
       mActiveTracerEvent = new CheckResponsivenessTask();

@@ -242,8 +242,7 @@ js::GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
 
     RootedObject pobj(cx);
     RootedShape shape(cx);
-    LookupGenericOp lookupOp = obj->getOps()->lookupGeneric;
-    if (!NonProxyLookupOwnProperty<CanGC>(cx, lookupOp, obj, id, &pobj, &shape))
+    if (!HasOwnProperty<CanGC>(cx, obj->getOps()->lookupGeneric, obj, id, &pobj, &shape))
         return false;
     if (!shape) {
         desc.object().set(nullptr);
@@ -595,7 +594,7 @@ DefinePropertyOnObject(JSContext *cx, HandleNativeObject obj, HandleId id, const
     RootedShape shape(cx);
     RootedObject obj2(cx);
     MOZ_ASSERT(!obj->getOps()->lookupGeneric);
-    if (!NonProxyLookupOwnProperty<CanGC>(cx, nullptr, obj, id, &obj2, &shape))
+    if (!HasOwnProperty<CanGC>(cx, nullptr, obj, id, &obj2, &shape))
         return false;
 
     MOZ_ASSERT(!obj->getOps()->defineProperty);
@@ -2295,9 +2294,11 @@ JSObject::swap(JSContext *cx, HandleObject a, HandleObject b)
      * Neither object may be in the nursery, but ensure we update any embedded
      * nursery pointers in either object.
      */
+#ifdef JSGC_GENERATIONAL
     MOZ_ASSERT(!IsInsideNursery(a) && !IsInsideNursery(b));
     cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(a);
     cx->runtime()->gc.storeBuffer.putWholeCellFromMainThread(b);
+#endif
 
     unsigned r = NotifyGCPreSwap(a, b);
 
@@ -2381,6 +2382,7 @@ JSObject::swap(JSContext *cx, HandleObject a, HandleObject b)
     MarkTypeObjectUnknownProperties(cx, a->type(), !a->hasSingletonType());
     MarkTypeObjectUnknownProperties(cx, b->type(), !b->hasSingletonType());
 
+#ifdef JSGC_INCREMENTAL
     /*
      * We need a write barrier here. If |a| was marked and |b| was not, then
      * after the swap, |b|'s guts would never be marked. The write barrier
@@ -2394,6 +2396,7 @@ JSObject::swap(JSContext *cx, HandleObject a, HandleObject b)
         MarkChildren(zone->barrierTracer(), a);
         MarkChildren(zone->barrierTracer(), b);
     }
+#endif
 
     NotifyGCPostSwap(a, b, r);
     return true;
@@ -2591,10 +2594,14 @@ js_InitClass(JSContext *cx, HandleObject obj, JSObject *protoProto_,
 {
     RootedObject protoProto(cx, protoProto_);
 
-    /* Check function pointer members. */
-    MOZ_ASSERT(clasp->addProperty != JS_PropertyStub);  // (use null instead)
+    /* Assert mandatory function pointer members. */
+    MOZ_ASSERT(clasp->addProperty);
+    MOZ_ASSERT(clasp->delProperty);
     MOZ_ASSERT(clasp->getProperty);
     MOZ_ASSERT(clasp->setProperty);
+    MOZ_ASSERT(clasp->enumerate);
+    MOZ_ASSERT(clasp->resolve);
+    MOZ_ASSERT(clasp->convert);
 
     RootedAtom atom(cx, Atomize(cx, clasp->name, strlen(clasp->name)));
     if (!atom)
@@ -3027,14 +3034,12 @@ js::LookupNameUnqualified(JSContext *cx, HandlePropertyName name, HandleObject s
 
 template <AllowGC allowGC>
 bool
-js::NonProxyLookupOwnProperty(JSContext *cx, LookupGenericOp lookup,
-                              typename MaybeRooted<JSObject*, allowGC>::HandleType obj,
-                              typename MaybeRooted<jsid, allowGC>::HandleType id,
-                              typename MaybeRooted<JSObject*, allowGC>::MutableHandleType objp,
-                              typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
+js::HasOwnProperty(JSContext *cx, LookupGenericOp lookup,
+                   typename MaybeRooted<JSObject*, allowGC>::HandleType obj,
+                   typename MaybeRooted<jsid, allowGC>::HandleType id,
+                   typename MaybeRooted<JSObject*, allowGC>::MutableHandleType objp,
+                   typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
 {
-    MOZ_ASSERT(!obj->template is<ProxyObject>());
-
     if (lookup) {
         if (!allowGC)
             return false;
@@ -3082,26 +3087,21 @@ js::NonProxyLookupOwnProperty(JSContext *cx, LookupGenericOp lookup,
 }
 
 template bool
-js::NonProxyLookupOwnProperty<CanGC>(JSContext *cx, LookupGenericOp lookup,
-                                     HandleObject obj, HandleId id,
-                                     MutableHandleObject objp, MutableHandleShape propp);
+js::HasOwnProperty<CanGC>(JSContext *cx, LookupGenericOp lookup,
+                          HandleObject obj, HandleId id,
+                          MutableHandleObject objp, MutableHandleShape propp);
 
 template bool
-js::NonProxyLookupOwnProperty<NoGC>(JSContext *cx, LookupGenericOp lookup,
-                                    JSObject *obj, jsid id,
-                                    FakeMutableHandle<JSObject*> objp,
-                                    FakeMutableHandle<Shape*> propp);
+js::HasOwnProperty<NoGC>(JSContext *cx, LookupGenericOp lookup,
+                         JSObject *obj, jsid id,
+                         FakeMutableHandle<JSObject*> objp, FakeMutableHandle<Shape*> propp);
 
 bool
 js::HasOwnProperty(JSContext *cx, HandleObject obj, HandleId id, bool *resultp)
 {
-    if (obj->is<ProxyObject>())
-        return Proxy::hasOwn(cx, obj, id, resultp);
-
     RootedObject pobj(cx);
     RootedShape shape(cx);
-    LookupGenericOp lookupOp = obj->getOps()->lookupGeneric;
-    if (!NonProxyLookupOwnProperty<CanGC>(cx, lookupOp, obj, id, &pobj, &shape))
+    if (!HasOwnProperty<CanGC>(cx, obj->getOps()->lookupGeneric, obj, id, &pobj, &shape))
         return false;
     *resultp = (shape != nullptr);
     return true;
@@ -3149,7 +3149,8 @@ LookupPropertyPureInline(ThreadSafeContext *cx, JSObject *obj, jsid id, NativeOb
         // with a non-integer property.
         do {
             const Class *clasp = current->getClass();
-            if (!clasp->resolve)
+            MOZ_ASSERT(clasp->resolve);
+            if (clasp->resolve == JS_ResolveStub)
                 break;
             if (clasp->resolve == fun_resolve && !FunctionHasResolveHook(cx->names(), id))
                 break;
@@ -3521,13 +3522,13 @@ JS_EnumerateState(JSContext *cx, HandleObject obj, JSIterateOp enum_op,
     /* If the class has a custom JSCLASS_NEW_ENUMERATE hook, call it. */
     const Class *clasp = obj->getClass();
     JSEnumerateOp enumerate = clasp->enumerate;
-    if (enumerate) {
-        if (clasp->flags & JSCLASS_NEW_ENUMERATE)
-            return ((JSNewEnumerateOp) enumerate)(cx, obj, enum_op, statep, idp);
-
-        if (!enumerate(cx, obj))
-            return false;
+    if (clasp->flags & JSCLASS_NEW_ENUMERATE) {
+        MOZ_ASSERT(enumerate != JS_EnumerateStub);
+        return ((JSNewEnumerateOp) enumerate)(cx, obj, enum_op, statep, idp);
     }
+
+    if (!enumerate(cx, obj))
+        return false;
 
     /* Tell InitNativeIterator to treat us like a native object. */
     MOZ_ASSERT(enum_op == JSENUMERATE_INIT || enum_op == JSENUMERATE_INIT_ALL);
@@ -4108,7 +4109,7 @@ JSObject::hasIdempotentProtoChain() const
             return false;
 
         JSResolveOp resolve = obj->getClass()->resolve;
-        if (resolve && resolve != js::fun_resolve && resolve != js::str_resolve)
+        if (resolve != JS_ResolveStub && resolve != js::fun_resolve && resolve != js::str_resolve)
             return false;
 
         if (obj->getOps()->lookupProperty || obj->getOps()->lookupGeneric || obj->getOps()->lookupElement)
