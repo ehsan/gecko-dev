@@ -46,10 +46,7 @@ function triggerSave(aWindow, aCallback) {
       MockFilePicker.filterIndex = 1; // kSaveAsType_URL
     };
 
-    mockTransferCallback = function(a) {
-      onTransferComplete(aWindow, a, destFile, destDir);
-      mockTransferCallback = function(){};
-    }
+    mockTransferCallback = function(a) onTransferComplete(aWindow, a, destFile, destDir);
 
     // Select "Save Link As" option from context menu
     var saveLinkCommand = aWindow.document.getElementById("context-savelink");

@@ -37,11 +37,13 @@ function test() {
 var tests = {
   testSimpleBlocklist: function(next) {
     // this really just tests adding and clearing our blocklist for later tests
+    var blocklist = Components.classes["@mozilla.org/extensions/blocklist;1"]
+                        .getService(Components.interfaces.nsIBlocklistService);
     setAndUpdateBlocklist(blocklistURL, function() {
-      ok(Services.blocklist.isAddonBlocklisted("test1.example.com@services.mozilla.org", "0", "0", "0"), "blocking 'blocked'");
-      ok(!Services.blocklist.isAddonBlocklisted("example.com@services.mozilla.org", "0", "0", "0"), "not blocking 'good'");
+      ok(blocklist.isAddonBlocklisted("test1.example.com@services.mozilla.org", "0", "0", "0"), "blocking 'blocked'");
+      ok(!blocklist.isAddonBlocklisted("example.com@services.mozilla.org", "0", "0", "0"), "not blocking 'good'");
       setAndUpdateBlocklist(blocklistEmpty, function() {
-        ok(!Services.blocklist.isAddonBlocklisted("test1.example.com@services.mozilla.org", "0", "0", "0"), "blocklist cleared");
+        ok(!blocklist.isAddonBlocklisted("test1.example.com@services.mozilla.org", "0", "0", "0"), "blocklist cleared");
         next();
       });
     });
@@ -52,7 +54,7 @@ var tests = {
       Services.prefs.clearUserPref("social.manifest.good");
       setAndUpdateBlocklist(blocklistEmpty, next);
     }
-    setManifestPref("social.manifest.good", manifest);
+    Services.prefs.setCharPref("social.manifest.good", JSON.stringify(manifest));
     setAndUpdateBlocklist(blocklistURL, function() {
       try {
         SocialService.addProvider(manifest, function(provider) {
@@ -77,7 +79,7 @@ var tests = {
       Services.prefs.clearUserPref("social.manifest.blocked");
       setAndUpdateBlocklist(blocklistEmpty, next);
     }
-    setManifestPref("social.manifest.blocked", manifest_bad);
+    Services.prefs.setCharPref("social.manifest.blocked", JSON.stringify(manifest_bad));
     setAndUpdateBlocklist(blocklistURL, function() {
       try {
         SocialService.addProvider(manifest_bad, function(provider) {
@@ -134,7 +136,7 @@ var tests = {
       Services.prefs.clearUserPref("social.manifest.blocked");
       setAndUpdateBlocklist(blocklistEmpty, next);
     }
-    setManifestPref("social.manifest.blocked", manifest_bad);
+    Services.prefs.setCharPref("social.manifest.blocked", JSON.stringify(manifest_bad));
     SocialService.addProvider(manifest_bad, function(provider) {
       if (provider) {
         setAndUpdateBlocklist(blocklistURL, function() {

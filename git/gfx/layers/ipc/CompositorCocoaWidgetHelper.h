@@ -14,13 +14,13 @@ namespace mozilla {
 namespace layers {
 
 class CompositorParent;
-class LayerManagerComposite;
+class LayerManager;
 
 namespace compositor {
 
 // Needed when we cannot directly include CompositorParent.h since it includes
 // an IPDL-generated header (e.g. in widget/cocoa/nsChildView.mm; see Bug 719036).
-LayerManagerComposite* GetLayerManager(CompositorParent* aParent);
+LayerManager* GetLayerManager(CompositorParent* aParent);
 
 }
 }

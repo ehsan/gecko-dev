@@ -420,7 +420,14 @@ nsSocketInputStream::AsyncWait(nsIInputStreamCallback *callback,
             //
             // build event proxy
             //
-            mCallback = NS_NewInputStreamReadyEvent(callback, target);
+            // failure to create an event proxy (most likely out of memory)
+            // shouldn't alter the state of the transport.
+            //
+            nsCOMPtr<nsIInputStreamCallback> temp;
+            nsresult rv = NS_NewInputStreamReadyEvent(getter_AddRefs(temp),
+                                                      callback, target);
+            if (NS_FAILED(rv)) return rv;
+            mCallback = temp;
         }
         else
             mCallback = callback;
@@ -650,7 +657,14 @@ nsSocketOutputStream::AsyncWait(nsIOutputStreamCallback *callback,
             //
             // build event proxy
             //
-            mCallback = NS_NewOutputStreamReadyEvent(callback, target);
+            // failure to create an event proxy (most likely out of memory)
+            // shouldn't alter the state of the transport.
+            //
+            nsCOMPtr<nsIOutputStreamCallback> temp;
+            nsresult rv = NS_NewOutputStreamReadyEvent(getter_AddRefs(temp),
+                                                       callback, target);
+            if (NS_FAILED(rv)) return rv;
+            mCallback = temp;
         }
         else
             mCallback = callback;
@@ -1413,47 +1427,14 @@ nsSocketTransport::GetFD_Locked()
     return mFD;
 }
 
-class ThunkPRClose : public nsRunnable
-{
-public:
-  ThunkPRClose(PRFileDesc *fd) : mFD(fd) {}
-
-  NS_IMETHOD Run()
-  {
-    PR_Close(mFD);
-    return NS_OK;
-  }
-private:
-  PRFileDesc *mFD;
-};
-
-void
-STS_PRCloseOnSocketTransport(PRFileDesc *fd)
-{
-  if (gSocketTransportService) {
-    // Can't PR_Close() a socket off STS thread. Thunk it to STS to die
-    // FIX - Should use RUN_ON_THREAD once it's generally available
-    // RUN_ON_THREAD(gSocketThread,WrapRunnableNM(&PR_Close, mFD);
-    gSocketTransportService->Dispatch(new ThunkPRClose(fd), NS_DISPATCH_NORMAL);
-  } else {
-    // something horrible has happened
-    NS_ASSERTION(gSocketTransportService, "No STS service");
-  }
-}
-
 void
 nsSocketTransport::ReleaseFD_Locked(PRFileDesc *fd)
 {
     NS_ASSERTION(mFD == fd, "wrong fd");
 
     if (--mFDref == 0) {
-        if (PR_GetCurrentThread() == gSocketThread) {
-            SOCKET_LOG(("nsSocketTransport: calling PR_Close [this=%x]\n", this));
-            PR_Close(mFD);
-        } else {
-            // Can't PR_Close() a socket off STS thread. Thunk it to STS to die
-            STS_PRCloseOnSocketTransport(mFD);
-        }
+        SOCKET_LOG(("nsSocketTransport: calling PR_Close [this=%x]\n", this));
+        PR_Close(mFD);
         mFD = nullptr;
     }
 }

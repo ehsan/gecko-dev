@@ -399,10 +399,7 @@ GLXLibrary::CreatePixmap(gfxASurface* aSurface)
         break;
     }
     if (matchIndex == -1) {
-        // GLX can't handle A8 surfaces, so this is not really unexpected. The
-        // caller should deal with this situation.
-        NS_WARN_IF_FALSE(format->depth == 8,
-                         "[GLX] Couldn't find a FBConfig matching Pixmap format");
+        NS_WARNING("[GLX] Couldn't find a FBConfig matching Pixmap format");
         return None;
     }
 
@@ -586,8 +583,8 @@ GLXLibrary::xCreateNewContext(Display* display,
 {
     BEFORE_GLX_CALL;
     GLXContext result = xCreateNewContextInternal(display, config, 
-                                                  render_type,
-                                                  share_list, direct);
+	                                              render_type,
+	                                              share_list, direct);
     AFTER_GLX_CALL;
     return result;
 }
@@ -1068,7 +1065,7 @@ private:
         }
     }
 
-    nsRefPtr<GLContext> mGLContext;
+    GLContext* mGLContext;
     nsRefPtr<gfxASurface> mUpdateSurface;
     GLXPixmap mPixmap;
     bool mInUpdate;
@@ -1096,8 +1093,7 @@ GLContextGLX::CreateTextureImage(const nsIntSize& aSize,
 
     Display *display = DefaultXDisplay();
     int xscreen = DefaultScreen(display);
-    gfxASurface::gfxImageFormat imageFormat =
-        gfxPlatform::GetPlatform()->OptimalFormatForContent(aContentType);
+    gfxASurface::gfxImageFormat imageFormat = gfxPlatform::GetPlatform()->OptimalFormatForContent(aContentType);
 
     XRenderPictFormat* xrenderFormat =
         gfxXlibSurface::FindRenderFormat(display, imageFormat);
@@ -1108,7 +1104,6 @@ GLContextGLX::CreateTextureImage(const nsIntSize& aSize,
         gfxXlibSurface::Create(ScreenOfDisplay(display, xscreen),
                                xrenderFormat,
                                gfxIntSize(aSize.width, aSize.height));
-
     NS_ASSERTION(surface, "Failed to create xlib surface!");
 
     if (aContentType == gfxASurface::CONTENT_COLOR_ALPHA) {
@@ -1119,14 +1114,6 @@ GLContextGLX::CreateTextureImage(const nsIntSize& aSize,
 
     MakeCurrent();
     GLXPixmap pixmap = mGLX->CreatePixmap(surface);
-    // GLX might not be able to give us an A8 pixmap. If so, just use CPU
-    // memory.
-    if (!pixmap && imageFormat == gfxASurface::ImageFormatA8) {
-        return GLContext::CreateTextureImage(aSize,
-                                             aContentType,
-                                             aWrapMode,
-                                             aFlags);
-    }
     NS_ASSERTION(pixmap, "Failed to create pixmap!");
 
     GLuint texture;
@@ -1416,17 +1403,10 @@ GLContextProviderGLX::CreateOffscreen(const gfxIntSize& size,
 }
 
 static nsRefPtr<GLContext> gGlobalContext[GLXLibrary::LIBS_MAX];
-// TODO move that out of static initializaion
-static bool gUseContextSharing = getenv("MOZ_DISABLE_CONTEXT_SHARING_GLX") == 0;
 
 GLContext*
 GLContextProviderGLX::GetGlobalContext(const ContextFlags aFlag)
 {
-    // TODO: get GLX context sharing to work well with multiple threads
-    if (!gUseContextSharing) {
-        return nullptr;
-    }
-
     LibType libType = GLXLibrary::SelectLibrary(aFlag);
     static bool triedToCreateContext[GLXLibrary::LIBS_MAX] = {false, false};
     if (!triedToCreateContext[libType] && !gGlobalContext[libType]) {

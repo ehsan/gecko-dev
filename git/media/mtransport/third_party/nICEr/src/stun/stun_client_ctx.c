@@ -42,7 +42,6 @@ static char *RCSSTRING __UNUSED__="$Id: stun_client_ctx.c,v 1.2 2008/04/28 18:21
 #include "async_timer.h"
 #include "registry.h"
 #include "stun_reg.h"
-#include "nr_crypto.h"
 #include "r_time.h"
 
 static int nr_stun_client_send_request(nr_stun_client_ctx *ctx);
@@ -292,10 +291,6 @@ static int nr_stun_client_send_request(nr_stun_client_ctx *ctx)
         case NR_STUN_CLIENT_MODE_BINDING_REQUEST_LONG_TERM_AUTH:
             ctx->params.stun_binding_request.nonce = ctx->nonce;
             ctx->params.stun_binding_request.realm = ctx->realm;
-            assert(0);
-            ABORT(R_INTERNAL);
-            /* TODO(ekr@rtfm.com): Need to implement long-term auth for binding
-               requests */
             if ((r=nr_stun_build_req_lt_auth(&ctx->params.stun_binding_request, &ctx->request)))
                 ABORT(r);
             break;
@@ -330,20 +325,24 @@ static int nr_stun_client_send_request(nr_stun_client_ctx *ctx)
 #endif /* USE_ICE */
 
 #ifdef USE_TURN
-        case NR_TURN_CLIENT_MODE_ALLOCATE_REQUEST:
-            if ((r=nr_stun_build_allocate_request(&ctx->auth_params, &ctx->params.allocate_request, &ctx->request)))
+        case NR_TURN_CLIENT_MODE_ALLOCATE_REQUEST1:
+            if ((r=nr_stun_build_allocate_request1(&ctx->params.allocate_request1, &ctx->request)))
                 ABORT(r);
             break;
-        case NR_TURN_CLIENT_MODE_REFRESH_REQUEST:
-            if ((r=nr_stun_build_refresh_request(&ctx->auth_params, &ctx->params.refresh_request, &ctx->request)))
-                ABORT(r);
-            break;
-        case NR_TURN_CLIENT_MODE_PERMISSION_REQUEST:
-            if ((r=nr_stun_build_permission_request(&ctx->auth_params, &ctx->params.permission_request, &ctx->request)))
+        case NR_TURN_CLIENT_MODE_ALLOCATE_REQUEST2:
+            if ((r=nr_stun_build_allocate_request2(&ctx->params.allocate_request2, &ctx->request)))
                 ABORT(r);
             break;
         case NR_TURN_CLIENT_MODE_SEND_INDICATION:
             if ((r=nr_stun_build_send_indication(&ctx->params.send_indication, &ctx->request)))
+                ABORT(r);
+            break;
+        case NR_TURN_CLIENT_MODE_SET_ACTIVE_DEST_REQUEST:
+            if ((r=nr_stun_build_set_active_dest_request(&ctx->params.set_active_dest_request, &ctx->request)))
+                ABORT(r);
+            break;
+        case NR_TURN_CLIENT_MODE_DATA_INDICATION:
+            if ((r=nr_stun_build_data_indication(&ctx->params.data_indication, &ctx->request)))
                 ABORT(r);
             break;
 #endif /* USE_TURN */
@@ -408,19 +407,13 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
   {
     int r,_status;
     char string[256];
-    char *username;
     Data *password = 0;
     nr_stun_message_attribute *attr;
     nr_transport_addr *mapped_addr = 0;
-    int fail_on_error = 0;
-    UCHAR hmac_key_d[16];
-    Data hmac_key;
-    int compute_lt_key=0;
-
-    ATTACH_DATA(hmac_key, hmac_key_d);
 
     if(ctx->state==NR_STUN_CLIENT_STATE_CANCELLED)
       ABORT(R_REJECTED);
+
     if (ctx->state != NR_STUN_CLIENT_STATE_RUNNING)
       ABORT(R_REJECTED);
 
@@ -432,8 +425,6 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
     /* determine password */
     switch (ctx->mode) {
     case NR_STUN_CLIENT_MODE_BINDING_REQUEST_LONG_TERM_AUTH:
-      compute_lt_key = 1;
-      /* Fall through */
     case NR_STUN_CLIENT_MODE_BINDING_REQUEST_SHORT_TERM_AUTH:
         password = ctx->params.stun_binding_request.password;
         break;
@@ -456,25 +447,13 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
 #endif /* USE_ICE */
 
 #ifdef USE_TURN
-    case NR_TURN_CLIENT_MODE_ALLOCATE_REQUEST:
-      fail_on_error = 1;
-      compute_lt_key = 1;
-        username = ctx->auth_params.username;
-        password = &ctx->auth_params.password;
+    case NR_TURN_CLIENT_MODE_ALLOCATE_REQUEST1:
         /* do nothing */
         break;
-    case NR_TURN_CLIENT_MODE_REFRESH_REQUEST:
-      fail_on_error = 1;
-      compute_lt_key = 1;
-        username = ctx->auth_params.username;
-        password = &ctx->auth_params.password;
+    case NR_TURN_CLIENT_MODE_ALLOCATE_REQUEST2:
         /* do nothing */
         break;
-    case NR_TURN_CLIENT_MODE_PERMISSION_REQUEST:
-      fail_on_error = 1;
-      compute_lt_key = 1;
-        username = ctx->auth_params.username;
-        password = &ctx->auth_params.password;
+    case NR_TURN_CLIENT_MODE_SET_ACTIVE_DEST_REQUEST:
         /* do nothing */
         break;
     case NR_TURN_CLIENT_MODE_SEND_INDICATION:
@@ -488,20 +467,13 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
         break;
     }
 
-    if (compute_lt_key) {
-      if (!ctx->realm || !username) {
-        r_log(NR_LOG_STUN, LOG_DEBUG, "Long-term auth required but no realm/username specified. Randomizing key");
-        /* Fill the key with random bytes to guarantee non-match */
-        if (r=nr_crypto_random_bytes(hmac_key_d, sizeof(hmac_key_d)))
-          ABORT(r);
-      }
-      else {
-        if (r=nr_stun_compute_lt_message_integrity_password(username, ctx->realm,
-                                                            password, &hmac_key))
-          ABORT(r);
-      }
-      password = &hmac_key;
+#ifdef USE_TURN
+    if (ctx->mode == NR_TURN_CLIENT_MODE_SEND_INDICATION) {
+        /* SEND-INDICATION gets a DATA-INDICATION back, which will always
+         * be a different transaction, so don't perform the check in that
+         * case */
     }
+#endif /* USE_TURN */
 
     if ((r=nr_stun_message_create2(&ctx->response, msg, len)))
         ABORT(r);
@@ -511,8 +483,6 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
         ABORT(r);
     }
 
-    /* This will return an error if request and response don't match,
-       which is how we reject responses that match other contexts. */
     if ((r=nr_stun_receive_message(ctx->request, ctx->response))) {
         r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): error receiving message",ctx->label);
         ABORT(r);
@@ -540,19 +510,10 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
             ABORT(r);
     }
     else {
-      if (fail_on_error) {
-        ctx->state = NR_STUN_CLIENT_STATE_FAILED;
-      }
-        /* Note: most times we call process_error_response, we get r != 0.
-
-           However, if the error is to be discarded, we get r == 0, smash
-           the error code, and just keep going.
-        */
-        if ((r=nr_stun_process_error_response(ctx->response, &ctx->error_code))) {
+        if ((r=nr_stun_process_error_response(ctx->response))) {
             ABORT(r);
         }
         else {
-          ctx->error_code = 0xffff;
             /* drop the error on the floor */
             ABORT(R_FAILED);
         }
@@ -606,38 +567,45 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
 #endif /* USE_ICE */
 
 #ifdef USE_TURN
-    case NR_TURN_CLIENT_MODE_ALLOCATE_REQUEST:
+    case NR_TURN_CLIENT_MODE_ALLOCATE_REQUEST1:
+        if (! nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_REALM, &attr))
+            ABORT(R_BAD_DATA);
+
+        ctx->results.allocate_response1.realm = attr->u.realm;
+
+        if (! nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_NONCE, &attr))
+            ABORT(R_BAD_DATA);
+
+        ctx->results.allocate_response1.nonce = attr->u.nonce;
+        break;
+    case NR_TURN_CLIENT_MODE_ALLOCATE_REQUEST2:
+        if (! nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_USERNAME, 0))
+            ABORT(R_BAD_DATA);
         if (! nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_XOR_MAPPED_ADDRESS, 0))
             ABORT(R_BAD_DATA);
         if (! nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_MESSAGE_INTEGRITY, 0))
             ABORT(R_BAD_DATA);
 
-        if (!nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_XOR_RELAY_ADDRESS, &attr))
-          ABORT(R_BAD_DATA);
+        if (nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_RELAY_ADDRESS, &attr)) {
+            if ((r=nr_transport_addr_copy(
+                             &ctx->results.allocate_response2.relay_addr,
+                             &attr->u.relay_address)))
+                ABORT(r);
+        }
+        else {
+            if ((r=nr_transport_addr_copy(&ctx->results.allocate_response2.relay_addr, peer_addr)))
+                ABORT(r);
+        }
 
-        if ((r=nr_transport_addr_copy(
-                &ctx->results.allocate_response.relay_addr,
-                &attr->u.relay_address.unmasked)))
-          ABORT(r);
-
-        if (!nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_LIFETIME, &attr))
-          ABORT(R_BAD_DATA);
-        ctx->results.allocate_response.lifetime_secs=attr->u.lifetime_secs;
-
-        r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): Received relay address: %s", ctx->label, ctx->results.allocate_response.relay_addr.as_string);
-
-        mapped_addr = &ctx->results.allocate_response.mapped_addr;
+        mapped_addr = &ctx->results.allocate_response2.mapped_addr;
 
         break;
-    case NR_TURN_CLIENT_MODE_REFRESH_REQUEST:
+    case NR_TURN_CLIENT_MODE_SET_ACTIVE_DEST_REQUEST:
         if (! nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_MESSAGE_INTEGRITY, 0))
             ABORT(R_BAD_DATA);
-        if (!nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_LIFETIME, &attr))
-          ABORT(R_BAD_DATA);
-        ctx->results.refresh_response.lifetime_secs=attr->u.lifetime_secs;
         break;
-    case NR_TURN_CLIENT_MODE_PERMISSION_REQUEST:
-        if (! nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_MESSAGE_INTEGRITY, 0))
+    case NR_TURN_CLIENT_MODE_SEND_INDICATION:
+        if (! nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_REMOTE_ADDRESS, 0))
             ABORT(R_BAD_DATA);
         break;
 #endif /* USE_TURN */
@@ -665,7 +633,6 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
         }
         else
             ABORT(R_BAD_DATA);
-
 
         r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): Received mapped address: %s", ctx->label, mapped_addr->as_string);
     }

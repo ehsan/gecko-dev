@@ -32,7 +32,6 @@ MOZDEVICE_FILES := \
   devicemanager.py \
   devicemanagerADB.py \
   devicemanagerSUT.py \
-  Zeroconf.py \
   $(NULL)
 
 # Components / typelibs that don't get packaged with

@@ -83,11 +83,7 @@ function htmlSearch(callback) {
       executeSoon(function() {
         let expectedResults = [
           ["inline", "-02.html", "", 16, 15],
-          ["arrow", "-02.html", "", 17, 10],
-          ["foo", "-02.html", "", 19, 10],
-          ["foo2", "-02.html", "", 20, 10],
-          ["bar2", "-02.html", "", 20, 17]
-        ];
+        ]
 
         for (let [label, value, description, line, col] of expectedResults) {
           is(gFilteredFunctions.selectedItem.label,
@@ -122,7 +118,7 @@ function htmlSearch(callback) {
     }
   });
 
-  write("@");
+  write("@inline");
 }
 
 function firstSearch(callback) {
@@ -152,7 +148,7 @@ function firstSearch(callback) {
           ["a_test", "-01.js", "foo.sub.sub", 31, 6],
           ["n_test" + s + "z", "-01.js", "foo.sub.sub", 33, 6],
           ["test_SAME_NAME", "-01.js", "foo.sub.sub.sub", 36, 8]
-        ];
+        ]
 
         for (let [label, value, description, line, col] of expectedResults) {
           is(gFilteredFunctions.selectedItem.label,
@@ -217,7 +213,7 @@ function secondSearch(callback) {
           ["x", "-02.js", "", 19, 31],
           ["y", "-02.js", "", 19, 40],
           ["z", "-02.js", "", 19, 49]
-        ];
+        ]
 
         for (let [label, value, description, line, col] of expectedResults) {
           is(gFilteredFunctions.selectedItem.label,

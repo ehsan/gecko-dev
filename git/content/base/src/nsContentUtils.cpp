@@ -30,7 +30,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/HTMLTemplateElement.h"
 #include "mozilla/dom/TextDecoderBase.h"
 #include "mozilla/Likely.h"
@@ -101,7 +100,6 @@
 #include "nsIFormControl.h"
 #include "nsIForm.h"
 #include "nsIFragmentContentSink.h"
-#include "nsIFrame.h"
 #include "nsIHTMLDocument.h"
 #include "nsIIdleService.h"
 #include "nsIImageLoadingContent.h"
@@ -158,7 +156,6 @@
 #include "nsSVGFeatures.h"
 #include "nsTextEditorState.h"
 #include "nsTextFragment.h"
-#include "nsTextNode.h"
 #include "nsThreadUtils.h"
 #include "nsUnicharUtilCIID.h"
 #include "nsUnicodeProperties.h"
@@ -170,6 +167,9 @@
 
 #ifdef IBMBIDI
 #include "nsIBidiKeyboard.h"
+#endif
+#ifdef MOZ_MEDIA
+#include "mozilla/dom/HTMLMediaElement.h"
 #endif
 
 extern "C" int MOZ_XMLTranslateEntity(const char* ptr, const char* end,
@@ -1268,7 +1268,9 @@ nsContentUtils::IsHTMLVoid(nsIAtom* aLocalName)
     (aLocalName == nsGkAtoms::link) ||
     (aLocalName == nsGkAtoms::meta) ||
     (aLocalName == nsGkAtoms::param) ||
+#ifdef MOZ_MEDIA
     (aLocalName == nsGkAtoms::source) ||
+#endif
     (aLocalName == nsGkAtoms::track) ||
     (aLocalName == nsGkAtoms::wbr);
 }
@@ -1664,7 +1666,7 @@ nsContentUtils::InProlog(nsINode *aNode)
 JSContext *
 nsContentUtils::GetContextFromDocument(nsIDocument *aDocument)
 {
-  nsCOMPtr<nsIScriptGlobalObject> sgo =  do_QueryInterface(aDocument->GetScopeObject());
+  nsIScriptGlobalObject *sgo = aDocument->GetScopeObject();
   if (!sgo) {
     // No script global, no context.
     return nullptr;
@@ -1691,7 +1693,7 @@ nsContentUtils::TraceSafeJSContext(JSTracer* aTrc)
     return;
   }
   if (JSObject* global = JS_GetGlobalObject(cx)) {
-    JS_CallObjectTracer(aTrc, global, "safe context");
+    JS_CALL_OBJECT_TRACER(aTrc, global, "safe context");
   }
 }
 
@@ -2931,7 +2933,7 @@ nsContentUtils::NameChanged(nsINodeInfo* aNodeInfo, nsIAtom* aName,
                                 aNodeInfo->NamespaceID(),
                                 aNodeInfo->NodeType(),
                                 aNodeInfo->GetExtraName()).get();
-  return NS_OK;
+  return *aResult ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 
@@ -3059,7 +3061,7 @@ IsContextOnStack(nsIJSContextStack *aStack, JSContext *aContext)
 }
 
 bool
-nsCxPusher::Push(EventTarget *aCurrentTarget)
+nsCxPusher::Push(nsIDOMEventTarget *aCurrentTarget)
 {
   if (mPushedSomething) {
     NS_ERROR("Whaaa! No double pushing with nsCxPusher::Push()!");
@@ -3071,13 +3073,7 @@ nsCxPusher::Push(EventTarget *aCurrentTarget)
   nsresult rv;
   nsIScriptContext* scx =
     aCurrentTarget->GetContextForEventHandlers(&rv);
-#ifdef DEBUG_smaug
   NS_ENSURE_SUCCESS(rv, false);
-#else
-  if(NS_FAILED(rv)) {
-    return false;
-  }
-#endif
 
   if (!scx) {
     // The target may have a special JS context for event handlers.
@@ -3102,7 +3098,7 @@ nsCxPusher::Push(EventTarget *aCurrentTarget)
 }
 
 bool
-nsCxPusher::RePush(EventTarget *aCurrentTarget)
+nsCxPusher::RePush(nsIDOMEventTarget *aCurrentTarget)
 {
   if (!mPushedSomething) {
     return Push(aCurrentTarget);
@@ -3558,10 +3554,10 @@ nsresult GetEventAndTarget(nsIDocument* aDoc, nsISupports* aTarget,
                            const nsAString& aEventName,
                            bool aCanBubble, bool aCancelable,
                            bool aTrusted, nsIDOMEvent** aEvent,
-                           EventTarget** aTargetOut)
+                           nsIDOMEventTarget** aTargetOut)
 {
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aDoc);
-  nsCOMPtr<EventTarget> target(do_QueryInterface(aTarget));
+  nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(aTarget));
   NS_ENSURE_TRUE(domDoc && target, NS_ERROR_INVALID_ARG);
 
   nsCOMPtr<nsIDOMEvent> event;
@@ -3612,7 +3608,7 @@ nsContentUtils::DispatchEvent(nsIDocument* aDoc, nsISupports* aTarget,
                               bool aTrusted, bool *aDefaultAction)
 {
   nsCOMPtr<nsIDOMEvent> event;
-  nsCOMPtr<EventTarget> target;
+  nsCOMPtr<nsIDOMEventTarget> target;
   nsresult rv = GetEventAndTarget(aDoc, aTarget, aEventName, aCanBubble,
                                   aCancelable, aTrusted, getter_AddRefs(event),
                                   getter_AddRefs(target));
@@ -3631,7 +3627,7 @@ nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
 {
 
   nsCOMPtr<nsIDOMEvent> event;
-  nsCOMPtr<EventTarget> target;
+  nsCOMPtr<nsIDOMEventTarget> target;
   nsresult rv = GetEventAndTarget(aDoc, aTarget, aEventName, aCanBubble,
                                   aCancelable, true, getter_AddRefs(event),
                                   getter_AddRefs(target));
@@ -3641,7 +3637,7 @@ nsContentUtils::DispatchChromeEvent(nsIDocument *aDoc,
   if (!aDoc->GetWindow())
     return NS_ERROR_INVALID_ARG;
 
-  EventTarget* piTarget = aDoc->GetWindow()->GetParentTarget();
+  nsIDOMEventTarget* piTarget = aDoc->GetWindow()->GetParentTarget();
   if (!piTarget)
     return NS_ERROR_INVALID_ARG;
 
@@ -3883,7 +3879,7 @@ nsContentUtils::HasMutationListeners(nsINode* aNode,
 
   // If we have a window, we can check it for mutation listeners now.
   if (aNode->IsInDoc()) {
-    nsCOMPtr<EventTarget> piTarget(do_QueryInterface(window));
+    nsCOMPtr<nsIDOMEventTarget> piTarget(do_QueryInterface(window));
     if (piTarget) {
       nsEventListenerManager* manager = piTarget->GetListenerManager(false);
       if (manager && manager->HasMutationListeners()) {
@@ -4154,7 +4150,7 @@ nsContentUtils::CreateContextualFragment(nsINode* aContextNode,
 
   if (isHTML) {
     nsRefPtr<DocumentFragment> frag =
-      new DocumentFragment(document->NodeInfoManager());
+      NS_NewDocumentFragment(document->NodeInfoManager(), aRv);
     
     nsCOMPtr<nsIContent> contextAsContent = do_QueryInterface(aContextNode);
     if (contextAsContent && !contextAsContent->IsElement()) {
@@ -4480,12 +4476,14 @@ nsContentUtils::SetNodeTextContent(nsIContent* aContent,
     return NS_OK;
   }
 
-  nsRefPtr<nsTextNode> textContent =
-    new nsTextNode(aContent->NodeInfo()->NodeInfoManager());
+  nsCOMPtr<nsIContent> textContent;
+  nsresult rv = NS_NewTextNode(getter_AddRefs(textContent),
+                               aContent->NodeInfo()->NodeInfoManager());
+  NS_ENSURE_SUCCESS(rv, rv);
 
   textContent->SetText(aValue, true);
 
-  nsresult rv = aContent->AppendChildTo(textContent, true);
+  rv = aContent->AppendChildTo(textContent, true);
   mb.NodesAdded();
   return rv;
 }
@@ -4698,15 +4696,6 @@ nsContentUtils::IsSystemPrincipal(nsIPrincipal* aPrincipal)
   bool isSystem;
   nsresult rv = sSecurityManager->IsSystemPrincipal(aPrincipal, &isSystem);
   return NS_SUCCEEDED(rv) && isSystem;
-}
-
-nsIPrincipal*
-nsContentUtils::GetSystemPrincipal()
-{
-  nsCOMPtr<nsIPrincipal> sysPrin;
-  nsresult rv = sSecurityManager->GetSystemPrincipal(getter_AddRefs(sysPrin));
-  MOZ_ASSERT(NS_SUCCEEDED(rv) && sysPrin);
-  return sysPrin;
 }
 
 bool
@@ -5046,15 +5035,10 @@ nsContentUtils::AddScriptBlocker()
   ++sScriptBlockerCount;
 }
 
-#ifdef DEBUG
-static bool sRemovingScriptBlockers = false;
-#endif
-
 /* static */
 void
 nsContentUtils::RemoveScriptBlocker()
 {
-  MOZ_ASSERT(!sRemovingScriptBlockers);
   NS_ASSERTION(sScriptBlockerCount != 0, "Negative script blockers");
   --sScriptBlockerCount;
   if (sScriptBlockerCount) {
@@ -5070,23 +5054,14 @@ nsContentUtils::RemoveScriptBlocker()
                "bad sRunnersCountAtFirstBlocker");
 
   while (firstBlocker < lastBlocker) {
-    nsCOMPtr<nsIRunnable> runnable;
-    runnable.swap((*sBlockedScriptRunners)[firstBlocker]);
+    nsCOMPtr<nsIRunnable> runnable = (*sBlockedScriptRunners)[firstBlocker];
     ++firstBlocker;
 
-    // Calling the runnable can reenter us
     runnable->Run();
-    // So can dropping the reference to the runnable
-    runnable = nullptr;
-
     NS_ASSERTION(sRunnersCountAtFirstBlocker == 0,
                  "Bad count");
     NS_ASSERTION(!sScriptBlockerCount, "This is really bad");
   }
-#ifdef DEBUG
-  AutoRestore<bool> removingScriptBlockers(sRemovingScriptBlockers);
-  sRemovingScriptBlockers = true;
-#endif
   sBlockedScriptRunners->RemoveElementsAt(originalFirstBlocker, blockersCount);
 }
 
@@ -5928,7 +5903,7 @@ nsContentUtils::DispatchXULCommand(nsIContent* aTarget,
     return aShell->HandleDOMEventWithTarget(aTarget, event, &status);
   }
 
-  nsCOMPtr<EventTarget> target = do_QueryInterface(aTarget);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTarget);
   NS_ENSURE_STATE(target);
   bool dummy;
   return target->DispatchEvent(event, &dummy);
@@ -6430,7 +6405,7 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
   // one helper factory, please
   nsCOMPtr<nsICategoryManager> catMan(do_GetService(NS_CATEGORYMANAGER_CONTRACTID));
   if (!catMan)
-    return nullptr;
+    return NULL;
 
   nsCOMPtr<nsIDocumentLoaderFactory> docFactory;
 
@@ -6449,6 +6424,7 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
     return docFactory.forget();
   }
 
+#ifdef MOZ_MEDIA
   if (DecoderTraits::IsSupportedInVideoDocument(nsDependentCString(aType))) {
     docFactory = do_GetService("@mozilla.org/content/document-loader-factory;1");
     if (docFactory && aLoaderType) {
@@ -6456,8 +6432,9 @@ nsContentUtils::FindInternalContentViewer(const char* aType,
     }
     return docFactory.forget();
   }
+#endif // MOZ_MEDIA
 
-  return nullptr;
+  return NULL;
 }
 
 // static
@@ -6531,7 +6508,7 @@ nsContentUtils::SetUpChannelOwner(nsIPrincipal* aLoadingPrincipal,
   //      can't provide their own security context!
   //
   //      (Currently chrome URIs set the owner when they are created!
-  //      So setting a nullptr owner would be bad!)
+  //      So setting a NULL owner would be bad!)
   //
   // If aForceOwner is true, the owner will be set, even for a channel that
   // can provide its own security context. This is used for the HTML5 IFRAME
@@ -6749,40 +6726,6 @@ nsContentUtils::TraceWrapper(nsWrapperCache* aCache, TraceCallback aCallback,
       aCallback(wrapper, "Preserved wrapper", aClosure);
     }
   }
-}
-
-// static
-int32_t
-nsContentUtils::GetAdjustedOffsetInTextControl(nsIFrame* aOffsetFrame,
-                                               int32_t aOffset)
-{
-  // The structure of the anonymous frames within a text control frame is
-  // an optional block frame, followed by an optional br frame.
-
-  // If the offset frame has a child, then this frame is the block which
-  // has the text frames (containing the content) as its children. This will
-  // be the case if we click to the right of any of the text frames, or at the
-  // bottom of the text area.
-  nsIFrame* firstChild = aOffsetFrame->GetFirstPrincipalChild();
-  if (firstChild) {
-    // In this case, the passed-in offset is incorrect, and we want the length
-    // of the entire content in the text control frame.
-    return firstChild->GetContent()->Length();
-  }
-
-  if (aOffsetFrame->GetPrevSibling() &&
-      !aOffsetFrame->GetNextSibling()) {
-    // In this case, we're actually within the last frame, which is a br
-    // frame. Our offset should therefore be the length of the first child of
-    // our parent.
-    int32_t aOutOffset =
-      aOffsetFrame->GetParent()->GetFirstPrincipalChild()->GetContent()->Length();
-    return aOutOffset;
-  }
-
-  // Otherwise, we're within one of the text frames, in which case our offset
-  // has already been correctly calculated.
-  return aOffset;
 }
 
 // static

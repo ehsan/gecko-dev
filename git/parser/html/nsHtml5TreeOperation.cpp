@@ -30,7 +30,6 @@
 #include "nsIFormProcessor.h"
 #include "nsIServiceManager.h"
 #include "nsEscape.h"
-#include "mozilla/dom/Comment.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/HTMLTemplateElement.h"
 #include "nsHtml5SVGLoadDispatcher.h"
@@ -39,7 +38,6 @@
 #include "nsNetUtil.h"
 #include "nsIHTMLDocument.h"
 #include "mozilla/Likely.h"
-#include "nsTextNode.h"
 
 namespace dom = mozilla::dom;
 
@@ -49,7 +47,7 @@ static NS_DEFINE_CID(kFormProcessorCID, NS_FORMPROCESSOR_CID);
  * Helper class that opens a notification batch if the current doc
  * is different from the executor doc.
  */
-class MOZ_STACK_CLASS nsHtml5OtherDocUpdate {
+class NS_STACK_CLASS nsHtml5OtherDocUpdate {
   public:
     nsHtml5OtherDocUpdate(nsIDocument* aCurrentDoc, nsIDocument* aExecutorDoc)
     {
@@ -164,7 +162,8 @@ nsHtml5TreeOperation::AppendText(const PRUnichar* aBuffer,
                                 aBuilder);
   }
 
-  nsRefPtr<nsTextNode> text = new nsTextNode(aBuilder->GetNodeInfoManager());
+  nsCOMPtr<nsIContent> text;
+  NS_NewTextNode(getter_AddRefs(text), aBuilder->GetNodeInfoManager());
   NS_ASSERTION(text, "Infallible malloc failed?");
   rv = text->SetText(aBuffer, aLength, false);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -394,8 +393,9 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                          : (aBuilder->BelongsToStringParser() ?
                             dom::FROM_PARSER_FRAGMENT :
                             dom::FROM_PARSER_DOCUMENT_WRITE)));
-          nsRefPtr<nsTextNode> optionText =
-            new nsTextNode(aBuilder->GetNodeInfoManager());
+          nsCOMPtr<nsIContent> optionText;
+          NS_NewTextNode(getter_AddRefs(optionText), 
+                         aBuilder->GetNodeInfoManager());
           (void) optionText->SetText(theContent[i], false);
           optionElt->AppendChildTo(optionText, false);
           newContent->AppendChildTo(optionElt, false);
@@ -498,8 +498,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
                                       aBuilder);
         }
         
-        nsRefPtr<nsTextNode> text =
-          new nsTextNode(aBuilder->GetNodeInfoManager());
+        nsCOMPtr<nsIContent> text;
+        NS_NewTextNode(getter_AddRefs(text), aBuilder->GetNodeInfoManager());
         NS_ASSERTION(text, "Infallible malloc failed?");
         rv = text->SetText(buffer, length, false);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -517,8 +517,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       PRUnichar* buffer = mTwo.unicharPtr;
       int32_t length = mFour.integer;
       
-      nsRefPtr<dom::Comment> comment =
-        new dom::Comment(aBuilder->GetNodeInfoManager());
+      nsCOMPtr<nsIContent> comment;
+      NS_NewCommentNode(getter_AddRefs(comment), aBuilder->GetNodeInfoManager());
       NS_ASSERTION(comment, "Infallible malloc failed?");
       rv = comment->SetText(buffer, length, false);
       NS_ENSURE_SUCCESS(rv, rv);
@@ -529,8 +529,8 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       PRUnichar* buffer = mTwo.unicharPtr;
       int32_t length = mFour.integer;
       
-      nsRefPtr<dom::Comment> comment =
-        new dom::Comment(aBuilder->GetNodeInfoManager());
+      nsCOMPtr<nsIContent> comment;
+      NS_NewCommentNode(getter_AddRefs(comment), aBuilder->GetNodeInfoManager());
       NS_ASSERTION(comment, "Infallible malloc failed?");
       rv = comment->SetText(buffer, length, false);
       NS_ENSURE_SUCCESS(rv, rv);

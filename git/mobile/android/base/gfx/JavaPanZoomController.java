@@ -7,13 +7,11 @@ package org.mozilla.gecko.gfx;
 
 import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.ZoomConstraints;
 import org.mozilla.gecko.util.EventDispatcher;
 import org.mozilla.gecko.util.FloatUtils;
-import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
@@ -25,8 +23,8 @@ import android.os.Build;
 import android.util.FloatMath;
 import android.util.Log;
 import android.view.GestureDetector;
-import android.view.InputDevice;
 import android.view.KeyEvent;
+import android.view.InputDevice;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -62,50 +60,31 @@ class JavaPanZoomController
     // Angle from axis within which we stay axis-locked
     private static final double AXIS_LOCK_ANGLE = Math.PI / 6.0; // 30 degrees
 
-    // Axis-lock breakout angle
-    private static final double AXIS_BREAKOUT_ANGLE = Math.PI / 8.0;
-
-    // The distance the user has to pan before we consider breaking out of a locked axis
-    public static final float AXIS_BREAKOUT_THRESHOLD = 1/32f * GeckoAppShell.getDpi();
-
     // The maximum amount we allow you to zoom into a page
     private static final float MAX_ZOOM = 4.0f;
 
     // The maximum amount we would like to scroll with the mouse
     private static final float MAX_SCROLL = 0.075f * GeckoAppShell.getDpi();
 
-    // The maximum zoom factor adjustment per frame of the AUTONAV animation
-    private static final float MAX_ZOOM_DELTA = 0.125f;
-
-    // Length of the bounce animation in ms
-    private static final int BOUNCE_ANIMATION_DURATION = 250;
-
     private enum PanZoomState {
-        NOTHING,                /* no touch-start events received */
-        FLING,                  /* all touches removed, but we're still scrolling page */
-        TOUCHING,               /* one touch-start event received */
-        PANNING_LOCKED_X,       /* touch-start followed by move (i.e. panning with axis lock) X axis */
-        PANNING_LOCKED_Y,       /* as above for Y axis */
-        PANNING,                /* panning without axis lock */
-        PANNING_HOLD,           /* in panning, but not moving.
-                                 * similar to TOUCHING but after starting a pan */
-        PANNING_HOLD_LOCKED_X,  /* like PANNING_HOLD, but axis lock still in effect for X axis */
-        PANNING_HOLD_LOCKED_Y,  /* as above but for Y axis */
-        PINCHING,               /* nth touch-start, where n > 1. this mode allows pan and zoom */
-        ANIMATED_ZOOM,          /* animated zoom to a new rect */
-        BOUNCE,                 /* in a bounce animation */
-        WAITING_LISTENERS,      /* a state halfway between NOTHING and TOUCHING - the user has
-                                   put a finger down, but we don't yet know if a touch listener has
-                                   prevented the default actions yet. we still need to abort animations. */
-        AUTONAV,                /* We are scrolling using an AutonavRunnable animation. This is similar
-                                   to the FLING state except that it must be stopped manually by the code that
-                                   started it, and it's velocity can be updated while it's running. */
-    }
+        NOTHING,        /* no touch-start events received */
+        FLING,          /* all touches removed, but we're still scrolling page */
+        TOUCHING,       /* one touch-start event received */
+        PANNING_LOCKED, /* touch-start followed by move (i.e. panning with axis lock) */
+        PANNING,        /* panning without axis lock */
+        PANNING_HOLD,   /* in panning, but not moving.
+                         * similar to TOUCHING but after starting a pan */
+        PANNING_HOLD_LOCKED, /* like PANNING_HOLD, but axis lock still in effect */
+        PINCHING,       /* nth touch-start, where n > 1. this mode allows pan and zoom */
+        ANIMATED_ZOOM,  /* animated zoom to a new rect */
+        BOUNCE,         /* in a bounce animation */
 
-    private enum AxisLockMode {
-        STANDARD,       /* Default axis locking mode that doesn't break out until finger release */
-        FREE,           /* No locking at all */
-        STICKY          /* Break out with hysteresis so that it feels as free as possible whilst locking */
+        WAITING_LISTENERS, /* a state halfway between NOTHING and TOUCHING - the user has
+                        put a finger down, but we don't yet know if a touch listener has
+                        prevented the default actions yet. we still need to abort animations. */
+        AUTOSCROLL,     /* We are scrolling using an AutoscrollRunnable animation. This is similar
+                        to the FLING state except that it must be stopped manually by the code that
+                        started it, and it's velocity can be updated while it's running. */
     }
 
     private final PanZoomTarget mTarget;
@@ -125,10 +104,6 @@ class JavaPanZoomController
     private long mLastEventTime;
     /* Current state the pan/zoom UI is in. */
     private PanZoomState mState;
-    /* The per-frame zoom delta for the currently-running AUTONAV animation. */
-    private float mAutonavZoomDelta;
-    /* The user selected panning mode */
-    private AxisLockMode mMode;
 
     public JavaPanZoomController(PanZoomTarget target, View view, EventDispatcher eventDispatcher) {
         mTarget = target;
@@ -145,26 +120,6 @@ class JavaPanZoomController
         registerEventListener(MESSAGE_ZOOM_RECT);
         registerEventListener(MESSAGE_ZOOM_PAGE);
         registerEventListener(MESSAGE_TOUCH_LISTENER);
-
-        mMode = AxisLockMode.STANDARD;
-
-        PrefsHelper.getPref("ui.scrolling.axis_lock_mode", new PrefsHelper.PrefHandlerBase() {
-            @Override public void prefValue(String pref, String value) {
-                if (value.equals("standard")) {
-                    mMode = AxisLockMode.STANDARD;
-                } else if (value.equals("free")) {
-                    mMode = AxisLockMode.FREE;
-                } else {
-                    mMode = AxisLockMode.STICKY;
-                }
-            }
-
-            @Override
-            public boolean isObserver() {
-                return true;
-            }
-
-        });
 
         Axis.initPrefs();
     }
@@ -297,7 +252,7 @@ class JavaPanZoomController
             break;
         case InputDevice.SOURCE_CLASS_JOYSTICK:
             switch (event.getAction() & MotionEvent.ACTION_MASK) {
-            case MotionEvent.ACTION_MOVE: return handleJoystickNav(event);
+            case MotionEvent.ACTION_MOVE: return handleJoystickScroll(event);
             }
             break;
         }
@@ -411,7 +366,7 @@ class JavaPanZoomController
             mTarget.forceRedraw();
             // fall through
         case FLING:
-        case AUTONAV:
+        case AUTOSCROLL:
         case BOUNCE:
         case NOTHING:
         case WAITING_LISTENERS:
@@ -419,11 +374,9 @@ class JavaPanZoomController
             return false;
         case TOUCHING:
         case PANNING:
-        case PANNING_LOCKED_X:
-        case PANNING_LOCKED_Y:
+        case PANNING_LOCKED:
         case PANNING_HOLD:
-        case PANNING_HOLD_LOCKED_X:
-        case PANNING_HOLD_LOCKED_Y:
+        case PANNING_HOLD_LOCKED:
         case PINCHING:
             Log.e(LOGTAG, "Received impossible touch down while in " + mState);
             return false;
@@ -436,7 +389,7 @@ class JavaPanZoomController
 
         switch (mState) {
         case FLING:
-        case AUTONAV:
+        case AUTOSCROLL:
         case BOUNCE:
         case WAITING_LISTENERS:
             // should never happen
@@ -458,15 +411,10 @@ class JavaPanZoomController
             track(event);
             return true;
 
-        case PANNING_HOLD_LOCKED_X:
-            setState(PanZoomState.PANNING_LOCKED_X);
-            track(event);
-            return true;
-        case PANNING_HOLD_LOCKED_Y:
-            setState(PanZoomState.PANNING_LOCKED_Y);
+        case PANNING_HOLD_LOCKED:
+            setState(PanZoomState.PANNING_LOCKED);
             // fall through
-        case PANNING_LOCKED_X:
-        case PANNING_LOCKED_Y:
+        case PANNING_LOCKED:
             track(event);
             return true;
 
@@ -489,7 +437,7 @@ class JavaPanZoomController
 
         switch (mState) {
         case FLING:
-        case AUTONAV:
+        case AUTOSCROLL:
         case BOUNCE:
         case WAITING_LISTENERS:
             // should never happen
@@ -509,11 +457,9 @@ class JavaPanZoomController
             return false;
 
         case PANNING:
-        case PANNING_LOCKED_X:
-        case PANNING_LOCKED_Y:
+        case PANNING_LOCKED:
         case PANNING_HOLD:
-        case PANNING_HOLD_LOCKED_X:
-        case PANNING_HOLD_LOCKED_Y:
+        case PANNING_HOLD_LOCKED:
             setState(PanZoomState.FLING);
             fling();
             return true;
@@ -556,28 +502,25 @@ class JavaPanZoomController
         return false;
     }
 
-    private float filterDeadZone(MotionEvent event, int axis) {
-        return (GamepadUtils.isValueInDeadZone(event, axis) ? 0 : event.getAxisValue(axis));
-    }
-
-    private float normalizeJoystickScroll(MotionEvent event, int axis) {
-        return filterDeadZone(event, axis) * MAX_SCROLL;
-    }
-
-    private float normalizeJoystickZoom(MotionEvent event, int axis) {
-        // negate MAX_ZOOM_DELTA so that pushing up on the stick zooms in
-        return filterDeadZone(event, axis) * -MAX_ZOOM_DELTA;
+    private float normalizeJoystick(float value, InputDevice.MotionRange range) {
+        // The 1e-2 here should really be range.getFlat() + range.getFuzz() but the
+        // values those functions return on the Ouya are zero so we're just hard-coding
+        // it for now.
+        if (Math.abs(value) < 1e-2) {
+            return 0;
+        }
+        // joystick axis positions are already normalized to [-1, 1] so just scale it up by how much we want
+        return value * MAX_SCROLL;
     }
 
     // Since this event is a position-based event rather than a motion-based event, we need to
-    // set up an AUTONAV animation to keep scrolling even while we don't get events.
-    private boolean handleJoystickNav(MotionEvent event) {
-        float velocityX = normalizeJoystickScroll(event, MotionEvent.AXIS_X);
-        float velocityY = normalizeJoystickScroll(event, MotionEvent.AXIS_Y);
-        float zoomDelta = normalizeJoystickZoom(event, MotionEvent.AXIS_RZ);
+    // set up an AUTOSCROLL animation to keep scrolling even while we don't get events.
+    private boolean handleJoystickScroll(MotionEvent event) {
+        float velocityX = normalizeJoystick(event.getX(0), event.getDevice().getMotionRange(MotionEvent.AXIS_X));
+        float velocityY = normalizeJoystick(event.getY(0), event.getDevice().getMotionRange(MotionEvent.AXIS_Y));
 
-        if (velocityX == 0 && velocityY == 0 && zoomDelta == 0) {
-            if (mState == PanZoomState.AUTONAV) {
+        if (velocityX == 0 && velocityY == 0) {
+            if (mState == PanZoomState.AUTOSCROLL) {
                 bounce(); // if not needed, this will automatically go to state NOTHING
                 return true;
             }
@@ -585,13 +528,12 @@ class JavaPanZoomController
         }
 
         if (mState == PanZoomState.NOTHING) {
-            setState(PanZoomState.AUTONAV);
-            startAnimationTimer(new AutonavRunnable());
+            setState(PanZoomState.AUTOSCROLL);
+            startAnimationTimer(new AutoscrollRunnable());
         }
-        if (mState == PanZoomState.AUTONAV) {
+        if (mState == PanZoomState.AUTOSCROLL) {
             mX.setAutoscrollVelocity(velocityX);
             mY.setAutoscrollVelocity(velocityY);
-            mAutonavZoomDelta = zoomDelta;
             return true;
         }
         return false;
@@ -616,19 +558,15 @@ class JavaPanZoomController
         mY.startTouch(y);
         mLastEventTime = time;
 
-        if (mMode == AxisLockMode.STANDARD || mMode == AxisLockMode.STICKY) {
-            if (!mX.scrollable() || !mY.scrollable()) {
-                setState(PanZoomState.PANNING);
-            } else if (angle < AXIS_LOCK_ANGLE || angle > (Math.PI - AXIS_LOCK_ANGLE)) {
-                mY.setScrollingDisabled(true);
-                setState(PanZoomState.PANNING_LOCKED_X);
-            } else if (Math.abs(angle - (Math.PI / 2)) < AXIS_LOCK_ANGLE) {
-                mX.setScrollingDisabled(true);
-                setState(PanZoomState.PANNING_LOCKED_Y);
-            } else {
-                setState(PanZoomState.PANNING);
-            }
-        } else if (mMode == AxisLockMode.FREE) {
+        if (!mX.scrollable() || !mY.scrollable()) {
+            setState(PanZoomState.PANNING);
+        } else if (angle < AXIS_LOCK_ANGLE || angle > (Math.PI - AXIS_LOCK_ANGLE)) {
+            mY.setScrollingDisabled(true);
+            setState(PanZoomState.PANNING_LOCKED);
+        } else if (Math.abs(angle - (Math.PI / 2)) < AXIS_LOCK_ANGLE) {
+            mX.setScrollingDisabled(true);
+            setState(PanZoomState.PANNING_LOCKED);
+        } else {
             setState(PanZoomState.PANNING);
         }
     }
@@ -648,29 +586,6 @@ class JavaPanZoomController
         }
         mLastEventTime = time;
 
-
-        // if we're axis-locked check if the user is trying to scroll away from the lock
-        if (mMode == AxisLockMode.STICKY) {
-            float dx = mX.panDistance(x);
-            float dy = mY.panDistance(y);
-            double angle = Math.atan2(dy, dx); // range [-pi, pi]
-            angle = Math.abs(angle); // range [0, pi]
-
-            if (Math.abs(dx) > AXIS_BREAKOUT_THRESHOLD || Math.abs(dy) > AXIS_BREAKOUT_THRESHOLD) {
-                if (mState == PanZoomState.PANNING_LOCKED_X) {
-                    if (angle > AXIS_BREAKOUT_ANGLE && angle < (Math.PI - AXIS_BREAKOUT_ANGLE)) {
-                        mY.setScrollingDisabled(false);
-                        setState(PanZoomState.PANNING);
-                    }
-                 } else if (mState == PanZoomState.PANNING_LOCKED_Y) {
-                    if (Math.abs(angle - (Math.PI / 2)) > AXIS_BREAKOUT_ANGLE) {
-                        mX.setScrollingDisabled(false);
-                        setState(PanZoomState.PANNING);
-                    }
-                }
-            }
-        }
-
         mX.updateWithTouchAt(x, timeDelta);
         mY.updateWithTouchAt(y, timeDelta);
     }
@@ -689,14 +604,12 @@ class JavaPanZoomController
         if (stopped()) {
             if (mState == PanZoomState.PANNING) {
                 setState(PanZoomState.PANNING_HOLD);
-            } else if (mState == PanZoomState.PANNING_LOCKED_X) {
-                setState(PanZoomState.PANNING_HOLD_LOCKED_X);
-            } else if (mState == PanZoomState.PANNING_LOCKED_Y) {
-                setState(PanZoomState.PANNING_HOLD_LOCKED_Y);
+            } else if (mState == PanZoomState.PANNING_LOCKED) {
+                setState(PanZoomState.PANNING_HOLD_LOCKED);
             } else {
                 // should never happen, but handle anyway for robustness
                 Log.e(LOGTAG, "Impossible case " + mState + " when stopped in track");
-                setState(PanZoomState.PANNING_HOLD);
+                setState(PanZoomState.PANNING_HOLD_LOCKED);
             }
         }
 
@@ -833,18 +746,15 @@ class JavaPanZoomController
         }
     }
 
-    private class AutonavRunnable extends AnimationRunnable {
+    private class AutoscrollRunnable extends AnimationRunnable {
         @Override
         protected void animateFrame() {
-            if (mState != PanZoomState.AUTONAV) {
+            if (mState != PanZoomState.AUTOSCROLL) {
                 finishAnimation();
                 return;
             }
 
             updatePosition();
-            synchronized (mTarget.getLock()) {
-                mTarget.setViewportMetrics(applyZoomDelta(getMetrics(), mAutonavZoomDelta));
-            }
         }
     }
 
@@ -877,7 +787,7 @@ class JavaPanZoomController
             }
 
             /* Perform the next frame of the bounce-back animation. */
-            if (mBounceFrame < (int)(BOUNCE_ANIMATION_DURATION / Axis.MS_PER_FRAME)) {
+            if (mBounceFrame < (int)(256f/Axis.MS_PER_FRAME)) {
                 advanceBounce();
                 return;
             }
@@ -891,7 +801,7 @@ class JavaPanZoomController
         /* Performs one frame of a bounce animation. */
         private void advanceBounce() {
             synchronized (mTarget.getLock()) {
-                float t = easeOut(mBounceFrame * Axis.MS_PER_FRAME / BOUNCE_ANIMATION_DURATION);
+                float t = easeOut(mBounceFrame * Axis.MS_PER_FRAME / 256f);
                 ImmutableViewportMetrics newMetrics = mBounceStartMetrics.interpolate(mBounceEndMetrics, t);
                 mTarget.setViewportMetrics(newMetrics);
                 mBounceFrame++;
@@ -1121,22 +1031,17 @@ class JavaPanZoomController
         return true;
     }
 
-    private ImmutableViewportMetrics applyZoomDelta(ImmutableViewportMetrics metrics, float zoomDelta) {
-        float oldZoom = metrics.zoomFactor;
-        float newZoom = oldZoom + zoomDelta;
-        float adjustedZoom = getAdjustedZoomFactor(newZoom / oldZoom);
-        // since we don't have a particular focus to zoom to, just use the center
-        PointF center = new PointF(metrics.getWidth() / 2.0f, metrics.getHeight() / 2.0f);
-        metrics = metrics.scaleTo(adjustedZoom, center);
-        return metrics;
-    }
-
     private boolean animatedScale(float zoomDelta) {
         if (mState != PanZoomState.NOTHING && mState != PanZoomState.BOUNCE) {
             return false;
         }
         synchronized (mTarget.getLock()) {
-            ImmutableViewportMetrics metrics = applyZoomDelta(getMetrics(), zoomDelta);
+            ImmutableViewportMetrics metrics = getMetrics();
+            float oldZoom = metrics.zoomFactor;
+            float newZoom = oldZoom + zoomDelta;
+            float adjustedZoom = getAdjustedZoomFactor(newZoom / oldZoom);
+            PointF center = new PointF(metrics.getWidth() / 2.0f, metrics.getHeight() / 2.0f);
+            metrics = metrics.scaleTo(adjustedZoom, center);
             bounce(getValidViewportMetrics(metrics), PanZoomState.BOUNCE);
         }
         return true;

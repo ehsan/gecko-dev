@@ -124,9 +124,8 @@ SafeGlobalResolve(JSContext *cx, JSHandleObject obj, JSHandleId id)
 static void
 SafeFinalize(JSFreeOp *fop, JSObject* obj)
 {
-    SandboxPrivate* sop =
-        static_cast<SandboxPrivate*>(xpc_GetJSPrivate(obj));
-    sop->ForgetGlobalObject();
+    nsIScriptObjectPrincipal* sop =
+        static_cast<nsIScriptObjectPrincipal*>(xpc_GetJSPrivate(obj));
     NS_IF_RELEASE(sop);
     DestroyProtoAndIfaceCache(obj);
 }
@@ -157,6 +156,8 @@ XPCJSContextStack::GetSafeJSContext()
     if (NS_FAILED(rv))
         return NULL;
 
+    nsCOMPtr<nsIScriptObjectPrincipal> sop = new PrincipalHolder(principal);
+
     nsRefPtr<nsXPConnect> xpc = nsXPConnect::GetXPConnect();
     if (!xpc)
         return NULL;
@@ -173,7 +174,7 @@ XPCJSContextStack::GetSafeJSContext()
     if (!mSafeJSContext)
         return NULL;
 
-    JS::RootedObject glob(mSafeJSContext);
+    JSObject *glob;
     {
         // scoped JS Request
         JSAutoRequest req(mSafeJSContext);
@@ -189,8 +190,9 @@ XPCJSContextStack::GetSafeJSContext()
 
             // Note: make sure to set the private before calling
             // InitClasses
-            nsCOMPtr<nsIScriptObjectPrincipal> sop = new SandboxPrivate(principal, glob);
-            JS_SetPrivate(glob, sop.forget().get());
+            nsIScriptObjectPrincipal* priv = nullptr;
+            sop.swap(priv);
+            JS_SetPrivate(glob, priv);
         }
 
         // After this point either glob is null and the

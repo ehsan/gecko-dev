@@ -1421,7 +1421,7 @@ nsHTMLDocument::Open(JSContext* /* unused */,
   NS_ASSERTION(nsContentUtils::CanCallerAccess(static_cast<nsIDOMHTMLDocument*>(this)),
                "XOW should have caught this!");
 
-  nsCOMPtr<nsIDOMWindow> window = GetWindow();
+  nsCOMPtr<nsIDOMWindow> window = GetWindowInternal();
   if (!window) {
     rv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
     return nullptr;
@@ -2961,12 +2961,19 @@ nsHTMLDocument::EditingStateChanged()
       result = agentSheets.AppendObject(sheet);
       NS_ENSURE_TRUE(result, NS_ERROR_OUT_OF_MEMORY);
 
+      // Disable scripting and plugins.
+      rv = editSession->DisableJSAndPlugins(window);
+      NS_ENSURE_SUCCESS(rv, rv);
+
       updateState = true;
       spellRecheckAll = oldState == eContentEditable;
     }
     else if (oldState == eDesignMode) {
       // designMode is being turned off (contentEditable is still on).
       RemoveFromAgentSheets(agentSheets, NS_LITERAL_STRING("resource://gre/res/designmode.css"));
+
+      rv = editSession->RestoreJSAndPlugins(window);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       updateState = true;
     }
@@ -3154,7 +3161,7 @@ static const struct MidasCommand gMidasCommandTable[] = {
   { "saveas",        "cmd_saveAs",          "", true,  false },
   { "print",         "cmd_print",           "", true,  false },
 #endif
-  { nullptr, nullptr, nullptr, false, false }
+  { NULL, NULL, NULL, false, false }
 };
 
 #define MidasCommandCount ((sizeof(gMidasCommandTable) / sizeof(struct MidasCommand)) - 1)

@@ -11,7 +11,6 @@
 #include <limits.h>
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/PodOperations.h"
 
 #include "ion/IonAllocPolicy.h"
 #include "ion/Registers.h"
@@ -148,7 +147,7 @@ struct Address
     Address(Register base, int32_t offset) : base(base), offset(offset)
     { }
 
-    Address() { mozilla::PodZero(this); }
+    Address() { PodZero(this); }
 };
 
 // Specifies an address computed in the form of a register base and a constant,
@@ -164,7 +163,7 @@ struct BaseIndex
       : base(base), index(index), scale(scale), offset(offset)
     { }
 
-    BaseIndex() { mozilla::PodZero(this); }
+    BaseIndex() { PodZero(this); }
 };
 
 class Relocation {
@@ -265,13 +264,6 @@ class Label : public LabelBase
             JS_ASSERT_IF(!GetIonContext()->runtime->hadOutOfMemory, !used());
 #endif
     }
-};
-
-// Wrapper around Label, on the heap, to avoid a bogus assert with OOM.
-struct HeapLabel
-  : public TempObject,
-    public Label
-{
 };
 
 class RepatchLabel
@@ -389,7 +381,7 @@ class CodeOffsetJump
 #endif
 
     CodeOffsetJump() {
-        mozilla::PodZero(this);
+        PodZero(this);
     }
 
     size_t offset() const {
@@ -463,16 +455,12 @@ class CodeLocationJump
 
     void repoint(IonCode *code, MacroAssembler* masm = NULL);
 
-    bool isSet() const {
-        return raw_ != (uint8_t *) 0xdeadc0de;
-    }
-
     uint8_t *raw() const {
-        JS_ASSERT(absolute_ && isSet());
+        JS_ASSERT(absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
     uint8_t *offset() const {
-        JS_ASSERT(!absolute_ && isSet());
+        JS_ASSERT(!absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
 
@@ -530,16 +518,12 @@ class CodeLocationLabel
 
     void repoint(IonCode *code, MacroAssembler *masm = NULL);
 
-    bool isSet() {
-        return raw_ != (uint8_t *) 0xdeadc0de;
-    }
-
     uint8_t *raw() {
-        JS_ASSERT(absolute_ && isSet());
+        JS_ASSERT(absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
     uint8_t *offset() {
-        JS_ASSERT(!absolute_ && isSet());
+        JS_ASSERT(!absolute_ && raw_ != (uint8_t *) 0xdeadc0de);
         return raw_;
     }
 };

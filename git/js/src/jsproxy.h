@@ -48,8 +48,7 @@ class JS_FRIEND_API(Wrapper);
  * the derived traps in terms of the fundamental ones. This allows consumers of
  * this class to define any custom behavior they want.
  */
-class JS_FRIEND_API(BaseProxyHandler)
-{
+class JS_FRIEND_API(BaseProxyHandler) {
     void *mFamily;
     bool mHasPrototype;
     bool mHasPolicy;
@@ -131,8 +130,9 @@ class JS_FRIEND_API(BaseProxyHandler)
 
     /* Spidermonkey extensions. */
     virtual bool isExtensible(JSObject *proxy) = 0;
-    virtual bool call(JSContext *cx, HandleObject proxy, const CallArgs &args);
-    virtual bool construct(JSContext *cx, HandleObject proxy, const CallArgs &args);
+    virtual bool call(JSContext *cx, HandleObject proxy, unsigned argc, Value *vp);
+    virtual bool construct(JSContext *cx, HandleObject proxy, unsigned argc,
+                           Value *argv, MutableHandleValue rval);
     virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args);
     virtual bool hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool *bp);
     virtual bool objectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx);
@@ -155,9 +155,8 @@ class JS_FRIEND_API(BaseProxyHandler)
  * allows consumers of this class to forward to another object as transparently
  * and efficiently as possible.
  */
-class JS_PUBLIC_API(DirectProxyHandler) : public BaseProxyHandler
-{
-  public:
+class JS_PUBLIC_API(DirectProxyHandler) : public BaseProxyHandler {
+public:
     explicit DirectProxyHandler(void *family);
 
     /* ES5 Harmony fundamental proxy traps. */
@@ -192,8 +191,9 @@ class JS_PUBLIC_API(DirectProxyHandler) : public BaseProxyHandler
 
     /* Spidermonkey extensions. */
     virtual bool isExtensible(JSObject *proxy) MOZ_OVERRIDE;
-    virtual bool call(JSContext *cx, HandleObject proxy, const CallArgs &args) MOZ_OVERRIDE;
-    virtual bool construct(JSContext *cx, HandleObject proxy, const CallArgs &args) MOZ_OVERRIDE;
+    virtual bool call(JSContext *cx, HandleObject proxy, unsigned argc, Value *vp) MOZ_OVERRIDE;
+    virtual bool construct(JSContext *cx, HandleObject proxy, unsigned argc,
+                           Value *argv, MutableHandleValue rval) MOZ_OVERRIDE;
     virtual bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl,
                             CallArgs args) MOZ_OVERRIDE;
     virtual bool hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v,
@@ -211,8 +211,7 @@ class JS_PUBLIC_API(DirectProxyHandler) : public BaseProxyHandler
 };
 
 /* Dispatch point for handlers that executes the appropriate C++ or scripted traps. */
-class Proxy
-{
+class Proxy {
   public:
     /* ES5 Harmony fundamental proxy traps. */
     static bool preventExtensions(JSContext *cx, HandleObject proxy);
@@ -244,8 +243,9 @@ class Proxy
 
     /* Spidermonkey extensions. */
     static bool isExtensible(JSObject *proxy);
-    static bool call(JSContext *cx, HandleObject proxy, const CallArgs &args);
-    static bool construct(JSContext *cx, HandleObject proxy, const CallArgs &args);
+    static bool call(JSContext *cx, HandleObject proxy, unsigned argc, Value *vp);
+    static bool construct(JSContext *cx, HandleObject proxy, unsigned argc, Value *argv,
+                          MutableHandleValue rval);
     static bool nativeCall(JSContext *cx, IsAcceptableThis test, NativeImpl impl, CallArgs args);
     static bool hasInstance(JSContext *cx, HandleObject proxy, MutableHandleValue v, bool *bp);
     static bool objectClassIs(HandleObject obj, ESClassValue classValue, JSContext *cx);

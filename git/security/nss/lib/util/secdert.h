@@ -8,7 +8,7 @@
  * secdert.h - public data structures for the DER encoding and
  *	       decoding utilities library
  *
- * $Id$
+ * $Id: secdert.h,v 1.6 2012/04/25 14:50:16 gerv%gerv.net Exp $
  */
 
 #include "utilrename.h"

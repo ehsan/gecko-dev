@@ -4,13 +4,8 @@
 
 browser.jar:
     content/browser/devtools/widgets.css          (shared/widgets/widgets.css)
-    content/browser/devtools/widgets/VariablesView.xul (shared/widgets/VariablesView.xul)
     content/browser/devtools/markup-view.xhtml    (markupview/markup-view.xhtml)
     content/browser/devtools/markup-view.css      (markupview/markup-view.css)
-    content/browser/devtools/netmonitor.xul           (netmonitor/netmonitor.xul)
-    content/browser/devtools/netmonitor.css           (netmonitor/netmonitor.css)
-    content/browser/devtools/netmonitor-controller.js (netmonitor/netmonitor-controller.js)
-    content/browser/devtools/netmonitor-view.js       (netmonitor/netmonitor-view.js)
     content/browser/NetworkPanel.xhtml            (webconsole/NetworkPanel.xhtml)
     content/browser/devtools/webconsole.js        (webconsole/webconsole.js)
     content/browser/devtools/webconsole.xul       (webconsole/webconsole.xul)
@@ -38,6 +33,7 @@ browser.jar:
     content/browser/debugger-toolbar.js           (debugger/debugger-toolbar.js)
     content/browser/debugger-panes.js             (debugger/debugger-panes.js)
     content/browser/profiler.xul                  (profiler/profiler.xul)
+    content/browser/profiler.css                  (profiler/profiler.css)
     content/browser/devtools/cleopatra.html       (profiler/cleopatra/cleopatra.html)
     content/browser/devtools/profiler/cleopatra/css/ui.css              (profiler/cleopatra/css/ui.css)
     content/browser/devtools/profiler/cleopatra/css/tree.css            (profiler/cleopatra/css/tree.css)

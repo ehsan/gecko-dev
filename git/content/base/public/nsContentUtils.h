@@ -97,7 +97,6 @@ class nsScriptObjectTracer;
 class nsStringHashKey;
 class nsTextFragment;
 class nsViewportInfo;
-class nsIFrame;
 
 struct JSContext;
 struct JSPropertyDescriptor;
@@ -121,7 +120,6 @@ class Selection;
 namespace dom {
 class DocumentFragment;
 class Element;
-class EventTarget;
 } // namespace dom
 
 namespace layers {
@@ -1358,11 +1356,6 @@ public:
   static bool IsSystemPrincipal(nsIPrincipal* aPrincipal);
 
   /**
-   * Gets the system principal from the security manager.
-   */
-  static nsIPrincipal* GetSystemPrincipal();
-
-  /**
    * *aResourcePrincipal is a principal describing who may access the contents
    * of a resource. The resource can only be consumed by a principal that
    * subsumes *aResourcePrincipal. MAKE SURE THAT NOTHING EVER ACTS WITH THE
@@ -2116,21 +2109,6 @@ public:
                                         int32_t& aOutStartOffset,
                                         int32_t& aOutEndOffset);
 
-  /**
-   * Takes a frame for anonymous content within a text control (<input> or
-   * <textarea>), and returns an offset in the text content, adjusted for a
-   * trailing <br> frame.
-   *
-   * @param aOffsetFrame      Frame for the text content in which the offset
-   *                          lies
-   * @param aOffset           Offset as calculated by GetContentOffsetsFromPoint
-   * @param aOutOffset        Output adjusted offset
-   *
-   * @see GetSelectionInTextControl for the original basis of this function.
-   */
-  static int32_t GetAdjustedOffsetInTextControl(nsIFrame* aOffsetFrame,
-                                                int32_t aOffset);
-
   static nsIEditor* GetHTMLEditor(nsPresContext* aPresContext);
 
   /**
@@ -2268,17 +2246,17 @@ typedef nsCharSeparatedTokenizerTemplate<nsContentUtils::IsHTMLWhitespace>
   nsContentUtils::DropJSObjects(NS_CYCLE_COLLECTION_UPCAST(obj, clazz))
 
 
-class MOZ_STACK_CLASS nsCxPusher
+class NS_STACK_CLASS nsCxPusher
 {
 public:
   nsCxPusher();
   ~nsCxPusher(); // Calls Pop();
 
   // Returns false if something erroneous happened.
-  bool Push(mozilla::dom::EventTarget *aCurrentTarget);
+  bool Push(nsIDOMEventTarget *aCurrentTarget);
   // If nothing has been pushed to stack, this works like Push.
   // Otherwise if context will change, Pop and Push will be called.
-  bool RePush(mozilla::dom::EventTarget *aCurrentTarget);
+  bool RePush(nsIDOMEventTarget *aCurrentTarget);
   // If a null JSContext is passed to Push(), that will cause no
   // push to happen and false to be returned.
   void Push(JSContext *cx);
@@ -2302,7 +2280,7 @@ private:
 #endif
 };
 
-class MOZ_STACK_CLASS nsAutoScriptBlocker {
+class NS_STACK_CLASS nsAutoScriptBlocker {
 public:
   nsAutoScriptBlocker(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -2315,7 +2293,7 @@ private:
   MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
-class MOZ_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :
+class NS_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :
                           public nsAutoScriptBlocker {
 public:
   nsAutoScriptBlockerSuppressNodeRemoved() {
@@ -2330,7 +2308,7 @@ public:
   }
 };
 
-class MOZ_STACK_CLASS nsAutoMicroTask
+class NS_STACK_CLASS nsAutoMicroTask
 {
 public:
   nsAutoMicroTask()
@@ -2350,7 +2328,7 @@ namespace mozilla {
  * passed as a parameter. AutoJSContext will take care of finding the most
  * appropriate JS context and release it when leaving the stack.
  */
-class MOZ_STACK_CLASS AutoJSContext {
+class NS_STACK_CLASS AutoJSContext {
 public:
   AutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
   operator JSContext*();
@@ -2373,7 +2351,7 @@ private:
  * SafeAutoJSContext is similar to AutoJSContext but will only return the safe
  * JS context. That means it will never call ::GetCurrentJSContext().
  */
-class MOZ_STACK_CLASS SafeAutoJSContext : public AutoJSContext {
+class NS_STACK_CLASS SafeAutoJSContext : public AutoJSContext {
 public:
   SafeAutoJSContext(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM);
 };
@@ -2392,7 +2370,7 @@ public:
  * NB: This will not push a null cx even if aCx is null. Make sure you know what
  * you're doing.
  */
-class MOZ_STACK_CLASS AutoPushJSContext {
+class NS_STACK_CLASS AutoPushJSContext {
   nsCxPusher mPusher;
   JSContext* mCx;
 

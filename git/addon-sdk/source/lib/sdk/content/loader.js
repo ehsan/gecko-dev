@@ -12,24 +12,27 @@ module.metadata = {
 
 const { EventEmitter } = require('../deprecated/events');
 const { validateOptions } = require('../deprecated/api-utils');
-const { isValidURI, URL } = require('../url');
+const { URL } = require('../url');
 const file = require('../io/file');
-const { contract } = require('../util/contract');
 
 const LOCAL_URI_SCHEMES = ['resource', 'data'];
 
 // Returns `null` if `value` is `null` or `undefined`, otherwise `value`.
-function ensureNull(value) value == null ? null : value
+function ensureNull(value) {
+  return value == null ? null : value;
+}
 
 // map of property validations
 const valid = {
   contentURL: {
-    map: function(url) !url ? ensureNull(url) : url.toString(), 
-    is: ['undefined', 'null', 'string'],
-    ok: function (url) {
-      if (url === null)
-        return true;
-      return isValidURI(url);
+    ok: function (value) {
+      try {
+        URL(value);
+      }
+      catch(e) {
+        return false;
+      }
+      return true;
     },
     msg: 'The `contentURL` option must be a valid URL.'
   },
@@ -199,5 +202,3 @@ const Loader = EventEmitter.compose({
   _contentScript: null
 });
 exports.Loader = Loader;
-
-exports.contract = contract(valid);

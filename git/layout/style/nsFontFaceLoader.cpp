@@ -775,14 +775,8 @@ nsUserFontSet::LogMessage(gfxMixedFontFamily *aFamily,
     nsCOMPtr<nsIDOMCSSStyleSheet> sheet;
     rv = rule->GetParentStyleSheet(getter_AddRefs(sheet));
     NS_ENSURE_SUCCESS(rv, rv);
-    // if the style sheet is removed while the font is loading can be null
-    if (sheet) {
-      rv = sheet->GetHref(href);
-      NS_ENSURE_SUCCESS(rv, rv);
-    } else {
-      NS_WARNING("null parent stylesheet for @font-face rule");
-      href.AssignLiteral("unknown");
-    }
+    rv = sheet->GetHref(href);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   nsCOMPtr<nsIScriptError> scriptError =

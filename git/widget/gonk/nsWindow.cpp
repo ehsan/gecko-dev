@@ -766,8 +766,8 @@ nsScreenGonk::SetRotation(uint32_t aRotation)
 
     sScreenRotation = aRotation;
     sRotationMatrix =
-        ComputeTransformForRotation(gScreenBounds,
-                                    ScreenRotation(EffectiveScreenRotation()));
+        ComputeGLTransformForRotation(gScreenBounds,
+                                      ScreenRotation(EffectiveScreenRotation()));
     uint32_t rotation = EffectiveScreenRotation();
     if (rotation == nsIScreen::ROTATION_90_DEG ||
         rotation == nsIScreen::ROTATION_270_DEG) {
@@ -870,12 +870,5 @@ NS_IMETHODIMP
 nsScreenManagerGonk::GetNumberOfScreens(uint32_t *aNumberOfScreens)
 {
     *aNumberOfScreens = 1;
-    return NS_OK;
-}
-
-NS_IMETHODIMP
-nsScreenManagerGonk::GetSystemDefaultScale(float *aDefaultScale)
-{
-    *aDefaultScale = 1.0f;
     return NS_OK;
 }

@@ -509,6 +509,10 @@ s, strike, del {
   text-decoration: line-through;
 }
 
+blink {
+  text-decoration: blink;
+}
+
 big {
   font-size: larger;
 }
@@ -655,7 +659,7 @@ frameset {
 }
 
 frame {
-  border-radius: 0 ! important;
+  border: none ! important;
 }
 
 iframe {

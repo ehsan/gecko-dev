@@ -22,7 +22,6 @@
 #include "mozilla/dom/SVGViewElement.h"
 #include "nsSubDocumentFrame.h"
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 class nsSVGMutationObserver : public nsStubMutationObserver
@@ -697,19 +696,28 @@ nsSVGOuterSVGFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 
-  DisplayListClipState::AutoClipContainingBlockDescendantsToContentBox clip(aBuilder, this);
+  nsDisplayList childItems;
 
   if ((aBuilder->IsForEventDelivery() &&
        NS_SVGDisplayListHitTestingEnabled()) ||
       NS_SVGDisplayListPaintingEnabled()) {
-    nsDisplayList *contentList = aLists.Content();
-    nsDisplayListSet set(contentList, contentList, contentList,
-                         contentList, contentList, contentList);
+    nsDisplayList *nonContentList = &childItems;
+    nsDisplayListSet set(nonContentList, nonContentList, nonContentList,
+                         &childItems, nonContentList, nonContentList);
     BuildDisplayListForNonBlockChildren(aBuilder, aDirtyRect, set);
   } else {
-    aLists.Content()->AppendNewToTop(
+    childItems.AppendNewToTop(
       new (aBuilder) nsDisplayOuterSVG(aBuilder, this));
   }
+
+  // Clip to our _content_ box:
+  nsRect clipRect =
+    GetContentRectRelativeToSelf() + aBuilder->ToReferenceFrame(this);
+  nsDisplayClip* item =
+    new (aBuilder) nsDisplayClip(aBuilder, this, &childItems, clipRect);
+  childItems.AppendNewToTop(item);
+
+  WrapReplacedContentForBorderRadius(aBuilder, &childItems, aLists);
 }
 
 nsSplittableType

@@ -386,32 +386,6 @@ nsNativeThemeGTK::GetGtkWidgetAndState(uint8_t aWidgetType, nsIFrame* aFrame,
   case NS_THEME_SPINNER_TEXTFIELD:
     aGtkWidgetType = MOZ_GTK_SPINBUTTON_ENTRY;
     break;
-  case NS_THEME_RANGE:
-    {
-      if (IsRangeHorizontal(aFrame)) {
-        if (aWidgetFlags)
-          *aWidgetFlags = GTK_ORIENTATION_HORIZONTAL;
-        aGtkWidgetType = MOZ_GTK_SCALE_HORIZONTAL;
-      } else {
-        if (aWidgetFlags)
-          *aWidgetFlags = GTK_ORIENTATION_VERTICAL;
-        aGtkWidgetType = MOZ_GTK_SCALE_VERTICAL;
-      }
-      break;
-    }
-  case NS_THEME_RANGE_THUMB:
-    {
-      if (IsRangeHorizontal(aFrame)) {
-        if (aWidgetFlags)
-          *aWidgetFlags = GTK_ORIENTATION_HORIZONTAL;
-        aGtkWidgetType = MOZ_GTK_SCALE_THUMB_HORIZONTAL;
-      } else {
-        if (aWidgetFlags)
-          *aWidgetFlags = GTK_ORIENTATION_VERTICAL;
-        aGtkWidgetType = MOZ_GTK_SCALE_THUMB_VERTICAL;
-      }
-      break;
-    }
   case NS_THEME_SCALE_HORIZONTAL:
     if (aWidgetFlags)
       *aWidgetFlags = GTK_ORIENTATION_HORIZONTAL;
@@ -965,7 +939,6 @@ nsNativeThemeGTK::GetWidgetPadding(nsDeviceContext* aContext,
     case NS_THEME_BUTTON_ARROW_DOWN:
     case NS_THEME_BUTTON_ARROW_NEXT:
     case NS_THEME_BUTTON_ARROW_PREVIOUS:
-    case NS_THEME_RANGE_THUMB:
     // Radios and checkboxes return a fixed size in GetMinimumWidgetSize
     // and have a meaningful baseline, so they can't have
     // author-specified padding.
@@ -1119,21 +1092,6 @@ nsNativeThemeGTK::GetMinimumWidgetSize(nsRenderingContext* aContext,
           aResult->width = std::min(NSAppUnitsToIntPixels(rect.width, p2a),
                                   metrics.min_slider_size);
         }
-
-        *aIsOverridable = false;
-      }
-      break;
-    case NS_THEME_RANGE_THUMB:
-      {
-        gint thumb_length, thumb_height;
-
-        if (IsRangeHorizontal(aFrame)) {
-          moz_gtk_get_scalethumb_metrics(GTK_ORIENTATION_HORIZONTAL, &thumb_length, &thumb_height);
-        } else {
-          moz_gtk_get_scalethumb_metrics(GTK_ORIENTATION_VERTICAL, &thumb_height, &thumb_length);
-        }
-        aResult->width = thumb_length;
-        aResult->height = thumb_height;
 
         *aIsOverridable = false;
       }
@@ -1397,8 +1355,6 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   case NS_THEME_TEXTFIELD_MULTILINE:
   case NS_THEME_TEXTFIELD_CARET:
   case NS_THEME_DROPDOWN_TEXTFIELD:
-  case NS_THEME_RANGE:
-  case NS_THEME_RANGE_THUMB:
   case NS_THEME_SCALE_HORIZONTAL:
   case NS_THEME_SCALE_THUMB_HORIZONTAL:
   case NS_THEME_SCALE_VERTICAL:
@@ -1441,7 +1397,6 @@ nsNativeThemeGTK::WidgetIsContainer(uint8_t aWidgetType)
   // XXXdwh At some point flesh all of this out.
   if (aWidgetType == NS_THEME_DROPDOWN_BUTTON ||
       aWidgetType == NS_THEME_RADIO ||
-      aWidgetType == NS_THEME_RANGE_THUMB ||
       aWidgetType == NS_THEME_CHECKBOX ||
       aWidgetType == NS_THEME_TAB_SCROLLARROW_BACK ||
       aWidgetType == NS_THEME_TAB_SCROLLARROW_FORWARD ||
@@ -1477,6 +1432,8 @@ nsNativeThemeGTK::GetWidgetTransparency(nsIFrame* aFrame, uint8_t aWidgetType)
   // These widgets always draw a default background.
   case NS_THEME_SCROLLBAR_TRACK_VERTICAL:
   case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:
+  case NS_THEME_SCALE_HORIZONTAL:
+  case NS_THEME_SCALE_VERTICAL:
   case NS_THEME_TOOLBAR:
   case NS_THEME_MENUBAR:
   case NS_THEME_MENUPOPUP:

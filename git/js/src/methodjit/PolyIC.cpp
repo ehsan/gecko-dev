@@ -779,6 +779,17 @@ struct GetPropHelper {
 namespace js {
 namespace mjit {
 
+inline void
+MarkNotIdempotent(RawScript script, jsbytecode *pc)
+{
+    if (!script->hasAnalysis())
+        return;
+    analyze::Bytecode *code = script->analysis()->maybeCode(pc);
+    if (!code)
+        return;
+    code->notIdempotent = true;
+}
+
 class GetPropCompiler : public PICStubCompiler
 {
     RootedObject obj;
@@ -1360,6 +1371,8 @@ class GetPropCompiler : public PICStubCompiler
         }
 
         if (shape && !shape->hasDefaultGetter()) {
+            MarkNotIdempotent(f.script(), f.pc());
+
             if (shape->hasGetterValue()) {
                 generateNativeGetterStub(masm, shape, start, shapeMismatches);
             } else {
@@ -1459,8 +1472,19 @@ class GetPropCompiler : public PICStubCompiler
             /* Don't touch the IC if it may have been destroyed. */
             if (!monitor.recompiled())
                 pic.hadUncacheable = true;
+            MarkNotIdempotent(f.script(), f.pc());
             return status;
         }
+
+        // Mark as not idempotent to avoid recompilation in Ion Monkey
+        // GetPropertyCache.
+        if (!obj->hasIdempotentProtoChain())
+            MarkNotIdempotent(f.script(), f.pc());
+
+        // The property is missing, Mark as not idempotent to avoid
+        // recompilation in Ion Monkey GetPropertyCache.
+        if (!getprop.holder)
+            MarkNotIdempotent(f.script(), f.pc());
 
         if (hadGC())
             return Lookup_Uncacheable;
@@ -2615,9 +2639,13 @@ ic::GetElement(VMFrame &f, ic::GetElementIC *ic)
     if (!obj)
         THROW();
 
-    RootedId id(cx);
-    if (!ValueToId<CanGC>(cx, idval, &id))
+    Rooted<jsid> id(cx);
+    if (idval.isInt32() && INT_FITS_IN_JSID(idval.toInt32())) {
+        id = INT_TO_JSID(idval.toInt32());
+    } else {
+        if (!InternNonIntElementId<CanGC>(cx, obj, idval, &id))
             THROW();
+    }
 
     MutableHandleValue res = MutableHandleValue::fromMarkedLocation(&f.regs.sp[-2]);
 

@@ -81,7 +81,7 @@ var LazyNotificationGetter = {
   observers: [],
   shutdown: function lng_shutdown() {
     this.observers.forEach(function(o) {
-      Services.obs.removeObserver(o, o.notification);
+      Services.obs.removeObserver(o, o.notification, false);
     });
     this.observers = [];
   }
@@ -89,13 +89,12 @@ var LazyNotificationGetter = {
 
 [
 #ifdef MOZ_WEBRTC
-  ["WebrtcUI", ["getUserMedia:request"], "chrome://browser/content/WebrtcUI.js"],
+  ["WebRTC", ["getUserMedia:request"], "chrome://browser/content/WebRTC.js"],
 #endif
   ["MemoryObserver", ["memory-pressure", "Memory:Dump"], "chrome://browser/content/MemoryObserver.js"],
   ["ConsoleAPI", ["console-api-log-event"], "chrome://browser/content/ConsoleAPI.js"],
   ["FindHelper", ["FindInPage:Find", "FindInPage:Prev", "FindInPage:Next", "FindInPage:Closed", "Tab:Selected"], "chrome://browser/content/FindHelper.js"],
   ["PermissionsHelper", ["Permissions:Get", "Permissions:Clear"], "chrome://browser/content/PermissionsHelper.js"],
-  ["FeedHandler", ["Feeds:Subscribe"], "chrome://browser/content/FeedHandler.js"],
 ].forEach(function (aScript) {
   let [name, notifications, script] = aScript;
   XPCOMUtils.defineLazyGetter(window, name, function() {
@@ -135,8 +134,6 @@ const kXLinkNamespace = "http://www.w3.org/1999/xlink";
 
 const kDefaultCSSViewportWidth = 980;
 const kDefaultCSSViewportHeight = 480;
-
-const kViewportRemeasureThrottle = 500;
 
 function dump(a) {
   Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage(a);
@@ -244,7 +241,6 @@ var BrowserApp = {
     Services.obs.addObserver(this, "FormHistory:Init", false);
     Services.obs.addObserver(this, "ToggleProfiling", false);
     Services.obs.addObserver(this, "gather-telemetry", false);
-    Services.obs.addObserver(this, "keyword-search", false);
 
     Services.obs.addObserver(this, "sessionstore-state-purge-complete", false);
 
@@ -690,12 +686,10 @@ var BrowserApp = {
     let referrerURI = "referrerURI" in aParams ? aParams.referrerURI : null;
     let charset = "charset" in aParams ? aParams.charset : null;
 
-    if ("showProgress" in aParams || "userSearch" in aParams) {
+    if ("showProgress" in aParams) {
       let tab = this.getTabForBrowser(aBrowser);
-      if (tab) {
-        if ("showProgress" in aParams) tab.showProgress = aParams.showProgress;
-        if ("userSearch" in aParams) tab.userSearch = aParams.userSearch;
-      }
+      if (tab)
+        tab.showProgress = aParams.showProgress;
     }
 
     try {
@@ -1138,7 +1132,7 @@ var BrowserApp = {
     if (focused) {
        // _zoomToElement will handle not sending any message if this input is already mostly filling the screen
       BrowserEventHandler._zoomToElement(focused, -1, false,
-          aAllowZoom && !this.isTablet && !ViewportHandler.getViewportMetadata(aBrowser.contentWindow).isSpecified);
+          aAllowZoom && !this.isTablet && !ViewportHandler.getViewportMetadata(aBrowser.contentWindow).hasMetaViewport);
     }
   },
 
@@ -1190,7 +1184,7 @@ var BrowserApp = {
 
         let delayLoad = ("delayLoad" in data) ? data.delayLoad : false;
         let params = {
-          selected: ("selected" in data) ? data.selected : !delayLoad,
+          selected: !delayLoad,
           parentId: ("parentId" in data) ? data.parentId : -1,
           flags: flags,
           tabID: data.tabID,
@@ -1204,7 +1198,6 @@ var BrowserApp = {
         if (data.engine) {
           let engine = Services.search.getEngineByName(data.engine);
           if (engine) {
-            params.userSearch = url;
             let submission = engine.getSubmission(url);
             url = submission.uri.spec;
             params.postData = submission.postData;
@@ -1228,11 +1221,6 @@ var BrowserApp = {
 
       case "Tab:Closed":
         this._handleTabClosed(this.getTabForId(parseInt(aData)));
-        break;
-
-      case "keyword-search":
-        // This assumes the user can only perform a keyword serach on the selected tab.
-        this.selectedTab.userSearch = aData;
         break;
 
       case "Browser:Quit":
@@ -1288,7 +1276,7 @@ var BrowserApp = {
         storage.init();
 
         sendMessageToJava({ type: "Passwords:Init:Return" });
-        Services.obs.removeObserver(this, "Passwords:Init");
+        Services.obs.removeObserver(this, "Passwords:Init", false);
         break;
       }
 
@@ -1297,7 +1285,7 @@ var BrowserApp = {
         // Force creation/upgrade of formhistory.sqlite
         let db = fh.DBConnection;
         sendMessageToJava({ type: "FormHistory:Init:Return" });
-        Services.obs.removeObserver(this, "FormHistory:Init");
+        Services.obs.removeObserver(this, "FormHistory:Init", false);
         break;
       }
 
@@ -1322,7 +1310,6 @@ var BrowserApp = {
 
       case "Viewport:FixedMarginsChanged":
         gViewportMargins = JSON.parse(aData);
-        this.selectedTab.updateViewportSize(gScreenWidth);
         break;
 
       case "nsPref:changed":
@@ -2315,8 +2302,7 @@ function Tab(aURL, aParams) {
   this.userScrollPos = { x: 0, y: 0 };
   this.viewportExcludesHorizontalMargins = true;
   this.viewportExcludesVerticalMargins = true;
-  this.viewportMeasureCallback = null;
-  this.lastPageSizeAfterViewportChange = { width: 0, height: 0 };
+  this.updatingViewportForPageSizeChange = false;
   this.contentDocumentIsDisplayed = true;
   this.pluginDoorhangerTimeout = null;
   this.shouldShowPluginDoorhanger = true;
@@ -2455,9 +2441,6 @@ Tab.prototype = {
 
       // This determines whether or not we show the progress throbber in the urlbar
       this.showProgress = "showProgress" in aParams ? aParams.showProgress : true;
-
-      // The search term the user entered to load the current URL
-      this.userSearch = "userSearch" in aParams ? aParams.userSearch : "";
 
       try {
         this.browser.loadURIWithFlags(aURL, flags, referrerURI, charset, postData);
@@ -2955,48 +2938,30 @@ Tab.prototype = {
     return viewport;
   },
 
-  sendViewportUpdate: function(aPageSizeUpdate, aAfterViewportSizeChange) {
+  sendViewportUpdate: function(aPageSizeUpdate) {
     let viewport = this.getViewport();
     let displayPort = getBridge().getDisplayPort(aPageSizeUpdate, BrowserApp.isBrowserContentDocumentDisplayed(), this.id, viewport);
     if (displayPort != null)
       this.setDisplayPort(displayPort);
 
-    if (aAfterViewportSizeChange) {
-      // Store the page size that was used to calculate the viewport so that we
-      // can verify it's changed when we consider remeasuring.
-      this.lastPageSizeAfterViewportChange =
-        { width: viewport.pageRight - viewport.pageLeft,
-          height: viewport.pageBottom - viewport.pageTop };
-    } else if (aPageSizeUpdate &&
-               (gViewportMargins.top > 0 || gViewportMargins.right > 0
-                  || gViewportMargins.bottom > 0 || gViewportMargins.left > 0)) {
-      // If the page size has changed so that it might or might not fit on the
-      // screen with the margins included, run updateViewportSize to resize the
-      // browser accordingly.
-      // A page will receive the smaller viewport when its page size fits
-      // within the screen size, so remeasure when the page size remains within
-      // the threshold of screen + margins, in case it's sizing itself relative
-      // to the viewport.
-      if (((Math.round(viewport.pageBottom - viewport.pageTop)
-              <= gScreenHeight + gViewportMargins.top + gViewportMargins.bottom)
+    // If the page size has changed so that it might or might not fit on the
+    // screen with the margins included, run updateViewportSize to resize the
+    // browser accordingly.
+    // A page will receive the smaller viewport when its page size fits
+    // within the screen size, so remeasure when the page size remains within
+    // the threshold of screen + margins, in case it's sizing itself relative
+    // to the viewport.
+    if (!this.updatingViewportForPageSizeChange) {
+      this.updatingViewportForPageSizeChange = true;
+      if (((viewport.pageBottom - viewport.pageTop
+              < gScreenHeight + gViewportMargins.top + gViewportMargins.bottom)
              != this.viewportExcludesVerticalMargins) ||
-          ((Math.round(viewport.pageRight - viewport.pageLeft)
-              <= gScreenWidth + gViewportMargins.left + gViewportMargins.right)
+          ((viewport.pageRight - viewport.pageLeft
+              < gScreenWidth + gViewportMargins.left + gViewportMargins.right)
              != this.viewportExcludesHorizontalMargins)) {
-        if (!this.viewportMeasureCallback) {
-          this.viewportMeasureCallback = setTimeout(function() {
-            this.viewportMeasureCallback = null;
-
-            let viewport = this.getViewport();
-            if (Math.abs((viewport.pageRight - viewport.pageLeft)
-                           - this.lastPageSizeAfterViewportChange.width) >= 0.5 ||
-                Math.abs((viewport.pageBottom - viewport.pageTop)
-                           - this.lastPageSizeAfterViewportChange.height) >= 0.5) {
-              this.updateViewportSize(gScreenWidth);
-            }
-          }.bind(this), kViewportRemeasureThrottle);
-        }
+        this.updateViewportSize(gScreenWidth);
       }
+      this.updatingViewportForPageSizeChange = false;
     }
   },
 
@@ -3052,11 +3017,11 @@ Tab.prototype = {
         if (!target.href || target.disabled)
           return;
 
-        // Ignore on frames and other documents
+        // ignore on frames and other documents
         if (target.ownerDocument != this.browser.contentDocument)
           return;
 
-        // Sanitize the rel string
+        // sanitize the rel string
         let list = [];
         if (target.rel) {
           list = target.rel.toLowerCase().split(/\s+/);
@@ -3067,60 +3032,42 @@ Tab.prototype = {
             list.push("[" + rel + "]");
         }
 
-        if (list.indexOf("[icon]") != -1) {
-          // We want to get the largest icon size possible for our UI.
-          let maxSize = 0;
+        // We only care about icon links
+        if (list.indexOf("[icon]") == -1)
+          return;
 
-          // We use the sizes attribute if available
-          // see http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#rel-icon
-          if (target.hasAttribute("sizes")) {
-            let sizes = target.getAttribute("sizes").toLowerCase();
+        // We want to get the largest icon size possible for our UI.
+        let maxSize = 0;
 
-            if (sizes == "any") {
-              // Since Java expects an integer, use -1 to represent icons with sizes="any"
-              maxSize = -1; 
-            } else {
-              let tokens = sizes.split(" ");
-              tokens.forEach(function(token) {
-                // TODO: check for invalid tokens
-                let [w, h] = token.split("x");
-                maxSize = Math.max(maxSize, Math.max(w, h));
-              });
-            }
+        // We use the sizes attribute if available
+        // see http://www.whatwg.org/specs/web-apps/current-work/multipage/links.html#rel-icon
+        if (target.hasAttribute("sizes")) {
+          let sizes = target.getAttribute("sizes").toLowerCase();
+
+          if (sizes == "any") {
+            // Since Java expects an integer, use -1 to represent icons with sizes="any"
+            maxSize = -1; 
+          } else {
+            let tokens = sizes.split(" ");
+            tokens.forEach(function(token) {
+              // TODO: check for invalid tokens
+              let [w, h] = token.split("x");
+              maxSize = Math.max(maxSize, Math.max(w, h));
+            });
           }
-
-          let json = {
-            type: "Link:Favicon",
-            tabID: this.id,
-            href: resolveGeckoURI(target.href),
-            charset: target.ownerDocument.characterSet,
-            title: target.title,
-            rel: list.join(" "),
-            size: maxSize
-          };
-          sendMessageToJava(json);
-        } else if (list.indexOf("[alternate]") != -1) {
-          let type = target.type.toLowerCase().replace(/^\s+|\s*(?:;.*)?$/g, "");
-          let isFeed = (type == "application/rss+xml" || type == "application/atom+xml");
-
-          if (!isFeed)
-            return;
-
-          try {
-            // urlSecurityCeck will throw if things are not OK
-            ContentAreaUtils.urlSecurityCheck(target.href, target.ownerDocument.nodePrincipal, Ci.nsIScriptSecurityManager.DISALLOW_INHERIT_PRINCIPAL);
-
-            if (!this.browser.feeds)
-              this.browser.feeds = [];
-            this.browser.feeds.push({ href: target.href, title: target.title, type: type });
-
-            let json = {
-              type: "Link:Feed",
-              tabID: this.id
-            };
-            sendMessageToJava(json);
-          } catch (e) {}
         }
+
+        let json = {
+          type: "DOMLinkAdded",
+          tabID: this.id,
+          href: resolveGeckoURI(target.href),
+          charset: target.ownerDocument.characterSet,
+          title: target.title,
+          rel: list.join(" "),
+          size: maxSize
+        };
+
+        sendMessageToJava(json);
         break;
       }
 
@@ -3316,16 +3263,12 @@ Tab.prototype = {
       type: "Content:LocationChange",
       tabID: this.id,
       uri: fixedURI.spec,
-      userSearch: this.userSearch || "",
       documentURI: documentURI,
       contentType: (contentType ? contentType : ""),
       sameDocument: sameDocument
     };
 
     sendMessageToJava(message);
-
-    // The search term is only valid for this location change event, so reset it here.
-    this.userSearch = "";
 
     if (!sameDocument) {
       // XXX This code assumes that this is the earliest hook we have at which
@@ -3425,13 +3368,13 @@ Tab.prototype = {
       aMetadata.minZoom = aMetadata.maxZoom = NaN;
     }
 
-    let scaleRatio = aMetadata.scaleRatio;
+    let scaleRatio = aMetadata.scaleRatio = ViewportHandler.getScaleRatio();
 
-    if (aMetadata.defaultZoom > 0)
+    if ("defaultZoom" in aMetadata && aMetadata.defaultZoom > 0)
       aMetadata.defaultZoom *= scaleRatio;
-    if (aMetadata.minZoom > 0)
+    if ("minZoom" in aMetadata && aMetadata.minZoom > 0)
       aMetadata.minZoom *= scaleRatio;
-    if (aMetadata.maxZoom > 0)
+    if ("maxZoom" in aMetadata && aMetadata.maxZoom > 0)
       aMetadata.maxZoom *= scaleRatio;
 
     ViewportHandler.setMetadataForDocument(this.browser.contentDocument, aMetadata);
@@ -3447,11 +3390,6 @@ Tab.prototype = {
     // is not accidentally removed (the call to sendViewportUpdate() is
     // at the very end).
 
-    if (this.viewportMeasureCallback) {
-      clearTimeout(this.viewportMeasureCallback);
-      this.viewportMeasureCallback = null;
-    }
-
     let browser = this.browser;
     if (!browser)
       return;
@@ -3464,8 +3402,13 @@ Tab.prototype = {
 
     let metadata = this.metadata;
     if (metadata.autoSize) {
-      viewportW = screenW / metadata.scaleRatio;
-      viewportH = screenH / metadata.scaleRatio;
+      if ("scaleRatio" in metadata) {
+        viewportW = screenW / metadata.scaleRatio;
+        viewportH = screenH / metadata.scaleRatio;
+      } else {
+        viewportW = screenW;
+        viewportH = screenH;
+      }
     } else {
       viewportW = metadata.width;
       viewportH = metadata.height;
@@ -3512,19 +3455,19 @@ Tab.prototype = {
       // has not yet loaded, so need to guard against a null document.
       let [pageWidth, pageHeight] = this.getPageSize(this.browser.contentDocument, viewportW, viewportH);
 
+      minScale = screenW / pageWidth;
+
       // In the situation the page size equals or exceeds the screen size,
       // lengthen the viewport on the corresponding axis to include the margins.
-      // The '- 0.5' is to account for rounding errors.
-      if (pageWidth * this._zoom > gScreenWidth - 0.5) {
+      // The -1 is to account for rounding errors.
+      if (pageWidth * this._zoom > gScreenWidth - 1) {
         screenW = gScreenWidth;
         this.viewportExcludesHorizontalMargins = false;
       }
-      if (pageHeight * this._zoom > gScreenHeight - 0.5) {
+      if (pageHeight * this._zoom > gScreenHeight - 1) {
         screenH = gScreenHeight;
         this.viewportExcludesVerticalMargins = false;
       }
-
-      minScale = screenW / pageWidth;
     }
     minScale = this.clampZoom(minScale);
     viewportH = Math.max(viewportH, screenH / minScale);
@@ -3551,7 +3494,7 @@ Tab.prototype = {
     let zoom = (aInitialLoad && metadata.defaultZoom) ? metadata.defaultZoom : this.clampZoom(this._zoom * zoomScale);
     this.setResolution(zoom, false);
     this.setScrollClampingSize(zoom);
-    this.sendViewportUpdate(false, true);
+    this.sendViewportUpdate();
   },
 
   sendViewportMetadata: function sendViewportMetadata() {
@@ -3859,7 +3802,7 @@ var BrowserEventHandler = {
             // See if its a input element
             if ((element instanceof HTMLInputElement && element.mozIsTextField(false)) ||
                 (element instanceof HTMLTextAreaElement))
-               SelectionHandler.attachCaret(element);
+               SelectionHandler.showThumb(element);
 
             // scrollToFocusedInput does its own checks to find out if an element should be zoomed into
             BrowserApp.scrollToFocusedInput(BrowserApp.selectedBrowser);
@@ -4450,8 +4393,6 @@ var ErrorPageEventHandler = {
           let isMalware = /e=malwareBlocked/.test(errorDoc.documentURI);
           let bucketName = isMalware ? "WARNING_MALWARE_PAGE_" : "WARNING_PHISHING_PAGE_";
           let nsISecTel = Ci.nsISecurityUITelemetry;
-          let isIframe = (aOwnerDoc.defaultView.parent === aOwnerDoc.defaultView);
-          bucketName += isIframe ? "TOP_" : "FRAME_";
 
           let formatter = Cc["@mozilla.org/toolkit/URLFormatterService;1"].getService(Ci.nsIURLFormatter);
 
@@ -4960,7 +4901,7 @@ var ViewportHandler = {
 
   uninit: function uninit() {
     removeEventListener("DOMMetaAdded", this, false);
-    Services.obs.removeObserver(this, "Window:Resize");
+    Services.obs.removeObserver(this, "Window:Resize", false);
   },
 
   handleEvent: function handleEvent(aEvent) {
@@ -5002,7 +4943,14 @@ var ViewportHandler = {
   },
 
   /**
-   * Returns the ViewportMetadata object.
+   * Returns an object with the page's preferred viewport properties:
+   *   defaultZoom (optional float): The initial scale when the page is loaded.
+   *   minZoom (optional float): The minimum zoom level.
+   *   maxZoom (optional float): The maximum zoom level.
+   *   width (optional int): The CSS viewport width in px.
+   *   height (optional int): The CSS viewport height in px.
+   *   autoSize (boolean): Resize the CSS viewport when the window resizes.
+   *   allowZoom (boolean): Let the user zoom in or out.
    */
   getViewportMetadata: function getViewportMetadata(aWindow) {
     let windowUtils = aWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
@@ -5034,22 +4982,12 @@ var ViewportHandler = {
     if (isNaN(scale) && isNaN(minScale) && isNaN(maxScale) && allowZoomStr == "" && widthStr == "" && heightStr == "") {
       // Only check for HandheldFriendly if we don't have a viewport meta tag
       let handheldFriendly = windowUtils.getDocumentMetadata("HandheldFriendly");
-      if (handheldFriendly == "true") {
-        return new ViewportMetadata({
-          defaultZoom: 1,
-          autoSize: true,
-          allowZoom: true
-        });
-      }
+      if (handheldFriendly == "true")
+        return { defaultZoom: 1, autoSize: true, allowZoom: true };
 
       let doctype = aWindow.document.doctype;
-      if (doctype && /(WAP|WML|Mobile)/.test(doctype.publicId)) {
-        return new ViewportMetadata({
-          defaultZoom: 1,
-          autoSize: true,
-          allowZoom: true
-        });
-      }
+      if (doctype && /(WAP|WML|Mobile)/.test(doctype.publicId))
+        return { defaultZoom: 1, autoSize: true, allowZoom: true };
 
       hasMetaViewport = false;
       let defaultZoom = Services.prefs.getIntPref("browser.viewport.defaultZoom");
@@ -5069,7 +5007,7 @@ var ViewportHandler = {
                   (!widthStr && (heightStr == "device-height" || scale == 1.0)));
     }
 
-    return new ViewportMetadata({
+    return {
       defaultZoom: scale,
       minZoom: minScale,
       maxZoom: maxScale,
@@ -5077,8 +5015,8 @@ var ViewportHandler = {
       height: height,
       autoSize: autoSize,
       allowZoom: allowZoom,
-      isSpecified: hasMetaViewport
-    });
+      hasMetaViewport: hasMetaViewport
+    };
   },
 
   clamp: function(num, min, max) {
@@ -5113,7 +5051,7 @@ var ViewportHandler = {
    * metadata is available for that document.
    */
   getMetadataForDocument: function getMetadataForDocument(aDocument) {
-    let metadata = this._metadata.get(aDocument, new ViewportMetadata());
+    let metadata = this._metadata.get(aDocument, this.getDefaultMetadata());
     return metadata;
   },
 
@@ -5123,47 +5061,17 @@ var ViewportHandler = {
       this._metadata.delete(aDocument);
     else
       this._metadata.set(aDocument, aMetadata);
+  },
+
+  /** Returns the default viewport metadata for a document. */
+  getDefaultMetadata: function getDefaultMetadata() {
+    return {
+      autoSize: false,
+      allowZoom: true,
+      scaleRatio: ViewportHandler.getScaleRatio()
+    };
   }
-
 };
-
-/**
- * An object which represents the page's preferred viewport properties:
- *   width (int): The CSS viewport width in px.
- *   height (int): The CSS viewport height in px.
- *   defaultZoom (float): The initial scale when the page is loaded.
- *   minZoom (float): The minimum zoom level.
- *   maxZoom (float): The maximum zoom level.
- *   autoSize (boolean): Resize the CSS viewport when the window resizes.
- *   allowZoom (boolean): Let the user zoom in or out.
- *   isSpecified (boolean): Whether the page viewport is specified or not.
- *   scaleRatio (float): The device-pixel-to-CSS-px ratio.
- */
-function ViewportMetadata(aMetadata = {}) {
-  this.width = ("width" in aMetadata) ? aMetadata.width : 0;
-  this.height = ("height" in aMetadata) ? aMetadata.height : 0;
-  this.defaultZoom = ("defaultZoom" in aMetadata) ? aMetadata.defaultZoom : 0;
-  this.minZoom = ("minZoom" in aMetadata) ? aMetadata.minZoom : 0;
-  this.maxZoom = ("maxZoom" in aMetadata) ? aMetadata.maxZoom : 0;
-  this.autoSize = ("autoSize" in aMetadata) ? aMetadata.autoSize : false;
-  this.allowZoom = ("allowZoom" in aMetadata) ? aMetadata.allowZoom : true;
-  this.isSpecified = ("isSpecified" in aMetadata) ? aMetadata.isSpecified : false;
-  this.scaleRatio = ViewportHandler.getScaleRatio();
-  Object.seal(this);
-}
-
-ViewportMetadata.prototype = {
-  width: null,
-  height: null,
-  defaultZoom: null,
-  minZoom: null,
-  maxZoom: null,
-  autoSize: null,
-  allowZoom: null,
-  isSpecified: null,
-  scaleRatio: null,
-};
-
 
 /**
  * Handler for blocked popups, triggered by DOMUpdatePageReport events in browser.xml
@@ -5272,9 +5180,9 @@ var IndexedDB = {
   },
 
   uninit: function IndexedDB_uninit() {
-    Services.obs.removeObserver(this, this._permissionsPrompt);
-    Services.obs.removeObserver(this, this._quotaPrompt);
-    Services.obs.removeObserver(this, this._quotaCancel);
+    Services.obs.removeObserver(this, this._permissionsPrompt, false);
+    Services.obs.removeObserver(this, this._quotaPrompt, false);
+    Services.obs.removeObserver(this, this._quotaCancel, false);
   },
 
   observe: function IndexedDB_observe(subject, topic, data) {
@@ -5499,8 +5407,8 @@ var CharacterEncoding = {
   },
 
   uninit: function uninit() {
-    Services.obs.removeObserver(this, "CharEncoding:Get");
-    Services.obs.removeObserver(this, "CharEncoding:Set");
+    Services.obs.removeObserver(this, "CharEncoding:Get", false);
+    Services.obs.removeObserver(this, "CharEncoding:Set", false);
   },
 
   observe: function observe(aSubject, aTopic, aData) {
@@ -5817,7 +5725,8 @@ var SearchEngines = {
 
   getSuggestionEngine: function () {
     let engines = [ Services.search.currentEngine,
-                    Services.search.defaultEngine ];
+                    Services.search.defaultEngine,
+                    Services.search.originalDefaultEngine ];
 
     for (let i = 0; i < engines.length; i++) {
       let engine = engines[i];
@@ -5962,7 +5871,7 @@ var WebappsUI = {
     Services.obs.removeObserver(this, "webapps-launch");
     Services.obs.removeObserver(this, "webapps-sync-install");
     Services.obs.removeObserver(this, "webapps-sync-uninstall");
-    Services.obs.removeObserver(this, "webapps-install-error");
+    Services.obs.removeObserver(this, "webapps-install-error", false);
   },
 
   DEFAULT_PREFS_FILENAME: "default-prefs.js",
@@ -6065,7 +5974,7 @@ var WebappsUI = {
     let name = manifest.name ? manifest.name : manifest.fullLaunchPath();
     let showPrompt = true;
 
-    if (!showPrompt || Services.prompt.confirm(null, Strings.browser.GetStringFromName("webapps.installTitle"), name + "\n" + aData.app.origin)) {
+    if (!showPrompt || Services.prompt.confirm(null, Strings.browser.GetStringFromName("webapps.installTitle"), name)) {
       // Get a profile for the app to be installed in. We'll download everything before creating the icons.
       let profilePath = sendMessageToJava({
         type: "WebApps:PreInstall",
@@ -6694,8 +6603,8 @@ let Reader = {
   },
 
   uninit: function Reader_uninit() {
-    Services.obs.removeObserver(this, "Reader:Add");
-    Services.obs.removeObserver(this, "Reader:Remove");
+    Services.obs.removeObserver(this, "Reader:Add", false);
+    Services.obs.removeObserver(this, "Reader:Remove", false);
 
     let requests = this._requests;
     for (let url in requests) {

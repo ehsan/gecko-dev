@@ -294,24 +294,19 @@ struct PropDesc {
     bool wrapInto(JSContext *cx, HandleObject obj, const jsid &id, jsid *wrappedId,
                   PropDesc *wrappedDesc) const;
 
-    class AutoRooter : private JS::CustomAutoRooter
+    class AutoRooter : private AutoGCRooter
     {
       public:
         explicit AutoRooter(JSContext *cx, PropDesc *pd_
                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-          : CustomAutoRooter(cx), pd(pd_), skip(cx, pd_)
+          : AutoGCRooter(cx, PROPDESC), pd(pd_), skip(cx, pd_)
         {
             MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
-      private:
-        virtual void trace(JSTracer *trc) {
-            traceValue(trc, &pd->pd_, "PropDesc::AutoRooter pd");
-            traceValue(trc, &pd->value_, "PropDesc::AutoRooter value");
-            traceValue(trc, &pd->get_, "PropDesc::AutoRooter get");
-            traceValue(trc, &pd->set_, "PropDesc::AutoRooter set");
-        }
+        friend void AutoGCRooter::trace(JSTracer *trc);
 
+      private:
         PropDesc *pd;
         SkipRoot skip;
         MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -1126,7 +1121,6 @@ class ObjectImpl : public gc::Cell
     inline const Value & getDenseElement(uint32_t idx);
     inline bool containsDenseElement(uint32_t idx);
     inline uint32_t getDenseInitializedLength();
-    inline uint32_t getDenseCapacity();
 
     bool makeElementsSparse(JSContext *cx) {
         NEW_OBJECT_REPRESENTATION_ONLY();
@@ -1283,18 +1277,6 @@ class ObjectImpl : public gc::Cell
     inline bool nativeContains(JSContext *cx, jsid id);
     inline bool nativeContains(JSContext *cx, PropertyName* name);
     inline bool nativeContains(JSContext *cx, Shape* shape);
-
-    /*
-     * Contextless; can be called from parallel code. Returns false if the
-     * operation would have been effectful.
-     */
-    Shape *nativeLookupPure(jsid id);
-    inline Shape *nativeLookupPure(PropertyId pid);
-    inline Shape *nativeLookupPure(PropertyName *name);
-
-    inline bool nativeContainsPure(jsid id);
-    inline bool nativeContainsPure(PropertyName* name);
-    inline bool nativeContainsPure(Shape* shape);
 
     inline JSClass *getJSClass() const;
     inline bool hasClass(const Class *c) const;

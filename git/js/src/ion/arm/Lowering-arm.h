@@ -29,7 +29,7 @@ class LIRGeneratorARM : public LIRGeneratorShared
 
     void lowerUntypedPhiInput(MPhi *phi, uint32_t inputPosition, LBlock *block, size_t lirIndex);
     bool defineUntypedPhi(MPhi *phi, size_t lirIndex);
-    bool lowerForShift(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs,
+    bool lowerForShift(LInstructionHelper<1, 2, 0> *ins, MDefinition *mir, MDefinition *lhs, 
                        MDefinition *rhs);
     bool lowerUrshD(MUrsh *mir);
 
@@ -48,14 +48,10 @@ class LIRGeneratorARM : public LIRGeneratorShared
     bool lowerModI(MMod *mod);
     bool lowerMulI(MMul *mul, MDefinition *lhs, MDefinition *rhs);
     bool visitPowHalf(MPowHalf *ins);
-    bool visitAsmJSNeg(MAsmJSNeg *ins);
-    bool visitAsmJSUDiv(MAsmJSUDiv *ins);
-    bool visitAsmJSUMod(MAsmJSUMod *ins);
 
     LTableSwitch *newLTableSwitch(const LAllocation &in, const LDefinition &inputCopy,
                                   MTableSwitch *ins);
     LTableSwitchV *newLTableSwitchV(MTableSwitch *ins);
-    LGetPropertyCacheT *newLGetPropertyCacheT(MGetPropertyCache *ins);
 
   public:
     bool visitConstant(MConstant *ins);
@@ -65,10 +61,6 @@ class LIRGeneratorARM : public LIRGeneratorShared
     bool lowerPhi(MPhi *phi);
     bool visitGuardShape(MGuardShape *ins);
     bool visitStoreTypedArrayElement(MStoreTypedArrayElement *ins);
-    bool visitStoreTypedArrayElementHole(MStoreTypedArrayElementHole *ins);
-    bool visitAsmJSUnsignedToDouble(MAsmJSUnsignedToDouble *ins);
-    bool visitAsmJSStoreHeap(MAsmJSStoreHeap *ins);
-    bool visitAsmJSLoadFuncPtr(MAsmJSLoadFuncPtr *ins);
     bool visitInterruptCheck(MInterruptCheck *ins);
 };
 
@@ -78,3 +70,4 @@ typedef LIRGeneratorARM LIRGeneratorSpecific;
 } // namespace js
 
 #endif // jsion_ion_lowering_arm_h__
+

@@ -1401,7 +1401,7 @@ TabChild::DispatchMessageManagerMessage(const nsAString& aMessageName,
                                         const nsACString& aJSONData)
 {
     JSAutoRequest ar(mCx);
-    JS::Value json = JSVAL_NULL;
+    jsval json = JSVAL_NULL;
     StructuredCloneData cloneData;
     JSAutoStructuredCloneBuffer buffer;
     if (JS_ParseJSON(mCx,
@@ -1620,11 +1620,11 @@ TabChild::DispatchSynthesizedMouseEvent(uint32_t aMsg, uint64_t aTime,
   DispatchWidgetEvent(event);
 }
 
-static Touch*
+static nsDOMTouch*
 GetTouchForIdentifier(const nsTouchEvent& aEvent, int32_t aId)
 {
   for (uint32_t i = 0; i < aEvent.touches.Length(); ++i) {
-    Touch* touch = static_cast<Touch*>(aEvent.touches[i].get());
+    nsDOMTouch* touch = static_cast<nsDOMTouch*>(aEvent.touches[i].get());
     if (touch->mIdentifier == aId) {
       return touch;
     }
@@ -1664,7 +1664,7 @@ TabChild::UpdateTapState(const nsTouchEvent& aEvent, nsEventStatus aStatus)
       return;
     }
 
-    Touch* touch = static_cast<Touch*>(aEvent.touches[0].get());
+    nsDOMTouch* touch = static_cast<nsDOMTouch*>(aEvent.touches[0].get());
     mGestureDownPoint = touch->mRefPoint;
     mActivePointerId = touch->mIdentifier;
     if (sClickHoldContextMenusEnabled) {
@@ -1682,7 +1682,7 @@ TabChild::UpdateTapState(const nsTouchEvent& aEvent, nsEventStatus aStatus)
   if (!currentlyTrackingTouch) {
     return;
   }
-  Touch* trackedTouch = GetTouchForIdentifier(aEvent, mActivePointerId);
+  nsDOMTouch* trackedTouch = GetTouchForIdentifier(aEvent, mActivePointerId);
   if (!trackedTouch) {
     return;
   }
@@ -2029,7 +2029,8 @@ TabChild::RecvSetAppType(const nsString& aAppType)
 
 PRenderFrameChild*
 TabChild::AllocPRenderFrame(ScrollingBehavior* aScrolling,
-                            TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                            LayersBackend* aBackend,
+                            int32_t* aMaxTextureSize,
                             uint64_t* aLayersId)
 {
     return new RenderFrameChild();
@@ -2088,11 +2089,12 @@ TabChild::InitRenderingState()
 {
     static_cast<PuppetWidget*>(mWidget.get())->InitIMEState();
 
+    LayersBackend be;
     uint64_t id;
-    TextureFactoryIdentifier textureFactoryIdentifier;
+    int32_t maxTextureSize;
     RenderFrameChild* remoteFrame =
         static_cast<RenderFrameChild*>(SendPRenderFrameConstructor(
-                                         &mScrolling, &textureFactoryIdentifier, &id));
+                                           &mScrolling, &be, &maxTextureSize, &id));
     if (!remoteFrame) {
       NS_WARNING("failed to construct RenderFrame");
       return false;
@@ -2102,14 +2104,10 @@ TabChild::InitRenderingState()
     if (id != 0) {
         // Pushing layers transactions directly to a separate
         // compositor context.
-		PCompositorChild* compositorChild = CompositorChild::Get();
-        if (!compositorChild) {
-          NS_WARNING("failed to get CompositorChild instance");
-          return false;
-        }
         shadowManager =
-            compositorChild->SendPLayersConstructor(textureFactoryIdentifier.mParentBackend,
-                                                    id, &textureFactoryIdentifier);
+            CompositorChild::Get()->SendPLayersConstructor(be, id,
+                                                           &be,
+                                                           &maxTextureSize);
     } else {
         // Pushing transactions to the parent content.
         shadowManager = remoteFrame->SendPLayersConstructor();
@@ -2123,11 +2121,11 @@ TabChild::InitRenderingState()
     }
 
     ShadowLayerForwarder* lf =
-        mWidget->GetLayerManager(shadowManager, textureFactoryIdentifier.mParentBackend)
-               ->AsShadowForwarder();
+        mWidget->GetLayerManager(shadowManager, be)->AsShadowForwarder();
     NS_ABORT_IF_FALSE(lf && lf->HasShadowManager(),
                       "PuppetWidget should have shadow manager");
-    lf->IdentifyTextureHost(textureFactoryIdentifier);
+    lf->SetParentBackendType(be);
+    lf->SetMaxTextureSize(maxTextureSize);
 
     mRemoteFrame = remoteFrame;
 

@@ -40,8 +40,7 @@ Crypto::~Crypto()
 }
 
 NS_IMETHODIMP
-Crypto::GetRandomValues(const JS::Value& aData, JSContext *cx,
-                        JS::Value* _retval)
+Crypto::GetRandomValues(const jsval& aData, JSContext *cx, jsval* _retval)
 {
   NS_ABORT_IF_FALSE(NS_IsMainThread(), "Called on the wrong thread");
 

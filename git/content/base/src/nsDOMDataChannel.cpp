@@ -189,20 +189,6 @@ nsDOMDataChannel::GetLabel(nsAString& aLabel)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsDOMDataChannel::GetProtocol(nsAString& aProtocol)
-{
-  mDataChannel->GetProtocol(aProtocol);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMDataChannel::GetStream(uint16_t *aStream)
-{
-  mDataChannel->GetStream(aStream);
-  return NS_OK;
-}
-
 // XXX should be GetType()?  Open question for the spec
 NS_IMETHODIMP
 nsDOMDataChannel::GetReliable(bool* aReliable)
@@ -222,12 +208,11 @@ NS_IMETHODIMP
 nsDOMDataChannel::GetReadyState(nsAString& aReadyState)
 {
   uint16_t readyState = mDataChannel->GetReadyState();
-  // From the WebRTC spec
   const char * stateName[] = {
-    "connecting",
-    "open",
-    "closing",
-    "closed"
+    "Connecting",
+    "Open",
+    "Closing",
+    "Closed"
   };
   MOZ_ASSERT(/*readyState >= mozilla::DataChannel::CONNECTING && */ // Always true due to datatypes
              readyState <= mozilla::DataChannel::CLOSED);

@@ -11,10 +11,19 @@
 #include "nsDOMClassInfoID.h"
 #include "nsError.h"
 
+DOMCI_DATA(TimeRanges, mozilla::dom::TimeRanges)
+
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_ISUPPORTS1(TimeRanges, nsIDOMTimeRanges)
+NS_IMPL_ADDREF(TimeRanges)
+NS_IMPL_RELEASE(TimeRanges)
+
+NS_INTERFACE_MAP_BEGIN(TimeRanges)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMTimeRanges)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(TimeRanges)
+NS_INTERFACE_MAP_END
 
 TimeRanges::TimeRanges()
 {

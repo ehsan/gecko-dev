@@ -18,7 +18,7 @@
 #include "nsCRT.h"
 
 #include "Image.h"
-#include "ImageOps.h"
+#include "ImageFactory.h"
 #include "nsError.h"
 #include "ImageLogging.h"
 
@@ -915,7 +915,7 @@ imgRequestProxy::GetStaticRequest(imgRequestProxy** aReturn)
   }
 
   // We are animated. We need to create a frozen version of this image.
-  nsRefPtr<Image> frozenImage = ImageOps::Freeze(image);
+  nsRefPtr<Image> frozenImage = ImageFactory::Freeze(image);
 
   // Create a static imgRequestProxy with our new extracted frame.
   nsCOMPtr<nsIPrincipal> currentPrincipal;
@@ -1014,7 +1014,7 @@ public:
   }
 
   virtual void SetOwner(imgRequest* aOwner) MOZ_OVERRIDE {
-    MOZ_ASSERT(!aOwner, "We shouldn't be giving static requests a non-null owner.");
+    MOZ_ASSERT_IF(aOwner, "We shouldn't be giving static requests a non-null owner.");
   }
 
 private:

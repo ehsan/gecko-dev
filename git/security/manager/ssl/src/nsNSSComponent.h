@@ -281,7 +281,6 @@ private:
   void UnloadLoadableRoots();
   void CleanupIdentityInfo();
   void setValidationOptions(nsIPrefBranch * pref);
-  nsresult setEnabledTLSVersions(nsIPrefBranch * pref);
   nsresult InitializePIPNSSBundle();
   nsresult ConfigureInternalPKCS11Token();
   nsresult RegisterPSMContentListener();

@@ -10,28 +10,27 @@
     <org.mozilla.gecko.TabsPanel android:id="@+id/tabs_panel"
                                  android:layout_width="fill_parent"
                                  android:layout_height="fill_parent"
-                                 android:background="@color/background_tabs"
+                                 android:background="@color/background_tabs_light"
                                  android:visibility="invisible"/>
 
    <view class="org.mozilla.gecko.GeckoApp$MainLayout"
          android:id="@+id/main_layout"
-         android:layout_width="fill_parent"
-         android:layout_height="fill_parent"
-         android:background="@android:color/transparent">
+         style="@style/Screen.Transparent">
 
         <!-- BrowserToolbar will be added dynamically -->
 
         <RelativeLayout android:id="@+id/gecko_layout"
                         android:layout_width="fill_parent"
                         android:layout_height="fill_parent"
+                        android:layout_below="@+id/toolbar_spacer"
                         android:layout_above="@+id/find_in_page">
 
             <include layout="@layout/shared_ui_components"/>
 
-            <Gecko.AboutHomeContent android:id="@+id/abouthome_content"
-                                    android:layout_width="fill_parent"
-                                    android:layout_height="fill_parent"
-                                    android:background="@color/background_normal"/>
+            <org.mozilla.gecko.AboutHomeContent android:id="@+id/abouthome_content"
+                                                android:layout_width="fill_parent"
+                                                android:layout_height="fill_parent"
+                                                android:background="@color/background_normal"/>
 
         </RelativeLayout>
 

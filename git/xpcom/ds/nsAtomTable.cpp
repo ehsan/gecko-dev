@@ -478,52 +478,43 @@ NS_SizeOfAtomTablesIncludingThis(nsMallocSizeOfFun aMallocSizeOf) {
 
 #define ATOM_HASHTABLE_INITIAL_SIZE  4096
 
-static void HandleOOM()
-{
-  fputs("Out of memory allocating atom hashtable.\n", stderr);
-  MOZ_CRASH();
-  MOZ_NOT_REACHED();
-}
-
-static inline void
+static inline bool
 EnsureTableExists()
 {
-  if (!gAtomTable.ops &&
-      !PL_DHashTableInit(&gAtomTable, &AtomTableOps, 0,
-                         sizeof(AtomTableEntry), ATOM_HASHTABLE_INITIAL_SIZE)) {
-    // Initialization failed.
-    HandleOOM();
+  if (gAtomTable.ops) {
+    return true;
   }
+  if (PL_DHashTableInit(&gAtomTable, &AtomTableOps, 0,
+                        sizeof(AtomTableEntry), ATOM_HASHTABLE_INITIAL_SIZE)) {
+    return true;
+  }
+  // Initialization failed.
+  gAtomTable.ops = nullptr;
+  return false;
 }
 
 static inline AtomTableEntry*
 GetAtomHashEntry(const char* aString, uint32_t aLength)
 {
   MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
-  EnsureTableExists();
-  AtomTableKey key(aString, aLength);
-  AtomTableEntry* e =
-    static_cast<AtomTableEntry*>
-               (PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_ADD));
-  if (!e) {
-    HandleOOM();
+  if (!EnsureTableExists()) {
+    return nullptr;
   }
-  return e;
+  AtomTableKey key(aString, aLength);
+  return static_cast<AtomTableEntry*>
+                    (PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_ADD));
 }
 
 static inline AtomTableEntry*
 GetAtomHashEntry(const PRUnichar* aString, uint32_t aLength)
 {
   MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
-  EnsureTableExists();
-  AtomTableKey key(aString, aLength);
-  AtomTableEntry* e =
-    static_cast<AtomTableEntry*>
-               (PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_ADD));
-  if (!e) {
-    HandleOOM();
+  if (!EnsureTableExists()) {
+    return nullptr;
   }
-  return e;
+  AtomTableKey key(aString, aLength);
+  return static_cast<AtomTableEntry*>
+                    (PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_ADD));
 }
 
 class CheckStaticAtomSizes

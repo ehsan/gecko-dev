@@ -49,6 +49,8 @@ typedef struct
 {
     int         feature;
     int         index;
+    int         maxnumcalls;
+    int         busy_trigger;
     char        name[MAX_LINE_NAME_SIZE];
     char        authname[AUTH_NAME_SIZE];
     char        password[MAX_LINE_PASSWORD_SIZE];

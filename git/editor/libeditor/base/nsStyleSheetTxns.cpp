@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include <stddef.h>                     // for nullptr
+#include <stddef.h>                     // for NULL
 
 #include "nsAString.h"
 #include "nsCOMPtr.h"                   // for nsCOMPtr, do_QueryInterface, etc
@@ -47,7 +47,7 @@ RemoveStyleSheet(nsIEditor *aEditor, nsIStyleSheet *aSheet)
 
 AddStyleSheetTxn::AddStyleSheetTxn()
 :  EditTxn()
-,  mEditor(nullptr)
+,  mEditor(NULL)
 {
 }
 
@@ -102,7 +102,7 @@ AddStyleSheetTxn::GetTxnDescription(nsAString& aString)
 
 RemoveStyleSheetTxn::RemoveStyleSheetTxn()
 :  EditTxn()
-,  mEditor(nullptr)
+,  mEditor(NULL)
 {
 }
 

@@ -273,7 +273,7 @@
         <splitter class="devtools-side-splitter"/>
         <vbox id="editor" flex="1"/>
         <splitter class="devtools-side-splitter"/>
-        <vbox id="instruments-pane" hidden="true">
+        <vbox id="instruments-pane">
           <vbox id="expressions"/>
           <splitter class="devtools-horizontal-splitter"/>
           <vbox id="variables" flex="1"/>
@@ -338,16 +338,6 @@
              value="&debuggerUI.condBreakPanelTitle;"/>
       <textbox id="conditional-breakpoint-panel-textbox"/>
     </vbox>
-  </panel>
-
-  <panel id="resumption-order-panel"
-         type="arrow"
-         noautofocus="true"
-         position="before_start">
-    <hbox align="start">
-      <image class="alert-icon"/>
-      <label id="resumption-panel-desc" class="description"/>
-    </hbox>
   </panel>
 
 </window>

@@ -257,8 +257,9 @@ MBasicBlock::inherit(MBasicBlock *pred, uint32_t popped)
         if (kind_ == PENDING_LOOP_HEADER) {
             for (size_t i = 0; i < stackDepth(); i++) {
                 MPhi *phi = MPhi::New(i);
-                if (!phi->addInputSlow(pred->getSlot(i)))
+                if (!phi->initLength(1))
                     return false;
+                phi->setOperand(0, pred->getSlot(i));
                 addPhi(phi);
                 setSlot(i, phi);
                 if (entryResumePoint())
@@ -441,7 +442,6 @@ void
 MBasicBlock::popn(uint32_t n)
 {
     JS_ASSERT(stackPosition_ - n >= info_.firstStackSlot());
-    JS_ASSERT(stackPosition_ >= stackPosition_ - n);
     stackPosition_ -= n;
 }
 
@@ -670,14 +670,14 @@ MBasicBlock::addPredecessorPopN(MBasicBlock *pred, uint32_t popped)
 
                 // Prime the phi for each predecessor, so input(x) comes from
                 // predecessor(x).
-                if (!phi->reserveLength(predecessors_.length() + 1))
+                if (!phi->initLength(predecessors_.length() + 1))
                     return false;
 
                 for (size_t j = 0; j < predecessors_.length(); j++) {
                     JS_ASSERT(predecessors_[j]->getSlot(i) == mine);
-                    phi->addInput(mine);
+                    phi->setOperand(j, mine);
                 }
-                phi->addInput(other);
+                phi->setOperand(predecessors_.length(), other);
 
                 setSlot(i, phi);
                 if (entryResumePoint())

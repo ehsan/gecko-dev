@@ -286,7 +286,7 @@ Telephony::SetSpeakerEnabled(bool aSpeakerEnabled)
 }
 
 NS_IMETHODIMP
-Telephony::GetActive(JS::Value* aActive)
+Telephony::GetActive(jsval* aActive)
 {
   if (!mActiveCall) {
     aActive->setNull();
@@ -307,7 +307,7 @@ Telephony::GetActive(JS::Value* aActive)
 }
 
 NS_IMETHODIMP
-Telephony::GetCalls(JS::Value* aCalls)
+Telephony::GetCalls(jsval* aCalls)
 {
   JSObject* calls = mCallsArray;
   if (!calls) {

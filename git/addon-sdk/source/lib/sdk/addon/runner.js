@@ -16,8 +16,6 @@ const { when: unload } = require('../system/unload');
 const { loadReason } = require('../self');
 const { rootURI } = require("@loader/options");
 const globals = require('../system/globals');
-const appShellService = Cc['@mozilla.org/appshell/appShellService;1'].
-                        getService(Ci.nsIAppShellService);
 
 const NAME2TOPIC = {
   'Firefox': 'sessionstore-windows-restored',
@@ -72,18 +70,8 @@ function wait(reason, options) {
 }
 
 function startup(reason, options) {
-  // Try accessing hidden window to guess if we are running during firefox
-  // startup, so that we should wait for session restore event before
-  // running the addon
-  let initialized = false;
-  try {
-    appShellService.hiddenDOMWindow;
-    initialized = true;
-  }
-  catch(e) {}
-  if (reason === 'startup' || !initialized) {
+  if (reason === 'startup')
     return wait(reason, options);
-  }
 
   // Inject globals ASAP in order to have console API working ASAP
   Object.defineProperties(options.loader.globals, descriptor(globals));

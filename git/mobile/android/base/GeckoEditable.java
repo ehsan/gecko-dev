@@ -14,17 +14,15 @@ import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
 import android.text.InputFilter;
-import android.text.Selection;
+import android.text.Spanned;
 import android.text.Spannable;
 import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
-import android.text.Spanned;
+import android.text.Selection;
 import android.text.TextPaint;
 import android.text.TextUtils;
 import android.text.style.CharacterStyle;
 import android.util.Log;
-import android.view.KeyCharacterMap;
-import android.view.KeyEvent;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationHandler;
@@ -39,7 +37,6 @@ interface GeckoEditableClient {
     void sendEvent(GeckoEvent event);
     Editable getEditable();
     void setUpdateGecko(boolean update);
-    void setSuppressKeyUp(boolean suppress);
     Handler getInputConnectionHandler();
     boolean setInputConnectionHandler(Handler handler);
 }
@@ -99,7 +96,6 @@ final class GeckoEditable
     private int mLastIcUpdateSeqno;
     private boolean mUpdateGecko;
     private boolean mFocused;
-    private volatile boolean mSuppressKeyUp;
 
     /* An action that alters the Editable
 
@@ -186,7 +182,6 @@ final class GeckoEditable
     private final class ActionQueue {
         private final ConcurrentLinkedQueue<Action> mActions;
         private final Semaphore mActionsActive;
-        private KeyCharacterMap mKeyMap;
 
         ActionQueue() {
             mActions = new ConcurrentLinkedQueue<Action>();
@@ -220,68 +215,19 @@ final class GeckoEditable
             case Action.TYPE_SET_SPAN:
             case Action.TYPE_REMOVE_SPAN:
             case Action.TYPE_SET_HANDLER:
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(
-                        GeckoEvent.ImeAction.IME_SYNCHRONIZE));
+                GeckoAppShell.sendEventToGecko(
+                        GeckoEvent.createIMEEvent(GeckoEvent.IME_SYNCHRONIZE));
                 break;
             case Action.TYPE_REPLACE_TEXT:
-                // try key events first
-                sendCharKeyEvents(action);
                 GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEReplaceEvent(
                         action.mStart, action.mEnd, action.mSequence.toString()));
                 break;
             case Action.TYPE_ACKNOWLEDGE_FOCUS:
                 GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(
-                        GeckoEvent.ImeAction.IME_ACKNOWLEDGE_FOCUS));
+                        GeckoEvent.IME_ACKNOWLEDGE_FOCUS));
                 break;
             }
             ++mIcUpdateSeqno;
-        }
-
-        private KeyEvent [] synthesizeKeyEvents(CharSequence cs) {
-            try {
-                if (mKeyMap == null) {
-                    mKeyMap = KeyCharacterMap.load(
-                        Build.VERSION.SDK_INT < 11 ? KeyCharacterMap.ALPHA :
-                                                     KeyCharacterMap.VIRTUAL_KEYBOARD);
-                }
-            } catch (Exception e) {
-                // KeyCharacterMap.UnavailableExcepton is not found on Gingerbread;
-                // besides, it seems like HC and ICS will throw something other than
-                // KeyCharacterMap.UnavailableExcepton; so use a generic Exception here
-                return null;
-            }
-            KeyEvent [] keyEvents = mKeyMap.getEvents(cs.toString().toCharArray());
-            if (keyEvents == null || keyEvents.length == 0) {
-                return null;
-            }
-            return keyEvents;
-        }
-
-        private void sendCharKeyEvents(Action action) {
-            if (action.mSequence.length() == 0 ||
-                (action.mSequence instanceof Spannable &&
-                ((Spannable)action.mSequence).nextSpanTransition(
-                    -1, Integer.MAX_VALUE, null) < Integer.MAX_VALUE)) {
-                // Spans are not preserved when we use key events,
-                // so we need the sequence to not have any spans
-                return;
-            }
-            KeyEvent [] keyEvents = synthesizeKeyEvents(action.mSequence);
-            if (keyEvents == null) {
-                return;
-            }
-            for (KeyEvent event : keyEvents) {
-                if (KeyEvent.isModifierKey(event.getKeyCode())) {
-                    continue;
-                }
-                if (event.getAction() == KeyEvent.ACTION_UP && mSuppressKeyUp) {
-                    continue;
-                }
-                if (DEBUG) {
-                    Log.d(LOGTAG, "sending: " + event);
-                }
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEKeyEvent(event));
-            }
         }
 
         void poll() {
@@ -421,12 +367,11 @@ final class GeckoEditable
             Log.d(LOGTAG, " selection = " + selStart + "-" + selEnd);
         }
         if (composingStart >= composingEnd) {
+            GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(
+                    GeckoEvent.IME_REMOVE_COMPOSITION));
             if (selStart >= 0 && selEnd >= 0) {
                 GeckoAppShell.sendEventToGecko(
                         GeckoEvent.createIMESelectEvent(selStart, selEnd));
-            } else {
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createIMEEvent(
-                        GeckoEvent.ImeAction.IME_REMOVE_COMPOSITION));
             }
             return;
         }
@@ -581,20 +526,10 @@ final class GeckoEditable
     }
 
     @Override
-    public void setSuppressKeyUp(boolean suppress) {
-        if (DEBUG) {
-            // only used by key event handler
-            ThreadUtils.assertOnUiThread();
-        }
-        // Suppress key up event generated as a result of
-        // translating characters to key events
-        mSuppressKeyUp = suppress;
-    }
-
-    @Override
     public Handler getInputConnectionHandler() {
-        // Can be called from either UI thread or IC thread;
-        // care must be taken to avoid race conditions
+        if (DEBUG) {
+            assertOnIcThread();
+        }
         return mIcRunHandler;
     }
 

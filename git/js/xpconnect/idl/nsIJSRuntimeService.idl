@@ -9,12 +9,13 @@
 [ptr] native JSRuntime(JSRuntime);
 native JSGCCallback(JSGCCallback);
 
-interface nsIBackstagePass;
+interface nsIXPCScriptable;
 
-[uuid(991c0749-a22e-476b-9428-a373df037455)]
+[uuid(364bcec3-7034-4a4e-bff5-b3f796ca9771)]
 interface nsIJSRuntimeService : nsISupports
 {
     readonly attribute JSRuntime        runtime;
+    readonly attribute nsIXPCScriptable backstagePass;
 
     /**
      * Register additional GC callback which will run after the

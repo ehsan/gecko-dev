@@ -203,12 +203,11 @@ class RemoteSourceStreamInfo {
  public:
   typedef mozilla::DOMMediaStream DOMMediaStream;
 
-RemoteSourceStreamInfo(already_AddRefed<DOMMediaStream> aMediaStream,
-                       PeerConnectionMedia *aParent)
-    : mMediaStream(aMediaStream),
+RemoteSourceStreamInfo(DOMMediaStream* aMediaStream, PeerConnectionMedia *aParent)
+    : mMediaStream(already_AddRefed<DOMMediaStream>(aMediaStream)),
       mPipelines(),
       mParent(aParent) {
-      MOZ_ASSERT(mMediaStream);
+      MOZ_ASSERT(aMediaStream);
     }
 
   DOMMediaStream* GetMediaStream() {
@@ -230,11 +229,15 @@ RemoteSourceStreamInfo(already_AddRefed<DOMMediaStream> aMediaStream,
 
 class PeerConnectionMedia : public sigslot::has_slots<> {
  public:
-  PeerConnectionMedia(PeerConnectionImpl *parent);
+  PeerConnectionMedia(PeerConnectionImpl *parent)
+      : mParent(parent),
+      mLocalSourceStreamsLock("PeerConnectionMedia.mLocalSourceStreamsLock"),
+      mIceCtx(NULL),
+      mDNSResolver(new mozilla::NrIceResolver()) {}
+
   ~PeerConnectionMedia() {}
 
-  nsresult Init(const std::vector<mozilla::NrIceStunServer>& stun_servers,
-                const std::vector<mozilla::NrIceTurnServer>& turn_servers);
+  nsresult Init(const std::vector<mozilla::NrIceStunServer>& stun_servers);
   // WARNING: This destroys the object!
   void SelfDestruct();
 

@@ -11,7 +11,7 @@
  */
 
 [PrefControlled]
-interface AudioBufferSourceNode : AudioNode {
+interface AudioBufferSourceNode : AudioSourceNode {
 
     //const unsigned short UNSCHEDULED_STATE = 0;
     //const unsigned short SCHEDULED_STATE = 1;
@@ -20,11 +20,11 @@ interface AudioBufferSourceNode : AudioNode {
 
     //readonly attribute unsigned short playbackState;
 
-    // Playback this in-memory audio asset
-    // Many sources can share the same buffer
+    // Playback this in-memory audio asset  
+    // Many sources can share the same buffer  
     attribute AudioBuffer? buffer;
 
-    readonly attribute AudioParam playbackRate;
+    //attribute AudioParam playbackRate;
 
     attribute boolean loop;
     attribute double loopStart;
@@ -36,21 +36,3 @@ interface AudioBufferSourceNode : AudioNode {
     [Throws]
     void stop(optional double when = 0);
 };
-
-/*
- * The origin of this IDL file is
- * https://dvcs.w3.org/hg/audio/raw-file/tip/webaudio/specification.html#AlternateNames
- */
-[PrefControlled]
-partial interface AudioBufferSourceNode {
-    // Same as start()
-    [Throws]
-    void noteOn(double when);
-    [Throws]
-    void noteGrainOn(double when, double grainOffset, double grainDuration);
-    
-    [Throws]
-    // Same as stop()
-    void noteOff(double when);
-};
-

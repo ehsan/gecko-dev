@@ -12,7 +12,7 @@
 #include "nsStyleCoord.h"
 #include "nsStyleStructInlines.h"
 #include "nsIFrame.h"
-#include "mozilla/Assertions.h"
+#include "mozilla/AutoRestore.h"
 #include <algorithm>
 
 class nsPresContext;
@@ -145,19 +145,12 @@ public:
   {
   }
 
-  // NOTE: If we ever want to use nsCSSOffsetState for a flex item or a grid
-  // item, we need to make it take the containing-block height as well as the
-  // width, since flex items and grid items resolve vertical percent margins
-  // and padding against the containing-block height, rather than its width.
   nsCSSOffsetState(nsIFrame *aFrame, nsRenderingContext *aRenderingContext,
                    nscoord aContainingBlockWidth)
     : frame(aFrame)
     , rendContext(aRenderingContext)
   {
-    MOZ_ASSERT(!aFrame->IsFlexItem(),
-               "We're about to resolve vertical percent margin & padding "
-               "values against CB width, which is incorrect for flex items");
-    InitOffsets(aContainingBlockWidth, aContainingBlockWidth, frame->GetType());
+    InitOffsets(aContainingBlockWidth, frame->GetType());
   }
 
 #ifdef DEBUG
@@ -165,8 +158,7 @@ public:
   // to the display-reflow infrastructure.
   static void* DisplayInitOffsetsEnter(nsIFrame* aFrame,
                                        nsCSSOffsetState* aState,
-                                       nscoord aHorizontalPercentBasis,
-                                       nscoord aVerticalPercentBasis,
+                                       nscoord aCBWidth,
                                        const nsMargin* aBorder,
                                        const nsMargin* aPadding);
   static void DisplayInitOffsetsExit(nsIFrame* aFrame,
@@ -178,39 +170,20 @@ private:
   /**
    * Computes margin values from the specified margin style information, and
    * fills in the mComputedMargin member.
-   *
-   * @param aHorizontalPercentBasis
-   *    Length to use for resolving percentage margin values in the horizontal
-   *    axis. Usually the containing block width.
-   * @param aVerticalPercentBasis
-   *    Length to use for resolving percentage margin values in the vertical
-   *    axis.  Usually the containing block width, per CSS21 sec 8.3, but may
-   *    be the containing block *height*, e.g. in CSS3 Flexbox and Grid.
-   * @return true if the margin is dependent on the containing block size.
+   * @return true if the margin is dependent on the containing block width
    */
-  bool ComputeMargin(nscoord aHorizontalPercentBasis,
-                     nscoord aVerticalPercentBasis);
+  bool ComputeMargin(nscoord aContainingBlockWidth);
   
   /**
    * Computes padding values from the specified padding style information, and
    * fills in the mComputedPadding member.
-   *
-   * @param aHorizontalPercentBasis
-   *    Length to use for resolving percentage padding values in the horizontal
-   *    axis. Usually the containing block width.
-   * @param aVerticalPercentBasis
-   *    Length to use for resolving percentage padding values in the vertical
-   *    axis.  Usually the containing block width, per CSS21 sec 8.4, but may
-   *    be the containing block *height* in e.g. CSS3 Flexbox and Grid.
-   * @return true if the padding is dependent on the containing block size.
+   * @return true if the padding is dependent on the containing block width
    */
-   bool ComputePadding(nscoord aHorizontalPercentBasis,
-                       nscoord aVerticalPercentBasis, nsIAtom* aFrameType);
+   bool ComputePadding(nscoord aContainingBlockWidth, nsIAtom* aFrameType);
 
 protected:
 
-  void InitOffsets(nscoord aHorizontalPercentBasis,
-                   nscoord aVerticalPercentBasis,
+  void InitOffsets(nscoord aContainingBlockWidth,
                    nsIAtom* aFrameType,
                    const nsMargin *aBorder = nullptr,
                    const nsMargin *aPadding = nullptr);
@@ -366,6 +339,7 @@ public:
                                      // page?  When true, we force something
                                      // that's too tall for a page/column to
                                      // fit anyway to avoid infinite loops.
+    uint16_t mBlinks:1;              // Keep track of text-decoration: blink
     uint16_t mHasClearance:1;        // Block has clearance
     uint16_t mAssumingHScrollbar:1;  // parent frame is an nsIScrollableFrame and it
                                      // is assuming a horizontal scrollbar
@@ -391,12 +365,6 @@ public:
     uint16_t mDummyParentReflowState:1; // a "fake" reflow state made
                                         // in order to be the parent
                                         // of a real one
-    uint16_t mMustReflowPlaceholders:1; // Should this frame reflow its place-
-                                        // holder children? If the available
-                                        // height of this frame didn't change,
-                                        // but its in a paginated environment
-                                        // (e.g. columns), it should always
-                                        // reflow its placeholder children.
   } mFlags;
 
   // Note: The copy constructor is written by the compiler automatically. You

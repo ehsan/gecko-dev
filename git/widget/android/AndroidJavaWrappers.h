@@ -633,14 +633,13 @@ public:
     nsAString& CharactersExtra() { return mCharactersExtra; }
     int KeyCode() { return mKeyCode; }
     int MetaState() { return mMetaState; }
-    uint32_t DomKeyLocation() { return mDomKeyLocation; }
+    int DomKeyLocation() { return mDomKeyLocation; }
     bool IsAltPressed() const { return (mMetaState & AndroidKeyEvent::META_ALT_MASK) != 0; }
     bool IsShiftPressed() const { return (mMetaState & AndroidKeyEvent::META_SHIFT_MASK) != 0; }
     bool IsCtrlPressed() const { return (mMetaState & AndroidKeyEvent::META_CTRL_MASK) != 0; }
     bool IsMetaPressed() const { return (mMetaState & AndroidKeyEvent::META_META_MASK) != 0; }
     int Flags() { return mFlags; }
     int UnicodeChar() { return mUnicodeChar; }
-    int BaseUnicodeChar() { return mBaseUnicodeChar; }
     int RepeatCount() const { return mRepeatCount; }
     int Count() { return mCount; }
     int Start() { return mStart; }
@@ -673,8 +672,8 @@ protected:
     nsTArray<float> mPressures;
     nsIntRect mRect;
     int mFlags, mMetaState;
-    uint32_t mDomKeyLocation;
-    int mKeyCode, mUnicodeChar, mBaseUnicodeChar;
+    int mDomKeyLocation;
+    int mKeyCode, mUnicodeChar;
     int mRepeatCount;
     int mCount;
     int mStart, mEnd;
@@ -707,8 +706,6 @@ protected:
     void ReadCharactersField(JNIEnv *jenv);
     void ReadCharactersExtraField(JNIEnv *jenv);
 
-    uint32_t ReadDomKeyLocation(JNIEnv* jenv, jobject jGeckoEventObj);
-
     static jclass jGeckoEventClass;
     static jfieldID jActionField;
     static jfieldID jTypeField;
@@ -737,7 +734,6 @@ protected:
     static jfieldID jEndField;
     static jfieldID jPointerIndexField;
     static jfieldID jUnicodeCharField;
-    static jfieldID jBaseUnicodeCharField;
     static jfieldID jRepeatCountField;
     static jfieldID jRangeTypeField;
     static jfieldID jRangeStylesField;
@@ -756,9 +752,6 @@ protected:
 
     static jfieldID jWidthField;
     static jfieldID jHeightField;
-
-    static jclass jDomKeyLocationClass;
-    static jfieldID jDomKeyLocationValueField;
 
 public:
     enum {
@@ -785,15 +778,10 @@ public:
         COMPOSITOR_PAUSE = 29,
         COMPOSITOR_RESUME = 30,
         NATIVE_GESTURE_EVENT = 31,
-        IME_KEY_EVENT = 32,
         dummy_java_enum_list_end
     };
 
     enum {
-        // Internal Gecko events
-        IME_FLUSH_CHANGES = -2,
-        IME_UPDATE_CONTEXT = -1,
-        // Events from Java to Gecko
         IME_SYNCHRONIZE = 0,
         IME_REPLACE_TEXT = 1,
         IME_SET_SELECTION = 2,
@@ -801,7 +789,8 @@ public:
         IME_UPDATE_COMPOSITION = 4,
         IME_REMOVE_COMPOSITION = 5,
         IME_ACKNOWLEDGE_FOCUS = 6,
-        dummy_ime_enum_list_end
+        IME_FLUSH_CHANGES = 7,
+        IME_UPDATE_CONTEXT = 8
     };
 };
 

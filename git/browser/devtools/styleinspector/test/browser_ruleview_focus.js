@@ -19,9 +19,9 @@ function openRuleView()
     // Highlight a node.
     let node = content.document.getElementsByTagName("h1")[0];
     inspector.selection.once("new-node", testFocus);
-
-    inspector.sidebar.once("ruleview-ready",
-                           () => inspector.selection.setNode(doc.body));
+    executeSoon(function() {
+      inspector.selection.setNode(doc.body);
+    });
   });
 }
 

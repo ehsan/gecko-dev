@@ -65,14 +65,6 @@ nsEventListenerInfo::GetInSystemEventGroup(bool* aInSystemEventGroup)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsEventListenerInfo::GetListenerObject(JSContext* aCx, JS::Value* aObject)
-{
-  mozilla::Maybe<JSAutoCompartment> ac;
-  GetJSVal(aCx, ac, aObject);
-  return NS_OK;
-}
-
 NS_IMPL_ISUPPORTS1(nsEventListenerService, nsIEventListenerService)
 
 // Caller must root *aJSVal!
@@ -218,7 +210,7 @@ nsEventListenerService::GetEventTargetChainFor(nsIDOMEventTarget* aEventTarget,
   *aOutArray = nullptr;
   NS_ENSURE_ARG(aEventTarget);
   nsEvent event(true, NS_EVENT_TYPE_NULL);
-  nsCOMArray<EventTarget> targets;
+  nsCOMArray<nsIDOMEventTarget> targets;
   nsresult rv = nsEventDispatcher::Dispatch(aEventTarget, nullptr, &event,
                                             nullptr, nullptr, nullptr, &targets);
   NS_ENSURE_SUCCESS(rv, rv);

@@ -52,7 +52,6 @@ using namespace js;
 using namespace js::gc;
 
 using mozilla::DebugOnly;
-using mozilla::PodZero;
 
 JS_PUBLIC_API(JSBool)
 JS_GetDebugMode(JSContext *cx)
@@ -923,13 +922,13 @@ JS_DumpCompartmentPCCounts(JSContext *cx)
 JS_PUBLIC_API(JSObject *)
 JS_UnwrapObject(JSObject *obj)
 {
-    return UncheckedUnwrap(obj);
+    return UnwrapObject(obj);
 }
 
 JS_PUBLIC_API(JSObject *)
 JS_UnwrapObjectAndInnerize(JSObject *obj)
 {
-    return UncheckedUnwrap(obj, /* stopAtOuter = */ false);
+    return UnwrapObject(obj, /* stopAtOuter = */ false);
 }
 
 JS_FRIEND_API(JSBool)

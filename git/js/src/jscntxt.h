@@ -13,7 +13,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/LinkedList.h"
-#include "mozilla/PodOperations.h"
 
 #include <string.h>
 
@@ -71,7 +70,7 @@ struct CallsiteCloneKey {
     /* The offset of the call. */
     uint32_t offset;
 
-    CallsiteCloneKey() { mozilla::PodZero(this); }
+    CallsiteCloneKey() { PodZero(this); }
 
     typedef CallsiteCloneKey Lookup;
 
@@ -186,7 +185,7 @@ struct ConservativeGCData
     } registerSnapshot;
 
     ConservativeGCData() {
-        mozilla::PodZero(this);
+        PodZero(this);
     }
 
     ~ConservativeGCData() {
@@ -269,14 +268,13 @@ class NativeIterCache
     PropertyIteratorObject *last;
 
     NativeIterCache()
-      : last(NULL)
-    {
-        mozilla::PodArrayZero(data);
+      : last(NULL) {
+        PodArrayZero(data);
     }
 
     void purge() {
         last = NULL;
-        mozilla::PodArrayZero(data);
+        PodArrayZero(data);
     }
 
     PropertyIteratorObject *get(uint32_t key) const {
@@ -338,8 +336,8 @@ class NewObjectCache
 
     typedef int EntryIndex;
 
-    NewObjectCache() { mozilla::PodZero(this); }
-    void purge() { mozilla::PodZero(this); }
+    NewObjectCache() { PodZero(this); }
+    void purge() { PodZero(this); }
 
     /*
      * Get the entry index for the given lookup, return whether there was a hit
@@ -484,36 +482,6 @@ class PerThreadData : public js::PerThreadDataFriendFields
     uint8_t             *ionTop;
     JSContext           *ionJSContext;
     uintptr_t            ionStackLimit;
-
-# ifdef JS_THREADSAFE
-    /*
-     * Synchronizes setting of ionStackLimit so signals by triggerOperationCallback don't
-     * get lost.
-     */
-    PRLock *ionStackLimitLock_;
-
-    class IonStackLimitLock {
-        PerThreadData &data_;
-      public:
-        IonStackLimitLock(PerThreadData &data) : data_(data) {
-            JS_ASSERT(data_.ionStackLimitLock_);
-            PR_Lock(data_.ionStackLimitLock_);
-        }
-        ~IonStackLimitLock() {
-            JS_ASSERT(data_.ionStackLimitLock_);
-            PR_Unlock(data_.ionStackLimitLock_);
-        }
-    };
-#else
-    class IonStackLimitLock {
-      public:
-        IonStackLimitLock(PerThreadData &data) {}
-    };
-# endif
-    void setIonStackLimit(uintptr_t limit) {
-        IonStackLimitLock lock(*this);
-        ionStackLimit = limit;
-    }
 
     /*
      * This points to the most recent Ion activation running on the thread.
@@ -664,7 +632,7 @@ typedef Vector<JS::Zone *, 1, SystemAllocPolicy> ZoneVector;
 
 } // namespace js
 
-struct JSRuntime : private JS::shadow::Runtime,
+struct JSRuntime : js::RuntimeFriendFields,
                    public js::MallocProvider<JSRuntime>
 {
     /*
@@ -674,16 +642,10 @@ struct JSRuntime : private JS::shadow::Runtime,
      * above for more details.
      *
      * NB: This field is statically asserted to be at offset
-     * sizeof(js::shadow::Runtime). See
+     * sizeof(RuntimeFriendFields). See
      * PerThreadDataFriendFields::getMainThread.
      */
     js::PerThreadData   mainThread;
-
-    /*
-     * If non-zero, we were been asked to call the operation callback as soon
-     * as possible.
-     */
-    volatile int32_t    interrupt;
 
     /* Default compartment. */
     JSCompartment       *atomsCompartment;
@@ -806,8 +768,6 @@ struct JSRuntime : private JS::shadow::Runtime,
                                        js::Handle<JSFunction*> targetFun);
     bool cloneSelfHostedValue(JSContext *cx, js::Handle<js::PropertyName*> name,
                               js::MutableHandleValue vp);
-    bool maybeWrappedSelfHostedFunction(JSContext *cx, js::Handle<js::PropertyName*> name,
-                                        js::MutableHandleValue funVal);
 
     //-------------------------------------------------------------------------
     // Locale information
@@ -1123,14 +1083,6 @@ struct JSRuntime : private JS::shadow::Runtime,
     volatile ptrdiff_t  gcMallocBytes;
 
   public:
-    void setNeedsBarrier(bool needs) {
-        needsBarrier_ = needs;
-    }
-
-    bool needsBarrier() const {
-        return needsBarrier_;
-    }
-
     /*
      * The trace operations to trace embedding-specific GC roots. One is for
      * tracing through black roots and the other is for tracing through gray
@@ -1202,8 +1154,6 @@ struct JSRuntime : private JS::shadow::Runtime,
 #ifdef XP_MACOSX
     js::AsmJSMachExceptionHandler asmJSMachExceptionHandler;
 #endif
-
-    size_t              sizeOfNonHeapAsmJSArrays_;
 
 #ifdef JS_THREADSAFE
 # ifdef JS_ION
@@ -1304,12 +1254,8 @@ struct JSRuntime : private JS::shadow::Runtime,
 
     bool                jitHardening;
 
-    bool                jitSupportsFloatingPoint;
-
-    // Used to reset stack limit after a signaled interrupt (i.e. ionStackLimit_ = -1)
-    // has been noticed by Ion/Baseline.
     void resetIonStackLimit() {
-        mainThread.setIonStackLimit(mainThread.nativeStackLimit);
+        mainThread.ionStackLimit = mainThread.nativeStackLimit;
     }
 
     // Cache for ion::GetPcScript().
@@ -2127,6 +2073,9 @@ js_InvokeOperationCallback(JSContext *cx);
 extern JSBool
 js_HandleExecutionInterrupt(JSContext *cx);
 
+extern jsbytecode*
+js_GetCurrentBytecodePC(JSContext* cx);
+
 /*
  * If the operation callback flag was set, call the operation callback.
  * This macro can run the full GC. Return true if it is OK to continue and
@@ -2156,13 +2105,13 @@ namespace js {
 static JS_ALWAYS_INLINE void
 MakeRangeGCSafe(Value *vec, size_t len)
 {
-    mozilla::PodZero(vec, len);
+    PodZero(vec, len);
 }
 
 static JS_ALWAYS_INLINE void
 MakeRangeGCSafe(Value *beg, Value *end)
 {
-    mozilla::PodZero(beg, end - beg);
+    PodZero(beg, end - beg);
 }
 
 static JS_ALWAYS_INLINE void
@@ -2181,13 +2130,13 @@ MakeRangeGCSafe(jsid *vec, size_t len)
 static JS_ALWAYS_INLINE void
 MakeRangeGCSafe(Shape **beg, Shape **end)
 {
-    mozilla::PodZero(beg, end - beg);
+    PodZero(beg, end - beg);
 }
 
 static JS_ALWAYS_INLINE void
 MakeRangeGCSafe(Shape **vec, size_t len)
 {
-    mozilla::PodZero(vec, len);
+    PodZero(vec, len);
 }
 
 static JS_ALWAYS_INLINE void

@@ -19,7 +19,6 @@
 #include "nsHTMLFormElement.h" // for ShouldShowInvalidUI()
 #include "nsIFile.h"
 #include "nsIFilePicker.h"
-#include "nsIContentPrefService2.h"
 
 class nsDOMFileList;
 class nsIFilePicker;
@@ -37,15 +36,12 @@ public:
 
   /**
    * Fetch the last used directory for this location from the content
-   * pref service, and display the file picker opened in that directory.
+   * pref service, if it is available.
    *
-   * @param aDoc          current document
-   * @param aFilePicker   the file picker to open
-   * @param aFpCallback   the callback object to be run when the file is shown.
+   * @param aDoc  current document
+   * @param aFile path to the last used directory
    */
-  nsresult FetchDirectoryAndDisplayPicker(nsIDocument* aDoc,
-                                          nsIFilePicker* aFilePicker,
-                                          nsIFilePickerShownCallback* aFpCallback);
+  nsresult FetchLastUsedDirectory(nsIDocument* aDoc, nsIFile** aFile);
 
   /**
    * Store the last used directory for this location using the
@@ -55,25 +51,6 @@ public:
    *        file will be stored
    */
   nsresult StoreLastUsedDirectory(nsIDocument* aDoc, nsIDOMFile* aDomFile);
-
-  class ContentPrefCallback MOZ_FINAL : public nsIContentPrefCallback2
-  {
-    public:
-    ContentPrefCallback(nsIFilePicker* aFilePicker, nsIFilePickerShownCallback* aFpCallback)
-    : mFilePicker(aFilePicker)
-    , mFpCallback(aFpCallback)
-    { }
-
-    virtual ~ContentPrefCallback()
-    { }
-
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSICONTENTPREFCALLBACK2
-
-    nsCOMPtr<nsIFilePicker> mFilePicker;
-    nsCOMPtr<nsIFilePickerShownCallback> mFpCallback;
-    nsCOMPtr<nsIContentPref> mResult;
-  };
 };
 
 class HTMLInputElement : public nsGenericHTMLFormElement,
@@ -233,6 +210,8 @@ public:
   static void DestroyUploadLastDir();
 
   void MaybeLoadImage();
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
@@ -439,7 +418,7 @@ public:
 
   void SetHeight(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::height, aValue, aRv);
+    aRv = nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::height, aValue);
   }
 
   bool Indeterminate() const
@@ -531,9 +510,11 @@ public:
     SetHTMLBoolAttr(nsGkAtoms::required, aValue, aRv);
   }
 
-  uint32_t Size() const
+  uint32_t Size()
   {
-    return GetUnsignedIntAttr(nsGkAtoms::size, DEFAULT_COLS);
+    uint32_t value;
+    GetUnsignedIntAttr(nsGkAtoms::size, DEFAULT_COLS, &value);
+    return value;
   }
 
   void SetSize(uint32_t aValue, ErrorResult& aRv)
@@ -543,7 +524,7 @@ public:
       return;
     }
 
-    SetUnsignedIntAttr(nsGkAtoms::size, aValue, aRv);
+    SetHTMLUnsignedIntAttr(nsGkAtoms::size, aValue, aRv);
   }
 
   // XPCOM GetSrc() is OK
@@ -589,17 +570,17 @@ public:
 
   void SetWidth(uint32_t aValue, ErrorResult& aRv)
   {
-    SetUnsignedIntAttr(nsGkAtoms::width, aValue, aRv);
+    aRv = nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::width, aValue);
   }
 
-  void StepUp(int32_t aN, ErrorResult& aRv)
+  void StepUp(const Optional< int32_t >& n, ErrorResult& aRv)
   {
-    aRv = ApplyStep(aN);
+    aRv = ApplyStep(n.WasPassed() ? n.Value() : 1);
   }
 
-  void StepDown(int32_t aN, ErrorResult& aRv)
+  void StepDown(const Optional< int32_t >& n, ErrorResult& aRv)
   {
-    aRv = ApplyStep(-aN);
+    aRv = ApplyStep(n.WasPassed() ? -n.Value() : -1);
   }
 
   void GetValidationMessage(nsAString& aValidationMessage, ErrorResult& aRv);

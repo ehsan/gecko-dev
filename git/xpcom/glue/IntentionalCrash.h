@@ -23,11 +23,9 @@ inline void
 NoteIntentionalCrash(const char* processType)
 {
   char* f = getenv("XPCOM_MEM_BLOAT_LOG");
-
-  if (!f) 
-    return;
-
   fprintf(stderr, "XPCOM_MEM_BLOAT_LOG: %s\n", f);
+  if (!f)
+    return;
 
   std::string bloatLog(f);
   

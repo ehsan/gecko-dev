@@ -35,7 +35,6 @@ class js::ForkJoinShared : public TaskExecutor, public Monitor
     ForkJoinOp &op_;               // User-defined operations to be perf. in par.
     const uint32_t numSlices_;     // Total number of threads.
     PRCondVar *rendezvousEnd_;     // Cond. var used to signal end of rendezvous.
-    PRLock *cxLock_;               // Locks cx_ for parallel VM calls.
 
     /////////////////////////////////////////////////////////////////////////
     // Per-thread arenas
@@ -129,9 +128,6 @@ class js::ForkJoinShared : public TaskExecutor, public Monitor
     void setAbortFlag(bool fatal);
 
     JSRuntime *runtime() { return cx_->runtime; }
-
-    JSContext *acquireContext() { PR_Lock(cxLock_); return cx_; }
-    void releaseContext() { PR_Unlock(cxLock_); }
 };
 
 class js::AutoRendezvous
@@ -177,7 +173,6 @@ ForkJoinShared::ForkJoinShared(JSContext *cx,
     op_(op),
     numSlices_(numSlices),
     rendezvousEnd_(NULL),
-    cxLock_(NULL),
     allocators_(cx),
     uncompleted_(uncompleted),
     blocked_(0),
@@ -210,10 +205,6 @@ ForkJoinShared::init()
     if (!rendezvousEnd_)
         return false;
 
-    cxLock_ = PR_NewLock();
-    if (!cxLock_)
-        return false;
-
     for (unsigned i = 0; i < numSlices_; i++) {
         Allocator *allocator = cx_->runtime->new_<Allocator>(cx_->zone());
         if (!allocator)
@@ -232,8 +223,6 @@ ForkJoinShared::~ForkJoinShared()
 {
     if (rendezvousEnd_)
         PR_DestroyCondVar(rendezvousEnd_);
-
-    PR_DestroyLock(cxLock_);
 
     while (allocators_.length() > 0)
         js_delete(allocators_.popCopy());
@@ -300,8 +289,6 @@ ForkJoinShared::executeFromWorker(uint32_t workerId, uintptr_t stackLimit)
 
     PerThreadData thisThread(cx_->runtime);
     TlsPerThreadData.set(&thisThread);
-    // Don't use setIonStackLimit() because that acquires the ionStackLimitLock, and the
-    // lock has not been initialized in these cases.
     thisThread.ionStackLimit = stackLimit;
     executePortion(&thisThread, workerId);
     TlsPerThreadData.set(NULL);
@@ -515,18 +502,6 @@ ForkJoinSlice::runtime()
     return shared->runtime();
 }
 
-JSContext *
-ForkJoinSlice::acquireContext()
-{
-    return shared->acquireContext();
-}
-
-void
-ForkJoinSlice::releaseContext()
-{
-    return shared->releaseContext();
-}
-
 bool
 ForkJoinSlice::check()
 {
@@ -574,9 +549,6 @@ ForkJoinSlice::triggerAbort()
     // In principle, we probably ought to set the ionStackLimit's for
     // the other threads too, but right now the various slice objects
     // are not on a central list so that's not possible.
-
-    // Don't use setIonStackLimit() because that acquires the ionStackLimitLock, and the
-    // lock has not been initialized in these cases.
     perThreadData->ionStackLimit = -1;
 }
 
@@ -689,3 +661,4 @@ js::ExecuteForkJoinOp(JSContext *cx, ForkJoinOp &op)
 }
 
 #endif // defined(JS_THREADSAFE) && defined(JS_ION)
+

@@ -23,7 +23,6 @@
 #include "frontend/BytecodeEmitter.h"
 #include "gc/Marking.h"
 #include "methodjit/Retcon.h"
-#include "ion/BaselineJIT.h"
 #include "js/Vector.h"
 
 #include "gc/FindSCCs-inl.h"
@@ -244,11 +243,6 @@ BreakpointSite::recompile(FreeOp *fop)
         mjit::ReleaseScriptCode(fop, script);
     }
 #endif
-
-#ifdef JS_ION
-    if (script->hasBaselineScript())
-        script->baselineScript()->toggleDebugTraps(script, pc);
-#endif
 }
 
 void
@@ -384,6 +378,14 @@ Debugger::~Debugger()
 
     /* This always happens in the GC thread, so no locking is required. */
     JS_ASSERT(object->compartment()->rt->isHeapBusy());
+
+    /*
+     * These maps may contain finalized entries, so drop them before destructing to avoid calling
+     * ~EncapsulatedPtr.
+     */
+    scripts.clearWithoutCallingDestructors();
+    objects.clearWithoutCallingDestructors();
+    environments.clearWithoutCallingDestructors();
 
     /*
      * Since the inactive state for this link is a singleton cycle, it's always
@@ -554,7 +556,7 @@ Debugger::slowPathOnLeaveFrame(JSContext *cx, AbstractFramePtr frame, bool frame
 
             RootedValue completion(cx);
             if (!dbg->newCompletionValue(cx, status, value, &completion)) {
-                status = dbg->handleUncaughtException(ac, false);
+                status = dbg->handleUncaughtException(ac, NULL, false);
                 break;
             }
 
@@ -1007,7 +1009,7 @@ Debugger::fireNewScript(JSContext *cx, HandleScript script)
 
     JSObject *dsobj = wrapScript(cx, script);
     if (!dsobj) {
-        handleUncaughtException(ac, false);
+        handleUncaughtException(ac, NULL, false);
         return;
     }
 
@@ -1015,7 +1017,7 @@ Debugger::fireNewScript(JSContext *cx, HandleScript script)
     argv[0].setObject(*dsobj);
     Value rv;
     if (!Invoke(cx, ObjectValue(*object), ObjectValue(*hook), 1, argv, &rv))
-        handleUncaughtException(ac, true);
+        handleUncaughtException(ac, NULL, true);
 }
 
 JSTrapStatus
@@ -1306,7 +1308,7 @@ Debugger::fireNewGlobalObject(JSContext *cx, Handle<GlobalObject *> global, Muta
     AutoArrayRooter argvRooter(cx, ArrayLength(argv), argv);
     argv[0].setObject(*global);
     if (!wrapDebuggeeValue(cx, argvRooter.handleAt(0)))
-        return handleUncaughtException(ac, false);
+        return handleUncaughtException(ac, NULL, false);
 
     RootedValue rv(cx);
     bool ok = Invoke(cx, ObjectValue(*object), ObjectValue(*hook), 1, argv, rv.address());
@@ -1863,7 +1865,7 @@ Debugger::unwrapDebuggeeArgument(JSContext *cx, const Value &v)
     }
 
     /* If we have a cross-compartment wrapper, dereference as far as is secure. */
-    obj = CheckedUnwrap(obj);
+    obj = UnwrapObjectChecked(obj);
     if (!obj) {
         JS_ReportError(cx, "Permission denied to access object");
         return NULL;
@@ -1993,11 +1995,11 @@ Debugger::getNewestFrame(JSContext *cx, unsigned argc, Value *vp)
          * Debug-mode currently disables Ion compilation in the compartment of
          * the debuggee.
          */
-        if (i.isIonOptimizedJS())
+        if (i.isIon())
             continue;
         if (dbg->observesFrame(i.abstractFramePtr())) {
             ScriptFrameIter iter(i.seg()->cx(), StackIter::GO_THROUGH_SAVED);
-            while (iter.isIonOptimizedJS() || iter.abstractFramePtr() != i.abstractFramePtr())
+            while (iter.isIon() || iter.abstractFramePtr() != i.abstractFramePtr())
                 ++iter;
             return dbg->getScriptFrame(cx, iter, args.rval());
         }
@@ -3284,37 +3286,6 @@ Debugger::observesScript(JSScript *script) const
     return observesGlobal(&script->global()) && !script->selfHosted;
 }
 
-/* static */ bool
-Debugger::handleBaselineOsr(JSContext *cx, StackFrame *from, ion::BaselineFrame *to)
-{
-    ScriptFrameIter iter(cx);
-    JS_ASSERT(iter.abstractFramePtr() == to);
-
-    for (FrameRange r(from); !r.empty(); r.popFront()) {
-        RootedObject frameobj(cx, r.frontFrame());
-        Debugger *dbg = r.frontDebugger();
-        JS_ASSERT(dbg == Debugger::fromChildJSObject(frameobj));
-
-        // Update frame object's StackIter::data pointer.
-        DebuggerFrame_freeStackIterData(cx->runtime->defaultFreeOp(), frameobj);
-        StackIter::Data *data = iter.copyData();
-        if (!data)
-            return false;
-        frameobj->setPrivate(data);
-
-        // Add the frame object with |to| as key.
-        if (!dbg->frames.putNew(to, frameobj)) {
-            js_ReportOutOfMemory(cx);
-            return false;
-        }
-
-        // Remove the old entry.
-        r.removeFrontFrame();
-    }
-
-    return true;
-}
-
 static JSBool
 DebuggerScript_setBreakpoint(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -3592,7 +3563,7 @@ DebuggerFrame_getOlder(JSContext *cx, unsigned argc, Value *vp)
     Debugger *dbg = Debugger::fromChildJSObject(thisobj);
 
     for (++iter; !iter.done(); ++iter) {
-        if (iter.isIonOptimizedJS())
+        if (iter.isIon())
             continue;
         if (dbg->observesFrame(iter.abstractFramePtr()))
             return dbg->getScriptFrame(cx, iter, args.rval());
@@ -4721,7 +4692,7 @@ RequireGlobalObject(JSContext *cx, HandleValue dbgobj, HandleObject obj)
     if (!obj->isGlobal()) {
         /* Help the poor programmer by pointing out wrappers around globals. */
         if (obj->isWrapper()) {
-            JSObject *unwrapped = js::UncheckedUnwrap(obj);
+            JSObject *unwrapped = js::UnwrapObject(obj);
             if (unwrapped->isGlobal()) {
                 js_ReportValueErrorFlags(cx, JSREPORT_ERROR, JSMSG_DEBUG_WRAPPER_IN_WAY,
                                          JSDVG_SEARCH_STACK, dbgobj, NullPtr(),
@@ -4779,14 +4750,6 @@ DebuggerObject_unwrap(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static JSBool
-DebuggerObject_unsafeDereference(JSContext *cx, unsigned argc, Value *vp)
-{
-    THIS_DEBUGOBJECT_REFERENT(cx, argc, vp, "unsafeDereference", args, referent);
-    args.rval().setObject(*referent);
-    return cx->compartment->wrap(cx, args.rval());
-}
-
 static JSPropertySpec DebuggerObject_properties[] = {
     JS_PSG("proto", DebuggerObject_getProto, 0),
     JS_PSG("class", DebuggerObject_getClass, 0),
@@ -4818,7 +4781,6 @@ static JSFunctionSpec DebuggerObject_methods[] = {
     JS_FN("evalInGlobal", DebuggerObject_evalInGlobal, 1, 0),
     JS_FN("evalInGlobalWithBindings", DebuggerObject_evalInGlobalWithBindings, 2, 0),
     JS_FN("unwrap", DebuggerObject_unwrap, 0, 0),
-    JS_FN("unsafeDereference", DebuggerObject_unsafeDereference, 0, 0),
     JS_FS_END
 };
 

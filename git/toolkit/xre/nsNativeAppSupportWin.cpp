@@ -17,6 +17,7 @@
 #include "nsIDOMChromeWindow.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
+#include "nsISupportsArray.h"
 #include "nsIWindowWatcher.h"
 #include "nsPIDOMWindow.h"
 #include "nsIDocShell.h"

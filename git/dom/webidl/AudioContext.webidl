@@ -36,8 +36,6 @@ interface AudioContext {
     AudioBufferSourceNode createBufferSource();
 
     [Creator]
-    AnalyserNode createAnalyser();
-    [Creator]
     GainNode createGain();
     [Creator, Throws]
     DelayNode createDelay(optional double maxDelayTime = 1);
@@ -50,26 +48,4 @@ interface AudioContext {
     DynamicsCompressorNode createDynamicsCompressor();
 
 };
-
-/*
- * The origin of this IDL file is
- * https://dvcs.w3.org/hg/audio/raw-file/tip/webaudio/specification.html#AlternateNames
- */
-[PrefControlled]
-partial interface AudioContext {
-    // Same as createGain()
-    [Creator]
-    GainNode createGainNode();
-    
-    // Same as createDelay()
-    [Creator, Throws]
-    DelayNode createDelayNode(optional double maxDelayTime = 1);
-
-    // Same as createScriptProcessor()
-    // [Creator]
-    // ScriptProcessorNode createJavaScriptNode(unsigned long bufferSize,
-    //                                          optional unsigned long numberOfInputChannels = 2,
-    //                                          optional unsigned long numberOfOutputChannels = 2);
-};
-
 

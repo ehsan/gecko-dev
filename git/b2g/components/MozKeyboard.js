@@ -14,9 +14,6 @@ Cu.import("resource://gre/modules/ObjectWrapper.jsm");
 XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
   "@mozilla.org/childprocessmessagemanager;1", "nsIMessageSender");
 
-XPCOMUtils.defineLazyServiceGetter(this, "tm",
-  "@mozilla.org/thread-manager;1", "nsIThreadManager");
-
 // -----------------------------------------------------------------------
 // MozKeyboard
 // -----------------------------------------------------------------------
@@ -75,19 +72,9 @@ MozKeyboard.prototype = {
 
   sendKey: function mozKeyboardSendKey(keyCode, charCode) {
     charCode = (charCode == undefined) ? keyCode : charCode;
-
-    let mainThread = tm.mainThread;
-    let utils = this._utils;
-
-    function send(type) {
-      mainThread.dispatch(function() {
-	utils.sendKeyEvent(type, keyCode, charCode, null);
-      }, mainThread.DISPATCH_NORMAL);
-    }
-
-    send("keydown");
-    send("keypress");
-    send("keyup");
+    ["keydown", "keypress", "keyup"].forEach((function sendKey(type) {
+      this._utils.sendKeyEvent(type, keyCode, charCode, null);
+    }).bind(this));
   },
 
   setSelectedOption: function mozKeyboardSetSelectedOption(index) {

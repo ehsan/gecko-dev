@@ -254,10 +254,10 @@ SocialUI = {
 
       // Show a warning, allow undoing the activation
       let description = document.getElementById("social-activation-message");
-      let labels = description.getElementsByTagName("label");
-      let uri = Services.io.newURI(provider.origin, null, null)
-      labels[0].setAttribute("value", uri.host);
-      labels[1].setAttribute("onclick", "BrowserOpenAddonsMgr('addons://list/service'); SocialUI.activationPanel.hidePopup();")
+      let brandShortName = document.getElementById("bundle_brand").getString("brandShortName");
+      let message = gNavigatorBundle.getFormattedString("social.activated.description",
+                                                        [provider.name, brandShortName]);
+      description.value = message;
 
       let icon = document.getElementById("social-activation-icon");
       if (provider.icon64URL || provider.icon32URL) {
@@ -268,7 +268,7 @@ SocialUI = {
         icon.hidden = true;
       }
 
-      let notificationPanel = SocialUI.activationPanel;
+      let notificationPanel = SocialUI.notificationPanel;
       // Set the origin being activated and the previously active one, to allow undo
       notificationPanel.setAttribute("origin", provider.origin);
       notificationPanel.setAttribute("oldorigin", oldOrigin);
@@ -282,20 +282,14 @@ SocialUI = {
   },
 
   undoActivation: function SocialUI_undoActivation() {
-    let origin = this.activationPanel.getAttribute("origin");
-    let oldOrigin = this.activationPanel.getAttribute("oldorigin");
+    let origin = this.notificationPanel.getAttribute("origin");
+    let oldOrigin = this.notificationPanel.getAttribute("oldorigin");
     Social.deactivateFromOrigin(origin, oldOrigin);
-    this.activationPanel.hidePopup();
+    this.notificationPanel.hidePopup();
     Social.uninstallProvider(origin);
   },
 
-  showLearnMore: function() {
-    this.activationPanel.hidePopup();
-    let url = Services.urlFormatter.formatURLPref("app.support.baseURL") + "social-api";
-    openUILinkIn(url, "tab");
-  },
-
-  get activationPanel() {
+  get notificationPanel() {
     return document.getElementById("socialActivatedNotification");
   },
 
@@ -314,6 +308,26 @@ SocialUI = {
     if (containerParent.classList.contains("social-panel") &&
         containerParent instanceof Ci.nsIDOMXULPopupElement) {
       containerParent.hidePopup();
+    }
+  },
+
+  disableWithConfirmation: function SocialUI_disableWithConfirmation() {
+    let brandShortName = document.getElementById("bundle_brand").getString("brandShortName");
+    let dialogTitle = gNavigatorBundle.getFormattedString("social.remove.confirmationOK",
+                                                          [Social.provider.name]);
+    let text = gNavigatorBundle.getFormattedString("social.remove.confirmationLabel",
+                                                   [Social.provider.name, brandShortName]);
+    let okButtonText = dialogTitle;
+
+    let ps = Services.prompt;
+    let flags = ps.BUTTON_TITLE_IS_STRING * ps.BUTTON_POS_0 +
+                ps.BUTTON_TITLE_CANCEL * ps.BUTTON_POS_1 +
+                ps.BUTTON_POS_0_DEFAULT;
+
+    let confirmationIndex = ps.confirmEx(null, dialogTitle, text, flags,
+                                         okButtonText, null, null, null, {});
+    if (confirmationIndex == 0) {
+      Social.deactivateFromOrigin(Social.provider.origin);
     }
   },
 
@@ -913,11 +927,19 @@ SocialToolbar = {
         SharedFrame.updateURL(notificationFrameId, icon.contentPanel);
       }
 
+      let toolbarButtonContainerId = "social-notification-container-" + icon.name;
       let toolbarButtonId = "social-notification-icon-" + icon.name;
+      let toolbarButtonContainer = document.getElementById(toolbarButtonContainerId);
       let toolbarButton = document.getElementById(toolbarButtonId);
-      if (!toolbarButton) {
+      if (!toolbarButtonContainer) {
+        // The container is used to fix an issue with position:absolute on
+        // generated content not being constrained to the bounding box of a
+        // parent toolbarbutton that has position:relative.
+        toolbarButtonContainer = document.createElement("toolbaritem");
+        toolbarButtonContainer.classList.add("social-notification-container");
+        toolbarButtonContainer.setAttribute("id", toolbarButtonContainerId);
+
         toolbarButton = document.createElement("toolbarbutton");
-        toolbarButton.setAttribute("type", "badged");
         toolbarButton.classList.add("toolbarbutton-1");
         toolbarButton.setAttribute("id", toolbarButtonId);
         toolbarButton.setAttribute("notificationFrameId", notificationFrameId);
@@ -926,7 +948,8 @@ SocialToolbar = {
             SocialToolbar.showAmbientPopup(toolbarButton);
         });
 
-        toolbarButtons.appendChild(toolbarButton);
+        toolbarButtonContainer.appendChild(toolbarButton);
+        toolbarButtons.appendChild(toolbarButtonContainer);
       }
 
       toolbarButton.style.listStyleImage = "url(" + icon.iconURL + ")";
@@ -1020,7 +1043,7 @@ SocialToolbar = {
     let navBar = document.getElementById("nav-bar");
     let anchor = navBar.getAttribute("mode") == "text" ?
                    document.getAnonymousElementByAttribute(aToolbarButton, "class", "toolbarbutton-text") :
-                   document.getAnonymousElementByAttribute(aToolbarButton, "class", "toolbarbutton-badge-container");
+                   document.getAnonymousElementByAttribute(aToolbarButton, "class", "toolbarbutton-icon");
     // Bug 849216 - open the popup in a setTimeout so we avoid the auto-rollup
     // handling from preventing it being opened in some cases.
     setTimeout(function() {

@@ -40,7 +40,7 @@ XPCVariant::XPCVariant(JSContext* cx, jsval aJSVal)
         JSObject *obj = JS_ObjectToInnerObject(cx, JSVAL_TO_OBJECT(mJSVal));
         mJSVal = OBJECT_TO_JSVAL(obj);
 
-        JSObject *unwrapped = js::CheckedUnwrap(obj, /* stopAtOuter = */ false);
+        JSObject *unwrapped = js::UnwrapObjectChecked(obj, /* stopAtOuter = */ false);
         mReturnRawObject = !(unwrapped && IS_WN_WRAPPER(unwrapped));
     } else
         mReturnRawObject = false;
@@ -65,9 +65,9 @@ void XPCTraceableVariant::TraceJS(JSTracer* trc)
 {
     jsval val = GetJSValPreserveColor();
 
-    MOZ_ASSERT(JSVAL_IS_TRACEABLE(val));
+    NS_ASSERTION(JSVAL_IS_TRACEABLE(val), "Must be traceable");
     JS_SET_TRACING_DETAILS(trc, GetTraceName, this, 0);
-    JS_CallValueTracer(trc, val, "XPCTraceableVariant::mJSVal");
+    JS_CallTracer(trc, JSVAL_TO_TRACEABLE(val), JSVAL_TRACE_KIND(val));
 }
 
 // static

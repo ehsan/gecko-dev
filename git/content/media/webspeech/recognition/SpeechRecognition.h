@@ -291,6 +291,6 @@ private:
 inline nsISupports*
 ToSupports(dom::SpeechRecognition* aRec)
 {
-  return ToSupports(static_cast<nsDOMEventTargetHelper*>(aRec));
+  return static_cast<nsIObserver*>(aRec);
 }
 } // namespace mozilla

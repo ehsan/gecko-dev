@@ -5,8 +5,9 @@
 
 const { Class } = require('../core/heritage');
 const { BrowserWindow } = require('../window/browser');
-const { WindowTracker } = require('../deprecated/window-utils');
-const { isBrowser, getMostRecentBrowserWindow } = require('../window/utils');
+const windowUtils = require('../deprecated/window-utils');
+const { WindowTracker } = windowUtils;
+const { isBrowser } = require('../window/utils');
 const { windowNS } = require('../window/namespace');
 const { on, off, once, emit } = require('../event/core');
 const { method } = require('../lang/functional');
@@ -24,7 +25,7 @@ let BrowserWindows = Class({
     List.prototype.initialize.apply(this);
   },
   get activeWindow() {
-    let window = getMostRecentBrowserWindow();
+    let window = windowUtils.activeBrowserWindow;
     return window ? getBrowserWindow({window: window}) : null;
   },
   open: function open(options) {

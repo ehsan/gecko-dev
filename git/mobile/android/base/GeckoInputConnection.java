@@ -17,7 +17,6 @@ import android.os.SystemClock;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.Selection;
-import android.text.SpannableString;
 import android.text.method.KeyListener;
 import android.text.method.TextKeyListener;
 import android.util.DisplayMetrics;
@@ -47,18 +46,14 @@ class GeckoInputConnection
 
     private static Handler sBackgroundHandler;
 
-    private static class InputThreadUtils {
-        // We only want one UI editable around to keep synchronization simple,
-        // so we make InputThreadUtils a singleton
-        public static final InputThreadUtils sInstance = new InputThreadUtils();
-
+    private class InputThreadUtils {
         private Editable mUiEditable;
         private Object mUiEditableReturn;
         private Exception mUiEditableException;
         private final SynchronousQueue<Runnable> mIcRunnableSync;
         private final Runnable mIcSignalRunnable;
 
-        private InputThreadUtils() {
+        public InputThreadUtils() {
             mIcRunnableSync = new SynchronousQueue<Runnable>();
             mIcSignalRunnable = new Runnable() {
                 @Override public void run() {
@@ -124,14 +119,13 @@ class GeckoInputConnection
         }
 
         public Editable getEditableForUiThread(final Handler uiHandler,
-                                               final GeckoEditableClient client) {
+                                               final Handler icHandler) {
             if (DEBUG) {
                 ThreadUtils.assertOnThread(uiHandler.getLooper().getThread());
             }
-            final Handler icHandler = client.getInputConnectionHandler();
             if (icHandler.getLooper() == uiHandler.getLooper()) {
                 // IC thread is UI thread; safe to use Editable directly
-                return client.getEditable();
+                return getEditable();
             }
             // IC thread is not UI thread; we need to return a proxy Editable in order
             // to safely use the Editable from the UI thread
@@ -157,7 +151,7 @@ class GeckoInputConnection
                                 synchronized (icHandler) {
                                     try {
                                         mUiEditableReturn = method.invoke(
-                                            client.getEditable(), args);
+                                            mEditableClient.getEditable(), args);
                                     } catch (Exception e) {
                                         mUiEditableException = e;
                                     }
@@ -183,6 +177,8 @@ class GeckoInputConnection
             return mUiEditable;
         }
     }
+
+    private final InputThreadUtils mThreadUtils = new InputThreadUtils();
 
     // Managed only by notifyIMEContext; see comments in notifyIMEContext
     private int mIMEState;
@@ -317,11 +313,8 @@ class GeckoInputConnection
         extract.selectionStart = selStart;
         extract.selectionEnd = selEnd;
         extract.startOffset = 0;
-        if ((req.flags & GET_TEXT_WITH_STYLES) != 0) {
-            extract.text = new SpannableString(editable);
-        } else {
-            extract.text = editable.toString();
-        }
+        extract.text = editable;
+
         return extract;
     }
 
@@ -435,11 +428,8 @@ class GeckoInputConnection
         mUpdateExtract.selectionEnd =
                 Selection.getSelectionEnd(editable);
         mUpdateExtract.startOffset = 0;
-        if ((mUpdateRequest.flags & GET_TEXT_WITH_STYLES) != 0) {
-            mUpdateExtract.text = new SpannableString(editable);
-        } else {
-            mUpdateExtract.text = editable.toString();
-        }
+        mUpdateExtract.text = editable;
+
         imm.updateExtractedText(v, mUpdateRequest.token,
                                 mUpdateExtract);
     }
@@ -575,14 +565,7 @@ class GeckoInputConnection
         else if (mIMEModeHint.equalsIgnoreCase("digit"))
             outAttrs.inputType = InputType.TYPE_CLASS_NUMBER;
         else {
-            // TYPE_TEXT_FLAG_IME_MULTI_LINE flag makes the fullscreen IME line wrap
-            outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_AUTO_CORRECT |
-                                  InputType.TYPE_TEXT_FLAG_IME_MULTI_LINE;
-            if (mIMETypeHint.equalsIgnoreCase("textarea") ||
-                    mIMETypeHint.length() == 0) {
-                // empty mIMETypeHint indicates contentEditable/designMode documents
-                outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_MULTI_LINE;
-            }
+            outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_AUTO_CORRECT;
             if (mIMEModeHint.equalsIgnoreCase("uppercase"))
                 outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS;
             else if (mIMEModeHint.equalsIgnoreCase("titlecase"))
@@ -667,10 +650,10 @@ class GeckoInputConnection
             // that point the key event has already been processed.
             mainHandler.post(new Runnable() {
                 @Override public void run() {
-                    InputThreadUtils.sInstance.endWaitForUiThread();
+                    mThreadUtils.endWaitForUiThread();
                 }
             });
-            InputThreadUtils.sInstance.waitForUiThread(icHandler);
+            mThreadUtils.waitForUiThread(icHandler);
         }
         return false; // seems to always return false
     }
@@ -741,12 +724,10 @@ class GeckoInputConnection
         // safe to use on the UI thread; therefore we need to pass a proxy Editable to it
         KeyListener keyListener = TextKeyListener.getInstance();
         Handler uiHandler = view.getRootView().getHandler();
-        Editable uiEditable = InputThreadUtils.sInstance.
-            getEditableForUiThread(uiHandler, mEditableClient);
+        Handler icHandler = mEditableClient.getInputConnectionHandler();
+        Editable uiEditable = mThreadUtils.getEditableForUiThread(uiHandler, icHandler);
         boolean skip = shouldSkipKeyListener(keyCode, event);
-        if (down) {
-            mEditableClient.setSuppressKeyUp(true);
-        }
+
         if (skip ||
             (down && !keyListener.onKeyDown(view, uiEditable, keyCode, event)) ||
             (!down && !keyListener.onKeyUp(view, uiEditable, keyCode, event))) {
@@ -758,9 +739,6 @@ class GeckoInputConnection
                 // states so the meta states remain consistent
                 TextKeyListener.adjustMetaAfterKeypress(uiEditable);
             }
-        }
-        if (down) {
-            mEditableClient.setSuppressKeyUp(false);
         }
         return true;
     }

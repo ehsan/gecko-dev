@@ -31,6 +31,10 @@ import android.os.Message;
 import android.os.SystemClock;
 import android.text.TextUtils;
 import android.util.Log;
+import android.view.animation.AccelerateInterpolator;
+import android.view.animation.AlphaAnimation;
+import android.view.animation.Animation;
+import android.view.animation.TranslateAnimation;
 import android.view.ContextMenu;
 import android.view.ContextMenu.ContextMenuInfo;
 import android.view.LayoutInflater;
@@ -40,10 +44,6 @@ import android.view.View.OnClickListener;
 import android.view.View.OnLongClickListener;
 import android.view.ViewGroup;
 import android.view.ViewGroup.LayoutParams;
-import android.view.animation.AccelerateInterpolator;
-import android.view.animation.AlphaAnimation;
-import android.view.animation.Animation;
-import android.view.animation.TranslateAnimation;
 import android.widget.AdapterView;
 import android.widget.FilterQueryProvider;
 import android.widget.ImageView;
@@ -147,26 +147,19 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
     @Override
     public void destroy() {
+        AwesomeBarCursorAdapter adapter = getCursorAdapter();
         unregisterEventListener("SearchEngines:Data");
+        if (adapter == null) {
+            return;
+        }
+
+        Cursor cursor = adapter.getCursor();
+        if (cursor != null)
+            cursor.close();
 
         mHandler.removeMessages(MESSAGE_UPDATE_FAVICONS);
         mHandler.removeMessages(MESSAGE_LOAD_FAVICONS);
         mHandler = null;
-
-        // Can't use getters for adapter or listview. They will create them if null.
-        if (mCursorAdapter != null && mListView != null) {
-            mListView.setAdapter(null);
-            final Cursor cursor = mCursorAdapter.getCursor();
-            // Gingerbread locks the DB when closing a cursor, so do it in the
-            // background.
-            ThreadUtils.postToBackgroundThread(new Runnable() {
-                @Override
-                public void run() {
-                    if (cursor != null && !cursor.isClosed())
-                        cursor.close();
-                }
-            });
-        }
     }
 
     public void filter(String searchTerm) {
@@ -853,16 +846,15 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
         if (urls.size() == 0)
             return;
 
-        (new UiAsyncTask<Void, Void, Void>(ThreadUtils.getBackgroundHandler()) {
+        (new UiAsyncTask<Void, Void, Cursor>(ThreadUtils.getBackgroundHandler()) {
             @Override
-            public Void doInBackground(Void... params) {
-                Cursor cursor = BrowserDB.getFaviconsForUrls(getContentResolver(), urls);
-                storeFaviconsInMemCache(cursor);
-                return null;
+            public Cursor doInBackground(Void... params) {
+                return BrowserDB.getFaviconsForUrls(getContentResolver(), urls);
             }
 
             @Override
-            public void onPostExecute(Void result) {
+            public void onPostExecute(Cursor c) {
+                storeFaviconsInMemCache(c);
                 postUpdateFavicons();
             }
         }).execute();

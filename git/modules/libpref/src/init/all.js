@@ -19,6 +19,7 @@
  *  - Computed values (e.g. 50 * 1024) don't work.
  */
 
+pref("keyword.URL", "https://www.google.com/search?ie=UTF-8&oe=utf-8&q=");
 pref("keyword.enabled", false);
 pref("general.useragent.locale", "chrome://global/locale/intl.properties");
 pref("general.useragent.compatMode.firefox", false);
@@ -112,6 +113,7 @@ pref("browser.anchor_color",                "#0000EE");
 pref("browser.active_color",                "#EE0000");
 pref("browser.visited_color",               "#551A8B");
 pref("browser.underline_anchors",           true);
+pref("browser.blink_allowed",               true);
 pref("browser.enable_automatic_image_resizing", false);
 pref("browser.enable_click_image_resizing", true);
 
@@ -189,7 +191,6 @@ pref("media.peerconnection.use_document_iceservers", true);
 // These values (aec, agc, and noice) are from media/webrtc/trunk/webrtc/common_types.h
 // kXxxUnchanged = 0, kXxxDefault = 1, and higher values are specific to each 
 // setting (for Xxx = Ec, Agc, or Ns).  Defaults are all set to kXxxDefault here.
-pref("media.peerconnection.turn.disable", false);
 pref("media.peerconnection.aec_enabled", true);
 pref("media.peerconnection.aec", 1);
 pref("media.peerconnection.agc_enabled", false);
@@ -329,16 +330,6 @@ pref("accessibility.tabfocus_applies_to_xul", true);
 // Values are -1 always on. 1 always off, 0 is auto as some platform perform
 // further checks.
 pref("accessibility.force_disabled", 0);
-
-#ifdef XP_WIN
-// Some accessibility tools poke at windows in the plugin process during setup
-// which can cause hangs.  To hack around this set accessibility.delay_plugins
-// to true, you can also try increasing accessibility.delay_plugin_time if your
-// machine is slow and you still experience hangs.
-// See bug 781791.
-pref("accessibility.delay_plugins", false);
-pref("accessibility.delay_plugin_time", 10000);
-#endif
 
 pref("focusmanager.testmode", false);
 
@@ -729,7 +720,7 @@ pref("dom.min_background_timeout_value", 1000);
 pref("dom.xbl_scopes", true);
 
 // Stop defining the Components object in content.
-pref("dom.omit_components_in_content", true);
+pref("dom.omit_components_in_content", false);
 
 // Don't use new input types
 pref("dom.experimental_forms", false);
@@ -767,8 +758,6 @@ pref("javascript.options.strict.debug",     true);
 #endif
 pref("javascript.options.methodjit.content", true);
 pref("javascript.options.methodjit.chrome",  true);
-pref("javascript.options.baselinejit.content", true);
-pref("javascript.options.baselinejit.chrome",  true);
 pref("javascript.options.ion.content",      true);
 #ifdef RELEASE_BUILD
 pref("javascript.options.experimental_asmjs", false);
@@ -1713,10 +1702,18 @@ pref("layout.css.masking.enabled", true);
 #endif
 
 // Is support for the the @supports rule enabled?
+#ifdef RELEASE_BUILD
+pref("layout.css.supports-rule.enabled", false);
+#else
 pref("layout.css.supports-rule.enabled", true);
+#endif
 
 // Is support for CSS Flexbox enabled?
+#ifdef RELEASE_BUILD
+pref("layout.css.flexbox.enabled", false);
+#else
 pref("layout.css.flexbox.enabled", true);
+#endif
 
 // Are sets of prefixed properties supported?
 pref("layout.css.prefixes.border-image", true);
@@ -3323,23 +3320,14 @@ pref("font.name-list.sans-serif.x-western", "Open Sans, Roboto, Droid Sans");
 pref("font.name.serif.zh-CN", "Charis SIL Compact");
 pref("font.name.sans-serif.zh-CN", "Open Sans");
 pref("font.name.monospace.zh-CN", "Droid Sans Mono");
-pref("font.name-list.serif.zh-CN", "Droid Sans Fallback");
-pref("font.name-list.sans-serif.zh-CN", "Roboto, Droid Sans, Droid Sans Fallback");
-pref("font.name-list.monospace.zh-CN", "Droid Sans Fallback");
 
 pref("font.name.serif.zh-HK", "Charis SIL Compact");
 pref("font.name.sans-serif.zh-HK", "Open Sans");
 pref("font.name.monospace.zh-HK", "Droid Sans Mono");
-pref("font.name-list.serif.zh-HK", "Droid Sans Fallback");
-pref("font.name-list.sans-serif.zh-HK", "Roboto, Droid Sans, Droid Sans Fallback");
-pref("font.name-list.monospace.zh-HK", "Droid Sans Fallback");
 
 pref("font.name.serif.zh-TW", "Charis SIL Compact");
 pref("font.name.sans-serif.zh-TW", "Open Sans");
 pref("font.name.monospace.zh-TW", "Droid Sans Mono");
-pref("font.name-list.serif.zh-TW", "Droid Sans Fallback");
-pref("font.name-list.sans-serif.zh-TW", "Roboto, Droid Sans, Droid Sans Fallback");
-pref("font.name-list.monospace.zh-TW", "Droid Sans Fallback");
 
 // end ! MOZ_WIDGET_GONK
 
@@ -3949,10 +3937,6 @@ pref("layers.acceleration.force-enabled", false);
 
 pref("layers.acceleration.draw-fps", false);
 
-pref("layers.offmainthreadcomposition.enabled", false);
-// same effect as layers.offmainthreadcomposition.enabled, but specifically for
-// use with tests.
-pref("layers.offmainthreadcomposition.testing.enabled", false);
 // Whether to animate simple opacity and transforms on the compositor
 pref("layers.offmainthreadcomposition.animate-opacity", false);
 pref("layers.offmainthreadcomposition.animate-transform", false);
@@ -4062,9 +4046,6 @@ pref("dom.mozContacts.enabled", false);
 // WebAlarms
 pref("dom.mozAlarms.enabled", false);
 
-// SimplePush
-pref("services.push.enabled", false);
-
 // WebNetworkStats
 pref("dom.mozNetworkStats.enabled", false);
 
@@ -4161,11 +4142,10 @@ pref("dom.placeholder.show_on_focus", true);
 pref("wap.UAProf.url", "");
 pref("wap.UAProf.tagname", "x-wap-profile");
 
-// Retrieval mode for MMS
-// manual: Manual retrieval mode.
-// automatic: Automatic retrieval mode even in roaming.
-// automatic-home: Automatic retrieval mode in home network.
-// never: Never retrieval mode.
+//Retrieval mode for MMS
+//manual: Manual retrieval mode.
+//automatic: Automatic retrieval mode.
+//never: Never retrieval mode.
 pref("dom.mms.retrieval_mode", "manual");
 pref("dom.mms.retrievalRetryCount", 3);
 pref("dom.mms.retrievalRetryInterval", 300000);

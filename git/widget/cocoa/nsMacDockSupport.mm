@@ -92,8 +92,8 @@ nsMacDockSupport::GetBadgeText(nsAString& aBadgeText)
 
 NS_IMETHODIMP
 nsMacDockSupport::SetProgressState(nsTaskbarProgressState aState,
-                                   uint64_t aCurrentValue,
-                                   uint64_t aMaxValue)
+                                   PRUint64 aCurrentValue,
+                                   PRUint64 aMaxValue)
 {
   NS_ENSURE_ARG_RANGE(aState, 0, STATE_PAUSED);
   if (aState == STATE_NO_PROGRESS || aState == STATE_INDETERMINATE) {
@@ -112,7 +112,7 @@ nsMacDockSupport::SetProgressState(nsTaskbarProgressState aState,
   }
 
   if (mProgressState == STATE_NORMAL || mProgressState == STATE_INDETERMINATE) {
-    int perSecond = 8; // Empirically determined, see bug 848792 
+    int perSecond = 30;
     mProgressTimer->InitWithFuncCallback(RedrawIconCallback, this, 1000 / perSecond,
       nsITimer::TYPE_REPEATING_SLACK);
     return NS_OK;

@@ -490,10 +490,6 @@ let FormAssistant = {
 FormAssistant.init();
 
 function isContentEditable(element) {
-  if (!element) {
-    return false;
-  }
-
   if (element.isContentEditable || element.designMode == "on")
     return true;
 

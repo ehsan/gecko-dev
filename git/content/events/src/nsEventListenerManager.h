@@ -9,6 +9,7 @@
 #include "nsEventListenerManager.h"
 #include "jsapi.h"
 #include "nsCOMPtr.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMEventListener.h"
 #include "nsAutoPtr.h"
 #include "nsCOMArray.h"
@@ -17,7 +18,6 @@
 #include "nsTObserverArray.h"
 #include "nsGUIEvent.h"
 #include "nsIJSEventListener.h"
-#include "mozilla/dom/EventTarget.h"
 
 class nsIDOMEvent;
 class nsIAtom;
@@ -252,7 +252,7 @@ public:
   void HandleEvent(nsPresContext* aPresContext,
                    nsEvent* aEvent, 
                    nsIDOMEvent** aDOMEvent,
-                   mozilla::dom::EventTarget* aCurrentTarget,
+                   nsIDOMEventTarget* aCurrentTarget,
                    nsEventStatus* aEventStatus,
                    nsCxPusher* aPusher)
   {
@@ -357,16 +357,16 @@ public:
   nsISupports* GetTarget() { return mTarget; }
 protected:
   void HandleEventInternal(nsPresContext* aPresContext,
-                           nsEvent* aEvent,
+                           nsEvent* aEvent, 
                            nsIDOMEvent** aDOMEvent,
-                           mozilla::dom::EventTarget* aCurrentTarget,
+                           nsIDOMEventTarget* aCurrentTarget,
                            nsEventStatus* aEventStatus,
                            nsCxPusher* aPusher);
 
   nsresult HandleEventSubType(nsListenerStruct* aListenerStruct,
                               nsIDOMEventListener* aListener,
                               nsIDOMEvent* aDOMEvent,
-                              mozilla::dom::EventTarget* aCurrentTarget,
+                              nsIDOMEventTarget* aCurrentTarget,
                               nsCxPusher* aPusher);
 
   /**
@@ -487,10 +487,10 @@ protected:
 
 /**
  * NS_AddSystemEventListener() is a helper function for implementing
- * EventTarget::AddSystemEventListener().
+ * nsIDOMEventTarget::AddSystemEventListener().
  */
 inline nsresult
-NS_AddSystemEventListener(mozilla::dom::EventTarget* aTarget,
+NS_AddSystemEventListener(nsIDOMEventTarget* aTarget,
                           const nsAString& aType,
                           nsIDOMEventListener *aListener,
                           bool aUseCapture,

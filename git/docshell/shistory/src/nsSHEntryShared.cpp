@@ -9,6 +9,7 @@
 #include "nsIWebNavigation.h"
 #include "nsIContentViewer.h"
 #include "nsIDocShellTreeItem.h"
+#include "nsISupportsArray.h"
 #include "nsDocShellEditorData.h"
 #include "nsThreadUtils.h"
 #include "nsILayoutHistoryState.h"

@@ -19,7 +19,6 @@
 #ifdef MOZILLA_INTERNAL_API
 #include "MediaStreamList.h"
 #include "nsIScriptGlobalObject.h"
-#include "mozilla/Preferences.h"
 #include "jsapi.h"
 #endif
 
@@ -120,17 +119,11 @@ PeerConnectionImpl* PeerConnectionImpl::CreatePeerConnection()
 }
 
 
-PeerConnectionMedia::PeerConnectionMedia(PeerConnectionImpl *parent)
-    : mParent(parent),
-      mLocalSourceStreamsLock("PeerConnectionMedia.mLocalSourceStreamsLock"),
-      mIceCtx(NULL),
-      mDNSResolver(new mozilla::NrIceResolver()),
-      mMainThread(mParent->GetMainThread()),
-      mSTSThread(mParent->GetSTSThread()) {}
-
-nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_servers,
-                                   const std::vector<NrIceTurnServer>& turn_servers)
+nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_servers)
 {
+  mMainThread = mParent->GetMainThread();
+  mSTSThread = mParent->GetSTSThread();
+
   // TODO(ekr@rtfm.com): need some way to set not offerer later
   // Looks like a bug in the NrIceCtx API.
   mIceCtx = NrIceCtx::Create("PC:" + mParent->GetHandle(), true);
@@ -142,20 +135,6 @@ nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_serv
   if (NS_FAILED(rv = mIceCtx->SetStunServers(stun_servers))) {
     CSFLogError(logTag, "%s: Failed to set stun servers", __FUNCTION__);
     return rv;
-  }
-  // Give us a way to globally turn off TURN support
-#ifdef MOZILLA_INTERNAL_API
-  bool disabled = Preferences::GetBool("media.peerconnection.turn.disable", false);
-#else
-  bool disabled = false;
-#endif
-  if (!disabled) {
-    if (NS_FAILED(rv = mIceCtx->SetTurnServers(turn_servers))) {
-      CSFLogError(logTag, "%s: Failed to set turn servers", __FUNCTION__);
-      return rv;
-    }
-  } else if (turn_servers.size() != 0) {
-    CSFLogError(logTag, "%s: Setting turn servers disabled", __FUNCTION__);
   }
   if (NS_FAILED(rv = mDNSResolver->Init())) {
     CSFLogError(logTag, "%s: Failed to initialize dns resolver", __FUNCTION__);

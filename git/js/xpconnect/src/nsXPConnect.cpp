@@ -92,7 +92,6 @@ nsXPConnect::nsXPConnect()
 
 nsXPConnect::~nsXPConnect()
 {
-    mRuntime->DeleteJunkScope();
     nsCycleCollector_forgetJSRuntime();
 
     JSContext *cx = nullptr;
@@ -931,24 +930,23 @@ nsXPConnect::InitClasses(JSContext * aJSContext, JSObject * aGlobalJSObj)
 {
     NS_ASSERTION(aJSContext, "bad param");
     NS_ASSERTION(aGlobalJSObj, "bad param");
-    JS::RootedObject globalJSObj(aJSContext, aGlobalJSObj);
 
     // Nest frame chain save/restore in request created by XPCCallContext.
     XPCCallContext ccx(NATIVE_CALLER, aJSContext);
     if (!ccx.IsValid())
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    JSAutoCompartment ac(ccx, globalJSObj);
+    JSAutoCompartment ac(ccx, aGlobalJSObj);
 
     XPCWrappedNativeScope* scope =
-        XPCWrappedNativeScope::GetNewOrUsed(ccx, globalJSObj);
+        XPCWrappedNativeScope::GetNewOrUsed(ccx, aGlobalJSObj);
 
     if (!scope)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     scope->RemoveWrappedNativeProtos();
 
-    if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, globalJSObj))
+    if (!XPCNativeWrapper::AttachNewConstructorObject(ccx, aGlobalJSObj))
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
     return NS_OK;
@@ -1038,8 +1036,7 @@ CreateGlobalObject(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
     NS_ABORT_IF_FALSE(NS_IsMainThread(), "using a principal off the main thread?");
     MOZ_ASSERT(principal);
 
-    JS::RootedObject global(cx,
-                            JS_NewGlobalObject(cx, clasp, nsJSPrincipals::get(principal), zoneSpec));
+    JSObject *global = JS_NewGlobalObject(cx, clasp, nsJSPrincipals::get(principal), zoneSpec);
     if (!global)
         return nullptr;
     JSAutoCompartment ac(cx, global);
@@ -1137,7 +1134,7 @@ xpc_MorphSlimWrapper(JSContext *cx, nsISupports *tomorph)
     if (!cache)
         return NS_OK;
 
-    JS::RootedObject obj(cx, cache->GetWrapper());
+    JSObject *obj = cache->GetWrapper();
     if (!obj || !IS_SLIM_WRAPPER(obj))
         return NS_OK;
     NS_ENSURE_STATE(MorphSlimWrapper(cx, obj));
@@ -1332,7 +1329,7 @@ nsXPConnect::GetNativeOfWrapper(JSContext * aJSContext,
         return nullptr;
     }
 
-    aJSObj = js::CheckedUnwrap(aJSObj, /* stopAtOuter = */ false);
+    aJSObj = js::UnwrapObjectChecked(aJSObj, /* stopAtOuter = */ false);
     if (!aJSObj) {
         JS_ReportError(aJSContext, "Permission denied to get native of security wrapper");
         return nullptr;
@@ -1345,8 +1342,11 @@ nsXPConnect::GetNativeOfWrapper(JSContext * aJSContext,
         return nullptr;
     }
 
+    JSObject* unsafeObj =
+        XPCWrapper::Unwrap(aJSContext, aJSObj, /* stopAtOuter = */ false);
+    JSObject* cur = unsafeObj ? unsafeObj : aJSObj;
     nsISupports* supports = nullptr;
-    mozilla::dom::UnwrapDOMObjectToISupports(aJSObj, supports);
+    mozilla::dom::UnwrapDOMObjectToISupports(cur, supports);
     nsCOMPtr<nsISupports> canonical = do_QueryInterface(supports);
     return canonical;
 }
@@ -1408,9 +1408,8 @@ nsXPConnect::ReparentWrappedNativeIfFound(JSContext * aJSContext,
     if (!scope || !scope2)
         return UnexpectedFailure(NS_ERROR_FAILURE);
 
-    JS::RootedObject newParent(ccx, aNewParent);
     return XPCWrappedNative::
-        ReparentWrapperIfFound(ccx, scope, scope2, newParent,
+        ReparentWrapperIfFound(ccx, scope, scope2, aNewParent,
                                aCOMObj);
 }
 
@@ -1644,7 +1643,7 @@ nsXPConnect::CreateSandbox(JSContext *cx, nsIPrincipal *principal,
     jsval rval = JSVAL_VOID;
     AUTO_MARK_JSVAL(ccx, &rval);
 
-    SandboxOptions options(cx);
+    SandboxOptions options;
     nsresult rv = xpc_CreateSandboxObject(cx, &rval, principal, options);
     NS_ASSERTION(NS_FAILED(rv) || !JSVAL_IS_PRIMITIVE(rval),
                  "Bad return value from xpc_CreateSandboxObject()!");
@@ -1660,21 +1659,20 @@ nsXPConnect::CreateSandbox(JSContext *cx, nsIPrincipal *principal,
 }
 
 NS_IMETHODIMP
-nsXPConnect::EvalInSandboxObject(const nsAString& source, const char *filename,
-                                 JSContext *cx, JSObject *sandboxArg,
-                                 bool returnStringOnly, JS::Value *rvalArg)
+nsXPConnect::EvalInSandboxObject(const nsAString& source, JSContext *cx,
+                                 nsIXPConnectJSObjectHolder *sandbox,
+                                 bool returnStringOnly, jsval *rval)
 {
-    if (!sandboxArg)
+    if (!sandbox)
         return NS_ERROR_INVALID_ARG;
 
-    JS::RootedObject sandbox(cx, sandboxArg);
-    JS::RootedValue rval(cx);
-    nsresult rv = xpc_EvalInSandbox(cx, sandbox, source, filename ? filename :
-                                    "x-bogus://XPConnect/Sandbox", 1, JSVERSION_DEFAULT,
-                                    returnStringOnly, &rval);
+    JSObject *obj;
+    nsresult rv = sandbox->GetJSObject(&obj);
     NS_ENSURE_SUCCESS(rv, rv);
-    *rvalArg = rval;
-    return NS_OK;
+
+    return xpc_EvalInSandbox(cx, obj, source,
+                             NS_ConvertUTF16toUTF8(source).get(), 1,
+                             JSVERSION_DEFAULT, returnStringOnly, rval);
 }
 
 /* nsIXPConnectJSObjectHolder getWrappedNativePrototype (in JSContextPtr aJSContext, in JSObjectPtr aScope, in nsIClassInfo aClassInfo); */
@@ -1990,6 +1988,27 @@ nsXPConnect::GetRuntime(JSRuntime **runtime)
     JSRuntime *rt = GetRuntime()->GetJSRuntime();
     JS_AbortIfWrongThread(rt);
     *runtime = rt;
+    return NS_OK;
+}
+
+/* attribute nsIXPCScriptable backstagePass; */
+NS_IMETHODIMP
+nsXPConnect::GetBackstagePass(nsIXPCScriptable **bsp)
+{
+    if (!mBackstagePass) {
+        nsCOMPtr<nsIPrincipal> sysprin;
+        nsCOMPtr<nsIScriptSecurityManager> secman =
+            do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
+        if (!secman)
+            return NS_ERROR_NOT_AVAILABLE;
+        if (NS_FAILED(secman->GetSystemPrincipal(getter_AddRefs(sysprin))))
+            return NS_ERROR_NOT_AVAILABLE;
+
+        mBackstagePass = new BackstagePass(sysprin);
+        if (!mBackstagePass)
+            return NS_ERROR_OUT_OF_MEMORY;
+    }
+    NS_ADDREF(*bsp = mBackstagePass);
     return NS_OK;
 }
 

@@ -6,10 +6,10 @@
 
 #include "AudioContext.h"
 #include "nsContentUtils.h"
+#include "nsIDOMWindow.h"
 #include "nsPIDOMWindow.h"
 #include "mozilla/ErrorResult.h"
 #include "MediaStreamGraph.h"
-#include "mozilla/dom/AnalyserNode.h"
 #include "AudioDestinationNode.h"
 #include "AudioBufferSourceNode.h"
 #include "AudioBuffer.h"
@@ -32,7 +32,7 @@ NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(AudioContext, Release)
 
 static uint8_t gWebAudioOutputKey;
 
-AudioContext::AudioContext(nsPIDOMWindow* aWindow)
+AudioContext::AudioContext(nsIDOMWindow* aWindow)
   : mWindow(aWindow)
   , mDestination(new AudioDestinationNode(this, MediaStreamGraph::GetInstance()))
 {
@@ -70,7 +70,6 @@ AudioContext::CreateBufferSource()
 {
   nsRefPtr<AudioBufferSourceNode> bufferNode =
     new AudioBufferSourceNode(this);
-  mAudioBufferSourceNodes.AppendElement(bufferNode);
   return bufferNode.forget();
 }
 
@@ -99,13 +98,6 @@ AudioContext::CreateBuffer(JSContext* aJSContext, uint32_t aNumberOfChannels,
   return buffer.forget();
 }
 
-already_AddRefed<AnalyserNode>
-AudioContext::CreateAnalyser()
-{
-  nsRefPtr<AnalyserNode> analyserNode = new AnalyserNode(this);
-  return analyserNode.forget();
-}
-
 already_AddRefed<GainNode>
 AudioContext::CreateGain()
 {
@@ -128,7 +120,6 @@ already_AddRefed<PannerNode>
 AudioContext::CreatePanner()
 {
   nsRefPtr<PannerNode> pannerNode = new PannerNode(this);
-  mPannerNodes.AppendElement(pannerNode);
   return pannerNode.forget();
 }
 
@@ -188,29 +179,6 @@ AudioContext::RemoveFromDecodeQueue(WebAudioDecodeJob* aDecodeJob)
   mDecodeJobs.RemoveElement(aDecodeJob);
 }
 
-void
-AudioContext::UnregisterAudioBufferSourceNode(AudioBufferSourceNode* aNode)
-{
-  mAudioBufferSourceNodes.RemoveElement(aNode);
-}
-
-void
-AudioContext::UnregisterPannerNode(PannerNode* aNode)
-{
-  mPannerNodes.RemoveElement(aNode);
-}
-
-void
-AudioContext::UpdatePannerSource()
-{
-  for (unsigned i = 0; i < mAudioBufferSourceNodes.Length(); i++) {
-    mAudioBufferSourceNodes[i]->UnregisterPannerNode();
-  }
-  for (unsigned i = 0; i < mPannerNodes.Length(); i++) {
-    mPannerNodes[i]->FindConnectedSources();
-  }
-}
-
 MediaStreamGraph*
 AudioContext::Graph() const
 {
@@ -232,19 +200,13 @@ AudioContext::CurrentTime() const
 void
 AudioContext::Suspend()
 {
-  MediaStream* ds = DestinationStream();
-  if (ds) {
-    ds->ChangeExplicitBlockerCount(1);
-  }
+  DestinationStream()->ChangeExplicitBlockerCount(1);
 }
 
 void
 AudioContext::Resume()
 {
-  MediaStream* ds = DestinationStream();
-  if (ds) {
-    ds->ChangeExplicitBlockerCount(-1);
-  }
+  DestinationStream()->ChangeExplicitBlockerCount(-1);
 }
 
 }

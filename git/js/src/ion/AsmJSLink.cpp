@@ -14,8 +14,6 @@
 #include "AsmJSModule.h"
 #include "frontend/BytecodeCompiler.h"
 
-#include "Ion.h"
-
 using namespace js;
 using namespace js::ion;
 using namespace mozilla;
@@ -31,7 +29,7 @@ LinkFail(JSContext *cx, const char *str)
 }
 
 static bool
-ValidateGlobalVariable(JSContext *cx, const AsmJSModule &module, AsmJSModule::Global &global,
+ValidateGlobalVariable(JSContext *cx, const AsmJSModule &module, AsmJSModule::Global global,
                        HandleValue importVal)
 {
     JS_ASSERT(global.which() == AsmJSModule::Global::Variable);
@@ -71,7 +69,7 @@ ValidateGlobalVariable(JSContext *cx, const AsmJSModule &module, AsmJSModule::Gl
 }
 
 static bool
-ValidateFFI(JSContext *cx, AsmJSModule::Global &global, HandleValue importVal,
+ValidateFFI(JSContext *cx, AsmJSModule::Global global, HandleValue importVal,
             AutoObjectVector *ffis)
 {
     RootedPropertyName field(cx, global.ffiField());
@@ -87,7 +85,7 @@ ValidateFFI(JSContext *cx, AsmJSModule::Global &global, HandleValue importVal,
 }
 
 static bool
-ValidateArrayView(JSContext *cx, AsmJSModule::Global &global, HandleValue globalVal,
+ValidateArrayView(JSContext *cx, AsmJSModule::Global global, HandleValue globalVal,
                   HandleValue bufferVal)
 {
     RootedPropertyName field(cx, global.viewName());
@@ -102,7 +100,7 @@ ValidateArrayView(JSContext *cx, AsmJSModule::Global &global, HandleValue global
 }
 
 static bool
-ValidateMathBuiltin(JSContext *cx, AsmJSModule::Global &global, HandleValue globalVal)
+ValidateMathBuiltin(JSContext *cx, AsmJSModule::Global global, HandleValue globalVal)
 {
     RootedValue v(cx);
     if (!GetProperty(cx, globalVal, cx->names().Math, &v))
@@ -137,7 +135,7 @@ ValidateMathBuiltin(JSContext *cx, AsmJSModule::Global &global, HandleValue glob
 }
 
 static bool
-ValidateGlobalConstant(JSContext *cx, AsmJSModule::Global &global, HandleValue globalVal)
+ValidateGlobalConstant(JSContext *cx, AsmJSModule::Global global, HandleValue globalVal)
 {
     RootedPropertyName field(cx, global.constantName());
     RootedValue v(cx);
@@ -202,12 +200,6 @@ DynamicallyLinkModule(JSContext *cx, CallArgs args, AsmJSModule &module)
             JSC::X86Assembler::setPointer(access.patchLengthAt(code), heapLength);
             JSC::X86Assembler::setPointer(access.patchOffsetAt(code), heapOffset);
         }
-#elif defined(JS_CPU_ARM)
-        // Now the length of the array is know, patch all of the bounds check sites
-        // with the new length.
-        ion::IonContext ic(cx, NULL);
-        module.patchBoundsChecks(heap->byteLength());
-
 #endif
     }
 
@@ -216,7 +208,7 @@ DynamicallyLinkModule(JSContext *cx, CallArgs args, AsmJSModule &module)
         return false;
 
     for (unsigned i = 0; i < module.numGlobals(); i++) {
-        AsmJSModule::Global &global = module.global(i);
+        AsmJSModule::Global global = module.global(i);
         switch (global.which()) {
           case AsmJSModule::Global::Variable:
             if (!ValidateGlobalVariable(cx, module, global, importVal))
@@ -248,16 +240,18 @@ DynamicallyLinkModule(JSContext *cx, CallArgs args, AsmJSModule &module)
     return true;
 }
 
-AsmJSActivation::AsmJSActivation(JSContext *cx, const AsmJSModule &module)
+AsmJSActivation::AsmJSActivation(JSContext *cx, const AsmJSModule &module, unsigned entryIndex)
   : cx_(cx),
     module_(module),
+    entryIndex_(entryIndex),
     errorRejoinSP_(NULL),
     profiler_(NULL),
     resumePC_(NULL)
 {
     if (cx->runtime->spsProfiler.enabled()) {
         profiler_ = &cx->runtime->spsProfiler;
-        profiler_->enterNative("asm.js code", this);
+        JSFunction *fun = module_.exportedFunction(entryIndex_).unclonedFunObj();
+        profiler_->enter(cx_, fun->nonLazyScript(), fun);
     }
 
     prev_ = cx_->runtime->mainThread.asmJSActivationStack_;
@@ -270,8 +264,10 @@ AsmJSActivation::AsmJSActivation(JSContext *cx, const AsmJSModule &module)
 
 AsmJSActivation::~AsmJSActivation()
 {
-    if (profiler_)
-        profiler_->exitNative();
+    if (profiler_) {
+        JSFunction *fun = module_.exportedFunction(entryIndex_).unclonedFunObj();
+        profiler_->exit(cx_, fun->nonLazyScript(), fun);
+    }
 
     JS_ASSERT(cx_->runtime->mainThread.asmJSActivationStack_ == this);
 
@@ -328,16 +324,11 @@ CallAsmJS(JSContext *cx, unsigned argc, Value *vp)
     }
 
     {
-        AsmJSActivation activation(cx, module);
+        AsmJSActivation activation(cx, module, exportIndex);
 
         // Call into generated code.
-#ifdef JS_CPU_ARM
-        if (!func.code()(coercedArgs.begin(), module.globalData()))
-            return false;
-#else
         if (!func.code()(coercedArgs.begin()))
             return false;
-#endif
     }
 
     switch (func.returnType()) {
@@ -380,10 +371,8 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
     const AsmJSModule::PostLinkFailureInfo &info = module.postLinkFailureInfo();
 
     uint32_t length = info.bufEnd_ - info.bufStart_;
-    Rooted<JSStableString*> src(cx, info.scriptSource_->substring(cx, info.bufStart_, info.bufEnd_));
-    if (!src)
-        return false;
-    const jschar *chars = src->chars().get();
+    Rooted<JSFlatString*> src(cx, info.scriptSource_->substring(cx, info.bufStart_, info.bufEnd_));
+    const jschar *chars = src->chars();
 
     RootedFunction fun(cx, NewFunction(cx, NullPtr(), NULL, 0, JSFunction::INTERPRETED,
                                        cx->global(), name));
@@ -406,15 +395,20 @@ HandleDynamicLinkFailure(JSContext *cx, CallArgs args, AsmJSModule &module, Hand
     // Call the function we just recompiled.
 
     unsigned argc = args.length();
+    JS_ASSERT(argc <= 3);
 
     InvokeArgsGuard args2;
-    if (!cx->stack.pushInvokeArgs(cx, argc, &args2))
+    if (!cx->stack.pushInvokeArgs(cx, args.length(), &args2))
         return false;
 
     args2.setCallee(ObjectValue(*fun));
     args2.setThis(args.thisv());
-    for (unsigned i = 0; i < argc; i++)
-        args2[i] = args[i];
+    if (argc > 0)
+        args2[0] = args[0];
+    if (argc > 1)
+        args2[1] = args[1];
+    if (argc > 2)
+        args2[2] = args[2];
 
     if (!Invoke(cx, args2))
         return false;

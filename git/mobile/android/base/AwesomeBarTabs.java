@@ -8,8 +8,8 @@ package org.mozilla.gecko;
 import android.content.Context;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.StateListDrawable;
-import android.support.v4.view.PagerAdapter;
 import android.support.v4.view.ViewPager;
+import android.support.v4.view.PagerAdapter;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -35,8 +35,12 @@ public class AwesomeBarTabs extends TabHost
     private String mTarget;
     private ViewPager mViewPager;
     private AwesomePagerAdapter mPagerAdapter;
-
+    
     private AwesomeBarTab mTabs[];
+
+    // FIXME: This value should probably come from a
+    // prefs key (just like XUL-based fennec)
+    private static final int MAX_RESULTS = 100;
 
     public interface OnUrlOpenListener {
         public void onUrlOpen(String url, String title);
@@ -151,7 +155,7 @@ public class AwesomeBarTabs extends TabHost
         mViewPager = (ViewPager) findViewById(R.id.tabviewpager);
         mPagerAdapter = new AwesomePagerAdapter();
         mViewPager.setAdapter(mPagerAdapter);
-
+        mViewPager.setCurrentItem(0);
         mViewPager.setOnPageChangeListener(new ViewPager.OnPageChangeListener() {
             @Override
             public void onPageScrollStateChanged(int state) { }
@@ -171,6 +175,10 @@ public class AwesomeBarTabs extends TabHost
                           mTabs[i].getTitleStringId(),
                           i);
         }
+
+        tabWidget.setCurrentTab(0);
+
+        styleSelectedTab();
 
         // Initialize "All Pages" list with no filter
         filter("");
@@ -199,16 +207,12 @@ public class AwesomeBarTabs extends TabHost
     }
 
     public void setCurrentItemByTag(String tag) {
-        mViewPager.setCurrentItem(getTabIdByTag(tag));
-    }
-
-    public int getTabIdByTag(String tag) {
         for (int i = 0; i < mTabs.length; i++) {
             if (tag.equals(mTabs[i].getTag())) {
-                return i;
+                mViewPager.setCurrentItem(i);
+                break;
             }
         }
-        return -1;
     }
 
     private void styleSelectedTab() {
@@ -309,23 +313,25 @@ public class AwesomeBarTabs extends TabHost
     }
 
     public void filter(String searchTerm) {
-
-        // If searching, disable left / right tab swipes
-        mSearching = searchTerm.length() != 0;
-
-        // reset the pager adapter to force repopulating the cache
-        mViewPager.setAdapter(mPagerAdapter);
+        // Don't let the tab's content steal focus on tab switch
+        setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
 
         // Ensure the 'All Pages' tab is selected
         AllPagesTab allPages = getAllPagesTab();
-        getTabWidget().setCurrentTab(getTabIdByTag(allPages.getTag()));
-        styleSelectedTab();
+        setCurrentTabByTag(allPages.getTag());
+
+        // Restore normal focus behavior on tab host
+        setDescendantFocusability(ViewGroup.FOCUS_AFTER_DESCENDANTS);
+
+        // The tabs should only be visible if there's no on-going search
+        mSearching = searchTerm.length() != 0;
+        // reset the pager adapter to force repopulating the cache
+        mViewPager.setAdapter(mPagerAdapter);
+        int tabsVisibility = !mSearching ? View.VISIBLE : View.GONE;
+        findViewById(R.id.tab_widget_container).setVisibility(tabsVisibility);
 
         // Perform the actual search
         allPages.filter(searchTerm);
-
-        // If searching, hide the tabs bar
-        findViewById(R.id.tab_widget_container).setVisibility(mSearching ? View.GONE : View.VISIBLE);
     }
 
     public boolean isInReadingList() {

@@ -15,7 +15,6 @@ from ..frontend.data import (
     DirectoryTraversal,
     SandboxDerived,
     VariablePassthru,
-    Exports,
 )
 from ..util import FileAvoidWrite
 
@@ -210,8 +209,6 @@ class RecursiveMakeBackend(BuildBackend):
 
                 else:
                     backend_file.write('%s := %s\n' % (k, v))
-        elif isinstance(obj, Exports):
-            self._process_exports(obj.exports, backend_file)
 
         self._backend_files[obj.srcdir] = backend_file
 
@@ -220,11 +217,7 @@ class RecursiveMakeBackend(BuildBackend):
             bf = self._backend_files[srcdir]
 
             if not os.path.exists(bf.objdir):
-                try:
-                    os.makedirs(bf.objdir)
-                except OSError as error:
-                    if error.errno != errno.EEXIST:
-                        raise
+                os.makedirs(bf.objdir)
 
             makefile_in = os.path.join(srcdir, 'Makefile.in')
             makefile = os.path.join(bf.objdir, 'Makefile')
@@ -301,22 +294,3 @@ class RecursiveMakeBackend(BuildBackend):
             fh.write('PARALLEL_DIRS += %s\n' %
                 ' '.join(obj.parallel_external_make_dirs))
 
-    def _process_exports(self, exports, backend_file, namespace=""):
-        strings = exports.get_strings()
-        if namespace:
-            if strings:
-                backend_file.write('EXPORTS_NAMESPACES += %s\n' % namespace)
-            export_name = 'EXPORTS_%s' % namespace
-            namespace += '/'
-        else:
-            export_name = 'EXPORTS'
-
-        # Iterate over the list of export filenames, printing out an EXPORTS
-        # declaration for each.
-        if strings:
-            backend_file.write('%s += %s\n' % (export_name, ' '.join(strings)))
-
-        children = exports.get_children()
-        for subdir in sorted(children):
-            self._process_exports(children[subdir], backend_file,
-                                  namespace=namespace + subdir)

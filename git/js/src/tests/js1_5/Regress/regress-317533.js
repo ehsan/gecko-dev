@@ -33,6 +33,7 @@ try
 catch(ex)
 {
   actual = ex + '';
+  print(ex);
 }
 
 reportCompare(expect, actual, summary);
@@ -47,6 +48,7 @@ try
 catch(ex)
 {
   actual = ex + '';
+  print(ex);
 }
 
 reportCompare(expect, actual, summary);

@@ -149,7 +149,7 @@ struct RuntimeSizes
 struct ZoneStats
 {
     ZoneStats()
-      : extra(NULL),
+      : extra1(0),
         gcHeapArenaAdmin(0),
         gcHeapUnusedGcThings(0),
         gcHeapStringsNormal(0),
@@ -163,7 +163,7 @@ struct ZoneStats
     {}
 
     ZoneStats(const ZoneStats &other)
-      : extra(other.extra),
+      : extra1(other.extra1),
         gcHeapArenaAdmin(other.gcHeapArenaAdmin),
         gcHeapUnusedGcThings(other.gcHeapUnusedGcThings),
         gcHeapStringsNormal(other.gcHeapStringsNormal),
@@ -200,7 +200,7 @@ struct ZoneStats
     }
 
     // This field can be used by embedders.
-    void   *extra;
+    void   *extra1;
 
     size_t gcHeapArenaAdmin;
     size_t gcHeapUnusedGcThings;
@@ -225,7 +225,8 @@ struct ZoneStats
 struct CompartmentStats
 {
     CompartmentStats()
-      : extra(NULL),
+      : extra1(0),
+        extra2(0),
         gcHeapObjectsOrdinary(0),
         gcHeapObjectsFunction(0),
         gcHeapObjectsDenseArray(0),
@@ -243,9 +244,6 @@ struct CompartmentStats
         shapesCompartmentTables(0),
         scriptData(0),
         jaegerData(0),
-        baselineData(0),
-        baselineFallbackStubs(0),
-        baselineOptimizedStubs(0),
         ionData(0),
         compartmentObject(0),
         crossCompartmentWrappersTable(0),
@@ -255,7 +253,8 @@ struct CompartmentStats
     {}
 
     CompartmentStats(const CompartmentStats &other)
-      : extra(other.extra),
+      : extra1(other.extra1),
+        extra2(other.extra2),
         gcHeapObjectsOrdinary(other.gcHeapObjectsOrdinary),
         gcHeapObjectsFunction(other.gcHeapObjectsFunction),
         gcHeapObjectsDenseArray(other.gcHeapObjectsDenseArray),
@@ -273,9 +272,6 @@ struct CompartmentStats
         shapesCompartmentTables(other.shapesCompartmentTables),
         scriptData(other.scriptData),
         jaegerData(other.jaegerData),
-        baselineData(other.baselineData),
-        baselineFallbackStubs(other.baselineFallbackStubs),
-        baselineOptimizedStubs(other.baselineOptimizedStubs),
         ionData(other.ionData),
         compartmentObject(other.compartmentObject),
         crossCompartmentWrappersTable(other.crossCompartmentWrappersTable),
@@ -285,8 +281,9 @@ struct CompartmentStats
     {
     }
 
-    // This field can be used by embedders.
-    void   *extra;
+    // These fields can be used by embedders.
+    void   *extra1;
+    void   *extra2;
 
     // If you add a new number, remember to update the constructors, add(), and
     // maybe gcHeapThingsSize()!
@@ -308,9 +305,6 @@ struct CompartmentStats
     size_t shapesCompartmentTables;
     size_t scriptData;
     size_t jaegerData;
-    size_t baselineData;
-    size_t baselineFallbackStubs;
-    size_t baselineOptimizedStubs;
     size_t ionData;
     size_t compartmentObject;
     size_t crossCompartmentWrappersTable;
@@ -341,9 +335,6 @@ struct CompartmentStats
         ADD(shapesCompartmentTables);
         ADD(scriptData);
         ADD(jaegerData);
-        ADD(baselineData);
-        ADD(baselineFallbackStubs);
-        ADD(baselineOptimizedStubs);
         ADD(ionData);
         ADD(compartmentObject);
         ADD(crossCompartmentWrappersTable);

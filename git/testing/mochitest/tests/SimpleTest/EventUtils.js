@@ -20,11 +20,7 @@
 // naming collisions with anything that might be defined in the scope that imports
 // this script.
 window.__defineGetter__('_EU_Ci', function() {
-  // Even if the real |Components| doesn't exist, we might shim in a simple JS
-  // placebo for compat. An easy way to differentiate this from the real thing
-  // is whether the property is read-only or not.
-  var c = Object.getOwnPropertyDescriptor(window, 'Components');
-  return c.value && !c.writable ? Components.interfaces : SpecialPowers.Ci;
+  return 'Components' in window ? Components.interfaces : SpecialPowers.Ci;
 });
 
 /**

@@ -11,7 +11,6 @@
 #include "mozilla/layers/PLayersParent.h"
 #include "ShadowLayers.h"
 #include "ShadowLayersManager.h"
-#include "CompositableTransactionParent.h"
 
 namespace mozilla {
 
@@ -23,11 +22,9 @@ namespace layers {
 
 class Layer;
 class ShadowLayerManager;
-class ShadowLayerParent;
-class CompositableParent;
 
 class ShadowLayersParent : public PLayersParent,
-                           public CompositableParentManager
+                           public ISurfaceDeAllocator
 {
   typedef mozilla::layout::RenderFrameParent RenderFrameParent;
   typedef InfallibleTArray<Edit> EditArray;
@@ -46,24 +43,8 @@ public:
   uint64_t GetId() const { return mId; }
   ContainerLayer* GetRoot() const { return mRoot; }
 
-  // ISurfaceAllocator
-  virtual bool AllocShmem(size_t aSize,
-                          ipc::SharedMemory::SharedMemoryType aType,
-                          ipc::Shmem* aShmem) {
-    return PLayersParent::AllocShmem(aSize, aType, aShmem);
-  }
-
-  virtual bool AllocUnsafeShmem(size_t aSize,
-                                ipc::SharedMemory::SharedMemoryType aType,
-                                ipc::Shmem* aShmem) {
-    return PLayersParent::AllocUnsafeShmem(aSize, aType, aShmem);
-  }
-
-  virtual void DeallocShmem(ipc::Shmem& aShmem) MOZ_OVERRIDE
-  {
-    PLayersParent::DeallocShmem(aShmem);
-  }
-
+  virtual void DestroySharedSurface(gfxSharedImageSurface* aSurface);
+  virtual void DestroySharedSurface(SurfaceDescriptor* aSurface);
 
 protected:
   virtual bool RecvUpdate(const EditArray& cset,
@@ -85,11 +66,6 @@ protected:
 
   virtual PLayerParent* AllocPLayer() MOZ_OVERRIDE;
   virtual bool DeallocPLayer(PLayerParent* actor) MOZ_OVERRIDE;
-
-  virtual PCompositableParent* AllocPCompositable(const TextureInfo& aInfo) MOZ_OVERRIDE;
-  virtual bool DeallocPCompositable(PCompositableParent* actor) MOZ_OVERRIDE;
-  
-  void Attach(ShadowLayerParent* aLayerParent, CompositableParent* aCompositable);
 
 private:
   nsRefPtr<ShadowLayerManager> mLayerManager;

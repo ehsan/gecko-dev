@@ -25,7 +25,6 @@
 #include "InlineFrameAssembler.h"
 #include "jscompartment.h"
 #include "jsopcodeinlines.h"
-#include "jsworkers.h"
 
 #include "builtin/RegExp.h"
 #include "vm/RegExpStatics.h"
@@ -35,7 +34,6 @@
 #include "jstypedarrayinlines.h"
 #include "vm/RegExpObject-inl.h"
 
-#include "ion/BaselineJIT.h"
 #include "ion/Ion.h"
 
 #if JS_TRACE_LOGGING
@@ -960,14 +958,14 @@ IonGetsFirstChance(JSContext *cx, JSScript *script, jsbytecode *pc, CompileReque
         return false;
 
     // If we cannot enter Ion because bailouts are expected, let JM take over.
-    if (script->hasIonScript() && script->ionScript()->bailoutExpected())
+    if (script->hasIonScript() && script->ion->bailoutExpected())
         return false;
 
     // If we cannot enter Ion because it was compiled for OSR at a different PC,
     // let JM take over until the PC is reached. Don't do this until the script
     // reaches a high use count, as if we do this prematurely we may get stuck
     // in JM code.
-    if (OffThreadCompilationEnabled(cx) && script->hasIonScript() &&
+    if (ion::js_IonOptions.parallelCompilation && script->hasIonScript() &&
         pc && script->ionScript()->osrPc() && script->ionScript()->osrPc() != pc &&
         script->getUseCount() >= ion::js_IonOptions.usesBeforeCompile * 2)
     {
@@ -976,7 +974,7 @@ IonGetsFirstChance(JSContext *cx, JSScript *script, jsbytecode *pc, CompileReque
 
     // If ion compilation is pending or in progress on another thread, continue
     // using JM until that compilation finishes.
-    if (script->isIonCompilingOffThread())
+    if (script->ion == ION_COMPILING_SCRIPT)
         return false;
 
     return true;
@@ -992,11 +990,6 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *script, jsbytecode *pc,
   checkOutput:
     if (!cx->methodJitEnabled)
         return Compile_Abort;
-
-#ifdef JS_ION
-    if (ion::IsBaselineEnabled(cx))
-        return Compile_Abort;
-#endif
 
     /*
      * If SPS (profiling) is enabled, then the emitted instrumentation has to be
@@ -4024,7 +4017,7 @@ mjit::Compiler::ionCompileHelper()
     if (!recompileCheckForIon)
         return;
 
-    const void *ionScriptAddress = script_->addressOfIonScript();
+    void *ionScriptAddress = &script_->ion;
 
 #ifdef JS_CPU_X64
     // Allocate a temp register. Note that we have to do this before calling
@@ -4055,8 +4048,7 @@ mjit::Compiler::ionCompileHelper()
     trigger.inlineJump = masm.branch32(Assembler::GreaterThanOrEqual,
                                        AbsoluteAddress(useCountAddress),
                                        Imm32(minUses));
-    Jump scriptJump = stubcc.masm.branch32(Assembler::Equal,
-                                           AbsoluteAddress((void *)ionScriptAddress),
+    Jump scriptJump = stubcc.masm.branch32(Assembler::Equal, AbsoluteAddress(ionScriptAddress),
                                            Imm32(0));
 #elif defined(JS_CPU_X64)
     /* Handle processors that can't load from absolute addresses. */
@@ -4064,7 +4056,7 @@ mjit::Compiler::ionCompileHelper()
     trigger.inlineJump = masm.branch32(Assembler::GreaterThanOrEqual,
                                        Address(reg),
                                        Imm32(minUses));
-    stubcc.masm.move(ImmPtr((void *)ionScriptAddress), reg);
+    stubcc.masm.move(ImmPtr(ionScriptAddress), reg);
     Jump scriptJump = stubcc.masm.branchPtr(Assembler::Equal, Address(reg), ImmPtr(NULL));
     frame.freeReg(reg);
 #else
@@ -4072,7 +4064,7 @@ mjit::Compiler::ionCompileHelper()
 #endif
 
     stubcc.linkExitDirect(trigger.inlineJump,
-                          OffThreadCompilationEnabled(cx)
+                          ion::js_IonOptions.parallelCompilation
                           ? secondTest
                           : trigger.stubLabel);
 

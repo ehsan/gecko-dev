@@ -54,7 +54,7 @@ public:
     // If aOwner is not null, enter the compartment of aOwner's
     // underlying object.
     if (aOwner) {
-      aOwner = js::UncheckedUnwrap(aOwner);
+      aOwner = js::UnwrapObject(aOwner);
       JSAutoCompartment ac(cx, aOwner);
       if (!JS_WrapObject(cx, &aCallback)) {
         *aInited = false;
@@ -62,18 +62,13 @@ public:
       }
     }
 
-    Init(aCallback);
+    // Set mCallback before we hold, on the off chance that a GC could somehow
+    // happen in there... (which would be pretty odd, granted).
+    mCallback = aCallback;
+    // Make sure we'll be able to drop as needed
+    nsLayoutStatics::AddRef();
+    NS_HOLD_JS_OBJECTS(this, CallbackObject);
     *aInited = true;
-  }
-
-  /*
-   * Create a CallbackObject without any sort of interesting games with
-   * compartments, for cases when you want to just use the existing object
-   * as-is.  This constructor can never fail.
-   */
-  explicit CallbackObject(JSObject* aCallback)
-  {
-    Init(aCallback);
   }
 
   virtual ~CallbackObject()
@@ -106,23 +101,16 @@ public:
   };
 
 protected:
-  explicit CallbackObject(CallbackObject* aCallbackObject)
-  {
-    Init(aCallbackObject->mCallback);
-  }
-
-private:
-  inline void Init(JSObject* aCallback)
+  explicit CallbackObject(CallbackObject* aCallbackFunction)
+    : mCallback(aCallbackFunction->mCallback)
   {
     // Set mCallback before we hold, on the off chance that a GC could somehow
     // happen in there... (which would be pretty odd, granted).
-    mCallback = aCallback;
     // Make sure we'll be able to drop as needed
     nsLayoutStatics::AddRef();
     NS_HOLD_JS_OBJECTS(this, CallbackObject);
   }
 
-protected:
   void DropCallback()
   {
     if (mCallback) {
@@ -134,7 +122,7 @@ protected:
 
   JSObject* mCallback;
 
-  class MOZ_STACK_CLASS CallSetup
+  class NS_STACK_CLASS CallSetup
   {
     /**
      * A class that performs whatever setup we need to safely make a
@@ -282,9 +270,9 @@ public:
     }
 
     JSObject* thisObj =
-      js::UncheckedUnwrap(GetWebIDLCallback()->CallbackPreserveColor());
+      js::UnwrapObject(GetWebIDLCallback()->CallbackPreserveColor());
     JSObject* otherObj =
-      js::UncheckedUnwrap(aOtherCallback->CallbackPreserveColor());
+      js::UnwrapObject(aOtherCallback->CallbackPreserveColor());
     return thisObj == otherObj;
   }
 

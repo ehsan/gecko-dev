@@ -26,8 +26,6 @@
 #include "nsIDOMXULElement.h"
 #endif
 
-using namespace mozilla::dom;
-
 static NS_DEFINE_CID(kEventListenerManagerCID,    NS_EVENTLISTENERMANAGER_CID);
 
 nsWindowRoot::nsWindowRoot(nsPIDOMWindow* aWindow)
@@ -265,9 +263,10 @@ nsWindowRoot::SetPopupNode(nsIDOMNode* aNode)
 
 ///////////////////////////////////////////////////////////////////////////////////
 
-already_AddRefed<EventTarget>
-NS_NewWindowRoot(nsPIDOMWindow* aWindow)
+nsresult
+NS_NewWindowRoot(nsPIDOMWindow* aWindow, nsIDOMEventTarget** aResult)
 {
-  nsCOMPtr<EventTarget> result = new nsWindowRoot(aWindow);
-  return result.forget();
+  *aResult = new nsWindowRoot(aWindow);
+  NS_ADDREF(*aResult);
+  return NS_OK;
 }

@@ -305,6 +305,7 @@ function addValues_5(obj)
           catch (e)
           {
             sum += 1;
+            print(e);
           }
         }
       }

@@ -966,7 +966,6 @@ nsresult WebMReader::Seek(int64_t aTarget, int64_t aStartTime, int64_t aEndTime,
   if (r != 0) {
     return NS_ERROR_FAILURE;
   }
-#ifdef MOZ_DASH
   // Find next cluster index;
   MediaResource* resource = mDecoder->GetResource();
   int64_t newOffset = resource->Tell();
@@ -980,7 +979,6 @@ nsresult WebMReader::Seek(int64_t aTarget, int64_t aStartTime, int64_t aEndTime,
       break;
     }
   }
-#endif
   return DecodeToTarget(aTarget);
 }
 

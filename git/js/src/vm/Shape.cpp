@@ -11,7 +11,6 @@
 #include <string.h>
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/PodOperations.h"
 
 #include "jstypes.h"
 #include "jsclist.h"
@@ -39,7 +38,6 @@ using namespace js;
 using namespace js::gc;
 
 using mozilla::DebugOnly;
-using mozilla::PodZero;
 
 bool
 ShapeTable::init(JSRuntime *rt, RawShape lastProp)

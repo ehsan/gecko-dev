@@ -95,7 +95,7 @@ public:
 
 GainNode::GainNode(AudioContext* aContext)
   : AudioNode(aContext)
-  , mGain(new AudioParam(this, SendGainToStream, 1.0f))
+  , mGain(new AudioParam(this, SendGainToStream, 1.0f, 0.0f, 1.0f))
 {
   GainNodeEngine* engine = new GainNodeEngine(aContext->Destination());
   mStream = aContext->Graph()->CreateAudioNodeStream(engine, MediaStreamGraph::INTERNAL_STREAM);
@@ -117,7 +117,8 @@ void
 GainNode::SendGainToStream(AudioNode* aNode)
 {
   GainNode* This = static_cast<GainNode*>(aNode);
-  SendTimelineParameterToStream(This, GainNodeEngine::GAIN, *This->mGain);
+  AudioNodeStream* ns = static_cast<AudioNodeStream*>(This->mStream.get());
+  ns->SetTimelineParameter(GainNodeEngine::GAIN, *This->mGain);
 }
 
 }

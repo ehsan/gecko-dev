@@ -39,6 +39,8 @@
             for (let childItem of this.selectedItems) {
               childItem.removeAttribute("selected");
             }
+            // reset context actions
+            this._contextActions = null;
           ]]>
         </body>
       </method>
@@ -52,8 +54,11 @@
               this.clearSelection();
             }
             this._selectedItem = wasSelected ? null : anItem;
-            anItem.selected = !wasSelected;
-
+            if(anItem.selected) {
+              anItem.removeAttribute("selected");
+            } else {
+              anItem.setAttribute("selected", true);
+            }
             this._fireOnSelectionChange();
           ]]>
         </body>
@@ -102,20 +107,36 @@
           ]]>
         </body>
       </method>
+
+      <field name="_contextActions">null</field>
       <property name="contextActions">
         <getter>
           <![CDATA[
             // return the subset of verbs that apply to all selected tiles
+            // use cached list, it'll get cleared out when selection changes
+            if (this._contextActions) {
+              return this._contextActions;
+            }
             let tileNodes = this.selectedItems;
             if (!tileNodes.length) {
               return new Set();
+            }
+
+            function cloneSet(aSet) {
+              let clone = new Set();
+              if (aSet) {
+                for (let item of aSet) {
+                  clone.add(item);
+                }
+              }
+              return clone;
             }
 
             // given one or more sets of values,
             // return a set with only those values present in each
             let initialItem = tileNodes[0];
 
-            let verbSet = new Set(initialItem.contextActions);
+            let verbSet = cloneSet(initialItem.contextActions);
             for (let i=1; i<tileNodes.length; i++){
               let set = tileNodes[i].contextActions;
               for (let item of verbSet) {
@@ -124,12 +145,10 @@
                 }
               }
             }
-            // add the clear-selection button if more than one tiles are selected
-            if (tileNodes.length > 1) {
-              verbSet.add('clear');
-            }
+
+            this._contextActions = verbSet;
             // returns Set
-            return verbSet;
+            return this._contextActions;
           ]]>
         </getter>
       </property>
@@ -196,6 +215,7 @@
               this.removeChild(this.firstChild);
             }
             this._grid.style.width = "0px";
+            this._contextActions = null;
           ]]>
         </body>
       </method>
@@ -322,15 +342,15 @@
       <field name="_itemHeightRenderThreshold">10</field>
 
       <method name="arrangeItems">
+        <parameter name="aNumRows"/>
+        <parameter name="aNumColumns"/>
         <body>
           <![CDATA[
-            if (this.itemCount <= 0) {
+            if (this.itemCount <= 0)
               return;
-            }
             let item = this.getItemAtIndex(0);
-            if (item == null) {
+            if (item == null)
               return;
-            }
             let gridItemRect = item.getBoundingClientRect();
 
             // cap the number of times we reschedule calling arrangeItems
@@ -373,25 +393,24 @@
               container = this.parentNode.getBoundingClientRect();
 
             // If we don't have valid dimensions we can't arrange yet
-            if (!container.height || !gridItemRect.height) {
+            if (!container.height || !gridItemRect.height)
               return;
-            }
 
             // We favor overflowing horizontally, not vertically
             let maxRowCount = Math.floor(container.height / gridItemRect.height) - 1;
 
-            this._rowCount = this.getAttribute("rows");
-            this._columnCount = this.getAttribute("columns");
-
-            if (!this._rowCount) {
+            if (aNumRows) {
+              this._rowCount = aNumRows;
+            } else {
               this._rowCount = Math.min(this.itemCount, maxRowCount);
             }
-            if (!this._columnCount){
+            if (aNumColumns) {
+              this._columnCount = aNumColumns;
+            } else {
               this._columnCount = Math.ceil(this.itemCount / this._rowCount);
             }
 
             this._grid.style.width = (this._columnCount * gridItemRect.width) + "px";
-
           ]]>
         </body>
       </method>
@@ -457,6 +476,8 @@
         <body>
           <![CDATA[
             // flush out selection-related cached properties so they get recalc'd next time
+            this._contextActions = null;
+
             // fire an event?
             if (this.suppressOnSelect || this._suppressOnSelect)
               return;
@@ -467,25 +488,10 @@
           ]]>
         </body>
       </method>
+
     </implementation>
-    <handlers>
-      <handler event="context-action">
-        <![CDATA[
-          // context-action is an event fired by the appbar typically
-          // which directs us to do something to the selected tiles
-          switch (event.action) {
-            case "clear":
-              this.clearSelection();
-              break;
-            default:
-              if (this.controller && this.controller.doActionOnSelectedTiles) {
-                this.controller.doActionOnSelectedTiles(event.action, event);
-              }
-          }
-        ]]>
-      </handler>
-    </handlers>
   </binding>
+
   <binding id="richgrid-item">
     <content>
       <xul:vbox anonid="anon-richgrid-item" class="richgrid-item-content" xbl:inherits="customImage">
@@ -499,16 +505,13 @@
 
     <implementation>
       <property name="_box" onget="return document.getAnonymousElementByAttribute(this, 'anonid', 'anon-richgrid-item');"/>
-      <property name="_textbox" onget="return document.getAnonymousElementByAttribute(this, 'class', 'richgrid-item-desc');"/>
       <property name="_icon" onget="return document.getAnonymousElementByAttribute(this, 'anonid', 'anon-richgrid-item-icon');"/>
       <property name="_label" onget="return document.getAnonymousElementByAttribute(this, 'anonid', 'anon-richgrid-item-label');"/>
       <property name="iconSrc"
                 onset="this._icon.src = val; this.setAttribute('iconURI', val);"
                 onget="return this._icon.src;" />
 
-      <property name="selected"
-                onget="return this.hasAttribute('selected');"
-                onset="if (val) this.setAttribute('selected', val); else this.removeAttribute('selected');" />
+      <property name="selected" onget="return this.hasAttribute('selected');" />
       <property name="url"
                 onget="return this.getAttribute('value')"
                 onset="this.setAttribute('value', val);"/>
@@ -527,10 +530,6 @@
       <method name="refresh">
         <body>
           <![CDATA[
-            // Prevent an exception in case binding is not done yet.
-            if (!this._icon)
-              return;
-
             // Seed the binding properties from bound-node attribute values
             // Usage: node.refresh()
             //        - reinitializes all binding properties from their associated attributes
@@ -542,8 +541,8 @@
             // selected getter just looks directly at attribute
             // pinned getter just looks directly at attribute
             // value getter just looks directly at attribute
-            this._contextActions = null;
             this.refreshBackgroundImage();
+            this._contextActions = null;
           ]]>
         </body>
       </method>
@@ -565,11 +564,9 @@
           if (val) {
             this.setAttribute("customColor", val);
             this._box.style.backgroundColor = val;
-            this._textbox.style.backgroundColor = val;
           } else {
             this.removeAttribute("customColor");
             this._box.style.removeProperty("background-color");
-            this._textbox.style.removeProperty("background-color");
           }
         ]]></setter>
       </property>
@@ -612,6 +609,18 @@
             return this._contextActions;
           ]]>
         </getter>
+        <setter>
+          <![CDATA[
+            let actionSet = this._contextActions = new Set();
+            let actions = val;
+            if (actions) {
+              actions.split(/[,\s]+/).forEach(function(verb){
+                actionSet.add(verb);
+              });
+            }
+            return this._contextActions;
+          ]]>
+        </setter>
       </property>
     </implementation>
 

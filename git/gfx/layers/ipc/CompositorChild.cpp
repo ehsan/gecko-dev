@@ -8,11 +8,43 @@
 #include "CompositorParent.h"
 #include "LayerManagerOGL.h"
 #include "mozilla/layers/ShadowLayersChild.h"
+#include "nsIObserverService.h"
+#include "mozilla/Services.h"
 
 using mozilla::layers::ShadowLayersChild;
 
 namespace mozilla {
 namespace layers {
+
+// Observer for the memory-pressure notification, to trigger
+// flushing of stale/low res content.
+class MemoryPressureObserver MOZ_FINAL : public nsIObserver,
+                                         public nsSupportsWeakReference
+{
+public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSIOBSERVER
+
+  explicit MemoryPressureObserver(CompositorChild* cc)
+    : mCC(cc)
+  {}
+
+private:
+  CompositorChild* mCC;
+};
+
+NS_IMPL_ISUPPORTS2(MemoryPressureObserver, nsIObserver, nsISupportsWeakReference)
+
+NS_IMETHODIMP
+MemoryPressureObserver::Observe(nsISupports *aSubject,
+                                const char *aTopic,
+                                const PRUnichar *someData)
+{
+  if (strcmp(aTopic, "memory-pressure") == 0) {
+    mCC->SendMemoryPressure();
+  }
+  return NS_OK;
+}
 
 /*static*/ CompositorChild* CompositorChild::sCompositor;
 
@@ -20,17 +52,26 @@ CompositorChild::CompositorChild(LayerManager *aLayerManager)
   : mLayerManager(aLayerManager)
 {
   MOZ_COUNT_CTOR(CompositorChild);
+
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (obs) {
+    mMemoryPressureObserver = new MemoryPressureObserver(this);
+    obs->AddObserver(mMemoryPressureObserver, "memory-pressure", false);
+  }
 }
 
 CompositorChild::~CompositorChild()
 {
+  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  if (obs) {
+    obs->RemoveObserver(mMemoryPressureObserver, "memory-pressure");
+  }
   MOZ_COUNT_DTOR(CompositorChild);
 }
 
 void
 CompositorChild::Destroy()
 {
-  mLayerManager->Destroy();
   mLayerManager = NULL;
   while (size_t len = ManagedPLayersChild().Length()) {
     ShadowLayersChild* layers =
@@ -73,7 +114,8 @@ CompositorChild::Get()
 PLayersChild*
 CompositorChild::AllocPLayers(const LayersBackend& aBackendHint,
                               const uint64_t& aId,
-                              TextureFactoryIdentifier* aTextureFactoryIdentifier)
+                              LayersBackend* aBackend,
+                              int* aMaxTextureSize)
 {
   return new ShadowLayersChild();
 }
@@ -89,11 +131,6 @@ void
 CompositorChild::ActorDestroy(ActorDestroyReason aWhy)
 {
   MOZ_ASSERT(sCompositor == this);
-
-  if (aWhy == AbnormalShutdown) {
-    NS_RUNTIMEABORT("ActorDestroy by IPC channel failure at CompositorChild");
-  }
-
   sCompositor = NULL;
   // We don't want to release the ref to sCompositor here, during
   // cleanup, because that will cause it to be deleted while it's

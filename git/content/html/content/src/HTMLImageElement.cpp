@@ -60,6 +60,7 @@ NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::img, nullptr,
                                                    kNameSpaceID_XHTML,
                                                    nsIDOMNode::ELEMENT_NODE);
+    NS_ENSURE_TRUE(nodeInfo, nullptr);
   }
 
   return new mozilla::dom::HTMLImageElement(nodeInfo.forget());
@@ -208,9 +209,7 @@ HTMLImageElement::GetHeight(uint32_t* aHeight)
 NS_IMETHODIMP
 HTMLImageElement::SetHeight(uint32_t aHeight)
 {
-  ErrorResult rv;
-  SetHeight(aHeight, rv);
-  return rv.ErrorCode();
+  return nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::height, aHeight);
 }
 
 NS_IMETHODIMP
@@ -224,9 +223,7 @@ HTMLImageElement::GetWidth(uint32_t* aWidth)
 NS_IMETHODIMP
 HTMLImageElement::SetWidth(uint32_t aWidth)
 {
-  ErrorResult rv;
-  SetWidth(aWidth, rv);
-  return rv.ErrorCode();
+  return nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::width, aWidth);
 }
 
 bool
@@ -477,17 +474,21 @@ HTMLImageElement::Image(const GlobalObject& aGlobal,
     doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::img, nullptr,
                                         kNameSpaceID_XHTML,
                                         nsIDOMNode::ELEMENT_NODE);
+  if (!nodeInfo) {
+    aError.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
 
   nsRefPtr<HTMLImageElement> img = new HTMLImageElement(nodeInfo.forget());
 
   if (aWidth.WasPassed()) {
-    img->SetWidth(aWidth.Value(), aError);
+    img->SetHTMLUnsignedIntAttr(nsGkAtoms::width, aWidth.Value(), aError);
     if (aError.Failed()) {
       return nullptr;
     }
 
     if (aHeight.WasPassed()) {
-      img->SetHeight(aHeight.Value(), aError);
+      img->SetHTMLUnsignedIntAttr(nsGkAtoms::height, aHeight.Value(), aError);
       if (aError.Failed()) {
         return nullptr;
       }

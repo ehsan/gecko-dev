@@ -760,8 +760,7 @@ function loadManifestFromRDF(aUri, aStream) {
     if (addon.optionsType &&
         addon.optionsType != AddonManager.OPTIONS_TYPE_DIALOG &&
         addon.optionsType != AddonManager.OPTIONS_TYPE_INLINE &&
-        addon.optionsType != AddonManager.OPTIONS_TYPE_TAB &&
-        addon.optionsType != AddonManager.OPTIONS_TYPE_INLINE_INFO) {
+        addon.optionsType != AddonManager.OPTIONS_TYPE_TAB) {
       throw new Error("Install manifest specifies unknown type: " + addon.optionsType);
     }
   }
@@ -1672,15 +1671,9 @@ var XPIProvider = {
     for (let id in this.bootstrappedAddons) {
       let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
       file.persistentDescriptor = this.bootstrappedAddons[id].descriptor;
-      let reason = BOOTSTRAP_REASONS.APP_STARTUP;
-      // Eventually set INSTALLED reason when a bootstrap addon
-      // is dropped in profile folder and automatically installed
-      if (AddonManager.getStartupChanges(AddonManager.STARTUP_CHANGE_INSTALLED)
-                      .indexOf(id) !== -1)
-        reason = BOOTSTRAP_REASONS.ADDON_INSTALL;
       this.callBootstrapMethod(id, this.bootstrappedAddons[id].version,
                                this.bootstrappedAddons[id].type, file,
-                               "startup", reason);
+                               "startup", BOOTSTRAP_REASONS.APP_STARTUP);
     }
     AddonManagerPrivate.recordTimestamp("XPI_bootstrap_addons_end");
 
@@ -1688,6 +1681,8 @@ var XPIProvider = {
     // of XPCOM
     Services.obs.addObserver({
       observe: function shutdownObserver(aSubject, aTopic, aData) {
+        Services.prefs.setCharPref(PREF_BOOTSTRAP_ADDONS,
+                                   JSON.stringify(XPIProvider.bootstrappedAddons));
         for (let id in XPIProvider.bootstrappedAddons) {
           let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
           file.persistentDescriptor = XPIProvider.bootstrappedAddons[id].descriptor;
@@ -1792,14 +1787,6 @@ var XPIProvider = {
     // Ensure any changes to the add-ons list are flushed to disk
     XPIDatabase.writeAddonsList();
     Services.prefs.setBoolPref(PREF_PENDING_OPERATIONS, false);
-  },
-
-  /**
-   * Persists changes to XPIProvider.bootstrappedAddons to it's store (a pref).
-   */
-  persistBootstrappedAddons: function XPI_persistBootstrappedAddons() {
-    Services.prefs.setCharPref(PREF_BOOTSTRAP_ADDONS,
-                               JSON.stringify(this.bootstrappedAddons));
   },
 
   /**
@@ -2952,7 +2939,6 @@ var XPIProvider = {
     // Cache the new install location states
     let cache = JSON.stringify(this.getInstallLocationStates());
     Services.prefs.setCharPref(PREF_INSTALL_CACHE, cache);
-    this.persistBootstrappedAddons();
 
     // Clear out any cached migration data.
     XPIDatabase.migrateData = null;
@@ -3694,7 +3680,6 @@ var XPIProvider = {
       type: aType,
       descriptor: aFile.persistentDescriptor
     };
-    this.persistBootstrappedAddons();
     this.addAddonsToCrashReporter();
 
     // Locales only contain chrome and can't have bootstrap scripts
@@ -3762,7 +3747,6 @@ var XPIProvider = {
   unloadBootstrapScope: function XPI_unloadBootstrapScope(aId) {
     delete this.bootstrapScopes[aId];
     delete this.bootstrappedAddons[aId];
-    this.persistBootstrappedAddons();
     this.addAddonsToCrashReporter();
   },
 
@@ -5968,7 +5952,6 @@ function AddonWrapper(aAddon) {
       case AddonManager.OPTIONS_TYPE_TAB:
         return hasOptionsURL ? aAddon.optionsType : null;
       case AddonManager.OPTIONS_TYPE_INLINE:
-      case AddonManager.OPTIONS_TYPE_INLINE_INFO:
         return (hasOptionsXUL || hasOptionsURL) ? aAddon.optionsType : null;
       }
       return null;

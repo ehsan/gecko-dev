@@ -173,7 +173,6 @@ class CodeGeneratorShared : public LInstructionVisitor
         return index;
     }
 
-  public:
     // This is needed by addCache to update the cache with the jump
     // informations provided by the out-of-line path.
     IonCache *getCache(size_t index) {
@@ -340,6 +339,13 @@ class CodeGeneratorShared : public LInstructionVisitor
 
   protected:
     bool ensureOutOfLineParallelAbort(Label **result);
+};
+
+// Wrapper around Label, on the heap, to avoid a bogus assert with OOM.
+struct HeapLabel
+  : public TempObject,
+    public Label
+{
 };
 
 // An out-of-line path is generated at the end of the function.

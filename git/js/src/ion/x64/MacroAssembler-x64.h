@@ -55,7 +55,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     using MacroAssemblerX86Shared::call;
     using MacroAssemblerX86Shared::Push;
     using MacroAssemblerX86Shared::callWithExitFrame;
-    using MacroAssemblerX86Shared::branch32;
 
     enum Result {
         GENERAL,
@@ -187,9 +186,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         boxValue(type, reg, ScratchReg);
         push(ScratchReg);
     }
-    void pushValue(const Address &addr) {
-        push(Operand(addr));
-    }
 
     void moveValue(const Value &val, const Register &dest) {
         jsval_layout jv = JSVAL_TO_IMPL(val);
@@ -199,13 +195,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void moveValue(const Value &src, const ValueOperand &dest) {
         moveValue(src, dest.valueReg());
     }
-    void moveValue(const ValueOperand &src, const ValueOperand &dest) {
-        if (src.valueReg() != dest.valueReg())
-            movq(src.valueReg(), dest.valueReg());
-    }
     void boxValue(JSValueType type, Register src, Register dest) {
-        JS_ASSERT(src != dest);
-
         JSValueShiftedTag tag = (JSValueShiftedTag)JSVAL_TYPE_TO_SHIFTED_TAG(type);
         movq(ImmShiftedTag(tag), dest);
 #ifdef DEBUG
@@ -294,10 +284,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     Condition testDouble(Condition cond, const ValueOperand &src) {
         splitTag(src, ScratchReg);
         return testDouble(cond, ScratchReg);
-    }
-    Condition testNumber(Condition cond, const ValueOperand &src) {
-        splitTag(src, ScratchReg);
-        return testNumber(cond, ScratchReg);
     }
     Condition testNull(Condition cond, const ValueOperand &src) {
         splitTag(src, ScratchReg);
@@ -429,11 +415,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         subq(Operand(addr), dest);
     }
 
-    void branch32(Condition cond, const AbsoluteAddress &lhs, Imm32 rhs, Label *label) {
-        movq(ImmWord(lhs.addr), ScratchReg);
-        branch32(cond, Address(ScratchReg, 0), rhs, label);
-    }
-
     // Specialization for AbsoluteAddress.
     void branchPtr(Condition cond, const AbsoluteAddress &addr, const Register &ptr, Label *label) {
         JS_ASSERT(ptr != ScratchReg);
@@ -444,13 +425,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     template <typename T>
     void branchPrivatePtr(Condition cond, T lhs, ImmWord ptr, Label *label) {
         branchPtr(cond, lhs, ImmWord(ptr.value >> 1), label);
-    }
-
-    void branchPrivatePtr(Condition cond, Address lhs, Register ptr, Label *label) {
-        if (ptr != ScratchReg)
-            movePtr(ptr, ScratchReg);
-        rshiftPtr(Imm32(1), ScratchReg);
-        branchPtr(cond, lhs, ScratchReg, label);
     }
 
     template <typename T, typename S>
@@ -542,9 +516,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void xorPtr(Imm32 imm, Register dest) {
         xorq(imm, dest);
     }
-    void xorPtr(Register src, Register dest) {
-        xorq(src, dest);
-    }
     void orPtr(Imm32 imm, Register dest) {
         orq(imm, dest);
     }
@@ -553,9 +524,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void andPtr(Imm32 imm, Register dest) {
         andq(imm, dest);
-    }
-    void andPtr(Register src, Register dest) {
-        andq(src, dest);
     }
 
     void splitTag(Register src, Register dest) {
@@ -566,15 +534,13 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void splitTag(const ValueOperand &operand, const Register &dest) {
         splitTag(operand.valueReg(), dest);
     }
-    void splitTag(const Operand &operand, const Register &dest) {
-        movq(operand, dest);
+    void splitTag(const Address &operand, const Register &dest) {
+        movq(Operand(operand), dest);
         shrq(Imm32(JSVAL_TAG_SHIFT), dest);
     }
-    void splitTag(const Address &operand, const Register &dest) {
-        splitTag(Operand(operand), dest);
-    }
     void splitTag(const BaseIndex &operand, const Register &dest) {
-        splitTag(Operand(operand), dest);
+        movq(Operand(operand), dest);
+        shrq(Imm32(JSVAL_TAG_SHIFT), dest);
     }
 
     // Extracts the tag of a value and places it in ScratchReg.
@@ -633,19 +599,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         cmpl(ToUpper32(operand), Imm32(Upper32Of(GetShiftedTag(JSVAL_TYPE_INT32))));
         j(cond, label);
     }
-    void branchTestInt32(Condition cond, const Address &address, Label *label) {
-        JS_ASSERT(cond == Equal || cond == NotEqual);
-        branchTestInt32(cond, Operand(address), label);
-    }
-    void branchTestDouble(Condition cond, const Operand &operand, Label *label) {
-        JS_ASSERT(cond == Equal || cond == NotEqual);
-        splitTag(operand, ScratchReg);
-        branchTestDouble(cond, ScratchReg, label);
-    }
-    void branchTestDouble(Condition cond, const Address &address, Label *label) {
-        JS_ASSERT(cond == Equal || cond == NotEqual);
-        branchTestDouble(cond, Operand(address), label);
-    }
     void branchTestBoolean(Condition cond, const Operand &operand, Label *label) {
         JS_ASSERT(cond == Equal || cond == NotEqual);
         cmpl(ToUpper32(operand), Imm32(Upper32Of(GetShiftedTag(JSVAL_TYPE_BOOLEAN))));
@@ -685,10 +638,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
     void branchTestObject(Condition cond, const ValueOperand &src, Label *label) {
         cond = testObject(cond, src);
-        j(cond, label);
-    }
-    void branchTestNumber(Condition cond, const ValueOperand &src, Label *label) {
-        cond = testNumber(cond, src);
         j(cond, label);
     }
     template <typename T>
@@ -745,9 +694,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void unboxInt32(const Address &src, const Register &dest) {
         unboxInt32(Operand(src), dest);
     }
-    void unboxDouble(const Address &src, const FloatRegister &dest) {
-        movsd(Operand(src), dest);
-    }
 
     void unboxArgObjMagic(const ValueOperand &src, const Register &dest) {
         unboxArgObjMagic(Operand(src.valueReg()), dest);
@@ -772,13 +718,16 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void unboxDouble(const ValueOperand &src, const FloatRegister &dest) {
         movqsd(src.valueReg(), dest);
     }
+    void unboxDouble(const Operand &src, const FloatRegister &dest) {
+        lea(src, ScratchReg);
+        movqsd(ScratchReg, dest);
+    }
+    void unboxDouble(const Address &src, const FloatRegister &dest) {
+        unboxDouble(Operand(src), dest);
+    }
     void unboxPrivate(const ValueOperand &src, const Register dest) {
         movq(src.valueReg(), dest);
         shlq(Imm32(1), dest);
-    }
-
-    void notBoolean(const ValueOperand &val) {
-        xorq(Imm32(1), val.valueReg());
     }
 
     // Unbox any non-double value into dest. Prefer unboxInt32 or unboxBoolean
@@ -818,16 +767,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     Register extractObject(const ValueOperand &value, Register scratch) {
         JS_ASSERT(scratch != ScratchReg);
         unboxObject(value, scratch);
-        return scratch;
-    }
-    Register extractInt32(const ValueOperand &value, Register scratch) {
-        JS_ASSERT(scratch != ScratchReg);
-        unboxInt32(value, scratch);
-        return scratch;
-    }
-    Register extractBoolean(const ValueOperand &value, Register scratch) {
-        JS_ASSERT(scratch != ScratchReg);
-        unboxBoolean(value, scratch);
         return scratch;
     }
     Register extractTag(const Address &address, Register scratch) {
@@ -932,24 +871,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         addPtr(Imm32(1), Address(ScratchReg, 0));
     }
 
-    // If source is a double, load it into dest. If source is int32,
-    // convert it to double. Else, branch to failure.
-    void ensureDouble(const ValueOperand &source, FloatRegister dest, Label *failure) {
-        Label isDouble, done;
-        Register tag = splitTagForTest(source);
-        branchTestDouble(Assembler::Equal, tag, &isDouble);
-        branchTestInt32(Assembler::NotEqual, tag, failure);
-
-        unboxInt32(source, ScratchReg);
-        convertInt32ToDouble(ScratchReg, dest);
-        jump(&done);
-
-        bind(&isDouble);
-        unboxDouble(source, dest);
-
-        bind(&done);
-    }
-
     // Setup a call to C/C++ code, given the number of general arguments it
     // takes. Note that this only supports cdecl.
     //
@@ -982,7 +903,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     void callWithABI(void *fun, Result result = GENERAL);
     void callWithABI(Address fun, Result result = GENERAL);
 
-    void handleFailureWithHandler(void *handler);
+    void handleException();
 
     void makeFrameDescriptor(Register frameSizeReg, FrameType type) {
         shlq(Imm32(FRAMESIZE_SHIFT), frameSizeReg);
@@ -990,7 +911,7 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
     }
 
     // Save an exit frame (which must be aligned to the stack pointer) to
-    // ThreadData::ionTop of the main thread.
+    // ThreadData::ionTop.
     void linkExitFrame() {
         mov(ImmWord(GetIonContext()->runtime), ScratchReg);
         mov(StackPointer, Operand(ScratchReg, offsetof(JSRuntime, mainThread.ionTop)));
@@ -1001,12 +922,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         makeFrameDescriptor(dynStack, IonFrame_OptimizedJS);
         Push(dynStack);
         call(target);
-    }
-
-    // Save an exit frame to the thread data of the current thread, given a
-    // register that holds a PerThreadData *.
-    void linkParallelExitFrame(const Register &pt) {
-        mov(StackPointer, Operand(pt, offsetof(PerThreadData, ionTop)));
     }
 
     void enterOsr(Register calleeToken, Register code) {
@@ -1026,11 +941,6 @@ class MacroAssemblerX64 : public MacroAssemblerX86Shared
         uint8_t *target = code + codeBytes + globalDataOffset;
         ((int32_t *)nextInsn)[-1] = target - nextInsn;
     }
-    void memIntToValue(Address Source, Address Dest) {
-        load32(Source, ScratchReg);
-        storeValue(JSVAL_TYPE_INT32, ScratchReg, Dest);
-    }
-
 };
 
 typedef MacroAssemblerX64 MacroAssemblerSpecific;

@@ -17,12 +17,11 @@
 #include "nsGenericHTMLElement.h"
 #include "nsTArray.h"
 
+class nsHTMLSelectElement;
 class nsIDOMHTMLOptionElement;
 
 namespace mozilla {
 namespace dom {
-
-class HTMLSelectElement;
 
 /**
  * The collection of options in the select (what you get back when you do
@@ -34,13 +33,11 @@ class HTMLOptionsCollection : public nsIHTMLCollection
 {
   typedef HTMLOptionElementOrHTMLOptGroupElement HTMLOptionOrOptGroupElement;
 public:
-  HTMLOptionsCollection(HTMLSelectElement* aSelect);
+  HTMLOptionsCollection(nsHTMLSelectElement* aSelect);
   virtual ~HTMLOptionsCollection();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  // nsWrapperCache
-  using nsWrapperCache::GetWrapperPreserveColor;
   virtual JSObject* WrapObject(JSContext* cx, JSObject* scope) MOZ_OVERRIDE;
 
   // nsIDOMHTMLOptionsCollection interface
@@ -55,7 +52,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(HTMLOptionsCollection,
                                                          nsIHTMLCollection)
 
-  // Helpers for HTMLSelectElement
+  // Helpers for nsHTMLSelectElement
   /**
    * Insert an option
    * @param aOption the option to insert
@@ -141,7 +138,7 @@ private:
    * various members such as InsertOptionAt are also infallible. */
   nsTArray<nsRefPtr<mozilla::dom::HTMLOptionElement> > mElements;
   /** The select element that contains this array */
-  HTMLSelectElement* mSelect;
+  nsHTMLSelectElement* mSelect;
 };
 
 } // namespace dom

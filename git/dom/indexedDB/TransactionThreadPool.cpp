@@ -167,7 +167,8 @@ TransactionThreadPool::MaybeUnblockTransaction(nsPtrHashKey<TransactionInfo>* aK
   NS_ASSERTION(maybeUnblockedInfo->blockedOn.Contains(finishedInfo),
                "Huh?");
   maybeUnblockedInfo->blockedOn.RemoveEntry(finishedInfo);
-  if (!maybeUnblockedInfo->blockedOn.Count()) {
+  if (!maybeUnblockedInfo->blockedOn.Count() &&
+      !maybeUnblockedInfo->transaction->IsAborted()) {
     // Let this transaction run.
     maybeUnblockedInfo->queue->Unblock();
   }
@@ -418,7 +419,7 @@ TransactionThreadPool::AbortTransactionsForDatabase(IDBDatabase* aDatabase)
   }
 }
 
-struct MOZ_STACK_CLASS TransactionSearchInfo
+struct NS_STACK_CLASS TransactionSearchInfo
 {
   TransactionSearchInfo(nsIOfflineStorage* aDatabase)
     : db(aDatabase), found(false)
@@ -468,12 +469,7 @@ TransactionThreadPool::MaybeFireCallback(DatabasesCompleteCallback& aCallback)
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   for (uint32_t index = 0; index < aCallback.mDatabases.Length(); index++) {
-    IDBDatabase* database = aCallback.mDatabases[index];
-    if (!database) {
-      MOZ_CRASH();
-    }
-
-    if (mTransactionsInProgress.Get(database->Id(),
+    if (mTransactionsInProgress.Get(aCallback.mDatabases[index]->Id(),
                                     nullptr)) {
       return false;
     }

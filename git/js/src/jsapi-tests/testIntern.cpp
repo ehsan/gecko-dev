@@ -5,7 +5,6 @@
 #include "tests.h"
 #include "jsatom.h"
 
-#include "gc/Marking.h"
 #include "vm/String.h"
 
 using mozilla::ArrayLength;
@@ -32,7 +31,7 @@ void
 FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool isCompartmentGC)
 {
     if (status == JSFINALIZE_GROUP_START)
-        sw.strOk = js::gc::IsStringMarked(&sw.str);
+        sw.strOk = !JS_IsAboutToBeFinalized(sw.str);
 }
 
 BEGIN_TEST(testInternAcrossGC)

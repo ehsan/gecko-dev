@@ -22,7 +22,6 @@ static const int AUDIO_NODE_STREAM_TRACK_ID = 1;
 
 AudioNodeStream::~AudioNodeStream()
 {
-  MOZ_COUNT_DTOR(AudioNodeStream);
 }
 
 void
@@ -177,18 +176,6 @@ AudioNodeStream::EnsureTrack()
   return track;
 }
 
-bool
-AudioNodeStream::AllInputsFinished() const
-{
-  uint32_t inputCount = mInputs.Length();
-  for (uint32_t i = 0; i < inputCount; ++i) {
-    if (!mInputs[i]->GetSource()->IsFinishedOnGraphThread()) {
-      return false;
-    }
-  }
-  return !!inputCount;
-}
-
 AudioChunk*
 AudioNodeStream::ObtainInputBlock(AudioChunk* aTmpChunk)
 {
@@ -203,6 +190,9 @@ AudioNodeStream::ObtainInputBlock(AudioChunk* aTmpChunk)
       continue;
     }
     AudioChunk* chunk = &a->mLastChunk;
+    // XXX when we implement DelayNode, this will no longer be true and we'll
+    // need to treat a null chunk (when the DelayNode hasn't had a chance
+    // to produce data yet) as silence here.
     MOZ_ASSERT(chunk);
     if (chunk->IsNull()) {
       continue;

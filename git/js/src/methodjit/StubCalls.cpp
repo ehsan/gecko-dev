@@ -16,7 +16,6 @@
 #include "jsbool.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
 #include "jstypes.h"
-#include "jsworkers.h"
 
 #include "gc/Marking.h"
 #include "ion/AsmJS.h"
@@ -136,13 +135,17 @@ stubs::SetElem(VMFrame &f)
     Value &idval  = regs.sp[-2];
     RootedValue rval(cx, regs.sp[-1]);
 
+    RootedId id(cx);
+
     RootedObject obj(cx, ToObjectFromStack(cx, objval));
     if (!obj)
         THROW();
 
-    RootedId id(f.cx);
-    if (!ValueToId<CanGC>(f.cx, idval, &id))
+    if (!FetchElementId(f.cx, obj, idval, &id,
+                        MutableHandleValue::fromMarkedLocation(&regs.sp[-2])))
+    {
         THROW();
+    }
 
     TypeScript::MonitorAssign(cx, obj, id);
 
@@ -179,10 +182,9 @@ stubs::ToId(VMFrame &f)
         THROW();
 
     RootedId id(f.cx);
-    if (!ValueToId<CanGC>(f.cx, idval, &id))
+    if (!FetchElementId(f.cx, obj, idval, &id, idval))
         THROW();
 
-    idval.set(IdToValue(id));
     if (!idval.isInt32()) {
         RootedScript fscript(f.cx, f.script());
         TypeScript::MonitorUnknown(f.cx, fscript, f.pc());
@@ -774,7 +776,7 @@ stubs::TriggerIonCompile(VMFrame &f)
 {
     RootedScript script(f.cx, f.script());
 
-    if (OffThreadCompilationEnabled(f.cx) && !f.cx->runtime->profilingScripts) {
+    if (ion::js_IonOptions.parallelCompilation && !f.cx->runtime->profilingScripts) {
         if (script->hasIonScript()) {
             /*
              * Normally TriggerIonCompile is not called if !script->ion, but the
@@ -1447,8 +1449,11 @@ stubs::In(VMFrame &f)
 
     RootedObject obj(cx, &rref.toObject());
     RootedId id(cx);
-    if (!ValueToId<CanGC>(f.cx, f.regs.sp[-2], &id))
+    if (!FetchElementId(f.cx, obj, f.regs.sp[-2], &id,
+                        MutableHandleValue::fromMarkedLocation(&f.regs.sp[-2])))
+    {
         THROWV(JS_FALSE);
+    }
 
     RootedObject obj2(cx);
     RootedShape prop(cx);

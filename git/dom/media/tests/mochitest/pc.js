@@ -360,16 +360,6 @@ function PCT_setMediaConstraints(constraintsLocal, constraintsRemote) {
 };
 
 /**
- * Sets the media constraints used on a createOffer call in the test.
- *
- * @param {object} constraints the media constraints to use on createOffer
- */
-PeerConnectionTest.prototype.setOfferConstraints =
-function PCT_setOfferConstraints(constraints) {
-  this.pcLocal.offerConstraints = constraints;
-};
-
-/**
  * Start running the tests as assigned to the command chain.
  */
 PeerConnectionTest.prototype.run = function PCT_run() {
@@ -409,7 +399,6 @@ function PeerConnectionWrapper(label, configuration) {
   this.label = label;
 
   this.constraints = [ ];
-  this.offerConstraints = {};
   this.streams = [ ];
 
   info("Creating new PeerConnectionWrapper: " + this.label);
@@ -513,7 +502,7 @@ PeerConnectionWrapper.prototype = {
           self.attachMedia(stream, type, 'local');
 
           _getAllUserMedia(constraintsList, index + 1);
-        }, unexpectedCallbackAndFinish(new Error));
+        }, unexpectedCallbackAndFinish);
       } else {
         onSuccess();
       }
@@ -536,7 +525,7 @@ PeerConnectionWrapper.prototype = {
       info("Got offer: " + JSON.stringify(offer));
       self._last_offer = offer;
       onSuccess(offer);
-    }, unexpectedCallbackAndFinish(new Error), this.offerConstraints);
+    }, unexpectedCallbackAndFinish);
   },
 
   /**
@@ -552,7 +541,7 @@ PeerConnectionWrapper.prototype = {
       info('Got answer for ' + self.label + ': ' + JSON.stringify(answer));
       self._last_answer = answer;
       onSuccess(answer);
-    }, unexpectedCallbackAndFinish(new Error));
+    }, unexpectedCallbackAndFinish);
   },
 
   /**
@@ -569,7 +558,7 @@ PeerConnectionWrapper.prototype = {
     this._pc.setLocalDescription(sdp, function () {
       info("Successfully set the local description for " + self.label);
       onSuccess();
-    }, unexpectedCallbackAndFinish(new Error));
+    }, unexpectedCallbackAndFinish);
   },
 
   /**
@@ -586,7 +575,7 @@ PeerConnectionWrapper.prototype = {
     this._pc.setRemoteDescription(sdp, function () {
       info("Successfully set remote description for " + self.label);
       onSuccess();
-    }, unexpectedCallbackAndFinish(new Error));
+    }, unexpectedCallbackAndFinish);
   },
 
   /**

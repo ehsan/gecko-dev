@@ -600,7 +600,14 @@ if test -n "$_WIN32_MSVC"; then
 
     # Common to all MSVC environments:
 
+    # Windows lacks <stdint.h>, but has __int8, and so on.
+    AC_DEFINE(JS_HAVE___INTN)
     AC_DEFINE(HAVE_LOCALECONV)
+
+    # Windows <stddef.h> defines intptr_t and uintptr_t.
+    # VS2005: http://msdn.microsoft.com/en-us/library/323b6b3k(VS.80).aspx
+    # VS2008: http://msdn.microsoft.com/en-us/library/323b6b3k.aspx
+    AC_DEFINE(JS_STDDEF_H_HAS_INTPTR_T)
 fi
 
 fi # COMPILE_ENVIRONMENT
@@ -1474,6 +1481,7 @@ case "$target" in
     if test "$COMPILE_ENVIRONMENT"; then
         MOZ_CHECK_HEADERS(sys/inttypes.h)
     fi
+    AC_DEFINE(JS_SYS_TYPES_H_DEFINES_EXACT_SIZE_TYPES)
     AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
     ;;
 
@@ -1679,12 +1687,8 @@ ia64*-hpux*)
         _DEFINES_CXXFLAGS='-FI $(DEPTH)/js-confdefs.h -DMOZILLA_CLIENT'
         CFLAGS="$CFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
         CXXFLAGS="$CXXFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
+        # MSVC warning C4244 is ubiquitous, useless, and annoying.
         # khuey says we can safely ignore MSVC warning C4251
-        # MSVC warning C4244 (implicit type conversion may lose data) warns
-        # and requires workarounds for perfectly valid code.  Also, GCC/clang
-        # don't warn about it by default. So for consistency/sanity, we turn
-        # it off on MSVC, too.
-        CFLAGS="$CFLAGS -wd4244"
         CXXFLAGS="$CXXFLAGS -wd4244 -wd4251"
         # make 'foo == bar;' error out
         CFLAGS="$CFLAGS -we4553"
@@ -1775,7 +1779,6 @@ ia64*-hpux*)
         if test -n "$GNU_CC"; then
             CFLAGS="$CFLAGS -mstackrealign -fno-keep-inline-dllexport"
             CXXFLAGS="$CXXFLAGS -mstackrealign -fno-keep-inline-dllexport"
-            LDFLAGS="$LDFLAGS -Wl,--large-address-aware"
         else
             DSO_LDOPTS="$DSO_LDOPTS -MACHINE:X86"
             LDFLAGS="$LDFLAGS -SAFESEH"
@@ -3264,7 +3267,7 @@ MOZ_ARG_ENABLE_STRING(debug,
                            (using compiler flags DBG)],
 [ if test "$enableval" != "no"; then
     MOZ_DEBUG=1
-    if test "$ENABLE_METHODJIT" -o "$ENABLE_YARR_JIT"; then
+    if test "$ENABLE_METHODJIT"; then
          # needs MethodJIT or YarrJIT
          ENABLE_METHODJIT_SPEW=1
     fi
@@ -4012,7 +4015,7 @@ dnl ========================================================
 MOZ_ARG_HEADER(Build dependencies)
 
 if test "$GNU_CC" -a "$GNU_CXX"; then
-  _DEPEND_CFLAGS='-MD -MP -MF $(MDDEPDIR)/$(@F).pp'
+  _DEPEND_CFLAGS='$(filter-out %/.pp,-MD -MF $(MDDEPDIR)/$(@F).pp)'
 dnl Sun Studio on Solaris use -xM instead of -MD, see config/rules.mk
 elif test "$SOLARIS_SUNPRO_CC"; then
   _DEPEND_CFLAGS=
@@ -4361,6 +4364,7 @@ if test "$ACCESSIBILITY" -a "$MOZ_ENABLE_GTK2" ; then
     AC_DEFINE_UNQUOTED(ATK_MINOR_VERSION, $ATK_MINOR_VERSION)
     AC_DEFINE_UNQUOTED(ATK_REV_VERSION, $ATK_REV_VERSION)
 fi
+
 
 dnl ECMAScript Internationalization API Support (uses ICU)
 dnl ========================================================

@@ -28,16 +28,11 @@ XPCOMUtils.defineLazyServiceGetter(this, "gActivityDistributor",
                                    "@mozilla.org/network/http-activity-distributor;1",
                                    "nsIHttpActivityDistributor");
 
-// TODO: Bug 842672 - toolkit/ imports modules from browser/.
-// Note that these are only used in JSTermHelpers, see $0 and pprint().
 XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
                                   "resource:///modules/devtools/gDevTools.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "TargetFactory",
                                   "resource:///modules/devtools/Target.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "VariablesView",
-                                  "resource:///modules/devtools/VariablesView.jsm");
 
 this.EXPORTED_SYMBOLS = ["WebConsoleUtils", "JSPropertyProvider", "JSTermHelpers",
                          "PageErrorListener", "ConsoleAPIListener",
@@ -791,7 +786,7 @@ this.WebConsoleUtils = {
    * @return string
    *         The object class name.
    */
-  getObjectClassName: function WCU_getObjectClassName(aObject)
+  getObjectClassName: function WCF_getObjectClassName(aObject)
   {
     if (aObject === null) {
       return "null";
@@ -863,19 +858,6 @@ this.WebConsoleUtils = {
     }
 
     return val.displayString || val.type;
-  },
-
-  /**
-   * Check if the given value is a grip with an actor.
-   *
-   * @param mixed aGrip
-   *        Value you want to check if it is a grip with an actor.
-   * @return boolean
-   *         True if the given value is a grip with an actor.
-   */
-  isActorGrip: function WCU_isActorGrip(aGrip)
-  {
-    return aGrip && typeof(aGrip) == "object" && aGrip.actor;
   },
 };
 
@@ -1560,15 +1542,20 @@ this.JSTermHelpers = function JSTermHelpers(aOwner)
    */
   aOwner.sandbox.$x = function JSTH_$x(aXPath, aContext)
   {
-    let nodes = new aOwner.window.wrappedJSObject.Array();
+    let nodes = [];
     let doc = aOwner.window.document;
     let aContext = aContext || doc;
 
-    let results = doc.evaluate(aXPath, aContext, null,
-                               Ci.nsIDOMXPathResult.ANY_TYPE, null);
-    let node;
-    while (node = results.iterateNext()) {
-      nodes.push(node);
+    try {
+      let results = doc.evaluate(aXPath, aContext, null,
+                                 Ci.nsIDOMXPathResult.ANY_TYPE, null);
+      let node;
+      while (node = results.iterateNext()) {
+        nodes.push(node);
+      }
+    }
+    catch (ex) {
+      aOwner.window.console.error(ex.message);
     }
 
     return nodes;
@@ -1585,18 +1572,20 @@ this.JSTermHelpers = function JSTermHelpers(aOwner)
    * @return nsIDOMElement|null
    *         The DOM element currently selected in the highlighter.
    */
-   Object.defineProperty(aOwner.sandbox, "$0", {
+  Object.defineProperty(aOwner.sandbox, "$0", {
     get: function() {
-      let window = aOwner.chromeWindow();
-      if (!window) {
-        return null;
-      }
-      let target = TargetFactory.forTab(window.gBrowser.selectedTab);
-      let toolbox = gDevTools.getToolbox(target);
-      let panel = toolbox ? toolbox.getPanel("inspector") : null;
-      let node = panel ? panel.selection.node : null;
+      try {
+        let window = aOwner.chromeWindow();
+        let target = TargetFactory.forTab(window.gBrowser.selectedTab);
+        let toolbox = gDevTools.getToolbox(target);
 
-      return node ? aOwner.makeDebuggeeValue(node) : null;
+        return toolbox == null ?
+            undefined :
+            toolbox.getPanel("inspector").selection.node;
+      }
+      catch (ex) {
+        aOwner.window.console.error(ex.message);
+      }
     },
     enumerable: true,
     configurable: false
@@ -1621,7 +1610,7 @@ this.JSTermHelpers = function JSTermHelpers(aOwner)
    */
   aOwner.sandbox.keys = function JSTH_keys(aObject)
   {
-    return aOwner.window.wrappedJSObject.Object.keys(WebConsoleUtils.unwrap(aObject));
+    return Object.keys(WebConsoleUtils.unwrap(aObject));
   };
 
   /**
@@ -1633,11 +1622,16 @@ this.JSTermHelpers = function JSTermHelpers(aOwner)
    */
   aOwner.sandbox.values = function JSTH_values(aObject)
   {
-    let arrValues = new aOwner.window.wrappedJSObject.Array();
+    let arrValues = [];
     let obj = WebConsoleUtils.unwrap(aObject);
 
-    for (let prop in obj) {
-      arrValues.push(obj[prop]);
+    try {
+      for (let prop in obj) {
+        arrValues.push(obj[prop]);
+      }
+    }
+    catch (ex) {
+      aOwner.window.console.error(ex.message);
     }
 
     return arrValues;
@@ -1659,12 +1653,15 @@ this.JSTermHelpers = function JSTermHelpers(aOwner)
    */
   aOwner.sandbox.inspect = function JSTH_inspect(aObject)
   {
-    let dbgObj = aOwner.makeDebuggeeValue(aObject);
-    let grip = aOwner.createValueGrip(dbgObj);
+    let obj = WebConsoleUtils.unwrap(aObject);
+    if (!WebConsoleUtils.isObjectInspectable(obj)) {
+      return aObject;
+    }
+
     aOwner.helperResult = {
       type: "inspectObject",
       input: aOwner.evalInput,
-      object: grip,
+      object: aOwner.createValueGrip(obj),
     };
   };
 
@@ -1693,24 +1690,13 @@ this.JSTermHelpers = function JSTermHelpers(aOwner)
     }
 
     let output = [];
-
+    let getObjectGrip = WebConsoleUtils.getObjectGrip.bind(WebConsoleUtils);
     let obj = WebConsoleUtils.unwrap(aObject);
-    for (let name in obj) {
-      let desc = WebConsoleUtils.getPropertyDescriptor(obj, name) || {};
-      if (desc.get || desc.set) {
-        // TODO: Bug 842672 - toolkit/ imports modules from browser/.
-        let getGrip = VariablesView.getGrip(desc.get);
-        let setGrip = VariablesView.getGrip(desc.set);
-        let getString = VariablesView.getString(getGrip);
-        let setString = VariablesView.getString(setGrip);
-        output.push(name + ":", "  get: " + getString, "  set: " + setString);
-      }
-      else {
-        let valueGrip = VariablesView.getGrip(obj[name]);
-        let valueString = VariablesView.getString(valueGrip);
-        output.push(name + ": " + valueString);
-      }
-    }
+    let props = WebConsoleUtils.inspectObject(obj, getObjectGrip);
+    props.forEach(function(aProp) {
+      output.push(aProp.name + ": " +
+                  WebConsoleUtils.getPropertyPanelValue(aProp));
+    });
 
     return "  " + output.join("\n  ");
   };

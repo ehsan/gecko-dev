@@ -16,7 +16,6 @@
 #include "MediaDecoderReader.h"
 #include "OggCodecState.h"
 #include "VideoUtils.h"
-#include "mozilla/Monitor.h"
 
 namespace mozilla {
 namespace dom {
@@ -25,25 +24,6 @@ class TimeRanges;
 }
 
 namespace mozilla {
-
-// Thread safe container to store the codec information and the serial for each
-// streams.
-class OggCodecStore
-{
-  public:
-    OggCodecStore();
-    void Add(uint32_t serial, OggCodecState* codecState);
-    bool Contains(uint32_t serial);
-    OggCodecState* Get(uint32_t serial);
-    bool IsKnownStream(uint32_t aSerial);
-
-  private:
-    // Maps Ogg serialnos to OggStreams.
-    nsClassHashtable<nsUint32HashKey, OggCodecState> mCodecStates;
-
-    // Protects the |mCodecStates| and the |mKnownStreams| members.
-    Monitor mMonitor;
-};
 
 class OggReader : public MediaDecoderReader
 {
@@ -253,7 +233,14 @@ private:
   // various SkeletonState functions.
   void BuildSerialList(nsTArray<uint32_t>& aTracks);
 
-  OggCodecStore mCodecStore;
+  // Maps Ogg serialnos to nsOggStreams.
+  nsClassHashtable<nsUint32HashKey, OggCodecState> mCodecStates;
+
+  // Array of serial numbers of streams that were encountered during
+  // initial metadata load. Written on state machine thread during
+  // metadata loading and read on the main thread only after metadata
+  // is loaded.
+  nsAutoTArray<uint32_t,4> mKnownStreams;
 
   // Decode state of the Theora bitstream we're decoding, if we have video.
   TheoraState* mTheoraState;

@@ -22,7 +22,6 @@
 #include "TextInputHandler.h"
 #include "nsCocoaUtils.h"
 #include "gfxQuartzSurface.h"
-#include "GLContext.h"
 
 #include "nsString.h"
 #include "nsIDragService.h"
@@ -254,26 +253,17 @@ typedef NSInteger NSEventGestureAxis;
     eGestureState_None,
     eGestureState_StartGesture,
     eGestureState_MagnifyGesture,
-    eGestureState_RotateGesture,
-    eGestureState_TapGesture
+    eGestureState_RotateGesture
   } mGestureState;
   float mCumulativeMagnification;
   float mCumulativeRotation;
 
-  // Custom double tap gesture support
-  //
-  // mFirstTapTime keeps track of the time when the first tap occured
-  // and is used to check whether second tap should be recognized as
-  // a double tap gesture.
-  NSTimeInterval mFirstTapTime;
-
   BOOL mDidForceRefreshOpenGL;
   BOOL mWaitingForPaint;
 
-#ifdef __LP64__
   // Support for fluid swipe tracking.
-  BOOL* mCancelSwipeAnimation;
-  PRUint32 mCurrentSwipeDir;
+#ifdef __LP64__
+  BOOL *mSwipeAnimationCancelled;
 #endif
 
   // Whether this uses off-main-thread compositing.
@@ -334,15 +324,10 @@ typedef NSInteger NSEventGestureAxis;
 - (void)rotateWithEvent:(NSEvent *)anEvent;
 - (void)endGestureWithEvent:(NSEvent *)anEvent;
 
-// Not a genuine nsResponder method, but called by touchesBeganWithEvent
-// to simulate double-tap recognition
-- (void)tapWithEvent:(NSEvent *)anEvent;
-
 // Support for fluid swipe tracking.
 #ifdef __LP64__
 - (void)maybeTrackScrollEventAsSwipe:(NSEvent *)anEvent
-                     scrollOverflowX:(double)overflowX
-                     scrollOverflowY:(double)overflowY;
+                      scrollOverflow:(double)overflow;
 #endif
 
 - (void)setUsingOMTCompositor:(BOOL)aUseOMTC;

@@ -250,11 +250,6 @@ Section "Uninstall"
   Call un.RenameDelete
   Push "$INSTDIR\Uninstall.exe"
   Call un.RenameDelete
-  Push "$INSTDIR\update\updater.ini"
-  Call un.RenameDelete
-  Push "$INSTDIR\update\updater.exe"
-  Call un.RenameDelete
-  RMDir /REBOOTOK "$INSTDIR\update"
   RMDir /REBOOTOK "$INSTDIR"
 
   DeleteRegKey HKLM "${MaintUninstallKey}"

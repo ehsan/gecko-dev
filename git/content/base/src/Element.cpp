@@ -14,7 +14,7 @@
 
 #include "mozilla/dom/Element.h"
 
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsDOMAttributeMap.h"
 #include "nsIAtom.h"
 #include "nsINodeInfo.h"
@@ -129,7 +129,6 @@
 #include "nsXBLService.h"
 #include "nsContentCID.h"
 #include "nsITextControlElement.h"
-#include "mozilla/dom/DocumentFragment.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -770,48 +769,46 @@ Element::RemoveAttribute(const nsAString& aName, ErrorResult& aError)
   aError = UnsetAttr(name->NamespaceID(), name->LocalName(), true);
 }
 
-Attr*
+nsIDOMAttr*
 Element::GetAttributeNode(const nsAString& aName)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eGetAttributeNode);
   return Attributes()->GetNamedItem(aName);
 }
 
-already_AddRefed<Attr>
-Element::SetAttributeNode(Attr& aNewAttr, ErrorResult& aError)
+already_AddRefed<nsIDOMAttr>
+Element::SetAttributeNode(nsIDOMAttr* aNewAttr, ErrorResult& aError)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eSetAttributeNode);
 
-  nsCOMPtr<nsIDOMAttr> attr;
-  aError = Attributes()->SetNamedItem(&aNewAttr, getter_AddRefs(attr));
+  nsCOMPtr<nsIDOMAttr> returnAttr;
+  aError = Attributes()->SetNamedItem(aNewAttr, getter_AddRefs(returnAttr));
   if (aError.Failed()) {
     return nullptr;
   }
 
-  nsRefPtr<Attr> returnAttr = static_cast<Attr*>(attr.get());
   return returnAttr.forget();
 }
 
-already_AddRefed<Attr>
-Element::RemoveAttributeNode(Attr& aAttribute,
+already_AddRefed<nsIDOMAttr>
+Element::RemoveAttributeNode(nsIDOMAttr* aAttribute,
                              ErrorResult& aError)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eRemoveAttributeNode);
 
   nsAutoString name;
 
-  aError = aAttribute.GetName(name);
+  aError = aAttribute->GetName(name);
   if (aError.Failed()) {
     return nullptr;
   }
 
-  nsCOMPtr<nsIDOMAttr> attr;
-  aError = Attributes()->RemoveNamedItem(name, getter_AddRefs(attr));
+  nsCOMPtr<nsIDOMAttr> returnAttr;
+  aError = Attributes()->RemoveNamedItem(name, getter_AddRefs(returnAttr));
   if (aError.Failed()) {
     return nullptr;
   }
 
-  nsRefPtr<Attr> returnAttr = static_cast<Attr*>(attr.get());
   return returnAttr.forget();
 }
 
@@ -875,28 +872,30 @@ Element::RemoveAttributeNS(const nsAString& aNamespaceURI,
   aError = UnsetAttr(nsid, name, true);
 }
 
-Attr*
+nsIDOMAttr*
 Element::GetAttributeNodeNS(const nsAString& aNamespaceURI,
-                            const nsAString& aLocalName)
+                            const nsAString& aLocalName,
+                            ErrorResult& aError)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eGetAttributeNodeNS);
 
-  return GetAttributeNodeNSInternal(aNamespaceURI, aLocalName);
+  return GetAttributeNodeNSInternal(aNamespaceURI, aLocalName, aError);
 }
 
-Attr*
+nsIDOMAttr*
 Element::GetAttributeNodeNSInternal(const nsAString& aNamespaceURI,
-                                    const nsAString& aLocalName)
+                                    const nsAString& aLocalName,
+                                    ErrorResult& aError)
 {
-  return Attributes()->GetNamedItemNS(aNamespaceURI, aLocalName);
+  return Attributes()->GetNamedItemNS(aNamespaceURI, aLocalName, aError);
 }
 
-already_AddRefed<Attr>
-Element::SetAttributeNodeNS(Attr& aNewAttr,
+already_AddRefed<nsIDOMAttr>
+Element::SetAttributeNodeNS(nsIDOMAttr* aNewAttr,
                             ErrorResult& aError)
 {
   OwnerDoc()->WarnOnceAbout(nsIDocument::eSetAttributeNodeNS);
-  return Attributes()->SetNamedItemNS(&aNewAttr, aError);
+  return Attributes()->SetNamedItemNS(aNewAttr, aError);
 }
 
 already_AddRefed<nsIHTMLCollection>
@@ -1828,6 +1827,7 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
     ni = mNodeInfo->NodeInfoManager()->GetNodeInfo(aName, aPrefix,
                                                    aNamespaceID,
                                                    nsIDOMNode::ATTRIBUTE_NODE);
+    NS_ENSURE_TRUE(ni, NS_ERROR_OUT_OF_MEMORY);
 
     rv = mAttrsAndChildren.SetAndTakeAttr(ni, aParsedValue);
   }
@@ -1862,8 +1862,9 @@ Element::SetAttrAndNotify(int32_t aNamespaceID,
 
     nsAutoString ns;
     nsContentUtils::NameSpaceManager()->GetNameSpaceURI(aNamespaceID, ns);
-    Attr* attrNode =
-      GetAttributeNodeNSInternal(ns, nsDependentAtomString(aName));
+    ErrorResult rv;
+    nsIDOMAttr* attrNode =
+      GetAttributeNodeNSInternal(ns, nsDependentAtomString(aName), rv);
     mutation.mRelatedNode = attrNode;
 
     mutation.mAttrName = aName;
@@ -1988,11 +1989,12 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
                                          this);
 
   // Grab the attr node if needed before we remove it from the attr map
-  nsRefPtr<Attr> attrNode;
+  nsCOMPtr<nsIDOMAttr> attrNode;
   if (hasMutationListeners) {
     nsAutoString ns;
     nsContentUtils::NameSpaceManager()->GetNameSpaceURI(aNameSpaceID, ns);
-    attrNode = GetAttributeNodeNSInternal(ns, nsDependentAtomString(aName));
+    ErrorResult rv;
+    attrNode = GetAttributeNodeNSInternal(ns, nsDependentAtomString(aName), rv);
   }
 
   // Clear binding to nsIDOMMozNamedAttrMap
@@ -2040,6 +2042,7 @@ Element::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   }
 
   if (hasMutationListeners) {
+    nsCOMPtr<nsIDOMEventTarget> node = do_QueryObject(this);
     nsMutationEvent mutation(true, NS_MUTATION_ATTRMODIFIED);
 
     mutation.mRelatedNode = attrNode;
@@ -3394,8 +3397,13 @@ Element::SetOuterHTML(const nsAString& aOuterHTML, ErrorResult& aError)
       localName = nsGkAtoms::body;
       namespaceID = kNameSpaceID_XHTML;
     }
-    nsRefPtr<DocumentFragment> fragment =
-      new DocumentFragment(OwnerDoc()->NodeInfoManager());
+    nsCOMPtr<nsIDOMDocumentFragment> df;
+    aError = NS_NewDocumentFragment(getter_AddRefs(df),
+                                    OwnerDoc()->NodeInfoManager());
+    if (aError.Failed()) {
+      return;
+    }
+    nsCOMPtr<nsIContent> fragment = do_QueryInterface(df);
     nsContentUtils::ParseFragmentHTML(aOuterHTML,
                                       fragment,
                                       localName,

@@ -93,7 +93,7 @@ memleak_init()
 				FREEBL_LIST="${FREEBL_DEFAULT} libfreebl_64int_3"
 			else
 				FREEBL_DEFAULT="libfreebl_32fpu_3"
-				FREEBL_LIST="${FREEBL_DEFAULT} libfreebl_32int64_3"
+				FREEBL_LIST="${FREEBL_DEFAULT} libfreebl_32int_3 libfreebl_32int64_3"
 			fi
 		else
 			if [ "${BIT_NAME}" = "64" ] ; then
@@ -366,19 +366,11 @@ run_selfserv_dbg()
 run_strsclnt()
 {
 	for cipher in ${cipher_list}; do
-		VMIN="ssl3"
-		VMAX=
-		case "${cipher}" in
-		A|B|C|D|E|F)
-			# Enable SSL 2 only for SSL 2 cipher suites.
-			VMIN="ssl2"
-			;;
-		f|g)
+		ATTR="${STRSCLNT_ATTR} -C ${cipher}"
+		if [ "${cipher}" = "f" -o "${cipher}" = "g" ] ; then
 			# TLS 1.1 disallows export cipher suites.
-			VMAX="tls1.0"
-			;;
-		esac
-		ATTR="${STRSCLNT_ATTR} -C ${cipher} -V ${VMIN}:${VMAX}"
+			ATTR="${ATTR} -V :tls1.0"
+		fi
 		echo "${SCRIPTNAME}: -------- Trying cipher ${cipher}:"
 		echo "strsclnt ${ATTR}"
 		${BINDIR}/strsclnt ${ATTR}
@@ -411,19 +403,11 @@ run_strsclnt()
 run_strsclnt_dbg()
 {
 	for cipher in ${cipher_list}; do
-		VMIN="ssl3"
-		VMAX=
-		case "${cipher}" in
-		A|B|C|D|E|F)
-			# Enable SSL 2 only for SSL 2 cipher suites.
-			VMIN="ssl2"
-			;;
-		f|g)
+		ATTR="${STRSCLNT_ATTR} -C ${cipher}"
+		if [ "${cipher}" = "f" -o "${cipher}" = "g" ] ; then
 			# TLS 1.1 disallows export cipher suites.
-			VMAX="tls1.0"
-			;;
-		esac
-		ATTR="${STRSCLNT_ATTR} -C ${cipher} -V ${VMIN}:${VMAX}"
+			ATTR="${ATTR} -V :tls1.0"
+		fi
 		${RUN_COMMAND_DBG} ${BINDIR}/strsclnt ${CLIENT_OPTION} ${ATTR}
 		ret=$?
 		if [ $ret -ne 0 ]; then

@@ -5,6 +5,7 @@
 
 
 #include "mozilla/layers/ImageBridgeChild.h"
+#include "mozilla/layers/ImageContainerChild.h"
 
 #include "ImageContainer.h"
 #include "GonkIOSurfaceImage.h"
@@ -17,7 +18,6 @@
 #include "yuv_convert.h"
 #include "gfxUtils.h"
 #include "gfxPlatform.h"
-#include "mozilla/layers/ImageClient.h"
 
 #ifdef XP_MACOSX
 #include "mozilla/gfx/QuartzSupport.h"
@@ -116,7 +116,7 @@ BufferRecycleBin::GetBuffer(uint32_t aSize)
   return result;
 }
 
-ImageContainer::ImageContainer(int flag)
+ImageContainer::ImageContainer(int flag) 
 : mReentrantMonitor("ImageContainer.mReentrantMonitor"),
   mPaintCount(0),
   mPreviousImagePainted(false),
@@ -125,20 +125,18 @@ ImageContainer::ImageContainer(int flag)
   mRemoteData(nullptr),
   mRemoteDataMutex(nullptr),
   mCompositionNotifySink(nullptr),
-  mImageClient(nullptr)
+  mImageContainerChild(nullptr)
 {
   if (flag == ENABLE_ASYNC && ImageBridgeChild::IsCreated()) {
-    // the refcount of this ImageClient is 1. we don't use a RefPtr here because the refcount
-    // of this class must be done on the ImageBridge thread.
-    mImageClient = ImageBridgeChild::GetSingleton()->CreateImageClient(BUFFER_IMAGE_BUFFERED).drop();
-    MOZ_ASSERT(mImageClient);
+    mImageContainerChild = 
+      ImageBridgeChild::GetSingleton()->CreateImageContainerChild();
   }
 }
 
 ImageContainer::~ImageContainer()
 {
-  if (IsAsync()) {
-    ImageBridgeChild::DispatchReleaseImageClient(mImageClient);
+  if (mImageContainerChild) {
+    mImageContainerChild->DispatchStop();
   }
 }
 
@@ -147,9 +145,8 @@ ImageContainer::CreateImage(const ImageFormat *aFormats,
                             uint32_t aNumFormats)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-
-  if (mImageClient) {
-    nsRefPtr<Image> img = mImageClient->CreateImage((uint32_t*)aFormats,
+  if (mImageContainerChild) {
+    nsRefPtr<Image> img = mImageContainerChild->CreateImage((uint32_t*)aFormats,
                                                             aNumFormats);
     if (img) {
       return img.forget();
@@ -158,7 +155,7 @@ ImageContainer::CreateImage(const ImageFormat *aFormats,
   return mImageFactory->CreateImage(aFormats, aNumFormats, mScaleHint, mRecycleBin);
 }
 
-void
+void 
 ImageContainer::SetCurrentImageInternal(Image *aImage)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
@@ -182,18 +179,15 @@ void
 ImageContainer::SetCurrentImage(Image *aImage)
 {
   ReentrantMonitorAutoEnter mon(mReentrantMonitor);
-  if (IsAsync()) {
+
+  if (mImageContainerChild) {
     if (aImage) {
-      ImageBridgeChild::DispatchImageClientUpdate(mImageClient, this);
+      mImageContainerChild->SendImageAsync(this, aImage);
     } else {
-      // here we used to have a SetIdle() call on the image bridge to tell
-      // the compositor that the video element is not going to be seen for
-      // moment and that it can release its shared memory. It was causing
-      // crashes so it has been removed.
-      // This may be reimplemented after 858914 lands.
+      mImageContainerChild->SetIdle();
     }
   }
-
+  
   SetCurrentImageInternal(aImage);
 }
 
@@ -201,22 +195,22 @@ void
 ImageContainer::SetCurrentImageInTransaction(Image *aImage)
 {
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
-  NS_ASSERTION(!mImageClient, "Should use async image transfer with ImageBridge.");
-
+  NS_ASSERTION(!mImageContainerChild, "Should use async image transfer with ImageBridge.");
+  
   SetCurrentImageInternal(aImage);
 }
 
 bool ImageContainer::IsAsync() const {
-  return mImageClient != nullptr;
+  return mImageContainerChild != nullptr;
 }
 
 uint64_t ImageContainer::GetAsyncContainerID() const
 {
   NS_ASSERTION(IsAsync(),"Shared image ID is only relevant to async ImageContainers");
   if (IsAsync()) {
-    return mImageClient->GetAsyncID();
+    return mImageContainerChild->GetID();
   } else {
-    return 0; // zero is always an invalid AsyncID
+    return 0; // zero is always an invalid SharedImageID
   }
 }
 
@@ -487,7 +481,7 @@ PlanarYCbCrImage::SetData(const Data &aData)
 gfxASurface::gfxImageFormat
 PlanarYCbCrImage::GetOffscreenFormat()
 {
-  return mOffscreenFormat == gfxASurface::ImageFormatUnknown ?
+  return mOffscreenFormat != gfxASurface::ImageFormatUnknown ?
     gfxPlatform::GetPlatform()->GetOffscreenFormat() :
     mOffscreenFormat;
 }

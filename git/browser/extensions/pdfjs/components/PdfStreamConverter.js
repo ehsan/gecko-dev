@@ -376,9 +376,8 @@ ChromeActions.prototype = {
            'updateControlState' in getChromeWindow(this.domWindow).gFindBar;
   },
   supportsDocumentFonts: function() {
-    var prefBrowser = getIntPref('browser.display.use_document_fonts', 1);
-    var prefGfx = getBoolPref('gfx.downloadable_fonts.enabled', true);
-    return (!!prefBrowser && prefGfx);
+    var pref = getIntPref('browser.display.use_document_fonts', 1);
+    return !!pref;
   },
   fallback: function(url, sendResponse) {
     var self = this;

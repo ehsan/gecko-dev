@@ -53,34 +53,6 @@ NS_QUERYFRAME_HEAD(nsRangeFrame)
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 void
-nsRangeFrame::Init(nsIContent* aContent,
-                   nsIFrame*   aParent,
-                   nsIFrame*   aPrevInFlow)
-{
-  // B2G's AsyncPanZoomController::ReceiveInputEvent handles touch events
-  // without checking whether the out-of-process document that it controls
-  // will handle them, unless it has been told that the document might do so.
-  // This is for perf reasons, otherwise it has to wait for the event to be
-  // round-tripped to the other process and back, delaying panning, etc.
-  // We must call SetHasTouchEventListeners() in order to get APZC to wait
-  // until the event has been round-tripped and check whether it has been
-  // handled, otherwise B2G will end up panning the document when the user
-  // tries to drag our thumb.
-  //
-  nsIPresShell* presShell = PresContext()->GetPresShell();
-  if (presShell) {
-    nsIDocument* document = presShell->GetDocument();
-    if (document) {
-      nsPIDOMWindow* innerWin = document->GetInnerWindow();
-      if (innerWin) {
-        innerWin->SetHasTouchEventListeners();
-      }
-    }
-  }
-  return nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
-}
-
-void
 nsRangeFrame::DestroyFrom(nsIFrame* aDestructRoot)
 {
   NS_ASSERTION(!GetPrevContinuation() && !GetNextContinuation(),
@@ -159,23 +131,7 @@ nsRangeFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                const nsRect&           aDirtyRect,
                                const nsDisplayListSet& aLists)
 {
-  if (IsThemed()) {
-    DisplayBorderBackgroundOutline(aBuilder, aLists);
-    // Only create items for the thumb. Specifically, we do not want
-    // the track to paint, since *our* background is used to paint
-    // the track, and we don't want the unthemed track painting over
-    // the top of the themed track.
-    // This logic is copied from
-    // nsContainerFrame::BuildDisplayListForNonBlockChildren as
-    // called by BuildDisplayListForInline.
-    nsIFrame* thumb = mThumbDiv->GetPrimaryFrame();
-    if (thumb) {
-      nsDisplayListSet set(aLists, aLists.Content());
-      BuildDisplayListForChild(aBuilder, thumb, aDirtyRect, set, DISPLAY_CHILD_INLINE);
-    }
-  } else {
-    BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
-  }
+  BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
 }
 
 NS_IMETHODIMP
@@ -242,6 +198,10 @@ nsRangeFrame::ReflowAnonymousContent(nsPresContext*           aPresContext,
                                      nsHTMLReflowMetrics&     aDesiredSize,
                                      const nsHTMLReflowState& aReflowState)
 {
+  if (ShouldUseNativeStyle()) {
+    return NS_OK; // No need to reflow since we're not using these frames
+  }
+
   // The width/height of our content box, which is the available width/height
   // for our anonymous content:
   nscoord rangeFrameContentBoxWidth = aReflowState.ComputedWidth();
@@ -281,7 +241,7 @@ nsRangeFrame::ReflowAnonymousContent(nsPresContext*           aPresContext,
     trackX += aReflowState.mComputedBorderPadding.left;
     trackY += aReflowState.mComputedBorderPadding.top;
 
-    nsReflowStatus frameStatus;
+    nsReflowStatus frameStatus = NS_FRAME_COMPLETE;
     nsHTMLReflowMetrics trackDesiredSize;
     nsresult rv = ReflowChild(trackFrame, aPresContext, trackDesiredSize,
                               trackReflowState, trackX, trackY, 0, frameStatus);
@@ -303,7 +263,7 @@ nsRangeFrame::ReflowAnonymousContent(nsPresContext*           aPresContext,
     // Where we position the thumb depends on its size, so we first reflow
     // the thumb at {0,0} to obtain its size, then position it afterwards.
 
-    nsReflowStatus frameStatus;
+    nsReflowStatus frameStatus = NS_FRAME_COMPLETE;
     nsHTMLReflowMetrics thumbDesiredSize;
     nsresult rv = ReflowChild(thumbFrame, aPresContext, thumbDesiredSize,
                               thumbReflowState, 0, 0, 0, frameStatus);
@@ -330,7 +290,7 @@ nsRangeFrame::ReflowAnonymousContent(nsPresContext*           aPresContext,
     // unadjusted dimensions, then we adjust it to so that the appropriate edge
     // ends at the thumb.
 
-    nsReflowStatus frameStatus;
+    nsReflowStatus frameStatus = NS_FRAME_COMPLETE;
     nsHTMLReflowMetrics progressDesiredSize;
     nsresult rv = ReflowChild(rangeProgressFrame, aPresContext,
                               progressDesiredSize, progressReflowState, 0, 0,
@@ -408,11 +368,6 @@ nsRangeFrame::GetValueAtEventPoint(nsGUIEvent* aEvent)
   }
   nsPoint point =
     nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, absPoint, this);
-
-  if (point == nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE)) {
-    // We don't want to change the current value for this error state.
-    return GetValue();
-  }
 
   nsRect rangeContentRect = GetContentRectRelativeToSelf();
   nsSize thumbSize;
@@ -734,8 +689,7 @@ nsRangeFrame::ShouldUseNativeStyle() const
 {
   return (StyleDisplay()->mAppearance == NS_THEME_RANGE) &&
          !PresContext()->HasAuthorSpecifiedRules(const_cast<nsRangeFrame*>(this),
-                                                 (NS_AUTHOR_SPECIFIED_BORDER |
-                                                  NS_AUTHOR_SPECIFIED_BACKGROUND)) &&
+                                                 STYLES_DISABLING_NATIVE_THEMING) &&
          !PresContext()->HasAuthorSpecifiedRules(mTrackDiv->GetPrimaryFrame(),
                                                  STYLES_DISABLING_NATIVE_THEMING) &&
          !PresContext()->HasAuthorSpecifiedRules(mProgressDiv->GetPrimaryFrame(),

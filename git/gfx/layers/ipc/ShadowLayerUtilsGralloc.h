@@ -91,8 +91,6 @@ private:
   // This value stores the number of bytes allocated in this
   // BufferActor. This will be used for the memory reporter.
   size_t mAllocBytes;
-
-  friend class ISurfaceAllocator;
 };
 
 } // namespace layers

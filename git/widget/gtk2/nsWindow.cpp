@@ -14,6 +14,7 @@
 #endif
 
 #include "prlink.h"
+#include "nsWindow.h"
 #include "nsGTKToolkit.h"
 #include "nsIRollupListener.h"
 #include "nsIDOMNode.h"
@@ -68,7 +69,7 @@
 #include "nsIStringBundle.h"
 #include "nsGfxCIID.h"
 #include "nsIObserverService.h"
-#include "mozilla/layers/LayersTypes.h"
+#include "LayersTypes.h"
 #include "nsIIdleServiceInternal.h"
 #include "nsIPropertyBag2.h"
 
@@ -112,12 +113,10 @@ extern "C" {
 #include "gfxXlibSurface.h"
 #include "cairo-xlib.h"
 #endif
-  
+
 #include "nsShmImage.h"
 
 #include "nsIDOMWheelEvent.h"
-
-#include "nsWindow.h"
 
 using namespace mozilla;
 using namespace mozilla::widget;
@@ -995,10 +994,8 @@ nsWindow::Show(bool aState)
 NS_IMETHODIMP
 nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
 {
-    double scale =
-        mWindowType <= eWindowType_popup ? GetDefaultScale() : 1.0;
-    int32_t width = NSToIntRound(scale * aWidth);
-    int32_t height = NSToIntRound(scale * aHeight);
+    int32_t width = NSToIntRound(aWidth);
+    int32_t height = NSToIntRound(aHeight);
     ConstrainSize(&width, &height);
 
     // For top-level windows, aWidth and aHeight should possibly be
@@ -1076,14 +1073,12 @@ NS_IMETHODIMP
 nsWindow::Resize(double aX, double aY, double aWidth, double aHeight,
                  bool aRepaint)
 {
-    double scale =
-        mWindowType <= eWindowType_popup ? GetDefaultScale() : 1.0;
-    int32_t width = NSToIntRound(scale * aWidth);
-    int32_t height = NSToIntRound(scale * aHeight);
+    int32_t width = NSToIntRound(aWidth);
+    int32_t height = NSToIntRound(aHeight);
     ConstrainSize(&width, &height);
 
-    int32_t x = NSToIntRound(scale * aX);
-    int32_t y = NSToIntRound(scale * aY);
+    int32_t x = NSToIntRound(aX);
+    int32_t y = NSToIntRound(aY);
     mBounds.x = x;
     mBounds.y = y;
     mBounds.SizeTo(width, height);
@@ -1165,10 +1160,8 @@ nsWindow::Move(double aX, double aY)
     LOG(("nsWindow::Move [%p] %f %f\n", (void *)this,
          aX, aY));
 
-    double scale =
-        mWindowType <= eWindowType_popup ? GetDefaultScale() : 1.0;
-    int32_t x = NSToIntRound(aX * scale);
-    int32_t y = NSToIntRound(aY * scale);
+    int32_t x = NSToIntRound(aX);
+    int32_t y = NSToIntRound(aY);
 
     if (mWindowType == eWindowType_toplevel ||
         mWindowType == eWindowType_dialog) {

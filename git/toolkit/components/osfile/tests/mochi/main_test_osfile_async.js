@@ -889,55 +889,16 @@ let test_duration = maketest("duration", function duration(test) {
     let pathDest = OS.Path.join(OS.Constants.Path.tmpDir,
       "osfile async test read writeAtomic.tmp");
     let tmpPath = pathDest + ".tmp";
-    let readOptions = {
-      outExecutionDuration: null
-    };
-    let contents = yield OS.File.read(pathSource, undefined, readOptions);
-    testOptions(readOptions);
+    let contents = yield OS.File.read(pathSource);
     // Options structure passed to a OS.File writeAtomic method.
     let writeAtomicOptions = {
-      // This field should be first initialized with the actual
-      // duration measurement then progressively incremented.
+      // This field should be overridden with the actual duration
+      // measurement.
       outExecutionDuration: null,
       tmpPath: tmpPath
     };
     yield OS.File.writeAtomic(pathDest, contents, writeAtomicOptions);
     testOptions(writeAtomicOptions);
-    yield OS.File.remove(pathDest);
-
-    test.info("Ensuring that we can use outExecutionDuration to accumulate durations");
-
-    let ARBITRARY_BASE_DURATION = 5;
-    copyOptions = {
-      // This field should now be incremented with the actual duration
-      // measurement.
-      outExecutionDuration: ARBITRARY_BASE_DURATION
-    };
-    let backupDuration = ARBITRARY_BASE_DURATION;
-    // Testing duration of OS.File.copy.
-    yield OS.File.copy(pathSource, copyFile, copyOptions);
-    test.ok(copyOptions.outExecutionDuration >= backupDuration);
-
-    backupDuration = copyOptions.outExecutionDuration;
-    yield OS.File.remove(copyFile, copyOptions);
-    test.ok(copyOptions.outExecutionDuration >= backupDuration);
-
-    // Trying an operation where options are cloned.
-    // Options structure passed to a OS.File writeAtomic method.
-    writeAtomicOptions = {
-      // This field should be overridden with the actual duration
-      // measurement.
-      outExecutionDuration: copyOptions.outExecutionDuration,
-      tmpPath: tmpPath
-    };
-    backupDuration = writeAtomicOptions.outExecutionDuration;
-    yield OS.File.writeAtomic(pathDest, contents, writeAtomicOptions);
-    test.ok(copyOptions.outExecutionDuration >= backupDuration);
     OS.File.remove(pathDest);
-
-    // Testing an operation that doesn't take arguments at all
-    let file = yield OS.File.open(pathSource);
-    yield file.stat();
-    yield file.close();
   });
 });

@@ -15,7 +15,7 @@
  * @status UNDER_DEVELOPMENT
  */
 
-[scriptable, uuid(4b4bec16-c65f-4a08-97d1-dff624efdca4)]
+[scriptable, uuid(67a5c7ec-40bb-49ac-a38d-59f3b31e1af1)]
 interface nsIDOMHTMLProgressElement : nsIDOMHTMLElement
 {
            attribute double value;

@@ -8,8 +8,6 @@
 #ifndef jspropertycache_h___
 #define jspropertycache_h___
 
-#include "mozilla/PodOperations.h"
-
 #include "jsapi.h"
 #include "jsprvtd.h"
 #include "jstypes.h"
@@ -133,7 +131,7 @@ class PropertyCache
 #endif
 
     PropertyCache() {
-        mozilla::PodZero(this);
+        PodZero(this);
     }
 
   private:

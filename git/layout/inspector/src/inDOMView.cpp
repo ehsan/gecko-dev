@@ -12,6 +12,7 @@
 
 #include "nsString.h"
 #include "nsReadableUtils.h"
+#include "nsISupportsArray.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeFilter.h"
 #include "nsIDOMNodeList.h"

@@ -200,7 +200,7 @@ nsresult imgRequest::RemoveProxy(imgRequestProxy *proxy, nsresult aStatus)
       NS_ABORT_IF_FALSE(mURI, "Removing last observer without key uri.");
 
       mLoader->SetHasNoProxies(mURI, mCacheEntry);
-    }
+    } 
 #if defined(PR_LOGGING)
     else {
       nsAutoCString spec;
@@ -337,8 +337,15 @@ void imgRequest::SetIsInCache(bool incache)
 
 void imgRequest::UpdateCacheEntrySize()
 {
-  if (mCacheEntry)
+  if (mCacheEntry) {
     mCacheEntry->SetDataSize(mImage->SizeOfData());
+
+#ifdef DEBUG_joe
+    nsAutoCString url;
+    mURI->GetSpec(url);
+    printf("CACHEPUT: %d %s %d\n", time(NULL), url.get(), imageSize);
+#endif
+  }
 }
 
 void imgRequest::SetCacheValidation(imgCacheEntry* aCacheEntry, nsIRequest* aRequest)
@@ -684,6 +691,10 @@ imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctxt,
     uint32_t out;
     inStr->ReadSegments(sniff_mimetype_callback, &closure, count, &out);
 
+#ifdef DEBUG
+    /* NS_WARNING if the content type from the channel isn't the same if the sniffing */
+#endif
+
     nsCOMPtr<nsIChannel> chan(do_QueryInterface(aRequest));
     if (newType.IsEmpty()) {
       LOG_SCOPE(GetImgLog(), "imgRequest::OnDataAvailable |sniffing of mimetype failed|");
@@ -831,7 +842,7 @@ imgRequest::GetInterface(const nsIID & aIID, void **aResult)
   if (!mPrevChannelSink || aIID.Equals(NS_GET_IID(nsIChannelEventSink)))
     return QueryInterface(aIID, aResult);
 
-  NS_ASSERTION(mPrevChannelSink != this,
+  NS_ASSERTION(mPrevChannelSink != this, 
                "Infinite recursion - don't keep track of channel sinks that are us!");
   return mPrevChannelSink->GetInterface(aIID, aResult);
 }

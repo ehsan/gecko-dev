@@ -16,9 +16,7 @@
               android:id="@+id/tab_widget_container"
               android:layout_width="fill_parent"
               android:layout_height="wrap_content"
-              android:background="@drawable/address_bar_bg"
-              android:focusable="false"
-              android:descendantFocusability="blocksDescendants">
+              android:background="@drawable/address_bar_bg">
 
             <View android:id="@+id/tab_widget_left"
                   style="@style/AwesomeBarTabIndicatorCurve.Left"/>
@@ -39,10 +37,7 @@
         <android.support.v4.view.ViewPager
                         android:id="@+id/tabviewpager"
                         android:layout_width="fill_parent"
-                        android:layout_height="fill_parent"
-                        android:background="#EEF1F5"
-                        android:paddingLeft="@dimen/awesomebar_list_padding"
-                        android:paddingRight="@dimen/awesomebar_list_padding"/>
+                        android:layout_height="fill_parent"/>
 
     </LinearLayout>
 

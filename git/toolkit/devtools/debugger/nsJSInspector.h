@@ -8,8 +8,6 @@
 
 #include "nsIJSInspector.h"
 #include "mozilla/Attributes.h"
-#include "nsTArray.h"
-#include "js/Value.h"
 
 namespace mozilla {
 namespace jsinspector {
@@ -26,8 +24,6 @@ private:
   ~nsJSInspector();
 
   uint32_t mNestedLoopLevel;
-  nsTArray<JS::Value> mRequestors;
-  JS::Value mLastRequestor;
 };
 
 }

@@ -463,29 +463,6 @@ protected:
   bool mHaveShutDown;
 };
 
-class CSPErrorQueue
-{
-  public:
-    /**
-     * Note this was designed to be passed string literals. If you give it
-     * a dynamically allocated string, it is your responsibility to make sure
-     * it never dies and is properly freed!
-     */
-    void Add(const char* aMessageName);
-    void Flush(nsIDocument* aDocument);
-
-    CSPErrorQueue()
-    {
-    }
-
-    ~CSPErrorQueue()
-    {
-    }
-
-  private:
-    nsAutoTArray<const char*,5> mErrors;
-};
-
 // Base class for our document implementations.
 //
 // Note that this class *implements* nsIDOMXMLDocument, but it's not
@@ -660,8 +637,8 @@ public:
 
   virtual void SetScriptHandlingObject(nsIScriptGlobalObject* aScriptObject);
 
-  virtual nsIGlobalObject* GetScopeObject() const;
-  void SetScopeObject(nsIGlobalObject* aGlobal);
+  virtual nsIScriptGlobalObject* GetScopeObject() const;
+
   /**
    * Get the script loader for this document
    */
@@ -719,9 +696,9 @@ public:
                                  nsAString& Standalone);
   virtual bool IsScriptEnabled();
 
-  virtual void OnPageShow(bool aPersisted, mozilla::dom::EventTarget* aDispatchStartTarget);
-  virtual void OnPageHide(bool aPersisted, mozilla::dom::EventTarget* aDispatchStartTarget);
-
+  virtual void OnPageShow(bool aPersisted, nsIDOMEventTarget* aDispatchStartTarget);
+  virtual void OnPageHide(bool aPersisted, nsIDOMEventTarget* aDispatchStartTarget);
+  
   virtual void WillDispatchMutationEvent(nsINode* aTarget);
   virtual void MutationEventDispatched(nsINode* aTarget);
 
@@ -816,6 +793,8 @@ public:
   virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
                               int32_t aNamespaceID,
                               nsIContent **aResult);
+
+  nsresult CreateTextNode(const nsAString& aData, nsIContent** aReturn);
 
   virtual NS_HIDDEN_(nsresult) Sanitize();
 
@@ -1156,7 +1135,7 @@ protected:
   // Return whether all the presshells for this document are safe to flush
   bool IsSafeToFlush() const;
   
-  void DispatchPageTransition(mozilla::dom::EventTarget* aDispatchTarget,
+  void DispatchPageTransition(nsIDOMEventTarget* aDispatchTarget,
                               const nsAString& aType,
                               bool aPersisted);
 
@@ -1200,6 +1179,11 @@ protected:
 
   // Array of observers
   nsTObserverArray<nsIDocumentObserver*> mObservers;
+
+  // If document is created for example using
+  // document.implementation.createDocument(...), mScriptObject points to
+  // the script global object of the original document.
+  nsWeakPtr mScriptObject;
 
   // Weak reference to the scope object (aka the script global object)
   // that, unlike mScriptGlobalObject, is never unset once set. This
@@ -1332,19 +1316,12 @@ private:
   friend class nsUnblockOnloadEvent;
   // Recomputes the visibility state but doesn't set the new value.
   mozilla::dom::VisibilityState GetVisibilityState() const;
-  void NotifyStyleSheetAdded(nsIStyleSheet* aSheet, bool aDocumentSheet);
-  void NotifyStyleSheetRemoved(nsIStyleSheet* aSheet, bool aDocumentSheet);
 
   void PostUnblockOnloadEvent();
   void DoUnblockOnload();
 
   nsresult CheckFrameOptions();
   nsresult InitCSP(nsIChannel* aChannel);
-
-  void FlushCSPWebConsoleErrorQueue()
-  {
-    mCSPWebConsoleErrorQueue.Flush(this);
-  }
 
   /**
    * Find the (non-anonymous) content in this document for aFrame. It will
@@ -1443,8 +1420,6 @@ private:
 
   nsrefcnt mStackRefCnt;
   bool mNeedsReleaseAfterStackRefCntRelease;
-
-  CSPErrorQueue mCSPWebConsoleErrorQueue;
 
 #ifdef DEBUG
 protected:

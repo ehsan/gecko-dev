@@ -100,6 +100,7 @@
 #include "jsapi.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Input)
+DOMCI_NODE_DATA(HTMLInputElement, mozilla::dom::HTMLInputElement)
 
 // XXX align=left, hspace, vspace, border? other nav4 attrs
 
@@ -259,48 +260,6 @@ HTMLInputElement::nsFilePickerShownCallback::nsFilePickerShownCallback(
 {
 }
 
-NS_IMPL_ISUPPORTS1(UploadLastDir::ContentPrefCallback, nsIContentPrefCallback2)
-
-NS_IMETHODIMP
-UploadLastDir::ContentPrefCallback::HandleCompletion(uint16_t aReason)
-{
-  nsCOMPtr<nsIFile> localFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
-  NS_ENSURE_STATE(localFile);
-
-  if (aReason == nsIContentPrefCallback2::COMPLETE_ERROR ||
-      !mResult) {
-    // Default to "desktop" directory for each platform
-    nsCOMPtr<nsIFile> homeDir;
-    NS_GetSpecialDirectory(NS_OS_DESKTOP_DIR, getter_AddRefs(homeDir));
-    localFile = do_QueryInterface(homeDir);
-  } else {
-    nsAutoString prefStr;
-    nsCOMPtr<nsIVariant> pref;
-    mResult->GetValue(getter_AddRefs(pref));
-    pref->GetAsAString(prefStr);
-    localFile->InitWithPath(prefStr);
-  }
-
-  mFilePicker->SetDisplayDirectory(localFile);
-  mFilePicker->Open(mFpCallback);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-UploadLastDir::ContentPrefCallback::HandleResult(nsIContentPref* pref)
-{
-  mResult = pref;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-UploadLastDir::ContentPrefCallback::HandleError(nsresult error)
-{
-  // HandleCompletion is always called (even with HandleError was called),
-  // so we don't need to do anything special here.
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 HTMLInputElement::nsFilePickerShownCallback::Done(int16_t aResult)
 {
@@ -430,9 +389,6 @@ HTMLInputElement::AsyncClickHandler::Run()
 
   const nsCOMArray<nsIDOMFile>& oldFiles = mInput->GetFilesInternal();
 
-  nsCOMPtr<nsIFilePickerShownCallback> callback =
-    new HTMLInputElement::nsFilePickerShownCallback(mInput, filePicker, multi);
-
   if (oldFiles.Count()) {
     nsString path;
 
@@ -459,13 +415,23 @@ HTMLInputElement::AsyncClickHandler::Run()
         filePicker->SetDefaultString(leafName);
       }
     }
-
-    return filePicker->Open(callback);
+  } else {
+    // Attempt to retrieve the last used directory from the content pref service
+    nsCOMPtr<nsIFile> localFile;
+    HTMLInputElement::gUploadLastDir->FetchLastUsedDirectory(doc,
+                                                             getter_AddRefs(localFile));
+    if (!localFile) {
+      // Default to "desktop" directory for each platform
+      nsCOMPtr<nsIFile> homeDir;
+      NS_GetSpecialDirectory(NS_OS_DESKTOP_DIR, getter_AddRefs(homeDir));
+      localFile = do_QueryInterface(homeDir);
+    }
+    filePicker->SetDisplayDirectory(localFile);
   }
 
-  HTMLInputElement::gUploadLastDir->FetchDirectoryAndDisplayPicker(doc, filePicker, callback);
-  return NS_OK;
-
+  nsCOMPtr<nsIFilePickerShownCallback> callback =
+    new HTMLInputElement::nsFilePickerShownCallback(mInput, filePicker, multi);
+  return filePicker->Open(callback);
 }
 
 #define CPS_PREF_NAME NS_LITERAL_STRING("browser.upload.lastDir")
@@ -490,13 +456,10 @@ HTMLInputElement::DestroyUploadLastDir() {
 }
 
 nsresult
-UploadLastDir::FetchDirectoryAndDisplayPicker(nsIDocument* aDoc,
-                                              nsIFilePicker* aFilePicker,
-                                              nsIFilePickerShownCallback* aFpCallback)
+UploadLastDir::FetchLastUsedDirectory(nsIDocument* aDoc, nsIFile** aFile)
 {
   NS_PRECONDITION(aDoc, "aDoc is null");
-  NS_PRECONDITION(aFilePicker, "aFilePicker is null");
-  NS_PRECONDITION(aFpCallback, "aFpCallback is null");
+  NS_PRECONDITION(aFile, "aFile is null");
 
   nsIURI* docURI = aDoc->GetDocumentURI();
   NS_PRECONDITION(docURI, "docURI is null");
@@ -504,22 +467,30 @@ UploadLastDir::FetchDirectoryAndDisplayPicker(nsIDocument* aDoc,
   nsCOMPtr<nsISupports> container = aDoc->GetContainer();
   nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
 
-  nsCOMPtr<nsIContentPrefCallback2> prefCallback = 
-    new UploadLastDir::ContentPrefCallback(aFilePicker, aFpCallback);
-
-  // Attempt to get the CPS, if it's not present we'll fallback to use the Desktop folder
-  nsCOMPtr<nsIContentPrefService2> contentPrefService =
+  // Attempt to get the CPS, if it's not present we'll just return
+  nsCOMPtr<nsIContentPrefService> contentPrefService =
     do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
-  if (!contentPrefService) {
-    prefCallback->HandleCompletion(nsIContentPrefCallback2::COMPLETE_ERROR);
-    return NS_OK;
+  if (!contentPrefService)
+    return NS_ERROR_NOT_AVAILABLE;
+  nsCOMPtr<nsIWritableVariant> uri = do_CreateInstance(NS_VARIANT_CONTRACTID);
+  if (!uri)
+    return NS_ERROR_OUT_OF_MEMORY;
+  uri->SetAsISupports(docURI);
+
+  // Get the last used directory, if it is stored
+  bool hasPref;
+  if (NS_SUCCEEDED(contentPrefService->HasPref(uri, CPS_PREF_NAME, loadContext, &hasPref)) && hasPref) {
+    nsCOMPtr<nsIVariant> pref;
+    contentPrefService->GetPref(uri, CPS_PREF_NAME, loadContext, nullptr, getter_AddRefs(pref));
+    nsString prefStr;
+    pref->GetAsAString(prefStr);
+
+    nsCOMPtr<nsIFile> localFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);
+    if (!localFile)
+      return NS_ERROR_OUT_OF_MEMORY;
+    localFile->InitWithPath(prefStr);
+    localFile.forget(aFile);
   }
-
-  nsAutoCString cstrSpec;
-  docURI->GetSpec(cstrSpec);
-  NS_ConvertUTF8toUTF16 spec(cstrSpec);
-
-  contentPrefService->GetByDomainAndName(spec, CPS_PREF_NAME, loadContext, prefCallback);
   return NS_OK;
 }
 
@@ -550,14 +521,14 @@ UploadLastDir::StoreLastUsedDirectory(nsIDocument* aDoc, nsIDOMFile* aDomFile)
   }
 
   // Attempt to get the CPS, if it's not present we'll just return
-  nsCOMPtr<nsIContentPrefService2> contentPrefService =
+  nsCOMPtr<nsIContentPrefService> contentPrefService =
     do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
   if (!contentPrefService)
     return NS_ERROR_NOT_AVAILABLE;
-
-  nsAutoCString cstrSpec;
-  docURI->GetSpec(cstrSpec);
-  NS_ConvertUTF8toUTF16 spec(cstrSpec);
+  nsCOMPtr<nsIWritableVariant> uri = do_CreateInstance(NS_VARIANT_CONTRACTID);
+  if (!uri)
+    return NS_ERROR_OUT_OF_MEMORY;
+  uri->SetAsISupports(docURI);
 
   // Find the parent of aFile, and store it
   nsString unicodePath;
@@ -571,17 +542,17 @@ UploadLastDir::StoreLastUsedDirectory(nsIDocument* aDoc, nsIDOMFile* aDomFile)
 
   nsCOMPtr<nsISupports> container = aDoc->GetContainer();
   nsCOMPtr<nsILoadContext> loadContext = do_QueryInterface(container);
-  return contentPrefService->Set(spec, CPS_PREF_NAME, prefValue, loadContext, nullptr);
+  return contentPrefService->SetPref(uri, CPS_PREF_NAME, prefValue, loadContext);
 }
 
 NS_IMETHODIMP
 UploadLastDir::Observe(nsISupports* aSubject, char const* aTopic, PRUnichar const* aData)
 {
   if (strcmp(aTopic, "browser:purge-session-history") == 0) {
-    nsCOMPtr<nsIContentPrefService2> contentPrefService =
+    nsCOMPtr<nsIContentPrefService> contentPrefService =
       do_GetService(NS_CONTENT_PREF_SERVICE_CONTRACTID);
     if (contentPrefService)
-      contentPrefService->RemoveByName(CPS_PREF_NAME, nullptr, nullptr);
+      contentPrefService->RemovePrefsByName(CPS_PREF_NAME, nullptr);
   }
   return NS_OK;
 }
@@ -715,7 +686,7 @@ NS_INTERFACE_TABLE_HEAD_CYCLE_COLLECTION_INHERITED(HTMLInputElement)
                                    nsIConstraintValidation)
   NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLInputElement,
                                                nsGenericHTMLFormElement)
-NS_HTML_CONTENT_INTERFACE_MAP_END
+NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLInputElement)
 
 // nsIConstraintValidation
 NS_IMPL_NSICONSTRAINTVALIDATION_EXCEPT_SETCUSTOMVALIDITY(HTMLInputElement)
@@ -1084,9 +1055,7 @@ HTMLInputElement::GetWidth(uint32_t* aWidth)
 NS_IMETHODIMP
 HTMLInputElement::SetWidth(uint32_t aWidth)
 {
-  ErrorResult rv;
-  SetWidth(aWidth, rv);
-  return rv.ErrorCode();
+  return nsGenericHTMLElement::SetUnsignedIntAttr(nsGkAtoms::width, aWidth);
 }
 
 NS_IMETHODIMP
@@ -2428,7 +2397,7 @@ HTMLInputElement::Focus(ErrorResult& aError)
       // See if the child is a button control.
       nsCOMPtr<nsIFormControl> formCtrl =
         do_QueryInterface(childFrame->GetContent());
-      if (formCtrl && formCtrl->GetType() == NS_FORM_BUTTON_BUTTON) {
+      if (formCtrl && formCtrl->GetType() == NS_FORM_INPUT_BUTTON) {
         nsCOMPtr<nsIDOMElement> element = do_QueryInterface(formCtrl);
         nsIFocusManager* fm = nsFocusManager::GetFocusManager();
         if (fm && element) {
@@ -5692,10 +5661,9 @@ HTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
     NS_ERROR("nsIIDNService isn't present!");
   }
 
-  // If the email address is empty, begins with an '@'
-  // or ends with a '.' or '-', we know it's invalid.
-  if (length == 0 || value[0] == '@' || value[length-1] == '.' ||
-      value[length-1] == '-') {
+  // If the email address is empty, begins with a '@' or ends with a '.',
+  // we know it's invalid.
+  if (length == 0 || value[0] == '@' || value[length-1] == '.') {
     return false;
   }
 
@@ -5713,13 +5681,14 @@ HTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
     }
   }
 
-  // If there is no domain name, that's not a valid email address.
+  // There is no domain name (or it's one-character long),
+  // that's not a valid email address.
   if (++i >= length) {
     return false;
   }
 
-  // The domain name can't begin with a dot or a dash.
-  if (value[i] == '.' || value[i] == '-') {
+  // The domain name can't begin with a dot.
+  if (value[i] == '.') {
     return false;
   }
 
@@ -5728,12 +5697,7 @@ HTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
     PRUnichar c = value[i];
 
     if (c == '.') {
-      // A dot can't follow a dot or a dash.
-      if (value[i-1] == '.' || value[i-1] == '-') {
-        return false;
-      }
-    } else if (c == '-'){
-      // A dash can't follow a dot.
+      // A dot can't follow a dot.
       if (value[i-1] == '.') {
         return false;
       }

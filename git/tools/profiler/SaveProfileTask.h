@@ -40,7 +40,7 @@ public:
 
   NS_IMETHOD Run() {
     // Get file path
-#   if defined(SPS_PLAT_arm_android) && !defined(MOZ_WIDGET_GONK)
+#   if defined(SPS_PLAT_arm_android)
     nsCString tmpPath;
     tmpPath.AppendPrintf("/sdcard/profile_%i_%i.txt", XRE_GetProcessType(), getpid());
 #   else
@@ -97,7 +97,7 @@ public:
         stream.close();
         LOGF("Saved to %s", tmpPath.get());
       } else {
-        LOGF("Fail to open profile log file '%s'.", tmpPath.get());
+        LOG("Fail to open profile log file.");
       }
     }
     JS_EndRequest(cx);

@@ -70,8 +70,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     void emitOOLTestObject(Register objreg, Label *ifTruthy, Label *ifFalsy, Register scratch);
     bool visitTestOAndBranch(LTestOAndBranch *lir);
     bool visitTestVAndBranch(LTestVAndBranch *lir);
-    bool visitFunctionDispatch(LFunctionDispatch *lir);
-    bool visitTypeObjectDispatch(LTypeObjectDispatch *lir);
     bool visitPolyInlineDispatch(LPolyInlineDispatch *lir);
     bool visitIntToString(LIntToString *lir);
     bool visitInteger(LInteger *lir);
@@ -140,6 +138,8 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitAbsI(LAbsI *lir);
     bool visitPowI(LPowI *lir);
     bool visitPowD(LPowD *lir);
+    bool visitNegI(LNegI *lir);
+    bool visitNegD(LNegD *lir);
     bool visitRandom(LRandom *lir);
     bool visitMathFunctionD(LMathFunctionD *ins);
     bool visitModD(LModD *ins);
@@ -187,7 +187,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitLoadTypedArrayElement(LLoadTypedArrayElement *lir);
     bool visitLoadTypedArrayElementHole(LLoadTypedArrayElementHole *lir);
     bool visitStoreTypedArrayElement(LStoreTypedArrayElement *lir);
-    bool visitStoreTypedArrayElementHole(LStoreTypedArrayElementHole *lir);
     bool visitClampIToUint8(LClampIToUint8 *lir);
     bool visitClampDToUint8(LClampDToUint8 *lir);
     bool visitClampVToUint8(LClampVToUint8 *lir);
@@ -251,7 +250,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitCallsiteCloneCache(LCallsiteCloneCache *ins);
 
     bool visitGetPropertyIC(OutOfLineUpdateCache *ool, GetPropertyIC *ic);
-    bool visitParallelGetPropertyIC(OutOfLineUpdateCache *ool, ParallelGetPropertyIC *ic);
     bool visitSetPropertyIC(OutOfLineUpdateCache *ool, SetPropertyIC *ic);
     bool visitGetElementIC(OutOfLineUpdateCache *ool, GetElementIC *ic);
     bool visitBindNameIC(OutOfLineUpdateCache *ool, BindNameIC *ic);
@@ -259,10 +257,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitCallsiteCloneIC(OutOfLineUpdateCache *ool, CallsiteCloneIC *ic);
 
   private:
-    bool addGetPropertyCache(LInstruction *ins, RegisterSet liveRegs, Register objReg,
-                             PropertyName *name, TypedOrValueRegister output,
-                             bool allowGetters);
-
     bool checkForParallelBailout();
     bool generateBranchV(const ValueOperand &value, Label *ifTrue, Label *ifFalse, FloatRegister fr);
 

@@ -12,8 +12,8 @@ namespace layers {
 
 struct TestTiledLayerTile {
   int value;
-  TestTiledLayerTile(int v = 0) {
-    value = v;
+  TestTiledLayerTile() {
+    value = 0;
   }
   bool operator== (const TestTiledLayerTile& o) const {
     return value == o.value;
@@ -29,7 +29,7 @@ class TestTiledLayerBuffer : public TiledLayerBuffer<TestTiledLayerBuffer, TestT
 
 public:
   TestTiledLayerTile GetPlaceholderTile() const {
-    return TestTiledLayerTile(-1);
+    return TestTiledLayerTile();
   }
 
   TestTiledLayerTile ValidateTile(TestTiledLayerTile aTile, const nsIntPoint& aTileOrigin, const nsIntRegion& aDirtyRect) {
@@ -68,7 +68,6 @@ TEST(TiledLayerBuffer, TileStart) {
 TEST(TiledLayerBuffer, EmptyUpdate) {
   TestTiledLayerBuffer buffer;
 
-  nsRegion::InitStatic();
   nsIntRegion validRegion(nsIntRect(0, 0, 10, 10));
   buffer.TestUpdate(validRegion, validRegion);
 

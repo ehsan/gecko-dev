@@ -28,8 +28,6 @@ namespace Library
 ** JSObject implementation
 *******************************************************************************/
 
-typedef Rooted<JSFlatString*>    RootedFlatString;
-
 static JSClass sLibraryClass = {
   "Library",
   JSCLASS_HAS_RESERVED_SLOTS(LIBRARY_SLOTS),
@@ -79,9 +77,8 @@ Library::Name(JSContext* cx, unsigned argc, jsval *vp)
 }
 
 JSObject*
-Library::Create(JSContext* cx, jsval path_, JSCTypesCallbacks* callbacks)
+Library::Create(JSContext* cx, jsval path, JSCTypesCallbacks* callbacks)
 {
-  RootedValue path(cx, path_);
   RootedObject libraryObj(cx, JS_NewObject(cx, &sLibraryClass, NULL, NULL));
   if (!libraryObj)
     return NULL;
@@ -99,7 +96,7 @@ Library::Create(JSContext* cx, jsval path_, JSCTypesCallbacks* callbacks)
   }
 
   PRLibSpec libSpec;
-  RootedFlatString pathStr(cx, JS_FlattenString(cx, JSVAL_TO_STRING(path)));
+  JSFlatString* pathStr = JS_FlattenString(cx, JSVAL_TO_STRING(path));
   if (!pathStr)
     return NULL;
 #ifdef XP_WIN

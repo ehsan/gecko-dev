@@ -109,7 +109,14 @@ function doSearch() {
 
 function testLocationChange()
 {
-  gDebugger.DebuggerController._target.once("navigate", function onTabNavigated(aEvent, aPacket) {
+  gDebugger.DebuggerController.client.addListener("tabNavigated", function onTabNavigated(aEvent, aPacket) {
+    dump("tabNavigated state " + aPacket.state + "\n");
+    if (aPacket.state == "start") {
+      return;
+    }
+
+    gDebugger.DebuggerController.client.removeListener("tabNavigated", onTabNavigated);
+
     ok(true, "tabNavigated event was fired after location change.");
     info("Still attached to the tab.");
 

@@ -53,7 +53,7 @@
 #include "nsDOMDataTransfer.h"
 #include "mozilla/dom/Element.h"
 
-class MOZ_STACK_CLASS DragDataProducer
+class NS_STACK_CLASS DragDataProducer
 {
 public:
   DragDataProducer(nsPIDOMWindow* aWindow,

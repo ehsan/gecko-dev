@@ -118,9 +118,6 @@ static int       unwind_thr_exit_now = 0; // RACED ON
 // registered thread.
 static void thread_register_for_profiling ( void* stackTop );
 
-// Frees some memory when the unwinder thread is shut down.
-static void do_breakpad_unwind_Buffer_free_singletons();
-
 // RUNS IN SIGHANDLER CONTEXT
 // Acquire an empty buffer and mark it as FILLING
 static UnwinderThreadBuffer* acquire_empty_buffer();
@@ -160,7 +157,6 @@ void uwt__deinit()
   unwind_thr_exit_now = 1;
   do_MBAR();
   int r = pthread_join(unwind_thr, NULL); MOZ_ALWAYS_TRUE(r==0);
-  do_breakpad_unwind_Buffer_free_singletons();
 }
 
 void uwt__register_thread_for_profiling(void* stackTop)
@@ -817,14 +813,6 @@ static void* unwind_thr_fn(void* exit_nowV)
     MOZ_ASSERT(buffers);
     int i;
     for (i = 0; i < N_UNW_THR_BUFFERS; i++) {
-      /* These calloc-ations are never freed, even when the unwinder
-         thread is shut down.  The reason is that sampler threads
-         might still be filling them up even after this thread is shut
-         down.  The buffers themselves are not protected by the
-         spinlock, so we have no way to stop them being accessed
-         whilst we free them.  It doesn't matter much since they will
-         not be reallocated if a new unwinder thread is restarted
-         later. */
       buffers[i] = (UnwinderThreadBuffer*)
                    calloc(sizeof(UnwinderThreadBuffer), 1);
       MOZ_ASSERT(buffers[i]);
@@ -1011,11 +999,6 @@ static void* unwind_thr_fn(void* exit_nowV)
           do_breakpad_unwind_Buffer(&pairs, &nPairs, buff, oldest_ix);
           buff->aProfile->addTag( ProfileEntry('s', "(root)") );
           for (unsigned int i = 0; i < nPairs; i++) {
-            /* Skip any outermost frames that
-               do_breakpad_unwind_Buffer didn't give us.  See comments
-               on that function for details. */
-            if (pairs[i].pc == 0 && pairs[i].sp == 0)
-              continue;
             buff->aProfile
                 ->addTag( ProfileEntry('l', reinterpret_cast<void*>(pairs[i].pc)) );
           }
@@ -1087,12 +1070,6 @@ static void* unwind_thr_fn(void* exit_nowV)
       if (0) LOGF("at mergeloop: n_pairs %llu ix_last_hQ %llu",
                   (unsigned long long int)n_pairs,
                   (unsigned long long int)ix_last_hQ);
-      /* Skip any outermost frames that do_breakpad_unwind_Buffer
-         didn't give us.  See comments on that function for
-         details. */
-      while (next_N < n_pairs && pairs[next_N].pc == 0 && pairs[next_N].sp == 0)
-        next_N++;
-
       while (true) {
         if (next_P <= ix_last_hQ) {
           // Assert that next_P points at the start of an P entry
@@ -1495,31 +1472,12 @@ class MyCodeModules : public google_breakpad::CodeModules
    responsible for deallocating it.
 
    The first pair is for the outermost frame, the last for the
-   innermost frame.  There may be some leading section of the array
-   containing (zero, zero) values, in the case where the stack got
-   truncated because breakpad started stack-scanning, or for whatever
-   reason.  Users of this function need to be aware of that.
+   innermost frame.
 */
 
 MyCodeModules* sModules = NULL;
 google_breakpad::LocalDebugInfoSymbolizer* sSymbolizer = NULL;
 
-// Free up the above two singletons when the unwinder thread is shut
-// down.
-static
-void do_breakpad_unwind_Buffer_free_singletons()
-{
-  if (sSymbolizer) {
-    delete sSymbolizer;
-    sSymbolizer = NULL;
-  }
-  if (sModules) {
-    delete sModules;
-    sModules = NULL;
-  }
-}
-
-static
 void do_breakpad_unwind_Buffer(/*OUT*/PCandSP** pairs,
                                /*OUT*/unsigned int* nPairs,
                                UnwinderThreadBuffer* buff,
@@ -1630,9 +1588,8 @@ void do_breakpad_unwind_Buffer(/*OUT*/PCandSP** pairs,
 
   unsigned int n_frames = stack->frames()->size();
   unsigned int n_frames_good = 0;
-  unsigned int n_frames_dubious = 0;
 
-  *pairs  = (PCandSP*)calloc(n_frames, sizeof(PCandSP));
+  *pairs  = (PCandSP*)malloc(n_frames * sizeof(PCandSP));
   *nPairs = n_frames;
   if (*pairs == NULL) {
     *nPairs = 0;
@@ -1644,25 +1601,10 @@ void do_breakpad_unwind_Buffer(/*OUT*/PCandSP** pairs,
          frame_index < n_frames; ++frame_index) {
       google_breakpad::StackFrame *frame = stack->frames()->at(frame_index);
 
-      bool dubious
-        = frame->trust == google_breakpad::StackFrame::FRAME_TRUST_SCAN
-          || frame->trust == google_breakpad::StackFrame::FRAME_TRUST_CFI_SCAN
-          || frame->trust == google_breakpad::StackFrame::FRAME_TRUST_NONE;
-
-      if (dubious) {
-        n_frames_dubious++;
-      } else {
+      if (frame->trust == google_breakpad::StackFrame::FRAME_TRUST_CFI
+          || frame->trust == google_breakpad::StackFrame::FRAME_TRUST_CONTEXT) {
         n_frames_good++;
       }
-
-      /* Once we've seen more than some threshhold number of dubious
-         frames, give up.  Doing that gives better results than
-         polluting the profiling results with junk frames.  Because
-         the entries are put into the pairs array starting at the end,
-         this will leave some initial section of pairs containing
-         (0,0) values, which correspond to the skipped frames. */
-      if (n_frames_dubious > (unsigned int)sUnwindStackScan)
-        break;
 
 #     if defined(SPS_ARCH_amd64)
       google_breakpad::StackFrameAMD64* frame_amd64

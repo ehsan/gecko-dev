@@ -192,9 +192,7 @@ nsSVGForeignObjectFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
   }
 
   nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
-  nsSVGAnimatedTransformList* transformList =
-    content->GetAnimatedTransformList();
-  if (transformList && transformList->HasTransform()) {
+  if (content->GetAnimatedTransformList()) {
     if (aOwnTransform) {
       *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),
                                   nsSVGElement::eUserSpaceToParent);

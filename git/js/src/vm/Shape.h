@@ -427,26 +427,19 @@ struct StackBaseShape
     static inline HashNumber hash(const StackBaseShape *lookup);
     static inline bool match(RawUnownedBaseShape key, const StackBaseShape *lookup);
 
-    class AutoRooter : private JS::CustomAutoRooter
+    class AutoRooter : private AutoGCRooter
     {
       public:
         explicit AutoRooter(JSContext *cx, const StackBaseShape *base_
                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-          : CustomAutoRooter(cx), base(base_), skip(cx, base_)
+          : AutoGCRooter(cx, STACKBASESHAPE), base(base_), skip(cx, base_)
         {
             MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
-      private:
-        virtual void trace(JSTracer *trc) {
-            if (base->parent)
-                traceObject(trc, (JSObject**)&base->parent, "StackBaseShape::AutoRooter parent");
-            if ((base->flags & BaseShape::HAS_GETTER_OBJECT) && base->rawGetter)
-                traceObject(trc, (JSObject**)&base->rawGetter, "StackBaseShape::AutoRooter getter");
-            if ((base->flags & BaseShape::HAS_SETTER_OBJECT) && base->rawSetter)
-                traceObject(trc, (JSObject**)&base->rawSetter, "StackBaseShape::AutoRooter setter");
-        }
+        friend void AutoGCRooter::trace(JSTracer *trc);
 
+      private:
         const StackBaseShape *base;
         SkipRoot skip;
         MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -516,7 +509,6 @@ class Shape : public js::gc::Cell
 
     static inline RawShape search(JSContext *cx, Shape *start, jsid id,
                                   Shape ***pspp, bool adding = false);
-    static inline Shape *searchNoHashify(Shape *start, jsid id);
 
     inline void removeFromDictionary(ObjectImpl *obj);
     inline void insertIntoDictionary(HeapPtrShape *dictp);
@@ -859,27 +851,22 @@ class Shape : public js::gc::Cell
 
 class AutoRooterGetterSetter
 {
-    class Inner : private JS::CustomAutoRooter
+    class Inner : private AutoGCRooter
     {
       public:
         Inner(JSContext *cx, uint8_t attrs,
               PropertyOp *pgetter_, StrictPropertyOp *psetter_)
-          : CustomAutoRooter(cx), attrs(attrs),
-            pgetter(pgetter_), psetter(psetter_),
-            getterRoot(cx, pgetter_), setterRoot(cx, psetter_)
+            : AutoGCRooter(cx, GETTERSETTER), attrs(attrs),
+              pgetter(pgetter_), psetter(psetter_),
+              getterRoot(cx, pgetter_), setterRoot(cx, psetter_)
         {
             JS_ASSERT_IF(attrs & JSPROP_GETTER, !IsPoisonedPtr(*pgetter));
             JS_ASSERT_IF(attrs & JSPROP_SETTER, !IsPoisonedPtr(*psetter));
         }
 
-      private:
-        virtual void trace(JSTracer *trc) {
-            if ((attrs & JSPROP_GETTER) && *pgetter)
-                traceObject(trc, (JSObject**) pgetter, "AutoRooterGetterSetter getter");
-            if ((attrs & JSPROP_SETTER) && *psetter)
-                traceObject(trc, (JSObject**) psetter, "AutoRooterGetterSetter setter");
-        }
+        friend void AutoGCRooter::trace(JSTracer *trc);
 
+      private:
         uint8_t attrs;
         PropertyOp *pgetter;
         StrictPropertyOp *psetter;
@@ -895,6 +882,8 @@ class AutoRooterGetterSetter
             inner.construct(cx, attrs, pgetter, psetter);
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
+
+    friend void AutoGCRooter::trace(JSTracer *trc);
 
   private:
     mozilla::Maybe<Inner> inner;
@@ -1017,19 +1006,19 @@ struct StackShape
 
     inline HashNumber hash() const;
 
-    class AutoRooter : private JS::CustomAutoRooter
+    class AutoRooter : private AutoGCRooter
     {
       public:
         explicit AutoRooter(JSContext *cx, const StackShape *shape_
                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-          : CustomAutoRooter(cx), shape(shape_), skip(cx, shape_)
+          : AutoGCRooter(cx, STACKSHAPE), shape(shape_), skip(cx, shape_)
         {
             MOZ_GUARD_OBJECT_NOTIFIER_INIT;
         }
 
-      private:
-        virtual void trace(JSTracer *trc);
+        friend void AutoGCRooter::trace(JSTracer *trc);
 
+      private:
         const StackShape *shape;
         SkipRoot skip;
         MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
@@ -1091,30 +1080,6 @@ Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
     }
 
     for (RawShape shape = start; shape; shape = shape->parent) {
-        if (shape->propidRef() == id)
-            return shape;
-    }
-
-    return NULL;
-}
-
-/*
- * Keep this function in sync with search. It should return false whenever
- * search would transition to a ShapeTable.
- */
-inline Shape *
-Shape::searchNoHashify(Shape *start, jsid id)
-{
-    /*
-     * If we have a table, search in the shape table, else do a linear
-     * search. We never hashify into a table in parallel.
-     */
-    if (start->hasTable()) {
-        Shape **spp = start->table().search(id, false);
-        return SHAPE_FETCH(spp);
-    }
-
-    for (Shape *shape = start; shape; shape = shape->parent) {
         if (shape->propidRef() == id)
             return shape;
     }

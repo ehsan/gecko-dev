@@ -37,9 +37,7 @@ Site.prototype = {
       this.pinned ? 'unpin' : 'pin'
     ];
   },
-  get blocked() {
-    return NewTabUtils.blockedLinks.isBlocked(this);
-  },
+  blocked: false,
   get attributeValues() {
     return {
       value: this.url,

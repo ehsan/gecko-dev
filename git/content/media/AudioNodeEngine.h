@@ -146,14 +146,8 @@ AudioBlockPanStereoToStereo(const float aInputL[WEBAUDIO_BLOCK_SIZE],
  */
 class AudioNodeEngine {
 public:
-  AudioNodeEngine()
-  {
-    MOZ_COUNT_CTOR(AudioNodeEngine);
-  }
-  virtual ~AudioNodeEngine()
-  {
-    MOZ_COUNT_DTOR(AudioNodeEngine);
-  }
+  AudioNodeEngine() {}
+  virtual ~AudioNodeEngine() {}
 
   virtual void SetStreamTimeParameter(uint32_t aIndex, TrackTicks aParam)
   {

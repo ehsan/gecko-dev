@@ -28,7 +28,6 @@ public:
   // WebIDL
   int32_t GetNumberOfChars();
   float GetComputedTextLength();
-  void SelectSubString(uint32_t charnum, uint32_t nchars, ErrorResult& rv);
   float GetSubStringLength(uint32_t charnum, uint32_t nchars, ErrorResult& rv);
   already_AddRefed<nsISVGPoint> GetStartPositionOfChar(uint32_t charnum, ErrorResult& rv);
   already_AddRefed<nsISVGPoint> GetEndPositionOfChar(uint32_t charnum, ErrorResult& rv);

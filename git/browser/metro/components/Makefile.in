@@ -29,6 +29,7 @@ EXTRA_COMPONENTS = \
         PromptService.js \
         ContentDispatchChooser.js \
         FormAutoComplete.js \
+        LoginManager.js \
         LoginManagerPrompter.js \
         CapturePicker.js \
         $(NULL)

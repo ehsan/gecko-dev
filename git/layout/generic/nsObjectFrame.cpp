@@ -1058,8 +1058,9 @@ nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
         ReferenceFrame()->PresContext()->AppUnitsPerDevPixel();
       f->mNextConfigurationBounds = rAncestor.ToNearestPixels(appUnitsPerDevPixel);
 
+      bool snap;
       nsRegion visibleRegion;
-      visibleRegion.And(*aVisibleRegion, GetClippedBounds(aBuilder));
+      visibleRegion.And(*aVisibleRegion, GetBounds(aBuilder, &snap));
       // Make visibleRegion relative to f
       visibleRegion.MoveBy(-ToReferenceFrame());
 
@@ -1228,6 +1229,8 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 #endif
 
+  nsDisplayList replacedContent;
+
   if (aBuilder->IsForPainting() && mInstanceOwner && mInstanceOwner->UseAsyncRendering()) {
     NPWindow* window = nullptr;
     mInstanceOwner->GetWindow(window);
@@ -1241,12 +1244,9 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     mInstanceOwner->NotifyPaintWaiter(aBuilder);
   }
 
-  DisplayListClipState::AutoClipContainingBlockDescendantsToContentBox
-    clip(aBuilder, this, DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT);
-
   // determine if we are printing
   if (type == nsPresContext::eContext_Print) {
-    aLists.Content()->AppendNewToTop(new (aBuilder)
+    replacedContent.AppendNewToTop(new (aBuilder)
       nsDisplayGeneric(aBuilder, this, PaintPrintPlugin, "PrintPlugin",
                        nsDisplayItem::TYPE_PRINT_PLUGIN));
   } else {
@@ -1260,7 +1260,7 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (aBuilder->IsPaintingToWindow() &&
         state == LAYER_ACTIVE &&
         IsTransparentMode()) {
-      aLists.Content()->AppendNewToTop(new (aBuilder)
+      replacedContent.AppendNewToTop(new (aBuilder)
         nsDisplayPluginReadback(aBuilder, this));
     }
 #endif
@@ -1273,15 +1273,17 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       mInstanceOwner->GetVideos(videos);
 
       for (uint32_t i = 0; i < videos.Length(); i++) {
-        aLists.Content()->AppendNewToTop(new (aBuilder)
+        replacedContent.AppendNewToTop(new (aBuilder)
           nsDisplayPluginVideo(aBuilder, this, videos[i]));
       }
     }
 #endif
 
-    aLists.Content()->AppendNewToTop(new (aBuilder)
+    replacedContent.AppendNewToTop(new (aBuilder)
       nsDisplayPlugin(aBuilder, this));
   }
+
+  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
 }
 
 #ifdef XP_OS2

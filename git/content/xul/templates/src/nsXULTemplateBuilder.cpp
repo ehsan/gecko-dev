@@ -41,6 +41,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIServiceManager.h"
 #include "nsISimpleEnumerator.h"
+#include "nsISupportsArray.h"
 #include "nsIMutableArray.h"
 #include "nsIURL.h"
 #include "nsIXPConnect.h"
@@ -1544,7 +1545,7 @@ nsXULTemplateBuilder::ParseAttribute(const nsAString& aAttributeValue,
 }
 
 
-struct MOZ_STACK_CLASS SubstituteTextClosure {
+struct NS_STACK_CLASS SubstituteTextClosure {
     SubstituteTextClosure(nsIXULTemplateResult* aResult, nsAString& aString)
         : result(aResult), str(aString) {}
 

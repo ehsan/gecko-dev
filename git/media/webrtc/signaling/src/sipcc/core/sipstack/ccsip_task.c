@@ -43,7 +43,6 @@
 #include "sip_interface_regmgr.h"
 #include "ccsip_publish.h"
 #include "platform_api.h"
-#include "thread_monitor.h"
 
 #ifdef SAPP_SAPP_GSM
 #define SAPP_APP_GSM 3
@@ -878,7 +877,6 @@ SIPTaskProcessListEvent (uint32_t cmd, void *msg, void *pUsr, uint16_t len)
 
     case THREAD_UNLOAD:
         {
-            thread_ended(THREADMON_SIP);
             destroy_sip_thread();
         }
         break;
@@ -896,7 +894,7 @@ SIPTaskProcessListEvent (uint32_t cmd, void *msg, void *pUsr, uint16_t len)
 
     default:
         cpr_free(msg);
-        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"Unknown message", fname);
+        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"Unknown message\n, fname");
         break;
     }
     return;

@@ -38,10 +38,7 @@ powerpc*-*-linux*)
 #error This is not MinGW
 #endif], [], icu_cv_host_frag=mh-mingw, icu_cv_host_frag=mh-cygwin)
 	else
-	        case "${host}" in
-		*-*-mingw32) icu_cv_host_frag=mh-msys-msvc ;;
-		*-*-cygwin) icu_cv_host_frag=mh-cygwin-msvc ;;
-		esac
+		icu_cv_host_frag=mh-cygwin-msvc
 	fi ;;
 *-*-*bsd*|*-*-dragonfly*) 	icu_cv_host_frag=mh-bsd-gcc ;;
 *-*-aix*)
@@ -464,9 +461,7 @@ AC_DEFUN(AC_CHECK_STRICT_COMPILE,
                 if test "`$CC /help 2>&1 | head -c9`" = "Microsoft"
                 then
                     CFLAGS="$CFLAGS /W4"
-                fi ;;
-            *-*-mingw32)
-                CFLAGS="$CFLAGS -W4" ;;
+                fi
             esac
         fi
         if test "$GXX" = yes
@@ -478,9 +473,7 @@ AC_DEFUN(AC_CHECK_STRICT_COMPILE,
                 if test "`$CXX /help 2>&1 | head -c9`" = "Microsoft"
                 then
                     CXXFLAGS="$CXXFLAGS /W4"
-                fi ;;
-            *-*-mingw32)
-                CXXFLAGS="$CXXFLAGS -W4" ;;
+                fi
             esac
         fi
     fi

@@ -26,13 +26,7 @@ class nsPresContext;
 struct JSContext;
 class JSObject;
 
-// Dummy class so we can cast through it to get from nsISupports to
-// nsDOMEvent subclasses with only two non-ambiguous static casts.
-class nsDOMEventBase : public nsIDOMEvent
-{
-};
-
-class nsDOMEvent : public nsDOMEventBase,
+class nsDOMEvent : public nsIDOMEvent,
                    public nsIJSNativeInitializer,
                    public nsWrapperCache
 {

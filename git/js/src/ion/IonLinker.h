@@ -10,15 +10,16 @@
 
 #include "jscntxt.h"
 #include "jscompartment.h"
-#include "jsgc.h"
 #include "ion/IonCode.h"
 #include "ion/IonCompartment.h"
 #include "assembler/jit/ExecutableAllocator.h"
 #include "ion/IonMacroAssembler.h"
+#include "jsgcinlines.h"
 
 namespace js {
 namespace ion {
 
+static const int CodeAlignment = 8;
 class Linker
 {
     MacroAssembler &masm;

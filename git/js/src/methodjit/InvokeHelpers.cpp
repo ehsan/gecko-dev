@@ -880,7 +880,7 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
       }
 
       case REJOIN_PUSH_BOOLEAN:
-        nextsp[-1].setBoolean((JSBool)(uintptr_t)returnReg);
+        nextsp[-1].setBoolean(returnReg != NULL);
         f.regs.pc = nextpc;
         break;
 
@@ -1071,10 +1071,10 @@ js_InternalInterpret(void *returnData, void *returnType, void *returnReg, js::VM
         bool takeBranch = false;
         switch (JSOp(*nextpc)) {
           case JSOP_IFNE:
-            takeBranch = (JSBool)(uintptr_t)returnReg;
+            takeBranch = returnReg != NULL;
             break;
           case JSOP_IFEQ:
-            takeBranch = !(JSBool)(uintptr_t)returnReg;
+            takeBranch = returnReg == NULL;
             break;
           default:
             JS_NOT_REACHED("Bad branch op");

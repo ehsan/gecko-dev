@@ -1180,14 +1180,7 @@ enum NewObjectKind {
      * be allocated on the correct heap, but are not automatically setup as a
      * singleton after allocation.
      */
-    MaybeSingletonObject,
-
-    /*
-     * Objects which will not benefit from being allocated in the nursery
-     * (e.g. because they are known to have a long lifetime) may be allocated
-     * with this kind to place them immediately into the tenured generation.
-     */
-    TenuredObject
+    MaybeSingletonObject
 };
 
 inline gc::InitialHeap
@@ -1340,18 +1333,6 @@ GetPropertyHelper(JSContext *cx, HandleObject obj, PropertyName *name, uint32_t 
 }
 
 bool
-LookupPropertyPure(JSObject *obj, jsid id, JSObject **objp, Shape **propp);
-
-bool
-GetPropertyPure(JSObject *obj, jsid id, Value *vp);
-
-inline bool
-GetPropertyPure(JSObject *obj, PropertyName *name, Value *vp)
-{
-    return GetPropertyPure(obj, NameToId(name), vp);
-}
-
-bool
 GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id, PropertyDescriptor *desc);
 
 bool
@@ -1476,7 +1457,7 @@ inline void
 DestroyIdArray(FreeOp *fop, JSIdArray *ida);
 
 extern bool
-GetFirstArgumentAsObject(JSContext *cx, const CallArgs &args, const char *method,
+GetFirstArgumentAsObject(JSContext *cx, unsigned argc, Value *vp, const char *method,
                          MutableHandleObject objp);
 
 /* Helpers for throwing. These always return false. */

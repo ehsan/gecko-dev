@@ -29,7 +29,7 @@ class DOMImplementation MOZ_FINAL : public nsIDOMDOMImplementation
 {
 public:
   DOMImplementation(nsIDocument* aOwner,
-                    nsIGlobalObject* aScriptObject,
+                    nsIScriptGlobalObject* aScriptObject,
                     nsIURI* aDocumentURI,
                     nsIURI* aBaseURI)
     : mOwner(aOwner)
@@ -73,7 +73,7 @@ public:
                  ErrorResult& aRv);
 
   already_AddRefed<nsIDocument>
-  CreateHTMLDocument(const Optional<nsAString>& aTitle, ErrorResult& aRv);
+  CreateHTMLDocument(const nsAString& aTitle, ErrorResult& aRv);
 
 private:
   nsresult CreateDocument(const nsAString& aNamespaceURI,

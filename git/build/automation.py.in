@@ -452,10 +452,6 @@ class Automation(object):
     self.setupPermissionsDatabase(profileDir,
       {'allowXULXBL':[(l.host, 'noxul' not in l.options) for l in locations]});
 
-    # NOTE: For refactoring purposes we are temporarily storing these prefs
-    #       in two locations. If you update a pref below, please also update
-    #       it in source/testing/profiles/prefs_general.js.
-    #       See bug 830430 for more details.
     part = """\
 user_pref("browser.console.showInPanel", true);
 user_pref("browser.dom.window.dump.enabled", true);
@@ -908,7 +904,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
           if err == 38 or err == 109: # ERROR_HANDLE_EOF || ERROR_BROKEN_PIPE
             return ('', False)
           else:
-            self.log.error("readWithTimeout got error: %d", err)
+            log.error("readWithTimeout got error: %d", err)
         if l.value > 0:
           # we're assuming that the output is line-buffered,
           # which is not unreasonable
@@ -932,7 +928,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
       pHandle = ctypes.windll.kernel32.OpenProcess(PROCESS_TERMINATE, 0, pid)
       if not pHandle:
         return
-      ctypes.windll.kernel32.TerminateProcess(pHandle, 1)
+      success = ctypes.windll.kernel32.TerminateProcess(pHandle, 1)
       ctypes.windll.kernel32.CloseHandle(pHandle)
 
   else:
@@ -1014,7 +1010,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     encoded = base64.b64encode(image)
     self.log.info("SCREENSHOT: data:image/png;base64,%s", encoded)
 
-  def killAndGetStack(self, processPID, utilityPath, debuggerInfo):
+  def killAndGetStack(self, proc, utilityPath, debuggerInfo):
     """Kill the process, preferrably in a way that gets us a stack trace."""
     if not debuggerInfo:
       if self.haveDumpedScreen:
@@ -1025,16 +1021,16 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     if self.CRASHREPORTER and not debuggerInfo:
       if self.UNIXISH:
         # ABRT will get picked up by Breakpad's signal handler
-        os.kill(processPID, signal.SIGABRT)
+        os.kill(proc.pid, signal.SIGABRT)
         return
       elif self.IS_WIN32:
         # We should have a "crashinject" program in our utility path
         crashinject = os.path.normpath(os.path.join(utilityPath, "crashinject.exe"))
-        if os.path.exists(crashinject) and subprocess.Popen([crashinject, str(processPID)]).wait() == 0:
+        if os.path.exists(crashinject) and subprocess.Popen([crashinject, str(proc.pid)]).wait() == 0:
           return
       #TODO: kill the process such that it triggers Breakpad on OS X (bug 525296)
     self.log.info("Can't trigger Breakpad, just killing process")
-    self.killPid(processPID)
+    proc.kill()
 
   def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime, debuggerInfo, symbolsPath):
     """ Look for timeout or crashes and return the status after the process terminates """
@@ -1086,10 +1082,10 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
           # Kill the application, but continue reading from stack fixer so as not to deadlock on stackFixerProcess.wait().
           hitMaxTime = True
           self.log.info("TEST-UNEXPECTED-FAIL | %s | application ran for longer than allowed maximum time of %d seconds", self.lastTestSeen, int(maxTime))
-          self.killAndGetStack(proc.pid, utilityPath, debuggerInfo)
+          self.killAndGetStack(proc, utilityPath, debuggerInfo)
       if didTimeout:
         self.log.info("TEST-UNEXPECTED-FAIL | %s | application timed out after %d seconds with no output", self.lastTestSeen, int(timeout))
-        self.killAndGetStack(proc.pid, utilityPath, debuggerInfo)
+        self.killAndGetStack(proc, utilityPath, debuggerInfo)
 
     status = proc.wait()
     if status == 0:
@@ -1135,7 +1131,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     args.extend(extraArgs)
     return cmd, args
 
-  def checkForZombies(self, processLog, utilityPath, debuggerInfo):
+  def checkForZombies(self, processLog):
     """ Look for hung processes """
     if not os.path.exists(processLog):
       self.log.info('Automation Error: PID log not found: %s', processLog)
@@ -1159,11 +1155,11 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
       if self.isPidAlive(processPID):
         foundZombie = True
         self.log.info("TEST-UNEXPECTED-FAIL | zombiecheck | child process %d still alive after shutdown", processPID)
-        self.killAndGetStack(processPID, utilityPath, debuggerInfo)
+        self.killPid(processPID)
     return foundZombie
 
-  def checkForCrashes(self, minidumpDir, symbolsPath):
-    return mozcrash.check_for_crashes(minidumpDir, symbolsPath, test_name=self.lastTestSeen)
+  def checkForCrashes(self, profileDir, symbolsPath):
+    return mozcrash.check_for_crashes(os.path.join(profileDir, "minidumps"), symbolsPath, test_name=self.lastTestSeen)
 
   def runApp(self, testURL, env, app, profileDir, extraArgs,
              runSSLTunnel = False, utilityPath = None,
@@ -1235,9 +1231,9 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     self.log.info("INFO | automation.py | Application ran for: %s", str(datetime.now() - startTime))
 
     # Do a final check for zombie child processes.
-    zombieProcesses = self.checkForZombies(processLog, utilityPath, debuggerInfo)
+    zombieProcesses = self.checkForZombies(processLog)
 
-    crashed = self.checkForCrashes(os.path.join(profileDir, "minidumps"), symbolsPath)
+    crashed = self.checkForCrashes(profileDir, symbolsPath)
 
     if crashed or zombieProcesses:
       status = 1

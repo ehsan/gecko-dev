@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/PodOperations.h"
 
 #include "jsapi.h"
 #include "jsautooplen.h"
@@ -26,7 +25,6 @@
 #include "jsworkers.h"
 
 #ifdef JS_ION
-#include "ion/BaselineJIT.h"
 #include "ion/Ion.h"
 #include "ion/IonCompartment.h"
 #endif
@@ -58,9 +56,6 @@ using namespace js::types;
 using namespace js::analyze;
 
 using mozilla::DebugOnly;
-using mozilla::PodArrayZero;
-using mozilla::PodCopy;
-using mozilla::PodZero;
 
 static inline jsid
 id_prototype(JSContext *cx) {
@@ -2382,6 +2377,27 @@ class TypeConstraintFreezeStack : public TypeConstraint
 // TypeCompartment
 /////////////////////////////////////////////////////////////////////
 
+static inline bool
+TypeInferenceSupported()
+{
+#ifdef JS_METHODJIT
+    // JM+TI will generate FPU instructions with TI enabled. As a workaround,
+    // we disable TI to prevent this on platforms which do not have FPU
+    // support.
+    JSC::MacroAssembler masm;
+    if (!masm.supportsFloatingPoint())
+        return false;
+#endif
+
+#if WTF_ARM_ARCH_VERSION == 6
+    // If building for ARMv6 targets, we can't be guaranteed an FPU,
+    // so we hardcode TI off for consistency (see bug 793740).
+    return false;
+#endif
+
+    return true;
+}
+
 TypeCompartment::TypeCompartment()
 {
     PodZero(this);
@@ -2393,7 +2409,7 @@ TypeZone::init(JSContext *cx)
 {
     if (!cx ||
         !cx->hasOption(JSOPTION_TYPE_INFERENCE) ||
-        !cx->runtime->jitSupportsFloatingPoint)
+        !TypeInferenceSupported())
     {
         return;
     }
@@ -2443,9 +2459,6 @@ static inline jsbytecode *
 FindPreviousInnerInitializer(HandleScript script, jsbytecode *initpc)
 {
     if (!script->hasAnalysis())
-        return NULL;
-
-    if (!script->analysis()->maybeCode(initpc))
         return NULL;
 
     /*
@@ -2741,17 +2754,6 @@ TypeCompartment::processPendingRecompiles(FreeOp *fop)
             break;
           case CompilerOutput::Ion:
           case CompilerOutput::ParallelIon:
-# ifdef JS_THREADSAFE
-            /*
-             * If we are inside transitive compilation, which is a worklist
-             * fixpoint algorithm, we need to be re-add invalidated scripts to
-             * the worklist.
-             */
-            if (transitiveCompilationWorklist) {
-                transitiveCompilationWorklist->insert(transitiveCompilationWorklist->begin(),
-                                                      co.script);
-            }
-# endif
             break;
         }
     }
@@ -2913,10 +2915,6 @@ TypeCompartment::addPendingRecompile(JSContext *cx, RawScript script, jsbytecode
 
 # ifdef JS_ION
     CancelOffThreadIonCompile(cx->compartment, script);
-
-    // Let the script warm up again before attempting another compile.
-    if (ion::IsBaselineEnabled(cx))
-        script->resetUseCount();
 
     if (script->hasIonScript())
         addPendingRecompile(cx, script->ionScript()->recompileInfo());

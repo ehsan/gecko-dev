@@ -37,7 +37,6 @@ CPPSRCS += dlldeps-xul.cpp
 endif
 
 SHARED_LIBRARY_LIBS += \
-  $(DEPTH)/media/kiss_fft/$(LIB_PREFIX)kiss_fft.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/components/osfile/$(LIB_PREFIX)osfile_s.$(LIB_SUFFIX) \
   $(DEPTH)/toolkit/xre/$(LIB_PREFIX)xulapp_s.$(LIB_SUFFIX) \
   $(NULL)
@@ -677,6 +676,11 @@ DEFINES += \
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 OS_LIBS += $(call EXPAND_LIBNAME,usp10 oleaut32)
+endif
+
+ifeq ($(OS_ARCH),OpenBSD)
+# Needed by nsAuthGSSAPI
+EXTRA_DSO_LDOPTS += -lkrb5 -lcrypto
 endif
 
 ifdef MOZ_DEBUG

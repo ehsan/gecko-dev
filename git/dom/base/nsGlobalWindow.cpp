@@ -58,7 +58,7 @@
 #include "nsPluginHost.h"
 #include "nsIPluginInstanceOwner.h"
 #include "nsGeolocation.h"
-#include "mozilla/dom/DesktopNotification.h"
+#include "nsDesktopNotification.h"
 #include "nsContentCID.h"
 #include "nsLayoutStatics.h"
 #include "nsCycleCollector.h"
@@ -97,6 +97,7 @@
 #include "nsIDOMHashChangeEvent.h"
 #include "nsIDOMOfflineResourceList.h"
 #include "nsIDOMGeoGeolocation.h"
+#include "nsIDOMDesktopNotification.h"
 #include "nsPIDOMStorage.h"
 #include "nsDOMString.h"
 #include "nsIEmbeddingSiteWindow.h"
@@ -227,11 +228,6 @@
 #include "TimeChangeObserver.h"
 #include "nsPISocketTransportService.h"
 #include "mozilla/dom/AudioContext.h"
-#include "mozilla/dom/FunctionBinding.h"
-
-#ifdef MOZ_WEBSPEECH
-#include "mozilla/dom/SpeechSynthesis.h"
-#endif
 
 // Apple system headers seem to have a check() macro.  <sigh>
 #ifdef check
@@ -542,9 +538,6 @@ public:
   virtual void finalize(JSFreeOp *fop, JSObject *proxy) MOZ_OVERRIDE;
 
   // Fundamental traps
-  virtual bool isExtensible(JSObject *proxy) MOZ_OVERRIDE;
-  virtual bool preventExtensions(JSContext *cx,
-                                 JS::Handle<JSObject*> proxy) MOZ_OVERRIDE;
   virtual bool getPropertyDescriptor(JSContext* cx,
                                      JS::Handle<JSObject*> proxy,
                                      JS::Handle<jsid> id,
@@ -612,24 +605,6 @@ protected:
                                   JS::AutoIdVector &props);
 };
 
-bool
-nsOuterWindowProxy::isExtensible(JSObject *proxy)
-{
-  // If [[Extensible]] could be false, then navigating a window could navigate
-  // to a window that's [[Extensible]] after being at one that wasn't: an
-  // invariant violation.  So always report true for this.
-  return true;
-}
-
-bool
-nsOuterWindowProxy::preventExtensions(JSContext *cx,
-                                      JS::Handle<JSObject*> proxy)
-{
-  // See above.
-  JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-                       JSMSG_CANT_CHANGE_EXTENSIBILITY);
-  return false;
-}
 
 JSString *
 nsOuterWindowProxy::obj_toString(JSContext *cx, JS::Handle<JSObject*> proxy)
@@ -645,12 +620,6 @@ nsOuterWindowProxy::finalize(JSFreeOp *fop, JSObject *proxy)
   nsGlobalWindow* global = GetWindow(proxy);
   if (global) {
     global->ClearWrapper();
-
-    // Ideally we would use OnFinalize here, but it's possible that
-    // EnsureScriptEnvironment will later be called on the window, and we don't
-    // want to create a new script object in that case. Therefore, we need to
-    // write a non-null value that will reliably crash when dereferenced.
-    global->PoisonOuterWindowProxy(proxy);
   }
 }
 
@@ -1344,10 +1313,6 @@ nsGlobalWindow::CleanUp(bool aIgnoreModalDialog)
 
   mPerformance = nullptr;
 
-#ifdef MOZ_WEBSPEECH
-  mSpeechSynthesis = nullptr;
-#endif
-
   ClearControllers();
 
   mOpener = nullptr;             // Forces Release
@@ -1490,10 +1455,6 @@ nsGlobalWindow::FreeInnerObjects()
     mAudioContexts[i]->Shutdown();
   }
   mAudioContexts.Clear();
-
-#ifdef MOZ_GAMEPAD
-  mGamepads.Clear();
-#endif
 }
 
 //*****************************************************************************
@@ -1517,9 +1478,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
 #ifdef MOZ_B2G
   NS_INTERFACE_MAP_ENTRY(nsIDOMWindowB2G)
 #endif // MOZ_B2G
-#ifdef MOZ_WEBSPEECH
-  NS_INTERFACE_MAP_ENTRY(nsISpeechSynthesisGetter)
-#endif // MOZ_B2G
   NS_INTERFACE_MAP_ENTRY(nsIDOMJSWindow)
   if (aIID.Equals(NS_GET_IID(nsIDOMWindowInternal))) {
     foundInterface = static_cast<nsIDOMWindowInternal*>(this);
@@ -1531,7 +1489,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsGlobalWindow)
                                       "nsIDOMWindowInternalWarning");
     }
   } else
-  NS_INTERFACE_MAP_ENTRY(nsIGlobalObject)
   NS_INTERFACE_MAP_ENTRY(nsIScriptGlobalObject)
   NS_INTERFACE_MAP_ENTRY(nsIScriptObjectPrincipal)
   NS_INTERFACE_MAP_ENTRY(nsIDOMEventTarget)
@@ -1612,10 +1569,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPerformance)
 
-#ifdef MOZ_WEBSPEECH
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSpeechSynthesis)
-#endif
-
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mInnerWindowHolder)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOuterWindow)
 
@@ -1635,10 +1588,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mIdleService)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPendingStorageEvents)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mIdleObservers)
-
-#ifdef MOZ_GAMEPAD
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGamepads)
-#endif
 
   // Traverse stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mChromeEventHandler)
@@ -1660,10 +1609,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
 
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPerformance)
 
-#ifdef MOZ_WEBSPEECH
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mSpeechSynthesis)
-#endif
-
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mInnerWindowHolder)
   if (tmp->mOuterWindow) {
     static_cast<nsGlobalWindow*>(tmp->mOuterWindow.get())->MaybeClearInnerWindow(tmp);
@@ -1682,10 +1627,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGlobalWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mIdleService)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPendingStorageEvents)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mIdleObservers)
-
-#ifdef MOZ_GAMEPAD
-  NS_IMPL_CYCLE_COLLECTION_UNLINK(mGamepads)
-#endif
 
   // Unlink stuff from nsPIDOMWindow
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mChromeEventHandler)
@@ -1736,12 +1677,8 @@ nsGlobalWindow::UnmarkGrayTimers()
        timeout;
        timeout = timeout->getNext()) {
     if (timeout->mScriptHandler) {
-      Function* f = timeout->mScriptHandler->GetCallback();
-      if (f) {
-        // Callable() already does xpc_UnmarkGrayObject.
-        DebugOnly<JSObject*> o = f->Callable();
-        MOZ_ASSERT(!xpc_IsGrayGCThing(o), "Should have been unmarked");
-      }
+      JSObject* o = timeout->mScriptHandler->GetScriptObject();
+      xpc_UnmarkGrayObject(o);
     }
   }
 }
@@ -2627,7 +2564,7 @@ nsGlobalWindow::SetDocShell(nsIDocShell* aDocShell)
       mChromeEventHandler = piWindow->GetChromeEventHandler();
     }
     else {
-      mChromeEventHandler = NS_NewWindowRoot(this);
+      NS_NewWindowRoot(this, getter_AddRefs(mChromeEventHandler));
     }
   }
 
@@ -2748,7 +2685,7 @@ nsGlobalWindow::SetOpenerWindow(nsIDOMWindow* aOpener,
 }
 
 static
-already_AddRefed<EventTarget>
+already_AddRefed<nsIDOMEventTarget>
 TryGetTabChildGlobalAsEventTarget(nsISupports *aFrom)
 {
   nsCOMPtr<nsIFrameLoaderOwner> frameLoaderOwner = do_QueryInterface(aFrom);
@@ -2761,8 +2698,9 @@ TryGetTabChildGlobalAsEventTarget(nsISupports *aFrom)
     return NULL;
   }
 
-  nsCOMPtr<EventTarget> target = frameLoader->GetTabChildGlobalAsEventTarget();
-  return target.forget();
+  nsCOMPtr<nsIDOMEventTarget> eventTarget =
+    frameLoader->GetTabChildGlobalAsEventTarget();
+  return eventTarget.forget();
 }
 
 void
@@ -2774,7 +2712,7 @@ nsGlobalWindow::UpdateParentTarget()
   // handler itself.
 
   nsCOMPtr<nsIDOMElement> frameElement = GetFrameElementInternal();
-  nsCOMPtr<EventTarget> eventTarget =
+  nsCOMPtr<nsIDOMEventTarget> eventTarget =
     TryGetTabChildGlobalAsEventTarget(frameElement);
 
   if (!eventTarget) {
@@ -3086,15 +3024,6 @@ nsGlobalWindow::OnFinalize(JSObject* aObject)
 }
 
 void
-nsGlobalWindow::PoisonOuterWindowProxy(JSObject *aObject)
-{
-  MOZ_ASSERT(IsOuterWindow());
-  if (aObject == mJSObject) {
-    mJSObject = reinterpret_cast<JSObject*>(0x1);
-  }
-}
-
-void
 nsGlobalWindow::SetScriptsEnabled(bool aEnabled, bool aFireTimeouts)
 {
   FORWARD_TO_INNER_VOID(SetScriptsEnabled, (aEnabled, aFireTimeouts));
@@ -3342,35 +3271,6 @@ nsPIDOMWindow::CreatePerformanceObjectIfNeeded()
     mPerformance = new nsPerformance(this, timing, timedChannel);
   }
 }
-
-// nsISpeechSynthesisGetter
-
-#ifdef MOZ_WEBSPEECH
-NS_IMETHODIMP
-nsGlobalWindow::GetSpeechSynthesis(nsISupports** aSpeechSynthesis)
-{
-  FORWARD_TO_INNER(GetSpeechSynthesis, (aSpeechSynthesis), NS_ERROR_NOT_INITIALIZED);
-
-  NS_IF_ADDREF(*aSpeechSynthesis = GetSpeechSynthesisInternal());
-  return NS_OK;
-}
-
-SpeechSynthesis*
-nsGlobalWindow::GetSpeechSynthesisInternal()
-{
-  MOZ_ASSERT(IsInnerWindow());
-
-  if (!SpeechSynthesis::PrefEnabled()) {
-    return nullptr;
-  }
-
-  if (!mSpeechSynthesis) {
-    mSpeechSynthesis = new SpeechSynthesis(this);
-  }
-
-  return mSpeechSynthesis;
-}
-#endif
 
 /**
  * GetScriptableParent is called when script reads window.parent.
@@ -6442,7 +6342,7 @@ nsGlobalWindow::OpenDialog(const nsAString& aUrl, const nsAString& aName,
   NS_ENSURE_SUCCESS(rv, rv);
 
   uint32_t argc;
-  JS::Value *argv = nullptr;
+  jsval *argv = nullptr;
 
   // XXX - need to get this as nsISupports?
   ncc->GetArgc(&argc);
@@ -6526,7 +6426,7 @@ nsGlobalWindow::CallerInnerWindow()
     bool ok = JS_GetPrototype(cx, scope, &scopeProto);
     NS_ENSURE_TRUE(ok, nullptr);
     if (scopeProto && xpc::IsSandboxPrototypeProxy(scopeProto) &&
-        (scopeProto = js::CheckedUnwrap(scopeProto, /* stopAtOuter = */ false)))
+        (scopeProto = js::UnwrapObjectChecked(scopeProto, /* stopAtOuter = */ false)))
     {
       scope = scopeProto;
     }
@@ -6625,7 +6525,7 @@ PostMessageReadStructuredClone(JSContext* cx,
     if (JS_ReadBytes(reader, &supports, sizeof(supports))) {
       JSObject* global = JS_GetGlobalForScopeChain(cx);
       if (global) {
-        JS::Value val;
+        jsval val;
         nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
         if (NS_SUCCEEDED(nsContentUtils::WrapNative(cx, global, supports,
                                                     &val,
@@ -6763,7 +6663,7 @@ PostMessageEvent::Run()
   }
 
   // Deserialize the structured clone data
-  JS::Value messageData;
+  jsval messageData;
   {
     JSAutoRequest ar(cx);
     StructuredCloneInfo scInfo;
@@ -6818,9 +6718,9 @@ PostMessageEvent::Run()
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::PostMessageMoz(const JS::Value& aMessage,
+nsGlobalWindow::PostMessageMoz(const jsval& aMessage,
                                const nsAString& aOrigin,
-                               const JS::Value& aTransfer,
+                               const jsval& aTransfer,
                                JSContext* aCx)
 {
   FORWARD_TO_OUTER(PostMessageMoz, (aMessage, aOrigin, aTransfer, aCx),
@@ -6906,7 +6806,7 @@ nsGlobalWindow::PostMessageMoz(const JS::Value& aMessage,
                          providedOrigin,
                          nsContentUtils::IsCallerChrome());
 
-  // We *must* clone the data here, or the JS::Value could be modified
+  // We *must* clone the data here, or the jsval could be modified
   // by script
   JSAutoStructuredCloneBuffer buffer;
   StructuredCloneInfo scInfo;
@@ -8290,7 +8190,7 @@ nsGlobalWindow::DisableGamepadUpdates()
 }
 
 void
-nsGlobalWindow::SetChromeEventHandler(EventTarget* aChromeEventHandler)
+nsGlobalWindow::SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler)
 {
   SetChromeEventHandlerInternal(aChromeEventHandler);
   if (IsOuterWindow()) {
@@ -8944,7 +8844,7 @@ nsGlobalWindow::GetLocalStorage(nsIDOMStorage ** aLocalStorage)
 //*****************************************************************************
 
 NS_IMETHODIMP
-nsGlobalWindow::GetIndexedDB(nsISupports** _retval)
+nsGlobalWindow::GetIndexedDB(nsIIDBFactory** _retval)
 {
   if (!mIndexedDB) {
     nsresult rv;
@@ -8977,13 +8877,13 @@ nsGlobalWindow::GetIndexedDB(nsISupports** _retval)
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  nsCOMPtr<nsISupports> request(mIndexedDB);
+  nsCOMPtr<nsIIDBFactory> request(mIndexedDB);
   request.forget(_retval);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::GetMozIndexedDB(nsISupports** _retval)
+nsGlobalWindow::GetMozIndexedDB(nsIIDBFactory** _retval)
 {
   return GetIndexedDB(_retval);
 }
@@ -10189,8 +10089,8 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
   }
 
   nsCOMPtr<nsIScriptTimeoutHandler> handler(timeout->mScriptHandler);
-  nsRefPtr<Function> callback = handler->GetCallback();
-  if (!callback) {
+  JSObject* scriptObject = handler->GetScriptObject();
+  if (!scriptObject) {
     // Evaluate the timeout expression.
     const PRUnichar* script = handler->GetHandlerText();
     NS_ASSERTION(script, "timeout has no script nor handler text!");
@@ -10206,14 +10106,18 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
     aScx->EvaluateString(nsDependentString(script), *FastGetGlobalJSObject(),
                          options, /*aCoerceToString = */ false, nullptr);
   } else {
-    // Hold strong ref to ourselves while we call the callback.
+    nsCOMPtr<nsIVariant> dummy;
     nsCOMPtr<nsISupports> me(static_cast<nsIDOMWindow *>(this));
-    ErrorResult ignored;
-    callback->Call(me, handler->GetArgs(), ignored);
+    aScx->CallEventHandler(me, FastGetGlobalJSObject(),
+                           scriptObject, handler->GetArgv(),
+                           // XXXmarkh - consider allowing CallEventHandler to
+                           // accept nullptr?
+                           getter_AddRefs(dummy));
+
   }
 
-  // We ignore any failures from calling EvaluateString() on the context or
-  // Call() on a Function here since we're in a loop
+  // We ignore any failures from calling EvaluateString() or
+  // CallEventHandler() on the context here since we're in a loop
   // where we're likely to be running timeouts whose OS timers
   // didn't fire in time and we don't want to not fire those timers
   // now just because execution of one timer failed. We can't
@@ -11305,21 +11209,21 @@ nsGlobalWindow::SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const
 
 #ifdef MOZ_GAMEPAD
 void
-nsGlobalWindow::AddGamepad(uint32_t aIndex, nsDOMGamepad* aGamepad)
+nsGlobalWindow::AddGamepad(PRUint32 aIndex, nsDOMGamepad* aGamepad)
 {
   FORWARD_TO_INNER_VOID(AddGamepad, (aIndex, aGamepad));
   mGamepads.Put(aIndex, aGamepad);
 }
 
 void
-nsGlobalWindow::RemoveGamepad(uint32_t aIndex)
+nsGlobalWindow::RemoveGamepad(PRUint32 aIndex)
 {
   FORWARD_TO_INNER_VOID(RemoveGamepad, (aIndex));
   mGamepads.Remove(aIndex);
 }
 
 already_AddRefed<nsDOMGamepad>
-nsGlobalWindow::GetGamepad(uint32_t aIndex)
+nsGlobalWindow::GetGamepad(PRUint32 aIndex)
 {
   FORWARD_TO_INNER(GetGamepad, (aIndex), nullptr);
   nsRefPtr<nsDOMGamepad> gamepad;
@@ -11346,7 +11250,7 @@ nsGlobalWindow::HasSeenGamepadInput()
 
 // static
 PLDHashOperator
-nsGlobalWindow::EnumGamepadsForSync(const uint32_t& aKey, nsDOMGamepad* aData, void* userArg)
+nsGlobalWindow::EnumGamepadsForSync(const PRUint32& aKey, nsDOMGamepad* aData, void* userArg)
 {
   nsRefPtr<GamepadService> gamepadsvc(GamepadService::GetService());
   gamepadsvc->SyncGamepadState(aKey, aData);
@@ -11803,13 +11707,13 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
 
 #define EVENT(name_, id_, type_, struct_)                                    \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
-                                             JS::Value *vp) {                \
+                                             jsval *vp) {                    \
     EventHandlerNonNull* h = GetOn##name_();                                 \
     vp->setObjectOrNull(h ? h->Callable() : nullptr);                        \
     return NS_OK;                                                            \
   }                                                                          \
   NS_IMETHODIMP nsGlobalWindow::SetOn##name_(JSContext *cx,                  \
-                                             const JS::Value &v) {           \
+                                             const jsval &v) {               \
     JSObject *obj = mJSObject;                                               \
     if (!obj) {                                                              \
       /* Just silently do nothing */                                         \
@@ -11831,7 +11735,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
   }
 #define ERROR_EVENT(name_, id_, type_, struct_)                              \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
-                                             JS::Value *vp) {                \
+                                             jsval *vp) {                    \
     nsEventListenerManager *elm = GetListenerManager(false);                 \
     if (elm) {                                                               \
       OnErrorEventHandlerNonNull* h = elm->GetOnErrorEventHandler();         \
@@ -11844,7 +11748,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
     return NS_OK;                                                            \
   }                                                                          \
   NS_IMETHODIMP nsGlobalWindow::SetOn##name_(JSContext *cx,                  \
-                                             const JS::Value &v) {           \
+                                             const jsval &v) {               \
     nsEventListenerManager *elm = GetListenerManager(true);                  \
     if (!elm) {                                                              \
       return NS_ERROR_OUT_OF_MEMORY;                                         \
@@ -11868,7 +11772,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
   }
 #define BEFOREUNLOAD_EVENT(name_, id_, type_, struct_)                       \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
-                                             JS::Value *vp) {                \
+                                             jsval *vp) {                    \
     nsEventListenerManager *elm = GetListenerManager(false);                 \
     if (elm) {                                                               \
       BeforeUnloadEventHandlerNonNull* h =                                   \
@@ -11882,7 +11786,7 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
     return NS_OK;                                                            \
   }                                                                          \
   NS_IMETHODIMP nsGlobalWindow::SetOn##name_(JSContext *cx,                  \
-                                             const JS::Value &v) {           \
+                                             const jsval &v) {               \
     nsEventListenerManager *elm = GetListenerManager(true);                  \
     if (!elm) {                                                              \
       return NS_ERROR_OUT_OF_MEMORY;                                         \

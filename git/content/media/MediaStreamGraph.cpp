@@ -1748,7 +1748,6 @@ SourceMediaStream::AdvanceKnownTracksTime(StreamTime aKnownTime)
 void
 SourceMediaStream::FinishWithLockHeld()
 {
-  mMutex.AssertCurrentThreadOwns();
   mUpdateFinished = true;
   if (!mDestroyed) {
     GraphImpl()->EnsureNextIteration();
@@ -1758,10 +1757,12 @@ SourceMediaStream::FinishWithLockHeld()
 void
 SourceMediaStream::EndAllTrackAndFinish()
 {
-  MutexAutoLock lock(mMutex);
-  for (uint32_t i = 0; i < mUpdateTracks.Length(); ++i) {
-    SourceMediaStream::TrackData* data = &mUpdateTracks[i];
-    data->mCommands |= TRACK_END;
+  {
+    MutexAutoLock lock(mMutex);
+    for (uint32_t i = 0; i < mUpdateTracks.Length(); ++i) {
+      SourceMediaStream::TrackData* data = &mUpdateTracks[i];
+      data->mCommands |= TRACK_END;
+    }
   }
   FinishWithLockHeld();
   // we will call NotifyFinished() to let GetUserMedia know

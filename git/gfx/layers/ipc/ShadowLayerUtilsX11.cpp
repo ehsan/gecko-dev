@@ -91,10 +91,10 @@ SurfaceDescriptorX11::OpenForeign() const
 }
 
 bool
-ISurfaceAllocator::PlatformAllocSurfaceDescriptor(const gfxIntSize& aSize,
-                                                  gfxASurface::gfxContentType aContent,
-                                                  uint32_t aCaps,
-                                                  SurfaceDescriptor* aBuffer)
+ShadowLayerForwarder::PlatformAllocBuffer(const gfxIntSize& aSize,
+                                          gfxASurface::gfxContentType aContent,
+                                          uint32_t aCaps,
+                                          SurfaceDescriptor* aBuffer)
 {
   if (!PR_GetEnv("MOZ_LAYERS_ENABLE_XLIB_SURFACES")) {
       return false;
@@ -205,14 +205,8 @@ ShadowLayerManager::OpenDescriptorForDirectTexturing(GLContext*,
   return nullptr;
 }
 
-/*static*/ bool
-ShadowLayerManager::SupportsDirectTexturing()
-{
-  return false;
-}
-
 bool
-ISurfaceAllocator::PlatformDestroySharedSurface(SurfaceDescriptor* aSurface)
+ShadowLayerManager::PlatformDestroySharedSurface(SurfaceDescriptor* aSurface)
 {
   if (SurfaceDescriptor::TSurfaceDescriptorX11 != aSurface->type()) {
     return false;

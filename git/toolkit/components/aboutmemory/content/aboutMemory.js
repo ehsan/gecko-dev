@@ -31,7 +31,6 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
-const CC = Components.Constructor;
 
 const KIND_NONHEAP           = Ci.nsIMemoryReporter.KIND_NONHEAP;
 const KIND_HEAP              = Ci.nsIMemoryReporter.KIND_HEAP;
@@ -41,22 +40,8 @@ const UNITS_COUNT            = Ci.nsIMemoryReporter.UNITS_COUNT;
 const UNITS_COUNT_CUMULATIVE = Ci.nsIMemoryReporter.UNITS_COUNT_CUMULATIVE;
 const UNITS_PERCENTAGE       = Ci.nsIMemoryReporter.UNITS_PERCENTAGE;
 
-Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyGetter(this, "nsBinaryStream",
-                            () => CC("@mozilla.org/binaryinputstream;1",
-                                     "nsIBinaryInputStream",
-                                     "setInputStream"));
-XPCOMUtils.defineLazyGetter(this, "nsFile",
-                            () => CC("@mozilla.org/file/local;1",
-                                     "nsIFile", "initWithPath"));
-XPCOMUtils.defineLazyGetter(this, "nsGzipConverter",
-                            () => CC("@mozilla.org/streamconv;1?from=gzip&to=uncompressed",
-                                     "nsIStreamConverter"));
-
-let gMgr = Cc["@mozilla.org/memory-reporter-manager;1"]
-             .getService(Ci.nsIMemoryReporterManager);
+let gMgr = Cc["@mozilla.org/memory-reporter-manager;1"].
+           getService(Ci.nsIMemoryReporterManager);
 
 let gUnnamedProcessStr = "Main Process";
 
@@ -83,6 +68,10 @@ let gIsDiff = false;
 }
 
 let gChildMemoryListener = undefined;
+
+// This is a useful function and an efficient way to implement it.
+String.prototype.startsWith =
+  function(s) { return this.lastIndexOf(s, 0) === 0; }
 
 //---------------------------------------------------------------------------
 
@@ -151,8 +140,8 @@ function badInput(x)
 
 function addChildObserversAndUpdate(aUpdateFn)
 {
-  let os = Cc["@mozilla.org/observer-service;1"]
-             .getService(Ci.nsIObserverService);
+  let os = Cc["@mozilla.org/observer-service;1"].
+      getService(Ci.nsIObserverService);
   os.notifyObservers(null, "child-memory-reporter-request", null);
 
   gChildMemoryListener = aUpdateFn;
@@ -178,8 +167,8 @@ function onUnload()
   // circumstances (e.g. reloading the page quickly) it might not have because
   // onLoadAbout{Memory,Compartments} might not fire.
   if (gChildMemoryListener) {
-    let os = Cc["@mozilla.org/observer-service;1"]
-               .getService(Ci.nsIObserverService);
+    let os = Cc["@mozilla.org/observer-service;1"].
+        getService(Ci.nsIObserverService);
     os.removeObserver(gChildMemoryListener, "child-memory-reporter-update");
   }
 }
@@ -384,7 +373,9 @@ function onLoadAboutMemory()
     for (let i = 0; i < searchSplit.length; i++) {
       if (searchSplit[i].toLowerCase().startsWith('file=')) {
         let filename = searchSplit[i].substring('file='.length);
-        updateAboutMemoryFromFile(decodeURIComponent(filename));
+        let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
+        file.initWithPath(decodeURIComponent(filename));
+        updateAboutMemoryFromFile(file);
         return;
       }
     }
@@ -397,7 +388,7 @@ function doGlobalGC()
 {
   Cu.forceGC();
   let os = Cc["@mozilla.org/observer-service;1"]
-             .getService(Ci.nsIObserverService);
+            .getService(Ci.nsIObserverService);
   os.notifyObservers(null, "child-gc-request", null);
   updateAboutMemory();
 }
@@ -408,7 +399,7 @@ function doCC()
         .getInterface(Ci.nsIDOMWindowUtils)
         .cycleCollect();
   let os = Cc["@mozilla.org/observer-service;1"]
-             .getService(Ci.nsIObserverService);
+            .getService(Ci.nsIObserverService);
   os.notifyObservers(null, "child-cc-request", null);
   updateAboutMemory();
 }
@@ -446,18 +437,6 @@ function updateAboutMemory()
 var gCurrentFileFormatVersion = 1;
 
 /**
- * Handle an update exception that occurs while updating the page.
- *
- * @param aEx
- *        The exception.
- */
-function clearBodyAndHandleException(aEx) {
-  let body = clearBody();
-  handleException(aEx);
-  appendAboutMemoryFooter(body);
-}
-
-/**
  * Populate about:memory using the data in the given JSON string.
  *
  * @param aJSONString
@@ -493,55 +472,37 @@ function updateAboutMemoryFromJSONString(aJSONString)
  * Like updateAboutMemory(), but gets its data from a file instead of the
  * memory reporters.
  *
- * @param aFilename
- *        The name of the file being read from.
+ * @param aFile
+ *        The File or nsILocalFile being read from.
  *
  *        The expected format of the file's contents is described in the
  *        comment describing nsIMemoryReporterManager::dumpReports.
  */
-function updateAboutMemoryFromFile(aFilename)
+function updateAboutMemoryFromFile(aFile)
 {
-  try {
-    let reader = new FileReader();
-    reader.onerror = () => { throw "FileReader.onerror"; };
-    reader.onabort = () => { throw "FileReader.onabort"; };
-    reader.onload = (aEvent) => {
-      updateAboutMemoryFromJSONString(aEvent.target.result);
-    };
+  // Note: reader.onload is called asynchronously, once FileReader.readAsText()
+  // completes.  Therefore its exception handling has to be distinct from that
+  // surrounding the |reader.readAsText(aFile)| call.
 
-    // If it doesn't have a .gz suffix, read it as a (legacy) ungzipped file.
-    if (!aFilename.endsWith(".gz")) {
-      reader.readAsText(new File(aFilename));
-      return;
+  try {
+    // Convert nsILocalFile to a File object, if necessary.
+    let file = aFile;
+    if (aFile instanceof Ci.nsILocalFile) {
+      file = new File(aFile);
     }
 
-    // Read compressed gzip file.
-    let converter = new nsGzipConverter();
-    converter.asyncConvertData("gzip", "uncompressed", {
-      data: [],
-      onStartRequest: function(aR, aC) {},
-      onDataAvailable: function(aR, aC, aStream, aO, aCount) {
-        let bi = new nsBinaryStream(aStream);
-        this.data.push(bi.readBytes(aCount));
-      },
-      onStopRequest: function(aR, aC, aStatusCode) {
-        try {
-          if (!Components.isSuccessCode(aStatusCode)) {
-            throw aStatusCode;
-          }
-          reader.readAsText(new Blob(this.data));
-        } catch (ex) {
-          clearBodyAndHandleException(ex);
-        }
-      }
-    }, null);
-
-    let file = new nsFile(aFilename);
-    let fileChan = Services.io.newChannelFromURI(Services.io.newFileURI(file));
-    fileChan.asyncOpen(converter, null);
+    let reader = new FileReader();
+    reader.onerror = function(aEvent) { throw "FileReader.onerror"; };
+    reader.onabort = function(aEvent) { throw "FileReader.onabort"; };
+    reader.onload = function(aEvent) {
+      updateAboutMemoryFromJSONString(aEvent.target.result);
+    };
+    reader.readAsText(file);
 
   } catch (ex) {
-    clearBodyAndHandleException(ex);
+    let body = clearBody();
+    handleException(ex);
+    appendAboutMemoryFooter(body);
   }
 }
 
@@ -552,8 +513,8 @@ function updateAboutMemoryFromFile(aFilename)
 function updateAboutMemoryFromClipboard()
 {
   // Get the clipboard's contents.
-  let cb = Cc["@mozilla.org/widget/clipboard;1"].
-           getService(Components.interfaces.nsIClipboard);
+  let cb = Cc["@mozilla.org/widget/clipboard;1"]
+             .getService(Components.interfaces.nsIClipboard);
   let transferable = Cc["@mozilla.org/widget/transferable;1"]
                        .createInstance(Ci.nsITransferable);
   let loadContext = window.QueryInterface(Ci.nsIInterfaceRequestor)
@@ -571,9 +532,10 @@ function updateAboutMemoryFromClipboard()
 
     // Success!  Now use the string to generate about:memory.
     updateAboutMemoryFromJSONString(cbString);
-
   } catch (ex) {
-    clearBodyAndHandleException(ex);
+    let body = clearBody();
+    handleException(ex);
+    appendAboutMemoryFooter(body);
   }
 }
 
@@ -672,7 +634,6 @@ function appendAboutMemoryFooter(aBody)
                  "flushing various caches.";
   const RdDesc = "Read memory report data from a file.";
   const CbDesc = "Read memory report data from the clipboard.";
-  const WrDesc = "Write memory report data to a file.";
 
   function appendButton(aP, aTitle, aOnClick, aText, aId)
   {
@@ -701,16 +662,13 @@ function appendAboutMemoryFooter(aBody)
   input.id = "fileInput";   // has an id so it can be invoked by a test
   input.addEventListener("change", function() {
     let file = this.files[0];
-    updateAboutMemoryFromFile(file.mozFullPath);
+    updateAboutMemoryFromFile(file);
   }); 
   appendButton(div1, RdDesc, function() { input.click() },
                "Read reports from a file", "readReportsFromFileButton");
 
   appendButton(div1, CbDesc, updateAboutMemoryFromClipboard,
                "Read reports from clipboard", "readReportsFromClipboardButton");
-
-  appendButton(div1, WrDesc, writeReportsToFile,
-               "Write reports to a file", "writeReportsToAFileButton");
 
   let div2 = appendElement(section, "div");
   if (gVerbose) {
@@ -1672,31 +1630,6 @@ function appendSectionHeader(aP, aText)
   return appendElement(aP, "pre", "entries");
 }
 
-//---------------------------------------------------------------------------
-
-function writeReportsToFile()
-{
-  let fp = Cc["@mozilla.org/filepicker;1"].createInstance(Ci.nsIFilePicker);
-  fp.init(window, "Save Memory Reports", Ci.nsIFilePicker.modeSave);
-  fp.appendFilter("Zipped JSON files", "*.json.gz");
-  fp.appendFilters(Ci.nsIFilePicker.filterAll);
-  fp.filterIndex = 0;
-  fp.addToRecentDocs = true;
-  fp.defaultString = "memory-report.json.gz";
-
-  let fpCallback = function(aResult) {
-    if (aResult == Ci.nsIFilePicker.returnOK ||
-        aResult == Ci.nsIFilePicker.returnReplace) {
-
-      let dumper = Cc["@mozilla.org/memory-info-dumper;1"]
-                     .getService(Ci.nsIMemoryInfoDumper);
-
-      dumper.dumpMemoryReportsToNamedFile(fp.file.path);
-    }
-  };
-  fp.open(fpCallback);
-}
-
 //-----------------------------------------------------------------------------
 // Code specific to about:compartments
 //-----------------------------------------------------------------------------
@@ -1762,7 +1695,7 @@ function Compartment(aUnsafeName, aIsSystemCompartment)
 }
 
 Compartment.prototype = {
-  merge: function(aR) {
+  merge: function(r) {
     this._nMerged = this._nMerged ? this._nMerged + 1 : 2;
   }
 };

@@ -33,10 +33,10 @@ public:
   void SetSetterLineNumber(uint32_t aLineNumber);
 
   virtual nsresult InstallMember(JSContext* aCx,
-                                 JS::Handle<JSObject*> aTargetClassObject);
+                                 JSObject* aTargetClassObject);
   virtual nsresult CompileMember(nsIScriptContext* aContext,
                                  const nsCString& aClassStr,
-                                 JS::Handle<JSObject*> aClassObject);
+                                 JSObject* aClassObject);
 
   virtual void Trace(TraceCallback aCallback, void *aClosure) const;
 

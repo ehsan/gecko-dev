@@ -11,7 +11,6 @@
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/PodOperations.h"
 
 #ifdef HAVE_MEMORY_H
 #include <memory.h>
@@ -53,7 +52,6 @@ using namespace js::gc;
 using namespace js::frontend;
 
 using mozilla::DebugOnly;
-using mozilla::PodCopy;
 
 static bool
 SetSrcNoteOffset(JSContext *cx, BytecodeEmitter *bce, unsigned index, unsigned which, ptrdiff_t offset);
@@ -3456,42 +3454,27 @@ ParseNode::getConstantValue(JSContext *cx, bool strictChecks, MutableHandleValue
         if (!obj)
             return false;
 
-        RootedValue value(cx), idvalue(cx);
         for (ParseNode *pn = pn_head; pn; pn = pn->pn_next) {
+            RootedValue value(cx);
             if (!pn->pn_right->getConstantValue(cx, strictChecks, &value))
                 return false;
 
             ParseNode *pnid = pn->pn_left;
             if (pnid->isKind(PNK_NUMBER)) {
-                idvalue = NumberValue(pnid->pn_dval);
+                Value idvalue = NumberValue(pnid->pn_dval);
+                RootedId id(cx);
+                if (idvalue.isInt32() && INT_FITS_IN_JSID(idvalue.toInt32()))
+                    id = INT_TO_JSID(idvalue.toInt32());
+                else if (!InternNonIntElementId<CanGC>(cx, obj, idvalue, &id))
+                    return false;
+                if (!JSObject::defineGeneric(cx, obj, id, value, NULL, NULL, JSPROP_ENUMERATE))
+                    return false;
             } else {
                 JS_ASSERT(pnid->isKind(PNK_NAME) || pnid->isKind(PNK_STRING));
                 JS_ASSERT(pnid->pn_atom != cx->names().proto);
-                idvalue = StringValue(pnid->pn_atom);
-            }
-
-            uint32_t index;
-            if (IsDefinitelyIndex(idvalue, &index)) {
-                if (!JSObject::defineElement(cx, obj, index, value, NULL, NULL,
-                                             JSPROP_ENUMERATE))
-                {
-                    return false;
-                }
-
-                continue;
-            }
-
-            JSAtom *name = ToAtom<CanGC>(cx, idvalue);
-            if (!name)
-                return false;
-
-            if (name->isIndex(&index)) {
-                if (!JSObject::defineElement(cx, obj, index, value, NULL, NULL, JSPROP_ENUMERATE))
-                    return false;
-            } else {
-                if (!JSObject::defineProperty(cx, obj, name->asPropertyName(), value, NULL, NULL,
-                                              JSPROP_ENUMERATE))
-                {
+                RootedId id(cx, AtomToId(pnid->pn_atom));
+                if (!DefineNativeProperty(cx, obj, id, value, NULL, NULL,
+                                          JSPROP_ENUMERATE, 0, 0)) {
                     return false;
                 }
             }

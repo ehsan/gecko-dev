@@ -35,7 +35,6 @@ _JAVA_HARNESS = \
   FennecNativeDriver.java \
   FennecNativeElement.java \
   RoboCopException.java \
-  RobocopUtils.java \
   PaintedSurface.java \
   $(NULL)
 

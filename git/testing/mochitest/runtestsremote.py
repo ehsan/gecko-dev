@@ -312,6 +312,7 @@ class MochiRemote(Mochitest):
             shutil.rmtree(os.path.join(options.profilePath, 'extensions', 'staged', 'mochikit@mozilla.org'))
             shutil.rmtree(os.path.join(options.profilePath, 'extensions', 'staged', 'worker-test@mozilla.org'))
             shutil.rmtree(os.path.join(options.profilePath, 'extensions', 'staged', 'workerbootstrap-test@mozilla.org'))
+            shutil.rmtree(os.path.join(options.profilePath, 'extensions', 'staged', 'special-powers@mozilla.org'))
             os.remove(os.path.join(options.profilePath, 'userChrome.css'))
             if os.path.exists(os.path.join(options.profilePath, 'tests.jar')):
                 os.remove(os.path.join(options.profilePath, 'tests.jar'))
@@ -526,8 +527,6 @@ def main():
         dm.killProcess(procName)
 
     if options.robocop != "":
-        # sut may wait up to 300 s for a robocop am process before returning
-        dm.default_timeout = 320
         mp = manifestparser.TestManifest(strict=False)
         # TODO: pull this in dynamically
         mp.read(options.robocop)

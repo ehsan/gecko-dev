@@ -15,7 +15,6 @@
 #include "nsIStringBundle.h"
 #include "nsIStreamListenerTee.h"
 #include "nsISeekableStream.h"
-#include "nsILoadGroupChild.h"
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
 #include "prprf.h"
@@ -685,20 +684,23 @@ nsHttpChannel::SetupTransactionLoadGroupInfo()
     // Find the loadgroup at the end of the chain in order
     // to make sure all channels derived from the load group
     // use the same connection scope.
-    nsCOMPtr<nsILoadGroupChild> childLoadGroup = do_QueryInterface(mLoadGroup);
-    if (!childLoadGroup)
-        return;
-
-    nsCOMPtr<nsILoadGroup> rootLoadGroup;
-    childLoadGroup->GetRootLoadGroup(getter_AddRefs(rootLoadGroup));
-    if (!rootLoadGroup)
-        return;
+    nsCOMPtr<nsILoadGroup> rootLoadGroup = mLoadGroup;
+    while (rootLoadGroup) {
+        nsCOMPtr<nsILoadGroup> tmp;
+        rootLoadGroup->GetLoadGroup(getter_AddRefs(tmp));
+        if (tmp)
+            rootLoadGroup.swap(tmp);
+        else
+            break;
+    }
 
     // Set the load group connection scope on the transaction
-    nsCOMPtr<nsILoadGroupConnectionInfo> ci;
-    rootLoadGroup->GetConnectionInfo(getter_AddRefs(ci));
-    if (ci)
-        mTransaction->SetLoadGroupConnectionInfo(ci);
+    if (rootLoadGroup) {
+        nsCOMPtr<nsILoadGroupConnectionInfo> ci;
+        rootLoadGroup->GetConnectionInfo(getter_AddRefs(ci));
+        if (ci)
+            mTransaction->SetLoadGroupConnectionInfo(ci);
+    }
 }
 
 nsresult
@@ -4397,6 +4399,7 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     // that to complete would mean we don't include proxy resolution in the
     // timing.
     mAsyncOpenTime = TimeStamp::Now();
+    mCacheEffectExperimentAsyncOpenTime = mAsyncOpenTime;
 
     // the only time we would already know the proxy information at this
     // point would be if we were proxying a non-http protocol like ftp
@@ -5102,7 +5105,15 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
     CleanRedirectCacheChainIfNecessary();
 
     ReleaseListeners();
-    
+
+    // If enabled, record the cache effect experiment data
+    if (NS_SUCCEEDED(status) && contentComplete && !mCanceled) {
+        Telemetry::ID telemID = gHttpHandler->mCacheEffectExperimentTelemetryID;
+        if (telemID != nsHttpHandler::kNullTelemetryID) {
+            Telemetry::AccumulateTimeDelta(telemID,
+                                           mCacheEffectExperimentAsyncOpenTime);
+        }
+    }
     return NS_OK;
 }
 

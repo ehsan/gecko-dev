@@ -11,9 +11,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.util.ThreadUtils;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-
 import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -30,6 +27,9 @@ import java.io.OutputStream;
 import java.util.Enumeration;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+
+import org.json.JSONArray;
+import org.json.JSONException;
 
 public final class Distribution {
     private static final String LOGTAG = "GeckoDistribution";

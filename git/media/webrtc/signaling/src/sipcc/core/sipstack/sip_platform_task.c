@@ -24,7 +24,6 @@
 #include "platform_api.h"
 #include <sys/stat.h>
 #include "prprf.h"
-#include "thread_monitor.h"
 
 /*---------------------------------------------------------
  *
@@ -310,7 +309,6 @@ void sip_platform_task_msgqwait (void *arg)
 
             switch (syshdr->Cmd) {
             case THREAD_UNLOAD:
-                thread_ended(THREADMON_MSGQ);
                 quit_thread = TRUE;
                     break;
                 default:
@@ -446,7 +444,7 @@ static void sip_process_int_msg (void)
                   sizeof(response), 0,
                   (cpr_sockaddr_t *)&sip_clnt_sock_addr,
                   cpr_sun_len(sip_clnt_sock_addr)) < 0) {
-        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"sending IPC", fname);
+        CCSIP_DEBUG_ERROR(SIP_F_PREFIX"%d sending IPC\n", fname);
     }
 }
 

@@ -276,15 +276,6 @@ function windows(type, options) {
 exports.windows = windows;
 
 /**
- * Check if the given window is interactive.
- * i.e. if its "DOMContentLoaded" event has already been fired.
- * @params {nsIDOMWindow} window
- */
-function isInteractive(window)
-  window.document.readyState === "interactive" || isDocumentLoaded(window)
-exports.isInteractive = isInteractive;
-
-/**
  * Check if the given window is completely loaded.
  * i.e. if its "load" event has already been fired and all possible DOM content
  * is done loading (the whole DOM document, images content, ...)
@@ -340,21 +331,3 @@ function getFrames(window) {
   }, [])
 }
 exports.getFrames = getFrames;
-
-function getOwnerBrowserWindow(node) {
-  /**
-  Takes DOM node and returns browser window that contains it.
-  **/
-
-  let window = node.ownerDocument.defaultView.top;
-  // If anchored window is browser then it's target browser window.
-  if (isBrowser(window)) return window;
-  // Otherwise iterate over each browser window and find a one that
-  // contains browser for the anchored window document.
-  let document = window.document;
-  let browsers = windows("navigator:browser", { includePrivate: true });
-  return array.find(browsers, function isTargetBrowser(window) {
-    return !!window.gBrowser.getBrowserForDocument(document);
-  });
-}
-exports.getOwnerBrowserWindow = getOwnerBrowserWindow;

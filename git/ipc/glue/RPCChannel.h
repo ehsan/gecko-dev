@@ -238,7 +238,7 @@ private:
         const Message* mMsg;
     };
 
-    class MOZ_STACK_CLASS CxxStackFrame
+    class NS_STACK_CLASS CxxStackFrame
     {
     public:
 

@@ -141,7 +141,7 @@ FrameworkView::Run()
   // Drop into the main metro event loop
   mDispatcher->ProcessEvents(ABI::Windows::UI::Core::CoreProcessEventsOption::CoreProcessEventsOption_ProcessUntilQuit);
 
-  Log("Exiting FrameworkView::Run()");
+  Log(L"Exiting FrameworkView::Run()");
   return S_OK;
 }
 

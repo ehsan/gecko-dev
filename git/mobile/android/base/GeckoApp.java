@@ -6,6 +6,7 @@
 package org.mozilla.gecko;
 
 import org.mozilla.gecko.background.announcements.AnnouncementsBroadcastService;
+import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.Layer;
 import org.mozilla.gecko.gfx.LayerView;
@@ -16,7 +17,6 @@ import org.mozilla.gecko.updater.UpdateService;
 import org.mozilla.gecko.updater.UpdateServiceHelper;
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.util.GeckoEventResponder;
-import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
 
@@ -65,6 +65,7 @@ import android.util.Log;
 import android.util.SparseBooleanArray;
 import android.view.Display;
 import android.view.Gravity;
+import android.view.InputDevice;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -75,6 +76,7 @@ import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
@@ -181,12 +183,13 @@ abstract public class GeckoApp
 
     private PointF mInitialTouchPoint = null;
 
+    private static Boolean sIsLargeTablet = null;
+    private static Boolean sIsSmallTablet = null;
+    private static Boolean sIsTouchDevice = null;
+
     abstract public int getLayout();
     abstract public boolean hasTabsSideBar();
     abstract protected String getDefaultProfileName();
-
-    private static final String RESTARTER_ACTION = "org.mozilla.gecko.restart";
-    private static final String RESTARTER_CLASS = "org.mozilla.gecko.Restarter";
 
     void toggleChrome(final boolean aShow) { }
 
@@ -474,7 +477,7 @@ abstract public class GeckoApp
     @Override
     public void showMenu(View menu) {
         // Hide the menu only if we are showing the MenuPopup.
-        if (!HardwareUtils.hasMenuButton())
+        if (!hasPermanentMenuKey())
             closeMenu();
 
         mMenuPanel.removeAllViews();
@@ -718,6 +721,18 @@ abstract public class GeckoApp
     public boolean autoHideTabs() { return false; }
 
     public boolean areTabsShown() { return false; }
+
+    public boolean hasPermanentMenuKey() {
+        boolean hasMenu = true;
+
+        if (Build.VERSION.SDK_INT >= 11)
+            hasMenu = false;
+
+        if (Build.VERSION.SDK_INT >= 14)
+            hasMenu = ViewConfiguration.get(GeckoApp.mAppContext).hasPermanentMenuKey();
+
+        return hasMenu;
+    }
 
     @Override
     public void handleMessage(String event, JSONObject message) {
@@ -1303,6 +1318,47 @@ abstract public class GeckoApp
         });
     }
 
+    public boolean isTablet() {
+        return isLargeTablet() || isSmallTablet();
+    }
+
+    public boolean isLargeTablet() {
+        if (sIsLargeTablet == null) {
+            int screenLayout = getResources().getConfiguration().screenLayout;
+            sIsLargeTablet = (Build.VERSION.SDK_INT >= 11 &&
+                              ((screenLayout & Configuration.SCREENLAYOUT_SIZE_MASK) == Configuration.SCREENLAYOUT_SIZE_XLARGE));
+        }
+
+        return sIsLargeTablet;
+    }
+
+    public boolean isSmallTablet() {
+        if (sIsSmallTablet == null) {
+            int screenLayout = getResources().getConfiguration().screenLayout;
+            sIsSmallTablet = (Build.VERSION.SDK_INT >= 11 &&
+                              ((screenLayout & Configuration.SCREENLAYOUT_SIZE_MASK) == Configuration.SCREENLAYOUT_SIZE_LARGE));
+        }
+
+        return sIsSmallTablet;
+    }
+
+    public boolean isTouchDevice() {
+        if (sIsTouchDevice == null) {
+            if (Build.VERSION.SDK_INT >= 9) {
+                sIsTouchDevice = false;
+                for (int inputDeviceId : InputDevice.getDeviceIds()) {
+                    if ((InputDevice.getDevice(inputDeviceId).getSources() & InputDevice.SOURCE_TOUCHSCREEN) == InputDevice.SOURCE_TOUCHSCREEN) {
+                        sIsTouchDevice = true;
+                    }
+                }
+            } else {
+                // pre-gingerbread just assume everything is touch-enabled
+                sIsTouchDevice = true;
+            }
+        }
+        return sIsTouchDevice;
+    }
+
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState)
@@ -1310,7 +1366,7 @@ abstract public class GeckoApp
         GeckoAppShell.registerGlobalExceptionHandler();
 
         // Enable Android Strict Mode for developers' local builds (the "default" channel).
-        if ("default".equals(AppConstants.MOZ_UPDATE_CHANNEL)) {
+        if ("default".equals(GeckoAppInfo.getUpdateChannel())) {
             enableStrictMode();
         }
 
@@ -1761,20 +1817,8 @@ abstract public class GeckoApp
         mMainLayout.removeView(cameraView);
     }
 
-    public String getDefaultUAString() {
-        return HardwareUtils.isTablet() ? AppConstants.USER_AGENT_FENNEC_TABLET :
-                                          AppConstants.USER_AGENT_FENNEC_MOBILE;
-    }
-
-    public String getUAStringForHost(String host) {
-        // With our standard UA String, we get a 200 response code and
-        // client-side redirect from t.co. This bot-like UA gives us a
-        // 301 response code
-        if ("t.co".equals(host)) {
-            return AppConstants.USER_AGENT_BOT_LIKE;
-        }
-        return getDefaultUAString();
-    }
+    abstract public String getDefaultUAString();
+    abstract public String getUAStringForHost(String host);
 
     class PrefetchRunnable implements Runnable {
         private String mPrefetchUrl;
@@ -1941,6 +1985,9 @@ abstract public class GeckoApp
                 SharedPreferences.Editor editor = prefs.edit();
                 editor.putBoolean(GeckoApp.PREFS_WAS_STOPPED, true);
                 editor.commit();
+
+                BrowserDB.expireHistory(getContentResolver(),
+                                        BrowserContract.ExpirePriority.NORMAL);
             }
         });
 
@@ -2087,9 +2134,9 @@ abstract public class GeckoApp
         return Boolean.TRUE;
     } 
 
-    public String getContentProcessName() {
-        return AppConstants.MOZ_CHILD_PROCESS_NAME;
-    }
+    @Override
+    abstract public String getPackageName();
+    abstract public String getContentProcessName();
 
     public void addEnvToIntent(Intent intent) {
         Map<String,String> envMap = System.getenv();
@@ -2105,14 +2152,15 @@ abstract public class GeckoApp
     }
 
     public void doRestart() {
-        doRestart(RESTARTER_ACTION);
+        doRestart("org.mozilla.gecko.restart");
     }
 
     public void doRestart(String action) {
         Log.d(LOGTAG, "doRestart(\"" + action + "\")");
         try {
             Intent intent = new Intent(action);
-            intent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, RESTARTER_CLASS);
+            intent.setClassName(getPackageName(),
+                                getPackageName() + ".Restarter");
             /* TODO: addEnvToIntent(intent); */
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
                             Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
@@ -2232,22 +2280,19 @@ abstract public class GeckoApp
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
         intent.putExtra(AwesomeBar.TARGET_KEY, aTarget.name());
 
-        // If we were passed in a URL, show it.
+        // if we were passed in a url, show it
         if (aUrl != null && !TextUtils.isEmpty(aUrl)) {
             intent.putExtra(AwesomeBar.CURRENT_URL_KEY, aUrl);
         } else if (aTarget == AwesomeBar.Target.CURRENT_TAB) {
-            // Otherwise, if we're editing the current tab, show its URL.
+            // otherwise, if we're editing the current tab, show its url
             Tab tab = Tabs.getInstance().getSelectedTab();
             if (tab != null) {
-                // Check to see if there's a user-entered search term, which we save
-                // whenever the user performs a search.
-                aUrl = tab.getUserSearch();
-                if (TextUtils.isEmpty(aUrl)) {
-                    aUrl = tab.getURL();
-                }
+
+                aUrl = tab.getURL();
                 if (aUrl != null) {
                     intent.putExtra(AwesomeBar.CURRENT_URL_KEY, aUrl);
                 }
+
             }
         }
 
@@ -2290,7 +2335,7 @@ abstract public class GeckoApp
             return;
         }
 
-        if (mLayerView != null && mLayerView.isFullScreen()) {
+        if (mLayerView.isFullScreen()) {
             GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FullScreen:Exit", null));
             return;
         }
@@ -2389,9 +2434,6 @@ abstract public class GeckoApp
         mLayerView.getLayerClient().notifyGeckoReady();
 
         mLayerView.setTouchIntercepter(this);
-    }
-
-    public void setAccessibilityEnabled(boolean enabled) {
     }
 
     @Override
@@ -2561,19 +2603,6 @@ abstract public class GeckoApp
             }
             case R.id.share: {
                 shareCurrentUrl();
-                return true;
-            }
-            case R.id.subscribe: {
-                Tab tab = Tabs.getInstance().getSelectedTab();
-                if (tab != null && tab.getFeedsEnabled()) {
-                    JSONObject args = new JSONObject();
-                    try {
-                        args.put("tabId", tab.getId());
-                    } catch (JSONException e) {
-                        Log.e(LOGTAG, "error building json arguments");
-                    }
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Feeds:Subscribe", args.toString()));
-                }
                 return true;
             }
             case R.id.copyurl: {

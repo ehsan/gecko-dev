@@ -13,7 +13,6 @@
 #include "nsIComponentManager.h"
 #include "nsHTMLParts.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsIDOMHTMLButtonElement.h"
 #include "nsIFormControl.h"
 #include "nsINameSpaceManager.h"
 #include "nsCOMPtr.h"
@@ -50,7 +49,6 @@
 #include "nsIDOMDragEvent.h"
 #include "nsContentList.h"
 #include "nsIDOMMutationEvent.h"
-#include "nsTextNode.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -107,7 +105,7 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   nsCOMPtr<nsINodeInfo> nodeInfo;
 
   // Create and setup the file picking button.
-  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::button, nullptr,
+  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::input, nullptr,
                                                  kNameSpaceID_XHTML,
                                                  nsIDOMNode::ELEMENT_NODE);
   NS_NewHTMLElement(getter_AddRefs(mBrowse), nodeInfo.forget(),
@@ -118,24 +116,15 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
                    NS_LITERAL_STRING("button"), false);
 
   // Set the file picking button text depending on the current locale.
-  nsXPIDLString buttonTxt;
+  nsXPIDLString buttonValue;
   nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
-                                     "Browse", buttonTxt);
-
-  // Set the browse button text. It's a bit of a pain to do because we want to
-  // make sure we are not notifying.
-  nsRefPtr<nsTextNode> textContent =
-    new nsTextNode(mBrowse->NodeInfo()->NodeInfoManager());
-
-  textContent->SetText(buttonTxt, false);
-
-  nsresult rv = mBrowse->AppendChildTo(textContent, false);
-  NS_ENSURE_SUCCESS(rv, rv);
+                                     "Browse", buttonValue);
+  mBrowse->SetAttr(kNameSpaceID_None, nsGkAtoms::value, buttonValue, false);
 
   // Make sure access key and tab order for the element actually redirect to the
   // file picking button.
   nsCOMPtr<nsIDOMHTMLInputElement> fileContent = do_QueryInterface(mContent);
-  nsCOMPtr<nsIDOMHTMLButtonElement> browseControl = do_QueryInterface(mBrowse);
+  nsCOMPtr<nsIDOMHTMLInputElement> browseControl = do_QueryInterface(mBrowse);
 
   nsAutoString accessKey;
   fileContent->GetAccessKey(accessKey);
@@ -350,25 +339,20 @@ nsFileControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       nsDisplayBoxShadowOuter(aBuilder, this));
   }
 
-  // Clip height only
-  nsRect clipRect(aBuilder->ToReferenceFrame(this), GetSize());
-  clipRect.width = GetVisualOverflowRect().XMost();
-
+  // Our background is inherited to the text input, and we don't really want to
+  // paint it or out padding and borders (which we never have anyway, per
+  // styles in forms.css) -- doing it just makes us look ugly in some cases and
+  // has no effect in others.
   nsDisplayListCollection tempList;
-  {
-    DisplayListClipState::AutoSaveRestore clipState(aBuilder);
-    clipState.ClipContainingBlockDescendants(clipRect, nullptr);
-
-    // Our background is inherited to the text input, and we don't really want to
-    // paint it or out padding and borders (which we never have anyway, per
-    // styles in forms.css) -- doing it just makes us look ugly in some cases and
-    // has no effect in others.
-    nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
-  }
+  nsBlockFrame::BuildDisplayList(aBuilder, aDirtyRect, tempList);
 
   tempList.BorderBackground()->DeleteAll();
 
-  tempList.MoveTo(aLists);
+  // Clip height only
+  nsRect clipRect(aBuilder->ToReferenceFrame(this), GetSize());
+  clipRect.width = GetVisualOverflowRect().XMost();
+  nscoord radii[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+  OverflowClip(aBuilder, tempList, aLists, clipRect, radii);
 
   // Disabled file controls don't pass mouse events to their children, so we
   // put an invisible item in the display list above the children

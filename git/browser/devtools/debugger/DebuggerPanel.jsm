@@ -22,8 +22,8 @@ function DebuggerPanel(iframeWindow, toolbox) {
   this.panelWin = iframeWindow;
   this._toolbox = toolbox;
 
-  this._view = this.panelWin.DebuggerView;
   this._controller = this.panelWin.DebuggerController;
+  this._view = this.panelWin.DebuggerView;
   this._controller._target = this.target;
   this._bkp = this._controller.Breakpoints;
 
@@ -32,37 +32,47 @@ function DebuggerPanel(iframeWindow, toolbox) {
 
 DebuggerPanel.prototype = {
   /**
-   * Open is effectively an asynchronous constructor.
-   *
-   * @return object
-   *         A Promise that is resolved when the Debugger completes opening.
+   * open is effectively an asynchronous constructor
    */
   open: function DebuggerPanel_open() {
-    let promise;
+    let deferred = Promise.defer();
 
-    // Local debugging needs to make the target remote.
-    if (!this.target.isRemote) {
-      promise = this.target.makeRemote();
-    } else {
-      promise = Promise.resolve(this.target);
+    this._ensureOnlyOneRunningDebugger();
+
+    let onDebuggerLoaded = function () {
+      this.panelWin.removeEventListener("Debugger:Loaded",
+                                        onDebuggerLoaded, true);
+      this._isReady = true;
+      this.emit("ready");
+      deferred.resolve(this);
+    }.bind(this);
+
+    let onDebuggerConnected = function () {
+      this.panelWin.removeEventListener("Debugger:Connected",
+                                        onDebuggerConnected, true);
+      this.emit("connected");
+    }.bind(this);
+
+    this.panelWin.addEventListener("Debugger:Loaded", onDebuggerLoaded, true);
+    this.panelWin.addEventListener("Debugger:Connected",
+                                   onDebuggerConnected, true);
+
+    // Remote debugging gets the debuggee from a RemoteTarget object.
+    if (this.target.isRemote) {
+      this.panelWin._remoteFlag = true;
+      return deferred.promise;
     }
 
-    return promise
-      .then(() => this._controller.startupDebugger())
-      .then(() => this._controller.connect())
-      .then(() => {
-        this.isReady = true;
-        this.emit("ready");
-        return this;
-      })
-      .then(null, function onError(aReason) {
-        Cu.reportError("DebuggerPanel open failed. " +
-                       reason.error + ": " + reason.message);
-      });
+    // Local debugging needs to convert the TabTarget to a RemoteTarget.
+    return this.target.makeRemote().then(function success() {
+      return deferred.promise;
+    });
   },
 
   // DevToolPanel API
   get target() this._toolbox.target,
+
+  get isReady() this._isReady,
 
   destroy: function() {
     this.emit("destroyed");
@@ -85,5 +95,11 @@ DebuggerPanel.prototype = {
 
   getAllBreakpoints: function() {
     return this._bkp.store;
+  },
+
+  // Private
+
+  _ensureOnlyOneRunningDebugger: function() {
+    // FIXME
   },
 };

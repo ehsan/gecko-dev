@@ -10,14 +10,12 @@
 
 #include "prenv.h"
 
+#include "nsAutoPtr.h"
 #include "nsString.h"
 #include "nsTArray.h"
 #include "GLContextTypes.h"
 #include "gfx3DMatrix.h"
-#include "mozilla/layers/LayersTypes.h"
 #include "gfxColor.h"
-#include "mozilla/gfx/Matrix.h"
-#include "mozilla/RefPtr.h"
 
 namespace mozilla {
 namespace gl {
@@ -26,6 +24,15 @@ class GLContext;
 namespace layers {
 
 class Layer;
+
+// The kinds of mask layer a shader can support
+// We rely on the items in this enum being sequential
+enum MaskType {
+  MaskNone = 0,   // no mask layer
+  Mask2d,         // mask layer for layers with 2D transforms
+  Mask3d,         // mask layer for layers with 3D transforms
+  NumMaskTypes
+};
 
 /**
  * This struct represents the shaders that make up a program and the uniform
@@ -194,29 +201,12 @@ public:
     SetMatrixUniform(mProfile.LookupUniformLocation("uLayerTransform"), aMatrix);
   }
 
-  void SetLayerTransform(const gfx::Matrix4x4& aMatrix) {
-    SetMatrixUniform(mProfile.LookupUniformLocation("uLayerTransform"), aMatrix);
-  }
-
-  void SetMaskLayerTransform(const gfx::Matrix4x4& aMatrix) {
-    SetMatrixUniform(mProfile.LookupUniformLocation("uMaskQuadTransform"), aMatrix);
-  }
-
   void SetLayerQuadRect(const nsIntRect& aRect) {
     gfx3DMatrix m;
     m._11 = float(aRect.width);
     m._22 = float(aRect.height);
     m._41 = float(aRect.x);
     m._42 = float(aRect.y);
-    SetMatrixUniform(mProfile.LookupUniformLocation("uLayerQuadTransform"), m);
-  }
-
-  void SetLayerQuadRect(const gfx::Rect& aRect) {
-    gfx3DMatrix m;
-    m._11 = aRect.width;
-    m._22 = aRect.height;
-    m._41 = aRect.x;
-    m._42 = aRect.y;
     SetMatrixUniform(mProfile.LookupUniformLocation("uLayerQuadTransform"), m);
   }
 
@@ -236,11 +226,6 @@ public:
 
   // sets this program's texture transform, if it uses one
   void SetTextureTransform(const gfx3DMatrix& aMatrix) {
-    if (mProfile.mHasTextureTransform)
-      SetMatrixUniform(mProfile.LookupUniformLocation("uTextureTransform"), aMatrix);
-  }
-
-  void SetTextureTransform(const gfx::Matrix4x4& aMatrix) {
     if (mProfile.mHasTextureTransform)
       SetMatrixUniform(mProfile.LookupUniformLocation("uTextureTransform"), aMatrix);
   }
@@ -288,15 +273,7 @@ public:
     SetUniform(mProfile.LookupUniformLocation("uWhiteTexture"), aUnit);
   }
 
-  void SetMaskTextureUnit(GLint aUnit) {
-    SetUniform(mProfile.LookupUniformLocation("uMaskTexture"), aUnit);
-  }
-
   void SetRenderColor(const gfxRGBA& aColor) {
-    SetUniform(mProfile.LookupUniformLocation("uRenderColor"), aColor);
-  }
-
-  void SetRenderColor(const gfx::Color& aColor) {
     SetUniform(mProfile.LookupUniformLocation("uRenderColor"), aColor);
   }
 
@@ -314,8 +291,8 @@ protected:
   // true if the projection matrix needs setting
   bool mIsProjectionMatrixStale;
 
-  RefPtr<GLContext> mGL;
-  // the OpenGL id of the program
+  nsRefPtr<GLContext> mGL;
+  // the OpenGL id of the program 
   GLuint mProgram;
   ProgramProfileOGL mProfile;
   enum {
@@ -335,11 +312,6 @@ protected:
   void SetUniform(GLint aLocation, GLint aIntValue);
   void SetMatrixUniform(GLint aLocation, const gfx3DMatrix& aMatrix);
   void SetMatrixUniform(GLint aLocation, const float *aFloatValues);
-
-  void SetUniform(GLint aLocation, const gfx::Color& aColor);
-  void SetMatrixUniform(GLint aLocation, const gfx::Matrix4x4& aMatrix) {
-    SetMatrixUniform(aLocation, &aMatrix._11);
-  }
 };
 
 

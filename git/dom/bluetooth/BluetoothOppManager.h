@@ -8,7 +8,6 @@
 #define mozilla_dom_bluetooth_bluetoothoppmanager_h__
 
 #include "BluetoothCommon.h"
-#include "BluetoothSocketObserver.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/ipc/UnixSocket.h"
 #include "DeviceStorage.h"
@@ -19,10 +18,9 @@ class nsIInputStream;
 BEGIN_BLUETOOTH_NAMESPACE
 
 class BluetoothReplyRunnable;
-class BluetoothSocket;
 class ObexHeaderSet;
 
-class BluetoothOppManager : public BluetoothSocketObserver
+class BluetoothOppManager : public mozilla::ipc::UnixSocketConsumer
 {
 public:
   /*
@@ -35,6 +33,8 @@ public:
 
   ~BluetoothOppManager();
   static BluetoothOppManager* Get();
+  void ReceiveSocketData(nsAutoPtr<mozilla::ipc::UnixSocketRawData>& aMessage)
+    MOZ_OVERRIDE;
   void ClientDataHandler(mozilla::ipc::UnixSocketRawData* aMessage);
   void ServerDataHandler(mozilla::ipc::UnixSocketRawData* aMessage);
 
@@ -72,19 +72,6 @@ public:
   // Return true if there is an ongoing file-transfer session, please see
   // Bug 827267 for more information.
   bool IsTransferring();
-
-  // Implement interface BluetoothSocketObserver
-  void ReceiveSocketData(
-    BluetoothSocket* aSocket,
-    nsAutoPtr<mozilla::ipc::UnixSocketRawData>& aMessage) MOZ_OVERRIDE;
-
-  virtual void OnConnectSuccess(BluetoothSocket* aSocket) MOZ_OVERRIDE;
-  virtual void OnConnectError(BluetoothSocket* aSocket) MOZ_OVERRIDE;
-  virtual void OnDisconnect(BluetoothSocket* aSocket) MOZ_OVERRIDE;
-  void OnConnectSuccess() MOZ_OVERRIDE;
-  void OnConnectError() MOZ_OVERRIDE;
-  void OnDisconnect() MOZ_OVERRIDE;
-
 private:
   BluetoothOppManager();
   void StartFileTransfer();
@@ -102,6 +89,15 @@ private:
   void AfterOppDisconnected();
   void ValidateFileName();
   bool IsReservedChar(PRUnichar c);
+
+  virtual void OnConnectSuccess() MOZ_OVERRIDE;
+  virtual void OnConnectError() MOZ_OVERRIDE;
+  virtual void OnDisconnect() MOZ_OVERRIDE;
+
+  /**
+   * RFCOMM socket status.
+   */
+  enum mozilla::ipc::SocketConnectionStatus mSocketStatus;
 
   /**
    * OBEX session status.
@@ -171,30 +167,12 @@ private:
   nsAutoArrayPtr<uint8_t> mReceivedDataBuffer;
 
   nsCOMPtr<nsIDOMBlob> mBlob;
-
-  /**
-   * A seperate member thread is required because our read calls can block
-   * execution, which is not allowed to happen on the IOThread.
-   * 
-   */
   nsCOMPtr<nsIThread> mReadFileThread;
   nsCOMPtr<nsIOutputStream> mOutputStream;
   nsCOMPtr<nsIInputStream> mInputStream;
 
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
   nsRefPtr<DeviceStorageFile> mDsFile;
-
-  // If a connection has been established, mSocket will be the socket
-  // communicating with the remote socket. We maintain the invariant that if
-  // mSocket is non-null, mRfcommSocket and mL2capSocket must be null (and vice
-  // versa).
-  nsRefPtr<BluetoothSocket> mSocket;
-
-  // Server sockets. Once an inbound connection is established, it will hand
-  // over the ownership to mSocket, and get a new server socket while Listen()
-  // is called.
-  nsRefPtr<BluetoothSocket> mRfcommSocket;
-  nsRefPtr<BluetoothSocket> mL2capSocket;
 };
 
 END_BLUETOOTH_NAMESPACE

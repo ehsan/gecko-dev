@@ -33,13 +33,13 @@ extern JSClass HolderClass;
 bool CloneExpandoChain(JSContext *cx, JSObject *src, JSObject *dst);
 
 bool
-IsTransparent(JSContext *cx, JSHandleObject wrapper, JSHandleId id);
+IsTransparent(JSContext *cx, JSObject *wrapper, jsid id);
 
 JSObject *
 GetNativePropertiesObject(JSContext *cx, JSObject *wrapper);
 
 bool
-IsXrayResolving(JSContext *cx, JSHandleObject wrapper, JSHandleId id);
+IsXrayResolving(JSContext *cx, JSObject *wrapper, jsid id);
 
 }
 
@@ -95,10 +95,11 @@ class XrayWrapper : public Base {
     virtual bool iterate(JSContext *cx, JS::Handle<JSObject*> wrapper, unsigned flags,
                          JS::MutableHandle<JS::Value> vp);
 
-    virtual bool call(JSContext *cx, JS::Handle<JSObject*> wrapper,
-                      const JS::CallArgs &args) MOZ_OVERRIDE;
+    virtual bool call(JSContext *cx, JS::Handle<JSObject*> wrapper, unsigned argc,
+                      js::Value *vp);
     virtual bool construct(JSContext *cx, JS::Handle<JSObject*> wrapper,
-                           const JS::CallArgs &args) MOZ_OVERRIDE;
+                           unsigned argc, js::Value *argv,
+                           JS::MutableHandle<JS::Value> rval);
 
     static XrayWrapper singleton;
 
@@ -155,8 +156,8 @@ public:
     {
     }
 
-    virtual bool call(JSContext *cx, JS::Handle<JSObject*> proxy,
-                      const JS::CallArgs &args) MOZ_OVERRIDE;
+    virtual bool call(JSContext *cx, JS::Handle<JSObject*> proxy, unsigned argc,
+                      JS::Value *vp);
 };
 
 extern SandboxCallableProxyHandler sandboxCallableProxyHandler;

@@ -422,7 +422,7 @@ let WeaveGlue = {
     // Remove them on unload
     addEventListener("unload", function() {
       topics.forEach(function(topic) {
-        Services.obs.removeObserver(WeaveGlue, topic);
+        Services.obs.removeObserver(WeaveGlue, topic, false);
       });
     }, false);
   },

@@ -72,19 +72,29 @@ function runTest() {
 
 function initPrefs()
 {
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefSvc = Components.classes["@mozilla.org/preferences-service;1"].
+                  getService(Components.interfaces.nsIPrefBranch);
   // Disables the app level scroll acceleration
-  SpecialPowers.setIntPref("mousewheel.acceleration.start", -1);
-  SpecialPowers.setBoolPref("mousewheel.system_scroll_override_on_root_content.enabled", false);
+  prefSvc.setIntPref("mousewheel.acceleration.start", -1);
+  prefSvc.setBoolPref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 
   // Enables smooth scrolling
-  SpecialPowers.setBoolPref("general.smoothScroll", true);
+  prefSvc.setBoolPref("general.smoothScroll", true);
 }
 
 function clearPrefs()
 {
-  SpecialPowers.clearUserPref("mousewheel.acceleration.start");
-  SpecialPowers.clearUserPref("mousewheel.system_scroll_override_on_root_content.enabled");
-  SpecialPowers.clearUserPref("general.smoothScroll");
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefSvc = Components.classes["@mozilla.org/preferences-service;1"].
+                  getService(Components.interfaces.nsIPrefBranch);
+
+  if (prefSvc.prefHasUserValue("mousewheel.acceleration.start"))
+    prefSvc.clearUserPref("mousewheel.acceleration.start");
+  if (prefSvc.prefHasUserValue("mousewheel.system_scroll_override_on_root_content.enabled"))
+    prefSvc.clearUserPref("mousewheel.system_scroll_override_on_root_content.enabled");
+  if (prefSvc.prefHasUserValue("general.smoothScroll"))
+    prefSvc.clearUserPref("general.smoothScroll");
 }
 
 window.onload = function () {

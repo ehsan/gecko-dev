@@ -27,7 +27,6 @@ ToolbarView.prototype = {
     dumpn("Initializing the ToolbarView");
 
     this._instrumentsPaneToggleButton = document.getElementById("instruments-pane-toggle");
-    this._resumeOrderPanel = document.getElementById("resumption-order-panel");
     this._resumeButton = document.getElementById("resume");
     this._stepOverButton = document.getElementById("step-over");
     this._stepInButton = document.getElementById("step-in");
@@ -38,11 +37,11 @@ ToolbarView.prototype = {
     let stepOverKey = LayoutHelpers.prettyKey(document.getElementById("stepOverKey"), true);
     let stepInKey = LayoutHelpers.prettyKey(document.getElementById("stepInKey"), true);
     let stepOutKey = LayoutHelpers.prettyKey(document.getElementById("stepOutKey"), true);
-    this._resumeTooltip = L10N.getFormatStr("resumeButtonTooltip", resumeKey);
-    this._pauseTooltip = L10N.getFormatStr("pauseButtonTooltip", resumeKey);
-    this._stepOverTooltip = L10N.getFormatStr("stepOverTooltip", stepOverKey);
-    this._stepInTooltip = L10N.getFormatStr("stepInTooltip", stepInKey);
-    this._stepOutTooltip = L10N.getFormatStr("stepOutTooltip", stepOutKey);
+    this._resumeTooltip = L10N.getFormatStr("resumeButtonTooltip", [resumeKey]);
+    this._pauseTooltip = L10N.getFormatStr("pauseButtonTooltip", [resumeKey]);
+    this._stepOverTooltip = L10N.getFormatStr("stepOverTooltip", [stepOverKey]);
+    this._stepInTooltip = L10N.getFormatStr("stepInTooltip", [stepInKey]);
+    this._stepOutTooltip = L10N.getFormatStr("stepOutTooltip", [stepOutKey]);
 
     this._instrumentsPaneToggleButton.addEventListener("mousedown", this._onTogglePanesPressed, false);
     this._resumeButton.addEventListener("mousedown", this._onResumePressed, false);
@@ -91,19 +90,6 @@ ToolbarView.prototype = {
   },
 
   /**
-   * Display a warning when trying to resume a debuggee while another is paused.
-   * Debuggees must be unpaused in a Last-In-First-Out order.
-   *
-   * @param string aPausedUrl
-   *        The URL of the last paused debuggee.
-   */
-  showResumeWarning: function DVT_showResumeWarning(aPausedUrl) {
-    let label = L10N.getFormatStr("resumptionOrderPanelTitle", [aPausedUrl]);
-    document.getElementById("resumption-panel-desc").textContent = label;
-    this._resumeOrderPanel.openPopup(this._resumeButton);
-  },
-
-  /**
    * Sets the chrome globals container hidden or visible. It's hidden by default.
    *
    * @param boolean aVisibleFlag
@@ -129,8 +115,7 @@ ToolbarView.prototype = {
    */
   _onResumePressed: function DVT__onResumePressed() {
     if (DebuggerController.activeThread.paused) {
-      let warn = DebuggerController._ensureResumptionOrder;
-      DebuggerController.activeThread.resume(warn);
+      DebuggerController.activeThread.resume();
     } else {
       DebuggerController.activeThread.interrupt();
     }
@@ -164,7 +149,6 @@ ToolbarView.prototype = {
   },
 
   _instrumentsPaneToggleButton: null,
-  _resumeOrderPanel: null,
   _resumeButton: null,
   _stepOverButton: null,
   _stepInButton: null,
@@ -661,7 +645,7 @@ let StackFrameUtils = {
       name = aEnv.type.charAt(0).toUpperCase() + aEnv.type.slice(1);
     }
 
-    let label = L10N.getFormatStr("scopeLabel", name);
+    let label = L10N.getFormatStr("scopeLabel", [name]);
     switch (aEnv.type) {
       case "with":
       case "object":
@@ -730,15 +714,15 @@ FilterView.prototype = {
     this._variableOperatorButton.setAttribute("label", SEARCH_VARIABLE_FLAG);
 
     this._globalOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelGlobal", this._globalSearchKey));
+      L10N.getFormatStr("searchPanelGlobal", [this._globalSearchKey]));
     this._functionOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelFunction", this._filteredFunctionsKey));
+      L10N.getFormatStr("searchPanelFunction", [this._filteredFunctionsKey]));
     this._tokenOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelToken", this._tokenSearchKey));
+      L10N.getFormatStr("searchPanelToken", [this._tokenSearchKey]));
     this._lineOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelLine", this._lineSearchKey));
+      L10N.getFormatStr("searchPanelLine", [this._lineSearchKey]));
     this._variableOperatorLabel.setAttribute("value",
-      L10N.getFormatStr("searchPanelVariable", this._variableSearchKey));
+      L10N.getFormatStr("searchPanelVariable", [this._variableSearchKey]));
 
     // TODO: bug 806775
     // if (window._isChromeDebugger) {
@@ -769,10 +753,10 @@ FilterView.prototype = {
     let placeholder = "";
     switch (aView) {
       case DebuggerView.ChromeGlobals:
-        placeholder = L10N.getFormatStr("emptyChromeGlobalsFilterText", this._fileSearchKey);
+        placeholder = L10N.getFormatStr("emptyChromeGlobalsFilterText", [this._fileSearchKey]);
         break;
       case DebuggerView.Sources:
-        placeholder = L10N.getFormatStr("emptyFilterText", this._fileSearchKey);
+        placeholder = L10N.getFormatStr("emptyFilterText", [this._fileSearchKey]);
         break;
     }
     this._searchbox.setAttribute("placeholder", placeholder);

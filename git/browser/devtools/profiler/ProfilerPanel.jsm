@@ -44,19 +44,15 @@ XPCOMUtils.defineLazyModuleGetter(this, "Services",
  * @param ProfilerPanel panel
  *   A reference to the container panel.
  */
-function ProfileUI(uid, name, panel) {
+function ProfileUI(uid, panel) {
   let doc = panel.document;
   let win = panel.window;
 
   EventEmitter.decorate(this);
 
   this.isReady = false;
-  this.isStarted = false;
-  this.isFinished = false;
-
   this.panel = panel;
   this.uid = uid;
-  this.name = name;
 
   this.iframe = doc.createElement("iframe");
   this.iframe.setAttribute("flex", "1");
@@ -74,6 +70,9 @@ function ProfileUI(uid, name, panel) {
       return;
     }
 
+    let label = doc.querySelector("li#profile-" + this.uid + " > h1");
+    let name = label.textContent.replace(/\s\*$/, "");
+
     switch (event.data.status) {
       case "loaded":
         if (this.panel._runningUid !== null) {
@@ -88,10 +87,26 @@ function ProfileUI(uid, name, panel) {
         this.emit("ready");
         break;
       case "start":
-        this.start();
+        // Start profiling and, once started, notify the underlying page
+        // so that it could update the UI. Also, once started, we add a
+        // star to the profile name to indicate which profile is currently
+        // running.
+        this.panel.startProfiling(name, function onStart() {
+          label.textContent = name + " *";
+          this.panel.broadcast(this.uid, {task: "onStarted"});
+          this.emit("started");
+        }.bind(this));
+
         break;
       case "stop":
-        this.stop();
+        // Stop profiling and, once stopped, notify the underlying page so
+        // that it could update the UI and remove a star from the profile
+        // name.
+        this.panel.stopProfiling(name, function onStop() {
+          label.textContent = name;
+          this.panel.broadcast(this.uid, {task: "onStopped"});
+          this.emit("stopped");
+        }.bind(this));
         break;
       case "disabled":
         this.emit("disabled");
@@ -152,56 +167,6 @@ ProfileUI.prototype = {
     }.bind(this);
 
     poll();
-  },
-
-  /**
-   * Update profile's label in the sidebar.
-   *
-   * @param string text
-   *   New text for the label.
-   */
-  updateLabel: function PUI_udpateLabel(text) {
-    let doc = this.panel.document;
-    let label = doc.querySelector("li#profile-" + this.uid + "> h1");
-    label.textContent = text;
-  },
-
-  /**
-   * Start profiling and, once started, notify the underlying page
-   * so that it could update the UI. Also, once started, we add a
-   * star to the profile name to indicate which profile is currently
-   * running.
-   */
-  start: function PUI_start() {
-    if (this.isStarted || this.isFinished) {
-      return;
-    }
-
-    this.panel.startProfiling(this.name, function onStart() {
-      this.isStarted = true;
-      this.updateLabel(this.name + " *");
-      this.panel.broadcast(this.uid, {task: "onStarted"});
-      this.emit("started");
-    }.bind(this));
-  },
-
-  /**
-   * Stop profiling and, once stopped, notify the underlying page so
-   * that it could update the UI and remove a star from the profile
-   * name.
-   */
-  stop: function PUI_stop() {
-    if (!this.isStarted || this.isFinished) {
-      return;
-    }
-
-    this.panel.stopProfiling(this.name, function onStop() {
-      this.isStarted = false;
-      this.isFinished = true;
-      this.updateLabel(this.name);
-      this.panel.broadcast(this.uid, {task: "onStopped"});
-      this.emit("stopped");
-    }.bind(this));
   },
 
   /**
@@ -311,9 +276,7 @@ ProfilerPanel.prototype = {
 
         this.controller.connect(function onConnect() {
           let create = this.document.getElementById("profiler-create");
-          create.addEventListener("click", function (ev) {
-            this.createProfile()
-          }.bind(this), false);
+          create.addEventListener("click", this.createProfile.bind(this), false);
           create.removeAttribute("disabled");
 
           let profile = this.createProfile();
@@ -340,21 +303,13 @@ ProfilerPanel.prototype = {
    * the newly created profile, they have do to switch
    * explicitly.
    *
-   * @param string name
-   *        (optional) name of the new profile
-   *
    * @return ProfilerPanel
    */
-  createProfile: function PP_createProfile(name) {
-    if (name && this.getProfileByName(name)) {
-      return this.getProfileByName(name);
-    }
-
+  createProfile: function PP_addProfile() {
     let uid  = ++this._uid;
     let list = this.document.getElementById("profiles-list");
     let item = this.document.createElement("li");
     let wrap = this.document.createElement("h1");
-    name = name || L10N.getFormatStr("profiler.profileName", [uid]);
 
     item.setAttribute("id", "profile-" + uid);
     item.setAttribute("data-uid", uid);
@@ -363,12 +318,12 @@ ProfilerPanel.prototype = {
     }.bind(this), false);
 
     wrap.className = "profile-name";
-    wrap.textContent = name;
+    wrap.textContent = L10N.getFormatStr("profiler.profileName", [uid]);
 
     item.appendChild(wrap);
     list.appendChild(item);
 
-    let profile = new ProfileUI(uid, name, this);
+    let profile = new ProfileUI(uid, this);
     this.profiles.set(uid, profile);
 
     this.emit("profileCreated", uid);
@@ -467,40 +422,6 @@ ProfilerPanel.prototype = {
         this.emit("stopped", data);
       }.bind(this));
     }.bind(this));
-  },
-
-  /**
-   * Lookup an individual profile by its name.
-   *
-   * @param string name name of the profile
-   * @return profile object or null
-   */
-  getProfileByName: function PP_getProfileByName(name) {
-    if (!this.profiles) {
-      return null;
-    }
-
-    for (let [ uid, profile ] of this.profiles) {
-      if (profile.name === name) {
-        return profile;
-      }
-    }
-
-    return null;
-  },
-
-  /**
-   * Lookup an individual profile by its UID.
-   *
-   * @param number uid UID of the profile
-   * @return profile object or null
-   */
-  getProfileByUID: function PP_getProfileByUID(uid) {
-    if (!this.profiles) {
-      return null;
-    }
-
-    return this.profiles.get(uid) || null;
   },
 
   /**

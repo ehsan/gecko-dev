@@ -6,7 +6,6 @@
 
 #include <string.h>
 
-#include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/Base64.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Selection.h"
@@ -93,7 +92,6 @@ class nsILoadContext;
 class nsISupports;
 
 using namespace mozilla;
-using namespace mozilla::dom;
 
 const PRUnichar nbsp = 160;
 
@@ -2098,7 +2096,7 @@ void RemoveBodyAndHead(nsIDOMNode *aNode)
 /**
  * This function finds the target node that we will be pasting into. aStart is
  * the context that we're given and aResult will be the target. Initially,
- * *aResult must be nullptr.
+ * *aResult must be NULL.
  *
  * The target for a paste is found by either finding the node that contains
  * the magical comment node containing kInsertCookie or, failing that, the
@@ -2115,7 +2113,7 @@ nsresult FindTargetNode(nsIDOMNode *aStart, nsCOMPtr<nsIDOMNode> &aResult)
 
   if (!child)
   {
-    // If the current result is nullptr, then aStart is a leaf, and is the
+    // If the current result is NULL, then aStart is a leaf, and is the
     // fallback result.
     if (!aResult)
       aResult = aStart;
@@ -2283,8 +2281,10 @@ nsresult nsHTMLEditor::ParseFragment(const nsAString & aFragStr,
 {
   nsAutoScriptBlockerSuppressNodeRemoved autoBlocker;
 
-  nsRefPtr<DocumentFragment> fragment =
-    new DocumentFragment(aTargetDocument->NodeInfoManager());
+  nsCOMPtr<nsIDOMDocumentFragment> frag;
+  NS_NewDocumentFragment(getter_AddRefs(frag),
+                         aTargetDocument->NodeInfoManager());
+  nsCOMPtr<nsIContent> fragment = do_QueryInterface(frag);
   nsresult rv = nsContentUtils::ParseFragmentHTML(aFragStr,
                                                   fragment,
                                                   aContextLocalName ?
@@ -2298,7 +2298,7 @@ nsresult nsHTMLEditor::ParseFragment(const nsAString & aFragStr,
                               nsIParserUtils::SanitizerAllowComments);
     sanitizer.Sanitize(fragment);
   }
-  *outNode = fragment.forget();
+  *outNode = do_QueryInterface(frag);
   return rv;
 }
 

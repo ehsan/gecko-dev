@@ -644,6 +644,7 @@ function testKeyboardAccessibility(callback) {
               is(gVariablesView._parent.scrollTop, 0,
                 "The variables view shouldn't scroll when pressing the UP key.");
 
+
               EventUtils.sendKey("PAGE_DOWN", gDebugger);
               is(gVariablesView.getFocusedItem().name, "someProp5",
                 "The someProp5 item should be focused now.");
@@ -657,20 +658,17 @@ function testKeyboardAccessibility(callback) {
                 "The foo item should be focused now.");
 
               EventUtils.sendKey("DOWN", gDebugger);
-              is(gVariablesView.getFocusedItem().name, "bar",
-                "The bar item should be focused now.");
-
-              EventUtils.sendKey("UP", gDebugger);
-              is(gVariablesView.getFocusedItem().name, "foo",
-                "The foo item should be focused now.");
-
-              EventUtils.sendKey("RIGHT", gDebugger);
               is(gVariablesView.getFocusedItem().name, "foo",
                 "The foo item should still be focused now.");
+
+              EventUtils.sendKey("RIGHT", gDebugger);
+              is(gVariablesView.getFocusedItem().name, "bar",
+                "The bar item should still be focused now.");
 
               EventUtils.sendKey("PAGE_DOWN", gDebugger);
               is(gVariablesView.getFocusedItem().name, "foo",
                 "The foo item should still be focused now.");
+
 
               EventUtils.sendKey("PAGE_UP", gDebugger);
               is(gVariablesView.getFocusedItem().name, "__proto__",
@@ -704,9 +702,10 @@ function testKeyboardAccessibility(callback) {
               is(gVariablesView.getFocusedItem().name, "someProp0",
                 "The someProp0 item should still be focused now.");
 
+
               for (let i = 0; i < 16; i++) {
                 // Advance to the first collapsed __proto__ property.
-                EventUtils.sendKey("DOWN", gDebugger);
+                EventUtils.sendKey("RIGHT", gDebugger);
               }
               is(gVariablesView.getFocusedItem().name, "__proto__",
                 "The __proto__ item should be focused now.");
@@ -719,7 +718,7 @@ function testKeyboardAccessibility(callback) {
               is(gVariablesView.getFocusedItem().expanded, true,
                 "The __proto__ item should be expanded now.");
 
-              for (let i = 0; i < 3; i++) {
+              for (let i = 0; i < 2; i++) {
                 // Advance to the fifth top-level someProp5 property.
                 EventUtils.sendKey("LEFT", gDebugger);
               }
@@ -744,30 +743,26 @@ function testKeyboardAccessibility(callback) {
                 "The someProp5 item should not be expanded now.");
 
               EventUtils.sendKey("LEFT", gDebugger);
-              is(gVariablesView.getFocusedItem().name, "someProp5",
-                "The someProp5 item should still be focused.");
-
-              EventUtils.sendKey("UP", gDebugger);
               is(gVariablesView.getFocusedItem().name, "someProp4",
                 "The someProp4 item should be focused.");
 
-              EventUtils.sendKey("UP", gDebugger);
+              EventUtils.sendKey("LEFT", gDebugger);
               is(gVariablesView.getFocusedItem().name, "someProp3",
                 "The someProp3 item should be focused.");
 
-              EventUtils.sendKey("UP", gDebugger);
+              EventUtils.sendKey("LEFT", gDebugger);
               is(gVariablesView.getFocusedItem().name, "someProp2",
                 "The someProp2 item should be focused.");
 
-              EventUtils.sendKey("UP", gDebugger);
+              EventUtils.sendKey("LEFT", gDebugger);
               is(gVariablesView.getFocusedItem().name, "someProp1",
                 "The someProp1 item should be focused.");
 
-              EventUtils.sendKey("UP", gDebugger);
+              EventUtils.sendKey("LEFT", gDebugger);
               is(gVariablesView.getFocusedItem().name, "someProp0",
                 "The someProp0 item should be focused.");
 
-              EventUtils.sendKey("UP", gDebugger);
+              EventUtils.sendKey("LEFT", gDebugger);
               is(gVariablesView.getFocusedItem().name, "someProp0",
                 "The someProp0 item should still be focused.");
 
@@ -782,7 +777,7 @@ function testKeyboardAccessibility(callback) {
               is(gVariablesView.getFocusedItem().name, "foo",
                 "The foo scope should be focused now.");
               is(gVariablesView.getFocusedItem().expanded, true,
-                "The foo scope should already be expanded.");
+                "The foo scope should already be expanded yet.");
 
               EventUtils.sendKey("LEFT", gDebugger);
               is(gVariablesView.getFocusedItem().name, "foo",
@@ -791,8 +786,14 @@ function testKeyboardAccessibility(callback) {
                 "The foo scope shouldn't be expanded now.");
 
               EventUtils.sendKey("DOWN", gDebugger);
+              is(gVariablesView.getFocusedItem().name, "foo",
+                "The foo scope should still be focused.");
+              is(gVariablesView.getFocusedItem().expanded, true,
+                "The foo scope should be expanded now.");
+
+              EventUtils.sendKey("DOWN", gDebugger);
               is(gVariablesView.getFocusedItem().name, "bar",
-                "The bar variable should be focused.");
+                "The bar variable should still be focused.");
               is(gVariablesView.getFocusedItem().expanded, false,
                 "The bar variable shouldn't be expanded.");
               is(gVariablesView.getFocusedItem().visible, true,
@@ -813,20 +814,6 @@ function testKeyboardAccessibility(callback) {
               EventUtils.sendKey("UP", gDebugger);
               is(gVariablesView.getFocusedItem().name, "__proto__",
                 "The top-level __proto__ item should be focused.");
-              is(gVariablesView.getFocusedItem().expanded, false,
-                "The top-level __proto__ item should not be expanded.");
-
-              EventUtils.sendKey("RIGHT", gDebugger);
-              is(gVariablesView.getFocusedItem().name, "__proto__",
-                "The top-level __proto__ item should still be focused.");
-              is(gVariablesView.getFocusedItem().expanded, true,
-                "The top-level __proto__ item should be expanded.");
-
-              EventUtils.sendKey("LEFT", gDebugger);
-              is(gVariablesView.getFocusedItem().name, "__proto__",
-                "The top-level __proto__ item should still be focused.");
-              is(gVariablesView.getFocusedItem().expanded, false,
-                "The top-level __proto__ item should not be expanded.");
 
               executeSoon(callback);
             });

@@ -83,7 +83,7 @@ bool
 AccessCheck::wrapperSubsumes(JSObject *wrapper)
 {
     MOZ_ASSERT(js::IsWrapper(wrapper));
-    JSObject *wrapped = js::UncheckedUnwrap(wrapper);
+    JSObject *wrapped = js::UnwrapObject(wrapper);
     return AccessCheck::subsumes(js::GetObjectCompartment(wrapper),
                                  js::GetObjectCompartment(wrapped));
 }
@@ -255,17 +255,33 @@ AccessCheck::needsSystemOnlyWrapper(JSObject *obj)
 }
 
 bool
+AccessCheck::isScriptAccessOnly(JSContext *cx, JSObject *wrapper)
+{
+    MOZ_ASSERT(js::IsWrapper(wrapper));
+
+    unsigned flags;
+    (void) js::UnwrapObject(wrapper, true, &flags);
+
+    // If the wrapper indicates script-only access, we are done.
+    if (flags & WrapperFactory::SCRIPT_ACCESS_ONLY_FLAG) {
+        if (flags & WrapperFactory::SOW_FLAG)
+            return !isSystemOnlyAccessPermitted(cx);
+        return true;
+    }
+
+    return false;
+}
+
+bool
 OnlyIfSubjectIsSystem::isSafeToUnwrap()
 {
+    if (XPCJSRuntime::Get()->XBLScopesEnabled())
+        return false;
     // It's nasty to use the context stack here, but the alternative is passing cx all
-    // the way down through CheckedUnwrap, which we just undid in a 100k patch. :-(
+    // the way down through UnwrapObjectChecked, which we just undid in a 100k patch. :-(
     JSContext *cx = nsContentUtils::GetCurrentJSContext();
     if (!cx)
         return true;
-    // If XBL scopes are enabled for this compartment, this hook doesn't need to
-    // be dynamic at all, since SOWs can be opaque.
-    if (xpc::AllowXBLScope(js::GetContextCompartment(cx)))
-        return false;
     return AccessCheck::isSystemOnlyAccessPermitted(cx);
 }
 
@@ -328,7 +344,7 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
 
     JSObject *hallpass = &exposedProps.toObject();
 
-    if (!AccessCheck::subsumes(js::UncheckedUnwrap(hallpass), wrappedObject)) {
+    if (!AccessCheck::subsumes(js::UnwrapObject(hallpass), wrappedObject)) {
         EnterAndThrow(cx, wrapper, "Invalid __exposedProps__");
         return false;
     }

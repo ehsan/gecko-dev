@@ -61,27 +61,99 @@ members = [
     'nsIDOMMozNamedAttrMap.item',
     'nsIDOMMozNamedAttrMap.length',
     'nsIDOMDOMStringList.*',
+    'nsIDOMXULDocument.getBoxObjectFor',
 
+    'nsIDOMEvent.type',
+    'nsIDOMEvent.target',
+    'nsIDOMEvent.currentTarget',
+    'nsIDOMEvent.eventPhase',
+    'nsIDOMEvent.bubbles',
+    'nsIDOMEvent.cancelable',
+    'nsIDOMEvent.timeStamp',
+    'nsIDOMEvent.stopPropagation',
+    'nsIDOMEvent.preventDefault',
+    'nsIDOMEvent.initEvent',
+    'nsIDOMEvent.defaultPrevented',
+    'nsIDOMEvent.stopImmediatePropagation',
+    'nsIDOMMouseEvent.*',
     'nsIDOMKeyEvent.*',
+    'nsIDOMMutationEvent.*',
     'nsIDOMDragEvent.*',
+    'nsIDOMScrollAreaEvent.*',
     'nsIDOMNotifyPaintEvent.*',
+    'nsIDOMMessageEvent.*',
     'nsIDOMMouseScrollEvent.*',
     'nsIDOMProgressEvent.lengthComputable',
     'nsIDOMProgressEvent.loaded',
     'nsIDOMProgressEvent.total',
     #XXX Can't quickstub initProgressEvent because it has long long parameters.
+    'nsIDOMUIEvent.which',
+    'nsIDOMUIEvent.rangeParent',
+    'nsIDOMUIEvent.rangeOffset',
+    'nsIDOMUIEvent.pageX',
+    'nsIDOMUIEvent.pageY',
+    'nsIDOMUIEvent.isChar',
 
     'nsIDOMTouch.*',
     'nsIDOMTouchList.*',
     'nsIDOMTouchEvent.*',
 
+    # dom/interfaces/geolocation - None.
+
     # dom/interfaces/html
+    'nsIDOMHTMLCommandElement.*',
     'nsIDOMHTMLFormElement.elements',
     'nsIDOMHTMLFormElement.name',
     'nsIDOMHTMLFormElement.submit',
     'nsIDOMHTMLFormElement.length',
     'nsIDOMHTMLFormElement.target',
     'nsIDOMHTMLFormElement.action',
+    'nsIDOMHTMLIFrameElement.src',
+    'nsIDOMHTMLIFrameElement.contentDocument',
+    'nsIDOMHTMLIFrameElement.contentWindow',
+    'nsIDOMHTMLInputElement.defaultChecked',
+    'nsIDOMHTMLInputElement.disabled',
+    'nsIDOMHTMLInputElement.select',
+    'nsIDOMHTMLInputElement.checked',
+    'nsIDOMHTMLInputElement.type',
+    'nsIDOMHTMLInputElement.form',
+    'nsIDOMHTMLInputElement.src',
+    'nsIDOMHTMLInputElement.name',
+    'nsIDOMHTMLInputElement.value',
+    'nsIDOMHTMLInputElement.files',
+    'nsIDOMHTMLInputElement.textLength',
+    'nsIDOMHTMLInputElement.selectionStart',
+    'nsIDOMHTMLInputElement.selectionEnd',
+    'nsIDOMHTMLInputElement.selectionDirection',
+    'nsIDOMHTMLInputElement.setSelectionRange',
+    'nsIDOMHTMLSelectElement.name',
+    'nsIDOMHTMLSelectElement.form',
+    'nsIDOMHTMLSelectElement.add',
+    'nsIDOMHTMLSelectElement.value',
+    'nsIDOMHTMLSelectElement.disabled',
+    'nsIDOMHTMLSelectElement.length',
+    'nsIDOMHTMLSelectElement.remove',
+    'nsIDOMHTMLSelectElement.selectedIndex',
+    'nsIDOMHTMLSelectElement.item',
+    'nsIDOMHTMLSelectElement.type',
+    'nsIDOMHTMLSelectElement.options',
+    'nsIDOMHTMLSelectElement.size',
+    'nsIDOMHTMLCanvasElement.width',
+    'nsIDOMHTMLCanvasElement.height',
+    'nsIDOMHTMLCanvasElement.getContext',
+    'nsIDOMHTMLCanvasElement.toDataURL',
+
+    # dom/interfaces/json - None.
+    # All methods of nsIJSON call GetCurrentNativeCallContext.
+
+    # dom/interfaces/offline - None.
+
+    # dom/interfaces/range
+    'nsIDOMRange.*',
+
+    # dom/interfaces/sidebar - None.
+
+    # dom/interfaces/smil - None.
 
     # dom/interfaces/storage
     'nsIDOMToString.toString',
@@ -92,6 +164,14 @@ members = [
     'nsIDOMStorage.removeItem',
     'nsIDOMStorage.clear',
     'nsIDOMStorageItem.value',
+
+    # dom/interfaces/stylesheets - None.
+
+    # dom/interfaces/svg - None.
+
+    # dom/interfaces/traversal
+
+    # dom/interfaces/xbl - None.
 
     # dom/interfaces/xpath
     'nsIDOMXPathExpression.evaluate',
@@ -114,14 +194,19 @@ members = [
     'nsIBoxObject.width',
     'nsIBoxObject.height',
 
+    # FileReader
+    'nsIDOMFileReader.*',
+    
     # Audio
     'nsIDOMNotifyAudioAvailableEvent.frameBuffer',
     'nsIDOMNotifyAudioAvailableEvent.time',
+    'nsIDOMHTMLAudioElement.mozWriteAudio',
 
     # dom/indexedDB
     'nsIIDBCursor.*',
     'nsIIDBCursorWithValue.*',
     'nsIIDBDatabase.*',
+    'nsIIDBFactory.*',
     'nsIIDBFileHandle.*',
     'nsIIDBIndex.*',
     'nsIIDBKeyRange.*',
@@ -176,9 +261,6 @@ customIncludes = [
     'nsPerformance.h',
     'mozilla/dom/HTMLDocumentBinding.h',
     'mozilla/dom/EventTargetBinding.h',
-    'mozilla/dom/EventBinding.h',
-    'mozilla/dom/MouseEventBinding.h',
-    'mozilla/dom/UIEventBinding.h',
     ]
 
 customReturnInterfaces = [
@@ -220,15 +302,10 @@ customMethodCalls = {
     }
 
 newBindingProperties = {
-    # Once the last entry here goes away, we can make the sNativePropertyHooks
-    # of bindings static.
     'nsIDOMNode': 'mozilla::dom::NodeBinding::sNativePropertyHooks.mNativeProperties.regular',
     'nsIDOMElement': 'mozilla::dom::ElementBinding::sNativePropertyHooks.mNativeProperties.regular',
     'nsIDOMHTMLElement': 'mozilla::dom::HTMLElementBinding::sNativePropertyHooks.mNativeProperties.regular',
     'nsIDOMDocument': 'mozilla::dom::DocumentBinding::sNativePropertyHooks.mNativeProperties.regular',
     'nsIDOMHTMLDocument': 'mozilla::dom::HTMLDocumentBinding::sNativePropertyHooks.mNativeProperties.regular',
     'nsIDOMEventTarget': 'mozilla::dom::EventTargetBinding::sNativePropertyHooks.mNativeProperties.regular',
-    'nsIDOMEvent': 'mozilla::dom::EventBinding::sNativePropertyHooks.mNativeProperties.regular',
-    'nsIDOMMouseEvent': 'mozilla::dom::MouseEventBinding::sNativePropertyHooks.mNativeProperties.regular',
-    'nsIDOMUIEvent': 'mozilla::dom::UIEventBinding::sNativePropertyHooks.mNativeProperties.regular',
     }

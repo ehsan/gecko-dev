@@ -151,8 +151,6 @@
     <key id="key_addBoomkark" key="d" modifiers="accel" command="cmd_addBookmark"/>
     <key id="key_console" key="j" modifiers="accel,shift" oncommand="PanelUI.show('console-container')"/>
     <key id="key_options" key="o" modifiers="accel,shift" oncommand="Elements.prefsFlyout.show()"/>
-    <key id="key_options" key="s" modifiers="accel,shift" oncommand="Elements.syncFlyout.show()"/>
-    <key id="key_options" key="a" modifiers="accel,shift" oncommand="Elements.aboutFlyout.show()"/>
 
     <!-- manage tabs -->
     <key id="key_newTab" key="t" modifiers="accel" command="cmd_newTab"/>
@@ -260,7 +258,7 @@
             <scrollbox id="start-scrollbox" orient="horizontal" flex="1">
             <vbox id="start-topsites" class="meta-section">
               <label class="meta-section-title" value="&startTopSitesHeader.label;"/>
-              <richgrid id="start-topsites-grid" rows="3" columns="3" seltype="multiple" flex="1"/>
+              <richgrid id="start-topsites-grid" seltype="multiple" flex="1"/>
             </vbox>
             <vbox id="start-bookmarks" class="meta-section">
               <label class="meta-section-title" value="&startBookmarksHeader.label;"
@@ -283,7 +281,7 @@
             <scrollbox id="snapped-scrollbox" orient="vertical" flex="1">
               <vbox id="snapped-topsites">
                 <label class="meta-section-title" value="&startTopSitesHeader.label;"/>
-                <richgrid id="snapped-topsites-grid" rows="8" columns="1" flex="1"/>
+                <!--  TODO bug 835999 -->
               </vbox>
               <label class="meta-section-title" value="&startBookmarksHeader.label;"
                 onclick="PanelUI.show('bookmarks-container');"/>
@@ -314,12 +312,11 @@
     <!-- Windows 8 Appbar -->
     <appbar id="appbar" mousethrough="never" observes="bcast_windowState">
       <!-- contextual actions temporarily hidden, pending #800996 -->
-      <hbox id="contextualactions-tray" flex="1">
-        <toolbarbutton id="delete-selected-button" hidden="true" fade="true" oncommand="Appbar.dispatchContextualAction('delete')"/>
-        <toolbarbutton id="restore-selected-button" hidden="true" fade="true" oncommand="Appbar.dispatchContextualAction('restore')"/>
-        <toolbarbutton id="pin-selected-button" hidden="true" fade="true" oncommand="Appbar.dispatchContextualAction('pin')"/>
-        <toolbarbutton id="unpin-selected-button" hidden="true" fade="true" oncommand="Appbar.dispatchContextualAction('unpin')"/>
-        <toolbarbutton id="clear-selected-button" hidden="true" fade="true" oncommand="Appbar.dispatchContextualAction('clear')"/>
+      <hbox id="contextualactions-tray" flex="1" hidden="true">
+        <toolbarbutton id="delete-selected-button" hidden="true" oncommand="Appbar.dispatchContextualAction('delete')"/>
+        <toolbarbutton id="restore-selected-button" hidden="true" oncommand="Appbar.dispatchContextualAction('restore')"/>
+        <toolbarbutton id="pin-selected-button" hidden="true" oncommand="Appbar.dispatchContextualAction('pin')"/>
+        <toolbarbutton id="unpin-selected-button" hidden="true" oncommand="Appbar.dispatchContextualAction('unpin')"/>
       </hbox>
       <hbox flex="1">
         <toolbarbutton id="download-button" oncommand="Appbar.onDownloadButton()"/>
@@ -465,6 +462,11 @@
         <setting pref="privacy.donottrackheader.enabled" title="&optionsHeader.privacy.doNotTrack.label;" type="bool"/>
       </settings>
     </flyoutpanel>
+
+    <!-- Form Helper form validation helper popup -->
+    <arrowbox id="form-helper-validation-container" class="arrowbox-dark" flex="1" hidden="true" offset="0" top="0" left="0">
+      <label/>
+    </arrowbox>
 
 #ifdef MOZ_SERVICES_SYNC
     <box id="syncsetup-container" class="perm-modal-block" hidden="true">
@@ -676,11 +678,6 @@
       </vbox>
     </hbox>
   </stack>
-
-  <html:div id="overlay-back" class="overlay-button"
-            observes="cmd_back" onclick="CommandUpdater.doCommand('cmd_back');"></html:div>
-  <html:div id="overlay-plus" class="overlay-button"
-            observes="cmd_back" onclick="CommandUpdater.doCommand('cmd_newTab');"></html:div>
 
   <svg:svg height="0">
     <svg:clipPath id="forward-button-clip-path" clipPathUnits="objectBoundingBox">

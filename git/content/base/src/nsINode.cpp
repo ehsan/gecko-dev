@@ -28,7 +28,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsCycleCollector.h"
 #include "nsDocument.h"
-#include "mozilla/dom/Attr.h"
+#include "nsDOMAttribute.h"
 #include "nsDOMAttributeMap.h"
 #include "nsDOMCID.h"
 #include "nsDOMCSSAttrDeclaration.h"
@@ -1368,21 +1368,6 @@ nsINode::doInsertChildAt(nsIContent* aKid, uint32_t aIndex,
   }
 
   return NS_OK;
-}
-
-void
-nsINode::Remove()
-{
-  nsINode* parent = GetParentNode();
-  if (!parent) {
-    return;
-  }
-  int32_t index = parent->IndexOf(this);
-  if (index < 0) {
-    NS_WARNING("Ignoring call to nsINode::Remove on anonymous child.");
-    return;
-  }
-  parent->RemoveChildAt(uint32_t(index), true);
 }
 
 void

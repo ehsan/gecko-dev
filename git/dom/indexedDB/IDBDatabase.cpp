@@ -144,7 +144,8 @@ private:
   nsRefPtr<FileInfo> mFileInfo;
 };
 
-class MOZ_STACK_CLASS AutoRemoveObjectStore
+NS_STACK_CLASS
+class AutoRemoveObjectStore
 {
 public:
   AutoRemoveObjectStore(DatabaseInfo* aInfo, const nsAString& aName)

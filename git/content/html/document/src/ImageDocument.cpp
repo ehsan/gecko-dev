@@ -88,7 +88,7 @@ public:
   virtual void SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject);
   virtual void Destroy();
   virtual void OnPageShow(bool aPersisted,
-                          EventTarget* aDispatchStartTarget);
+                          nsIDOMEventTarget* aDispatchStartTarget);
 
   NS_DECL_NSIIMAGEDOCUMENT
   NS_DECL_IMGINOTIFICATIONOBSERVER
@@ -297,7 +297,7 @@ ImageDocument::Destroy()
 {
   if (mImageContent) {
     // Remove our event listener from the image content.
-    nsCOMPtr<EventTarget> target = do_QueryInterface(mImageContent);
+    nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(mImageContent);
     target->RemoveEventListener(NS_LITERAL_STRING("click"), this, false);
 
     // Break reference cycle with mImageContent, if we have one
@@ -324,7 +324,7 @@ ImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
 {
   // If the script global object is changing, we need to unhook our event
   // listeners on the window.
-  nsCOMPtr<EventTarget> target;
+  nsCOMPtr<nsIDOMEventTarget> target;
   if (mScriptGlobalObject &&
       aScriptGlobalObject != mScriptGlobalObject) {
     target = do_QueryInterface(mScriptGlobalObject);
@@ -365,7 +365,7 @@ ImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
 
 void
 ImageDocument::OnPageShow(bool aPersisted,
-                          EventTarget* aDispatchStartTarget)
+                          nsIDOMEventTarget* aDispatchStartTarget)
 {
   if (aPersisted) {
     mOriginalZoomLevel =
@@ -664,6 +664,7 @@ ImageDocument::CreateSyntheticDocument()
     nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::style, nullptr,
                                              kNameSpaceID_XHTML,
                                              nsIDOMNode::ELEMENT_NODE);
+    NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
     nsRefPtr<nsGenericHTMLElement> styleContent = NS_NewHTMLStyleElement(nodeInfo.forget());
     NS_ENSURE_TRUE(styleContent, NS_ERROR_OUT_OF_MEMORY);
 
@@ -683,6 +684,7 @@ ImageDocument::CreateSyntheticDocument()
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::img, nullptr,
                                            kNameSpaceID_XHTML,
                                            nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   mImageContent = NS_NewHTMLImageElement(nodeInfo.forget());
   if (!mImageContent) {

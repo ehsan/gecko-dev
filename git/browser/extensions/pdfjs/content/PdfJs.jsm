@@ -192,7 +192,6 @@ let PdfJs = {
     var handlerInfo = Svc.mime.
                         getFromTypeAndExtension('application/pdf', 'pdf');
     return handlerInfo.alwaysAskBeforeHandling == false &&
-           handlerInfo.plugin == null &&
            handlerInfo.preferredAction == Ci.nsIHandlerInfo.handleInternally;
   },
 

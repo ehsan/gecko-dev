@@ -95,7 +95,7 @@ enum sdpTestFlags
   SHOULD_OMIT_VIDEO     = (1<<12),
   DONT_CHECK_VIDEO      = (1<<13),
 
-  SHOULD_INCLUDE_DATA   = (1 << 16),
+  SHOULD_OMIT_DATA      = (1 << 16),
   DONT_CHECK_DATA       = (1 << 17),
 
   SHOULD_SENDRECV_AUDIO = SHOULD_SEND_AUDIO | SHOULD_RECV_AUDIO,
@@ -175,7 +175,7 @@ public:
 
   ResponseState state;
   char *lastString;
-  sipcc::PeerConnectionImpl::Error lastStatusCode;
+  uint32_t lastStatusCode;
   uint32_t lastStateType;
   int addIceSuccessCount;
   bool onAddStreamCalled;
@@ -199,12 +199,11 @@ TestObserver::OnCreateOfferSuccess(const char* offer)
 }
 
 NS_IMETHODIMP
-TestObserver::OnCreateOfferError(uint32_t code, const char *message)
+TestObserver::OnCreateOfferError(uint32_t code)
 {
-  lastStatusCode = static_cast<sipcc::PeerConnectionImpl::Error>(code);
+  lastStatusCode = code;
   state = stateError;
-  cout << "onCreateOfferError = " << code
-    << " (" << message << ")" << endl;
+  cout << "onCreateOfferError" << endl;
   return NS_OK;
 }
 
@@ -218,50 +217,47 @@ TestObserver::OnCreateAnswerSuccess(const char* answer)
 }
 
 NS_IMETHODIMP
-TestObserver::OnCreateAnswerError(uint32_t code, const char *message)
+TestObserver::OnCreateAnswerError(uint32_t code)
 {
-  lastStatusCode = static_cast<sipcc::PeerConnectionImpl::Error>(code);
-  cout << "onCreateAnswerError = " << code
-    << " (" << message << ")" << endl;
+  lastStatusCode = code;
+  cout << "onCreateAnswerError = " << code << endl;
   state = stateError;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnSetLocalDescriptionSuccess()
+TestObserver::OnSetLocalDescriptionSuccess(uint32_t code)
 {
-  lastStatusCode = sipcc::PeerConnectionImpl::kNoError;
+  lastStatusCode = code;
   state = stateSuccess;
-  cout << "onSetLocalDescriptionSuccess" << endl;
+  cout << "onSetLocalDescriptionSuccess = " << code << endl;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnSetRemoteDescriptionSuccess()
+TestObserver::OnSetRemoteDescriptionSuccess(uint32_t code)
 {
-  lastStatusCode = sipcc::PeerConnectionImpl::kNoError;
+  lastStatusCode = code;
   state = stateSuccess;
-  cout << "onSetRemoteDescriptionSuccess = " << endl;
+  cout << "onSetRemoteDescriptionSuccess = " << code << endl;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnSetLocalDescriptionError(uint32_t code, const char *message)
+TestObserver::OnSetLocalDescriptionError(uint32_t code)
 {
-  lastStatusCode = static_cast<sipcc::PeerConnectionImpl::Error>(code);
+  lastStatusCode = code;
   state = stateError;
-  cout << "onSetLocalDescriptionError = " << code
-    << " (" << message << ")" << endl;
+  cout << "onSetLocalDescriptionError = " << code << endl;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnSetRemoteDescriptionError(uint32_t code, const char *message)
+TestObserver::OnSetRemoteDescriptionError(uint32_t code)
 {
-  lastStatusCode = static_cast<sipcc::PeerConnectionImpl::Error>(code);
+  lastStatusCode = code;
   state = stateError;
-  cout << "onSetRemoteDescriptionError = " << code
-    << " (" << message << ")" << endl;
+  cout << "onSetRemoteDescriptionError = " << code << endl;
   return NS_OK;
 }
 
@@ -377,21 +373,20 @@ TestObserver::FoundIceCandidate(const char* strCandidate)
 }
 
 NS_IMETHODIMP
-TestObserver::OnAddIceCandidateSuccess()
+TestObserver::OnAddIceCandidateSuccess(uint32_t code)
 {
-  lastStatusCode = sipcc::PeerConnectionImpl::kNoError;
+  lastStatusCode = code;
   state = stateSuccess;
   addIceSuccessCount++;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TestObserver::OnAddIceCandidateError(uint32_t code, const char *message)
+TestObserver::OnAddIceCandidateError(uint32_t code)
 {
-  lastStatusCode = static_cast<sipcc::PeerConnectionImpl::Error>(code);
+  lastStatusCode = code;
   state = stateError;
-  cout << "onAddIceCandidateError = " << code
-    << " (" << message << ")" << endl;
+  cout << "onAddIceCandidateError = " << code << endl;
   return NS_OK;
 }
 
@@ -528,24 +523,25 @@ class ParsedSDP {
 
 class SignalingAgent {
  public:
-  SignalingAgent() : pc(nullptr) {
-    cfg_.addStunServer("23.21.150.121", 3478);
-
-    pc = sipcc::PeerConnectionImpl::CreatePeerConnection();
-    EXPECT_TRUE(pc);
-  }
+  SignalingAgent() : pc(nullptr) {}
 
   ~SignalingAgent() {
-    mozilla::SyncRunnable::DispatchToThread(gThread,
+    mozilla::SyncRunnable::DispatchToThread(pc->GetMainThread(),
       WrapRunnable(this, &SignalingAgent::Close));
   }
 
   void Init_m(nsCOMPtr<nsIThread> thread)
   {
+    pc = sipcc::PeerConnectionImpl::CreatePeerConnection();
+    ASSERT_TRUE(pc);
+
     pObserver = new TestObserver(pc);
     ASSERT_TRUE(pObserver);
 
-    ASSERT_EQ(pc->Initialize(pObserver, nullptr, cfg_, thread), NS_OK);
+    sipcc::IceConfiguration cfg;
+    cfg.addServer("23.21.150.121", 3478);
+    ASSERT_EQ(pc->Initialize(pObserver, nullptr, cfg, thread), NS_OK);
+
   }
 
   void Init(nsCOMPtr<nsIThread> thread)
@@ -596,12 +592,10 @@ class SignalingAgent {
 
   void Close()
   {
-    if (pc) {
-      cout << "Close" << endl;
+    cout << "Close" << endl;
 
-      pc->Close(false);
-      pc = nullptr;
-    }
+    pc->Close(false);
+    pc = nullptr;
 
     // Shutdown is synchronous evidently.
     // ASSERT_TRUE(pObserver->WaitForObserverCall());
@@ -850,7 +844,6 @@ public:
   char* offer_;
   char* answer_;
   nsRefPtr<DOMMediaStream> domMediaStream_;
-  sipcc::IceConfiguration cfg_;
 
 private:
   void SDPSanityCheck(std::string sdp, uint32_t flags, bool offer)
@@ -879,7 +872,7 @@ private:
          << ((flags & SHOULD_OMIT_VIDEO)?" SHOULD_OMIT_VIDEO":"")
          << ((flags & DONT_CHECK_VIDEO)?" DONT_CHECK_VIDEO":"")
 
-         << ((flags & SHOULD_INCLUDE_DATA)?" SHOULD_INCLUDE_DATA":"")
+         << ((flags & SHOULD_OMIT_DATA)?" SHOULD_OMIT_DATA":"")
          << ((flags & DONT_CHECK_DATA)?" DONT_CHECK_DATA":"")
          << endl;
 
@@ -957,10 +950,10 @@ private:
             ASSERT_FALSE("Missing case in switch statement");
     }
 
-    if (flags & SHOULD_INCLUDE_DATA) {
-      ASSERT_NE(sdp.find("m=application"), std::string::npos);
-    } else if (!(flags & DONT_CHECK_DATA)) {
+    if (flags & SHOULD_OMIT_DATA) {
       ASSERT_EQ(sdp.find("m=application"), std::string::npos);
+    } else if (!(flags & DONT_CHECK_DATA)) {
+      ASSERT_NE(sdp.find("m=application"), std::string::npos);
     }
   }
 };
@@ -994,19 +987,6 @@ class SignalingAgentTest : public ::testing::Test {
     agents_.push_back(agent.forget());
 
     return true;
-  }
-
-  void CreateAgentNoInit() {
-    ScopedDeletePtr<SignalingAgent> agent(new SignalingAgent());
-    agents_.push_back(agent.forget());
-  }
-
-  bool InitAgent(size_t i) {
-    return agents_[i]->InitAllowFail(gThread);
-  }
-
-  SignalingAgent *agent(size_t i) {
-    return agents_[i];
   }
 
  private:
@@ -1196,6 +1176,15 @@ TEST_F(SignalingTest, CreateOfferNoAudioStream)
   constraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
   CreateOffer(constraints, OFFER_VIDEO,
               SHOULD_OMIT_AUDIO | SHOULD_SENDRECV_VIDEO);
+}
+
+TEST_F(SignalingTest, CreateOfferNoDataChannel)
+{
+  sipcc::MediaConstraints constraints;
+  constraints.setBooleanConstraint("OfferToReceiveAudio", true, false);
+  constraints.setBooleanConstraint("OfferToReceiveVideo", true, false);
+  constraints.setBooleanConstraint("MozDontOfferDataChannel", true, false);
+  CreateOffer(constraints, OFFER_AV, SHOULD_SENDRECV_AV | SHOULD_OMIT_DATA);
 }
 
 TEST_F(SignalingTest, CreateOfferDontReceiveAudio)
@@ -1985,11 +1974,6 @@ TEST_F(SignalingAgentTest, CreateUntilFailThenWait) {
   }
   std::cerr << "Failed after creating " << i << " PCs " << std::endl;
   PR_Sleep(10000);  // Wait to see if we crash
-}
-
-// Test for bug 856433.
-TEST_F(SignalingAgentTest, CreateNoInit) {
-  CreateAgentNoInit();
 }
 
 /*

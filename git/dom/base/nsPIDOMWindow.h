@@ -13,12 +13,12 @@
 #include "nsIDOMLocation.h"
 #include "nsIDOMXULCommandDispatcher.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMDocument.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
 #include "nsIURI.h"
-#include "mozilla/dom/EventTarget.h"
 
 #include "js/RootingAPI.h"
 
@@ -58,8 +58,8 @@ class AudioContext;
 }
 
 #define NS_PIDOMWINDOW_IID \
-{ 0x01decdb6, 0xd8ca, 0x401b, \
-  { 0x8b, 0xd1, 0x85, 0x83, 0x2c, 0xe9, 0x92, 0x0e } }
+{ 0x287be48c, 0x3a7a, 0x48ce, \
+  { 0x80, 0x0f, 0x05, 0x39, 0x52, 0x08, 0x2e, 0xe7 } }
 
 class nsPIDOMWindow : public nsIDOMWindowInternal
 {
@@ -104,14 +104,14 @@ public:
     return mIsBackground;
   }
 
-  mozilla::dom::EventTarget* GetChromeEventHandler() const
+  nsIDOMEventTarget* GetChromeEventHandler() const
   {
     return mChromeEventHandler;
   }
 
-  virtual void SetChromeEventHandler(mozilla::dom::EventTarget* aChromeEventHandler) = 0;
+  virtual void SetChromeEventHandler(nsIDOMEventTarget* aChromeEventHandler) = 0;
 
-  mozilla::dom::EventTarget* GetParentTarget()
+  nsIDOMEventTarget* GetParentTarget()
   {
     if (!mParentTarget) {
       UpdateParentTarget();
@@ -660,7 +660,7 @@ protected:
 
   ~nsPIDOMWindow();
 
-  void SetChromeEventHandlerInternal(mozilla::dom::EventTarget* aChromeEventHandler) {
+  void SetChromeEventHandlerInternal(nsIDOMEventTarget* aChromeEventHandler) {
     mChromeEventHandler = aChromeEventHandler;
     // mParentTarget will be set when the next event is dispatched.
     mParentTarget = nullptr;
@@ -674,14 +674,14 @@ protected:
   // These two variables are special in that they're set to the same
   // value on both the outer window and the current inner window. Make
   // sure you keep them in sync!
-  nsCOMPtr<mozilla::dom::EventTarget> mChromeEventHandler; // strong
+  nsCOMPtr<nsIDOMEventTarget> mChromeEventHandler; // strong
   nsCOMPtr<nsIDOMDocument> mDocument; // strong
   nsCOMPtr<nsIDocument> mDoc; // strong, for fast access
   // Cache the URI when mDoc is cleared.
   nsCOMPtr<nsIURI> mDocumentURI; // strong
   nsCOMPtr<nsIURI> mDocBaseURI; // strong
 
-  nsCOMPtr<mozilla::dom::EventTarget> mParentTarget; // strong
+  nsCOMPtr<nsIDOMEventTarget> mParentTarget; // strong
 
   // These members are only used on outer windows.
   nsCOMPtr<nsIDOMElement> mFrameElement;

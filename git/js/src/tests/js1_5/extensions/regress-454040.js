@@ -21,5 +21,6 @@ try
 }
 catch(ex)
 {
+  print(ex + '');
 }
 reportCompare(expect, actual, summary);

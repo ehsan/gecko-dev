@@ -15,14 +15,11 @@
  * http://www.w3.org/TR/DOM-Level-2-Core/
  */
 
-[scriptable, uuid(aa7d28b2-7122-422d-8fcf-634771fb9ac1)]
+[scriptable, uuid(4caa34a7-27f6-42d3-9d7f-f631334d849d)]
 interface nsIDOMDocumentType : nsIDOMNode
 {
   readonly attribute  DOMString            name;
   readonly attribute  DOMString            publicId;
   readonly attribute  DOMString            systemId;
   readonly attribute  DOMString            internalSubset;
-
-  [binaryname(MozRemove)]
-  void remove();
 };

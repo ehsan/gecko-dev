@@ -50,7 +50,11 @@ HTMLTemplateElement::Init()
     NS_ENSURE_TRUE(contentsOwner, NS_ERROR_UNEXPECTED);
   }
 
-  mContent = contentsOwner->CreateDocumentFragment();
+  ErrorResult rv;
+  mContent = contentsOwner->CreateDocumentFragment(rv);
+  if (rv.Failed()) {
+    return rv.ErrorCode();
+  }
   mContent->SetHost(this);
 
   return NS_OK;

@@ -56,10 +56,6 @@
 #include "mozAutoDocUpdate.h"
 #include "nsMimeTypes.h"
 #include "nsHtml5SVGLoadDispatcher.h"
-#include "nsTextNode.h"
-#include "mozilla/dom/CDATASection.h"
-#include "mozilla/dom/Comment.h"
-#include "mozilla/dom/ProcessingInstruction.h"
 
 using namespace mozilla::dom;
 
@@ -529,8 +525,10 @@ nsXMLContentSink::CloseElement(nsIContent* aContent)
   if ((nodeInfo->NamespaceID() == kNameSpaceID_XHTML &&
        (nodeInfo->NameAtom() == nsGkAtoms::select ||
         nodeInfo->NameAtom() == nsGkAtoms::textarea ||
+#ifdef MOZ_MEDIA
         nodeInfo->NameAtom() == nsGkAtoms::video ||
         nodeInfo->NameAtom() == nsGkAtoms::audio ||
+#endif
         nodeInfo->NameAtom() == nsGkAtoms::object ||
         nodeInfo->NameAtom() == nsGkAtoms::applet))
       || nodeInfo->NameAtom() == nsGkAtoms::title
@@ -802,7 +800,10 @@ nsXMLContentSink::FlushText(bool aReleaseTextNode)
         mTextLength = 0;
       }
     } else {
-      nsRefPtr<nsTextNode> textContent = new nsTextNode(mNodeInfoManager);
+      nsCOMPtr<nsIContent> textContent;
+      rv = NS_NewTextNode(getter_AddRefs(textContent),
+                          mNodeInfoManager);
+      NS_ENSURE_SUCCESS(rv, rv);
 
       mLastTextNode = textContent;
       
@@ -983,6 +984,7 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(localName, prefix, nameSpaceID,
                                            nsIDOMNode::ELEMENT_NODE);
+  NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   result = CreateElement(aAtts, aAttsCount, nodeInfo, aLineNumber,
                          getter_AddRefs(content), &appendContent,
@@ -1026,9 +1028,13 @@ nsXMLContentSink::HandleStartElement(const PRUnichar *aName,
   if (nodeInfo->NamespaceID() == kNameSpaceID_XHTML) {
     if (nodeInfo->NameAtom() == nsGkAtoms::input ||
         nodeInfo->NameAtom() == nsGkAtoms::button ||
-        nodeInfo->NameAtom() == nsGkAtoms::menuitem ||
+        nodeInfo->NameAtom() == nsGkAtoms::menuitem
+#ifdef MOZ_MEDIA
+        ||
         nodeInfo->NameAtom() == nsGkAtoms::audio ||
-        nodeInfo->NameAtom() == nsGkAtoms::video) {
+        nodeInfo->NameAtom() == nsGkAtoms::video
+#endif
+        ) {
       content->DoneCreatingElement();
     } else if (nodeInfo->NameAtom() == nsGkAtoms::head && !mCurrentHead) {
       mCurrentHead = content;
@@ -1135,10 +1141,13 @@ nsXMLContentSink::HandleComment(const PRUnichar *aName)
 {
   FlushText();
 
-  nsRefPtr<Comment> comment = new Comment(mNodeInfoManager);
-  comment->SetText(nsDependentString(aName), false);
-  nsresult rv = AddContentAsLeaf(comment);
-  DidAddContent();
+  nsCOMPtr<nsIContent> comment;
+  nsresult rv = NS_NewCommentNode(getter_AddRefs(comment), mNodeInfoManager);
+  if (comment) {
+    comment->SetText(nsDependentString(aName), false);
+    rv = AddContentAsLeaf(comment);
+    DidAddContent();
+  }
 
   return NS_SUCCEEDED(rv) ? DidProcessATokenImpl() : rv;
 }
@@ -1155,10 +1164,13 @@ nsXMLContentSink::HandleCDataSection(const PRUnichar *aData,
 
   FlushText();
   
-  nsRefPtr<CDATASection> cdata = new CDATASection(mNodeInfoManager);
-  cdata->SetText(aData, aLength, false);
-  nsresult rv = AddContentAsLeaf(cdata);
-  DidAddContent();
+  nsCOMPtr<nsIContent> cdata;
+  nsresult rv = NS_NewXMLCDATASection(getter_AddRefs(cdata), mNodeInfoManager);
+  if (cdata) {
+    cdata->SetText(aData, aLength, false);
+    rv = AddContentAsLeaf(cdata);
+    DidAddContent();
+  }
 
   return NS_SUCCEEDED(rv) ? DidProcessATokenImpl() : rv;
 }
@@ -1244,8 +1256,11 @@ nsXMLContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
   const nsDependentString target(aTarget);
   const nsDependentString data(aData);
 
-  nsCOMPtr<nsIContent> node =
-    NS_NewXMLProcessingInstruction(mNodeInfoManager, target, data);
+  nsCOMPtr<nsIContent> node;
+
+  nsresult rv = NS_NewXMLProcessingInstruction(getter_AddRefs(node),
+                                               mNodeInfoManager, target, data);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIStyleSheetLinkingElement> ssle(do_QueryInterface(node));
   if (ssle) {
@@ -1254,7 +1269,7 @@ nsXMLContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
     mPrettyPrintXML = false;
   }
 
-  nsresult rv = AddContentAsLeaf(node);
+  rv = AddContentAsLeaf(node);
   NS_ENSURE_SUCCESS(rv, rv);
   DidAddContent();
 

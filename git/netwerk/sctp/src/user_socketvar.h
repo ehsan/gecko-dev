@@ -59,22 +59,21 @@
 #define SS_CANTRCVMORE 0x020
 #define SS_CANTSENDMORE 0x010
 
-#if defined (__Userspace_os_FreeBSD) || defined(__Userspace_os_OpenBSD) || defined(__Userspace_os_Darwin) || defined (__Userspace_os_Windows)
+#if defined (__Userspace_os_FreeBSD) || defined(__Userspace_os_Darwin) || defined (__Userspace_os_Windows)
 #define UIO_MAXIOV 1024
 #define ERESTART (-1)
 #endif
 
-#if !defined(__Userspace_os_Darwin) && !defined(__Userspace_os_OpenBSD)
+#if !defined(__Userspace_os_Darwin)
 enum	uio_rw { UIO_READ, UIO_WRITE };
 #endif
 
-#if !defined(__Userspace_os_OpenBSD)
 /* Segment flag values. */
 enum uio_seg {
 	UIO_USERSPACE,		/* from user data space */
-	UIO_SYSSPACE		/* from system space */
+	UIO_SYSSPACE,		/* from system space */
+	UIO_NOCOPY		/* don't copy, already in object */
 };
-#endif
 
 struct proc {
     int stub; /* struct proc is a dummy for __Userspace__ */
@@ -274,9 +273,9 @@ extern userland_mutex_t accept_mtx;
 	InitializeCriticalSection(SOCKBUF_MTX(_sb))
 #define SOCKBUF_LOCK_DESTROY(_sb) DeleteCriticalSection(SOCKBUF_MTX(_sb))
 #define SOCKBUF_COND_INIT(_sb) InitializeConditionVariable((&(_sb)->sb_cond))
-#define SOCKBUF_COND_DESTROY(_sb) DeleteConditionVariable((&(_sb)->sb_cond))
+#define SOCKBUF_COND_DESTROY(_sb)
 #define SOCK_COND_INIT(_so) InitializeConditionVariable((&(_so)->timeo_cond))
-#define SOCK_COND_DESTROY(_so) DeleteConditionVariable((&(_so)->timeo_cond))
+#define SOCK_COND_DESTROY(_so)
 #define SOCK_COND(_so) (&(_so)->timeo_cond)
 #else
 #define SOCKBUF_LOCK_INIT(_sb, _name) \
@@ -794,6 +793,7 @@ extern int sctp6_connect(struct socket *so, struct sockaddr *addr);
 #if defined(__Userspace__)
 extern int sctpconn_connect(struct socket *so, struct sockaddr *addr);
 #endif
+extern struct mbuf* mbufalloc(size_t size, void* data, unsigned char fill);
 extern void sctp_finish(void);
 
 /* ------------------------------------------------ */

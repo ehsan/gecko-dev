@@ -10,6 +10,7 @@
 #include "nsIRDFLiteral.h"
 #include "nsIRDFResource.h"
 #include "nsIRDFService.h"
+#include "nsISupportsArray.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "mozilla/Attributes.h"

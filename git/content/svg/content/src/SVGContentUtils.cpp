@@ -260,13 +260,13 @@ SVGContentUtils::AngleBisect(float a1, float a2)
 {
   float delta = fmod(a2 - a1, static_cast<float>(2*M_PI));
   if (delta < 0) {
-    delta += static_cast<float>(2*M_PI);
+    delta += 2*M_PI;
   }
   /* delta is now the angle from a1 around to a2, in the range [0, 2*M_PI) */
   float r = a1 + delta/2;
   if (delta >= M_PI) {
     /* the arc from a2 to a1 is smaller, so use the ray on that side */
-    r += static_cast<float>(M_PI);
+    r += M_PI;
   }
   return r;
 }

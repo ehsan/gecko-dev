@@ -81,7 +81,7 @@
 #include "nsILineIterator.h" // for ScrollContentIntoView
 #include "nsWeakPtr.h"
 #include "pldhash.h"
-#include "mozilla/dom/Touch.h"
+#include "nsDOMTouchEvent.h"
 #include "nsIObserverService.h"
 #include "nsIDocShell.h"        // for reflow observation
 #include "nsIBaseWindow.h"
@@ -115,7 +115,9 @@
 #include "nsStyleSheetService.h"
 #include "gfxImageSurface.h"
 #include "gfxContext.h"
+#ifdef MOZ_MEDIA
 #include "mozilla/dom/HTMLMediaElement.h"
+#endif
 #include "nsSMILAnimationController.h"
 #include "SVGContentUtils.h"
 #include "nsSVGUtils.h"
@@ -451,7 +453,7 @@ public:
   PresShell* mShell;
 };
 
-class MOZ_STACK_CLASS nsPresShellEventCB : public nsDispatchingCallback
+class NS_STACK_CLASS nsPresShellEventCB : public nsDispatchingCallback
 {
 public:
   nsPresShellEventCB(PresShell* aPresShell) : mPresShell(aPresShell) {}
@@ -684,6 +686,20 @@ nsIPresShell::FrameSelection()
 
 //----------------------------------------------------------------------
 
+nsresult
+NS_NewPresShell(nsIPresShell** aInstancePtrResult)
+{
+  NS_PRECONDITION(nullptr != aInstancePtrResult, "null ptr");
+
+  if (!aInstancePtrResult)
+    return NS_ERROR_NULL_POINTER;
+
+  *aInstancePtrResult = new PresShell();
+
+  NS_ADDREF(*aInstancePtrResult);
+  return NS_OK;
+}
+
 static bool sSynthMouseMove = true;
 
 PresShell::PresShell()
@@ -779,6 +795,7 @@ PresShell::Init(nsIDocument* aDocument,
   NS_PRECONDITION(nullptr != aDocument, "null ptr");
   NS_PRECONDITION(nullptr != aPresContext, "null ptr");
   NS_PRECONDITION(nullptr != aViewManager, "null ptr");
+  nsresult result;
 
   if ((nullptr == aDocument) || (nullptr == aPresContext) ||
       (nullptr == aViewManager)) {
@@ -796,7 +813,7 @@ PresShell::Init(nsIDocument* aDocument,
   mViewManager = aViewManager;
 
   // Create our frame constructor.
-  mFrameConstructor = new nsCSSFrameConstructor(mDocument, this, aStyleSet);
+  mFrameConstructor = new nsCSSFrameConstructor(mDocument, this);
 
   mFrameManager = mFrameConstructor;
 
@@ -809,7 +826,8 @@ PresShell::Init(nsIDocument* aDocument,
   aPresContext->SetShell(this);
 
   // Now we can initialize the style set.
-  aStyleSet->Init(aPresContext);
+  result = aStyleSet->Init(aPresContext);
+  NS_ENSURE_SUCCESS(result, result);
 
   // From this point on, any time we return an error we need to make
   // sure to null out mStyleSet first, since an error return from this
@@ -827,6 +845,17 @@ PresShell::Init(nsIDocument* aDocument,
   SetPreferenceStyleRules(false);
 
   NS_ADDREF(mSelection = new nsFrameSelection());
+
+  // Create and initialize the frame manager
+  // XXXjwatt it would be better if we did this right after creating
+  // mFrameConstructor, since the frame constructor and frame manager
+  // are now the same object.
+  result =  mFrameConstructor->Init(mStyleSet);
+  if (NS_FAILED(result)) {
+    NS_WARNING("Frame manager initialization failed");
+    mStyleSet = nullptr;
+    return result;
+  }
 
   mSelection->Init(this, nullptr);
 
@@ -3122,25 +3151,15 @@ ComputeWhereToScroll(int16_t aWhereToScroll,
  * 
  * This needs to work even if aRect has a width or height of zero.
  */
-static void ScrollToShowRect(nsIFrame*                aFrame,
-                             nsIScrollableFrame*      aFrameAsScrollable,
+static void ScrollToShowRect(nsIScrollableFrame*      aScrollFrame,
                              const nsRect&            aRect,
                              nsIPresShell::ScrollAxis aVertical,
                              nsIPresShell::ScrollAxis aHorizontal,
                              uint32_t                 aFlags)
 {
-  nsPoint scrollPt = aFrameAsScrollable->GetScrollPosition();
+  nsPoint scrollPt = aScrollFrame->GetScrollPosition();
   nsRect visibleRect(scrollPt,
-                     aFrameAsScrollable->GetScrollPositionClampingScrollPortSize());
-
-  // If this is the root scroll frame, make sure to take into account the
-  // content document fixed position margins. When set, these indicate that
-  // chrome is obscuring the viewport.
-  nsRect targetRect(aRect);
-  nsIPresShell *presShell = aFrame->PresContext()->PresShell();
-  if (aFrameAsScrollable == presShell->GetRootScrollFrameAsScrollable()) {
-    targetRect.Inflate(presShell->GetContentDocumentFixedPositionMargins());
-  }
+                     aScrollFrame->GetScrollPositionClampingScrollPortSize());
 
   nsSize lineSize;
   // Don't call GetLineScrollAmount unless we actually need it. Not only
@@ -3150,12 +3169,12 @@ static void ScrollToShowRect(nsIFrame*                aFrame,
   // it would assert and possible give the wrong result.
   if (aVertical.mWhenToScroll == nsIPresShell::SCROLL_IF_NOT_VISIBLE ||
       aHorizontal.mWhenToScroll == nsIPresShell::SCROLL_IF_NOT_VISIBLE) {
-    lineSize = aFrameAsScrollable->GetLineScrollAmount();
+    lineSize = aScrollFrame->GetLineScrollAmount();
   }
-  nsPresContext::ScrollbarStyles ss = aFrameAsScrollable->GetScrollbarStyles();
+  nsPresContext::ScrollbarStyles ss = aScrollFrame->GetScrollbarStyles();
   nsRect allowedRange(scrollPt, nsSize(0, 0));
   bool needToScroll = false;
-  uint32_t directions = aFrameAsScrollable->GetPerceivedScrollingDirections();
+  uint32_t directions = aScrollFrame->GetPerceivedScrollingDirections();
 
   if (((aFlags & nsIPresShell::SCROLL_OVERFLOW_HIDDEN) ||
        ss.mVertical != NS_STYLE_OVERFLOW_HIDDEN) &&
@@ -3164,15 +3183,15 @@ static void ScrollToShowRect(nsIFrame*                aFrame,
 
     if (ComputeNeedToScroll(aVertical.mWhenToScroll,
                             lineSize.height,
-                            targetRect.y,
-                            targetRect.YMost(),
+                            aRect.y,
+                            aRect.YMost(),
                             visibleRect.y,
                             visibleRect.YMost())) {
       nscoord maxHeight;
       scrollPt.y = ComputeWhereToScroll(aVertical.mWhereToScroll,
                                         scrollPt.y,
-                                        targetRect.y,
-                                        targetRect.YMost(),
+                                        aRect.y,
+                                        aRect.YMost(),
                                         visibleRect.y,
                                         visibleRect.YMost(),
                                         &allowedRange.y, &maxHeight);
@@ -3188,15 +3207,15 @@ static void ScrollToShowRect(nsIFrame*                aFrame,
 
     if (ComputeNeedToScroll(aHorizontal.mWhenToScroll,
                             lineSize.width,
-                            targetRect.x,
-                            targetRect.XMost(),
+                            aRect.x,
+                            aRect.XMost(),
                             visibleRect.x,
                             visibleRect.XMost())) {
       nscoord maxWidth;
       scrollPt.x = ComputeWhereToScroll(aHorizontal.mWhereToScroll,
                                         scrollPt.x,
-                                        targetRect.x,
-                                        targetRect.XMost(),
+                                        aRect.x,
+                                        aRect.XMost(),
                                         visibleRect.x,
                                         visibleRect.XMost(),
                                         &allowedRange.x, &maxWidth);
@@ -3208,7 +3227,7 @@ static void ScrollToShowRect(nsIFrame*                aFrame,
   // If we don't need to scroll, then don't try since it might cancel
   // a current smooth scroll operation.
   if (needToScroll) {
-    aFrameAsScrollable->ScrollTo(scrollPt, nsIScrollableFrame::INSTANT, &allowedRange);
+    aScrollFrame->ScrollTo(scrollPt, nsIScrollableFrame::INSTANT, &allowedRange);
   }
 }
 
@@ -3347,7 +3366,7 @@ PresShell::ScrollFrameRectIntoView(nsIFrame*                aFrame,
     nsIScrollableFrame* sf = do_QueryFrame(container);
     if (sf) {
       nsPoint oldPosition = sf->GetScrollPosition();
-      ScrollToShowRect(container, sf, rect - sf->GetScrolledFrame()->GetPosition(),
+      ScrollToShowRect(sf, rect - sf->GetScrolledFrame()->GetPosition(),
                        aVertical, aHorizontal, aFlags);
       nsPoint newPosition = sf->GetScrollPosition();
       // If the scroll position increased, that means our content moved up,
@@ -4481,9 +4500,10 @@ PresShell::ClipListToRange(nsDisplayListBuilder *aBuilder,
   // determined. To do this, remove an item from the bottom of the list, check
   // whether it should be part of the range, and if so, append it to the top
   // of the temporary list tmpList. If the item is a text frame at the end of
-  // the selection range, clip it to the portion of the text frame that is
-  // part of the selection. Then, append the wrapper to the top of the list.
-  // Otherwise, just delete the item and don't append it.
+  // the selection range, wrap it in an nsDisplayClip to clip the display to
+  // the portion of the text frame that is part of the selection. Then, append
+  // the wrapper to the top of the list. Otherwise, just delete the item and
+  // don't append it.
   nsRect surfaceRect;
   nsDisplayList tmpList;
 
@@ -4522,11 +4542,11 @@ PresShell::ClipListToRange(nsDisplayListBuilder *aBuilder,
             textRect.width = std::max(startPoint.x, endPoint.x) - x;
             surfaceRect.UnionRect(surfaceRect, textRect);
 
-            DisplayItemClip newClip;
-            newClip.SetTo(textRect);
-            newClip.IntersectWith(i->GetClip());
-            i->SetClip(aBuilder, newClip);
-            itemToInsert = i;
+            // wrap the item in an nsDisplayClip so that it can be clipped to
+            // the selection. If the allocation fails, fall through and delete
+            // the item below.
+            itemToInsert = new (aBuilder)
+                nsDisplayClip(aBuilder, frame, i, textRect);
           }
         }
         // Don't try to descend into subdocuments.
@@ -6156,7 +6176,7 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
         for (int32_t i = touchEvent->touches.Length(); i; ) {
           --i;
           nsIDOMTouch *touch = touchEvent->touches[i];
-          Touch *domtouch = static_cast<Touch*>(touch);
+          nsDOMTouch *domtouch = static_cast<nsDOMTouch*>(touch);
           touch->mMessage = aEvent->message;
 
           int32_t id = 0;
@@ -6226,7 +6246,9 @@ PresShell::HandleEvent(nsIFrame        *aFrame,
             nsCOMPtr<nsIDOMTouch> oldTouch;
             gCaptureTouchList.Get(id, getter_AddRefs(oldTouch));
             if (oldTouch) {
-              domtouch->SetTarget(oldTouch->GetTarget());
+              nsCOMPtr<nsIDOMEventTarget> targetPtr;
+              oldTouch->GetTarget(getter_AddRefs(targetPtr));
+              domtouch->SetTarget(targetPtr);
               gCaptureTouchList.Put(id, touch);
             }
           }
@@ -6686,7 +6708,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
         nsTArray<nsCOMPtr<nsIDOMTouch> >  &touches = touchEvent->touches;
         for (uint32_t i = 0; i < touches.Length(); ++i) {
           nsIDOMTouch *touch = touches[i];
-          Touch *domtouch = static_cast<Touch*>(touch);
+          nsDOMTouch *domtouch = static_cast<nsDOMTouch*>(touch);
           if (!touch) {
             continue;
           }
@@ -6701,7 +6723,8 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
           if (!oldTouch) {
             continue;
           }
-          nsCOMPtr<EventTarget> targetPtr = oldTouch->GetTarget();
+          nsCOMPtr<nsIDOMEventTarget> targetPtr;
+          oldTouch->GetTarget(getter_AddRefs(targetPtr));
 
           mCurrentEventContent = do_QueryInterface(targetPtr);
           domtouch->SetTarget(targetPtr);
@@ -6719,7 +6742,7 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
         for (int32_t i = touches.Length(); i; ) {
           --i;
           nsIDOMTouch *touch = touches[i];
-          Touch *domtouch = static_cast<Touch*>(touch);
+          nsDOMTouch *domtouch = static_cast<nsDOMTouch*>(touch);
           if (!touch) {
             continue;
           }
@@ -6738,7 +6761,8 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsEventStatus* aStatus)
             haveChanged = true;
           }
 
-          nsCOMPtr<EventTarget> targetPtr = oldTouch->GetTarget();
+          nsCOMPtr<nsIDOMEventTarget> targetPtr;
+          oldTouch->GetTarget(getter_AddRefs(targetPtr));
           if (!targetPtr) {
             touches.RemoveElementAt(i);
             continue;
@@ -6890,7 +6914,8 @@ PresShell::DispatchTouchEvent(nsEvent *aEvent,
       continue;
     }
 
-    nsCOMPtr<EventTarget> targetPtr = touch->GetTarget();
+    nsCOMPtr<nsIDOMEventTarget> targetPtr;
+    touch->GetTarget(getter_AddRefs(targetPtr));
     nsCOMPtr<nsIContent> content = do_QueryInterface(targetPtr);
     if (!content) {
       continue;
@@ -6930,8 +6955,7 @@ PresShell::DispatchTouchEvent(nsEvent *aEvent,
     tmpStatus = nsEventStatus_eIgnore;
     nsEventDispatcher::Dispatch(targetPtr, context,
                                 &newEvent, nullptr, &tmpStatus, aEventCB);
-    if (nsEventStatus_eConsumeNoDefault == tmpStatus ||
-        newEvent.mFlags.mMultipleActionsPrevented) {
+    if (nsEventStatus_eConsumeNoDefault == tmpStatus) {
       preventDefault = true;
     }
 

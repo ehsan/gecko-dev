@@ -23,10 +23,6 @@ struct WatchKey {
     WatchKey(const WatchKey &key) : object(key.object.get()), id(key.id.get()) {}
     EncapsulatedPtrObject object;
     EncapsulatedId id;
-
-    bool operator!=(const WatchKey &other) const {
-        return object != other.object || id != other.id;
-    }
 };
 
 struct Watchpoint {

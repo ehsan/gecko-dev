@@ -17,7 +17,6 @@ include protocol PIndexedDB;
 include protocol PMemoryReportRequest;
 include protocol PNecko;
 include protocol PSms;
-include protocol PSpeechSynthesis;
 include protocol PStorage;
 include protocol PTestShell;
 include DOMTypes;
@@ -92,7 +91,6 @@ struct DeviceStorageUsedSpaceParams
 struct DeviceStorageAvailableParams
 {
   nsString type;
-  nsString fullpath;
 };
 
 struct DeviceStorageAddParams
@@ -261,7 +259,6 @@ rpc protocol PContent
     manages PMemoryReportRequest;
     manages PNecko;
     manages PSms;
-    manages PSpeechSynthesis;
     manages PStorage;
     manages PTestShell;
 
@@ -309,12 +306,12 @@ child:
     async AudioChannelNotify();
 
     /**
-     * Do a memory info dump to a file in our temp directory.
+     * Dump the contents of about:memory to a file in our temp directory.
      *
      * For documentation on the args, see
-     * MemoryInfoDumper::dumpMemoryInfoToTempDir.
+     * MemoryInfoDumper::dumpMemoryReportsToFile.
      */
-    async DumpMemoryInfoToTempDir(nsString identifier,
+    async DumpMemoryReportsToFile(nsString identifier,
                                   bool minimizeMemoryUsage,
                                   bool dumpChildProcesses);
 
@@ -398,9 +395,7 @@ parent:
     PNecko();
 
     PSms();
-
-    PSpeechSynthesis();
-
+    
     PStorage(StorageConstructData data);
 
     PBluetooth();

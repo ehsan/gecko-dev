@@ -12,11 +12,14 @@ include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME	= gkcontentsvg_s
 LIBXUL_LIBRARY	= 1
+ifndef _MSC_VER
 FAIL_ON_WARNINGS	= 1
+endif # !_MSC_VER
 
 CPPSRCS		= \
 		DOMSVGAnimatedLengthList.cpp \
 		DOMSVGAnimatedNumberList.cpp \
+		DOMSVGAnimatedTransformList.cpp \
 		DOMSVGLength.cpp \
 		DOMSVGLengthList.cpp \
 		DOMSVGNumber.cpp \
@@ -26,11 +29,11 @@ CPPSRCS		= \
 		DOMSVGPoint.cpp \
 		DOMSVGPointList.cpp \
 		DOMSVGStringList.cpp \
+		DOMSVGTransform.cpp \
 		DOMSVGTransformList.cpp \
 		nsDOMSVGZoomEvent.cpp \
 		nsISVGPoint.cpp \
 		nsSVGAngle.cpp \
-		nsSVGAnimatedTransformList.cpp \
 		nsSVGBoolean.cpp \
 		nsSVGClass.cpp \
 		nsSVGDataParser.cpp \
@@ -47,7 +50,6 @@ CPPSRCS		= \
 		nsSVGPathGeometryElement.cpp \
 		nsSVGPolyElement.cpp \
 		nsSVGString.cpp \
-		nsSVGTransform.cpp \
 		nsSVGViewBox.cpp \
 		SVGAElement.cpp \
 		SVGAltGlyphElement.cpp \
@@ -156,7 +158,6 @@ CPPSRCS		= \
 		$(NULL)
 
 include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 # we don't want the shared lib, but we want to force the creation of a static lib.
 FORCE_STATIC_LIB = 1
@@ -172,14 +173,12 @@ EXPORTS =  			\
 EXPORTS_NAMESPACES = mozilla/dom
 
 EXPORTS_mozilla/dom = \
-	nsSVGAnimatedTransformList.h \
 	SVGAElement.h \
 	SVGAltGlyphElement.h \
 	SVGAngle.h \
 	SVGAnimatedAngle.h \
 	SVGAnimatedBoolean.h \
 	SVGAnimatedLength.h \
-	SVGAnimatedTransformList.h \
 	SVGAnimateElement.h \
 	SVGAnimateTransformElement.h \
 	SVGAnimateMotionElement.h \
@@ -242,7 +241,6 @@ EXPORTS_mozilla/dom = \
 	SVGTextPathElement.h \
 	SVGTextPositioningElement.h \
 	SVGTitleElement.h \
-	SVGTransform.h \
 	SVGTransformableElement.h \
 	SVGTSpanElement.h \
 	SVGUseElement.h \

@@ -50,7 +50,6 @@ public:
   {
     // AudioNodes are always producing data
     mHasCurrentData = true;
-    MOZ_COUNT_CTOR(AudioNodeStream);
   }
   ~AudioNodeStream();
 
@@ -74,7 +73,6 @@ public:
                                   double aStreamTime);
   virtual void ProduceOutput(GraphTime aFrom, GraphTime aTo);
   TrackTicks GetCurrentPosition();
-  bool AllInputsFinished() const;
 
   // Any thread
   AudioNodeEngine* Engine() { return mEngine; }

@@ -51,6 +51,7 @@ const TYPE_MAYBE_FEED = "application/vnd.mozilla.maybe.feed";
 const TYPE_MAYBE_AUDIO_FEED = "application/vnd.mozilla.maybe.audio.feed";
 const TYPE_MAYBE_VIDEO_FEED = "application/vnd.mozilla.maybe.video.feed";
 const URI_BUNDLE = "chrome://browser/locale/feeds/subscribe.properties";
+const FEEDHANDLER_URI = "about:feeds";
 
 const PREF_SELECTED_APP = "browser.feeds.handlers.application";
 const PREF_SELECTED_WEB = "browser.feeds.handlers.webservice";
@@ -1101,7 +1102,7 @@ FeedWriter.prototype = {
 
     var resolvedURI = Cc["@mozilla.org/network/io-service;1"].
                       getService(Ci.nsIIOService).
-                      newChannel("about:feeds", null, null).URI;
+                      newChannel(FEEDHANDLER_URI, null, null).URI;
 
     if (resolvedURI.equals(chan.URI))
       return chan.originalURI;

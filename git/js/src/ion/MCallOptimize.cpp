@@ -1001,9 +1001,6 @@ IonBuilder::inlineUnsafeSetDenseArrayElement(CallInfo &callInfo, uint32_t base)
                                               /* needsHoleCheck = */ false);
     store->setRacy();
 
-    if (oracle->elementWriteNeedsBarrier(getInlineArgTypeSet(callInfo, arri)))
-        store->setNeedsBarrier();
-
     current->add(store);
 
     if (!resumeAfter(store))
@@ -1154,7 +1151,7 @@ IonBuilder::inlineParallelArrayTail(CallInfo &callInfo,
     types::StackTypeSet *returnTypes = getInlineReturnTypeSet();
     if (returnTypes->getKnownTypeTag() != JSVAL_TYPE_OBJECT)
         return InliningStatus_NotInlined;
-    if (returnTypes->unknownObject() || returnTypes->getObjectCount() != 1)
+    if (returnTypes->getObjectCount() != 1)
         return InliningStatus_NotInlined;
     types::TypeObject *typeObject = returnTypes->getTypeObject(0);
 
@@ -1166,13 +1163,6 @@ IonBuilder::inlineParallelArrayTail(CallInfo &callInfo,
     MCall *call = MCall::New(target, targetArgs + 1, argc, false, ctorTypes);
     if (!call)
         return InliningStatus_Error;
-
-    // Save the script for inspection by visitCallKnown().
-    if (target && target->isInterpreted()) {
-        if (!target->getOrCreateScript(cx))
-            return InliningStatus_Error;
-        call->rootTargetScript(target);
-    }
 
     callInfo.unwrapArgs();
 
@@ -1264,7 +1254,7 @@ IonBuilder::inlineNewDenseArrayForParallelExecution(CallInfo &callInfo)
     types::StackTypeSet *returnTypes = getInlineReturnTypeSet();
     if (returnTypes->getKnownTypeTag() != JSVAL_TYPE_OBJECT)
         return InliningStatus_NotInlined;
-    if (returnTypes->unknownObject() || returnTypes->getObjectCount() != 1)
+    if (returnTypes->getObjectCount() != 1)
         return InliningStatus_NotInlined;
     types::TypeObject *typeObject = returnTypes->getTypeObject(0);
 

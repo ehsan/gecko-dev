@@ -121,7 +121,13 @@ function start()
                                                  isInBrowserElement: false });
   SpecialPowers.addPermission("embed-apps", true, document);
 
-  let originalAllAppsLaunchable = SpecialPowers.setAllAppsLaunchable(true);
+  let Webapps = {};
+  SpecialPowers.wrap(Components)
+               .utils.import("resource://gre/modules/Webapps.jsm", Webapps);
+  let appRegistry = SpecialPowers.wrap(Webapps.DOMApplicationRegistry);
+
+  let originalAllAppsLaunchable = appRegistry.allAppsLaunchable;
+  appRegistry.allAppsLaunchable = true;
 
   window.addEventListener("unload", function cleanup(event) {
     if (event.target == document) {
@@ -131,7 +137,7 @@ function start()
       SpecialPowers.removePermission("browser",
                                      location.protocol + "//" + appDomain);
       SpecialPowers.removePermission("embed-apps", location.href);
-      SpecialPowers.setAllAppsLaunchable(originalAllAppsLaunchable);
+      appRegistry.allAppsLaunchable = originalAllAppsLaunchable;
     }
   }, false);
 

@@ -88,10 +88,6 @@ NS_NewHTMLCanvasFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
   return new (aPresShell) nsHTMLCanvasFrame(aContext);
 }
 
-NS_QUERYFRAME_HEAD(nsHTMLCanvasFrame)
-  NS_QUERYFRAME_ENTRY(nsHTMLCanvasFrame)
-NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
-
 NS_IMPL_FRAMEARENA_HELPERS(nsHTMLCanvasFrame)
 
 void
@@ -290,14 +286,15 @@ nsHTMLCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 
-  DisplayListClipState::AutoClipContainingBlockDescendantsToContentBox
-    clip(aBuilder, this, DisplayListClipState::ASSUME_DRAWING_RESTRICTED_TO_CONTENT_RECT);
+  nsDisplayList replacedContent;
 
-  aLists.Content()->AppendNewToTop(
+  replacedContent.AppendNewToTop(
     new (aBuilder) nsDisplayCanvas(aBuilder, this));
 
-  DisplaySelectionOverlay(aBuilder, aLists.Content(),
+  DisplaySelectionOverlay(aBuilder, &replacedContent,
                           nsISelectionDisplay::DISPLAY_IMAGES);
+
+  WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
 }
 
 nsIAtom*

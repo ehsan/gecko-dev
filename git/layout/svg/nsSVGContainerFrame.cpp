@@ -10,7 +10,7 @@
 #include "nsSVGEffects.h"
 #include "nsSVGElement.h"
 #include "nsSVGUtils.h"
-#include "nsSVGAnimatedTransformList.h"
+#include "SVGAnimatedTransformList.h"
 
 using namespace mozilla;
 
@@ -179,9 +179,7 @@ nsSVGDisplayContainerFrame::IsSVGTransformed(gfxMatrix *aOwnTransform,
 
   if (mContent->IsSVG()) {
     nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
-    nsSVGAnimatedTransformList* transformList =
-      content->GetAnimatedTransformList();
-    if ((transformList && transformList->HasTransform()) ||
+    if (content->GetAnimatedTransformList() ||
         content->GetAnimateMotionTransform()) {
       if (aOwnTransform) {
         *aOwnTransform = content->PrependLocalTransformsTo(gfxMatrix(),

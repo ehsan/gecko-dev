@@ -39,24 +39,13 @@ MtransportTestUtils *test_utils;
 bool stream_added = false;
 
 const std::string kDefaultStunServerAddress((char *)"23.21.150.121");
-const std::string kDefaultStunServerHostname(
-    (char *)"ec2-23-21-150-121.compute-1.amazonaws.com");
-const std::string kBogusStunServerHostname(
-    (char *)"stun-server-nonexistent.invalid");
+const std::string kDefaultStunServerHostname((char *)"ec2-23-21-150-121.compute-1.amazonaws.com");
+const std::string kBogusStunServerHostname((char *)"stun-server-nonexistent.invalid");
 const uint16_t kDefaultStunServerPort=3478;
-
-std::string g_turn_server;
-std::string g_turn_user;
-std::string g_turn_password;
 
 namespace {
 
 enum TrickleMode { TRICKLE_NONE, TRICKLE_DEFERRED };
-typedef bool (*CandidateFilter)(const std::string& candidate);
-
-static bool IsRelayCandidate(const std::string& candidate) {
-  return candidate.find("typ relay") != std::string::npos;
-}
 
 class IceTestPeer : public sigslot::has_slots<> {
  public:
@@ -73,8 +62,7 @@ class IceTestPeer : public sigslot::has_slots<> {
       sent_(0),
       fake_resolver_(),
       dns_resolver_(new NrIceResolver()),
-      remote_(nullptr),
-      candidate_filter_(nullptr) {
+      remote_(nullptr) {
     ice_ctx_->SignalGatheringCompleted.connect(this,
                                                &IceTestPeer::GatheringComplete);
     ice_ctx_->SignalCompleted.connect(this, &IceTestPeer::IceCompleted);
@@ -92,8 +80,7 @@ class IceTestPeer : public sigslot::has_slots<> {
 
   void AddStream(int components) {
     char name[100];
-    snprintf(name, sizeof(name), "%s:stream%d", name_.c_str(),
-             (int)streams_.size());
+    snprintf(name, sizeof(name), "%s:stream%d", name_.c_str(), (int)streams_.size());
 
     mozilla::RefPtr<NrIceMediaStream> stream =
         ice_ctx_->CreateStream(static_cast<char *>(name), components);
@@ -113,39 +100,18 @@ class IceTestPeer : public sigslot::has_slots<> {
     ASSERT_TRUE(NS_SUCCEEDED(ice_ctx_->SetStunServers(stun_servers)));
   }
 
-  void SetTurnServer(const std::string addr, uint16_t port,
-                     const std::string username,
-                     const std::string password) {
-    std::vector<unsigned char> password_vec(password.begin(), password.end());
-    SetTurnServer(addr, port, username, password_vec);
-  }
-
-
-  void SetTurnServer(const std::string addr, uint16_t port,
-                     const std::string username,
-                     const std::vector<unsigned char> password) {
-    std::vector<NrIceTurnServer> turn_servers;
-    ScopedDeletePtr<NrIceTurnServer> server(NrIceTurnServer::Create(
-        addr, port, username, password));
-    turn_servers.push_back(*server);
-    ASSERT_TRUE(NS_SUCCEEDED(ice_ctx_->SetTurnServers(turn_servers)));
-  }
-
   void SetFakeResolver() {
     ASSERT_TRUE(NS_SUCCEEDED(dns_resolver_->Init()));
     PRNetAddr addr;
-    PRStatus status = PR_StringToNetAddr(kDefaultStunServerAddress.c_str(),
-                                         &addr);
+    PRStatus status = PR_StringToNetAddr(kDefaultStunServerAddress.c_str(), &addr);
     ASSERT_EQ(PR_SUCCESS, status);
     fake_resolver_.SetAddr(kDefaultStunServerHostname, addr);
-    ASSERT_TRUE(NS_SUCCEEDED(ice_ctx_->SetResolver(
-        fake_resolver_.AllocateResolver())));
+    ASSERT_TRUE(NS_SUCCEEDED(ice_ctx_->SetResolver(fake_resolver_.AllocateResolver())));
   }
 
   void SetDNSResolver() {
     ASSERT_TRUE(NS_SUCCEEDED(dns_resolver_->Init()));
-    ASSERT_TRUE(NS_SUCCEEDED(ice_ctx_->SetResolver(
-        dns_resolver_->AllocateResolver())));
+    ASSERT_TRUE(NS_SUCCEEDED(ice_ctx_->SetResolver(dns_resolver_->AllocateResolver())));
   }
 
   void Gather() {
@@ -163,18 +129,8 @@ class IceTestPeer : public sigslot::has_slots<> {
     return ice_ctx_->GetGlobalAttributes();
   }
 
-  std::vector<std::string> GetCandidates(const std::string &name) {
-    std::vector<std::string> candidates_in = candidates_[name];
-    std::vector<std::string> candidates;
-
-    for (size_t i=0; i < candidates_in.size(); i++) {
-      if ((!candidate_filter_) || candidate_filter_(candidates_in[i])) {
-        std::cerr << "Returning candidate: " << candidates_in[i] << std::endl;
-        candidates.push_back(candidates_in[i]);
-      }
-    }
-
-    return candidates;
+  std::vector<std::string>& GetCandidates(const std::string &name) {
+    return candidates_[name];
   }
 
   bool gathering_complete() { return gathering_complete_; }
@@ -187,8 +143,7 @@ class IceTestPeer : public sigslot::has_slots<> {
   size_t sent() { return sent_; }
 
   // Start connecting to another peer
-  void Connect(IceTestPeer *remote, TrickleMode trickle_mode,
-               bool start = true) {
+  void Connect(IceTestPeer *remote, TrickleMode trickle_mode, bool start = true) {
     nsresult res;
 
     remote_ = remote;
@@ -306,10 +261,6 @@ class IceTestPeer : public sigslot::has_slots<> {
     std::cerr << "Sent " << len << " bytes" << std::endl;
   }
 
-  void SetCandidateFilter(CandidateFilter filter) {
-    candidate_filter_ = filter;
-  }
-
  private:
   std::string name_;
   nsRefPtr<NrIceCtx> ice_ctx_;
@@ -323,7 +274,6 @@ class IceTestPeer : public sigslot::has_slots<> {
   NrIceResolverFake fake_resolver_;
   nsRefPtr<NrIceResolver> dns_resolver_;
   IceTestPeer *remote_;
-  CandidateFilter candidate_filter_;
 };
 
 class IceGatherTest : public ::testing::Test {
@@ -381,18 +331,6 @@ class IceConnectTest : public ::testing::Test {
       return false;
 
     return true;
-  }
-
-  void SetTurnServer(const std::string addr, uint16_t port,
-                     const std::string username,
-                     const std::string password) {
-    p1_->SetTurnServer(addr, port, username, password);
-    p2_->SetTurnServer(addr, port, username, password);
-  }
-
-  void SetCandidateFilter(CandidateFilter filter) {
-    p1_->SetCandidateFilter(filter);
-    p2_->SetCandidateFilter(filter);
   }
 
   void Connect() {
@@ -496,14 +434,6 @@ TEST_F(IceGatherTest, TestGatherDNSStunBogusHostname) {
   Gather();
 }
 
-TEST_F(IceGatherTest, TestGatherTurn) {
-  if (g_turn_server.empty())
-    return;
-  peer_->SetTurnServer(g_turn_server, kDefaultStunServerPort,
-                       g_turn_user, g_turn_password);
-  Gather();
-}
-
 TEST_F(IceConnectTest, TestGather) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather(true));
@@ -557,56 +487,12 @@ TEST_F(IceConnectTest, TestSendReceive) {
   SendReceive();
 }
 
-TEST_F(IceConnectTest, TestConnectTurn) {
-  if (g_turn_server.empty())
-    return;
-
-  AddStream("first", 1);
-  SetTurnServer(g_turn_server, kDefaultStunServerPort,
-                g_turn_user, g_turn_password);
-  ASSERT_TRUE(Gather(true));
-  Connect();
-}
-
-TEST_F(IceConnectTest, TestConnectTurnOnly) {
-  if (g_turn_server.empty())
-    return;
-
-  AddStream("first", 1);
-  SetTurnServer(g_turn_server, kDefaultStunServerPort,
-                g_turn_user, g_turn_password);
-  ASSERT_TRUE(Gather(true));
-  SetCandidateFilter(IsRelayCandidate);
-  Connect();
-}
-
-TEST_F(IceConnectTest, TestSendReceiveTurnOnly) {
-  if (g_turn_server.empty())
-    return;
-
-  AddStream("first", 1);
-  SetTurnServer(g_turn_server, kDefaultStunServerPort,
-                g_turn_user, g_turn_password);
-  ASSERT_TRUE(Gather(true));
-  SetCandidateFilter(IsRelayCandidate);
-  Connect();
-  SendReceive();
-}
-
 TEST_F(IceConnectTest, TestConnectShutdownOneSide) {
   AddStream("first", 1);
   ASSERT_TRUE(Gather(true));
   ConnectThenDelete();
 }
 
-static std::string get_environment(const char *name) {
-  char *value = getenv(name);
-
-  if (!value)
-    return "";
-
-  return value;
-}
 
 int main(int argc, char **argv)
 {
@@ -614,19 +500,6 @@ int main(int argc, char **argv)
   // This test can cause intermittent oranges on the builders on Linux
   CHECK_ENVIRONMENT_FLAG("MOZ_WEBRTC_TESTS")
 #endif
-
-  g_turn_server = get_environment("TURN_SERVER_ADDRESS");
-  g_turn_user = get_environment("TURN_SERVER_USER");
-  g_turn_password = get_environment("TURN_SERVER_PASSWORD");
-
-  if (g_turn_server.empty() ||
-      g_turn_user.empty(),
-      g_turn_password.empty()) {
-    printf(
-        "Set TURN_SERVER_ADDRESS, TURN_SERVER_USER, and TURN_SERVER_PASSWORD\n"
-        "environment variables to run this test\n");
-    g_turn_server="";
-  }
 
   test_utils = new MtransportTestUtils();
   NSS_NoDB_Init(nullptr);

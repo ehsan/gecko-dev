@@ -314,8 +314,8 @@ protected:
   nsWindow* mComposingWindow;
   nsString  mCompositionString;
   nsString  mLastDispatchedCompositionString;
-  InfallibleTArray<uint32_t> mClauseArray;
-  InfallibleTArray<uint8_t> mAttributeArray;
+  nsTArray<uint32_t> mClauseArray;
+  nsTArray<uint8_t> mAttributeArray;
 
   int32_t mCursorPosition;
   uint32_t mCompositionStart;

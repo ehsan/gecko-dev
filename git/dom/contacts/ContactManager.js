@@ -4,7 +4,7 @@
 
 "use strict";
 
-let DEBUG = false;
+const DEBUG = false;
 function debug(s) { dump("-*- ContactManager: " + s + "\n"); }
 
 const Cc = Components.classes;
@@ -24,25 +24,9 @@ XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
                                    "@mozilla.org/childprocessmessagemanager;1",
                                    "nsIMessageSender");
 
-function stringOrBust(aObj) {
-  if (typeof aObj != "string") {
-    if (DEBUG) debug("Field is not a string and was ignored.");
-    return undefined;
-  } else {
-    return aObj;
-  }
-}
-
-function sanitizeStringArray(aArray) {
-  if (!Array.isArray(aArray)) {
-    aArray = [aArray];
-  }
-  return aArray.map(stringOrBust).filter(function(el) { return el != undefined; });
-}
-
 const nsIClassInfo            = Ci.nsIClassInfo;
-const CONTACTPROPERTIES_CID   = Components.ID("{6cb78b21-4218-414b-8a84-3b7bf0088b34}");
-const nsIContactProperties    = Ci.nsIContactProperties;
+const CONTACTPROPERTIES_CID   = Components.ID("{f5181640-89e8-11e1-b0c4-0800200c9a66}");
+const nsIDOMContactProperties = Ci.nsIDOMContactProperties;
 
 // ContactProperties is not directly instantiated. It is used as interface.
 
@@ -54,25 +38,25 @@ ContactProperties.prototype = {
   classInfo : XPCOMUtils.generateCI({classID: CONTACTPROPERTIES_CID,
                                      contractID:"@mozilla.org/contactProperties;1",
                                      classDescription: "ContactProperties",
-                                     interfaces: [nsIContactProperties],
+                                     interfaces: [nsIDOMContactProperties],
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface : XPCOMUtils.generateQI([nsIContactProperties])
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactProperties])
 }
 
 //ContactAddress
 
 const CONTACTADDRESS_CONTRACTID = "@mozilla.org/contactAddress;1";
-const CONTACTADDRESS_CID        = Components.ID("{c5d6eb73-a079-4a9f-8cd5-618194f73b30}");
-const nsIContactAddress         = Components.interfaces.nsIContactAddress;
+const CONTACTADDRESS_CID        = Components.ID("{eba48030-89e8-11e1-b0c4-0800200c9a66}");
+const nsIDOMContactAddress      = Components.interfaces.nsIDOMContactAddress;
 
 function ContactAddress(aType, aStreetAddress, aLocality, aRegion, aPostalCode, aCountryName) {
-  this.type = sanitizeStringArray(aType);
-  this.streetAddress = stringOrBust(aStreetAddress);
-  this.locality = stringOrBust(aLocality);
-  this.region = stringOrBust(aRegion);
-  this.postalCode = stringOrBust(aPostalCode);
-  this.countryName = stringOrBust(aCountryName);
+  this.type = aType || null;
+  this.streetAddress = aStreetAddress || null;
+  this.locality = aLocality || null;
+  this.region = aRegion || null;
+  this.postalCode = aPostalCode || null;
+  this.countryName = aCountryName || null;
 };
 
 ContactAddress.prototype = {
@@ -89,21 +73,21 @@ ContactAddress.prototype = {
   classInfo : XPCOMUtils.generateCI({classID: CONTACTADDRESS_CID,
                                      contractID: CONTACTADDRESS_CONTRACTID,
                                      classDescription: "ContactAddress",
-                                     interfaces: [nsIContactAddress],
+                                     interfaces: [nsIDOMContactAddress],
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface : XPCOMUtils.generateQI([nsIContactAddress])
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactAddress])
 }
 
 //ContactField
 
 const CONTACTFIELD_CONTRACTID = "@mozilla.org/contactField;1";
-const CONTACTFIELD_CID        = Components.ID("{474b8c6d-f984-431f-9636-e523ca3ec34d}");
-const nsIContactField         = Components.interfaces.nsIContactField;
+const CONTACTFIELD_CID        = Components.ID("{e2cb19c0-e4aa-11e1-9b23-0800200c9a66}");
+const nsIDOMContactField      = Components.interfaces.nsIDOMContactField;
 
 function ContactField(aType, aValue) {
-  this.type = sanitizeStringArray(aType);
-  this.value = stringOrBust(aValue);
+  this.type = aType || null;
+  this.value = aValue || null;
 };
 
 ContactField.prototype = {
@@ -116,22 +100,22 @@ ContactField.prototype = {
   classInfo : XPCOMUtils.generateCI({classID: CONTACTFIELD_CID,
                                      contractID: CONTACTFIELD_CONTRACTID,
                                      classDescription: "ContactField",
-                                     interfaces: [nsIContactField],
+                                     interfaces: [nsIDOMContactField],
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface : XPCOMUtils.generateQI([nsIContactField])
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactField])
 }
 
 //ContactTelField
 
 const CONTACTTELFIELD_CONTRACTID = "@mozilla.org/contactTelField;1";
-const CONTACTTELFIELD_CID        = Components.ID("{4d42c5a9-ea5d-4102-80c3-40cc986367ca}");
-const nsIContactTelField         = Components.interfaces.nsIContactTelField;
+const CONTACTTELFIELD_CID        = Components.ID("{ed0ab260-e4aa-11e1-9b23-0800200c9a66}");
+const nsIDOMContactTelField      = Components.interfaces.nsIDOMContactTelField;
 
 function ContactTelField(aType, aValue, aCarrier) {
-  this.type = sanitizeStringArray(aType);
-  this.value = stringOrBust(aValue);
-  this.carrier = stringOrBust(aCarrier);
+  this.type = aType || null;
+  this.value = aValue || null;
+  this.carrier = aCarrier || null;
 };
 
 ContactTelField.prototype = {
@@ -145,17 +129,17 @@ ContactTelField.prototype = {
   classInfo : XPCOMUtils.generateCI({classID: CONTACTTELFIELD_CID,
                                      contractID: CONTACTTELFIELD_CONTRACTID,
                                      classDescription: "ContactTelField",
-                                     interfaces: [nsIContactTelField],
+                                     interfaces: [nsIDOMContactTelField],
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface : XPCOMUtils.generateQI([nsIContactTelField])
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactTelField])
 }
 
 //ContactFindSortOptions
 
 const CONTACTFINDSORTOPTIONS_CONTRACTID = "@mozilla.org/contactFindSortOptions;1"
-const CONTACTFINDSORTOPTIONS_CID        = Components.ID("{0a5b1fab-70da-46dd-b902-619904d920c2}");
-const nsIContactFindSortOptions         = Ci.nsIContactFindSortOptions;
+const CONTACTFINDSORTOPTIONS_CID        = Components.ID("{cb008c06-3bf8-495c-8865-f9ca1673a1e1}");
+const nsIDOMContactFindSortOptions      = Ci.nsIDOMContactFindSortOptions;
 
 function ContactFindSortOptions () { }
 
@@ -164,16 +148,16 @@ ContactFindSortOptions.prototype = {
   classInfo: XPCOMUtils.generateCI({classID: CONTACTFINDSORTOPTIONS_CID,
                                     contractID: CONTACTFINDSORTOPTIONS_CONTRACTID,
                                     classDescription: "ContactFindSortOptions",
-                                    interfaces: [nsIContactFindSortOptions],
+                                    interfaces: [nsIDOMContactFindSortOptions],
                                     flags: nsIClassInfo.DOM_OBJECT}),
-  QueryInterface: XPCOMUtils.generateQI([nsIContactFindSortOptions])
+  QueryInterface: XPCOMUtils.generateQI([nsIDOMContactFindSortOptions])
 };
 
 //ContactFindOptions
 
 const CONTACTFINDOPTIONS_CONTRACTID = "@mozilla.org/contactFindOptions;1";
-const CONTACTFINDOPTIONS_CID        = Components.ID("{28ce07d0-45d9-4b7a-8843-521df4edd8bc}");
-const nsIContactFindOptions         = Components.interfaces.nsIContactFindOptions;
+const CONTACTFINDOPTIONS_CID        = Components.ID("{e31daea0-0cb6-11e1-be50-0800200c9a66}");
+const nsIDOMContactFindOptions      = Components.interfaces.nsIDOMContactFindOptions;
 
 function ContactFindOptions() { };
 
@@ -183,18 +167,18 @@ ContactFindOptions.prototype = {
   classInfo : XPCOMUtils.generateCI({classID: CONTACTFINDOPTIONS_CID,
                                      contractID: CONTACTFINDOPTIONS_CONTRACTID,
                                      classDescription: "ContactFindOptions",
-                                     interfaces: [nsIContactFindSortOptions,
-                                                  nsIContactFindOptions],
+                                     interfaces: [nsIDOMContactFindSortOptions,
+                                                  nsIDOMContactFindOptions],
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface : XPCOMUtils.generateQI([nsIContactFindSortOptions,
-                                          nsIContactFindOptions])
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactFindSortOptions,
+                                          nsIDOMContactFindOptions])
 }
 
 //Contact
 
 const CONTACT_CONTRACTID = "@mozilla.org/contact;1";
-const CONTACT_CID        = Components.ID("{72a5ee28-81d8-4af8-90b3-ae935396cc66}");
+const CONTACT_CID        = Components.ID("{da0f7040-388b-11e1-b86c-0800200c9a66}");
 const nsIDOMContact      = Components.interfaces.nsIDOMContact;
 
 function Contact() { };
@@ -228,6 +212,19 @@ Contact.prototype = {
                      },
 
   init: function init(aProp) {
+    // Accept non-array strings for DOMString[] properties and convert them.
+    function _create(aField) {
+      if (Array.isArray(aField)) {
+        for (let i = 0; i < aField.length; i++) {
+          if (typeof aField[i] != "string")
+            aField[i] = String(aField[i]);
+        }
+        return aField;
+      } else if (aField != null) {
+        return [String(aField)];
+      }
+    };
+
     function _checkBlobArray(aBlob) {
       if (Array.isArray(aBlob)) {
         for (let i = 0; i < aBlob.length; i++) {
@@ -241,50 +238,36 @@ Contact.prototype = {
         return aBlob;
       }
       return null;
-    }
+    };
 
-    function _isVanillaObj(aObj) {
-      return Object.prototype.toString.call(aObj) == "[object Object]";
-    }
-
-    let _create = sanitizeStringArray;
-
-    this.name =            _create(aProp.name);
-    this.honorificPrefix = _create(aProp.honorificPrefix);
-    this.givenName =       _create(aProp.givenName);
-    this.additionalName =  _create(aProp.additionalName);
-    this.familyName =      _create(aProp.familyName);
-    this.honorificSuffix = _create(aProp.honorificSuffix);
-    this.nickname =        _create(aProp.nickname);
+    this.name =            _create(aProp.name) || null;
+    this.honorificPrefix = _create(aProp.honorificPrefix) || null;
+    this.givenName =       _create(aProp.givenName) || null;
+    this.additionalName =  _create(aProp.additionalName) || null;
+    this.familyName =      _create(aProp.familyName) || null;
+    this.honorificSuffix = _create(aProp.honorificSuffix) || null;
+    this.nickname =        _create(aProp.nickname) || null;
 
     if (aProp.email) {
       aProp.email = Array.isArray(aProp.email) ? aProp.email : [aProp.email];
       this.email = new Array();
-      for (let email of aProp.email) {
-        if (_isVanillaObj(email)) {
-          this.email.push(new ContactField(email.type, email.value));
-        } else if (DEBUG) {
-          debug("email field is not a ContactField and was ignored.");
-        }
-      }
-    } else if (DEBUG) {
+      for (let i = 0; i < aProp.email.length; i++)
+        this.email.push(new ContactField(aProp.email[i].type, aProp.email[i].value));
+    } else {
       this.email = null;
     }
 
-    this.photo =           _checkBlobArray(aProp.photo);
-    this.category =        _create(aProp.category);
+    this.photo =           _checkBlobArray(aProp.photo) || null;
+    this.category =        _create(aProp.category) || null;
 
     if (aProp.adr) {
+      // Make sure adr argument is an array. Instanceof doesn't work.
       aProp.adr = Array.isArray(aProp.adr) ? aProp.adr : [aProp.adr];
+
       this.adr = new Array();
-      for (let adr of aProp.adr) {
-        if (_isVanillaObj(adr)) {
-          this.adr.push(new ContactAddress(adr.type, adr.streetAddress, adr.locality,
-                                           adr.region, adr.postalCode, adr.countryName));
-        } else if (DEBUG) {
-          debug("adr field is not a ContactAddress and was ignored.");
-        }
-      }
+      for (let i = 0; i < aProp.adr.length; i++)
+        this.adr.push(new ContactAddress(aProp.adr[i].type, aProp.adr[i].streetAddress, aProp.adr[i].locality,
+                                         aProp.adr[i].region, aProp.adr[i].postalCode, aProp.adr[i].countryName));
     } else {
       this.adr = null;
     }
@@ -292,32 +275,22 @@ Contact.prototype = {
     if (aProp.tel) {
       aProp.tel = Array.isArray(aProp.tel) ? aProp.tel : [aProp.tel];
       this.tel = new Array();
-      for (let tel of aProp.tel) {
-        if (_isVanillaObj(tel)) {
-          this.tel.push(new ContactTelField(tel.type, tel.value, tel.carrier));
-        } else if (DEBUG) {
-          debug("tel field is not a ContactTelField and was ignored.");
-        }
-      }
+      for (let i = 0; i < aProp.tel.length; i++)
+        this.tel.push(new ContactTelField(aProp.tel[i].type, aProp.tel[i].value, aProp.tel[i].carrier));
     } else {
       this.tel = null;
     }
 
-    this.org =             _create(aProp.org);
-    this.jobTitle =        _create(aProp.jobTitle);
-    this.bday =            (aProp.bday == undefined || aProp.bday == null) ? null : new Date(aProp.bday);
-    this.note =            _create(aProp.note);
+    this.org =             _create(aProp.org) || null;
+    this.jobTitle =        _create(aProp.jobTitle) || null;
+    this.bday =            (aProp.bday == "undefined" || aProp.bday == null) ? null : new Date(aProp.bday);
+    this.note =            _create(aProp.note) || null;
 
     if (aProp.impp) {
       aProp.impp = Array.isArray(aProp.impp) ? aProp.impp : [aProp.impp];
       this.impp = new Array();
-      for (let impp of aProp.impp) {
-        if (_isVanillaObj(impp)) {
-          this.impp.push(new ContactField(impp.type, impp.value));
-        } else if (DEBUG) {
-          debug("impp field is not a ContactField and was ignored.");
-        }
-      }
+      for (let i = 0; i < aProp.impp.length; i++)
+        this.impp.push(new ContactField(aProp.impp[i].type, aProp.impp[i].value));
     } else {
       this.impp = null;
     }
@@ -325,18 +298,13 @@ Contact.prototype = {
     if (aProp.url) {
       aProp.url = Array.isArray(aProp.url) ? aProp.url : [aProp.url];
       this.url = new Array();
-      for (let url of aProp.url) {
-        if (_isVanillaObj(url)) {
-          this.url.push(new ContactField(url.type, url.value));
-        } else if (DEBUG) {
-          debug("url field is not a ContactField and was ignored.");
-        }
-      }
+      for (let i = 0; i < aProp.url.length; i++)
+        this.url.push(new ContactField(aProp.url[i].type, aProp.url[i].value));
     } else {
       this.url = null;
     }
 
-    this.anniversary =     (aProp.anniversary == undefined || aProp.anniversary == null) ? null : new Date(aProp.anniversary);
+    this.anniversary =     (aProp.anniversary == "undefined" || aProp.anniversary == null) ? null : new Date(aProp.anniversary);
     this.sex =             (aProp.sex != "undefined") ? aProp.sex : null;
     this.genderIdentity =  (aProp.genderIdentity != "undefined") ? aProp.genderIdentity : null;
   },
@@ -361,16 +329,16 @@ Contact.prototype = {
   classInfo : XPCOMUtils.generateCI({classID: CONTACT_CID,
                                      contractID: CONTACT_CONTRACTID,
                                      classDescription: "Contact",
-                                     interfaces: [nsIDOMContact, nsIContactProperties],
+                                     interfaces: [nsIDOMContact, nsIDOMContactProperties],
                                      flags: nsIClassInfo.DOM_OBJECT}),
 
-  QueryInterface : XPCOMUtils.generateQI([nsIDOMContact, nsIContactProperties])
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContact, nsIDOMContactProperties])
 }
 
 // ContactManager
 
 const CONTACTMANAGER_CONTRACTID = "@mozilla.org/contactManager;1";
-const CONTACTMANAGER_CID        = Components.ID("{4efae3f8-dd69-4622-97c8-f16e4d38d95c}");
+const CONTACTMANAGER_CID        = Components.ID("{1d70322b-f11b-4f19-9586-7bf291f212aa}");
 const nsIDOMContactManager      = Components.interfaces.nsIDOMContactManager;
 
 function ContactManager()
@@ -637,7 +605,6 @@ ContactManager.prototype = {
   },
 
   find: function(aOptions) {
-    DEBUG = false;
     if (DEBUG) debug("find! " + JSON.stringify(aOptions));
     let request = this.createRequest();
     let options = { findOptions: aOptions };
@@ -702,7 +669,6 @@ ContactManager.prototype = {
   },
 
   clear: function() {
-    DEBUG = true;
     if (DEBUG) debug("clear");
     let request;
     request = this.createRequest();
@@ -734,6 +700,10 @@ ContactManager.prototype = {
   },
 
   init: function(aWindow) {
+    // Set navigator.mozContacts to null.
+    if (!Services.prefs.getBoolPref("dom.mozContacts.enabled"))
+      return null;
+
     this.initHelper(aWindow, ["Contacts:Find:Return:OK", "Contacts:Find:Return:KO",
                               "Contacts:Clear:Return:OK", "Contacts:Clear:Return:KO",
                               "Contact:Save:Return:OK", "Contact:Save:Return:KO",

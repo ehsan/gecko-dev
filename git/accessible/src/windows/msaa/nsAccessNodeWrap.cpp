@@ -90,7 +90,7 @@ nsAccessNodeWrap::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
       if (lParam == OBJID_CLIENT) {
         DocAccessible* document = sHWNDCache.GetWeak(static_cast<void*>(hWnd));
         if (document) {
-          IAccessible* msaaAccessible = nullptr;
+          IAccessible* msaaAccessible = NULL;
           document->GetNativeInterface((void**)&msaaAccessible); // does an addref
           if (msaaAccessible) {
             LRESULT result = ::LresultFromObject(IID_IAccessible, wParam,

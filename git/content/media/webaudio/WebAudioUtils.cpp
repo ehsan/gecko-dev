@@ -19,18 +19,13 @@ struct ConvertTimeToTickHelper
   static int64_t Convert(double aTime, void* aClosure)
   {
     TrackRate sampleRate = IdealAudioRate();
-    StreamTime streamTime;
 
     ConvertTimeToTickHelper* This = static_cast<ConvertTimeToTickHelper*> (aClosure);
-    if (This->mSourceStream) {
-      TrackTicks tick = This->mDestinationStream->GetCurrentPosition();
-      StreamTime destinationStreamTime = TicksToTimeRoundDown(sampleRate, tick);
-      GraphTime graphTime = This->mDestinationStream->StreamTimeToGraphTime(destinationStreamTime);
-      streamTime = This->mSourceStream->GraphTimeToStreamTime(graphTime);
-    } else {
-      streamTime = This->mDestinationStream->GetCurrentPosition();
-    }
-    return TimeToTicksRoundDown(sampleRate, streamTime + SecondsToMediaTime(aTime));
+    TrackTicks tick = This->mSourceStream->GetCurrentPosition();
+    StreamTime streamTime = TicksToTimeRoundDown(sampleRate, tick);
+    GraphTime graphTime = This->mSourceStream->StreamTimeToGraphTime(streamTime);
+    StreamTime destinationStreamTime = This->mDestinationStream->GraphTimeToStreamTime(graphTime);
+    return TimeToTicksRoundDown(sampleRate, destinationStreamTime + SecondsToMediaTime(aTime));
   }
 };
 

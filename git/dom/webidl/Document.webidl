@@ -15,6 +15,7 @@
  * http://mxr.mozilla.org/mozilla-central/source/dom/interfaces/core/nsIDOMDocument.idl
  */
 
+interface Attr;
 interface Comment;
 interface StyleSheetList;
 interface Touch;
@@ -46,11 +47,11 @@ interface Document : Node {
   Element createElement(DOMString localName);
   [Creator, Throws]
   Element createElementNS(DOMString? namespace, DOMString qualifiedName);
-  [Creator]
+  [Creator, Throws]
   DocumentFragment createDocumentFragment();
-  [Creator]
+  [Creator, Throws]
   Text createTextNode(DOMString data);
-  [Creator]
+  [Creator, Throws]
   Comment createComment(DOMString data);
   [Creator, Throws]
   ProcessingInstruction createProcessingInstruction(DOMString target, DOMString data);

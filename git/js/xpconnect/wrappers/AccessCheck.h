@@ -31,6 +31,8 @@ class AccessCheck {
     static bool isSystemOnlyAccessPermitted(JSContext *cx);
 
     static bool needsSystemOnlyWrapper(JSObject *obj);
+
+    static bool isScriptAccessOnly(JSContext *cx, JSObject *wrapper);
 };
 
 struct Policy {
@@ -48,30 +50,6 @@ struct Opaque : public Policy {
     {
         return false;
     }
-    static bool isSafeToUnwrap() {
-        return false;
-    }
-};
-
-// This policy is designed to protect privileged callers from untrusted non-
-// Xrayable objects. Nothing is allowed, and nothing throws.
-struct GentlyOpaque : public Policy {
-    static bool check(JSContext *cx, JSObject *wrapper, jsid id, js::Wrapper::Action act) {
-        return false;
-    }
-    static bool deny(js::Wrapper::Action act) {
-        return true;
-    }
-    static bool allowNativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl)
-    {
-        // We allow nativeCall here because the alternative is throwing (which
-        // happens in SecurityWrapper::nativeCall), which we don't want. There's
-        // unlikely to be too much harm to letting this through, because this
-        // wrapper is only used to wrap less-privileged objects in more-privileged
-        // scopes, so unwrapping here only drops privileges.
-        return true;
-    }
-
     static bool isSafeToUnwrap() {
         return false;
     }

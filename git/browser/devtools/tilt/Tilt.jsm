@@ -9,8 +9,6 @@ const Cu = Components.utils;
 
 // Tilt notifications dispatched through the nsIObserverService.
 const TILT_NOTIFICATIONS = {
-  // Called early in the startup of a new tilt instance
-  STARTUP: "tilt-startup",
 
   // Fires when Tilt starts the initialization.
   INITIALIZING: "tilt-initializing",
@@ -120,14 +118,11 @@ Tilt.prototype = {
     // create a visualizer instance for the current tab
     this.visualizers[id] = new TiltVisualizer({
       chromeWindow: this.chromeWindow,
-      contentWindow: contentWindow,
+      contentWindow: this.chromeWindow.gBrowser.selectedBrowser.contentWindow,
       parentNode: this.chromeWindow.gBrowser.selectedBrowser.parentNode,
       notifications: this.NOTIFICATIONS,
       tab: this.chromeWindow.gBrowser.selectedTab
     });
-
-    Services.obs.notifyObservers(contentWindow, TILT_NOTIFICATIONS.STARTUP, null);
-    this.visualizers[id].init();
 
     // make sure the visualizer object was initialized properly
     if (!this.visualizers[id].isInitialized()) {
@@ -136,9 +131,8 @@ Tilt.prototype = {
       return;
     }
 
-    this.lastInstanceId = id;
     this.emit("change", this.chromeWindow.gBrowser.selectedTab);
-    Services.obs.notifyObservers(contentWindow, TILT_NOTIFICATIONS.INITIALIZING, null);
+    Services.obs.notifyObservers(null, TILT_NOTIFICATIONS.INITIALIZING, null);
   },
 
   /**
@@ -172,7 +166,7 @@ Tilt.prototype = {
     }
 
     // otherwise, trigger the outro animation and notify necessary observers
-    Services.obs.notifyObservers(content, TILT_NOTIFICATIONS.DESTROYING, null);
+    Services.obs.notifyObservers(null, TILT_NOTIFICATIONS.DESTROYING, null);
 
     controller.removeEventListeners();
     controller.arcball.reset([-pageXOffset, -pageYOffset]);
@@ -187,7 +181,6 @@ Tilt.prototype = {
    */
   _finish: function T__finish(aId)
   {
-    let contentWindow = this.visualizers[aId].presenter.contentWindow;
     this.visualizers[aId].removeOverlay();
     this.visualizers[aId].cleanup();
     this.visualizers[aId] = null;
@@ -195,7 +188,7 @@ Tilt.prototype = {
     this._isDestroying = false;
     this.chromeWindow.gBrowser.selectedBrowser.focus();
     this.emit("change", this.chromeWindow.gBrowser.selectedTab);
-    Services.obs.notifyObservers(contentWindow, TILT_NOTIFICATIONS.DESTROYED, null);
+    Services.obs.notifyObservers(null, TILT_NOTIFICATIONS.DESTROYED, null);
   },
 
   /**
@@ -203,17 +196,11 @@ Tilt.prototype = {
    */
   _onTabSelect: function T__onTabSelect()
   {
-    if (this.visualizers[this.lastInstanceId]) {
-      let contentWindow = this.visualizers[this.lastInstanceId].presenter.contentWindow;
-      Services.obs.notifyObservers(contentWindow, TILT_NOTIFICATIONS.HIDDEN, null);
-    }
-
     if (this.currentInstance) {
-      let contentWindow = this.currentInstance.presenter.contentWindow;
-      Services.obs.notifyObservers(contentWindow, TILT_NOTIFICATIONS.SHOWN, null);
+      Services.obs.notifyObservers(null, TILT_NOTIFICATIONS.SHOWN, null);
+    } else {
+      Services.obs.notifyObservers(null, TILT_NOTIFICATIONS.HIDDEN, null);
     }
-
-    this.lastInstanceId = this.currentWindowId;
   },
 
   /**

@@ -55,17 +55,9 @@ def makePath(a, b):
         return a
     return "%s/%s" % (a, b)
 
-def shorten(path):
-    path = path.replace('dom-tree-accessors', 'dta')
-    path = path.replace('document.getElementsByName', 'doc.gEBN')
-    path = path.replace('requirements-for-implementations', 'implreq')
-    path = path.replace('other-elements-attributes-and-apis', 'oeaaa')
-    return path
-
 def copyTest(source, dest):
     """Copy the file at source to dest, as well as any ^headers^ file associated
     with it."""
-    dest = shorten(dest)
     shutil.copy(source, dest)
     if os.path.exists(source + HEADERS_SUFFIX):
         shutil.copy(source + HEADERS_SUFFIX, dest + HEADERS_SUFFIX)
@@ -101,7 +93,7 @@ def printMozbuildFile(dest, directories):
     path = dest + ".mozbuild"
     with open(path, 'w') as fh:
         normalized = [makePath(dest, d) for d in directories]
-        result = writeBuildFiles.substMozbuild("importTestsuite.py",
+        result = writeBuildFiles.substMozbuild("importTestSuites.py",
             normalized)
         fh.write(result)
 

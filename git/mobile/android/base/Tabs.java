@@ -20,7 +20,6 @@ import android.database.ContentObserver;
 import android.graphics.Color;
 import android.net.Uri;
 import android.util.Log;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -55,7 +54,6 @@ public class Tabs implements GeckoEventListener {
     public static final int LOADURL_PINNED = 8;
     public static final int LOADURL_DELAY_LOAD = 16;
     public static final int LOADURL_DESKTOP = 32;
-    public static final int LOADURL_BACKGROUND = 64;
 
     private static final int SCORE_INCREMENT_TAB_LOCATION_CHANGE = 5;
     private static final int SCORE_INCREMENT_TAB_SELECTED = 10;
@@ -85,8 +83,7 @@ public class Tabs implements GeckoEventListener {
         registerEventListener("Content:PageShow");
         registerEventListener("DOMContentLoaded");
         registerEventListener("DOMTitleChanged");
-        registerEventListener("Link:Favicon");
-        registerEventListener("Link:Feed");
+        registerEventListener("DOMLinkAdded");
         registerEventListener("DesktopMode:Changed");
     }
 
@@ -439,12 +436,9 @@ public class Tabs implements GeckoEventListener {
                 notifyListeners(tab, Tabs.TabEvents.LOADED);
             } else if (event.equals("DOMTitleChanged")) {
                 tab.updateTitle(message.getString("title"));
-            } else if (event.equals("Link:Favicon")) {
+            } else if (event.equals("DOMLinkAdded")) {
                 tab.updateFaviconURL(message.getString("href"), message.getInt("size"));
-                notifyListeners(tab, TabEvents.LINK_FAVICON);
-            } else if (event.equals("Link:Feed")) {
-                tab.setFeedsEnabled(true);
-                notifyListeners(tab, TabEvents.LINK_FEED);
+                notifyListeners(tab, TabEvents.LINK_ADDED);
             } else if (event.equals("DesktopMode:Changed")) {
                 tab.setDesktopMode(message.getBoolean("desktopMode"));
                 notifyListeners(tab, TabEvents.DESKTOP_MODE_CHANGE);
@@ -497,8 +491,7 @@ public class Tabs implements GeckoEventListener {
         LOCATION_CHANGE,
         MENU_UPDATED,
         PAGE_SHOW,
-        LINK_FAVICON,
-        LINK_FEED,
+        LINK_ADDED,
         SECURITY_CHANGE,
         READER_ENABLED,
         DESKTOP_MODE_CHANGE
@@ -612,7 +605,6 @@ public class Tabs implements GeckoEventListener {
         JSONObject args = new JSONObject();
         Tab added = null;
         boolean delayLoad = (flags & LOADURL_DELAY_LOAD) != 0;
-        boolean background = (flags & LOADURL_BACKGROUND) != 0;
 
         try {
             boolean isPrivate = (flags & LOADURL_PRIVATE) != 0;
@@ -628,7 +620,6 @@ public class Tabs implements GeckoEventListener {
             args.put("pinned", (flags & LOADURL_PINNED) != 0);
             args.put("delayLoad", delayLoad);
             args.put("desktopMode", desktopMode);
-            args.put("selected", !background);
 
             if ((flags & LOADURL_NEW_TAB) != 0) {
                 int tabId = getNextTabId();
@@ -648,7 +639,7 @@ public class Tabs implements GeckoEventListener {
 
         GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Load", args.toString()));
 
-        if ((added != null) && !delayLoad && !background) {
+        if ((added != null) && !delayLoad) {
             selectTab(added.getId());
         }
 

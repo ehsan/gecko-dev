@@ -165,10 +165,6 @@ public class ImmutableViewportMetrics {
     }
 
     public ImmutableViewportMetrics setViewportSize(float width, float height) {
-        if (FloatUtils.fuzzyEquals(width, getWidth()) && FloatUtils.fuzzyEquals(height, getHeight())) {
-            return this;
-        }
-
         return new ImmutableViewportMetrics(
             pageRectLeft, pageRectTop, pageRectRight, pageRectBottom,
             cssPageRectLeft, cssPageRectTop, cssPageRectRight, cssPageRectBottom,
@@ -209,13 +205,6 @@ public class ImmutableViewportMetrics {
     }
 
     public ImmutableViewportMetrics setFixedLayerMargins(float left, float top, float right, float bottom) {
-        if (FloatUtils.fuzzyEquals(left, fixedLayerMarginLeft)
-                && FloatUtils.fuzzyEquals(top, fixedLayerMarginTop)
-                && FloatUtils.fuzzyEquals(right, fixedLayerMarginRight)
-                && FloatUtils.fuzzyEquals(bottom, fixedLayerMarginBottom)) {
-            return this;
-        }
-
         return new ImmutableViewportMetrics(
             pageRectLeft, pageRectTop, pageRectRight, pageRectBottom,
             cssPageRectLeft, cssPageRectTop, cssPageRectRight, cssPageRectBottom,

@@ -28,7 +28,7 @@ class ShadowCanvasLayer;
 class ShadowColorLayer;
 class ReadbackProcessor;
 class ImageFactory;
-class PaintLayerContext;
+class PaintContext;
 
 /**
  * This is a cairo/Thebes-only, main-thread-only implementation of layers.
@@ -39,7 +39,7 @@ class PaintLayerContext;
  * between layers).
  */
 class THEBES_API BasicLayerManager :
-    public LayerManager
+    public ShadowLayerManager
 {
 public:
   /**
@@ -107,6 +107,19 @@ public:
   virtual already_AddRefed<ReadbackLayer> CreateReadbackLayer();
   virtual ImageFactory *GetImageFactory();
 
+  virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer()
+  { return nullptr; }
+  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer()
+  { return nullptr; }
+  virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer()
+  { return nullptr; }
+  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer()
+  { return nullptr; }
+  virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer()
+  { return nullptr; }
+  virtual already_AddRefed<ShadowRefLayer> CreateShadowRefLayer()
+  { return nullptr; }
+
   virtual LayersBackend GetBackendType() { return LAYERS_BASIC; }
   virtual void GetBackendName(nsAString& name) { name.AssignLiteral("Basic"); }
 
@@ -152,11 +165,11 @@ protected:
   // This is the main body of the PaintLayer routine which will if it has
   // children, recurse into PaintLayer() otherwise it will paint using the
   // underlying Paint() method of the Layer. It will not do both.
-  void PaintSelfOrChildren(PaintLayerContext& aPaintContext, gfxContext* aGroupTarget);
+  void PaintSelfOrChildren(PaintContext& aPaintContext, gfxContext* aGroupTarget);
 
   // Paint the group onto the underlying target. This is used by PaintLayer to
   // flush the group to the underlying target.
-  void FlushGroup(PaintLayerContext& aPaintContext, bool aNeedsClipToVisibleRegion);
+  void FlushGroup(PaintContext& aPaintContext, bool aNeedsClipToVisibleRegion);
 
   // Paints aLayer to mTarget.
   void PaintLayer(gfxContext* aTarget,
@@ -203,6 +216,7 @@ protected:
   bool mTransactionIncomplete;
   bool mCompositorMightResample;
 };
+ 
 
 class BasicShadowLayerManager : public BasicLayerManager,
                                 public ShadowLayerForwarder
@@ -214,6 +228,10 @@ public:
   virtual ~BasicShadowLayerManager();
 
   virtual ShadowLayerForwarder* AsShadowForwarder()
+  {
+    return this;
+  }
+  virtual ShadowLayerManager* AsShadowManager()
   {
     return this;
   }
@@ -237,6 +255,12 @@ public:
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
   virtual already_AddRefed<ColorLayer> CreateColorLayer();
   virtual already_AddRefed<RefLayer> CreateRefLayer();
+  virtual already_AddRefed<ShadowThebesLayer> CreateShadowThebesLayer();
+  virtual already_AddRefed<ShadowContainerLayer> CreateShadowContainerLayer();
+  virtual already_AddRefed<ShadowImageLayer> CreateShadowImageLayer();
+  virtual already_AddRefed<ShadowColorLayer> CreateShadowColorLayer();
+  virtual already_AddRefed<ShadowCanvasLayer> CreateShadowCanvasLayer();
+  virtual already_AddRefed<ShadowRefLayer> CreateShadowRefLayer();
 
   ShadowableLayer* Hold(Layer* aLayer);
 
@@ -313,6 +337,18 @@ public:
     mShadow = aShadow;
   }
 
+  virtual void SetBackBuffer(const SurfaceDescriptor& aBuffer)
+  {
+    NS_RUNTIMEABORT("if this default impl is called, |aBuffer| leaks");
+  }
+  
+  virtual void SetBackBufferYUVImage(const SurfaceDescriptor& aYBuffer,
+                                     const SurfaceDescriptor& aUBuffer,
+                                     const SurfaceDescriptor& aVBuffer)
+  {
+    NS_RUNTIMEABORT("if this default impl is called, the buffers leak");
+  }
+
   virtual void Disconnect()
   {
     // This is an "emergency Disconnect()", called when the compositing
@@ -326,12 +362,6 @@ public:
   virtual BasicShadowableThebesLayer* AsThebes() { return nullptr; }
 };
 
-void
-PaintContext(gfxPattern* aPattern,
-             const nsIntRegion& aVisible,
-             float aOpacity,
-             gfxContext* aContext,
-             Layer* aMaskLayer);
 
 }
 }

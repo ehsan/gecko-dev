@@ -169,7 +169,8 @@ function openToolbox(form, chrome=false) {
     client: gClient,
     chrome: chrome
   };
-  TargetFactory.forRemoteTab(options).then((target) => {
+  let target = TargetFactory.forTab(options);
+  target.makeRemote(options).then(function() {
     gDevTools.showToolbox(target, "webconsole", Toolbox.HostType.WINDOW);
     window.close();
   });

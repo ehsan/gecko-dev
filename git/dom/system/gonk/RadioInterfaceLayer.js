@@ -99,7 +99,7 @@ const RIL_IPC_MOBILECONNECTION_MSG_NAMES = [
   "RIL:IccOpenChannel",
   "RIL:IccExchangeAPDU",
   "RIL:IccCloseChannel",
-  "RIL:UpdateIccContact",
+  "RIL:IccUpdateContact",
   "RIL:RegisterMobileConnectionMsg",
   "RIL:RegisterIccMsg",
   "RIL:SetCallForwardingOption",
@@ -226,7 +226,6 @@ function RadioInterfaceLayer() {
   this.rilContext = {
     radioState:     RIL.GECKO_RADIOSTATE_UNAVAILABLE,
     cardState:      RIL.GECKO_CARDSTATE_UNKNOWN,
-    networkSelectionMode: RIL.GECKO_NETWORK_SELECTION_UNKNOWN,
     iccInfo:        null,
     imsi:           null,
 
@@ -512,9 +511,9 @@ RadioInterfaceLayer.prototype = {
         this.saveRequestTarget(msg);
         this.iccExchangeAPDU(msg.json);
         break;
-      case "RIL:UpdateIccContact":
+      case "RIL:IccUpdateContact":
         this.saveRequestTarget(msg);
-        this.updateIccContact(msg.json);
+        this.updateICCContact(msg.json);
         break;
       case "RIL:RegisterMobileConnectionMsg":
         this.registerMessageTarget("mobileconnection", msg.target);
@@ -658,7 +657,7 @@ RadioInterfaceLayer.prototype = {
         this.handleNitzTime(message);
         break;
       case "iccinfochange":
-        this.handleIccInfoChange(message);
+        this.handleICCInfoChange(message);
         break;
       case "iccimsi":
         this.rilContext.imsi = message.imsi;
@@ -666,7 +665,7 @@ RadioInterfaceLayer.prototype = {
       case "iccGetCardLock":
       case "iccSetCardLock":
       case "iccUnlockCardLock":
-        this.handleIccCardLockResult(message);
+        this.handleICCCardLockResult(message);
         break;
       case "icccontacts":
         if (!this._contactsCallbacks) {
@@ -681,10 +680,10 @@ RadioInterfaceLayer.prototype = {
         }
         break;
       case "icccontactupdate":
-        this.handleUpdateIccContact(message);
+        this.handleIccUpdateContact(message);
         break;
       case "iccmbdn":
-        this.handleIccMbdn(message);
+        this.handleICCMbdn(message);
         break;
       case "USSDReceived":
         debug("USSDReceived " + JSON.stringify(message));
@@ -715,10 +714,6 @@ RadioInterfaceLayer.prototype = {
         break;
       case "setCellBroadcastSearchList":
         this.handleSetCellBroadcastSearchList(message);
-        break;
-      case "setRadioEnabled":
-        let lock = gSettingsService.createLock();
-        lock.set("ril.radio.disabled", !message.on, null, null);
         break;
       default:
         throw new Error("Don't know about this message type: " +
@@ -1399,9 +1394,9 @@ RadioInterfaceLayer.prototype = {
     this._sendRequestResults("RIL:EnumerateCalls", options);
   },
 
-  handleUpdateIccContact: function handleUpdateIccContact(message) {
-    debug("handleUpdateIccContact: " + JSON.stringify(message));
-    this._sendRequestResults("RIL:UpdateIccContact", message);
+  handleIccUpdateContact: function handleIccUpdateContact(message) {
+    debug("handleIccUpdateContact: " + JSON.stringify(message));
+    this._sendRequestResults("RIL:IccUpdateContact", message);
   },
 
   /**
@@ -1442,7 +1437,6 @@ RadioInterfaceLayer.prototype = {
    */
   updateNetworkSelectionMode: function updateNetworkSelectionMode(message) {
     debug("updateNetworkSelectionMode: " + JSON.stringify(message));
-    this.rilContext.networkSelectionMode = message.mode;
     this._sendMobileConnectionMessage("RIL:NetworkSelectionModeChanged", message);
   },
 
@@ -1511,7 +1505,6 @@ RadioInterfaceLayer.prototype = {
     gSystemMessenger.broadcastMessage(aName, {
       type:           aDomMessage.type,
       id:             aDomMessage.id,
-      threadId:       aDomMessage.threadId,
       delivery:       aDomMessage.delivery,
       deliveryStatus: aDomMessage.deliveryStatus,
       sender:         aDomMessage.sender,
@@ -1592,14 +1585,12 @@ RadioInterfaceLayer.prototype = {
                                                                      notifyReceived);
     } else {
       message.id = -1;
-      message.threadId = 0;
       message.delivery = DOM_MOBILE_MESSAGE_DELIVERY_RECEIVED;
       message.deliveryStatus = RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS;
       message.read = false;
 
       let domMessage =
         gMobileMessageService.createSmsMessage(message.id,
-                                               message.threadId,
                                                message.delivery,
                                                message.deliveryStatus,
                                                message.sender,
@@ -1782,7 +1773,7 @@ RadioInterfaceLayer.prototype = {
     }
   },
 
-  handleIccMbdn: function handleIccMbdn(message) {
+  handleICCMbdn: function handleICCMbdn(message) {
     let voicemailInfo = this.voicemailInfo;
 
     voicemailInfo.number = message.number;
@@ -1791,7 +1782,7 @@ RadioInterfaceLayer.prototype = {
     this._sendVoicemailMessage("RIL:VoicemailInfoChanged", voicemailInfo);
   },
 
-  handleIccInfoChange: function handleIccInfoChange(message) {
+  handleICCInfoChange: function handleICCInfoChange(message) {
     let oldIccInfo = this.rilContext.iccInfo;
     this.rilContext.iccInfo = message;
 
@@ -1828,7 +1819,7 @@ RadioInterfaceLayer.prototype = {
     }
   },
 
-  handleIccCardLockResult: function handleIccCardLockResult(message) {
+  handleICCCardLockResult: function handleICCCardLockResult(message) {
     this._sendRequestResults("RIL:CardLockResult", message);
   },
 
@@ -2903,7 +2894,7 @@ RadioInterfaceLayer.prototype = {
                              requestId: requestId});
   },
 
-  updateIccContact: function updateIccContact(message) {
+  updateICCContact: function updateICCContact(message) {
     message.rilMessageType = "updateICCContact";
     this.worker.postMessage(message);
   },

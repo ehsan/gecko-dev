@@ -20,6 +20,7 @@
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMWheelEvent.h"
 #include "nsIDOMDataTransfer.h"
+#include "nsIDOMEventTarget.h"
 #include "nsIDOMTouchEvent.h"
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
@@ -29,7 +30,6 @@
 #include "nsIVariant.h"
 #include "nsStyleConsts.h"
 #include "nsAutoPtr.h"
-#include "mozilla/dom/EventTarget.h"
 
 namespace mozilla {
 namespace dom {
@@ -337,19 +337,16 @@ enum nsEventStructType {
 
 // Simple gesture events
 #define NS_SIMPLE_GESTURE_EVENT_START    3500
-#define NS_SIMPLE_GESTURE_SWIPE_START    (NS_SIMPLE_GESTURE_EVENT_START)
-#define NS_SIMPLE_GESTURE_SWIPE_UPDATE   (NS_SIMPLE_GESTURE_EVENT_START+1)
-#define NS_SIMPLE_GESTURE_SWIPE_END      (NS_SIMPLE_GESTURE_EVENT_START+2)
-#define NS_SIMPLE_GESTURE_SWIPE          (NS_SIMPLE_GESTURE_EVENT_START+3)
-#define NS_SIMPLE_GESTURE_MAGNIFY_START  (NS_SIMPLE_GESTURE_EVENT_START+4)
-#define NS_SIMPLE_GESTURE_MAGNIFY_UPDATE (NS_SIMPLE_GESTURE_EVENT_START+5)
-#define NS_SIMPLE_GESTURE_MAGNIFY        (NS_SIMPLE_GESTURE_EVENT_START+6)
-#define NS_SIMPLE_GESTURE_ROTATE_START   (NS_SIMPLE_GESTURE_EVENT_START+7)
-#define NS_SIMPLE_GESTURE_ROTATE_UPDATE  (NS_SIMPLE_GESTURE_EVENT_START+8)
-#define NS_SIMPLE_GESTURE_ROTATE         (NS_SIMPLE_GESTURE_EVENT_START+9)
-#define NS_SIMPLE_GESTURE_TAP            (NS_SIMPLE_GESTURE_EVENT_START+10)
-#define NS_SIMPLE_GESTURE_PRESSTAP       (NS_SIMPLE_GESTURE_EVENT_START+11)
-#define NS_SIMPLE_GESTURE_EDGEUI         (NS_SIMPLE_GESTURE_EVENT_START+12)
+#define NS_SIMPLE_GESTURE_SWIPE          (NS_SIMPLE_GESTURE_EVENT_START)
+#define NS_SIMPLE_GESTURE_MAGNIFY_START  (NS_SIMPLE_GESTURE_EVENT_START+1)
+#define NS_SIMPLE_GESTURE_MAGNIFY_UPDATE (NS_SIMPLE_GESTURE_EVENT_START+2)
+#define NS_SIMPLE_GESTURE_MAGNIFY        (NS_SIMPLE_GESTURE_EVENT_START+3)
+#define NS_SIMPLE_GESTURE_ROTATE_START   (NS_SIMPLE_GESTURE_EVENT_START+4)
+#define NS_SIMPLE_GESTURE_ROTATE_UPDATE  (NS_SIMPLE_GESTURE_EVENT_START+5)
+#define NS_SIMPLE_GESTURE_ROTATE         (NS_SIMPLE_GESTURE_EVENT_START+6)
+#define NS_SIMPLE_GESTURE_TAP            (NS_SIMPLE_GESTURE_EVENT_START+7)
+#define NS_SIMPLE_GESTURE_PRESSTAP       (NS_SIMPLE_GESTURE_EVENT_START+8)
+#define NS_SIMPLE_GESTURE_EDGEUI         (NS_SIMPLE_GESTURE_EVENT_START+9)
 
 // These are used to send native events to plugins.
 #define NS_PLUGIN_EVENT_START            3600
@@ -676,9 +673,9 @@ public:
   // Additional type info for user defined events
   nsCOMPtr<nsIAtom>     userType;
   // Event targets, needed by DOM Events
-  nsCOMPtr<mozilla::dom::EventTarget> target;
-  nsCOMPtr<mozilla::dom::EventTarget> currentTarget;
-  nsCOMPtr<mozilla::dom::EventTarget> originalTarget;
+  nsCOMPtr<nsIDOMEventTarget> target;
+  nsCOMPtr<nsIDOMEventTarget> currentTarget;
+  nsCOMPtr<nsIDOMEventTarget> originalTarget;
 };
 
 /**
@@ -1306,8 +1303,7 @@ public:
     deltaMode(nsIDOMWheelEvent::DOM_DELTA_PIXEL),
     customizedByUserPrefs(false), isMomentum(false), isPixelOnlyDevice(false),
     lineOrPageDeltaX(0), lineOrPageDeltaY(0), scrollType(SCROLL_DEFAULT),
-    overflowDeltaX(0.0), overflowDeltaY(0.0),
-    viewPortIsScrollTargetParent(false)
+    overflowDeltaX(0.0), overflowDeltaY(0.0)
   {
   }
 
@@ -1386,11 +1382,6 @@ public:
   //       it would need to check the deltaX and deltaY.
   double overflowDeltaX;
   double overflowDeltaY;
-
-  // Whether or not the parent of the currently scrolled frame is the ViewPort.
-  // This is false in situations when an element on the page is being scrolled
-  // (such as a text field), but true when the 'page' is being scrolled.
-  bool viewPortIsScrollTargetParent;
 };
 
 } // namespace widget
@@ -1710,22 +1701,20 @@ public:
   nsSimpleGestureEvent(bool isTrusted, uint32_t msg, nsIWidget* w,
                          uint32_t directionArg, double deltaArg)
     : nsMouseEvent_base(isTrusted, msg, w, NS_SIMPLE_GESTURE_EVENT),
-      allowedDirections(0), direction(directionArg), delta(deltaArg),
-      clickCount(0)
+      direction(directionArg), delta(deltaArg), clickCount(0)
   {
   }
 
   nsSimpleGestureEvent(const nsSimpleGestureEvent& other)
     : nsMouseEvent_base(other.mFlags.mIsTrusted,
                         other.message, other.widget, NS_SIMPLE_GESTURE_EVENT),
-      allowedDirections(other.allowedDirections), direction(other.direction),
-      delta(other.delta), clickCount(0)
+      direction(other.direction), delta(other.delta), clickCount(0)
   {
   }
-  uint32_t allowedDirections; // See nsIDOMSimpleGestureEvent for values
-  uint32_t direction;         // See nsIDOMSimpleGestureEvent for values
-  double delta;               // Delta for magnify and rotate events
-  uint32_t clickCount;        // The number of taps for tap events
+
+  uint32_t direction;   // See nsIDOMSimpleGestureEvent for values
+  double delta;         // Delta for magnify and rotate events
+  uint32_t clickCount;  // The number of taps for tap events
 };
 
 class nsTransitionEvent : public nsEvent

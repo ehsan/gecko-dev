@@ -218,7 +218,7 @@ nsRange::CreateRange(nsIDOMNode* aStartParent, int32_t aStartOffset,
                      nsRange** aRange)
 {
   MOZ_ASSERT(aRange);
-  *aRange = nullptr;
+  *aRange = NULL;
 
   nsCOMPtr<nsINode> startParent = do_QueryInterface(aStartParent);
   NS_ENSURE_ARG_POINTER(startParent);
@@ -255,12 +255,15 @@ nsRange::CreateRange(nsIDOMNode* aStartParent, int32_t aStartOffset,
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsRange)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsRange)
 
+DOMCI_DATA(Range, nsRange)
+
 // QueryInterface implementation for nsRange
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsRange)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsIDOMRange)
   NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMRange)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Range)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsRange)
@@ -1389,7 +1392,7 @@ nsRange::SelectNodeContents(nsINode& aNode, ErrorResult& aRv)
 // start/end points in the future, we can switchover relatively
 // easy.
 
-class MOZ_STACK_CLASS RangeSubtreeIterator
+class NS_STACK_CLASS RangeSubtreeIterator
 {
 private:
 
@@ -1793,7 +1796,9 @@ nsRange::CutContents(dom::DocumentFragment** aFragment)
   // If aFragment isn't null, create a temporary fragment to hold our return.
   nsRefPtr<dom::DocumentFragment> retval;
   if (aFragment) {
-    retval = new dom::DocumentFragment(doc->NodeInfoManager());
+    ErrorResult error;
+    retval = NS_NewDocumentFragment(doc->NodeInfoManager(), error);
+    NS_ENSURE_SUCCESS(error.ErrorCode(), error.ErrorCode());
   }
   nsCOMPtr<nsIDOMNode> commonCloneAncestor = retval.get();
 
@@ -2234,7 +2239,10 @@ nsRange::CloneContents(ErrorResult& aRv)
   nsCOMPtr<nsIDocument> doc(do_QueryInterface(document));
 
   nsRefPtr<dom::DocumentFragment> clonedFrag =
-    new dom::DocumentFragment(doc->NodeInfoManager());
+    NS_NewDocumentFragment(doc->NodeInfoManager(), aRv);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
 
   nsCOMPtr<nsIDOMNode> commonCloneAncestor = clonedFrag.get();
   if (!commonCloneAncestor) {

@@ -174,7 +174,7 @@ WifiGeoPositionProvider.prototype = {
       if (this.lastRequestPrivate) {
         accessTokenDate = gPrivateAccessTime;
       } else {
-        accessTokenDate = Services.prefs.getIntPref(accessTokenPrefName + ".time");
+        Services.prefs.getIntPref(accessTokenPrefName + ".time");
       }
       
       let accessTokenInterval = 1209600;  // seconds in 2 weeks

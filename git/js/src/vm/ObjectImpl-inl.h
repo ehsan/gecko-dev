@@ -83,36 +83,6 @@ js::ObjectImpl::nativeContains(JSContext *cx, Shape *shape)
     return nativeLookup(cx, shape->propid()) == shape;
 }
 
-inline js::Shape *
-js::ObjectImpl::nativeLookupPure(PropertyId pid)
-{
-    return nativeLookupPure(pid.asId());
-}
-
-inline js::Shape *
-js::ObjectImpl::nativeLookupPure(PropertyName *name)
-{
-    return nativeLookupPure(NameToId(name));
-}
-
-inline bool
-js::ObjectImpl::nativeContainsPure(jsid id)
-{
-    return nativeLookupPure(id) != NULL;
-}
-
-inline bool
-js::ObjectImpl::nativeContainsPure(PropertyName *name)
-{
-    return nativeContainsPure(NameToId(name));
-}
-
-inline bool
-js::ObjectImpl::nativeContainsPure(Shape *shape)
-{
-    return nativeLookupPure(shape->propid()) == shape;
-}
-
 inline bool
 js::ObjectImpl::isExtensible() const
 {
@@ -128,13 +98,6 @@ js::ObjectImpl::getDenseInitializedLength()
 {
     MOZ_ASSERT(isNative());
     return getElementsHeader()->initializedLength;
-}
-
-inline uint32_t
-js::ObjectImpl::getDenseCapacity()
-{
-    MOZ_ASSERT(isNative());
-    return getElementsHeader()->capacity;
 }
 
 inline js::HeapSlotArray
@@ -428,7 +391,7 @@ js::ObjectImpl::writeBarrierPre(ObjectImpl *obj)
      * This would normally be a null test, but TypeScript::global uses 0x1 as a
      * special value.
      */
-    if (IsNullTaggedPointer(obj) || !obj->runtime()->needsBarrier())
+    if (IsNullTaggedPointer(obj))
         return;
 
     Zone *zone = obj->zone();

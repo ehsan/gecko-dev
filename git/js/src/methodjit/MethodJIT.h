@@ -8,8 +8,6 @@
 #if !defined jsjaeger_h__ && defined JS_METHODJIT
 #define jsjaeger_h__
 
-#include "mozilla/PodOperations.h"
-
 #ifdef JSGC_INCREMENTAL
 #define JSGC_INCREMENTAL_MJ
 #endif
@@ -750,7 +748,7 @@ struct ChunkDescriptor
     /* Optional compiled code for the chunk. */
     JITChunk *chunk;
 
-    ChunkDescriptor() { mozilla::PodZero(this); }
+    ChunkDescriptor() { PodZero(this); }
 };
 
 /* Jump or fallthrough edge in the bytecode which crosses a chunk boundary. */
@@ -786,7 +784,7 @@ struct CrossChunkEdge
      */
     void *shimLabel;
 
-    CrossChunkEdge() { mozilla::PodZero(this); }
+    CrossChunkEdge() { PodZero(this); }
 };
 
 struct JITScript

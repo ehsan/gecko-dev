@@ -197,6 +197,7 @@
 @BINPATH@/components/dom_indexeddb.xpt
 @BINPATH@/components/dom_offline.xpt
 @BINPATH@/components/dom_json.xpt
+@BINPATH@/components/dom_push.xpt
 #ifdef MOZ_B2G_RIL
 @BINPATH@/components/dom_mms.xpt
 #endif
@@ -212,7 +213,7 @@
 @BINPATH@/components/dom_stylesheets.xpt
 @BINPATH@/components/dom_traversal.xpt
 #ifdef MOZ_WEBSPEECH
-@BINPATH@/components/dom_webspeechrecognition.xpt
+@BINPATH@/components/dom_webspeech.xpt
 #endif
 @BINPATH@/components/dom_xbl.xpt
 @BINPATH@/components/dom_xpath.xpt
@@ -504,6 +505,10 @@
 @BINPATH@/components/Webapps.manifest
 @BINPATH@/components/AppsService.js
 @BINPATH@/components/AppsService.manifest
+@BINPATH@/components/Push.js
+@BINPATH@/components/Push.manifest
+@BINPATH@/components/PushService.js
+@BINPATH@/components/PushService.manifest
 @BINPATH@/components/nsDOMIdentity.js
 @BINPATH@/components/nsIDService.js
 @BINPATH@/components/Identity.manifest
@@ -514,16 +519,11 @@
 @BINPATH@/components/PermissionSettings.manifest
 @BINPATH@/components/ContactManager.js
 @BINPATH@/components/ContactManager.manifest
-@BINPATH@/components/NavigatorPropertyHelper.js
-@BINPATH@/components/NavigatorPropertyHelper.manifest
 @BINPATH@/components/AlarmsManager.js
 @BINPATH@/components/AlarmsManager.manifest
 @BINPATH@/components/TCPSocket.js
 @BINPATH@/components/TCPSocketParentIntermediary.js
 @BINPATH@/components/TCPSocket.manifest
-
-@BINPATH@/components/AppProtocolHandler.js
-@BINPATH@/components/AppProtocolHandler.manifest
 
 #ifdef MOZ_WEBRTC
 @BINPATH@/components/PeerConnection.js
@@ -535,10 +535,6 @@
 @BINPATH@/chrome/marionette.manifest
 @BINPATH@/components/MarionetteComponents.manifest
 @BINPATH@/components/marionettecomponent.js
-#endif
-
-#ifdef MOZ_WEBSPEECH
-@BINPATH@/components/dom_webspeechsynth.xpt
 #endif
 
 ; Modules
@@ -776,8 +772,6 @@ bin/libfreebl_32int64_3.so
 @BINPATH@/metro/chrome.manifest
 @BINPATH@/metro/searchplugins
 @BINPATH@/metro/metroapp.ini
-@BINPATH@/metro/chrome/browser@JAREXT@
-@BINPATH@/metro/chrome/browser.manifest
 @BINPATH@/metro/chrome/chrome@JAREXT@
 @BINPATH@/metro/chrome/chrome.manifest
 @BINPATH@/metro/chrome/@AB_CD@@JAREXT@

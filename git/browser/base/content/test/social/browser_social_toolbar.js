@@ -103,9 +103,9 @@ var tests = {
     Social.provider.setAmbientNotification(ambience2);
     Social.provider.setAmbientNotification(ambience3);
 
-    let statusIcon = document.getElementById("social-provider-button").nextSibling;
+    let statusIcon = document.querySelector("#social-toolbar-item > .social-notification-container > .toolbarbutton-1");
     waitForCondition(function() {
-      statusIcon = document.getElementById("social-provider-button").nextSibling;
+      statusIcon = document.querySelector("#social-toolbar-item > .social-notification-container > .toolbarbutton-1");
       return !!statusIcon;
     }, function () {
       let badge = statusIcon.getAttribute("badge");

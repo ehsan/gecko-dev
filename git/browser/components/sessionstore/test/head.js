@@ -161,7 +161,7 @@ function waitForSaveState(aSaveStateCallback) {
   function removeObserver() {
     if (!observing)
       return;
-    Services.obs.removeObserver(observer, topic);
+    Services.obs.removeObserver(observer, topic, false);
     observing = false;
   }
 

@@ -116,7 +116,7 @@ public:
     RecvAudioChannelNotify();
 
     virtual bool
-    RecvDumpMemoryInfoToTempDir(const nsString& aIdentifier,
+    RecvDumpMemoryReportsToFile(const nsString& aIdentifier,
                                 const bool& aMinimizeMemoryUsage,
                                 const bool& aDumpChildProcesses);
     virtual bool
@@ -147,9 +147,6 @@ public:
 
     virtual PBluetoothChild* AllocPBluetooth();
     virtual bool DeallocPBluetooth(PBluetoothChild* aActor);
-
-    virtual PSpeechSynthesisChild* AllocPSpeechSynthesis();
-    virtual bool DeallocPSpeechSynthesis(PSpeechSynthesisChild* aActor);
 
     virtual bool RecvRegisterChrome(const InfallibleTArray<ChromePackage>& packages,
                                     const InfallibleTArray<ResourceMapping>& resources,
