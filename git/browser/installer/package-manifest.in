@@ -121,11 +121,6 @@
 #endif
 #endif
 #endif
-#ifdef MOZ_REPLACE_MALLOC
-#ifndef MOZ_JEMALLOC3
-@BINPATH@/@DLL_PREFIX@replace_jemalloc@DLL_SUFFIX@
-#endif
-#endif
 
 [browser]
 ; [Base Browser Files]

@@ -5193,6 +5193,9 @@ nsDocShell::Create()
     NS_ENSURE_TRUE(Preferences::GetRootBranch(), NS_ERROR_FAILURE);
     mCreated = true;
 
+    mAllowSubframes =
+        Preferences::GetBool("browser.frames.enabled", mAllowSubframes);
+
     if (gValidateOrigin == 0xffffffff) {
         // Check pref to see if we should prevent frameset spoofing
         gValidateOrigin =

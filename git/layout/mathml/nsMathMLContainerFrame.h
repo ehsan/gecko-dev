@@ -411,7 +411,7 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  friend nsContainerFrame* NS_NewMathMLmathBlockFrame(nsIPresShell* aPresShell,
+  friend nsIFrame* NS_NewMathMLmathBlockFrame(nsIPresShell* aPresShell,
           nsStyleContext* aContext, nsFrameState aFlags);
 
   // beware, mFrames is not set by nsBlockFrame
@@ -493,8 +493,7 @@ public:
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  friend nsContainerFrame* NS_NewMathMLmathInlineFrame(nsIPresShell* aPresShell,
-                                                       nsStyleContext* aContext);
+  friend nsIFrame* NS_NewMathMLmathInlineFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual nsresult
   SetInitialChildList(ChildListID     aListID,

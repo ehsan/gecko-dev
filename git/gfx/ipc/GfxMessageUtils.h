@@ -763,8 +763,7 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
     WriteParam(aMsg, aParam.mHasScrollgrab);
     WriteParam(aMsg, aParam.mUpdateScrollOffset);
     WriteParam(aMsg, aParam.mScrollGeneration);
-    aMsg->WriteBytes(aParam.mContentDescription,
-                     sizeof(aParam.mContentDescription));
+    WriteParam(aMsg, aParam.mContentDescription);
     WriteParam(aMsg, aParam.mTransformScale);
   }
 
@@ -790,9 +789,7 @@ struct ParamTraits<mozilla::layers::FrameMetrics>
             ReadParam(aMsg, aIter, &aResult->mHasScrollgrab) &&
             ReadParam(aMsg, aIter, &aResult->mUpdateScrollOffset) &&
             ReadParam(aMsg, aIter, &aResult->mScrollGeneration) &&
-            aMsg->ReadBytes(aIter,
-                            reinterpret_cast<const char**>(&aResult->mContentDescription),
-                            sizeof(aResult->mContentDescription)) &&
+            ReadParam(aMsg, aIter, &aResult->mContentDescription) &&
             ReadParam(aMsg, aIter, &aResult->mTransformScale));
   }
 };

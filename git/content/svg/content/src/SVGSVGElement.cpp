@@ -11,7 +11,6 @@
 
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
-#include "nsLayoutStylesheetCache.h"
 #include "DOMSVGNumber.h"
 #include "DOMSVGLength.h"
 #include "nsSVGAngle.h"
@@ -723,6 +722,8 @@ SVGSVGElement::BindToTree(nsIDocument* aDocument,
                           nsIContent* aBindingParent,
                           bool aCompileEventHandlers)
 {
+  static const char kSVGStyleSheetURI[] = "resource://gre/res/svg.css";
+
   nsSMILAnimationController* smilController = nullptr;
 
   if (aDocument) {
@@ -753,8 +754,7 @@ SVGSVGElement::BindToTree(nsIDocument* aDocument,
     // Setup the style sheet during binding, not element construction,
     // because we could move the root SVG element from the document
     // that created it to another document.
-    aDocument->
-      EnsureOnDemandBuiltInUASheet(nsLayoutStylesheetCache::SVGSheet());
+    aDocument->EnsureCatalogStyleSheet(kSVGStyleSheetURI);
   }
 
   if (mTimedDocumentRoot && smilController) {

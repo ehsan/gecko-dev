@@ -7,7 +7,6 @@ var ignoreIndirectCalls = {
     "mallocSizeOf" : true,
     "aMallocSizeOf" : true,
     "_malloc_message" : true,
-    "je_malloc_message" : true,
     "__conv" : true,
     "__convf" : true,
     "prerrortable.c:callback_newtable" : true,
@@ -134,7 +133,6 @@ function ignoreEdgeAddressTaken(edge)
 // Ignore calls of these functions (so ignore any stack containing these)
 var ignoreFunctions = {
     "ptio.c:pt_MapError" : true,
-    "je_malloc_printf" : true,
     "PR_ExplodeTime" : true,
     "PR_ErrorInstallTable" : true,
     "PR_SetThreadPrivate" : true,

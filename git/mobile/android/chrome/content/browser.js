@@ -110,7 +110,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "CharsetMenu",
   ["WebrtcUI", ["getUserMedia:request", "recording-device-events"], "chrome://browser/content/WebrtcUI.js"],
 #endif
   ["MemoryObserver", ["memory-pressure", "Memory:Dump"], "chrome://browser/content/MemoryObserver.js"],
-  ["ConsoleAPI", ["console-api-log-event"], "chrome://browser/content/ConsoleAPI.js"],
   ["FindHelper", ["FindInPage:Find", "FindInPage:Prev", "FindInPage:Next", "FindInPage:Closed", "Tab:Selected"], "chrome://browser/content/FindHelper.js"],
   ["PermissionsHelper", ["Permissions:Get", "Permissions:Clear"], "chrome://browser/content/PermissionsHelper.js"],
   ["FeedHandler", ["Feeds:Subscribe"], "chrome://browser/content/FeedHandler.js"],
@@ -3311,13 +3310,11 @@ Tab.prototype = {
 
     let scrollx = this.browser.contentWindow.scrollX * zoom;
     let scrolly = this.browser.contentWindow.scrollY * zoom;
-    let screenWidth = gScreenWidth - gViewportMargins.left - gViewportMargins.right;
-    let screenHeight = gScreenHeight - gViewportMargins.top - gViewportMargins.bottom;
     let displayPortMargins = {
       left: scrollx - aDisplayPort.left,
       top: scrolly - aDisplayPort.top,
-      right: aDisplayPort.right - (scrollx + screenWidth),
-      bottom: aDisplayPort.bottom - (scrolly + screenHeight)
+      right: aDisplayPort.right - (scrollx + gScreenWidth),
+      bottom: aDisplayPort.bottom - (scrolly + gScreenHeight)
     };
 
     if (this._oldDisplayPortMargins == null ||
@@ -3429,6 +3426,13 @@ Tab.prototype = {
         cwu.setResolution(aZoom / window.devicePixelRatio, aZoom / window.devicePixelRatio);
       }
     }
+  },
+
+  getPageSize: function(aDocument, aDefaultWidth, aDefaultHeight) {
+    let body = aDocument.body || { scrollWidth: aDefaultWidth, scrollHeight: aDefaultHeight };
+    let html = aDocument.documentElement || { scrollWidth: aDefaultWidth, scrollHeight: aDefaultHeight };
+    return [Math.max(body.scrollWidth, html.scrollWidth),
+      Math.max(body.scrollHeight, html.scrollHeight)];
   },
 
   getViewport: function() {
@@ -4275,22 +4279,21 @@ Tab.prototype = {
     if (this.browser.contentDocument) {
       // this may get run during a Viewport:Change message while the document
       // has not yet loaded, so need to guard against a null document.
-      let cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      let cssPageRect = cwu.getRootBounds();
+      let [pageWidth, pageHeight] = this.getPageSize(this.browser.contentDocument, viewportW, viewportH);
 
       // In the situation the page size equals or exceeds the screen size,
       // lengthen the viewport on the corresponding axis to include the margins.
       // The '- 0.5' is to account for rounding errors.
-      if (cssPageRect.width * this._zoom > gScreenWidth - 0.5) {
+      if (pageWidth * this._zoom > gScreenWidth - 0.5) {
         screenW = gScreenWidth;
         this.viewportExcludesHorizontalMargins = false;
       }
-      if (cssPageRect.height * this._zoom > gScreenHeight - 0.5) {
+      if (pageHeight * this._zoom > gScreenHeight - 0.5) {
         screenH = gScreenHeight;
         this.viewportExcludesVerticalMargins = false;
       }
 
-      minScale = screenW / cssPageRect.width;
+      minScale = screenW / pageWidth;
     }
     minScale = this.clampZoom(minScale);
     viewportH = Math.max(viewportH, screenH / minScale);

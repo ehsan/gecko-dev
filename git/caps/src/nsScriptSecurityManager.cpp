@@ -78,6 +78,12 @@ nsIStringBundle *nsScriptSecurityManager::sStrBundle = nullptr;
 JSRuntime       *nsScriptSecurityManager::sRuntime   = 0;
 bool nsScriptSecurityManager::sStrictFileOriginPolicy = true;
 
+bool
+nsScriptSecurityManager::SubjectIsPrivileged()
+{
+    return nsContentUtils::IsCallerChrome();
+}
+
 ///////////////////////////
 // Convenience Functions //
 ///////////////////////////
@@ -481,7 +487,7 @@ nsScriptSecurityManager::CheckLoadURIFromScript(JSContext *cx, nsIURI *aURI)
         return NS_ERROR_FAILURE;
     if (isFile || isRes)
     {
-        if (nsContentUtils::IsCallerChrome())
+        if (SubjectIsPrivileged())
             return NS_OK;
     }
 
@@ -1044,7 +1050,7 @@ nsScriptSecurityManager::CanCreateWrapper(JSContext *cx,
         return NS_OK;
     }
 
-    if (nsContentUtils::IsCallerChrome())
+    if (SubjectIsPrivileged())
     {
         return NS_OK;
     }
@@ -1081,7 +1087,7 @@ NS_IMETHODIMP
 nsScriptSecurityManager::CanCreateInstance(JSContext *cx,
                                            const nsCID &aCID)
 {
-    if (nsContentUtils::IsCallerChrome()) {
+    if (SubjectIsPrivileged()) {
         return NS_OK;
     }
 
@@ -1098,7 +1104,7 @@ NS_IMETHODIMP
 nsScriptSecurityManager::CanGetService(JSContext *cx,
                                        const nsCID &aCID)
 {
-    if (nsContentUtils::IsCallerChrome()) {
+    if (SubjectIsPrivileged()) {
         return NS_OK;
     }
 

@@ -420,7 +420,7 @@ public:
     {
       // release conduit on mainthread.  Must use forget()!
       nsresult rv = NS_DispatchToMainThread(new
-        ConduitDeleteEvent(conduit_.forget()));
+        ConduitDeleteEvent(conduit_.forget()), NS_DISPATCH_NORMAL);
       MOZ_ASSERT(!NS_FAILED(rv),"Could not dispatch conduit shutdown to main");
       if (NS_FAILED(rv)) {
         MOZ_CRASH();
@@ -577,7 +577,7 @@ class MediaPipelineReceiveAudio : public MediaPipelineReceive {
     {
       // release conduit on mainthread.  Must use forget()!
       nsresult rv = NS_DispatchToMainThread(new
-        ConduitDeleteEvent(conduit_.forget()));
+        ConduitDeleteEvent(conduit_.forget()), NS_DISPATCH_NORMAL);
       MOZ_ASSERT(!NS_FAILED(rv),"Could not dispatch conduit shutdown to main");
       if (NS_FAILED(rv)) {
         MOZ_CRASH();

@@ -4,8 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ContentHelper.h"
-
-#include "nsContainerFrame.h"
+#include "nsQueryFrame.h"
 #include "nsIContent.h"
 #include "nsIScrollableFrame.h"
 #include "nsLayoutUtils.h"

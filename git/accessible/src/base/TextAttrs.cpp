@@ -13,7 +13,6 @@
 #include "gfxFont.h"
 #include "nsFontMetrics.h"
 #include "nsLayoutUtils.h"
-#include "nsContainerFrame.h"
 #include "HyperTextAccessible.h"
 #include "mozilla/AppUnits.h"
 #include "mozilla/gfx/2D.h"
@@ -365,7 +364,7 @@ TextAttrsMgr::BGColorTextAttr::
     return true;
   }
 
-  nsContainerFrame *parentFrame = aFrame->GetParent();
+  nsIFrame *parentFrame = aFrame->GetParent();
   if (!parentFrame) {
     *aColor = aFrame->PresContext()->DefaultBackgroundColor();
     return true;

@@ -52,8 +52,7 @@ class nsListControlFrame : public nsHTMLScrollFrame,
                            public nsISelectControlFrame
 {
 public:
-  friend nsContainerFrame* NS_NewListControlFrame(nsIPresShell* aPresShell,
-                                                  nsStyleContext* aContext);
+  friend nsIFrame* NS_NewListControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
@@ -74,9 +73,9 @@ public:
                       const nsHTMLReflowState& aReflowState,
                       nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
-  virtual void Init(nsIContent*       aContent,
-                    nsContainerFrame* aParent,
-                    nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
+  virtual void Init(nsIContent*      aContent,
+                    nsIFrame*        aParent,
+                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
 
   virtual void DidReflow(nsPresContext*            aPresContext, 
                          const nsHTMLReflowState*  aReflowState, 
@@ -87,7 +86,7 @@ public:
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
-  virtual nsContainerFrame* GetContentInsertionFrame() MOZ_OVERRIDE;
+  virtual nsIFrame* GetContentInsertionFrame() MOZ_OVERRIDE;
 
   /**
    * Get the "type" of the frame

@@ -423,26 +423,27 @@ IsBidiLeaf(nsIFrame* aFrame)
  *        If aFrame is null, all the children of aParent are reparented.
  */
 static nsresult
-SplitInlineAncestors(nsContainerFrame* aParent,
+SplitInlineAncestors(nsIFrame* aParent,
                      nsIFrame* aFrame)
 {
-  nsPresContext* presContext = aParent->PresContext();
-  nsIPresShell* presShell = presContext->PresShell();
+  nsPresContext *presContext = aParent->PresContext();
+  nsIPresShell *presShell = presContext->PresShell();
   nsIFrame* frame = aFrame;
-  nsContainerFrame* parent = aParent;
-  nsContainerFrame* newParent;
+  nsIFrame* parent = aParent;
+  nsIFrame* newParent;
 
   while (IsBidiSplittable(parent)) {
-    nsContainerFrame* grandparent = parent->GetParent();
+    nsIFrame* grandparent = parent->GetParent();
     NS_ASSERTION(grandparent, "Couldn't get parent's parent in nsBidiPresUtils::SplitInlineAncestors");
     
     // Split the child list after |frame|, unless it is the last child.
     if (!frame || frame->GetNextSibling()) {
     
-      newParent = static_cast<nsContainerFrame*>(presShell->FrameConstructor()->
-        CreateContinuingFrame(presContext, parent, grandparent, false));
+      newParent = presShell->FrameConstructor()->
+        CreateContinuingFrame(presContext, parent, grandparent, false);
 
-      nsFrameList tail = parent->StealFramesAfter(frame);
+      nsContainerFrame* container = do_QueryFrame(parent);
+      nsFrameList tail = container->StealFramesAfter(frame);
 
       // Reparent views as necessary
       nsresult rv;
@@ -539,7 +540,7 @@ CreateContinuation(nsIFrame*  aFrame,
   nsIPresShell *presShell = presContext->PresShell();
   NS_ASSERTION(presShell, "PresShell must be set on PresContext before calling nsBidiPresUtils::CreateContinuation");
 
-  nsContainerFrame* parent = aFrame->GetParent();
+  nsIFrame* parent = aFrame->GetParent();
   NS_ASSERTION(parent, "Couldn't get frame parent in nsBidiPresUtils::CreateContinuation");
 
   nsresult rv = NS_OK;
@@ -861,7 +862,6 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
             }
           }
           frame->AdjustOffsetsForBidi(contentOffset, contentOffset + fragmentLength);
-          currentLine->MarkDirty();
         }
       } // isTextFrame
       else {
@@ -882,7 +882,7 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
       if (runLength <= 0 && !frame->GetNextInFlow()) {
         if (numRun + 1 < runCount) {
           nsIFrame* child = frame;
-          nsContainerFrame* parent = frame->GetParent();
+          nsIFrame* parent = frame->GetParent();
           // As long as we're on the last sibling, the parent doesn't have to
           // be split.
           // However, if the parent has a fluid continuation, we do have to make
@@ -915,10 +915,12 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
   } // for
 
   if (aBpd->mParagraphDepth > 0) {
+    nsIFrame* child;
+    nsIFrame* parent;
     if (firstFrame) {
-      nsContainerFrame* child = firstFrame->GetParent();
+      child = firstFrame->GetParent();
       if (child) {
-        nsContainerFrame* parent = child->GetParent();
+        parent = child->GetParent();
         if (parent && IsBidiSplittable(parent)) {
           nsIFrame* prev = child->GetPrevSibling();
           if (prev) {
@@ -928,9 +930,9 @@ nsBidiPresUtils::ResolveParagraph(nsBlockFrame* aBlockFrame,
       }
     }
     if (lastFrame) {
-      nsContainerFrame* child = lastFrame->GetParent();
+      child = lastFrame->GetParent();
       if (child) {
-        nsContainerFrame* parent = child->GetParent();
+        parent = child->GetParent();
         if (parent && IsBidiSplittable(parent)) {
           SplitInlineAncestors(parent, child);
         }

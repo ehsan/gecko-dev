@@ -13,9 +13,7 @@ class nsSelectsAreaFrame : public nsBlockFrame
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  friend nsContainerFrame* NS_NewSelectsAreaFrame(nsIPresShell* aShell,
-                                                  nsStyleContext* aContext,
-                                                  nsFrameState aFlags);
+  friend nsIFrame* NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, nsFrameState aFlags);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,

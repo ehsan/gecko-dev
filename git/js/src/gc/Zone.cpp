@@ -24,25 +24,26 @@ using namespace js::gc;
 JS::Zone::Zone(JSRuntime *rt)
   : JS::shadow::Zone(rt, &rt->gc.marker),
     allocator(this),
-    types(this),
-    compartments(),
-    gcGrayRoots(),
-    gcHeapGrowthFactor(3.0),
-    gcMallocBytes(0),
-    gcMallocGCTriggered(false),
+    ionUsingBarriers_(false),
+    active(false),
+    gcScheduled(false),
+    gcState(NoGC),
+    gcPreserveCode(false),
     gcBytes(0),
     gcTriggerBytes(0),
-    data(nullptr),
+    gcHeapGrowthFactor(3.0),
     isSystem(false),
     usedByExclusiveThread(false),
     scheduledForDestruction(false),
     maybeAlive(true),
-    active(false),
-    jitZone_(nullptr),
-    gcState_(NoGC),
-    gcScheduled_(false),
-    gcPreserveCode_(false),
-    ionUsingBarriers_(false)
+    gcMallocBytes(0),
+    gcMallocGCTriggered(false),
+    gcGrayRoots(),
+    data(nullptr),
+    types(this)
+#ifdef JS_ION
+    , jitZone_(nullptr)
+#endif
 {
     /* Ensure that there are no vtables to mess us up here. */
     JS_ASSERT(reinterpret_cast<JS::shadow::Zone *>(this) ==

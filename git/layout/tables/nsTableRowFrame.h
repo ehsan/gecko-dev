@@ -33,9 +33,9 @@ public:
 
   virtual ~nsTableRowFrame();
 
-  virtual void Init(nsIContent*       aContent,
-                    nsContainerFrame* aParent,
-                    nsIFrame*         aPrevInFlow) MOZ_OVERRIDE;
+  virtual void Init(nsIContent*      aContent,
+                    nsIFrame*        aParent,
+                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
 
   virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
 
@@ -55,8 +55,7 @@ public:
     *
     * @return           the frame that was created
     */
-  friend nsTableRowFrame* NS_NewTableRowFrame(nsIPresShell* aPresShell,
-                                              nsStyleContext* aContext);
+  friend nsIFrame* NS_NewTableRowFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   virtual nsMargin GetUsedMargin() const MOZ_OVERRIDE;
   virtual nsMargin GetUsedBorder() const MOZ_OVERRIDE;
