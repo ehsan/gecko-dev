@@ -226,7 +226,7 @@ var Utils = {
   
   // ___ Files
   getInstallDirectory: function(id) { 
-    var file = extensionManager.getInstallLocation(id).getItemFile(id, "install.rdf"); 
+    var file = extensionManager.getInstallLocation(id).getItemFile(id, "install.rdf");  
     return file.parent;  
   }, 
   
@@ -327,13 +327,7 @@ var Utils = {
   expandObject: function(obj) {
       var s = obj + ' = {';
       for(prop in obj) {
-        var value;
-        try {
-          value = obj[prop]; 
-        } catch(e) {
-          value = '[!!error retrieving property]';
-        }
-        
+        var value = obj[prop]; 
         s += prop + ': ';
         if(typeof(value) == 'string')
           s += '\'' + value + '\'';

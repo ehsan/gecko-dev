@@ -8,26 +8,8 @@ window.TabItem = function(container, tab) {
 
 window.TabItem.prototype = $.extend(new Item(), {
   // ----------  
-  _getSizeExtra: function() {
-    var $container = $(this.container);
-
-    var widthExtra = parseInt($container.css('padding-left')) 
-        + parseInt($container.css('padding-right'));
-
-    var heightExtra = parseInt($container.css('padding-top')) 
-        + parseInt($container.css('padding-bottom'));
-
-    return new Point(widthExtra, heightExtra);
-  },
-  
-  // ----------  
   reloadBounds: function() {
     this.bounds = Utils.getBounds(this.container);
-      
-    var extra = this._getSizeExtra();
-    this.bounds.width += extra.x;
-    this.bounds.height += extra.y;
-
     this._updateDebugBounds();
   },
   
@@ -37,7 +19,6 @@ window.TabItem.prototype = $.extend(new Item(), {
     var $title = $('.tab-title', $container);
     var $thumb = $('.thumb', $container);
     var $close = $('.close', $container);
-    var extra = this._getSizeExtra();
     var css = {};
 
     if(rect.left != this.bounds.left)
@@ -47,13 +28,19 @@ window.TabItem.prototype = $.extend(new Item(), {
       css.top = rect.top;
       
     if(rect.width != this.bounds.width) {
-      css.width = rect.width - extra.x;
+      var widthExtra = parseInt($container.css('padding-left')) 
+          + parseInt($container.css('padding-right'));
+          
+      css.width = rect.width - widthExtra;
       var scale = css.width / TabItems.tabWidth;
       css.fontSize = TabItems.fontSize * scale;
     }
 
     if(rect.height != this.bounds.height) {
-      css.height = rect.height - extra.y; 
+      var heightExtra = parseInt($container.css('padding-top')) 
+          + parseInt($container.css('padding-bottom'));
+          
+      css.height = rect.height - heightExtra; 
     }
       
     if($.isEmptyObject(css))
