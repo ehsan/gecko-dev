@@ -36,13 +36,6 @@ DynamicImage::GetProgressTracker()
   return nullptr;
 }
 
-nsIntRect
-DynamicImage::FrameRect(uint32_t aWhichFrame)
-{
-  gfxIntSize size(mDrawable->Size());
-  return nsIntRect(0, 0, size.width, size.height);
-}
-
 size_t
 DynamicImage::SizeOfSourceWithComputedFallback(MallocSizeOf aMallocSizeOf) const
 {
@@ -88,12 +81,6 @@ DynamicImage::OnImageDataComplete(nsIRequest* aRequest,
                                   nsISupports* aContext,
                                   nsresult aStatus,
                                   bool aLastPart)
-{
-  return NS_OK;
-}
-
-nsresult
-DynamicImage::OnNewSourceData()
 {
   return NS_OK;
 }
@@ -216,7 +203,8 @@ DynamicImage::IsOpaque()
 }
 
 NS_IMETHODIMP
-DynamicImage::GetImageContainer(LayerManager* aManager, ImageContainer** _retval)
+DynamicImage::GetImageContainer(LayerManager* aManager,
+                                ImageContainer** _retval)
 {
   *_retval = nullptr;
   return NS_OK;
@@ -331,7 +319,9 @@ DynamicImage::SetAnimationStartTime(const mozilla::TimeStamp& aTime)
 { }
 
 nsIntSize
-DynamicImage::OptimalImageSizeForDest(const gfxSize& aDest, uint32_t aWhichFrame, GraphicsFilter aFilter, uint32_t aFlags)
+DynamicImage::OptimalImageSizeForDest(const gfxSize& aDest,
+                                      uint32_t aWhichFrame,
+                                      GraphicsFilter aFilter, uint32_t aFlags)
 {
   gfxIntSize size(mDrawable->Size());
   return nsIntSize(size.width, size.height);

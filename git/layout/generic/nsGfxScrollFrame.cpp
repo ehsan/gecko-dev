@@ -87,12 +87,12 @@ BuildScrollContainerLayers()
 nsHTMLScrollFrame*
 NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, bool aIsRoot)
 {
-  return new (aPresShell) nsHTMLScrollFrame(aPresShell, aContext, aIsRoot);
+  return new (aPresShell) nsHTMLScrollFrame(aContext, aIsRoot);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsHTMLScrollFrame)
 
-nsHTMLScrollFrame::nsHTMLScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, bool aIsRoot)
+nsHTMLScrollFrame::nsHTMLScrollFrame(nsStyleContext* aContext, bool aIsRoot)
   : nsContainerFrame(aContext),
     mHelper(ALLOW_THIS_IN_INITIALIZER_LIST(this), aIsRoot)
 {
@@ -503,8 +503,11 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
   mHelper.mHasVerticalScrollbar = aAssumeVScroll;
 
   nsReflowStatus status;
+  // No need to pass a container-width to ReflowChild or
+  // FinishReflowChild, because it's only used there when positioning
+  // the frame (i.e. if NS_FRAME_NO_MOVE_FRAME isn't set)
   ReflowChild(mHelper.mScrolledFrame, presContext, *aMetrics,
-              kidReflowState, 0, 0,
+              kidReflowState, wm, LogicalPoint(wm), 0,
               NS_FRAME_NO_MOVE_FRAME, status);
 
   mHelper.mHasHorizontalScrollbar = didHaveHorizontalScrollbar;
@@ -516,7 +519,7 @@ nsHTMLScrollFrame::ReflowScrolledFrame(ScrollReflowState* aState,
   // which will usually be different from the scrollport height;
   // invalidating the difference will cause unnecessary repainting.
   FinishReflowChild(mHelper.mScrolledFrame, presContext,
-                    *aMetrics, &kidReflowState, 0, 0,
+                    *aMetrics, &kidReflowState, wm, LogicalPoint(wm), 0,
                     NS_FRAME_NO_MOVE_FRAME | NS_FRAME_NO_SIZE_VIEW);
 
   // XXX Some frames (e.g., nsPluginFrame, nsFrameFrame, nsTextFrame) don't bother
@@ -931,6 +934,10 @@ nsHTMLScrollFrame::GetFrameName(nsAString& aResult) const
 a11y::AccType
 nsHTMLScrollFrame::AccessibleType()
 {
+  if (IsTableCaption()) {
+    return GetRect().IsEmpty() ? a11y::eNoType : a11y::eHTMLCaptionType;
+  }
+
   // Create an accessible regardless of focusable state because the state can be
   // changed during frame life cycle without any notifications to accessibility.
   if (mContent->IsRootOfNativeAnonymousSubtree() ||
@@ -955,15 +962,15 @@ nsXULScrollFrame*
 NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext,
                      bool aIsRoot, bool aClipAllDescendants)
 {
-  return new (aPresShell) nsXULScrollFrame(aPresShell, aContext, aIsRoot,
+  return new (aPresShell) nsXULScrollFrame(aContext, aIsRoot,
                                            aClipAllDescendants);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsXULScrollFrame)
 
-nsXULScrollFrame::nsXULScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext,
+nsXULScrollFrame::nsXULScrollFrame(nsStyleContext* aContext,
                                    bool aIsRoot, bool aClipAllDescendants)
-  : nsBoxFrame(aShell, aContext, aIsRoot),
+  : nsBoxFrame(aContext, aIsRoot),
     mHelper(ALLOW_THIS_IN_INITIALIZER_LIST(this), aIsRoot)
 {
   SetLayoutManager(nullptr);
@@ -1421,7 +1428,7 @@ public:
   {
   }
 
-  NS_INLINE_DECL_REFCOUNTING(AsyncSmoothMSDScroll)
+  NS_INLINE_DECL_REFCOUNTING(AsyncSmoothMSDScroll, MOZ_OVERRIDE)
 
   nsSize GetVelocity() {
     // In nscoords per second
@@ -1613,7 +1620,7 @@ protected:
 // The next section is observer/callback management
 // Bodies of WillRefresh and RefreshDriver contain ScrollFrameHelper specific code.
 public:
-  NS_INLINE_DECL_REFCOUNTING(AsyncScroll)
+  NS_INLINE_DECL_REFCOUNTING(AsyncScroll, MOZ_OVERRIDE)
 
   /*
    * Set a refresh observer for smooth scroll iterations (and start observing).
@@ -1888,6 +1895,7 @@ ScrollFrameHelper::ScrollFrameHelper(nsContainerFrame* aOuter,
   , mShouldBuildScrollableLayer(false)
   , mHasBeenScrolled(false)
   , mIsResolutionSet(false)
+  , mScaleToResolution(false)
 {
   if (LookAndFeel::GetInt(LookAndFeel::eIntID_UseOverlayScrollbars) != 0) {
     mScrollbarActivity = new ScrollbarActivity(do_QueryFrame(aOuter));
@@ -1896,7 +1904,7 @@ ScrollFrameHelper::ScrollFrameHelper(nsContainerFrame* aOuter,
   EnsureImageVisPrefsCached();
 
   if (IsAlwaysActive() &&
-      gfxPlatform::GetPlatform()->UseTiling() &&
+      gfxPrefs::LayersTilesEnabled() &&
       !nsLayoutUtils::UsesAsyncScrolling() &&
       mOuter->GetContent()) {
     // If we have tiling but no APZ, then set a 0-margin display port on
@@ -1965,9 +1973,13 @@ void
 ScrollFrameHelper::AsyncScrollCallback(ScrollFrameHelper* aInstance,
                                        mozilla::TimeStamp aTime)
 {
-  NS_ASSERTION(aInstance != nullptr, "aInstance must not be null");
-  NS_ASSERTION(aInstance->mAsyncScroll,
+  MOZ_ASSERT(aInstance != nullptr, "aInstance must not be null");
+  MOZ_ASSERT(aInstance->mAsyncScroll,
     "Did not expect AsyncScrollCallback without an active async scroll.");
+
+  if (!aInstance || !aInstance->mAsyncScroll) {
+    return;  // XXX wallpaper bug 1107353 for now.
+  }
 
   nsRect range = aInstance->mAsyncScroll->mRange;
   if (aInstance->mAsyncScroll->mIsSmoothScroll) {
@@ -2091,6 +2103,16 @@ ScrollFrameHelper::ScrollToWithOrigin(nsPoint aScrollPosition,
           // animation for this scroll.
           mLastSmoothScrollOrigin = aOrigin;
           mScrollGeneration = ++sScrollGenerationCounter;
+
+          if (!nsLayoutUtils::GetDisplayPort(mOuter->GetContent())) {
+            // If this frame doesn't have a displayport then there won't be an
+            // APZC instance for it and so there won't be anything to process
+            // this smooth scroll request. We should set a displayport on this
+            // frame to force an APZC which can handle the request.
+            nsLayoutUtils::CalculateAndSetDisplayPortMargins(
+              mOuter->GetScrollTargetFrame(),
+              nsLayoutUtils::RepaintMode::DoNotRepaint);
+          }
 
           // Schedule a paint to ensure that the frame metrics get updated on
           // the compositor thread.
@@ -2833,6 +2855,8 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     mOuter->PresContext()->IsRootContentDocument();
 
   if (aBuilder->GetIgnoreScrollFrame() == mOuter || IsIgnoringViewportClipping()) {
+    // Root scrollframes have FrameMetrics and clipping on their container
+    // layers, so don't apply clipping again.
     mAddClipRectToLayer = false;
 
     // If we are a root scroll frame that has a display port we want to add
@@ -2863,6 +2887,8 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return;
   }
 
+  // Root scrollframes have FrameMetrics and clipping on their container
+  // layers, so don't apply clipping again.
   mAddClipRectToLayer =
     !(mIsRoot && mOuter->PresContext()->PresShell()->GetIsViewportOverridden());
 
@@ -2881,7 +2907,23 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (aBuilder->IsPaintingToWindow()) {
     bool wasUsingDisplayPort = nsLayoutUtils::GetDisplayPort(mOuter->GetContent(), nullptr);
 
-    if (!mIsRoot) {
+    if (mIsRoot) {
+      if (gfxPrefs::LayoutUseContainersForRootFrames()) {
+        // For a root frame in a container, just get the value of the existing
+        // display port if any.
+        usingDisplayport = nsLayoutUtils::GetDisplayPort(mOuter->GetContent(), &displayPort);
+      } else {
+        // Override the value of the display port base rect, and possibly create a
+        // display port if there isn't one already.
+        nsRect displayportBase = dirtyRect;
+        if (mIsRoot && mOuter->PresContext()->IsRootContentDocument()) {
+          displayportBase =
+            nsRect(nsPoint(0, 0), nsLayoutUtils::CalculateCompositionSizeForFrame(mOuter));
+        }
+        usingDisplayport = nsLayoutUtils::GetOrMaybeCreateDisplayPort(
+              *aBuilder, mOuter, displayportBase, &displayPort);
+      }
+    } else {
       // For a non-root scroll frame, override the value of the display port
       // base rect, and possibly create a display port if there isn't one
       // already. For root scroll frame, nsLayoutUtils::PaintFrame or
@@ -2889,10 +2931,6 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       nsRect displayportBase = dirtyRect;
       usingDisplayport = nsLayoutUtils::GetOrMaybeCreateDisplayPort(
           *aBuilder, mOuter, displayportBase, &displayPort);
-    } else {
-      // For a root frame, just get the value of the existing display port, if
-      // any.
-      usingDisplayport = nsLayoutUtils::GetDisplayPort(mOuter->GetContent(), &displayPort);
     }
 
     bool usingLowPrecision = gfxPrefs::UseLowPrecisionBuffer();
@@ -2954,10 +2992,12 @@ ScrollFrameHelper::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     shouldBuildLayer =
       nsLayoutUtils::WantSubAPZC() &&
       WantAsyncScroll() &&
-      // If we are the root scroll frame for the display root then we don't need a scroll
-      // info layer to make a ComputeFrameMetrics call for us as
-      // nsDisplayList::PaintForFrame already calls ComputeFrameMetrics for us.
-      (!mIsRoot || aBuilder->RootReferenceFrame()->PresContext() != mOuter->PresContext());
+      // If we are using containers for root frames, and we are the root
+      // scroll frame for the display root, then we don't need a scroll
+      // info layer. nsDisplayList::PaintForFrame already calls
+      // ComputeFrameMetrics for us.
+      (!(gfxPrefs::LayoutUseContainersForRootFrames() && mIsRoot) ||
+       (aBuilder->RootReferenceFrame()->PresContext() != mOuter->PresContext()));
   }
 
   if (aBuilder->IsPaintingToWindow() &&
@@ -3105,8 +3145,6 @@ ScrollFrameHelper::ComputeFrameMetrics(Layer* aLayer,
 {
   nsRect scrollport = mScrollPort +
     mOuter->GetOffsetToCrossDoc(aContainerReferenceFrame);
-  // Root scrollframes have FrameMetrics and clipping on their container layers,
-  // so don't also apply clipping here.
   if (mAddClipRectToLayer) {
     *aClipRect = scrollport;
   }
@@ -3117,10 +3155,12 @@ ScrollFrameHelper::ComputeFrameMetrics(Layer* aLayer,
 
   MOZ_ASSERT(mScrolledFrame->GetContent());
 
+  bool isRoot = mIsRoot && mOuter->PresContext()->IsRootContentDocument();
+
   *aOutput->AppendElement() =
       nsDisplayScrollLayer::ComputeFrameMetrics(mScrolledFrame, mOuter,
         aContainerReferenceFrame, aLayer, mScrollParentID,
-        scrollport, false, false, aParameters);
+        scrollport, false, isRoot, aParameters);
 }
 
 bool
@@ -3225,6 +3265,16 @@ ScrollFrameHelper::SetResolution(const gfxSize& aResolution)
 {
   mResolution = aResolution;
   mIsResolutionSet = true;
+  mScaleToResolution = false;
+}
+
+void
+ScrollFrameHelper::SetResolutionAndScaleTo(const gfxSize& aResolution)
+{
+  MOZ_ASSERT(mIsRoot);  // This API should only be called on root scroll frames.
+  mResolution = aResolution;
+  mIsResolutionSet = true;
+  mScaleToResolution = true;
 }
 
 static void
@@ -5022,6 +5072,7 @@ ScrollFrameHelper::SaveState() const
   }
   state->SetScrollState(pt);
   state->SetResolution(mResolution);
+  state->SetScaleToResolution(mScaleToResolution);
   return state;
 }
 
@@ -5033,9 +5084,18 @@ ScrollFrameHelper::RestoreState(nsPresState* aState)
   mLastPos = mScrolledFrame ? GetLogicalScrollPosition() : nsPoint(0,0);
   mResolution = aState->GetResolution();
   mIsResolutionSet = true;
+  mScaleToResolution = aState->GetScaleToResolution();
+
+  // Scaling-to-resolution should only be used on root scroll frames.
+  MOZ_ASSERT(mIsRoot || !mScaleToResolution);
 
   if (mIsRoot) {
-    mOuter->PresContext()->PresShell()->SetResolution(mResolution.width, mResolution.height);
+    nsIPresShell* presShell = mOuter->PresContext()->PresShell();
+    if (mScaleToResolution) {
+      presShell->SetResolutionAndScaleTo(mResolution.width, mResolution.height);
+    } else {
+      presShell->SetResolution(mResolution.width, mResolution.height);
+    }
   }
 }
 

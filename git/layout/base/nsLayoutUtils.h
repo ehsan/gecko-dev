@@ -586,7 +586,8 @@ public:
     SCROLLABLE_ONLY_ASYNC_SCROLLABLE = 0x04,
     /**
      * If the SCROLLABLE_ALWAYS_MATCH_ROOT flag is set, then return the
-     * root scrollable frame for the root content document if we hit it.
+     * root scrollable frame for the root content document if we don't hit
+     * anything else.
      */
     SCROLLABLE_ALWAYS_MATCH_ROOT = 0x08,
   };
@@ -794,6 +795,13 @@ public:
   static gfxSize GetTransformToAncestorScale(nsIFrame* aFrame);
 
   /**
+   * Find the nearest common ancestor frame for aFrame1 and aFrame2. The
+   * ancestor frame could be cross-doc.
+   */
+  static nsIFrame* FindNearestCommonAncestorFrame(nsIFrame* aFrame1,
+                                                  nsIFrame* aFrame2);
+
+  /**
    * Transforms a list of CSSPoints from aFromFrame to aToFrame, taking into
    * account all relevant transformations on the frames up to (but excluding)
    * their nearest common ancestor.
@@ -839,6 +847,13 @@ public:
    */
   static bool ContainsPoint(const nsRect& aRect, const nsPoint& aPoint,
                             nscoord aInflateSize);
+
+  /**
+   * Check whether aRect is visible in the boundary of the scroll frames
+   * boundary.
+   */
+  static bool IsRectVisibleInScrollFrames(nsIFrame* aFrame,
+                                          const nsRect& aRect);
 
   /**
    * Return true if a "layer transform" could be computed for aFrame,
@@ -1239,6 +1254,13 @@ public:
   FirstContinuationOrIBSplitSibling(nsIFrame *aFrame);
 
   /**
+   * Get the last frame in the continuation-plus-ib-split-sibling chain
+   * containing aFrame.
+   */
+  static nsIFrame*
+  LastContinuationOrIBSplitSibling(nsIFrame *aFrame);
+
+  /**
    * Is FirstContinuationOrIBSplitSibling(aFrame) going to return
    * aFrame?
    */
@@ -1470,6 +1492,11 @@ public:
                                           const nsIFrame* aFrame,
                                           nsFontMetrics& aFontMetrics,
                                           nsRenderingContext& aContext);
+
+  static bool StringWidthIsGreaterThan(const nsString& aString,
+                                       nsFontMetrics& aFontMetrics,
+                                       nsRenderingContext& aContext,
+                                       nscoord aWidth);
 
   static nsBoundingMetrics AppUnitBoundsOfString(const char16_t* aString,
                                                  uint32_t aLength,

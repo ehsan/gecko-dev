@@ -451,6 +451,15 @@ var PrintUtils = {
 
     let onEntered = (message) => {
       mm.removeMessageListener("Printing:PrintPreview:Entered", onEntered);
+
+      if (message.data.failed) {
+        // Something went wrong while putting the document into print preview
+        // mode. Bail out.
+        this._listener.onEnter();
+        this._listener.onExit();
+        return;
+      }
+
       // Stash the focused element so that we can return to it after exiting
       // print preview.
       gFocusedElement = document.commandDispatcher.focusedElement;
@@ -474,7 +483,6 @@ var PrintUtils = {
       printPreviewTB = document.createElementNS(XUL_NS, "toolbar");
       printPreviewTB.setAttribute("printpreview", true);
       printPreviewTB.id = "print-preview-toolbar";
-      printPreviewTB.className = "toolbar-primary";
 
       let navToolbox = this._listener.getNavToolbox();
       navToolbox.parentNode.insertBefore(printPreviewTB, navToolbox);
@@ -521,7 +529,7 @@ var PrintUtils = {
     if (gFocusedElement)
       fm.setFocus(gFocusedElement, fm.FLAG_NOSCROLL);
     else
-      window.content.focus();
+      this._sourceBrowser.focus();
     gFocusedElement = null;
 
     this._listener.onExit();

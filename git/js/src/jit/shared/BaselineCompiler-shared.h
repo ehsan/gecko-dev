@@ -68,6 +68,9 @@ class BaselineCompilerShared
     mozilla::DebugOnly<bool> inCall_;
 
     CodeOffsetLabel spsPushToggleOffset_;
+    CodeOffsetLabel traceLoggerEnterToggleOffset_;
+    CodeOffsetLabel traceLoggerExitToggleOffset_;
+    CodeOffsetLabel traceLoggerScriptTextIdOffset_;
 
     BaselineCompilerShared(JSContext *cx, TempAllocator &alloc, JSScript *script);
 
@@ -136,6 +139,13 @@ class BaselineCompilerShared
         CHECK_OVER_RECURSED
     };
     bool callVM(const VMFunction &fun, CallVMPhase phase=POST_INITIALIZE);
+
+    bool callVMNonOp(const VMFunction &fun, CallVMPhase phase=POST_INITIALIZE) {
+        if (!callVM(fun, phase))
+            return false;
+        icEntries_.back().setForNonOpCallVM();
+        return true;
+    }
 
   public:
     BytecodeAnalysis &analysis() {

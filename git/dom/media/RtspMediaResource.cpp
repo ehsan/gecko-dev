@@ -220,6 +220,13 @@ nsresult RtspTrackBuffer::ReadBuffer(uint8_t* aToBuffer, uint32_t aToBufferSize,
   // 3. No data in this buffer
   // 4. mIsStarted is not set
   while (1) {
+    // Make sure the track buffer is started.
+    // It could be stopped when RTSP connection is disconnected.
+    if (!mIsStarted) {
+      RTSPMLOG("ReadBuffer: mIsStarted is false");
+      return NS_ERROR_FAILURE;
+    }
+
     // Do not read from buffer if we are still in the playout delay duration.
     if (mDuringPlayoutDelay) {
       monitor.Wait();
@@ -261,10 +268,6 @@ nsresult RtspTrackBuffer::ReadBuffer(uint8_t* aToBuffer, uint32_t aToBufferSize,
       mConsumerIdx = (mConsumerIdx + 1) % BUFFER_SLOT_NUM;
       RTSPMLOG("BUFFER_SLOT_INVALID move forward");
     } else {
-      // No data, and disconnected.
-      if (!mIsStarted) {
-        return NS_ERROR_FAILURE;
-      }
       // No data, the decode thread is blocked here until we receive
       // OnMediaDataAvailable. The OnMediaDataAvailable will call WriteBuffer()
       // to wake up the decode thread.
@@ -616,6 +619,11 @@ RtspMediaResource::ReadFrameFromTrack(uint8_t* aBuffer, uint32_t aBufferSize,
                "ReadTrack index > mTrackBuffer");
   MOZ_ASSERT(aBuffer);
 
+  if (!mIsConnected) {
+    RTSPMLOG("ReadFrameFromTrack: RTSP not connected");
+    return NS_ERROR_FAILURE;
+  }
+
   return mTrackBuffer[aTrackIdx]->ReadBuffer(aBuffer, aBufferSize, aBytes,
                                              aTime, aFrameSize);
 }
@@ -738,12 +746,11 @@ RtspMediaResource::OnConnected(uint8_t aTrackIdx,
       mDecoder->SetMediaSeekable(seekable);
     }
   }
-  // Fires an initial progress event and sets up the stall counter so stall events
-  // fire if no download occurs within the required time frame.
-  mDecoder->Progress(false);
-
   MediaDecoderOwner* owner = mDecoder->GetMediaOwner();
   NS_ENSURE_TRUE(owner, NS_ERROR_FAILURE);
+  // Fires an initial progress event.
+  owner->DownloadProgressed();
+
   dom::HTMLMediaElement* element = owner->GetMediaElement();
   NS_ENSURE_TRUE(element, NS_ERROR_FAILURE);
 
@@ -770,6 +777,7 @@ RtspMediaResource::OnDisconnected(uint8_t aTrackIdx, nsresult aReason)
         aReason == NS_ERROR_NET_TIMEOUT) {
       // Report error code to Decoder.
       RTSPMLOG("Error in OnDisconnected 0x%x", aReason);
+      mIsConnected = false;
       mDecoder->NetworkError();
     } else {
       // Resetting the decoder and media element when the connection

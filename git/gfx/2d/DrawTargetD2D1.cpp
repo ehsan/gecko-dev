@@ -411,7 +411,7 @@ DrawTargetD2D1::Stroke(const Path *aPath,
                        const StrokeOptions &aStrokeOptions,
                        const DrawOptions &aOptions)
 {
-  if (aPath->GetBackendType() != BackendType::DIRECT2D) {
+  if (aPath->GetBackendType() != BackendType::DIRECT2D1_1) {
     gfxDebug() << *this << ": Ignoring drawing call for incompatible path.";
     return;
   }
@@ -434,7 +434,7 @@ DrawTargetD2D1::Fill(const Path *aPath,
                      const Pattern &aPattern,
                      const DrawOptions &aOptions)
 {
-  if (aPath->GetBackendType() != BackendType::DIRECT2D) {
+  if (aPath->GetBackendType() != BackendType::DIRECT2D1_1) {
     gfxDebug() << *this << ": Ignoring drawing call for incompatible path.";
     return;
   }
@@ -560,7 +560,7 @@ DrawTargetD2D1::Mask(const Pattern &aSource,
 void
 DrawTargetD2D1::PushClip(const Path *aPath)
 {
-  if (aPath->GetBackendType() != BackendType::DIRECT2D) {
+  if (aPath->GetBackendType() != BackendType::DIRECT2D1_1) {
     gfxDebug() << *this << ": Ignoring clipping call for incompatible path.";
     return;
   }
@@ -653,7 +653,7 @@ DrawTargetD2D1::CreateSourceSurfaceFromData(unsigned char *aData,
                                  byRef(bitmap));
 
   if (FAILED(hr) || !bitmap) {
-    gfxCriticalError() << "[D2D1.1] CreateBitmap failure " << aSize << " Code: " << hexa(hr);
+    gfxCriticalError(CriticalLog::DefaultOptions(Factory::ReasonableSurfaceSize(aSize))) << "[D2D1.1] 1CreateBitmap failure " << aSize << " Code: " << hexa(hr);
     return nullptr;
   }
 
@@ -694,7 +694,7 @@ DrawTargetD2D1::CreatePathBuilder(FillRule aFillRule) const
     sink->SetFillMode(D2D1_FILL_MODE_WINDING);
   }
 
-  return new PathBuilderD2D(sink, path, aFillRule);
+  return new PathBuilderD2D(sink, path, aFillRule, BackendType::DIRECT2D1_1);
 }
 
 TemporaryRef<GradientStops>
@@ -742,7 +742,7 @@ DrawTargetD2D1::Init(ID3D11Texture2D* aTexture, SurfaceFormat aFormat)
   hr = Factory::GetD2D1Device()->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_ENABLE_MULTITHREADED_OPTIMIZATIONS, byRef(mDC));
 
   if (FAILED(hr)) {
-    gfxCriticalError() <<"[D2D1.1] Failed to create a DeviceContext, code: " << hexa(hr);
+    gfxCriticalError() <<"[D2D1.1] 1Failed to create a DeviceContext, code: " << hexa(hr);
     return false;
   }
 
@@ -779,7 +779,7 @@ DrawTargetD2D1::Init(ID3D11Texture2D* aTexture, SurfaceFormat aFormat)
   hr = mDC->CreateBitmap(D2DIntSize(mSize), nullptr, 0, props, (ID2D1Bitmap1**)byRef(mTempBitmap));
 
   if (FAILED(hr)) {
-    gfxCriticalError() << "[D2D1.1] CreateBitmap failure " << mSize << " Code: " << hexa(hr);
+    gfxCriticalError(CriticalLog::DefaultOptions(Factory::ReasonableSurfaceSize(mSize))) << "[D2D1.1] 2CreateBitmap failure " << mSize << " Code: " << hexa(hr);
     return false;
   }
 
@@ -797,14 +797,14 @@ DrawTargetD2D1::Init(const IntSize &aSize, SurfaceFormat aFormat)
   hr = Factory::GetD2D1Device()->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_ENABLE_MULTITHREADED_OPTIMIZATIONS, byRef(mDC));
 
   if (FAILED(hr)) {
-    gfxCriticalError() <<"[D2D1.1] Failed to create a DeviceContext, code: " << hexa(hr);
+    gfxCriticalError() <<"[D2D1.1] 2Failed to create a DeviceContext, code: " << hexa(hr);
     return false;
   }
 
   if (mDC->GetMaximumBitmapSize() < UINT32(aSize.width) ||
       mDC->GetMaximumBitmapSize() < UINT32(aSize.height)) {
-    // This is 'ok'
-    gfxCriticalError() << "[D2D1.1] Attempt to use unsupported surface size " << aSize;
+    // This is 'ok', so don't assert
+    gfxCriticalError(CriticalLog::DefaultOptions(false)) << "[D2D1.1] Attempt to use unsupported surface size " << aSize;
     return false;
   }
 
@@ -817,7 +817,7 @@ DrawTargetD2D1::Init(const IntSize &aSize, SurfaceFormat aFormat)
   hr = mDC->CreateBitmap(D2DIntSize(aSize), nullptr, 0, props, (ID2D1Bitmap1**)byRef(mBitmap));
 
   if (FAILED(hr)) {
-    gfxCriticalError() << "[D2D1.1] CreateBitmap failure " << aSize << " Code: " << hexa(hr);
+    gfxCriticalError() << "[D2D1.1] 3CreateBitmap failure " << aSize << " Code: " << hexa(hr);
     return false;
   }
 
@@ -1345,7 +1345,7 @@ DrawTargetD2D1::OptimizeSourceSurface(SourceSurface* aSurface) const
                                  byRef(bitmap));
 
   if (FAILED(hr)) {
-    gfxCriticalError() << "[D2D1.1] CreateBitmap failure " << data->GetSize() << " Code: " << hexa(hr);
+    gfxCriticalError(CriticalLog::DefaultOptions(Factory::ReasonableSurfaceSize(data->GetSize()))) << "[D2D1.1] 4CreateBitmap failure " << data->GetSize() << " Code: " << hexa(hr);
   }
 
   data->Unmap();

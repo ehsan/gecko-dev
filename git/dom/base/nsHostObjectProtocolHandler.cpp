@@ -44,7 +44,7 @@ class HostObjectURLsReporter MOZ_FINAL : public nsIMemoryReporter
   NS_DECL_ISUPPORTS
 
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aHandleReport,
-                            nsISupports* aData, bool aAnonymize)
+                            nsISupports* aData, bool aAnonymize) MOZ_OVERRIDE
   {
     return MOZ_COLLECT_REPORT(
       "host-object-urls", KIND_OTHER, UNITS_COUNT,
@@ -62,7 +62,7 @@ class BlobURLsReporter MOZ_FINAL : public nsIMemoryReporter
   NS_DECL_ISUPPORTS
 
   NS_IMETHOD CollectReports(nsIHandleReportCallback* aCallback,
-                            nsISupports* aData, bool aAnonymize)
+                            nsISupports* aData, bool aAnonymize) MOZ_OVERRIDE
   {
     EnumArg env;
     env.mCallback = aCallback;
@@ -485,7 +485,7 @@ nsHostObjectProtocolHandler::NewURI(const nsACString& aSpec,
 
 NS_IMETHODIMP
 nsHostObjectProtocolHandler::NewChannel2(nsIURI* uri,
-                                         nsILoadInfo *aLoadinfo,
+                                         nsILoadInfo* aLoadInfo,
                                          nsIChannel** result)
 {
   *result = nullptr;
@@ -499,8 +499,8 @@ nsHostObjectProtocolHandler::NewChannel2(nsIURI* uri,
     return NS_ERROR_DOM_BAD_URI;
   }
 
-  nsCOMPtr<PIFileImpl> blobImpl = do_QueryInterface(info->mObject);
-  if (!blobImpl) {
+  nsCOMPtr<FileImpl> blob = do_QueryInterface(info->mObject);
+  if (!blob) {
     return NS_ERROR_DOM_BAD_URI;
   }
 
@@ -513,19 +513,31 @@ nsHostObjectProtocolHandler::NewChannel2(nsIURI* uri,
   }
 #endif
 
-  FileImpl* blob = static_cast<FileImpl*>(blobImpl.get());
   nsCOMPtr<nsIInputStream> stream;
   nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIChannel> channel;
-  rv = NS_NewInputStreamChannel(getter_AddRefs(channel),
-                                uri,
-                                stream,
-                                info->mPrincipal,
-                                nsILoadInfo::SEC_FORCE_INHERIT_PRINCIPAL,
-                                nsIContentPolicy::TYPE_OTHER);
-
+  // Bug 1087720 (and Bug 1099296):
+  // Once all callsites have been updated to call NewChannel2() instead of NewChannel()
+  // we should have a non-null loadInfo consistently. Until then we have to brach on the
+  // loadInfo and provide default arguments to create a NewInputStreamChannel.
+  if (aLoadInfo) {
+    rv = NS_NewInputStreamChannelInternal(getter_AddRefs(channel),
+                                          uri,
+                                          stream,
+                                          EmptyCString(), // aContentType
+                                          EmptyCString(), // aContentCharset
+                                          aLoadInfo);
+  }
+  else {
+    rv = NS_NewInputStreamChannel(getter_AddRefs(channel),
+                                  uri,
+                                  stream,
+                                  info->mPrincipal,
+                                  nsILoadInfo::SEC_NORMAL,
+                                  nsIContentPolicy::TYPE_OTHER);
+  }
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsString type;
@@ -602,12 +614,11 @@ NS_GetBlobForBlobURI(nsIURI* aURI, FileImpl** aBlob)
 
   *aBlob = nullptr;
 
-  nsCOMPtr<PIFileImpl> blobImpl = do_QueryInterface(GetDataObject(aURI));
-  if (!blobImpl) {
+  nsCOMPtr<FileImpl> blob = do_QueryInterface(GetDataObject(aURI));
+  if (!blob) {
     return NS_ERROR_DOM_BAD_URI;
   }
 
-  nsRefPtr<FileImpl> blob = static_cast<FileImpl*>(blobImpl.get());
   blob.forget(aBlob);
   return NS_OK;
 }
@@ -629,8 +640,13 @@ NS_GetStreamForMediaStreamURI(nsIURI* aURI, mozilla::DOMMediaStream** aStream)
 {
   NS_ASSERTION(IsMediaStreamURI(aURI), "Only call this with mediastream URIs");
 
+  nsISupports* dataObject = GetDataObject(aURI);
+  if (!dataObject) {
+    return NS_ERROR_DOM_BAD_URI;
+  }
+
   *aStream = nullptr;
-  return CallQueryInterface(GetDataObject(aURI), aStream);
+  return CallQueryInterface(dataObject, aStream);
 }
 
 NS_IMETHODIMP

@@ -6,6 +6,7 @@
 #ifndef MOZILLA_IMAGELIB_DECODER_H_
 #define MOZILLA_IMAGELIB_DECODER_H_
 
+#include "FrameAnimator.h"
 #include "RasterImage.h"
 #include "mozilla/RefPtr.h"
 #include "DecodePool.h"
@@ -55,7 +56,7 @@ public:
    *
    * Notifications Sent: TODO
    */
-  void Write(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy);
+  void Write(const char* aBuffer, uint32_t aCount);
 
   /**
    * Informs the decoder that all the data has been written.
@@ -114,6 +115,24 @@ public:
     mSizeDecode = aSizeDecode;
   }
 
+  /**
+   * Set whether should send partial invalidations.
+   *
+   * If @aSend is true, we'll send partial invalidations when decoding the first
+   * frame of the image, so image notifications observers will be able to
+   * gradually draw in the image as it downloads.
+   *
+   * If @aSend is false (the default), we'll only send an invalidation when we
+   * complete the first frame.
+   *
+   * This must be called before Init() is called.
+   */
+  void SetSendPartialInvalidations(bool aSend)
+  {
+    MOZ_ASSERT(!mInitialized, "Shouldn't be initialized yet");
+    mSendPartialInvalidations = aSend;
+  }
+
   size_t BytesDecoded() const { return mBytesDecoded; }
 
   // The amount of time we've spent inside Write() so far for this decoder.
@@ -158,6 +177,11 @@ public:
   bool HasSize() const { return mImageMetadata.HasSize(); }
   void SetSizeOnImage();
 
+  void SetSize(const nsIntSize& aSize, const Orientation& aOrientation)
+  {
+    PostSize(aSize.width, aSize.height, aOrientation);
+  }
+
   // Use HistogramCount as an invalid Histogram ID
   virtual Telemetry::ID SpeedHistogram() { return Telemetry::HistogramCount; }
 
@@ -174,13 +198,8 @@ public:
                     uint32_t width, uint32_t height,
                     gfx::SurfaceFormat format,
                     uint8_t palette_depth = 0);
-
   virtual bool NeedsNewFrame() const { return mNeedsNewFrame; }
 
-  // Returns true if we may have stored data that we need to flush now that we
-  // have a new frame to decode into. Callers can use Write() to actually
-  // flush the data; see the documentation for that method.
-  bool NeedsToFlushData() const { return mNeedsToFlushData; }
 
   // Try to allocate a frame as described in mNewFrameData and return the
   // status code from that attempt. Clears mNewFrameData.
@@ -206,8 +225,7 @@ protected:
    * only these methods.
    */
   virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount,
-    DecodeStrategy aStrategy);
+  virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
   virtual void FinishInternal();
 
   /*
@@ -226,7 +244,7 @@ protected:
   // that affect content, so it's necessarily pessimistic - if there's a
   // possibility that the image has transparency, for example because its header
   // specifies that it has an alpha channel, we fire PostHasTransparency
-  // immediately. PostFrameStop's aFrameAlpha argument, on the other hand, is
+  // immediately. PostFrameStop's aFrameOpacity argument, on the other hand, is
   // only used internally to ImageLib. Because PostFrameStop isn't delivered
   // until the entire frame has been decoded, decoders may take into account the
   // actual contents of the frame and give a more accurate result.
@@ -241,10 +259,10 @@ protected:
   // Specify whether this frame is opaque as an optimization.
   // For animated images, specify the disposal, blend method and timeout for
   // this frame.
-  void PostFrameStop(FrameBlender::FrameAlpha aFrameAlpha = FrameBlender::kFrameHasAlpha,
-                     FrameBlender::FrameDisposalMethod aDisposalMethod = FrameBlender::kDisposeKeep,
+  void PostFrameStop(Opacity aFrameOpacity = Opacity::SOME_TRANSPARENCY,
+                     DisposalMethod aDisposalMethod = DisposalMethod::KEEP,
                      int32_t aTimeout = 0,
-                     FrameBlender::FrameBlendMethod aBlendMethod = FrameBlender::kBlendOver);
+                     BlendMethod aBlendMethod = BlendMethod::OVER);
 
   // Called by the decoders when they have a region to invalidate. We may not
   // actually pass these invalidations on right away.
@@ -264,6 +282,32 @@ protected:
   void PostDataError();
   void PostDecoderError(nsresult aFailCode);
 
+  // Returns true if we may have stored data that we need to flush now that we
+  // have a new frame to decode into. Callers can use Write() to actually
+  // flush the data; see the documentation for that method.
+  bool NeedsToFlushData() const { return mNeedsToFlushData; }
+
+  /**
+   * Ensures that a given frame number exists with the given parameters, and
+   * returns a RawAccessFrameRef for that frame.
+   * It is not possible to create sparse frame arrays; you can only append
+   * frames to the current frame array, or if there is only one frame in the
+   * array, replace that frame.
+   * If a non-paletted frame is desired, pass 0 for aPaletteDepth.
+   */
+  RawAccessFrameRef EnsureFrame(uint32_t aFrameNum,
+                                const nsIntRect& aFrameRect,
+                                uint32_t aDecodeFlags,
+                                gfx::SurfaceFormat aFormat,
+                                uint8_t aPaletteDepth,
+                                imgFrame* aPreviousFrame);
+
+  RawAccessFrameRef InternalAddFrame(uint32_t aFrameNum,
+                                     const nsIntRect& aFrameRect,
+                                     uint32_t aDecodeFlags,
+                                     gfx::SurfaceFormat aFormat,
+                                     uint8_t aPaletteDepth,
+                                     imgFrame* aPreviousFrame);
   /*
    * Member variables.
    *
@@ -285,6 +329,7 @@ protected:
 
   uint32_t mDecodeFlags;
   size_t mBytesDecoded;
+  bool mSendPartialInvalidations;
   bool mDecodeDone;
   bool mDataError;
 

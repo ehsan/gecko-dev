@@ -36,6 +36,7 @@ class   nsIntRegion;
 class   nsIScreen;
 
 namespace mozilla {
+class CompositorVsyncDispatcher;
 namespace dom {
 class TabChild;
 }
@@ -406,7 +407,10 @@ struct IMEState {
 };
 
 struct InputContext {
-  InputContext() : mNativeIMEContext(nullptr) {}
+  InputContext()
+    : mNativeIMEContext(nullptr)
+    , mMayBeIMEUnaware(false)
+  {}
 
   bool IsPasswordEditor() const
   {
@@ -428,6 +432,11 @@ struct InputContext {
      SetInputContext().  If there is only one context in the process, this may
      be nullptr. */
   void* mNativeIMEContext;
+
+  /* True if the webapp may be unaware of IME events such as input event or
+   * composiion events. This enables a key-events-only mode on Android for
+   * compatibility with webapps relying on key listeners. */
+  bool mMayBeIMEUnaware;
 };
 
 struct InputContextAction {
@@ -691,6 +700,7 @@ class nsIWidget : public nsISupports {
     typedef mozilla::widget::InputContext InputContext;
     typedef mozilla::widget::InputContextAction InputContextAction;
     typedef mozilla::widget::SizeConstraints SizeConstraints;
+    typedef mozilla::CompositorVsyncDispatcher CompositorVsyncDispatcher;
 
     // Used in UpdateThemeGeometries.
     struct ThemeGeometry {
@@ -868,6 +878,11 @@ class nsIWidget : public nsISupports {
      * the number of device pixels per inch.
      */
     virtual float GetDPI() = 0;
+
+    /**
+     * Returns the CompositorVsyncDispatcher associated with this widget
+     */
+    virtual CompositorVsyncDispatcher* GetCompositorVsyncDispatcher() = 0;
 
     /**
      * Return the default scale factor for the window. This is the

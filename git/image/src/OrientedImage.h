@@ -28,8 +28,6 @@ class OrientedImage : public ImageWrapper
 public:
   NS_DECL_ISUPPORTS_INHERITED
 
-  virtual nsIntRect FrameRect(uint32_t aWhichFrame) MOZ_OVERRIDE;
-
   NS_IMETHOD GetWidth(int32_t* aWidth) MOZ_OVERRIDE;
   NS_IMETHOD GetHeight(int32_t* aHeight) MOZ_OVERRIDE;
   NS_IMETHOD GetIntrinsicSize(nsSize* aSize) MOZ_OVERRIDE;
@@ -45,12 +43,13 @@ public:
                   GraphicsFilter aFilter,
                   const Maybe<SVGImageContext>& aSVGContext,
                   uint32_t aFlags) MOZ_OVERRIDE;
-  NS_IMETHOD_(nsIntRect) GetImageSpaceInvalidationRect(const nsIntRect& aRect) MOZ_OVERRIDE;
+  NS_IMETHOD_(nsIntRect) GetImageSpaceInvalidationRect(
+                                           const nsIntRect& aRect) MOZ_OVERRIDE;
   nsIntSize OptimalImageSizeForDest(const gfxSize& aDest,
                                     uint32_t aWhichFrame,
                                     GraphicsFilter aFilter,
                                     uint32_t aFlags) MOZ_OVERRIDE;
- 
+
 protected:
   OrientedImage(Image* aImage, Orientation aOrientation)
     : ImageWrapper(aImage)

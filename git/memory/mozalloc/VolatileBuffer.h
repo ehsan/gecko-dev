@@ -8,7 +8,6 @@
 #include "mozilla/mozalloc.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/NullPtr.h"
 
 /* VolatileBuffer
  *
@@ -151,7 +150,7 @@ public:
   }
 
 private:
-  VolatileBufferPtr(VolatileBufferPtr const& vbufptr) MOZ_DELETE;
+  VolatileBufferPtr(VolatileBufferPtr const& vbufptr) = delete;
 };
 
 }; /* namespace mozilla */

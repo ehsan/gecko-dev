@@ -79,10 +79,10 @@ private:
     return aSIC.Hash();
   }
 
-  friend SurfaceKey RasterSurfaceKey(const IntSize&, const uint32_t);
+  friend SurfaceKey RasterSurfaceKey(const IntSize&, uint32_t, uint32_t);
   friend SurfaceKey VectorSurfaceKey(const IntSize&,
                                      const Maybe<SVGImageContext>&,
-                                     const float);
+                                     float);
 
   IntSize                mSize;
   Maybe<SVGImageContext> mSVGContext;
@@ -92,18 +92,16 @@ private:
 
 inline SurfaceKey
 RasterSurfaceKey(const gfx::IntSize& aSize,
-                 const uint32_t aFlags)
+                 uint32_t aFlags,
+                 uint32_t aFrameNum)
 {
-  // We don't care about aAnimationTime for RasterImage because it's not
-  // currently possible to store anything but the first frame in the
-  // SurfaceCache.
-  return SurfaceKey(aSize, Nothing(), 0.0f, aFlags);
+  return SurfaceKey(aSize, Nothing(), float(aFrameNum), aFlags);
 }
 
 inline SurfaceKey
 VectorSurfaceKey(const gfx::IntSize& aSize,
                  const Maybe<SVGImageContext>& aSVGContext,
-                 const float aAnimationTime)
+                 float aAnimationTime)
 {
   // We don't care about aFlags for VectorImage because none of the flags we
   // have right now influence VectorImage's rendering. If we add a new flag that
@@ -115,6 +113,12 @@ MOZ_BEGIN_ENUM_CLASS(Lifetime, uint8_t)
   Transient,
   Persistent
 MOZ_END_ENUM_CLASS(Lifetime)
+
+MOZ_BEGIN_ENUM_CLASS(InsertOutcome, uint8_t)
+  SUCCESS,                 // Success (but see Insert documentation).
+  FAILURE,                 // Couldn't insert (e.g., for capacity reasons).
+  FAILURE_ALREADY_PRESENT  // A surface with the same key is already present.
+MOZ_END_ENUM_CLASS(InsertOutcome)
 
 /**
  * SurfaceCache is an imagelib-global service that allows caching of temporary
@@ -175,9 +179,8 @@ struct SurfaceCache
                                  const SurfaceKey& aSurfaceKey);
 
   /**
-   * Insert a surface into the cache. It is an error to call this function
-   * without first calling Lookup to verify that the surface is not already in
-   * the cache.
+   * Insert a surface into the cache. If a surface with the same ImageKey and
+   * SurfaceKey is already in the cache, Insert returns FAILURE_ALREADY_PRESENT.
    *
    * Each surface in the cache has a lifetime, either Transient or Persistent.
    * Transient surfaces can expire from the cache at any time. Persistent
@@ -189,13 +192,14 @@ struct SurfaceCache
    * LockImage() gets called.
    *
    * If a surface cannot be rematerialized, it may be important to know whether
-   * it was inserted into the cache successfully. Insert() returns false if it
+   * it was inserted into the cache successfully. Insert() returns FAILURE if it
    * failed to insert the surface, which could happen because of capacity
    * reasons, or because it was already freed by the OS. If you aren't inserting
    * a surface with persistent lifetime, or if the surface isn't associated with
-   * a locked image, the return value is useless: the surface might expire
-   * immediately after being inserted, even though Insert() returned true. Thus,
-   * most callers do not need to check the return value.
+   * a locked image, checking for SUCCESS or FAILURE is useless: the surface
+   * might expire immediately after being inserted, even though Insert()
+   * returned SUCCESS. Thus, many callers do not need to check the result of
+   * Insert() at all.
    *
    * @param aTarget      The new surface (wrapped in an imgFrame) to insert into
    *                     the cache.
@@ -204,14 +208,18 @@ struct SurfaceCache
    * @param aLifetime    Whether this is a transient surface that can always be
    *                     allowed to expire, or a persistent surface that
    *                     shouldn't expire if the image is locked.
-   * @return false if the surface could not be inserted. Only check this if
-   *         inserting a persistent surface associated with a locked image (see
-   *         above for more information).
+   * @return SUCCESS if the surface was inserted successfully. (But see above
+   *           for more information about when you should check this.)
+   *         FAILURE if the surface could not be inserted, e.g. for capacity
+   *           reasons. (But see above for more information about when you
+   *           should check this.)
+   *         FAILURE_ALREADY_PRESENT if a surface with the same ImageKey and
+   *           SurfaceKey already exists in the cache.
    */
-  static bool Insert(imgFrame*         aSurface,
-                     const ImageKey    aImageKey,
-                     const SurfaceKey& aSurfaceKey,
-                     Lifetime          aLifetime);
+  static InsertOutcome Insert(imgFrame*         aSurface,
+                              const ImageKey    aImageKey,
+                              const SurfaceKey& aSurfaceKey,
+                              Lifetime          aLifetime);
 
   /**
    * Checks if a surface of a given size could possibly be stored in the cache.

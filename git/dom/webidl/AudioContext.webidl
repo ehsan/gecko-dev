@@ -25,6 +25,7 @@ interface AudioContext : EventTarget {
     [NewObject, Throws]
     AudioBuffer createBuffer(unsigned long numberOfChannels, unsigned long length, float sampleRate);
 
+    [Throws]
     Promise<AudioBuffer> decodeAudioData(ArrayBuffer audioData,
                                          optional DecodeSuccessCallback successCallback,
                                          optional DecodeErrorCallback errorCallback);
@@ -42,10 +43,12 @@ interface AudioContext : EventTarget {
                                               optional unsigned long numberOfOutputChannels = 2);
 
     [NewObject]
+    StereoPannerNode createStereoPanner();
+    [NewObject]
     AnalyserNode createAnalyser();
-    [NewObject, Throws]
+    [NewObject, Throws, UnsafeInPrerendering]
     MediaElementAudioSourceNode createMediaElementSource(HTMLMediaElement mediaElement);
-    [NewObject, Throws]
+    [NewObject, Throws, UnsafeInPrerendering]
     MediaStreamAudioSourceNode createMediaStreamSource(MediaStream mediaStream);
     [NewObject]
     GainNode createGain();

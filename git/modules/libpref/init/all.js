@@ -119,6 +119,12 @@ pref("dom.indexedDB.enabled", true);
 pref("dom.indexedDB.warningQuota", 50);
 // Whether or not indexedDB experimental features are enabled.
 pref("dom.indexedDB.experimental", false);
+// Enable indexedDB logging.
+pref("dom.indexedDB.logging.enabled", true);
+// Detailed output in log messages.
+pref("dom.indexedDB.logging.details", true);
+// Enable profiler marks for indexedDB events.
+pref("dom.indexedDB.logging.profiler-marks", false);
 
 // Whether or not Web Workers are enabled.
 pref("dom.workers.enabled", true);
@@ -181,7 +187,10 @@ pref("browser.sessionhistory.max_total_viewers", -1);
 pref("ui.use_native_colors", true);
 pref("ui.click_hold_context_menus", false);
 pref("browser.display.use_document_fonts",  1);  // 0 = never, 1 = quick, 2 = always
-pref("browser.display.use_document_colors", true);
+// 0 = default: always, except in high contrast mode
+// 1 = always
+// 2 = never
+pref("browser.display.document_color_use", 0);
 pref("browser.display.use_system_colors",   false);
 pref("browser.display.foreground_color",    "#000000");
 pref("browser.display.background_color",    "#FFFFFF");
@@ -280,9 +289,7 @@ pref("media.fragmented-mp4.use-blank-decoder", false);
 pref("media.raw.enabled", true);
 #endif
 pref("media.ogg.enabled", true);
-#ifdef MOZ_OPUS
 pref("media.opus.enabled", true);
-#endif
 #ifdef MOZ_WAVE
 pref("media.wave.enabled", true);
 #endif
@@ -338,8 +345,8 @@ pref("media.navigator.video.default_width",0);  // adaptive default
 pref("media.navigator.video.default_height",0); // adaptive default
 pref("media.peerconnection.enabled", true);
 pref("media.peerconnection.video.enabled", true);
-pref("media.navigator.video.max_fs", 0); // unrestricted
-pref("media.navigator.video.max_fr", 0); // unrestricted
+pref("media.navigator.video.max_fs", 12288); // Enough for 2048x1536
+pref("media.navigator.video.max_fr", 60);
 pref("media.navigator.video.h264.level", 31); // 0x42E01f - level 3.1
 pref("media.navigator.video.h264.max_br", 0);
 pref("media.navigator.video.h264.max_mbps", 0);
@@ -362,6 +369,7 @@ pref("media.peerconnection.use_document_iceservers", true);
 // Do not enable identity before fixing origin spoofing: see Bug 968335
 pref("media.peerconnection.identity.enabled", false);
 pref("media.peerconnection.identity.timeout", 10000);
+pref("media.peerconnection.ice.loopback", false); // Set only for testing in offline environments.
 // These values (aec, agc, and noice) are from media/webrtc/trunk/webrtc/common_types.h
 // kXxxUnchanged = 0, kXxxDefault = 1, and higher values are specific to each
 // setting (for Xxx = Ec, Agc, or Ns).  Defaults are all set to kXxxDefault here.
@@ -593,6 +601,10 @@ pref("gfx.bundled_fonts.enabled", true);
 pref("gfx.bundled_fonts.force-enabled", false);
 #endif
 
+// Do we fire a notification about missing fonts, so the front-end can decide
+// whether to try and do something about it (e.g. download additional fonts)?
+pref("gfx.missing_fonts.notify", false);
+
 pref("gfx.filter.nearest.force-enabled", false);
 
 // prefs controlling the font (name/cmap) loader that runs shortly after startup
@@ -810,6 +822,8 @@ pref("devtools.remote.wifi.scan", false);
 // N.B.: This does not set whether the device can be discovered via WiFi, only
 // whether the UI control to make such a choice is shown to the user
 pref("devtools.remote.wifi.visible", false);
+// Client must complete TLS handshake within this window (ms)
+pref("devtools.remote.tls-handshake-timeout", 10000);
 
 // view source
 pref("view_source.syntax_highlight", true);
@@ -1052,11 +1066,7 @@ pref("javascript.options.mem.gc_dynamic_heap_growth", true);
 pref("javascript.options.mem.gc_dynamic_mark_slice", true);
 pref("javascript.options.mem.gc_allocation_threshold_mb", 30);
 pref("javascript.options.mem.gc_decommit_threshold_mb", 32);
-#ifdef JSGC_GENERATIONAL
 pref("javascript.options.mem.gc_min_empty_chunk_count", 1);
-#else
-pref("javascript.options.mem.gc_min_empty_chunk_count", 0);
-#endif
 pref("javascript.options.mem.gc_max_empty_chunk_count", 30);
 
 pref("javascript.options.showInConsole", false);
@@ -1291,6 +1301,7 @@ pref("network.http.spdy.enabled", true);
 pref("network.http.spdy.enabled.v3-1", true);
 pref("network.http.spdy.enabled.http2draft", true);
 pref("network.http.spdy.enabled.http2", true);
+pref("network.http.spdy.enabled.deps", true);
 pref("network.http.spdy.enforce-tls-profile", true);
 pref("network.http.spdy.chunk-size", 16000);
 pref("network.http.spdy.timeout", 180);
@@ -1304,13 +1315,8 @@ pref("network.http.spdy.push-allowance", 131072);
 
 // alt-svc allows separation of transport routing from
 // the origin host without using a proxy.
-#ifdef RELEASE_BUILD
-pref("network.http.altsvc.enabled", false);
-pref("network.http.altsvc.oe", false);
-#else
 pref("network.http.altsvc.enabled", true);
 pref("network.http.altsvc.oe", true);
-#endif
 
 pref("network.http.diagnostics", false);
 
@@ -1362,11 +1368,9 @@ pref("network.websocket.timeout.ping.request", 0);
 // event is sent to the javascript websockets application
 pref("network.websocket.timeout.ping.response", 10);
 
-// Defines whether or not to try and negotiate the stream-deflate compression
-// extension with the websocket server. Stream-Deflate has been removed from
-// the standards track document, but can still be used by servers who opt
-// into it.
-pref("network.websocket.extensions.stream-deflate", false);
+// Defines whether or not to try to negotiate the permessage compression
+// extension with the websocket server.
+pref("network.websocket.extensions.permessage-deflate", true);
 
 // the maximum number of concurrent websocket sessions. By specification there
 // is never more than one handshake oustanding to an individual host at
@@ -1597,7 +1601,6 @@ pref("network.predictor.max-queue-size", 50);
 pref("network.predictor.max-db-size", 157286400); // bytes
 pref("network.predictor.preserve", 80); // percentage of predictor data to keep when cleaning up
 
-
 // The following prefs pertain to the negotiate-auth extension (see bug 17578),
 // which provides transparent Kerberos or NTLM authentication using the SPNEGO
 // protocol.  Each pref is a comma-separated list of keys, where each key has
@@ -1605,10 +1608,8 @@ pref("network.predictor.preserve", 80); // percentage of predictor data to keep 
 //   [scheme "://"] [host [":" port]]
 // For example, "foo.com" would match "http://www.foo.com/bar", etc.
 
-// Allow insecure NTLMv1 when needed.
-pref("network.negotiate-auth.allow-insecure-ntlm-v1", false);
-// Allow insecure NTLMv1 for HTTPS protected sites by default.
-pref("network.negotiate-auth.allow-insecure-ntlm-v1-https", true);
+// Force less-secure NTLMv1 when needed (NTLMv2 is the default).
+pref("network.auth.force-generic-ntlm-v1", false);
 
 // This list controls which URIs can use the negotiate-auth protocol.  This
 // list should be limited to the servers you know you'll need to login to.
@@ -1651,14 +1652,6 @@ pref("network.auth.force-generic-ntlm", false);
 pref("network.automatic-ntlm-auth.allow-proxies", true);
 pref("network.automatic-ntlm-auth.allow-non-fqdn", false);
 pref("network.automatic-ntlm-auth.trusted-uris", "");
-
-// This preference controls whether or not the LM hash will be included in
-// response to a NTLM challenge.  By default, this is disabled since servers
-// should almost never need the LM hash, and the LM hash is what makes NTLM
-// authentication less secure.  See bug 250691 for further details.
-// NOTE: automatic-ntlm-auth which leverages the OS-provided NTLM
-//       implementation will not be affected by this preference.
-pref("network.ntlm.send-lm-response", false);
 
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
 
@@ -1714,6 +1707,13 @@ pref("intl.locale.matchOS",                 false);
 // for ISO-8859-1
 pref("intl.fallbackCharsetList.ISO-8859-1", "windows-1252");
 pref("font.language.group",                 "chrome://global/locale/intl.properties");
+
+// Android-specific pref to use key-events-only mode for IME-unaware webapps.
+#ifdef MOZ_WIDGET_ANDROID
+pref("intl.ime.hack.on_ime_unaware_apps.fire_key_events_for_composition", true);
+#else
+pref("intl.ime.hack.on_ime_unaware_apps.fire_key_events_for_composition", false);
+#endif
 
 // these locales have right-to-left UI
 pref("intl.uidirection.ar", "rtl");
@@ -2174,7 +2174,7 @@ pref("layout.css.grid.enabled", false);
 pref("layout.css.ruby.enabled", false);
 
 // Is support for CSS display:contents enabled?
-pref("layout.css.display-contents.enabled", false);
+pref("layout.css.display-contents.enabled", true);
 
 // Is support for CSS box-decoration-break enabled?
 pref("layout.css.box-decoration-break.enabled", true);
@@ -2230,10 +2230,8 @@ pref("layout.interruptible-reflow.enabled", true);
 // specific information is available).
 pref("layout.frame_rate", -1);
 
-// pref to dump the display list to the log. Useful for debugging invalidation problems.
-#ifdef MOZ_DUMP_PAINTING
+// pref to dump the display list to the log. Useful for debugging drawing.
 pref("layout.display-list.dump", false);
-#endif
 
 // pref to control precision of the frame rate timer. When true,
 // we use a "precise" timer, which means each notification fires
@@ -2249,6 +2247,13 @@ pref("layout.frame_rate.precise", false);
 
 // pref to control whether layout warnings that are hit quite often are enabled
 pref("layout.spammy_warnings.enabled", true);
+
+// Should we fragment floats inside CSS column layout?
+#ifdef RELEASE_BUILD
+pref("layout.float-fragments-inside-column.enabled", false);
+#else
+pref("layout.float-fragments-inside-column.enabled", true);
+#endif
 
 // Is support for the Web Animations API enabled?
 #ifdef RELEASE_BUILD
@@ -2366,6 +2371,8 @@ pref("dom.ipc.plugins.reportCrashURL", true);
 // Defaults to 30 seconds.
 pref("dom.ipc.plugins.unloadTimeoutSecs", 30);
 
+pref("dom.ipc.plugins.asyncInit", false);
+
 pref("dom.ipc.processCount", 1);
 
 // Enable caching of Moz2D Path objects for SVG geometry elements
@@ -2378,13 +2385,8 @@ pref("svg.display-lists.painting.enabled", true);
 // Is support for the SVG 2 paint-order property enabled?
 pref("svg.paint-order.enabled", true);
 
-// Is support for the new marker features from SVG 2 enabled?  Currently
-// this just includes <marker orient="auto-start-reverse">.
-#ifdef RELEASE_BUILD
-pref("svg.marker-improvements.enabled", false);
-#else
+// Is support for the <marker orient="auto-start-reverse"> feature enabled?
 pref("svg.marker-improvements.enabled", true);
-#endif
 
 #ifdef RELEASE_BUILD
 pref("svg.svg-iframe.enabled", false);
@@ -2625,7 +2627,6 @@ pref("font.size.inflation.lineThreshold", 400);
  * large enough. This means that when s=0, i is always equal to m.
  */
 pref("font.size.inflation.mappingIntercept", 1);
-
 
 /*
  * This controls the percentage that fonts will be inflated, if font
@@ -3311,9 +3312,6 @@ pref("ui.panel.default_level_parent", false);
 
 pref("ui.plugin.cancel_composition_at_input_source_changed", false);
 
-// The min width of composition window for plugins
-pref("ui.plugin.panel.min-width", 500);
-
 pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 
 // Macbook touchpad two finger pixel scrolling
@@ -3817,10 +3815,6 @@ pref("image.mem.surfacecache.size_factor", 4);
 // and laptop systems, where we never discard visible images.
 pref("image.mem.surfacecache.discard_factor", 1);
 
-// Whether we decode images on multiple background threads rather than the
-// foreground thread.
-pref("image.multithreaded_decoding.enabled", true);
-
 // How many threads we'll use for multithreaded decoding. If < 0, will be
 // automatically determined based on the system's number of cores.
 pref("image.multithreaded_decoding.limit", -1);
@@ -3856,14 +3850,13 @@ pref("webgl.max-warnings-per-context", 32);
 pref("webgl.enable-draft-extensions", false);
 pref("webgl.enable-privileged-extensions", false);
 #ifdef XP_WIN
-pref("webgl.angle.try-d3d11", false);
+pref("webgl.angle.try-d3d11", true);
 pref("webgl.angle.force-d3d11", false);
 #endif
 
 #ifdef MOZ_WIDGET_GONK
 pref("gfx.gralloc.fence-with-readpixels", false);
 #endif
-
 
 // Stagefright prefs
 pref("stagefright.force-enabled", false);
@@ -3908,6 +3901,10 @@ pref("layers.acceleration.force-enabled", false);
 pref("layers.acceleration.draw-fps", false);
 
 pref("layers.dump", false);
+#ifdef MOZ_DUMP_PAINTING
+// If we're dumping layers, also dump the texture data
+pref("layers.dump-texture", false);
+#endif
 pref("layers.draw-borders", false);
 pref("layers.draw-tile-borders", false);
 pref("layers.draw-bigimage-borders", false);
@@ -3997,6 +3994,8 @@ pref("gfx.direct2d.force-enabled", false);
 
 pref("layers.prefer-opengl", false);
 pref("layers.prefer-d3d9", false);
+pref("layers.d3d11.force-warp", false);
+pref("layers.d3d11.disable-warp", false);
 #endif
 
 // Force all possible layers to be always active layers
@@ -4126,11 +4125,6 @@ pref("layout.css.touch_action.enabled", false);
 
 // enable JS dump() function.
 pref("browser.dom.window.dump.enabled", false);
-
-// SPS Profiler
-pref("profiler.enabled", false);
-pref("profiler.interval", 10);
-pref("profiler.entries", 100000);
 
 #if defined(MOZ_WIDGET_GONK) || defined(MOZ_WIDGET_ANDROID)
 // Network Information API
@@ -4382,7 +4376,6 @@ pref("touchcaret.expiration.time", 3000);
 
 // Turn off selection caret by default
 pref("selectioncaret.enabled", false);
-pref("selectioncaret.noneditable", false);
 
 // This will inflate size of selection caret frame when we checking if
 // user click on selection caret or not. In app units.
@@ -4404,7 +4397,6 @@ pref("beacon.enabled", true);
 #endif
 
 // Camera prefs
-pref("camera.control.autofocus_moving_callback.enabled", true);
 pref("camera.control.face_detection.enabled", true);
 
 // Fetch API.
@@ -4432,8 +4424,78 @@ pref("intl.collation.mac.use_icu", true);
 // Enable meta-viewport support in remote APZ-enabled frames.
 pref("dom.meta-viewport.enabled", false);
 
-// search service geoip end-point and timeout
+// MozSettings debugging prefs for each component
+pref("dom.mozSettings.SettingsDB.debug.enabled", false);
+pref("dom.mozSettings.SettingsManager.debug.enabled", false);
+pref("dom.mozSettings.SettingsRequestManager.debug.enabled", false);
+pref("dom.mozSettings.SettingsService.debug.enabled", false);
+
+// MozSettings verbose mode to track everything
+pref("dom.mozSettings.SettingsDB.verbose.enabled", false);
+pref("dom.mozSettings.SettingsManager.verbose.enabled", false);
+pref("dom.mozSettings.SettingsRequestManager.verbose.enabled", false);
+pref("dom.mozSettings.SettingsService.verbose.enabled", false);
+
+// Controlling whether we want to allow forcing some Settings
+// IndexedDB transactions to be opened as readonly or keep everything as
+// readwrite.
+pref("dom.mozSettings.allowForceReadOnly", false);
+
+// Search service settings
+pref("browser.search.log", false);
+pref("browser.search.update", true);
+pref("browser.search.update.log", false);
+pref("browser.search.update.interval", 21600);
+pref("browser.search.suggest.enabled", true);
+pref("browser.search.geoSpecificDefaults", false);
 pref("browser.search.geoip.url", "https://location.services.mozilla.com/v1/country?key=%MOZILLA_API_KEY%");
 // NOTE: this timeout figure is also the "high" value for the telemetry probe
 // SEARCH_SERVICE_COUNTRY_FETCH_MS - if you change this also change that probe.
 pref("browser.search.geoip.timeout", 2000);
+
+#ifdef MOZ_OFFICIAL_BRANDING
+// {moz:official} expands to "official"
+pref("browser.search.official", true);
+#endif
+
+#ifndef MOZ_WIDGET_GONK
+// GMPInstallManager prefs
+
+// Enables some extra logging (can reduce performance)
+pref("media.gmp-manager.log", false);
+
+// User-settable override to media.gmp-manager.url for testing purposes.
+//pref("media.gmp-manager.url.override", "");
+
+// Update service URL for GMP install/updates:
+pref("media.gmp-manager.url", "https://aus4.mozilla.org/update/3/GMP/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
+
+// When |media.gmp-manager.cert.requireBuiltIn| is true or not specified the
+// final certificate and all certificates the connection is redirected to before
+// the final certificate for the url specified in the |media.gmp-manager.url|
+// preference must be built-in.
+pref("media.gmp-manager.cert.requireBuiltIn", true);
+
+// The |media.gmp-manager.certs.| preference branch contains branches that are
+// sequentially numbered starting at 1 that contain attribute name / value
+// pairs for the certificate used by the server that hosts the update xml file
+// as specified in the |media.gmp-manager.url| preference. When these preferences are
+// present the following conditions apply for a successful update check:
+// 1. the uri scheme must be https
+// 2. the preference name must exist as an attribute name on the certificate and
+//    the value for the name must be the same as the value for the attribute name
+//    on the certificate.
+// If these conditions aren't met it will be treated the same as when there is
+// no update available. This validation will not be performed when the
+// |media.gmp-manager.url.override| user preference has been set for testing updates or
+// when the |media.gmp-manager.cert.checkAttributes| preference is set to false. Also,
+// the |media.gmp-manager.url.override| preference should ONLY be used for testing.
+// IMPORTANT! app.update.certs.* prefs should also be updated if these
+// are updated.
+pref("media.gmp-manager.cert.checkAttributes", true);
+pref("media.gmp-manager.certs.1.issuerName", "CN=DigiCert Secure Server CA,O=DigiCert Inc,C=US");
+pref("media.gmp-manager.certs.1.commonName", "aus4.mozilla.org");
+pref("media.gmp-manager.certs.2.issuerName", "CN=Thawte SSL CA,O=\"Thawte, Inc.\",C=US");
+pref("media.gmp-manager.certs.2.commonName", "aus4.mozilla.org");
+#endif
+

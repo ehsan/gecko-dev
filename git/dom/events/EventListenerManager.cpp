@@ -31,6 +31,7 @@
 #include "nsDOMCID.h"
 #include "nsError.h"
 #include "nsGkAtoms.h"
+#include "nsHtml5Atoms.h"
 #include "nsIContent.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsIDocument.h"
@@ -97,8 +98,11 @@ EventListenerManager::EventListenerManager(EventTarget* aTarget)
   , mMayHaveCapturingListeners(false)
   , mMayHaveSystemGroupListeners(false)
   , mMayHaveTouchEventListener(false)
+  , mMayHaveScrollWheelEventListener(false)
   , mMayHaveMouseEnterLeaveEventListener(false)
   , mMayHavePointerEnterLeaveEventListener(false)
+  , mMayHaveKeyEventListener(false)
+  , mMayHaveInputOrCompositionEventListener(false)
   , mClearingListeners(false)
   , mIsMainThreadELM(NS_IsMainThread())
   , mNoListenerForEvent(0)
@@ -338,6 +342,16 @@ EventListenerManager::AddEventListenerInternal(
     if (window && !aFlags.mInSystemGroup) {
       window->SetHasTouchEventListeners();
     }
+  } else if (aTypeAtom == nsGkAtoms::onwheel ||
+             aTypeAtom == nsGkAtoms::onDOMMouseScroll ||
+             aTypeAtom == nsHtml5Atoms::onmousewheel) {
+    mMayHaveScrollWheelEventListener = true;
+    nsPIDOMWindow* window = GetInnerWindowForTarget();
+    // we don't want touchevent listeners added by scrollbars to flip this flag
+    // so we ignore listeners created with system event flag
+    if (window && !aFlags.mInSystemGroup) {
+      window->SetHasScrollWheelEventListeners();
+    }
   } else if (aType >= NS_POINTER_EVENT_START && aType <= NS_POINTER_LOST_CAPTURE) {
     nsPIDOMWindow* window = GetInnerWindowForTarget();
     if (aTypeAtom == nsGkAtoms::onpointerenter ||
@@ -374,7 +388,21 @@ EventListenerManager::AddEventListenerInternal(
       window->SetHasGamepadEventListener();
     }
 #endif
+  } else if (aTypeAtom == nsGkAtoms::onkeydown ||
+             aTypeAtom == nsGkAtoms::onkeypress ||
+             aTypeAtom == nsGkAtoms::onkeyup) {
+    if (!aFlags.mInSystemGroup) {
+      mMayHaveKeyEventListener = true;
+    }
+  } else if (aTypeAtom == nsGkAtoms::oncompositionend ||
+             aTypeAtom == nsGkAtoms::oncompositionstart ||
+             aTypeAtom == nsGkAtoms::oncompositionupdate ||
+             aTypeAtom == nsGkAtoms::oninput) {
+    if (!aFlags.mInSystemGroup) {
+      mMayHaveInputOrCompositionEventListener = true;
+    }
   }
+
   if (aTypeAtom && mTarget) {
     mTarget->EventListenerAdded(aTypeAtom);
   }
@@ -1012,20 +1040,22 @@ EventListenerManager::GetDocShellForTarget()
   return docShell;
 }
 
-class EventTimelineMarker : public nsDocShell::TimelineMarker
+class EventTimelineMarker : public TimelineMarker
 {
 public:
   EventTimelineMarker(nsDocShell* aDocShell, TracingMetadata aMetaData,
                       uint16_t aPhase, const nsAString& aCause)
-    : nsDocShell::TimelineMarker(aDocShell, "DOMEvent", aMetaData, aCause)
+    : TimelineMarker(aDocShell, "DOMEvent", aMetaData, aCause)
     , mPhase(aPhase)
   {
   }
 
   virtual void AddDetails(mozilla::dom::ProfileTimelineMarker& aMarker)
   {
-    aMarker.mType.Construct(GetCause());
-    aMarker.mEventPhase.Construct(mPhase);
+    if (GetMetaData() == TRACING_INTERVAL_START) {
+      aMarker.mType.Construct(GetCause());
+      aMarker.mEventPhase.Construct(mPhase);
+    }
   }
 
 private:
@@ -1100,7 +1130,7 @@ EventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
               (*aDOMEvent)->GetType(typeStr);
               uint16_t phase;
               (*aDOMEvent)->GetEventPhase(&phase);
-              mozilla::UniquePtr<nsDocShell::TimelineMarker> marker =
+              mozilla::UniquePtr<TimelineMarker> marker =
                 MakeUnique<EventTimelineMarker>(ds, TRACING_INTERVAL_START,
                                                 phase, typeStr);
               ds->AddProfileTimelineMarker(marker);

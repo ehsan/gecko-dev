@@ -3422,10 +3422,9 @@ AccumulateFrameBounds(nsIFrame* aContainerFrame,
           nsIFrame *trash1;
           int32_t trash2;
           nsRect lineBounds;
-          uint32_t trash3;
 
           if (NS_SUCCEEDED(aLines->GetLine(index, &trash1, &trash2,
-                                           lineBounds, &trash3))) {
+                                           lineBounds))) {
             frameBounds += frame->GetOffsetTo(f);
             frame = f;
             if (lineBounds.y < frameBounds.y) {
@@ -5546,7 +5545,7 @@ void PresShell::SetIgnoreViewportScrolling(bool aIgnore)
   SetRenderingState(state);
 }
 
-nsresult PresShell::SetResolution(float aXResolution, float aYResolution)
+nsresult PresShell::SetResolutionImpl(float aXResolution, float aYResolution, bool aScaleToResolution)
 {
   if (!(aXResolution > 0.0 && aYResolution > 0.0)) {
     return NS_ERROR_ILLEGAL_VALUE;
@@ -5558,7 +5557,14 @@ nsresult PresShell::SetResolution(float aXResolution, float aYResolution)
   state.mXResolution = aXResolution;
   state.mYResolution = aYResolution;
   SetRenderingState(state);
+  mScaleToResolution = aScaleToResolution;
+
   return NS_OK;
+}
+
+bool PresShell::ScaleToResolution() const
+{
+  return mScaleToResolution;
 }
 
 gfxSize PresShell::GetCumulativeResolution()
@@ -9120,6 +9126,8 @@ PresShell::DidDoReflow(bool aInterruptible, bool aWasInterrupted)
     mTouchCaret->UpdatePositionIfNeeded();
   }
 
+  mPresContext->NotifyMissingFonts();
+
   if (!aWasInterrupted) {
     ClearReflowOnZoomPending();
   }
@@ -9270,7 +9278,7 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
     bool hasUnconstrainedBSize = size.BSize(wm) == NS_UNCONSTRAINEDSIZE;
 
     if (hasUnconstrainedBSize || mLastRootReflowHadUnconstrainedBSize) {
-      reflowState.mFlags.mVResize = true;
+      reflowState.SetVResize(true);
     }
 
     mLastRootReflowHadUnconstrainedBSize = hasUnconstrainedBSize;

@@ -82,6 +82,13 @@
     "kind": "boolean",
     "description": "blocklist.xml has been loaded synchronously"
   },
+  "COMPOSITE_TIME" : {
+    "expires_in_version": "never",
+    "description": "Composite times in milliseconds",
+    "kind": "exponential",
+    "high": "1000",
+    "n_buckets": 50
+  },
   "CYCLE_COLLECTOR": {
     "expires_in_version": "never",
     "kind": "exponential",
@@ -2167,6 +2174,27 @@
     "high": 21,
     "n_buckets": 20,
     "description": "The number of unusable addresses reported for each record"
+  },
+  "REFRESH_DRIVER_TICK" : {
+    "expires_in_version": "never",
+    "description": "Total time spent ticking the refresh driver in milliseconds",
+    "kind": "exponential",
+    "high": "1000",
+    "n_buckets": 50
+  },
+  "PAINT_BUILD_DISPLAYLIST_TIME" : {
+    "expires_in_version": "never",
+    "description": "Time spent in building displaylists in milliseconds",
+    "kind": "exponential",
+    "high": "1000",
+    "n_buckets": 50
+  },
+  "PAINT_RASTERIZE_TIME" : {
+    "expires_in_version": "never",
+    "description": "Time spent rasterizing each frame in milliseconds",
+    "kind": "exponential",
+    "high": "1000",
+    "n_buckets": 50
   },
   "PREDICTOR_PREDICT_ATTEMPTS": {
     "expires_in_version": "never",
@@ -4509,6 +4537,12 @@
     "n_values": 100,
     "description": "Security UI Telemetry"
   },
+  "JS_TELEMETRY_ADDON_EXCEPTIONS" : {
+    "expires_in_version" : "never",
+    "kind": "count",
+    "keyed" : true,
+    "description" : "Exceptions thrown by add-ons"
+  },
   "SEARCH_COUNTS": {
     "expires_in_version": "never",
     "kind": "count",
@@ -4543,31 +4577,32 @@
     "extended_statistics_ok": true,
     "description": "Time (ms) it takes to build the cache of the search service"
   },
-  "SEARCH_SERVICE_COUNTRY_FETCH_MS": {
+  "SEARCH_SERVICE_COUNTRY_FETCH_TIME_MS": {
     "alert_emails": ["mhammond@mozilla.com", "gavin@mozilla.com"],
     "expires_in_version": "never",
-    "kind": "linear",
-    "n_buckets": 20,
-    "high": 2000,
+    "kind": "exponential",
+    "n_buckets": 30,
+    "high": 100000,
     "description": "Time (ms) it takes to fetch the country code"
   },
-  "SEARCH_SERVICE_COUNTRY_FETCH_TIMEOUT": {
+  "SEARCH_SERVICE_COUNTRY_FETCH_RESULT": {
     "alert_emails": ["mhammond@mozilla.com", "gavin@mozilla.com"],
     "expires_in_version": "never",
-    "kind": "flag",
-    "description": "If we saw a timeout fetching the country-code"
+    "kind": "enumerated",
+    "n_values": 8,
+    "description": "Result of XHR request fetching the country-code. 0=SUCCESS, 1=SUCCESS_WITHOUT_DATA, 2=XHRTIMEOUT, 3=ERROR (rest reserved for finer-grained error codes later)"
   },
-  "SEARCH_SERVICE_COUNTRY_SUCCESS": {
+  "SEARCH_SERVICE_COUNTRY_TIMEOUT": {
     "alert_emails": ["mhammond@mozilla.com", "gavin@mozilla.com"],
     "expires_in_version": "never",
     "kind": "boolean",
-    "description": "If we successfully fetched the country-code."
+    "description": "True if we stopped waiting for the XHR response before it completed"
   },
-  "SEARCH_SERVICE_COUNTRY_SUCCESS_WITHOUT_DATA": {
+  "SEARCH_SERVICE_COUNTRY_FETCH_CAUSED_SYNC_INIT": {
     "alert_emails": ["mhammond@mozilla.com", "gavin@mozilla.com"],
     "expires_in_version": "never",
-    "kind": "flag",
-    "description": "If we got a success response but no country-code"
+    "kind": "boolean",
+    "description": "True if the search service was synchronously initialized while we were waiting for the XHR response"
   },
   "SEARCH_SERVICE_US_COUNTRY_MISMATCHED_TIMEZONE": {
     "alert_emails": ["mhammond@mozilla.com", "gavin@mozilla.com"],
@@ -5861,6 +5896,11 @@
     "kind": "boolean",
     "description": "How many times has the devtool's Font Inspector been opened?"
   },
+  "DEVTOOLS_ANIMATIONINSPECTOR_OPENED_BOOLEAN": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "How many times has the devtool's Animation Inspector been opened?"
+  },
   "DEVTOOLS_JSDEBUGGER_OPENED_BOOLEAN": {
     "expires_in_version": "never",
     "kind": "boolean",
@@ -5926,6 +5966,21 @@
     "kind": "boolean",
     "description": "How many times has the devtool's Responsive View been opened via the toolbox button?"
   },
+  "DEVTOOLS_EYEDROPPER_OPENED_BOOLEAN": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "How many times has the devtool's Eyedropper tool been opened?"
+  },
+  "DEVTOOLS_MENU_EYEDROPPER_OPENED_BOOLEAN": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "How many times has the devtool's eyedropper been opened via the devtools menu?"
+  },
+  "DEVTOOLS_PICKER_EYEDROPPER_OPENED_BOOLEAN": {
+    "expires_in_version": "never",
+    "kind": "boolean",
+    "description": "How many times has the devtool's eyedropper been opened via the color picker?"
+  },
   "DEVTOOLS_DEVELOPERTOOLBAR_OPENED_BOOLEAN": {
     "expires_in_version": "never",
     "kind": "boolean",
@@ -5985,6 +6040,11 @@
     "expires_in_version": "never",
     "kind": "flag",
     "description": "How many users have opened the devtool's Font Inspector?"
+  },
+  "DEVTOOLS_ANIMATIONINSPECTOR_OPENED_PER_USER_FLAG": {
+    "expires_in_version": "never",
+    "kind": "flag",
+    "description": "How many users have opened the devtool's Animation Inspector?"
   },
   "DEVTOOLS_JSDEBUGGER_OPENED_PER_USER_FLAG": {
     "expires_in_version": "never",
@@ -6050,6 +6110,21 @@
     "expires_in_version": "never",
     "kind": "flag",
     "description": "How many users have opened the devtool's Responsive View been opened via the toolbox button?"
+  },
+  "DEVTOOLS_EYEDROPPER_OPENED_PER_USER_FLAG": {
+    "expires_in_version": "never",
+    "kind": "flag",
+    "description": "How many users have opened the devtool's Eyedropper via the toolbox button?"
+  },
+  "DEVTOOLS_MENU_EYEDROPPER_OPENED_PER_USER_FLAG": {
+    "expires_in_version": "never",
+    "kind": "flag",
+    "description": "How many users have opened the devtool's Eyedropper via the devtools menu?"
+  },
+  "DEVTOOLS_PICKER_EYEDROPPER_OPENED_PER_USER_FLAG": {
+    "expires_in_version": "never",
+    "kind": "flag",
+    "description": "How many users have opened the devtool's Eyedropper via the color picker?"
   },
   "DEVTOOLS_DEVELOPERTOOLBAR_OPENED_PER_USER_FLAG": {
     "expires_in_version": "never",
@@ -6128,6 +6203,13 @@
     "high": "10000000",
     "n_buckets": 100,
     "description": "How long has the font inspector been active (seconds)"
+  },
+  "DEVTOOLS_ANIMATIONINSPECTOR_TIME_ACTIVE_SECONDS": {
+    "expires_in_version": "never",
+    "kind": "exponential",
+    "high": "10000000",
+    "n_buckets": 100,
+    "description": "How long has the animation inspector been active (seconds)"
   },
   "DEVTOOLS_JSDEBUGGER_TIME_ACTIVE_SECONDS": {
     "expires_in_version": "never",
@@ -6965,6 +7047,15 @@
     "keyed": true,
     "description": "Time (ms) that the main thread has been blocked on NPP_NewStream in an IPC plugin"
   },
+  "BLOCKED_ON_PLUGINASYNCSURROGATE_WAITFORINIT_MS": {
+    "expires_in_version": "40",
+    "kind": "exponential",
+    "high": "10000",
+    "n_buckets": 20,
+    "extended_statistics_ok": true,
+    "keyed": true,
+    "description": "Time (ms) that the main thread has been blocked on PluginAsyncSurrogate::WaitForInit in an IPC plugin"
+  },
   "BLOCKED_ON_PLUGIN_INSTANCE_DESTROY_MS": {
     "expires_in_version": "40",
     "kind": "exponential",
@@ -6996,5 +7087,75 @@
     "kind": "count",
     "keyed": true,
     "description": "Counts of plugin and content process crashes which are reported with a crash dump."
+  },
+  "STUMBLER_TIME_BETWEEN_UPLOADS_SEC": {
+    "expires_in_version": "45",
+    "kind": "exponential",
+    "n_buckets": 50,
+    "high": 259200,
+    "description": "Stumbler: The time in seconds between uploads."
+  },
+  "STUMBLER_VOLUME_BYTES_UPLOADED_PER_SEC": {
+    "expires_in_version": "45",
+    "kind": "exponential",
+    "n_buckets": 50,
+    "high": 1000000,
+    "description": "Stumbler: Volume measurement of bytes uploaded, normalized to per-second."
+  },
+  "STUMBLER_TIME_BETWEEN_START_SEC": {
+    "expires_in_version": "45",
+    "kind": "exponential",
+    "n_buckets": 50,
+    "high": 259200,
+    "description": "Stumbler: The time between the service starts."
+  },
+  "STUMBLER_UPLOAD_BYTES": {
+    "expires_in_version": "45",
+    "kind": "exponential",
+    "n_buckets": 50,
+    "high": 1000000,
+    "description": "Stumbler: The bytes per upload."
+  },
+  "STUMBLER_UPLOAD_OBSERVATION_COUNT": {
+    "expires_in_version": "45",
+    "kind": "exponential",
+    "n_buckets": 50,
+    "high": 10000,
+    "description": "Stumbler: The observations per upload."
+  },
+  "STUMBLER_UPLOAD_CELL_COUNT": {
+    "expires_in_version": "45",
+    "kind": "exponential",
+    "n_buckets": 50,
+    "high": 10000,
+    "description": "Stumbler: The cells per upload."
+  },
+  "STUMBLER_UPLOAD_WIFI_AP_COUNT": {
+    "expires_in_version": "45",
+    "kind": "exponential",
+    "n_buckets": 50,
+    "high": 10000,
+    "description": "Stumbler: The Wi-Fi APs per upload."
+  },
+  "STUMBLER_OBSERVATIONS_PER_DAY": {
+    "expires_in_version": "45",
+    "kind": "exponential",
+    "n_buckets": 50,
+    "high": 10000,
+    "description": "Stumbler: The number of observations between upload events, normalized to per day."
+  },
+  "STUMBLER_TIME_BETWEEN_RECEIVED_LOCATIONS_SEC": {
+    "expires_in_version": "45",
+    "kind": "exponential",
+    "n_buckets": 50,
+    "high": 86400,
+    "description": "Stumbler: The time between receiving passive locations."
+  },
+  "DATA_STORAGE_ENTRIES": {
+    "expires_in_version": "default",
+    "kind": "linear",
+    "high": "1024",
+    "n_buckets": 16,
+    "description": "The number of entries in persistent DataStorage (HSTS and HPKP data, basically)"
   }
 }
