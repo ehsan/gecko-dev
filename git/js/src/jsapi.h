@@ -2255,7 +2255,7 @@ class AutoIdArray : private AutoGCRooter
         if (idArray)
             JS_DestroyIdArray(context, idArray);
     }
-    bool operator!() const {
+    bool operator!() {
         return !idArray;
     }
     jsid operator[](size_t i) const {

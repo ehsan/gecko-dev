@@ -62,13 +62,6 @@ class WorkerGlobalScope;
 class WorkerPrivate;
 class WorkerRunnable;
 
-enum WorkerType
-{
-  WorkerTypeDedicated,
-  WorkerTypeShared,
-  WorkerTypeService
-};
-
 // SharedMutex is a small wrapper around an (internal) reference-counted Mutex
 // object. It exists to avoid changing a lot of code to use Mutex* instead of
 // Mutex&.
@@ -199,6 +192,12 @@ public:
       mIsInPrivilegedApp = aOther.mIsInPrivilegedApp;
       mIsInCertifiedApp = aOther.mIsInCertifiedApp;
     }
+  };
+
+  enum WorkerType
+  {
+    WorkerTypeDedicated,
+    WorkerTypeShared
   };
 
 protected:
@@ -639,7 +638,7 @@ public:
   }
 
   // The ability to be a chrome worker is orthogonal to the type of
-  // worker [Dedicated|Shared|Service].
+  // worker [Dedicated|Shared].
   bool
   IsChromeWorker() const
   {
@@ -656,12 +655,6 @@ public:
   IsSharedWorker() const
   {
     return mWorkerType == WorkerTypeShared;
-  }
-
-  bool
-  IsServiceWorker() const
-  {
-    return mWorkerType == WorkerTypeService;
   }
 
   const nsCString&

@@ -326,11 +326,6 @@ this.PermissionsTable =  { geolocation: {
                              privileged: PROMPT_ACTION,
                              certified: PROMPT_ACTION
                            },
-                           "feature-detection": {
-                             app: DENY_ACTION,
-                             privileged: ALLOW_ACTION,
-                             certified: ALLOW_ACTION
-                           },
                          };
 
 /**

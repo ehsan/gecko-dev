@@ -285,7 +285,7 @@ GLContext::GLContext(const SurfaceCaps& caps,
     mNeedsTextureSizeChecks(false),
     mWorkAroundDriverBugs(true)
 {
-    mOwningThreadId = PlatformThread::CurrentId();
+    mOwningThread = NS_GetCurrentThread();
 }
 
 GLContext::~GLContext() {
@@ -2108,7 +2108,20 @@ GLContext::IsOffscreenSizeAllowed(const IntSize& aSize) const {
 bool
 GLContext::IsOwningThreadCurrent()
 {
-  return PlatformThread::CurrentId() == mOwningThreadId;
+  return NS_GetCurrentThread() == mOwningThread;
+}
+
+void
+GLContext::DispatchToOwningThread(nsIRunnable *event)
+{
+    // Before dispatching, we need to ensure we're not in the middle of
+    // shutting down. Dispatching runnables in the middle of shutdown
+    // (that is, when the main thread is no longer get-able) can cause them
+    // to leak. See Bug 741319, and Bug 744115.
+    nsCOMPtr<nsIThread> mainThread;
+    if (NS_SUCCEEDED(NS_GetMainThread(getter_AddRefs(mainThread)))) {
+        mOwningThread->Dispatch(event, NS_DISPATCH_NORMAL);
+    }
 }
 
 GLBlitHelper*

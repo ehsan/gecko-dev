@@ -351,87 +351,59 @@ Navigator::GetAppName(nsAString& aAppName)
 }
 
 /**
- * Returns the value of Accept-Languages (HTTP header) as a nsTArray of
- * languages. The value is set in the preference by the user ("Content
- * Languages").
+ * JS property navigator.language, exposed to web content.
+ * Take first value from Accept-Languages (HTTP header), which is
+ * the "content language" freely set by the user in the Pref window.
  *
- * "en", "en-US" and "i-cherokee" and "" are valid languages tokens.
+ * Do not use UI language (chosen app locale) here.
+ * See RFC 2616, Section 15.1.4 "Privacy Issues Connected to Accept Headers"
  *
- * An empty array will be returned if there is no valid languages.
+ * "en", "en-US" and "i-cherokee" and "" are valid.
+ * Fallback in case of invalid pref should be "" (empty string), to
+ * let site do fallback, e.g. to site's local language.
  */
-void
-Navigator::GetAcceptLanguages(nsTArray<nsString>& aLanguages)
+NS_IMETHODIMP
+Navigator::GetLanguage(nsAString& aLanguage)
 {
   // E.g. "de-de, en-us,en".
   const nsAdoptingString& acceptLang =
     Preferences::GetLocalizedString("intl.accept_languages");
 
-  // Split values on commas.
+  // Take everything before the first "," or ";", without trailing space.
   nsCharSeparatedTokenizer langTokenizer(acceptLang, ',');
-  while (langTokenizer.hasMoreTokens()) {
-    nsDependentSubstring lang = langTokenizer.nextToken();
+  const nsSubstring &firstLangPart = langTokenizer.nextToken();
+  nsCharSeparatedTokenizer qTokenizer(firstLangPart, ';');
+  aLanguage.Assign(qTokenizer.nextToken());
 
-    // Replace "_" with "-" to avoid POSIX/Windows "en_US" notation.
-    // NOTE: we should probably rely on the pref being set correctly.
-    if (lang.Length() > 2 && lang[2] == char16_t('_')) {
-      lang.Replace(2, 1, char16_t('-'));
-    }
-
-    // Use uppercase for country part, e.g. "en-US", not "en-us", see BCP47
-    // only uppercase 2-letter country codes, not "zh-Hant", "de-DE-x-goethe".
-    // NOTE: we should probably rely on the pref being set correctly.
-    if (lang.Length() > 2) {
-      nsCharSeparatedTokenizer localeTokenizer(lang, '-');
-      int32_t pos = 0;
-      bool first = true;
-      while (localeTokenizer.hasMoreTokens()) {
-        const nsSubstring& code = localeTokenizer.nextToken();
-
-        if (code.Length() == 2 && !first) {
-          nsAutoString upper(code);
-          ToUpperCase(upper);
-          lang.Replace(pos, code.Length(), upper);
-        }
-
-        pos += code.Length() + 1; // 1 is the separator
-        first = false;
-      }
-    }
-
-    aLanguages.AppendElement(lang);
-  }
-}
-
-/**
- * Do not use UI language (chosen app locale) here but the first value set in
- * the Accept Languages header, see ::GetAcceptLanguages().
- *
- * See RFC 2616, Section 15.1.4 "Privacy Issues Connected to Accept Headers" for
- * the reasons why.
- */
-NS_IMETHODIMP
-Navigator::GetLanguage(nsAString& aLanguage)
-{
-  nsTArray<nsString> languages;
-  GetLanguages(languages);
-  if (languages.Length() >= 1) {
-    aLanguage.Assign(languages[0]);
-  } else {
-    aLanguage.Truncate();
+  // Checks and fixups:
+  // replace "_" with "-" to avoid POSIX/Windows "en_US" notation.
+  if (aLanguage.Length() > 2 && aLanguage[2] == char16_t('_')) {
+    aLanguage.Replace(2, 1, char16_t('-')); // TODO replace all
   }
 
+  // Use uppercase for country part, e.g. "en-US", not "en-us", see BCP47
+  // only uppercase 2-letter country codes, not "zh-Hant", "de-DE-x-goethe".
+  if (aLanguage.Length() <= 2) {
     return NS_OK;
-}
+  }
 
-void
-Navigator::GetLanguages(nsTArray<nsString>& aLanguages)
-{
-  GetAcceptLanguages(aLanguages);
+  nsCharSeparatedTokenizer localeTokenizer(aLanguage, '-');
+  int32_t pos = 0;
+  bool first = true;
+  while (localeTokenizer.hasMoreTokens()) {
+    const nsSubstring& code = localeTokenizer.nextToken();
 
-  // The returned value is cached by the binding code. The window listen to the
-  // accept languages change and will clear the cache when needed. It has to
-  // take care of dispatching the DOM event already and the invalidation and the
-  // event has to be timed correctly.
+    if (code.Length() == 2 && !first) {
+      nsAutoString upper(code);
+      ToUpperCase(upper);
+      aLanguage.Replace(pos, code.Length(), upper);
+    }
+
+    pos += code.Length() + 1; // 1 is the separator
+    first = false;
+  }
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1471,52 +1443,6 @@ Navigator::GetDataStores(const nsAString& aName, ErrorResult& aRv)
   return GetDataStores(mWindow, aName, aRv);
 }
 
-already_AddRefed<Promise>
-Navigator::GetFeature(const nsAString& aName)
-{
-  nsCOMPtr<nsIGlobalObject> go = do_QueryInterface(mWindow);
-  nsRefPtr<Promise> p = new Promise(go);
-
-#if defined(XP_LINUX)
-  if (aName.EqualsLiteral("hardware.memory")) {
-    static int memLevel = 1;
-    if (memLevel == 1) {
-      FILE* f = fopen("/proc/meminfo", "r");
-      if (!f) {
-        p->MaybeReject(NS_LITERAL_STRING("CannotOpenMeminfo"));
-        return p.forget();
-      }
-
-      int memTotal;
-      int n = fscanf(f, "MemTotal: %d kB\n", &memTotal);
-      fclose(f);
-
-      if (memTotal == 0 || n != 1) {
-        p->MaybeReject(NS_LITERAL_STRING("Abnormal"));
-        return p.forget();
-      }
-      // From KB to MB
-      memTotal /= 1024;
-
-      // round the value up to the next power of two
-      while (memLevel <= memTotal) {
-        memLevel *= 2;
-      }
-    }
-    p->MaybeResolve(memLevel);
-  } // hardware.memory
-  else
-#endif
-  {
-    // resolve with <undefined> because the feature name is not supported
-    p->MaybeResolve(JS::UndefinedHandleValue);
-  }
-
-  return p.forget();
-
-}
-
-
 PowerManager*
 Navigator::GetMozPower(ErrorResult& aRv)
 {
@@ -2489,15 +2415,6 @@ Navigator::HasNetworkStatsSupport(JSContext* /* unused */, JSObject* aGlobal)
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
   return CheckPermission(win, "networkstats-manage");
 }
-
-/* static */
-bool
-Navigator::HasFeatureDetectionSupport(JSContext* /* unused */, JSObject* aGlobal)
-{
-  nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
-  return CheckPermission(win, "feature-detection");
-}
-
 
 /* static */
 already_AddRefed<nsPIDOMWindow>
