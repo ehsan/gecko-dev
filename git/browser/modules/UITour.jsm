@@ -1318,10 +1318,7 @@ this.UITour = {
       openMenuButton(menuBtn);
     } else if (aMenuName == "loop") {
       let toolbarButton = aWindow.LoopUI.toolbarButton;
-      // It's possible to have a node that isn't placed anywhere
-      if (!toolbarButton || !toolbarButton.node ||
-          !CustomizableUI.getPlacementOfWidget(toolbarButton.node.id)) {
-        log.debug("Can't show the Loop menu since the toolbarButton isn't placed");
+      if (!toolbarButton || !toolbarButton.node) {
         return;
       }
 

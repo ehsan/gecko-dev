@@ -154,13 +154,10 @@ loop.store = loop.store || {};
      * @param {Object} addedRoomData The added room data.
      */
     _onRoomAdded: function(eventName, addedRoomData) {
-      addedRoomData.participants = addedRoomData.participants || [];
-      addedRoomData.ctime = addedRoomData.ctime || new Date().getTime();
+      addedRoomData.participants = [];
+      addedRoomData.ctime = new Date().getTime();
       this.dispatchAction(new sharedActions.UpdateRoomList({
-        // Ensure the room isn't part of the list already, then add it.
-        roomList: this._storeState.rooms.filter(function(room) {
-          return addedRoomData.roomToken !== room.roomToken;
-        }).concat(new Room(addedRoomData))
+        roomList: this._storeState.rooms.concat(new Room(addedRoomData))
       }));
     },
 
@@ -423,15 +420,8 @@ loop.store = loop.store || {};
      * @param {sharedActions.RenameRoom} actionData
      */
     renameRoom: function(actionData) {
-      var newRoomName = actionData.newRoomName.trim();
-
-      // Skip update if name is unchanged or empty.
-      if (!newRoomName || this.getStoreState("roomName") === newRoomName) {
-        return;
-      }
-
       this.setStoreState({error: null});
-      this._mozLoop.rooms.rename(actionData.roomToken, newRoomName,
+      this._mozLoop.rooms.rename(actionData.roomToken, actionData.newRoomName,
         function(err) {
           if (err) {
             this.dispatchAction(new sharedActions.RenameRoomError({error: err}));

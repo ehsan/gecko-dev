@@ -367,9 +367,6 @@ loop.standaloneRoomViews = (function(mozL10n) {
             <div className="conversation room-conversation">
               <h2 className="room-name">{this.state.roomName}</h2>
               <div className="media nested">
-                <span className="self-view-hidden-message">
-                  {mozL10n.get("self_view_hidden_message")}
-                </span>
                 <div className="video_wrapper remote_wrapper">
                   <div className="video_inner remote"></div>
                 </div>

@@ -94,10 +94,15 @@ loop.roomViews = (function(mozL10n) {
     handleFormSubmit: function(event) {
       event.preventDefault();
 
-      this.props.dispatcher.dispatch(new sharedActions.RenameRoom({
-        roomToken: this.state.roomToken,
-        newRoomName: this.state.newRoomName
-      }));
+      var newRoomName = this.state.newRoomName;
+
+      if (newRoomName && this.state.roomName != newRoomName) {
+        this.props.dispatcher.dispatch(
+          new sharedActions.RenameRoom({
+            roomToken: this.state.roomToken,
+            newRoomName: newRoomName
+          }));
+      }
     },
 
     handleEmailButtonClick: function(event) {

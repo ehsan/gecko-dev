@@ -982,7 +982,7 @@ let MozLoopServiceInternal = {
       code: code,
       state: state,
     };
-    return this.hawkRequestInternal(LOOP_SESSION_TYPE.FXA, "/fxa-oauth/token", "POST", payload).then(response => {
+    return this.hawkRequest(LOOP_SESSION_TYPE.FXA, "/fxa-oauth/token", "POST", payload).then(response => {
       return JSON.parse(response.body);
     },
     error => {this._hawkRequestError(error);});
@@ -1104,10 +1104,6 @@ this.MozLoopService = {
     LoopRooms.on("joined", (e, room, participant) => {
       let isOwnerInRoom = false;
       let isOtherInRoom = false;
-
-      if (!this.getLoopPref("gettingStarted.resumeOnFirstJoin")) {
-        return;
-      }
 
       if (!room.participants) {
         return;
@@ -1528,10 +1524,6 @@ this.MozLoopService = {
   },
 
   resumeTour: function(aIncomingConversationState) {
-    if (!this.getLoopPref("gettingStarted.resumeOnFirstJoin")) {
-      return;
-    }
-
     let url = this.getTourURL("resume-with-conversation", {
       incomingConversation: aIncomingConversationState,
     });
