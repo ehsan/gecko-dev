@@ -1809,9 +1809,7 @@ ProfileLockedDialog(nsILocalFile* aProfileDir, nsILocalFile* aProfileLocalDir,
     }
 
     PRInt32 button;
-    // The actual value is irrelevant but we shouldn't be handing out
-    // malformed JSBools to XPConnect.
-    PRBool checkState = PR_FALSE;
+    PRBool checkState;
     rv = ps->ConfirmEx(nsnull, killTitle, killMessage, flags,
                        killTitle, nsnull, nsnull, nsnull, &checkState, &button);
     NS_ENSURE_SUCCESS_LOG(rv, rv);

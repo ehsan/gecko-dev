@@ -3945,10 +3945,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
             // Channel refused to load from an unrecognized content type.
             error.AssignLiteral("unsafeContentType");
             break;
-        case NS_ERROR_CORRUPTED_CONTENT:
-            // Broken Content Detected. e.g. Content-MD5 check failure.
-            error.AssignLiteral("corruptedContentError");
-            break;
         }
     }
 
@@ -6128,7 +6124,6 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
     //
     if (url && NS_FAILED(aStatus)) {
         if (aStatus == NS_ERROR_FILE_NOT_FOUND ||
-            aStatus == NS_ERROR_CORRUPTED_CONTENT ||
             aStatus == NS_ERROR_INVALID_CONTENT_ENCODING) {
             DisplayLoadError(aStatus, url, nsnull, aChannel);
             return NS_OK;
@@ -8360,7 +8355,11 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             // sometimes we might scroll even if we don't fire a hashchange
             // event!  See bug 653741.
             if (!aSHEntry) {
-                rv = ScrollToAnchor(curHash, newHash, aLoadType);
+                // Take the '#' off the hashes before passing them to
+                // ScrollToAnchor.
+                nsDependentCSubstring curHashName(curHash, 1);
+                nsDependentCSubstring newHashName(newHash, 1);
+                rv = ScrollToAnchor(curHashName, newHashName, aLoadType);
                 NS_ENSURE_SUCCESS(rv, rv);
             }
 
@@ -9155,20 +9154,16 @@ nsDocShell::ScrollToAnchor(nsACString & aCurHash, nsACString & aNewHash,
         return NS_OK;
     }
 
-    // Take the '#' off aNewHash to get the ref name.  (aNewHash might be empty,
-    // but that's fine.)
-    nsDependentCSubstring newHashName(aNewHash, 1);
-
     // Both the new and current URIs refer to the same page. We can now
     // browse to the hash stored in the new URI.
 
-    if (!newHashName.IsEmpty()) {
+    if (!aNewHash.IsEmpty()) {
         // anchor is there, but if it's a load from history,
         // we don't have any anchor jumping to do
         PRBool scroll = aLoadType != LOAD_HISTORY &&
                         aLoadType != LOAD_RELOAD_NORMAL;
 
-        char *str = ToNewCString(newHashName);
+        char *str = ToNewCString(aNewHash);
         if (!str) {
             return NS_ERROR_OUT_OF_MEMORY;
         }
@@ -9210,7 +9205,7 @@ nsDocShell::ScrollToAnchor(nsACString & aCurHash, nsACString & aNewHash,
             nsXPIDLString uStr;
 
             rv = textToSubURI->UnEscapeAndConvert(PromiseFlatCString(aCharset).get(),
-                                                  PromiseFlatCString(newHashName).get(),
+                                                  PromiseFlatCString(aNewHash).get(),
                                                   getter_Copies(uStr));
             NS_ENSURE_SUCCESS(rv, rv);
 

@@ -938,6 +938,10 @@ setting {
   min-height: 30px;
 }
 
+.detail-row-value {
+  -moz-margin-start: 0;
+}
+
 #detail-controls {
   margin-bottom: 1em;
 }
@@ -986,6 +990,7 @@ menulist { /* Fixes some styling inconsistencies */
 /*** rating ***/
 
 .meta-rating {
+  -moz-margin-start: 0;
   -moz-margin-end: 0;
   padding-top: 2px;
 }
