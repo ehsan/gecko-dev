@@ -1646,19 +1646,19 @@ nsWindow::ResetInputState()
 }
 
 NS_IMETHODIMP
-nsWindow::SetIMEEnabled(PRUint32 aState)
+nsWindow::SetInputMode(const IMEContext& aContext)
 {
-    ALOGIME("IME: SetIMEEnabled: s=%d", aState);
+    ALOGIME("IME: SetInputMode: s=%d", aContext.mStatus);
 
-    mIMEEnabled = aState;
-    AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_SETENABLED, int(aState));
+    mIMEContext = aContext;
+    AndroidBridge::NotifyIMEEnabled(int(aContext.mStatus), aContext.mHTMLInputType);
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsWindow::GetIMEEnabled(PRUint32* aState)
+nsWindow::GetInputMode(IMEContext& aContext)
 {
-    *aState = mIMEEnabled;
+    aContext = mIMEContext;
     return NS_OK;
 }
 

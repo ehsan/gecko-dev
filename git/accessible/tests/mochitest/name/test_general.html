@@ -11,9 +11,9 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"></script>
 
   <script type="application/javascript"
-          src="common.js"></script>
+          src="../common.js"></script>
   <script type="application/javascript"
-          src="name.js"></script>
+          src="../name.js"></script>
 
   <script type="application/javascript">
     function doTest()
@@ -109,12 +109,15 @@
       testName("btn_label_inform", "in form");
 
       // The label element is placed outside of form where the button is.
-      // Do not take into account the label.
-      testName("btn_label_outform", "12");
+      // Take into account the label.
+      testName("btn_label_outform", "out form");
 
       // The label element and the button are in the same document. Gets the
       // name from the label subtree.
       testName("btn_label_indocument", "in document");
+
+      // Multiple label elements for single button
+      testName("btn_label_multi", "label1label2");
 
 
       //////////////////////////////////////////////////////////////////////////
@@ -128,6 +131,9 @@
       // visible children (bug 443081).
       testName("lb_opt1_children_hidden", "i am visible");
 
+      // Get the name from subtree of menuitem crossing role nothing to get
+      // the name from its children.
+      testName("tablemenuitem", "menuitem 1");
 
       //////////////////////////////////////////////////////////////////////////
       // title attribute
@@ -360,6 +366,11 @@
   <label for="btn_label_indocument">in document</label>
   <button id="btn_label_indocument">13</button>
 
+  <!-- multiple label elements for single button -->
+  <label for="btn_label_multi">label1</label>
+  <label for="btn_label_multi">label2</label>
+  <button id="btn_label_multi">button</button>
+
   <!-- name from children -->
   <span id="btn_children" role="button">14</span>
 
@@ -370,6 +381,15 @@
       <span style="display:none">i am hidden</span>
     </div>
   </div>
+
+  <table role="menu">
+    <tr role="menuitem" id="tablemenuitem">
+      <td>menuitem 1</td>
+    </tr>
+    <tr role="menuitem">
+      <td>menuitem 2</td>
+    </tr>
+  </table>
 
   <!-- name from title attribute -->
   <span id="btn_title" role="group" title="title">15</span>

@@ -2,7 +2,7 @@
 <?xml-stylesheet href="chrome://global/skin" type="text/css"?>
 <?xml-stylesheet href="chrome://mochikit/content/tests/SimpleTest/test.css"
                  type="text/css"?>
-<?xml-stylesheet href="name.css"
+<?xml-stylesheet href="general.css"
                  type="text/css"?>
 
 
@@ -15,11 +15,11 @@
           src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js" />
 
   <script type="application/javascript"
-          src="common.js"></script>
+          src="../common.js"></script>
   <script type="application/javascript"
-          src="role.js"></script>
+          src="../role.js"></script>
   <script type="application/javascript"
-          src="name.js"></script>
+          src="../name.js"></script>
 
   <script type="application/javascript">
   <![CDATA[
@@ -105,6 +105,9 @@
 
       // The label and button are siblings.
       testName("btn_label_3", "label3");
+
+      // Multiple labels for single button: XUL button takes the last one.
+      testName("btn_label_4", "label5");
 
 
       //////////////////////////////////////////////////////////////////////////
@@ -296,6 +299,10 @@
     </box>
     <label control="btn_label_3">label3</label>
     <button id="btn_label_3"/>
+
+    <label control="btn_label_4">label4</label>
+    <label control="btn_label_4">label5</label>
+    <button id="btn_label_4"/>
   </hbox>
 
   <!-- label element, anonymous content -->
