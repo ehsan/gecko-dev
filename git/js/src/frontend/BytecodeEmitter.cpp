@@ -408,7 +408,7 @@ UpdateLineNumberNotes(ExclusiveContext *cx, BytecodeEmitter *bce, uint32_t offse
     return true;
 }
 
-/* Updates the line number and column number information in the source notes. */
+/* A function, so that we avoid macro-bloating all the other callsites. */
 static bool
 UpdateSourceCoordNotes(ExclusiveContext *cx, BytecodeEmitter *bce, uint32_t offset)
 {
@@ -1468,6 +1468,8 @@ TryConvertFreeName(BytecodeEmitter *bce, ParseNode *pn)
     if (bce->insideEval && bce->sc->strict)
         return false;
 
+    // Beware: if you change anything here, you might also need to change
+    // js::ReportIfUndeclaredVarAssignment.
     JSOp op;
     switch (pn->getOp()) {
       case JSOP_NAME:     op = JSOP_GETGNAME; break;
@@ -3429,38 +3431,6 @@ MaybeEmitLetGroupDecl(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn,
     }
     return true;
 }
-
-#ifdef JS_HAS_TEMPLATE_STRINGS
-static bool
-EmitTemplateString(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
-{
-    JS_ASSERT(pn->isArity(PN_LIST));
-
-    for (ParseNode *pn2 = pn->pn_head; pn2 != NULL; pn2 = pn2->pn_next) {
-        if (pn2->getKind() != PNK_STRING && pn2->getKind() != PNK_TEMPLATE_STRING) {
-            // We update source notes before emitting the expression
-            if (!UpdateSourceCoordNotes(cx, bce, pn2->pn_pos.begin))
-                return false;
-        }
-        if (!EmitTree(cx, bce, pn2))
-            return false;
-
-        if (pn2->getKind() != PNK_STRING && pn2->getKind() != PNK_TEMPLATE_STRING) {
-            // We need to convert the expression to a string
-            if (Emit1(cx, bce, JSOP_TOSTRING) < 0)
-                return false;
-        }
-
-        if (pn2 != pn->pn_head) {
-            // We've pushed two strings onto the stack. Add them together, leaving just one.
-            if (Emit1(cx, bce, JSOP_ADD) < 0)
-                return false;
-        }
-
-    }
-    return true;
-}
-#endif
 
 static bool
 EmitVariables(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn, VarEmitOption emitOption,
@@ -6600,15 +6570,8 @@ frontend::EmitTree(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNode *pn)
             return false;
         break;
 
-#ifdef JS_HAS_TEMPLATE_STRINGS
-      case PNK_TEMPLATE_STRING_LIST:
-        ok = EmitTemplateString(cx, bce, pn);
-        break;
-
-      case PNK_TEMPLATE_STRING:
-#endif
       case PNK_STRING:
-        ok = EmitAtomOp(cx, pn, JSOP_STRING, bce);
+        ok = EmitAtomOp(cx, pn, pn->getOp(), bce);
         break;
 
       case PNK_NUMBER:

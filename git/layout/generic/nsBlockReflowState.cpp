@@ -46,22 +46,22 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
 {
   WritingMode wm = aReflowState.GetWritingMode();
   SetFlag(BRS_ISFIRSTINFLOW, aFrame->GetPrevInFlow() == nullptr);
-  SetFlag(BRS_ISOVERFLOWCONTAINER, IS_TRUE_OVERFLOW_CONTAINER(aFrame));
+  SetFlag(BRS_ISOVERFLOWCONTAINER,
+          IS_TRUE_OVERFLOW_CONTAINER(aFrame));
 
-  int logicalSkipSides = aFrame->GetLogicalSkipSides(&aReflowState);
-  mBorderPadding.ApplySkipSides(logicalSkipSides);
+  aFrame->ApplyLogicalSkipSides(mBorderPadding, &aReflowState);
 
   // Note that mContainerWidth is the physical width!
   mContainerWidth = aReflowState.ComputedWidth() + mBorderPadding.LeftRight(wm);
 
-  if ((aBStartMarginRoot && !(logicalSkipSides & LOGICAL_SIDE_B_START)) ||
-      0 != mBorderPadding.BStart(wm)) {
+  if (aBStartMarginRoot || 0 != mBorderPadding.BStart(wm)) {
     SetFlag(BRS_ISBSTARTMARGINROOT, true);
-    SetFlag(BRS_APPLYBSTARTMARGIN, true);
   }
-  if ((aBEndMarginRoot && !(logicalSkipSides & LOGICAL_SIDE_B_END)) ||
-      0 != mBorderPadding.BEnd(wm)) {
+  if (aBEndMarginRoot || 0 != mBorderPadding.BEnd(wm)) {
     SetFlag(BRS_ISBENDMARGINROOT, true);
+  }
+  if (GetFlag(BRS_ISBSTARTMARGINROOT)) {
+    SetFlag(BRS_APPLYBSTARTMARGIN, true);
   }
   if (aBlockNeedsFloatManager) {
     SetFlag(BRS_FLOAT_MGR, true);
@@ -166,20 +166,6 @@ nsBlockReflowState::ComputeReplacedBlockOffsetsForFloats(nsIFrame* aFrame,
   aRightResult = rightOffset;
 }
 
-static nscoord
-GetBEndMarginClone(nsIFrame* aFrame,
-                   nsRenderingContext* aRenderingContext,
-                   const LogicalRect& aContentArea,
-                   WritingMode aWritingMode)
-{
-  if (aFrame->StyleBorder()->mBoxDecorationBreak ==
-        NS_STYLE_BOX_DECORATION_BREAK_CLONE) {
-    nsCSSOffsetState os(aFrame, aRenderingContext, aContentArea.Width(aWritingMode));
-    return os.ComputedLogicalMargin().BEnd(aWritingMode);
-  }
-  return 0;
-}
-
 // Compute the amount of available space for reflowing a block frame
 // at the current Y coordinate. This method assumes that
 // GetAvailableSpace has already been called.
@@ -202,8 +188,7 @@ nsBlockReflowState::ComputeBlockAvailSpace(nsIFrame* aFrame,
   result.BStart(wm) = mBCoord;
   result.BSize(wm) = GetFlag(BRS_UNCONSTRAINEDBSIZE)
     ? NS_UNCONSTRAINEDSIZE
-    : mReflowState.AvailableBSize() - mBCoord
-      - GetBEndMarginClone(aFrame, mReflowState.rendContext, mContentArea, wm);
+    : mReflowState.AvailableBSize() - mBCoord;
   // mBCoord might be greater than mBEndEdge if the block's top margin pushes
   // it off the page/column. Negative available height can confuse other code
   // and is nonsense in principle.

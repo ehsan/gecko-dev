@@ -32,6 +32,7 @@ struct WebAudioDecodeJob MOZ_FINAL
                     dom::AudioContext* aContext,
                     dom::DecodeSuccessCallback* aSuccessCallback = nullptr,
                     dom::DecodeErrorCallback* aFailureCallback = nullptr);
+  ~WebAudioDecodeJob();
 
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(WebAudioDecodeJob)
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_NATIVE_CLASS(WebAudioDecodeJob)
@@ -62,9 +63,6 @@ struct WebAudioDecodeJob MOZ_FINAL
   nsRefPtr<dom::DecodeErrorCallback> mFailureCallback; // can be null
   nsRefPtr<dom::AudioBuffer> mOutput;
   FallibleTArray<ChannelBuffer> mChannelBuffers;
-
-private:
-  ~WebAudioDecodeJob();
 };
 
 /**

@@ -3267,8 +3267,6 @@ public:
     return mStateMachine->TimeoutExpired(mTimerId);
   }
 private:
-  ~TimerEvent() {}
-
   const nsRefPtr<MediaDecoderStateMachine> mStateMachine;
   int mTimerId;
 };

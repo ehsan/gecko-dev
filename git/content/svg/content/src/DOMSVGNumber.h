@@ -38,15 +38,6 @@ class DOMSVGNumber MOZ_FINAL : public nsISupports
 {
   friend class AutoChangeNumberNotifier;
 
-  ~DOMSVGNumber() {
-    // Our mList's weak ref to us must be nulled out when we die. If GC has
-    // unlinked us using the cycle collector code, then that has already
-    // happened, and mList is null.
-    if (mList) {
-      mList->mItems[mListIndex] = nullptr;
-    }
-  }
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGNumber)
@@ -64,6 +55,15 @@ public:
    * which do not initially belong to an attribute.
    */
   explicit DOMSVGNumber(nsISupports* aParent);
+
+  ~DOMSVGNumber() {
+    // Our mList's weak ref to us must be nulled out when we die. If GC has
+    // unlinked us using the cycle collector code, then that has already
+    // happened, and mList is null.
+    if (mList) {
+      mList->mItems[mListIndex] = nullptr;
+    }
+  }
 
   /**
    * Create an unowned copy. The caller is responsible for the first AddRef().

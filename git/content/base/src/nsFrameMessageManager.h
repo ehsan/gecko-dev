@@ -184,7 +184,6 @@ public:
     }
   }
 
-private:
   ~nsFrameMessageManager()
   {
     for (int32_t i = mChildManagers.Count(); i > 0; --i) {
@@ -206,7 +205,6 @@ private:
     }
   }
 
-public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsFrameMessageManager,
                                            nsIContentFrameMessageManager)
@@ -412,8 +410,6 @@ protected:
 
 class nsScriptCacheCleaner MOZ_FINAL : public nsIObserver
 {
-  ~nsScriptCacheCleaner() {}
-
   NS_DECL_ISUPPORTS
 
   nsScriptCacheCleaner()

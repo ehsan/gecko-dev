@@ -29,6 +29,7 @@ public:
     NS_DECL_NSIDIRINDEXLISTENER
 
     nsIndexedToHTML();
+    virtual ~nsIndexedToHTML();
 
     nsresult Init(nsIStreamListener *aListener);
 
@@ -55,8 +56,6 @@ protected:
 private:
     // Expecting absolute locations, given by 201 lines.
     bool mExpectAbsLoc;
-
-    virtual ~nsIndexedToHTML();
 };
 
 #endif

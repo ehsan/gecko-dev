@@ -19,7 +19,6 @@ inline int test_common_init(int *argc, char ***argv)
 static bool gKeepPumpingEvents = false;
 
 class nsQuitPumpingEvent MOZ_FINAL : public nsIRunnable {
-  ~nsQuitPumpingEvent() {}
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_IMETHOD Run() {

@@ -19,14 +19,12 @@ namespace net {
  */
 class StreamingProtocolControllerService : public nsIStreamingProtocolControllerService
 {
-private:
-  virtual ~StreamingProtocolControllerService() {};
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISTREAMINGPROTOCOLCONTROLLERSERVICE
 
   StreamingProtocolControllerService() {};
+  virtual ~StreamingProtocolControllerService() {};
   static already_AddRefed<StreamingProtocolControllerService> GetInstance();
 };
 } // namespace dom

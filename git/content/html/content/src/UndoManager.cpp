@@ -110,8 +110,6 @@ class UndoAttrChanged : public UndoTxn {
   UndoAttrChanged(mozilla::dom::Element* aElement, int32_t aNameSpaceID,
                   nsIAtom* aAttribute, int32_t aModType);
 protected:
-  ~UndoAttrChanged() {}
-
   nsresult SaveRedoState();
   nsCOMPtr<nsIContent> mElement;
   int32_t mNameSpaceID;
@@ -220,8 +218,6 @@ class UndoTextChanged : public UndoTxn {
   UndoTextChanged(nsIContent* aContent,
                   CharacterDataChangeInfo* aChange);
 protected:
-  ~UndoTextChanged() {}
-
   void SaveRedoState();
   nsCOMPtr<nsIContent> mContent;
   UndoCharacterChangedData mChange;
@@ -334,7 +330,6 @@ class UndoContentAppend : public UndoTxn {
   NS_IMETHOD UndoTransaction();
   UndoContentAppend(nsIContent* aContent);
 protected:
-  ~UndoContentAppend() {}
   nsCOMPtr<nsIContent> mContent;
   nsCOMArray<nsIContent> mChildren;
 };
@@ -405,7 +400,6 @@ class UndoContentInsert : public UndoTxn {
   UndoContentInsert(nsIContent* aContent, nsIContent* aChild,
                     int32_t aInsertIndex);
 protected:
-  ~UndoContentInsert() {}
   nsCOMPtr<nsIContent> mContent;
   nsCOMPtr<nsIContent> mChild;
   nsCOMPtr<nsIContent> mNextNode;
@@ -494,7 +488,6 @@ class UndoContentRemove : public UndoTxn {
   UndoContentRemove(nsIContent* aContent, nsIContent* aChild,
                     int32_t aInsertIndex);
 protected:
-  ~UndoContentRemove() {}
   nsCOMPtr<nsIContent> mContent;
   nsCOMPtr<nsIContent> mChild;
   nsCOMPtr<nsIContent> mNextNode;
@@ -740,7 +733,6 @@ class FunctionCallTxn : public UndoTxn {
   NS_IMETHOD UndoTransaction();
   FunctionCallTxn(DOMTransaction* aTransaction, uint32_t aFlags);
 protected:
-  ~FunctionCallTxn() {}
   /**
    * Call a function member on the transaction object with the
    * specified function name.

@@ -10,8 +10,6 @@
 
 class nsClipboardProxy MOZ_FINAL : public nsIClipboard
 {
-  ~nsClipboardProxy() {}
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSICLIPBOARD

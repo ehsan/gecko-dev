@@ -30,8 +30,6 @@ public:
 
 private:
 
-    ~nsZipDataStream() {}
-
     nsCOMPtr<nsIStreamListener> mOutput;
     nsCOMPtr<nsIOutputStream> mStream;
     nsRefPtr<nsZipWriter> mWriter;

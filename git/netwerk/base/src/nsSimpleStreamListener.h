@@ -16,10 +16,9 @@ public:
     NS_DECL_NSISIMPLESTREAMLISTENER
 
     nsSimpleStreamListener() { }
-
-protected:
     virtual ~nsSimpleStreamListener() {}
 
+protected:
     nsCOMPtr<nsIOutputStream>    mSink;
     nsCOMPtr<nsIRequestObserver> mObserver;
 };

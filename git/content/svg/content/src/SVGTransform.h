@@ -60,6 +60,8 @@ public:
    */
   explicit SVGTransform(const nsSVGTransform &aMatrix);
 
+  ~SVGTransform();
+
   /**
    * Create an unowned copy of an owned transform. The caller is responsible for
    * the first AddRef().
@@ -130,8 +132,6 @@ public:
   void SetSkewY(float angle, ErrorResult& rv);
 
 protected:
-  ~SVGTransform();
-
   // Interface for SVGMatrix's use
   friend class dom::SVGMatrix;
   const bool IsAnimVal() const {

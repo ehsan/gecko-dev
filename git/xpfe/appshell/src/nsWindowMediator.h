@@ -39,11 +39,9 @@ friend class nsASXULWindowFrontToBackEnumerator;
 friend class nsASDOMWindowBackToFrontEnumerator;
 friend class nsASXULWindowBackToFrontEnumerator;
 
-protected:
-  virtual ~nsWindowMediator();
-
 public:
   nsWindowMediator();
+  virtual ~nsWindowMediator();
 
   nsresult Init();
 

@@ -67,8 +67,6 @@ public:
   NS_FORWARD_NSIIPCSERIALIZABLEINPUTSTREAM(mSerializableInputStream->)
 
 private:
-  ~DataOwnerAdapter() {}
-
   DataOwnerAdapter(DataOwner* aDataOwner,
                    nsIInputStream* aStream)
     : mDataOwner(aDataOwner), mStream(aStream),
@@ -640,8 +638,6 @@ MOZ_DEFINE_MALLOC_SIZE_OF(DOMMemoryFileDataOwnerMallocSizeOf)
 class nsDOMMemoryFileDataOwnerMemoryReporter MOZ_FINAL
   : public nsIMemoryReporter
 {
-  ~nsDOMMemoryFileDataOwnerMemoryReporter() {}
-
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
 

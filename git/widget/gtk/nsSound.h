@@ -18,6 +18,7 @@ class nsSound : public nsISound,
 { 
 public: 
     nsSound(); 
+    virtual ~nsSound();
 
     static void Shutdown();
 
@@ -26,8 +27,6 @@ public:
     NS_DECL_NSISTREAMLOADEROBSERVER
 
 private:
-    virtual ~nsSound();
-
     bool mInited;
 
 };

@@ -65,8 +65,6 @@ private:
 class nsCacheService : public nsICacheServiceInternal,
                        public nsIMemoryReporter
 {
-    virtual ~nsCacheService();
-
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSICACHESERVICE
@@ -74,6 +72,7 @@ public:
     NS_DECL_NSIMEMORYREPORTER
 
     nsCacheService();
+    virtual ~nsCacheService();
 
     // Define a Create method to be used with a factory:
     static nsresult

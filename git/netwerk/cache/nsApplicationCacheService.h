@@ -21,7 +21,6 @@ public:
     static void AppClearDataObserverInit();
 
 private:
-    ~nsApplicationCacheService();
     nsRefPtr<nsCacheService> mCacheService;
 };
 

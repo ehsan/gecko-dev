@@ -33,6 +33,7 @@ public:
   NS_DECL_NSIINTERFACEREQUESTOR
 
   FTPChannelParent(nsILoadContext* aLoadContext, PBOverrideStatus aOverrideStatus);
+  virtual ~FTPChannelParent();
 
   bool Init(const FTPChannelCreationArgs& aOpenArgs);
 
@@ -50,8 +51,6 @@ public:
   void NotifyDiversionFailed(nsresult aErrorCode, bool aSkipResume = true);
 
 protected:
-  virtual ~FTPChannelParent();
-
   // private, supporting function for ADivertableParentChannel.
   nsresult ResumeForDiversion();
 

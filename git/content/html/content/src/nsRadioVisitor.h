@@ -17,11 +17,9 @@ class nsIFormControl;
  */
 class nsRadioVisitor : public nsIRadioVisitor
 {
-protected:
-  virtual ~nsRadioVisitor() { }
-
 public:
   nsRadioVisitor() { }
+  virtual ~nsRadioVisitor() { }
 
   NS_DECL_ISUPPORTS
 

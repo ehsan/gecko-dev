@@ -191,20 +191,18 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
 private:
-  ~nsAnonDivObserver() {}
   nsTextEditorState* mTextEditorState;
 };
 
 class nsTextInputSelectionImpl MOZ_FINAL : public nsSupportsWeakReference
                                          , public nsISelectionController
 {
-  ~nsTextInputSelectionImpl(){}
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsTextInputSelectionImpl, nsISelectionController)
 
   nsTextInputSelectionImpl(nsFrameSelection *aSel, nsIPresShell *aShell, nsIContent *aLimiter);
+  ~nsTextInputSelectionImpl(){}
 
   void SetScrollableFrame(nsIScrollableFrame *aScrollableFrame);
   nsFrameSelection* GetConstFrameSelection()
@@ -654,6 +652,9 @@ public:
   /** the default constructor
    */ 
   explicit nsTextInputListener(nsITextControlElement* aTxtCtrlElement);
+  /** the default destructor. virtual due to the possibility of derivation.
+   */
+  virtual ~nsTextInputListener();
 
   /** SetEditor gives an address to the editor that will be accessed
    *  @param aEditor the editor this listener calls for editing operations
@@ -672,9 +673,6 @@ public:
   NS_DECL_NSIEDITOROBSERVER
 
 protected:
-  /** the default destructor. virtual due to the possibility of derivation.
-   */
-  virtual ~nsTextInputListener();
 
   nsresult  UpdateTextInputCommands(const nsAString& commandsToUpdate);
 

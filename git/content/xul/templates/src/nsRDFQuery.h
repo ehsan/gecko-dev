@@ -39,8 +39,6 @@ public:
 
 class nsRDFQuery MOZ_FINAL : public nsITemplateRDFQuery
 {
-    ~nsRDFQuery() { Finish(); }
-
 public:
 
     nsRDFQuery(nsXULTemplateQueryProcessorRDF* aProcessor)
@@ -49,6 +47,8 @@ public:
         mRoot(nullptr),
         mCachedResults(nullptr)
     { }
+
+    ~nsRDFQuery() { Finish(); }
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
     NS_DECL_CYCLE_COLLECTION_CLASS(nsRDFQuery)

@@ -19,6 +19,7 @@ class nsDOMSerializer MOZ_FINAL : public nsIDOMSerializer,
 {
 public:
   nsDOMSerializer();
+  virtual ~nsDOMSerializer();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMSerializer)
@@ -54,8 +55,6 @@ public:
   }
 
 private:
-  virtual ~nsDOMSerializer();
-
   nsDOMSerializer(nsISupports* aOwner) : mOwner(aOwner)
   {
     MOZ_ASSERT(aOwner);

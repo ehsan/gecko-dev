@@ -19,7 +19,6 @@ class SVGGraphicsElement : public SVGGraphicsElementBase,
 {
 protected:
   SVGGraphicsElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo);
-  ~SVGGraphicsElement();
 
 public:
   // interfaces:

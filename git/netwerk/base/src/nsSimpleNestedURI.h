@@ -23,9 +23,6 @@
 class nsSimpleNestedURI : public nsSimpleURI,
                           public nsINestedURI
 {
-protected:
-    ~nsSimpleNestedURI() {}
-
 public:
     // To be used by deserialization only.  Leaves this object in an
     // uninitialized state that will throw on most accesses.

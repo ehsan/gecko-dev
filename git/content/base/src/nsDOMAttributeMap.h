@@ -90,6 +90,7 @@ public:
   typedef mozilla::ErrorResult ErrorResult;
 
   nsDOMAttributeMap(Element *aContent);
+  virtual ~nsDOMAttributeMap();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS(nsDOMAttributeMap)
@@ -175,9 +176,6 @@ public:
   }
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
-
-protected:
-  virtual ~nsDOMAttributeMap();
 
 private:
   nsCOMPtr<Element> mContent;

@@ -16,8 +16,6 @@ namespace mozilla {
 
 class SpdyZlibReporter MOZ_FINAL : public nsIMemoryReporter
 {
-  ~SpdyZlibReporter() {}
-
 public:
   NS_DECL_ISUPPORTS
 

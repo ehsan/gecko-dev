@@ -183,7 +183,7 @@ AudioChannelService::RegisterType(AudioChannel aChannel, uint64_t aChildID,
     // In order to avoid race conditions, it's safer to notify any existing
     // agent any time a new one is registered.
     SendAudioChannelChangedNotification(aChildID);
-    SendNotification();
+    Notify();
   }
 }
 
@@ -277,7 +277,7 @@ AudioChannelService::UnregisterTypeInternal(AudioChannel aChannel,
     }
 
     SendAudioChannelChangedNotification(aChildID);
-    SendNotification();
+    Notify();
   }
 }
 
@@ -348,7 +348,7 @@ AudioChannelService::GetStateInternal(AudioChannel aChannel, uint64_t aChildID,
       (aChannel == AudioChannel::Content ||
        (aChannel == AudioChannel::Normal &&
         mWithVideoChildIDs.Contains(aChildID)))) {
-    SendNotification();
+    Notify();
   }
 
   SendAudioChannelChangedNotification(aChildID);
@@ -601,41 +601,10 @@ AudioChannelService::NotifyEnumerator(AudioChannelAgent* aAgent,
   return PL_DHASH_NEXT;
 }
 
-class NotifyRunnable : public nsRunnable
-{
-public:
-  NotifyRunnable(AudioChannelService* aService)
-    : mService(aService)
-  {}
-
-  NS_IMETHOD Run()
-  {
-    mService->Notify();
-    return NS_OK;
-  }
-
-private:
-  nsRefPtr<AudioChannelService> mService;
-};
-
-void
-AudioChannelService::SendNotification()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (mRunnable) {
-    return;
-  }
-
-  mRunnable = new NotifyRunnable(this);
-  NS_DispatchToCurrentThread(mRunnable);
-}
-
 void
 AudioChannelService::Notify()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  mRunnable = nullptr;
 
   // Notify any agent for the main process.
   mAgents.EnumerateRead(NotifyEnumerator, nullptr);
@@ -730,7 +699,7 @@ AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic, const ch
       // that table contains only agents running on the same process.
 
       SendAudioChannelChangedNotification(childID);
-      SendNotification();
+      Notify();
 
       if (mDefChannelChildID == childID) {
         SetDefaultVolumeControlChannelInternal(-1, false, childID);

@@ -140,6 +140,8 @@ public:
   }
 #endif
 
+  ~MediaEngineWebRTCVideoSource() { Shutdown(); }
+
   virtual void GetName(nsAString&);
   virtual void GetUUID(nsAString&);
   virtual nsresult Allocate(const VideoTrackConstraintsN &aConstraints,
@@ -202,9 +204,6 @@ public:
 
     return NS_OK;
   }
-
-protected:
-  ~MediaEngineWebRTCVideoSource() { Shutdown(); }
 
 private:
   static const unsigned int KMaxDeviceNameLength = 128;
@@ -287,6 +286,7 @@ public:
     mDeviceUUID.Assign(NS_ConvertUTF8toUTF16(uuid));
     Init();
   }
+  ~MediaEngineWebRTCAudioSource() { Shutdown(); }
 
   virtual void GetName(nsAString&);
   virtual void GetUUID(nsAString&);
@@ -320,8 +320,6 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
 
 protected:
-  ~MediaEngineWebRTCAudioSource() { Shutdown(); }
-
   // mSamples is an int to avoid conversions when comparing/etc to
   // samplingFreq & length. Making mSamples protected instead of private is a
   // silly way to avoid -Wunused-private-field warnings when PR_LOGGING is not

@@ -32,6 +32,7 @@ public:
     NS_DECL_NSIOBSERVER
 
     LoadMonitor(int aLoadUpdateInterval);
+    ~LoadMonitor();
 
     nsresult Init(nsRefPtr<LoadMonitor> &self);
     void SetLoadChangeCallback(LoadNotificationCallback* aCallback);
@@ -42,7 +43,6 @@ public:
     friend class LoadInfoCollectRunner;
 
 private:
-    ~LoadMonitor();
 
     void SetProcessLoad(float load);
     void SetSystemLoad(float load);

@@ -453,7 +453,7 @@ class IonBuilder : public MIRGenerator
     TypedObjectPrediction typedObjectPrediction(types::TemporaryTypeSet *types);
     bool typedObjectHasField(MDefinition *typedObj,
                              PropertyName *name,
-                             size_t *fieldOffset,
+                             int32_t *fieldOffset,
                              TypedObjectPrediction *fieldTypeReprs,
                              size_t *fieldIndex);
     MDefinition *loadTypedObjectType(MDefinition *value);

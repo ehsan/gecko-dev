@@ -155,7 +155,7 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
     if (!detector.init())
         return nullptr;
     if (detector.foundCycle())
-        return NewStringCopyZ<CanGC>(cx, "{}");
+        return js_NewStringCopyZ<CanGC>(cx, "{}");
 
     StringBuffer buf(cx);
     if (outermost && !buf.append('('))

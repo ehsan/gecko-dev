@@ -35,11 +35,10 @@ public:
   NS_DECL_NSICANCELABLE
 
   TokenBucketCancelable(class ATokenBucketEvent *event);
+  virtual ~TokenBucketCancelable() {}
   void Fire();
 
 private:
-  virtual ~TokenBucketCancelable() {}
-
   friend class EventTokenBucket;
   ATokenBucketEvent *mEvent;
 };

@@ -30,11 +30,9 @@ class nsCSPContext : public nsIContentSecurityPolicy
     NS_DECL_NSICONTENTSECURITYPOLICY
     NS_DECL_NSISERIALIZABLE
 
-  protected:
-    virtual ~nsCSPContext();
-
   public:
     nsCSPContext();
+    virtual ~nsCSPContext();
 
     nsresult SendReports(nsISupports* aBlockedContentSource,
                          nsIURI* aOriginalURI,
@@ -78,8 +76,6 @@ class CSPViolationReportListener : public nsIStreamListener
 
   public:
     CSPViolationReportListener();
-
-  protected:
     virtual ~CSPViolationReportListener();
 };
 
@@ -96,8 +92,6 @@ class CSPReportRedirectSink MOZ_FINAL : public nsIChannelEventSink,
 
   public:
     CSPReportRedirectSink();
-
-  protected:
     virtual ~CSPReportRedirectSink();
 };
 

@@ -29,6 +29,8 @@ class SpeechSynthesisVoice MOZ_FINAL : public nsISupports,
 public:
   SpeechSynthesisVoice(nsISupports* aParent, const nsAString& aUri);
 
+  virtual ~SpeechSynthesisVoice();
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(SpeechSynthesisVoice)
 
@@ -47,7 +49,6 @@ public:
   bool Default() const;
 
 private:
-  virtual ~SpeechSynthesisVoice();
 
   nsCOMPtr<nsISupports> mParent;
 

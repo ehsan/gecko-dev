@@ -1001,11 +1001,50 @@ nsIFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
   return skip;
 }
 
+
+void
+nsIFrame::ApplySkipSides(nsMargin& aMargin,
+                         const nsHTMLReflowState* aReflowState) const
+{
+  int skipSides = GetSkipSides(aReflowState);
+  if (skipSides & (1 << NS_SIDE_TOP)) {
+    aMargin.top = 0;
+  }
+  if (skipSides & (1 << NS_SIDE_RIGHT)) {
+    aMargin.right = 0;
+  }
+  if (skipSides & (1 << NS_SIDE_BOTTOM)) {
+    aMargin.bottom = 0;
+  }
+  if (skipSides & (1 << NS_SIDE_LEFT)) {
+    aMargin.left = 0;
+  }
+}
+
+void
+nsIFrame::ApplyLogicalSkipSides(LogicalMargin& aMargin,
+                                const nsHTMLReflowState* aReflowState) const
+{
+  int skipSides = GetLogicalSkipSides(aReflowState);
+  if (skipSides & (LOGICAL_SIDE_B_START)) {
+    aMargin.BStart(GetWritingMode()) = 0;
+  }
+  if (skipSides & (LOGICAL_SIDE_I_END)) {
+    aMargin.IEnd(GetWritingMode()) = 0;
+  }
+  if (skipSides & (LOGICAL_SIDE_B_END)) {
+    aMargin.BEnd(GetWritingMode()) = 0;
+  }
+  if (skipSides & (LOGICAL_SIDE_I_START)) {
+    aMargin.IStart(GetWritingMode()) = 0;
+  }
+}
+
 nsRect
 nsIFrame::GetPaddingRectRelativeToSelf() const
 {
   nsMargin border(GetUsedBorder());
-  border.ApplySkipSides(GetSkipSides());
+  ApplySkipSides(border);
   nsRect r(0, 0, mRect.width, mRect.height);
   r.Deflate(border);
   return r;
@@ -1035,7 +1074,7 @@ nsRect
 nsIFrame::GetMarginRectRelativeToSelf() const
 {
   nsMargin m = GetUsedMargin();
-  m.ApplySkipSides(GetSkipSides());
+  ApplySkipSides(m);
   nsRect r(0, 0, mRect.width, mRect.height);
   r.Inflate(m);
   return r;
@@ -1127,7 +1166,7 @@ nsRect
 nsIFrame::GetContentRectRelativeToSelf() const
 {
   nsMargin bp(GetUsedBorderAndPadding());
-  bp.ApplySkipSides(GetSkipSides());
+  ApplySkipSides(bp);
   nsRect r(0, 0, mRect.width, mRect.height);
   r.Deflate(bp);
   return r;

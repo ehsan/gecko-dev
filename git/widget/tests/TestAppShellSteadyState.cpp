@@ -166,8 +166,6 @@ class EventListener MOZ_FINAL : public nsIDOMEventListener
   static nsIDOMWindowUtils* sWindowUtils;
   static nsIAppShell* sAppShell;
 
-  ~EventListener() {}
-
 public:
   NS_DECL_ISUPPORTS
 

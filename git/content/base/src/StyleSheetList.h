@@ -24,6 +24,7 @@ public:
   {
     SetIsDOMBinding();
   }
+  virtual ~StyleSheetList() {}
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(StyleSheetList)
@@ -40,9 +41,6 @@ public:
     bool dummy = false;
     return IndexedGetter(aIndex, dummy);
   }
-
-protected:
-  virtual ~StyleSheetList() {}
 };
 
 } // namespace dom

@@ -56,6 +56,7 @@ class TransportLayerPrsock : public TransportLayer {
         prsock_(prsock), fd_(fd) {
         mPollFlags = PR_POLL_READ;
       }
+      virtual ~SocketHandler() {}
 
       void Detach() {
         mCondition = NS_BASE_STREAM_CLOSED;
@@ -91,8 +92,7 @@ class TransportLayerPrsock : public TransportLayer {
       TransportLayerPrsock *prsock_;
       PRFileDesc *fd_;
    private:
-      DISALLOW_COPY_ASSIGN(SocketHandler);
-      virtual ~SocketHandler() {}
+    DISALLOW_COPY_ASSIGN(SocketHandler);
   };
 
   // Allow SocketHandler to talk to our APIs

@@ -26,6 +26,7 @@ public:
 
   DNSRequestChild(const nsCString& aHost, const uint32_t& aFlags,
                   nsIDNSListener *aListener, nsIEventTarget *target);
+  virtual ~DNSRequestChild() {}
 
   void AddIPDLReference() {
     AddRef();
@@ -42,8 +43,6 @@ public:
   void CallOnLookupComplete();
 
 private:
-  virtual ~DNSRequestChild() {}
-
   virtual bool Recv__delete__(const DNSRequestResponse& reply) MOZ_OVERRIDE;
 
   nsCOMPtr<nsIDNSListener>  mListener;

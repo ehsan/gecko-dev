@@ -34,97 +34,6 @@
 namespace js {
 namespace jit {
 
-// The override flags parsed from the ARMHWCAP environment variable or from the
-// --arm-hwcap js shell argument.
-static uint32_t armHwCapFlags = 0;
-
-bool
-ParseARMHwCapFlags(const char *armHwCap)
-{
-    uint32_t flags = 0;
-
-    if (!armHwCap || !armHwCap[0])
-        return false;
-
-#ifdef JS_CODEGEN_ARM_HARDFP
-    flags |= HWCAP_USE_HARDFP_ABI;
-#endif
-
-    if (strstr(armHwCap, "help")) {
-        fflush(NULL);
-        printf(
-               "\n"
-               "usage: ARMHWCAP=option,option,option,... where options can be:\n"
-               "\n"
-               "  armv7    \n"
-               "  vfp      \n"
-               "  neon     \n"
-               "  vfpv3    \n"
-               "  vfpv3d16 \n"
-               "  vfpv4    \n"
-               "  idiva    \n"
-               "  idivt    \n"
-#if defined(JS_ARM_SIMULATOR)
-               "  hardfp   \n"
-#endif
-               "\n"
-               );
-        exit(0);
-        /*NOTREACHED*/
-    }
-
-    // Canonicalize each token to have a leading and trailing space.
-    const char *start = armHwCap;  // Token start.
-    for (;;) {
-        char  ch = *start;
-        if (!ch) {
-            // End of string.
-            break;
-        }
-        if (ch == ' ' || ch == ',') {
-            // Skip separator characters.
-            start++;
-            continue;
-        }
-        // Find the end of the token.
-        const char *end = start + 1;
-        for (; ; end++) {
-            ch = *end;
-            if (!ch || ch == ' ' || ch == ',')
-                break;
-        }
-        size_t count = end - start;
-        if (count == 3 && strncmp(start, "vfp", 3) == 0)
-            flags |= HWCAP_VFP;
-        else if (count == 5 && strncmp(start, "vfpv3", 5) == 0)
-            flags |= HWCAP_VFPv3;
-        else if (count == 8 && strncmp(start, "vfpv3d16", 8) == 0)
-            flags |= HWCAP_VFPv3D16;
-        else if (count == 5 && strncmp(start, "vfpv4", 5) == 0)
-            flags |= HWCAP_VFPv4;
-        else if (count == 5 && strncmp(start, "idiva", 5) == 0)
-            flags |= HWCAP_IDIVA;
-        else if (count == 5 && strncmp(start, "idivt", 5) == 0)
-            flags |= HWCAP_IDIVT;
-        else if (count == 4 && strncmp(start, "neon", 4) == 0)
-            flags |= HWCAP_NEON;
-        else if (count == 5 && strncmp(start, "armv7", 5) == 0)
-            flags |= HWCAP_ARMv7;
-#if defined(JS_ARM_SIMULATOR)
-        else if (count == 6 && strncmp(start, "hardfp", 6) == 0)
-            flags |= HWCAP_USE_HARDFP_ABI;
-#endif
-        else
-            fprintf(stderr, "Warning: unexpected ARMHWCAP flag at: %s\n", start);
-        start = end;
-    }
-#ifdef DEBUG
-    IonSpew(IonSpew_Codegen, "ARMHWCAP: '%s'\n   flags: 0x%x\n", armHwCap, flags);
-#endif
-    armHwCapFlags = flags;
-    return true;
-}
-
 uint32_t GetARMFlags()
 {
     static bool isSet = false;
@@ -132,16 +41,87 @@ uint32_t GetARMFlags()
     if (isSet)
         return flags;
 
-    const char *env = getenv("ARMHWCAP");
-    if (ParseARMHwCapFlags(env) || armHwCapFlags) {
-        isSet = true;
-        flags = armHwCapFlags;
-        return flags;
-    }
-
 #ifdef JS_CODEGEN_ARM_HARDFP
     flags |= HWCAP_USE_HARDFP_ABI;
 #endif
+
+    static const char *env = getenv("ARMHWCAP");
+
+    if (env && env[0]) {
+        if (strstr(env, "help")) {
+            fflush(NULL);
+            printf(
+                   "\n"
+                   "usage: ARMHWCAP=option,option,option,... where options can be:\n"
+                   "\n"
+                   "  armv7    \n"
+                   "  vfp      \n"
+                   "  neon     \n"
+                   "  vfpv3    \n"
+                   "  vfpv3d16 \n"
+                   "  vfpv4    \n"
+                   "  idiva    \n"
+                   "  idivt    \n"
+#if defined(JS_ARM_SIMULATOR)
+                   "  hardfp   \n"
+#endif
+                   "\n"
+                   );
+            exit(0);
+            /*NOTREACHED*/
+        } else {
+            // Canonicalize each token to have a leading and trailing space.
+            const char *start = env;  // Token start.
+            for (;;) {
+                char  ch = *start;
+                if (!ch) {
+                    // End of string.
+                    break;
+                }
+                if (ch == ' ' || ch == ',') {
+                    // Skip separator characters.
+                    start++;
+                    continue;
+                }
+                // Find the end of the token.
+                const char *end = start + 1;
+                for (; ; end++) {
+                    ch = *end;
+                    if (!ch || ch == ' ' || ch == ',')
+                        break;
+                }
+                size_t count = end - start;
+                if (count == 3 && strncmp(start, "vfp", 3) == 0)
+                    flags |= HWCAP_VFP;
+                else if (count == 5 && strncmp(start, "vfpv3", 5) == 0)
+                    flags |= HWCAP_VFPv3;
+                else if (count == 8 && strncmp(start, "vfpv3d16", 8) == 0)
+                    flags |= HWCAP_VFPv3D16;
+                else if (count == 5 && strncmp(start, "vfpv4", 5) == 0)
+                    flags |= HWCAP_VFPv4;
+                else if (count == 5 && strncmp(start, "idiva", 5) == 0)
+                    flags |= HWCAP_IDIVA;
+                else if (count == 5 && strncmp(start, "idivt", 5) == 0)
+                    flags |= HWCAP_IDIVT;
+                else if (count == 4 && strncmp(start, "neon", 4) == 0)
+                    flags |= HWCAP_NEON;
+                else if (count == 5 && strncmp(start, "armv7", 5) == 0)
+                    flags |= HWCAP_ARMv7;
+#if defined(JS_ARM_SIMULATOR)
+                else if (count == 6 && strncmp(start, "hardfp", 6) == 0)
+                    flags |= HWCAP_USE_HARDFP_ABI;
+#endif
+                else
+                    fprintf(stderr, "Warning: unexpected ARMHWCAP flag at: %s\n", start);
+                start = end;
+            }
+#ifdef DEBUG
+            IonSpew(IonSpew_Codegen, "ARMHWCAP: '%s'\n   flags: 0x%x\n", env, flags);
+#endif
+            isSet = true;
+            return flags;
+        }
+    }
 
 #ifdef JS_ARM_SIMULATOR
     isSet = true;
@@ -159,10 +139,11 @@ uint32_t GetARMFlags()
                 flags = aux.a_un.a_val;
                 isSet = true;
 #if defined(__ARM_ARCH_7__) || defined (__ARM_ARCH_7A__)
-                // This should really be detected at runtime, but /proc/*/auxv
-                // doesn't seem to carry the ISA.  We could look in
-                // /proc/cpuinfo as well, but the chances that it will be
-                // different from this are low.
+                // this should really be detected at runtime, but
+                // /proc/*/auxv doesn't seem to carry the ISA
+                // I could look in /proc/cpuinfo as well, but
+                // the chances that it will be different from this
+                // are low.
                 flags |= HWCAP_ARMv7;
 #endif
                 return flags;
@@ -220,8 +201,8 @@ uint32_t GetARMFlags()
     if (strstr(buf, " neon "))
         flags |= HWCAP_NEON;
 
-    // Not part of the HWCAP flag, but we need to know this, and we're not using
-    // that bit, so... we are using it.
+    // not part of the HWCAP flag, but I need to know this, and we're not using
+    //  that bit, so... I'm using it
     if (strstr(buf, "ARMv7"))
         flags |= HWCAP_ARMv7;
 
@@ -237,29 +218,29 @@ uint32_t GetARMFlags()
 #endif // JS_ARM_SIMULATOR
 }
 
-bool HasMOVWT()
+bool hasMOVWT()
 {
     return GetARMFlags() & HWCAP_ARMv7;
 }
-bool HasVFPv3()
+bool hasVFPv3()
 {
     return GetARMFlags() & HWCAP_VFPv3;
 }
-bool HasVFP()
+bool hasVFP()
 {
     return GetARMFlags() & HWCAP_VFP;
 }
 
-bool Has32DP()
+bool has32DP()
 {
     return !(GetARMFlags() & HWCAP_VFPv3D16 && !(GetARMFlags() & HWCAP_NEON));
 }
-bool UseConvReg()
+bool useConvReg()
 {
-    return Has32DP();
+    return has32DP();
 }
 
-bool HasIDIV()
+bool hasIDIV()
 {
 #if defined HWCAP_IDIVA
     return GetARMFlags() & HWCAP_IDIVA;
@@ -270,7 +251,7 @@ bool HasIDIV()
 
 // This is defined in the header and inlined when not using the simulator.
 #if defined(JS_ARM_SIMULATOR)
-bool UseHardFpABI()
+bool useHardFpABI()
 {
     return GetARMFlags() & HWCAP_USE_HARDFP_ABI;
 }

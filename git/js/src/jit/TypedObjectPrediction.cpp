@@ -323,10 +323,16 @@ bool
 TypedObjectPrediction::hasFieldNamedPrefix(const StructTypeDescr &descr,
                                            size_t fieldCount,
                                            jsid id,
-                                           size_t *fieldOffset,
+                                           int32_t *offset,
                                            TypedObjectPrediction *out,
                                            size_t *index) const
 {
+    // Initialize |*offset| and |*out| for the case where incompatible
+    // or absent fields are found.
+    *offset = SIZE_MAX;
+    *index = SIZE_MAX;
+    *out = TypedObjectPrediction();
+
     // Find the index of the field |id| if any.
     if (!descr.fieldIndex(id, index))
         return false;
@@ -336,14 +342,14 @@ TypedObjectPrediction::hasFieldNamedPrefix(const StructTypeDescr &descr,
         return false;
 
     // Load the offset and type.
-    *fieldOffset = descr.fieldOffset(*index);
+    *offset = descr.fieldOffset(*index);
     *out = TypedObjectPrediction(descr.fieldDescr(*index));
     return true;
 }
 
 bool
 TypedObjectPrediction::hasFieldNamed(jsid id,
-                                     size_t *fieldOffset,
+                                     int32_t *fieldOffset,
                                      TypedObjectPrediction *fieldType,
                                      size_t *fieldIndex) const
 {

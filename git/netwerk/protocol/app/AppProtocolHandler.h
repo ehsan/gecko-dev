@@ -21,6 +21,7 @@ public:
 
   // AppProtocolHandler methods:
   AppProtocolHandler();
+  virtual ~AppProtocolHandler();
 
   // Define a Create method to be used with a factory:
   static nsresult Create(nsISupports* aOuter,
@@ -28,7 +29,6 @@ public:
                          void* *aResult);
 
 private:
-  virtual ~AppProtocolHandler();
   nsClassHashtable<nsCStringHashKey, mozilla::dom::AppInfo> mAppInfoCache;
 };
 

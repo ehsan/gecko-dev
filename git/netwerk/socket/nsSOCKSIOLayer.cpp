@@ -64,6 +64,7 @@ class nsSOCKSSocketInfo : public nsISOCKSSocketInfo
 
 public:
     nsSOCKSSocketInfo();
+    virtual ~nsSOCKSSocketInfo() { HandshakeFinished(); }
 
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSISOCKSSOCKETINFO
@@ -83,8 +84,6 @@ public:
     void ForgetFD() { mFD = nullptr; }
 
 private:
-    virtual ~nsSOCKSSocketInfo() { HandshakeFinished(); }
-
     void HandshakeFinished(PRErrorCode err = 0);
     PRStatus StartDNS(PRFileDesc *fd);
     PRStatus ConnectToProxy(PRFileDesc *fd);

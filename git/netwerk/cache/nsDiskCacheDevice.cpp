@@ -187,9 +187,9 @@ public:
     {
     }
 
-private:
     virtual ~nsDiskCacheDeviceInfo() {}
-
+    
+private:
     nsDiskCacheDevice* mDevice;
 };
 

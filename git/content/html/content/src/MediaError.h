@@ -19,8 +19,6 @@ namespace dom {
 class MediaError MOZ_FINAL : public nsIDOMMediaError,
                              public nsWrapperCache
 {
-  ~MediaError() {}
-
 public:
   MediaError(HTMLMediaElement* aParent, uint16_t aCode);
 

@@ -2177,33 +2177,34 @@ static void RecordIceStats_s(
     RTCStatsReportInternal* report) {
 
   NS_ConvertASCIItoUTF16 componentId(mediaStream.name().c_str());
+  if (internalStats) {
+    std::vector<NrIceCandidatePair> candPairs;
+    nsresult res = mediaStream.GetCandidatePairs(&candPairs);
+    if (NS_FAILED(res)) {
+      CSFLogError(logTag, "%s: Error getting candidate pairs", __FUNCTION__);
+      return;
+    }
 
-  std::vector<NrIceCandidatePair> candPairs;
-  nsresult res = mediaStream.GetCandidatePairs(&candPairs);
-  if (NS_FAILED(res)) {
-    CSFLogError(logTag, "%s: Error getting candidate pairs", __FUNCTION__);
-    return;
-  }
+    for (auto p = candPairs.begin(); p != candPairs.end(); ++p) {
+      NS_ConvertASCIItoUTF16 codeword(p->codeword.c_str());
+      NS_ConvertASCIItoUTF16 localCodeword(p->local.codeword.c_str());
+      NS_ConvertASCIItoUTF16 remoteCodeword(p->remote.codeword.c_str());
+      // Only expose candidate-pair statistics to chrome, until we've thought
+      // through the implications of exposing it to content.
 
-  for (auto p = candPairs.begin(); p != candPairs.end(); ++p) {
-    NS_ConvertASCIItoUTF16 codeword(p->codeword.c_str());
-    NS_ConvertASCIItoUTF16 localCodeword(p->local.codeword.c_str());
-    NS_ConvertASCIItoUTF16 remoteCodeword(p->remote.codeword.c_str());
-    // Only expose candidate-pair statistics to chrome, until we've thought
-    // through the implications of exposing it to content.
-
-    RTCIceCandidatePairStats s;
-    s.mId.Construct(codeword);
-    s.mComponentId.Construct(componentId);
-    s.mTimestamp.Construct(now);
-    s.mType.Construct(RTCStatsType::Candidatepair);
-    s.mLocalCandidateId.Construct(localCodeword);
-    s.mRemoteCandidateId.Construct(remoteCodeword);
-    s.mNominated.Construct(p->nominated);
-    s.mMozPriority.Construct(p->priority);
-    s.mSelected.Construct(p->selected);
-    s.mState.Construct(RTCStatsIceCandidatePairState(p->state));
-    report->mIceCandidatePairStats.Value().AppendElement(s);
+      RTCIceCandidatePairStats s;
+      s.mId.Construct(codeword);
+      s.mComponentId.Construct(componentId);
+      s.mTimestamp.Construct(now);
+      s.mType.Construct(RTCStatsType::Candidatepair);
+      s.mLocalCandidateId.Construct(localCodeword);
+      s.mRemoteCandidateId.Construct(remoteCodeword);
+      s.mNominated.Construct(p->nominated);
+      s.mMozPriority.Construct(p->priority);
+      s.mSelected.Construct(p->selected);
+      s.mState.Construct(RTCStatsIceCandidatePairState(p->state));
+      report->mIceCandidatePairStats.Value().AppendElement(s);
+    }
   }
 
   std::vector<NrIceCandidate> candidates;

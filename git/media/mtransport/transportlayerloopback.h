@@ -109,6 +109,8 @@ class TransportLayerLoopback : public TransportLayer {
    public:
     Deliverer(TransportLayerLoopback *layer) :
         layer_(layer) {}
+    virtual ~Deliverer() {
+    }
     void Detach() {
       layer_ = nullptr;
     }
@@ -117,9 +119,6 @@ class TransportLayerLoopback : public TransportLayer {
     NS_DECL_NSITIMERCALLBACK
 
  private:
-    virtual ~Deliverer() {
-    }
-
     DISALLOW_COPY_ASSIGN(Deliverer);
 
     TransportLayerLoopback *layer_;

@@ -23,7 +23,6 @@ class nsITransferable;
 class nsClipboardPrivacyHandler MOZ_FINAL : public nsIObserver,
                                             public nsSupportsWeakReference
 {
-  ~nsClipboardPrivacyHandler() {}
 
 public:
 

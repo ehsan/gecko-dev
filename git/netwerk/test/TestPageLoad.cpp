@@ -128,14 +128,13 @@ static NS_METHOD streamParse (nsIInputStream* in,
 
 class MyListener : public nsIStreamListener
 {
-    virtual ~MyListener() {}
-
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIREQUESTOBSERVER
     NS_DECL_NSISTREAMLISTENER
 
     MyListener() { }
+    virtual ~MyListener() {}
 };
 
 NS_IMPL_ISUPPORTS(MyListener,
@@ -196,14 +195,13 @@ MyListener::OnDataAvailable(nsIRequest *req, nsISupports *ctxt,
 class MyNotifications : public nsIInterfaceRequestor
                       , public nsIProgressEventSink
 {
-    virtual ~MyNotifications() {}
-
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSIPROGRESSEVENTSINK
 
     MyNotifications() { }
+    virtual ~MyNotifications() {}
 };
 
 NS_IMPL_ISUPPORTS(MyNotifications,

@@ -394,10 +394,9 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(Registry)
 
   Registry();
-
-protected:
   virtual ~Registry();
 
+protected:
   typedef nsClassHashtable<mozilla::dom::CustomElementHashKey,
                            mozilla::dom::CustomElementDefinition>
     DefinitionMap;
@@ -539,8 +538,6 @@ protected:
   class PendingLoad : public ExternalResourceLoad,
                       public nsIStreamListener
   {
-    ~PendingLoad() {}
-
   public:
     PendingLoad(nsDocument* aDisplayDocument) :
       mDisplayDocument(aDisplayDocument)
@@ -572,7 +569,6 @@ protected:
 
   class LoadgroupCallbacks MOZ_FINAL : public nsIInterfaceRequestor
   {
-    ~LoadgroupCallbacks() {}
   public:
     LoadgroupCallbacks(nsIInterfaceRequestor* aOtherCallbacks)
       : mCallbacks(aOtherCallbacks)
@@ -595,7 +591,6 @@ protected:
     class _i##Shim MOZ_FINAL : public nsIInterfaceRequestor,                 \
                                public _i                                     \
     {                                                                        \
-      ~_i##Shim() {}                                                         \
     public:                                                                  \
       _i##Shim(nsIInterfaceRequestor* aIfreq, _i* aRealPtr)                  \
         : mIfReq(aIfreq), mRealPtr(aRealPtr)                                 \

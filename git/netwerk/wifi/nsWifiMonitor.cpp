@@ -127,7 +127,6 @@ class nsPassErrorToWifiListeners MOZ_FINAL : public nsIRunnable
   {}
 
  private:
-  ~nsPassErrorToWifiListeners() {}
   nsAutoPtr<WifiListenerArray> mListeners;
   nsresult mResult;
 };
@@ -188,7 +187,6 @@ class nsCallWifiListeners MOZ_FINAL : public nsIRunnable
   {}
 
  private:
-  ~nsCallWifiListeners() {}
   nsAutoPtr<WifiListenerArray> mListeners;
   nsAutoPtr<nsTArray<nsIWifiAccessPoint*> > mAccessPoints;
 };

@@ -1548,7 +1548,7 @@ ScriptSource::substring(JSContext *cx, uint32_t start, uint32_t stop)
     const jschar *chars = this->chars(cx, holder);
     if (!chars)
         return nullptr;
-    return NewStringCopyNDontDeflate<CanGC>(cx, chars + start, stop - start);
+    return js_NewStringCopyN<CanGC>(cx, chars + start, stop - start);
 }
 
 void

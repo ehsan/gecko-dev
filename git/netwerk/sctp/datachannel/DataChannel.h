@@ -98,8 +98,6 @@ class DataChannelConnection: public nsITimerCallback
                              , public sigslot::has_slots<>
 #endif
 {
-  virtual ~DataChannelConnection();
-
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
@@ -115,6 +113,7 @@ public:
   };
 
   DataChannelConnection(DataConnectionListener *listener);
+  virtual ~DataChannelConnection();
 
   bool Init(unsigned short aPort, uint16_t aNumStreams, bool aUsingDtls);
   void Destroy(); // So we can spawn refs tied to runnables in shutdown

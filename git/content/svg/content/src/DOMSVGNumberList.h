@@ -44,15 +44,6 @@ class DOMSVGNumberList MOZ_FINAL : public nsISupports,
   friend class AutoChangeNumberListNotifier;
   friend class DOMSVGNumber;
 
-  ~DOMSVGNumberList() {
-    // Our mAList's weak ref to us must be nulled out when we die. If GC has
-    // unlinked us using the cycle collector code, then that has already
-    // happened, and mAList is null.
-    if (mAList) {
-      ( IsAnimValList() ? mAList->mAnimVal : mAList->mBaseVal ) = nullptr;
-    }
-  }
-
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMSVGNumberList)
@@ -69,6 +60,15 @@ public:
     // which hasn't happend yet.)
 
     InternalListLengthWillChange(aInternalList.Length()); // Sync mItems
+  }
+
+  ~DOMSVGNumberList() {
+    // Our mAList's weak ref to us must be nulled out when we die. If GC has
+    // unlinked us using the cycle collector code, then that has already
+    // happened, and mAList is null.
+    if (mAList) {
+      ( IsAnimValList() ? mAList->mAnimVal : mAList->mBaseVal ) = nullptr;
+    }
   }
 
   virtual JSObject* WrapObject(JSContext *cx) MOZ_OVERRIDE;

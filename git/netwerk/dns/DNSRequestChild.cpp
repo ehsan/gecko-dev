@@ -30,10 +30,9 @@ public:
   NS_DECL_NSIDNSRECORD
 
   ChildDNSRecord(const DNSRecord& reply, uint16_t flags);
-
-private:
   virtual ~ChildDNSRecord();
 
+private:
   nsCString mCanonicalName;
   nsTArray<NetAddr> mAddresses;
   uint32_t mCurrent; // addr iterator

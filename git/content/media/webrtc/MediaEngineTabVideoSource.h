@@ -52,9 +52,6 @@ class MediaEngineTabVideoSource : public MediaEngineVideoSource, nsIDOMEventList
       nsRefPtr<MediaEngineTabVideoSource> mVideoSource;
     };
 
-protected:
-    ~MediaEngineTabVideoSource() {}
-
 private:
     int mBufW;
     int mBufH;

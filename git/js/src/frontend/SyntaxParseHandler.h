@@ -75,12 +75,6 @@ class SyntaxParseHandler
         return NodeString;
     }
 
-#ifdef JS_HAS_TEMPLATE_STRINGS
-    Node newTemplateStringLiteral(JSAtom *atom, const TokenPos &pos) {
-        return NodeGeneric;
-    }
-#endif
-
     Node newThisLiteral(const TokenPos &pos) { return NodeGeneric; }
     Node newNullLiteral(const TokenPos &pos) { return NodeGeneric; }
 

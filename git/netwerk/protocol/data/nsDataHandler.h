@@ -10,8 +10,6 @@
 
 class nsDataHandler : public nsIProtocolHandler
 {
-    virtual ~nsDataHandler();
-
 public:
     NS_DECL_ISUPPORTS
 
@@ -20,6 +18,7 @@ public:
 
     // nsDataHandler methods:
     nsDataHandler();
+    virtual ~nsDataHandler();
 
     // Define a Create method to be used with a factory:
     static nsresult
