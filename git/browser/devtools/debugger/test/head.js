@@ -19,40 +19,19 @@ const EXAMPLE_URL = "http://example.com/browser/browser/devtools/debugger/test/"
 const TAB1_URL = EXAMPLE_URL + "browser_dbg_tab1.html";
 const TAB2_URL = EXAMPLE_URL + "browser_dbg_tab2.html";
 const STACK_URL = EXAMPLE_URL + "browser_dbg_stack.html";
-// Enable remote debugging for the relevant tests.
-let gEnableRemote = Services.prefs.getBoolPref("devtools.debugger.remote-enabled");
-Services.prefs.setBoolPref("devtools.debugger.remote-enabled", true);
-registerCleanupFunction(function() {
-  Services.prefs.setBoolPref("devtools.debugger.remote-enabled", gEnableRemote);
-});
 
 if (!DebuggerServer.initialized) {
-  DebuggerServer.init(function () { return true; });
+  DebuggerServer.init();
   DebuggerServer.addBrowserActors();
 }
 
 waitForExplicitFinish();
 
-function addWindow()
+function addTab(aURL, aOnload)
 {
-  let windowReference = window.open();
-  let chromeWindow = windowReference
-    .QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation)
-    .QueryInterface(Ci.nsIDocShellTreeItem).rootTreeItem
-    .QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindow);
+  gBrowser.selectedTab = gBrowser.addTab(aURL);
 
-  return chromeWindow;
-}
-
-function addTab(aURL, aOnload, aWindow)
-{
-  let targetWindow = aWindow || window;
-  let targetBrowser = targetWindow.gBrowser;
-
-  targetWindow.focus();
-  targetBrowser.selectedTab = targetBrowser.addTab(aURL);
-
-  let tab = targetBrowser.selectedTab;
+  let tab = gBrowser.selectedTab;
   if (aOnload) {
     let handler = function() {
       if (tab.linkedBrowser.currentURI.spec == aURL) {
@@ -66,41 +45,19 @@ function addTab(aURL, aOnload, aWindow)
   return tab;
 }
 
-function removeTab(aTab, aWindow) {
-  let targetWindow = aWindow || window;
-  let targetBrowser = targetWindow.gBrowser;
-
-  targetBrowser.removeTab(aTab);
+function removeTab(aTab) {
+  gBrowser.removeTab(aTab);
 }
 
-function closeDebuggerAndFinish(aRemoteFlag, aCallback, aWindow) {
-  let targetWindow = aWindow || window;
-  let debuggerUI = targetWindow.DebuggerUI;
-
-  let debuggerClosed = false;
-  let debuggerDisconnected = false;
-
-  function _maybeFinish() {
-    if (debuggerClosed && debuggerDisconnected) {
-      if (!aCallback)
-        aCallback = finish;
-      aCallback();
-    }
-  }
-
-  debuggerUI.chromeWindow.addEventListener("Debugger:Shutdown", function cleanup() {
-    debuggerUI.chromeWindow.removeEventListener("Debugger:Shutdown", cleanup, false);
-    debuggerDisconnected = true;
-    _maybeFinish();
+function closeDebuggerAndFinish(aTab, aRemoteFlag) {
+  DebuggerUI.chromeWindow.addEventListener("Debugger:Shutdown", function cleanup() {
+    DebuggerUI.chromeWindow.removeEventListener("Debugger:Shutdown", cleanup, false);
+    finish();
   }, false);
   if (!aRemoteFlag) {
-    debuggerUI.getDebugger().close(function() {
-      debuggerClosed = true;
-      _maybeFinish();
-    });
+    DebuggerUI.getDebugger(aTab).close();
   } else {
-    debuggerClosed = true;
-    debuggerUI.getRemoteDebugger().close();
+    DebuggerUI.getRemoteDebugger().close();
   }
 }
 
@@ -151,21 +108,6 @@ function debug_tab_pane(aURL, aOnDebugging)
       });
     }, true);
   });
-}
-
-function wait_for_connect_and_resume(aOnDebugging, aWindow)
-{
-  let targetWindow = aWindow || window;
-  let targetDocument = targetWindow.document;
-
-  targetDocument.addEventListener("Debugger:Connecting", function dbgConnected(aEvent) {
-    targetDocument.removeEventListener("Debugger:Connecting", dbgConnected, true);
-
-    // Wait for the initial resume...
-    aEvent.target.ownerDocument.defaultView.gClient.addOneTimeListener("resumed", function() {
-      aOnDebugging();
-    });
-  }, true);
 }
 
 function debug_remote(aURL, aOnDebugging, aBeforeTabAdded)

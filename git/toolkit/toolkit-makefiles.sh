@@ -37,7 +37,6 @@ MAKEFILES_dom="
   dom/interfaces/xul/Makefile
   dom/base/Makefile
   dom/battery/Makefile
-  dom/file/Makefile
   dom/indexedDB/Makefile
   dom/ipc/Makefile
   dom/locales/Makefile
@@ -1146,9 +1145,10 @@ if [ "$MOZ_CRASHREPORTER" ]; then
   "
   if [ "$OS_ARCH" = "WINNT" ]; then
     add_makefiles "
-      toolkit/crashreporter/breakpad-windows-libxul/Makefile
-      toolkit/crashreporter/breakpad-windows-standalone/Makefile
-      toolkit/crashreporter/injector/Makefile
+      toolkit/crashreporter/google-breakpad/src/client/windows/crash_generation/Makefile
+      toolkit/crashreporter/google-breakpad/src/client/windows/handler/Makefile
+      toolkit/crashreporter/google-breakpad/src/client/windows/sender/Makefile
+      toolkit/crashreporter/google-breakpad/src/common/windows/Makefile
     "
   elif [ "$OS_ARCH" = "Darwin" ]; then
     add_makefiles "
@@ -1581,18 +1581,6 @@ if [ "$MOZ_WEBM" ]; then
       media/libvpx/Makefile
     "
   fi
-fi
-
-if [ "$MOZ_MEDIA_PLUGINS" ]; then
-  add_makefiles "
-    content/media/plugins/Makefile
-  "
-fi
-
-if [ "$MOZ_OMX_PLUGIN" ]; then
-  add_makefiles "
-    media/omx-plugin/Makefile
-  "
 fi
 
 if [ "$MOZ_WAVE" ]; then

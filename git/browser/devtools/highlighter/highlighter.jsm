@@ -884,11 +884,7 @@ Highlighter.prototype = {
    */
   handleMouseMove: function Highlighter_handleMouseMove(aEvent)
   {
-    let doc = aEvent.target.ownerDocument;
-
-    // This should never happen, but just in case, we don't let the
-    // highlighter highlight browser nodes.
-    if (doc && doc != this.chromeDoc) {
+    if (aEvent.target.ownerDocument) {
       let element = LayoutHelpers.getElementFromPoint(aEvent.target.ownerDocument,
         aEvent.clientX, aEvent.clientY);
       if (element && element != this.node) {

@@ -66,14 +66,6 @@ public class testBrowserProviderPerf extends ContentProviderTest {
                                              CharSequence.class, int.class);
     }
 
-    private void initializeBrowserProvider() throws Exception {
-        Class browserDBClass = mClassLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
-
-        Method initializeMethod =
-            browserDBClass.getDeclaredMethod("initialize", String.class);
-        initializeMethod.invoke(null, "default");
-    }
-
     private void loadContractInfo() throws Exception {
         mBookmarksUri = getContentUri("Bookmarks");
         mHistoryUri = getContentUri("History");
@@ -233,8 +225,6 @@ public class testBrowserProviderPerf extends ContentProviderTest {
 
     public void testBrowserProviderPerf() throws Exception {
         setTestType("talos");
-
-        initializeBrowserProvider();
 
         loadMobileFolderId();
         addTonsOfUrls();

@@ -191,27 +191,13 @@ pref("gfx.font_rendering.fallback.always_use_cmaps", false);
 pref("gfx.font_rendering.graphite.enabled", false);
 #endif
 
-// Check intl/unicharutil/util/nsUnicodeProperties.h for definitions of script bits
-// in the ShapingType enumeration
-// Currently-defined bits:
-//  SHAPING_DEFAULT   = 0x0001,
-//  SHAPING_ARABIC    = 0x0002,
-//  SHAPING_HEBREW    = 0x0004,
-//  SHAPING_HANGUL    = 0x0008,
-//  SHAPING_MONGOLIAN = 0x0010,
-//  SHAPING_INDIC     = 0x0020,
-//  SHAPING_THAI      = 0x0040
-// (see http://mxr.mozilla.org/mozilla-central/ident?i=ShapingType)
-// Scripts not listed are grouped in the default category.
-// Set the pref to -1 to have all text shaped via the harfbuzz backend.
+// see gfx/thebes/gfxUnicodeProperties.h for definitions of script bits
 #ifdef XP_MACOSX
 // use harfbuzz for default (0x01) + arabic (0x02) + hebrew (0x04) + thai (0x40)
 pref("gfx.font_rendering.harfbuzz.scripts", 71);
 #else
 #ifdef ANDROID
-// use harfbuzz for everything, as we don't have a platform script-shaping lib
-// to fall back on anyhow, and Indic support is coming along well
-pref("gfx.font_rendering.harfbuzz.scripts", -1);
+pref("gfx.font_rendering.harfbuzz.scripts", 71);
 #else
 // use harfbuzz for default (0x01) + arabic (0x02) + hebrew (0x04)
 pref("gfx.font_rendering.harfbuzz.scripts", 7);
@@ -237,7 +223,6 @@ pref("gfx.textures.poweroftwo.force-enabled", false);
 #endif
 
 pref("gfx.work-around-driver-bugs", true);
-pref("gfx.prefer-mesa-llvmpipe", false);
 
 pref("accessibility.browsewithcaret", false);
 pref("accessibility.warn_on_browsewithcaret", true);
@@ -317,11 +302,6 @@ pref("toolkit.telemetry.debugSlowSql", false);
 
 // Disable remote debugging protocol logging
 pref("devtools.debugger.log", false);
-// Disable remote debugging connections
-pref("devtools.debugger.remote-enabled", false);
-pref("devtools.debugger.remote-port", 6000);
-// Force debugger server binding on the loopback interface
-pref("devtools.debugger.force-local", true);
 
 // view source
 pref("view_source.syntax_highlight", true);
@@ -857,8 +837,6 @@ pref("network.http.spdy.coalesce-hostnames", true);
 pref("network.http.spdy.use-alternate-protocol", true);
 pref("network.http.spdy.ping-threshold", 44);
 pref("network.http.spdy.ping-timeout", 8);
-
-pref("network.http.diagnostics", false);
 
 // default values for FTP
 // in a DSCP environment this should be 40 (0x28, or AF11), per RFC-4594,
@@ -1608,8 +1586,6 @@ pref("dom.ipc.plugins.parentTimeoutSecs", 0);
 // Disable oopp for standard java. They run their own process isolation (which
 // conflicts with our implementation, at least on Windows).
 pref("dom.ipc.plugins.java.enabled", false);
-
-pref("dom.ipc.plugins.flash.subprocess.crashreporter.enabled", true);
 
 #ifndef ANDROID
 #ifndef XP_MACOSX
@@ -3458,6 +3434,14 @@ pref("layers.acceleration.disabled", false);
 pref("layers.acceleration.force-enabled", false);
 
 pref("layers.acceleration.draw-fps", false);
+
+// An environment variable (MOZ_USE_OMTC)is used instead of a pref on X11 
+// platforms because we start having access to prefs long after the first 
+// call to XOpenDisplay which is hard to change due to interdependencies 
+// in the initialization (see bug 722012 for more details).
+#ifndef MOZ_X11
+pref("layers.offmainthreadcomposition.enabled", false);
+#endif
 
 #ifdef MOZ_X11
 #ifdef MOZ_WIDGET_GTK2

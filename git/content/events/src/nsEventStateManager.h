@@ -534,6 +534,7 @@ public:
   void FireContextClick ( ) ;
 
   void SetPointerLock(nsIWidget* aWidget, nsIContent* aElement) ;
+  nsIntPoint GetMouseCoords(nsIntRect aBounds);
   static void sClickHoldCallback ( nsITimer* aTimer, void* aESM ) ;
 };
 
@@ -594,10 +595,6 @@ private:
   static void operator delete(void* /*memory*/) {}
 };
 
-// Click and double-click events need to be handled even for content that
-// has no frame. This is required for Web compatibility.
-#define NS_EVENT_NEEDS_FRAME(event) \
-    (!NS_IS_ACTIVATION_EVENT(event) && (event)->message != NS_MOUSE_CLICK && \
-     (event)->message != NS_MOUSE_DOUBLECLICK)
+#define NS_EVENT_NEEDS_FRAME(event) (!NS_IS_ACTIVATION_EVENT(event))
 
 #endif // nsEventStateManager_h__

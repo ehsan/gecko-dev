@@ -56,15 +56,14 @@ function testWebDevLimits2() {
   }
 
   waitForSuccess({
-    name: "10 console.log messages displayed and one pruned",
+    name: "11 console.log messages displayed",
     validatorFn: function()
     {
-      let message0 = outputNode.textContent.indexOf("test message 0");
-      let message10 = outputNode.textContent.indexOf("test message 10");
-      return message0 == -1 && message10 > -1;
+      return outputNode.textContent.indexOf("test message 10") > -1;
     },
     successFn: function()
     {
+      testLogEntry(outputNode, "test message 0", "first message is pruned", false, true);
       findLogEntry("test message 1");
       // Check if the sentinel entry is still there.
       findLogEntry("bar is not defined");
@@ -162,28 +161,14 @@ function loadImage() {
     gCounter++;
     return;
   }
-
   is(gCounter, 11, "loaded 11 files");
+  testLogEntry(outputNode, "test-image.png?_fubar=0", "first message is pruned", false, true);
+  findLogEntry("test-image.png?_fubar=1");
+  // Check if the sentinel entry is still there.
+  findLogEntry("testing Net limits");
 
-  waitForSuccess({
-    name: "loaded 11 files, one message pruned",
-    validatorFn: function()
-    {
-      let message0 = outputNode.querySelector('*[value*="test-image.png?_fubar=0"]');
-      let message10 = outputNode.querySelector('*[value*="test-image.png?_fubar=10"]');
-      return !message0 && message10;
-    },
-    successFn: function()
-    {
-      findLogEntry("test-image.png?_fubar=1");
-      // Check if the sentinel entry is still there.
-      findLogEntry("testing Net limits");
-
-      Services.prefs.setIntPref("devtools.hud.loglimit.network", gOldPref);
-      testCssLimits();
-    },
-    failureFn: testCssLimits,
-  });
+  Services.prefs.setIntPref("devtools.hud.loglimit.network", gOldPref);
+  testCssLimits();
 }
 
 function testCssLimits() {

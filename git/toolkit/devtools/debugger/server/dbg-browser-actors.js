@@ -81,7 +81,6 @@ BrowserRootActor.prototype = {
 
     // Walk over open browser windows.
     let e = windowMediator.getEnumerator("navigator:browser");
-    let top = windowMediator.getMostRecentWindow("navigator:browser");
     let selected;
     while (e.hasMoreElements()) {
       let win = e.getNext();
@@ -94,7 +93,7 @@ BrowserRootActor.prototype = {
       let selectedBrowser = win.getBrowser().selectedBrowser;
       let browsers = win.getBrowser().browsers;
       for each (let browser in browsers) {
-        if (browser == selectedBrowser && win == top) {
+        if (browser == selectedBrowser) {
           selected = actorList.length;
         }
         let actor = this._tabActors.get(browser);
@@ -211,27 +210,6 @@ BrowserTabActor.prototype = {
 
   _contextPool: null,
   get contextActorPool() { return this._contextPool; },
-
-  /**
-   * Add the specified breakpoint to the default actor pool connection, in order
-   * to be alive as long as the server is.
-   *
-   * @param BreakpointActor aActor
-   *        The actor object.
-   */
-  addToBreakpointPool: function BTA_addToBreakpointPool(aActor) {
-    this.conn.addActor(aActor);
-  },
-
-  /**
-   * Remove the specified breakpint from the default actor pool.
-   *
-   * @param string aActor
-   *        The actor ID.
-   */
-  removeFromBreakpointPool: function BTA_removeFromBreakpointPool(aActor) {
-    this.conn.removeActor(aActor);
-  },
 
   actorPrefix: "tab",
 

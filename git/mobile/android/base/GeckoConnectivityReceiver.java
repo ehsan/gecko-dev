@@ -5,6 +5,8 @@
 
 package org.mozilla.gecko;
 
+import android.util.Log;
+
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -12,7 +14,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
-import android.util.Log;
 
 public class GeckoConnectivityReceiver extends BroadcastReceiver {
     /*
@@ -23,7 +24,7 @@ public class GeckoConnectivityReceiver extends BroadcastReceiver {
     private static final String LINK_DATA_DOWN = "down";
     private static final String LINK_DATA_UNKNOWN = "unknown";
 
-    private static final String LOGTAG = "GeckoConnectivityReceiver";
+    private static final String LOGTAG = "GeckoConnectivityReciever";
 
     private IntentFilter mFilter;
 
@@ -53,7 +54,7 @@ public class GeckoConnectivityReceiver extends BroadcastReceiver {
 
     public void registerFor(Activity activity) {
         if (!isRegistered) {
-            // registerReciever will return null if registering fails
+            // registerReciever will return null if registering throws a RemoteException
             isRegistered = activity.registerReceiver(this, mFilter) != null;
             if (!isRegistered)
                 Log.e(LOGTAG, "Registering receiver failed");
@@ -62,11 +63,7 @@ public class GeckoConnectivityReceiver extends BroadcastReceiver {
 
     public void unregisterFor(Activity activity) {
         if (isRegistered) {
-            try {
-                activity.unregisterReceiver(this);
-            } catch (IllegalArgumentException iae) {
-                Log.e(LOGTAG, "Unregistering receiver failed", iae);
-            }
+            activity.unregisterReceiver(this);
             isRegistered = false;
         }
     }

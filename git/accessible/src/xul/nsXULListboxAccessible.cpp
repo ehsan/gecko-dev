@@ -869,7 +869,7 @@ nsXULListitemAccessible::NativeState()
   if (mIsCheckbox)
     return nsXULMenuitemAccessible::NativeState();
 
-  PRUint64 states = NativeInteractiveState();
+  PRUint64 states = states::FOCUSABLE | states::SELECTABLE;
 
   nsCOMPtr<nsIDOMXULSelectControlItemElement> listItem =
     do_QueryInterface(mContent);
@@ -885,14 +885,6 @@ nsXULListitemAccessible::NativeState()
   }
 
   return states;
-}
-
-PRUint64
-nsXULListitemAccessible::NativeInteractiveState() const
-{
-  return NativelyUnavailable() ||
-         (mParent && mParent->NativelyUnavailable()) ?
-    states::UNAVAILABLE : states::FOCUSABLE | states::SELECTABLE;
 }
 
 NS_IMETHODIMP nsXULListitemAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
@@ -934,7 +926,7 @@ nsXULListitemAccessible::ContainerWidget() const
 
 nsXULListCellAccessible::
   nsXULListCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  HyperTextAccessibleWrap(aContent, aDoc)
+  nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
 
@@ -942,7 +934,7 @@ nsXULListCellAccessible::
 // nsISupports
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsXULListCellAccessible,
-                             HyperTextAccessible,
+                             nsHyperTextAccessible,
                              nsIAccessibleTableCell)
 
 ////////////////////////////////////////////////////////////////////////////////

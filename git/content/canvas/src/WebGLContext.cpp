@@ -38,7 +38,7 @@
 #include "mozilla/Telemetry.h"
 
 #include "nsIObserverService.h"
-#include "mozilla/dom/WebGLRenderingContextBinding.h"
+
 
 using namespace mozilla;
 using namespace mozilla::gl;
@@ -75,7 +75,6 @@ WebGLContext::WebGLContext()
     : mCanvasElement(nsnull),
       gl(nsnull)
 {
-    SetIsDOMBinding();
     mEnabledExtensions.SetLength(WebGLExtensionID_Max);
 
     mGeneration = 0;
@@ -163,14 +162,6 @@ WebGLContext::~WebGLContext()
     WebGLMemoryMultiReporterWrapper::RemoveWebGLContext(this);
     TerminateContextLossTimer();
     mContextRestorer = nsnull;
-}
-
-JSObject*
-WebGLContext::WrapObject(JSContext *cx, JSObject *scope,
-                         bool *triedToWrap)
-{
-    return dom::WebGLRenderingContextBinding::Wrap(cx, scope, this,
-                                                   triedToWrap);
 }
 
 void
@@ -379,8 +370,6 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 #endif
     bool forceEnabled =
         Preferences::GetBool("webgl.force-enabled", false);
-    bool useMesaLlvmPipe =
-        Preferences::GetBool("gfx.prefer-mesa-llvmpipe", false);
     bool disabled =
         Preferences::GetBool("webgl.disabled", false);
 
@@ -466,10 +455,45 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 
 #ifdef XP_WIN
     // allow forcing GL and not EGL/ANGLE
-    if (useMesaLlvmPipe || PR_GetEnv("MOZ_WEBGL_FORCE_OPENGL")) {
+    if (PR_GetEnv("MOZ_WEBGL_FORCE_OPENGL")) {
         preferEGL = false;
         useANGLE = false;
         useOpenGL = true;
+    }
+#endif
+
+
+#ifdef ANDROID
+    // bug 736123, blacklist WebGL on Adreno
+    //
+    // The Adreno driver in WebGL context creation, specifically in the first MakeCurrent
+    // call on the newly created OpenGL context.
+    //
+    // Notice that we can't rely on GfxInfo for this blacklisting,
+    // as GfxInfo on Android currently doesn't know the GL strings, which are,
+    // AFAIK, the only way to identify Adreno GPUs.
+    //
+    // Somehow, the Layers' OpenGL context creation doesn't crash, and neither does
+    // the global GL context creation. So we currently use the Renderer() id from the
+    // global context. This is not future-proof, as the plan is to get rid of the global
+    // context soon with OMTC. We need to replace this by getting the renderer id from
+    // the Layers' GL context, but as with OMTC the LayerManager lives on a different
+    // thread, this will have to involve some message-passing.
+    if (!forceEnabled) {
+        GLContext *globalContext = GLContextProvider::GetGlobalContext();
+        if (!globalContext) {
+            // make sure that we don't forget to update this code once the globalContext
+            // is removed
+            NS_RUNTIMEABORT("No global context anymore? Then you need to update "
+                            "this code, or force-enable WebGL.");
+        }
+        int renderer = globalContext->Renderer();
+        if (renderer == gl::GLContext::RendererAdreno200 ||
+            renderer == gl::GLContext::RendererAdreno205)
+        {
+            GenerateWarning("WebGL blocked on this Adreno driver!");
+            return NS_ERROR_FAILURE;
+        }
     }
 #endif
 
@@ -496,14 +520,9 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
 
     // try the default provider, whatever that is
     if (!gl && useOpenGL) {
-        GLContext::ContextFlags flag = useMesaLlvmPipe 
-                                       ? GLContext::ContextFlagsMesaLLVMPipe
-                                       : GLContext::ContextFlagsNone;
-        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), 
-                                                               format, flag);
+        gl = gl::GLContextProvider::CreateOffscreen(gfxIntSize(width, height), format);
         if (gl && !InitAndValidateGL()) {
-            GenerateWarning("Error during %s initialization", 
-                            useMesaLlvmPipe ? "Mesa LLVMpipe" : "OpenGL");
+            GenerateWarning("Error during OpenGL initialization");
             return NS_ERROR_FAILURE;
         }
     }
@@ -865,13 +884,7 @@ bool WebGLContext::IsExtensionSupported(WebGLExtensionID ei)
             isSupported = true;
             break;
         case WebGL_WEBGL_compressed_texture_s3tc:
-            if (gl->IsExtensionSupported(GLContext::EXT_texture_compression_s3tc)) {
-                isSupported = true;
-            } else {
-                isSupported = gl->IsExtensionSupported(GLContext::EXT_texture_compression_dxt1) &&
-                              gl->IsExtensionSupported(GLContext::ANGLE_texture_compression_dxt3) &&
-                              gl->IsExtensionSupported(GLContext::ANGLE_texture_compression_dxt5);
-            }
+            isSupported = gl->IsExtensionSupported(GLContext::EXT_texture_compression_s3tc);
             break;
         default:
             isSupported = false;

@@ -77,8 +77,7 @@ SpdySession2::SpdySession2(nsAHttpTransaction *aHttpTransaction,
   zlibInit();
   
   mSendingChunkSize = gHttpHandler->SpdySendingChunkSize();
-  if (!aHttpTransaction->QueryNullTransaction())
-    AddStream(aHttpTransaction, firstPriority);
+  AddStream(aHttpTransaction, firstPriority);
   mLastDataReadEpoch = mLastReadEpoch;
   
   DeterminePingThreshold();
@@ -129,9 +128,9 @@ SpdySession2::ShutdownEnumerator(nsAHttpTransaction *key,
   // local session is greater than that it can safely be restarted because the
   // server guarantees it was not partially processed.
   if (self->mCleanShutdown && (stream->StreamID() > self->mGoAwayID))
-    self->CloseStream(stream, NS_ERROR_NET_RESET); // can be restarted
+    stream->Close(NS_ERROR_NET_RESET); // can be restarted
   else
-    self->CloseStream(stream, NS_ERROR_ABORT);
+    stream->Close(NS_ERROR_ABORT);
 
   return PL_DHASH_NEXT;
 }
@@ -912,28 +911,6 @@ SpdySession2::CleanupStream(SpdyStream2 *aStream, nsresult aResult,
     ProcessPending();
   }
   
-  CloseStream(aStream, aResult);
-
-  // Remove the stream from the ID hash table. (this one isn't short, which is
-  // why it is hashed.)
-  mStreamIDHash.Remove(aStream->StreamID());
-
-  // removing from the stream transaction hash will
-  // delete the SpdyStream2 and drop the reference to
-  // its transaction
-  mStreamTransactionHash.Remove(aStream->Transaction());
-
-  if (mShouldGoAway && !mStreamTransactionHash.Count())
-    Close(NS_OK);
-}
-
-void
-SpdySession2::CloseStream(SpdyStream2 *aStream, nsresult aResult)
-{
-  NS_ABORT_IF_FALSE(PR_GetCurrentThread() == gSocketThread, "wrong thread");
-  LOG3(("SpdySession2::CloseStream %p %p 0x%x %X\n",
-        this, aStream, aStream->StreamID(), aResult));
-
   // Check if partial frame reader
   if (aStream == mInputFrameDataStream) {
     LOG3(("Stream had active partial read frame on close"));
@@ -968,8 +945,20 @@ SpdySession2::CloseStream(SpdyStream2 *aStream, nsresult aResult)
       mQueuedStreams.Push(stream);
   }
 
+  // Remove the stream from the ID hash table. (this one isn't short, which is
+  // why it is hashed.)
+  mStreamIDHash.Remove(aStream->StreamID());
+
   // Send the stream the close() indication
   aStream->Close(aResult);
+
+  // removing from the stream transaction hash will
+  // delete the SpdyStream2 and drop the reference to
+  // its transaction
+  mStreamTransactionHash.Remove(aStream->Transaction());
+
+  if (mShouldGoAway && !mStreamTransactionHash.Count())
+    Close(NS_OK);
 }
 
 nsresult
@@ -1850,14 +1839,7 @@ SpdySession2::Close(nsresult aReason)
   LOG3(("SpdySession2::Close %p %X", this, aReason));
 
   mClosed = true;
-
-  NS_ABORT_IF_FALSE(mStreamTransactionHash.Count() ==
-                    mStreamIDHash.Count(),
-                    "index corruption");
   mStreamTransactionHash.Enumerate(ShutdownEnumerator, this);
-  mStreamIDHash.Clear();
-  mStreamTransactionHash.Clear();
-
   if (NS_SUCCEEDED(aReason))
     GenerateGoAway();
   mConnection = nsnull;

@@ -902,7 +902,10 @@ nsFrameLoader::ShowRemoteFrame(const nsIntSize& size)
     nsCOMPtr<nsIObserverService> os = services::GetObserverService();
     if (OwnerIsBrowserFrame() && os) {
       os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
-                          "remote-browser-frame-shown", NULL);
+                          "remote-browser-frame-shown",
+                          mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozapp)
+                            ? NS_LITERAL_STRING("is-moz-app:true").get()
+                            : NS_LITERAL_STRING("is-moz-app:false").get());
     }
   } else {
     nsRect dimensions;
@@ -1498,7 +1501,10 @@ nsFrameLoader::MaybeCreateDocShell()
   if (OwnerIsBrowserFrame() && os) {
     mDocShell->SetIsBrowserFrame(true);
     os->NotifyObservers(NS_ISUPPORTS_CAST(nsIFrameLoader*, this),
-                        "in-process-browser-frame-shown", NULL);
+                        "in-process-browser-frame-shown",
+                        mOwnerContent->HasAttr(kNameSpaceID_None, nsGkAtoms::mozapp)
+                          ? NS_LITERAL_STRING("is-moz-app:true").get()
+                          : NS_LITERAL_STRING("is-moz-app:false").get());
   }
 
   // This is nasty, this code (the do_GetInterface(mDocShell) below)

@@ -944,19 +944,14 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *script, jsbytecode *pc,
         jit = MakeJITScript(cx, script);
         if (!jit)
             return Compile_Error;
-
-        // Script analysis can trigger GC, watch in case needsBarrier() changed.
-        if (gcNumber != cx->runtime->gcNumber) {
-            FreeOp *fop = cx->runtime->defaultFreeOp();
-            jit->destroy(fop);
-            fop->free_(jit);
-            goto restart;
-        }
-
         jith->setValid(jit);
     } else {
         jit = jith->getValid();
     }
+
+    // Script analysis can trigger GC, watch in case needsBarrier() changed.
+    if (gcNumber != cx->runtime->gcNumber)
+        goto restart;
 
     unsigned chunkIndex = jit->chunkIndex(pc);
     ChunkDescriptor &desc = jit->chunkDescriptor(chunkIndex);
@@ -2258,25 +2253,6 @@ mjit::Compiler::generateMethod()
                 frame.push(MagicValue(JS_OPTIMIZED_ARGUMENTS));
             }
           END_CASE(JSOP_ARGUMENTS)
-          BEGIN_CASE(JSOP_ACTUALSFILLED)
-          {
-
-            // We never inline things with defaults because of the switch.
-            JS_ASSERT(a == outer);
-            RegisterID value = frame.allocReg(), nactual = frame.allocReg();
-            int32_t defstart = GET_UINT16(PC);
-            masm.move(Imm32(defstart), value);
-            masm.load32(Address(JSFrameReg, StackFrame::offsetOfNumActual()), nactual);
-
-            // Best would be a single instruction where available (like
-            // cmovge on x86), but there's no way get that yet, so jump.
-            Jump j = masm.branch32(Assembler::LessThan, nactual, Imm32(defstart));
-            masm.move(nactual, value);
-            j.linkTo(masm.label(), &masm);
-            frame.freeReg(nactual);
-            frame.pushInt32(value);
-          }
-          END_CASE(JSOP_ACTUALSFILLED)
 
           BEGIN_CASE(JSOP_ITERNEXT)
             iterNext(GET_INT8(PC));
@@ -6887,28 +6863,6 @@ mjit::Compiler::finishLoop(jsbytecode *head)
             if (a->varTypes[slot].getTypeTag(cx) == JSVAL_TYPE_DOUBLE) {
                 FrameEntry *fe = frame.getSlotEntry(slot);
                 stubcc.masm.ensureInMemoryDouble(frame.addressOf(fe));
-            }
-        }
-
-        /*
-         * Also watch for slots which we assume are doubles at the loop head,
-         * but are known to be int32s at this point.
-         */
-        const SlotValue *newv = analysis->newValues(head);
-        if (newv) {
-            while (newv->slot) {
-                if (newv->value.kind() == SSAValue::PHI &&
-                    newv->value.phiOffset() == uint32_t(head - script->code) &&
-                    analysis->trackSlot(newv->slot))
-                {
-                    JS_ASSERT(newv->slot < TotalSlots(script));
-                    types::TypeSet *targetTypes = analysis->getValueTypes(newv->value);
-                    if (targetTypes->getKnownTypeTag(cx) == JSVAL_TYPE_DOUBLE) {
-                        FrameEntry *fe = frame.getSlotEntry(newv->slot);
-                        stubcc.masm.ensureInMemoryDouble(frame.addressOf(fe));
-                    }
-                }
-                newv++;
             }
         }
 

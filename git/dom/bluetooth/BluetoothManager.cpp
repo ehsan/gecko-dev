@@ -8,7 +8,6 @@
 #include "BluetoothCommon.h"
 #include "BluetoothFirmware.h"
 #include "BluetoothAdapter.h"
-#include "BluetoothUtils.h"
 
 #include "nsIDocument.h"
 #include "nsIURI.h"
@@ -31,7 +30,6 @@
 
 #define DOM_BLUETOOTH_URL_PREF "dom.mozBluetooth.whitelist"
 
-using namespace mozilla;
 using mozilla::Preferences;
 
 USING_BLUETOOTH_NAMESPACE
@@ -39,19 +37,17 @@ USING_BLUETOOTH_NAMESPACE
 static void
 FireEnabled(bool aResult, nsIDOMDOMRequest* aDomRequest)
 {
-  nsCOMPtr<nsIDOMRequestService> rs =
-    do_GetService("@mozilla.org/dom/dom-request-service;1");
+  nsCOMPtr<nsIDOMRequestService> rs = do_GetService("@mozilla.org/dom/dom-request-service;1");
 
   if (!rs) {
     NS_WARNING("No DOMRequest Service!");
     return;
   }
 
-  DebugOnly<nsresult> rv =
-    aResult ?     
-    rs->FireSuccess(aDomRequest, JSVAL_VOID) :
-    rs->FireError(aDomRequest, 
-                  NS_LITERAL_STRING("Bluetooth firmware loading failed"));
+  mozilla::DebugOnly<nsresult> rv = aResult ?     
+                                    rs->FireSuccess(aDomRequest, JSVAL_VOID) :
+                                    rs->FireError(aDomRequest, 
+                                                  NS_LITERAL_STRING("Bluetooth firmware loading failed"));
 
   NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Bluetooth firmware loading failed");
 }
@@ -124,8 +120,7 @@ class ToggleBtResultTask : public nsRunnable
 class ToggleBtTask : public nsRunnable
 {
   public:
-    ToggleBtTask(bool aEnabled, nsIDOMDOMRequest* aReq,
-                 BluetoothManager* aManager)
+    ToggleBtTask(bool aEnabled, nsIDOMDOMRequest* aReq, BluetoothManager* aManager)
       : mEnabled(aEnabled),        
         mManagerPtr(aManager),
         mDOMRequest(aReq)
@@ -182,17 +177,9 @@ class ToggleBtTask : public nsRunnable
 };
 
 BluetoothManager::BluetoothManager(nsPIDOMWindow *aWindow) :
-  mEnabled(false),
-  mName(nsDependentCString("/"))
+  mEnabled(false)
 {
   BindToOwner(aWindow);
-}
-
-BluetoothManager::~BluetoothManager()
-{
-  if(NS_FAILED(UnregisterBluetoothEventHandler(mName, this))) {
-    NS_WARNING("Failed to unregister object with observer!");
-  }
 }
 
 NS_IMETHODIMP
@@ -233,32 +220,12 @@ BluetoothManager::GetEnabled(bool* aEnabled)
 NS_IMETHODIMP
 BluetoothManager::GetDefaultAdapter(nsIDOMBluetoothAdapter** aAdapter)
 {
-  nsCString path;
-  nsresult rv = GetDefaultAdapterPathInternal(path);
-  if(NS_FAILED(rv)) {
-    NS_WARNING("Cannot fetch adapter path!");
-    return NS_ERROR_FAILURE;
-  }
-  nsRefPtr<BluetoothAdapter> adapter = BluetoothAdapter::Create(path);
-  adapter.forget(aAdapter);
-  return NS_OK;
-}
-
-// static
-already_AddRefed<BluetoothManager>
-BluetoothManager::Create(nsPIDOMWindow* aWindow) {
-  nsRefPtr<BluetoothManager> manager = new BluetoothManager(aWindow);
-  nsDependentCString name("/");
-  if(NS_FAILED(RegisterBluetoothEventHandler(name, manager))) {
-    NS_WARNING("Failed to register object with observer!");
-    return NULL;
-  }
-  return manager.forget();
+  //TODO: Implement adapter fetching
+  return NS_ERROR_FAILURE;
 }
 
 nsresult
-NS_NewBluetoothManager(nsPIDOMWindow* aWindow,
-                       nsIDOMBluetoothManager** aBluetoothManager)
+NS_NewBluetoothManager(nsPIDOMWindow* aWindow, nsIDOMBluetoothManager** aBluetoothManager)
 {
   NS_ASSERTION(aWindow, "Null pointer!");
 
@@ -271,12 +238,8 @@ NS_NewBluetoothManager(nsPIDOMWindow* aWindow,
     return NS_OK;
   }
 
-  nsRefPtr<BluetoothManager> bluetoothManager = BluetoothManager::Create(aWindow);
+  nsRefPtr<BluetoothManager> bluetoothManager = new BluetoothManager(aWindow);
 
   bluetoothManager.forget(aBluetoothManager);
   return NS_OK;
-}
-
-void BluetoothManager::Notify(const BluetoothEvent& aData) {
-  printf("Received an manager message!\n");
 }

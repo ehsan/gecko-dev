@@ -39,7 +39,7 @@ interface nsIFile;
 interface nsIDOMTouch;
 interface nsIDOMClientRect;
 
-[scriptable, uuid(858578f1-9653-4d5c-821a-07479bf2d9b2)]
+[scriptable, uuid(2b3ac53c-2a88-421f-af09-f10665c88acf)]
 interface nsIDOMWindowUtils : nsISupports {
 
   /**
@@ -181,9 +181,9 @@ interface nsIDOMWindowUtils : nsISupports {
   const long MODIFIER_CAPSLOCK   = 0x0020;
   const long MODIFIER_FN         = 0x0040;
   const long MODIFIER_NUMLOCK    = 0x0080;
-  const long MODIFIER_SCROLLLOCK = 0x0100;
+  const long MODIFIER_SCROLL     = 0x0100;
   const long MODIFIER_SYMBOLLOCK = 0x0200;
-  const long MODIFIER_OS         = 0x0400;
+  const long MODIFIER_WIN        = 0x0400;
 
   /** Synthesize a mouse event. The event types supported are:
    *    mousedown, mouseup, mousemove, mouseover, mouseout, contextmenu
@@ -1040,30 +1040,12 @@ interface nsIDOMWindowUtils : nsISupports {
    */
   boolean checkAndClearPaintedState(in nsIDOMElement aElement);
 
-  /**
-   * Internal file constructor intended for testing of File objects.
-   * Example of constructor usage:
-   *   getFile("myfile.txt", [b1, "foo"], { type: "text/plain" })
+  /*
+   * Get internal id of the stored blob.
    */
-  [optional_argc, implicit_jscontext]
-  nsIDOMFile getFile(in DOMString aName, [optional] in jsval aBlobParts,
-                     [optional] in jsval aParameters);
+  long long getFileId(in nsIDOMBlob aBlob);
 
-  /**
-   * Internal blob constructor intended for testing of Blob objects.
-   * Example of constructor usage:
-   *   getBlob([b1, "foo"], { type: "text/plain" })
-   */
-  [optional_argc, implicit_jscontext]
-  nsIDOMBlob getBlob([optional] in jsval aBlobParts,
-                     [optional] in jsval aParameters);
-
-  /**
-   * Get internal id of the stored blob, file or file handle.
-   */
-  [implicit_jscontext] long long getFileId(in jsval aFile);
-
-  /**
+  /*
    * Get file ref count info for given database and file id.
    *
    */

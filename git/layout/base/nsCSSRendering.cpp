@@ -804,7 +804,8 @@ nsCSSRendering::FindNonTransparentBackgroundFrame(nsIFrame* aFrame,
 
   nsIFrame* frame = nsnull;
   if (aStartAtParent) {
-    frame = nsLayoutUtils::GetParentOrPlaceholderFor(aFrame);
+    frame = nsLayoutUtils::GetParentOrPlaceholderFor(
+              aFrame->PresContext()->FrameManager(), aFrame);
   }
   if (!frame) {
     frame = aFrame;
@@ -819,7 +820,8 @@ nsCSSRendering::FindNonTransparentBackgroundFrame(nsIFrame* aFrame,
     if (frame->IsThemed())
       break;
 
-    nsIFrame* parent = nsLayoutUtils::GetParentOrPlaceholderFor(frame);
+    nsIFrame* parent = nsLayoutUtils::GetParentOrPlaceholderFor(
+                         frame->PresContext()->FrameManager(), frame);
     if (!parent)
       break;
 
@@ -4139,12 +4141,12 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
   gfxFloat scaleX = 1;
   gfxFloat scaleY = 1;
 
-  // Do blurs in device space when possible.
+  // Do blurs in device space when possible
+  // If the scale is not uniform we fall back to transforming on paint.
   // Chrome/Skia always does the blurs in device space
   // and will sometimes get incorrect results (e.g. rotated blurs)
   gfxMatrix transform = aDestinationCtx->CurrentMatrix();
-  // XXX: we could probably handle negative scales but for now it's easier just to fallback
-  if (transform.HasNonAxisAlignedTransform() || transform.xx <= 0.0 || transform.yy <= 0.0) {
+  if (transform.HasNonAxisAlignedTransform()) {
     transform = gfxMatrix();
   } else {
     scaleX = transform.xx;

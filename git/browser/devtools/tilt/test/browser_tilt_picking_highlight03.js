@@ -2,7 +2,6 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
-let nodeHighlighted = false;
 let presenter;
 
 function test() {
@@ -25,14 +24,9 @@ function test() {
         Services.obs.addObserver(whenHighlighting, HIGHLIGHTING, false);
 
         presenter._onInitializationFinished = function() {
-          nodeHighlighted = true;
           presenter.highlightNodeFor(3); // 1 = html, 2 = body, 3 = first div
         };
       }
-    }, false, function suddenDeath()
-    {
-      info("Tilt could not be initialized properly.");
-      cleanup();
     });
   });
 }
@@ -64,7 +58,7 @@ function whenUnhighlighting() {
 }
 
 function cleanup() {
-  if (nodeHighlighted) { Services.obs.removeObserver(cleanup, DESTROYED); }
+  Services.obs.removeObserver(cleanup, DESTROYED);
   gBrowser.removeCurrentTab();
   finish();
 }

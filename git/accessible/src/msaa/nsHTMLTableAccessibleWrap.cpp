@@ -27,7 +27,7 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLTableCellAccessibleWrap,
                              nsHTMLTableCellAccessible)
 
 IMPL_IUNKNOWN_INHERITED1(nsHTMLTableCellAccessibleWrap,
-                         HyperTextAccessibleWrap,
+                         nsHyperTextAccessibleWrap,
                          CAccessibleTableCell)
 
 
@@ -39,5 +39,5 @@ NS_IMPL_ISUPPORTS_INHERITED0(nsHTMLTableHeaderCellAccessibleWrap,
                              nsHTMLTableHeaderCellAccessible)
 
 IMPL_IUNKNOWN_INHERITED1(nsHTMLTableHeaderCellAccessibleWrap,
-                         HyperTextAccessibleWrap,
+                         nsHyperTextAccessibleWrap,
                          CAccessibleTableCell)

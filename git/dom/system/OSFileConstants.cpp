@@ -258,18 +258,17 @@ static dom::ConstantSpec gWinProperties[] =
 JSObject *GetOrCreateObjectProperty(JSContext *cx, JSObject *aObject,
                                     const char *aProperty)
 {
-  JS::Value val;
-  if (!JS_GetProperty(cx, aObject, aProperty, &val)) {
-    return NULL;
-  }
-  if (!val.isUndefined()) {
-    if (val.isObject()) {
-      return &val.toObject();
+  jsval val;
+  if (JS_GetProperty(cx, aObject, aProperty, &val)
+      && !JSVAL_IS_VOID(val)) {
+    if (JSVAL_IS_OBJECT(val)) {
+      return JSVAL_TO_OBJECT(val);
     }
-
-    JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
-      JSMSG_UNEXPECTED_TYPE, aProperty, "not an object");
-    return NULL;
+    else {
+      JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+         JSMSG_UNEXPECTED_TYPE, aProperty, "not an object");
+      return NULL;
+    }
   }
   return JS_DefineObject(cx, aObject, aProperty, NULL, NULL, JSPROP_ENUMERATE);
 }

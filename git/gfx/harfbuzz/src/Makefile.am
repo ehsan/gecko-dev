@@ -15,11 +15,9 @@ lib_LTLIBRARIES = libharfbuzz.la
 HBCFLAGS =
 HBLIBS =
 HBSOURCES =  \
-	hb-atomic-private.hh \
 	hb-blob.cc \
 	hb-buffer-private.hh \
 	hb-buffer.cc \
-	hb-cache-private.hh \
 	hb-common.cc \
 	hb-fallback-shape-private.hh \
 	hb-fallback-shape.cc \
@@ -36,8 +34,6 @@ HBSOURCES =  \
 	hb-ot-name-table.hh \
 	hb-ot-tag.cc \
 	hb-private.hh \
-	hb-set-private.hh \
-	hb-set.cc \
 	hb-shape.cc \
 	hb-tt-font.cc \
 	hb-unicode-private.hh \
@@ -50,7 +46,6 @@ HBHEADERS = \
 	hb-buffer.h \
 	hb-common.h \
 	hb-font.h \
-	hb-set.h \
 	hb-shape.h \
 	hb-unicode.h \
 	hb-version.h \
@@ -72,7 +67,6 @@ HBSOURCES += \
 	hb-ot-shape-complex-arabic-table.hh \
 	hb-ot-shape-complex-indic.cc \
 	hb-ot-shape-complex-indic-machine.hh \
-	hb-ot-shape-complex-indic-private.hh \
 	hb-ot-shape-complex-indic-table.hh \
 	hb-ot-shape-complex-misc.cc \
 	hb-ot-shape-complex-private.hh \
@@ -175,16 +169,12 @@ hb-ot-shape-complex-indic-machine.hh: hb-ot-shape-complex-indic-machine.rl
 	$(AM_V_GEN)$(top_srcdir)/missing --run ragel -e -F1 -o "$@.tmp" "$<" && \
 	mv "$@.tmp" "$@" || ( $(RM) "$@.tmp" && false )
 
-noinst_PROGRAMS = main indic
+noinst_PROGRAMS = main
 bin_PROGRAMS =
 
 main_SOURCES = main.cc
 main_CPPFLAGS = $(HBCFLAGS)
 main_LDADD = libharfbuzz.la $(HBLIBS)
-
-indic_SOURCES = indic.cc
-indic_CPPFLAGS = $(HBCFLAGS)
-indic_LDADD = libharfbuzz.la $(HBLIBS)
 
 dist_check_SCRIPTS = \
 	check-c-linkage-decls.sh \

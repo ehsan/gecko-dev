@@ -10,13 +10,17 @@
 #include "nsCycleCollectionParticipant.h"
 #include "nsRefreshDriver.h"
 
-#ifdef DEBUG
-#include "Logging.h"
-#endif
-
 class Accessible;
 class DocAccessible;
 class nsIContent;
+
+// Uncomment to log notifications processing.
+//#define DEBUG_NOTIFICATIONS
+
+#ifdef DEBUG_NOTIFICATIONS
+#define DEBUG_CONTENTMUTATION
+#define DEBUG_TEXTCHANGE
+#endif
 
 /**
  * Notification interface.
@@ -136,9 +140,8 @@ public:
                                  Arg* aArg)
   {
     if (!IsUpdatePending()) {
-#ifdef DEBUG
-      if (mozilla::a11y::logging::IsEnabled(mozilla::a11y::logging::eNotifications))
-        mozilla::a11y::logging::Text("sync notification processing");
+#ifdef DEBUG_NOTIFICATIONS
+      printf("\nsync notification processing\n");
 #endif
       (aInstance->*aMethod)(aArg);
       return;

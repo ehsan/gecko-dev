@@ -7,11 +7,8 @@
 #include "InterfaceInitFuncs.h"
 
 #include "AccessibleWrap.h"
-#include "ImageAccessible.h"
+#include "nsHTMLImageAccessible.h"
 #include "nsMai.h"
-
-using namespace mozilla;
-using namespace mozilla::a11y;
 
 extern "C" {
 const gchar* getDescriptionCB(AtkObject* aAtkObj);
@@ -24,7 +21,7 @@ getImagePositionCB(AtkImage* aImage, gint* aAccX, gint* aAccY,
   if (!accWrap || !accWrap->IsImage())
     return;
 
-  ImageAccessible* image = accWrap->AsImage();
+  nsHTMLImageAccessible* image = accWrap->AsImage();
   PRUint32 geckoCoordType = (aCoordType == ATK_XY_WINDOW) ?
     nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE :
     nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;

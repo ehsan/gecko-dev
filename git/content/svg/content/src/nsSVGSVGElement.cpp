@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/StandardInteger.h"
 #include "mozilla/Util.h"
 
 #include "nsGkAtoms.h"
@@ -172,8 +171,7 @@ nsSVGSVGElement::nsSVGSVGElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     mStartAnimationOnBindToTree(!aFromParser),
     mImageNeedsTransformInvalidation(false),
     mIsPaintingSVGImageElement(false),
-    mHasChildrenOnlyTransform(false),
-    mUseCurrentView(false)
+    mHasChildrenOnlyTransform(false)
 {
 }
 
@@ -300,8 +298,14 @@ nsSVGSVGElement::GetScreenPixelToMillimeterY(float *aScreenPixelToMillimeterY)
 NS_IMETHODIMP
 nsSVGSVGElement::GetUseCurrentView(bool *aUseCurrentView)
 {
-  *aUseCurrentView = mUseCurrentView;
-  return NS_OK;
+  NS_NOTYETIMPLEMENTED("nsSVGSVGElement::GetUseCurrentView");
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+NS_IMETHODIMP
+nsSVGSVGElement::SetUseCurrentView(bool aUseCurrentView)
+{
+  NS_NOTYETIMPLEMENTED("nsSVGSVGElement::SetUseCurrentView");
+  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 /* readonly attribute nsIDOMSVGViewSpec currentView; */
@@ -683,7 +687,16 @@ nsSVGSVGElement::GetCTM(nsIDOMSVGMatrix * *aCTM)
 NS_IMETHODIMP
 nsSVGSVGElement::GetScreenCTM(nsIDOMSVGMatrix **aCTM)
 {
-  gfxMatrix m = nsSVGUtils::GetCTM(this, true);
+  gfxMatrix m;
+  if (IsRoot()) {
+    // Consistency with other elements would have us return only the
+    // eFromUserSpace transforms, but this is what we've been doing for
+    // a while, and it keeps us consistent with WebKit and Opera (if not
+    // really with the ambiguous spec).
+    m = PrependLocalTransformsTo(m);
+  } else {
+    m = nsSVGUtils::GetCTM(this, true);
+  }
   *aCTM = m.IsSingular() ? nsnull : new DOMSVGMatrix(m);
   NS_IF_ADDREF(*aCTM);
   return NS_OK;
@@ -1266,8 +1279,7 @@ nsSVGSVGElement::
   SVGPreserveAspectRatio* pAROverridePtr = new SVGPreserveAspectRatio(aPAR);
   nsresult rv = SetProperty(nsGkAtoms::overridePreserveAspectRatio,
                             pAROverridePtr,
-                            ReleasePreserveAspectRatioPropertyValue,
-                            true);
+                            ReleasePreserveAspectRatioPropertyValue);
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 
@@ -1379,8 +1391,7 @@ nsSVGSVGElement::SetViewBoxProperty(const nsSVGViewBoxRect& aViewBox)
   nsSVGViewBoxRect* pViewBoxOverridePtr = new nsSVGViewBoxRect(aViewBox);
   nsresult rv = SetProperty(nsGkAtoms::viewBox,
                             pViewBoxOverridePtr,
-                            ReleaseViewBoxPropertyValue,
-                            true);
+                            ReleaseViewBoxPropertyValue);
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 
@@ -1413,28 +1424,26 @@ nsSVGSVGElement::ClearViewBoxProperty()
 bool
 nsSVGSVGElement::SetZoomAndPanProperty(PRUint16 aValue)
 {
-  nsresult rv = SetProperty(nsGkAtoms::zoomAndPan,
-                            reinterpret_cast<void*>(aValue),
-                            nsnull, true);
+  nsresult rv = SetProperty(nsGkAtoms::zoomAndPan, reinterpret_cast<void*>(aValue));
   NS_ABORT_IF_FALSE(rv != NS_PROPTABLE_PROP_OVERWRITTEN,
                     "Setting override value when it's already set...?"); 
 
   return NS_SUCCEEDED(rv);
 }
 
-PRUint16
+const PRUint16*
 nsSVGSVGElement::GetZoomAndPanProperty() const
 {
   void* valPtr = GetProperty(nsGkAtoms::zoomAndPan);
   if (valPtr) {
-    return reinterpret_cast<uintptr_t>(valPtr);
+    return reinterpret_cast<PRUint16*>(valPtr);
   }
-  return nsIDOMSVGZoomAndPan::SVG_ZOOMANDPAN_UNKNOWN;
+  return nsnull;
 }
 
 bool
 nsSVGSVGElement::ClearZoomAndPanProperty()
 {
-  return UnsetProperty(nsGkAtoms::zoomAndPan);
+  return UnsetProperty(nsGkAtoms::viewBox);
 }
 

@@ -360,16 +360,16 @@ scaled_bilinear_scanline_##cputype##_##name##_##op (                          \
                                                                               \
 FAST_BILINEAR_MAINLOOP_COMMON (cputype##_##name##_cover_##op,                 \
                        scaled_bilinear_scanline_##cputype##_##name##_##op,    \
-                       NULL, src_type, uint32_t, dst_type, COVER, FLAG_NONE)  \
+                       src_type, uint32_t, dst_type, COVER, FLAG_NONE)        \
 FAST_BILINEAR_MAINLOOP_COMMON (cputype##_##name##_none_##op,                  \
                        scaled_bilinear_scanline_##cputype##_##name##_##op,    \
-                       NULL, src_type, uint32_t, dst_type, NONE, FLAG_NONE)   \
+                       src_type, uint32_t, dst_type, NONE, FLAG_NONE)         \
 FAST_BILINEAR_MAINLOOP_COMMON (cputype##_##name##_pad_##op,                   \
                        scaled_bilinear_scanline_##cputype##_##name##_##op,    \
-                       NULL, src_type, uint32_t, dst_type, PAD, FLAG_NONE)    \
+                       src_type, uint32_t, dst_type, PAD, FLAG_NONE)          \
 FAST_BILINEAR_MAINLOOP_COMMON (cputype##_##name##_normal_##op,                \
                        scaled_bilinear_scanline_##cputype##_##name##_##op,    \
-                       NULL, src_type, uint32_t, dst_type, NORMAL,            \
+                       src_type, uint32_t, dst_type, NORMAL,                  \
                        FLAG_NONE)
 
 
@@ -409,19 +409,19 @@ scaled_bilinear_scanline_##cputype##_##name##_##op (                          \
                                                                               \
 FAST_BILINEAR_MAINLOOP_COMMON (cputype##_##name##_cover_##op,                 \
                        scaled_bilinear_scanline_##cputype##_##name##_##op,    \
-                       NULL, src_type, uint8_t, dst_type, COVER,              \
+                       src_type, uint8_t, dst_type, COVER,                    \
                        FLAG_HAVE_NON_SOLID_MASK)                              \
 FAST_BILINEAR_MAINLOOP_COMMON (cputype##_##name##_none_##op,                  \
                        scaled_bilinear_scanline_##cputype##_##name##_##op,    \
-                       NULL, src_type, uint8_t, dst_type, NONE,               \
+                       src_type, uint8_t, dst_type, NONE,                     \
                        FLAG_HAVE_NON_SOLID_MASK)                              \
 FAST_BILINEAR_MAINLOOP_COMMON (cputype##_##name##_pad_##op,                   \
                        scaled_bilinear_scanline_##cputype##_##name##_##op,    \
-                       NULL, src_type, uint8_t, dst_type, PAD,                \
+                       src_type, uint8_t, dst_type, PAD,                      \
                        FLAG_HAVE_NON_SOLID_MASK)                              \
 FAST_BILINEAR_MAINLOOP_COMMON (cputype##_##name##_normal_##op,                \
                        scaled_bilinear_scanline_##cputype##_##name##_##op,    \
-                       NULL, src_type, uint8_t, dst_type, NORMAL,             \
+                       src_type, uint8_t, dst_type, NORMAL,                   \
                        FLAG_HAVE_NON_SOLID_MASK)
 
 

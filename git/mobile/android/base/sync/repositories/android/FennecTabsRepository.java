@@ -140,11 +140,11 @@ public class FennecTabsRepository extends Repository {
         public void run() {
           Logger.debug(LOG_TAG, "Storing tabs for client " + tabsRecord.guid);
           if (!isActive()) {
-            delegate.onRecordStoreFailed(new InactiveSessionException(null), record.guid);
+            delegate.onRecordStoreFailed(new InactiveSessionException(null));
             return;
           }
           if (tabsRecord.guid == null) {
-            delegate.onRecordStoreFailed(new RuntimeException("Can't store record with null GUID."), record.guid);
+            delegate.onRecordStoreFailed(new RuntimeException("Can't store record with null GUID."));
             return;
           }
 
@@ -157,9 +157,9 @@ public class FennecTabsRepository extends Repository {
                 clientsProvider.delete(BrowserContract.Clients.CONTENT_URI,
                                        CLIENT_GUID_IS,
                                        selectionArgs);
-                delegate.onRecordStoreSucceeded(record.guid);
+                delegate.onRecordStoreSucceeded(record);
               } catch (Exception e) {
-                delegate.onRecordStoreFailed(e, record.guid);
+                delegate.onRecordStoreFailed(e);
               }
               return;
             }
@@ -184,10 +184,10 @@ public class FennecTabsRepository extends Repository {
             final int inserted = tabsProvider.bulkInsert(BrowserContract.Tabs.CONTENT_URI, tabsArray);
             Logger.trace(LOG_TAG, "Inserted: " + inserted);
 
-            delegate.onRecordStoreSucceeded(record.guid);
+            delegate.onRecordStoreSucceeded(tabsRecord);
           } catch (Exception e) {
             Logger.warn(LOG_TAG, "Error storing tabs.", e);
-            delegate.onRecordStoreFailed(e, record.guid);
+            delegate.onRecordStoreFailed(e);
           }
         }
       };

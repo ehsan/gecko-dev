@@ -547,10 +547,10 @@ public:
    * Return the device's screen width in inches, for font size
    * inflation.
    *
-   * If |aChanged| is non-null, then aChanged is filled in with whether
-   * the return value has changed since either:
-   *  a. the last time the function was called with non-null aChanged, or
-   *  b. the first time the function was called.
+   * Set |aChanged| to true if the result returned is different from a
+   * previous call to this method.  If a caller passes |aChanged| as
+   * null, then something else must have already checked whether there
+   * was a change (by calling this method).
    */
   float ScreenWidthInchesForFontInflation(bool* aChanged = nsnull);
 
@@ -1348,9 +1348,6 @@ public:
 
   /**
    * Get the current DOM generation counter.
-   *
-   * See nsFrameManagerBase::GetGlobalGenerationNumber() for a
-   * global generation number.
    */
   PRUint32 GetDOMGeneration() { return mDOMGeneration; }
 

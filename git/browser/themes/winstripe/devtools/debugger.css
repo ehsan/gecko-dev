@@ -13,11 +13,7 @@
  */
 
 #dbg-content {
-  padding: 0;
-}
-
-#scripts {
-  max-width: 350px;
+  padding: 6px;
 }
 
 /**
@@ -26,6 +22,7 @@
 
 .list-item {
   padding: 2px;
+  font: -moz-list;
 }
 
 .list-item.selected {
@@ -51,12 +48,11 @@
 }
 
 .dbg-stackframe-name {
-  -moz-padding-end: 4px;
   font-weight: 600;
 }
 
 /**
- * Properties view
+ * Properties elements
  */
 
 #variables {
@@ -64,11 +60,12 @@
 }
 
 /**
- * Property element details container
+ * Generic element details container
  */
 
 .details {
   -moz-margin-start: 10px;
+  font: -moz-list;
 }
 
 /**
@@ -76,16 +73,24 @@
  */
 
 .scope > .title {
-  text-shadow: 0 1px #222;
-  color: #fff;
-}
+  margin-top: 1px;
+  -moz-margin-start: 1px;
+  -moz-padding-start: 2px;
 
-.scope > .title > .arrow {
-  margin-top: -2px;
+  background: -moz-linear-gradient(bottom,
+      rgb(160,175,205) 0,
+      rgb(120,140,175) 100%);
+
+  border-bottom: 1px solid #888;
+  box-shadow: 0 0 4px #ccc;
+  text-shadow: 0 1px #777;
+  color: #fff;
+  font: -moz-list;
 }
 
 .scope > .title > .name {
   padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 .scope > .details {
@@ -101,7 +106,7 @@
   -moz-margin-start: 1px;
   -moz-margin-end: 1px;
   margin-top: 2px;
-  border-bottom: 1px dotted #ddd;
+  border-bottom: 1px dotted #aaa;
   border-radius: 8px;
   -moz-transition: background 1s ease-in-out;
   background: #fff;
@@ -139,37 +144,7 @@
 }
 
 /**
- * Non enumerable, configurable and writable variables and properties.
- */
-
-.property[proto] > .title > .key,
-.variable[non-enumerable] > .title > .name,
-.property[non-enumerable] > .title > .key {
-  opacity: 0.5;
-}
-
-.variable[non-configurable] > .title > .name,
-.property[non-configurable] > .title > .key {
-  border-bottom: 1px dashed #99f;
-}
-
-.variable[non-writable] > .title > .name,
-.property[non-writable] > .title > .key {
-  border-bottom: 1px dashed #f99;
-}
-
-.variable[non-writable] > .title:after,
-.property[non-writable] > .title:after {
-  content: " ";
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  background: url("chrome://browser/skin/identity-icons-https.png") no-repeat;
-  opacity: 0.5;
-}
-
-/**
- * Property values colors
+ * Property colors
  */
 
 .token-undefined {
@@ -247,12 +222,12 @@
  */
 
 #resume {
-  list-style-image: url("chrome://browser/skin/devtools/debugger-play.png");
   -moz-image-region: rect(0px, 16px, 16px, 0px);
 }
 
 #resume[checked=true] {
   -moz-image-region: rect(0px, 32px, 16px, 16px);
+  list-style-image: url("chrome://browser/skin/devtools/debugger-pause.png");
 }
 
 #step-over {

@@ -84,10 +84,6 @@
 #ifdef MOZ_GSTREAMER
 #include "nsGStreamerDecoder.h"
 #endif
-#ifdef MOZ_MEDIA_PLUGINS
-#include "nsMediaPluginHost.h"
-#include "nsMediaPluginDecoder.h"
-#endif
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gMediaElementLog;
@@ -454,7 +450,7 @@ nsHTMLMediaElement::GetSrc(JSContext* aCtx, jsval *aParams)
 NS_IMETHODIMP
 nsHTMLMediaElement::SetSrc(JSContext* aCtx, const jsval & aParams)
 {
-  if (aParams.isObject()) {
+  if (aParams.isObject()) { // not JSVAL_IS_OBJECT() because a null object is still an object
     nsCOMPtr<nsIDOMMediaStream> stream;
     stream = do_QueryInterface(nsContentUtils::XPConnect()->
         GetNativeOfWrapper(aCtx, JSVAL_TO_OBJECT(aParams)));
@@ -2115,14 +2111,6 @@ nsHTMLMediaElement::IsH264Type(const nsACString& aType)
 }
 #endif
 
-#ifdef MOZ_MEDIA_PLUGINS
-bool
-nsHTMLMediaElement::IsMediaPluginsEnabled()
-{
-  return Preferences::GetBool("media.plugins.enabled");
-}
-#endif
-
 /* static */
 nsHTMLMediaElement::CanPlayStatus 
 nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
@@ -2159,10 +2147,6 @@ nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
     return CANPLAY_YES;
   }
 #endif
-#ifdef MOZ_MEDIA_PLUGINS
-  if (GetMediaPluginHost()->FindDecoder(nsDependentCString(aMIMEType), aCodecList))
-    return CANPLAY_MAYBE;
-#endif
   return CANPLAY_NO;
 }
 
@@ -2183,10 +2167,6 @@ bool nsHTMLMediaElement::ShouldHandleMediaType(const char* aMIMEType)
 #endif
 #ifdef MOZ_GSTREAMER
   if (IsH264Type(nsDependentCString(aMIMEType)))
-    return true;
-#endif
-#ifdef MOZ_MEDIA_PLUGINS
-  if (GetMediaPluginHost()->FindDecoder(nsDependentCString(aMIMEType), NULL))
     return true;
 #endif
   // We should not return true for Wave types, since there are some
@@ -2296,14 +2276,6 @@ nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
 #ifdef MOZ_WAVE
   if (IsWaveType(aType)) {
     nsRefPtr<nsWaveDecoder> decoder = new nsWaveDecoder();
-    if (decoder->Init(this)) {
-      return decoder.forget();
-    }
-  }
-#endif
-#ifdef MOZ_MEDIA_PLUGINS
-  if (GetMediaPluginHost()->FindDecoder(aType, NULL)) {
-    nsRefPtr<nsMediaPluginDecoder> decoder = new nsMediaPluginDecoder(aType);
     if (decoder->Init(this)) {
       return decoder.forget();
     }

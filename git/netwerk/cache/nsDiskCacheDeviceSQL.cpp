@@ -630,17 +630,6 @@ nsApplicationCache::GetClientID(nsACString &out)
 }
 
 NS_IMETHODIMP
-nsApplicationCache::GetCacheDirectory(nsILocalFile **out)
-{
-  if (mDevice->BaseDirectory())
-      NS_ADDREF(*out = mDevice->BaseDirectory());
-  else
-      *out = nsnull;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsApplicationCache::GetActive(bool *out)
 {
   NS_ENSURE_TRUE(mDevice, NS_ERROR_NOT_AVAILABLE);
@@ -2371,8 +2360,6 @@ nsOfflineCacheDevice::SetCacheParentDirectory(nsILocalFile *parentDir)
     NS_WARNING("unable to create parent directory");
     return;
   }
-
-  mBaseDirectory = parentDir;
 
   // cache dir may not exist, but that's ok
   nsCOMPtr<nsIFile> dir;

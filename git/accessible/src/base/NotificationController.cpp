@@ -16,10 +16,6 @@
 #include "TextLeafAccessible.h"
 #include "TextUpdater.h"
 
-#ifdef DEBUG
-#include "Logging.h"
-#endif
-
 #include "mozilla/dom/Element.h"
 
 using namespace mozilla::a11y;
@@ -194,12 +190,9 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
       return;
     }
 
-#ifdef DEBUG
-    if (logging::IsEnabled(logging::eTree)) {
-      logging::MsgBegin("TREE", "initial tree created");
-      logging::Address("document", mDocument);
-      logging::MsgEnd();
-    }
+#ifdef DEBUG_NOTIFICATIONS
+    printf("\ninitial tree created, document: %p, document node: %p\n",
+           mDocument.get(), mDocument->GetDocumentNode());
 #endif
 
     mDocument->DoInitialUpdate();
@@ -299,14 +292,6 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
   events.SwapElements(mEvents);
 
   PRUint32 eventCount = events.Length();
-#ifdef DEBUG
-  if (eventCount > 0 && logging::IsEnabled(logging::eEvents)) {
-    logging::MsgBegin("EVENTS", "events processing");
-    logging::Address("document", mDocument);
-    logging::MsgEnd();
-  }
-#endif
-
   for (PRUint32 idx = 0; idx < eventCount; idx++) {
     AccEvent* accEvent = events[idx];
     if (accEvent->mEventRule != AccEvent::eDoNotEmit) {
@@ -661,7 +646,7 @@ NotificationController::CreateTextChangeEventFor(AccMutationEvent* aEvent)
   if (!container)
     return;
 
-  HyperTextAccessible* textAccessible = container->AsHyperText();
+  nsHyperTextAccessible* textAccessible = container->AsHyperText();
   if (!textAccessible)
     return;
 
@@ -724,13 +709,20 @@ NotificationController::TextEnumerator(nsCOMPtrHashKey<nsIContent>* aEntry,
   // Remove text accessible if rendered text is empty.
   if (textAcc) {
     if (text.IsEmpty()) {
-#ifdef DEBUG
-      if (logging::IsEnabled(logging::eTree | logging::eText)) {
-        logging::MsgBegin("TREE", "text node lost its content");
-        logging::Node("container", containerElm);
-        logging::Node("content", textNode);
-        logging::MsgEnd();
+#ifdef DEBUG_NOTIFICATIONS
+      PRUint32 index = containerNode->IndexOf(textNode);
+
+      nsCAutoString tag;
+      nsCAutoString id;
+      if (containerElm) {
+        containerElm->Tag()->ToUTF8String(tag);
+        nsIAtom* atomid = containerElm->GetID();
+        if (atomid)
+          atomid->ToUTF8String(id);
       }
+
+      printf("\npending text node removal: container: %s@id='%s', index in container: %d\n\n",
+             tag.get(), id.get(), index);
 #endif
 
       document->ContentRemoved(containerElm, textNode);
@@ -738,17 +730,22 @@ NotificationController::TextEnumerator(nsCOMPtrHashKey<nsIContent>* aEntry,
     }
 
     // Update text of the accessible and fire text change events.
-#ifdef DEBUG
-    if (logging::IsEnabled(logging::eText)) {
-      logging::MsgBegin("TEXT", "text may be changed");
-      logging::Node("container", containerElm);
-      logging::Node("content", textNode);
-      logging::MsgEntry("old text '%s'",
-                        NS_ConvertUTF16toUTF8(textAcc->AsTextLeaf()->Text()).get());
-      logging::MsgEntry("new text: '%s'",
-                        NS_ConvertUTF16toUTF8(text).get());
-      logging::MsgEnd();
-    }
+#ifdef DEBUG_TEXTCHANGE
+      PRUint32 index = containerNode->IndexOf(textNode);
+
+      nsCAutoString tag;
+      nsCAutoString id;
+      if (containerElm) {
+        containerElm->Tag()->ToUTF8String(tag);
+        nsIAtom* atomid = containerElm->GetID();
+        if (atomid)
+          atomid->ToUTF8String(id);
+      }
+
+      printf("\ntext may be changed: container: %s@id='%s', index in container: %d, old text '%s', new text: '%s'\n\n",
+             tag.get(), id.get(), index,
+             NS_ConvertUTF16toUTF8(textAcc->AsTextLeaf()->Text()).get(),
+             NS_ConvertUTF16toUTF8(text).get());
 #endif
 
     TextUpdater::Run(document, textAcc->AsTextLeaf(), text);
@@ -757,13 +754,20 @@ NotificationController::TextEnumerator(nsCOMPtrHashKey<nsIContent>* aEntry,
 
   // Append an accessible if rendered text is not empty.
   if (!text.IsEmpty()) {
-#ifdef DEBUG
-    if (logging::IsEnabled(logging::eTree | logging::eText)) {
-      logging::MsgBegin("TREE", "text node gains new content");
-      logging::Node("container", containerElm);
-      logging::Node("content", textNode);
-      logging::MsgEnd();
-    }
+#ifdef DEBUG_NOTIFICATIONS
+      PRUint32 index = containerNode->IndexOf(textNode);
+
+      nsCAutoString tag;
+      nsCAutoString id;
+      if (containerElm) {
+        containerElm->Tag()->ToUTF8String(tag);
+        nsIAtom* atomid = containerElm->GetID();
+        if (atomid)
+          atomid->ToUTF8String(id);
+      }
+
+      printf("\npending text node insertion: container: %s@id='%s', index in container: %d\n\n",
+             tag.get(), id.get(), index);
 #endif
 
     // Make sure the text node is in accessible document still.
@@ -831,6 +835,31 @@ NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(NotificationController::ContentInsertion,
 void
 NotificationController::ContentInsertion::Process()
 {
+#ifdef DEBUG_NOTIFICATIONS
+  nsIContent* firstChildNode = mInsertedContent[0];
+
+  nsCAutoString tag;
+  firstChildNode->Tag()->ToUTF8String(tag);
+
+  nsIAtom* atomid = firstChildNode->GetID();
+  nsCAutoString id;
+  if (atomid)
+    atomid->ToUTF8String(id);
+
+  nsCAutoString ctag;
+  nsCAutoString cid;
+  nsIAtom* catomid = nsnull;
+  if (mContainer->IsContent()) {
+    mContainer->GetContent()->Tag()->ToUTF8String(ctag);
+    catomid = mContainer->GetContent()->GetID();
+    if (catomid)
+      catomid->ToUTF8String(cid);
+  }
+
+  printf("\npending content insertion: %s@id='%s', container: %s@id='%s', inserted content amount: %d\n\n",
+         tag.get(), id.get(), ctag.get(), cid.get(), mInsertedContent.Length());
+#endif
+
   mDocument->ProcessContentInserted(mContainer, &mInsertedContent);
 
   mDocument = nsnull;

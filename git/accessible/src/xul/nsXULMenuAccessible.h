@@ -29,7 +29,6 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
-  virtual PRUint64 NativeInteractiveState() const;
   virtual PRInt32 GetLevelInternal();
 
   virtual bool CanHaveAnonChildren();
@@ -99,6 +98,7 @@ public:
   // Accessible
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual mozilla::a11y::role NativeRole();
+  virtual PRUint64 NativeState();
 
   // Widget
   virtual bool IsActiveWidget() const;

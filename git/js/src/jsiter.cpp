@@ -795,21 +795,11 @@ iterator_iterator(JSContext *cx, HandleObject obj, JSBool keysonly)
 static JSBool
 Iterator(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() == 0) {
-        js_ReportMissingArg(cx, args.calleev(), 0);
-        return false;
-    }
-
-    bool keyonly = false;
-    if (args.length() >= 2)
-        keyonly = js_ValueToBoolean(args[1]);
+    Value *argv = JS_ARGV(cx, vp);
+    bool keyonly = argc >= 2 ? js_ValueToBoolean(argv[1]) : false;
     unsigned flags = JSITER_OWNONLY | (keyonly ? 0 : (JSITER_FOREACH | JSITER_KEYVALUE));
-
-    if (!ValueToIterator(cx, flags, &args[0]))
-        return false;
-    args.rval() = args[0];
-    return true;
+    *vp = argc >= 1 ? argv[0] : UndefinedValue();
+    return ValueToIterator(cx, flags, vp);
 }
 
 JSBool

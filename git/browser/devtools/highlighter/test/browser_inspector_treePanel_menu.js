@@ -78,28 +78,11 @@ function test() {
   }
 
   function deleteTest() {
-    InspectorUI.highlighter.removeListener("nodeselected", deleteTest);
+    InspectorUI.highlighter.removeListener("nodeSelected", deleteTest);
+    Services.obs.addObserver(finishUp, InspectorUI.INSPECTOR_NOTIFICATIONS.CLOSED, false);
     is(InspectorUI.selection, div, "parent node selected");
     let p = doc.querySelector("P");
     is(p, null, "node deleted");
-
-    InspectorUI.highlighter.addListener("nodeselected", deleteRootNode);
-    InspectorUI.inspectNode(doc.documentElement, true);
-  }
-
-  function deleteRootNode() {
-    InspectorUI.highlighter.removeListener("nodeselected", deleteRootNode);
-    let deleteNode = document.getElementById("inspectorHTMLDelete");
-    let commandEvent = document.createEvent("XULCommandEvent");
-    commandEvent.initCommandEvent("command", true, true, window, 0, false, false,
-                                  false, false, null);
-    deleteNode.dispatchEvent(commandEvent);
-    executeSoon(isRootStillAlive);
-  }
-
-  function isRootStillAlive() {
-    ok(doc.documentElement, "Document element still alive.");
-    Services.obs.addObserver(finishUp, InspectorUI.INSPECTOR_NOTIFICATIONS.CLOSED, false);
     executeSoon(function() {
       InspectorUI.closeInspectorUI();
     });

@@ -310,9 +310,6 @@ bool WebGLContext::ValidateDrawModeEnum(WebGLenum mode, const char *info)
 
 bool WebGLContext::ValidateGLSLVariableName(const nsAString& name, const char *info)
 {
-    if (name.IsEmpty())
-        return false;
-
     const uint32_t maxSize = 256;
     if (name.Length() > maxSize) {
         ErrorInvalidValue("%s: identifier is %d characters long, exceeds the maximum allowed length of %d characters",
@@ -599,20 +596,6 @@ WebGLContext::InitAndValidateGL()
         GenerateWarning("GL error 0x%x occurred during OpenGL context initialization, before WebGL initialization!", error);
         return false;
     }
-
-#ifdef ANDROID
-    // bug 736123, blacklist WebGL on Adreno
-    bool forceEnabled = Preferences::GetBool("webgl.force-enabled", false);
-    if (!forceEnabled) {
-        int renderer = gl->Renderer();
-        if (renderer == gl::GLContext::RendererAdreno200 ||
-            renderer == gl::GLContext::RendererAdreno205)
-        {
-            GenerateWarning("WebGL blocked on this Adreno driver!");
-            return false;
-        }
-    }
-#endif
 
     mMinCapability = Preferences::GetBool("webgl.min_capability_mode", false);
     mDisableExtensions = Preferences::GetBool("webgl.disable-extensions", false);

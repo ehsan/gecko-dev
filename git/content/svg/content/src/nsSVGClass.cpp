@@ -61,9 +61,6 @@ nsSVGClass::GetAnimValue(nsAString& aResult, const nsSVGStylableElement *aSVGEle
 void
 nsSVGClass::SetAnimValue(const nsAString& aValue, nsSVGStylableElement *aSVGElement)
 {
-  if (mAnimVal && mAnimVal->Equals(aValue)) {
-    return;
-  }
   if (!mAnimVal) {
     mAnimVal = new nsString();
   }

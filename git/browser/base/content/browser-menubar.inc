@@ -535,13 +535,6 @@
                             accesskey="&inspectMenu.accesskey;"
                             key="key_inspect"
                             command="Tools:Inspect"/>
-                  <menuitem id="menu_responsiveUI"
-                            type="checkbox"
-                            hidden="true"
-                            label="&responsiveDesignTool.label;"
-                            accesskey="&responsiveDesignTool.accesskey;"
-                            key="key_responsiveUI"
-                            command="Tools:ResponsiveUI"/>
                   <menuitem id="menu_debugger"
                             hidden="true"
                             type="checkbox"

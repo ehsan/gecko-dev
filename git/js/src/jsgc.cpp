@@ -3729,14 +3729,7 @@ IsDeterministicGCReason(gcreason::Reason reason)
 static bool
 ShouldCleanUpEverything(JSRuntime *rt, gcreason::Reason reason)
 {
-    // During shutdown, we must clean everything up, for the sake of leak
-    // detection. When a runtime has no contexts, or we're doing a forced GC,
-    // those are strong indications that we're shutting down.
-    //
-    // DEBUG_MODE_GC indicates we're discarding code because the debug mode
-    // has changed; debug mode affects the results of bytecode analysis, so
-    // we need to clear everything away.
-    return !rt->hasContexts() || reason == gcreason::CC_FORCED || reason == gcreason::DEBUG_MODE_GC;
+    return !rt->hasContexts() || reason == gcreason::CC_FORCED;
 }
 
 static void
@@ -4018,9 +4011,13 @@ NewCompartment(JSContext *cx, JSPrincipals *principals)
 
     JSCompartment *compartment = cx->new_<JSCompartment>(rt);
     if (compartment && compartment->init(cx)) {
-
-        // Set up the principals.
-        JS_SetCompartmentPrincipals(compartment, principals);
+        // Any compartment with the trusted principals -- and there can be
+        // multiple -- is a system compartment.
+        compartment->isSystemCompartment = principals && rt->trustedPrincipals() == principals;
+        if (principals) {
+            compartment->principals = principals;
+            JS_HoldPrincipals(principals);
+        }
 
         compartment->setGCLastBytes(8192, 8192, GC_NORMAL);
 

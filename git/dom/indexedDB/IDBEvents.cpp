@@ -114,16 +114,15 @@ IDBVersionChangeEvent::GetOldVersion(PRUint64* aOldVersion)
 }
 
 NS_IMETHODIMP
-IDBVersionChangeEvent::GetNewVersion(JSContext* aCx,
-                                     JS::Value* aNewVersion)
+IDBVersionChangeEvent::GetNewVersion(JS::Value* aNewVersion)
 {
   NS_ENSURE_ARG_POINTER(aNewVersion);
 
   if (!mNewVersion) {
     *aNewVersion = JSVAL_NULL;
   }
-  else if (!JS_NewNumberValue(aCx, double(mNewVersion), aNewVersion)) {
-    return NS_ERROR_FAILURE;
+  else {
+    *aNewVersion = INT_TO_JSVAL(mNewVersion);
   }
 
   return NS_OK;

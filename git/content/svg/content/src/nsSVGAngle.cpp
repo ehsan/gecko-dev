@@ -401,9 +401,6 @@ nsSVGAngle::SetBaseValue(float aValue, nsSVGElement *aSVGElement,
 void
 nsSVGAngle::SetAnimValue(float aValue, PRUint8 aUnit, nsSVGElement *aSVGElement)
 {
-  if (mIsAnimated && mAnimVal == aValue && mAnimValUnit == aUnit) {
-    return;
-  }
   mAnimVal = aValue;
   mAnimValUnit = aUnit;
   mIsAnimated = true;

@@ -43,7 +43,6 @@ public final class Tab {
     private String mFaviconUrl;
     private int mFaviconSize;
     private JSONObject mIdentityData;
-    private boolean mReaderEnabled;
     private Drawable mThumbnail;
     private int mHistoryIndex;
     private int mHistorySize;
@@ -65,7 +64,6 @@ public final class Tab {
     private ContentObserver mContentObserver;
     private int mCheckerboardColor = Color.WHITE;
     private int mState;
-    private boolean mDesktopMode;
 
     public static final int STATE_DELAYED = 0;
     public static final int STATE_LOADING = 1;
@@ -82,7 +80,6 @@ public final class Tab {
         mFaviconUrl = null;
         mFaviconSize = 0;
         mIdentityData = null;
-        mReaderEnabled = false;
         mThumbnail = null;
         mHistoryIndex = -1;
         mHistorySize = 0;
@@ -202,10 +199,6 @@ public final class Tab {
         return mIdentityData;
     }
 
-    public boolean getReaderEnabled() {
-        return mReaderEnabled;
-    }
-
     public boolean isBookmark() {
         return mBookmark;
     }
@@ -244,13 +237,6 @@ public final class Tab {
 
         Log.i(LOGTAG, "Updated title: " + mTitle + " for tab with id: " + mId);
         updateHistory(mUrl, mTitle);
-        final Tab tab = this;
-
-        GeckoAppShell.getMainHandler().post(new Runnable() {
-            public void run() {
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.TITLE);
-            }
-        });
     }
 
     private void updateHistory(final String uri, final String title) {
@@ -347,10 +333,6 @@ public final class Tab {
         mIdentityData = identityData;
     }
 
-    public void setReaderEnabled(boolean readerEnabled) {
-        mReaderEnabled = readerEnabled;
-    }
-
     private void updateBookmark() {
         final String url = getURL();
         if (url == null)
@@ -388,28 +370,6 @@ public final class Tab {
                 BrowserDB.removeBookmarksWithURL(mContentResolver, url);
             }
         });
-    }
-
-    public void addToReadingList() {
-        if (!mReaderEnabled)
-            return;
-
-        GeckoAppShell.getHandler().post(new Runnable() {
-            public void run() {
-                String url = getURL();
-                if (url == null)
-                    return;
-
-                BrowserDB.addReadingListItem(mContentResolver, getTitle(), url);
-            }
-        });
-    }
-
-    public void readerMode() {
-        if (!mReaderEnabled)
-            return;
-
-        // Do nothing for now
     }
 
     public boolean doReload() {
@@ -598,13 +558,5 @@ public final class Tab {
         int g = Integer.parseInt(matcher.group(2));
         int b = Integer.parseInt(matcher.group(3));
         return Color.rgb(r, g, b);
-    }
-
-    public void setDesktopMode(boolean enabled) {
-        mDesktopMode = enabled;
-    }
-
-    public boolean getDesktopMode() {
-        return mDesktopMode;
     }
 }

@@ -6,7 +6,7 @@
 
 #include "InterfaceInitFuncs.h"
 
-#include "HyperTextAccessible.h"
+#include "nsHyperTextAccessible.h"
 #include "nsMai.h"
 #include "nsMaiHyperlink.h"
 
@@ -19,7 +19,7 @@ getLinkCB(AtkHypertext *aText, gint aLinkIndex)
   if (!accWrap)
     return nsnull;
 
-  HyperTextAccessible* hyperText = accWrap->AsHyperText();
+  nsHyperTextAccessible* hyperText = accWrap->AsHyperText();
   NS_ENSURE_TRUE(hyperText, nsnull);
 
   Accessible* hyperLink = hyperText->GetLinkAt(aLinkIndex);
@@ -42,7 +42,7 @@ getLinkCountCB(AtkHypertext *aText)
   if (!accWrap)
     return -1;
 
-  HyperTextAccessible* hyperText = accWrap->AsHyperText();
+  nsHyperTextAccessible* hyperText = accWrap->AsHyperText();
   NS_ENSURE_TRUE(hyperText, -1);
 
   return hyperText->GetLinkCount();
@@ -55,7 +55,7 @@ getLinkIndexCB(AtkHypertext *aText, gint aCharIndex)
   if (!accWrap)
     return -1;
 
-  HyperTextAccessible* hyperText = accWrap->AsHyperText();
+  nsHyperTextAccessible* hyperText = accWrap->AsHyperText();
   NS_ENSURE_TRUE(hyperText, -1);
 
   PRInt32 index = -1;

@@ -2131,7 +2131,7 @@ DrawTargetD2D::CreateGradientTexture(const GradientStopsD2D *aStops)
     // pixel.
     float pos = float(i) / 4095;
 
-    while (pos > nextColorPos) {
+    if (pos > nextColorPos) {
       prevColor = nextColor;
       prevColorPos = nextColorPos;
       if (rawStops.size() > stopPosition) {
@@ -2142,13 +2142,7 @@ DrawTargetD2D::CreateGradientTexture(const GradientStopsD2D *aStops)
       }
     }
 
-    float interp;
-    
-    if (nextColorPos != prevColorPos) {
-      interp = (pos - prevColorPos) / (nextColorPos - prevColorPos);
-    } else {
-      interp = 0;
-    }
+    float interp = (pos - prevColorPos) / (nextColorPos - prevColorPos);
 
     Color newColor(prevColor.r + (nextColor.r - prevColor.r) * interp,
                     prevColor.g + (nextColor.g - prevColor.g) * interp,

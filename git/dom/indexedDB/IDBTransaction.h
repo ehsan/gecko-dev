@@ -30,9 +30,6 @@ BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
 class CommitHelper;
-class IndexedDBDatabaseChild;
-class IndexedDBTransactionChild;
-class IndexedDBTransactionParent;
 struct ObjectStoreInfo;
 class TransactionThreadPool;
 class UpdateRefcountFunction;
@@ -52,7 +49,6 @@ class IDBTransaction : public IDBWrapperCache,
 {
   friend class AsyncConnectionHelper;
   friend class CommitHelper;
-  friend class IndexedDBDatabaseChild;
   friend class ThreadObserver;
   friend class TransactionThreadPool;
 
@@ -67,10 +63,7 @@ public:
   {
     READ_ONLY = 0,
     READ_WRITE,
-    VERSION_CHANGE,
-
-    // Only needed for IPC serialization helper, should never be used in code.
-    MODE_INVALID
+    VERSION_CHANGE
   };
 
   enum ReadyState
@@ -85,11 +78,7 @@ public:
   Create(IDBDatabase* aDatabase,
          nsTArray<nsString>& aObjectStoreNames,
          Mode aMode,
-         bool aDispatchDelayed)
-  {
-    return CreateInternal(aDatabase, aObjectStoreNames, aMode, aDispatchDelayed,
-                          false);
-  }
+         bool aDispatchDelayed);
 
   // nsIDOMEventTarget
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
@@ -127,7 +116,7 @@ public:
 
   bool IsAborted() const
   {
-    return NS_FAILED(mAbortCode);
+    return mAborted;
   }
 
   // 'Get' prefix is to avoid name collisions with the enum
@@ -149,57 +138,13 @@ public:
 
   already_AddRefed<IDBObjectStore>
   GetOrCreateObjectStore(const nsAString& aName,
-                         ObjectStoreInfo* aObjectStoreInfo,
-                         bool aCreating);
+                         ObjectStoreInfo* aObjectStoreInfo);
 
-  already_AddRefed<FileInfo> GetFileInfo(nsIDOMBlob* aBlob);
-  void AddFileInfo(nsIDOMBlob* aBlob, FileInfo* aFileInfo);
+  void OnNewFileInfo(FileInfo* aFileInfo);
 
   void ClearCreatedFileInfos();
 
-  void
-  SetActor(IndexedDBTransactionChild* aActorChild)
-  {
-    NS_ASSERTION(!aActorChild || !mActorChild, "Shouldn't have more than one!");
-    mActorChild = aActorChild;
-  }
-
-  void
-  SetActor(IndexedDBTransactionParent* aActorParent)
-  {
-    NS_ASSERTION(!aActorParent || !mActorParent,
-                 "Shouldn't have more than one!");
-    mActorParent = aActorParent;
-  }
-
-  IndexedDBTransactionChild*
-  GetActorChild() const
-  {
-    return mActorChild;
-  }
-
-  nsresult
-  ObjectStoreInternal(const nsAString& aName,
-                      IDBObjectStore** _retval);
-
-  nsresult
-  AbortWithCode(nsresult aAbortCode);
-
-  nsresult
-  GetAbortCode() const
-  {
-    return mAbortCode;
-  }
-
 private:
-  // Should only be called directly through IndexedDBDatabaseChild.
-  static already_AddRefed<IDBTransaction>
-  CreateInternal(IDBDatabase* aDatabase,
-                 nsTArray<nsString>& aObjectStoreNames,
-                 Mode aMode,
-                 bool aDispatchDelayed,
-                 bool aIsVersionChangeTransactionChild);
-
   IDBTransaction();
   ~IDBTransaction();
 
@@ -230,18 +175,15 @@ private:
 
   nsTArray<nsRefPtr<IDBObjectStore> > mCreatedObjectStores;
 
-  nsRefPtr<UpdateRefcountFunction> mUpdateFileRefcountFunction;
-  nsRefPtrHashtable<nsISupportsHashKey, FileInfo> mCreatedFileInfos;
-
-  IndexedDBTransactionChild* mActorChild;
-  IndexedDBTransactionParent* mActorParent;
-
-  nsresult mAbortCode;
+  bool mAborted;
   bool mCreating;
 
 #ifdef DEBUG
   bool mFiredCompleteOrAbort;
 #endif
+
+  nsRefPtr<UpdateRefcountFunction> mUpdateFileRefcountFunction;
+  nsTArray<nsRefPtr<FileInfo> > mCreatedFileInfos;
 };
 
 class CommitHelper MOZ_FINAL : public nsIRunnable
@@ -253,8 +195,6 @@ public:
   CommitHelper(IDBTransaction* aTransaction,
                IDBTransactionListener* aListener,
                const nsTArray<nsRefPtr<IDBObjectStore> >& mUpdatedObjectStores);
-  CommitHelper(IDBTransaction* aTransaction,
-               nsresult aAbortCode);
   ~CommitHelper();
 
   template<class T>
@@ -287,7 +227,7 @@ private:
   nsAutoTArray<nsCOMPtr<nsISupports>, 10> mDoomedObjects;
   nsAutoTArray<nsRefPtr<IDBObjectStore>, 10> mAutoIncrementObjectStores;
 
-  nsresult mAbortCode;
+  bool mAborted;
 };
 
 class UpdateRefcountFunction MOZ_FINAL : public mozIStorageFunction

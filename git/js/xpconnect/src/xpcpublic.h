@@ -22,7 +22,6 @@
 #include "nsStringGlue.h"
 #include "nsTArray.h"
 #include "mozilla/dom/DOMJSClass.h"
-#include "nsMathUtils.h"
 
 class nsIPrincipal;
 class nsIXPConnectWrappedJS;
@@ -75,21 +74,13 @@ DebugCheckWrapperClass(JSObject* obj)
 // a slim wrapper, holding a native in its private slot, or a wrappednative
 // wrapper, holding the XPCWrappedNative in its private slot. A slim wrapper
 // also holds a pointer to its XPCWrappedNativeProto in a reserved slot, we can
-// check that slot for a private value (i.e. a double) to distinguish between
-// the two. This allows us to store a JSObject in that slot for non-slim wrappers
-// while still being able to distinguish the two cases.
-
-// NB: This slot isn't actually reserved for us on globals, because SpiderMonkey
-// uses the first N slots on globals internally. The fact that we use it for
-// wrapped global objects is totally broken. But due to a happy coincidence, the
-// JS engine never uses that slot. This still needs fixing though. See bug 760095.
-#define WRAPPER_MULTISLOT 0
+// check that slot for a non-void value to distinguish between the two.
 
 // Only use these macros if IS_WRAPPER_CLASS(GetObjectClass(obj)) is true.
 #define IS_WN_WRAPPER_OBJECT(obj)                                             \
-    (DebugCheckWrapperClass(obj) && !js::GetReservedSlot(obj, WRAPPER_MULTISLOT).isDouble())
+    (DebugCheckWrapperClass(obj) && js::GetReservedSlot(obj, 0).isUndefined())
 #define IS_SLIM_WRAPPER_OBJECT(obj)                                           \
-    (DebugCheckWrapperClass(obj) && js::GetReservedSlot(obj, WRAPPER_MULTISLOT).isDouble())
+    (DebugCheckWrapperClass(obj) && !js::GetReservedSlot(obj, 0).isUndefined())
 
 // Use these macros if IS_WRAPPER_CLASS(GetObjectClass(obj)) might be false.
 // Avoid calling them if IS_WRAPPER_CLASS(GetObjectClass(obj)) can only be
@@ -220,8 +211,6 @@ class nsIMemoryMultiReporterCallback;
 
 namespace xpc {
 
-bool DeferredRelease(nsISupports *obj);
-
 // If these functions return false, then an exception will be set on cx.
 bool Base64Encode(JSContext *cx, JS::Value val, JS::Value *out);
 bool Base64Decode(JSContext *cx, JS::Value val, JS::Value *out);
@@ -287,12 +276,7 @@ ValueToInt64(JSContext *cx, JS::Value v, int64_t *result)
         double doubleval;
         if (!JS_ValueToNumber(cx, v, &doubleval))
             return false;
-        // Be careful with non-finite doubles
-        if (NS_finite(doubleval))
-            // XXXbz this isn't quite right either; need to do the mod thing
-            *result = static_cast<int64_t>(doubleval);
-        else
-            *result = 0;
+        *result = static_cast<int64_t>(doubleval);
     }
     return true;
 }
@@ -312,12 +296,7 @@ ValueToUint64(JSContext *cx, JS::Value v, uint64_t *result)
         double doubleval;
         if (!JS_ValueToNumber(cx, v, &doubleval))
             return false;
-        // Be careful with non-finite doubles
-        if (NS_finite(doubleval))
-            // XXXbz this isn't quite right either; need to do the mod thing
-            *result = static_cast<uint64_t>(doubleval);
-        else
-            *result = 0;
+        *result = static_cast<uint64_t>(doubleval);
     }
     return true;
 }

@@ -301,43 +301,7 @@ typedef XPCCompartmentSet::Range XPCCompartmentRange;
 #define WRAPPER_SLOTS (JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS | \
                        JSCLASS_HAS_RESERVED_SLOTS(1))
 
-// WRAPPER_MULTISLOT is defined in xpcpublic.h
-
 #define INVALID_OBJECT ((JSObject *)1)
-
-inline void SetSlimWrapperProto(JSObject *obj, XPCWrappedNativeProto *proto)
-{
-    JS_SetReservedSlot(obj, WRAPPER_MULTISLOT, PRIVATE_TO_JSVAL(proto));
-}
-
-inline XPCWrappedNativeProto* GetSlimWrapperProto(JSObject *obj)
-{
-    MOZ_ASSERT(IS_SLIM_WRAPPER(obj));
-    const JS::Value &v = js::GetReservedSlot(obj, WRAPPER_MULTISLOT);
-    return static_cast<XPCWrappedNativeProto*>(v.toPrivate());
-}
-
-// A slim wrapper is identified by having a native pointer in its reserved slot.
-// This function, therefore, does the official transition from a slim wrapper to
-// a non-slim wrapper.
-inline void MorphMultiSlot(JSObject *obj)
-{
-    MOZ_ASSERT(IS_SLIM_WRAPPER(obj));
-    JS_SetReservedSlot(obj, WRAPPER_MULTISLOT, JSVAL_NULL);
-    MOZ_ASSERT(!IS_SLIM_WRAPPER(obj));
-}
-
-inline void SetExpandoChain(JSObject *obj, JSObject *chain)
-{
-    MOZ_ASSERT(IS_WN_WRAPPER(obj));
-    JS_SetReservedSlot(obj, WRAPPER_MULTISLOT, JS::ObjectOrNullValue(chain));
-}
-
-inline JSObject* GetExpandoChain(JSObject *obj)
-{
-    MOZ_ASSERT(IS_WN_WRAPPER(obj));
-    return JS_GetReservedSlot(obj, WRAPPER_MULTISLOT).toObjectOrNull();
-}
 
 /***************************************************************************/
 // Auto locking support class...
@@ -698,7 +662,7 @@ public:
 
     JSBool OnJSContextNew(JSContext* cx);
 
-    bool DeferredRelease(nsISupports* obj);
+    JSBool DeferredRelease(nsISupports* obj);
 
     JSBool GetDoingFinalization() const {return mDoingFinalization;}
 
@@ -2462,6 +2426,14 @@ extern JSBool ConstructSlimWrapper(XPCCallContext &ccx,
                                    jsval *rval);
 extern JSBool MorphSlimWrapper(JSContext *cx, JSObject *obj);
 
+static inline XPCWrappedNativeProto*
+GetSlimWrapperProto(JSObject *obj)
+{
+  const js::Value &v = js::GetReservedSlot(obj, 0);
+  return static_cast<XPCWrappedNativeProto*>(v.toPrivate());
+}
+
+
 /***********************************************/
 // XPCWrappedNativeTearOff represents the info needed to make calls to one
 // interface on the underlying native object of a XPCWrappedNative.
@@ -2732,15 +2704,6 @@ public:
                            nsISupports* aCOMObj,
                            XPCWrappedNative** aWrapper);
 
-    // Returns the wrapper corresponding to the parent of our mFlatJSObject.
-    //
-    // If the parent does not have a WN, or if there is no parent, null is
-    // returned.
-    XPCWrappedNative *GetParentWrapper();
-
-    bool IsOrphan();
-    nsresult RescueOrphans(XPCCallContext& ccx);
-
     void FlatJSObjectFinalized();
 
     void SystemIsBeingShutDown();
@@ -2835,6 +2798,8 @@ public:
     void SetNeedsSOW() { mWrapperWord |= NEEDS_SOW; }
     JSBool NeedsCOW() { return !!(mWrapperWord & NEEDS_COW); }
     void SetNeedsCOW() { mWrapperWord |= NEEDS_COW; }
+    JSBool MightHaveExpandoObject() { return !!(mWrapperWord & MIGHT_HAVE_EXPANDO); }
+    void SetHasExpandoObject() { mWrapperWord |= MIGHT_HAVE_EXPANDO; }
 
     JSObject* GetWrapperPreserveColor() const
         {return (JSObject*)(mWrapperWord & (size_t)~(size_t)FLAG_MASK);}
@@ -2901,6 +2866,7 @@ private:
     enum {
         NEEDS_SOW = JS_BIT(0),
         NEEDS_COW = JS_BIT(1),
+        MIGHT_HAVE_EXPANDO = JS_BIT(2),
         FLAG_MASK = JS_BITMASK(3)
     };
 
@@ -4379,6 +4345,7 @@ namespace xpc {
 class CompartmentPrivate
 {
 public:
+    typedef nsDataHashtable<nsPtrHashKey<XPCWrappedNative>, JSObject *> ExpandoMap;
     typedef nsTHashtable<nsPtrHashKey<JSObject> > DOMExpandoMap;
 
     CompartmentPrivate(bool wantXrays)
@@ -4391,7 +4358,39 @@ public:
 
     bool wantXrays;
     nsAutoPtr<JSObject2JSObjectMap> waiverWrapperMap;
+    // NB: we don't want this map to hold a strong reference to the wrapper.
+    nsAutoPtr<ExpandoMap> expandoMap;
     nsAutoPtr<DOMExpandoMap> domExpandoMap;
+
+    bool RegisterExpandoObject(XPCWrappedNative *wn, JSObject *expando) {
+        if (!expandoMap) {
+            expandoMap = new ExpandoMap();
+            expandoMap->Init(8);
+        }
+        wn->SetHasExpandoObject();
+        return expandoMap->Put(wn, expando, mozilla::fallible_t());
+    }
+
+    /**
+     * This lookup does not change the color of the JSObject meaning that the
+     * object returned is not guaranteed to be kept alive past the next CC.
+     *
+     * This should only be called if you are certain that the return value won't
+     * be passed into a JS API function and that it won't be stored without
+     * being rooted (or otherwise signaling the stored value to the CC).
+     */
+    JSObject *LookupExpandoObjectPreserveColor(XPCWrappedNative *wn) {
+        return expandoMap ? expandoMap->Get(wn) : nsnull;
+    }
+
+    /**
+     * This lookup clears the gray bit before handing out the JSObject which
+     * means that the object is guaranteed to be kept alive past the next CC.
+     */
+    JSObject *LookupExpandoObject(XPCWrappedNative *wn) {
+        JSObject *obj = LookupExpandoObjectPreserveColor(wn);
+        return xpc_UnmarkGrayObject(obj);
+    }
 
     bool RegisterDOMExpandoObject(JSObject *expando) {
         if (!domExpandoMap) {

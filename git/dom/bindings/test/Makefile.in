@@ -55,8 +55,6 @@ $(CPPSRCS): ../%Binding.cpp: $(bindinggen_dependencies) \
 	$(MAKE) -C .. $*Binding.cpp
 
 _TEST_FILES = \
-  test_enums.html \
-  test_integers.html \
   test_interfaceToString.html \
   test_lookupGetter.html \
   test_InstanceOf.html \

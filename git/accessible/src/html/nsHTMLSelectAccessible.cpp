@@ -174,7 +174,7 @@ nsHTMLSelectListAccessible::CacheOptSiblings(nsIContent *aParentContent)
 
 nsHTMLSelectOptionAccessible::
   nsHTMLSelectOptionAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  HyperTextAccessibleWrap(aContent, aDoc)
+  nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
 
@@ -225,7 +225,7 @@ nsHTMLSelectOptionAccessible::NativeState()
 {
   // As a nsHTMLSelectOptionAccessible we can have the following states:
   // SELECTABLE, SELECTED, FOCUSED, FOCUSABLE, OFFSCREEN
-  // Upcall to Accessible, but skip HyperTextAccessible impl
+  // Upcall to Accessible, but skip nsHyperTextAccessible impl
   // because we don't want EDITABLE or SELECTABLE_TEXT
   PRUint64 state = Accessible::NativeState();
 
@@ -236,6 +236,10 @@ nsHTMLSelectOptionAccessible::NativeState()
   PRUint64 selectState = select->State();
   if (selectState & states::INVISIBLE)
     return state;
+
+  // Focusable and selectable
+  if (!(state & states::UNAVAILABLE))
+    state |= (states::FOCUSABLE | states::SELECTABLE);
 
   // Are we selected?
   bool isSelected = false;
@@ -281,13 +285,6 @@ nsHTMLSelectOptionAccessible::NativeState()
   return state;
 }
 
-PRUint64
-nsHTMLSelectOptionAccessible::NativeInteractiveState() const
-{
-  return NativelyUnavailable() ?
-    states::UNAVAILABLE : states::FOCUSABLE | states::SELECTABLE;
-}
-
 PRInt32
 nsHTMLSelectOptionAccessible::GetLevelInternal()
 {
@@ -310,7 +307,7 @@ nsHTMLSelectOptionAccessible::GetBoundsRect(nsRect& aTotalBounds,
   if (combobox && (combobox->State() & states::COLLAPSED))
     combobox->GetBoundsRect(aTotalBounds, aBoundingFrame);
   else
-    HyperTextAccessibleWrap::GetBoundsRect(aTotalBounds, aBoundingFrame);
+    nsHyperTextAccessibleWrap::GetBoundsRect(aTotalBounds, aBoundingFrame);
 }
 
 /** select us! close combo box if necessary*/
@@ -379,9 +376,13 @@ nsHTMLSelectOptGroupAccessible::NativeRole()
 }
 
 PRUint64
-nsHTMLSelectOptGroupAccessible::NativeInteractiveState() const
+nsHTMLSelectOptGroupAccessible::NativeState()
 {
-  return NativelyUnavailable() ? states::UNAVAILABLE : 0;
+  PRUint64 state = nsHTMLSelectOptionAccessible::NativeState();
+
+  state &= ~(states::FOCUSABLE | states::SELECTABLE);
+
+  return state;
 }
 
 NS_IMETHODIMP nsHTMLSelectOptGroupAccessible::DoAction(PRUint8 index)

@@ -6,9 +6,9 @@
 #ifndef _nsHTMLLinkAccessible_H_
 #define _nsHTMLLinkAccessible_H_
 
-#include "HyperTextAccessibleWrap.h"
+#include "nsHyperTextAccessibleWrap.h"
 
-class nsHTMLLinkAccessible : public HyperTextAccessibleWrap
+class nsHTMLLinkAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   nsHTMLLinkAccessible(nsIContent* aContent, DocAccessible* aDoc);
@@ -24,7 +24,6 @@ public:
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
   virtual PRUint64 NativeLinkState() const;
-  virtual PRUint64 NativeInteractiveState() const;
 
   // ActionAccessible
   virtual PRUint8 ActionCount();

@@ -2180,12 +2180,6 @@ nsDocument::ResetToURI(nsIURI *aURI, nsILoadGroup *aLoadGroup,
       }
     }
   }
-
-  // Refresh the principal on the compartment.
-  nsPIDOMWindow* win = GetInnerWindow();
-  if (win) {
-    win->RefreshCompartmentPrincipal();
-  }
 }
 
 nsresult
@@ -2819,13 +2813,28 @@ nsDocument::ElementFromPointHelper(float aX, float aY,
   if (!ptFrame)
     return NS_OK;
 
-  nsIContent* elem = GetContentInThisDocument(ptFrame);
-  if (elem && !elem->IsElement()) {
-    elem = elem->GetParent();
+  nsIContent* ptContent = ptFrame->GetContent();
+  NS_ENSURE_STATE(ptContent);
+
+  // If the content is in a subdocument, try to get the element from |this| doc
+  nsIDocument *currentDoc = ptContent->GetCurrentDoc();
+  if (currentDoc && (currentDoc != this)) {
+    *aReturn = CheckAncestryAndGetFrame(currentDoc).get();
+    return NS_OK;
   }
-  if (elem) {
-    CallQueryInterface(elem, aReturn);
+
+  // If we have an anonymous element (such as an internal div from a textbox),
+  // or a node that isn't an element (such as a text frame node),
+  // replace it with the first non-anonymous parent node of type element.
+  while (ptContent &&
+         (!ptContent->IsElement() ||
+          ptContent->IsInAnonymousSubtree())) {
+    // XXXldb: Faster to jump to GetBindingParent if non-null?
+    ptContent = ptContent->GetParent();
   }
+ 
+  if (ptContent)
+    CallQueryInterface(ptContent, aReturn);
   return NS_OK;
 }
 
@@ -2873,23 +2882,47 @@ nsDocument::NodesFromRectHelper(float aX, float aY,
   nsLayoutUtils::GetFramesForArea(rootFrame, rect, outFrames,
                                   true, aIgnoreRootScrollFrame);
 
+  PRInt32 length = outFrames.Length();
+  if (!length)
+    return NS_OK;
+
   // Used to filter out repeated elements in sequence.
   nsIContent* lastAdded = nsnull;
 
-  for (PRUint32 i = 0; i < outFrames.Length(); i++) {
-    nsIContent* node = GetContentInThisDocument(outFrames[i]);
+  for (PRInt32 i = 0; i < length; i++) {
 
-    if (node && !node->IsElement() && !node->IsNodeOfType(nsINode::eTEXT)) {
-      // We have a node that isn't an element or a text node,
-      // use its parent content instead.
-      node = node->GetParent();
+    nsIContent* ptContent = outFrames.ElementAt(i)->GetContent();
+    NS_ENSURE_STATE(ptContent);
+
+    // If the content is in a subdocument, try to get the element from |this| doc
+    nsIDocument *currentDoc = ptContent->GetCurrentDoc();
+    if (currentDoc && (currentDoc != this)) {
+      // XXX felipe: I can't get this type right without the intermediate vars
+      nsCOMPtr<nsIDOMElement> x = CheckAncestryAndGetFrame(currentDoc);
+      nsCOMPtr<nsIContent> elementDoc = do_QueryInterface(x);
+      if (elementDoc != lastAdded) {
+        elements->AppendElement(elementDoc);
+        lastAdded = elementDoc;
+      }
+      continue;
     }
-    if (node && node != lastAdded) {
-      elements->AppendElement(node);
-      lastAdded = node;
+
+    // If we have an anonymous element (such as an internal div from a textbox),
+    // or a node that isn't an element or a text node,
+    // replace it with the first non-anonymous parent node.
+    while (ptContent &&
+           (!(ptContent->IsElement() ||
+              ptContent->IsNodeOfType(nsINode::eTEXT)) ||
+            ptContent->IsInAnonymousSubtree())) {
+      // XXXldb: Faster to jump to GetBindingParent if non-null?
+      ptContent = ptContent->GetParent();
+    }
+   
+    if (ptContent && ptContent != lastAdded) {
+      elements->AppendElement(ptContent);
+      lastAdded = ptContent;
     }
   }
-
   return NS_OK;
 }
 
@@ -6108,7 +6141,7 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
     }
   }
 
-  nsCOMPtr<nsIDocument> oldDocument = adoptedNode->OwnerDoc();
+  nsIDocument *oldDocument = adoptedNode->OwnerDoc();
   bool sameDocument = oldDocument == this;
 
   JSContext *cx = nsnull;
@@ -7177,25 +7210,42 @@ nsDocument::DoUnblockOnload()
   }
 }
 
-nsIContent*
-nsDocument::GetContentInThisDocument(nsIFrame* aFrame) const
+/* See if document is a child of this.  If so, return the frame element in this
+ * document that holds currentDoc (or an ancestor). */
+already_AddRefed<nsIDOMElement>
+nsDocument::CheckAncestryAndGetFrame(nsIDocument* aDocument) const
 {
-  for (nsIFrame* f = aFrame; f;
-       f = nsLayoutUtils::GetParentOrPlaceholderForCrossDoc(f)) {
-    nsIContent* content = f->GetContent();
-    if (!content || content->IsInAnonymousSubtree())
-      continue;
-
-    if (content->OwnerDoc() == this) {
-      return content;
+  nsIDocument* parentDoc;
+  for (parentDoc = aDocument->GetParentDocument();
+       parentDoc != static_cast<const nsIDocument* const>(this);
+       parentDoc = parentDoc->GetParentDocument()) {
+    if (!parentDoc) {
+      return nsnull;
     }
-    // We must be in a subdocument so jump directly to the root frame.
-    // GetParentOrPlaceholderForCrossDoc gets called immediately to jump up to
-    // the containing document.
-    f = f->PresContext()->GetPresShell()->GetRootFrame();
+
+    aDocument = parentDoc;
   }
 
-  return nsnull;
+  // In a child document.  Get the appropriate frame.
+  nsPIDOMWindow* currentWindow = aDocument->GetWindow();
+  if (!currentWindow) {
+    return nsnull;
+  }
+  nsIDOMElement* frameElement = currentWindow->GetFrameElementInternal();
+  if (!frameElement) {
+    return nsnull;
+  }
+
+  // Sanity check result
+  nsCOMPtr<nsIDOMDocument> domDocument;
+  frameElement->GetOwnerDocument(getter_AddRefs(domDocument));
+  if (domDocument != this) {
+    NS_ERROR("Child documents should live in windows the parent owns");
+    return nsnull;
+  }
+
+  NS_ADDREF(frameElement);
+  return frameElement;
 }
 
 void
@@ -8161,17 +8211,14 @@ static const char* kWarnings[] = {
 #undef DEPRECATED_OPERATION
 
 void
-nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation,
-                           bool asError /* = false */)
+nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation)
 {
   PR_STATIC_ASSERT(eDeprecatedOperationCount <= 64);
   if (mWarnedAbout & (1ull << aOperation)) {
     return;
   }
   mWarnedAbout |= (1ull << aOperation);
-  uint32_t flags = asError ? nsIScriptError::errorFlag
-                           : nsIScriptError::warningFlag;
-  nsContentUtils::ReportToConsole(flags,
+  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
                                   "DOM Core", this,
                                   nsContentUtils::eDOM_PROPERTIES,
                                   kWarnings[aOperation]);

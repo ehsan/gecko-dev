@@ -16,9 +16,6 @@ enum TestEnum {
 
 callback TestCallback = void();
 
-[Constructor,
- Constructor(DOMString str),
- Constructor(unsigned long num, boolean? bool)]
 interface TestInterface {
   // Integer types
   // XXXbz add tests for infallible versions of all the integer stuff
@@ -191,8 +188,6 @@ interface TestInterface {
   // void passOptionalNullableEnum(optional TestEnum? arg);
   // void passOptionalNullableEnumWithDefaultValue(optional TestEnum? arg = null);
   TestEnum receiveEnum();
-  attribute TestEnum enumAttribute;
-  readonly attribute TestEnum readonlyEnumAttribute;
 
   // Callback types
   void passCallback(TestCallback arg);

@@ -504,15 +504,7 @@ protected:
     *                   May be null.  Ignored if aAttribute is null.
     * @param aIsSet     [OUT] true if <aProperty aAttribute=aValue> effects aNode.
     * @param outValue   [OUT] the value of the attribute, if aIsSet is true
-    *
-    * The nsIContent variant returns aIsSet instead of using an out parameter.
     */
-  bool IsTextPropertySetByContent(nsIContent*      aContent,
-                                  nsIAtom*         aProperty,
-                                  const nsAString* aAttribute,
-                                  const nsAString* aValue,
-                                  nsAString*       outValue = nsnull);
-
   void IsTextPropertySetByContent(nsIDOMNode*      aNode,
                                   nsIAtom*         aProperty,
                                   const nsAString* aAttribute,
@@ -679,6 +671,8 @@ protected:
 
   bool NodeIsProperty(nsIDOMNode *aNode);
   bool HasAttr(nsIDOMNode *aNode, const nsAString *aAttribute);
+  bool HasAttrVal(const nsIContent* aNode, const nsAString* aAttribute,
+                  const nsAString& aValue);
   bool IsAtFrontOfNode(nsIDOMNode *aNode, PRInt32 aOffset);
   bool IsAtEndOfNode(nsIDOMNode *aNode, PRInt32 aOffset);
   bool IsOnlyAttribute(nsIDOMNode *aElement, const nsAString *aAttribute);
@@ -941,11 +935,7 @@ friend class nsWSRunObject;
 friend class nsHTMLEditorEventListener;
 
 private:
-  // Helpers
-  bool IsSimpleModifiableNode(nsIContent* aContent,
-                              nsIAtom* aProperty,
-                              const nsAString* aAttribute,
-                              const nsAString* aValue);
+  // Helper
   nsresult SetInlinePropertyOnNodeImpl(nsIContent* aNode,
                                        nsIAtom* aProperty,
                                        const nsAString* aAttribute,

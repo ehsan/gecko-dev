@@ -1554,10 +1554,10 @@ TiltGL.isWebGLSupported = function TGL_isWebGLSupported()
     supported = gfxInfo.getFeatureStatus(angle) === gfxInfo.FEATURE_NO_INFO ||
                 gfxInfo.getFeatureStatus(opengl) === gfxInfo.FEATURE_NO_INFO;
   } catch(e) {
-    if (e && e.message) { TiltUtils.Output.error(e.message); }
-    return false;
+    TiltUtils.Output.error(e.message);
+  } finally {
+    return supported;
   }
-  return supported;
 };
 
 /**
@@ -1580,10 +1580,10 @@ TiltGL.create3DContext = function TGL_create3DContext(aCanvas, aFlags)
   try {
     context = aCanvas.getContext(WEBGL_CONTEXT_NAME, aFlags);
   } catch(e) {
-    if (e && e.message) { TiltUtils.Output.error(e.message); }
-    return null;
+    TiltUtils.Output.error(e.message);
+  } finally {
+    return context;
   }
-  return context;
 };
 
 /**

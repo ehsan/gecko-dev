@@ -110,28 +110,24 @@ nsXULMenuitemAccessible::NativeState()
     } // isSelected
   } // ROLE_COMBOBOX_OPTION
 
-  return state;
-}
-
-PRUint64
-nsXULMenuitemAccessible::NativeInteractiveState() const
-{
-  if (NativelyUnavailable()) {
-    // Note: keep in sinc with nsXULPopupManager::IsValidMenuItem() logic.
-    bool skipNavigatingDisabledMenuItem = true;
-    nsMenuFrame* menuFrame = do_QueryFrame(GetFrame());
-    if (!menuFrame->IsOnMenuBar()) {
-      skipNavigatingDisabledMenuItem = LookAndFeel::
-        GetInt(LookAndFeel::eIntID_SkipNavigatingDisabledMenuItem, 0) != 0;
+  // Set focusable and selectable for items that are available
+  // and whose metric setting does allow disabled items to be focused.
+  if (state & states::UNAVAILABLE) {
+    // Honour the LookAndFeel metric.
+    PRInt32 skipDisabledMenuItems =
+      LookAndFeel::GetInt(LookAndFeel::eIntID_SkipNavigatingDisabledMenuItem);
+    // We don't want the focusable and selectable states for combobox items,
+    // so exclude them here as well.
+    if (skipDisabledMenuItems || isComboboxOption) {
+      return state;
     }
-
-    if (skipNavigatingDisabledMenuItem)
-      return states::UNAVAILABLE;
-
-    return states::UNAVAILABLE | states::FOCUSABLE | states::SELECTABLE;
   }
 
-  return states::FOCUSABLE | states::SELECTABLE;
+  state |= (states::FOCUSABLE | states::SELECTABLE);
+  if (FocusMgr()->IsFocused(this))
+    state |= states::FOCUSED;
+
+  return state;
 }
 
 nsresult
@@ -558,6 +554,17 @@ nsXULMenubarAccessible::
   AccessibleWrap(aContent, aDoc)
 {
 }
+
+PRUint64
+nsXULMenubarAccessible::NativeState()
+{
+  PRUint64 state = Accessible::NativeState();
+
+  // Menu bar itself is not actually focusable
+  state &= ~states::FOCUSABLE;
+  return state;
+}
+
 
 nsresult
 nsXULMenubarAccessible::GetNameInternal(nsAString& aName)

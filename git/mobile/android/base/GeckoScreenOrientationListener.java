@@ -36,8 +36,6 @@ public class GeckoScreenOrientationListener
   static public final short eScreenOrientation_LandscapeSecondary = 8;
   static public final short eScreenOrientation_Landscape          = 12;
 
-  static private final short kDefaultScreenOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
-
   private short mOrientation;
   private OrientationEventListenerImpl mListener = null;
 
@@ -152,7 +150,6 @@ public class GeckoScreenOrientationListener
         break;
       default:
         Log.e(LOGTAG, "Unexpected value received! (" + aOrientation + ")");
-        return;
     }
 
     GeckoApp.mAppContext.setRequestedOrientation(orientation);
@@ -160,11 +157,7 @@ public class GeckoScreenOrientationListener
   }
 
   public void unlockScreenOrientation() {
-    if (GeckoApp.mAppContext.getRequestedOrientation() == kDefaultScreenOrientation) {
-      return;
-    }
-
-    GeckoApp.mAppContext.setRequestedOrientation(kDefaultScreenOrientation);
+    GeckoApp.mAppContext.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
     updateScreenOrientation();
   }
 }

@@ -85,9 +85,6 @@ span[id]:after {
  font-style: italic;
 }
 span:not(.error), a:not(.error) {
- unicode-bidi: embed;
-}
-span[id] {
  unicode-bidi: -moz-isolate;
 }
 .error, 

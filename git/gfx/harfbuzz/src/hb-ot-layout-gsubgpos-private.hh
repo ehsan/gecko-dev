@@ -1,6 +1,6 @@
 /*
  * Copyright © 2007,2008,2009,2010  Red Hat, Inc.
- * Copyright © 2010,2012  Google, Inc.
+ * Copyright © 2010  Google, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -33,60 +33,15 @@
 #include "hb-ot-layout-gdef-table.hh"
 
 
-
-/* unique ligature id */
-/* component number in the ligature (0 = base) */
-static inline void
-set_lig_props (hb_glyph_info_t &info, unsigned int lig_id, unsigned int lig_comp)
-{
-  info.lig_props() = (lig_id << 4) | (lig_comp & 0x0F);
-}
-static inline unsigned int
-get_lig_id (hb_glyph_info_t &info)
-{
-  return info.lig_props() >> 4;
-}
-static inline unsigned int
-get_lig_comp (hb_glyph_info_t &info)
-{
-  return info.lig_props() & 0x0F;
-}
+/* buffer var allocations */
+#define lig_id() var2.u8[2] /* unique ligature id */
+#define lig_comp() var2.u8[3] /* component number in the ligature (0 = base) */
 
 static inline uint8_t allocate_lig_id (hb_buffer_t *buffer) {
-  uint8_t lig_id = buffer->next_serial () & 0x0F;
-  if (unlikely (!lig_id))
-    lig_id = allocate_lig_id (buffer); /* in case of overflow */
+  uint8_t lig_id = buffer->next_serial ();
+  if (unlikely (!lig_id)) lig_id = buffer->next_serial (); /* in case of overflow */
   return lig_id;
 }
-
-
-
-#ifndef HB_DEBUG_CLOSURE
-#define HB_DEBUG_CLOSURE (HB_DEBUG+0)
-#endif
-
-#define TRACE_CLOSURE() \
-	hb_auto_trace_t<HB_DEBUG_CLOSURE> trace (&c->debug_depth, "CLOSURE", this, HB_FUNC, "");
-
-
-/* TODO Add TRACE_RETURN annotation for would_apply */
-
-
-struct hb_closure_context_t
-{
-  hb_face_t *face;
-  hb_set_t *glyphs;
-  unsigned int nesting_level_left;
-  unsigned int debug_depth;
-
-
-  hb_closure_context_t (hb_face_t *face_,
-			hb_set_t *glyphs_,
-		        unsigned int nesting_level_left_ = MAX_NESTING_LEVEL) :
-			  face (face_), glyphs (glyphs_),
-			  nesting_level_left (nesting_level_left_),
-			  debug_depth (0) {}
-};
 
 
 
@@ -95,34 +50,42 @@ struct hb_closure_context_t
 #endif
 
 #define TRACE_APPLY() \
-	hb_auto_trace_t<HB_DEBUG_APPLY> trace (&c->debug_depth, "APPLY", this, HB_FUNC, "idx %d codepoint %u", c->buffer->cur().codepoint);
+	hb_auto_trace_t<HB_DEBUG_APPLY> trace (&c->debug_depth, "APPLY", this, NULL, HB_FUNC);
 
 
 
 struct hb_apply_context_t
 {
+  unsigned int debug_depth;
   hb_font_t *font;
   hb_face_t *face;
   hb_buffer_t *buffer;
   hb_direction_t direction;
   hb_mask_t lookup_mask;
+  unsigned int context_length;
   unsigned int nesting_level_left;
   unsigned int lookup_props;
   unsigned int property; /* propety of first glyph */
-  unsigned int debug_depth;
 
 
   hb_apply_context_t (hb_font_t *font_,
 		      hb_face_t *face_,
 		      hb_buffer_t *buffer_,
-		      hb_mask_t lookup_mask_) :
+		      hb_mask_t lookup_mask_,
+		      const Lookup &l,
+		      unsigned int context_length_ = NO_CONTEXT,
+		      unsigned int nesting_level_left_ = MAX_NESTING_LEVEL) :
 			font (font_), face (face_), buffer (buffer_),
 			direction (buffer_->props.direction),
 			lookup_mask (lookup_mask_),
-			nesting_level_left (MAX_NESTING_LEVEL),
-			lookup_props (0), property (0), debug_depth (0) {}
+			context_length (context_length_),
+			nesting_level_left (nesting_level_left_),
+			lookup_props (l.get_props ()),
+			property (0) {}
 
-  void set_lookup (const Lookup &l) {
+  hb_apply_context_t (const hb_apply_context_t &c, const Lookup &l) {
+    *this = c;
+    nesting_level_left--;
     lookup_props = l.get_props ();
   }
 
@@ -130,15 +93,12 @@ struct hb_apply_context_t
   {
     inline mark_skipping_forward_iterator_t (hb_apply_context_t *c_,
 					     unsigned int start_index_,
-					     unsigned int num_items_,
-					     bool context_match = false)
+					     unsigned int num_items_)
     {
       c = c_;
       idx = start_index_;
       num_items = num_items_;
-      mask = context_match ? -1 : c->lookup_mask;
-      syllable = context_match ? 0 : c->buffer->cur().syllable ();
-      end = c->buffer->len;
+      end = MIN (c->buffer->len, c->buffer->idx + c->context_length);
     }
     inline bool has_no_chance (void) const
     {
@@ -155,7 +115,7 @@ struct hb_apply_context_t
 	idx++;
       } while (_hb_ot_layout_skip_mark (c->face, &c->buffer->info[idx], lookup_props, property_out));
       num_items--;
-      return (c->buffer->info[idx].mask & mask) && (!syllable || syllable == c->buffer->info[idx].syllable ());
+      return true;
     }
     inline bool next (unsigned int *property_out = NULL)
     {
@@ -166,8 +126,6 @@ struct hb_apply_context_t
     private:
     hb_apply_context_t *c;
     unsigned int num_items;
-    hb_mask_t mask;
-    uint8_t syllable;
     unsigned int end;
   };
 
@@ -175,15 +133,11 @@ struct hb_apply_context_t
   {
     inline mark_skipping_backward_iterator_t (hb_apply_context_t *c_,
 					      unsigned int start_index_,
-					      unsigned int num_items_,
-					      hb_mask_t mask_ = 0,
-					      bool match_syllable_ = true)
+					      unsigned int num_items_)
     {
       c = c_;
       idx = start_index_;
       num_items = num_items_;
-      mask = mask_ ? mask_ : c->lookup_mask;
-      syllable = match_syllable_ ? c->buffer->cur().syllable () : 0;
     }
     inline bool has_no_chance (void) const
     {
@@ -200,7 +154,7 @@ struct hb_apply_context_t
 	idx--;
       } while (_hb_ot_layout_skip_mark (c->face, &c->buffer->out_info[idx], lookup_props, property_out));
       num_items--;
-      return (c->buffer->out_info[idx].mask & mask) && (!syllable || syllable == c->buffer->out_info[idx].syllable ());
+      return true;
     }
     inline bool prev (unsigned int *property_out = NULL)
     {
@@ -211,92 +165,69 @@ struct hb_apply_context_t
     private:
     hb_apply_context_t *c;
     unsigned int num_items;
-    hb_mask_t mask;
-    uint8_t syllable;
   };
 
   inline bool should_mark_skip_current_glyph (void) const
   {
-    return _hb_ot_layout_skip_mark (face, &buffer->cur(), lookup_props, NULL);
+    return _hb_ot_layout_skip_mark (face, &buffer->info[buffer->idx], lookup_props, NULL);
   }
 
 
 
-  inline void replace_glyph (hb_codepoint_t glyph_index,
-			     unsigned int klass = 0) const
+  inline void replace_glyph (hb_codepoint_t glyph_index) const
   {
-    buffer->cur().props_cache() = klass; /*XXX if has gdef? */
+    clear_property ();
     buffer->replace_glyph (glyph_index);
   }
   inline void replace_glyphs_be16 (unsigned int num_in,
 				   unsigned int num_out,
-				   const uint16_t *glyph_data_be,
-				   unsigned int klass = 0) const
+				   const uint16_t *glyph_data_be) const
   {
-    buffer->cur().props_cache() = klass; /* XXX if has gdef? */
+    clear_property ();
     buffer->replace_glyphs_be16 (num_in, num_out, glyph_data_be);
+  }
+
+  inline void guess_glyph_class (unsigned int klass)
+  {
+    /* XXX if ! has gdef */
+    buffer->info[buffer->idx].props_cache() = klass;
+  }
+
+  private:
+  inline void clear_property (void) const
+  {
+    /* XXX if has gdef */
+    buffer->info[buffer->idx].props_cache() = 0;
   }
 };
 
 
 
-typedef bool (*intersects_func_t) (hb_set_t *glyphs, const USHORT &value, const void *data);
 typedef bool (*match_func_t) (hb_codepoint_t glyph_id, const USHORT &value, const void *data);
-typedef void (*closure_lookup_func_t) (hb_closure_context_t *c, unsigned int lookup_index);
 typedef bool (*apply_lookup_func_t) (hb_apply_context_t *c, unsigned int lookup_index);
 
-struct ContextClosureFuncs
-{
-  intersects_func_t intersects;
-  closure_lookup_func_t closure;
-};
-struct ContextApplyFuncs
+struct ContextFuncs
 {
   match_func_t match;
   apply_lookup_func_t apply;
 };
-
-static inline bool intersects_glyph (hb_set_t *glyphs, const USHORT &value, const void *data HB_UNUSED)
-{
-  return glyphs->has (value);
-}
-static inline bool intersects_class (hb_set_t *glyphs, const USHORT &value, const void *data)
-{
-  const ClassDef &class_def = *reinterpret_cast<const ClassDef *>(data);
-  return class_def.intersects_class (glyphs, value);
-}
-static inline bool intersects_coverage (hb_set_t *glyphs, const USHORT &value, const void *data)
-{
-  const OffsetTo<Coverage> &coverage = (const OffsetTo<Coverage>&)value;
-  return (data+coverage).intersects (glyphs);
-}
-
-static inline bool intersects_array (hb_closure_context_t *c,
-				     unsigned int count,
-				     const USHORT values[],
-				     intersects_func_t intersects_func,
-				     const void *intersects_data)
-{
-  for (unsigned int i = 0; i < count; i++)
-    if (likely (!intersects_func (c->glyphs, values[i], intersects_data)))
-      return false;
-  return true;
-}
 
 
 static inline bool match_glyph (hb_codepoint_t glyph_id, const USHORT &value, const void *data HB_UNUSED)
 {
   return glyph_id == value;
 }
+
 static inline bool match_class (hb_codepoint_t glyph_id, const USHORT &value, const void *data)
 {
   const ClassDef &class_def = *reinterpret_cast<const ClassDef *>(data);
   return class_def.get_class (glyph_id) == value;
 }
+
 static inline bool match_coverage (hb_codepoint_t glyph_id, const USHORT &value, const void *data)
 {
   const OffsetTo<Coverage> &coverage = (const OffsetTo<Coverage>&)value;
-  return (data+coverage).get_coverage (glyph_id) != NOT_COVERED;
+  return (data+coverage) (glyph_id) != NOT_COVERED;
 }
 
 
@@ -305,7 +236,7 @@ static inline bool match_input (hb_apply_context_t *c,
 				const USHORT input[], /* Array of input values--start with second glyph */
 				match_func_t match_func,
 				const void *match_data,
-				unsigned int *end_offset = NULL)
+				unsigned int *context_length_out)
 {
   hb_apply_context_t::mark_skipping_forward_iterator_t skippy_iter (c, c->buffer->idx, count - 1);
   if (skippy_iter.has_no_chance ())
@@ -320,8 +251,7 @@ static inline bool match_input (hb_apply_context_t *c,
       return false;
   }
 
-  if (end_offset)
-    *end_offset = skippy_iter.idx - c->buffer->idx + 1;
+  *context_length_out = skippy_iter.idx - c->buffer->idx + 1;
 
   return true;
 }
@@ -332,7 +262,7 @@ static inline bool match_backtrack (hb_apply_context_t *c,
 				    match_func_t match_func,
 				    const void *match_data)
 {
-  hb_apply_context_t::mark_skipping_backward_iterator_t skippy_iter (c, c->buffer->backtrack_len (), count, true);
+  hb_apply_context_t::mark_skipping_backward_iterator_t skippy_iter (c, c->buffer->backtrack_len (), count);
   if (skippy_iter.has_no_chance ())
     return false;
 
@@ -355,7 +285,7 @@ static inline bool match_lookahead (hb_apply_context_t *c,
 				    const void *match_data,
 				    unsigned int offset)
 {
-  hb_apply_context_t::mark_skipping_forward_iterator_t skippy_iter (c, c->buffer->idx + offset - 1, count, true);
+  hb_apply_context_t::mark_skipping_forward_iterator_t skippy_iter (c, c->buffer->idx + offset - 1, count);
   if (skippy_iter.has_no_chance ())
     return false;
 
@@ -377,7 +307,7 @@ struct LookupRecord
 {
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    return TRACE_RETURN (c->check_struct (this));
+    return c->check_struct (this);
   }
 
   USHORT	sequenceIndex;		/* Index into current glyph
@@ -389,14 +319,6 @@ struct LookupRecord
 };
 
 
-static inline void closure_lookup (hb_closure_context_t *c,
-				   unsigned int lookupCount,
-				   const LookupRecord lookupRecord[], /* Array of LookupRecords--in design order */
-				   closure_lookup_func_t closure_func)
-{
-  for (unsigned int i = 0; i < lookupCount; i++)
-    closure_func (c, lookupRecord->lookupListIndex);
-}
 
 static inline bool apply_lookup (hb_apply_context_t *c,
 				 unsigned int count, /* Including the first glyph */
@@ -404,7 +326,7 @@ static inline bool apply_lookup (hb_apply_context_t *c,
 				 const LookupRecord lookupRecord[], /* Array of LookupRecords--in design order */
 				 apply_lookup_func_t apply_func)
 {
-  unsigned int end = c->buffer->len;
+  unsigned int end = MIN (c->buffer->len, c->buffer->idx + c->context_length);
   if (unlikely (count == 0 || c->buffer->idx + count > end))
     return false;
 
@@ -460,45 +382,25 @@ static inline bool apply_lookup (hb_apply_context_t *c,
 
 /* Contextual lookups */
 
-struct ContextClosureLookupContext
+struct ContextLookupContext
 {
-  ContextClosureFuncs funcs;
-  const void *intersects_data;
-};
-
-struct ContextApplyLookupContext
-{
-  ContextApplyFuncs funcs;
+  ContextFuncs funcs;
   const void *match_data;
 };
 
-static inline void context_closure_lookup (hb_closure_context_t *c,
-					   unsigned int inputCount, /* Including the first glyph (not matched) */
-					   const USHORT input[], /* Array of input values--start with second glyph */
-					   unsigned int lookupCount,
-					   const LookupRecord lookupRecord[],
-					   ContextClosureLookupContext &lookup_context)
+static inline bool context_lookup (hb_apply_context_t *c,
+				   unsigned int inputCount, /* Including the first glyph (not matched) */
+				   const USHORT input[], /* Array of input values--start with second glyph */
+				   unsigned int lookupCount,
+				   const LookupRecord lookupRecord[],
+				   ContextLookupContext &lookup_context)
 {
-  if (intersects_array (c,
-			inputCount ? inputCount - 1 : 0, input,
-			lookup_context.funcs.intersects, lookup_context.intersects_data))
-    closure_lookup (c,
-		    lookupCount, lookupRecord,
-		    lookup_context.funcs.closure);
-}
-
-
-static inline bool context_apply_lookup (hb_apply_context_t *c,
-					 unsigned int inputCount, /* Including the first glyph (not matched) */
-					 const USHORT input[], /* Array of input values--start with second glyph */
-					 unsigned int lookupCount,
-					 const LookupRecord lookupRecord[],
-					 ContextApplyLookupContext &lookup_context)
-{
+  hb_apply_context_t new_context = *c;
   return match_input (c,
 		      inputCount, input,
-		      lookup_context.funcs.match, lookup_context.match_data)
-      && apply_lookup (c,
+		      lookup_context.funcs.match, lookup_context.match_data,
+		      &new_context.context_length)
+      && apply_lookup (&new_context,
 		       inputCount,
 		       lookupCount, lookupRecord,
 		       lookup_context.funcs.apply);
@@ -509,22 +411,14 @@ struct Rule
   friend struct RuleSet;
 
   private:
-
-  inline void closure (hb_closure_context_t *c, ContextClosureLookupContext &lookup_context) const
-  {
-    TRACE_CLOSURE ();
-    const LookupRecord *lookupRecord = &StructAtOffset<LookupRecord> (input, input[0].static_size * (inputCount ? inputCount - 1 : 0));
-    context_closure_lookup (c,
-			    inputCount, input,
-			    lookupCount, lookupRecord,
-			    lookup_context);
-  }
-
-  inline bool apply (hb_apply_context_t *c, ContextApplyLookupContext &lookup_context) const
+  inline bool apply (hb_apply_context_t *c, ContextLookupContext &lookup_context) const
   {
     TRACE_APPLY ();
     const LookupRecord *lookupRecord = &StructAtOffset<LookupRecord> (input, input[0].static_size * (inputCount ? inputCount - 1 : 0));
-    return TRACE_RETURN (context_apply_lookup (c, inputCount, input, lookupCount, lookupRecord, lookup_context));
+    return context_lookup (c,
+			   inputCount, input,
+			   lookupCount, lookupRecord,
+			   lookup_context);
   }
 
   public:
@@ -533,13 +427,13 @@ struct Rule
     return inputCount.sanitize (c)
 	&& lookupCount.sanitize (c)
 	&& c->check_range (input,
-			   input[0].static_size * inputCount
-			   + lookupRecordX[0].static_size * lookupCount);
+				 input[0].static_size * inputCount
+				 + lookupRecordX[0].static_size * lookupCount);
   }
 
   private:
   USHORT	inputCount;		/* Total number of glyphs in input
-					 * glyph sequence--includes the first
+					 * glyph sequence--includes the  first
 					 * glyph */
   USHORT	lookupCount;		/* Number of LookupRecords */
   USHORT	input[VAR];		/* Array of match inputs--start with
@@ -552,29 +446,22 @@ struct Rule
 
 struct RuleSet
 {
-  inline void closure (hb_closure_context_t *c, ContextClosureLookupContext &lookup_context) const
-  {
-    TRACE_CLOSURE ();
-    unsigned int num_rules = rule.len;
-    for (unsigned int i = 0; i < num_rules; i++)
-      (this+rule[i]).closure (c, lookup_context);
-  }
-
-  inline bool apply (hb_apply_context_t *c, ContextApplyLookupContext &lookup_context) const
+  inline bool apply (hb_apply_context_t *c, ContextLookupContext &lookup_context) const
   {
     TRACE_APPLY ();
     unsigned int num_rules = rule.len;
     for (unsigned int i = 0; i < num_rules; i++)
     {
       if ((this+rule[i]).apply (c, lookup_context))
-        return TRACE_RETURN (true);
+        return true;
     }
-    return TRACE_RETURN (false);
+
+    return false;
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    return TRACE_RETURN (rule.sanitize (c, this));
+    return rule.sanitize (c, this);
   }
 
   private:
@@ -591,44 +478,25 @@ struct ContextFormat1
   friend struct Context;
 
   private:
-
-  inline void closure (hb_closure_context_t *c, closure_lookup_func_t closure_func) const
-  {
-    TRACE_CLOSURE ();
-
-    const Coverage &cov = (this+coverage);
-
-    struct ContextClosureLookupContext lookup_context = {
-      {intersects_glyph, closure_func},
-      NULL
-    };
-
-    unsigned int count = ruleSet.len;
-    for (unsigned int i = 0; i < count; i++)
-      if (cov.intersects_coverage (c->glyphs, i)) {
-	const RuleSet &rule_set = this+ruleSet[i];
-	rule_set.closure (c, lookup_context);
-      }
-  }
-
   inline bool apply (hb_apply_context_t *c, apply_lookup_func_t apply_func) const
   {
     TRACE_APPLY ();
-    unsigned int index = (this+coverage) (c->buffer->cur().codepoint);
+    unsigned int index = (this+coverage) (c->buffer->info[c->buffer->idx].codepoint);
     if (likely (index == NOT_COVERED))
-      return TRACE_RETURN (false);
+      return false;
 
     const RuleSet &rule_set = this+ruleSet[index];
-    struct ContextApplyLookupContext lookup_context = {
+    struct ContextLookupContext lookup_context = {
       {match_glyph, apply_func},
       NULL
     };
-    return TRACE_RETURN (rule_set.apply (c, lookup_context));
+    return rule_set.apply (c, lookup_context);
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    return TRACE_RETURN (coverage.sanitize (c, this) && ruleSet.sanitize (c, this));
+    return coverage.sanitize (c, this)
+	&& ruleSet.sanitize (c, this);
   }
 
   private:
@@ -649,47 +517,28 @@ struct ContextFormat2
   friend struct Context;
 
   private:
-
-  inline void closure (hb_closure_context_t *c, closure_lookup_func_t closure_func) const
-  {
-    TRACE_CLOSURE ();
-    if (!(this+coverage).intersects (c->glyphs))
-      return;
-
-    const ClassDef &class_def = this+classDef;
-
-    struct ContextClosureLookupContext lookup_context = {
-      {intersects_class, closure_func},
-      NULL
-    };
-
-    unsigned int count = ruleSet.len;
-    for (unsigned int i = 0; i < count; i++)
-      if (class_def.intersects_class (c->glyphs, i)) {
-	const RuleSet &rule_set = this+ruleSet[i];
-	rule_set.closure (c, lookup_context);
-      }
-  }
-
   inline bool apply (hb_apply_context_t *c, apply_lookup_func_t apply_func) const
   {
     TRACE_APPLY ();
-    unsigned int index = (this+coverage) (c->buffer->cur().codepoint);
-    if (likely (index == NOT_COVERED)) return TRACE_RETURN (false);
+    unsigned int index = (this+coverage) (c->buffer->info[c->buffer->idx].codepoint);
+    if (likely (index == NOT_COVERED))
+      return false;
 
     const ClassDef &class_def = this+classDef;
-    index = class_def (c->buffer->cur().codepoint);
+    index = class_def (c->buffer->info[c->buffer->idx].codepoint);
     const RuleSet &rule_set = this+ruleSet[index];
-    struct ContextApplyLookupContext lookup_context = {
+    struct ContextLookupContext lookup_context = {
       {match_class, apply_func},
       &class_def
     };
-    return TRACE_RETURN (rule_set.apply (c, lookup_context));
+    return rule_set.apply (c, lookup_context);
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    return TRACE_RETURN (coverage.sanitize (c, this) && classDef.sanitize (c, this) && ruleSet.sanitize (c, this));
+    return coverage.sanitize (c, this)
+        && classDef.sanitize (c, this)
+	&& ruleSet.sanitize (c, this);
   }
 
   private:
@@ -713,47 +562,33 @@ struct ContextFormat3
   friend struct Context;
 
   private:
-
-  inline void closure (hb_closure_context_t *c, closure_lookup_func_t closure_func) const
-  {
-    TRACE_CLOSURE ();
-    if (!(this+coverage[0]).intersects (c->glyphs))
-      return;
-
-    const LookupRecord *lookupRecord = &StructAtOffset<LookupRecord> (coverage, coverage[0].static_size * glyphCount);
-    struct ContextClosureLookupContext lookup_context = {
-      {intersects_coverage, closure_func},
-      this
-    };
-    context_closure_lookup (c,
-			    glyphCount, (const USHORT *) (coverage + 1),
-			    lookupCount, lookupRecord,
-			    lookup_context);
-  }
-
   inline bool apply (hb_apply_context_t *c, apply_lookup_func_t apply_func) const
   {
     TRACE_APPLY ();
-    unsigned int index = (this+coverage[0]) (c->buffer->cur().codepoint);
-    if (likely (index == NOT_COVERED)) return TRACE_RETURN (false);
+    unsigned int index = (this+coverage[0]) (c->buffer->info[c->buffer->idx].codepoint);
+    if (likely (index == NOT_COVERED))
+      return false;
 
     const LookupRecord *lookupRecord = &StructAtOffset<LookupRecord> (coverage, coverage[0].static_size * glyphCount);
-    struct ContextApplyLookupContext lookup_context = {
+    struct ContextLookupContext lookup_context = {
       {match_coverage, apply_func},
       this
     };
-    return TRACE_RETURN (context_apply_lookup (c, glyphCount, (const USHORT *) (coverage + 1), lookupCount, lookupRecord, lookup_context));
+    return context_lookup (c,
+			   glyphCount, (const USHORT *) (coverage + 1),
+			   lookupCount, lookupRecord,
+			   lookup_context);
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    if (!c->check_struct (this)) return TRACE_RETURN (false);
+    if (!c->check_struct (this)) return false;
     unsigned int count = glyphCount;
-    if (!c->check_array (coverage, coverage[0].static_size, count)) return TRACE_RETURN (false);
+    if (!c->check_array (coverage, coverage[0].static_size, count)) return false;
     for (unsigned int i = 0; i < count; i++)
-      if (!coverage[i].sanitize (c, this)) return TRACE_RETURN (false);
+      if (!coverage[i].sanitize (c, this)) return false;
     LookupRecord *lookupRecord = &StructAtOffset<LookupRecord> (coverage, coverage[0].static_size * count);
-    return TRACE_RETURN (c->check_array (lookupRecord, lookupRecord[0].static_size, lookupCount));
+    return c->check_array (lookupRecord, lookupRecord[0].static_size, lookupCount);
   }
 
   private:
@@ -773,37 +608,25 @@ struct ContextFormat3
 struct Context
 {
   protected:
-
-  inline void closure (hb_closure_context_t *c, closure_lookup_func_t closure_func) const
-  {
-    TRACE_CLOSURE ();
-    switch (u.format) {
-    case 1: u.format1.closure (c, closure_func); break;
-    case 2: u.format2.closure (c, closure_func); break;
-    case 3: u.format3.closure (c, closure_func); break;
-    default:                                     break;
-    }
-  }
-
   inline bool apply (hb_apply_context_t *c, apply_lookup_func_t apply_func) const
   {
     TRACE_APPLY ();
     switch (u.format) {
-    case 1: return TRACE_RETURN (u.format1.apply (c, apply_func));
-    case 2: return TRACE_RETURN (u.format2.apply (c, apply_func));
-    case 3: return TRACE_RETURN (u.format3.apply (c, apply_func));
-    default:return TRACE_RETURN (false);
+    case 1: return u.format1.apply (c, apply_func);
+    case 2: return u.format2.apply (c, apply_func);
+    case 3: return u.format3.apply (c, apply_func);
+    default:return false;
     }
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    if (!u.format.sanitize (c)) return TRACE_RETURN (false);
+    if (!u.format.sanitize (c)) return false;
     switch (u.format) {
-    case 1: return TRACE_RETURN (u.format1.sanitize (c));
-    case 2: return TRACE_RETURN (u.format2.sanitize (c));
-    case 3: return TRACE_RETURN (u.format3.sanitize (c));
-    default:return TRACE_RETURN (true);
+    case 1: return u.format1.sanitize (c);
+    case 2: return u.format2.sanitize (c);
+    case 3: return u.format3.sanitize (c);
+    default:return true;
     }
   }
 
@@ -819,67 +642,42 @@ struct Context
 
 /* Chaining Contextual lookups */
 
-struct ChainContextClosureLookupContext
+struct ChainContextLookupContext
 {
-  ContextClosureFuncs funcs;
-  const void *intersects_data[3];
-};
-
-struct ChainContextApplyLookupContext
-{
-  ContextApplyFuncs funcs;
+  ContextFuncs funcs;
   const void *match_data[3];
 };
 
-static inline void chain_context_closure_lookup (hb_closure_context_t *c,
-						 unsigned int backtrackCount,
-						 const USHORT backtrack[],
-						 unsigned int inputCount, /* Including the first glyph (not matched) */
-						 const USHORT input[], /* Array of input values--start with second glyph */
-						 unsigned int lookaheadCount,
-						 const USHORT lookahead[],
-						 unsigned int lookupCount,
-						 const LookupRecord lookupRecord[],
-						 ChainContextClosureLookupContext &lookup_context)
+static inline bool chain_context_lookup (hb_apply_context_t *c,
+					 unsigned int backtrackCount,
+					 const USHORT backtrack[],
+					 unsigned int inputCount, /* Including the first glyph (not matched) */
+					 const USHORT input[], /* Array of input values--start with second glyph */
+					 unsigned int lookaheadCount,
+					 const USHORT lookahead[],
+					 unsigned int lookupCount,
+					 const LookupRecord lookupRecord[],
+					 ChainContextLookupContext &lookup_context)
 {
-  if (intersects_array (c,
-			backtrackCount, backtrack,
-			lookup_context.funcs.intersects, lookup_context.intersects_data[0])
-   && intersects_array (c,
-			inputCount ? inputCount - 1 : 0, input,
-			lookup_context.funcs.intersects, lookup_context.intersects_data[1])
-  && intersects_array (c,
-		       lookaheadCount, lookahead,
-		       lookup_context.funcs.intersects, lookup_context.intersects_data[2]))
-    closure_lookup (c,
-		    lookupCount, lookupRecord,
-		    lookup_context.funcs.closure);
-}
+  /* First guess */
+  if (unlikely (c->buffer->backtrack_len () < backtrackCount ||
+		c->buffer->idx + inputCount + lookaheadCount > c->buffer->len ||
+		inputCount + lookaheadCount > c->context_length))
+    return false;
 
-static inline bool chain_context_apply_lookup (hb_apply_context_t *c,
-					       unsigned int backtrackCount,
-					       const USHORT backtrack[],
-					       unsigned int inputCount, /* Including the first glyph (not matched) */
-					       const USHORT input[], /* Array of input values--start with second glyph */
-					       unsigned int lookaheadCount,
-					       const USHORT lookahead[],
-					       unsigned int lookupCount,
-					       const LookupRecord lookupRecord[],
-					       ChainContextApplyLookupContext &lookup_context)
-{
-  unsigned int lookahead_offset;
+  hb_apply_context_t new_context = *c;
   return match_backtrack (c,
 			  backtrackCount, backtrack,
 			  lookup_context.funcs.match, lookup_context.match_data[0])
       && match_input (c,
 		      inputCount, input,
 		      lookup_context.funcs.match, lookup_context.match_data[1],
-		      &lookahead_offset)
+		      &new_context.context_length)
       && match_lookahead (c,
 			  lookaheadCount, lookahead,
 			  lookup_context.funcs.match, lookup_context.match_data[2],
-			  lookahead_offset)
-      && apply_lookup (c,
+			  new_context.context_length)
+      && apply_lookup (&new_context,
 		       inputCount,
 		       lookupCount, lookupRecord,
 		       lookup_context.funcs.apply);
@@ -890,44 +688,30 @@ struct ChainRule
   friend struct ChainRuleSet;
 
   private:
-
-  inline void closure (hb_closure_context_t *c, ChainContextClosureLookupContext &lookup_context) const
-  {
-    TRACE_CLOSURE ();
-    const HeadlessArrayOf<USHORT> &input = StructAfter<HeadlessArrayOf<USHORT> > (backtrack);
-    const ArrayOf<USHORT> &lookahead = StructAfter<ArrayOf<USHORT> > (input);
-    const ArrayOf<LookupRecord> &lookup = StructAfter<ArrayOf<LookupRecord> > (lookahead);
-    chain_context_closure_lookup (c,
-				  backtrack.len, backtrack.array,
-				  input.len, input.array,
-				  lookahead.len, lookahead.array,
-				  lookup.len, lookup.array,
-				  lookup_context);
-  }
-
-  inline bool apply (hb_apply_context_t *c, ChainContextApplyLookupContext &lookup_context) const
+  inline bool apply (hb_apply_context_t *c, ChainContextLookupContext &lookup_context) const
   {
     TRACE_APPLY ();
     const HeadlessArrayOf<USHORT> &input = StructAfter<HeadlessArrayOf<USHORT> > (backtrack);
     const ArrayOf<USHORT> &lookahead = StructAfter<ArrayOf<USHORT> > (input);
     const ArrayOf<LookupRecord> &lookup = StructAfter<ArrayOf<LookupRecord> > (lookahead);
-    return TRACE_RETURN (chain_context_apply_lookup (c,
-						     backtrack.len, backtrack.array,
-						     input.len, input.array,
-						     lookahead.len, lookahead.array, lookup.len,
-						     lookup.array, lookup_context));
+    return chain_context_lookup (c,
+				 backtrack.len, backtrack.array,
+				 input.len, input.array,
+				 lookahead.len, lookahead.array,
+				 lookup.len, lookup.array,
+				 lookup_context);
   }
 
   public:
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    if (!backtrack.sanitize (c)) return TRACE_RETURN (false);
+    if (!backtrack.sanitize (c)) return false;
     HeadlessArrayOf<USHORT> &input = StructAfter<HeadlessArrayOf<USHORT> > (backtrack);
-    if (!input.sanitize (c)) return TRACE_RETURN (false);
+    if (!input.sanitize (c)) return false;
     ArrayOf<USHORT> &lookahead = StructAfter<ArrayOf<USHORT> > (input);
-    if (!lookahead.sanitize (c)) return TRACE_RETURN (false);
+    if (!lookahead.sanitize (c)) return false;
     ArrayOf<LookupRecord> &lookup = StructAfter<ArrayOf<LookupRecord> > (lookahead);
-    return TRACE_RETURN (lookup.sanitize (c));
+    return lookup.sanitize (c);
   }
 
   private:
@@ -950,28 +734,22 @@ struct ChainRule
 
 struct ChainRuleSet
 {
-  inline void closure (hb_closure_context_t *c, ChainContextClosureLookupContext &lookup_context) const
-  {
-    TRACE_CLOSURE ();
-    unsigned int num_rules = rule.len;
-    for (unsigned int i = 0; i < num_rules; i++)
-      (this+rule[i]).closure (c, lookup_context);
-  }
-
-  inline bool apply (hb_apply_context_t *c, ChainContextApplyLookupContext &lookup_context) const
+  inline bool apply (hb_apply_context_t *c, ChainContextLookupContext &lookup_context) const
   {
     TRACE_APPLY ();
     unsigned int num_rules = rule.len;
     for (unsigned int i = 0; i < num_rules; i++)
+    {
       if ((this+rule[i]).apply (c, lookup_context))
-        return TRACE_RETURN (true);
+        return true;
+    }
 
-    return TRACE_RETURN (false);
+    return false;
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    return TRACE_RETURN (rule.sanitize (c, this));
+    return rule.sanitize (c, this);
   }
 
   private:
@@ -987,42 +765,25 @@ struct ChainContextFormat1
   friend struct ChainContext;
 
   private:
-
-  inline void closure (hb_closure_context_t *c, closure_lookup_func_t closure_func) const
-  {
-    TRACE_CLOSURE ();
-    const Coverage &cov = (this+coverage);
-
-    struct ChainContextClosureLookupContext lookup_context = {
-      {intersects_glyph, closure_func},
-      {NULL, NULL, NULL}
-    };
-
-    unsigned int count = ruleSet.len;
-    for (unsigned int i = 0; i < count; i++)
-      if (cov.intersects_coverage (c->glyphs, i)) {
-	const ChainRuleSet &rule_set = this+ruleSet[i];
-	rule_set.closure (c, lookup_context);
-      }
-  }
-
   inline bool apply (hb_apply_context_t *c, apply_lookup_func_t apply_func) const
   {
     TRACE_APPLY ();
-    unsigned int index = (this+coverage) (c->buffer->cur().codepoint);
-    if (likely (index == NOT_COVERED)) return TRACE_RETURN (false);
+    unsigned int index = (this+coverage) (c->buffer->info[c->buffer->idx].codepoint);
+    if (likely (index == NOT_COVERED))
+      return false;
 
     const ChainRuleSet &rule_set = this+ruleSet[index];
-    struct ChainContextApplyLookupContext lookup_context = {
+    struct ChainContextLookupContext lookup_context = {
       {match_glyph, apply_func},
       {NULL, NULL, NULL}
     };
-    return TRACE_RETURN (rule_set.apply (c, lookup_context));
+    return rule_set.apply (c, lookup_context);
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    return TRACE_RETURN (coverage.sanitize (c, this) && ruleSet.sanitize (c, this));
+    return coverage.sanitize (c, this)
+	&& ruleSet.sanitize (c, this);
   }
 
   private:
@@ -1042,58 +803,35 @@ struct ChainContextFormat2
   friend struct ChainContext;
 
   private:
-
-  inline void closure (hb_closure_context_t *c, closure_lookup_func_t closure_func) const
-  {
-    TRACE_CLOSURE ();
-    if (!(this+coverage).intersects (c->glyphs))
-      return;
-
-    const ClassDef &backtrack_class_def = this+backtrackClassDef;
-    const ClassDef &input_class_def = this+inputClassDef;
-    const ClassDef &lookahead_class_def = this+lookaheadClassDef;
-
-    struct ChainContextClosureLookupContext lookup_context = {
-      {intersects_class, closure_func},
-      {&backtrack_class_def,
-       &input_class_def,
-       &lookahead_class_def}
-    };
-
-    unsigned int count = ruleSet.len;
-    for (unsigned int i = 0; i < count; i++)
-      if (input_class_def.intersects_class (c->glyphs, i)) {
-	const ChainRuleSet &rule_set = this+ruleSet[i];
-	rule_set.closure (c, lookup_context);
-      }
-  }
-
   inline bool apply (hb_apply_context_t *c, apply_lookup_func_t apply_func) const
   {
     TRACE_APPLY ();
-    unsigned int index = (this+coverage) (c->buffer->cur().codepoint);
-    if (likely (index == NOT_COVERED)) return TRACE_RETURN (false);
+    unsigned int index = (this+coverage) (c->buffer->info[c->buffer->idx].codepoint);
+    if (likely (index == NOT_COVERED))
+      return false;
 
     const ClassDef &backtrack_class_def = this+backtrackClassDef;
     const ClassDef &input_class_def = this+inputClassDef;
     const ClassDef &lookahead_class_def = this+lookaheadClassDef;
 
-    index = input_class_def (c->buffer->cur().codepoint);
+    index = input_class_def (c->buffer->info[c->buffer->idx].codepoint);
     const ChainRuleSet &rule_set = this+ruleSet[index];
-    struct ChainContextApplyLookupContext lookup_context = {
+    struct ChainContextLookupContext lookup_context = {
       {match_class, apply_func},
       {&backtrack_class_def,
        &input_class_def,
        &lookahead_class_def}
     };
-    return TRACE_RETURN (rule_set.apply (c, lookup_context));
+    return rule_set.apply (c, lookup_context);
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    return TRACE_RETURN (coverage.sanitize (c, this) && backtrackClassDef.sanitize (c, this) &&
-			 inputClassDef.sanitize (c, this) && lookaheadClassDef.sanitize (c, this) &&
-			 ruleSet.sanitize (c, this));
+    return coverage.sanitize (c, this)
+	&& backtrackClassDef.sanitize (c, this)
+	&& inputClassDef.sanitize (c, this)
+	&& lookaheadClassDef.sanitize (c, this)
+	&& ruleSet.sanitize (c, this);
   }
 
   private:
@@ -1126,58 +864,38 @@ struct ChainContextFormat3
 
   private:
 
-  inline void closure (hb_closure_context_t *c, closure_lookup_func_t closure_func) const
-  {
-    TRACE_CLOSURE ();
-    const OffsetArrayOf<Coverage> &input = StructAfter<OffsetArrayOf<Coverage> > (backtrack);
-
-    if (!(this+input[0]).intersects (c->glyphs))
-      return;
-
-    const OffsetArrayOf<Coverage> &lookahead = StructAfter<OffsetArrayOf<Coverage> > (input);
-    const ArrayOf<LookupRecord> &lookup = StructAfter<ArrayOf<LookupRecord> > (lookahead);
-    struct ChainContextClosureLookupContext lookup_context = {
-      {intersects_coverage, closure_func},
-      {this, this, this}
-    };
-    chain_context_closure_lookup (c,
-				  backtrack.len, (const USHORT *) backtrack.array,
-				  input.len, (const USHORT *) input.array + 1,
-				  lookahead.len, (const USHORT *) lookahead.array,
-				  lookup.len, lookup.array,
-				  lookup_context);
-  }
-
   inline bool apply (hb_apply_context_t *c, apply_lookup_func_t apply_func) const
   {
     TRACE_APPLY ();
     const OffsetArrayOf<Coverage> &input = StructAfter<OffsetArrayOf<Coverage> > (backtrack);
 
-    unsigned int index = (this+input[0]) (c->buffer->cur().codepoint);
-    if (likely (index == NOT_COVERED)) return TRACE_RETURN (false);
+    unsigned int index = (this+input[0]) (c->buffer->info[c->buffer->idx].codepoint);
+    if (likely (index == NOT_COVERED))
+      return false;
 
     const OffsetArrayOf<Coverage> &lookahead = StructAfter<OffsetArrayOf<Coverage> > (input);
     const ArrayOf<LookupRecord> &lookup = StructAfter<ArrayOf<LookupRecord> > (lookahead);
-    struct ChainContextApplyLookupContext lookup_context = {
+    struct ChainContextLookupContext lookup_context = {
       {match_coverage, apply_func},
       {this, this, this}
     };
-    return TRACE_RETURN (chain_context_apply_lookup (c,
-						     backtrack.len, (const USHORT *) backtrack.array,
-						     input.len, (const USHORT *) input.array + 1,
-						     lookahead.len, (const USHORT *) lookahead.array,
-						     lookup.len, lookup.array, lookup_context));
+    return chain_context_lookup (c,
+				 backtrack.len, (const USHORT *) backtrack.array,
+				 input.len, (const USHORT *) input.array + 1,
+				 lookahead.len, (const USHORT *) lookahead.array,
+				 lookup.len, lookup.array,
+				 lookup_context);
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    if (!backtrack.sanitize (c, this)) return TRACE_RETURN (false);
+    if (!backtrack.sanitize (c, this)) return false;
     OffsetArrayOf<Coverage> &input = StructAfter<OffsetArrayOf<Coverage> > (backtrack);
-    if (!input.sanitize (c, this)) return TRACE_RETURN (false);
+    if (!input.sanitize (c, this)) return false;
     OffsetArrayOf<Coverage> &lookahead = StructAfter<OffsetArrayOf<Coverage> > (input);
-    if (!lookahead.sanitize (c, this)) return TRACE_RETURN (false);
+    if (!lookahead.sanitize (c, this)) return false;
     ArrayOf<LookupRecord> &lookup = StructAfter<ArrayOf<LookupRecord> > (lookahead);
-    return TRACE_RETURN (lookup.sanitize (c));
+    return lookup.sanitize (c);
   }
 
   private:
@@ -1204,37 +922,25 @@ struct ChainContextFormat3
 struct ChainContext
 {
   protected:
-
-  inline void closure (hb_closure_context_t *c, closure_lookup_func_t closure_func) const
-  {
-    TRACE_CLOSURE ();
-    switch (u.format) {
-    case 1: u.format1.closure (c, closure_func); break;
-    case 2: u.format2.closure (c, closure_func); break;
-    case 3: u.format3.closure (c, closure_func); break;
-    default:                                     break;
-    }
-  }
-
   inline bool apply (hb_apply_context_t *c, apply_lookup_func_t apply_func) const
   {
     TRACE_APPLY ();
     switch (u.format) {
-    case 1: return TRACE_RETURN (u.format1.apply (c, apply_func));
-    case 2: return TRACE_RETURN (u.format2.apply (c, apply_func));
-    case 3: return TRACE_RETURN (u.format3.apply (c, apply_func));
-    default:return TRACE_RETURN (false);
+    case 1: return u.format1.apply (c, apply_func);
+    case 2: return u.format2.apply (c, apply_func);
+    case 3: return u.format3.apply (c, apply_func);
+    default:return false;
     }
   }
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    if (!u.format.sanitize (c)) return TRACE_RETURN (false);
+    if (!u.format.sanitize (c)) return false;
     switch (u.format) {
-    case 1: return TRACE_RETURN (u.format1.sanitize (c));
-    case 2: return TRACE_RETURN (u.format2.sanitize (c));
-    case 3: return TRACE_RETURN (u.format3.sanitize (c));
-    default:return TRACE_RETURN (true);
+    case 1: return u.format1.sanitize (c);
+    case 2: return u.format2.sanitize (c);
+    case 3: return u.format3.sanitize (c);
+    default:return true;
     }
   }
 
@@ -1258,7 +964,7 @@ struct ExtensionFormat1
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    return TRACE_RETURN (c->check_struct (this));
+    return c->check_struct (this);
   }
 
   private:
@@ -1291,10 +997,10 @@ struct Extension
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    if (!u.format.sanitize (c)) return TRACE_RETURN (false);
+    if (!u.format.sanitize (c)) return false;
     switch (u.format) {
-    case 1: return TRACE_RETURN (u.format1.sanitize (c));
-    default:return TRACE_RETURN (true);
+    case 1: return u.format1.sanitize (c);
+    default:return true;
     }
   }
 
@@ -1348,10 +1054,10 @@ struct GSUBGPOS
 
   inline bool sanitize (hb_sanitize_context_t *c) {
     TRACE_SANITIZE ();
-    return TRACE_RETURN (version.sanitize (c) && likely (version.major == 1) &&
-			 scriptList.sanitize (c, this) &&
-			 featureList.sanitize (c, this) &&
-			 lookupList.sanitize (c, this));
+    return version.sanitize (c) && likely (version.major == 1)
+	&& scriptList.sanitize (c, this)
+	&& featureList.sanitize (c, this)
+	&& lookupList.sanitize (c, this);
   }
 
   protected:

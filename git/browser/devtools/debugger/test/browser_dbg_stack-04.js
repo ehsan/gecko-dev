@@ -49,7 +49,7 @@ function testEvalCallResume() {
         is(frames.querySelectorAll(".empty").length, 1,
            "Should have the empty list explanation.");
 
-        closeDebuggerAndFinish();
+        closeDebuggerAndFinish(gTab);
       }, true);
 
       gDebugger.DebuggerController.activeThread.resume();

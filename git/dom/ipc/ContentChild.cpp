@@ -89,6 +89,8 @@ using namespace mozilla::dom::sms;
 namespace mozilla {
 namespace dom {
 
+nsString* gIndexedDBPath = nsnull;
+
 class MemoryReportRequestChild : public PMemoryReportRequestChild
 {
 public:
@@ -210,6 +212,8 @@ ContentChild::ContentChild()
 
 ContentChild::~ContentChild()
 {
+    delete gIndexedDBPath;
+    gIndexedDBPath = nsnull;
 }
 
 bool
@@ -738,6 +742,17 @@ ContentChild::RecvActivateA11y()
         do_GetService("@mozilla.org/accessibilityService;1");
 #endif
     return true;
+}
+
+nsString&
+ContentChild::GetIndexedDBPath()
+{
+    if (!gIndexedDBPath) {
+        gIndexedDBPath = new nsString(); // cleaned up in the destructor
+        SendGetIndexedDBDirectory(gIndexedDBPath);
+    }
+
+    return *gIndexedDBPath;
 }
 
 bool

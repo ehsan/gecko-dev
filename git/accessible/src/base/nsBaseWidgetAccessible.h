@@ -7,7 +7,7 @@
 #define _nsBaseWidgetAccessible_H_
 
 #include "AccessibleWrap.h"
-#include "HyperTextAccessibleWrap.h"
+#include "nsHyperTextAccessibleWrap.h"
 #include "nsIContent.h"
 
 /**

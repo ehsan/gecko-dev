@@ -44,7 +44,7 @@ using namespace mozilla::a11y;
 
 nsHTMLTableCellAccessible::
   nsHTMLTableCellAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  HyperTextAccessibleWrap(aContent, aDoc)
+  nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
 
@@ -52,7 +52,7 @@ nsHTMLTableCellAccessible::
 // nsHTMLTableCellAccessible: nsISupports implementation
 
 NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLTableCellAccessible,
-                             HyperTextAccessible,
+                             nsHyperTextAccessible,
                              nsIAccessibleTableCell)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,21 +67,18 @@ nsHTMLTableCellAccessible::NativeRole()
 PRUint64
 nsHTMLTableCellAccessible::NativeState()
 {
-  PRUint64 state = HyperTextAccessibleWrap::NativeState();
+  PRUint64 state = nsHyperTextAccessibleWrap::NativeState();
 
   nsIFrame *frame = mContent->GetPrimaryFrame();
   NS_ASSERTION(frame, "No frame for valid cell accessible!");
 
-  if (frame && frame->IsSelected())
-    state |= states::SELECTED;
+  if (frame) {
+    state |= states::SELECTABLE;
+    if (frame->IsSelected())
+      state |= states::SELECTED;
+  }
 
   return state;
-}
-
-PRUint64
-nsHTMLTableCellAccessible::NativeInteractiveState() const
-{
-  return HyperTextAccessibleWrap::NativeInteractiveState() | states::SELECTABLE;
 }
 
 nsresult
@@ -90,7 +87,7 @@ nsHTMLTableCellAccessible::GetAttributesInternal(nsIPersistentProperties *aAttri
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsresult rv = HyperTextAccessibleWrap::GetAttributesInternal(aAttributes);
+  nsresult rv = nsHyperTextAccessibleWrap::GetAttributesInternal(aAttributes);
   NS_ENSURE_SUCCESS(rv, rv);
 
   // table-cell-index attribute
@@ -1515,7 +1512,7 @@ nsHTMLTableAccessible::IsProbablyLayoutTable()
 Relation
 nsHTMLCaptionAccessible::RelationByType(PRUint32 aType)
 {
-  Relation rel = HyperTextAccessible::RelationByType(aType);
+  Relation rel = nsHyperTextAccessible::RelationByType(aType);
   if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR)
     rel.AppendTarget(Parent());
 

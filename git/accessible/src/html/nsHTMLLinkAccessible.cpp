@@ -22,12 +22,12 @@ using namespace mozilla::a11y;
 
 nsHTMLLinkAccessible::
   nsHTMLLinkAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  HyperTextAccessibleWrap(aContent, aDoc)
+  nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
 
 // Expose nsIAccessibleHyperLink unconditionally
-NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLLinkAccessible, HyperTextAccessibleWrap,
+NS_IMPL_ISUPPORTS_INHERITED1(nsHTMLLinkAccessible, nsHyperTextAccessibleWrap,
                              nsIAccessibleHyperLink)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,7 +42,18 @@ nsHTMLLinkAccessible::NativeRole()
 PRUint64
 nsHTMLLinkAccessible::NativeState()
 {
-  return HyperTextAccessibleWrap::NativeState() & ~states::READONLY;
+  PRUint64 states = nsHyperTextAccessibleWrap::NativeState();
+
+  states  &= ~states::READONLY;
+
+  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::name)) {
+    // This is how we indicate it is a named anchor
+    // In other words, this anchor can be selected as a location :)
+    // There is no other better state to use to indicate this.
+    states |= states::SELECTABLE;
+  }
+
+  return states;
 }
 
 PRUint64
@@ -61,26 +72,12 @@ nsHTMLLinkAccessible::NativeLinkState() const
   return nsCoreUtils::HasClickListener(mContent) ? states::LINKED : 0;
 }
 
-PRUint64
-nsHTMLLinkAccessible::NativeInteractiveState() const
-{
-  PRUint64 state = HyperTextAccessibleWrap::NativeInteractiveState();
-
-  // This is how we indicate it is a named anchor. In other words, this anchor
-  // can be selected as a location :) There is no other better state to use to
-  // indicate this.
-  if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::name))
-    state |= states::SELECTABLE;
-
-  return state;
-}
-
 void
 nsHTMLLinkAccessible::Value(nsString& aValue)
 {
   aValue.Truncate();
 
-  HyperTextAccessible::Value(aValue);
+  nsHyperTextAccessible::Value(aValue);
   if (aValue.IsEmpty())
     nsContentUtils::GetLinkLocation(mContent->AsElement(), aValue);
 }
@@ -88,7 +85,7 @@ nsHTMLLinkAccessible::Value(nsString& aValue)
 PRUint8
 nsHTMLLinkAccessible::ActionCount()
 {
-  return IsLinked() ? 1 : HyperTextAccessible::ActionCount();
+  return IsLinked() ? 1 : nsHyperTextAccessible::ActionCount();
 }
 
 NS_IMETHODIMP
@@ -97,7 +94,7 @@ nsHTMLLinkAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
   aName.Truncate();
 
   if (!IsLinked())
-    return HyperTextAccessible::GetActionName(aIndex, aName);
+    return nsHyperTextAccessible::GetActionName(aIndex, aName);
 
   // Action 0 (default action): Jump to link
   if (aIndex != eAction_Jump)
@@ -111,7 +108,7 @@ NS_IMETHODIMP
 nsHTMLLinkAccessible::DoAction(PRUint8 aIndex)
 {
   if (!IsLinked())
-    return HyperTextAccessible::DoAction(aIndex);
+    return nsHyperTextAccessible::DoAction(aIndex);
 
   // Action 0 (default action): Jump to link
   if (aIndex != eAction_Jump)

@@ -70,8 +70,7 @@ LOCAL_INCLUDES += \
 	-I$(srcdir)/../src/base \
 	-I$(srcdir)/../src/storage \
 	-I$(srcdir)/../../xpcom/base \
-	-I$(topsrcdir)/dom/indexedDB \
-	-I$(topsrcdir)/dom/indexedDB/ipc \
+	-I$(srcdir)/../indexedDB \
 	-I$(topsrcdir)/extensions/cookie \
 	-I$(topsrcdir)/dom/base \
 	-I$(topsrcdir)/toolkit/xre \

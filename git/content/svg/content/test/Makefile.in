@@ -36,8 +36,6 @@ _TEST_FILES = \
 		test_dataTypes.html \
 		test_dataTypesModEvents.html \
 		dataTypes-helper.svg \
-		test_fragments.html \
-		fragments-helper.svg \
 		getCTM-helper.svg \
 		test_getCTM.html \
 		test_getElementById.xhtml \
@@ -51,7 +49,6 @@ _TEST_FILES = \
 		test_pointAtLength.xhtml \
 		test_pointer-events.xhtml \
 		test_pointer-events-2.xhtml \
-		test_pointer-events-3.xhtml \
 		test_scientific.html \
 		scientific-helper.svg \
 		test_SVGAnimatedImageSMILDisabled.html \

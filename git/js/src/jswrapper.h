@@ -78,14 +78,14 @@ class JS_FRIEND_API(AbstractWrapper) : public IndirectProxyHandler
 };
 
 /* No-op wrapper handler base class. */
-class JS_FRIEND_API(DirectWrapper) : public AbstractWrapper
+class JS_FRIEND_API(Wrapper) : public AbstractWrapper
 {
   public:
-    explicit DirectWrapper(unsigned flags);
+    explicit Wrapper(unsigned flags);
 
     typedef enum { PermitObjectAccess, PermitPropertyAccess, DenyAccess } Permission;
 
-    virtual ~DirectWrapper();
+    virtual ~Wrapper();
 
     /* ES5 Harmony derived wrapper traps. */
     virtual bool has(JSContext *cx, JSObject *wrapper, jsid id, bool *bp) MOZ_OVERRIDE;
@@ -106,10 +106,10 @@ class JS_FRIEND_API(DirectWrapper) : public AbstractWrapper
 
     using AbstractWrapper::Action;
 
-    static DirectWrapper singleton;
+    static Wrapper singleton;
 
     static JSObject *New(JSContext *cx, JSObject *obj, JSObject *proto, JSObject *parent,
-                         DirectWrapper *handler);
+                         Wrapper *handler);
 
     using AbstractWrapper::wrappedObject;
     using AbstractWrapper::wrapperHandler;
@@ -122,14 +122,8 @@ class JS_FRIEND_API(DirectWrapper) : public AbstractWrapper
     static void *getWrapperFamily();
 };
 
-/* 
- * This typedef is only here to avoid code churn in xpconnect. It will be
- * removed as soon as the Wrapper base class lands.
- */
-typedef DirectWrapper Wrapper;
-
 /* Base class for all cross compartment wrapper handlers. */
-class JS_FRIEND_API(CrossCompartmentWrapper) : public DirectWrapper
+class JS_FRIEND_API(CrossCompartmentWrapper) : public Wrapper
 {
   public:
     CrossCompartmentWrapper(unsigned flags);
@@ -189,7 +183,7 @@ class JS_FRIEND_API(SecurityWrapper) : public Base
     virtual bool regexp_toShared(JSContext *cx, JSObject *proxy, RegExpGuard *g) MOZ_OVERRIDE;
 };
 
-typedef SecurityWrapper<DirectWrapper> SameCompartmentSecurityWrapper;
+typedef SecurityWrapper<Wrapper> SameCompartmentSecurityWrapper;
 typedef SecurityWrapper<CrossCompartmentWrapper> CrossCompartmentSecurityWrapper;
 
 /*
@@ -238,7 +232,7 @@ UnwrapObject(JSObject *obj, bool stopAtOuter = true, unsigned *flagsp = NULL);
 JS_FRIEND_API(JSObject *)
 UnwrapObjectChecked(JSContext *cx, JSObject *obj);
 
-JS_FRIEND_API(bool)
+bool
 IsCrossCompartmentWrapper(const JSObject *obj);
 
 void

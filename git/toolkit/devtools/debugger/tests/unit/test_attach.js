@@ -8,8 +8,7 @@ function run_test()
 {
   DebuggerServer.addActors("resource://test/testactors.js");
 
-  // Allow incoming connections.
-  DebuggerServer.init(function () { return true; });
+  DebuggerServer.init();
   gDebuggee = testGlobal("test-1");
   DebuggerServer.addTestGlobal(gDebuggee);
 

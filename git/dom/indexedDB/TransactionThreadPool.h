@@ -129,7 +129,7 @@ protected:
                     aInfo.finishRunnable);
   }
 
-  bool MaybeFireCallback(DatabasesCompleteCallback& aCallback);
+  void MaybeFireCallback(PRUint32 aCallbackIndex);
 
   nsCOMPtr<nsIThreadPool> mThreadPool;
 

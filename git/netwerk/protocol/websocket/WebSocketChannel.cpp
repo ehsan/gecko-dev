@@ -694,8 +694,6 @@ WebSocketChannel::WebSocketChannel() :
   mOpenRunning(0),
   mChannelWasOpened(0),
   mDataStarted(0),
-  mIncrementedSessionCount(0),
-  mDecrementedSessionCount(0),
   mMaxMessageSize(PR_INT32_MAX),
   mStopOnClose(NS_OK),
   mServerCloseCode(CLOSE_ABNORMAL),
@@ -717,12 +715,18 @@ WebSocketChannel::WebSocketChannel() :
   if (!sWebSocketAdmissions)
     sWebSocketAdmissions = new nsWSAdmissionManager();
 
+  // The active session limit is enforced in AsyncOpen()
+  sWebSocketAdmissions->IncrementSessionCount();
+
   mFramePtr = mBuffer = static_cast<PRUint8 *>(moz_xmalloc(mBufferSize));
 }
 
 WebSocketChannel::~WebSocketChannel()
 {
   LOG(("WebSocketChannel::~WebSocketChannel() %p\n", this));
+
+  if (sWebSocketAdmissions)
+    sWebSocketAdmissions->DecrementSessionCount();
 
   // this stop is a nop if the normal connect/close is followed
   StopSession(NS_ERROR_UNEXPECTED);
@@ -1050,10 +1054,7 @@ WebSocketChannel::ProcessInput(PRUint8 *buffer, PRUint32 count)
     } else if (opcode == kText) {
       LOG(("WebSocketChannel:: text frame received\n"));
       if (mListener) {
-        nsCString utf8Data;
-        if (!utf8Data.Assign((const char *)payload, payloadLength,
-                             mozilla::fallible_t()))
-          return NS_ERROR_OUT_OF_MEMORY;
+        nsCString utf8Data((const char *)payload, payloadLength);
 
         // Section 8.1 says to fail connection if invalid utf-8 in text message
         if (!IsUTF8(utf8Data, false)) {
@@ -1555,8 +1556,6 @@ WebSocketChannel::CleanupConnection()
     mTransport->Close(NS_BASE_STREAM_CLOSED);
     mTransport = nsnull;
   }
-
-  DecrementSessionCount();
 }
 
 void
@@ -1710,28 +1709,6 @@ WebSocketChannel::ReleaseSession()
   if (mStopped)
     return;
   StopSession(NS_OK);
-}
-
-void
-WebSocketChannel::IncrementSessionCount()
-{
-  if (!mIncrementedSessionCount) {
-    sWebSocketAdmissions->IncrementSessionCount();
-    mIncrementedSessionCount = 1;
-  }
-}
-
-void
-WebSocketChannel::DecrementSessionCount()
-{
-  // Make sure we decrement session count only once, and only if we incremented it.
-  // This code is thread-safe: sWebSocketAdmissions->DecrementSessionCount is
-  // atomic, and mIncrementedSessionCount/mDecrementedSessionCount are set at
-  // times when they'll never be a race condition for checking/setting them.
-  if (mIncrementedSessionCount && !mDecrementedSessionCount) {
-    sWebSocketAdmissions->DecrementSessionCount();
-    mDecrementedSessionCount = 1;
-  }
 }
 
 nsresult
@@ -2311,6 +2288,7 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
   rv = io2->NewChannelFromURIWithProxyFlags(
               localURI,
               mURI,
+              nsIProtocolProxyService::RESOLVE_PREFER_SOCKS_PROXY |
               nsIProtocolProxyService::RESOLVE_PREFER_HTTPS_PROXY |
               nsIProtocolProxyService::RESOLVE_ALWAYS_TUNNEL,
               getter_AddRefs(localChannel));
@@ -2330,14 +2308,7 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
   if (NS_FAILED(rv))
     return rv;
 
-  rv = ApplyForAdmission();
-  if (NS_FAILED(rv))
-    return rv;
-
-  // Session setup OK, so count it.
-  IncrementSessionCount();
-
-  return rv;
+  return ApplyForAdmission();
 }
 
 NS_IMETHODIMP

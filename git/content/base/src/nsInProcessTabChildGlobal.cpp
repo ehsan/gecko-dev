@@ -116,15 +116,6 @@ nsInProcessTabChildGlobal::Init()
                                               this,
                                               nsnull,
                                               mCx);
-
-  // Set the location information for the new global, so that tools like
-  // about:memory may use that information.
-  JSObject *global;
-  nsIURI* docURI = mOwner->OwnerDoc()->GetDocumentURI();
-  if (mGlobal && NS_SUCCEEDED(mGlobal->GetJSObject(&global)) && docURI) {
-    xpc::SetLocationForGlobal(global, docURI);
-  }
-
   return NS_OK;
 }
 

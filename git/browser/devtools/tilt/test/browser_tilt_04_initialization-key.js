@@ -31,11 +31,6 @@ function test() {
   InspectorUI.toggleInspectorUI();
 }
 
-function suddenDeath() {
-  Services.obs.removeObserver(onTiltOpen, INITIALIZING);
-  cleanup();
-}
-
 function onInspectorOpen() {
   Services.obs.removeObserver(onInspectorOpen, INSPECTOR_OPENED);
 
@@ -44,8 +39,6 @@ function onInspectorOpen() {
       "A instance of the visualizer shouldn't be initialized yet.");
 
     info("Pressing the accesskey should open Tilt.");
-
-    Tilt.failureCallback = suddenDeath;
 
     Services.obs.addObserver(onTiltOpen, INITIALIZING, false);
     EventUtils.synthesizeKey(tiltKey, eventType);
@@ -72,11 +65,6 @@ function onTiltClose() {
   is(Tilt.visualizers[id], null,
     "The current instance of the visualizer wasn't destroyed properly.");
 
-  cleanup();
-}
-
-function cleanup() {
-  Tilt.failureCallback = null;
   InspectorUI.closeInspectorUI();
   finish();
 }

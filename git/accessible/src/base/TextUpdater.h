@@ -7,7 +7,7 @@
 #define TextUpdater_h_
 
 #include "AccEvent.h"
-#include "HyperTextAccessible.h"
+#include "nsHyperTextAccessible.h"
 
 /**
  * Used to find a difference between old and new text and fire text change
@@ -85,7 +85,7 @@ private:
 private:
   DocAccessible* mDocument;
   mozilla::a11y::TextLeafAccessible* mTextLeaf;
-  HyperTextAccessible* mHyperText;
+  nsHyperTextAccessible* mHyperText;
   PRInt32 mTextOffset;
 };
 

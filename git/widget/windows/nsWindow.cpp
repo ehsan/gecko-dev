@@ -850,41 +850,32 @@ DWORD nsWindow::WindowExStyle()
 // Subclass (or remove the subclass from) this component's nsWindow
 void nsWindow::SubclassWindow(BOOL bState)
 {
-  if (bState) {
-    if (!mWnd || !IsWindow(mWnd)) {
+  if (NULL != mWnd) {
+    //NS_PRECONDITION(::IsWindow(mWnd), "Invalid window handle");
+    if (!::IsWindow(mWnd)) {
       NS_ERROR("Invalid window handle");
     }
 
-    if (mUnicodeWidget) {
-      mPrevWndProc =
-        reinterpret_cast<WNDPROC>(
-          SetWindowLongPtrW(mWnd,
-                            GWLP_WNDPROC,
-                            reinterpret_cast<LONG_PTR>(nsWindow::WindowProc)));
-    } else {
-      mPrevWndProc =
-        reinterpret_cast<WNDPROC>(
-          SetWindowLongPtrA(mWnd,
-                            GWLP_WNDPROC,
-                            reinterpret_cast<LONG_PTR>(nsWindow::WindowProc)));
+    if (bState) {
+      // change the nsWindow proc
+      if (mUnicodeWidget)
+        mPrevWndProc = (WNDPROC)::SetWindowLongPtrW(mWnd, GWLP_WNDPROC,
+                                                (LONG_PTR)nsWindow::WindowProc);
+      else
+        mPrevWndProc = (WNDPROC)::SetWindowLongPtrA(mWnd, GWLP_WNDPROC,
+                                                (LONG_PTR)nsWindow::WindowProc);
+      NS_ASSERTION(mPrevWndProc, "Null standard window procedure");
+      // connect the this pointer to the nsWindow handle
+      WinUtils::SetNSWindowPtr(mWnd, this);
     }
-    NS_ASSERTION(mPrevWndProc, "Null standard window procedure");
-    // connect the this pointer to the nsWindow handle
-    WinUtils::SetNSWindowPtr(mWnd, this);
-  } else {
-    if (IsWindow(mWnd)) {
-      if (mUnicodeWidget) {
-        SetWindowLongPtrW(mWnd,
-                          GWLP_WNDPROC,
-                          reinterpret_cast<LONG_PTR>(mPrevWndProc));
-      } else {
-        SetWindowLongPtrA(mWnd,
-                          GWLP_WNDPROC,
-                          reinterpret_cast<LONG_PTR>(mPrevWndProc));
-      }
+    else {
+      if (mUnicodeWidget)
+        ::SetWindowLongPtrW(mWnd, GWLP_WNDPROC, (LONG_PTR)mPrevWndProc);
+      else
+        ::SetWindowLongPtrA(mWnd, GWLP_WNDPROC, (LONG_PTR)mPrevWndProc);
+      WinUtils::SetNSWindowPtr(mWnd, NULL);
+      mPrevWndProc = NULL;
     }
-    WinUtils::SetNSWindowPtr(mWnd, NULL);
-    mPrevWndProc = NULL;
   }
 }
 
@@ -3150,7 +3141,8 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
     if (eTransparencyTransparent == mTransparencyMode ||
         prefs.mDisableAcceleration ||
         windowRect.right - windowRect.left > MAX_ACCELERATED_DIMENSION ||
-        windowRect.bottom - windowRect.top > MAX_ACCELERATED_DIMENSION)
+        windowRect.bottom - windowRect.top > MAX_ACCELERATED_DIMENSION ||
+        mWindowType == eWindowType_popup)
       mUseAcceleratedRendering = false;
     else if (prefs.mAccelerateByDefault)
       mUseAcceleratedRendering = true;
@@ -7919,7 +7911,7 @@ nsModifierKeyState::InitInputEvent(nsInputEvent& aInputEvent) const
     aInputEvent.modifiers |= MODIFIER_ALT;
   }
   if (mIsWinDown) {
-    aInputEvent.modifiers |= MODIFIER_OS;
+    aInputEvent.modifiers |= MODIFIER_WIN;
   }
   if (mIsCapsLocked) {
     aInputEvent.modifiers |= MODIFIER_CAPSLOCK;
@@ -7928,7 +7920,7 @@ nsModifierKeyState::InitInputEvent(nsInputEvent& aInputEvent) const
     aInputEvent.modifiers |= MODIFIER_NUMLOCK;
   }
   if (mIsScrollLocked) {
-    aInputEvent.modifiers |= MODIFIER_SCROLLLOCK;
+    aInputEvent.modifiers |= MODIFIER_SCROLL;
   }
   // If both Control key and Alt key are pressed, it means AltGr is pressed.
   // Ideally, we should check whether the current keyboard layout has AltGr

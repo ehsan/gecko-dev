@@ -100,10 +100,9 @@ var gCallbackBinFile = "callback_app" + BIN_SUFFIX;
 var gCallbackArgs = ["./", "callback.log", "Test Arg 2", "Test Arg 3"];
 var gBackgroundUpdate = false;
 var gSwitchApp = false;
-var gDisableReplaceFallback = false;
 
 // Time to wait for the test helper process before continuing the test
-const TEST_HELPER_TIMEOUT = 1000;
+const TEST_HELPER_TIMEOUT = 100;
 
 // Use a copy of the main application executable for the test to avoid main
 // executable in use errors.
@@ -288,11 +287,7 @@ var DEBUG_AUS_TEST = true;
 
 #include ../shared.js
 
-#ifdef MOZ_MAINTENANCE_SERVICE
 const STATE_APPLIED_PLATFORM = IS_WIN ? STATE_APPLIED_SVC : STATE_APPLIED;
-#else
-const STATE_APPLIED_PLATFORM = STATE_APPLIED;
-#endif
 
 /**
  * Nulls out the most commonly used global vars used by tests as appropriate.
@@ -518,21 +513,10 @@ function runUpdate() {
   }
   logTestInfo("Running the updater: " + updateBin.path + " " + args.join(" "));
 
-  let env = AUS_Cc["@mozilla.org/process/environment;1"].
-            getService(AUS_Ci.nsIEnvironment);
-  if (gDisableReplaceFallback) {
-    env.set("MOZ_NO_REPLACE_FALLBACK", "1");
-  }
-
   let process = AUS_Cc["@mozilla.org/process/util;1"].
                 createInstance(AUS_Ci.nsIProcess);
   process.init(updateBin);
   process.run(true, args, args.length);
-
-  if (gDisableReplaceFallback) {
-    env.set("MOZ_NO_REPLACE_FALLBACK", "");
-  }
-
   return process.exitValue;
 }
 

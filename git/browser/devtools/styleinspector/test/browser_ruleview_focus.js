@@ -16,6 +16,19 @@ function waitForRuleView(aCallback)
   InspectorUI.currentInspector.once("sidebaractivated-ruleview", aCallback);
 }
 
+function waitForEditorFocus(aParent, aCallback)
+{
+  aParent.addEventListener("focus", function onFocus(evt) {
+    if (inplaceEditor(evt.target)) {
+      aParent.removeEventListener("focus", onFocus, true);
+      let editor = inplaceEditor(evt.target);
+      executeSoon(function() {
+        aCallback(editor);
+      });
+    }
+  }, true);
+}
+
 function openRuleView()
 {
   Services.obs.addObserver(function onOpened() {
@@ -60,7 +73,7 @@ function testFocus()
     EventUtils.sendKey("return");
   });
 
-  brace.click();
+  brace.focus();
 }
 
 function finishUp()

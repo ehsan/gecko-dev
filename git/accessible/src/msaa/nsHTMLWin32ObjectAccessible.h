@@ -28,7 +28,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual bool NativelyUnavailable() const;
+  virtual PRUint64 NativeState();
 
 protected:
 

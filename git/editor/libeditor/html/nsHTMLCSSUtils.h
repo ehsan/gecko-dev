@@ -185,16 +185,8 @@ public:
     * @param aIsSet         [OUT] a boolean being true if the css properties are set
     * @param aValueString   [IN/OUT] the attribute value (in) the list of css values (out)
     * @param aStyleType     [IN] SPECIFIED_STYLE_TYPE to query the specified style values
-    *                            COMPUTED_STYLE_TYPE  to query the computed style values
-    *
-    * The nsIContent variant returns aIsSet instead of using an out parameter.
+                                 COMPUTED_STYLE_TYPE  to query the computed style values
     */
-  bool IsCSSEquivalentToHTMLInlineStyleSet(nsIContent* aContent,
-                                           nsIAtom* aProperty,
-                                           const nsAString* aAttribute,
-                                           const nsAString& aValue,
-                                           PRUint8 aStyleType);
-
   nsresult    IsCSSEquivalentToHTMLInlineStyleSet(nsIDOMNode * aNode,
                                                   nsIAtom * aHTMLProperty,
                                                   const nsAString * aAttribute,
@@ -212,15 +204,7 @@ public:
     * @param aCount         [OUT] the number of CSS properties set by the call
     * @param aSuppressTransaction [IN] a boolean indicating, when true,
     *                                  that no transaction should be recorded
-    *
-    * aCount is returned by the dom::Element variant instead of being an out
-    * parameter.
     */
-  PRInt32     SetCSSEquivalentToHTMLStyle(mozilla::dom::Element* aElement,
-                                          nsIAtom* aProperty,
-                                          const nsAString* aAttribute,
-                                          const nsAString* aValue,
-                                          bool aSuppressTransaction);
   nsresult    SetCSSEquivalentToHTMLStyle(nsIDOMNode * aNode,
                                           nsIAtom * aHTMLProperty,
                                           const nsAString * aAttribute,
@@ -275,8 +259,6 @@ public:
     * @param aFirstNode           [IN] a DOM node
     * @param aSecondNode          [IN] a DOM node
     */
-  bool ElementsSameStyle(mozilla::dom::Element* aFirstNode,
-                         mozilla::dom::Element* aSecondNode);
   bool ElementsSameStyle(nsIDOMNode *aFirstNode, nsIDOMNode *aSecondNode);
 
   /** get the specified inline styles (style attribute) for an element

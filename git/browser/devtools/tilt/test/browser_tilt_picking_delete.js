@@ -2,7 +2,6 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
-let nodeDeleted = false;
 let presenter;
 
 function test() {
@@ -35,16 +34,11 @@ function test() {
               ok(!presenter._highlight.disabled,
                 "After highlighting a node, it should be highlighted. D'oh.");
 
-              nodeDeleted = true;
               presenter.deleteNode();
             }
           });
         };
       }
-    }, false, function suddenDeath()
-    {
-      info("Tilt could not be initialized properly.");
-      cleanup();
     });
   });
 }
@@ -70,7 +64,7 @@ function whenNodeRemoved() {
 }
 
 function cleanup() {
-  if (nodeDeleted) { Services.obs.removeObserver(cleanup, DESTROYED); }
+  Services.obs.removeObserver(cleanup, DESTROYED);
   gBrowser.removeCurrentTab();
   finish();
 }

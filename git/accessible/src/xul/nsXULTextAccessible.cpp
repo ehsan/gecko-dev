@@ -29,7 +29,7 @@ using namespace mozilla::a11y;
 
 nsXULTextAccessible::
   nsXULTextAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  HyperTextAccessibleWrap(aContent, aDoc)
+  nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
 
@@ -53,13 +53,13 @@ nsXULTextAccessible::NativeState()
 {
   // Labels and description have read only state
   // They are not focusable or selectable
-  return HyperTextAccessibleWrap::NativeState() | states::READONLY;
+  return nsHyperTextAccessibleWrap::NativeState() | states::READONLY;
 }
 
 Relation
 nsXULTextAccessible::RelationByType(PRUint32 aType)
 {
-  Relation rel = HyperTextAccessibleWrap::RelationByType(aType);
+  Relation rel = nsHyperTextAccessibleWrap::RelationByType(aType);
   if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
     // Caption is the label for groupbox
     nsIContent *parent = mContent->GetParent();
@@ -87,7 +87,11 @@ nsXULTooltipAccessible::
 PRUint64
 nsXULTooltipAccessible::NativeState()
 {
-  return nsLeafAccessible::NativeState() | states::READONLY;
+  PRUint64 states = nsLeafAccessible::NativeState();
+
+  states &= ~states::FOCUSABLE;
+  states |= states::READONLY;
+  return states;
 }
 
 role
@@ -103,12 +107,12 @@ nsXULTooltipAccessible::NativeRole()
 
 nsXULLinkAccessible::
   nsXULLinkAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  HyperTextAccessibleWrap(aContent, aDoc)
+  nsHyperTextAccessibleWrap(aContent, aDoc)
 {
 }
 
 // Expose nsIAccessibleHyperLink unconditionally
-NS_IMPL_ISUPPORTS_INHERITED1(nsXULLinkAccessible, HyperTextAccessibleWrap,
+NS_IMPL_ISUPPORTS_INHERITED1(nsXULLinkAccessible, nsHyperTextAccessibleWrap,
                              nsIAccessibleHyperLink)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,10 +11,6 @@
 #include "nsIThread.h"
 #include "nsAutoPtr.h"
 
-// Access to a single instance of this class must be synchronized by
-// callers, or made from a single thread.  One exception is that access to
-// GetPosition, GetPositionInFrames, SetVolume, and Get{Rate,Channels,Format}
-// is thread-safe without external synchronization.
 class nsAudioStream : public nsISupports
 {
 public:
@@ -54,13 +50,11 @@ public:
   // Initialize the audio stream. aNumChannels is the number of audio
   // channels (1 for mono, 2 for stereo, etc) and aRate is the sample rate
   // (22050Hz, 44100Hz, etc).
-  // Unsafe to call with a monitor held due to synchronous event execution
-  // on the main thread, which may attempt to acquire any held monitor.
+  // Unsafe to call with the decoder monitor held.
   virtual nsresult Init(PRInt32 aNumChannels, PRInt32 aRate, SampleFormat aFormat) = 0;
 
   // Closes the stream. All future use of the stream is an error.
-  // Unsafe to call with a monitor held due to synchronous event execution
-  // on the main thread, which may attempt to acquire any held monitor.
+  // Unsafe to call with the decoder monitor held.
   virtual void Shutdown() = 0;
 
   // Write audio data to the audio hardware.  aBuf is an array of frames in
@@ -73,12 +67,11 @@ public:
   virtual PRUint32 Available() = 0;
 
   // Set the current volume of the audio playback. This is a value from
-  // 0 (meaning muted) to 1 (meaning full volume).  Thread-safe.
+  // 0 (meaning muted) to 1 (meaning full volume).
   virtual void SetVolume(double aVolume) = 0;
 
   // Block until buffered audio data has been consumed.
-  // Unsafe to call with a monitor held due to synchronous event execution
-  // on the main thread, which may attempt to acquire any held monitor.
+  // Unsafe to call with the decoder monitor held.
   virtual void Drain() = 0;
 
   // Pause audio playback
@@ -88,11 +81,11 @@ public:
   virtual void Resume() = 0;
 
   // Return the position in microseconds of the audio frame being played by
-  // the audio hardware.  Thread-safe.
+  // the audio hardware.
   virtual PRInt64 GetPosition() = 0;
 
   // Return the position, measured in audio frames played since the stream
-  // was opened, of the audio hardware.  Thread-safe.
+  // was opened, of the audio hardware.
   virtual PRInt64 GetPositionInFrames() = 0;
 
   // Returns true when the audio stream is paused.
@@ -100,8 +93,7 @@ public:
 
   // Returns the minimum number of audio frames which must be written before
   // you can be sure that something will be played.
-  // Unsafe to call with a monitor held due to synchronous event execution
-  // on the main thread, which may attempt to acquire any held monitor.
+  // Unsafe to call with the decoder monitor held.
   virtual PRInt32 GetMinWriteSize() = 0;
 
   int GetRate() { return mRate; }

@@ -399,10 +399,8 @@ bool
 IndirectProxyHandler::defineProperty(JSContext *cx, JSObject *proxy, jsid id,
                                      PropertyDescriptor *desc)
 {
-    RootedObject obj(cx, GetProxyTargetObject(proxy));
-    return CheckDefineProperty(cx, obj, RootedId(cx, id), RootedValue(cx, desc->value),
-                               desc->getter, desc->setter, desc->attrs) &&
-           JS_DefinePropertyById(cx, obj, id, desc->value, desc->getter, desc->setter,
+    return JS_DefinePropertyById(cx, GetProxyTargetObject(proxy), id,
+                                 desc->value, desc->getter, desc->setter,
                                  desc->attrs);
 }
 
@@ -1668,7 +1666,7 @@ JS_FRIEND_DATA(Class) js::FunctionProxyClass = {
     JS_EnumerateStub,
     JS_ResolveStub,
     JS_ConvertStub,
-    proxy_Finalize,          /* finalize */
+    NULL,                    /* finalize */
     NULL,                    /* checkAccess */
     proxy_Call,
     FunctionClass.hasInstance,

@@ -157,8 +157,6 @@ public:
   
   PRUint32 GetServerInitialWindow() { return mServerInitialWindow; }
 
-  void     PrintDiagnostics (nsCString &log);
-
 private:
 
   enum stateType {
@@ -182,7 +180,6 @@ private:
   void        GenerateRstStream(PRUint32, PRUint32);
   void        GenerateGoAway();
   void        CleanupStream(SpdyStream3 *, nsresult, rstReason);
-  void        CloseStream(SpdyStream3 *, nsresult);
   void        GenerateSettings();
 
   void        SetWriteCallbacks();

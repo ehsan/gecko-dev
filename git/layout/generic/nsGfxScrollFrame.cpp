@@ -1663,9 +1663,6 @@ nsGfxScrollFrameInner::AsyncScrollCallback(void* anInstance, mozilla::TimeStamp 
   // Apply desired destination range since this is the last step of scrolling.
   self->mAsyncScroll = nsnull;
   self->ScrollToImpl(self->mDestination, range);
-  // We are done scrolling, set our destination to wherever we actually ended
-  // up scrolling to.
-  self->mDestination = self->GetScrollPosition();
 }
 
 void
@@ -1713,9 +1710,6 @@ nsGfxScrollFrameInner::ScrollToWithOrigin(nsPoint aScrollPosition,
     // async-scrolling process and do an instant scroll.
     mAsyncScroll = nsnull;
     ScrollToImpl(mDestination, range);
-    // We are done scrolling, set our destination to wherever we actually ended
-    // up scrolling to.
-    mDestination = GetScrollPosition();
     return;
   }
 
@@ -1736,9 +1730,6 @@ nsGfxScrollFrameInner::ScrollToWithOrigin(nsPoint aScrollPosition,
       mAsyncScroll = nsnull;
       // Observer setup failed. Scroll the normal way.
       ScrollToImpl(mDestination, range);
-      // We are done scrolling, set our destination to wherever we actually
-      // ended up scrolling to.
-      mDestination = GetScrollPosition();
       return;
     }
   }
@@ -2394,18 +2385,12 @@ nsGfxScrollFrameInner::GetScrollRangeForClamping() const
     return nsRect(nscoord_MIN/2, nscoord_MIN/2,
                   nscoord_MAX - nscoord_MIN/2, nscoord_MAX - nscoord_MIN/2);
   }
-  nsSize scrollPortSize = GetScrollPositionClampingScrollPortSize();
-  return GetScrollRange(scrollPortSize.width, scrollPortSize.height);
-}
-
-nsSize
-nsGfxScrollFrameInner::GetScrollPositionClampingScrollPortSize() const
-{
   nsIPresShell* presShell = mOuter->PresContext()->PresShell();
   if (mIsRoot && presShell->IsScrollPositionClampingScrollPortSizeSet()) {
-    return presShell->GetScrollPositionClampingScrollPortSize();
+    nsSize size = presShell->GetScrollPositionClampingScrollPortSize();
+    return GetScrollRange(size.width, size.height);
   }
-  return mScrollPort.Size();
+  return GetScrollRange();
 }
 
 static void

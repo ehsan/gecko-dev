@@ -145,16 +145,6 @@ public:
   static nsresult
   GetASCIIOriginFromWindow(nsPIDOMWindow* aWindow, nsCString& aASCIIOrigin);
 
-  static bool
-  IsMainProcess()
-#ifdef DEBUG
-  ;
-#else
-  {
-    return sIsMainProcess;
-  }
-#endif
-
   already_AddRefed<FileManager>
   GetOrCreateFileManager(const nsACString& aOrigin,
                          const nsAString& aDatabaseName);
@@ -188,10 +178,6 @@ public:
 
     return mgr->mFileMutex;
   }
-
-  static already_AddRefed<nsIAtom>
-  GetDatabaseId(const nsACString& aOrigin,
-                const nsAString& aName);
 
 private:
   IndexedDatabaseManager();
@@ -310,14 +296,12 @@ private:
   class WaitForTransactionsToFinishRunnable MOZ_FINAL : public nsIRunnable
   {
   public:
-    WaitForTransactionsToFinishRunnable(SynchronizedOp* aOp,
-                                        PRUint32 aCountdown)
-    : mOp(aOp), mCountdown(aCountdown)
+    WaitForTransactionsToFinishRunnable(SynchronizedOp* aOp)
+    : mOp(aOp)
     {
       NS_ASSERTION(mOp, "Why don't we have a runnable?");
       NS_ASSERTION(mOp->mDatabases.IsEmpty(), "We're here too early!");
       NS_ASSERTION(mOp->mHelper, "What are we supposed to do when we're done?");
-      NS_ASSERTION(mCountdown, "Wrong countdown!");
     }
 
     NS_DECL_ISUPPORTS
@@ -326,26 +310,6 @@ private:
   private:
     // The IndexedDatabaseManager holds this alive.
     SynchronizedOp* mOp;
-    PRUint32 mCountdown;
-  };
-
-  class WaitForLockedFilesToFinishRunnable MOZ_FINAL : public nsIRunnable
-  {
-  public:
-    WaitForLockedFilesToFinishRunnable()
-    : mBusy(true)
-    { }
-
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIRUNNABLE
-
-    bool IsBusy() const
-    {
-      return mBusy;
-    }
-
-  private:
-    bool mBusy;
   };
 
   class AsyncDeleteFileRunnable MOZ_FINAL : public nsIRunnable
@@ -404,8 +368,6 @@ private:
   mozilla::Mutex mFileMutex;
 
   nsString mDatabaseBasePath;
-
-  static bool sIsMainProcess;
 };
 
 class AutoEnterWindow

@@ -16,23 +16,24 @@
 namespace js {
 
 inline
-SharedContext::SharedContext(JSContext *cx, JSObject *scopeChain, JSFunction *fun,
-                             FunctionBox *funbox)
+SharedContext::SharedContext(JSContext *cx, bool inFunction)
   : context(cx),
     bodyid(0),
     blockidGen(0),
     topStmt(NULL),
     topScopeStmt(NULL),
     blockChain(cx),
-    fun_(cx, fun),
-    funbox_(funbox),
-    scopeChain_(cx, scopeChain),
+    fun_(cx),
+    scopeChain_(cx),
     staticLevel(0),
+    funbox(NULL),
+    functionList(NULL),
     bindings(cx),
     bindingsRoot(cx, &bindings),
+    inFunction(inFunction),
+    inForInit(false),
     cxFlags(cx)
 {
-    JS_ASSERT((fun && !scopeChain_) || (!fun && !funbox));
 }
 
 inline unsigned
@@ -69,7 +70,6 @@ TreeContext::TreeContext(Parser *prs, SharedContext *sc)
     blockNode(NULL),
     decls(prs->context),
     yieldNode(NULL),
-    functionList(NULL),
     parserTC(&prs->tc),
     lexdeps(prs->context),
     parent(prs->tc),
@@ -77,7 +77,6 @@ TreeContext::TreeContext(Parser *prs, SharedContext *sc)
     funcStmts(NULL),
     hasReturnExpr(false),
     hasReturnVoid(false),
-    inForInit(false),
     inDeclDestructuring(false)
 {
     prs->tc = this;

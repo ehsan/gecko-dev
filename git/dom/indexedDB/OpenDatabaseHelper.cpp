@@ -1330,7 +1330,6 @@ class SetVersionHelper : public AsyncConnectionHelper,
                          public IDBTransactionListener
 {
   friend class VersionChangeEventsRunnable;
-
 public:
   SetVersionHelper(IDBTransaction* aTransaction,
                    IDBOpenDBRequest* aRequest,
@@ -1347,39 +1346,21 @@ public:
 
   NS_DECL_ISUPPORTS_INHERITED
 
-  virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    jsval* aVal) MOZ_OVERRIDE;
+  nsresult GetSuccessResult(JSContext* aCx,
+                            jsval* aVal);
 
 protected:
-  virtual nsresult Init() MOZ_OVERRIDE;
-
-  virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection)
-                                  MOZ_OVERRIDE;
+  nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
+  nsresult Init();
 
   // SetVersionHelper never fires an error event at the request.  It hands that
   // responsibility back to the OpenDatabaseHelper
-  virtual void OnError() MOZ_OVERRIDE
-  { }
+  void OnError() { }
 
   // Need an upgradeneeded event here.
-  virtual already_AddRefed<nsDOMEvent> CreateSuccessEvent() MOZ_OVERRIDE;
+  already_AddRefed<nsDOMEvent> CreateSuccessEvent();
 
-  virtual nsresult NotifyTransactionComplete(IDBTransaction* aTransaction)
-                                             MOZ_OVERRIDE;
-
-  virtual ChildProcessSendResult
-  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
-  {
-    return Success_NotSent;
-  }
-
-  virtual nsresult UnpackResponseFromParentProcess(
-                                            const ResponseValue& aResponseValue)
-                                            MOZ_OVERRIDE
-  {
-    MOZ_NOT_REACHED("Should never get here!");
-    return NS_ERROR_UNEXPECTED;
-  }
+  nsresult NotifyTransactionComplete(IDBTransaction* aTransaction);
 
   PRUint64 RequestedVersion() const
   {
@@ -1430,7 +1411,6 @@ protected:
   {
     mOpenHelper->NotifyDeleteFinished();
   }
-
   nsresult OnSuccess()
   {
     return mOpenHelper->NotifyDeleteFinished();
@@ -1440,21 +1420,6 @@ protected:
   {
     return 0;
   }
-
-  virtual ChildProcessSendResult
-  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE
-  {
-    return Success_NotSent;
-  }
-
-  virtual nsresult UnpackResponseFromParentProcess(
-                                            const ResponseValue& aResponseValue)
-                                            MOZ_OVERRIDE
-  {
-    MOZ_NOT_REACHED("Should never get here!");
-    return NS_ERROR_UNEXPECTED;
-  }
-
 private:
   // In-params
   nsRefPtr<OpenDatabaseHelper> mOpenHelper;
@@ -1560,9 +1525,14 @@ NS_IMPL_THREADSAFE_ISUPPORTS1(OpenDatabaseHelper, nsIRunnable);
 nsresult
 OpenDatabaseHelper::Init()
 {
-  mDatabaseId = IndexedDatabaseManager::GetDatabaseId(mASCIIOrigin, mName);
-  NS_ENSURE_TRUE(mDatabaseId, NS_ERROR_FAILURE);
+  nsCString str(mASCIIOrigin);
+  str.Append("*");
+  str.Append(NS_ConvertUTF16toUTF8(mName));
 
+  nsCOMPtr<nsIAtom> atom = do_GetAtom(str);
+  NS_ENSURE_TRUE(atom, NS_ERROR_FAILURE);
+
+  atom.swap(mDatabaseId);
   return NS_OK;
 }
 
@@ -1713,7 +1683,6 @@ OpenDatabaseHelper::CreateDatabaseConnection(
                                         nsIFile* aFileManagerDirectory,
                                         mozIStorageConnection** aConnection)
 {
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
 
   NS_NAMED_LITERAL_CSTRING(quotaVFSName, "quota");
@@ -2029,8 +1998,6 @@ OpenDatabaseHelper::Run()
     return NS_OK;
   }
 
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
   // If we're on the DB thread, do that
   NS_ASSERTION(mState == eDBWork, "Why are we here?");
   mResultCode = DoDatabaseWork();
@@ -2319,7 +2286,7 @@ SetVersionHelper::NotifyTransactionComplete(IDBTransaction* aTransaction)
 
   // If the transaction was aborted, we should throw an error message.
   if (aTransaction->IsAborted()) {
-    mOpenHelper->SetError(aTransaction->GetAbortCode());
+    mOpenHelper->SetError(NS_ERROR_DOM_INDEXEDDB_ABORT_ERR);
   }
 
   mOpenRequest->SetTransaction(nsnull);
@@ -2372,16 +2339,6 @@ DeleteDatabaseHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     if (rc != SQLITE_OK) {
       NS_WARNING("Failed to delete db file!");
       return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-    }
-
-    // sqlite3_quota_remove won't actually remove anything if we're not tracking
-    // the quota here. Manually remove the file if it exists.
-    rv = dbFile->Exists(&exists);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-    if (exists) {
-      rv = dbFile->Remove(false);
-      NS_ENSURE_SUCCESS(rv, rv);
     }
   }
 

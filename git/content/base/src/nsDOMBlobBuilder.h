@@ -12,7 +12,7 @@
 
 using namespace mozilla;
 
-class nsDOMMultipartFile : public nsDOMFile,
+class nsDOMMultipartFile : public nsDOMFileBase,
                            public nsIJSNativeInitializer
 {
 public:
@@ -20,7 +20,7 @@ public:
   nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> > aBlobs,
                      const nsAString& aName,
                      const nsAString& aContentType)
-    : nsDOMFile(aName, aContentType, UINT64_MAX),
+    : nsDOMFileBase(aName, aContentType, UINT64_MAX),
       mBlobs(aBlobs)
   {
   }
@@ -28,20 +28,14 @@ public:
   // Create as a blob
   nsDOMMultipartFile(nsTArray<nsCOMPtr<nsIDOMBlob> > aBlobs,
                      const nsAString& aContentType)
-    : nsDOMFile(aContentType, UINT64_MAX),
+    : nsDOMFileBase(aContentType, UINT64_MAX),
       mBlobs(aBlobs)
-  {
-  }
-
-  // Create as a file to be later initialized
-  nsDOMMultipartFile(const nsAString& aName)
-    : nsDOMFile(aName, EmptyString(), UINT64_MAX)
   {
   }
 
   // Create as a blob to be later initialized
   nsDOMMultipartFile()
-    : nsDOMFile(EmptyString(), UINT64_MAX)
+    : nsDOMFileBase(EmptyString(), UINT64_MAX)
   {
   }
 
@@ -65,9 +59,6 @@ public:
 
   NS_IMETHOD GetSize(PRUint64*);
   NS_IMETHOD GetInternalStream(nsIInputStream**);
-
-  static nsresult
-  NewFile(const nsAString& aName, nsISupports* *aNewObject);
 
   // DOMClassInfo constructor (for Blob([b1, "foo"], { type: "image/png" }))
   static nsresult

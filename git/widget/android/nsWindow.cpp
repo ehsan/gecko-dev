@@ -250,7 +250,8 @@ nsWindow::Destroy(void)
     if (IsTopLevel())
         gTopLevelWindows.RemoveElement(this);
 
-    SetParent(nsnull);
+    if (mParent)
+        mParent->mChildren.RemoveElement(this);
 
     nsBaseWidget::OnDestroy();
 
@@ -1881,9 +1882,6 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
     case AndroidGeckoEvent::IME_COMPOSITION_END:
         {
             ALOGIME("IME: IME_COMPOSITION_END");
-            MOZ_ASSERT(mIMEComposing,
-                       "IME_COMPOSITION_END when we are not composing?!");
-
             nsCompositionEvent event(true, NS_COMPOSITION_END, this);
             InitEvent(event, nsnull);
             event.data = mIMELastDispatchedComposingText;
@@ -1894,9 +1892,6 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
     case AndroidGeckoEvent::IME_COMPOSITION_BEGIN:
         {
             ALOGIME("IME: IME_COMPOSITION_BEGIN");
-            MOZ_ASSERT(!mIMEComposing,
-                       "IME_COMPOSITION_BEGIN when we are already composing?!");
-
             mIMELastDispatchedComposingText.Truncate();
             nsCompositionEvent event(true, NS_COMPOSITION_START, this);
             InitEvent(event, nsnull);
@@ -1905,16 +1900,11 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
         return;
     case AndroidGeckoEvent::IME_ADD_RANGE:
         {
-            NS_ASSERTION(mIMEComposing,
-                         "IME_ADD_RANGE when we are not composing?!");
             OnIMEAddRange(ae);
         }
         return;
     case AndroidGeckoEvent::IME_SET_TEXT:
         {
-            NS_ASSERTION(mIMEComposing,
-                         "IME_SET_TEXT when we are not composing?!");
-
             OnIMEAddRange(ae);
 
             nsTextEvent event(true, NS_TEXT_TEXT, this);
@@ -1937,12 +1927,8 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
                     return;
             }
 
-#ifdef DEBUG_ANDROID_IME
-            const NS_ConvertUTF16toUTF8 theText8(event.theText);
-            const char* text = theText8.get();
-            ALOGIME("IME: IME_SET_TEXT: text=\"%s\", length=%u, range=%u",
-                    text, event.theText.Length(), mIMERanges.Length());
-#endif // DEBUG_ANDROID_IME
+            ALOGIME("IME: IME_SET_TEXT: l=%u, r=%u",
+                event.theText.Length(), mIMERanges.Length());
 
             DispatchEvent(&event);
             mIMERanges.Clear();
@@ -1969,14 +1955,12 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
                     event.mReply.mString.get(), 
                     event.mReply.mString.Length(), 0, 0);
             }
+            //ALOGIME("IME:     -> l=%u", event.mReply.mString.Length());
         }
         return;
     case AndroidGeckoEvent::IME_DELETE_TEXT:
         {
             ALOGIME("IME: IME_DELETE_TEXT");
-            NS_ASSERTION(mIMEComposing,
-                         "IME_DELETE_TEXT when we are not composing?!");
-
             nsKeyEvent event(true, NS_KEY_PRESS, this);
             ANPEvent pluginEvent;
             InitKeyEvent(event, *ae, &pluginEvent);
@@ -2170,11 +2154,6 @@ nsWindow::OnIMETextChange(PRUint32 aStart, PRUint32 aOldEnd, PRUint32 aNewEnd)
     ALOGIME("IME: OnIMETextChange: s=%d, oe=%d, ne=%d",
             aStart, aOldEnd, aNewEnd);
 
-    if (!mInputContext.mIMEState.mEnabled) {
-        AndroidBridge::NotifyIMEChange(nsnull, 0, 0, 0, 0);
-        return NS_OK;
-    }
-
     // A quirk in Android makes it necessary to pass the whole text.
     // The more efficient way would have been passing the substring from index
     // aStart to index aNewEnd
@@ -2199,11 +2178,6 @@ NS_IMETHODIMP
 nsWindow::OnIMESelectionChange(void)
 {
     ALOGIME("IME: OnIMESelectionChange");
-
-    if (!mInputContext.mIMEState.mEnabled) {
-        AndroidBridge::NotifyIMEChange(nsnull, 0, 0, 0, -1);
-        return NS_OK;
-    }
 
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
     nsQueryContentEvent event(true, NS_QUERY_SELECTED_TEXT, this);

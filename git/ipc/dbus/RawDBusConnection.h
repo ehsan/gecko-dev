@@ -12,8 +12,8 @@
 #include <stdio.h>
 #include <string>
 #include <stdlib.h>
-#include "nscore.h"
 #include "mozilla/Scoped.h"
+#include "dbus/dbus.h"
 
 struct DBusConnection;
 
@@ -24,13 +24,14 @@ class RawDBusConnection
 {
   struct ScopedDBusConnectionPtrTraits : ScopedFreePtrTraits<DBusConnection>
   {
-    static void release(DBusConnection* ptr);
+    static void release(DBusConnection* ptr) { if(ptr) dbus_connection_unref(ptr); }
   };
 
 public:
   RawDBusConnection();
   ~RawDBusConnection();
-  nsresult EstablishDBusConnection();
+  bool Create();
+protected:
   Scoped<ScopedDBusConnectionPtrTraits> mConnection;
 };
 

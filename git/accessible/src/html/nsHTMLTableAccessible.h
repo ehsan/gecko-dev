@@ -6,7 +6,7 @@
 #ifndef _nsHTMLTableAccessible_H_
 #define _nsHTMLTableAccessible_H_
 
-#include "HyperTextAccessibleWrap.h"
+#include "nsHyperTextAccessibleWrap.h"
 #include "nsIAccessibleTable.h"
 #include "TableAccessible.h"
 #include "xpcAccessibleTable.h"
@@ -17,7 +17,7 @@ class nsITableCellLayout;
 /**
  * HTML table cell accessible (html:td).
  */
-class nsHTMLTableCellAccessible : public HyperTextAccessibleWrap,
+class nsHTMLTableCellAccessible : public nsHyperTextAccessibleWrap,
                                   public nsIAccessibleTableCell
 {
 public:
@@ -32,7 +32,6 @@ public:
   // Accessible
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
-  virtual PRUint64 NativeInteractiveState() const;
   virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
 
 protected:
@@ -179,11 +178,11 @@ protected:
 /**
  * HTML caption accessible (html:caption).
  */
-class nsHTMLCaptionAccessible : public HyperTextAccessibleWrap
+class nsHTMLCaptionAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   nsHTMLCaptionAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    HyperTextAccessibleWrap(aContent, aDoc) { }
+    nsHyperTextAccessibleWrap(aContent, aDoc) { }
   virtual ~nsHTMLCaptionAccessible() { }
 
   // nsIAccessible

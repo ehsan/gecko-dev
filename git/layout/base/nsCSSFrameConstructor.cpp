@@ -2543,8 +2543,7 @@ nsCSSFrameConstructor::SetUpDocElementContainingBlock(nsIContent* aDocElement)
   /*
     how the root frame hierarchy should look
 
-  Galley presentation, non-XUL, with scrolling (i.e. not a frameset,
-  or framesets with async pan/zoom like on Fennec):
+  Galley presentation, non-XUL, with scrolling (i.e. not a frameset):
   
       ViewportFrame [fixed-cb]
         nsHTMLScrollFrame
@@ -2552,8 +2551,7 @@ nsCSSFrameConstructor::SetUpDocElementContainingBlock(nsIContent* aDocElement)
             root element frame (nsBlockFrame, nsSVGOuterSVGFrame,
                                 nsTableOuterFrame, nsPlaceholderFrame)
 
-  Galley presentation, non-XUL, without scrolling (i.e. a frameset,
-  except when async pan/zoom is enabled):
+  Galley presentation, non-XUL, without scrolling (i.e. a frameset):
   
       ViewportFrame [fixed-cb]
         nsCanvasFrame [abs-cb]
@@ -2670,15 +2668,12 @@ nsCSSFrameConstructor::SetUpDocElementContainingBlock(nsIContent* aDocElement)
   // Never create scrollbars for XUL documents
   bool isScrollable = !isXUL;
 
-#ifndef MOZ_WIDGET_ANDROID
-  // Never create scrollbars for frameset documents, except on android
-  // where we have async pan/zoom and need a scrollable root frame.
+  // Never create scrollbars for frameset documents.
   if (isHTML) {
     nsCOMPtr<nsIHTMLDocument> htmlDoc = do_QueryInterface(mDocument);
     if (htmlDoc && htmlDoc->GetIsFrameset())
       isScrollable = false;
   }
-#endif
 
   if (isPaginated) {
     isScrollable = presContext->HasPaginatedScrolling();
@@ -3153,8 +3148,6 @@ nsCSSFrameConstructor::ConstructFieldSetFrame(nsFrameConstructorState& aState,
 
   // Set the outer frame's initial child list
   newFrame->SetInitialChildList(kPrincipalList, fieldsetKids);
-
-  newFrame->AddStateBits(NS_FRAME_MAY_HAVE_GENERATED_CONTENT);
 
   // our new frame returned is the top frame which is the list frame. 
   *aNewFrame = newFrame; 
@@ -8232,7 +8225,6 @@ nsCSSFrameConstructor::BeginUpdate() {
     rootPresContext->IncrementDOMGeneration();
   }
 
-  ++sGlobalGenerationNumber;
   ++mUpdateCount;
 }
 

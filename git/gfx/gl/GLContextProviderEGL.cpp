@@ -436,17 +436,16 @@ public:
 #else
     virtual bool
     RenewSurface() {
-        sEGLLibrary.fMakeCurrent(EGL_DISPLAY(), EGL_NO_SURFACE, EGL_NO_SURFACE,
-                                 EGL_NO_CONTEXT);
-        if (!mSurface) {
+        ReleaseSurface();
+        EGLConfig config;
+
 #ifdef MOZ_JAVA_COMPOSITOR
-            mSurface = mozilla::AndroidBridge::Bridge()->ProvideEGLSurface();
+        mSurface = mozilla::AndroidBridge::Bridge()->ProvideEGLSurface();
 #else
-            EGLConfig config;
-            CreateConfig(&config);
-            mSurface = CreateSurfaceForWindow(NULL, config);
+        CreateConfig(&config);
+        mSurface = CreateSurfaceForWindow(NULL, config);
 #endif
-        }
+
         return sEGLLibrary.fMakeCurrent(EGL_DISPLAY(),
                                         mSurface, mSurface,
                                         mContext);
@@ -1948,12 +1947,8 @@ GLContextProviderEGL::CreateForNativePixmapSurface(gfxASurface* aSurface)
 }
 
 GLContext *
-GLContextProviderEGL::GetGlobalContext(const ContextFlags)
+GLContextProviderEGL::GetGlobalContext()
 {
-#ifdef ANDROID
-    return nsnull;
-#endif
-
     static bool triedToCreateContext = false;
     if (!triedToCreateContext && !gGlobalContext) {
         triedToCreateContext = true;

@@ -109,9 +109,6 @@ nsSVGEnum::SetBaseValue(PRUint16 aValue,
 void
 nsSVGEnum::SetAnimValue(PRUint16 aValue, nsSVGElement *aSVGElement)
 {
-  if (mIsAnimated && aValue == mAnimVal) {
-    return;
-  }
   mAnimVal = aValue;
   mIsAnimated = true;
   aSVGElement->DidAnimateEnum(mAttrEnum);

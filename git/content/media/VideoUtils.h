@@ -118,8 +118,7 @@ static const PRInt32 MAX_VIDEO_HEIGHT = 3000;
 void ScaleDisplayByAspectRatio(nsIntSize& aDisplay, float aAspectRatio);
 
 // The amount of virtual memory reserved for thread stacks.
-#if (defined(XP_WIN) || defined(XP_MACOSX) || defined(LINUX)) && \
-    !defined(MOZ_ASAN)
+#if defined(XP_WIN) || defined(XP_MACOSX) || defined(LINUX)
 #define MEDIA_THREAD_STACK_SIZE (128 * 1024)
 #else
 // All other platforms use their system defaults.

@@ -99,10 +99,6 @@
     {
       this.__proto__ = new loadURIInvoker(aNestedDocURI);
 
-      // Remove reorder event checker since the event is likely coalesced by
-      // reorder event on Firefox UI (refer to bug 759670 for details).
-      this.eventSeq.shift();
-
       this.unexpectedEventSeq = [
         new invokerChecker(EVENT_DOCUMENT_LOAD_COMPLETE, getNestedDoc),
         new invokerChecker(EVENT_STATE_CHANGE, getNestedDoc)
@@ -187,8 +183,7 @@
     ////////////////////////////////////////////////////////////////////////////
     // Tests
 
-    //gA11yEventDumpToConsole = true; // debug
-    //gA11yEventDumpFeature = "parentchain:reorder";
+    gA11yEventDumpToConsole = true; // debug
 
     var gQueue = null;
     function doTests()

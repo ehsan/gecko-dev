@@ -69,7 +69,7 @@ protected:
 /*
  * Options inside the select, contained within the list
  */
-class nsHTMLSelectOptionAccessible : public HyperTextAccessibleWrap
+class nsHTMLSelectOptionAccessible : public nsHyperTextAccessibleWrap
 {
 public:
   enum { eAction_Select = 0 };  
@@ -86,7 +86,6 @@ public:
   virtual nsresult GetNameInternal(nsAString& aName);
   virtual mozilla::a11y::role NativeRole();
   virtual PRUint64 NativeState();
-  virtual PRUint64 NativeInteractiveState() const;
 
   virtual PRInt32 GetLevelInternal();
   virtual void GetBoundsRect(nsRect& aTotalBounds, nsIFrame** aBoundingFrame);
@@ -142,7 +141,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual PRUint64 NativeInteractiveState() const;
+  virtual PRUint64 NativeState();
 
   // ActionAccessible
   virtual PRUint8 ActionCount();

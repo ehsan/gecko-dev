@@ -37,8 +37,7 @@
  */
 
 void
-_hb_ot_shape_complex_collect_features_default (hb_ot_map_builder_t *map HB_UNUSED,
-					       const hb_segment_properties_t *props HB_UNUSED)
+_hb_ot_shape_complex_collect_features_default (hb_ot_map_builder_t *map, const hb_segment_properties_t  *props)
 {
 }
 
@@ -49,9 +48,7 @@ _hb_ot_shape_complex_normalization_preference_default (void)
 }
 
 void
-_hb_ot_shape_complex_setup_masks_default (hb_ot_map_t *map HB_UNUSED,
-					  hb_buffer_t *buffer HB_UNUSED,
-					  hb_font_t *font HB_UNUSED)
+_hb_ot_shape_complex_setup_masks_default (hb_ot_map_t *map, hb_buffer_t *buffer, hb_font_t *font)
 {
 }
 
@@ -67,8 +64,7 @@ static const hb_tag_t hangul_features[] =
 };
 
 void
-_hb_ot_shape_complex_collect_features_hangul (hb_ot_map_builder_t *map,
-					      const hb_segment_properties_t *props HB_UNUSED)
+_hb_ot_shape_complex_collect_features_hangul (hb_ot_map_builder_t *map, const hb_segment_properties_t  *props)
 {
   for (unsigned int i = 0; i < ARRAY_LENGTH (hangul_features); i++)
     map->add_bool_feature (hangul_features[i]);
@@ -81,9 +77,7 @@ _hb_ot_shape_complex_normalization_preference_hangul (void)
 }
 
 void
-_hb_ot_shape_complex_setup_masks_hangul (hb_ot_map_t *map HB_UNUSED,
-					 hb_buffer_t *buffer HB_UNUSED,
-					 hb_font_t *font HB_UNUSED)
+_hb_ot_shape_complex_setup_masks_hangul (hb_ot_map_t *map, hb_buffer_t *buffer, hb_font_t *font)
 {
 }
 
@@ -92,8 +86,7 @@ _hb_ot_shape_complex_setup_masks_hangul (hb_ot_map_t *map HB_UNUSED,
 /* Thai / Lao shaper */
 
 void
-_hb_ot_shape_complex_collect_features_thai (hb_ot_map_builder_t *map HB_UNUSED,
-					    const hb_segment_properties_t *props HB_UNUSED)
+_hb_ot_shape_complex_collect_features_thai (hb_ot_map_builder_t *map, const hb_segment_properties_t  *props)
 {
 }
 
@@ -104,9 +97,7 @@ _hb_ot_shape_complex_normalization_preference_thai (void)
 }
 
 void
-_hb_ot_shape_complex_setup_masks_thai (hb_ot_map_t *map HB_UNUSED,
-				       hb_buffer_t *buffer,
-				       hb_font_t *font HB_UNUSED)
+_hb_ot_shape_complex_setup_masks_thai (hb_ot_map_t *map, hb_buffer_t *buffer, hb_font_t *font)
 {
   /* The following is NOT specified in the MS OT Thai spec, however, it seems
    * to be what Uniscribe and other engines implement.  According to Eric Muller:
@@ -150,15 +141,15 @@ _hb_ot_shape_complex_setup_masks_thai (hb_ot_map_t *map HB_UNUSED,
   unsigned int count = buffer->len;
   for (buffer->idx = 0; buffer->idx < count;)
   {
-    hb_codepoint_t u = buffer->cur().codepoint;
+    hb_codepoint_t u = buffer->info[buffer->idx].codepoint;
     if (likely (!IS_SARA_AM (u))) {
       buffer->next_glyph ();
       continue;
     }
 
     /* Is SARA AM. Decompose and reorder. */
-    hb_codepoint_t decomposed[2] = {hb_codepoint_t (NIKHAHIT_FROM_SARA_AM (u)),
-				    hb_codepoint_t (SARA_AA_FROM_SARA_AM (u))};
+    uint16_t decomposed[2] = {uint16_t (NIKHAHIT_FROM_SARA_AM (u)),
+			      uint16_t (SARA_AA_FROM_SARA_AM (u))};
     buffer->replace_glyphs (1, 2, decomposed);
     if (unlikely (buffer->in_error))
       return;
@@ -176,12 +167,11 @@ _hb_ot_shape_complex_setup_masks_thai (hb_ot_map_t *map HB_UNUSED,
 	     sizeof (buffer->out_info[0]) * (end - start - 2));
     buffer->out_info[start] = t;
 
-    /* XXX Make this easier! */
     /* Make cluster */
     for (; start > 0 && buffer->out_info[start - 1].cluster == buffer->out_info[start].cluster; start--)
       ;
     for (; buffer->idx < count;)
-      if (buffer->cur().cluster == buffer->prev().cluster)
+      if (buffer->info[buffer->idx].cluster == buffer->out_info[buffer->out_len - 1].cluster)
         buffer->next_glyph ();
       else
         break;

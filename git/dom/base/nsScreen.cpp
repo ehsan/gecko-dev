@@ -63,15 +63,8 @@ nsScreen::nsScreen()
 {
 }
 
-void
-nsScreen::Reset()
-{
-  hal::UnlockScreenOrientation();
-}
-
 nsScreen::~nsScreen()
 {
-  Reset();
   hal::UnregisterScreenConfigurationObserver(this);
 }
 

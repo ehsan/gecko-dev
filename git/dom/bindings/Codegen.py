@@ -1302,8 +1302,7 @@ ${target} = tmp.forget();""").substitute(self.substitution)
 def getJSToNativeConversionTemplate(type, descriptorProvider, failureCode=None,
                                     isDefinitelyObject=False,
                                     isSequenceMember=False,
-                                    isOptional=False,
-                                    invalidEnumValueFatal=True):
+                                    isOptional=False):
     """
     Get a template for converting a JS value to a native object based on the
     given type and descriptor.  If failureCode is given, then we're actually
@@ -1650,17 +1649,12 @@ for (uint32_t i = 0; i < length; ++i) {
         return (
             "{\n"
             "  bool ok;\n"
-            "  int index = FindEnumStringIndex(cx, ${val}, %(values)s, &ok);\n"
+            "  ${declName} = static_cast<%(enumtype)s>(FindEnumStringIndex(cx, ${val}, %(values)s, &ok));\n"
             "  if (!ok) {\n"
             "    return false;\n"
             "  }\n"
-            "  if (index < 0) {\n"
-            "    return %(failureCode)s;\n"
-            "  }\n"
-            "  ${declName} = static_cast<%(enumtype)s>(index);\n"
             "}" % { "enumtype" : enum,
-                      "values" : enum + "Values::strings",
-                 "failureCode" : "Throw<false>(cx, NS_ERROR_XPC_BAD_CONVERT_JS)" if invalidEnumValueFatal else "true" },
+                      "values" : enum + "Values::strings" },
             CGGeneric(enum), None, isOptional)
 
     if type.isCallback():
@@ -1824,8 +1818,7 @@ class CGArgumentConverter(CGThing):
     argument list, and the argv and argc strings and generates code to
     unwrap the argument to the right native type.
     """
-    def __init__(self, argument, index, argv, argc, descriptorProvider,
-                 invalidEnumValueFatal=True):
+    def __init__(self, argument, index, argv, argc, descriptorProvider):
         CGThing.__init__(self)
         self.argument = argument
         # XXXbz should optional jsval args get JSVAL_VOID? What about
@@ -1858,14 +1851,12 @@ class CGArgumentConverter(CGThing):
             self.argcAndIndex = replacer
         else:
             self.argcAndIndex = None
-        self.invalidEnumValueFatal = invalidEnumValueFatal
 
     def define(self):
         return instantiateJSToNativeConversionTemplate(
             getJSToNativeConversionTemplate(self.argument.type,
                                             self.descriptorProvider,
-                                            isOptional=(self.argcAndIndex is not None),
-                                            invalidEnumValueFatal=self.invalidEnumValueFatal),
+                                            isOptional=(self.argcAndIndex is not None)),
             self.replacementVariables,
             self.argcAndIndex).define()
 
@@ -2083,28 +2074,25 @@ def wrapForType(type, descriptorProvider, templateValues):
     defaultValues = {'obj': 'obj'}
     return string.Template(wrap).substitute(defaultValues, **templateValues)
 
-def typeNeedsCx(type):
-    return (type is not None and
-            (type.isCallback() or type.isAny() or type.isObject()))
-
-# Returns a CGThing containing the type of the return value, or None
-# if there is no need for a return value.
+# Returns a tuple consisting of a CGThing containing the type of the return
+# value and a boolean signalling whether we need to pass a JSContext as the
+# first argument of the call.
 def getRetvalDeclarationForType(returnType, descriptorProvider,
                                 resultAlreadyAddRefed):
     if returnType is None or returnType.isVoid():
         # Nothing to declare
-        return None
+        return None, False
     if returnType.isPrimitive() and returnType.tag() in builtinNames:
         result = CGGeneric(builtinNames[returnType.tag()])
         if returnType.nullable():
             result = CGWrapper(result, pre="Nullable<", post=">")
-        return result
+        return result, False
     if returnType.isString():
-        return CGGeneric("nsString")
+        return CGGeneric("nsString"), False
     if returnType.isEnum():
         if returnType.nullable():
             raise TypeError("We don't support nullable enum return values")
-        return CGGeneric(returnType.inner.identifier.name)
+        return CGGeneric(returnType.inner.identifier.name), False
     if returnType.isGeckoInterface():
         result = CGGeneric(descriptorProvider.getDescriptor(
             returnType.unroll().inner.identifier.name).nativeType)
@@ -2112,30 +2100,32 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
             result = CGWrapper(result, pre="nsRefPtr<", post=">")
         else:
             result = CGWrapper(result, post="*")
-        return result
+        return result, False
     if returnType.isCallback():
         # XXXbz we're going to assume that callback types are always
         # nullable for now.
-        return CGGeneric("JSObject*")
-    if returnType.isAny():
-        return CGGeneric("JS::Value")
+        return CGGeneric("JSObject*"), False
+    if returnType.tag() is IDLType.Tags.any:
+        return CGGeneric("JS::Value"), False
     if returnType.isObject():
-        return CGGeneric("JSObject*")
+        return CGGeneric("JSObject*"), True
     if returnType.isSequence():
         nullable = returnType.nullable()
         if nullable:
             returnType = returnType.inner
         # If our result is already addrefed, use the right type in the
         # sequence argument here.
-        result = getRetvalDeclarationForType(returnType.inner,
-                                             descriptorProvider,
-                                             resultAlreadyAddRefed)
+        (result, needsCx) = getRetvalDeclarationForType(returnType.inner,
+                                                        descriptorProvider,
+                                                        resultAlreadyAddRefed)
         result = CGWrapper(result, pre="nsTArray< ", post=" >")
         if nullable:
             result = CGWrapper(result, pre="Nullable< ", post=" >")
-        return result
+        return result, needsCx
     raise TypeError("Don't know how to declare return value for %s" %
                     returnType)
+
+
 
 def isResultAlreadyAddRefed(descriptor, extendedAttributes):
     # Default to already_AddRefed on the main thread, raw pointer in workers
@@ -2169,14 +2159,15 @@ class CGCallGenerator(CGThing):
 
         resultAlreadyAddRefed = isResultAlreadyAddRefed(descriptorProvider,
                                                         extendedAttributes)
-        result = getRetvalDeclarationForType(returnType,
-                                             descriptorProvider,
-                                             resultAlreadyAddRefed)
-        needsCx = (typeNeedsCx(returnType) or
-                   any(typeNeedsCx(a.type) for a in arguments) or
-                   'implicitJSContext' in extendedAttributes)
+        (result, needsCx) = getRetvalDeclarationForType(returnType,
+                                                        descriptorProvider,
+                                                        resultAlreadyAddRefed)
 
-        if not "cx" in argsPre and needsCx:
+        if not needsCx:
+            needsCx = reduce(lambda b, a: b or a.type.isObject(), arguments,
+                             False)
+
+        if not "cx" in argsPre and (needsCx or 'implicitJSContext' in extendedAttributes):
             args.prepend(CGGeneric("cx"))
 
         # Build up our actual call
@@ -2249,8 +2240,7 @@ class CGPerSignatureCall(CGThing):
         else:
             cgThings = []
         cgThings.extend([CGArgumentConverter(arguments[i], i, self.getArgv(),
-                                             self.getArgc(), self.descriptor,
-                                             invalidEnumValueFatal=not setter) for
+                                             self.getArgc(), self.descriptor) for
                          i in range(argConversionStartsAt, self.argCount)])
 
         cgThings.append(CGCallGenerator(
@@ -2443,11 +2433,9 @@ class CGMethodCall(CGThing):
                                          "." + method.identifier.name +
                                          " have different types at index %d" +
                                          " which is before distinguishing" +
-                                         " index %d.  Types are %s and %s") %
-                                        (argCount, idx,
-                                         distinguishingIndex,
-                                         str(possibleSignatures[sigIdx][1][idx].type),
-                                         str(firstSigType)))
+                                         " index %d") % (argCount,
+                                                         idx,
+                                                         distinguishingIndex))
 
             # Convert all our arguments up to the distinguishing index.
             # Doesn't matter which of the possible signatures we use, since
@@ -3414,9 +3402,7 @@ class CGBindingRoot(CGThing):
         for x in descriptors:
             nativeType = x.nativeType
             components = x.nativeType.split('::')
-            className = components[-1]
-            # JSObject is a struct, not a class
-            declare = CGClassForwardDeclare(className, className is "JSObject")
+            declare = CGClassForwardDeclare(components[-1])
             if len(components) > 1:
                 declare = CGNamespace.build(components[:-1],
                                             CGWrapper(declare, declarePre='\n',
@@ -3478,10 +3464,7 @@ class CGBindingRoot(CGThing):
                           'AccessCheck.h',
                           'WorkerPrivate.h',
                           'nsContentUtils.h',
-                          'mozilla/Preferences.h',
-                          # Have to include nsDOMQS.h to get fast arg unwrapping
-                          # for old-binding things with castability.
-                          'nsDOMQS.h'
+                          'mozilla/Preferences.h'
                           ],
                          curr)
 

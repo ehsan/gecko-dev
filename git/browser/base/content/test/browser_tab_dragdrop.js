@@ -90,12 +90,8 @@ function test()
   }
 
   var loads = 0;
-  function waitForLoad(event, tab, listenerContainer) {
-    var b = gBrowser.getBrowserForTab(gBrowser.tabs[tab]);
-    if (b.contentDocument != event.target) {
-      return;
-    }
-    gBrowser.getBrowserForTab(gBrowser.tabs[tab]).removeEventListener("load", listenerContainer.listener, true);
+  function waitForLoad(tab) {
+    gBrowser.getBrowserForTab(gBrowser.tabs[tab]).removeEventListener("load", arguments.callee, true);
     ++loads;
     if (loads == tabs.length - 1) {
       executeSoon(test1);
@@ -103,9 +99,7 @@ function test()
   }
 
   function fn(f, arg) {
-    var listenerContainer = { listener: null }
-    listenerContainer.listener = function (event) { return f(event, arg, listenerContainer); };
-    return listenerContainer.listener;
+    return function () { return f(arg); };
   }
   for (var i = 1; i < tabs.length; ++i) {
     gBrowser.getBrowserForTab(tabs[i]).addEventListener("load", fn(waitForLoad,i), true);

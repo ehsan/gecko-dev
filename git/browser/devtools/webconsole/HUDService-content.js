@@ -39,6 +39,7 @@ let _alive = true; // Track if this content script should still be alive.
  */
 let Manager = {
   get window() content,
+  sandbox: null,
   hudId: null,
   _sequence: 0,
   _messageListeners: ["WebConsole:Init", "WebConsole:EnableFeature",
@@ -498,8 +499,9 @@ let Manager = {
     Manager = ConsoleAPIObserver = JSTerm = ConsoleListener = NetworkMonitor =
       NetworkResponseListener = ConsoleProgressListener = null;
 
-    XPCOMUtils = gConsoleStorage = WebConsoleUtils = l10n = JSPropertyProvider =
-      null;
+    Cc = Ci = Cu = XPCOMUtils = Services = gConsoleStorage =
+      WebConsoleUtils = l10n = JSPropertyProvider = NetworkHelper =
+      NetUtil = activityDistributor = null;
   },
 };
 
@@ -737,7 +739,6 @@ let JSTerm = {
    */
   sandbox: null,
 
-  _sandboxLocation: null,
   _messageHandlers: {},
 
   /**
@@ -773,6 +774,8 @@ let JSTerm = {
       let handler = this._messageHandlers[name].bind(this);
       Manager.addMessageHandler(name, handler);
     }
+
+    this._createSandbox();
 
     if (aMessage && aMessage.notifyNonNativeConsoleAPI) {
       let consoleObject = WebConsoleUtils.unwrap(this.window).console;
@@ -984,7 +987,6 @@ let JSTerm = {
    */
   _createSandbox: function JST__createSandbox()
   {
-    this._sandboxLocation = this.window.location;
     this.sandbox = new Cu.Sandbox(this.window, {
       sandboxPrototype: this.window,
       wantXrays: false,
@@ -1000,17 +1002,11 @@ let JSTerm = {
    *
    * @param string aString
    *        String to evaluate in the sandbox.
-   * @return mixed
-   *         The result of the evaluation.
+   * @returns something
+   *          The result of the evaluation.
    */
   evalInSandbox: function JST_evalInSandbox(aString)
   {
-    // If the user changed to a different location, we need to update the
-    // sandbox.
-    if (this._sandboxLocation !== this.window.location) {
-      this._createSandbox();
-    }
-
     // The help function needs to be easy to guess, so we make the () optional
     if (aString.trim() == "help" || aString.trim() == "?") {
       aString = "help()";
@@ -1053,7 +1049,6 @@ let JSTerm = {
     }
 
     delete this.sandbox;
-    delete this._sandboxLocation;
     delete this._messageHandlers;
     delete this._objectCache;
   },
@@ -1508,7 +1503,7 @@ NetworkResponseListener.prototype = {
    */
   _findOpenResponse: function NRL__findOpenResponse()
   {
-    if (!_alive || this._foundOpenResponse) {
+    if (this._foundOpenResponse) {
       return;
     }
 
@@ -1616,9 +1611,7 @@ NetworkResponseListener.prototype = {
 
     this.receivedData = "";
 
-    if (_alive) {
-      NetworkMonitor.sendActivity(this.httpActivity);
-    }
+    NetworkMonitor.sendActivity(this.httpActivity);
 
     this.httpActivity.channel = null;
     this.httpActivity = null;
@@ -1752,7 +1745,7 @@ let NetworkMonitor = {
     // NetworkResponseListener is responsible with updating the httpActivity
     // object with the data from the new object in openResponses.
 
-    if (!_alive || aTopic != "http-on-examine-response" ||
+    if (aTopic != "http-on-examine-response" ||
         !(aSubject instanceof Ci.nsIHttpChannel)) {
       return;
     }

@@ -49,12 +49,6 @@ XPCOMUtils.defineLazyServiceGetter(Services, 'fm',
   let constructor = {
     handleEvent: function vkm_handleEvent(evt) {
       switch (evt.type) {
-        case 'resize':
-          if (!isKeyboardOpened)
-            return;
-
-          activeElement.scrollIntoView(false);
-          break;
         case 'keypress':
           if (evt.keyCode != evt.DOM_VK_ESCAPE || !isKeyboardOpened)
             return;
@@ -90,7 +84,7 @@ XPCOMUtils.defineLazyServiceGetter(Services, 'fm',
   };
 
   Services.obs.addObserver(constructor, 'ime-enabled-state-changed', false);
-  ['keypress', 'mousedown', 'resize'].forEach(function vkm_events(type) {
+  ['keypress', 'mousedown'].forEach(function vkm_events(type) {
     addEventListener(type, constructor, true);
   });
 })();

@@ -650,7 +650,6 @@ ConvertLoadTypeToNavigationType(PRUint32 aLoadType)
     case LOAD_NORMAL_REPLACE:
     case LOAD_LINK:
     case LOAD_STOP_CONTENT:
-    case LOAD_REPLACE_BYPASS_CACHE:
         result = nsIDOMPerformanceNavigation::TYPE_NAVIGATE;
         break;
     case LOAD_HISTORY:
@@ -1144,9 +1143,6 @@ ConvertDocShellLoadInfoToLoadType(nsDocShellInfoLoadType aDocShellLoadType)
     case nsIDocShellLoadInfo::loadPushState:
         loadType = LOAD_PUSHSTATE;
         break;
-    case nsIDocShellLoadInfo::loadReplaceBypassCache:
-        loadType = LOAD_REPLACE_BYPASS_CACHE;
-        break;
     default:
         NS_NOTREACHED("Unexpected nsDocShellInfoLoadType value");
     }
@@ -1214,9 +1210,6 @@ nsDocShell::ConvertLoadTypeToDocShellLoadInfo(PRUint32 aLoadType)
         break;
     case LOAD_PUSHSTATE:
         docShellLoadType = nsIDocShellLoadInfo::loadPushState;
-        break;
-    case LOAD_REPLACE_BYPASS_CACHE:
-        docShellLoadType = nsIDocShellLoadInfo::loadReplaceBypassCache;
         break;
     default:
         NS_NOTREACHED("Unexpected load type value");
@@ -5921,7 +5914,6 @@ nsDocShell::Embed(nsIContentViewer * aContentViewer,
     case LOAD_RELOAD_BYPASS_CACHE:
     case LOAD_RELOAD_BYPASS_PROXY:
     case LOAD_RELOAD_BYPASS_PROXY_AND_CACHE:
-    case LOAD_REPLACE_BYPASS_CACHE:
         updateHistory = false;
         break;
     default:
@@ -8054,23 +8046,6 @@ private:
     bool mFirstParty;
 };
 
-/**
- * Returns true if we started an asynchronous load (i.e., from the network), but
- * the document we're loading there hasn't yet become this docshell's active
- * document.
- *
- * When JustStartedNetworkLoad is true, you should be careful about modifying
- * mLoadType and mLSHE.  These are both set when the asynchronous load first
- * starts, and the load expects that, when it eventually runs InternalLoad,
- * mLoadType and mLSHE will have their original values.
- */
-bool
-nsDocShell::JustStartedNetworkLoad()
-{
-    return mDocumentRequest &&
-           mDocumentRequest != GetCurrentDocChannel();
-}
-
 NS_IMETHODIMP
 nsDocShell::InternalLoad(nsIURI * aURI,
                          nsIURI * aReferrer,
@@ -8487,16 +8462,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             // See bug 737307.
             AutoRestore<PRUint32> loadTypeResetter(mLoadType);
 
-            // If a non-short-circuit load (i.e., a network load) is pending,
-            // make this a replacement load, so that we don't add a SHEntry here
-            // and the network load goes into the SHEntry it expects to.
-            if (JustStartedNetworkLoad() && (aLoadType & LOAD_CMD_NORMAL)) {
-                mLoadType = LOAD_NORMAL_REPLACE;
-            }
-            else {
-                mLoadType = aLoadType;
-            }
-
+            mLoadType = aLoadType;
             mURIResultedInDocument = true;
 
             /* we need to assign mLSHE to aSHEntry right here, so that on History loads,
@@ -9225,7 +9191,6 @@ nsresult nsDocShell::DoChannelLoad(nsIChannel * aChannel,
     case LOAD_RELOAD_BYPASS_CACHE:
     case LOAD_RELOAD_BYPASS_PROXY:
     case LOAD_RELOAD_BYPASS_PROXY_AND_CACHE:
-    case LOAD_REPLACE_BYPASS_CACHE:
         loadFlags |= nsIRequest::LOAD_BYPASS_CACHE |
                      nsIRequest::LOAD_FRESH_CONNECTION;
         break;
@@ -9696,16 +9661,6 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
     // Note that we completely ignore the aTitle parameter.
 
     nsresult rv;
-
-    // Don't clobber the load type of an existing network load.
-    AutoRestore<PRUint32> loadTypeResetter(mLoadType);
-
-    // pushState effectively becomes replaceState when we've started a network
-    // load but haven't adopted its document yet.  This mirrors what we do with
-    // changes to the hash at this stage of the game.
-    if (JustStartedNetworkLoad()) {
-        aReplace = true;
-    }
 
     nsCOMPtr<nsIDocument> document = do_GetInterface(GetAsSupports(this));
     NS_ENSURE_TRUE(document, NS_ERROR_FAILURE);

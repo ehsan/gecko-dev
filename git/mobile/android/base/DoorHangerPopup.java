@@ -10,10 +10,8 @@ import java.util.HashMap;
 import android.content.Context;
 import android.graphics.drawable.BitmapDrawable;
 import android.util.Log;
-import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
-import android.view.View;
 import android.widget.PopupWindow;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
@@ -39,8 +37,7 @@ public class DoorHangerPopup extends PopupWindow {
     private void init() {
         setBackgroundDrawable(new BitmapDrawable());
         setOutsideTouchable(true);
-        setWindowLayoutMode(GeckoApp.mAppContext.isTablet() ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.FILL_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT);
+        setWindowLayoutMode(ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
 
         LayoutInflater inflater = LayoutInflater.from(mContext);
         RelativeLayout layout = (RelativeLayout) inflater.inflate(R.layout.doorhangerpopup, null);
@@ -51,7 +48,7 @@ public class DoorHangerPopup extends PopupWindow {
     }
 
     public void addDoorHanger(String message, String value, JSONArray buttons,
-                              Tab tab, JSONObject options, View v) {
+                              Tab tab, JSONObject options) {
         Log.i(LOGTAG, "Adding a DoorHanger to Tab: " + tab.getId());
 
         if (!mInflated)
@@ -84,15 +81,11 @@ public class DoorHangerPopup extends PopupWindow {
 
         // Only update the popup if we're adding a notifcation to the selected tab
         if (tab.equals(Tabs.getInstance().getSelectedTab()))
-            updatePopup(v);
+            updatePopup();
     }
 
     // Updates popup contents to show doorhangers for the selected tab
     public void updatePopup() {
-      updatePopup(null);
-    }
-
-    public void updatePopup(View v) {
         Tab tab = Tabs.getInstance().getSelectedTab();
         if (tab == null) {
             hidePopup();
@@ -122,25 +115,24 @@ public class DoorHangerPopup extends PopupWindow {
             dh.show();
         }
 
-        if (v == null)
-            showAtLocation(((GeckoApp)mContext).getView(), Gravity.TOP, 0, 0);
-        else
-            showPopup(v);
+        showPopup();
     }
 
     public void hidePopup() {
         if (isShowing()) {
+            Log.i(LOGTAG, "Hiding the DoorHangerPopup");
             dismiss();
         }
     }
 
-    public void showPopup(View v) {
+    public void showPopup() {
+        Log.i(LOGTAG, "Showing the DoorHangerPopup");
         fixBackgroundForFirst();
 
         if (isShowing())
             update();
         else
-            showAsDropDown(v);
+            showAsDropDown(GeckoApp.mBrowserToolbar.mFavicon);
     }
 
     private void fixBackgroundForFirst() {

@@ -38,26 +38,22 @@ nsXULSliderAccessible::NativeRole()
 }
 
 PRUint64
-nsXULSliderAccessible::NativeInteractiveState() const
- {
-  if (NativelyUnavailable())
-    return states::UNAVAILABLE;
+nsXULSliderAccessible::NativeState()
+{
+  PRUint64 state = AccessibleWrap::NativeState();
 
   nsIContent* sliderElm = GetSliderElement();
-  if (sliderElm) {
-    nsIFrame* frame = sliderElm->GetPrimaryFrame();
-    if (frame && frame->IsFocusable())
-      return states::FOCUSABLE;
-  }
+  if (!sliderElm)
+    return state;
 
-  return 0;
-}
+  nsIFrame *frame = sliderElm->GetPrimaryFrame();
+  if (frame && frame->IsFocusable())
+    state |= states::FOCUSABLE;
 
-bool
-nsXULSliderAccessible::NativelyUnavailable() const
-{
-  return mContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::disabled,
-                               nsGkAtoms::_true, eCaseMatters);
+  if (FocusMgr()->IsFocused(this))
+    state |= states::FOCUSED;
+
+  return state;
 }
 
 // nsIAccessible
@@ -169,7 +165,7 @@ nsXULSliderAccessible::CanHaveAnonChildren()
 // Utils
 
 nsIContent*
-nsXULSliderAccessible::GetSliderElement() const
+nsXULSliderAccessible::GetSliderElement()
 {
   if (!mSliderNode) {
     // XXX: we depend on anonymous content.

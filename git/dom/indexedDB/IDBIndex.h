@@ -19,14 +19,7 @@ class nsPIDOMWindow;
 BEGIN_INDEXEDDB_NAMESPACE
 
 class AsyncConnectionHelper;
-class IDBCursor;
-class IDBKeyRange;
 class IDBObjectStore;
-class IDBRequest;
-class IndexedDBIndexChild;
-class IndexedDBIndexParent;
-class Key;
-
 struct IndexInfo;
 
 class IDBIndex MOZ_FINAL : public nsIIDBIndex
@@ -39,8 +32,7 @@ public:
 
   static already_AddRefed<IDBIndex>
   Create(IDBObjectStore* aObjectStore,
-         const IndexInfo* aIndexInfo,
-         bool aCreating);
+         const IndexInfo* aIndexInfo);
 
   IDBObjectStore* ObjectStore()
   {
@@ -82,73 +74,6 @@ public:
     return mKeyPathArray;
   }
 
-  void
-  SetActor(IndexedDBIndexChild* aActorChild)
-  {
-    NS_ASSERTION(!aActorChild || !mActorChild, "Shouldn't have more than one!");
-    mActorChild = aActorChild;
-  }
-
-  void
-  SetActor(IndexedDBIndexParent* aActorParent)
-  {
-    NS_ASSERTION(!aActorParent || !mActorParent,
-                 "Shouldn't have more than one!");
-    mActorParent = aActorParent;
-  }
-
-  IndexedDBIndexChild*
-  GetActorChild() const
-  {
-    return mActorChild;
-  }
-
-  IndexedDBIndexParent*
-  GetActorParent() const
-  {
-    return mActorParent;
-  }
-
-  nsresult GetInternal(IDBKeyRange* aKeyRange,
-                       IDBRequest** _retval);
-
-  nsresult GetKeyInternal(IDBKeyRange* aKeyRange,
-                          IDBRequest** _retval);
-
-  nsresult GetAllInternal(IDBKeyRange* aKeyRange,
-                          PRUint32 aLimit,
-                          IDBRequest** _retval);
-
-  nsresult GetAllKeysInternal(IDBKeyRange* aKeyRange,
-                              PRUint32 aLimit,
-                              IDBRequest** _retval);
-
-  nsresult CountInternal(IDBKeyRange* aKeyRange,
-                         IDBRequest** _retval);
-
-  nsresult OpenCursorFromChildProcess(
-                            IDBRequest* aRequest,
-                            size_t aDirection,
-                            const Key& aKey,
-                            const Key& aObjectKey,
-                            IDBCursor** _retval);
-
-  nsresult OpenKeyCursorInternal(IDBKeyRange* aKeyRange,
-                                 size_t aDirection,
-                                 IDBRequest** _retval);
-
-  nsresult OpenCursorInternal(IDBKeyRange* aKeyRange,
-                              size_t aDirection,
-                              IDBRequest** _retval);
-
-  nsresult OpenCursorFromChildProcess(
-                            IDBRequest* aRequest,
-                            size_t aDirection,
-                            const Key& aKey,
-                            const Key& aObjectKey,
-                            const SerializedStructuredCloneReadInfo& aCloneInfo,
-                            IDBCursor** _retval);
-
 private:
   IDBIndex();
   ~IDBIndex();
@@ -159,10 +84,6 @@ private:
   nsString mName;
   nsString mKeyPath;
   nsTArray<nsString> mKeyPathArray;
-
-  IndexedDBIndexChild* mActorChild;
-  IndexedDBIndexParent* mActorParent;
-
   bool mUnique;
   bool mMultiEntry;
 };

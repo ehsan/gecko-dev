@@ -701,9 +701,10 @@ SVGPathData::GetMarkerPositioningData(nsTArray<nsSVGMark> *aMarks) const
       double cyp = -root * ry * x1p / rx;
 
       double theta, delta;
-      theta = AngleOfVector(gfxPoint((x1p-cxp)/rx, (y1p-cyp)/ry));    // F.6.5.5
-      delta = AngleOfVector(gfxPoint((-x1p-cxp)/rx, (-y1p-cyp)/ry)) - // F.6.5.6
-              theta;
+      theta = AngleOfVector(gfxPoint((x1p-cxp)/rx, (y1p-cyp)/ry) -   // F.6.5.5
+                            gfxPoint(1.0, 0.0));
+      delta = AngleOfVector(gfxPoint((-x1p-cxp)/rx, (-y1p-cyp)/ry) - // F.6.5.6
+                            gfxPoint((x1p-cxp)/rx, (y1p-cyp)/ry));
       if (!sweepFlag && delta > 0)
         delta -= 2.0 * M_PI;
       else if (sweepFlag && delta < 0)

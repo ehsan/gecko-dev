@@ -508,21 +508,20 @@ var WebappsHelper = {
 // Start the debugger server.
 function startDebugger() {
   if (!DebuggerServer.initialized) {
-    // Allow remote connections.
-    DebuggerServer.init(function () { return true; });
+    DebuggerServer.init();
     DebuggerServer.addActors('chrome://browser/content/dbg-browser-actors.js');
   }
 
-  let port = Services.prefs.getIntPref('devtools.debugger.remote-port') || 6000;
+  let port = Services.prefs.getIntPref('devtools.debugger.port') || 6000;
   try {
-    DebuggerServer.openListener(port);
+    DebuggerServer.openListener(port, false);
   } catch (e) {
     dump('Unable to start debugger server: ' + e + '\n');
   }
 }
 
 window.addEventListener('ContentStart', function(evt) {
-  if (Services.prefs.getBoolPref('devtools.debugger.remote-enabled')) {
+  if (Services.prefs.getBoolPref('devtools.debugger.enabled')) {
     startDebugger();
   }
 });
@@ -651,17 +650,9 @@ SettingsListener.observe('language.current', 'en-US', function(value) {
     });
   });
 
-  let strPrefs = ['ril.data.apn', 'ril.data.user', 'ril.data.passwd',
-                  'ril.data.mmsc', 'ril.data.mmsproxy'];
-  strPrefs.forEach(function(key) {
+  ['ril.data.apn', 'ril.data.user', 'ril.data.passwd'].forEach(function(key) {
     SettingsListener.observe(key, false, function(value) {
       Services.prefs.setCharPref(key, value);
-    });
-  });
-
-  ['ril.data.mmsport'].forEach(function(key) {
-    SettingsListener.observe(key, false, function(value) {
-      Services.prefs.setIntPref(key, value);
     });
   });
 })();

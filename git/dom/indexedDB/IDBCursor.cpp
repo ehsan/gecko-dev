@@ -4,8 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
 #include "IDBCursor.h"
 
 #include "mozilla/storage.h"
@@ -23,46 +21,9 @@
 #include "IDBTransaction.h"
 #include "TransactionThreadPool.h"
 
-#include "ipc/IndexedDBChild.h"
-#include "ipc/IndexedDBParent.h"
-
-#include "IndexedDatabaseInlines.h"
-
 USING_INDEXEDDB_NAMESPACE
-using namespace mozilla::dom::indexedDB::ipc;
-
-MOZ_STATIC_ASSERT(sizeof(size_t) >= sizeof(IDBCursor::Direction),
-                  "Relying on conversion between size_t and "
-                  "IDBCursor::Direction");
 
 namespace {
-
-class CursorHelper : public AsyncConnectionHelper
-{
-public:
-  CursorHelper(IDBCursor* aCursor)
-  : AsyncConnectionHelper(aCursor->Transaction(), aCursor->Request()),
-    mCursor(aCursor), mActor(nsnull)
-  {
-    NS_ASSERTION(aCursor, "Null cursor!");
-  }
-
-  virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
-
-  virtual nsresult Dispatch(nsIEventTarget* aDatabaseThread) MOZ_OVERRIDE;
-
-  virtual nsresult
-  PackArgumentsForParentProcess(CursorRequestParams& aParams) = 0;
-
-  virtual nsresult
-  UnpackResponseFromParentProcess(const ResponseValue& aResponseValue) = 0;
-
-protected:
-  nsRefPtr<IDBCursor> mCursor;
-
-private:
-  IndexedDBCursorRequestChild* mActor;
-};
 
 inline
 already_AddRefed<IDBRequest>
@@ -77,12 +38,13 @@ GenerateRequest(IDBCursor* aCursor)
 
 BEGIN_INDEXEDDB_NAMESPACE
 
-class ContinueHelper : public CursorHelper
+class ContinueHelper : public AsyncConnectionHelper
 {
 public:
   ContinueHelper(IDBCursor* aCursor,
                  PRInt32 aCount)
-  : CursorHelper(aCursor), mCount(aCount)
+  : AsyncConnectionHelper(aCursor->mTransaction, aCursor->mRequest),
+    mCursor(aCursor), mCount(aCount)
   {
     NS_ASSERTION(aCount > 0, "Must have a count!");
   }
@@ -92,21 +54,15 @@ public:
     IDBObjectStore::ClearStructuredCloneBuffer(mCloneReadInfo.mCloneBuffer);
   }
 
-  virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection)
-                                  MOZ_OVERRIDE;
+  nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
+  nsresult GetSuccessResult(JSContext* aCx,
+                            jsval* aVal);
 
-  virtual nsresult GetSuccessResult(JSContext* aCx,
-                                    jsval* aVal) MOZ_OVERRIDE;
-
-  virtual nsresult
-  PackArgumentsForParentProcess(CursorRequestParams& aParams) MOZ_OVERRIDE;
-
-  virtual ChildProcessSendResult
-  MaybeSendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
-
-  virtual nsresult
-  UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
-                                  MOZ_OVERRIDE;
+  void ReleaseMainThreadObjects()
+  {
+    mCursor = nsnull;
+    AsyncConnectionHelper::ReleaseMainThreadObjects();
+  }
 
 protected:
   virtual nsresult
@@ -115,33 +71,8 @@ protected:
   virtual nsresult
   GatherResultsFromStatement(mozIStorageStatement* aStatement) = 0;
 
-  void UpdateCursorState()
-  {
-    mCursor->mCachedKey = JSVAL_VOID;
-    mCursor->mCachedPrimaryKey = JSVAL_VOID;
-    mCursor->mCachedValue = JSVAL_VOID;
-    mCursor->mHaveCachedKey = false;
-    mCursor->mHaveCachedPrimaryKey = false;
-    mCursor->mHaveCachedValue = false;
-    mCursor->mContinueCalled = false;
-
-    if (mKey.IsUnset()) {
-      mCursor->mHaveValue = false;
-    }
-    else {
-      NS_ASSERTION(mCursor->mType == IDBCursor::OBJECTSTORE ||
-                   !mObjectKey.IsUnset(), "Bad key!");
-
-      // Set new values.
-      mCursor->mKey = mKey;
-      mCursor->mObjectKey = mObjectKey;
-      mCursor->mContinueToKey.Unset();
-
-      mCursor->mCloneReadInfo.Swap(mCloneReadInfo);
-      mCloneReadInfo.mCloneBuffer.clear();
-    }
-  }
-
+protected:
+  nsRefPtr<IDBCursor> mCursor;
   PRInt32 mCount;
   Key mKey;
   Key mObjectKey;
@@ -315,12 +246,8 @@ IDBCursor::CreateCommon(IDBRequest* aRequest,
   NS_ASSERTION(aRequest, "Null pointer!");
   NS_ASSERTION(aTransaction, "Null pointer!");
   NS_ASSERTION(aObjectStore, "Null pointer!");
-  NS_ASSERTION(!aContinueQuery.IsEmpty() ||
-               !IndexedDatabaseManager::IsMainProcess(),
-               "Empty query!");
-  NS_ASSERTION(!aContinueToQuery.IsEmpty() ||
-               !IndexedDatabaseManager::IsMainProcess(),
-               "Empty query!");
+  NS_ASSERTION(!aContinueQuery.IsEmpty(), "Empty query!");
+  NS_ASSERTION(!aContinueToQuery.IsEmpty(), "Empty query!");
 
   nsRefPtr<IDBCursor> cursor = new IDBCursor();
 
@@ -353,8 +280,6 @@ IDBCursor::IDBCursor()
   mCachedKey(JSVAL_VOID),
   mCachedPrimaryKey(JSVAL_VOID),
   mCachedValue(JSVAL_VOID),
-  mActorChild(nsnull),
-  mActorParent(nsnull),
   mHaveCachedKey(false),
   mHaveCachedPrimaryKey(false),
   mHaveCachedValue(false),
@@ -368,13 +293,6 @@ IDBCursor::IDBCursor()
 IDBCursor::~IDBCursor()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  NS_ASSERTION(!mActorParent, "Actor parent owns us, how can we be dying?!");
-  if (mActorChild) {
-    NS_ASSERTION(!IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-    mActorChild->Send__delete__(mActorChild);
-    NS_ASSERTION(!mActorChild, "Should have cleared in Send__delete__!");
-  }
 
   if (mRooted) {
     NS_DROP_JS_OBJECTS(this, IDBCursor);
@@ -524,12 +442,6 @@ IDBCursor::GetDirection(nsAString& aDirection)
       break;
     case PREV_UNIQUE:
       aDirection.AssignLiteral("prevunique");
-      break;
-
-    case DIRECTION_INVALID:
-    default:
-      NS_NOTREACHED("Bad direction value!");
-      return NS_ERROR_UNEXPECTED;
   }
 
   return NS_OK;
@@ -628,14 +540,12 @@ IDBCursor::GetValue(JSContext* aCx,
       mRooted = true;
     }
 
-    jsval val;
-    if (!IDBObjectStore::DeserializeValue(aCx, mCloneReadInfo, &val)) {
+    if (!IDBObjectStore::DeserializeValue(aCx, mCloneReadInfo, &mCachedValue)) {
+      mCachedValue = JSVAL_VOID;
       return NS_ERROR_DOM_DATA_CLONE_ERR;
     }
 
     mCloneReadInfo.mCloneBuffer.clear();
-
-    mCachedValue = val;
     mHaveCachedValue = true;
   }
 
@@ -784,37 +694,6 @@ IDBCursor::Advance(PRInt32 aCount)
   return ContinueInternal(key, aCount);
 }
 
-void
-CursorHelper::ReleaseMainThreadObjects()
-{
-  mCursor = nsnull;
-  AsyncConnectionHelper::ReleaseMainThreadObjects();
-}
-
-nsresult
-CursorHelper::Dispatch(nsIEventTarget* aDatabaseThread)
-{
-  if (IndexedDatabaseManager::IsMainProcess()) {
-    return AsyncConnectionHelper::Dispatch(aDatabaseThread);
-  }
-
-  IndexedDBCursorChild* cursorActor = mCursor->GetActorChild();
-  NS_ASSERTION(cursorActor, "Must have an actor here!");
-
-  CursorRequestParams params;
-  nsresult rv = PackArgumentsForParentProcess(params);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  NoDispatchEventTarget target;
-  rv = AsyncConnectionHelper::Dispatch(&target);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  mActor = new IndexedDBCursorRequestChild(this, mCursor, params.type());
-  cursorActor->SendPIndexedDBRequestConstructor(mActor, params);
-
-  return NS_OK;
-}
-
 nsresult
 ContinueHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 {
@@ -872,89 +751,33 @@ nsresult
 ContinueHelper::GetSuccessResult(JSContext* aCx,
                                  jsval* aVal)
 {
-  UpdateCursorState();
+  // Remove cached stuff from last time.
+  mCursor->mCachedKey = JSVAL_VOID;
+  mCursor->mCachedPrimaryKey = JSVAL_VOID;
+  mCursor->mCachedValue = JSVAL_VOID;
+  mCursor->mHaveCachedKey = false;
+  mCursor->mHaveCachedPrimaryKey = false;
+  mCursor->mHaveCachedValue = false;
+  mCursor->mContinueCalled = false;
 
   if (mKey.IsUnset()) {
+    mCursor->mHaveValue = false;
     *aVal = JSVAL_VOID;
   }
   else {
+    NS_ASSERTION(mCursor->mType == IDBCursor::OBJECTSTORE ||
+                 !mObjectKey.IsUnset(), "Bad key!");
+
+    // Set new values.
+    mCursor->mKey = mKey;
+    mCursor->mObjectKey = mObjectKey;
+    mCursor->mContinueToKey.Unset();
+
+    mCursor->mCloneReadInfo.Swap(mCloneReadInfo);
+    mCloneReadInfo.mCloneBuffer.clear();
+
     nsresult rv = WrapNative(aCx, mCursor, aVal);
     NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return NS_OK;
-}
-
-nsresult
-ContinueHelper::PackArgumentsForParentProcess(CursorRequestParams& aParams)
-{
-  ContinueParams params;
-
-  params.key() = mCursor->mContinueToKey;
-  params.count() = uint32_t(mCount);
-
-  aParams = params;
-  return NS_OK;
-}
-
-HelperBase::ChildProcessSendResult
-ContinueHelper::MaybeSendResponseToChildProcess(nsresult aResultCode)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  IndexedDBRequestParentBase* actor = mRequest->GetActorParent();
-  if (!actor) {
-    return Success_NotSent;
-  }
-
-  if (!mCloneReadInfo.mFileInfos.IsEmpty()) {
-    NS_WARNING("No support for transferring blobs across processes yet!");
-    return Error;
-  }
-
-  ResponseValue response;
-  if (NS_FAILED(aResultCode)) {
-    response = aResultCode;
-  }
-  else {
-    ContinueResponse continueResponse;
-    continueResponse.key() = mKey;
-    continueResponse.objectKey() = mObjectKey;
-    continueResponse.cloneInfo() = mCloneReadInfo;
-    response = continueResponse;
-  }
-
-  if (!actor->Send__delete__(actor, response)) {
-    return Error;
-  }
-
-  UpdateCursorState();
-
-  return Success_Sent;
-}
-
-nsresult
-ContinueHelper::UnpackResponseFromParentProcess(
-                                            const ResponseValue& aResponseValue)
-{
-  NS_ASSERTION(aResponseValue.type() == ResponseValue::TContinueResponse,
-               "Bad response type!");
-
-  const ContinueResponse& response = aResponseValue.get_ContinueResponse();
-
-  mKey = response.key();
-  mObjectKey = response.objectKey();
-
-  const SerializedStructuredCloneReadInfo& cloneInfo = response.cloneInfo();
-
-  NS_ASSERTION((!cloneInfo.dataLength && !cloneInfo.data) ||
-               (cloneInfo.dataLength && cloneInfo.data),
-               "Inconsistent clone info!");
-
-  if (!mCloneReadInfo.SetFromSerialized(cloneInfo)) {
-    NS_WARNING("Failed to copy clone buffer!");
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
 
   return NS_OK;
@@ -1000,7 +823,7 @@ ContinueObjectStoreHelper::GatherResultsFromStatement(
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = IDBObjectStore::GetStructuredCloneReadInfoFromStatement(aStatement, 1, 2,
-    mDatabase, mCloneReadInfo);
+    mDatabase->Manager(), mCloneReadInfo);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;
@@ -1070,7 +893,7 @@ ContinueIndexObjectHelper::GatherResultsFromStatement(
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = IDBObjectStore::GetStructuredCloneReadInfoFromStatement(aStatement, 2, 3,
-    mDatabase, mCloneReadInfo);
+    mDatabase->Manager(), mCloneReadInfo);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

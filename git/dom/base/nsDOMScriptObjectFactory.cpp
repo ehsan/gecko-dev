@@ -55,9 +55,8 @@ nsDOMScriptObjectFactory::nsDOMScriptObjectFactory()
     xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM);
     xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_SVG);
     xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM_XPATH);
-    xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_XPCONNECT);
     xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM_INDEXEDDB);
-    xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_DOM_FILEHANDLE);
+    xs->RegisterExceptionProvider(provider, NS_ERROR_MODULE_XPCONNECT);
   }
 
   NS_ASSERTION(!gExceptionProvider, "Registered twice?!");
@@ -143,10 +142,6 @@ nsDOMScriptObjectFactory::Observe(nsISupports *aSubject,
                                         NS_ERROR_MODULE_DOM_XPATH);
         xs->UnregisterExceptionProvider(gExceptionProvider,
                                         NS_ERROR_MODULE_XPCONNECT);
-        xs->UnregisterExceptionProvider(gExceptionProvider,
-                                        NS_ERROR_MODULE_DOM_INDEXEDDB);
-        xs->UnregisterExceptionProvider(gExceptionProvider,
-                                        NS_ERROR_MODULE_DOM_FILEHANDLE);
       }
 
       NS_RELEASE(gExceptionProvider);
@@ -256,8 +251,7 @@ nsDOMExceptionProvider::GetException(nsresult result,
     default:
       MOZ_ASSERT(NS_ERROR_GET_MODULE(result) == NS_ERROR_MODULE_DOM ||
           NS_ERROR_GET_MODULE(result) == NS_ERROR_MODULE_DOM_FILE ||
-          NS_ERROR_GET_MODULE(result) == NS_ERROR_MODULE_DOM_INDEXEDDB ||
-          NS_ERROR_GET_MODULE(result) == NS_ERROR_MODULE_DOM_FILEHANDLE,
+          NS_ERROR_GET_MODULE(result) == NS_ERROR_MODULE_DOM_INDEXEDDB,
           "Trying to create an exception for the wrong error module.");
       return NS_NewDOMException(result, aDefaultException, _retval);
   }

@@ -78,8 +78,6 @@ public class AwesomeBarTabs extends TabHost {
     private BookmarksListAdapter mBookmarksAdapter;
     private SimpleExpandableListAdapter mHistoryAdapter;
 
-    private boolean mInReadingList;
-
     // FIXME: This value should probably come from a
     // prefs key (just like XUL-based fennec)
     private static final int MAX_RESULTS = 100;
@@ -186,8 +184,6 @@ public class AwesomeBarTabs extends TabHost {
                 mBookmarksQueryTask.cancel(false);
 
             Pair<Integer, String> folderPair = mParentStack.getFirst();
-            mInReadingList = (folderPair.first == Bookmarks.FIXED_READING_LIST_ID);
-
             mBookmarksQueryTask = new BookmarksQueryTask(folderPair.first, folderPair.second);
             mBookmarksQueryTask.execute();
         }
@@ -245,8 +241,6 @@ public class AwesomeBarTabs extends TabHost {
                 return mResources.getString(R.string.bookmarks_folder_toolbar);
             else if (guid.equals(Bookmarks.UNFILED_FOLDER_GUID))
                 return mResources.getString(R.string.bookmarks_folder_unfiled);
-            else if (guid.equals(Bookmarks.READING_LIST_FOLDER_GUID))
-                return mResources.getString(R.string.bookmarks_folder_reading_list);
 
             // If for some reason we have a folder with a special GUID, but it's not one of
             // the special folders we expect in the UI, just return the title from the DB.
@@ -285,15 +279,6 @@ public class AwesomeBarTabs extends TabHost {
                 updateUrl(viewHolder.urlView, cursor);
                 updateFavicon(viewHolder.faviconView, cursor);
             } else {
-                int guidIndex = cursor.getColumnIndexOrThrow(Bookmarks.GUID);
-                String guid = cursor.getString(guidIndex);
-
-                if (guid.equals(Bookmarks.READING_LIST_FOLDER_GUID)) {
-                    viewHolder.faviconView.setImageResource(R.drawable.reading_list);
-                } else {
-                    viewHolder.faviconView.setImageResource(R.drawable.folder);
-                }
-
                 viewHolder.titleView.setText(getFolderTitle(position));
             }
 
@@ -408,6 +393,7 @@ public class AwesomeBarTabs extends TabHost {
         private static final long MS_PER_WEEK = MS_PER_DAY * 7;
 
         protected Pair<GroupList,List<ChildrenList>> doInBackground(Void... arg0) {
+            Pair<GroupList, List<ChildrenList>> result = null;
             Cursor cursor = BrowserDB.getRecentHistory(mContentResolver, MAX_RESULTS);
 
             Date now = new Date();
@@ -419,9 +405,9 @@ public class AwesomeBarTabs extends TabHost {
 
             // Split the list of urls into separate date range groups
             // and show it in an expandable list view.
-            List<ChildrenList> childrenLists = new LinkedList<ChildrenList>();
+            List<ChildrenList> childrenLists = null;
             ChildrenList children = null;
-            GroupList groups = new GroupList();
+            GroupList groups = null;
             HistorySection section = null;
 
             // Move cursor before the first row in preparation
@@ -435,6 +421,12 @@ public class AwesomeBarTabs extends TabHost {
             while (cursor.moveToNext()) {
                 long time = cursor.getLong(cursor.getColumnIndexOrThrow(URLColumns.DATE_LAST_VISITED));
                 HistorySection itemSection = getSectionForTime(time, today);
+
+                if (groups == null)
+                    groups = new GroupList();
+
+                if (childrenLists == null)
+                    childrenLists = new LinkedList<ChildrenList>();
 
                 if (section != itemSection) {
                     if (section != null) {
@@ -459,8 +451,11 @@ public class AwesomeBarTabs extends TabHost {
             // Close the query cursor as we won't use it anymore
             cursor.close();
 
-            // groups and childrenLists will be empty lists if there's no history
-            return Pair.<GroupList,List<ChildrenList>>create(groups, childrenLists);
+            if (groups != null && childrenLists != null) {
+                result = Pair.<GroupList,List<ChildrenList>>create(groups, childrenLists);
+            }
+
+            return result;
         }
 
         public Map<String,Object> createHistoryItem(Cursor cursor) {
@@ -541,6 +536,10 @@ public class AwesomeBarTabs extends TabHost {
         }
 
         protected void onPostExecute(Pair<GroupList,List<ChildrenList>> result) {
+            // FIXME: display some sort of message when there's no history
+            if (result == null)
+                return;
+
             mHistoryAdapter = new HistoryListAdapter(
                 mContext,
                 result.first,
@@ -720,8 +719,6 @@ public class AwesomeBarTabs extends TabHost {
         mContentResolver = context.getContentResolver();
         mContentObserver = null;
         mInflater = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-
-        mInReadingList = false;
     }
 
     @Override
@@ -780,7 +777,7 @@ public class AwesomeBarTabs extends TabHost {
         View indicatorView = mInflater.inflate(R.layout.awesomebar_tab_indicator, null);
         Drawable background = indicatorView.getBackground();
         try {
-            background.setColorFilter(new LightingColorFilter(Color.WHITE, 0xFFFF9500));
+            background.setColorFilter(new LightingColorFilter(Color.WHITE, GeckoApp.mBrowserToolbar.getHighlightColor()));
         } catch (Exception e) {
             Log.d(LOGTAG, "background.setColorFilter failed " + e);            
         }
@@ -863,12 +860,6 @@ public class AwesomeBarTabs extends TabHost {
         return imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
     }
 
-    private String getReaderForUrl(String url) {
-        // FIXME: still need to define the final way to open items from
-        // reading list. For now, we're using an about:reader page.
-        return "about:reader?url=" + url;
-    }
-
     private void handleBookmarkItemClick(AdapterView<?> parent, View view, int position, long id) {
         int headerCount = ((ListView) parent).getHeaderViewsCount();
         // If we tap on the header view, there's nothing to do
@@ -894,13 +885,8 @@ public class AwesomeBarTabs extends TabHost {
 
         // Otherwise, just open the URL
         String url = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL));
-        if (mUrlOpenListener != null) {
-            if (mInReadingList) {
-                url = getReaderForUrl(url);
-            }
-
+        if (mUrlOpenListener != null)
             mUrlOpenListener.onUrlOpen(url);
-        }
     }
 
     private void handleHistoryItemClick(int groupPosition, int childPosition) {
@@ -922,14 +908,8 @@ public class AwesomeBarTabs extends TabHost {
         if (item instanceof Cursor) {
             Cursor cursor = (Cursor) item;
             String url = cursor.getString(cursor.getColumnIndexOrThrow(URLColumns.URL));
-            if (mUrlOpenListener != null) {
-                int display = cursor.getInt(cursor.getColumnIndexOrThrow(Combined.DISPLAY));
-                if (display == Combined.DISPLAY_READER) {
-                    url = getReaderForUrl(url);
-                }
-
+            if (mUrlOpenListener != null)
                 mUrlOpenListener.onUrlOpen(url);
-            }
         } else {
             if (mUrlOpenListener != null)
                 mUrlOpenListener.onSearch((String)item);
@@ -1021,10 +1001,6 @@ public class AwesomeBarTabs extends TabHost {
                 mAllPagesCursorAdapter.notifyDataSetChanged();
             }
         });
-    }
-
-    public boolean isInReadingList() {
-        return mInReadingList;
     }
 
     @Override

@@ -1600,7 +1600,7 @@ public:
     eDeprecatedOperationCount
   };
 #undef DEPRECATED_OPERATION
-  void WarnOnceAbout(DeprecatedOperations aOperation, bool asError = false);
+  void WarnOnceAbout(DeprecatedOperations aOperation);
 
   virtual void PostVisibilityUpdateEvent() = 0;
   
@@ -2035,6 +2035,12 @@ nsINode::GetOwnerDocument() const
   nsIDocument* ownerDoc = OwnerDoc();
 
   return ownerDoc != this ? ownerDoc : nsnull;
+}
+
+inline nsINode*
+nsINode::OwnerDocAsNode() const
+{
+  return OwnerDoc();
 }
 
 #endif /* nsIDocument_h___ */
