@@ -445,14 +445,14 @@ BrowserGlue.prototype = {
     // them to the user.
     let changedIDs = AddonManager.getStartupChanges(AddonManager.STARTUP_CHANGE_INSTALLED);
     if (changedIDs.length > 0) {
-      let win = this.getMostRecentBrowserWindow();
+      let browser = this.getMostRecentBrowserWindow().gBrowser;
       AddonManager.getAddonsByIDs(changedIDs, function(aAddons) {
         aAddons.forEach(function(aAddon) {
           // If the add-on isn't user disabled or can't be enabled then skip it.
           if (!aAddon.userDisabled || !(aAddon.permissions & AddonManager.PERM_CAN_ENABLE))
             return;
 
-          win.openUILinkIn("about:newaddon?id=" + aAddon.id, "tab");
+          browser.selectedTab = browser.addTab("about:newaddon?id=" + aAddon.id);
         })
       });
     }
@@ -717,7 +717,8 @@ BrowserGlue.prototype = {
   _showRightsNotification: function BG__showRightsNotification() {
     // Stick the notification onto the selected tab of the active browser window.
     var win = this.getMostRecentBrowserWindow();
-    var notifyBox = win.gBrowser.getNotificationBox();
+    var browser = win.gBrowser; // for closure in notification bar callback
+    var notifyBox = browser.getNotificationBox();
 
     var brandBundle  = Services.strings.createBundle("chrome://branding/locale/brand.properties");
     var rightsBundle = Services.strings.createBundle("chrome://global/locale/aboutRights.properties");
@@ -733,7 +734,7 @@ BrowserGlue.prototype = {
                       accessKey: buttonAccessKey,
                       popup:     null,
                       callback: function(aNotificationBar, aButton) {
-                        win.openUILinkIn("about:rights", "tab");
+                        browser.selectedTab = browser.addTab("about:rights");
                       }
                     }
                   ];
@@ -798,7 +799,8 @@ BrowserGlue.prototype = {
                                  stringName: "pu.notifyButton.accesskey"});
 
       let win = this.getMostRecentBrowserWindow();
-      let notifyBox = win.gBrowser.getNotificationBox();
+      let browser = win.gBrowser; // for closure in notification bar callback
+      let notifyBox = browser.getNotificationBox();
 
       let buttons = [
                       {
@@ -806,7 +808,7 @@ BrowserGlue.prototype = {
                         accessKey: key,
                         popup:     null,
                         callback: function(aNotificationBar, aButton) {
-                          win.openUILinkIn(url, "tab");
+                          browser.selectedTab = browser.addTab(url);
                         }
                       }
                     ];
@@ -845,7 +847,8 @@ BrowserGlue.prototype = {
       if (topic != "alertclickcallback")
         return;
       let win = self.getMostRecentBrowserWindow();
-      win.openUILinkIn(data, "tab");
+      let browser = win.gBrowser;
+      browser.selectedTab = browser.addTab(data);
     }
 
     try {
@@ -923,7 +926,7 @@ BrowserGlue.prototype = {
         // Open the learn more url in a new tab
         let url = Services.urlFormatter.formatURLPref("app.support.baseURL");
         url += "how-can-i-help-submitting-performance-data";
-        win.openUILinkIn(url, "tab");
+        tabbrowser.selectedTab = tabbrowser.addTab(url);
         // Remove the notification on which the user clicked
         notification.parentNode.removeNotification(notification, true);
       }, false);
@@ -970,7 +973,7 @@ BrowserGlue.prototype = {
     let link = appendLearnMoreLink(notification);
     link.addEventListener('click', function() {
       // Open the learn more url in a new tab
-      win.openUILinkIn(Services.prefs.getCharPref(PREF_TELEMETRY_INFOURL), "tab");
+      tabbrowser.selectedTab = tabbrowser.addTab(Services.prefs.getCharPref(PREF_TELEMETRY_INFOURL));
       // Remove the notification on which the user clicked
       notification.parentNode.removeNotification(notification, true);
       // Add a new notification to that tab, with no "Learn more" link
@@ -988,7 +991,8 @@ BrowserGlue.prototype = {
     var updateUrl = formatter.formatURLPref(PREF_PLUGINS_UPDATEURL);
 
     var win = this.getMostRecentBrowserWindow();
-    win.openUILinkIn(updateUrl, "tab");
+    var browser = win.gBrowser;
+    browser.selectedTab = browser.addTab(updateUrl);
   },
 
   /**
@@ -1219,7 +1223,7 @@ BrowserGlue.prototype = {
               formatURLPref("app.support.baseURL");
     url += helpTopic;
 
-    var win = this.getMostRecentBrowserWindow();
+    var browser = this.getMostRecentBrowserWindow().gBrowser;
 
     var buttons = [
                     {
@@ -1227,12 +1231,12 @@ BrowserGlue.prototype = {
                       accessKey: accessKey,
                       popup:     null,
                       callback:  function(aNotificationBar, aButton) {
-                        win.openUILinkIn(url, "tab");
+                        browser.selectedTab = browser.addTab(url);
                       }
                     }
                   ];
 
-    var notifyBox = win.gBrowser.getNotificationBox();
+    var notifyBox = browser.getNotificationBox();
     var notification = notifyBox.appendNotification(text, title, null,
                                                     notifyBox.PRIORITY_CRITICAL_MEDIUM,
                                                     buttons);

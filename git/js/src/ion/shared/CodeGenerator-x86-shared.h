@@ -14,7 +14,6 @@ namespace js {
 namespace ion {
 
 class OutOfLineBailout;
-class OutOfLineUndoALUOperation;
 class MulNegativeZeroCheck;
 class OutOfLineTruncate;
 
@@ -121,7 +120,6 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared
 
     // Out of line visitors.
     bool visitOutOfLineBailout(OutOfLineBailout *ool);
-    bool visitOutOfLineUndoALUOperation(OutOfLineUndoALUOperation *ool);
     bool visitMulNegativeZeroCheck(MulNegativeZeroCheck *ool);
     bool visitOutOfLineTruncate(OutOfLineTruncate *ool);
     bool generateInvalidateEpilogue();

@@ -24,16 +24,13 @@ webidl_files = \
   CSSStyleDeclaration.webidl \
   DelayNode.webidl \
   DOMImplementation.webidl \
-  DOMParser.webidl \
+  DOMTokenList.webidl \
   DOMSettableTokenList.webidl \
   DOMStringMap.webidl \
-  DOMTokenList.webidl \
   DynamicsCompressorNode.webidl \
-  Element.webidl \
   EventHandler.webidl \
   EventListener.webidl \
   EventTarget.webidl \
-  FileHandle.webidl \
   FileList.webidl \
   FileReaderSync.webidl \
   Function.webidl \
@@ -62,7 +59,6 @@ webidl_files = \
   XMLHttpRequest.webidl \
   XMLHttpRequestEventTarget.webidl \
   XMLHttpRequestUpload.webidl \
-  XMLSerializer.webidl \
   $(NULL)
 
 ifdef MOZ_WEBGL

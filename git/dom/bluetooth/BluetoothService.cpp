@@ -54,7 +54,6 @@ namespace {
 StaticRefPtr<BluetoothService> gBluetoothService;
 
 bool gInShutdown = false;
-bool gToggleInProgress = false;
 
 bool
 IsMainProcess()
@@ -157,28 +156,15 @@ public:
   {
     MOZ_ASSERT(!NS_IsMainThread());
 
-    /*
-     * mEnabled: expected status of bluetooth
-     * gBluetoothService->IsEnabled(): real status of bluetooth
-     *
-     * When two values are the same, we don't switch on/off bluetooth,
-     * but we still do ToggleBtAck task.
-     */
-    if (mEnabled == gBluetoothService->IsEnabled()) {
-      NS_WARNING("Bluetooth has already been enabled/disabled before.");
-    } else {
-      // Switch on/off bluetooth
-      if (mEnabled) {
-        if (NS_FAILED(gBluetoothService->StartInternal())) {
-          NS_WARNING("Bluetooth service failed to start!");
-          mEnabled = !mEnabled;
-        }
-      } else {
-        if (NS_FAILED(gBluetoothService->StopInternal())) {
-          NS_WARNING("Bluetooth service failed to stop!");
-          mEnabled = !mEnabled;
-        }
+    if (mEnabled) {
+      if (NS_FAILED(gBluetoothService->StartInternal())) {
+        NS_WARNING("Bluetooth service failed to start!");
+        mEnabled = !mEnabled;
       }
+    }
+    else if (NS_FAILED(gBluetoothService->StopInternal())) {
+      NS_WARNING("Bluetooth service failed to stop!");
+      mEnabled = !mEnabled;
     }
 
     nsCOMPtr<nsIRunnable> ackTask = new BluetoothService::ToggleBtAck(mEnabled);
@@ -226,12 +212,6 @@ public:
 NS_IMPL_ISUPPORTS1(BluetoothService::StartupTask, nsISettingsServiceCallback);
 
 NS_IMPL_ISUPPORTS1(BluetoothService, nsIObserver)
-
-bool
-BluetoothService::IsToggling() const
-{
-  return gToggleInProgress;
-}
 
 BluetoothService::~BluetoothService()
 {
@@ -285,6 +265,7 @@ void
 BluetoothService::Cleanup()
 {
   MOZ_ASSERT(NS_IsMainThread());
+
 
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   if (obs &&
@@ -383,6 +364,7 @@ BluetoothService::StartStopBluetooth(bool aStart)
   }
 
   nsresult rv;
+
   if (!mBluetoothCommandThread) {
     MOZ_ASSERT(!gInShutdown);
 
@@ -403,6 +385,13 @@ BluetoothService::SetEnabled(bool aEnabled)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
+  if (aEnabled == mEnabled) {
+    // Nothing to do, maybe something failed.
+    return;
+  }
+
+  mEnabled = aEnabled;
+
   AutoInfallibleTArray<BluetoothParent*, 10> childActors;
   GetAllBluetoothActors(childActors);
 
@@ -412,12 +401,10 @@ BluetoothService::SetEnabled(bool aEnabled)
 
   if (aEnabled) {
     BluetoothManagerList::ForwardIterator iter(mLiveManagers);
+    BluetoothSignalObserverList* ol;
     nsString managerPath = NS_LITERAL_STRING("/");
 
-    /**
-     * Re-register managers since table mBluetoothSignalObserverTable was
-     * cleared after turned off bluetooth
-     */
+    // Re-register here after toggling due to table mBluetoothSignalObserverTable was cleared
     while (iter.HasMore()) {
       RegisterBluetoothSignalHandler(managerPath, (BluetoothSignalObserver*)iter.GetNext());
     }
@@ -425,40 +412,19 @@ BluetoothService::SetEnabled(bool aEnabled)
     mBluetoothSignalObserverTable.Clear();
   }
 
-  /**
-   * mEnabled: real status of bluetooth
-   * aEnabled: expected status of bluetooth
-   */
-  if (mEnabled == aEnabled) {
-    /**
-     * The process of toggling should be over here, so we set gToggleInProgress
-     * back to false here. Note that, we don't fire onenabled/ondisabled in
-     * this case.
-     */
-    NS_WARNING("Bluetooth has already been enabled/disabled before.\
-                Skip fire onenabled/ondisabled events here.");
-    gToggleInProgress = false;
-    return;
-  }
-
-  mEnabled = aEnabled;
-
-  // Fire onenabled/ondisabled event for each BluetoothManager
   BluetoothManagerList::ForwardIterator iter(mLiveManagers);
   while (iter.HasMore()) {
     if (NS_FAILED(iter.GetNext()->FireEnabledDisabledEvent(aEnabled))) {
       NS_WARNING("FireEnabledDisabledEvent failed!");
     }
   }
-
-  gToggleInProgress = false;
 }
 
 nsresult
 BluetoothService::HandleStartup()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(!gToggleInProgress);
+  MOZ_ASSERT(!mSettingsCheckInProgress);
 
   nsCOMPtr<nsISettingsService> settings =
     do_GetService("@mozilla.org/settingsService;1");
@@ -472,7 +438,7 @@ BluetoothService::HandleStartup()
   rv = settingsLock->Get(BLUETOOTH_ENABLED_SETTING, callback);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  gToggleInProgress = true;
+  mSettingsCheckInProgress = true;
   return NS_OK;
 }
 
@@ -481,15 +447,17 @@ BluetoothService::HandleStartupSettingsCheck(bool aEnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
+  if (!mSettingsCheckInProgress) {
+    // Somehow the enabled setting was changed before our first settings check
+    // completed. Don't do anything.
+    return NS_OK;
+  }
+
+  MOZ_ASSERT(!IsEnabled());
+
   if (aEnable) {
     return StartStopBluetooth(true);
   }
-
-  /*
-   * Since BLUETOOTH_ENABLED_SETTING is false, we don't have to turn on
-   * bluetooth here, and set gToggleInProgress back to false.
-   */
-  gToggleInProgress = false;
 
   return NS_OK;
 }
@@ -550,14 +518,28 @@ BluetoothService::HandleSettingsChanged(const nsAString& aData)
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (gToggleInProgress || value.toBoolean() == IsEnabled()) {
+  if (mSettingsCheckInProgress) {
+    // Somehow the setting for bluetooth has been flipped before our first
+    // settings check completed. Flip this flag so that we ignore the result
+    // of that check whenever it finishes.
+    mSettingsCheckInProgress = false;
+  }
+
+  if (value.toBoolean() == IsEnabled()) {
     // Nothing to do here.
     return NS_OK;
   }
 
-  gToggleInProgress = true;
+  nsresult rv;
 
-  nsresult rv = StartStopBluetooth(value.toBoolean());
+  if (IsEnabled()) {
+    rv = StartStopBluetooth(false);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return NS_OK;
+  }
+
+  rv = StartStopBluetooth(true);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

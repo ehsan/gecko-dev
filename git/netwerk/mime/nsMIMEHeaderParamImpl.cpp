@@ -145,9 +145,9 @@ bool IsHexDigit(char aChar)
 }
 
 // validate that a C String containing %-escapes is syntactically valid
-bool IsValidPercentEscaped(const char *aValue, int32_t len)
+bool IsValidPercentEscaped(const char *aValue, PRInt32 len)
 {
-  for (int32_t i = 0; i < len; i++) {
+  for (PRInt32 i = 0; i < len; i++) {
     if (aValue[i] == '%') {
       if (!IsHexDigit(aValue[i + 1]) || !IsHexDigit(aValue[i + 2])) {
         return false;

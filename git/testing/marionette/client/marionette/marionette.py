@@ -498,8 +498,3 @@ class Marionette(object):
     @property
     def application_cache(self):
         return ApplicationCache(self)
-
-    def screenshot(self, element=None, highlights=None):
-        if element is not None:
-            element = element.id
-        return self._send_message("screenShot", 'value', element=element, highlights=highlights)

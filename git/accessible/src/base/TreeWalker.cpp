@@ -87,8 +87,7 @@ TreeWalker::NextChildInternal(bool aNoWalkUp)
 
     bool isSubtreeHidden = false;
     Accessible* accessible = mWalkCache ? mDoc->GetAccessible(childNode) :
-      GetAccService()->GetOrCreateAccessible(childNode, mContext,
-                                             &isSubtreeHidden);
+      GetAccService()->GetOrCreateAccessible(childNode, mDoc, &isSubtreeHidden);
 
     if (accessible)
       return accessible;

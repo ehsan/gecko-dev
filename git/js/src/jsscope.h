@@ -7,16 +7,20 @@
 
 #ifndef jsscope_h___
 #define jsscope_h___
-
-#include "mozilla/Attributes.h"
+/*
+ * JS symbol tables.
+ */
+#ifdef DEBUG
+#include <stdio.h>
+#endif
 
 #include "jsobj.h"
 #include "jspropertytree.h"
 #include "jstypes.h"
 
 #include "js/HashTable.h"
-#include "gc/Heap.h"
 #include "gc/Root.h"
+#include "mozilla/Attributes.h"
 
 #ifdef _MSC_VER
 #pragma warning(push)
@@ -226,9 +230,7 @@ class PropertyTree;
  * an earlier property, however.
  */
 
-ForwardDeclare(UnownedBaseShape);
-ForwardDeclare(BaseShape);
-ForwardDeclare(Shape);
+class UnownedBaseShape;
 
 class BaseShape : public js::gc::Cell
 {
@@ -309,8 +311,8 @@ class BaseShape : public js::gc::Cell
     inline bool matchesGetterSetter(PropertyOp rawGetter,
                                     StrictPropertyOp rawSetter) const;
 
-    inline void adoptUnowned(UnrootedUnownedBaseShape other);
-    inline void setOwned(UnrootedUnownedBaseShape unowned);
+    inline void adoptUnowned(UnownedBaseShape *other);
+    inline void setOwned(UnownedBaseShape *unowned);
 
     JSObject *getObjectParent() const { return parent; }
     uint32_t getObjectFlags() const { return flags & OBJECT_FLAG_MASK; }
@@ -329,16 +331,16 @@ class BaseShape : public js::gc::Cell
     void setSlotSpan(uint32_t slotSpan) { JS_ASSERT(isOwned()); slotSpan_ = slotSpan; }
 
     /* Lookup base shapes from the compartment's baseShapes table. */
-    static UnownedBaseShape* getUnowned(JSContext *cx, const StackBaseShape &base);
+    static UnownedBaseShape *getUnowned(JSContext *cx, const StackBaseShape &base);
 
     /* Get the canonical base shape. */
-    inline UnownedBaseShape* unowned();
+    inline UnownedBaseShape *unowned();
 
     /* Get the canonical base shape for an owned one. */
-    inline UnownedBaseShape* baseUnowned();
+    inline UnownedBaseShape *baseUnowned();
 
     /* Get the canonical base shape for an unowned one (i.e. identity). */
-    inline UnownedBaseShape* toUnowned();
+    inline UnownedBaseShape *toUnowned();
 
     /* Check that an owned base shape is consistent with its unowned base. */
     inline void assertConsistency();
@@ -348,9 +350,9 @@ class BaseShape : public js::gc::Cell
     static inline size_t offsetOfParent() { return offsetof(BaseShape, parent); }
     static inline size_t offsetOfFlags() { return offsetof(BaseShape, flags); }
 
-    static inline void writeBarrierPre(RawBaseShape shape);
-    static inline void writeBarrierPost(RawBaseShape shape, void *addr);
-    static inline void readBarrier(RawBaseShape shape);
+    static inline void writeBarrierPre(BaseShape *shape);
+    static inline void writeBarrierPost(BaseShape *shape, void *addr);
+    static inline void readBarrier(BaseShape *shape);
 
     static inline ThingRootKind rootKind() { return THING_ROOT_BASE_SHAPE; }
 
@@ -364,19 +366,19 @@ class BaseShape : public js::gc::Cell
 
 class UnownedBaseShape : public BaseShape {};
 
-UnownedBaseShape*
+UnownedBaseShape *
 BaseShape::unowned()
 {
     return isOwned() ? baseUnowned() : toUnowned();
 }
 
-UnownedBaseShape*
+UnownedBaseShape *
 BaseShape::toUnowned()
 {
-    JS_ASSERT(!isOwned() && !unowned_); return static_cast<RawUnownedBaseShape>(this);
+    JS_ASSERT(!isOwned() && !unowned_); return static_cast<UnownedBaseShape *>(this);
 }
 
-UnownedBaseShape*
+UnownedBaseShape *
 BaseShape::baseUnowned()
 {
     JS_ASSERT(isOwned() && unowned_); return unowned_;
@@ -393,7 +395,7 @@ struct StackBaseShape
     PropertyOp rawGetter;
     StrictPropertyOp rawSetter;
 
-    StackBaseShape(UnrootedBaseShape base)
+    StackBaseShape(BaseShape *base)
       : flags(base->flags & BaseShape::OBJECT_FLAG_MASK),
         clasp(base->clasp),
         parent(base->parent),
@@ -416,7 +418,7 @@ struct StackBaseShape
                                    StrictPropertyOp rawSetter);
 
     static inline HashNumber hash(const StackBaseShape *lookup);
-    static inline bool match(RawUnownedBaseShape key, const StackBaseShape *lookup);
+    static inline bool match(UnownedBaseShape *key, const StackBaseShape *lookup);
 
     class AutoRooter : private AutoGCRooter
     {
@@ -515,7 +517,7 @@ struct Shape : public js::gc::Cell
     static Shape *replaceLastProperty(JSContext *cx, const StackBaseShape &base,
                                       TaggedProto proto, Shape *shape);
 
-    static bool hashify(JSContext *cx, HandleShape shape);
+    bool hashify(JSContext *cx);
     void handoffTableTo(Shape *newShape);
 
     inline void setParent(js::Shape *p);
@@ -523,11 +525,10 @@ struct Shape : public js::gc::Cell
     bool ensureOwnBaseShape(JSContext *cx) {
         if (base()->isOwned())
             return true;
-        RootedShape self(cx, this);
-        return makeOwnBaseShape(cx, self);
+        return makeOwnBaseShape(cx);
     }
 
-    static bool makeOwnBaseShape(JSContext *cx, HandleShape shape);
+    bool makeOwnBaseShape(JSContext *cx);
 
   public:
     bool hasTable() const { return base()->hasTable(); }
@@ -628,7 +629,7 @@ struct Shape : public js::gc::Cell
     Shape(const StackShape &other, uint32_t nfixed);
 
     /* Used by EmptyShape (see jsscopeinlines.h). */
-    Shape(UnrootedUnownedBaseShape base, uint32_t nfixed);
+    Shape(UnownedBaseShape *base, uint32_t nfixed);
 
     /* Copy constructor disabled, to avoid misuse of the above form. */
     Shape(const Shape &other) MOZ_DELETE;
@@ -690,14 +691,14 @@ struct Shape : public js::gc::Cell
 
     inline bool matches(const Shape *other) const;
     inline bool matches(const StackShape &other) const;
-    inline bool matchesParamsAfterId(UnrootedBaseShape base,
+    inline bool matchesParamsAfterId(BaseShape *base,
                                      uint32_t aslot, unsigned aattrs, unsigned aflags,
                                      int ashortid) const;
 
     bool get(JSContext* cx, HandleObject receiver, JSObject *obj, JSObject *pobj, MutableHandleValue vp);
     bool set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict, MutableHandleValue vp);
 
-    BaseShape* base() const { return base_; }
+    BaseShape *base() const { return base_; }
 
     bool hasSlot() const { return (attrs & JSPROP_SHARED) == 0; }
     uint32_t slot() const { JS_ASSERT(hasSlot() && !hasMissingSlot()); return maybeSlot(); }
@@ -899,7 +900,7 @@ class AutoRooterGetterSetter
 
 struct EmptyShape : public js::Shape
 {
-    EmptyShape(UnrootedUnownedBaseShape base, uint32_t nfixed);
+    EmptyShape(UnownedBaseShape *base, uint32_t nfixed);
 
     /*
      * Lookup an initial shape matching the given parameters, creating an empty
@@ -962,15 +963,14 @@ typedef HashSet<InitialShapeEntry, InitialShapeEntry, SystemAllocPolicy> Initial
 
 struct StackShape
 {
-    /* For performance, StackShape only roots when absolutely necessary. */
-    RawUnownedBaseShape base;
-    RawId               propid;
-    uint32_t            slot_;
-    uint8_t             attrs;
-    uint8_t             flags;
-    int16_t             shortid;
+    UnownedBaseShape *base;
+    jsid             propid;
+    uint32_t         slot_;
+    uint8_t          attrs;
+    uint8_t          flags;
+    int16_t          shortid;
 
-    StackShape(UnrootedUnownedBaseShape base, jsid propid, uint32_t slot,
+    StackShape(UnownedBaseShape *base, jsid propid, uint32_t slot,
                uint32_t nfixed, unsigned attrs, unsigned flags, int shortid)
       : base(base),
         propid(propid),
@@ -1081,7 +1081,7 @@ Shape::search(JSContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
         if (start->isBigEnoughForAShapeTable()) {
             RootedShape startRoot(cx, start);
             RootedId idRoot(cx, id);
-            if (Shape::hashify(cx, startRoot)) {
+            if (startRoot->hashify(cx)) {
                 Shape **spp = startRoot->table().search(idRoot, adding);
                 return SHAPE_FETCH(spp);
             }

@@ -156,7 +156,8 @@ class MemoryMonitor extends BroadcastReceiver {
             }
             ScreenshotHandler.disableScreenshot(false);
             GeckoAppShell.geckoEventSync();
-            Favicons.getInstance().clearMemCache();
+
+            GeckoApp.mAppContext.getFavicons().clearMemCache();
         }
     }
 

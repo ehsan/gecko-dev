@@ -12,6 +12,7 @@
 #include "nsDebug.h"
 #include "nsTArray.h"
 #include "nsTHashtable.h"
+#include "prmem.h"
 #include "prinit.h"
 #include "prlog.h"
 #include "nsArenaMemoryStats.h"
@@ -470,12 +471,12 @@ struct nsPresArena::State
 
   void* Allocate(uint32_t /* unused */, size_t aSize)
   {
-    return moz_malloc(aSize);
+    return PR_Malloc(aSize);
   }
 
   void Free(uint32_t /* unused */, void* aPtr)
   {
-    moz_free(aPtr);
+    PR_Free(aPtr);
   }
 };
 

@@ -333,7 +333,6 @@ BluetoothOppManager::SendFile(BlobParent* aActor)
   }
 
   SendConnectRequest();
-  mTransferMode = false;
 
   return true;
 }
@@ -380,7 +379,6 @@ BluetoothOppManager::AfterOppConnected()
   sSentFileLength = 0;
   mReceivedDataBufferOffset = 0;
   mAbortFlag = false;
-  mSuccessFlag = false;
   mWaitingForConfirmationFlag = true;
 }
 
@@ -392,10 +390,6 @@ BluetoothOppManager::AfterOppDisconnected()
   mConnected = false;
   mLastCommand = 0;
   mBlob = nullptr;
-
-  // We can't reset mSuccessFlag here since this function may be called
-  // before we send system message of transfer complete
-  // mSuccessFlag = false;
 
   if (mInputStream) {
     mInputStream->Close();
@@ -614,6 +608,8 @@ BluetoothOppManager::ReceiveSocketData(UnixSocketRawData* aMessage)
     SendDisconnectRequest();
   } else {
     // Remote request or unknown mLastCommand
+    mTransferMode = true;
+    mSuccessFlag = false;
     ObexHeaderSet pktHeaders(opCode);
 
     if (opCode == ObexRequestCode::Connect) {
@@ -625,7 +621,6 @@ BluetoothOppManager::ReceiveSocketData(UnixSocketRawData* aMessage)
                    &pktHeaders);
       ReplyToConnect();
       AfterOppConnected();
-      mTransferMode = true;
     } else if (opCode == ObexRequestCode::Disconnect) {
       // Section 3.3.2 "Disconnect", IrOBEX 1.2
       // [opcode:1][length:2][Headers:var]
@@ -744,6 +739,8 @@ BluetoothOppManager::SendConnectRequest()
   index += AppendHeaderConnectionId(&req[index], mConnectionId);
   SetObexPacketInfo(req, ObexRequestCode::Connect, index);
   mLastCommand = ObexRequestCode::Connect;
+  mTransferMode = false;
+  mSuccessFlag = false;
 
   UnixSocketRawData* s = new UnixSocketRawData(index);
   memcpy(s->mData, req, s->mSize);
@@ -1112,5 +1109,4 @@ BluetoothOppManager::OnDisconnect()
   // call AfterOppDisconnected here to ensure all variables will be cleaned.
   AfterOppDisconnected();
   mConnectedDeviceAddress.AssignLiteral("00:00:00:00:00:00");
-  mSuccessFlag = false;
 }

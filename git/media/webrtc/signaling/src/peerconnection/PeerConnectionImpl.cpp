@@ -715,6 +715,7 @@ NS_IMETHODIMP
 PeerConnectionImpl::CreateOffer(const JS::Value& aConstraints, JSContext* aCx)
 {
   CheckIceState();
+  mRole = kRoleOfferer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
 
   MediaConstraints* cs = new MediaConstraints();
   nsresult rv = ConvertConstraints(aConstraints, cs, aCx);
@@ -729,8 +730,6 @@ PeerConnectionImpl::CreateOffer(const JS::Value& aConstraints, JSContext* aCx)
 NS_IMETHODIMP
 PeerConnectionImpl::CreateOffer(MediaConstraints& constraints)
 {
-  mRole = kRoleOfferer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
-
   cc_media_constraints_t* cc_constraints = nullptr;
   constraints.buildArray(&cc_constraints);
 
@@ -742,6 +741,7 @@ NS_IMETHODIMP
 PeerConnectionImpl::CreateAnswer(const JS::Value& aConstraints, JSContext* aCx)
 {
   CheckIceState();
+  mRole = kRoleAnswerer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
 
   MediaConstraints* cs = new MediaConstraints();
   nsresult rv = ConvertConstraints(aConstraints, cs, aCx);
@@ -756,8 +756,6 @@ PeerConnectionImpl::CreateAnswer(const JS::Value& aConstraints, JSContext* aCx)
 NS_IMETHODIMP
 PeerConnectionImpl::CreateAnswer(MediaConstraints& constraints)
 {
-  mRole = kRoleAnswerer;  // TODO(ekr@rtfm.com): Interrogate SIPCC here?
-
   cc_media_constraints_t* cc_constraints = nullptr;
   constraints.buildArray(&cc_constraints);
 

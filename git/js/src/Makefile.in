@@ -117,11 +117,10 @@ CPPSRCS		= \
 		prmjtime.cpp \
 		sharkctl.cpp \
 		ArgumentsObject.cpp \
-		DateTime.cpp \
+		ScopeObject.cpp \
 		Debugger.cpp \
 		GlobalObject.cpp \
 		ObjectImpl.cpp \
-		ScopeObject.cpp \
 		Stack.cpp \
 		String.cpp \
 		BytecodeCompiler.cpp \
@@ -293,7 +292,6 @@ CPPSRCS +=	MIR.cpp \
 		LICM.cpp \
 		LinearScan.cpp \
 		LIR.cpp \
-		LiveRangeAllocator.cpp \
 		Lowering.cpp \
 		Lowering-shared.cpp \
 		MCallOptimize.cpp \

@@ -28,7 +28,6 @@ XULTreeGridAccessible::
   XULTreeGridAccessible(nsIContent* aContent, DocAccessible* aDoc) :
   XULTreeAccessible(aContent, aDoc), xpcAccessibleTable(this)
 {
-  mFlags |= eTableAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,8 +279,6 @@ XULTreeGridRowAccessible::
                            nsITreeView* aTreeView, int32_t aRow) :
   XULTreeItemAccessibleBase(aContent, aDoc, aTreeAcc, aTree, aTreeView, aRow)
 {
-  mFlags |= eTableRowAccessible;
-
   mAccessibleCache.Init(kDefaultTreeCacheSize);
 }
 

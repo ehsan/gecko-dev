@@ -257,7 +257,6 @@ class IonBuilder : public MIRGenerator
     bool resume(MInstruction *ins, jsbytecode *pc, MResumePoint::Mode mode);
     bool resumeAt(MInstruction *ins, jsbytecode *pc);
     bool resumeAfter(MInstruction *ins);
-    bool maybeInsertResume();
 
     void insertRecompileCheck();
 

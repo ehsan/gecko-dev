@@ -598,25 +598,6 @@ class MOsrEntry : public MNullaryInstruction
     }
 };
 
-// No-op instruction. This cannot be moved or eliminated, and is intended for
-// anchoring resume points at arbitrary points in a block.
-class MNop : public MNullaryInstruction
-{
-  protected:
-    MNop() {
-    }
-
-  public:
-    INSTRUCTION_HEADER(Nop);
-    static MNop *New() {
-        return new MNop();
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-};
-
 // A constant js::Value.
 class MConstant : public MNullaryInstruction
 {
@@ -1759,9 +1740,6 @@ class MToInt32 : public MUnaryInstruction
     bool canBeNegativeZero() {
         return canBeNegativeZero_;
     }
-    void setCanBeNegativeZero(bool negativeZero) {
-        canBeNegativeZero_ = negativeZero;
-    }
 
     bool congruentTo(MDefinition *const &ins) const {
         return congruentIfOperandsEqual(ins);
@@ -2441,8 +2419,8 @@ class MAdd : public MBinaryArithInstruction
     bool isTruncated() const {
         return implicitTruncate_;
     }
-    void setTruncated(bool truncate) {
-        implicitTruncate_ = truncate;
+    void setTruncated(bool val) {
+        implicitTruncate_ = val;
     }
     bool updateForReplacement(MDefinition *ins);
     double getIdentity() {
@@ -2473,8 +2451,8 @@ class MSub : public MBinaryArithInstruction
     bool isTruncated() const {
         return implicitTruncate_;
     }
-    void setTruncated(bool truncate) {
-        implicitTruncate_ = truncate;
+    void setTruncated(bool val) {
+        implicitTruncate_ = val;
     }
     bool updateForReplacement(MDefinition *ins);
 
@@ -2531,13 +2509,7 @@ class MMul : public MBinaryArithInstruction
     }
 
     bool canOverflow();
-
-    bool canBeNegativeZero() {
-        return canBeNegativeZero_;
-    }
-    void setCanBeNegativeZero(bool negativeZero) {
-        canBeNegativeZero_ = negativeZero;
-    }
+    bool canBeNegativeZero();
 
     bool updateForReplacement(MDefinition *ins);
 
@@ -2553,13 +2525,6 @@ class MMul : public MBinaryArithInstruction
 
     void setPossibleTruncated(bool truncate) {
         possibleTruncate_ = truncate;
-
-        // We can remove the negative zero check, because op if it is only used truncated.
-        // The "Possible" in the function name means that we are not sure,
-        // that "integer mul and disregarding overflow" == "double mul and ToInt32"
-        // Note: when removing truncated state, we have to add negative zero check again,
-        // because we are not sure if it was removed by this or other passes.
-        canBeNegativeZero_ = !truncate;
     }
 };
 
@@ -2605,15 +2570,12 @@ class MDiv : public MBinaryArithInstruction
     bool isTruncated() const {
         return implicitTruncate_;
     }
-    void setTruncated(bool truncate) {
-        implicitTruncate_ = truncate;
+    void setTruncated(bool val) {
+        implicitTruncate_ = val;
     }
 
     bool canBeNegativeZero() {
         return canBeNegativeZero_;
-    }
-    void setCanBeNegativeZero(bool negativeZero) {
-        canBeNegativeZero_ = negativeZero;
     }
 
     bool canBeNegativeOverflow() {
@@ -4861,11 +4823,11 @@ class MCallGetProperty
     public BoxInputsPolicy
 {
     CompilerRootPropertyName name_;
-    bool idempotent_;
+    bool markEffectful_;
 
     MCallGetProperty(MDefinition *value, HandlePropertyName name)
       : MUnaryInstruction(value), name_(name),
-        idempotent_(false)
+        markEffectful_(true)
     {
         setResultType(MIRType_Value);
     }
@@ -4889,11 +4851,11 @@ class MCallGetProperty
     // Constructors need to perform a GetProp on the function prototype.
     // Since getters cannot be set on the prototype, fetching is non-effectful.
     // The operation may be safely repeated in case of bailout.
-    void setIdempotent() {
-        idempotent_ = true;
+    void markUneffectful() {
+        markEffectful_ = false;
     }
     AliasSet getAliasSet() const {
-        if (!idempotent_)
+        if (markEffectful_)
             return AliasSet::Store(AliasSet::Any);
         return AliasSet::None();
     }
@@ -5677,7 +5639,6 @@ class MResumePoint : public MNode
     uint32 stackDepth_;
     jsbytecode *pc_;
     MResumePoint *caller_;
-    MInstruction *instruction_;
     Mode mode_;
 
     MResumePoint(MBasicBlock *block, jsbytecode *pc, MResumePoint *parent, Mode mode);
@@ -5721,12 +5682,6 @@ class MResumePoint : public MNode
         for (MResumePoint *it = caller_; it; it = it->caller_)
             count++;
         return count;
-    }
-    MInstruction *instruction() {
-        return instruction_;
-    }
-    void setInstruction(MInstruction *ins) {
-        instruction_ = ins;
     }
     Mode mode() const {
         return mode_;

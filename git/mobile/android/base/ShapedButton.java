@@ -56,10 +56,7 @@ public abstract class ShapedButton extends GeckoImageButton
 
     @Override
     public void draw(Canvas canvas) {
-        if (mCanvasDelegate != null)
-            mCanvasDelegate.draw(canvas, mPath, getWidth(), getHeight());
-        else
-            defaultDraw(canvas);
+        mCanvasDelegate.draw(canvas, mPath, getWidth(), getHeight());
     }
 
     @Override

@@ -24,25 +24,15 @@ XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
 
 const kClosePaymentFlowEvent = "close-payment-flow-dialog";
 
-let requestId;
-
 function paymentSuccess(aResult) {
   closePaymentFlowDialog(function notifySuccess() {
-    if (!requestId) {
-      return;
-    }
-    cpmm.sendAsyncMessage("Payment:Success", { result: aResult,
-                                               requestId: requestId });
+    cpmm.sendAsyncMessage("Payment:Success", { result: aResult });
   });
 }
 
 function paymentFailed(aErrorMsg) {
   closePaymentFlowDialog(function notifyError() {
-    if (!requestId) {
-      return;
-    }
-    cpmm.sendAsyncMessage("Payment:Failed", { errorMsg: aErrorMsg,
-                                              requestId: requestId });
+    cpmm.sendAsyncMessage("Payment:Failed", { errorMsg: aErrorMsg });
   });
 }
 
@@ -84,12 +74,6 @@ function closePaymentFlowDialog(aCallback) {
 
   browser.shell.sendChromeEvent(detail);
 }
-
-// We save the identifier of the DOM request, so we can dispatch the results
-// of the payment flow to the appropriate content process.
-addMessageListener("Payment:LoadShim", function receiveMessage(aMessage) {
-  requestId = aMessage.json.requestId;
-});
 
 addEventListener("DOMContentLoaded", function(e) {
   content.wrappedJSObject.paymentSuccess = paymentSuccess;

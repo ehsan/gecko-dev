@@ -53,8 +53,7 @@ DOMFMRadioChild.prototype = {
     this._hasPrivileges = perm == Ci.nsIPermissionManager.ALLOW_ACTION;
 
     if (!this._hasPrivileges) {
-      Cu.reportError("NO FMRADIO PERMISSION FOR: " + aWindow.document.nodePrincipal.origin + "\n");
-      return null;
+      throw new Components.Exception("Denied", Cr.NS_ERROR_FAILURE);
     }
 
     const messages = ["DOMFMRadio:enable:Return:OK",

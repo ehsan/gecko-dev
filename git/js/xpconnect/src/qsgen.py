@@ -80,6 +80,9 @@
 #
 # - There are many features of IDL that XPConnect supports but qsgen does not,
 #   including dependent types, arrays, and out parameters.
+#
+# - Since quick stubs are JSPropertyOps, we have to do additional work to make
+#   __lookup[GS]etter__ work on them.
 
 
 import xpidl
@@ -274,7 +277,8 @@ def readConfigFile(filename, includePath, cachedir):
         iface = getInterface(interfaceName, errorLoc='looking for %r' % memberId)
 
         if not iface.attributes.scriptable:
-            raise UserError("Interface %s is not scriptable." % interfaceName)
+            raise UserError("Interface %s is not scriptable. "
+                            "IDL file: %r." % (interfaceName, idlFile))
 
         if memberName == '*':
             if not add:
@@ -283,6 +287,8 @@ def readConfigFile(filename, includePath, cachedir):
             # Stub all scriptable members of this interface.
             for member in iface.members:
                 if member.kind in ('method', 'attribute') and not member.noscript:
+                    cmc = conf.customMethodCalls.get(interfaceName + "_" + header.methodNativeName(member), None)
+
                     addStubMember(iface.name + '.' + member.name, member)
 
                     if member.iface not in stubbedInterfaces:
@@ -299,6 +305,8 @@ def readConfigFile(filename, includePath, cachedir):
                 if member in iface.stubMembers:
                     raise UserError("Member %s is specified more than once."
                                     % memberId)
+
+                cmc = conf.customMethodCalls.get(interfaceName + "_" + header.methodNativeName(member), None)
 
                 addStubMember(memberId, member)
                 if member.iface not in stubbedInterfaces:
@@ -1284,6 +1292,7 @@ def writeStubFile(filename, headerFilename, conf, interfaces):
 
     try:
         f.write(stubTopTemplate % os.path.basename(headerFilename))
+        N = 256
         resulttypes = []
         for iface in interfaces:
             resulttypes.extend(writeIncludesForInterface(iface))

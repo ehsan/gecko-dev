@@ -396,7 +396,7 @@ JSONSpewer::spewIntervals(LinearScanAllocator *regalloc)
                 VirtualRegister *vreg = &regalloc->vregs[ins->getDef(k)->virtualRegister()];
 
                 beginObject();
-                integerProperty("vreg", vreg->id());
+                integerProperty("vreg", vreg->reg());
                 beginListProperty("intervals");
 
                 for (size_t i = 0; i < vreg->numIntervals(); i++) {

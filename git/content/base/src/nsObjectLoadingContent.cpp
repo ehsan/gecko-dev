@@ -1832,9 +1832,6 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
       CloseChannel();
     }
 
-    // Don't try to initialize final listener below
-    finalListener = nullptr;
-
     // Don't notify, as LoadFallback doesn't know of our previous state
     // (so really this is just setting mFallbackType)
     LoadFallback(fallbackType, false);
@@ -1847,6 +1844,8 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
   // Pass load on to finalListener if loading with a channel
   //
 
+  // If we re-entered and loaded something else, that load will have cleaned up
+  // our our listener.
   if (!mIsLoading) {
     LOG(("OBJLC [%p]: Re-entered before dispatching to final listener", this));
   } else if (finalListener) {
@@ -1871,7 +1870,6 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
       mIsLoading = true;
       UnloadObject(false);
       NS_ENSURE_TRUE(mIsLoading, NS_OK);
-      CloseChannel();
       LoadFallback(fallbackType, true);
     }
   }

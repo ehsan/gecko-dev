@@ -39,7 +39,6 @@
 #include "Connection.h"
 #ifdef MOZ_B2G_RIL
 #include "MobileConnection.h"
-#include "mozilla/dom/CellBroadcast.h"
 #endif
 #include "nsIIdleObserver.h"
 #include "nsIPermissionManager.h"
@@ -128,7 +127,6 @@ NS_INTERFACE_MAP_BEGIN(Navigator)
   NS_INTERFACE_MAP_ENTRY(nsIDOMMozNavigatorNetwork)
 #ifdef MOZ_B2G_RIL
   NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorMobileConnection)
-  NS_INTERFACE_MAP_ENTRY(nsIMozNavigatorCellBroadcast)
 #endif
 #ifdef MOZ_B2G_BT
   NS_INTERFACE_MAP_ENTRY(nsIDOMNavigatorBluetooth)
@@ -202,10 +200,6 @@ Navigator::Invalidate()
   if (mMobileConnection) {
     mMobileConnection->Shutdown();
     mMobileConnection = nullptr;
-  }
-
-  if (mCellBroadcast) {
-    mCellBroadcast = nullptr;
   }
 #endif
 
@@ -1171,31 +1165,6 @@ Navigator::GetMozSms(nsIDOMMozSmsManager** aSmsManager)
 }
 
 #ifdef MOZ_B2G_RIL
-
-//*****************************************************************************
-//    Navigator::nsIMozNavigatorCellBroadcast
-//*****************************************************************************
-
-NS_IMETHODIMP
-Navigator::GetMozCellBroadcast(nsIDOMMozCellBroadcast** aCellBroadcast)
-{
-  *aCellBroadcast = nullptr;
-
-  if (!mCellBroadcast) {
-    nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mWindow);
-    NS_ENSURE_TRUE(window, NS_OK);
-
-    if (!CheckPermission("cellbroadcast")) {
-      return NS_OK;
-    }
-
-    nsresult rv = NS_NewCellBroadcast(window, getter_AddRefs(mCellBroadcast));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  NS_ADDREF(*aCellBroadcast = mCellBroadcast);
-  return NS_OK;
-}
 
 //*****************************************************************************
 //    nsNavigator::nsIDOMNavigatorTelephony

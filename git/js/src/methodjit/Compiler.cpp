@@ -991,9 +991,8 @@ CompileStatus
 mjit::CanMethodJIT(JSContext *cx, JSScript *scriptArg, jsbytecode *pc,
                    bool construct, CompileRequest request, StackFrame *frame)
 {
-    bool compiledOnce = false;
     RootedScript script(cx, scriptArg);
-  checkOutput:
+  restart:
     if (!cx->methodJitEnabled)
         return Compile_Abort;
 
@@ -1058,7 +1057,7 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *scriptArg, jsbytecode *pc,
             FreeOp *fop = cx->runtime->defaultFreeOp();
             jit->destroy(fop);
             fop->free_(jit);
-            return Compile_Skipped;
+            goto restart;
         }
 
         jith->setValid(jit);
@@ -1084,8 +1083,6 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *scriptArg, jsbytecode *pc,
 
     if (desc.chunk)
         return Compile_Okay;
-    if (compiledOnce)
-        return Compile_Skipped;
 
     if (!cx->hasRunOption(JSOPTION_METHODJIT_ALWAYS) &&
         ++desc.counter <= INFER_USES_BEFORE_COMPILE)
@@ -1113,8 +1110,7 @@ mjit::CanMethodJIT(JSContext *cx, JSScript *scriptArg, jsbytecode *pc,
          * Compiling a script can occasionally trigger its own recompilation,
          * so go back through the compilation logic.
          */
-        compiledOnce = true;
-        goto checkOutput;
+        goto restart;
     }
 
     /* Non-OOM errors should have an associated exception. */
@@ -2778,8 +2774,7 @@ mjit::Compiler::generateMethod()
           BEGIN_CASE(JSOP_CALLINTRINSIC)
           {
             PropertyName *name = script_->getName(GET_UINT32_INDEX(PC));
-            if (!jsop_intrinsicname(name, knownPushedType(0)))
-                return Compile_Error;
+            jsop_intrinsicname(name, knownPushedType(0));
             frame.extra(frame.peek(-1)).name = name;
           }
           END_CASE(JSOP_INTRINSICNAME)
@@ -5794,23 +5789,12 @@ mjit::Compiler::jsop_setprop(PropertyName *name, bool popGuaranteed)
     return true;
 }
 
-bool
+void
 mjit::Compiler::jsop_intrinsicname(PropertyName *name, JSValueType type)
 {
-    if (type == JSVAL_TYPE_UNKNOWN) {
-        prepareStubCall(Uses(0));
-        masm.move(ImmPtr(name), Registers::ArgReg1);
-        INLINE_STUBCALL(stubs::IntrinsicName, REJOIN_FALLTHROUGH);
-        testPushedType(REJOIN_FALLTHROUGH, 0, /* ool = */ false);
-        frame.pushSynced(JSVAL_TYPE_UNKNOWN);
-        return true;
-    }
-
     RootedValue vp(cx, NullValue());
-    if (!cx->global().get()->getIntrinsicValue(cx, name, &vp))
-        return false;
+    cx->global().get()->getIntrinsicValue(cx, name, &vp);
     frame.push(vp);
-    return true;
 }
 
 void

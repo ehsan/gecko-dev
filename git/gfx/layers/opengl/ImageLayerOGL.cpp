@@ -990,26 +990,20 @@ ShadowImageLayerOGL::RenderLayer(int aPreviousFrameBuffer,
 
     if (gl()->CanUploadNonPowerOfTwo()) {
       do {
-        nsIntRect rect = mTexImage->GetTileRect();
-        if (!rect.IsEmpty()) {
-          TextureImage::ScopedBindTextureAndApplyFilter texBind(mTexImage, LOCAL_GL_TEXTURE0);
-          colorProgram->SetLayerQuadRect(rect);
-          mOGLManager->BindAndDrawQuad(colorProgram);
-        }
+        TextureImage::ScopedBindTextureAndApplyFilter texBind(mTexImage, LOCAL_GL_TEXTURE0);
+        colorProgram->SetLayerQuadRect(mTexImage->GetTileRect());
+        mOGLManager->BindAndDrawQuad(colorProgram);
       } while (mTexImage->NextTile());
     } else {
       do {
-        nsIntRect rect = mTexImage->GetTileRect();
-        if (!rect.IsEmpty()) {
-          TextureImage::ScopedBindTextureAndApplyFilter texBind(mTexImage, LOCAL_GL_TEXTURE0);
-          colorProgram->SetLayerQuadRect(rect);
-          // We can't use BindAndDrawQuad because that always uploads the whole texture from 0.0f -> 1.0f
-          // in x and y. We use BindAndDrawQuadWithTextureRect to actually draw a subrect of the texture
-          mOGLManager->BindAndDrawQuadWithTextureRect(colorProgram,
-                                                      nsIntRect(0, 0, mTexImage->GetTileRect().width,
-                                                                mTexImage->GetTileRect().height),
-                                                      mTexImage->GetTileRect().Size());
-        }
+        TextureImage::ScopedBindTextureAndApplyFilter texBind(mTexImage, LOCAL_GL_TEXTURE0);
+        colorProgram->SetLayerQuadRect(mTexImage->GetTileRect());
+        // We can't use BindAndDrawQuad because that always uploads the whole texture from 0.0f -> 1.0f
+        // in x and y. We use BindAndDrawQuadWithTextureRect to actually draw a subrect of the texture
+        mOGLManager->BindAndDrawQuadWithTextureRect(colorProgram,
+                                                    nsIntRect(0, 0, mTexImage->GetTileRect().width,
+                                                                    mTexImage->GetTileRect().height),
+                                                    mTexImage->GetTileRect().Size());
       } while (mTexImage->NextTile());
     }
 #ifdef MOZ_WIDGET_GONK

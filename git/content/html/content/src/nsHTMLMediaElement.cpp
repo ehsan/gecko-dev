@@ -65,7 +65,6 @@
 #include "nsDOMMediaStream.h"
 #include "nsIScriptError.h"
 #include "nsHostObjectProtocolHandler.h"
-#include "MediaMetadataManager.h"
 
 #include "nsCSSParser.h"
 #include "nsIMediaList.h"
@@ -2184,8 +2183,7 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(MediaDecoder* aOriginal)
   double duration = aOriginal->GetDuration();
   if (duration >= 0) {
     decoder->SetDuration(duration);
-    decoder->SetTransportSeekable(aOriginal->IsTransportSeekable());
-    decoder->SetMediaSeekable(aOriginal->IsMediaSeekable());
+    decoder->SetSeekable(aOriginal->IsSeekable());
   }
 
   MediaResource* resource = originalResource->CloneData(decoder);
@@ -2514,8 +2512,8 @@ void nsHTMLMediaElement::ProcessMediaFragmentURI()
   }
 }
 
-void nsHTMLMediaElement::MetadataLoaded(int aChannels,
-                                        int aRate,
+void nsHTMLMediaElement::MetadataLoaded(uint32_t aChannels,
+                                        uint32_t aRate,
                                         bool aHasAudio,
                                         const MetadataTags* aTags)
 {
@@ -2526,7 +2524,7 @@ void nsHTMLMediaElement::MetadataLoaded(int aChannels,
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_METADATA);
   DispatchAsyncEvent(NS_LITERAL_STRING("durationchange"));
   DispatchAsyncEvent(NS_LITERAL_STRING("loadedmetadata"));
-  if (mDecoder && mDecoder->IsTransportSeekable() && mDecoder->IsMediaSeekable()) {
+  if (mDecoder && mDecoder->IsSeekable()) {
     ProcessMediaFragmentURI();
     mDecoder->SetFragmentEndTime(mFragmentEnd);
   }

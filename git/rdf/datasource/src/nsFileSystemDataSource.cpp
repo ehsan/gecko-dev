@@ -18,6 +18,13 @@
 #include "nsXPIDLString.h"
 #include "nsRDFCID.h"
 #include "rdfutil.h"
+#include "plhash.h"
+#include "plstr.h"
+#include "prlong.h"
+#include "prlog.h"
+#include "prmem.h"
+#include "prprf.h"
+#include "prio.h"
 #include "rdf.h"
 #include "nsEnumeratorUtils.h"
 #include "nsIURL.h"
@@ -864,6 +871,7 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
     int32_t         driveType;
     PRUnichar       drive[32];
     int32_t         volNum;
+    char            *url;
 
     for (volNum = 0; volNum < 26; volNum++)
     {
@@ -872,13 +880,15 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
         driveType = GetDriveTypeW(drive);
         if (driveType != DRIVE_UNKNOWN && driveType != DRIVE_NO_ROOT_DIR)
         {
-          nsAutoCString url;
-          url.AppendPrintf("file:///%c|/", volNum + 'A');
-          rv = mRDFService->GetResource(url, getter_AddRefs(vol));
-          if (NS_FAILED(rv))
-            return rv;
+            if (nullptr != (url = PR_smprintf("file:///%c|/", volNum + 'A')))
+            {
+                rv = mRDFService->GetResource(nsDependentCString(url),
+                                              getter_AddRefs(vol));
+                PR_Free(url);
 
-          volumes->AppendElement(vol);
+                if (NS_FAILED(rv)) return rv;
+                volumes->AppendElement(vol);
+            }
         }
     }
 #endif
@@ -891,6 +901,7 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
 #ifdef XP_OS2
     ULONG ulDriveNo = 0;
     ULONG ulDriveMap = 0;
+    char *url;
 
     rv = DosQueryCurrentDisk(&ulDriveNo, &ulDriveMap);
     if (NS_FAILED(rv))
@@ -900,12 +911,14 @@ FileSystemDataSource::GetVolumeList(nsISimpleEnumerator** aResult)
     {
         if (((ulDriveMap << (31 - volNum)) >> 31))
         {
-          nsAutoCString url;
-          url.AppendPrintf("file:///%c|/", volNum + 'A');
-          rv = mRDFService->GetResource(nsDependentCString(url), getter_AddRefs(vol));
+            if (nullptr != (url = PR_smprintf("file:///%c|/", volNum + 'A')))
+            {
+                rv = mRDFService->GetResource(nsDependentCString(url), getter_AddRefs(vol));
+                PR_Free(url);
 
-          if (NS_FAILED(rv)) return rv;
-          volumes->AppendElement(vol);
+                if (NS_FAILED(rv)) return rv;
+                volumes->AppendElement(vol);
+            }
         }
 
     }

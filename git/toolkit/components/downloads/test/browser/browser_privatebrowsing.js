@@ -66,13 +66,12 @@ function test() {
     onProgressChange: function(a, b, c, d, e, f, g) { },
     onSecurityChange: function(a, b, c, d) { },
     onDownloadFinished: function() {
-      // onDownloadFinished is only called one time (on Download-A finished)
-      // because the listener isn't called on private windows
-      // (on Download-B finished)
+      //onDownloadFinished is only called one time (on Download-A finished)
+      //because the listener isn't called on private windows (on Download-B finished)
       is(Services.downloads.activeDownloadCount, 0,
         "Check that activeDownloadCount is zero");
 
-      // Open private window
+      //Open private window
       testOnWindow(true, function(win) {
         // Create Download-B
         downloadB = addDownload({
@@ -84,14 +83,8 @@ function test() {
             checkDownloads(aDownload);
           }
         });
-        // Wait for Download-B to finish
-        waitForDownloadState(downloadB,
-          Services.downloads.DOWNLOAD_FINISHED, function() {
-          testOnWindow(false, function() {
-            checkDownloads(downloadB);
-            cleanUp();
-          });
-        });
+        // wait for Download-B to finish
+        isDownloadComplete (downloadB);
       });
     }
   };
@@ -151,6 +144,19 @@ function test() {
       ok(true,
         "Check that Download-B is not available");
     }
+  }
+
+  function isDownloadComplete(aDownload) {
+    executeSoon(function() {
+      if (!aDownload.cancelable) {
+        testOnWindow(false, function () {
+          checkDownloads(downloadB);
+          cleanUp();
+        });
+      } else {
+        isDownloadComplete(aDownload);
+      }
+    });
   }
 
   // Make sure we're starting with an empty DB

@@ -91,10 +91,9 @@ public:
 
   void NotifyConsumptionChanged(MediaStreamGraph* aGraph, Consumption aConsuming)
   {
-    DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
-
-#ifdef PR_LOGGING
     const char* state;
+
+    DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
 
     switch (aConsuming) {
       case NOT_CONSUMED:
@@ -111,7 +110,6 @@ public:
     }
 
     DOM_CAMERA_LOGA("camera viewfinder is %s\n", state);
-#endif
     nsCOMPtr<nsIRunnable> previewControl;
 
     switch (aConsuming) {
@@ -251,6 +249,8 @@ DOMCameraPreview::StopPreview()
   DOM_CAMERA_LOGI("Stopping preview stream\n");
   mState = STOPPING;
   mCameraControl->StopPreview();
+  mInput->EndTrack(TRACK_VIDEO);
+  mInput->Finish();
 }
 
 void
@@ -258,8 +258,6 @@ DOMCameraPreview::SetStateStopped()
 {
   NS_ASSERTION(NS_IsMainThread(), "SetStateStopped() not called from main thread");
 
-  mInput->EndTrack(TRACK_VIDEO);
-  mInput->Finish();
   mState = STOPPED;
   DOM_CAMERA_LOGI("Preview stream stopped\n");
 

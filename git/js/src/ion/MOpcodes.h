@@ -76,7 +76,6 @@ namespace ion {
     _(InitProp)                                                             \
     _(Start)                                                                \
     _(OsrEntry)                                                             \
-    _(Nop)                                                                  \
     _(RegExp)                                                               \
     _(RegExpTest)                                                           \
     _(Lambda)                                                               \

@@ -393,13 +393,6 @@ this.DOMFMRadioParent = {
 
     let ret = 0;
     let self = this;
-
-    if (!aMessage.target.assertPermission("fmradio")) {
-      Cu.reportError("FMRadio message " + aMessage.name +
-                     " from a content process with no 'fmradio' privileges.");
-      return null;
-    }
-
     switch (aMessage.name) {
       case "DOMFMRadio:enable":
         self._enableFMRadio(msg);

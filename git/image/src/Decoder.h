@@ -59,7 +59,7 @@ public:
    *
    * Notifications Sent: TODO
    */
-  void Finish(RasterImage::eShutdownIntent aShutdownIntent);
+  void Finish();
 
   /**
    * Informs the shared decoder that all the data has been written.

@@ -179,16 +179,10 @@ public:
   // be called with the decode monitor held.
   void ClearPositionChangeFlag();
 
-  // Called from the main thread or the decoder thread to set whether the media
-  // resource can seek into unbuffered ranges. The decoder monitor must be
-  // obtained before calling this.
-  void SetTransportSeekable(bool aSeekable);
-
-  // Called from the main thread or the decoder thread to set whether the media
-  // can seek to random location. This is not true for chained ogg and WebM
-  // media without index. The decoder monitor must be obtained before calling
-  // this.
-  void SetMediaSeekable(bool aSeekable);
+  // Called from the main thread to set whether the media resource can
+  // seek into unbuffered ranges. The decoder monitor must be obtained
+  // before calling this.
+  void SetSeekable(bool aSeekable);
 
   // Update the playback position. This can result in a timeupdate event
   // and an invalidate of the frame being dispatched asynchronously if
@@ -263,14 +257,9 @@ public:
     return mEndTime;
   }
 
-  bool IsTransportSeekable() {
+  bool IsSeekable() {
     mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
-    return mTransportSeekable;
-  }
-
-  bool IsMediaSeekable() {
-    mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
-    return mMediaSeekable;
+    return mSeekable;
   }
 
   // Return true if the media is seekable using only buffered ranges.
@@ -332,8 +321,6 @@ public:
   // Returns true if the state machine has shutdown or is in the process of
   // shutting down. The decoder monitor must be held while calling this.
   bool IsShutdown();
-
-  void QueueMetadata(int64_t aPublishTime, int aChannels, int aRate, bool aHasAudio, MetadataTags* aTags);
 
 protected:
   virtual uint32_t GetAmpleVideoFrames() { return mAmpleVideoFrames; }
@@ -713,13 +700,9 @@ private:
   // streams).
   bool mAudioCaptured;
 
-  // True if the media resource can be seeked on a transport level. Accessed
-  // from the state machine and main threads. Synchronised via decoder monitor.
-  bool mTransportSeekable;
-
-  // True if the media can be seeked. Accessed from the state machine and main
-  // threads. Synchronised via decoder monitor.
-  bool mMediaSeekable;
+  // True if the media resource can be seeked. Accessed from the state
+  // machine and main threads. Synchronised via decoder monitor.
+  bool mSeekable;
 
   // True if an event to notify about a change in the playback
   // position has been queued, but not yet run. It is set to false when
@@ -802,8 +785,6 @@ private:
   // Stores presentation info required for playback. The decoder monitor
   // must be held when accessing this.
   VideoInfo mInfo;
-
-  mozilla::MediaMetadataManager mMetadataManager;
 };
 
 } // namespace mozilla;

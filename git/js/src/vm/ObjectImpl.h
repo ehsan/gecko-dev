@@ -16,7 +16,6 @@
 #include "jsval.h"
 
 #include "gc/Barrier.h"
-#include "gc/Heap.h"
 #include "vm/NumericConversions.h"
 #include "vm/String.h"
 

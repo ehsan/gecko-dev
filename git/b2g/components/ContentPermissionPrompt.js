@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict"
-
 let DEBUG = 0;
 let debug;
 if (DEBUG) {
@@ -17,8 +15,6 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 const Cc = Components.classes;
-
-const PROMPT_FOR_UNKNOWN = ['geolocation'];
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -40,9 +36,7 @@ function rememberPermission(aPermission, aPrincipal)
   {
     let type =
       permissionManager.testExactPermissionFromPrincipal(aPrincipal, aPerm);
-    if (type == Ci.nsIPermissionManager.PROMPT_ACTION ||
-        (type == Ci.nsIPermissionManager.UNKNOWN_ACTION &&
-        PROMPT_FOR_UNKNOWN.indexOf(aPermission) >= 0)) {
+    if (type == Ci.nsIPermissionManager.PROMPT_ACTION) {
       permissionManager.addFromPrincipal(aPrincipal,
                                          aPerm,
                                          Ci.nsIPermissionManager.ALLOW_ACTION);
@@ -55,7 +49,8 @@ function rememberPermission(aPermission, aPrincipal)
     for (let idx in access) {
       convertPermToAllow(aPermission + "-" + access[idx], aPrincipal);
     }
-  } else {
+  }
+  else {
     convertPermToAllow(aPermission, aPrincipal);
   }
 }
@@ -65,6 +60,7 @@ function ContentPermissionPrompt() {}
 ContentPermissionPrompt.prototype = {
 
   handleExistingPermission: function handleExistingPermission(request) {
+    let promptForUnknown = ['geolocation'];
     let access = (request.access && request.access !== "unused") ? request.type + "-" + request.access :
                                                                    request.type;
     let result = Services.perms.testExactPermissionFromPrincipal(request.principal, access);
@@ -73,7 +69,7 @@ ContentPermissionPrompt.prototype = {
       return true;
     }
     if (result == Ci.nsIPermissionManager.DENY_ACTION ||
-        result == Ci.nsIPermissionManager.UNKNOWN_ACTION && PROMPT_FOR_UNKNOWN.indexOf(access) < 0) {
+        result == Ci.nsIPermissionManager.UNKNOWN_ACTION && promptForUnknown.indexOf(access) < 0) {
       request.cancel();
       return true;
     }

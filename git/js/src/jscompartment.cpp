@@ -109,8 +109,7 @@ JSCompartment::init(JSContext *cx)
      * shouldn't interfere with benchmarks which create tons of date objects
      * (unless they also create tons of iframes, which seems unlikely).
      */
-    if (cx)
-        cx->runtime->dateTimeInfo.updateTimeZoneAdjustment();
+    js_ClearDateCaches();
 
     activeAnalysis = activeInference = false;
     types.init(cx);
@@ -229,17 +228,6 @@ WrapForSameCompartment(JSContext *cx, HandleObject obj, Value *vp)
 }
 
 bool
-JSCompartment::putWrapper(const CrossCompartmentKey &wrapped, const js::Value &wrapper)
-{
-    JS_ASSERT(wrapped.wrapped);
-    JS_ASSERT_IF(wrapped.kind == CrossCompartmentKey::StringWrapper, wrapper.isString());
-    JS_ASSERT_IF(wrapped.kind != CrossCompartmentKey::StringWrapper, wrapper.isObject());
-    // todo: uncomment when bug 815999 is fixed:
-    // JS_ASSERT(!wrapped.wrapped->isMarked(gc::GRAY));
-    return crossCompartmentWrappers.put(wrapped, wrapper);
-}
-
-bool
 JSCompartment::wrap(JSContext *cx, Value *vp, JSObject *existing)
 {
     JS_ASSERT(cx->compartment == this);
@@ -349,7 +337,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp, JSObject *existing)
         if (!wrapped)
             return false;
         vp->setString(wrapped);
-        if (!putWrapper(orig, *vp))
+        if (!crossCompartmentWrappers.put(orig, *vp))
             return false;
 
         if (str->compartment()->isGCMarking()) {
@@ -397,7 +385,7 @@ JSCompartment::wrap(JSContext *cx, Value *vp, JSObject *existing)
 
     vp->setObject(*wrapper);
 
-    if (!putWrapper(key, *vp))
+    if (!crossCompartmentWrappers.put(key, *vp))
         return false;
 
     return true;
@@ -928,7 +916,7 @@ JSCompartment::sweepBreakpoints(FreeOp *fop)
 {
     gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_SWEEP_TABLES_BREAKPOINT);
 
-    if (rt->debuggerList.isEmpty())
+    if (JS_CLIST_IS_EMPTY(&rt->debuggerList))
         return;
 
     for (CellIterUnderGC i(this, FINALIZE_SCRIPT); !i.done(); i.next()) {

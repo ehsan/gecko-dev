@@ -37,7 +37,6 @@ HttpBaseChannel::HttpBaseChannel()
   , mCanceled(false)
   , mIsPending(false)
   , mWasOpened(false)
-  , mRequestObserversCalled(false)
   , mResponseHeadersModified(false)
   , mAllowPipelining(true)
   , mForceAllowThirdPartyCookie(false)
@@ -237,7 +236,7 @@ HttpBaseChannel::GetOriginalURI(nsIURI **aOriginalURI)
 NS_IMETHODIMP
 HttpBaseChannel::SetOriginalURI(nsIURI *aOriginalURI)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   NS_ENSURE_ARG_POINTER(aOriginalURI);
   mOriginalURI = aOriginalURI;
@@ -811,7 +810,7 @@ HttpBaseChannel::GetRequestMethod(nsACString& aMethod)
 NS_IMETHODIMP
 HttpBaseChannel::SetRequestMethod(const nsACString& aMethod)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   const nsCString& flatMethod = PromiseFlatCString(aMethod);
 
@@ -839,7 +838,7 @@ HttpBaseChannel::GetReferrer(nsIURI **referrer)
 NS_IMETHODIMP
 HttpBaseChannel::SetReferrer(nsIURI *referrer)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   // clear existing referrer, if any
   mReferrer = nullptr;
@@ -1083,7 +1082,7 @@ HttpBaseChannel::GetAllowPipelining(bool *value)
 NS_IMETHODIMP
 HttpBaseChannel::SetAllowPipelining(bool value)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   mAllowPipelining = value;
   return NS_OK;
@@ -1100,7 +1099,7 @@ HttpBaseChannel::GetRedirectionLimit(uint32_t *value)
 NS_IMETHODIMP
 HttpBaseChannel::SetRedirectionLimit(uint32_t value)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   mRedirectionLimit = NS_MIN<uint32_t>(value, 0xff);
   return NS_OK;
@@ -1170,7 +1169,7 @@ HttpBaseChannel::GetDocumentURI(nsIURI **aDocumentURI)
 NS_IMETHODIMP
 HttpBaseChannel::SetDocumentURI(nsIURI *aDocumentURI)
 {
-  ENSURE_CALLED_BEFORE_CONNECT();
+  ENSURE_CALLED_BEFORE_ASYNC_OPEN();
 
   mDocumentURI = aDocumentURI;
   return NS_OK;

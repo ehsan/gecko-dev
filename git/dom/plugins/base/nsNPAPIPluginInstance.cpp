@@ -31,11 +31,9 @@
 #include "nsSize.h"
 #include "nsNetCID.h"
 #include "nsIContent.h"
-#include "nsVersionComparator.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/unused.h"
 
-using namespace mozilla;
+#include "mozilla/Preferences.h"
+#include "nsVersionComparator.h"
 
 #ifdef MOZ_WIDGET_ANDROID
 #include "ANPBase.h"
@@ -49,6 +47,7 @@ using namespace mozilla;
 #include "GLContextProvider.h"
 #include "TexturePoolOGL.h"
 
+using namespace mozilla;
 using namespace mozilla::gl;
 
 typedef nsNPAPIPluginInstance::TextureInfo TextureInfo;
@@ -579,7 +578,7 @@ nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
 
     NPPAutoPusher nppPusher(&mNPP);
 
-    DebugOnly<NPError> error;
+    NPError error;
     NS_TRY_SAFE_CALL_RETURN(error, (*pluginFunctions->setwindow)(&mNPP, (NPWindow*)window), this);
 
     mInPluginInitCall = oldVal;
@@ -587,7 +586,7 @@ nsresult nsNPAPIPluginInstance::SetWindow(NPWindow* window)
     NPP_PLUGIN_LOG(PLUGIN_LOG_NORMAL,
     ("NPP SetWindow called: this=%p, [x=%d,y=%d,w=%d,h=%d], clip[t=%d,b=%d,l=%d,r=%d], return=%d\n",
     this, window->x, window->y, window->width, window->height,
-    window->clipRect.top, window->clipRect.bottom, window->clipRect.left, window->clipRect.right, (NPError)error));
+    window->clipRect.top, window->clipRect.bottom, window->clipRect.left, window->clipRect.right, error));
   }
   return NS_OK;
 }

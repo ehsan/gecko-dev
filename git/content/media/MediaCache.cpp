@@ -761,7 +761,7 @@ MediaCache::FindReusableBlock(TimeStamp aNow,
 
     // Don't consider readahead blocks in non-seekable streams. If we
     // remove the block we won't be able to seek back to read it later.
-    if (stream->mIsTransportSeekable) {
+    if (stream->mIsSeekable) {
       AppendMostReusableBlock(&stream->mReadaheadBlocks, &candidates, length);
     }
   }
@@ -1082,7 +1082,7 @@ MediaCache::Update()
     int32_t nonSeekableReadaheadBlockCount = 0;
     for (uint32_t i = 0; i < mStreams.Length(); ++i) {
       MediaCacheStream* stream = mStreams[i];
-      if (!stream->mIsTransportSeekable) {
+      if (!stream->mIsSeekable) {
         nonSeekableReadaheadBlockCount += stream->mReadaheadBlocks.GetCount();
       }
     }
@@ -1110,7 +1110,7 @@ MediaCache::Update()
 
       // Compute where we'd actually seek to to read at readOffset
       int64_t desiredOffset = dataOffset;
-      if (stream->mIsTransportSeekable) {
+      if (stream->mIsSeekable) {
         if (desiredOffset > stream->mChannelOffset &&
             desiredOffset <= stream->mChannelOffset + SEEK_VS_READ_THRESHOLD) {
           // Assume it's more efficient to just keep reading up to the
@@ -1162,7 +1162,7 @@ MediaCache::Update()
         // The stream reader is waiting for us, or nearly so. Better feed it.
         LOG(PR_LOG_DEBUG, ("Stream %p feeding reader", stream));
         enableReading = true;
-      } else if (!stream->mIsTransportSeekable &&
+      } else if (!stream->mIsSeekable &&
                  nonSeekableReadaheadBlockCount >= maxBlocks*NONSEEKABLE_READAHEAD_MAX) {
         // This stream is not seekable and there are already too many blocks
         // being cached for readahead for nonseekable streams (which we can't
@@ -1209,7 +1209,7 @@ MediaCache::Update()
 
       if (stream->mChannelOffset != desiredOffset && enableReading) {
         // We need to seek now.
-        NS_ASSERTION(stream->mIsTransportSeekable || desiredOffset == 0,
+        NS_ASSERTION(stream->mIsSeekable || desiredOffset == 0,
                      "Trying to seek in a non-seekable stream!");
         // Round seek offset down to the start of the block. This is essential
         // because we don't want to think we have part of a block already
@@ -1775,22 +1775,22 @@ MediaCacheStream::~MediaCacheStream()
 }
 
 void
-MediaCacheStream::SetTransportSeekable(bool aIsTransportSeekable)
+MediaCacheStream::SetSeekable(bool aIsSeekable)
 {
   ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
-  NS_ASSERTION(mIsTransportSeekable || aIsTransportSeekable ||
+  NS_ASSERTION(mIsSeekable || aIsSeekable ||
                mChannelOffset == 0, "channel offset must be zero when we become non-seekable");
-  mIsTransportSeekable = aIsTransportSeekable;
+  mIsSeekable = aIsSeekable;
   // Queue an Update since we may change our strategy for dealing
   // with this stream
   gMediaCache->QueueUpdate();
 }
 
 bool
-MediaCacheStream::IsTransportSeekable()
+MediaCacheStream::IsSeekable()
 {
   ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
-  return mIsTransportSeekable;
+  return mIsSeekable;
 }
 
 bool
@@ -2228,7 +2228,7 @@ MediaCacheStream::InitAsClone(MediaCacheStream* aOriginal)
 
   mPrincipal = aOriginal->mPrincipal;
   mStreamLength = aOriginal->mStreamLength;
-  mIsTransportSeekable = aOriginal->mIsTransportSeekable;
+  mIsSeekable = aOriginal->mIsSeekable;
 
   // Cloned streams are initially suspended, since there is no channel open
   // initially for a clone.

@@ -564,12 +564,6 @@ js::GCThingIsMarkedGray(void *thing)
     return reinterpret_cast<gc::Cell *>(thing)->isMarked(gc::GRAY);
 }
 
-extern JS_FRIEND_API(bool)
-js::AreGCGrayBitsValid(JSRuntime *rt)
-{
-    return rt->gcGrayBitsValid;
-}
-
 JS_FRIEND_API(JSGCTraceKind)
 js::GCThingTraceKind(void *thing)
 {
@@ -578,9 +572,15 @@ js::GCThingTraceKind(void *thing)
 }
 
 JS_FRIEND_API(void)
-js::VisitGrayWrapperTargets(JSCompartment *comp, GCThingCallback callback, void *closure)
+js::UnmarkGrayGCThing(void *thing)
 {
-    for (JSCompartment::WrapperEnum e(comp); !e.empty(); e.popFront()) {
+    static_cast<js::gc::Cell *>(thing)->unmark(js::gc::GRAY);
+}
+
+JS_FRIEND_API(void)
+js::VisitGrayWrapperTargets(JSCompartment *comp, GCThingCallback *callback, void *closure)
+{
+    for (WrapperMap::Enum e(comp->crossCompartmentWrappers); !e.empty(); e.popFront()) {
         gc::Cell *thing = e.front().key.wrapped;
         if (thing->isMarked(gc::GRAY))
             callback(closure, thing);
@@ -894,9 +894,15 @@ js::IsIncrementalBarrierNeeded(JSContext *cx)
 }
 
 JS_FRIEND_API(bool)
-js::IsIncrementalBarrierNeededOnGCThing(void *thing, JSGCTraceKind kind)
+js::IsIncrementalBarrierNeededOnObject(RawObject obj)
 {
-    return static_cast<gc::Cell *>(thing)->compartment()->needsBarrier();
+    return obj->compartment()->needsBarrier();
+}
+
+JS_FRIEND_API(bool)
+js::IsIncrementalBarrierNeededOnScript(JSScript *script)
+{
+    return script->compartment()->needsBarrier();
 }
 
 JS_FRIEND_API(void)
@@ -912,15 +918,15 @@ js::IncrementalReferenceBarrier(void *ptr)
 
     uint32_t kind = gc::GetGCThingTraceKind(ptr);
     if (kind == JSTRACE_OBJECT)
-        JSObject::writeBarrierPre(reinterpret_cast<RawObject>(ptr));
+        JSObject::writeBarrierPre((JSObject *) ptr);
     else if (kind == JSTRACE_STRING)
-        JSString::writeBarrierPre(reinterpret_cast<RawString>(ptr));
+        JSString::writeBarrierPre((JSString *) ptr);
     else if (kind == JSTRACE_SCRIPT)
-        JSScript::writeBarrierPre(reinterpret_cast<RawScript>(ptr));
+        JSScript::writeBarrierPre((JSScript *) ptr);
     else if (kind == JSTRACE_SHAPE)
         Shape::writeBarrierPre((Shape *) ptr);
     else if (kind == JSTRACE_BASE_SHAPE)
-        BaseShape::writeBarrierPre(reinterpret_cast<RawBaseShape>(ptr));
+        BaseShape::writeBarrierPre((BaseShape *) ptr);
     else if (kind == JSTRACE_TYPE_OBJECT)
         types::TypeObject::writeBarrierPre((types::TypeObject *) ptr);
     else

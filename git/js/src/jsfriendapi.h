@@ -12,6 +12,8 @@
 #include "jspubtd.h"
 #include "jsprvtd.h"
 
+#include "js/HeapAPI.h"
+
 #include "mozilla/GuardObjects.h"
 
 /*
@@ -267,21 +269,14 @@ TraceWeakMaps(WeakMapTracer *trc);
 extern JS_FRIEND_API(bool)
 GCThingIsMarkedGray(void *thing);
 
-extern JS_FRIEND_API(bool)
-AreGCGrayBitsValid(JSRuntime *rt);
-
-/*
- * Unsets the gray bit for anything reachable from |thing|. |kind| should not be
- * JSTRACE_SHAPE. |thing| should be non-null.
- */
-extern JS_FRIEND_API(void)
-UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind);
+JS_FRIEND_API(void)
+UnmarkGrayGCThing(void *thing);
 
 typedef void
-(*GCThingCallback)(void *closure, void *gcthing);
+(GCThingCallback)(void *closure, void *gcthing);
 
 extern JS_FRIEND_API(void)
-VisitGrayWrapperTargets(JSCompartment *comp, GCThingCallback callback, void *closure);
+VisitGrayWrapperTargets(JSCompartment *comp, GCThingCallback *callback, void *closure);
 
 extern JS_FRIEND_API(JSObject *)
 GetWeakmapKeyDelegate(JSObject *key);
@@ -293,7 +288,7 @@ GCThingTraceKind(void *thing);
  * Invoke cellCallback on every gray JS_OBJECT in the given compartment.
  */
 extern JS_FRIEND_API(void)
-IterateGrayObjects(JSCompartment *compartment, GCThingCallback cellCallback, void *data);
+IterateGrayObjects(JSCompartment *compartment, GCThingCallback *cellCallback, void *data);
 
 /*
  * Shadow declarations of JS internal structures, for access by inline access
@@ -313,18 +308,18 @@ struct BaseShape {
 };
 
 struct Shape {
-    shadow::BaseShape *base;
-    jsid              _1;
-    uint32_t          slotInfo;
+    BaseShape   *base;
+    jsid        _1;
+    uint32_t    slotInfo;
 
     static const uint32_t FIXED_SLOTS_SHIFT = 27;
 };
 
 struct Object {
-    shadow::Shape      *shape;
-    shadow::TypeObject *type;
-    js::Value          *slots;
-    js::Value          *_1;
+    Shape       *shape;
+    TypeObject  *type;
+    js::Value   *slots;
+    js::Value   *_1;
 
     size_t numFixedSlots() const { return shape->slotInfo >> Shape::FIXED_SLOTS_SHIFT; }
     Value *fixedSlots() const {
@@ -891,7 +886,10 @@ extern JS_FRIEND_API(bool)
 IsIncrementalBarrierNeeded(JSContext *cx);
 
 extern JS_FRIEND_API(bool)
-IsIncrementalBarrierNeededOnGCThing(void *thing, JSGCTraceKind kind);
+IsIncrementalBarrierNeededOnObject(RawObject obj);
+
+extern JS_FRIEND_API(bool)
+IsIncrementalBarrierNeededOnScript(JSScript *obj);
 
 extern JS_FRIEND_API(void)
 IncrementalReferenceBarrier(void *ptr);

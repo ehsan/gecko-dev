@@ -14,6 +14,6 @@ function run_test() {
   }, "gather-telemetry", false);
 
   Components.classes["@mozilla.org/base/telemetry-ping;1"]
-    .getService(Components.interfaces.nsITelemetryPing)
+    .getService(Components.interfaces.nsIObserver)
     .observe(null, "idle-daily", null);
 }

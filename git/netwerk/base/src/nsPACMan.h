@@ -115,11 +115,11 @@ public:
    * the PAC file, any asynchronous PAC queries will be queued up to be
    * processed once the PAC file finishes loading.
    *
-   * @param pacSpec
-   *        The non normalized uri spec of this URI used for comparison with
-   *        system proxy settings to determine if the PAC uri has changed.
+   * @param pacURI
+   *        The nsIURI of the PAC file to load.  If this parameter is null,
+   *        then the previous PAC URI is simply reloaded.
    */
-  nsresult LoadPACFromURI(const nsCString &pacSpec);
+  nsresult LoadPACFromURI(nsIURI *pacURI);
 
   /**
    * Returns true if we are currently loading the PAC file.
@@ -130,17 +130,14 @@ public:
    * Returns true if the given URI matches the URI of our PAC file.
    */
   bool IsPACURI(nsIURI *uri) {
-    if (mPACURISpec.IsEmpty())
-      return false;
-
-    nsAutoCString tmp;
-    uri->GetSpec(tmp);
-    return IsPACURI(tmp);
+    bool result;
+    return mPACURI && NS_SUCCEEDED(mPACURI->Equals(uri, &result)) && result;
   }
 
-  bool IsPACURI(const nsACString &spec)
+  bool IsPACURI(nsACString &spec)
   {
-    return mPACURISpec.Equals(spec);
+    nsAutoCString tmp;
+    return (mPACURI && NS_SUCCEEDED(mPACURI->GetSpec(tmp)) && tmp.Equals(spec));
   }
 
   NS_HIDDEN_(nsresult) Init(nsISystemProxySettings *);
@@ -201,7 +198,8 @@ private:
 
   mozilla::LinkedList<PendingPACQuery> mPendingQ; /* pac thread only */
 
-  nsCString                    mPACURISpec; // Not an nsIRUI for use off main thread
+  nsCOMPtr<nsIURI>             mPACURI;
+  nsCString                    mPACURISpec; // for use off main thread
   nsCOMPtr<nsIStreamLoader>    mLoader;
   bool                         mLoadPending;
   bool                         mShutdown;

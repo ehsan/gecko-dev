@@ -37,7 +37,6 @@ EXPORTS = \
   VideoUtils.h \
   VideoSegment.h \
   VorbisUtils.h \
-  MediaMetadataManager.h \
   $(NULL)
 
 CPPSRCS = \

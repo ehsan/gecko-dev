@@ -15,8 +15,6 @@
 
 /* storage of the frame tree and information about it */
 
-#include "mozilla/Util.h"
-
 #include "nscore.h"
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
@@ -881,7 +879,7 @@ nsFrameManager::ReparentStyleContext(nsIFrame* aFrame)
 
         // Make sure to call CalcStyleDifference so that the new context ends
         // up resolving all the structs the old context resolved.
-        DebugOnly<nsChangeHint> styleChange =
+        nsChangeHint styleChange =
           oldContext->CalcStyleDifference(newContext, nsChangeHint(0));
         // The style change is always 0 because we have the same rulenode and
         // CalcStyleDifference optimizes us away.  That's OK, though:

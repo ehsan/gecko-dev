@@ -1236,7 +1236,7 @@ nsFrameConstructorState::ProcessFrameInsertions(nsAbsoluteItems& aFrameItems,
   // if the containing block hasn't been reflowed yet (so NS_FRAME_FIRST_REFLOW
   // is set) and doesn't have any frames in the aChildListID child list yet.
   const nsFrameList& childList = containingBlock->GetChildList(aChildListID);
-  DebugOnly<nsresult> rv = NS_OK;
+  nsresult rv = NS_OK;
   if (childList.IsEmpty() &&
       (containingBlock->GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     // If we're injecting absolutely positioned frames, inject them on the
@@ -10337,8 +10337,7 @@ FirstLetterCount(const nsTextFragment* aFragment)
   int32_t i, n = aFragment->GetLength();
   for (i = 0; i < n; i++) {
     PRUnichar ch = aFragment->CharAt(i);
-    // FIXME: take content language into account when deciding whitespace.
-    if (dom::IsSpaceCharacter(ch)) {
+    if (XP_IS_SPACE(ch)) {
       if (firstLetterLength) {
         break;
       }

@@ -83,7 +83,7 @@ public:
                                                 bool aCanCreate);
   already_AddRefed<Accessible>
     CreateHTMLObjectFrameAccessible(nsObjectFrame* aFrame, nsIContent* aContent,
-                                    Accessible* aContext);
+                                    DocAccessible* aDoc);
 
   /**
    * Adds/remove ATK root accessible for gtk+ native window to/from children
@@ -155,11 +155,11 @@ public:
    * one.
    *
    * @param  aNode             [in] the given node
-   * @param  aContext          [in] context the accessible is created in
+   * @param  aDoc              [in] the doc accessible of the node
    * @param  aIsSubtreeHidden  [out, optional] indicates whether the node's
    *                             frame and its subtree is hidden
    */
-  Accessible* GetOrCreateAccessible(nsINode* aNode, Accessible* aContext,
+  Accessible* GetOrCreateAccessible(nsINode* aNode, DocAccessible* aDoc,
                                     bool* aIsSubtreeHidden = nullptr);
 
 private:
@@ -192,14 +192,15 @@ private:
    */
   already_AddRefed<Accessible>
     CreateHTMLAccessibleByMarkup(nsIFrame* aFrame, nsIContent* aContent,
-                                 Accessible* aContext);
+                                 DocAccessible* aDoc,
+                                 bool aIsLegalPartOfHTMLTable);
 
   /**
    * Create an accessible whose type depends on the given frame.
    */
   already_AddRefed<Accessible>
     CreateAccessibleByFrameType(nsIFrame* aFrame, nsIContent* aContent,
-                                Accessible* aContext);
+                                DocAccessible* aDoc);
 
   /**
    * Create accessible if parent is a deck frame.

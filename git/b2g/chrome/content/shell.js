@@ -73,10 +73,6 @@ function getContentWindow() {
   return shell.contentBrowser.contentWindow;
 }
 
-function debug(str) {
-  dump(' -*- Shell.js: ' + str + '\n');
-}
-
 var shell = {
 
   get CrashSubmit() {
@@ -407,8 +403,6 @@ var shell = {
           content.removeEventListener('load', shell_homeLoaded);
           shell.isHomeLoaded = true;
 
-          Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
-
           if ('pendingChromeEvents' in shell) {
             shell.pendingChromeEvents.forEach((shell.sendChromeEvent).bind(shell));
           }
@@ -615,62 +609,41 @@ var AlertsHelper = {
     if (!detail || !detail.id)
       return;
 
-    let uid = detail.id;
-    let listener = this._listeners[uid];
+    let listener = this._listeners[detail.id];
     if (!listener)
      return;
 
     let topic = detail.type == "desktop-notification-click" ? "alertclickcallback"
                                                             : "alertfinished";
 
-    if (uid.startsWith("app-notif")) {
-      listener.mm.sendAsyncMessage("app-notification-return", {
-        uid: uid,
-        topic: topic,
-        target: listener.target
-      });
-    } else if (uid.startsWith("alert")) {
-      try {
-        listener.observer.observe(null, topic, listener.cookie);
-      } catch (e) { }
+    if (detail.id.startsWith("alert")) {
+      listener.observer.observe(null, topic, listener.cookie);
+    } else {
+      listener.mm.sendAsyncMessage("app-notification-return",
+                                   { id: detail.id,
+                                     type: detail.type });
     }
 
     // we're done with this notification
-    if (topic === "alertfinished") {
-      delete this._listeners[uid];
-    }
+    if (topic === "alertfinished")
+      delete this._listeners[detail.id];
   },
 
   registerListener: function alert_registerListener(cookie, alertListener) {
-    let uid = "alert" + this._count++;
-    this._listeners[uid] = { observer: alertListener, cookie: cookie };
-    return uid;
+    let id = "alert" + this._count++;
+    this._listeners[id] = { observer: alertListener, cookie: cookie };
+    return id;
   },
 
-  registerAppListener: function alert_registerAppListener(uid, listener) {
-    this._listeners[uid] = listener;
-
-    let app = DOMApplicationRegistry.getAppByManifestURL(listener.manifestURL);
-    DOMApplicationRegistry.getManifestFor(app.origin, function(manifest) {
-      let helper = new ManifestHelper(manifest, app.origin);
-      let getNotificationURLFor = function(messages) {
-        if (!messages)
-          return null;
-
-        for (let i = 0; i < messages.length; i++) {
-          let message = messages[i];
-          if (message === "notification") {
-            return helper.fullLaunchPath();
-          } else if ("notification" in message) {
-            return helper.resolveFromOrigin(message["notification"]);
-          }
-        }
-      }
-
-      listener.target = getNotificationURLFor(manifest.messages);
-
-      // Bug 816944 - Support notification messages for entry_points.
-    });
+  registerAppListener: function alertRegisterAppListener(id, mm, title, text,
+                                                         manifestURL, imageURL) {
+    this._listeners[id] = {
+      mm: mm,
+      title: title,
+      text: text,
+      manifestURL: manifestURL,
+      imageURL: imageURL
+    };
   },
 
   showNotification: function alert_showNotification(imageUrl,
@@ -678,13 +651,13 @@ var AlertsHelper = {
                                                     text,
                                                     textClickable,
                                                     cookie,
-                                                    uid,
+                                                    id,
                                                     name,
                                                     manifestUrl) {
     function send(appName, appIcon) {
       shell.sendChromeEvent({
         type: "desktop-notification",
-        id: uid,
+        id: id,
         icon: imageUrl,
         title: title,
         text: text,
@@ -693,17 +666,17 @@ var AlertsHelper = {
       });
     }
 
-    if (!manifestUrl || !manifestUrl.length) {
-      send(null, null);
-    }
-
     // If we have a manifest URL, get the icon and title from the manifest
     // to prevent spoofing.
-    let app = DOMApplicationRegistry.getAppByManifestURL(manifestUrl);
-    DOMApplicationRegistry.getManifestFor(app.origin, function(aManifest) {
-      let helper = new ManifestHelper(aManifest, app.origin);
-      send(helper.name, helper.iconURLForSize(128));
-    });
+    if (manifestUrl && manifestUrl.length) {
+      let app = DOMApplicationRegistry.getAppByManifestURL(manifestUrl);
+      DOMApplicationRegistry.getManifestFor(app.origin, function(aManifest) {
+        let helper = new ManifestHelper(aManifest, app.origin);
+        send(helper.name, helper.iconURLForSize(128));
+      });
+    } else {
+      send(null, null);
+    }
   },
 
   showAlertNotification: function alert_showAlertNotification(imageUrl,
@@ -713,25 +686,19 @@ var AlertsHelper = {
                                                               cookie,
                                                               alertListener,
                                                               name) {
-    let uid = this.registerListener(null, alertListener);
+    let id = this.registerListener(null, alertListener);
     this.showNotification(imageUrl, title, text, textClickable, cookie,
-                          uid, name, null);
+                          id, name, null);
   },
 
   receiveMessage: function alert_receiveMessage(message) {
     let data = message.data;
-    let listener = {
-      mm: message.target,
-      title: data.title,
-      text: data.text,
-      manifestURL: data.manifestURL,
-      imageURL: data.imageURL
-    }
-    this.registerAppListener(data.uid, listener);
 
+    this.registerAppListener(data.id, message.target, data.title, data.text,
+                             data.manifestURL, data.imageURL);
     this.showNotification(data.imageURL, data.title, data.text,
                           data.textClickable, null,
-                          data.uid, null, data.manifestURL);
+                          data.id, null, data.manifestURL);
   },
 }
 

@@ -4,8 +4,11 @@
 
 import os
 import cPickle
-from Configuration import Configuration
+import WebIDL
+from Configuration import *
 from Codegen import CGBindingRoot, replaceFileIfChanged
+# import Codegen in general, so we can set a variable on it
+import Codegen
 
 def generate_binding_header(config, outputprefix, webidlfile):
     """

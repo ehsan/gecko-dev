@@ -33,6 +33,10 @@ nsAccessNodeWrap::~nsAccessNodeWrap()
 {
 }
 
+void nsAccessNodeWrap::InitAccessibility()
+{
+}
+
 void nsAccessNodeWrap::ShutdownAccessibility()
 {
 }

@@ -480,19 +480,18 @@ private:
   {
     if (RefLayer* ref = aLayer->AsRefLayer()) {
       if (const LayerTreeState* state = GetIndirectShadowTree(ref->GetReferentId())) {
-        if (Layer* referent = state->mRoot) {
-          if (OP == Resolve) {
-            ref->ConnectReferentLayer(referent);
-            if (AsyncPanZoomController* apzc = state->mController) {
-              referent->SetUserData(&sPanZoomUserDataKey,
-                                    new PanZoomUserData(apzc));
-            } else {
-              CompensateForContentScrollOffset(ref, referent);
-            }
+        Layer* referent = state->mRoot;
+        if (OP == Resolve) {
+          ref->ConnectReferentLayer(referent);
+          if (AsyncPanZoomController* apzc = state->mController) {
+            referent->SetUserData(&sPanZoomUserDataKey,
+                                  new PanZoomUserData(apzc));
           } else {
-            ref->DetachReferentLayer(referent);
-            referent->RemoveUserData(&sPanZoomUserDataKey);
+            CompensateForContentScrollOffset(ref, referent);
           }
+        } else {
+          ref->DetachReferentLayer(referent);
+          referent->RemoveUserData(&sPanZoomUserDataKey);
         }
       }
     }

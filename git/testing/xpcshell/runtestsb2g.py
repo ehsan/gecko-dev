@@ -18,10 +18,15 @@ DEVICE_TEST_ROOT = '/data/local/tests'
 
 from marionette import Marionette
 
+
 class B2GXPCShellRemote(XPCShellRemote):
 
     # Overridden
     def setupUtilities(self):
+        if self.options.xrePath:
+            self.localLib = self.options.xrePath
+            self.localBin = self.options.xrePath
+
         if self.options.clean:
             # Ensure a fresh directory structure for our tests
             self.clean()
@@ -142,21 +147,22 @@ class B2GOptions(RemoteXPCShellOptions):
 
         self.set_defaults(**defaults)
 
-    def verifyRemoteOptions(self, options):
-        if options.b2g_path is None:
-            self.error("Need to specify a --b2gpath")
-
-        if options.geckoPath and not options.emulator:
-            self.error("You must specify --emulator if you specify --gecko-path")
-
-        if options.logcat_dir and not options.emulator:
-            self.error("You must specify --emulator if you specify --logcat-dir")
-        return RemoteXPCShellOptions.verifyRemoteOptions(self, options)
 
 def main():
     parser = B2GOptions()
     options, args = parser.parse_args()
-    options = parser.verifyRemoteOptions(options)
+
+    if options.b2g_path is None:
+        parser.error("Need to specify a --b2gpath")
+
+    if options.xrePath is None:
+        parser.error("Need to specify a --xre-path")
+
+    if options.geckoPath and not options.emulator:
+        self.error("You must specify --emulator if you specify --gecko-path")
+
+    if options.logcat_dir and not options.emulator:
+        self.error("You must specify --emulator if you specify --logcat-dir")
 
     # Create the Marionette instance
     kwargs = {}

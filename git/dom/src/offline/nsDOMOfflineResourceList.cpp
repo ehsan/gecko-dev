@@ -53,10 +53,23 @@ static const char kMaxEntriesPref[] =  "offline.max_site_resources";
 // nsDOMOfflineResourceList
 //
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_2(nsDOMOfflineResourceList,
-                                     nsDOMEventTargetHelper,
-                                     mCacheUpdate,
-                                     mPendingEvents)
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMOfflineResourceList)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMOfflineResourceList,
+                                                  nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mCacheUpdate)
+
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPendingEvents);
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMOfflineResourceList,
+                                                nsDOMEventTargetHelper)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mCacheUpdate)
+
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPendingEvents)
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 DOMCI_DATA(OfflineResourceList, nsDOMOfflineResourceList)
 

@@ -9,7 +9,6 @@
 #define Debugger_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/LinkedList.h"
 
 #include "jsapi.h"
 #include "jsclist.h"
@@ -148,10 +147,8 @@ class DebuggerWeakMap : private WeakMap<Key, Value, DefaultHasher<Key> >
     }
 };
 
-class Debugger : private mozilla::LinkedListElement<Debugger>
-{
+class Debugger {
     friend class Breakpoint;
-    friend class mozilla::LinkedListElement<Debugger>;
     friend JSBool (::JS_DefineDebuggerObject)(JSContext *cx, JSObject *obj);
 
   public:
@@ -177,6 +174,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
     };
 
   private:
+    JSCList link;                       /* See JSRuntime::debuggerList. */
     HeapPtrObject object;               /* The Debugger object. Strong reference. */
     GlobalObjectSet debuggees;          /* Debuggee globals. Cross-compartment weak references. */
     js::HeapPtrObject uncaughtExceptionHook; /* Strong reference. */
@@ -340,6 +338,7 @@ class Debugger : private mozilla::LinkedListElement<Debugger>
      */
     void fireNewScript(JSContext *cx, HandleScript script);
 
+    static inline Debugger *fromLinks(JSCList *links);
     inline Breakpoint *firstBreakpoint() const;
 
     static inline Debugger *fromOnNewGlobalObjectWatchersLink(JSCList *link);
@@ -563,6 +562,13 @@ class Breakpoint {
     const HeapPtrObject &getHandler() const { return handler; }
     HeapPtrObject &getHandlerRef() { return handler; }
 };
+
+Debugger *
+Debugger::fromLinks(JSCList *links)
+{
+    char *p = reinterpret_cast<char *>(links);
+    return reinterpret_cast<Debugger *>(p - offsetof(Debugger, link));
+}
 
 Breakpoint *
 Debugger::firstBreakpoint() const

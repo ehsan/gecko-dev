@@ -160,10 +160,8 @@ struct ScaleRequest
 
     weakImage = aImage->asWeakPtr();
     srcRect = aSrcFrame->GetRect();
-
-    nsIntRect dstRect = srcRect;
-    dstRect.ScaleRoundOut(scale.width, scale.height);
-    dstSize = dstRect.Size();
+    dstSize.width = NSToIntRoundUp(srcRect.width * scale.width);
+    dstSize.height = NSToIntRoundUp(srcRect.height * scale.height);
   }
 
   // This can only be called on the main thread.
@@ -2593,7 +2591,7 @@ RasterImage::ShutdownDecoder(eShutdownIntent aIntent)
 
   mFinishing = true;
   mInDecoder = true;
-  decoder->Finish(aIntent);
+  decoder->Finish();
   mInDecoder = false;
   mFinishing = false;
 

@@ -85,7 +85,7 @@ namespace gc {
 static void MarkChildren(JSTracer *trc, JSString *str);
 static void MarkChildren(JSTracer *trc, JSScript *script);
 static void MarkChildren(JSTracer *trc, Shape *shape);
-static void MarkChildren(JSTracer *trc, UnrootedBaseShape base);
+static void MarkChildren(JSTracer *trc, BaseShape *base);
 static void MarkChildren(JSTracer *trc, types::TypeObject *type);
 static void MarkChildren(JSTracer *trc, ion::IonCode *code);
 #if JS_HAS_XML_SUPPORT
@@ -138,7 +138,6 @@ template<typename T>
 static void
 MarkInternal(JSTracer *trc, T **thingp)
 {
-    AutoAssertNoGC nogc;
     JS_ASSERT(thingp);
     T *thing = *thingp;
 
@@ -336,19 +335,19 @@ gc::MarkKind(JSTracer *trc, void **thingp, JSGCTraceKind kind)
     JS_ASSERT(kind == GetGCThingTraceKind(*thingp));
     switch (kind) {
       case JSTRACE_OBJECT:
-        MarkInternal(trc, reinterpret_cast<RawObject *>(thingp));
+        MarkInternal(trc, reinterpret_cast<JSObject **>(thingp));
         break;
       case JSTRACE_STRING:
-        MarkInternal(trc, reinterpret_cast<RawString *>(thingp));
+        MarkInternal(trc, reinterpret_cast<JSString **>(thingp));
         break;
       case JSTRACE_SCRIPT:
-        MarkInternal(trc, reinterpret_cast<RawScript *>(thingp));
+        MarkInternal(trc, reinterpret_cast<JSScript **>(thingp));
         break;
       case JSTRACE_SHAPE:
-        MarkInternal(trc, reinterpret_cast<RawShape *>(thingp));
+        MarkInternal(trc, reinterpret_cast<Shape **>(thingp));
         break;
       case JSTRACE_BASE_SHAPE:
-        MarkInternal(trc, reinterpret_cast<RawBaseShape *>(thingp));
+        MarkInternal(trc, reinterpret_cast<BaseShape **>(thingp));
         break;
       case JSTRACE_TYPE_OBJECT:
         MarkInternal(trc, reinterpret_cast<types::TypeObject **>(thingp));
@@ -592,17 +591,6 @@ ShouldMarkCrossCompartment(JSTracer *trc, RawObject src, Cell *cell)
 
     JS_ASSERT(color == BLACK || color == GRAY);
     if (color == BLACK) {
-        /*
-         * Having black->gray edges violates our promise to the cycle
-         * collector. This can happen if we're collecting a compartment and it
-         * has an edge to an uncollected compartment: it's possible that the
-         * source and destination of the cross-compartment edge should be gray,
-         * but the source was marked black by the conservative scanner.
-         */
-        if (cell->isMarked(GRAY)) {
-            JS_ASSERT(!cell->compartment()->isCollecting());
-            trc->runtime->gcFoundBlackGrayEdges = true;
-        }
         return c->isGCMarking();
     } else {
         if (c->isGCMarkingBlack()) {
@@ -753,10 +741,10 @@ PushMarkStack(GCMarker *gcmarker, ion::IonCode *thing)
 }
 
 static inline void
-ScanBaseShape(GCMarker *gcmarker, UnrootedBaseShape base);
+ScanBaseShape(GCMarker *gcmarker, BaseShape *base);
 
 static void
-PushMarkStack(GCMarker *gcmarker, UnrootedBaseShape thing)
+PushMarkStack(GCMarker *gcmarker, BaseShape *thing)
 {
     JS_COMPARTMENT_ASSERT(gcmarker->runtime, thing);
 
@@ -783,7 +771,7 @@ ScanShape(GCMarker *gcmarker, Shape *shape)
 }
 
 static inline void
-ScanBaseShape(GCMarker *gcmarker, UnrootedBaseShape base)
+ScanBaseShape(GCMarker *gcmarker, BaseShape *base)
 {
     base->assertConsistency();
 
@@ -805,7 +793,7 @@ ScanBaseShape(GCMarker *gcmarker, UnrootedBaseShape base)
      * unowned base shape.
      */
     if (base->isOwned()) {
-        UnrootedUnownedBaseShape unowned = base->baseUnowned();
+        UnownedBaseShape *unowned = base->baseUnowned();
         JS_ASSERT(base->compartment() == unowned->compartment());
         unowned->markIfUnmarked(gcmarker->getMarkColor());
     }
@@ -936,7 +924,7 @@ gc::MarkChildren(JSTracer *trc, Shape *shape)
 }
 
 static void
-gc::MarkChildren(JSTracer *trc, UnrootedBaseShape base)
+gc::MarkChildren(JSTracer *trc, BaseShape *base)
 {
     base->markChildren(trc);
 }
@@ -950,7 +938,7 @@ gc::MarkChildren(JSTracer *trc, UnrootedBaseShape base)
  * updated to the current shape's parent.
  */
 static inline void
-MarkCycleCollectorChildren(JSTracer *trc, UnrootedBaseShape base, JSObject **prevParent)
+MarkCycleCollectorChildren(JSTracer *trc, BaseShape *base, JSObject **prevParent)
 {
     JS_ASSERT(base);
 
@@ -1445,19 +1433,19 @@ js::TraceChildren(JSTracer *trc, void *thing, JSGCTraceKind kind)
 {
     switch (kind) {
       case JSTRACE_OBJECT:
-        MarkChildren(trc, static_cast<RawObject>(thing));
+        MarkChildren(trc, static_cast<JSObject *>(thing));
         break;
 
       case JSTRACE_STRING:
-        MarkChildren(trc, static_cast<RawString>(thing));
+        MarkChildren(trc, static_cast<JSString *>(thing));
         break;
 
       case JSTRACE_SCRIPT:
-        MarkChildren(trc, static_cast<RawScript>(thing));
+        MarkChildren(trc, static_cast<JSScript *>(thing));
         break;
 
       case JSTRACE_SHAPE:
-        MarkChildren(trc, static_cast<RawShape>(thing));
+        MarkChildren(trc, static_cast<Shape *>(thing));
         break;
 
       case JSTRACE_IONCODE:
@@ -1465,7 +1453,7 @@ js::TraceChildren(JSTracer *trc, void *thing, JSGCTraceKind kind)
         break;
 
       case JSTRACE_BASE_SHAPE:
-        MarkChildren(trc, static_cast<RawBaseShape>(thing));
+        MarkChildren(trc, static_cast<BaseShape *>(thing));
         break;
 
       case JSTRACE_TYPE_OBJECT:
@@ -1487,106 +1475,4 @@ js::CallTracer(JSTracer *trc, void *thing, JSGCTraceKind kind)
     void *tmp = thing;
     MarkKind(trc, &tmp, kind);
     JS_ASSERT(tmp == thing);
-}
-
-static void
-UnmarkGrayGCThing(void *thing)
-{
-    static_cast<js::gc::Cell *>(thing)->unmark(js::gc::GRAY);
-}
-
-struct UnmarkGrayTracer : public JSTracer
-{
-    UnmarkGrayTracer() : tracingShape(false), previousShape(NULL) {}
-    UnmarkGrayTracer(JSTracer *trc, bool tracingShape)
-        : tracingShape(tracingShape), previousShape(NULL)
-    {
-        JS_TracerInit(this, trc->runtime, trc->callback);
-    }
-
-    /* True iff we are tracing the immediate children of a shape. */
-    bool tracingShape;
-
-    /* If tracingShape, shape child or NULL. Otherwise, NULL. */
-    void *previousShape;
-};
-
-/*
- * The GC and CC are run independently. Consequently, the following sequence of
- * events can occur:
- * 1. GC runs and marks an object gray.
- * 2. Some JS code runs that creates a pointer from a JS root to the gray
- *    object. If we re-ran a GC at this point, the object would now be black.
- * 3. Now we run the CC. It may think it can collect the gray object, even
- *    though it's reachable from the JS heap.
- *
- * To prevent this badness, we unmark the gray bit of an object when it is
- * accessed by callers outside XPConnect. This would cause the object to go
- * black in step 2 above. This must be done on everything reachable from the
- * object being returned. The following code takes care of the recursive
- * re-coloring.
- */
-static void
-UnmarkGrayChildren(JSTracer *trc, void **thingp, JSGCTraceKind kind)
-{
-    void *thing = *thingp;
-    int stackDummy;
-    if (!JS_CHECK_STACK_SIZE(js::GetNativeStackLimit(trc->runtime), &stackDummy)) {
-        /*
-         * If we run out of stack, we take a more drastic measure: require that
-         * we GC again before the next CC.
-         */
-        trc->runtime->gcGrayBitsValid = false;
-        return;
-    }
-
-    if (!GCThingIsMarkedGray(thing))
-        return;
-
-    UnmarkGrayGCThing(thing);
-
-    /*
-     * Trace children of |thing|. If |thing| and its parent are both shapes,
-     * |thing| will get saved to mPreviousShape without being traced. The parent
-     * will later trace |thing|. This is done to avoid increasing the stack
-     * depth during shape tracing. It is safe to do because a shape can only
-     * have one child that is a shape.
-     */
-    UnmarkGrayTracer *tracer = static_cast<UnmarkGrayTracer *>(trc);
-    UnmarkGrayTracer childTracer(tracer, kind == JSTRACE_SHAPE);
-
-    if (kind != JSTRACE_SHAPE) {
-        JS_TraceChildren(&childTracer, thing, kind);
-        JS_ASSERT(!childTracer.previousShape);
-        return;
-    }
-
-    if (tracer->tracingShape) {
-        JS_ASSERT(!tracer->previousShape);
-        tracer->previousShape = thing;
-        return;
-    }
-
-    do {
-        JS_ASSERT(!GCThingIsMarkedGray(thing));
-        JS_TraceChildren(&childTracer, thing, JSTRACE_SHAPE);
-        thing = childTracer.previousShape;
-        childTracer.previousShape = NULL;
-    } while (thing);
-}
-
-JS_FRIEND_API(void)
-js::UnmarkGrayGCThingRecursively(void *thing, JSGCTraceKind kind)
-{
-    JS_ASSERT(kind != JSTRACE_SHAPE);
-
-    if (!GCThingIsMarkedGray(thing))
-        return;
-
-    UnmarkGrayGCThing(thing);
-
-    JSRuntime *rt = static_cast<Cell *>(thing)->compartment()->rt;
-    UnmarkGrayTracer trc;
-    JS_TracerInit(&trc, rt, UnmarkGrayChildren);
-    JS_TraceChildren(&trc, thing, kind);
 }

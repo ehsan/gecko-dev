@@ -8,7 +8,6 @@
 
 #include "mozilla/dom/devicestorage/PDeviceStorageRequestParent.h"
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/ContentParent.h"
 
 #include "nsThreadUtils.h"
 #include "nsDeviceStorage.h"
@@ -25,10 +24,6 @@ public:
 
   NS_IMETHOD_(nsrefcnt) AddRef();
   NS_IMETHOD_(nsrefcnt) Release();
-
-  bool EnsureRequiredPermissions(mozilla::dom::ContentParent* aParent);
-  void Dispatch();
-
   virtual void ActorDestroy(ActorDestroyReason);
 
 protected:
@@ -36,7 +31,6 @@ protected:
 
 private:
   nsAutoRefCnt mRefCnt;
-  DeviceStorageParams mParams;
 
   class CancelableRunnable : public nsRunnable
   {

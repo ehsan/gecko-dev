@@ -68,20 +68,7 @@ MacroAssemblerARM::branchTruncateDouble(const FloatRegister &src, const Register
 void
 MacroAssemblerARM::inc64(AbsoluteAddress dest)
 {
-
-    ma_strd(r0, r1, EDtrAddr(sp, EDtrOffImm(-8)), PreIndex);
-
-    ma_mov(Imm32((int32)dest.addr), ScratchRegister);
-
-    ma_ldrd(EDtrAddr(ScratchRegister, EDtrOffImm(0)), r0, r1);
-
-    ma_add(Imm32(1), r0, SetCond);
-    ma_adc(Imm32(0), r1, NoSetCond);
-
-    ma_strd(r0, r1, EDtrAddr(ScratchRegister, EDtrOffImm(0)));
-
-    ma_ldrd(EDtrAddr(sp, EDtrOffImm(8)), r0, r1, PostIndex);
-
+    JS_NOT_REACHED("NYI");
 }
 
 bool
@@ -2583,7 +2570,7 @@ MacroAssemblerARMCompat::storeTypeTag(ImmTag tag, Register base, Register index,
 
 void
 MacroAssemblerARMCompat::linkExitFrame() {
-    uint8 *dest = ((uint8*)GetIonContext()->compartment->rt) + offsetof(JSRuntime, ionTop);
+    uint8 *dest = ((uint8*)GetIonContext()->cx->runtime) + offsetof(JSRuntime, ionTop);
     movePtr(ImmWord(dest), ScratchRegister);
     ma_str(StackPointer, Operand(ScratchRegister, 0));
 }

@@ -170,18 +170,12 @@ class AlertServiceObserver: public nsIObserver
           const char *aTopic,
           const PRUnichar *aData)
   {
-
     // forward to parent
-    if (mNotification) {
-#ifdef MOZ_B2G
-    if (NS_FAILED(mNotification->CheckInnerWindowCorrectness()))
-      return NS_ERROR_NOT_AVAILABLE;
-#endif
+    if (mNotification)
       mNotification->HandleAlertServiceNotification(aTopic);
-    }
     return NS_OK;
   };
-
+  
  private:
   nsDOMDesktopNotification* mNotification;
 };

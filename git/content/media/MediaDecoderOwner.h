@@ -5,13 +5,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #ifndef MediaDecoderOwner_h_
 #define MediaDecoderOwner_h_
-#include "AbstractMediaDecoder.h"
 
 class nsHTMLMediaElement;
 
 namespace mozilla {
 
 class VideoFrameContainer;
+
+typedef nsDataHashtable<nsCStringHashKey, nsCString> MetadataTags;
 
 class MediaDecoderOwner
 {
@@ -53,8 +54,8 @@ public:
   // Called by the video decoder object, on the main thread,
   // when it has read the metadata containing video dimensions,
   // etc.
-  virtual void MetadataLoaded(int aChannels,
-                              int aRate,
+  virtual void MetadataLoaded(uint32_t aChannels,
+                              uint32_t aRate,
                               bool aHasAudio,
                               const MetadataTags* aTags) = 0;
 

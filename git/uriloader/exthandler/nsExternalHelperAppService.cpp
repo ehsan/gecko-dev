@@ -11,7 +11,6 @@
 #include "base/basictypes.h"
 
 /* This must occur *after* base/basictypes.h to avoid typedefs conflicts. */
-#include "mozilla/Base64.h"
 #include "mozilla/Util.h"
 
 #include "mozilla/dom/ContentChild.h"
@@ -27,7 +26,6 @@
 #include "nsIDirectoryService.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsICategoryManager.h"
-#include "nsDependentSubstring.h"
 #include "nsXPIDLString.h"
 #include "nsUnicharUtils.h"
 #include "nsIStringEnumerator.h"
@@ -99,6 +97,8 @@
 #include "nsLocalHandlerApp.h"
 
 #include "nsIRandomGenerator.h"
+#include "plbase64.h"
+#include "prmem.h"
 
 #include "ContentChild.h"
 #include "nsXULAppAPI.h"
@@ -1305,14 +1305,20 @@ nsresult nsExternalAppHandler::SetUpTempFile(nsIChannel * aChannel)
   rv = rg->GenerateRandomBytes(requiredBytesLength, &buffer);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  nsAutoCString tempLeafName;
-  nsDependentCSubstring randomData(reinterpret_cast<const char*>(buffer), requiredBytesLength);
-  rv = Base64Encode(randomData, tempLeafName);
+  char *b64 = PL_Base64Encode(reinterpret_cast<const char *>(buffer),
+                              requiredBytesLength, nullptr);
   NS_Free(buffer);
   buffer = nullptr;
-  NS_ENSURE_SUCCESS(rv, rv);
 
-  tempLeafName.Truncate(wantedFileNameLength);
+  if (!b64)
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  NS_ASSERTION(strlen(b64) >= wantedFileNameLength,
+               "not enough bytes produced for conversion!");
+
+  nsAutoCString tempLeafName(b64, wantedFileNameLength);
+  PR_Free(b64);
+  b64 = nullptr;
 
   // Base64 characters are alphanumeric (a-zA-Z0-9) and '+' and '/', so we need
   // to replace illegal characters -- notably '/'

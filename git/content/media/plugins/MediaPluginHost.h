@@ -17,6 +17,7 @@ class MediaPluginReader;
 class MediaPluginHost {
   nsTArray<MPAPI::Manifest *> mPlugins;
   MPAPI::Manifest *FindPlugin(const nsACString& aMimeType);
+  void TryLoad(const char *name);
 public:
   MediaPluginHost();
   ~MediaPluginHost();

@@ -68,7 +68,6 @@ nsSVGAElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
   return mStringAttributes[HREF].ToDOMAnimatedString(aHref, this);
 }
 
-NS_IMPL_STRING_ATTR(nsSVGAElement, Download, download)
 
 //----------------------------------------------------------------------
 // nsINode methods
