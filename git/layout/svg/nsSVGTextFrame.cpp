@@ -10,7 +10,6 @@
 #include "nsGkAtoms.h"
 #include "mozilla/dom/SVGIRect.h"
 #include "nsISVGGlyphFragmentNode.h"
-#include "nsSVGEffects.h"
 #include "nsSVGGlyphFrame.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGTextPathFrame.h"
@@ -63,7 +62,7 @@ nsSVGTextFrame::AttributeChanged(int32_t         aNameSpaceID,
              aAttribute == nsGkAtoms::dx ||
              aAttribute == nsGkAtoms::dy ||
              aAttribute == nsGkAtoms::rotate) {
-    nsSVGEffects::InvalidateRenderingObservers(this);
+    nsSVGUtils::InvalidateBounds(this, false);
     nsSVGUtils::ScheduleReflowSVG(this);
     NotifyGlyphMetricsChange();
   }
@@ -321,7 +320,7 @@ nsSVGTextFrame::NotifyGlyphMetricsChange()
   // as fully dirty to get ReflowSVG() called on them:
   MarkDirtyBitsOnDescendants(this);
 
-  nsSVGEffects::InvalidateRenderingObservers(this);
+  nsSVGUtils::InvalidateBounds(this, false);
   nsSVGUtils::ScheduleReflowSVG(this);
 
   mPositioningDirty = true;

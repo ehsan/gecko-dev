@@ -12,7 +12,7 @@ namespace mozilla {
 namespace dom {
 
 JSObject*
-SVGFEDistantLightElement::WrapNode(JSContext* aCx, JS::Handle<JSObject*> aScope)
+SVGFEDistantLightElement::WrapNode(JSContext* aCx, JSObject* aScope)
 {
   return SVGFEDistantLightElementBinding::Wrap(aCx, aScope, this);
 }

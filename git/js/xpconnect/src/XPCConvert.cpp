@@ -840,8 +840,8 @@ XPCConvert::NativeInterface2JSObject(XPCLazyCallContext& lccx,
                 return false;
 
             if (!flat) {
-                JS::Rooted<JSObject*> global(cx, xpcscope->GetGlobalJSObject());
-                flat = cache->WrapObject(cx, global);
+                flat = cache->WrapObject(lccx.GetJSContext(),
+                                         xpcscope->GetGlobalJSObject());
                 if (!flat)
                     return false;
             }

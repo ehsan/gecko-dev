@@ -843,6 +843,12 @@ RasterImage::GetCurrentImgFrame()
   return GetImgFrame(GetCurrentImgFrameIndex());
 }
 
+imgFrame*
+RasterImage::GetCurrentDrawableImgFrame()
+{
+  return GetDrawableImgFrame(GetCurrentImgFrameIndex());
+}
+
 //******************************************************************************
 /* [notxpcom] boolean frameIsOpaque(in uint32_t aWhichFrame); */
 NS_IMETHODIMP_(bool)

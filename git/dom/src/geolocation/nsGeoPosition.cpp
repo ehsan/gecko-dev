@@ -126,9 +126,12 @@ nsGeoPosition::~nsGeoPosition()
 {
 }
 
+DOMCI_DATA(GeoPosition, nsGeoPosition)
+
 NS_INTERFACE_MAP_BEGIN(nsGeoPosition)
 NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIDOMGeoPosition)
 NS_INTERFACE_MAP_ENTRY(nsIDOMGeoPosition)
+NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(GeoPosition)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_THREADSAFE_ADDREF(nsGeoPosition)
@@ -178,7 +181,7 @@ Position::GetParentObject() const
 }
 
 JSObject*
-Position::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+Position::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return PositionBinding::Wrap(aCx, aScope, this);
 }
@@ -232,7 +235,7 @@ Coordinates::GetParentObject() const
 }
 
 JSObject*
-Coordinates::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+Coordinates::WrapObject(JSContext* aCx, JSObject* aScope)
 {
   return CoordinatesBinding::Wrap(aCx, aScope, this);
 }

@@ -26,8 +26,7 @@ public:
   // Forward to base class
   NS_FORWARD_TO_NSDOMMOUSEEVENT
 
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope)
   {
     return mozilla::dom::MouseScrollEventBinding::Wrap(aCx, aScope, this);
   }

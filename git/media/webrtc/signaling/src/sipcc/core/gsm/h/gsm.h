@@ -10,7 +10,7 @@
 #include "cpr_ipc.h"
 #include "cpr_stdio.h"
 
-#define GSM_ERR_MSG(format, ...) CSFLogError("gsm" , format , ## __VA_ARGS__ )
+#define GSM_ERR_MSG err_msg
 typedef void(* media_timer_callback_fp) (void);
 void gsm_set_media_callback(media_timer_callback_fp* callback);
 

@@ -56,7 +56,7 @@ this.AccessFu = {
       this._notifyOutput = false;
     }
 
-    this.Input.quickNavMode.updateModes(this.prefsBranch);
+    Input.quickNavMode.updateModes(this.prefsBranch);
 
     this._enableOrDisable();
   },
@@ -107,7 +107,7 @@ this.AccessFu = {
     Utils.win.document.insertBefore(stylesheet, Utils.win.document.firstChild);
     this.stylesheet = Cu.getWeakReference(stylesheet);
 
-    this.Input.start();
+    Input.start();
     Output.start();
     TouchAdapter.start();
 
@@ -142,7 +142,7 @@ this.AccessFu = {
       this._removeMessageListeners(mm);
     }
 
-    this.Input.stop();
+    Input.stop();
     Output.stop();
     TouchAdapter.stop();
 
@@ -188,7 +188,7 @@ this.AccessFu = {
         this._output(aMessage.json, aMessage.target);
         break;
       case 'AccessFu:Input':
-        this.Input.setEditState(aMessage.json);
+        Input.setEditState(aMessage.json);
         break;
     }
   },
@@ -250,10 +250,10 @@ this.AccessFu = {
         this._enableOrDisable();
         break;
       case 'Accessibility:NextObject':
-        this.Input.moveCursor('moveNext', 'Simple', 'gesture');
+        Input.moveCursor('moveNext', 'Simple', 'gesture');
         break;
       case 'Accessibility:PreviousObject':
-        this.Input.moveCursor('movePrevious', 'Simple', 'gesture');
+        Input.moveCursor('movePrevious', 'Simple', 'gesture');
         break;
       case 'Accessibility:Focus':
         this._focused = JSON.parse(aData);
@@ -270,7 +270,7 @@ this.AccessFu = {
             this._enableOrDisable();
             break;
           case 'quicknav_modes':
-            this.Input.quickNavMode.updateModes(this.prefsBranch);
+            Input.quickNavMode.updateModes(this.prefsBranch);
             break;
           case 'notify_output':
             this._notifyOutput = this.prefsBranch.getBoolPref('notify_output');
@@ -713,4 +713,3 @@ var Input = {
     _currentIndex: -1
   }
 };
-AccessFu.Input = Input;

@@ -350,10 +350,15 @@ char* mozilla_sampler_get_profile()
     return NULL;
   }
 
-  std::stringstream stream;
-  t->ToStreamAsJSON(stream);
-  char* profile = strdup(stream.str().c_str());
-  return profile;
+  std::stringstream profile;
+  t->SetPaused(true);
+  profile << *(t->GetPrimaryThreadProfile());
+  t->SetPaused(false);
+
+  std::string profileString = profile.str();
+  char *rtn = (char*)malloc( (profileString.length() + 1) * sizeof(char) );
+  strcpy(rtn, profileString.c_str());
+  return rtn;
 }
 
 JSObject *mozilla_sampler_get_profile_data(JSContext *aCx)

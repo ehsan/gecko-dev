@@ -149,7 +149,7 @@ public:
                             const nsIntRegion& aOldValidRegionBack,
                             nsIntRegion* aUpdatedRegionBack);
 
-  virtual void EnsureTextureHost(TextureIdentifier aTextureId,
+  virtual bool EnsureTextureHost(TextureIdentifier aTextureId,
                                  const SurfaceDescriptor& aSurface,
                                  ISurfaceAllocator* aAllocator,
                                  const TextureInfo& aTextureInfo) MOZ_OVERRIDE;
@@ -186,7 +186,7 @@ public:
                             const nsIntRegion& aOldValidRegionBack,
                             nsIntRegion* aUpdatedRegionBack);
 
-  virtual void EnsureTextureHost(TextureIdentifier aTextureId,
+  virtual bool EnsureTextureHost(TextureIdentifier aTextureId,
                                  const SurfaceDescriptor& aSurface,
                                  ISurfaceAllocator* aAllocator,
                                  const TextureInfo& aTextureInfo) MOZ_OVERRIDE;

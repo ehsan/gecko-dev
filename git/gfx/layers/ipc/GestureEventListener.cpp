@@ -142,7 +142,7 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
           event.mTime - mLastTapEndTime > MAX_TAP_TIME) {
         // mDoubleTapTimeoutTask wasn't scheduled in time. We need to run the
         // task synchronously to confirm the last tap.
-        CancelDoubleTapTimeoutTask();
+        mDoubleTapTimeoutTask->Cancel();
         TimeoutDoubleTap();
 
         // Change the state so we can proceed to process the current tap.
@@ -150,12 +150,14 @@ nsEventStatus GestureEventListener::HandleInputEvent(const InputData& aEvent)
       }
 
       if (mState == GESTURE_WAITING_DOUBLE_TAP) {
-        CancelDoubleTapTimeoutTask();
+        mDoubleTapTimeoutTask->Cancel();
+
         // We were waiting for a double tap and it has arrived.
         HandleDoubleTap(event);
         mState = GESTURE_NONE;
       } else if (mState == GESTURE_WAITING_SINGLE_TAP) {
-        CancelLongTapTimeoutTask();
+        mLongTapTimeoutTask->Cancel();
+
         HandleSingleTapUpEvent(event);
 
         // We were not waiting for anything but a single tap has happened that
@@ -297,7 +299,7 @@ nsEventStatus GestureEventListener::HandleTapCancel(const MultiTouchInput& aEven
   switch (mState)
   {
   case GESTURE_WAITING_SINGLE_TAP:
-    CancelLongTapTimeoutTask();
+    mLongTapTimeoutTask->Cancel();
     mState = GESTURE_NONE;
     break;
 
@@ -319,7 +321,6 @@ nsEventStatus GestureEventListener::HandleDoubleTap(const MultiTouchInput& aEven
 
 void GestureEventListener::TimeoutDoubleTap()
 {
-  mDoubleTapTimeoutTask = nullptr;
   // If we haven't gotten another tap by now, reset the state and treat it as a
   // single tap. It couldn't have been a double tap.
   if (mState == GESTURE_WAITING_DOUBLE_TAP) {
@@ -329,28 +330,13 @@ void GestureEventListener::TimeoutDoubleTap()
   }
 }
 
-void GestureEventListener::CancelDoubleTapTimeoutTask() {
-  if (mDoubleTapTimeoutTask) {
-    mDoubleTapTimeoutTask->Cancel();
-    mDoubleTapTimeoutTask = nullptr;
-  }
-}
-
 void GestureEventListener::TimeoutLongTap()
 {
-  mLongTapTimeoutTask = nullptr;
   // If the tap has not been released, this is a long press.
   if (mState == GESTURE_WAITING_SINGLE_TAP) {
     mState = GESTURE_NONE;
 
     HandleLongTapEvent(mLastTouchInput);
-  }
-}
-
-void GestureEventListener::CancelLongTapTimeoutTask() {
-  if (mLongTapTimeoutTask) {
-    mLongTapTimeoutTask->Cancel();
-    mLongTapTimeoutTask = nullptr;
   }
 }
 

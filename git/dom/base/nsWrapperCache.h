@@ -8,7 +8,6 @@
 
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Assertions.h"
-#include "js/RootingAPI.h"
 
 class JSObject;
 struct JSContext;
@@ -150,7 +149,7 @@ public:
    * Wrap the object corresponding to this wrapper cache. If non-null is
    * returned, the object has already been stored in the wrapper cache.
    */
-  virtual JSObject* WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
+  virtual JSObject* WrapObject(JSContext *cx, JSObject *scope)
   {
     MOZ_ASSERT(!IsDOMBinding(), "Someone forgot to override WrapObject");
     return nullptr;

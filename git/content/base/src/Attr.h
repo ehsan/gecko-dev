@@ -17,6 +17,7 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsINodeInfo.h"
+#include "nsDOMAttributeMap.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsStubMutationObserver.h"
 
@@ -80,8 +81,7 @@ public:
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
-  virtual JSObject* WrapObject(JSContext* aCx,
-                               JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  virtual JSObject* WrapObject(JSContext* aCx, JSObject* aScope) MOZ_OVERRIDE;
 
   // XPCOM GetName() is OK
   // XPCOM GetValue() is OK
@@ -106,7 +106,10 @@ protected:
 
 private:
   already_AddRefed<nsIAtom> GetNameAtom(nsIContent* aContent);
-  mozilla::dom::Element* GetContentInternal() const;
+  mozilla::dom::Element *GetContentInternal() const
+  {
+    return mAttrMap ? mAttrMap->GetContent() : nullptr;
+  }
 
   nsString mValue;
 };
