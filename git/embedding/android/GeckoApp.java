@@ -400,8 +400,6 @@ abstract public class GeckoApp
             Log.i("GeckoAppJava", e.toString());
             return;
         }
-
-        outFile.setLastModified(fileEntry.getTime());
     }
     
     public String getEnvString() {
@@ -465,9 +463,10 @@ abstract public class GeckoApp
         Log.i("GeckoAppJava", "Update is available!");
 
         // Launch APK
-        File updateFileToRun = new File(updateDir + getAppName() + "-update.apk");
+        File downloadDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+        File updateFileToRun = new File(downloadDir, getAppName() + "-update.apk");
         try {
-            if (updateFile.renameTo(updateFileToRun)) {
+            if (moveFile(updateFile, updateFileToRun)) {
                 String amCmd = "/system/bin/am start -a android.intent.action.VIEW " +
                                "-n com.android.packageinstaller/.PackageInstallerActivity -d file://" +
                                updateFileToRun.getPath();
@@ -475,7 +474,7 @@ abstract public class GeckoApp
                 Runtime.getRuntime().exec(amCmd);
                 statusCode = 0; // OK
             } else {
-                Log.i("GeckoAppJava", "Cannot rename the update file!");
+                Log.i("GeckoAppJava", "Cannot move the update file!");
                 statusCode = 7; // WRITE_ERROR
             }
         } catch (Exception e) {
@@ -498,5 +497,29 @@ abstract public class GeckoApp
 
         if (statusCode == 0)
             System.exit(0);
+    }
+
+    private static boolean moveFile(File fromFile, File toFile) {
+        try {
+            if (fromFile.renameTo(toFile))
+                return true;
+
+            // Simple rename failed, transfer the data explicitly
+            FileChannel inChannel = new FileInputStream(fromFile).getChannel();
+            FileChannel outChannel = new FileOutputStream(toFile).getChannel();
+
+            long tansferred = inChannel.transferTo(0, inChannel.size(), outChannel);
+
+            inChannel.close();
+            outChannel.close();
+
+            if (tansferred > 0)
+                fromFile.delete();
+
+            return (tansferred > 0);
+        } catch (Exception e) {
+            Log.i("GeckoAppJava", e.toString());
+            return false;
+        }
     }
 }

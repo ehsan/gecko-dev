@@ -65,7 +65,7 @@ class PuppetWidget : public nsBaseWidget, public nsSupportsWeakReference
   static const size_t kMaxDimension;
 
 public:
-  PuppetWidget(PBrowserChild *aTabChild);
+  PuppetWidget();
   virtual ~PuppetWidget();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -151,8 +151,6 @@ public:
   virtual nsIntPoint WidgetToScreenOffset()
   { return nsIntPoint(0, 0); }
 
-  void InitEvent(nsGUIEvent& event, nsIntPoint* aPoint = nsnull);
-
   NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus);
 
   NS_IMETHOD CaptureRollupEvents(nsIRollupListener* aListener, nsIMenuRollup* aMenuRollup,
@@ -168,24 +166,11 @@ public:
 //  virtual nsIDeviceContext* GetDeviceContext();
   virtual gfxASurface*      GetThebesSurface();
 
-  NS_IMETHOD ResetInputState();
-  NS_IMETHOD SetIMEOpenState(PRBool aState);
-  NS_IMETHOD GetIMEOpenState(PRBool *aState);
-  NS_IMETHOD SetIMEEnabled(PRUint32 aState);
-  NS_IMETHOD GetIMEEnabled(PRUint32 *aState);
-  NS_IMETHOD CancelComposition();
-  NS_IMETHOD OnIMEFocusChange(PRBool aFocus);
-  NS_IMETHOD OnIMETextChange(PRUint32 aOffset, PRUint32 aEnd,
-                             PRUint32 aNewEnd);
-  NS_IMETHOD OnIMESelectionChange(void);
-
 private:
   nsresult DispatchPaintEvent();
   nsresult DispatchResizeEvent();
 
   void SetChild(PuppetWidget* aChild);
-
-  nsresult IMEEndComposition(PRBool aCancel);
 
   class PaintTask : public nsRunnable {
   public:
@@ -196,13 +181,6 @@ private:
     PuppetWidget* mWidget;
   };
 
-  // TabChild normally holds a strong reference to this PuppetWidget
-  // or its root ancestor, but each PuppetWidget also needs a reference
-  // back to TabChild (e.g. to delegate nsIWidget IME calls to chrome)
-  // So we hold a weak reference to TabChild (PBrowserChild) here.
-  // Since it's possible for TabChild to outlive the PuppetWidget,
-  // we clear this weak reference in Destroy()
-  PBrowserChild *mTabChild;
   // The "widget" to which we delegate events if we don't have an
   // event handler.
   nsRefPtr<PuppetWidget> mChild;
@@ -213,10 +191,6 @@ private:
   // XXX/cjones: keeping this around until we teach LayerManager to do
   // retained-content-only transactions
   nsRefPtr<gfxASurface> mSurface;
-  // IME
-  nsIMEUpdatePreference mIMEPreference;
-  PRPackedBool mIMEComposing;
-  PRPackedBool mIMESuppressNotifySel;
 };
 
 }  // namespace widget

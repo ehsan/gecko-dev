@@ -67,7 +67,7 @@ let gSyncUI = {
 
     // If this is a browser window?
     if (gBrowser) {
-      obs.push("weave:notification:added");
+      obs.push("weave:notification:added", "weave:notification:removed");
     }
 
     let self = this;
@@ -82,27 +82,8 @@ let gSyncUI = {
       popup.addEventListener("popupshowing", function() {
         self.alltabsPopupShowing();
       }, true);
-
-      if (Weave.Notifications.notifications.length)
-        this.initNotifications();
     }
     this.updateUI();
-  },
-  
-  initNotifications: function SUI_initNotifications() {
-    const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-    let notificationbox = document.createElementNS(XULNS, "notificationbox");
-    notificationbox.id = "sync-notifications";
-    notificationbox.setAttribute("flex", "1");
-
-    let bottombox = document.getElementById("browser-bottombox");
-    bottombox.insertBefore(notificationbox, bottombox.firstChild);
-
-    // Force a style flush to ensure that our binding is attached.
-    notificationbox.clientTop;
-
-    // notificationbox will listen to observers from now on.
-    Services.obs.removeObserver(this, "weave:notification:added");
   },
 
   _wasDelayed: false,
@@ -159,7 +140,7 @@ let gSyncUI = {
 
     // Fake the tab object on the menu entries, so that we don't have to worry
     // about removing them ourselves. They will just get cleaned up by popup
-    // binding.
+    // binding. This also makes sure the statusbar updates with the URL.
     menuitem.tab = { "linkedBrowser": { "currentURI": { "spec": label } } };
     sep.tab = { "linkedBrowser": { "currentURI": { "spec": " " } } };
 
@@ -192,13 +173,7 @@ let gSyncUI = {
     // basically, we want to just inform users that stuff is going to take a while
     let title = this._stringBundle.GetStringFromName("error.sync.no_node_found.title");
     let description = this._stringBundle.GetStringFromName("error.sync.no_node_found");
-    let buttons = [new Weave.NotificationButton(
-      this._stringBundle.GetStringFromName("error.sync.serverStatusButton.label"),
-      this._stringBundle.GetStringFromName("error.sync.serverStatusButton.accesskey"),
-      function() { gWeaveWin.openServerStatus(); return true; }
-    )];
-    let notification = new Weave.Notification(
-      title, description, null, Weave.Notifications.PRIORITY_INFO, buttons);
+    let notification = new Weave.Notification(title, description, null, Weave.Notifications.PRIORITY_INFO);
     Weave.Notifications.replaceTitle(notification);
     this._wasDelayed = true;
   },
@@ -262,9 +237,34 @@ let gSyncUI = {
     Weave.Notifications.replaceTitle(notification);
   },
 
-  openServerStatus: function () {
-    let statusURL = Services.prefs.getCharPref("services.sync.statusURL");
-    window.openUILinkIn(statusURL, "tab");
+  onNotificationAdded: function SUI_onNotificationAdded() {
+    if (!gBrowser)
+      return;
+
+    let notificationsButton = document.getElementById("sync-notifications-button");
+    notificationsButton.hidden = false;
+    let notification = Weave.Notifications.notifications.reduce(function(prev, cur) {
+      return prev.priority > cur.priority ? prev : cur;
+    });
+
+    let image = notification.priority >= Weave.Notifications.PRIORITY_WARNING ?
+                "chrome://global/skin/icons/warning-16.png" :
+                "chrome://global/skin/icons/information-16.png";
+    notificationsButton.image = image;
+    notificationsButton.label = notification.title;
+  },
+
+  onNotificationRemoved: function SUI_onNotificationRemoved() {
+    if (!gBrowser)
+      return;
+
+    if (Weave.Notifications.notifications.length == 0) {
+      document.getElementById("sync-notifications-button").hidden = true;
+    }
+    else {
+      // Display remaining notifications
+      this.onNotificationAdded();
+    }
   },
 
   // Commands
@@ -356,21 +356,7 @@ let gSyncUI = {
       let priority = Weave.Notifications.PRIORITY_WARNING;
       let buttons = [];
 
-      // Check if the client is outdated in some way
-      let outdated = Weave.Status.sync == Weave.VERSION_OUT_OF_DATE;
-      for (let [engine, reason] in Iterator(Weave.Status.engines))
-        outdated = outdated || reason == Weave.VERSION_OUT_OF_DATE;
-
-      if (outdated) {
-        description = this._stringBundle.GetStringFromName(
-          "error.sync.needUpdate.description");
-        buttons.push(new Weave.NotificationButton(
-          this._stringBundle.GetStringFromName("error.sync.needUpdate.label"),
-          this._stringBundle.GetStringFromName("error.sync.needUpdate.accesskey"),
-          function() { window.openUILinkIn("https://services.mozilla.com/update/", "tab"); return true; }
-        ));
-      }
-      else if (Weave.Status.sync == Weave.OVER_QUOTA) {
+      if (Weave.Status.sync == Weave.OVER_QUOTA) {
         description = this._stringBundle.GetStringFromName(
           "error.sync.quota.description");
         buttons.push(new Weave.NotificationButton(
@@ -381,15 +367,7 @@ let gSyncUI = {
           function() { gSyncUI.openQuotaDialog(); return true; } )
         );
       }
-      else if (Weave.Status.enforceBackoff) {
-        priority = Weave.Notifications.PRIORITY_INFO;
-        buttons.push(new Weave.NotificationButton(
-          this._stringBundle.GetStringFromName("error.sync.serverStatusButton.label"),
-          this._stringBundle.GetStringFromName("error.sync.serverStatusButton.accesskey"),
-          function() { gSyncUI.openServerStatus(); return true; }
-        ));
-      }
-      else {
+      else if (!Weave.Status.enforceBackoff) {
         priority = Weave.Notifications.PRIORITY_INFO;
         buttons.push(new Weave.NotificationButton(
           this._stringBundle.GetStringFromName("error.sync.tryAgainButton.label"),
@@ -456,7 +434,10 @@ let gSyncUI = {
         this.initUI();
         break;
       case "weave:notification:added":
-        this.initNotifications();
+        this.onNotificationAdded();
+        break;
+      case "weave:notification:removed":
+        this.onNotificationRemoved();
         break;
     }
   },

@@ -85,9 +85,7 @@ public:
     }
 
     static JNIEnv *JNIForThread() {
-        if (NS_LIKELY(sBridge))
-          return sBridge->AttachThread();
-        return nsnull;
+        return sBridge->AttachThread();
     }
 
     // The bridge needs to be constructed via ConstructBridge first,

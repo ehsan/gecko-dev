@@ -44,10 +44,6 @@ include protocol PExternalHelperApp;
 include "mozilla/chrome/RegistryMessageUtils.h";
 include "mozilla/net/NeckoMessageUtils.h";
 
-include "nsGeoPositionIPCSerialiser.h";
-
-using GeoPosition;
-
 using ChromePackage;
 using ResourceMapping;
 using OverrideMapping;
@@ -79,8 +75,6 @@ child:
 
     NotifyAlertsObserver(nsCString topic, nsString data);
 
-    GeolocationUpdate(GeoPosition somewhere);
-
 parent:
     PNecko();
 
@@ -104,6 +98,9 @@ parent:
 
     // PermissionsManager messages
     sync TestPermission(URI uri, nsCString type, PRBool exact) returns (PRUint32 retValue);
+    NotifyIME(int aType, int aState);
+    NotifyIMEChange(nsString aText, PRUint32 aTextLen,
+                    int aStart, int aEnd, int aNewEnd);
 
     sync SyncMessage(nsString aMessage, nsString aJSON)
       returns (nsString[] retval);
@@ -118,9 +115,6 @@ parent:
     PExternalHelperApp(URI uri, nsCString aMimeContentType,
                        nsCString aContentDisposition, bool aForceSave,
                        PRInt64 aContentLength);
-    
-    GeolocationStart();
-    GeolocationStop();
 
 both:
      AsyncMessage(nsString aMessage, nsString aJSON);

@@ -101,11 +101,6 @@ let TabView = {
       Services.obs.addObserver(observer, "quit-application-requested", false);
     }
   },
-  
-  // ----------
-  getContentWindow: function TabView_getContentWindow() {
-    return this._window;
-  },
 
   // ----------
   isVisible: function() {

@@ -50,7 +50,6 @@
 #include "nsNetUtil.h"
 #include "nsIPrefService.h"
 #include "nsIPermissionManager.h"
-#include "nsIDOMGeoPositionCallback.h"
 
 namespace mozilla {
 
@@ -65,7 +64,6 @@ class TabParent;
 class ContentParent : public PContentParent
                     , public nsIObserver
                     , public nsIThreadObserver
-                    , public nsIDOMGeoPositionCallback
 {
 private:
     typedef mozilla::ipc::GeckoChildProcessHost GeckoChildProcessHost;
@@ -82,7 +80,6 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIOBSERVER
     NS_DECL_NSITHREADOBSERVER
-    NS_DECL_NSIDOMGEOPOSITIONCALLBACK
 
     TabParent* CreateTab(PRUint32 aChromeFlags);
 
@@ -165,6 +162,11 @@ private:
 
     virtual bool RecvSetURITitle(const IPC::URI& uri,
                                  const nsString& title);
+    
+    virtual bool RecvNotifyIME(const int&, const int&);
+
+    virtual bool RecvNotifyIMEChange(const nsString&, const PRUint32&, const int&, 
+                                     const int&, const int&);
 
     virtual bool RecvShowAlertNotification(const nsString& aImageUrl, const nsString& aTitle,
                                            const nsString& aText, const PRBool& aTextClickable,
@@ -176,14 +178,10 @@ private:
                                  nsTArray<nsString>* aRetvals);
     virtual bool RecvAsyncMessage(const nsString& aMsg, const nsString& aJSON);
 
-    virtual bool RecvGeolocationStart();
-    virtual bool RecvGeolocationStop();
-
     mozilla::Monitor mMonitor;
 
     GeckoChildProcessHost* mSubprocess;
 
-    PRInt32 mGeolocationWatchID;
     int mRunToCompletionDepth;
     bool mShouldCallUnblockChild;
     nsCOMPtr<nsIThreadObserver> mOldObserver;

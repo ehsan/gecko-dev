@@ -515,10 +515,7 @@ BasicThebesLayerBuffer::DrawTo(ThebesLayer* aLayer,
       IsClippingCheap(aTarget, aLayer->GetVisibleRegion())) {
     // We don't want to draw invalid stuff, so we need to clip. Might as
     // well clip to the smallest area possible --- the visible region.
-    // Bug 599189 if there is a non-integer-translation transform in aTarget,
-    // we might sample pixels outside GetVisibleRegion(), which is wrong
-    // and may cause gray lines.
-    gfxUtils::ClipToRegionSnapped(aTarget, aLayer->GetVisibleRegion());
+    gfxUtils::ClipToRegion(aTarget, aLayer->GetVisibleRegion());
   }
   if (aIsOpaqueContent) {
     aTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
@@ -538,8 +535,7 @@ BasicThebesLayerBuffer::CreateBuffer(ContentType aType,
 class BasicImageLayer : public ImageLayer, BasicImplData {
 public:
   BasicImageLayer(BasicLayerManager* aLayerManager) :
-    ImageLayer(aLayerManager, static_cast<BasicImplData*>(this)),
-    mSize(-1, -1)
+    ImageLayer(aLayerManager, static_cast<BasicImplData*>(this))
   {
     MOZ_COUNT_CTOR(BasicImageLayer);
   }
@@ -1551,7 +1547,7 @@ BasicShadowableImageLayer::Paint(gfxContext* aContext,
     return;
 
   if (oldSize != mSize) {
-    NS_ASSERTION(oldSize == gfxIntSize(-1, -1), "video changed size?");
+    NS_ASSERTION(oldSize == gfxIntSize(0, 0), "video changed size?");
 
     if (mBackSurface) {
       BasicManager()->ShadowLayerForwarder::DestroySharedSurface(mBackSurface);

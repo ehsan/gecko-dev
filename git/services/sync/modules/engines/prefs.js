@@ -199,8 +199,8 @@ PrefStore.prototype = {
     return (id === WEAVE_PREFS_GUID);
   },
 
-  createRecord: function createRecord(guid, uri) {
-    let record = new PrefRec(uri);
+  createRecord: function createRecord(guid) {
+    let record = new PrefRec();
 
     if (guid == WEAVE_PREFS_GUID) {
       record.value = this._getAllPrefs();

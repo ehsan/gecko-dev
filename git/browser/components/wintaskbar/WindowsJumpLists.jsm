@@ -205,6 +205,9 @@ var WinTaskbarJumpList =
 
     // jump list refresh timer
     this._initTimer();
+
+    // build the list
+    this.update();
   },
 
   update: function WTBJL_update() {

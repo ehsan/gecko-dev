@@ -272,7 +272,6 @@ class GeckoAppShell
 
         case NOTIFY_IME_FOCUSCHANGE:
             GeckoApp.surfaceView.mIMEFocus = state != 0;
-            IMEStateUpdater.resetIME();
             break;
 
         }
@@ -323,9 +322,7 @@ class GeckoAppShell
             if (provider == null)
                 return;
 
-            Location loc = lm.getLastKnownLocation(provider);
-            if (loc != null)
-                sendEventToGecko(new GeckoEvent(loc));
+            sendEventToGecko(new GeckoEvent(lm.getLastKnownLocation(provider)));
             lm.requestLocationUpdates(provider, 100, (float).5, GeckoApp.surfaceView, Looper.getMainLooper());
         } else {
             lm.removeUpdates(GeckoApp.surfaceView);
