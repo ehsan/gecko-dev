@@ -194,6 +194,23 @@ NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLSelectElement)
 
 NS_IMPL_ELEMENT_CLONE(nsHTMLSelectElement)
 
+// nsConstraintValidation
+NS_IMPL_NSCONSTRAINTVALIDATION_EXCEPT_SETCUSTOMVALIDITY(nsHTMLSelectElement)
+
+NS_IMETHODIMP
+nsHTMLSelectElement::SetCustomValidity(const nsAString& aError)
+{
+  nsresult rv = nsConstraintValidation::SetCustomValidity(aError);
+
+  nsIDocument* doc = GetCurrentDoc();
+  if (doc) {
+    doc->ContentStatesChanged(this, nsnull, NS_EVENT_STATE_INVALID |
+                                            NS_EVENT_STATE_VALID);
+  }
+
+  return rv;
+}
+
 NS_IMETHODIMP
 nsHTMLSelectElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
@@ -1449,6 +1466,18 @@ nsHTMLSelectElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
   return nsGenericHTMLFormElement::PreHandleEvent(aVisitor);
 }
 
+PRInt32
+nsHTMLSelectElement::IntrinsicState() const
+{
+  PRInt32 state = nsGenericHTMLFormElement::IntrinsicState();
+
+  if (IsCandidateForConstraintValidation(this)) {
+    state |= IsValid() ? NS_EVENT_STATE_VALID : NS_EVENT_STATE_INVALID;
+  }
+
+  return state | NS_EVENT_STATE_OPTIONAL;
+}
+
 // nsIFormControl
 
 NS_IMETHODIMP
@@ -1596,8 +1625,7 @@ nsHTMLSelectElement::Reset()
 static NS_DEFINE_CID(kFormProcessorCID, NS_FORMPROCESSOR_CID);
 
 NS_IMETHODIMP
-nsHTMLSelectElement::SubmitNamesValues(nsFormSubmission* aFormSubmission,
-                                       nsIContent* aSubmitElement)
+nsHTMLSelectElement::SubmitNamesValues(nsFormSubmission* aFormSubmission)
 {
   nsresult rv = NS_OK;
 
@@ -1746,7 +1774,6 @@ nsHTMLSelectElement::VerifyOptionsArray()
   PRInt32 aIndex = 0;
   VerifyOptionsRecurse(this, aIndex, mOptions);
 }
-
 
 #endif
 
