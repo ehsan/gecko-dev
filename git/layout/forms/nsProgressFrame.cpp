@@ -23,7 +23,6 @@
 #include "nsThemeConstants.h"
 #include <algorithm>
 
-using namespace mozilla;
 using namespace mozilla::dom;
 
 nsIFrame*
@@ -119,8 +118,11 @@ nsProgressFrame::Reflow(nsPresContext*           aPresContext,
 
   ReflowBarFrame(barFrame, aPresContext, aReflowState, aStatus);
 
-  aDesiredSize.SetSize(aReflowState.GetWritingMode(),
-                       aReflowState.ComputedSizeWithBorderPadding());
+  aDesiredSize.Width() = aReflowState.ComputedWidth() +
+                       aReflowState.ComputedPhysicalBorderPadding().LeftRight();
+  aDesiredSize.Height() = aReflowState.ComputedHeight() +
+                        aReflowState.ComputedPhysicalBorderPadding().TopBottom();
+
   aDesiredSize.SetOverflowAreasToDesiredBounds();
   ConsiderChildOverflow(aDesiredSize.mOverflowAreas, barFrame);
   FinishAndStoreOverflow(&aDesiredSize);
@@ -137,11 +139,9 @@ nsProgressFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
                                 nsReflowStatus&          aStatus)
 {
   bool vertical = StyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL;
-  WritingMode wm = aBarFrame->GetWritingMode();
-  LogicalSize availSize = aReflowState.ComputedSize(wm);
-  availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
-  nsHTMLReflowState reflowState(aPresContext, aReflowState,
-                                aBarFrame, availSize);
+  nsHTMLReflowState reflowState(aPresContext, aReflowState, aBarFrame,
+                                nsSize(aReflowState.ComputedWidth(),
+                                       NS_UNCONSTRAINEDSIZE));
   nscoord size = vertical ? aReflowState.ComputedHeight()
                           : aReflowState.ComputedWidth();
   nscoord xoffset = aReflowState.ComputedPhysicalBorderPadding().left;
@@ -238,7 +238,7 @@ nsProgressFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 }
 
 nscoord
-nsProgressFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsProgressFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nsRefPtr<nsFontMetrics> fontMet;
   NS_ENSURE_SUCCESS(
@@ -256,9 +256,9 @@ nsProgressFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 }
 
 nscoord
-nsProgressFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsProgressFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
-  return GetMinISize(aRenderingContext);
+  return GetMinWidth(aRenderingContext);
 }
 
 bool

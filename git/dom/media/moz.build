@@ -17,8 +17,7 @@ if CONFIG['MOZ_WEBRTC']:
             '-Wno-unused-local-typedefs', # Workaround until we fix bug 1020661
         ]
 
-    MOCHITEST_MANIFESTS += ['tests/mochitest/mochitest.ini']
-    WEBRTC_SIGNALLING_TEST_MANIFESTS += ['tests/mochitest/steeplechase.ini']
+TEST_DIRS += ['tests/mochitest', 'tests/ipc', 'tests/identity']
 
 XPIDL_SOURCES += [
     'nsIDOMMediaStream.idl',
@@ -73,8 +72,3 @@ LOCAL_INCLUDES += [
 include('/ipc/chromium/chromium-config.mozbuild')
 
 FINAL_LIBRARY = 'xul'
-
-MOCHITEST_MANIFESTS += [
-    'tests/identity/mochitest.ini',
-    'tests/ipc/mochitest.ini',
-]

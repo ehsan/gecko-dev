@@ -794,10 +794,7 @@ nsComputedDOMStyle::IndexedGetter(uint32_t aIndex, bool& aFound,
   const nsStyleVariables* variables = StyleVariables();
   if (aIndex - length < variables->mVariables.Count()) {
     aFound = true;
-    nsString varName;
-    variables->mVariables.GetVariableAt(aIndex - length, varName);
-    aPropName.AssignLiteral("--");
-    aPropName.Append(varName);
+    variables->mVariables.GetVariableAt(aIndex - length, aPropName);
   } else {
     aFound = false;
   }

@@ -139,13 +139,11 @@ AudioSink::AudioLoop()
   }
 
   while (1) {
-    {
-      ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-      WaitForAudioToPlay();
-      if (!IsPlaybackContinuing()) {
-        break;
-      }
+    WaitForAudioToPlay();
+    if (!IsPlaybackContinuing()) {
+      break;
     }
+
     // See if there's a gap in the audio. If there is, push silence into the
     // audio hardware, so we can play across the gap.
     // Calculate the timestamp of the next chunk of audio in numbers of
@@ -178,8 +176,7 @@ AudioSink::AudioLoop()
     }
   }
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  MOZ_ASSERT(mStopAudioThread || AudioQueue().AtEndOfStream());
-  if (!mStopAudioThread && mPlaying) {
+  if (!mStopAudioThread && AudioQueue().AtEndOfStream()) {
     Drain();
   }
   SINK_LOG("AudioLoop complete");
@@ -241,19 +238,19 @@ AudioSink::WaitForAudioToPlay()
 {
   // Wait while we're not playing, and we're not shutting down, or we're
   // playing and we've got no audio to play.
-  AssertCurrentThreadInMonitor();
+  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   while (!mStopAudioThread && (!mPlaying || ExpectMoreAudioData())) {
     if (!mPlaying && !mAudioStream->IsPaused()) {
       mAudioStream->Pause();
     }
-    GetReentrantMonitor().Wait();
+    mon.Wait();
   }
 }
 
 bool
 AudioSink::IsPlaybackContinuing()
 {
-  AssertCurrentThreadInMonitor();
+  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   if (mPlaying && mAudioStream->IsPaused()) {
     mAudioStream->Resume();
   }

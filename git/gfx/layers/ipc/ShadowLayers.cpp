@@ -595,7 +595,7 @@ ShadowLayerForwarder::EndTransaction(InfallibleTArray<EditReply>* aReplies,
     if (!HasShadowManager() ||
         !mShadowManager->IPCOpen() ||
         !mShadowManager->SendUpdateNoSwap(cset, aId, targetConfig, mIsFirstPaint,
-                                          aScheduleComposite, aPaintSequenceNumber,
+                                          aPaintSequenceNumber, aScheduleComposite,
                                           aIsRepeatTransaction)) {
       MOZ_LAYERS_LOG(("[LayersForwarder] WARNING: sending transaction failed!"));
       return false;

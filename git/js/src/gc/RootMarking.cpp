@@ -346,7 +346,9 @@ gc::GCRuntime::markConservativeStackRoots(JSTracer *trc, bool useSavedRoots)
 #endif
 
     if (!conservativeGC.hasStackToScan()) {
+#ifdef JS_THREADSAFE
         JS_ASSERT(!rt->requestDepth);
+#endif
         return;
     }
 

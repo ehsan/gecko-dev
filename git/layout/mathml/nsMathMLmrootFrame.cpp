@@ -8,8 +8,6 @@
 #include "nsRenderingContext.h"
 #include <algorithm>
 
-using namespace mozilla;
-
 //
 // <mroot> -- form a radical - implementation
 //
@@ -164,9 +162,10 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
                            const nsHTMLReflowState& aReflowState,
                            nsReflowStatus&          aStatus)
 {
+  nsSize availSize(aReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
   nsReflowStatus childStatus;
 
-  aDesiredSize.ClearSize();
+  aDesiredSize.Width() = aDesiredSize.Height() = 0;
   aDesiredSize.SetBlockStartAscent(0);
 
   nsBoundingMetrics bmSqr, bmBase, bmIndex;
@@ -186,9 +185,6 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
     nsHTMLReflowMetrics childDesiredSize(aReflowState,
                                          aDesiredSize.mFlags
                                          | NS_REFLOW_CALC_BOUNDING_METRICS);
-    WritingMode wm = childFrame->GetWritingMode();
-    LogicalSize availSize = aReflowState.ComputedSize(wm);
-    availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
     nsHTMLReflowState childReflowState(aPresContext, aReflowState,
                                        childFrame, availSize);
     ReflowChild(childFrame, aPresContext,
@@ -354,7 +350,7 @@ nsMathMLmrootFrame::Reflow(nsPresContext*          aPresContext,
 }
 
 /* virtual */ void
-nsMathMLmrootFrame::GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingContext, nsHTMLReflowMetrics& aDesiredSize)
+nsMathMLmrootFrame::GetIntrinsicWidthMetrics(nsRenderingContext* aRenderingContext, nsHTMLReflowMetrics& aDesiredSize)
 {
   nsIFrame* baseFrame = mFrames.FirstChild();
   nsIFrame* indexFrame = nullptr;
@@ -367,10 +363,10 @@ nsMathMLmrootFrame::GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingConte
 
   nscoord baseWidth =
     nsLayoutUtils::IntrinsicForContainer(aRenderingContext, baseFrame,
-                                         nsLayoutUtils::PREF_ISIZE);
+                                         nsLayoutUtils::PREF_WIDTH);
   nscoord indexWidth =
     nsLayoutUtils::IntrinsicForContainer(aRenderingContext, indexFrame,
-                                         nsLayoutUtils::PREF_ISIZE);
+                                         nsLayoutUtils::PREF_WIDTH);
   nscoord sqrWidth = mSqrChar.GetMaxWidth(PresContext(), *aRenderingContext);
 
   nscoord dxSqr;

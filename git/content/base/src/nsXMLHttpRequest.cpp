@@ -1295,7 +1295,7 @@ nsXMLHttpRequest::IsSafeHeader(const nsACString& header, nsIHttpChannel* httpCha
     if (token.IsEmpty()) {
       continue;
     }
-    if (!NS_IsValidHTTPToken(token)) {
+    if (!IsValidHTTPToken(token)) {
       return false;
     }
     if (header.Equals(token, nsCaseInsensitiveCStringComparator())) {
@@ -2869,7 +2869,13 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
     rv = httpChannel->GetRequestHeader(NS_LITERAL_CSTRING("Content-Type"),
                                        contentTypeHeader);
     if (NS_SUCCEEDED(rv)) {
-      if (!nsContentUtils::IsAllowedNonCorsContentType(contentTypeHeader)) {
+      nsAutoCString contentType, charset;
+      rv = NS_ParseContentType(contentTypeHeader, contentType, charset);
+      NS_ENSURE_SUCCESS(rv, rv);
+  
+      if (!contentType.LowerCaseEqualsLiteral("text/plain") &&
+          !contentType.LowerCaseEqualsLiteral("application/x-www-form-urlencoded") &&
+          !contentType.LowerCaseEqualsLiteral("multipart/form-data")) {
         mCORSUnsafeHeaders.AppendElement(NS_LITERAL_CSTRING("Content-Type"));
       }
     }
@@ -3093,7 +3099,7 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
 
   // Step 3
   // Make sure we don't store an invalid header name in mCORSUnsafeHeaders
-  if (!NS_IsValidHTTPToken(header)) {
+  if (!IsValidHTTPToken(header)) { // XXX nsHttp::IsValidToken?
     return NS_ERROR_DOM_SYNTAX_ERR;
   }
 

@@ -594,6 +594,13 @@ private:
     ScrollableLayerGuid mPendingTouchPreventedGuid;
     void FireSingleTapEvent(LayoutDevicePoint aPoint);
 
+    enum ClickState {
+      Unknown,
+      IsClick,
+      IsNotClick
+    };
+    ClickState mTouchEndIsClick;
+
     bool mIgnoreKeyPressEvent;
     nsRefPtr<ActiveElementManager> mActiveElementManager;
     bool mHasValidInnerSize;

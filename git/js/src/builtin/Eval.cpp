@@ -100,6 +100,7 @@ class EvalScriptGuard
 
     ~EvalScriptGuard() {
         if (script_) {
+            script_->clearTraps(cx_->runtime()->defaultFreeOp());
             script_->cacheForEval();
             EvalCacheEntry cacheEntry = {script_, lookup_.callerScript, lookup_.pc};
             lookup_.str = lookupStr_;

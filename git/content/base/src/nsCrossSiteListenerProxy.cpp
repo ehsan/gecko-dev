@@ -504,6 +504,46 @@ nsCORSListenerProxy::OnStartRequest(nsIRequest* aRequest,
   return mOuterListener->OnStartRequest(aRequest, aContext);
 }
 
+bool
+IsValidHTTPToken(const nsCSubstring& aToken)
+{
+  if (aToken.IsEmpty()) {
+    return false;
+  }
+
+  nsCSubstring::const_char_iterator iter, end;
+
+  aToken.BeginReading(iter);
+  aToken.EndReading(end);
+
+  while (iter != end) {
+    if (*iter <= 32 ||
+        *iter >= 127 ||
+        *iter == '(' ||
+        *iter == ')' ||
+        *iter == '<' ||
+        *iter == '>' ||
+        *iter == '@' ||
+        *iter == ',' ||
+        *iter == ';' ||
+        *iter == ':' ||
+        *iter == '\\' ||
+        *iter == '\"' ||
+        *iter == '/' ||
+        *iter == '[' ||
+        *iter == ']' ||
+        *iter == '?' ||
+        *iter == '=' ||
+        *iter == '{' ||
+        *iter == '}') {
+      return false;
+    }
+    ++iter;
+  }
+
+  return true;
+}
+
 nsresult
 nsCORSListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
 {
@@ -576,7 +616,7 @@ nsCORSListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
       if (method.IsEmpty()) {
         continue;
       }
-      if (!NS_IsValidHTTPToken(method)) {
+      if (!IsValidHTTPToken(method)) {
         return NS_ERROR_DOM_BAD_URI;
       }
       foundMethod |= mPreflightMethod.Equals(method);
@@ -595,7 +635,7 @@ nsCORSListenerProxy::CheckRequestApproved(nsIRequest* aRequest)
       if (header.IsEmpty()) {
         continue;
       }
-      if (!NS_IsValidHTTPToken(header)) {
+      if (!IsValidHTTPToken(header)) {
         return NS_ERROR_DOM_BAD_URI;
       }
       headers.AppendElement(header);

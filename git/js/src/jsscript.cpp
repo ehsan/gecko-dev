@@ -1649,10 +1649,13 @@ ScriptSource::setSourceCopy(ExclusiveContext *cx, SourceBufferHolder &srcBuf,
     //    thread (see HelperThreadState::canStartParseTask) which would cause a
     //    deadlock if there wasn't a second helper thread that could make
     //    progress on our compression task.
+#if defined(JS_THREADSAFE)
     bool canCompressOffThread =
         HelperThreadState().cpuCount > 1 &&
-        HelperThreadState().threadCount >= 2 &&
-        CanUseExtraThreads();
+        HelperThreadState().threadCount >= 2;
+#else
+    bool canCompressOffThread = false;
+#endif
     const size_t TINY_SCRIPT = 256;
     const size_t HUGE_SCRIPT = 5 * 1024 * 1024;
     if (TINY_SCRIPT <= srcBuf.length() && srcBuf.length() < HUGE_SCRIPT && canCompressOffThread) {
@@ -2620,6 +2623,7 @@ JSScript::finalize(FreeOp *fop)
     // JSScript::Create(), but not yet finished initializing it with
     // fullyInitFromEmitter() or fullyInitTrivial().
 
+    clearTraps(fop);
     fop->runtime()->spsProfiler.onScriptFinalized(this);
 
     if (types)
@@ -3140,6 +3144,7 @@ JSScript::destroyDebugScript(FreeOp *fop)
             if (BreakpointSite *site = getBreakpointSite(pc)) {
                 /* Breakpoints are swept before finalization. */
                 JS_ASSERT(site->firstBreakpoint() == nullptr);
+                site->clearTrap(fop, nullptr, nullptr);
                 JS_ASSERT(getBreakpointSite(pc) == nullptr);
             }
         }
@@ -3310,7 +3315,20 @@ JSScript::hasBreakpointsAt(jsbytecode *pc)
     if (!site)
         return false;
 
-    return site->enabledCount > 0;
+    return site->enabledCount > 0 || site->trapHandler;
+}
+
+void
+JSScript::clearTraps(FreeOp *fop)
+{
+    if (!hasAnyBreakpointsOrStepMode())
+        return;
+
+    for (jsbytecode *pc = code(); pc < codeEnd(); pc++) {
+        BreakpointSite *site = getBreakpointSite(pc);
+        if (site)
+            site->clearTrap(fop);
+    }
 }
 
 void
@@ -3367,6 +3385,14 @@ JSScript::markChildren(JSTracer *trc)
     }
 
     bindings.trace(trc);
+
+    if (hasAnyBreakpointsOrStepMode()) {
+        for (unsigned i = 0; i < length(); i++) {
+            BreakpointSite *site = debugScript()->breakpoints[i];
+            if (site && site->trapHandler)
+                MarkValue(trc, &site->trapClosure, "trap closure");
+        }
+    }
 
 #ifdef JS_ION
     jit::TraceIonScripts(trc, this);

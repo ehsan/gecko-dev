@@ -90,6 +90,14 @@ private:
     nsCOMPtr<nsIFile> mAppFile;
 };
 
+#ifdef JS_THREADSAFE
+#define DoBeginRequest(cx) JS_BeginRequest((cx))
+#define DoEndRequest(cx)   JS_EndRequest((cx))
+#else
+#define DoBeginRequest(cx) ((void)0)
+#define DoEndRequest(cx)   ((void)0)
+#endif
+
 static const char kXPConnectServiceContractID[] = "@mozilla.org/js/xpc/XPConnect;1";
 
 #define EXITCODE_RUNTIME_ERROR 3
@@ -912,7 +920,7 @@ ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE
             }
         }
         ungetc(ch, file);
-        JS_BeginRequest(cx);
+        DoBeginRequest(cx);
 
         JS::CompileOptions options(cx);
         options.setUTF8(true)
@@ -920,7 +928,7 @@ ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE
                .setCompileAndGo(true);
         if (JS::Compile(cx, obj, options, file, &script) && !compileOnly)
             (void)JS_ExecuteScript(cx, obj, script, &result);
-        JS_EndRequest(cx);
+        DoEndRequest(cx);
 
         return;
     }
@@ -948,7 +956,7 @@ ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE
             lineno++;
         } while (!JS_BufferIsCompilableUnit(cx, obj, buffer, strlen(buffer)));
 
-        JS_BeginRequest(cx);
+        DoBeginRequest(cx);
         /* Clear any pending exception from previous failed compiles.  */
         JS_ClearPendingException(cx);
         JS::CompileOptions options(cx);
@@ -972,7 +980,7 @@ ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE
                 }
             }
         }
-        JS_EndRequest(cx);
+        DoEndRequest(cx);
     } while (!hitEOF && !gQuitting);
 
     fprintf(gOutFile, "\n");

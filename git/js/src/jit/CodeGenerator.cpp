@@ -768,13 +768,9 @@ CodeGenerator::visitTypeObjectDispatch(LTypeObjectDispatch *lir)
     Register temp = ToRegister(lir->temp());
 
     // Hold the incoming TypeObject.
-
     masm.loadPtr(Address(input, JSObject::offsetOfType()), temp);
 
     // Compare TypeObjects.
-
-    MacroAssembler::BranchGCPtr lastBranch;
-    LBlock *lastBlock = nullptr;
     InlinePropertyTable *propTable = mir->propTable();
     for (size_t i = 0; i < mir->numCases(); i++) {
         JSFunction *func = mir->getCase(i);
@@ -784,35 +780,16 @@ CodeGenerator::visitTypeObjectDispatch(LTypeObjectDispatch *lir)
         for (size_t j = 0; j < propTable->numEntries(); j++) {
             if (propTable->getFunction(j) != func)
                 continue;
-
-            if (lastBranch.isInitialized())
-                lastBranch.emit(masm);
-
             types::TypeObject *typeObj = propTable->getTypeObject(j);
-            lastBranch = MacroAssembler::BranchGCPtr(Assembler::Equal, temp, ImmGCPtr(typeObj),
-                                                     target->label());
-            lastBlock = target;
+            masm.branchPtr(Assembler::Equal, temp, ImmGCPtr(typeObj), target->label());
             found = true;
         }
         JS_ASSERT(found);
     }
 
     // Unknown function: jump to fallback block.
-
     LBlock *fallback = skipTrivialBlocks(mir->getFallback())->lir();
-    if (!lastBranch.isInitialized()) {
-        if (!isNextBlock(fallback))
-            masm.jump(fallback->label());
-        return true;
-    }
-
-    lastBranch.invertCondition();
-    lastBranch.relink(fallback->label());
-    lastBranch.emit(masm);
-
-    if (!isNextBlock(lastBlock))
-        masm.jump(lastBlock->label());
-
+    masm.jump(fallback->label());
     return true;
 }
 

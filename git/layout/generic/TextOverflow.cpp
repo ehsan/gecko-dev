@@ -513,7 +513,7 @@ TextOverflow::ExamineLineFrames(nsLineBox*      aLine,
         if (clippedMarkerEdges.mAssignedLeft &&
             clippedMarkerEdges.mLeft - mContentArea.X() > 0) {
           mLeft.mWidth = clippedMarkerEdges.mLeft - mContentArea.X();
-          NS_ASSERTION(mLeft.mWidth < mLeft.mIntrinsicISize,
+          NS_ASSERTION(mLeft.mWidth < mLeft.mIntrinsicWidth,
                        "clipping a marker should make it strictly smaller");
           clippedLeftMarker = true;
         } else {
@@ -525,7 +525,7 @@ TextOverflow::ExamineLineFrames(nsLineBox*      aLine,
         if (clippedMarkerEdges.mAssignedRight &&
             mContentArea.XMost() - clippedMarkerEdges.mRight > 0) {
           mRight.mWidth = mContentArea.XMost() - clippedMarkerEdges.mRight;
-          NS_ASSERTION(mRight.mWidth < mRight.mIntrinsicISize,
+          NS_ASSERTION(mRight.mWidth < mRight.mIntrinsicWidth,
                        "clipping a marker should make it strictly smaller");
           clippedRightMarker = true;
         } else {
@@ -536,9 +536,9 @@ TextOverflow::ExamineLineFrames(nsLineBox*      aLine,
       // The line simply has no visible content even without markers,
       // so examine the line again without suppressing markers.
       retryEmptyLine = false;
-      mLeft.mWidth = mLeft.mIntrinsicISize;
+      mLeft.mWidth = mLeft.mIntrinsicWidth;
       mLeft.mActive = guessLeft = leftOverflow;
-      mRight.mWidth = mRight.mIntrinsicISize;
+      mRight.mWidth = mRight.mIntrinsicWidth;
       mRight.mActive = guessRight = rightOverflow;
       continue;
     }
@@ -715,9 +715,9 @@ TextOverflow::CreateMarkers(const nsLineBox* aLine,
     DisplayListClipState::AutoSaveRestore clipState(mBuilder);
 
     //XXX Needs vertical text love
-    nsRect markerRect = nsRect(aInsideMarkersArea.x - mLeft.mIntrinsicISize,
+    nsRect markerRect = nsRect(aInsideMarkersArea.x - mLeft.mIntrinsicWidth,
                                aLine->BStart(),
-                               mLeft.mIntrinsicISize, aLine->BSize());
+                               mLeft.mIntrinsicWidth, aLine->BSize());
     markerRect += mBuilder->ToReferenceFrame(mBlock);
     ClipMarker(mContentArea + mBuilder->ToReferenceFrame(mBlock),
                markerRect, clipState);
@@ -732,7 +732,7 @@ TextOverflow::CreateMarkers(const nsLineBox* aLine,
 
     nsRect markerRect = nsRect(aInsideMarkersArea.XMost(),
                                aLine->BStart(),
-                               mRight.mIntrinsicISize, aLine->BSize());
+                               mRight.mIntrinsicWidth, aLine->BSize());
     markerRect += mBuilder->ToReferenceFrame(mBlock);
     ClipMarker(mContentArea + mBuilder->ToReferenceFrame(mBlock),
                markerRect, clipState);
@@ -767,7 +767,7 @@ TextOverflow::Marker::SetupString(nsIFrame* aFrame)
     mWidth = nsLayoutUtils::GetStringWidth(aFrame, rc, mStyle->mString.get(),
                                            mStyle->mString.Length());
   }
-  mIntrinsicISize = mWidth;
+  mIntrinsicWidth = mWidth;
   mInitialized = true;
 }
 

@@ -822,8 +822,16 @@ nsAnimationManager::UpdateAllThrottledStyles()
 {
   if (PR_CLIST_IS_EMPTY(&mElementCollections)) {
     // no throttled animations, leave early
+    mPresContext->TickLastUpdateThrottledAnimationStyle();
     return;
   }
+
+  if (mPresContext->ThrottledAnimationStyleIsUpToDate()) {
+    // throttled transitions are up to date, leave early
+    return;
+  }
+
+  mPresContext->TickLastUpdateThrottledAnimationStyle();
 
   UpdateAllThrottledStylesInternal();
 }

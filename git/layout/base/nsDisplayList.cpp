@@ -65,22 +65,6 @@ using namespace mozilla::dom;
 using namespace mozilla::layout;
 typedef FrameMetrics::ViewID ViewID;
 
-#ifdef DEBUG
-static bool
-SpammyLayoutWarningsEnabled()
-{
-  static bool sValue = false;
-  static bool sValueInitialized = false;
-
-  if (!sValueInitialized) {
-    Preferences::GetBool("layout.spammy_warnings.enabled", &sValue);
-    sValueInitialized = true;
-  }
-
-  return sValue;
-}
-#endif
-
 static inline nsIFrame*
 GetTransformRootFrame(nsIFrame* aFrame)
 {
@@ -1270,17 +1254,6 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
   bool isRoot = presContext->IsRootContentDocument();
 
   nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
-
-  nsRect viewport(aBuilder->ToReferenceFrame(aForFrame), aForFrame->GetSize());
-
-  RecordFrameMetrics(aForFrame, rootScrollFrame,
-                     aBuilder->FindReferenceFrameFor(aForFrame),
-                     root, viewport,
-                     !isRoot, isRoot, containerParameters);
-
-  // NS_WARNING is debug-only, so don't even bother checking the conditions in
-  // a release build.
-#ifdef DEBUG
   bool usingDisplayport = false;
   if (rootScrollFrame) {
     nsIContent* content = rootScrollFrame->GetContent();
@@ -1288,13 +1261,18 @@ void nsDisplayList::PaintForFrame(nsDisplayListBuilder* aBuilder,
       usingDisplayport = nsLayoutUtils::GetDisplayPort(content, nullptr);
     }
   }
+
+  nsRect viewport(aBuilder->ToReferenceFrame(aForFrame), aForFrame->GetSize());
+
+  RecordFrameMetrics(aForFrame, rootScrollFrame,
+                     aBuilder->FindReferenceFrameFor(aForFrame),
+                     root, viewport,
+                     !isRoot, isRoot, containerParameters);
   if (usingDisplayport &&
-      !(root->GetContentFlags() & Layer::CONTENT_OPAQUE) &&
-      SpammyLayoutWarningsEnabled()) {
+      !(root->GetContentFlags() & Layer::CONTENT_OPAQUE)) {
     // See bug 693938, attachment 567017
     NS_WARNING("Transparent content with displayports can be expensive.");
   }
-#endif
 
   layerManager->SetRoot(root);
   layerBuilder->WillEndTransaction();

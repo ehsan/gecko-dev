@@ -4,7 +4,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "GMPService.h"
-#include "prlog.h"
 #include "GMPParent.h"
 #include "GMPVideoDecoderParent.h"
 #include "nsIObserverService.h"
@@ -16,31 +15,8 @@
 #include "nsNativeCharsetUtils.h"
 #include "nsIConsoleService.h"
 #include "mozilla/unused.h"
-#include "GMPDecryptorParent.h"
 
 namespace mozilla {
-
-#ifdef LOG
-#undef LOG
-#endif
-
-#ifdef PR_LOGGING
-PRLogModuleInfo*
-GetGMPLog()
-{
-  static PRLogModuleInfo *sLog;
-  if (!sLog)
-    sLog = PR_NewLogModule("GMP");
-  return sLog;
-}
-
-#define LOGD(msg) PR_LOG(GetGMPLog(), PR_LOG_DEBUG, msg)
-#define LOG(level, msg) PR_LOG(GetGMPLog(), (level), msg)
-#else
-#define LOGD(msg)
-#define LOG(leve1, msg)
-#endif
-
 namespace gmp {
 
 static StaticRefPtr<GeckoMediaPluginService> sSingletonService;
@@ -227,14 +203,9 @@ GeckoMediaPluginService::GetGMPVideoDecoder(nsTArray<nsCString>* aTags,
   nsRefPtr<GMPParent> gmp = SelectPluginForAPI(aOrigin,
                                                NS_LITERAL_CSTRING("decode-video"),
                                                *aTags);
-#ifdef PR_LOGGING
-  nsCString api = (*aTags)[0];
-  LOGD(("%s: %p returning %p for api %s", __FUNCTION__, (void *)this, (void *)gmp, api.get()));
-#endif
   if (!gmp) {
     return NS_ERROR_FAILURE;
   }
-
 
   GMPVideoDecoderParent* gmpVDP;
   nsresult rv = gmp->GetGMPVideoDecoder(&gmpVDP);
@@ -266,10 +237,6 @@ GeckoMediaPluginService::GetGMPVideoEncoder(nsTArray<nsCString>* aTags,
   nsRefPtr<GMPParent> gmp = SelectPluginForAPI(aOrigin,
                                                NS_LITERAL_CSTRING("encode-video"),
                                                *aTags);
-#ifdef PR_LOGGING
-  nsCString api = (*aTags)[0];
-  LOGD(("%s: %p returning %p for api %s", __FUNCTION__, (void *)this, (void *)gmp, api.get()));
-#endif
   if (!gmp) {
     return NS_ERROR_FAILURE;
   }
@@ -286,37 +253,6 @@ GeckoMediaPluginService::GetGMPVideoEncoder(nsTArray<nsCString>* aTags,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-GeckoMediaPluginService::GetGMPDecryptor(nsTArray<nsCString>* aTags,
-                                         const nsAString& aOrigin,
-                                         GMPDecryptorProxy** aDecryptor)
-{
-  MOZ_ASSERT(NS_GetCurrentThread() == mGMPThread);
-  NS_ENSURE_ARG(aTags && aTags->Length() > 0);
-  NS_ENSURE_ARG(aDecryptor);
-
-  if (mShuttingDownOnGMPThread) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsRefPtr<GMPParent> gmp = SelectPluginForAPI(aOrigin,
-                                               NS_LITERAL_CSTRING("eme-decrypt"),
-                                               *aTags);
-  if (!gmp) {
-    return NS_ERROR_FAILURE;
-  }
-
-  GMPDecryptorParent* ksp;
-  nsresult rv = gmp->GetGMPDecryptor(&ksp);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  *aDecryptor = static_cast<GMPDecryptorProxy*>(ksp);
-
-  return NS_OK;
-}
-
 void
 GeckoMediaPluginService::UnloadPlugins()
 {
@@ -329,7 +265,7 @@ GeckoMediaPluginService::UnloadPlugins()
   // Note: CloseActive is async; it will actually finish
   // shutting down when all the plugins have unloaded.
   for (uint32_t i = 0; i < mPlugins.Length(); i++) {
-    mPlugins[i]->CloseActive(true);
+    mPlugins[i]->CloseActive();
   }
   mPlugins.Clear();
 }
@@ -510,7 +446,7 @@ GeckoMediaPluginService::RemoveOnGMPThread(const nsAString& aDirectory)
     nsCOMPtr<nsIFile> pluginpath = mPlugins[i]->GetDirectory();
     bool equals;
     if (NS_SUCCEEDED(directory->Equals(pluginpath, &equals)) && equals) {
-      mPlugins[i]->CloseActive(true);
+      mPlugins[i]->CloseActive();
       mPlugins.RemoveElementAt(i);
       return;
     }

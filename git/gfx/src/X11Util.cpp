@@ -7,7 +7,6 @@
 
 #include "X11Util.h"
 #include "nsDebug.h"                    // for NS_ASSERTION, etc
-#include "MainThreadUtils.h"            // for NS_IsMainThread
 
 namespace mozilla {
 
@@ -59,7 +58,6 @@ ScopedXErrorHandler::ErrorHandler(Display *, XErrorEvent *ev)
 
 ScopedXErrorHandler::ScopedXErrorHandler()
 {
-    MOZ_ASSERT(NS_IsMainThread());
     // let sXErrorPtr point to this object's mXError object, but don't reset this mXError object!
     // think of the case of nested ScopedXErrorHandler's.
     mOldXErrorPtr = sXErrorPtr;

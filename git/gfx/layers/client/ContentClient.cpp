@@ -195,6 +195,38 @@ ContentClientRemoteBuffer::EndPaint()
   ContentClientRemote::EndPaint();
 }
 
+bool
+ContentClientRemoteBuffer::CreateAndAllocateTextureClient(RefPtr<TextureClient>& aClient,
+                                                          TextureFlags aFlags)
+{
+  TextureAllocationFlags allocFlags = TextureAllocationFlags::ALLOC_CLEAR_BUFFER;
+  if (aFlags & TextureFlags::ON_WHITE) {
+    allocFlags = TextureAllocationFlags::ALLOC_CLEAR_BUFFER_WHITE;
+  }
+
+  // gfx::BackendType::NONE means fallback to the content backend
+  aClient = CreateTextureClientForDrawing(mSurfaceFormat, mSize,
+                                          gfx::BackendType::NONE,
+                                          mTextureInfo.mTextureFlags | aFlags,
+                                          allocFlags);
+  if (!aClient) {
+    // try with ALLOC_FALLBACK
+    aClient = CreateTextureClientForDrawing(mSurfaceFormat, mSize,
+                                            gfx::BackendType::NONE,
+                                            mTextureInfo.mTextureFlags
+                                            | TextureFlags::ALLOC_FALLBACK
+                                            | aFlags,
+                                            allocFlags);
+  }
+
+  if (!aClient) {
+    return false;
+  }
+
+  NS_WARN_IF_FALSE(aClient->IsValid(), "Created an invalid texture client");
+  return true;
+}
+
 void
 ContentClientRemoteBuffer::BuildTextureClients(SurfaceFormat aFormat,
                                                const nsIntRect& aRect,
@@ -227,32 +259,14 @@ ContentClientRemoteBuffer::BuildTextureClients(SurfaceFormat aFormat,
 void
 ContentClientRemoteBuffer::CreateBackBuffer(const nsIntRect& aBufferRect)
 {
-  // gfx::BackendType::NONE means fallback to the content backend
-  mTextureClient = CreateTextureClientForDrawing(
-    mSurfaceFormat, mSize, gfx::BackendType::NONE,
-    mTextureInfo.mTextureFlags,
-    TextureAllocationFlags::ALLOC_CLEAR_BUFFER
-  );
-  if (!mTextureClient) {
-    // try with ALLOC_FALLBACK
-    mTextureClient = CreateTextureClientForDrawing(
-      mSurfaceFormat, mSize, gfx::BackendType::NONE,
-      mTextureInfo.mTextureFlags | TextureFlags::ALLOC_FALLBACK,
-      TextureAllocationFlags::ALLOC_CLEAR_BUFFER
-    );
-  }
-
-  if (!mTextureClient || !AddTextureClient(mTextureClient)) {
+  if (!CreateAndAllocateTextureClient(mTextureClient, TextureFlags::ON_BLACK) ||
+    !AddTextureClient(mTextureClient)) {
     AbortTextureClientCreation();
     return;
   }
-
   if (mTextureInfo.mTextureFlags & TextureFlags::COMPONENT_ALPHA) {
-    mTextureClientOnWhite = mTextureClient->CreateSimilar(
-      mTextureInfo.mTextureFlags,
-      TextureAllocationFlags::ALLOC_CLEAR_BUFFER_WHITE
-    );
-    if (!mTextureClientOnWhite || !AddTextureClient(mTextureClientOnWhite)) {
+    if (!CreateAndAllocateTextureClient(mTextureClientOnWhite, TextureFlags::ON_WHITE) ||
+      !AddTextureClient(mTextureClientOnWhite)) {
       AbortTextureClientCreation();
       return;
     }

@@ -138,11 +138,13 @@ ISOMediaWriter::WriteEncodedTrack(const EncodedFrameContainer& aData,
   nsresult rv;
   bool EOS;
   if (ReadyToRunState(EOS)) {
-    // Because track encoder won't generate new data after EOS, it needs to make
-    // sure the state reaches MUXING_DONE when EOS is signaled.
-    do {
-      rv = RunState();
-    } while (EOS && mState != MUXING_DONE);
+    // TODO:
+    // The MediaEncoder doesn't use nsRunnable, so thread will be
+    // stocked on that part and the new added nsRunnable won't get to run
+    // before MediaEncoder completing. Before MediaEncoder change, it needs
+    // to call RunState directly.
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=950429
+    rv = RunState();
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

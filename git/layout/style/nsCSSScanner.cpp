@@ -1149,21 +1149,25 @@ nsCSSScanner::AppendImpliedEOFCharacters(EOFCharacters aEOFCharacters,
  * Exposed for use by nsCSSParser::ParseMozDocumentRule, which applies
  * the special lexical rules for URL tokens in a nonstandard context.
  */
-void
+bool
 nsCSSScanner::NextURL(nsCSSToken& aToken)
 {
   SkipWhitespace();
 
+  int32_t ch = Peek();
+  if (ch < 0) {
+    return false;
+  }
+
   // aToken.mIdent may be "url" at this point; clear that out
   aToken.mIdent.Truncate();
 
-  int32_t ch = Peek();
   // Do we have a string?
   if (ch == '"' || ch == '\'') {
     ScanString(aToken);
     if (MOZ_UNLIKELY(aToken.mType == eCSSToken_Bad_String)) {
       aToken.mType = eCSSToken_Bad_URL;
-      return;
+      return true;
     }
     MOZ_ASSERT(aToken.mType == eCSSToken_String, "unexpected token type");
 
@@ -1176,7 +1180,6 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
   // Consume trailing whitespace and then look for a close parenthesis.
   SkipWhitespace();
   ch = Peek();
-  // ch can be less than zero indicating EOF
   if (MOZ_LIKELY(ch < 0 || ch == ')')) {
     Advance();
     aToken.mType = eCSSToken_URL;
@@ -1187,6 +1190,7 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
     mSeenBadToken = true;
     aToken.mType = eCSSToken_Bad_URL;
   }
+  return true;
 }
 
 /**

@@ -284,18 +284,14 @@ nsRangeFrame::Reflow(nsPresContext*           aPresContext,
     nsFormControlFrame::RegUnRegAccessKey(this, true);
   }
 
-  WritingMode wm = aReflowState.GetWritingMode();
-  nscoord computedBSize = aReflowState.ComputedBSize();
-  if (computedBSize == NS_AUTOHEIGHT) {
-    computedBSize = 0;
+  nscoord computedHeight = aReflowState.ComputedHeight();
+  if (computedHeight == NS_AUTOHEIGHT) {
+    computedHeight = 0;
   }
-  LogicalSize
-    finalSize(wm,
-              aReflowState.ComputedISize() +
-              aReflowState.ComputedLogicalBorderPadding().IStartEnd(wm),
-              computedBSize +
-              aReflowState.ComputedLogicalBorderPadding().BStartEnd(wm));
-  aDesiredSize.SetSize(wm, finalSize);
+  aDesiredSize.Width() = aReflowState.ComputedWidth() +
+                       aReflowState.ComputedPhysicalBorderPadding().LeftRight();
+  aDesiredSize.Height() = computedHeight +
+                        aReflowState.ComputedPhysicalBorderPadding().TopBottom();
 
   ReflowAnonymousContent(aPresContext, aDesiredSize, aReflowState);
 
@@ -347,11 +343,9 @@ nsRangeFrame::ReflowAnonymousContent(nsPresContext*           aPresContext,
     // of the track's border box on the center of the nsRangeFrame's content
     // box.
 
-    WritingMode wm = trackFrame->GetWritingMode();
-    LogicalSize availSize = aReflowState.ComputedSize(wm);
-    availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
-    nsHTMLReflowState trackReflowState(aPresContext, aReflowState,
-                                       trackFrame, availSize);
+    nsHTMLReflowState trackReflowState(aPresContext, aReflowState, trackFrame,
+                                       nsSize(aReflowState.ComputedWidth(),
+                                              NS_UNCONSTRAINEDSIZE));
 
     // Find the x/y position of the track frame such that it will be positioned
     // as described above. These coordinates are with respect to the
@@ -382,11 +376,9 @@ nsRangeFrame::ReflowAnonymousContent(nsPresContext*           aPresContext,
   nsIFrame* thumbFrame = mThumbDiv->GetPrimaryFrame();
 
   if (thumbFrame) { // display:none?
-    WritingMode wm = thumbFrame->GetWritingMode();
-    LogicalSize availSize = aReflowState.ComputedSize(wm);
-    availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
-    nsHTMLReflowState thumbReflowState(aPresContext, aReflowState,
-                                       thumbFrame, availSize);
+    nsHTMLReflowState thumbReflowState(aPresContext, aReflowState, thumbFrame,
+                                       nsSize(aReflowState.ComputedWidth(),
+                                              NS_UNCONSTRAINEDSIZE));
 
     // Where we position the thumb depends on its size, so we first reflow
     // the thumb at {0,0} to obtain its size, then position it afterwards.
@@ -406,11 +398,10 @@ nsRangeFrame::ReflowAnonymousContent(nsPresContext*           aPresContext,
   nsIFrame* rangeProgressFrame = mProgressDiv->GetPrimaryFrame();
 
   if (rangeProgressFrame) { // display:none?
-    WritingMode wm = rangeProgressFrame->GetWritingMode();
-    LogicalSize availSize = aReflowState.ComputedSize(wm);
-    availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
     nsHTMLReflowState progressReflowState(aPresContext, aReflowState,
-                                          rangeProgressFrame, availSize);
+                                          rangeProgressFrame,
+                                          nsSize(aReflowState.ComputedWidth(),
+                                                 NS_UNCONSTRAINEDSIZE));
 
     // We first reflow the range-progress frame at {0,0} to obtain its
     // unadjusted dimensions, then we adjust it to so that the appropriate edge
@@ -754,7 +745,7 @@ nsRangeFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 }
 
 nscoord
-nsRangeFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsRangeFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   // nsFrame::ComputeSize calls GetMinimumWidgetSize to prevent us from being
   // given too small a size when we're natively themed. If we aren't native
@@ -763,7 +754,7 @@ nsRangeFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 }
 
 nscoord
-nsRangeFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsRangeFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
   // frameSizeOverride values just gets us to fall back to being horizontal:
   nsSize frameSizeOverride(10,1);

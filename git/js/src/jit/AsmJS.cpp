@@ -5487,6 +5487,8 @@ CheckFunctionsSequential(ModuleCompiler &m)
     return true;
 }
 
+#ifdef JS_THREADSAFE
+
 // Currently, only one asm.js parallel compilation is allowed at a time.
 // This RAII class attempts to claim this parallel compilation using atomic ops
 // on the helper thread state's asmJSCompilationInProgress.
@@ -5519,7 +5521,7 @@ ParallelCompilationEnabled(ExclusiveContext *cx)
     // parsing task, ensure that there another free thread to avoid deadlock.
     // (Note: there is at most one thread used for parsing so we don't have to
     // worry about general dining philosophers.)
-    if (HelperThreadState().threadCount <= 1 || !CanUseExtraThreads())
+    if (HelperThreadState().threadCount <= 1)
         return false;
 
     if (!cx->isJSContext())
@@ -5737,6 +5739,7 @@ CheckFunctionsParallel(ModuleCompiler &m)
     }
     return true;
 }
+#endif // JS_THREADSAFE
 
 static bool
 CheckFuncPtrTable(ModuleCompiler &m, ParseNode *var)
@@ -6824,8 +6827,13 @@ CheckModule(ExclusiveContext *cx, AsmJSParser &parser, ParseNode *stmtList,
 
     m.startFunctionBodies();
 
+#ifdef JS_THREADSAFE
     if (!CheckFunctionsParallel(m))
         return false;
+#else
+    if (!CheckFunctionsSequential(m))
+        return false;
+#endif
 
     m.finishFunctionBodies();
 
@@ -6885,8 +6893,10 @@ EstablishPreconditions(ExclusiveContext *cx, AsmJSParser &parser)
     if (parser.pc->isArrowFunction())
         return Warn(parser, JSMSG_USE_ASM_TYPE_FAIL, "Disabled by arrow function context");
 
+#ifdef JS_THREADSAFE
     if (ParallelCompilationEnabled(cx))
         EnsureHelperThreadsInitialized(cx);
+#endif
 
     return true;
 }

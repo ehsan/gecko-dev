@@ -2836,7 +2836,7 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
       for (nsIFrame *a = subtreeRoot;
            a && !FRAME_IS_REFLOW_ROOT(a);
            a = a->GetParent())
-        a->MarkIntrinsicISizesDirty();
+        a->MarkIntrinsicWidthsDirty();
     }
 
     if (aIntrinsicDirty == eStyleChange) {
@@ -2864,7 +2864,7 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
           nsFrameList::Enumerator childFrames(lists.CurrentList());
           for (; !childFrames.AtEnd(); childFrames.Next()) {
             nsIFrame* kid = childFrames.get();
-            kid->MarkIntrinsicISizesDirty();
+            kid->MarkIntrinsicWidthsDirty();
             stack.AppendElement(kid);
           }
         }
@@ -6689,7 +6689,8 @@ FlushThrottledStyles(nsIDocument *aDocument, void *aData)
   if (shell && shell->IsVisible()) {
     nsPresContext* presContext = shell->GetPresContext();
     if (presContext) {
-      presContext->RestyleManager()->UpdateOnlyAnimationStyles();
+      presContext->TransitionManager()->UpdateAllThrottledStyles();
+      presContext->AnimationManager()->UpdateAllThrottledStyles();
     }
   }
 
@@ -7843,9 +7844,11 @@ PresShell::DispatchTouchEvent(WidgetEvent* aEvent,
                               bool aTouchIsNew)
 {
   // calling preventDefault on touchstart or the first touchmove for a
-  // point prevents mouse events
-  bool canPrevent = aEvent->message == NS_TOUCH_START ||
-              (aEvent->message == NS_TOUCH_MOVE && aTouchIsNew);
+  // point prevents mouse events. calling it on the touchend should
+  // prevent click dispatching.
+  bool canPrevent = (aEvent->message == NS_TOUCH_START) ||
+              (aEvent->message == NS_TOUCH_MOVE && aTouchIsNew) ||
+              (aEvent->message == NS_TOUCH_END);
   bool preventDefault = false;
   nsEventStatus tmpStatus = nsEventStatus_eIgnore;
   WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
@@ -8769,12 +8772,11 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   // If the target frame is the root of the frame hierarchy, then
   // use all the available space. If it's simply a `reflow root',
   // then use the target frame's size as the available space.
-  WritingMode wm = target->GetWritingMode();
-  LogicalSize size(wm);
+  nsSize size;
   if (target == rootFrame) {
-    size = LogicalSize(wm, mPresContext->GetVisibleArea().Size());
+     size = mPresContext->GetVisibleArea().Size();
   } else {
-    size = target->GetLogicalSize();
+     size = target->GetSize();
   }
 
   NS_ASSERTION(!target->GetNextInFlow() && !target->GetPrevInFlow(),
@@ -8782,27 +8784,27 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
 
   // Don't pass size directly to the reflow state, since a
   // constrained height implies page/column breaking.
-  LogicalSize reflowSize(wm, size.ISize(wm), NS_UNCONSTRAINEDSIZE);
+  nsSize reflowSize(size.width, NS_UNCONSTRAINEDSIZE);
   nsHTMLReflowState reflowState(mPresContext, target, rcx, reflowSize,
                                 nsHTMLReflowState::CALLER_WILL_INIT);
 
   if (rootFrame == target) {
     reflowState.Init(mPresContext);
 
-    // When the root frame is being reflowed with unconstrained block-size
+    // When the root frame is being reflowed with unconstrained height
     // (which happens when we're called from
     // nsDocumentViewer::SizeToContent), we're effectively doing a
-    // resize in the block direction, since it changes the meaning of
-    // percentage block-sizes even if no block-sizes actually changed.
-    // The same applies when we reflow again after that computation. This is
-    // an unusual case, and isn't caught by nsHTMLReflowState::InitResizeFlags.
-    bool hasUnconstrainedBSize = size.BSize(wm) == NS_UNCONSTRAINEDSIZE;
+    // vertical resize, since it changes the meaning of percentage
+    // heights even if no heights actually changed.  The same applies
+    // when we reflow again after that computation.  This is an unusual
+    // case, and isn't caught by nsHTMLReflowState::InitResizeFlags.
+    bool hasUnconstrainedHeight = size.height == NS_UNCONSTRAINEDSIZE;
 
-    if (hasUnconstrainedBSize || mLastRootReflowHadUnconstrainedBSize) {
+    if (hasUnconstrainedHeight || mLastRootReflowHadUnconstrainedHeight) {
       reflowState.mFlags.mVResize = true;
     }
 
-    mLastRootReflowHadUnconstrainedBSize = hasUnconstrainedBSize;
+    mLastRootReflowHadUnconstrainedHeight = hasUnconstrainedHeight;
   } else {
     // Initialize reflow state with current used border and padding,
     // in case this was set specially by the parent frame when the reflow root
@@ -8815,16 +8817,16 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   // fix the computed height
   NS_ASSERTION(reflowState.ComputedPhysicalMargin() == nsMargin(0, 0, 0, 0),
                "reflow state should not set margin for reflow roots");
-  if (size.BSize(wm) != NS_UNCONSTRAINEDSIZE) {
-    nscoord computedBSize =
-      size.BSize(wm) - reflowState.ComputedLogicalBorderPadding().BStartEnd(wm);
-    computedBSize = std::max(computedBSize, 0);
-    reflowState.SetComputedBSize(computedBSize);
+  if (size.height != NS_UNCONSTRAINEDSIZE) {
+    nscoord computedHeight =
+      size.height - reflowState.ComputedPhysicalBorderPadding().TopBottom();
+    computedHeight = std::max(computedHeight, 0);
+    reflowState.SetComputedHeight(computedHeight);
   }
-  NS_ASSERTION(reflowState.ComputedISize() ==
-               size.ISize(wm) -
-                   reflowState.ComputedLogicalBorderPadding().IStartEnd(wm),
-               "reflow state computed incorrect inline size");
+  NS_ASSERTION(reflowState.ComputedWidth() ==
+                 size.width -
+                   reflowState.ComputedPhysicalBorderPadding().LeftRight(),
+               "reflow state computed incorrect width");
 
   mPresContext->ReflowStarted(aInterruptible);
   mIsReflowing = true;
@@ -8838,10 +8840,9 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   // initiated at the root, then the size better not change unless its
   // height was unconstrained to start with.
   nsRect boundsRelativeToTarget = nsRect(0, 0, desiredSize.Width(), desiredSize.Height());
-  NS_ASSERTION((target == rootFrame &&
-                size.BSize(wm) == NS_UNCONSTRAINEDSIZE) ||
-               (desiredSize.ISize(wm) == size.ISize(wm) &&
-                desiredSize.BSize(wm) == size.BSize(wm)),
+  NS_ASSERTION((target == rootFrame && size.height == NS_UNCONSTRAINEDSIZE) ||
+               (desiredSize.Width() == size.width &&
+                desiredSize.Height() == size.height),
                "non-root frame's desired size changed during an "
                "incremental reflow");
   NS_ASSERTION(target == rootFrame ||
@@ -8866,7 +8867,7 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
                                          target->GetView(), rcx);
 
   target->DidReflow(mPresContext, nullptr, nsDidReflowStatus::FINISHED);
-  if (target == rootFrame && size.BSize(wm) == NS_UNCONSTRAINEDSIZE) {
+  if (target == rootFrame && size.height == NS_UNCONSTRAINEDSIZE) {
     mPresContext->SetVisibleArea(boundsRelativeToTarget);
   }
 

@@ -28,8 +28,7 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     # /media/libspeex_resampler, so we can't get away with just linking cubeb's
     # .o
     USE_LIBS += [
-        'cubeb',
-        'speex',
+        'gkmedias',
     ]
 else:
     # Otherwise, we can just grab all the compiled .o and compile against that,

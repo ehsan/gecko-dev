@@ -1,7 +1,7 @@
 {
 "runtests": {},
 "excludetests": {
-  "dom/canvas/test/webgl-conformance": "bug 865443 - separate suite -- mochitest-gl",
+  "content/canvas/test/webgl-conformance": "bug 865443 - separate suite -- mochitest-gl",
   "robocop": "TIMED_OUT"
   }
 }

@@ -57,17 +57,12 @@ using JS::GenericNaN;
 using JS::DoubleNaNValue;
 
 /* static */ ThreadLocal<PerThreadData*> js::TlsPerThreadData;
+
+#ifdef JS_THREADSAFE
 /* static */ Atomic<size_t> JSRuntime::liveRuntimesCount;
-
-namespace js {
-    bool gCanUseExtraThreads = true;
-};
-
-void
-js::DisableExtraThreads()
-{
-    gCanUseExtraThreads = false;
-}
+#else
+/* static */ size_t JSRuntime::liveRuntimesCount;
+#endif
 
 const JSSecurityCallbacks js::NullSecurityCallbacks = { };
 
@@ -132,22 +127,28 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     mainThread(this),
     parentRuntime(parentRuntime),
     interrupt(false),
-#ifdef JS_ION
+#if defined(JS_THREADSAFE) && defined(JS_ION)
     interruptPar(false),
 #endif
     handlingSignal(false),
     interruptCallback(nullptr),
+#ifdef JS_THREADSAFE
     interruptLock(nullptr),
     interruptLockOwner(nullptr),
     exclusiveAccessLock(nullptr),
     exclusiveAccessOwner(nullptr),
     mainThreadHasExclusiveAccess(false),
     numExclusiveThreads(0),
+#else
+    interruptLockTaken(false),
+#endif
     numCompartments(0),
     localeCallbacks(nullptr),
     defaultLocale(nullptr),
     defaultVersion_(JSVERSION_DEFAULT),
+#ifdef JS_THREADSAFE
     ownerThread_(nullptr),
+#endif
     tempLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     freeLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     execAlloc_(nullptr),
@@ -161,9 +162,13 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     compartmentNameCallback(nullptr),
     activityCallback(nullptr),
     activityCallbackArg(nullptr),
+#ifdef JS_THREADSAFE
     requestDepth(0),
-#ifdef DEBUG
+# ifdef DEBUG
     checkRequestDepth(0),
+# endif
+#endif
+#ifdef DEBUG
     activeContext(nullptr),
 #endif
     gc(thisFromCtor()),
@@ -232,6 +237,7 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     /* Initialize infallibly first, so we can goto bad and JS_DestroyRuntime. */
     JS_INIT_CLIST(&onNewGlobalObjectWatchers);
 
+    PodZero(&debugHooks);
     PodArrayZero(nativeStackQuota);
     PodZero(&asmJSCacheOps);
 }
@@ -265,6 +271,7 @@ SignalBasedTriggersDisabled()
 bool
 JSRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
 {
+#ifdef JS_THREADSAFE
     ownerThread_ = PR_GetCurrentThread();
 
     interruptLock = PR_NewLock();
@@ -274,6 +281,7 @@ JSRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
     exclusiveAccessLock = PR_NewLock();
     if (!exclusiveAccessLock)
         return false;
+#endif
 
     if (!mainThread.init())
         return false;
@@ -370,6 +378,7 @@ JSRuntime::~JSRuntime()
 
         /* Clear debugging state to remove GC roots. */
         for (CompartmentsIter comp(this, SkipAtoms); !comp.done(); comp.next()) {
+            comp->clearTraps(defaultFreeOp());
             if (WatchpointMap *wpmap = comp->watchpointMap)
                 wpmap->clear();
         }
@@ -396,6 +405,7 @@ JSRuntime::~JSRuntime()
      */
     finishSelfHosting();
 
+#ifdef JS_THREADSAFE
     JS_ASSERT(!exclusiveAccessOwner);
     if (exclusiveAccessLock)
         PR_DestroyLock(exclusiveAccessLock);
@@ -407,6 +417,7 @@ JSRuntime::~JSRuntime()
     JS_ASSERT(!interruptLockOwner);
     if (interruptLock)
         PR_DestroyLock(interruptLock);
+#endif
 
     /*
      * Even though all objects in the compartment are dead, we may have keep
@@ -458,7 +469,9 @@ JSRuntime::~JSRuntime()
     DebugOnly<size_t> oldCount = liveRuntimesCount--;
     JS_ASSERT(oldCount > 0);
 
+#ifdef JS_THREADSAFE
     js::TlsPerThreadData.set(nullptr);
+#endif
 }
 
 void
@@ -561,7 +574,9 @@ JSRuntime::requestInterrupt(InterruptMode mode)
     interrupt = true;
 
 #ifdef JS_ION
+#ifdef JS_THREADSAFE
     RequestInterruptForForkJoin(this, mode);
+#endif
 
     /*
      * asm.js and normal Ion code optionally use memory protection and signal
@@ -729,6 +744,8 @@ JSRuntime::activeGCInAtomsZone()
     return zone->needsBarrier() || zone->isGCScheduled() || zone->wasGCStarted();
 }
 
+#ifdef JS_THREADSAFE
+
 void
 JSRuntime::setUsedByExclusiveThread(Zone *zone)
 {
@@ -768,11 +785,28 @@ js::CurrentThreadCanAccessZone(Zone *zone)
     return zone->usedByExclusiveThread;
 }
 
+#else // JS_THREADSAFE
+
+bool
+js::CurrentThreadCanAccessRuntime(JSRuntime *rt)
+{
+    return true;
+}
+
+bool
+js::CurrentThreadCanAccessZone(Zone *zone)
+{
+    return true;
+}
+
+#endif // JS_THREADSAFE
+
 #ifdef DEBUG
 
 void
 JSRuntime::assertCanLock(RuntimeLock which)
 {
+#ifdef JS_THREADSAFE
     // In the switch below, each case falls through to the one below it. None
     // of the runtime locks are reentrant, and when multiple locks are acquired
     // it must be done in the order below.
@@ -789,14 +823,17 @@ JSRuntime::assertCanLock(RuntimeLock which)
       default:
         MOZ_CRASH();
     }
+#endif // JS_THREADSAFE
 }
 
 void
 js::AssertCurrentThreadCanLock(RuntimeLock which)
 {
+#ifdef JS_THREADSAFE
     PerThreadData *pt = TlsPerThreadData.get();
     if (pt && pt->runtime_)
         pt->runtime_->assertCanLock(which);
+#endif
 }
 
 #endif // DEBUG

@@ -144,13 +144,13 @@ nsBlockReflowContext::ComputeCollapsedBStartMargin(const nsHTMLReflowState& aRS,
           if (frame != aRS.frame) {
             NS_ASSERTION(frame->GetParent() == aRS.frame,
                          "Can only drill through one level of block wrapper");
-            LogicalSize availSpace = aRS.ComputedSize(frame->GetWritingMode());
+            nsSize availSpace(aRS.ComputedWidth(), aRS.ComputedHeight());
             outerReflowState = new nsHTMLReflowState(prescontext,
                                                      aRS, frame, availSpace);
           }
           {
-            LogicalSize availSpace =
-              outerReflowState->ComputedSize(kid->GetWritingMode());
+            nsSize availSpace(outerReflowState->ComputedWidth(),
+                              outerReflowState->ComputedHeight());
             nsHTMLReflowState innerReflowState(prescontext,
                                                *outerReflowState, kid,
                                                availSpace);
@@ -276,8 +276,8 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
   mFrame->WillReflow(mPresContext);
 
 #ifdef DEBUG
-  mMetrics.ISize(mWritingMode) = nscoord(0xdeadbeef);
-  mMetrics.BSize(mWritingMode) = nscoord(0xdeadbeef);
+  mMetrics.Width() = nscoord(0xdeadbeef);
+  mMetrics.Height() = nscoord(0xdeadbeef);
 #endif
 
   mOuterReflowState.mFloatManager->Translate(tI, tB);
@@ -286,19 +286,16 @@ nsBlockReflowContext::ReflowBlock(const nsRect&       aSpace,
 
 #ifdef DEBUG
   if (!NS_INLINE_IS_BREAK_BEFORE(aFrameReflowStatus)) {
-    if (CRAZY_SIZE(mMetrics.ISize(mWritingMode)) ||
-        CRAZY_SIZE(mMetrics.BSize(mWritingMode))) {
+    if (CRAZY_SIZE(mMetrics.Width()) || CRAZY_SIZE(mMetrics.Height())) {
       printf("nsBlockReflowContext: ");
       nsFrame::ListTag(stdout, mFrame);
-      printf(" metrics=%d,%d!\n",
-             mMetrics.ISize(mWritingMode), mMetrics.BSize(mWritingMode));
+      printf(" metrics=%d,%d!\n", mMetrics.Width(), mMetrics.Height());
     }
-    if ((mMetrics.ISize(mWritingMode) == nscoord(0xdeadbeef)) ||
-        (mMetrics.BSize(mWritingMode) == nscoord(0xdeadbeef))) {
+    if ((mMetrics.Width() == nscoord(0xdeadbeef)) ||
+        (mMetrics.Height() == nscoord(0xdeadbeef))) {
       printf("nsBlockReflowContext: ");
       nsFrame::ListTag(stdout, mFrame);
-      printf(" didn't set i/b %d,%d!\n",
-             mMetrics.ISize(mWritingMode), mMetrics.BSize(mWritingMode));
+      printf(" didn't set w/h %d,%d!\n", mMetrics.Width(), mMetrics.Height());
     }
   }
 #endif

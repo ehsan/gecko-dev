@@ -78,11 +78,13 @@ CompileRuntime::addressOfInterrupt()
     return &runtime()->interrupt;
 }
 
+#ifdef JS_THREADSAFE
 const void *
 CompileRuntime::addressOfInterruptPar()
 {
     return &runtime()->interruptPar;
 }
+#endif
 
 const void *
 CompileRuntime::addressOfThreadPool()

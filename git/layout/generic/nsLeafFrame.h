@@ -31,11 +31,11 @@ public:
   }
 
   /**
-   * Both GetMinISize and GetPrefISize will return whatever GetIntrinsicISize
+   * Both GetMinWidth and GetPrefWidth will return whatever GetIntrinsicWidth
    * returns.
    */
-  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
 
   /**
    * Our auto size is just intrinsic width and intrinsic height.
@@ -47,7 +47,7 @@ public:
 
   /**
    * Reflow our frame.  This will use the computed width plus borderpadding for
-   * the desired width, and use the return value of GetIntrinsicBSize plus
+   * the desired width, and use the return value of GetIntrinsicHeight plus
    * borderpadding for the desired height.  Ascent will be set to the height,
    * and descent will be set to 0.
    */
@@ -80,7 +80,7 @@ protected:
    * should not include borders or padding and should not depend on the applied
    * styles.
    */
-  virtual nscoord GetIntrinsicISize() = 0;
+  virtual nscoord GetIntrinsicWidth() = 0;
 
   /**
    * Return the intrinsic height of the frame's content area.  This should not
@@ -89,13 +89,13 @@ protected:
    * Reflow and ComputeAutoSize; the default Reflow and ComputeAutoSize impls
    * call this method.
    */
-  virtual nscoord GetIntrinsicBSize();
+  virtual nscoord GetIntrinsicHeight();
 
   /**
    * Subroutine to add in borders and padding
    */
   void AddBordersAndPadding(const nsHTMLReflowState& aReflowState,
-                            mozilla::LogicalSize& aDesiredSize);
+                            nsHTMLReflowMetrics& aDesiredSize);
 
   /**
    * Set aDesiredSize to be the available size

@@ -28,7 +28,7 @@ struct nsTableCellReflowState : public nsHTMLReflowState
   nsTableCellReflowState(nsPresContext*           aPresContext,
                          const nsHTMLReflowState& aParentReflowState,
                          nsIFrame*                aFrame,
-                         const LogicalSize&       aAvailableSpace,
+                         const nsSize&            aAvailableSpace,
                          uint32_t                 aFlags = 0)
     : nsHTMLReflowState(aPresContext, aParentReflowState, aFrame,
                         aAvailableSpace, -1, -1, aFlags)
@@ -314,10 +314,10 @@ nsTableRowFrame::DidResize()
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   nsTableIterator iter(*this);
   nsIFrame* childFrame = iter.First();
-
-  WritingMode wm = GetWritingMode();
-  nsHTMLReflowMetrics desiredSize(wm);
-  SetSize(wm, GetLogicalSize(wm));
+  
+  nsHTMLReflowMetrics desiredSize(GetWritingMode()); // ???
+  desiredSize.Width() = mRect.width;
+  desiredSize.Height() = mRect.height;
   desiredSize.SetOverflowAreasToDesiredBounds();
 
   while (childFrame) {
@@ -495,19 +495,18 @@ nsTableRowFrame::CalcHeight(const nsHTMLReflowState& aReflowState)
        kidFrame = kidFrame->GetNextSibling()) {
     nsTableCellFrame *cellFrame = do_QueryFrame(kidFrame);
     if (cellFrame) {
-      WritingMode wm = cellFrame->GetWritingMode();
-      LogicalSize desSize = cellFrame->GetDesiredSize();
+      nsSize desSize = cellFrame->GetDesiredSize();
       if ((NS_UNCONSTRAINEDSIZE == aReflowState.AvailableHeight()) && !GetPrevInFlow()) {
-        CalculateCellActualHeight(cellFrame, desSize.BSize(wm));
+        CalculateCellActualHeight(cellFrame, desSize.height);
       }
       // height may have changed, adjust descent to absorb any excess difference
       nscoord ascent;
        if (!kidFrame->GetFirstPrincipalChild()->GetFirstPrincipalChild())
-         ascent = desSize.BSize(wm);
+         ascent = desSize.height;
        else
          ascent = cellFrame->GetCellBaseline();
-       nscoord descent = desSize.BSize(wm) - ascent;
-       UpdateHeight(desSize.BSize(wm), ascent, descent, tableFrame, cellFrame);
+      nscoord descent = desSize.height - ascent;
+      UpdateHeight(desSize.height, ascent, descent, tableFrame, cellFrame);
     }
   }
   return GetHeight();
@@ -810,10 +809,9 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       NS_NOTREACHED("yikes, a non-row child");
 
       // it's an unknown frame type, give it a generic reflow and ignore the results
-      nsTableCellReflowState
-        kidReflowState(aPresContext, aReflowState, kidFrame,
-                       LogicalSize(kidFrame->GetWritingMode(), 0, 0),
-                       nsHTMLReflowState::CALLER_WILL_INIT);
+      nsTableCellReflowState kidReflowState(aPresContext, aReflowState,
+                                            kidFrame, nsSize(0,0),
+                                            nsHTMLReflowState::CALLER_WILL_INIT);
       InitChildReflowState(*aPresContext, nsSize(0,0), false, kidReflowState);
       nsHTMLReflowMetrics desiredSize(aReflowState);
       nsReflowStatus  status;
@@ -877,11 +875,9 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       // it is a style change reflow or we are printing, then we must reflow the
       // cell. Otherwise we can skip the reflow.
       // XXXldb Why is this condition distinct from doReflowChild above?
-      WritingMode rowWM = aReflowState.GetWritingMode();
-      WritingMode cellWM = cellFrame->GetWritingMode();
-      LogicalSize cellDesiredSize = cellFrame->GetDesiredSize();
+      nsSize cellDesiredSize = cellFrame->GetDesiredSize();
       if ((availCellWidth != cellFrame->GetPriorAvailWidth())       ||
-          (cellDesiredSize.ISize(cellWM) > cellFrame->GetPriorAvailWidth()) ||
+          (cellDesiredSize.width > cellFrame->GetPriorAvailWidth()) ||
           (GetStateBits() & NS_FRAME_IS_DIRTY)                      ||
           isPaginated                                               ||
           NS_SUBTREE_DIRTY(cellFrame)                               ||
@@ -893,11 +889,9 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
         nsSize  kidAvailSize(availCellWidth, aReflowState.AvailableHeight());
 
         // Reflow the child
-        nsTableCellReflowState
-          kidReflowState(aPresContext, aReflowState, kidFrame,
-                         LogicalSize(kidFrame->GetWritingMode(),
-                                     kidAvailSize),
-                         nsHTMLReflowState::CALLER_WILL_INIT);
+        nsTableCellReflowState kidReflowState(aPresContext, aReflowState, 
+                                              kidFrame, kidAvailSize,
+                                              nsHTMLReflowState::CALLER_WILL_INIT);
         InitChildReflowState(*aPresContext, kidAvailSize, borderCollapse,
                              kidReflowState);
 
@@ -916,7 +910,8 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
           kidFrame->InvalidateFrameSubtree();
         }
         
-        desiredSize.SetSize(cellWM, cellDesiredSize);
+        desiredSize.Width() = cellDesiredSize.width;
+        desiredSize.Height() = cellDesiredSize.height;
         desiredSize.mOverflowAreas = cellFrame->GetOverflowAreas();
 
         // if we are in a floated table, our position is not yet established, so we cannot reposition our views
@@ -937,13 +932,11 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
         }
         // height may have changed, adjust descent to absorb any excess difference
         nscoord ascent;
-        if (!kidFrame->GetFirstPrincipalChild()->GetFirstPrincipalChild()) {
-          ascent = desiredSize.BSize(rowWM);
-        } else {
+        if (!kidFrame->GetFirstPrincipalChild()->GetFirstPrincipalChild())
+          ascent = desiredSize.Height();
+        else
           ascent = ((nsTableCellFrame *)kidFrame)->GetCellBaseline();
-        }
-        nscoord descent = desiredSize.BSize(rowWM) - ascent;
-        UpdateHeight(desiredSize.BSize(rowWM), ascent, descent, &aTableFrame, cellFrame);
+        nscoord descent = desiredSize.Height() - ascent;
         UpdateHeight(desiredSize.Height(), ascent, descent, &aTableFrame, cellFrame);
       }
       else {
@@ -955,7 +948,7 @@ nsTableRowFrame::ReflowChildren(nsPresContext*          aPresContext,
       }
 
       // Place the child
-      desiredSize.ISize(rowWM) = availCellWidth;
+      desiredSize.Width() = availCellWidth;
 
       FinishReflowChild(kidFrame, aPresContext, desiredSize, nullptr, x, 0, 0);
 
@@ -1087,11 +1080,9 @@ nsTableRowFrame::ReflowCellFrame(nsPresContext*          aPresContext,
   nsSize availSize(cellRect.width, aAvailableHeight);
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   bool borderCollapse = tableFrame->IsBorderCollapse();
-  nsTableCellReflowState
-    cellReflowState(aPresContext, aReflowState, aCellFrame,
-                    LogicalSize(aCellFrame->GetWritingMode(),
-                                availSize),
-                    nsHTMLReflowState::CALLER_WILL_INIT);
+  nsTableCellReflowState cellReflowState(aPresContext, aReflowState,
+                                         aCellFrame, availSize,
+                                         nsHTMLReflowState::CALLER_WILL_INIT);
   InitChildReflowState(*aPresContext, availSize, borderCollapse, cellReflowState);
   cellReflowState.mFlags.mIsTopOfPage = aIsTopOfPage;
 

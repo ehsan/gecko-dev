@@ -6,8 +6,7 @@
 
 # Disable the tests on Android for now (bug 927869)
 if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
-    MOCHITEST_MANIFESTS += ['tests/mochitest.ini']
-    MOCHITEST_CHROME_MANIFESTS += ['tests/chrome.ini']
+    TEST_DIRS += ['tests']
 
 EXTRA_COMPONENTS += [
     'ContactManager.js',

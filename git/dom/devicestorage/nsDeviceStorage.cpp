@@ -66,10 +66,6 @@
 // Microsoft's API Name hackery sucks
 #undef CreateEvent
 
-#ifdef MOZ_WIDGET_ANDROID
-#include "AndroidBridge.h"
-#endif
-
 #ifdef MOZ_WIDGET_GONK
 #include "nsIVolume.h"
 #include "nsIVolumeService.h"
@@ -641,7 +637,6 @@ OverrideRootDir::GetSingleton()
 
   sSingleton = new OverrideRootDir();
   Preferences::AddStrongObserver(sSingleton, "device.storage.overrideRootDir");
-  Preferences::AddStrongObserver(sSingleton, "device.storage.testing");
   ClearOnShutdown(&sSingleton);
 
   return sSingleton;
@@ -650,7 +645,6 @@ OverrideRootDir::GetSingleton()
 OverrideRootDir::~OverrideRootDir()
 {
   Preferences::RemoveObserver(this, "device.storage.overrideRootDir");
-  Preferences::RemoveObserver(this, "device.storage.testing");
 }
 
 NS_IMETHODIMP
@@ -738,8 +732,6 @@ InitDirs()
 
 #if !defined(MOZ_WIDGET_GONK)
 
-// Keep MOZ_WIDGET_COCOA above XP_UNIX,
-// because both are defined in Darwin builds.
 #if defined (MOZ_WIDGET_COCOA)
   dirService->Get(NS_OSX_PICTURE_DOCUMENTS_DIR,
                   NS_GET_IID(nsIFile),
@@ -750,32 +742,6 @@ InitDirs()
   dirService->Get(NS_OSX_MUSIC_DOCUMENTS_DIR,
                   NS_GET_IID(nsIFile),
                   getter_AddRefs(sDirs->music));
-
-// Keep MOZ_WIDGET_ANDROID above XP_UNIX,
-// because both are defined in Android builds.
-#elif defined (MOZ_WIDGET_ANDROID)
-  nsAutoString path;
-  if (NS_SUCCEEDED(mozilla::AndroidBridge::GetExternalPublicDirectory(
-      NS_LITERAL_STRING(DEVICESTORAGE_PICTURES), path))) {
-    NS_NewLocalFile(path, /* aFollowLinks */ true,
-                    getter_AddRefs(sDirs->pictures));
-  }
-  if (NS_SUCCEEDED(mozilla::AndroidBridge::GetExternalPublicDirectory(
-      NS_LITERAL_STRING(DEVICESTORAGE_VIDEOS), path))) {
-    NS_NewLocalFile(path, /* aFollowLinks */ true,
-                    getter_AddRefs(sDirs->videos));
-  }
-  if (NS_SUCCEEDED(mozilla::AndroidBridge::GetExternalPublicDirectory(
-      NS_LITERAL_STRING(DEVICESTORAGE_MUSIC), path))) {
-    NS_NewLocalFile(path, /* aFollowLinks */ true,
-                    getter_AddRefs(sDirs->music));
-  }
-  if (NS_SUCCEEDED(mozilla::AndroidBridge::GetExternalPublicDirectory(
-      NS_LITERAL_STRING(DEVICESTORAGE_SDCARD), path))) {
-    NS_NewLocalFile(path, /* aFollowLinks */ true,
-                    getter_AddRefs(sDirs->sdcard));
-  }
-
 #elif defined (XP_UNIX)
   dirService->Get(NS_UNIX_XDG_PICTURES_DIR,
                   NS_GET_IID(nsIFile),
@@ -786,7 +752,6 @@ InitDirs()
   dirService->Get(NS_UNIX_XDG_MUSIC_DIR,
                   NS_GET_IID(nsIFile),
                   getter_AddRefs(sDirs->music));
-
 #elif defined (XP_WIN)
   dirService->Get(NS_WIN_PICTURES_DIR,
                   NS_GET_IID(nsIFile),
@@ -799,7 +764,6 @@ InitDirs()
                   getter_AddRefs(sDirs->music));
 #endif
 
-#ifndef MOZ_WIDGET_ANDROID
   // Eventually, on desktop, we want to do something smarter -- for example,
   // detect when an sdcard is inserted, and use that instead of this.
   dirService->Get(NS_APP_USER_PROFILE_50_DIR, NS_GET_IID(nsIFile),
@@ -807,7 +771,6 @@ InitDirs()
   if (sDirs->sdcard) {
     sDirs->sdcard->AppendRelativeNativePath(NS_LITERAL_CSTRING("fake-sdcard"));
   }
-#endif // !MOZ_WIDGET_ANDROID
 #endif // !MOZ_WIDGET_GONK
 
 #ifdef MOZ_WIDGET_GONK

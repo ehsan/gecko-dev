@@ -216,10 +216,6 @@ public:
 
   virtual bool HasInternalBuffer() const MOZ_OVERRIDE { return true; }
 
-  virtual TemporaryRef<TextureClient>
-  CreateSimilar(TextureFlags aFlags = TextureFlags::DEFAULT,
-                TextureAllocationFlags aAllocFlags = ALLOC_DEFAULT) const MOZ_OVERRIDE;
-
 private:
   RefPtr<IDirect3DTexture9> mTexture;
   nsRefPtr<IDirect3DSurface9> mD3D9Surface;
@@ -271,12 +267,6 @@ public:
   }
 
   virtual bool HasInternalBuffer() const MOZ_OVERRIDE { return true; }
-
-  // This TextureClient should not be used in a context where we use CreateSimilar
-  // (ex. component alpha) because the underlying texture data is always created by
-  // an external producer.
-  virtual TemporaryRef<TextureClient>
-  CreateSimilar(TextureFlags, TextureAllocationFlags) const MOZ_OVERRIDE { return nullptr; }
 
 private:
   RefPtr<IDirect3DTexture9> mTexture;

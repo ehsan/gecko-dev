@@ -262,8 +262,8 @@ nsFieldSetFrame::PaintBorderBackground(nsRenderingContext& aRenderingContext,
 }
 
 nscoord
-nsFieldSetFrame::GetIntrinsicISize(nsRenderingContext* aRenderingContext,
-                                   nsLayoutUtils::IntrinsicISizeType aType)
+nsFieldSetFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
+                                   nsLayoutUtils::IntrinsicWidthType aType)
 {
   nscoord legendWidth = 0;
   nscoord contentWidth = 0;
@@ -286,22 +286,22 @@ nsFieldSetFrame::GetIntrinsicISize(nsRenderingContext* aRenderingContext,
 
 
 nscoord
-nsFieldSetFrame::GetMinISize(nsRenderingContext* aRenderingContext)
+nsFieldSetFrame::GetMinWidth(nsRenderingContext* aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_MIN_WIDTH(this, result);
 
-  result = GetIntrinsicISize(aRenderingContext, nsLayoutUtils::MIN_ISIZE);
+  result = GetIntrinsicWidth(aRenderingContext, nsLayoutUtils::MIN_WIDTH);
   return result;
 }
 
 nscoord
-nsFieldSetFrame::GetPrefISize(nsRenderingContext* aRenderingContext)
+nsFieldSetFrame::GetPrefWidth(nsRenderingContext* aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_PREF_WIDTH(this, result);
 
-  result = GetIntrinsicISize(aRenderingContext, nsLayoutUtils::PREF_ISIZE);
+  result = GetIntrinsicWidth(aRenderingContext, nsLayoutUtils::PREF_WIDTH);
   return result;
 }
 
@@ -321,7 +321,7 @@ nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
   // wrapping inside of us should not apply font size inflation.
   AutoMaybeDisableFontInflation an(this);
 
-  nscoord minWidth = GetMinISize(aRenderingContext);
+  nscoord minWidth = GetMinWidth(aRenderingContext);
   if (minWidth > result.width)
     result.width = minWidth;
 
@@ -367,24 +367,20 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   // need logic here to push and pull overflow frames.
   // Since we're not applying our padding in this frame, we need to add it here
   // to compute the available width for our children.
-  WritingMode innerWM = inner ? inner->GetWritingMode() : GetWritingMode();
-  WritingMode legendWM = legend ? legend->GetWritingMode() : GetWritingMode();
-  LogicalSize innerAvailSize = aReflowState.ComputedSizeWithPadding(innerWM);
-  LogicalSize legendAvailSize = aReflowState.ComputedSizeWithPadding(legendWM);
-  innerAvailSize.BSize(innerWM) = legendAvailSize.BSize(legendWM) =
-    NS_UNCONSTRAINEDSIZE;
+  nsSize availSize(aReflowState.ComputedWidth() + aReflowState.ComputedPhysicalPadding().LeftRight(),
+                   NS_UNCONSTRAINEDSIZE);
   NS_ASSERTION(!inner ||
       nsLayoutUtils::IntrinsicForContainer(aReflowState.rendContext,
                                            inner,
-                                           nsLayoutUtils::MIN_ISIZE) <=
-               innerAvailSize.ISize(innerWM),
-               "Bogus availSize.ISize; should be bigger");
+                                           nsLayoutUtils::MIN_WIDTH) <=
+               availSize.width,
+               "Bogus availSize.width; should be bigger");
   NS_ASSERTION(!legend ||
       nsLayoutUtils::IntrinsicForContainer(aReflowState.rendContext,
                                            legend,
-                                           nsLayoutUtils::MIN_ISIZE) <=
-               legendAvailSize.ISize(legendWM),
-               "Bogus availSize.ISize; should be bigger");
+                                           nsLayoutUtils::MIN_WIDTH) <=
+               availSize.width,
+               "Bogus availSize.width; should be bigger");
 
   // get our border and padding
   nsMargin border = aReflowState.ComputedPhysicalBorderPadding() - aReflowState.ComputedPhysicalPadding();
@@ -395,8 +391,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   // reflow the legend only if needed
   Maybe<nsHTMLReflowState> legendReflowState;
   if (legend) {
-    legendReflowState.construct(aPresContext, aReflowState, legend,
-                                legendAvailSize);
+    legendReflowState.construct(aPresContext, aReflowState, legend, availSize);
   }
   if (reflowLegend) {
     nsHTMLReflowMetrics legendDesiredSize(aReflowState);
@@ -404,8 +399,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     ReflowChild(legend, aPresContext, legendDesiredSize, legendReflowState.ref(),
                 0, 0, NS_FRAME_NO_MOVE_FRAME, aStatus);
 #ifdef NOISY_REFLOW
-    printf("  returned (%d, %d)\n",
-           legendDesiredSize.Width(), legendDesiredSize.Height());
+    printf("  returned (%d, %d)\n", legendDesiredSize.Width(), legendDesiredSize.Height());
 #endif
     // figure out the legend's rectangle
     legendMargin = legend->GetUsedMargin();
@@ -443,8 +437,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   // reflow the content frame only if needed
   if (reflowInner) {
     nsHTMLReflowState kidReflowState(aPresContext, aReflowState, inner,
-                                     innerAvailSize, -1, -1,
-                                     nsHTMLReflowState::CALLER_WILL_INIT);
+                                     availSize, -1, -1, nsHTMLReflowState::CALLER_WILL_INIT);
     // Override computed padding, in case it's percentage padding
     kidReflowState.Init(aPresContext, -1, -1, nullptr,
                         &aReflowState.ComputedPhysicalPadding());
@@ -480,25 +473,22 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     NS_FRAME_TRACE_REFLOW_OUT("FieldSet::Reflow", aStatus);
   }
 
-  LogicalRect contentRect(innerWM);
+  nsRect contentRect;
   if (inner) {
     // We don't support margins on inner, so our content rect is just the
     // inner's border-box.
-    contentRect = inner->GetLogicalRect(aReflowState.ComputedWidth());
+    contentRect = inner->GetRect();
   }
 
   // Our content rect must fill up the available width
-  if (innerAvailSize.ISize(innerWM) > contentRect.ISize(innerWM)) {
-    contentRect.ISize(innerWM) = innerAvailSize.ISize(innerWM);
+  if (availSize.width > contentRect.width) {
+    contentRect.width = availSize.width;
   }
 
-  //XXX temporary!
-  nsRect physicalContentRect =
-    contentRect.GetPhysicalRect(innerWM, aReflowState.ComputedWidth());
   if (legend) {
     // the legend is postioned horizontally within the inner's content rect
     // (so that padding on the fieldset affects the legend position).
-    nsRect innerContentRect = physicalContentRect;
+    nsRect innerContentRect = contentRect;
     innerContentRect.Deflate(aReflowState.ComputedPhysicalPadding());
     // if the inner content rect is larger than the legend, we can align the legend
     if (innerContentRect.width > mLegendRect.width) {
@@ -521,8 +511,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
       // otherwise make place for the legend
       mLegendRect.x = innerContentRect.x;
       innerContentRect.width = mLegendRect.width;
-      physicalContentRect.width = mLegendRect.width +
-        aReflowState.ComputedPhysicalPadding().LeftRight();
+      contentRect.width = mLegendRect.width + aReflowState.ComputedPhysicalPadding().LeftRight();
     }
 
     // place the legend
@@ -536,11 +525,9 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   }
 
   // Return our size and our result.
-  WritingMode wm = aReflowState.GetWritingMode();
-  nsSize finalSize(physicalContentRect.width + border.LeftRight(),
-                   mLegendSpace + border.TopBottom() +
-                   (inner ? inner->GetRect().height : 0));
-  aDesiredSize.SetSize(wm, LogicalSize(wm, finalSize));
+  aDesiredSize.Height() = mLegendSpace + border.TopBottom() +
+                          (inner ? inner->GetRect().height : 0);
+  aDesiredSize.Width() = contentRect.width + border.LeftRight();
   aDesiredSize.SetOverflowAreasToDesiredBounds();
   if (legend)
     ConsiderChildOverflow(aDesiredSize.mOverflowAreas, legend);

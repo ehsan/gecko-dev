@@ -123,7 +123,7 @@ NS_QUERYFRAME_TAIL_INHERITING(nsSVGOuterSVGFrameBase)
 // reflowing
 
 /* virtual */ nscoord
-nsSVGOuterSVGFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsSVGOuterSVGFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
@@ -134,7 +134,7 @@ nsSVGOuterSVGFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-nsSVGOuterSVGFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsSVGOuterSVGFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_PREF_WIDTH(this, result);

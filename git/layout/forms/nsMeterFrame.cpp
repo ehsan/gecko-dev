@@ -23,7 +23,6 @@
 #include "nsThemeConstants.h"
 #include <algorithm>
 
-using namespace mozilla;
 using mozilla::dom::Element;
 using mozilla::dom::HTMLMeterElement;
 
@@ -114,8 +113,10 @@ nsMeterFrame::Reflow(nsPresContext*           aPresContext,
 
   ReflowBarFrame(barFrame, aPresContext, aReflowState, aStatus);
 
-  aDesiredSize.SetSize(aReflowState.GetWritingMode(),
-                       aReflowState.ComputedSizeWithBorderPadding());
+  aDesiredSize.Width() = aReflowState.ComputedWidth() +
+                       aReflowState.ComputedPhysicalBorderPadding().LeftRight();
+  aDesiredSize.Height() = aReflowState.ComputedHeight() +
+                        aReflowState.ComputedPhysicalBorderPadding().TopBottom();
 
   aDesiredSize.SetOverflowAreasToDesiredBounds();
   ConsiderChildOverflow(aDesiredSize.mOverflowAreas, barFrame);
@@ -133,11 +134,9 @@ nsMeterFrame::ReflowBarFrame(nsIFrame*                aBarFrame,
                              nsReflowStatus&          aStatus)
 {
   bool vertical = StyleDisplay()->mOrient == NS_STYLE_ORIENT_VERTICAL;
-  WritingMode wm = aBarFrame->GetWritingMode();
-  LogicalSize availSize = aReflowState.ComputedSize(wm);
-  availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
-  nsHTMLReflowState reflowState(aPresContext, aReflowState,
-                                aBarFrame, availSize);
+  nsHTMLReflowState reflowState(aPresContext, aReflowState, aBarFrame,
+                                nsSize(aReflowState.ComputedWidth(),
+                                       NS_UNCONSTRAINEDSIZE));
   nscoord size = vertical ? aReflowState.ComputedHeight()
                           : aReflowState.ComputedWidth();
   nscoord xoffset = aReflowState.ComputedPhysicalBorderPadding().left;
@@ -232,7 +231,7 @@ nsMeterFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 }
 
 nscoord
-nsMeterFrame::GetMinISize(nsRenderingContext *aRenderingContext)
+nsMeterFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 {
   nsRefPtr<nsFontMetrics> fontMet;
   NS_ENSURE_SUCCESS(
@@ -250,9 +249,9 @@ nsMeterFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 }
 
 nscoord
-nsMeterFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
+nsMeterFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
 {
-  return GetMinISize(aRenderingContext);
+  return GetMinWidth(aRenderingContext);
 }
 
 bool

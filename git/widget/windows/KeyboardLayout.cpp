@@ -1099,7 +1099,7 @@ NativeKey::DispatchKeyEvent(WidgetKeyboardEvent& aKeyEvent,
     pluginEvent.event = aMsgSentToPlugin->message;
     pluginEvent.wParam = aMsgSentToPlugin->wParam;
     pluginEvent.lParam = aMsgSentToPlugin->lParam;
-    aKeyEvent.mPluginEvent.Copy(pluginEvent);
+    aKeyEvent.pluginEvent = static_cast<void*>(&pluginEvent);
   }
 
   return (mWidget->DispatchKeyboardEvent(&aKeyEvent) || mWidget->Destroyed());

@@ -12,7 +12,6 @@
 
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/PodOperations.h"
-#include "mozilla/UniquePtr.h"
 
 #include <ctype.h>
 #include <stdarg.h>
@@ -102,7 +101,6 @@ using namespace js::types;
 using mozilla::Maybe;
 using mozilla::PodCopy;
 using mozilla::PodZero;
-using mozilla::UniquePtr;
 
 using JS::AutoGCRooter;
 
@@ -620,7 +618,9 @@ JS_ShutDown(void)
     }
 #endif
 
+#ifdef JS_THREADSAFE
     HelperThreadState().finish();
+#endif
 
     PRMJ_NowShutdown();
 
@@ -699,6 +699,7 @@ JS_SetRuntimePrivate(JSRuntime *rt, void *data)
     rt->data = data;
 }
 
+#ifdef JS_THREADSAFE
 static void
 StartRequest(JSContext *cx)
 {
@@ -729,27 +730,36 @@ StopRequest(JSContext *cx)
         rt->triggerActivityCallback(false);
     }
 }
+#endif /* JS_THREADSAFE */
 
 JS_PUBLIC_API(void)
 JS_BeginRequest(JSContext *cx)
 {
+#ifdef JS_THREADSAFE
     cx->outstandingRequests++;
     StartRequest(cx);
+#endif
 }
 
 JS_PUBLIC_API(void)
 JS_EndRequest(JSContext *cx)
 {
+#ifdef JS_THREADSAFE
     JS_ASSERT(cx->outstandingRequests != 0);
     cx->outstandingRequests--;
     StopRequest(cx);
+#endif
 }
 
 JS_PUBLIC_API(bool)
 JS_IsInRequest(JSRuntime *rt)
 {
+#ifdef JS_THREADSAFE
     JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
     return rt->requestDepth != 0;
+#else
+    return false;
+#endif
 }
 
 JS_PUBLIC_API(void)
@@ -941,6 +951,15 @@ JS_EnterCompartment(JSContext *cx, JSObject *target)
     JSCompartment *oldCompartment = cx->compartment();
     cx->enterCompartment(target->compartment());
     return oldCompartment;
+}
+
+JS_PUBLIC_API(JSCompartment *)
+JS_EnterCompartmentOfScript(JSContext *cx, JSScript *target)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    GlobalObject &global = target->global();
+    return JS_EnterCompartment(cx, &global);
 }
 
 JS_PUBLIC_API(void)
@@ -3587,6 +3606,49 @@ JS_DeleteProperty(JSContext *cx, HandleObject obj, const char *name)
     return JS_DeleteProperty2(cx, obj, name, &junk);
 }
 
+static Shape *
+LastConfigurableShape(JSObject *obj)
+{
+    for (Shape::Range<NoGC> r(obj->lastProperty()); !r.empty(); r.popFront()) {
+        Shape *shape = &r.front();
+        if (shape->configurable())
+            return shape;
+    }
+    return nullptr;
+}
+
+JS_PUBLIC_API(void)
+JS_ClearNonGlobalObject(JSContext *cx, HandleObject obj)
+{
+    AssertHeapIsIdle(cx);
+    CHECK_REQUEST(cx);
+    assertSameCompartment(cx, obj);
+
+    JS_ASSERT(!obj->is<GlobalObject>());
+
+    if (!obj->isNative())
+        return;
+
+    /* Remove all configurable properties from obj. */
+    RootedShape shape(cx);
+    while ((shape = LastConfigurableShape(obj))) {
+        if (!obj->removeProperty(cx, shape->propid()))
+            return;
+    }
+
+    /* Set all remaining writable plain data properties to undefined. */
+    for (Shape::Range<NoGC> r(obj->lastProperty()); !r.empty(); r.popFront()) {
+        Shape *shape = &r.front();
+        if (shape->isDataDescriptor() &&
+            shape->writable() &&
+            shape->hasDefaultSetter() &&
+            shape->hasSlot())
+        {
+            obj->nativeSetSlot(shape->slot(), UndefinedValue());
+        }
+    }
+}
+
 JS_PUBLIC_API(void)
 JS_SetAllNonReservedSlotsToUndefined(JSContext *cx, JSObject *objArg)
 {
@@ -4385,9 +4447,9 @@ JS::OwningCompileOptions::setFileAndLine(JSContext *cx, const char *f, unsigned 
 bool
 JS::OwningCompileOptions::setSourceMapURL(JSContext *cx, const jschar *s)
 {
-    UniquePtr<jschar[], JS::FreePolicy> copy;
+    jschar *copy = nullptr;
     if (s) {
-        copy = DuplicateString(cx, s);
+        copy = js_strdup(cx, s);
         if (!copy)
             return false;
     }
@@ -4395,7 +4457,7 @@ JS::OwningCompileOptions::setSourceMapURL(JSContext *cx, const jschar *s)
     // OwningCompileOptions always owns sourceMapURL_, so this cast is okay.
     js_free(const_cast<jschar *>(sourceMapURL_));
 
-    sourceMapURL_ = copy.release();
+    sourceMapURL_ = copy;
     return true;
 }
 
@@ -4504,14 +4566,16 @@ JS::CanCompileOffThread(JSContext *cx, const ReadOnlyCompileOptions &options, si
         if (length < TINY_LENGTH)
             return false;
 
+#ifdef JS_THREADSAFE
         // If the parsing task would have to wait for GC to complete, it'll probably
         // be faster to just start it synchronously on the main thread unless the
         // script is huge.
         if (OffThreadParsingMustWaitForGC(cx->runtime()) && length < HUGE_LENGTH)
             return false;
+#endif // JS_THREADSAFE
     }
 
-    return cx->runtime()->canUseParallelParsing() && CanUseExtraThreads();
+    return cx->runtime()->canUseParallelParsing();
 }
 
 JS_PUBLIC_API(bool)
@@ -4526,6 +4590,7 @@ JS::CompileOffThread(JSContext *cx, const ReadOnlyCompileOptions &options,
 JS_PUBLIC_API(JSScript *)
 JS::FinishOffThreadScript(JSContext *maybecx, JSRuntime *rt, void *token)
 {
+#ifdef JS_THREADSAFE
     JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
 
     if (maybecx) {
@@ -4538,6 +4603,9 @@ JS::FinishOffThreadScript(JSContext *maybecx, JSRuntime *rt, void *token)
     } else {
         return HelperThreadState().finishParseTask(maybecx, rt, token);
     }
+#else
+    MOZ_CRASH("Off thread compilation is not available.");
+#endif
 }
 
 JS_PUBLIC_API(bool)
@@ -6160,7 +6228,11 @@ JS_IsStopIteration(jsval v)
 JS_PUBLIC_API(intptr_t)
 JS_GetCurrentThread()
 {
+#ifdef JS_THREADSAFE
     return reinterpret_cast<intptr_t>(PR_GetCurrentThread());
+#else
+    return 0;
+#endif
 }
 
 extern MOZ_NEVER_INLINE JS_PUBLIC_API(void)
@@ -6425,17 +6497,28 @@ UnhideScriptedCaller(JSContext *cx)
 
 } /* namespace JS */
 
+#ifdef JS_THREADSAFE
 static PRStatus
 CallOnce(void *func)
 {
     JSInitCallback init = JS_DATA_TO_FUNC_PTR(JSInitCallback, func);
     return init() ? PR_SUCCESS : PR_FAILURE;
 }
+#endif
 
 JS_PUBLIC_API(bool)
 JS_CallOnce(JSCallOnceType *once, JSInitCallback func)
 {
+#ifdef JS_THREADSAFE
     return PR_CallOnceWithArg(once, CallOnce, JS_FUNC_TO_DATA_PTR(void *, func)) == PR_SUCCESS;
+#else
+    if (!*once) {
+        *once = true;
+        return func();
+    } else {
+        return true;
+    }
+#endif
 }
 
 AutoGCRooter::AutoGCRooter(JSContext *cx, ptrdiff_t tag)
