@@ -7,9 +7,8 @@
 #include "ion/AsmJSLink.h"
 
 #ifdef MOZ_VTUNE
-# include "vtune/VTuneWrapper.h"
+# include "jitprofiling.h"
 #endif
-
 #include "jscntxt.h"
 #include "jsmath.h"
 #include "jswrapper.h"
@@ -577,7 +576,7 @@ LinkAsmJS(JSContext *cx, unsigned argc, JS::Value *vp)
     }
 
 #if defined(MOZ_VTUNE)
-    if (IsVTuneProfilingActive() && !SendFunctionsToVTune(cx, module))
+    if (!SendFunctionsToVTune(cx, module))
         return false;
 #endif
 

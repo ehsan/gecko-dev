@@ -387,7 +387,9 @@ static nscoord CalcLengthWith(const nsCSSValue& aValue,
         if (docElement) {
           rootStyle = aPresContext->StyleSet()->ResolveStyleFor(docElement,
                                                                 nullptr);
-          rootStyleFont = rootStyle->StyleFont();
+          if (rootStyle) {
+            rootStyleFont = rootStyle->StyleFont();
+          }
         }
 
         rootFontSize = rootStyleFont->mFont.size;

@@ -87,36 +87,33 @@ StupidAllocator::init()
     return true;
 }
 
-bool
-StupidAllocator::allocationRequiresRegister(const LAllocation *alloc, AnyRegister reg)
+static inline bool
+AllocationRequiresRegister(const LAllocation *alloc, AnyRegister reg)
 {
     if (alloc->isRegister() && alloc->toRegister() == reg)
         return true;
     if (alloc->isUse()) {
         const LUse *use = alloc->toUse();
-        if (use->policy() == LUse::FIXED) {
-            AnyRegister usedReg = GetFixedRegister(virtualRegisters[use->virtualRegister()], use);
-            if (usedReg == reg)
-                return true;
-        }
+        if (use->policy() == LUse::FIXED && AnyRegister::FromCode(use->registerCode()) == reg)
+            return true;
     }
     return false;
 }
 
-bool
-StupidAllocator::registerIsReserved(LInstruction *ins, AnyRegister reg)
+static inline bool
+RegisterIsReserved(LInstruction *ins, AnyRegister reg)
 {
     // Whether reg is already reserved for an input or output of ins.
     for (LInstruction::InputIterator alloc(*ins); alloc.more(); alloc.next()) {
-        if (allocationRequiresRegister(*alloc, reg))
+        if (AllocationRequiresRegister(*alloc, reg))
             return true;
     }
     for (size_t i = 0; i < ins->numTemps(); i++) {
-        if (allocationRequiresRegister(ins->getTemp(i)->output(), reg))
+        if (AllocationRequiresRegister(ins->getTemp(i)->output(), reg))
             return true;
     }
     for (size_t i = 0; i < ins->numDefs(); i++) {
-        if (allocationRequiresRegister(ins->getDef(i)->output(), reg))
+        if (AllocationRequiresRegister(ins->getDef(i)->output(), reg))
             return true;
     }
     return false;
@@ -130,7 +127,7 @@ StupidAllocator::ensureHasRegister(LInstruction *ins, uint32_t vreg)
     // Check if the virtual register is already held in a physical register.
     RegisterIndex existing = findExistingRegister(vreg);
     if (existing != UINT32_MAX) {
-        if (registerIsReserved(ins, registers[existing].reg)) {
+        if (RegisterIsReserved(ins, registers[existing].reg)) {
             evictRegister(ins, existing);
         } else {
             registers[existing].age = ins->id();
@@ -164,7 +161,7 @@ StupidAllocator::allocateRegister(LInstruction *ins, uint32_t vreg)
             continue;
 
         // Skip the register if it is in use for an allocated input or output.
-        if (registerIsReserved(ins, reg))
+        if (RegisterIsReserved(ins, reg))
             continue;
 
         if (registers[i].vreg == MISSING_ALLOCATION ||
@@ -332,7 +329,7 @@ StupidAllocator::allocateForInstruction(LInstruction *ins)
             AnyRegister reg = ensureHasRegister(ins, vreg);
             alloc.replace(LAllocation(reg));
         } else if (use->policy() == LUse::FIXED) {
-            AnyRegister reg = GetFixedRegister(virtualRegisters[use->virtualRegister()], use);
+            AnyRegister reg = AnyRegister::FromCode(use->registerCode());
             RegisterIndex index = registerIndex(reg);
             if (registers[index].vreg != vreg) {
                 evictRegister(ins, index);

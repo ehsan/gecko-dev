@@ -41,7 +41,7 @@ function testSourceEditorShown() {
 function blackBoxSource() {
   const { activeThread } = gDebugger.DebuggerController;
   activeThread.addOneTimeListener("blackboxchange", testBlackBoxMessageShown);
-  getAnyBlackBoxCheckbox().click();
+  getBlackBoxCheckbox().click();
 }
 
 function testBlackBoxMessageShown() {
@@ -65,7 +65,7 @@ function testSourceEditorShownAgain() {
   closeDebuggerAndFinish();
 }
 
-function getAnyBlackBoxCheckbox() {
+function getBlackBoxCheckbox() {
   return gDebugger.document.querySelector(
     ".side-menu-widget-item .side-menu-widget-item-checkbox");
 }

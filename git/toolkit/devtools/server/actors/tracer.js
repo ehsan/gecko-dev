@@ -286,10 +286,7 @@ TraceActor.prototype = {
       sequence: this._sequence++
     };
 
-    this._handleEvent(TraceTypes.Events.exitFrame, packet, {
-      value: aValue,
-      startTime: this._startTime
-    });
+    this._handleEvent(TraceTypes.Events.exitFrame, packet, { value: aValue });
 
     this.conn.send(packet);
   }
@@ -442,30 +439,14 @@ TraceTypes.register("name", TraceTypes.Events.enterFrame, function({ frame }) {
     : "(" + frame.type + ")";
 });
 
-TraceTypes.register("location", TraceTypes.Events.enterFrame, function({ frame }) {
+TraceTypes.register("callsite", TraceTypes.Events.enterFrame, function({ frame }) {
   if (!frame.script) {
     return undefined;
   }
-  // We should return the location of the start of the script, but
-  // Debugger.Script does not provide complete start locations
-  // (bug 901138). Instead, return the current offset (the location of
-  // the first statement in the function).
   return {
     url: frame.script.url,
     line: frame.script.getOffsetLine(frame.offset),
     column: getOffsetColumn(frame.offset, frame.script)
-  };
-});
-
-TraceTypes.register("callsite", TraceTypes.Events.enterFrame, function({ frame }) {
-  let older = frame.older;
-  if (!older || !older.script) {
-    return undefined;
-  }
-  return {
-    url: older.script.url,
-    line: older.script.getOffsetLine(older.offset),
-    column: getOffsetColumn(older.offset, older.script)
   };
 });
 
@@ -480,8 +461,11 @@ TraceTypes.register("arguments", TraceTypes.Events.enterFrame, function({ frame 
   if (!frame.arguments) {
     return undefined;
   }
+  let objectPool = [];
+  let objToId = new Map();
   let args = Array.prototype.slice.call(frame.arguments);
-  return args.map(arg => createValueGrip(arg, true));
+  let values = args.map(arg => createValueGrip(arg, objectPool, objToId));
+  return { values: values, objectPool: objectPool };
 });
 
 TraceTypes.register("return", TraceTypes.Events.exitFrame,
@@ -528,8 +512,8 @@ function timeSinceTraceStarted({ startTime }) {
 }
 
 /**
- * Creates a value grip for the given completion value, to be
- * serialized by JSON.stringify.
+ * Creates a pool of object descriptors and a value grip for the given
+ * completion value, to be serialized by JSON.stringify.
  *
  * @param aType string
  *        The type of completion value to serialize (return, throw, or yield).
@@ -538,7 +522,10 @@ function serializeCompletionValue(aType, { value }) {
   if (typeof value[aType] === "undefined") {
     return undefined;
   }
-  return createValueGrip(value[aType], true);
+  let objectPool = [];
+  let objToId = new Map();
+  let valueGrip = createValueGrip(value[aType], objectPool, objToId);
+  return { value: valueGrip, objectPool: objectPool };
 }
 
 
@@ -546,18 +533,22 @@ function serializeCompletionValue(aType, { value }) {
 // for use in serialization rather than object actor requests.
 
 /**
- * Create a grip for the given debuggee value.
+ * Create a grip for the given debuggee value. If the value is an object, will
+ * create an object descriptor in the given object pool.
  *
  * @param aValue Debugger.Object|primitive
  *        The value to describe with the created grip.
  *
- * @param aUseDescriptor boolean
- *        If true, creates descriptors for objects rather than grips.
+ * @param aPool [ObjectDescriptor]
+ *        The pool of objects that may be referenced by |aValue|.
+ *
+ * @param aObjectToId Map
+ *        A map from Debugger.Object instances to indices into the pool.
  *
  * @return ValueGrip
  *        A primitive value or a grip object.
  */
-function createValueGrip(aValue, aUseDescriptor) {
+function createValueGrip(aValue, aPool, aObjectToId) {
   let type = typeof aValue;
 
   if (type === "string" && aValue.length >= DebuggerServer.LONG_STRING_LENGTH) {
@@ -581,7 +572,8 @@ function createValueGrip(aValue, aUseDescriptor) {
   }
 
   if (typeof(aValue) === "object") {
-    return aUseDescriptor ? objectDescriptor(aValue) : objectGrip(aValue);
+    createObjectDescriptor(aValue, aPool, aObjectToId);
+    return { type: "object", objectId: aObjectToId.get(aValue) };
   }
 
   reportException("TraceActor",
@@ -590,77 +582,70 @@ function createValueGrip(aValue, aUseDescriptor) {
 }
 
 /**
- * Create a grip for the given debuggee object.
+ * Create an object descriptor in the object pool for the given debuggee object,
+ * if it is not already present.
  *
  * @param aObject Debugger.Object
- *        The object to describe with the created grip.
+ *        The object to describe with the created descriptor.
+ *
+ * @param aPool [ObjectDescriptor]
+ *        The pool of objects that may be referenced by |aObject|.
+ *
+ * @param aObjectToId Map
+ *        A map from Debugger.Object instances to indices into the pool.
  */
-function objectGrip(aObject) {
-  let g = {
-    "type": "object",
-    "class": aObject.class,
-    "extensible": aObject.isExtensible(),
-    "frozen": aObject.isFrozen(),
-    "sealed": aObject.isSealed()
-  };
+function createObjectDescriptor(aObject, aPool, aObjectToId) {
+  if (aObjectToId.has(aObject)) {
+    return;
+  }
+
+  aObjectToId.set(aObject, aPool.length);
+  let desc = Object.create(null);
+  aPool.push(desc);
+
+  // Add properties which object actors include in object grips.
+  desc.class = aObject.class;
+  desc.extensible = aObject.isExtensible();
+  desc.frozen = aObject.isFrozen();
+  desc.sealed = aObject.isSealed();
 
   // Add additional properties for functions.
   if (aObject.class === "Function") {
     if (aObject.name) {
-      g.name = aObject.name;
+      desc.name = aObject.name;
     }
     if (aObject.displayName) {
-      g.displayName = aObject.displayName;
+      desc.displayName = aObject.displayName;
     }
 
     // Check if the developer has added a de-facto standard displayName
     // property for us to use.
     let name = aObject.getOwnPropertyDescriptor("displayName");
     if (name && name.value && typeof name.value == "string") {
-      g.userDisplayName = createValueGrip(name.value, aObject);
-    }
-
-    // Add source location information.
-    if (aObject.script) {
-      g.url = aObject.script.url;
-      g.line = aObject.script.startLine;
+      desc.userDisplayName = createValueGrip(name.value, aObject, aPool, aObjectToId);
     }
   }
 
-  return g;
-}
-
-/**
- * Create a descriptor for the given debuggee object. Descriptors are
- * identical to grips, with the addition of the prototype,
- * ownProperties, and safeGetterValues properties.
- *
- * @param aObject Debugger.Object
- *        The object to describe with the created descriptor.
- */
-function objectDescriptor(aObject) {
-  let desc = objectGrip(aObject);
   let ownProperties = Object.create(null);
-  let names;
+  let propNames;
   try {
-    names = aObject.getOwnPropertyNames();
+    propNames = aObject.getOwnPropertyNames();
   } catch(ex) {
     // The above can throw if aObject points to a dead object.
     // TODO: we should use Cu.isDeadWrapper() - see bug 885800.
     desc.prototype = createValueGrip(null);
     desc.ownProperties = ownProperties;
     desc.safeGetterValues = Object.create(null);
-    return desc;
-  }
-  for (let name of names) {
-    ownProperties[name] = propertyDescriptor(name, aObject);
+    return;
   }
 
-  desc.prototype = createValueGrip(aObject.proto);
+  for (let name of propNames) {
+    ownProperties[name] = createPropertyDescriptor(name, aObject, aPool, aObjectToId);
+  }
+
+  desc.prototype = createValueGrip(aObject.proto, aPool, aObjectToId);
   desc.ownProperties = ownProperties;
-  desc.safeGetterValues = findSafeGetterValues(ownProperties, aObject);
-
-  return desc;
+  desc.safeGetterValues = findSafeGetterValues(ownProperties, aObject, aPool, aObjectToId);
 }
 
 /**
@@ -673,10 +658,16 @@ function objectDescriptor(aObject) {
  * @param aObject Debugger.Object
  *        The object whose property the descriptor is generated for.
  *
+ * @param aPool [ObjectDescriptor]
+ *        The pool of objects that may be referenced by this property.
+ *
+ * @param aObjectToId Map
+ *        A map from Debugger.Object instances to indices into the pool.
+ *
  * @return object
  *         The property descriptor for the property |aName| in |aObject|.
  */
-function propertyDescriptor(aName, aObject) {
+function createPropertyDescriptor(aName, aObject, aPool, aObjectToId) {
   let desc;
   try {
     desc = aObject.getOwnPropertyDescriptor(aName);
@@ -692,10 +683,6 @@ function propertyDescriptor(aName, aObject) {
     };
   }
 
-  if (!desc) {
-    return undefined;
-  }
-
   let retval = {
     configurable: desc.configurable,
     enumerable: desc.enumerable
@@ -703,13 +690,13 @@ function propertyDescriptor(aName, aObject) {
 
   if ("value" in desc) {
     retval.writable = desc.writable;
-    retval.value = createValueGrip(desc.value);
+    retval.value = createValueGrip(desc.value, aPool, aObjectToId);
   } else {
     if ("get" in desc) {
-      retval.get = createValueGrip(desc.get);
+      retval.get = createValueGrip(desc.get, aPool, aObjectToId);
     }
     if ("set" in desc) {
-      retval.set = createValueGrip(desc.set);
+      retval.set = createValueGrip(desc.set, aPool, aObjectToId);
     }
   }
   return retval;
@@ -724,10 +711,16 @@ function propertyDescriptor(aName, aObject) {
  * @param Debugger.Object object
  *        The object to find safe getter values for.
  *
+ * @param aPool [ObjectDescriptor]
+ *        The pool of objects that may be referenced by |aObject| getters.
+ *
+ * @param aObjectToId Map
+ *        A map from Debugger.Object instances to indices into the pool.
+ *
  * @return object
  *         An object that maps property names to safe getter descriptors.
  */
-function findSafeGetterValues(aOwnProperties, aObject) {
+function findSafeGetterValues(aOwnProperties, aObject, aPool, aObjectToId) {
   let safeGetterValues = Object.create(null);
   let obj = aObject;
   let level = 0;
@@ -766,7 +759,7 @@ function findSafeGetterValues(aOwnProperties, aObject) {
         // return undefined and should be ignored.
         if (getterValue !== undefined) {
           safeGetterValues[name] = {
-            getterValue: createValueGrip(getterValue),
+            getterValue: createValueGrip(getterValue, aPool, aObjectToId),
             getterPrototypeLevel: level,
             enumerable: desc.enumerable,
             writable: level == 0 ? desc.writable : true,

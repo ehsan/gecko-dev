@@ -9,12 +9,7 @@ const XHTML_NS = "http://www.w3.org/1999/xhtml";
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/ConsoleAPIStorage.jsm");
-
-let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-let WebConsoleUtils = devtools.require("devtools/toolkit/webconsole/utils").Utils;
-
-let {ConsoleServiceListener, ConsoleAPIListener} =
-  devtools.require("devtools/toolkit/webconsole/utils");
+Cu.import("resource://gre/modules/devtools/WebConsoleUtils.jsm");
 
 function initCommon()
 {

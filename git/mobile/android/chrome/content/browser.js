@@ -595,7 +595,8 @@ var BrowserApp = {
                                       aTarget.ownerDocument);
       });
 
-    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.setImageAs"),
+#ifdef MOZ_ANDROID_WALLPAPER
+    NativeWindow.contextmenus.add(Strings.browser.GetStringFromName("contextmenu.setWallpaper"),
       NativeWindow.contextmenus.imageSaveableContext,
       function(aTarget) {
         let src = aTarget.src;
@@ -604,6 +605,7 @@ var BrowserApp = {
           url: src
         });
       });
+#endif
 
     NativeWindow.contextmenus.add(
       function(aTarget) {
@@ -5353,12 +5355,12 @@ let HealthReportStatusListener = {
     return o;
   },
 
-  notifyJava: function (aAddon, aNeedsRestart, aAction="Addons:Change") {
+  notifyJava: function (aAddon, aNeedsRestart) {
     let json = this.jsonForAddon(aAddon);
     if (this._shouldIgnore(aAddon)) {
       json.ignore = true;
     }
-    sendMessageToJava({ type: aAction, id: aAddon.id, json: json });
+    sendMessageToJava({ type: "Addons:Change", id: aAddon.id, json: json });
   },
 
   // Add-on listeners.
@@ -5372,12 +5374,9 @@ let HealthReportStatusListener = {
     this.notifyJava(aAddon, aNeedsRestart);
   },
   onUninstalling: function (aAddon, aNeedsRestart) {
-    this.notifyJava(aAddon, aNeedsRestart, "Addons:Uninstalling");
+    this.notifyJava(aAddon, aNeedsRestart);
   },
   onPropertyChanged: function (aAddon, aProperties) {
-    this.notifyJava(aAddon);
-  },
-  onOperationCancelled: function (aAddon) {
     this.notifyJava(aAddon);
   },
 

@@ -44,7 +44,6 @@ class TextureClientSurface
 {
 public:
   virtual bool UpdateSurface(gfxASurface* aSurface) = 0;
-  virtual already_AddRefed<gfxASurface> GetAsSurface() = 0;
   virtual bool AllocateForSurface(gfx::IntSize aSize) = 0;
 };
 
@@ -55,9 +54,7 @@ class TextureClientYCbCr
 {
 public:
   virtual bool UpdateYCbCr(const PlanarYCbCrImage::Data& aData) = 0;
-  virtual bool AllocateForYCbCr(gfx::IntSize aYSize,
-                                gfx::IntSize aCbCrSize,
-                                StereoMode aStereoMode) = 0;
+  virtual bool AllocateForYCbCr(gfx::IntSize aYSize, gfx::IntSize aCbCrSize) = 0;
 };
 
 
@@ -127,7 +124,30 @@ public:
 
   virtual bool ToSurfaceDescriptor(SurfaceDescriptor& aDescriptor) = 0;
 
-  virtual gfx::IntSize GetSize() const = 0;
+  void SetFlags(TextureFlags aFlags)
+  {
+    MOZ_ASSERT(!IsSharedWithCompositor());
+    mFlags = aFlags;
+  }
+
+  void AddFlags(TextureFlags  aFlags)
+  {
+    MOZ_ASSERT(!IsSharedWithCompositor());
+    // make sure we don't deallocate on both client and host;
+    MOZ_ASSERT(!(aFlags & TEXTURE_DEALLOCATE_CLIENT && aFlags & TEXTURE_DEALLOCATE_HOST));
+    if (aFlags & TEXTURE_DEALLOCATE_CLIENT) {
+      mFlags &= ~TEXTURE_DEALLOCATE_HOST;
+    } else if (aFlags & TEXTURE_DEALLOCATE_HOST) {
+      mFlags &= ~TEXTURE_DEALLOCATE_CLIENT;
+    }
+    mFlags |= aFlags;
+  }
+
+  void RemoveFlags(TextureFlags  aFlags)
+  {
+    MOZ_ASSERT(!IsSharedWithCompositor());
+    mFlags &= (~aFlags);
+  }
 
   TextureFlags GetFlags() const { return mFlags; }
 
@@ -144,19 +164,6 @@ public:
 
   bool ShouldDeallocateInDestructor() const;
 protected:
-  void AddFlags(TextureFlags  aFlags)
-  {
-    MOZ_ASSERT(!IsSharedWithCompositor());
-    // make sure we don't deallocate on both client and host;
-    MOZ_ASSERT(!(aFlags & TEXTURE_DEALLOCATE_CLIENT && aFlags & TEXTURE_DEALLOCATE_HOST));
-    if (aFlags & TEXTURE_DEALLOCATE_CLIENT) {
-      mFlags &= ~TEXTURE_DEALLOCATE_HOST;
-    } else if (aFlags & TEXTURE_DEALLOCATE_HOST) {
-      mFlags &= ~TEXTURE_DEALLOCATE_CLIENT;
-    }
-    mFlags |= aFlags;
-  }
-
   uint64_t mID;
   RefPtr<TextureClient> mNextSibling;
   TextureFlags mFlags;
@@ -172,8 +179,7 @@ class BufferTextureClient : public TextureClient
                           , TextureClientYCbCr
 {
 public:
-  BufferTextureClient(CompositableClient* aCompositable, gfx::SurfaceFormat aFormat,
-                      TextureFlags aFlags);
+  BufferTextureClient(CompositableClient* aCompositable, gfx::SurfaceFormat aFormat);
 
   virtual ~BufferTextureClient();
 
@@ -187,15 +193,11 @@ public:
 
   virtual size_t GetBufferSize() const = 0;
 
-  virtual gfx::IntSize GetSize() const { return mSize; }
-
   // TextureClientSurface
 
   virtual TextureClientSurface* AsTextureClientSurface() MOZ_OVERRIDE { return this; }
 
   virtual bool UpdateSurface(gfxASurface* aSurface) MOZ_OVERRIDE;
-
-  virtual already_AddRefed<gfxASurface> GetAsSurface() MOZ_OVERRIDE;
 
   virtual bool AllocateForSurface(gfx::IntSize aSize) MOZ_OVERRIDE;
 
@@ -205,16 +207,13 @@ public:
 
   virtual bool UpdateYCbCr(const PlanarYCbCrImage::Data& aData) MOZ_OVERRIDE;
 
-  virtual bool AllocateForYCbCr(gfx::IntSize aYSize,
-                                gfx::IntSize aCbCrSize,
-                                StereoMode aStereoMode) MOZ_OVERRIDE;
+  virtual bool AllocateForYCbCr(gfx::IntSize aYSize, gfx::IntSize aCbCrSize) MOZ_OVERRIDE;
 
   gfx::SurfaceFormat GetFormat() const { return mFormat; }
 
 protected:
   CompositableClient* mCompositable;
   gfx::SurfaceFormat mFormat;
-  gfx::IntSize mSize;
 };
 
 /**
@@ -224,8 +223,7 @@ protected:
 class ShmemTextureClient : public BufferTextureClient
 {
 public:
-  ShmemTextureClient(CompositableClient* aCompositable, gfx::SurfaceFormat aFormat,
-                     TextureFlags aFlags);
+  ShmemTextureClient(CompositableClient* aCompositable, gfx::SurfaceFormat aFormat);
 
   ~ShmemTextureClient();
 
@@ -257,8 +255,7 @@ protected:
 class MemoryTextureClient : public BufferTextureClient
 {
 public:
-  MemoryTextureClient(CompositableClient* aCompositable, gfx::SurfaceFormat aFormat,
-                      TextureFlags aFlags);
+  MemoryTextureClient(CompositableClient* aCompositable, gfx::SurfaceFormat aFormat);
 
   ~MemoryTextureClient();
 
@@ -358,9 +355,8 @@ public:
   /**
    * Ensure that the texture client is suitable for the given size and content
    * type and that any initialisation has taken place.
-   * Returns true if succeeded, false if failed.
    */
-  virtual bool EnsureAllocated(gfx::IntSize aSize,
+  virtual void EnsureAllocated(gfx::IntSize aSize,
                                gfxASurface::gfxContentType aType) = 0;
 
   /**
@@ -427,13 +423,13 @@ public:
 
   virtual bool SupportsType(DeprecatedTextureClientType aType) MOZ_OVERRIDE
   {
-    return aType == TEXTURE_SHMEM || aType == TEXTURE_CONTENT || aType == TEXTURE_FALLBACK;
+    return aType == TEXTURE_SHMEM || aType == TEXTURE_CONTENT;
   }
   virtual gfxImageSurface* LockImageSurface() MOZ_OVERRIDE;
   virtual gfxASurface* LockSurface() MOZ_OVERRIDE { return GetSurface(); }
   virtual gfx::DrawTarget* LockDrawTarget();
   virtual void Unlock() MOZ_OVERRIDE;
-  virtual bool EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType) MOZ_OVERRIDE;
+  virtual void EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType) MOZ_OVERRIDE;
 
   virtual void ReleaseResources() MOZ_OVERRIDE;
   virtual void SetDescriptor(const SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE;
@@ -461,7 +457,7 @@ public:
   ~DeprecatedTextureClientShmemYCbCr() { ReleaseResources(); }
 
   virtual bool SupportsType(DeprecatedTextureClientType aType) MOZ_OVERRIDE { return aType == TEXTURE_YCBCR; }
-  bool EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType) MOZ_OVERRIDE;
+  void EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType) MOZ_OVERRIDE;
   virtual void SetDescriptorFromReply(const SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE;
   virtual void SetDescriptor(const SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE;
   virtual void ReleaseResources();
@@ -476,7 +472,7 @@ public:
                     const TextureInfo& aTextureInfo);
   ~DeprecatedTextureClientTile();
 
-  virtual bool EnsureAllocated(gfx::IntSize aSize,
+  virtual void EnsureAllocated(gfx::IntSize aSize,
                                gfxASurface::gfxContentType aType) MOZ_OVERRIDE;
 
   virtual gfxImageSurface* LockImageSurface() MOZ_OVERRIDE;

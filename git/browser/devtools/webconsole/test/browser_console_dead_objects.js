@@ -15,7 +15,7 @@ function test()
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
     info("open the browser console");
-    HUDService.toggleBrowserConsole().then(onBrowserConsoleOpen);
+    HUDConsoleUI.toggleBrowserConsole().then(onBrowserConsoleOpen);
   }, true);
 
   function onBrowserConsoleOpen(aHud)

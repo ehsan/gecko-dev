@@ -13,7 +13,7 @@ function test()
   let console = Cu.import("resource://gre/modules/devtools/Console.jsm", {}).console;
   console.log("bug861338-log-cached");
 
-  HUDService.toggleBrowserConsole().then(consoleOpened);
+  HUDConsoleUI.toggleBrowserConsole().then(consoleOpened);
   let hud = null;
 
   function consoleOpened(aHud)

@@ -9,7 +9,7 @@
 #include "mozilla/Move.h"
 
 #ifdef MOZ_VTUNE
-# include "vtune/VTuneWrapper.h"
+# include "jitprofiling.h"
 #endif
 
 #include "jsmath.h"
@@ -359,9 +359,9 @@ static TokenKind
 PeekToken(AsmJSParser &parser)
 {
     TokenStream &ts = parser.tokenStream;
-    while (ts.peekToken(TokenStream::Operand) == TOK_SEMI)
-        ts.consumeKnownToken(TOK_SEMI);
-    return ts.peekToken(TokenStream::Operand);
+    while (ts.peekToken(TSF_OPERAND) == TOK_SEMI)
+        ts.getToken(TSF_OPERAND);
+    return ts.peekToken(TSF_OPERAND);
 }
 
 static bool
@@ -4585,7 +4585,7 @@ ParseFunction(ModuleCompiler &m, ParseNode **fnOut)
     DebugOnly<TokenKind> tk = tokenStream.getToken();
     JS_ASSERT(tk == TOK_FUNCTION);
 
-    if (tokenStream.getToken(TokenStream::KeywordIsName) != TOK_NAME)
+    if (tokenStream.getToken(TSF_KEYWORD_IS_NAME) != TOK_NAME)
         return false;  // This will throw a SyntaxError, no need to m.fail.
 
     RootedPropertyName name(m.cx(), tokenStream.currentToken().name());
@@ -4710,8 +4710,10 @@ GenerateCode(ModuleCompiler &m, ModuleCompiler::Func &func, MIRGenerator &mir, L
     }
 
 #ifdef MOZ_VTUNE
-    if (IsVTuneProfilingActive() && !m.trackProfiledFunction(func, m.masm().size()))
-        return false;
+    if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
+        if (!m.trackProfiledFunction(func, m.masm().size()))
+            return false;
+    }
 #endif
 
 #ifdef JS_ION_PERF
@@ -5116,7 +5118,7 @@ CheckModuleReturn(ModuleCompiler &m)
         return m.fail(NULL, "invalid asm.js statement");
     }
 
-    ParseNode *returnStmt = m.parser().statement();
+    ParseNode *returnStmt = m.parser().statement(TSF_OPERAND);
     if (!returnStmt)
         return false;
 

@@ -2266,7 +2266,9 @@ ElementRestyler::RestyleSelf(nsRestyleHint aRestyleHint)
     }
   }
 
-  MOZ_ASSERT(newContext);
+  if (!newContext) {
+    NS_RUNTIMEABORT("couldn't allocate new style context");
+  }
 
   if (!parentContext) {
     if (oldContext->RuleNode() == newContext->RuleNode() &&
@@ -2324,13 +2326,12 @@ ElementRestyler::RestyleSelf(nsRestyleHint aRestyleHint)
                                                             extraPseudoType,
                                                             newContext);
     }
-
-    MOZ_ASSERT(newExtraContext);
-
-    if (oldExtraContext != newExtraContext) {
-      CaptureChange(oldExtraContext, newExtraContext, assumeDifferenceHint);
-      if (!(mHintsHandled & nsChangeHint_ReconstructFrame)) {
-        mFrame->SetAdditionalStyleContext(contextIndex, newExtraContext);
+    if (newExtraContext) {
+      if (oldExtraContext != newExtraContext) {
+        CaptureChange(oldExtraContext, newExtraContext, assumeDifferenceHint);
+        if (!(mHintsHandled & nsChangeHint_ReconstructFrame)) {
+          mFrame->SetAdditionalStyleContext(contextIndex, newExtraContext);
+        }
       }
     }
   }
@@ -2447,17 +2448,19 @@ ElementRestyler::RestyleUndisplayedChildren(nsRestyleHint aChildRestyleHint)
                                          mFrame->StyleContext(),
                                          undisplayed->mContent->AsElement());
       }
-      const nsStyleDisplay* display = undisplayedContext->StyleDisplay();
-      if (display->mDisplay != NS_STYLE_DISPLAY_NONE) {
-        NS_ASSERTION(undisplayed->mContent,
-                     "Must have undisplayed content");
-        mChangeList->AppendChange(nullptr, undisplayed->mContent,
-                                  NS_STYLE_HINT_FRAMECHANGE);
-        // The node should be removed from the undisplayed map when
-        // we reframe it.
-      } else {
-        // update the undisplayed node with the new context
-        undisplayed->mStyle = undisplayedContext;
+      if (undisplayedContext) {
+        const nsStyleDisplay* display = undisplayedContext->StyleDisplay();
+        if (display->mDisplay != NS_STYLE_DISPLAY_NONE) {
+          NS_ASSERTION(undisplayed->mContent,
+                       "Must have undisplayed content");
+          mChangeList->AppendChange(nullptr, undisplayed->mContent,
+                                    NS_STYLE_HINT_FRAMECHANGE);
+          // The node should be removed from the undisplayed map when
+          // we reframe it.
+        } else {
+          // update the undisplayed node with the new context
+          undisplayed->mStyle = undisplayedContext;
+        }
       }
     }
   }

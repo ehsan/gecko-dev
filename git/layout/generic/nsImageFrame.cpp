@@ -1701,12 +1701,14 @@ nsImageFrame::GetCursor(const nsPoint& aPoint,
       nsRefPtr<nsStyleContext> areaStyle = 
         PresContext()->PresShell()->StyleSet()->
           ResolveStyleFor(area->AsElement(), StyleContext());
-      FillCursorInformationFromStyle(areaStyle->StyleUserInterface(),
-                                     aCursor);
-      if (NS_STYLE_CURSOR_AUTO == aCursor.mCursor) {
-        aCursor.mCursor = NS_STYLE_CURSOR_DEFAULT;
+      if (areaStyle) {
+        FillCursorInformationFromStyle(areaStyle->StyleUserInterface(),
+                                       aCursor);
+        if (NS_STYLE_CURSOR_AUTO == aCursor.mCursor) {
+          aCursor.mCursor = NS_STYLE_CURSOR_DEFAULT;
+        }
+        return NS_OK;
       }
-      return NS_OK;
     }
   }
   return nsFrame::GetCursor(aPoint, aCursor);

@@ -138,13 +138,12 @@ public:
 
         if (mContext) {
             [mContext makeCurrentContext];
-            // Use non-blocking swap in "ASAP mode".
-            // ASAP mode means that rendering is iterated as fast as possible.
-            // ASAP mode is entered when layout.frame_rate=0 (requires restart).
+            // Use blocking swap only with the default frame rate.
             // If swapInt is 1, then glSwapBuffers will block and wait for a vblank signal.
-            // When we're iterating as fast as possible, however, we want a non-blocking
-            // glSwapBuffers, which will happen when swapInt==0.
-            GLint swapInt = gfxPlatform::GetPrefLayoutFrameRate() == 0 ? 0 : 1;
+            // While this is fine for the default refresh rate, if the user chooses some
+            // other rate, and specifically if this rate is higher than the screen refresh rate,
+            // then we want a non-blocking glSwapBuffers, which will happen when swapInt==0.
+            GLint swapInt = gfxPlatform::GetPrefLayoutFrameRate() == -1 ? 1 : 0;
             [mContext setValues:&swapInt forParameter:NSOpenGLCPSwapInterval];
         }
         return true;

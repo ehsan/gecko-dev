@@ -293,8 +293,6 @@
                            command="cmd_stop"/>
           </hbox>
 
-          <circularprogressindicator id="download-progress"
-                                     oncommand="Appbar.onDownloadButton()"/>
           <stack id="toolbar-contextual">
             <observes element="bcast_windowState" attribute="*"/>
             <observes element="bcast_urlbarState" attribute="*"/>
