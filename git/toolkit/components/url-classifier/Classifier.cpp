@@ -318,7 +318,7 @@ Classifier::ApplyUpdates(nsTArray<TableUpdate*>* aUpdates)
   nsresult rv = BackupTables();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  LOG(("Applying %d table updates.", aUpdates->Length()));
+  LOG(("Applying table updates."));
 
   for (uint32_t i = 0; i < aUpdates->Length(); i++) {
     // Previous ApplyTableUpdates() may have consumed this update..
@@ -576,9 +576,8 @@ Classifier::ApplyTableUpdates(nsTArray<TableUpdate*>* aUpdates,
 
   nsAutoPtr<HashStore> store(new HashStore(aTable, mStoreDirectory));
 
-  if (!store) {
+  if (!store)
     return NS_ERROR_FAILURE;
-  }
 
   // take the quick exit if there is no valid update for us
   // (common case)

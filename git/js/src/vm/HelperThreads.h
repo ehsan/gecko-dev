@@ -86,15 +86,6 @@ class GlobalHelperThreadState
     GCHelperStateVector gcHelperWorklist_;
 
   public:
-    size_t maxIonCompilationThreads() const {
-        return 1;
-    }
-    size_t maxAsmJSCompilationThreads() const {
-        if (cpuCount < 2)
-            return 2;
-        return cpuCount;
-    }
-
     GlobalHelperThreadState();
 
     void ensureInitialized();
@@ -112,11 +103,7 @@ class GlobalHelperThreadState
         CONSUMER,
 
         // For notifying threads doing work that they may be able to make progress.
-        PRODUCER,
-
-        // For notifying threads doing work which are paused that they may be
-        // able to resume making progress.
-        PAUSE
+        PRODUCER
     };
 
     void wait(CondVar which, uint32_t timeoutMillis = 0);
@@ -178,14 +165,6 @@ class GlobalHelperThreadState
     bool canStartCompressionTask();
     bool canStartGCHelperTask();
 
-    // Unlike the methods above, the value returned by this method can change
-    // over time, even if the helper thread state lock is held throughout.
-    bool pendingIonCompileHasSufficientPriority();
-
-    jit::IonBuilder *highestPriorityPendingIonCompile(bool remove = false);
-    HelperThread *lowestPriorityUnpausedIonCompileAtThreshold();
-    HelperThread *highestPriorityPausedIonCompile();
-
     uint32_t harvestFailedAsmJSJobs() {
         JS_ASSERT(isLocked());
         uint32_t n = numAsmJSFailedJobs;
@@ -228,16 +207,6 @@ class GlobalHelperThreadState
     /* Condvars for threads waiting/notifying each other. */
     PRCondVar *consumerWakeup;
     PRCondVar *producerWakeup;
-    PRCondVar *pauseWakeup;
-
-    PRCondVar *whichWakeup(CondVar which) {
-        switch (which) {
-          case CONSUMER: return consumerWakeup;
-          case PRODUCER: return producerWakeup;
-          case PAUSE: return pauseWakeup;
-          default: MOZ_CRASH();
-        }
-    }
 
     /*
      * Number of AsmJS jobs that encountered failure for the active module.
@@ -265,18 +234,8 @@ struct HelperThread
     mozilla::Maybe<PerThreadData> threadData;
     PRThread *thread;
 
-    /*
-     * Indicate to a thread that it should terminate itself. This is only read
-     * or written with the helper thread state lock held.
-     */
+    /* Indicate to an idle thread that it should finish executing. */
     bool terminate;
-
-    /*
-     * Indicate to a thread that it should pause execution. This is only
-     * written with the helper thread state lock held, but may be read from
-     * without the lock held.
-     */
-    mozilla::Atomic<bool, mozilla::Relaxed> pause;
 
     /* Any builder currently being compiled by Ion on this thread. */
     jit::IonBuilder *ionBuilder;
@@ -321,10 +280,6 @@ EnsureHelperThreadsInitialized(ExclusiveContext *cx);
 // --thread-count=N option.
 void
 SetFakeCPUCount(size_t count);
-
-// Pause the current thread until it's pause flag is unset.
-void
-PauseCurrentHelperThread();
 
 #ifdef JS_ION
 

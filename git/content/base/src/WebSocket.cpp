@@ -29,7 +29,7 @@
 #include "nsIPrompt.h"
 #include "nsIStringBundle.h"
 #include "nsIConsoleService.h"
-#include "mozilla/dom/CloseEvent.h"
+#include "nsIDOMCloseEvent.h"
 #include "nsICryptoHash.h"
 #include "nsJSUtils.h"
 #include "nsIScriptError.h"
@@ -42,6 +42,7 @@
 #include "nsWrapperCacheInlines.h"
 #include "nsIObserverService.h"
 #include "nsIWebSocketChannel.h"
+#include "GeneratedEvents.h"
 
 namespace mozilla {
 namespace dom {
@@ -927,15 +928,19 @@ WebSocket::CreateAndDispatchCloseEvent(bool aWasClean,
     return NS_OK;
   }
 
-  CloseEventInit init;
-  init.mBubbles = false;
-  init.mCancelable = false;
-  init.mWasClean = aWasClean;
-  init.mCode = aCode;
-  init.mReason = aReason;
+  // create an event that uses the CloseEvent interface,
+  // which does not bubble, is not cancelable, and has no default action
 
-  nsRefPtr<CloseEvent> event =
-    CloseEvent::Constructor(this, NS_LITERAL_STRING("close"), init);
+  nsCOMPtr<nsIDOMEvent> event;
+  rv = NS_NewDOMCloseEvent(getter_AddRefs(event), this, nullptr, nullptr);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIDOMCloseEvent> closeEvent = do_QueryInterface(event);
+  rv = closeEvent->InitCloseEvent(NS_LITERAL_STRING("close"),
+                                  false, false,
+                                  aWasClean, aCode, aReason);
+  NS_ENSURE_SUCCESS(rv, rv);
+
   event->SetTrusted(true);
 
   return DispatchDOMEvent(nullptr, event, nullptr, nullptr);

@@ -24,6 +24,7 @@
 #include "nsIDocument.h"
 #include "nsVariant.h"
 #include "nsIDOMCustomEvent.h"
+#include "GeneratedEvents.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

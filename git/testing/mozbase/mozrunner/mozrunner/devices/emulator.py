@@ -7,7 +7,6 @@ import datetime
 import os
 import shutil
 import subprocess
-import sys
 import tempfile
 import time
 
@@ -18,7 +17,7 @@ from .emulator_battery import EmulatorBattery
 from .emulator_geo import EmulatorGeo
 from .emulator_screen import EmulatorScreen
 from ..utils import uses_marionette
-from ..errors import TimeoutException
+from ..errors import TimeoutException, ScriptTimeoutException
 
 class ArchContext(object):
     def __init__(self, arch, context, binary=None):
@@ -208,13 +207,7 @@ waitFor(
     function() { return isSystemMessageListenerReady(); }
 );
             """)
-        except:
-            # Look for ScriptTimeoutException this way to avoid a
-            # dependency on the marionette python client.
-            exc_name = sys.exc_info()[0].__name__
-            if exc_name != 'ScriptTimeoutException':
-                raise
-
+        except ScriptTimeoutException:
             print 'timed out'
             # We silently ignore the timeout if it occurs, since
             # isSystemMessageListenerReady() isn't available on

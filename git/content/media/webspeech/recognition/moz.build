@@ -6,6 +6,7 @@
 XPIDL_MODULE = 'dom_webspeechrecognition'
 
 XPIDL_SOURCES = [
+  'nsIDOMSpeechRecognitionEvent.idl',
   'nsISpeechRecognitionService.idl'
 ]
 

@@ -485,30 +485,6 @@ RMod::recover(JSContext *cx, SnapshotIterator &iter) const
 }
 
 bool
-MNot::writeRecoverData(CompactBufferWriter &writer) const
-{
-    MOZ_ASSERT(canRecoverOnBailout());
-    writer.writeUnsigned(uint32_t(RInstruction::Recover_Not));
-    return true;
-}
-
-RNot::RNot(CompactBufferReader &reader)
-{ }
-
-bool
-RNot::recover(JSContext *cx, SnapshotIterator &iter) const
-{
-    RootedValue v(cx, iter.read());
-    RootedValue result(cx);
-
-    MOZ_ASSERT(!v.isObject());
-    result.setBoolean(!ToBoolean(v));
-
-    iter.storeInstructionResult(result);
-    return true;
-}
-
-bool
 MConcat::writeRecoverData(CompactBufferWriter &writer) const
 {
     MOZ_ASSERT(canRecoverOnBailout());
@@ -531,31 +507,6 @@ RConcat::recover(JSContext *cx, SnapshotIterator &iter) const
         return false;
 
     iter.storeInstructionResult(result);
-    return true;
-}
-
-RStringLength::RStringLength(CompactBufferReader &reader)
-{}
-
-bool
-RStringLength::recover(JSContext *cx, SnapshotIterator &iter) const
-{
-    RootedValue operand(cx, iter.read());
-    RootedValue result(cx);
-
-    MOZ_ASSERT(!operand.isObject());
-    if (!js::GetLengthProperty(operand, &result))
-        return false;
-
-    iter.storeInstructionResult(result);
-    return true;
-}
-
-bool
-MStringLength::writeRecoverData(CompactBufferWriter &writer) const
-{
-    MOZ_ASSERT(canRecoverOnBailout());
-    writer.writeUnsigned(uint32_t(RInstruction::Recover_StringLength));
     return true;
 }
 

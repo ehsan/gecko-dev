@@ -4,6 +4,7 @@
 
 #include "MobileConnection.h"
 
+#include "GeneratedEvents.h"
 #include "mozilla/dom/CFStateChangeEvent.h"
 #include "mozilla/dom/DataErrorEvent.h"
 #include "mozilla/dom/MozClirModeEvent.h"

@@ -9,10 +9,7 @@ function handleRequest(request, response) {
   let params = request.queryString.split("&");
   let index = params.filter((s) => s.contains("index="))[0].split("=")[1];
 
-  let timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-  timer.initWithCallback(() => {
-    // to avoid garbage collection
-    timer = null;
+  Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer).initWithCallback(() => {
     response.setStatusLine(request.httpVersion, index == 1 ? 101 : index * 100, "Meh");
 
     response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");

@@ -1378,13 +1378,12 @@ MediaManager::GetUserMedia(bool aPrivileged,
       }
       uint32_t permission;
       nsCOMPtr<nsIDocument> doc = aWindow->GetExtantDoc();
-      if (doc) {
-        pm->TestPermission(doc->NodePrincipal(), &permission);
-        if (permission == nsIPopupWindowManager::DENY_POPUP) {
-          aWindow->FirePopupBlockedEvent(doc, nullptr, EmptyString(),
-                                         EmptyString());
-          return NS_OK;
-        }
+      pm->TestPermission(doc->NodePrincipal(), &permission);
+      if (permission == nsIPopupWindowManager::DENY_POPUP) {
+        nsGlobalWindow::FirePopupBlockedEvent(
+          doc, aWindow, nullptr, EmptyString(), EmptyString()
+        );
+        return NS_OK;
       }
     }
   }

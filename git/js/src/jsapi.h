@@ -3996,11 +3996,6 @@ Call(JSContext *cx, JS::HandleValue thisv, JS::HandleObject funObj, const JS::Ha
     return Call(cx, thisv, fun, args, rval);
 }
 
-extern JS_PUBLIC_API(bool)
-Construct(JSContext *cx, JS::HandleValue fun,
-          const JS::HandleValueArray& args,
-          MutableHandleValue rval);
-
 } /* namespace JS */
 
 /*

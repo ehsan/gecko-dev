@@ -14,12 +14,12 @@
 #include "nsIDOMDocument.h"
 #include "nsIServiceManager.h"
 #include "nsIServiceManager.h"
+#include "GeneratedEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Services.h"
 #include "nsIPermissionManager.h"
 #include "mozilla/dom/DeviceLightEvent.h"
-#include "mozilla/dom/DeviceOrientationEvent.h"
 #include "mozilla/dom/DeviceProximityEvent.h"
 #include "mozilla/dom/UserProximityEvent.h"
 
@@ -226,7 +226,7 @@ nsDeviceSensors::Notify(const mozilla::hal::SensorData& aSensorData)
         type == nsIDeviceSensorData::TYPE_GYROSCOPE)
         FireDOMMotionEvent(domdoc, target, type, x, y, z);
       else if (type == nsIDeviceSensorData::TYPE_ORIENTATION)
-        FireDOMOrientationEvent(target, x, y, z);
+        FireDOMOrientationEvent(domdoc, target, x, y, z);
       else if (type == nsIDeviceSensorData::TYPE_PROXIMITY)
         FireDOMProximityEvent(target, x, y, z);
       else if (type == nsIDeviceSensorData::TYPE_LIGHT)
@@ -306,27 +306,33 @@ nsDeviceSensors::FireDOMUserProximityEvent(mozilla::dom::EventTarget* aTarget,
 }
 
 void
-nsDeviceSensors::FireDOMOrientationEvent(EventTarget* aTarget,
-                                         double aAlpha,
-                                         double aBeta,
-                                         double aGamma)
+nsDeviceSensors::FireDOMOrientationEvent(nsIDOMDocument* domdoc,
+                                         EventTarget* target,
+                                         double alpha,
+                                         double beta,
+                                         double gamma)
 {
-  DeviceOrientationEventInit init;
-  init.mBubbles = true;
-  init.mCancelable = false;
-  init.mAlpha.SetValue(aAlpha);
-  init.mBeta.SetValue(aBeta);
-  init.mGamma.SetValue(aGamma);
-  init.mAbsolute = true;
+  nsCOMPtr<nsIDOMEvent> event;
+  bool defaultActionEnabled = true;
+  domdoc->CreateEvent(NS_LITERAL_STRING("DeviceOrientationEvent"), getter_AddRefs(event));
 
-  nsRefPtr<DeviceOrientationEvent> event =
-    DeviceOrientationEvent::Constructor(aTarget,
-                                        NS_LITERAL_STRING("deviceorientation"),
-                                        init);
+  nsCOMPtr<nsIDOMDeviceOrientationEvent> oe = do_QueryInterface(event);
+
+  if (!oe) {
+    return;
+  }
+
+  oe->InitDeviceOrientationEvent(NS_LITERAL_STRING("deviceorientation"),
+                                 true,
+                                 false,
+                                 alpha,
+                                 beta,
+                                 gamma,
+                                 true);
+
   event->SetTrusted(true);
 
-  bool dummy;
-  aTarget->DispatchEvent(event, &dummy);
+  target->DispatchEvent(event, &defaultActionEnabled);
 }
 
 

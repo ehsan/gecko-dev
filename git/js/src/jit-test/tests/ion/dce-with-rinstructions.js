@@ -280,23 +280,6 @@ function rmod_object(i) {
     return i;
 }
 
-var uceFault_not_number = eval(uneval(uceFault).replace('uceFault', 'uceFault_not_number'));
-function rnot_number(i) {
-    var x = !i;
-    if (uceFault_not_number(i) || uceFault_not_number(i))
-        assertEq(x, false /* = !99 */);
-    return i;
-}
-
-var uceFault_not_object = eval(uneval(uceFault).replace('uceFault', 'uceFault_not_object'));
-function rnot_object(i) {
-    var o = objectEmulatingUndefined();
-    var x = !o;
-    if(uceFault_not_object(i) || uceFault_not_object(i))
-        assertEq(x, true /* = !undefined = !document.all = !objectEmulatingUndefined() */);
-    return i;
-}
-
 var uceFault_concat_string = eval(uneval(uceFault).replace('uceFault', 'uceFault_concat_string'));
 function rconcat_string(i) {
     var x = "s" + i.toString();
@@ -310,14 +293,6 @@ function rconcat_number(i) {
     var x = "s" + i;
     if (uceFault_concat_number(i) || uceFault_concat_number(i))
         assertEq(x, "s99");
-    return i;
-}
-
-var uceFault_string_length = eval(uneval(uceFault).replace('uceFault', 'uceFault_string_length'));
-function rstring_length(i) {
-    var x = i.toString().length;
-    if (uceFault_string_length(i) || uceFault_string_length(i))
-        assertEq(x, 2);
     return i;
 }
 
@@ -448,11 +423,8 @@ for (i = 0; i < 100; i++) {
     rdiv_object(i);
     rmod_number(i);
     rmod_object(i);
-    rnot_number(i);
-    rnot_object(i);
     rconcat_string(i);
     rconcat_number(i);
-    rstring_length(i);
     rfloor_number(i);
     rfloor_object(i);
     rround_number(i);

@@ -682,11 +682,10 @@ public:
             mCleanedUp);
   }
 
-  virtual void
-  FirePopupBlockedEvent(nsIDocument* aDoc,
-                        nsIURI* aPopupURI,
-                        const nsAString& aPopupWindowName,
-                        const nsAString& aPopupWindowFeatures) MOZ_OVERRIDE;
+  static void FirePopupBlockedEvent(nsIDocument* aDoc,
+                                    nsIDOMWindow *aRequestingWindow, nsIURI *aPopupURI,
+                                    const nsAString &aPopupWindowName,
+                                    const nsAString &aPopupWindowFeatures);
 
   virtual uint32_t GetSerial() {
     return mSerial;

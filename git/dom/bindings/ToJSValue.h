@@ -124,20 +124,6 @@ ToJSValue(JSContext* aCx,
   return true;
 }
 
-// Accept CallbackObjects
-inline bool
-ToJSValue(JSContext* aCx,
-          CallbackObject& aArgument,
-          JS::MutableHandle<JS::Value> aValue)
-{
-  // Make sure we're called in a compartment
-  MOZ_ASSERT(JS::CurrentGlobalOrNull(aCx));
-
-  aValue.setObject(*aArgument.Callback());
-
-  return MaybeWrapValue(aCx, aValue);
-}
-
 // Accept objects that inherit from nsWrapperCache and nsISupports (e.g. most
 // DOM objects).
 template <class T>
@@ -186,7 +172,6 @@ ISupportsToJSValue(JSContext* aCx,
 // nsIDOMFile).
 template <class T>
 typename EnableIf<!IsBaseOf<nsWrapperCache, T>::value &&
-                  !IsBaseOf<CallbackObject, T>::value &&
                   IsBaseOf<nsISupports, T>::value, bool>::Type
 ToJSValue(JSContext* aCx,
           T& aArgument,
@@ -242,16 +227,6 @@ bool
 ToJSValue(JSContext* aCx,
           nsresult aArgument,
           JS::MutableHandle<JS::Value> aValue);
-
-// Accept pointers to other things we accept
-template <typename T>
-typename EnableIf<IsPointer<T>::value, bool>::Type
-ToJSValue(JSContext* aCx,
-          T aArgument,
-          JS::MutableHandle<JS::Value> aValue)
-{
-  return ToJSValue(aCx, *aArgument, aValue);
-}
 
 // Accept arrays of other things we accept
 template <typename T>

@@ -366,8 +366,13 @@ NS_NewDOMTouchEvent(nsIDOMEvent** aInstancePtrResult,
                     nsPresContext* aPresContext,
                     mozilla::WidgetTouchEvent* aEvent);
 nsresult
-NS_NewDOMCustomEvent(nsIDOMEvent** aInstancePtrResult,
-                     mozilla::dom::EventTarget* aOwner,
-                     nsPresContext* aPresContext,
-                     mozilla::WidgetEvent* aEvent);
+NS_NewDOMMozSettingsEvent(nsIDOMEvent** aInstancePtrResult,
+                          mozilla::dom::EventTarget* aOwner,
+                          nsPresContext* aPresContext,
+                          mozilla::WidgetEvent* aEvent);
+nsresult
+NS_NewDOMMozApplicationEvent(nsIDOMEvent** aInstancePtrResult,
+                             mozilla::dom::EventTarget* aOwner,
+                             nsPresContext* aPresContext,
+                             mozilla::WidgetEvent* aEvent);
 %}

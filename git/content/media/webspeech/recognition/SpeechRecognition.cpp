@@ -17,7 +17,8 @@
 #include "AudioSegment.h"
 #include "endpointer.h"
 
-#include "mozilla/dom/SpeechRecognitionEvent.h"
+#include "GeneratedEvents.h"
+#include "nsIDOMSpeechRecognitionEvent.h"
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
 
@@ -466,20 +467,20 @@ SpeechRecognition::NotifyFinalResult(SpeechEvent* aEvent)
 {
   ResetAndEnd();
 
-  SpeechRecognitionEventInit init;
-  init.mBubbles = true;
-  init.mCancelable = false;
-  // init.mResultIndex = 0;
-  init.mResults = aEvent->mRecognitionResultList;
-  init.mInterpretation = NS_LITERAL_STRING("NOT_IMPLEMENTED");
-  // init.mEmma = nullptr;
+  nsCOMPtr<nsIDOMEvent> domEvent;
+  NS_NewDOMSpeechRecognitionEvent(getter_AddRefs(domEvent), nullptr, nullptr, nullptr);
 
-  nsRefPtr<SpeechRecognitionEvent> event =
-    SpeechRecognitionEvent::Constructor(this, NS_LITERAL_STRING("result"), init);
-  event->SetTrusted(true);
+  nsCOMPtr<nsIDOMSpeechRecognitionEvent> srEvent = do_QueryInterface(domEvent);
+  nsRefPtr<SpeechRecognitionResultList> rlist = aEvent->mRecognitionResultList;
+  nsCOMPtr<nsISupports> ilist = do_QueryInterface(rlist);
+  srEvent->InitSpeechRecognitionEvent(NS_LITERAL_STRING("result"),
+                                      true, false, 0, ilist,
+                                      NS_LITERAL_STRING("NOT_IMPLEMENTED"),
+                                      nullptr);
+  domEvent->SetTrusted(true);
 
   bool defaultActionEnabled;
-  this->DispatchEvent(event, &defaultActionEnabled);
+  this->DispatchEvent(domEvent, &defaultActionEnabled);
 }
 
 void

@@ -4137,8 +4137,6 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
   NS_ASSERTION(!isSafeToFlush || mViewManager, "Must have view manager");
   // Make sure the view manager stays alive.
   nsRefPtr<nsViewManager> viewManagerDeathGrip = mViewManager;
-  bool didStyleFlush = false;
-  bool didLayoutFlush = false;
   if (isSafeToFlush && mViewManager) {
     // Processing pending notifications can kill us, and some callers only
     // hold weak refs when calling FlushPendingNotifications().  :(
@@ -4228,8 +4226,6 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
       mPresContext->RestyleManager()->ProcessPendingRestyles();
     }
 
-    didStyleFlush = true;
-
 
     // There might be more pending constructors now, but we're not going to
     // worry about them.  They can't be triggered during reflow, so we should
@@ -4237,7 +4233,6 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
 
     if (flushType >= (mSuppressInterruptibleReflows ? Flush_Layout : Flush_InterruptibleLayout) &&
         !mIsDestroying) {
-      didLayoutFlush = true;
       mFrameConstructor->RecalcQuotesAndCounters();
       mViewManager->FlushDelayedResize(true);
       if (ProcessReflowCommands(flushType < Flush_Layout) && mContentToScrollTo) {
@@ -4248,6 +4243,11 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
           mContentToScrollTo = nullptr;
         }
       }
+    } else if (!mIsDestroying && mSuppressInterruptibleReflows &&
+               flushType == Flush_InterruptibleLayout) {
+      // We suppressed this flush, but the document thinks it doesn't
+      // need to flush anymore.  Let it know what's really going on.
+      mDocument->SetNeedLayoutFlush();
     }
 
     if (flushType >= Flush_Layout) {
@@ -4255,19 +4255,6 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
         mViewManager->UpdateWidgetGeometry();
       }
     }
-  }
-
-  if (!didStyleFlush && flushType >= Flush_Style && !mIsDestroying) {
-    mDocument->SetNeedStyleFlush();
-  }
-
-  if (!didLayoutFlush && !mIsDestroying &&
-      (flushType >=
-       (mSuppressInterruptibleReflows ? Flush_Layout : Flush_InterruptibleLayout))) {
-    // We suppressed this flush due to mSuppressInterruptibleReflows or
-    // !isSafeToFlush, but the document thinks it doesn't
-    // need to flush anymore.  Let it know what's really going on.
-    mDocument->SetNeedLayoutFlush();
   }
 }
 
