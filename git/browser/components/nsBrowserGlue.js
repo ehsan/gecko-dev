@@ -811,7 +811,7 @@ BrowserGlue.prototype = {
     try {
       // This will throw NS_ERROR_NOT_AVAILABLE if the notification cannot
       // be displayed per the idl.
-      notifier.showAlertNotification(null, title, text,
+      notifier.showAlertNotification("post-update-notification", title, text,
                                      true, url, clickCallback);
     }
     catch (e) {
