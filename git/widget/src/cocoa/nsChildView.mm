@@ -3628,12 +3628,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
     geckoEvent.pluginEvent = &cocoaEvent;
   }
 
-  mGeckoChild->DispatchWindowEvent(geckoEvent);
+  PRBool handled = mGeckoChild->DispatchWindowEvent(geckoEvent);
   if (!mGeckoChild)
     return;
 
-  // Let the superclass do the context menu stuff.
-  [super rightMouseDown:theEvent];
+  if (!handled)
+    [super rightMouseDown:theEvent]; // let the superview do context menu stuff
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
