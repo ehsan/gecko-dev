@@ -40,16 +40,12 @@ interface URLUtils {
   [Throws]
            attribute DOMString search;
 
+           attribute URLSearchParams searchParams;
+
   [Throws]
            attribute DOMString hash;
 
   // Bug 824857 should remove this.
   [Throws]
   stringifier;
-};
-
-[NoInterfaceObject,
- Exposed=(Window, Worker)]
-interface URLUtilsSearchParams {
-           attribute URLSearchParams searchParams;
 };

@@ -68,7 +68,6 @@ struct EventRadiusPrefs
   bool mEnabled;
   bool mRegistered;
   bool mTouchOnly;
-  bool mRepositionEventCoords;
 };
 
 static EventRadiusPrefs sMouseEventRadiusPrefs;
@@ -112,9 +111,6 @@ GetPrefsFor(EventClassID aEventClassID)
     } else {
       prefs->mTouchOnly = false;
     }
-
-    nsPrintfCString repositionPref("ui.%s.radius.reposition", prefBranch);
-    Preferences::AddBoolVarCache(&prefs->mRepositionEventCoords, repositionPref.get(), false);
   }
 
   return prefs;
@@ -247,8 +243,7 @@ ClipToFrame(nsIFrame* aRootFrame, nsIFrame* aFrame, nsRect& aRect)
 
 static nsRect
 GetTargetRect(nsIFrame* aRootFrame, const nsPoint& aPointRelativeToRootFrame,
-              nsIFrame* aRestrictToDescendants, const EventRadiusPrefs* aPrefs,
-              uint32_t aFlags)
+              nsIFrame* aRestrictToDescendants, const EventRadiusPrefs* aPrefs)
 {
   nsMargin m(AppUnitsFromMM(aRootFrame, aPrefs->mSideRadii[0], true),
              AppUnitsFromMM(aRootFrame, aPrefs->mSideRadii[1], false),
@@ -256,13 +251,7 @@ GetTargetRect(nsIFrame* aRootFrame, const nsPoint& aPointRelativeToRootFrame,
              AppUnitsFromMM(aRootFrame, aPrefs->mSideRadii[3], false));
   nsRect r(aPointRelativeToRootFrame, nsSize(0,0));
   r.Inflate(m);
-  if (!(aFlags & INPUT_IGNORE_ROOT_SCROLL_FRAME)) {
-    // Don't clip this rect to the root scroll frame if the flag to ignore the
-    // root scroll frame is set. Note that the GetClosest code will still enforce
-    // that the target found is a descendant of aRestrictToDescendants.
-    r = ClipToFrame(aRootFrame, aRestrictToDescendants, r);
-  }
-  return r;
+  return ClipToFrame(aRootFrame, aRestrictToDescendants, r);
 }
 
 static float
@@ -364,7 +353,7 @@ GetClosest(nsIFrame* aRoot, const nsPoint& aPointRelativeToRootFrame,
 }
 
 nsIFrame*
-FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
+FindFrameTargetedByInputEvent(const WidgetGUIEvent* aEvent,
                               nsIFrame* aRootFrame,
                               const nsPoint& aPointRelativeToRootFrame,
                               uint32_t aFlags)
@@ -397,7 +386,7 @@ FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
     target->PresContext()->PresShell()->GetRootFrame() : aRootFrame;
 
   nsRect targetRect = GetTargetRect(aRootFrame, aPointRelativeToRootFrame,
-                                    restrictToDescendants, prefs, aFlags);
+                                    restrictToDescendants, prefs);
   nsAutoTArray<nsIFrame*,8> candidates;
   nsresult rv = nsLayoutUtils::GetFramesForArea(aRootFrame, targetRect, candidates, flags);
   if (NS_FAILED(rv)) {
@@ -407,38 +396,7 @@ FindFrameTargetedByInputEvent(WidgetGUIEvent* aEvent,
   nsIFrame* closestClickable =
     GetClosest(aRootFrame, aPointRelativeToRootFrame, targetRect, prefs,
                restrictToDescendants, candidates);
-  if (closestClickable) {
-    target = closestClickable;
-  }
-
-  if (!target || !prefs->mRepositionEventCoords) {
-    // No repositioning required for this event
-    return target;
-  }
-
-  // Take the point relative to the root frame, make it relative to the target,
-  // clamp it to the bounds, and then make it relative to the root frame again.
-  nsPoint point = aPointRelativeToRootFrame;
-  if (nsLayoutUtils::TRANSFORM_SUCCEEDED != nsLayoutUtils::TransformPoint(aRootFrame, target, point)) {
-    return target;
-  }
-  point = target->GetRectRelativeToSelf().ClampPoint(point);
-  if (nsLayoutUtils::TRANSFORM_SUCCEEDED != nsLayoutUtils::TransformPoint(target, aRootFrame, point)) {
-    return target;
-  }
-  // Now we basically undo the operations in GetEventCoordinatesRelativeTo, to
-  // get back the (now-clamped) coordinates in the event's widget's space.
-  nsView* view = aRootFrame->GetView();
-  if (!view) {
-    return target;
-  }
-  nsIntPoint widgetPoint = nsLayoutUtils::TranslateViewToWidget(
-        aRootFrame->PresContext(), view, point, aEvent->widget);
-  if (widgetPoint.x != NS_UNCONSTRAINEDSIZE) {
-    // If that succeeded, we update the point in the event
-    aEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(widgetPoint);
-  }
-  return target;
+  return closestClickable ? closestClickable : target;
 }
 
 }

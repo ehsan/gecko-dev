@@ -79,7 +79,7 @@ EGLImageTextureClient::Unlock()
 #ifdef MOZ_WIDGET_ANDROID
 
 SurfaceTextureClient::SurfaceTextureClient(TextureFlags aFlags,
-                                           AndroidSurfaceTexture* aSurfTex,
+                                           nsSurfaceTexture* aSurfTex,
                                            gfx::IntSize aSize,
                                            bool aInverted)
   : TextureClient(aFlags)

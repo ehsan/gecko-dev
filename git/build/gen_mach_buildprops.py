@@ -6,38 +6,37 @@
 
 import sys
 import os
-import hashlib
+import sha
 import json
 import re
 import errno
 from argparse import ArgumentParser
 
 def getFileHashAndSize(filename):
-    sha512Hash = 'UNKNOWN'
+    sha1Hash = 'UNKNOWN'
     size = 'UNKNOWN'
 
     try:
         # open in binary mode to make sure we get consistent results
         # across all platforms
         f = open(filename, "rb")
-        shaObj = hashlib.sha512(f.read())
-        sha512Hash = shaObj.hexdigest()
+        shaObj = sha.new(f.read())
+        sha1Hash = shaObj.hexdigest()
 
         size = os.path.getsize(filename)
     except:
         pass
 
-    return (sha512Hash, size)
+    return (sha1Hash, size)
 
-def getMarProperties(filename, partial=False):
+def getMarProperties(filename):
     if not os.path.exists(filename):
         return {}
-    (mar_hash, mar_size) = getFileHashAndSize(filename)
-    martype = 'partial' if partial else 'complete'
+    (complete_mar_hash, complete_mar_size) = getFileHashAndSize(filename)
     return {
-        '%sMarFilename' % martype: os.path.basename(filename),
-        '%sMarSize' % martype: mar_size,
-        '%sMarHash' % martype: mar_hash,
+        'completeMarFilename': os.path.basename(filename),
+        'completeMarSize': complete_mar_size,
+        'completeMarHash': complete_mar_hash,
     }
 
 def getUrlProperties(filename):
@@ -53,7 +52,6 @@ def getUrlProperties(filename):
         ('robocopApkUrl', lambda m: m.endswith('apk') and 'robocop' in m),
         ('jsshellUrl', lambda m: 'jsshell-' in m and m.endswith('.zip')),
         ('completeMarUrl', lambda m: m.endswith('.complete.mar')),
-        ('partialMarUrl', lambda m: m.endswith('.mar') and '.partial.' in m),
         # packageUrl must be last!
         ('packageUrl', lambda m: True),
     ]
@@ -76,22 +74,11 @@ def getUrlProperties(filename):
         properties = {prop: 'UNKNOWN' for prop, condition in property_conditions}
     return properties
 
-def getPartialInfo(props):
-    return [{
-        "from_buildid": props.get("previous_buildid"),
-        "size": props.get("partialMarSize"),
-        "hash": props.get("partialMarHash"),
-        "url": props.get("partialMarUrl"),
-    }]
-
 if __name__ == '__main__':
     parser = ArgumentParser(description='Generate mach_build_properties.json for automation builds.')
     parser.add_argument("--complete-mar-file", required=True,
                         action="store", dest="complete_mar_file",
                         help="Path to the complete MAR file, relative to the objdir.")
-    parser.add_argument("--partial-mar-file", required=False,
-                        action="store", dest="partial_mar_file",
-                        help="Path to the partial MAR file, relative to the objdir.")
     parser.add_argument("--upload-output", required=True,
                         action="store", dest="upload_output",
                         help="Path to the text output of 'make upload'")
@@ -99,17 +86,6 @@ if __name__ == '__main__':
 
     json_data = getMarProperties(args.complete_mar_file)
     json_data.update(getUrlProperties(args.upload_output))
-    if args.partial_mar_file:
-        json_data.update(getMarProperties(args.partial_mar_file, partial=True))
-
-        # Pull the previous buildid from the partial mar filename.
-        res = re.match(r'.*\.([0-9]+)-[0-9]+.mar', args.partial_mar_file)
-        if res:
-            json_data['previous_buildid'] = res.group(1)
-
-            # Set partialInfo to be a collection of the partial mar properties
-            # useful for balrog.
-            json_data['partialInfo'] = getPartialInfo(json_data)
 
     with open('mach_build_properties.json', 'w') as outfile:
         json.dump(json_data, outfile, indent=4)

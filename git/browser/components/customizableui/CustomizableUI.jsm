@@ -54,7 +54,7 @@ const kSubviewEvents = [
  * The current version. We can use this to auto-add new default widgets as necessary.
  * (would be const but isn't because of testing purposes)
  */
-let kVersion = 3;
+let kVersion = 1;
 
 /**
  * gPalette is a map of every widget that CustomizableUI.jsm knows about, keyed
@@ -168,9 +168,7 @@ let CustomizableUIInternal = {
       "find-button",
       "preferences-button",
       "add-ons-button",
-#ifndef MOZ_DEV_EDITION
       "developer-button",
-#endif
     ];
 
     if (gPalette.has("switch-to-metro-button")) {
@@ -204,13 +202,10 @@ let CustomizableUIInternal = {
     let navbarPlacements = [
       "urlbar-container",
       "search-container",
-#ifdef MOZ_DEV_EDITION
-      "developer-button",
-#endif
       "bookmarks-menu-button",
       "downloads-button",
       "home-button",
-      "loop-button-throttled",
+      "loop-call-button",
     ];
 
     if (Services.prefs.getBoolPref(kPrefWebIDEInNavbar)) {
@@ -307,11 +302,6 @@ let CustomizableUIInternal = {
           gFuturePlacements.set(widget.defaultArea, new Set([id]));
         }
       }
-    }
-
-    if (currentVersion < 2) {
-      // Nuke the old 'loop-call-button' out of orbit.
-      CustomizableUI.removeWidgetFromArea("loop-call-button");
     }
   },
 

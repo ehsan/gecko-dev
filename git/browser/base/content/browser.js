@@ -1155,9 +1155,7 @@ var gBrowserInit = {
     BrowserOffline.init();
     OfflineApps.init();
     IndexedDBPromptHelper.init();
-#ifdef E10S_TESTING_ONLY
     gRemoteTabsUI.init();
-#endif
 
     // Initialize the full zoom setting.
     // We do this before the session restore service gets initialized so we can
@@ -1281,19 +1279,6 @@ var gBrowserInit = {
 #endif
 
     LoopUI.init();
-    // Loop throttling support.
-    const kWidgetId = "loop-button-throttled";
-    // If we're throttled, check to see if it's our turn to be unthrottled
-    if (Services.prefs.getBoolPref("loop.throttled2")) {
-      MozLoopService.checkSoftStart(() => {
-        // If the check unthrottled us and the button was not customized to an
-        // area by the user, move it to the nav-bar.
-        let widget = CustomizableUI.getWidget(kWidgetId);
-        if (!Services.prefs.getBoolPref("loop.throttled2") && !widget.areaType) {
-          CustomizableUI.addWidgetToArea(kWidgetId, CustomizableUI.AREA_NAVBAR);
-        }
-      });
-    }
 
     gBrowserThumbnails.init();
 
@@ -3706,7 +3691,7 @@ var XULBrowserWindow = {
                            .chromeEventHandler;
 
     // Ignore loads that aren't in the main tabbrowser
-    if (browser.localName != "browser" || !browser.getTabBrowser || browser.getTabBrowser() != gBrowser)
+    if (browser.localName != "browser" || browser.getTabBrowser() != gBrowser)
       return true;
 
     if (!E10SUtils.shouldLoadURI(aDocShell, aURI, aReferrer)) {
@@ -7051,9 +7036,14 @@ let gRemoteTabsUI = {
 
     let newRemoteWindow = document.getElementById("menu_newRemoteWindow");
     let newNonRemoteWindow = document.getElementById("menu_newNonRemoteWindow");
+#ifdef E10S_TESTING_ONLY
     let autostart = Services.appinfo.browserTabsRemoteAutostart;
     newRemoteWindow.hidden = autostart;
     newNonRemoteWindow.hidden = !autostart;
+#else
+    newRemoteWindow.hidden = true;
+    newNonRemoteWindow.hidden = true;
+#endif
   }
 };
 

@@ -432,15 +432,6 @@ class nsHtml5TreeOperation {
       mFour.integer = aInt;
     }
 
-    inline void Init(nsresult aRv)
-    {
-      NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
-        "Op code must be uninitialized when initializing.");
-      NS_PRECONDITION(NS_FAILED(aRv), "Initialized tree op with non-failure.");
-      mOpCode = eTreeOpMarkAsBroken;
-      mOne.result = aRv;
-    }
-
     inline void InitAddClass(nsIContentHandle* aNode, const char16_t* aClass)
     {
       NS_PRECONDITION(mOpCode == eTreeOpUninitialized,
@@ -493,12 +484,11 @@ class nsHtml5TreeOperation {
       nsIAtom*                        atom;
       nsHtml5HtmlAttributes*          attributes;
       nsHtml5DocumentMode             mode;
-      char16_t*                       unicharPtr;
+      char16_t*                      unicharPtr;
       char*                           charPtr;
       nsHtml5TreeOperationStringPair* stringPair;
       nsAHtml5TreeBuilderState*       state;
       int32_t                         integer;
-      nsresult                        result;
     }                   mOne, mTwo, mThree, mFour;
 };
 

@@ -676,10 +676,11 @@ PLDHashOperator
 KeyedHistogram::ReflectKeys(KeyedHistogramEntry* entry, void* arg)
 {
   ReflectKeysArgs* args = static_cast<ReflectKeysArgs*>(arg);
+  const nsACString& key = entry->GetKey();
 
   JS::RootedValue jsKey(args->jsContext);
-  const NS_ConvertUTF8toUTF16 key(entry->GetKey());
-  jsKey.setString(JS_NewUCStringCopyN(args->jsContext, key.Data(), key.Length()));
+  const nsCString& flat = nsPromiseFlatCString(key);
+  jsKey.setString(JS_NewStringCopyN(args->jsContext, flat.get(), flat.Length()));
   args->vector->append(jsKey);
 
   return PL_DHASH_NEXT;
@@ -722,9 +723,10 @@ KeyedHistogram::ReflectKeyedHistogram(KeyedHistogramEntry* entry, JSContext* cx,
     return false;
   }
 
-  const NS_ConvertUTF8toUTF16 key(entry->GetKey());
-  if (!JS_DefineUCProperty(cx, obj, key.Data(), key.Length(),
-                           histogramSnapshot, JSPROP_ENUMERATE)) {
+  const nsACString& key = entry->GetKey();
+  const nsCString& flat = nsPromiseFlatCString(key);
+
+  if (!JS_DefineProperty(cx, obj, flat.get(), histogramSnapshot, JSPROP_ENUMERATE)) {
     return false;
   }
 

@@ -4453,7 +4453,7 @@ CodeGenerator::visitNewDeclEnvObject(LNewDeclEnvObject *lir)
     return true;
 }
 
-typedef JSObject *(*NewCallObjectFn)(JSContext *, HandleShape, HandleTypeObject, uint32_t);
+typedef JSObject *(*NewCallObjectFn)(JSContext *, HandleShape, HandleTypeObject);
 static const VMFunction NewCallObjectInfo =
     FunctionInfo<NewCallObjectFn>(NewCallObject);
 
@@ -4465,12 +4465,9 @@ CodeGenerator::visitNewCallObject(LNewCallObject *lir)
 
     NativeObject *templateObj = lir->mir()->templateObject();
 
-    JSScript *script = lir->mir()->block()->info().script();
-    uint32_t lexicalBegin = script->bindings.aliasedBodyLevelLexicalBegin();
     OutOfLineCode *ool = oolCallVM(NewCallObjectInfo, lir,
                                    (ArgList(), ImmGCPtr(templateObj->lastProperty()),
-                                               ImmGCPtr(templateObj->type()),
-                                               Imm32(lexicalBegin)),
+                                               ImmGCPtr(templateObj->type())),
                                    StoreRegisterTo(objReg));
     if (!ool)
         return false;
@@ -4484,7 +4481,7 @@ CodeGenerator::visitNewCallObject(LNewCallObject *lir)
     return true;
 }
 
-typedef JSObject *(*NewSingletonCallObjectFn)(JSContext *, HandleShape, uint32_t);
+typedef JSObject *(*NewSingletonCallObjectFn)(JSContext *, HandleShape);
 static const VMFunction NewSingletonCallObjectInfo =
     FunctionInfo<NewSingletonCallObjectFn>(NewSingletonCallObject);
 
@@ -4495,12 +4492,9 @@ CodeGenerator::visitNewSingletonCallObject(LNewSingletonCallObject *lir)
 
     JSObject *templateObj = lir->mir()->templateObject();
 
-    JSScript *script = lir->mir()->block()->info().script();
-    uint32_t lexicalBegin = script->bindings.aliasedBodyLevelLexicalBegin();
     OutOfLineCode *ool;
     ool = oolCallVM(NewSingletonCallObjectInfo, lir,
-                    (ArgList(), ImmGCPtr(templateObj->lastProperty()),
-                                Imm32(lexicalBegin)),
+                    (ArgList(), ImmGCPtr(templateObj->lastProperty())),
                     StoreRegisterTo(objReg));
     if (!ool)
         return false;

@@ -343,11 +343,7 @@ const CustomizableWidgets = [
     viewId: "PanelUI-developer",
     shortcutId: "key_devToolboxMenuItem",
     tooltiptext: "developer-button.tooltiptext2",
-#ifdef MOZ_DEV_EDITION
-    defaultArea: CustomizableUI.AREA_NAVBAR,
-#else
     defaultArea: CustomizableUI.AREA_PANEL,
-#endif
     onViewShowing: function(aEvent) {
       // Populate the subview with whatever menuitems are in the developer
       // menu. We skip menu elements, because the menu panel has no way
@@ -925,18 +921,13 @@ const CustomizableWidgets = [
       win.MailIntegration.sendLinkForWindow(win.content);
     }
   }, {
-    id: "loop-button-throttled",
+    id: "loop-call-button",
     type: "custom",
     label: "Hello",
     tooltiptext: "loop-call-button2.tooltiptext",
-    defaultArea: !Services.prefs.getBoolPref("loop.throttled2") && CustomizableUI.AREA_NAVBAR,
-    introducedInVersion: 3,
+    defaultArea: CustomizableUI.AREA_NAVBAR,
+    introducedInVersion: 1,
     onBuild: function(aDocument) {
-      // If we're not supposed to see the button, return zip.
-      if (!Services.prefs.getBoolPref("loop.enabled")) {
-        return null;
-      }
-
       let node = aDocument.createElementNS(kNSXUL, "toolbarbutton");
       node.setAttribute("id", this.id);
       node.classList.add("toolbarbutton-1");
@@ -948,7 +939,6 @@ const CustomizableWidgets = [
       node.addEventListener("command", function(event) {
         aDocument.defaultView.LoopUI.openCallPanel(event);
       });
-
       return node;
     }
   }, {
