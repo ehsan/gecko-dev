@@ -16,8 +16,6 @@ using namespace mozilla;
 nsMediaPluginReader::nsMediaPluginReader(nsBuiltinDecoder *aDecoder) :
   nsBuiltinDecoderReader(aDecoder),
   mPlugin(NULL),
-  mHasAudio(false),
-  mHasVideo(false),
   mVideoSeekTimeUs(-1),
   mAudioSeekTimeUs(-1),
   mLastVideoFrame(NULL)

@@ -273,10 +273,8 @@ private:
 
   // Slightly horrible callback for deferring application of opacity
   struct SVGTextObjectPaint : public gfxTextObjectPaint {
-    already_AddRefed<gfxPattern> GetFillPattern(float aOpacity,
-                                                const gfxMatrix& aCTM);
-    already_AddRefed<gfxPattern> GetStrokePattern(float aOpacity,
-                                                  const gfxMatrix& aCTM);
+    already_AddRefed<gfxPattern> GetFillPattern(float opacity);
+    already_AddRefed<gfxPattern> GetStrokePattern(float opacity);
 
     void SetFillOpacity(float aOpacity) { mFillOpacity = aOpacity; }
     float GetFillOpacity() { return mFillOpacity; }
@@ -318,17 +316,14 @@ private:
       } mPaintDefinition;
 
       nsIFrame *mFrame;
-      // CTM defining the user space for the pattern we will use.
       gfxMatrix mContextMatrix;
       nsStyleSVGPaintType mPaintType;
 
-      // Device-space-to-pattern-space
       gfxMatrix mPatternMatrix;
       nsRefPtrHashtable<nsFloatHashKey, gfxPattern> mPatternCache;
 
       already_AddRefed<gfxPattern> GetPattern(float aOpacity,
-                                              nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
-                                              const gfxMatrix& aCTM);
+                                              nsStyleSVGPaint nsStyleSVG::*aFillOrStroke);
     };
 
     Paint mFillPaint;

@@ -19,6 +19,7 @@
 #include "nsServiceManagerUtils.h"
 #include "nsIOService.h"
 
+#include "mozilla/FunctionTimer.h"
 
 // XXX: There is no good header file to put these in. :(
 namespace mozilla { namespace psm {
@@ -415,6 +416,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS6(nsSocketTransportService,
 NS_IMETHODIMP
 nsSocketTransportService::Init()
 {
+    NS_TIME_FUNCTION;
+
     if (!NS_IsMainThread()) {
         NS_ERROR("wrong thread");
         return NS_ERROR_UNEXPECTED;
@@ -443,6 +446,8 @@ nsSocketTransportService::Init()
             SOCKET_LOG(("running socket transport thread without a pollable event"));
         }
     }
+    
+    NS_TIME_FUNCTION_MARK("Created thread");
 
     nsCOMPtr<nsIThread> thread;
     nsresult rv = NS_NewThread(getter_AddRefs(thread), this);
@@ -458,6 +463,8 @@ nsSocketTransportService::Init()
     if (tmpPrefService) 
         tmpPrefService->AddObserver(SEND_BUFFER_PREF, this, false);
     UpdatePrefs();
+
+    NS_TIME_FUNCTION_MARK("UpdatePrefs");
 
     mInitialized = true;
     return NS_OK;

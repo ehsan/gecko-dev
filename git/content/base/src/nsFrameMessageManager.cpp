@@ -287,10 +287,7 @@ nsFrameMessageManager::DispatchAsyncMessageInternal(const nsAString& aMessage,
 {
   if (mAsyncCallback) {
     NS_ENSURE_TRUE(mCallbackData, NS_ERROR_NOT_INITIALIZED);
-
-    if (!mAsyncCallback(mCallbackData, aMessage, aData)) {
-      return NS_ERROR_FAILURE;
-    }
+    mAsyncCallback(mCallbackData, aMessage, aData);
   }
   if (aBroadcast == BROADCAST) {
     int32_t len = mChildManagers.Count();

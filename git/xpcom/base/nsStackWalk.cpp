@@ -182,6 +182,7 @@ StackWalkInitCriticalAddress()
 #include <stdio.h>
 #include <malloc.h>
 #include "plstr.h"
+#include "mozilla/FunctionTimer.h"
 
 #include "nspr.h"
 #include <imagehlp.h>
@@ -682,6 +683,8 @@ EnsureSymInitialized()
 
     if (gInitialized)
         return gInitialized;
+
+    NS_TIME_FUNCTION;
 
     if (!EnsureImageHlpInitialized())
         return false;

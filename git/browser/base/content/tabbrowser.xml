@@ -1187,7 +1187,7 @@
               this.selectedTab = firstTabAdded;
             }
             else
-              this.selectedBrowser.focus();
+              window.content.focus();
           }
         ]]></body>
       </method>

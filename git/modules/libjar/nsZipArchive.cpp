@@ -20,6 +20,7 @@
 #include "nsWildCard.h"
 #include "nsZipArchive.h"
 #include "nsString.h"
+#include "mozilla/FunctionTimer.h"
 #include "prenv.h"
 #if defined(XP_WIN)
 #include <windows.h>
@@ -516,6 +517,9 @@ nsZipItem* nsZipArchive::CreateZipItem()
 //---------------------------------------------
 nsresult nsZipArchive::BuildFileList()
 {
+#ifndef XP_WIN
+  NS_TIME_FUNCTION;
+#endif
   // Get archive size using end pos
   const uint8_t* buf;
   const uint8_t* startp = mFd->mFileData;

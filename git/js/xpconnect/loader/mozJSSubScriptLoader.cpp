@@ -28,6 +28,7 @@
 #include "jsfriendapi.h"
 #include "nsJSPrincipals.h"
 
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
 
@@ -153,6 +154,11 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
      */
 
     nsresult rv = NS_OK;
+
+#ifdef NS_FUNCTION_TIMER
+    NS_TIME_FUNCTION_FMT("%s (line %d) (url: %s)", MOZ_FUNCTION_NAME,
+                         __LINE__, NS_LossyConvertUTF16toASCII(url).get());
+#endif
 
     /* set the system principal if it's not here already */
     if (!mSystemPrincipal) {

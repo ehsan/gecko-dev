@@ -5838,7 +5838,13 @@ PurgeJITCaches(JSCompartment *c)
         JSScript *script = i.get<JSScript>();
 
         /* Discard JM caches. */
-        mjit::PurgeCaches(script);
+        for (int constructing = 0; constructing <= 1; constructing++) {
+            for (int barriers = 0; barriers <= 1; barriers++) {
+                mjit::JITScript *jit = script->getJIT((bool) constructing, (bool) barriers);
+                if (jit)
+                    jit->purgeCaches();
+            }
+        }
 
 #ifdef JS_ION
 

@@ -30,13 +30,11 @@ EXPORTS_mozilla/gfx	= \
         Matrix.h \
         Rect.h \
         Types.h \
-        Tools.h \
         UserData.h \
 	$(NULL)
 
 CPPSRCS	= \
-        Factory.cpp \
-        Rect.cpp \
+	Factory.cpp \
         Matrix.cpp \
         DrawTargetCairo.cpp \
         SourceSurfaceCairo.cpp \

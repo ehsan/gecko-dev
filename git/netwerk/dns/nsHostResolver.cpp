@@ -34,6 +34,7 @@
 #include "nsThreadUtils.h"
 
 #include "mozilla/HashFunctions.h"
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Telemetry.h"
 
@@ -366,6 +367,8 @@ nsHostResolver::~nsHostResolver()
 nsresult
 nsHostResolver::Init()
 {
+    NS_TIME_FUNCTION;
+
     PL_DHashTableInit(&mDB, &gHostDB_ops, nullptr, sizeof(nsHostDBEnt), 0);
 
     mShutdown = false;

@@ -12,6 +12,7 @@
 #include "nsISupportsPrimitives.h"
 #include "nsAppStartupNotifier.h"
 
+#include "mozilla/FunctionTimer.h"
 
 NS_IMPL_ISUPPORTS1(nsAppStartupNotifier, nsIObserver)
 
@@ -25,6 +26,8 @@ nsAppStartupNotifier::~nsAppStartupNotifier()
 
 NS_IMETHODIMP nsAppStartupNotifier::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
 {
+    NS_TIME_FUNCTION;
+
     NS_ENSURE_ARG(aTopic);
     nsresult rv;
 
@@ -37,6 +40,8 @@ NS_IMETHODIMP nsAppStartupNotifier::Observe(nsISupports *aSubject, const char *a
     rv = categoryManager->EnumerateCategory(aTopic,
                                getter_AddRefs(enumerator));
     if (NS_FAILED(rv)) return rv;
+
+    NS_TIME_FUNCTION_MARK("EnumerateCategory");
 
     nsCOMPtr<nsISupports> entry;
     while (NS_SUCCEEDED(enumerator->GetNext(getter_AddRefs(entry)))) {
@@ -81,6 +86,8 @@ NS_IMETHODIMP nsAppStartupNotifier::Observe(nsISupports *aSubject, const char *a
                     NS_WARNING(warnStr.get());
                   #endif
                 }
+
+                NS_TIME_FUNCTION_MARK("observer: category: %s cid: %s", categoryEntry.get(), nsPromiseFlatCString(contractId).get());
 
             }
         }

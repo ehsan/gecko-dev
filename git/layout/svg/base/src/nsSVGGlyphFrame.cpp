@@ -1068,16 +1068,17 @@ nsSVGGlyphFrame::SetupObjectPaint(gfxContext *aContext,
     return false;
   }
 
-  gfxMatrix current = aContext->CurrentMatrix();
-  nsRefPtr<gfxPattern> pattern =
-    paint.mType == eStyleSVGPaintType_ObjectFill ?
-      aOuterObjectPaint->GetFillPattern(aOpacity, current) :
-      aOuterObjectPaint->GetStrokePattern(aOpacity, current);
+  nsRefPtr<gfxPattern> pattern = paint.mType == eStyleSVGPaintType_ObjectFill ?
+                                 aOuterObjectPaint->GetFillPattern(aOpacity) :
+                                 aOuterObjectPaint->GetStrokePattern(aOpacity);
+
   if (!pattern) {
     return false;
   }
 
+  pattern->SetMatrix(aContext->CurrentMatrix().Multiply(pattern->GetMatrix()));
   aContext->SetPattern(pattern);
+
   return true;
 }
 
@@ -1085,75 +1086,63 @@ nsSVGGlyphFrame::SetupObjectPaint(gfxContext *aContext,
 // SVGTextObjectPaint methods:
 
 already_AddRefed<gfxPattern>
-nsSVGGlyphFrame::SVGTextObjectPaint::GetFillPattern(float aOpacity,
-                                                    const gfxMatrix& aCTM)
+nsSVGGlyphFrame::SVGTextObjectPaint::GetFillPattern(float aOpacity)
 {
-  return mFillPaint.GetPattern(aOpacity, &nsStyleSVG::mFill, aCTM);
+  return mFillPaint.GetPattern(aOpacity, &nsStyleSVG::mFill);
 }
 
 already_AddRefed<gfxPattern>
-nsSVGGlyphFrame::SVGTextObjectPaint::GetStrokePattern(float aOpacity,
-                                                      const gfxMatrix& aCTM)
+nsSVGGlyphFrame::SVGTextObjectPaint::GetStrokePattern(float aOpacity)
 {
-  return mStrokePaint.GetPattern(aOpacity, &nsStyleSVG::mStroke, aCTM);
+  return mStrokePaint.GetPattern(aOpacity, &nsStyleSVG::mStroke);
 }
 
 already_AddRefed<gfxPattern>
 nsSVGGlyphFrame::SVGTextObjectPaint::Paint::GetPattern(float aOpacity,
-                                                       nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
-                                                       const gfxMatrix& aCTM)
+                                                       nsStyleSVGPaint nsStyleSVG::*aFillOrStroke)
 {
   nsRefPtr<gfxPattern> pattern;
   if (mPatternCache.Get(aOpacity, getter_AddRefs(pattern))) {
     // Set the pattern matrix just in case it was messed with by a previous
     // caller. We should get the same matrix each time a pattern is constructed
     // so this should be fine.
-    pattern->SetMatrix(aCTM * mPatternMatrix);
+    pattern->SetMatrix(mPatternMatrix);
     return pattern.forget();
   }
 
   switch (mPaintType) {
   case eStyleSVGPaintType_None:
     pattern = new gfxPattern(gfxRGBA(0.0f, 0.0f, 0.0f, 0.0f));
-    mPatternMatrix = gfxMatrix();
     break;
   case eStyleSVGPaintType_Color:
     pattern = new gfxPattern(gfxRGBA(NS_GET_R(mPaintDefinition.mColor) / 255.0,
                                      NS_GET_G(mPaintDefinition.mColor) / 255.0,
                                      NS_GET_B(mPaintDefinition.mColor) / 255.0,
                                      NS_GET_A(mPaintDefinition.mColor) / 255.0 * aOpacity));
-    mPatternMatrix = gfxMatrix();
     break;
   case eStyleSVGPaintType_Server:
     pattern = mPaintDefinition.mPaintServerFrame->GetPaintServerPattern(mFrame,
                                                                         mContextMatrix,
                                                                         aFillOrStroke,
                                                                         aOpacity);
-    {
-      // m maps original-user-space to pattern space
-      gfxMatrix m = pattern->GetMatrix();
-      gfxMatrix deviceToOriginalUserSpace = mContextMatrix;
-      deviceToOriginalUserSpace.Invert();
-      // mPatternMatrix maps device space to pattern space via original user space
-      mPatternMatrix = deviceToOriginalUserSpace * m;
-    }
-    pattern->SetMatrix(aCTM * mPatternMatrix);
     break;
   case eStyleSVGPaintType_ObjectFill:
-    pattern = mPaintDefinition.mObjectPaint->GetFillPattern(aOpacity, aCTM);
-    // Don't cache this. mObjectPaint will have cached it anyway. If we
-    // cache it, we'll have to compute mPatternMatrix, which is annoying.
-    return pattern.forget();
+    pattern = mPaintDefinition.mObjectPaint->GetFillPattern(aOpacity);
+    break;
   case eStyleSVGPaintType_ObjectStroke:
-    pattern = mPaintDefinition.mObjectPaint->GetStrokePattern(aOpacity, aCTM);
-    // Don't cache this. mObjectPaint will have cached it anyway. If we
-    // cache it, we'll have to compute mPatternMatrix, which is annoying.
-    return pattern.forget();
+    pattern = mPaintDefinition.mObjectPaint->GetStrokePattern(aOpacity);
+    break;
   default:
     return nullptr;
   }
 
+  gfxMatrix contextInverse = mContextMatrix;
+  contextInverse.Invert();
+
+  mPatternMatrix = pattern->GetMatrix().PreMultiply(contextInverse);
+  pattern->SetMatrix(mPatternMatrix);
   mPatternCache.Put(aOpacity, pattern);
+
   return pattern.forget();
 }
 

@@ -42,6 +42,7 @@ extern const char js_parseFloat_str[];
 extern const char js_parseInt_str[];
 
 class JSString;
+class JSFixedString;
 
 /*
  * When base == 10, this function implements ToString() as specified by
@@ -53,7 +54,7 @@ js_NumberToString(JSContext *cx, double d);
 
 namespace js {
 
-extern JSFlatString *
+extern JSFixedString *
 Int32ToString(JSContext *cx, int32_t i);
 
 /*
@@ -64,10 +65,10 @@ extern bool JS_FASTCALL
 NumberValueToStringBuffer(JSContext *cx, const Value &v, StringBuffer &sb);
 
 /* Same as js_NumberToString, different signature. */
-extern JSFlatString *
+extern JSFixedString *
 NumberToString(JSContext *cx, double d);
 
-extern JSFlatString *
+extern JSFixedString *
 IndexToString(JSContext *cx, uint32_t index);
 
 /*

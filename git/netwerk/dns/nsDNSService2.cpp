@@ -27,6 +27,7 @@
 #include "nsIOService.h"
 #include "nsCharSeparatedTokenizer.h"
 
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/Attributes.h"
 
 using namespace mozilla;
@@ -363,6 +364,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS3(nsDNSService, nsIDNSService, nsPIDNSService,
 NS_IMETHODIMP
 nsDNSService::Init()
 {
+    NS_TIME_FUNCTION;
+
     if (mResolver)
         return NS_OK;
     NS_ENSURE_TRUE(!mResolver, NS_ERROR_ALREADY_INITIALIZED);

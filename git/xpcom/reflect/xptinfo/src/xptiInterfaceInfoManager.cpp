@@ -10,6 +10,7 @@
 #include "nsString.h"
 #include "nsISupportsArray.h"
 #include "nsArrayEnumerator.h"
+#include "mozilla/FunctionTimer.h"
 #include "nsDirectoryService.h"
 #include "mozilla/FileUtils.h"
 #include "nsIMemoryReporter.h"
@@ -65,6 +66,8 @@ xptiInterfaceInfoManager*
 xptiInterfaceInfoManager::GetSingleton()
 {
     if (!gInterfaceInfoManager) {
+        NS_TIME_FUNCTION;
+
         gInterfaceInfoManager = new xptiInterfaceInfoManager();
         NS_ADDREF(gInterfaceInfoManager);
     }
@@ -332,6 +335,8 @@ NS_IMETHODIMP xptiInterfaceInfoManager::EnumerateInterfacesWhoseNamesStartWith(c
 /* void autoRegisterInterfaces (); */
 NS_IMETHODIMP xptiInterfaceInfoManager::AutoRegisterInterfaces()
 {
+    NS_TIME_FUNCTION;
+
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 

@@ -591,20 +591,16 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aSeekTimeUs)
   }
   else if (err == INFO_FORMAT_CHANGED) {
     // If the format changed, update our cached info.
-    LOG("mVideoSource INFO_FORMAT_CHANGED");
     if (!SetVideoFormat())
       return false;
     else
       return ReadVideo(aFrame, aSeekTimeUs);
   }
   else if (err == ERROR_END_OF_STREAM) {
-    LOG("mVideoSource END_OF_STREAM");
-  }
-  else if (err != OK) {
-    LOG("mVideoSource ERROR %#x", err);
+    return false;
   }
 
-  return err == OK;
+  return true;
 }
 
 bool OmxDecoder::ReadAudio(AudioFrame *aFrame, int64_t aSeekTimeUs)
@@ -641,17 +637,10 @@ bool OmxDecoder::ReadAudio(AudioFrame *aFrame, int64_t aSeekTimeUs)
   }
   else if (err == INFO_FORMAT_CHANGED) {
     // If the format changed, update our cached info.
-    LOG("mAudioSource INFO_FORMAT_CHANGED");
     if (!SetAudioFormat())
       return false;
     else
       return ReadAudio(aFrame, aSeekTimeUs);
-  }
-  else if (err == ERROR_END_OF_STREAM) {
-    LOG("mAudioSource END_OF_STREAM");
-  }
-  else if (err != OK) {
-    LOG("mAudioSource ERROR %#x", err);
   }
 
   return err == OK;

@@ -44,6 +44,7 @@
 #include "nsCOMArray.h"
 #include "nsISimpleEnumerator.h"
 
+#include "mozilla/FunctionTimer.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Telemetry.h"
 
@@ -385,6 +386,8 @@ nsDiskCacheDevice::~nsDiskCacheDevice()
 nsresult
 nsDiskCacheDevice::Init()
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv;
 
     if (Initialized()) {

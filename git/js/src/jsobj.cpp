@@ -2403,13 +2403,16 @@ js_CreateThisForFunction(JSContext *cx, HandleObject callee, bool newType)
  * checking whether document.all is defined.
  */
 static bool
-Detecting(JSContext *cx, JSScript *script, jsbytecode *pc)
+Detecting(JSContext *cx, jsbytecode *pc)
 {
     /* General case: a branch or equality op follows the access. */
     JSOp op = JSOp(*pc);
     if (js_CodeSpec[op].format & JOF_DETECTING)
         return true;
 
+    JSAtom *atom;
+
+    JSScript *script = cx->stack.currentScript();
     jsbytecode *endpc = script->code + script->length;
     JS_ASSERT(script->code <= pc && pc < endpc);
 
@@ -2431,7 +2434,7 @@ Detecting(JSContext *cx, JSScript *script, jsbytecode *pc)
          * about a local variable named |undefined| shadowing the immutable
          * global binding...because, really?
          */
-        JSAtom *atom = script->getAtom(GET_UINT32_INDEX(pc));
+        atom = script->getAtom(GET_UINT32_INDEX(pc));
         if (atom == cx->names().undefined &&
             (pc += js_CodeSpec[op].length) < endpc) {
             op = JSOp(*pc);
@@ -2449,25 +2452,24 @@ Detecting(JSContext *cx, JSScript *script, jsbytecode *pc)
 unsigned
 js_InferFlags(JSContext *cx, unsigned defaultFlags)
 {
-    /*
-     * We intentionally want to look across compartment boundaries to correctly
-     * handle the case of cross-compartment property access.
-     */
+    const JSCodeSpec *cs;
+    uint32_t format;
+    unsigned flags = 0;
+
     jsbytecode *pc;
-    JSScript *script = cx->stack.currentScript(&pc, ContextStack::ALLOW_CROSS_COMPARTMENT);
-    if (!script)
+    JSScript *script = cx->stack.currentScript(&pc);
+    if (!script || !pc)
         return defaultFlags;
 
-    const JSCodeSpec *cs = &js_CodeSpec[*pc];
-    uint32_t format = cs->format;
-    unsigned flags = 0;
+    cs = &js_CodeSpec[*pc];
+    format = cs->format;
     if (JOF_MODE(format) != JOF_NAME)
         flags |= JSRESOLVE_QUALIFIED;
     if (format & JOF_SET) {
         flags |= JSRESOLVE_ASSIGNING;
     } else if (cs->length >= 0) {
         pc += cs->length;
-        if (pc < script->code + script->length && Detecting(cx, script, pc))
+        if (pc < script->code + script->length && Detecting(cx, pc))
             flags |= JSRESOLVE_DETECTING;
     }
     return flags;
@@ -4328,7 +4330,7 @@ js_GetPropertyHelperInline(JSContext *cx, HandleObject obj, HandleObject receive
             /* Do not warn about tests like (obj[prop] == undefined). */
             if (cx->resolveFlags == RESOLVE_INFER) {
                 pc += js_CodeSpec[op].length;
-                if (Detecting(cx, script, pc))
+                if (Detecting(cx, pc))
                     return JS_TRUE;
             } else if (cx->resolveFlags & JSRESOLVE_DETECTING) {
                 return JS_TRUE;

@@ -32,6 +32,7 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsMathUtils.h"
 #include "mozilla/storage.h"
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/Util.h"
 #include "mozilla/Preferences.h"
 
@@ -289,6 +290,8 @@ nsNavHistory::~nsNavHistory()
 nsresult
 nsNavHistory::Init()
 {
+  NS_TIME_FUNCTION;
+
   LoadPrefs();
 
   mDB = Database::GetDatabase();

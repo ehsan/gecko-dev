@@ -36,21 +36,21 @@ namespace ion {
 class DtoaCache {
     double        d;
     int         base;
-    JSFlatString *s;      // if s==NULL, d and base are not valid
-
+    JSFixedString *s;      // if s==NULL, d and base are not valid
   public:
     DtoaCache() : s(NULL) {}
     void purge() { s = NULL; }
 
-    JSFlatString *lookup(int base, double d) {
+    JSFixedString *lookup(int base, double d) {
         return this->s && base == this->base && d == this->d ? this->s : NULL;
     }
 
-    void cache(int base, double d, JSFlatString *s) {
+    void cache(int base, double d, JSFixedString *s) {
         this->base = base;
         this->d = d;
         this->s = s;
     }
+
 };
 
 /* If HashNumber grows, need to change WrapperHasher. */

@@ -79,6 +79,7 @@ class JSDependentString;
 class JSExtensibleString;
 class JSExternalString;
 class JSLinearString;
+class JSFixedString;
 class JSRope;
 class JSAtom;
 class JSWrapper;

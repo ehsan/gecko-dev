@@ -11,6 +11,7 @@
 #include "GfxInfo.h"
 #include "GfxInfoWebGL.h"
 #include "nsUnicharUtils.h"
+#include "mozilla/FunctionTimer.h"
 #include "prenv.h"
 #include "prprf.h"
 #include "GfxDriverInfo.h"
@@ -241,6 +242,8 @@ ParseIDFromDeviceID(const nsAString &key, const char *prefix, int length)
 nsresult
 GfxInfo::Init()
 {
+  NS_TIME_FUNCTION;
+
   nsresult rv = GfxInfoBase::Init();
 
   DISPLAY_DEVICEW displayDevice;

@@ -38,7 +38,7 @@ StringBuffer::extractWellSized()
     return buf;
 }
 
-JSFlatString *
+JSFixedString *
 StringBuffer::finishString()
 {
     JSContext *cx = context();
@@ -60,7 +60,7 @@ StringBuffer::finishString()
     if (!buf)
         return NULL;
 
-    JSFlatString *str = js_NewString(cx, buf, length);
+    JSFixedString *str = js_NewString(cx, buf, length);
     if (!str)
         js_free(buf);
     return str;

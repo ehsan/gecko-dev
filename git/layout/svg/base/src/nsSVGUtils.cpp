@@ -1906,10 +1906,10 @@ nsSVGUtils::SetupObjectPaint(gfxContext *aContext,
 
   switch (aPaint.mType) {
     case eStyleSVGPaintType_ObjectFill:
-      pattern = aObjectPaint->GetFillPattern(aOpacity, aContext->CurrentMatrix());
+      pattern = aObjectPaint->GetFillPattern(aOpacity);
       break;
     case eStyleSVGPaintType_ObjectStroke:
-      pattern = aObjectPaint->GetStrokePattern(aOpacity, aContext->CurrentMatrix());
+      pattern = aObjectPaint->GetStrokePattern(aOpacity);
       break;
     default:
       return false;
@@ -1919,6 +1919,9 @@ nsSVGUtils::SetupObjectPaint(gfxContext *aContext,
     return false;
   }
 
+  // When the pattern is set, cairo sets the context source matrix to the
+  // inverse of the context matrix so we have to account for that here
+  pattern->SetMatrix(aContext->CurrentMatrix().Multiply(pattern->GetMatrix()));
   aContext->SetPattern(pattern);
 
   return true;

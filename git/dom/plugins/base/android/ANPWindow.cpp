@@ -117,12 +117,10 @@ void anp_window_requestFullScreenOrientation(NPP instance, ANPScreenOrientation 
       newOrientation = eScreenOrientation_PortraitPrimary;
       break;
     case kLandscape_ANPScreenOrientation:
-      newOrientation = eScreenOrientation_LandscapePrimary |
-                       eScreenOrientation_LandscapeSecondary;
+      newOrientation = eScreenOrientation_Landscape;
       break;
     case kPortrait_ANPScreenOrientation:
-      newOrientation = eScreenOrientation_PortraitPrimary |
-                       eScreenOrientation_PortraitSecondary;
+      newOrientation = eScreenOrientation_Portrait;
       break;
     default:
       newOrientation = eScreenOrientation_None;

@@ -55,6 +55,7 @@
 #include "nsLayoutUtils.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsObjectFrame.h"
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
@@ -87,6 +88,7 @@ bool nsAccessibilityService::gIsShutdown = true;
 nsAccessibilityService::nsAccessibilityService() :
   nsAccDocManager(), FocusManager()
 {
+  NS_TIME_FUNCTION;
 }
 
 nsAccessibilityService::~nsAccessibilityService()

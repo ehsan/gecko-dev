@@ -2244,16 +2244,11 @@ bool SendAsyncMessageToChild(void* aCallbackData,
     return tabParent->SendAsyncMessage(nsString(aMessage), data);
   }
 
-  if (static_cast<nsFrameLoader*>(aCallbackData)->mChildMessageManager) {
-    nsRefPtr<nsIRunnable> ev =
-      new nsAsyncMessageToChild(static_cast<nsFrameLoader*>(aCallbackData),
-                                aMessage, aData);
-    NS_DispatchToCurrentThread(ev);
-    return true;
-  }
-
-  // We don't have any targets to send our asynchronous message to.
-  return false;
+  nsRefPtr<nsIRunnable> ev =
+    new nsAsyncMessageToChild(static_cast<nsFrameLoader*>(aCallbackData),
+                                    aMessage, aData);
+  NS_DispatchToCurrentThread(ev);
+  return true;
 }
 
 NS_IMETHODIMP

@@ -1180,10 +1180,7 @@ ParseNodeToQName(Parser *parser, ParseNode *pn,
     JSLinearString *nsprefix;
 
     JS_ASSERT(pn->isArity(PN_NULLARY));
-    JSAtom *atom = pn->pn_atom;
-    JSStableString *str = atom->ensureStable(cx);
-    if (!str)
-        return NULL;
+    JSAtom *str = pn->pn_atom;
     start = str->chars();
     length = str->length();
     JS_ASSERT(length != 0 && *start != '@');
@@ -1261,7 +1258,7 @@ ParseNodeToQName(Parser *parser, ParseNode *pn,
             }
             prefix = uri->empty() ? parser->context->runtime->emptyString : NULL;
         }
-        localName = atom;
+        localName = str;
     }
 
     return NewXMLQName(parser->context, uri, prefix, localName);

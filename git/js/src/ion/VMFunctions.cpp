@@ -330,7 +330,7 @@ ArrayShiftDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
     return true;
 }
 
-JSFlatString *
+JSFixedString *
 StringFromCharCode(JSContext *cx, int32_t code)
 {
     jschar c = jschar(code);

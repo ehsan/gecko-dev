@@ -517,7 +517,7 @@ ToCStringBuf::~ToCStringBuf()
         js_free(dbuf);
 }
 
-JSFlatString *
+JSFixedString *
 js::Int32ToString(JSContext *cx, int32_t si)
 {
     uint32_t ui;
@@ -531,7 +531,7 @@ js::Int32ToString(JSContext *cx, int32_t si)
     }
 
     JSCompartment *c = cx->compartment;
-    if (JSFlatString *str = c->dtoaCache.lookup(10, si))
+    if (JSFixedString *str = c->dtoaCache.lookup(10, si))
         return str;
 
     JSShortString *str = js_NewGCShortString(cx);
@@ -1268,7 +1268,7 @@ js_NumberToStringWithBase(JSContext *cx, double d, int base)
                      cbuf.dbuf && cbuf.dbuf == numStr);
     }
 
-    JSFlatString *s = js_NewStringCopyZ(cx, numStr);
+    JSFixedString *s = js_NewStringCopyZ(cx, numStr);
     c->dtoaCache.cache(base, d, s);
     return s;
 }
@@ -1281,22 +1281,22 @@ js_NumberToString(JSContext *cx, double d)
 
 namespace js {
 
-JSFlatString *
+JSFixedString *
 NumberToString(JSContext *cx, double d)
 {
     if (JSString *str = js_NumberToStringWithBase(cx, d, 10))
-        return &str->asFlat();
+        return &str->asFixed();
     return NULL;
 }
 
-JSFlatString *
+JSFixedString *
 IndexToString(JSContext *cx, uint32_t index)
 {
     if (StaticStrings::hasUint(index))
         return cx->runtime->staticStrings.getUint(index);
 
     JSCompartment *c = cx->compartment;
-    if (JSFlatString *str = c->dtoaCache.lookup(10, index))
+    if (JSFixedString *str = c->dtoaCache.lookup(10, index))
         return str;
 
     JSShortString *str = js_NewGCShortString(cx);

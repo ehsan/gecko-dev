@@ -156,6 +156,12 @@ public:
     void Activate();
     void Deactivate();
 
+    /**
+     * Is this object active?  That is, was Activate() called more recently than
+     * Deactivate()?
+     */
+    bool Active();
+
     void SendMouseEvent(const nsAString& aType, float aX, float aY,
                         int32_t aButton, int32_t aClickCount,
                         int32_t aModifiers, bool aIgnoreRootScrollFrame);
@@ -269,6 +275,7 @@ protected:
     int32_t mEventCaptureDepth;
 
     float mDPI;
+    bool mActive;
     bool mIsBrowserElement;
     bool mShown;
 

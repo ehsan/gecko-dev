@@ -15,6 +15,7 @@
 #include "gfxPlatform.h"
 
 #include "nsIMemoryReporter.h"
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/Attributes.h"
 
 class CharMapHashKey : public PLDHashEntryHdr
@@ -88,6 +89,8 @@ public:
     }
 
     static nsresult Init() {
+        NS_TIME_FUNCTION;
+
         NS_ASSERTION(!sPlatformFontList, "What's this doing here?");
         gfxPlatform::GetPlatform()->CreatePlatformFontList();
         if (!sPlatformFontList) {

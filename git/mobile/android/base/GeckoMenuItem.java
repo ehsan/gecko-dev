@@ -34,10 +34,6 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
         public void onShowAsActionChanged(GeckoMenuItem item, boolean isActionItem);
     }
 
-    public static interface OnVisibilityChangedListener {
-        public void onVisibilityChanged(GeckoMenuItem item, boolean isVisible);
-    }
-
     private Context mContext;
     private int mId;
     private int mOrder;
@@ -51,10 +47,7 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
     private boolean mEnabled;
     private Drawable mIcon;
     private int mIconRes;
-    private GeckoMenu mMenu;
-    private GeckoSubMenu mSubMenu;
     private MenuItem.OnMenuItemClickListener mMenuItemClickListener;
-    private OnVisibilityChangedListener mVisibilityChangedListener;
     private OnShowAsActionChangedListener mShowAsActionChangedListener;
 
     public GeckoMenuItem(Context context, int id) {
@@ -70,6 +63,8 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
         mCheckable = true;
         mChecked = false;
         mMenuItemClickListener = null;
+
+        mLayout.setOnClickListener(this);
     }
 
     public GeckoMenuItem(Context context, int id, int order) {
@@ -126,10 +121,6 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
         return mLayout.getLayout();
     }
 
-    public void setMenu(GeckoMenu menu) {
-        mMenu = menu;
-    }
-
     @Override
     public ContextMenu.ContextMenuInfo getMenuInfo() {
         return null;
@@ -147,7 +138,7 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
 
     @Override
     public SubMenu getSubMenu() {
-        return mSubMenu;
+        return null;
     }
 
     @Override
@@ -162,7 +153,7 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
 
     @Override
     public boolean hasSubMenu() {
-        return (mSubMenu != null);
+        return false;
     }
 
     @Override
@@ -314,11 +305,6 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
         return this;
     }
 
-    public MenuItem setSubMenu(GeckoSubMenu subMenu) {
-        mSubMenu = subMenu;
-        return this;
-    }
-
     @Override
     public MenuItem setTitle(CharSequence title) {
         mTitle = title;
@@ -343,29 +329,16 @@ public class GeckoMenuItem implements MenuItem, View.OnClickListener {
     public MenuItem setVisible(boolean visible) {
         mVisible = visible;
         mLayout.setVisibility(visible ? View.VISIBLE : View.GONE);
-
-        if (mVisibilityChangedListener != null)
-            mVisibilityChangedListener.onVisibilityChanged(this, visible);
-
         return this;
     }
 
     @Override
     public void onClick(View view) {
-        // If there is a custom listener, pass it to parent menu, so that it can do default cleanups.
-        if (mMenuItemClickListener != null) {
-            if (mMenuItemClickListener instanceof GeckoMenu)
-                mMenuItemClickListener.onMenuItemClick(this);
-            else
-                mMenu.onCustomMenuItemClick(this, mMenuItemClickListener);
-        }
+        if (mMenuItemClickListener != null)
+            mMenuItemClickListener.onMenuItemClick(this);
     }
 
     public void setOnShowAsActionChangedListener(OnShowAsActionChangedListener listener) {
         mShowAsActionChangedListener = listener;
-    }
-
-    public void setOnVisibilityChangedListener(OnVisibilityChangedListener listener) {
-        mVisibilityChangedListener = listener;
-    }
+    } 
 }

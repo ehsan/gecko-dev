@@ -198,9 +198,6 @@ public:
                               int32_t aStride, mozilla::gfx::SurfaceFormat aFormat);
 
     bool SupportsAzureCanvas();
-    bool SupportsAzureContent() {
-      return GetContentBackend() != mozilla::gfx::BACKEND_NONE;
-    }
 
     void GetAzureBackendInfo(mozilla::widget::InfoObject &aObj) {
       aObj.DefineProperty("AzureCanvasBackend", GetBackendName(mPreferredCanvasBackend));

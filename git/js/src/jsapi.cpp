@@ -346,10 +346,10 @@ JS_ConvertArgumentsVA(JSContext *cx, unsigned argc, jsval *argv, const char *for
                 return JS_FALSE;
             *sp = STRING_TO_JSVAL(str);
             if (c == 'W') {
-                JSStableString *stable = str->ensureStable(cx);
-                if (!stable)
+                JSFixedString *fixed = str->ensureFixed(cx);
+                if (!fixed)
                     return JS_FALSE;
-                *va_arg(ap, const jschar **) = stable->chars();
+                *va_arg(ap, const jschar **) = fixed->chars();
             } else {
                 *va_arg(ap, JSString **) = str;
             }
@@ -4655,7 +4655,7 @@ JS_NextProperty(JSContext *cx, JSObject *iterobjArg, jsid *idp)
             iterobj->setSlot(JSSLOT_ITER_INDEX, Int32Value(i));
         }
     }
-    return true;
+    return JS_TRUE;
 }
 
 JS_PUBLIC_API(JSBool)
@@ -6094,60 +6094,41 @@ JS_GetStringCharsZ(JSContext *cx, JSString *str)
     AssertHeapIsIdleOrStringIsFlat(cx, str);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, str);
-    JSStableString *stable = str->ensureStable(cx);
-    if (!stable)
-        return NULL;
-    return stable->chars();
+    return str->getCharsZ(cx);
 }
 
 JS_PUBLIC_API(const jschar *)
 JS_GetStringCharsZAndLength(JSContext *cx, JSString *str, size_t *plength)
 {
-    JS_ASSERT(plength);
     AssertHeapIsIdleOrStringIsFlat(cx, str);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, str);
-    JSStableString *stable = str->ensureStable(cx);
-    if (!stable)
-        return NULL;
-    *plength = stable->length();
-    return stable->chars();
+    *plength = str->length();
+    return str->getCharsZ(cx);
 }
 
 JS_PUBLIC_API(const jschar *)
 JS_GetStringCharsAndLength(JSContext *cx, JSString *str, size_t *plength)
 {
-    JS_ASSERT(plength);
     AssertHeapIsIdleOrStringIsFlat(cx, str);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, str);
-    JSStableString *stable = str->ensureStable(cx);
-    if (!stable)
-        return NULL;
-    *plength = stable->length();
-    return stable->chars();
+    *plength = str->length();
+    return str->getChars(cx);
 }
 
 JS_PUBLIC_API(const jschar *)
 JS_GetInternedStringChars(JSString *str)
 {
-    JS_ASSERT(str->isAtom());
-    JSStableString *stable = str->ensureStable(NULL);
-    if (!stable)
-        return NULL;
-    return stable->chars();
+    return str->asAtom().chars();
 }
 
 JS_PUBLIC_API(const jschar *)
 JS_GetInternedStringCharsAndLength(JSString *str, size_t *plength)
 {
-    JS_ASSERT(str->isAtom());
-    JS_ASSERT(plength);
-    JSStableString *stable = str->ensureStable(NULL);
-    if (!stable)
-        return NULL;
-    *plength = stable->length();
-    return stable->chars();
+    JSAtom &atom = str->asAtom();
+    *plength = atom.length();
+    return atom.chars();
 }
 
 extern JS_PUBLIC_API(JSFlatString *)
@@ -6156,18 +6137,12 @@ JS_FlattenString(JSContext *cx, JSString *str)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, str);
-    JSFlatString *flat = str->ensureFlat(cx);
-    if (!flat)
-        return NULL;
-    return flat;
+    return str->getCharsZ(cx) ? (JSFlatString *)str : NULL;
 }
 
 extern JS_PUBLIC_API(const jschar *)
 JS_GetFlatStringChars(JSFlatString *str)
 {
-    JSStableString *stable = str->ensureStable(NULL);
-    if (!stable)
-        return NULL;
     return str->chars();
 }
 

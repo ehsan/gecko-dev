@@ -112,6 +112,9 @@ if (typeof Components != "undefined") {
            stack.push(v);
          }
        });
+       if (exports.OS.Shared.DEBUG) {
+         exports.OS.Shared.LOG("normalize", "stack", stack.toSource());
+       }
        let string = stack.join("/");
        return absolute ? "/" + string : string;
      },

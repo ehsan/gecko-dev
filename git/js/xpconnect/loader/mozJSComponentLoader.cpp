@@ -68,6 +68,7 @@
 
 #include "jsdbgapi.h"
 
+#include "mozilla/FunctionTimer.h"
 
 using namespace mozilla;
 using namespace mozilla::scache;
@@ -387,6 +388,7 @@ NS_IMPL_ISUPPORTS3(mozJSComponentLoader,
 nsresult
 mozJSComponentLoader::ReallyInit()
 {
+    NS_TIME_FUNCTION;
     nsresult rv;
 
 
@@ -461,6 +463,11 @@ mozJSComponentLoader::LoadModule(FileLocation &aFile)
     nsresult rv = NS_NewURI(getter_AddRefs(uri), spec);
     if (NS_FAILED(rv))
         return NULL;
+
+#ifdef NS_FUNCTION_TIMER
+    NS_TIME_FUNCTION_FMT("%s (line %d) (file: %s)", MOZ_FUNCTION_NAME,
+                         __LINE__, spec.get());
+#endif
 
     if (!mInitialized) {
         rv = ReallyInit();
@@ -967,6 +974,9 @@ mozJSComponentLoader::Import(const nsACString& registryLocation,
                              uint8_t optionalArgc,
                              JS::Value* retval)
 {
+    NS_TIME_FUNCTION_FMT("%s (line %d) (file: %s)", MOZ_FUNCTION_NAME,
+                         __LINE__, registryLocation.BeginReading());
+
     JSAutoRequest ar(cx);
 
     JS::Value targetVal = targetVal_;

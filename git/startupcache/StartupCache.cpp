@@ -31,6 +31,7 @@
 #include "nsZipArchive.h"
 #include "mozilla/Omnijar.h"
 #include "prenv.h"
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/Telemetry.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
@@ -484,6 +485,7 @@ StartupCache::WaitOnWriteThread()
   if (!mWriteThread || mWriteThread == PR_GetCurrentThread())
     return;
 
+  NS_TIME_FUNCTION_MIN(30);
   PR_JoinThread(mWriteThread);
   mWriteThread = NULL;
 }

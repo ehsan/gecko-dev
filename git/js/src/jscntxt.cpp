@@ -115,44 +115,40 @@ void CompartmentCallback(JSRuntime *rt, void *vdata, JSCompartment *compartment)
 }
 
 void
-JSRuntime::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, RuntimeSizes *rtSizes)
+JSRuntime::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, RuntimeSizes *runtime)
 {
-    rtSizes->object = mallocSizeOf(this);
+    runtime->object = mallocSizeOf(this);
 
-    rtSizes->atomsTable = atoms.sizeOfExcludingThis(mallocSizeOf);
+    runtime->atomsTable = atoms.sizeOfExcludingThis(mallocSizeOf);
 
-    rtSizes->contexts = 0;
+    runtime->contexts = 0;
     for (ContextIter acx(this); !acx.done(); acx.next())
-        rtSizes->contexts += acx->sizeOfIncludingThis(mallocSizeOf);
+        runtime->contexts += acx->sizeOfIncludingThis(mallocSizeOf);
 
-    rtSizes->dtoa = mallocSizeOf(dtoaState);
+    runtime->dtoa = mallocSizeOf(dtoaState);
 
-    rtSizes->temporary = tempLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
+    runtime->temporary = tempLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
 
-    if (execAlloc_) {
-        execAlloc_->sizeOfCode(&rtSizes->jaegerCode, &rtSizes->ionCode, &rtSizes->regexpCode,
-                               &rtSizes->unusedCode);
-    } else {
-        rtSizes->jaegerCode = 0;
-        rtSizes->ionCode    = 0;
-        rtSizes->regexpCode = 0;
-        rtSizes->unusedCode = 0;
-    }
+    if (execAlloc_)
+        execAlloc_->sizeOfCode(&runtime->mjitCode, &runtime->regexpCode,
+                               &runtime->unusedCodeMemory);
+    else
+        runtime->mjitCode = runtime->regexpCode = runtime->unusedCodeMemory = 0;
 
-    rtSizes->stackCommitted = stackSpace.sizeOfCommitted();
+    runtime->stackCommitted = stackSpace.sizeOfCommitted();
 
-    rtSizes->gcMarker = gcMarker.sizeOfExcludingThis(mallocSizeOf);
+    runtime->gcMarker = gcMarker.sizeOfExcludingThis(mallocSizeOf);
 
-    rtSizes->mathCache = mathCache_ ? mathCache_->sizeOfIncludingThis(mallocSizeOf) : 0;
+    runtime->mathCache = mathCache_ ? mathCache_->sizeOfIncludingThis(mallocSizeOf) : 0;
 
-    rtSizes->scriptFilenames = scriptFilenameTable.sizeOfExcludingThis(mallocSizeOf);
+    runtime->scriptFilenames = scriptFilenameTable.sizeOfExcludingThis(mallocSizeOf);
     for (ScriptFilenameTable::Range r = scriptFilenameTable.all(); !r.empty(); r.popFront())
-        rtSizes->scriptFilenames += mallocSizeOf(r.front());
+        runtime->scriptFilenames += mallocSizeOf(r.front());
 
-    rtSizes->compartmentObjects = 0;
+    runtime->compartmentObjects = 0;
     CallbackData data(mallocSizeOf);
     JS_IterateCompartments(this, &data, CompartmentCallback);
-    rtSizes->compartmentObjects = data.n;
+    runtime->compartmentObjects = data.n;
 }
 
 size_t
@@ -161,9 +157,9 @@ JSRuntime::sizeOfExplicitNonHeap()
     if (!execAlloc_)
         return 0;
 
-    size_t jaegerCode, ionCode, regexpCode, unusedCode;
-    execAlloc_->sizeOfCode(&jaegerCode, &ionCode, &regexpCode, &unusedCode);
-    return jaegerCode + ionCode + regexpCode + unusedCode + stackSpace.sizeOfCommitted();
+    size_t mjitCode, regexpCode, unusedCodeMemory;
+    execAlloc_->sizeOfCode(&mjitCode, &regexpCode, &unusedCodeMemory);
+    return mjitCode + regexpCode + unusedCodeMemory + stackSpace.sizeOfCommitted();
 }
 
 void

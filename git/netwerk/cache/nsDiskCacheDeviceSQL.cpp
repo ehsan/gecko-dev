@@ -35,6 +35,7 @@
 #include "nsICacheVisitor.h"
 #include "nsISeekableStream.h"
 
+#include "mozilla/FunctionTimer.h"
 #include "mozilla/Telemetry.h"
 
 #include "sqlite3.h"
@@ -1050,6 +1051,8 @@ struct StatementSql {
 nsresult
 nsOfflineCacheDevice::Init()
 {
+  NS_TIME_FUNCTION;
+
   NS_ENSURE_TRUE(!mDB, NS_ERROR_ALREADY_INITIALIZED);
 
   // SetCacheParentDirectory must have been called

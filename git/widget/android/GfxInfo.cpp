@@ -5,6 +5,7 @@
 
 #include "GfxInfo.h"
 #include "nsUnicharUtils.h"
+#include "mozilla/FunctionTimer.h"
 #include "prenv.h"
 #include "prprf.h"
 #include "nsHashKeys.h"

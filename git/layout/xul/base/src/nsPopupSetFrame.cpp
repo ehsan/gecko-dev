@@ -150,7 +150,7 @@ nsPopupSetFrame::AddPopupFrameList(nsFrameList& aPopupFrameList)
 
 #ifdef DEBUG
 NS_IMETHODIMP
-nsPopupSetFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
+nsPopupSetFrame::List(FILE* out, int32_t aIndent) const
 {
   IndentBy(out, aIndent);
   ListTag(out);
@@ -210,7 +210,7 @@ nsPopupSetFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
       NS_ASSERTION(kid->GetParent() == this, "bad parent frame pointer");
 
       // Have the child frame list
-      kid->List(out, aIndent + 1, aFlags);
+      kid->List(out, aIndent + 1);
     }
     IndentBy(out, aIndent);
     fputs(">\n", out);
@@ -229,7 +229,7 @@ nsPopupSetFrame::List(FILE* out, int32_t aIndent, uint32_t aFlags) const
     fputs(" <\n", out);
     ++aIndent;
     for (nsFrameList::Enumerator e(mPopupList); !e.AtEnd(); e.Next()) {
-      e.get()->List(out, aIndent, aFlags);
+      e.get()->List(out, aIndent);
     }
     --aIndent;
     IndentBy(out, aIndent);

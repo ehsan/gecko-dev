@@ -28,6 +28,7 @@
 #include "nsServiceManagerUtils.h"   // do_GetService
 #include "nsIHttpActivityObserver.h"
 
+#include "mozilla/FunctionTimer.h"
 
 using namespace mozilla;
 
@@ -172,6 +173,8 @@ nsHttpTransaction::Init(uint8_t caps,
                         nsITransportEventSink *eventsink,
                         nsIAsyncInputStream **responseBody)
 {
+    NS_TIME_FUNCTION;
+
     nsresult rv;
 
     LOG(("nsHttpTransaction::Init [this=%x caps=%x]\n", this, caps));

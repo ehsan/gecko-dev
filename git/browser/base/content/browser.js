@@ -1123,7 +1123,7 @@ var gBrowserInit = {
       else if (window.arguments.length >= 3) {
         loadURI(uriToLoad, window.arguments[2], window.arguments[3] || null,
                 window.arguments[4] || false);
-        window.focus();
+        content.focus();
       }
       // Note: loadOneOrMoreURIs *must not* be called if window.arguments.length >= 3.
       // Such callers expect that window.arguments[0] is handled as a single URI.
@@ -1970,9 +1970,11 @@ function focusAndSelectUrlBar() {
     if (window.fullScreen)
       FullScreen.mouseoverToggle(true);
 
-    gURLBar.select();
-    if (document.activeElement == gURLBar.inputField)
+    gURLBar.focus();
+    if (document.activeElement == gURLBar.inputField) {
+      gURLBar.select();
       return true;
+    }
   }
   return false;
 }
@@ -3314,9 +3316,12 @@ const BrowserSearch = {
     if (searchBar && window.fullScreen)
       FullScreen.mouseoverToggle(true);
     if (searchBar)
+      searchBar.focus();
+    if (searchBar && document.activeElement == searchBar.textbox.inputField) {
       searchBar.select();
-    if (!searchBar || document.activeElement != searchBar.textbox.inputField)
+    } else {
       openUILinkIn(Services.search.defaultEngine.searchForm, "current");
+    }
   },
 
   /**
@@ -3642,7 +3647,7 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
   if (!getBoolPref("ui.click_hold_context_menus", false))
     SetClickAndHoldHandlers();
 
-  gBrowser.selectedBrowser.focus();
+  window.content.focus();
 }
 
 function BrowserToolboxCustomizeChange(aType) {
@@ -4630,7 +4635,7 @@ nsBrowserAccess.prototype = {
           gBrowser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
         }
         if (!gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground"))
-          window.focus();
+          content.focus();
     }
     return newWindow;
   },
@@ -4948,7 +4953,7 @@ function toggleSidebar(commandID, forceOpen) {
       sidebarTitle.value = "";
       sidebarBox.hidden = true;
       sidebarSplitter.hidden = true;
-      gBrowser.selectedBrowser.focus();
+      content.focus();
     } else {
       fireSidebarFocusedEvent();
     }

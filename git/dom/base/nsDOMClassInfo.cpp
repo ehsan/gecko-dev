@@ -174,7 +174,6 @@
 #include "nsEventSource.h"
 #include "nsIDOMSettingsManager.h"
 #include "nsIDOMContactManager.h"
-#include "nsIDOMPermissionSettings.h"
 #include "nsIDOMApplicationRegistry.h"
 
 #ifdef MOZ_B2G_RIL
