@@ -22,8 +22,8 @@ function openAboutAccountsFromMenuPanel(entryPoint) {
   yield PanelUI.show();
 
   if (entryPoint == "uitour") {
-    UITour.tourBrowsersByWindow.set(window, new Set());
-    UITour.tourBrowsersByWindow.get(window).add(gBrowser.selectedBrowser);
+    UITour.originTabs.set(window, new Set());
+    UITour.originTabs.get(window).add(gBrowser.selectedTab);
   }
 
   let syncButton = document.getElementById("sync-button");
@@ -65,7 +65,7 @@ function asyncCleanup() {
   // restore the tabs
   gBrowser.addTab(initialLocation);
   gBrowser.removeTab(newTab);
-  UITour.tourBrowsersByWindow.delete(window);
+  UITour.originTabs.delete(window);
 }
 
 add_task(() => openAboutAccountsFromMenuPanel("syncbutton"));

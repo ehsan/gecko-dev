@@ -10,12 +10,11 @@ let tmp = {};
 Cu.import("resource://gre/modules/Promise.jsm", tmp);
 Cu.import("resource://gre/modules/NewTabUtils.jsm", tmp);
 Cu.import("resource:///modules/DirectoryLinksProvider.jsm", tmp);
-Cu.import("resource://testing-common/PlacesTestUtils.jsm", tmp);
 Cc["@mozilla.org/moz/jssubscript-loader;1"]
   .getService(Ci.mozIJSSubScriptLoader)
   .loadSubScript("chrome://browser/content/sanitize.js", tmp);
 Cu.import("resource://gre/modules/Timer.jsm", tmp);
-let {Promise, NewTabUtils, Sanitizer, clearTimeout, setTimeout, DirectoryLinksProvider, PlacesTestUtils} = tmp;
+let {Promise, NewTabUtils, Sanitizer, clearTimeout, setTimeout, DirectoryLinksProvider} = tmp;
 
 let uri = Services.io.newURI("about:newtab", null, null);
 let principal = Services.scriptSecurityManager.getNoAppCodebasePrincipal(uri);
@@ -155,7 +154,7 @@ let TestRunner = {
    */
   finish: function () {
     function cleanupAndFinish() {
-      PlacesTestUtils.clearHistory().then(() => {
+      clearHistory(function () {
         whenPagesUpdated(finish);
         NewTabUtils.restore();
       });
@@ -230,7 +229,7 @@ function setLinks(aLinks, aCallback = TestRunner.next) {
   // given entries and call populateCache() now again to make sure the cache
   // has the desired contents.
   NewTabUtils.links.populateCache(function () {
-    PlacesTestUtils.clearHistory().then(() => {
+    clearHistory(function () {
       fillHistory(links, function () {
         NewTabUtils.links.populateCache(function () {
           NewTabUtils.allPages.update();
@@ -239,6 +238,15 @@ function setLinks(aLinks, aCallback = TestRunner.next) {
       });
     });
   });
+}
+
+function clearHistory(aCallback) {
+  Services.obs.addObserver(function observe(aSubject, aTopic, aData) {
+    Services.obs.removeObserver(observe, aTopic);
+    executeSoon(aCallback);
+  }, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
+
+  PlacesUtils.history.removeAllPages();
 }
 
 function fillHistory(aLinks, aCallback = TestRunner.next) {

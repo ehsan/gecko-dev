@@ -76,7 +76,7 @@ function test() {
       // then test when not on private mode
       testOnWindow({}, function(aWin) {
         doTest(false, aWin, finalURL, function () {
-          PlacesTestUtils.clearHistory().then(finish);
+          promiseClearHistory().then(finish);
         });
       });
     });

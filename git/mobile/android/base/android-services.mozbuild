@@ -770,7 +770,6 @@ sync_java_files = [
     'background/bagheera/BoundedByteArrayEntity.java',
     'background/bagheera/DeflateHelper.java',
     'background/common/DateUtils.java',
-    'background/common/GlobalConstants.java',
     'background/common/log/Logger.java',
     'background/common/log/writers/AndroidLevelCachingLogWriter.java',
     'background/common/log/writers/AndroidLogWriter.java',
@@ -806,7 +805,6 @@ sync_java_files = [
     'background/healthreport/EnvironmentV2.java',
     'background/healthreport/HealthReportBroadcastReceiver.java',
     'background/healthreport/HealthReportBroadcastService.java',
-    'background/healthreport/HealthReportConstants.java',
     'background/healthreport/HealthReportDatabases.java',
     'background/healthreport/HealthReportDatabaseStorage.java',
     'background/healthreport/HealthReportGenerator.java',
@@ -860,7 +858,6 @@ sync_java_files = [
     'fxa/authenticator/FxAccountLoginDelegate.java',
     'fxa/authenticator/FxAccountLoginException.java',
     'fxa/FirefoxAccounts.java',
-    'fxa/FxAccountConstants.java',
     'fxa/login/BaseRequestDelegate.java',
     'fxa/login/Cohabiting.java',
     'fxa/login/Doghouse.java',
@@ -1119,7 +1116,6 @@ sync_java_files = [
     'sync/syncadapter/SyncService.java',
     'sync/SyncConfiguration.java',
     'sync/SyncConfigurationException.java',
-    'sync/SyncConstants.java',
     'sync/SyncException.java',
     'sync/synchronizer/ConcurrentRecordConsumer.java',
     'sync/synchronizer/RecordConsumer.java',
@@ -1146,4 +1142,11 @@ sync_java_files = [
     'tokenserver/TokenServerClientDelegate.java',
     'tokenserver/TokenServerException.java',
     'tokenserver/TokenServerToken.java',
+]
+
+sync_generated_java_files = [
+    'background/common/GlobalConstants.java',
+    'background/healthreport/HealthReportConstants.java',
+    'fxa/FxAccountConstants.java',
+    'sync/SyncConstants.java',
 ]

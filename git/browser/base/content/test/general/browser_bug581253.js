@@ -70,6 +70,22 @@ function onPanelShown(aEvent) {
   }
 }
 
+/**
+ * Clears history invoking callback when done.
+ */
+function waitForClearHistory(aCallback)
+{
+  let observer = {
+    observe: function(aSubject, aTopic, aData)
+    {
+      Services.obs.removeObserver(this, PlacesUtils.TOPIC_EXPIRATION_FINISHED);
+      aCallback(aSubject, aTopic, aData);
+    }
+  };
+  Services.obs.addObserver(observer, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
+  PlacesUtils.bhistory.removeAllPages();
+}
+
 function onPanelHidden(aEvent) {
   if (aEvent.target == StarUI.panel) {
     StarUI.panel.removeEventListener("popuphidden", arguments.callee, false);
@@ -80,7 +96,7 @@ function onPanelHidden(aEvent) {
       is(BookmarkingUI.status, BookmarkingUI.STATUS_UNSTARRED,
          "star button indicates that the bookmark has been removed");
       gBrowser.removeCurrentTab();
-      PlacesTestUtils.clearHistory().then(finish);
+      waitForClearHistory(finish);
     });
   }
 }

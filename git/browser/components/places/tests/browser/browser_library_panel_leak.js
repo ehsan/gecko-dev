@@ -39,7 +39,7 @@ function test() {
     // Close Library window.
     organizer.close();
     // Clean up history.
-    PlacesTestUtils.clearHistory().then(finish);
+    waitForClearHistory(finish);
   }
 
   waitForExplicitFinish();

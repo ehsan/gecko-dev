@@ -108,7 +108,7 @@ gTests.push({
 
       menuNode.containerOpen = false;
 
-      PlacesTestUtils.clearHistory().then(nextTest);
+      waitForClearHistory(nextTest);
     }
     // add a visit to browser history
     addVisits(

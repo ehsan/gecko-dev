@@ -9,7 +9,7 @@ const TEST_URI = uri("http://example.com/");
 const PLACE_URI = uri("place:queryType=0&sort=8&maxResults=10");
 
 function* cleanup() {
-  yield PlacesTestUtils.clearHistory();
+  yield promiseClearHistory();
   remove_all_bookmarks();
   // This is needed to remove place: entries.
   DBConn().executeSimpleSQL("DELETE FROM moz_places");

@@ -43,7 +43,7 @@ function test() {
             fieldForUrl(TARGET_URI, "hidden", function (aHidden) {
               is(aHidden, 0, "The target page should not be hidden");
 
-              PlacesTestUtils.clearHistory().then(finish);
+              promiseClearHistory().then(finish);
             });
           });
         });

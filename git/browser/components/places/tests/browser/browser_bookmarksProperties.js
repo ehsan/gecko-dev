@@ -474,7 +474,8 @@ gTests.push({
   },
 
   cleanup: function() {
-    return PlacesTestUtils.clearHistory();
+    var bh = PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory);
+    bh.removeAllPages();
   }
 });
 
@@ -497,11 +498,10 @@ function test() {
 function runNextTest() {
   // Cleanup from previous test.
   if (gCurrentTest) {
-    Promise.resolve(gCurrentTest.cleanup()).then(() => {
-      info("End of test: " + gCurrentTest.desc);
-      gCurrentTest = null;
-      waitForAsyncUpdates(runNextTest);
-    });
+    gCurrentTest.cleanup();
+    info("End of test: " + gCurrentTest.desc);
+    gCurrentTest = null;
+    waitForAsyncUpdates(runNextTest);
     return;
   }
 
