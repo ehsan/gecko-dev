@@ -174,7 +174,7 @@ nsresult nsAccessible::QueryInterface(REFNSIID aIID, void** aInstancePtr)
   }                       
 
   if (aIID.Equals(NS_GET_IID(nsIAccessibleHyperLink))) {
-    if (IsLink()) {
+    if (IsHyperLink()) {
       *aInstancePtr = static_cast<nsIAccessibleHyperLink*>(this);
       NS_ADDREF_THIS();
       return NS_OK;
@@ -588,7 +588,7 @@ nsAccessible::GetIndexInParent(PRInt32 *aIndexInParent)
 {
   NS_ENSURE_ARG_POINTER(aIndexInParent);
 
-  *aIndexInParent = IndexInParent();
+  *aIndexInParent = GetIndexInParent();
   return *aIndexInParent != -1 ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -772,10 +772,10 @@ nsAccessible::GetFocusedChild(nsIAccessible **aFocusedChild)
   return NS_OK;
 }
 
-// nsAccessible::ChildAtPoint()
+// nsAccessible::GetChildAtPoint()
 nsAccessible*
-nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
-                           EWhichChildAtPoint aWhichChild)
+nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                              EWhichChildAtPoint aWhichChild)
 {
   // If we can't find the point in a child, we will return the fallback answer:
   // we return |this| if the point is within it, otherwise nsnull.
@@ -839,7 +839,7 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
           (child->State() & states::INVISIBLE) == 0) {
 
         if (aWhichChild == eDeepestChild)
-          return child->ChildAtPoint(aX, aY, eDeepestChild);
+          return child->GetChildAtPoint(aX, aY, eDeepestChild);
 
         return child;
       }
@@ -881,7 +881,7 @@ nsAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  NS_IF_ADDREF(*aAccessible = ChildAtPoint(aX, aY, eDirectChild));
+  NS_IF_ADDREF(*aAccessible = GetChildAtPoint(aX, aY, eDirectChild));
   return NS_OK;
 }
 
@@ -896,7 +896,7 @@ nsAccessible::GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  NS_IF_ADDREF(*aAccessible = ChildAtPoint(aX, aY, eDeepestChild));
+  NS_IF_ADDREF(*aAccessible = GetChildAtPoint(aX, aY, eDeepestChild));
   return NS_OK;
 }
 
@@ -2581,7 +2581,7 @@ nsAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
   if (aIndex < 0 || aIndex >= static_cast<PRInt32>(AnchorCount()))
     return NS_ERROR_INVALID_ARG;
 
-  *aURI = AnchorURIAt(aIndex).get();
+  *aURI = GetAnchorURI(aIndex).get();
   return NS_OK;
 }
 
@@ -2598,7 +2598,7 @@ nsAccessible::GetAnchor(PRInt32 aIndex, nsIAccessible** aAccessible)
   if (aIndex < 0 || aIndex >= static_cast<PRInt32>(AnchorCount()))
     return NS_ERROR_INVALID_ARG;
 
-  NS_IF_ADDREF(*aAccessible = AnchorAt(aIndex));
+  NS_IF_ADDREF(*aAccessible = GetAnchor(aIndex));
   return NS_OK;
 }
 
@@ -2612,7 +2612,7 @@ nsAccessible::GetValid(PRBool *aValid)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  *aValid = IsLinkValid();
+  *aValid = IsValid();
   return NS_OK;
 }
 
@@ -2626,7 +2626,7 @@ nsAccessible::GetSelected(PRBool *aSelected)
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  *aSelected = IsLinkSelected();
+  *aSelected = IsSelected();
   return NS_OK;
 
 }
@@ -2844,11 +2844,11 @@ nsAccessible::GetChildCount()
 PRInt32
 nsAccessible::GetIndexOf(nsAccessible* aChild)
 {
-  return (aChild->mParent != this) ? -1 : aChild->IndexInParent();
+  return (aChild->mParent != this) ? -1 : aChild->GetIndexInParent();
 }
 
 PRInt32
-nsAccessible::IndexInParent() const
+nsAccessible::GetIndexInParent() const
 {
   return mIndexInParent;
 }
@@ -2895,7 +2895,7 @@ nsAccessible::GetIndexOfEmbeddedChild(nsAccessible* aChild)
 // HyperLinkAccessible methods
 
 bool
-nsAccessible::IsLink()
+nsAccessible::IsHyperLink()
 {
   // Every embedded accessible within hypertext accessible implements
   // hyperlink interface.
@@ -2905,7 +2905,7 @@ nsAccessible::IsLink()
 PRUint32
 nsAccessible::StartOffset()
 {
-  NS_PRECONDITION(IsLink(), "StartOffset is called not on hyper link!");
+  NS_PRECONDITION(IsHyperLink(), "StartOffset is called not on hyper link!");
 
   nsHyperTextAccessible* hyperText = mParent ? mParent->AsHyperText() : nsnull;
   return hyperText ? hyperText->GetChildOffset(this) : 0;
@@ -2914,30 +2914,49 @@ nsAccessible::StartOffset()
 PRUint32
 nsAccessible::EndOffset()
 {
-  NS_PRECONDITION(IsLink(), "EndOffset is called on not hyper link!");
+  NS_PRECONDITION(IsHyperLink(), "EndOffset is called on not hyper link!");
 
   nsHyperTextAccessible* hyperText = mParent ? mParent->AsHyperText() : nsnull;
   return hyperText ? (hyperText->GetChildOffset(this) + 1) : 0;
 }
 
+bool
+nsAccessible::IsValid()
+{
+  NS_PRECONDITION(IsHyperLink(), "IsValid is called on not hyper link!");
+
+  return (0 == (State() & states::INVALID));
+  // XXX In order to implement this we would need to follow every link
+  // Perhaps we can get information about invalid links from the cache
+  // In the mean time authors can use role="link" aria-invalid="true"
+  // to force it for links they internally know to be invalid
+}
+
+bool
+nsAccessible::IsSelected()
+{
+  NS_PRECONDITION(IsHyperLink(), "IsSelected is called on not hyper link!");
+  return (gLastFocusedNode == GetNode());
+}
+
 PRUint32
 nsAccessible::AnchorCount()
 {
-  NS_PRECONDITION(IsLink(), "AnchorCount is called on not hyper link!");
+  NS_PRECONDITION(IsHyperLink(), "AnchorCount is called on not hyper link!");
   return 1;
 }
 
 nsAccessible*
-nsAccessible::AnchorAt(PRUint32 aAnchorIndex)
+nsAccessible::GetAnchor(PRUint32 aAnchorIndex)
 {
-  NS_PRECONDITION(IsLink(), "GetAnchor is called on not hyper link!");
+  NS_PRECONDITION(IsHyperLink(), "GetAnchor is called on not hyper link!");
   return aAnchorIndex == 0 ? this : nsnull;
 }
 
 already_AddRefed<nsIURI>
-nsAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
+nsAccessible::GetAnchorURI(PRUint32 aAnchorIndex)
 {
-  NS_PRECONDITION(IsLink(), "AnchorURIAt is called on not hyper link!");
+  NS_PRECONDITION(IsHyperLink(), "GetAnchorURI is called on not hyper link!");
 
   if (aAnchorIndex != 0)
     return nsnull;

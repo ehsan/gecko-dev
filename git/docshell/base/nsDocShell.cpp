@@ -737,7 +737,6 @@ nsDocShell::nsDocShell():
     mAllowMetaRedirects(PR_TRUE),
     mAllowImages(PR_TRUE),
     mAllowDNSPrefetch(PR_TRUE),
-    mAllowWindowControl(PR_TRUE),
     mCreatingDocument(PR_FALSE),
     mUseErrorPages(PR_FALSE),
     mObserveErrorPages(PR_TRUE),
@@ -2037,18 +2036,6 @@ NS_IMETHODIMP nsDocShell::SetAllowDNSPrefetch(PRBool aAllowDNSPrefetch)
     return NS_OK;
 }
 
-NS_IMETHODIMP nsDocShell::GetAllowWindowControl(PRBool * aAllowWindowControl)
-{
-    *aAllowWindowControl = mAllowWindowControl;
-    return NS_OK;
-}
-
-NS_IMETHODIMP nsDocShell::SetAllowWindowControl(PRBool aAllowWindowControl)
-{
-    mAllowWindowControl = aAllowWindowControl;
-    return NS_OK;
-}
-
 NS_IMETHODIMP
 nsDocShell::GetDocShellEnumerator(PRInt32 aItemType, PRInt32 aDirection, nsISimpleEnumerator **outEnum)
 {
@@ -2624,10 +2611,6 @@ nsDocShell::SetDocLoaderParent(nsDocLoader * aParent)
         if (NS_SUCCEEDED(parentAsDocShell->GetAllowImages(&value)))
         {
             SetAllowImages(value);
-        }
-        if (NS_SUCCEEDED(parentAsDocShell->GetAllowWindowControl(&value)))
-        {
-            SetAllowWindowControl(value);
         }
         if (NS_SUCCEEDED(parentAsDocShell->GetIsActive(&value)))
         {
