@@ -2067,15 +2067,14 @@ HTMLFormElement::GetNextRadioButton(const nsAString& aName,
       index = 0;
     }
     radio = HTMLInputElement::FromContentOrNull(radioGroup->Item(index));
-    isRadio = radio && radio->GetType() == NS_FORM_INPUT_RADIO;
-    if (!isRadio) {
+    if (!radio)
       continue;
-    }
 
-    nsAutoString name;
-    radio->GetName(name);
-    isRadio = aName.Equals(name);
-  } while (!isRadio || (radio->Disabled() && radio != currentRadio));
+    isRadio = radio->GetType() == NS_FORM_INPUT_RADIO;
+    if (!isRadio)
+      continue;
+
+  } while ((radio->Disabled() && radio != currentRadio) || !isRadio);
 
   NS_IF_ADDREF(*aRadioOut = radio);
   return NS_OK;

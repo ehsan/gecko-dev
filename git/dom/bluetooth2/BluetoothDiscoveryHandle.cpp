@@ -24,6 +24,7 @@ BluetoothDiscoveryHandle::BluetoothDiscoveryHandle(nsPIDOMWindow* aWindow)
   : DOMEventTargetHelper(aWindow)
 {
   MOZ_ASSERT(aWindow);
+  MOZ_ASSERT(IsDOMBinding());
 }
 
 BluetoothDiscoveryHandle::~BluetoothDiscoveryHandle()

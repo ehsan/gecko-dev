@@ -29,6 +29,7 @@ public:
   explicit TouchList(nsISupports* aParent)
     : mParent(aParent)
   {
+    SetIsDOMBinding();
     nsJSContext::LikelyShortLivingObjectCreated();
   }
   TouchList(nsISupports* aParent,
@@ -36,6 +37,7 @@ public:
     : mParent(aParent)
     , mPoints(aTouches)
   {
+    SetIsDOMBinding();
     nsJSContext::LikelyShortLivingObjectCreated();
   }
 

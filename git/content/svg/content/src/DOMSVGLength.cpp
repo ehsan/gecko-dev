@@ -112,6 +112,8 @@ DOMSVGLength::DOMSVGLength(DOMSVGLengthList *aList,
                     aListIndex <= MaxListIndex(), "bad arg");
 
   NS_ABORT_IF_FALSE(IndexIsValid(), "Bad index for DOMSVGNumber!");
+
+  SetIsDOMBinding();
 }
 
 DOMSVGLength::DOMSVGLength()
@@ -123,6 +125,7 @@ DOMSVGLength::DOMSVGLength()
   , mValue(0.0f)
   , mVal(nullptr)
 {
+  SetIsDOMBinding();
 }
 
 DOMSVGLength::DOMSVGLength(nsSVGLength2* aVal, nsSVGElement* aSVGElement,
@@ -136,6 +139,7 @@ DOMSVGLength::DOMSVGLength(nsSVGLength2* aVal, nsSVGElement* aSVGElement,
   , mVal(aVal)
   , mSVGElement(aSVGElement)
 {
+  SetIsDOMBinding();
 }
 
 DOMSVGLength::~DOMSVGLength()

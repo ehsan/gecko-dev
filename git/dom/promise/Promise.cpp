@@ -307,6 +307,7 @@ Promise::Promise(nsIGlobalObject* aGlobal)
   MOZ_ASSERT(mGlobal);
 
   mozilla::HoldJSObjects(this);
+  SetIsDOMBinding();
 }
 
 Promise::~Promise()

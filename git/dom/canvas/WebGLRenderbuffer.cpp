@@ -51,6 +51,7 @@ WebGLRenderbuffer::WebGLRenderbuffer(WebGLContext *context)
     , mInternalFormatForGL(0)
     , mImageDataStatus(WebGLImageDataStatus::NoImageData)
 {
+    SetIsDOMBinding();
     mContext->MakeContextCurrent();
 
     mContext->gl->fGenRenderbuffers(1, &mPrimaryRB);

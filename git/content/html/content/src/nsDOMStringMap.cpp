@@ -55,6 +55,8 @@ nsDOMStringMap::nsDOMStringMap(nsGenericHTMLElement* aElement)
   : mElement(aElement),
     mRemovingProp(false)
 {
+  SetIsDOMBinding();
+
   mElement->AddMutationObserver(this);
 }
 

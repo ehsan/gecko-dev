@@ -100,6 +100,7 @@ private:
     , mAttrEnum(aAttrEnum)
     , mIsConditionalProcessingAttribute(aIsConditionalProcessingAttribute)
   {
+    SetIsDOMBinding();
   }
 
   ~DOMSVGStringList();

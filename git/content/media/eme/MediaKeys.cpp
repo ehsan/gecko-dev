@@ -41,6 +41,7 @@ MediaKeys::MediaKeys(nsPIDOMWindow* aParent, const nsAString& aKeySystem)
   , mKeySystem(aKeySystem)
   , mCreatePromiseId(0)
 {
+  SetIsDOMBinding();
 }
 
 static PLDHashOperator

@@ -560,6 +560,7 @@ Console::Console(nsPIDOMWindow* aWindow)
     }
   }
 
+  SetIsDOMBinding();
   mozilla::HoldJSObjects(this);
 }
 

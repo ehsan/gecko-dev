@@ -14,6 +14,7 @@ USING_WORKERS_NAMESPACE
 XMLHttpRequestUpload::XMLHttpRequestUpload(XMLHttpRequest* aXHR)
 : mXHR(aXHR)
 {
+  SetIsDOMBinding();
 }
 
 XMLHttpRequestUpload::~XMLHttpRequestUpload()

@@ -50,6 +50,7 @@ public:
     , mIsAnimValItem(false)
     , mIsTranslatePoint(false)
   {
+    SetIsDOMBinding();
   }
 
   explicit nsISVGPoint(SVGPoint* aPt, bool aIsTranslatePoint)
@@ -59,6 +60,7 @@ public:
     , mIsAnimValItem(false)
     , mIsTranslatePoint(aIsTranslatePoint)
   {
+    SetIsDOMBinding();
     mPt.mX = aPt->GetX();
     mPt.mY = aPt->GetY();
   }

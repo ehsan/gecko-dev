@@ -28,6 +28,7 @@ AudioProcessingEvent::AudioProcessingEvent(ScriptProcessorNode* aOwner,
   , mPlaybackTime(0.0)
   , mNode(aOwner)
 {
+  SetIsDOMBinding();
 }
 
 AudioProcessingEvent::~AudioProcessingEvent()

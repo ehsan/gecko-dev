@@ -889,14 +889,13 @@ function synthesizeComposition(aEvent, aWindow)
                              aEvent.locale ? aEvent.locale : "");
 }
 /**
- * Synthesize a compositionchange event which causes a DOM text event and
- * compositionupdate event if it's necessary.
+ * Synthesize a text event.
  *
- * @param aEvent   The compositionchange event's information, this has
- *                 |composition| and |caret| members.  |composition| has
- *                 |string| and |clauses| members.  |clauses| must be array
- *                 object.  Each object has |length| and |attr|.  And |caret|
- *                 has |start| and |length|.  See the following tree image.
+ * @param aEvent   The text event's information, this has |composition|
+ *                 and |caret| members.  |composition| has |string| and
+ *                 |clauses| members.  |clauses| must be array object.  Each
+ *                 object has |length| and |attr|.  And |caret| has |start| and
+ *                 |length|.  See the following tree image.
  *
  *                 aEvent
  *                   +-- composition
@@ -929,7 +928,7 @@ function synthesizeComposition(aEvent, aWindow)
  *
  * @param aWindow  Optional (If null, current |window| will be used)
  */
-function synthesizeCompositionChange(aEvent, aWindow)
+function synthesizeText(aEvent, aWindow)
 {
   var utils = _getDOMWindowUtils(aWindow);
   if (!utils) {

@@ -21,6 +21,7 @@ SVGAnimatedRect::SVGAnimatedRect(nsSVGViewBox* aVal, nsSVGElement* aSVGElement)
   : mVal(aVal)
   , mSVGElement(aSVGElement)
 {
+  SetIsDOMBinding();
 }
 
 SVGAnimatedRect::~SVGAnimatedRect()

@@ -846,13 +846,11 @@ nsPlaintextEditor::UpdateIMEComposition(nsIDOMEvent* aDOMTextEvent)
 {
   NS_ABORT_IF_FALSE(aDOMTextEvent, "aDOMTextEvent must not be nullptr");
 
-  WidgetCompositionEvent* compositionChangeEvent =
-    aDOMTextEvent->GetInternalNSEvent()->AsCompositionEvent();
-  NS_ENSURE_TRUE(compositionChangeEvent, NS_ERROR_INVALID_ARG);
-  MOZ_ASSERT(compositionChangeEvent->message == NS_COMPOSITION_CHANGE,
-             "The internal event should be NS_COMPOSITION_CHANGE");
+  WidgetTextEvent* widgetTextEvent =
+    aDOMTextEvent->GetInternalNSEvent()->AsTextEvent();
+  NS_ENSURE_TRUE(widgetTextEvent, NS_ERROR_INVALID_ARG);
 
-  EnsureComposition(compositionChangeEvent);
+  EnsureComposition(widgetTextEvent);
 
   nsCOMPtr<nsIPresShell> ps = GetPresShell();
   NS_ENSURE_TRUE(ps, NS_ERROR_NOT_INITIALIZED);
@@ -862,17 +860,17 @@ nsPlaintextEditor::UpdateIMEComposition(nsIDOMEvent* aDOMTextEvent)
   NS_ENSURE_SUCCESS(rv, rv);
 
   // NOTE: TextComposition should receive selection change notification before
-  //       CompositionChangeEventHandlingMarker notifies TextComposition of the
-  //       end of handling compositionchange event because TextComposition may
-  //       need to ignore selection changes caused by composition.  Therefore,
-  //       CompositionChangeEventHandlingMarker must be destroyed after a call
-  //       of NotifiyEditorObservers(eNotifyEditorObserversOfEnd) or
+  //       TextEventHandlingMarker notifies TextComposition of the end of
+  //       handling TextEvent because TextComposition may need to ignore
+  //       selection changes caused by composition.  Therefore,
+  //       TextEventHandlingMarker must be destroyed after a call of
+  //       NotifiyEditorObservers(eNotifyEditorObserversOfEnd) or
   //       NotifiyEditorObservers(eNotifyEditorObserversOfCancel) which notifies
   //       TextComposition of a selection change.
   MOZ_ASSERT(!mPlaceHolderBatch,
     "UpdateIMEComposition() must be called without place holder batch");
-  TextComposition::CompositionChangeEventHandlingMarker
-    compositionChangeEventHandlingMarker(mComposition, compositionChangeEvent);
+  TextComposition::TextEventHandlingMarker
+    textEventHandlingMarker(mComposition, widgetTextEvent);
 
   NotifyEditorObservers(eNotifyEditorObserversOfBefore);
 
@@ -881,7 +879,7 @@ nsPlaintextEditor::UpdateIMEComposition(nsIDOMEvent* aDOMTextEvent)
   {
     nsAutoPlaceHolderBatch batch(this, nsGkAtoms::IMETxnName);
 
-    rv = InsertText(compositionChangeEvent->mData);
+    rv = InsertText(widgetTextEvent->theText);
 
     if (caretP) {
       caretP->SetSelection(selection);

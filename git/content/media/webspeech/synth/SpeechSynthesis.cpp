@@ -77,6 +77,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(SpeechSynthesis)
 SpeechSynthesis::SpeechSynthesis(nsPIDOMWindow* aParent)
   : mParent(aParent)
 {
+  SetIsDOMBinding();
 }
 
 SpeechSynthesis::~SpeechSynthesis()

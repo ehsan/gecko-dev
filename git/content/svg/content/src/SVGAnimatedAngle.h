@@ -26,6 +26,7 @@ public:
   SVGAnimatedAngle(nsSVGAngle* aVal, nsSVGElement *aSVGElement)
     : mVal(aVal), mSVGElement(aSVGElement)
   {
+    SetIsDOMBinding();
   }
 
   // WebIDL

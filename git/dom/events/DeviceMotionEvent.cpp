@@ -109,6 +109,7 @@ DeviceAcceleration::DeviceAcceleration(DeviceMotionEvent* aOwner,
   , mY(aY)
   , mZ(aZ)
 {
+  SetIsDOMBinding();
 }
 
 DeviceAcceleration::~DeviceAcceleration()
@@ -133,6 +134,7 @@ DeviceRotationRate::DeviceRotationRate(DeviceMotionEvent* aOwner,
   , mBeta(aBeta)
   , mGamma(aGamma)
 {
+  SetIsDOMBinding();
 }
 
 DeviceRotationRate::~DeviceRotationRate()

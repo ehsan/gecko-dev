@@ -47,6 +47,8 @@ WorkerGlobalScope::WorkerGlobalScope(WorkerPrivate* aWorkerPrivate)
 : mWorkerPrivate(aWorkerPrivate)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
+
+  SetIsDOMBinding();
 }
 
 WorkerGlobalScope::~WorkerGlobalScope()

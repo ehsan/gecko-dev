@@ -15,7 +15,6 @@
 
 #import <Foundation/NSGeometry.h>
 
-@class NSColor;
 @class NSView;
 class nsChildView;
 class nsIntRegion;
@@ -75,14 +74,6 @@ public:
    * NSGraphicsContext is already correctly set to the window drawing context.
    */
   void ClearVibrantAreas() const;
-
-  /**
-   * Return the fill color that should be drawn on top of the cleared window
-   * parts. Usually this would be drawn by -[NSVisualEffectView drawRect:].
-   * The returned color is opaque if the system-wide "Reduce transparency"
-   * preference is set.
-   */
-  NSColor* VibrancyFillColorForType(VibrancyType aType);
 
   /**
    * Check whether the operating system supports vibrancy at all.

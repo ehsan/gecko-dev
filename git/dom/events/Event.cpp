@@ -62,6 +62,7 @@ Event::ConstructorInit(EventTarget* aOwner,
                        nsPresContext* aPresContext,
                        WidgetEvent* aEvent)
 {
+  SetIsDOMBinding();
   SetOwner(aOwner);
   mIsMainThreadEvent = mOwner || NS_IsMainThread();
   if (mIsMainThreadEvent) {

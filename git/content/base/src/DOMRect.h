@@ -36,6 +36,7 @@ public:
   explicit DOMRectReadOnly(nsISupports* aParent)
     : mParent(aParent)
   {
+    SetIsDOMBinding();
   }
 
   nsISupports* GetParentObject() const
@@ -154,6 +155,7 @@ class DOMRectList MOZ_FINAL : public nsIDOMClientRectList,
 public:
   explicit DOMRectList(nsISupports *aParent) : mParent(aParent)
   {
+    SetIsDOMBinding();
   }
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

@@ -195,6 +195,7 @@ BluetoothAdapter::BluetoothAdapter(nsPIDOMWindow* aWindow,
   , mDiscoveryHandleInUse(nullptr)
 {
   MOZ_ASSERT(aWindow);
+  MOZ_ASSERT(IsDOMBinding());
 
   mPairingReqs = BluetoothPairingListener::Create(aWindow);
 

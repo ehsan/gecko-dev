@@ -17,6 +17,7 @@ using namespace mozilla::dom;
 HTMLShadowElement::HTMLShadowElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo), mIsInsertionPoint(false)
 {
+  SetIsDOMBinding();
 }
 
 HTMLShadowElement::~HTMLShadowElement()

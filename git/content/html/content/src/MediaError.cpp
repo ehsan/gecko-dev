@@ -25,6 +25,7 @@ MediaError::MediaError(HTMLMediaElement* aParent, uint16_t aCode)
   : mParent(aParent)
   , mCode(aCode)
 {
+  SetIsDOMBinding();
 }
 
 NS_IMETHODIMP MediaError::GetCode(uint16_t* aCode)

@@ -51,6 +51,8 @@ public:
 
     mPrincipal = sop->GetPrincipal();
     MOZ_ASSERT(mPrincipal);
+
+    SetIsDOMBinding();
   }
 
   void Shutdown() {

@@ -240,7 +240,6 @@ TabParent::TabParent(nsIContentParent* aManager, const TabContext& aContext, uin
   , mMarkedDestroying(false)
   , mIsDestroyed(false)
   , mAppPackageFileDescriptorSent(false)
-  , mSendOfflineStatus(true)
   , mChromeFlags(aChromeFlags)
 {
   MOZ_ASSERT(aManager);
@@ -499,14 +498,6 @@ TabParent::LoadURL(nsIURI* aURI)
                                    spec.get()).get());
         return;
     }
-
-    uint32_t appId = OwnOrContainingAppId();
-    if (mSendOfflineStatus && NS_IsAppOffline(appId)) {
-      // If the app is offline in the parent process
-      // pass that state to the child process as well
-      unused << SendAppOfflineStatus(appId, true);
-    }
-    mSendOfflineStatus = false;
 
     unused << SendLoadURL(spec);
 
@@ -1574,11 +1565,6 @@ TabParent::SendCompositionEvent(WidgetCompositionEvent& event)
   if (mIsDestroyed) {
     return false;
   }
-
-  if (event.message == NS_COMPOSITION_CHANGE) {
-    return SendCompositionChangeEvent(event);
-  }
-
   mIMEComposing = event.message != NS_COMPOSITION_END;
   mIMECompositionStart = std::min(mIMESelectionAnchor, mIMESelectionFocus);
   if (mIMECompositionEnding)
@@ -1589,17 +1575,20 @@ TabParent::SendCompositionEvent(WidgetCompositionEvent& event)
 
 /**
  * During REQUEST_TO_COMMIT_COMPOSITION or REQUEST_TO_CANCEL_COMPOSITION,
- * widget usually sends a NS_COMPOSITION_CHANGE event to finalize or
- * clear the composition, respectively
+ * widget usually sends a NS_TEXT_TEXT event to finalize or clear the
+ * composition, respectively
  *
  * Because the event will not reach content in time, we intercept it
  * here and pass the text as the EndIMEComposition return value
  */
 bool
-TabParent::SendCompositionChangeEvent(WidgetCompositionEvent& event)
+TabParent::SendTextEvent(WidgetTextEvent& event)
 {
+  if (mIsDestroyed) {
+    return false;
+  }
   if (mIMECompositionEnding) {
-    mIMECompositionText = event.mData;
+    mIMECompositionText = event.theText;
     return true;
   }
 
@@ -1609,10 +1598,10 @@ TabParent::SendCompositionChangeEvent(WidgetCompositionEvent& event)
     mIMECompositionStart = std::min(mIMESelectionAnchor, mIMESelectionFocus);
   }
   mIMESelectionAnchor = mIMESelectionFocus =
-      mIMECompositionStart + event.mData.Length();
+      mIMECompositionStart + event.theText.Length();
 
   event.mSeqno = ++mIMESeqno;
-  return PBrowserParent::SendCompositionEvent(event);
+  return PBrowserParent::SendTextEvent(event);
 }
 
 bool

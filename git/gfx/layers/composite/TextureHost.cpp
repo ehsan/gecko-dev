@@ -367,7 +367,7 @@ BufferTextureHost::SetCompositor(Compositor* aCompositor)
   if (mCompositor == aCompositor) {
     return;
   }
-  RefPtr<TextureSource> it = mFirstSource;
+  RefPtr<NewTextureSource> it = mFirstSource;
   while (it) {
     it->SetCompositor(aCompositor);
     it = it->GetNextSibling();
@@ -378,7 +378,7 @@ BufferTextureHost::SetCompositor(Compositor* aCompositor)
 void
 BufferTextureHost::DeallocateDeviceData()
 {
-  RefPtr<TextureSource> it = mFirstSource;
+  RefPtr<NewTextureSource> it = mFirstSource;
   while (it) {
     it->DeallocateDeviceData();
     it = it->GetNextSibling();
@@ -403,7 +403,7 @@ BufferTextureHost::Unlock()
   mLocked = false;
 }
 
-TextureSource*
+NewTextureSource*
 BufferTextureHost::GetTextureSources()
 {
   MOZ_ASSERT(mLocked);
@@ -865,7 +865,7 @@ StreamTextureHost::Lock()
       break;
   }
 
-  RefPtr<TextureSource> newTexSource;
+  RefPtr<NewTextureSource> newTexSource;
   if (compositorSupportsShSurfType) {
     gfx::SurfaceFormat format = abstractSurf->mHasAlpha ? gfx::SurfaceFormat::R8G8B8A8
                                                         : gfx::SurfaceFormat::R8G8B8X8;

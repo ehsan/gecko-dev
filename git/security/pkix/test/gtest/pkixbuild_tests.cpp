@@ -309,7 +309,7 @@ TEST_F(pkixbuild, BeyondMaxAcceptableCertChainLength)
 class ExpiredCertTrustDomain : public TrustDomain
 {
 public:
-  explicit ExpiredCertTrustDomain(ByteString rootDER)
+  ExpiredCertTrustDomain(ByteString rootDER)
     : rootDER(rootDER)
   {
   }

@@ -125,6 +125,7 @@ public:
                             bool aIsBaseValue)
     : mVal(aVal), mSVGElement(aSVGElement), mIsBaseValue(aIsBaseValue)
   {
+    SetIsDOMBinding();
   }
 
   // WebIDL

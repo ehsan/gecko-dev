@@ -28,6 +28,7 @@ public:
   explicit DOMMatrixReadOnly(nsISupports* aParent)
     : mParent(aParent), mMatrix2D(new gfx::Matrix())
   {
+    SetIsDOMBinding();
   }
 
   DOMMatrixReadOnly(nsISupports* aParent, const DOMMatrixReadOnly& other)
@@ -38,6 +39,8 @@ public:
     } else {
       mMatrix3D = new gfx::Matrix4x4(*other.mMatrix3D);
     }
+
+    SetIsDOMBinding();
   }
 
 #define GetMatrixMember(entry2D, entry3D, default) \

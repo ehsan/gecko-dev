@@ -25,6 +25,7 @@ VideoPlaybackQuality::VideoPlaybackQuality(HTMLMediaElement* aElement,
   , mDroppedFrames(aDroppedFrames)
   , mCorruptedFrames(aCorruptedFrames)
 {
+  SetIsDOMBinding();
 }
 
 HTMLMediaElement*

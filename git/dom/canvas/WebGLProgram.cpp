@@ -60,6 +60,7 @@ WebGLProgram::WebGLProgram(WebGLContext *context)
     , mUniformInfoMap(new CStringToUniformInfoMap)
     , mAttribMaxNameLength(0)
 {
+    SetIsDOMBinding();
     mContext->MakeContextCurrent();
     mGLName = mContext->gl->fCreateProgram();
     mContext->mPrograms.insertBack(this);

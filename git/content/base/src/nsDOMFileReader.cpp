@@ -87,6 +87,7 @@ nsDOMFileReader::nsDOMFileReader()
     mResultArrayBuffer(nullptr)
 {
   SetDOMStringToNull(mResult);
+  SetIsDOMBinding();
 }
 
 nsDOMFileReader::~nsDOMFileReader()

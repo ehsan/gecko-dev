@@ -44,6 +44,7 @@ Request::Request(nsIGlobalObject* aOwner, InternalRequest* aRequest)
   , mRequest(aRequest)
   , mBodyUsed(false)
 {
+  SetIsDOMBinding();
 }
 
 Request::~Request()

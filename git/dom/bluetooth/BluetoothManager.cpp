@@ -100,6 +100,7 @@ BluetoothManager::BluetoothManager(nsPIDOMWindow *aWindow)
   , BluetoothPropertyContainer(BluetoothObjectType::TYPE_MANAGER)
 {
   MOZ_ASSERT(aWindow);
+  MOZ_ASSERT(IsDOMBinding());
 
   mPath.Assign('/');
 

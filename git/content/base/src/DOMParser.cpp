@@ -25,6 +25,7 @@ using namespace mozilla::dom;
 DOMParser::DOMParser()
   : mAttemptedInit(false)
 {
+  SetIsDOMBinding();
 }
 
 DOMParser::~DOMParser()

@@ -123,7 +123,7 @@ struct EffectChain;
 class Image;
 class ISurfaceAllocator;
 class Layer;
-class TextureSource;
+class NewTextureSource;
 class DataTextureSource;
 class CompositingRenderTarget;
 class PCompositorParent;

@@ -876,6 +876,8 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(DestinationInsertionPointList)
 DestinationInsertionPointList::DestinationInsertionPointList(Element* aElement)
   : mParent(aElement)
 {
+  SetIsDOMBinding();
+
   nsTArray<nsIContent*>* destPoints = aElement->GetExistingDestInsertionPoints();
   if (destPoints) {
     for (uint32_t i = 0; i < destPoints->Length(); i++) {

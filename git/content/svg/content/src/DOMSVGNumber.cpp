@@ -98,6 +98,8 @@ DOMSVGNumber::DOMSVGNumber(DOMSVGNumberList *aList,
                     aListIndex <= MaxListIndex(), "bad arg");
 
   NS_ABORT_IF_FALSE(IndexIsValid(), "Bad index for DOMSVGNumber!");
+
+  SetIsDOMBinding();
 }
 
 DOMSVGNumber::DOMSVGNumber(nsISupports* aParent)
@@ -108,6 +110,7 @@ DOMSVGNumber::DOMSVGNumber(nsISupports* aParent)
   , mIsAnimValItem(false)
   , mValue(0.0f)
 {
+  SetIsDOMBinding();
 }
 
 /* static */ already_AddRefed<DOMSVGNumber>

@@ -32,8 +32,7 @@ CompositionEvent::CompositionEvent(EventTarget* aOwner,
     mEvent->mFlags.mCancelable = false;
   }
 
-  // XXX Do we really need to duplicate the data value?
-  mData = mEvent->AsCompositionEvent()->mData;
+  mData = mEvent->AsCompositionEvent()->data;
   // TODO: Native event should have locale information.
 }
 

@@ -1575,6 +1575,8 @@ XMLHttpRequest::XMLHttpRequest(WorkerPrivate* aWorkerPrivate)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
 
+  SetIsDOMBinding();
+
   mozilla::HoldJSObjects(this);
 }
 

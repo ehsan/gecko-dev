@@ -57,6 +57,7 @@ public:
     , mAssertNextInsertOrAppendNode(nullptr)
 #endif
   {
+    SetIsDOMBinding();
     MOZ_ASSERT(aNode, "range isn't in a document!");
     mOwner = aNode->OwnerDoc();
   }

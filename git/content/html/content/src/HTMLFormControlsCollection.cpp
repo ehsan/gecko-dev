@@ -76,6 +76,7 @@ HTMLFormControlsCollection::HTMLFormControlsCollection(HTMLFormElement* aForm)
   , mElements(8)
   , mNameLookupTable(HTMLFormElement::FORM_CONTROL_LIST_HASHTABLE_LENGTH)
 {
+  SetIsDOMBinding();
 }
 
 HTMLFormControlsCollection::~HTMLFormControlsCollection()
