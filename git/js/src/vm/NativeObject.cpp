@@ -270,6 +270,14 @@ js::NativeObject::slotInRange(uint32_t slot, SentinelAllowed sentinel) const
 }
 #endif /* DEBUG */
 
+#if defined(_MSC_VER)
+/*
+ * Work around a compiler bug in MSVC9 and above, where inlining this function
+ * causes stack pointer offsets to go awry and spp to refer to something higher
+ * up the stack.
+ */
+MOZ_NEVER_INLINE
+#endif
 Shape *
 js::NativeObject::lookup(ExclusiveContext *cx, jsid id)
 {
@@ -315,6 +323,7 @@ PropDesc::trace(JSTracer *trc)
 NativeObject::updateSlotsForSpan(ExclusiveContext *cx,
                                  HandleNativeObject obj, size_t oldSpan, size_t newSpan)
 {
+    MOZ_ASSERT(cx->isThreadLocal(obj));
     MOZ_ASSERT(oldSpan != newSpan);
 
     size_t oldCount = dynamicSlotsCount(obj->numFixedSlots(), oldSpan, obj->getClass());
@@ -343,6 +352,7 @@ NativeObject::updateSlotsForSpan(ExclusiveContext *cx,
 /* static */ bool
 NativeObject::setLastProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleShape shape)
 {
+    MOZ_ASSERT(cx->isThreadLocal(obj));
     MOZ_ASSERT(!obj->inDictionaryMode());
     MOZ_ASSERT(!shape->inDictionary());
     MOZ_ASSERT(shape->compartment() == obj->compartment());
@@ -385,6 +395,7 @@ NativeObject::setLastPropertyShrinkFixedSlots(Shape *shape)
 /* static */ bool
 NativeObject::setSlotSpan(ExclusiveContext *cx, HandleNativeObject obj, uint32_t span)
 {
+    MOZ_ASSERT(cx->isThreadLocal(obj));
     MOZ_ASSERT(obj->inDictionaryMode());
 
     size_t oldSpan = obj->lastProperty()->base()->slotSpan();
@@ -426,6 +437,7 @@ ReallocateSlots(ExclusiveContext *cx, JSObject *obj, HeapSlot *oldSlots,
 /* static */ bool
 NativeObject::growSlots(ExclusiveContext *cx, HandleNativeObject obj, uint32_t oldCount, uint32_t newCount)
 {
+    MOZ_ASSERT(cx->isThreadLocal(obj));
     MOZ_ASSERT(newCount > oldCount);
     MOZ_ASSERT_IF(!obj->is<ArrayObject>(), newCount >= SLOT_CAPACITY_MIN);
 
@@ -469,6 +481,7 @@ FreeSlots(ExclusiveContext *cx, HeapSlot *slots)
 NativeObject::shrinkSlots(ExclusiveContext *cx, HandleNativeObject obj,
                           uint32_t oldCount, uint32_t newCount)
 {
+    MOZ_ASSERT(cx->isThreadLocal(obj));
     MOZ_ASSERT(newCount < oldCount);
 
     if (newCount == 0) {
@@ -863,6 +876,7 @@ NativeObject::growElements(ExclusiveContext *cx, uint32_t reqCapacity)
 void
 NativeObject::shrinkElements(ExclusiveContext *cx, uint32_t reqCapacity)
 {
+    MOZ_ASSERT(cx->isThreadLocal(this));
     MOZ_ASSERT(canHaveNonEmptyElements());
     if (denseElementsAreCopyOnWrite())
         MOZ_CRASH();
@@ -930,6 +944,8 @@ NativeObject::CopyElementsForWrite(ExclusiveContext *cx, NativeObject *obj)
 /* static */ bool
 NativeObject::allocSlot(ExclusiveContext *cx, HandleNativeObject obj, uint32_t *slotp)
 {
+    MOZ_ASSERT(cx->isThreadLocal(obj));
+
     uint32_t slot = obj->slotSpan();
     MOZ_ASSERT(slot >= JSSLOT_FREE(obj->getClass()));
 
@@ -1413,7 +1429,7 @@ js::DefineNativeProperty(ExclusiveContext *cx, HandleNativeObject obj, HandleId 
         if (shape) {
             // Don't forget about arrays.
             if (IsImplicitDenseOrTypedArrayElement(shape)) {
-                if (IsAnyTypedArray(obj)) {
+                if (obj->is<TypedArrayObject>()) {
                     /*
                      * Silently ignore attempts to change individial index attributes.
                      * FIXME: Uses the same broken behavior as for accessors. This should

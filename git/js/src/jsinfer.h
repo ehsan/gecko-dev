@@ -120,18 +120,25 @@ class CallObject;
 /*
  * Execution Mode Overview
  *
- * JavaScript code executes sequentially.  Functions which have
- * similar but not identical behavior between execution modes can be
- * templated on the mode. Such functions use a context parameter type
- * from ExecutionModeTraits below indicating whether they are only
- * permitted constrained operations (such as thread safety, and side
- * effects limited to being thread-local), or whether they can have
- * arbitrary side effects.
+ * JavaScript code can execute either sequentially or in parallel, such as in
+ * PJS. Functions which behave identically in either execution mode can take a
+ * ThreadSafeContext, and functions which have similar but not identical
+ * behavior between execution modes can be templated on the mode. Such
+ * functions use a context parameter type from ExecutionModeTraits below
+ * indicating whether they are only permitted constrained operations (such as
+ * thread safety, and side effects limited to being thread-local), or whether
+ * they can have arbitrary side effects.
  */
 
 enum ExecutionMode {
     /* Normal JavaScript execution. */
     SequentialExecution,
+
+    /*
+     * JavaScript code to be executed in parallel worker threads in PJS in a
+     * fork join fashion.
+     */
+    ParallelExecution,
 
     /*
      * Modes after this point are internal and are not counted in
@@ -157,6 +164,8 @@ ExecutionModeString(ExecutionMode mode)
     switch (mode) {
       case SequentialExecution:
         return "SequentialExecution";
+      case ParallelExecution:
+        return "ParallelExecution";
       case DefinitePropertiesAnalysis:
         return "DefinitePropertiesAnalysis";
       case ArgumentsUsageAnalysis:
@@ -170,7 +179,28 @@ ExecutionModeString(ExecutionMode mode)
  * Not as part of the enum so we don't get warnings about unhandled enum
  * values.
  */
-static const unsigned NumExecutionModes = SequentialExecution + 1;
+static const unsigned NumExecutionModes = ParallelExecution + 1;
+
+template <ExecutionMode mode>
+struct ExecutionModeTraits
+{
+};
+
+template <> struct ExecutionModeTraits<SequentialExecution>
+{
+    typedef JSContext * ContextType;
+    typedef ExclusiveContext * ExclusiveContextType;
+
+    static inline JSContext *toContextType(ExclusiveContext *cx);
+};
+
+template <> struct ExecutionModeTraits<ParallelExecution>
+{
+    typedef ForkJoinContext * ContextType;
+    typedef ForkJoinContext * ExclusiveContextType;
+
+    static inline ForkJoinContext *toContextType(ForkJoinContext *cx) { return cx; }
+};
 
 namespace jit {
     struct IonScript;
@@ -417,6 +447,12 @@ enum MOZ_ENUM_TYPE(uint32_t) {
      */
     OBJECT_FLAG_NURSERY_PROTO         = 0x2,
 
+    /*
+     * Whether we have ensured all type sets in the compartment contain
+     * ANYOBJECT instead of this object.
+     */
+    OBJECT_FLAG_SETS_MARKED_UNKNOWN   = 0x4,
+
     /* Mask/shift for the number of properties in propertySet */
     OBJECT_FLAG_PROPERTY_COUNT_MASK   = 0xfff8,
     OBJECT_FLAG_PROPERTY_COUNT_SHIFT  = 3,
@@ -471,6 +507,11 @@ enum MOZ_ENUM_TYPE(uint32_t) {
     /* Flags which indicate dynamic properties of represented objects. */
     OBJECT_FLAG_DYNAMIC_MASK          = 0x03ff0000,
 
+    /* Mask for objects created with unknown properties. */
+    OBJECT_FLAG_UNKNOWN_MASK =
+        OBJECT_FLAG_DYNAMIC_MASK
+      | OBJECT_FLAG_SETS_MARKED_UNKNOWN,
+
     // Mask/shift for the kind of addendum attached to this type object.
     OBJECT_FLAG_ADDENDUM_MASK         = 0x0c000000,
     OBJECT_FLAG_ADDENDUM_SHIFT        = 26,
@@ -500,13 +541,6 @@ class TemporaryTypeSet;
  *
  * - TemporaryTypeSet are created during compilation and do not outlive
  *   that compilation.
- *
- * The contents of a type set completely describe the values that a particular
- * lvalue might have, except in cases where an object's type is mutated. In
- * such cases, type sets which had the object's old type might not have the
- * object's new type. Type mutation occurs only in specific circumstances ---
- * when an object's prototype changes, and when it is swapped with another
- * object --- and will cause the object's properties to be marked as unknown.
  */
 class TypeSet
 {
@@ -592,6 +626,9 @@ class TypeSet
 
     /* Whether any values in this set might have the specified type. */
     bool mightBeMIRType(jit::MIRType type);
+
+    /* Whether all objects have JSCLASS_IS_DOMJSCLASS set. */
+    bool isDOMClass();
 
     /*
      * Get whether this type set is known to be a subset of other.
@@ -750,7 +787,7 @@ class TemporaryTypeSet : public TypeSet
     bool hasObjectFlags(CompilerConstraintList *constraints, TypeObjectFlags flags);
 
     /* Get the class shared by all objects in this set, or nullptr. */
-    const Class *getKnownClass(CompilerConstraintList *constraints);
+    const Class *getKnownClass();
 
     /* Result returned from forAllClasses */
     enum ForAllResult {
@@ -765,26 +802,22 @@ class TemporaryTypeSet : public TypeSet
     /* Apply func to the members of the set and return an appropriate result.
      * The iteration may end early if the result becomes known early.
      */
-    ForAllResult forAllClasses(CompilerConstraintList *constraints,
-                               bool (*func)(const Class *clasp));
+    ForAllResult forAllClasses(bool (*func)(const Class *clasp));
 
     /* Get the prototype shared by all objects in this set, or nullptr. */
-    JSObject *getCommonPrototype(CompilerConstraintList *constraints);
+    JSObject *getCommonPrototype();
 
     /* Get the typed array type of all objects in this set, or Scalar::MaxTypedArrayViewType. */
-    Scalar::Type getTypedArrayType(CompilerConstraintList *constraints);
+    Scalar::Type getTypedArrayType();
 
     /* Get the shared typed array type of all objects in this set, or Scalar::MaxTypedArrayViewType. */
-    Scalar::Type getSharedTypedArrayType(CompilerConstraintList *constraints);
-
-    /* Whether all objects have JSCLASS_IS_DOMJSCLASS set. */
-    bool isDOMClass(CompilerConstraintList *constraints);
+    Scalar::Type getSharedTypedArrayType();
 
     /* Whether clasp->isCallable() is true for one or more objects in this set. */
-    bool maybeCallable(CompilerConstraintList *constraints);
+    bool maybeCallable();
 
     /* Whether clasp->emulatesUndefined() is true for one or more objects in this set. */
-    bool maybeEmulatesUndefined(CompilerConstraintList *constraints);
+    bool maybeEmulatesUndefined();
 
     /* Get the single value which can appear in this type set, otherwise nullptr. */
     JSObject *getSingleton();
@@ -1556,7 +1589,6 @@ struct TypeObjectKey
 
     bool unknownProperties();
     bool hasFlags(CompilerConstraintList *constraints, TypeObjectFlags flags);
-    bool hasStableClassAndProto(CompilerConstraintList *constraints);
     void watchStateChangeForInlinedCall(CompilerConstraintList *constraints);
     void watchStateChangeForTypedArrayData(CompilerConstraintList *constraints);
     HeapTypeSetKey property(jsid id);
@@ -1738,6 +1770,9 @@ struct TypeCompartment
 
     /* Get or make an object for an allocation site, and add to the allocation site table. */
     TypeObject *addAllocationSiteTypeObject(JSContext *cx, AllocationSiteKey key);
+
+    /* Mark any type set containing obj as having a generic object type. */
+    void markSetsUnknown(JSContext *cx, TypeObject *obj);
 
     void clearTables();
     void sweep(FreeOp *fop);

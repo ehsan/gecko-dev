@@ -13,12 +13,12 @@
 
 [Unforgeable]
 interface Location {
-  [Throws, UnsafeInPrerendering]
+  [Throws]
   void assign(DOMString url);
-  [Throws, CrossOriginCallable, UnsafeInPrerendering]
+  [Throws, CrossOriginCallable]
   void replace(DOMString url);
   // XXXbz there is no forceget argument in the spec!  See bug 1037721.
-  [Throws, UnsafeInPrerendering]
+  [Throws]
   void reload(optional boolean forceget = false);
 };
 // No support for .searchParams on Location yet.  See bug 1082734.

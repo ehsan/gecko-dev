@@ -14,6 +14,7 @@
 
 #include "builtin/Object.h"
 #include "jit/JitFrames.h"
+#include "vm/ForkJoin.h"
 #include "vm/HelperThreads.h"
 #include "vm/Interpreter.h"
 #include "vm/ProxyObject.h"
@@ -438,7 +439,7 @@ js::ExclusiveContext::setCompartment(JSCompartment *comp)
 
     compartment_ = comp;
     zone_ = comp ? comp->zone() : nullptr;
-    arenas_ = zone_ ? &zone_->arenas : nullptr;
+    allocator_ = zone_ ? &zone_->allocator : nullptr;
 }
 
 inline JSScript *
@@ -482,6 +483,26 @@ JSContext::currentScript(jsbytecode **ppc,
         MOZ_ASSERT(script->containsPC(*ppc));
     }
     return script;
+}
+
+template <JSThreadSafeNative threadSafeNative>
+inline bool
+JSNativeThreadSafeWrapper(JSContext *cx, unsigned argc, JS::Value *vp)
+{
+    return threadSafeNative(cx, argc, vp);
+}
+
+template <JSThreadSafeNative threadSafeNative>
+inline bool
+JSParallelNativeThreadSafeWrapper(js::ForkJoinContext *cx, unsigned argc, JS::Value *vp)
+{
+    return threadSafeNative(cx, argc, vp);
+}
+
+/* static */ inline JSContext *
+js::ExecutionModeTraits<js::SequentialExecution>::toContextType(ExclusiveContext *cx)
+{
+    return cx->asJSContext();
 }
 
 #endif /* jscntxtinlines_h */

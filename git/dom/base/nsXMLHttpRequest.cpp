@@ -302,7 +302,7 @@ nsXMLHttpRequest::nsXMLHttpRequest()
     mIsAnon(false),
     mFirstStartRequestSeen(false),
     mInLoadProgressEvent(false),
-    mResultJSON(JS::UndefinedValue()),
+    mResultJSON(JSVAL_VOID),
     mResultArrayBuffer(nullptr),
     mIsMappedArrayBuffer(false),
     mXPCOMifier(nullptr)
@@ -324,7 +324,7 @@ nsXMLHttpRequest::~nsXMLHttpRequest()
   NS_ABORT_IF_FALSE(!(mState & XML_HTTP_REQUEST_SYNCLOOPING), "we rather crash than hang");
   mState &= ~XML_HTTP_REQUEST_SYNCLOOPING;
 
-  mResultJSON.setUndefined();
+  mResultJSON = JSVAL_VOID;
   mResultArrayBuffer = nullptr;
   mozilla::DropJSObjects(this);
 }
@@ -429,7 +429,7 @@ nsXMLHttpRequest::ResetResponse()
   mBlobSet = nullptr;
   mResultArrayBuffer = nullptr;
   mArrayBufferBuilder.reset();
-  mResultJSON.setUndefined();
+  mResultJSON = JSVAL_VOID;
   mDataAvailable = 0;
   mLoadTransferred = 0;
   mResponseBodyDecodedPos = 0;
@@ -489,7 +489,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXMLHttpRequest,
                                                 nsXHREventTarget)
   tmp->mResultArrayBuffer = nullptr;
   tmp->mArrayBufferBuilder.reset();
-  tmp->mResultJSON.setUndefined();
+  tmp->mResultJSON = JSVAL_VOID;
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mContext)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mChannel)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mResponseXML)

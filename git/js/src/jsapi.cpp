@@ -588,6 +588,9 @@ JS_Init(void)
     if (!jit::InitializeIon())
         return false;
 
+    if (!ForkJoinContext::initializeTls())
+        return false;
+
 #if EXPOSE_INTL_API
     UErrorCode err = U_ZERO_ERROR;
     u_init(&err);
@@ -618,11 +621,6 @@ JS_ShutDown(void)
 #endif
 
     DestroyHelperThreadsState();
-
-#ifdef JS_TRACE_LOGGING
-    DestroyTraceLoggerThreadState();
-    DestroyTraceLoggerGraphState();
-#endif
 
     PRMJ_NowShutdown();
 

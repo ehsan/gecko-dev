@@ -509,11 +509,20 @@ MarkTypeObjectFlags(ExclusiveContext *cx, JSObject *obj, TypeObjectFlags flags)
         obj->type()->setFlags(cx, flags);
 }
 
+/*
+ * Mark all properties of a type object as unknown. If markSetsUnknown is set,
+ * scan the entire compartment and mark all type sets containing it as having
+ * an unknown object. This is needed for correctness in dealing with mutable
+ * __proto__, which can change the type of an object dynamically.
+ */
 inline void
-MarkTypeObjectUnknownProperties(JSContext *cx, TypeObject *obj)
+MarkTypeObjectUnknownProperties(JSContext *cx, TypeObject *obj,
+                                bool markSetsUnknown = false)
 {
     if (!obj->unknownProperties())
         obj->markUnknown(cx);
+    if (markSetsUnknown && !(obj->flags() & OBJECT_FLAG_SETS_MARKED_UNKNOWN))
+        cx->compartment()->types.markSetsUnknown(cx, obj);
 }
 
 inline void

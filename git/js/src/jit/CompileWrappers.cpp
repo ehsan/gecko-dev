@@ -78,6 +78,18 @@ CompileRuntime::addressOfInterruptUint32()
     return runtime()->addressOfInterruptUint32();
 }
 
+const void *
+CompileRuntime::addressOfInterruptParUint32()
+{
+    return runtime()->addressOfInterruptParUint32();
+}
+
+const void *
+CompileRuntime::addressOfThreadPool()
+{
+    return &runtime()->threadPool;
+}
+
 const JitRuntime *
 CompileRuntime::jitRuntime()
 {
@@ -198,13 +210,13 @@ CompileZone::addressOfNeedsIncrementalBarrier()
 const void *
 CompileZone::addressOfFreeListFirst(gc::AllocKind allocKind)
 {
-    return zone()->arenas.getFreeList(allocKind)->addressOfFirst();
+    return zone()->allocator.arenas.getFreeList(allocKind)->addressOfFirst();
 }
 
 const void *
 CompileZone::addressOfFreeListLast(gc::AllocKind allocKind)
 {
-    return zone()->arenas.getFreeList(allocKind)->addressOfLast();
+    return zone()->allocator.arenas.getFreeList(allocKind)->addressOfLast();
 }
 
 JSCompartment *
