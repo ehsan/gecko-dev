@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef GFX_BASICPAINTEDLAYER_H
-#define GFX_BASICPAINTEDLAYER_H
+#ifndef GFX_BASICTHEBESLAYER_H
+#define GFX_BASICTHEBESLAYER_H
 
-#include "Layers.h"                     // for PaintedLayer, LayerManager, etc
+#include "Layers.h"                     // for ThebesLayer, LayerManager, etc
 #include "RotatedBuffer.h"              // for RotatedContentBuffer, etc
 #include "BasicImplData.h"              // for BasicImplData
 #include "BasicLayers.h"                // for BasicLayerManager
@@ -25,23 +25,23 @@ namespace layers {
 
 class ReadbackProcessor;
 
-class BasicPaintedLayer : public PaintedLayer, public BasicImplData {
+class BasicThebesLayer : public ThebesLayer, public BasicImplData {
 public:
   typedef RotatedContentBuffer::PaintState PaintState;
   typedef RotatedContentBuffer::ContentType ContentType;
 
-  explicit BasicPaintedLayer(BasicLayerManager* aLayerManager) :
-    PaintedLayer(aLayerManager,
+  explicit BasicThebesLayer(BasicLayerManager* aLayerManager) :
+    ThebesLayer(aLayerManager,
                 static_cast<BasicImplData*>(MOZ_THIS_IN_INITIALIZER_LIST())),
     mContentClient(nullptr)
   {
-    MOZ_COUNT_CTOR(BasicPaintedLayer);
+    MOZ_COUNT_CTOR(BasicThebesLayer);
   }
 
 protected:
-  virtual ~BasicPaintedLayer()
+  virtual ~BasicThebesLayer()
   {
-    MOZ_COUNT_DTOR(BasicPaintedLayer);
+    MOZ_COUNT_DTOR(BasicThebesLayer);
   }
 
 public:
@@ -49,7 +49,7 @@ public:
   {
     NS_ASSERTION(BasicManager()->InConstruction(),
                  "Can only set properties in construction phase");
-    PaintedLayer::SetVisibleRegion(aRegion);
+    ThebesLayer::SetVisibleRegion(aRegion);
   }
   virtual void InvalidateRegion(const nsIntRegion& aRegion)
   {
@@ -62,10 +62,10 @@ public:
 
   virtual void PaintThebes(gfxContext* aContext,
                            Layer* aMaskLayer,
-                           LayerManager::DrawPaintedLayerCallback aCallback,
+                           LayerManager::DrawThebesLayerCallback aCallback,
                            void* aCallbackData);
 
-  virtual void Validate(LayerManager::DrawPaintedLayerCallback aCallback,
+  virtual void Validate(LayerManager::DrawThebesLayerCallback aCallback,
                         void* aCallbackData,
                         ReadbackProcessor* aReadback) MOZ_OVERRIDE;
 
@@ -90,7 +90,7 @@ public:
       ComputeEffectiveTransformForMaskLayer(aTransformToSurface);
       return;
     }
-    PaintedLayer::ComputeEffectiveTransforms(aTransformToSurface);
+    ThebesLayer::ComputeEffectiveTransforms(aTransformToSurface);
   }
 
   BasicLayerManager* BasicManager()
@@ -106,7 +106,7 @@ protected:
               const nsIntRegion& aRegionToInvalidate,
               bool aDidSelfCopy,
               DrawRegionClip aClip,
-              LayerManager::DrawPaintedLayerCallback aCallback,
+              LayerManager::DrawThebesLayerCallback aCallback,
               void* aCallbackData)
   {
     if (!aCallback) {

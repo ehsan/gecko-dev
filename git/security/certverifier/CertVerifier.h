@@ -47,7 +47,7 @@ public:
    /*optional out*/ ScopedCERTCertList* builtChain = nullptr,
    /*optional out*/ SECOidTag* evOidPolicy = nullptr);
 
-  enum PinningMode {
+  enum pinning_enforcement_config {
     pinningDisabled = 0,
     pinningAllowUserCAMITM = 1,
     pinningStrict = 2,
@@ -63,7 +63,8 @@ public:
   bool IsOCSPDownloadEnabled() const { return mOCSPDownloadEnabled; }
 
   CertVerifier(ocsp_download_config odc, ocsp_strict_config osc,
-               ocsp_get_config ogc, PinningMode pinningMode);
+               ocsp_get_config ogc,
+               pinning_enforcement_config pinningEnforcementLevel);
   ~CertVerifier();
 
   void ClearOCSPCache() { mOCSPCache.Clear(); }
@@ -71,7 +72,7 @@ public:
   const bool mOCSPDownloadEnabled;
   const bool mOCSPStrict;
   const bool mOCSPGETEnabled;
-  const PinningMode mPinningMode;
+  const pinning_enforcement_config mPinningEnforcementLevel;
 
 private:
   OCSPCache mOCSPCache;
@@ -79,9 +80,6 @@ private:
 
 void InitCertVerifierLog();
 SECStatus IsCertBuiltInRoot(CERTCertificate* cert, bool& result);
-mozilla::pkix::Result CertListContainsExpectedKeys(
-  const CERTCertList* certList, const char* hostname, mozilla::pkix::Time time,
-  CertVerifier::PinningMode pinningMode);
 
 } } // namespace mozilla::psm
 

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ClientTiledPaintedLayer.h"
+#include "ClientTiledThebesLayer.h"
 #include "FrameMetrics.h"               // for FrameMetrics
 #include "Units.h"                      // for ScreenIntRect, CSSPoint, etc
 #include "UnitTransforms.h"             // for TransformTo
@@ -24,25 +24,25 @@ namespace mozilla {
 namespace layers {
 
 
-ClientTiledPaintedLayer::ClientTiledPaintedLayer(ClientLayerManager* const aManager,
-                                               ClientLayerManager::PaintedLayerCreationHint aCreationHint)
-  : PaintedLayer(aManager,
+ClientTiledThebesLayer::ClientTiledThebesLayer(ClientLayerManager* const aManager,
+                                               ClientLayerManager::ThebesLayerCreationHint aCreationHint)
+  : ThebesLayer(aManager,
                 static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()),
                 aCreationHint)
   , mContentClient()
 {
-  MOZ_COUNT_CTOR(ClientTiledPaintedLayer);
+  MOZ_COUNT_CTOR(ClientTiledThebesLayer);
   mPaintData.mLastScrollOffset = ParentLayerPoint(0, 0);
   mPaintData.mFirstPaint = true;
 }
 
-ClientTiledPaintedLayer::~ClientTiledPaintedLayer()
+ClientTiledThebesLayer::~ClientTiledThebesLayer()
 {
-  MOZ_COUNT_DTOR(ClientTiledPaintedLayer);
+  MOZ_COUNT_DTOR(ClientTiledThebesLayer);
 }
 
 void
-ClientTiledPaintedLayer::ClearCachedResources()
+ClientTiledThebesLayer::ClearCachedResources()
 {
   if (mContentClient) {
     mContentClient->ClearCachedResources();
@@ -52,9 +52,9 @@ ClientTiledPaintedLayer::ClearCachedResources()
 }
 
 void
-ClientTiledPaintedLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
+ClientTiledThebesLayer::FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
 {
-  aAttrs = PaintedLayerAttributes(GetValidRegion());
+  aAttrs = ThebesLayerAttributes(GetValidRegion());
 }
 
 static LayerRect
@@ -81,7 +81,7 @@ GetTransformToAncestorsParentLayer(Layer* aStart, const LayerMetricsWrapper& aAn
 }
 
 void
-ClientTiledPaintedLayer::GetAncestorLayers(LayerMetricsWrapper* aOutScrollAncestor,
+ClientTiledThebesLayer::GetAncestorLayers(LayerMetricsWrapper* aOutScrollAncestor,
                                           LayerMetricsWrapper* aOutDisplayPortAncestor)
 {
   LayerMetricsWrapper scrollAncestor;
@@ -107,7 +107,7 @@ ClientTiledPaintedLayer::GetAncestorLayers(LayerMetricsWrapper* aOutScrollAncest
 }
 
 void
-ClientTiledPaintedLayer::BeginPaint()
+ClientTiledThebesLayer::BeginPaint()
 {
   mPaintData.mLowPrecisionPaintCount = 0;
   mPaintData.mPaintFinished = false;
@@ -132,7 +132,7 @@ ClientTiledPaintedLayer::BeginPaint()
 #if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_B2G)
     // Both Android and b2g are guaranteed to have a displayport set, so this
     // should never happen.
-    NS_WARNING("Tiled PaintedLayer with no scrollable container ancestor");
+    NS_WARNING("Tiled Thebes layer with no scrollable container ancestor");
 #endif
     return;
   }
@@ -184,7 +184,7 @@ ClientTiledPaintedLayer::BeginPaint()
 }
 
 bool
-ClientTiledPaintedLayer::UseFastPath()
+ClientTiledThebesLayer::UseFastPath()
 {
   LayerMetricsWrapper scrollAncestor;
   GetAncestorLayers(&scrollAncestor, nullptr);
@@ -201,9 +201,9 @@ ClientTiledPaintedLayer::UseFastPath()
 }
 
 bool
-ClientTiledPaintedLayer::RenderHighPrecision(nsIntRegion& aInvalidRegion,
+ClientTiledThebesLayer::RenderHighPrecision(nsIntRegion& aInvalidRegion,
                                             const nsIntRegion& aVisibleRegion,
-                                            LayerManager::DrawPaintedLayerCallback aCallback,
+                                            LayerManager::DrawThebesLayerCallback aCallback,
                                             void* aCallbackData)
 {
   // If we have no high-precision stuff to draw, or we have started drawing low-precision
@@ -248,9 +248,9 @@ ClientTiledPaintedLayer::RenderHighPrecision(nsIntRegion& aInvalidRegion,
 }
 
 bool
-ClientTiledPaintedLayer::RenderLowPrecision(nsIntRegion& aInvalidRegion,
+ClientTiledThebesLayer::RenderLowPrecision(nsIntRegion& aInvalidRegion,
                                            const nsIntRegion& aVisibleRegion,
-                                           LayerManager::DrawPaintedLayerCallback aCallback,
+                                           LayerManager::DrawThebesLayerCallback aCallback,
                                            void* aCallbackData)
 {
   // Render the low precision buffer, if the visible region is larger than the
@@ -310,7 +310,7 @@ ClientTiledPaintedLayer::RenderLowPrecision(nsIntRegion& aInvalidRegion,
 }
 
 void
-ClientTiledPaintedLayer::EndPaint()
+ClientTiledThebesLayer::EndPaint()
 {
   mPaintData.mLastScrollOffset = mPaintData.mScrollOffset;
   mPaintData.mPaintFinished = true;
@@ -319,11 +319,11 @@ ClientTiledPaintedLayer::EndPaint()
 }
 
 void
-ClientTiledPaintedLayer::RenderLayer()
+ClientTiledThebesLayer::RenderLayer()
 {
-  LayerManager::DrawPaintedLayerCallback callback =
-    ClientManager()->GetPaintedLayerCallback();
-  void *data = ClientManager()->GetPaintedLayerCallbackData();
+  LayerManager::DrawThebesLayerCallback callback =
+    ClientManager()->GetThebesLayerCallback();
+  void *data = ClientManager()->GetThebesLayerCallbackData();
   if (!callback) {
     ClientManager()->SetTransactionIncomplete();
     return;

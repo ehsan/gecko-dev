@@ -24,14 +24,6 @@ namespace layers {
 
 class Compositor;
 
-CompositableBackendSpecificData::CompositableBackendSpecificData()
-  : mAllowSharingTextureHost(false)
-{
-  static uint64_t sNextID = 1;
-  ++sNextID;
-  mId = sNextID;
-}
-
 /**
  * IPDL actor used by CompositableHost to match with its corresponding
  * CompositableClient on the content side.
@@ -139,7 +131,7 @@ void
 CompositableHost::RemoveTextureHost(TextureHost* aTexture)
 {
   // Clear strong refrence to CompositableBackendSpecificData
-  aTexture->UnsetCompositableBackendSpecificData(GetCompositableBackendSpecificData());
+  aTexture->SetCompositableBackendSpecificData(nullptr);
 }
 
 void

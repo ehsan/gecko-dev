@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef GFX_CLIENTPAINTEDLAYER_H
-#define GFX_CLIENTPAINTEDLAYER_H
+#ifndef GFX_CLIENTTHEBESLAYER_H
+#define GFX_CLIENTTHEBESLAYER_H
 
 #include "ClientLayerManager.h"         // for ClientLayerManager, etc
-#include "Layers.h"                     // for PaintedLayer, etc
+#include "Layers.h"                     // for ThebesLayer, etc
 #include "RotatedBuffer.h"              // for RotatedContentBuffer, etc
 #include "mozilla/Attributes.h"         // for MOZ_OVERRIDE
 #include "mozilla/RefPtr.h"             // for RefPtr
@@ -16,7 +16,7 @@
 #include "nsDebug.h"                    // for NS_ASSERTION
 #include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
 #include "nsRegion.h"                   // for nsIntRegion
-#include "mozilla/layers/PLayerTransaction.h" // for PaintedLayerAttributes
+#include "mozilla/layers/PLayerTransaction.h" // for ThebesLayerAttributes
 
 class gfxContext;
 
@@ -27,30 +27,30 @@ class CompositableClient;
 class ShadowableLayer;
 class SpecificLayerAttributes;
 
-class ClientPaintedLayer : public PaintedLayer,
+class ClientThebesLayer : public ThebesLayer,
                           public ClientLayer {
 public:
   typedef RotatedContentBuffer::PaintState PaintState;
   typedef RotatedContentBuffer::ContentType ContentType;
 
-  explicit ClientPaintedLayer(ClientLayerManager* aLayerManager,
-                             LayerManager::PaintedLayerCreationHint aCreationHint = LayerManager::NONE) :
-    PaintedLayer(aLayerManager,
+  explicit ClientThebesLayer(ClientLayerManager* aLayerManager,
+                             LayerManager::ThebesLayerCreationHint aCreationHint = LayerManager::NONE) :
+    ThebesLayer(aLayerManager,
                 static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()),
                 aCreationHint),
     mContentClient(nullptr)
   {
-    MOZ_COUNT_CTOR(ClientPaintedLayer);
+    MOZ_COUNT_CTOR(ClientThebesLayer);
   }
 
 protected:
-  virtual ~ClientPaintedLayer()
+  virtual ~ClientThebesLayer()
   {
     if (mContentClient) {
       mContentClient->OnDetach();
       mContentClient = nullptr;
     }
-    MOZ_COUNT_DTOR(ClientPaintedLayer);
+    MOZ_COUNT_DTOR(ClientThebesLayer);
   }
 
 public:
@@ -58,7 +58,7 @@ public:
   {
     NS_ASSERTION(ClientManager()->InConstruction(),
                  "Can only set properties in construction phase");
-    PaintedLayer::SetVisibleRegion(aRegion);
+    ThebesLayer::SetVisibleRegion(aRegion);
   }
   virtual void InvalidateRegion(const nsIntRegion& aRegion)
   {
@@ -84,7 +84,7 @@ public:
   
   virtual void FillSpecificAttributes(SpecificLayerAttributes& aAttrs)
   {
-    aAttrs = PaintedLayerAttributes(GetValidRegion());
+    aAttrs = ThebesLayerAttributes(GetValidRegion());
   }
   
   ClientLayerManager* ClientManager()

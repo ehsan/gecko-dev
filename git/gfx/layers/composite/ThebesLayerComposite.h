@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef GFX_PaintedLayerComposite_H
-#define GFX_PaintedLayerComposite_H
+#ifndef GFX_ThebesLayerComposite_H
+#define GFX_ThebesLayerComposite_H
 
 #include "Layers.h"                     // for Layer (ptr only), etc
 #include "gfxRect.h"                    // for gfxRect
@@ -24,23 +24,23 @@ namespace mozilla {
 namespace layers {
 
 /**
- * PaintedLayers use ContentHosts for their compsositable host.
- * By using different ContentHosts, PaintedLayerComposite support tiled and
- * non-tiled PaintedLayers and single or double buffering.
+ * Thebes layers use ContentHosts for their compsositable host.
+ * By using different ContentHosts, ThebesLayerComposite support tiled and
+ * non-tiled Thebes layers and single or double buffering.
  */
 
 class CompositableHost;
 class ContentHost;
 class TiledLayerComposer;
 
-class PaintedLayerComposite : public PaintedLayer,
+class ThebesLayerComposite : public ThebesLayer,
                              public LayerComposite
 {
 public:
-  explicit PaintedLayerComposite(LayerManagerComposite *aManager);
+  explicit ThebesLayerComposite(LayerManagerComposite *aManager);
 
 protected:
-  virtual ~PaintedLayerComposite();
+  virtual ~ThebesLayerComposite();
 
 public:
   virtual void Disconnect() MOZ_OVERRIDE;
@@ -67,7 +67,7 @@ public:
 
   virtual void InvalidateRegion(const nsIntRegion& aRegion)
   {
-    NS_RUNTIMEABORT("PaintedLayerComposites can't fill invalidated regions");
+    NS_RUNTIMEABORT("ThebesLayerComposites can't fill invalidated regions");
   }
 
   void SetValidRegion(const nsIntRegion& aRegion)
@@ -77,7 +77,7 @@ public:
     Mutated();
   }
 
-  MOZ_LAYER_DECL_NAME("PaintedLayerComposite", TYPE_PAINTED)
+  MOZ_LAYER_DECL_NAME("ThebesLayerComposite", TYPE_THEBES)
 
 protected:
 
@@ -92,4 +92,4 @@ private:
 
 } /* layers */
 } /* mozilla */
-#endif /* GFX_PaintedLayerComposite_H */
+#endif /* GFX_ThebesLayerComposite_H */

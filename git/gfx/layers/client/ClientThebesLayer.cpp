@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ClientPaintedLayer.h"
-#include "ClientTiledPaintedLayer.h"     // for ClientTiledPaintedLayer
+#include "ClientThebesLayer.h"
+#include "ClientTiledThebesLayer.h"     // for ClientTiledThebesLayer
 #include <stdint.h>                     // for uint32_t
 #include "GeckoProfiler.h"              // for PROFILER_LABEL
 #include "client/ClientLayerManager.h"  // for ClientLayerManager, etc
@@ -31,9 +31,9 @@ namespace layers {
 using namespace mozilla::gfx;
 
 void
-ClientPaintedLayer::PaintThebes()
+ClientThebesLayer::PaintThebes()
 {
-  PROFILER_LABEL("ClientPaintedLayer", "PaintThebes",
+  PROFILER_LABEL("ClientThebesLayer", "PaintThebes",
     js::ProfileEntry::Category::GRAPHICS);
 
   NS_ASSERTION(ClientManager()->InDrawing(),
@@ -54,7 +54,7 @@ ClientPaintedLayer::PaintThebes()
     mContentClient->BeginPaintBuffer(this, flags);
   mValidRegion.Sub(mValidRegion, state.mRegionToInvalidate);
 
-  if (!state.mRegionToDraw.IsEmpty() && !ClientManager()->GetPaintedLayerCallback()) {
+  if (!state.mRegionToDraw.IsEmpty() && !ClientManager()->GetThebesLayerCallback()) {
     ClientManager()->SetTransactionIncomplete();
     return;
   }
@@ -73,12 +73,12 @@ ClientPaintedLayer::PaintThebes()
 
     nsRefPtr<gfxContext> ctx = gfxContext::ContextForDrawTarget(target);
 
-    ClientManager()->GetPaintedLayerCallback()(this,
+    ClientManager()->GetThebesLayerCallback()(this,
                                               ctx,
                                               iter.mDrawRegion,
                                               state.mClip,
                                               state.mRegionToInvalidate,
-                                              ClientManager()->GetPaintedLayerCallbackData());
+                                              ClientManager()->GetThebesLayerCallbackData());
 
     ctx = nullptr;
     mContentClient->ReturnDrawTargetToBuffer(target);
@@ -104,7 +104,7 @@ ClientPaintedLayer::PaintThebes()
 }
 
 void
-ClientPaintedLayer::RenderLayerWithReadback(ReadbackProcessor *aReadback)
+ClientThebesLayer::RenderLayerWithReadback(ReadbackProcessor *aReadback)
 {
   if (GetMaskLayer()) {
     ToClientLayer(GetMaskLayer())->RenderLayer();
@@ -123,7 +123,7 @@ ClientPaintedLayer::RenderLayerWithReadback(ReadbackProcessor *aReadback)
   nsTArray<ReadbackProcessor::Update> readbackUpdates;
   nsIntRegion readbackRegion;
   if (aReadback && UsedForReadback()) {
-    aReadback->GetPaintedLayerUpdates(this, &readbackUpdates);
+    aReadback->GetThebesLayerUpdates(this, &readbackUpdates);
   }
 
   IntPoint origin(mVisibleRegion.GetBounds().x, mVisibleRegion.GetBounds().y);
@@ -133,7 +133,7 @@ ClientPaintedLayer::RenderLayerWithReadback(ReadbackProcessor *aReadback)
 }
 
 bool
-ClientLayerManager::IsOptimizedFor(PaintedLayer* aLayer, PaintedLayerCreationHint aHint)
+ClientLayerManager::IsOptimizedFor(ThebesLayer* aLayer, ThebesLayerCreationHint aHint)
 {
 #ifdef MOZ_B2G
   // The only creation hint is whether the layer is scrollable or not, and this
@@ -148,14 +148,14 @@ ClientLayerManager::IsOptimizedFor(PaintedLayer* aLayer, PaintedLayerCreationHin
 #endif
 }
 
-already_AddRefed<PaintedLayer>
-ClientLayerManager::CreatePaintedLayer()
+already_AddRefed<ThebesLayer>
+ClientLayerManager::CreateThebesLayer()
 {
-  return CreatePaintedLayerWithHint(NONE);
+  return CreateThebesLayerWithHint(NONE);
 }
 
-already_AddRefed<PaintedLayer>
-ClientLayerManager::CreatePaintedLayerWithHint(PaintedLayerCreationHint aHint)
+already_AddRefed<ThebesLayer>
+ClientLayerManager::CreateThebesLayerWithHint(ThebesLayerCreationHint aHint)
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
   if (
@@ -166,12 +166,12 @@ ClientLayerManager::CreatePaintedLayerWithHint(PaintedLayerCreationHint aHint)
       (AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_OPENGL ||
        AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_D3D9 ||
        AsShadowForwarder()->GetCompositorBackendType() == LayersBackend::LAYERS_D3D11)) {
-    nsRefPtr<ClientTiledPaintedLayer> layer = new ClientTiledPaintedLayer(this, aHint);
-    CREATE_SHADOW(Painted);
+    nsRefPtr<ClientTiledThebesLayer> layer = new ClientTiledThebesLayer(this, aHint);
+    CREATE_SHADOW(Thebes);
     return layer.forget();
   } else {
-    nsRefPtr<ClientPaintedLayer> layer = new ClientPaintedLayer(this, aHint);
-    CREATE_SHADOW(Painted);
+    nsRefPtr<ClientThebesLayer> layer = new ClientThebesLayer(this, aHint);
+    CREATE_SHADOW(Thebes);
     return layer.forget();
   }
 }

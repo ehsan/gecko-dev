@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef GFX_PAINTEDLAYERD3D9_H
-#define GFX_PAINTEDLAYERD3D9_H
+#ifndef GFX_THEBESLAYERD3D9_H
+#define GFX_THEBESLAYERD3D9_H
 
 #include "Layers.h"
 #include "LayerManagerD3D9.h"
@@ -15,24 +15,24 @@ namespace layers {
 
 class ReadbackProcessor;
 
-class PaintedLayerD3D9 : public PaintedLayer,
+class ThebesLayerD3D9 : public ThebesLayer,
                         public LayerD3D9
 {
 public:
-  PaintedLayerD3D9(LayerManagerD3D9 *aManager);
-  virtual ~PaintedLayerD3D9();
+  ThebesLayerD3D9(LayerManagerD3D9 *aManager);
+  virtual ~ThebesLayerD3D9();
 
-  /* PaintedLayer implementation */
+  /* ThebesLayer implementation */
   void InvalidateRegion(const nsIntRegion& aRegion);
 
   /* LayerD3D9 implementation */
   Layer* GetLayer();
   virtual bool IsEmpty();
-  virtual void RenderLayer() { RenderPaintedLayer(nullptr); }
+  virtual void RenderLayer() { RenderThebesLayer(nullptr); }
   virtual void CleanResources();
   virtual void LayerManagerDestroyed();
 
-  void RenderPaintedLayer(ReadbackProcessor* aReadback);
+  void RenderThebesLayer(ReadbackProcessor* aReadback);
 
 private:
   /*
@@ -81,4 +81,4 @@ private:
 
 } /* layers */
 } /* mozilla */
-#endif /* GFX_PAINTEDLAYERD3D9_H */
+#endif /* GFX_THEBESLAYERD3D9_H */

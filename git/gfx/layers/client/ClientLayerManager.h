@@ -32,7 +32,7 @@ class nsIWidget;
 namespace mozilla {
 namespace layers {
 
-class ClientPaintedLayer;
+class ClientThebesLayer;
 class CompositorChild;
 class ImageLayer;
 class PLayerChild;
@@ -71,7 +71,7 @@ public:
   virtual void BeginTransactionWithTarget(gfxContext* aTarget);
   virtual void BeginTransaction();
   virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT);
-  virtual void EndTransaction(DrawPaintedLayerCallback aCallback,
+  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData,
                               EndTransactionFlags aFlags = END_DEFAULT);
 
@@ -87,10 +87,10 @@ public:
 
   virtual void Mutated(Layer* aLayer);
 
-  virtual bool IsOptimizedFor(PaintedLayer* aLayer, PaintedLayerCreationHint aHint);
+  virtual bool IsOptimizedFor(ThebesLayer* aLayer, ThebesLayerCreationHint aHint);
 
-  virtual already_AddRefed<PaintedLayer> CreatePaintedLayer();
-  virtual already_AddRefed<PaintedLayer> CreatePaintedLayerWithHint(PaintedLayerCreationHint aHint);
+  virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
+  virtual already_AddRefed<ThebesLayer> CreateThebesLayerWithHint(ThebesLayerCreationHint aHint);
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
   virtual already_AddRefed<ImageLayer> CreateImageLayer();
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer();
@@ -148,11 +148,11 @@ public:
 
   bool CompositorMightResample() { return mCompositorMightResample; } 
   
-  DrawPaintedLayerCallback GetPaintedLayerCallback() const
-  { return mPaintedLayerCallback; }
+  DrawThebesLayerCallback GetThebesLayerCallback() const
+  { return mThebesLayerCallback; }
 
-  void* GetPaintedLayerCallbackData() const
-  { return mPaintedLayerCallbackData; }
+  void* GetThebesLayerCallbackData() const
+  { return mThebesLayerCallbackData; }
 
   CompositorChild* GetRemoteRenderer();
 
@@ -284,7 +284,7 @@ private:
 
   void ClearLayer(Layer* aLayer);
 
-  bool EndTransactionInternal(DrawPaintedLayerCallback aCallback,
+  bool EndTransactionInternal(DrawThebesLayerCallback aCallback,
                               void* aCallbackData,
                               EndTransactionFlags);
 
@@ -292,10 +292,10 @@ private:
 
   nsIWidget* mWidget;
   
-  /* PaintedLayer callbacks; valid at the end of a transaciton,
+  /* Thebes layer callbacks; valid at the end of a transaciton,
    * while rendering */
-  DrawPaintedLayerCallback mPaintedLayerCallback;
-  void *mPaintedLayerCallbackData;
+  DrawThebesLayerCallback mThebesLayerCallback;
+  void *mThebesLayerCallbackData;
 
   // When we're doing a transaction in order to draw to a non-default
   // target, the layers transaction is only performed in order to send
@@ -369,7 +369,7 @@ public:
   virtual void RenderLayer() = 0;
   virtual void RenderLayerWithReadback(ReadbackProcessor *aReadback) { RenderLayer(); }
 
-  virtual ClientPaintedLayer* AsThebes() { return nullptr; }
+  virtual ClientThebesLayer* AsThebes() { return nullptr; }
 
   static inline ClientLayer *
   ToClientLayer(Layer* aLayer)

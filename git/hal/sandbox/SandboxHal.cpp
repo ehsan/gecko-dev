@@ -5,7 +5,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "Hal.h"
-#include "HalLog.h"
 #include "mozilla/AppProcessChecker.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/ContentParent.h"
@@ -48,7 +47,7 @@ Hal()
 void
 Vibrate(const nsTArray<uint32_t>& pattern, const WindowIdentifier &id)
 {
-  HAL_LOG("Vibrate: Sending to parent process.");
+  HAL_LOG(("Vibrate: Sending to parent process."));
 
   AutoInfallibleTArray<uint32_t, 8> p(pattern);
 
@@ -60,7 +59,7 @@ Vibrate(const nsTArray<uint32_t>& pattern, const WindowIdentifier &id)
 void
 CancelVibrate(const WindowIdentifier &id)
 {
-  HAL_LOG("CancelVibrate: Sending to parent process.");
+  HAL_LOG(("CancelVibrate: Sending to parent process."));
 
   WindowIdentifier newID(id);
   newID.AppendProcessID();

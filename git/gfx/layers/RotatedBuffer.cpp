@@ -10,7 +10,7 @@
 #include "BasicLayersImpl.h"            // for ToData
 #include "BufferUnrotate.h"             // for BufferUnrotate
 #include "GeckoProfiler.h"              // for PROFILER_LABEL
-#include "Layers.h"                     // for PaintedLayer, Layer, etc
+#include "Layers.h"                     // for ThebesLayer, Layer, etc
 #include "gfxPlatform.h"                // for gfxPlatform
 #include "gfxPrefs.h"                   // for gfxPrefs
 #include "gfxUtils.h"                   // for gfxUtils
@@ -203,7 +203,7 @@ RotatedContentBuffer::IsClippingCheap(DrawTarget* aTarget, const nsIntRegion& aR
 }
 
 void
-RotatedContentBuffer::DrawTo(PaintedLayer* aLayer,
+RotatedContentBuffer::DrawTo(ThebesLayer* aLayer,
                              DrawTarget* aTarget,
                              float aOpacity,
                              CompositionOp aOp,
@@ -428,7 +428,7 @@ RotatedContentBuffer::FlushBuffers()
 }
 
 RotatedContentBuffer::PaintState
-RotatedContentBuffer::BeginPaint(PaintedLayer* aLayer,
+RotatedContentBuffer::BeginPaint(ThebesLayer* aLayer,
                                  uint32_t aFlags)
 {
   PaintState result;

@@ -5,7 +5,7 @@
 
 #include "ReadbackProcessor.h"
 #include <sys/types.h>                  // for int32_t
-#include "Layers.h"                     // for Layer, PaintedLayer, etc
+#include "Layers.h"                     // for Layer, ThebesLayer, etc
 #include "ReadbackLayer.h"              // for ReadbackLayer, ReadbackSink
 #include "gfxColor.h"                   // for gfxRGBA
 #include "gfxContext.h"                 // for gfxContext
@@ -77,7 +77,7 @@ FindBackgroundLayer(ReadbackLayer* aLayer, nsIntPoint* aOffset)
       return nullptr;
 
     Layer::LayerType type = l->GetType();
-    if (type != Layer::TYPE_COLOR && type != Layer::TYPE_PAINTED)
+    if (type != Layer::TYPE_COLOR && type != Layer::TYPE_THEBES)
       return nullptr;
 
     *aOffset = backgroundOffset - transformOffset;
@@ -119,19 +119,19 @@ ReadbackProcessor::BuildUpdatesForLayer(ReadbackLayer* aLayer)
       }
     }
   } else {
-    NS_ASSERTION(newBackground->AsPaintedLayer(), "Must be PaintedLayer");
-    PaintedLayer* paintedLayer = static_cast<PaintedLayer*>(newBackground);
-    // updateRect is relative to the PaintedLayer
+    NS_ASSERTION(newBackground->AsThebesLayer(), "Must be ThebesLayer");
+    ThebesLayer* thebesLayer = static_cast<ThebesLayer*>(newBackground);
+    // updateRect is relative to the ThebesLayer
     nsIntRect updateRect = aLayer->GetRect() - offset;
-    if (paintedLayer != aLayer->mBackgroundLayer ||
+    if (thebesLayer != aLayer->mBackgroundLayer ||
         offset != aLayer->mBackgroundLayerOffset) {
-      aLayer->mBackgroundLayer = paintedLayer;
+      aLayer->mBackgroundLayer = thebesLayer;
       aLayer->mBackgroundLayerOffset = offset;
       aLayer->mBackgroundColor = gfxRGBA(0,0,0,0);
-      paintedLayer->SetUsedForReadback(true);
+      thebesLayer->SetUsedForReadback(true);
     } else {
       nsIntRegion invalid;
-      invalid.Sub(updateRect, paintedLayer->GetValidRegion());
+      invalid.Sub(updateRect, thebesLayer->GetValidRegion());
       updateRect = invalid.GetBounds();
     }
 
@@ -141,11 +141,11 @@ ReadbackProcessor::BuildUpdatesForLayer(ReadbackLayer* aLayer)
 }
 
 void
-ReadbackProcessor::GetPaintedLayerUpdates(PaintedLayer* aLayer,
+ReadbackProcessor::GetThebesLayerUpdates(ThebesLayer* aLayer,
                                          nsTArray<Update>* aUpdates,
                                          nsIntRegion* aUpdateRegion)
 {
-  // All PaintedLayers used for readback are in mAllUpdates (some possibly
+  // All ThebesLayers used for readback are in mAllUpdates (some possibly
   // with an empty update rect).
   aLayer->SetUsedForReadback(false);
   if (aUpdateRegion) {

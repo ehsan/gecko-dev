@@ -3,24 +3,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef GFX_PAINTEDLAYERD3D10_H
-#define GFX_PAINTEDLAYERD3D10_H
+#ifndef GFX_THEBESLAYERD3D10_H
+#define GFX_THEBESLAYERD3D10_H
 
 #include "LayerManagerD3D10.h"
 
 namespace mozilla {
 namespace layers {
 
-class PaintedLayerD3D10 : public PaintedLayer,
+class ThebesLayerD3D10 : public ThebesLayer,
                          public LayerD3D10
 {
 public:
-  PaintedLayerD3D10(LayerManagerD3D10 *aManager);
-  virtual ~PaintedLayerD3D10();
+  ThebesLayerD3D10(LayerManagerD3D10 *aManager);
+  virtual ~ThebesLayerD3D10();
 
   void Validate(ReadbackProcessor *aReadback);
 
-  /* PaintedLayer implementation */
+  /* ThebesLayer implementation */
   void InvalidateRegion(const nsIntRegion& aRegion);
 
   /* LayerD3D10 implementation */
@@ -70,4 +70,4 @@ private:
 
 } /* layers */
 } /* mozilla */
-#endif /* GFX_PAINTEDLAYERD3D10_H */
+#endif /* GFX_THEBESLAYERD3D10_H */

@@ -168,7 +168,7 @@ GonkDiskSpaceWatcher::DoStart()
   if (mFd == -1) {
     NS_WARNING("Error calling inotify_init()");
     if (errno == ENOSYS) {
-      NS_WARNING("Warning: No fanotify support in this device's kernel.\n");
+      printf_stderr("Warning: No fanotify support in this device's kernel.\n");
     }
     return;
   }
@@ -241,7 +241,8 @@ GonkDiskSpaceWatcher::OnFileCanReadWithoutBlocking(int aFd)
 
   // We should get an exact multiple of fanotify_event_metadata
   if (len <= 0 || (len % FAN_EVENT_METADATA_LEN != 0)) {
-    MOZ_CRASH("About to crash: fanotify_event_metadata read error.");
+    printf_stderr("About to crash: fanotify_event_metadata read error.");
+    MOZ_CRASH();
   }
 
   fem = reinterpret_cast<fanotify_event_metadata *>(buf);

@@ -23,12 +23,18 @@
 #include "base/thread.h"
 
 #include "Hal.h"
-#include "HalLog.h"
 #include "HalSensor.h"
 #include "hardware/sensors.h"
 #include "nsThreadUtils.h"
 
+#undef LOG
+
+#include <android/log.h>
+
 using namespace mozilla::hal;
+
+#define LOGE(args...)  __android_log_print(ANDROID_LOG_ERROR, "GonkSensor" , ## args)
+#define LOGW(args...)  __android_log_print(ANDROID_LOG_WARN, "GonkSensor" , ## args)
 
 namespace mozilla {
 
@@ -171,7 +177,7 @@ PollSensors()
     // didn't check sSensorDevice because already be done on creating pollingThread.
     int n = sSensorDevice->poll(sSensorDevice, buffer, numEventMax);
     if (n < 0) {
-      HAL_ERR("Error polling for sensor data (err=%d)", n);
+      LOGE("Error polling for sensor data (err=%d)", n);
       break;
     }
 
@@ -200,7 +206,7 @@ PollSensors()
             HardwareSensorToHalSensor(sensors[index].type) != SENSOR_UNKNOWN) {
           buffer[i].type = sensors[index].type;
         } else {
-          HAL_LOG("Could not determine sensor type of event");
+          LOGW("Could not determine sensor type of event");
           continue;
         }
       }
@@ -258,14 +264,14 @@ EnableSensorNotifications(SensorType aSensor)
     hw_get_module(SENSORS_HARDWARE_MODULE_ID,
                        (hw_module_t const**)&sSensorModule);
     if (!sSensorModule) {
-      HAL_ERR("Can't get sensor HAL module\n");
+      LOGE("Can't get sensor HAL module\n");
       return;
     }
 
     sensors_open(&sSensorModule->common, &sSensorDevice);
     if (!sSensorDevice) {
       sSensorModule = nullptr;
-      HAL_ERR("Can't get sensor poll device from module \n");
+      LOGE("Can't get sensor poll device from module \n");
       return;
     }
 

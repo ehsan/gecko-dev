@@ -9,7 +9,7 @@
 // typedefs conflicts.
 #include "mozilla/ArrayUtils.h"
 
-#include "PaintedLayerD3D10.h"
+#include "ThebesLayerD3D10.h"
 #include "gfxPlatform.h"
 
 #include "gfxWindowsPlatform.h"
@@ -31,27 +31,27 @@ namespace layers {
 
 using namespace mozilla::gfx;
 
-PaintedLayerD3D10::PaintedLayerD3D10(LayerManagerD3D10 *aManager)
-  : PaintedLayer(aManager, nullptr)
+ThebesLayerD3D10::ThebesLayerD3D10(LayerManagerD3D10 *aManager)
+  : ThebesLayer(aManager, nullptr)
   , LayerD3D10(aManager)
   , mCurrentSurfaceMode(SurfaceMode::SURFACE_OPAQUE)
 {
   mImplData = static_cast<LayerD3D10*>(this);
 }
 
-PaintedLayerD3D10::~PaintedLayerD3D10()
+ThebesLayerD3D10::~ThebesLayerD3D10()
 {
 }
 
 void
-PaintedLayerD3D10::InvalidateRegion(const nsIntRegion &aRegion)
+ThebesLayerD3D10::InvalidateRegion(const nsIntRegion &aRegion)
 {
   mInvalidRegion.Or(mInvalidRegion, aRegion);
   mInvalidRegion.SimplifyOutward(20);
   mValidRegion.Sub(mValidRegion, mInvalidRegion);
 }
 
-void PaintedLayerD3D10::CopyRegion(ID3D10Texture2D* aSrc, const nsIntPoint &aSrcOffset,
+void ThebesLayerD3D10::CopyRegion(ID3D10Texture2D* aSrc, const nsIntPoint &aSrcOffset,
                                   ID3D10Texture2D* aDest, const nsIntPoint &aDestOffset,
                                   const nsIntRegion &aCopyRegion, nsIntRegion* aValidRegion)
 {
@@ -84,7 +84,7 @@ void PaintedLayerD3D10::CopyRegion(ID3D10Texture2D* aSrc, const nsIntPoint &aSrc
 }
 
 void
-PaintedLayerD3D10::RenderLayer()
+ThebesLayerD3D10::RenderLayer()
 {
   if (!mTexture) {
     return;
@@ -145,7 +145,7 @@ PaintedLayerD3D10::RenderLayer()
 }
 
 void
-PaintedLayerD3D10::Validate(ReadbackProcessor *aReadback)
+ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
 {
   if (mVisibleRegion.IsEmpty()) {
     return;
@@ -189,7 +189,7 @@ PaintedLayerD3D10::Validate(ReadbackProcessor *aReadback)
   nsTArray<ReadbackProcessor::Update> readbackUpdates;
   nsIntRegion readbackRegion;
   if (aReadback && UsedForReadback()) {
-    aReadback->GetPaintedLayerUpdates(this, &readbackUpdates, &readbackRegion);
+    aReadback->GetThebesLayerUpdates(this, &readbackUpdates, &readbackRegion);
   }
 
   if (mTexture) {
@@ -243,7 +243,7 @@ PaintedLayerD3D10::Validate(ReadbackProcessor *aReadback)
   if (!drawRegion.IsEmpty()) {
     LayerManagerD3D10::CallbackInfo cbInfo = mD3DManager->GetCallbackInfo();
     if (!cbInfo.Callback) {
-      NS_ERROR("D3D10 should never need to update PaintedLayers in an empty transaction");
+      NS_ERROR("D3D10 should never need to update ThebesLayers in an empty transaction");
       return;
     }
 
@@ -258,7 +258,7 @@ PaintedLayerD3D10::Validate(ReadbackProcessor *aReadback)
       nsRefPtr<ID3D10Texture2D> readbackTexture;
       HRESULT hr = device()->CreateTexture2D(&desc, nullptr, getter_AddRefs(readbackTexture));
       if (FAILED(hr)) {
-        LayerManagerD3D10::ReportFailure(NS_LITERAL_CSTRING("PaintedLayerD3D10::Validate(): Failed to create texture"),
+        LayerManagerD3D10::ReportFailure(NS_LITERAL_CSTRING("ThebesLayerD3D10::Validate(): Failed to create texture"),
                                          hr);
         return;
       }
@@ -277,19 +277,19 @@ PaintedLayerD3D10::Validate(ReadbackProcessor *aReadback)
 }
 
 void
-PaintedLayerD3D10::LayerManagerDestroyed()
+ThebesLayerD3D10::LayerManagerDestroyed()
 {
   mD3DManager = nullptr;
 }
 
 Layer*
-PaintedLayerD3D10::GetLayer()
+ThebesLayerD3D10::GetLayer()
 {
   return this;
 }
 
 void
-PaintedLayerD3D10::VerifyContentType(SurfaceMode aMode)
+ThebesLayerD3D10::VerifyContentType(SurfaceMode aMode)
 {
   if (mDrawTarget) {
     SurfaceFormat format = aMode != SurfaceMode::SURFACE_SINGLE_CHANNEL_ALPHA ?
@@ -299,7 +299,7 @@ PaintedLayerD3D10::VerifyContentType(SurfaceMode aMode)
       mDrawTarget = Factory::CreateDrawTargetForD3D10Texture(mTexture, format);
 
       if (!mDrawTarget) {
-        NS_WARNING("Failed to create drawtarget for PaintedLayerD3D10.");
+        NS_WARNING("Failed to create drawtarget for ThebesLayerD3D10.");
         return;
       }
 
@@ -316,7 +316,7 @@ PaintedLayerD3D10::VerifyContentType(SurfaceMode aMode)
 }
 
 void
-PaintedLayerD3D10::FillTexturesBlackWhite(const nsIntRegion& aRegion, const nsIntPoint& aOffset)
+ThebesLayerD3D10::FillTexturesBlackWhite(const nsIntRegion& aRegion, const nsIntPoint& aOffset)
 {
   if (mTexture && mTextureOnWhite) {
     // It would be more optimal to draw the actual geometry, but more code
@@ -380,7 +380,7 @@ PaintedLayerD3D10::FillTexturesBlackWhite(const nsIntRegion& aRegion, const nsIn
 }
 
 void
-PaintedLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
+ThebesLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
 {
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
@@ -413,7 +413,7 @@ PaintedLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
 }
 
 void
-PaintedLayerD3D10::CreateNewTextures(const gfx::IntSize &aSize, SurfaceMode aMode)
+ThebesLayerD3D10::CreateNewTextures(const gfx::IntSize &aSize, SurfaceMode aMode)
 {
   if (aSize.width == 0 || aSize.height == 0) {
     // Nothing to do.
@@ -429,14 +429,14 @@ PaintedLayerD3D10::CreateNewTextures(const gfx::IntSize &aSize, SurfaceMode aMod
     hr = device()->CreateTexture2D(&desc, nullptr, getter_AddRefs(mTexture));
 
     if (FAILED(hr)) {
-      NS_WARNING("Failed to create new texture for PaintedLayerD3D10!");
+      NS_WARNING("Failed to create new texture for ThebesLayerD3D10!");
       return;
     }
 
     hr = device()->CreateShaderResourceView(mTexture, nullptr, getter_AddRefs(mSRView));
 
     if (FAILED(hr)) {
-      NS_WARNING("Failed to create shader resource view for PaintedLayerD3D10.");
+      NS_WARNING("Failed to create shader resource view for ThebesLayerD3D10.");
     }
 
     mDrawTarget = nullptr;
@@ -446,14 +446,14 @@ PaintedLayerD3D10::CreateNewTextures(const gfx::IntSize &aSize, SurfaceMode aMod
     hr = device()->CreateTexture2D(&desc, nullptr, getter_AddRefs(mTextureOnWhite));
 
     if (FAILED(hr)) {
-      NS_WARNING("Failed to create new texture for PaintedLayerD3D10!");
+      NS_WARNING("Failed to create new texture for ThebesLayerD3D10!");
       return;
     }
 
     hr = device()->CreateShaderResourceView(mTextureOnWhite, nullptr, getter_AddRefs(mSRViewOnWhite));
 
     if (FAILED(hr)) {
-      NS_WARNING("Failed to create shader resource view for PaintedLayerD3D10.");
+      NS_WARNING("Failed to create shader resource view for ThebesLayerD3D10.");
     }
 
     mDrawTarget = nullptr;
@@ -468,7 +468,7 @@ PaintedLayerD3D10::CreateNewTextures(const gfx::IntSize &aSize, SurfaceMode aMod
     }
 
     if (!mDrawTarget) {
-      NS_WARNING("Failed to create DrawTarget for PaintedLayerD3D10.");
+      NS_WARNING("Failed to create DrawTarget for ThebesLayerD3D10.");
       mDrawTarget = nullptr;
       return;
     }

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "BasicPaintedLayer.h"
+#include "BasicThebesLayer.h"
 #include <stdint.h>                     // for uint32_t
 #include "GeckoProfiler.h"              // for PROFILER_LABEL
 #include "ReadbackLayer.h"              // for ReadbackLayer, ReadbackSink
@@ -45,12 +45,12 @@ IntersectWithClip(const nsIntRegion& aRegion, gfxContext* aContext)
 }
 
 void
-BasicPaintedLayer::PaintThebes(gfxContext* aContext,
+BasicThebesLayer::PaintThebes(gfxContext* aContext,
                               Layer* aMaskLayer,
-                              LayerManager::DrawPaintedLayerCallback aCallback,
+                              LayerManager::DrawThebesLayerCallback aCallback,
                               void* aCallbackData)
 {
-  PROFILER_LABEL("BasicPaintedLayer", "PaintThebes",
+  PROFILER_LABEL("BasicThebesLayer", "PaintThebes",
     js::ProfileEntry::Category::GRAPHICS);
 
   NS_ASSERTION(BasicManager()->InDrawing(),
@@ -132,7 +132,7 @@ BasicPaintedLayer::PaintThebes(gfxContext* aContext,
 }
 
 void
-BasicPaintedLayer::Validate(LayerManager::DrawPaintedLayerCallback aCallback,
+BasicThebesLayer::Validate(LayerManager::DrawThebesLayerCallback aCallback,
                            void* aCallbackData,
                            ReadbackProcessor* aReadback)
 {
@@ -148,7 +148,7 @@ BasicPaintedLayer::Validate(LayerManager::DrawPaintedLayerCallback aCallback,
 
   nsTArray<ReadbackProcessor::Update> readbackUpdates;
   if (aReadback && UsedForReadback()) {
-    aReadback->GetPaintedLayerUpdates(this, &readbackUpdates);
+    aReadback->GetThebesLayerUpdates(this, &readbackUpdates);
   }
 
   uint32_t flags = 0;
@@ -218,11 +218,11 @@ BasicPaintedLayer::Validate(LayerManager::DrawPaintedLayerCallback aCallback,
   }
 }
 
-already_AddRefed<PaintedLayer>
-BasicLayerManager::CreatePaintedLayer()
+already_AddRefed<ThebesLayer>
+BasicLayerManager::CreateThebesLayer()
 {
   NS_ASSERTION(InConstruction(), "Only allowed in construction phase");
-  nsRefPtr<PaintedLayer> layer = new BasicPaintedLayer(this);
+  nsRefPtr<ThebesLayer> layer = new BasicThebesLayer(this);
   return layer.forget();
 }
 

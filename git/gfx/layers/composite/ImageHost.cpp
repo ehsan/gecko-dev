@@ -34,30 +34,12 @@ ImageHost::ImageHost(const TextureInfo& aTextureInfo)
   , mLocked(false)
 {}
 
-ImageHost::~ImageHost()
-{
-  if (mFrontBuffer) {
-    mFrontBuffer->UnsetCompositableBackendSpecificData(GetCompositableBackendSpecificData());
-  }
-}
-
-void
-ImageHost::SetCompositableBackendSpecificData(CompositableBackendSpecificData* aBackendData)
-{
-  CompositableHost::SetCompositableBackendSpecificData(aBackendData);
-  // ImageHost allows TextureHost sharing among ImageHosts.
-  if (aBackendData) {
-    aBackendData->SetAllowSharingTextureHost(true);
-  }
-}
+ImageHost::~ImageHost() {}
 
 void
 ImageHost::UseTextureHost(TextureHost* aTexture)
 {
   CompositableHost::UseTextureHost(aTexture);
-  if (mFrontBuffer) {
-    mFrontBuffer->UnsetCompositableBackendSpecificData(GetCompositableBackendSpecificData());
-  }
   mFrontBuffer = aTexture;
 }
 

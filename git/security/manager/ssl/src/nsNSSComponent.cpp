@@ -817,12 +817,14 @@ void nsNSSComponent::setValidationOptions(bool isInitialSetting,
   PublicSSLState()->SetOCSPStaplingEnabled(ocspStaplingEnabled);
   PrivateSSLState()->SetOCSPStaplingEnabled(ocspStaplingEnabled);
 
-  CertVerifier::PinningMode pinningMode =
-    static_cast<CertVerifier::PinningMode>
-      (Preferences::GetInt("security.cert_pinning.enforcement_level",
-                           CertVerifier::pinningDisabled));
-  if (pinningMode > CertVerifier::pinningEnforceTestMode) {
-    pinningMode = CertVerifier::pinningDisabled;
+  // Default pinning enforcement level is disabled.
+  CertVerifier::pinning_enforcement_config
+    pinningEnforcementLevel =
+      static_cast<CertVerifier::pinning_enforcement_config>
+        (Preferences::GetInt("security.cert_pinning.enforcement_level",
+                             CertVerifier::pinningDisabled));
+  if (pinningEnforcementLevel > CertVerifier::pinningEnforceTestMode) {
+    pinningEnforcementLevel = CertVerifier::pinningDisabled;
   }
 
   CertVerifier::ocsp_download_config odc;
@@ -830,7 +832,8 @@ void nsNSSComponent::setValidationOptions(bool isInitialSetting,
   CertVerifier::ocsp_get_config ogc;
 
   GetOCSPBehaviorFromPrefs(&odc, &osc, &ogc, lock);
-  mDefaultCertVerifier = new SharedCertVerifier(odc, osc, ogc, pinningMode);
+  mDefaultCertVerifier = new SharedCertVerifier(odc, osc, ogc,
+                                                pinningEnforcementLevel);
 }
 
 // Enable the TLS versions given in the prefs, defaulting to SSL 3.0 (min

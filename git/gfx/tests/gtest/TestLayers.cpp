@@ -28,11 +28,11 @@ public:
   virtual already_AddRefed<ColorLayer> CreateColorLayer() { return nullptr; }
   virtual void BeginTransactionWithTarget(gfxContext* aTarget) {}
   virtual already_AddRefed<CanvasLayer> CreateCanvasLayer() { return nullptr; }
-  virtual void EndTransaction(DrawPaintedLayerCallback aCallback,
+  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData,
                               EndTransactionFlags aFlags = END_DEFAULT) {}
   virtual int32_t GetMaxTextureSize() const { return 0; }
-  virtual already_AddRefed<PaintedLayer> CreatePaintedLayer() { return nullptr; }
+  virtual already_AddRefed<ThebesLayer> CreateThebesLayer() { return nullptr; }
 };
 
 class TestContainerLayer: public ContainerLayer {
@@ -54,18 +54,18 @@ public:
   }
 };
 
-class TestPaintedLayer: public PaintedLayer {
+class TestThebesLayer: public ThebesLayer {
 public:
-  explicit TestPaintedLayer(LayerManager* aManager)
-    : PaintedLayer(aManager, nullptr)
+  explicit TestThebesLayer(LayerManager* aManager)
+    : ThebesLayer(aManager, nullptr)
   {}
 
   virtual const char* Name() const {
-    return "TestPaintedLayer";
+    return "TestThebesLayer";
   }
 
   virtual LayerType GetType() const {
-    return TYPE_PAINTED;
+    return TYPE_THEBES;
   }
 
   virtual void InvalidateRegion(const nsIntRegion& aRegion) {
@@ -107,7 +107,7 @@ TEST(Layers, Transform) {
 
 TEST(Layers, Type) {
   TestContainerLayer layer(nullptr);
-  ASSERT_EQ(nullptr, layer.AsPaintedLayer());
+  ASSERT_EQ(nullptr, layer.AsThebesLayer());
   ASSERT_EQ(nullptr, layer.AsRefLayer());
   ASSERT_EQ(nullptr, layer.AsColorLayer());
 }
@@ -155,7 +155,7 @@ already_AddRefed<Layer> CreateLayer(char aLayerType, LayerManager* aManager) {
   if (aLayerType == 'c') {
     layer = new TestContainerLayer(aManager);
   } else if (aLayerType == 't') {
-    layer = new TestPaintedLayer(aManager);
+    layer = new TestThebesLayer(aManager);
   }
   return layer.forget();
 }
@@ -242,8 +242,8 @@ TEST(Layers, LayerTree) {
   Layer* nullLayer = nullptr;
   ASSERT_NE(nullLayer, layers[0]->AsContainerLayer());
   ASSERT_NE(nullLayer, layers[1]->AsContainerLayer());
-  ASSERT_NE(nullLayer, layers[2]->AsPaintedLayer());
-  ASSERT_NE(nullLayer, layers[3]->AsPaintedLayer());
+  ASSERT_NE(nullLayer, layers[2]->AsThebesLayer());
+  ASSERT_NE(nullLayer, layers[3]->AsThebesLayer());
 }
 
 static void ValidateTreePointers(Layer* aLayer) {

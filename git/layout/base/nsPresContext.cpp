@@ -824,14 +824,14 @@ nsPresContext::GetUserPreferences()
 }
 
 void
-nsPresContext::InvalidatePaintedLayers()
+nsPresContext::InvalidateThebesLayers()
 {
   if (!mShell)
     return;
   nsIFrame* rootFrame = mShell->FrameManager()->GetRootFrame();
   if (rootFrame) {
     // FrameLayerBuilder caches invalidation-related values that depend on the
-    // appunits-per-dev-pixel ratio, so ensure that all PaintedLayer drawing
+    // appunits-per-dev-pixel ratio, so ensure that all ThebesLayer drawing
     // is completely flushed.
     rootFrame->InvalidateFrameSubtree();
   }
@@ -840,7 +840,7 @@ nsPresContext::InvalidatePaintedLayers()
 void
 nsPresContext::AppUnitsPerDevPixelChanged()
 {
-  InvalidatePaintedLayers();
+  InvalidateThebesLayers();
 
   if (mDeviceContext) {
     mDeviceContext->FlushFontCache();
@@ -937,7 +937,7 @@ nsPresContext::UpdateAfterPreferencesChanged()
     mShell->SetPreferenceStyleRules(true);
   }
 
-  InvalidatePaintedLayers();
+  InvalidateThebesLayers();
   mDeviceContext->FlushFontCache();
 
   nsChangeHint hint = nsChangeHint(0);

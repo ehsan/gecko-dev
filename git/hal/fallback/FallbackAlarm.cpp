@@ -54,7 +54,8 @@ bool
 SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
 {
   if (!sTimer) {
-    MOZ_ASSERT(false, "We should have enabled the alarm");
+    HAL_LOG(("We should have enabled the alarm"));
+    MOZ_ASSERT(false);
     return false;
   }
 

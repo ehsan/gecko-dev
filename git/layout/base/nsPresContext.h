@@ -1161,7 +1161,7 @@ public:
 #endif
 
 protected:
-  void InvalidatePaintedLayers();
+  void InvalidateThebesLayers();
   void AppUnitsPerDevPixelChanged();
 
   void HandleRebuildUserFontSet() {

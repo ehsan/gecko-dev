@@ -9,7 +9,7 @@
 // typedefs conflicts.
 #include "mozilla/ArrayUtils.h"
 
-#include "PaintedLayerD3D9.h"
+#include "ThebesLayerD3D9.h"
 #include "gfxPlatform.h"
 
 #include "gfxWindowsPlatform.h"
@@ -24,15 +24,15 @@ namespace layers {
 
 using namespace gfx;
 
-PaintedLayerD3D9::PaintedLayerD3D9(LayerManagerD3D9 *aManager)
-  : PaintedLayer(aManager, nullptr)
+ThebesLayerD3D9::ThebesLayerD3D9(LayerManagerD3D9 *aManager)
+  : ThebesLayer(aManager, nullptr)
   , LayerD3D9(aManager)
 {
   mImplData = static_cast<LayerD3D9*>(this);
   aManager->deviceManager()->mLayersWithResources.AppendElement(this);
 }
 
-PaintedLayerD3D9::~PaintedLayerD3D9()
+ThebesLayerD3D9::~ThebesLayerD3D9()
 {
   if (mD3DManager) {
     mD3DManager->deviceManager()->mLayersWithResources.RemoveElement(this);
@@ -47,7 +47,7 @@ PaintedLayerD3D9::~PaintedLayerD3D9()
 #define RETENTION_THRESHOLD 16384
 
 void
-PaintedLayerD3D9::InvalidateRegion(const nsIntRegion &aRegion)
+ThebesLayerD3D9::InvalidateRegion(const nsIntRegion &aRegion)
 {
   mInvalidRegion.Or(mInvalidRegion, aRegion);
   mInvalidRegion.SimplifyOutward(20);
@@ -55,7 +55,7 @@ PaintedLayerD3D9::InvalidateRegion(const nsIntRegion &aRegion)
 }
 
 void
-PaintedLayerD3D9::CopyRegion(IDirect3DTexture9* aSrc, const nsIntPoint &aSrcOffset,
+ThebesLayerD3D9::CopyRegion(IDirect3DTexture9* aSrc, const nsIntPoint &aSrcOffset,
                             IDirect3DTexture9* aDest, const nsIntPoint &aDestOffset,
                             const nsIntRegion &aCopyRegion, nsIntRegion* aValidRegion)
 {
@@ -97,7 +97,7 @@ PaintedLayerD3D9::CopyRegion(IDirect3DTexture9* aSrc, const nsIntPoint &aSrcOffs
 }
 
 void
-PaintedLayerD3D9::UpdateTextures(SurfaceMode aMode)
+ThebesLayerD3D9::UpdateTextures(SurfaceMode aMode)
 {
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
@@ -141,7 +141,7 @@ PaintedLayerD3D9::UpdateTextures(SurfaceMode aMode)
 }
 
 void
-PaintedLayerD3D9::RenderRegion(const nsIntRegion& aRegion)
+ThebesLayerD3D9::RenderRegion(const nsIntRegion& aRegion)
 {
   nsIntRegionRectIterator iter(aRegion);
 
@@ -166,7 +166,7 @@ PaintedLayerD3D9::RenderRegion(const nsIntRegion& aRegion)
 }
 
 void
-PaintedLayerD3D9::RenderPaintedLayer(ReadbackProcessor* aReadback)
+ThebesLayerD3D9::RenderThebesLayer(ReadbackProcessor* aReadback)
 {
   if (mVisibleRegion.IsEmpty()) {
     return;
@@ -208,10 +208,10 @@ PaintedLayerD3D9::RenderPaintedLayer(ReadbackProcessor* aReadback)
   nsTArray<ReadbackProcessor::Update> readbackUpdates;
   nsIntRegion readbackRegion;
   if (aReadback && UsedForReadback()) {
-    aReadback->GetPaintedLayerUpdates(this, &readbackUpdates, &readbackRegion);
+    aReadback->GetThebesLayerUpdates(this, &readbackUpdates, &readbackRegion);
   }
 
-  // Because updates to D3D9 PaintedLayers are rendered with the CPU, we don't
+  // Because updates to D3D9 ThebesLayers are rendered with the CPU, we don't
   // have to do readback from D3D9 surfaces. Instead we make sure that any area
   // needed for readback is included in the drawRegion we ask layout to render.
   // Then the readback areas we need can be copied out of the temporary
@@ -224,7 +224,7 @@ PaintedLayerD3D9::RenderPaintedLayer(ReadbackProcessor* aReadback)
   if (!drawRegion.IsEmpty()) {
     LayerManagerD3D9::CallbackInfo cbInfo = mD3DManager->GetCallbackInfo();
     if (!cbInfo.Callback) {
-      NS_ERROR("D3D9 should never need to update PaintedLayers in an empty transaction");
+      NS_ERROR("D3D9 should never need to update ThebesLayers in an empty transaction");
       return;
     }
 
@@ -272,7 +272,7 @@ PaintedLayerD3D9::RenderPaintedLayer(ReadbackProcessor* aReadback)
 }
 
 void
-PaintedLayerD3D9::CleanResources()
+ThebesLayerD3D9::CleanResources()
 {
   mTexture = nullptr;
   mTextureOnWhite = nullptr;
@@ -280,26 +280,26 @@ PaintedLayerD3D9::CleanResources()
 }
 
 void
-PaintedLayerD3D9::LayerManagerDestroyed()
+ThebesLayerD3D9::LayerManagerDestroyed()
 {
   mD3DManager->deviceManager()->mLayersWithResources.RemoveElement(this);
   mD3DManager = nullptr;
 }
 
 Layer*
-PaintedLayerD3D9::GetLayer()
+ThebesLayerD3D9::GetLayer()
 {
   return this;
 }
 
 bool
-PaintedLayerD3D9::IsEmpty()
+ThebesLayerD3D9::IsEmpty()
 {
   return !mTexture;
 }
 
 void
-PaintedLayerD3D9::VerifyContentType(SurfaceMode aMode)
+ThebesLayerD3D9::VerifyContentType(SurfaceMode aMode)
 {
   if (!mTexture)
     return;
@@ -480,7 +480,7 @@ FillSurface(gfxASurface* aSurface, const nsIntRegion& aRegion,
 }
 
 void
-PaintedLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
+ThebesLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
                             const nsTArray<ReadbackProcessor::Update>& aReadbackUpdates)
 {
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
@@ -619,7 +619,7 @@ PaintedLayerD3D9::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode,
 }
 
 void
-PaintedLayerD3D9::CreateNewTextures(const gfx::IntSize &aSize,
+ThebesLayerD3D9::CreateNewTextures(const gfx::IntSize &aSize,
                                   SurfaceMode aMode)
 {
   if (aSize.width == 0 || aSize.height == 0) {
@@ -634,7 +634,7 @@ PaintedLayerD3D9::CreateNewTextures(const gfx::IntSize &aSize,
                                        aMode != SurfaceMode::SURFACE_SINGLE_CHANNEL_ALPHA ? D3DFMT_X8R8G8B8 : D3DFMT_A8R8G8B8,
                                        D3DPOOL_DEFAULT, getter_AddRefs(mTexture), nullptr);
   if (FAILED(hr)) {
-    ReportFailure(NS_LITERAL_CSTRING("PaintedLayerD3D9::CreateNewTextures(): Failed to create texture"),
+    ReportFailure(NS_LITERAL_CSTRING("ThebesLayerD3D9::CreateNewTextures(): Failed to create texture"),
                   hr);
     return;
   }
@@ -645,7 +645,7 @@ PaintedLayerD3D9::CreateNewTextures(const gfx::IntSize &aSize,
                                  D3DFMT_X8R8G8B8,
                                  D3DPOOL_DEFAULT, getter_AddRefs(mTextureOnWhite), nullptr);
     if (FAILED(hr)) {
-      ReportFailure(NS_LITERAL_CSTRING("PaintedLayerD3D9::CreateNewTextures(): Failed to create texture (2)"),
+      ReportFailure(NS_LITERAL_CSTRING("ThebesLayerD3D9::CreateNewTextures(): Failed to create texture (2)"),
                     hr);
       return;
     }
