@@ -595,7 +595,10 @@ js_InitGC(JSRuntime *rt, uint32 maxbytes)
      */
     rt->gcMaxBytes = maxbytes;
     rt->setGCMaxMallocBytes(maxbytes);
+
     rt->gcEmptyArenaPoolLifespan = 30000;
+
+    rt->gcTriggerFactor = uint32(100.0f * GC_HEAP_GROWTH_FACTOR);
 
     /*
      * The assigned value prevents GC from running when GC memory is too low
@@ -1063,11 +1066,28 @@ js_MapGCRoots(JSRuntime *rt, JSGCRootMapFun map, void *data)
 }
 
 void
+JSRuntime::setGCTriggerFactor(uint32 factor)
+{
+    JS_ASSERT(factor >= 100);
+
+    gcTriggerFactor = factor;
+    setGCLastBytes(gcLastBytes);
+
+    for (JSCompartment **c = compartments.begin(); c != compartments.end(); ++c)
+        (*c)->setGCLastBytes(gcLastBytes);
+}
+
+void
 JSRuntime::setGCLastBytes(size_t lastBytes)
 {
     gcLastBytes = lastBytes;
-    float trigger = float(Max(lastBytes, GC_ARENA_ALLOCATION_TRIGGER)) * GC_HEAP_GROWTH_FACTOR;
-    gcTriggerBytes = size_t(Min(float(gcMaxBytes), trigger));
+
+    /* FIXME bug 603916 - we should unify the triggers here. */
+    float trigger1 = float(lastBytes) * float(gcTriggerFactor) / 100.0f;
+    float trigger2 = float(Max(lastBytes, GC_ARENA_ALLOCATION_TRIGGER)) *
+                     GC_HEAP_GROWTH_FACTOR;
+    float maxtrigger = Max(trigger1, trigger2);
+    gcTriggerBytes = (float(gcMaxBytes) < maxtrigger) ? gcMaxBytes : size_t(maxtrigger);
 }
 
 void
@@ -1083,8 +1103,13 @@ void
 JSCompartment::setGCLastBytes(size_t lastBytes)
 {
     gcLastBytes = lastBytes;
-    float trigger = float(Max(lastBytes, GC_ARENA_ALLOCATION_TRIGGER)) * GC_HEAP_GROWTH_FACTOR;
-    gcTriggerBytes = size_t(Min(float(rt->gcMaxBytes), trigger));
+
+    /* FIXME bug 603916 - we should unify the triggers here. */
+    float trigger1 = float(lastBytes) * float(rt->gcTriggerFactor) / 100.0f;
+    float trigger2 = float(Max(lastBytes, GC_ARENA_ALLOCATION_TRIGGER)) *
+                     GC_HEAP_GROWTH_FACTOR;
+    float maxtrigger = Max(trigger1, trigger2);
+    gcTriggerBytes = (float(rt->gcMaxBytes) < maxtrigger) ? rt->gcMaxBytes : size_t(maxtrigger);
 }
 
 void
@@ -1106,13 +1131,8 @@ FreeLists::purge()
      * Return the free list back to the arena so the GC finalization will not
      * run the finalizers over unitialized bytes from free things.
      */
-    for (FreeCell **p = finalizables; p != JS_ARRAY_END(finalizables); ++p) {
-        if (FreeCell *thing = *p) {
-            JS_ASSERT(!thing->arenaHeader()->freeList);
-            thing->arenaHeader()->freeList = thing;
-            *p = NULL;
-        }
-    }
+    for (FreeCell ***p = finalizables; p != JS_ARRAY_END(finalizables); ++p)
+        *p = NULL;
 }
 
 inline ArenaHeader *
@@ -1310,6 +1330,9 @@ ArenaList::backgroundFinalize(JSContext *cx, ArenaHeader *listHead)
 
 #endif /* JS_THREADSAFE */
 
+} /* namespace gc */
+} /* namespace js */
+
 #ifdef DEBUG
 bool
 CheckAllocation(JSContext *cx)
@@ -1360,11 +1383,16 @@ RunLastDitchGC(JSContext *cx)
 }
 
 template <typename T>
-inline Cell *
+inline bool
 RefillTypedFreeList(JSContext *cx, unsigned thingKind)
 {
     JSCompartment *compartment = cx->compartment;
-    JS_ASSERT(!compartment->freeLists.finalizables[thingKind]);
+    JS_ASSERT_IF(compartment->freeLists.finalizables[thingKind],
+                 !*compartment->freeLists.finalizables[thingKind]);
+
+    JS_ASSERT(!cx->runtime->gcRunning);
+    if (cx->runtime->gcRunning)
+        return false;
 
     bool canGC = !JS_ON_TRACE(cx) && !JS_THREAD_DATA(cx)->waiveGCQuota;
     bool runGC = canGC && JS_UNLIKELY(NeedLastDitchGC(cx));
@@ -1378,13 +1406,15 @@ RefillTypedFreeList(JSContext *cx, unsigned thingKind)
              * things and populate the free list. If that happens, just
              * return that list head.
              */
-            if (Cell *thing = compartment->freeLists.getNext(thingKind))
-                return thing;
+            if (compartment->freeLists.finalizables[thingKind])
+                return true;
         }
         ArenaHeader *aheader = compartment->arenas[thingKind].getArenaWithFreeList<T>(cx, thingKind);
         if (aheader) {
+            JS_ASSERT(aheader->freeList);
             JS_ASSERT(sizeof(T) == aheader->getThingSize());
-            return compartment->freeLists.populate(aheader, thingKind);
+            compartment->freeLists.populate(aheader, thingKind);
+            return true;
         }
 
         /*
@@ -1398,10 +1428,10 @@ RefillTypedFreeList(JSContext *cx, unsigned thingKind)
 
     METER(cx->runtime->gcStats.fail++);
     js_ReportOutOfMemory(cx);
-    return NULL;
+    return false;
 }
 
-Cell *
+bool
 RefillFinalizableFreeList(JSContext *cx, unsigned thingKind)
 {
     switch (thingKind) {
@@ -1439,12 +1469,9 @@ RefillFinalizableFreeList(JSContext *cx, unsigned thingKind)
 #endif
       default:
         JS_NOT_REACHED("bad finalize kind");
-        return NULL;
+        return false;
     }
 }
-
-} /* namespace gc */
-} /* namespace js */
 
 uint32
 js_GetGCThingTraceKind(void *thing)
@@ -2141,7 +2168,6 @@ GCHelperThread::doSweep()
     for (ArenaHeader **i = finalizeVector.begin(); i != finalizeVector.end(); ++i)
         ArenaList::backgroundFinalize(cx, *i);
     finalizeVector.resize(0);
-    ExpireGCChunks(cx->runtime);
     cx = NULL;
 
     if (freeCursor) {
@@ -2415,14 +2441,11 @@ MarkAndSweep(JSContext *cx, JSCompartment *comp, JSGCInvocationKind gckind GCTIM
         js_SweepScriptFilenames(rt);
     }
 
-#ifndef JS_THREADSAFE
     /*
      * Destroy arenas after we finished the sweeping so finalizers can safely
      * use IsAboutToBeFinalized().
-     * This is done on the GCHelperThread if JS_THREADSAFE is defined.
      */
     ExpireGCChunks(rt);
-#endif
     TIMESTAMP(sweepDestroyEnd);
 
     if (rt->gcCallback)
