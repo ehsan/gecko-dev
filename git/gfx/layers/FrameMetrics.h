@@ -55,7 +55,6 @@ public:
     , mPresShellId(-1)
     , mIsRoot(false)
     , mHasScrollgrab(false)
-    , mUpdateScrollOffset(false)
   {}
 
   // Default copy ctor and operator= are fine
@@ -74,8 +73,7 @@ public:
            mDevPixelsPerCSSPixel == aOther.mDevPixelsPerCSSPixel &&
            mMayHaveTouchListeners == aOther.mMayHaveTouchListeners &&
            mPresShellId == aOther.mPresShellId &&
-           mIsRoot == aOther.mIsRoot &&
-           mUpdateScrollOffset == aOther.mUpdateScrollOffset;
+           mIsRoot == aOther.mIsRoot;
   }
   bool operator!=(const FrameMetrics& aOther) const
   {
@@ -286,10 +284,6 @@ public:
 
   // Whether or not this frame is for an element marked 'scrollgrab'.
   bool mHasScrollgrab;
-
-  // Whether mScrollOffset was updated by something other than the APZ code, and
-  // if the APZC receiving this metrics should update its local copy.
-  bool mUpdateScrollOffset;
 };
 
 /**

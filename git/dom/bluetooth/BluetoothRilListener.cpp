@@ -184,7 +184,7 @@ TelephonyListener::CallStateChanged(uint32_t aServiceId,
   NS_ENSURE_TRUE(hfp, NS_ERROR_FAILURE);
 
   hfp->HandleCallStateChanged(aCallIndex, aCallState, EmptyString(), aNumber,
-                              aIsOutgoing, aIsConference, true);
+                              aIsOutgoing, true);
   return NS_OK;
 }
 
@@ -202,7 +202,7 @@ TelephonyListener::EnumerateCallState(uint32_t aServiceId,
   NS_ENSURE_TRUE(hfp, NS_ERROR_FAILURE);
 
   hfp->HandleCallStateChanged(aCallIndex, aCallState, EmptyString(), aNumber,
-                              aIsOutgoing, aIsConference, false);
+                              aIsOutgoing, false);
   return NS_OK;
 }
 
@@ -222,7 +222,7 @@ TelephonyListener::NotifyError(uint32_t aServiceId,
     // via setting CALL_STATE_DISCONNECTED
     hfp->HandleCallStateChanged(aCallIndex,
                                 nsITelephonyProvider::CALL_STATE_DISCONNECTED,
-                                aError, EmptyString(), false, false, true);
+                                aError, EmptyString(), false, true);
     BT_WARNING("Reset the call state due to call transition ends abnormally");
   }
 

@@ -666,16 +666,10 @@ var StyleRuleActor = protocol.ActorClass({
     if (this.rawNode) {
       document = this.rawNode.ownerDocument;
     } else {
-      let parentStyleSheet = this.rawRule.parentStyleSheet;
-      while (parentStyleSheet.ownerRule &&
-          parentStyleSheet.ownerRule instanceof Ci.nsIDOMCSSImportRule) {
-        parentStyleSheet = parentStyleSheet.ownerRule.parentStyleSheet;
-      }
-
-      if (parentStyleSheet.ownerNode instanceof Ci.nsIDOMHTMLDocument) {
-        document = parentStyleSheet.ownerNode;
+      if (this.rawRule.parentStyleSheet.ownerNode instanceof Ci.nsIDOMHTMLDocument) {
+        document = this.rawRule.parentStyleSheet.ownerNode;
       } else {
-        document = parentStyleSheet.ownerNode.ownerDocument;
+        document = this.rawRule.parentStyleSheet.ownerNode.ownerDocument;
       }
     }
 

@@ -1458,6 +1458,11 @@ class JavaPanZoomController
     }
 
     @Override
+    public void updateScrollOffset(float cssX, float cssY) {
+        // Nothing to update, this class doesn't store the scroll offset locally.
+    }
+
+    @Override
     public void setOverscrollHandler(final Overscroll handler) {
         mOverscroll = handler;
     }
