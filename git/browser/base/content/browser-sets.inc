@@ -189,8 +189,6 @@
     <broadcaster id="blockedPopupsSeparator"/>
     <broadcaster id="isImage"/>
     <broadcaster id="isFrameImage"/>
-    <broadcaster id="singleFeedMenuitemState" disabled="true"/>
-    <broadcaster id="multipleFeedsMenuState" hidden="true"/>
   </broadcasterset>
 
   <keyset id="mainKeyset">

@@ -445,6 +445,8 @@ members = [
     '-nsICanvasRenderingContextWebGL.getFramebufferAttachmentParameter',
     '-nsICanvasRenderingContextWebGL.getRenderbufferParameter',
     '-nsICanvasRenderingContextWebGL.getProgramParameter',
+    '-nsICanvasRenderingContextWebGL.texParameterf',
+    '-nsICanvasRenderingContextWebGL.texParameteri',
     '-nsICanvasRenderingContextWebGL.getUniform',
     '-nsICanvasRenderingContextWebGL.getVertexAttrib',
     '-nsICanvasRenderingContextWebGL.getShaderParameter',

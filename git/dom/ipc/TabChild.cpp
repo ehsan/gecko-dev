@@ -86,8 +86,6 @@
 #include "nsSerializationHelper.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
-#include "nsIEventListenerManager.h"
-#include "nsGeolocation.h"
 
 #ifdef MOZ_WIDGET_QT
 #include <QX11EmbedWidget>
@@ -510,11 +508,6 @@ TabChild::~TabChild()
     }
     if (mCx) {
       DestroyCx();
-    }
-    
-    nsIEventListenerManager* elm = mTabChildGlobal->GetListenerManager(PR_FALSE);
-    if (elm) {
-      elm->Disconnect();
     }
     mTabChildGlobal->mTabChild = nsnull;
 }
@@ -990,7 +983,6 @@ TabChild::AllocPGeolocationRequest(const IPC::URI&)
 bool
 TabChild::DeallocPGeolocationRequest(PGeolocationRequestChild* actor)
 {
-  static_cast<nsGeolocationRequest*>(actor)->Release();
   return true;
 }
 
@@ -1011,9 +1003,6 @@ TabChild::RecvActivateFrameEvent(const nsString& aType, const bool& capture)
 bool
 TabChild::RecvLoadRemoteScript(const nsString& aURL)
 {
-  if (!mCx && !InitTabChildGlobal())
-    return false;
-
   LoadFrameScriptInternal(aURL);
   return true;
 }
@@ -1074,9 +1063,6 @@ TabChild::RecvDestroy()
 bool
 TabChild::InitTabChildGlobal()
 {
-  if (mCx && mTabChildGlobal)
-    return true;
-
   nsCOMPtr<nsPIDOMWindow> window = do_GetInterface(mWebNav);
   NS_ENSURE_TRUE(window, false);
   nsCOMPtr<nsIDOMEventTarget> chromeHandler =

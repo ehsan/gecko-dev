@@ -763,8 +763,8 @@ nsHTMLSelectOptionAccessible::SelectionChangedIfOption(nsIContent *aPossibleOpti
     return;
 
 
-  nsRefPtr<AccEvent> selWithinEvent =
-    new AccEvent(nsIAccessibleEvent::EVENT_SELECTION_WITHIN, multiSelect);
+  nsRefPtr<nsAccEvent> selWithinEvent =
+    new nsAccEvent(nsIAccessibleEvent::EVENT_SELECTION_WITHIN, multiSelect);
 
   if (!selWithinEvent)
     return;
@@ -780,7 +780,8 @@ nsHTMLSelectOptionAccessible::SelectionChangedIfOption(nsIContent *aPossibleOpti
     eventType = nsIAccessibleEvent::EVENT_SELECTION_REMOVE;
   }
 
-  nsRefPtr<AccEvent> selAddRemoveEvent = new AccEvent(eventType, option);
+  nsRefPtr<nsAccEvent> selAddRemoveEvent =
+    new nsAccEvent(eventType, option);
 
   if (selAddRemoveEvent)
     option->GetDocAccessible()->FireDelayedAccessibleEvent(selAddRemoveEvent);

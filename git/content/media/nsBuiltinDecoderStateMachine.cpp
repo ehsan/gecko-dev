@@ -1080,14 +1080,8 @@ nsresult nsBuiltinDecoderStateMachine::Run()
           }
         }
 
-        if (mState == DECODER_STATE_COMPLETED) {
-          // We've finished playback. Shutdown the state machine thread, 
-          // in order to save memory on thread stacks, particuarly on Linux.
-          nsCOMPtr<nsIRunnable> event =
-            new ShutdownThreadEvent(mDecoder->mStateMachineThread);
-          NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
-          mDecoder->mStateMachineThread = nsnull;
-          return NS_OK;
+        while (mState == DECODER_STATE_COMPLETED) {
+          mDecoder->GetMonitor().Wait();
         }
       }
       break;

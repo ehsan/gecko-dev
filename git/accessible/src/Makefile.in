@@ -62,7 +62,6 @@ DIRS += $(PLATFORM_DIR)
 DIRS += \
   base \
   html \
-  xpcom \
   $(null)
 
 ifdef MOZ_XUL

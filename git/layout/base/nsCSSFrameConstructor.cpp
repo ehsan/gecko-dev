@@ -3261,7 +3261,14 @@ nsCSSFrameConstructor::InitializeSelectFrame(nsFrameConstructorState& aState,
       nsWidgetInitData widgetData;
       widgetData.mWindowType  = eWindowType_popup;
       widgetData.mBorderStyle = eBorderStyle_default;
-      view->CreateWidgetForPopup(&widgetData);
+
+#if defined(XP_MACOSX) || defined(XP_BEOS) 
+      static NS_DEFINE_IID(kCPopUpCID,  NS_POPUP_CID);
+      view->CreateWidget(kCPopUpCID, &widgetData, nsnull);
+#else
+      static NS_DEFINE_IID(kCChildCID, NS_CHILD_CID);
+      view->CreateWidget(kCChildCID, &widgetData, nsnull);
+#endif
     }
   }
 
@@ -8119,11 +8126,12 @@ nsCSSFrameConstructor::DoContentStateChanged(Element* aElement,
 }
 
 void
-nsCSSFrameConstructor::AttributeWillChange(Element* aElement,
+nsCSSFrameConstructor::AttributeWillChange(nsIContent* aContent,
                                            PRInt32 aNameSpaceID,
                                            nsIAtom* aAttribute,
                                            PRInt32 aModType)
 {
+  Element* aElement = aContent->AsElement();
   nsRestyleHint rshint =
     mPresShell->StyleSet()->HasAttributeDependentStyle(mPresShell->GetPresContext(),
                                                        aElement,
@@ -8134,11 +8142,12 @@ nsCSSFrameConstructor::AttributeWillChange(Element* aElement,
 }
 
 void
-nsCSSFrameConstructor::AttributeChanged(Element* aElement,
+nsCSSFrameConstructor::AttributeChanged(nsIContent* aContent,
                                         PRInt32 aNameSpaceID,
                                         nsIAtom* aAttribute,
                                         PRInt32 aModType)
 {
+  Element* aElement = aContent->AsElement();
   // Hold onto the PresShell to prevent ourselves from being destroyed.
   // XXXbz how, exactly, would this attribute change cause us to be
   // destroyed from inside this function?

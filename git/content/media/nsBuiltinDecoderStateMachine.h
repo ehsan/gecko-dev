@@ -234,7 +234,7 @@ public:
   // Accessed on state machine, audio, main, and AV thread. 
   State mState;
 
-  nsresult GetBuffered(nsTimeRanges* aBuffered) {
+  nsresult GetBuffered(nsHTMLTimeRanges* aBuffered) {
     NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
     return mReader->GetBuffered(aBuffered, mStartTime);
   }

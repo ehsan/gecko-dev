@@ -198,8 +198,6 @@ gfxWindowsPlatform::gfxWindowsPlatform()
     mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
     mUseClearTypeAlways = UNINITIALIZED_VALUE;
 
-    mScreenDC = GetDC(NULL);
-
 #ifdef MOZ_FT2_FONTS
     FT_Init_FreeType(&gPlatformFTLibrary);
 #endif
@@ -348,7 +346,6 @@ gfxWindowsPlatform::gfxWindowsPlatform()
 
 gfxWindowsPlatform::~gfxWindowsPlatform()
 {
-    ::ReleaseDC(NULL, mScreenDC);
     // not calling FT_Done_FreeType because cairo may still hold references to
     // these FT_Faces.  See bug 458169.
 #ifdef CAIRO_HAS_D2D_SURFACE

@@ -78,7 +78,7 @@ class nsAccessibleWrap : public nsAccessible
     virtual void Shutdown ();
     virtual void InvalidateChildren();
 
-    virtual nsresult HandleAccEvent(AccEvent* aEvent);
+    virtual nsresult HandleAccEvent(nsAccEvent *aEvent);
 
     // ignored means that the accessible might still have children, but is not displayed
     // to the user. it also has no native accessible object represented for it.
@@ -98,7 +98,7 @@ class nsAccessibleWrap : public nsAccessible
     
   protected:
 
-    virtual nsresult FirePlatformEvent(AccEvent* aEvent);
+    virtual nsresult FirePlatformEvent(nsAccEvent *aEvent);
 
   /**
    * Return true if the parent doesn't have children to expose to AT.

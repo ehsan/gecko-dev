@@ -545,24 +545,8 @@ nsWindow::DispatchEvent(nsGUIEvent *aEvent,
 nsEventStatus
 nsWindow::DispatchEvent(nsGUIEvent *aEvent)
 {
-    if (mEventCallback) {
-        nsEventStatus status = (*mEventCallback)(aEvent);
-
-        // Don't track composition if event was dispatched to remote child
-        if (status != nsEventStatus_eConsumeNoDefault)
-            switch (aEvent->message) {
-            case NS_COMPOSITION_START:
-                mIMEComposing = PR_TRUE;
-                break;
-            case NS_COMPOSITION_END:
-                mIMEComposing = PR_FALSE;
-                break;
-            case NS_TEXT_TEXT:
-                mIMEComposingText = static_cast<nsTextEvent*>(aEvent)->theText;
-                break;
-            }
-        return status;
-    }
+    if (mEventCallback)
+        return (*mEventCallback)(aEvent);
     return nsEventStatus_eIgnore;
 }
 
@@ -1330,6 +1314,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_END, this);
             InitEvent(event, nsnull);
             DispatchEvent(&event);
+            mIMEComposing = PR_FALSE;
         }
         return;
     case AndroidGeckoEvent::IME_COMPOSITION_BEGIN:
@@ -1338,6 +1323,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_START, this);
             InitEvent(event, nsnull);
             DispatchEvent(&event);
+            mIMEComposing = PR_TRUE;
         }
         return;
     case AndroidGeckoEvent::IME_ADD_RANGE:
@@ -1474,14 +1460,10 @@ nsWindow::ResetInputState()
 
     // Cancel composition on Gecko side
     if (mIMEComposing) {
-        nsTextEvent textEvent(PR_TRUE, NS_TEXT_TEXT, this);
-        InitEvent(textEvent, nsnull);
-        textEvent.theText = mIMEComposingText;
-        DispatchEvent(&textEvent);
-
         nsCompositionEvent event(PR_TRUE, NS_COMPOSITION_END, this);
         InitEvent(event, nsnull);
         DispatchEvent(&event);
+        mIMEComposing = PR_FALSE;
     }
 
     AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_RESETINPUTSTATE, 0);
@@ -1519,6 +1501,7 @@ nsWindow::CancelIMEComposition()
         nsCompositionEvent compEvent(PR_TRUE, NS_COMPOSITION_END, this);
         InitEvent(compEvent, nsnull);
         DispatchEvent(&compEvent);
+        mIMEComposing = PR_FALSE;
     }
 
     AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_CANCELCOMPOSITION, 0);

@@ -239,7 +239,7 @@ private:
  * @param aFormSubmission the form submission object (out param)
  */
 nsresult GetSubmissionFromForm(nsGenericHTMLElement* aForm,
-                               nsGenericHTMLElement* aOriginatingElement,
+                               nsIContent* aOriginatingElement,
                                nsFormSubmission** aFormSubmission);
 
 #endif /* nsIFormSubmission_h___ */

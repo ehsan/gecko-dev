@@ -65,7 +65,6 @@
 #include "gfxPlatform.h"
 #include "gfxContext.h"
 #include "gfxMatrix.h"
-#include "gfxWindowsPlatform.h"
 #include "gfxWindowsSurface.h"
 #include "gfxWindowsNativeDrawing.h"
 
@@ -188,6 +187,14 @@ nsNativeThemeWin::nsNativeThemeWin() {
 
 nsNativeThemeWin::~nsNativeThemeWin() {
   nsUXThemeData::Invalidate();
+}
+
+static void GetNativeRect(const nsIntRect& aSrc, RECT& aDst)
+{
+  aDst.top = aSrc.y;
+  aDst.bottom = aSrc.y + aSrc.height;
+  aDst.left = aSrc.x;
+  aDst.right = aSrc.x + aSrc.width;
 }
 
 static PRBool IsTopLevelMenu(nsIFrame *aFrame)
@@ -1324,8 +1331,8 @@ RENDER_AGAIN:
 
   // Draw focus rectangles for XP HTML checkboxes and radio buttons
   // XXX it'd be nice to draw these outside of the frame
-  if (((aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_RADIO) &&
-        aFrame->GetContent()->IsHTML()) ||
+  if ((aWidgetType == NS_THEME_CHECKBOX || aWidgetType == NS_THEME_RADIO) &&
+      aFrame->GetContent()->IsHTML() ||
       aWidgetType == NS_THEME_SCALE_HORIZONTAL ||
       aWidgetType == NS_THEME_SCALE_VERTICAL) {
       PRInt32 contentState;
@@ -1883,7 +1890,7 @@ nsNativeThemeWin::GetMinimumWidgetSize(nsIRenderingContext* aContext, nsIFrame* 
   if (NS_FAILED(rv))
     return rv;
 
-  HDC hdc = gfxWindowsPlatform::GetPlatform()->GetScreenDC();
+  HDC hdc = (HDC)aContext->GetNativeGraphicData(nsIRenderingContext::NATIVE_WINDOWS_DC);
   if (!hdc)
     return NS_ERROR_FAILURE;
 
@@ -3202,7 +3209,7 @@ RENDER_AGAIN:
       // if enabled, draw a gradient titlebar background, otherwise
       // fill with a solid color.
       BOOL bFlag = TRUE;
-      SystemParametersInfo(SPI_GETGRADIENTCAPTIONS, 0, &bFlag, 0);
+      SystemParametersInfo(SPI_GETGRADIENTCAPTIONS, 0, &bFlag, NULL);
       if (!bFlag) {
         if (state == mozilla::widget::themeconst::FS_ACTIVE)
           FillRect(hdc, &rect, (HBRUSH)(COLOR_ACTIVECAPTION+1));

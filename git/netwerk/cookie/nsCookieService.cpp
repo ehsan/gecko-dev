@@ -223,10 +223,10 @@ static PRLogModuleInfo *sCookieLog = PR_NewLogModule("cookie");
 #define COOKIE_LOGFAILURE(a, b, c, d)    LogFailure(a, b, c, d)
 #define COOKIE_LOGSUCCESS(a, b, c, d, e) LogSuccess(a, b, c, d, e)
 
-#define COOKIE_LOGEVICTED(a, details)          \
+#define COOKIE_LOGEVICTED(a)                   \
   PR_BEGIN_MACRO                               \
     if (PR_LOG_TEST(sCookieLog, PR_LOG_DEBUG)) \
-      LogEvicted(a, details);                  \
+      LogEvicted(a);                           \
   PR_END_MACRO
 
 #define COOKIE_LOGSTRING(lvl, fmt)   \
@@ -319,10 +319,9 @@ LogSuccess(PRBool aSetCookie, nsIURI *aHostURI, const char *aCookieString, nsCoo
 }
 
 static void
-LogEvicted(nsCookie *aCookie, const char* details)
+LogEvicted(nsCookie *aCookie)
 {
   PR_LOG(sCookieLog, PR_LOG_DEBUG,("===== COOKIE EVICTED =====\n"));
-  PR_LOG(sCookieLog, PR_LOG_DEBUG,("%s\n", details));
 
   LogCookie(aCookie);
 
@@ -2220,9 +2219,9 @@ nsCookieService::AddInternal(const nsCString               &aBaseDomain,
     // check if we have to delete an old cookie.
     nsEnumerationData data(currentTime, LL_MAXINT);
     if (CountCookiesFromHostInternal(aBaseDomain, data) >= mMaxCookiesPerHost) {
-      // remove the oldest cookie from the domain
+      // remove the oldest cookie from host
       oldCookie = data.iter.Cookie();
-      COOKIE_LOGEVICTED(oldCookie, "Too many cookies for this domain");
+      COOKIE_LOGEVICTED(oldCookie);
       RemoveCookieFromList(data.iter);
 
       NotifyChanged(oldCookie, NS_LITERAL_STRING("deleted").get());
@@ -2248,7 +2247,7 @@ nsCookieService::AddInternal(const nsCString               &aBaseDomain,
   NotifyChanged(aCookie, foundCookie ? NS_LITERAL_STRING("changed").get()
                                      : NS_LITERAL_STRING("added").get());
 
-  COOKIE_LOGSUCCESS(SET_COOKIE, aHostURI, aCookieHeader, aCookie, foundCookie);
+  COOKIE_LOGSUCCESS(SET_COOKIE, aHostURI, aCookieHeader, aCookie, foundCookie != nsnull);
 }
 
 /******************************************************************************
@@ -2946,7 +2945,7 @@ purgeCookiesCallback(nsCookieEntry *aEntry,
     // check if the cookie has expired
     if (cookie->Expiry() <= data.currentTime) {
       data.removedList->AppendElement(cookie, PR_FALSE);
-      COOKIE_LOGEVICTED(cookie, "Cookie expired");
+      COOKIE_LOGEVICTED(cookie);
 
       // remove from list; do not increment our iterator
       gCookieService->RemoveCookieFromList(iter, array);
@@ -3023,7 +3022,7 @@ nsCookieService::PurgeCookies(PRInt64 aCurrentTimeInUsec)
   for (nsPurgeData::ArrayType::index_type i = purgeList.Length(); i--; ) {
     nsCookie *cookie = purgeList[i].Cookie();
     removedList->AppendElement(cookie, PR_FALSE);
-    COOKIE_LOGEVICTED(cookie, "Cookie expired or too old");
+    COOKIE_LOGEVICTED(cookie);
 
     RemoveCookieFromList(purgeList[i], paramsArray);
   }

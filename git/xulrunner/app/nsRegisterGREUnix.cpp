@@ -41,7 +41,6 @@
 #include "nsXPCOM.h"
 #include "nsIFile.h"
 #include "nsILocalFile.h"
-#include "mozilla/FileUtils.h"
 
 #include "nsAppRunner.h" // for MAXPATHLEN
 #include "nsStringAPI.h"
@@ -54,13 +53,12 @@
 
 #include <unistd.h>
 #include <sys/stat.h>
+#include <mozilla/FileUtils.h>
 
 // If we can't register <buildid>.conf, we try to create a unique filename
 // by looping through <buildid>_<int>.conf, but if something is seriously wrong
 // we stop at 1000
 #define UNIQ_LOOP_LIMIT 1000
-
-using namespace mozilla;
 
 static const char kRegFileGlobal[] = "global.reginfo";
 static const char kRegFileUser[] = "user.reginfo";
