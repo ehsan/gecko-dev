@@ -55,7 +55,9 @@ public:
 
   nsresult CopyInnerTo(nsGenericElement* aDest);
 
-  virtual int32_t TabIndexDefault() MOZ_OVERRIDE;
+  // nsIDOMHTMLElement
+  NS_IMETHOD GetTabIndex(int32_t *aTabIndex);
+  NS_IMETHOD SetTabIndex(int32_t aTabIndex);
 
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsGenericHTMLFrameElement,
                                                      nsGenericHTMLElement)

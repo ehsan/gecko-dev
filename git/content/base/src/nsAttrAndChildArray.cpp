@@ -214,7 +214,7 @@ nsAttrAndChildArray::TakeChildAt(uint32_t aPos)
 }
 
 int32_t
-nsAttrAndChildArray::IndexOfChild(const nsINode* aPossibleChild) const
+nsAttrAndChildArray::IndexOfChild(nsINode* aPossibleChild) const
 {
   if (!mImpl) {
     return -1;

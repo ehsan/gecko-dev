@@ -3500,7 +3500,7 @@ nsDocument::GetChildAt(uint32_t aIndex) const
 }
 
 int32_t
-nsDocument::IndexOf(const nsINode* aPossibleChild) const
+nsDocument::IndexOf(nsINode* aPossibleChild) const
 {
   return mChildren.IndexOfChild(aPossibleChild);
 }

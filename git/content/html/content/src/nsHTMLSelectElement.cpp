@@ -1219,12 +1219,7 @@ NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Multiple, multiple)
 NS_IMPL_STRING_ATTR(nsHTMLSelectElement, Name, name)
 NS_IMPL_BOOL_ATTR(nsHTMLSelectElement, Required, required)
 NS_IMPL_UINT_ATTR(nsHTMLSelectElement, Size, size)
-
-int32_t
-nsHTMLSelectElement::TabIndexDefault()
-{
-  return 0;
-}
+NS_IMPL_INT_ATTR(nsHTMLSelectElement, TabIndex, tabindex)
 
 bool
 nsHTMLSelectElement::IsHTMLFocusable(bool aWithMouse,

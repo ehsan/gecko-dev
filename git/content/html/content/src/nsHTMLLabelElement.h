@@ -41,8 +41,26 @@ public:
   NS_DECL_NSIDOMHTMLLABELELEMENT
 
   // nsIDOMHTMLElement
-  NS_FORWARD_NSIDOMHTMLELEMENT(nsGenericHTMLFormElement::)
-  virtual void Focus(mozilla::ErrorResult& aError) MOZ_OVERRIDE;
+  NS_FORWARD_NSIDOMHTMLELEMENT_BASIC(nsGenericHTMLFormElement::)
+  NS_IMETHOD Click() {
+    return nsGenericHTMLFormElement::Click();
+  }
+  NS_IMETHOD GetTabIndex(int32_t* aTabIndex) {
+    return nsGenericHTMLFormElement::GetTabIndex(aTabIndex);
+  }
+  NS_IMETHOD SetTabIndex(int32_t aTabIndex) {
+    return nsGenericHTMLFormElement::SetTabIndex(aTabIndex);
+  }
+  NS_IMETHOD Focus();
+  NS_IMETHOD GetDraggable(bool* aDraggable) {
+    return nsGenericHTMLFormElement::GetDraggable(aDraggable);
+  }
+  NS_IMETHOD GetInnerHTML(nsAString& aInnerHTML) {
+    return nsGenericHTMLFormElement::GetInnerHTML(aInnerHTML);
+  }
+  NS_IMETHOD SetInnerHTML(const nsAString& aInnerHTML) {
+    return nsGenericHTMLFormElement::SetInnerHTML(aInnerHTML);
+  }
 
   // nsIFormControl
   NS_IMETHOD_(uint32_t) GetType() const { return NS_FORM_LABEL; }

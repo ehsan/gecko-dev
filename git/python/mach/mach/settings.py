@@ -7,18 +7,15 @@ from __future__ import print_function, unicode_literals
 from textwrap import TextWrapper
 
 from mozbuild.base import MozbuildObject
-from mach.base import CommandProvider
-from mach.base import Command
+from mach.base import ArgumentProvider
 
-@CommandProvider
-class Settings(MozbuildObject):
+class Settings(MozbuildObject, ArgumentProvider):
     """Interact with settings for mach.
 
     Currently, we only provide functionality to view what settings are
     available. In the future, this module will be used to modify settings, help
     people create configs via a wizard, etc.
     """
-    @Command('settings-list', help='Show available config settings.')
     def list_settings(self):
         """List available settings in a concise list."""
         for section in sorted(self.settings):
@@ -26,8 +23,6 @@ class Settings(MozbuildObject):
                 short, full = self.settings.option_help(section, option)
                 print('%s.%s -- %s' % (section, option, short))
 
-    @Command('settings-create',
-        help='Print a new settings file with usage info.')
     def create(self):
         """Create an empty settings file with full documentation."""
         wrapper = TextWrapper(initial_indent='# ', subsequent_indent='# ')
@@ -42,3 +37,15 @@ class Settings(MozbuildObject):
                 print(wrapper.fill(full))
                 print(';%s =' % option)
                 print('')
+
+    @staticmethod
+    def populate_argparse(parser):
+        lst = parser.add_parser('settings-list',
+            help='Show available config settings.')
+
+        lst.set_defaults(cls=Settings, method='list_settings')
+
+        create = parser.add_parser('settings-create',
+            help='Print a new settings file with usage info.')
+
+        create.set_defaults(cls=Settings, method='create')

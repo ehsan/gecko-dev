@@ -1932,7 +1932,7 @@ FragmentOrElement::GetChildArray(uint32_t* aChildCount) const
 }
 
 int32_t
-FragmentOrElement::IndexOf(const nsINode* aPossibleChild) const
+FragmentOrElement::IndexOf(nsINode* aPossibleChild) const
 {
   return mAttrsAndChildren.IndexOfChild(aPossibleChild);
 }

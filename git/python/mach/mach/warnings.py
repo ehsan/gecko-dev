@@ -7,14 +7,11 @@ from __future__ import print_function, unicode_literals
 import operator
 import os
 
-from mach.base import CommandArgument
-from mach.base import CommandProvider
-from mach.base import Command
+from mach.base import ArgumentProvider
 from mozbuild.base import MozbuildObject
 
 
-@CommandProvider
-class Warnings(MozbuildObject):
+class Warnings(MozbuildObject, ArgumentProvider):
     """Provide commands for inspecting warnings."""
 
     @property
@@ -34,11 +31,6 @@ class Warnings(MozbuildObject):
 
         return database
 
-    @Command('warnings-summary',
-        help='Show a summary of compiler warnings.')
-    @CommandArgument('report', default=None, nargs='?',
-        help='Warnings report to display. If not defined, show the most '
-            'recent report.')
     def summary(self, report=None):
         database = self.database
 
@@ -53,10 +45,6 @@ class Warnings(MozbuildObject):
 
         print('%d\tTotal' % total)
 
-    @Command('warnings-list', help='Show a list of compiler warnings.')
-    @CommandArgument('report', default=None, nargs='?',
-        help='Warnings report to display. If not defined, show the most '
-            'recent report.')
     def list(self, report=None):
         database = self.database
 
@@ -75,3 +63,21 @@ class Warnings(MozbuildObject):
                 print('%s:%d [%s] %s' % (filename, warning['line'],
                     warning['flag'], warning['message']))
 
+    @staticmethod
+    def populate_argparse(parser):
+        summary = parser.add_parser('warnings-summary',
+            help='Show a summary of compiler warnings.')
+
+        summary.add_argument('report', default=None, nargs='?',
+            help='Warnings report to display. If not defined, show '
+                 'the most recent report')
+
+        summary.set_defaults(cls=Warnings, method='summary', report=None)
+
+        lst = parser.add_parser('warnings-list',
+            help='Show a list of compiler warnings')
+        lst.add_argument('report', default=None, nargs='?',
+            help='Warnings report to display. If not defined, show '
+                 'the most recent report.')
+
+        lst.set_defaults(cls=Warnings, method='list', report=None)

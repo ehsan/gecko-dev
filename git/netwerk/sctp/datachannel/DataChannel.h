@@ -8,7 +8,6 @@
 #define NETWERK_SCTP_DATACHANNEL_DATACHANNEL_H_
 
 #include <string>
-#include <errno.h>
 #include "nsISupports.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
@@ -24,10 +23,6 @@
 #include "mtransport/transportflow.h"
 #include "mtransport/transportlayer.h"
 #include "mtransport/transportlayerprsock.h"
-#endif
-
-#ifndef EALREADY
-#define EALREADY  WSAEALREADY
 #endif
 
 extern "C" {
