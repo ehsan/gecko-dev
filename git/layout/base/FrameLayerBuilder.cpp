@@ -219,7 +219,7 @@ protected:
      * supports being optimized to an ImageLayer (TYPE_RASTER only) returns
      * an ImageContainer for the image.
      */
-    already_AddRefed<ImageContainer> CanOptimizeImageLayer();
+    nsRefPtr<ImageContainer> CanOptimizeImageLayer(LayerManager* aManager);
 
     /**
      * The region of visible content in the layer, relative to the
@@ -968,14 +968,14 @@ ContainerState::FindOpaqueBackgroundColorFor(PRInt32 aThebesLayerIndex)
   return NS_RGBA(0,0,0,0);
 }
 
-already_AddRefed<ImageContainer>
-ContainerState::ThebesLayerData::CanOptimizeImageLayer()
+nsRefPtr<ImageContainer>
+ContainerState::ThebesLayerData::CanOptimizeImageLayer(LayerManager* aManager)
 {
   if (!mImage || !mImageClip.mRoundedClipRects.IsEmpty()) {
     return nsnull;
   }
 
-  return mImage->GetContainer();
+  return mImage->GetContainer(aManager);
 }
 
 void
@@ -987,7 +987,7 @@ ContainerState::PopThebesLayerData()
   ThebesLayerData* data = mThebesLayerDataStack[lastIndex];
 
   nsRefPtr<Layer> layer;
-  nsRefPtr<ImageContainer> imageContainer = data->CanOptimizeImageLayer(); 
+  nsRefPtr<ImageContainer> imageContainer = data->CanOptimizeImageLayer(mManager); 
 
   if (data->mIsSolidColorInVisibleRegion || imageContainer) {
     NS_ASSERTION(!(data->mIsSolidColorInVisibleRegion && imageContainer),

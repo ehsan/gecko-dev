@@ -1347,7 +1347,6 @@ WebSocketChannel::PrimeNewOutgoingMessage()
   if (msgType == kMsgTypeFin) {
     // This is a demand to create a close message
     if (mClientClosed) {
-      DeleteCurrentOutGoingMessage();
       PrimeNewOutgoingMessage();
       return;
     }
@@ -1514,14 +1513,6 @@ WebSocketChannel::PrimeNewOutgoingMessage()
   // mCurrentOut->Length() bytes from mCurrentOut. The latter may be
   // coaleseced into the former for small messages or as the result of the
   // compression process,
-}
-
-void
-WebSocketChannel::DeleteCurrentOutGoingMessage()
-{
-  delete mCurrentOut;
-  mCurrentOut = nsnull;
-  mCurrentOutSent = 0;
 }
 
 void
@@ -2737,7 +2728,9 @@ WebSocketChannel::OnOutputStreamReady(nsIAsyncOutputStream *aStream)
           NS_DispatchToMainThread(new CallAcknowledge(this,
                                                       mCurrentOut->Length()));
         }
-        DeleteCurrentOutGoingMessage();
+        delete mCurrentOut;
+        mCurrentOut = nsnull;
+        mCurrentOutSent = 0;
         PrimeNewOutgoingMessage();
       } else {
         mCurrentOutSent += amtSent;

@@ -269,10 +269,8 @@ public:
   nsCSSFrameConstructor* FrameConstructor() const { return mFrameConstructor; }
 
   nsFrameManager* FrameManager() const {
-    // reinterpret_cast is valid since nsFrameManager does not add
-    // any members over nsFrameManagerBase.
     return reinterpret_cast<nsFrameManager*>
-                           (const_cast<nsIPresShell*>(this)->mFrameManager);
+                           (&const_cast<nsIPresShell*>(this)->mFrameManager);
   }
 
 #endif
@@ -384,7 +382,7 @@ public:
   virtual NS_HIDDEN_(nsIFrame*) GetRootFrameExternal() const;
   nsIFrame* GetRootFrame() const {
 #ifdef _IMPL_NS_LAYOUT
-    return mFrameManager->GetRootFrame();
+    return mFrameManager.GetRootFrame();
 #else
     return GetRootFrameExternal();
 #endif
@@ -1224,9 +1222,7 @@ protected:
   nsCSSFrameConstructor*    mFrameConstructor; // [OWNS]
   nsIViewManager*           mViewManager;   // [WEAK] docViewer owns it so I don't have to
   nsFrameSelection*         mSelection;
-  // Pointer into mFrameConstructor - this is purely so that FrameManager() and
-  // GetRootFrame() can be inlined:
-  nsFrameManagerBase*       mFrameManager;
+  nsFrameManagerBase        mFrameManager;  // [OWNS]
   nsWeakPtr                 mForwardingContainer;
 
 #ifdef NS_DEBUG

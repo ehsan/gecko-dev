@@ -694,16 +694,15 @@ JS_IsBuiltinFunctionConstructor(JSFunction *fun)
 static JSBool js_NewRuntimeWasCalled = JS_FALSE;
 
 JSRuntime::JSRuntime()
-  : atomsCompartment(NULL),
+  : interrupt(0),
+    atomsCompartment(NULL),
 #ifdef JS_THREADSAFE
     ownerThread_(NULL),
 #endif
     tempLifoAlloc(TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
     execAlloc_(NULL),
     bumpAlloc_(NULL),
-    reCache_(NULL),
-    nativeStackBase(0),
-    nativeStackQuota(0),
+    repCache_(NULL),
     interpreterFrames(NULL),
     cxCallback(NULL),
     compartmentCallback(NULL),
@@ -766,6 +765,7 @@ JSRuntime::JSRuntime()
     data(NULL),
 #ifdef JS_THREADSAFE
     gcLock(NULL),
+    requestCount(0),
     gcHelperThread(thisFromCtor()),
 #endif
     debuggerMutations(0),
@@ -796,10 +796,6 @@ JSRuntime::JSRuntime()
 
     PodZero(&globalDebugHooks);
     PodZero(&atomState);
-
-#if JS_STACK_GROWTH_DIRECTION > 0
-    nativeStackLimit = UINTPTR_MAX;
-#endif
 }
 
 bool
@@ -839,7 +835,7 @@ JSRuntime::init(uint32_t maxbytes)
     if (!stackSpace.init())
         return false;
 
-    nativeStackBase = GetNativeStackBase();
+    conservativeGC.nativeStackBase = GetNativeStackBase();
     return true;
 }
 
@@ -849,7 +845,7 @@ JSRuntime::~JSRuntime()
 
     delete_<JSC::ExecutableAllocator>(execAlloc_);
     delete_<WTF::BumpPointerAllocator>(bumpAlloc_);
-    JS_ASSERT(!reCache_);
+    JS_ASSERT(!repCache_);
 
 #ifdef DEBUG
     /* Don't hurt everyone in leaky ol' Mozilla with a fatal JS_ASSERT! */
@@ -888,9 +884,7 @@ JSRuntime::setOwnerThread()
     JS_ASSERT(ownerThread_ == (void *)0xc1ea12);  /* "clear" */
     JS_ASSERT(requestDepth == 0);
     ownerThread_ = PR_GetCurrentThread();
-    nativeStackBase = GetNativeStackBase();
-    if (nativeStackQuota)
-        JS_SetNativeStackQuota(this, nativeStackQuota);
+    conservativeGC.nativeStackBase = GetNativeStackBase();
 }
 
 void
@@ -899,12 +893,7 @@ JSRuntime::clearOwnerThread()
     JS_ASSERT(onOwnerThread());
     JS_ASSERT(requestDepth == 0);
     ownerThread_ = (void *)0xc1ea12;  /* "clear" */
-    nativeStackBase = 0;
-#if JS_STACK_GROWTH_DIRECTION > 0
-    nativeStackLimit = UINTPTR_MAX;
-#else
-    nativeStackLimit = 0;
-#endif
+    conservativeGC.nativeStackBase = 0;
 }
 
 JS_FRIEND_API(bool)
@@ -1024,9 +1013,10 @@ StartRequest(JSContext *cx)
         AutoLockGC lock(rt);
 
         /* Indicate that a request is running. */
+        rt->requestCount++;
         rt->requestDepth = 1;
 
-        if (rt->activityCallback)
+        if (rt->requestCount == 1 && rt->activityCallback)
             rt->activityCallback(rt->activityCallbackArg, true);
     }
 }
@@ -1047,8 +1037,13 @@ StopRequest(JSContext *cx)
 
         rt->requestDepth = 0;
 
-        if (rt->activityCallback)
-            rt->activityCallback(rt->activityCallbackArg, false);
+        /* Give the GC a chance to run if this was the last request running. */
+        JS_ASSERT(rt->requestCount > 0);
+        rt->requestCount--;
+        if (rt->requestCount == 0) {
+            if (rt->activityCallback)
+                rt->activityCallback(rt->activityCallbackArg, false);
+        }
     }
 }
 #endif /* JS_THREADSAFE */
@@ -2221,7 +2216,7 @@ JS_free(JSContext *cx, void *p)
 JS_PUBLIC_API(void)
 JS_updateMallocCounter(JSContext *cx, size_t nbytes)
 {
-    return cx->runtime->updateMallocCounter(cx, nbytes);
+    return cx->runtime->updateMallocCounter(nbytes);
 }
 
 JS_PUBLIC_API(char *)
@@ -3014,25 +3009,33 @@ JS_GetExternalStringClosure(JSContext *cx, JSString *str)
 }
 
 JS_PUBLIC_API(void)
-JS_SetNativeStackQuota(JSRuntime *rt, size_t stackSize)
+JS_SetThreadStackLimit(JSContext *cx, uintptr_t limitAddr)
 {
-    rt->nativeStackQuota = stackSize;
-    if (!rt->nativeStackBase)
-        return;
-    
+#if JS_STACK_GROWTH_DIRECTION > 0
+    if (limitAddr == 0)
+        limitAddr = UINTPTR_MAX;
+#endif
+    cx->stackLimit = limitAddr;
+}
+
+JS_PUBLIC_API(void)
+JS_SetNativeStackQuota(JSContext *cx, size_t stackSize)
+{
 #if JS_STACK_GROWTH_DIRECTION > 0
     if (stackSize == 0) {
-        rt->nativeStackLimit = UINTPTR_MAX;
+        cx->stackLimit = UINTPTR_MAX;
     } else {
-        JS_ASSERT(rt->nativeStackBase <= size_t(-1) - stackSize);
-        rt->nativeStackLimit = rt->nativeStackBase + stackSize - 1;
+        uintptr_t stackBase = cx->runtime->nativeStackBase;
+        JS_ASSERT(stackBase <= size_t(-1) - stackSize);
+        cx->stackLimit = stackBase + stackSize - 1;
     }
 #else
     if (stackSize == 0) {
-        rt->nativeStackLimit = 0;
+        cx->stackLimit = 0;
     } else {
-        JS_ASSERT(rt->nativeStackBase >= stackSize);
-        rt->nativeStackLimit = rt->nativeStackBase - (stackSize - 1);
+        uintptr_t stackBase = uintptr_t(cx->runtime->conservativeGC.nativeStackBase);
+        JS_ASSERT(stackBase >= stackSize);
+        cx->stackLimit = stackBase - (stackSize - 1);
     }
 #endif
 }
@@ -3137,17 +3140,19 @@ JS_InitClass(JSContext *cx, JSObject *obj, JSObject *parent_proto,
                         nargs, ps, fs, static_ps, static_fs);
 }
 
-JS_PUBLIC_API(JSBool)
-JS_LinkConstructorAndPrototype(JSContext *cx, JSObject *ctor, JSObject *proto)
+#ifdef JS_THREADSAFE
+JS_PUBLIC_API(JSClass *)
+JS_GetClass(JSContext *cx, JSObject *obj)
 {
-    return LinkConstructorAndPrototype(cx, ctor, proto);
+    return obj->getJSClass();
 }
-
+#else
 JS_PUBLIC_API(JSClass *)
 JS_GetClass(JSObject *obj)
 {
     return obj->getJSClass();
 }
+#endif
 
 JS_PUBLIC_API(JSBool)
 JS_InstanceOf(JSContext *cx, JSObject *obj, JSClass *clasp, jsval *argv)

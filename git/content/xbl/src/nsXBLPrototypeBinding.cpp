@@ -1470,28 +1470,6 @@ nsXBLPrototypeBinding::CreateKeyHandlers()
   }
 }
 
-class XBLPrototypeSetupCleanup
-{
-public:
-  XBLPrototypeSetupCleanup(nsXBLDocumentInfo* aDocInfo, const nsACString& aID)
-  : mDocInfo(aDocInfo), mID(aID) {}
-
-  ~XBLPrototypeSetupCleanup()
-  {
-    if (mDocInfo) {
-      mDocInfo->RemovePrototypeBinding(mID);
-    }
-  }
-
-  void Disconnect()
-  {
-    mDocInfo = nsnull;
-  }
-
-  nsXBLDocumentInfo* mDocInfo;
-  nsCAutoString mID;
-};
-
 nsresult
 nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
                             nsXBLDocumentInfo* aDocInfo,
@@ -1576,8 +1554,6 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
   rv = aDocInfo->SetPrototypeBinding(id, this);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  XBLPrototypeSetupCleanup cleanup(aDocInfo, id);  
-
   nsCAutoString className;
   rv = aStream->ReadCString(className);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -1591,7 +1567,10 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
     // occurs, the mapping should be removed again so that we don't keep an
     // invalid binding around.
     rv = mImplementation->Read(context, aStream, this, globalObject);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) {
+      aDocInfo->RemovePrototypeBinding(id);
+      return rv;
+    }
   }
 
   // Next read in the handlers.
@@ -1648,7 +1627,6 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
     aDocInfo->SetFirstPrototypeBinding(this);
   }
 
-  cleanup.Disconnect();
   return NS_OK;
 }
 

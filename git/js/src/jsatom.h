@@ -51,6 +51,7 @@
 
 #include "gc/Barrier.h"
 #include "js/HashTable.h"
+#include "vm/String.h"
 
 struct JSIdArray {
     jsint length;
@@ -218,11 +219,22 @@ struct AtomHasher
         const JSAtom    *atom; /* Optional. */
 
         Lookup(const jschar *chars, size_t length) : chars(chars), length(length), atom(NULL) {}
-        inline Lookup(const JSAtom *atom);
+        Lookup(const JSAtom *atom) : chars(atom->chars()), length(atom->length()), atom(atom) {}
     };
 
-    static HashNumber hash(const Lookup &l) { return HashChars(l.chars, l.length); }
-    static inline bool match(const AtomStateEntry &entry, const Lookup &lookup);
+    static HashNumber hash(const Lookup &l) {
+        return HashChars(l.chars, l.length);
+    }
+
+    static bool match(const AtomStateEntry &entry, const Lookup &lookup) {
+        JSAtom *key = entry.asPtr();
+
+        if (lookup.atom)
+            return lookup.atom == key;
+        if (key->length() != lookup.length)
+            return false;
+        return PodEqual(key->chars(), lookup.chars, lookup.length);
+    }
 };
 
 typedef HashSet<AtomStateEntry, AtomHasher, SystemAllocPolicy> AtomSet;
@@ -249,8 +261,6 @@ enum FlationCoding
     NormalEncoding,
     CESU8Encoding
 };
-
-class PropertyName;
 
 }  /* namespace js */
 
@@ -548,17 +558,6 @@ js_InitCommonAtoms(JSContext *cx);
 extern void
 js_FinishCommonAtoms(JSContext *cx);
 
-namespace js {
-
-/* N.B. must correspond to boolean tagging behavior. */
-enum InternBehavior
-{
-    DoNotInternAtom = false,
-    InternAtom = true
-};
-
-}  /* namespace js */
-
 extern JSAtom *
 js_Atomize(JSContext *cx, const char *bytes, size_t length,
            js::InternBehavior ib = js::DoNotInternAtom,
@@ -567,9 +566,6 @@ js_Atomize(JSContext *cx, const char *bytes, size_t length,
 extern JSAtom *
 js_AtomizeChars(JSContext *cx, const jschar *chars, size_t length,
                 js::InternBehavior ib = js::DoNotInternAtom);
-
-extern JSAtom *
-js_AtomizeString(JSContext *cx, JSString *str, js::InternBehavior ib = js::DoNotInternAtom);
 
 /*
  * Return an existing atom for the given char array or null if the char

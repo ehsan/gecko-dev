@@ -70,6 +70,6 @@ JAVAC_FLAGS = \
   -classpath $(JAVA_CLASSPATH) \
   -bootclasspath $(JAVA_BOOTCLASSPATH) \
   -encoding UTF8 \
-  -g:source,lines \
+  -g \
   -Werror \
   $(NULL)

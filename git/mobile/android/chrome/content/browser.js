@@ -51,6 +51,9 @@ XPCOMUtils.defineLazyGetter(this, "PluralForm", function() {
   return PluralForm;
 });
 
+XPCOMUtils.defineLazyServiceGetter(this, "URIFixup",
+  "@mozilla.org/docshell/urifixup;1", "nsIURIFixup");
+
 XPCOMUtils.defineLazyServiceGetter(this, "Haptic",
   "@mozilla.org/widget/hapticfeedback;1", "nsIHapticFeedback");
 
@@ -292,12 +295,6 @@ var BrowserApp = {
       // A restored tab should not be active if we are loading a URL
       let restoreToFront = false;
 
-      sendMessageToJava({
-        gecko: {
-          type: "Session:RestoreBegin"
-        }
-      });
-
       // Open any commandline URLs, except the homepage
       if (url && url != "about:home") {
         this.addTab(url);
@@ -311,17 +308,9 @@ var BrowserApp = {
         observe: function(aSubject, aTopic, aData) {
           Services.obs.removeObserver(restoreCleanup, "sessionstore-windows-restored");
           if (aData == "fail") {
-            BrowserApp.addTab("about:home", {
-              showProgress: false,
-              selected: restoreToFront
-            });
+            let params = { selected: restoreToFront };
+            BrowserApp.addTab("about:home");
           }
-
-          sendMessageToJava({
-            gecko: {
-              type: "Session:RestoreEnd"
-            }
-          });
         }
       };
       Services.obs.addObserver(restoreCleanup, "sessionstore-windows-restored", false);
@@ -329,7 +318,7 @@ var BrowserApp = {
       // Start the restore
       ss.restoreLastSession(restoreToFront, forceRestore);
     } else {
-      this.addTab(url, { showProgress: url != "about:home" });
+      this.addTab(url);
 
       // show telemetry door hanger if we aren't restoring a session
       this._showTelemetryPrompt();
@@ -339,14 +328,6 @@ var BrowserApp = {
     sendMessageToJava({
       gecko: {
         type: "Gecko:Ready"
-      }
-    });
-
-    // after gecko has loaded, set the checkerboarding pref once at startup (for testing only)
-    sendMessageToJava({
-      gecko: {
-        "type": "Checkerboard:Toggle",
-        "value": Services.prefs.getBoolPref("gfx.show_checkerboard_pattern")
       }
     });
   },
@@ -400,14 +381,10 @@ var BrowserApp = {
   },
 
   set selectedTab(aTab) {
-    if (this._selectedTab)
-      this._selectedTab.setActive(false);
-
     this._selectedTab = aTab;
     if (!aTab)
       return;
 
-    aTab.setActive(true);
     aTab.updateViewport(false);
     this.deck.selectedPanel = aTab.vbox;
   },
@@ -492,14 +469,11 @@ var BrowserApp = {
   },
 
   addTab: function addTab(aURI, aParams) {
-    aParams = aParams || {};
-
+    aParams = aParams || { selected: true, flags: Ci.nsIWebNavigation.LOAD_FLAGS_NONE };
     let newTab = new Tab(aURI, aParams);
     this._tabs.push(newTab);
-
-    let selected = "selected" in aParams ? aParams.selected : true;
-    if (selected)
-      this.selectedTab = newTab;
+    if ("selected" in aParams && aParams.selected)
+      newTab.active = true;
 
     let evt = document.createEvent("UIEvents");
     evt.initUIEvent("TabOpen", true, false, window, null);
@@ -591,11 +565,12 @@ var BrowserApp = {
   // This method updates the state in BrowserApp after a tab has been selected
   // in the Java UI.
   _handleTabSelected: function _handleTabSelected(aTab) {
-    this.selectedTab = aTab;
+      this.selectedTab = aTab;
+      aTab.active = true;
 
-    let evt = document.createEvent("UIEvents");
-    evt.initUIEvent("TabSelect", true, false, window, null);
-    aTab.browser.dispatchEvent(evt);
+      let evt = document.createEvent("UIEvents");
+      evt.initUIEvent("TabSelect", true, false, window, null);
+      aTab.browser.dispatchEvent(evt);
 
     let message = {
       gecko: {
@@ -795,7 +770,7 @@ var BrowserApp = {
   },
 
   getSearchEngines: function() {
-    let engineData = Services.search.getVisibleEngines({});
+    let engineData = Services.search.getEngines({});
     let searchEngines = engineData.map(function (engine) {
       return {
         name: engine.name,
@@ -811,12 +786,19 @@ var BrowserApp = {
     });
   },
 
-  getSearchOrURI: function getSearchOrURI(aParams) {
+  getSearchOrFixupURI: function(aParams) {
     let uri;
     if (aParams.engine) {
-      let engine = Services.search.getEngineByName(aParams.engine);
+      let engine;
+      // If the default engine was requested, we just pass the URL through
+      // and let the third-party fixup send it to the default search.
+      if (aParams.engine != "__default__")
+        engine = Services.search.getEngineByName(aParams.engine);
+
       if (engine)
         uri = engine.getSubmission(aParams.url).uri;
+    } else {
+      uri = URIFixup.createFixupURI(aParams.url, Ci.nsIURIFixup.FIXUP_FLAG_ALLOW_KEYWORD_LOOKUP);
     }
     return uri ? uri.spec : aParams.url;
   },
@@ -933,7 +915,7 @@ var BrowserApp = {
              | Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP
       };
 
-      let url = this.getSearchOrURI(data);
+      let url = this.getSearchOrFixupURI(data);
 
       // Don't show progress throbber for about:home
       if (url == "about:home")
@@ -1161,7 +1143,7 @@ var NativeWindow = {
     },
 
     remove: function(aId) {
-      delete this.items[aId];
+      this.items[aId] = null;
     },
 
     SelectorContext: function(aSelector) {
@@ -1420,7 +1402,7 @@ function Tab(aURL, aParams) {
   this.viewportExcess = { x: 0, y: 0 };
   this.documentIdForCurrentViewport = null;
   this.userScrollPos = { x: 0, y: 0 };
-  this._pluginCount = 0;
+  this._pluginsToPlay = [];
   this._pluginOverlayShowing = false;
 }
 
@@ -1429,14 +1411,14 @@ Tab.prototype = {
     if (this.browser)
       return;
 
-    aParams = aParams || {};
+    aParams = aParams || { selected: true };
 
     this.vbox = document.createElement("vbox");
     this.vbox.align = "start";
     BrowserApp.deck.appendChild(this.vbox);
 
     this.browser = document.createElement("browser");
-    this.browser.setAttribute("type", "content-targetable");
+    this.browser.setAttribute("type", "content");
     this.setBrowserSize(980, 480);
     this.browser.style.MozTransformOrigin = "0 0";
     this.vbox.appendChild(this.browser);
@@ -1457,8 +1439,7 @@ Tab.prototype = {
         parentId: ("parentId" in aParams) ? aParams.parentId : -1,
         external: ("external" in aParams) ? aParams.external : false,
         selected: ("selected" in aParams) ? aParams.selected : true,
-        title: aParams.title || "",
-        delayLoad: aParams.delayLoad || false
+        title: aParams.title || ""
       }
     };
     sendMessageToJava(message);
@@ -1520,8 +1501,6 @@ Tab.prototype = {
     this.browser.removeEventListener("pagehide", this, true);
     this.browser.removeEventListener("pageshow", this, true);
 
-    Services.obs.removeObserver(this, "document-shown");
-
     // Make sure the previously selected panel remains selected. The selected panel of a deck is
     // not stable when panels are removed.
     let selectedPanel = BrowserApp.deck.selectedPanel;
@@ -1533,19 +1512,23 @@ Tab.prototype = {
     this.documentIdForCurrentViewport = null;
   },
 
-  // This should be called to update the browser when the tab gets selected/unselected
-  setActive: function setActive(aActive) {
+  set active(aActive) {
     if (!this.browser)
       return;
 
     if (aActive) {
       this.browser.setAttribute("type", "content-primary");
       this.browser.focus();
-      this.browser.docShellIsActive = true;
+      BrowserApp.selectedTab = this;
     } else {
-      this.browser.setAttribute("type", "content-targetable");
-      this.browser.docShellIsActive = false;
+      this.browser.setAttribute("type", "content");
     }
+  },
+
+  get active() {
+    if (!this.browser)
+      return false;
+    return this.browser.getAttribute("type") == "content-primary";
   },
 
   set viewport(aViewport) {
@@ -1737,10 +1720,8 @@ Tab.prototype = {
           }.bind(this), true);
         }
 
-        // Show a plugin doorhanger if there are plugins on the page but no
-        // clickable overlays showing (this doesn't work on pages loaded after
-        // back/forward navigation - see bug 719875)
-        if (this._pluginCount && !this._pluginOverlayShowing)
+        // Show a plugin doorhanger if there are no clickable overlays showing
+        if (this._pluginsToPlay.length && !this._pluginOverlayShowing)
           PluginHelper.showDoorHanger(this);
 
         break;
@@ -1795,7 +1776,7 @@ Tab.prototype = {
           gecko: {
             type: "DOMTitleChanged",
             tabID: this.id,
-            title: aEvent.target.title.substring(0, 255)
+            title: aEvent.target.title
           }
         });
         break;
@@ -1832,11 +1813,10 @@ Tab.prototype = {
       }
 
       case "PluginClickToPlay": {
-        // Keep track of the number of plugins to know whether or not to show
-        // the hidden plugins doorhanger
-        this._pluginCount++;
-
         let plugin = aEvent.target;
+        // Keep track of all the plugins on the current page
+        this._pluginsToPlay.push(plugin);
+
         let overlay = plugin.ownerDocument.getAnonymousElementByAttribute(plugin, "class", "mainBox");
         if (!overlay)
           return;
@@ -1848,8 +1828,8 @@ Tab.prototype = {
           return;
         }
 
-        // Add click to play listener to the overlay
-        overlay.addEventListener("click", (function(event) {
+        // Add click to play listener
+        plugin.addEventListener("click", (function(event) {
           // Play all the plugin objects when the user clicks on one
           PluginHelper.playAllPlugins(this, event);
         }).bind(this), true);
@@ -1862,7 +1842,7 @@ Tab.prototype = {
         // Check to make sure it's top-level pagehide
         if (aEvent.target.defaultView == this.browser.contentWindow) {
           // Reset plugin state when we leave the page
-          this._pluginCount = 0;
+          this._pluginsToPlay = [];
           this._pluginOverlayShowing = false;
         }
         break;
@@ -2135,6 +2115,7 @@ Tab.prototype = {
         // Is it on the top level?
         let contentDocument = aSubject;
         if (contentDocument == this.browser.contentDocument) {
+          sendMessageToJava({ gecko: { type: "Document:Shown" } });
           ViewportHandler.updateMetadata(this);
           this.documentIdForCurrentViewport = ViewportHandler.getIdForDocument(contentDocument);
         }
@@ -2670,21 +2651,20 @@ const ElementTouchHelper = {
     }
     return result;
   },
-
   getBoundingContentRect: function(aElement) {
     if (!aElement)
       return {x: 0, y: 0, w: 0, h: 0};
-
+  
     let document = aElement.ownerDocument;
     while (document.defaultView.frameElement)
       document = document.defaultView.frameElement.ownerDocument;
-
+  
     let cwu = document.defaultView.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
     let scrollX = {}, scrollY = {};
     cwu.getScrollXY(false, scrollX, scrollY);
-
+  
     let r = aElement.getBoundingClientRect();
-
+ 
     // step out of iframes and frames, offsetting scroll values
     for (let frame = aElement.ownerDocument.defaultView; frame.frameElement && frame != content; frame = frame.parent) {
       // adjust client coordinates' origin to be top left of iframe viewport
@@ -2695,10 +2675,14 @@ const ElementTouchHelper = {
       scrollY.value += rect.top + parseInt(top);
     }
 
-    return {x: r.left + scrollX.value,
-            y: r.top + scrollY.value,
-            w: r.width,
-            h: r.height };
+    var x = r.left + scrollX.value;
+    var y = r.top + scrollY.value;
+    var x2 = x + r.width;
+    var y2 = y + r.height;
+    return {x: x,
+            y: y,
+            w: x2 - x,
+            h: y2 - y};
   }
 };
 
@@ -2790,15 +2774,15 @@ var FormAssistant = {
         this._currentInputElement = currentElement;
         let suggestions = this._getAutocompleteSuggestions(currentElement.value, currentElement);
 
-        let rect = ElementTouchHelper.getBoundingContentRect(currentElement);
-        let viewport = BrowserApp.selectedTab.viewport;
+        let rect = currentElement.getBoundingClientRect();
+        let zoom = BrowserApp.selectedTab.viewport.zoom;
 
         sendMessageToJava({
           gecko: {
             type:  "FormAssist:AutoComplete",
             suggestions: suggestions,
-            rect: [rect.x - (viewport.x / viewport.zoom), rect.y - (viewport.y / viewport.zoom), rect.w, rect.h],
-            zoom: viewport.zoom
+            rect: [rect.left, rect.top, rect.width, rect.height], 
+            zoom: zoom
           }
         });
     }
@@ -3740,40 +3724,22 @@ var PluginHelper = {
   },
 
   playAllPlugins: function(aTab, aEvent) {
+    let plugins = aTab._pluginsToPlay;
+    if (!plugins.length)
+      return;
+
     if (aEvent) {
       if (!aEvent.isTrusted)
         return;
       aEvent.preventDefault();
     }
 
-    this._findAndPlayAllPlugins(aTab.browser.contentWindow);
-  },
-
-  // Helper function that recurses through sub-frames to find all plugin objects
-  _findAndPlayAllPlugins: function _findAndPlayAllPlugins(aWindow) {
-    let embeds = aWindow.document.getElementsByTagName("embed");
-    for (let i = 0; i < embeds.length; i++) {
-      if (!embeds[i].hasAttribute("played"))
-        this._playPlugin(embeds[i]);
+    for (let i = 0; i < plugins.length; i++) {
+      let objLoadingContent = plugins[i].QueryInterface(Ci.nsIObjectLoadingContent);
+      objLoadingContent.playPlugin();
     }
-
-    let objects = aWindow.document.getElementsByTagName("object");
-    for (let i = 0; i < objects.length; i++) {
-      if (!objects[i].hasAttribute("played"))
-        this._playPlugin(objects[i]);
-    }
-
-    for (let i = 0; i < aWindow.frames.length; i++) {
-      this._findAndPlayAllPlugins(aWindow.frames[i]);
-    }
-  },
-
-  _playPlugin: function _playPlugin(aPlugin) {
-    let objLoadingContent = aPlugin.QueryInterface(Ci.nsIObjectLoadingContent);
-    objLoadingContent.playPlugin();
-
-    // Set an attribute on the plugin object to avoid re-loading it
-    aPlugin.setAttribute("played", true);
+    // Clear _pluginsToPlay so we don't accidentally re-load them
+    aTab._pluginsToPlay = [];
   },
 
   getPluginPreference: function getPluginPreference() {

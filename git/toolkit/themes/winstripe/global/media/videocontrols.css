@@ -37,7 +37,9 @@
 }
 
 .fullscreenButton {
-  background: -moz-image-rect(url("chrome://global/skin/media/fullscreenButton.png"), 0, 16, 16, 0) no-repeat center;
+  background-color: transparent;
+  list-style-image: url("chrome://global/skin/media/fullscreenButton.png");
+  -moz-image-region: rect(0px, 16px, 16px, 0px);
   -moz-appearance: none;
   margin: 0;
   padding: 0;
@@ -47,7 +49,7 @@
 }
 
 .fullscreenButton[fullscreened] {
-  background-image: -moz-image-rect(url("chrome://global/skin/media/fullscreenButton.png"), 0, 32, 16, 16);
+  -moz-image-region: rect(0px, 32px, 16px, 16px);
 }
 
 .volumeStack {

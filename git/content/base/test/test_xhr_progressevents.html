@@ -39,21 +39,13 @@ function updateProgress(e, data, testName) {
     is(typeof e.target.response, "string", "response should be a string" + test);
     response = e.target.response;
   }
-  else if (data.blob) {
-    ok(e.target.response instanceof Blob, "response should be a Blob" + test);
-    response = e.target.response;
-  }
   else {
-    ok(e.target.response instanceof ArrayBuffer, "response should be an ArrayBuffer" + test);
+    ok(e.target.response instanceof ArrayBuffer, "response should be a ArrayBuffer" + test);
     response = bufferToString(e.target.response);
   }
-  is(e.target.response, e.target.response, "reflexivity should hold" + test);
 
   if (!data.nodata && !data.encoded) {
-    if (data.blob) {
-      is(e.loaded, response.size, "event.loaded matches response size" + test);
-    }
-    else if (!data.chunked) {
+    if (!data.chunked) {
       is(e.loaded, response.length, "event.loaded matches response size" + test);
     }
     else {
@@ -65,7 +57,7 @@ function updateProgress(e, data, testName) {
   ok(e.loaded - data.receivedBytes <= data.pendingBytes,
      "event.loaded didn't increase too much" + test);
 
-  if (!data.nodata && !data.blob) {
+  if (!data.nodata) {
     var newData;
     ok(startsWith(response, data.receivedResult),
        "response strictly grew" + test);
@@ -82,7 +74,7 @@ function updateProgress(e, data, testName) {
     is(e.total, data.total, "total" + test);
   }
 
-  if (!data.nodata && !data.blob) {
+  if (!data.nodata) {
     data.pendingResult = data.pendingResult.substr(newData.length);
   }
   data.pendingBytes -= e.loaded - data.receivedBytes;
@@ -121,8 +113,7 @@ function runTests() {
 
   var responseTypes = [{ type: "text", text: true },
                        { type: "arraybuffer", text: false, nodata: true },
-                       { type: "blob", text: false, nodata: true, blob: true },
-                       { type: "moz-blob", text: false, nodata: false, blob: true },
+                       { type: "blob", text: false, nodata: true },
                        { type: "document", text: true, nodata: true },
                        { type: "json", text: true, nodata: true },
                        { type: "", text: true },
@@ -162,7 +153,7 @@ function runTests() {
                  { data: utf8encode("a\u867Eb").substr(4), utf16: "b" },
                  { close: true },
                  ];
-    if (responseType.blob) {
+    if (responseType.type === "blob") {
       tests.push({ file: "file_XHR_binary2.bin", name: "cacheable data", total: 65536 },
                  { close: true },
                  { file: "file_XHR_binary2.bin", name: "cached data", total: 65536 },
@@ -186,7 +177,6 @@ function runTests() {
                       nodata: responseType.nodata,
                       chunked: responseType.chunked,
                       text: responseType.text,
-                      blob: responseType.blob,
                       file: test.file };
   
         xhr.onreadystatechange = null;
@@ -245,7 +235,7 @@ function runTests() {
           is(xhr.response, null, "chunked data has null response for " + testState.name);
         }
 
-        if (!testState.nodata && !responseType.blob || responseType.chunked) {
+        if (!testState.nodata || responseType.chunked) {
           // This branch intentionally left blank
           // Under these conditions we check the response during updateProgress
         }
@@ -253,7 +243,7 @@ function runTests() {
           is(bufferToString(xhr.response), testState.pendingResult,
              "full response for " + testState.name);
         }
-        else if (responseType.blob) {
+        else if (responseType.type === "blob") {
           let reader = new FileReader;
           reader.readAsBinaryString(xhr.response);
           reader.onloadend = getEvent;
@@ -290,7 +280,7 @@ function runTests() {
         }
       }
 
-      if (!testState.nodata && !testState.blob) {
+      if (!testState.nodata) {
         is(testState.pendingResult, "",
            "should have consumed the expected result");
       }

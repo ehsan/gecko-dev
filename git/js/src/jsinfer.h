@@ -51,10 +51,6 @@
 #include "gc/Barrier.h"
 #include "js/HashTable.h"
 
-namespace JS {
-struct TypeInferenceSizes;
-}
-
 namespace js {
 namespace types {
 
@@ -370,7 +366,7 @@ class TypeSet
     void print(JSContext *cx);
 
     inline void sweep(JSContext *cx, JSCompartment *compartment);
-    inline size_t computedSizeOfExcludingThis();
+    inline size_t dynamicSize();
 
     /* Whether this set contains a specific type. */
     inline bool hasType(Type type);
@@ -869,9 +865,7 @@ struct TypeObject : gc::Cell
     inline void clearProperties();
     inline void sweep(JSContext *cx);
 
-    inline size_t computedSizeOfExcludingThis();
-
-    void sizeOfExcludingThis(TypeInferenceSizes *sizes, JSMallocSizeOfFun mallocSizeOf);
+    inline size_t dynamicSize();
 
     /*
      * Type objects don't have explicit finalizers. Memory owned by a type

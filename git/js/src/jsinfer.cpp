@@ -2026,7 +2026,7 @@ TypeCompartment::newAllocationSiteTypeObject(JSContext *cx, const AllocationSite
          * observed by other code before all properties have been added. Mark
          * all the properties as definite properties of the object.
          */
-        JSObject *baseobj = key.script->getObject(GET_UINT32_INDEX(pc));
+        JSObject *baseobj = key.script->getObject(GET_SLOTNO(pc));
 
         if (!res->addDefiniteProperties(cx, baseobj))
             return NULL;
@@ -2045,6 +2045,13 @@ GetAtomId(JSContext *cx, JSScript *script, const jsbytecode *pc, unsigned offset
 {
     unsigned index = js_GetIndexFromBytecode(script, (jsbytecode*) pc, offset);
     return MakeTypeId(cx, ATOM_TO_JSID(script->getAtom(index)));
+}
+
+static inline JSObject *
+GetScriptObject(JSContext *cx, JSScript *script, const jsbytecode *pc, unsigned offset)
+{
+    unsigned index = js_GetIndexFromBytecode(script, (jsbytecode*) pc, offset);
+    return script->getObject(index);
 }
 
 static inline const Value &
@@ -3521,7 +3528,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         break;
 
       case JSOP_OBJECT: {
-        JSObject *obj = script->getObject(GET_UINT32_INDEX(pc));
+        JSObject *obj = GetScriptObject(cx, script, pc, 0);
         pushed[0].addType(cx, Type::ObjectType(obj));
         break;
       }
@@ -3826,7 +3833,7 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
       case JSOP_DEFLOCALFUN:
       case JSOP_DEFLOCALFUN_FC: {
         unsigned off = (op == JSOP_DEFLOCALFUN || op == JSOP_DEFLOCALFUN_FC) ? SLOTNO_LEN : 0;
-        JSObject *obj = script->getObject(GET_UINT32_INDEX(pc + off));
+        JSObject *obj = GetScriptObject(cx, script, pc, off);
 
         TypeSet *res = NULL;
         if (op == JSOP_LAMBDA || op == JSOP_LAMBDA_FC) {
@@ -4556,12 +4563,6 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
         if (op != JSOP_THIS)
             continue;
 
-        /* Maintain ordering property on how 'this' is used, as described above. */
-        if (offset < lastThisPopped) {
-            *pbaseobj = NULL;
-            return false;
-        }
-
         SSAValue thisv = SSAValue::PushedValue(offset, 0);
         SSAUseChain *uses = analysis->useChain(thisv);
 
@@ -4571,6 +4572,11 @@ AnalyzeNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun, JSO
             return false;
         }
 
+        /* Maintain ordering property on how 'this' is used, as described above. */
+        if (offset < lastThisPopped) {
+            *pbaseobj = NULL;
+            return false;
+        }
         lastThisPopped = uses->offset;
 
         /* Only handle 'this' values popped in unconditional code. */
@@ -5663,9 +5669,6 @@ JSObject::splicePrototype(JSContext *cx, JSObject *proto)
      */
     JS_ASSERT_IF(cx->typeInferenceEnabled(), hasSingletonType());
 
-    /* Inner objects may not appear on prototype chains. */
-    JS_ASSERT_IF(proto, !proto->getClass()->ext.outerObject);
-
     /*
      * Force type instantiation when splicing lazy types. This may fail,
      * in which case inference will be disabled for the compartment.
@@ -6255,12 +6258,12 @@ TypeScript::destroy()
 }
 
 inline size_t
-TypeSet::computedSizeOfExcludingThis()
+TypeSet::dynamicSize()
 {
     /*
      * This memory is allocated within the temp pool (but accounted for
      * elsewhere) so we can't use a JSMallocSizeOfFun to measure it.  We must
-     * compute its size analytically.
+     * do it analytically.
      */
     uint32_t count = baseObjectCount();
     if (count >= 2)
@@ -6269,12 +6272,12 @@ TypeSet::computedSizeOfExcludingThis()
 }
 
 inline size_t
-TypeObject::computedSizeOfExcludingThis()
+TypeObject::dynamicSize()
 {
     /*
      * This memory is allocated within the temp pool (but accounted for
      * elsewhere) so we can't use a JSMallocSizeOfFun to measure it.  We must
-     * compute its size analytically.
+     * do it analytically.
      */
     size_t bytes = 0;
 
@@ -6286,15 +6289,14 @@ TypeObject::computedSizeOfExcludingThis()
     for (unsigned i = 0; i < count; i++) {
         Property *prop = getProperty(i);
         if (prop)
-            bytes += sizeof(Property) + prop->types.computedSizeOfExcludingThis();
+            bytes += sizeof(Property) + prop->types.dynamicSize();
     }
 
     return bytes;
 }
 
 static void
-SizeOfScriptTypeInferenceData(JSScript *script, TypeInferenceSizes *sizes,
-                              JSMallocSizeOfFun mallocSizeOf)
+GetScriptMemoryStats(JSScript *script, TypeInferenceMemoryStats *stats, JSMallocSizeOfFun mallocSizeOf)
 {
     TypeScript *typeScript = script->types;
     if (!typeScript)
@@ -6302,18 +6304,18 @@ SizeOfScriptTypeInferenceData(JSScript *script, TypeInferenceSizes *sizes,
 
     /* If TI is disabled, a single TypeScript is still present. */
     if (!script->compartment()->types.inferenceEnabled) {
-        sizes->scripts += mallocSizeOf(typeScript);
+        stats->scripts += mallocSizeOf(typeScript);
         return;
     }
 
-    sizes->scripts += mallocSizeOf(typeScript->nesting);
+    stats->scripts += mallocSizeOf(typeScript->nesting);
 
     unsigned count = TypeScript::NumTypeSets(script);
-    sizes->scripts += mallocSizeOf(typeScript);
+    stats->scripts += mallocSizeOf(typeScript);
 
     TypeResult *result = typeScript->dynamicList;
     while (result) {
-        sizes->scripts += mallocSizeOf(result);
+        stats->scripts += mallocSizeOf(result);
         result = result->next;
     }
 
@@ -6323,14 +6325,15 @@ SizeOfScriptTypeInferenceData(JSScript *script, TypeInferenceSizes *sizes,
      */
     TypeSet *typeArray = typeScript->typeArray();
     for (unsigned i = 0; i < count; i++) {
-        size_t bytes = typeArray[i].computedSizeOfExcludingThis();
-        sizes->scripts += bytes;
-        sizes->temporary -= bytes;
+        size_t bytes = typeArray[i].dynamicSize();
+        stats->scripts += bytes;
+        stats->temporary -= bytes;
     }
 }
 
 void
-JSCompartment::sizeOfTypeInferenceData(JSContext *cx, TypeInferenceSizes *sizes,
+JS::SizeOfCompartmentTypeInferenceData(JSContext *cx, JSCompartment *compartment,
+                                       TypeInferenceMemoryStats *stats,
                                        JSMallocSizeOfFun mallocSizeOf)
 {
     /*
@@ -6338,27 +6341,28 @@ JSCompartment::sizeOfTypeInferenceData(JSContext *cx, TypeInferenceSizes *sizes,
      * by being copied to the replacement pool. This memory will be counted
      * elsewhere and deducted from the amount of temporary data.
      */
-    sizes->temporary += typeLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
+    stats->temporary += compartment->typeLifoAlloc.sizeOfExcludingThis(mallocSizeOf);
 
     /* Pending arrays are cleared on GC along with the analysis pool. */
-    sizes->temporary += mallocSizeOf(types.pendingArray);
+    stats->temporary +=
+        mallocSizeOf(compartment->types.pendingArray);
 
     /* TypeCompartment::pendingRecompiles is non-NULL only while inference code is running. */
-    JS_ASSERT(!types.pendingRecompiles);
+    JS_ASSERT(!compartment->types.pendingRecompiles);
 
-    for (gc::CellIter i(cx, this, gc::FINALIZE_SCRIPT); !i.done(); i.next())
-        SizeOfScriptTypeInferenceData(i.get<JSScript>(), sizes, mallocSizeOf);
+    for (gc::CellIter i(cx, compartment, gc::FINALIZE_SCRIPT); !i.done(); i.next())
+        GetScriptMemoryStats(i.get<JSScript>(), stats, mallocSizeOf);
 
-    if (types.allocationSiteTable)
-        sizes->tables += types.allocationSiteTable->sizeOfIncludingThis(mallocSizeOf);
+    if (compartment->types.allocationSiteTable)
+        stats->tables += compartment->types.allocationSiteTable->sizeOfIncludingThis(mallocSizeOf);
 
-    if (types.arrayTypeTable)
-        sizes->tables += types.arrayTypeTable->sizeOfIncludingThis(mallocSizeOf);
+    if (compartment->types.arrayTypeTable)
+        stats->tables += compartment->types.arrayTypeTable->sizeOfIncludingThis(mallocSizeOf);
 
-    if (types.objectTypeTable) {
-        sizes->tables += types.objectTypeTable->sizeOfIncludingThis(mallocSizeOf);
+    if (compartment->types.objectTypeTable) {
+        stats->tables += compartment->types.objectTypeTable->sizeOfIncludingThis(mallocSizeOf);
 
-        for (ObjectTypeTable::Enum e(*types.objectTypeTable);
+        for (ObjectTypeTable::Enum e(*compartment->types.objectTypeTable);
              !e.empty();
              e.popFront())
         {
@@ -6366,31 +6370,34 @@ JSCompartment::sizeOfTypeInferenceData(JSContext *cx, TypeInferenceSizes *sizes,
             const ObjectTableEntry &value = e.front().value;
 
             /* key.ids and values.types have the same length. */
-            sizes->tables += mallocSizeOf(key.ids) + mallocSizeOf(value.types);
+            stats->tables += mallocSizeOf(key.ids) + mallocSizeOf(value.types);
         }
     }
 }
 
 void
-TypeObject::sizeOfExcludingThis(TypeInferenceSizes *sizes, JSMallocSizeOfFun mallocSizeOf)
+JS::SizeOfTypeObjectExcludingThis(void *object_, TypeInferenceMemoryStats *stats, JSMallocSizeOfFun mallocSizeOf)
 {
-    if (singleton) {
+    TypeObject *object = (TypeObject *) object_;
+
+    if (object->singleton) {
         /*
          * Properties and associated type sets for singletons are cleared on
          * every GC. The type object is normally destroyed too, but we don't
          * charge this to 'temporary' as this is not for GC heap values.
          */
-        JS_ASSERT(!newScript);
+        JS_ASSERT(!object->newScript);
         return;
     }
 
-    sizes->objects += mallocSizeOf(newScript);
+    if (object->newScript)
+        stats->objects += mallocSizeOf(object->newScript);
 
     /*
      * This counts memory that is in the temp pool but gets attributed
-     * elsewhere.  See JSCompartment::sizeOfTypeInferenceData for more details.
+     * elsewhere.  See JS_GetTypeInferenceMemoryStats for more details.
      */
-    size_t bytes = computedSizeOfExcludingThis();
-    sizes->objects += bytes;
-    sizes->temporary -= bytes;
+    size_t bytes = object->dynamicSize();
+    stats->objects += bytes;
+    stats->temporary -= bytes;
 }

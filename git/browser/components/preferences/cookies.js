@@ -89,7 +89,7 @@ var gCookiesWindow = {
         this.filter();
     }
 
-    this._updateRemoveAllButton();
+    document.getElementById("removeAllCookies").disabled = this._view._rowCount == 0;
 
     this._saveState();
   },
@@ -119,7 +119,7 @@ var gCookiesWindow = {
       this._view._rowCount = 0;
       this._tree.treeBoxObject.rowCountChanged(0, -oldRowCount);
       this._view.selection.clearSelection();
-      this._updateRemoveAllButton();
+      document.getElementById("removeAllCookies").disabled = true;
     }
     else if (aData == "reload") {
       // first, clear any existing entries
@@ -210,7 +210,10 @@ var gCookiesWindow = {
     this._view._rowCount += rowCountImpact;
     this._tree.treeBoxObject.rowCountChanged(oldRowCount - 1, rowCountImpact);
 
-    this._updateRemoveAllButton();
+    if (this._view._rowCount > 0 && !this._view._filtered)
+      document.getElementById("removeAllCookies").disabled = false;
+    else
+      document.getElementById("removeAllCookies").disabled = true;
   },
 
   _view: {
@@ -590,19 +593,8 @@ var gCookiesWindow = {
     removeCookie.parentNode.selectedPanel =
       selectedCookieCount == 1 ? removeCookie : removeCookies;
 
+    document.getElementById("removeAllCookies").disabled = this._view._filtered;
     removeCookie.disabled = removeCookies.disabled = !(seln.count > 0);
-  },
-
-  performDeletion: function gCookiesWindow_performDeletion(deleteItems) {
-    var psvc = Components.classes["@mozilla.org/preferences-service;1"]
-                         .getService(Components.interfaces.nsIPrefBranch);
-    var blockFutureCookies = false;
-    if (psvc.prefHasUserValue("network.cookie.blockFutureCookies"))
-      blockFutureCookies = psvc.getBoolPref("network.cookie.blockFutureCookies");
-    for (var i = 0; i < deleteItems.length; ++i) {
-      var item = deleteItems[i];
-      this._cm.remove(item.host, item.name, item.path, blockFutureCookies);
-    }
   },
 
   deleteCookie: function () {
@@ -701,10 +693,7 @@ var gCookiesWindow = {
     }
     else {
       var rangeCount = seln.getRangeCount();
-      // Traverse backwards through selections to avoid messing 
-      // up the indices when they are deleted.
-      // See bug 388079.
-      for (var i = rangeCount - 1; i >= 0; --i) {
+      for (var i = 0; i < rangeCount; ++i) {
         var min = {}; var max = {};
         seln.getRangeAt(i, min, max);
         nextSelected = min.value;
@@ -721,7 +710,15 @@ var gCookiesWindow = {
       }
     }
 
-    this.performDeletion(deleteItems);
+    var psvc = Components.classes["@mozilla.org/preferences-service;1"]
+                         .getService(Components.interfaces.nsIPrefBranch);
+    var blockFutureCookies = false;
+    if (psvc.prefHasUserValue("network.cookie.blockFutureCookies"))
+      blockFutureCookies = psvc.getBoolPref("network.cookie.blockFutureCookies");
+    for (i = 0; i < deleteItems.length; ++i) {
+      var item = deleteItems[i];
+      this._cm.remove(item.host, item.name, item.path, blockFutureCookies);
+    }
 
     if (nextSelected < 0)
       seln.clearSelection();
@@ -732,22 +729,8 @@ var gCookiesWindow = {
   },
 
   deleteAllCookies: function () {
-    if (this._view._filtered) {
-      var rowCount = this._view.rowCount;
-      var deleteItems = [];
-      for (var index = 0; index < rowCount; index++) {
-        deleteItems.push(this._view._getItemAtIndex(index));
-      }
-      this._view._removeItemAtIndex(0, rowCount);
-      this._view._rowCount = 0;
-      this._tree.treeBoxObject.rowCountChanged(0, -rowCount);
-      this.performDeletion(deleteItems);
-    }
-    else {
-      this._cm.removeAll();
-    }
-    this._updateRemoveAllButton();
-    this.focusFilterBox();
+    this._cm.removeAll();
+    this._tree.focus();
   },
 
   onCookieKeyPress: function (aEvent) {
@@ -847,7 +830,6 @@ var gCookiesWindow = {
     this._lastSelectedRanges = [];
 
     document.getElementById("cookiesIntro").value = this._bundle.getString("cookiesAll");
-    this._updateRemoveAllButton();
   },
 
   _cookieMatchesFilter: function (aCookie) {
@@ -893,10 +875,6 @@ var gCookiesWindow = {
     }
   },
 
-  _updateRemoveAllButton: function gCookiesWindow__updateRemoveAllButton() {
-    document.getElementById("removeAllCookies").disabled = this._view._rowCount == 0;
-  },
-
   filter: function () {
     var filter = document.getElementById("filter").value;
     if (filter == "") {
@@ -927,7 +905,6 @@ var gCookiesWindow = {
       view.selection.select(0);
 
     document.getElementById("cookiesIntro").value = gCookiesWindow._bundle.getString("cookiesFiltered");
-    this._updateRemoveAllButton();
   },
 
   setFilter: function (aFilterString) {

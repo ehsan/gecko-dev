@@ -62,12 +62,10 @@ XPIDLSRCS = \
       nsIAccessibleProvider.idl \
       nsIAccessibleSelectable.idl \
       nsIAccessNode.idl \
-      nsIAccessibleCursorable.idl \
       nsIAccessibleEvent.idl \
       nsIAccessibleEditableText.idl \
       nsIAccessibleHyperLink.idl \
       nsIAccessibleHyperText.idl \
-      nsIAccessiblePivot.idl \
       nsIAccessibleTable.idl \
       nsIAccessibleText.idl \
       nsIAccessibleValue.idl \

@@ -856,6 +856,14 @@ IsAboutToBeFinalized(JSContext *cx, const Value &v)
     return IsAboutToBeFinalized(cx, (Cell *)v.toGCThing());
 }
 
+JS_FRIEND_API(bool)
+js_GCThingIsMarked(void *thing, uintN color = BLACK)
+{
+    JS_ASSERT(thing);
+    AssertValidColor(thing, color);
+    return reinterpret_cast<Cell *>(thing)->isMarked(color);
+}
+
 /* Lifetime for type sets attached to scripts containing observed types. */
 static const int64_t JIT_SCRIPT_RELEASE_TYPES_INTERVAL = 60 * 1000 * 1000;
 
@@ -1084,11 +1092,11 @@ MarkConservativeStackRoots(JSTracer *trc, JSRuntime *rt)
 
     uintptr_t *stackMin, *stackEnd;
 #if JS_STACK_GROWTH_DIRECTION > 0
-    stackMin = rt->nativeStackBase;
+    stackMin = rt->conservativeGC.nativeStackBase;
     stackEnd = cgcd->nativeStackTop;
 #else
     stackMin = cgcd->nativeStackTop + 1;
-    stackEnd = reinterpret_cast<uintptr_t *>(rt->nativeStackBase);
+    stackEnd = rt->conservativeGC.nativeStackBase;
 #endif
 
     JS_ASSERT(stackMin <= stackEnd);
@@ -2842,16 +2850,6 @@ MarkAndSweep(JSContext *cx, JSGCInvocationKind gckind)
     /* Clear gcIsNeeded now, when we are about to start a normal GC cycle. */
     rt->gcIsNeeded = false;
     rt->gcTriggerCompartment = NULL;
-    
-    /* Clear gcMallocBytes for all compartments */
-    JSCompartment **read = rt->compartments.begin();
-    JSCompartment **end = rt->compartments.end();
-    JS_ASSERT(rt->compartments.length() >= 1);
-    
-    while (read < end) {
-        JSCompartment *compartment = *read++;
-        compartment->resetGCMallocBytes();
-    }
 
     /* Reset weak map list. */
     WeakMapBase::resetWeakMapList(rt);

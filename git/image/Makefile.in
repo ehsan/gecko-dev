@@ -46,7 +46,9 @@ MODULE		= imglib2
 
 PARALLEL_DIRS		= public src decoders encoders
 
-TEST_DIRS += test
+ifdef ENABLE_TESTS
+DIRS  += test
+endif
 
 DIRS		+= build
 

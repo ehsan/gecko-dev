@@ -194,9 +194,7 @@ private:
     void     HandleAsyncFallback();
     nsresult ContinueHandleAsyncFallback(nsresult);
     nsresult PromptTempRedirect();
-    virtual nsresult SetupReplacementChannel(nsIURI *, nsIChannel *,
-                                             bool preserveMethod,
-                                             bool forProxy);
+    virtual nsresult SetupReplacementChannel(nsIURI *, nsIChannel *, bool preserveMethod);
 
     // proxy specific methods
     nsresult ProxyFailover();
@@ -226,7 +224,6 @@ private:
     void     CloseCacheEntry(bool doomOnFailure);
     void     CloseOfflineCacheEntry();
     nsresult InitCacheEntry();
-    void     UpdateInhibitPersistentCachingFlag();
     nsresult InitOfflineCacheEntry();
     nsresult AddCacheEntryHeaders(nsICacheEntryDescriptor *entry);
     nsresult StoreAuthorizationMetaData(nsICacheEntryDescriptor *entry);

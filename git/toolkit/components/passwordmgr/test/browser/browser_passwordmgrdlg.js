@@ -124,7 +124,7 @@ function test() {
                     else if (aTopic == "domwindowopened") {
                         let win = aSubject.QueryInterface(Ci.nsIDOMEventTarget);
                         SimpleTest.waitForFocus(function() {
-                            EventUtils.sendKey("RETURN", win);
+                            EventUtils.synthesizeKey("VK_RETURN", {}, win)
                         }, win);
                     }
                 });

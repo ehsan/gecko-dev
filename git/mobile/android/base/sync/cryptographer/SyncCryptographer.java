@@ -57,7 +57,6 @@ import org.mozilla.gecko.sync.crypto.CryptoInfo;
 import org.mozilla.gecko.sync.crypto.Cryptographer;
 import org.mozilla.gecko.sync.crypto.KeyBundle;
 import org.mozilla.gecko.sync.cryptographer.CryptoStatusBundle.CryptoStatus;
-import java.security.GeneralSecurityException;
 
 /*
  * This class acts as a wrapper for the Cryptographer class.
@@ -191,10 +190,6 @@ public class SyncCryptographer {
       json = (JSONObject) new JSONParser().parse(in);
     } catch (Exception e) {
       e.printStackTrace();
-    }
-
-    if (json == null) {
-      throw new CryptoException(new GeneralSecurityException("Could not decrypt JSON payload"));
     }
 
     // Verify that this is indeed the crypto/keys bundle and that
@@ -344,7 +339,7 @@ public class SyncCryptographer {
   /*
    * Get the keys needed to encrypt the crypto/keys bundle.
    */
-  public KeyBundle getCryptoKeysBundleKeys() throws CryptoException {
+  public KeyBundle getCryptoKeysBundleKeys() {
     return new KeyBundle(username, syncKey);
   }
 

@@ -1210,13 +1210,19 @@ nsDisplayImage::Paint(nsDisplayListBuilder* aBuilder,
                  : (PRUint32) imgIContainer::FLAG_NONE);
 }
 
-already_AddRefed<ImageContainer>
-nsDisplayImage::GetContainer()
+nsCOMPtr<imgIContainer>
+nsDisplayImage::GetImage()
 {
-  nsRefPtr<ImageContainer> container;
-  nsresult rv = mImage->GetImageContainer(getter_AddRefs(container));
-  NS_ENSURE_SUCCESS(rv, nsnull);
-  return container.forget();
+  return mImage;
+}
+
+nsRefPtr<ImageContainer>
+nsDisplayImage::GetContainer(LayerManager* aManager)
+{
+  ImageContainer* container;
+  nsresult rv = mImage->GetImageContainer(aManager, &container);
+  NS_ENSURE_SUCCESS(rv, NULL);
+  return container;
 }
 
 void

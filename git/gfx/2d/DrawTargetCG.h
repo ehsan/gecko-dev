@@ -40,7 +40,6 @@
 #include "2D.h"
 #include "Rect.h"
 #include "PathCG.h"
-#include "SourceSurfaceCG.h"
 
 namespace mozilla {
 namespace gfx {
@@ -175,7 +174,7 @@ public:
       return mCg;
   }
 private:
-  void MarkChanged();
+  bool InitCGRenderTarget();
 
   IntSize mSize;
   CGColorSpaceRef mColorSpace;
@@ -185,7 +184,6 @@ private:
 
   SurfaceFormat mFormat;
 
-  RefPtr<SourceSurfaceCGBitmapContext> mSnapshot;
 };
 
 }

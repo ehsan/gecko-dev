@@ -56,8 +56,7 @@ _JAVA_HARNESS = \
   Driver.java \
   Element.java \
   FennecNativeActions.java \
-  FennecMochitestAssert.java \
-  FennecTalosAssert.java \
+  FennecNativeAssert.java \
   FennecNativeDriver.java \
   FennecNativeElement.java \
   RoboCopException.java \
@@ -65,7 +64,11 @@ _JAVA_HARNESS = \
 
 _JAVA_TESTS = $(patsubst $(TESTPATH)/%.in,%,$(wildcard $(TESTPATH)/*.java.in))
 
-_TEST_FILES = $(wildcard $(TESTPATH)/*.html)
+_TEST_FILES = \
+  $(TESTPATH)/robocop_blank_01.html \
+  $(TESTPATH)/robocop_blank_02.html \
+  $(TESTPATH)/robocop_blank_03.html \
+  $(NULL)
 
 _ROBOCOP_TOOLS = \
   $(TESTPATH)/robocop.ini \
@@ -127,6 +130,11 @@ robocop.ap_: AndroidManifest.xml
 	$(AAPT) package -f -M AndroidManifest.xml -I $(ANDROID_SDK)/android.jar -I . -S res -F $@ -J ./
 
 robocop.apk: robocop.ap_ classes.dex
+	$(APKBUILDER) robocop-raw.apk -v $(APKBUILDER_FLAGS) -z robocop.ap_ -f classes.dex
+ifdef JARSIGNER
+	$(JARSIGNER) robocop-raw.apk
+endif
+	$(ZIPALIGN) -f -v 4 robocop-raw.apk $@
 	cp $(TESTPATH)/robocop.ini robocop.ini
 	cp $(srcdir)/parse_ids.py parse_ids.py
 

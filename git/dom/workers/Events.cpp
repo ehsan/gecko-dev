@@ -214,13 +214,20 @@ protected:
   static Event*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    Event* priv = GetPrivate(aCx, aObj);
-    if (priv) {
-      return priv;
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      Event* priv = GetPrivate(aCx, aObj);
+      if (priv) {
+        return priv;
+      }
+
+      classPtr = JS_GET_CLASS(aCx, aObj);
     }
+
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
-                         JS_GetClass(aObj)->name);
+                         classPtr ? classPtr->name : "object");
     return NULL;
   }
 
@@ -275,7 +282,7 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(IsThisClass(JS_GetClass(aObj)));
+    JS_ASSERT(IsThisClass(JS_GET_CLASS(aCx, aObj)));
     delete GetJSPrivateSafeish<Event>(aCx, aObj);
   }
 
@@ -526,14 +533,20 @@ private:
   static MessageEvent*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    JSClass* classPtr = JS_GetClass(aObj);
-    if (IsThisClass(classPtr)) {
-      return GetJSPrivateSafeish<MessageEvent>(aCx, aObj);
+    // JS_GetInstancePrivate is ok to be called with a null aObj, so this should
+    // be too.
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      classPtr = JS_GET_CLASS(aCx, aObj);
+      if (IsThisClass(classPtr)) {
+        return GetJSPrivateSafeish<MessageEvent>(aCx, aObj);
+      }
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
-                         classPtr->name);
+                         classPtr ? classPtr->name : "object");
     return NULL;
   }
 
@@ -568,7 +581,7 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(IsThisClass(JS_GetClass(aObj)));
+    JS_ASSERT(IsThisClass(JS_GET_CLASS(aCx, aObj)));
     MessageEvent* priv = GetJSPrivateSafeish<MessageEvent>(aCx, aObj);
     if (priv) {
       JS_free(aCx, priv->mData);
@@ -751,14 +764,20 @@ private:
   static ErrorEvent*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    JSClass* classPtr = JS_GetClass(aObj);
-    if (IsThisClass(classPtr)) {
-      return GetJSPrivateSafeish<ErrorEvent>(aCx, aObj);
+    // JS_GetInstancePrivate is ok to be called with a null aObj, so this should
+    // be too.
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      classPtr = JS_GET_CLASS(aCx, aObj);
+      if (IsThisClass(classPtr)) {
+        return GetJSPrivateSafeish<ErrorEvent>(aCx, aObj);
+      }
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
-                         classPtr->name);
+                         classPtr ? classPtr->name : "object");
     return NULL;
   }
 
@@ -792,7 +811,7 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(IsThisClass(JS_GetClass(aObj)));
+    JS_ASSERT(IsThisClass(JS_GET_CLASS(aCx, aObj)));
     delete GetJSPrivateSafeish<ErrorEvent>(aCx, aObj);
   }
 
@@ -939,14 +958,18 @@ private:
   static ProgressEvent*
   GetInstancePrivate(JSContext* aCx, JSObject* aObj, const char* aFunctionName)
   {
-    JSClass* classPtr = JS_GetClass(aObj);
-    if (classPtr == &sClass) {
-      return GetJSPrivateSafeish<ProgressEvent>(aCx, aObj);
+    JSClass* classPtr = NULL;
+
+    if (aObj) {
+      classPtr = JS_GET_CLASS(aCx, aObj);
+      if (classPtr == &sClass) {
+        return GetJSPrivateSafeish<ProgressEvent>(aCx, aObj);
+      }
     }
 
     JS_ReportErrorNumber(aCx, js_GetErrorMessage, NULL,
                          JSMSG_INCOMPATIBLE_PROTO, sClass.name, aFunctionName,
-                         classPtr->name);
+                         classPtr ? classPtr->name : "object");
     return NULL;
   }
 
@@ -978,7 +1001,7 @@ private:
   static void
   Finalize(JSContext* aCx, JSObject* aObj)
   {
-    JS_ASSERT(JS_GetClass(aObj) == &sClass);
+    JS_ASSERT(JS_GET_CLASS(aCx, aObj) == &sClass);
     delete GetJSPrivateSafeish<ProgressEvent>(aCx, aObj);
   }
 
@@ -1054,7 +1077,7 @@ Event*
 Event::GetPrivate(JSContext* aCx, JSObject* aObj)
 {
   if (aObj) {
-    JSClass* classPtr = JS_GetClass(aObj);
+    JSClass* classPtr = JS_GET_CLASS(aCx, aObj);
     if (IsThisClass(classPtr) ||
         MessageEvent::IsThisClass(classPtr) ||
         ErrorEvent::IsThisClass(classPtr) ||

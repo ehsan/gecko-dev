@@ -84,14 +84,6 @@ public abstract class ServerSyncStage implements
   protected abstract Repository getLocalRepository();
   protected abstract RecordFactory getRecordFactory();
 
-  // Override this in subclasses.
-  protected Repository getRemoteRepository() throws URISyntaxException {
-    return new Server11Repository(session.config.getClusterURLString(),
-                                  session.config.username,
-                                  getCollection(),
-                                  session);
-  }
-
   /**
    * Return a Crypto5Middleware-wrapped Server11Repository.
    *
@@ -105,7 +97,11 @@ public abstract class ServerSyncStage implements
   protected Repository wrappedServerRepo() throws NoCollectionKeysSetException, URISyntaxException {
     String collection = this.getCollection();
     KeyBundle collectionKey = session.keyForCollection(collection);
-    Crypto5MiddlewareRepository cryptoRepo = new Crypto5MiddlewareRepository(getRemoteRepository(), collectionKey);
+    Server11Repository serverRepo = new Server11Repository(session.config.getClusterURLString(),
+                                                           session.config.username,
+                                                           collection,
+                                                           session);
+    Crypto5MiddlewareRepository cryptoRepo = new Crypto5MiddlewareRepository(serverRepo, collectionKey);
     cryptoRepo.recordFactory = getRecordFactory();
     return cryptoRepo;
   }

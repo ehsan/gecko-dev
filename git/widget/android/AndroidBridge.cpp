@@ -107,12 +107,6 @@ AndroidBridge::Init(JNIEnv *jEnv,
 
     jEnableDeviceMotion = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableDeviceMotion", "(Z)V");
     jEnableLocation = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "enableLocation", "(Z)V");
-    jEnableSensor =
-        (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass,
-                                            "enableSensor", "(I)V");
-    jDisableSensor =
-        (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass,
-                                            "disableSensor", "(I)V");
     jReturnIMEQueryResult = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "returnIMEQueryResult", "(Ljava/lang/String;II)V");
     jScheduleRestart = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "scheduleRestart", "()V");
     jNotifyXreExit = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "onXreExit", "()V");
@@ -131,7 +125,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     jGetDpi = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "getDpi", "()I");
     jSetFullScreen = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setFullScreen", "(Z)V");
     jShowInputMethodPicker = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "showInputMethodPicker", "()V");
-    jSetPreventPanning = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "setPreventPanning", "(Z)V");
+    jPreventPanning = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "preventPanning", "()V");
     jHideProgressDialog = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "hideProgressDialog", "()V");
     jPerformHapticFeedback = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "performHapticFeedback", "(Z)V");
     jVibrate1 = (jmethodID) jEnv->GetStaticMethodID(jGeckoAppShellClass, "vibrate", "(J)V");
@@ -196,6 +190,7 @@ AndroidBridge::SetMainThread(void *thr)
     if (thr) {
         mThread = thr;
         mJavaVM->GetEnv((void**) &mJNIEnv, JNI_VERSION_1_2);
+        mJavaVM->AttachCurrentThread(&mJNIEnv, NULL);
         return (bool) mJNIEnv;
     }
 
@@ -319,20 +314,6 @@ AndroidBridge::EnableLocation(bool aEnable)
         return;
     
     env->CallStaticVoidMethod(mGeckoAppShellClass, jEnableLocation, aEnable);
-}
-
-void
-AndroidBridge::EnableSensor(int aSensorType) {
-    ALOG_BRIDGE("AndroidBridge::EnableSensor");
-    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jEnableSensor,
-                                  aSensorType);
-}
-
-void
-AndroidBridge::DisableSensor(int aSensorType) {
-    ALOG_BRIDGE("AndroidBridge::DisableSensor");
-    mJNIEnv->CallStaticVoidMethod(mGeckoAppShellClass, jDisableSensor,
-                                  aSensorType);
 }
 
 void
@@ -1729,9 +1710,9 @@ AndroidBridge::ReleaseNativeWindow(void *window)
 }
 
 bool
-AndroidBridge::SetNativeWindowFormat(void *window, int width, int height, int format)
+AndroidBridge::SetNativeWindowFormat(void *window, int format)
 {
-    return ANativeWindow_setBuffersGeometry(window, width, height, format) == 0;
+    return ANativeWindow_setBuffersGeometry(window, 0, 0, format) == 0;
 }
 
 bool
@@ -1826,29 +1807,19 @@ NS_IMETHODIMP nsAndroidBridge::SetDrawMetadataProvider(nsIAndroidDrawMetadataPro
 }
 
 void
-AndroidBridge::SetPreventPanning(bool aPreventPanning) {
+AndroidBridge::PreventPanning() {
     ALOG_BRIDGE("AndroidBridge::PreventPanning");
     JNIEnv *env = GetJNIEnv();
     if (!env)
         return;
 
-    env->CallStaticVoidMethod(mGeckoAppShellClass, jSetPreventPanning, (jboolean)aPreventPanning);
+    env->CallStaticVoidMethod(mGeckoAppShellClass, jPreventPanning);
 }
 
 
 // DO NOT USE THIS unless you need to access JNI from
 // non-main threads.  This is probably not what you want.
 // Questions, ask blassey or dougt.
-
-static void
-JavaThreadDetachFunc(void *arg)
-{
-    JNIEnv *env = (JNIEnv*) arg;
-    JavaVM *vm = NULL;
-    env->GetJavaVM(&vm);
-    vm->DetachCurrentThread();
-}
-
 extern "C" {
     __attribute__ ((visibility("default")))
     JNIEnv * GetJNIForThread()
@@ -1861,101 +1832,15 @@ extern "C" {
         }
         int status = jVm->GetEnv((void**) &jEnv, JNI_VERSION_1_2);
         if (status < 0) {
-
             status = jVm->AttachCurrentThread(&jEnv, NULL);
             if (status < 0) {
                 __android_log_print(ANDROID_LOG_INFO, "GetJNIForThread",  "Could not attach");
                 return NULL;
             }
-            static PRUintn sJavaEnvThreadIndex = 0;
-            PR_NewThreadPrivateIndex(&sJavaEnvThreadIndex, JavaThreadDetachFunc);
-            PR_SetThreadPrivate(sJavaEnvThreadIndex, jEnv);
         }
         if (!jEnv) {
             __android_log_print(ANDROID_LOG_INFO, "GetJNIForThread", "returning NULL");
         }
         return jEnv;
     }
-}
-
-jobject
-AndroidBridge::CreateSurface()
-{
-#ifndef MOZ_JAVA_COMPOSITOR
-  return NULL;
-#else
-  AutoLocalJNIFrame frame(1);
-
-  JNIEnv* env = GetJNIForThread();
-  jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
-
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "createSurface",
-                                            "()Landroid/view/Surface;");
-
-  jobject surface = env->CallStaticObjectMethod(cls, method);
-  if (surface)
-    env->NewGlobalRef(surface);
-  
-  return surface;
-#endif
-}
-
-void
-AndroidBridge::DestroySurface(jobject surface)
-{
-#ifdef MOZ_JAVA_COMPOSITOR
-  AutoLocalJNIFrame frame(1);
-
-  JNIEnv* env = GetJNIForThread();
-  jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
-
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "destroySurface",
-                                            "(Landroid/view/Surface;)V");
-  env->CallStaticVoidMethod(cls, method, surface);
-  env->DeleteGlobalRef(surface);
-#endif
-}
-
-void
-AndroidBridge::ShowSurface(jobject surface, const gfxRect& aRect, bool aInverted, bool aBlend)
-{
-#ifdef MOZ_JAVA_COMPOSITOR
-  AutoLocalJNIFrame frame;
-
-  JNIEnv* env = GetJNIForThread();
-  jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
-
-  nsAutoString metadata;
-  nsCOMPtr<nsIAndroidDrawMetadataProvider> metadataProvider = GetDrawMetadataProvider();
-  metadataProvider->GetDrawMetadata(metadata);
-
-  jstring jMetadata = env->NewString(nsPromiseFlatString(metadata).get(), metadata.Length());
-
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "showSurface",
-                                            "(Landroid/view/Surface;IIIIZZLjava/lang/String;)V");
-
-  env->CallStaticVoidMethod(cls, method, surface,
-                            (int)aRect.x, (int)aRect.y,
-                            (int)aRect.width, (int)aRect.height,
-                            aInverted, aBlend, jMetadata);
-#endif
-}
-
-void
-AndroidBridge::HideSurface(jobject surface)
-{
-#ifdef MOZ_JAVA_COMPOSITOR
-  AutoLocalJNIFrame frame(1);
-
-  JNIEnv* env = GetJNIForThread();
-  jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
-
-  jmethodID method = env->GetStaticMethodID(cls,
-                                            "hideSurface",
-                                            "(Landroid/view/Surface;)V");
-  env->CallStaticVoidMethod(cls, method, surface);
-#endif
 }

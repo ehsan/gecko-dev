@@ -68,11 +68,6 @@ class nsILayoutHistoryState;
 class nsFrameManagerBase
 {
 public:
-  nsFrameManagerBase()
-  {
-    memset(this, '\0', sizeof(nsFrameManagerBase));
-  }
-
   bool IsDestroyingFrames() { return mIsDestroyingFrames; }
 
   /*

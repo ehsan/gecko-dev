@@ -230,7 +230,7 @@ Tilt.prototype = {
    */
   _onTabSelect: function T__onTabSelect()
   {
-    if (this.currentInstance) {
+    if (this.visualizers[this.currentWindowId]) {
       Services.obs.notifyObservers(null, TILT_NOTIFICATIONS.SHOWN, null);
     } else {
       Services.obs.notifyObservers(null, TILT_NOTIFICATIONS.HIDDEN, null);
@@ -245,8 +245,10 @@ Tilt.prototype = {
    *                  the newly selected node
    */
   update: function T_update(aNode) {
-    if (this.currentInstance) {
-      this.currentInstance.presenter.highlightNode(aNode);
+    let id = this.currentWindowId;
+
+    if (this.visualizers[id]) {
+      this.visualizers[id].presenter.highlightNode(aNode);
     }
   },
 
@@ -275,7 +277,6 @@ Tilt.prototype = {
       this._whenShown.bind(this), TILT_NOTIFICATIONS.SHOWN, false);
     Services.obs.addObserver(
       this._whenHidden.bind(this), TILT_NOTIFICATIONS.HIDDEN, false);
-
     Services.obs.addObserver(function(aSubject, aTopic, aWinId) {
       this.destroy(aWinId); }.bind(this),
       this.chromeWindow.InspectorUI.INSPECTOR_NOTIFICATIONS.DESTROYED, false);
@@ -286,7 +287,7 @@ Tilt.prototype = {
 
     // FIXME: this shouldn't be done here, see bug #705131
     let onOpened = function() {
-      if (this.currentInstance) {
+      if (this.visualizers[this.currentWindowId]) {
         this.chromeWindow.InspectorUI.stopInspecting();
         this.inspectButton.disabled = true;
         this.highlighterContainer.style.display = "none";
@@ -325,16 +326,8 @@ Tilt.prototype = {
    */
   get currentWindowId()
   {
-    return TiltUtils.getWindowId(
-      this.chromeWindow.gBrowser.selectedBrowser.contentWindow);
-  },
-
-  /**
-   * Gets the visualizer instance for the current tab.
-   */
-  get currentInstance()
-  {
-    return this.visualizers[this.currentWindowId];
+    let gBrowser = this.chromeWindow.gBrowser;
+    return TiltUtils.getWindowId(gBrowser.selectedBrowser.contentWindow);
   },
 
   /**
