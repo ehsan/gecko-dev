@@ -3322,12 +3322,10 @@ JSTerm.prototype = {
 
       iframe.addEventListener("load", function onIframeLoad(aEvent) {
         iframe.removeEventListener("load", onIframeLoad, true);
-        iframe.style.visibility = "visible";
         deferred.resolve(iframe.contentWindow);
       }, true);
 
       iframe.flex = 1;
-      iframe.style.visibility = "hidden";
       iframe.setAttribute("src", VARIABLES_VIEW_URL);
       aOptions.targetElement.appendChild(iframe);
     }

@@ -30,7 +30,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "cpmm",
 // NetworkStatsData
 const nsIClassInfo              = Ci.nsIClassInfo;
 const NETWORKSTATSDATA_CID      = Components.ID("{3b16fe17-5583-483a-b486-b64a3243221c}");
-const nsIDOMMozNetworkStatsData = Ci.nsIDOMMozNetworkStatsData;
+const nsIDOMMozNetworkStatsData = Components.interfaces.nsIDOMMozNetworkStatsData;
 
 function NetworkStatsData(aData) {
   this.rxBytes = aData.rxBytes;
@@ -40,10 +40,10 @@ function NetworkStatsData(aData) {
 
 NetworkStatsData.prototype = {
   __exposedProps__: {
-    rxBytes: 'r',
-    txBytes: 'r',
-    date:  'r',
-  },
+                      rxBytes: 'r',
+                      txBytes: 'r',
+                      date:  'r',
+                     },
 
   classID : NETWORKSTATSDATA_CID,
   classInfo : XPCOMUtils.generateCI({classID: NETWORKSTATSDATA_CID,
@@ -58,7 +58,7 @@ NetworkStatsData.prototype = {
 // NetworkStatsInterface
 const NETWORKSTATSINTERFACE_CONTRACTID = "@mozilla.org/networkstatsinterface;1";
 const NETWORKSTATSINTERFACE_CID        = Components.ID("{f540615b-d803-43ff-8200-2a9d145a5645}");
-const nsIDOMMozNetworkStatsInterface   = Ci.nsIDOMMozNetworkStatsInterface;
+const nsIDOMMozNetworkStatsInterface   = Components.interfaces.nsIDOMMozNetworkStatsInterface;
 
 function NetworkStatsInterface(aNetwork) {
   if (DEBUG) {
@@ -70,9 +70,9 @@ function NetworkStatsInterface(aNetwork) {
 
 NetworkStatsInterface.prototype = {
   __exposedProps__: {
-    id: 'r',
-    type: 'r',
-  },
+                      id: 'r',
+                      type: 'r',
+                    },
 
   classID : NETWORKSTATSINTERFACE_CID,
   classInfo : XPCOMUtils.generateCI({classID: NETWORKSTATSINTERFACE_CID,
@@ -87,7 +87,7 @@ NetworkStatsInterface.prototype = {
 // NetworkStats
 const NETWORKSTATS_CONTRACTID = "@mozilla.org/networkstats;1";
 const NETWORKSTATS_CID        = Components.ID("{b6fc4b14-628d-4c99-bf4e-e4ed56916cbe}");
-const nsIDOMMozNetworkStats   = Ci.nsIDOMMozNetworkStats;
+const nsIDOMMozNetworkStats   = Components.interfaces.nsIDOMMozNetworkStats;
 
 function NetworkStats(aWindow, aStats) {
   if (DEBUG) {
@@ -106,12 +106,12 @@ function NetworkStats(aWindow, aStats) {
 
 NetworkStats.prototype = {
   __exposedProps__: {
-    manifestURL: 'r',
-    network: 'r',
-    start: 'r',
-    end:  'r',
-    data:  'r',
-  },
+                      manifestURL: 'r',
+                      network: 'r',
+                      start: 'r',
+                      end:  'r',
+                      data:  'r',
+                    },
 
   classID : NETWORKSTATS_CID,
   classInfo : XPCOMUtils.generateCI({classID: NETWORKSTATS_CID,
@@ -125,40 +125,11 @@ NetworkStats.prototype = {
                                           nsIDOMMozNetworkStatsInterface])
 }
 
-// NetworkStatsAlarm
-const NETWORKSTATSALARM_CID      = Components.ID("{063ebeb2-5c6e-47ae-bdcd-5e6ebdc7a68c}");
-const nsIDOMMozNetworkStatsAlarm = Ci.nsIDOMMozNetworkStatsAlarm;
-
-function NetworkStatsAlarm(aAlarm) {
-  this.alarmId = aAlarm.id;
-  this.network = new NetworkStatsInterface(aAlarm.network);
-  this.threshold = aAlarm.threshold;
-  this.data = aAlarm.data;
-}
-
-NetworkStatsAlarm.prototype = {
-  __exposedProps__: {
-    alarmId: 'r',
-    network: 'r',
-    threshold: 'r',
-    data: 'r',
-  },
-
-  classID : NETWORKSTATSALARM_CID,
-  classInfo : XPCOMUtils.generateCI({classID: NETWORKSTATSALARM_CID,
-                                     contractID:"@mozilla.org/networkstatsalarm;1",
-                                     classDescription: "NetworkStatsAlarm",
-                                     interfaces: [nsIDOMMozNetworkStatsAlarm],
-                                     flags: nsIClassInfo.DOM_OBJECT}),
-
-  QueryInterface : XPCOMUtils.generateQI([nsIDOMMozNetworkStatsAlarm])
-};
-
 // NetworkStatsManager
 
 const NETWORKSTATSMANAGER_CONTRACTID = "@mozilla.org/networkStatsManager;1";
-const NETWORKSTATSMANAGER_CID        = Components.ID("{50d109b8-0d7f-4208-81fe-5f07a759f159}");
-const nsIDOMMozNetworkStatsManager   = Ci.nsIDOMMozNetworkStatsManager;
+const NETWORKSTATSMANAGER_CID        = Components.ID("{5f033d31-c9a2-4e2d-83aa-6a807f1e0c11}");
+const nsIDOMMozNetworkStatsManager   = Components.interfaces.nsIDOMMozNetworkStatsManager;
 
 function NetworkStatsManager() {
   if (DEBUG) {
@@ -218,52 +189,6 @@ NetworkStatsManager.prototype = {
     return request;
   },
 
-  addAlarm: function addAlarm(aNetwork, aThreshold, aOptions) {
-    this.checkPrivileges();
-
-    if (!aOptions) {
-      aOptions = Object.create(null);
-    }
-
-    let request = this.createRequest();
-    cpmm.sendAsyncMessage("NetworkStats:SetAlarm",
-                          {id: this.getRequestId(request),
-                           data: {network: aNetwork,
-                                  threshold: aThreshold,
-                                  startTime: aOptions.startTime,
-                                  data: aOptions.data,
-                                  manifestURL: this.manifestURL,
-                                  pageURL: this.pageURL}});
-    return request;
-  },
-
-  getAllAlarms: function getAllAlarms(aNetwork) {
-    this.checkPrivileges();
-
-    let request = this.createRequest();
-    cpmm.sendAsyncMessage("NetworkStats:GetAlarms",
-                          {id: this.getRequestId(request),
-                           data: {network: aNetwork,
-                                  manifestURL: this.manifestURL}});
-    return request;
-  },
-
-  removeAlarms: function removeAlarms(aAlarmId) {
-    this.checkPrivileges();
-
-    if (aAlarmId == 0) {
-      aAlarmId = -1;
-    }
-
-    let request = this.createRequest();
-    cpmm.sendAsyncMessage("NetworkStats:RemoveAlarms",
-                          {id: this.getRequestId(request),
-                           data: {alarmId: aAlarmId,
-                                  manifestURL: this.manifestURL}});
-
-    return request;
-  },
-
   getAvailableNetworks: function getAvailableNetworks() {
     this.checkPrivileges();
 
@@ -287,8 +212,8 @@ NetworkStatsManager.prototype = {
     if (DEBUG) {
       debug("NetworkStatsmanager::receiveMessage: " + aMessage.name);
     }
-
     let msg = aMessage.json;
+
     let req = this.takeRequest(msg.id);
     if (!req) {
       if (DEBUG) {
@@ -335,30 +260,6 @@ NetworkStatsManager.prototype = {
         Services.DOMRequest.fireSuccess(req, true);
         break;
 
-      case "NetworkStats:SetAlarm:Return":
-      case "NetworkStats:RemoveAlarms:Return":
-        if (msg.error) {
-          Services.DOMRequest.fireError(req, msg.error);
-          return;
-        }
-
-        Services.DOMRequest.fireSuccess(req, msg.result);
-        break;
-
-      case "NetworkStats:GetAlarms:Return":
-        if (msg.error) {
-          Services.DOMRequest.fireError(req, msg.error);
-          return;
-        }
-
-        let alarms = Cu.createArrayIn(this._window);
-        for (let i = 0; i < msg.result.length; i++) {
-          alarms.push(new NetworkStatsAlarm(msg.result[i]));
-        }
-
-        Services.DOMRequest.fireSuccess(req, alarms);
-        break;
-
       default:
         if (DEBUG) {
           debug("Wrong message: " + aMessage.name);
@@ -392,21 +293,7 @@ NetworkStatsManager.prototype = {
     this.initDOMRequestHelper(aWindow, ["NetworkStats:Get:Return",
                                         "NetworkStats:GetAvailableNetworks:Return",
                                         "NetworkStats:Clear:Return",
-                                        "NetworkStats:ClearAll:Return",
-                                        "NetworkStats:SetAlarm:Return",
-                                        "NetworkStats:GetAlarms:Return",
-                                        "NetworkStats:RemoveAlarms:Return"]);
-
-    // Init app properties.
-    let appsService = Cc["@mozilla.org/AppsService;1"]
-                        .getService(Ci.nsIAppsService);
-
-    this.manifestURL = appsService.getManifestURLByLocalId(principal.appId);
-
-    let isApp = !!this.manifestURL.length;
-    if (isApp) {
-      this.pageURL = principal.URI.spec;
-    }
+                                        "NetworkStats:ClearAll:Return"]);
   },
 
   // Called from DOMRequestIpcHelper
@@ -429,8 +316,7 @@ NetworkStatsManager.prototype = {
                                      flags: nsIClassInfo.DOM_OBJECT})
 }
 
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory([NetworkStatsAlarm,
-                                                     NetworkStatsData,
+this.NSGetFactory = XPCOMUtils.generateNSGetFactory([NetworkStatsData,
                                                      NetworkStatsInterface,
                                                      NetworkStats,
                                                      NetworkStatsManager]);

@@ -803,31 +803,25 @@ BluetoothOppManager::ServerDataHandler(UnixSocketRawData* aMessage)
     // Section 3.3.1 "Connect", IrOBEX 1.2
     // [opcode:1][length:2][version:1][flags:1][MaxPktSizeWeCanReceive:2]
     // [Headers:var]
-    if (!ParseHeaders(&aMessage->mData[7], receivedLength - 7, &pktHeaders)) {
-      ReplyError(ObexResponseCode::BadRequest);
-      return;
-    }
-
+    ParseHeaders(&aMessage->mData[7],
+                 receivedLength - 7,
+                 &pktHeaders);
     ReplyToConnect();
     AfterOppConnected();
   } else if (opCode == ObexRequestCode::Abort) {
     // Section 3.3.5 "Abort", IrOBEX 1.2
     // [opcode:1][length:2][Headers:var]
-    if (!ParseHeaders(&aMessage->mData[3], receivedLength - 3, &pktHeaders)) {
-      ReplyError(ObexResponseCode::BadRequest);
-      return;
-    }
-
+    ParseHeaders(&aMessage->mData[3],
+                receivedLength - 3,
+                &pktHeaders);
     ReplyToDisconnectOrAbort();
     DeleteReceivedFile();
   } else if (opCode == ObexRequestCode::Disconnect) {
     // Section 3.3.2 "Disconnect", IrOBEX 1.2
     // [opcode:1][length:2][Headers:var]
-    if (!ParseHeaders(&aMessage->mData[3], receivedLength - 3, &pktHeaders)) {
-      ReplyError(ObexResponseCode::BadRequest);
-      return;
-    }
-
+    ParseHeaders(&aMessage->mData[3],
+                receivedLength - 3,
+                &pktHeaders);
     ReplyToDisconnectOrAbort();
     AfterOppDisconnected();
     FileTransferComplete();
@@ -1203,7 +1197,7 @@ BluetoothOppManager::ReplyToPut(bool aFinal, bool aContinue)
 void
 BluetoothOppManager::ReplyError(uint8_t aError)
 {
-  BT_LOGR("error: %d", aError);
+  if (!mConnected) return;
 
   // Section 3.2 "Response Format", IrOBEX 1.2
   // [opcode:1][length:2][Headers:var]

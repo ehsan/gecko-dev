@@ -62,9 +62,6 @@ this.SystemMessagePermissionsTable = {
     "settings": ["read", "write"]
   },
   "media-button": { },
-  "networkstats-alarm": {
-    "networkstats-manage": []
-  },
   "notification": {
     "desktop-notification": []
   },

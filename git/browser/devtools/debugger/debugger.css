@@ -4,9 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* Side pane views */
+/* Sources search view */
 
-#sources-pane > tabpanels > tabpanel,
+#globalsearch {
+  overflow: auto;
+}
+
+/* Instruments pane view (watch expressions, variables, events...) */
+
 #instruments-pane > tabpanels > tabpanel {
   -moz-box-orient: vertical;
 }
@@ -14,10 +19,6 @@
 #expressions {
   overflow-x: hidden;
   overflow-y: auto;
-}
-
-#globalsearch {
-  overflow: auto;
 }
 
 /* Toolbar controls */

@@ -5,8 +5,6 @@
 
 package org.mozilla.gecko.gfx;
 
-import org.mozilla.gecko.mozglue.RobocopTarget;
-
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -42,7 +40,6 @@ public class PanningPerfAPI {
         }
     }
 
-    @RobocopTarget
     public static void startFrameTimeRecording() {
         if (mRecordingFrames || mRecordingCheckerboard) {
             Log.e(LOGTAG, "Error: startFrameTimeRecording() called while already recording!");
@@ -53,7 +50,6 @@ public class PanningPerfAPI {
         mFrameStartTime = SystemClock.uptimeMillis();
     }
 
-    @RobocopTarget
     public static List<Long> stopFrameTimeRecording() {
         if (!mRecordingFrames) {
             Log.e(LOGTAG, "Error: stopFrameTimeRecording() called when not recording!");
@@ -74,7 +70,6 @@ public class PanningPerfAPI {
         return mRecordingCheckerboard;
     }
 
-    @RobocopTarget
     public static void startCheckerboardRecording() {
         if (mRecordingCheckerboard || mRecordingFrames) {
             Log.e(LOGTAG, "Error: startCheckerboardRecording() called while already recording!");
@@ -85,7 +80,6 @@ public class PanningPerfAPI {
         mCheckerboardStartTime = SystemClock.uptimeMillis();
     }
 
-    @RobocopTarget
     public static List<Float> stopCheckerboardRecording() {
         if (!mRecordingCheckerboard) {
             Log.e(LOGTAG, "Error: stopCheckerboardRecording() called when not recording!");

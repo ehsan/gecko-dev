@@ -341,12 +341,9 @@ Call::IsActive()
 /**
  *  BluetoothHfpManager
  */
-BluetoothHfpManager::BluetoothHfpManager() : mController(nullptr)
+BluetoothHfpManager::BluetoothHfpManager() : mPhoneType(PhoneType::NONE)
+                                           , mController(nullptr)
 {
-#ifdef MOZ_B2G_RIL
-  mPhoneType = PhoneType::NONE;
-#endif // MOZ_B2G_RIL
-
   Reset();
 }
 
