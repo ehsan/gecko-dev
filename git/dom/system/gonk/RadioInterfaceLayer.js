@@ -491,7 +491,7 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function () {
     receiveMessage: function(msg) {
       if (DEBUG) debug("setRadioEnabled: receiveMessage: " + JSON.stringify(msg));
       this.pendingMessages.push(msg);
-      if (this.pendingMessages.length === 1 && !this.isDeactivatingDataCalls()) {
+      if (this.pendingMessages.length === 1) {
         this._processNextMessage();
       }
     },
@@ -540,6 +540,7 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function () {
       } else {
         this.request = (function() {
           radioInterface.receiveMessage(msg);
+          this._processNextMessage();
         }).bind(this);
 
         // In some DSDS architecture with only one modem, toggling one radio may
@@ -595,7 +596,6 @@ XPCOMUtils.defineLazyGetter(this, "gRadioEnabledController", function () {
         this.request();
         this.request = null;
       }
-      this._processNextMessage();
     }
   };
 });
@@ -1257,10 +1257,6 @@ RadioInterface.prototype = {
         break;
       case "iccmbdn":
         this.handleIccMbdn(message);
-        break;
-      case "iccmwis":
-        gMessageManager.sendVoicemailMessage("RIL:VoicemailNotification",
-                                             this.clientId, message.mwi);
         break;
       case "USSDReceived":
         if (DEBUG) this.debug("USSDReceived " + JSON.stringify(message));
@@ -2107,6 +2103,11 @@ RadioInterface.prototype = {
                                    null);
       return true;
     }
+
+    // TODO: Bug #768441
+    // For now we don't store indicators persistently. When the mwi.discard
+    // flag is false, we'll need to persist the indicator to EFmwis.
+    // See TS 23.040 9.2.3.24.2
 
     let mwi = message.mwi;
     if (mwi) {
