@@ -32,12 +32,12 @@ public:
 #undef SENTINEL_ENTRY
 
 #if !defined(__ia64) || (!defined(__hpux) && !defined(__linux__) && !defined(__FreeBSD__))
-#define STUB_ENTRY(n) NS_IMETHOD Stub##n() MOZ_OVERRIDE;
+#define STUB_ENTRY(n) NS_IMETHOD Stub##n();
 #else
-#define STUB_ENTRY(n) NS_IMETHOD Stub##n(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t) MOZ_OVERRIDE;
+#define STUB_ENTRY(n) NS_IMETHOD Stub##n(uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t,uint64_t);
 #endif
 
-#define SENTINEL_ENTRY(n) NS_IMETHOD Sentinel##n() MOZ_OVERRIDE;
+#define SENTINEL_ENTRY(n) NS_IMETHOD Sentinel##n();
 
 class nsXPTCStubBase MOZ_FINAL : public nsIXPTCStubBase
 {

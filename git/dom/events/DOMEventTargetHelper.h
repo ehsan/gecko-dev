@@ -43,13 +43,6 @@ public:
   {
     BindToOwner(aWindow);
   }
-  explicit DOMEventTargetHelper(nsIGlobalObject* aGlobalObject)
-    : mParentObject(nullptr)
-    , mOwnerWindow(nullptr)
-    , mHasOrHasHadOwnerWindow(false)
-  {
-    BindToOwner(aGlobalObject);
-  }
   explicit DOMEventTargetHelper(DOMEventTargetHelper* aOther)
     : mParentObject(nullptr)
     , mOwnerWindow(nullptr)

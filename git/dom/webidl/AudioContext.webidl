@@ -25,7 +25,6 @@ interface AudioContext : EventTarget {
     [NewObject, Throws]
     AudioBuffer createBuffer(unsigned long numberOfChannels, unsigned long length, float sampleRate);
 
-    [Throws]
     Promise<AudioBuffer> decodeAudioData(ArrayBuffer audioData,
                                          optional DecodeSuccessCallback successCallback,
                                          optional DecodeErrorCallback errorCallback);

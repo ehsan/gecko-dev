@@ -4471,11 +4471,11 @@ static void DrawForcedBackgroundColor(DrawTarget& aDrawTarget,
   }
 }
 
-class LayerTimelineMarker : public TimelineMarker
+class LayerTimelineMarker : public nsDocShell::TimelineMarker
 {
 public:
   LayerTimelineMarker(nsDocShell* aDocShell, const nsIntRegion& aRegion)
-    : TimelineMarker(aDocShell, "Layer", TRACING_EVENT)
+    : nsDocShell::TimelineMarker(aDocShell, "Layer", TRACING_EVENT)
     , mRegion(aRegion)
   {
   }
@@ -4653,7 +4653,7 @@ FrameLayerBuilder::DrawPaintedLayer(PaintedLayer* aLayer,
     bool isRecording;
     docShell->GetRecordProfileTimelineMarkers(&isRecording);
     if (isRecording) {
-      mozilla::UniquePtr<TimelineMarker> marker =
+      mozilla::UniquePtr<nsDocShell::TimelineMarker> marker =
         MakeUnique<LayerTimelineMarker>(docShell, aRegionToDraw);
       docShell->AddProfileTimelineMarker(marker);
     }

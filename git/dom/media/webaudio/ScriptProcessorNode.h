@@ -88,7 +88,7 @@ public:
 
   using DOMEventTargetHelper::DispatchTrustedEvent;
 
-  virtual const char* NodeType() const MOZ_OVERRIDE
+  virtual const char* NodeType() const
   {
     return "ScriptProcessorNode";
   }

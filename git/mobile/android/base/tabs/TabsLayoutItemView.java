@@ -32,7 +32,7 @@ public class TabsLayoutItemView extends LinearLayout
     private int mTabId;
     private TextView mTitle;
     private ImageView mThumbnail;
-    private ImageView mCloseButton;
+    private ImageButton mCloseButton;
     private TabThumbnailWrapper mThumbnailWrapper;
 
     public TabsLayoutItemView(Context context, AttributeSet attrs) {
@@ -48,11 +48,6 @@ public class TabsLayoutItemView extends LinearLayout
         }
 
         return drawableState;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return true;
     }
 
     @Override
@@ -92,7 +87,7 @@ public class TabsLayoutItemView extends LinearLayout
         super.onFinishInflate();
         mTitle = (TextView) findViewById(R.id.title);
         mThumbnail = (ImageView) findViewById(R.id.thumbnail);
-        mCloseButton = (ImageView) findViewById(R.id.close);
+        mCloseButton = (ImageButton) findViewById(R.id.close);
         mThumbnailWrapper = (TabThumbnailWrapper) findViewById(R.id.wrapper);
 
         if (NewTabletUI.isEnabled(getContext())) {

@@ -783,7 +783,7 @@ class TransportConduitTest : public ::testing::Test
 
     mozilla::SyncRunnable::DispatchToThread(gMainThread,
                                             WrapRunnable(
-                                                videoSession.forget().take(),
+                                                videoSession.forget().drop(),
                                                 &mozilla::VideoSessionConduit::Release));
   }
 

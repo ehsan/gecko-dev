@@ -552,18 +552,11 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
 
     if (status == NS_NET_STATUS_SENDING_TO) {
         // suppress progress when only writing request headers
-        if (!mHasRequestBody) {
-            LOG(("nsHttpTransaction::OnTransportStatus %p "
-                 "SENDING_TO without request body\n", this));
+        if (!mHasRequestBody)
             return;
-        }
 
         nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(mRequestStream);
-        if (!seekable) {
-            LOG(("nsHttpTransaction::OnTransportStatus %p "
-                 "SENDING_TO without seekable request stream\n", this));
-            return;
-        }
+        MOZ_ASSERT(seekable, "Request stream isn't seekable?!?");
 
         int64_t prog = 0;
         seekable->Tell(&prog);
