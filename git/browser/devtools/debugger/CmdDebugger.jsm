@@ -1,18 +1,23 @@
+/* -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ft=javascript ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
 "use strict";
 
-const { Cc, Ci, Cu } = require("chrome");
-const gcli = require("gcli/index");
+const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-loader.lazyImporter(this, "gDevTools", "resource:///modules/devtools/gDevTools.jsm");
+this.EXPORTED_SYMBOLS = [ ];
 
-/**
- * The commands and converters that are exported to GCLI
- */
-exports.items = [];
+let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
+var gcli = devtools.require('gcli/index');
+Cu.import('resource://gre/modules/XPCOMUtils.jsm');
+
+XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
+  "resource:///modules/devtools/gDevTools.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "console",
+  "resource://gre/modules/devtools/Console.jsm");
 
 /**
  * Utility to get access to the current breakpoint list.
@@ -51,7 +56,7 @@ function getAllBreakpoints(dbg) {
 /**
  * 'break' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "break",
   description: gcli.lookup("breakDesc"),
   manual: gcli.lookup("breakManual")
@@ -60,7 +65,7 @@ exports.items.push({
 /**
  * 'break list' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "break list",
   description: gcli.lookup("breaklistDesc"),
   returnType: "breakpoints",
@@ -70,8 +75,7 @@ exports.items.push({
   }
 });
 
-exports.items.push({
-  item: "converter",
+gcli.addConverter({
   from: "breakpoints",
   to: "view",
   exec: function(breakpoints, context) {
@@ -125,7 +129,7 @@ var MAX_LABEL_LENGTH = 20;
 /**
  * 'break add' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "break add",
   description: gcli.lookup("breakaddDesc"),
   manual: gcli.lookup("breakaddManual")
@@ -134,7 +138,7 @@ exports.items.push({
 /**
  * 'break add line' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "break add line",
   description: gcli.lookup("breakaddlineDesc"),
   params: [
@@ -181,7 +185,7 @@ exports.items.push({
 /**
  * 'break del' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "break del",
   description: gcli.lookup("breakdelDesc"),
   params: [
@@ -227,7 +231,7 @@ exports.items.push({
 /**
  * 'dbg' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "dbg",
   description: gcli.lookup("dbgDesc"),
   manual: gcli.lookup("dbgManual")
@@ -236,7 +240,7 @@ exports.items.push({
 /**
  * 'dbg open' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "dbg open",
   description: gcli.lookup("dbgOpen"),
   params: [],
@@ -249,7 +253,7 @@ exports.items.push({
 /**
  * 'dbg close' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "dbg close",
   description: gcli.lookup("dbgClose"),
   params: [],
@@ -265,7 +269,7 @@ exports.items.push({
 /**
  * 'dbg interrupt' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "dbg interrupt",
   description: gcli.lookup("dbgInterrupt"),
   params: [],
@@ -286,7 +290,7 @@ exports.items.push({
 /**
  * 'dbg continue' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "dbg continue",
   description: gcli.lookup("dbgContinue"),
   params: [],
@@ -307,7 +311,7 @@ exports.items.push({
 /**
  * 'dbg step' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "dbg step",
   description: gcli.lookup("dbgStepDesc"),
   manual: gcli.lookup("dbgStepManual")
@@ -316,7 +320,7 @@ exports.items.push({
 /**
  * 'dbg step over' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "dbg step over",
   description: gcli.lookup("dbgStepOverDesc"),
   params: [],
@@ -337,7 +341,7 @@ exports.items.push({
 /**
  * 'dbg step in' command
  */
-exports.items.push({
+gcli.addCommand({
   name: 'dbg step in',
   description: gcli.lookup("dbgStepInDesc"),
   params: [],
@@ -358,7 +362,7 @@ exports.items.push({
 /**
  * 'dbg step over' command
  */
-exports.items.push({
+gcli.addCommand({
   name: 'dbg step out',
   description: gcli.lookup("dbgStepOutDesc"),
   params: [],
@@ -379,7 +383,7 @@ exports.items.push({
 /**
  * 'dbg list' command
  */
-exports.items.push({
+gcli.addCommand({
   name: "dbg list",
   description: gcli.lookup("dbgListSourcesDesc"),
   params: [],
@@ -425,7 +429,7 @@ exports.items.push({
     return gcli.lookup(cmd.l10nPrefix + id);
   };
 
-  exports.items.push({
+  gcli.addCommand({
     name: "dbg " + cmd.name,
     description: lookup("Desc"),
     params: [

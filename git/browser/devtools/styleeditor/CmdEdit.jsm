@@ -2,11 +2,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
+const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
-const gcli = require("gcli/index");
+this.EXPORTED_SYMBOLS = [ ];
 
-exports.items = [{
+let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
+const gcli = devtools.require("gcli/index");
+
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
+                                  "resource:///modules/devtools/gDevTools.jsm");
+
+/**
+ * 'edit' command
+ */
+gcli.addCommand({
   name: "edit",
   description: gcli.lookup("editDesc"),
   manual: gcli.lookup("editManual2"),
@@ -32,11 +42,10 @@ exports.items = [{
    ],
    exec: function(args, context) {
      let target = context.environment.target;
-     let gDevTools = require("resource:///modules/devtools/gDevTools.jsm").gDevTools;
      return gDevTools.showToolbox(target, "styleeditor").then(function(toolbox) {
        let styleEditor = toolbox.getCurrentPanel();
        styleEditor.selectStyleSheet(args.resource.element, args.line);
        return null;
      });
    }
-}];
+});

@@ -750,14 +750,13 @@ SyncEngine.prototype = {
 
   get toFetch() this._toFetch,
   set toFetch(val) {
-    let cb = (error) => this._log.error(Utils.exceptionStr(error));
     // Coerce the array to a string for more efficient comparison.
     if (val + "" == this._toFetch) {
       return;
     }
     this._toFetch = val;
     Utils.namedTimer(function () {
-      Utils.jsonSave("toFetch/" + this.name, this, val, cb);
+      Utils.jsonSave("toFetch/" + this.name, this, val);
     }, 0, this, "_toFetchDelay");
   },
 
@@ -773,14 +772,13 @@ SyncEngine.prototype = {
 
   get previousFailed() this._previousFailed,
   set previousFailed(val) {
-    let cb = (error) => this._log.error(Utils.exceptionStr(error));
     // Coerce the array to a string for more efficient comparison.
     if (val + "" == this._previousFailed) {
       return;
     }
     this._previousFailed = val;
     Utils.namedTimer(function () {
-      Utils.jsonSave("failed/" + this.name, this, val, cb);
+      Utils.jsonSave("failed/" + this.name, this, val);
     }, 0, this, "_previousFailedDelay");
   },
 

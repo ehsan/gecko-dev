@@ -109,6 +109,3 @@ add_test(function test_load_logging() {
   }));
 });
 
-add_task(function* test_undefined_callback() {
-  yield Utils.jsonSave("foo", {}, ["v1", "v2"]);
-});

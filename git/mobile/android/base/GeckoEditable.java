@@ -767,12 +767,12 @@ final class GeckoEditable
             mGeckoFocused = false;
             mSuppressCompositions = false;
             GeckoAppShell.getEventDispatcher().
-                unregisterEventListener("TextSelection:DraggingHandle", this);
+                unregisterEventListener("TextSelection:IMECompositions", this);
         } else if (type == NOTIFY_IME_OF_FOCUS) {
             mGeckoFocused = true;
             mSuppressCompositions = false;
             GeckoAppShell.getEventDispatcher().
-                registerEventListener("TextSelection:DraggingHandle", this);
+                registerEventListener("TextSelection:IMECompositions", this);
         }
     }
 
@@ -1228,11 +1228,11 @@ final class GeckoEditable
 
     @Override
     public void handleMessage(String event, JSONObject message) {
-        if (!"TextSelection:DraggingHandle".equals(event)) {
+        if (!"TextSelection:IMECompositions".equals(event)) {
             return;
         }
 
-        mSuppressCompositions = message.optBoolean("dragging", false);
+        mSuppressCompositions = message.optBoolean("suppress", false);
     }
 }
 

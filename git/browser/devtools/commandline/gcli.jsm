@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-'use strict';
+"use strict";
 
-var Cu = require('chrome').Cu;
-module.exports = exports =
-    Cu.import('resource://gre/modules/commonjs/sdk/core/promise.js', {}).Promise;
+this.EXPORTED_SYMBOLS = [ "gcli" ];
+Components.utils.import("resource://gre/modules/devtools/gcli.jsm");

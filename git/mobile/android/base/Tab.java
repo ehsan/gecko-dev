@@ -69,7 +69,6 @@ public class Tab {
     private static final int MAX_HISTORY_LIST_SIZE = 50;
     private volatile int mLoadProgress;
     private volatile int mRecordingCount = 0;
-    private String mMostRecentHomePanel;
 
     public static final int STATE_DELAYED = 0;
     public static final int STATE_LOADING = 1;
@@ -187,14 +186,6 @@ public class Tab {
 
     public BitmapDrawable getThumbnail() {
         return mThumbnail;
-    }
-
-    public String getMostRecentHomePanel() {
-        return mMostRecentHomePanel;
-    }
-
-    public void setMostRecentHomePanel(String panelId) {
-        mMostRecentHomePanel = panelId;
     }
 
     public Bitmap getThumbnailBitmap(int width, int height) {

@@ -21,7 +21,6 @@ public final class HelperInitializer {
 
         DeviceHelper.init(context);
         GeckoHelper.init(context);
-        JavascriptBridge.init(context);
         NavigationHelper.init(context);
         WaitHelper.init(context);
     }

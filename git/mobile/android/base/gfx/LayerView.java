@@ -327,10 +327,8 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
         }
     }
 
-    // Don't expose GeckoLayerClient to things outside this package; only expose it as an Object
-    GeckoLayerClient getLayerClient() { return mLayerClient; }
-    public Object getLayerClientObject() { return mLayerClient; }
-
+    @RobocopTarget
+    public GeckoLayerClient getLayerClient() { return mLayerClient; }
     public PanZoomController getPanZoomController() { return mPanZoomController; }
     public LayerMarginsAnimator getLayerMarginsAnimator() { return mMarginsAnimator; }
 
@@ -702,16 +700,5 @@ public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener
             setZoomConstraints(tab.getZoomConstraints());
             setIsRTL(tab.getIsRTL());
         }
-    }
-
-    // Public hooks for listening to metrics changing
-
-    public interface OnMetricsChangedListener {
-        public void onMetricsChanged(ImmutableViewportMetrics viewport);
-        public void onPanZoomStopped();
-    }
-
-    public void setOnMetricsChangedListener(OnMetricsChangedListener listener) {
-        mLayerClient.setOnMetricsChangedListener(listener);
     }
 }
