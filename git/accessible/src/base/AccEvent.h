@@ -158,7 +158,7 @@ protected:
   nsRefPtr<nsAccessible> mAccessible;
   nsCOMPtr<nsINode> mNode;
 
-  friend class NotificationController;
+  friend class nsAccEventQueue;
 };
 
 
@@ -230,7 +230,7 @@ private:
   PRBool mIsInserted;
   nsString mModifiedText;
 
-  friend class NotificationController;
+  friend class nsAccEventQueue;
 };
 
 
@@ -241,7 +241,7 @@ class AccMutationEvent: public AccEvent
 {
 public:
   AccMutationEvent(PRUint32 aEventType, nsAccessible* aTarget,
-                   nsINode* aTargetNode);
+                   nsINode* aTargetNode, EIsFromUserInput aIsFromUserInput);
 
   // Event
   static const EventGroup kEventGroup = eMutationEvent;
@@ -257,7 +257,7 @@ public:
 protected:
   nsRefPtr<AccTextChangeEvent> mTextChangeEvent;
 
-  friend class NotificationController;
+  friend class nsAccEventQueue;
 };
 
 
@@ -267,7 +267,8 @@ protected:
 class AccHideEvent: public AccMutationEvent
 {
 public:
-  AccHideEvent(nsAccessible* aTarget, nsINode* aTargetNode);
+  AccHideEvent(nsAccessible* aTarget, nsINode* aTargetNode,
+               EIsFromUserInput aIsFromUserInput);
 
   // Event
   static const EventGroup kEventGroup = eHideEvent;
@@ -281,7 +282,7 @@ protected:
   nsRefPtr<nsAccessible> mNextSibling;
   nsRefPtr<nsAccessible> mPrevSibling;
 
-  friend class NotificationController;
+  friend class nsAccEventQueue;
 };
 
 
@@ -291,7 +292,8 @@ protected:
 class AccShowEvent: public AccMutationEvent
 {
 public:
-  AccShowEvent(nsAccessible* aTarget, nsINode* aTargetNode);
+  AccShowEvent(nsAccessible* aTarget, nsINode* aTargetNode,
+               EIsFromUserInput aIsFromUserInput);
 
   // Event
   static const EventGroup kEventGroup = eShowEvent;

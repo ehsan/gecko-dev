@@ -61,11 +61,7 @@ public:
 
     CGContextRef GetCGContext() { return mCGContext; }
 
-    virtual PRInt32 GetDefaultContextFlags() const
-    {
-      return gfxContext::FLAG_DISABLE_SNAPPING |
-             gfxContext::FLAG_DISABLE_COPY_BACKGROUND;
-    }
+    virtual PRInt32 GetDefaultContextFlags() const { return gfxContext::FLAG_DISABLE_SNAPPING; }
 
 protected:
     CGContextRef mCGContext;

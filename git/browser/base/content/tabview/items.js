@@ -939,9 +939,12 @@ let Items = {
   //   width value of the child items (`childWidth`) and the number of columns
   //   (`columns`) is returned.
   arrange: function Items_arrange(items, bounds, options) {
-    if (!options)
+    if (typeof options == 'undefined')
       options = {};
-    var animate = "animate" in options ? options.animate : true;
+
+    var animate = true;
+    if (typeof options.animate != 'undefined')
+      animate = options.animate;
     var immediately = !animate;
 
     var rects = [];

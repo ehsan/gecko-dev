@@ -423,11 +423,7 @@ protected:
     }
     aCallback(this, aContext, aRegionToDraw, aRegionToInvalidate,
               aCallbackData);
-    // Everything that's visible has been validated. Do this instead of
-    // OR-ing with aRegionToDraw, since that can lead to a very complex region
-    // here (OR doesn't automatically simplify to the simplest possible
-    // representation of a region.)
-    mValidRegion.Or(mValidRegion, mVisibleRegion);
+    mValidRegion.Or(mValidRegion, aRegionToDraw);
   }
 
   Buffer mBuffer;

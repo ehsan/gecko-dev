@@ -177,18 +177,6 @@
         ]]></getter>
       </property>
 
-      <method name="updateWindowResizers">
-        <body><![CDATA[
-          if (!window.gShowPageResizers)
-            return;
-
-          var show = document.getElementById("addon-bar").collapsed;
-          for (let i = 0; i < this.browsers.length; i++) {
-            this.browsers[i].showWindowResizer = show;
-          }
-        ]]></body>
-      </method>
-
       <method name="pinTab">
         <parameter name="aTab"/>
         <body><![CDATA[
@@ -1224,6 +1212,8 @@
             }
 
             this.tabContainer.appendChild(t);
+            if (this.tabContainer.getAttribute("pinnedonly") == "true")
+              this.tabContainer._positionPinnedTabs();
 
             if (this.tabContainer.mTabstrip._isRTLScrollbox) {
               /* In RTL UI, the tab is visually added to the left side of the
@@ -1248,11 +1238,6 @@
             b.setAttribute("message", "true");
             b.setAttribute("contextmenu", this.getAttribute("contentcontextmenu"));
             b.setAttribute("tooltip", this.getAttribute("contenttooltip"));
-
-            if (window.gShowPageResizers && document.getElementById("addon-bar").collapsed) {
-              b.setAttribute("showresizer", "true");
-            }
-
             if (this.hasAttribute("autocompletepopup"))
               b.setAttribute("autocompletepopup", this.getAttribute("autocompletepopup"));
             b.setAttribute("autoscrollpopup", this._autoScrollPopup.id);
@@ -1626,8 +1611,6 @@
             if (browser == this.mCurrentBrowser)
               this.mCurrentBrowser = null;
 
-            var wasPinned = aTab.pinned;
-
             // Invalidate browsers cache, as the tab is removed from the
             // tab container.
             this._browsers = null;
@@ -1640,8 +1623,7 @@
               this.tabs[i]._tPos = i;
 
             if (!this._windowIsClosing) {
-              if (wasPinned)
-                this.tabContainer._positionPinnedTabs();
+              this.tabContainer._positionPinnedTabs();
 
               // update tab close buttons state
               this.tabContainer.adjustTabstrip();
@@ -2449,7 +2431,6 @@
           this.appendChild(this._autoScrollPopup);
           this.mCurrentBrowser.setAttribute("autoscrollpopup", this._autoScrollPopup.id);
           this.mCurrentBrowser.droppedLinkHandler = handleDroppedLink;
-          this.updateWindowResizers();
         ]]>
       </constructor>
 
@@ -2815,36 +2796,30 @@
       <method name="_positionPinnedTabs">
         <body><![CDATA[
           var numPinned = this.tabbrowser._numPinnedTabs;
-          var doPosition = this.getAttribute("overflow") == "true" &&
-                           numPinned > 0 &&
-                           numPinned < this.tabbrowser.visibleTabs.length;
+          var pinnedOnly = (numPinned == this.tabbrowser.visibleTabs.length);
 
-          if (doPosition) {
-            this.setAttribute("positionpinnedtabs", "true");
+          if (pinnedOnly)
+            this.setAttribute("pinnedonly", "true");
+          else
+            this.removeAttribute("pinnedonly");
 
-            let scrollButtonWidth = this.mTabstrip._scrollButtonDown.scrollWidth;
-            let paddingStart = this.mTabstrip.scrollboxPaddingStart;
-            let width = 0;
+          var scrollButtonWidth = (this.getAttribute("overflow") != "true" || pinnedOnly) ? 0 :
+                                  this.mTabstrip._scrollButtonDown.scrollWidth;
+          var paddingStart = this.mTabstrip.scrollboxPaddingStart;
+          var width = 0;
 
-            for (let i = numPinned - 1; i >= 0; i--) {
-              let tab = this.childNodes[i];
-              width += tab.scrollWidth;
+          for (var i = numPinned - 1; i >= 0; i--) {
+            let tab = this.childNodes[i];
+            width += pinnedOnly ? 0 : tab.scrollWidth;
+            if (this.getAttribute("overflow") != "true")
+              tab.style.MozMarginStart = - (width + scrollButtonWidth) + "px";
+            else
               tab.style.MozMarginStart = - (width + scrollButtonWidth + paddingStart) + "px";
-            }
-
-            this.style.MozMarginStart = width + paddingStart + "px";
-
-          } else {
-            this.removeAttribute("positionpinnedtabs");
-
-            for (let i = 0; i < numPinned; i++) {
-              let tab = this.childNodes[i];
-              tab.style.MozMarginStart = "";
-            }
-
-            this.style.MozMarginStart = "";
           }
-
+          if (width == 0 || this.getAttribute("overflow") != "true")
+            this.style.MozMarginStart = width + "px";
+          else
+            this.style.MozMarginStart = width + paddingStart + "px";
           this.mTabstrip.ensureElementIsVisible(this.selectedItem, false);
         ]]></body>
       </method>

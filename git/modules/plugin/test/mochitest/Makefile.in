@@ -45,7 +45,6 @@ include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
 _MOCHITEST_FILES = \
-  utils.js \
   test_getauthenticationinfo.html \
   test_npobject_getters.html \
   test_npruntime_npnevaluate.html \
@@ -112,7 +111,6 @@ _MOCHITEST_FILES += \
 endif
 
 _MOCHICHROME_FILES = \
-  utils.js \
   test_npruntime.xul   \
   test_privatemode.xul \
   test_wmode.xul \
@@ -124,13 +122,11 @@ _MOCHITEST_FILES += \
   test_visibility.html \
   $(NULL)
 
-ifneq ($(OS_ARCH),WINNT)
 _MOCHICHROME_FILES += \
   test_xulbrowser_plugin_visibility.xul \
   xulbrowser_plugin_visibility.xul \
   plugin_visibility_loader.html \
   $(NULL)
-endif
 endif
 
 ifdef MOZ_CRASHREPORTER

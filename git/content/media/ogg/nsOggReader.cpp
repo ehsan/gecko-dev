@@ -1643,8 +1643,8 @@ nsresult nsOggReader::GetBuffered(nsTimeRanges* aBuffered, PRInt64 aStartTime)
       PRInt64 endTime = FindEndTime(endOffset, PR_TRUE, &state);
       if (endTime != -1) {
         endTime -= aStartTime;
-        aBuffered->Add(static_cast<double>(startTime) / 1000.0,
-                       static_cast<double>(endTime) / 1000.0);
+        aBuffered->Add(static_cast<float>(startTime) / 1000.0f,
+                       static_cast<float>(endTime) / 1000.0f);
       }
     }
     startOffset = stream->GetNextCachedData(endOffset);

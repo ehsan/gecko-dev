@@ -1386,9 +1386,8 @@ nsFrameLoader::MaybeCreateDocShell()
     return NS_ERROR_UNEXPECTED;
   }
 
-  if (doc->GetDisplayDocument() || !doc->IsActive()) {
-    // Don't allow subframe loads in external reference documents, nor
-    // in non-active documents.
+  if (doc->GetDisplayDocument()) {
+    // Don't allow subframe loads in external reference documents
     return NS_ERROR_NOT_AVAILABLE;
   }
 

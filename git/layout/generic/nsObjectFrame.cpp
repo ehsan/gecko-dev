@@ -1718,13 +1718,10 @@ nsObjectFrame::PrintPlugin(nsIRenderingContext& aRenderingContext,
 }
 
 ImageContainer*
-nsObjectFrame::GetImageContainer(LayerManager* aManager)
+nsObjectFrame::GetImageContainer()
 {
-  nsRefPtr<LayerManager> manager = aManager;
-
-  if (!manager) {
-    manager = nsContentUtils::LayerManagerForDocument(mContent->GetOwnerDoc());
-  }
+  nsRefPtr<LayerManager> manager =
+    nsContentUtils::LayerManagerForDocument(mContent->GetOwnerDoc());
   if (!manager) {
     return nsnull;
   }
@@ -1844,7 +1841,7 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
 
   NS_ASSERTION(layer->GetType() == Layer::TYPE_IMAGE, "ObjectFrame works only with ImageLayer");
   // Create image
-  nsRefPtr<ImageContainer> container = GetImageContainer(aManager);
+  nsRefPtr<ImageContainer> container = GetImageContainer();
   if (!container)
     return nsnull;
 
@@ -6289,9 +6286,16 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
           mPluginWindow->window = nsnull;
 #ifdef MOZ_X11
           // Fill in the display field.
+          nsIWidget* win = mObjectFrame->GetNearestWidget();
           NPSetWindowCallbackStruct* ws_info = 
             static_cast<NPSetWindowCallbackStruct*>(mPluginWindow->ws_info);
-          ws_info->display = DefaultXDisplay();
+          if (win) {
+            ws_info->display =
+              static_cast<Display*>(win->GetNativeData(NS_NATIVE_DISPLAY));
+          }
+          else {
+            ws_info->display = DefaultXDisplay();
+          }
 
           nsCAutoString description;
           GetPluginDescription(description);

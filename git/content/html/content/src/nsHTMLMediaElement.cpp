@@ -1072,14 +1072,14 @@ NS_IMETHODIMP nsHTMLMediaElement::GetSeeking(PRBool *aSeeking)
   return NS_OK;
 }
 
-/* attribute double currentTime; */
-NS_IMETHODIMP nsHTMLMediaElement::GetCurrentTime(double *aCurrentTime)
+/* attribute float currentTime; */
+NS_IMETHODIMP nsHTMLMediaElement::GetCurrentTime(float *aCurrentTime)
 {
   *aCurrentTime = mDecoder ? mDecoder->GetCurrentTime() : 0.0;
   return NS_OK;
 }
 
-NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
+NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(float aCurrentTime)
 {
   StopSuspendingAfterFirstFrame();
 
@@ -1100,8 +1100,8 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
   }
 
   // Clamp the time to [0, duration] as required by the spec
-  double clampedTime = NS_MAX(0.0, aCurrentTime);
-  double duration = mDecoder->GetDuration();
+  float clampedTime = NS_MAX(0.0f, aCurrentTime);
+  float duration = mDecoder->GetDuration();
   if (duration >= 0) {
     clampedTime = NS_MIN(clampedTime, duration);
   }
@@ -1118,10 +1118,10 @@ NS_IMETHODIMP nsHTMLMediaElement::SetCurrentTime(double aCurrentTime)
   return rv;
 }
 
-/* readonly attribute double duration; */
-NS_IMETHODIMP nsHTMLMediaElement::GetDuration(double *aDuration)
+/* readonly attribute float duration; */
+NS_IMETHODIMP nsHTMLMediaElement::GetDuration(float *aDuration)
 {
-  *aDuration = mDecoder ? mDecoder->GetDuration() : std::numeric_limits<double>::quiet_NaN();
+  *aDuration = mDecoder ? mDecoder->GetDuration() : std::numeric_limits<float>::quiet_NaN();
   return NS_OK;
 }
 
@@ -1158,15 +1158,15 @@ NS_IMETHODIMP nsHTMLMediaElement::Pause()
   return NS_OK;
 }
 
-/* attribute double volume; */
-NS_IMETHODIMP nsHTMLMediaElement::GetVolume(double *aVolume)
+/* attribute float volume; */
+NS_IMETHODIMP nsHTMLMediaElement::GetVolume(float *aVolume)
 {
   *aVolume = mVolume;
 
   return NS_OK;
 }
 
-NS_IMETHODIMP nsHTMLMediaElement::SetVolume(double aVolume)
+NS_IMETHODIMP nsHTMLMediaElement::SetVolume(float aVolume)
 {
   if (aVolume < 0.0f || aVolume > 1.0f)
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
@@ -1815,7 +1815,7 @@ nsresult nsHTMLMediaElement::InitializeDecoderAsClone(nsMediaDecoder* aOriginal)
     return NS_ERROR_FAILURE;
   }
 
-  double duration = aOriginal->GetDuration();
+  float duration = aOriginal->GetDuration();
   if (duration >= 0) {
     decoder->SetDuration(PRInt64(NS_round(duration * 1000)));
     decoder->SetSeekable(aOriginal->GetSeekable());
@@ -2592,7 +2592,7 @@ void nsHTMLMediaElement::FireTimeUpdate(PRBool aPeriodic)
   NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
 
   TimeStamp now = TimeStamp::Now();
-  double time = 0;
+  float time = 0;
   GetCurrentTime(&time);
 
   // Fire a timupdate event if this is not a periodic update (i.e. it's a

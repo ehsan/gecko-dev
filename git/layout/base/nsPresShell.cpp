@@ -700,8 +700,7 @@ class PresShell : public nsIPresShell, public nsIViewObserver,
                   public nsStubDocumentObserver,
                   public nsISelectionController, public nsIObserver,
                   public nsSupportsWeakReference,
-                  public nsIPresShell_MOZILLA_2_0_BRANCH,
-                  public nsIPresShell_MOZILLA_2_0_BRANCH2
+                  public nsIPresShell_MOZILLA_2_0_BRANCH
 {
 public:
   PresShell();
@@ -971,12 +970,6 @@ public:
   virtual NS_HIDDEN_(nsresult) SetIsActive(PRBool aIsActive);
 
   virtual PRBool GetIsViewportOverridden() { return mViewportOverridden; }
-
-  virtual PRBool IsLayoutFlushObserver()
-  {
-    return GetPresContext()->RefreshDriver()->
-      IsLayoutFlushObserver(this);
-  }
 
 protected:
   virtual ~PresShell();
@@ -1680,11 +1673,10 @@ PresShell::PresShell()
   sLiveShells->PutEntry(this);
 }
 
-NS_IMPL_ISUPPORTS10(PresShell, nsIPresShell, nsIDocumentObserver,
+NS_IMPL_ISUPPORTS9(PresShell, nsIPresShell, nsIDocumentObserver,
                    nsIViewObserver, nsISelectionController,
                    nsISelectionDisplay, nsIObserver, nsISupportsWeakReference,
-                   nsIMutationObserver, nsIPresShell_MOZILLA_2_0_BRANCH,
-                   nsIPresShell_MOZILLA_2_0_BRANCH2)
+                   nsIMutationObserver, nsIPresShell_MOZILLA_2_0_BRANCH)
 
 PresShell::~PresShell()
 {
@@ -5861,8 +5853,6 @@ nsresult PresShell::AddCanvasBackgroundColorItem(nsDisplayListBuilder& aBuilder,
     return NS_OK;
 
   nscolor bgcolor = NS_ComposeColors(aBackstopColor, mCanvasBackgroundColor);
-  if (NS_GET_A(bgcolor) == 0)
-    return NS_OK;
 
   // To make layers work better, we want to avoid having a big non-scrolled 
   // color background behind a scrolled transparent background. Instead,
@@ -6103,13 +6093,12 @@ PresShell::Paint(nsIView*           aDisplayRoot,
                            NSCoordToFloat(bounds__.YMost()));
 #endif
 
+  AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Paint);
+
   NS_ASSERTION(!mIsDestroying, "painting a destroyed PresShell");
   NS_ASSERTION(aDisplayRoot, "null view");
   NS_ASSERTION(aViewToPaint, "null view");
   NS_ASSERTION(aWidgetToPaint, "Can't paint without a widget");
-
-  nsPresContext* presContext = GetPresContext();
-  AUTO_LAYOUT_PHASE_ENTRY_POINT(presContext, Paint);
 
   nsIFrame* frame = aPaintDefaultBackground
       ? nsnull : static_cast<nsIFrame*>(aDisplayRoot->GetClientData());
@@ -6142,7 +6131,6 @@ PresShell::Paint(nsIView*           aDisplayRoot,
                               nsLayoutUtils::PAINT_WIDGET_LAYERS);
 
     frame->EndDeferringInvalidatesForDisplayRoot();
-    presContext->NotifyDidPaintForSubtree();
     return NS_OK;
   }
 
@@ -6171,7 +6159,6 @@ PresShell::Paint(nsIView*           aDisplayRoot,
   if (frame) {
     frame->EndDeferringInvalidatesForDisplayRoot();
   }
-  presContext->NotifyDidPaintForSubtree();
   return NS_OK;
 }
 
