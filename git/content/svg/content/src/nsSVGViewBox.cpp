@@ -277,7 +277,7 @@ nsSVGViewBox::SMILViewBox
   }
   nsSMILValue val(&SVGViewBoxSMILType::sSingleton);
   // Check for OOM when the nsSMILValue ctor called SVGViewBoxSMILType::Init:
-  if (val.IsNull()) {
+  if (!val.mU.mPtr) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   *static_cast<nsSVGViewBoxRect*>(val.mU.mPtr) = viewBox;
@@ -291,7 +291,7 @@ nsSVGViewBox::SMILViewBox::GetBaseValue() const
 {
   nsSMILValue val(&SVGViewBoxSMILType::sSingleton);
   // Check for OOM when the nsSMILValue ctor called SVGViewBoxSMILType::Init:
-  if (!val.IsNull()) {
+  if (val.mU.mPtr) {
     *static_cast<nsSVGViewBoxRect*>(val.mU.mPtr) = mVal->mBaseVal;
   }
   return val;
