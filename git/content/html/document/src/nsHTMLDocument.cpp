@@ -134,7 +134,8 @@
 #include "nsIEditingSession.h"
 #include "nsIEditor.h"
 #include "nsNodeInfoManager.h"
-#include "nsIEditor.h"
+#include "nsIPlaintextEditor.h"
+#include "nsIHTMLEditor.h"
 #include "nsIEditorDocShell.h"
 #include "nsIEditorStyleSheets.h"
 #include "nsIInlineSpellChecker.h"
@@ -212,11 +213,10 @@ ReportUseOfDeprecatedMethod(nsHTMLDocument* aDoc, const char* aWarning)
   nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                   aWarning,
                                   nsnull, 0,
-                                  static_cast<nsIDocument*>(aDoc)->
-                                    GetDocumentURI(),
+                                  nsnull,
                                   EmptyString(), 0, 0,
                                   nsIScriptError::warningFlag,
-                                  "DOM Events");
+                                  "DOM Events", aDoc);
 }
 
 static nsresult
@@ -2150,7 +2150,7 @@ nsHTMLDocument::WriteCommon(const nsAString& aText,
                                       mDocumentURI,
                                       EmptyString(), 0, 0,
                                       nsIScriptError::warningFlag,
-                                      "DOM Events");
+                                      "DOM Events", this);
       return NS_OK;
     }
     mWriteState = eDocumentClosed;
@@ -2167,7 +2167,7 @@ nsHTMLDocument::WriteCommon(const nsAString& aText,
                                       mDocumentURI,
                                       EmptyString(), 0, 0,
                                       nsIScriptError::warningFlag,
-                                      "DOM Events");
+                                      "DOM Events", this);
       return NS_OK;
     }
     rv = Open();
@@ -2524,11 +2524,10 @@ nsHTMLDocument::GetSelection(nsAString& aReturn)
 {
   aReturn.Truncate();
 
-  nsCOMPtr<nsIConsoleService> consoleService
-    (do_GetService("@mozilla.org/consoleservice;1"));
-
-  if (consoleService) {
-    consoleService->LogStringMessage(NS_LITERAL_STRING("Deprecated method document.getSelection() called.  Please use window.getSelection() instead.").get());
+  nsCOMPtr<nsIJSContextStack> stack = do_GetService("@mozilla.org/js/xpc/ContextStack;1");
+  JSContext* ccx = nsnull;
+  if (stack && NS_SUCCEEDED(stack->Peek(&ccx)) && ccx) {
+    JS_ReportWarning(ccx, "Deprecated method document.getSelection() called.  Please use window.getSelection() instead.");
   }
 
   nsCOMPtr<nsIDOMWindow> window = do_QueryInterface(GetScopeObject());
@@ -3263,6 +3262,22 @@ nsHTMLDocument::EditingStateChanged()
   nsresult rv;
   nsCOMPtr<nsIEditingSession> editSession = do_GetInterface(docshell, &rv);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCOMPtr<nsIEditor> existingEditor;
+  editSession->GetEditorForWindow(window, getter_AddRefs(existingEditor));
+  if (existingEditor) {
+    // We might already have an editor if it was set up for mail, let's see
+    // if this is actually the case.
+    nsCOMPtr<nsIHTMLEditor> htmlEditor = do_QueryInterface(existingEditor);
+    NS_ABORT_IF_FALSE(htmlEditor, "If we have an editor, it must be an HTML editor");
+    PRUint32 flags = 0;
+    existingEditor->GetFlags(&flags);
+    if (flags & nsIPlaintextEditor::eEditorMailMask) {
+      // We already have a mail editor, then we should not attempt to create
+      // another one.
+      return NS_OK;
+    }
+  }
 
   if (!HasPresShell(window)) {
     // We should not make the window editable or setup its editor.

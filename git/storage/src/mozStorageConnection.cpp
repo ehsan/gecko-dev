@@ -322,7 +322,7 @@ public:
     return NS_OK;
   }
 private:
-  nsCOMPtr<Connection> mConnection;
+  nsRefPtr<Connection> mConnection;
   nsCOMPtr<nsIEventTarget> mCallingThread;
   nsCOMPtr<nsIRunnable> mCallbackEvent;
 };
@@ -352,9 +352,10 @@ Connection::~Connection()
   (void)Close();
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(
+NS_IMPL_THREADSAFE_ISUPPORTS2(
   Connection,
-  mozIStorageConnection
+  mozIStorageConnection,
+  nsIInterfaceRequestor
 )
 
 nsIEventTarget *
@@ -640,6 +641,22 @@ Connection::getFilename()
     (void)mDatabaseFile->GetNativeLeafName(leafname);
   }
   return leafname;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//// nsIInterfaceRequestor
+
+NS_IMETHODIMP
+Connection::GetInterface(const nsIID &aIID,
+                         void **_result)
+{
+  if (aIID.Equals(NS_GET_IID(nsIEventTarget))) {
+    nsIEventTarget *background = getAsyncExecutionTarget();
+    NS_IF_ADDREF(background);
+    *_result = background;
+    return NS_OK;
+  }
+  return NS_ERROR_NO_INTERFACE;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1113,7 +1130,7 @@ Connection::SetGrowthIncrement(PRInt32 aChunkSize, const nsACString &aDatabaseNa
   // Bug 597215: Disk space is extremely limited on Android
   // so don't preallocate space. This is also not effective
   // on log structured file systems used by Android devices
-#ifndef ANDROID
+#if !defined(ANDROID) && !defined(MOZ_PLATFORM_MAEMO)
   (void)::sqlite3_file_control(mDBConn,
                                aDatabaseName.Length() ? nsPromiseFlatCString(aDatabaseName).get() : NULL,
                                SQLITE_FCNTL_CHUNK_SIZE,

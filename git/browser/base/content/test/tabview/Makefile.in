@@ -64,6 +64,7 @@ _BROWSER_FILES = \
                  browser_tabview_bug595930.js \
                  browser_tabview_bug595943.js \
                  browser_tabview_bug597248.js \
+                 browser_tabview_bug597360.js \
                  browser_tabview_bug597399.js \
                  browser_tabview_bug598600.js \
                  browser_tabview_bug599626.js \
@@ -75,6 +76,7 @@ _BROWSER_FILES = \
                  browser_tabview_exit_button.js \
                  browser_tabview_group.js \
                  browser_tabview_launch.js \
+                 browser_tabview_multiwindow_search.js \
                  browser_tabview_orphaned_tabs.js \
                  browser_tabview_privatebrowsing.js \
                  browser_tabview_rtl.js \
@@ -90,9 +92,6 @@ _BROWSER_FILES = \
                  test_bug599626.html \
                  test_bug600645.html \
                  $(NULL)
-
-# compartments: test disabled
-#                 browser_tabview_multiwindow_search.js \
 
 libs::	$(_BROWSER_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

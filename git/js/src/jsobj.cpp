@@ -106,7 +106,7 @@
 using namespace js;
 using namespace js::gc;
 
-JS_FRIEND_DATA(const JSObjectMap) JSObjectMap::sharedNonNative(JSObjectMap::SHAPELESS);
+JS_FRIEND_DATA(const JSObjectMap) JSObjectMap::sharedNonNative(JSObjectMap::NON_NATIVE_START_MARKER, JSObjectMap::SHAPELESS, 0);
 
 Class js_ObjectClass = {
     js_Object_str,
@@ -6622,6 +6622,11 @@ dumpValue(const Value &v)
             FileEscapedString(stderr, ATOM_TO_STRING(fun->atom), 0);
         } else {
             fputs("<unnamed function", stderr);
+        }
+        if (fun->isInterpreted()) {
+            JSScript *script = fun->script();
+            fprintf(stderr, " (%s:%u)",
+                    script->filename ? script->filename : "", script->lineno);
         }
         fprintf(stderr, " at %p (JSFunction at %p)>", (void *) funobj, (void *) fun);
     } else if (v.isObject()) {

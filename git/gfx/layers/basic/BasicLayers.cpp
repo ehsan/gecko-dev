@@ -416,6 +416,10 @@ protected:
               LayerManager::DrawThebesLayerCallback aCallback,
               void* aCallbackData)
   {
+    if (!aCallback) {
+      BasicManager()->SetTransactionIncomplete();
+      return;
+    }
     aCallback(this, aContext, aRegionToDraw, aRegionToInvalidate,
               aCallbackData);
     mValidRegion.Or(mValidRegion, aRegionToDraw);
@@ -437,32 +441,6 @@ ClipToContain(gfxContext* aContext, const nsIntRect& aRect)
   aContext->Rectangle(deviceRect);
   aContext->Clip();
   aContext->SetMatrix(currentMatrix);
-}
-
-static PRBool
-ShouldRetainTransparentSurface(PRUint32 aContentFlags,
-                               gfxASurface* aTargetSurface)
-{
-  if (aContentFlags & Layer::CONTENT_NO_TEXT)
-    return PR_TRUE;
-
-  switch (aTargetSurface->GetTextQualityInTransparentSurfaces()) {
-  case gfxASurface::TEXT_QUALITY_OK:
-    return PR_TRUE;
-  case gfxASurface::TEXT_QUALITY_OK_OVER_OPAQUE_PIXELS:
-    // Retain the buffer if all text is over opaque pixels. Otherwise,
-    // don't retain the buffer, in the hope that the backbuffer has
-    // opaque pixels where our layer does not.
-    return (aContentFlags & Layer::CONTENT_NO_TEXT_OVER_TRANSPARENT) != 0;
-  case gfxASurface::TEXT_QUALITY_BAD:
-    // If the backbuffer is opaque, then draw directly into it to get
-    // subpixel AA. If the backbuffer is not an opaque format, then we won't get
-    // subpixel AA by drawing into it, so we might as well retain.
-    return aTargetSurface->GetContentType() != gfxASurface::CONTENT_COLOR;
-  default:
-    NS_ERROR("Unknown quality type");
-    return PR_TRUE;
-  }
 }
 
 static nsIntRegion
@@ -494,14 +472,19 @@ BasicThebesLayer::Paint(gfxContext* aContext,
   float opacity = GetEffectiveOpacity();
 
   if (!BasicManager()->IsRetained() ||
-      (opacity == 1.0 && !canUseOpaqueSurface &&
-       !ShouldRetainTransparentSurface(mContentFlags, targetSurface) &&
+      (!canUseOpaqueSurface &&
+       (mContentFlags & CONTENT_COMPONENT_ALPHA) &&
        !MustRetainContent())) {
     mValidRegion.SetEmpty();
     mBuffer.Clear();
 
     nsIntRegion toDraw = IntersectWithClip(mVisibleRegion, target);
     if (!toDraw.IsEmpty()) {
+      if (!aCallback) {
+        BasicManager()->SetTransactionIncomplete();
+        return;
+      }
+
       target->Save();
       gfxUtils::ClipToRegionSnapped(target, toDraw);
       if (opacity != 1.0) {
@@ -1015,6 +998,7 @@ BasicLayerManager::BasicLayerManager(nsIWidget* aWidget) :
   , mYResolution(1.0)
   , mWidget(aWidget)
   , mDoubleBuffering(BUFFER_NONE), mUsingDefaultTarget(PR_FALSE)
+  , mTransactionIncomplete(false)
 {
   MOZ_COUNT_CTOR(BasicLayerManager);
   NS_ASSERTION(aWidget, "Must provide a widget");
@@ -1189,6 +1173,13 @@ void
 BasicLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
                                   void* aCallbackData)
 {
+  EndTransactionInternal(aCallback, aCallbackData);
+}
+
+bool
+BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
+                                          void* aCallbackData)
+{
 #ifdef MOZ_LAYERS_HAVE_LOG
   MOZ_LAYERS_LOG(("  ----- (beginning paint)"));
   Log();
@@ -1198,6 +1189,8 @@ BasicLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
 #ifdef DEBUG
   mPhase = PHASE_DRAWING;
 #endif
+
+  mTransactionIncomplete = false;
 
   if (mTarget) {
     NS_ASSERTION(mRoot, "Root not set");
@@ -1227,7 +1220,9 @@ BasicLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
                                   region);
     PaintLayer(mRoot, aCallback, aCallbackData);
 
-    if (useDoubleBuffering) {
+    // If we're doing manual double-buffering, we need to avoid drawing
+    // the results of an incomplete transaction to the destination surface.
+    if (useDoubleBuffering && !mTransactionIncomplete) {
       finalTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
       PopGroupWithCachedSurface(finalTarget, cachedSurfaceOffset);
     }
@@ -1244,6 +1239,21 @@ BasicLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
   mPhase = PHASE_NONE;
 #endif
   mUsingDefaultTarget = PR_FALSE;
+
+  NS_ASSERTION(!aCallback || !mTransactionIncomplete,
+               "If callback is not null, transaction must be complete");
+  return !mTransactionIncomplete;
+}
+
+bool
+BasicLayerManager::DoEmptyTransaction()
+{
+  if (!mRoot) {
+    return false;
+  }
+
+  BeginTransaction();
+  return EndTransactionInternal(nsnull, nsnull);
 }
 
 void
@@ -1313,6 +1323,8 @@ BasicLayerManager::PaintLayer(Layer* aLayer,
   } else {
     for (; child; child = child->GetNextSibling()) {
       PaintLayer(child, aCallback, aCallbackData);
+      if (mTransactionIncomplete)
+        break;
     }
   }
 
@@ -2525,7 +2537,10 @@ void
 BasicShadowLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)
 {
   NS_ABORT_IF_FALSE(mKeepAlive.IsEmpty(), "uncommitted txn?");
-  if (HasShadowManager()) {
+  // If the last transaction was incomplete (a failed DoEmptyTransaction),
+  // don't signal a new transaction to ShadowLayerForwarder. Carry on adding
+  // to the previous transaction.
+  if (HasShadowManager() && !mTransactionIncomplete) {
     ShadowLayerForwarder::BeginTransaction();
   }
   BasicLayerManager::BeginTransactionWithTarget(aTarget);
@@ -2536,6 +2551,30 @@ BasicShadowLayerManager::EndTransaction(DrawThebesLayerCallback aCallback,
                                         void* aCallbackData)
 {
   BasicLayerManager::EndTransaction(aCallback, aCallbackData);
+  ForwardTransaction();
+}
+
+bool
+BasicShadowLayerManager::DoEmptyTransaction()
+{
+  if (!mRoot) {
+    return false;
+  }
+
+  BasicLayerManager::BeginTransaction();
+  if (!EndTransactionInternal(nsnull, nsnull)) {
+    // Return without calling ForwardTransaction. This leaves the
+    // ShadowLayerForwarder transaction open; the following
+    // BeginTransaction/EndTransaction pair will complete it.
+    return false;
+  }
+  ForwardTransaction();
+  return true;
+}
+
+void
+BasicShadowLayerManager::ForwardTransaction()
+{
 #ifdef DEBUG
   mPhase = PHASE_FORWARD;
 #endif

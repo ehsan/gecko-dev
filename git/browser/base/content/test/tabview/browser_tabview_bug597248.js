@@ -65,7 +65,7 @@ function setupOne() {
   
   newTabOne = newWin.gBrowser.tabs[0];
   newTabTwo = newWin.gBrowser.addTab();
-  load(newTabOne, "http://mochi.test:8888/", allLoaded);
+  load(newTabOne, "http://mochi.test:8888/browser/browser/base/content/test/tabview/search1.html", allLoaded);
   load(newTabTwo, "http://mochi.test:8888/browser/browser/base/content/test/tabview/dummy_page.html", allLoaded);
 }
 
@@ -82,90 +82,119 @@ function setupTwo() {
     contentWindow.TabItems._update(tabItem.tab);
   });
 
-  let checkDataAndCloseWindow = function() {
-    // check the storage for stored image data.
-    tabItems.forEach(function(tabItem) {
-      let tabData = contentWindow.Storage.getTabData(tabItem.tab);
-      ok(tabData && tabData.imageData, "TabItem has stored image data before closing");
-    });
+  // after the window is closed, restore it.
+  let xulWindowDestory = function() {
+    Services.obs.removeObserver(
+       xulWindowDestory, "xul-window-destroyed", false);
 
-    // close the new window and restore it.
-    newWin.addEventListener("unload", function(event) {
-      newWin.removeEventListener("unload", arguments.callee, false);
-      newWin = null;
-
-      // restore window and test it
+    newWin = null;
+    // "xul-window-destroyed" is just fired just before a XUL window is
+    // destroyed so restore window and test it after a delay
+    executeSoon(function() {
       restoredWin = undoCloseWindow();
       restoredWin.addEventListener("load", function(event) {
         restoredWin.removeEventListener("load", arguments.callee, false);
+
+        // execute code when the frame is initialized.
+        let onTabViewFrameInitialized = function() {
+          restoredWin.removeEventListener(
+            "tabviewframeinitialized", onTabViewFrameInitialized, false);
+
+          let restoredContentWindow = 
+            restoredWin.document.getElementById("tab-view").contentWindow;
+          // prevent TabItems._update being called before checking cached images
+          restoredContentWindow.TabItems._pauseUpdateForTest = true;
+        }
+        restoredWin.addEventListener(
+          "tabviewframeinitialized", onTabViewFrameInitialized, false);
+
+        restoredWin.addEventListener("tabviewshown", onTabViewShown, false);
+        
+        is(restoredWin.gBrowser.tabs.length, 2, "The total number of tabs is 2");
 
         // setup tab variables and listen to the load progress.
         newTabOne = restoredWin.gBrowser.tabs[0];
         newTabTwo = restoredWin.gBrowser.tabs[1];
         restoredWin.gBrowser.addTabsProgressListener(gTabsProgressListener);
-
-        // execute code when the frame isninitialized.
-        restoredWin.addEventListener("tabviewframeinitialized", onTabViewFrameInitialized, false);
       }, false);
-    }, false);
+    });
+  };
 
+  // check the storage for stored image data
+  let checkDataAndCloseWindow = function() {
+    tabItems.forEach(function(tabItem) {
+      let tabData = contentWindow.Storage.getTabData(tabItem.tab);
+      ok(tabData && tabData.imageData,
+        "TabItem has stored image data before closing");
+    });
+
+    Services.obs.addObserver(
+      xulWindowDestory, "xul-window-destroyed", false);
     newWin.close();
   }
 
-  // stimulate a quit application requested so the image data gets stored.
+  // stimulate a quit application requested so the image data gets stored
   let quitRequestObserver = function(aSubject, aTopic, aData) {
     ok(aTopic == "quit-application-requested" &&
         aSubject instanceof Ci.nsISupportsPRBool,
         "Received a quit request and going to deny it");
-    Services.obs.removeObserver(quitRequestObserver, "quit-application-requested", false);
-
+    Services.obs.removeObserver(
+      quitRequestObserver, "quit-application-requested", false);
+    // cancel the shut down
     aSubject.data = true;
     // save all images is execuated when "quit-application-requested" topic is 
     // announced so executeSoon is used to avoid racing condition.
     executeSoon(checkDataAndCloseWindow);
   }
-  Services.obs.addObserver(quitRequestObserver, "quit-application-requested", false);
+  Services.obs.addObserver(
+    quitRequestObserver, "quit-application-requested", false);
   ok(!Application.quit(), "Tried to quit and canceled it");
 }
 
 let gTabsProgressListener = {
   onStateChange: function(browser, webProgress, request, stateFlags, status) {
-    if (stateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
-         stateFlags & Ci.nsIWebProgressListener.STATE_IS_NETWORK) {
+    // ensure about:blank doesn't trigger the code
+    if ((stateFlags & Ci.nsIWebProgressListener.STATE_STOP) &&
+        (stateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW) &&
+         browser.currentURI.spec != "about:blank") {
       if (newTabOne.linkedBrowser == browser)
         restoredNewTabOneLoaded = true;
       else if (newTabTwo.linkedBrowser == browser)
         restoredNewTabTwoLoaded = true;
- 
+
       // since we are not sure whether the frame is initialized first or two tabs
       // compete loading first so we need this.
       if (restoredNewTabOneLoaded && restoredNewTabTwoLoaded) {
+        restoredWin.gBrowser.removeTabsProgressListener(gTabsProgressListener);
+
         if (frameInitialized) {
           // since a tabs progress listener is used in the code to set 
           // tabItem.shouldHideCachedData, executeSoon is used to avoid a racing
           // condition.
           executeSoon(updateAndCheck); 
         }
-        restoredWin.gBrowser.removeTabsProgressListener(gTabsProgressListener);
       }
     }
   }
 };
 
-function onTabViewFrameInitialized() {
-  restoredWin.removeEventListener("tabviewframeinitialized", onTabViewFrameInitialized, false);
+function onTabViewShown() {
+  restoredWin.removeEventListener("tabviewshown", onTabViewShown, false);
 
-  let contentWindow = restoredWin.document.getElementById("tab-view").contentWindow;
+  let contentWindow = 
+    restoredWin.document.getElementById("tab-view").contentWindow;
 
   let nextStep = function() {
     // since we are not sure whether the frame is initialized first or two tabs
     // compete loading first so we need this.
     if (restoredNewTabOneLoaded && restoredNewTabTwoLoaded) {
       // executeSoon is used to ensure tabItem.shouldHideCachedData is set
-      // because tabs progress listener might run at the same time as this test code.
+      // because tabs progress listener might run at the same time as this test 
+      // code.
       executeSoon(updateAndCheck);
-    } else
+    } else {
       frameInitialized = true;
+    }
   }
 
   let tabItems = contentWindow.TabItems.getItems();
@@ -174,15 +203,18 @@ function onTabViewFrameInitialized() {
     // tabitem might not be connected so use subscriber for those which are not
     // connected.
     if (tabItem.reconnected) {
-      ok(tabItem.isShowingCachedData(), "Tab item is showing cached data");
-      count--;
-      if (count == 0)
+      ok(tabItem.isShowingCachedData(), 
+         "Tab item is showing cached data and is already connected. " +
+         tabItem.tab.linkedBrowser.currentURI.spec);
+      if (--count == 0)
         nextStep();
     } else {
       tabItem.addSubscriber(tabItem, "reconnected", function() {
         tabItem.removeSubscriber(tabItem, "reconnected");
-        count--;
-        if (count == 0)
+        ok(tabItem.isShowingCachedData(), 
+           "Tab item is showing cached data and is just connected. "  +
+           tabItem.tab.linkedBrowser.currentURI.spec);
+        if (--count == 0)
           nextStep();
       });
     }
@@ -191,12 +223,17 @@ function onTabViewFrameInitialized() {
 
 function updateAndCheck() {
   // force all canvas to update
-  let contentWindow = restoredWin.document.getElementById("tab-view").contentWindow;
+  let contentWindow = 
+    restoredWin.document.getElementById("tab-view").contentWindow;
+
+  contentWindow.TabItems._pauseUpdateForTest = false;
 
   let tabItems = contentWindow.TabItems.getItems();
   tabItems.forEach(function(tabItem) {
     contentWindow.TabItems._update(tabItem.tab);
-    ok(!tabItem.isShowingCachedData(), "Tab item is not showing cached data anymore");
+    ok(!tabItem.isShowingCachedData(), 
+      "Tab item is not showing cached data anymore. " +
+      tabItem.tab.linkedBrowser.currentURI.spec);
   });
 
   // clean up and finish

@@ -144,18 +144,12 @@ button[type="menu-button"] {
   border: none;
 }
 
-.button-menubutton-button {
-  -moz-appearance: none;
-  background-color: transparent;
-  border: none;
-}
-
 .button-menu-dropmarker,
 .button-menubutton-dropmarker {
   -moz-appearance: none !important;
   margin: 1px;
-  background-color: transparent !important;
-  border: none !important;
+  background-color: transparent;
+  border: none;
   width: 11px;
   height: 11px;
 }

@@ -404,6 +404,7 @@ mozJSSubScriptLoader::LoadSubScript (const PRUnichar * aURL
         }
     }
 
+    if (ok)
     {
         JSAutoEnterCompartment rac;
 

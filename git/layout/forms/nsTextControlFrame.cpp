@@ -1092,8 +1092,18 @@ nsTextControlFrame::OffsetToDOMPoint(PRInt32 aOffset,
     NS_IF_ADDREF(*aResult = rootNode);
     *aPosition = 0;
   } else if (textNode) {
-    NS_IF_ADDREF(*aResult = firstNode);
-    *aPosition = aOffset;
+    PRUint32 textLength = 0;
+    textNode->GetLength(&textLength);
+    if (length == 2 && PRUint32(aOffset) == textLength) {
+      // If we're at the end of the text node and we have a trailing BR node,
+      // set the selection on the BR node.
+      NS_IF_ADDREF(*aResult = rootNode);
+      *aPosition = 1;
+    } else {
+      // Otherwise, set the selection on the textnode itself.
+      NS_IF_ADDREF(*aResult = firstNode);
+      *aPosition = aOffset;
+    }
   } else {
     NS_IF_ADDREF(*aResult = rootNode);
     *aPosition = 0;
@@ -1320,14 +1330,14 @@ nsTextControlFrame::GetMaxLength(PRInt32* aSize)
 
 // this is where we propagate a content changed event
 void
-nsTextControlFrame::FireOnInput()
+nsTextControlFrame::FireOnInput(PRBool aTrusted)
 {
   if (!mNotifyOnInput)
     return; // if notification is turned off, do nothing
   
   // Dispatch the "input" event
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsUIEvent event(PR_TRUE, NS_FORM_INPUT, 0);
+  nsUIEvent event(aTrusted, NS_FORM_INPUT, 0);
 
   // Have the content handle the event, propagating it according to normal
   // DOM rules.
@@ -1349,11 +1359,10 @@ nsTextControlFrame::CheckFireOnChange()
   if (!mFocusedValue.Equals(value))
   {
     mFocusedValue = value;
-    // Dispatch the change event
-    nsEventStatus status = nsEventStatus_eIgnore;
-    nsInputEvent event(PR_TRUE, NS_FORM_CHANGE, nsnull);
-    nsCOMPtr<nsIPresShell> shell = PresContext()->PresShell();
-    shell->HandleEventWithTarget(&event, nsnull, mContent, &status);
+    // Dispatch the change event.
+    nsContentUtils::DispatchTrustedEvent(mContent->GetOwnerDoc(), mContent,
+                                         NS_LITERAL_STRING("change"), PR_TRUE,
+                                         PR_FALSE);
   }
   return NS_OK;
 }

@@ -436,6 +436,12 @@ DeviceManagerD3D9::SetupRenderState()
   mDevice->SetRenderState(D3DRS_SRCBLENDALPHA, D3DBLEND_ONE);
   mDevice->SetRenderState(D3DRS_DESTBLENDALPHA, D3DBLEND_INVSRCALPHA);
   mDevice->SetRenderState(D3DRS_BLENDOPALPHA, D3DBLENDOP_ADD);
+  mDevice->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+  mDevice->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+  mDevice->SetSamplerState(1, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+  mDevice->SetSamplerState(1, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+  mDevice->SetSamplerState(2, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+  mDevice->SetSamplerState(2, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
   mDevice->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
   mDevice->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_CLAMP);
   mDevice->SetSamplerState(1, D3DSAMP_ADDRESSU, D3DTADDRESS_CLAMP);
@@ -449,6 +455,15 @@ DeviceManagerD3D9::CreateSwapChain(HWND hWnd)
 {
   nsRefPtr<SwapChainD3D9> swapChain = new SwapChainD3D9(this);
   
+  // See bug 604647. This line means that if we create a window while the
+  // device is lost LayerManager initialization will fail, this window
+  // will be permanently unaccelerated. This should be a rare situation
+  // though and the need for a low-risk fix for this bug outweighs the
+  // downside.
+  if (!VerifyReadyForRendering()) {
+    return nsnull;
+  }
+
   if (!swapChain->Init(hWnd)) {
     return nsnull;
   }

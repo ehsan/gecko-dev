@@ -39,6 +39,11 @@
 #
 # ***** END LICENSE BLOCK *****
 
+<!DOCTYPE bindings [
+<!ENTITY % notificationDTD SYSTEM "chrome://global/locale/notification.dtd">
+%notificationDTD;
+]>
+
 <bindings id="urlbarBindings" xmlns="http://www.mozilla.org/xbl"
           xmlns:html="http://www.w3.org/1999/xhtml"
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
@@ -235,7 +240,7 @@
           var action = this._parseActionUrl(url);
           if (action) {
             url = action.param;
-            if (!(aTriggeringEvent && aTriggeringEvent.altKey)) {
+            if (this.hasAttribute("actiontype")) {
               if (action.type == "switchtab") {
                 this.handleRevert();
                 let prevTab = gBrowser.selectedTab;
@@ -275,7 +280,9 @@
             return;
           }
 
-          if (aTriggeringEvent && aTriggeringEvent.altKey) {
+          if (aTriggeringEvent &&
+              aTriggeringEvent.altKey &&
+              !isTabEmpty(gBrowser.selectedTab)) {
             this.handleRevert();
             content.focus();
             gBrowser.loadOneTab(url, {
@@ -779,9 +786,48 @@
           this._originLabel.value = this.value;
         ]]></body>
       </method>
+
+      <field name="_numNoActionsKeys"><![CDATA[
+        0
+      ]]></field>
+
+      <method name="_clearNoActions">
+        <parameter name="aURL"/>
+        <body><![CDATA[
+          this._numNoActionsKeys = 0;
+          this.popup.removeAttribute("noactions");
+          let action = this._parseActionUrl(this._value);
+          if (action)
+            this.setAttribute("actiontype", action.type);
+        ]]></body>
+      </method>
     </implementation>
 
     <handlers>
+      <handler event="keydown"><![CDATA[
+        if ((event.keyCode === KeyEvent.DOM_VK_ALT ||
+             event.keyCode === KeyEvent.DOM_VK_SHIFT) &&
+            this.popup.selectedIndex >= 0) {
+          this._numNoActionsKeys++;
+          this.popup.setAttribute("noactions", "true");
+          this.removeAttribute("actiontype");
+        }
+      ]]></handler>
+
+      <handler event="keyup"><![CDATA[
+        if ((event.keyCode === KeyEvent.DOM_VK_ALT ||
+             event.keyCode === KeyEvent.DOM_VK_SHIFT) &&
+            this._numNoActionsKeys > 0) {
+          this._numNoActionsKeys--;
+          if (this._numNoActionsKeys == 0)
+            this._clearNoActions();
+        }
+      ]]></handler>
+
+      <handler event="blur"><![CDATA[
+        this._clearNoActions();
+      ]]></handler>
+
       <handler event="draggesture" phase="capturing"><![CDATA[
         // TODO: This should use dragstart but editor code is still using
         //       the old drag & drop APIs, so we have to handle draggesture.
@@ -993,10 +1039,10 @@
   </binding>
 
   <binding id="geolocation-notification" extends="chrome://global/content/bindings/notification.xml#popup-notification">
-    <content>
+    <content align="start">
       <xul:image class="popup-notification-icon"
                  xbl:inherits="popupid"/>
-      <xul:vbox>
+      <xul:vbox flex="1">
         <xul:description class="popup-notification-description"
                          xbl:inherits="xbl:text=label"/>
         <xul:spacer flex="1"/>
@@ -1004,11 +1050,15 @@
           <xul:label anonid="learnmore" class="text-link geolocation-text-link"/>
           <xul:spacer flex="1"/>
           <xul:button anonid="button"
+                      type="menu-button"
                       class="popup-notification-menubutton"
-                      xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey,type=buttontype">
+                      xbl:inherits="oncommand=buttoncommand,label=buttonlabel,accesskey=buttonaccesskey">
             <xul:menupopup anonid="menupopup"
                            xbl:inherits="oncommand=menucommand">
               <children/>
+              <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
+                            label="&closeNotificationItem.label;"
+                            xbl:inherits="oncommand=closeitemcommand"/>
             </xul:menupopup>
           </xul:button>
         </xul:hbox>

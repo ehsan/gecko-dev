@@ -156,6 +156,8 @@ public:
 
   virtual PRBool SetLayerManager(LayerManager *aManager);
 
+  virtual LayerManager::LayersBackend GetBackendType() { return LayerManager::LAYERS_OPENGL; }
+
 private:
   typedef mozilla::Mutex Mutex;
 
@@ -235,6 +237,7 @@ public:
   GLTexture mTexture;
   gfxIntSize mSize;
   nsRefPtr<GLContext> mASurfaceAsGLContext;
+  gl::ShaderProgramType mLayerProgram;
 };
 
 

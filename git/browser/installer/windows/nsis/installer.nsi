@@ -228,6 +228,8 @@ Section "-InstallStartCleanup"
   ; Remove the updates directory for Vista and above
   ${CleanUpdatesDir} "Mozilla\Firefox"
 
+  ${RemoveDeprecatedFiles}
+
   ${InstallStartCleanupCommon}
 SectionEnd
 
@@ -594,6 +596,14 @@ Function CheckExistingInstall
   Quit
 
   ${If} ${FileExists} "$INSTDIR\${FileMainEXE}"
+    ; Disable the next, cancel, and back buttons
+    GetDlgItem $0 $HWNDPARENT 1 ; Next button
+    EnableWindow $0 0
+    GetDlgItem $0 $HWNDPARENT 2 ; Cancel button
+    EnableWindow $0 0
+    GetDlgItem $0 $HWNDPARENT 3 ; Back button
+    EnableWindow $0 0
+
     Banner::show /NOUNLOAD "$(BANNER_CHECK_EXISTING)"
 
     ${If} "$TmpVal" == "FoundMessageWindow"
@@ -607,6 +617,14 @@ Function CheckExistingInstall
     ${CheckForFilesInUse} $TmpVal
 
     Banner::destroy
+
+    ; Enable the next, cancel, and back buttons
+    GetDlgItem $0 $HWNDPARENT 1 ; Next button
+    EnableWindow $0 1
+    GetDlgItem $0 $HWNDPARENT 2 ; Cancel button
+    EnableWindow $0 1
+    GetDlgItem $0 $HWNDPARENT 3 ; Back button
+    EnableWindow $0 1
 
     ${If} "$TmpVal" == "true"
       StrCpy $TmpVal "FoundMessageWindow"

@@ -42,10 +42,9 @@
 #include "ImageLayerD3D9.h"
 #include "ColorLayerD3D9.h"
 #include "CanvasLayerD3D9.h"
-#include "nsIServiceManager.h"
-#include "nsIPrefService.h"
 #include "gfxWindowsPlatform.h"
 #include "nsIGfxInfo.h"
+#include "nsServiceManagerUtils.h"
 
 #ifdef CAIRO_HAS_D2D_SURFACE
 #include "gfxD2DSurface.h"
@@ -57,7 +56,6 @@ namespace layers {
 DeviceManagerD3D9 *LayerManagerD3D9::mDefaultDeviceManager = nsnull;
 
 LayerManagerD3D9::LayerManagerD3D9(nsIWidget *aWidget)
-  : mIs3DEnabled(PR_FALSE)
 {
   mWidget = aWidget;
   mCurrentCallbackInfo.Callback = NULL;
@@ -72,10 +70,6 @@ LayerManagerD3D9::~LayerManagerD3D9()
 PRBool
 LayerManagerD3D9::Initialize()
 {
-  /* Check the user preference for whether 3d video is enabled or not */ 
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID); 
-  prefs->GetBoolPref("gfx.3d_video.enabled", &mIs3DEnabled);
-
   nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
   if (gfxInfo) {
     PRInt32 status;
@@ -212,7 +206,7 @@ LayerManagerD3D9::CreateCanvasLayer()
 already_AddRefed<ImageContainer>
 LayerManagerD3D9::CreateImageContainer()
 {
-  nsRefPtr<ImageContainer> container = new ImageContainerD3D9(this);
+  nsRefPtr<ImageContainer> container = new ImageContainerD3D9(device());
   return container.forget();
 }
 

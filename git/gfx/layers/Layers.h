@@ -190,6 +190,15 @@ public:
     return mKey == aKey ? mValue.get() : nsnull;
   }
 
+  /**
+   * Clear out current user data.
+   */
+  void Clear()
+  {
+    mKey = nsnull;
+    mValue = nsnull;
+  }
+
 private:
   void* mKey;
   nsAutoPtr<LayerUserData> mValue;
@@ -241,7 +250,7 @@ public:
    * for its widget going away.  After this call, only user data calls
    * are valid on the layer manager.
    */
-  virtual void Destroy() { mDestroyed = PR_TRUE; }
+  virtual void Destroy() { mDestroyed = PR_TRUE; mUserData.Clear(); }
   PRBool IsDestroyed() { return mDestroyed; }
 
   /**
@@ -299,6 +308,21 @@ public:
    */
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData) = 0;
+
+  /**
+   * Attempts to perform an "empty transaction", i.e., a BeginTransaction()
+   * followed by no changes to the layer tree and an EndTransaction with no
+   * ThebesLayer drawing callback. This will only work if no ThebesLayers
+   * need to be updated (i.e. the visible region of each ThebesLayer is already
+   * fully retained). Since this cannot be predicted in advance,
+   * DoEmptyTransaction is allowed to fail and return false. When
+   * DoEmptyTransaction fails it must be immediately (within the same paint
+   * event) followed by a normal BeginTransaction/EndTransaction pair.
+   */
+  virtual bool DoEmptyTransaction()
+  {
+    return false;
+  }
 
   PRBool IsSnappingEffectiveTransforms() { return mSnapEffectiveTransforms; } 
 
@@ -473,19 +497,13 @@ public:
      */
     CONTENT_OPAQUE = 0x01,
     /**
-     * ThebesLayers only!
-     * If this is set, the caller is promising that the visible region
-     * contains no text at all. If this is set,
-     * CONTENT_NO_TEXT_OVER_TRANSPARENT will also be set.
+     * If this is set, the caller is notifying that the contents of this layer
+     * require per-component alpha for optimal fidelity. However, there is no
+     * guarantee that component alpha will be supported for this layer at
+     * paint time.
+     * This should never be set at the same time as CONTENT_OPAQUE.
      */
-    CONTENT_NO_TEXT = 0x02,
-    /**
-     * ThebesLayers only!
-     * If this is set, the caller is promising that the visible region
-     * contains no text over transparent pixels (any text, if present,
-     * is over fully opaque pixels).
-     */
-    CONTENT_NO_TEXT_OVER_TRANSPARENT = 0x04
+    CONTENT_COMPONENT_ALPHA = 0x02
   };
   /**
    * CONSTRUCTION PHASE ONLY
@@ -495,6 +513,9 @@ public:
    */
   void SetContentFlags(PRUint32 aFlags)
   {
+    NS_ASSERTION((aFlags & (CONTENT_OPAQUE | CONTENT_COMPONENT_ALPHA)) !=
+                 (CONTENT_OPAQUE | CONTENT_COMPONENT_ALPHA),
+                 "Can't be opaque and require component alpha");
     mContentFlags = aFlags;
     Mutated();
   }
@@ -830,7 +851,9 @@ protected:
     , mValidRegion()
     , mXResolution(1.0)
     , mYResolution(1.0)
-  {}
+  {
+    mContentFlags = 0; // Clear NO_TEXT, NO_TEXT_OVER_TRANSPARENT
+  }
 
   virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix);
 
@@ -918,7 +941,9 @@ protected:
       mFirstChild(nsnull),
       mLastChild(nsnull),
       mUseIntermediateSurface(PR_FALSE)
-  {}
+  {
+    mContentFlags = 0; // Clear NO_TEXT, NO_TEXT_OVER_TRANSPARENT
+  }
 
   /**
    * A default implementation of ComputeEffectiveTransforms for use by OpenGL

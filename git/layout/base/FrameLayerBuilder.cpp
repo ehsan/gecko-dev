@@ -62,9 +62,10 @@ namespace {
  */
 class LayerManagerData : public LayerUserData {
 public:
-  LayerManagerData() :
+  LayerManagerData(LayerManager *aManager) :
     mInvalidateAllThebesContent(PR_FALSE),
-    mInvalidateAllLayers(PR_FALSE)
+    mInvalidateAllLayers(PR_FALSE),
+    mLayerManager(aManager)
   {
     MOZ_COUNT_CTOR(LayerManagerData);
     mFramesWithLayers.Init();
@@ -83,6 +84,8 @@ public:
   nsTHashtable<nsPtrHashKey<nsIFrame> > mFramesWithLayers;
   PRPackedBool mInvalidateAllThebesContent;
   PRPackedBool mInvalidateAllLayers;
+  /** Layer manager we belong to, we hold a reference to this object. */
+  nsRefPtr<LayerManager> mLayerManager;
 };
 
 static void DestroyRegion(void* aPropertyValue)
@@ -145,8 +148,10 @@ public:
    * mThebesLayerDataStack, then sets the children of the container layer
    * to be all the layers in mNewChildLayers in that order and removes any
    * layers as children of the container that aren't in mNewChildLayers.
+   * @param aTextContentFlags if any child layer has CONTENT_COMPONENT_ALPHA,
+   * set *aTextContentFlags to CONTENT_COMPONENT_ALPHA
    */
-  void Finish();
+  void Finish(PRUint32 *aTextContentFlags);
 
 protected:
   /**
@@ -163,7 +168,7 @@ protected:
     ThebesLayerData() :
       mActiveScrolledRoot(nsnull), mLayer(nsnull),
       mIsSolidColorInVisibleRegion(PR_FALSE),
-      mHasText(PR_FALSE), mHasTextOverTransparent(PR_FALSE),
+      mNeedComponentAlpha(PR_FALSE),
       mForceTransparentSurface(PR_FALSE) {}
     /**
      * Record that an item has been added to the ThebesLayer, so we
@@ -234,14 +239,10 @@ protected:
      */
     PRPackedBool mIsSolidColorInVisibleRegion;
     /**
-     * True if there is any text visible in the layer.
-     */
-    PRPackedBool mHasText;
-    /**
      * True if there is any text visible in the layer that's over
      * transparent pixels in the layer.
      */
-    PRPackedBool mHasTextOverTransparent;
+    PRPackedBool mNeedComponentAlpha;
     /**
      * Set if the layer should be treated as transparent, even if its entire
      * area is covered by opaque display items. For example, this needs to
@@ -407,12 +408,11 @@ FrameLayerBuilder::InternalDestroyDisplayItemData(nsIFrame* aFrame,
     NS_ASSERTION(data, "Frame with layer should have been recorded");
     data->mFramesWithLayers.RemoveEntry(aFrame);
     if (data->mFramesWithLayers.Count() == 0) {
-      manager->RemoveUserData(&gLayerManagerUserData);
-      // Consume the reference we added when we set the user data
-      // in DidEndTransaction. But don't actually release until we've
-      // released all the layers in the DisplayItemData array below!
+      // Destroying our user data will consume a reference from the layer
+      // manager. But don't actually release until we've released all the layers
+      // in the DisplayItemData array below!
       managerRef = manager;
-      NS_RELEASE(manager);
+      manager->RemoveUserData(&gLayerManagerUserData);
     }
   }
 
@@ -485,11 +485,8 @@ FrameLayerBuilder::WillEndTransaction(LayerManager* aManager)
     // Update all the frames that used to have layers.
     data->mFramesWithLayers.EnumerateEntries(UpdateDisplayItemDataForFrame, this);
   } else {
-    data = new LayerManagerData();
+    data = new LayerManagerData(mRetainingManager);
     mRetainingManager->SetUserData(&gLayerManagerUserData, data);
-    // Addref mRetainingManager. We'll release it when 'data' is
-    // removed.
-    NS_ADDREF(mRetainingManager);
   }
   // Now go through all the frames that didn't have any retained
   // display items before, and record those retained display items.
@@ -870,10 +867,14 @@ ContainerState::PopThebesLayerData()
     }
     userData->mForcedBackgroundColor = backgroundColor;
   }
-  PRUint32 flags =
-    ((isOpaque && !data->mForceTransparentSurface) ? Layer::CONTENT_OPAQUE : 0) |
-    (data->mHasText ? 0 : Layer::CONTENT_NO_TEXT) |
-    (data->mHasTextOverTransparent ? 0 : Layer::CONTENT_NO_TEXT_OVER_TRANSPARENT);
+  PRUint32 flags;
+  if (isOpaque && !data->mForceTransparentSurface) {
+    flags = Layer::CONTENT_OPAQUE;
+  } else if (data->mNeedComponentAlpha) {
+    flags = Layer::CONTENT_COMPONENT_ALPHA;
+  } else {
+    flags = 0;
+  }
   layer->SetContentFlags(flags);
 
   if (lastIndex > 0) {
@@ -935,9 +936,8 @@ ContainerState::ThebesLayerData::Accumulate(nsDisplayListBuilder* aBuilder,
       mOpaqueRegion = tmp;
     }
   } else if (aItem->HasText()) {
-    mHasText = PR_TRUE;
     if (!mOpaqueRegion.Contains(aVisibleRect)) {
-      mHasTextOverTransparent = PR_TRUE;
+      mNeedComponentAlpha = PR_TRUE;
     }
   }
   mForceTransparentSurface = mForceTransparentSurface || forceTransparentSurface;
@@ -1274,11 +1274,13 @@ ContainerState::CollectOldLayers()
 }
 
 void
-ContainerState::Finish()
+ContainerState::Finish(PRUint32* aTextContentFlags)
 {
   while (!mThebesLayerDataStack.IsEmpty()) {
     PopThebesLayerData();
   }
+
+  PRUint32 textContentFlags = 0;
 
   for (PRUint32 i = 0; i <= mNewChildLayers.Length(); ++i) {
     // An invariant of this loop is that the layers in mNewChildLayers
@@ -1286,6 +1288,9 @@ ContainerState::Finish()
     Layer* layer;
     if (i < mNewChildLayers.Length()) {
       layer = mNewChildLayers[i];
+      if (!layer->GetVisibleRegion().IsEmpty()) {
+        textContentFlags |= layer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA;
+      }
       if (!layer->GetParent()) {
         // This is not currently a child of the container, so just add it
         // now.
@@ -1314,6 +1319,8 @@ ContainerState::Finish()
     // If non-null, 'layer' is now in the right place in the list, so we
     // can just move on to the next one.
   }
+
+  *aTextContentFlags = textContentFlags;
 }
 
 static void
@@ -1402,11 +1409,19 @@ FrameLayerBuilder::BuildContainerLayerFor(nsDisplayListBuilder* aBuilder,
 
   Clip clip;
   state.ProcessDisplayItems(aChildren, clip);
-  state.Finish();
 
-  PRUint32 flags = aChildren.IsOpaque() && 
-                   !aChildren.NeedsTransparentSurface() ? Layer::CONTENT_OPAQUE : 0;
+  // Set CONTENT_COMPONENT_ALPHA if any of our children have it.
+  // This is suboptimal ... a child could have text that's over transparent
+  // pixels in its own layer, but over opaque parts of previous siblings.
+  PRUint32 flags;
+  state.Finish(&flags);
+
+  if (aChildren.IsOpaque() && !aChildren.NeedsTransparentSurface()) {
+    // Clear CONTENT_COMPONENT_ALPHA
+    flags = Layer::CONTENT_OPAQUE;
+  }
   containerLayer->SetContentFlags(flags);
+
   return containerLayer.forget();
 }
 

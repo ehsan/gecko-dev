@@ -13902,10 +13902,6 @@ TraceRecorder::propTail(JSObject* obj, LIns* obj_ins, JSObject* obj2, PCVal pcva
     return RECORD_CONTINUE;
 }
 
-/*
- * When we end up with a hole, read it as undefined, and make sure to set
- * addr_ins to null.
- */
 JS_REQUIRES_STACK RecordingStatus
 TraceRecorder::denseArrayElement(Value& oval, Value& ival, Value*& vp, LIns*& v_ins,
                                  LIns*& addr_ins, VMSideExit* branchExit)
@@ -13934,6 +13930,7 @@ TraceRecorder::denseArrayElement(Value& oval, Value& ival, Value*& vp, LIns*& v_
 
         CHECK_STATUS(guardPrototypeHasNoIndexedProperties(obj, obj_ins, snapshot(MISMATCH_EXIT)));
 
+        // Return undefined and indicate that we didn't actually read this (addr_ins).
         v_ins = w.immiUndefined();
         addr_ins = NULL;
         return RECORD_CONTINUE;
@@ -13952,7 +13949,6 @@ TraceRecorder::denseArrayElement(Value& oval, Value& ival, Value*& vp, LIns*& v_
     if (vp->isMagic()) {
         CHECK_STATUS(guardPrototypeHasNoIndexedProperties(obj, obj_ins, snapshot(MISMATCH_EXIT)));
         v_ins = w.immiUndefined();
-        addr_ins = NULL;
     }
     return RECORD_CONTINUE;
 }

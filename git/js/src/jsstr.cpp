@@ -1918,8 +1918,7 @@ struct ReplaceData
 
 static bool
 InterpretDollar(JSContext *cx, RegExpStatics *res, const jschar *dp, const jschar *ep,
-                ReplaceData &rdata, JSSubString *out, size_t *skip,
-                volatile JSContext::DollarPath *path)
+                ReplaceData &rdata, JSSubString *out, size_t *skip)
 {
     JS_ASSERT(*dp == '$');
 
@@ -1948,16 +1947,7 @@ InterpretDollar(JSContext *cx, RegExpStatics *res, const jschar *dp, const jscha
 
         *skip = cp - dp;
 
-        JS_CRASH_UNLESS(num <= res->parenCount());
-
-        switch (num) {
-          case 1: *path = JSContext::DOLLAR_1; break;
-          case 2: *path = JSContext::DOLLAR_2; break;
-          case 3: *path = JSContext::DOLLAR_3; break;
-          case 4: *path = JSContext::DOLLAR_4; break;
-          case 5: *path = JSContext::DOLLAR_5; break;
-          default: *path = JSContext::DOLLAR_OTHER;
-        }
+        JS_ASSERT(num <= res->parenCount());
 
         /* 
          * Note: we index to get the paren with the (1-indexed) pair
@@ -1973,23 +1963,18 @@ InterpretDollar(JSContext *cx, RegExpStatics *res, const jschar *dp, const jscha
         rdata.dollarStr.chars = dp;
         rdata.dollarStr.length = 1;
         *out = rdata.dollarStr;
-        *path = JSContext::DOLLAR_LITERAL;
         return true;
       case '&':
         res->getLastMatch(out);
-        *path = JSContext::DOLLAR_AMP;
         return true;
       case '+':
         res->getLastParen(out);
-        *path = JSContext::DOLLAR_PLUS;
         return true;
       case '`':
         res->getLeftContext(out);
-        *path = JSContext::DOLLAR_TICK;
         return true;
       case '\'':
         res->getRightContext(out);
-        *path = JSContext::DOLLAR_QUOT;
         return true;
     }
     return false;
@@ -2106,13 +2091,11 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
 
     JSString *repstr = rdata.repstr;
     size_t replen = repstr->length();
-    JSContext::DollarPath path;
-    const jschar *dp = rdata.dollar;
-    const jschar *ep = rdata.dollarEnd;
-    for (; dp; dp = js_strchr_limit(dp, '$', ep)) {
+    for (const jschar *dp = rdata.dollar, *ep = rdata.dollarEnd; dp;
+         dp = js_strchr_limit(dp, '$', ep)) {
         JSSubString sub;
         size_t skip;
-        if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip, &path)) {
+        if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip)) {
             replen += sub.length - skip;
             dp += skip;
         } else {
@@ -2129,12 +2112,6 @@ DoReplace(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, jschar *chars)
     JSLinearString *repstr = rdata.repstr;
     const jschar *cp;
     const jschar *bp = cp = repstr->chars();
-    volatile JSContext::DollarPath path;
-#ifdef XP_WIN
-    cx->dollarPath = &path;
-    jschar sourceBuf[128];
-    cx->blackBox = sourceBuf;
-#endif
 
     const jschar *dp = rdata.dollar;
     const jschar *ep = rdata.dollarEnd;
@@ -2146,26 +2123,7 @@ DoReplace(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, jschar *chars)
 
         JSSubString sub;
         size_t skip;
-        if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip, &path)) {
-#ifdef XP_WIN
-            if (((size_t(sub.chars) & 0xfffffU) + sub.length) > 0x100000U) {
-                /* Going to cross a 0xffffe address, so take a gander at the replace value. */
-                volatile JSSubString vsub = sub;
-                volatile const jschar *repstrChars = rdata.repstr->chars();
-                volatile const jschar *repstrDollar = rdata.dollar;
-                volatile const jschar *repstrDollarEnd = rdata.dollarEnd;
-                cx->sub = &vsub;
-                cx->repstrChars = &repstrChars;
-                cx->repstrDollar = &repstrDollar;
-                cx->repstrDollarEnd = &repstrDollarEnd;
-                ptrdiff_t dollarDistance = rdata.dollarEnd - rdata.dollar;
-                JS_CRASH_UNLESS(dollarDistance >= 0);
-                volatile size_t peekLen = JS_MIN(rdata.repstr->length(), 128);
-                cx->peekLen = &peekLen;
-                js_strncpy(sourceBuf, rdata.repstr->chars(), peekLen);
-            }
-#endif
-
+        if (InterpretDollar(cx, res, dp, ep, rdata, &sub, &skip)) {
             len = sub.length;
             js_strncpy(chars, sub.chars, len);
             chars += len;

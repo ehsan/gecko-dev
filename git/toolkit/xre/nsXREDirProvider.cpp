@@ -74,10 +74,6 @@
 #ifdef XP_WIN
 #include <windows.h>
 #include <shlobj.h>
-// This is not defined by VC6.
-#ifndef CSIDL_LOCAL_APPDATA
-#define CSIDL_LOCAL_APPDATA             0x001C
-#endif
 #endif
 #ifdef XP_MACOSX
 #include "nsILocalFileMac.h"
@@ -1108,7 +1104,7 @@ nsXREDirProvider::GetUserDataDirectoryHome(nsILocalFile** aFile, PRBool aLocal)
 #elif defined(ANDROID)
   // used for setting the patch to our profile
   // XXX: investigate putting the profile somewhere else
-  const char* homeDir = "/data/data/org.mozilla." MOZ_APP_NAME;
+  const char* homeDir = "/data/data/" ANDROID_PACKAGE_NAME;
 
   rv = NS_NewNativeLocalFile(nsDependentCString(homeDir), PR_TRUE,
                              getter_AddRefs(localDir));

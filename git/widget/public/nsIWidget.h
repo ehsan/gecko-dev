@@ -511,6 +511,9 @@ class nsIWidget : public nsISupports {
     /**
      * Move this widget.
      *
+     * Coordinates refer to the top-left of the widget.  For toplevel windows
+     * with decorations, this is the top-left of the titlebar and frame .
+     *
      * @param aX the new x position expressed in the parent's coordinate system
      * @param aY the new y position expressed in the parent's coordinate system
      *
@@ -1369,6 +1372,8 @@ class nsIWidget_MOZILLA_2_0_BRANCH : public nsIWidget {
   public:
     NS_DECLARE_STATIC_IID_ACCESSOR(NS_IWIDGET_MOZILLA_2_0_BRANCH_IID)
 
+    typedef mozilla::layers::LayerManager LayerManager;
+
     /*
      * Notifies the IME if the input context changes.
      *
@@ -1381,6 +1386,19 @@ class nsIWidget_MOZILLA_2_0_BRANCH : public nsIWidget {
      * Get IME is 'Enabled' or 'Disabled' or 'Password' and other input context
      */
     NS_IMETHOD GetInputMode(IMEContext& aContext) = 0;
+
+    enum LayerManagerPersistence
+    {
+      LAYER_MANAGER_CURRENT = 0,
+      LAYER_MANAGER_PERSISTENT
+    };
+
+    virtual LayerManager *GetLayerManager(LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
+                                          bool* aAllowRetaining = nsnull) = 0;
+
+    // Hide build warnings about nsIWidget::GetLayerManager being hidden by
+    // our GetLayerManager method above.
+    using nsIWidget::GetLayerManager;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIWidget_MOZILLA_2_0_BRANCH, NS_IWIDGET_MOZILLA_2_0_BRANCH_IID)

@@ -2174,32 +2174,7 @@ struct JSContext
     void assertValidStackDepth(uintN /*depth*/) {}
 #endif
 
-    enum DollarPath {
-        DOLLAR_LITERAL = 1,
-        DOLLAR_AMP,
-        DOLLAR_PLUS,
-        DOLLAR_TICK,
-        DOLLAR_QUOT,
-        DOLLAR_EMPTY,
-        DOLLAR_1,
-        DOLLAR_2,
-        DOLLAR_3,
-        DOLLAR_4,
-        DOLLAR_5,
-        DOLLAR_OTHER
-    };
-#ifdef XP_WIN
-    volatile DollarPath *dollarPath;
-    volatile JSSubString *sub;
-    volatile const jschar *blackBox;
-    volatile const jschar **repstrChars;
-    volatile const jschar **repstrDollar;
-    volatile const jschar **repstrDollarEnd;
-    volatile size_t *peekLen;
-#endif
-
-private:
-
+  private:
     /*
      * The allocation code calls the function to indicate either OOM failure
      * when p is null or that a memory pressure counter has reached some

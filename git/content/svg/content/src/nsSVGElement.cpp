@@ -76,6 +76,7 @@
 #include "nsSVGString.h"
 #include "SVGAnimatedNumberList.h"
 #include "SVGAnimatedLengthList.h"
+#include "SVGAnimatedPointList.h"
 #include "SVGAnimatedPathSegList.h"
 #include "nsIDOMSVGUnitTypes.h"
 #include "nsIDOMSVGPointList.h"
@@ -166,7 +167,7 @@ nsSVGElement::Init()
     viewBox->Init();
   }
 
-  nsSVGPreserveAspectRatio *preserveAspectRatio =
+  SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
     GetPreserveAspectRatio();
 
   if (preserveAspectRatio) {
@@ -185,7 +186,10 @@ nsSVGElement::Init()
     numberListInfo.Reset(i);
   }
 
-  // No need to reset SVGPathData since the default value in always the same
+  // No need to reset SVGPointList since the default value is always the same
+  // (an empty list).
+
+  // No need to reset SVGPathData since the default value is always the same
   // (an empty list).
 
   StringAttributesInfo stringInfo = GetStringInfo();
@@ -399,6 +403,22 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
     }
 
     if (!foundMatch) {
+      // Check for SVGAnimatedPointList attribute
+      if (GetPointListAttrName() == aAttribute) {
+        SVGAnimatedPointList* pointList = GetAnimatedPointList();
+        if (pointList) {
+          rv = pointList->SetBaseValueString(aValue);
+          if (NS_FAILED(rv)) {
+            ReportAttributeParseFailure(GetOwnerDoc(), aAttribute, aValue);
+            // The spec says we parse everything up to the failure, so we don't
+            // call pointList->ClearBaseValue()
+          }
+          foundMatch = PR_TRUE;
+        }
+      }
+    }
+
+    if (!foundMatch) {
       // Check for SVGAnimatedPathSegList attribute
       if (GetPathDataAttrName() == aAttribute) {
         SVGAnimatedPathSegList* segList = GetAnimPathSegList();
@@ -516,9 +536,9 @@ nsSVGElement::ParseAttribute(PRInt32 aNamespaceID,
           }
           foundMatch = PR_TRUE;
         }
-      // Check for nsSVGPreserveAspectRatio attribute
+      // Check for SVGAnimatedPreserveAspectRatio attribute
       } else if (aAttribute == nsGkAtoms::preserveAspectRatio) {
-        nsSVGPreserveAspectRatio *preserveAspectRatio =
+        SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
           GetPreserveAspectRatio();
         if (preserveAspectRatio) {
           rv = preserveAspectRatio->SetBaseValueString(aValue, this, PR_FALSE);
@@ -619,6 +639,18 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
           DidChangeNumberList(i, PR_FALSE);
           foundMatch = PR_TRUE;
           break;
+        }
+      }
+    }
+
+    if (!foundMatch) {
+      // Check if this is a point list attribute going away
+      if (GetPointListAttrName() == aName) {
+        SVGAnimatedPointList *pointList = GetAnimatedPointList();
+        if (pointList) {
+          pointList->ClearBaseValue();
+          DidChangePointList(PR_FALSE);
+          foundMatch = PR_TRUE;
         }
       }
     }
@@ -727,7 +759,7 @@ nsSVGElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
         }
       // Check if this is a preserveAspectRatio attribute going away
       } else if (aName == nsGkAtoms::preserveAspectRatio) {
-        nsSVGPreserveAspectRatio *preserveAspectRatio =
+        SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
           GetPreserveAspectRatio();
 
         if (preserveAspectRatio) {
@@ -1685,9 +1717,38 @@ nsSVGElement::GetAnimatedNumberList(nsIAtom *aAttrName)
 }
 
 void
+nsSVGElement::DidChangePointList(PRBool aDoSetAttr)
+{
+  NS_ABORT_IF_FALSE(GetPointListAttrName(), "Changing non-existent point list?");
+
+  if (!aDoSetAttr)
+    return;
+
+  nsAutoString newStr;
+  GetAnimatedPointList()->GetBaseValue().GetValueAsString(newStr);
+
+  SetAttr(kNameSpaceID_None, GetPointListAttrName(), newStr, PR_TRUE);
+}
+
+void
+nsSVGElement::DidAnimatePointList()
+{
+  NS_ABORT_IF_FALSE(GetPointListAttrName(),
+                    "Animating non-existent path data?");
+
+  nsIFrame* frame = GetPrimaryFrame();
+
+  if (frame) {
+    frame->AttributeChanged(kNameSpaceID_None,
+                            GetPointListAttrName(),
+                            nsIDOMMutationEvent::MODIFICATION);
+  }
+}
+
+void
 nsSVGElement::DidChangePathSegList(PRBool aDoSetAttr)
 {
-  NS_ABORT_IF_FALSE(GetPathDataAttrName(), "Changing non-existant path data?");
+  NS_ABORT_IF_FALSE(GetPathDataAttrName(), "Changing non-existent path data?");
 
   if (!aDoSetAttr)
     return;
@@ -1702,7 +1763,7 @@ void
 nsSVGElement::DidAnimatePathSegList()
 {
   NS_ABORT_IF_FALSE(GetPathDataAttrName(),
-                    "Animatinging non-existant path data?");
+                    "Animating non-existent path data?");
 
   nsIFrame* frame = GetPrimaryFrame();
 
@@ -2015,7 +2076,7 @@ nsSVGElement::DidAnimateViewBox()
   }
 }
 
-nsSVGPreserveAspectRatio *
+SVGAnimatedPreserveAspectRatio *
 nsSVGElement::GetPreserveAspectRatio()
 {
   return nsnull;
@@ -2027,7 +2088,8 @@ nsSVGElement::DidChangePreserveAspectRatio(PRBool aDoSetAttr)
   if (!aDoSetAttr)
     return;
 
-  nsSVGPreserveAspectRatio *preserveAspectRatio = GetPreserveAspectRatio();
+  SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
+    GetPreserveAspectRatio();
 
   NS_ASSERTION(preserveAspectRatio,
                "DidChangePreserveAspectRatio on element with no preserveAspectRatio attrib");
@@ -2352,8 +2414,10 @@ nsSVGElement::GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName)
 
     // preserveAspectRatio:
     if (aName == nsGkAtoms::preserveAspectRatio) {
-      nsSVGPreserveAspectRatio *preserveAspectRatio = GetPreserveAspectRatio();
-      return preserveAspectRatio ? preserveAspectRatio->ToSMILAttr(this) : nsnull;
+      SVGAnimatedPreserveAspectRatio *preserveAspectRatio =
+        GetPreserveAspectRatio();
+      return preserveAspectRatio ?
+        preserveAspectRatio->ToSMILAttr(this) : nsnull;
     }
 
     // NumberLists:
@@ -2389,6 +2453,16 @@ nsSVGElement::GetAnimatedAttr(PRInt32 aNamespaceID, nsIAtom* aName)
       if (aNamespaceID == info.mStringInfo[i].mNamespaceID &&
           aName == *info.mStringInfo[i].mName) {
         return info.mStrings[i].ToSMILAttr(this);
+      }
+    }
+  }
+
+  // PointLists:
+  {
+    if (GetPointListAttrName() == aName) {
+      SVGAnimatedPointList *pointList = GetAnimatedPointList();
+      if (pointList) {
+        return pointList->ToSMILAttr(this);
       }
     }
   }

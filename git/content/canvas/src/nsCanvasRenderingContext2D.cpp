@@ -1,4 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim:set ts=4 sw=4 et tw=78: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -867,7 +868,12 @@ nsCanvasRenderingContext2D::SetStyleFromStringOrInterface(const nsAString& aStr,
     nscolor color;
 
     if (!aStr.IsVoid()) {
-        nsCSSParser parser;
+        nsIDocument* document = mCanvasElement ?
+                                HTMLCanvasElement()->GetOwnerDoc() : nsnull;
+
+        // Pass the CSS Loader object to the parser, to allow parser error
+        // reports to include the outer window ID.
+        nsCSSParser parser(document ? document->CSSLoader() : nsnull);
         rv = parser.ParseColorString(aStr, nsnull, 0, &color);
         if (NS_FAILED(rv)) {
             // Error reporting happens inside the CSS parser
@@ -903,7 +909,8 @@ nsCanvasRenderingContext2D::SetStyleFromStringOrInterface(const nsAString& aStr,
         nsnull,
         EmptyString(), 0, 0,
         nsIScriptError::warningFlag,
-        "Canvas");
+        "Canvas",
+        mCanvasElement ? HTMLCanvasElement()->GetOwnerDoc() : nsnull);
 
     return NS_OK;
 }
@@ -1078,7 +1085,8 @@ nsCanvasRenderingContext2D::SetDimensions(PRInt32 width, PRInt32 height)
             nsRefPtr<LayerManager> layerManager = nsnull;
 
             if (ownerDoc)
-              layerManager = nsContentUtils::LayerManagerForDocument(ownerDoc);
+              layerManager =
+                nsContentUtils::PersistentLayerManagerForDocument(ownerDoc);
 
             if (layerManager) {
               surface = layerManager->CreateOptimalSurface(gfxIntSize(width, height), format);
@@ -1721,7 +1729,12 @@ nsCanvasRenderingContext2D::GetShadowBlur(float *blur)
 NS_IMETHODIMP
 nsCanvasRenderingContext2D::SetShadowColor(const nsAString& colorstr)
 {
-    nsCSSParser parser;
+    nsIDocument* document = mCanvasElement ?
+                            HTMLCanvasElement()->GetOwnerDoc() : nsnull;
+
+    // Pass the CSS Loader object to the parser, to allow parser error reports
+    // to include the outer window ID.
+    nsCSSParser parser(document ? document->CSSLoader() : nsnull);
     nscolor color;
     nsresult rv = parser.ParseColorString(colorstr, nsnull, 0, &color);
     if (NS_FAILED(rv)) {
@@ -2127,7 +2140,7 @@ nsCanvasRenderingContext2D::ArcTo(float x1, float y1, float x2, float y2, float 
 }
 
 NS_IMETHODIMP
-nsCanvasRenderingContext2D::Arc(float x, float y, float r, float startAngle, float endAngle, int ccw)
+nsCanvasRenderingContext2D::Arc(float x, float y, float r, float startAngle, float endAngle, PRBool ccw)
 {
     if (!FloatValidate(x,y,r,startAngle,endAngle))
         return NS_ERROR_DOM_SYNTAX_ERR;
@@ -2167,9 +2180,6 @@ CreateFontStyleRule(const nsAString& aFont,
                     nsINode* aNode,
                     nsICSSStyleRule** aResult)
 {
-    nsCSSParser parser;
-    NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
-
     nsCOMPtr<nsICSSStyleRule> rule;
     PRBool changed;
 
@@ -2178,6 +2188,11 @@ CreateFontStyleRule(const nsAString& aFont,
 
     nsIURI* docURL = document->GetDocumentURI();
     nsIURI* baseURL = document->GetDocBaseURI();
+
+    // Pass the CSS Loader object to the parser, to allow parser error reports
+    // to include the outer window ID.
+    nsCSSParser parser(document->CSSLoader());
+    NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
 
     nsresult rv = parser.ParseStyleAttribute(EmptyString(), docURL, baseURL,
                                              principal, getter_AddRefs(rule));
@@ -3604,7 +3619,13 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
         return NS_ERROR_FAILURE;
 
     nscolor bgColor;
-    nsCSSParser parser;
+
+    nsIDocument* elementDoc = mCanvasElement ?
+                              HTMLCanvasElement()->GetOwnerDoc() : nsnull;
+
+    // Pass the CSS Loader object to the parser, to allow parser error reports
+    // to include the outer window ID.
+    nsCSSParser parser(elementDoc ? elementDoc->CSSLoader() : nsnull);
     NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
     nsresult rv = parser.ParseColorString(PromiseFlatString(aBGColor),
                                           nsnull, 0, &bgColor);

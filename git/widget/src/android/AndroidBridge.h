@@ -126,10 +126,10 @@ public:
     void SetSurfaceView(jobject jobj);
     AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
 
-    PRBool GetHandlersForProtocol(const char *aScheme, 
-                                  nsIMutableArray* handlersArray = nsnull,
-                                  nsIHandlerApp **aDefaultApp = nsnull,
-                                  const nsAString& aAction = EmptyString());
+    PRBool GetHandlersForURL(const char *aURL, 
+                             nsIMutableArray* handlersArray = nsnull,
+                             nsIHandlerApp **aDefaultApp = nsnull,
+                             const nsAString& aAction = EmptyString());
 
     PRBool GetHandlersForMimeType(const char *aMimeType,
                                   nsIMutableArray* handlersArray = nsnull,
@@ -211,6 +211,8 @@ public:
 
     bool GetStaticStringField(const char *classID, const char *field, nsAString &result);
 
+    void SetKeepScreenOn(bool on);
+
 protected:
     static AndroidBridge *sBridge;
 
@@ -244,7 +246,7 @@ protected:
     jmethodID jScheduleRestart;
     jmethodID jGetOutstandingDrawEvents;
     jmethodID jGetHandlersForMimeType;
-    jmethodID jGetHandlersForProtocol;
+    jmethodID jGetHandlersForURL;
     jmethodID jOpenUriExternal;
     jmethodID jGetMimeTypeFromExtensions;
     jmethodID jMoveTaskToBack;
@@ -259,6 +261,7 @@ protected:
     jmethodID jShowInputMethodPicker;
     jmethodID jHideProgressDialog;
     jmethodID jPerformHapticFeedback;
+    jmethodID jSetKeepScreenOn;
 
     // stuff we need for CallEglCreateWindowSurface
     jclass jEGLSurfaceImplClass;
