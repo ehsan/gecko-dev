@@ -458,9 +458,9 @@ LockedFile::IsOpen() const
 }
 
 NS_IMETHODIMP
-LockedFile::GetFileHandle(nsISupports** aFileHandle)
+LockedFile::GetFileHandle(nsIDOMFileHandle** aFileHandle)
 {
-  nsCOMPtr<nsISupports> result(mFileHandle);
+  nsCOMPtr<nsIDOMFileHandle> result(mFileHandle);
   result.forget(aFileHandle);
   return NS_OK;
 }

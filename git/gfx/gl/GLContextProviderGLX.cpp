@@ -401,56 +401,45 @@ GLXLibrary::CreatePixmap(gfxASurface* aSurface)
 }
 
 void
-GLXLibrary::DestroyPixmap(Display* aDisplay, GLXPixmap aPixmap)
+GLXLibrary::DestroyPixmap(GLXPixmap aPixmap)
 {
     if (!mUseTextureFromPixmap) {
         return;
     }
 
-    xDestroyPixmap(aDisplay, aPixmap);
+    Display *display = DefaultXDisplay();
+    xDestroyPixmap(display, aPixmap);
 }
 
 void
-GLXLibrary::BindTexImage(Display* aDisplay, GLXPixmap aPixmap)
+GLXLibrary::BindTexImage(GLXPixmap aPixmap)
 {
     if (!mUseTextureFromPixmap) {
         return;
     }
 
+    Display *display = DefaultXDisplay();
     // Make sure all X drawing to the surface has finished before binding to a texture.
     if (mClientIsMesa) {
         // Using XSync instead of Mesa's glXWaitX, because its glxWaitX is a
         // noop when direct rendering unless the current drawable is a
         // single-buffer window.
-        FinishX(aDisplay);
+        FinishX(display);
     } else {
         xWaitX();
     }
-    xBindTexImage(aDisplay, aPixmap, LOCAL_GLX_FRONT_LEFT_EXT, nullptr);
+    xBindTexImage(display, aPixmap, LOCAL_GLX_FRONT_LEFT_EXT, nullptr);
 }
 
 void
-GLXLibrary::ReleaseTexImage(Display* aDisplay, GLXPixmap aPixmap)
+GLXLibrary::ReleaseTexImage(GLXPixmap aPixmap)
 {
     if (!mUseTextureFromPixmap) {
         return;
     }
 
-    xReleaseTexImage(aDisplay, aPixmap, LOCAL_GLX_FRONT_LEFT_EXT);
-}
-
-void
-GLXLibrary::UpdateTexImage(Display* aDisplay, GLXPixmap aPixmap)
-{
-    // NVIDIA drivers don't require a rebind of the pixmap in order
-    // to display an updated image, and it's faster not to do it.
-    if (mIsNVIDIA) {
-        xWaitX();
-        return;
-    }
-
-    ReleaseTexImage(aDisplay, aPixmap);
-    BindTexImage(aDisplay, aPixmap);
+    Display *display = DefaultXDisplay();
+    xReleaseTexImage(display, aPixmap, LOCAL_GLX_FRONT_LEFT_EXT);
 }
 
 #ifdef DEBUG

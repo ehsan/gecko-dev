@@ -600,7 +600,6 @@ private:
   bool IsPanningState(PanZoomState mState);
 
   bool AllowZoom();
-  bool AllowDoubleTapZoom();
 
   enum AxisLockMode {
     FREE,     /* No locking at all */

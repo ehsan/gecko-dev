@@ -13,20 +13,9 @@ MOZ_ARG_WITH_STRING(compiler_wrapper,
     COMPILER_WRAPPER=$withval, COMPILER_WRAPPER="no")
 
 if test "$COMPILER_WRAPPER" != "no"; then
-    case "$CC" in
-    $COMPILER_WRAPPER\ *)
-        :
-        ;;
-    *)
-        CC="$COMPILER_WRAPPER $CC"
-        CXX="$COMPILER_WRAPPER $CXX"
-        _SUBDIR_CC="$CC"
-        _SUBDIR_CXX="$CXX"
-        ac_cv_prog_CC="$CC"
-        ac_cv_prog_CXX="$CXX"
-        MOZ_USING_COMPILER_WRAPPER=1
-        ;;
-    esac
+    CC="$COMPILER_WRAPPER $CC"
+    CXX="$COMPILER_WRAPPER $CXX"
+    MOZ_USING_COMPILER_WRAPPER=1
 fi
 
 AC_SUBST(MOZ_USING_COMPILER_WRAPPER)

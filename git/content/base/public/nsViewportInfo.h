@@ -26,11 +26,10 @@ class MOZ_STACK_CLASS nsViewportInfo
 {
   public:
     nsViewportInfo(const mozilla::ScreenIntSize& aDisplaySize,
-                   bool aAllowZoom = true, bool aAllowDoubleTapZoom = true) :
+                   bool aAllowZoom = true) :
       mDefaultZoom(1.0),
       mAutoSize(true),
-      mAllowZoom(aAllowZoom),
-      mAllowDoubleTapZoom(aAllowDoubleTapZoom)
+      mAllowZoom(aAllowZoom)
     {
         mSize = mozilla::gfx::RoundedToInt(mozilla::ScreenSize(aDisplaySize) / mDefaultZoom);
         mozilla::CSSToLayoutDeviceScale pixelRatio(1.0f);
@@ -44,15 +43,13 @@ class MOZ_STACK_CLASS nsViewportInfo
                    const mozilla::CSSToScreenScale& aMaxZoom,
                    const mozilla::CSSIntSize& aSize,
                    bool aAutoSize,
-                   bool aAllowZoom,
-                   bool aAllowDoubleTapZoom) :
+                   bool aAllowZoom) :
                      mDefaultZoom(aDefaultZoom),
                      mMinZoom(aMinZoom),
                      mMaxZoom(aMaxZoom),
                      mSize(aSize),
                      mAutoSize(aAutoSize),
-                     mAllowZoom(aAllowZoom),
-                     mAllowDoubleTapZoom(aAllowDoubleTapZoom)
+                     mAllowZoom(aAllowZoom)
     {
       ConstrainViewportValues();
     }
@@ -66,9 +63,6 @@ class MOZ_STACK_CLASS nsViewportInfo
 
     bool IsAutoSizeEnabled() { return mAutoSize; }
     bool IsZoomAllowed() { return mAllowZoom; }
-    bool IsDoubleTapZoomAllowed() { return mAllowDoubleTapZoom; }
-
-    void SetAllowDoubleTapZoom(bool aAllowDoubleTapZoom) { mAllowDoubleTapZoom = aAllowDoubleTapZoom; }
 
   private:
 
@@ -100,11 +94,6 @@ class MOZ_STACK_CLASS nsViewportInfo
 
     // Whether or not the user can zoom in and out on the page. Default is true.
     bool mAllowZoom;
-
-    // Whether or not the user can double-tap to zoom in. When this is disabled
-    // we can dispatch click events faster on a single tap because we don't have
-    // to wait to detect the double-tap
-    bool mAllowDoubleTapZoom;
 };
 
 #endif

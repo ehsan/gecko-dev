@@ -324,6 +324,14 @@ NS_GetDebug(nsIDebug** result)
 }
 
 EXPORT_XPCOM_API(nsresult)
+NS_GetTraceRefcnt(nsITraceRefcnt** result)
+{
+    return nsTraceRefcntImpl::Create(nullptr,
+                                     NS_GET_IID(nsITraceRefcnt),
+                                     (void**) result);
+}
+
+EXPORT_XPCOM_API(nsresult)
 NS_InitXPCOM(nsIServiceManager* *result,
                              nsIFile* binDirectory)
 {
