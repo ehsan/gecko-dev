@@ -275,6 +275,7 @@ static dom::ConstantSpec gLibcProperties[] =
   INT_CONSTANT(DT_REG),
   INT_CONSTANT(DT_LNK),
   INT_CONSTANT(DT_SOCK),
+  INT_CONSTANT(DT_WHT),
 #endif // defined(DT_UNKNOWN)
 
   // Constants used to define data structures

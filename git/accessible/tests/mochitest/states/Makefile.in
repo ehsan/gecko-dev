@@ -10,8 +10,9 @@ VPATH		= @srcdir@
 relativesrcdir  = accessible/states
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_A11Y_FILES =\
+_TEST_FILES =\
 		test_aria.html \
 		test_aria_imgmap.html \
 		test_aria_widgetitems.html \
@@ -38,4 +39,5 @@ MOCHITEST_A11Y_FILES =\
 		z_frames_update.html \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/a11y/$(relativesrcdir)

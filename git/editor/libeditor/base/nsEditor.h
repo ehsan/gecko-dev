@@ -443,11 +443,12 @@ public:
                                 nsIDOMNode *aParent);
 
   /**
-   *  Set outOffset to the offset of aChild in the parent.
-   *  Returns the parent of aChild.
+   *  Set outParent to the parent of aChild.
+   *  Set outOffset to the offset of aChild in outParent.
    */
-  static already_AddRefed<nsIDOMNode> GetNodeLocation(nsIDOMNode* aChild,
-                                                      PRInt32* outOffset);
+  static void GetNodeLocation(nsIDOMNode* aChild,
+                              nsCOMPtr<nsIDOMNode>* outParent,
+                              PRInt32* outOffset);
 
   /** returns the number of things inside aNode in the out-param aCount.  
     * @param  aNode is the node to get the length of.  

@@ -417,8 +417,9 @@ nsTextEditRules::CollapseSelectionToTrailingBRIfNeeded(nsISelection* aSelection)
   if (selOffset != PRInt32(length))
     return NS_OK;
 
+  nsCOMPtr<nsIDOMNode> parentNode;
   PRInt32 parentOffset;
-  nsCOMPtr<nsIDOMNode> parentNode = nsEditor::GetNodeLocation(selNode, &parentOffset);
+  nsEditor::GetNodeLocation(selNode, address_of(parentNode), &parentOffset);
 
   nsCOMPtr<nsIDOMNode> root = do_QueryInterface(mEditor->GetRoot());
   NS_ENSURE_TRUE(root, NS_ERROR_NULL_POINTER);

@@ -526,7 +526,7 @@ nsHTMLEditor::BeginningOfDocument()
     else if ((visType==nsWSRunObject::eBreak)    ||
              (visType==nsWSRunObject::eSpecial))
     {
-      selNode = GetNodeLocation(visNode, &selOffset);
+      GetNodeLocation(visNode, address_of(selNode), &selOffset);
       done = true;
     }
     else if (visType==nsWSRunObject::eOtherBlock)
@@ -546,7 +546,7 @@ nsHTMLEditor::BeginningOfDocument()
         // like a <hr>
         // We want to place the caret in front of that block.
 
-        selNode = GetNodeLocation(visNode, &selOffset);
+        GetNodeLocation(visNode, address_of(selNode), &selOffset);
         done = true;
       }
       else
@@ -556,7 +556,7 @@ nsHTMLEditor::BeginningOfDocument()
             isEmptyBlock)
         {
           // skip the empty block
-          curNode = GetNodeLocation(visNode, &curOffset);
+          GetNodeLocation(visNode, address_of(curNode), &curOffset);
           ++curOffset;
         }
         else
@@ -941,7 +941,7 @@ bool nsHTMLEditor::IsVisBreak(nsIDOMNode *aNode)
   // determine what is going on
   nsCOMPtr<nsIDOMNode> selNode, tmp;
   PRInt32 selOffset;
-  selNode = GetNodeLocation(aNode, &selOffset);
+  GetNodeLocation(aNode, address_of(selNode), &selOffset);
   selOffset++; // lets look after the break
   nsWSRunObject wsObj(this, selNode, selOffset);
   nsCOMPtr<nsIDOMNode> visNode;
@@ -1468,8 +1468,10 @@ nsHTMLEditor::NormalizeEOLInsertPosition(nsIDOMNode *firstNodeToInsert,
   if (prevVisType & nsWSRunObject::eThisBlock)
     return;
 
+  nsCOMPtr<nsIDOMNode> brNode;
   PRInt32 brOffset=0;
-  nsCOMPtr<nsIDOMNode> brNode = GetNodeLocation(nextVisNode, &brOffset);
+
+  GetNodeLocation(nextVisNode, address_of(brNode), &brOffset);
 
   *insertParentNode = brNode;
   *insertOffset = brOffset + 1;
@@ -3268,8 +3270,7 @@ nsHTMLEditor::ContentInserted(nsIDocument *aDocument, nsIContent* aContainer,
   nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(this);
 
   if (ShouldReplaceRootElement()) {
-    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(
-      this, &nsHTMLEditor::ResetRootElementAndEventTarget));
+    ResetRootElementAndEventTarget();
   }
   // We don't need to handle our own modifications
   else if (!mAction && (aContainer ? aContainer->IsEditable() : aDocument->IsEditable())) {
@@ -3299,8 +3300,7 @@ nsHTMLEditor::ContentRemoved(nsIDocument *aDocument, nsIContent* aContainer,
   nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(this);
 
   if (SameCOMIdentity(aChild, mRootElement)) {
-    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(
-      this, &nsHTMLEditor::ResetRootElementAndEventTarget));
+    ResetRootElementAndEventTarget();
   }
   // We don't need to handle our own modifications
   else if (!mAction && (aContainer ? aContainer->IsEditable() : aDocument->IsEditable())) {

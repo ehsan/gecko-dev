@@ -173,7 +173,8 @@ Bindings::callObjectShape(JSContext *cx) const
     /*
      * Now build the Shape without duplicate properties.
      */
-    RootedShape shape(cx, initialShape(cx));
+    RootedShape shape(cx);
+    shape = initialShape(cx);
     for (int i = shapes.length() - 1; i >= 0; --i) {
         shape = shape->getChildBinding(cx, shapes[i]);
         if (!shape)
@@ -1415,7 +1416,6 @@ JSScript::finalize(FreeOp *fop)
     // fullyInitFromEmitter() or fullyInitTrivial().
 
     CallDestroyScriptHook(fop, this);
-    fop->runtime()->spsProfiler.onScriptFinalized(this);
 
     JS_ASSERT_IF(principals, originPrincipals);
     if (principals)

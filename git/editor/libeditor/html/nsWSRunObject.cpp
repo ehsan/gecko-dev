@@ -116,8 +116,9 @@ nsWSRunObject::PrepareToDeleteNode(nsHTMLEditor *aHTMLEd,
 {
   NS_ENSURE_TRUE(aNode && aHTMLEd, NS_ERROR_NULL_POINTER);
   
+  nsCOMPtr<nsIDOMNode> parent;
   PRInt32 offset;
-  nsCOMPtr<nsIDOMNode> parent = aHTMLEd->GetNodeLocation(aNode, &offset);
+  aHTMLEd->GetNodeLocation(aNode, address_of(parent), &offset);
   
   nsWSRunObject leftWSObj(aHTMLEd, parent, offset);
   nsWSRunObject rightWSObj(aHTMLEd, parent, offset+1);

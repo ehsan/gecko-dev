@@ -256,8 +256,10 @@ nsRangeUpdater::SelAdjDeleteNode(nsIDOMNode *aNode)
     return;
   }
 
+  nsCOMPtr<nsIDOMNode> parent;
   PRInt32 offset = 0;
-  nsCOMPtr<nsIDOMNode> parent = nsEditor::GetNodeLocation(aNode, &offset);
+  
+  nsEditor::GetNodeLocation(aNode, address_of(parent), &offset);
   
   // check for range endpoints that are after aNode and in the same parent
   nsRangeStore *item;
@@ -312,8 +314,9 @@ nsRangeUpdater::SelAdjSplitNode(nsIDOMNode *aOldRightNode, PRInt32 aOffset, nsID
     return NS_OK;
   }
 
+  nsCOMPtr<nsIDOMNode> parent;
   PRInt32 offset;
-  nsCOMPtr<nsIDOMNode> parent = nsEditor::GetNodeLocation(aOldRightNode, &offset);
+  nsEditor::GetNodeLocation(aOldRightNode, address_of(parent), &offset);
   
   // first part is same as inserting aNewLeftnode
   nsresult result = SelAdjInsertNode(parent,offset-1);

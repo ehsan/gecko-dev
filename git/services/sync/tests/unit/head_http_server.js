@@ -527,7 +527,7 @@ let SyncServerCallback = {
  */
 function SyncServer(callback) {
   this.callback = callback || {__proto__: SyncServerCallback};
-  this.server   = new HttpServer();
+  this.server   = new nsHttpServer();
   this.started  = false;
   this.users    = {};
   this._log     = Log4Moz.repository.getLogger(SYNC_HTTP_LOGGER);
@@ -539,7 +539,7 @@ function SyncServer(callback) {
 }
 SyncServer.prototype = {
   port:   8080,
-  server: null,    // HttpServer.
+  server: null,    // nsHttpServer.
   users:  null,    // Map of username => {collections, password}.
 
   /**
@@ -775,8 +775,8 @@ SyncServer.prototype = {
   },
 
   /**
-   * This is invoked by the HttpServer. `this` is bound to the SyncServer;
-   * `handler` is the HttpServer's handler.
+   * This is invoked by the nsHttpServer. `this` is bound to the SyncServer;
+   * `handler` is the nsHttpServer's handler.
    *
    * TODO: need to use the correct Sync API response codes and errors here.
    * TODO: Basic Auth.

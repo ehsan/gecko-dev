@@ -434,7 +434,7 @@ nsHTMLOptionElement::Initialize(nsISupports* aOwner,
 }
 
 nsresult
-nsHTMLOptionElement::CopyInnerTo(nsGenericElement* aDest)
+nsHTMLOptionElement::CopyInnerTo(nsGenericElement* aDest) const
 {
   nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);

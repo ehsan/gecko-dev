@@ -12,8 +12,9 @@ relativesrcdir  = toolkit/components/social/test/browser
 MODULE = test_socialapi
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_BROWSER_FILES = \
+_TEST_FILES = \
 		head.js \
 		data.json \
 		worker_xhr.js \
@@ -22,4 +23,5 @@ MOCHITEST_BROWSER_FILES = \
 		relative_import.js \
 		$(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

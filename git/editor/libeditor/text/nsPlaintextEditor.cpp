@@ -427,10 +427,11 @@ nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode>* aInOutParent,
   nsCOMPtr<nsIDOMNode> brNode;
   if (nodeAsText)  
   {
+    nsCOMPtr<nsIDOMNode> tmp;
     PRInt32 offset;
     PRUint32 len;
     nodeAsText->GetLength(&len);
-    nsCOMPtr<nsIDOMNode> tmp = GetNodeLocation(node, &offset);
+    GetNodeLocation(node, address_of(tmp), &offset);
     NS_ENSURE_TRUE(tmp, NS_ERROR_FAILURE);
     if (!theOffset)
     {
@@ -446,7 +447,7 @@ nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode>* aInOutParent,
       // split the text node
       res = SplitNode(node, theOffset, getter_AddRefs(tmp));
       NS_ENSURE_SUCCESS(res, res);
-      tmp = GetNodeLocation(node, &offset);
+      GetNodeLocation(node, address_of(tmp), &offset);
     }
     // create br
     res = CreateNode(brType, tmp, offset, getter_AddRefs(brNode));
@@ -464,8 +465,9 @@ nsPlaintextEditor::CreateBRImpl(nsCOMPtr<nsIDOMNode>* aInOutParent,
   *outBRNode = brNode;
   if (*outBRNode && (aSelect != eNone))
   {
+    nsCOMPtr<nsIDOMNode> parent;
     PRInt32 offset;
-    nsCOMPtr<nsIDOMNode> parent = GetNodeLocation(*outBRNode, &offset);
+    GetNodeLocation(*outBRNode, address_of(parent), &offset);
 
     nsCOMPtr<nsISelection> selection;
     res = GetSelection(getter_AddRefs(selection));
@@ -522,7 +524,7 @@ nsPlaintextEditor::InsertBR(nsCOMPtr<nsIDOMNode>* outBRNode)
   NS_ENSURE_SUCCESS(res, res);
     
   // position selection after br
-  selNode = GetNodeLocation(*outBRNode, &selOffset);
+  GetNodeLocation(*outBRNode, address_of(selNode), &selOffset);
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
   selPriv->SetInterlinePosition(true);
   return selection->Collapse(selNode, selOffset+1);
@@ -1563,8 +1565,9 @@ nsPlaintextEditor::SelectEntireDocument(nsISelection *aSelection)
   nsCOMPtr<nsIDOMNode> childNode = GetChildAt(selNode, selOffset - 1);
 
   if (childNode && nsTextEditUtils::IsMozBR(childNode)) {
+    nsCOMPtr<nsIDOMNode> parentNode;
     PRInt32 parentOffset;
-    nsCOMPtr<nsIDOMNode> parentNode = GetNodeLocation(childNode, &parentOffset);
+    GetNodeLocation(childNode, address_of(parentNode), &parentOffset);
 
     return aSelection->Extend(parentNode, parentOffset);
   }

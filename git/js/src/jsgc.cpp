@@ -3052,7 +3052,7 @@ BeginMarkPhase(JSRuntime *rt, bool isIncremental)
     /* For non-incremental GC the following sweep discards the jit code. */
     if (isIncremental) {
         for (GCCompartmentsIter c(rt); !c.done(); c.next()) {
-            gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_MARK_DISCARD_CODE);
+            gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_DISCARD_CODE);
             c->discardJitCode(rt->defaultFreeOp());
         }
     }
@@ -3110,30 +3110,19 @@ MarkGrayAndWeak(JSRuntime *rt)
 {
     GCMarker *gcmarker = &rt->gcMarker;
 
-    {
-        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_MARK_WEAK);
-        JS_ASSERT(gcmarker->isDrained());
-        MarkWeakReferences(gcmarker);
-    }
+    JS_ASSERT(gcmarker->isDrained());
+    MarkWeakReferences(gcmarker);
 
-    {
-        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_MARK_GRAY);
-        gcmarker->setMarkColorGray();
-        if (gcmarker->hasBufferedGrayRoots()) {
-            gcmarker->markBufferedGrayRoots();
-        } else {
-            if (JSTraceDataOp op = rt->gcGrayRootsTraceOp)
-                (*op)(gcmarker, rt->gcGrayRootsData);
-        }
-        SliceBudget budget;
-        gcmarker->drainMarkStack(budget);
+    gcmarker->setMarkColorGray();
+    if (gcmarker->hasBufferedGrayRoots()) {
+        gcmarker->markBufferedGrayRoots();
+    } else {
+        if (JSTraceDataOp op = rt->gcGrayRootsTraceOp)
+            (*op)(gcmarker, rt->gcGrayRootsData);
     }
-
-    {
-        gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_MARK_GRAY_WEAK);
-        MarkWeakReferences(gcmarker);
-    }
-
+    SliceBudget budget;
+    gcmarker->drainMarkStack(budget);
+    MarkWeakReferences(gcmarker);
     JS_ASSERT(gcmarker->isDrained());
 }
 
@@ -3147,6 +3136,7 @@ EndMarkPhase(JSRuntime *rt, bool isIncremental)
 {
     {
         gcstats::AutoPhase ap1(rt->gcStats, gcstats::PHASE_MARK);
+        gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_MARK_OTHER);
         MarkGrayAndWeak(rt);
     }
 
@@ -3325,7 +3315,6 @@ SweepPhase(JSRuntime *rt, JSGCInvocationKind gckind, bool *startBackgroundSweep)
         c->arenas.purge();
 
     FreeOp fop(rt, *startBackgroundSweep, false);
-
     {
         gcstats::AutoPhase ap(rt->gcStats, gcstats::PHASE_FINALIZE_START);
         if (rt->gcFinalizeCallback)
@@ -3336,10 +3325,7 @@ SweepPhase(JSRuntime *rt, JSGCInvocationKind gckind, bool *startBackgroundSweep)
     WeakMapBase::sweepAll(&rt->gcMarker);
     rt->debugScopes->sweep();
 
-    {
-        gcstats::AutoPhase ap2(rt->gcStats, gcstats::PHASE_SWEEP_ATOMS);
-        SweepAtomState(rt);
-    }
+    SweepAtomState(rt);
 
     /* Collect watch points associated with unreachable objects. */
     WatchpointMap::sweepAll(rt);
@@ -4695,7 +4681,7 @@ MaybeVerifyBarriers(JSContext *cx, bool always)
 
 } /* namespace gc */
 
-void ReleaseAllJITCode(FreeOp *fop)
+static void ReleaseAllJITCode(FreeOp *fop)
 {
 #ifdef JS_METHODJIT
     for (CompartmentsIter c(fop->runtime()); !c.done(); c.next()) {

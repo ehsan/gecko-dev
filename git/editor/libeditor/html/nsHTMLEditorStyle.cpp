@@ -937,13 +937,13 @@ nsresult nsHTMLEditor::PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRa
           !nsTextEditUtils::IsBody(tmp) &&
           !nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    parent = GetNodeLocation(tmp, &tmpOffset);
+    GetNodeLocation(tmp, address_of(parent), &tmpOffset);
     tmp = parent;
   }
   NS_ENSURE_TRUE(tmp, NS_ERROR_NULL_POINTER);
   if (nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    parent = GetNodeLocation(tmp, &tmpOffset);
+    GetNodeLocation(tmp, address_of(parent), &tmpOffset);
     startNode = parent;
     startOffset = tmpOffset;
   }
@@ -953,13 +953,13 @@ nsresult nsHTMLEditor::PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRa
           !nsTextEditUtils::IsBody(tmp) &&
           !nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    parent = GetNodeLocation(tmp, &tmpOffset);
+    GetNodeLocation(tmp, address_of(parent), &tmpOffset);
     tmp = parent;
   }
   NS_ENSURE_TRUE(tmp, NS_ERROR_NULL_POINTER);
   if (nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
-    parent = GetNodeLocation(tmp, &tmpOffset);
+    GetNodeLocation(tmp, address_of(parent), &tmpOffset);
     endNode = parent;
     endOffset = tmpOffset + 1;
   }
@@ -991,7 +991,7 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
           IsEditable(startNode) &&
           IsAtFrontOfNode(startNode, startOffset) )
   {
-    parent = GetNodeLocation(startNode, &startOffset);
+    GetNodeLocation(startNode, address_of(parent), &startOffset);
     startNode = parent;
   }
   NS_ENSURE_TRUE(startNode, NS_ERROR_NULL_POINTER);
@@ -1001,7 +1001,7 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
           IsEditable(endNode) &&
           IsAtEndOfNode(endNode, endOffset) )
   {
-    parent = GetNodeLocation(endNode, &endOffset);
+    GetNodeLocation(endNode, address_of(parent), &endOffset);
     endNode = parent;
     endOffset++;  // we are AFTER this node
   }

@@ -10,9 +10,11 @@ VPATH          = @srcdir@
 relativesrcdir = toolkit/content/tests/browser/common
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_BROWSER_FILES = \
+_COMMON_FILES = \
   mockTransfer.js \
   $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_COMMON_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)

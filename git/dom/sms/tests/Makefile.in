@@ -14,15 +14,26 @@ include $(DEPTH)/config/autoconf.mk
 DIRS = \
   $(NULL)
 
-MOCHITEST_FILES = \
+include $(topsrcdir)/config/rules.mk
+
+_TEST_FILES = \
   test_sms_basics.html \
   test_smsfilter.html \
   $(NULL)
 
+_CHROME_TEST_FILES = \
+  $(NULL)
+
 ifdef MOZ_B2G_RIL
-MOCHITEST_CHROME_FILES = \
+_CHROME_TEST_FILES += \
   test_smsdatabaseservice.xul \
   $(NULL)
 endif
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+
+ifneq (,$(_CHROME_TEST_FILES))
+libs:: $(_CHROME_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/chrome/$(relativesrcdir)
+endif

@@ -3034,6 +3034,8 @@ InitTypedArrayClass(JSContext *cx)
         return NULL;
     }
 
+    RootedObject foo(cx);
+
     if (!ArrayType::defineGetters(cx, proto))
         return NULL;
 
@@ -3088,8 +3090,9 @@ InitArrayBufferClass(JSContext *cx)
     if (!arrayBufferProto)
         return NULL;
 
-    RootedFunction ctor(cx, global->createConstructor(cx, ArrayBufferObject::class_constructor,
-                                                      CLASS_NAME(cx, ArrayBuffer), 1));
+    RootedFunction ctor(cx);
+    ctor = global->createConstructor(cx, ArrayBufferObject::class_constructor,
+                                     CLASS_NAME(cx, ArrayBuffer), 1);
     if (!ctor)
         return NULL;
 

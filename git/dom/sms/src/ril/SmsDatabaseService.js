@@ -255,22 +255,20 @@ SmsDatabaseService.prototype = {
    * return Array of keys containing the final result of createMessageList.
    */
   keyIntersection: function keyIntersection(keys, filter) {
-    // Always use keys[FILTER_TIMESTAMP] as base result set to be filtered.
-    // This ensures the result set is always sorted by timestamp.
     let result = keys[FILTER_TIMESTAMP];
     if (keys[FILTER_NUMBERS].length || filter.numbers) {
-      result = result.filter(function(i) {
-        return keys[FILTER_NUMBERS].indexOf(i) != -1;
+      result = keys[FILTER_NUMBERS].filter(function(i) {
+        return result.indexOf(i) != -1;
       });
     }
     if (keys[FILTER_DELIVERY].length || filter.delivery) {
-      result = result.filter(function(i) {
-        return keys[FILTER_DELIVERY].indexOf(i) != -1;
+      result = keys[FILTER_DELIVERY].filter(function(i) {
+        return result.indexOf(i) != -1;
       });
     }
     if (keys[FILTER_READ].length || filter.read) {
-      result = result.filter(function(i) {
-        return keys[FILTER_READ].indexOf(i) != -1;
+      result = keys[FILTER_READ].filter(function(i) {
+        return result.indexOf(i) != -1;
       });
     }
     return result;

@@ -9,8 +9,9 @@ VPATH          = @srcdir@
 relativesrcdir = webapprt/test/chrome
 
 include $(DEPTH)/config/autoconf.mk
+include $(topsrcdir)/config/rules.mk
 
-MOCHITEST_WEBAPPRT_CHROME_FILES = \
+_BROWSER_TEST_FILES = \
   head.js \
   install.html \
   browser_sample.js \
@@ -18,4 +19,5 @@ MOCHITEST_WEBAPPRT_CHROME_FILES = \
     sample.html \
   $(NULL)
 
-include $(topsrcdir)/config/rules.mk
+libs:: $(_BROWSER_TEST_FILES)
+	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/webapprtChrome/$(relativesrcdir)
