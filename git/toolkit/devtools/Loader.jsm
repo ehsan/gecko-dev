@@ -49,7 +49,6 @@ BuiltinProvider.prototype = {
   load: function() {
     this.loader = new loader.Loader({
       modules: {
-        "Services": Object.create(Services),
         "toolkit/loader": loader,
         "source-map": SourceMap,
       },
@@ -124,7 +123,6 @@ SrcdirProvider.prototype = {
     let acornWalkURI = OS.Path.join(acornURI, "walk.js");
     this.loader = new loader.Loader({
       modules: {
-        "Services": Object.create(Services),
         "toolkit/loader": loader,
         "source-map": SourceMap,
       },

@@ -8,7 +8,7 @@ this.EXPORTED_SYMBOLS = ["WebVTTParser"];
  * Code below is vtt.js the JS WebVTTParser.
  * Current source code can be found at http://github.com/andreasgal/vtt.js
  *
- * Code taken from commit ae06fb75793d3a8171a8c34666c2a3c32b5fde89
+ * Code taken from commit b812cd783d4284de1bc6b0349b7bda151052a1df
  */
 /**
  * Copyright 2013 vtt.js Contributors
@@ -137,7 +137,7 @@ this.EXPORTED_SYMBOLS = ["WebVTTParser"];
     }
   }
 
-  function parseCue(input, cue, regionList) {
+  function parseCue(input, cue) {
     // 4.1 WebVTT timestamp
     function consumeTimeStamp() {
       var ts = parseTimeStamp(input);
@@ -156,13 +156,7 @@ this.EXPORTED_SYMBOLS = ["WebVTTParser"];
       parseOptions(input, function (k, v) {
         switch (k) {
         case "region":
-          // Find the last region we parsed with the same region id.
-          for (var i = regionList.length - 1; i >= 0; i--) {
-            if (regionList[i].id === v) {
-              settings.set(k, regionList[i].region);
-              break;
-            }
-          }
+          settings.set(k, v);
           break;
         case "vertical":
           settings.alt(k, v, ["rl", "lr"]);
@@ -194,7 +188,7 @@ this.EXPORTED_SYMBOLS = ["WebVTTParser"];
       }, /:/, /\s/);
 
       // Apply default values for any missing fields.
-      cue.region = settings.get("region", null);
+      cue.regionId = settings.get("region", "");
       cue.vertical = settings.get("vertical", "");
       cue.line = settings.get("line", "auto");
       cue.lineAlign = settings.get("lineAlign", "start");
@@ -1033,7 +1027,6 @@ this.EXPORTED_SYMBOLS = ["WebVTTParser"];
     this.state = "INITIAL";
     this.buffer = "";
     this.decoder = decoder || new TextDecoder("utf8");
-    this.regionList = [];
   }
 
   // Helper to allow strings to be decoded instead of the default binary utf8 data.
@@ -1195,10 +1188,11 @@ this.EXPORTED_SYMBOLS = ["WebVTTParser"];
           }
         }, /=/, /\s/);
 
-        // Create the region, using default values for any values that were not
+        // Register the region, using default values for any values that were not
         // specified.
-        if (settings.has("id")) {
+        if (self.onregion && settings.has("id")) {
           var region = new self.window.VTTRegion();
+          region.id = settings.get("id");
           region.width = settings.get("width", 100);
           region.lines = settings.get("lines", 3);
           region.regionAnchorX = settings.get("regionanchorX", 0);
@@ -1206,14 +1200,7 @@ this.EXPORTED_SYMBOLS = ["WebVTTParser"];
           region.viewportAnchorX = settings.get("viewportanchorX", 0);
           region.viewportAnchorY = settings.get("viewportanchorY", 100);
           region.scroll = settings.get("scroll", "");
-          // Register the region.
-          self.onregion && self.onregion(region);
-          // Remember the VTTRegion for later in case we parse any VTTCues that
-          // reference it.
-          self.regionList.push({
-            id: settings.get("id"),
-            region: region
-          });
+          self.onregion(region);
         }
       }
 
@@ -1294,7 +1281,7 @@ this.EXPORTED_SYMBOLS = ["WebVTTParser"];
           case "CUE":
             // 40 - Collect cue timings and settings.
             try {
-              parseCue(line, self.cue, self.regionList);
+              parseCue(line, self.cue);
             } catch (e) {
               // If it's not a parsing error then throw it to the consumer.
               if (!(e instanceof ParsingError)) {

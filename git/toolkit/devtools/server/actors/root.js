@@ -8,6 +8,8 @@
 
 /* Root actor for the remote debugging protocol. */
 
+Cu.import("resource://gre/modules/Services.jsm");
+
 /**
  * Methods shared between RootActor and BrowserTabActor.
  */

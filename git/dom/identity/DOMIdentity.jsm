@@ -168,18 +168,6 @@ this.DOMIdentity = {
   _mmContexts: new Map(),
 
   /*
-   * Mockable, for testing
-   */
-  _mockIdentityService: null,
-  get IdentityService() {
-    if (this._mockIdentityService) {
-      log("Using a mocked identity service");
-      return this._mockIdentityService;
-    }
-    return IdentityService;
-  },
-
-  /*
    * Create a new RPWatchContext, and update the context maps.
    */
   newContext: function(message, targetMM) {
@@ -211,7 +199,7 @@ this.DOMIdentity = {
       }
       log("WARNING: Firefox Accounts is not enabled; Defaulting to BrowserID");
     }
-    return this.IdentityService;
+    return IdentityService;
   },
 
   /*

@@ -447,8 +447,7 @@ WebrtcAudioConduit::ConfigureSendMediaCodec(const AudioCodecConfig* codecConfig)
                                               codecConfig->mFreq,
                                               codecConfig->mPacSize,
                                               codecConfig->mChannels,
-                                              codecConfig->mRate,
-                                              codecConfig->mLoadManager);
+                                              codecConfig->mRate);
 
   mEngineTransmitting = true;
   return kMediaConduitNoError;
@@ -928,8 +927,7 @@ WebrtcAudioConduit::CopyCodecToDB(const AudioCodecConfig* codecInfo)
                                                      codecInfo->mFreq,
                                                      codecInfo->mPacSize,
                                                      codecInfo->mChannels,
-                                                     codecInfo->mRate,
-                                                     codecInfo->mLoadManager);
+                                                     codecInfo->mRate);
   mRecvCodecList.push_back(cdcConfig);
   return true;
 }

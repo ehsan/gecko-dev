@@ -5,7 +5,6 @@
 "use strict";
 
 const {Cu, Cc, Ci} = require("chrome");
-const Services = require("Services");
 const protocol = require("devtools/server/protocol");
 const {Arg, Option, method} = protocol;
 const events = require("sdk/event/core");
@@ -14,6 +13,7 @@ require("devtools/server/actors/inspector");
 
 Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
 
 // FIXME: add ":visited" and ":link" after bug 713106 is fixed
 const PSEUDO_CLASSES = [":hover", ":active", ":focus"];
